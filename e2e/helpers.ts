@@ -968,3 +968,206 @@ export async function seedQueryCache(page: Page, serialized: string): Promise<vo
     serialized,
   );
 }
+
+const DAY_MS = 86_400_000;
+
+/** A calendar (`/calendars/my/shows`) episode row for the Upcoming fixture. */
+export interface CalendarEpisodeFixture {
+  readonly showId: number;
+  readonly showTitle: string;
+  readonly season: number;
+  readonly number: number;
+  readonly title: string | null;
+  readonly firstAired: string;
+  readonly traktId: number;
+  readonly tmdb?: number;
+}
+
+export interface CalendarRequest {
+  readonly start: string;
+  readonly days: number;
+}
+
+/** `ok` applies+200; `delay` holds the POST open so the op stays durable; `rate-limit-once`
+ * 429s the first attempt (Retry-After) then applies; `reject` hard-fails (403) so the durable
+ * queue rolls the optimistic mark back. */
+export type CalendarWriteMode = "ok" | "delay" | "rate-limit-once" | "reject";
+
+export interface CalendarControls {
+  /** Every `/calendars/my/shows/{start}/{days}` request, in order (proves widen refetches). */
+  calendarRequests: () => readonly CalendarRequest[];
+  /** Captured `POST /sync/history` attempts (proves the quick mark-watched fired + retried). */
+  historyPosts: () => readonly CapturedWrite[];
+  setWriteMode: (mode: CalendarWriteMode) => void;
+}
+
+function calendarItemBody(items: readonly CalendarEpisodeFixture[]): string {
+  return JSON.stringify(
+    items.map((item) => ({
+      first_aired: item.firstAired,
+      episode: {
+        season: item.season,
+        number: item.number,
+        title: item.title,
+        ids: { trakt: item.traktId, ...(item.tmdb === undefined ? {} : { tmdb: item.tmdb }) },
+      },
+      show: { title: item.showTitle, ids: { trakt: item.showId } },
+    })),
+  );
+}
+
+/**
+ * Intercept the Upcoming read+write surface: the personalized calendar window
+ * (filtered by the requested `days` so widening genuinely adds rows), the hidden
+ * set (excluded client-side), and history writes from the quick mark-watched.
+ * Register AFTER `installHermeticRoutes` so these specific routes win.
+ */
+export async function installCalendarRoutes(
+  context: BrowserContext,
+  items: readonly CalendarEpisodeFixture[],
+  hiddenShowIds: readonly number[] = [],
+): Promise<CalendarControls> {
+  const requests: CalendarRequest[] = [];
+  const writes: CapturedWrite[] = [];
+  let writeMode: CalendarWriteMode = "ok";
+  let rateLimitConsumed = false;
+
+  await context.route("**/api.trakt.tv/calendars/my/shows/*/*", (route) => {
+    const parts = new URL(route.request().url()).pathname.split("/");
+    const start = parts[4] ?? "";
+    const days = Number(parts[5] ?? "0");
+    requests.push({ start, days });
+    const startMs = Date.parse(`${start}T00:00:00.000Z`);
+    const upper = startMs + days * DAY_MS;
+    const inWindow = items.filter((item) => Date.parse(item.firstAired) < upper);
+    return route.fulfill({
+      status: 200,
+      headers: JSON_HEADERS,
+      body: calendarItemBody(inWindow),
+    });
+  });
+
+  await context.route("**/api.trakt.tv/users/hidden/progress_watched*", (route) =>
+    route.fulfill({
+      status: 200,
+      headers: JSON_HEADERS,
+      body: JSON.stringify(
+        hiddenShowIds.map((trakt) => ({
+          type: "show",
+          show: { title: `Hidden ${trakt}`, ids: { trakt } },
+        })),
+      ),
+    }),
+  );
+
+  await context.route("**/api.trakt.tv/sync/history", async (route) => {
+    const body = (route.request().postDataJSON() ?? {}) as {
+      episodes?: { ids?: { trakt?: number }; watched_at?: string }[];
+    };
+    const episodeIds = (body.episodes ?? []).map((e) => e.ids?.trakt ?? -1);
+    writes.push({
+      path: "/sync/history",
+      episodeIds,
+      watchedAt: body.episodes?.[0]?.watched_at ?? null,
+    });
+    if (writeMode === "reject") {
+      return route.fulfill({ status: 403, headers: JSON_HEADERS, body: "{}" });
+    }
+    if (writeMode === "rate-limit-once" && !rateLimitConsumed) {
+      rateLimitConsumed = true;
+      return route.fulfill({
+        status: 429,
+        headers: { ...JSON_HEADERS, "retry-after": "1" },
+        body: "{}",
+      });
+    }
+    if (writeMode === "delay") await sleep(5000);
+    return route.fulfill({
+      status: 200,
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ added: { episodes: episodeIds.length } }),
+    });
+  });
+
+  return {
+    calendarRequests: () => requests,
+    historyPosts: () => writes.filter((w) => w.path === "/sync/history"),
+    setWriteMode: (mode) => {
+      writeMode = mode;
+    },
+  };
+}
+
+/** A search (`/search/show,movie`) result row for the Discover fixture. */
+export interface SearchHitFixture {
+  readonly type: "show" | "movie";
+  readonly traktId: number;
+  readonly title: string;
+  readonly year?: number;
+  readonly tmdb?: number;
+}
+
+export interface SearchControls {
+  /** Every `/search/show,movie?query=` term received, in order (proves debounce = one request). */
+  searchQueries: () => readonly string[];
+  /** Captured `POST /sync/watchlist` writes (proves the inline Add fired). */
+  watchlistPosts: () => readonly CapturedWrite[];
+}
+
+function searchResultBody(hits: readonly SearchHitFixture[]): string {
+  return JSON.stringify(
+    hits.map((hit) => {
+      const media = {
+        title: hit.title,
+        ...(hit.year === undefined ? {} : { year: hit.year }),
+        ids: { trakt: hit.traktId, ...(hit.tmdb === undefined ? {} : { tmdb: hit.tmdb }) },
+      };
+      return { type: hit.type, score: 100, [hit.type]: media };
+    }),
+  );
+}
+
+/**
+ * Intercept Discover search: `/search/show,movie` resolves the query through the
+ * caller's `resolve` (so a term can map to results or nothing) and records every
+ * term, and `POST /sync/watchlist` is captured for the inline-add assertion.
+ * Register AFTER `installHermeticRoutes` so these specific routes win.
+ */
+export async function installSearchRoutes(
+  context: BrowserContext,
+  resolve: (query: string) => readonly SearchHitFixture[],
+): Promise<SearchControls> {
+  const queries: string[] = [];
+  const writes: CapturedWrite[] = [];
+
+  await context.route("**/api.trakt.tv/search/**", (route) => {
+    const query = new URL(route.request().url()).searchParams.get("query") ?? "";
+    queries.push(query);
+    return route.fulfill({
+      status: 200,
+      headers: JSON_HEADERS,
+      body: searchResultBody(resolve(query)),
+    });
+  });
+
+  await context.route("**/api.trakt.tv/sync/watchlist", (route) => {
+    const body = (route.request().postDataJSON() ?? {}) as {
+      shows?: { ids?: { trakt?: number } }[];
+      movies?: { ids?: { trakt?: number } }[];
+    };
+    const showIds = [...(body.shows ?? []), ...(body.movies ?? [])].map((s) => s.ids?.trakt ?? -1);
+    writes.push({ path: "/sync/watchlist", episodeIds: [], showIds, watchedAt: null });
+    return route.fulfill({
+      status: 200,
+      headers: JSON_HEADERS,
+      body: JSON.stringify({
+        added: { shows: body.shows?.length ?? 0, movies: body.movies?.length ?? 0 },
+      }),
+    });
+  });
+
+  return {
+    searchQueries: () => queries,
+    watchlistPosts: () => writes.filter((w) => w.path === "/sync/watchlist"),
+  };
+}

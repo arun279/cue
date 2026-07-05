@@ -1,6 +1,8 @@
 import type { LibraryEntry } from "@data/trakt/library";
 import type { LibrarySort } from "@domain/library-buckets";
 import type { WatchStatus } from "@domain/watch-status";
+import { CachedRetryBanner } from "@ui/components/CachedRetryBanner";
+import { SyncStatusPill } from "@ui/components/SyncStatusPill";
 import { VirtualList } from "@ui/components/VirtualList";
 import { type LibraryBucketView, useLibraryBuckets } from "@ui/hooks/useLibraryBuckets";
 import { ToggleGroup } from "radix-ui";
@@ -134,14 +136,11 @@ export function MyShows(): ReactElement {
     <section className="screen screen--full" data-testid="screen-my-shows">
       <header className="screen__head">
         <h1 className="screen__title">My Shows</h1>
-        <p
-          className="status-pill"
-          role="status"
-          data-testid="my-shows-status"
-          data-state={view.isFetching ? "syncing" : view.isError ? "offline" : "synced"}
-        >
-          {view.isFetching ? "Syncing…" : view.isError ? "Offline" : "Synced"}
-        </p>
+        <SyncStatusPill
+          testId="my-shows-status"
+          isFetching={view.isFetching}
+          isError={view.isError}
+        />
       </header>
 
       <div className="library-controls">
@@ -180,17 +179,12 @@ export function MyShows(): ReactElement {
       </div>
 
       {view.isError && view.hasData && libraryType === "shows" && (
-        <div className="banner banner--warn" role="alert" data-testid="my-shows-cached-retry">
-          <span>Showing your last synced library — Trakt couldn't be reached.</span>
-          <button
-            type="button"
-            className="button button--ghost button--sm"
-            data-testid="my-shows-cached-retry-button"
-            onClick={view.refetch}
-          >
-            Retry
-          </button>
-        </div>
+        <CachedRetryBanner
+          testId="my-shows-cached-retry"
+          buttonTestId="my-shows-cached-retry-button"
+          message="Showing your last synced library — Trakt couldn't be reached."
+          onRetry={view.refetch}
+        />
       )}
 
       {body}

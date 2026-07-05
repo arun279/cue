@@ -1,27 +1,13 @@
+import { CachedRetryBanner } from "@ui/components/CachedRetryBanner";
+import { CardListSkeleton } from "@ui/components/CardListSkeleton";
+import { SyncStatusPill } from "@ui/components/SyncStatusPill";
 import { useMarkWatched } from "@ui/hooks/useMarkWatched";
 import { useUpNext } from "@ui/hooks/useUpNext";
 import type { ReactElement } from "react";
 import { Snackbar } from "./Snackbar";
 import { UpNextCard } from "./UpNextCard";
 
-const SKELETON_ROWS = [0, 1, 2, 3];
 const UNDO_MS = 6000;
-
-function Skeleton(): ReactElement {
-  return (
-    <ul className="card-list" aria-hidden="true" data-testid="up-next-skeleton">
-      {SKELETON_ROWS.map((row) => (
-        <li key={row} className="card card--skeleton">
-          <div className="poster poster--skeleton" />
-          <div className="card__body">
-            <div className="skeleton-line skeleton-line--title" />
-            <div className="skeleton-line skeleton-line--sub" />
-          </div>
-        </li>
-      ))}
-    </ul>
-  );
-}
 
 function EmptyState({
   testId,
@@ -58,32 +44,24 @@ export function UpNext(): ReactElement {
     <section className="screen screen--up-next" data-testid="screen-up-next">
       <header className="screen__head">
         <h1 className="screen__title">Up Next</h1>
-        <p
-          className="status-pill"
-          role="status"
-          data-testid="sync-status"
-          data-count={view.cards.length}
-          data-state={view.isFetching ? "syncing" : view.isError ? "offline" : "synced"}
-        >
-          {view.isFetching ? "Syncing…" : view.isError ? "Offline" : "Synced"}
-        </p>
+        <SyncStatusPill
+          testId="sync-status"
+          isFetching={view.isFetching}
+          isError={view.isError}
+          count={view.cards.length}
+        />
       </header>
 
       {view.isError && view.hasData && (
-        <div className="banner banner--warn" role="alert" data-testid="cached-retry">
-          <span>Showing your last synced queue — Trakt couldn't be reached.</span>
-          <button
-            type="button"
-            className="button button--ghost button--sm"
-            data-testid="cached-retry-button"
-            onClick={view.refetch}
-          >
-            Retry
-          </button>
-        </div>
+        <CachedRetryBanner
+          testId="cached-retry"
+          buttonTestId="cached-retry-button"
+          message="Showing your last synced queue — Trakt couldn't be reached."
+          onRetry={view.refetch}
+        />
       )}
 
-      {view.isLoading && <Skeleton />}
+      {view.isLoading && <CardListSkeleton testId="up-next-skeleton" />}
 
       {!view.isLoading && view.isError && !view.hasData && (
         <div className="empty" data-testid="up-next-error">

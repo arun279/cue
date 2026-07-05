@@ -1,7 +1,9 @@
 import type { TmdbImageConfig } from "@data/image-source";
 import type { EpisodeDetail } from "@data/trakt/episode-detail";
 import type { LibraryEntry } from "@data/trakt/library";
+import type { SearchHit } from "@data/trakt/search";
 import type { SeasonView, ShowHeader } from "@data/trakt/show-detail";
+import type { CalendarEntry } from "@domain/calendar";
 import type { QueuedOp } from "@domain/write-queue/types";
 import { createContext, useContext } from "react";
 
@@ -11,6 +13,13 @@ export type RatingMap = Readonly<Record<number, number>>;
 /** The read side of the home surface: the assembled queue + the image resolver config. */
 export interface UpNextData {
   readonly entries: readonly LibraryEntry[];
+  readonly tmdbConfig: TmdbImageConfig | null;
+}
+
+/** The read side of the calendar: flattened air-dated episodes + the hidden set to exclude. */
+export interface CalendarData {
+  readonly entries: readonly CalendarEntry[];
+  readonly hiddenShowIds: readonly number[];
   readonly tmdbConfig: TmdbImageConfig | null;
 }
 
@@ -35,6 +44,10 @@ export interface CueRuntime {
   loadRatings(section: "shows" | "episodes" | "movies"): Promise<RatingMap>;
   /** Trakt ids currently on the watchlist for a section. */
   loadWatchlistIds(section: "shows" | "movies"): Promise<readonly number[]>;
+  /** Personalized calendar window: `/calendars/my/shows/{start}/{days}` + the hidden set. */
+  loadCalendar(startDate: string, days: number): Promise<CalendarData>;
+  /** Debounced show+movie search: one `/search/show,movie` per settled query. */
+  search(query: string): Promise<readonly SearchHit[]>;
   submit(op: QueuedOp): Promise<SubmitOutcome>;
 }
 

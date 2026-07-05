@@ -27,7 +27,7 @@ export function UpNextCard({ card, tmdbConfig, onMark }: UpNextCardProps): React
 
   return (
     <article className="card" data-testid="up-next-card" data-show-id={entry.showId}>
-      <Poster entry={entry} tmdbConfig={tmdbConfig} />
+      <Poster title={entry.title} posters={entry.posters} tmdbConfig={tmdbConfig} />
       <Link
         to="/show/$showId/episode/$season/$episode"
         params={{

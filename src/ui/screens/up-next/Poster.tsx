@@ -1,9 +1,9 @@
 import { resolvePoster, type TmdbImageConfig } from "@data/image-source";
-import type { LibraryEntry } from "@data/trakt/library";
 import { type ReactElement, useState } from "react";
 
 interface PosterProps {
-  readonly entry: LibraryEntry;
+  readonly title: string;
+  readonly posters?: readonly string[] | null;
   readonly tmdbConfig: TmdbImageConfig | null;
 }
 
@@ -21,12 +21,12 @@ function initials(title: string): string {
  * URL that fails to load degrades to the same initials tile with a retry chip,
  * so a broken image never leaves a torn card.
  */
-export function Poster({ entry, tmdbConfig }: PosterProps): ReactElement {
+export function Poster({ title, posters, tmdbConfig }: PosterProps): ReactElement {
   const [broken, setBroken] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const resolved = resolvePoster({
-    title: entry.title,
-    traktPosters: entry.posters,
+    title,
+    traktPosters: posters,
     tmdbConfig,
   });
 
@@ -34,14 +34,14 @@ export function Poster({ entry, tmdbConfig }: PosterProps): ReactElement {
     return (
       <div className="poster poster--text" data-testid="poster-text">
         <span className="poster__initials" aria-hidden="true">
-          {initials(entry.title)}
+          {initials(title)}
         </span>
         {broken && (
           <button
             type="button"
             className="poster__retry"
             data-testid="poster-retry"
-            aria-label={`Retry loading poster for ${entry.title}`}
+            aria-label={`Retry loading poster for ${title}`}
             onClick={() => {
               setBroken(false);
               setAttempt((n) => n + 1);

@@ -1,19 +1,23 @@
 import type { TmdbImageConfig } from "@data/image-source";
 import { TmdbClient } from "@data/tmdb/client";
+import { assembleCalendarEntries } from "@data/trakt/calendar";
 import { TraktClient } from "@data/trakt/client";
 import {
   getEpisode,
   getHidden,
+  getMyShowsCalendar,
   getRatings,
   getShow,
   getShowProgress,
   getShowSeasons,
   getWatchedShows,
   getWatchlist,
+  searchTrakt,
 } from "@data/trakt/endpoints";
 import { assembleEpisodeDetail } from "@data/trakt/episode-detail";
 import { assembleLibrary, markLanded, showIdSet } from "@data/trakt/library";
 import type { Progress } from "@data/trakt/schemas";
+import { assembleSearchHits } from "@data/trakt/search";
 import { assembleHeader, assembleSeasons } from "@data/trakt/show-detail";
 import { createTraktTransport } from "@data/trakt/transport";
 import type { Credentials } from "@domain/model/credentials";
@@ -21,7 +25,13 @@ import type { Token } from "@domain/model/token";
 import { WriteQueue } from "@domain/write-queue/queue";
 import type { QueuedOp } from "@domain/write-queue/types";
 import type { KeyValueStore } from "@platform/kv";
-import type { CueRuntime, RatingMap, SubmitOutcome, UpNextData } from "@ui/runtime/runtime";
+import type {
+  CalendarData,
+  CueRuntime,
+  RatingMap,
+  SubmitOutcome,
+  UpNextData,
+} from "@ui/runtime/runtime";
 
 const OP_LOG_KEY = "cue.write-queue";
 
@@ -189,6 +199,26 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
         if (trakt !== undefined) ids.push(trakt);
       }
       return ids;
+    },
+
+    async loadCalendar(startDate, days): Promise<CalendarData> {
+      const [calendar, hidden] = await Promise.all([
+        getMyShowsCalendar(client, startDate, days),
+        getHidden(client),
+      ]);
+      if (!calendar.ok) throw new Error("Failed to load calendar");
+      if (!hidden.ok) throw new Error("Failed to load hidden shows");
+      return {
+        entries: assembleCalendarEntries(calendar.data),
+        hiddenShowIds: [...showIdSet(hidden.data)],
+        tmdbConfig,
+      };
+    },
+
+    async search(query) {
+      const result = await searchTrakt(client, query);
+      if (!result.ok) throw new Error("Failed to search");
+      return assembleSearchHits(result.data);
     },
 
     async submit(op: QueuedOp): Promise<SubmitOutcome> {

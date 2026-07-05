@@ -24,7 +24,7 @@ export function ShowRow({ entry, tmdbConfig }: ShowRowProps): ReactElement {
       data-testid="library-card"
       data-show-id={entry.showId}
     >
-      <Poster entry={entry} tmdbConfig={tmdbConfig} />
+      <Poster title={entry.title} posters={entry.posters} tmdbConfig={tmdbConfig} />
       <div className="library-card__body">
         <h3 className="library-card__title">{entry.title}</h3>
         <p className="library-card__progress" data-testid="library-progress">
