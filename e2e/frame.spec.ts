@@ -1,8 +1,10 @@
 import { expect, test } from "@playwright/test";
-import { installHermeticRoutes } from "./helpers";
+import { installHermeticRoutes, seedAuth } from "./helpers";
 
 test.beforeEach(async ({ page }) => {
   await installHermeticRoutes(page.context());
+  // The frame suite starts authenticated; the auth flow itself lives in auth.spec.
+  await seedAuth(page.context());
 });
 
 test("mounts the frame with the document title and no console errors", async ({ page }) => {

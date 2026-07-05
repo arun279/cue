@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { buildPersistedClient, installHermeticRoutes, seedQueryCache } from "./helpers";
+import { buildPersistedClient, installHermeticRoutes, seedAuth, seedQueryCache } from "./helpers";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 // The persister saves on a ~1s throttle; the first (empty) save must land before
@@ -11,6 +11,8 @@ async function bootThenSeed(
   controls: Awaited<ReturnType<typeof installHermeticRoutes>>,
   ageMs: number,
 ): Promise<void> {
+  // Persistence tests exercise the authenticated frame, so start past the gate.
+  await seedAuth(page.context());
   controls.setMode("abort");
   await page.goto("/");
   await expect(page.getByTestId("frame-status")).toHaveText("Offline");

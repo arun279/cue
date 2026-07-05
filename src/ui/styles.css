@@ -14,6 +14,7 @@
   --color-accent-fg: #0b0b0f;
   --color-border: #272730;
   --color-focus: #a99bff;
+  --color-danger: #f87171;
 
   --space-1: 0.5rem;
   --space-2: 0.75rem;
@@ -35,6 +36,7 @@
   --color-accent-fg: #ffffff;
   --color-border: #e2e2ea;
   --color-focus: #5b4bd6;
+  --color-danger: #b91c1c;
 }
 
 :root[data-theme="dark"] {
@@ -46,6 +48,7 @@
   --color-accent-fg: #0b0b0f;
   --color-border: #272730;
   --color-focus: #a99bff;
+  --color-danger: #f87171;
 }
 
 * {
@@ -294,6 +297,170 @@ body {
 }
 .button:hover {
   filter: brightness(1.08);
+}
+.button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.button--ghost {
+  background: transparent;
+  color: var(--color-fg);
+  border: 1px solid var(--color-border);
+}
+.button--danger {
+  background: transparent;
+  color: var(--color-danger);
+  border: 1px solid var(--color-danger);
+}
+.button--danger:hover {
+  background: var(--color-danger);
+  color: var(--color-bg);
+  filter: none;
+}
+
+/* ---- Onboarding + auth ---- */
+.onboarding {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4) var(--space-3);
+}
+.onboarding__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+  max-width: 32rem;
+  padding: var(--space-5);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-2);
+}
+.onboarding__title {
+  margin: 0;
+  font-size: 1.5rem;
+  letter-spacing: -0.02em;
+}
+.onboarding__lead {
+  margin: 0;
+  color: var(--color-muted);
+  line-height: 1.5;
+}
+.onboarding__hint {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+}
+.onboarding__error {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-1);
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+  color: var(--color-danger);
+  font-size: 0.9rem;
+}
+.onboarding__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+.device-code {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: 0.25em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Form fields ---- */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.field__label {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.field__hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--color-muted);
+}
+.field__input {
+  appearance: none;
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-bg);
+  color: var(--color-fg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+  font-size: 0.95rem;
+}
+.field__input[aria-invalid="true"] {
+  border-color: var(--color-danger);
+}
+.field__error {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--color-danger);
+}
+
+/* ---- Settings ---- */
+.settings__heading {
+  margin: var(--space-4) 0 var(--space-2);
+  font-size: 1.1rem;
+}
+.settings__list {
+  margin: 0 0 var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-2);
+  overflow: hidden;
+}
+.settings__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
+.settings__row:last-child {
+  border-bottom: none;
+}
+.settings__row dt {
+  font-weight: 600;
+}
+.settings__row dd {
+  margin: 0;
+}
+.settings__note {
+  color: var(--color-muted);
+  font-size: 0.9rem;
+  margin: 0 0 var(--space-3);
+  max-width: 42rem;
+}
+.settings__error {
+  margin: 0 0 var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-1);
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+  color: var(--color-danger);
+  font-size: 0.9rem;
+  max-width: 42rem;
+}
+.badge {
+  display: inline-block;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-pill);
+  font-size: 0.8rem;
+  background: var(--color-border);
+  color: var(--color-fg);
+}
+.badge--ok {
+  background: color-mix(in srgb, var(--color-accent) 22%, transparent);
+  color: var(--color-fg);
 }
 
 .boundary {
