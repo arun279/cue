@@ -86,6 +86,26 @@ export const progressSchema = z.object({
     .optional(),
 });
 
+export const showDetailSchema = z.object({
+  title: z.string(),
+  year: z.number().nullish(),
+  status: z.string().optional(),
+  overview: z.string().nullish(),
+  network: z.string().nullish(),
+  first_aired: z.string().nullish(),
+  ids: idsSchema,
+  images: imagesSchema,
+});
+
+export const seasonsSchema = z.array(
+  z.object({
+    number: z.number(),
+    title: z.string().nullish(),
+    images: imagesSchema,
+    episodes: z.array(episodeSchema).optional(),
+  }),
+);
+
 export const watchlistSchema = z.array(
   z.object({
     rank: z.number().optional(),
@@ -145,6 +165,8 @@ export const lastActivitiesSchema = z.object({
 export type WatchedShow = z.infer<typeof watchedShowSchema>;
 export type WatchedMovie = z.infer<typeof watchedMovieSchema>;
 export type Progress = z.infer<typeof progressSchema>;
+export type ShowDetailData = z.infer<typeof showDetailSchema>;
+export type SeasonData = z.infer<typeof seasonsSchema>[number];
 export type WatchlistItem = z.infer<typeof watchlistSchema>[number];
 export type RatingItem = z.infer<typeof ratingsSchema>[number];
 export type CalendarItem = z.infer<typeof calendarSchema>[number];

@@ -25,6 +25,10 @@ const authCallbackRoute = createRoute({
 const settingsRoute = createRoute({ getParentRoute: () => rootRoute, path: "/settings" }).lazy(() =>
   import("@app/routes/settings.lazy").then((module) => module.Route),
 );
+const showRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/show/$showId",
+}).lazy(() => import("@app/routes/show.lazy").then((module) => module.Route));
 
 const routeTree = rootRoute.addChildren([
   upNextRoute,
@@ -34,6 +38,7 @@ const routeTree = rootRoute.addChildren([
   profileRoute,
   authCallbackRoute,
   settingsRoute,
+  showRoute,
 ]);
 
 export const router = createRouter({ routeTree, defaultPreload: "intent" });

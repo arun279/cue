@@ -1,8 +1,10 @@
-import type { EpisodeIds, MovieIds } from "../model/ids";
+import type { EpisodeIds, MovieIds, ShowIds } from "../model/ids";
 import type { QueuedOp, RequestDescriptor } from "./types";
 
 const HISTORY = "/sync/history";
 const HISTORY_REMOVE = "/sync/history/remove";
+const HIDDEN = "/users/hidden/progress_watched";
+const HIDDEN_REMOVE = "/users/hidden/progress_watched/remove";
 
 type HistorySection = "episodes" | "movies";
 
@@ -62,4 +64,42 @@ export function buildMarkMovieOp(params: HistoryOpParams): QueuedOp {
 
 export function buildUnmarkMovieOp(params: HistoryOpParams): QueuedOp {
   return historyOp("movies", "absent", params);
+}
+
+export interface HideOpParams {
+  readonly opId: string;
+  readonly ids: ShowIds;
+  readonly inversePatch?: unknown;
+}
+
+/**
+ * Add/remove a show from Trakt's hidden set. Hiding is the add
+ * (`/users/hidden/progress_watched`); its inverse un-hides. `watchedAt` is null
+ * — this op carries no history play. The hidden set is Cue's client-side
+ * exclusion source, filtered out of Up Next + the calendar on every read.
+ */
+function hideOp(toState: "present" | "absent", params: HideOpParams): QueuedOp {
+  const body = { shows: [{ ids: params.ids }] };
+  const add = post(HIDDEN, body);
+  const remove = post(HIDDEN_REMOVE, body);
+  const hiding = toState === "present";
+  return {
+    id: params.opId,
+    itemKey: `show:${params.ids.trakt}:hidden`,
+    request: hiding ? add : remove,
+    inverse: hiding ? remove : add,
+    inversePatch: params.inversePatch ?? null,
+    watchedAt: null,
+    fromState: hiding ? "absent" : "present",
+    toState,
+    reconcileKeys: ["hidden/progress_watched"],
+  };
+}
+
+export function buildHideShowOp(params: HideOpParams): QueuedOp {
+  return hideOp("present", params);
+}
+
+export function buildUnhideShowOp(params: HideOpParams): QueuedOp {
+  return hideOp("absent", params);
 }

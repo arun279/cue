@@ -4,7 +4,9 @@ import {
   getLastActivities,
   getMyShowsCalendar,
   getRatings,
+  getShow,
   getShowProgress,
+  getShowSeasons,
   getWatchedMovies,
   getWatchedShows,
   getWatchlist,
@@ -74,6 +76,42 @@ describe("Trakt read endpoints zod-parse well-formed fixtures", () => {
     getJson("/shows/1/progress/watched", { aired: 9, completed: 9, next_episode: null });
     const result = await getShowProgress(client, 1);
     expect(result.ok && result.data.next_episode).toBeNull();
+  });
+
+  it("opts specials into the progress payload only when asked", async () => {
+    const specialsSeen: (string | null)[] = [];
+    server.use(
+      http.get(`${TRAKT_API_BASE}/shows/1/progress/watched`, ({ request }) => {
+        specialsSeen.push(new URL(request.url).searchParams.get("specials"));
+        return HttpResponse.json({ aired: 1, completed: 0, next_episode: null });
+      }),
+    );
+    await getShowProgress(client, 1);
+    await getShowProgress(client, 1, true);
+    expect(specialsSeen).toEqual(["false", "true"]);
+  });
+
+  it("parses the extended show detail payload", async () => {
+    getJson("/shows/1", {
+      ...showObj,
+      overview: "A workplace mystery.",
+      network: "Apple TV+",
+      first_aired: "2022-02-18T00:00:00.000Z",
+      images: { poster: ["media.trakt.tv/p.webp"], fanart: ["media.trakt.tv/b.webp"] },
+    });
+    const result = await getShow(client, 1);
+    expect(result.ok && result.data.network).toBe("Apple TV+");
+    expect(result.ok && result.data.images?.fanart).toEqual(["media.trakt.tv/b.webp"]);
+  });
+
+  it("parses the seasons tree with episodes", async () => {
+    getJson("/shows/1/seasons", [
+      { number: 1, title: "Season 1", episodes: [episodeObj] },
+      { number: 0, title: "Specials", episodes: [] },
+    ]);
+    const result = await getShowSeasons(client, 1);
+    expect(result.ok && result.data.map((s) => s.number)).toEqual([1, 0]);
+    expect(result.ok && result.data[0]?.episodes?.[0]?.number).toBe(3);
   });
 
   it("parses watchlist items", async () => {

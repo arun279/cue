@@ -1,6 +1,8 @@
 import {
+  buildHideShowOp,
   buildMarkEpisodeOp,
   buildMarkMovieOp,
+  buildUnhideShowOp,
   buildUnmarkEpisodeOp,
   buildUnmarkMovieOp,
 } from "@domain/write-queue/ops";
@@ -54,6 +56,35 @@ describe("single-item history op builders", () => {
       path: "/sync/history/remove",
       body: { movies: [{ ids: { trakt: 7 } }] },
     });
+  });
+
+  it("hides a show: add to the hidden set, un-hide inverse, no watched_at", () => {
+    const op = buildHideShowOp({ opId: "op-h1", ids: { trakt: 5 } });
+    expect(op.request).toEqual({
+      method: "POST",
+      path: "/users/hidden/progress_watched",
+      body: { shows: [{ ids: { trakt: 5 } }] },
+    });
+    expect(op.inverse).toEqual({
+      method: "POST",
+      path: "/users/hidden/progress_watched/remove",
+      body: { shows: [{ ids: { trakt: 5 } }] },
+    });
+    expect(op).toMatchObject({
+      itemKey: "show:5:hidden",
+      watchedAt: null,
+      fromState: "absent",
+      toState: "present",
+      reconcileKeys: ["hidden/progress_watched"],
+    });
+  });
+
+  it("un-hides a show by inverting the hidden request/inverse", () => {
+    const op = buildUnhideShowOp({ opId: "op-h2", ids: { trakt: 5 } });
+    expect(op.request.path).toBe("/users/hidden/progress_watched/remove");
+    expect(op.inverse.path).toBe("/users/hidden/progress_watched");
+    expect(op.toState).toBe("absent");
+    expect(op.fromState).toBe("present");
   });
 
   it("carries the caller's inverse cache patch", () => {

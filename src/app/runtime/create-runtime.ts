@@ -1,9 +1,17 @@
 import type { TmdbImageConfig } from "@data/image-source";
 import { TmdbClient } from "@data/tmdb/client";
 import { TraktClient } from "@data/trakt/client";
-import { getHidden, getShowProgress, getWatchedShows, getWatchlist } from "@data/trakt/endpoints";
-import { assembleLibrary, type MarkContext, markLanded, showIdSet } from "@data/trakt/library";
+import {
+  getHidden,
+  getShow,
+  getShowProgress,
+  getShowSeasons,
+  getWatchedShows,
+  getWatchlist,
+} from "@data/trakt/endpoints";
+import { assembleLibrary, markLanded, showIdSet } from "@data/trakt/library";
 import type { Progress } from "@data/trakt/schemas";
+import { assembleHeader, assembleSeasons } from "@data/trakt/show-detail";
 import { createTraktTransport } from "@data/trakt/transport";
 import type { Credentials } from "@domain/model/credentials";
 import type { Token } from "@domain/model/token";
@@ -13,6 +21,15 @@ import type { KeyValueStore } from "@platform/kv";
 import type { CueRuntime, SubmitOutcome, UpNextData } from "@ui/runtime/runtime";
 
 const OP_LOG_KEY = "cue.write-queue";
+
+/**
+ * The op's `inversePatch` read as a reconcile anchor: a `mark`/bulk write pivots
+ * on Trakt's `completed` (default `kind`, as the `MarkContext` serializes); a
+ * `hidden` write pivots on hidden-set membership.
+ */
+type ReconcileContext =
+  | { readonly kind?: "mark"; readonly showId: number; readonly preCompleted: number }
+  | { readonly kind: "hidden"; readonly showId: number };
 
 export interface RuntimeDeps {
   readonly token: Token;
@@ -55,8 +72,17 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
   const tmdbConfig = await resolveTmdbConfig(deps.creds);
 
   const reconcile = async (op: QueuedOp): Promise<boolean> => {
-    const context = op.inversePatch as MarkContext | null;
+    const context = op.inversePatch as ReconcileContext | null;
     if (context === null || typeof context !== "object") return false;
+    // Hide/unhide land in the hidden set; a mark or bulk-season write advances
+    // Trakt's `completed`. Either lets reconcile retire an already-applied op
+    // whose response was lost, instead of a duplicate-play re-POST.
+    if (context.kind === "hidden") {
+      const hidden = await getHidden(client);
+      if (!hidden.ok) throw new Error("reconcile read failed");
+      const isHidden = showIdSet(hidden.data).has(context.showId);
+      return op.toState === "present" ? isHidden : !isHidden;
+    }
     const result = await getShowProgress(client, context.showId);
     if (!result.ok) throw new Error("reconcile read failed");
     return markLanded(op.toState, context.preCompleted, result.data.completed);
@@ -108,6 +134,26 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
         watchlistShowIds: showIdSet(watchlist.data),
       });
       return { entries, tmdbConfig };
+    },
+
+    async loadShowHeader(showId) {
+      const [show, progress] = await Promise.all([
+        getShow(client, showId),
+        getShowProgress(client, showId),
+      ]);
+      if (!show.ok) throw new Error("Failed to load show");
+      if (!progress.ok) throw new Error("Failed to load show progress");
+      return assembleHeader(show.data, progress.data, Date.now());
+    },
+
+    async loadShowSeasons(showId) {
+      const [seasons, progress] = await Promise.all([
+        getShowSeasons(client, showId),
+        getShowProgress(client, showId, true),
+      ]);
+      if (!seasons.ok) throw new Error("Failed to load seasons");
+      if (!progress.ok) throw new Error("Failed to load show progress");
+      return assembleSeasons(seasons.data, progress.data, Date.now());
     },
 
     async submit(op: QueuedOp): Promise<SubmitOutcome> {

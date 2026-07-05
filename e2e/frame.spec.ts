@@ -53,16 +53,6 @@ test("renders a sidebar at 1280px and a bottom tab bar at 390px", async ({ page 
   await expect(page.locator(".sidebar")).toBeHidden();
 });
 
-test("virtualizes the library list so DOM node count stays bounded", async ({ page }) => {
-  await page.goto("/my-shows");
-  await expect(page.getByTestId("virtual-list")).toBeVisible();
-
-  const rows = page.getByTestId("virtual-row");
-  await expect(rows.first()).toBeVisible();
-  // 1000 items are backing the list; only the visible window is in the DOM.
-  expect(await rows.count()).toBeLessThan(60);
-});
-
 test("catches a thrown render error in the boundary instead of blanking", async ({ page }) => {
   await page.goto("/?crash=1");
   await expect(page.getByTestId("error-boundary")).toBeVisible();

@@ -12,10 +12,14 @@ export const queryKeys = {
   ratings: (type: "shows" | "movies" | "episodes") => ["ratings", type] as const,
   hidden: () => ["hidden", "progress_watched"] as const,
   calendar: (startDate: string, days: number) => ["calendar", "my-shows", startDate, days] as const,
+  /** Prefix over every windowed `calendar(...)` query, for invalidating them as one. */
+  calendarPrefix: () => ["calendar", "my-shows"] as const,
   search: (query: string, types: string) => ["search", types, query] as const,
   lastActivities: () => ["sync", "last_activities"] as const,
   tmdbConfiguration: () => ["tmdb", "configuration"] as const,
   tmdbTv: (tmdbId: number) => ["tmdb", "tv", tmdbId] as const,
   /** The assembled Up Next library — one persisted entry that paints instantly on boot. */
   library: () => ["library"] as const,
+  showHeader: (showId: number) => ["show", "header", showId] as const,
+  showSeasons: (showId: number) => ["show", "seasons", showId] as const,
 } as const;

@@ -31,6 +31,8 @@ export interface BulkMarkTarget {
   readonly includeSpecials: boolean;
   /** "Mark up to here": bound the subtree at (season, number) inclusive. */
   readonly upTo?: { readonly season: number; readonly number: number };
+  /** Opaque reconcile anchor stamped on every chunk so a lost response is retired, not re-POSTed. */
+  readonly inversePatch?: unknown;
 }
 
 type SeasonBody = { number: number; episodes?: { number: number }[] };
@@ -63,7 +65,7 @@ export function buildBulkMarkOps(
       itemKey: `show:${target.showIds.trakt}:bulk:${hashSeasons(seasons)}`,
       request: { method: "POST", path: HISTORY, body: addBody },
       inverse: { method: "POST", path: HISTORY_REMOVE, body: removeBody },
-      inversePatch: null,
+      inversePatch: target.inversePatch ?? null,
       watchedAt,
       fromState: "absent",
       toState: "present",

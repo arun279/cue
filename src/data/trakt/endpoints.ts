@@ -13,7 +13,11 @@ import {
   type RatingItem,
   ratingsSchema,
   type SearchResult,
+  type SeasonData,
+  type ShowDetailData,
   searchSchema,
+  seasonsSchema,
+  showDetailSchema,
   type WatchedMovie,
   type WatchedShow,
   type WatchlistItem,
@@ -47,12 +51,31 @@ export async function getWatchedMovies(client: TraktClient): Promise<TraktResult
 export async function getShowProgress(
   client: TraktClient,
   showId: number | string,
+  includeSpecials = false,
 ): Promise<TraktResult<Progress>> {
+  // Show-detail's season tree opts specials in so a watched special reads as
+  // watched (and isn't re-marked); Up Next / header keep them out of the counts.
+  const specials = includeSpecials ? "true" : "false";
   const options: RequestOptions = {
     extended: ["full"],
-    query: { hidden: "false", specials: "false", count_specials: "false" },
+    query: { hidden: "false", specials, count_specials: specials },
   };
   return parse(await client.get(`/shows/${showId}/progress/watched`, options), progressSchema);
+}
+
+export async function getShow(
+  client: TraktClient,
+  showId: number | string,
+): Promise<TraktResult<ShowDetailData>> {
+  return parse(await client.get(`/shows/${showId}`, { extended: ART }), showDetailSchema);
+}
+
+export async function getShowSeasons(
+  client: TraktClient,
+  showId: number | string,
+): Promise<TraktResult<SeasonData[]>> {
+  const options: RequestOptions = { extended: ["episodes", "full", "images"] };
+  return parse(await client.get(`/shows/${showId}/seasons`, options), seasonsSchema);
 }
 
 export async function getWatchlist(

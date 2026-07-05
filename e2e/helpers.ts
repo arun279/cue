@@ -236,12 +236,16 @@ export interface ShowFixture {
   readonly title: string;
   readonly status: string;
   readonly posters?: readonly string[];
+  readonly backdrops?: readonly string[];
+  readonly overview?: string;
+  readonly network?: string;
   readonly lastWatchedAt: string | null;
   readonly aired: number;
   /** Mutated in place by intercepted history writes so reads stay self-consistent. */
   completed: number;
   readonly episodes: readonly EpisodeFixture[];
-  readonly hidden?: boolean;
+  /** Mutated in place by intercepted hidden writes so Up Next / bucket reads stay consistent. */
+  hidden?: boolean;
   readonly inWatchlist?: boolean;
 }
 
@@ -250,10 +254,23 @@ export interface ShowFixture {
  * the first attempt then applies; `delay` applies after a long wait. */
 export type WriteMode = "ok" | "abort" | "network-drop" | "rate-limit-once" | "delay";
 
+export interface CapturedSeason {
+  readonly number: number;
+  readonly episodes?: { readonly number: number }[];
+}
+
+export interface CapturedShow {
+  readonly ids?: { readonly trakt?: number };
+  readonly seasons?: readonly CapturedSeason[];
+}
+
 export interface CapturedWrite {
   readonly path: string;
   readonly episodeIds: readonly number[];
   readonly watchedAt: string | null;
+  /** The `shows[]` subtree of a bulk history or hidden write (season tokens / enumerated eps). */
+  readonly shows?: readonly CapturedShow[];
+  readonly showIds?: readonly number[];
 }
 
 export interface LibraryControls {
@@ -266,11 +283,13 @@ export interface LibraryControls {
   writes: () => readonly CapturedWrite[];
   historyPosts: () => readonly CapturedWrite[];
   removePosts: () => readonly CapturedWrite[];
+  hiddenPosts: () => readonly CapturedWrite[];
   progressReads: () => number;
 }
 
 interface HistoryBody {
   episodes?: { ids?: { trakt?: number }; watched_at?: string }[];
+  shows?: { ids?: { trakt?: number }; watched_at?: string; seasons?: CapturedSeason[] }[];
 }
 
 const JSON_HEADERS = { "content-type": "application/json" } as const;
@@ -289,6 +308,22 @@ function watchedShowsBody(shows: readonly ShowFixture[]): string {
   );
 }
 
+/** Derive the per-season watched tree from the linear `completed` counter (watch-order episodes). */
+function progressSeasons(show: ShowFixture): unknown[] {
+  const bySeason = new Map<number, { number: number; completed: boolean }[]>();
+  show.episodes.forEach((ep, index) => {
+    const list = bySeason.get(ep.season) ?? [];
+    list.push({ number: ep.number, completed: index < show.completed });
+    bySeason.set(ep.season, list);
+  });
+  return [...bySeason.entries()].map(([number, episodes]) => ({
+    number,
+    aired: episodes.length,
+    completed: episodes.filter((e) => e.completed).length,
+    episodes,
+  }));
+}
+
 function progressBody(show: ShowFixture): string {
   const next = show.episodes[show.completed];
   return JSON.stringify({
@@ -304,7 +339,45 @@ function progressBody(show: ShowFixture): string {
             first_aired: next.firstAired,
             ids: { trakt: next.traktId },
           },
+    seasons: progressSeasons(show),
   });
+}
+
+function showDetailBody(show: ShowFixture): string {
+  return JSON.stringify({
+    title: show.title,
+    status: show.status,
+    overview: show.overview ?? null,
+    network: show.network ?? null,
+    first_aired: show.episodes[0]?.firstAired ?? null,
+    ids: { trakt: show.trakt, ...(show.tmdb === undefined ? {} : { tmdb: show.tmdb }) },
+    images: {
+      ...(show.posters === undefined ? {} : { poster: show.posters }),
+      ...(show.backdrops === undefined ? {} : { fanart: show.backdrops }),
+    },
+  });
+}
+
+function seasonsBody(show: ShowFixture): string {
+  const bySeason = new Map<number, EpisodeFixture[]>();
+  for (const ep of show.episodes) {
+    const list = bySeason.get(ep.season) ?? [];
+    list.push(ep);
+    bySeason.set(ep.season, list);
+  }
+  return JSON.stringify(
+    [...bySeason.entries()].map(([number, episodes]) => ({
+      number,
+      title: number === 0 ? "Specials" : `Season ${number}`,
+      episodes: episodes.map((ep) => ({
+        season: ep.season,
+        number: ep.number,
+        title: ep.title,
+        first_aired: ep.firstAired,
+        ids: { trakt: ep.traktId },
+      })),
+    })),
+  );
 }
 
 function applyWrite(
@@ -316,6 +389,32 @@ function applyWrite(
     const index = show.episodes.findIndex((ep) => episodeIds.includes(ep.traktId));
     if (index === -1) continue;
     show.completed = remove ? Math.min(show.completed, index) : Math.max(show.completed, index + 1);
+  }
+}
+
+/** Move a fixture's linear `completed` counter to cover a bulk `shows[].seasons` subtree. */
+function applyBulkWrite(
+  shows: readonly ShowFixture[],
+  showBodies: readonly CapturedShow[],
+  remove: boolean,
+): void {
+  for (const body of showBodies) {
+    const show = shows.find((s) => s.trakt === body.ids?.trakt);
+    if (show === undefined) continue;
+    const indices: number[] = [];
+    for (const season of body.seasons ?? []) {
+      show.episodes.forEach((ep, index) => {
+        if (ep.season !== season.number) return;
+        if (season.episodes !== undefined && !season.episodes.some((e) => e.number === ep.number)) {
+          return;
+        }
+        indices.push(index);
+      });
+    }
+    if (indices.length === 0) continue;
+    show.completed = remove
+      ? Math.min(show.completed, Math.min(...indices))
+      : Math.max(show.completed, Math.max(...indices) + 1);
   }
 }
 
@@ -356,6 +455,19 @@ export async function installLibraryRoutes(
     return route.fulfill({ status: 200, headers: JSON_HEADERS, body: watchedShowsBody(shows) });
   });
 
+  // Show detail (`/shows/:id`) is registered before the progress + seasons routes
+  // so those more-specific paths, registered later, win over this catch (last
+  // route registered wins).
+  await context.route("**/api.trakt.tv/shows/*", async (route) => {
+    const id = Number(new URL(route.request().url()).pathname.split("/")[2]);
+    if (readMode === "abort") return route.abort();
+    await readWait();
+    const show = shows.find((s) => s.trakt === id);
+    if (show === undefined)
+      return route.fulfill({ status: 404, headers: JSON_HEADERS, body: "{}" });
+    return route.fulfill({ status: 200, headers: JSON_HEADERS, body: showDetailBody(show) });
+  });
+
   await context.route("**/api.trakt.tv/shows/*/progress/watched*", async (route) => {
     progressReads += 1;
     const id = Number(new URL(route.request().url()).pathname.split("/")[2]);
@@ -371,8 +483,41 @@ export async function installLibraryRoutes(
     });
   });
 
-  await context.route("**/api.trakt.tv/users/hidden/progress_watched*", (route) =>
-    route.fulfill({
+  await context.route("**/api.trakt.tv/shows/*/seasons*", async (route) => {
+    const id = Number(new URL(route.request().url()).pathname.split("/")[2]);
+    if (readMode === "abort") return route.abort();
+    await readWait();
+    const show = shows.find((s) => s.trakt === id);
+    return route.fulfill({
+      status: 200,
+      headers: JSON_HEADERS,
+      body: show === undefined ? "[]" : seasonsBody(show),
+    });
+  });
+
+  const handleHidden = (hidden: boolean) => (route: import("@playwright/test").Route) => {
+    const body = (route.request().postDataJSON() ?? {}) as {
+      shows?: { ids?: { trakt?: number } }[];
+    };
+    const showIds = (body.shows ?? []).map((s) => s.ids?.trakt ?? -1);
+    for (const show of shows) if (showIds.includes(show.trakt)) show.hidden = hidden;
+    writes.push({
+      path: hidden ? "/users/hidden/progress_watched" : "/users/hidden/progress_watched/remove",
+      episodeIds: [],
+      watchedAt: null,
+      showIds,
+    });
+    return route.fulfill({
+      status: 200,
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ [hidden ? "added" : "deleted"]: { shows: showIds.length } }),
+    });
+  };
+
+  // `/remove` is registered after the base hidden route so it wins for that path.
+  await context.route("**/api.trakt.tv/users/hidden/progress_watched*", (route) => {
+    if (route.request().method() === "POST") return handleHidden(true)(route);
+    return route.fulfill({
       status: 200,
       headers: JSON_HEADERS,
       body: JSON.stringify(
@@ -380,8 +525,9 @@ export async function installLibraryRoutes(
           .filter((s) => s.hidden)
           .map((s) => ({ type: "show", show: { title: s.title, ids: { trakt: s.trakt } } })),
       ),
-    }),
-  );
+    });
+  });
+  await context.route("**/api.trakt.tv/users/hidden/progress_watched/remove*", handleHidden(false));
 
   await context.route("**/api.trakt.tv/sync/watchlist/shows*", (route) =>
     route.fulfill({
@@ -398,13 +544,19 @@ export async function installLibraryRoutes(
   const handleHistory = (remove: boolean) => async (route: import("@playwright/test").Route) => {
     const body = (route.request().postDataJSON() ?? {}) as HistoryBody;
     const episodeIds = (body.episodes ?? []).map((e) => e.ids?.trakt ?? -1);
-    const watchedAt = body.episodes?.[0]?.watched_at ?? null;
+    const showBodies = (body.shows ?? []) as CapturedShow[];
+    const watchedAt = body.episodes?.[0]?.watched_at ?? body.shows?.[0]?.watched_at ?? null;
     const path = remove ? "/sync/history/remove" : "/sync/history";
-    writes.push({ path, episodeIds, watchedAt });
+    writes.push({ path, episodeIds, watchedAt, shows: showBodies });
+
+    const apply = (): void => {
+      applyWrite(shows, episodeIds, remove);
+      applyBulkWrite(shows, showBodies, remove);
+    };
 
     if (!remove && writeMode === "abort") return route.abort();
     if (!remove && writeMode === "network-drop") {
-      applyWrite(shows, episodeIds, false);
+      apply();
       return route.abort();
     }
     if (!remove && writeMode === "rate-limit-once" && !rateLimitConsumed) {
@@ -417,7 +569,7 @@ export async function installLibraryRoutes(
     }
     if (!remove && writeMode === "delay") await sleep(5000);
 
-    applyWrite(shows, episodeIds, remove);
+    apply();
     return route.fulfill({
       status: 200,
       headers: JSON_HEADERS,
@@ -450,6 +602,7 @@ export async function installLibraryRoutes(
     writes: () => writes,
     historyPosts: () => writes.filter((w) => w.path === "/sync/history"),
     removePosts: () => writes.filter((w) => w.path === "/sync/history/remove"),
+    hiddenPosts: () => writes.filter((w) => w.path === "/users/hidden/progress_watched"),
     progressReads: () => progressReads,
   };
 }
@@ -505,6 +658,51 @@ export function seededMarkOp(opts: {
     fromState: "absent",
     toState: "present",
     reconcileKeys: ["progress/watched", "watched/shows"],
+  };
+}
+
+/** A persisted bulk season-mark op (as `buildBulkMarkOps` serializes) carrying its reconcile anchor. */
+export function seededBulkOp(opts: {
+  readonly showId: number;
+  readonly season: number;
+  readonly preCompleted: number;
+  readonly watchedAt: string;
+}): unknown {
+  const seasons = [{ number: opts.season }];
+  return {
+    id: `seeded-bulk-${opts.showId}-${opts.season}`,
+    itemKey: `show:${opts.showId}:bulk:seeded`,
+    request: {
+      method: "POST",
+      path: "/sync/history",
+      body: { shows: [{ ids: { trakt: opts.showId }, watched_at: opts.watchedAt, seasons }] },
+    },
+    inverse: {
+      method: "POST",
+      path: "/sync/history/remove",
+      body: { shows: [{ ids: { trakt: opts.showId }, seasons }] },
+    },
+    inversePatch: { showId: opts.showId, preCompleted: opts.preCompleted },
+    watchedAt: opts.watchedAt,
+    fromState: "absent",
+    toState: "present",
+    reconcileKeys: ["progress/watched", "watched/shows"],
+  };
+}
+
+/** A persisted hide op (as `buildHideShowOp` serializes) carrying its hidden-set reconcile anchor. */
+export function seededHideOp(showId: number): unknown {
+  const body = { shows: [{ ids: { trakt: showId } }] };
+  return {
+    id: `seeded-hide-${showId}`,
+    itemKey: `show:${showId}:hidden`,
+    request: { method: "POST", path: "/users/hidden/progress_watched", body },
+    inverse: { method: "POST", path: "/users/hidden/progress_watched/remove", body },
+    inversePatch: { kind: "hidden", showId },
+    watchedAt: null,
+    fromState: "absent",
+    toState: "present",
+    reconcileKeys: ["hidden/progress_watched"],
   };
 }
 

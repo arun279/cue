@@ -1,5 +1,6 @@
 import type { TmdbImageConfig } from "@data/image-source";
 import type { LibraryEntry } from "@data/trakt/library";
+import type { SeasonView, ShowHeader } from "@data/trakt/show-detail";
 import type { QueuedOp } from "@domain/write-queue/types";
 import { createContext, useContext } from "react";
 
@@ -20,6 +21,10 @@ export type SubmitOutcome = "done" | "failed" | "deferred";
  */
 export interface CueRuntime {
   loadUpNext(): Promise<UpNextData>;
+  /** Show detail hero + overall progress; paints before the season stream resolves. */
+  loadShowHeader(showId: number): Promise<ShowHeader>;
+  /** The season/episode tree merged with per-episode watched flags (streams in after the hero). */
+  loadShowSeasons(showId: number): Promise<readonly SeasonView[]>;
   submit(op: QueuedOp): Promise<SubmitOutcome>;
 }
 
