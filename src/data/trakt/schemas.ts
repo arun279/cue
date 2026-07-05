@@ -40,10 +40,12 @@ const movieSchema = z.object({
   images: imagesSchema,
 });
 
-const episodeSchema = z.object({
+export const episodeSchema = z.object({
   season: z.number(),
   number: z.number(),
   title: z.string().nullish(),
+  overview: z.string().nullish(),
+  runtime: z.number().nullish(),
   first_aired: z.string().nullish(),
   ids: idsSchema,
   images: imagesSchema,
@@ -162,6 +164,7 @@ export const lastActivitiesSchema = z.object({
   collaborations: stampsSchema,
 });
 
+export type EpisodeData = z.infer<typeof episodeSchema>;
 export type WatchedShow = z.infer<typeof watchedShowSchema>;
 export type WatchedMovie = z.infer<typeof watchedMovieSchema>;
 export type Progress = z.infer<typeof progressSchema>;

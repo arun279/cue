@@ -228,6 +228,8 @@ export interface EpisodeFixture {
   readonly title: string | null;
   readonly firstAired: string;
   readonly traktId: number;
+  readonly overview?: string;
+  readonly stills?: readonly string[];
 }
 
 export interface ShowFixture {
@@ -246,7 +248,8 @@ export interface ShowFixture {
   readonly episodes: readonly EpisodeFixture[];
   /** Mutated in place by intercepted hidden writes so Up Next / bucket reads stay consistent. */
   hidden?: boolean;
-  readonly inWatchlist?: boolean;
+  /** Mutated in place by intercepted watchlist writes so the To-watch bucket stays consistent. */
+  inWatchlist?: boolean;
 }
 
 /** `ok` applies+200; `abort` fails as a pure network reject (never reached Trakt); `network-drop`
@@ -271,6 +274,10 @@ export interface CapturedWrite {
   /** The `shows[]` subtree of a bulk history or hidden write (season tokens / enumerated eps). */
   readonly shows?: readonly CapturedShow[];
   readonly showIds?: readonly number[];
+  /** The rating value on a `/sync/ratings` write (null on a remove). */
+  readonly rating?: number | null;
+  /** The keys present on the first captured `episodes[]` item (proves all-plays remove = ids only). */
+  readonly episodeItemKeys?: readonly string[];
 }
 
 export interface LibraryControls {
@@ -284,6 +291,10 @@ export interface LibraryControls {
   historyPosts: () => readonly CapturedWrite[];
   removePosts: () => readonly CapturedWrite[];
   hiddenPosts: () => readonly CapturedWrite[];
+  ratingPosts: () => readonly CapturedWrite[];
+  ratingRemovePosts: () => readonly CapturedWrite[];
+  watchlistPosts: () => readonly CapturedWrite[];
+  watchlistRemovePosts: () => readonly CapturedWrite[];
   progressReads: () => number;
 }
 
@@ -294,9 +305,16 @@ interface HistoryBody {
 
 const JSON_HEADERS = { "content-type": "application/json" } as const;
 
+/** Trakt's `/sync/watched/shows` only lists shows with at least one play; a
+ * never-watched show (no plays, no last-watched date) is absent here and reaches
+ * the library only via the watchlist. */
+function isWatched(s: ShowFixture): boolean {
+  return s.completed > 0 || s.lastWatchedAt !== null;
+}
+
 function watchedShowsBody(shows: readonly ShowFixture[]): string {
   return JSON.stringify(
-    shows.map((s) => ({
+    shows.filter(isWatched).map((s) => ({
       last_watched_at: s.lastWatchedAt,
       show: {
         title: s.title,
@@ -310,10 +328,19 @@ function watchedShowsBody(shows: readonly ShowFixture[]): string {
 
 /** Derive the per-season watched tree from the linear `completed` counter (watch-order episodes). */
 function progressSeasons(show: ShowFixture): unknown[] {
-  const bySeason = new Map<number, { number: number; completed: boolean }[]>();
+  const watchedAt = show.lastWatchedAt ?? "2026-06-01T00:00:00.000Z";
+  const bySeason = new Map<
+    number,
+    { number: number; completed: boolean; last_watched_at?: string }[]
+  >();
   show.episodes.forEach((ep, index) => {
+    const completed = index < show.completed;
     const list = bySeason.get(ep.season) ?? [];
-    list.push({ number: ep.number, completed: index < show.completed });
+    list.push({
+      number: ep.number,
+      completed,
+      ...(completed ? { last_watched_at: watchedAt } : {}),
+    });
     bySeason.set(ep.season, list);
   });
   return [...bySeason.entries()].map(([number, episodes]) => ({
@@ -322,6 +349,19 @@ function progressSeasons(show: ShowFixture): unknown[] {
     completed: episodes.filter((e) => e.completed).length,
     episodes,
   }));
+}
+
+function episodeBody(ep: EpisodeFixture): string {
+  return JSON.stringify({
+    season: ep.season,
+    number: ep.number,
+    title: ep.title,
+    overview: ep.overview ?? null,
+    runtime: 42,
+    first_aired: ep.firstAired,
+    ids: { trakt: ep.traktId },
+    images: ep.stills === undefined ? {} : { screenshot: ep.stills },
+  });
 }
 
 function progressBody(show: ShowFixture): string {
@@ -495,6 +535,20 @@ export async function installLibraryRoutes(
     });
   });
 
+  // Single-episode read (registered after the seasons catch so this deeper path wins).
+  await context.route("**/api.trakt.tv/shows/*/seasons/*/episodes/*", async (route) => {
+    if (readMode === "abort") return route.abort();
+    await readWait();
+    const parts = new URL(route.request().url()).pathname.split("/");
+    const id = Number(parts[2]);
+    const season = Number(parts[4]);
+    const number = Number(parts[6]);
+    const show = shows.find((s) => s.trakt === id);
+    const ep = show?.episodes.find((e) => e.season === season && e.number === number);
+    if (ep === undefined) return route.fulfill({ status: 404, headers: JSON_HEADERS, body: "{}" });
+    return route.fulfill({ status: 200, headers: JSON_HEADERS, body: episodeBody(ep) });
+  });
+
   const handleHidden = (hidden: boolean) => (route: import("@playwright/test").Route) => {
     const body = (route.request().postDataJSON() ?? {}) as {
       shows?: { ids?: { trakt?: number } }[];
@@ -546,8 +600,10 @@ export async function installLibraryRoutes(
     const episodeIds = (body.episodes ?? []).map((e) => e.ids?.trakt ?? -1);
     const showBodies = (body.shows ?? []) as CapturedShow[];
     const watchedAt = body.episodes?.[0]?.watched_at ?? body.shows?.[0]?.watched_at ?? null;
+    const firstEpisode = body.episodes?.[0];
+    const episodeItemKeys = firstEpisode === undefined ? undefined : Object.keys(firstEpisode);
     const path = remove ? "/sync/history/remove" : "/sync/history";
-    writes.push({ path, episodeIds, watchedAt, shows: showBodies });
+    writes.push({ path, episodeIds, watchedAt, shows: showBodies, episodeItemKeys });
 
     const apply = (): void => {
       applyWrite(shows, episodeIds, remove);
@@ -583,6 +639,106 @@ export async function installLibraryRoutes(
   await context.route("**/api.trakt.tv/sync/history", handleHistory(false));
   await context.route("**/api.trakt.tv/sync/history/remove", handleHistory(true));
 
+  // ---- Ratings (stateful: GET reflects captured POSTs) ----
+  const showRatings = new Map<number, number>();
+  const episodeRatings = new Map<number, number>();
+
+  const findEpisode = (trakt: number): EpisodeFixture | undefined => {
+    for (const show of shows) {
+      const ep = show.episodes.find((e) => e.traktId === trakt);
+      if (ep !== undefined) return ep;
+    }
+    return undefined;
+  };
+
+  const handleRatings = (remove: boolean) => (route: import("@playwright/test").Route) => {
+    const body = (route.request().postDataJSON() ?? {}) as {
+      shows?: { ids?: { trakt?: number }; rating?: number }[];
+      episodes?: { ids?: { trakt?: number }; rating?: number }[];
+    };
+    const showIds = (body.shows ?? []).map((s) => s.ids?.trakt ?? -1);
+    const episodeIds = (body.episodes ?? []).map((e) => e.ids?.trakt ?? -1);
+    const rating = body.shows?.[0]?.rating ?? body.episodes?.[0]?.rating ?? null;
+    for (const id of showIds) {
+      if (remove) showRatings.delete(id);
+      else if (rating !== null) showRatings.set(id, rating);
+    }
+    for (const id of episodeIds) {
+      if (remove) episodeRatings.delete(id);
+      else if (rating !== null) episodeRatings.set(id, rating);
+    }
+    writes.push({
+      path: remove ? "/sync/ratings/remove" : "/sync/ratings",
+      episodeIds,
+      showIds,
+      rating,
+      watchedAt: null,
+    });
+    return route.fulfill({
+      status: 200,
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ [remove ? "deleted" : "added"]: {} }),
+    });
+  };
+
+  await context.route("**/api.trakt.tv/sync/ratings/shows*", (route) => {
+    if (route.request().method() === "POST") return handleRatings(false)(route);
+    return route.fulfill({
+      status: 200,
+      headers: JSON_HEADERS,
+      body: JSON.stringify(
+        [...showRatings.entries()].map(([trakt, rating]) => ({
+          type: "show",
+          rating,
+          show: { title: shows.find((s) => s.trakt === trakt)?.title ?? "", ids: { trakt } },
+        })),
+      ),
+    });
+  });
+  await context.route("**/api.trakt.tv/sync/ratings/episodes*", (route) => {
+    if (route.request().method() === "POST") return handleRatings(false)(route);
+    return route.fulfill({
+      status: 200,
+      headers: JSON_HEADERS,
+      body: JSON.stringify(
+        [...episodeRatings.entries()].map(([trakt, rating]) => {
+          const ep = findEpisode(trakt);
+          return {
+            type: "episode",
+            rating,
+            episode: { season: ep?.season ?? 0, number: ep?.number ?? 0, ids: { trakt } },
+          };
+        }),
+      ),
+    });
+  });
+  await context.route("**/api.trakt.tv/sync/ratings", handleRatings(false));
+  await context.route("**/api.trakt.tv/sync/ratings/remove", handleRatings(true));
+
+  // ---- Watchlist writes (mutate `inWatchlist` so the GET + To-watch bucket reflect it) ----
+  const handleWatchlist = (remove: boolean) => (route: import("@playwright/test").Route) => {
+    const body = (route.request().postDataJSON() ?? {}) as {
+      shows?: { ids?: { trakt?: number } }[];
+    };
+    const showIds = (body.shows ?? []).map((s) => s.ids?.trakt ?? -1);
+    for (const show of shows) if (showIds.includes(show.trakt)) show.inWatchlist = !remove;
+    writes.push({
+      path: remove ? "/sync/watchlist/remove" : "/sync/watchlist",
+      episodeIds: [],
+      showIds,
+      watchedAt: null,
+    });
+    return route.fulfill({
+      status: 200,
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ [remove ? "deleted" : "added"]: { shows: showIds.length } }),
+    });
+  };
+  await context.route("**/api.trakt.tv/sync/watchlist/remove", handleWatchlist(true));
+  // The base `/sync/watchlist` POST is registered after `/sync/watchlist/shows` (a GET) so
+  // the read route still serves membership; POST and GET are disjoint by method + path.
+  await context.route("**/api.trakt.tv/sync/watchlist", handleWatchlist(false));
+
   return {
     setWriteMode: (mode) => {
       writeMode = mode;
@@ -603,6 +759,10 @@ export async function installLibraryRoutes(
     historyPosts: () => writes.filter((w) => w.path === "/sync/history"),
     removePosts: () => writes.filter((w) => w.path === "/sync/history/remove"),
     hiddenPosts: () => writes.filter((w) => w.path === "/users/hidden/progress_watched"),
+    ratingPosts: () => writes.filter((w) => w.path === "/sync/ratings"),
+    ratingRemovePosts: () => writes.filter((w) => w.path === "/sync/ratings/remove"),
+    watchlistPosts: () => writes.filter((w) => w.path === "/sync/watchlist"),
+    watchlistRemovePosts: () => writes.filter((w) => w.path === "/sync/watchlist/remove"),
     progressReads: () => progressReads,
   };
 }

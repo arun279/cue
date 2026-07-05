@@ -1,11 +1,14 @@
 import { resolvePoster } from "@data/image-source";
 import type { ShowHeader } from "@data/trakt/show-detail";
 import { Link } from "@tanstack/react-router";
+import { RatingControl } from "@ui/components/RatingControl";
 import { useHideShow } from "@ui/hooks/useHideShow";
 import type { MarkContextTarget } from "@ui/hooks/useMarkSeason";
 import { useMarkSeason } from "@ui/hooks/useMarkSeason";
+import { useRate } from "@ui/hooks/useRate";
 import { useSeasons } from "@ui/hooks/useSeasons";
 import { useShowDetail } from "@ui/hooks/useShowDetail";
+import { useToggleWatchlist } from "@ui/hooks/useToggleWatchlist";
 import { Snackbar } from "@ui/screens/up-next/Snackbar";
 import { Accordion } from "radix-ui";
 import { type ReactElement, useState } from "react";
@@ -79,6 +82,8 @@ export function ShowDetail({ showId }: { showId: number }): ReactElement {
   const seasonsView = useSeasons(showId);
   const marks = useMarkSeason();
   const hide = useHideShow();
+  const rate = useRate("shows");
+  const watchlist = useToggleWatchlist();
   const [includeSpecials, setIncludeSpecials] = useState(false);
 
   const header = detail.header;
@@ -118,6 +123,7 @@ export function ShowDetail({ showId }: { showId: number }): ReactElement {
 
   const pct = header.aired > 0 ? Math.round((header.completed / header.aired) * 100) : 0;
   const target: MarkContextTarget = { showId, ids: header.ids, includeSpecials };
+  const onWatchlist = watchlist.isOnWatchlist(showId);
 
   return (
     <section className="screen screen--detail" data-testid="screen-show-detail">
@@ -161,6 +167,22 @@ export function ShowDetail({ showId }: { showId: number }): ReactElement {
           <div className="hero__actions">
             <button
               type="button"
+              className="button button--sm"
+              aria-pressed={onWatchlist}
+              aria-busy={watchlist.isLoading}
+              disabled={watchlist.isLoading}
+              data-testid="watchlist-toggle"
+              data-on={onWatchlist}
+              onClick={() => void watchlist.toggle(header.ids)}
+            >
+              {watchlist.isLoading
+                ? "Checking watchlist…"
+                : onWatchlist
+                  ? "On watchlist ✓"
+                  : "Add to watchlist"}
+            </button>
+            <button
+              type="button"
               className="button button--danger button--sm"
               data-testid="hide-show"
               onClick={() => void hide.hide(showId, header.ids, header.title)}
@@ -176,6 +198,15 @@ export function ShowDetail({ showId }: { showId: number }): ReactElement {
               />
               Include specials in bulk marks
             </label>
+          </div>
+          <div className="hero__rating">
+            <h2 className="hero__rating-title">Your rating</h2>
+            <RatingControl
+              ids={header.ids}
+              label={header.title}
+              controller={rate}
+              testId="show-rating"
+            />
           </div>
         </div>
       </header>
@@ -255,6 +286,24 @@ export function ShowDetail({ showId }: { showId: number }): ReactElement {
           autoDismissMs={UNDO_MS}
           onAction={() => void hide.undo()}
           onDismiss={hide.dismissUndo}
+        />
+      )}
+      {rate.error !== null && (
+        <Snackbar
+          testId="show-rating-error"
+          message={rate.error}
+          actionLabel="Dismiss"
+          onAction={rate.clearError}
+          onDismiss={rate.clearError}
+        />
+      )}
+      {watchlist.error !== null && (
+        <Snackbar
+          testId="watchlist-error"
+          message={watchlist.error}
+          actionLabel="Dismiss"
+          onAction={watchlist.clearError}
+          onDismiss={watchlist.clearError}
         />
       )}
     </section>

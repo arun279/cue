@@ -40,7 +40,7 @@ export interface ShowHeader {
   readonly nextEpisode: EpisodeView | null;
 }
 
-function toEpisodeIds(ids: {
+export function toEpisodeIds(ids: {
   trakt: number;
   tvdb?: number | null;
   imdb?: string | null;

@@ -6,8 +6,26 @@ import {
   markLanded,
   showIdSet,
 } from "@data/trakt/library";
-import type { Progress, WatchedShow } from "@data/trakt/schemas";
+import type { Progress, WatchedShow, WatchlistItem } from "@data/trakt/schemas";
 import { describe, expect, it } from "vitest";
+
+function watchlistItem(overrides: {
+  trakt: number;
+  title?: string;
+  status?: string;
+  posters?: string[];
+  tmdb?: number;
+}): WatchlistItem {
+  return {
+    type: "show",
+    show: {
+      title: overrides.title ?? "Watchlisted",
+      status: overrides.status ?? "returning series",
+      ids: { trakt: overrides.trakt, tmdb: overrides.tmdb },
+      images: overrides.posters ? { poster: overrides.posters } : undefined,
+    },
+  };
+}
 
 function watchedShow(overrides: {
   trakt: number;
@@ -79,7 +97,7 @@ describe("assembleLibrary", () => {
       ],
       progress: new Map([[1, progress({})]]),
       hiddenShowIds: new Set([2]),
-      watchlistShowIds: new Set([1]),
+      watchlistShows: [watchlistItem({ trakt: 1, title: "A" })],
     };
     const entries = assembleLibrary(input);
     expect(entries).toHaveLength(2);
@@ -104,7 +122,7 @@ describe("assembleLibrary", () => {
       watchedShows: [watchedShow({ trakt: 7 })],
       progress: new Map(),
       hiddenShowIds: new Set(),
-      watchlistShowIds: new Set(),
+      watchlistShows: [],
     });
     expect(entries[0]).toMatchObject({
       aired: 0,
@@ -133,7 +151,7 @@ describe("assembleLibrary", () => {
         ],
       ]),
       hiddenShowIds: new Set(),
-      watchlistShowIds: new Set(),
+      watchlistShows: [],
     });
     expect(entries[0]?.nextEpisode?.ids).toEqual({ trakt: 8001 });
     expect(entries[0]?.nextEpisode?.title).toBeNull();
@@ -144,9 +162,42 @@ describe("assembleLibrary", () => {
       watchedShows: [watchedShow({ trakt: 3 })],
       progress: new Map([[3, progress({ next: null })]]),
       hiddenShowIds: new Set(),
-      watchlistShowIds: new Set(),
+      watchlistShows: [],
     });
     expect(entries[0]?.nextEpisode).toBeNull();
+  });
+
+  it("materializes a never-watched watchlisted show as a zero-progress to-watch entry", () => {
+    const entries = assembleLibrary({
+      watchedShows: [],
+      progress: new Map(),
+      hiddenShowIds: new Set(),
+      watchlistShows: [watchlistItem({ trakt: 9, title: "Queued", posters: ["p.webp"], tmdb: 77 })],
+    });
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      showId: 9,
+      title: "Queued",
+      inWatchlist: true,
+      aired: 0,
+      completed: 0,
+      nextEpisode: null,
+      lastWatchedAt: null,
+      posters: ["p.webp"],
+      tmdbId: 77,
+    });
+  });
+
+  it("does not duplicate a watchlisted show that is also watched", () => {
+    const entries = assembleLibrary({
+      watchedShows: [watchedShow({ trakt: 4, title: "Both" })],
+      progress: new Map([[4, progress({})]]),
+      hiddenShowIds: new Set(),
+      watchlistShows: [watchlistItem({ trakt: 4, title: "Both" })],
+    });
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.inWatchlist).toBe(true);
+    expect(entries[0]?.completed).toBe(3);
   });
 });
 

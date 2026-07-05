@@ -2,13 +2,16 @@ import type { TmdbImageConfig } from "@data/image-source";
 import { TmdbClient } from "@data/tmdb/client";
 import { TraktClient } from "@data/trakt/client";
 import {
+  getEpisode,
   getHidden,
+  getRatings,
   getShow,
   getShowProgress,
   getShowSeasons,
   getWatchedShows,
   getWatchlist,
 } from "@data/trakt/endpoints";
+import { assembleEpisodeDetail } from "@data/trakt/episode-detail";
 import { assembleLibrary, markLanded, showIdSet } from "@data/trakt/library";
 import type { Progress } from "@data/trakt/schemas";
 import { assembleHeader, assembleSeasons } from "@data/trakt/show-detail";
@@ -18,7 +21,7 @@ import type { Token } from "@domain/model/token";
 import { WriteQueue } from "@domain/write-queue/queue";
 import type { QueuedOp } from "@domain/write-queue/types";
 import type { KeyValueStore } from "@platform/kv";
-import type { CueRuntime, SubmitOutcome, UpNextData } from "@ui/runtime/runtime";
+import type { CueRuntime, RatingMap, SubmitOutcome, UpNextData } from "@ui/runtime/runtime";
 
 const OP_LOG_KEY = "cue.write-queue";
 
@@ -131,7 +134,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
         watchedShows: watched.data,
         progress,
         hiddenShowIds: showIdSet(hidden.data),
-        watchlistShowIds: showIdSet(watchlist.data),
+        watchlistShows: watchlist.data,
       });
       return { entries, tmdbConfig };
     },
@@ -154,6 +157,38 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       if (!seasons.ok) throw new Error("Failed to load seasons");
       if (!progress.ok) throw new Error("Failed to load show progress");
       return assembleSeasons(seasons.data, progress.data, Date.now());
+    },
+
+    async loadEpisode(showId, season, number) {
+      const [episode, progress] = await Promise.all([
+        getEpisode(client, showId, season, number),
+        getShowProgress(client, showId, true),
+      ]);
+      if (!episode.ok) throw new Error("Failed to load episode");
+      if (!progress.ok) throw new Error("Failed to load show progress");
+      return assembleEpisodeDetail(showId, episode.data, progress.data, Date.now());
+    },
+
+    async loadRatings(section): Promise<RatingMap> {
+      const result = await getRatings(client, section);
+      if (!result.ok) throw new Error("Failed to load ratings");
+      const map: Record<number, number> = {};
+      for (const item of result.data) {
+        const trakt = item.show?.ids.trakt ?? item.movie?.ids.trakt ?? item.episode?.ids.trakt;
+        if (trakt !== undefined) map[trakt] = item.rating;
+      }
+      return map;
+    },
+
+    async loadWatchlistIds(section) {
+      const result = await getWatchlist(client, section);
+      if (!result.ok) throw new Error("Failed to load watchlist");
+      const ids: number[] = [];
+      for (const item of result.data) {
+        const trakt = (section === "shows" ? item.show : item.movie)?.ids.trakt;
+        if (trakt !== undefined) ids.push(trakt);
+      }
+      return ids;
     },
 
     async submit(op: QueuedOp): Promise<SubmitOutcome> {

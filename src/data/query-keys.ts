@@ -22,4 +22,6 @@ export const queryKeys = {
   library: () => ["library"] as const,
   showHeader: (showId: number) => ["show", "header", showId] as const,
   showSeasons: (showId: number) => ["show", "seasons", showId] as const,
+  episode: (showId: number, season: number, number: number) =>
+    ["show", "episode", showId, season, number] as const,
 } as const;

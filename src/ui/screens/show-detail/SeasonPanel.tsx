@@ -79,6 +79,7 @@ export function SeasonPanel({ season, allSeasons, target, marks }: SeasonPanelPr
           {season.episodes.map((episode) => (
             <EpisodeRow
               key={`${episode.season}-${episode.number}`}
+              showId={target.showId}
               episode={episode}
               onToggle={() => void marks.toggleEpisode(target, episode)}
               onMarkUpToHere={() =>

@@ -1,10 +1,14 @@
 import {
+  buildAddWatchlistOp,
   buildHideShowOp,
   buildMarkEpisodeOp,
   buildMarkMovieOp,
+  buildRateOp,
+  buildRemoveWatchlistOp,
   buildUnhideShowOp,
   buildUnmarkEpisodeOp,
   buildUnmarkMovieOp,
+  buildUnrateOp,
 } from "@domain/write-queue/ops";
 import { describe, expect, it } from "vitest";
 
@@ -40,6 +44,16 @@ describe("single-item history op builders", () => {
     expect(op.inverse.path).toBe("/sync/history");
     expect(op.toState).toBe("absent");
     expect(op.fromState).toBe("present");
+  });
+
+  it("unmark's restore-inverse re-adds the play with the *frozen* watched_at (Undo keeps the original date)", () => {
+    // The caller feeds the episode's original progress date here (not `now`), so an
+    // Undo of an unwatch restores the exact play instead of corrupting its date.
+    const op = buildUnmarkEpisodeOp({ opId: "op-2b", ids: { trakt: 42 }, watchedAt: WATCHED_AT });
+    expect(op.inverse.body).toEqual({
+      episodes: [{ ids: { trakt: 42 }, watched_at: WATCHED_AT }],
+    });
+    expect(op.watchedAt).toBe(WATCHED_AT);
   });
 
   it("marks a movie with the movies[] shape and a movie item key", () => {
@@ -96,5 +110,119 @@ describe("single-item history op builders", () => {
       inversePatch: patch,
     });
     expect(op.inversePatch).toBe(patch);
+  });
+
+  it("unmark removes by item id only — the all-plays MVP semantic (no history-id, no watched_at)", () => {
+    // A rewatched episode (multiple plays): a single remove-by-item clears every
+    // play. The body carries only `{ids}` — no `id`/history-id, no `watched_at`.
+    const op = buildUnmarkEpisodeOp({ opId: "rw-1", ids: { trakt: 99 }, watchedAt: WATCHED_AT });
+    expect(op.request).toEqual({
+      method: "POST",
+      path: "/sync/history/remove",
+      body: { episodes: [{ ids: { trakt: 99 } }] },
+    });
+    const item = (op.request.body as { episodes: Record<string, unknown>[] }).episodes[0];
+    expect(Object.keys(item ?? {})).toEqual(["ids"]);
+  });
+});
+
+describe("rating op builders", () => {
+  it("rates a show: add request, remove inverse, no watched_at, coalescing item key", () => {
+    const op = buildRateOp({ opId: "r-1", section: "shows", ids: { trakt: 1 }, rating: 9 });
+    expect(op.request).toEqual({
+      method: "POST",
+      path: "/sync/ratings",
+      body: { shows: [{ ids: { trakt: 1 }, rating: 9 }] },
+    });
+    expect(op.inverse).toEqual({
+      method: "POST",
+      path: "/sync/ratings/remove",
+      body: { shows: [{ ids: { trakt: 1 } }] },
+    });
+    expect(op).toMatchObject({
+      itemKey: "rating:shows:1",
+      watchedAt: null,
+      fromState: "absent",
+      toState: "present",
+      reconcileKeys: ["ratings/shows"],
+    });
+  });
+
+  it("rates an episode with the episodes[] shape", () => {
+    const op = buildRateOp({ opId: "r-2", section: "episodes", ids: { trakt: 42 }, rating: 7 });
+    expect(op.request.body).toEqual({ episodes: [{ ids: { trakt: 42 }, rating: 7 }] });
+    expect(op.itemKey).toBe("rating:episodes:42");
+  });
+
+  it("a re-rate's inverse restores the previous rating (Undo of 6 → 8 returns to 6, not remove)", () => {
+    const op = buildRateOp({
+      opId: "r-4",
+      section: "shows",
+      ids: { trakt: 1 },
+      rating: 8,
+      previousRating: 6,
+    });
+    expect(op.request.body).toEqual({ shows: [{ ids: { trakt: 1 }, rating: 8 }] });
+    expect(op.inverse).toEqual({
+      method: "POST",
+      path: "/sync/ratings",
+      body: { shows: [{ ids: { trakt: 1 }, rating: 6 }] },
+    });
+    expect(op).toMatchObject({ fromState: "present", toState: "present" });
+  });
+
+  it("a first rating (no previous) inverts to a remove", () => {
+    const op = buildRateOp({
+      opId: "r-5",
+      section: "shows",
+      ids: { trakt: 1 },
+      rating: 8,
+      previousRating: null,
+    });
+    expect(op.inverse.path).toBe("/sync/ratings/remove");
+    expect(op.fromState).toBe("absent");
+  });
+
+  it("removes a rating; its inverse restores the previous value for Undo", () => {
+    const op = buildUnrateOp({
+      opId: "r-3",
+      section: "shows",
+      ids: { trakt: 1 },
+      previousRating: 6,
+    });
+    expect(op.request).toEqual({
+      method: "POST",
+      path: "/sync/ratings/remove",
+      body: { shows: [{ ids: { trakt: 1 } }] },
+    });
+    expect(op.inverse.body).toEqual({ shows: [{ ids: { trakt: 1 }, rating: 6 }] });
+    expect(op).toMatchObject({ fromState: "present", toState: "absent" });
+  });
+});
+
+describe("watchlist op builders", () => {
+  it("adds a show: add request, remove inverse, watchlist reconcile key", () => {
+    const op = buildAddWatchlistOp({ opId: "w-1", section: "shows", ids: { trakt: 3 } });
+    expect(op.request).toEqual({
+      method: "POST",
+      path: "/sync/watchlist",
+      body: { shows: [{ ids: { trakt: 3 } }] },
+    });
+    expect(op.inverse.path).toBe("/sync/watchlist/remove");
+    expect(op).toMatchObject({
+      itemKey: "watchlist:shows:3",
+      watchedAt: null,
+      fromState: "absent",
+      toState: "present",
+      reconcileKeys: ["watchlist/shows"],
+    });
+  });
+
+  it("removes a show by inverting the request/inverse", () => {
+    const op = buildRemoveWatchlistOp({ opId: "w-2", section: "movies", ids: { trakt: 5 } });
+    expect(op.request.path).toBe("/sync/watchlist/remove");
+    expect(op.request.body).toEqual({ movies: [{ ids: { trakt: 5 } }] });
+    expect(op.inverse.path).toBe("/sync/watchlist");
+    expect(op).toMatchObject({ itemKey: "watchlist:movies:5", toState: "absent" });
   });
 });

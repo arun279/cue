@@ -1,4 +1,5 @@
 import type { TmdbImageConfig } from "@data/image-source";
+import { Link } from "@tanstack/react-router";
 import type { UpNextCard as UpNextCardModel } from "@ui/hooks/useUpNext";
 import type { ReactElement } from "react";
 import { Poster } from "./Poster";
@@ -27,22 +28,34 @@ export function UpNextCard({ card, tmdbConfig, onMark }: UpNextCardProps): React
   return (
     <article className="card" data-testid="up-next-card" data-show-id={entry.showId}>
       <Poster entry={entry} tmdbConfig={tmdbConfig} />
-      <div className="card__body">
-        <h2 className="card__title">{entry.title}</h2>
-        <p className="card__episode">
-          <span className="card__code" data-testid="episode-code">
-            {code}
-          </span>
-          {item.episode.title !== null && (
-            <span className="card__episode-title">{item.episode.title}</span>
-          )}
-        </p>
-        {remaining > 0 && (
-          <p className="card__backlog" data-testid="backlog">
-            {remaining} to watch
+      <Link
+        to="/show/$showId/episode/$season/$episode"
+        params={{
+          showId: String(entry.showId),
+          season: String(item.episode.season),
+          episode: String(item.episode.number),
+        }}
+        className="card__link"
+        data-testid="up-next-card-link"
+        aria-label={`${entry.title} ${code} details`}
+      >
+        <div className="card__body">
+          <h2 className="card__title">{entry.title}</h2>
+          <p className="card__episode">
+            <span className="card__code" data-testid="episode-code">
+              {code}
+            </span>
+            {item.episode.title !== null && (
+              <span className="card__episode-title">{item.episode.title}</span>
+            )}
           </p>
-        )}
-      </div>
+          {remaining > 0 && (
+            <p className="card__backlog" data-testid="backlog">
+              {remaining} to watch
+            </p>
+          )}
+        </div>
+      </Link>
       <button
         type="button"
         className="card__mark"

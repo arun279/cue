@@ -28,7 +28,8 @@ export interface LibraryInput {
   readonly watchedShows: readonly WatchedShow[];
   readonly progress: ReadonlyMap<number, Progress>;
   readonly hiddenShowIds: ReadonlySet<number>;
-  readonly watchlistShowIds: ReadonlySet<number>;
+  /** Full watchlist items — the source of both membership flags and watchlist-only entries. */
+  readonly watchlistShows: readonly WatchlistItem[];
 }
 
 type SchemaEpisode = NonNullable<Progress["next_episode"]>;
@@ -56,13 +57,23 @@ function toEpisodeRef(ep: SchemaEpisode): EpisodeRef {
  * Merge the watched-shows list with per-show progress, the hidden set, and
  * watchlist membership into the `LibraryEntry[]` every home surface derives
  * from. A show with no fetched progress degrades to
- * zero-progress + no next episode rather than being dropped.
+ * zero-progress + no next episode rather than being dropped. A never-watched
+ * show that is on the watchlist has no `/sync/watched/shows` row, so it is
+ * materialized here as a zero-progress `to-watch` entry — otherwise it would
+ * vanish from "To watch" after a refetch.
  */
 export function assembleLibrary(input: LibraryInput): LibraryEntry[] {
+  const watchlistShowIds = new Set<number>();
+  for (const item of input.watchlistShows) {
+    if (item.show !== undefined) watchlistShowIds.add(item.show.ids.trakt);
+  }
+
   const entries: LibraryEntry[] = [];
+  const seen = new Set<number>();
   for (const watched of input.watchedShows) {
     const { show } = watched;
     const trakt = show.ids.trakt;
+    seen.add(trakt);
     const progress = input.progress.get(trakt);
     const next = progress?.next_episode ?? null;
     entries.push({
@@ -70,11 +81,32 @@ export function assembleLibrary(input: LibraryInput): LibraryEntry[] {
       title: show.title,
       status: show.status ?? "",
       hidden: input.hiddenShowIds.has(trakt),
-      inWatchlist: input.watchlistShowIds.has(trakt),
+      inWatchlist: watchlistShowIds.has(trakt),
       lastWatchedAt: watched.last_watched_at ?? null,
       aired: progress?.aired ?? 0,
       completed: progress?.completed ?? 0,
       nextEpisode: next === null ? null : toEpisodeRef(next),
+      posters: show.images?.poster ?? [],
+      tmdbId: show.ids.tmdb ?? null,
+      pendingAdvance: false,
+    });
+  }
+
+  for (const item of input.watchlistShows) {
+    const show = item.show;
+    if (show === undefined || seen.has(show.ids.trakt)) continue;
+    const trakt = show.ids.trakt;
+    seen.add(trakt);
+    entries.push({
+      showId: trakt,
+      title: show.title,
+      status: show.status ?? "",
+      hidden: input.hiddenShowIds.has(trakt),
+      inWatchlist: true,
+      lastWatchedAt: null,
+      aired: 0,
+      completed: 0,
+      nextEpisode: null,
       posters: show.images?.poster ?? [],
       tmdbId: show.ids.tmdb ?? null,
       pendingAdvance: false,

@@ -1,5 +1,6 @@
 import { TRAKT_API_BASE, TraktClient } from "@data/trakt/client";
 import {
+  getEpisode,
   getHidden,
   getLastActivities,
   getMyShowsCalendar,
@@ -112,6 +113,19 @@ describe("Trakt read endpoints zod-parse well-formed fixtures", () => {
     const result = await getShowSeasons(client, 1);
     expect(result.ok && result.data.map((s) => s.number)).toEqual([1, 0]);
     expect(result.ok && result.data[0]?.episodes?.[0]?.number).toBe(3);
+  });
+
+  it("parses a single extended episode with overview + runtime", async () => {
+    getJson("/shows/1/seasons/1/episodes/3", {
+      ...episodeObj,
+      overview: "A workplace mystery deepens.",
+      runtime: 47,
+      images: { screenshot: ["media.trakt.tv/still.webp"] },
+    });
+    const result = await getEpisode(client, 1, 1, 3);
+    expect(result.ok && result.data.overview).toBe("A workplace mystery deepens.");
+    expect(result.ok && result.data.runtime).toBe(47);
+    expect(result.ok && result.data.images?.screenshot).toEqual(["media.trakt.tv/still.webp"]);
   });
 
   it("parses watchlist items", async () => {

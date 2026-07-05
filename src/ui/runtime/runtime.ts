@@ -1,8 +1,12 @@
 import type { TmdbImageConfig } from "@data/image-source";
+import type { EpisodeDetail } from "@data/trakt/episode-detail";
 import type { LibraryEntry } from "@data/trakt/library";
 import type { SeasonView, ShowHeader } from "@data/trakt/show-detail";
 import type { QueuedOp } from "@domain/write-queue/types";
 import { createContext, useContext } from "react";
+
+/** trakt id → 1–10 rating, for the currently-rated items of one section. */
+export type RatingMap = Readonly<Record<number, number>>;
 
 /** The read side of the home surface: the assembled queue + the image resolver config. */
 export interface UpNextData {
@@ -25,6 +29,12 @@ export interface CueRuntime {
   loadShowHeader(showId: number): Promise<ShowHeader>;
   /** The season/episode tree merged with per-episode watched flags (streams in after the hero). */
   loadShowSeasons(showId: number): Promise<readonly SeasonView[]>;
+  /** Episode detail: content + still + watched state + prev/next nav. */
+  loadEpisode(showId: number, season: number, number: number): Promise<EpisodeDetail>;
+  /** Current 1–10 ratings for a section, keyed by trakt id. */
+  loadRatings(section: "shows" | "episodes" | "movies"): Promise<RatingMap>;
+  /** Trakt ids currently on the watchlist for a section. */
+  loadWatchlistIds(section: "shows" | "movies"): Promise<readonly number[]>;
   submit(op: QueuedOp): Promise<SubmitOutcome>;
 }
 

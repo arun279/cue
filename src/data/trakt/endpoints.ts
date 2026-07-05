@@ -5,6 +5,8 @@ import type { RequestOptions, TraktClient, TraktResult } from "./client";
 import {
   type CalendarItem,
   calendarSchema,
+  type EpisodeData,
+  episodeSchema,
   type HiddenItem,
   hiddenSchema,
   lastActivitiesSchema,
@@ -76,6 +78,16 @@ export async function getShowSeasons(
 ): Promise<TraktResult<SeasonData[]>> {
   const options: RequestOptions = { extended: ["episodes", "full", "images"] };
   return parse(await client.get(`/shows/${showId}/seasons`, options), seasonsSchema);
+}
+
+export async function getEpisode(
+  client: TraktClient,
+  showId: number | string,
+  season: number,
+  episode: number,
+): Promise<TraktResult<EpisodeData>> {
+  const path = `/shows/${showId}/seasons/${season}/episodes/${episode}`;
+  return parse(await client.get(path, { extended: ART }), episodeSchema);
 }
 
 export async function getWatchlist(
