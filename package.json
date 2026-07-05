@@ -1,0 +1,62 @@
+{
+  "name": "cue",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Cue — a Trakt-backed Up Next queue. Web-first PWA with a Capacitor mobile shell.",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "sync": "cap sync",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "format": "biome check --write . && dprint fmt",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "e2e": "playwright test",
+    "check:md": "dprint check",
+    "check:spell": "cspell --no-progress --no-summary \"**/*.{ts,tsx,css,md}\"",
+    "check:arch": "depcruise src --config .dependency-cruiser.cjs",
+    "check:knip": "knip",
+    "check:dup": "jscpd",
+    "check": "biome check . && dprint check && pnpm check:spell && tsc --noEmit && pnpm check:arch && knip && jscpd && vite build && vitest run --coverage",
+    "audit": "pnpm audit --prod --audit-level=high",
+    "prepare": "lefthook install"
+  },
+  "dependencies": {
+    "@capacitor/core": "^8.4.1",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.2",
+    "@capacitor/cli": "^8.4.1",
+    "@playwright/test": "^1.61.1",
+    "@tailwindcss/vite": "^4.3.2",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/node": "^22.12.0",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react-swc": "^4.3.1",
+    "@vitest/coverage-v8": "^4.1.9",
+    "cspell": "^9.8.0",
+    "dependency-cruiser": "^18.0.0",
+    "dprint": "^0.55.1",
+    "jscpd": "^5.0.11",
+    "jsdom": "^29.1.1",
+    "knip": "^6.24.0",
+    "lefthook": "^2.1.9",
+    "tailwindcss": "^4.3.2",
+    "typescript": "^6.0.3",
+    "vite": "^8.1.3",
+    "vite-plugin-pwa": "^1.3.0",
+    "vitest": "^4.1.9"
+  }
+}

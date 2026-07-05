@@ -1,0 +1,6 @@
+{
+  "path": ["src", "test"],
+  "pattern": "**/*.{ts,tsx}",
+  "minLines": 8,
+  "threshold": 0
+}

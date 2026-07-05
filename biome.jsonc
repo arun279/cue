@@ -1,0 +1,60 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.2/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "ignoreUnknown": true,
+    "includes": [
+      "**/*.ts",
+      "**/*.tsx",
+      "**/*.js",
+      "**/*.jsx",
+      "**/*.mjs",
+      "**/*.cjs",
+      "**/*.json",
+      "**/*.jsonc",
+      "!**/node_modules",
+      "!**/dist",
+      "!**/dev-dist",
+      "!**/coverage",
+      "!**/playwright-report",
+      "!**/test-results",
+      "!ios",
+      "!android"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double",
+      "semicolons": "always",
+      "trailingCommas": "all"
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "domains": {
+      "react": "recommended"
+    },
+    "rules": {
+      "preset": "recommended",
+      "suspicious": {
+        "noConsole": { "level": "error", "options": { "allow": ["error", "warn"] } }
+      },
+      "complexity": {
+        // tsconfig `noPropertyAccessFromIndexSignature` forces bracket access on
+        // index-signature types like `import.meta.env` / `process.env`; leaving
+        // `useLiteralKeys` on would rewrite `env["X"]` back to `env.X`, which TS rejects.
+        "useLiteralKeys": "off"
+      }
+    }
+  }
+}

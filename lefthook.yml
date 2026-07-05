@@ -1,0 +1,58 @@
+prepare-commit-msg:
+  commands:
+    refuse-amend:
+      # Git passes $2="commit" and $3="HEAD" only for `--amend`; -c/-C and
+      # cherry-pick share source="commit" but pass a real ref SHA. Reviewed
+      # commits get a new commit on top, not a rewrite. Override: ALLOW_AMEND=1.
+      run: |
+        if [ "{2}" = "commit" ] && [ "{3}" = "HEAD" ]; then
+          if [ "$ALLOW_AMEND" != "1" ]; then
+            echo ""
+            echo "✗ git commit --amend is blocked by lefthook. Make a new commit instead."
+            echo "  Override (unpushed local typo only): ALLOW_AMEND=1 git commit --amend ..."
+            echo ""
+            exit 1
+          fi
+        fi
+
+pre-commit:
+  parallel: true
+  commands:
+    biome:
+      glob: "*.{ts,tsx,js,jsx,mjs,cjs,json,jsonc}"
+      run: pnpm biome check --staged --no-errors-on-unmatched --write {staged_files}
+      stage_fixed: true
+    dprint:
+      glob: "*.md"
+      run: pnpm exec dprint check {staged_files}
+    cspell:
+      glob: "*.{ts,tsx,css,md}"
+      run: pnpm exec cspell --no-progress --no-must-find-files {staged_files}
+    typecheck:
+      glob: "*.{ts,tsx}"
+      run: pnpm typecheck
+
+pre-push:
+  piped: true
+  commands:
+    refuse-force-push:
+      priority: 1
+      # The wire protocol can't tell --force from --force-with-lease, so detect
+      # via the parent process command line. Override: ALLOW_FORCE_PUSH=1.
+      run: |
+        cmd=$(ps -ocommand= -p $PPID 2>/dev/null || true)
+        if echo "$cmd" | grep -qE -- '(--force|--force-with-lease|(^| )-f( |$))'; then
+          if [ "$ALLOW_FORCE_PUSH" != "1" ]; then
+            echo ""
+            echo "✗ force-push is blocked by lefthook. Make a new commit on top instead."
+            echo "  Override (your own branch, no reviewers): ALLOW_FORCE_PUSH=1 git push --force ..."
+            echo ""
+            exit 1
+          fi
+        fi
+    check:
+      priority: 2
+      run: pnpm check
+    e2e:
+      priority: 3
+      run: pnpm e2e
