@@ -222,6 +222,292 @@ export async function installOAuthRoutes(context: BrowserContext): Promise<OAuth
   };
 }
 
+export interface EpisodeFixture {
+  readonly season: number;
+  readonly number: number;
+  readonly title: string | null;
+  readonly firstAired: string;
+  readonly traktId: number;
+}
+
+export interface ShowFixture {
+  readonly trakt: number;
+  readonly tmdb?: number;
+  readonly title: string;
+  readonly status: string;
+  readonly posters?: readonly string[];
+  readonly lastWatchedAt: string | null;
+  readonly aired: number;
+  /** Mutated in place by intercepted history writes so reads stay self-consistent. */
+  completed: number;
+  readonly episodes: readonly EpisodeFixture[];
+  readonly hidden?: boolean;
+  readonly inWatchlist?: boolean;
+}
+
+/** `ok` applies+200; `abort` fails as a pure network reject (never reached Trakt); `network-drop`
+ * applies then aborts (reached Trakt, response lost — the reconcile case); `rate-limit-once` 429s
+ * the first attempt then applies; `delay` applies after a long wait. */
+export type WriteMode = "ok" | "abort" | "network-drop" | "rate-limit-once" | "delay";
+
+export interface CapturedWrite {
+  readonly path: string;
+  readonly episodeIds: readonly number[];
+  readonly watchedAt: string | null;
+}
+
+export interface LibraryControls {
+  setWriteMode: (mode: WriteMode) => void;
+  setReadMode: (mode: "ok" | "abort") => void;
+  setReadDelayMs: (ms: number) => void;
+  /** Abort only these shows' progress reads (partial-outage case); [] restores all. */
+  failProgressFor: (traktIds: readonly number[]) => void;
+  clearWrites: () => void;
+  writes: () => readonly CapturedWrite[];
+  historyPosts: () => readonly CapturedWrite[];
+  removePosts: () => readonly CapturedWrite[];
+  progressReads: () => number;
+}
+
+interface HistoryBody {
+  episodes?: { ids?: { trakt?: number }; watched_at?: string }[];
+}
+
+const JSON_HEADERS = { "content-type": "application/json" } as const;
+
+function watchedShowsBody(shows: readonly ShowFixture[]): string {
+  return JSON.stringify(
+    shows.map((s) => ({
+      last_watched_at: s.lastWatchedAt,
+      show: {
+        title: s.title,
+        status: s.status,
+        ids: { trakt: s.trakt, ...(s.tmdb === undefined ? {} : { tmdb: s.tmdb }) },
+        ...(s.posters === undefined ? {} : { images: { poster: s.posters } }),
+      },
+    })),
+  );
+}
+
+function progressBody(show: ShowFixture): string {
+  const next = show.episodes[show.completed];
+  return JSON.stringify({
+    aired: show.aired,
+    completed: show.completed,
+    next_episode:
+      next === undefined
+        ? null
+        : {
+            season: next.season,
+            number: next.number,
+            title: next.title,
+            first_aired: next.firstAired,
+            ids: { trakt: next.traktId },
+          },
+  });
+}
+
+function applyWrite(
+  shows: readonly ShowFixture[],
+  episodeIds: readonly number[],
+  remove: boolean,
+): void {
+  for (const show of shows) {
+    const index = show.episodes.findIndex((ep) => episodeIds.includes(ep.traktId));
+    if (index === -1) continue;
+    show.completed = remove ? Math.min(show.completed, index) : Math.max(show.completed, index + 1);
+  }
+}
+
+/**
+ * Intercept the whole Up Next read+write surface with a stateful fixture: reads
+ * derive `next_episode` from a live `completed` count, and history writes mutate
+ * it, so an optimistic mark, its background refetch, a reconcile progress re-read,
+ * and an Undo all stay consistent. Register AFTER `installHermeticRoutes` so
+ * these specific routes win over the catch-alls (last route registered wins).
+ */
+export async function installLibraryRoutes(
+  context: BrowserContext,
+  shows: readonly ShowFixture[],
+): Promise<LibraryControls> {
+  let writeMode: WriteMode = "ok";
+  let readMode: "ok" | "abort" = "ok";
+  let readDelayMs = 0;
+  let rateLimitConsumed = false;
+  let failedProgressIds = new Set<number>();
+  const writes: CapturedWrite[] = [];
+  let progressReads = 0;
+
+  const readWait = (): Promise<void> => (readDelayMs > 0 ? sleep(readDelayMs) : Promise.resolve());
+
+  // Serve a real 1×1 PNG for Trakt inline posters so a resolved poster loads
+  // deterministically instead of erroring into the text-only fallback.
+  const pngPixel = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+    "base64",
+  );
+  await context.route("**/media.trakt.tv/**", (route) =>
+    route.fulfill({ status: 200, contentType: "image/png", body: pngPixel }),
+  );
+
+  await context.route("**/api.trakt.tv/sync/watched/shows*", async (route) => {
+    if (readMode === "abort") return route.abort();
+    await readWait();
+    return route.fulfill({ status: 200, headers: JSON_HEADERS, body: watchedShowsBody(shows) });
+  });
+
+  await context.route("**/api.trakt.tv/shows/*/progress/watched*", async (route) => {
+    progressReads += 1;
+    const id = Number(new URL(route.request().url()).pathname.split("/")[2]);
+    if (readMode === "abort" || failedProgressIds.has(id)) return route.abort();
+    const show = shows.find((s) => s.trakt === id);
+    return route.fulfill({
+      status: 200,
+      headers: JSON_HEADERS,
+      body:
+        show === undefined
+          ? JSON.stringify({ aired: 0, completed: 0, next_episode: null })
+          : progressBody(show),
+    });
+  });
+
+  await context.route("**/api.trakt.tv/users/hidden/progress_watched*", (route) =>
+    route.fulfill({
+      status: 200,
+      headers: JSON_HEADERS,
+      body: JSON.stringify(
+        shows
+          .filter((s) => s.hidden)
+          .map((s) => ({ type: "show", show: { title: s.title, ids: { trakt: s.trakt } } })),
+      ),
+    }),
+  );
+
+  await context.route("**/api.trakt.tv/sync/watchlist/shows*", (route) =>
+    route.fulfill({
+      status: 200,
+      headers: JSON_HEADERS,
+      body: JSON.stringify(
+        shows
+          .filter((s) => s.inWatchlist)
+          .map((s) => ({ type: "show", show: { title: s.title, ids: { trakt: s.trakt } } })),
+      ),
+    }),
+  );
+
+  const handleHistory = (remove: boolean) => async (route: import("@playwright/test").Route) => {
+    const body = (route.request().postDataJSON() ?? {}) as HistoryBody;
+    const episodeIds = (body.episodes ?? []).map((e) => e.ids?.trakt ?? -1);
+    const watchedAt = body.episodes?.[0]?.watched_at ?? null;
+    const path = remove ? "/sync/history/remove" : "/sync/history";
+    writes.push({ path, episodeIds, watchedAt });
+
+    if (!remove && writeMode === "abort") return route.abort();
+    if (!remove && writeMode === "network-drop") {
+      applyWrite(shows, episodeIds, false);
+      return route.abort();
+    }
+    if (!remove && writeMode === "rate-limit-once" && !rateLimitConsumed) {
+      rateLimitConsumed = true;
+      return route.fulfill({
+        status: 429,
+        headers: { ...JSON_HEADERS, "retry-after": "1" },
+        body: "{}",
+      });
+    }
+    if (!remove && writeMode === "delay") await sleep(5000);
+
+    applyWrite(shows, episodeIds, remove);
+    return route.fulfill({
+      status: 200,
+      headers: JSON_HEADERS,
+      body: JSON.stringify({
+        added: { episodes: episodeIds.length },
+        deleted: { episodes: remove ? episodeIds.length : 0 },
+      }),
+    });
+  };
+
+  await context.route("**/api.trakt.tv/sync/history", handleHistory(false));
+  await context.route("**/api.trakt.tv/sync/history/remove", handleHistory(true));
+
+  return {
+    setWriteMode: (mode) => {
+      writeMode = mode;
+    },
+    setReadMode: (mode) => {
+      readMode = mode;
+    },
+    setReadDelayMs: (ms) => {
+      readDelayMs = ms;
+    },
+    failProgressFor: (traktIds) => {
+      failedProgressIds = new Set(traktIds);
+    },
+    clearWrites: () => {
+      writes.length = 0;
+    },
+    writes: () => writes,
+    historyPosts: () => writes.filter((w) => w.path === "/sync/history"),
+    removePosts: () => writes.filter((w) => w.path === "/sync/history/remove"),
+    progressReads: () => progressReads,
+  };
+}
+
+/**
+ * Seed a durable write-queue op-log into idb-keyval before the app boots, so a
+ * boot exercises the startup-reconcile replay path (a mark left pending by a
+ * prior session). Mirrors `seedAuth`'s at-document-start write so the op-log is
+ * present ahead of the runtime's restore read.
+ */
+export async function seedOpLog(context: BrowserContext, ops: readonly unknown[]): Promise<void> {
+  await context.addInitScript(
+    ({ log }) => {
+      const open = indexedDB.open("keyval-store");
+      open.onupgradeneeded = () => {
+        if (!open.result.objectStoreNames.contains("keyval")) {
+          open.result.createObjectStore("keyval");
+        }
+      };
+      open.onsuccess = () => {
+        const db = open.result;
+        const tx = db.transaction("keyval", "readwrite");
+        tx.objectStore("keyval").put(log, "cue.write-queue");
+        tx.oncomplete = () => db.close();
+      };
+    },
+    { log: JSON.stringify(ops) },
+  );
+}
+
+/** A minimal persisted mark-episode op (as `buildMarkEpisodeOp` serializes) for op-log seeding. */
+export function seededMarkOp(opts: {
+  readonly episodeId: number;
+  readonly showId: number;
+  readonly preCompleted: number;
+  readonly watchedAt: string;
+}): unknown {
+  return {
+    id: `seeded-${opts.episodeId}`,
+    itemKey: `episode:${opts.episodeId}`,
+    request: {
+      method: "POST",
+      path: "/sync/history",
+      body: { episodes: [{ ids: { trakt: opts.episodeId }, watched_at: opts.watchedAt }] },
+    },
+    inverse: {
+      method: "POST",
+      path: "/sync/history/remove",
+      body: { episodes: [{ ids: { trakt: opts.episodeId } }] },
+    },
+    inversePatch: { showId: opts.showId, preCompleted: opts.preCompleted },
+    watchedAt: opts.watchedAt,
+    fromState: "absent",
+    toState: "present",
+    reconcileKeys: ["progress/watched", "watched/shows"],
+  };
+}
+
 /** Read a raw stored string straight from idb-keyval's object store (post-write assertions). */
 export async function readStored(page: Page, key: string): Promise<string | null> {
   return page.evaluate(
@@ -245,9 +531,34 @@ export async function readStored(page: Page, key: string): Promise<string | null
   );
 }
 
-/** A dehydrated TanStack Query cache holding just the frame-status query. */
-export function buildPersistedClient(count: number, ageMs: number): string {
+function persistedEntry(index: number): unknown {
+  const airedIso = new Date(Date.now() - (index + 1) * 86_400_000).toISOString();
+  return {
+    showId: 5000 + index,
+    title: `Cached Show ${index + 1}`,
+    status: "returning series",
+    hidden: false,
+    inWatchlist: false,
+    lastWatchedAt: airedIso,
+    aired: 10,
+    completed: 3,
+    nextEpisode: {
+      season: 1,
+      number: 4,
+      title: "Cached Next",
+      firstAired: airedIso,
+      ids: { trakt: 40000 + index },
+    },
+    posters: [],
+    tmdbId: null,
+    pendingAdvance: false,
+  };
+}
+
+/** A dehydrated Query cache holding the assembled `library` query with `count` up-next entries. */
+export function buildPersistedLibrary(count: number, ageMs: number): string {
   const updatedAt = Date.now() - ageMs;
+  const entries = Array.from({ length: count }, (_, index) => persistedEntry(index));
   return JSON.stringify({
     buster: "cue-m3",
     timestamp: updatedAt,
@@ -255,10 +566,10 @@ export function buildPersistedClient(count: number, ageMs: number): string {
       mutations: [],
       queries: [
         {
-          queryKey: ["frame", "status"],
-          queryHash: '["frame","status"]',
+          queryKey: ["library"],
+          queryHash: '["library"]',
           state: {
-            data: { count },
+            data: { entries, tmdbConfig: null },
             dataUpdateCount: 1,
             dataUpdatedAt: updatedAt,
             error: null,

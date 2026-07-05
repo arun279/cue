@@ -79,12 +79,20 @@ export class WriteQueue {
 
   /**
    * Startup pass (before any replay): retire ops that already landed on Trakt
-   * pre-crash so a resume never re-applies them (the double-count guard).
+   * pre-crash so a resume never re-applies them (the double-count guard). A
+   * reconcile read that fails (offline / 5xx) can't determine landing, so the op
+   * is *kept* durable for a later flush — mirroring `deliver`'s reconcile-throw →
+   * defer. Startup must never throw: a boot that can't reach Trakt still mounts.
    */
   async startupReconcile(): Promise<void> {
     const kept: QueuedOp[] = [];
     for (const op of this.pending) {
-      const applied = await this.deps.reconcile(op);
+      let applied = false;
+      try {
+        applied = await this.deps.reconcile(op);
+      } catch {
+        applied = false; // undetermined → keep durable, retry on the next flush
+      }
       if (!applied) kept.push(op);
     }
     this.pending = kept;

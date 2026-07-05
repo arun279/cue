@@ -12,9 +12,11 @@ import { type ReactElement, useEffect } from "react";
 // One key-value backend for the whole session (web: IndexedDB, native:
 // Preferences), shared by the token + creds stores the auth store wires.
 const kv = createKeyValueStore(isNativePlatform());
+const tokenStore = createTokenStore(kv);
+const credsStore = createCredsStore(kv);
 const authStore = createAuthStore({
-  tokenStore: createTokenStore(kv),
-  credsStore: createCredsStore(kv),
+  tokenStore,
+  credsStore,
   redirectUri: `${globalThis.location.origin}/auth/callback`,
   redirect: (url) => globalThis.location.assign(url),
 });
@@ -38,7 +40,7 @@ export function AppProviders(): ReactElement {
         buster: PERSIST_BUSTER,
       }}
     >
-      <AuthGate store={authStore} />
+      <AuthGate store={authStore} stores={{ tokenStore, credsStore, kv }} />
     </PersistQueryClientProvider>
   );
 }

@@ -16,5 +16,6 @@ export const queryKeys = {
   lastActivities: () => ["sync", "last_activities"] as const,
   tmdbConfiguration: () => ["tmdb", "configuration"] as const,
   tmdbTv: (tmdbId: number) => ["tmdb", "tv", tmdbId] as const,
-  frameStatus: () => ["frame", "status"] as const,
+  /** The assembled Up Next library — one persisted entry that paints instantly on boot. */
+  library: () => ["library"] as const,
 } as const;

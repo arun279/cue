@@ -204,4 +204,16 @@ describe("WriteQueue coalescing + durability", () => {
     expect(res.completed.map((o) => o.itemKey)).toEqual(["episode:2"]);
     expect(h.dispatch).toHaveBeenCalledTimes(1);
   });
+
+  it("keeps every op durable (never throws) when a startup reconcile read fails", async () => {
+    const h = harness({
+      dispatch: () => Promise.resolve(dispatchResult(200)),
+      reconcile: () => Promise.reject(new Error("offline")),
+    });
+    const q = new WriteQueue(h.deps, [mark("a", 1), mark("b", 2)]);
+    await expect(q.startupReconcile()).resolves.toBeUndefined();
+    expect(q.size).toBe(2); // undetermined landing → nothing retired, boot proceeds
+    const res = await q.flush();
+    expect(res.completed.map((o) => o.itemKey)).toEqual(["episode:1", "episode:2"]);
+  });
 });

@@ -14,5 +14,6 @@ describe("queryKeys factory", () => {
     expect(queryKeys.lastActivities()).toEqual(["sync", "last_activities"]);
     expect(queryKeys.tmdbConfiguration()).toEqual(["tmdb", "configuration"]);
     expect(queryKeys.tmdbTv(95396)).toEqual(["tmdb", "tv", 95396]);
+    expect(queryKeys.library()).toEqual(["library"]);
   });
 });
