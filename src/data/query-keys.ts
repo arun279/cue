@@ -16,4 +16,5 @@ export const queryKeys = {
   lastActivities: () => ["sync", "last_activities"] as const,
   tmdbConfiguration: () => ["tmdb", "configuration"] as const,
   tmdbTv: (tmdbId: number) => ["tmdb", "tv", tmdbId] as const,
+  frameStatus: () => ["frame", "status"] as const,
 } as const;

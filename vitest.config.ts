@@ -24,7 +24,10 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text", "html", "lcov"],
       include: ["src/**"],
-      exclude: ["src/**/*.d.ts", "src/app/main.tsx"],
+      // The composition root (src/app) and every presentational surface (src/ui)
+      // are gated by the hermetic Playwright suite, not a line threshold
+      // Line coverage targets the logic layers below.
+      exclude: ["src/**/*.d.ts", "src/app/**", "src/ui/**"],
       thresholds: {
         // Global floor = rot tripwire, not the quality bar. Logic layers carry
         // the real gate below; ui/ behavior is gated by the Playwright suite.

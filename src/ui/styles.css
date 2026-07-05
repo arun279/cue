@@ -1,11 +1,55 @@
 @import "tailwindcss";
 
-/* Single source of truth for design tokens (Tailwind v4 @theme). Expanded later. */
+/*
+ * Single source of truth for design tokens (Tailwind v4 @theme). Values below
+ * are the dark defaults; [data-theme] blocks override per theme. main.tsx stamps
+ * data-theme before first paint, so the [data-theme] selectors always drive.
+ */
 @theme {
   --color-bg: #0b0b0f;
+  --color-surface: #16161c;
   --color-fg: #f5f5f7;
-  --color-muted: #9a9aa6;
-  --color-accent: #6c5ce7;
+  --color-muted: #a6a6b3;
+  --color-accent: #8b7cf3;
+  --color-accent-fg: #0b0b0f;
+  --color-border: #272730;
+  --color-focus: #a99bff;
+
+  --space-1: 0.5rem;
+  --space-2: 0.75rem;
+  --space-3: 1rem;
+  --space-4: 1.5rem;
+  --space-5: 2rem;
+
+  --radius-1: 0.5rem;
+  --radius-2: 0.875rem;
+  --radius-pill: 999px;
+}
+
+:root[data-theme="light"] {
+  --color-bg: #ffffff;
+  --color-surface: #f3f3f7;
+  --color-fg: #16161a;
+  --color-muted: #55555f;
+  --color-accent: #5b4bd6;
+  --color-accent-fg: #ffffff;
+  --color-border: #e2e2ea;
+  --color-focus: #5b4bd6;
+}
+
+:root[data-theme="dark"] {
+  --color-bg: #0b0b0f;
+  --color-surface: #16161c;
+  --color-fg: #f5f5f7;
+  --color-muted: #a6a6b3;
+  --color-accent: #8b7cf3;
+  --color-accent-fg: #0b0b0f;
+  --color-border: #272730;
+  --color-focus: #a99bff;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
@@ -14,14 +58,254 @@ body {
   background: var(--color-bg);
   color: var(--color-fg);
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
-.shell {
-  max-width: 40rem;
-  margin: 0 auto;
-  padding: 2rem 1.25rem;
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
-.tagline {
+.skip-link {
+  position: absolute;
+  left: var(--space-2);
+  top: -3rem;
+  padding: var(--space-1) var(--space-3);
+  background: var(--color-accent);
+  color: var(--color-accent-fg);
+  border-radius: var(--radius-1);
+  z-index: 20;
+  transition: top 0.15s ease;
+}
+.skip-link:focus {
+  top: var(--space-2);
+}
+
+.brand {
+  font-weight: 700;
+  font-size: 1.25rem;
+  letter-spacing: -0.01em;
+  color: var(--color-fg);
+}
+
+/* ---- Layout: bottom tabs (mobile) → sidebar (desktop) ---- */
+.layout {
+  min-height: 100dvh;
+}
+
+.sidebar {
+  display: none;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.main {
+  flex: 1;
+  padding: var(--space-4) var(--space-3);
+  padding-bottom: 6rem;
+}
+
+.tabbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  display: flex;
+  justify-content: space-around;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  padding: var(--space-1) 0 calc(var(--space-1) + env(safe-area-inset-bottom));
+}
+
+.nav__link {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
   color: var(--color-muted);
+  text-decoration: none;
+  border-radius: var(--radius-1);
+  font-size: 0.95rem;
+}
+.nav__link:hover {
+  color: var(--color-fg);
+}
+.nav__link--active {
+  color: var(--color-accent);
+  font-weight: 600;
+}
+.nav__icon {
+  width: 1.4rem;
+  height: 1.4rem;
+  flex: none;
+}
+
+.tabbar .nav__link {
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  font-size: 0.7rem;
+  text-align: center;
+}
+
+@media (min-width: 900px) {
+  .layout {
+    display: grid;
+    grid-template-columns: 15rem 1fr;
+  }
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    position: sticky;
+    top: 0;
+    height: 100dvh;
+    gap: var(--space-2);
+    padding: var(--space-4) var(--space-3);
+    background: var(--color-surface);
+    border-right: 1px solid var(--color-border);
+  }
+  .sidebar__links {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: var(--space-3);
+  }
+  .sidebar__footer {
+    margin-top: auto;
+  }
+  .topbar,
+  .tabbar {
+    display: none;
+  }
+  .main {
+    padding: var(--space-5);
+  }
+}
+
+/* ---- Screens ---- */
+.screen {
+  max-width: 60rem;
+  margin: 0 auto;
+}
+.screen--full {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.screen__title {
+  margin: 0 0 var(--space-2);
+  font-size: 1.6rem;
+  letter-spacing: -0.02em;
+}
+.screen__lead {
+  margin: 0 0 var(--space-4);
+  color: var(--color-muted);
+  max-width: 42rem;
+  line-height: 1.5;
+}
+
+.status-pill {
+  display: inline-block;
+  padding: var(--space-1) var(--space-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  color: var(--color-muted);
+  font-size: 0.85rem;
+}
+
+/* ---- Virtualized list ---- */
+.library-list {
+  height: 60vh;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-2);
+}
+.library-row {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* ---- Theme toggle (Radix Switch) ---- */
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.theme-toggle__label {
+  font-size: 0.85rem;
+  color: var(--color-muted);
+}
+.switch {
+  all: unset;
+  width: 2.5rem;
+  height: 1.4rem;
+  background: var(--color-border);
+  border-radius: var(--radius-pill);
+  position: relative;
+  cursor: pointer;
+  flex: none;
+}
+.switch[data-state="checked"] {
+  background: var(--color-accent);
+}
+.switch__thumb {
+  display: block;
+  width: 1rem;
+  height: 1rem;
+  background: #ffffff;
+  border-radius: 50%;
+  transform: translateX(3px);
+  transition: transform 0.15s ease;
+}
+.switch__thumb[data-state="checked"] {
+  transform: translateX(1.3rem);
+}
+
+/* ---- Buttons + error boundary ---- */
+.button {
+  appearance: none;
+  border: none;
+  background: var(--color-accent);
+  color: var(--color-accent-fg);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-1);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.button:hover {
+  filter: brightness(1.08);
+}
+
+.boundary {
+  max-width: 32rem;
+  margin: 4rem auto;
+  text-align: center;
+}
+.boundary__title {
+  font-size: 1.4rem;
+  margin: 0 0 var(--space-2);
+}
+.boundary__body {
+  color: var(--color-muted);
+  margin: 0 0 var(--space-4);
 }
