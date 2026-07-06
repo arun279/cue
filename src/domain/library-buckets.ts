@@ -9,14 +9,25 @@ export interface LibraryBucket {
   readonly shows: readonly LibraryShow[];
 }
 
+/**
+ * Library shows ONE Watching segment: the "haven't watched in a while" (lapsed)
+ * cut is now only Up Next's soft drawer, so here the derived `lapsed` status folds
+ * back into Watching. Watchlist (not-started) leads — it is the "things you chose
+ * to start" pool, presented first.
+ */
 const DISPLAY_ORDER: readonly WatchStatus[] = [
-  "watching",
-  "lapsed",
   "not-started",
+  "watching",
   "caught-up",
   "ended",
   "abandoned",
 ];
+
+/** Fold the derived `lapsed` cut into Watching for Library bucketing. */
+function bucketStatus(show: LibraryShow, now: number, thresholdMs: number): WatchStatus {
+  const status = computeWatchStatus(show, now, thresholdMs);
+  return status === "lapsed" ? "watching" : status;
+}
 
 function progressRatio(show: LibraryShow): number {
   return show.aired > 0 ? show.completed / show.aired : 0;
@@ -32,13 +43,6 @@ function comparatorFor(sort: LibrarySort): (a: LibraryShow, b: LibraryShow) => n
   return (a, b) => (toMs(b.lastWatchedAt) ?? 0) - (toMs(a.lastWatchedAt) ?? 0);
 }
 
-function byMostLapsed(a: LibraryShow, b: LibraryShow): number {
-  return (
-    (toMs(a.lastWatchedAt) ?? Number.NEGATIVE_INFINITY) -
-    (toMs(b.lastWatchedAt) ?? Number.NEGATIVE_INFINITY)
-  );
-}
-
 export function groupLibrary(
   shows: readonly LibraryShow[],
   now: number,
@@ -47,7 +51,7 @@ export function groupLibrary(
 ): LibraryBucket[] {
   const byStatus = new Map<WatchStatus, LibraryShow[]>();
   for (const show of shows) {
-    const status = computeWatchStatus(show, now, thresholdMs);
+    const status = bucketStatus(show, now, thresholdMs);
     const list = byStatus.get(status);
     if (list === undefined) byStatus.set(status, [show]);
     else list.push(show);
@@ -58,10 +62,7 @@ export function groupLibrary(
   for (const status of DISPLAY_ORDER) {
     const list = byStatus.get(status);
     if (list === undefined || list.length === 0) continue;
-    buckets.push({
-      status,
-      shows: [...list].sort(status === "lapsed" ? byMostLapsed : comparator),
-    });
+    buckets.push({ status, shows: [...list].sort(comparator) });
   }
   return buckets;
 }

@@ -89,9 +89,9 @@ export function Upcoming(): ReactElement {
   }
 
   return (
-    <section className="screen screen--full" data-testid="screen-upcoming">
+    <section className="screen screen--full" data-testid="screen-calendar">
       <header className="screen__head">
-        <h1 className="screen__title">Upcoming</h1>
+        <h1 className="screen__title">Calendar</h1>
         <SyncStatusPill
           testId="upcoming-status"
           isFetching={view.isFetching}

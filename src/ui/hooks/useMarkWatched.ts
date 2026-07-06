@@ -1,5 +1,6 @@
 import { queryKeys } from "@data/query-keys";
 import { advancePastNext, type LibraryEntry, type MarkContext } from "@data/trakt/library";
+import { isTerminalStatus } from "@domain/watch-status";
 import { buildMarkEpisodeOp, buildUnmarkEpisodeOp } from "@domain/write-queue/ops";
 import { useQueryClient } from "@tanstack/react-query";
 import { type UpNextData, useRuntime } from "@ui/runtime/runtime";
@@ -9,6 +10,9 @@ interface UndoState {
   readonly showId: number;
   readonly title: string;
   readonly episodeCode: string;
+  /** True when this mark completed an ended/canceled show — drives the quiet
+   * "You finished X" closure copy (no gamification). */
+  readonly finished: boolean;
 }
 
 export interface MarkWatched {
@@ -24,6 +28,7 @@ interface PendingUndo {
   readonly showId: number;
   readonly title: string;
   readonly episodeCode: string;
+  readonly finished: boolean;
   readonly episodeIds: NonNullable<LibraryEntry["nextEpisode"]>["ids"];
   readonly watchedAt: string;
   readonly preCompleted: number;
@@ -73,6 +78,9 @@ export function useMarkWatched(): MarkWatched {
       const watchedAt = new Date().toISOString();
       const beforeMark = entry;
       const episodeCode = episodeCodeOf(entry);
+      // The mark completes the show when it clears the last aired episode of a run
+      // that has ended — a genuine closure, not a mid-run pause.
+      const finished = isTerminalStatus(entry.status) && entry.completed + 1 >= entry.aired;
 
       // Optimistic first: the card advances before we ever touch the network.
       patch(entry.showId, (e) => advancePastNext(e, watchedAt));
@@ -100,6 +108,7 @@ export function useMarkWatched(): MarkWatched {
         showId: entry.showId,
         title: entry.title,
         episodeCode,
+        finished,
         episodeIds: episode.ids,
         watchedAt,
         preCompleted: entry.completed,
@@ -137,7 +146,12 @@ export function useMarkWatched(): MarkWatched {
     undoable:
       undo === null
         ? null
-        : { showId: undo.showId, title: undo.title, episodeCode: undo.episodeCode },
+        : {
+            showId: undo.showId,
+            title: undo.title,
+            episodeCode: undo.episodeCode,
+            finished: undo.finished,
+          },
     error,
   };
 }

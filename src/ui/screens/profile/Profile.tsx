@@ -148,7 +148,7 @@ export function Profile(): ReactElement {
           Mark an episode or movie watched and your time watched, episodes, and shows will tally up
           here.
         </p>
-        <Link className="button" to="/discover" data-testid="profile-empty-discover">
+        <Link className="button" to="/search" data-testid="profile-empty-discover">
           Find something to watch
         </Link>
       </div>

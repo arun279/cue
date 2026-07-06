@@ -48,10 +48,10 @@ function byTitle(a: MovieEntry, b: MovieEntry): number {
 }
 
 /**
- * The My Shows movie library read: the persisted `movieLibrary` query (watched +
- * watchlist movies) split into two poster shelves — Watched (most-recent first)
- * and Watchlist (to-watch, alphabetical). A watched movie that is also
- * watchlisted stays on Watched only, so the shelves never double-count.
+ * The Library movie read: the persisted `movieLibrary` query (watched + watchlist
+ * movies) split into two poster shelves — Watchlist (to-watch, alphabetical) then
+ * Watched (most-recent first). A watched movie that is also watchlisted stays on
+ * Watched only, so the shelves never double-count.
  */
 export function useMovieLibrary(): MovieLibraryView {
   const runtime = useRuntime();
@@ -65,9 +65,11 @@ export function useMovieLibrary(): MovieLibraryView {
     if (entries === undefined) return [];
     const watched = entries.filter((e) => e.watched).sort(byWatchedAt);
     const watchlist = entries.filter((e) => e.inWatchlist && !e.watched).sort(byTitle);
+    // Watchlist first (the "want to watch" pool), then Watched — matching the model's
+    // "Watchlist / Watched" order and the Shows side's Watchlist-first framing.
     return [
-      { key: "watched", label: "Watched", entries: watched },
       { key: "watchlist", label: "Watchlist", entries: watchlist },
+      { key: "watched", label: "Watched", entries: watched },
     ];
   }, [entries]);
 

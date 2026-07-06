@@ -1,16 +1,50 @@
+import type { TmdbImageConfig } from "@data/image-source";
 import { CachedRetryBanner } from "@ui/components/CachedRetryBanner";
 import { CardListSkeleton } from "@ui/components/CardListSkeleton";
 import { SyncStatusPill } from "@ui/components/SyncStatusPill";
+import { useHideShow } from "@ui/hooks/useHideShow";
 import { useMarkWatched } from "@ui/hooks/useMarkWatched";
+import type { UpNextCard as UpNextCardModel } from "@ui/hooks/useUpNext";
 import { useUpNext } from "@ui/hooks/useUpNext";
 import type { ReactElement } from "react";
 import emptyAllCaughtUp from "./assets/empty-all-caught-up.webp";
 import emptyNothingTracked from "./assets/empty-nothing-tracked.webp";
-import { HeroSpotlight } from "./HeroSpotlight";
+import { LapsedDrawer } from "./LapsedDrawer";
 import { Snackbar } from "./Snackbar";
 import { UpNextCard } from "./UpNextCard";
 
 const UNDO_MS = 6000;
+
+/** One card-list for a group; only its first card renders as the `lead` when this
+ * group holds the very first card of the honest sort (`leadFirst`). */
+function QueueList({
+  cards,
+  tmdbConfig,
+  leadFirst,
+  listTestId,
+  onMark,
+}: {
+  readonly cards: readonly UpNextCardModel[];
+  readonly tmdbConfig: TmdbImageConfig | null;
+  readonly leadFirst: boolean;
+  readonly listTestId?: string;
+  onMark(card: UpNextCardModel): void;
+}): ReactElement {
+  return (
+    <ul className="card-list" data-testid={listTestId}>
+      {cards.map((card, index) => (
+        <li key={card.entry.showId}>
+          <UpNextCard
+            card={card}
+            tmdbConfig={tmdbConfig}
+            variant={leadFirst && index === 0 ? "lead" : "queue"}
+            onMark={() => onMark(card)}
+          />
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 function EmptyState({
   testId,
@@ -33,19 +67,35 @@ function EmptyState({
 }
 
 /**
- * Up Next — the home screen and heart of Cue. Every state is
- * designed: skeleton while the first load runs, a hard-error retry when nothing
- * is cached, a cached-retry banner when a refetch fails over cached data, the two
- * distinct designed empty states ("nothing tracked" vs "all caught up"), then the
- * cinematic spotlight for the top show plus the split-target queue below — each
- * carrying the optimistic mark-watched action + Undo.
+ * Up Next — the home screen and the honest heart of Cue. It shows only in-progress
+ * shows with an unwatched AIRED next episode, partitioned on verifiable facts: a
+ * "New" group (this week's freshly-aired episodes, hidden when empty), then a
+ * "Continue" group (mid-run, your-own-recency order). The very first card of the
+ * sort renders as a calmer `lead` (first-in-sort, not a recommendation). Idle
+ * in-progress shows collapse into the "Haven't watched in a while" drawer at the
+ * bottom. Every state is designed: skeleton, hard-error retry, and the two empty
+ * states ("nothing tracked" vs "all caught up"). Marking is optimistic with Undo.
  */
 export function UpNext(): ReactElement {
   const view = useUpNext();
   const mark = useMarkWatched();
+  const stop = useHideShow();
 
-  const [hero, ...rest] = view.cards;
+  const markCard = (card: UpNextCardModel): void => void mark.markWatched(card.entry);
+
+  const hasActive = view.newCards.length > 0 || view.continueCards.length > 0;
+  const hasLapsed = view.lapsedCards.length > 0;
   const nothingTracked = view.hasData && view.trackedCount === 0;
+  const allCaughtUp = view.hasData && !hasActive && !hasLapsed && !nothingTracked;
+  const showSections = view.hasData && !view.isLoading;
+
+  const stopWatching = (card: UpNextCardModel): void => {
+    void stop.hide(
+      card.entry.showId,
+      { trakt: card.entry.showId, tmdb: card.entry.tmdbId ?? undefined },
+      card.entry.title,
+    );
+  };
 
   return (
     <section className="screen screen--up-next" data-testid="screen-up-next">
@@ -86,7 +136,7 @@ export function UpNext(): ReactElement {
         </div>
       )}
 
-      {!view.isLoading && view.hasData && hero === undefined && nothingTracked && (
+      {showSections && nothingTracked && (
         <EmptyState
           testId="empty-nothing-tracked"
           art={emptyNothingTracked}
@@ -95,7 +145,7 @@ export function UpNext(): ReactElement {
         />
       )}
 
-      {!view.isLoading && view.hasData && hero === undefined && !nothingTracked && (
+      {showSections && allCaughtUp && (
         <EmptyState
           testId="empty-all-caught-up"
           art={emptyAllCaughtUp}
@@ -104,34 +154,33 @@ export function UpNext(): ReactElement {
         />
       )}
 
-      {hero !== undefined && (
-        <HeroSpotlight
-          card={hero}
-          tmdbConfig={view.tmdbConfig}
-          onMark={() => void mark.markWatched(hero.entry)}
-        />
+      {showSections && view.newCards.length > 0 && (
+        <section className="up-next-group" data-testid="up-next-new">
+          <h2 className="section-heading">New</h2>
+          <QueueList
+            cards={view.newCards}
+            tmdbConfig={view.tmdbConfig}
+            leadFirst
+            onMark={markCard}
+          />
+        </section>
       )}
 
-      {rest.length > 0 && (
-        <>
-          <div className="queue-head">
-            <span className="label">In your queue</span>
-            <span className="label" style={{ color: "var(--color-muted)" }}>
-              Recently watched first
-            </span>
-          </div>
-          <ul className="card-list" data-testid="up-next-list">
-            {rest.map((card) => (
-              <li key={card.entry.showId}>
-                <UpNextCard
-                  card={card}
-                  tmdbConfig={view.tmdbConfig}
-                  onMark={() => void mark.markWatched(card.entry)}
-                />
-              </li>
-            ))}
-          </ul>
-        </>
+      {showSections && view.continueCards.length > 0 && (
+        <section className="up-next-group" data-testid="up-next-continue">
+          <h2 className="section-heading">Continue</h2>
+          <QueueList
+            cards={view.continueCards}
+            tmdbConfig={view.tmdbConfig}
+            leadFirst={view.newCards.length === 0}
+            listTestId="up-next-list"
+            onMark={markCard}
+          />
+        </section>
+      )}
+
+      {showSections && hasLapsed && (
+        <LapsedDrawer cards={view.lapsedCards} tmdbConfig={view.tmdbConfig} onStop={stopWatching} />
       )}
 
       {mark.error !== null && (
@@ -147,11 +196,40 @@ export function UpNext(): ReactElement {
       {mark.undoable !== null && (
         <Snackbar
           testId="undo"
-          message={`Marked ${mark.undoable.title} ${mark.undoable.episodeCode} watched.`}
+          message={
+            mark.undoable.finished
+              ? `You finished ${mark.undoable.title}.`
+              : `Marked ${mark.undoable.title} ${mark.undoable.episodeCode} watched.`
+          }
           actionLabel="Undo"
           autoDismissMs={UNDO_MS}
           onAction={() => void mark.undo()}
           onDismiss={mark.dismissUndo}
+        />
+      )}
+
+      {stop.error !== null && (
+        <Snackbar
+          testId="stop-error"
+          message={stop.error}
+          actionLabel="Dismiss"
+          onAction={stop.clearError}
+          onDismiss={stop.clearError}
+        />
+      )}
+
+      {stop.undoable !== null && (
+        <Snackbar
+          testId="stop-undo"
+          message={
+            stop.undoable.kind === "hide"
+              ? `Stopped watching ${stop.undoable.title}.`
+              : `Resumed ${stop.undoable.title}.`
+          }
+          actionLabel="Undo"
+          autoDismissMs={UNDO_MS}
+          onAction={() => void stop.undo()}
+          onDismiss={stop.dismissUndo}
         />
       )}
     </section>

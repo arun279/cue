@@ -224,42 +224,73 @@ test("a hide op that already landed is reconciled away on reload, never re-POSTe
 
   await expect(page.getByTestId("detail-title")).toBeVisible();
   // Direct load (library cache cold): the snapshot still resolves the hidden state,
-  // so the action offers recovery instead of re-hiding an already-abandoned show.
-  await expect(page.getByTestId("hide-show")).toHaveText("Un-abandon");
+  // so the action offers recovery instead of re-stopping an already-stopped show.
+  await expect(page.getByTestId("hide-show")).toHaveText("Resume");
   await page.waitForTimeout(1500);
   // The hidden-set read shows the op landed; it's retired, not blindly re-POSTed.
   expect(controls.hiddenPosts().length).toBe(0);
 });
 
-test("Abandon drops the show from Up Next and moves it to the Abandoned pile", async ({ page }) => {
+test("Stop watching drops the show from Up Next and moves it to the Stopped segment", async ({
+  page,
+}) => {
   const controls = await installLibraryRoutes(page.context(), [detailShow()]);
 
   await page.goto("/");
-  // The lone tracked show leads Up Next as the spotlight hero.
-  await expect(page.getByTestId("up-next-hero").filter({ hasText: "The Detail Show" })).toHaveCount(
+  // The lone tracked show leads Up Next as the first card.
+  await expect(page.getByTestId("up-next-card").filter({ hasText: "The Detail Show" })).toHaveCount(
     1,
   );
 
   await page.goto("/show/1");
-  await expect(page.getByTestId("hide-show")).toHaveText("Abandon");
+  await expect(page.getByTestId("hide-show")).toHaveText("Stop watching");
   await page.getByTestId("hide-show").click();
-  await expect(page.getByTestId("hide-undo")).toContainText("Abandoned The Detail Show");
+  await expect(page.getByTestId("hide-undo")).toContainText("Stopped watching The Detail Show");
 
   await expect.poll(() => controls.hiddenPosts().length).toBe(1);
   expect(controls.hiddenPosts()[0]?.showIds).toContain(1);
 
-  // Gone from the aired-only Up Next queue (client-side hidden exclusion): no hero, no rows.
+  // Gone from the aired-only Up Next queue (client-side hidden exclusion): no cards.
   await page.goto("/");
-  await expect(page.getByTestId("up-next-hero")).toHaveCount(0);
   await expect(page.getByTestId("up-next-card")).toHaveCount(0);
 
-  // Present only under the Abandoned pile in My Shows (collapsed by default; expand it).
+  // Present only under the Stopped segment in Library (collapsed by default; expand it).
   await page.setViewportSize({ width: 1000, height: 1400 });
-  await page.goto("/my-shows");
-  const abandoned = page.getByTestId("pile-heading").filter({ hasText: "Abandoned" });
-  await expect(abandoned).toBeVisible();
-  await abandoned.click();
+  await page.goto("/library");
+  const stopped = page.getByTestId("pile-heading").filter({ hasText: "Stopped" });
+  await expect(stopped).toBeVisible();
+  await stopped.click();
   await expect(page.getByTestId("library-card").filter({ hasText: "The Detail Show" })).toHaveCount(
+    1,
+  );
+});
+
+test("marking an episode of a Stopped show auto-resumes it", async ({ page }) => {
+  const controls = await installLibraryRoutes(page.context(), [{ ...detailShow(), hidden: true }]);
+  await page.goto("/show/1");
+
+  // Loads as Stopped: the action offers Resume and it is absent from Up Next.
+  await expect(page.getByTestId("hide-show")).toHaveText("Resume");
+
+  // Record a watch on the next aired episode from the detail "Up next" module.
+  await page.getByTestId("next-up-mark").click();
+
+  // The mark logs the play AND clears the hidden flag (unhide remove), so the show
+  // un-stops with no manual Resume — state follows progress.
+  await expect.poll(() => controls.historyPosts().length).toBeGreaterThan(0);
+  await expect
+    .poll(
+      () =>
+        controls.writes().filter((w) => w.path === "/users/hidden/progress_watched/remove").length,
+    )
+    .toBe(1);
+
+  // The detail action flips back to "Stop watching".
+  await expect(page.getByTestId("hide-show")).toHaveText("Stop watching");
+
+  // And it re-enters the aired-only Up Next queue.
+  await page.goto("/");
+  await expect(page.getByTestId("up-next-card").filter({ hasText: "The Detail Show" })).toHaveCount(
     1,
   );
 });

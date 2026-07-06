@@ -22,8 +22,10 @@ test.beforeEach(async ({ page }) => {
 
 test("shows the pre-query empty state and issues no request before typing", async ({ page }) => {
   const controls = await installSearchRoutes(page.context(), defaultResolve);
-  await page.goto("/discover");
+  await page.goto("/search");
 
+  await expect(page.getByTestId("screen-search")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Search" })).toBeVisible();
   await expect(page.getByTestId("search-prequery")).toBeVisible();
   // Give any errant debounce a chance to fire, then assert nothing was requested.
   await page.waitForTimeout(600);
@@ -34,7 +36,7 @@ test("debounces to exactly one request after the user settles, then renders resu
   page,
 }) => {
   const controls = await installSearchRoutes(page.context(), defaultResolve);
-  await page.goto("/discover");
+  await page.goto("/search");
 
   // Type char-by-char faster than the debounce window so the burst collapses to one request.
   await page.getByTestId("search-input").pressSequentially("severance", { delay: 40 });
@@ -50,7 +52,7 @@ test("debounces to exactly one request after the user settles, then renders resu
 
 test("renders the no-results empty state for a query with no matches", async ({ page }) => {
   await installSearchRoutes(page.context(), defaultResolve);
-  await page.goto("/discover");
+  await page.goto("/search");
 
   await page.getByTestId("search-input").pressSequentially("widget", { delay: 40 });
 
@@ -61,7 +63,7 @@ test("renders the no-results empty state for a query with no matches", async ({ 
 
 test("inline Add fires POST /sync/watchlist optimistically", async ({ page }) => {
   const controls = await installSearchRoutes(page.context(), defaultResolve);
-  await page.goto("/discover");
+  await page.goto("/search");
 
   await page.getByTestId("search-input").pressSequentially("severance", { delay: 40 });
   await expect(page.getByTestId("search-result")).toHaveCount(2);
@@ -77,7 +79,7 @@ test("inline Add fires POST /sync/watchlist optimistically", async ({ page }) =>
 
 test("a recent search chip re-runs the query from the pre-query state", async ({ page }) => {
   await installSearchRoutes(page.context(), defaultResolve);
-  await page.goto("/discover");
+  await page.goto("/search");
 
   await page.getByTestId("search-input").pressSequentially("severance", { delay: 40 });
   await expect(page.getByTestId("search-results")).toBeVisible();

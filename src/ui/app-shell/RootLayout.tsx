@@ -41,29 +41,110 @@ function NavLinks(): ReactNode {
   ));
 }
 
-function SettingsLink(): ReactElement {
+function SearchIcon(): ReactElement {
   return (
-    <Link
-      to="/settings"
-      className="nav__link"
-      activeProps={{ className: "nav__link nav__link--active", "aria-current": "page" }}
+    <svg
+      className="nav__icon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
     >
-      <svg
-        className="nav__icon"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden="true"
-        focusable="false"
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.5-3.5" />
+    </svg>
+  );
+}
+
+function ProfileIcon(): ReactElement {
+  return (
+    <svg
+      className="nav__icon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 21a8 8 0 0 1 16 0" />
+    </svg>
+  );
+}
+
+function SettingsIcon(): ReactElement {
+  return (
+    <svg
+      className="nav__icon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </svg>
+  );
+}
+
+/** The header Search + Profile affordances — persistent, non-tab controls reachable
+ * from every screen (Search moved off the bottom bar to a header search; Profile to
+ * a corner/account control). Icon-only in the topbar cluster to stay quiet. */
+function TopbarActions(): ReactElement {
+  return (
+    <div className="topbar__actions">
+      <Link to="/search" className="topbar__action" aria-label="Search shows and movies">
+        <SearchIcon />
+      </Link>
+      <Link to="/profile" className="topbar__action" aria-label="Profile">
+        <ProfileIcon />
+      </Link>
+    </div>
+  );
+}
+
+/** The same Search / Profile / Settings affordances as labelled rows in the sidebar
+ * footer, where the wider desktop chrome has room for text beside the icons. */
+function SidebarFooter(): ReactElement {
+  return (
+    <div className="sidebar__footer">
+      <Link
+        to="/search"
+        className="nav__link"
+        aria-label="Search shows and movies"
+        activeProps={{ className: "nav__link nav__link--active", "aria-current": "page" }}
       >
-        <circle cx="12" cy="12" r="3" />
-        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-      </svg>
-      <span className="nav__text">Settings</span>
-    </Link>
+        <SearchIcon />
+        <span className="nav__text">Search</span>
+      </Link>
+      <Link
+        to="/profile"
+        className="nav__link"
+        activeProps={{ className: "nav__link nav__link--active", "aria-current": "page" }}
+      >
+        <ProfileIcon />
+        <span className="nav__text">Profile</span>
+      </Link>
+      <Link
+        to="/settings"
+        className="nav__link"
+        activeProps={{ className: "nav__link nav__link--active", "aria-current": "page" }}
+      >
+        <SettingsIcon />
+        <span className="nav__text">Settings</span>
+      </Link>
+    </div>
   );
 }
 
@@ -78,14 +159,13 @@ export function RootLayout(): ReactElement {
         <div className="sidebar__links">
           <NavLinks />
         </div>
-        <div className="sidebar__footer">
-          <SettingsLink />
-        </div>
+        <SidebarFooter />
       </nav>
 
       <div className="content">
         <header className="topbar">
           <Brand />
+          <TopbarActions />
         </header>
         <main id="main" className="main" tabIndex={-1}>
           <ErrorBoundary>

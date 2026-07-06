@@ -261,6 +261,33 @@ body {
   flex: none;
 }
 
+/* Header Search + Profile affordances (the two non-tab primary controls). */
+.topbar__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.topbar__action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--radius-1);
+  color: var(--color-ink2);
+  text-decoration: none;
+  transition:
+    color var(--dur-quick) var(--ease-standard),
+    background var(--dur-quick) var(--ease-standard);
+}
+.topbar__action:hover {
+  color: var(--color-fg);
+  background: var(--color-elevated);
+}
+.topbar__action[data-status="active"] {
+  color: var(--color-accent);
+}
+
 .tabbar .nav__link {
   flex-direction: column;
   gap: 4px;
@@ -302,6 +329,9 @@ body {
     gap: 2px;
   }
   .sidebar__footer {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
     margin-top: auto;
     padding-top: var(--space-3);
     border-top: 1px solid var(--color-border);
@@ -816,133 +846,6 @@ body {
   flex: none;
 }
 
-/* ---- Up Next spotlight (the most-overdue hero) ---- */
-.spotlight {
-  position: relative;
-  border-radius: var(--radius-3);
-  overflow: hidden;
-  border: 1px solid var(--color-border);
-  background: var(--color-bg);
-  display: flex;
-  align-items: flex-end;
-  min-height: 360px;
-  margin-bottom: var(--space-6);
-}
-.spotlight__backdrop {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center 20%;
-}
-/* Near-black wash (canvas tint, not the lighter surface) so the hero melts into
-   the page and the backdrop carries atmosphere left-to-right instead of reading
-   as a flat card. */
-.spotlight__scrim {
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(
-      90deg,
-      color-mix(in srgb, var(--color-bg) 94%, transparent) 0%,
-      color-mix(in srgb, var(--color-bg) 72%, transparent) 46%,
-      color-mix(in srgb, var(--color-bg) 12%, transparent) 100%
-    ),
-    linear-gradient(
-      0deg,
-      var(--color-bg) 2%,
-      color-mix(in srgb, var(--color-bg) 24%, transparent) 56%,
-      transparent 100%
-    );
-}
-.spotlight__inner {
-  position: relative;
-  display: flex;
-  gap: var(--space-6);
-  align-items: flex-end;
-  width: 100%;
-  padding: var(--space-6);
-}
-.spotlight__poster-link {
-  flex: none;
-  display: block;
-  border-radius: var(--radius-poster);
-}
-.spotlight__body {
-  flex: 1;
-  min-width: 0;
-  padding-bottom: 2px;
-}
-.spotlight__eyebrow {
-  color: var(--color-accent);
-  font-weight: 600;
-  font-size: 12px;
-  letter-spacing: 0.11em;
-  text-transform: uppercase;
-  margin: 0 0 var(--space-3);
-}
-.spotlight__title-link {
-  text-decoration: none;
-  color: inherit;
-  display: inline-block;
-}
-.spotlight__title {
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: clamp(2rem, 5.2vw, 3.25rem);
-  line-height: 1.02;
-  letter-spacing: -0.025em;
-  margin: 0 0 var(--space-4);
-  text-shadow: 0 2px 20px rgb(0 0 0 / 0.35);
-}
-.spotlight__title-link:hover .spotlight__title {
-  color: var(--color-accent-strong);
-}
-.spotlight__chips {
-  display: flex;
-  gap: var(--space-2);
-  flex-wrap: wrap;
-  margin-bottom: var(--space-4);
-}
-.spotlight__epline {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-3);
-  margin-bottom: var(--space-2);
-  text-decoration: none;
-  color: inherit;
-}
-.spotlight__epname {
-  font-weight: 600;
-  font-size: 1.125rem;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.spotlight__epline:hover .spotlight__epname {
-  color: var(--color-accent-strong);
-}
-.spotlight__meta {
-  color: var(--color-ink2);
-  font-size: 0.875rem;
-  margin: 0 0 var(--space-5);
-}
-.spotlight__progress {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  max-width: 28rem;
-  margin-bottom: var(--space-5);
-}
-.spotlight__actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-}
-
 /* ---- Queue rows (split-target: poster/title → Show, episode → Episode) ---- */
 .queue-head {
   display: flex;
@@ -1035,17 +938,21 @@ body {
   color: var(--color-muted);
 }
 
+/* One large one-tap "Watched" — a pill with the check + label, not a bare icon. */
 .card__mark {
   appearance: none;
-  border: 2px solid color-mix(in srgb, var(--color-muted) 70%, transparent);
-  background: color-mix(in srgb, var(--color-bg) 55%, transparent);
-  color: var(--color-ink2);
-  width: 2.9rem;
-  height: 2.9rem;
-  border-radius: 50%;
-  display: flex;
+  border: 1.5px solid var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  color: var(--color-accent);
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: var(--space-2);
+  padding: 10px var(--space-4);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  font-weight: 600;
   cursor: pointer;
   flex: none;
   transition:
@@ -1058,18 +965,100 @@ body {
   background: var(--color-accent);
   border-color: var(--color-accent);
   color: var(--color-accent-fg);
-  transform: scale(1.06);
 }
 .card__mark:active {
-  transform: scale(0.96);
+  transform: scale(0.97);
 }
 .card__mark:disabled {
   opacity: 0.5;
   cursor: progress;
 }
 .card__check {
-  width: 1.4rem;
-  height: 1.4rem;
+  width: 1.15rem;
+  height: 1.15rem;
+  flex: none;
+}
+.card__mark-text {
+  white-space: nowrap;
+}
+.card__meta {
+  margin: 6px 0 0;
+  font-size: 0.8rem;
+  color: var(--color-muted);
+}
+
+/* Up Next groups + the calm lead card (first-in-sort, not a cinematic hero). */
+.up-next-group {
+  margin-bottom: var(--space-5);
+}
+.section-heading {
+  margin: 0 0 var(--space-3);
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--color-ink2);
+}
+.card--lead {
+  padding: var(--space-5);
+  border-color: color-mix(in srgb, var(--color-accent) 30%, var(--color-border));
+}
+.card--lead .card__title {
+  font-size: 1.35rem;
+}
+.card--lead .poster--queue {
+  width: 96px;
+}
+.card--lead .card__mark {
+  background: var(--color-accent);
+  color: var(--color-accent-fg);
+  padding: 12px var(--space-5);
+  font-size: 0.95rem;
+}
+@media (min-width: 900px) {
+  .card--lead .poster--queue {
+    width: 116px;
+  }
+}
+
+/* "Haven't watched in a while" drawer — reuses the pile chrome; each row is a quiet
+   prune prompt with Keep / Stop watching. */
+.lapsed-drawer {
+  margin-top: var(--space-5);
+}
+.lapsed-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.lapsed-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.lapsed-row__title {
+  margin: 0 0 4px;
+  font-size: 1rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lapsed-row__actions {
+  display: flex;
+  gap: var(--space-2);
+  flex: none;
+}
+.lapsed-row__stop {
+  color: var(--color-muted);
+}
+.lapsed-row__stop:hover {
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+  background: transparent;
 }
 
 .skeleton-line {
@@ -1166,70 +1155,9 @@ body {
   cursor: pointer;
   flex: none;
 }
-@media (max-width: 639px) {
-  /* Mobile hero: a taller cinematic backdrop the poster rises into, then the
-     title and metadata on the canvas below — one connected composition that
-     melts into the page rather than a floating card (concept mobile). */
-  .spotlight {
-    display: block;
-    min-height: 0;
-    align-items: stretch;
-  }
-  .spotlight__backdrop {
-    height: 224px;
-  }
-  .spotlight__scrim {
-    inset: 0 0 auto 0;
-    height: 224px;
-    background: linear-gradient(
-      0deg,
-      var(--color-bg) 4%,
-      color-mix(in srgb, var(--color-bg) 28%, transparent) 62%,
-      transparent 100%
-    );
-  }
-  .spotlight__inner {
-    flex-direction: column;
-    align-items: stretch;
-    gap: var(--space-3);
-    padding: 140px var(--space-4) var(--space-5);
-  }
-  .spotlight__poster-link {
-    align-self: flex-start;
-    margin-top: -92px;
-  }
-  .spotlight__poster-link .poster--hero {
-    width: 112px;
-    height: 168px;
-  }
-  .spotlight__eyebrow {
-    margin-top: var(--space-1);
-  }
-  .spotlight__body {
-    padding-bottom: 0;
-  }
-  .spotlight__actions {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .spotlight__actions .button {
-    width: 100%;
-  }
-}
 @media (min-width: 900px) {
   .snackbar {
     bottom: var(--space-5);
-  }
-  .spotlight {
-    min-height: 468px;
-  }
-  .spotlight__inner {
-    gap: var(--space-7);
-    padding: var(--space-7);
-  }
-  .spotlight__poster-link .poster--hero {
-    width: 188px;
-    height: 282px;
   }
 }
 
@@ -1445,6 +1373,13 @@ body {
 .pile-tile__unabandon:hover {
   border-color: var(--color-accent);
   color: var(--color-accent);
+}
+/* Caught-up tile caption: "· returning <date>" when a return date is known. */
+.pile-tile__note {
+  margin: 4px 0 0;
+  font-size: 0.72rem;
+  color: var(--color-muted);
+  text-align: center;
 }
 
 /* Responsive, window-virtualized poster grid — one per status bucket. Rows are
@@ -1691,6 +1626,11 @@ body {
 }
 .show-hero__stop:hover {
   color: var(--color-danger);
+}
+.show-hero__stop-note {
+  margin: var(--space-2) 0 0;
+  font-size: 0.78rem;
+  color: var(--color-muted);
 }
 .show-hero__rating {
   display: flex;

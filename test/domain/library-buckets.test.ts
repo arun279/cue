@@ -3,7 +3,8 @@ import type { WatchStatus } from "@domain/watch-status";
 import { describe, expect, it } from "vitest";
 import { airedNext, DAY, futureNext, iso, makeShow, NOW, THRESHOLD } from "./_helpers";
 
-/** One show per status; hidden must land in Abandoned only. */
+/** One show per bucket; the idle (formerly "lapsed") show folds into Watching, and
+ * hidden must land in Stopped (abandoned) only. */
 function mixedLibrary() {
   return [
     makeShow({
@@ -49,17 +50,24 @@ function statusesOf(shows: ReturnType<typeof mixedLibrary>): WatchStatus[] {
 
 describe("groupLibrary", () => {
   it("groups a mixed library into the canonical display order, omitting empty buckets", () => {
+    // Watchlist(not-started) first; the idle show folds into a single Watching segment.
     expect(statusesOf(mixedLibrary())).toEqual([
-      "watching",
-      "lapsed",
       "not-started",
+      "watching",
       "caught-up",
       "ended",
       "abandoned",
     ]);
   });
 
-  it("places a hidden show only in Abandoned and nowhere else", () => {
+  it("folds an idle (lapsed) show into the single Watching segment", () => {
+    const buckets = groupLibrary(mixedLibrary(), NOW, THRESHOLD, "recently-watched");
+    const watching = buckets.find((bucket) => bucket.status === "watching");
+    expect(watching?.shows.map((s) => s.showId).sort()).toEqual([1, 2]);
+    expect(buckets.some((bucket) => bucket.status === "lapsed")).toBe(false);
+  });
+
+  it("places a hidden show only in the Stopped (abandoned) bucket and nowhere else", () => {
     const buckets = groupLibrary(mixedLibrary(), NOW, THRESHOLD, "recently-watched");
     const abandoned = buckets.find((bucket) => bucket.status === "abandoned");
     expect(abandoned?.shows.map((s) => s.showId)).toEqual([6]);
@@ -118,32 +126,6 @@ describe("groupLibrary", () => {
     ];
     const caughtUp = groupLibrary(shows, NOW, THRESHOLD, "recently-watched")[0];
     expect(caughtUp?.shows.map((s) => s.title)).toEqual(["New", "Old", "Never"]);
-  });
-
-  it("sorts lapsed most-lapsed-first regardless of the global sort", () => {
-    const shows = [
-      makeShow({
-        showId: 1,
-        title: "Alpha",
-        nextEpisode: airedNext,
-        lastWatchedAt: iso(NOW - 30 * DAY),
-      }),
-      makeShow({
-        showId: 2,
-        title: "Bravo",
-        nextEpisode: airedNext,
-        lastWatchedAt: iso(NOW - 40 * DAY),
-      }),
-      makeShow({
-        showId: 3,
-        title: "Charlie",
-        nextEpisode: airedNext,
-        lastWatchedAt: null,
-      }),
-    ];
-    const lapsed = groupLibrary(shows, NOW, THRESHOLD, "alphabetical")[0];
-    expect(lapsed?.status).toBe("lapsed");
-    expect(lapsed?.shows.map((s) => s.showId)).toEqual([3, 2, 1]);
   });
 
   it("returns no buckets for an empty library", () => {

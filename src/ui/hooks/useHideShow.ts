@@ -2,8 +2,9 @@ import { queryKeys } from "@data/query-keys";
 import type { ShowIds } from "@domain/model/ids";
 import { buildHideShowOp, buildUnhideShowOp } from "@domain/write-queue/ops";
 import { useQueryClient } from "@tanstack/react-query";
-import { type UpNextData, useRuntime } from "@ui/runtime/runtime";
+import { useRuntime } from "@ui/runtime/runtime";
 import { useCallback, useState } from "react";
+import { patchLibraryHidden } from "./library-cache";
 
 /** Which direction the last action moved the show — drives the Undo copy + inverse. */
 type HideKind = "hide" | "unhide";
@@ -42,16 +43,7 @@ export function useHideShow(): HideController {
   const [error, setError] = useState<string | null>(null);
 
   const patchHidden = useCallback(
-    (showId: number, hidden: boolean) => {
-      queryClient.setQueryData<UpNextData>(queryKeys.library(), (old) =>
-        old === undefined
-          ? old
-          : {
-              ...old,
-              entries: old.entries.map((e) => (e.showId === showId ? { ...e, hidden } : e)),
-            },
-      );
-    },
+    (showId: number, hidden: boolean) => patchLibraryHidden(queryClient, showId, hidden),
     [queryClient],
   );
 
@@ -77,7 +69,7 @@ export function useHideShow(): HideController {
       revalidate(showId);
       if (outcome === "failed") {
         patchHidden(showId, !hidden);
-        setError(`Couldn't ${hidden ? "abandon" : "un-abandon"} ${title}. Please try again.`);
+        setError(`Couldn't ${hidden ? "stop watching" : "resume"} ${title}. Please try again.`);
         return;
       }
       setUndoState({ showId, ids, title, kind });

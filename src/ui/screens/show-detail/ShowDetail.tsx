@@ -29,7 +29,7 @@ function backdropUrlOf(header: ShowHeader): string | null {
 
 /** The full-bleed media hero: backdrop with a scrim fading into the card, poster
  * inset with an amber progress rail, editorial title, broadcast chips, overview,
- * and the primary actions (Mark next / Watchlist / Abandon) + compact rating. */
+ * and the primary actions (Mark next / Watchlist / Stop watching) + compact rating. */
 function ShowHero({
   header,
   onWatchlist,
@@ -160,9 +160,15 @@ function ShowHero({
             data-hidden={hidden}
             onClick={onToggleHidden}
           >
-            {hidden ? "Un-abandon" : "Abandon"}
+            {hidden ? "Resume" : "Stop watching"}
           </button>
         </div>
+
+        <p className="show-hero__stop-note" data-testid="stop-note">
+          {hidden
+            ? "History kept — resume to pick up where you left off."
+            : "Stopping keeps your watch history — resume anytime."}
+        </p>
 
         <div className="show-hero__rating">
           <span className="rating__lead">Your rating</span>
@@ -295,8 +301,8 @@ export function ShowDetail({ showId }: { showId: number }): ReactElement {
 
   return (
     <section className="screen screen--detail" data-testid="screen-show-detail">
-      <Link to="/my-shows" className="detail-back" data-testid="detail-back">
-        ‹ My Shows
+      <Link to="/library" className="detail-back" data-testid="detail-back">
+        ‹ Library
       </Link>
 
       <ShowHero
@@ -404,8 +410,8 @@ export function ShowDetail({ showId }: { showId: number }): ReactElement {
           testId="hide-undo"
           message={
             hide.undoable.kind === "hide"
-              ? `Abandoned ${hide.undoable.title}.`
-              : `Un-abandoned ${hide.undoable.title}.`
+              ? `Stopped watching ${hide.undoable.title}.`
+              : `Resumed ${hide.undoable.title}.`
           }
           actionLabel="Undo"
           autoDismissMs={UNDO_MS}

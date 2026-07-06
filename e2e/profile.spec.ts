@@ -66,6 +66,11 @@ test("shows a brand-new-account empty state when every count is zero", async ({ 
 
   await expect(page.getByTestId("profile-empty")).toBeVisible();
   await expect(page.getByTestId("stat-theatre")).toHaveCount(0);
+
+  // The empty-state CTA now routes to Search (Discover is no longer a destination).
+  await page.getByTestId("profile-empty-discover").click();
+  await expect(page.getByTestId("screen-search")).toBeVisible();
+  await expect(page).toHaveURL(/\/search$/);
 });
 
 test("links into Settings & connections", async ({ page }) => {

@@ -21,25 +21,41 @@ test("mounts the frame with the document title and no console errors", async ({ 
   expect(errors).toEqual([]);
 });
 
-test("all five destinations plus /auth/callback are reachable", async ({ page }) => {
+test("exactly three tabs plus Search and Profile as non-tab affordances", async ({ page }) => {
   await page.goto("/");
   const sidebar = page.locator(".sidebar");
 
   await expect(page.getByTestId("screen-up-next")).toBeVisible();
 
+  // Exactly three primary destinations — Search and Profile are NOT tabs.
+  await expect(sidebar.locator(".sidebar__links a")).toHaveCount(3);
+
   for (const [label, testId] of [
-    ["Upcoming", "screen-upcoming"],
-    ["My Shows", "screen-my-shows"],
-    ["Discover", "screen-discover"],
-    ["Profile", "screen-profile"],
+    ["Calendar", "screen-calendar"],
+    ["Library", "screen-library"],
     ["Up Next", "screen-up-next"],
   ] as const) {
-    await sidebar.getByRole("link", { name: label }).click();
+    await sidebar.getByRole("link", { name: label, exact: true }).click();
     await expect(page.getByTestId(testId)).toBeVisible();
   }
 
+  // Search + Profile are reachable non-tab affordances that navigate to their routes.
+  await sidebar.getByRole("link", { name: "Search shows and movies" }).click();
+  await expect(page.getByTestId("screen-search")).toBeVisible();
+  await expect(page).toHaveURL(/\/search$/);
+
+  await sidebar.getByRole("link", { name: "Profile", exact: true }).click();
+  await expect(page.getByTestId("screen-profile")).toBeVisible();
+  await expect(page).toHaveURL(/\/profile$/);
+
   await page.goto("/auth/callback");
   await expect(page.getByTestId("screen-auth-callback")).toBeVisible();
+});
+
+test("legacy /my-shows deep link redirects to /library", async ({ page }) => {
+  await page.goto("/my-shows");
+  await expect(page).toHaveURL(/\/library$/);
+  await expect(page.getByTestId("screen-library")).toBeVisible();
 });
 
 test("renders a sidebar at 1280px and a bottom tab bar at 390px", async ({ page }) => {

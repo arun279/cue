@@ -1,6 +1,16 @@
-import { computeWatchStatus, type WatchStatus } from "@domain/watch-status";
+import { computeWatchStatus, isTerminalStatus, type WatchStatus } from "@domain/watch-status";
 import { describe, expect, it } from "vitest";
 import { airedNext, DAY, futureNext, iso, makeShow, NOW, THRESHOLD } from "./_helpers";
+
+describe("isTerminalStatus", () => {
+  it("is true for ended/canceled/cancelled (any casing) and false otherwise", () => {
+    expect(isTerminalStatus("ended")).toBe(true);
+    expect(isTerminalStatus("Canceled")).toBe(true);
+    expect(isTerminalStatus("CANCELLED")).toBe(true);
+    expect(isTerminalStatus("returning series")).toBe(false);
+    expect(isTerminalStatus("")).toBe(false);
+  });
+});
 
 describe("computeWatchStatus", () => {
   const cases: Array<{

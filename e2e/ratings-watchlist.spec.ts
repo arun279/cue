@@ -28,7 +28,7 @@ function ratedShow(): ShowFixture {
   };
 }
 
-/** A not-yet-started show (aired 0, completed 0) — buckets as Not started until watchlisted. */
+/** A not-yet-started show (aired 0, completed 0) — buckets as Watchlist until watchlisted. */
 function notStartedShow(): ShowFixture {
   return {
     trakt: 2,
@@ -84,7 +84,7 @@ test("rating an episode fires POST /sync/ratings with the episodes[] body", asyn
   expect(posted?.rating).toBe(7);
 });
 
-test("adding a never-watched show to the watchlist surfaces it in the My Shows Not-started pile", async ({
+test("adding a never-watched show to the watchlist surfaces it in the Library Watchlist segment", async ({
   page,
 }) => {
   const controls = await installLibraryRoutes(page.context(), [notStartedShow()]);
@@ -93,8 +93,8 @@ test("adding a never-watched show to the watchlist surfaces it in the My Shows N
   // A never-watched, un-watchlisted show is absent from /sync/watched/shows and the
   // watchlist, so it does not appear in My Shows at all — the watchlist is its only
   // route into the library (regression guard for the watchlist-only refetch bug).
-  await page.goto("/my-shows");
-  await expect(page.getByTestId("pile-heading").filter({ hasText: "Not started" })).toHaveCount(0);
+  await page.goto("/library");
+  await expect(page.getByTestId("pile-heading").filter({ hasText: "Watchlist" })).toHaveCount(0);
   await expect(page.getByTestId("library-card").filter({ hasText: "Watchlist Show" })).toHaveCount(
     0,
   );
@@ -108,11 +108,11 @@ test("adding a never-watched show to the watchlist surfaces it in the My Shows N
   await expect.poll(() => controls.watchlistPosts().length).toBe(1);
   expect(controls.watchlistPosts()[0]?.showIds).toContain(2);
 
-  // The Not-started pile now holds the show, and it SURVIVES a full reload+refetch
-  // (a watched-shows-only library would drop it here). The pile is collapsed by
+  // The Watchlist segment now holds the show, and it SURVIVES a full reload+refetch
+  // (a watched-shows-only library would drop it here). The segment is collapsed by
   // default, so expand it to reveal the tile.
-  await page.goto("/my-shows");
-  const notStarted = page.getByTestId("pile-heading").filter({ hasText: "Not started" });
+  await page.goto("/library");
+  const notStarted = page.getByTestId("pile-heading").filter({ hasText: "Watchlist" });
   await expect(notStarted).toBeVisible();
   await notStarted.click();
   await expect(page.getByTestId("library-card").filter({ hasText: "Watchlist Show" })).toHaveCount(
@@ -120,15 +120,15 @@ test("adding a never-watched show to the watchlist surfaces it in the My Shows N
   );
 });
 
-test("removing a show from the watchlist fires /sync/watchlist/remove and clears the Not-started pile", async ({
+test("removing a show from the watchlist fires /sync/watchlist/remove and clears the Watchlist segment", async ({
   page,
 }) => {
   const seeded: ShowFixture = { ...notStartedShow(), inWatchlist: true };
   const controls = await installLibraryRoutes(page.context(), [seeded]);
   await page.setViewportSize({ width: 1000, height: 1400 });
 
-  await page.goto("/my-shows");
-  await expect(page.getByTestId("pile-heading").filter({ hasText: "Not started" })).toBeVisible();
+  await page.goto("/library");
+  await expect(page.getByTestId("pile-heading").filter({ hasText: "Watchlist" })).toBeVisible();
 
   await page.goto("/show/2");
   const toggle = page.getByTestId("watchlist-toggle");
@@ -139,6 +139,6 @@ test("removing a show from the watchlist fires /sync/watchlist/remove and clears
   await expect.poll(() => controls.watchlistRemovePosts().length).toBe(1);
   expect(controls.watchlistRemovePosts()[0]?.showIds).toContain(2);
 
-  await page.goto("/my-shows");
-  await expect(page.getByTestId("pile-heading").filter({ hasText: "Not started" })).toHaveCount(0);
+  await page.goto("/library");
+  await expect(page.getByTestId("pile-heading").filter({ hasText: "Watchlist" })).toHaveCount(0);
 });

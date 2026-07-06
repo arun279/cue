@@ -196,8 +196,8 @@ export function MovieDetail({ movieId }: { readonly movieId: number }): ReactEle
 
   return (
     <section className="screen screen--detail" data-testid="screen-movie-detail">
-      <Link to="/my-shows" className="detail-back" data-testid="movie-back">
-        ‹ My Shows
+      <Link to="/library" className="detail-back" data-testid="movie-back">
+        ‹ Library
       </Link>
 
       <MovieHero header={header} entry={entry} actions={actions} rate={rate} />

@@ -1,4 +1,4 @@
-import { createRootRoute, createRoute, createRouter } from "@tanstack/react-router";
+import { createRootRoute, createRoute, createRouter, redirect } from "@tanstack/react-router";
 import { RootLayout } from "@ui/app-shell/RootLayout";
 
 const rootRoute = createRootRoute({ component: RootLayout });
@@ -6,15 +6,41 @@ const rootRoute = createRootRoute({ component: RootLayout });
 const upNextRoute = createRoute({ getParentRoute: () => rootRoute, path: "/" }).lazy(() =>
   import("@app/routes/up-next.lazy").then((module) => module.Route),
 );
-const upcomingRoute = createRoute({ getParentRoute: () => rootRoute, path: "/upcoming" }).lazy(() =>
-  import("@app/routes/upcoming.lazy").then((module) => module.Route),
+const calendarRoute = createRoute({ getParentRoute: () => rootRoute, path: "/calendar" }).lazy(() =>
+  import("@app/routes/calendar.lazy").then((module) => module.Route),
 );
-const myShowsRoute = createRoute({ getParentRoute: () => rootRoute, path: "/my-shows" }).lazy(() =>
-  import("@app/routes/my-shows.lazy").then((module) => module.Route),
+const libraryRoute = createRoute({ getParentRoute: () => rootRoute, path: "/library" }).lazy(() =>
+  import("@app/routes/library.lazy").then((module) => module.Route),
 );
-const discoverRoute = createRoute({ getParentRoute: () => rootRoute, path: "/discover" }).lazy(() =>
-  import("@app/routes/discover.lazy").then((module) => module.Route),
+const searchRoute = createRoute({ getParentRoute: () => rootRoute, path: "/search" }).lazy(() =>
+  import("@app/routes/search.lazy").then((module) => module.Route),
 );
+
+// The three inner tabs were renamed (Upcoming→Calendar, My Shows→Library,
+// Discover→Search); these non-lazy redirect routes keep every legacy
+// bookmark and deep link working by throwing to the new path before load.
+const upcomingRedirect = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/upcoming",
+  beforeLoad: () => {
+    throw redirect({ to: "/calendar" });
+  },
+});
+const myShowsRedirect = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/my-shows",
+  beforeLoad: () => {
+    throw redirect({ to: "/library" });
+  },
+});
+const discoverRedirect = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/discover",
+  beforeLoad: () => {
+    throw redirect({ to: "/search" });
+  },
+});
+
 const profileRoute = createRoute({ getParentRoute: () => rootRoute, path: "/profile" }).lazy(() =>
   import("@app/routes/profile.lazy").then((module) => module.Route),
 );
@@ -40,9 +66,12 @@ const episodeRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   upNextRoute,
-  upcomingRoute,
-  myShowsRoute,
-  discoverRoute,
+  calendarRoute,
+  libraryRoute,
+  searchRoute,
+  upcomingRedirect,
+  myShowsRedirect,
+  discoverRedirect,
   profileRoute,
   authCallbackRoute,
   settingsRoute,

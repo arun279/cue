@@ -11,11 +11,28 @@ export type WatchStatus =
 
 const TERMINAL_STATUSES: ReadonlySet<string> = new Set(["ended", "canceled", "cancelled"]);
 
+/** A show whose run is over (ended/canceled) — the last aired episode is genuinely
+ * the last one, so finishing it is a real closure moment rather than a pause. */
+export function isTerminalStatus(status: string): boolean {
+  return TERMINAL_STATUSES.has(status.toLowerCase());
+}
+
 /**
  * 21 days = three stacked unwatched weekly episodes: the knee past
  * single-skip tolerance, before backlog dread.
  */
 export const DEFAULT_STALENESS_THRESHOLD_MS = 21 * 24 * 60 * 60 * 1000;
+
+/**
+ * 7 days = one weekly release cycle — the window in which the next unwatched
+ * episode counts as this week's fresh drop and pulls its show into the "New"
+ * group. Grounded, not a round guess: it is the same weekly-cadence family as the
+ * 21-day (3-week) lapse threshold above, one cycle rather than three. Flagged as a
+ * value to revisit — ideally personalized to a show's own inter-episode cadence
+ * (a daily-drop and a weekly-drop shouldn't share one window), never a
+ * round-number-from-air.
+ */
+export const DEFAULT_NEW_EPISODE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 export function computeWatchStatus(
   show: LibraryShow,

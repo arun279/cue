@@ -12,8 +12,9 @@ function weeksLabel(days: number): string {
 
 /**
  * Settings → Preferences + Connections: the appearance toggle
- * (relocated here off the header/sidebar), the staleness threshold that splits
- * Watching from Not-watched-in-a-while, the connected token's status, and a
+ * (relocated here off the header/sidebar), the threshold that decides when an
+ * in-progress show collapses into Up Next's "Haven't watched in a while" drawer,
+ * the connected token's status, and a
  * Disconnect that revokes on Trakt and clears the store, returning to onboarding.
  */
 export function Settings(): ReactElement {
@@ -41,9 +42,10 @@ export function Settings(): ReactElement {
       <dl className="settings__list">
         <div className="settings__row">
           <dt>
-            Not-watched-in-a-while after
+            Haven't watched in a while after
             <small className="settings__hint">
-              Shows you haven't touched for longer drop out of Up Next.
+              Shows you haven't touched for longer collapse into the "Haven't watched in a while"
+              drawer at the bottom of Up Next.
             </small>
           </dt>
           <dd>

@@ -1,136 +1,148 @@
-import { selectUpNext } from "@domain/up-next";
-import { computeWatchStatus } from "@domain/watch-status";
+import { groupUpNext } from "@domain/up-next";
+import { DEFAULT_NEW_EPISODE_WINDOW_MS } from "@domain/watch-status";
 import { describe, expect, it } from "vitest";
 import { DAY, iso, makeEpisode, makeShow, NOW, THRESHOLD } from "./_helpers";
 
-const airedYesterday = makeEpisode({ firstAired: iso(NOW - DAY) });
-const airedWeekAgo = makeEpisode({ firstAired: iso(NOW - 7 * DAY) });
+const NEW_WINDOW = DEFAULT_NEW_EPISODE_WINDOW_MS;
+
+/** Aired 1 day ago — inside the 7-day New window. */
+const airedRecent = makeEpisode({ firstAired: iso(NOW - DAY) });
+/** Aired 10 days ago — past the New window, so it never counts as "New". */
+const airedOld = makeEpisode({ firstAired: iso(NOW - 10 * DAY) });
 const future = makeEpisode({ firstAired: iso(NOW + DAY) });
 
-describe("selectUpNext filtering", () => {
-  it("excludes hidden, caught-up (null), and future next episodes", () => {
+function group(shows: Parameters<typeof groupUpNext>[0]) {
+  return groupUpNext(shows, NOW, THRESHOLD, NEW_WINDOW);
+}
+
+describe("groupUpNext partitioning", () => {
+  it("splits in-progress shows into fresh / continued / lapsed and excludes the rest", () => {
     const shows = [
-      makeShow({ showId: 1, title: "Aired", nextEpisode: airedYesterday }),
-      makeShow({ showId: 2, title: "Hidden", hidden: true, nextEpisode: airedYesterday }),
-      makeShow({ showId: 3, title: "CaughtUp", nextEpisode: null }),
-      makeShow({ showId: 4, title: "Future", nextEpisode: future }),
+      // fresh: recent activity + this week's newly-aired next.
+      makeShow({
+        showId: 1,
+        title: "Fresh",
+        nextEpisode: airedRecent,
+        lastWatchedAt: iso(NOW - 2 * DAY),
+      }),
+      // continued: recent activity but the next episode aired outside the window.
+      makeShow({
+        showId: 2,
+        title: "Continue",
+        nextEpisode: airedOld,
+        lastWatchedAt: iso(NOW - 2 * DAY),
+      }),
+      // lapsed: idle past the threshold, next aired outside the window.
+      makeShow({
+        showId: 3,
+        title: "Lapsed",
+        nextEpisode: airedOld,
+        lastWatchedAt: iso(NOW - 30 * DAY),
+      }),
+      // excluded: hidden / not-started / caught-up / ended / future-next.
+      makeShow({ showId: 4, title: "Hidden", hidden: true, nextEpisode: airedRecent }),
+      makeShow({ showId: 5, title: "NotStarted", completed: 0, nextEpisode: airedRecent }),
+      makeShow({ showId: 6, title: "CaughtUp", nextEpisode: null }),
+      makeShow({
+        showId: 7,
+        title: "Ended",
+        completed: 10,
+        aired: 10,
+        status: "ended",
+        nextEpisode: null,
+      }),
+      makeShow({ showId: 8, title: "Future", nextEpisode: future }),
     ];
-    const queue = selectUpNext(shows, NOW, THRESHOLD);
-    expect(queue.map((i) => i.showId)).toEqual([1]);
+    const { fresh, continued, lapsed } = group(shows);
+    expect(fresh.map((i) => i.showId)).toEqual([1]);
+    expect(continued.map((i) => i.showId)).toEqual([2]);
+    expect(lapsed.map((i) => i.showId)).toEqual([3]);
+    expect(fresh[0]?.group).toBe("fresh");
+    expect(continued[0]?.group).toBe("continued");
+    expect(lapsed[0]?.group).toBe("lapsed");
   });
 
-  it("treats an unknown air date as not-yet-aired (excluded)", () => {
-    const shows = [makeShow({ nextEpisode: makeEpisode({ firstAired: null }) })];
-    expect(selectUpNext(shows, NOW, THRESHOLD)).toHaveLength(0);
+  it("a freshly-aired episode pulls a long-idle show into New, not the drawer", () => {
+    const returning = makeShow({
+      showId: 1,
+      nextEpisode: airedRecent,
+      lastWatchedAt: iso(NOW - 30 * DAY),
+    });
+    const { fresh, lapsed } = group([returning]);
+    expect(fresh.map((i) => i.showId)).toEqual([1]);
+    expect(lapsed).toHaveLength(0);
   });
 
   it("reports backlog as aired minus completed, floored at 0", () => {
     const shows = [
-      makeShow({ showId: 1, aired: 10, completed: 3, nextEpisode: airedYesterday }),
-      makeShow({ showId: 2, aired: 4, completed: 9, nextEpisode: airedYesterday }),
+      makeShow({ showId: 1, aired: 10, completed: 3, nextEpisode: airedRecent }),
+      makeShow({ showId: 2, aired: 4, completed: 9, nextEpisode: airedRecent }),
     ];
-    const queue = selectUpNext(shows, NOW, THRESHOLD);
-    expect(queue.find((i) => i.showId === 1)?.backlog).toBe(7);
-    expect(queue.find((i) => i.showId === 2)?.backlog).toBe(0);
+    const { fresh } = group(shows);
+    expect(fresh.find((i) => i.showId === 1)?.backlog).toBe(7);
+    expect(fresh.find((i) => i.showId === 2)?.backlog).toBe(0);
   });
 
-  it("matches the watch-status watching set", () => {
-    const shows = [
-      makeShow({ showId: 1, hidden: true, completed: 10, aired: 10, nextEpisode: airedYesterday }),
-      makeShow({ showId: 2, completed: 0, inWatchlist: true, nextEpisode: airedYesterday }),
-      makeShow({
-        showId: 3,
-        completed: 10,
-        aired: 10,
-        status: "Ended",
-        nextEpisode: airedYesterday,
-      }),
-      makeShow({
-        showId: 4,
-        completed: 10,
-        aired: 10,
-        status: "returning series",
-        nextEpisode: future,
-      }),
-      makeShow({
-        showId: 5,
-        completed: 5,
-        aired: 10,
-        nextEpisode: airedYesterday,
-        lastWatchedAt: iso(NOW - THRESHOLD - 1),
-      }),
-      makeShow({
-        showId: 6,
-        completed: 5,
-        aired: 10,
-        nextEpisode: airedYesterday,
-        lastWatchedAt: null,
-      }),
-      makeShow({
-        showId: 7,
-        completed: 5,
-        aired: 10,
-        nextEpisode: airedYesterday,
-        lastWatchedAt: iso(NOW - DAY),
-      }),
-    ];
-    expect(new Set(selectUpNext(shows, NOW, THRESHOLD).map((i) => i.showId))).toEqual(
-      new Set(
-        shows
-          .filter((show) => computeWatchStatus(show, NOW, THRESHOLD) === "watching")
-          .map((show) => show.showId),
-      ),
-    );
+  it("treats an unknown air date as not-yet-aired (excluded)", () => {
+    const shows = [makeShow({ nextEpisode: makeEpisode({ firstAired: null }) })];
+    const { fresh, continued, lapsed } = group(shows);
+    expect([...fresh, ...continued, ...lapsed]).toHaveLength(0);
   });
 });
 
-describe("selectUpNext ordering", () => {
-  const shows = [
-    makeShow({
-      showId: 1,
-      title: "Charlie",
-      lastWatchedAt: iso(NOW - 2 * DAY),
-      nextEpisode: airedWeekAgo,
-    }),
-    makeShow({
-      showId: 2,
-      title: "Alpha",
-      lastWatchedAt: iso(NOW - DAY),
-      nextEpisode: airedYesterday,
-    }),
-    makeShow({
-      showId: 3,
-      title: "Bravo",
-      lastWatchedAt: iso(NOW - 3 * DAY),
-      nextEpisode: airedYesterday,
-    }),
-  ];
-
-  it("recently-watched: most recent first, tiebreak air date asc", () => {
-    expect(selectUpNext(shows, NOW, THRESHOLD, "recently-watched").map((i) => i.showId)).toEqual([
-      2, 1, 3,
-    ]);
-  });
-
-  it("air-date: first_aired ascending", () => {
-    expect(selectUpNext(shows, NOW, THRESHOLD, "air-date").map((i) => i.showId)).toEqual([1, 2, 3]);
-  });
-
-  it("alphabetical: by title, case-insensitive", () => {
-    expect(selectUpNext(shows, NOW, THRESHOLD, "alphabetical").map((i) => i.title)).toEqual([
-      "Alpha",
-      "Bravo",
-      "Charlie",
-    ]);
-  });
-
-  it("recently-watched tiebreak falls through to air date when both dates equal", () => {
-    const tied = [
-      makeShow({ showId: 1, lastWatchedAt: iso(NOW - DAY), nextEpisode: airedYesterday }),
-      makeShow({ showId: 2, lastWatchedAt: iso(NOW - DAY), nextEpisode: airedWeekAgo }),
+describe("groupUpNext ordering", () => {
+  it("New: newest air date first", () => {
+    const shows = [
+      makeShow({
+        showId: 1,
+        nextEpisode: makeEpisode({ firstAired: iso(NOW - 3 * DAY) }),
+        lastWatchedAt: iso(NOW - 2 * DAY),
+      }),
+      makeShow({
+        showId: 2,
+        nextEpisode: makeEpisode({ firstAired: iso(NOW - DAY) }),
+        lastWatchedAt: iso(NOW - 2 * DAY),
+      }),
+      makeShow({
+        showId: 3,
+        nextEpisode: makeEpisode({ firstAired: iso(NOW - 6 * DAY) }),
+        lastWatchedAt: iso(NOW - 2 * DAY),
+      }),
     ];
-    expect(selectUpNext(tied, NOW, THRESHOLD, "recently-watched").map((i) => i.showId)).toEqual([
-      2, 1,
-    ]);
+    expect(group(shows).fresh.map((i) => i.showId)).toEqual([2, 1, 3]);
+  });
+
+  it("Continue: most-recently-watched first, tiebreak oldest air date", () => {
+    const shows = [
+      makeShow({ showId: 1, nextEpisode: airedOld, lastWatchedAt: iso(NOW - 2 * DAY) }),
+      makeShow({ showId: 2, nextEpisode: airedOld, lastWatchedAt: iso(NOW - DAY) }),
+      makeShow({ showId: 3, nextEpisode: airedOld, lastWatchedAt: iso(NOW - 3 * DAY) }),
+    ];
+    expect(group(shows).continued.map((i) => i.showId)).toEqual([2, 1, 3]);
+  });
+
+  it("Continue tiebreak falls through to air date (older first) when recency ties", () => {
+    const shows = [
+      makeShow({
+        showId: 1,
+        nextEpisode: makeEpisode({ firstAired: iso(NOW - 10 * DAY) }),
+        lastWatchedAt: iso(NOW - 2 * DAY),
+      }),
+      makeShow({
+        showId: 2,
+        nextEpisode: makeEpisode({ firstAired: iso(NOW - 15 * DAY) }),
+        lastWatchedAt: iso(NOW - 2 * DAY),
+      }),
+    ];
+    expect(group(shows).continued.map((i) => i.showId)).toEqual([2, 1]);
+  });
+
+  it("drawer: longest-idle first, an unknown last-watch counting as oldest", () => {
+    const shows = [
+      makeShow({ showId: 1, nextEpisode: airedOld, lastWatchedAt: iso(NOW - 30 * DAY) }),
+      makeShow({ showId: 2, nextEpisode: airedOld, lastWatchedAt: iso(NOW - 40 * DAY) }),
+      makeShow({ showId: 3, nextEpisode: airedOld, lastWatchedAt: null }),
+    ];
+    expect(group(shows).lapsed.map((i) => i.showId)).toEqual([3, 2, 1]);
   });
 });

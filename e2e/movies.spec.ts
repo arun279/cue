@@ -40,16 +40,17 @@ test.beforeEach(async ({ page }) => {
   await seedAuth(page.context());
 });
 
-test("the My Shows Movies tab lists Watched and Watchlist poster shelves", async ({ page }) => {
+test("the Library Movies tab lists Watchlist and Watched poster shelves", async ({ page }) => {
   await page.setViewportSize({ width: 1000, height: 1400 });
   await installMovieRoutes(page.context(), movies());
-  await page.goto("/my-shows");
+  await page.goto("/library");
   await page.getByTestId("type-movies").click();
 
   const headings = page.getByTestId("movie-shelf-heading");
   await expect(headings).toHaveCount(2);
-  await expect(headings.nth(0)).toHaveAttribute("data-shelf", "watched");
-  await expect(headings.nth(1)).toHaveAttribute("data-shelf", "watchlist");
+  // Watchlist first (the "want to watch" pool), then Watched.
+  await expect(headings.nth(0)).toHaveAttribute("data-shelf", "watchlist");
+  await expect(headings.nth(1)).toHaveAttribute("data-shelf", "watched");
 
   await expect(
     page.getByTestId("movie-library-card").filter({ hasText: "Watched Movie" }),
@@ -62,7 +63,7 @@ test("the My Shows Movies tab lists Watched and Watchlist poster shelves", async
 test("a movie card routes to the movie detail page", async ({ page }) => {
   await page.setViewportSize({ width: 1000, height: 1400 });
   await installMovieRoutes(page.context(), movies());
-  await page.goto("/my-shows");
+  await page.goto("/library");
   await page.getByTestId("type-movies").click();
 
   await page.getByTestId("movie-library-card").filter({ hasText: "Watched Movie" }).click();
@@ -74,7 +75,7 @@ test("a movie card routes to the movie detail page", async ({ page }) => {
 test("shows an empty state when the movie library is empty", async ({ page }) => {
   await page.setViewportSize({ width: 1000, height: 1400 });
   await installMovieRoutes(page.context(), []);
-  await page.goto("/my-shows");
+  await page.goto("/library");
   await page.getByTestId("type-movies").click();
   await expect(page.getByTestId("movies-empty")).toBeVisible();
 });

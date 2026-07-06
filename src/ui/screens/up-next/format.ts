@@ -32,6 +32,24 @@ export function titleCase(value: string): string {
   return value.replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * "today" / "yesterday" / "N days ago" from an ISO timestamp, floored to whole
+ * days back from `now`. Returns null when the date is absent, unparseable, or in
+ * the future (a last-watched can never be later than now).
+ */
+export function relativeDays(iso: string | null, now: number): string | null {
+  if (iso === null) return null;
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return null;
+  const days = Math.floor((now - t) / DAY_MS);
+  if (days < 0) return null;
+  if (days === 0) return "today";
+  if (days === 1) return "yesterday";
+  return `${days} days ago`;
+}
+
 /** Whole-percent watched, clamped to 0–100; 0 when nothing has aired yet. */
 export function watchedPercent(completed: number, aired: number): number {
   if (aired <= 0) return 0;

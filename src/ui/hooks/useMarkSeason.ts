@@ -7,6 +7,7 @@ import type { QueuedOp } from "@domain/write-queue/types";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRuntime } from "@ui/runtime/runtime";
 import { useCallback, useState } from "react";
+import { useResumeOnMark } from "./useResumeOnMark";
 
 /** Which show + specials preference the mark actions apply to. */
 export interface MarkContextTarget {
@@ -22,8 +23,11 @@ export interface EpisodeBound {
 
 interface UndoState {
   readonly showId: number;
+  readonly ids: ShowIds;
   readonly label: string;
   readonly ops: readonly QueuedOp[];
+  /** The mark auto-resumed a Stopped show, so Undo must re-stop it too. */
+  readonly resumed: boolean;
 }
 
 export interface MarkSeasonController {
@@ -100,6 +104,7 @@ function seasonLabel(season: number): string {
 export function useMarkSeason(): MarkSeasonController {
   const runtime = useRuntime();
   const queryClient = useQueryClient();
+  const resume = useResumeOnMark();
   const [undoState, setUndoState] = useState<UndoState | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -145,14 +150,17 @@ export function useMarkSeason(): MarkSeasonController {
       for (const op of ops) {
         if ((await runtime.submit(op)) === "failed") ok = false;
       }
+      // A watch on a Stopped show un-stops it — the derived state must follow the
+      // new progress rather than stay filed under Stopped.
+      const resumed = ok ? await resume.resumeIfStopped(target.showId, target.ids) : false;
       revalidate(target.showId);
       if (!ok) {
         setError("Couldn't save that mark. It'll retry — check your connection.");
         return;
       }
-      setUndoState({ showId: target.showId, label, ops });
+      setUndoState({ showId: target.showId, ids: target.ids, label, ops, resumed });
     },
-    [patch, revalidate, runtime],
+    [patch, revalidate, runtime, resume],
   );
 
   const buildOps = useCallback(
@@ -210,21 +218,27 @@ export function useMarkSeason(): MarkSeasonController {
   const toggleEpisode = useCallback(
     async (target: MarkContextTarget, episode: EpisodeView) => {
       const next = !episode.watched;
+      // A lost response reconciles against the show's pre-op `completed` (via a
+      // progress re-read) rather than blind-retrying → never a duplicate play,
+      // matching the bulk path and the sibling episode/Up-Next mark hooks.
       const params = {
         opId: crypto.randomUUID(),
         ids: episode.ids,
         watchedAt: new Date().toISOString(),
+        inversePatch: reconcileAnchor(target.showId),
       };
       const op = next ? buildMarkEpisodeOp(params) : buildUnmarkEpisodeOp(params);
       patch(target.showId, (s, n) => s === episode.season && n === episode.number, next);
       const outcome = await runtime.submit(op);
-      revalidate(target.showId);
       if (outcome === "failed") {
         patch(target.showId, (s, n) => s === episode.season && n === episode.number, !next);
         setError("Couldn't update that episode. Please try again.");
+        return;
       }
+      if (next) await resume.resumeIfStopped(target.showId, target.ids);
+      revalidate(target.showId);
     },
-    [patch, revalidate, runtime],
+    [patch, revalidate, runtime, reconcileAnchor, resume],
   );
 
   const undo = useCallback(async () => {
@@ -232,8 +246,9 @@ export function useMarkSeason(): MarkSeasonController {
     if (pending === null) return;
     setUndoState(null);
     for (const op of pending.ops) await runtime.submit(invert(op));
+    if (pending.resumed) await resume.reStop(pending.showId, pending.ids);
     revalidate(pending.showId);
-  }, [undoState, revalidate, runtime]);
+  }, [undoState, revalidate, runtime, resume]);
 
   return {
     markSeason,

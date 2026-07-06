@@ -13,7 +13,8 @@ import {
 const AIRED = "2026-01-01T00:00:00.000Z";
 const FUTURE = "2027-01-01T00:00:00.000Z";
 
-/** One in-progress show, next = S01E02, with a following S01E03 to advance into. */
+/** One in-progress show, next = S01E02, with a following S01E03 to advance into.
+ * Its episodes aired long ago, so its next is "Continue" (mid-run), not "New". */
 function soloShow(overrides: Partial<ShowFixture> = {}): ShowFixture {
   return {
     trakt: 1,
@@ -38,7 +39,7 @@ test.beforeEach(async ({ page }) => {
   await seedAuth(page.context());
 });
 
-test("renders the aired-only queue: future next episodes and hidden shows excluded", async ({
+test("Continue queue: excludes future next episodes and hidden shows; lapsed drops to the drawer", async ({
   page,
 }) => {
   const shows: ShowFixture[] = [
@@ -93,22 +94,72 @@ test("renders the aired-only queue: future next episodes and hidden shows exclud
   await installLibraryRoutes(page.context(), shows);
   await page.goto("/");
 
-  // Most-recently-watched (Alpha) leads as the spotlight hero; the rest queue below.
-  const hero = page.getByTestId("up-next-hero");
+  // Alpha + NoImage queue under Continue (most-recently-watched first; Alpha leads).
   const cards = page.getByTestId("up-next-card");
-  await expect(hero).toHaveCount(1);
-  await expect(cards).toHaveCount(1);
-  await expect(page.getByRole("heading", { name: "Alpha" })).toBeVisible();
+  await expect(cards).toHaveCount(2);
+  const lead = cards.first();
+  await expect(lead).toContainText("Alpha");
+  await expect(lead.getByTestId("episode-code")).toHaveText("S01E02");
+  await expect(lead.getByTestId("mark-watched")).toContainText("Watched");
   await expect(page.getByRole("heading", { name: "NoImage" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Future" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Hidden Show" })).toHaveCount(0);
-  // A show untouched past the staleness threshold is Not-watched-in-a-while, not fresh.
-  await expect(page.getByRole("heading", { name: "Lapsed Show" })).toHaveCount(0);
 
-  // Alpha (hero) has a Trakt inline poster; NoImage (queue) degrades to the text tile.
-  await expect(hero.getByTestId("poster-image")).toBeVisible();
+  // Alpha (lead) has a Trakt inline poster; NoImage degrades to the text tile.
+  await expect(lead.getByTestId("poster-image")).toBeVisible();
   await expect(cards.filter({ hasText: "NoImage" }).getByTestId("poster-text")).toBeVisible();
-  await expect(hero.getByTestId("episode-code")).toHaveText("S01E02");
+
+  // The lapsed show is NOT gone — it collapses into the drawer with Keep / Stop watching.
+  const drawer = page.getByTestId("lapsed-drawer");
+  await expect(drawer).toBeVisible();
+  await expect(page.getByTestId("lapsed-heading")).toContainText("Haven't watched in a while");
+  await page.getByTestId("lapsed-heading").click();
+  const lapsedRow = page.getByTestId("lapsed-row").filter({ hasText: "Lapsed Show" });
+  await expect(lapsedRow).toHaveCount(1);
+  await expect(lapsedRow.getByTestId("lapsed-keep")).toBeVisible();
+  await expect(lapsedRow.getByTestId("lapsed-stop")).toBeVisible();
+});
+
+test("New group surfaces a freshly-aired episode, sorted newest first", async ({ page }) => {
+  // Freshly-aired next episodes (yesterday, three days ago) land in "New"; a
+  // long-idle show whose new episode just dropped is pulled into New, not the drawer.
+  await installLibraryRoutes(page.context(), [
+    {
+      trakt: 1,
+      title: "Older Drop",
+      status: "returning series",
+      lastWatchedAt: agoIso(2),
+      aired: 2,
+      completed: 1,
+      episodes: [
+        { season: 1, number: 1, title: "One", firstAired: AIRED, traktId: 11 },
+        { season: 1, number: 2, title: "Two", firstAired: agoIso(3), traktId: 12 },
+      ],
+    },
+    {
+      trakt: 2,
+      title: "Newest Drop",
+      status: "returning series",
+      lastWatchedAt: agoIso(30),
+      aired: 2,
+      completed: 1,
+      episodes: [
+        { season: 1, number: 1, title: "One", firstAired: AIRED, traktId: 21 },
+        { season: 1, number: 2, title: "Two", firstAired: agoIso(1), traktId: 22 },
+      ],
+    },
+  ]);
+  await page.goto("/");
+
+  const newGroup = page.getByTestId("up-next-new");
+  await expect(newGroup).toBeVisible();
+  const newCards = newGroup.getByTestId("up-next-card");
+  await expect(newCards).toHaveCount(2);
+  // Newest air first: Newest Drop (yesterday) leads Older Drop (three days ago).
+  await expect(newCards.nth(0)).toContainText("Newest Drop");
+  await expect(newCards.nth(1)).toContainText("Older Drop");
+  // The long-idle "Newest Drop" is in New (fresh overrides idle), never the drawer.
+  await expect(page.getByTestId("lapsed-drawer")).toHaveCount(0);
 });
 
 test("shows the 'nothing tracked' empty state when the library is empty", async ({ page }) => {
@@ -135,18 +186,39 @@ test("shows the 'all caught up' empty state when tracked shows have no aired nex
   await expect(page.getByTestId("empty-all-caught-up")).toBeVisible();
 });
 
+test("finishing an ended show shows the quiet 'You finished' closure copy", async ({ page }) => {
+  await installLibraryRoutes(page.context(), [
+    {
+      trakt: 7,
+      title: "Wrapped",
+      status: "ended",
+      lastWatchedAt: agoIso(2),
+      aired: 2,
+      completed: 1,
+      episodes: [
+        { season: 1, number: 1, title: "One", firstAired: AIRED, traktId: 71 },
+        { season: 1, number: 2, title: "Two", firstAired: AIRED, traktId: 72 },
+      ],
+    },
+  ]);
+  await page.goto("/");
+  const card = page.getByTestId("up-next-card").first();
+  await card.getByTestId("mark-watched").click();
+  await expect(page.getByTestId("undo")).toContainText("You finished Wrapped");
+});
+
 test("Trakt read error over a warm cache shows the queue plus a retry affordance", async ({
   page,
 }) => {
   const controls = await installLibraryRoutes(page.context(), [soloShow()]);
   await page.goto("/");
-  await expect(page.getByTestId("up-next-hero")).toHaveCount(1);
+  await expect(page.getByTestId("up-next-card")).toHaveCount(1);
 
   // A later refetch fails, but the cached queue must remain with a retry banner.
   controls.setReadMode("abort");
   await page.getByTestId("mark-watched").click(); // triggers a revalidate that will fail
   await expect(page.getByTestId("cached-retry")).toBeVisible();
-  await expect(page.getByTestId("up-next-hero")).toHaveCount(1);
+  await expect(page.getByTestId("up-next-card")).toHaveCount(1);
 
   controls.setReadMode("ok");
   await page.getByTestId("cached-retry-button").click();
@@ -156,14 +228,14 @@ test("Trakt read error over a warm cache shows the queue plus a retry affordance
 test("one show's progress outage keeps the warm queue instead of erasing it", async ({ page }) => {
   const controls = await installLibraryRoutes(page.context(), [soloShow()]);
   await page.goto("/");
-  await expect(page.getByTestId("up-next-hero")).toHaveCount(1);
+  await expect(page.getByTestId("up-next-card")).toHaveCount(1);
 
   // A later revalidate hits a single-show progress failure; the cached queue must
   // survive with the retry banner, never silently collapse to "all caught up".
   controls.failProgressFor([1]);
   await page.getByTestId("mark-watched").click();
   await expect(page.getByTestId("cached-retry")).toBeVisible();
-  await expect(page.getByTestId("up-next-hero")).toHaveCount(1);
+  await expect(page.getByTestId("up-next-card")).toHaveCount(1);
   await expect(page.getByTestId("empty-all-caught-up")).toHaveCount(0);
 
   controls.failProgressFor([]);
@@ -201,7 +273,7 @@ test("mark-watched advances the card optimistically before the history write set
   controls.setWriteMode("delay"); // hold the POST open so the advance can't depend on it
   await page.goto("/");
 
-  const card = page.getByTestId("up-next-hero");
+  const card = page.getByTestId("up-next-card").first();
   await expect(card.getByTestId("episode-code")).toHaveText("S01E02");
 
   await card.getByTestId("mark-watched").click();
@@ -222,7 +294,7 @@ test("a 429 then success still lands the card advanced", async ({ page }) => {
   controls.setWriteMode("rate-limit-once");
   await page.goto("/");
 
-  const card = page.getByTestId("up-next-hero");
+  const card = page.getByTestId("up-next-card").first();
   await card.getByTestId("mark-watched").click();
   await expect(card.getByTestId("episode-code")).toHaveText("S01E03");
 
@@ -236,7 +308,7 @@ test("a network reject triggers a reconcile read, not a blind re-POST", async ({
   const controls = await installLibraryRoutes(page.context(), [soloShow()]);
   controls.setWriteMode("network-drop"); // reaches Trakt, response lost
   await page.goto("/");
-  const card = page.getByTestId("up-next-hero");
+  const card = page.getByTestId("up-next-card").first();
   const readsBefore = controls.progressReads();
 
   await card.getByTestId("mark-watched").click();
@@ -255,7 +327,7 @@ test("Undo issues the stored inverse /sync/history/remove and restores the card"
 }) => {
   const controls = await installLibraryRoutes(page.context(), [soloShow()]);
   await page.goto("/");
-  const card = page.getByTestId("up-next-hero");
+  const card = page.getByTestId("up-next-card").first();
 
   await card.getByTestId("mark-watched").click();
   await expect(card.getByTestId("episode-code")).toHaveText("S01E03");
@@ -275,7 +347,7 @@ test("the durable op-log survives a reload and replays with the frozen watched_a
   const controls = await installLibraryRoutes(page.context(), [soloShow()]);
   controls.setWriteMode("delay"); // keep the first POST in flight so the op stays durable
   await page.goto("/");
-  const card = page.getByTestId("up-next-hero");
+  const card = page.getByTestId("up-next-card").first();
   await card.getByTestId("mark-watched").click();
   await expect(card.getByTestId("episode-code")).toHaveText("S01E03");
 

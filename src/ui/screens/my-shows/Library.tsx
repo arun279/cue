@@ -7,6 +7,7 @@ import { SyncStatusPill } from "@ui/components/SyncStatusPill";
 import { useHideShow } from "@ui/hooks/useHideShow";
 import { useLibraryBuckets } from "@ui/hooks/useLibraryBuckets";
 import { useMovieLibrary } from "@ui/hooks/useMovieLibrary";
+import { formatAirDate } from "@ui/screens/up-next/format";
 import { Snackbar } from "@ui/screens/up-next/Snackbar";
 import { Accordion, ToggleGroup } from "radix-ui";
 import { type ReactElement, type ReactNode, useEffect, useMemo, useState } from "react";
@@ -15,13 +16,15 @@ import { MoviesLibrary } from "./MoviesLibrary";
 import { PosterCard } from "./PosterCard";
 import { PosterGrid } from "./PosterGrid";
 
-const PILE_LABEL: Record<WatchStatus, string> = {
+/** Plain, real-world segment labels. Watchlist (not-started) is framed as the
+ * things you chose to start — never a "backlog". "Finished"/"Stopped" replace the
+ * internal "Ended"/"Abandoned"; the derived enum values (data-status) stay put. */
+const PILE_LABEL: Partial<Record<WatchStatus, string>> = {
+  "not-started": "Watchlist",
   watching: "Watching",
-  lapsed: "Not watched in a while",
-  "not-started": "Not started",
   "caught-up": "Caught up",
-  ended: "Ended",
-  abandoned: "Abandoned",
+  ended: "Finished",
+  abandoned: "Stopped",
 };
 
 const SORT_LABEL: Record<LibrarySort, string> = {
@@ -32,8 +35,8 @@ const SORT_LABEL: Record<LibrarySort, string> = {
 
 const SORTS: readonly LibrarySort[] = ["recently-watched", "alphabetical", "progress"];
 
-/** Watching opens on first visit; every other pile stays collapsed as a labelled,
- * counted header (recognition over recall) until the user reaches for it. */
+/** Watching opens on first visit; every other segment stays collapsed as a
+ * labelled, counted header (recognition over recall) until the user reaches for it. */
 const DEFAULT_OPEN: readonly WatchStatus[] = ["watching"];
 const OPEN_KEY = "cue.piles-open";
 
@@ -65,16 +68,17 @@ interface PileView {
   readonly total: number;
 }
 
-/** A single Un-abandon poster tile — the whole PosterCard links to Show detail,
- * with the recovery action pinned as a sibling overlay (never a nested control). */
-function AbandonedTile({
+/** A single Stopped tile — the whole PosterCard links to Show detail, with the
+ * Resume recovery action pinned as a sibling overlay (never a nested control).
+ * Stopping keeps your history; Resume just brings the show back into your library. */
+function StoppedTile({
   entry,
   tmdbConfig,
-  onUnabandon,
+  onResume,
 }: {
   readonly entry: LibraryEntry;
   readonly tmdbConfig: TmdbImageConfig | null;
-  onUnabandon(): void;
+  onResume(): void;
 }): ReactElement {
   return (
     <div className="pile-tile">
@@ -84,27 +88,50 @@ function AbandonedTile({
         className="pile-tile__unabandon"
         data-testid="unabandon"
         data-show-id={entry.showId}
-        onClick={onUnabandon}
+        onClick={onResume}
       >
-        Un-abandon
+        Resume
       </button>
     </div>
   );
 }
 
+/** A Caught-up tile: the shared PosterCard plus a quiet "returning <date>" caption
+ * when the next (unaired) episode has a known air date — the "Caught up · returning
+ * Mar 2027" reading, split across the segment header and this per-tile note. */
+function CaughtUpTile({
+  entry,
+  tmdbConfig,
+}: {
+  readonly entry: LibraryEntry;
+  readonly tmdbConfig: TmdbImageConfig | null;
+}): ReactElement {
+  const returning = entry.nextEpisode === null ? null : formatAirDate(entry.nextEpisode.firstAired);
+  return (
+    <div className="pile-tile">
+      <PosterCard entry={entry} tmdbConfig={tmdbConfig} />
+      {returning !== null && (
+        <p className="pile-tile__note" data-testid="returning-note">
+          · returning {returning}
+        </p>
+      )}
+    </div>
+  );
+}
+
 /**
- * My Shows — the piles home. Followed shows group into a collapsible
- * Accordion of piles (Watching / Not watched in a while / Not started / Caught up /
- * Ended / Abandoned), each a disclosure header carrying a count badge over a
- * poster shelf, reusing the SeasonPanel chevron idiom and the shared PosterGrid.
- * Open/closed state persists to localStorage; a debounced cross-pile filter
- * ephemerally expands piles with title matches without disturbing that saved
- * state. Abandoning happens on Show detail; each Abandoned tile carries an
- * Un-abandon recovery action. A Shows⇄Movies toggle switches library type. Every
+ * Library — the full honest collection as derived-state segments. Followed shows
+ * group into a collapsible Accordion (Watchlist / Watching / Caught up / Finished /
+ * Stopped), each a disclosure header carrying a count badge over a poster shelf,
+ * reusing the SeasonPanel chevron idiom and the shared PosterGrid. Open/closed state
+ * persists to localStorage; a debounced cross-segment filter ephemerally expands
+ * matching segments without disturbing that saved state. Stopping happens on Show
+ * detail; each Stopped tile carries a Resume recovery action, and Caught-up tiles
+ * note a known return date. A Shows⇄Movies toggle switches library type. Every
  * state is designed: skeleton, hard error, cached-error banner, empty library,
- * only-abandoned library, and no-filter-match.
+ * only-stopped library, and no-filter-match.
  */
-export function MyShows(): ReactElement {
+export function Library(): ReactElement {
   const [sort, setSort] = useState<LibrarySort>("recently-watched");
   const [libraryType, setLibraryType] = useState<"shows" | "movies">("shows");
   const [openPiles, setOpenPiles] = useState<WatchStatus[]>(readOpen);
@@ -188,8 +215,7 @@ export function MyShows(): ReactElement {
       <div className="empty" data-testid="my-shows-empty">
         <h2 className="empty__title">Nothing tracked yet</h2>
         <p className="empty__body">
-          Follow a show and mark an episode watched — it'll show up here, sorted into piles by where
-          you are.
+          Follow a show and mark an episode watched — it'll show up here, sorted by where you are.
         </p>
       </div>
     );
@@ -197,7 +223,7 @@ export function MyShows(): ReactElement {
     body = (
       <div className="empty" data-testid="my-shows-filter-empty">
         <h2 className="empty__title">No shows match “{filter}”</h2>
-        <p className="empty__body">Try a different title, or clear the filter to see every pile.</p>
+        <p className="empty__body">Try a different title, or clear the filter to see every show.</p>
         <button type="button" className="button button--ghost" onClick={clearFilter}>
           Clear filter
         </button>
@@ -208,7 +234,7 @@ export function MyShows(): ReactElement {
       <>
         {onlyAbandoned && (
           <p className="library-note" data-testid="my-shows-only-abandoned">
-            Every show you follow is abandoned. Un-abandon one to bring it back into your piles.
+            Every show you follow is stopped. Resume one to bring it back into your library.
           </p>
         )}
         <Accordion.Root
@@ -255,23 +281,27 @@ export function MyShows(): ReactElement {
                 <PosterGrid
                   entries={pile.shown}
                   keyOf={(entry: LibraryEntry) => entry.showId}
-                  renderCell={(entry: LibraryEntry) =>
-                    pile.status === "abandoned" ? (
-                      <AbandonedTile
-                        entry={entry}
-                        tmdbConfig={view.tmdbConfig}
-                        onUnabandon={() =>
-                          void unhide.unhide(
-                            entry.showId,
-                            { trakt: entry.showId, tmdb: entry.tmdbId ?? undefined },
-                            entry.title,
-                          )
-                        }
-                      />
-                    ) : (
-                      <PosterCard entry={entry} tmdbConfig={view.tmdbConfig} />
-                    )
-                  }
+                  renderCell={(entry: LibraryEntry) => {
+                    if (pile.status === "abandoned") {
+                      return (
+                        <StoppedTile
+                          entry={entry}
+                          tmdbConfig={view.tmdbConfig}
+                          onResume={() =>
+                            void unhide.unhide(
+                              entry.showId,
+                              { trakt: entry.showId, tmdb: entry.tmdbId ?? undefined },
+                              entry.title,
+                            )
+                          }
+                        />
+                      );
+                    }
+                    if (pile.status === "caught-up") {
+                      return <CaughtUpTile entry={entry} tmdbConfig={view.tmdbConfig} />;
+                    }
+                    return <PosterCard entry={entry} tmdbConfig={view.tmdbConfig} />;
+                  }}
                 />
               </Accordion.Content>
             </Accordion.Item>
@@ -282,9 +312,9 @@ export function MyShows(): ReactElement {
   }
 
   return (
-    <section className="screen screen--library" data-testid="screen-my-shows">
+    <section className="screen screen--library" data-testid="screen-library">
       <header className="screen__head">
-        <h1 className="screen__title">My Shows</h1>
+        <h1 className="screen__title">Library</h1>
         <SyncStatusPill
           testId="my-shows-status"
           isFetching={active.isFetching}
@@ -316,7 +346,7 @@ export function MyShows(): ReactElement {
               type="search"
               className="library-filter"
               placeholder="Filter shows…"
-              aria-label="Filter shows across all piles"
+              aria-label="Filter shows across your library"
               data-testid="library-filter"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
@@ -371,8 +401,8 @@ export function MyShows(): ReactElement {
           testId="unabandon-undo"
           message={
             unhide.undoable.kind === "hide"
-              ? `Abandoned ${unhide.undoable.title}.`
-              : `Un-abandoned ${unhide.undoable.title}.`
+              ? `Stopped watching ${unhide.undoable.title}.`
+              : `Resumed ${unhide.undoable.title}.`
           }
           actionLabel="Undo"
           autoDismissMs={6000}

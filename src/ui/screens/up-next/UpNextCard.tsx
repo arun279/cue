@@ -2,32 +2,46 @@ import type { TmdbImageConfig } from "@data/image-source";
 import { Link } from "@tanstack/react-router";
 import type { UpNextCard as UpNextCardModel } from "@ui/hooks/useUpNext";
 import type { ReactElement } from "react";
-import { episodeCode, watchedPercent } from "./format";
+import { episodeCode, relativeDays, watchedPercent } from "./format";
 import { Poster } from "./Poster";
 
 interface UpNextCardProps {
   readonly card: UpNextCardModel;
   readonly tmdbConfig: TmdbImageConfig | null;
+  /** The first card of the honest sort renders `lead` — larger and calmer, but not
+   * a cinematic recommendation (it is simply first-in-sort, not a "for you" pick). */
+  readonly variant?: "lead" | "queue";
   onMark(): void;
 }
 
 /**
- * One Up Next queue row: poster + title route to the Show
- * page, the amber episode code + name route to the Episode page, and the amber
- * check marks watched in place. The mark button locks while an optimistic advance
- * awaits its authoritative refetch so a provisional episode is never re-marked.
+ * One Up Next row: poster + title route to the Show page, the
+ * amber episode code + name route to the Episode page, a quiet "last watched N days
+ * ago" line, and one large one-tap "Watched" that marks in place. The mark button
+ * locks while an optimistic advance awaits its authoritative refetch so a
+ * provisional episode is never re-marked.
  */
-export function UpNextCard({ card, tmdbConfig, onMark }: UpNextCardProps): ReactElement {
+export function UpNextCard({
+  card,
+  tmdbConfig,
+  variant = "queue",
+  onMark,
+}: UpNextCardProps): ReactElement {
   const { entry, item } = card;
   const code = episodeCode(item.episode.season, item.episode.number);
   const percent = watchedPercent(entry.completed, entry.aired);
-  const remaining = item.backlog;
+  const lastWatched = relativeDays(entry.lastWatchedAt, Date.now());
   const showParams = { showId: String(entry.showId) };
+  const isLead = variant === "lead";
 
   return (
-    <article className="card" data-testid="up-next-card" data-show-id={entry.showId}>
+    <article
+      className={isLead ? "card card--lead" : "card"}
+      data-testid="up-next-card"
+      data-show-id={entry.showId}
+    >
       <Link to="/show/$showId" params={showParams} className="card__poster-link" tabIndex={-1}>
-        <span className="poster-wrap poster-wrap--sm">
+        <span className={isLead ? "poster-wrap" : "poster-wrap poster-wrap--sm"}>
           <Poster
             title={entry.title}
             posters={entry.posters}
@@ -62,9 +76,9 @@ export function UpNextCard({ card, tmdbConfig, onMark }: UpNextCardProps): React
             <span className="card__episode-title">{item.episode.title}</span>
           )}
         </Link>
-        {remaining > 0 && (
-          <p className="card__backlog" data-testid="backlog">
-            {remaining} to watch · {entry.completed} / {entry.aired} watched
+        {lastWatched !== null && (
+          <p className="card__meta" data-testid="last-watched">
+            last watched {lastWatched}
           </p>
         )}
       </div>
@@ -88,6 +102,7 @@ export function UpNextCard({ card, tmdbConfig, onMark }: UpNextCardProps): React
             strokeLinejoin="round"
           />
         </svg>
+        <span className="card__mark-text">Watched</span>
       </button>
     </article>
   );

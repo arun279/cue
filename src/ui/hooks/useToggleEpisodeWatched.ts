@@ -5,6 +5,7 @@ import { buildMarkEpisodeOp, buildUnmarkEpisodeOp } from "@domain/write-queue/op
 import { useQueryClient } from "@tanstack/react-query";
 import { useRuntime } from "@ui/runtime/runtime";
 import { useCallback, useState } from "react";
+import { useResumeOnMark } from "./useResumeOnMark";
 
 export interface ToggleEpisodeWatched {
   toggle(episode: EpisodeDetail): Promise<void>;
@@ -23,6 +24,7 @@ export interface ToggleEpisodeWatched {
 export function useToggleEpisodeWatched(): ToggleEpisodeWatched {
   const runtime = useRuntime();
   const queryClient = useQueryClient();
+  const resume = useResumeOnMark();
   const [error, setError] = useState<string | null>(null);
 
   const toggle = useCallback(
@@ -58,6 +60,8 @@ export function useToggleEpisodeWatched(): ToggleEpisodeWatched {
         setError("Couldn't update this episode. Please try again.");
         return;
       }
+      // A watch on a Stopped show un-stops it.
+      if (next && header !== undefined) await resume.resumeIfStopped(episode.showId, header.ids);
       // Revalidate only once the write landed on Trakt; a still-queued op would
       // refetch pre-write progress over the optimistic state.
       if (outcome === "done") {
@@ -67,7 +71,7 @@ export function useToggleEpisodeWatched(): ToggleEpisodeWatched {
         void queryClient.invalidateQueries({ queryKey: queryKeys.library() });
       }
     },
-    [queryClient, runtime],
+    [queryClient, runtime, resume],
   );
 
   return { toggle, clearError: () => setError(null), error };

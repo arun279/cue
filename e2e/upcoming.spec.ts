@@ -64,7 +64,10 @@ test.beforeEach(async ({ page }) => {
 
 test("groups episodes by localized day with Today/Tomorrow labels", async ({ page }) => {
   await installCalendarRoutes(page.context(), spreadFixture());
-  await page.goto("/upcoming");
+  await page.goto("/calendar");
+
+  await expect(page.getByTestId("screen-calendar")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Calendar" })).toBeVisible();
 
   const headings = page.getByTestId("calendar-day-heading");
   // Within the default 7-day window: Today + Tomorrow (Next Week is outside it).
@@ -91,7 +94,7 @@ test("excludes hidden shows even though the calendar feed still lists them", asy
     }),
   ];
   await installCalendarRoutes(page.context(), items, [9]);
-  await page.goto("/upcoming");
+  await page.goto("/calendar");
 
   await expect(page.getByTestId("calendar-row")).toHaveCount(1);
   await expect(page.getByText("Visible Show")).toBeVisible();
@@ -102,7 +105,7 @@ test("the widen control refetches with a larger window and reveals further-out d
   page,
 }) => {
   const controls = await installCalendarRoutes(page.context(), spreadFixture());
-  await page.goto("/upcoming");
+  await page.goto("/calendar");
 
   await expect(page.getByTestId("calendar-day-heading")).toHaveCount(2);
   expect(controls.calendarRequests().map((r) => r.days)).toEqual([7]);
@@ -130,7 +133,7 @@ test("an aired row gets a quick mark-watched that fires POST /sync/history", asy
       firstAired: "2026-07-16T15:00:00.000Z",
     }),
   ]);
-  await page.goto("/upcoming");
+  await page.goto("/calendar");
 
   // Only the aired (today) row exposes the mark control; the future row shows "Airs soon".
   await expect(page.getByTestId("calendar-mark")).toHaveCount(1);
@@ -145,7 +148,7 @@ test("an aired row gets a quick mark-watched that fires POST /sync/history", asy
 
 test("shows the empty-window state when nothing is airing", async ({ page }) => {
   await installCalendarRoutes(page.context(), []);
-  await page.goto("/upcoming");
+  await page.goto("/calendar");
 
   await expect(page.getByTestId("upcoming-empty")).toBeVisible();
   await expect(page.getByTestId("upcoming-empty")).toContainText("next 7 days");
@@ -165,7 +168,7 @@ test("a long calendar stays virtualized: bounded window, yet scrolling reaches l
     traktId: 5000 + i,
   }));
   await installCalendarRoutes(page.context(), many);
-  await page.goto("/upcoming");
+  await page.goto("/calendar");
 
   await expect(page.getByTestId("calendar-row").first()).toBeVisible();
   const initial = await page.getByTestId("virtual-row").count();
@@ -198,7 +201,7 @@ test("the quick mark rides the durable queue: the op persists before the write s
     calItem({ traktId: 11, showId: 1, showTitle: "Aired Today" }),
   ]);
   controls.setWriteMode("delay"); // hold the POST open so the op stays durable in the log
-  await page.goto("/upcoming");
+  await page.goto("/calendar");
 
   await page.getByTestId("calendar-mark").click();
   await expect(page.getByTestId("calendar-watched")).toBeVisible(); // optimistic
@@ -224,7 +227,7 @@ test("a rate-limited mark honors Retry-After and still lands watched", async ({ 
     calItem({ traktId: 11, showId: 1, showTitle: "Aired Today" }),
   ]);
   controls.setWriteMode("rate-limit-once");
-  await page.goto("/upcoming");
+  await page.goto("/calendar");
 
   await page.getByTestId("calendar-mark").click();
   await expect(page.getByTestId("calendar-watched")).toBeVisible(); // optimistic, before the retry
@@ -241,7 +244,7 @@ test("a hard-rejected mark rolls the row back and surfaces a recoverable error",
     calItem({ traktId: 11, showId: 1, showTitle: "Aired Today" }),
   ]);
   controls.setWriteMode("reject"); // definitive 403 → the durable queue reports a hard failure
-  await page.goto("/upcoming");
+  await page.goto("/calendar");
 
   await page.getByTestId("calendar-mark").click();
 
