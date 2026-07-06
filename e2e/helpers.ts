@@ -81,23 +81,36 @@ export async function installHermeticRoutes(context: BrowserContext): Promise<He
   };
 }
 
-const SEED_TOKEN = JSON.stringify({
-  access_token: "seed-access",
-  refresh_token: "seed-refresh",
-  created_at: 1_700_000_000,
-  expires_in: 7_776_000,
-});
 const SEED_CREDS = JSON.stringify({
   clientId: "a".repeat(64),
   tmdbKey: "",
 });
 
-const OAUTH_TOKEN = {
-  access_token: "connected-access",
-  refresh_token: "connected-refresh",
-  created_at: 1_700_000_000,
-  expires_in: 7_776_000,
-};
+/**
+ * A stored session token, minted live (`created_at = now`) so it is genuinely
+ * unexpired against the real wall clock — the transport's proactive expiry check
+ * must NOT fire for a freshly-seeded session. Refresh paths are exercised by
+ * `gateReadsUntilRefreshed`, which forces a 401 regardless of local expiry.
+ */
+function seedTokenJson(): string {
+  return JSON.stringify({
+    access_token: "seed-access",
+    refresh_token: "seed-refresh",
+    created_at: Math.floor(Date.now() / 1000),
+    expires_in: 7_776_000,
+  });
+}
+
+/** The rotated token every `/oauth/token` exchange returns, minted live so the
+ * connected session is not itself immediately due for a proactive refresh. */
+function oauthTokenJson(): string {
+  return JSON.stringify({
+    access_token: "connected-access",
+    refresh_token: "connected-refresh",
+    created_at: Math.floor(Date.now() / 1000),
+    expires_in: 7_776_000,
+  });
+}
 
 /**
  * Seed a stored Trakt token + creds into idb-keyval before the app boots, so a
@@ -119,8 +132,33 @@ export async function seedAuth(context: BrowserContext): Promise<void> {
         tx.oncomplete = () => db.close();
       };
     },
-    { token: SEED_TOKEN, creds: SEED_CREDS },
+    { token: seedTokenJson(), creds: SEED_CREDS },
   );
+}
+
+/**
+ * Force the given read routes to 401 while the request still carries the stale
+ * bearer, then fall through to the already-registered fixture once the transport
+ * has refreshed to a new token. Register AFTER the fixture/catch-all routes so
+ * this gate wins first and `route.fallback()` defers to them — this drives the refresh-on-401 + retry path end-to-end (a live 401 → one refresh → retry).
+ */
+export async function gateReadsUntilRefreshed(
+  context: BrowserContext,
+  patterns: readonly string[],
+  staleBearer = "Bearer seed-access",
+): Promise<void> {
+  for (const pattern of patterns) {
+    await context.route(pattern, (route) => {
+      if (route.request().headers()["authorization"] === staleBearer) {
+        return route.fulfill({
+          status: 401,
+          contentType: "application/json",
+          body: JSON.stringify({ error: "expired_token" }),
+        });
+      }
+      return route.fallback();
+    });
+  }
 }
 
 export interface OAuthControls {
@@ -184,10 +222,7 @@ export async function installOAuthRoutes(context: BrowserContext): Promise<OAuth
     return route.fulfill({
       status: tokenStatus,
       contentType: "application/json",
-      body:
-        tokenStatus === 200
-          ? JSON.stringify(OAUTH_TOKEN)
-          : JSON.stringify({ error: "invalid_grant" }),
+      body: tokenStatus === 200 ? oauthTokenJson() : JSON.stringify({ error: "invalid_grant" }),
     });
   });
 
@@ -223,7 +258,7 @@ export async function installOAuthRoutes(context: BrowserContext): Promise<OAuth
     return route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(OAUTH_TOKEN),
+      body: oauthTokenJson(),
     });
   });
 

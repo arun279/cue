@@ -12,6 +12,8 @@ export interface RuntimeStores {
   readonly tokenStore: TokenStore;
   readonly credsStore: CredsStore;
   readonly kv: KeyValueStore;
+  /** `${origin}/auth/callback` — threaded to the runtime for the refresh grant. */
+  readonly redirectUri: string;
 }
 
 /**

@@ -29,6 +29,8 @@ export interface AuthActions {
   completeRedirect(code: string | null, state: string | null): Promise<void>;
   /** Sign out: revoke the token and clear the store, back to onboarding. */
   disconnect(): Promise<void>;
+  /** Runtime-triggered teardown when the refresh token is dead: clear + onboard (no revoke). */
+  endSession(): Promise<void>;
   /** Abandon an in-flight device-code poll and return to the form. */
   cancelConnect(): void;
 }

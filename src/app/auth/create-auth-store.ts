@@ -46,6 +46,16 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
   let activeAttempt = 0;
 
   const store = createStore<AuthState & AuthActions>((set) => {
+    const toOnboarding = (): void => {
+      set({
+        phase: "onboarding",
+        connectStatus: "idle",
+        errorMessage: null,
+        deviceCode: null,
+        tmdbConfigured: false,
+      });
+    };
+
     async function persistToken(token: Token, creds: Credentials): Promise<void> {
       await deps.tokenStore.write(token);
       set({
@@ -194,13 +204,16 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
           // swallow: local clear is the source of truth for sign-out
         }
         await Promise.all([deps.tokenStore.clear(), deps.credsStore.clear()]);
-        set({
-          phase: "onboarding",
-          connectStatus: "idle",
-          errorMessage: null,
-          deviceCode: null,
-          tmdbConfigured: false,
-        });
+        toOnboarding();
+      },
+
+      async endSession() {
+        // The runtime found the refresh token dead (invalid_grant). The token is
+        // already useless, so skip the network revoke disconnect does — just drop
+        // the local session and route back to onboarding to re-connect.
+        activeAttempt += 1;
+        await Promise.all([deps.tokenStore.clear(), deps.credsStore.clear()]);
+        toOnboarding();
       },
 
       cancelConnect() {

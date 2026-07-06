@@ -14,10 +14,11 @@ import { type ReactElement, useEffect } from "react";
 const kv = createKeyValueStore(isNativePlatform());
 const tokenStore = createTokenStore(kv);
 const credsStore = createCredsStore(kv);
+const redirectUri = `${globalThis.location.origin}/auth/callback`;
 const authStore = createAuthStore({
   tokenStore,
   credsStore,
-  redirectUri: `${globalThis.location.origin}/auth/callback`,
+  redirectUri,
   redirect: (url) => globalThis.location.assign(url),
 });
 
@@ -40,7 +41,7 @@ export function AppProviders(): ReactElement {
         buster: PERSIST_BUSTER,
       }}
     >
-      <AuthGate store={authStore} stores={{ tokenStore, credsStore, kv }} />
+      <AuthGate store={authStore} stores={{ tokenStore, credsStore, kv, redirectUri }} />
     </PersistQueryClientProvider>
   );
 }

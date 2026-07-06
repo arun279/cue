@@ -1,4 +1,5 @@
 import { type Token, tokenSchema } from "@domain/model/token";
+import { parseRetryAfterMs } from "@domain/write-queue/classify";
 import { z } from "zod";
 import type { FetchLike } from "../trakt/client";
 
@@ -61,7 +62,7 @@ async function postJson(
   config: OAuthConfig,
   path: string,
   body: Record<string, string>,
-): Promise<{ status: number; data: unknown }> {
+): Promise<{ status: number; data: unknown; headers: Headers }> {
   const response = await fetchFn(config)(`${apiBase(config)}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -73,7 +74,7 @@ async function postJson(
   } catch {
     data = null;
   }
-  return { status: response.status, data };
+  return { status: response.status, data, headers: response.headers };
 }
 
 /**
@@ -117,19 +118,58 @@ export async function exchangeCodeForToken(
   return tokenSchema.parse(data);
 }
 
+/**
+ * A rejected `/oauth/token` refresh, carrying the HTTP `status` (0 = network
+ * reject), the OAuth `error` `code` from the body, and any `Retry-After`. The transport reads these to tell a dead refresh token (`invalid_grant` → end the
+ * session) from a transient rate-limit/5xx or a config/request bug (back off,
+ * keep the session) — see `authorized-fetch.ts`.
+ */
+export class TokenRefreshError extends Error {
+  readonly status: number;
+  readonly retryAfterMs: number | null;
+  /** The OAuth `error` code from the body (e.g. `invalid_grant`), or null. */
+  readonly code: string | null;
+
+  constructor(status: number, retryAfterMs: number | null, code: string | null) {
+    super(`Trakt token refresh failed (${status}).`);
+    this.name = "TokenRefreshError";
+    this.status = status;
+    this.retryAfterMs = retryAfterMs;
+    this.code = code;
+  }
+}
+
 /** Rotate a token via its `refresh_token`; the refresher calls this. */
 export async function refreshAccessToken(
   config: OAuthConfig,
   refreshToken: string,
 ): Promise<Token> {
-  const { status, data } = await postJson(config, "/oauth/token", {
+  const { status, data, headers } = await postJson(config, "/oauth/token", {
     refresh_token: refreshToken,
     client_id: config.clientId,
     redirect_uri: config.redirectUri,
     grant_type: "refresh_token",
   });
-  if (status < 200 || status >= 300) throw new Error(`Trakt token refresh failed (${status}).`);
+  if (status < 200 || status >= 300) {
+    const retryAfterMs = parseRetryAfterMs(headerRecord(headers), Date.now());
+    throw new TokenRefreshError(status, retryAfterMs, oauthErrorCode(data));
+  }
   return tokenSchema.parse(data);
+}
+
+/** The `error` field of an OAuth error body (e.g. `invalid_grant`), if present. */
+function oauthErrorCode(data: unknown): string | null {
+  if (data === null || typeof data !== "object" || !("error" in data)) return null;
+  const code = (data as { error: unknown }).error;
+  return typeof code === "string" ? code : null;
+}
+
+function headerRecord(headers: Headers): Record<string, string> {
+  const record: Record<string, string> = {};
+  headers.forEach((value, key) => {
+    record[key] = value;
+  });
+  return record;
 }
 
 /** Revoke the access token on sign-out; best-effort, resolves regardless of body. */

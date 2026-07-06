@@ -1,5 +1,6 @@
 import type { TmdbImageConfig } from "@data/image-source";
 import { TmdbClient } from "@data/tmdb/client";
+import { createAuthorizedFetch } from "@data/trakt/authorized-fetch";
 import { assembleCalendarEntries } from "@data/trakt/calendar";
 import { TraktClient } from "@data/trakt/client";
 import {
@@ -31,6 +32,7 @@ import type { Token } from "@domain/model/token";
 import { WriteQueue } from "@domain/write-queue/queue";
 import type { QueuedOp } from "@domain/write-queue/types";
 import type { KeyValueStore } from "@platform/kv";
+import type { TokenStore } from "@platform/token-store";
 import type {
   CalendarData,
   CueRuntime,
@@ -57,6 +59,12 @@ export interface RuntimeDeps {
   readonly token: Token;
   readonly creds: Credentials;
   readonly kv: KeyValueStore;
+  /** Where a rotated token is persisted so it survives reload. */
+  readonly tokenStore: TokenStore;
+  /** `${origin}/auth/callback` — the PKCE refresh grant echoes it back. */
+  readonly redirectUri: string;
+  /** Called when the refresh token is dead: clears the session → onboarding. */
+  readonly endSession: () => Promise<void>;
 }
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
@@ -87,9 +95,21 @@ async function resolveTmdbConfig(creds: Credentials): Promise<TmdbImageConfig | 
  * and replays the persisted op-log on boot, and exposes the persisted-SWR read.
  */
 export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
+  // One authenticated transport for every Trakt call: refreshes proactively past
+  // expiry, refresh-and-retries a 401'd read, persists the rotation, and ends the
+  // session on a dead refresh token. A single-flight refresh means a burst
+  // of 401s shares one `/oauth/token` exchange.
+  const authorized = createAuthorizedFetch({
+    inner: (input, init) => globalThis.fetch(input, init),
+    token: deps.token,
+    config: { clientId: deps.creds.clientId, redirectUri: deps.redirectUri },
+    persist: (token) => deps.tokenStore.write(token),
+    endSession: deps.endSession,
+  });
   const client = new TraktClient({
     clientId: deps.creds.clientId,
-    getToken: () => deps.token.access_token,
+    getToken: () => authorized.accessToken(),
+    fetch: authorized.fetch,
   });
   const tmdbConfig = await resolveTmdbConfig(deps.creds);
 
