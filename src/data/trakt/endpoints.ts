@@ -11,15 +11,19 @@ import {
   hiddenSchema,
   lastActivitiesSchema,
   type Progress,
+  popularShowsSchema,
   progressSchema,
   type RatingItem,
   ratingsSchema,
   type SearchResult,
   type SeasonData,
   type ShowDetailData,
+  type ShowSummary,
   searchSchema,
   seasonsSchema,
   showDetailSchema,
+  type TrendingShow,
+  trendingShowsSchema,
   type WatchedMovie,
   type WatchedShow,
   type WatchlistItem,
@@ -126,6 +130,23 @@ export async function searchTrakt(
 ): Promise<TraktResult<SearchResult[]>> {
   const path = `/search/${types.join(",")}`;
   return parse(await client.get(path, { query: { query }, extended: ART }), searchSchema);
+}
+
+/** Browse rails for empty-query Discover: the current trending + all-time
+ * popular shows, art included so each renders a real 2:3 poster. Trakt caps a
+ * single page at its own limit; the caller asks for one shelf's worth. */
+export async function getTrendingShows(
+  client: TraktClient,
+  limit = 24,
+): Promise<TraktResult<TrendingShow[]>> {
+  return parse(await client.get("/shows/trending", { extended: ART, limit }), trendingShowsSchema);
+}
+
+export async function getPopularShows(
+  client: TraktClient,
+  limit = 24,
+): Promise<TraktResult<ShowSummary[]>> {
+  return parse(await client.get("/shows/popular", { extended: ART, limit }), popularShowsSchema);
 }
 
 export async function getHidden(client: TraktClient): Promise<TraktResult<HiddenItem[]>> {

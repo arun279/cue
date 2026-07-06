@@ -15,6 +15,7 @@ export const queryKeys = {
   /** Prefix over every windowed `calendar(...)` query, for invalidating them as one. */
   calendarPrefix: () => ["calendar", "my-shows"] as const,
   search: (query: string, types: string) => ["search", types, query] as const,
+  discover: () => ["discover", "shows"] as const,
   lastActivities: () => ["sync", "last_activities"] as const,
   tmdbConfiguration: () => ["tmdb", "configuration"] as const,
   tmdbTv: (tmdbId: number) => ["tmdb", "tv", tmdbId] as const,

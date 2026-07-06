@@ -1,5 +1,5 @@
-import type { SearchResult } from "@data/trakt/schemas";
-import { assembleSearchHits } from "@data/trakt/search";
+import type { SearchResult, ShowSummary } from "@data/trakt/schemas";
+import { assembleSearchHits, assembleShowHits, rankSearchHits } from "@data/trakt/search";
 import { describe, expect, it } from "vitest";
 
 describe("assembleSearchHits", () => {
@@ -54,5 +54,45 @@ describe("assembleSearchHits", () => {
       { type: "person", show: { title: "Person", ids: { trakt: 5 } } },
     ];
     expect(assembleSearchHits(results)).toEqual([]);
+  });
+});
+
+describe("assembleShowHits", () => {
+  it("maps a bare show list to show-typed poster hits", () => {
+    const shows: ShowSummary[] = [
+      { title: "Severance", year: 2022, ids: { trakt: 1 }, images: { poster: ["p.webp"] } },
+      { title: "Dark", ids: { trakt: 2 } },
+    ];
+    const hits = assembleShowHits(shows);
+    expect(hits.map((h) => h.type)).toEqual(["show", "show"]);
+    expect(hits[0]).toMatchObject({ key: "show:1", traktId: 1, posters: ["p.webp"] });
+    expect(hits[1]).toMatchObject({ year: null, posters: [] });
+  });
+});
+
+describe("rankSearchHits", () => {
+  const hit = (traktId: number, title: string): SearchResult => ({
+    type: "show",
+    show: { title, ids: { trakt: traktId } },
+  });
+
+  it("floats an exact title match above prefix, substring, and non-title matches", () => {
+    const hits = assembleSearchHits([
+      hit(1, "The Severance Files"), // substring
+      hit(2, "The Office"), // no title match
+      hit(3, "Severance"), // exact
+      hit(4, "Severance: Origins"), // prefix
+    ]);
+    expect(rankSearchHits(hits, "severance").map((h) => h.traktId)).toEqual([3, 4, 1, 2]);
+  });
+
+  it("is stable within a relevance bucket (keeps Trakt score order)", () => {
+    const hits = assembleSearchHits([hit(10, "Alpha"), hit(11, "Beta"), hit(12, "Gamma")]);
+    expect(rankSearchHits(hits, "zzz").map((h) => h.traktId)).toEqual([10, 11, 12]);
+  });
+
+  it("treats an empty query as all-equal, preserving order", () => {
+    const hits = assembleSearchHits([hit(20, "Bravo"), hit(21, "Alpha")]);
+    expect(rankSearchHits(hits, "").map((h) => h.traktId)).toEqual([20, 21]);
   });
 });

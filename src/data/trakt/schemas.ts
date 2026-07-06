@@ -144,6 +144,12 @@ export const searchSchema = z.array(
   }),
 );
 
+/** `/shows/trending` rows wrap the show in a watcher count; `/shows/popular` is a bare show list. */
+export const trendingShowsSchema = z.array(
+  z.object({ watchers: z.number().nullish(), show: showSchema }),
+);
+export const popularShowsSchema = z.array(showSchema);
+
 export const hiddenSchema = z.array(
   z.object({
     hidden_at: z.string().optional(),
@@ -176,4 +182,6 @@ export type WatchlistItem = z.infer<typeof watchlistSchema>[number];
 export type RatingItem = z.infer<typeof ratingsSchema>[number];
 export type CalendarItem = z.infer<typeof calendarSchema>[number];
 export type SearchResult = z.infer<typeof searchSchema>[number];
+export type ShowSummary = z.infer<typeof showSchema>;
+export type TrendingShow = z.infer<typeof trendingShowsSchema>[number];
 export type HiddenItem = z.infer<typeof hiddenSchema>[number];

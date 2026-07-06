@@ -16,6 +16,13 @@ export interface UpNextData {
   readonly tmdbConfig: TmdbImageConfig | null;
 }
 
+/** The read side of Discover browse: trending + popular poster rails + the image config. */
+export interface DiscoverData {
+  readonly trending: readonly SearchHit[];
+  readonly popular: readonly SearchHit[];
+  readonly tmdbConfig: TmdbImageConfig | null;
+}
+
 /** The read side of the calendar: flattened air-dated episodes + the hidden set to exclude. */
 export interface CalendarData {
   readonly entries: readonly CalendarEntry[];
@@ -46,8 +53,10 @@ export interface CueRuntime {
   loadWatchlistIds(section: "shows" | "movies"): Promise<readonly number[]>;
   /** Personalized calendar window: `/calendars/my/shows/{start}/{days}` + the hidden set. */
   loadCalendar(startDate: string, days: number): Promise<CalendarData>;
-  /** Debounced show+movie search: one `/search/show,movie` per settled query. */
+  /** Debounced show+movie search: one `/search/show,movie` per settled query, title-ranked. */
   search(query: string): Promise<readonly SearchHit[]>;
+  /** Browse rails for empty-query Discover: trending + popular shows with poster art. */
+  loadDiscover(): Promise<DiscoverData>;
   submit(op: QueuedOp): Promise<SubmitOutcome>;
 }
 

@@ -6,10 +6,12 @@ import {
   getEpisode,
   getHidden,
   getMyShowsCalendar,
+  getPopularShows,
   getRatings,
   getShow,
   getShowProgress,
   getShowSeasons,
+  getTrendingShows,
   getWatchedShows,
   getWatchlist,
   searchTrakt,
@@ -17,7 +19,7 @@ import {
 import { assembleEpisodeDetail } from "@data/trakt/episode-detail";
 import { assembleLibrary, markLanded, type ShowArt, showIdSet } from "@data/trakt/library";
 import type { Progress } from "@data/trakt/schemas";
-import { assembleSearchHits } from "@data/trakt/search";
+import { assembleSearchHits, assembleShowHits, rankSearchHits } from "@data/trakt/search";
 import { assembleHeader, assembleSeasons } from "@data/trakt/show-detail";
 import { createTraktTransport } from "@data/trakt/transport";
 import type { Credentials } from "@domain/model/credentials";
@@ -28,6 +30,7 @@ import type { KeyValueStore } from "@platform/kv";
 import type {
   CalendarData,
   CueRuntime,
+  DiscoverData,
   RatingMap,
   SubmitOutcome,
   UpNextData,
@@ -238,7 +241,21 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     async search(query) {
       const result = await searchTrakt(client, query);
       if (!result.ok) throw new Error("Failed to search");
-      return assembleSearchHits(result.data);
+      return rankSearchHits(assembleSearchHits(result.data), query);
+    },
+
+    async loadDiscover(): Promise<DiscoverData> {
+      const [trending, popular] = await Promise.all([
+        getTrendingShows(client),
+        getPopularShows(client),
+      ]);
+      if (!trending.ok) throw new Error("Failed to load trending shows");
+      if (!popular.ok) throw new Error("Failed to load popular shows");
+      return {
+        trending: assembleShowHits(trending.data.map((row) => row.show)),
+        popular: assembleShowHits(popular.data),
+        tmdbConfig,
+      };
     },
 
     async submit(op: QueuedOp): Promise<SubmitOutcome> {

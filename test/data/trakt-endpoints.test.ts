@@ -4,10 +4,12 @@ import {
   getHidden,
   getLastActivities,
   getMyShowsCalendar,
+  getPopularShows,
   getRatings,
   getShow,
   getShowProgress,
   getShowSeasons,
+  getTrendingShows,
   getWatchedMovies,
   getWatchedShows,
   getWatchlist,
@@ -156,6 +158,21 @@ describe("Trakt read endpoints zod-parse well-formed fixtures", () => {
     getJson("/search/show,movie", [{ type: "show", score: 42.5, show: showObj }]);
     const result = await searchTrakt(client, "severance");
     expect(result.ok && result.data[0]?.show?.title).toBe("Severance");
+  });
+
+  it("parses trending shows (watcher-wrapped rows)", async () => {
+    getJson("/shows/trending", [
+      { watchers: 120, show: { ...showObj, images: { poster: ["t.webp"] } } },
+    ]);
+    const result = await getTrendingShows(client);
+    expect(result.ok && result.data[0]?.watchers).toBe(120);
+    expect(result.ok && result.data[0]?.show.title).toBe("Severance");
+  });
+
+  it("parses popular shows (bare show list)", async () => {
+    getJson("/shows/popular", [showObj]);
+    const result = await getPopularShows(client);
+    expect(result.ok && result.data[0]?.ids.trakt).toBe(1);
   });
 
   it("parses hidden progress_watched items", async () => {
