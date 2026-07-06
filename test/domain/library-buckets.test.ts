@@ -128,6 +128,25 @@ describe("groupLibrary", () => {
     expect(caughtUp?.shows.map((s) => s.title)).toEqual(["New", "Old", "Never"]);
   });
 
+  it("buckets a fully-watched ended show as Finished, never Watching or Stopped", () => {
+    const finished = makeShow({
+      showId: 42,
+      title: "Wrapped",
+      status: "ended",
+      completed: 10,
+      aired: 10,
+      nextEpisode: null,
+      lastWatchedAt: iso(NOW - DAY),
+    });
+    const buckets = groupLibrary([finished], NOW, THRESHOLD, "recently-watched");
+    expect(buckets.map((b) => b.status)).toEqual(["ended"]);
+    expect(buckets[0]?.shows.map((s) => s.showId)).toEqual([42]);
+    for (const bucket of buckets) {
+      if (bucket.status === "ended") continue;
+      expect(bucket.shows.some((s) => s.showId === 42)).toBe(false);
+    }
+  });
+
   it("returns no buckets for an empty library", () => {
     expect(groupLibrary([], NOW, THRESHOLD, "recently-watched")).toEqual([]);
   });

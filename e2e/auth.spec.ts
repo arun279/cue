@@ -147,7 +147,10 @@ test.describe("onboarding + auth", () => {
     await expect(page.getByTestId("connection-status")).toContainText("Connected");
 
     const revoke = page.waitForRequest("**/api.trakt.tv/oauth/revoke");
+    // Disconnect is guarded by a confirmation dialog — only Confirm revokes.
     await page.getByTestId("button-disconnect").click();
+    await expect(page.getByTestId("disconnect-dialog")).toBeVisible();
+    await page.getByTestId("button-disconnect-confirm").click();
     await revoke;
 
     await expect(page.getByTestId("screen-onboarding")).toBeVisible();
@@ -162,5 +165,25 @@ test.describe("onboarding + auth", () => {
 
     // Local auth is genuinely gone from IndexedDB — not merely hidden in memory.
     expect(await readStored(page, "cue.trakt.token")).toBeNull();
+  });
+
+  test("Cancel on the disconnect confirmation keeps you connected — no revoke fires", async ({
+    page,
+  }) => {
+    await installHermeticRoutes(page.context());
+    const oauth = await installOAuthRoutes(page.context());
+    await seedAuth(page.context());
+    await page.goto("/settings");
+    await expect(page.getByTestId("screen-settings")).toBeVisible();
+
+    await page.getByTestId("button-disconnect").click();
+    await expect(page.getByTestId("disconnect-dialog")).toBeVisible();
+    await page.getByTestId("disconnect-cancel").click();
+
+    // The dialog closes, the session survives, and no revoke was ever sent.
+    await expect(page.getByTestId("disconnect-dialog")).toHaveCount(0);
+    await expect(page.getByTestId("screen-settings")).toBeVisible();
+    expect(oauth.getRevokeRequests()).toHaveLength(0);
+    expect(await readStored(page, "cue.trakt.token")).not.toBeNull();
   });
 });

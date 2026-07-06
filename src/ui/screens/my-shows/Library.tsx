@@ -85,8 +85,8 @@ function StoppedTile({
       <PosterCard entry={entry} tmdbConfig={tmdbConfig} />
       <button
         type="button"
-        className="pile-tile__unabandon"
-        data-testid="unabandon"
+        className="pile-tile__resume"
+        data-testid="resume"
         data-show-id={entry.showId}
         onClick={onResume}
       >
@@ -389,7 +389,7 @@ export function Library(): ReactElement {
 
       {unhide.error !== null && (
         <Snackbar
-          testId="unabandon-error"
+          testId="resume-error"
           message={unhide.error}
           actionLabel="Dismiss"
           onAction={unhide.clearError}
@@ -398,7 +398,7 @@ export function Library(): ReactElement {
       )}
       {unhide.undoable !== null && (
         <Snackbar
-          testId="unabandon-undo"
+          testId="resume-undo"
           message={
             unhide.undoable.kind === "hide"
               ? `Stopped watching ${unhide.undoable.title}.`

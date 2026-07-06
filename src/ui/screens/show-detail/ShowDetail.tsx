@@ -53,6 +53,12 @@ function ShowHero({
   const next = header.nextEpisode;
   const canMarkNext = next?.aired === true;
   const genres = header.genres.slice(0, 3);
+  // Once a show has progress its state is derived from that progress, not from
+  // watchlist membership, so hide the watchlist toggle (it would contradict the
+  // Library's "Watching" filing). Stop is only meaningful for a show that is
+  // actually being watched or already stopped — never a not-started one.
+  const showWatchlist = header.completed === 0;
+  const canStop = hidden || header.completed > 0;
 
   return (
     <section className="show-hero">
@@ -137,38 +143,44 @@ function ShowHero({
               Mark next watched
             </button>
           )}
-          <button
-            type="button"
-            className="button button--ghost"
-            aria-pressed={onWatchlist}
-            aria-busy={watchlist.isLoading}
-            disabled={watchlist.isLoading}
-            data-testid="watchlist-toggle"
-            data-on={onWatchlist}
-            onClick={() => void watchlist.toggle(header.ids)}
-          >
-            {watchlist.isLoading
-              ? "Checking…"
-              : onWatchlist
-                ? "On watchlist ✓"
-                : "Add to watchlist"}
-          </button>
-          <button
-            type="button"
-            className="show-hero__stop"
-            data-testid="hide-show"
-            data-hidden={hidden}
-            onClick={onToggleHidden}
-          >
-            {hidden ? "Resume" : "Stop watching"}
-          </button>
+          {showWatchlist && (
+            <button
+              type="button"
+              className="button button--ghost"
+              aria-pressed={onWatchlist}
+              aria-busy={watchlist.isLoading}
+              disabled={watchlist.isLoading}
+              data-testid="watchlist-toggle"
+              data-on={onWatchlist}
+              onClick={() => void watchlist.toggle(header.ids)}
+            >
+              {watchlist.isLoading
+                ? "Checking…"
+                : onWatchlist
+                  ? "On watchlist ✓"
+                  : "Add to watchlist"}
+            </button>
+          )}
+          {canStop && (
+            <button
+              type="button"
+              className="show-hero__stop"
+              data-testid="hide-show"
+              data-hidden={hidden}
+              onClick={onToggleHidden}
+            >
+              {hidden ? "Resume" : "Stop watching"}
+            </button>
+          )}
         </div>
 
-        <p className="show-hero__stop-note" data-testid="stop-note">
-          {hidden
-            ? "History kept — resume to pick up where you left off."
-            : "Stopping keeps your watch history — resume anytime."}
-        </p>
+        {canStop && (
+          <p className="show-hero__stop-note" data-testid="stop-note">
+            {hidden
+              ? "History kept — resume to pick up where you left off."
+              : "Stopping keeps your watch history — resume anytime."}
+          </p>
+        )}
 
         <div className="show-hero__rating">
           <span className="rating__lead">Your rating</span>

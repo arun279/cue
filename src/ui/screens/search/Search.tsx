@@ -102,7 +102,7 @@ function Browse({ view }: { view: SearchView }): ReactElement {
         )}
         {browse.popular.length > 0 && (
           <section className="discover-rail" data-testid="discover-popular">
-            <h2 className="discover-rail__head">Popular this era</h2>
+            <h2 className="discover-rail__head">Popular</h2>
             <Grid
               hits={browse.popular}
               tmdbConfig={browse.tmdbConfig}

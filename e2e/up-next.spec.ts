@@ -109,15 +109,77 @@ test("Continue queue: excludes future next episodes and hidden shows; lapsed dro
   await expect(lead.getByTestId("poster-image")).toBeVisible();
   await expect(cards.filter({ hasText: "NoImage" }).getByTestId("poster-text")).toBeVisible();
 
-  // The lapsed show is NOT gone — it collapses into the drawer with Keep / Stop watching.
+  // The lapsed show is NOT gone — it collapses into the drawer with Watched / Stop watching.
   const drawer = page.getByTestId("lapsed-drawer");
   await expect(drawer).toBeVisible();
   await expect(page.getByTestId("lapsed-heading")).toContainText("Haven't watched in a while");
   await page.getByTestId("lapsed-heading").click();
   const lapsedRow = page.getByTestId("lapsed-row").filter({ hasText: "Lapsed Show" });
   await expect(lapsedRow).toHaveCount(1);
-  await expect(lapsedRow.getByTestId("lapsed-keep")).toBeVisible();
+  // The drawer now offers in-place catch-up (Watched) + Stop watching — no "Keep".
+  await expect(lapsedRow.getByTestId("lapsed-mark")).toBeVisible();
   await expect(lapsedRow.getByTestId("lapsed-stop")).toBeVisible();
+  await expect(lapsedRow.getByTestId("lapsed-keep")).toHaveCount(0);
+});
+
+test("the lead card shows its full title at 390px — no hero truncation", async ({ page }) => {
+  // The reported regression: the elevated lead bumped the poster + title so the
+  // title column collapsed and a normal show name clipped to a single letter on a
+  // phone. The calmer lead (base-card metrics) must show the whole name.
+  await installLibraryRoutes(page.context(), [soloShow({ title: "Severance" })]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+
+  const lead = page.getByTestId("up-next-card").first();
+  await expect(lead).toHaveClass(/card--lead/);
+  const title = lead.getByRole("heading", { name: "Severance" });
+  await expect(title).toBeVisible();
+  // A clipped .card__title (overflow:hidden + ellipsis) has scrollWidth > clientWidth;
+  // a fully-shown title does not. This is the layout gate for the truncation fix.
+  const clipped = await title.evaluate((el) => el.scrollWidth > el.clientWidth + 1);
+  expect(clipped).toBe(false);
+});
+
+test("the lapsed drawer's Watched marks in place and re-files the show into Continue", async ({
+  page,
+}) => {
+  const controls = await installLibraryRoutes(page.context(), [
+    soloShow({ trakt: 1, title: "Active", lastWatchedAt: agoIso(2) }),
+    {
+      trakt: 5,
+      title: "Lapsed Show",
+      status: "returning series",
+      lastWatchedAt: agoIso(40),
+      aired: 3,
+      completed: 1,
+      episodes: [
+        { season: 1, number: 1, title: "One", firstAired: AIRED, traktId: 51 },
+        { season: 1, number: 2, title: "Two", firstAired: AIRED, traktId: 52 },
+        { season: 1, number: 3, title: "Three", firstAired: AIRED, traktId: 53 },
+      ],
+    },
+  ]);
+  // Hold the POST open so the fresh-activity re-file reflects the point-of-action
+  // optimistic advance (the authoritative refetch is deferred behind the write).
+  controls.setWriteMode("delay");
+  await page.goto("/");
+
+  // Lapsed Show sits in the drawer (idle 40d), not Continue.
+  await expect(page.getByTestId("up-next-card").filter({ hasText: "Lapsed Show" })).toHaveCount(0);
+  await page.getByTestId("lapsed-heading").click();
+  const lapsedRow = page.getByTestId("lapsed-row").filter({ hasText: "Lapsed Show" });
+  await expect(lapsedRow).toHaveCount(1);
+
+  // One tap Watched marks its next aired episode (S01E02 = id 52) in place…
+  await lapsedRow.getByTestId("lapsed-mark").click();
+  await expect(page.getByTestId("undo")).toContainText("Marked Lapsed Show S01E02 watched");
+  await expect
+    .poll(() => controls.historyPosts().some((w) => w.episodeIds.includes(52)))
+    .toBe(true);
+
+  // …and the fresh activity re-files it into Continue; it leaves the drawer.
+  await expect(page.getByTestId("up-next-card").filter({ hasText: "Lapsed Show" })).toHaveCount(1);
+  await expect(page.getByTestId("lapsed-drawer")).toHaveCount(0);
 });
 
 test("New group surfaces a freshly-aired episode, sorted newest first", async ({ page }) => {
@@ -184,6 +246,51 @@ test("shows the 'all caught up' empty state when tracked shows have no aired nex
   ]);
   await page.goto("/");
   await expect(page.getByTestId("empty-all-caught-up")).toBeVisible();
+});
+
+test("an only-stopped library reads 'All your shows are stopped', not 'nothing tracked'", async ({
+  page,
+}) => {
+  await installLibraryRoutes(page.context(), [
+    {
+      trakt: 1,
+      title: "Stopped Only",
+      status: "returning series",
+      hidden: true,
+      lastWatchedAt: agoIso(3),
+      aired: 3,
+      completed: 1,
+      episodes: [
+        { season: 1, number: 1, title: "One", firstAired: AIRED, traktId: 11 },
+        { season: 1, number: 2, title: "Two", firstAired: AIRED, traktId: 12 },
+        { season: 1, number: 3, title: "Three", firstAired: AIRED, traktId: 13 },
+      ],
+    },
+  ]);
+  await page.goto("/");
+  await expect(page.getByTestId("empty-only-stopped")).toBeVisible();
+  await expect(page.getByTestId("empty-nothing-tracked")).toHaveCount(0);
+  await expect(page.getByTestId("empty-to-library")).toBeVisible();
+});
+
+test("a watchlist-only library reads 'Nothing started yet', not 'all caught up'", async ({
+  page,
+}) => {
+  await installLibraryRoutes(page.context(), [
+    {
+      trakt: 2,
+      title: "Not Started",
+      status: "returning series",
+      inWatchlist: true,
+      lastWatchedAt: null,
+      aired: 0,
+      completed: 0,
+      episodes: [{ season: 1, number: 1, title: "One", firstAired: AIRED, traktId: 21 }],
+    },
+  ]);
+  await page.goto("/");
+  await expect(page.getByTestId("empty-nothing-started")).toBeVisible();
+  await expect(page.getByTestId("empty-all-caught-up")).toHaveCount(0);
 });
 
 test("finishing an ended show shows the quiet 'You finished' closure copy", async ({ page }) => {
@@ -320,6 +427,25 @@ test("a network reject triggers a reconcile read, not a blind re-POST", async ({
   expect(controls.historyPosts().length).toBe(1);
   expect(controls.progressReads()).toBeGreaterThan(readsBefore);
   await expect(card.getByTestId("episode-code")).toHaveText("S01E03");
+});
+
+test("the Undo toast appears synchronously with the advance, before the write settles", async ({
+  page,
+}) => {
+  const controls = await installLibraryRoutes(page.context(), [soloShow()]);
+  controls.setWriteMode("delay"); // hold the POST open so the toast can't depend on it
+  await page.goto("/");
+  const card = page.getByTestId("up-next-card").first();
+
+  await card.getByTestId("mark-watched").click();
+
+  // The advance AND its confirmation/Undo appear together while the write is still
+  // in flight — the button is still locked (pendingAdvance), so the toast is not
+  // gated behind the write-queue pacing + network round-trip.
+  await expect(card.getByTestId("episode-code")).toHaveText("S01E03");
+  await expect(page.getByTestId("undo")).toContainText("Marked Solo S01E02 watched");
+  await expect(page.getByTestId("undo-action")).toBeVisible();
+  await expect(card.getByTestId("mark-watched")).toBeDisabled();
 });
 
 test("Undo issues the stored inverse /sync/history/remove and restores the card", async ({

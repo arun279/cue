@@ -88,7 +88,7 @@ export function UpNextCard({
         className="card__mark"
         data-testid="mark-watched"
         aria-label={`Mark ${entry.title} ${code} watched`}
-        disabled={entry.pendingAdvance}
+        aria-disabled={entry.pendingAdvance}
         aria-busy={entry.pendingAdvance}
         onClick={onMark}
       >

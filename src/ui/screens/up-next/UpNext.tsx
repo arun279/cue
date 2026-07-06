@@ -1,4 +1,5 @@
 import type { TmdbImageConfig } from "@data/image-source";
+import { Link } from "@tanstack/react-router";
 import { CachedRetryBanner } from "@ui/components/CachedRetryBanner";
 import { CardListSkeleton } from "@ui/components/CardListSkeleton";
 import { SyncStatusPill } from "@ui/components/SyncStatusPill";
@@ -6,7 +7,7 @@ import { useHideShow } from "@ui/hooks/useHideShow";
 import { useMarkWatched } from "@ui/hooks/useMarkWatched";
 import type { UpNextCard as UpNextCardModel } from "@ui/hooks/useUpNext";
 import { useUpNext } from "@ui/hooks/useUpNext";
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import emptyAllCaughtUp from "./assets/empty-all-caught-up.webp";
 import emptyNothingTracked from "./assets/empty-nothing-tracked.webp";
 import { LapsedDrawer } from "./LapsedDrawer";
@@ -51,17 +52,20 @@ function EmptyState({
   art,
   title,
   body,
+  action,
 }: {
   testId: string;
   art: string;
   title: string;
   body: string;
+  action?: ReactNode;
 }): ReactElement {
   return (
     <div className="empty" data-testid={testId}>
       <img className="empty__art" src={art} alt="" />
       <h2 className="empty__title">{title}</h2>
       <p className="empty__body">{body}</p>
+      {action}
     </div>
   );
 }
@@ -73,8 +77,9 @@ function EmptyState({
  * "Continue" group (mid-run, your-own-recency order). The very first card of the
  * sort renders as a calmer `lead` (first-in-sort, not a recommendation). Idle
  * in-progress shows collapse into the "Haven't watched in a while" drawer at the
- * bottom. Every state is designed: skeleton, hard-error retry, and the two empty
- * states ("nothing tracked" vs "all caught up"). Marking is optimistic with Undo.
+ * bottom. Every state is designed: skeleton, hard-error retry, and four honest
+ * empty states branched on real library composition (nothing-tracked /
+ * only-stopped / nothing-started / caught-up). Marking is optimistic with Undo.
  */
 export function UpNext(): ReactElement {
   const view = useUpNext();
@@ -85,9 +90,22 @@ export function UpNext(): ReactElement {
 
   const hasActive = view.newCards.length > 0 || view.continueCards.length > 0;
   const hasLapsed = view.lapsedCards.length > 0;
-  const nothingTracked = view.hasData && view.trackedCount === 0;
-  const allCaughtUp = view.hasData && !hasActive && !hasLapsed && !nothingTracked;
   const showSections = view.hasData && !view.isLoading;
+
+  // The four empty states are branched on real library composition so the home
+  // screen never tells a user the opposite of their state: a library of only
+  // Stopped shows must not read "nothing tracked", and only-Watchlist must not
+  // read "all caught up". Exactly one fires, only when no card is queued.
+  const emptyKind: "nothing-tracked" | "only-stopped" | "nothing-started" | "caught-up" | null =
+    !view.hasData || hasActive || hasLapsed
+      ? null
+      : view.totalCount === 0
+        ? "nothing-tracked"
+        : view.trackedCount === 0
+          ? "only-stopped"
+          : view.startedCount === 0
+            ? "nothing-started"
+            : "caught-up";
 
   const stopWatching = (card: UpNextCardModel): void => {
     void stop.hide(
@@ -105,7 +123,7 @@ export function UpNext(): ReactElement {
           testId="sync-status"
           isFetching={view.isFetching}
           isError={view.isError}
-          count={view.cards.length}
+          count={view.cards.length + view.lapsedCards.length}
           syncedAt={view.syncedAt}
         />
       </header>
@@ -136,7 +154,7 @@ export function UpNext(): ReactElement {
         </div>
       )}
 
-      {showSections && nothingTracked && (
+      {showSections && emptyKind === "nothing-tracked" && (
         <EmptyState
           testId="empty-nothing-tracked"
           art={emptyNothingTracked}
@@ -145,7 +163,30 @@ export function UpNext(): ReactElement {
         />
       )}
 
-      {showSections && allCaughtUp && (
+      {showSections && emptyKind === "only-stopped" && (
+        <EmptyState
+          testId="empty-only-stopped"
+          art={emptyNothingTracked}
+          title="All your shows are stopped"
+          body="Resume one to bring it back into your queue — your watch history is kept."
+          action={
+            <Link to="/library" className="button button--ghost" data-testid="empty-to-library">
+              Go to Library
+            </Link>
+          }
+        />
+      )}
+
+      {showSections && emptyKind === "nothing-started" && (
+        <EmptyState
+          testId="empty-nothing-started"
+          art={emptyNothingTracked}
+          title="Nothing started yet"
+          body="Mark an episode of a show you're following and it'll queue up here."
+        />
+      )}
+
+      {showSections && emptyKind === "caught-up" && (
         <EmptyState
           testId="empty-all-caught-up"
           art={emptyAllCaughtUp}
@@ -180,7 +221,12 @@ export function UpNext(): ReactElement {
       )}
 
       {showSections && hasLapsed && (
-        <LapsedDrawer cards={view.lapsedCards} tmdbConfig={view.tmdbConfig} onStop={stopWatching} />
+        <LapsedDrawer
+          cards={view.lapsedCards}
+          tmdbConfig={view.tmdbConfig}
+          onMark={markCard}
+          onStop={stopWatching}
+        />
       )}
 
       {mark.error !== null && (

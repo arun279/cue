@@ -52,11 +52,18 @@ test("exactly three tabs plus Search and Profile as non-tab affordances", async 
   await expect(page.getByTestId("screen-auth-callback")).toBeVisible();
 });
 
-test("legacy /my-shows deep link redirects to /library", async ({ page }) => {
-  await page.goto("/my-shows");
-  await expect(page).toHaveURL(/\/library$/);
-  await expect(page.getByTestId("screen-library")).toBeVisible();
-});
+// Every legacy tab path must still resolve so old bookmarks / deep links work.
+for (const [legacy, target, screen] of [
+  ["/upcoming", "/calendar", "screen-calendar"],
+  ["/my-shows", "/library", "screen-library"],
+  ["/discover", "/search", "screen-search"],
+] as const) {
+  test(`legacy ${legacy} deep link redirects to ${target}`, async ({ page }) => {
+    await page.goto(legacy);
+    await expect(page).toHaveURL(new RegExp(`${target}$`));
+    await expect(page.getByTestId(screen)).toBeVisible();
+  });
+}
 
 test("renders a sidebar at 1280px and a bottom tab bar at 390px", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });

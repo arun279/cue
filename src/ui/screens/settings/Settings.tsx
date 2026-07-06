@@ -2,6 +2,7 @@ import { useAuth } from "@ui/auth/store";
 import { usePrefs } from "@ui/prefs/prefs-store";
 import { THRESHOLD_OPTIONS } from "@ui/prefs/threshold";
 import { ThemeToggle } from "@ui/theme/ThemeToggle";
+import { AlertDialog } from "radix-ui";
 import { type ReactElement, useState } from "react";
 
 /** "2 weeks" / "3 weeks" — every threshold option is a whole number of weeks. */
@@ -86,24 +87,58 @@ export function Settings(): ReactElement {
           {disconnectError}
         </p>
       )}
-      <button
-        type="button"
-        className="button button--danger"
-        data-testid="button-disconnect"
-        disabled={disconnecting}
-        onClick={() => {
-          setDisconnecting(true);
-          setDisconnectError(null);
-          disconnect().catch(() => {
-            // A successful disconnect unmounts this screen; only a failure lands
-            // here, where the button must recover so the user can retry.
-            setDisconnecting(false);
-            setDisconnectError("Couldn't finish disconnecting. Please try again.");
-          });
-        }}
-      >
-        {disconnecting ? "Disconnecting…" : "Disconnect Trakt"}
-      </button>
+      <AlertDialog.Root>
+        <AlertDialog.Trigger asChild>
+          <button
+            type="button"
+            className="button button--danger"
+            data-testid="button-disconnect"
+            disabled={disconnecting}
+          >
+            {disconnecting ? "Disconnecting…" : "Disconnect Trakt"}
+          </button>
+        </AlertDialog.Trigger>
+        <AlertDialog.Portal>
+          <AlertDialog.Overlay className="dialog__overlay" />
+          <AlertDialog.Content className="dialog__content" data-testid="disconnect-dialog">
+            <AlertDialog.Title className="dialog__title">Disconnect Trakt?</AlertDialog.Title>
+            <AlertDialog.Description className="dialog__body">
+              Your watch history stays safe in your Trakt account — disconnecting only signs this
+              device out of Cue. Reconnecting takes just a few seconds.
+            </AlertDialog.Description>
+            <div className="dialog__actions">
+              <AlertDialog.Cancel asChild>
+                <button
+                  type="button"
+                  className="button button--ghost"
+                  data-testid="disconnect-cancel"
+                >
+                  Cancel
+                </button>
+              </AlertDialog.Cancel>
+              <AlertDialog.Action asChild>
+                <button
+                  type="button"
+                  className="button button--danger"
+                  data-testid="button-disconnect-confirm"
+                  onClick={() => {
+                    setDisconnecting(true);
+                    setDisconnectError(null);
+                    disconnect().catch(() => {
+                      // A successful disconnect unmounts this screen; only a failure
+                      // lands here, where the button must recover so the user can retry.
+                      setDisconnecting(false);
+                      setDisconnectError("Couldn't finish disconnecting. Please try again.");
+                    });
+                  }}
+                >
+                  Disconnect
+                </button>
+              </AlertDialog.Action>
+            </div>
+          </AlertDialog.Content>
+        </AlertDialog.Portal>
+      </AlertDialog.Root>
     </section>
   );
 }

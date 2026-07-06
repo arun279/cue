@@ -13,11 +13,11 @@ interface DiscoverCardProps {
 
 /**
  * One Discover tile — a poster-forward 2:3 card shared by the browse rails and
- * the search results grid. A show poster is a single link into its Show page
- * (the "tap any poster → Show page" rule); movies have no detail route yet
- *, so their poster stays static. The inline watchlist add is a sibling of
- * the link (never nested in the anchor) so both are independent tab stops, and
- * it reflects the optimistic added state with a lock against a double-add.
+ * the search results grid. Every poster is a single link into its detail page
+ * (the "tap any poster → detail" rule): shows to /show/$showId, movies to
+ * /movie/$movieId. The inline watchlist add is a sibling of the link (never nested
+ * in the anchor) so both are independent tab stops, and it reflects the optimistic
+ * added state with a lock against a double-add.
  */
 export function DiscoverCard({ hit, tmdbConfig, added, onAdd }: DiscoverCardProps): ReactElement {
   const poster = (
@@ -37,7 +37,14 @@ export function DiscoverCard({ hit, tmdbConfig, added, onAdd }: DiscoverCardProp
         {poster}
       </Link>
     ) : (
-      <span className="discover-card__poster discover-card__poster--static">{poster}</span>
+      <Link
+        to="/movie/$movieId"
+        params={{ movieId: String(hit.traktId) }}
+        className="discover-card__poster"
+        aria-label={`Open ${hit.title}`}
+      >
+        {poster}
+      </Link>
     );
 
   return (

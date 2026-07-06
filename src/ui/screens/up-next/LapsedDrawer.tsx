@@ -2,28 +2,30 @@ import type { TmdbImageConfig } from "@data/image-source";
 import { Link } from "@tanstack/react-router";
 import type { UpNextCard as UpNextCardModel } from "@ui/hooks/useUpNext";
 import { Accordion } from "radix-ui";
-import { type ReactElement, useState } from "react";
+import type { ReactElement } from "react";
 import { episodeCode, relativeDays } from "./format";
 import { Poster } from "./Poster";
 
 interface LapsedDrawerProps {
   readonly cards: readonly UpNextCardModel[];
   readonly tmdbConfig: TmdbImageConfig | null;
+  /** Catch up in place — mark the lapsed show's next episode, re-sorting it to Continue. */
+  onMark(card: UpNextCardModel): void;
   /** Stop watching a lapsed show — the parent owns the hide + its Undo snackbar. */
   onStop(card: UpNextCardModel): void;
 }
 
 /** One row in the drawer: the show (poster + title route to Show detail), the next
- * episode + how long it's been, and the two one-tap decisions Keep / Stop watching. */
+ * episode + how long it's been, and the two one-tap decisions Watched / Stop watching. */
 function LapsedRow({
   card,
   tmdbConfig,
-  onKeep,
+  onMark,
   onStop,
 }: {
   readonly card: LapsedDrawerProps["cards"][number];
   readonly tmdbConfig: TmdbImageConfig | null;
-  onKeep(): void;
+  onMark(): void;
   onStop(): void;
 }): ReactElement {
   const { entry, item } = card;
@@ -55,11 +57,14 @@ function LapsedRow({
       <div className="lapsed-row__actions">
         <button
           type="button"
-          className="button button--ghost button--sm"
-          data-testid="lapsed-keep"
-          onClick={onKeep}
+          className="button button--sm lapsed-row__mark"
+          data-testid="lapsed-mark"
+          aria-label={`Mark ${entry.title} ${code} watched`}
+          aria-disabled={entry.pendingAdvance}
+          aria-busy={entry.pendingAdvance}
+          onClick={onMark}
         >
-          Keep
+          Watched
         </button>
         <button
           type="button"
@@ -77,22 +82,18 @@ function LapsedRow({
 /**
  * "Haven't watched in a while" — the soft, collapsed drawer at the bottom of Up
  * Next for in-progress-but-idle shows (longest-idle first). It is a pruning prompt,
- * never a wall of shame: each row offers a one-tap Keep (client-side, per-session
- * dismissal from the drawer) or Stop watching (the parent's optimistic hide + Undo).
- * Renders nothing once every lapsed show has been decided this session.
+ * never a wall of shame: each row offers a one-tap Watched (the direct catch-up
+ * path — marking re-sorts the show to the top of Continue) or Stop watching (the
+ * parent's optimistic hide + Undo). A decided show leaves the drawer on its own,
+ * so there is no local per-session dismissal to lose on reload.
  */
 export function LapsedDrawer({
   cards,
   tmdbConfig,
+  onMark,
   onStop,
 }: LapsedDrawerProps): ReactElement | null {
-  const [kept, setKept] = useState<ReadonlySet<number>>(new Set());
-  const visible = cards.filter((card) => !kept.has(card.entry.showId));
-  if (visible.length === 0) return null;
-
-  const keep = (showId: number): void => {
-    setKept((prev) => new Set(prev).add(showId));
-  };
+  if (cards.length === 0) return null;
 
   return (
     <Accordion.Root
@@ -116,18 +117,18 @@ export function LapsedDrawer({
             </svg>
             <span className="pile__name">Haven't watched in a while</span>
             <span className="pile__count library-heading__count" data-testid="lapsed-count">
-              {visible.length}
+              {cards.length}
             </span>
           </Accordion.Trigger>
         </Accordion.Header>
         <Accordion.Content className="pile__content">
           <ul className="lapsed-list">
-            {visible.map((card) => (
+            {cards.map((card) => (
               <li key={card.entry.showId}>
                 <LapsedRow
                   card={card}
                   tmdbConfig={tmdbConfig}
-                  onKeep={() => keep(card.entry.showId)}
+                  onMark={() => onMark(card)}
                   onStop={() => onStop(card)}
                 />
               </li>

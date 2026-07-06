@@ -49,7 +49,14 @@ function CompletionRing({ done, aired }: { done: number; aired: number }): React
 }
 
 function subtitle(season: SeasonView): string {
-  const count = `${season.episodes.length} episode${season.episodes.length === 1 ? "" : "s"}`;
+  const total = season.episodes.length;
+  // Reconcile with the ring, which reads done/aired: when episodes are still
+  // unaired (common on Specials) show the aired basis so "8 of 10 aired" matches
+  // the ring's 8, never a bare "10 episodes" that contradicts a 0/8 ring.
+  const count =
+    season.airedCount < total
+      ? `${season.airedCount} of ${total} aired`
+      : `${total} episode${total === 1 ? "" : "s"}`;
   if (season.completedCount === 0) return `${count} · not started`;
   if (season.airedCount > 0 && season.completedCount >= season.airedCount) {
     return `${count} · complete`;

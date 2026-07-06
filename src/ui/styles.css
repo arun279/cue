@@ -651,6 +651,46 @@ body {
   font-size: 0.9rem;
   max-width: 42rem;
 }
+/* ---- Confirmation dialog (Radix AlertDialog) — guards a consequential action ---- */
+.dialog__overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgb(0 0 0 / 0.55);
+  backdrop-filter: blur(2px);
+}
+.dialog__content {
+  position: fixed;
+  z-index: 51;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(calc(100vw - 2 * var(--space-4)), 26rem);
+  padding: var(--space-5);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-3);
+  box-shadow: var(--shadow-poster);
+}
+.dialog__title {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.dialog__body {
+  margin: 0 0 var(--space-5);
+  color: var(--color-ink2);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+.dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+
 .badge {
   display: inline-block;
   padding: 2px var(--space-2);
@@ -847,13 +887,6 @@ body {
 }
 
 /* ---- Queue rows (split-target: poster/title → Show, episode → Episode) ---- */
-.queue-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  margin: 0 0 var(--space-4);
-}
 .card-list {
   list-style: none;
   margin: 0;
@@ -932,11 +965,6 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.card__backlog {
-  margin: 5px 0 0;
-  font-size: 0.8rem;
-  color: var(--color-muted);
-}
 
 /* One large one-tap "Watched" — a pill with the check + label, not a bare icon. */
 .card__mark {
@@ -969,7 +997,10 @@ body {
 .card__mark:active {
   transform: scale(0.97);
 }
-.card__mark:disabled {
+/* The pending-advance lock is expressed with aria-disabled, not the native
+   attribute, so the button keeps DOM focus while its optimistic advance settles
+   (toggling native disabled on a focused button drops focus to <body>). */
+.card__mark[aria-disabled="true"] {
   opacity: 0.5;
   cursor: progress;
 }
@@ -999,30 +1030,17 @@ body {
   letter-spacing: -0.01em;
   color: var(--color-ink2);
 }
-.card--lead {
-  padding: var(--space-5);
-  border-color: color-mix(in srgb, var(--color-accent) 30%, var(--color-border));
-}
-.card--lead .card__title {
-  font-size: 1.35rem;
-}
-.card--lead .poster--queue {
-  width: 96px;
-}
+/* The first card of the honest sort is only distinguished by a filled Watched
+   button — a calm "start here" marker, not a cinematic hero. No poster/title bump
+   (kept legible on a 390px row) and no accent border (which over-read as an
+   editorial recommendation of a merely most-recently-watched show). */
 .card--lead .card__mark {
   background: var(--color-accent);
   color: var(--color-accent-fg);
-  padding: 12px var(--space-5);
-  font-size: 0.95rem;
-}
-@media (min-width: 900px) {
-  .card--lead .poster--queue {
-    width: 116px;
-  }
 }
 
 /* "Haven't watched in a while" drawer — reuses the pile chrome; each row is a quiet
-   prune prompt with Keep / Stop watching. */
+   prune prompt with in-place Watched (catch-up) / Stop watching. */
 .lapsed-drawer {
   margin-top: var(--space-5);
 }
@@ -1051,6 +1069,12 @@ body {
   display: flex;
   gap: var(--space-2);
   flex: none;
+}
+/* The catch-up mark keeps DOM focus through its optimistic advance (aria-disabled,
+   not the native attribute) — mirrors the Continue card's Watched lock. */
+.lapsed-row__mark[aria-disabled="true"] {
+  opacity: 0.6;
+  cursor: progress;
 }
 .lapsed-row__stop {
   color: var(--color-muted);
@@ -1349,12 +1373,12 @@ body {
   padding: var(--space-1) var(--space-1) var(--space-5);
 }
 
-/* Abandoned tile: the poster still links to Show detail; the Un-abandon recovery
-   pins to the poster's corner as a separate control (never nested in the link). */
+/* Stopped tile: the poster still links to Show detail; the Resume recovery pins to
+   the poster's corner as a separate control (never nested in the link). */
 .pile-tile {
   position: relative;
 }
-.pile-tile__unabandon {
+.pile-tile__resume {
   position: absolute;
   top: var(--space-2);
   left: var(--space-2);
@@ -1370,7 +1394,7 @@ body {
   font-weight: 600;
   cursor: pointer;
 }
-.pile-tile__unabandon:hover {
+.pile-tile__resume:hover {
   border-color: var(--color-accent);
   color: var(--color-accent);
 }
@@ -2386,7 +2410,7 @@ body {
   outline: 2px solid transparent;
   outline-offset: 2px;
 }
-.discover-card__poster:not(.discover-card__poster--static):hover .poster--tile,
+.discover-card__poster:hover .poster--tile,
 .discover-card__poster:focus-visible .poster--tile {
   transform: scale(1.03);
   outline-color: var(--color-accent);

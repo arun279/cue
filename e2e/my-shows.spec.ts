@@ -233,8 +233,8 @@ test("Resume on a Stopped tile removes it from the hidden set and re-files it", 
   await expect(stopped).toHaveAttribute("data-state", "closed");
   await stopped.click();
 
-  await expect(page.getByTestId("unabandon")).toHaveText("Resume");
-  await page.getByTestId("unabandon").click();
+  await expect(page.getByTestId("resume")).toHaveText("Resume");
+  await page.getByTestId("resume").click();
 
   // Resume writes the hidden-set removal, and Undo is offered.
   await expect
@@ -243,10 +243,15 @@ test("Resume on a Stopped tile removes it from the hidden set and re-files it", 
         controls.writes().filter((w) => w.path === "/users/hidden/progress_watched/remove").length,
     )
     .toBe(1);
-  await expect(page.getByTestId("unabandon-undo")).toContainText("Resumed");
+  await expect(page.getByTestId("resume-undo")).toContainText("Resumed");
 
   // With the hidden flag cleared, the show leaves the Stopped segment.
   await expect(page.getByTestId("pile-heading").filter({ hasText: "Stopped" })).toHaveCount(0);
+
+  // Resume is reversible: Undo re-stops the show (re-hide) and it returns to Stopped.
+  await page.getByTestId("resume-undo-action").click();
+  await expect.poll(() => controls.hiddenPosts().length).toBe(1);
+  await expect(page.getByTestId("pile-heading").filter({ hasText: "Stopped" })).toBeVisible();
 });
 
 test("the sort control reorders shows within a segment", async ({ page }) => {

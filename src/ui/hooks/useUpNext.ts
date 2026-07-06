@@ -5,6 +5,15 @@ import { useLibrarySnapshot } from "@ui/hooks/useLibrarySnapshot";
 import type { UpNextData } from "@ui/runtime/runtime";
 import { useMemo } from "react";
 
+interface EmptyStateCounts {
+  /** Every tracked show, hidden included — 0 only when the library is truly empty. */
+  readonly totalCount: number;
+  /** Non-hidden tracked shows — 0 distinguishes an only-Stopped library from a real one. */
+  readonly trackedCount: number;
+  /** Non-hidden shows with at least one watched episode — 0 means nothing has been started. */
+  readonly startedCount: number;
+}
+
 export interface UpNextCard {
   readonly item: UpNextItem;
   readonly entry: LibraryEntry;
@@ -19,8 +28,12 @@ export interface UpNextView {
   readonly continueCards: readonly UpNextCard[];
   /** In-progress but idle — the collapsed "Haven't watched in a while" drawer. */
   readonly lapsedCards: readonly UpNextCard[];
-  /** Every non-hidden tracked show — distinguishes "all caught up" from "nothing tracked". */
+  /** Every tracked show, hidden included — 0 only when the library is truly empty. */
+  readonly totalCount: number;
+  /** Every non-hidden tracked show — distinguishes an only-Stopped library from a real one. */
   readonly trackedCount: number;
+  /** Non-hidden shows with watch progress — 0 means nothing has been started yet. */
+  readonly startedCount: number;
   readonly tmdbConfig: UpNextData["tmdbConfig"];
   readonly isLoading: boolean;
   readonly isFetching: boolean;
@@ -67,17 +80,24 @@ export function useUpNext(): UpNextView {
 
   const cards = useMemo(() => [...groups.newCards, ...groups.continueCards], [groups]);
 
-  const trackedCount = useMemo(
-    () => (data === undefined ? 0 : data.entries.filter((entry) => !entry.hidden).length),
-    [data],
-  );
+  const counts = useMemo<EmptyStateCounts>(() => {
+    if (data === undefined) return { totalCount: 0, trackedCount: 0, startedCount: 0 };
+    const tracked = data.entries.filter((entry) => !entry.hidden);
+    return {
+      totalCount: data.entries.length,
+      trackedCount: tracked.length,
+      startedCount: tracked.filter((entry) => entry.completed > 0).length,
+    };
+  }, [data]);
 
   return {
     cards,
     newCards: groups.newCards,
     continueCards: groups.continueCards,
     lapsedCards: groups.lapsedCards,
-    trackedCount,
+    totalCount: counts.totalCount,
+    trackedCount: counts.trackedCount,
+    startedCount: counts.startedCount,
     tmdbConfig: data?.tmdbConfig ?? null,
     isLoading: query.isLoading,
     isFetching: query.isFetching,

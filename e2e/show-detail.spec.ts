@@ -294,3 +294,46 @@ test("marking an episode of a Stopped show auto-resumes it", async ({ page }) =>
     1,
   );
 });
+
+test("Stop watching is reversible: Undo clears the hidden set and re-files the show", async ({
+  page,
+}) => {
+  const controls = await installLibraryRoutes(page.context(), [detailShow()]);
+  await page.goto("/show/1");
+  await expect(page.getByTestId("hide-show")).toHaveText("Stop watching");
+
+  await page.getByTestId("hide-show").click();
+  await expect.poll(() => controls.hiddenPosts().length).toBe(1);
+  await expect(page.getByTestId("hide-show")).toHaveText("Resume");
+
+  // Undo submits the inverse (unhide remove) and the action flips back to Stop watching.
+  await page.getByTestId("hide-undo-action").click();
+  await expect
+    .poll(
+      () =>
+        controls.writes().filter((w) => w.path === "/users/hidden/progress_watched/remove").length,
+    )
+    .toBe(1);
+  await expect(page.getByTestId("hide-show")).toHaveText("Stop watching");
+});
+
+test("a bulk mark auto-resumes a Stopped show and its Undo re-stops it", async ({ page }) => {
+  const controls = await installLibraryRoutes(page.context(), [{ ...detailShow(), hidden: true }]);
+  await page.goto("/show/1");
+  await expect(page.getByTestId("hide-show")).toHaveText("Resume");
+
+  // Marking Season 1 of a Stopped show clears the hidden flag (auto-resume).
+  await page.locator('[data-season="1"]').getByTestId("mark-season").click();
+  await expect
+    .poll(
+      () =>
+        controls.writes().filter((w) => w.path === "/users/hidden/progress_watched/remove").length,
+    )
+    .toBe(1);
+  await expect(page.getByTestId("hide-show")).toHaveText("Stop watching");
+
+  // Undo reverses BOTH sides: the history remove AND a re-stop (re-hide) of the show.
+  await page.getByTestId("season-undo-action").click();
+  await expect.poll(() => controls.hiddenPosts().length).toBe(1);
+  await expect(page.getByTestId("hide-show")).toHaveText("Resume");
+});
