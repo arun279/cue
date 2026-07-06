@@ -25,11 +25,14 @@ function seasonTitle(season: SeasonView): string {
 const RING_R = 15;
 const RING_C = 2 * Math.PI * RING_R;
 
-/** A completion ring reading `done/aired` — the season-shelf progress glyph. */
+/** A completion ring reading `done/aired` — the season-shelf progress glyph.
+ * `done` is clamped to the aired basis so a watched *unaired* special can never
+ * render an over-full "9/8" label against a "complete" subtitle. */
 function CompletionRing({ done, aired }: { done: number; aired: number }): ReactElement {
-  const ratio = aired > 0 ? Math.min(1, done / aired) : 0;
+  const airedDone = Math.min(done, aired);
+  const ratio = aired > 0 ? airedDone / aired : 0;
   return (
-    <span className="season__ring" data-complete={aired > 0 && done >= aired}>
+    <span className="season__ring" data-complete={aired > 0 && airedDone >= aired}>
       <svg viewBox="0 0 36 36" aria-hidden="true" focusable="false">
         <circle className="season__ring-track" cx="18" cy="18" r={RING_R} />
         <circle
@@ -42,7 +45,7 @@ function CompletionRing({ done, aired }: { done: number; aired: number }): React
         />
       </svg>
       <span className="season__ring-label" data-testid="season-count">
-        {done}/{aired}
+        {airedDone}/{aired}
       </span>
     </span>
   );
@@ -57,11 +60,14 @@ function subtitle(season: SeasonView): string {
     season.airedCount < total
       ? `${season.airedCount} of ${total} aired`
       : `${total} episode${total === 1 ? "" : "s"}`;
-  if (season.completedCount === 0) return `${count} · not started`;
-  if (season.airedCount > 0 && season.completedCount >= season.airedCount) {
+  // Clamp to the aired basis (matching the ring) so a watched unaired special never
+  // reads "9 watched" / "complete" against an 8-episode aired count.
+  const watched = Math.min(season.completedCount, season.airedCount);
+  if (watched === 0) return `${count} · not started`;
+  if (season.airedCount > 0 && watched >= season.airedCount) {
     return `${count} · complete`;
   }
-  return `${count} · ${season.completedCount} watched`;
+  return `${count} · ${watched} watched`;
 }
 
 /**

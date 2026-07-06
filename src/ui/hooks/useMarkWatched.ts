@@ -3,7 +3,7 @@ import { advancePastNext, type LibraryEntry, type MarkContext } from "@data/trak
 import { isTerminalStatus } from "@domain/watch-status";
 import { buildMarkEpisodeOp, buildUnmarkEpisodeOp } from "@domain/write-queue/ops";
 import { useQueryClient } from "@tanstack/react-query";
-import { type UpNextData, useRuntime } from "@ui/runtime/runtime";
+import { type SubmitOutcome, type UpNextData, useRuntime } from "@ui/runtime/runtime";
 import { useCallback, useRef, useState } from "react";
 
 interface UndoState {
@@ -60,6 +60,13 @@ export function useMarkWatched(): MarkWatched {
   // Which mark op currently owns the undo slot, tracked synchronously so an async
   // failure can tell whether its toast is still the one on screen.
   const activeOpId = useRef<string | null>(null);
+  // Synchronous in-flight lock keyed by show id. `entry.pendingAdvance` only guards
+  // AFTER the optimistic cache patch re-renders, so two activations on the same
+  // stale `entry` (a fast double-click / Enter key-repeat) both clear it and enqueue
+  // a duplicate `POST /sync/history`. This ref is checked-and-set before the patch,
+  // dropping the second activation in a synchronous burst, and released when the
+  // write settles (done | failed | deferred) or the mark is undone / dismissed.
+  const inFlight = useRef<Set<number>>(new Set());
 
   const patch = useCallback(
     (showId: number, next: (entry: LibraryEntry) => LibraryEntry) => {
@@ -81,6 +88,10 @@ export function useMarkWatched(): MarkWatched {
     async (entry: LibraryEntry) => {
       const episode = entry.nextEpisode;
       if (episode === null || entry.pendingAdvance) return;
+      // Second synchronous activation in the same burst — its optimistic advance
+      // hasn't re-rendered yet, so drop it before it can enqueue a duplicate play.
+      if (inFlight.current.has(entry.showId)) return;
+      inFlight.current.add(entry.showId);
       const watchedAt = new Date().toISOString();
       const beforeMark = entry;
       const episodeCode = episodeCodeOf(entry);
@@ -121,7 +132,15 @@ export function useMarkWatched(): MarkWatched {
         inversePatch: context,
       });
 
-      const outcome = await runtime.submit(op);
+      let outcome: SubmitOutcome;
+      try {
+        outcome = await runtime.submit(op);
+      } finally {
+        // The write has settled (done | failed | deferred) — or submit threw
+        // (a persistence fault): release the lock either way so a deliberate later
+        // mark of the show's next episode is never wedged behind a stuck lock.
+        inFlight.current.delete(entry.showId);
+      }
       if (outcome === "failed") {
         // Roll this show's optimistic advance back regardless — the write is dead.
         patch(entry.showId, () => beforeMark);
@@ -147,6 +166,7 @@ export function useMarkWatched(): MarkWatched {
     const pending = undo;
     if (pending === null) return;
     activeOpId.current = null;
+    inFlight.current.delete(pending.showId);
     setUndo(null);
     patch(pending.showId, () => pending.beforeMark);
     const context: MarkContext = {
@@ -171,6 +191,7 @@ export function useMarkWatched(): MarkWatched {
     undo: runUndo,
     dismissUndo: () => {
       activeOpId.current = null;
+      if (undo !== null) inFlight.current.delete(undo.showId);
       setUndo(null);
     },
     clearError: () => setError(null),

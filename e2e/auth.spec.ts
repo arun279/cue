@@ -186,4 +186,51 @@ test.describe("onboarding + auth", () => {
     expect(oauth.getRevokeRequests()).toHaveLength(0);
     expect(await readStored(page, "cue.trakt.token")).not.toBeNull();
   });
+
+  test("the disconnect dialog is modal: focus is trapped, and Esc/Cancel restore focus without revoking", async ({
+    page,
+  }) => {
+    await installHermeticRoutes(page.context());
+    const oauth = await installOAuthRoutes(page.context());
+    await seedAuth(page.context());
+    await page.goto("/settings");
+    await expect(page.getByTestId("screen-settings")).toBeVisible();
+
+    const trigger = page.getByTestId("button-disconnect");
+    await trigger.click();
+    const dialog = page.getByTestId("disconnect-dialog");
+    await expect(dialog).toBeVisible();
+
+    // The content is exposed as a modal dialog to assistive tech.
+    await expect(dialog).toHaveAttribute("role", "alertdialog");
+    await expect(dialog).toHaveAttribute("aria-modal", "true");
+
+    // Initial focus lands inside the dialog (Radix moves it off the trigger).
+    await expect
+      .poll(() => dialog.evaluate((el) => el.contains(document.activeElement)))
+      .toBe(true);
+
+    // Tabbing cycles within the dialog — focus is trapped, never escaping to the page.
+    for (let i = 0; i < 6; i += 1) {
+      await page.keyboard.press("Tab");
+      expect(await dialog.evaluate((el) => el.contains(document.activeElement))).toBe(true);
+    }
+
+    // Esc closes the dialog and restores focus to the Disconnect trigger.
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+
+    // Reopen and dismiss via Cancel: focus returns to the trigger the same way.
+    await trigger.click();
+    await expect(dialog).toBeVisible();
+    await page.getByTestId("disconnect-cancel").click();
+    await expect(dialog).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+
+    // The session is still connected throughout — cancelling never revokes.
+    await expect(page.getByTestId("screen-settings")).toBeVisible();
+    expect(oauth.getRevokeRequests()).toHaveLength(0);
+    expect(await readStored(page, "cue.trakt.token")).not.toBeNull();
+  });
 });

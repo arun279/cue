@@ -467,6 +467,65 @@ test("Undo issues the stored inverse /sync/history/remove and restores the card"
   await expect(card.getByTestId("episode-code")).toHaveText("S01E02");
 });
 
+test("a double activation marks the episode exactly once — no duplicate history POST", async ({
+  page,
+}) => {
+  const controls = await installLibraryRoutes(page.context(), [soloShow()]);
+  // Immediate write mode ON PURPOSE (not `delay`): a second enqueued op would
+  // dispatch on the next pacing tick (~1s, the write pacer's floor), so a 2s settle
+  // window genuinely surfaces a duplicate if one ever escaped. `delay` would mask
+  // it — the second POST would sit paced behind the 5s-held first, invisible to a
+  // short poll no matter how broken the guard.
+  await page.goto("/");
+  const card = page.getByTestId("up-next-card").first();
+  await expect(card.getByTestId("episode-code")).toHaveText("S01E02");
+
+  // Two synchronous activations in one task — before React can re-render and set
+  // pendingAdvance — mimic a fast double-click / Enter key-repeat on the same card.
+  await card.getByTestId("mark-watched").evaluate((el: HTMLElement) => {
+    el.click();
+    el.click();
+  });
+
+  // The card advances exactly once…
+  await expect(card.getByTestId("episode-code")).toHaveText("S01E03");
+  await expect.poll(() => controls.historyPosts().length).toBe(1);
+  // …and no second POST reaches the network across a two-pacing-interval window.
+  // The synchronous in-flight lock drops the second activation before it enqueues;
+  // the queue's same-item coalescing is a second backstop for the pre-render burst.
+  await page.waitForTimeout(2000);
+  expect(controls.historyPosts().length).toBe(1);
+  expect(controls.historyPosts()[0]?.episodeIds).toContain(12);
+});
+
+test("a held-open write then an immediate Undo issues the ordered add-then-remove and restores the card", async ({
+  page,
+}) => {
+  const controls = await installLibraryRoutes(page.context(), [soloShow()]);
+  // Keep the add POST in flight so Undo enqueues a compensating remove behind it —
+  // the exact flow the opId-guarded failure path protects (never a lost intent).
+  controls.setWriteMode("delay");
+  await page.goto("/");
+  const card = page.getByTestId("up-next-card").first();
+  await expect(card.getByTestId("episode-code")).toHaveText("S01E02");
+
+  await card.getByTestId("mark-watched").click();
+  await expect(card.getByTestId("episode-code")).toHaveText("S01E03");
+  await expect(page.getByTestId("undo")).toBeVisible();
+
+  // Undo while the add is still held open: the card restores optimistically…
+  await page.getByTestId("undo-action").click();
+  await expect(card.getByTestId("episode-code")).toHaveText("S01E02");
+
+  // …and both writes land in order — the add first (in flight), then its inverse remove.
+  await expect.poll(() => controls.removePosts().length, { timeout: 12_000 }).toBe(1);
+  expect(controls.writes().map((w) => w.path)).toEqual(["/sync/history", "/sync/history/remove"]);
+  expect(controls.historyPosts()[0]?.episodeIds).toContain(12);
+  expect(controls.removePosts()[0]?.episodeIds).toContain(12);
+  // The card stays restored once every write has settled (no bounce back to S01E03).
+  await expect(card.getByTestId("episode-code")).toHaveText("S01E02");
+});
+
 test("the durable op-log survives a reload and replays with the frozen watched_at", async ({
   page,
 }) => {

@@ -332,8 +332,13 @@ test("a bulk mark auto-resumes a Stopped show and its Undo re-stops it", async (
     .toBe(1);
   await expect(page.getByTestId("hide-show")).toHaveText("Stop watching");
 
-  // Undo reverses BOTH sides: the history remove AND a re-stop (re-hide) of the show.
+  // Undo reverses BOTH sides — not just the re-hide: it re-sends the stored inverse
+  // /sync/history/remove AND re-stops (re-hides) the show it had auto-resumed.
   await page.getByTestId("season-undo-action").click();
+  await expect.poll(() => controls.removePosts().length).toBe(1);
+  // Season 1 is fully aired, so the mark (and its inverse remove) carry a bare
+  // season token rather than enumerated episodes.
+  expect(controls.removePosts()[0]?.shows?.[0]?.seasons).toEqual([{ number: 1 }]);
   await expect.poll(() => controls.hiddenPosts().length).toBe(1);
   await expect(page.getByTestId("hide-show")).toHaveText("Resume");
 });

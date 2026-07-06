@@ -100,7 +100,11 @@ export function Settings(): ReactElement {
         </AlertDialog.Trigger>
         <AlertDialog.Portal>
           <AlertDialog.Overlay className="dialog__overlay" />
-          <AlertDialog.Content className="dialog__content" data-testid="disconnect-dialog">
+          <AlertDialog.Content
+            className="dialog__content"
+            data-testid="disconnect-dialog"
+            aria-modal="true"
+          >
             <AlertDialog.Title className="dialog__title">Disconnect Trakt?</AlertDialog.Title>
             <AlertDialog.Description className="dialog__body">
               Your watch history stays safe in your Trakt account — disconnecting only signs this
