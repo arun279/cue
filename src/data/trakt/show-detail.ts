@@ -1,6 +1,11 @@
 import type { EpisodeIds, ShowIds } from "@domain/model/ids";
 import { isAired } from "@domain/time";
-import type { Progress, SeasonData, ShowDetailData } from "./schemas";
+import type { EpisodeData, Progress, SeasonData, ShowDetailData } from "./schemas";
+
+/** Trakt inline still candidates, screenshot preferred over the lower-res thumb. */
+function stillsOf(episode: EpisodeData): readonly string[] {
+  return episode.images?.screenshot ?? episode.images?.thumb ?? [];
+}
 
 /** One episode row on the Show detail season tree, with its derived watched + aired flags. */
 export interface EpisodeView {
@@ -9,6 +14,8 @@ export interface EpisodeView {
   readonly title: string | null;
   readonly firstAired: string | null;
   readonly ids: EpisodeIds;
+  /** Trakt inline still candidates (screenshot → thumb) for the season shelf thumbnail. */
+  readonly stills: readonly string[];
   readonly watched: boolean;
   readonly aired: boolean;
 }
@@ -31,6 +38,7 @@ export interface ShowHeader {
   readonly year: number | null;
   readonly status: string;
   readonly network: string | null;
+  readonly genres: readonly string[];
   readonly overview: string | null;
   readonly posters: readonly string[];
   readonly backdrops: readonly string[];
@@ -78,6 +86,7 @@ export function assembleHeader(show: ShowDetailData, progress: Progress, now: nu
     year: show.year ?? null,
     status: show.status ?? "",
     network: show.network ?? null,
+    genres: show.genres ?? [],
     overview: show.overview ?? null,
     posters: show.images?.poster ?? [],
     backdrops: show.images?.fanart ?? [],
@@ -93,6 +102,7 @@ export function assembleHeader(show: ShowDetailData, progress: Progress, now: nu
             title: next.title ?? null,
             firstAired: next.first_aired ?? null,
             ids: toEpisodeIds(next.ids),
+            stills: stillsOf(next),
             watched: false,
             aired: isAired(next.first_aired ?? null, now),
           },
@@ -129,6 +139,7 @@ export function assembleSeasons(
           title: episode.title ?? null,
           firstAired: episode.first_aired ?? null,
           ids: toEpisodeIds(episode.ids),
+          stills: stillsOf(episode),
           watched: watched.get(`${season.number}:${episode.number}`) ?? false,
           aired: isAired(episode.first_aired ?? null, now),
         }));

@@ -1,5 +1,6 @@
 import { resolvePoster, type TmdbImageConfig } from "@data/image-source";
 import { Link } from "@tanstack/react-router";
+import { CheckIcon } from "@ui/components/CheckIcon";
 import type { UpNextCard as UpNextCardModel } from "@ui/hooks/useUpNext";
 import { type ReactElement, useState } from "react";
 import { episodeCode, formatAirDate, titleCase, watchedPercent } from "./format";
@@ -10,22 +11,6 @@ interface HeroSpotlightProps {
   readonly tmdbConfig: TmdbImageConfig | null;
   onMark(): void;
 }
-
-const CheckIcon = (): ReactElement => (
-  <svg
-    className="button__icon"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2.6"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    aria-hidden="true"
-    focusable="false"
-  >
-    <path d="M5 13l4 4L19 7" />
-  </svg>
-);
 
 /**
  * The cinematic hero for the most-recently-watched show at the top of the queue

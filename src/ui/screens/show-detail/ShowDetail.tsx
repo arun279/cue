@@ -1,81 +1,245 @@
 import { resolvePoster } from "@data/image-source";
-import type { ShowHeader } from "@data/trakt/show-detail";
+import type { EpisodeView, SeasonView, ShowHeader } from "@data/trakt/show-detail";
 import { Link } from "@tanstack/react-router";
+import { CheckIcon } from "@ui/components/CheckIcon";
 import { RatingControl } from "@ui/components/RatingControl";
 import { useHideShow } from "@ui/hooks/useHideShow";
-import type { MarkContextTarget } from "@ui/hooks/useMarkSeason";
+import type { MarkContextTarget, MarkSeasonController } from "@ui/hooks/useMarkSeason";
 import { useMarkSeason } from "@ui/hooks/useMarkSeason";
 import { useRate } from "@ui/hooks/useRate";
 import { useSeasons } from "@ui/hooks/useSeasons";
 import { useShowDetail } from "@ui/hooks/useShowDetail";
 import { useToggleWatchlist } from "@ui/hooks/useToggleWatchlist";
+import { episodeCode, formatAirDate, titleCase, watchedPercent } from "@ui/screens/up-next/format";
+import { Poster } from "@ui/screens/up-next/Poster";
 import { Snackbar } from "@ui/screens/up-next/Snackbar";
 import { Accordion } from "radix-ui";
 import { type ReactElement, useState } from "react";
 import { SeasonPanel } from "./SeasonPanel";
+import { Still } from "./Still";
 
 const UNDO_MS = 6000;
 
-function episodeCode(season: number, number: number): string {
-  return `S${String(season).padStart(2, "0")}E${String(number).padStart(2, "0")}`;
+function backdropUrlOf(header: ShowHeader): string | null {
+  const resolved = resolvePoster({ title: header.title, traktPosters: header.backdrops });
+  return resolved.source === "placeholder" ? null : resolved.url;
 }
 
-function initials(title: string): string {
-  const words = title.trim().split(/\s+/).filter(Boolean);
-  return words.length === 0
-    ? "?"
-    : words
-        .slice(0, 2)
-        .map((w) => w[0]?.toUpperCase() ?? "")
-        .join("");
-}
+/** The full-bleed media hero: backdrop with a scrim fading into the card, poster
+ * inset with an amber progress rail, editorial title, broadcast chips, overview,
+ * and the primary actions (Mark next / Watchlist / Stop) + compact rating. */
+function ShowHero({
+  header,
+  onWatchlist,
+  watchlist,
+  rate,
+  onMarkNext,
+  onStop,
+}: {
+  readonly header: ShowHeader;
+  readonly onWatchlist: boolean;
+  readonly watchlist: ReturnType<typeof useToggleWatchlist>;
+  readonly rate: ReturnType<typeof useRate>;
+  onMarkNext(): void;
+  onStop(): void;
+}): ReactElement {
+  const [bdBroken, setBdBroken] = useState(false);
+  const backdrop = backdropUrlOf(header);
+  const pct = watchedPercent(header.completed, header.aired);
+  const next = header.nextEpisode;
+  const canMarkNext = next?.aired === true;
+  const genres = header.genres.slice(0, 3);
 
-function HeroArt({ header }: { header: ShowHeader }): ReactElement {
-  const backdrop = header.backdrops.find((url) => url.length > 0);
-  const poster = resolvePoster({ title: header.title, traktPosters: header.posters });
   return (
-    <div className="hero__art">
-      {backdrop !== undefined && (
+    <section className="show-hero">
+      {backdrop !== null && !bdBroken && (
         <img
-          className="hero__backdrop"
-          src={/^https?:\/\//.test(backdrop) ? backdrop : `https://${backdrop}`}
+          className="show-hero__backdrop"
+          src={backdrop}
           alt=""
+          decoding="async"
           data-testid="hero-backdrop"
+          onError={() => setBdBroken(true)}
         />
       )}
-      {poster.source === "placeholder" ? (
-        <div className="poster poster--text hero__poster" data-testid="hero-poster-text">
-          <span className="poster__initials" aria-hidden="true">
-            {initials(header.title)}
+      <div className="show-hero__scrim" />
+      <div className="show-hero__body">
+        <span className="poster-wrap show-hero__poster">
+          <Poster title={header.title} posters={header.posters} tmdbConfig={null} variant="hero" />
+          {header.aired > 0 && (
+            <span className="poster__bar" aria-hidden="true">
+              <i style={{ width: `${pct}%` }} />
+            </span>
+          )}
+        </span>
+
+        <div className="show-hero__info">
+          <h1 className="show-hero__title" data-testid="detail-title">
+            {header.title}
+            {header.year !== null && <span className="show-hero__year"> {header.year}</span>}
+          </h1>
+
+          <div className="show-hero__chips">
+            {header.network !== null && (
+              <span className="chip" data-testid="detail-network">
+                {header.network}
+              </span>
+            )}
+            {header.status !== "" && (
+              <span className="chip show-hero__status">{header.status}</span>
+            )}
+            {genres.map((genre) => (
+              <span key={genre} className="chip">
+                {titleCase(genre)}
+              </span>
+            ))}
+            {header.aired > 0 && (
+              <span className="chip">
+                {header.aired} episode{header.aired === 1 ? "" : "s"}
+              </span>
+            )}
+          </div>
+
+          {header.overview !== null && (
+            <p className="show-hero__overview" data-testid="detail-overview">
+              {header.overview}
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="show-hero__controls">
+        <div className="show-hero__progress">
+          <div
+            className="progress"
+            role="progressbar"
+            aria-valuenow={pct}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label="Overall watched progress"
+            data-testid="overall-progress"
+          >
+            <i style={{ width: `${pct}%` }} />
+          </div>
+          <span className="progress-ratio">
+            {header.completed} / {header.aired} watched
           </span>
         </div>
-      ) : (
-        <img className="poster hero__poster" src={poster.url} alt="" data-testid="hero-poster" />
-      )}
-    </div>
+
+        <div className="show-hero__actions">
+          {canMarkNext && (
+            <button type="button" className="button" data-testid="mark-next" onClick={onMarkNext}>
+              <CheckIcon />
+              Mark next watched
+            </button>
+          )}
+          <button
+            type="button"
+            className="button button--ghost"
+            aria-pressed={onWatchlist}
+            aria-busy={watchlist.isLoading}
+            disabled={watchlist.isLoading}
+            data-testid="watchlist-toggle"
+            data-on={onWatchlist}
+            onClick={() => void watchlist.toggle(header.ids)}
+          >
+            {watchlist.isLoading
+              ? "Checking…"
+              : onWatchlist
+                ? "On watchlist ✓"
+                : "Add to watchlist"}
+          </button>
+          <button
+            type="button"
+            className="show-hero__stop"
+            data-testid="hide-show"
+            onClick={onStop}
+          >
+            Stop watching
+          </button>
+        </div>
+
+        <div className="show-hero__rating">
+          <span className="rating__lead">Your rating</span>
+          <RatingControl
+            ids={header.ids}
+            label={header.title}
+            controller={rate}
+            testId="show-rating"
+          />
+        </div>
+      </div>
+    </section>
   );
 }
 
-function NextCallout({ header }: { header: ShowHeader }): ReactElement | null {
-  const next = header.nextEpisode;
-  if (next === null) return null;
+/** The show-level "Up next" module: the next unwatched episode as a 16:9 still
+ * with one-tap Mark watched + Mark up to here (aired), or an air-date callout. */
+function NextUp({
+  next,
+  target,
+  seasons,
+  marks,
+}: {
+  readonly next: EpisodeView;
+  readonly target: MarkContextTarget;
+  readonly seasons: readonly SeasonView[];
+  readonly marks: MarkSeasonController;
+}): ReactElement {
   const code = episodeCode(next.season, next.number);
+  const airDate = formatAirDate(next.firstAired);
   return (
-    <p className="hero__next" data-testid="next-callout">
-      {next.aired ? "Next up: " : "Next airs: "}
-      <strong>{code}</strong>
-      {next.title !== null && ` · ${next.title}`}
-    </p>
+    <section className="next-up" data-testid="next-callout" data-aired={next.aired}>
+      <div className="next-up__still">
+        <Still title={next.title ?? code} stills={next.stills} />
+      </div>
+      <div className="next-up__body">
+        <p className="next-up__eyebrow">{next.aired ? "Up next" : "Next airs"}</p>
+        <p className="next-up__title">
+          <span className="next-up__code">{code}</span>
+          {next.title !== null && <span className="next-up__name">{next.title}</span>}
+        </p>
+        {!next.aired && airDate !== null && <p className="next-up__air">Airs {airDate}</p>}
+      </div>
+      {next.aired && (
+        <div className="next-up__actions">
+          <button
+            type="button"
+            className="button button--sm"
+            data-testid="next-up-mark"
+            onClick={() => void marks.toggleEpisode(target, next)}
+          >
+            Mark watched
+          </button>
+          <button
+            type="button"
+            className="button button--ghost button--sm"
+            data-testid="next-up-catchup"
+            disabled={seasons.length === 0}
+            onClick={() =>
+              void marks.markUpToHere(target, seasons, {
+                season: next.season,
+                number: next.number,
+              })
+            }
+          >
+            Mark up to here
+          </button>
+        </div>
+      )}
+    </section>
   );
 }
 
 /**
- * Show detail: a hero (backdrop + poster + overview + network +
- * next-air callout + overall progress) that paints first, then the season stream
- * with per-episode watched toggles and the batched Mark-season / Mark-up-to-here
- * actions. A Hide (Stop) action drops the show from Up Next and the calendar.
- * Every state is designed: hero skeleton, hero error retry, streaming seasons,
- * season error retry, and an announced-only empty tree.
+ * Show detail as a media page: a full-bleed backdrop hero
+ * (poster inset, editorial title, chips, overview, overall progress, primary
+ * actions, compact rating) that paints first, a show-level "Up next" module, then
+ * the season shelves — each a completion ring + Mark-season header expanding into
+ * a shelf of episode stills with watched toggles and "mark up to here". A Stop
+ * action drops the show from Up Next and the calendar. Every state is designed:
+ * hero skeleton, hero error retry, streaming seasons, season error retry, and an
+ * announced-only empty tree.
  */
 export function ShowDetail({ showId }: { showId: number }): ReactElement {
   const detail = useShowDetail(showId);
@@ -91,11 +255,13 @@ export function ShowDetail({ showId }: { showId: number }): ReactElement {
   if (detail.isLoading) {
     return (
       <section className="screen screen--detail" data-testid="screen-show-detail">
-        <div className="hero hero--skeleton" data-testid="detail-skeleton">
-          <div className="poster poster--skeleton hero__poster" />
-          <div className="hero__body">
-            <div className="skeleton-line skeleton-line--title" />
-            <div className="skeleton-line skeleton-line--sub" />
+        <div className="show-hero show-hero--skeleton" data-testid="detail-skeleton">
+          <div className="show-hero__body">
+            <div className="poster poster--skeleton poster--hero show-hero__poster" />
+            <div className="show-hero__info">
+              <div className="skeleton-line skeleton-line--title" />
+              <div className="skeleton-line skeleton-line--sub" />
+            </div>
           </div>
         </div>
       </section>
@@ -121,97 +287,45 @@ export function ShowDetail({ showId }: { showId: number }): ReactElement {
     );
   }
 
-  const pct = header.aired > 0 ? Math.round((header.completed / header.aired) * 100) : 0;
   const target: MarkContextTarget = { showId, ids: header.ids, includeSpecials };
   const onWatchlist = watchlist.isOnWatchlist(showId);
+  const next = header.nextEpisode;
+  const nextKey = next === null ? null : `${next.season}:${next.number}`;
 
   return (
     <section className="screen screen--detail" data-testid="screen-show-detail">
       <Link to="/my-shows" className="detail-back" data-testid="detail-back">
-        ← My Shows
+        ‹ My Shows
       </Link>
 
-      <header className="hero">
-        <HeroArt header={header} />
-        <div className="hero__body">
-          <h1 className="hero__title" data-testid="detail-title">
-            {header.title}
-            {header.year !== null && <span className="hero__year"> ({header.year})</span>}
-          </h1>
-          <p className="hero__meta">
-            {header.network !== null && <span data-testid="detail-network">{header.network}</span>}
-            {header.status !== "" && <span className="hero__status">{header.status}</span>}
-          </p>
-          {header.overview !== null && (
-            <p className="hero__overview" data-testid="detail-overview">
-              {header.overview}
-            </p>
-          )}
-          <NextCallout header={header} />
-          <div className="hero__progress">
-            <div
-              className="progress-bar"
-              role="progressbar"
-              aria-valuenow={pct}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-label="Overall watched progress"
-              data-testid="overall-progress"
-            >
-              <span className="progress-bar__fill" style={{ width: `${pct}%` }} />
-            </div>
-            <span className="hero__count">
-              {header.completed}/{header.aired} watched
-            </span>
-          </div>
-          <div className="hero__actions">
-            <button
-              type="button"
-              className="button button--sm"
-              aria-pressed={onWatchlist}
-              aria-busy={watchlist.isLoading}
-              disabled={watchlist.isLoading}
-              data-testid="watchlist-toggle"
-              data-on={onWatchlist}
-              onClick={() => void watchlist.toggle(header.ids)}
-            >
-              {watchlist.isLoading
-                ? "Checking watchlist…"
-                : onWatchlist
-                  ? "On watchlist ✓"
-                  : "Add to watchlist"}
-            </button>
-            <button
-              type="button"
-              className="button button--danger button--sm"
-              data-testid="hide-show"
-              onClick={() => void hide.hide(showId, header.ids, header.title)}
-            >
-              Stop watching
-            </button>
-            <label className="hero__specials">
-              <input
-                type="checkbox"
-                checked={includeSpecials}
-                onChange={(event) => setIncludeSpecials(event.target.checked)}
-                data-testid="include-specials"
-              />
-              Include specials in bulk marks
-            </label>
-          </div>
-          <div className="hero__rating">
-            <h2 className="hero__rating-title">Your rating</h2>
-            <RatingControl
-              ids={header.ids}
-              label={header.title}
-              controller={rate}
-              testId="show-rating"
-            />
-          </div>
-        </div>
-      </header>
+      <ShowHero
+        header={header}
+        onWatchlist={onWatchlist}
+        watchlist={watchlist}
+        rate={rate}
+        onMarkNext={() => {
+          if (next !== null) void marks.toggleEpisode(target, next);
+        }}
+        onStop={() => void hide.hide(showId, header.ids, header.title)}
+      />
 
-      <h2 className="detail-seasons__title">Seasons</h2>
+      {next !== null && (
+        <NextUp next={next} target={target} seasons={seasonsView.seasons} marks={marks} />
+      )}
+
+      <div className="detail-seasons__head">
+        <h2 className="detail-seasons__title">Seasons</h2>
+        <label className="detail-specials">
+          <input
+            type="checkbox"
+            checked={includeSpecials}
+            onChange={(event) => setIncludeSpecials(event.target.checked)}
+            data-testid="include-specials"
+          />
+          Include specials in bulk marks
+        </label>
+      </div>
+
       {seasonsView.isLoading && (
         <p className="detail-seasons__loading" role="status" data-testid="seasons-loading">
           Loading seasons…
@@ -245,6 +359,7 @@ export function ShowDetail({ showId }: { showId: number }): ReactElement {
               allSeasons={seasonsView.seasons}
               target={target}
               marks={marks}
+              nextKey={nextKey}
             />
           ))}
         </Accordion.Root>

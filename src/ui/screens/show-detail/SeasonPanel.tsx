@@ -13,6 +13,8 @@ interface SeasonPanelProps {
   readonly allSeasons: readonly SeasonView[];
   readonly target: MarkContextTarget;
   readonly marks: MarkSeasonController;
+  /** `season:number` of the show's next episode, so the shelf can flag it. */
+  readonly nextKey: string | null;
 }
 
 function seasonTitle(season: SeasonView): string {
@@ -20,14 +22,55 @@ function seasonTitle(season: SeasonView): string {
   return season.title ?? `Season ${season.number}`;
 }
 
+const RING_R = 15;
+const RING_C = 2 * Math.PI * RING_R;
+
+/** A completion ring reading `done/aired` — the season-shelf progress glyph. */
+function CompletionRing({ done, aired }: { done: number; aired: number }): ReactElement {
+  const ratio = aired > 0 ? Math.min(1, done / aired) : 0;
+  return (
+    <span className="season__ring" data-complete={aired > 0 && done >= aired}>
+      <svg viewBox="0 0 36 36" aria-hidden="true" focusable="false">
+        <circle className="season__ring-track" cx="18" cy="18" r={RING_R} />
+        <circle
+          className="season__ring-fill"
+          cx="18"
+          cy="18"
+          r={RING_R}
+          strokeDasharray={RING_C}
+          strokeDashoffset={RING_C * (1 - ratio)}
+        />
+      </svg>
+      <span className="season__ring-label" data-testid="season-count">
+        {done}/{aired}
+      </span>
+    </span>
+  );
+}
+
+function subtitle(season: SeasonView): string {
+  const count = `${season.episodes.length} episode${season.episodes.length === 1 ? "" : "s"}`;
+  if (season.completedCount === 0) return `${count} · not started`;
+  if (season.airedCount > 0 && season.completedCount >= season.airedCount) {
+    return `${count} · complete`;
+  }
+  return `${count} · ${season.completedCount} watched`;
+}
+
 /**
- * One expandable season: a disclosure header carrying the per-season progress and
- * a "Mark season" action, and the episode list. Marking a season (or "up to
- * here" from an episode) funnels through the bulk builder, so it can never
- * mark unaired episodes; the action is disabled when the season has nothing aired
- * (or is Specials while the opt-in is off).
+ * One expandable season shelf: a disclosure header carrying the completion ring,
+ * count, and a "Mark season" action, expanding into a horizontal shelf of episode
+ * stills. Marking a season (or "up to here" from an episode) funnels through the
+ * bulk builder, so it can never mark unaired episodes; the action is disabled
+ * when the season has nothing aired (or is Specials while the opt-in is off).
  */
-export function SeasonPanel({ season, allSeasons, target, marks }: SeasonPanelProps): ReactElement {
+export function SeasonPanel({
+  season,
+  allSeasons,
+  target,
+  marks,
+  nextKey,
+}: SeasonPanelProps): ReactElement {
   const canMark = season.airedCount > 0 && (!season.isSpecial || target.includeSpecials);
   const markUpToHere = (bound: EpisodeBound): void => {
     void marks.markUpToHere(target, allSeasons, bound);
@@ -43,9 +86,10 @@ export function SeasonPanel({ season, allSeasons, target, marks }: SeasonPanelPr
       <div className="season__head">
         <Accordion.Header className="season__heading">
           <Accordion.Trigger className="season__trigger" data-testid="season-trigger">
-            <span className="season__name">{seasonTitle(season)}</span>
-            <span className="season__count" data-testid="season-count">
-              {season.completedCount}/{season.airedCount}
+            <CompletionRing done={season.completedCount} aired={season.airedCount} />
+            <span className="season__name">
+              {seasonTitle(season)}
+              <small className="season__sub">{subtitle(season)}</small>
             </span>
             <svg
               className="season__chevron"
@@ -75,12 +119,13 @@ export function SeasonPanel({ season, allSeasons, target, marks }: SeasonPanelPr
         </button>
       </div>
       <Accordion.Content className="season__content">
-        <ul className="episode-list">
+        <ul className="stills-shelf">
           {season.episodes.map((episode) => (
             <EpisodeRow
               key={`${episode.season}-${episode.number}`}
               showId={target.showId}
               episode={episode}
+              isNext={nextKey === `${episode.season}:${episode.number}`}
               onToggle={() => void marks.toggleEpisode(target, episode)}
               onMarkUpToHere={() =>
                 markUpToHere({ season: episode.season, number: episode.number })

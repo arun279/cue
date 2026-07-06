@@ -38,45 +38,46 @@ export function RatingControl({
         : `Your rating: ${current}/10`;
   return (
     <div className="rating" data-testid={testId}>
-      <fieldset
-        className="rating__scale"
-        aria-label={`${label} — rate 1 to 10`}
-        aria-busy={locked}
-        disabled={locked}
-        data-testid={`${testId}-scale`}
-      >
-        {VALUES.map((value) => {
-          const selected = current === value;
-          return (
-            <button
-              key={value}
-              type="button"
-              aria-pressed={selected}
-              aria-label={`Rate ${value} out of 10`}
-              className="rating__star"
-              data-selected={selected}
-              data-value={value}
-              data-testid={`${testId}-value-${value}`}
-              onClick={() => void controller.rate(ids, value)}
-            >
-              {value}
-            </button>
-          );
-        })}
-      </fieldset>
-      <p className="rating__status" data-testid={`${testId}-current`} aria-live="polite">
-        {status}
-      </p>
-      {current !== null && !locked && (
-        <button
-          type="button"
-          className="button button--ghost button--sm"
-          data-testid={`${testId}-clear`}
-          onClick={() => void controller.clearRating(ids)}
+      <div className="rating__row">
+        <fieldset
+          className="rating__scale"
+          aria-label={`${label} — rate 1 to 10`}
+          aria-busy={locked}
+          disabled={locked}
+          data-testid={`${testId}-scale`}
         >
-          Remove rating
-        </button>
-      )}
+          {VALUES.map((value) => {
+            const selected = current === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={selected}
+                aria-label={`Rate ${value} out of 10`}
+                className="rating__seg"
+                data-selected={selected}
+                data-fill={current !== null && value <= current}
+                data-value={value}
+                data-testid={`${testId}-value-${value}`}
+                onClick={() => void controller.rate(ids, value)}
+              />
+            );
+          })}
+        </fieldset>
+        <p className="rating__status" data-testid={`${testId}-current`} aria-live="polite">
+          {status}
+        </p>
+        {current !== null && !locked && (
+          <button
+            type="button"
+            className="rating__clear"
+            data-testid={`${testId}-clear`}
+            onClick={() => void controller.clearRating(ids)}
+          >
+            Clear
+          </button>
+        )}
+      </div>
     </div>
   );
 }
