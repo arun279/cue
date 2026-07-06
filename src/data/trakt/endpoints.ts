@@ -10,6 +10,8 @@ import {
   type HiddenItem,
   hiddenSchema,
   lastActivitiesSchema,
+  type MovieDetailData,
+  movieDetailSchema,
   type Progress,
   popularShowsSchema,
   progressSchema,
@@ -76,6 +78,13 @@ export async function getShow(
   showId: number | string,
 ): Promise<TraktResult<ShowDetailData>> {
   return parse(await client.get(`/shows/${showId}`, { extended: ART }), showDetailSchema);
+}
+
+export async function getMovie(
+  client: TraktClient,
+  movieId: number | string,
+): Promise<TraktResult<MovieDetailData>> {
+  return parse(await client.get(`/movies/${movieId}`, { extended: ART }), movieDetailSchema);
 }
 
 export async function getShowSeasons(

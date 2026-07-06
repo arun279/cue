@@ -22,6 +22,9 @@ export const queryKeys = {
   tmdbTv: (tmdbId: number) => ["tmdb", "tv", tmdbId] as const,
   /** The assembled Up Next library — one persisted entry that paints instantly on boot. */
   library: () => ["library"] as const,
+  /** The assembled movie library (watched + watchlist), grouped into My Shows shelves. */
+  movieLibrary: () => ["movie-library"] as const,
+  movieHeader: (movieId: number) => ["movie", "header", movieId] as const,
   showHeader: (showId: number) => ["show", "header", showId] as const,
   showSeasons: (showId: number) => ["show", "seasons", showId] as const,
   episode: (showId: number, season: number, number: number) =>

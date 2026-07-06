@@ -88,6 +88,17 @@ export const progressSchema = z.object({
     .optional(),
 });
 
+export const movieDetailSchema = z.object({
+  title: z.string(),
+  year: z.number().nullish(),
+  overview: z.string().nullish(),
+  runtime: z.number().nullish(),
+  released: z.string().nullish(),
+  genres: z.array(z.string()).nullish(),
+  ids: idsSchema,
+  images: imagesSchema,
+});
+
 export const showDetailSchema = z.object({
   title: z.string(),
   year: z.number().nullish(),
@@ -187,6 +198,7 @@ export type EpisodeData = z.infer<typeof episodeSchema>;
 export type WatchedShow = z.infer<typeof watchedShowSchema>;
 export type WatchedMovie = z.infer<typeof watchedMovieSchema>;
 export type Progress = z.infer<typeof progressSchema>;
+export type MovieDetailData = z.infer<typeof movieDetailSchema>;
 export type ShowDetailData = z.infer<typeof showDetailSchema>;
 export type SeasonData = z.infer<typeof seasonsSchema>[number];
 export type WatchlistItem = z.infer<typeof watchlistSchema>[number];

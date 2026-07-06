@@ -3,6 +3,7 @@ import {
   getEpisode,
   getHidden,
   getLastActivities,
+  getMovie,
   getMyShowsCalendar,
   getPopularShows,
   getRatings,
@@ -61,6 +62,22 @@ describe("Trakt read endpoints zod-parse well-formed fixtures", () => {
     getJson("/sync/watched/movies", [{ plays: 1, movie: movieObj }]);
     const result = await getWatchedMovies(client);
     expect(result.ok && result.data[0]?.movie.title).toBe("Dune");
+  });
+
+  it("parses the extended movie detail payload", async () => {
+    getJson("/movies/5", {
+      ...movieObj,
+      overview: "A duke's son leads desert warriors.",
+      runtime: 155,
+      released: "2021-10-22",
+      genres: ["science fiction"],
+      images: { poster: ["media.trakt.tv/p.webp"], fanart: ["media.trakt.tv/b.webp"] },
+    });
+    const result = await getMovie(client, 5);
+    expect(result.ok && result.data.title).toBe("Dune");
+    expect(result.ok && result.data.runtime).toBe(155);
+    expect(result.ok && result.data.released).toBe("2021-10-22");
+    expect(result.ok && result.data.images?.fanart).toEqual(["media.trakt.tv/b.webp"]);
   });
 
   it("parses per-show progress with next_episode", async () => {
@@ -215,6 +232,11 @@ describe("malformed bodies throw a zod error", () => {
   it("throws when a watched show is missing its ids", async () => {
     getJson("/sync/watched/shows", [{ show: { title: "No Ids" } }]);
     await expect(getWatchedShows(client)).rejects.toThrow();
+  });
+
+  it("throws when a movie payload is missing its title", async () => {
+    getJson("/movies/5", { year: 2021, ids: { trakt: 5 } });
+    await expect(getMovie(client, 5)).rejects.toThrow();
   });
 
   it("throws when progress omits required counts", async () => {

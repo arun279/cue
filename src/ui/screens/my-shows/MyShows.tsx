@@ -1,10 +1,15 @@
+import type { LibraryEntry } from "@data/trakt/library";
 import type { LibrarySort } from "@domain/library-buckets";
 import type { WatchStatus } from "@domain/watch-status";
 import { CachedRetryBanner } from "@ui/components/CachedRetryBanner";
 import { SyncStatusPill } from "@ui/components/SyncStatusPill";
 import { useLibraryBuckets } from "@ui/hooks/useLibraryBuckets";
+import { useMovieLibrary } from "@ui/hooks/useMovieLibrary";
 import { ToggleGroup } from "radix-ui";
 import { type ReactElement, type ReactNode, useState } from "react";
+import { LibrarySkeleton } from "./LibrarySkeleton";
+import { MoviesLibrary } from "./MoviesLibrary";
+import { PosterCard } from "./PosterCard";
 import { PosterGrid } from "./PosterGrid";
 
 const STATUS_LABEL: Record<WatchStatus, string> = {
@@ -25,60 +30,26 @@ const SORT_LABEL: Record<LibrarySort, string> = {
 
 const SORTS: readonly LibrarySort[] = ["recently-watched", "alphabetical", "progress"];
 
-const SKELETON_SHELVES = [0, 1];
-const SKELETON_TILES = [0, 1, 2, 3, 4, 5, 6, 7];
-
-function Skeleton(): ReactElement {
-  return (
-    <div className="library" aria-hidden="true" data-testid="my-shows-skeleton">
-      {SKELETON_SHELVES.map((shelf) => (
-        <section key={shelf} className="library-section">
-          <div className="library-heading library-heading--skeleton">
-            <span className="skeleton-line skeleton-line--heading" />
-          </div>
-          <div className="poster-grid poster-grid--static">
-            {SKELETON_TILES.map((tile) => (
-              <div key={tile} className="poster-grid__cell">
-                <div className="poster-card poster-card--skeleton">
-                  <div className="poster poster--tile poster--skeleton" />
-                  <div className="poster-card__meta">
-                    <div className="skeleton-line skeleton-line--title" />
-                    <div className="skeleton-line skeleton-line--sub" />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      ))}
-    </div>
-  );
-}
-
 /**
- * My Shows — the whole library as a poster-forward shelf wall. Each
- * aired-based status bucket becomes a horizontal, virtualized shelf of 2:3
- * poster tiles, so a large library scrolls smoothly and every tile routes to the
- * Show page. A Shows⇄Movies segmented toggle switches library type (Movies), and a sort control reorders within every bucket. Every state is
- * designed: skeleton, hard error, cached-error banner, whole-library empty.
+ * My Shows — the whole library as a poster-forward shelf wall. A
+ * Shows⇄Movies segmented toggle switches library type: shows group into
+ * aired-based status buckets reordered by a sort control; movies split into
+ * Watched / Watchlist shelves. Each shelf is a horizontal, virtualized grid of
+ * 2:3 poster tiles routing to the Show or Movie page. Every state is designed:
+ * skeleton, hard error, cached-error banner, whole-library empty.
  */
 export function MyShows(): ReactElement {
   const [sort, setSort] = useState<LibrarySort>("recently-watched");
   const [libraryType, setLibraryType] = useState<"shows" | "movies">("shows");
   const view = useLibraryBuckets(sort);
+  const movieView = useMovieLibrary();
+  const active = libraryType === "movies" ? movieView : view;
 
   let body: ReactNode;
   if (libraryType === "movies") {
-    body = (
-      <div className="empty" data-testid="movies-placeholder">
-        <h2 className="empty__title">Movies are coming soon</h2>
-        <p className="empty__body">
-          Your movie library will live here. For now, switch back to Shows.
-        </p>
-      </div>
-    );
+    body = <MoviesLibrary view={movieView} />;
   } else if (view.isLoading) {
-    body = <Skeleton />;
+    body = <LibrarySkeleton testId="my-shows-skeleton" />;
   } else if (view.isError && !view.hasData) {
     body = (
       <div className="empty" data-testid="my-shows-error">
@@ -116,7 +87,13 @@ export function MyShows(): ReactElement {
               {STATUS_LABEL[bucket.status]}
               <span className="library-heading__count">{bucket.entries.length}</span>
             </h2>
-            <PosterGrid entries={bucket.entries} tmdbConfig={view.tmdbConfig} />
+            <PosterGrid
+              entries={bucket.entries}
+              keyOf={(entry: LibraryEntry) => entry.showId}
+              renderCell={(entry: LibraryEntry) => (
+                <PosterCard entry={entry} tmdbConfig={view.tmdbConfig} />
+              )}
+            />
           </section>
         ))}
       </div>
@@ -129,8 +106,8 @@ export function MyShows(): ReactElement {
         <h1 className="screen__title">My Shows</h1>
         <SyncStatusPill
           testId="my-shows-status"
-          isFetching={view.isFetching}
-          isError={view.isError}
+          isFetching={active.isFetching}
+          isError={active.isError}
         />
       </header>
 
@@ -152,29 +129,31 @@ export function MyShows(): ReactElement {
           </ToggleGroup.Item>
         </ToggleGroup.Root>
 
-        <label className="library-sort">
-          <span className="library-sort__label">Sort</span>
-          <select
-            className="library-sort__select"
-            data-testid="sort-select"
-            value={sort}
-            onChange={(event) => setSort(event.target.value as LibrarySort)}
-          >
-            {SORTS.map((option) => (
-              <option key={option} value={option}>
-                {SORT_LABEL[option]}
-              </option>
-            ))}
-          </select>
-        </label>
+        {libraryType === "shows" && (
+          <label className="library-sort">
+            <span className="library-sort__label">Sort</span>
+            <select
+              className="library-sort__select"
+              data-testid="sort-select"
+              value={sort}
+              onChange={(event) => setSort(event.target.value as LibrarySort)}
+            >
+              {SORTS.map((option) => (
+                <option key={option} value={option}>
+                  {SORT_LABEL[option]}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
       </div>
 
-      {view.isError && view.hasData && libraryType === "shows" && (
+      {active.isError && active.hasData && (
         <CachedRetryBanner
           testId="my-shows-cached-retry"
           buttonTestId="my-shows-cached-retry-button"
           message="Showing your last synced library — Trakt couldn't be reached."
-          onRetry={view.refetch}
+          onRetry={active.refetch}
         />
       )}
 

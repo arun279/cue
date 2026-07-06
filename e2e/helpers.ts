@@ -1141,6 +1141,164 @@ export async function installCalendarRoutes(
   };
 }
 
+/** A movie fixture for the movie-library + detail + mark-watched surface. */
+export interface MovieFixture {
+  readonly trakt: number;
+  readonly tmdb?: number;
+  readonly title: string;
+  readonly year?: number;
+  readonly overview?: string;
+  readonly runtime?: number;
+  readonly released?: string;
+  readonly posters?: readonly string[];
+  readonly backdrops?: readonly string[];
+  /** Mutated in place by intercepted history writes so watched reads stay consistent. */
+  watched: boolean;
+  /** Mutated in place by intercepted watchlist writes so the Watchlist shelf stays consistent. */
+  inWatchlist?: boolean;
+}
+
+export interface CapturedMovieWrite {
+  readonly path: string;
+  readonly movieIds: readonly number[];
+  readonly watchedAt: string | null;
+  /** The keys on the first `movies[]` item (proves an all-plays remove is ids only). */
+  readonly movieItemKeys?: readonly string[];
+}
+
+export interface MovieControls {
+  historyPosts: () => readonly CapturedMovieWrite[];
+  historyRemovePosts: () => readonly CapturedMovieWrite[];
+  watchlistPosts: () => readonly CapturedMovieWrite[];
+  watchlistRemovePosts: () => readonly CapturedMovieWrite[];
+}
+
+function movieObject(movie: MovieFixture): Record<string, unknown> {
+  return {
+    title: movie.title,
+    ...(movie.year === undefined ? {} : { year: movie.year }),
+    ids: { trakt: movie.trakt, ...(movie.tmdb === undefined ? {} : { tmdb: movie.tmdb }) },
+    ...(movie.posters === undefined ? {} : { images: { poster: movie.posters } }),
+  };
+}
+
+function movieDetailBody(movie: MovieFixture): string {
+  return JSON.stringify({
+    title: movie.title,
+    ...(movie.year === undefined ? {} : { year: movie.year }),
+    overview: movie.overview ?? null,
+    runtime: movie.runtime ?? null,
+    released: movie.released ?? null,
+    genres: ["science fiction", "drama"],
+    ids: { trakt: movie.trakt, ...(movie.tmdb === undefined ? {} : { tmdb: movie.tmdb }) },
+    images: {
+      ...(movie.posters === undefined ? {} : { poster: movie.posters }),
+      ...(movie.backdrops === undefined ? {} : { fanart: movie.backdrops }),
+    },
+  });
+}
+
+/**
+ * Intercept the whole movie read+write surface with a stateful fixture: watched +
+ * watchlist reads reflect live `watched`/`inWatchlist` flags, movie detail resolves
+ * from `/movies/:id`, and history/watchlist writes mutate the flags so an
+ * optimistic mark and its background refetch stay consistent. Register AFTER
+ * `installHermeticRoutes` so these specific routes win over the catch-alls.
+ */
+export async function installMovieRoutes(
+  context: BrowserContext,
+  movies: readonly MovieFixture[],
+): Promise<MovieControls> {
+  const writes: CapturedMovieWrite[] = [];
+
+  const pngPixel = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+    "base64",
+  );
+  await context.route("**/media.trakt.tv/**", (route) =>
+    route.fulfill({ status: 200, contentType: "image/png", body: pngPixel }),
+  );
+
+  await context.route("**/api.trakt.tv/sync/watched/movies*", (route) =>
+    route.fulfill({
+      status: 200,
+      headers: JSON_HEADERS,
+      body: JSON.stringify(
+        movies
+          .filter((m) => m.watched)
+          .map((m) => ({ last_watched_at: "2026-06-01T00:00:00.000Z", movie: movieObject(m) })),
+      ),
+    }),
+  );
+
+  await context.route("**/api.trakt.tv/sync/watchlist/movies*", (route) =>
+    route.fulfill({
+      status: 200,
+      headers: JSON_HEADERS,
+      body: JSON.stringify(
+        movies.filter((m) => m.inWatchlist).map((m) => ({ type: "movie", movie: movieObject(m) })),
+      ),
+    }),
+  );
+
+  await context.route("**/api.trakt.tv/movies/*", (route) => {
+    const id = Number(new URL(route.request().url()).pathname.split("/")[2]);
+    const movie = movies.find((m) => m.trakt === id);
+    if (movie === undefined)
+      return route.fulfill({ status: 404, headers: JSON_HEADERS, body: "{}" });
+    return route.fulfill({ status: 200, headers: JSON_HEADERS, body: movieDetailBody(movie) });
+  });
+
+  const handleHistory = (remove: boolean) => (route: import("@playwright/test").Route) => {
+    const body = (route.request().postDataJSON() ?? {}) as {
+      movies?: { ids?: { trakt?: number }; watched_at?: string }[];
+    };
+    const items = body.movies ?? [];
+    const movieIds = items.map((m) => m.ids?.trakt ?? -1);
+    for (const movie of movies) if (movieIds.includes(movie.trakt)) movie.watched = !remove;
+    writes.push({
+      path: remove ? "/sync/history/remove" : "/sync/history",
+      movieIds,
+      watchedAt: items[0]?.watched_at ?? null,
+      movieItemKeys: items[0] === undefined ? undefined : Object.keys(items[0]),
+    });
+    return route.fulfill({
+      status: 200,
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ [remove ? "deleted" : "added"]: { movies: movieIds.length } }),
+    });
+  };
+  await context.route("**/api.trakt.tv/sync/history", handleHistory(false));
+  await context.route("**/api.trakt.tv/sync/history/remove", handleHistory(true));
+
+  const handleWatchlist = (remove: boolean) => (route: import("@playwright/test").Route) => {
+    const body = (route.request().postDataJSON() ?? {}) as {
+      movies?: { ids?: { trakt?: number } }[];
+    };
+    const movieIds = (body.movies ?? []).map((m) => m.ids?.trakt ?? -1);
+    for (const movie of movies) if (movieIds.includes(movie.trakt)) movie.inWatchlist = !remove;
+    writes.push({
+      path: remove ? "/sync/watchlist/remove" : "/sync/watchlist",
+      movieIds,
+      watchedAt: null,
+    });
+    return route.fulfill({
+      status: 200,
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ [remove ? "deleted" : "added"]: { movies: movieIds.length } }),
+    });
+  };
+  await context.route("**/api.trakt.tv/sync/watchlist/remove", handleWatchlist(true));
+  await context.route("**/api.trakt.tv/sync/watchlist", handleWatchlist(false));
+
+  return {
+    historyPosts: () => writes.filter((w) => w.path === "/sync/history"),
+    historyRemovePosts: () => writes.filter((w) => w.path === "/sync/history/remove"),
+    watchlistPosts: () => writes.filter((w) => w.path === "/sync/watchlist"),
+    watchlistRemovePosts: () => writes.filter((w) => w.path === "/sync/watchlist/remove"),
+  };
+}
+
 /** A search (`/search/show,movie`) result row for the Discover fixture. */
 export interface SearchHitFixture {
   readonly type: "show" | "movie";

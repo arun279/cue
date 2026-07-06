@@ -29,6 +29,10 @@ const showRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/show/$showId",
 }).lazy(() => import("@app/routes/show.lazy").then((module) => module.Route));
+const movieRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/movie/$movieId",
+}).lazy(() => import("@app/routes/movie.lazy").then((module) => module.Route));
 const episodeRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/show/$showId/episode/$season/$episode",
@@ -43,6 +47,7 @@ const routeTree = rootRoute.addChildren([
   authCallbackRoute,
   settingsRoute,
   showRoute,
+  movieRoute,
   episodeRoute,
 ]);
 

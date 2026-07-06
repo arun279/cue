@@ -5,6 +5,7 @@ import { TraktClient } from "@data/trakt/client";
 import {
   getEpisode,
   getHidden,
+  getMovie,
   getMyShowsCalendar,
   getPopularShows,
   getRatings,
@@ -13,12 +14,14 @@ import {
   getShowSeasons,
   getTrendingShows,
   getUserStats,
+  getWatchedMovies,
   getWatchedShows,
   getWatchlist,
   searchTrakt,
 } from "@data/trakt/endpoints";
 import { assembleEpisodeDetail } from "@data/trakt/episode-detail";
 import { assembleLibrary, markLanded, type ShowArt, showIdSet } from "@data/trakt/library";
+import { assembleMovieHeader, assembleMovieLibrary } from "@data/trakt/movie-library";
 import type { Progress, UserStats } from "@data/trakt/schemas";
 import { assembleSearchHits, assembleShowHits, rankSearchHits } from "@data/trakt/search";
 import { assembleHeader, assembleSeasons } from "@data/trakt/show-detail";
@@ -32,6 +35,7 @@ import type {
   CalendarData,
   CueRuntime,
   DiscoverData,
+  MovieLibraryData,
   RatingMap,
   SubmitOutcome,
   UpNextData,
@@ -46,7 +50,8 @@ const OP_LOG_KEY = "cue.write-queue";
  */
 type ReconcileContext =
   | { readonly kind?: "mark"; readonly showId: number; readonly preCompleted: number }
-  | { readonly kind: "hidden"; readonly showId: number };
+  | { readonly kind: "hidden"; readonly showId: number }
+  | { readonly kind: "movie"; readonly movieId: number };
 
 export interface RuntimeDeps {
   readonly token: Token;
@@ -99,6 +104,14 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       if (!hidden.ok) throw new Error("reconcile read failed");
       const isHidden = showIdSet(hidden.data).has(context.showId);
       return op.toState === "present" ? isHidden : !isHidden;
+    }
+    // A movie mark/unwatch pivots on watched-movie membership, read fresh from
+    // `/sync/watched/movies` — the movie analogue of the hidden-set reconcile.
+    if (context.kind === "movie") {
+      const watched = await getWatchedMovies(client);
+      if (!watched.ok) throw new Error("reconcile read failed");
+      const isWatched = watched.data.some((row) => row.movie.ids.trakt === context.movieId);
+      return op.toState === "present" ? isWatched : !isWatched;
     }
     const result = await getShowProgress(client, context.showId);
     if (!result.ok) throw new Error("reconcile read failed");
@@ -171,6 +184,28 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
         details,
       });
       return { entries, tmdbConfig };
+    },
+
+    async loadMovieLibrary(): Promise<MovieLibraryData> {
+      // Both reads carry `extended=full,images`, so watched + watchlist movies
+      // already supply their own poster art — no per-movie detail fetch needed.
+      const [watched, watchlist] = await Promise.all([
+        getWatchedMovies(client),
+        getWatchlist(client, "movies"),
+      ]);
+      if (!watched.ok) throw new Error("Failed to load watched movies");
+      if (!watchlist.ok) throw new Error("Failed to load movie watchlist");
+      const entries = assembleMovieLibrary({
+        watchedMovies: watched.data,
+        watchlistMovies: watchlist.data,
+      });
+      return { entries, tmdbConfig };
+    },
+
+    async loadMovieHeader(movieId) {
+      const movie = await getMovie(client, movieId);
+      if (!movie.ok) throw new Error("Failed to load movie");
+      return assembleMovieHeader(movie.data);
     },
 
     async loadShowHeader(showId) {

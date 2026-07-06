@@ -1,6 +1,7 @@
 import type { TmdbImageConfig } from "@data/image-source";
 import type { EpisodeDetail } from "@data/trakt/episode-detail";
 import type { LibraryEntry } from "@data/trakt/library";
+import type { MovieEntry, MovieHeader } from "@data/trakt/movie-library";
 import type { UserStats } from "@data/trakt/schemas";
 import type { SearchHit } from "@data/trakt/search";
 import type { SeasonView, ShowHeader } from "@data/trakt/show-detail";
@@ -14,6 +15,12 @@ export type RatingMap = Readonly<Record<number, number>>;
 /** The read side of the home surface: the assembled queue + the image resolver config. */
 export interface UpNextData {
   readonly entries: readonly LibraryEntry[];
+  readonly tmdbConfig: TmdbImageConfig | null;
+}
+
+/** The read side of the My Shows movie library: watched + watchlist movies + the image config. */
+export interface MovieLibraryData {
+  readonly entries: readonly MovieEntry[];
   readonly tmdbConfig: TmdbImageConfig | null;
 }
 
@@ -42,6 +49,10 @@ export type SubmitOutcome = "done" | "failed" | "deferred";
  */
 export interface CueRuntime {
   loadUpNext(): Promise<UpNextData>;
+  /** The My Shows movie library: watched movies + watchlist movies as poster shelves. */
+  loadMovieLibrary(): Promise<MovieLibraryData>;
+  /** Movie detail hero from `/movies/:id?extended=full,images` (title, year, overview, art). */
+  loadMovieHeader(movieId: number): Promise<MovieHeader>;
   /** Show detail hero + overall progress; paints before the season stream resolves. */
   loadShowHeader(showId: number): Promise<ShowHeader>;
   /** The season/episode tree merged with per-episode watched flags (streams in after the hero). */

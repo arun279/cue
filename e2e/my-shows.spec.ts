@@ -149,11 +149,12 @@ test("the Shows/Movies toggle switches library type", async ({ page }) => {
 
   await expect(page.getByTestId("library-card").first()).toBeVisible();
   await page.getByTestId("type-movies").click();
-  await expect(page.getByTestId("movies-placeholder")).toBeVisible();
+  // No movie routes installed here, so the movie library resolves empty.
+  await expect(page.getByTestId("movies-empty")).toBeVisible();
   await expect(page.getByTestId("library-card")).toHaveCount(0);
 
   await page.getByTestId("type-shows").click();
-  await expect(page.getByTestId("movies-placeholder")).toHaveCount(0);
+  await expect(page.getByTestId("movies-empty")).toHaveCount(0);
   await expect(page.getByTestId("library-card").first()).toBeVisible();
 });
 

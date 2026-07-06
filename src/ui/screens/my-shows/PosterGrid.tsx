@@ -1,12 +1,10 @@
-import type { TmdbImageConfig } from "@data/image-source";
-import type { LibraryEntry } from "@data/trakt/library";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
-import { type ReactElement, useLayoutEffect, useRef, useState } from "react";
-import { PosterCard } from "./PosterCard";
+import { type ReactElement, type ReactNode, useLayoutEffect, useRef, useState } from "react";
 
-interface PosterGridProps {
-  readonly entries: readonly LibraryEntry[];
-  readonly tmdbConfig: TmdbImageConfig | null;
+interface PosterGridProps<T> {
+  readonly entries: readonly T[];
+  keyOf(entry: T): string | number;
+  renderCell(entry: T): ReactNode;
 }
 
 /** Smallest tile the grid ever draws; below it a 2:3 poster stops reading as
@@ -30,14 +28,16 @@ interface GridMetrics {
 }
 
 /**
- * A responsive, window-virtualized poster grid — one per My Shows status bucket
- * The grid fills the screen width (6–8 cols desktop, 2–3 mobile) so a
- * library never leaves a dead field, while row windowing keeps the DOM bounded
- * on the Capacitor WebView even when a single bucket holds hundreds of shows.
- * Uniform 2:3 tiles make every row a fixed height, so the virtualizer needs no
- * per-item measurement and the page scrolls (not a nested rail).
+ * A responsive, window-virtualized poster grid — one per My Shows shelf,
+ * shared by the show buckets and the movie shelves. The grid fills the screen
+ * width (6–8 cols desktop, 2–3 mobile) so a library never leaves a dead field,
+ * while row windowing keeps the DOM bounded on the Capacitor WebView even when a
+ * single shelf holds hundreds of tiles. Uniform 2:3 tiles make every row a fixed
+ * height, so the virtualizer needs no per-item measurement and the page scrolls
+ * (not a nested rail). The cell renderer is injected so a show or movie tile
+ * shares this identical windowing.
  */
-export function PosterGrid({ entries, tmdbConfig }: PosterGridProps): ReactElement {
+export function PosterGrid<T>({ entries, keyOf, renderCell }: PosterGridProps<T>): ReactElement {
   const containerRef = useRef<HTMLDivElement>(null);
   const [metrics, setMetrics] = useState<GridMetrics>({
     cols: 2,
@@ -98,8 +98,8 @@ export function PosterGrid({ entries, tmdbConfig }: PosterGridProps): ReactEleme
             }}
           >
             {entries.slice(start, start + cols).map((entry) => (
-              <li key={entry.showId} className="poster-grid__cell">
-                <PosterCard entry={entry} tmdbConfig={tmdbConfig} />
+              <li key={keyOf(entry)} className="poster-grid__cell">
+                {renderCell(entry)}
               </li>
             ))}
           </ul>
