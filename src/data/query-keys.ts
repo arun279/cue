@@ -17,6 +17,7 @@ export const queryKeys = {
   search: (query: string, types: string) => ["search", types, query] as const,
   discover: () => ["discover", "shows"] as const,
   lastActivities: () => ["sync", "last_activities"] as const,
+  userStats: () => ["users", "me", "stats"] as const,
   tmdbConfiguration: () => ["tmdb", "configuration"] as const,
   tmdbTv: (tmdbId: number) => ["tmdb", "tv", tmdbId] as const,
   /** The assembled Up Next library — one persisted entry that paints instantly on boot. */

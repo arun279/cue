@@ -2446,3 +2446,234 @@ body {
     width: 100%;
   }
 }
+
+/* ---- Profile (stat theatre) ---- */
+.screen--profile {
+  max-width: 56rem;
+}
+.stat-theatre {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.stat-tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-2);
+  background: linear-gradient(180deg, var(--color-elevated) 0%, var(--color-surface) 100%);
+}
+.stat-tile__label {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--color-muted);
+}
+.stat-tile__value {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: var(--color-fg);
+  font-variant-numeric: tabular-nums;
+  font-size: clamp(2rem, 6vw, 2.6rem);
+}
+/* Counts stay ink, not amber: the accent is one "voltage" reserved for the hero
+   figure and the poster progress rails, so the palette isn't one-note. */
+.stat-tile__value--count {
+  color: var(--color-fg);
+}
+
+/* Featured figure: the total watch time, set large in the display face with the
+   unit riding the baseline beside it — the "theatre" the app opens with.
+   A faint amber "on-air" glow bleeds from the corner so the hero reads cinematic,
+   not like a flat analytics card; text stays clear of it and AA-legible. */
+.stat-tile--hero {
+  gap: var(--space-2);
+  padding: var(--space-6);
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(
+      120% 140% at 100% 0%,
+      color-mix(in srgb, var(--color-accent) 14%, transparent) 0%,
+      transparent 55%
+    ),
+    linear-gradient(180deg, var(--color-elevated) 0%, var(--color-surface) 100%);
+}
+.stat-tile__figure {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.stat-tile--hero .stat-tile__value {
+  font-size: clamp(3rem, 12vw, 5rem);
+  color: var(--color-accent);
+}
+.stat-tile__unit {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(1.25rem, 4vw, 1.9rem);
+  letter-spacing: -0.01em;
+  color: var(--color-ink2);
+}
+.stat-tile__detail {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3);
+}
+.stat-tile--skeleton {
+  gap: var(--space-3);
+  pointer-events: none;
+}
+.stat-tile--hero.stat-tile--skeleton .skeleton-line--heading {
+  height: 2.6rem;
+  width: 45%;
+}
+
+/* Settings entry: a full-width row that reads as tappable — chevron affordance
+   plus a hover lift — so connections stay one tap from Profile. */
+.profile-settings {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-top: var(--space-6);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-2);
+  background: var(--color-surface);
+  color: inherit;
+  text-decoration: none;
+  transition:
+    background var(--dur-quick) var(--ease-standard),
+    border-color var(--dur-quick) var(--ease-standard);
+}
+.profile-settings:hover {
+  background: var(--color-elevated);
+  border-color: color-mix(in srgb, var(--color-accent) 40%, var(--color-border));
+}
+/* Gear glyph in an amber-tinted well: signals "navigation into Settings", not a
+   content card. Amber-washes on hover in step with the chevron. */
+.profile-settings__icon {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: none;
+  border-radius: var(--radius-1);
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  color: var(--color-accent);
+}
+.profile-settings__icon svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+.profile-settings:hover .profile-settings__icon {
+  background: color-mix(in srgb, var(--color-accent) 20%, transparent);
+}
+.profile-settings__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  margin-right: auto;
+}
+.profile-settings__title {
+  font-weight: 600;
+  font-size: 1rem;
+}
+.profile-settings__sub {
+  font-size: 0.85rem;
+  color: var(--color-muted);
+}
+.profile-settings__chevron {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: none;
+  color: var(--color-muted);
+}
+.profile-settings:hover .profile-settings__chevron {
+  color: var(--color-accent);
+}
+
+/* Continue-watching poster rail: the media presence that fills the
+   desktop dead field and proves this is a screening room. A horizontal snap shelf
+   with peek — scrolls inside itself so the page body never scrolls sideways. */
+.profile-shelf {
+  margin-top: var(--space-6);
+}
+.profile-shelf__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+.profile-shelf__more {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--color-accent);
+  text-decoration: none;
+}
+.profile-shelf__more:hover {
+  color: var(--color-accent-strong);
+}
+.profile-shelf__rail {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 128px;
+  gap: var(--space-4);
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  padding-bottom: var(--space-2);
+  scrollbar-width: none;
+}
+.profile-shelf__rail::-webkit-scrollbar {
+  display: none;
+}
+.profile-shelf__item {
+  scroll-snap-align: start;
+  min-width: 0;
+}
+@media (min-width: 900px) {
+  .profile-shelf__rail {
+    grid-auto-columns: 148px;
+  }
+}
+
+/* Mobile: stack the sync pill under the title so they stop competing on one row
+  , and tighten the stat cards so the triad stops feeling over-boxed
+  . */
+@media (max-width: 599px) {
+  .screen__head--stack {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-2);
+    margin-bottom: var(--space-4);
+  }
+  .screen--profile .stat-tile {
+    padding: var(--space-4);
+  }
+  .screen--profile .stat-row {
+    gap: var(--space-2);
+  }
+  .profile-settings {
+    padding: var(--space-4);
+  }
+}

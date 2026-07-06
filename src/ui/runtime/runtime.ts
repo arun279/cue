@@ -1,6 +1,7 @@
 import type { TmdbImageConfig } from "@data/image-source";
 import type { EpisodeDetail } from "@data/trakt/episode-detail";
 import type { LibraryEntry } from "@data/trakt/library";
+import type { UserStats } from "@data/trakt/schemas";
 import type { SearchHit } from "@data/trakt/search";
 import type { SeasonView, ShowHeader } from "@data/trakt/show-detail";
 import type { CalendarEntry } from "@domain/calendar";
@@ -57,6 +58,8 @@ export interface CueRuntime {
   search(query: string): Promise<readonly SearchHit[]>;
   /** Browse rails for empty-query Discover: trending + popular shows with poster art. */
   loadDiscover(): Promise<DiscoverData>;
+  /** The signed-in user's lifetime watch stats for the Profile theatre. */
+  loadStats(): Promise<UserStats>;
   submit(op: QueuedOp): Promise<SubmitOutcome>;
 }
 

@@ -24,6 +24,8 @@ import {
   showDetailSchema,
   type TrendingShow,
   trendingShowsSchema,
+  type UserStats,
+  userStatsSchema,
   type WatchedMovie,
   type WatchedShow,
   type WatchlistItem,
@@ -147,6 +149,11 @@ export async function getPopularShows(
   limit = 24,
 ): Promise<TraktResult<ShowSummary[]>> {
   return parse(await client.get("/shows/popular", { extended: ART, limit }), popularShowsSchema);
+}
+
+/** The signed-in user's lifetime watch stats: watch-time minutes + distinct counts. */
+export async function getUserStats(client: TraktClient): Promise<TraktResult<UserStats>> {
+  return parse(await client.get("/users/me/stats"), userStatsSchema);
 }
 
 export async function getHidden(client: TraktClient): Promise<TraktResult<HiddenItem[]>> {

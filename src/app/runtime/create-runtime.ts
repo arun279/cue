@@ -12,13 +12,14 @@ import {
   getShowProgress,
   getShowSeasons,
   getTrendingShows,
+  getUserStats,
   getWatchedShows,
   getWatchlist,
   searchTrakt,
 } from "@data/trakt/endpoints";
 import { assembleEpisodeDetail } from "@data/trakt/episode-detail";
 import { assembleLibrary, markLanded, type ShowArt, showIdSet } from "@data/trakt/library";
-import type { Progress } from "@data/trakt/schemas";
+import type { Progress, UserStats } from "@data/trakt/schemas";
 import { assembleSearchHits, assembleShowHits, rankSearchHits } from "@data/trakt/search";
 import { assembleHeader, assembleSeasons } from "@data/trakt/show-detail";
 import { createTraktTransport } from "@data/trakt/transport";
@@ -256,6 +257,12 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
         popular: assembleShowHits(popular.data),
         tmdbConfig,
       };
+    },
+
+    async loadStats(): Promise<UserStats> {
+      const result = await getUserStats(client);
+      if (!result.ok) throw new Error("Failed to load user stats");
+      return result.data;
     },
 
     async submit(op: QueuedOp): Promise<SubmitOutcome> {

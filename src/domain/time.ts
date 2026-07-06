@@ -5,6 +5,39 @@ export function toMs(iso: string | null | undefined): number | null {
   return Number.isNaN(t) ? null : t;
 }
 
+/** A watch-time figure split for the Profile theatre: a dominant `value`+`unit`
+ * headline (e.g. `18` `days`) and a finer `detail` remainder (e.g. `6 hr 30 min`). */
+export interface WatchTime {
+  readonly value: string;
+  readonly unit: string;
+  readonly detail: string;
+}
+
+/**
+ * Humanize a total watch-time in minutes into a headline unit + a finer detail
+ * line. Days lead once past 24h (with an hr/min remainder), then hours (with a
+ * min remainder), then minutes — so the biggest true unit is always the number
+ * the eye lands on. Abbreviated remainders stay singular (`6 hr 30 min`).
+ * Negative/NaN inputs clamp to zero.
+ */
+export function humanizeWatchMinutes(minutes: number): WatchTime {
+  const total = Number.isFinite(minutes) ? Math.max(0, Math.floor(minutes)) : 0;
+  const days = Math.floor(total / 1440);
+  const hours = Math.floor((total % 1440) / 60);
+  const mins = total % 60;
+  if (days > 0) {
+    return {
+      value: String(days),
+      unit: days === 1 ? "day" : "days",
+      detail: `${hours} hr ${mins} min`,
+    };
+  }
+  if (hours > 0) {
+    return { value: String(hours), unit: hours === 1 ? "hour" : "hours", detail: `${mins} min` };
+  }
+  return { value: String(mins), unit: mins === 1 ? "minute" : "minutes", detail: "keep watching" };
+}
+
 /**
  * Has this episode aired at or before `now`? A missing/unparseable air date is
  * treated as not-yet-aired — the aired-only surfaces must never surface an

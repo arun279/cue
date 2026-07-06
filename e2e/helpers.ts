@@ -32,6 +32,20 @@ export async function installHermeticRoutes(context: BrowserContext): Promise<He
     );
   }
 
+  // Profile reads `/users/me/stats`; the array catch-all above would fail the
+  // object schema, so answer it with a valid non-zero stats fixture.
+  await context.route("**/api.trakt.tv/users/me/stats*", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        movies: { plays: 200, watched: 114, minutes: 15_650 },
+        shows: { watched: 40 },
+        episodes: { plays: 552, watched: 534, minutes: 17_330 },
+      }),
+    }),
+  );
+
   await context.route("**/api.trakt.tv/networks*", async (route) => {
     if (mode === "abort") {
       await route.abort();

@@ -159,6 +159,17 @@ export const hiddenSchema = z.array(
   }),
 );
 
+/**
+ * `/users/me/stats` — only the sections the Profile theatre reads: the
+ * distinct-item counts and the watch-time minutes. Trakt's `plays`, `collected`,
+ * `ratings`, `network`, and rating-distribution extras are stripped by zod.
+ */
+export const userStatsSchema = z.object({
+  movies: z.object({ watched: z.number(), minutes: z.number() }),
+  episodes: z.object({ watched: z.number(), minutes: z.number() }),
+  shows: z.object({ watched: z.number() }),
+});
+
 const stampsSchema = z.record(z.string(), z.string()).optional();
 export const lastActivitiesSchema = z.object({
   all: z.string().optional(),
@@ -185,3 +196,4 @@ export type SearchResult = z.infer<typeof searchSchema>[number];
 export type ShowSummary = z.infer<typeof showSchema>;
 export type TrendingShow = z.infer<typeof trendingShowsSchema>[number];
 export type HiddenItem = z.infer<typeof hiddenSchema>[number];
+export type UserStats = z.infer<typeof userStatsSchema>;
