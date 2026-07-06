@@ -25,7 +25,7 @@ Git hooks are wired via lefthook (`pnpm prepare` runs `lefthook install`): pre-c
 
 ## Credentials
 
-Cue needs no committed secrets. A Trakt **client_id** and **client_secret** (create a free app at <https://trakt.tv/oauth/applications>) and an optional TMDB API key are entered **at runtime** and stored on-device (non-evictable via Capacitor Preferences on mobile). They are never written to the repo or baked into the build.
+Cue needs no committed secrets. It is a public OAuth client and authenticates with PKCE, so only a Trakt **client_id** (create a free app at <https://trakt.tv/oauth/applications>, registering `<origin>/auth/callback` as the redirect URI) and an optional TMDB API key are entered **at runtime** and stored on-device (non-evictable via Capacitor Preferences on mobile). No client secret is used. They are never written to the repo or baked into the build.
 
 ## Deferred checks
 

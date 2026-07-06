@@ -17,7 +17,6 @@ const server = mswServer();
 
 const config: OAuthConfig = {
   clientId: "cid",
-  clientSecret: "secret",
   redirectUri: "https://app.example/auth/callback",
 };
 
@@ -29,17 +28,25 @@ const token = {
 };
 
 describe("buildAuthorizeUrl", () => {
-  it("targets trakt.tv with the code flow params and state nonce", () => {
-    const url = new URL(buildAuthorizeUrl(config, "nonce-1"));
+  it("targets trakt.tv with the code flow params, state nonce, and S256 PKCE challenge", () => {
+    const url = new URL(buildAuthorizeUrl(config, "nonce-1", "challenge-1"));
     expect(url.origin + url.pathname).toBe("https://trakt.tv/oauth/authorize");
     expect(url.searchParams.get("response_type")).toBe("code");
     expect(url.searchParams.get("client_id")).toBe("cid");
     expect(url.searchParams.get("redirect_uri")).toBe(config.redirectUri);
     expect(url.searchParams.get("state")).toBe("nonce-1");
+    expect(url.searchParams.get("code_challenge")).toBe("challenge-1");
+    expect(url.searchParams.get("code_challenge_method")).toBe("S256");
+    // A public PKCE client never puts a secret on the authorize URL.
+    expect(url.searchParams.has("client_secret")).toBe(false);
   });
 
   it("honors an overridden site base", () => {
-    const url = buildAuthorizeUrl({ ...config, siteBaseUrl: "https://staging.trakt.tv/" }, "n");
+    const url = buildAuthorizeUrl(
+      { ...config, siteBaseUrl: "https://staging.trakt.tv/" },
+      "n",
+      "c",
+    );
     expect(url.startsWith("https://staging.trakt.tv/oauth/authorize?")).toBe(true);
   });
 });
@@ -57,41 +64,47 @@ function captureTokenPost(): () => Record<string, string> | undefined {
 }
 
 describe("exchangeCodeForToken", () => {
-  it("posts the auth-code grant and parses the token", async () => {
+  it("posts the auth-code grant with the PKCE verifier and no secret, and parses the token", async () => {
     const body = captureTokenPost();
-    const result = await exchangeCodeForToken(config, "the-code");
+    const result = await exchangeCodeForToken(config, "the-code", "verifier-1");
     expect(result).toEqual(token);
     expect(body()).toMatchObject({
       code: "the-code",
       client_id: "cid",
-      client_secret: "secret",
+      code_verifier: "verifier-1",
       redirect_uri: config.redirectUri,
       grant_type: "authorization_code",
     });
+    expect(body()).not.toHaveProperty("client_secret");
   });
 
-  it("throws on a non-2xx (wrong secret)", async () => {
+  it("throws on a non-2xx (rejected exchange)", async () => {
     server.use(
       http.post(`${TRAKT_API_BASE}/oauth/token`, () =>
         HttpResponse.json({ error: "invalid_grant" }, { status: 401 }),
       ),
     );
-    await expect(exchangeCodeForToken(config, "x")).rejects.toThrow(/401/);
+    await expect(exchangeCodeForToken(config, "x", "v")).rejects.toThrow(/401/);
   });
 
   it("throws on a malformed token body", async () => {
     server.use(
       http.post(`${TRAKT_API_BASE}/oauth/token`, () => HttpResponse.json({ access_token: 1 })),
     );
-    await expect(exchangeCodeForToken(config, "x")).rejects.toThrow();
+    await expect(exchangeCodeForToken(config, "x", "v")).rejects.toThrow();
   });
 });
 
 describe("refreshAccessToken", () => {
-  it("posts the refresh grant and parses the rotated token", async () => {
+  it("posts the refresh grant with the client id and no secret, and parses the rotated token", async () => {
     const body = captureTokenPost();
     expect(await refreshAccessToken(config, "refresh-old")).toEqual(token);
-    expect(body()).toMatchObject({ refresh_token: "refresh-old", grant_type: "refresh_token" });
+    expect(body()).toMatchObject({
+      refresh_token: "refresh-old",
+      client_id: "cid",
+      grant_type: "refresh_token",
+    });
+    expect(body()).not.toHaveProperty("client_secret");
   });
 
   it("throws on a non-2xx", async () => {
@@ -118,7 +131,7 @@ describe("refreshAccessToken", () => {
 });
 
 describe("revokeToken", () => {
-  it("posts the token + client creds and tolerates an empty body", async () => {
+  it("posts the token + client id (no secret) and tolerates an empty body", async () => {
     let body: Record<string, string> | undefined;
     server.use(
       http.post(`${TRAKT_API_BASE}/oauth/revoke`, async ({ request }) => {
@@ -127,30 +140,39 @@ describe("revokeToken", () => {
       }),
     );
     await expect(revokeToken(config, "access-abc")).resolves.toBeUndefined();
-    expect(body).toMatchObject({ token: "access-abc", client_id: "cid", client_secret: "secret" });
+    expect(body).toMatchObject({ token: "access-abc", client_id: "cid" });
+    expect(body).not.toHaveProperty("client_secret");
   });
 });
 
 describe("requestDeviceCode", () => {
-  it("parses the device code and converts the interval to ms", async () => {
+  it("binds the flow with the S256 challenge (no secret), parses the code, and converts the interval to ms", async () => {
+    let body: Record<string, string> | undefined;
     server.use(
-      http.post(`${TRAKT_API_BASE}/oauth/device/code`, () =>
-        HttpResponse.json({
+      http.post(`${TRAKT_API_BASE}/oauth/device/code`, async ({ request }) => {
+        body = (await request.json()) as Record<string, string>;
+        return HttpResponse.json({
           device_code: "dev-1",
           user_code: "ABCD1234",
           verification_url: "https://trakt.tv/activate",
           expires_in: 600,
           interval: 5,
-        }),
-      ),
+        });
+      }),
     );
-    const code = await requestDeviceCode(config);
+    const code = await requestDeviceCode(config, "challenge-1");
     expect(code).toEqual({
       deviceCode: "dev-1",
       userCode: "ABCD1234",
       verificationUrl: "https://trakt.tv/activate",
       intervalMs: 5000,
     });
+    expect(body).toMatchObject({
+      client_id: "cid",
+      code_challenge: "challenge-1",
+      code_challenge_method: "S256",
+    });
+    expect(body).not.toHaveProperty("client_secret");
   });
 
   it("throws on a non-2xx", async () => {
@@ -159,20 +181,33 @@ describe("requestDeviceCode", () => {
         HttpResponse.json({}, { status: 403 }),
       ),
     );
-    await expect(requestDeviceCode(config)).rejects.toThrow(/403/);
+    await expect(requestDeviceCode(config, "c")).rejects.toThrow(/403/);
   });
 });
 
 describe("pollDeviceToken", () => {
-  function respond(status: number, body: Record<string, unknown> = {}): void {
+  function respond(
+    status: number,
+    body: Record<string, unknown> = {},
+  ): () => Record<string, string> | undefined {
+    let captured: Record<string, string> | undefined;
     server.use(
-      http.post(`${TRAKT_API_BASE}/oauth/device/token`, () => HttpResponse.json(body, { status })),
+      http.post(`${TRAKT_API_BASE}/oauth/device/token`, async ({ request }) => {
+        captured = (await request.json()) as Record<string, string>;
+        return HttpResponse.json(body, { status });
+      }),
     );
+    return () => captured;
   }
 
-  it("maps 200 to success with the parsed token", async () => {
-    respond(200, token);
-    expect(await pollDeviceToken(config, "dev-1")).toEqual({ status: "success", token });
+  it("posts the client id + PKCE verifier (no secret) and maps 200 to success", async () => {
+    const body = respond(200, token);
+    expect(await pollDeviceToken(config, "dev-1", "verifier-1")).toEqual({
+      status: "success",
+      token,
+    });
+    expect(body()).toMatchObject({ code: "dev-1", client_id: "cid", code_verifier: "verifier-1" });
+    expect(body()).not.toHaveProperty("client_secret");
   });
 
   it.each([
@@ -182,11 +217,11 @@ describe("pollDeviceToken", () => {
     [410, "expired"],
   ] as const)("maps %i to %s", async (status, expected) => {
     respond(status);
-    expect(await pollDeviceToken(config, "dev-1")).toEqual({ status: expected });
+    expect(await pollDeviceToken(config, "dev-1", "v")).toEqual({ status: expected });
   });
 
   it("maps an unexpected status to a hard error carrying the code", async () => {
     respond(404);
-    expect(await pollDeviceToken(config, "dev-1")).toEqual({ status: "error", code: 404 });
+    expect(await pollDeviceToken(config, "dev-1", "v")).toEqual({ status: "error", code: 404 });
   });
 });

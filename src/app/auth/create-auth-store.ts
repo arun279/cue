@@ -6,6 +6,7 @@ import {
   requestDeviceCode,
   revokeToken,
 } from "@data/auth/oauth";
+import { createPkcePair } from "@data/auth/pkce";
 import type { Credentials } from "@domain/model/credentials";
 import type { Token } from "@domain/model/token";
 import type { CredsStore } from "@platform/creds-store";
@@ -14,6 +15,9 @@ import type { AuthActions, AuthState, AuthStore } from "@ui/auth/store";
 import { createStore } from "zustand/vanilla";
 
 const STATE_KEY = "cue.oauth.state";
+// The PKCE verifier is stashed alongside the state nonce so it survives the
+// full-page redirect to Trakt and back to `/auth/callback` for the exchange.
+const VERIFIER_KEY = "cue.oauth.verifier";
 
 export interface AuthDeps {
   readonly tokenStore: TokenStore;
@@ -27,7 +31,7 @@ export interface AuthDeps {
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 function oauthConfig(creds: Credentials, redirectUri: string): OAuthConfig {
-  return { clientId: creds.clientId, clientSecret: creds.clientSecret, redirectUri };
+  return { clientId: creds.clientId, redirectUri };
 }
 
 /**
@@ -57,13 +61,18 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
       deviceCode: string,
       intervalMs: number,
       creds: Credentials,
+      verifier: string,
       attempt: number,
     ): Promise<void> {
       let interval = intervalMs;
       while (activeAttempt === attempt) {
         await sleep(interval);
         if (activeAttempt !== attempt) return;
-        const result = await pollDeviceToken(oauthConfig(creds, deps.redirectUri), deviceCode);
+        const result = await pollDeviceToken(
+          oauthConfig(creds, deps.redirectUri),
+          deviceCode,
+          verifier,
+        );
         if (activeAttempt !== attempt) return;
         if (result.status === "pending") continue;
         if (result.status === "slow-down") {
@@ -100,8 +109,10 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
         set({ connectStatus: "connecting", errorMessage: null });
         await deps.credsStore.write(creds);
         const state = crypto.randomUUID();
+        const { verifier, challenge } = await createPkcePair();
         sessionStorage.setItem(STATE_KEY, state);
-        deps.redirect(buildAuthorizeUrl(oauthConfig(creds, deps.redirectUri), state));
+        sessionStorage.setItem(VERIFIER_KEY, verifier);
+        deps.redirect(buildAuthorizeUrl(oauthConfig(creds, deps.redirectUri), state, challenge));
       },
 
       async connectWithDeviceCode(creds) {
@@ -110,10 +121,11 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
         set({ connectStatus: "connecting", errorMessage: null, deviceCode: null });
         await deps.credsStore.write(creds);
         try {
-          const code = await requestDeviceCode(oauthConfig(creds, deps.redirectUri));
+          const { verifier, challenge } = await createPkcePair();
+          const code = await requestDeviceCode(oauthConfig(creds, deps.redirectUri), challenge);
           if (activeAttempt !== attempt) return;
           set({ deviceCode: { userCode: code.userCode, verificationUrl: code.verificationUrl } });
-          await pollLoop(code.deviceCode, code.intervalMs, creds, attempt);
+          await pollLoop(code.deviceCode, code.intervalMs, creds, verifier, attempt);
         } catch {
           if (activeAttempt !== attempt) return;
           set({
@@ -126,14 +138,19 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
       async completeRedirect(code, state) {
         set({ connectStatus: "connecting", errorMessage: null });
         const expected = sessionStorage.getItem(STATE_KEY);
-        sessionStorage.removeItem(STATE_KEY);
-        if (state === null || expected === null || state !== expected) {
+        const verifier = sessionStorage.getItem(VERIFIER_KEY);
+        // Validate BEFORE consuming: a stray or tampered callback (bad/absent
+        // state) must not wipe the verifier of an in-progress attempt.
+        if (state === null || expected === null || state !== expected || verifier === null) {
           set({
             connectStatus: "error",
             errorMessage: "Sign-in could not be verified. Please try again.",
           });
           return;
         }
+        // State accepted — the single-use nonce + verifier are now spent.
+        sessionStorage.removeItem(STATE_KEY);
+        sessionStorage.removeItem(VERIFIER_KEY);
         if (code === null) {
           set({
             connectStatus: "error",
@@ -150,12 +167,16 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
           return;
         }
         try {
-          const token = await exchangeCodeForToken(oauthConfig(creds, deps.redirectUri), code);
+          const token = await exchangeCodeForToken(
+            oauthConfig(creds, deps.redirectUri),
+            code,
+            verifier,
+          );
           await persistToken(token, creds);
         } catch {
           set({
             connectStatus: "error",
-            errorMessage: "Trakt rejected the connection. Double-check your client secret.",
+            errorMessage: "Check your client ID and callback URL, then start a new connection.",
           });
         }
       },
@@ -198,13 +219,18 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
       store.setState({ phase: "onboarding", tmdbConfigured: false });
       return;
     }
-    // A token WITHOUT valid creds is unrecoverable — creds carry the client
-    // secret that refresh/revoke need — so drop the orphaned token and onboard.
+    // A token WITHOUT valid creds is unrecoverable — creds carry the client id
+    // that the authed client + refresh/revoke need — so drop the orphaned token
+    // and onboard.
     if (creds === null) {
       await deps.tokenStore.clear();
       store.setState({ phase: "onboarding", tmdbConfigured: false });
       return;
     }
+    // One-time sanitize: a pre-PKCE install persisted a `client_secret` in the
+    // raw creds record. Zod strips it on read, so rewriting the parsed creds
+    // scrubs the secret from disk (idempotent once clean).
+    await deps.credsStore.write(creds);
     store.setState({
       phase: "connected",
       tmdbConfigured: creds.tmdbKey.trim().length > 0,

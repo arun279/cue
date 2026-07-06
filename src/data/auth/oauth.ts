@@ -3,7 +3,9 @@ import { z } from "zod";
 import type { FetchLike } from "../trakt/client";
 
 /**
- * Client-side OAuth against Trakt. The user-facing
+ * Client-side OAuth PKCE against Trakt. Cue is a public
+ * client: it holds no client secret and instead proves possession of a
+ * per-attempt `code_verifier` (see `pkce.ts`). The user-facing
  * `authorize`/`activate` pages live on `trakt.tv`; the token/device/revoke
  * endpoints on `api.trakt.tv`. Trakt allows CORS on `/oauth/token`, so the
  * code→token exchange runs directly in the browser — no backend.
@@ -13,7 +15,6 @@ export const TRAKT_API_BASE = "https://api.trakt.tv";
 
 export interface OAuthConfig {
   readonly clientId: string;
-  readonly clientSecret: string;
   readonly redirectUri: string;
   readonly fetch?: FetchLike;
   readonly apiBaseUrl?: string;
@@ -75,24 +76,41 @@ async function postJson(
   return { status: response.status, data };
 }
 
-/** The full-page redirect target that starts the web auth-code flow. */
-export function buildAuthorizeUrl(config: OAuthConfig, state: string): string {
+/**
+ * The full-page redirect target that starts the web auth-code flow. Carries the
+ * S256 `code_challenge` so the later token exchange can prove possession of the
+ * matching verifier — the PKCE substitute for a client secret.
+ */
+export function buildAuthorizeUrl(
+  config: OAuthConfig,
+  state: string,
+  codeChallenge: string,
+): string {
   const params = new URLSearchParams({
     response_type: "code",
     client_id: config.clientId,
     redirect_uri: config.redirectUri,
     state,
+    code_challenge: codeChallenge,
+    code_challenge_method: "S256",
   });
   return `${siteBase(config)}/oauth/authorize?${params.toString()}`;
 }
 
-/** Exchange the returned `code` for a token; throws on a non-2xx or malformed body. */
-export async function exchangeCodeForToken(config: OAuthConfig, code: string): Promise<Token> {
+/**
+ * Exchange the returned `code` for a token, proving the PKCE `code_verifier`;
+ * throws on a non-2xx or malformed body.
+ */
+export async function exchangeCodeForToken(
+  config: OAuthConfig,
+  code: string,
+  codeVerifier: string,
+): Promise<Token> {
   const { status, data } = await postJson(config, "/oauth/token", {
     code,
     client_id: config.clientId,
-    client_secret: config.clientSecret,
     redirect_uri: config.redirectUri,
+    code_verifier: codeVerifier,
     grant_type: "authorization_code",
   });
   if (status < 200 || status >= 300) throw new Error(`Trakt token exchange failed (${status}).`);
@@ -107,7 +125,6 @@ export async function refreshAccessToken(
   const { status, data } = await postJson(config, "/oauth/token", {
     refresh_token: refreshToken,
     client_id: config.clientId,
-    client_secret: config.clientSecret,
     redirect_uri: config.redirectUri,
     grant_type: "refresh_token",
   });
@@ -120,14 +137,23 @@ export async function revokeToken(config: OAuthConfig, accessToken: string): Pro
   await postJson(config, "/oauth/revoke", {
     token: accessToken,
     client_id: config.clientId,
-    client_secret: config.clientSecret,
   });
 }
 
-/** Start the device-code flow: returns the code to display + the poll interval. */
-export async function requestDeviceCode(config: OAuthConfig): Promise<DeviceCode> {
+/**
+ * Start the device-code flow: returns the code to display + the poll interval.
+ * Carries the S256 `code_challenge` so the later `pollDeviceToken` verifier is
+ * bound to this request — the PKCE substitute for the client secret the device
+ * flow would otherwise need.
+ */
+export async function requestDeviceCode(
+  config: OAuthConfig,
+  codeChallenge: string,
+): Promise<DeviceCode> {
   const { status, data } = await postJson(config, "/oauth/device/code", {
     client_id: config.clientId,
+    code_challenge: codeChallenge,
+    code_challenge_method: "S256",
   });
   if (status < 200 || status >= 300)
     throw new Error(`Trakt device-code request failed (${status}).`);
@@ -148,11 +174,12 @@ export async function requestDeviceCode(config: OAuthConfig): Promise<DeviceCode
 export async function pollDeviceToken(
   config: OAuthConfig,
   deviceCode: string,
+  codeVerifier: string,
 ): Promise<DeviceTokenResult> {
   const { status, data } = await postJson(config, "/oauth/device/token", {
     code: deviceCode,
     client_id: config.clientId,
-    client_secret: config.clientSecret,
+    code_verifier: codeVerifier,
   });
   if (status >= 200 && status < 300) return { status: "success", token: tokenSchema.parse(data) };
   if (status === 400) return { status: "pending" };

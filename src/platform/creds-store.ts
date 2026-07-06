@@ -5,9 +5,9 @@ import type { KeyValueStore } from "@platform/kv";
 const CREDS_KEY = "cue.trakt.creds";
 
 /**
- * The user's Trakt app credentials + optional TMDB key, stored alongside
- * the token so the auth-code callback can read the `client_secret` after a
- * full-page redirect.
+ * The user's public Trakt `clientId` + optional TMDB key, stored alongside
+ * the token so the auth-code callback can read the client id after a full-page
+ * redirect. No client secret is stored — Cue is a public PKCE client.
  */
 export type CredsStore = JsonStore<Credentials>;
 

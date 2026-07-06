@@ -78,7 +78,7 @@ describe("concrete stores use distinct keys", () => {
       created_at: 1_700_000_000,
       expires_in: 7_776_000,
     };
-    const creds: Credentials = { clientId: "id", clientSecret: "secret", tmdbKey: "" };
+    const creds: Credentials = { clientId: "id", tmdbKey: "" };
 
     await createTokenStore(kv).write(token);
     await createCredsStore(kv).write(creds);
@@ -93,7 +93,7 @@ describe("concrete stores use distinct keys", () => {
     const kv = createKeyValueStore(false);
     // A migrated/partial token missing refresh_token, and creds missing tmdbKey.
     await kv.write("cue.trakt.token", JSON.stringify({ access_token: "only" }));
-    await kv.write("cue.trakt.creds", JSON.stringify({ clientId: "id", clientSecret: "secret" }));
+    await kv.write("cue.trakt.creds", JSON.stringify({ clientId: "id" }));
 
     expect(await createTokenStore(kv).read()).toBeNull();
     expect(await createCredsStore(kv).read()).toBeNull();

@@ -472,6 +472,24 @@ body {
   border-radius: var(--radius-3);
   box-shadow: 0 24px 60px rgb(0 0 0 / 0.5);
 }
+.onboarding__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.onboarding__mark {
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius-1);
+  flex: none;
+}
+.onboarding__wordmark {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.15rem;
+  letter-spacing: 0;
+  color: var(--color-fg);
+}
 .onboarding__title {
   margin: 0;
   font-family: var(--font-display);
@@ -530,19 +548,68 @@ body {
 .field__input {
   appearance: none;
   padding: var(--space-2) var(--space-3);
-  background: var(--color-bg);
+  background: color-mix(in srgb, var(--color-fg) 6%, transparent);
   color: var(--color-fg);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-1);
   font-size: 0.95rem;
+  transition: border-color var(--dur-quick) var(--ease-standard);
+}
+.field__input:focus {
+  border-color: var(--color-accent);
 }
 .field__input[aria-invalid="true"] {
   border-color: var(--color-danger);
+}
+
+/* ---- Callback URL callout ---- */
+.callback-url {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 28%, transparent);
+  border-radius: var(--radius-1);
+}
+.callback-url__label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-ink2);
+}
+.callback-url__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.callback-url__value {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  white-space: nowrap;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.85rem;
+  color: var(--color-fg);
 }
 .field__error {
   margin: 0;
   font-size: 0.8rem;
   color: var(--color-danger);
+}
+
+@media (max-width: 639px) {
+  /* Tighten the onboarding card on narrow widths: the desktop 32px padding +
+     full-height backdrop read heavy on a phone, so pull the chrome in. */
+  .onboarding {
+    padding: var(--space-3) var(--space-2);
+  }
+  .onboarding__card {
+    padding: var(--space-4);
+    gap: var(--space-3);
+  }
+  .onboarding__title {
+    font-size: 1.4rem;
+  }
 }
 
 /* ---- Settings ---- */

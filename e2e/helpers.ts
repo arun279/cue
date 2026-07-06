@@ -78,7 +78,6 @@ const SEED_TOKEN = JSON.stringify({
 });
 const SEED_CREDS = JSON.stringify({
   clientId: "a".repeat(64),
-  clientSecret: "b".repeat(64),
   tmdbKey: "",
 });
 
@@ -121,6 +120,12 @@ export interface OAuthControls {
   setDeviceOutcome: (outcome: "success" | "denied" | "expired") => void;
   /** The `state` the authorize redirect saw, letting a test assert a non-empty nonce was sent. */
   getAuthorizeState: () => string | null;
+  /** The PKCE `code_challenge` + method the authorize redirect saw (S256, no secret). */
+  getAuthorizeChallenge: () => { challenge: string | null; method: string | null };
+  /** The PKCE `code_challenge` + method the device-code request carried (binds the poll verifier). */
+  getDeviceChallenge: () => { challenge: string | null; method: string | null };
+  /** Every JSON body posted to `/oauth/device/token` (device-flow polls). */
+  getDeviceTokenRequests: () => ReadonlyArray<Record<string, unknown>>;
   /** Every JSON body posted to `/oauth/token` (auth-code + refresh exchanges). */
   getTokenRequests: () => ReadonlyArray<Record<string, unknown>>;
   /** Every JSON body posted to `/oauth/revoke`. */
@@ -141,6 +146,11 @@ export async function installOAuthRoutes(context: BrowserContext): Promise<OAuth
   let deviceOutcome: "success" | "denied" | "expired" = "success";
   let devicePolls = 0;
   let authorizeState: string | null = null;
+  let authorizeChallenge: string | null = null;
+  let authorizeChallengeMethod: string | null = null;
+  let deviceChallenge: string | null = null;
+  let deviceChallengeMethod: string | null = null;
+  const deviceTokenRequests: Array<Record<string, unknown>> = [];
   const tokenRequests: Array<Record<string, unknown>> = [];
   const revokeRequests: Array<Record<string, unknown>> = [];
 
@@ -149,6 +159,8 @@ export async function installOAuthRoutes(context: BrowserContext): Promise<OAuth
     const redirectUri = url.searchParams.get("redirect_uri") ?? "";
     const state = url.searchParams.get("state") ?? "";
     authorizeState = state;
+    authorizeChallenge = url.searchParams.get("code_challenge");
+    authorizeChallengeMethod = url.searchParams.get("code_challenge_method");
     const echoed = stateEcho === "match" ? state : "tampered-state";
     await route.fulfill({
       status: 302,
@@ -168,8 +180,11 @@ export async function installOAuthRoutes(context: BrowserContext): Promise<OAuth
     });
   });
 
-  await context.route("**/api.trakt.tv/oauth/device/code", (route) =>
-    route.fulfill({
+  await context.route("**/api.trakt.tv/oauth/device/code", (route) => {
+    const body = (route.request().postDataJSON() ?? {}) as Record<string, string>;
+    deviceChallenge = body["code_challenge"] ?? null;
+    deviceChallengeMethod = body["code_challenge_method"] ?? null;
+    return route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
@@ -179,10 +194,11 @@ export async function installOAuthRoutes(context: BrowserContext): Promise<OAuth
         expires_in: 600,
         interval: 1,
       }),
-    }),
-  );
+    });
+  });
 
   await context.route("**/api.trakt.tv/oauth/device/token", (route) => {
+    deviceTokenRequests.push((route.request().postDataJSON() ?? {}) as Record<string, unknown>);
     devicePolls += 1;
     if (devicePolls < 2) {
       return route.fulfill({ status: 400, contentType: "application/json", body: "{}" });
@@ -231,6 +247,15 @@ export async function installOAuthRoutes(context: BrowserContext): Promise<OAuth
       deviceOutcome = outcome;
     },
     getAuthorizeState: () => authorizeState,
+    getAuthorizeChallenge: () => ({
+      challenge: authorizeChallenge,
+      method: authorizeChallengeMethod,
+    }),
+    getDeviceChallenge: () => ({
+      challenge: deviceChallenge,
+      method: deviceChallengeMethod,
+    }),
+    getDeviceTokenRequests: () => deviceTokenRequests,
     getTokenRequests: () => tokenRequests,
     getRevokeRequests: () => revokeRequests,
   };
