@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import {
+  agoIso,
   installHermeticRoutes,
   installLibraryRoutes,
   readStored,
@@ -20,7 +21,7 @@ function soloShow(overrides: Partial<ShowFixture> = {}): ShowFixture {
     title: "Solo",
     status: "returning series",
     posters: ["media.trakt.tv/solo.webp"],
-    lastWatchedAt: "2026-06-01T00:00:00.000Z",
+    lastWatchedAt: agoIso(2),
     aired: 3,
     completed: 1,
     episodes: [
@@ -41,12 +42,12 @@ test("renders the aired-only queue: future next episodes and hidden shows exclud
   page,
 }) => {
   const shows: ShowFixture[] = [
-    soloShow({ trakt: 1, title: "Alpha", lastWatchedAt: "2026-06-05T00:00:00.000Z" }),
+    soloShow({ trakt: 1, title: "Alpha", lastWatchedAt: agoIso(2) }),
     {
       trakt: 2,
       title: "Future",
       status: "returning series",
-      lastWatchedAt: "2026-06-04T00:00:00.000Z",
+      lastWatchedAt: agoIso(3),
       aired: 1,
       completed: 1,
       episodes: [{ season: 2, number: 1, title: "S2 Premiere", firstAired: FUTURE, traktId: 21 }],
@@ -56,7 +57,7 @@ test("renders the aired-only queue: future next episodes and hidden shows exclud
       title: "Hidden Show",
       status: "returning series",
       hidden: true,
-      lastWatchedAt: "2026-06-03T00:00:00.000Z",
+      lastWatchedAt: agoIso(4),
       aired: 2,
       completed: 1,
       episodes: [
@@ -68,12 +69,24 @@ test("renders the aired-only queue: future next episodes and hidden shows exclud
       trakt: 4,
       title: "NoImage",
       status: "returning series",
-      lastWatchedAt: "2026-06-02T00:00:00.000Z",
+      lastWatchedAt: agoIso(5),
       aired: 2,
       completed: 1,
       episodes: [
         { season: 1, number: 1, title: "One", firstAired: AIRED, traktId: 41 },
         { season: 1, number: 2, title: "Two", firstAired: AIRED, traktId: 42 },
+      ],
+    },
+    {
+      trakt: 5,
+      title: "Lapsed Show",
+      status: "returning series",
+      lastWatchedAt: agoIso(40),
+      aired: 2,
+      completed: 1,
+      episodes: [
+        { season: 1, number: 1, title: "One", firstAired: AIRED, traktId: 51 },
+        { season: 1, number: 2, title: "Two", firstAired: AIRED, traktId: 52 },
       ],
     },
   ];
@@ -89,6 +102,8 @@ test("renders the aired-only queue: future next episodes and hidden shows exclud
   await expect(page.getByRole("heading", { name: "NoImage" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Future" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Hidden Show" })).toHaveCount(0);
+  // A show untouched past the staleness threshold is Not-watched-in-a-while, not fresh.
+  await expect(page.getByRole("heading", { name: "Lapsed Show" })).toHaveCount(0);
 
   // Alpha (hero) has a Trakt inline poster; NoImage (queue) degrades to the text tile.
   await expect(hero.getByTestId("poster-image")).toBeVisible();

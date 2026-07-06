@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import {
+  agoIso,
   type EpisodeFixture,
   installHermeticRoutes,
   installLibraryRoutes,
@@ -36,7 +37,7 @@ function detailShow(): ShowFixture {
     title: "The Detail Show",
     status: "returning series",
     posters: ["media.trakt.tv/p.webp"],
-    lastWatchedAt: "2026-06-05T00:00:00.000Z",
+    lastWatchedAt: agoIso(2),
     aired: 3,
     completed: 2,
     episodes: [

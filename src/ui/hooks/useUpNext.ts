@@ -1,9 +1,7 @@
-import { queryKeys } from "@data/query-keys";
 import type { LibraryEntry } from "@data/trakt/library";
 import { selectUpNext, type UpNextItem, type UpNextSort } from "@domain/up-next";
-import { DEFAULT_STALENESS_THRESHOLD_MS } from "@domain/watch-status";
-import { useQuery } from "@tanstack/react-query";
-import { type UpNextData, useRuntime } from "@ui/runtime/runtime";
+import { useLibrarySnapshot } from "@ui/hooks/useLibrarySnapshot";
+import type { UpNextData } from "@ui/runtime/runtime";
 import { useMemo } from "react";
 
 export interface UpNextCard {
@@ -27,29 +25,23 @@ export interface UpNextView {
 }
 
 /**
- * The Up Next read hook: the persisted-SWR `library` query (instant paint from
+ * The Up Next read hook: the persisted-SWR `library` snapshot (instant paint from
  * the restored cache, background revalidate) run through the pure
  * `selectUpNext` filter, re-joined to its `LibraryEntry` for poster + action.
  */
 export function useUpNext(sort: UpNextSort = "recently-watched"): UpNextView {
-  const runtime = useRuntime();
-  const query = useQuery({
-    queryKey: queryKeys.library(),
-    queryFn: () => runtime.loadUpNext(),
-  });
+  const { query, data, byId, thresholdMs } = useLibrarySnapshot();
 
-  const data = query.data;
   const cards = useMemo<UpNextCard[]>(() => {
     if (data === undefined) return [];
-    const byId = new Map(data.entries.map((entry) => [entry.showId, entry]));
     const now = Date.now();
     const out: UpNextCard[] = [];
-    for (const item of selectUpNext(data.entries, now, DEFAULT_STALENESS_THRESHOLD_MS, sort)) {
+    for (const item of selectUpNext(data.entries, now, thresholdMs, sort)) {
       const entry = byId.get(item.showId);
       if (entry !== undefined) out.push({ item, entry });
     }
     return out;
-  }, [data, sort]);
+  }, [data, byId, thresholdMs, sort]);
 
   const trackedCount = useMemo(
     () => (data === undefined ? 0 : data.entries.filter((entry) => !entry.hidden).length),

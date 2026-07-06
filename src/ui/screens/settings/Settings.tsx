@@ -1,15 +1,26 @@
 import { useAuth } from "@ui/auth/store";
+import { usePrefs } from "@ui/prefs/prefs-store";
+import { THRESHOLD_OPTIONS } from "@ui/prefs/threshold";
 import { ThemeToggle } from "@ui/theme/ThemeToggle";
 import { type ReactElement, useState } from "react";
 
+/** "2 weeks" / "3 weeks" — every threshold option is a whole number of weeks. */
+function weeksLabel(days: number): string {
+  const weeks = days / 7;
+  return `${weeks} week${weeks === 1 ? "" : "s"}`;
+}
+
 /**
  * Settings → Preferences + Connections: the appearance toggle
- * (relocated here off the header/sidebar), the connected token's status, and a
+ * (relocated here off the header/sidebar), the staleness threshold that splits
+ * Watching from Not-watched-in-a-while, the connected token's status, and a
  * Disconnect that revokes on Trakt and clears the store, returning to onboarding.
  */
 export function Settings(): ReactElement {
   const tmdbConfigured = useAuth((s) => s.tmdbConfigured);
   const disconnect = useAuth((s) => s.disconnect);
+  const thresholdDays = usePrefs((s) => s.thresholdDays);
+  const setThresholdDays = usePrefs((s) => s.setThresholdDays);
   const [disconnecting, setDisconnecting] = useState(false);
   const [disconnectError, setDisconnectError] = useState<string | null>(null);
 
@@ -23,6 +34,35 @@ export function Settings(): ReactElement {
           <dt>Theme</dt>
           <dd>
             <ThemeToggle />
+          </dd>
+        </div>
+      </dl>
+
+      <h2 className="settings__heading">Preferences</h2>
+      <dl className="settings__list">
+        <div className="settings__row">
+          <dt>
+            Not-watched-in-a-while after
+            <small className="settings__hint">
+              Shows you haven't touched for longer drop out of Up Next.
+            </small>
+          </dt>
+          <dd>
+            <label className="library-sort">
+              <span className="library-sort__label">Inactivity</span>
+              <select
+                className="library-sort__select"
+                data-testid="threshold-select"
+                value={thresholdDays}
+                onChange={(event) => setThresholdDays(Number(event.target.value))}
+              >
+                {THRESHOLD_OPTIONS.map((days) => (
+                  <option key={days} value={days}>
+                    {weeksLabel(days)}
+                  </option>
+                ))}
+              </select>
+            </label>
           </dd>
         </div>
       </dl>

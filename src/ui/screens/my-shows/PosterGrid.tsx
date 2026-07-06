@@ -1,5 +1,16 @@
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
-import { type ReactElement, type ReactNode, useLayoutEffect, useRef, useState } from "react";
+import {
+  type ReactElement,
+  type ReactNode,
+  useCallback,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
+
+function sameMetrics(a: GridMetrics, b: GridMetrics): boolean {
+  return a.cols === b.cols && a.rowHeight === b.rowHeight && a.scrollMargin === b.scrollMargin;
+}
 
 interface PosterGridProps<T> {
   readonly entries: readonly T[];
@@ -39,34 +50,47 @@ interface GridMetrics {
  */
 export function PosterGrid<T>({ entries, keyOf, renderCell }: PosterGridProps<T>): ReactElement {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [metrics, setMetrics] = useState<GridMetrics>({
+  const metricsRef = useRef<GridMetrics>({
     cols: 2,
     rowHeight: MIN_COL * 1.5 + CARD_META + ROW_GAP,
     scrollMargin: 0,
   });
+  const [metrics, setMetrics] = useState<GridMetrics>(metricsRef.current);
 
+  const measure = useCallback((): void => {
+    const el = containerRef.current;
+    if (el === null) return;
+    const width = el.clientWidth;
+    const cols = Math.max(2, Math.floor((width + GAP) / (MIN_COL + GAP)));
+    const colWidth = (width - (cols - 1) * GAP) / cols;
+    // getBoundingClientRect is page-relative regardless of positioned ancestors, so
+    // a grid nested in a collapsible pile still knows where the window scroll starts.
+    const next: GridMetrics = {
+      cols,
+      rowHeight: Math.round(colWidth * 1.5) + CARD_META + ROW_GAP,
+      scrollMargin: Math.round(el.getBoundingClientRect().top + window.scrollY),
+    };
+    if (sameMetrics(metricsRef.current, next)) return;
+    metricsRef.current = next;
+    setMetrics(next);
+  }, []);
+
+  // A pile toggling/filtering ABOVE this grid moves its top offset without changing
+  // its own size, so a ResizeObserver can't catch it — but every such change
+  // re-renders this tree, so remeasure on each commit; sameMetrics drops no-op sets.
+  useLayoutEffect(() => {
+    measure();
+  });
+
+  // This grid's own width changing (viewport resize / orientation) doesn't re-render
+  // it, so a ResizeObserver keeps the column math and row height live.
   useLayoutEffect(() => {
     const el = containerRef.current;
     if (el === null) return;
-    const measure = (): void => {
-      const width = el.clientWidth;
-      const cols = Math.max(2, Math.floor((width + GAP) / (MIN_COL + GAP)));
-      const colWidth = (width - (cols - 1) * GAP) / cols;
-      setMetrics({
-        cols,
-        rowHeight: Math.round(colWidth * 1.5) + CARD_META + ROW_GAP,
-        scrollMargin: el.offsetTop,
-      });
-    };
-    measure();
     const observer = new ResizeObserver(measure);
     observer.observe(el);
-    window.addEventListener("resize", measure);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", measure);
-    };
-  }, []);
+    return () => observer.disconnect();
+  }, [measure]);
 
   const { cols, rowHeight, scrollMargin } = metrics;
   const rowCount = Math.ceil(entries.length / cols);

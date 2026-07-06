@@ -5,6 +5,7 @@ import { CheckIcon } from "@ui/components/CheckIcon";
 import { DetailHeroSkeleton } from "@ui/components/DetailHeroSkeleton";
 import { RatingControl } from "@ui/components/RatingControl";
 import { useHideShow } from "@ui/hooks/useHideShow";
+import { useLibrarySnapshot } from "@ui/hooks/useLibrarySnapshot";
 import type { MarkContextTarget, MarkSeasonController } from "@ui/hooks/useMarkSeason";
 import { useMarkSeason } from "@ui/hooks/useMarkSeason";
 import { useRate } from "@ui/hooks/useRate";
@@ -28,21 +29,23 @@ function backdropUrlOf(header: ShowHeader): string | null {
 
 /** The full-bleed media hero: backdrop with a scrim fading into the card, poster
  * inset with an amber progress rail, editorial title, broadcast chips, overview,
- * and the primary actions (Mark next / Watchlist / Stop) + compact rating. */
+ * and the primary actions (Mark next / Watchlist / Abandon) + compact rating. */
 function ShowHero({
   header,
   onWatchlist,
   watchlist,
   rate,
   onMarkNext,
-  onStop,
+  hidden,
+  onToggleHidden,
 }: {
   readonly header: ShowHeader;
   readonly onWatchlist: boolean;
   readonly watchlist: ReturnType<typeof useToggleWatchlist>;
   readonly rate: ReturnType<typeof useRate>;
   onMarkNext(): void;
-  onStop(): void;
+  readonly hidden: boolean;
+  onToggleHidden(): void;
 }): ReactElement {
   const [bdBroken, setBdBroken] = useState(false);
   const backdrop = backdropUrlOf(header);
@@ -154,9 +157,10 @@ function ShowHero({
             type="button"
             className="show-hero__stop"
             data-testid="hide-show"
-            onClick={onStop}
+            data-hidden={hidden}
+            onClick={onToggleHidden}
           >
-            Stop watching
+            {hidden ? "Un-abandon" : "Abandon"}
           </button>
         </div>
 
@@ -250,6 +254,10 @@ export function ShowDetail({ showId }: { showId: number }): ReactElement {
   const rate = useRate("shows");
   const watchlist = useToggleWatchlist();
   const [includeSpecials, setIncludeSpecials] = useState(false);
+  // Read the shared library snapshot (SWR — cached instantly on navigation, fetched
+  // once on a direct /show/:id load) so the abandon action reflects the real hidden
+  // state and flips live when the optimistic hide/unhide patches the shared entry.
+  const hidden = useLibrarySnapshot().byId.get(showId)?.hidden ?? false;
 
   const header = detail.header;
 
@@ -299,7 +307,12 @@ export function ShowDetail({ showId }: { showId: number }): ReactElement {
         onMarkNext={() => {
           if (next !== null) void marks.toggleEpisode(target, next);
         }}
-        onStop={() => void hide.hide(showId, header.ids, header.title)}
+        hidden={hidden}
+        onToggleHidden={() =>
+          void (hidden
+            ? hide.unhide(showId, header.ids, header.title)
+            : hide.hide(showId, header.ids, header.title))
+        }
       />
 
       {next !== null && (
@@ -389,7 +402,11 @@ export function ShowDetail({ showId }: { showId: number }): ReactElement {
       {hide.undoable !== null && (
         <Snackbar
           testId="hide-undo"
-          message={`Stopped ${hide.undoable.title}.`}
+          message={
+            hide.undoable.kind === "hide"
+              ? `Abandoned ${hide.undoable.title}.`
+              : `Un-abandoned ${hide.undoable.title}.`
+          }
           actionLabel="Undo"
           autoDismissMs={UNDO_MS}
           onAction={() => void hide.undo()}

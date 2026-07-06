@@ -1,5 +1,11 @@
 import { expect, test } from "@playwright/test";
-import { installHermeticRoutes, installLibraryRoutes, type ShowFixture, seedAuth } from "./helpers";
+import {
+  agoIso,
+  installHermeticRoutes,
+  installLibraryRoutes,
+  type ShowFixture,
+  seedAuth,
+} from "./helpers";
 
 const ZERO_STATS = JSON.stringify({
   movies: { plays: 0, watched: 0, minutes: 0 },
@@ -16,7 +22,7 @@ function shelfShow(overrides: Partial<ShowFixture> = {}): ShowFixture {
     title: "Solo",
     status: "returning series",
     posters: ["media.trakt.tv/solo.webp"],
-    lastWatchedAt: "2026-06-01T00:00:00.000Z",
+    lastWatchedAt: agoIso(2),
     aired: 2,
     completed: 1,
     episodes: [
@@ -70,8 +76,8 @@ test("links into Settings & connections", async ({ page }) => {
 
 test("shows a Continue-watching poster rail into the Show page", async ({ page }) => {
   await installLibraryRoutes(page.context(), [
-    shelfShow({ trakt: 1, title: "Alpha", lastWatchedAt: "2026-06-05T00:00:00.000Z" }),
-    shelfShow({ trakt: 2, title: "Bravo", lastWatchedAt: "2026-06-04T00:00:00.000Z" }),
+    shelfShow({ trakt: 1, title: "Alpha", lastWatchedAt: agoIso(2) }),
+    shelfShow({ trakt: 2, title: "Bravo", lastWatchedAt: agoIso(3) }),
   ]);
   await page.goto("/profile");
 

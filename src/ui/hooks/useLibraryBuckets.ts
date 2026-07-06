@@ -1,9 +1,8 @@
-import { queryKeys } from "@data/query-keys";
 import type { LibraryEntry } from "@data/trakt/library";
 import { groupLibrary, type LibrarySort } from "@domain/library-buckets";
-import { DEFAULT_STALENESS_THRESHOLD_MS, type WatchStatus } from "@domain/watch-status";
-import { useQuery } from "@tanstack/react-query";
-import { type UpNextData, useRuntime } from "@ui/runtime/runtime";
+import type { WatchStatus } from "@domain/watch-status";
+import { useLibrarySnapshot } from "@ui/hooks/useLibrarySnapshot";
+import type { UpNextData } from "@ui/runtime/runtime";
 import { useMemo } from "react";
 
 interface LibraryBucketView {
@@ -13,7 +12,10 @@ interface LibraryBucketView {
 
 export interface LibraryBucketsView {
   readonly buckets: readonly LibraryBucketView[];
+  /** Non-hidden tracked shows — the count that decides an empty library (aligned with Up Next). */
   readonly trackedCount: number;
+  /** Every tracked show, hidden included — 0 only when the library is truly empty. */
+  readonly totalCount: number;
   readonly tmdbConfig: UpNextData["tmdbConfig"];
   readonly isLoading: boolean;
   readonly isFetching: boolean;
@@ -23,35 +25,30 @@ export interface LibraryBucketsView {
 }
 
 /**
- * My Shows read hook: the same persisted `library` query Up Next paints from,
- * grouped into the aired-based status buckets via the pure `groupLibrary`
- * selector. Reuses the Up Next cache so the library screen paints instantly on
- * navigation with no extra fetch.
+ * My Shows read hook: the same persisted `library` snapshot Up Next paints from,
+ * grouped into the piles via the pure `groupLibrary` selector against the
+ * live staleness threshold. Reuses the shared cache so the screen paints instantly
+ * on navigation with no extra fetch.
  */
 export function useLibraryBuckets(sort: LibrarySort): LibraryBucketsView {
-  const runtime = useRuntime();
-  const query = useQuery({
-    queryKey: queryKeys.library(),
-    queryFn: () => runtime.loadUpNext(),
-  });
+  const { query, data, byId, thresholdMs } = useLibrarySnapshot();
 
-  const data = query.data;
   const buckets = useMemo<LibraryBucketView[]>(() => {
     if (data === undefined) return [];
-    const byId = new Map(data.entries.map((entry) => [entry.showId, entry]));
     const now = Date.now();
-    return groupLibrary(data.entries, now, DEFAULT_STALENESS_THRESHOLD_MS, sort).map((bucket) => ({
+    return groupLibrary(data.entries, now, thresholdMs, sort).map((bucket) => ({
       status: bucket.status,
       entries: bucket.shows.flatMap((show) => {
         const entry = byId.get(show.showId);
         return entry === undefined ? [] : [entry];
       }),
     }));
-  }, [data, sort]);
+  }, [data, byId, thresholdMs, sort]);
 
   return {
     buckets,
-    trackedCount: data?.entries.length ?? 0,
+    trackedCount: data === undefined ? 0 : data.entries.filter((entry) => !entry.hidden).length,
+    totalCount: data?.entries.length ?? 0,
     tmdbConfig: data?.tmdbConfig ?? null,
     isLoading: query.isLoading,
     isFetching: query.isFetching,

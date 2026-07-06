@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import {
+  agoIso,
   type EpisodeFixture,
   installHermeticRoutes,
   installLibraryRoutes,
@@ -33,7 +34,7 @@ function detailShow(): ShowFixture {
     backdrops: ["media.trakt.tv/b.webp"],
     overview: "A show built for testing the detail screen.",
     network: "Testnet",
-    lastWatchedAt: "2026-06-05T00:00:00.000Z",
+    lastWatchedAt: agoIso(2),
     aired: 7,
     completed: 2,
     episodes: [
@@ -222,12 +223,15 @@ test("a hide op that already landed is reconciled away on reload, never re-POSTe
   await page.goto("/show/1");
 
   await expect(page.getByTestId("detail-title")).toBeVisible();
+  // Direct load (library cache cold): the snapshot still resolves the hidden state,
+  // so the action offers recovery instead of re-hiding an already-abandoned show.
+  await expect(page.getByTestId("hide-show")).toHaveText("Un-abandon");
   await page.waitForTimeout(1500);
   // The hidden-set read shows the op landed; it's retired, not blindly re-POSTed.
   expect(controls.hiddenPosts().length).toBe(0);
 });
 
-test("Hide drops the show from Up Next and moves it to the Stopped bucket", async ({ page }) => {
+test("Abandon drops the show from Up Next and moves it to the Abandoned pile", async ({ page }) => {
   const controls = await installLibraryRoutes(page.context(), [detailShow()]);
 
   await page.goto("/");
@@ -237,7 +241,9 @@ test("Hide drops the show from Up Next and moves it to the Stopped bucket", asyn
   );
 
   await page.goto("/show/1");
+  await expect(page.getByTestId("hide-show")).toHaveText("Abandon");
   await page.getByTestId("hide-show").click();
+  await expect(page.getByTestId("hide-undo")).toContainText("Abandoned The Detail Show");
 
   await expect.poll(() => controls.hiddenPosts().length).toBe(1);
   expect(controls.hiddenPosts()[0]?.showIds).toContain(1);
@@ -247,10 +253,12 @@ test("Hide drops the show from Up Next and moves it to the Stopped bucket", asyn
   await expect(page.getByTestId("up-next-hero")).toHaveCount(0);
   await expect(page.getByTestId("up-next-card")).toHaveCount(0);
 
-  // Present only under Stopped in My Shows.
+  // Present only under the Abandoned pile in My Shows (collapsed by default; expand it).
   await page.setViewportSize({ width: 1000, height: 1400 });
   await page.goto("/my-shows");
-  await expect(page.getByTestId("bucket-heading").filter({ hasText: "Stopped" })).toBeVisible();
+  const abandoned = page.getByTestId("pile-heading").filter({ hasText: "Abandoned" });
+  await expect(abandoned).toBeVisible();
+  await abandoned.click();
   await expect(page.getByTestId("library-card").filter({ hasText: "The Detail Show" })).toHaveCount(
     1,
   );

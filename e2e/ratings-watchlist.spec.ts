@@ -84,7 +84,7 @@ test("rating an episode fires POST /sync/ratings with the episodes[] body", asyn
   expect(posted?.rating).toBe(7);
 });
 
-test("adding a never-watched show to the watchlist surfaces it in the My Shows To-watch bucket", async ({
+test("adding a never-watched show to the watchlist surfaces it in the My Shows Not-started pile", async ({
   page,
 }) => {
   const controls = await installLibraryRoutes(page.context(), [notStartedShow()]);
@@ -94,7 +94,7 @@ test("adding a never-watched show to the watchlist surfaces it in the My Shows T
   // watchlist, so it does not appear in My Shows at all — the watchlist is its only
   // route into the library (regression guard for the watchlist-only refetch bug).
   await page.goto("/my-shows");
-  await expect(page.getByTestId("bucket-heading").filter({ hasText: "To watch" })).toHaveCount(0);
+  await expect(page.getByTestId("pile-heading").filter({ hasText: "Not started" })).toHaveCount(0);
   await expect(page.getByTestId("library-card").filter({ hasText: "Watchlist Show" })).toHaveCount(
     0,
   );
@@ -108,16 +108,19 @@ test("adding a never-watched show to the watchlist surfaces it in the My Shows T
   await expect.poll(() => controls.watchlistPosts().length).toBe(1);
   expect(controls.watchlistPosts()[0]?.showIds).toContain(2);
 
-  // The To-watch bucket now holds the show, and it SURVIVES a full reload+refetch
-  // (a watched-shows-only library would drop it here).
+  // The Not-started pile now holds the show, and it SURVIVES a full reload+refetch
+  // (a watched-shows-only library would drop it here). The pile is collapsed by
+  // default, so expand it to reveal the tile.
   await page.goto("/my-shows");
-  await expect(page.getByTestId("bucket-heading").filter({ hasText: "To watch" })).toBeVisible();
+  const notStarted = page.getByTestId("pile-heading").filter({ hasText: "Not started" });
+  await expect(notStarted).toBeVisible();
+  await notStarted.click();
   await expect(page.getByTestId("library-card").filter({ hasText: "Watchlist Show" })).toHaveCount(
     1,
   );
 });
 
-test("removing a show from the watchlist fires /sync/watchlist/remove and clears the To-watch bucket", async ({
+test("removing a show from the watchlist fires /sync/watchlist/remove and clears the Not-started pile", async ({
   page,
 }) => {
   const seeded: ShowFixture = { ...notStartedShow(), inWatchlist: true };
@@ -125,7 +128,7 @@ test("removing a show from the watchlist fires /sync/watchlist/remove and clears
   await page.setViewportSize({ width: 1000, height: 1400 });
 
   await page.goto("/my-shows");
-  await expect(page.getByTestId("bucket-heading").filter({ hasText: "To watch" })).toBeVisible();
+  await expect(page.getByTestId("pile-heading").filter({ hasText: "Not started" })).toBeVisible();
 
   await page.goto("/show/2");
   const toggle = page.getByTestId("watchlist-toggle");
@@ -137,5 +140,5 @@ test("removing a show from the watchlist fires /sync/watchlist/remove and clears
   expect(controls.watchlistRemovePosts()[0]?.showIds).toContain(2);
 
   await page.goto("/my-shows");
-  await expect(page.getByTestId("bucket-heading").filter({ hasText: "To watch" })).toHaveCount(0);
+  await expect(page.getByTestId("pile-heading").filter({ hasText: "Not started" })).toHaveCount(0);
 });

@@ -16,6 +16,17 @@ const OTHER_ORIGINS = [
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
+const DAY = 86_400_000;
+
+/**
+ * An ISO timestamp `days` before now. The Watching/lapsed split compares
+ * `last_watched_at` against a 21-day threshold using the real wall clock, so
+ * freshness-sensitive fixtures must be relative to now rather than pinned dates.
+ */
+export function agoIso(days: number): string {
+  return new Date(Date.now() - days * DAY).toISOString();
+}
+
 /**
  * Intercept every Trakt/TMDB origin at the browser-context level so no request
  * escapes to the real network (hermetic e2e). The frame's `/networks`

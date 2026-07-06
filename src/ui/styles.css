@@ -636,6 +636,14 @@ body {
 .settings__row dt {
   font-weight: 600;
 }
+.settings__hint {
+  display: block;
+  margin-top: 2px;
+  max-width: 22rem;
+  font-weight: 400;
+  font-size: 0.82rem;
+  color: var(--color-muted);
+}
 .settings__row dd {
   margin: 0;
 }
@@ -1359,6 +1367,127 @@ body {
   color: var(--color-muted);
 }
 
+/* ---- My Shows piles (collapsible sections; reuses the SeasonPanel disclosure) ---- */
+.library-controls__tools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.library-filter {
+  appearance: none;
+  min-width: 12rem;
+  padding: var(--space-1) var(--space-3);
+  background: var(--color-surface);
+  color: var(--color-fg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+}
+.library-filter::placeholder {
+  color: var(--color-muted);
+}
+.library-filter:hover {
+  border-color: var(--color-muted);
+}
+.library-filter__summary {
+  margin: 0 0 var(--space-4);
+  color: var(--color-muted);
+  font-size: 0.85rem;
+}
+.library-note {
+  margin: 0 0 var(--space-4);
+  color: var(--color-ink2);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+.piles {
+  display: flex;
+  flex-direction: column;
+}
+.pile {
+  border-bottom: 1px solid var(--color-border);
+}
+.pile:last-child {
+  border-bottom: none;
+}
+.pile__header {
+  margin: 0;
+}
+.pile__trigger {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--color-fg);
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-1);
+  border-radius: var(--radius-1);
+  cursor: pointer;
+  text-align: left;
+}
+.pile__trigger:hover .pile__name {
+  color: var(--color-accent);
+}
+.pile__chevron {
+  width: 1.15rem;
+  height: 1.15rem;
+  flex: none;
+  color: var(--color-muted);
+  transition: transform var(--dur-quick) var(--ease-standard);
+}
+.pile__trigger[data-state="open"] .pile__chevron {
+  transform: rotate(180deg);
+}
+.pile__name {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.pile__count {
+  flex: none;
+}
+/* Abandoned is the archival pile: muted so it recedes below the active piles. */
+.pile[data-status="abandoned"] .pile__name,
+.pile[data-status="abandoned"] .pile__chevron {
+  color: var(--color-muted);
+}
+.pile__content {
+  padding: var(--space-1) var(--space-1) var(--space-5);
+}
+
+/* Abandoned tile: the poster still links to Show detail; the Un-abandon recovery
+   pins to the poster's corner as a separate control (never nested in the link). */
+.pile-tile {
+  position: relative;
+}
+.pile-tile__unabandon {
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2);
+  z-index: 1;
+  appearance: none;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--color-bg) 82%, transparent);
+  backdrop-filter: blur(4px);
+  color: var(--color-fg);
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.pile-tile__unabandon:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
 /* Responsive, window-virtualized poster grid — one per status bucket. Rows are
    absolutely positioned by the virtualizer (fixed height per row); the static
    modifier lays the same tiles out with plain grid flow for the skeleton. */
@@ -1459,6 +1588,17 @@ body {
     gap: var(--space-2);
   }
   .screen--library .library-heading {
+    font-size: 1.05rem;
+  }
+  .library-controls__tools {
+    width: 100%;
+    gap: var(--space-2);
+  }
+  .library-filter {
+    flex: 1;
+    min-width: 0;
+  }
+  .pile__name {
     font-size: 1.05rem;
   }
 }
