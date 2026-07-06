@@ -2,6 +2,7 @@ import { resolvePoster } from "@data/image-source";
 import type { EpisodeView, SeasonView, ShowHeader } from "@data/trakt/show-detail";
 import { Link } from "@tanstack/react-router";
 import { CheckIcon } from "@ui/components/CheckIcon";
+import { DetailHeroSkeleton } from "@ui/components/DetailHeroSkeleton";
 import { RatingControl } from "@ui/components/RatingControl";
 import { useHideShow } from "@ui/hooks/useHideShow";
 import type { MarkContextTarget, MarkSeasonController } from "@ui/hooks/useMarkSeason";
@@ -255,15 +256,7 @@ export function ShowDetail({ showId }: { showId: number }): ReactElement {
   if (detail.isLoading) {
     return (
       <section className="screen screen--detail" data-testid="screen-show-detail">
-        <div className="show-hero show-hero--skeleton" data-testid="detail-skeleton">
-          <div className="show-hero__body">
-            <div className="poster poster--skeleton poster--hero show-hero__poster" />
-            <div className="show-hero__info">
-              <div className="skeleton-line skeleton-line--title" />
-              <div className="skeleton-line skeleton-line--sub" />
-            </div>
-          </div>
-        </div>
+        <DetailHeroSkeleton testId="detail-skeleton" />
       </section>
     );
   }

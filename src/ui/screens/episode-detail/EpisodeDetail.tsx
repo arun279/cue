@@ -1,38 +1,181 @@
 import { resolvePoster } from "@data/image-source";
 import type { EpisodeDetail as EpisodeDetailModel, EpisodeNav } from "@data/trakt/episode-detail";
+import type { ShowHeader } from "@data/trakt/show-detail";
 import { Link } from "@tanstack/react-router";
+import { artGradient } from "@ui/components/artGradient";
+import { CheckIcon } from "@ui/components/CheckIcon";
+import { DetailHeroSkeleton } from "@ui/components/DetailHeroSkeleton";
 import { RatingControl } from "@ui/components/RatingControl";
 import { useEpisode } from "@ui/hooks/useEpisode";
 import { useRate } from "@ui/hooks/useRate";
+import { useShowDetail } from "@ui/hooks/useShowDetail";
 import { useToggleEpisodeWatched } from "@ui/hooks/useToggleEpisodeWatched";
+import { episodeCode, formatAirDate } from "@ui/screens/up-next/format";
+import { Poster } from "@ui/screens/up-next/Poster";
 import { Snackbar } from "@ui/screens/up-next/Snackbar";
-import type { ReactElement } from "react";
+import { type ReactElement, useState } from "react";
 
-function code(season: number, number: number): string {
-  return `S${String(season).padStart(2, "0")}E${String(number).padStart(2, "0")}`;
-}
+/** The cinematic 16:9 still, cropped into the hero's fixed-height backdrop band
+ * (not a full-width banner) with a scrim fading into the card. A
+ * missing or broken image degrades to the deterministic gradient plate so the
+ * header never tears into raw whitespace. */
+function HeroBackdrop({ episode }: { episode: EpisodeDetailModel }): ReactElement {
+  const [broken, setBroken] = useState(false);
+  const seed = episode.title ?? episodeCode(episode.season, episode.number);
+  const still = resolvePoster({ title: seed, traktPosters: episode.stills });
 
-function formatDate(iso: string | null): string | null {
-  if (iso === null) return null;
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? null : date.toLocaleDateString();
-}
-
-function Still({ episode }: { episode: EpisodeDetailModel }): ReactElement {
-  const still = resolvePoster({
-    title: episode.title ?? code(episode.season, episode.number),
-    traktPosters: episode.stills,
-  });
-  if (still.source === "placeholder") {
+  if (still.source === "placeholder" || broken) {
     return (
-      <div className="still still--text" data-testid="episode-still-text">
-        <span className="still__code" aria-hidden="true">
-          {code(episode.season, episode.number)}
-        </span>
-      </div>
+      <div
+        className="show-hero__backdrop"
+        data-testid="episode-still-text"
+        style={{ background: artGradient(seed) }}
+      />
     );
   }
-  return <img className="still" src={still.url} alt="" data-testid="episode-still" />;
+  return (
+    <img
+      className="show-hero__backdrop"
+      src={still.url}
+      alt=""
+      decoding="async"
+      data-testid="episode-still"
+      onError={() => setBroken(true)}
+    />
+  );
+}
+
+/** Cinematic still + show poster inset + broadcast metadata + editorial title,
+ * with a grouped control surface (watched toggle, logged date, rating) below —
+ * the same media-hero composition as the Show page. */
+function EpisodeHero({
+  episode,
+  showHeader,
+  watchedToggle,
+  rate,
+}: {
+  readonly episode: EpisodeDetailModel;
+  readonly showHeader: ShowHeader | undefined;
+  readonly watchedToggle: ReturnType<typeof useToggleEpisodeWatched>;
+  readonly rate: ReturnType<typeof useRate>;
+}): ReactElement {
+  const code = episodeCode(episode.season, episode.number);
+  const air = formatAirDate(episode.firstAired);
+  const watchedDate = formatAirDate(episode.watchedAt);
+  const watchedLabel = episode.watched
+    ? "Watched"
+    : episode.aired
+      ? "Mark watched"
+      : "Not aired yet";
+  const showParams = { showId: String(episode.showId) };
+
+  return (
+    <article className="show-hero episode-hero" data-testid="episode-hero">
+      <HeroBackdrop episode={episode} />
+      <div className="show-hero__scrim" />
+      <div className="show-hero__body">
+        {showHeader !== undefined && (
+          <Link
+            to="/show/$showId"
+            params={showParams}
+            className="poster-wrap show-hero__poster episode-hero__poster"
+            aria-label={`Go to ${showHeader.title}`}
+            data-testid="episode-show-poster"
+          >
+            <Poster
+              title={showHeader.title}
+              posters={showHeader.posters}
+              tmdbConfig={null}
+              variant="hero"
+            />
+          </Link>
+        )}
+
+        <div className="show-hero__info">
+          <p className="episode-hero__eyebrow" data-testid="episode-show-context">
+            {showHeader !== undefined && (
+              <>
+                <Link to="/show/$showId" params={showParams} className="episode-hero__show">
+                  {showHeader.title}
+                </Link>
+                <span aria-hidden="true"> · </span>
+              </>
+            )}
+            Season {episode.season}
+          </p>
+
+          <div className="show-hero__chips">
+            <span className="ep-badge" data-testid="episode-detail-code">
+              {code}
+            </span>
+            {air !== null && (
+              <span className="chip" data-testid="episode-air-date">
+                Aired {air}
+              </span>
+            )}
+            {episode.runtime !== null && (
+              <span className="chip" data-testid="episode-runtime">
+                {episode.runtime} min
+              </span>
+            )}
+          </div>
+
+          <h1 className="show-hero__title episode-hero__title" data-testid="episode-detail-title">
+            {episode.title ?? "Untitled episode"}
+          </h1>
+
+          {episode.overview !== null ? (
+            <p className="show-hero__overview" data-testid="episode-detail-overview">
+              {episode.overview}
+            </p>
+          ) : (
+            <p
+              className="show-hero__overview episode-hero__overview--empty"
+              data-testid="episode-detail-empty"
+            >
+              Details not available yet.
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="show-hero__controls episode-hero__controls">
+        <div className="episode-status">
+          <label
+            className="watched-toggle"
+            data-on={episode.watched}
+            data-disabled={!episode.aired}
+          >
+            <input
+              type="checkbox"
+              checked={episode.watched}
+              disabled={!episode.aired}
+              onChange={() => void watchedToggle.toggle(episode)}
+              data-testid="episode-watched-toggle"
+              aria-label={`Mark ${code} watched`}
+            />
+            <CheckIcon />
+            <span>{watchedLabel}</span>
+          </label>
+          {episode.watched && watchedDate !== null && (
+            <span className="episode-status__date" data-testid="episode-watched-date">
+              Watched {watchedDate}
+            </span>
+          )}
+        </div>
+
+        <div className="show-hero__rating">
+          <span className="rating__lead">Your rating</span>
+          <RatingControl
+            ids={episode.ids}
+            label={episode.title ?? "This episode"}
+            controller={rate}
+            testId="episode-rating"
+          />
+        </div>
+      </div>
+    </article>
+  );
 }
 
 function NavLink({
@@ -44,17 +187,15 @@ function NavLink({
   target: EpisodeNav | null;
   direction: "prev" | "next";
 }): ReactElement {
-  const label = direction === "prev" ? "Previous episode" : "Next episode";
+  const dir = direction === "prev" ? "‹ Previous" : "Next ›";
+  const cls = `episode-nav__link episode-nav__link--${direction}`;
   if (target === null) {
     return (
-      <span
-        className="episode-nav__link episode-nav__link--disabled"
-        data-testid={`episode-${direction}`}
-        aria-disabled="true"
-      >
-        {direction === "prev" ? "← " : ""}
-        {label}
-        {direction === "next" ? " →" : ""}
+      <span className={`${cls} episode-nav__link--disabled`} data-testid={`episode-${direction}`}>
+        <span className="episode-nav__dir">{dir}</span>
+        <span className="episode-nav__code">
+          No {direction === "prev" ? "earlier" : "later"} episode
+        </span>
       </span>
     );
   }
@@ -66,23 +207,26 @@ function NavLink({
         season: String(target.season),
         episode: String(target.number),
       }}
-      className="episode-nav__link"
+      className={cls}
       data-testid={`episode-${direction}`}
-      aria-label={`${label}: ${code(target.season, target.number)}`}
+      aria-label={`${direction === "prev" ? "Previous" : "Next"} episode: ${episodeCode(target.season, target.number)}`}
     >
-      {direction === "prev" ? "← " : ""}
-      {code(target.season, target.number)}
-      {direction === "next" ? " →" : ""}
+      <span className="episode-nav__dir">{dir}</span>
+      <span className="episode-nav__code">{episodeCode(target.season, target.number)}</span>
     </Link>
   );
 }
 
 /**
- * Episode detail: the still (via the image resolver, text fallback),
- * SxEy + title + air date + runtime + overview, a watched toggle that surfaces the
- * watched date, a 1–10 rating, and prev/next navigation within the show. Every
- * state is designed — skeleton, hard-error retry, the "details not available yet"
- * partial (the toggle still works), and success.
+ * Episode detail in the screening-room language: the same
+ * media-hero composition as the Show page — a cinematic still cropped into a
+ * fixed-height backdrop band, the show poster inset (poster-first, links back to
+ * the show), broadcast metadata, the editorial title and overview, then one
+ * grouped control surface carrying the watched toggle (with its logged date and
+ * all-plays unwatch semantics, optimistic writes) and the compact RatingControl.
+ * Enlarged prev/next paddles sit directly beneath. Every state is designed —
+ * skeleton, hard-error retry, and the "details not available yet" partial (the
+ * toggle still works).
  */
 export function EpisodeDetail({
   showId,
@@ -94,6 +238,7 @@ export function EpisodeDetail({
   number: number;
 }): ReactElement {
   const view = useEpisode(showId, season, number);
+  const show = useShowDetail(showId);
   const watchedToggle = useToggleEpisodeWatched();
   const rate = useRate("episodes");
   const episode = view.episode;
@@ -101,11 +246,7 @@ export function EpisodeDetail({
   if (view.isLoading) {
     return (
       <section className="screen screen--detail" data-testid="screen-episode-detail">
-        <div className="episode-detail episode-detail--skeleton" data-testid="episode-skeleton">
-          <div className="still still--skeleton" />
-          <div className="skeleton-line skeleton-line--title" />
-          <div className="skeleton-line skeleton-line--sub" />
-        </div>
+        <DetailHeroSkeleton testId="episode-skeleton" />
       </section>
     );
   }
@@ -129,8 +270,7 @@ export function EpisodeDetail({
     );
   }
 
-  const air = formatDate(episode.firstAired);
-  const watchedDate = formatDate(episode.watchedAt);
+  const backLabel = show.header?.title ?? "Show";
 
   return (
     <section className="screen screen--detail" data-testid="screen-episode-detail">
@@ -140,70 +280,15 @@ export function EpisodeDetail({
         className="detail-back"
         data-testid="episode-back"
       >
-        ← Show
+        ‹ {backLabel}
       </Link>
 
-      <article className="episode-detail">
-        <Still episode={episode} />
-        <div className="episode-detail__body">
-          <p className="episode-detail__code" data-testid="episode-detail-code">
-            {code(episode.season, episode.number)}
-          </p>
-          <h1 className="episode-detail__title" data-testid="episode-detail-title">
-            {episode.title ?? "Untitled episode"}
-          </h1>
-          <p className="episode-detail__meta">
-            {air !== null && <span data-testid="episode-air-date">Aired {air}</span>}
-            {episode.runtime !== null && (
-              <span data-testid="episode-runtime">{episode.runtime} min</span>
-            )}
-          </p>
-
-          {episode.overview !== null ? (
-            <p className="episode-detail__overview" data-testid="episode-detail-overview">
-              {episode.overview}
-            </p>
-          ) : (
-            <p
-              className="episode-detail__overview episode-detail__overview--empty"
-              data-testid="episode-detail-empty"
-            >
-              Details not available yet.
-            </p>
-          )}
-
-          <div className="episode-detail__watched">
-            <label className="episode-detail__toggle">
-              <input
-                type="checkbox"
-                checked={episode.watched}
-                disabled={!episode.aired}
-                onChange={() => void watchedToggle.toggle(episode)}
-                data-testid="episode-watched-toggle"
-                aria-label={`Mark ${code(episode.season, episode.number)} watched`}
-              />
-              <span>
-                {episode.watched ? "Watched" : episode.aired ? "Mark watched" : "Not aired yet"}
-              </span>
-            </label>
-            {episode.watched && watchedDate !== null && (
-              <span className="episode-detail__watched-date" data-testid="episode-watched-date">
-                Watched {watchedDate}
-              </span>
-            )}
-          </div>
-
-          <div className="episode-detail__rating">
-            <h2 className="episode-detail__section-title">Your rating</h2>
-            <RatingControl
-              ids={episode.ids}
-              label={episode.title ?? "This episode"}
-              controller={rate}
-              testId="episode-rating"
-            />
-          </div>
-        </div>
-      </article>
+      <EpisodeHero
+        episode={episode}
+        showHeader={show.header}
+        watchedToggle={watchedToggle}
+        rate={rate}
+      />
 
       <nav className="episode-nav" aria-label="Episode navigation">
         <NavLink showId={showId} target={episode.prev} direction="prev" />
