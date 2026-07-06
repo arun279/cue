@@ -1,7 +1,7 @@
 import { resolvePoster, type TmdbImageConfig } from "@data/image-source";
 import { type ReactElement, useState } from "react";
 
-type PosterVariant = "row" | "queue" | "hero";
+type PosterVariant = "row" | "queue" | "hero" | "tile";
 
 interface PosterProps {
   readonly title: string;

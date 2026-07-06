@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { type UpNextData, useRuntime } from "@ui/runtime/runtime";
 import { useMemo } from "react";
 
-export interface LibraryBucketView {
+interface LibraryBucketView {
   readonly status: WatchStatus;
   readonly entries: readonly LibraryEntry[];
 }

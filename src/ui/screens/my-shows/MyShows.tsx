@@ -1,13 +1,11 @@
-import type { LibraryEntry } from "@data/trakt/library";
 import type { LibrarySort } from "@domain/library-buckets";
 import type { WatchStatus } from "@domain/watch-status";
 import { CachedRetryBanner } from "@ui/components/CachedRetryBanner";
 import { SyncStatusPill } from "@ui/components/SyncStatusPill";
-import { VirtualList } from "@ui/components/VirtualList";
-import { type LibraryBucketView, useLibraryBuckets } from "@ui/hooks/useLibraryBuckets";
+import { useLibraryBuckets } from "@ui/hooks/useLibraryBuckets";
 import { ToggleGroup } from "radix-ui";
-import { type ReactElement, type ReactNode, useMemo, useState } from "react";
-import { ShowRow } from "./ShowRow";
+import { type ReactElement, type ReactNode, useState } from "react";
+import { PosterGrid } from "./PosterGrid";
 
 const STATUS_LABEL: Record<WatchStatus, string> = {
   watching: "Watching",
@@ -27,53 +25,47 @@ const SORT_LABEL: Record<LibrarySort, string> = {
 
 const SORTS: readonly LibrarySort[] = ["recently-watched", "alphabetical", "progress"];
 
-type LibraryRow =
-  | { readonly kind: "header"; readonly status: WatchStatus; readonly count: number }
-  | { readonly kind: "show"; readonly entry: LibraryEntry };
-
-function flatten(buckets: readonly LibraryBucketView[]): LibraryRow[] {
-  const rows: LibraryRow[] = [];
-  for (const bucket of buckets) {
-    rows.push({ kind: "header", status: bucket.status, count: bucket.entries.length });
-    for (const entry of bucket.entries) rows.push({ kind: "show", entry });
-  }
-  return rows;
-}
-
-const SKELETON_ROWS = [0, 1, 2, 3, 4, 5];
+const SKELETON_SHELVES = [0, 1];
+const SKELETON_TILES = [0, 1, 2, 3, 4, 5, 6, 7];
 
 function Skeleton(): ReactElement {
   return (
-    <div
-      className="library-list library-list--skeleton"
-      aria-hidden="true"
-      data-testid="my-shows-skeleton"
-    >
-      {SKELETON_ROWS.map((row) => (
-        <div key={row} className="library-card library-card--skeleton">
-          <div className="poster poster--skeleton" />
-          <div className="library-card__body">
-            <div className="skeleton-line skeleton-line--title" />
-            <div className="skeleton-line skeleton-line--sub" />
+    <div className="library" aria-hidden="true" data-testid="my-shows-skeleton">
+      {SKELETON_SHELVES.map((shelf) => (
+        <section key={shelf} className="library-section">
+          <div className="library-heading library-heading--skeleton">
+            <span className="skeleton-line skeleton-line--heading" />
           </div>
-        </div>
+          <div className="poster-grid poster-grid--static">
+            {SKELETON_TILES.map((tile) => (
+              <div key={tile} className="poster-grid__cell">
+                <div className="poster-card poster-card--skeleton">
+                  <div className="poster poster--tile poster--skeleton" />
+                  <div className="poster-card__meta">
+                    <div className="skeleton-line skeleton-line--title" />
+                    <div className="skeleton-line skeleton-line--sub" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
       ))}
     </div>
   );
 }
 
 /**
- * My Shows — the whole library grouped into aired-based status buckets,
- * virtualized so a large library stays smooth (few DOM rows). A Shows⇄Movies
- * segmented toggle switches library type (Movies), and a sort control
- * reorders within every bucket. Every state is designed: skeleton, hard error,
- * cached-error banner, whole-library empty, per-type empty.
+ * My Shows — the whole library as a poster-forward shelf wall. Each
+ * aired-based status bucket becomes a horizontal, virtualized shelf of 2:3
+ * poster tiles, so a large library scrolls smoothly and every tile routes to the
+ * Show page. A Shows⇄Movies segmented toggle switches library type (Movies), and a sort control reorders within every bucket. Every state is
+ * designed: skeleton, hard error, cached-error banner, whole-library empty.
  */
 export function MyShows(): ReactElement {
   const [sort, setSort] = useState<LibrarySort>("recently-watched");
   const [libraryType, setLibraryType] = useState<"shows" | "movies">("shows");
   const view = useLibraryBuckets(sort);
-  const rows = useMemo(() => flatten(view.buckets), [view.buckets]);
 
   let body: ReactNode;
   if (libraryType === "movies") {
@@ -113,27 +105,26 @@ export function MyShows(): ReactElement {
     );
   } else {
     body = (
-      <VirtualList
-        items={rows}
-        estimateSize={84}
-        label="Library grouped by status"
-        className="library-list"
-        renderItem={(row) =>
-          row.kind === "header" ? (
-            <h2 className="library-heading" data-testid="bucket-heading" data-status={row.status}>
-              {STATUS_LABEL[row.status]}
-              <span className="library-heading__count">{row.count}</span>
+      <div className="library">
+        {view.buckets.map((bucket) => (
+          <section key={bucket.status} className="library-section">
+            <h2
+              className="library-heading"
+              data-testid="bucket-heading"
+              data-status={bucket.status}
+            >
+              {STATUS_LABEL[bucket.status]}
+              <span className="library-heading__count">{bucket.entries.length}</span>
             </h2>
-          ) : (
-            <ShowRow entry={row.entry} tmdbConfig={view.tmdbConfig} />
-          )
-        }
-      />
+            <PosterGrid entries={bucket.entries} tmdbConfig={view.tmdbConfig} />
+          </section>
+        ))}
+      </div>
     );
   }
 
   return (
-    <section className="screen screen--full" data-testid="screen-my-shows">
+    <section className="screen screen--library" data-testid="screen-my-shows">
       <header className="screen__head">
         <h1 className="screen__title">My Shows</h1>
         <SyncStatusPill
