@@ -1,7 +1,7 @@
 import { queryKeys } from "@data/query-keys";
 import type { LibraryEntry } from "@data/trakt/library";
 import { groupLibrary, type LibrarySort } from "@domain/library-buckets";
-import type { WatchStatus } from "@domain/watch-status";
+import { DEFAULT_STALENESS_THRESHOLD_MS, type WatchStatus } from "@domain/watch-status";
 import { useQuery } from "@tanstack/react-query";
 import { type UpNextData, useRuntime } from "@ui/runtime/runtime";
 import { useMemo } from "react";
@@ -40,7 +40,7 @@ export function useLibraryBuckets(sort: LibrarySort): LibraryBucketsView {
     if (data === undefined) return [];
     const byId = new Map(data.entries.map((entry) => [entry.showId, entry]));
     const now = Date.now();
-    return groupLibrary(data.entries, now, sort).map((bucket) => ({
+    return groupLibrary(data.entries, now, DEFAULT_STALENESS_THRESHOLD_MS, sort).map((bucket) => ({
       status: bucket.status,
       entries: bucket.shows.flatMap((show) => {
         const entry = byId.get(show.showId);

@@ -35,6 +35,10 @@ export function makeShow(overrides: Partial<LibraryShow> = {}): LibraryShow {
   };
 }
 
+export const THRESHOLD = 21 * DAY;
+export const airedNext = makeEpisode({ firstAired: iso(NOW - DAY) });
+export const futureNext = makeEpisode({ firstAired: iso(NOW + DAY) });
+
 export function dispatchResult(
   status: number,
   headers: Record<string, string> = {},

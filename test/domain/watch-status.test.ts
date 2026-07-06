@@ -1,50 +1,29 @@
 import { computeWatchStatus, type WatchStatus } from "@domain/watch-status";
 import { describe, expect, it } from "vitest";
-import { DAY, iso, makeEpisode, makeShow, NOW } from "./_helpers";
+import { airedNext, DAY, futureNext, iso, makeShow, NOW, THRESHOLD } from "./_helpers";
 
-const airedNext = makeEpisode({ firstAired: iso(NOW - DAY) });
-const futureNext = makeEpisode({ firstAired: iso(NOW + DAY) });
-
-describe("computeWatchStatus (aired-based)", () => {
+describe("computeWatchStatus", () => {
   const cases: Array<{
     name: string;
     show: Parameters<typeof computeWatchStatus>[0];
     expect: WatchStatus;
   }> = [
     {
-      name: "hidden overrides everything → stopped",
-      show: makeShow({ hidden: true, completed: 3, aired: 10, status: "ended" }),
-      expect: "stopped",
-    },
-    {
-      name: "completed 0, not watchlisted → not-started",
-      show: makeShow({ completed: 0, inWatchlist: false }),
-      expect: "not-started",
-    },
-    {
-      name: "completed 0, watchlisted → to-watch",
-      show: makeShow({ completed: 0, inWatchlist: true }),
-      expect: "to-watch",
-    },
-    {
-      name: "aired backlog remaining → watching",
-      show: makeShow({ completed: 5, aired: 10 }),
-      expect: "watching",
-    },
-    {
-      name: "caught up, returning, future episode announced → coming-soon",
+      name: "hidden overrides everything → abandoned",
       show: makeShow({
-        completed: 10,
+        hidden: true,
+        completed: 0,
         aired: 10,
-        status: "returning series",
-        nextEpisode: futureNext,
+        status: "ended",
+        nextEpisode: airedNext,
+        lastWatchedAt: iso(NOW - DAY),
       }),
-      expect: "coming-soon",
+      expect: "abandoned",
     },
     {
-      name: "caught up, returning, nothing announced → up-to-date",
-      show: makeShow({ completed: 10, aired: 10, status: "returning series", nextEpisode: null }),
-      expect: "up-to-date",
+      name: "completed 0 → not-started",
+      show: makeShow({ completed: 0, inWatchlist: true, nextEpisode: airedNext }),
+      expect: "not-started",
     },
     {
       name: "caught up, ended → ended",
@@ -52,40 +31,85 @@ describe("computeWatchStatus (aired-based)", () => {
       expect: "ended",
     },
     {
-      name: "caught up, canceled → ended (terminal)",
-      show: makeShow({ completed: 10, aired: 10, status: "canceled", nextEpisode: null }),
+      name: "caught up, canceled → ended",
+      show: makeShow({ completed: 10, aired: 10, status: "canceled", nextEpisode: futureNext }),
       expect: "ended",
     },
     {
-      name: "caught up, cancelled (British spelling) → ended (terminal)",
-      show: makeShow({ completed: 10, aired: 10, status: "cancelled", nextEpisode: futureNext }),
+      name: "caught up, cancelled → ended",
+      show: makeShow({ completed: 10, aired: 10, status: "cancelled", nextEpisode: airedNext }),
       expect: "ended",
     },
     {
-      name: "ended status wins over an announced future episode",
-      show: makeShow({ completed: 10, aired: 10, status: "ended", nextEpisode: futureNext }),
+      name: "terminal casing is normalized",
+      show: makeShow({ completed: 10, aired: 10, status: "Ended", nextEpisode: null }),
       expect: "ended",
     },
     {
-      name: "caught up but next episode already aired (no future) → up-to-date",
+      name: "caught up, returning, nothing announced → caught-up",
+      show: makeShow({ completed: 10, aired: 10, status: "returning series", nextEpisode: null }),
+      expect: "caught-up",
+    },
+    {
+      name: "caught up, returning, future-only next → caught-up",
       show: makeShow({
         completed: 10,
         aired: 10,
         status: "returning series",
-        nextEpisode: airedNext,
+        nextEpisode: futureNext,
       }),
-      expect: "up-to-date",
+      expect: "caught-up",
     },
     {
-      name: "status casing is normalized",
-      show: makeShow({ completed: 10, aired: 10, status: "Ended", nextEpisode: null }),
-      expect: "ended",
+      name: "fresh with aired next → watching",
+      show: makeShow({
+        completed: 10,
+        aired: 10,
+        nextEpisode: airedNext,
+        lastWatchedAt: iso(NOW - THRESHOLD),
+      }),
+      expect: "watching",
+    },
+    {
+      name: "stale with aired next → lapsed",
+      show: makeShow({
+        completed: 10,
+        aired: 10,
+        nextEpisode: airedNext,
+        lastWatchedAt: iso(NOW - THRESHOLD - 1),
+      }),
+      expect: "lapsed",
+    },
+    {
+      name: "null lastWatchedAt with aired next → lapsed",
+      show: makeShow({ completed: 10, aired: 10, nextEpisode: airedNext, lastWatchedAt: null }),
+      expect: "lapsed",
+    },
+    {
+      name: "fresh backlog with aired next → watching",
+      show: makeShow({
+        completed: 5,
+        aired: 10,
+        nextEpisode: airedNext,
+        lastWatchedAt: iso(NOW - DAY),
+      }),
+      expect: "watching",
+    },
+    {
+      name: "stale backlog with aired next → lapsed",
+      show: makeShow({
+        completed: 5,
+        aired: 10,
+        nextEpisode: airedNext,
+        lastWatchedAt: iso(NOW - THRESHOLD - 1),
+      }),
+      expect: "lapsed",
     },
   ];
 
   for (const c of cases) {
     it(c.name, () => {
-      expect(computeWatchStatus(c.show, NOW)).toBe(c.expect);
+      expect(computeWatchStatus(c.show, NOW, THRESHOLD)).toBe(c.expect);
     });
   }
 });

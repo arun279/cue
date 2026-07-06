@@ -1,6 +1,7 @@
 import { queryKeys } from "@data/query-keys";
 import type { LibraryEntry } from "@data/trakt/library";
 import { selectUpNext, type UpNextItem, type UpNextSort } from "@domain/up-next";
+import { DEFAULT_STALENESS_THRESHOLD_MS } from "@domain/watch-status";
 import { useQuery } from "@tanstack/react-query";
 import { type UpNextData, useRuntime } from "@ui/runtime/runtime";
 import { useMemo } from "react";
@@ -43,7 +44,7 @@ export function useUpNext(sort: UpNextSort = "recently-watched"): UpNextView {
     const byId = new Map(data.entries.map((entry) => [entry.showId, entry]));
     const now = Date.now();
     const out: UpNextCard[] = [];
-    for (const item of selectUpNext(data.entries, now, sort)) {
+    for (const item of selectUpNext(data.entries, now, DEFAULT_STALENESS_THRESHOLD_MS, sort)) {
       const entry = byId.get(item.showId);
       if (entry !== undefined) out.push({ item, entry });
     }

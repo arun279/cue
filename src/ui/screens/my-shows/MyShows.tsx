@@ -14,12 +14,11 @@ import { PosterGrid } from "./PosterGrid";
 
 const STATUS_LABEL: Record<WatchStatus, string> = {
   watching: "Watching",
-  "coming-soon": "Coming soon",
-  "up-to-date": "Up to date",
-  ended: "Ended",
-  "to-watch": "To watch",
+  lapsed: "Not watched in a while",
   "not-started": "Not started",
-  stopped: "Stopped",
+  "caught-up": "Caught up",
+  ended: "Ended",
+  abandoned: "Abandoned",
 };
 
 const SORT_LABEL: Record<LibrarySort, string> = {

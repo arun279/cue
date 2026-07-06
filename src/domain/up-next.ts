@@ -1,5 +1,6 @@
 import type { EpisodeRef, LibraryShow } from "./model/library";
-import { isAired, toMs } from "./time";
+import { toMs } from "./time";
+import { computeWatchStatus } from "./watch-status";
 
 export type UpNextSort = "recently-watched" | "air-date" | "alphabetical";
 
@@ -11,41 +12,30 @@ export interface UpNextItem {
   readonly backlog: number;
 }
 
-/**
- * The Up Next queue: every followed show's `nextEpisode`, filtered to
- * `firstAired <= now` (aired-only — future episodes are Coming soon, not here),
- * skipping caught-up shows (`nextEpisode === null`) and hidden shows, ordered by
- * the chosen strategy.
- */
 export function selectUpNext(
   shows: readonly LibraryShow[],
   now: number,
+  thresholdMs: number,
   sort: UpNextSort = "recently-watched",
 ): UpNextItem[] {
-  const items: UpNextItem[] = [];
-  for (const s of shows) {
-    if (s.hidden) continue;
-    const ep = s.nextEpisode;
-    if (ep === null || !isAired(ep.firstAired, now)) continue;
-    items.push({
-      showId: s.showId,
-      title: s.title,
-      episode: ep,
-      lastWatchedAt: s.lastWatchedAt,
-      backlog: Math.max(0, s.aired - s.completed),
+  const items = shows
+    .filter((s) => computeWatchStatus(s, now, thresholdMs) === "watching")
+    .flatMap((s): UpNextItem[] => {
+      const ep = s.nextEpisode;
+      // `watching` guarantees this is non-null and aired; this only narrows TS.
+      if (ep === null) return [];
+      return [
+        {
+          showId: s.showId,
+          title: s.title,
+          episode: ep,
+          lastWatchedAt: s.lastWatchedAt,
+          backlog: Math.max(0, s.aired - s.completed),
+        },
+      ];
     });
-  }
   items.sort(comparatorFor(sort));
   return items;
-}
-
-/** Global "to watch" count: aired-but-unwatched episodes across non-hidden shows. */
-export function countToWatch(shows: readonly LibraryShow[]): number {
-  let sum = 0;
-  for (const s of shows) {
-    if (!s.hidden) sum += Math.max(0, s.aired - s.completed);
-  }
-  return sum;
 }
 
 function comparatorFor(sort: UpNextSort): (a: UpNextItem, b: UpNextItem) => number {

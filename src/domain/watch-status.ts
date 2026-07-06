@@ -1,31 +1,33 @@
 import type { LibraryShow } from "./model/library";
-import { isAired } from "./time";
+import { isAired, toMs } from "./time";
 
-/**
- * Aired-based library buckets. `stopped` (a hidden show) overrides
- * everything; the two "caught up" buckets split on whether a future episode is
- * announced (`coming-soon`) or not (`up-to-date`); `to-watch` is a watchlisted
- * show not yet started.
- */
 export type WatchStatus =
-  | "stopped"
+  | "abandoned"
   | "not-started"
-  | "to-watch"
   | "watching"
-  | "up-to-date"
-  | "coming-soon"
+  | "lapsed"
+  | "caught-up"
   | "ended";
 
 const TERMINAL_STATUSES: ReadonlySet<string> = new Set(["ended", "canceled", "cancelled"]);
 
-export function computeWatchStatus(show: LibraryShow, now: number): WatchStatus {
-  if (show.hidden) return "stopped";
-  const { aired, completed } = show;
-  if (completed <= 0) return show.inWatchlist ? "to-watch" : "not-started";
-  if (completed < aired) return "watching";
-  // Caught up to what has aired (`completed >= aired`).
-  if (TERMINAL_STATUSES.has(show.status.toLowerCase())) return "ended";
-  const next = show.nextEpisode;
-  if (next !== null && !isAired(next.firstAired, now)) return "coming-soon";
-  return "up-to-date";
+/**
+ * 21 days = three stacked unwatched weekly episodes: the knee past
+ * single-skip tolerance, before backlog dread.
+ */
+export const DEFAULT_STALENESS_THRESHOLD_MS = 21 * 24 * 60 * 60 * 1000;
+
+export function computeWatchStatus(
+  show: LibraryShow,
+  now: number,
+  thresholdMs: number,
+): WatchStatus {
+  if (show.hidden) return "abandoned";
+  const { aired, completed, nextEpisode, status } = show;
+  if (completed <= 0) return "not-started";
+  if (TERMINAL_STATUSES.has(status.toLowerCase()) && completed >= aired) return "ended";
+  const hasAiredNext = nextEpisode !== null && isAired(nextEpisode.firstAired, now);
+  if (!hasAiredNext) return "caught-up";
+  const last = toMs(show.lastWatchedAt);
+  return last !== null && now - last <= thresholdMs ? "watching" : "lapsed";
 }
