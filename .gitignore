@@ -33,6 +33,9 @@ test-results/
 # Local design-review output (screenshots + notes). Never push.
 design-review/
 
+# Playwright MCP scratch output (console logs + snapshots) from local UI runs.
+.playwright-mcp/
+
 # Editor / OS
 .DS_Store
 *.swp

@@ -94,6 +94,8 @@ export const showDetailSchema = z.object({
   status: z.string().optional(),
   overview: z.string().nullish(),
   network: z.string().nullish(),
+  runtime: z.number().nullish(),
+  genres: z.array(z.string()).nullish(),
   first_aired: z.string().nullish(),
   ids: idsSchema,
   images: imagesSchema,

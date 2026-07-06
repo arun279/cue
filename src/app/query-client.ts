@@ -7,7 +7,7 @@ import { del, get, set } from "idb-keyval";
  * drops any cache whose `buster` differs. This — not an age cap — is how stale
  * snapshots are retired.
  */
-export const PERSIST_BUSTER = "cue-m3";
+export const PERSIST_BUSTER = "cue-m4";
 
 /**
  * `maxAge` governs how long a restored cache may be replayed, NOT freshness.

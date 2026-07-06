@@ -80,19 +80,20 @@ test("renders the aired-only queue: future next episodes and hidden shows exclud
   await installLibraryRoutes(page.context(), shows);
   await page.goto("/");
 
+  // Most-recently-watched (Alpha) leads as the spotlight hero; the rest queue below.
+  const hero = page.getByTestId("up-next-hero");
   const cards = page.getByTestId("up-next-card");
-  await expect(cards).toHaveCount(2);
+  await expect(hero).toHaveCount(1);
+  await expect(cards).toHaveCount(1);
   await expect(page.getByRole("heading", { name: "Alpha" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "NoImage" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Future" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Hidden Show" })).toHaveCount(0);
 
-  // Alpha has a Trakt inline poster; NoImage degrades to the text-only tile.
-  const alpha = cards.filter({ hasText: "Alpha" });
-  const noImage = cards.filter({ hasText: "NoImage" });
-  await expect(alpha.getByTestId("poster-image")).toBeVisible();
-  await expect(noImage.getByTestId("poster-text")).toBeVisible();
-  await expect(alpha.getByTestId("episode-code")).toHaveText("S01E02");
+  // Alpha (hero) has a Trakt inline poster; NoImage (queue) degrades to the text tile.
+  await expect(hero.getByTestId("poster-image")).toBeVisible();
+  await expect(cards.filter({ hasText: "NoImage" }).getByTestId("poster-text")).toBeVisible();
+  await expect(hero.getByTestId("episode-code")).toHaveText("S01E02");
 });
 
 test("shows the 'nothing tracked' empty state when the library is empty", async ({ page }) => {
@@ -124,13 +125,13 @@ test("Trakt read error over a warm cache shows the queue plus a retry affordance
 }) => {
   const controls = await installLibraryRoutes(page.context(), [soloShow()]);
   await page.goto("/");
-  await expect(page.getByTestId("up-next-card")).toHaveCount(1);
+  await expect(page.getByTestId("up-next-hero")).toHaveCount(1);
 
   // A later refetch fails, but the cached queue must remain with a retry banner.
   controls.setReadMode("abort");
   await page.getByTestId("mark-watched").click(); // triggers a revalidate that will fail
   await expect(page.getByTestId("cached-retry")).toBeVisible();
-  await expect(page.getByTestId("up-next-card")).toHaveCount(1);
+  await expect(page.getByTestId("up-next-hero")).toHaveCount(1);
 
   controls.setReadMode("ok");
   await page.getByTestId("cached-retry-button").click();
@@ -140,14 +141,14 @@ test("Trakt read error over a warm cache shows the queue plus a retry affordance
 test("one show's progress outage keeps the warm queue instead of erasing it", async ({ page }) => {
   const controls = await installLibraryRoutes(page.context(), [soloShow()]);
   await page.goto("/");
-  await expect(page.getByTestId("up-next-card")).toHaveCount(1);
+  await expect(page.getByTestId("up-next-hero")).toHaveCount(1);
 
   // A later revalidate hits a single-show progress failure; the cached queue must
   // survive with the retry banner, never silently collapse to "all caught up".
   controls.failProgressFor([1]);
   await page.getByTestId("mark-watched").click();
   await expect(page.getByTestId("cached-retry")).toBeVisible();
-  await expect(page.getByTestId("up-next-card")).toHaveCount(1);
+  await expect(page.getByTestId("up-next-hero")).toHaveCount(1);
   await expect(page.getByTestId("empty-all-caught-up")).toHaveCount(0);
 
   controls.failProgressFor([]);
@@ -185,7 +186,7 @@ test("mark-watched advances the card optimistically before the history write set
   controls.setWriteMode("delay"); // hold the POST open so the advance can't depend on it
   await page.goto("/");
 
-  const card = page.getByTestId("up-next-card");
+  const card = page.getByTestId("up-next-hero");
   await expect(card.getByTestId("episode-code")).toHaveText("S01E02");
 
   await card.getByTestId("mark-watched").click();
@@ -206,7 +207,7 @@ test("a 429 then success still lands the card advanced", async ({ page }) => {
   controls.setWriteMode("rate-limit-once");
   await page.goto("/");
 
-  const card = page.getByTestId("up-next-card");
+  const card = page.getByTestId("up-next-hero");
   await card.getByTestId("mark-watched").click();
   await expect(card.getByTestId("episode-code")).toHaveText("S01E03");
 
@@ -220,7 +221,7 @@ test("a network reject triggers a reconcile read, not a blind re-POST", async ({
   const controls = await installLibraryRoutes(page.context(), [soloShow()]);
   controls.setWriteMode("network-drop"); // reaches Trakt, response lost
   await page.goto("/");
-  const card = page.getByTestId("up-next-card");
+  const card = page.getByTestId("up-next-hero");
   const readsBefore = controls.progressReads();
 
   await card.getByTestId("mark-watched").click();
@@ -239,7 +240,7 @@ test("Undo issues the stored inverse /sync/history/remove and restores the card"
 }) => {
   const controls = await installLibraryRoutes(page.context(), [soloShow()]);
   await page.goto("/");
-  const card = page.getByTestId("up-next-card");
+  const card = page.getByTestId("up-next-hero");
 
   await card.getByTestId("mark-watched").click();
   await expect(card.getByTestId("episode-code")).toHaveText("S01E03");
@@ -259,7 +260,7 @@ test("the durable op-log survives a reload and replays with the frozen watched_a
   const controls = await installLibraryRoutes(page.context(), [soloShow()]);
   controls.setWriteMode("delay"); // keep the first POST in flight so the op stays durable
   await page.goto("/");
-  const card = page.getByTestId("up-next-card");
+  const card = page.getByTestId("up-next-hero");
   await card.getByTestId("mark-watched").click();
   await expect(card.getByTestId("episode-code")).toHaveText("S01E03");
 

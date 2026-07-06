@@ -4,6 +4,9 @@ import { SyncStatusPill } from "@ui/components/SyncStatusPill";
 import { useMarkWatched } from "@ui/hooks/useMarkWatched";
 import { useUpNext } from "@ui/hooks/useUpNext";
 import type { ReactElement } from "react";
+import emptyAllCaughtUp from "./assets/empty-all-caught-up.webp";
+import emptyNothingTracked from "./assets/empty-nothing-tracked.webp";
+import { HeroSpotlight } from "./HeroSpotlight";
 import { Snackbar } from "./Snackbar";
 import { UpNextCard } from "./UpNextCard";
 
@@ -11,15 +14,18 @@ const UNDO_MS = 6000;
 
 function EmptyState({
   testId,
+  art,
   title,
   body,
 }: {
   testId: string;
+  art: string;
   title: string;
   body: string;
 }): ReactElement {
   return (
     <div className="empty" data-testid={testId}>
+      <img className="empty__art" src={art} alt="" />
       <h2 className="empty__title">{title}</h2>
       <p className="empty__body">{body}</p>
     </div>
@@ -29,15 +35,16 @@ function EmptyState({
 /**
  * Up Next — the home screen and heart of Cue. Every state is
  * designed: skeleton while the first load runs, a hard-error retry when nothing
- * is cached, a cached-retry banner when a refetch fails over cached data, the
- * two distinct empty states ("nothing tracked" vs "all caught up"), and the
- * queue itself with the optimistic mark-watched action + Undo.
+ * is cached, a cached-retry banner when a refetch fails over cached data, the two
+ * distinct designed empty states ("nothing tracked" vs "all caught up"), then the
+ * cinematic spotlight for the top show plus the split-target queue below — each
+ * carrying the optimistic mark-watched action + Undo.
  */
 export function UpNext(): ReactElement {
   const view = useUpNext();
   const mark = useMarkWatched();
 
-  const showQueue = view.cards.length > 0;
+  const [hero, ...rest] = view.cards;
   const nothingTracked = view.hasData && view.trackedCount === 0;
 
   return (
@@ -49,6 +56,7 @@ export function UpNext(): ReactElement {
           isFetching={view.isFetching}
           isError={view.isError}
           count={view.cards.length}
+          syncedAt={view.syncedAt}
         />
       </header>
 
@@ -78,34 +86,52 @@ export function UpNext(): ReactElement {
         </div>
       )}
 
-      {!view.isLoading && view.hasData && !showQueue && nothingTracked && (
+      {!view.isLoading && view.hasData && hero === undefined && nothingTracked && (
         <EmptyState
           testId="empty-nothing-tracked"
+          art={emptyNothingTracked}
           title="Nothing tracked yet"
           body="Follow a show and mark an episode watched — its next episode will queue up here."
         />
       )}
 
-      {!view.isLoading && view.hasData && !showQueue && !nothingTracked && (
+      {!view.isLoading && view.hasData && hero === undefined && !nothingTracked && (
         <EmptyState
           testId="empty-all-caught-up"
+          art={emptyAllCaughtUp}
           title="You're all caught up"
           body="No aired episodes are waiting. New episodes will appear here as they air."
         />
       )}
 
-      {showQueue && (
-        <ul className="card-list" data-testid="up-next-list">
-          {view.cards.map((card) => (
-            <li key={card.entry.showId}>
-              <UpNextCard
-                card={card}
-                tmdbConfig={view.tmdbConfig}
-                onMark={() => void mark.markWatched(card.entry)}
-              />
-            </li>
-          ))}
-        </ul>
+      {hero !== undefined && (
+        <HeroSpotlight
+          card={hero}
+          tmdbConfig={view.tmdbConfig}
+          onMark={() => void mark.markWatched(hero.entry)}
+        />
+      )}
+
+      {rest.length > 0 && (
+        <>
+          <div className="queue-head">
+            <span className="label">In your queue</span>
+            <span className="label" style={{ color: "var(--color-muted)" }}>
+              Recently watched first
+            </span>
+          </div>
+          <ul className="card-list" data-testid="up-next-list">
+            {rest.map((card) => (
+              <li key={card.entry.showId}>
+                <UpNextCard
+                  card={card}
+                  tmdbConfig={view.tmdbConfig}
+                  onMark={() => void mark.markWatched(card.entry)}
+                />
+              </li>
+            ))}
+          </ul>
+        </>
       )}
 
       {mark.error !== null && (

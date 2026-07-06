@@ -908,6 +908,10 @@ function persistedEntry(index: number): unknown {
       ids: { trakt: 40000 + index },
     },
     posters: [],
+    backdrops: [],
+    network: null,
+    genres: [],
+    runtime: null,
     tmdbId: null,
     pendingAdvance: false,
   };
@@ -918,7 +922,7 @@ export function buildPersistedLibrary(count: number, ageMs: number): string {
   const updatedAt = Date.now() - ageMs;
   const entries = Array.from({ length: count }, (_, index) => persistedEntry(index));
   return JSON.stringify({
-    buster: "cue-m3",
+    buster: "cue-m4",
     timestamp: updatedAt,
     clientState: {
       mutations: [],

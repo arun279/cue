@@ -7,13 +7,13 @@ function readStoredTheme(): Theme | null {
   return value === "light" || value === "dark" ? value : null;
 }
 
-function systemTheme(): Theme {
-  return globalThis.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-}
-
-/** Stored choice wins; otherwise honor the OS `prefers-color-scheme`. */
+/**
+ * Cue opens in the dark screening room by design: dark is
+ * the default and the hero, the way you actually watch TV. A stored choice from
+ * the Settings ▸ Appearance toggle always wins, so user control is preserved.
+ */
 export function initialTheme(): Theme {
-  return readStoredTheme() ?? systemTheme();
+  return readStoredTheme() ?? "dark";
 }
 
 export function applyTheme(theme: Theme): void {

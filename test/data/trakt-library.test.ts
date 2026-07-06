@@ -84,6 +84,10 @@ const baseEntry: LibraryEntry = {
     ids: { trakt: 4004 },
   },
   posters: [],
+  backdrops: [],
+  network: null,
+  genres: [],
+  runtime: null,
   tmdbId: null,
   pendingAdvance: false,
 };
@@ -185,6 +189,50 @@ describe("assembleLibrary", () => {
       lastWatchedAt: null,
       posters: ["p.webp"],
       tmdbId: 77,
+    });
+  });
+
+  it("merges show-detail art (poster/backdrop/network/genres/runtime) over the inline list", () => {
+    const entries = assembleLibrary({
+      watchedShows: [watchedShow({ trakt: 5, title: "Detailed", posters: ["inline.webp"] })],
+      progress: new Map([[5, progress({})]]),
+      hiddenShowIds: new Set(),
+      watchlistShows: [],
+      details: new Map([
+        [
+          5,
+          {
+            posters: ["detail-poster.webp"],
+            backdrops: ["detail-fanart.webp"],
+            network: "AMC",
+            genres: ["drama", "crime"],
+            runtime: 47,
+          },
+        ],
+      ]),
+    });
+    expect(entries[0]).toMatchObject({
+      posters: ["detail-poster.webp"],
+      backdrops: ["detail-fanart.webp"],
+      network: "AMC",
+      genres: ["drama", "crime"],
+      runtime: 47,
+    });
+  });
+
+  it("falls back to the inline poster and empty metadata when no detail art is provided", () => {
+    const entries = assembleLibrary({
+      watchedShows: [watchedShow({ trakt: 6, posters: ["inline.webp"] })],
+      progress: new Map([[6, progress({})]]),
+      hiddenShowIds: new Set(),
+      watchlistShows: [],
+    });
+    expect(entries[0]).toMatchObject({
+      posters: ["inline.webp"],
+      backdrops: [],
+      network: null,
+      genres: [],
+      runtime: null,
     });
   });
 

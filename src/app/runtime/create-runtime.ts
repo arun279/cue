@@ -15,7 +15,7 @@ import {
   searchTrakt,
 } from "@data/trakt/endpoints";
 import { assembleEpisodeDetail } from "@data/trakt/episode-detail";
-import { assembleLibrary, markLanded, showIdSet } from "@data/trakt/library";
+import { assembleLibrary, markLanded, type ShowArt, showIdSet } from "@data/trakt/library";
 import type { Progress } from "@data/trakt/schemas";
 import { assembleSearchHits } from "@data/trakt/search";
 import { assembleHeader, assembleSeasons } from "@data/trakt/show-detail";
@@ -121,17 +121,36 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       const watched = await getWatchedShows(client);
       if (!watched.ok) throw new Error("Failed to load watched shows");
 
-      // A single progress read that fails must fail the whole read, not silently
-      // drop that show: React Query then keeps the prior cached queue and surfaces
-      // the retry banner, instead of erasing a known show as "all caught up".
-      const progressPairs = await Promise.all(
-        watched.data.map(async (show): Promise<readonly [number, Progress]> => {
-          const result = await getShowProgress(client, show.show.ids.trakt);
-          if (!result.ok) throw new Error("Failed to load show progress");
-          return [show.show.ids.trakt, result.data] as const;
+      // Per show: strict progress (a failure must fail the whole read so React
+      // Query keeps the prior cached queue + retry banner instead of erasing a
+      // known show as "all caught up") plus best-effort show-detail art — the
+      // `/sync/watched/shows` list carries no `images`, so the real poster,
+      // backdrop, network and genres come from `/shows/:id`. Art that can't load
+      // simply degrades to the text fallback; it never fails the queue.
+      const perShow = await Promise.all(
+        watched.data.map(async (show) => {
+          const id = show.show.ids.trakt;
+          const [progress, detail] = await Promise.all([
+            getShowProgress(client, id),
+            getShow(client, id),
+          ]);
+          if (!progress.ok) throw new Error("Failed to load show progress");
+          return { id, progress: progress.data, detail: detail.ok ? detail.data : null };
         }),
       );
-      const progress = new Map<number, Progress>(progressPairs);
+
+      const progress = new Map<number, Progress>(perShow.map((s) => [s.id, s.progress]));
+      const details = new Map<number, ShowArt>();
+      for (const s of perShow) {
+        if (s.detail === null) continue;
+        details.set(s.id, {
+          posters: s.detail.images?.poster ?? [],
+          backdrops: s.detail.images?.fanart ?? [],
+          network: s.detail.network ?? null,
+          genres: s.detail.genres ?? [],
+          runtime: s.detail.runtime ?? null,
+        });
+      }
 
       const [hidden, watchlist] = await Promise.all([
         getHidden(client),
@@ -145,6 +164,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
         progress,
         hiddenShowIds: showIdSet(hidden.data),
         watchlistShows: watchlist.data,
+        details,
       });
       return { entries, tmdbConfig };
     },

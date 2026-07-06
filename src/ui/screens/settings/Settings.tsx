@@ -1,10 +1,11 @@
 import { useAuth } from "@ui/auth/store";
+import { ThemeToggle } from "@ui/theme/ThemeToggle";
 import { type ReactElement, useState } from "react";
 
 /**
- * Settings → Connections: the connected token's status plus a
- * Disconnect that revokes on Trakt and clears the store, returning to
- * onboarding. Preferences/Data/About sections arrive later.
+ * Settings → Preferences + Connections: the appearance toggle
+ * (relocated here off the header/sidebar), the connected token's status, and a
+ * Disconnect that revokes on Trakt and clears the store, returning to onboarding.
  */
 export function Settings(): ReactElement {
   const tmdbConfigured = useAuth((s) => s.tmdbConfigured);
@@ -15,6 +16,16 @@ export function Settings(): ReactElement {
   return (
     <section className="screen" data-testid="screen-settings">
       <h1 className="screen__title">Settings</h1>
+
+      <h2 className="settings__heading">Appearance</h2>
+      <dl className="settings__list">
+        <div className="settings__row">
+          <dt>Theme</dt>
+          <dd>
+            <ThemeToggle />
+          </dd>
+        </div>
+      </dl>
 
       <h2 className="settings__heading">Connections</h2>
       <dl className="settings__list">

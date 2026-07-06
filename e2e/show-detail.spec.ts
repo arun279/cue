@@ -231,7 +231,8 @@ test("Hide drops the show from Up Next and moves it to the Stopped bucket", asyn
   const controls = await installLibraryRoutes(page.context(), [detailShow()]);
 
   await page.goto("/");
-  await expect(page.getByTestId("up-next-card").filter({ hasText: "The Detail Show" })).toHaveCount(
+  // The lone tracked show leads Up Next as the spotlight hero.
+  await expect(page.getByTestId("up-next-hero").filter({ hasText: "The Detail Show" })).toHaveCount(
     1,
   );
 
@@ -241,8 +242,9 @@ test("Hide drops the show from Up Next and moves it to the Stopped bucket", asyn
   await expect.poll(() => controls.hiddenPosts().length).toBe(1);
   expect(controls.hiddenPosts()[0]?.showIds).toContain(1);
 
-  // Gone from the aired-only Up Next queue (client-side hidden exclusion).
+  // Gone from the aired-only Up Next queue (client-side hidden exclusion): no hero, no rows.
   await page.goto("/");
+  await expect(page.getByTestId("up-next-hero")).toHaveCount(0);
   await expect(page.getByTestId("up-next-card")).toHaveCount(0);
 
   // Present only under Stopped in My Shows.

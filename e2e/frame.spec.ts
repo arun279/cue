@@ -59,16 +59,18 @@ test("catches a thrown render error in the boundary instead of blanking", async 
   await expect(page.getByRole("alert")).toContainText("Something went wrong");
 });
 
-test("theme honors prefers-color-scheme and persists the toggle choice", async ({ page }) => {
-  await page.emulateMedia({ colorScheme: "dark" });
-  await page.goto("/");
+test("defaults to the dark screening room and persists the toggle choice", async ({ page }) => {
+  // Dark is Cue's unconditional default — even a light OS preference lands dark.
+  await page.emulateMedia({ colorScheme: "light" });
+  // The theme toggle now lives in Settings ▸ Appearance, not the header/sidebar.
+  await page.goto("/settings");
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
 
-  await page.locator('[data-testid="theme-toggle"]:visible').click();
+  await page.getByTestId("theme-toggle").click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
 
   await page.reload();
-  // The stored choice wins over the dark system preference after reload.
+  // The stored choice wins over the dark default after reload.
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
 });
 

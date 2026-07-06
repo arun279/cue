@@ -16,16 +16,21 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       injectRegister: null,
+      includeAssets: ["icon.svg"],
       manifest: {
         name: "Cue",
         short_name: "Cue",
         description: "Your Up Next queue.",
-        theme_color: "#0b0b0f",
-        background_color: "#0b0b0f",
+        theme_color: "#0e0c0a",
+        background_color: "#0e0c0a",
         display: "standalone",
         start_url: "/",
+        icons: [
+          { src: "/icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
+          { src: "/icon.svg", sizes: "any", type: "image/svg+xml", purpose: "maskable" },
+        ],
       },
-      workbox: { globPatterns: ["**/*.{js,css,html}"] },
+      workbox: { globPatterns: ["**/*.{js,css,html,svg}"] },
     }),
   ],
   resolve: {

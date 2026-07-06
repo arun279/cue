@@ -2,6 +2,12 @@ import { checkTraktCredentials } from "@data/auth/format";
 import { TmdbClient } from "@data/tmdb/client";
 import { useAuth } from "@ui/auth/store";
 import { type FormEvent, type ReactElement, useState } from "react";
+import heroLogin from "./assets/hero-login.webp";
+
+/** Screening-room login backdrop: the hero art under a dark scrim so the card + fields read. */
+const LOGIN_BACKDROP = {
+  background: `linear-gradient(180deg, rgb(14 12 10 / 0.74), rgb(14 12 10 / 0.94)), url(${heroLogin}) center / cover no-repeat`,
+} as const;
 
 type FieldErrors = Partial<Record<"clientId" | "clientSecret" | "tmdbKey", string>>;
 
@@ -103,7 +109,7 @@ export function Onboarding(): ReactElement {
   }
 
   return (
-    <main className="onboarding" data-testid="screen-onboarding">
+    <main className="onboarding" data-testid="screen-onboarding" style={LOGIN_BACKDROP}>
       <form
         className="onboarding__card"
         aria-labelledby="onboarding-heading"

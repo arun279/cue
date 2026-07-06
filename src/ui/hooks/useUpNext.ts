@@ -20,6 +20,8 @@ export interface UpNextView {
   readonly isError: boolean;
   /** Cached data is showing despite a failed refetch — the cached-retry affordance state. */
   readonly hasData: boolean;
+  /** Epoch ms of the last successful library sync (drives the pill's recency). */
+  readonly syncedAt: number;
   refetch(): void;
 }
 
@@ -61,6 +63,7 @@ export function useUpNext(sort: UpNextSort = "recently-watched"): UpNextView {
     isFetching: query.isFetching,
     isError: query.isError,
     hasData: data !== undefined,
+    syncedAt: query.dataUpdatedAt,
     refetch: () => void query.refetch(),
   };
 }

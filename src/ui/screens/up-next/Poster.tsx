@@ -1,10 +1,13 @@
 import { resolvePoster, type TmdbImageConfig } from "@data/image-source";
 import { type ReactElement, useState } from "react";
 
+type PosterVariant = "row" | "queue" | "hero";
+
 interface PosterProps {
   readonly title: string;
   readonly posters?: readonly string[] | null;
   readonly tmdbConfig: TmdbImageConfig | null;
+  readonly variant?: PosterVariant;
 }
 
 function initials(title: string): string {
@@ -17,22 +20,35 @@ function initials(title: string): string {
 }
 
 /**
- * Poster tile via the image resolver (Trakt inline → TMDB → text-only). A
- * URL that fails to load degrades to the same initials tile with a retry chip,
- * so a broken image never leaves a torn card.
+ * A stable, warm dark gradient derived from the title so the art-missing tile is
+ * never the flat grey monogram that read as "unstyled template". Ivory
+ * initials with a soft shadow keep legibility over any hue.
  */
-export function Poster({ title, posters, tmdbConfig }: PosterProps): ReactElement {
+function gradientFor(title: string): string {
+  let hash = 0;
+  for (let i = 0; i < title.length; i += 1) hash = (hash * 31 + title.charCodeAt(i)) >>> 0;
+  const hue = hash % 360;
+  return `linear-gradient(150deg, hsl(${hue} 42% 22%), hsl(${(hue + 40) % 360} 38% 13%))`;
+}
+
+/**
+ * Poster tile via the image resolver (Trakt inline → TMDB → gradient
+ * fallback). A URL that fails to load degrades to the same gradient-initials tile
+ * with a retry chip, so a broken image never leaves a torn card. The `variant` sizes the tile for its context (queue row, hero
+ * inset, list row); progress rails are drawn by the consumer wrapper.
+ */
+export function Poster({ title, posters, tmdbConfig, variant = "row" }: PosterProps): ReactElement {
   const [broken, setBroken] = useState(false);
   const [attempt, setAttempt] = useState(0);
-  const resolved = resolvePoster({
-    title,
-    traktPosters: posters,
-    tmdbConfig,
-  });
+  const resolved = resolvePoster({ title, traktPosters: posters, tmdbConfig });
 
   if (resolved.source === "placeholder" || broken) {
     return (
-      <div className="poster poster--text" data-testid="poster-text">
+      <div
+        className={`poster poster--text poster--${variant}`}
+        data-testid="poster-text"
+        style={{ background: gradientFor(title) }}
+      >
         <span className="poster__initials" aria-hidden="true">
           {initials(title)}
         </span>
@@ -57,7 +73,7 @@ export function Poster({ title, posters, tmdbConfig }: PosterProps): ReactElemen
   return (
     <img
       key={attempt}
-      className="poster"
+      className={`poster poster--${variant}`}
       src={resolved.url}
       alt=""
       loading="lazy"
