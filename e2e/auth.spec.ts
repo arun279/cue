@@ -1,7 +1,10 @@
 import { createHash } from "node:crypto";
-import { expect, type Page, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { installHermeticRoutes, installOAuthRoutes, readStored, seedAuth } from "./helpers";
 
+// The public client id embedded at build time from .env.test (mirrors the app's
+// VITE_TRAKT_CLIENT_ID). Every OAuth request must carry THIS id, never a
+// user-entered one — users only sign into their own Trakt account.
 const CLIENT_ID = "a".repeat(64);
 
 /** base64url(SHA-256(verifier)) — the S256 challenge a compliant client must derive. */
@@ -9,75 +12,39 @@ function s256(verifier: string): string {
   return createHash("sha256").update(verifier).digest("base64url");
 }
 
-async function fillTraktCreds(page: Page, tmdbKey = ""): Promise<void> {
-  await page.getByTestId("input-client-id").fill(CLIENT_ID);
-  if (tmdbKey.length > 0) await page.getByTestId("input-tmdb-key").fill(tmdbKey);
-}
-
 test.describe("onboarding + auth", () => {
-  test("shows the honest, secret-less onboarding copy", async ({ page }) => {
+  test("first run is a single connect screen — no credential inputs to fill", async ({ page }) => {
     await installHermeticRoutes(page.context());
     await page.goto("/");
 
     await expect(page.getByTestId("screen-onboarding")).toBeVisible();
-    const copy = page.getByTestId("connect-explainer");
-    await expect(copy).toContainText("no server");
-    await expect(copy).toContainText("directly to Trakt");
-    await expect(copy).toContainText("client ID");
-    // Honest copy: no client secret needed, but tokens ARE stored locally.
-    await expect(copy).toContainText("No Trakt client secret is needed");
-    await expect(copy).toContainText("locally in this browser");
-    // The client-secret field is gone entirely.
-    await expect(page.getByTestId("input-client-secret")).toHaveCount(0);
-    // The exact redirect URI to register with Trakt is shown for the user to copy.
-    await expect(page.getByTestId("callback-url")).toContainText("/auth/callback");
+    await expect(page.getByRole("heading", { name: "Welcome to Cue" })).toBeVisible();
+    await expect(page.getByTestId("button-connect")).toHaveText("Continue with Trakt");
+
+    // The whole developer-facing surface is gone: no client-id / TMDB fields, no
+    // "add this redirect URI to your Trakt app" callout. A user never enters a
+    // client id — it is embedded once by the app author.
+    await expect(page.locator("input")).toHaveCount(0);
+    await expect(page.getByTestId("input-client-id")).toHaveCount(0);
+    await expect(page.getByTestId("input-tmdb-key")).toHaveCount(0);
+    await expect(page.getByTestId("callback-url")).toHaveCount(0);
   });
 
-  test("format-checks the Trakt client ID before attempting a connect", async ({ page }) => {
-    await installHermeticRoutes(page.context());
-    await installOAuthRoutes(page.context());
-    await page.goto("/");
-
-    await page.getByTestId("input-client-id").fill("too-short");
-    await page.getByTestId("button-connect").click();
-
-    await expect(page.getByTestId("error-client-id")).toBeVisible();
-    // Still on onboarding — no redirect was issued.
-    await expect(page.getByTestId("screen-onboarding")).toBeVisible();
-  });
-
-  test("validates the TMDB key standalone: a bad key is a field error, client ID untouched", async ({
-    page,
-  }) => {
-    await installHermeticRoutes(page.context());
-    const oauth = await installOAuthRoutes(page.context());
-    oauth.setTmdbValid(false);
-    await page.goto("/");
-
-    await fillTraktCreds(page, "bad-tmdb-key");
-    await page.getByTestId("button-connect").click();
-
-    await expect(page.getByTestId("error-tmdb-key")).toBeVisible();
-    // A well-formed client ID raises no field error.
-    await expect(page.getByTestId("error-client-id")).toHaveCount(0);
-    await expect(page.getByTestId("screen-onboarding")).toBeVisible();
-  });
-
-  test("web auth-code path: callback validates state + PKCE, exchanges the code, stores the token, routes to Up Next", async ({
+  test("Continue with Trakt redirects to a trakt.tv authorize URL carrying the embedded client id, then completes the exchange", async ({
     page,
   }) => {
     await installHermeticRoutes(page.context());
     const oauth = await installOAuthRoutes(page.context());
     await page.goto("/");
 
-    // TMDB blank — proves Trakt-connected-with-TMDB-blank still completes.
-    await fillTraktCreds(page);
     await page.getByTestId("button-connect").click();
 
     await expect(page.getByTestId("screen-up-next")).toBeVisible();
     await expect(page).toHaveURL(/\/$/);
 
-    // A non-empty state nonce was generated and echoed through authorize.
+    // The authorize redirect carried the build-time embedded public client id —
+    // NOT anything the user typed (there is no input) — plus a non-empty state.
+    expect(oauth.getAuthorizeClientId()).toBe(CLIENT_ID);
     const state = oauth.getAuthorizeState();
     expect(state).not.toBeNull();
     expect((state ?? "").length).toBeGreaterThan(0);
@@ -115,7 +82,6 @@ test.describe("onboarding + auth", () => {
     oauth.setStateEcho("mismatch");
     await page.goto("/");
 
-    await fillTraktCreds(page);
     await page.getByTestId("button-connect").click();
 
     await expect(page.getByTestId("callback-error")).toBeVisible();
@@ -126,12 +92,11 @@ test.describe("onboarding + auth", () => {
     expect(await readStored(page, "cue.trakt.token")).toBeNull();
   });
 
-  test("mobile device-code path polls idle→connecting→success", async ({ page }) => {
+  test("device-code fallback polls idle→connecting→success", async ({ page }) => {
     await installHermeticRoutes(page.context());
     const oauth = await installOAuthRoutes(page.context());
     await page.goto("/");
 
-    await fillTraktCreds(page);
     await page.getByTestId("button-device-code").click();
 
     // connecting: the user code is shown while the poll runs.
@@ -146,12 +111,13 @@ test.describe("onboarding + auth", () => {
     expect((challenge ?? "").length).toBeGreaterThan(0);
     const poll = oauth.getDeviceTokenRequests().at(-1);
     expect(poll).not.toHaveProperty("client_secret");
+    expect(poll).toMatchObject({ client_id: CLIENT_ID });
     const verifier = poll?.["code_verifier"] as string;
     expect(typeof verifier).toBe("string");
     expect(s256(verifier)).toBe(challenge);
   });
 
-  test("mobile device-code path surfaces a declined approval as a recoverable error", async ({
+  test("device-code fallback surfaces a declined approval as a recoverable error", async ({
     page,
   }) => {
     await installHermeticRoutes(page.context());
@@ -159,11 +125,10 @@ test.describe("onboarding + auth", () => {
     oauth.setDeviceOutcome("denied");
     await page.goto("/");
 
-    await fillTraktCreds(page);
     await page.getByTestId("button-device-code").click();
 
     await expect(page.getByTestId("device-user-code")).toHaveText("CUE-1234");
-    // The denied poll returns the user to the form with an actionable message.
+    // The denied poll returns the user to the connect screen with an actionable message.
     await expect(page.getByTestId("connect-error")).toContainText("declined");
     await expect(page.getByTestId("button-connect")).toBeVisible();
     expect(await readStored(page, "cue.trakt.token")).toBeNull();
@@ -187,16 +152,15 @@ test.describe("onboarding + auth", () => {
 
     await expect(page.getByTestId("screen-onboarding")).toBeVisible();
 
-    // The revoke carried the seeded token + client id, and no secret.
+    // The revoke carried the seeded token + the embedded client id, and no secret.
     expect(oauth.getRevokeRequests()).toHaveLength(1);
     expect(oauth.getRevokeRequests()[0]).toMatchObject({
       token: "seed-access",
-      client_id: "a".repeat(64),
+      client_id: CLIENT_ID,
     });
     expect(oauth.getRevokeRequests()[0]).not.toHaveProperty("client_secret");
 
     // Local auth is genuinely gone from IndexedDB — not merely hidden in memory.
     expect(await readStored(page, "cue.trakt.token")).toBeNull();
-    expect(await readStored(page, "cue.trakt.creds")).toBeNull();
   });
 });

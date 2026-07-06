@@ -1,5 +1,4 @@
 import { createCueRuntime } from "@app/runtime/create-runtime";
-import type { CredsStore } from "@platform/creds-store";
 import type { KeyValueStore } from "@platform/kv";
 import type { TokenStore } from "@platform/token-store";
 import { useAuth } from "@ui/auth/store";
@@ -8,7 +7,6 @@ import { type ReactElement, type ReactNode, useCallback, useEffect, useRef, useS
 
 export interface RuntimeBootProps {
   readonly tokenStore: TokenStore;
-  readonly credsStore: CredsStore;
   readonly kv: KeyValueStore;
   /** `${origin}/auth/callback` — passed to the runtime for the token-refresh grant. */
   readonly redirectUri: string;
@@ -18,12 +16,11 @@ export interface RuntimeBootProps {
 /**
  * Instantiate the authenticated runtime once the session is connected and hand
  * it to `@ui` through context (platform/data wiring lives here,
- * not in the UI). Boot reads the persisted token + creds, restores the durable
+ * not in the UI). Boot reads the persisted token, restores the durable
  * write-queue, and replays it; the children mount only once it is ready.
  */
 export function RuntimeBoot({
   tokenStore,
-  credsStore,
   kv,
   redirectUri,
   children,
@@ -45,11 +42,10 @@ export function RuntimeBoot({
     setFailed(false);
     void (async () => {
       try {
-        const [token, creds] = await Promise.all([tokenStore.read(), credsStore.read()]);
-        if (token === null || creds === null) return;
+        const token = await tokenStore.read();
+        if (token === null) return;
         const built = await createCueRuntime({
           token,
-          creds,
           kv,
           tokenStore,
           redirectUri,
@@ -62,7 +58,7 @@ export function RuntimeBoot({
         if (alive.current) setFailed(true);
       }
     })();
-  }, [tokenStore, credsStore, kv, redirectUri, endSession]);
+  }, [tokenStore, kv, redirectUri, endSession]);
 
   useEffect(() => {
     boot();

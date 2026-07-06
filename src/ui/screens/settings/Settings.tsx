@@ -17,7 +17,6 @@ function weeksLabel(days: number): string {
  * Disconnect that revokes on Trakt and clears the store, returning to onboarding.
  */
 export function Settings(): ReactElement {
-  const tmdbConfigured = useAuth((s) => s.tmdbConfigured);
   const disconnect = useAuth((s) => s.disconnect);
   const thresholdDays = usePrefs((s) => s.thresholdDays);
   const setThresholdDays = usePrefs((s) => s.setThresholdDays);
@@ -75,20 +74,10 @@ export function Settings(): ReactElement {
             <span className="badge badge--ok">Connected</span>
           </dd>
         </div>
-        <div className="settings__row">
-          <dt>TMDB</dt>
-          <dd data-testid="tmdb-status">
-            {tmdbConfigured ? (
-              <span className="badge badge--ok">Key added</span>
-            ) : (
-              <span className="badge">Not configured</span>
-            )}
-          </dd>
-        </div>
       </dl>
 
       <p className="settings__note">
-        Disconnecting revokes this device's Trakt token and clears the credentials stored here.
+        Disconnecting revokes this device's access to your Trakt account and signs you out of Cue.
       </p>
       {disconnectError !== null && (
         <p className="settings__error" role="alert" data-testid="disconnect-error">

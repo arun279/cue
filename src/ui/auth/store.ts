@@ -1,4 +1,3 @@
-import type { Credentials } from "@domain/model/credentials";
 import { createContext, useContext } from "react";
 import { type StoreApi, useStore } from "zustand";
 
@@ -17,21 +16,22 @@ export interface AuthState {
   readonly connectStatus: ConnectStatus;
   readonly errorMessage: string | null;
   readonly deviceCode: DeviceCodeView | null;
-  readonly tmdbConfigured: boolean;
+  /** True under Capacitor: device-code is the primary (and only working) native path. */
+  readonly native: boolean;
 }
 
 export interface AuthActions {
-  /** Web primary: persist creds, stash a state nonce, redirect to Trakt's authorize page. */
-  connectWithRedirect(creds: Credentials): Promise<void>;
-  /** Mobile + web fallback: request a device code and poll idle→connecting→success. */
-  connectWithDeviceCode(creds: Credentials): Promise<void>;
+  /** Web primary: stash a state nonce + PKCE verifier, redirect to Trakt's authorize page. */
+  connectWithRedirect(): Promise<void>;
+  /** Native primary + web fallback: request a device code and poll idle→connecting→success. */
+  connectWithDeviceCode(): Promise<void>;
   /** Auth-code return: validate the state nonce, exchange the code, store the token. */
   completeRedirect(code: string | null, state: string | null): Promise<void>;
   /** Sign out: revoke the token and clear the store, back to onboarding. */
   disconnect(): Promise<void>;
   /** Runtime-triggered teardown when the refresh token is dead: clear + onboard (no revoke). */
   endSession(): Promise<void>;
-  /** Abandon an in-flight device-code poll and return to the form. */
+  /** Abandon an in-flight device-code poll and return to the connect screen. */
   cancelConnect(): void;
 }
 

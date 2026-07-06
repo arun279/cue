@@ -4,9 +4,6 @@ import type { FetchLike } from "../trakt/client";
 
 export const TMDB_API_BASE = "https://api.themoviedb.org/3";
 
-/** Outcome of a standalone TMDB key check: `unavailable` is a transient failure, not a bad key. */
-export type TmdbKeyStatus = "valid" | "invalid" | "unavailable";
-
 /**
  * In-flight cap. After first paint a screen exposes ~6 not-yet-cached
  * posters at once, so 6 saturates the visible working set without bursting
@@ -61,27 +58,6 @@ export class TmdbClient {
     const request = this.dispatch(url).finally(() => this.inFlight.delete(url));
     this.inFlight.set(url, request);
     return request;
-  }
-
-  /**
-   * Standalone credential check: a live `GET /3/configuration` with the
-   * supplied key. `valid` on 2xx, `invalid` only on 401/403 (a rejected key),
-   * and `unavailable` for any other status or a failed fetch — so a 500 or an
-   * offline device is not mistaken for a bad key. The onboarding form maps
-   * `invalid` to an inline field error and `unavailable` to a retry message.
-   */
-  async validate(): Promise<TmdbKeyStatus> {
-    const url = this.buildUrl("/configuration", {});
-    const headers: Record<string, string> = {};
-    if (this.authMode === "bearer") headers["Authorization"] = `Bearer ${this.credential}`;
-    try {
-      const response = await this.fetchFn(url, { headers });
-      if (response.ok) return "valid";
-      if (response.status === 401 || response.status === 403) return "invalid";
-      return "unavailable";
-    } catch {
-      return "unavailable";
-    }
   }
 
   /** `/3/configuration` → the image base URL + a poster size for the resolver. */

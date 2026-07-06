@@ -7,6 +7,10 @@ import { VitePWA } from "vite-plugin-pwa";
 const src = (path: string): string => fileURLToPath(new URL(`./src/${path}`, import.meta.url));
 
 export default defineConfig({
+  // Fixed dev port so the OAuth Redirect URI registered on the Trakt app
+  // (http://localhost:5199/auth/callback) matches exactly (RFC 9700 requires an
+  // exact redirect-URI match); strictPort fails fast rather than drifting to 5200.
+  server: { port: 5199, strictPort: true },
   plugins: [
     react(),
     tailwindcss(),

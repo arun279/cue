@@ -11,9 +11,11 @@ ios/
 android/
 .wrangler/
 
-# Env / secrets — Trakt client_id/secret and TMDB key are entered at runtime, never committed
+# Env — the real .env (your Trakt app's PUBLIC client id + optional TMDB key) is
+# local-only. Committed: .env.example (placeholders) + .env.test (CI/e2e dummy id).
 .env*
 !.env.example
+!.env.test
 *.local
 *.pem
 *.key

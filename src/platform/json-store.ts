@@ -3,9 +3,9 @@ import type { KeyValueStore } from "@platform/kv";
 /**
  * A single JSON value behind the platform key-value abstraction.
  * Serialized as JSON so it round-trips on either backend; a corrupt/absent
- * entry reads back as `null` rather than throwing. Both the token store and the
- * creds store are instances of this shape. An optional `parse` validates the
- * decoded JSON so a partial/wrong-shaped entry also reads back as `null`.
+ * entry reads back as `null` rather than throwing. The token store is an instance
+ * of this shape. An optional `parse` validates the decoded JSON so a
+ * partial/wrong-shaped entry also reads back as `null`.
  */
 export interface JsonStore<T> {
   read(): Promise<T | null>;

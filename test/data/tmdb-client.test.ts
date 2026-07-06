@@ -100,43 +100,6 @@ describe("TmdbClient concurrency cap", () => {
   });
 });
 
-describe("TmdbClient.validate", () => {
-  it("returns valid when /configuration answers 2xx to a bearer key", async () => {
-    let auth: string | null = null;
-    server.use(
-      http.get(`${TMDB_API_BASE}/configuration`, ({ request }) => {
-        auth = request.headers.get("authorization");
-        return HttpResponse.json({ images: {} });
-      }),
-    );
-    expect(await new TmdbClient({ credential: BEARER }).validate()).toBe("valid");
-    expect(auth).toBe(`Bearer ${BEARER}`);
-  });
-
-  it.each([
-    401, 403,
-  ] as const)("returns invalid when the key is rejected with %i", async (status) => {
-    server.use(
-      http.get(`${TMDB_API_BASE}/configuration`, () =>
-        HttpResponse.json({ status_code: 7 }, { status }),
-      ),
-    );
-    expect(await new TmdbClient({ credential: V3_KEY }).validate()).toBe("invalid");
-  });
-
-  it("returns unavailable on a 500 rather than blaming the key", async () => {
-    server.use(
-      http.get(`${TMDB_API_BASE}/configuration`, () => HttpResponse.json({}, { status: 500 })),
-    );
-    expect(await new TmdbClient({ credential: V3_KEY }).validate()).toBe("unavailable");
-  });
-
-  it("returns unavailable when the fetch itself fails", async () => {
-    server.use(http.get(`${TMDB_API_BASE}/configuration`, () => HttpResponse.error()));
-    expect(await new TmdbClient({ credential: V3_KEY }).validate()).toBe("unavailable");
-  });
-});
-
 describe("TmdbClient configuration", () => {
   it("parses /configuration into the image resolver config", async () => {
     server.use(

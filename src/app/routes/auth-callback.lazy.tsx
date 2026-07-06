@@ -30,7 +30,7 @@ function AuthCallbackScreen(): ReactElement {
       <section className="onboarding__card">
         {connectStatus === "error" ? (
           <>
-            <h1 className="onboarding__title">Sign-in didn't complete</h1>
+            <h1 className="onboarding__title">Connecting didn't finish</h1>
             <p className="onboarding__error" role="alert" data-testid="callback-error">
               {errorMessage}
             </p>
@@ -40,14 +40,14 @@ function AuthCallbackScreen(): ReactElement {
               data-testid="callback-retry"
               onClick={() => void navigate({ to: "/" })}
             >
-              Back to sign-in
+              Back to start
             </button>
           </>
         ) : (
           <>
-            <h1 className="onboarding__title">Finishing sign-in…</h1>
+            <h1 className="onboarding__title">Finishing up…</h1>
             <p className="onboarding__lead" role="status">
-              Verifying your connection with Trakt.
+              Connecting Cue to your Trakt account.
             </p>
           </>
         )}

@@ -521,6 +521,32 @@ body {
   gap: var(--space-2);
   margin-top: var(--space-1);
 }
+.onboarding__alt {
+  appearance: none;
+  border: none;
+  background: none;
+  padding: var(--space-1);
+  color: var(--color-muted);
+  font-family: var(--font-ui);
+  font-size: 0.9rem;
+  text-align: center;
+  cursor: pointer;
+  border-radius: var(--radius-1);
+  transition: color var(--dur-quick) var(--ease-standard);
+}
+.onboarding__alt:hover {
+  color: var(--color-fg);
+}
+.onboarding__alt:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.onboarding__fine-print {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
 .device-code {
   margin: 0;
   font-size: 2rem;
@@ -528,73 +554,6 @@ body {
   letter-spacing: 0.25em;
   text-align: center;
   font-variant-numeric: tabular-nums;
-}
-
-/* ---- Form fields ---- */
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.field__label {
-  font-size: 0.9rem;
-  font-weight: 600;
-}
-.field__hint {
-  margin: 0;
-  font-size: 0.8rem;
-  color: var(--color-muted);
-}
-.field__input {
-  appearance: none;
-  padding: var(--space-2) var(--space-3);
-  background: color-mix(in srgb, var(--color-fg) 6%, transparent);
-  color: var(--color-fg);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-1);
-  font-size: 0.95rem;
-  transition: border-color var(--dur-quick) var(--ease-standard);
-}
-.field__input:focus {
-  border-color: var(--color-accent);
-}
-.field__input[aria-invalid="true"] {
-  border-color: var(--color-danger);
-}
-
-/* ---- Callback URL callout ---- */
-.callback-url {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  padding: var(--space-3);
-  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
-  border: 1px solid color-mix(in srgb, var(--color-accent) 28%, transparent);
-  border-radius: var(--radius-1);
-}
-.callback-url__label {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--color-ink2);
-}
-.callback-url__row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-.callback-url__value {
-  flex: 1;
-  min-width: 0;
-  overflow-x: auto;
-  white-space: nowrap;
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 0.85rem;
-  color: var(--color-fg);
-}
-.field__error {
-  margin: 0;
-  font-size: 0.8rem;
-  color: var(--color-danger);
 }
 
 @media (max-width: 639px) {

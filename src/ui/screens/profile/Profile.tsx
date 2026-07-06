@@ -188,7 +188,9 @@ export function Profile(): ReactElement {
         </span>
         <span className="profile-settings__text">
           <span className="profile-settings__title">Settings &amp; connections</span>
-          <span className="profile-settings__sub">Appearance, Trakt connection, and TMDB key</span>
+          <span className="profile-settings__sub">
+            Appearance, preferences, and your Trakt connection
+          </span>
         </span>
         <svg
           className="profile-settings__chevron"

@@ -1,6 +1,5 @@
 import { router } from "@app/router";
 import { RuntimeBoot } from "@app/runtime/RuntimeBoot";
-import type { CredsStore } from "@platform/creds-store";
 import type { KeyValueStore } from "@platform/kv";
 import type { TokenStore } from "@platform/token-store";
 import { RouterProvider } from "@tanstack/react-router";
@@ -10,7 +9,6 @@ import type { ReactElement } from "react";
 
 export interface RuntimeStores {
   readonly tokenStore: TokenStore;
-  readonly credsStore: CredsStore;
   readonly kv: KeyValueStore;
   /** `${origin}/auth/callback` — threaded to the runtime for the refresh grant. */
   readonly redirectUri: string;

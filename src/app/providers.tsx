@@ -1,8 +1,8 @@
 import { AuthGate } from "@app/AuthGate";
 import { createAuthStore } from "@app/auth/create-auth-store";
+import { TRAKT_CLIENT_ID } from "@app/config";
 import { requestPersistentStorage } from "@app/persist";
 import { PERSIST_BUSTER, PERSIST_MAX_AGE, queryClient, queryPersister } from "@app/query-client";
-import { createCredsStore } from "@platform/creds-store";
 import { createKeyValueStore } from "@platform/kv";
 import { isNativePlatform } from "@platform/platform";
 import { createTokenStore } from "@platform/token-store";
@@ -10,16 +10,17 @@ import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client
 import { type ReactElement, useEffect } from "react";
 
 // One key-value backend for the whole session (web: IndexedDB, native:
-// Preferences), shared by the token + creds stores the auth store wires.
-const kv = createKeyValueStore(isNativePlatform());
+// Preferences), backing the token store the auth store wires.
+const native = isNativePlatform();
+const kv = createKeyValueStore(native);
 const tokenStore = createTokenStore(kv);
-const credsStore = createCredsStore(kv);
 const redirectUri = `${globalThis.location.origin}/auth/callback`;
 const authStore = createAuthStore({
   tokenStore,
-  credsStore,
+  clientId: TRAKT_CLIENT_ID,
   redirectUri,
   redirect: (url) => globalThis.location.assign(url),
+  native,
 });
 
 /**
@@ -41,7 +42,7 @@ export function AppProviders(): ReactElement {
         buster: PERSIST_BUSTER,
       }}
     >
-      <AuthGate store={authStore} stores={{ tokenStore, credsStore, kv, redirectUri }} />
+      <AuthGate store={authStore} stores={{ tokenStore, kv, redirectUri }} />
     </PersistQueryClientProvider>
   );
 }

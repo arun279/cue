@@ -1,3 +1,4 @@
+import { TMDB_KEY, TRAKT_CLIENT_ID } from "@app/config";
 import type { TmdbImageConfig } from "@data/image-source";
 import { TmdbClient } from "@data/tmdb/client";
 import { createAuthorizedFetch } from "@data/trakt/authorized-fetch";
@@ -27,7 +28,6 @@ import type { Progress, UserStats } from "@data/trakt/schemas";
 import { assembleSearchHits, assembleShowHits, rankSearchHits } from "@data/trakt/search";
 import { assembleHeader, assembleSeasons } from "@data/trakt/show-detail";
 import { createTraktTransport } from "@data/trakt/transport";
-import type { Credentials } from "@domain/model/credentials";
 import type { Token } from "@domain/model/token";
 import { WriteQueue } from "@domain/write-queue/queue";
 import type { QueuedOp } from "@domain/write-queue/types";
@@ -57,7 +57,6 @@ type ReconcileContext =
 
 export interface RuntimeDeps {
   readonly token: Token;
-  readonly creds: Credentials;
   readonly kv: KeyValueStore;
   /** Where a rotated token is persisted so it survives reload. */
   readonly tokenStore: TokenStore;
@@ -80,10 +79,10 @@ async function loadOpLog(kv: KeyValueStore): Promise<QueuedOp[]> {
   }
 }
 
-async function resolveTmdbConfig(creds: Credentials): Promise<TmdbImageConfig | null> {
-  if (creds.tmdbKey.trim().length === 0) return null;
+async function resolveTmdbConfig(tmdbKey: string): Promise<TmdbImageConfig | null> {
+  if (tmdbKey.trim().length === 0) return null;
   try {
-    return await new TmdbClient({ credential: creds.tmdbKey }).getImageConfig();
+    return await new TmdbClient({ credential: tmdbKey }).getImageConfig();
   } catch {
     return null;
   }
@@ -102,16 +101,16 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
   const authorized = createAuthorizedFetch({
     inner: (input, init) => globalThis.fetch(input, init),
     token: deps.token,
-    config: { clientId: deps.creds.clientId, redirectUri: deps.redirectUri },
+    config: { clientId: TRAKT_CLIENT_ID, redirectUri: deps.redirectUri },
     persist: (token) => deps.tokenStore.write(token),
     endSession: deps.endSession,
   });
   const client = new TraktClient({
-    clientId: deps.creds.clientId,
+    clientId: TRAKT_CLIENT_ID,
     getToken: () => authorized.accessToken(),
     fetch: authorized.fetch,
   });
-  const tmdbConfig = await resolveTmdbConfig(deps.creds);
+  const tmdbConfig = await resolveTmdbConfig(TMDB_KEY);
 
   const reconcile = async (op: QueuedOp): Promise<boolean> => {
     const context = op.inversePatch as ReconcileContext | null;

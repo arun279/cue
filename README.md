@@ -1,6 +1,6 @@
 # Cue
 
-Cue is a personal, zero-backend TV and movie tracker that syncs to your own [Trakt](https://trakt.tv) account. It is a TV and movie tracker — your Up Next queue, show library, calendar, and viewing stats — without the social feed, the ads, or a server in the middle. Your account, your data, running entirely on your own device and against your own Trakt app.
+Cue is a personal, zero-backend TV and movie tracker that syncs to your own [Trakt](https://trakt.tv) account. It is a TV and movie tracker — your Up Next queue, show library, calendar, and viewing stats — without the social feed, the ads, or a server in the middle. Your account, your data, running entirely on your own device and synced to your own Trakt account.
 
 ## Features
 
@@ -18,14 +18,14 @@ Cue is **zero-backend**. It is a browser SPA (with a thin Capacitor shell for mo
 
 ## Setup
 
-Cue authenticates as a public OAuth client, so it needs no committed secrets — you provide your own credentials at runtime:
+Cue authenticates as a public OAuth client, so it ships **no secret** — the app author registers one Trakt app and embeds its public client id at build time. Users never see or enter a client id; they just sign into their own Trakt account.
 
 1. Register a free API app at [trakt.tv/oauth/applications](https://trakt.tv/oauth/applications).
-2. Add the redirect URI `<your-origin>/auth/callback` (for local development that is `http://localhost:5173/auth/callback`).
-3. Launch Cue and paste your Trakt **Client ID** on first run. No client secret is required or used.
-4. _(Optional)_ Add a free [TMDB](https://www.themoviedb.org/settings/api) API key for higher-resolution posters and stills.
+2. Set its Redirect URI to `http://localhost:5199/auth/callback` for local development, plus `<your-production-origin>/auth/callback` for deploys. (Trakt matches the redirect URI exactly, so register every origin you serve from.)
+3. Copy `.env.example` to `.env` and set `VITE_TRAKT_CLIENT_ID` to the app's **Client ID**. It is public — it ships in the built JS and there is no client secret.
+4. _(Optional)_ Set `VITE_TMDB_KEY` to a free [TMDB](https://www.themoviedb.org/settings/api) API key for higher-resolution posters and stills. Leave it blank to use Trakt images only.
 
-Credentials are entered at runtime and stored on-device only — never committed to the repo or baked into the build.
+The client id is public by design; the only thing kept on-device is each user's own Trakt OAuth token. Your real `.env` stays local (gitignored); `.env.example` and `.env.test` are the committed placeholders.
 
 ## Development
 
@@ -70,7 +70,7 @@ pnpm sync              # cap sync
 npx cap open ios       # build and run in Xcode (or Android Studio)
 ```
 
-On device, credentials are stored via Capacitor Preferences so they survive storage eviction.
+On device, the Trakt OAuth token is stored via Capacitor Preferences so it survives storage eviction.
 
 ## Tech stack
 
@@ -83,7 +83,7 @@ On device, credentials are stored via Capacitor Preferences so they survive stor
 
 ## Privacy
 
-Nothing is stored server-side because there is no server. Your Trakt tokens, your TMDB key, and your settings live only in the browser or on the device. All sync state lives in your own Trakt account, reached directly over HTTPS.
+Nothing is stored server-side because there is no server. Your Trakt OAuth token and your settings live only in the browser or on the device. All sync state lives in your own Trakt account, reached directly over HTTPS.
 
 ## License
 

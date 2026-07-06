@@ -74,6 +74,5 @@ test.describe("token auto-refresh", () => {
     await expect(page.getByTestId("screen-onboarding")).toBeVisible();
     // Local auth is genuinely gone from IndexedDB — not merely hidden in memory.
     expect(await readStored(page, "cue.trakt.token")).toBeNull();
-    expect(await readStored(page, "cue.trakt.creds")).toBeNull();
   });
 });

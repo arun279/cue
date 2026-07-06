@@ -1,10 +1,9 @@
-import type { Credentials } from "@domain/model/credentials";
 import type { Token } from "@domain/model/token";
-import { createCredsStore } from "@platform/creds-store";
 import { createJsonStore } from "@platform/json-store";
 import { createKeyValueStore } from "@platform/kv";
 import { createTokenStore } from "@platform/token-store";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 
 const { webBacking, nativeBacking } = vi.hoisted(() => ({
   webBacking: new Map<string, string>(),
@@ -38,6 +37,10 @@ interface Sample {
   b: string;
 }
 
+// A tiny parse-guarded schema stands in for any validated JsonStore, proving the
+// store rejects a wrong-shaped persisted entry (schema validation at the boundary).
+const sampleSchema = z.object({ a: z.number(), b: z.string() });
+
 describe.each([
   { name: "web (idb-keyval)", native: false, backing: webBacking },
   { name: "native (Preferences)", native: true, backing: nativeBacking },
@@ -65,12 +68,12 @@ describe.each([
   });
 });
 
-describe("concrete stores use distinct keys", () => {
+describe("parse-guarded stores reject the wrong shape", () => {
   beforeEach(() => {
     webBacking.clear();
   });
 
-  it("stores the token and creds under their own keys", async () => {
+  it("stores the token under its own key and round-trips it", async () => {
     const kv = createKeyValueStore(false);
     const token: Token = {
       access_token: "a",
@@ -78,24 +81,21 @@ describe("concrete stores use distinct keys", () => {
       created_at: 1_700_000_000,
       expires_in: 7_776_000,
     };
-    const creds: Credentials = { clientId: "id", tmdbKey: "" };
 
     await createTokenStore(kv).write(token);
-    await createCredsStore(kv).write(creds);
 
     expect(JSON.parse(webBacking.get("cue.trakt.token") ?? "null")).toEqual(token);
-    expect(JSON.parse(webBacking.get("cue.trakt.creds") ?? "null")).toEqual(creds);
     expect(await createTokenStore(kv).read()).toEqual(token);
-    expect(await createCredsStore(kv).read()).toEqual(creds);
   });
 
   it("reads back null when a persisted entry is valid JSON but the wrong shape", async () => {
     const kv = createKeyValueStore(false);
-    // A migrated/partial token missing refresh_token, and creds missing tmdbKey.
+    const sampleStore = createJsonStore<Sample>(kv, "cue.sample", (v) => sampleSchema.parse(v));
+    // A migrated/partial token missing refresh_token, and a sample missing `b`.
     await kv.write("cue.trakt.token", JSON.stringify({ access_token: "only" }));
-    await kv.write("cue.trakt.creds", JSON.stringify({ clientId: "id" }));
+    await kv.write("cue.sample", JSON.stringify({ a: 1 }));
 
     expect(await createTokenStore(kv).read()).toBeNull();
-    expect(await createCredsStore(kv).read()).toBeNull();
+    expect(await sampleStore.read()).toBeNull();
   });
 });
