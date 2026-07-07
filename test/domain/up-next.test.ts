@@ -88,6 +88,54 @@ describe("groupUpNext partitioning", () => {
     const { fresh, continued, lapsed } = group(shows);
     expect([...fresh, ...continued, ...lapsed]).toHaveLength(0);
   });
+
+  it("keeps a provisional post-mark projection in Continue, never New", () => {
+    // A just-marked show still showing its optimistic next-episode projection
+    // (ids.trakt === 0). Even with a recent-looking air date it must not surface
+    // as New/lead — the season-finale phantom bug — and must stay visible (Continue).
+    const provisional = makeShow({
+      showId: 1,
+      nextEpisode: makeEpisode({ firstAired: iso(NOW - DAY), ids: { trakt: 0 } }),
+      lastWatchedAt: iso(NOW),
+    });
+    const { fresh, continued, lapsed } = group([provisional]);
+    expect(fresh).toHaveLength(0);
+    expect(continued.map((i) => i.showId)).toEqual([1]);
+    expect(lapsed).toHaveLength(0);
+  });
+
+  it("keeps a provisional projection with an unknown air date visible (not dropped as caught-up)", () => {
+    // The real projection carries firstAired: null; it must still show mid-binge,
+    // locked, rather than vanish until the authoritative progress refetch lands.
+    const provisional = makeShow({
+      showId: 2,
+      nextEpisode: makeEpisode({ firstAired: null, ids: { trakt: 0 } }),
+      lastWatchedAt: iso(NOW),
+    });
+    expect(group([provisional]).continued.map((i) => i.showId)).toEqual([2]);
+  });
+
+  it("drops a provisional projection whose show is ended or hidden from every group", () => {
+    // Marking a series finale leaves an optimistic phantom next (ids.trakt === 0) on
+    // an `ended`, fully-watched show; a hidden show can carry one mid-unhide. Neither
+    // has a real next — the provisional flag must not resurrect it into the queue.
+    const endedFinale = makeShow({
+      showId: 1,
+      status: "ended",
+      aired: 10,
+      completed: 10,
+      nextEpisode: makeEpisode({ firstAired: null, ids: { trakt: 0 } }),
+      lastWatchedAt: iso(NOW),
+    });
+    const hidden = makeShow({
+      showId: 2,
+      hidden: true,
+      nextEpisode: makeEpisode({ firstAired: iso(NOW - DAY), ids: { trakt: 0 } }),
+      lastWatchedAt: iso(NOW),
+    });
+    const { fresh, continued, lapsed } = group([endedFinale, hidden]);
+    expect([...fresh, ...continued, ...lapsed]).toHaveLength(0);
+  });
 });
 
 describe("groupUpNext ordering", () => {

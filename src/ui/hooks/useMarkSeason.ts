@@ -72,6 +72,7 @@ function toSeasonTrees(seasons: readonly SeasonView[]): SeasonTree[] {
     episodes: season.episodes.map((episode) => ({
       number: episode.number,
       firstAired: episode.firstAired,
+      watched: episode.watched,
     })),
   }));
 }
@@ -97,9 +98,10 @@ function seasonLabel(season: number): string {
  * Show-detail marking: whole-season, mark-up-to-here, and single
  * episode toggle, each optimistic (episodes check instantly, before the write
  * settles) and funnelled through the bulk builder so a batched mark carries
- * only aired episodes / season tokens — never unaired episodes and never
- * specials unless opted in. Bulk marks expose an Undo that re-sends the stored
- * inverse `/sync/history/remove`.
+ * only the aired, still-unwatched delta — never a whole-season token, never
+ * unaired episodes, and never specials unless opted in. Bulk marks expose an Undo
+ * that re-sends the stored inverse `/sync/history/remove`, scoped to that same
+ * delta so it can't remove plays that predate the mark.
  */
 export function useMarkSeason(): MarkSeasonController {
   const submit = useOptimisticWrite();

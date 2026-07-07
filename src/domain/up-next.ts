@@ -26,15 +26,20 @@ export interface UpNextGroups {
 
 /**
  * Partition in-progress shows for Up Next on verifiable facts only — no taste,
- * popularity, or "for you" ranking. Only shows whose watch-status is
- * `watching` or `lapsed` (in-progress with an AIRED unwatched next) are considered.
- * Each lands in exactly one group:
+ * popularity, or "for you" ranking. Shows in a state with no next to
+ * queue (`abandoned`/`not-started`/`ended`) are always excluded; of the rest, a
+ * `watching`/`lapsed` show (in-progress with an AIRED unwatched next) or a just-marked
+ * show still carrying its provisional next projection is considered. Each lands in
+ * exactly one group:
  *   • fresh     — the next unwatched episode aired within `newWindowMs` (this
  *                 week's drop). This overrides the idle flag, so a long-idle
  *                 returning show with a brand-new episode surfaces in "New" instead
  *                 of sinking into the drawer (the reconciled tension-#2 win).
  *   • lapsed    — idle past `thresholdMs` AND not fresh — the collapsed drawer.
- *   • continued — the rest, mid-binge.
+ *   • continued — the rest, mid-binge, plus any show whose next is still a
+ *                 provisional post-mark projection (`ids.trakt === 0`, air date
+ *                 unknown): kept visible + locked, but never surfaced as this
+ *                 week's fresh drop until the authoritative refetch lands.
  * Sorts: fresh by air date descending (newest first), continued by the user's own
  * last-watched recency (tiebreak air date), lapsed longest-idle-first.
  */
@@ -49,14 +54,29 @@ export function groupUpNext(
   const lapsed: UpNextItem[] = [];
 
   for (const show of shows) {
-    const status = computeWatchStatus(show, now, thresholdMs);
     const ep = show.nextEpisode;
-    // Only in-progress shows with an aired next. `watching`/`lapsed` already
-    // guarantee a non-null aired next; the `ep === null` disjunct just narrows TS.
-    if ((status !== "watching" && status !== "lapsed") || ep === null) continue;
-    const airedMs = toMs(ep.firstAired);
-    const isFresh = airedMs !== null && now - airedMs <= newWindowMs;
-    const group: UpNextGroup = isFresh ? "fresh" : status === "lapsed" ? "lapsed" : "continued";
+    if (ep === null) continue;
+    const status = computeWatchStatus(show, now, thresholdMs);
+    // Hard exclusions apply even to a just-marked show's optimistic projection: a
+    // hidden (`abandoned`), never-started, or fully-watched `ended` show has no next
+    // to queue, so a provisional projection must never resurrect it into Up Next.
+    if (status === "abandoned" || status === "not-started" || status === "ended") continue;
+    // A just-marked show still showing its optimistic next-episode projection
+    // (`ids.trakt === 0`, air date not yet known): keep the card visible and locked
+    // in Continue (pendingAdvance), but never as this week's fresh drop — that is how
+    // a season-finale phantom would otherwise cling to the "New"/lead slot.
+    const provisional = ep.ids.trakt === 0;
+    let group: UpNextGroup;
+    if (provisional) {
+      group = "continued";
+    } else {
+      // Otherwise only in-progress shows with an aired next surface; `watching`/
+      // `lapsed` already guarantee a non-null aired next, `caught-up` is excluded.
+      if (status !== "watching" && status !== "lapsed") continue;
+      const airedMs = toMs(ep.firstAired);
+      const isFresh = airedMs !== null && now - airedMs <= newWindowMs;
+      group = isFresh ? "fresh" : status === "lapsed" ? "lapsed" : "continued";
+    }
     const item: UpNextItem = {
       showId: show.showId,
       title: show.title,

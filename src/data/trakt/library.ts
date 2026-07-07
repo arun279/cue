@@ -167,9 +167,13 @@ export function showIdSet(items: readonly (HiddenItem | WatchlistItem)[]): Set<n
 /**
  * Optimistically advance an entry one episode past its current next (the
  * mark-watched hot path): bump `completed`, freeze `lastWatchedAt`, and project
- * the following episode (`number + 1`, title unknown until refetch). The
- * projected episode keeps an aired date so the card stays in the queue, and
- * `pendingAdvance` flags that its ids are provisional.
+ * the following episode (`number + 1`, title + air date unknown until refetch).
+ * The projection carries `firstAired: null` — inheriting the just-watched
+ * episode's air date would fabricate a season-finale phantom (S0xE(last+1)) with
+ * a real recent date and cling it to the "New"/lead slot. `ids.trakt: 0` +
+ * `pendingAdvance` mark it provisional: the Up Next grouping reads a zero-id next
+ * as unknown-air and keeps it visible mid-binge but never ranks it as this week's
+ * fresh drop until the authoritative progress refetch lands.
  */
 export function advancePastNext(entry: LibraryEntry, watchedAt: string): LibraryEntry {
   const current = entry.nextEpisode;
@@ -180,7 +184,7 @@ export function advancePastNext(entry: LibraryEntry, watchedAt: string): Library
           season: current.season,
           number: current.number + 1,
           title: null,
-          firstAired: current.firstAired ?? watchedAt,
+          firstAired: null,
           ids: { trakt: 0 },
         };
   return {

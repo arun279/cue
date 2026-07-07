@@ -224,6 +224,47 @@ test("New group surfaces a freshly-aired episode, sorted newest first", async ({
   await expect(page.getByTestId("lapsed-drawer")).toHaveCount(0);
 });
 
+test("marking a season finale does not project a phantom episode into New/lead", async ({
+  page,
+}) => {
+  // A show whose next is its last aired episode, dropped this week → it leads "New".
+  // Marking it advances into a non-existent S01E03; the projection must NOT inherit
+  // the finale's fresh air date and cling to the New/lead slot. It stays in Continue,
+  // locked, until the authoritative refetch (which would then drop it as caught-up).
+  const controls = await installLibraryRoutes(page.context(), [
+    {
+      trakt: 1,
+      title: "Finale",
+      status: "returning series",
+      lastWatchedAt: agoIso(2),
+      aired: 2,
+      completed: 1,
+      episodes: [
+        { season: 1, number: 1, title: "One", firstAired: agoIso(9), traktId: 11 },
+        { season: 1, number: 2, title: "Finale", firstAired: agoIso(1), traktId: 12 },
+      ],
+    },
+  ]);
+  controls.setWriteMode("delay"); // hold the POST open so the refetch can't replace the projection
+  await page.goto("/");
+
+  // Before: the freshly-aired finale (S01E02) leads the "New" group.
+  const newGroup = page.getByTestId("up-next-new");
+  await expect(newGroup.getByTestId("up-next-card")).toHaveCount(1);
+  const card = page.getByTestId("up-next-card").first();
+  await expect(card.getByTestId("episode-code")).toHaveText("S01E02");
+
+  await card.getByTestId("mark-watched").click();
+
+  // The card advances to the (non-existent) S01E03 and locks…
+  await expect(card.getByTestId("episode-code")).toHaveText("S01E03");
+  await expect(card.getByTestId("mark-watched")).toBeDisabled();
+  // …but the phantom NEVER clings to "New": that group empties, and the provisional
+  // card sits under Continue instead — no fabricated finale-plus episode in the lead.
+  await expect(page.getByTestId("up-next-new")).toHaveCount(0);
+  await expect(page.getByTestId("up-next-continue").getByTestId("up-next-card")).toHaveCount(1);
+});
+
 test("shows the 'nothing tracked' empty state when the library is empty", async ({ page }) => {
   await installLibraryRoutes(page.context(), []);
   await page.goto("/");

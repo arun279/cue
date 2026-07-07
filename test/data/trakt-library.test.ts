@@ -260,7 +260,7 @@ describe("showIdSet", () => {
 });
 
 describe("advancePastNext", () => {
-  it("projects the following episode, bumps completed, and flags pendingAdvance", () => {
+  it("projects the following episode with an unknown air date, bumps completed, flags pendingAdvance", () => {
     const advanced = advancePastNext(baseEntry, "2026-07-05T12:00:00.000Z");
     expect(advanced.completed).toBe(4);
     expect(advanced.lastWatchedAt).toBe("2026-07-05T12:00:00.000Z");
@@ -269,25 +269,25 @@ describe("advancePastNext", () => {
       season: 1,
       number: 5,
       title: null,
-      firstAired: "2026-06-01T00:00:00.000Z",
+      firstAired: null,
       ids: { trakt: 0 },
     });
   });
 
-  it("falls back to watchedAt for the projected air date when the source lacks one", () => {
+  it("never inherits the watched episode's air date (no season-finale phantom in New)", () => {
+    // A recent air date on the source episode must NOT flow onto the projection —
+    // that is exactly what made a marked finale cling to the fresh/lead slot.
     const entry: LibraryEntry = {
       ...baseEntry,
       nextEpisode: {
         season: 1,
         number: 4,
-        title: "Four",
-        firstAired: null,
+        title: "Finale",
+        firstAired: "2026-07-04T00:00:00.000Z",
         ids: { trakt: 4004 },
       },
     };
-    expect(advancePastNext(entry, "2026-07-05T12:00:00.000Z").nextEpisode?.firstAired).toBe(
-      "2026-07-05T12:00:00.000Z",
-    );
+    expect(advancePastNext(entry, "2026-07-05T12:00:00.000Z").nextEpisode?.firstAired).toBeNull();
   });
 
   it("leaves a caught-up entry (null next) with no projected episode", () => {

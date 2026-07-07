@@ -73,7 +73,7 @@ test("streams the hero then the season tree", async ({ page }) => {
   await expect(page.getByTestId("season-panel")).toHaveCount(3);
 });
 
-test("Mark up to here fires ONE batched POST with only aired eps / tokens, no unaired, no specials", async ({
+test("Mark up to here fires ONE batched POST with only the aired, unwatched delta — no unaired, no specials", async ({
   page,
 }) => {
   const controls = await installLibraryRoutes(page.context(), [detailShow()]);
@@ -88,8 +88,10 @@ test("Mark up to here fires ONE batched POST with only aired eps / tokens, no un
 
   await expect.poll(() => controls.historyPosts().length).toBe(1);
   const posted = controls.historyPosts()[0];
+  // S01E01/E02 already watched (completed=2) → only the unwatched S01E03/E04 delta
+  // is logged, never a whole-season token; S02E01–E03 are the aired unwatched delta.
   expect(posted?.shows?.[0]?.seasons).toEqual([
-    { number: 1 },
+    { number: 1, episodes: [{ number: 3 }, { number: 4 }] },
     { number: 2, episodes: [{ number: 1 }, { number: 2 }, { number: 3 }] },
   ]);
 });
@@ -122,8 +124,10 @@ test("specials are included in a bulk mark only when opted in", async ({ page })
 
   await expect.poll(() => controls.historyPosts().length).toBe(1);
   const seasons = controls.historyPosts()[0]?.shows?.[0]?.seasons ?? [];
-  expect(seasons).toContainEqual({ number: 0 });
-  expect(seasons).toContainEqual({ number: 1 });
+  // The special (S00E01) and the unwatched Season 1 delta (S01E03/E04) are enumerated
+  // per episode — a delta mark never collapses a season to a bare token.
+  expect(seasons).toContainEqual({ number: 0, episodes: [{ number: 1 }] });
+  expect(seasons).toContainEqual({ number: 1, episodes: [{ number: 3 }, { number: 4 }] });
 });
 
 test("bulk marks are optimistic: episodes check before the write settles", async ({ page }) => {
@@ -177,6 +181,65 @@ test("Undo on a season mark re-sends the stored remove-by-item inverse", async (
   expect(controls.removePosts()[0]?.shows?.[0]?.seasons).toEqual([
     { number: 2, episodes: [{ number: 1 }, { number: 2 }, { number: 3 }] },
   ]);
+});
+
+test("a partially-watched season mark logs only the unwatched delta, and Undo removes only that", async ({
+  page,
+}) => {
+  const controls = await installLibraryRoutes(page.context(), [detailShow()]);
+  await page.goto("/show/1");
+  await expandSeason(page, 1);
+
+  // Season 1: S01E01/E02 already watched (completed=2); S01E03/E04 aired-unwatched.
+  const e3 = page
+    .getByTestId("episode-row")
+    .filter({ hasText: "S01E03" })
+    .getByTestId("episode-toggle");
+  const e1 = page
+    .getByTestId("episode-row")
+    .filter({ hasText: "S01E01" })
+    .getByTestId("episode-toggle");
+  await expect(e3).not.toBeChecked();
+  await expect(e1).toBeChecked();
+
+  await page.locator('[data-season="1"]').getByTestId("mark-season").click();
+
+  // The ADD marks ONLY the previously-unwatched aired episodes (E03/E04) — never the
+  // whole season — so the already-watched E01/E02 are not re-logged (no duplicate plays).
+  await expect.poll(() => controls.historyPosts().length).toBe(1);
+  expect(controls.historyPosts()[0]?.shows?.[0]?.seasons).toEqual([
+    { number: 1, episodes: [{ number: 3 }, { number: 4 }] },
+  ]);
+  await expect(e3).toBeChecked();
+
+  // Undo removes EXACTLY that delta; the pre-existing E01/E02 plays stay intact.
+  await page.getByTestId("season-undo-action").click();
+  await expect.poll(() => controls.removePosts().length).toBe(1);
+  expect(controls.removePosts()[0]?.shows?.[0]?.seasons).toEqual([
+    { number: 1, episodes: [{ number: 3 }, { number: 4 }] },
+  ]);
+  await expect(e3).not.toBeChecked();
+  await expect(e1).toBeChecked();
+});
+
+test("re-marking an already-watched season adds no duplicate plays (empty delta, no POST)", async ({
+  page,
+}) => {
+  const controls = await installLibraryRoutes(page.context(), [detailShow()]);
+  await page.goto("/show/1");
+  await expandSeason(page, 1);
+
+  // First mark logs the S01E03/E04 delta; the fixture then reports S1 fully watched.
+  await page.locator('[data-season="1"]').getByTestId("mark-season").click();
+  await expect.poll(() => controls.historyPosts().length).toBe(1);
+  await expect(
+    page.getByTestId("episode-row").filter({ hasText: "S01E04" }).getByTestId("episode-toggle"),
+  ).toBeChecked();
+
+  // Re-marking the now fully-watched season has an empty delta → no second POST fires.
+  await page.locator('[data-season="1"]').getByTestId("mark-season").click();
+  await page.waitForTimeout(1500);
+  expect(controls.historyPosts().length).toBe(1);
 });
 
 test("a network-dropped season mark reconciles via progress, never a blind re-POST", async ({
@@ -336,9 +399,12 @@ test("a bulk mark auto-resumes a Stopped show and its Undo re-stops it", async (
   // /sync/history/remove AND re-stops (re-hides) the show it had auto-resumed.
   await page.getByTestId("season-undo-action").click();
   await expect.poll(() => controls.removePosts().length).toBe(1);
-  // Season 1 is fully aired, so the mark (and its inverse remove) carry a bare
-  // season token rather than enumerated episodes.
-  expect(controls.removePosts()[0]?.shows?.[0]?.seasons).toEqual([{ number: 1 }]);
+  // Season 1 is partially watched (S01E01/E02 already logged), so the mark — and its
+  // inverse remove — carry only the unwatched delta (S01E03/E04), never the whole
+  // season, so Undo can't delete the pre-existing E01/E02 plays.
+  expect(controls.removePosts()[0]?.shows?.[0]?.seasons).toEqual([
+    { number: 1, episodes: [{ number: 3 }, { number: 4 }] },
+  ]);
   await expect.poll(() => controls.hiddenPosts().length).toBe(1);
   await expect(page.getByTestId("hide-show")).toHaveText("Resume");
 });

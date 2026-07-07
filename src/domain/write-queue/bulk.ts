@@ -17,6 +17,9 @@ const HISTORY_REMOVE = "/sync/history/remove";
 export interface EpisodeAir {
   readonly number: number;
   readonly firstAired: string | null;
+  /** Whether this episode already carries a play at mark time — the pivot the
+   * delta planner scopes on so a mark touches only previously-unwatched episodes. */
+  readonly watched: boolean;
 }
 
 export interface SeasonTree {
@@ -35,19 +38,23 @@ export interface BulkMarkTarget {
   readonly inversePatch?: unknown;
 }
 
-type SeasonBody = { number: number; episodes?: { number: number }[] };
+type SeasonBody = { number: number; episodes: { number: number }[] };
 
 interface PlannedSeason {
-  readonly body: SeasonBody;
-  readonly count: number;
+  readonly number: number;
   readonly episodeNumbers: readonly number[];
 }
 
 /**
- * subtree builder. Per season, emit a compact token `{number}` only when
- * every episode is aired AND included (fully-aired, not truncated by `upTo`);
- * otherwise enumerate only the aired, in-bound episodes. Specials (season 0) are
- * skipped unless opted in. Never marks unaired episodes.
+ * delta subtree builder. Emits one durable `/sync/history` op per
+ * ≤`MAX_EPISODES_PER_CHUNK` chunk, each enumerating ONLY the aired, in-bound,
+ * currently-UNWATCHED episodes — the true delta this mark creates. The inverse
+ * `/sync/history/remove` is scoped to that same delta, so an Undo removes exactly
+ * the plays this mark added and can never touch history that predates it; marking
+ * only-unwatched episodes likewise avoids duplicate plays on a re-mark. A
+ * whole-season token is never emitted — it would mark (and, inverted, remove)
+ * every episode of the season, both bugs the delta scoping exists to prevent.
+ * Specials (season 0) are skipped unless opted in; unaired episodes never marked.
  */
 export function buildBulkMarkOps(
   target: BulkMarkTarget,
@@ -80,16 +87,15 @@ function planSeasons(target: BulkMarkTarget, now: number): PlannedSeason[] {
   for (const season of seasons) {
     if (season.number === 0 && !target.includeSpecials) continue;
     if (target.upTo !== undefined && season.number > target.upTo.season) continue;
-    const included = season.episodes.filter(
-      (ep) => isAired(ep.firstAired, now) && withinBound(ep.number, season.number, target.upTo),
+    const delta = season.episodes.filter(
+      (ep) =>
+        !ep.watched &&
+        isAired(ep.firstAired, now) &&
+        withinBound(ep.number, season.number, target.upTo),
     );
-    if (included.length === 0) continue;
-    const numbers = included.map((ep) => ep.number).sort((a, b) => a - b);
-    const fullSeason = included.length === season.episodes.length;
-    const body: SeasonBody = fullSeason
-      ? { number: season.number }
-      : { number: season.number, episodes: numbers.map((n) => ({ number: n })) };
-    out.push({ body, count: included.length, episodeNumbers: numbers });
+    if (delta.length === 0) continue;
+    const episodeNumbers = delta.map((ep) => ep.number).sort((a, b) => a - b);
+    out.push({ number: season.number, episodeNumbers });
   }
   return out;
 }
@@ -105,11 +111,10 @@ function withinBound(
 }
 
 /**
- * Pack planned seasons into chunks of ≤`MAX_EPISODES_PER_CHUNK` *represented*
- * episodes. A fully-aired season stays a compact token only while it fits within
- * the cap; one that alone represents more than the cap is enumerated and split
- * across chunks, so "chunk by episode count" holds even for a single long season
- * and no one POST ever claims more than the cap.
+ * Pack planned seasons into chunks of ≤`MAX_EPISODES_PER_CHUNK` enumerated
+ * episodes, splitting a single season that alone exceeds the cap across chunks so
+ * "chunk by episode count" holds even for one long season and no POST ever
+ * represents more than the cap.
  */
 function chunkSeasons(planned: readonly PlannedSeason[]): SeasonBody[][] {
   const chunks: SeasonBody[][] = [];
@@ -123,19 +128,11 @@ function chunkSeasons(planned: readonly PlannedSeason[]): SeasonBody[][] {
     }
   };
   for (const season of planned) {
-    const isToken = season.body.episodes === undefined && season.count <= MAX_EPISODES_PER_CHUNK;
-    if (isToken) {
-      if (currentCount + season.count > MAX_EPISODES_PER_CHUNK) flush();
-      current.push(season.body);
-      currentCount += season.count;
-      if (currentCount >= MAX_EPISODES_PER_CHUNK) flush();
-      continue;
-    }
     let remaining = season.episodeNumbers;
     while (remaining.length > 0) {
       const take = remaining.slice(0, MAX_EPISODES_PER_CHUNK - currentCount);
       remaining = remaining.slice(take.length);
-      current.push({ number: season.body.number, episodes: take.map((n) => ({ number: n })) });
+      current.push({ number: season.number, episodes: take.map((n) => ({ number: n })) });
       currentCount += take.length;
       if (currentCount >= MAX_EPISODES_PER_CHUNK) flush();
     }
