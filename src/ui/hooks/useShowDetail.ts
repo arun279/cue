@@ -1,15 +1,9 @@
 import { queryKeys } from "@data/query-keys";
 import type { ShowHeader } from "@data/trakt/show-detail";
-import { useQuery } from "@tanstack/react-query";
+import { type DetailHeaderView, useDetailHeader } from "@ui/hooks/useDetailHeader";
 import { useRuntime } from "@ui/runtime/runtime";
 
-export interface ShowDetailView {
-  readonly header: ShowHeader | undefined;
-  readonly isLoading: boolean;
-  readonly isError: boolean;
-  readonly hasData: boolean;
-  refetch(): void;
-}
+export type ShowDetailView = DetailHeaderView<ShowHeader>;
 
 /**
  * The Show detail hero read: a standalone query so the hero paints
@@ -18,15 +12,5 @@ export interface ShowDetailView {
  */
 export function useShowDetail(showId: number): ShowDetailView {
   const runtime = useRuntime();
-  const query = useQuery({
-    queryKey: queryKeys.showHeader(showId),
-    queryFn: () => runtime.loadShowHeader(showId),
-  });
-  return {
-    header: query.data,
-    isLoading: query.isLoading,
-    isError: query.isError,
-    hasData: query.data !== undefined,
-    refetch: () => void query.refetch(),
-  };
+  return useDetailHeader(queryKeys.showHeader(showId), () => runtime.loadShowHeader(showId));
 }

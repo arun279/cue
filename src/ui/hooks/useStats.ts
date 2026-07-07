@@ -1,6 +1,7 @@
 import { queryKeys } from "@data/query-keys";
 import type { UserStats } from "@data/trakt/schemas";
 import { useQuery } from "@tanstack/react-query";
+import { USER_STATE_STALE_TIME } from "@ui/hooks/query-freshness";
 import { useRuntime } from "@ui/runtime/runtime";
 
 export interface StatsView {
@@ -24,6 +25,7 @@ export function useStats(): StatsView {
   const query = useQuery({
     queryKey: queryKeys.userStats(),
     queryFn: () => runtime.loadStats(),
+    staleTime: USER_STATE_STALE_TIME,
   });
   return {
     stats: query.data,

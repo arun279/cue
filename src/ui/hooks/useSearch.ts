@@ -2,6 +2,7 @@ import { queryKeys } from "@data/query-keys";
 import type { SearchHit } from "@data/trakt/search";
 import { buildAddWatchlistOp } from "@domain/write-queue/ops";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { USER_STATE_STALE_TIME } from "@ui/hooks/query-freshness";
 import { useRuntime } from "@ui/runtime/runtime";
 import { useCallback, useEffect, useState } from "react";
 import { useQueuedWrite } from "./useQueuedWrite";
@@ -60,10 +61,15 @@ export function useSearch(): SearchView {
 
   const [watchlistShows, watchlistMovies] = useQueries({
     queries: [
-      { queryKey: queryKeys.watchlist("shows"), queryFn: () => runtime.loadWatchlistIds("shows") },
+      {
+        queryKey: queryKeys.watchlist("shows"),
+        queryFn: () => runtime.loadWatchlistIds("shows"),
+        staleTime: USER_STATE_STALE_TIME,
+      },
       {
         queryKey: queryKeys.watchlist("movies"),
         queryFn: () => runtime.loadWatchlistIds("movies"),
+        staleTime: USER_STATE_STALE_TIME,
       },
     ],
   });

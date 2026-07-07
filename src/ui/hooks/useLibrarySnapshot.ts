@@ -1,6 +1,7 @@
 import { queryKeys } from "@data/query-keys";
 import type { LibraryEntry } from "@data/trakt/library";
 import { type UseQueryResult, useQuery } from "@tanstack/react-query";
+import { USER_STATE_STALE_TIME } from "@ui/hooks/query-freshness";
 import { usePrefs } from "@ui/prefs/prefs-store";
 import { thresholdMsFromDays } from "@ui/prefs/threshold";
 import { type UpNextData, useRuntime } from "@ui/runtime/runtime";
@@ -22,7 +23,11 @@ export interface LibrarySnapshot {
  */
 export function useLibrarySnapshot(): LibrarySnapshot {
   const runtime = useRuntime();
-  const query = useQuery({ queryKey: queryKeys.library(), queryFn: () => runtime.loadUpNext() });
+  const query = useQuery({
+    queryKey: queryKeys.library(),
+    queryFn: () => runtime.loadUpNext(),
+    staleTime: USER_STATE_STALE_TIME,
+  });
   const thresholdDays = usePrefs((s) => s.thresholdDays);
   const data = query.data;
   const byId = useMemo(

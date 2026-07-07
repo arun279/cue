@@ -1,8 +1,12 @@
 /**
  * `/sync/last_activities` diff → the exact set of things to invalidate.
- * Library sections use `staleTime: Infinity` and are invalidated ONLY here, so
- * this map must be exact and complete: an unmapped field advancing invalidates
- * nothing, and identical timestamps invalidate nothing.
+ * The user-state queries (library, movie library, watchlist, ratings, stats) use
+ * `staleTime: Infinity` and are invalidated ONLY here, so this map must be exact
+ * and complete: an unmapped field advancing invalidates nothing, and identical
+ * timestamps invalidate nothing. Content-carrying queries (show header/seasons,
+ * calendar) are deliberately NOT gated on this diff — they carry Trakt airdates
+ * and newly-announced episodes that don't always bump user activity, so they run
+ * on a time-based content refresh instead.
  */
 
 type ActivityStamps = { readonly [field: string]: string | undefined };

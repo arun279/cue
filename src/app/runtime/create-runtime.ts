@@ -1,9 +1,12 @@
 import { TMDB_KEY, TRAKT_CLIENT_ID } from "@app/config";
+import { queryClient, queryPersister } from "@app/query-client";
+import { PendingWritesError, type TeardownOptions } from "@app/session";
 import type { TmdbImageConfig } from "@data/image-source";
+import { invalidationKeys } from "@data/query-invalidation";
 import { TmdbClient } from "@data/tmdb/client";
 import { createAuthorizedFetch } from "@data/trakt/authorized-fetch";
 import { assembleCalendarEntries } from "@data/trakt/calendar";
-import { TraktClient } from "@data/trakt/client";
+import { TraktClient, type TraktResult } from "@data/trakt/client";
 import {
   getEpisode,
   getHidden,
@@ -24,16 +27,19 @@ import {
 import { assembleEpisodeDetail } from "@data/trakt/episode-detail";
 import { assembleLibrary, markLanded, type ShowArt, showIdSet } from "@data/trakt/library";
 import { assembleMovieHeader, assembleMovieLibrary } from "@data/trakt/movie-library";
+import { createLastActivitiesRepository } from "@data/trakt/repositories";
 import type { Progress, UserStats } from "@data/trakt/schemas";
 import { assembleSearchHits, assembleShowHits, rankSearchHits } from "@data/trakt/search";
 import { assembleHeader, assembleSeasons } from "@data/trakt/show-detail";
 import { createTraktTransport } from "@data/trakt/transport";
 import type { Token } from "@domain/model/token";
+import type { LastActivities } from "@domain/sync-activities";
 import { WriteQueue } from "@domain/write-queue/queue";
 import type { QueuedOp } from "@domain/write-queue/types";
 import type { KeyValueStore } from "@platform/kv";
 import type { TokenStore } from "@platform/token-store";
 import type {
+  ActivitiesReconcile,
   CalendarData,
   CueRuntime,
   DiscoverData,
@@ -44,6 +50,55 @@ import type {
 } from "@ui/runtime/runtime";
 
 const OP_LOG_KEY = "cue.write-queue";
+/** The persisted `/sync/last_activities` baseline the freshness gate diffs against. */
+const ACTIVITIES_KEY = "cue.last-activities";
+
+/**
+ * Read fan-out concurrency cap. Each in-flight show issues its progress + detail
+ * GET in parallel, so capping at 6 shows holds concurrent GETs at ≤12 — the top
+ * of the sync analysis's recommended 8–12 window — a >40× cut from the uncapped
+ * 2N burst a 250-show library would otherwise fire, which is what tripped Trakt's
+ * 1000-GET/5min ceiling into a 429.
+ */
+const READ_CONCURRENCY = 6;
+/**
+ * Bounded 429 retries per read before it surfaces. A transient rate-limit mid
+ * fan-out is absorbed (honoring Retry-After) instead of failing the whole load
+ * into Offline; after the budget the failure surfaces so cached data + the retry
+ * banner take over rather than spinning forever.
+ */
+const MAX_READ_RATE_RETRIES = 3;
+const DEFAULT_RATE_BACKOFF_MS = 1000;
+
+/** Run `fn` over `items` with at most `limit` in flight, preserving order. */
+async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+  const worker = async (): Promise<void> => {
+    while (cursor < items.length) {
+      const index = cursor;
+      cursor += 1;
+      results[index] = await fn(items[index] as T);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
+/** Retry a read only on a 429, honoring `Retry-After`, within a bounded budget. */
+async function withReadRateRetry<T>(read: () => Promise<TraktResult<T>>): Promise<TraktResult<T>> {
+  for (let attempt = 0; ; attempt += 1) {
+    const result = await read();
+    if (result.ok || result.error.kind !== "rate-limited" || attempt >= MAX_READ_RATE_RETRIES) {
+      return result;
+    }
+    await sleep(result.error.retryAfterMs ?? DEFAULT_RATE_BACKOFF_MS);
+  }
+}
 
 /**
  * The op's `inversePatch` read as a reconcile anchor: a `mark`/bulk write pivots
@@ -145,6 +200,17 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
   const persistLog = (): Promise<void> =>
     deps.kv.write(OP_LOG_KEY, JSON.stringify(queue.snapshot()));
 
+  const activitiesRepo = createLastActivitiesRepository(client);
+  const readActivitiesSnapshot = async (): Promise<LastActivities | undefined> => {
+    const raw = await deps.kv.read(ACTIVITIES_KEY);
+    if (raw === null) return undefined;
+    try {
+      return JSON.parse(raw) as LastActivities;
+    } catch {
+      return undefined;
+    }
+  };
+
   // Replay durable work from a prior session before accepting new writes: retire
   // ops Trakt already reflects, then flush the rest. This is the reload-survival
   // path the hermetic e2e exercises.
@@ -152,9 +218,18 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
   await persistLog();
   void queue.flush().then(persistLog);
 
+  // Re-entry guard for teardown: a dead-token flush inside `endLocalSession` can
+  // 401 → refresh → `endSession` → back into teardown; short-circuit the nested
+  // call so it can never await its own in-flight flush (a deadlock).
+  let tearingDown = false;
+
   return {
     async loadUpNext(): Promise<UpNextData> {
-      const watched = await getWatchedShows(client);
+      // Every gating read absorbs a transient 429 (Retry-After) within a bounded
+      // budget so one rate-limit — on this list read or the per-show fan-out or
+      // the hidden/watchlist reads below — no longer throws the whole load to
+      // Offline; the persisted cache keeps showing while the retry rides it out.
+      const watched = await withReadRateRetry(() => getWatchedShows(client));
       if (!watched.ok) throw new Error("Failed to load watched shows");
 
       // Per show: strict progress (a failure must fail the whole read so React
@@ -162,18 +237,18 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       // known show as "all caught up") plus best-effort show-detail art — the
       // `/sync/watched/shows` list carries no `images`, so the real poster,
       // backdrop, network and genres come from `/shows/:id`. Art that can't load
-      // simply degrades to the text fallback; it never fails the queue.
-      const perShow = await Promise.all(
-        watched.data.map(async (show) => {
-          const id = show.show.ids.trakt;
-          const [progress, detail] = await Promise.all([
-            getShowProgress(client, id),
-            getShow(client, id),
-          ]);
-          if (!progress.ok) throw new Error("Failed to load show progress");
-          return { id, progress: progress.data, detail: detail.ok ? detail.data : null };
-        }),
-      );
+      // simply degrades to the text fallback; it never fails the queue. The
+      // fan-out is concurrency-capped and each read absorbs a transient 429
+      // (Retry-After) so one rate-limit no longer fails the whole Promise.all.
+      const perShow = await mapWithConcurrency(watched.data, READ_CONCURRENCY, async (show) => {
+        const id = show.show.ids.trakt;
+        const [progress, detail] = await Promise.all([
+          withReadRateRetry(() => getShowProgress(client, id)),
+          withReadRateRetry(() => getShow(client, id)),
+        ]);
+        if (!progress.ok) throw new Error("Failed to load show progress");
+        return { id, progress: progress.data, detail: detail.ok ? detail.data : null };
+      });
 
       const progress = new Map<number, Progress>(perShow.map((s) => [s.id, s.progress]));
       const details = new Map<number, ShowArt>();
@@ -189,8 +264,8 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       }
 
       const [hidden, watchlist] = await Promise.all([
-        getHidden(client),
-        getWatchlist(client, "shows"),
+        withReadRateRetry(() => getHidden(client)),
+        withReadRateRetry(() => getWatchlist(client, "shows")),
       ]);
       if (!hidden.ok) throw new Error("Failed to load hidden shows");
       if (!watchlist.ok) throw new Error("Failed to load watchlist");
@@ -206,11 +281,13 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     },
 
     async loadMovieLibrary(): Promise<MovieLibraryData> {
-      // Both reads carry `extended=full,images`, so watched + watchlist movies
-      // already supply their own poster art — no per-movie detail fetch needed.
+      // Both reads carry `images` (watched via `getWatchedMovies`, watchlist via
+      // `getWatchlist`), so watched + watchlist movies supply their own poster art
+      // — no per-movie detail fetch needed. Each absorbs a transient 429 so a
+      // rate-limit doesn't flip the library to Offline over its cached posters.
       const [watched, watchlist] = await Promise.all([
-        getWatchedMovies(client),
-        getWatchlist(client, "movies"),
+        withReadRateRetry(() => getWatchedMovies(client)),
+        withReadRateRetry(() => getWatchlist(client, "movies")),
       ]);
       if (!watched.ok) throw new Error("Failed to load watched movies");
       if (!watchlist.ok) throw new Error("Failed to load movie watchlist");
@@ -327,6 +404,62 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       if (result.completed.some((done) => done.id === op.id)) return "done";
       if (result.failed.some((failure) => failure.op.id === op.id)) return "failed";
       return "deferred";
+    },
+
+    async pollActivities(): Promise<ActivitiesReconcile | null> {
+      const stored = await readActivitiesSnapshot();
+      let poll: Awaited<ReturnType<typeof activitiesRepo.poll>>;
+      try {
+        poll = await activitiesRepo.poll(stored);
+      } catch {
+        // A malformed/absent body (schema throw) is a failed freshness check —
+        // stay silent rather than surface it. The next poll retries.
+        return null;
+      }
+      // Offline / rate-limited: the check itself failed, so report nothing to
+      // invalidate and don't advance the baseline. Cached data keeps showing.
+      if (!poll.ok) return null;
+      const fresh = poll.activities;
+      // First poll (no baseline): establish the baseline WITHOUT invalidating.
+      // Cold-boot queries load naturally and a restored cache is trusted until a
+      // real diffed change; the snapshot persists alongside the query cache in
+      // normal operation, so a genuine warm reload always has a baseline to diff.
+      const keys = stored === undefined ? [] : invalidationKeys(poll.targets);
+      return {
+        keys,
+        commit: () => deps.kv.write(ACTIVITIES_KEY, JSON.stringify(fresh)),
+      };
+    },
+
+    async endLocalSession(options: TeardownOptions = {}): Promise<void> {
+      if (tearingDown) return;
+      tearingDown = true;
+      try {
+        // Flush best-effort while the token is still valid so pending writes land
+        // before we drop the durable log; a flush failure (offline) falls through
+        // to the drain check below rather than stranding the disconnect.
+        try {
+          await queue.flush();
+        } catch {
+          // offline / transient — the size check decides whether we may clear
+        }
+        await persistLog();
+        // A normal disconnect that couldn't drain the queue must NOT drop the
+        // op-log (that loses the user's writes) nor keep it across sign-out (it
+        // could replay under a different account) — so refuse and let the user
+        // reconnect + retry. The dead-token path forces past this: those writes
+        // can never be sent, and clearing is what prevents the cross-account
+        // replay.
+        if (options.force !== true && queue.size > 0) throw new PendingWritesError();
+        // Clear this device's per-account state so the next account never paints
+        // stale data or dispatches a leftover op.
+        await deps.kv.remove(OP_LOG_KEY);
+        await deps.kv.remove(ACTIVITIES_KEY);
+        queryClient.clear();
+        await queryPersister.removeClient();
+      } finally {
+        tearingDown = false;
+      }
     },
   };
 }

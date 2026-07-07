@@ -8,6 +8,7 @@ import {
 } from "@domain/calendar";
 import { buildMarkEpisodeOp } from "@domain/write-queue/ops";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { CONTENT_STALE_TIME_MS } from "@ui/hooks/query-freshness";
 import { useRuntime } from "@ui/runtime/runtime";
 import { useCallback, useMemo, useState } from "react";
 import { useQueuedWrite } from "./useQueuedWrite";
@@ -62,6 +63,9 @@ export function useCalendar(): CalendarView {
   const query = useQuery({
     queryKey: queryKeys.calendar(startDate, windowDays),
     queryFn: () => runtime.loadCalendar(startDate, windowDays),
+    // Time/content-driven, NOT gated on last_activities: newly-announced or
+    // newly-aired future episodes don't always bump user activity.
+    staleTime: CONTENT_STALE_TIME_MS,
   });
 
   const data = query.data;

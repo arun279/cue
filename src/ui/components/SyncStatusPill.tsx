@@ -1,3 +1,4 @@
+import { useSyncActivity } from "@ui/hooks/sync-activity-store";
 import type { ReactElement } from "react";
 
 interface SyncStatusPillProps {
@@ -24,7 +25,11 @@ function relativeSince(then: number): string {
 /**
  * The header sync-state pill shared by the persisted-SWR screens: a polite live
  * region reporting Syncing / Offline / Synced (with last-synced recency) so a
- * background revalidate (or its failure) is announced without stealing focus.
+ * real change-driven revalidate (or its failure) is announced without stealing
+ * focus. Post-gating, `isFetching` fires only on a genuine change-driven refetch
+ * (navigation no longer refetches), and the write-side flush signal is OR'd in so
+ * "Syncing…" also covers a pending durable write — a plain page change with
+ * nothing to sync rests truthfully on "Synced · <when>".
  */
 export function SyncStatusPill({
   testId,
@@ -33,7 +38,9 @@ export function SyncStatusPill({
   count,
   syncedAt,
 }: SyncStatusPillProps): ReactElement {
-  const label = isFetching
+  const isWriting = useSyncActivity((state) => state.pending > 0);
+  const busy = isFetching || isWriting;
+  const label = busy
     ? "Syncing…"
     : isError
       ? "Offline"
@@ -45,7 +52,7 @@ export function SyncStatusPill({
       className="status-pill"
       role="status"
       data-testid={testId}
-      data-state={isFetching ? "syncing" : isError ? "offline" : "synced"}
+      data-state={busy ? "syncing" : isError ? "offline" : "synced"}
       {...(count === undefined ? {} : { "data-count": count })}
     >
       {label}

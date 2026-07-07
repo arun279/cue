@@ -2,6 +2,8 @@ import { queryKeys } from "@data/query-keys";
 import type { ShowIds } from "@domain/model/ids";
 import { buildAddWatchlistOp, buildRemoveWatchlistOp } from "@domain/write-queue/ops";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { USER_STATE_STALE_TIME } from "@ui/hooks/query-freshness";
+import { useTrackedSubmit } from "@ui/hooks/useOptimisticWrite";
 import { type UpNextData, useRuntime } from "@ui/runtime/runtime";
 import { useCallback, useState } from "react";
 
@@ -25,9 +27,14 @@ export interface WatchlistController {
  */
 export function useToggleWatchlist(): WatchlistController {
   const runtime = useRuntime();
+  const submit = useTrackedSubmit();
   const queryClient = useQueryClient();
   const key = queryKeys.watchlist("shows");
-  const query = useQuery({ queryKey: key, queryFn: () => runtime.loadWatchlistIds("shows") });
+  const query = useQuery({
+    queryKey: key,
+    queryFn: () => runtime.loadWatchlistIds("shows"),
+    staleTime: USER_STATE_STALE_TIME,
+  });
   const [error, setError] = useState<string | null>(null);
 
   const patch = useCallback(
@@ -63,7 +70,7 @@ export function useToggleWatchlist(): WatchlistController {
       const op = next
         ? buildAddWatchlistOp({ opId: crypto.randomUUID(), section: "shows", ids })
         : buildRemoveWatchlistOp({ opId: crypto.randomUUID(), section: "shows", ids });
-      const outcome = await runtime.submit(op);
+      const outcome = await submit(op);
       if (outcome === "failed") {
         patch(showId, onNow);
         setError("Couldn't update your watchlist. Please try again.");
@@ -77,7 +84,7 @@ export function useToggleWatchlist(): WatchlistController {
         void queryClient.invalidateQueries({ queryKey: queryKeys.library() });
       }
     },
-    [queryClient, key, patch, query.data, runtime],
+    [queryClient, key, patch, query.data, submit],
   );
 
   return {

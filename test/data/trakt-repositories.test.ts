@@ -1,5 +1,5 @@
 import { TRAKT_API_BASE, TraktClient } from "@data/trakt/client";
-import { createHiddenRepository, createLastActivitiesRepository } from "@data/trakt/repositories";
+import { createLastActivitiesRepository } from "@data/trakt/repositories";
 import type { LastActivities } from "@domain/sync-activities";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
@@ -110,41 +110,5 @@ describe("last_activities repository drives the invalidation map", () => {
     );
     const poll = await createLastActivitiesRepository(client).poll(STORED);
     expect(poll).toEqual({ ok: false, error: { kind: "server", status: 500 } });
-  });
-});
-
-describe("hidden repository is its own source", () => {
-  it("lists hidden items", async () => {
-    server.use(
-      http.get(`${TRAKT_API_BASE}/users/hidden/progress_watched`, () =>
-        HttpResponse.json([{ type: "show", show: { title: "Lost", ids: { trakt: 7 } } }]),
-      ),
-    );
-    const result = await createHiddenRepository(client).list();
-    expect(result.ok && result.data[0]?.show?.ids.trakt).toBe(7);
-  });
-
-  it("composes the hide body as {shows:[{ids}]}", async () => {
-    let body: unknown;
-    server.use(
-      http.post(`${TRAKT_API_BASE}/users/hidden/progress_watched`, async ({ request }) => {
-        body = await request.json();
-        return HttpResponse.json({ added: { shows: 1 } });
-      }),
-    );
-    await createHiddenRepository(client).hide([{ trakt: 7 }]);
-    expect(body).toEqual({ shows: [{ ids: { trakt: 7 } }] });
-  });
-
-  it("composes the unhide body against the remove path", async () => {
-    let body: unknown;
-    server.use(
-      http.post(`${TRAKT_API_BASE}/users/hidden/progress_watched/remove`, async ({ request }) => {
-        body = await request.json();
-        return HttpResponse.json({ deleted: { shows: 1 } });
-      }),
-    );
-    await createHiddenRepository(client).unhide([{ trakt: 7 }]);
-    expect(body).toEqual({ shows: [{ ids: { trakt: 7 } }] });
   });
 });

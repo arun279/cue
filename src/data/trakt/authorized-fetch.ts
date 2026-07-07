@@ -4,14 +4,14 @@ import { type OAuthConfig, refreshAccessToken, TokenRefreshError } from "../auth
 import type { FetchLike } from "./client";
 
 /**
- * A single access token is valid for Trakt's full 90-day window, so two
- * *legitimate* refreshes are always months apart; the throttle exists only to
- * collapse a stale-session burst — one screen's read fan-out all 401ing at once
- * — into a single `/oauth/token` call rather than one per request. 60s
- * comfortably covers a navigation's async fan-out plus interactive tapping while
- * sitting ~5 orders of magnitude below the token lifetime, so it can never block
- * a refresh the app actually needs. A `Retry-After` on the endpoint overrides it
- * upward.
+ * A Trakt access token is valid for ~7 days, so a *legitimate* refresh happens at
+ * most about weekly (lazily, on the first call past expiry — never on a timer).
+ * The throttle exists only to collapse a stale-session burst — one screen's read
+ * fan-out all 401ing at once — into a single `/oauth/token` call rather than one
+ * per request. 60s comfortably covers a navigation's async fan-out plus
+ * interactive tapping while sitting ~4 orders of magnitude below the token
+ * lifetime, so it can never block a refresh the app actually needs. A
+ * `Retry-After` on the endpoint overrides it upward.
  */
 const DEFAULT_REFRESH_THROTTLE_MS = 60_000;
 

@@ -3,6 +3,7 @@ import { CueMark } from "@ui/app-shell/CueMark";
 import { ErrorBoundary } from "@ui/app-shell/ErrorBoundary";
 import { NavIcon } from "@ui/app-shell/NavIcon";
 import { navDestinations } from "@ui/app-shell/nav";
+import { useActivitiesPoll } from "@ui/hooks/useActivitiesPoll";
 import type { ReactElement, ReactNode } from "react";
 
 /**
@@ -151,6 +152,11 @@ function SidebarFooter(): ReactElement {
 }
 
 export function RootLayout(): ReactElement {
+  // The one freshness gate: a visibility-gated last_activities poll invalidates
+  // exactly what changed. Navigation itself never refetches. It
+  // no-ops until a session runtime exists (e.g. the pre-token /auth/callback render
+  // renders this shell without a RuntimeProvider).
+  useActivitiesPoll();
   return (
     <div className="layout">
       <a className="skip-link" href="#main">

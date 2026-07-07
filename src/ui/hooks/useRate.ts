@@ -2,6 +2,8 @@ import { queryKeys } from "@data/query-keys";
 import type { EpisodeIds, MovieIds, ShowIds } from "@domain/model/ids";
 import { buildRateOp, buildUnrateOp, type RateSection } from "@domain/write-queue/ops";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { USER_STATE_STALE_TIME } from "@ui/hooks/query-freshness";
+import { useTrackedSubmit } from "@ui/hooks/useOptimisticWrite";
 import { type RatingMap, useRuntime } from "@ui/runtime/runtime";
 import { useCallback, useState } from "react";
 
@@ -28,9 +30,14 @@ export interface RateController {
  */
 export function useRate(section: RateSection): RateController {
   const runtime = useRuntime();
+  const submit = useTrackedSubmit();
   const queryClient = useQueryClient();
   const key = queryKeys.ratings(section);
-  const query = useQuery({ queryKey: key, queryFn: () => runtime.loadRatings(section) });
+  const query = useQuery({
+    queryKey: key,
+    queryFn: () => runtime.loadRatings(section),
+    staleTime: USER_STATE_STALE_TIME,
+  });
   const [error, setError] = useState<string | null>(null);
 
   const patch = useCallback(
@@ -52,7 +59,7 @@ export function useRate(section: RateSection): RateController {
       await queryClient.cancelQueries({ queryKey: key });
       const before = queryClient.getQueryData<RatingMap>(key)?.[ids.trakt] ?? null;
       patch(ids.trakt, value);
-      const outcome = await runtime.submit(
+      const outcome = await submit(
         buildRateOp({
           opId: crypto.randomUUID(),
           section,
@@ -70,7 +77,7 @@ export function useRate(section: RateSection): RateController {
       // otherwise refetch stale server data over the optimistic value.
       if (outcome === "done") void queryClient.invalidateQueries({ queryKey: key });
     },
-    [queryClient, key, patch, runtime, section],
+    [queryClient, key, patch, submit, section],
   );
 
   const clearRating = useCallback(
@@ -79,7 +86,7 @@ export function useRate(section: RateSection): RateController {
       const before = queryClient.getQueryData<RatingMap>(key)?.[ids.trakt];
       if (before === undefined) return;
       patch(ids.trakt, null);
-      const outcome = await runtime.submit(
+      const outcome = await submit(
         buildUnrateOp({ opId: crypto.randomUUID(), section, ids, previousRating: before }),
       );
       if (outcome === "failed") {
@@ -89,7 +96,7 @@ export function useRate(section: RateSection): RateController {
       }
       if (outcome === "done") void queryClient.invalidateQueries({ queryKey: key });
     },
-    [queryClient, key, patch, runtime, section],
+    [queryClient, key, patch, submit, section],
   );
 
   return {

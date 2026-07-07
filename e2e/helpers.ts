@@ -57,6 +57,14 @@ export async function installHermeticRoutes(context: BrowserContext): Promise<He
     }),
   );
 
+  // The freshness gate polls `/sync/last_activities`; the array catch-all would
+  // fail the object schema, so answer with a valid empty stamp table — a boot with
+  // no baseline commits it and invalidates nothing (a clean no-op poll).
+  // installLibraryRoutes overrides this with a mutable, bump-able table.
+  await context.route("**/api.trakt.tv/sync/last_activities*", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: "{}" }),
+  );
+
   await context.route("**/api.trakt.tv/networks*", async (route) => {
     if (mode === "abort") {
       await route.abort();
@@ -353,6 +361,11 @@ export interface LibraryControls {
   setReadDelayMs: (ms: number) => void;
   /** Abort only these shows' progress reads (partial-outage case); [] restores all. */
   failProgressFor: (traktIds: readonly number[]) => void;
+  /** 429 the next `n` progress reads (with Retry-After) then serve them — the read
+   * rate-limit-then-recover path. */
+  rateLimitProgressReads: (n: number) => void;
+  /** Advance one `/sync/last_activities` stamp so the next poll diffs a real change. */
+  bumpActivity: (section: string, field: string) => void;
   clearWrites: () => void;
   writes: () => readonly CapturedWrite[];
   historyPosts: () => readonly CapturedWrite[];
@@ -543,6 +556,19 @@ export async function installLibraryRoutes(
   let failedProgressIds = new Set<number>();
   const writes: CapturedWrite[] = [];
   let progressReads = 0;
+  let progressRateLimitBudget = 0;
+
+  // A mutable `/sync/last_activities` stamp table. Seeded newer than any baseline
+  // snapshot a test seeds, so a boot with an OLDER stored snapshot diffs a change;
+  // `bumpActivity` advances a single field to drive exactly one diff-invalidation.
+  const ACTIVITY_BASE = Date.parse("2026-07-04T00:00:00.000Z");
+  let activityTick = 0;
+  const activities: Record<string, Record<string, string>> = {
+    episodes: { watched_at: "2026-07-04T00:00:00.000Z" },
+    shows: { rated_at: "2026-07-04T00:00:00.000Z", watchlisted_at: "2026-07-04T00:00:00.000Z" },
+    movies: { watched_at: "2026-07-04T00:00:00.000Z" },
+    watchlist: { updated_at: "2026-07-04T00:00:00.000Z" },
+  };
 
   const readWait = (): Promise<void> => (readDelayMs > 0 ? sleep(readDelayMs) : Promise.resolve());
 
@@ -562,6 +588,17 @@ export async function installLibraryRoutes(
     return route.fulfill({ status: 200, headers: JSON_HEADERS, body: watchedShowsBody(shows) });
   });
 
+  // The freshness gate's poll. Cheap (no readWait) but honors `abort` so an offline
+  // boot's poll fails silently. Serves the live, bump-able stamp table.
+  await context.route("**/api.trakt.tv/sync/last_activities*", (route) => {
+    if (readMode === "abort") return route.abort();
+    return route.fulfill({
+      status: 200,
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ all: "2026-07-04T00:00:00.000Z", ...activities }),
+    });
+  });
+
   // Show detail (`/shows/:id`) is registered before the progress + seasons routes
   // so those more-specific paths, registered later, win over this catch (last
   // route registered wins).
@@ -579,6 +616,14 @@ export async function installLibraryRoutes(
     progressReads += 1;
     const id = Number(new URL(route.request().url()).pathname.split("/")[2]);
     if (readMode === "abort" || failedProgressIds.has(id)) return route.abort();
+    if (progressRateLimitBudget > 0) {
+      progressRateLimitBudget -= 1;
+      return route.fulfill({
+        status: 429,
+        headers: { ...JSON_HEADERS, "retry-after": "1" },
+        body: "{}",
+      });
+    }
     const show = shows.find((s) => s.trakt === id);
     return route.fulfill({
       status: 200,
@@ -819,6 +864,14 @@ export async function installLibraryRoutes(
     failProgressFor: (traktIds) => {
       failedProgressIds = new Set(traktIds);
     },
+    rateLimitProgressReads: (n) => {
+      progressRateLimitBudget = n;
+    },
+    bumpActivity: (section, field) => {
+      activityTick += 1;
+      const iso = new Date(ACTIVITY_BASE + activityTick * 60_000).toISOString();
+      activities[section] = { ...(activities[section] ?? {}), [field]: iso };
+    },
     clearWrites: () => {
       writes.length = 0;
     },
@@ -984,12 +1037,16 @@ function persistedEntry(index: number): unknown {
   };
 }
 
-/** A dehydrated Query cache holding the assembled `library` query with `count` up-next entries. */
-export function buildPersistedLibrary(count: number, ageMs: number): string {
+/**
+ * A dehydrated Query cache holding the assembled `library` query with `count`
+ * up-next entries. `buster` defaults to the app's current `PERSIST_BUSTER`; pass
+ * an older value to simulate a pre-migration cache the persister must drop.
+ */
+export function buildPersistedLibrary(count: number, ageMs: number, buster = "cue-m5"): string {
   const updatedAt = Date.now() - ageMs;
   const entries = Array.from({ length: count }, (_, index) => persistedEntry(index));
   return JSON.stringify({
-    buster: "cue-m4",
+    buster,
     timestamp: updatedAt,
     clientState: {
       mutations: [],
@@ -1015,6 +1072,61 @@ export function buildPersistedLibrary(count: number, ageMs: number): string {
       ],
     },
   });
+}
+
+/**
+ * Seed a `/sync/last_activities` baseline snapshot into idb-keyval before the app
+ * boots (at document start, like `seedAuth`), so the boot poll has a prior stamp
+ * table to diff against. A baseline MATCHING the harness fixture makes the first
+ * poll a clean no-op; a baseline OLDER than it drives the poll to detect a change
+ * and revalidate — the poll-driven successor to refetch-on-mount.
+ */
+export async function seedActivities(context: BrowserContext, snapshot: unknown): Promise<void> {
+  await context.addInitScript(
+    ({ value }) => {
+      const open = indexedDB.open("keyval-store");
+      open.onupgradeneeded = () => {
+        if (!open.result.objectStoreNames.contains("keyval")) {
+          open.result.createObjectStore("keyval");
+        }
+      };
+      open.onsuccess = () => {
+        const db = open.result;
+        const tx = db.transaction("keyval", "readwrite");
+        tx.objectStore("keyval").put(value, "cue.last-activities");
+        tx.oncomplete = () => db.close();
+      };
+    },
+    { value: JSON.stringify(snapshot) },
+  );
+}
+
+/**
+ * Seed the persisted Query cache into idb-keyval BEFORE the app boots (at document
+ * start, like `seedAuth`), so the restore path reads it on mount. Used to simulate
+ * a pre-migration (older-`buster`) cache the persister must drop.
+ */
+export async function seedQueryCacheAtStart(
+  context: BrowserContext,
+  serialized: string,
+): Promise<void> {
+  await context.addInitScript(
+    ({ value }) => {
+      const open = indexedDB.open("keyval-store");
+      open.onupgradeneeded = () => {
+        if (!open.result.objectStoreNames.contains("keyval")) {
+          open.result.createObjectStore("keyval");
+        }
+      };
+      open.onsuccess = () => {
+        const db = open.result;
+        const tx = db.transaction("keyval", "readwrite");
+        tx.objectStore("keyval").put(value, "cue.query-cache");
+        tx.oncomplete = () => db.close();
+      };
+    },
+    { value: serialized },
+  );
 }
 
 /** Write the persisted cache into idb-keyval's store, matching the app's persister key. */

@@ -1,4 +1,5 @@
 import type { QueuedOp } from "@domain/write-queue/types";
+import { trackWrite } from "@ui/hooks/sync-activity-store";
 import { type SubmitOutcome, useRuntime } from "@ui/runtime/runtime";
 import { useCallback } from "react";
 
@@ -64,11 +65,21 @@ export async function applyOptimisticWrite(
   return outcome;
 }
 
-/** Bind {@link applyOptimisticWrite} to the injected runtime for use inside write hooks. */
-export function useOptimisticWrite(): SubmitOptimistic {
+/**
+ * The runtime `submit` every write surface shares, bracketed by `trackWrite` so
+ * the sync pill reflects an in-flight write flush (the distinct write-side
+ * "Syncing…" signal). ALL writes must submit through this — a direct
+ * `runtime.submit` bypasses the bracket and leaves the pill silent while the
+ * durable queue is actually flushing.
+ */
+export function useTrackedSubmit(): (op: QueuedOp) => Promise<SubmitOutcome> {
   const runtime = useRuntime();
-  return useCallback(
-    (ops, effects) => applyOptimisticWrite((op) => runtime.submit(op), ops, effects),
-    [runtime],
-  );
+  return useCallback((op) => trackWrite(() => runtime.submit(op)), [runtime]);
+}
+
+/** Bind {@link applyOptimisticWrite} to the tracked runtime submit for use inside
+ * write hooks. */
+export function useOptimisticWrite(): SubmitOptimistic {
+  const submit = useTrackedSubmit();
+  return useCallback((ops, effects) => applyOptimisticWrite(submit, ops, effects), [submit]);
 }

@@ -1,4 +1,5 @@
 import { createCueRuntime } from "@app/runtime/create-runtime";
+import { sessionTeardown } from "@app/session";
 import type { KeyValueStore } from "@platform/kv";
 import type { TokenStore } from "@platform/token-store";
 import { useAuth } from "@ui/auth/store";
@@ -35,6 +36,9 @@ export function RuntimeBoot({
     alive.current = true;
     return () => {
       alive.current = false;
+      // No runtime is mounted anymore: a disconnect from here on has nothing to
+      // flush/clear through, so drop the registered teardown.
+      sessionTeardown.run = () => Promise.resolve();
     };
   }, []);
 
@@ -51,7 +55,12 @@ export function RuntimeBoot({
           redirectUri,
           endSession,
         });
-        if (alive.current) setRuntime(built);
+        if (alive.current) {
+          // Hand disconnect a live teardown: flush pending writes + clear this
+          // device's caches through the runtime before the token is revoked.
+          sessionTeardown.run = (options) => built.endLocalSession(options);
+          setRuntime(built);
+        }
       } catch {
         // A boot rejection must never leave the app stuck on the loading spinner;
         // surface a retryable error instead.

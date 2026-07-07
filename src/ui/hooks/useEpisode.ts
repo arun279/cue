@@ -1,6 +1,7 @@
 import { queryKeys } from "@data/query-keys";
 import type { EpisodeDetail } from "@data/trakt/episode-detail";
 import { useQuery } from "@tanstack/react-query";
+import { CONTENT_STALE_TIME_MS } from "@ui/hooks/query-freshness";
 import { useRuntime } from "@ui/runtime/runtime";
 
 export interface EpisodeView {
@@ -20,6 +21,7 @@ export function useEpisode(showId: number, season: number, number: number): Epis
   const query = useQuery({
     queryKey: queryKeys.episode(showId, season, number),
     queryFn: () => runtime.loadEpisode(showId, season, number),
+    staleTime: CONTENT_STALE_TIME_MS,
   });
   return {
     episode: query.data,

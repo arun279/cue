@@ -5,9 +5,14 @@ import { del, get, set } from "idb-keyval";
 /**
  * Bump when the app version or a persisted-schema shape changes: the persister
  * drops any cache whose `buster` differs. This — not an age cap — is how stale
- * snapshots are retired.
+ * snapshots are retired. The m5 bump retires every pre-gate
+ * (m4) cache: those were written under `staleTime: 0` with no co-persisted
+ * last-activities baseline, so under the new `staleTime: Infinity` gate a
+ * migrating user would otherwise trust a baseline-less restored cache forever.
+ * Dropping them forces one clean reload that lands the cache and its baseline
+ * together.
  */
-export const PERSIST_BUSTER = "cue-m4";
+export const PERSIST_BUSTER = "cue-m5";
 
 /**
  * `maxAge` governs how long a restored cache may be replayed, NOT freshness.
@@ -22,9 +27,17 @@ export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       gcTime: PERSIST_MAX_AGE,
-      // Refetch on mount so a restored (possibly stale) cache paints instantly,
-      // then revalidates — the stale-while-revalidate boot the whole app rides on.
+      // Per-query freshness is explicit: user-state reads (library, movie library,
+      // stats, watchlist, ratings) set `staleTime: Infinity` and revalidate ONLY
+      // through the last-activities reconciler; content reads (show detail,
+      // calendar) set a finite content window. The 0 default only covers ephemeral
+      // reads (search) that are keyed per query and fine to refetch on mount.
       staleTime: 0,
+      // Focus/reconnect no longer trigger a blanket per-screen re-fetch — a single
+      // Page-Visibility-gated `/sync/last_activities` poll is the one freshness
+      // check on regaining visibility, so navigation costs zero Trakt data calls.
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
       retry: false,
     },
   },

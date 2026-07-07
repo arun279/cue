@@ -1,7 +1,8 @@
 import type { ShowIds } from "@domain/model/ids";
 import { buildHideShowOp, buildUnhideShowOp } from "@domain/write-queue/ops";
 import { useQueryClient } from "@tanstack/react-query";
-import { type SubmitOutcome, useRuntime } from "@ui/runtime/runtime";
+import { useTrackedSubmit } from "@ui/hooks/useOptimisticWrite";
+import type { SubmitOutcome } from "@ui/runtime/runtime";
 import { useCallback } from "react";
 import { isLibraryHidden, patchLibraryHidden } from "./library-cache";
 
@@ -24,14 +25,14 @@ export interface ResumeOnMark {
  * only when the mark actually resumed it.
  */
 export function useResumeOnMark(): ResumeOnMark {
-  const runtime = useRuntime();
+  const submit = useTrackedSubmit();
   const queryClient = useQueryClient();
 
   const resumeIfStopped = useCallback(
     async (showId: number, ids: ShowIds): Promise<SubmitOutcome | null> => {
       if (!isLibraryHidden(queryClient, showId)) return null;
       patchLibraryHidden(queryClient, showId, false);
-      return runtime.submit(
+      return submit(
         buildUnhideShowOp({
           opId: crypto.randomUUID(),
           ids,
@@ -39,13 +40,13 @@ export function useResumeOnMark(): ResumeOnMark {
         }),
       );
     },
-    [queryClient, runtime],
+    [queryClient, submit],
   );
 
   const reStop = useCallback(
     (showId: number, ids: ShowIds): Promise<SubmitOutcome> => {
       patchLibraryHidden(queryClient, showId, true);
-      return runtime.submit(
+      return submit(
         buildHideShowOp({
           opId: crypto.randomUUID(),
           ids,
@@ -53,7 +54,7 @@ export function useResumeOnMark(): ResumeOnMark {
         }),
       );
     },
-    [queryClient, runtime],
+    [queryClient, submit],
   );
 
   return { resumeIfStopped, reStop };

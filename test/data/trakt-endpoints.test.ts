@@ -228,6 +228,38 @@ describe("Trakt read endpoints zod-parse well-formed fixtures", () => {
   });
 });
 
+describe("watched endpoints send the honest post-#775 payload params", () => {
+  it("requests compact watched shows (no extended) with an explicit page limit", async () => {
+    let seen: URL | undefined;
+    server.use(
+      http.get(`${TRAKT_API_BASE}/sync/watched/shows`, ({ request }) => {
+        seen = new URL(request.url);
+        return HttpResponse.json([]);
+      }),
+    );
+    await getWatchedShows(client);
+    // No `extended`: `full` is a no-op and images aren't returned inline; shows get
+    // their art from `/shows/:id` in the library fan-out.
+    expect(seen?.searchParams.get("extended")).toBeNull();
+    expect(seen?.searchParams.get("limit")).toBe("100");
+  });
+
+  it("keeps images (drops full) on watched movies so their posters survive", async () => {
+    let seen: URL | undefined;
+    server.use(
+      http.get(`${TRAKT_API_BASE}/sync/watched/movies`, ({ request }) => {
+        seen = new URL(request.url);
+        return HttpResponse.json([]);
+      }),
+    );
+    await getWatchedMovies(client);
+    // Movies have no per-movie detail fetch in the library, so their poster art
+    // comes from THIS call — `images` must stay (only the no-op `full` is dropped).
+    expect(seen?.searchParams.get("extended")).toBe("images");
+    expect(seen?.searchParams.get("limit")).toBe("100");
+  });
+});
+
 describe("malformed bodies throw a zod error", () => {
   it("throws when a watched show is missing its ids", async () => {
     getJson("/sync/watched/shows", [{ show: { title: "No Ids" } }]);

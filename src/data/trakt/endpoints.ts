@@ -37,6 +37,15 @@ import {
 } from "./schemas";
 
 const ART: readonly ["full", "images"] = ["full", "images"];
+const IMAGES: readonly ["images"] = ["images"];
+
+/**
+ * Explicit page size for the now-paginated `/sync/watched/*` endpoints (Trakt
+ * change #775, live 2026-06-30): the server default is 100 items/page. Pinning it
+ * documents intent and keeps the page count stable against a future default
+ * change rather than relying on Trakt's implicit default.
+ */
+const WATCHED_PAGE_LIMIT = 100;
 
 /** Validate the ok payload (throws on malformed); pass transport failures through. */
 function parse<T>(result: TraktResult<unknown>, schema: z.ZodType<T>): TraktResult<T> {
@@ -45,15 +54,24 @@ function parse<T>(result: TraktResult<unknown>, schema: z.ZodType<T>): TraktResu
 }
 
 export async function getWatchedShows(client: TraktClient): Promise<TraktResult<WatchedShow[]>> {
+  // No `extended`: post-#775 `full` is a no-op here and images aren't returned
+  // inline, so the compact default is the honest payload — each show's real art
+  // comes from `/shows/:id` in the library fan-out.
   return parse(
-    await client.getAllPages("/sync/watched/shows", { extended: ART }),
+    await client.getAllPages("/sync/watched/shows", { limit: WATCHED_PAGE_LIMIT }),
     watchedShowsSchema,
   );
 }
 
 export async function getWatchedMovies(client: TraktClient): Promise<TraktResult<WatchedMovie[]>> {
+  // Keep `images` (dropped `full`, a no-op post-#775): watched movies have no
+  // per-movie detail fetch in the library fan-out, so their poster art comes from
+  // THIS call — dropping images would strip the movie posters.
   return parse(
-    await client.getAllPages("/sync/watched/movies", { extended: ART }),
+    await client.getAllPages("/sync/watched/movies", {
+      extended: IMAGES,
+      limit: WATCHED_PAGE_LIMIT,
+    }),
     watchedMoviesSchema,
   );
 }

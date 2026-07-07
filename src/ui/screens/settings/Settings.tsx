@@ -141,11 +141,18 @@ export function Settings(): ReactElement {
                   onClick={() => {
                     setDisconnecting(true);
                     setDisconnectError(null);
-                    disconnect().catch(() => {
+                    disconnect().catch((error: unknown) => {
                       // A successful disconnect unmounts this screen; only a failure
                       // lands here, where the button must recover so the user can retry.
                       setDisconnecting(false);
-                      setDisconnectError("Couldn't finish disconnecting. Please try again.");
+                      // A refused disconnect (writes still queued offline) gets an
+                      // honest, actionable message instead of the generic failure.
+                      const pending = error instanceof Error && error.name === "PendingWritesError";
+                      setDisconnectError(
+                        pending
+                          ? "Some changes haven't synced yet. Reconnect to the internet, then try disconnecting again."
+                          : "Couldn't finish disconnecting. Please try again.",
+                      );
                     });
                   }}
                 >

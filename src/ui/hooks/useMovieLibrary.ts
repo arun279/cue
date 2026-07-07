@@ -1,6 +1,7 @@
 import { queryKeys } from "@data/query-keys";
 import type { MovieEntry } from "@data/trakt/movie-library";
 import { type QueryClient, useQuery } from "@tanstack/react-query";
+import { USER_STATE_STALE_TIME } from "@ui/hooks/query-freshness";
 import { type MovieLibraryData, useRuntime } from "@ui/runtime/runtime";
 import { useMemo } from "react";
 
@@ -58,6 +59,7 @@ export function useMovieLibrary(): MovieLibraryView {
   const query = useQuery({
     queryKey: queryKeys.movieLibrary(),
     queryFn: () => runtime.loadMovieLibrary(),
+    staleTime: USER_STATE_STALE_TIME,
   });
 
   const entries = query.data?.entries;

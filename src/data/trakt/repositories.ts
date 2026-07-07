@@ -1,36 +1,10 @@
-import type { ShowIds } from "@domain/model/ids";
 import {
   diffActivities,
   type InvalidationTarget,
   type LastActivities,
 } from "@domain/sync-activities";
-import type { TraktClient, TraktFailure, TraktResult } from "./client";
-import { getHidden, getLastActivities, type ItemSelection, itemsBody } from "./endpoints";
-import type { HiddenItem } from "./schemas";
-
-const HIDDEN = "/users/hidden/progress_watched";
-const HIDDEN_REMOVE = "/users/hidden/progress_watched/remove";
-
-/**
- * Hidden items are their own cached source: the client-side exclusion
- * that drives the Stopped bucket and filters Up Next / calendar / search. Kept a
- * distinct repository — never folded into `watched` — because Trakt does not
- * drop hidden ids from those reads.
- */
-export interface HiddenRepository {
-  list(): Promise<TraktResult<HiddenItem[]>>;
-  hide(shows: readonly ShowIds[]): Promise<TraktResult<unknown>>;
-  unhide(shows: readonly ShowIds[]): Promise<TraktResult<unknown>>;
-}
-
-export function createHiddenRepository(client: TraktClient): HiddenRepository {
-  const body = (shows: readonly ShowIds[]): ItemSelection => ({ shows });
-  return {
-    list: () => getHidden(client),
-    hide: (shows) => client.post(HIDDEN, itemsBody(body(shows))),
-    unhide: (shows) => client.post(HIDDEN_REMOVE, itemsBody(body(shows))),
-  };
-}
+import type { TraktClient, TraktFailure } from "./client";
+import { getLastActivities } from "./endpoints";
 
 type ActivitiesPoll =
   | {
@@ -42,9 +16,10 @@ type ActivitiesPoll =
 
 /**
  * `/sync/last_activities` reconciler: the ONLY invalidator of the
- * `staleTime: Infinity` library sections, so its diff must be exact. Poll,
- * diff the fresh timestamps against the caller's stored copy, and return both
- * the fresh activities (to store) and the precise keys to invalidate.
+ * `staleTime: Infinity` user-state library sections, so its diff must be exact.
+ * Poll, diff the fresh timestamps against the caller's stored copy, and return
+ * both the fresh activities (to persist as the next baseline) and the precise set
+ * of keys to invalidate. Wired by the app runtime's `pollActivities`.
  */
 export interface LastActivitiesRepository {
   poll(stored: LastActivities | undefined): Promise<ActivitiesPoll>;

@@ -5,9 +5,18 @@ import {
   installLibraryRoutes,
   type LibraryControls,
   type ShowFixture,
+  seedActivities,
   seedAuth,
   seedQueryCache,
 } from "./helpers";
+
+/**
+ * A last-activities baseline OLDER than the library harness's fixture stamps
+ * (2026-07-04): the boot poll diffs it, sees the change, and revalidates the
+ * restored cache — the poll-driven successor to refetch-on-mount that the
+ * stale-while-revalidate boot now rides on.
+ */
+const STALE_ACTIVITIES = { episodes: { watched_at: "2026-07-01T00:00:00.000Z" } };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 // The persister saves on a ~1s throttle; the first (empty) save must land before
@@ -44,6 +53,9 @@ function networkShows(count: number): ShowFixture[] {
 
 async function bootThenSeed(page: Page, controls: LibraryControls, ageMs: number): Promise<void> {
   await seedAuth(page.context());
+  // A baseline OLDER than the harness fixture, present at every boot, so the reload
+  // poll diffs a change and revalidates the restored cache.
+  await seedActivities(page.context(), STALE_ACTIVITIES);
   controls.setReadMode("abort");
   await page.goto("/");
   // No cache yet + reads aborted → the hard-error state, sync pill offline.

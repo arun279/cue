@@ -1,15 +1,9 @@
 import { queryKeys } from "@data/query-keys";
 import type { MovieHeader } from "@data/trakt/movie-library";
-import { useQuery } from "@tanstack/react-query";
+import { type DetailHeaderView, useDetailHeader } from "@ui/hooks/useDetailHeader";
 import { useRuntime } from "@ui/runtime/runtime";
 
-export interface MovieDetailView {
-  readonly header: MovieHeader | undefined;
-  readonly isLoading: boolean;
-  readonly isError: boolean;
-  readonly hasData: boolean;
-  refetch(): void;
-}
+export type MovieDetailView = DetailHeaderView<MovieHeader>;
 
 /**
  * The Movie detail hero read: the editorial `/movies/:id` payload (title, year,
@@ -19,15 +13,5 @@ export interface MovieDetailView {
  */
 export function useMovieDetail(movieId: number): MovieDetailView {
   const runtime = useRuntime();
-  const query = useQuery({
-    queryKey: queryKeys.movieHeader(movieId),
-    queryFn: () => runtime.loadMovieHeader(movieId),
-  });
-  return {
-    header: query.data,
-    isLoading: query.isLoading,
-    isError: query.isError,
-    hasData: query.data !== undefined,
-    refetch: () => void query.refetch(),
-  };
+  return useDetailHeader(queryKeys.movieHeader(movieId), () => runtime.loadMovieHeader(movieId));
 }

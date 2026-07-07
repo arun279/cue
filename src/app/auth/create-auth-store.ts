@@ -1,3 +1,4 @@
+import { PendingWritesError, sessionTeardown } from "@app/session";
 import {
   buildAuthorizeUrl,
   exchangeCodeForToken,
@@ -172,6 +173,19 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
 
       async disconnect() {
         activeAttempt += 1;
+        // Flush any pending writes and clear this device's caches (op-log,
+        // last-activities baseline, persisted query cache) FIRST, while the token
+        // is still valid — so a queued write isn't lost and the next account never
+        // paints stale data.
+        try {
+          await sessionTeardown.run();
+        } catch (error) {
+          // Writes still queued: keep the user connected (staying signed in is what
+          // protects the queued writes from loss AND from replaying under another
+          // account) and surface it so they can reconnect + retry.
+          if (error instanceof PendingWritesError) throw error;
+          // Any other teardown fault must not strand sign-out — proceed to clear.
+        }
         const token = await deps.tokenStore.read();
         // Revoke is best-effort: a network/HTTP failure must not strand the
         // local session, so the clear below always runs.
@@ -186,9 +200,17 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
 
       async endSession() {
         // The runtime found the refresh token dead (invalid_grant). The token is
-        // already useless, so skip the network revoke disconnect does — just drop
-        // the local session and route back to onboarding to re-connect.
+        // already useless, so skip the network revoke disconnect does. Force-clear
+        // this device's per-account state (op-log, last-activities baseline,
+        // persisted query cache) so a leftover op can't replay under the next
+        // account — the dead token can't send those writes anyway. Best-effort:
+        // a teardown fault must not block routing back to onboarding.
         activeAttempt += 1;
+        try {
+          await sessionTeardown.run({ force: true });
+        } catch {
+          // swallow: clearing the token + onboarding is the source of truth here
+        }
         await deps.tokenStore.clear();
         toOnboarding();
       },

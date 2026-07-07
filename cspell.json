@@ -6,6 +6,7 @@
   "words": [
     "affordance",
     "affordances",
+    "airdates",
     "Biome",
     "Capacitor",
     "codegen",
@@ -30,6 +31,8 @@
     "neighbours",
     "nums",
     "prefs",
+    "refetch",
+    "refetched",
     "refetches",
     "rewatch",
     "rewatched",
