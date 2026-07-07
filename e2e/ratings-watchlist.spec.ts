@@ -109,12 +109,11 @@ test("adding a never-watched show to the watchlist surfaces it in the Library Wa
   expect(controls.watchlistPosts()[0]?.showIds).toContain(2);
 
   // The Watchlist segment now holds the show, and it SURVIVES a full reload+refetch
-  // (a watched-shows-only library would drop it here). The segment is collapsed by
-  // default, so expand it to reveal the tile.
+  // (a watched-shows-only library would drop it here). It is the only non-empty pile,
+  // so it opens by default (first-non-empty fallback) and the tile shows without a click.
   await page.goto("/library");
   const notStarted = page.getByTestId("pile-heading").filter({ hasText: "Watchlist" });
   await expect(notStarted).toBeVisible();
-  await notStarted.click();
   await expect(page.getByTestId("library-card").filter({ hasText: "Watchlist Show" })).toHaveCount(
     1,
   );

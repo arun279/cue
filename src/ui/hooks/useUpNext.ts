@@ -20,7 +20,7 @@ export interface UpNextCard {
 }
 
 export interface UpNextView {
-  /** New ⧺ Continue in render order — the flat active queue (Profile's shelf reads this). */
+  /** New ⧺ Continue in render order — the flat active queue (drives the Up Next count). */
   readonly cards: readonly UpNextCard[];
   /** This week's freshly-aired next episodes ("New"). */
   readonly newCards: readonly UpNextCard[];

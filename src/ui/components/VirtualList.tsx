@@ -12,8 +12,8 @@ interface VirtualListProps<T> {
 }
 
 /**
- * Reusable windowed list so library grids and the calendar
- * keep DOM node count bounded on the Capacitor WebView. Only the visible slice
+ * Reusable windowed list so the calendar (its only consumer)
+ * keeps DOM node count bounded on the Capacitor WebView. Only the visible slice
  * (+overscan) is mounted regardless of `items.length`.
  */
 export function VirtualList<T>({

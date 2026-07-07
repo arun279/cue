@@ -556,12 +556,12 @@ test("Stop watching drops the show from Up Next and moves it to the Stopped segm
   await page.goto("/");
   await expect(page.getByTestId("up-next-card")).toHaveCount(0);
 
-  // Present only under the Stopped segment in Library (collapsed by default; expand it).
+  // Present only under the Stopped segment in Library — the only non-empty pile now,
+  // so it opens by default (never a fully-collapsed library) and the tile is visible.
   await page.setViewportSize({ width: 1000, height: 1400 });
   await page.goto("/library");
   const stopped = page.getByTestId("pile-heading").filter({ hasText: "Stopped" });
   await expect(stopped).toBeVisible();
-  await stopped.click();
   await expect(page.getByTestId("library-card").filter({ hasText: "The Detail Show" })).toHaveCount(
     1,
   );

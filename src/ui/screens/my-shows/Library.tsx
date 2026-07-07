@@ -50,12 +50,14 @@ const MOVIE_SORTS: readonly MovieSort[] = ["recently-watched", "alphabetical", "
 type MovieSegmentKey = "watchlist" | "watched";
 const MOVIE_SEGMENT_KEYS: readonly MovieSegmentKey[] = ["watchlist", "watched"];
 
-/** Watching opens on first visit for Shows; Watchlist (the actionable pool) opens
- * first for Movies. Every other segment stays collapsed as a labelled, counted
- * header (recognition over recall) until the user reaches for it. */
-const DEFAULT_OPEN: readonly WatchStatus[] = ["watching"];
+/** On first visit Shows open Watching and Movies open Watchlist (the actionable
+ * pool). When that preferred segment is absent (empty and dropped), the first
+ * non-empty segment opens instead, so the library never loads fully collapsed.
+ * Every other segment stays a labelled, counted header (recognition over recall)
+ * until the user reaches for it. */
+const SHOW_DEFAULT_OPEN: WatchStatus = "watching";
 const OPEN_KEY = "cue.piles-open";
-const MOVIE_DEFAULT_OPEN: readonly MovieSegmentKey[] = ["watchlist"];
+const MOVIE_DEFAULT_OPEN: MovieSegmentKey = "watchlist";
 const MOVIE_OPEN_KEY = "cue.movie-piles-open";
 
 /**
@@ -70,21 +72,32 @@ const isMovieSegment = (v: string): v is MovieSegmentKey =>
   (MOVIE_SEGMENT_KEYS as readonly string[]).includes(v);
 
 /** Read a persisted open-segment set for either taxonomy, keeping only keys still
- * valid for that view and falling back to the default open set. */
+ * valid for that view. Returns null when nothing is stored yet, so the caller falls
+ * back to a data-derived default (rather than a fixed pile that may be empty). */
 function readOpenSet<T extends string>(
   storageKey: string,
-  fallback: readonly T[],
   valid: (v: string) => v is T,
-): T[] {
+): T[] | null {
   try {
     const raw = localStorage.getItem(storageKey);
-    if (raw === null) return [...fallback];
+    if (raw === null) return null;
     const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [...fallback];
+    if (!Array.isArray(parsed)) return null;
     return parsed.filter((v): v is T => typeof v === "string" && valid(v));
   } catch {
-    return [...fallback];
+    return null;
   }
+}
+
+/** The default open set when the user hasn't chosen one: the preferred segment if
+ * it's present, else the first non-empty segment — so a library whose preferred pile
+ * is empty-and-dropped still loads with something expanded, never all collapsed. */
+function resolveDefaultOpen(
+  piles: readonly { readonly key: string }[],
+  preferred: string,
+): string[] {
+  const first = piles.find((pile) => pile.key === preferred) ?? piles[0];
+  return first === undefined ? [] : [first.key];
 }
 
 function persistOpen(storageKey: string, value: readonly string[]): void {
@@ -272,11 +285,11 @@ export function Library(): ReactElement {
 
   const [showSort, setShowSort] = useState<LibrarySort>("recently-watched");
   const [movieSort, setMovieSort] = useState<MovieSort>("recently-watched");
-  const [openPiles, setOpenPiles] = useState<WatchStatus[]>(() =>
-    readOpenSet(OPEN_KEY, DEFAULT_OPEN, isPileStatus),
+  const [openPiles, setOpenPiles] = useState<WatchStatus[] | null>(() =>
+    readOpenSet(OPEN_KEY, isPileStatus),
   );
-  const [openMovies, setOpenMovies] = useState<MovieSegmentKey[]>(() =>
-    readOpenSet(MOVIE_OPEN_KEY, MOVIE_DEFAULT_OPEN, isMovieSegment),
+  const [openMovies, setOpenMovies] = useState<MovieSegmentKey[] | null>(() =>
+    readOpenSet(MOVIE_OPEN_KEY, isMovieSegment),
   );
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("");
@@ -323,12 +336,16 @@ export function Library(): ReactElement {
     : showPiles;
   const matchCount = filtering ? meta.reduce((sum, pile) => sum + pile.shown.length, 0) : 0;
 
-  const savedOpen: readonly string[] = isMovies ? openMovies : openPiles;
-  // While filtering, the open set is derived from the matches (ephemeral) so it
-  // never overwrites the saved layout; idle, it follows the saved state.
+  const savedOpen: readonly string[] | null = isMovies ? openMovies : openPiles;
+  const preferredOpen = isMovies ? MOVIE_DEFAULT_OPEN : SHOW_DEFAULT_OPEN;
+  // While filtering, the open set is derived from the matches (ephemeral) so it never
+  // overwrites the saved layout. Idle, it follows the saved state — or, on a first
+  // visit with nothing saved, a data-derived default (preferred pile, else first).
   const openValue: string[] = filtering
     ? meta.filter((pile) => pile.shown.length > 0).map((pile) => pile.key)
-    : [...savedOpen];
+    : savedOpen !== null
+      ? [...savedOpen]
+      : resolveDefaultOpen(meta, preferredOpen);
 
   // Clearing must reset both the input and the debounced filter synchronously, or
   // the empty/expanded filter state lingers for the 300ms debounce window.

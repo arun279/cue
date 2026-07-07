@@ -39,6 +39,7 @@ function gradientFor(title: string): string {
  */
 export function Poster({ title, posters, tmdbConfig, variant = "row" }: PosterProps): ReactElement {
   const [broken, setBroken] = useState(false);
+  const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const resolved = resolvePoster({ title, traktPosters: posters, tmdbConfig });
 
@@ -60,6 +61,7 @@ export function Poster({ title, posters, tmdbConfig, variant = "row" }: PosterPr
             aria-label={`Retry loading poster for ${title}`}
             onClick={() => {
               setBroken(false);
+              setLoadedSrc(null);
               setAttempt((n) => n + 1);
             }}
           >
@@ -70,15 +72,21 @@ export function Poster({ title, posters, tmdbConfig, variant = "row" }: PosterPr
     );
   }
 
+  // Tie the loaded flag to the URL that loaded, not a bare boolean: a reused tile
+  // (same key, new props) that swaps to a different poster must re-show the loading
+  // pulse until the new image decodes, instead of inheriting the old one's "loaded".
+  const loaded = loadedSrc === resolved.url;
+
   return (
     <img
       key={attempt}
-      className={`poster poster--${variant}`}
+      className={`poster poster--${variant}${loaded ? "" : " poster--loading"}`}
       src={resolved.url}
       alt=""
       loading="lazy"
       decoding="async"
       data-testid="poster-image"
+      onLoad={() => setLoadedSrc(resolved.url)}
       onError={() => setBroken(true)}
     />
   );

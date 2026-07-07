@@ -183,8 +183,10 @@ test("a watched-only library renders just Watched — no phantom empty Watchlist
   await expect(page.getByTestId("pile-heading").filter({ hasText: "Watchlist" })).toHaveCount(0);
   await expect(headings.nth(0).getByTestId("pile-count")).toHaveText("1");
 
-  // The film is reachable by opening its segment (no data is stranded).
-  await headings.nth(0).click();
+  // Default-open falls back to the first non-empty segment when the preferred pile
+  // (Watchlist) is absent, so the film is visible immediately — never stranded behind
+  // a collapsed header with nothing else expanded.
+  await expect(headings.nth(0)).toHaveAttribute("data-state", "open");
   await expect(
     page.getByTestId("movie-library-card").filter({ hasText: "Watched Movie" }),
   ).toBeVisible();

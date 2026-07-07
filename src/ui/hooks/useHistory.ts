@@ -47,6 +47,8 @@ export interface HistoryView {
   refetch(): void;
   readonly hasMore: boolean;
   readonly isLoadingMore: boolean;
+  /** The most recent "Load earlier" page fetch failed (first-page data still shows). */
+  readonly isLoadMoreError: boolean;
   loadEarlier(): void;
   removePlay(entry: HistoryEntry): Promise<void>;
   undo(): Promise<void>;
@@ -227,6 +229,7 @@ export function useHistory(lockedFilter?: HistoryFilter): HistoryView {
     refetch: () => void query.refetch(),
     hasMore: query.hasNextPage,
     isLoadingMore: query.isFetchingNextPage,
+    isLoadMoreError: query.isFetchNextPageError,
     loadEarlier: () => void query.fetchNextPage(),
     removePlay,
     undo,

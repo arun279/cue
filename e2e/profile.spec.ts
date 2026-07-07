@@ -156,6 +156,38 @@ test("groups the Diary by local day, collapses a same-show binge, and loads earl
   await expect(page.getByTestId("diary-row").filter({ hasText: "Severance" })).toBeVisible();
 });
 
+test("surfaces a Load-earlier failure inline and recovers on Retry", async ({ page }) => {
+  await installHistoryRoutes(page.context(), historyRows());
+  // Fail the FIRST second-page fetch, then let later ones through. Retries are off,
+  // so one failure surfaces immediately; the Retry click is a fresh request.
+  let failedPageTwo = false;
+  await page.context().route(/\/users\/me\/history(\/episodes|\/movies)?(\?|$)/, async (route) => {
+    const isPageTwo = new URL(route.request().url()).searchParams.get("page") === "2";
+    if (isPageTwo && !failedPageTwo) {
+      failedPageTwo = true;
+      return route.fulfill({ status: 500, contentType: "application/json", body: "{}" });
+    }
+    return route.fallback();
+  });
+  await page.goto("/profile");
+
+  // First page painted (Today only); the second page's fetch fails.
+  await expect(page.getByTestId("diary-day-heading")).toHaveCount(1);
+  await page.getByTestId("diary-load-earlier").click();
+
+  // The failure is surfaced inline — first-page data stays put — and the control
+  // becomes a Retry rather than silently swallowing the error.
+  await expect(page.getByTestId("diary-load-earlier-error")).toBeVisible();
+  await expect(page.getByTestId("diary-load-earlier")).toContainText("Retry");
+  await expect(page.getByTestId("diary-day-heading")).toHaveCount(1);
+
+  // Retry pulls the second page in and clears the inline error.
+  await page.getByTestId("diary-load-earlier").click();
+  await expect(page.getByTestId("diary-day-heading")).toHaveCount(2);
+  await expect(page.getByTestId("diary-day-heading").nth(1)).toContainText("Yesterday");
+  await expect(page.getByTestId("diary-load-earlier-error")).toHaveCount(0);
+});
+
 test("the type filter scopes the feed to movies only", async ({ page }) => {
   await installHistoryRoutes(page.context(), historyRows());
   await page.goto("/profile");

@@ -113,6 +113,43 @@ test("renders the segments in canonical order with count badges", async ({ page 
   await expect(page.getByTestId("library-card").filter({ hasText: "Fresh Pick" })).toHaveCount(0);
 });
 
+test("default-open falls back to the first non-empty segment when Watching is empty", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1000, height: 1600 });
+  // A library with nothing mid-watch — only a watchlist pick and a finished show, so
+  // the preferred default segment (Watching) is absent entirely.
+  await installLibraryRoutes(page.context(), [
+    {
+      trakt: 3,
+      title: "Fresh Pick",
+      status: "returning series",
+      inWatchlist: true,
+      lastWatchedAt: null,
+      aired: 0,
+      completed: 0,
+      episodes: [ep(1, 1, AIRED, 301)],
+    },
+    {
+      trakt: 5,
+      title: "Done Show",
+      status: "ended",
+      lastWatchedAt: agoIso(4),
+      aired: 2,
+      completed: 2,
+      episodes: [ep(1, 1, AIRED, 501), ep(1, 2, AIRED, 502)],
+    },
+  ]);
+  await page.goto("/library");
+
+  // With no Watching pile to open, the library falls back to the first non-empty
+  // segment (Watchlist) rather than loading fully collapsed with nothing expanded.
+  await expect(page.getByTestId("pile-heading").filter({ hasText: "Watching" })).toHaveCount(0);
+  const watchlist = page.getByTestId("pile-heading").filter({ hasText: "Watchlist" });
+  await expect(watchlist).toHaveAttribute("data-state", "open");
+  await expect(page.getByTestId("library-card").filter({ hasText: "Fresh Pick" })).toBeVisible();
+});
+
 test("a collapsed segment expands on click and the choice persists across a reload", async ({
   page,
 }) => {

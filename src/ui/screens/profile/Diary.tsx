@@ -353,6 +353,11 @@ export function Diary(): ReactElement {
         </ol>
         {view.hasMore && (
           <div className="diary-more">
+            {view.isLoadMoreError && !view.isLoadingMore && (
+              <p className="diary-more__error" role="alert" data-testid="diary-load-earlier-error">
+                Couldn't load earlier history.
+              </p>
+            )}
             <button
               type="button"
               className="button button--ghost"
@@ -361,7 +366,7 @@ export function Diary(): ReactElement {
               disabled={view.isLoadingMore}
               onClick={view.loadEarlier}
             >
-              {view.isLoadingMore ? "Loading…" : "Load earlier"}
+              {view.isLoadingMore ? "Loading…" : view.isLoadMoreError ? "Retry" : "Load earlier"}
             </button>
           </div>
         )}

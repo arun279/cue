@@ -30,6 +30,15 @@ function Brand(): ReactElement {
   );
 }
 
+/** The Search affordance's accessible name, derived from the active media the same
+ * way the Search screen labels its field — so a single-medium user never reads
+ * "shows and movies" for a search that only spans their one medium. */
+function searchLabel(showsEnabled: boolean, moviesEnabled: boolean): string {
+  const noun =
+    showsEnabled && moviesEnabled ? "shows and movies" : showsEnabled ? "shows" : "movies";
+  return `Search ${noun}`;
+}
+
 function NavLinks(): ReactNode {
   const showsEnabled = usePrefs((s) => s.showsEnabled);
   return navFor({ showsEnabled }).map((destination) => (
@@ -107,9 +116,15 @@ function SettingsIcon(): ReactElement {
  * from every screen (Search moved off the bottom bar to a header search; Profile to
  * a corner/account control). Icon-only in the topbar cluster to stay quiet. */
 function TopbarActions(): ReactElement {
+  const showsEnabled = usePrefs((s) => s.showsEnabled);
+  const moviesEnabled = usePrefs((s) => s.moviesEnabled);
   return (
     <div className="topbar__actions">
-      <Link to="/search" className="topbar__action" aria-label="Search shows and movies">
+      <Link
+        to="/search"
+        className="topbar__action"
+        aria-label={searchLabel(showsEnabled, moviesEnabled)}
+      >
         <SearchIcon />
       </Link>
       <Link to="/profile" className="topbar__action" aria-label="Profile">
@@ -122,12 +137,14 @@ function TopbarActions(): ReactElement {
 /** The same Search / Profile / Settings affordances as labelled rows in the sidebar
  * footer, where the wider desktop chrome has room for text beside the icons. */
 function SidebarFooter(): ReactElement {
+  const showsEnabled = usePrefs((s) => s.showsEnabled);
+  const moviesEnabled = usePrefs((s) => s.moviesEnabled);
   return (
     <div className="sidebar__footer">
       <Link
         to="/search"
         className="nav__link"
-        aria-label="Search shows and movies"
+        aria-label={searchLabel(showsEnabled, moviesEnabled)}
         activeProps={{ className: "nav__link nav__link--active", "aria-current": "page" }}
       >
         <SearchIcon />

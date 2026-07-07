@@ -100,6 +100,11 @@ test("TV-only: Library shows only Shows with no toggle", async ({ page }) => {
   await expect(page.getByTestId("type-shows")).toHaveCount(0);
   await expect(page.getByTestId("type-movies")).toHaveCount(0);
   await expect(page.getByTestId("library-filter")).toHaveAttribute("placeholder", "Filter shows…");
+
+  // The Search affordance names only the active medium, not "shows and movies".
+  await expect(
+    page.locator(".sidebar").getByRole("link", { name: "Search shows", exact: true }),
+  ).toBeVisible();
 });
 
 test("TV-only: Search hides the movie discover rails", async ({ page }) => {
@@ -168,6 +173,8 @@ test("movies-only: nav sheds the TV-centric tabs, leaving Library", async ({ pag
   await expect(sidebar.getByRole("link", { name: "Library", exact: true })).toBeVisible();
   await expect(sidebar.getByRole("link", { name: "Up Next", exact: true })).toHaveCount(0);
   await expect(sidebar.getByRole("link", { name: "Calendar", exact: true })).toHaveCount(0);
+  // The Search affordance names only the active medium.
+  await expect(sidebar.getByRole("link", { name: "Search movies", exact: true })).toBeVisible();
 });
 
 test("movies-only: home and calendar route to the movies Library", async ({ page }) => {

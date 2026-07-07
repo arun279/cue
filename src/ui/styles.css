@@ -804,6 +804,12 @@ body {
 .poster--skeleton {
   animation: pulse 1.4s ease-in-out infinite;
 }
+/* A real poster img that hasn't decoded yet — chiefly the lazy tiles below the fold
+   in the discover/library grids — pulses its --color-elevated backing so a rail reads
+   as loading rather than a row of flat grey blanks. Cleared on load (the class drops). */
+.poster--loading {
+  animation: pulse 1.4s ease-in-out infinite;
+}
 
 /* Wrapper that lets a poster carry the amber progress rail pinned to its edge. */
 .poster-wrap {
@@ -3050,8 +3056,15 @@ body {
 }
 .diary-more {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
   margin-top: var(--space-2);
+}
+.diary-more__error {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--color-danger);
 }
 
 /* Mobile: stack the sync pill under the title so they stop competing on one row
