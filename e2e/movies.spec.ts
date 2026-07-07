@@ -60,6 +60,34 @@ test("the Library Movies tab lists Watchlist and Watched poster shelves", async 
   ).toHaveCount(1);
 });
 
+test("Movies → movie detail → Back returns to the Movies tab (not Shows)", async ({ page }) => {
+  await page.setViewportSize({ width: 1000, height: 1400 });
+  await installMovieRoutes(page.context(), movies());
+  await page.goto("/library");
+
+  // Selecting Movies writes ?type=movies into the URL (view-state, not local state).
+  await page.getByTestId("type-movies").click();
+  await expect(page).toHaveURL(/\/library\?type=movies/);
+
+  await page.getByTestId("movie-library-card").filter({ hasText: "Watched Movie" }).click();
+  await expect(page.getByTestId("movie-detail-title")).toContainText("Watched Movie");
+
+  // History-aware back returns to Movies; the confirmed pre-fix bug reset it to Shows.
+  await page.getByTestId("movie-back").click();
+  await expect(page).toHaveURL(/\/library\?type=movies/);
+  await expect(page.getByTestId("type-movies")).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByTestId("movie-shelf-heading").first()).toBeVisible();
+});
+
+test("a deep link to ?type=movies opens the Movies tab directly", async ({ page }) => {
+  await page.setViewportSize({ width: 1000, height: 1400 });
+  await installMovieRoutes(page.context(), movies());
+  await page.goto("/library?type=movies");
+
+  await expect(page.getByTestId("type-movies")).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByTestId("movie-shelf-heading")).toHaveCount(2);
+});
+
 test("a movie card routes to the movie detail page", async ({ page }) => {
   await page.setViewportSize({ width: 1000, height: 1400 });
   await installMovieRoutes(page.context(), movies());
@@ -68,6 +96,7 @@ test("a movie card routes to the movie detail page", async ({ page }) => {
 
   await page.getByTestId("movie-library-card").filter({ hasText: "Watched Movie" }).click();
   await expect(page.getByTestId("movie-detail-title")).toContainText("Watched Movie");
+  await expect(page).toHaveTitle("Watched Movie · Cue");
   await expect(page.getByTestId("movie-detail-overview")).toBeVisible();
   await expect(page.getByTestId("movie-runtime")).toContainText("155 min");
 });

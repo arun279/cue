@@ -2,8 +2,10 @@ import type { TmdbImageConfig } from "@data/image-source";
 import type { LibraryEntry } from "@data/trakt/library";
 import type { LibrarySort } from "@domain/library-buckets";
 import type { WatchStatus } from "@domain/watch-status";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { CachedRetryBanner } from "@ui/components/CachedRetryBanner";
 import { SyncStatusPill } from "@ui/components/SyncStatusPill";
+import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { useHideShow } from "@ui/hooks/useHideShow";
 import { useLibraryBuckets } from "@ui/hooks/useLibraryBuckets";
 import { useMovieLibrary } from "@ui/hooks/useMovieLibrary";
@@ -132,8 +134,11 @@ function CaughtUpTile({
  * only-stopped library, and no-filter-match.
  */
 export function Library(): ReactElement {
+  useDocumentTitle("Library · Cue");
+  const { type } = useSearch({ from: "/library" });
+  const libraryType: "shows" | "movies" = type === "movies" ? "movies" : "shows";
+  const navigate = useNavigate();
   const [sort, setSort] = useState<LibrarySort>("recently-watched");
-  const [libraryType, setLibraryType] = useState<"shows" | "movies">("shows");
   const [openPiles, setOpenPiles] = useState<WatchStatus[]>(readOpen);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("");
@@ -329,7 +334,17 @@ export function Library(): ReactElement {
           aria-label="Library type"
           value={libraryType}
           onValueChange={(value) => {
-            if (value === "shows" || value === "movies") setLibraryType(value);
+            // The toggle is view-state, not a distinct page: replace (don't push) so
+            // Back skips past it, while the search param it writes still lets Back
+            // from a detail page restore whichever tab launched it. Shows carries no
+            // param (the canonical default); only Movies pins ?type=movies.
+            if (value === "shows" || value === "movies") {
+              void navigate({
+                to: "/library",
+                search: value === "movies" ? { type: "movies" } : {},
+                replace: true,
+              });
+            }
           }}
         >
           <ToggleGroup.Item className="segmented__item" value="shows" data-testid="type-shows">

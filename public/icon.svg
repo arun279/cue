@@ -1,11 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Cue">
   <rect width="512" height="512" rx="112" fill="#0E0C0A" />
   <path
-    d="M 342.6 169.8 A 134 134 0 1 1 342.6 342.2"
+    d="M 153.4 169.8 A 134 134 0 1 1 153.4 342.2"
     fill="none"
     stroke="#F4EFE7"
     stroke-width="62"
     stroke-linecap="round"
   />
-  <circle cx="352" cy="264" r="44" fill="#F5B841" />
+  <circle cx="162.8" cy="264" r="44" fill="#F5B841" />
 </svg>

@@ -35,7 +35,13 @@ function LapsedRow({
 
   return (
     <article className="lapsed-row" data-testid="lapsed-row" data-show-id={entry.showId}>
-      <Link to="/show/$showId" params={showParams} className="card__poster-link" tabIndex={-1}>
+      <Link
+        to="/show/$showId"
+        params={showParams}
+        className="card__poster-link"
+        tabIndex={-1}
+        aria-label={entry.title}
+      >
         <span className="poster-wrap poster-wrap--sm">
           <Poster
             title={entry.title}

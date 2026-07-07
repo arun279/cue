@@ -73,10 +73,15 @@ test("shows a brand-new-account empty state when every count is zero", async ({ 
   await expect(page).toHaveURL(/\/search$/);
 });
 
-test("links into Settings & connections", async ({ page }) => {
+test("links into Settings & connections and Back returns to Profile", async ({ page }) => {
   await page.goto("/profile");
   await page.getByTestId("link-settings").click();
   await expect(page.getByTestId("screen-settings")).toBeVisible();
+
+  // Settings previously had no way back; the history-aware Back returns to Profile.
+  await page.getByTestId("settings-back").click();
+  await expect(page.getByTestId("screen-profile")).toBeVisible();
+  await expect(page).toHaveURL(/\/profile$/);
 });
 
 test("shows a Continue-watching poster rail into the Show page", async ({ page }) => {

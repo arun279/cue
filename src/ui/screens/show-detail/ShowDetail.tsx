@@ -2,8 +2,10 @@ import { resolvePoster } from "@data/image-source";
 import type { EpisodeView, SeasonView, ShowHeader } from "@data/trakt/show-detail";
 import { Link } from "@tanstack/react-router";
 import { CheckIcon } from "@ui/components/CheckIcon";
+import { DetailBack } from "@ui/components/DetailBack";
 import { DetailHeroSkeleton } from "@ui/components/DetailHeroSkeleton";
 import { RatingControl } from "@ui/components/RatingControl";
+import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { useHideShow } from "@ui/hooks/useHideShow";
 import { useLibrarySnapshot } from "@ui/hooks/useLibrarySnapshot";
 import type { MarkContextTarget, MarkSeasonController } from "@ui/hooks/useMarkSeason";
@@ -278,6 +280,7 @@ export function ShowDetail({ showId }: { showId: number }): ReactElement {
   const hidden = useLibrarySnapshot().byId.get(showId)?.hidden ?? false;
 
   const header = detail.header;
+  useDocumentTitle(header !== undefined ? `${header.title} · Cue` : "Show · Cue");
 
   if (detail.isLoading) {
     return (
@@ -313,9 +316,15 @@ export function ShowDetail({ showId }: { showId: number }): ReactElement {
 
   return (
     <section className="screen screen--detail" data-testid="screen-show-detail">
-      <Link to="/library" className="detail-back" data-testid="detail-back">
-        ‹ Library
-      </Link>
+      <DetailBack
+        testId="detail-back"
+        label="‹ Back"
+        fallback={
+          <Link to="/library" className="detail-back" data-testid="detail-back">
+            ‹ Library
+          </Link>
+        }
+      />
 
       <ShowHero
         header={header}

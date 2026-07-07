@@ -8,16 +8,16 @@ import type { ReactElement } from "react";
  */
 export function CueMark({ className }: { className?: string }): ReactElement {
   return (
-    <svg className={className} viewBox="0 0 512 512" role="img" aria-label="Cue" focusable="false">
+    <svg className={className} viewBox="0 0 512 512" aria-hidden="true" focusable="false">
       <rect width="512" height="512" rx="112" fill="#0e0c0a" />
       <path
-        d="M 342.6 169.8 A 134 134 0 1 1 342.6 342.2"
+        d="M 153.4 169.8 A 134 134 0 1 1 153.4 342.2"
         fill="none"
         stroke="#f4efe7"
         strokeWidth="62"
         strokeLinecap="round"
       />
-      <circle cx="352" cy="264" r="44" fill="#f5b841" />
+      <circle cx="162.8" cy="264" r="44" fill="#f5b841" />
     </svg>
   );
 }

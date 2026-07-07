@@ -62,6 +62,7 @@ test("shows the still, title, code, air date, overview, and prev/next within the
 
   await expect(page.getByTestId("episode-detail-code")).toHaveText("S01E02");
   await expect(page.getByTestId("episode-detail-title")).toContainText("Episode 2");
+  await expect(page).toHaveTitle("The Detail Show · S01E02 · Cue");
   await expect(page.getByTestId("episode-detail-overview")).toContainText("deepens the mystery");
   await expect(page.getByTestId("episode-air-date")).toBeVisible();
   await expect(page.getByTestId("episode-still")).toBeVisible();

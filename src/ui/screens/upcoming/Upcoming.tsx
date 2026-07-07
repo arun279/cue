@@ -4,6 +4,7 @@ import { CardListSkeleton } from "@ui/components/CardListSkeleton";
 import { SyncStatusPill } from "@ui/components/SyncStatusPill";
 import { VirtualList } from "@ui/components/VirtualList";
 import { CALENDAR_WINDOWS, useCalendar } from "@ui/hooks/useCalendar";
+import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { Snackbar } from "@ui/screens/up-next/Snackbar";
 import { ToggleGroup } from "radix-ui";
 import { type ReactElement, type ReactNode, useMemo } from "react";
@@ -30,6 +31,7 @@ function flatten(days: readonly CalendarDay[]): Row[] {
  * on aired rows.
  */
 export function Upcoming(): ReactElement {
+  useDocumentTitle("Calendar · Cue");
   const view = useCalendar();
   const rows = useMemo(() => flatten(view.days), [view.days]);
   const hasEpisodes = view.days.length > 0;

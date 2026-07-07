@@ -1,6 +1,7 @@
 import type { TmdbImageConfig } from "@data/image-source";
 import type { SearchHit } from "@data/trakt/search";
 import { useBrowse } from "@ui/hooks/useBrowse";
+import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { type SearchView, useSearch } from "@ui/hooks/useSearch";
 import { Snackbar } from "@ui/screens/up-next/Snackbar";
 import { type ReactElement, type ReactNode, useId } from "react";
@@ -150,6 +151,7 @@ function Browse({ view }: { view: SearchView }): ReactElement {
  * retry.
  */
 export function Search(): ReactElement {
+  useDocumentTitle("Search · Cue");
   const view = useSearch();
   const inputId = useId();
 

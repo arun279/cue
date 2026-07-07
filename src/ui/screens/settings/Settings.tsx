@@ -1,4 +1,7 @@
+import { Link } from "@tanstack/react-router";
 import { useAuth } from "@ui/auth/store";
+import { DetailBack } from "@ui/components/DetailBack";
+import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { usePrefs } from "@ui/prefs/prefs-store";
 import { THRESHOLD_OPTIONS } from "@ui/prefs/threshold";
 import { ThemeToggle } from "@ui/theme/ThemeToggle";
@@ -19,6 +22,7 @@ function weeksLabel(days: number): string {
  * Disconnect that revokes on Trakt and clears the store, returning to onboarding.
  */
 export function Settings(): ReactElement {
+  useDocumentTitle("Settings · Cue");
   const disconnect = useAuth((s) => s.disconnect);
   const thresholdDays = usePrefs((s) => s.thresholdDays);
   const setThresholdDays = usePrefs((s) => s.setThresholdDays);
@@ -27,6 +31,15 @@ export function Settings(): ReactElement {
 
   return (
     <section className="screen" data-testid="screen-settings">
+      <DetailBack
+        testId="settings-back"
+        label="‹ Back"
+        fallback={
+          <Link to="/profile" className="detail-back" data-testid="settings-back">
+            ‹ Profile
+          </Link>
+        }
+      />
       <h1 className="screen__title">Settings</h1>
 
       <h2 className="settings__heading">Appearance</h2>

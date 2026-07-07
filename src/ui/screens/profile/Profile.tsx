@@ -2,6 +2,7 @@ import type { UserStats } from "@data/trakt/schemas";
 import { humanizeWatchMinutes } from "@domain/time";
 import { Link } from "@tanstack/react-router";
 import { SyncStatusPill } from "@ui/components/SyncStatusPill";
+import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { useStats } from "@ui/hooks/useStats";
 import { useUpNext } from "@ui/hooks/useUpNext";
 import { PosterCard } from "@ui/screens/my-shows/PosterCard";
@@ -120,6 +121,7 @@ function ContinueWatching(): ReactElement | null {
  * state, and a persistent link into Settings so connections stay one tap away.
  */
 export function Profile(): ReactElement {
+  useDocumentTitle("Profile · Cue");
   const view = useStats();
 
   let body: ReactNode;

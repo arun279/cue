@@ -4,8 +4,10 @@ import type { ShowHeader } from "@data/trakt/show-detail";
 import { Link } from "@tanstack/react-router";
 import { artGradient } from "@ui/components/artGradient";
 import { CheckIcon } from "@ui/components/CheckIcon";
+import { DetailBack } from "@ui/components/DetailBack";
 import { DetailHeroSkeleton } from "@ui/components/DetailHeroSkeleton";
 import { RatingControl } from "@ui/components/RatingControl";
+import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { useEpisode } from "@ui/hooks/useEpisode";
 import { useRate } from "@ui/hooks/useRate";
 import { useShowDetail } from "@ui/hooks/useShowDetail";
@@ -242,6 +244,10 @@ export function EpisodeDetail({
   const watchedToggle = useToggleEpisodeWatched();
   const rate = useRate("episodes");
   const episode = view.episode;
+  const code = episodeCode(season, number);
+  useDocumentTitle(
+    show.header !== undefined ? `${show.header.title} · ${code} · Cue` : `${code} · Cue`,
+  );
 
   if (view.isLoading) {
     return (
@@ -274,14 +280,20 @@ export function EpisodeDetail({
 
   return (
     <section className="screen screen--detail" data-testid="screen-episode-detail">
-      <Link
-        to="/show/$showId"
-        params={{ showId: String(showId) }}
-        className="detail-back"
-        data-testid="episode-back"
-      >
-        ‹ {backLabel}
-      </Link>
+      <DetailBack
+        testId="episode-back"
+        label="‹ Back"
+        fallback={
+          <Link
+            to="/show/$showId"
+            params={{ showId: String(showId) }}
+            className="detail-back"
+            data-testid="episode-back"
+          >
+            ‹ {backLabel}
+          </Link>
+        }
+      />
 
       <EpisodeHero
         episode={episode}

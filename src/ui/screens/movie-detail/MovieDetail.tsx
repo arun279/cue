@@ -2,8 +2,10 @@ import { resolvePoster } from "@data/image-source";
 import type { MovieEntry, MovieHeader } from "@data/trakt/movie-library";
 import { Link } from "@tanstack/react-router";
 import { CheckIcon } from "@ui/components/CheckIcon";
+import { DetailBack } from "@ui/components/DetailBack";
 import { DetailHeroSkeleton } from "@ui/components/DetailHeroSkeleton";
 import { RatingControl } from "@ui/components/RatingControl";
+import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { useMovieActions } from "@ui/hooks/useMovieActions";
 import { useMovieDetail } from "@ui/hooks/useMovieDetail";
 import { useMovieLibrary } from "@ui/hooks/useMovieLibrary";
@@ -164,6 +166,7 @@ export function MovieDetail({ movieId }: { readonly movieId: number }): ReactEle
   const actions = useMovieActions();
   const rate = useRate("movies");
   const header = detail.header;
+  useDocumentTitle(header !== undefined ? `${header.title} · Cue` : "Movie · Cue");
 
   if (detail.isLoading) {
     return (
@@ -196,9 +199,20 @@ export function MovieDetail({ movieId }: { readonly movieId: number }): ReactEle
 
   return (
     <section className="screen screen--detail" data-testid="screen-movie-detail">
-      <Link to="/library" className="detail-back" data-testid="movie-back">
-        ‹ Library
-      </Link>
+      <DetailBack
+        testId="movie-back"
+        label="‹ Back"
+        fallback={
+          <Link
+            to="/library"
+            search={{ type: "movies" }}
+            className="detail-back"
+            data-testid="movie-back"
+          >
+            ‹ Library
+          </Link>
+        }
+      />
 
       <MovieHero header={header} entry={entry} actions={actions} rate={rate} />
 

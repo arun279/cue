@@ -17,12 +17,14 @@ function CrashOnParam(): ReactElement | null {
   return null;
 }
 
+/** The wordmark links home (= Up Next), honoring the universal logo→home
+ * convention. The mark is decorative — the adjacent "Cue" text names the link. */
 function Brand(): ReactElement {
   return (
-    <span className="brand">
+    <Link to="/" className="brand" aria-label="Cue home">
       <CueMark className="brand__mark" />
       Cue
-    </span>
+    </Link>
   );
 }
 

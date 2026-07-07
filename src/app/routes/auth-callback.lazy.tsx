@@ -1,5 +1,6 @@
 import { createLazyRoute, useNavigate } from "@tanstack/react-router";
 import { useAuth } from "@ui/auth/store";
+import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { type ReactElement, useEffect, useRef } from "react";
 
 /**
@@ -13,6 +14,7 @@ function AuthCallbackScreen(): ReactElement {
   const connectStatus = useAuth((s) => s.connectStatus);
   const errorMessage = useAuth((s) => s.errorMessage);
   const started = useRef(false);
+  useDocumentTitle("Connecting · Cue");
 
   useEffect(() => {
     if (started.current) return;

@@ -40,7 +40,13 @@ export function UpNextCard({
       data-testid="up-next-card"
       data-show-id={entry.showId}
     >
-      <Link to="/show/$showId" params={showParams} className="card__poster-link" tabIndex={-1}>
+      <Link
+        to="/show/$showId"
+        params={showParams}
+        className="card__poster-link"
+        tabIndex={-1}
+        aria-label={entry.title}
+      >
         <span className={isLead ? "poster-wrap" : "poster-wrap poster-wrap--sm"}>
           <Poster
             title={entry.title}

@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { CachedRetryBanner } from "@ui/components/CachedRetryBanner";
 import { CardListSkeleton } from "@ui/components/CardListSkeleton";
 import { SyncStatusPill } from "@ui/components/SyncStatusPill";
+import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { useHideShow } from "@ui/hooks/useHideShow";
 import { useMarkWatched } from "@ui/hooks/useMarkWatched";
 import type { UpNextCard as UpNextCardModel } from "@ui/hooks/useUpNext";
@@ -82,6 +83,7 @@ function EmptyState({
  * only-stopped / nothing-started / caught-up). Marking is optimistic with Undo.
  */
 export function UpNext(): ReactElement {
+  useDocumentTitle("Up Next · Cue");
   const view = useUpNext();
   const mark = useMarkWatched();
   const stop = useHideShow();

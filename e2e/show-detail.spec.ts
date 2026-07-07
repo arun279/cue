@@ -61,11 +61,32 @@ async function expandSeason(page: import("@playwright/test").Page, season: numbe
   await page.locator(`[data-season="${season}"]`).getByTestId("season-trigger").click();
 }
 
+test("detail Back retraces the entry point, and falls back to Library on a direct load", async ({
+  page,
+}) => {
+  await installLibraryRoutes(page.context(), [detailShow()]);
+
+  // Entered from Library → history-aware Back returns to Library.
+  await page.goto("/library");
+  await page.getByTestId("library-card").first().click();
+  await expect(page.getByTestId("detail-title")).toContainText("The Detail Show");
+  await page.getByTestId("detail-back").click();
+  await expect(page.getByTestId("screen-library")).toBeVisible();
+  await expect(page).toHaveURL(/\/library$/);
+
+  // A direct load has no in-app history to pop → Back is the labelled fallback link.
+  await page.goto("/show/1");
+  await expect(page.getByTestId("detail-title")).toContainText("The Detail Show");
+  await page.getByTestId("detail-back").click();
+  await expect(page.getByTestId("screen-library")).toBeVisible();
+});
+
 test("streams the hero then the season tree", async ({ page }) => {
   await installLibraryRoutes(page.context(), [detailShow()]);
   await page.goto("/show/1");
 
   await expect(page.getByTestId("detail-title")).toContainText("The Detail Show");
+  await expect(page).toHaveTitle("The Detail Show · Cue");
   await expect(page.getByTestId("detail-network")).toContainText("Testnet");
   await expect(page.getByTestId("detail-overview")).toBeVisible();
   await expect(page.getByTestId("overall-progress")).toHaveAttribute("aria-valuenow", "29");

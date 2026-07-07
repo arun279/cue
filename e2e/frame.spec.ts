@@ -16,9 +16,46 @@ test("mounts the frame with the document title and no console errors", async ({ 
 
   await page.goto("/");
 
-  await expect(page).toHaveTitle("Cue");
+  await expect(page).toHaveTitle("Up Next · Cue");
   await expect(page.getByTestId("screen-up-next")).toBeVisible();
   expect(errors).toEqual([]);
+});
+
+test("each route sets a truthful, distinct document title", async ({ page }) => {
+  await page.goto("/");
+  await expect(page).toHaveTitle("Up Next · Cue");
+
+  await page.getByRole("link", { name: "Calendar", exact: true }).first().click();
+  await expect(page).toHaveTitle("Calendar · Cue");
+
+  await page.getByRole("link", { name: "Library", exact: true }).first().click();
+  await expect(page).toHaveTitle("Library · Cue");
+
+  await page.goto("/search");
+  await expect(page).toHaveTitle("Search · Cue");
+
+  await page.goto("/profile");
+  await expect(page).toHaveTitle("Profile · Cue");
+
+  await page.goto("/settings");
+  await expect(page).toHaveTitle("Settings · Cue");
+
+  // Dynamic detail titles name the entity; the OAuth return names its purpose.
+  await page.goto("/auth/callback");
+  await expect(page).toHaveTitle("Connecting · Cue");
+});
+
+test("the brand wordmark is a link home with an accessible name", async ({ page }) => {
+  await page.goto("/profile");
+  await expect(page.getByTestId("screen-profile")).toBeVisible();
+
+  // The mark is not a dead <span>: it is a labelled link back to Up Next (home).
+  const brand = page.getByRole("link", { name: "Cue home" }).first();
+  await expect(brand).toBeVisible();
+  await brand.click();
+
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByTestId("screen-up-next")).toBeVisible();
 });
 
 test("exactly three tabs plus Search and Profile as non-tab affordances", async ({ page }) => {

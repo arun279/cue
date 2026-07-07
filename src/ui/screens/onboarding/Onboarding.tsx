@@ -1,5 +1,6 @@
 import { CueMark } from "@ui/app-shell/CueMark";
 import { useAuth } from "@ui/auth/store";
+import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { type ReactElement, type ReactNode, useState } from "react";
 import heroLogin from "./assets/hero-login.webp";
 
@@ -24,6 +25,7 @@ function OnboardingShell(props: { children: ReactNode; labelledBy: string }): Re
 }
 
 export function Onboarding(): ReactElement {
+  useDocumentTitle("Sign in · Cue");
   const connectWithRedirect = useAuth((s) => s.connectWithRedirect);
   const connectWithDeviceCode = useAuth((s) => s.connectWithDeviceCode);
   const cancelConnect = useAuth((s) => s.cancelConnect);
