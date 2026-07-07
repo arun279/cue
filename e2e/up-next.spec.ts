@@ -112,15 +112,19 @@ test("Continue queue: excludes future next episodes and hidden shows; lapsed dro
   await expect(lead.getByTestId("poster-image")).toBeVisible();
   await expect(cards.filter({ hasText: "NoImage" }).getByTestId("poster-text")).toBeVisible();
 
-  // The lapsed show is NOT gone — it collapses into the drawer with Watched / Stop watching.
+  // The lapsed show is NOT gone — it collapses into the drawer with Mark watched / Stop watching.
   const drawer = page.getByTestId("lapsed-drawer");
   await expect(drawer).toBeVisible();
   await expect(page.getByTestId("lapsed-heading")).toContainText("Haven't watched in a while");
   await page.getByTestId("lapsed-heading").click();
   const lapsedRow = page.getByTestId("lapsed-row").filter({ hasText: "Lapsed Show" });
   await expect(lapsedRow).toHaveCount(1);
-  // The drawer now offers in-place catch-up (Watched) + Stop watching — no "Keep".
-  await expect(lapsedRow.getByTestId("lapsed-mark")).toBeVisible();
+  // The drawer offers in-place catch-up + Stop watching — no "Keep". Its mark reads as
+  // an ACTION (the shared "Mark watched" copy + plus glyph), never a done-state ✓ pill,
+  // matching the Up Next cards' honest affordance.
+  const lapsedMark = lapsedRow.getByTestId("lapsed-mark");
+  await expect(lapsedMark).toContainText("Mark watched");
+  await expect(lapsedMark.locator(".card__check")).toBeVisible();
   await expect(lapsedRow.getByTestId("lapsed-stop")).toBeVisible();
   await expect(lapsedRow.getByTestId("lapsed-keep")).toHaveCount(0);
 });
@@ -143,7 +147,7 @@ test("the lead card shows its full title at 390px — no hero truncation", async
   expect(clipped).toBe(false);
 });
 
-test("the lapsed drawer's Watched marks in place and re-files the show into Continue", async ({
+test("the lapsed drawer's Mark watched marks in place and re-files the show into Continue", async ({
   page,
 }) => {
   const controls = await installLibraryRoutes(page.context(), [
@@ -173,7 +177,7 @@ test("the lapsed drawer's Watched marks in place and re-files the show into Cont
   const lapsedRow = page.getByTestId("lapsed-row").filter({ hasText: "Lapsed Show" });
   await expect(lapsedRow).toHaveCount(1);
 
-  // One tap Watched marks its next aired episode (S01E02 = id 52) in place…
+  // One tap on Mark watched logs its next aired episode (S01E02 = id 52) in place…
   await lapsedRow.getByTestId("lapsed-mark").click();
   await expect(page.getByTestId("undo")).toContainText("Marked Lapsed Show S01E02 watched");
   await expect

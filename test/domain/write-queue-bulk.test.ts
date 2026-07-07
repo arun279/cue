@@ -1,7 +1,6 @@
 import {
   type BulkMarkTarget,
   buildBulkMarkOps,
-  buildBulkUnmarkOps,
   type EpisodeAir,
   MAX_EPISODES_PER_CHUNK,
   type SeasonTree,
@@ -48,11 +47,6 @@ function build(seasons: SeasonTree[], options: BuildOptions = {}): QueuedOp[] {
   return buildBulkMarkOps(target, NOW, WATCHED_AT, opId);
 }
 
-function buildUnmark(seasons: SeasonTree[], options: BuildOptions = {}): QueuedOp[] {
-  const target: BulkMarkTarget = { showIds: IDS, seasons, includeSpecials: false, ...options };
-  return buildBulkUnmarkOps(target, NOW, WATCHED_AT, opId);
-}
-
 function bodyOf(op: QueuedOp | undefined): Body {
   return (op?.request.body as Body | undefined) ?? { shows: [] };
 }
@@ -89,13 +83,17 @@ describe("buildBulkMarkOps", () => {
     ]);
   });
 
-  it("marks ONLY the previously-unwatched delta of a partially-watched season", () => {
-    // S01E01/E02 already carry plays; only E03/E04 are the delta this mark creates.
-    const ops = build([{ number: 1, episodes: [...watchedEpisodes(2), ...airedEpisodes(2, 3)] }]);
+  it("marks ONLY the previously-unwatched delta of a partially-watched season (5 of 8 → +E6-E8)", () => {
+    // A 5-of-8 season: E01–E05 already carry plays; only E06–E08 are the delta this
+    // mark creates. This is the history-loss guard — the mark, and its inverse, can
+    // only ever touch the 3 newly-added plays, so a mark-then-Undo returns to 5/8,
+    // never zeroing the 5 pre-existing plays.
+    const ops = build([{ number: 1, episodes: [...watchedEpisodes(5), ...airedEpisodes(3, 6)] }]);
     expect(ops).toHaveLength(1);
-    expect(seasonsOf(ops[0])).toEqual([{ number: 1, episodes: enumerated(3, 4) }]);
-    // The inverse removes exactly that delta — pre-existing E01/E02 plays are untouched.
-    expect(inverseSeasonsOf(ops[0])).toEqual([{ number: 1, episodes: enumerated(3, 4) }]);
+    expect(seasonsOf(ops[0])).toEqual([{ number: 1, episodes: enumerated(6, 7, 8) }]);
+    // The inverse (the Undo) removes exactly that delta — the pre-existing E01–E05
+    // plays are never enumerated, so Undo restores the precise pre-mark state.
+    expect(inverseSeasonsOf(ops[0])).toEqual([{ number: 1, episodes: enumerated(6, 7, 8) }]);
   });
 
   it("emits no op when every aired episode is already watched (a re-mark adds no duplicate plays)", () => {
@@ -202,78 +200,5 @@ describe("buildBulkMarkOps", () => {
       path: "/sync/history/remove",
       body: { shows: [{ ids: IDS, seasons: [{ number: 1, episodes: enumerated(1, 2, 3) }] }] },
     });
-  });
-});
-
-describe("buildBulkUnmarkOps (delta-safe season unmark)", () => {
-  it("removes ONLY the aired, currently-watched episodes, enumerated per episode (never a token)", () => {
-    // A fully-watched, fully-aired season: the remove enumerates every episode — a
-    // whole-season `{ number }` token would delete plays this client never enumerated.
-    const ops = buildUnmark([{ number: 1, episodes: watchedEpisodes(4) }]);
-    expect(ops).toHaveLength(1);
-    expect(ops[0]?.request).toEqual({
-      method: "POST",
-      path: "/sync/history/remove",
-      body: { shows: [{ ids: IDS, seasons: [{ number: 1, episodes: enumerated(1, 2, 3, 4) }] }] },
-    });
-  });
-
-  it("re-adds exactly that same set with watched_at as its inverse (Undo restores the plays)", () => {
-    const [op] = buildUnmark([{ number: 1, episodes: watchedEpisodes(3) }]);
-    expect(op?.inverse).toEqual({
-      method: "POST",
-      path: "/sync/history",
-      body: {
-        shows: [
-          {
-            ids: IDS,
-            watched_at: WATCHED_AT,
-            seasons: [{ number: 1, episodes: enumerated(1, 2, 3) }],
-          },
-        ],
-      },
-    });
-    expect(op?.fromState).toBe("present");
-    expect(op?.toState).toBe("absent");
-  });
-
-  it("skips unwatched and unaired episodes — only currently-watched aired plays are removed", () => {
-    // E01/E02 watched+aired (removed); E03 aired-but-unwatched (no play to remove);
-    // E04 watched-but-unaired (excluded — the unmark is aired-only).
-    const ops = buildUnmark([
-      {
-        number: 1,
-        episodes: [
-          ...watchedEpisodes(2),
-          { number: 3, firstAired: iso(NOW - DAY), watched: false },
-          { number: 4, firstAired: iso(NOW + DAY), watched: true },
-        ],
-      },
-    ]);
-    expect(seasonsOf(ops[0])).toEqual([{ number: 1, episodes: enumerated(1, 2) }]);
-  });
-
-  it("emits no op when nothing aired is watched (empty delta, no POST)", () => {
-    expect(buildUnmark([{ number: 1, episodes: airedEpisodes(4) }])).toHaveLength(0);
-  });
-
-  it("excludes specials (season 0) unless opted in", () => {
-    const seasons: SeasonTree[] = [
-      { number: 0, episodes: watchedEpisodes(2) },
-      { number: 1, episodes: watchedEpisodes(3) },
-    ];
-    expect(seasonsOf(buildUnmark(seasons)[0])).toEqual([
-      { number: 1, episodes: enumerated(1, 2, 3) },
-    ]);
-    expect(seasonsOf(buildUnmark(seasons, { includeSpecials: true })[0])).toEqual([
-      { number: 0, episodes: enumerated(1, 2) },
-      { number: 1, episodes: enumerated(1, 2, 3) },
-    ]);
-  });
-
-  it("gives an unmark a distinct item key from the matching mark (no false coalesce)", () => {
-    const mark = build([{ number: 1, episodes: airedEpisodes(3) }])[0];
-    const unmark = buildUnmark([{ number: 1, episodes: watchedEpisodes(3) }])[0];
-    expect(mark?.itemKey).not.toBe(unmark?.itemKey);
   });
 });

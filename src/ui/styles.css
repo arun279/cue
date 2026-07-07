@@ -1856,19 +1856,35 @@ body {
   gap: var(--space-3);
   padding-right: var(--space-4);
 }
-/* The season action's affirmative "complete" state (a pressed toggle that unmarks),
-   mirroring the watched-toggle's data-on treatment so "watched" reads the same
-   everywhere. The ghost "Mark season watched" state keeps the neutral border. */
 .season__mark {
   flex: none;
 }
-.season__mark[data-complete="true"] {
-  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
-  border-color: var(--color-accent);
-  color: var(--color-accent-strong);
+/* A completed season is a STATUS, not an action: a quiet green "done" chip (the
+   completion color the ring already uses, never the amber ACTION fill) so it can't
+   be read as a "mark" CTA and offers no destructive one-tap unmark. Shares the green
+   done-language with the movie watched toggle so a watched season and a watched movie
+   read alike. Non-interactive — reversal is the mark's Undo toast or
+   per-episode unchecking. */
+.season__status {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 7px var(--space-4);
+  border-radius: var(--radius-pill);
+  border: 1px solid color-mix(in srgb, var(--color-ok) 45%, transparent);
+  background: color-mix(in srgb, var(--color-ok) 14%, transparent);
+  color: var(--color-ok);
+  font-family: var(--font-ui);
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: default;
 }
-.season__mark[data-complete="true"]:not(:disabled):hover {
-  background: color-mix(in srgb, var(--color-accent) 26%, transparent);
+.season__status svg {
+  width: 1rem;
+  height: 1rem;
+  flex: none;
 }
 .season__heading {
   margin: 0;
@@ -2214,8 +2230,10 @@ body {
   font-size: 0.85rem;
   color: var(--color-muted);
 }
-/* The watched toggle is a real checkbox (keyboard + AT), painted as an amber pill
-   that fills when the play is recorded — the app's satisfying mark ritual. */
+/* The watched toggle is a real checkbox (keyboard + AT). Unwatched it is a neutral
+   pill; once the play is recorded it takes the green "done" treatment (matching the
+   season status + completion ring), deliberately NOT the amber ACTION fill — so a
+   recorded watch is never mistaken for a "Mark watched" CTA.*/
 .watched-toggle {
   position: relative;
   display: inline-flex;
@@ -2236,9 +2254,9 @@ body {
     color var(--dur-quick) var(--ease-standard);
 }
 .watched-toggle[data-on="true"] {
-  background: var(--color-accent);
-  border-color: var(--color-accent);
-  color: var(--color-accent-fg);
+  background: color-mix(in srgb, var(--color-ok) 14%, transparent);
+  border-color: color-mix(in srgb, var(--color-ok) 45%, transparent);
+  color: var(--color-ok);
 }
 .watched-toggle[data-disabled="true"] {
   opacity: 0.55;
@@ -2248,8 +2266,8 @@ body {
   border-color: var(--color-accent);
 }
 .watched-toggle[data-on="true"]:not([data-disabled="true"]):hover {
-  background: var(--color-accent-strong);
-  border-color: var(--color-accent-strong);
+  background: color-mix(in srgb, var(--color-ok) 22%, transparent);
+  border-color: var(--color-ok);
 }
 .watched-toggle:focus-within {
   outline: 2px solid var(--color-focus);

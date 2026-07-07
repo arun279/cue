@@ -1,6 +1,6 @@
 import type { TmdbImageConfig } from "@data/image-source";
 import { Link } from "@tanstack/react-router";
-import { MarkIcon } from "@ui/components/MarkIcon";
+import { MarkWatchedButton } from "@ui/components/MarkWatchedButton";
 import type { UpNextCard as UpNextCardModel } from "@ui/hooks/useUpNext";
 import { Accordion } from "radix-ui";
 import type { ReactElement } from "react";
@@ -63,18 +63,14 @@ function LapsedRow({
         </p>
       </div>
       <div className="lapsed-row__actions">
-        <button
-          type="button"
-          className="button button--sm lapsed-row__mark"
-          data-testid="lapsed-mark"
-          aria-label={`Mark ${entry.title} ${code} watched`}
-          aria-disabled={entry.pendingAdvance}
-          aria-busy={entry.pendingAdvance}
-          onClick={onMark}
-        >
-          <MarkIcon />
-          Mark watched
-        </button>
+        <MarkWatchedButton
+          label="Mark watched"
+          ariaLabel={`Mark ${entry.title} ${code} watched`}
+          testId="lapsed-mark"
+          className="card__mark--sm lapsed-row__mark"
+          busy={entry.pendingAdvance}
+          onMark={onMark}
+        />
         <button
           type="button"
           className="button button--ghost button--sm lapsed-row__stop"
