@@ -1,6 +1,7 @@
 import type { TmdbImageConfig } from "@data/image-source";
 import { CALENDAR_TIME_ZONE, type CalendarRow as CalendarRowModel } from "@domain/calendar";
 import { Link } from "@tanstack/react-router";
+import { MarkWatchedButton } from "@ui/components/MarkWatchedButton";
 import { Poster } from "@ui/screens/up-next/Poster";
 import type { ReactElement } from "react";
 
@@ -23,9 +24,10 @@ const timeFmt = new Intl.DateTimeFormat("en-US", {
 
 /**
  * One calendar episode row: poster, show + next-episode code/title, localized air
- * time, linking into Episode detail. An already-aired episode gets the quick
- * mark-watched control; once marked it collapses to a confirmed badge. A
- * not-yet-aired episode shows no action — you can't have watched it yet.
+ * time, linking into Episode detail. An already-aired episode gets the SAME shared
+ * "Mark watched" action as Up Next (not a bare icon); once marked it collapses to a
+ * confirmed badge. A not-yet-aired episode shows no action — you can't have watched
+ * it yet.
  */
 export function CalendarRow({ row, tmdbConfig, watched, onMark }: CalendarRowProps): ReactElement {
   const code = episodeCode(row.season, row.number);
@@ -63,24 +65,13 @@ export function CalendarRow({ row, tmdbConfig, watched, onMark }: CalendarRowPro
           Watched
         </span>
       ) : row.aired ? (
-        <button
-          type="button"
-          className="card__mark"
-          data-testid="calendar-mark"
-          aria-label={`Mark ${row.showTitle} ${code} watched`}
-          onClick={onMark}
-        >
-          <svg className="card__check" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path
-              d="M5 13l4 4L19 7"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>
+        <MarkWatchedButton
+          testId="calendar-mark"
+          label="Mark watched"
+          ariaLabel={`Mark ${row.showTitle} ${code} watched`}
+          className="card__mark--sm"
+          onMark={onMark}
+        />
       ) : (
         <span className="calendar-card__soon" data-testid="calendar-upcoming">
           Airs soon

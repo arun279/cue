@@ -38,6 +38,11 @@ export interface BulkMarkTarget {
   readonly inversePatch?: unknown;
 }
 
+/** Whether the batch ADDS plays (mark) or REMOVES them (unmark). The two directions
+ * are mirror images: mark scopes to the aired, still-unwatched episodes; unmark to
+ * the aired, currently-WATCHED ones — both enumerated per episode, never a token. */
+type BulkMode = "mark" | "unmark";
+
 type SeasonBody = { number: number; episodes: { number: number }[] };
 
 interface PlannedSeason {
@@ -62,26 +67,65 @@ export function buildBulkMarkOps(
   watchedAt: string,
   makeOpId: (chunkIndex: number) => string,
 ): QueuedOp[] {
-  const planned = planSeasons(target, now);
+  return buildBulkHistoryOps(target, "mark", now, watchedAt, makeOpId);
+}
+
+/**
+ * The mirror of {@link buildBulkMarkOps}: emit a delta-scoped `/sync/history/remove`
+ * per chunk enumerating ONLY the aired, currently-WATCHED episodes — never a
+ * whole-season token (which would remove every play of every episode the season
+ * holds, including ones this client never enumerated). The inverse re-adds exactly
+ * that same set with `watched_at`, so an Undo restores the removed plays.
+ *
+ * Honest limit (Rams #6): `/sync/history/remove` keyed by an episode item removes
+ * ALL plays of THAT episode, so unmarking a completed season where an episode also
+ * carries pre-existing rewatch plays removes those extra plays too — the season tree
+ * exposes only a `watched` boolean, not per-play history event IDs, so we cannot
+ * scope finer here. This is the achievable fix (delta-scoped
+ * per-episode); it is safe for the app's own single-play mark model, and the only
+ * exposure is rewatch plays logged OUTSIDE this app (Cue ships no rewatch control).
+ * TODO(per-play-history): when the Diary reads `/users/me/history` — the
+ * only surface that carries real play IDs — route true per-play removal through it.
+ */
+export function buildBulkUnmarkOps(
+  target: BulkMarkTarget,
+  now: number,
+  watchedAt: string,
+  makeOpId: (chunkIndex: number) => string,
+): QueuedOp[] {
+  return buildBulkHistoryOps(target, "unmark", now, watchedAt, makeOpId);
+}
+
+function buildBulkHistoryOps(
+  target: BulkMarkTarget,
+  mode: BulkMode,
+  now: number,
+  watchedAt: string,
+  makeOpId: (chunkIndex: number) => string,
+): QueuedOp[] {
+  const planned = planSeasons(target, mode, now);
   const chunks = chunkSeasons(planned);
+  const marking = mode === "mark";
   return chunks.map((seasons, index) => {
     const addBody = { shows: [{ ids: target.showIds, watched_at: watchedAt, seasons }] };
     const removeBody = { shows: [{ ids: target.showIds, seasons }] };
+    const add = { method: "POST", path: HISTORY, body: addBody } as const;
+    const remove = { method: "POST", path: HISTORY_REMOVE, body: removeBody } as const;
     return {
       id: makeOpId(index),
-      itemKey: `show:${target.showIds.trakt}:bulk:${hashSeasons(seasons)}`,
-      request: { method: "POST", path: HISTORY, body: addBody },
-      inverse: { method: "POST", path: HISTORY_REMOVE, body: removeBody },
+      itemKey: `show:${target.showIds.trakt}:${marking ? "bulk" : "bulk-unmark"}:${hashSeasons(seasons)}`,
+      request: marking ? add : remove,
+      inverse: marking ? remove : add,
       inversePatch: target.inversePatch ?? null,
       watchedAt,
-      fromState: "absent",
-      toState: "present",
+      fromState: marking ? "absent" : "present",
+      toState: marking ? "present" : "absent",
       reconcileKeys: ["progress/watched", "watched/shows"],
     };
   });
 }
 
-function planSeasons(target: BulkMarkTarget, now: number): PlannedSeason[] {
+function planSeasons(target: BulkMarkTarget, mode: BulkMode, now: number): PlannedSeason[] {
   const out: PlannedSeason[] = [];
   const seasons = [...target.seasons].sort((a, b) => a.number - b.number);
   for (const season of seasons) {
@@ -89,7 +133,9 @@ function planSeasons(target: BulkMarkTarget, now: number): PlannedSeason[] {
     if (target.upTo !== undefined && season.number > target.upTo.season) continue;
     const delta = season.episodes.filter(
       (ep) =>
-        !ep.watched &&
+        // mark: previously-unwatched; unmark: currently-watched. Aired-only either way
+        // (an unaired episode has no play to remove and must never be marked).
+        (mode === "mark" ? !ep.watched : ep.watched) &&
         isAired(ep.firstAired, now) &&
         withinBound(ep.number, season.number, target.upTo),
     );

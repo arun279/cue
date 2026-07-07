@@ -30,6 +30,21 @@ describe("showProgressKeys — the keys a local mark on show X must refresh", ()
     expect(showProgressKeys(7)).toHaveLength(3);
   });
 
+  it("adds the whole-show episode prefix for a bulk/range mark ('all')", () => {
+    // A bulk mark/undo touches an unknown set of episodes, so it invalidates the
+    // episode prefix — which TanStack prefix-matches every cached episode of the show
+    // — rather than one coordinate, so no pre-cached standalone episode page is stale.
+    const keys = showProgressKeys(42, "all");
+    expect(keys).toEqual([
+      queryKeys.library(),
+      queryKeys.showHeader(42),
+      queryKeys.showSeasons(42),
+      queryKeys.episodePrefix(42),
+    ]);
+    // The prefix is a strict prefix of any concrete episode key of that show.
+    expect(queryKeys.episode(42, 3, 9).slice(0, 3)).toEqual(queryKeys.episodePrefix(42));
+  });
+
   it("scopes the show-detail keys to the marked show id", () => {
     const keys = showProgressKeys(99, { season: 2, number: 3 });
     expect(keys).toContainEqual(queryKeys.showHeader(99));

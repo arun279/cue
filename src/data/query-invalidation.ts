@@ -62,17 +62,25 @@ function keysForTarget(target: InvalidationTarget): readonly InvalidationKey[] {
  * the content window lapsing). Invalidating them at the mark seam marks the
  * (usually inactive) show-detail queries stale so they refetch on next mount —
  * and, because the invalidated flag is persisted, after a full reload too.
+ *
+ * `episode` scopes the episode-detail invalidation: a single `{season,number}`
+ * coordinate targets exactly that episode's detail read; `"all"` invalidates the
+ * whole-show episode prefix (`["show","episode",showId]`, which TanStack
+ * prefix-matches across every cached episode of the show) for a bulk/range mark
+ * that touched an unknown set of episodes; omitting it leaves episode reads alone.
  */
 export function showProgressKeys(
   showId: number,
-  episode?: { readonly season: number; readonly number: number },
+  episode?: { readonly season: number; readonly number: number } | "all",
 ): InvalidationKey[] {
   const keys: InvalidationKey[] = [
     queryKeys.library(),
     queryKeys.showHeader(showId),
     queryKeys.showSeasons(showId),
   ];
-  if (episode !== undefined) keys.push(queryKeys.episode(showId, episode.season, episode.number));
+  if (episode === "all") keys.push(queryKeys.episodePrefix(showId));
+  else if (episode !== undefined)
+    keys.push(queryKeys.episode(showId, episode.season, episode.number));
   return keys;
 }
 

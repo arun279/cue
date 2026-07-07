@@ -1,9 +1,9 @@
 import { resolvePoster } from "@data/image-source";
 import type { EpisodeView, SeasonView, ShowHeader } from "@data/trakt/show-detail";
 import { Link } from "@tanstack/react-router";
-import { CheckIcon } from "@ui/components/CheckIcon";
 import { DetailBack } from "@ui/components/DetailBack";
 import { DetailHeroSkeleton } from "@ui/components/DetailHeroSkeleton";
+import { MarkIcon } from "@ui/components/MarkIcon";
 import { RatingControl } from "@ui/components/RatingControl";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { useHideShow } from "@ui/hooks/useHideShow";
@@ -141,7 +141,7 @@ function ShowHero({
         <div className="show-hero__actions">
           {canMarkNext && (
             <button type="button" className="button" data-testid="mark-next" onClick={onMarkNext}>
-              <CheckIcon />
+              <MarkIcon />
               Mark next watched
             </button>
           )}
@@ -234,6 +234,7 @@ function NextUp({
             data-testid="next-up-mark"
             onClick={() => void marks.toggleEpisode(target, next)}
           >
+            <MarkIcon />
             Mark watched
           </button>
           <button

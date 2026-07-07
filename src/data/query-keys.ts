@@ -24,4 +24,7 @@ export const queryKeys = {
   showSeasons: (showId: number) => ["show", "seasons", showId] as const,
   episode: (showId: number, season: number, number: number) =>
     ["show", "episode", showId, season, number] as const,
+  /** Prefix over every `episode(showId, …)` of one show, for invalidating them as
+   * one when a bulk/range mark touched an unknown set of that show's episodes. */
+  episodePrefix: (showId: number) => ["show", "episode", showId] as const,
 } as const;

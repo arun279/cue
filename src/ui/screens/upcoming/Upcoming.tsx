@@ -10,6 +10,8 @@ import { ToggleGroup } from "radix-ui";
 import { type ReactElement, type ReactNode, useMemo } from "react";
 import { CalendarRow } from "./CalendarRow";
 
+const UNDO_MS = 6000;
+
 type Row =
   | { readonly kind: "header"; readonly label: string; readonly count: number }
   | { readonly kind: "episode"; readonly row: CalendarRowModel };
@@ -142,6 +144,17 @@ export function Upcoming(): ReactElement {
           actionLabel="Dismiss"
           onAction={view.clearMarkError}
           onDismiss={view.clearMarkError}
+        />
+      )}
+
+      {view.markError === null && view.undoable !== null && (
+        <Snackbar
+          testId="calendar-undo"
+          message={`Marked ${view.undoable.showTitle} watched.`}
+          actionLabel="Undo"
+          autoDismissMs={UNDO_MS}
+          onAction={() => void view.undo()}
+          onDismiss={view.dismissUndo}
         />
       )}
     </section>

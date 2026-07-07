@@ -146,6 +146,26 @@ test("an aired row gets a quick mark-watched that fires POST /sync/history", asy
   expect(controls.historyPosts()[0]?.episodeIds).toEqual([11]);
 });
 
+test("the quick mark offers a point-of-action Undo that removes the play", async ({ page }) => {
+  const controls = await installCalendarRoutes(page.context(), [
+    calItem({ traktId: 11, showId: 1, showTitle: "Aired Today" }),
+  ]);
+  await page.goto("/calendar");
+
+  await page.getByTestId("calendar-mark").click();
+  await expect(page.getByTestId("calendar-watched")).toBeVisible(); // optimistic
+
+  // The calendar mark now has the same point-of-action Undo as Up Next.
+  await expect(page.getByTestId("calendar-undo")).toContainText("Marked Aired Today watched");
+  await page.getByTestId("calendar-undo-action").click();
+
+  // Undo issues the compensating /sync/history/remove and restores the mark control.
+  await expect.poll(() => controls.removePosts().length).toBe(1);
+  expect(controls.removePosts()[0]?.episodeIds).toEqual([11]);
+  await expect(page.getByTestId("calendar-mark")).toBeVisible();
+  await expect(page.getByTestId("calendar-watched")).toHaveCount(0);
+});
+
 test("shows the empty-window state when nothing is airing", async ({ page }) => {
   await installCalendarRoutes(page.context(), []);
   await page.goto("/calendar");

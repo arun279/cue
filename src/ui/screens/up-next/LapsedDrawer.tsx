@@ -1,5 +1,6 @@
 import type { TmdbImageConfig } from "@data/image-source";
 import { Link } from "@tanstack/react-router";
+import { MarkIcon } from "@ui/components/MarkIcon";
 import type { UpNextCard as UpNextCardModel } from "@ui/hooks/useUpNext";
 import { Accordion } from "radix-ui";
 import type { ReactElement } from "react";
@@ -16,7 +17,8 @@ interface LapsedDrawerProps {
 }
 
 /** One row in the drawer: the show (poster + title route to Show detail), the next
- * episode + how long it's been, and the two one-tap decisions Watched / Stop watching. */
+ * episode + how long it's been, and the two one-tap decisions "Mark watched" (a plus
+ * glyph — the shared mark ACTION, never a done-state ✓) / Stop watching. */
 function LapsedRow({
   card,
   tmdbConfig,
@@ -70,7 +72,8 @@ function LapsedRow({
           aria-busy={entry.pendingAdvance}
           onClick={onMark}
         >
-          Watched
+          <MarkIcon />
+          Mark watched
         </button>
         <button
           type="button"
@@ -88,7 +91,7 @@ function LapsedRow({
 /**
  * "Haven't watched in a while" — the soft, collapsed drawer at the bottom of Up
  * Next for in-progress-but-idle shows (longest-idle first). It is a pruning prompt,
- * never a wall of shame: each row offers a one-tap Watched (the direct catch-up
+ * never a wall of shame: each row offers a one-tap "Mark watched" (the direct catch-up
  * path — marking re-sorts the show to the top of Continue) or Stop watching (the
  * parent's optimistic hide + Undo). A decided show leaves the drawer on its own,
  * so there is no local per-session dismissal to lose on reload.

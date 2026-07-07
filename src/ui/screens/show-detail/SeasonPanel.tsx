@@ -72,10 +72,13 @@ function subtitle(season: SeasonView): string {
 
 /**
  * One expandable season shelf: a disclosure header carrying the completion ring,
- * count, and a "Mark season" action, expanding into a horizontal shelf of episode
- * stills. Marking a season (or "up to here" from an episode) funnels through the
- * bulk builder, so it can never mark unaired episodes; the action is disabled
- * when the season has nothing aired (or is Specials while the opt-in is off).
+ * count, and a state-aware mark action, expanding into a horizontal shelf of
+ * episode stills. The action reads its label from completion: a partial season
+ * offers "Mark season watched"; a complete one shows a pressed "Season watched ✓"
+ * that toggles to a delta-safe unmark. Both funnel through the bulk builder, so
+ * they can never touch unaired episodes and never collapse a season to a token; the
+ * action locks while its write is in flight and is disabled when the season has
+ * nothing aired (or is Specials while the opt-in is off).
  */
 export function SeasonPanel({
   season,
@@ -85,6 +88,11 @@ export function SeasonPanel({
   nextKey,
 }: SeasonPanelProps): ReactElement {
   const canMark = season.airedCount > 0 && (!season.isSpecial || target.includeSpecials);
+  // Clamp to the aired basis (as the ring/subtitle do) so a watched *unaired* special
+  // can't read the season "complete" and offer an unmark that has nothing to remove.
+  const airedDone = Math.min(season.completedCount, season.airedCount);
+  const complete = season.airedCount > 0 && airedDone >= season.airedCount;
+  const busy = marks.isSeasonPending(season.number);
   const markUpToHere = (bound: EpisodeBound): void => {
     void marks.markUpToHere(target, allSeasons, bound);
   };
@@ -123,12 +131,17 @@ export function SeasonPanel({
         </Accordion.Header>
         <button
           type="button"
-          className="button button--ghost button--sm"
+          className="button button--ghost button--sm season__mark"
           data-testid="mark-season"
-          disabled={!canMark}
-          onClick={() => void marks.markSeason(target, season)}
+          data-complete={complete}
+          aria-pressed={complete}
+          aria-busy={busy || undefined}
+          disabled={!canMark || busy}
+          onClick={() =>
+            void (complete ? marks.unmarkSeason(target, season) : marks.markSeason(target, season))
+          }
         >
-          Mark season
+          {complete ? "Season watched ✓" : "Mark season watched"}
         </button>
       </div>
       <Accordion.Content className="season__content">

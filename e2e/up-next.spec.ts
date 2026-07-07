@@ -100,7 +100,10 @@ test("Continue queue: excludes future next episodes and hidden shows; lapsed dro
   const lead = cards.first();
   await expect(lead).toContainText("Alpha");
   await expect(lead.getByTestId("episode-code")).toHaveText("S01E02");
-  await expect(lead.getByTestId("mark-watched")).toContainText("Watched");
+  // The mark control reads as an ACTION ("Mark watched"), never a done-state ✓ pill;
+  // and the lead carries a "Next up" eyebrow so it reads as what-to-watch-next.
+  await expect(lead.getByTestId("mark-watched")).toContainText("Mark watched");
+  await expect(lead).toContainText("Next up");
   await expect(page.getByRole("heading", { name: "NoImage" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Future" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Hidden Show" })).toHaveCount(0);

@@ -375,24 +375,47 @@ test("a partially-watched season mark logs only the unwatched delta, and Undo re
   await expect(e1).toBeChecked();
 });
 
-test("re-marking an already-watched season adds no duplicate plays (empty delta, no POST)", async ({
+test("a completed season's button flips to a delta-safe unmark (per-episode remove, Undo re-adds)", async ({
   page,
 }) => {
   const controls = await installLibraryRoutes(page.context(), [detailShow()]);
   await page.goto("/show/1");
   await expandSeason(page, 1);
 
-  // First mark logs the S01E03/E04 delta; the fixture then reports S1 fully watched.
-  await page.locator('[data-season="1"]').getByTestId("mark-season").click();
+  const seasonBtn = page.locator('[data-season="1"]').getByTestId("mark-season");
+  // Season 1 is partial (S01E01/E02 watched, E03/E04 aired-unwatched) → mark action.
+  await expect(seasonBtn).toHaveText("Mark season watched");
+
+  // Marking the S01E03/E04 delta completes the season; the button flips to the
+  // pressed "Season watched ✓" toggle (aria-pressed), not a stateless "Mark season".
+  await seasonBtn.click();
   await expect.poll(() => controls.historyPosts().length).toBe(1);
   await expect(
     page.getByTestId("episode-row").filter({ hasText: "S01E04" }).getByTestId("episode-toggle"),
   ).toBeChecked();
+  await expect(seasonBtn).toHaveText("Season watched ✓");
+  await expect(seasonBtn).toHaveAttribute("aria-pressed", "true");
 
-  // Re-marking the now fully-watched season has an empty delta → no second POST fires.
-  await page.locator('[data-season="1"]').getByTestId("mark-season").click();
-  await page.waitForTimeout(1500);
-  expect(controls.historyPosts().length).toBe(1);
+  // Clicking it now UNMARKS: a delta-scoped /sync/history/remove enumerating the aired
+  // watched episodes PER EPISODE (E01–E04) — never a whole-season token, never the
+  // unaired E05 (which has no play to remove).
+  await seasonBtn.click();
+  await expect.poll(() => controls.removePosts().length).toBe(1);
+  expect(controls.removePosts()[0]?.shows?.[0]?.seasons).toEqual([
+    { number: 1, episodes: [{ number: 1 }, { number: 2 }, { number: 3 }, { number: 4 }] },
+  ]);
+  await expect(
+    page.getByTestId("episode-row").filter({ hasText: "S01E01" }).getByTestId("episode-toggle"),
+  ).not.toBeChecked();
+  await expect(seasonBtn).toHaveText("Mark season watched");
+
+  // Undo of the unmark re-adds exactly that set — the plays are restored.
+  await page.getByTestId("season-undo-action").click();
+  await expect.poll(() => controls.historyPosts().length).toBe(2);
+  expect(controls.historyPosts()[1]?.shows?.[0]?.seasons).toEqual([
+    { number: 1, episodes: [{ number: 1 }, { number: 2 }, { number: 3 }, { number: 4 }] },
+  ]);
+  await expect(seasonBtn).toHaveText("Season watched ✓");
 });
 
 test("a network-dropped season mark reconciles via progress, never a blind re-POST", async ({

@@ -1,5 +1,6 @@
 import type { TmdbImageConfig } from "@data/image-source";
 import { Link } from "@tanstack/react-router";
+import { MarkWatchedButton } from "@ui/components/MarkWatchedButton";
 import type { UpNextCard as UpNextCardModel } from "@ui/hooks/useUpNext";
 import type { ReactElement } from "react";
 import { episodeCode, relativeDays, watchedPercent } from "./format";
@@ -17,9 +18,12 @@ interface UpNextCardProps {
 /**
  * One Up Next row: poster + title route to the Show page, the
  * amber episode code + name route to the Episode page, a quiet "last watched N days
- * ago" line, and one large one-tap "Watched" that marks in place. The mark button
- * locks while an optimistic advance awaits its authoritative refetch so a
- * provisional episode is never re-marked.
+ * ago" line, and one shared "Mark watched" ACTION that marks in place. The lead
+ * card carries a "Next up" eyebrow so the biggest card reads as what-to-watch-next
+ * (not what-you-just-watched), and on the lead the action drops to its own full-width
+ * row so a long title stays legible at 390px. The mark button locks while an
+ * optimistic advance awaits its authoritative refetch so a provisional episode is
+ * never re-marked.
  */
 export function UpNextCard({
   card,
@@ -36,7 +40,7 @@ export function UpNextCard({
 
   return (
     <article
-      className={isLead ? "card card--lead" : "card"}
+      className={isLead ? "card card--up-next card--lead" : "card card--up-next"}
       data-testid="up-next-card"
       data-show-id={entry.showId}
     >
@@ -61,6 +65,7 @@ export function UpNextCard({
       </Link>
 
       <div className="card__body">
+        {isLead && <p className="card__eyebrow">Next up</p>}
         <Link to="/show/$showId" params={showParams} className="card__title-link">
           <h2 className="card__title">{entry.title}</h2>
         </Link>
@@ -89,27 +94,13 @@ export function UpNextCard({
         )}
       </div>
 
-      <button
-        type="button"
-        className="card__mark"
-        data-testid="mark-watched"
-        aria-label={`Mark ${entry.title} ${code} watched`}
-        aria-disabled={entry.pendingAdvance}
-        aria-busy={entry.pendingAdvance}
-        onClick={onMark}
-      >
-        <svg className="card__check" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-          <path
-            d="M5 13l4 4L19 7"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.6"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-        <span className="card__mark-text">Watched</span>
-      </button>
+      <MarkWatchedButton
+        testId="mark-watched"
+        label="Mark watched"
+        ariaLabel={`Mark ${entry.title} ${code} watched`}
+        busy={entry.pendingAdvance}
+        onMark={onMark}
+      />
     </article>
   );
 }

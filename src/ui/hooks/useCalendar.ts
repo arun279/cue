@@ -7,7 +7,7 @@ import {
   type CalendarRow,
   groupCalendar,
 } from "@domain/calendar";
-import { buildMarkEpisodeOp } from "@domain/write-queue/ops";
+import { buildMarkEpisodeOp, buildUnmarkEpisodeOp } from "@domain/write-queue/ops";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CONTENT_STALE_TIME_MS } from "@ui/hooks/query-freshness";
 import { useRuntime } from "@ui/runtime/runtime";
@@ -30,8 +30,18 @@ export interface CalendarView {
   refetch(): void;
   isWatched(episodeId: number): boolean;
   markWatched(row: CalendarRow): Promise<void>;
+  /** Point-of-action Undo for the quick mark (the calendar's genuine reversal gap):
+   * the last-marked row + its frozen watched_at, so Undo can remove exactly that play. */
+  readonly undoable: { readonly showTitle: string } | null;
+  undo(): Promise<void>;
+  dismissUndo(): void;
   readonly markError: string | null;
   clearMarkError(): void;
+}
+
+interface CalendarUndo {
+  readonly row: CalendarRow;
+  readonly watchedAt: string;
 }
 
 /** `Date → "YYYY-MM-DD"` in the fixed calendar tz, the `{start}` of the window request. */
@@ -55,7 +65,25 @@ export function useCalendar(): CalendarView {
   const queryClient = useQueryClient();
   const [windowDays, setWindowDays] = useState<number>(DEFAULT_CALENDAR_WINDOW);
   const [watched, setWatched] = useState<ReadonlySet<number>>(() => new Set());
+  const [undoState, setUndoState] = useState<CalendarUndo | null>(null);
   const write = useQueuedWrite();
+
+  // The calendar mark + its Undo both refresh the calendar window (this episode
+  // leaves/rejoins the unwatched-aired set) AND the marked show's detail reads via
+  // `showProgressKeys`, else show-detail reads pre-mark progress until an unrelated
+  // remote change — the same stale-cache defect the Up Next mark had.
+  const revalidateFor = useCallback(
+    (row: CalendarRow) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.calendarPrefix() });
+      for (const queryKey of showProgressKeys(row.showId, {
+        season: row.season,
+        number: row.number,
+      })) {
+        void queryClient.invalidateQueries({ queryKey });
+      }
+    },
+    [queryClient],
+  );
 
   // TODO(calendar-now): the window anchor + grouping freeze "now" at mount, so a
   // session left open across the fixed-tz midnight can mislabel days and gate
@@ -79,46 +107,75 @@ export function useCalendar(): CalendarView {
     });
   }, [data]);
 
+  const unwatch = useCallback((episodeId: number) => {
+    setWatched((prev) => {
+      const next = new Set(prev);
+      next.delete(episodeId);
+      return next;
+    });
+  }, []);
+
   const markWatched = useCallback(
     async (row: CalendarRow) => {
       const episodeId = row.ids.trakt;
       if (watched.has(episodeId)) return;
+      const watchedAt = new Date().toISOString();
       setWatched((prev) => new Set(prev).add(episodeId));
+      // Confirmation + Undo at the point of action (the calendar gap): the row's
+      // reversal is offered synchronously with the optimistic tick, not gated behind
+      // the paced write settling.
+      setUndoState({ row, watchedAt });
       const op = buildMarkEpisodeOp({
         opId: crypto.randomUUID(),
         ids: row.ids,
-        watchedAt: new Date().toISOString(),
+        watchedAt,
         // No progress is loaded on this surface; anchor on 0 like the episode-detail
         // toggle does — a lost-response reconcile then retires on any fresh play.
         inversePatch: { showId: row.showId, preCompleted: 0 },
       });
       await write.run(
         op,
-        () =>
-          setWatched((prev) => {
-            const next = new Set(prev);
-            next.delete(episodeId);
-            return next;
-          }),
-        `Couldn't mark ${row.showTitle} watched. Please try again.`,
-        // A quick mark here is a watched-progress write like any other: refresh the
-        // calendar window (this episode leaves the "unwatched aired" set) AND the
-        // marked show's detail views via `showProgressKeys`, else the show-detail
-        // header/seasons/episode read pre-mark progress until an unrelated remote
-        // change — the same stale-cache defect the Up Next mark had.
         () => {
-          void queryClient.invalidateQueries({ queryKey: queryKeys.calendarPrefix() });
-          for (const queryKey of showProgressKeys(row.showId, {
-            season: row.season,
-            number: row.number,
-          })) {
-            void queryClient.invalidateQueries({ queryKey });
-          }
+          unwatch(episodeId);
+          // Drop the now-invalid Undo only if it's still this row's (a newer mark may
+          // already own the slot).
+          setUndoState((cur) => (cur?.row.ids.trakt === episodeId ? null : cur));
         },
+        `Couldn't mark ${row.showTitle} watched. Please try again.`,
+        () => revalidateFor(row),
       );
     },
-    [watched, write, queryClient],
+    [watched, write, revalidateFor, unwatch],
   );
+
+  const undo = useCallback(async () => {
+    const pending = undoState;
+    if (pending === null) return;
+    setUndoState(null);
+    const episodeId = pending.row.ids.trakt;
+    unwatch(episodeId);
+    // The compensating remove is keyed by episode item, so it removes ALL plays of
+    // this episode — exact for the just-marked play (a calendar row is a freshly-aired
+    // episode with no prior play in the app's single-play model), but it would also
+    // clear a pre-existing rewatch play logged outside Cue. Same root + same plan-
+    // the same scope as the season unmark.
+    // TODO(per-play-history): remove the exact created play once history event IDs are
+    // available (Diary reads them from `/users/me/history`).
+    const op = buildUnmarkEpisodeOp({
+      opId: crypto.randomUUID(),
+      ids: pending.row.ids,
+      watchedAt: pending.watchedAt,
+      inversePatch: { showId: pending.row.showId, preCompleted: 0 },
+    });
+    // A hard-failed removal must re-tick the row (Trakt still holds the play); a
+    // deferred removal keeps the undone state (the shared seam owns that rule).
+    await write.run(
+      op,
+      () => setWatched((prev) => new Set(prev).add(episodeId)),
+      `Couldn't undo ${pending.row.showTitle}. Please try again.`,
+      () => revalidateFor(pending.row),
+    );
+  }, [undoState, write, revalidateFor, unwatch]);
 
   return {
     days,
@@ -132,6 +189,9 @@ export function useCalendar(): CalendarView {
     refetch: () => void query.refetch(),
     isWatched: (episodeId) => watched.has(episodeId),
     markWatched,
+    undoable: undoState === null ? null : { showTitle: undoState.row.showTitle },
+    undo,
+    dismissUndo: () => setUndoState(null),
     markError: write.error,
     clearMarkError: write.clearError,
   };

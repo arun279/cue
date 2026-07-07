@@ -1181,6 +1181,8 @@ export interface CalendarControls {
   calendarRequests: () => readonly CalendarRequest[];
   /** Captured `POST /sync/history` attempts (proves the quick mark-watched fired + retried). */
   historyPosts: () => readonly CapturedWrite[];
+  /** Captured `POST /sync/history/remove` attempts (proves the point-of-action Undo fired). */
+  removePosts: () => readonly CapturedWrite[];
   setWriteMode: (mode: CalendarWriteMode) => void;
 }
 
@@ -1272,9 +1274,24 @@ export async function installCalendarRoutes(
     });
   });
 
+  // The Undo's compensating remove.
+  await context.route("**/api.trakt.tv/sync/history/remove", (route) => {
+    const body = (route.request().postDataJSON() ?? {}) as {
+      episodes?: { ids?: { trakt?: number } }[];
+    };
+    const episodeIds = (body.episodes ?? []).map((e) => e.ids?.trakt ?? -1);
+    writes.push({ path: "/sync/history/remove", episodeIds, watchedAt: null });
+    return route.fulfill({
+      status: 200,
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ deleted: { episodes: episodeIds.length } }),
+    });
+  });
+
   return {
     calendarRequests: () => requests,
     historyPosts: () => writes.filter((w) => w.path === "/sync/history"),
+    removePosts: () => writes.filter((w) => w.path === "/sync/history/remove"),
     setWriteMode: (mode) => {
       writeMode = mode;
     },

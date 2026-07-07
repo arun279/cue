@@ -2,7 +2,7 @@ import { showProgressKeys } from "@data/query-invalidation";
 import { queryKeys } from "@data/query-keys";
 import type { EpisodeView, SeasonView, ShowHeader } from "@data/trakt/show-detail";
 import type { ShowIds } from "@domain/model/ids";
-import { buildBulkMarkOps, type SeasonTree } from "@domain/write-queue/bulk";
+import { buildBulkMarkOps, buildBulkUnmarkOps, type SeasonTree } from "@domain/write-queue/bulk";
 import { buildMarkEpisodeOp, buildUnmarkEpisodeOp } from "@domain/write-queue/ops";
 import type { QueuedOp } from "@domain/write-queue/types";
 import { useQueryClient } from "@tanstack/react-query";
@@ -33,6 +33,10 @@ interface UndoState {
 
 export interface MarkSeasonController {
   markSeason(target: MarkContextTarget, season: SeasonView): Promise<void>;
+  /** Delta-safe unmark of a completed season: removes only the aired, currently-
+   * watched episodes, enumerated per episode (never a whole-season token that could
+   * delete plays this client never enumerated). Undo re-adds exactly that set. */
+  unmarkSeason(target: MarkContextTarget, season: SeasonView): Promise<void>;
   markUpToHere(
     target: MarkContextTarget,
     seasons: readonly SeasonView[],
@@ -42,6 +46,9 @@ export interface MarkSeasonController {
   undo(): Promise<void>;
   dismissUndo(): void;
   clearError(): void;
+  /** True while a mark/unmark write for this season number is in flight — the season
+   * button locks so a second activation can't race a duplicate bulk write. */
+  isSeasonPending(seasonNumber: number): boolean;
   readonly undoable: { readonly label: string } | null;
   readonly error: string | null;
 }
@@ -110,6 +117,24 @@ export function useMarkSeason(): MarkSeasonController {
   const resume = useResumeOnMark();
   const [undoState, setUndoState] = useState<UndoState | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Which season numbers currently have a bulk mark/unmark write in flight, so the
+  // season button locks (a second activation can't enqueue a duplicate bulk write).
+  const [pendingSeasons, setPendingSeasons] = useState<ReadonlySet<number>>(() => new Set());
+  const withSeasonLock = useCallback(
+    async (seasonNumber: number, run: () => Promise<void>): Promise<void> => {
+      setPendingSeasons((prev) => new Set(prev).add(seasonNumber));
+      try {
+        await run();
+      } finally {
+        setPendingSeasons((prev) => {
+          const next = new Set(prev);
+          next.delete(seasonNumber);
+          return next;
+        });
+      }
+    },
+    [],
+  );
 
   const patch = useCallback(
     (showId: number, match: EpisodeMatch, watched: boolean) => {
@@ -120,11 +145,12 @@ export function useMarkSeason(): MarkSeasonController {
     [queryClient],
   );
 
-  // Bulk marks (whole-season / up-to-here) span a range with no single coordinate,
-  // so they refresh only the aggregate + season tree; a single-episode toggle passes
-  // its coordinate too so that episode's own detail read is invalidated as well.
+  // A single-episode toggle passes its coordinate so that episode's own detail read
+  // is invalidated too; a bulk mark/unmark spans an unknown set of episodes, so it
+  // passes "all" to invalidate the whole-show episode prefix — else a pre-cached
+  // standalone episode page is left reading pre-mark progress.
   const revalidate = useCallback(
-    (showId: number, episode?: { readonly season: number; readonly number: number }) => {
+    (showId: number, episode?: { readonly season: number; readonly number: number } | "all") => {
       for (const queryKey of showProgressKeys(showId, episode)) {
         void queryClient.invalidateQueries({ queryKey });
       }
@@ -148,15 +174,16 @@ export function useMarkSeason(): MarkSeasonController {
       target: MarkContextTarget,
       ops: readonly QueuedOp[],
       match: EpisodeMatch,
+      watched: boolean,
       label: string,
     ) => {
       if (ops.length === 0) return;
-      // Snapshot the season tree before the optimistic mark so a hard failure can
-      // restore it verbatim — `match` spans already-watched episodes too, so a naive
-      // un-patch would wrongly clear pre-existing plays.
+      // Snapshot the season tree before the optimistic write so a hard failure can
+      // restore it verbatim — `match` spans episodes on the other side of the write
+      // too, so a naive un-patch would wrongly flip pre-existing ticks.
       const key = queryKeys.showSeasons(target.showId);
       const before = queryClient.getQueryData<readonly SeasonView[]>(key);
-      patch(target.showId, match, true);
+      patch(target.showId, match, watched);
       // The batch settles to its worst op: any hard failure rolls the whole mark
       // back; a "deferred" chunk keeps the optimistic tick without revalidating (a
       // refetch would read pre-mark progress and un-tick the episodes). A watch on a
@@ -166,14 +193,15 @@ export function useMarkSeason(): MarkSeasonController {
       const outcome = await submit(ops, {
         rollback: () => queryClient.setQueryData(key, before),
         onKept: async () => {
+          if (!watched) return null;
           const kept = await resume.resumeIfStopped(target.showId, target.ids);
           resumed = kept !== null;
           return kept;
         },
-        revalidate: () => revalidate(target.showId),
+        revalidate: () => revalidate(target.showId, "all"),
       });
       if (outcome === "failed") {
-        setError("Couldn't save that mark. It'll retry — check your connection.");
+        setError("Couldn't save that change. It'll retry — check your connection.");
         return;
       }
       setUndoState({ showId: target.showId, ids: target.ids, label, ops, resumed });
@@ -183,11 +211,12 @@ export function useMarkSeason(): MarkSeasonController {
 
   const buildOps = useCallback(
     (
+      build: typeof buildBulkMarkOps,
       target: MarkContextTarget,
       seasons: readonly SeasonView[],
       upTo?: EpisodeBound,
     ): readonly QueuedOp[] =>
-      buildBulkMarkOps(
+      build(
         {
           showIds: target.ids,
           seasons: toSeasonTrees(seasons),
@@ -202,23 +231,48 @@ export function useMarkSeason(): MarkSeasonController {
     [reconcileAnchor],
   );
 
+  const seasonMatch = useCallback(
+    (season: SeasonView, includeSpecials: boolean): EpisodeMatch =>
+      (s, _n, aired) =>
+        s === season.number && aired && (s !== 0 || includeSpecials),
+    [],
+  );
+
   const markSeason = useCallback(
     async (target: MarkContextTarget, season: SeasonView) => {
-      const ops = buildOps(target, [season]);
-      const includeSpecials = target.includeSpecials;
-      await submitBulk(
-        target,
-        ops,
-        (s, _n, aired) => s === season.number && aired && (s !== 0 || includeSpecials),
-        `Marked ${seasonLabel(season.number)} watched.`,
-      );
+      await withSeasonLock(season.number, async () => {
+        const ops = buildOps(buildBulkMarkOps, target, [season]);
+        await submitBulk(
+          target,
+          ops,
+          seasonMatch(season, target.includeSpecials),
+          true,
+          `Marked ${seasonLabel(season.number)} watched.`,
+        );
+      });
     },
-    [submitBulk, buildOps],
+    [submitBulk, buildOps, seasonMatch, withSeasonLock],
+  );
+
+  const unmarkSeason = useCallback(
+    async (target: MarkContextTarget, season: SeasonView) => {
+      await withSeasonLock(season.number, async () => {
+        const ops = buildOps(buildBulkUnmarkOps, target, [season]);
+        await submitBulk(
+          target,
+          ops,
+          seasonMatch(season, target.includeSpecials),
+          false,
+          `Unmarked ${seasonLabel(season.number)}.`,
+        );
+      });
+    },
+    [submitBulk, buildOps, seasonMatch, withSeasonLock],
   );
 
   const markUpToHere = useCallback(
     async (target: MarkContextTarget, seasons: readonly SeasonView[], bound: EpisodeBound) => {
-      const ops = buildOps(target, seasons, bound);
+      const ops = buildOps(buildBulkMarkOps, target, seasons, bound);
       const includeSpecials = target.includeSpecials;
       await submitBulk(
         target,
@@ -227,6 +281,7 @@ export function useMarkSeason(): MarkSeasonController {
           aired &&
           (s !== 0 || includeSpecials) &&
           (s < bound.season || (s === bound.season && n <= bound.number)),
+        true,
         `Caught up through S${bound.season}E${bound.number}.`,
       );
     },
@@ -270,17 +325,19 @@ export function useMarkSeason(): MarkSeasonController {
     await submit(pending.ops.map(invert), {
       rollback: () => {},
       onKept: pending.resumed ? () => resume.reStop(pending.showId, pending.ids) : undefined,
-      revalidate: () => revalidate(pending.showId),
+      revalidate: () => revalidate(pending.showId, "all"),
     });
   }, [undoState, revalidate, submit, resume]);
 
   return {
     markSeason,
+    unmarkSeason,
     markUpToHere,
     toggleEpisode,
     undo,
     dismissUndo: () => setUndoState(null),
     clearError: () => setError(null),
+    isSeasonPending: (seasonNumber) => pendingSeasons.has(seasonNumber),
     undoable: undoState === null ? null : { label: undoState.label },
     error,
   };
