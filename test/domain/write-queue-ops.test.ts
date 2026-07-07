@@ -4,6 +4,7 @@ import {
   buildMarkEpisodeOp,
   buildMarkMovieOp,
   buildRateOp,
+  buildRemoveHistoryPlayOp,
   buildRemoveWatchlistOp,
   buildUnhideShowOp,
   buildUnmarkEpisodeOp,
@@ -110,6 +111,45 @@ describe("single-item history op builders", () => {
       inversePatch: patch,
     });
     expect(op.inversePatch).toBe(patch);
+  });
+
+  it("removes ONE play by its history event id — the Diary's exact per-play removal", () => {
+    // The whole point: `{ ids: [historyId] }` deletes exactly this play, so a
+    // rewatched item's OTHER plays survive — unlike the remove-by-item builders.
+    const op = buildRemoveHistoryPlayOp({
+      opId: "rm-1",
+      ids: [1982],
+      restore: { section: "episodes", ids: { trakt: 55 }, watchedAt: WATCHED_AT },
+    });
+    expect(op.request).toEqual({
+      method: "POST",
+      path: "/sync/history/remove",
+      body: { ids: [1982] },
+    });
+    // The body is history-ids only — no `episodes`/`movies` item section (which would
+    // wipe every play of the item).
+    expect(Object.keys(op.request.body as object)).toEqual(["ids"]);
+    expect(op).toMatchObject({
+      itemKey: "history-play:1982",
+      fromState: "present",
+      toState: "absent",
+      watchedAt: WATCHED_AT,
+      reconcileKeys: ["progress/watched", "watched/shows"],
+    });
+  });
+
+  it("its inverse re-adds the play best-effort (by item + frozen watched_at)", () => {
+    const op = buildRemoveHistoryPlayOp({
+      opId: "rm-2",
+      ids: [777],
+      restore: { section: "movies", ids: { trakt: 7 }, watchedAt: WATCHED_AT },
+    });
+    expect(op.inverse).toEqual({
+      method: "POST",
+      path: "/sync/history",
+      body: { movies: [{ ids: { trakt: 7 }, watched_at: WATCHED_AT }] },
+    });
+    expect(op.reconcileKeys).toEqual(["watched/movies", "movie-progress"]);
   });
 
   it("unmark removes by item id only — the all-plays MVP semantic (no history-id, no watched_at)", () => {

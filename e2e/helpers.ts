@@ -452,6 +452,7 @@ function progressBody(show: ShowFixture): string {
   return JSON.stringify({
     aired: show.aired,
     completed: show.completed,
+    last_watched_at: show.completed > 0 ? (show.lastWatchedAt ?? "2026-06-01T00:00:00.000Z") : null,
     next_episode:
       next === undefined
         ? null
@@ -1641,4 +1642,185 @@ export async function installDiscoverRoutes(
   });
 
   return { watchlistPosts: () => writes.filter((w) => w.path === "/sync/watchlist") };
+}
+
+/** One `/users/me/history` play for the Diary fixture (episode or movie). */
+export interface HistoryRowFixture {
+  readonly id: number;
+  readonly watchedAt: string;
+  readonly type: "episode" | "movie";
+  readonly showId?: number;
+  readonly showTitle?: string;
+  readonly season?: number;
+  readonly number?: number;
+  readonly episodeTitle?: string | null;
+  readonly movieId?: number;
+  readonly movieTitle?: string;
+  readonly year?: number;
+}
+
+/** A captured `/sync/history/remove` body — proves per-play (ids) vs item removal. */
+export interface HistoryRemoveCapture {
+  readonly ids?: readonly number[];
+  readonly hasEpisodesSection: boolean;
+  readonly hasMoviesSection: boolean;
+}
+
+/** How the per-play remove settles: `ok` applies+200; `reject` 403s WITHOUT
+ * removing (the play survives — the undo-must-not-duplicate case); `hold` keeps
+ * the POST open until `releaseRemove`, to interleave an Undo with an in-flight
+ * remove. */
+export type HistoryRemoveMode = "ok" | "reject" | "hold";
+
+export interface HistoryControls {
+  /** Captured `POST /sync/history/remove` bodies (the per-play removals). */
+  removePosts: () => readonly HistoryRemoveCapture[];
+  /** Captured `POST /sync/history` bodies (the best-effort Undo re-adds). */
+  addPosts: () => readonly unknown[];
+  setRemoveMode: (mode: HistoryRemoveMode) => void;
+  /** Release a held remove, settling it applied (`ok`) or hard-failed (`reject`). */
+  releaseRemove: (as: "ok" | "reject") => void;
+  /** `reject` makes the Undo re-add (`POST /sync/history`) 403 (the restore-failed case). */
+  setAddMode: (mode: "ok" | "reject") => void;
+}
+
+function historyRowBody(row: HistoryRowFixture): unknown {
+  if (row.type === "episode") {
+    return {
+      id: row.id,
+      watched_at: row.watchedAt,
+      action: "scrobble",
+      type: "episode",
+      episode: {
+        season: row.season ?? 1,
+        number: row.number ?? 1,
+        title: row.episodeTitle ?? null,
+        ids: { trakt: row.id * 10 },
+      },
+      show: { title: row.showTitle ?? "Show", ids: { trakt: row.showId ?? 1 } },
+    };
+  }
+  return {
+    id: row.id,
+    watched_at: row.watchedAt,
+    action: "scrobble",
+    type: "movie",
+    movie: {
+      title: row.movieTitle ?? "Movie",
+      ...(row.year === undefined ? {} : { year: row.year }),
+      ids: { trakt: row.movieId ?? 1 },
+    },
+  };
+}
+
+/**
+ * Intercept the Diary read+write surface: `/users/me/history[/episodes|/movies]`
+ * paged by the requested `page` (a small `pageSize` so "Load earlier" is easy to
+ * exercise), the per-play `POST /sync/history/remove` (captured and applied — the
+ * removed id disappears from later reads), and the Undo re-add `POST /sync/history`
+ * (restores all). Register AFTER `installHermeticRoutes` so these routes win.
+ */
+export async function installHistoryRoutes(
+  context: BrowserContext,
+  rows: readonly HistoryRowFixture[],
+  pageSize = 4,
+): Promise<HistoryControls> {
+  const removes: HistoryRemoveCapture[] = [];
+  const adds: unknown[] = [];
+  const removedIds = new Set<number>();
+  let removeMode: HistoryRemoveMode = "ok";
+  let addMode: "ok" | "reject" = "ok";
+  let removeReleaseAs: "ok" | "reject" = "ok";
+  let releaseHeld: (() => void) | null = null;
+
+  await context.route(/\/users\/me\/history(\/episodes|\/movies)?(\?|$)/, (route) => {
+    const url = new URL(route.request().url());
+    const path = url.pathname;
+    const page = Number(url.searchParams.get("page") ?? "1");
+    const section = path.endsWith("/episodes")
+      ? "episode"
+      : path.endsWith("/movies")
+        ? "movie"
+        : "all";
+    const matching = rows.filter(
+      (r) => !removedIds.has(r.id) && (section === "all" || r.type === section),
+    );
+    const pageCount = Math.max(1, Math.ceil(matching.length / pageSize));
+    const slice = matching.slice((page - 1) * pageSize, page * pageSize);
+    return route.fulfill({
+      status: 200,
+      headers: {
+        ...JSON_HEADERS,
+        // Real Trakt exposes the pagination headers cross-origin; without this the
+        // browser hides them from the SPA and "Load earlier" never appears.
+        "access-control-expose-headers": "X-Pagination-Page, X-Pagination-Page-Count",
+        "x-pagination-page": String(page),
+        "x-pagination-page-count": String(pageCount),
+      },
+      body: JSON.stringify(slice.map(historyRowBody)),
+    });
+  });
+
+  await context.route("**/api.trakt.tv/sync/history/remove", async (route) => {
+    const body = (route.request().postDataJSON() ?? {}) as {
+      ids?: number[];
+      episodes?: unknown[];
+      movies?: unknown[];
+    };
+    removes.push({
+      ids: body.ids,
+      hasEpisodesSection: body.episodes !== undefined,
+      hasMoviesSection: body.movies !== undefined,
+    });
+    const settle = (as: "ok" | "reject"): Promise<void> => {
+      if (as === "reject") {
+        // A hard failure that did NOT delete: the play survives on the server.
+        return route.fulfill({ status: 403, headers: JSON_HEADERS, body: "{}" });
+      }
+      for (const id of body.ids ?? []) removedIds.add(id);
+      return route.fulfill({
+        status: 200,
+        headers: JSON_HEADERS,
+        body: JSON.stringify({ deleted: {} }),
+      });
+    };
+    if (removeMode === "reject") return settle("reject");
+    if (removeMode === "hold") {
+      await new Promise<void>((resolve) => {
+        releaseHeld = resolve;
+      });
+      return settle(removeReleaseAs);
+    }
+    return settle("ok");
+  });
+
+  await context.route("**/api.trakt.tv/sync/history", (route) => {
+    adds.push(route.request().postDataJSON());
+    if (addMode === "reject") {
+      // The best-effort re-add hard-failed: the play stays gone.
+      return route.fulfill({ status: 403, headers: JSON_HEADERS, body: "{}" });
+    }
+    removedIds.clear(); // a best-effort re-add restores the play to later reads
+    return route.fulfill({
+      status: 200,
+      headers: JSON_HEADERS,
+      body: JSON.stringify({ added: {} }),
+    });
+  });
+
+  return {
+    removePosts: () => removes,
+    addPosts: () => adds,
+    setRemoveMode: (mode) => {
+      removeMode = mode;
+    },
+    releaseRemove: (as) => {
+      removeReleaseAs = as;
+      releaseHeld?.();
+      releaseHeld = null;
+    },
+    setAddMode: (mode) => {
+      addMode = mode;
+    },
+  };
 }

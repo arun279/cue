@@ -1,5 +1,6 @@
 import type { TmdbImageConfig } from "@data/image-source";
-import { CALENDAR_TIME_ZONE, type CalendarRow as CalendarRowModel } from "@domain/calendar";
+import type { CalendarRow as CalendarRowModel } from "@domain/calendar";
+import { localTimeZone } from "@domain/time";
 import { Link } from "@tanstack/react-router";
 import { MarkWatchedButton } from "@ui/components/MarkWatchedButton";
 import { Poster } from "@ui/screens/up-next/Poster";
@@ -17,7 +18,7 @@ function episodeCode(season: number, number: number): string {
 }
 
 const timeFmt = new Intl.DateTimeFormat("en-US", {
-  timeZone: CALENDAR_TIME_ZONE,
+  timeZone: localTimeZone(),
   hour: "numeric",
   minute: "2-digit",
 });

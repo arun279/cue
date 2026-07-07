@@ -146,6 +146,23 @@ export const calendarSchema = z.array(
   z.object({ first_aired: z.string(), episode: episodeSchema, show: showSchema }),
 );
 
+/**
+ * `/users/me/history` rows. Each row is one *play*: `id` is the unique
+ * Trakt history-event id (the per-play removal handle), `watched_at` is
+ * minute-precision, and the row carries the show+episode or the movie. `action`
+ * (scrobble/checkin/watch) and other extras are stripped — the Diary only reads
+ * the item + when it was played.
+ */
+const historyItemSchema = z.object({
+  id: z.number(),
+  watched_at: z.string(),
+  type: z.string(),
+  episode: episodeSchema.optional(),
+  show: showSchema.optional(),
+  movie: movieSchema.optional(),
+});
+export const historySchema = z.array(historyItemSchema);
+
 export const searchSchema = z.array(
   z.object({
     type: z.string(),
@@ -213,6 +230,7 @@ export type SeasonData = z.infer<typeof seasonsSchema>[number];
 export type WatchlistItem = z.infer<typeof watchlistSchema>[number];
 export type RatingItem = z.infer<typeof ratingsSchema>[number];
 export type CalendarItem = z.infer<typeof calendarSchema>[number];
+export type HistoryItem = z.infer<typeof historyItemSchema>;
 export type SearchResult = z.infer<typeof searchSchema>[number];
 export type ShowSummary = z.infer<typeof showSchema>;
 export type MovieSummary = z.infer<typeof movieSchema>;

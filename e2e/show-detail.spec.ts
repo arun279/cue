@@ -97,6 +97,36 @@ test("streams the hero then the season tree", async ({ page }) => {
   await expect(page.getByTestId("season-panel")).toHaveCount(3);
 });
 
+test("surfaces per-show watched dates on the header and watched episode rows", async ({ page }) => {
+  await installLibraryRoutes(page.context(), [detailShow()]);
+  await page.goto("/show/1");
+
+  // Header recognition cue — WHEN you last watched, not just that you did.
+  await expect(page.getByTestId("last-watched")).toContainText("Last watched");
+
+  await expandSeason(page, 1);
+  const s1 = page.locator('[data-season="1"]');
+  // S01E01/E02 are watched (completed: 2) → each shows its watched date inline.
+  await expect(
+    s1.getByTestId("episode-row").nth(0).getByTestId("episode-watched-date"),
+  ).toContainText("Watched");
+  // S01E03 is aired but unwatched → no watched-date line.
+  await expect(
+    s1.getByTestId("episode-row").nth(2).getByTestId("episode-watched-date"),
+  ).toHaveCount(0);
+});
+
+test("renders the last-watched date in the viewer's local day, not UTC", async ({ page }) => {
+  // 02:00Z on Jul 15 is 22:00 on Jul 14 in America/New_York (the pinned e2e tz).
+  // A UTC format would misread this as Jul 15 — but a watched date is a real
+  // per-viewer event, bucketed to the local day exactly like the Diary.
+  const boundaryShow: ShowFixture = { ...detailShow(), lastWatchedAt: "2026-07-15T02:00:00.000Z" };
+  await installLibraryRoutes(page.context(), [boundaryShow]);
+  await page.goto("/show/1");
+
+  await expect(page.getByTestId("last-watched")).toContainText("Jul 14, 2026");
+});
+
 test("a mark from Up Next refreshes this show's detail progress — and it survives a reload", async ({
   page,
 }) => {

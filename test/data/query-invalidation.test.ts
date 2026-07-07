@@ -54,17 +54,19 @@ describe("showProgressKeys — the keys a local mark on show X must refresh", ()
 });
 
 describe("invalidationKeys maps last_activities targets to cached query keys", () => {
-  it("routes an episode watch to the library + user stats", () => {
+  it("routes an episode watch to the library + user stats + the Diary", () => {
     expect(invalidationKeys(["watched/shows", "progress/watched"])).toEqual([
       queryKeys.library(),
       queryKeys.userStats(),
+      queryKeys.historyPrefix(),
     ]);
   });
 
-  it("routes a movie watch to the movie library + user stats", () => {
+  it("routes a movie watch to the movie library + user stats + the Diary", () => {
     expect(invalidationKeys(["watched/movies", "movie-progress"])).toEqual([
       queryKeys.movieLibrary(),
       queryKeys.userStats(),
+      queryKeys.historyPrefix(),
     ]);
   });
 

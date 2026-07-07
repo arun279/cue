@@ -70,6 +70,54 @@ export function buildUnmarkMovieOp(params: HistoryOpParams): QueuedOp {
   return historyOp("movies", "absent", params);
 }
 
+export interface RemoveHistoryPlayParams {
+  readonly opId: string;
+  /**
+   * The exact Trakt history-event ids to remove. `/sync/history/remove { ids }`
+   * deletes precisely these plays and NOTHING else — the item's other plays and
+   * rewatches survive. This is the only history removal that is truly per-play; a
+   * remove-by-item (`{ episodes|movies:[{ids}] }`) wipes every play of the item.
+   */
+  readonly ids: readonly number[];
+  /**
+   * The item + timestamp for the best-effort restore inverse. Removal by history
+   * id is EXACT; the restore re-adds the play by item + `watched_at`, so Trakt may
+   * mint a new history id / action — the reversal is best-effort, not forensic.
+   */
+  readonly restore: {
+    readonly section: HistorySection;
+    readonly ids: EpisodeIds | MovieIds;
+    readonly watchedAt: string;
+  };
+  readonly inversePatch?: unknown;
+}
+
+/**
+ * Remove exactly one (or a few) history plays by their Trakt event ids — the
+ * canonical safe removal the Diary offers on each row. Unlike
+ * the mark-undo path, the Diary reads real `id`s from `/users/me/history`, so it
+ * can scope the delete to the precise play and never disturb a rewatch. Retrying a
+ * lost remove is idempotent (the id is already gone), so no reconcile anchor is
+ * needed; the inverse re-adds the play best-effort for the Undo snackbar.
+ */
+export function buildRemoveHistoryPlayOp(params: RemoveHistoryPlayParams): QueuedOp {
+  const { section, ids, watchedAt } = params.restore;
+  return {
+    id: params.opId,
+    itemKey: `history-play:${params.ids.join(",")}`,
+    request: post(HISTORY_REMOVE, { ids: [...params.ids] }),
+    inverse: post(HISTORY, { [section]: [{ ids, watched_at: watchedAt }] }),
+    inversePatch: params.inversePatch ?? null,
+    watchedAt,
+    fromState: "present",
+    toState: "absent",
+    reconcileKeys:
+      section === "movies"
+        ? ["watched/movies", "movie-progress"]
+        : ["progress/watched", "watched/shows"],
+  };
+}
+
 export interface HideOpParams {
   readonly opId: string;
   readonly ids: ShowIds;

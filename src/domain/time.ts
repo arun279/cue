@@ -5,6 +5,18 @@ export function toMs(iso: string | null | undefined): number | null {
   return Number.isNaN(t) ? null : t;
 }
 
+/**
+ * The viewer's real device timezone (IANA), the honest basis for grouping dated
+ * things by "local day" — the Calendar's upcoming days and the Diary's watch
+ * history alike. Reading it from the runtime rather than hardcoding a fixed zone
+ * means a day-boundary label ("Today" / "Yesterday") reflects where the user
+ * actually is, so it never mislabels a late-evening watch as the wrong day.
+ * Falls back to UTC on the rare host that reports no zone.
+ */
+export function localTimeZone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+}
+
 /** A watch-time figure split for the Profile theatre: a dominant `value`+`unit`
  * headline (e.g. `18` `days`) and a finer `detail` remainder (e.g. `6 hr 30 min`). */
 export interface WatchTime {

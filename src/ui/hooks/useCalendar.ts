@@ -1,12 +1,8 @@
 import type { TmdbImageConfig } from "@data/image-source";
 import { showProgressKeys } from "@data/query-invalidation";
 import { queryKeys } from "@data/query-keys";
-import {
-  CALENDAR_TIME_ZONE,
-  type CalendarDay,
-  type CalendarRow,
-  groupCalendar,
-} from "@domain/calendar";
+import { type CalendarDay, type CalendarRow, groupCalendar } from "@domain/calendar";
+import { localTimeZone } from "@domain/time";
 import { buildMarkEpisodeOp, buildUnmarkEpisodeOp } from "@domain/write-queue/ops";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CONTENT_STALE_TIME_MS } from "@ui/hooks/query-freshness";
@@ -44,10 +40,10 @@ interface CalendarUndo {
   readonly watchedAt: string;
 }
 
-/** `Date → "YYYY-MM-DD"` in the fixed calendar tz, the `{start}` of the window request. */
+/** `Date → "YYYY-MM-DD"` in the viewer's local tz, the `{start}` of the window request. */
 function startDateOf(now: number): string {
   return new Intl.DateTimeFormat("en-CA", {
-    timeZone: CALENDAR_TIME_ZONE,
+    timeZone: localTimeZone(),
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -102,7 +98,7 @@ export function useCalendar(): CalendarView {
     if (data === undefined) return [];
     return groupCalendar(data.entries, {
       now: Date.now(),
-      timeZone: CALENDAR_TIME_ZONE,
+      timeZone: localTimeZone(),
       hiddenShowIds: new Set(data.hiddenShowIds),
     });
   }, [data]);
@@ -156,11 +152,10 @@ export function useCalendar(): CalendarView {
     unwatch(episodeId);
     // The compensating remove is keyed by episode item, so it removes ALL plays of
     // this episode — exact for the just-marked play (a calendar row is a freshly-aired
-    // episode with no prior play in the app's single-play model), but it would also
-    // clear a pre-existing rewatch play logged outside Cue. Same root + same plan-
-    // the same scope as the season unmark.
-    // TODO(per-play-history): remove the exact created play once history event IDs are
-    // available (Diary reads them from `/users/me/history`).
+    // episode with no prior play in the app's single-play model). The exact per-play
+    // removal (by history event id) is the Diary's `buildRemoveHistoryPlayOp`; that id
+    // lives only in `/users/me/history`, not at this point-of-action undo, so the
+    // item-scoped remove is the correct reversal here.
     const op = buildUnmarkEpisodeOp({
       opId: crypto.randomUUID(),
       ids: pending.row.ids,

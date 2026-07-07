@@ -12,7 +12,7 @@ import { useEpisode } from "@ui/hooks/useEpisode";
 import { useRate } from "@ui/hooks/useRate";
 import { useShowDetail } from "@ui/hooks/useShowDetail";
 import { useToggleEpisodeWatched } from "@ui/hooks/useToggleEpisodeWatched";
-import { episodeCode, formatAirDate } from "@ui/screens/up-next/format";
+import { episodeCode, formatAirDate, formatWatchedDate } from "@ui/screens/up-next/format";
 import { Poster } from "@ui/screens/up-next/Poster";
 import { Snackbar } from "@ui/screens/up-next/Snackbar";
 import { type ReactElement, useState } from "react";
@@ -63,7 +63,7 @@ function EpisodeHero({
 }): ReactElement {
   const code = episodeCode(episode.season, episode.number);
   const air = formatAirDate(episode.firstAired);
-  const watchedDate = formatAirDate(episode.watchedAt);
+  const watchedDate = formatWatchedDate(episode.watchedAt);
   const watchedLabel = episode.watched
     ? "Watched"
     : episode.aired

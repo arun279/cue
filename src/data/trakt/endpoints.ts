@@ -8,7 +8,9 @@ import {
   type EpisodeData,
   episodeSchema,
   type HiddenItem,
+  type HistoryItem,
   hiddenSchema,
+  historySchema,
   lastActivitiesSchema,
   type MovieDetailData,
   type MovieSummary,
@@ -227,6 +229,32 @@ export async function getHidden(client: TraktClient): Promise<TraktResult<Hidden
 
 export async function getLastActivities(client: TraktClient): Promise<TraktResult<LastActivities>> {
   return parse(await client.get("/sync/last_activities"), lastActivitiesSchema);
+}
+
+/** Which slice of `/users/me/history` a Diary type filter reads. */
+type HistorySection = "all" | "episodes" | "movies";
+
+/**
+ * One page of the reverse-chronological watch history. History is
+ * UNBOUNDED (a large Trakt migration can be thousands of plays), so this reads a
+ * single explicit page — the infinite-query building block — and NEVER walks all
+ * pages. A page of 30 plays is a display-paging size: enough that one "Load
+ * earlier" tap advances meaningfully and the first page fills the screen, small
+ * enough to stay one cheap GET. The returned `pagination` tells the caller whether
+ * an earlier page exists. `extended=full,images` brings each row's poster inline.
+ */
+const HISTORY_PAGE_LIMIT = 30;
+
+export async function getHistory(
+  client: TraktClient,
+  section: HistorySection,
+  page: number,
+): Promise<TraktResult<HistoryItem[]>> {
+  const path = section === "all" ? "/users/me/history" : `/users/me/history/${section}`;
+  return parse(
+    await client.get(path, { extended: ART, page, limit: HISTORY_PAGE_LIMIT }),
+    historySchema,
+  );
 }
 
 type IdBlock = ShowIds | MovieIds | EpisodeIds;

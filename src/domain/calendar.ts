@@ -1,14 +1,6 @@
+import { dayKeyFormatter, shiftDayKey } from "./day";
 import type { EpisodeIds } from "./model/ids";
 import { toMs } from "./time";
-
-/**
- * Fixed IANA zone the calendar groups + localizes against. A deterministic
- * stand-in for the per-user timezone preference; a real
- * non-UTC offset so day-grouping is genuinely localized (an episode airing near
- * UTC midnight lands on the correct local day, not the UTC one).
- * TODO(m9-tz): read this from the user's timezone preference once Settings lands.
- */
-export const CALENDAR_TIME_ZONE = "America/New_York";
 
 /** One upcoming/aired episode, flattened from a `/calendars/my/shows` row. */
 export interface CalendarEntry {
@@ -41,26 +33,6 @@ export interface GroupCalendarOptions {
   readonly hiddenShowIds: ReadonlySet<number>;
 }
 
-const pad = (n: number): string => String(n).padStart(2, "0");
-
-/** `ms → "YYYY-MM-DD"` in `timeZone` (en-CA renders the ISO date order). */
-function dayKeyFormatter(timeZone: string): (ms: number) => string {
-  const fmt = new Intl.DateTimeFormat("en-CA", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  return (ms) => fmt.format(ms);
-}
-
-/** The calendar date one day after `key`, computed as pure Y-M-D arithmetic (DST-safe). */
-function nextDayKey(key: string): string {
-  const [year, month, day] = key.split("-").map(Number);
-  const dt = new Date(Date.UTC(year ?? 0, (month ?? 1) - 1, (day ?? 1) + 1));
-  return `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())}`;
-}
-
 /**
  * Group upcoming episodes by their local calendar day: exclude
  * hidden shows (Cue's client-side exclusion — Trakt still lists them), bucket by
@@ -76,7 +48,7 @@ export function groupCalendar(
   const { now, timeZone, hiddenShowIds } = options;
   const dayKeyOf = dayKeyFormatter(timeZone);
   const todayKey = dayKeyOf(now);
-  const tomorrowKey = nextDayKey(todayKey);
+  const tomorrowKey = shiftDayKey(todayKey, 1);
   const labelFmt = new Intl.DateTimeFormat("en-US", {
     timeZone,
     weekday: "short",

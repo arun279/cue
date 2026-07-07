@@ -925,6 +925,15 @@ body {
   flex: 1;
   min-width: 0;
 }
+/* The body-wrapping link in a row card (calendar row, diary row): takes the free
+   space so the trailing action/time sits at the far edge, and clips long titles. */
+.card__link {
+  flex: 1;
+  min-width: 0;
+  display: block;
+  text-decoration: none;
+  color: inherit;
+}
 .card__title-link {
   text-decoration: none;
   color: inherit;
@@ -2829,50 +2838,211 @@ body {
   color: var(--color-accent);
 }
 
-/* Continue-watching poster rail: the media presence that fills the
-   desktop dead field and proves this is a screening room. A horizontal snap shelf
-   with peek — scrolls inside itself so the page body never scrolls sideways. */
-.profile-shelf {
-  margin-top: var(--space-6);
-}
-.profile-shelf__head {
+/* ---- Profile Diary: the reverse-chronological watch log ----
+   Cue's past tense, the body of Profile. Calm, past-tense rows (no amber ✓ pill)
+   grouped under local-day headers, each row offering an exact "Remove this play". */
+.diary {
+  margin-top: var(--space-7);
   display: flex;
-  align-items: baseline;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.diary__head {
+  display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  margin-bottom: var(--space-3);
+  flex-wrap: wrap;
 }
-.profile-shelf__more {
-  font-size: 12px;
+.diary__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
   font-weight: 600;
-  letter-spacing: 0.02em;
-  color: var(--color-accent);
-  text-decoration: none;
+  letter-spacing: -0.01em;
 }
-.profile-shelf__more:hover {
-  color: var(--color-accent-strong);
+.diary-days {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
 }
-.profile-shelf__rail {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 128px;
-  gap: var(--space-4);
-  overflow-x: auto;
-  scroll-snap-type: x proximity;
-  padding-bottom: var(--space-2);
-  scrollbar-width: none;
+.diary-day {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
-.profile-shelf__rail::-webkit-scrollbar {
-  display: none;
+.diary-day__label {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--color-fg);
 }
-.profile-shelf__item {
-  scroll-snap-align: start;
+.diary-day__count {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--color-muted);
+}
+.diary-day__label--skeleton {
+  height: 1rem;
+  width: 40%;
+}
+.diary-groups {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.diary-card__trailing {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.diary-card__meta {
+  display: block;
+  margin: 2px 0 0;
+  color: var(--color-ink2);
+  font-size: 0.875rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.diary-card__time {
+  color: var(--color-muted);
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+.diary-remove {
+  appearance: none;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--color-muted);
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  flex: none;
+  transition:
+    color var(--dur-quick) var(--ease-standard),
+    border-color var(--dur-quick) var(--ease-standard);
+}
+.diary-remove:hover {
+  color: var(--color-danger);
+  border-color: color-mix(in srgb, var(--color-danger) 40%, transparent);
+}
+
+/* Collapsed same-show cluster: a card whose header is a disclosure trigger. */
+.diary-cluster {
+  list-style: none;
+}
+.diary-cluster__head {
+  padding-right: 14px;
+}
+.diary-cluster__header {
+  margin: 0;
+  flex: 1;
   min-width: 0;
 }
-@media (min-width: 900px) {
-  .profile-shelf__rail {
-    grid-auto-columns: 148px;
-  }
+.diary-cluster__trigger {
+  appearance: none;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.diary-cluster__aside {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: none;
+}
+.diary-card__together {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+.diary-cluster__chevron {
+  width: 1.15rem;
+  height: 1.15rem;
+  color: var(--color-muted);
+  transition: transform var(--dur-quick) var(--ease-standard);
+}
+.diary-cluster__item[data-state="open"] .diary-cluster__chevron {
+  transform: rotate(180deg);
+}
+.diary-cluster__content {
+  overflow: hidden;
+}
+.diary-cluster__list {
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0 var(--space-4) 0 calc(56px + var(--space-4) + 14px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.diary-child {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--color-border);
+}
+.diary-child__link {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  text-decoration: none;
+  color: var(--color-ink2);
+  font-size: 0.875rem;
+}
+.diary-child__code {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--color-accent);
+}
+.diary-child__link:hover .diary-child__title {
+  color: var(--color-fg);
+}
+.diary-child__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.diary-card--skeleton {
+  pointer-events: none;
+}
+.diary-card__poster--skeleton {
+  animation: pulse 1.4s ease-in-out infinite;
+}
+.diary-more {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--space-2);
 }
 
 /* Mobile: stack the sync pill under the title so they stop competing on one row

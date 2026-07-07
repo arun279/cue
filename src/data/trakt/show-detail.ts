@@ -17,6 +17,9 @@ export interface EpisodeView {
   /** Trakt inline still candidates (screenshot → thumb) for the season shelf thumbnail. */
   readonly stills: readonly string[];
   readonly watched: boolean;
+  /** When this episode was last played (progress `last_watched_at`); null if unwatched.
+   * Surfaced inline on the season shelf so a returning viewer sees WHEN, not just that. */
+  readonly watchedAt: string | null;
   readonly aired: boolean;
 }
 
@@ -45,6 +48,8 @@ export interface ShowHeader {
   readonly tmdbId: number | null;
   readonly aired: number;
   readonly completed: number;
+  /** The show's most recent play (progress `last_watched_at`); null if never watched. */
+  readonly lastWatchedAt: string | null;
   readonly nextEpisode: EpisodeView | null;
 }
 
@@ -93,6 +98,7 @@ export function assembleHeader(show: ShowDetailData, progress: Progress, now: nu
     tmdbId: show.ids.tmdb ?? null,
     aired: progress.aired,
     completed: progress.completed,
+    lastWatchedAt: progress.last_watched_at ?? null,
     nextEpisode:
       next === null
         ? null
@@ -104,6 +110,7 @@ export function assembleHeader(show: ShowDetailData, progress: Progress, now: nu
             ids: toEpisodeIds(next.ids),
             stills: stillsOf(next),
             watched: false,
+            watchedAt: null,
             aired: isAired(next.first_aired ?? null, now),
           },
   };
@@ -121,10 +128,13 @@ export function assembleSeasons(
   progress: Progress,
   now: number,
 ): SeasonView[] {
-  const watched = new Map<string, boolean>();
+  const watched = new Map<string, { completed: boolean; lastWatchedAt: string | null }>();
   for (const season of progress.seasons ?? []) {
     for (const episode of season.episodes) {
-      watched.set(`${season.number}:${episode.number}`, episode.completed);
+      watched.set(`${season.number}:${episode.number}`, {
+        completed: episode.completed,
+        lastWatchedAt: episode.last_watched_at ?? null,
+      });
     }
   }
 
@@ -133,16 +143,20 @@ export function assembleSeasons(
     .map((season) => {
       const episodes = [...(season.episodes ?? [])]
         .sort((a, b) => a.number - b.number)
-        .map<EpisodeView>((episode) => ({
-          season: season.number,
-          number: episode.number,
-          title: episode.title ?? null,
-          firstAired: episode.first_aired ?? null,
-          ids: toEpisodeIds(episode.ids),
-          stills: stillsOf(episode),
-          watched: watched.get(`${season.number}:${episode.number}`) ?? false,
-          aired: isAired(episode.first_aired ?? null, now),
-        }));
+        .map<EpisodeView>((episode) => {
+          const progressEp = watched.get(`${season.number}:${episode.number}`);
+          return {
+            season: season.number,
+            number: episode.number,
+            title: episode.title ?? null,
+            firstAired: episode.first_aired ?? null,
+            ids: toEpisodeIds(episode.ids),
+            stills: stillsOf(episode),
+            watched: progressEp?.completed ?? false,
+            watchedAt: progressEp?.lastWatchedAt ?? null,
+            aired: isAired(episode.first_aired ?? null, now),
+          };
+        });
       return {
         number: season.number,
         title: season.title ?? null,

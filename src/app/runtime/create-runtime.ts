@@ -10,6 +10,7 @@ import { TraktClient, type TraktResult } from "@data/trakt/client";
 import {
   getEpisode,
   getHidden,
+  getHistory,
   getMovie,
   getMyShowsCalendar,
   getPopularMovies,
@@ -28,6 +29,7 @@ import {
   searchTrakt,
 } from "@data/trakt/endpoints";
 import { assembleEpisodeDetail } from "@data/trakt/episode-detail";
+import { assembleHistoryEntries } from "@data/trakt/history";
 import { assembleLibrary, markLanded, type ShowArt, showIdSet } from "@data/trakt/library";
 import { assembleMovieHeader, assembleMovieLibrary } from "@data/trakt/movie-library";
 import { createLastActivitiesRepository } from "@data/trakt/repositories";
@@ -51,6 +53,7 @@ import type {
   CalendarData,
   CueRuntime,
   DiscoverData,
+  HistoryPageData,
   MovieLibraryData,
   RatingMap,
   SubmitOutcome,
@@ -380,6 +383,20 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       return {
         entries: assembleCalendarEntries(calendar.data),
         hiddenShowIds: [...showIdSet(hidden.data)],
+        tmdbConfig,
+      };
+    },
+
+    async loadHistory(section, page): Promise<HistoryPageData> {
+      // A single page only — history is unbounded, so the infinite query walks it
+      // one page at a time. A transient 429 is absorbed so a rate-limit mid-scroll
+      // doesn't flip the Diary to error over its cached pages.
+      const result = await withReadRateRetry(() => getHistory(client, section, page));
+      if (!result.ok) throw new Error("Failed to load history");
+      return {
+        entries: assembleHistoryEntries(result.data),
+        page: result.pagination?.page ?? page,
+        pageCount: result.pagination?.pageCount ?? page,
         tmdbConfig,
       };
     },

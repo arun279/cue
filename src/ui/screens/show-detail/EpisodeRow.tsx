@@ -1,5 +1,6 @@
 import type { EpisodeView } from "@data/trakt/show-detail";
 import { Link } from "@tanstack/react-router";
+import { formatWatchedDate } from "@ui/screens/up-next/format";
 import type { ReactElement } from "react";
 import { Still } from "./Still";
 
@@ -50,6 +51,7 @@ export function EpisodeRow({
 }: EpisodeRowProps): ReactElement {
   const code = episodeCode(episode.season, episode.number);
   const label = episode.title ?? "Untitled";
+  const watchedDate = episode.watched ? formatWatchedDate(episode.watchedAt) : null;
   const params = {
     showId: String(showId),
     season: String(episode.season),
@@ -112,6 +114,11 @@ export function EpisodeRow({
       {!episode.aired && (
         <span className="ep-still__unaired" data-testid="episode-unaired">
           Airs {airLabel(episode.firstAired)}
+        </span>
+      )}
+      {watchedDate !== null && (
+        <span className="ep-still__watched" data-testid="episode-watched-date">
+          Watched {watchedDate}
         </span>
       )}
     </li>

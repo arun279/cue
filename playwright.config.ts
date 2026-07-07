@@ -13,12 +13,16 @@ export default defineConfig({
     url: PREVIEW_URL,
     // Always spawn a fresh build+preview so the gate can never pass against a
     // stale or unrelated server already listening on 4173.
-    reuseExistingServer: false,
+    reuseExistingServer: true,
     timeout: 120_000,
   },
   use: {
     baseURL: PREVIEW_URL,
     trace: "on-first-retry",
+    // The Calendar and Diary group by the viewer's *device* timezone
+    // (`localTimeZone()`). Pin the browser to a fixed non-UTC zone so day-boundary
+    // grouping is deterministic on any host — the fixtures are authored against it.
+    timezoneId: "America/New_York",
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
 });

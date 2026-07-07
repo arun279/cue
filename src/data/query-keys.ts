@@ -15,6 +15,11 @@ export const queryKeys = {
   discover: () => ["discover", "shows-movies"] as const,
   lastActivities: () => ["sync", "last_activities"] as const,
   userStats: () => ["users", "me", "stats"] as const,
+  /** The reverse-chronological watch history (the Diary), per type filter — an
+   * infinite query paged one Trakt page at a time. */
+  history: (type: "all" | "tv" | "movies") => ["history", type] as const,
+  /** Prefix over every `history(...)` query, so any watch change invalidates them as one. */
+  historyPrefix: () => ["history"] as const,
   /** The assembled Up Next library — one persisted entry that paints instantly on boot. */
   library: () => ["library"] as const,
   /** The assembled movie library (watched + watchlist), grouped into My Shows shelves. */

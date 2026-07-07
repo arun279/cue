@@ -2,6 +2,7 @@ import { TRAKT_API_BASE, TraktClient } from "@data/trakt/client";
 import {
   getEpisode,
   getHidden,
+  getHistory,
   getLastActivities,
   getMovie,
   getMyShowsCalendar,
@@ -323,6 +324,56 @@ describe("malformed bodies throw a zod error", () => {
       ),
     );
     expect(await getWatchedShows(client)).toEqual({ ok: false, error: { kind: "unauthorized" } });
+  });
+});
+
+describe("getHistory (the Diary feed)", () => {
+  const historyRow = {
+    id: 1982,
+    watched_at: "2026-07-05T21:00:00.000Z",
+    action: "scrobble",
+    type: "episode",
+    episode: episodeObj,
+    show: showObj,
+  };
+
+  it("reads one page of /users/me/history with paging + inline art, carrying pagination", async () => {
+    let url: URL | undefined;
+    server.use(
+      http.get(`${TRAKT_API_BASE}/users/me/history`, ({ request }) => {
+        url = new URL(request.url);
+        return HttpResponse.json([historyRow] as never, {
+          headers: { "X-Pagination-Page": "1", "X-Pagination-Page-Count": "4" },
+        });
+      }),
+    );
+    const result = await getHistory(client, "all", 1);
+    expect(result.ok && result.data[0]?.id).toBe(1982);
+    // The paging position is what the infinite query walks; NEVER a full page walk.
+    expect(result.ok && result.pagination?.pageCount).toBe(4);
+    expect(url?.searchParams.get("page")).toBe("1");
+    expect(url?.searchParams.get("limit")).toBe("30");
+    expect(url?.searchParams.get("extended")).toBe("full,images");
+  });
+
+  it("scopes to the episodes slice for the TV filter", async () => {
+    let path: string | undefined;
+    server.use(
+      http.get(`${TRAKT_API_BASE}/users/me/history/episodes`, ({ request }) => {
+        path = new URL(request.url).pathname;
+        return HttpResponse.json([] as never, {
+          headers: { "X-Pagination-Page": "2", "X-Pagination-Page-Count": "2" },
+        });
+      }),
+    );
+    const result = await getHistory(client, "episodes", 2);
+    expect(result.ok).toBe(true);
+    expect(path).toBe("/users/me/history/episodes");
+  });
+
+  it("throws on a malformed history row (missing the play id)", async () => {
+    getJson("/users/me/history", [{ watched_at: "x", type: "movie" }]);
+    await expect(getHistory(client, "all", 1)).rejects.toThrow();
   });
 });
 

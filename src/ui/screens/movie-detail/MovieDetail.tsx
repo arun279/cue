@@ -13,7 +13,7 @@ import { useMovieRelated } from "@ui/hooks/useMovieRelated";
 import { useRate } from "@ui/hooks/useRate";
 import { useWatchlistAdd } from "@ui/hooks/useWatchlistAdd";
 import { DiscoverGrid } from "@ui/screens/search/DiscoverCard";
-import { formatAirDate, titleCase } from "@ui/screens/up-next/format";
+import { formatAirDate, formatWatchedDate, titleCase } from "@ui/screens/up-next/format";
 import { Poster } from "@ui/screens/up-next/Poster";
 import { Snackbar } from "@ui/screens/up-next/Snackbar";
 import { type ReactElement, useState } from "react";
@@ -58,7 +58,7 @@ function MovieHero({
   const art = resolvePoster({ title: header.title, traktPosters: header.backdrops });
   const backdrop = art.source === "placeholder" ? null : art.url;
   const genres = header.genres.slice(0, 3);
-  const watchedDate = formatAirDate(entry.watchedAt);
+  const watchedDate = formatWatchedDate(entry.watchedAt);
   const released = formatAirDate(header.released);
 
   return (

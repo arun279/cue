@@ -1,5 +1,7 @@
 /** Presentation helpers shared by the Up Next spotlight and its queue rows. */
 
+import { localTimeZone } from "@domain/time";
+
 const MONTHS = [
   "Jan",
   "Feb",
@@ -25,6 +27,24 @@ export function formatAirDate(iso: string | null): string | null {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return null;
   return `${MONTHS[date.getUTCMonth()]} ${date.getUTCDate()}, ${date.getUTCFullYear()}`;
+}
+
+/** "Mar 16, 2008" in the viewer's LOCAL day. Unlike an air date (a fixed
+ * broadcast fact that reads the same everywhere), a watched date is a real
+ * per-viewer event — the same instant the Diary buckets by local day — so a
+ * late-evening play that lands after UTC midnight must read as the local day it
+ * was watched, not a day ahead. */
+const watchedDateFmt = new Intl.DateTimeFormat("en-US", {
+  timeZone: localTimeZone(),
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
+
+export function formatWatchedDate(iso: string | null): string | null {
+  if (iso === null) return null;
+  const t = Date.parse(iso);
+  return Number.isNaN(t) ? null : watchedDateFmt.format(t);
 }
 
 /** Trakt genre slugs arrive lowercase ("crime"); the chips read as titles ("Crime"). */

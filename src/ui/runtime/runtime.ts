@@ -7,6 +7,7 @@ import type { UserStats } from "@data/trakt/schemas";
 import type { SearchHit } from "@data/trakt/search";
 import type { SeasonView, ShowHeader } from "@data/trakt/show-detail";
 import type { CalendarEntry } from "@domain/calendar";
+import type { HistoryEntry } from "@domain/history";
 import type { QueuedOp } from "@domain/write-queue/types";
 import { createContext, useContext } from "react";
 
@@ -40,6 +41,21 @@ export interface DiscoverData {
 export interface CalendarData {
   readonly entries: readonly CalendarEntry[];
   readonly hiddenShowIds: readonly number[];
+  readonly tmdbConfig: TmdbImageConfig | null;
+}
+
+/** Which slice of history a Diary type filter reads (TV → episode plays). */
+export type HistorySection = "all" | "episodes" | "movies";
+
+/**
+ * One page of the Diary: flattened plays newest-first, plus the paging
+ * position so the infinite query knows whether an earlier page exists. History is
+ * unbounded, so this is always a single page — never a full walk.
+ */
+export interface HistoryPageData {
+  readonly entries: readonly HistoryEntry[];
+  readonly page: number;
+  readonly pageCount: number;
   readonly tmdbConfig: TmdbImageConfig | null;
 }
 
@@ -85,6 +101,8 @@ export interface CueRuntime {
   loadWatchlistIds(section: "shows" | "movies"): Promise<readonly number[]>;
   /** Personalized calendar window: `/calendars/my/shows/{start}/{days}` + the hidden set. */
   loadCalendar(startDate: string, days: number): Promise<CalendarData>;
+  /** One page of the reverse-chronological watch history (the Diary). */
+  loadHistory(section: HistorySection, page: number): Promise<HistoryPageData>;
   /** Debounced show+movie search: one `/search/show,movie` per settled query, title-ranked. */
   search(query: string): Promise<readonly SearchHit[]>;
   /** Browse rails for empty-query Discover: trending + popular shows with poster art. */

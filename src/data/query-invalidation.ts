@@ -8,8 +8,9 @@ export type InvalidationKey = readonly unknown[];
  * Which cached queries a single `/sync/last_activities` target actually feeds.
  * Only the surfaces this app renders are listed — a target with no cached query
  * (episode watchlist, favorites, movie hidden) maps to nothing, so a change there
- * costs zero refetches. `userStats` rides every watch/progress change because the
- * Profile totals move with them (a previously-missing mapping).
+ * costs zero refetches. `userStats` AND the Diary's `history` ride every
+ * watch/progress change because the Profile totals and the watch log both move
+ * with them — so a mark made on any surface shows up in the Diary on the next poll.
  *
  * Deliberately absent: `showHeader`/`showSeasons`/`episode` and the calendar.
  * Those carry Trakt content (airdates, newly-announced episodes) that doesn't
@@ -20,10 +21,10 @@ function keysForTarget(target: InvalidationTarget): readonly InvalidationKey[] {
   switch (target) {
     case "watched/shows":
     case "progress/watched":
-      return [queryKeys.library(), queryKeys.userStats()];
+      return [queryKeys.library(), queryKeys.userStats(), queryKeys.historyPrefix()];
     case "watched/movies":
     case "movie-progress":
-      return [queryKeys.movieLibrary(), queryKeys.userStats()];
+      return [queryKeys.movieLibrary(), queryKeys.userStats(), queryKeys.historyPrefix()];
     case "watchlist/shows":
       return [queryKeys.library(), queryKeys.watchlist("shows")];
     case "watchlist/movies":

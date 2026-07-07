@@ -4,15 +4,10 @@ import { Link } from "@tanstack/react-router";
 import { SyncStatusPill } from "@ui/components/SyncStatusPill";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { useStats } from "@ui/hooks/useStats";
-import { useUpNext } from "@ui/hooks/useUpNext";
-import { PosterCard } from "@ui/screens/my-shows/PosterCard";
+import { Diary } from "@ui/screens/profile/Diary";
 import type { ReactElement, ReactNode } from "react";
 
 const COUNT = new Intl.NumberFormat("en-US");
-
-/** Cap the Continue-watching shelf: enough to read as a rail with peek, few
- *  enough to stay a quick snapshot rather than a second My Shows. */
-const SHELF_MAX = 8;
 
 interface CountTile {
   readonly key: string;
@@ -79,46 +74,13 @@ function Skeleton(): ReactElement {
 }
 
 /**
- * The Continue-watching shelf: the poster-forward proof that this
- * is a media profile, not an analytics dashboard. Draws the same recency-sorted
- * library the Up Next home paints from, as a horizontal rail of the universal
- * `PosterCard` — every tile a keyboard-reachable link into its Show page.
- * Renders nothing when nothing is tracked, so the section never leaves a dead row.
- */
-function ContinueWatching(): ReactElement | null {
-  const view = useUpNext();
-  const cards = view.cards.slice(0, SHELF_MAX);
-  if (cards.length === 0) return null;
-  return (
-    <section
-      className="profile-shelf"
-      data-testid="profile-continue"
-      aria-label="Continue watching"
-    >
-      <div className="profile-shelf__head">
-        <span className="label">Continue watching</span>
-        <Link className="profile-shelf__more" to="/" data-testid="profile-continue-more">
-          All in Up Next
-        </Link>
-      </div>
-      <ul className="profile-shelf__rail">
-        {cards.map((card) => (
-          <li key={card.entry.showId} className="profile-shelf__item">
-            <PosterCard entry={card.entry} tmdbConfig={view.tmdbConfig} />
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-}
-
-/**
- * Profile — the watch-stats theatre. The signed-in user's lifetime totals
- * from `/users/me/stats` in the display face: one featured watch-time figure over
- * a triad of Episodes / Movies / Shows counts, then a Continue-watching poster
- * rail so the screen reads as a screening room, not a spreadsheet. Every state is
- * designed — skeleton, hard error with retry, a brand-new-account (all-zero) empty
- * state, and a persistent link into Settings so connections stay one tap away.
+ * Profile — the watch-stats theatre + the Diary. The signed-in
+ * user's lifetime totals from `/users/me/stats` in the display face — one featured
+ * watch-time figure over a triad of Episodes / Movies / Shows counts — crown a
+ * reverse-chronological watch history (Cue's past tense and durable reversal home),
+ * so the log rolls up to the numbers above it. Every state is designed — skeleton,
+ * hard error with retry, a brand-new-account (all-zero) empty state, and a
+ * persistent link into Settings so connections stay one tap away.
  */
 export function Profile(): ReactElement {
   useDocumentTitle("Profile · Cue");
@@ -173,7 +135,7 @@ export function Profile(): ReactElement {
 
       {body}
 
-      <ContinueWatching />
+      <Diary />
 
       <Link className="profile-settings" to="/settings" data-testid="link-settings">
         <span className="profile-settings__icon" aria-hidden="true">

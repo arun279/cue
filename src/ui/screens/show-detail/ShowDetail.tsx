@@ -14,7 +14,13 @@ import { useRate } from "@ui/hooks/useRate";
 import { useSeasons } from "@ui/hooks/useSeasons";
 import { useShowDetail } from "@ui/hooks/useShowDetail";
 import { useToggleWatchlist } from "@ui/hooks/useToggleWatchlist";
-import { episodeCode, formatAirDate, titleCase, watchedPercent } from "@ui/screens/up-next/format";
+import {
+  episodeCode,
+  formatAirDate,
+  formatWatchedDate,
+  titleCase,
+  watchedPercent,
+} from "@ui/screens/up-next/format";
 import { Poster } from "@ui/screens/up-next/Poster";
 import { Snackbar } from "@ui/screens/up-next/Snackbar";
 import { Accordion } from "radix-ui";
@@ -136,6 +142,11 @@ function ShowHero({
           <span className="progress-ratio">
             {header.completed} / {header.aired} watched
           </span>
+          {header.completed > 0 && header.lastWatchedAt !== null && (
+            <span className="show-hero__last-watched" data-testid="last-watched">
+              Last watched {formatWatchedDate(header.lastWatchedAt)}
+            </span>
+          )}
         </div>
 
         <div className="show-hero__actions">

@@ -303,8 +303,10 @@ export function useMarkSeason(): MarkSeasonController {
       };
       // Unchecking an episode is the sole deliberate way to reverse a settled watch
       // (there is no whole-season unmark). buildUnmarkEpisodeOp removes the episode
-      // item, which clears every play of that episode.
-      // TODO(per-play-history): scope to the exact play once the Diary surfaces event IDs.
+      // item, clearing the single play in the app's one-play-per-episode model. True
+      // per-play removal (by history event id) is the Diary's `buildRemoveHistoryPlayOp`
+      // — but that id only exists in `/users/me/history`, not at this mark surface, so
+      // the item-scoped remove is the correct reversal here.
       const op = next ? buildMarkEpisodeOp(params) : buildUnmarkEpisodeOp(params);
       const matchEpisode: EpisodeMatch = (s, n) => s === episode.season && n === episode.number;
       patch(target.showId, matchEpisode, next);

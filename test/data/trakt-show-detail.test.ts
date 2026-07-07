@@ -17,9 +17,12 @@ const showData: ShowDetailData = {
   images: { poster: ["media.trakt.tv/p.webp"], fanart: ["media.trakt.tv/b.webp"] },
 };
 
+const WATCHED_AT = "2026-07-03T21:30:00.000Z";
+
 const progress: Progress = {
   aired: 3,
   completed: 2,
+  last_watched_at: WATCHED_AT,
   next_episode: {
     season: 1,
     number: 3,
@@ -39,8 +42,8 @@ const progress: Progress = {
       aired: 2,
       completed: 2,
       episodes: [
-        { number: 1, completed: true },
-        { number: 2, completed: true },
+        { number: 1, completed: true, last_watched_at: WATCHED_AT },
+        { number: 2, completed: true, last_watched_at: WATCHED_AT },
         { number: 3, completed: false },
       ],
     },
@@ -111,6 +114,16 @@ describe("assembleHeader", () => {
     });
   });
 
+  it("surfaces the show's last-watched date (recognition over recall)", () => {
+    expect(assembleHeader(showData, progress, NOW).lastWatchedAt).toBe(WATCHED_AT);
+  });
+
+  it("nulls last-watched for a never-watched show", () => {
+    const bare: ShowDetailData = { title: "Bare", ids: { trakt: 9 } };
+    const header = assembleHeader(bare, { aired: 0, completed: 0, next_episode: null }, NOW);
+    expect(header.lastWatchedAt).toBeNull();
+  });
+
   it("nulls the callout when caught up and tolerates missing optional fields", () => {
     const bare: ShowDetailData = { title: "Bare", ids: { trakt: 9 } };
     const header = assembleHeader(bare, { aired: 0, completed: 0, next_episode: null }, NOW);
@@ -134,6 +147,11 @@ describe("assembleSeasons", () => {
     expect(s1?.episodes.map((e) => e.watched)).toEqual([true, true, false]);
     expect(s1?.episodes.map((e) => e.aired)).toEqual([true, true, false]);
     expect(s1).toMatchObject({ airedCount: 2, completedCount: 2, isSpecial: false });
+  });
+
+  it("surfaces each watched episode's date and leaves unwatched ones null", () => {
+    const s1 = assembleSeasons(seasons, progress, NOW)[1];
+    expect(s1?.episodes.map((e) => e.watchedAt)).toEqual([WATCHED_AT, WATCHED_AT, null]);
   });
 
   it("flags season 0 as specials and defaults an unknown watched flag to false", () => {
