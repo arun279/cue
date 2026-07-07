@@ -1,39 +1,12 @@
-import type { TmdbImageConfig } from "@data/image-source";
 import type { SearchHit } from "@data/trakt/search";
 import { useBrowse } from "@ui/hooks/useBrowse";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { type SearchView, useSearch } from "@ui/hooks/useSearch";
 import { Snackbar } from "@ui/screens/up-next/Snackbar";
 import { type ReactElement, type ReactNode, useId } from "react";
-import { DiscoverCard } from "./DiscoverCard";
+import { DiscoverGrid } from "./DiscoverCard";
 
 const SKELETON_TILES = [0, 1, 2, 3, 4, 5];
-
-function Grid({
-  hits,
-  tmdbConfig,
-  view,
-  testId,
-}: {
-  hits: readonly SearchHit[];
-  tmdbConfig: TmdbImageConfig | null;
-  view: SearchView;
-  testId: string;
-}): ReactElement {
-  return (
-    <div className="poster-grid--static" data-testid={testId}>
-      {hits.map((hit) => (
-        <DiscoverCard
-          key={hit.key}
-          hit={hit}
-          tmdbConfig={tmdbConfig}
-          added={view.isAdded(hit)}
-          onAdd={() => void view.add(hit)}
-        />
-      ))}
-    </div>
-  );
-}
 
 function RailSkeleton(): ReactElement {
   return (
@@ -51,11 +24,23 @@ function RailSkeleton(): ReactElement {
   );
 }
 
-/** Empty-query browse: trending + popular poster rails, with recent searches as
- * quick re-run chips above them. Every rail state is designed (skeleton, error
- * retry, real posters). */
+/** Empty-query browse: trending + popular poster rails for shows AND movies, with
+ * recent searches as quick re-run chips above them. Every rail state is designed
+ * (skeleton, error retry, real posters); each rail is the same poster idiom, so
+ * movie hits route to `/movie/:id` and add inline exactly like the show rails. */
 function Browse({ view }: { view: SearchView }): ReactElement {
   const browse = useBrowse();
+  const rows: readonly {
+    readonly testId: string;
+    readonly head: string;
+    readonly hits: readonly SearchHit[];
+  }[] = [
+    { testId: "discover-trending", head: "Trending shows", hits: browse.trending },
+    { testId: "discover-popular", head: "Popular shows", hits: browse.popular },
+    { testId: "discover-trending-movies", head: "Trending movies", hits: browse.trendingMovies },
+    { testId: "discover-popular-movies", head: "Popular movies", hits: browse.popularMovies },
+  ];
+  const anyRail = rows.some((row) => row.hits.length > 0);
 
   let rails: ReactNode;
   if (browse.isLoading) {
@@ -80,7 +65,7 @@ function Browse({ view }: { view: SearchView }): ReactElement {
         </button>
       </div>
     );
-  } else if (browse.trending.length === 0 && browse.popular.length === 0) {
+  } else if (!anyRail) {
     rails = (
       <div className="empty" data-testid="discover-empty">
         <h2 className="empty__title">Find something to watch</h2>
@@ -88,32 +73,20 @@ function Browse({ view }: { view: SearchView }): ReactElement {
       </div>
     );
   } else {
-    rails = (
-      <>
-        {browse.trending.length > 0 && (
-          <section className="discover-rail" data-testid="discover-trending">
-            <h2 className="discover-rail__head">Trending now</h2>
-            <Grid
-              hits={browse.trending}
-              tmdbConfig={browse.tmdbConfig}
-              view={view}
-              testId="discover-trending-grid"
-            />
-          </section>
-        )}
-        {browse.popular.length > 0 && (
-          <section className="discover-rail" data-testid="discover-popular">
-            <h2 className="discover-rail__head">Popular</h2>
-            <Grid
-              hits={browse.popular}
-              tmdbConfig={browse.tmdbConfig}
-              view={view}
-              testId="discover-popular-grid"
-            />
-          </section>
-        )}
-      </>
-    );
+    rails = rows
+      .filter((row) => row.hits.length > 0)
+      .map((row) => (
+        <section key={row.testId} className="discover-rail" data-testid={row.testId}>
+          <h2 className="discover-rail__head">{row.head}</h2>
+          <DiscoverGrid
+            hits={row.hits}
+            tmdbConfig={browse.tmdbConfig}
+            isAdded={view.isAdded}
+            onAdd={(hit) => void view.add(hit)}
+            testId={`${row.testId}-grid`}
+          />
+        </section>
+      ));
   }
 
   return (
@@ -192,7 +165,13 @@ export function Search(): ReactElement {
         <p className="discover-results__count" role="status" data-testid="search-result-count">
           {view.hits.length} {view.hits.length === 1 ? "result" : "results"} for "{view.query}"
         </p>
-        <Grid hits={view.hits} tmdbConfig={null} view={view} testId="search-results" />
+        <DiscoverGrid
+          hits={view.hits}
+          tmdbConfig={null}
+          isAdded={view.isAdded}
+          onAdd={(hit) => void view.add(hit)}
+          testId="search-results"
+        />
       </div>
     );
   }

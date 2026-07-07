@@ -5,14 +5,23 @@ import { USER_STATE_STALE_TIME } from "@ui/hooks/query-freshness";
 import { type MovieLibraryData, useRuntime } from "@ui/runtime/runtime";
 import { useMemo } from "react";
 
-interface MovieShelf {
-  readonly key: "watched" | "watchlist";
+/** Honest movie taxonomy (Rams #6): a film is watched or not — no episode
+ * progress — so the library groups into Watchlist (want to watch) and Watched
+ * (seen). Collection (owned) would be a third, non-empty-only segment once
+ * `/sync/collection/movies` is wired (deferred). */
+interface MovieSegment {
+  readonly key: "watchlist" | "watched";
   readonly label: string;
   readonly entries: readonly MovieEntry[];
 }
 
+/** Movie-appropriate sort keys (parity of placement, honesty of options): the
+ * show "Progress" axis is meaningless for a binary movie, so the film triad is
+ * Recently watched (last_watched_at desc) / A–Z / Release year (newest first). */
+export type MovieSort = "recently-watched" | "alphabetical" | "release-year";
+
 export interface MovieLibraryView {
-  readonly shelves: readonly MovieShelf[];
+  readonly segments: readonly MovieSegment[];
   readonly tmdbConfig: MovieLibraryData["tmdbConfig"];
   readonly trackedCount: number;
   readonly isLoading: boolean;
@@ -40,21 +49,32 @@ export function writeMovieEntry(client: QueryClient, entry: MovieEntry): void {
   });
 }
 
-function byWatchedAt(a: MovieEntry, b: MovieEntry): number {
-  return (b.watchedAt ?? "").localeCompare(a.watchedAt ?? "");
-}
-
 function byTitle(a: MovieEntry, b: MovieEntry): number {
   return a.title.localeCompare(b.title, undefined, { sensitivity: "base" });
 }
 
+function byWatchedAt(a: MovieEntry, b: MovieEntry): number {
+  return (b.watchedAt ?? "").localeCompare(a.watchedAt ?? "") || byTitle(a, b);
+}
+
+function byYear(a: MovieEntry, b: MovieEntry): number {
+  return (b.year ?? 0) - (a.year ?? 0) || byTitle(a, b);
+}
+
+function comparatorFor(sort: MovieSort): (a: MovieEntry, b: MovieEntry) => number {
+  if (sort === "alphabetical") return byTitle;
+  if (sort === "release-year") return byYear;
+  return byWatchedAt;
+}
+
 /**
  * The Library movie read: the persisted `movieLibrary` query (watched + watchlist
- * movies) split into two poster shelves — Watchlist (to-watch, alphabetical) then
- * Watched (most-recent first). A watched movie that is also watchlisted stays on
- * Watched only, so the shelves never double-count.
+ * movies) grouped into the honest Watchlist / Watched segments, each ordered by
+ * the chosen movie sort. A watched movie that is also watchlisted stays on Watched
+ * only, so the segments never double-count. Reuses the shared cache so both the
+ * Library screen and Movie detail read one query.
  */
-export function useMovieLibrary(): MovieLibraryView {
+export function useMovieLibrary(sort: MovieSort = "recently-watched"): MovieLibraryView {
   const runtime = useRuntime();
   const query = useQuery({
     queryKey: queryKeys.movieLibrary(),
@@ -63,20 +83,24 @@ export function useMovieLibrary(): MovieLibraryView {
   });
 
   const entries = query.data?.entries;
-  const shelves = useMemo<MovieShelf[]>(() => {
+  const segments = useMemo<MovieSegment[]>(() => {
     if (entries === undefined) return [];
-    const watched = entries.filter((e) => e.watched).sort(byWatchedAt);
-    const watchlist = entries.filter((e) => e.inWatchlist && !e.watched).sort(byTitle);
+    const comparator = comparatorFor(sort);
+    const watched = [...entries.filter((e) => e.watched)].sort(comparator);
+    const watchlist = [...entries.filter((e) => e.inWatchlist && !e.watched)].sort(comparator);
     // Watchlist first (the "want to watch" pool), then Watched — matching the model's
-    // "Watchlist / Watched" order and the Shows side's Watchlist-first framing.
-    return [
+    // "Watchlist / Watched" order and the Shows side's Watchlist-first framing. An
+    // empty segment is dropped so the library never renders a phantom "Watchlist (0)"
+    // header — parity with Shows' groupLibrary, which omits empty buckets.
+    const ordered: MovieSegment[] = [
       { key: "watchlist", label: "Watchlist", entries: watchlist },
       { key: "watched", label: "Watched", entries: watched },
     ];
-  }, [entries]);
+    return ordered.filter((segment) => segment.entries.length > 0);
+  }, [entries, sort]);
 
   return {
-    shelves,
+    segments,
     tmdbConfig: query.data?.tmdbConfig ?? null,
     trackedCount: entries?.length ?? 0,
     isLoading: query.isLoading,

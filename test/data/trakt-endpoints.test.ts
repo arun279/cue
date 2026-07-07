@@ -5,11 +5,14 @@ import {
   getLastActivities,
   getMovie,
   getMyShowsCalendar,
+  getPopularMovies,
   getPopularShows,
   getRatings,
+  getRelatedMovies,
   getShow,
   getShowProgress,
   getShowSeasons,
+  getTrendingMovies,
   getTrendingShows,
   getUserStats,
   getWatchedMovies,
@@ -191,6 +194,27 @@ describe("Trakt read endpoints zod-parse well-formed fixtures", () => {
     getJson("/shows/popular", [showObj]);
     const result = await getPopularShows(client);
     expect(result.ok && result.data[0]?.ids.trakt).toBe(1);
+  });
+
+  it("parses trending movies (watcher-wrapped rows)", async () => {
+    getJson("/movies/trending", [
+      { watchers: 80, movie: { ...movieObj, images: { poster: ["m.webp"] } } },
+    ]);
+    const result = await getTrendingMovies(client);
+    expect(result.ok && result.data[0]?.watchers).toBe(80);
+    expect(result.ok && result.data[0]?.movie.title).toBe("Dune");
+  });
+
+  it("parses popular movies (bare movie list)", async () => {
+    getJson("/movies/popular", [movieObj]);
+    const result = await getPopularMovies(client);
+    expect(result.ok && result.data[0]?.ids.trakt).toBe(5);
+  });
+
+  it("parses related movies (bare movie list)", async () => {
+    getJson("/movies/5/related", [movieObj]);
+    const result = await getRelatedMovies(client, 5);
+    expect(result.ok && result.data[0]?.title).toBe("Dune");
   });
 
   it("parses hidden progress_watched items", async () => {

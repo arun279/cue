@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import {
+  installDiscoverRoutes,
   installHermeticRoutes,
   installSearchRoutes,
   type SearchHitFixture,
@@ -75,6 +76,28 @@ test("inline Add fires POST /sync/watchlist optimistically", async ({ page }) =>
 
   await expect.poll(() => controls.watchlistPosts().length).toBe(1);
   expect(controls.watchlistPosts()[0]?.showIds).toContain(1);
+});
+
+test("the browse rails include Trending + Popular movies with inline add", async ({ page }) => {
+  const controls = await installDiscoverRoutes(page.context(), {
+    shows: [{ traktId: 1, title: "Severance", year: 2022 }],
+    movies: [{ traktId: 9, title: "Dune", year: 2021, tmdb: 438631 }],
+  });
+  await page.goto("/search");
+
+  // Movie rails render alongside the show rails, same DiscoverCard poster idiom.
+  await expect(page.getByTestId("discover-trending-movies")).toBeVisible();
+  await expect(page.getByTestId("discover-popular-movies")).toBeVisible();
+  const trendingMovies = page.getByTestId("discover-trending-movies-grid");
+  await expect(trendingMovies.getByTestId("search-result")).toHaveCount(1);
+
+  // Inline add on a movie rail fires a movies[] watchlist POST (routed by hit type).
+  await trendingMovies.getByTestId("search-add").first().click();
+  await expect.poll(() => controls.watchlistPosts().length).toBe(1);
+  const post = controls.watchlistPosts()[0];
+  // Proven to route into the movies[] body — not mis-filed under shows[].
+  expect(post?.movieIds).toEqual([9]);
+  expect(post?.showIds).toEqual([]);
 });
 
 test("a recent search chip re-runs the query from the pre-query state", async ({ page }) => {

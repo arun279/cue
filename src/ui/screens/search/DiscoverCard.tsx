@@ -4,6 +4,40 @@ import { Link } from "@tanstack/react-router";
 import { Poster } from "@ui/screens/up-next/Poster";
 import type { ReactElement, ReactNode } from "react";
 
+/**
+ * A static poster grid of DiscoverCards — the shared idiom for every discovery
+ * surface: search results, the trending/popular browse rails, and the Movie-detail
+ * "More like this" rail. Membership + add are injected so one grid serves all
+ * callers (search state, or the standalone watchlist-add hook on detail).
+ */
+export function DiscoverGrid({
+  hits,
+  tmdbConfig,
+  isAdded,
+  onAdd,
+  testId,
+}: {
+  readonly hits: readonly SearchHit[];
+  readonly tmdbConfig: TmdbImageConfig | null;
+  isAdded(hit: SearchHit): boolean;
+  onAdd(hit: SearchHit): void;
+  readonly testId: string;
+}): ReactElement {
+  return (
+    <div className="poster-grid--static" data-testid={testId}>
+      {hits.map((hit) => (
+        <DiscoverCard
+          key={hit.key}
+          hit={hit}
+          tmdbConfig={tmdbConfig}
+          added={isAdded(hit)}
+          onAdd={() => onAdd(hit)}
+        />
+      ))}
+    </div>
+  );
+}
+
 interface DiscoverCardProps {
   readonly hit: SearchHit;
   readonly tmdbConfig: TmdbImageConfig | null;
@@ -19,7 +53,7 @@ interface DiscoverCardProps {
  * in the anchor) so both are independent tab stops, and it reflects the optimistic
  * added state with a lock against a double-add.
  */
-export function DiscoverCard({ hit, tmdbConfig, added, onAdd }: DiscoverCardProps): ReactElement {
+function DiscoverCard({ hit, tmdbConfig, added, onAdd }: DiscoverCardProps): ReactElement {
   const poster = (
     <span className="poster-wrap poster-wrap--tile">
       <Poster title={hit.title} posters={hit.posters} tmdbConfig={tmdbConfig} variant="tile" />

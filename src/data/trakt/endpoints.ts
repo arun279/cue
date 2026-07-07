@@ -11,12 +11,15 @@ import {
   hiddenSchema,
   lastActivitiesSchema,
   type MovieDetailData,
+  type MovieSummary,
   movieDetailSchema,
   type Progress,
+  popularMoviesSchema,
   popularShowsSchema,
   progressSchema,
   type RatingItem,
   ratingsSchema,
+  relatedMoviesSchema,
   type SearchResult,
   type SeasonData,
   type ShowDetailData,
@@ -24,7 +27,9 @@ import {
   searchSchema,
   seasonsSchema,
   showDetailSchema,
+  type TrendingMovie,
   type TrendingShow,
+  trendingMoviesSchema,
   trendingShowsSchema,
   type UserStats,
   userStatsSchema,
@@ -176,6 +181,39 @@ export async function getPopularShows(
   limit = 24,
 ): Promise<TraktResult<ShowSummary[]>> {
   return parse(await client.get("/shows/popular", { extended: ART, limit }), popularShowsSchema);
+}
+
+/** Movie discover rails: current trending + all-time popular
+ * movies with art, for the Search browse surface — the movie analogue of
+ * `getTrendingShows`/`getPopularShows`, feeding the same `SearchHit` pipeline. */
+export async function getTrendingMovies(
+  client: TraktClient,
+  limit = 24,
+): Promise<TraktResult<TrendingMovie[]>> {
+  return parse(
+    await client.get("/movies/trending", { extended: ART, limit }),
+    trendingMoviesSchema,
+  );
+}
+
+export async function getPopularMovies(
+  client: TraktClient,
+  limit = 24,
+): Promise<TraktResult<MovieSummary[]>> {
+  return parse(await client.get("/movies/popular", { extended: ART, limit }), popularMoviesSchema);
+}
+
+/** "More like this" for a movie: `/movies/:id/related` — a bare movie list, art
+ * included, for the read-only related rail on Movie detail. */
+export async function getRelatedMovies(
+  client: TraktClient,
+  movieId: number | string,
+  limit = 12,
+): Promise<TraktResult<MovieSummary[]>> {
+  return parse(
+    await client.get(`/movies/${movieId}/related`, { extended: ART, limit }),
+    relatedMoviesSchema,
+  );
 }
 
 /** The signed-in user's lifetime watch stats: watch-time minutes + distinct counts. */

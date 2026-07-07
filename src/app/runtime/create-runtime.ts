@@ -12,11 +12,14 @@ import {
   getHidden,
   getMovie,
   getMyShowsCalendar,
+  getPopularMovies,
   getPopularShows,
   getRatings,
+  getRelatedMovies,
   getShow,
   getShowProgress,
   getShowSeasons,
+  getTrendingMovies,
   getTrendingShows,
   getUserStats,
   getWatchedMovies,
@@ -29,7 +32,12 @@ import { assembleLibrary, markLanded, type ShowArt, showIdSet } from "@data/trak
 import { assembleMovieHeader, assembleMovieLibrary } from "@data/trakt/movie-library";
 import { createLastActivitiesRepository } from "@data/trakt/repositories";
 import type { Progress, UserStats } from "@data/trakt/schemas";
-import { assembleSearchHits, assembleShowHits, rankSearchHits } from "@data/trakt/search";
+import {
+  assembleMovieHits,
+  assembleSearchHits,
+  assembleShowHits,
+  rankSearchHits,
+} from "@data/trakt/search";
 import { assembleHeader, assembleSeasons } from "@data/trakt/show-detail";
 import { createTraktTransport } from "@data/trakt/transport";
 import type { Token } from "@domain/model/token";
@@ -304,6 +312,12 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       return assembleMovieHeader(movie.data);
     },
 
+    async loadMovieRelated(movieId) {
+      const related = await getRelatedMovies(client, movieId);
+      if (!related.ok) throw new Error("Failed to load related movies");
+      return assembleMovieHits(related.data);
+    },
+
     async loadShowHeader(showId) {
       const [show, progress] = await Promise.all([
         getShow(client, showId),
@@ -377,15 +391,21 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     },
 
     async loadDiscover(): Promise<DiscoverData> {
-      const [trending, popular] = await Promise.all([
+      const [trending, popular, trendingMovies, popularMovies] = await Promise.all([
         getTrendingShows(client),
         getPopularShows(client),
+        getTrendingMovies(client),
+        getPopularMovies(client),
       ]);
       if (!trending.ok) throw new Error("Failed to load trending shows");
       if (!popular.ok) throw new Error("Failed to load popular shows");
+      if (!trendingMovies.ok) throw new Error("Failed to load trending movies");
+      if (!popularMovies.ok) throw new Error("Failed to load popular movies");
       return {
         trending: assembleShowHits(trending.data.map((row) => row.show)),
         popular: assembleShowHits(popular.data),
+        trendingMovies: assembleMovieHits(trendingMovies.data.map((row) => row.movie)),
+        popularMovies: assembleMovieHits(popularMovies.data),
         tmdbConfig,
       };
     },

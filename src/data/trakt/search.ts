@@ -1,5 +1,5 @@
 import type { MovieIds, ShowIds } from "@domain/model/ids";
-import type { SearchResult, ShowSummary } from "./schemas";
+import type { MovieSummary, SearchResult, ShowSummary } from "./schemas";
 
 /** A show/movie search hit, flattened for the result row + inline watchlist add. */
 export interface SearchHit {
@@ -58,6 +58,13 @@ export function assembleSearchHits(results: readonly SearchResult[]): SearchHit[
 /** Map a bare show list (`/shows/trending`, `/shows/popular`) to the same poster-tile hits. */
 export function assembleShowHits(shows: readonly ShowSummary[]): SearchHit[] {
   return shows.map((show) => buildHit(show, "show"));
+}
+
+/** Map a bare movie list (`/movies/trending`, `/movies/popular`, `/movies/:id/related`)
+ * to movie-typed poster hits — the same `SearchHit` the DiscoverCard routes to
+ * `/movie/:id` and adds to the watchlist inline. */
+export function assembleMovieHits(movies: readonly MovieSummary[]): SearchHit[] {
+  return movies.map((movie) => buildHit(movie, "movie"));
 }
 
 /**

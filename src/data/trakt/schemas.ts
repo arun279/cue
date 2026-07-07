@@ -161,6 +161,15 @@ export const trendingShowsSchema = z.array(
 );
 export const popularShowsSchema = z.array(showSchema);
 
+/** The movie discover rails, mirroring the show charts: `/movies/trending` wraps
+ * the movie in a watcher count, `/movies/popular` is a bare movie list, and
+ * `/movies/:id/related` returns a bare movie list ("more like this"). */
+export const trendingMoviesSchema = z.array(
+  z.object({ watchers: z.number().nullish(), movie: movieSchema }),
+);
+export const popularMoviesSchema = z.array(movieSchema);
+export const relatedMoviesSchema = z.array(movieSchema);
+
 export const hiddenSchema = z.array(
   z.object({
     hidden_at: z.string().optional(),
@@ -206,6 +215,8 @@ export type RatingItem = z.infer<typeof ratingsSchema>[number];
 export type CalendarItem = z.infer<typeof calendarSchema>[number];
 export type SearchResult = z.infer<typeof searchSchema>[number];
 export type ShowSummary = z.infer<typeof showSchema>;
+export type MovieSummary = z.infer<typeof movieSchema>;
 export type TrendingShow = z.infer<typeof trendingShowsSchema>[number];
+export type TrendingMovie = z.infer<typeof trendingMoviesSchema>[number];
 export type HiddenItem = z.infer<typeof hiddenSchema>[number];
 export type UserStats = z.infer<typeof userStatsSchema>;

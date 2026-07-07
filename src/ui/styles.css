@@ -2465,6 +2465,10 @@ body {
   flex-direction: column;
   gap: var(--space-4);
 }
+/* "More like this" on Movie detail: the browse-rail idiom, set below the hero. */
+.related-rail {
+  margin-top: var(--space-7);
+}
 .discover-results__count {
   margin: 0;
   font-size: 0.85rem;

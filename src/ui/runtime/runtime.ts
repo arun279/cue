@@ -25,10 +25,14 @@ export interface MovieLibraryData {
   readonly tmdbConfig: TmdbImageConfig | null;
 }
 
-/** The read side of Discover browse: trending + popular poster rails + the image config. */
+/** The read side of Discover browse: trending + popular poster rails for
+ * shows AND movies + the image config. Movies reuse the show-rail `SearchHit`
+ * pipeline (DiscoverCard → `/movie/:id` + inline watchlist add). */
 export interface DiscoverData {
   readonly trending: readonly SearchHit[];
   readonly popular: readonly SearchHit[];
+  readonly trendingMovies: readonly SearchHit[];
+  readonly popularMovies: readonly SearchHit[];
   readonly tmdbConfig: TmdbImageConfig | null;
 }
 
@@ -67,6 +71,8 @@ export interface CueRuntime {
   loadMovieLibrary(): Promise<MovieLibraryData>;
   /** Movie detail hero from `/movies/:id?extended=full,images` (title, year, overview, art). */
   loadMovieHeader(movieId: number): Promise<MovieHeader>;
+  /** "More like this" for a movie: `/movies/:id/related` as poster `SearchHit`s. */
+  loadMovieRelated(movieId: number): Promise<readonly SearchHit[]>;
   /** Show detail hero + overall progress; paints before the season stream resolves. */
   loadShowHeader(showId: number): Promise<ShowHeader>;
   /** The season/episode tree merged with per-episode watched flags (streams in after the hero). */

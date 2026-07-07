@@ -12,7 +12,7 @@ export const queryKeys = {
   /** Prefix over every windowed `calendar(...)` query, for invalidating them as one. */
   calendarPrefix: () => ["calendar", "my-shows"] as const,
   search: (query: string, types: string) => ["search", types, query] as const,
-  discover: () => ["discover", "shows"] as const,
+  discover: () => ["discover", "shows-movies"] as const,
   lastActivities: () => ["sync", "last_activities"] as const,
   userStats: () => ["users", "me", "stats"] as const,
   /** The assembled Up Next library — one persisted entry that paints instantly on boot. */
@@ -20,6 +20,8 @@ export const queryKeys = {
   /** The assembled movie library (watched + watchlist), grouped into My Shows shelves. */
   movieLibrary: () => ["movie-library"] as const,
   movieHeader: (movieId: number) => ["movie", "header", movieId] as const,
+  /** "More like this" related movies for one movie's detail rail. */
+  movieRelated: (movieId: number) => ["movie", "related", movieId] as const,
   showHeader: (showId: number) => ["show", "header", showId] as const,
   showSeasons: (showId: number) => ["show", "seasons", showId] as const,
   episode: (showId: number, season: number, number: number) =>

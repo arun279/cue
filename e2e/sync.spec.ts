@@ -187,6 +187,8 @@ test("watched movies keep their posters (images stay on /sync/watched/movies)", 
   await seedAuth(page.context());
   await page.goto("/library?type=movies");
 
+  // Watched films sit in the (collapsed) Watched segment; open it to mount the tile.
+  await page.getByTestId("pile-heading").filter({ hasText: "Watched" }).click();
   const card = page.getByTestId("movie-library-card").filter({ hasText: "Watched Movie" });
   await expect(card).toHaveCount(1);
   // The poster resolved to a real image (from the watched-movies `images`), not the

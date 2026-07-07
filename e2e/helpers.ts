@@ -349,6 +349,9 @@ export interface CapturedWrite {
   /** The `shows[]` subtree of a bulk history or hidden write (season tokens / enumerated eps). */
   readonly shows?: readonly CapturedShow[];
   readonly showIds?: readonly number[];
+  /** The `movies[]` trakt ids of a watchlist write — kept distinct from `showIds`
+   * so a rail add can prove a movie hit routed to the movie section, not shows[]. */
+  readonly movieIds?: readonly number[];
   /** The rating value on a `/sync/ratings` write (null on a remove). */
   readonly rating?: number | null;
   /** The keys present on the first captured `episodes[]` item (proves all-plays remove = ids only). */
@@ -1365,6 +1368,7 @@ function movieDetailBody(movie: MovieFixture): string {
 export async function installMovieRoutes(
   context: BrowserContext,
   movies: readonly MovieFixture[],
+  related: readonly MovieFixture[] = [],
 ): Promise<MovieControls> {
   const writes: CapturedMovieWrite[] = [];
 
@@ -1405,6 +1409,16 @@ export async function installMovieRoutes(
       return route.fulfill({ status: 404, headers: JSON_HEADERS, body: "{}" });
     return route.fulfill({ status: 200, headers: JSON_HEADERS, body: movieDetailBody(movie) });
   });
+
+  // "More like this": `/movies/:id/related` — a bare movie list (disjoint from the
+  // `/movies/*` detail glob, which stops at one path segment).
+  await context.route("**/api.trakt.tv/movies/*/related*", (route) =>
+    route.fulfill({
+      status: 200,
+      headers: JSON_HEADERS,
+      body: JSON.stringify(related.map(movieObject)),
+    }),
+  );
 
   const handleHistory = (remove: boolean) => (route: import("@playwright/test").Route) => {
     const body = (route.request().postDataJSON() ?? {}) as {
@@ -1528,4 +1542,103 @@ export async function installSearchRoutes(
     searchQueries: () => queries,
     watchlistPosts: () => writes.filter((w) => w.path === "/sync/watchlist"),
   };
+}
+
+/** A trending/popular browse-rail row for the Discover fixture (show or movie). */
+export interface DiscoverRowFixture {
+  readonly traktId: number;
+  readonly title: string;
+  readonly year?: number;
+  readonly tmdb?: number;
+}
+
+export interface DiscoverControls {
+  /** Captured `POST /sync/watchlist` writes (proves an inline rail Add fired). */
+  watchlistPosts: () => readonly CapturedWrite[];
+}
+
+function discoverMedia(row: DiscoverRowFixture): Record<string, unknown> {
+  return {
+    title: row.title,
+    ...(row.year === undefined ? {} : { year: row.year }),
+    ids: { trakt: row.traktId, ...(row.tmdb === undefined ? {} : { tmdb: row.tmdb }) },
+    images: { poster: ["media.trakt.tv/p.webp"] },
+  };
+}
+
+/**
+ * Intercept the Discover browse rails: `/shows/trending`+`/movies/trending`
+ * (watcher-wrapped) and `/shows/popular`+`/movies/popular` (bare lists), the
+ * watchlist membership GETs (empty), and the inline-add `POST /sync/watchlist`.
+ * Register AFTER `installHermeticRoutes` so these specific routes win.
+ */
+export async function installDiscoverRoutes(
+  context: BrowserContext,
+  fixtures: {
+    readonly shows: readonly DiscoverRowFixture[];
+    readonly movies: readonly DiscoverRowFixture[];
+  },
+): Promise<DiscoverControls> {
+  const writes: CapturedWrite[] = [];
+
+  const pngPixel = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+    "base64",
+  );
+  await context.route("**/media.trakt.tv/**", (route) =>
+    route.fulfill({ status: 200, contentType: "image/png", body: pngPixel }),
+  );
+
+  const list = (rows: readonly DiscoverRowFixture[], key: "show" | "movie", watchers: boolean) =>
+    JSON.stringify(
+      rows.map((row) =>
+        watchers ? { watchers: 100, [key]: discoverMedia(row) } : discoverMedia(row),
+      ),
+    );
+
+  await context.route("**/api.trakt.tv/shows/trending*", (route) =>
+    route.fulfill({ status: 200, headers: JSON_HEADERS, body: list(fixtures.shows, "show", true) }),
+  );
+  await context.route("**/api.trakt.tv/shows/popular*", (route) =>
+    route.fulfill({
+      status: 200,
+      headers: JSON_HEADERS,
+      body: list(fixtures.shows, "show", false),
+    }),
+  );
+  await context.route("**/api.trakt.tv/movies/trending*", (route) =>
+    route.fulfill({
+      status: 200,
+      headers: JSON_HEADERS,
+      body: list(fixtures.movies, "movie", true),
+    }),
+  );
+  await context.route("**/api.trakt.tv/movies/popular*", (route) =>
+    route.fulfill({
+      status: 200,
+      headers: JSON_HEADERS,
+      body: list(fixtures.movies, "movie", false),
+    }),
+  );
+
+  await context.route("**/api.trakt.tv/sync/watchlist", (route) => {
+    const body = (route.request().postDataJSON() ?? {}) as {
+      shows?: { ids?: { trakt?: number } }[];
+      movies?: { ids?: { trakt?: number } }[];
+    };
+    // Keep shows[] and movies[] distinct so a rail add proves the hit routed to the
+    // right section (a show mis-filed as a movie, or vice versa, would be caught).
+    const showIds = (body.shows ?? []).map((s) => s.ids?.trakt ?? -1);
+    const movieIds = (body.movies ?? []).map((m) => m.ids?.trakt ?? -1);
+    writes.push({ path: "/sync/watchlist", episodeIds: [], showIds, movieIds, watchedAt: null });
+    return route.fulfill({
+      status: 200,
+      headers: JSON_HEADERS,
+      body: JSON.stringify({
+        added: { shows: body.shows?.length ?? 0, movies: body.movies?.length ?? 0 },
+      }),
+    });
+  });
+
+  return { watchlistPosts: () => writes.filter((w) => w.path === "/sync/watchlist") };
 }

@@ -1,5 +1,10 @@
-import type { SearchResult, ShowSummary } from "@data/trakt/schemas";
-import { assembleSearchHits, assembleShowHits, rankSearchHits } from "@data/trakt/search";
+import type { MovieSummary, SearchResult, ShowSummary } from "@data/trakt/schemas";
+import {
+  assembleMovieHits,
+  assembleSearchHits,
+  assembleShowHits,
+  rankSearchHits,
+} from "@data/trakt/search";
 import { describe, expect, it } from "vitest";
 
 describe("assembleSearchHits", () => {
@@ -67,6 +72,29 @@ describe("assembleShowHits", () => {
     expect(hits.map((h) => h.type)).toEqual(["show", "show"]);
     expect(hits[0]).toMatchObject({ key: "show:1", traktId: 1, posters: ["p.webp"] });
     expect(hits[1]).toMatchObject({ year: null, posters: [] });
+  });
+});
+
+describe("assembleMovieHits", () => {
+  it("maps a bare movie list to movie-typed poster hits routing to /movie/:id", () => {
+    const movies: MovieSummary[] = [
+      {
+        title: "Dune",
+        year: 2021,
+        ids: { trakt: 9, tmdb: 438631 },
+        images: { poster: ["d.webp"] },
+      },
+      { title: "Inception", ids: { trakt: 10 } },
+    ];
+    const hits = assembleMovieHits(movies);
+    expect(hits.map((h) => h.type)).toEqual(["movie", "movie"]);
+    expect(hits[0]).toMatchObject({
+      key: "movie:9",
+      traktId: 9,
+      posters: ["d.webp"],
+      tmdbId: 438631,
+    });
+    expect(hits[1]).toMatchObject({ key: "movie:10", year: null, posters: [] });
   });
 });
 

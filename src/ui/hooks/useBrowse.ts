@@ -13,15 +13,18 @@ export interface BrowseView {
   readonly isError: boolean;
   readonly trending: readonly SearchHit[];
   readonly popular: readonly SearchHit[];
+  readonly trendingMovies: readonly SearchHit[];
+  readonly popularMovies: readonly SearchHit[];
   readonly tmdbConfig: TmdbImageConfig | null;
   refetch(): void;
 }
 
 /**
- * The Discover browse rails: trending + popular shows as poster hits,
- * loaded once and cached so an empty query paints a real browse surface instead
- * of a bare prompt. Reuses the same `SearchHit` shape as search, so the inline
- * watchlist add and poster tiles are shared with the results grid.
+ * The Discover browse rails: trending + popular shows AND movies as poster
+ * hits, loaded once and cached so an empty query paints a real browse surface
+ * instead of a bare prompt. Reuses the same `SearchHit` shape as search, so the
+ * inline watchlist add and poster tiles are shared across every rail and the
+ * results grid — movie hits route to `/movie/:id` through the same DiscoverCard.
  */
 export function useBrowse(): BrowseView {
   const runtime = useRuntime();
@@ -35,6 +38,8 @@ export function useBrowse(): BrowseView {
     isError: query.isError,
     trending: query.data?.trending ?? [],
     popular: query.data?.popular ?? [],
+    trendingMovies: query.data?.trendingMovies ?? [],
+    popularMovies: query.data?.popularMovies ?? [],
     tmdbConfig: query.data?.tmdbConfig ?? null,
     refetch: () => void query.refetch(),
   };

@@ -9,7 +9,10 @@ import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { useMovieActions } from "@ui/hooks/useMovieActions";
 import { useMovieDetail } from "@ui/hooks/useMovieDetail";
 import { useMovieLibrary } from "@ui/hooks/useMovieLibrary";
+import { useMovieRelated } from "@ui/hooks/useMovieRelated";
 import { useRate } from "@ui/hooks/useRate";
+import { useWatchlistAdd } from "@ui/hooks/useWatchlistAdd";
+import { DiscoverGrid } from "@ui/screens/search/DiscoverCard";
 import { formatAirDate, titleCase } from "@ui/screens/up-next/format";
 import { Poster } from "@ui/screens/up-next/Poster";
 import { Snackbar } from "@ui/screens/up-next/Snackbar";
@@ -165,6 +168,8 @@ export function MovieDetail({ movieId }: { readonly movieId: number }): ReactEle
   const library = useMovieLibrary();
   const actions = useMovieActions();
   const rate = useRate("movies");
+  const related = useMovieRelated(movieId);
+  const watchlistAdd = useWatchlistAdd();
   const header = detail.header;
   useDocumentTitle(header !== undefined ? `${header.title} · Cue` : "Movie · Cue");
 
@@ -215,6 +220,29 @@ export function MovieDetail({ movieId }: { readonly movieId: number }): ReactEle
       />
 
       <MovieHero header={header} entry={entry} actions={actions} rate={rate} />
+
+      {related.hits.length > 0 && (
+        <section className="discover-rail related-rail" data-testid="movie-related">
+          <h2 className="discover-rail__head">More like this</h2>
+          <DiscoverGrid
+            hits={related.hits}
+            tmdbConfig={null}
+            isAdded={watchlistAdd.isAdded}
+            onAdd={(hit) => void watchlistAdd.add(hit)}
+            testId="movie-related-grid"
+          />
+        </section>
+      )}
+
+      {watchlistAdd.addError !== null && (
+        <Snackbar
+          testId="movie-related-add-error"
+          message={watchlistAdd.addError}
+          actionLabel="Dismiss"
+          onAction={watchlistAdd.clearAddError}
+          onDismiss={watchlistAdd.clearAddError}
+        />
+      )}
 
       {actions.undoable !== null && (
         <Snackbar
