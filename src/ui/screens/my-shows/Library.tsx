@@ -10,6 +10,7 @@ import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { useHideShow } from "@ui/hooks/useHideShow";
 import { useLibraryBuckets } from "@ui/hooks/useLibraryBuckets";
 import { type MovieSort, useMovieLibrary } from "@ui/hooks/useMovieLibrary";
+import { usePrefs } from "@ui/prefs/prefs-store";
 import { formatAirDate } from "@ui/screens/up-next/format";
 import { Snackbar } from "@ui/screens/up-next/Snackbar";
 import { Accordion, ToggleGroup } from "radix-ui";
@@ -261,7 +262,12 @@ function CaughtUpTile({
 export function Library(): ReactElement {
   useDocumentTitle("Library · Cue");
   const { type } = useSearch({ from: "/library" });
-  const isMovies = type === "movies";
+  const showsEnabled = usePrefs((s) => s.showsEnabled);
+  const moviesEnabled = usePrefs((s) => s.moviesEnabled);
+  // With both media on, the URL `?type` picks the segment (Shows is the default).
+  // A single-medium user is pinned to their medium and shown no toggle.
+  const bothEnabled = showsEnabled && moviesEnabled;
+  const isMovies = moviesEnabled && (!showsEnabled || type === "movies");
   const navigate = useNavigate();
 
   const [showSort, setShowSort] = useState<LibrarySort>("recently-watched");
@@ -275,8 +281,10 @@ export function Library(): ReactElement {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("");
 
-  const view = useLibraryBuckets(showSort);
-  const movieView = useMovieLibrary(movieSort);
+  // Only the enabled medium's read fires: a TV-only Library never fetches the movie
+  // library, and a movies-only Library never fetches the TV snapshot.
+  const view = useLibraryBuckets(showSort, showsEnabled);
+  const movieView = useMovieLibrary(movieSort, moviesEnabled);
   const unhide = useHideShow();
   const active = isMovies ? movieView : view;
 
@@ -463,36 +471,38 @@ export function Library(): ReactElement {
         />
       </header>
 
-      <div className="library-controls">
-        <ToggleGroup.Root
-          type="single"
-          className="segmented"
-          aria-label="Library type"
-          value={isMovies ? "movies" : "shows"}
-          onValueChange={(value) => {
-            // The toggle is view-state, not a distinct page: replace (don't push) so
-            // Back skips past it, while the search param it writes still lets Back
-            // from a detail page restore whichever tab launched it. Shows carries no
-            // param (the canonical default); only Movies pins ?type=movies.
-            if (value === "shows" || value === "movies") {
-              // Reset the cross-segment filter on the switch so "Filter movies…"
-              // starts clean rather than carrying a show query into the movie library.
-              clearFilter();
-              void navigate({
-                to: "/library",
-                search: value === "movies" ? { type: "movies" } : {},
-                replace: true,
-              });
-            }
-          }}
-        >
-          <ToggleGroup.Item className="segmented__item" value="shows" data-testid="type-shows">
-            Shows
-          </ToggleGroup.Item>
-          <ToggleGroup.Item className="segmented__item" value="movies" data-testid="type-movies">
-            Movies
-          </ToggleGroup.Item>
-        </ToggleGroup.Root>
+      <div className="library-controls" data-single-medium={!bothEnabled || undefined}>
+        {bothEnabled && (
+          <ToggleGroup.Root
+            type="single"
+            className="segmented"
+            aria-label="Library type"
+            value={isMovies ? "movies" : "shows"}
+            onValueChange={(value) => {
+              // The toggle is view-state, not a distinct page: replace (don't push) so
+              // Back skips past it, while the search param it writes still lets Back
+              // from a detail page restore whichever tab launched it. Shows carries no
+              // param (the canonical default); only Movies pins ?type=movies.
+              if (value === "shows" || value === "movies") {
+                // Reset the cross-segment filter on the switch so "Filter movies…"
+                // starts clean rather than carrying a show query into the movie library.
+                clearFilter();
+                void navigate({
+                  to: "/library",
+                  search: value === "movies" ? { type: "movies" } : {},
+                  replace: true,
+                });
+              }
+            }}
+          >
+            <ToggleGroup.Item className="segmented__item" value="shows" data-testid="type-shows">
+              Shows
+            </ToggleGroup.Item>
+            <ToggleGroup.Item className="segmented__item" value="movies" data-testid="type-movies">
+              Movies
+            </ToggleGroup.Item>
+          </ToggleGroup.Root>
+        )}
 
         <div className="library-controls__tools">
           <input

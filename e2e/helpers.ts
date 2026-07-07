@@ -139,6 +139,22 @@ export async function seedAuth(context: BrowserContext): Promise<void> {
 }
 
 /**
+ * Seed the device-local media-visibility pref into localStorage before
+ * the app boots, so a suite starts as a TV-only or movies-only user. Both-on is
+ * the default and needs no seed — the pref is purely additive and localStorage-only
+ * (never Trakt-synced), so a fresh context always boots with both media on.
+ */
+export async function seedMediaVisibility(
+  context: BrowserContext,
+  visibility: { readonly showsEnabled: boolean; readonly moviesEnabled: boolean },
+): Promise<void> {
+  await context.addInitScript((v) => {
+    localStorage.setItem("cue.shows-enabled", v.showsEnabled ? "1" : "0");
+    localStorage.setItem("cue.movies-enabled", v.moviesEnabled ? "1" : "0");
+  }, visibility);
+}
+
+/**
  * Force the given read routes to 401 while the request still carries the stale
  * bearer, then fall through to the already-registered fixture once the transport
  * has refreshed to a new token. Register AFTER the fixture/catch-all routes so

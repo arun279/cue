@@ -30,8 +30,8 @@ export interface LibraryBucketsView {
  * live staleness threshold. Reuses the shared cache so the screen paints instantly
  * on navigation with no extra fetch.
  */
-export function useLibraryBuckets(sort: LibrarySort): LibraryBucketsView {
-  const { query, data, byId, thresholdMs } = useLibrarySnapshot();
+export function useLibraryBuckets(sort: LibrarySort, enabled = true): LibraryBucketsView {
+  const { query, data, byId, thresholdMs } = useLibrarySnapshot(enabled);
 
   const buckets = useMemo<LibraryBucketView[]>(() => {
     if (data === undefined) return [];

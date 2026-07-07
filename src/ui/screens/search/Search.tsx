@@ -2,6 +2,7 @@ import type { SearchHit } from "@data/trakt/search";
 import { useBrowse } from "@ui/hooks/useBrowse";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { type SearchView, useSearch } from "@ui/hooks/useSearch";
+import { usePrefs } from "@ui/prefs/prefs-store";
 import { Snackbar } from "@ui/screens/up-next/Snackbar";
 import { type ReactElement, type ReactNode, useId } from "react";
 import { DiscoverGrid } from "./DiscoverCard";
@@ -30,16 +31,40 @@ function RailSkeleton(): ReactElement {
  * movie hits route to `/movie/:id` and add inline exactly like the show rails. */
 function Browse({ view }: { view: SearchView }): ReactElement {
   const browse = useBrowse();
+  const showsEnabled = usePrefs((s) => s.showsEnabled);
+  const moviesEnabled = usePrefs((s) => s.moviesEnabled);
+  // A single-medium user never sees the other medium's discover rails.
   const rows: readonly {
     readonly testId: string;
     readonly head: string;
     readonly hits: readonly SearchHit[];
+    readonly enabled: boolean;
   }[] = [
-    { testId: "discover-trending", head: "Trending shows", hits: browse.trending },
-    { testId: "discover-popular", head: "Popular shows", hits: browse.popular },
-    { testId: "discover-trending-movies", head: "Trending movies", hits: browse.trendingMovies },
-    { testId: "discover-popular-movies", head: "Popular movies", hits: browse.popularMovies },
-  ];
+    {
+      testId: "discover-trending",
+      head: "Trending shows",
+      hits: browse.trending,
+      enabled: showsEnabled,
+    },
+    {
+      testId: "discover-popular",
+      head: "Popular shows",
+      hits: browse.popular,
+      enabled: showsEnabled,
+    },
+    {
+      testId: "discover-trending-movies",
+      head: "Trending movies",
+      hits: browse.trendingMovies,
+      enabled: moviesEnabled,
+    },
+    {
+      testId: "discover-popular-movies",
+      head: "Popular movies",
+      hits: browse.popularMovies,
+      enabled: moviesEnabled,
+    },
+  ].filter((row) => row.enabled);
   const anyRail = rows.some((row) => row.hits.length > 0);
 
   let rails: ReactNode;
@@ -127,6 +152,15 @@ export function Search(): ReactElement {
   useDocumentTitle("Search · Cue");
   const view = useSearch();
   const inputId = useId();
+  const showsEnabled = usePrefs((s) => s.showsEnabled);
+  const moviesEnabled = usePrefs((s) => s.moviesEnabled);
+  // A single-medium user never sees the other medium as a result tile
+  // (which would be a live entry point into a hidden section).
+  const visibleHits = view.hits.filter((hit) =>
+    hit.type === "movie" ? moviesEnabled : showsEnabled,
+  );
+  const mediumWord =
+    showsEnabled && moviesEnabled ? "shows and movies" : showsEnabled ? "shows" : "movies";
 
   let body: ReactNode;
   if (view.status === "idle") {
@@ -152,7 +186,7 @@ export function Search(): ReactElement {
         </button>
       </div>
     );
-  } else if (view.status === "empty") {
+  } else if (view.status === "empty" || visibleHits.length === 0) {
     body = (
       <div className="empty" data-testid="search-no-results">
         <h2 className="empty__title">No matches for "{view.query}"</h2>
@@ -163,10 +197,10 @@ export function Search(): ReactElement {
     body = (
       <div className="discover-results">
         <p className="discover-results__count" role="status" data-testid="search-result-count">
-          {view.hits.length} {view.hits.length === 1 ? "result" : "results"} for "{view.query}"
+          {visibleHits.length} {visibleHits.length === 1 ? "result" : "results"} for "{view.query}"
         </p>
         <DiscoverGrid
-          hits={view.hits}
+          hits={visibleHits}
           tmdbConfig={null}
           isAdded={view.isAdded}
           onAdd={(hit) => void view.add(hit)}
@@ -184,7 +218,7 @@ export function Search(): ReactElement {
 
       <search className="discover-search">
         <label className="discover-search__label" htmlFor={inputId}>
-          Search shows and movies
+          Search {mediumWord}
         </label>
         <div className="discover-search__field">
           <svg className="discover-search__icon" viewBox="0 0 20 20" aria-hidden="true">
@@ -198,7 +232,7 @@ export function Search(): ReactElement {
             type="search"
             className="discover-search__input"
             data-testid="search-input"
-            placeholder="Search shows and movies…"
+            placeholder={`Search ${mediumWord}…`}
             autoComplete="off"
             value={view.input}
             onChange={(event) => view.setInput(event.target.value)}

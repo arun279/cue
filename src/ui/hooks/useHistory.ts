@@ -15,13 +15,16 @@ import { type HistorySection, type SubmitOutcome, useRuntime } from "@ui/runtime
 import { useCallback, useMemo, useRef, useState } from "react";
 
 /** The Diary type filter, in user words; mapped to the history endpoint slice. */
-type HistoryFilter = "all" | "tv" | "movies";
+export type HistoryFilter = "all" | "tv" | "movies";
 
 const SECTION: Record<HistoryFilter, HistorySection> = {
   all: "all",
   tv: "episodes",
   movies: "movies",
 };
+
+/** A locked (single-medium) Diary exposes no filter control, so its setter is inert. */
+const NOOP_SET_FILTER: (filter: HistoryFilter) => void = () => {};
 
 /**
  * The transient snackbar after a per-play removal. `removed` offers the Undo;
@@ -69,11 +72,15 @@ const withoutId = (set: ReadonlySet<number>, id: number): Set<number> => {
  * with an Undo that re-adds it best-effort. The query is `staleTime: Infinity`,
  * gated only by the last_activities poll, so a mark on any surface surfaces here.
  */
-export function useHistory(): HistoryView {
+export function useHistory(lockedFilter?: HistoryFilter): HistoryView {
   const runtime = useRuntime();
   const queryClient = useQueryClient();
   const submit = useOptimisticWrite();
-  const [filter, setFilter] = useState<HistoryFilter>("all");
+  // A single-medium user is pinned to their medium's slice with no
+  // in-Diary filter control; both-media users pick freely (default "all").
+  const [selectedFilter, setSelectedFilter] = useState<HistoryFilter>(lockedFilter ?? "all");
+  const filter = lockedFilter ?? selectedFilter;
+  const setFilter = lockedFilter ? NOOP_SET_FILTER : setSelectedFilter;
   // Optimistically-hidden plays (removed but not yet revalidated), so a removal
   // takes effect instantly and rolls back verbatim on a hard failure.
   const [removedIds, setRemovedIds] = useState<ReadonlySet<number>>(() => new Set());

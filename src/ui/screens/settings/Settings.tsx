@@ -5,7 +5,7 @@ import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { usePrefs } from "@ui/prefs/prefs-store";
 import { THRESHOLD_OPTIONS } from "@ui/prefs/threshold";
 import { ThemeToggle } from "@ui/theme/ThemeToggle";
-import { AlertDialog } from "radix-ui";
+import { AlertDialog, Switch } from "radix-ui";
 import { type ReactElement, useState } from "react";
 
 /** "2 weeks" / "3 weeks" — every threshold option is a whole number of weeks. */
@@ -26,8 +26,19 @@ export function Settings(): ReactElement {
   const disconnect = useAuth((s) => s.disconnect);
   const thresholdDays = usePrefs((s) => s.thresholdDays);
   const setThresholdDays = usePrefs((s) => s.setThresholdDays);
+  const showsEnabled = usePrefs((s) => s.showsEnabled);
+  const moviesEnabled = usePrefs((s) => s.moviesEnabled);
+  const setShowsEnabled = usePrefs((s) => s.setShowsEnabled);
+  const setMoviesEnabled = usePrefs((s) => s.setMoviesEnabled);
   const [disconnecting, setDisconnecting] = useState(false);
   const [disconnectError, setDisconnectError] = useState<string | null>(null);
+
+  // The one enabled medium can't be turned off — the app is never emptied of both.
+  const media = [
+    { key: "shows", label: "TV shows", enabled: showsEnabled, setEnabled: setShowsEnabled },
+    { key: "movies", label: "Movies", enabled: moviesEnabled, setEnabled: setMoviesEnabled },
+  ] as const;
+  const enabledCount = (showsEnabled ? 1 : 0) + (moviesEnabled ? 1 : 0);
 
   return (
     <section className="screen" data-testid="screen-settings">
@@ -51,6 +62,34 @@ export function Settings(): ReactElement {
           </dd>
         </div>
       </dl>
+
+      <h2 className="settings__heading">Content</h2>
+      <dl className="settings__list" data-testid="content-section">
+        {media.map((item) => {
+          const isLastEnabled = item.enabled && enabledCount === 1;
+          return (
+            <div className="settings__row" key={item.key}>
+              <dt>{item.label}</dt>
+              <dd>
+                <Switch.Root
+                  className="switch"
+                  checked={item.enabled}
+                  disabled={isLastEnabled}
+                  onCheckedChange={(checked) => item.setEnabled(checked)}
+                  aria-label={item.label}
+                  data-testid={`content-toggle-${item.key}`}
+                >
+                  <Switch.Thumb className="switch__thumb" />
+                </Switch.Root>
+              </dd>
+            </div>
+          );
+        })}
+      </dl>
+      <p className="settings__note" data-testid="content-hint">
+        Track TV shows, movies, or both. Turn off a medium and Cue hides it everywhere — Library,
+        Search, and your history. At least one stays on.
+      </p>
 
       <h2 className="settings__heading">Preferences</h2>
       <dl className="settings__list">

@@ -2,8 +2,9 @@ import { Link, Outlet } from "@tanstack/react-router";
 import { CueMark } from "@ui/app-shell/CueMark";
 import { ErrorBoundary } from "@ui/app-shell/ErrorBoundary";
 import { NavIcon } from "@ui/app-shell/NavIcon";
-import { navDestinations } from "@ui/app-shell/nav";
+import { navFor } from "@ui/app-shell/nav";
 import { useActivitiesPoll } from "@ui/hooks/useActivitiesPoll";
+import { usePrefs } from "@ui/prefs/prefs-store";
 import type { ReactElement, ReactNode } from "react";
 
 /**
@@ -30,7 +31,8 @@ function Brand(): ReactElement {
 }
 
 function NavLinks(): ReactNode {
-  return navDestinations.map((destination) => (
+  const showsEnabled = usePrefs((s) => s.showsEnabled);
+  return navFor({ showsEnabled }).map((destination) => (
     <Link
       key={destination.path}
       to={destination.path}

@@ -74,12 +74,18 @@ function comparatorFor(sort: MovieSort): (a: MovieEntry, b: MovieEntry) => numbe
  * only, so the segments never double-count. Reuses the shared cache so both the
  * Library screen and Movie detail read one query.
  */
-export function useMovieLibrary(sort: MovieSort = "recently-watched"): MovieLibraryView {
+export function useMovieLibrary(
+  sort: MovieSort = "recently-watched",
+  enabled = true,
+): MovieLibraryView {
   const runtime = useRuntime();
   const query = useQuery({
     queryKey: queryKeys.movieLibrary(),
     queryFn: () => runtime.loadMovieLibrary(),
     staleTime: USER_STATE_STALE_TIME,
+    // A single-medium user never fetches the medium they turned off — a
+    // movies-off Library leaves this query idle rather than reading a hidden section.
+    enabled,
   });
 
   const entries = query.data?.entries;

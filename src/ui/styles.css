@@ -432,6 +432,10 @@ body {
 .switch__thumb[data-state="checked"] {
   transform: translateX(1.3rem);
 }
+.switch[data-disabled] {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
 
 /* ---- Buttons + error boundary ---- */
 .button {
@@ -1247,6 +1251,11 @@ body {
   gap: var(--space-3);
   margin-bottom: var(--space-3);
   flex-wrap: wrap;
+}
+/* A single-medium library has no Shows/Movies toggle, so keep the filter + sort
+   tools trailing-aligned where the toggle used to sit. */
+.library-controls[data-single-medium] .library-controls__tools {
+  margin-left: auto;
 }
 .segmented {
   display: inline-flex;

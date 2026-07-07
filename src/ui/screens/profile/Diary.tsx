@@ -2,7 +2,8 @@ import type { TmdbImageConfig } from "@data/image-source";
 import type { HistoryDay, HistoryEntry, HistoryGroup } from "@domain/history";
 import { localTimeZone } from "@domain/time";
 import { Link } from "@tanstack/react-router";
-import { useHistory } from "@ui/hooks/useHistory";
+import { type HistoryFilter, useHistory } from "@ui/hooks/useHistory";
+import { usePrefs } from "@ui/prefs/prefs-store";
 import { episodeCode } from "@ui/screens/up-next/format";
 import { Poster } from "@ui/screens/up-next/Poster";
 import { Snackbar } from "@ui/screens/up-next/Snackbar";
@@ -275,7 +276,16 @@ function DiarySkeleton(): ReactElement {
  * earlier" footer that walks history one page at a time.
  */
 export function Diary(): ReactElement {
-  const view = useHistory();
+  const showsEnabled = usePrefs((s) => s.showsEnabled);
+  const moviesEnabled = usePrefs((s) => s.moviesEnabled);
+  // A single-medium user sees only their medium's plays and no filter
+  // toggle — the same "one active medium shows no toggle" idiom as the Library.
+  const lockedFilter: HistoryFilter | undefined = !moviesEnabled
+    ? "tv"
+    : !showsEnabled
+      ? "movies"
+      : undefined;
+  const view = useHistory(lockedFilter);
 
   let body: ReactNode;
   if (view.isLoading) {
@@ -363,26 +373,28 @@ export function Diary(): ReactElement {
     <section className="diary" data-testid="profile-diary" aria-label="Watch history">
       <div className="diary__head">
         <h2 className="diary__title">Watch history</h2>
-        <ToggleGroup.Root
-          type="single"
-          className="segmented"
-          aria-label="History type"
-          value={view.filter}
-          onValueChange={(value) => {
-            if (value !== "") view.setFilter(value as typeof view.filter);
-          }}
-        >
-          {FILTERS.map((option) => (
-            <ToggleGroup.Item
-              key={option.value}
-              className="segmented__item"
-              value={option.value}
-              data-testid={`diary-filter-${option.value}`}
-            >
-              {option.label}
-            </ToggleGroup.Item>
-          ))}
-        </ToggleGroup.Root>
+        {lockedFilter === undefined && (
+          <ToggleGroup.Root
+            type="single"
+            className="segmented"
+            aria-label="History type"
+            value={view.filter}
+            onValueChange={(value) => {
+              if (value !== "") view.setFilter(value as typeof view.filter);
+            }}
+          >
+            {FILTERS.map((option) => (
+              <ToggleGroup.Item
+                key={option.value}
+                className="segmented__item"
+                value={option.value}
+                data-testid={`diary-filter-${option.value}`}
+              >
+                {option.label}
+              </ToggleGroup.Item>
+            ))}
+          </ToggleGroup.Root>
+        )}
       </div>
 
       {body}

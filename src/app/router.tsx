@@ -1,14 +1,27 @@
 import { createRootRoute, createRoute, createRouter, redirect } from "@tanstack/react-router";
 import { RootLayout } from "@ui/app-shell/RootLayout";
+import { usePrefs } from "@ui/prefs/prefs-store";
 
 const rootRoute = createRootRoute({ component: RootLayout });
 
-const upNextRoute = createRoute({ getParentRoute: () => rootRoute, path: "/" }).lazy(() =>
-  import("@app/routes/up-next.lazy").then((module) => module.Route),
-);
-const calendarRoute = createRoute({ getParentRoute: () => rootRoute, path: "/calendar" }).lazy(() =>
-  import("@app/routes/calendar.lazy").then((module) => module.Route),
-);
+// Up Next, Calendar, and the show/episode detail pages are TV-centric surfaces; a
+// movies-only app (TV disabled in Settings) routes their deep links home
+// to the movies Library rather than paint a screen for a hidden medium. The nav
+// already omits the tabs; this guards the URL — including stale show/episode links.
+const requireShows = (): void => {
+  if (!usePrefs.getState().showsEnabled) throw redirect({ to: "/library" });
+};
+
+const upNextRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/",
+  beforeLoad: requireShows,
+}).lazy(() => import("@app/routes/up-next.lazy").then((module) => module.Route));
+const calendarRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/calendar",
+  beforeLoad: requireShows,
+}).lazy(() => import("@app/routes/calendar.lazy").then((module) => module.Route));
 /** Library view-state lives in the URL so it is deep-linkable and, crucially, so
  * browser history restores the tab you were on: Movies → movie detail → Back now
  * returns to Movies (previously it reset to Shows). Shows is the canonical default
@@ -22,6 +35,13 @@ const libraryRoute = createRoute({
   path: "/library",
   validateSearch: (search: Record<string, unknown>): LibrarySearch =>
     search["type"] === "movies" ? { type: "movies" } : {},
+  // A `?type=movies` deep link is meaningless once Movies are turned off; drop the
+  // param so Library lands cleanly on Shows.
+  beforeLoad: ({ search }) => {
+    if (search.type === "movies" && !usePrefs.getState().moviesEnabled) {
+      throw redirect({ to: "/library" });
+    }
+  },
 }).lazy(() => import("@app/routes/library.lazy").then((module) => module.Route));
 const searchRoute = createRoute({ getParentRoute: () => rootRoute, path: "/search" }).lazy(() =>
   import("@app/routes/search.lazy").then((module) => module.Route),
@@ -65,6 +85,7 @@ const settingsRoute = createRoute({ getParentRoute: () => rootRoute, path: "/set
 const showRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/show/$showId",
+  beforeLoad: requireShows,
 }).lazy(() => import("@app/routes/show.lazy").then((module) => module.Route));
 const movieRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -73,6 +94,7 @@ const movieRoute = createRoute({
 const episodeRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/show/$showId/episode/$season/$episode",
+  beforeLoad: requireShows,
 }).lazy(() => import("@app/routes/episode.lazy").then((module) => module.Route));
 
 const routeTree = rootRoute.addChildren([

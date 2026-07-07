@@ -12,6 +12,7 @@ import { useMovieLibrary } from "@ui/hooks/useMovieLibrary";
 import { useMovieRelated } from "@ui/hooks/useMovieRelated";
 import { useRate } from "@ui/hooks/useRate";
 import { useWatchlistAdd } from "@ui/hooks/useWatchlistAdd";
+import { usePrefs } from "@ui/prefs/prefs-store";
 import { DiscoverGrid } from "@ui/screens/search/DiscoverCard";
 import { formatAirDate, formatWatchedDate, titleCase } from "@ui/screens/up-next/format";
 import { Poster } from "@ui/screens/up-next/Poster";
@@ -163,7 +164,7 @@ function MovieHero({
  * with Undo. Every state is designed: hero skeleton, hard-error retry, and an
  * unwatched movie that carries no logged date.
  */
-export function MovieDetail({ movieId }: { readonly movieId: number }): ReactElement {
+function MovieDetailContent({ movieId }: { readonly movieId: number }): ReactElement {
   const detail = useMovieDetail(movieId);
   const library = useMovieLibrary();
   const actions = useMovieActions();
@@ -274,4 +275,38 @@ export function MovieDetail({ movieId }: { readonly movieId: number }): ReactEle
       )}
     </section>
   );
+}
+
+/**
+ * Movie-detail route gate. When Movies are turned off, a stale link or
+ * bookmark lands on a quiet notice with a way back on — and, crucially, the movie
+ * read hooks live in `MovieDetailContent`, which only mounts when Movies are on, so
+ * a hidden medium issues no movie reads (never a detail/library/related fetch for a
+ * disabled section). With Movies on, the full detail page renders unchanged.
+ */
+export function MovieDetail({ movieId }: { readonly movieId: number }): ReactElement {
+  const moviesEnabled = usePrefs((s) => s.moviesEnabled);
+  if (!moviesEnabled) {
+    return (
+      <section className="screen screen--detail" data-testid="screen-movie-detail">
+        <DetailBack
+          testId="movie-back"
+          label="‹ Back"
+          fallback={
+            <Link to="/library" className="detail-back" data-testid="movie-back">
+              ‹ Library
+            </Link>
+          }
+        />
+        <div className="empty" data-testid="movies-off">
+          <h2 className="empty__title">Movies are turned off</h2>
+          <p className="empty__body">Turn Movies back on in Settings to browse and track films.</p>
+          <Link className="button" to="/settings" data-testid="movies-off-settings">
+            Open Settings
+          </Link>
+        </div>
+      </section>
+    );
+  }
+  return <MovieDetailContent movieId={movieId} />;
 }

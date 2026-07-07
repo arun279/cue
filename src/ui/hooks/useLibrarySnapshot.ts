@@ -21,12 +21,15 @@ export interface LibrarySnapshot {
  * and My Shows both paint from, plus the live threshold and an id→entry index. One
  * source so both hooks stay in lock-step and neither re-fetches on navigation.
  */
-export function useLibrarySnapshot(): LibrarySnapshot {
+export function useLibrarySnapshot(enabled = true): LibrarySnapshot {
   const runtime = useRuntime();
   const query = useQuery({
     queryKey: queryKeys.library(),
     queryFn: () => runtime.loadUpNext(),
     staleTime: USER_STATE_STALE_TIME,
+    // A movies-only user has no TV surfaces, so the shared library read
+    // stays idle rather than fetching a hidden medium's Up Next / bucket snapshot.
+    enabled,
   });
   const thresholdDays = usePrefs((s) => s.thresholdDays);
   const data = query.data;

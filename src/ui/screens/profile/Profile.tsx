@@ -4,6 +4,8 @@ import { Link } from "@tanstack/react-router";
 import { SyncStatusPill } from "@ui/components/SyncStatusPill";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { useStats } from "@ui/hooks/useStats";
+import type { MediaVisibility } from "@ui/prefs/media-visibility";
+import { usePrefs } from "@ui/prefs/prefs-store";
 import { Diary } from "@ui/screens/profile/Diary";
 import type { ReactElement, ReactNode } from "react";
 
@@ -14,22 +16,64 @@ interface CountTile {
   readonly testId: string;
   readonly label: string;
   readonly value: number;
+  readonly medium: "tv" | "movies";
 }
 
-function countTiles(stats: UserStats): readonly CountTile[] {
-  return [
-    { key: "episodes", testId: "stat-episodes", label: "Episodes", value: stats.episodes.watched },
-    { key: "movies", testId: "stat-movies", label: "Movies", value: stats.movies.watched },
-    { key: "shows", testId: "stat-shows", label: "Shows", value: stats.shows.watched },
+/** The count tiles for the enabled media, in the canonical order (Episodes /
+ * Movies / Shows). A single-medium user sees only their medium's tiles;
+ * the honesty rule is that watch-time and tiles move together — never a Movies tile
+ * hidden while its minutes still swell the total (or vice-versa). */
+function countTiles(
+  stats: UserStats,
+  { showsEnabled, moviesEnabled }: MediaVisibility,
+): CountTile[] {
+  const tiles: CountTile[] = [
+    {
+      key: "episodes",
+      testId: "stat-episodes",
+      label: "Episodes",
+      value: stats.episodes.watched,
+      medium: "tv",
+    },
+    {
+      key: "movies",
+      testId: "stat-movies",
+      label: "Movies",
+      value: stats.movies.watched,
+      medium: "movies",
+    },
+    {
+      key: "shows",
+      testId: "stat-shows",
+      label: "Shows",
+      value: stats.shows.watched,
+      medium: "tv",
+    },
   ];
+  return tiles.filter((tile) => (tile.medium === "movies" ? moviesEnabled : showsEnabled));
 }
 
-function isAllZero(stats: UserStats): boolean {
-  return stats.episodes.watched === 0 && stats.movies.watched === 0 && stats.shows.watched === 0;
+/** Empty over the enabled media only: a movies-only user with zero movies gets the
+ * empty state even if they have (now-hidden) TV history, and vice-versa. */
+function isAllZero(stats: UserStats, { showsEnabled, moviesEnabled }: MediaVisibility): boolean {
+  const tvZero = stats.episodes.watched === 0 && stats.shows.watched === 0;
+  const moviesZero = stats.movies.watched === 0;
+  return (!showsEnabled || tvZero) && (!moviesEnabled || moviesZero);
 }
 
-function Theatre({ stats }: { readonly stats: UserStats }): ReactElement {
-  const time = humanizeWatchMinutes(stats.episodes.minutes + stats.movies.minutes);
+function Theatre({
+  stats,
+  visibility,
+}: {
+  readonly stats: UserStats;
+  readonly visibility: MediaVisibility;
+}): ReactElement {
+  // Total watch time counts only the enabled media, so the hero figure and the
+  // tiles below it always describe the same thing.
+  const minutes =
+    (visibility.showsEnabled ? stats.episodes.minutes : 0) +
+    (visibility.moviesEnabled ? stats.movies.minutes : 0);
+  const time = humanizeWatchMinutes(minutes);
   return (
     <div className="stat-theatre" data-testid="stat-theatre">
       <article className="stat-tile stat-tile--hero" data-testid="stat-time">
@@ -41,7 +85,7 @@ function Theatre({ stats }: { readonly stats: UserStats }): ReactElement {
         <p className="stat-tile__detail">{time.detail}</p>
       </article>
       <div className="stat-row">
-        {countTiles(stats).map((tile) => (
+        {countTiles(stats, visibility).map((tile) => (
           <article key={tile.key} className="stat-tile" data-testid={tile.testId}>
             <p className="stat-tile__value stat-tile__value--count">{COUNT.format(tile.value)}</p>
             <p className="stat-tile__label">{tile.label}</p>
@@ -85,6 +129,9 @@ function Skeleton(): ReactElement {
 export function Profile(): ReactElement {
   useDocumentTitle("Profile · Cue");
   const view = useStats();
+  const showsEnabled = usePrefs((s) => s.showsEnabled);
+  const moviesEnabled = usePrefs((s) => s.moviesEnabled);
+  const visibility: MediaVisibility = { showsEnabled, moviesEnabled };
 
   let body: ReactNode;
   if (view.isLoading) {
@@ -104,7 +151,7 @@ export function Profile(): ReactElement {
         </button>
       </div>
     );
-  } else if (view.stats === undefined || isAllZero(view.stats)) {
+  } else if (view.stats === undefined || isAllZero(view.stats, visibility)) {
     body = (
       <div className="empty" data-testid="profile-empty">
         <h2 className="empty__title">Your theatre is waiting</h2>
@@ -118,7 +165,7 @@ export function Profile(): ReactElement {
       </div>
     );
   } else {
-    body = <Theatre stats={view.stats} />;
+    body = <Theatre stats={view.stats} visibility={visibility} />;
   }
 
   return (
