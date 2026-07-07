@@ -1,9 +1,12 @@
 import { expect, test } from "@playwright/test";
 import {
   agoIso,
+  type CalendarEpisodeFixture,
   type EpisodeFixture,
+  installCalendarRoutes,
   installHermeticRoutes,
   installLibraryRoutes,
+  readStored,
   type ShowFixture,
   seedAuth,
   seededBulkOp,
@@ -92,6 +95,135 @@ test("streams the hero then the season tree", async ({ page }) => {
   await expect(page.getByTestId("overall-progress")).toHaveAttribute("aria-valuenow", "29");
   // Specials + Season 1 + Season 2, sorted ascending (specials first).
   await expect(page.getByTestId("season-panel")).toHaveCount(3);
+});
+
+test("a mark from Up Next refreshes this show's detail progress — and it survives a reload", async ({
+  page,
+}) => {
+  // The regression: marking an episode from Up Next advanced Up Next/Library but
+  // left the show-detail header, season ticks and next-up reading the PRE-mark
+  // cache — and it stayed wrong across reloads with the sync pill at rest, because
+  // the mark invalidated only ['library'], not this show's header/seasons queries.
+  // Navigation is client-side (Links, not full reloads) so the QueryClient stays in
+  // memory and the stale-cache path the bug lived on is exercised faithfully.
+  const controls = await installLibraryRoutes(page.context(), [detailShow()]);
+  await page.goto("/");
+
+  const card = page.getByTestId("up-next-card").first();
+  await expect(card.getByTestId("episode-code")).toHaveText("S01E03");
+
+  // Visit the show detail first so its header/seasons are cached at the pre-mark
+  // state (2/7, next up S01E03, S01E03 unwatched) — this is the cache that went stale.
+  await card.locator(".card__title-link").click();
+  await expect(page.getByTestId("overall-progress")).toHaveAttribute("aria-valuenow", "29");
+  await expect(page.getByTestId("next-callout")).toContainText("S01E03");
+  await expandSeason(page, 1);
+  const s1e3 = page
+    .getByTestId("episode-row")
+    .filter({ hasText: "S01E03" })
+    .getByTestId("episode-toggle");
+  await expect(s1e3).not.toBeChecked();
+
+  // Back to Up Next (client-side) and mark S01E03 (id 13); let the write land.
+  await page.getByTestId("detail-back").click();
+  await expect(card.getByTestId("mark-watched")).toBeVisible();
+  await card.getByTestId("mark-watched").click();
+  await expect(card.getByTestId("episode-code")).toHaveText("S01E04");
+  await expect.poll(() => controls.historyPosts().length).toBe(1);
+  await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "synced");
+
+  // Re-open the show detail over the now-stale in-memory cache: header (3/7),
+  // next-up (S01E04) and the season tick must reflect the new progress — this is
+  // what the missing header/seasons invalidation used to leave reading 2/7 / S01E03.
+  await card.locator(".card__title-link").click();
+  await expect(page.getByTestId("overall-progress")).toHaveAttribute("aria-valuenow", "43");
+  await expect(page.getByTestId("next-callout")).toContainText("S01E04");
+  await expandSeason(page, 1);
+  await expect(s1e3).toBeChecked();
+
+  // Durable across a full reload: the persisted show-detail cache is corrected, so
+  // it stays right even though nothing is left to sync (pill at rest, log drained).
+  await page.reload();
+  await expect(page.getByTestId("overall-progress")).toHaveAttribute("aria-valuenow", "43");
+  await expect(page.getByTestId("next-callout")).toContainText("S01E04");
+  await expandSeason(page, 1);
+  await expect(s1e3).toBeChecked();
+
+  await page.goto("/");
+  await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "synced");
+  expect(await readStored(page, "cue.write-queue")).toBe("[]");
+});
+
+// 12:00 in America/New_York (the fixed calendar tz), so the aired row (14:00Z =
+// 10:00 local) reads as already-aired "today" and exposes the quick mark-watched.
+const CALENDAR_NOW = new Date("2026-07-15T16:00:00.000Z");
+
+/** An aired-today Calendar row for The Detail Show's next unwatched episode (S01E03, id 13). */
+function detailShowCalendarRow(): CalendarEpisodeFixture {
+  return {
+    showId: 1,
+    showTitle: "The Detail Show",
+    season: 1,
+    number: 3,
+    title: "Episode 3",
+    firstAired: "2026-07-15T14:00:00.000Z",
+    traktId: 13,
+  };
+}
+
+test("a mark from the Calendar refreshes this show's detail progress — and it survives a reload", async ({
+  page,
+}) => {
+  // The same regression as the Up Next case, on the Calendar quick-mark surface:
+  // that mark invalidated only the calendar window + `library`, never this show's
+  // header/seasons/episode, so the show detail stayed at pre-mark progress across
+  // reloads. Calendar routes are registered first so the library `/sync/history`
+  // handler (which advances the fixture's `completed`) wins the shared path.
+  await page.clock.setFixedTime(CALENDAR_NOW);
+  await installCalendarRoutes(page.context(), [detailShowCalendarRow()]);
+  const controls = await installLibraryRoutes(page.context(), [detailShow()]);
+
+  // Cache the show detail at the pre-mark state (2/7, next up S01E03, S01E03 unwatched).
+  await page.goto("/show/1");
+  await expect(page.getByTestId("overall-progress")).toHaveAttribute("aria-valuenow", "29");
+  await expect(page.getByTestId("next-callout")).toContainText("S01E03");
+  await expandSeason(page, 1);
+  const s1e3 = page
+    .getByTestId("episode-row")
+    .filter({ hasText: "S01E03" })
+    .getByTestId("episode-toggle");
+  await expect(s1e3).not.toBeChecked();
+
+  // Client-side to the Calendar; mark the aired S01E03 row and let the write land.
+  await page.getByRole("link", { name: "Calendar", exact: true }).first().click();
+  await expect(page.getByTestId("screen-calendar")).toBeVisible();
+  await page.getByTestId("calendar-mark").click();
+  await expect(page.getByTestId("calendar-watched")).toBeVisible(); // optimistic
+  await expect.poll(() => controls.historyPosts().length).toBe(1);
+  expect(controls.historyPosts()[0]?.episodeIds).toEqual([13]);
+
+  // Re-open the show detail over the now-stale in-memory cache (Up Next → title
+  // link): header (3/7), next-up (S01E04) and the S01E03 tick must reflect the mark
+  // — this is what a `library`-only invalidation used to leave reading 2/7 / S01E03.
+  await page.getByRole("link", { name: "Up Next", exact: true }).first().click();
+  const card = page.getByTestId("up-next-card").first();
+  await expect(card.getByTestId("episode-code")).toHaveText("S01E04");
+  await card.locator(".card__title-link").click();
+  await expect(page.getByTestId("overall-progress")).toHaveAttribute("aria-valuenow", "43");
+  await expect(page.getByTestId("next-callout")).toContainText("S01E04");
+  await expandSeason(page, 1);
+  await expect(s1e3).toBeChecked();
+
+  // Durable across a full reload: the persisted show-detail cache is corrected.
+  await page.reload();
+  await expect(page.getByTestId("overall-progress")).toHaveAttribute("aria-valuenow", "43");
+  await expect(page.getByTestId("next-callout")).toContainText("S01E04");
+  await expandSeason(page, 1);
+  await expect(s1e3).toBeChecked();
+
+  await page.getByRole("link", { name: "Up Next", exact: true }).first().click();
+  await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "synced");
+  expect(await readStored(page, "cue.write-queue")).toBe("[]");
 });
 
 test("Mark up to here fires ONE batched POST with only the aired, unwatched delta — no unaired, no specials", async ({

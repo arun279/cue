@@ -48,6 +48,35 @@ function keysForTarget(target: InvalidationTarget): readonly InvalidationKey[] {
 }
 
 /**
+ * The cached queries a local watched-progress mark on show X must refresh,
+ * whichever surface issued it: the Up Next `library` aggregate PLUS the show's own
+ * detail reads — its header (overall `X/Y` + next-up) and its season tree
+ * (per-season counts + per-episode ticks) — and, when the mark targets one known
+ * episode, that episode's detail read.
+ *
+ * These per-show keys are deliberately ABSENT from `keysForTarget` above: the
+ * last-activities gate maps a *remote* diff, and it stores the app's own write
+ * timestamp, so on reload remote == stored and a local mark never re-syncs them.
+ * A mark surface that invalidates only `library` therefore leaves the show-detail
+ * persisted cache reading pre-mark progress until an unrelated remote change (or
+ * the content window lapsing). Invalidating them at the mark seam marks the
+ * (usually inactive) show-detail queries stale so they refetch on next mount —
+ * and, because the invalidated flag is persisted, after a full reload too.
+ */
+export function showProgressKeys(
+  showId: number,
+  episode?: { readonly season: number; readonly number: number },
+): InvalidationKey[] {
+  const keys: InvalidationKey[] = [
+    queryKeys.library(),
+    queryKeys.showHeader(showId),
+    queryKeys.showSeasons(showId),
+  ];
+  if (episode !== undefined) keys.push(queryKeys.episode(showId, episode.season, episode.number));
+  return keys;
+}
+
+/**
  * Fold a diffed target set to the exact, de-duplicated composite keys to
  * invalidate. Keys are compared by JSON identity so `library` + `userStats`
  * appearing from several targets collapse to one invalidation each.

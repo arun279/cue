@@ -1,6 +1,42 @@
-import { invalidationKeys } from "@data/query-invalidation";
+import { invalidationKeys, showProgressKeys } from "@data/query-invalidation";
 import { queryKeys } from "@data/query-keys";
 import { describe, expect, it } from "vitest";
+
+describe("showProgressKeys — the keys a local mark on show X must refresh", () => {
+  it("invalidates the library aggregate AND the show's own detail views, not just library", () => {
+    const keys = showProgressKeys(42);
+    expect(keys).toEqual([
+      queryKeys.library(),
+      queryKeys.showHeader(42),
+      queryKeys.showSeasons(42),
+    ]);
+    // The regression this guards: a mark that touched only `library` left the
+    // show-detail header/seasons persisted cache stale across reloads.
+    expect(keys).toContainEqual(queryKeys.showHeader(42));
+    expect(keys).toContainEqual(queryKeys.showSeasons(42));
+  });
+
+  it("adds the marked episode's detail read when an episode coordinate is given", () => {
+    expect(showProgressKeys(42, { season: 1, number: 5 })).toEqual([
+      queryKeys.library(),
+      queryKeys.showHeader(42),
+      queryKeys.showSeasons(42),
+      queryKeys.episode(42, 1, 5),
+    ]);
+  });
+
+  it("omits the episode key for a whole-season / range mark (no single coordinate)", () => {
+    expect(showProgressKeys(7)).not.toContainEqual(queryKeys.episode(7, 0, 0));
+    expect(showProgressKeys(7)).toHaveLength(3);
+  });
+
+  it("scopes the show-detail keys to the marked show id", () => {
+    const keys = showProgressKeys(99, { season: 2, number: 3 });
+    expect(keys).toContainEqual(queryKeys.showHeader(99));
+    expect(keys).not.toContainEqual(queryKeys.showHeader(42));
+    expect(keys).toContainEqual(queryKeys.episode(99, 2, 3));
+  });
+});
 
 describe("invalidationKeys maps last_activities targets to cached query keys", () => {
   it("routes an episode watch to the library + user stats", () => {

@@ -1,4 +1,5 @@
 import type { TmdbImageConfig } from "@data/image-source";
+import { showProgressKeys } from "@data/query-invalidation";
 import { queryKeys } from "@data/query-keys";
 import {
   CALENDAR_TIME_ZONE,
@@ -100,9 +101,19 @@ export function useCalendar(): CalendarView {
             return next;
           }),
         `Couldn't mark ${row.showTitle} watched. Please try again.`,
+        // A quick mark here is a watched-progress write like any other: refresh the
+        // calendar window (this episode leaves the "unwatched aired" set) AND the
+        // marked show's detail views via `showProgressKeys`, else the show-detail
+        // header/seasons/episode read pre-mark progress until an unrelated remote
+        // change — the same stale-cache defect the Up Next mark had.
         () => {
           void queryClient.invalidateQueries({ queryKey: queryKeys.calendarPrefix() });
-          void queryClient.invalidateQueries({ queryKey: queryKeys.library() });
+          for (const queryKey of showProgressKeys(row.showId, {
+            season: row.season,
+            number: row.number,
+          })) {
+            void queryClient.invalidateQueries({ queryKey });
+          }
         },
       );
     },

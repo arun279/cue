@@ -1,3 +1,4 @@
+import { showProgressKeys } from "@data/query-invalidation";
 import { queryKeys } from "@data/query-keys";
 import type { EpisodeView, SeasonView, ShowHeader } from "@data/trakt/show-detail";
 import type { ShowIds } from "@domain/model/ids";
@@ -119,11 +120,14 @@ export function useMarkSeason(): MarkSeasonController {
     [queryClient],
   );
 
+  // Bulk marks (whole-season / up-to-here) span a range with no single coordinate,
+  // so they refresh only the aggregate + season tree; a single-episode toggle passes
+  // its coordinate too so that episode's own detail read is invalidated as well.
   const revalidate = useCallback(
-    (showId: number) => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.showSeasons(showId) });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.showHeader(showId) });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.library() });
+    (showId: number, episode?: { readonly season: number; readonly number: number }) => {
+      for (const queryKey of showProgressKeys(showId, episode)) {
+        void queryClient.invalidateQueries({ queryKey });
+      }
     },
     [queryClient],
   );
@@ -249,7 +253,8 @@ export function useMarkSeason(): MarkSeasonController {
       const outcome = await submit([op], {
         rollback: () => patch(target.showId, matchEpisode, !next),
         onKept: next ? () => resume.resumeIfStopped(target.showId, target.ids) : undefined,
-        revalidate: () => revalidate(target.showId),
+        revalidate: () =>
+          revalidate(target.showId, { season: episode.season, number: episode.number }),
       });
       if (outcome === "failed") setError("Couldn't update that episode. Please try again.");
     },

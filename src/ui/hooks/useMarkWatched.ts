@@ -1,3 +1,4 @@
+import { showProgressKeys } from "@data/query-invalidation";
 import { queryKeys } from "@data/query-keys";
 import { advancePastNext, type LibraryEntry, type MarkContext } from "@data/trakt/library";
 import { isTerminalStatus } from "@domain/watch-status";
@@ -34,6 +35,9 @@ interface PendingUndo {
   readonly episodeCode: string;
   readonly finished: boolean;
   readonly episodeIds: NonNullable<LibraryEntry["nextEpisode"]>["ids"];
+  /** The marked episode's coordinate, so Undo can invalidate its detail read too. */
+  readonly season: number;
+  readonly number: number;
   readonly watchedAt: string;
   readonly preCompleted: number;
   readonly beforeMark: LibraryEntry;
@@ -80,8 +84,17 @@ export function useMarkWatched(): MarkWatched {
     [queryClient],
   );
 
+  // A mark from Up Next advances the library card, but the marked show's detail
+  // views (header X/Y + next-up, season ticks, the marked episode) live on
+  // separate cache keys the last-activities gate never re-syncs for a local write.
+  // Invalidate them alongside `library` so they refetch on next visit — durably,
+  // since the invalidated flag persists across a reload.
   const revalidate = useCallback(
-    () => void queryClient.invalidateQueries({ queryKey: queryKeys.library() }),
+    (showId: number, episode: { readonly season: number; readonly number: number }) => {
+      for (const queryKey of showProgressKeys(showId, episode)) {
+        void queryClient.invalidateQueries({ queryKey });
+      }
+    },
     [queryClient],
   );
 
@@ -116,6 +129,8 @@ export function useMarkWatched(): MarkWatched {
         episodeCode,
         finished,
         episodeIds: episode.ids,
+        season: episode.season,
+        number: episode.number,
         watchedAt,
         preCompleted: entry.completed,
         beforeMark,
@@ -136,7 +151,8 @@ export function useMarkWatched(): MarkWatched {
       try {
         outcome = await submit([op], {
           rollback: () => patch(entry.showId, () => beforeMark),
-          revalidate,
+          revalidate: () =>
+            revalidate(entry.showId, { season: episode.season, number: episode.number }),
         });
       } finally {
         // The write has settled (done | failed | deferred) — or submit threw
@@ -177,7 +193,8 @@ export function useMarkWatched(): MarkWatched {
     const outcome = await submit([op], {
       rollback: () =>
         patch(pending.showId, () => advancePastNext(pending.beforeMark, pending.watchedAt)),
-      revalidate,
+      revalidate: () =>
+        revalidate(pending.showId, { season: pending.season, number: pending.number }),
     });
     if (outcome === "failed") setError(`Couldn't undo ${pending.title}. Please try again.`);
   }, [undo, patch, revalidate, submit]);

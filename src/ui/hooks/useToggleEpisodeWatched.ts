@@ -1,3 +1,4 @@
+import { showProgressKeys } from "@data/query-invalidation";
 import { queryKeys } from "@data/query-keys";
 import type { EpisodeDetail } from "@data/trakt/episode-detail";
 import type { ShowHeader } from "@data/trakt/show-detail";
@@ -68,10 +69,12 @@ export function useToggleEpisodeWatched(): ToggleEpisodeWatched {
             ? () => resume.resumeIfStopped(episode.showId, header.ids)
             : undefined,
         revalidate: () => {
-          void queryClient.invalidateQueries({ queryKey: key });
-          void queryClient.invalidateQueries({ queryKey: queryKeys.showSeasons(episode.showId) });
-          void queryClient.invalidateQueries({ queryKey: queryKeys.showHeader(episode.showId) });
-          void queryClient.invalidateQueries({ queryKey: queryKeys.library() });
+          for (const queryKey of showProgressKeys(episode.showId, {
+            season: episode.season,
+            number: episode.number,
+          })) {
+            void queryClient.invalidateQueries({ queryKey });
+          }
         },
       });
       if (outcome === "failed") setError("Couldn't update this episode. Please try again.");
