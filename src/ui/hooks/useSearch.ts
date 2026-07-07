@@ -117,7 +117,11 @@ export function useSearch(): SearchView {
       setAdded((prev) => new Set(prev).add(key));
       const section = sectionOf(hit.type);
       const op = buildAddWatchlistOp({ opId: crypto.randomUUID(), section, ids: hit.ids });
-      const ok = await write.run(
+      // The seam revalidates only once the write lands, so the library re-read
+      // materializes the watchlisted item (and a Search remount reseeds its added
+      // state from Trakt) — a still-deferred add keeps the optimistic "Added" without
+      // a refetch that would read pre-add state.
+      await write.run(
         op,
         () =>
           setAdded((prev) => {
@@ -126,13 +130,11 @@ export function useSearch(): SearchView {
             return next;
           }),
         `Couldn't add ${hit.title} to your watchlist. Please try again.`,
+        () => {
+          void queryClient.invalidateQueries({ queryKey: queryKeys.watchlist(section) });
+          void queryClient.invalidateQueries({ queryKey: queryKeys.library() });
+        },
       );
-      // Revalidate only once the write landed so the library re-read materializes the
-      // watchlisted item, and a Search remount reseeds its added state from Trakt.
-      if (ok) {
-        void queryClient.invalidateQueries({ queryKey: queryKeys.watchlist(section) });
-        void queryClient.invalidateQueries({ queryKey: queryKeys.library() });
-      }
     },
     [added, isListed, write, queryClient],
   );

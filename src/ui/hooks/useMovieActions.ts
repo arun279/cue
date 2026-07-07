@@ -8,7 +8,7 @@ import {
 } from "@domain/write-queue/ops";
 import { useQueryClient } from "@tanstack/react-query";
 import { writeMovieEntry } from "@ui/hooks/useMovieLibrary";
-import { useRuntime } from "@ui/runtime/runtime";
+import { useOptimisticWrite } from "@ui/hooks/useOptimisticWrite";
 import { useCallback, useState } from "react";
 
 interface MarkUndo {
@@ -39,7 +39,7 @@ export interface MovieActions {
  * that issues the stored `/sync/history/remove` inverse.
  */
 export function useMovieActions(): MovieActions {
-  const runtime = useRuntime();
+  const submit = useOptimisticWrite();
   const queryClient = useQueryClient();
   const [undo, setUndo] = useState<MarkUndo | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -65,16 +65,17 @@ export function useMovieActions(): MovieActions {
         watchedAt,
         inversePatch: { kind: "movie", movieId: entry.movieId },
       });
-      const outcome = await runtime.submit(op);
+      const outcome = await submit([op], {
+        rollback: () => writeMovieEntry(queryClient, entry),
+        revalidate,
+      });
       if (outcome === "failed") {
-        writeMovieEntry(queryClient, entry);
         setError(`Couldn't update ${entry.title}. Please try again.`);
         return;
       }
-      if (outcome === "done") revalidate();
       setUndo(next ? { title: entry.title, before: entry, watchedAt } : null);
     },
-    [queryClient, revalidate, runtime],
+    [queryClient, revalidate, submit],
   );
 
   const toggleWatchlist = useCallback(
@@ -83,15 +84,13 @@ export function useMovieActions(): MovieActions {
       writeMovieEntry(queryClient, { ...entry, inWatchlist: next });
       const build = next ? buildAddWatchlistOp : buildRemoveWatchlistOp;
       const op = build({ opId: crypto.randomUUID(), section: "movies", ids: entry.ids });
-      const outcome = await runtime.submit(op);
-      if (outcome === "failed") {
-        writeMovieEntry(queryClient, entry);
-        setError("Couldn't update your watchlist. Please try again.");
-        return;
-      }
-      if (outcome === "done") revalidate();
+      const outcome = await submit([op], {
+        rollback: () => writeMovieEntry(queryClient, entry),
+        revalidate,
+      });
+      if (outcome === "failed") setError("Couldn't update your watchlist. Please try again.");
     },
-    [queryClient, revalidate, runtime],
+    [queryClient, revalidate, submit],
   );
 
   const undoMark = useCallback(async () => {
@@ -99,25 +98,23 @@ export function useMovieActions(): MovieActions {
     if (pending === null) return;
     setUndo(null);
     writeMovieEntry(queryClient, pending.before);
-    const outcome = await runtime.submit(
-      buildUnmarkMovieOp({
-        opId: crypto.randomUUID(),
-        ids: pending.before.ids,
-        watchedAt: pending.watchedAt,
-        inversePatch: { kind: "movie", movieId: pending.before.movieId },
-      }),
-    );
-    if (outcome === "failed") {
-      writeMovieEntry(queryClient, {
-        ...pending.before,
-        watched: true,
-        watchedAt: pending.watchedAt,
-      });
-      setError(`Couldn't undo ${pending.title}. Please try again.`);
-      return;
-    }
-    if (outcome === "done") revalidate();
-  }, [undo, queryClient, revalidate, runtime]);
+    const op = buildUnmarkMovieOp({
+      opId: crypto.randomUUID(),
+      ids: pending.before.ids,
+      watchedAt: pending.watchedAt,
+      inversePatch: { kind: "movie", movieId: pending.before.movieId },
+    });
+    const outcome = await submit([op], {
+      rollback: () =>
+        writeMovieEntry(queryClient, {
+          ...pending.before,
+          watched: true,
+          watchedAt: pending.watchedAt,
+        }),
+      revalidate,
+    });
+    if (outcome === "failed") setError(`Couldn't undo ${pending.title}. Please try again.`);
+  }, [undo, queryClient, revalidate, submit]);
 
   return {
     markWatched,

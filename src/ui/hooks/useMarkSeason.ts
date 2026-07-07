@@ -5,7 +5,7 @@ import { buildBulkMarkOps, type SeasonTree } from "@domain/write-queue/bulk";
 import { buildMarkEpisodeOp, buildUnmarkEpisodeOp } from "@domain/write-queue/ops";
 import type { QueuedOp } from "@domain/write-queue/types";
 import { useQueryClient } from "@tanstack/react-query";
-import { useRuntime } from "@ui/runtime/runtime";
+import { useOptimisticWrite } from "@ui/hooks/useOptimisticWrite";
 import { useCallback, useState } from "react";
 import { useResumeOnMark } from "./useResumeOnMark";
 
@@ -102,7 +102,7 @@ function seasonLabel(season: number): string {
  * inverse `/sync/history/remove`.
  */
 export function useMarkSeason(): MarkSeasonController {
-  const runtime = useRuntime();
+  const submit = useOptimisticWrite();
   const queryClient = useQueryClient();
   const resume = useResumeOnMark();
   const [undoState, setUndoState] = useState<UndoState | null>(null);
@@ -145,22 +145,34 @@ export function useMarkSeason(): MarkSeasonController {
       label: string,
     ) => {
       if (ops.length === 0) return;
+      // Snapshot the season tree before the optimistic mark so a hard failure can
+      // restore it verbatim — `match` spans already-watched episodes too, so a naive
+      // un-patch would wrongly clear pre-existing plays.
+      const key = queryKeys.showSeasons(target.showId);
+      const before = queryClient.getQueryData<readonly SeasonView[]>(key);
       patch(target.showId, match, true);
-      let ok = true;
-      for (const op of ops) {
-        if ((await runtime.submit(op)) === "failed") ok = false;
-      }
-      // A watch on a Stopped show un-stops it — the derived state must follow the
-      // new progress rather than stay filed under Stopped.
-      const resumed = ok ? await resume.resumeIfStopped(target.showId, target.ids) : false;
-      revalidate(target.showId);
-      if (!ok) {
+      // The batch settles to its worst op: any hard failure rolls the whole mark
+      // back; a "deferred" chunk keeps the optimistic tick without revalidating (a
+      // refetch would read pre-mark progress and un-tick the episodes). A watch on a
+      // Stopped show un-stops it (onKept) — that unhide must land before revalidate
+      // so the library re-read doesn't refile the show back under Stopped.
+      let resumed = false;
+      const outcome = await submit(ops, {
+        rollback: () => queryClient.setQueryData(key, before),
+        onKept: async () => {
+          const kept = await resume.resumeIfStopped(target.showId, target.ids);
+          resumed = kept !== null;
+          return kept;
+        },
+        revalidate: () => revalidate(target.showId),
+      });
+      if (outcome === "failed") {
         setError("Couldn't save that mark. It'll retry — check your connection.");
         return;
       }
       setUndoState({ showId: target.showId, ids: target.ids, label, ops, resumed });
     },
-    [patch, revalidate, runtime, resume],
+    [patch, queryClient, revalidate, submit, resume],
   );
 
   const buildOps = useCallback(
@@ -228,27 +240,32 @@ export function useMarkSeason(): MarkSeasonController {
         inversePatch: reconcileAnchor(target.showId),
       };
       const op = next ? buildMarkEpisodeOp(params) : buildUnmarkEpisodeOp(params);
-      patch(target.showId, (s, n) => s === episode.season && n === episode.number, next);
-      const outcome = await runtime.submit(op);
-      if (outcome === "failed") {
-        patch(target.showId, (s, n) => s === episode.season && n === episode.number, !next);
-        setError("Couldn't update that episode. Please try again.");
-        return;
-      }
-      if (next) await resume.resumeIfStopped(target.showId, target.ids);
-      revalidate(target.showId);
+      const matchEpisode: EpisodeMatch = (s, n) => s === episode.season && n === episode.number;
+      patch(target.showId, matchEpisode, next);
+      // A watch on a Stopped show un-stops it (onKept): the unhide must land before
+      // revalidate so the library re-read doesn't refile the show under Stopped.
+      const outcome = await submit([op], {
+        rollback: () => patch(target.showId, matchEpisode, !next),
+        onKept: next ? () => resume.resumeIfStopped(target.showId, target.ids) : undefined,
+        revalidate: () => revalidate(target.showId),
+      });
+      if (outcome === "failed") setError("Couldn't update that episode. Please try again.");
     },
-    [patch, revalidate, runtime, reconcileAnchor, resume],
+    [patch, revalidate, submit, reconcileAnchor, resume],
   );
 
   const undo = useCallback(async () => {
     const pending = undoState;
     if (pending === null) return;
     setUndoState(null);
-    for (const op of pending.ops) await runtime.submit(invert(op));
-    if (pending.resumed) await resume.reStop(pending.showId, pending.ids);
-    revalidate(pending.showId);
-  }, [undoState, revalidate, runtime, resume]);
+    // If the mark auto-resumed the show, its Undo must re-stop it (onKept) — the
+    // re-hide has to land before revalidate so the library re-read stays Stopped.
+    await submit(pending.ops.map(invert), {
+      rollback: () => {},
+      onKept: pending.resumed ? () => resume.reStop(pending.showId, pending.ids) : undefined,
+      revalidate: () => revalidate(pending.showId),
+    });
+  }, [undoState, revalidate, submit, resume]);
 
   return {
     markSeason,

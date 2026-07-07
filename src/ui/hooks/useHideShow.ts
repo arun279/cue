@@ -2,7 +2,7 @@ import { queryKeys } from "@data/query-keys";
 import type { ShowIds } from "@domain/model/ids";
 import { buildHideShowOp, buildUnhideShowOp } from "@domain/write-queue/ops";
 import { useQueryClient } from "@tanstack/react-query";
-import { useRuntime } from "@ui/runtime/runtime";
+import { useOptimisticWrite } from "@ui/hooks/useOptimisticWrite";
 import { useCallback, useState } from "react";
 import { patchLibraryHidden } from "./library-cache";
 
@@ -37,7 +37,7 @@ export interface HideController {
  * a symmetric Undo that submits the inverse op.
  */
 export function useHideShow(): HideController {
-  const runtime = useRuntime();
+  const submit = useOptimisticWrite();
   const queryClient = useQueryClient();
   const [undoState, setUndoState] = useState<HideUndo | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -63,18 +63,22 @@ export function useHideShow(): HideController {
       const hidden = kind === "hide";
       patchHidden(showId, hidden);
       const build = hidden ? buildHideShowOp : buildUnhideShowOp;
-      const outcome = await runtime.submit(
-        build({ opId: crypto.randomUUID(), ids, inversePatch: { kind: "hidden", showId } }),
-      );
-      revalidate(showId);
+      const op = build({
+        opId: crypto.randomUUID(),
+        ids,
+        inversePatch: { kind: "hidden", showId },
+      });
+      const outcome = await submit([op], {
+        rollback: () => patchHidden(showId, !hidden),
+        revalidate: () => revalidate(showId),
+      });
       if (outcome === "failed") {
-        patchHidden(showId, !hidden);
         setError(`Couldn't ${hidden ? "stop watching" : "resume"} ${title}. Please try again.`);
         return;
       }
       setUndoState({ showId, ids, title, kind });
     },
-    [patchHidden, revalidate, runtime],
+    [patchHidden, revalidate, submit],
   );
 
   const hide = useCallback(
@@ -94,15 +98,24 @@ export function useHideShow(): HideController {
     const restoreHidden = pending.kind === "unhide";
     patchHidden(pending.showId, restoreHidden);
     const build = restoreHidden ? buildHideShowOp : buildUnhideShowOp;
-    await runtime.submit(
-      build({
-        opId: crypto.randomUUID(),
-        ids: pending.ids,
-        inversePatch: { kind: "hidden", showId: pending.showId },
-      }),
-    );
-    revalidate(pending.showId);
-  }, [undoState, patchHidden, revalidate, runtime]);
+    const op = build({
+      opId: crypto.randomUUID(),
+      ids: pending.ids,
+      inversePatch: { kind: "hidden", showId: pending.showId },
+    });
+    // `patchHidden` above is the forward (undone) state, not a rollback — so a hard
+    // failure of the inverse write must flip it back to the post-action state, else
+    // the row is stranded undone while Trakt never changed. Revalidate only once it lands.
+    const outcome = await submit([op], {
+      rollback: () => patchHidden(pending.showId, !restoreHidden),
+      revalidate: () => revalidate(pending.showId),
+    });
+    if (outcome === "failed") {
+      setError(
+        `Couldn't ${restoreHidden ? "stop watching" : "resume"} ${pending.title}. Please try again.`,
+      );
+    }
+  }, [undoState, patchHidden, revalidate, submit]);
 
   return {
     hide,

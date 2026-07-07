@@ -3,7 +3,7 @@ import type { EpisodeDetail } from "@data/trakt/episode-detail";
 import type { ShowHeader } from "@data/trakt/show-detail";
 import { buildMarkEpisodeOp, buildUnmarkEpisodeOp } from "@domain/write-queue/ops";
 import { useQueryClient } from "@tanstack/react-query";
-import { useRuntime } from "@ui/runtime/runtime";
+import { useOptimisticWrite } from "@ui/hooks/useOptimisticWrite";
 import { useCallback, useState } from "react";
 import { useResumeOnMark } from "./useResumeOnMark";
 
@@ -22,7 +22,7 @@ export interface ToggleEpisodeWatched {
  * lost response is retired by a progress re-read, never a duplicate play.
  */
 export function useToggleEpisodeWatched(): ToggleEpisodeWatched {
-  const runtime = useRuntime();
+  const submit = useOptimisticWrite();
   const queryClient = useQueryClient();
   const resume = useResumeOnMark();
   const [error, setError] = useState<string | null>(null);
@@ -54,24 +54,29 @@ export function useToggleEpisodeWatched(): ToggleEpisodeWatched {
       };
       const op = next ? buildMarkEpisodeOp(params) : buildUnmarkEpisodeOp(params);
 
-      const outcome = await runtime.submit(op);
-      if (outcome === "failed") {
-        if (before !== undefined) queryClient.setQueryData(key, before);
-        setError("Couldn't update this episode. Please try again.");
-        return;
-      }
-      // A watch on a Stopped show un-stops it.
-      if (next && header !== undefined) await resume.resumeIfStopped(episode.showId, header.ids);
-      // Revalidate only once the write landed on Trakt; a still-queued op would
-      // refetch pre-write progress over the optimistic state.
-      if (outcome === "done") {
-        void queryClient.invalidateQueries({ queryKey: key });
-        void queryClient.invalidateQueries({ queryKey: queryKeys.showSeasons(episode.showId) });
-        void queryClient.invalidateQueries({ queryKey: queryKeys.showHeader(episode.showId) });
-        void queryClient.invalidateQueries({ queryKey: queryKeys.library() });
-      }
+      // The seam restores the pre-flip detail on a hard failure and revalidates only
+      // once the write lands on Trakt; a still-queued ("deferred") op keeps the flip
+      // (a refetch would read pre-write progress over the optimistic state). A watch
+      // on a Stopped show un-stops it (onKept): the unhide must
+      // land before revalidate so the library re-read doesn't refile it as Stopped.
+      const outcome = await submit([op], {
+        rollback: () => {
+          if (before !== undefined) queryClient.setQueryData(key, before);
+        },
+        onKept:
+          next && header !== undefined
+            ? () => resume.resumeIfStopped(episode.showId, header.ids)
+            : undefined,
+        revalidate: () => {
+          void queryClient.invalidateQueries({ queryKey: key });
+          void queryClient.invalidateQueries({ queryKey: queryKeys.showSeasons(episode.showId) });
+          void queryClient.invalidateQueries({ queryKey: queryKeys.showHeader(episode.showId) });
+          void queryClient.invalidateQueries({ queryKey: queryKeys.library() });
+        },
+      });
+      if (outcome === "failed") setError("Couldn't update this episode. Please try again.");
     },
-    [queryClient, runtime, resume],
+    [queryClient, submit, resume],
   );
 
   return { toggle, clearError: () => setError(null), error };

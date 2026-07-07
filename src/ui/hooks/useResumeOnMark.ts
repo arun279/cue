@@ -1,15 +1,18 @@
 import type { ShowIds } from "@domain/model/ids";
 import { buildHideShowOp, buildUnhideShowOp } from "@domain/write-queue/ops";
 import { useQueryClient } from "@tanstack/react-query";
-import { useRuntime } from "@ui/runtime/runtime";
+import { type SubmitOutcome, useRuntime } from "@ui/runtime/runtime";
 import { useCallback } from "react";
 import { isLibraryHidden, patchLibraryHidden } from "./library-cache";
 
 export interface ResumeOnMark {
-  /** If the show is Stopped (hidden), auto-resume it; resolves to whether it resumed. */
-  resumeIfStopped(showId: number, ids: ShowIds): Promise<boolean>;
-  /** Re-stop a show that a mark auto-resumed — invoked by that mark's Undo. */
-  reStop(showId: number, ids: ShowIds): Promise<void>;
+  /** If the show is Stopped (hidden), auto-resume it and resolve to how the unhide
+   * write settled (so the caller can hold off revalidate until it lands); `null`
+   * when the show wasn't stopped and no write was made. */
+  resumeIfStopped(showId: number, ids: ShowIds): Promise<SubmitOutcome | null>;
+  /** Re-stop a show that a mark auto-resumed — invoked by that mark's Undo; resolves
+   * to how the re-hide write settled. */
+  reStop(showId: number, ids: ShowIds): Promise<SubmitOutcome>;
 }
 
 /**
@@ -25,25 +28,24 @@ export function useResumeOnMark(): ResumeOnMark {
   const queryClient = useQueryClient();
 
   const resumeIfStopped = useCallback(
-    async (showId: number, ids: ShowIds): Promise<boolean> => {
-      if (!isLibraryHidden(queryClient, showId)) return false;
+    async (showId: number, ids: ShowIds): Promise<SubmitOutcome | null> => {
+      if (!isLibraryHidden(queryClient, showId)) return null;
       patchLibraryHidden(queryClient, showId, false);
-      await runtime.submit(
+      return runtime.submit(
         buildUnhideShowOp({
           opId: crypto.randomUUID(),
           ids,
           inversePatch: { kind: "hidden", showId },
         }),
       );
-      return true;
     },
     [queryClient, runtime],
   );
 
   const reStop = useCallback(
-    async (showId: number, ids: ShowIds): Promise<void> => {
+    (showId: number, ids: ShowIds): Promise<SubmitOutcome> => {
       patchLibraryHidden(queryClient, showId, true);
-      await runtime.submit(
+      return runtime.submit(
         buildHideShowOp({
           opId: crypto.randomUUID(),
           ids,

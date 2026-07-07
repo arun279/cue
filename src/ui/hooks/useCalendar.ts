@@ -87,7 +87,7 @@ export function useCalendar(): CalendarView {
         // toggle does — a lost-response reconcile then retires on any fresh play.
         inversePatch: { showId: row.showId, preCompleted: 0 },
       });
-      const ok = await write.run(
+      await write.run(
         op,
         () =>
           setWatched((prev) => {
@@ -96,11 +96,11 @@ export function useCalendar(): CalendarView {
             return next;
           }),
         `Couldn't mark ${row.showTitle} watched. Please try again.`,
+        () => {
+          void queryClient.invalidateQueries({ queryKey: queryKeys.calendarPrefix() });
+          void queryClient.invalidateQueries({ queryKey: queryKeys.library() });
+        },
       );
-      if (ok) {
-        void queryClient.invalidateQueries({ queryKey: queryKeys.calendarPrefix() });
-        void queryClient.invalidateQueries({ queryKey: queryKeys.library() });
-      }
     },
     [watched, write, queryClient],
   );

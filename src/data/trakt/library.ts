@@ -33,13 +33,12 @@ export interface ShowArt {
   readonly runtime: number | null;
 }
 
-/** What the write-queue op carries (as its opaque `inversePatch`) to roll back + reconcile a mark. */
+/** What the write-queue op carries (as its opaque `inversePatch`) to reconcile a mark. */
 export interface MarkContext {
   readonly showId: number;
-  /** Trakt's `completed` count before this op — the reconcile pivot + rollback anchor. */
+  /** Trakt's `completed` count before this op — the reconcile pivot. Rollback lives
+   * in the mark hook's closure (the pre-op cache snapshot), not in the durable op. */
   readonly preCompleted: number;
-  /** The pre-op entry, restored verbatim on a hard failure or Undo. */
-  readonly previous: LibraryEntry;
 }
 
 export interface LibraryInput {

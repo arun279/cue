@@ -3,7 +3,8 @@ import { advancePastNext, type LibraryEntry, type MarkContext } from "@data/trak
 import { isTerminalStatus } from "@domain/watch-status";
 import { buildMarkEpisodeOp, buildUnmarkEpisodeOp } from "@domain/write-queue/ops";
 import { useQueryClient } from "@tanstack/react-query";
-import { type SubmitOutcome, type UpNextData, useRuntime } from "@ui/runtime/runtime";
+import { useOptimisticWrite } from "@ui/hooks/useOptimisticWrite";
+import type { SubmitOutcome, UpNextData } from "@ui/runtime/runtime";
 import { useCallback, useRef, useState } from "react";
 
 interface UndoState {
@@ -53,7 +54,7 @@ function episodeCodeOf(entry: LibraryEntry): string {
  * episode. 429/network handling lives in the queue behind `runtime.submit`.
  */
 export function useMarkWatched(): MarkWatched {
-  const runtime = useRuntime();
+  const submit = useOptimisticWrite();
   const queryClient = useQueryClient();
   const [undo, setUndo] = useState<PendingUndo | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -120,11 +121,7 @@ export function useMarkWatched(): MarkWatched {
         beforeMark,
       });
 
-      const context: MarkContext = {
-        showId: entry.showId,
-        preCompleted: entry.completed,
-        previous: beforeMark,
-      };
+      const context: MarkContext = { showId: entry.showId, preCompleted: entry.completed };
       const op = buildMarkEpisodeOp({
         opId,
         ids: episode.ids,
@@ -132,34 +129,31 @@ export function useMarkWatched(): MarkWatched {
         inversePatch: context,
       });
 
+      // The seam rolls the optimistic advance back on a hard failure and revalidates
+      // only once the write lands ("deferred" keeps the advance — a refetch would
+      // read pre-mark server state and bounce the card back).
       let outcome: SubmitOutcome;
       try {
-        outcome = await runtime.submit(op);
+        outcome = await submit([op], {
+          rollback: () => patch(entry.showId, () => beforeMark),
+          revalidate,
+        });
       } finally {
         // The write has settled (done | failed | deferred) — or submit threw
         // (a persistence fault): release the lock either way so a deliberate later
         // mark of the show's next episode is never wedged behind a stuck lock.
         inFlight.current.delete(entry.showId);
       }
-      if (outcome === "failed") {
-        // Roll this show's optimistic advance back regardless — the write is dead.
-        patch(entry.showId, () => beforeMark);
-        // But only surface the error / clear the toast if THIS op still owns the
-        // slot: if the user has since marked another show or already undone this
-        // one, don't clobber their current toast with a stale failure.
-        if (activeOpId.current === opId) {
-          activeOpId.current = null;
-          setUndo(null);
-          setError(`Couldn't mark ${entry.title} watched. Please try again.`);
-        }
-        return;
+      // Only surface the error / clear the toast if THIS op still owns the slot: if
+      // the user has since marked another show or already undone this one, don't
+      // clobber their current toast with a stale failure (the rollback already ran).
+      if (outcome === "failed" && activeOpId.current === opId) {
+        activeOpId.current = null;
+        setUndo(null);
+        setError(`Couldn't mark ${entry.title} watched. Please try again.`);
       }
-      // Only a settled write revalidates. A "deferred" op (429/offline, still
-      // durable) must keep the optimistic advance — a refetch here would read the
-      // pre-mark server state and bounce the card back.
-      if (outcome === "done") revalidate();
     },
-    [patch, revalidate, runtime],
+    [patch, revalidate, submit],
   );
 
   const runUndo = useCallback(async () => {
@@ -169,22 +163,24 @@ export function useMarkWatched(): MarkWatched {
     inFlight.current.delete(pending.showId);
     setUndo(null);
     patch(pending.showId, () => pending.beforeMark);
-    const context: MarkContext = {
-      showId: pending.showId,
-      preCompleted: pending.preCompleted + 1,
-      previous: pending.beforeMark,
-    };
+    const context: MarkContext = { showId: pending.showId, preCompleted: pending.preCompleted + 1 };
     const op = buildUnmarkEpisodeOp({
       opId: crypto.randomUUID(),
       ids: pending.episodeIds,
       watchedAt: pending.watchedAt,
       inversePatch: context,
     });
-    const outcome = await runtime.submit(op);
-    // Mirror markWatched: a still-durable "deferred" removal keeps its optimistic
-    // rollback; revalidating before it lands would refetch the pre-undo state.
-    if (outcome === "done") revalidate();
-  }, [undo, patch, revalidate, runtime]);
+    // `patch` above is the forward (undone) state, not a rollback — so a hard failure
+    // of the removal must re-advance the card to the marked state it restores to, else
+    // it's stranded un-advanced while Trakt still holds the play. A "deferred" removal
+    // keeps the undone state (revalidating before it lands would refetch pre-undo state).
+    const outcome = await submit([op], {
+      rollback: () =>
+        patch(pending.showId, () => advancePastNext(pending.beforeMark, pending.watchedAt)),
+      revalidate,
+    });
+    if (outcome === "failed") setError(`Couldn't undo ${pending.title}. Please try again.`);
+  }, [undo, patch, revalidate, submit]);
 
   return {
     markWatched,
