@@ -113,6 +113,36 @@ test("renders a sidebar at 1280px and a bottom tab bar at 390px", async ({ page 
   await expect(page.locator(".sidebar")).toBeHidden();
 });
 
+test("scrollable content clears the fixed bottom tab bar at 390px (no occlusion)", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/settings");
+  await expect(page.getByTestId("screen-settings")).toBeVisible();
+
+  const result = await page.evaluate(() => {
+    const main = document.querySelector(".main") as HTMLElement;
+    const bar = document.querySelector(".tabbar") as HTMLElement;
+    const pad = Number.parseFloat(getComputedStyle(main).paddingBottom);
+    const barHeight = bar.getBoundingClientRect().height;
+    window.scrollTo(0, document.body.scrollHeight);
+    const controls = [
+      ...document.querySelectorAll(
+        '[data-testid="screen-settings"] button, [data-testid="screen-settings"] a,' +
+          ' [data-testid="screen-settings"] input, [data-testid="screen-settings"] select',
+      ),
+    ];
+    const maxBottom = Math.max(...controls.map((c) => c.getBoundingClientRect().bottom));
+    return { pad, barHeight, barTop: bar.getBoundingClientRect().top, maxBottom };
+  });
+
+  // The scroll container reserves at least the bar's height, so the last row is
+  // never trapped beneath it; and after scrolling to the very bottom, no control
+  // crosses the bar's top edge.
+  expect(result.pad).toBeGreaterThanOrEqual(result.barHeight);
+  expect(result.maxBottom).toBeLessThanOrEqual(result.barTop + 1);
+});
+
 test("catches a thrown render error in the boundary instead of blanking", async ({ page }) => {
   await page.goto("/?crash=1");
   await expect(page.getByTestId("error-boundary")).toBeVisible();

@@ -808,6 +808,7 @@ body {
 
 /* ---- Poster (universal 2:3 tile; leaf img or gradient-initials fallback) ---- */
 .poster {
+  position: relative;
   width: 56px;
   aspect-ratio: 2 / 3;
   object-fit: cover;
@@ -839,7 +840,6 @@ body {
   align-items: center;
   justify-content: center;
   gap: 4px;
-  padding: 6px;
   text-align: center;
   color: var(--color-fg);
   overflow: hidden;
@@ -867,11 +867,22 @@ body {
 .poster--skeleton {
   animation: pulse 1.4s ease-in-out infinite;
 }
-/* A real poster img that hasn't decoded yet — chiefly the lazy tiles below the fold
-   in the discover/library grids — pulses its --color-elevated backing so a rail reads
-   as loading rather than a row of flat grey blanks. Cleared on load (the class drops). */
-.poster--loading {
-  animation: pulse 1.4s ease-in-out infinite;
+/* The real poster image, laid over the gradient-initials placeholder that every
+   .poster carries. It starts transparent and fades in once decoded, so a lazy
+   below-the-fold tile in a discover / library grid shows the warm titled placeholder
+   until its art arrives — never a flat grey blank. */
+.poster__img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity var(--dur-base) var(--ease-standard);
+}
+.poster__img--loaded {
+  opacity: 1;
 }
 
 /* Wrapper that lets a poster carry the amber progress rail pinned to its edge. */

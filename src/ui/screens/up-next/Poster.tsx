@@ -33,61 +33,68 @@ function gradientFor(title: string): string {
 
 /**
  * Poster tile via the image resolver (Trakt inline → TMDB → gradient
- * fallback). A URL that fails to load degrades to the same gradient-initials tile
- * with a retry chip, so a broken image never leaves a torn card. The `variant` sizes the tile for its context (queue row, hero
- * inset, list row); progress rails are drawn by the consumer wrapper.
+ * fallback). The gradient-initials tile is ALWAYS the backing layer: when a poster
+ * URL resolves, the `<img>` sits on top and fades in once it decodes, so a
+ * lazy below-the-fold tile in a discover / library grid reads as a warm, titled
+ * placeholder rather than a flat grey blank (Rams #8). A URL that fails to load degrades to the same tile with a retry chip, so a
+ * broken image never leaves a torn card. The `variant` sizes the tile for its
+ * context (queue row, hero inset, list row); progress rails are drawn by the
+ * consumer wrapper.
  */
 export function Poster({ title, posters, tmdbConfig, variant = "row" }: PosterProps): ReactElement {
-  const [broken, setBroken] = useState(false);
+  const [brokenSrc, setBrokenSrc] = useState<string | null>(null);
   const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const resolved = resolvePoster({ title, traktPosters: posters, tmdbConfig });
-
-  if (resolved.source === "placeholder" || broken) {
-    return (
-      <div
-        className={`poster poster--text poster--${variant}`}
-        data-testid="poster-text"
-        style={{ background: gradientFor(title) }}
-      >
-        <span className="poster__initials" aria-hidden="true">
-          {initials(title)}
-        </span>
-        {broken && (
-          <button
-            type="button"
-            className="poster__retry"
-            data-testid="poster-retry"
-            aria-label={`Retry loading poster for ${title}`}
-            onClick={() => {
-              setBroken(false);
-              setLoadedSrc(null);
-              setAttempt((n) => n + 1);
-            }}
-          >
-            Retry
-          </button>
-        )}
-      </div>
-    );
-  }
-
-  // Tie the loaded flag to the URL that loaded, not a bare boolean: a reused tile
-  // (same key, new props) that swaps to a different poster must re-show the loading
-  // pulse until the new image decodes, instead of inheriting the old one's "loaded".
-  const loaded = loadedSrc === resolved.url;
+  // Null when there is no resolvable art: the tile stays the gradient-initials
+  // placeholder with no image layer.
+  const url = resolved.source === "placeholder" ? null : resolved.url;
+  // Scope "broken" to the exact URL that failed, not a bare boolean: if this tile
+  // instance is later reused (same key, new props) and resolves a *different*
+  // poster, the new art gets a fresh load instead of inheriting the old failure.
+  const isBroken = url !== null && brokenSrc === url;
+  const showImage = url !== null && !isBroken;
 
   return (
-    <img
-      key={attempt}
-      className={`poster poster--${variant}${loaded ? "" : " poster--loading"}`}
-      src={resolved.url}
-      alt=""
-      loading="lazy"
-      decoding="async"
-      data-testid="poster-image"
-      onLoad={() => setLoadedSrc(resolved.url)}
-      onError={() => setBroken(true)}
-    />
+    <div
+      className={`poster poster--text poster--${variant}`}
+      data-testid={showImage ? "poster-frame" : "poster-text"}
+      style={{ background: gradientFor(title) }}
+    >
+      <span className="poster__initials" aria-hidden="true">
+        {initials(title)}
+      </span>
+      {showImage && (
+        // Tie the loaded flag to the URL that loaded, not a bare boolean: a reused
+        // tile (same key, new props) that swaps to a different poster must re-show
+        // the placeholder until the new image decodes, not inherit the old "loaded".
+        <img
+          key={attempt}
+          className={`poster__img${loadedSrc === url ? " poster__img--loaded" : ""}`}
+          src={url}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          data-testid="poster-image"
+          onLoad={() => setLoadedSrc(url)}
+          onError={() => setBrokenSrc(url)}
+        />
+      )}
+      {isBroken && (
+        <button
+          type="button"
+          className="poster__retry"
+          data-testid="poster-retry"
+          aria-label={`Retry loading poster for ${title}`}
+          onClick={() => {
+            setBrokenSrc(null);
+            setLoadedSrc(null);
+            setAttempt((n) => n + 1);
+          }}
+        >
+          Retry
+        </button>
+      )}
+    </div>
   );
 }

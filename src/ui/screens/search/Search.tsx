@@ -187,10 +187,28 @@ export function Search(): ReactElement {
       </div>
     );
   } else if (view.status === "empty" || visibleHits.length === 0) {
+    // A single-medium user whose query matched ONLY the hidden medium
+    // would otherwise read a bare "No matches" — a search that looks broken rather
+    // than settings-filtered. Name the hidden results and point to the fix instead
+    // (Rams #6 honest design; Nielsen match between system and the real world).
+    const hiddenCount = view.status === "empty" ? 0 : view.hits.length;
+    const hiddenLabel = moviesEnabled ? "TV shows" : "Movies";
     body = (
       <div className="empty" data-testid="search-no-results">
-        <h2 className="empty__title">No matches for "{view.query}"</h2>
-        <p className="empty__body">Try a different title or check the spelling.</p>
+        <h2 className="empty__title">
+          {hiddenCount > 0
+            ? `No ${mediumWord} match "${view.query}"`
+            : `No matches for "${view.query}"`}
+        </h2>
+        {hiddenCount > 0 ? (
+          <p className="empty__body" data-testid="search-hidden-note">
+            {hiddenCount} {hiddenCount === 1 ? "result" : "results"} in {hiddenLabel}{" "}
+            {hiddenCount === 1 ? "is" : "are"} hidden. Turn {hiddenLabel} on in Settings to see{" "}
+            {hiddenCount === 1 ? "it" : "them"}.
+          </p>
+        ) : (
+          <p className="empty__body">Try a different title or check the spelling.</p>
+        )}
       </div>
     );
   } else {
