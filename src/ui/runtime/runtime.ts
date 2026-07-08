@@ -7,7 +7,7 @@ import type { UserStats } from "@data/trakt/schemas";
 import type { SearchHit } from "@data/trakt/search";
 import type { SeasonView, ShowHeader } from "@data/trakt/show-detail";
 import type { CalendarEntry } from "@domain/calendar";
-import type { HistoryEntry } from "@domain/history";
+import type { HistoryEntry, HistoryRange } from "@domain/history";
 import type { EpisodePlay } from "@domain/reversal";
 import type { QueuedOp } from "@domain/write-queue/types";
 import { createContext, useContext } from "react";
@@ -102,8 +102,13 @@ export interface CueRuntime {
   loadWatchlistIds(section: "shows" | "movies"): Promise<readonly number[]>;
   /** Personalized calendar window: `/calendars/my/shows/{start}/{days}` + the hidden set. */
   loadCalendar(startDate: string, days: number): Promise<CalendarData>;
-  /** One page of the reverse-chronological watch history (the Diary). */
-  loadHistory(section: HistorySection, page: number): Promise<HistoryPageData>;
+  /** One page of the reverse-chronological watch history. An optional
+   * `range` bounds the read to a year/month (the decade jump). */
+  loadHistory(
+    section: HistorySection,
+    page: number,
+    range?: HistoryRange,
+  ): Promise<HistoryPageData>;
   /**
    * Every episode play of one show, from `/sync/history/shows/:id` —
    * the scoped resolver a durable "Unmark season" reads so it can remove exactly

@@ -100,7 +100,7 @@ export function useToggleEpisodeWatched(): ToggleEpisodeWatched {
         // is the Diary's job.
         restoreTick();
         setNotice(
-          `This episode has ${resolution.count} plays — remove a specific one in your Diary.`,
+          `This episode has ${resolution.count} plays — remove a specific one in your watch history.`,
         );
         return;
       }

@@ -1,4 +1,4 @@
-import { groupHistory, type HistoryEntry } from "@domain/history";
+import { groupHistory, type HistoryEntry, historyRange, historyScopeKey } from "@domain/history";
 import { describe, expect, it } from "vitest";
 
 /** Fixed instant: 2026-07-05T16:00Z = 12:00 in America/New_York (EDT, UTC-4). */
@@ -153,5 +153,46 @@ describe("groupHistory", () => {
 
   it("returns no days for an empty feed", () => {
     expect(groupHistory([], OPTS)).toEqual([]);
+  });
+});
+
+describe("historyRange (the decade-jump window)", () => {
+  it("bounds a whole year in UTC, first ms to last", () => {
+    expect(historyRange(2019)).toEqual({
+      startAt: "2019-01-01T00:00:00.000Z",
+      endAt: "2019-12-31T23:59:59.999Z",
+    });
+  });
+
+  it("narrows to a single month, ending on the last ms before the next month", () => {
+    // March 2019: 01 00:00:00.000 → 31 23:59:59.999 (April 1 minus 1ms).
+    expect(historyRange(2019, 3)).toEqual({
+      startAt: "2019-03-01T00:00:00.000Z",
+      endAt: "2019-03-31T23:59:59.999Z",
+    });
+  });
+
+  it("handles February in a leap year (29 days)", () => {
+    expect(historyRange(2020, 2).endAt).toBe("2020-02-29T23:59:59.999Z");
+  });
+
+  it("handles December, rolling the exclusive bound into the next year", () => {
+    expect(historyRange(2021, 12).endAt).toBe("2021-12-31T23:59:59.999Z");
+  });
+});
+
+describe("historyScopeKey (the cache-key + URL scope segment)", () => {
+  it("is 'recent' for the unbounded feed", () => {
+    expect(historyScopeKey()).toBe("recent");
+    expect(historyScopeKey(undefined, 3)).toBe("recent");
+  });
+
+  it("is the bare year when only a year is scoped", () => {
+    expect(historyScopeKey(2019)).toBe("2019");
+  });
+
+  it("is year-month, zero-padded, when a month is scoped", () => {
+    expect(historyScopeKey(2019, 3)).toBe("2019-03");
+    expect(historyScopeKey(2019, 12)).toBe("2019-12");
   });
 });

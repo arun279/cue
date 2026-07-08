@@ -501,7 +501,7 @@ test("a genuinely-watched season offers no one-tap Unmark; a rewatched episode's
     .getByTestId("episode-toggle");
   await expect(e1).toBeChecked();
   await e1.click();
-  await expect(page.getByTestId("season-notice")).toContainText(/plays|Diary/i);
+  await expect(page.getByTestId("season-notice")).toContainText(/plays/i);
   expect(controls.removePosts()).toHaveLength(0);
   await expect(e1).toBeChecked();
 

@@ -1,7 +1,13 @@
 import type { TmdbImageConfig } from "@data/image-source";
 import { showProgressKeys } from "@data/query-invalidation";
 import { queryKeys } from "@data/query-keys";
-import { groupHistory, type HistoryDay, type HistoryEntry } from "@domain/history";
+import {
+  groupHistory,
+  type HistoryDay,
+  type HistoryEntry,
+  historyRange,
+  historyScopeKey,
+} from "@domain/history";
 import { localTimeZone } from "@domain/time";
 import {
   buildMarkEpisodeOp,
@@ -14,17 +20,26 @@ import { useOptimisticWrite } from "@ui/hooks/useOptimisticWrite";
 import { type HistorySection, type SubmitOutcome, useRuntime } from "@ui/runtime/runtime";
 import { useCallback, useMemo, useRef, useState } from "react";
 
-/** The Diary type filter, in user words; mapped to the history endpoint slice. */
+/** The history type filter, in user words; mapped to the history endpoint slice. */
 export type HistoryFilter = "all" | "tv" | "movies";
+
+/**
+ * The full history read scope: which medium (type filter) and which decade window
+ * (a year, or a month within it, or the unbounded recent feed when both are
+ * undefined). The History screen derives this from the URL so every scope is
+ * deep-linkable and scroll-restorable.
+ */
+export interface HistoryScope {
+  readonly filter: HistoryFilter;
+  readonly year?: number;
+  readonly month?: number;
+}
 
 const SECTION: Record<HistoryFilter, HistorySection> = {
   all: "all",
   tv: "episodes",
   movies: "movies",
 };
-
-/** A locked (single-medium) Diary exposes no filter control, so its setter is inert. */
-const NOOP_SET_FILTER: (filter: HistoryFilter) => void = () => {};
 
 /**
  * The transient snackbar after a per-play removal. `removed` offers the Undo;
@@ -38,10 +53,13 @@ type RemovalToast =
 export interface HistoryView {
   readonly days: readonly HistoryDay[];
   readonly filter: HistoryFilter;
-  setFilter(filter: HistoryFilter): void;
   readonly tmdbConfig: TmdbImageConfig | null;
   readonly isLoading: boolean;
   readonly isError: boolean;
+  /** True while a change-driven refetch is in flight — drives the sync pill. */
+  readonly isFetching: boolean;
+  /** Epoch ms of the last successful read, for the pill's recency. */
+  readonly syncedAt: number;
   readonly hasData: boolean;
   readonly isEmpty: boolean;
   refetch(): void;
@@ -74,24 +92,28 @@ const withoutId = (set: ReadonlySet<number>, id: number): Set<number> => {
  * with an Undo that re-adds it best-effort. The query is `staleTime: Infinity`,
  * gated only by the last_activities poll, so a mark on any surface surfaces here.
  */
-export function useHistory(lockedFilter?: HistoryFilter): HistoryView {
+export function useHistory(scope: HistoryScope): HistoryView {
+  const { filter, year, month } = scope;
   const runtime = useRuntime();
   const queryClient = useQueryClient();
   const submit = useOptimisticWrite();
-  // A single-medium user is pinned to their medium's slice with no
-  // in-Diary filter control; both-media users pick freely (default "all").
-  const [selectedFilter, setSelectedFilter] = useState<HistoryFilter>(lockedFilter ?? "all");
-  const filter = lockedFilter ?? selectedFilter;
-  const setFilter = lockedFilter ? NOOP_SET_FILTER : setSelectedFilter;
   // Optimistically-hidden plays (removed but not yet revalidated), so a removal
   // takes effect instantly and rolls back verbatim on a hard failure.
   const [removedIds, setRemovedIds] = useState<ReadonlySet<number>>(() => new Set());
   const [toast, setToast] = useState<RemovalToast | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // The decade window (`start_at`/`end_at`) — undefined for the unbounded recent
+  // feed. A scoped read is finite, so "Load earlier" naturally runs out of pages.
+  const range = useMemo(
+    () => (year === undefined ? undefined : historyRange(year, month)),
+    [year, month],
+  );
+  const scopeKey = historyScopeKey(year, month);
+
   const query = useInfiniteQuery({
-    queryKey: queryKeys.history(filter),
-    queryFn: ({ pageParam }) => runtime.loadHistory(SECTION[filter], pageParam),
+    queryKey: queryKeys.history(filter, scopeKey),
+    queryFn: ({ pageParam }) => runtime.loadHistory(SECTION[filter], pageParam, range),
     initialPageParam: 1,
     getNextPageParam: (last) => (last.page < last.pageCount ? last.page + 1 : undefined),
     staleTime: USER_STATE_STALE_TIME,
@@ -220,10 +242,11 @@ export function useHistory(lockedFilter?: HistoryFilter): HistoryView {
   return {
     days,
     filter,
-    setFilter,
     tmdbConfig: query.data?.pages[0]?.tmdbConfig ?? null,
     isLoading: query.isLoading,
     isError: query.isError,
+    isFetching: query.isFetching,
+    syncedAt: query.dataUpdatedAt,
     hasData: query.data !== undefined,
     isEmpty: query.data !== undefined && entryCount === 0,
     refetch: () => void query.refetch(),

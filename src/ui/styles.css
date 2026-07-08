@@ -2975,14 +2975,21 @@ body {
   width: 45%;
 }
 
-/* Settings entry: a full-width row that reads as tappable — chevron affordance
-   plus a hover lift — so connections stay one tap from Profile. */
-.profile-settings {
+/* Profile hub: the short stack of tappable rows below the stats theatre (Watch
+   history, Settings). Each reads as a navigation affordance — chevron plus a hover
+   lift — so the log and connections stay one tap away, and Settings is never
+   trapped below an unbounded scroll. */
+.profile-hubs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
+}
+.profile-hub {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-4);
-  margin-top: var(--space-6);
   padding: var(--space-4) var(--space-5);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-2);
@@ -2993,13 +3000,13 @@ body {
     background var(--dur-quick) var(--ease-standard),
     border-color var(--dur-quick) var(--ease-standard);
 }
-.profile-settings:hover {
+.profile-hub:hover {
   background: var(--color-elevated);
   border-color: color-mix(in srgb, var(--color-accent) 40%, var(--color-border));
 }
-/* Gear glyph in an amber-tinted well: signals "navigation into Settings", not a
-   content card. Amber-washes on hover in step with the chevron. */
-.profile-settings__icon {
+/* Glyph in an amber-tinted well: signals "navigation into", not a content card
+  . Amber-washes on hover in step with the chevron. */
+.profile-hub__icon {
   display: grid;
   place-items: center;
   width: 2.5rem;
@@ -3009,76 +3016,101 @@ body {
   background: color-mix(in srgb, var(--color-accent) 12%, transparent);
   color: var(--color-accent);
 }
-.profile-settings__icon svg {
+.profile-hub__icon svg {
   width: 1.25rem;
   height: 1.25rem;
 }
-.profile-settings:hover .profile-settings__icon {
+.profile-hub:hover .profile-hub__icon {
   background: color-mix(in srgb, var(--color-accent) 20%, transparent);
 }
-.profile-settings__text {
+.profile-hub__text {
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
   margin-right: auto;
 }
-.profile-settings__title {
+.profile-hub__title {
   font-weight: 600;
   font-size: 1rem;
 }
-.profile-settings__sub {
+.profile-hub__sub {
   font-size: 0.85rem;
   color: var(--color-muted);
 }
-.profile-settings__chevron {
+.profile-hub__chevron {
   width: 1.25rem;
   height: 1.25rem;
   flex: none;
   color: var(--color-muted);
 }
-.profile-settings:hover .profile-settings__chevron {
+.profile-hub:hover .profile-hub__chevron {
   color: var(--color-accent);
 }
 
-/* ---- Profile Diary: the reverse-chronological watch log ----
-   Cue's past tense, the body of Profile. Calm, past-tense rows (no amber ✓ pill)
-   grouped under local-day headers, each row offering an exact "Remove this play". */
-.diary {
-  margin-top: var(--space-7);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-.diary__head {
-  display: flex;
+/* ---- Watch history screen ---- Cue's past tense on its own `/history`
+   route: a virtualized, reverse-chronological watch log with a decade jump. Calm,
+   past-tense rows (no amber ✓ pill) under local-day headers, each row offering an
+   exact "Remove this play". The card internals below still carry the `diary-*`
+   names they were born with — the visual idiom is unchanged. */
+
+/* The Year/Month decade-jump controls sit beside the type filter. */
+.history-controls {
   align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
+  gap: var(--space-3) var(--space-4);
   flex-wrap: wrap;
 }
-.diary__title {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: 1.25rem;
+.history-jump {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+  margin-left: auto;
+}
+.history-jump__field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.history-jump__label {
+  font-size: 0.72rem;
   font-weight: 600;
-  letter-spacing: -0.01em;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-muted);
 }
-.diary-days {
-  list-style: none;
+.history-select {
+  appearance: none;
+  min-height: var(--tap-min);
+  padding: var(--space-1) var(--space-6) var(--space-1) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-1);
+  background: var(--color-surface);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--space-2) center;
+  background-size: 1rem;
+  color: var(--color-fg);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.history-select:hover {
+  border-color: color-mix(in srgb, var(--color-accent) 40%, var(--color-border));
+}
+
+/* The virtualized scroll surface. A bounded internal-scroll height (matching the
+   Calendar's day-grouped virtual list, the sibling of this pattern) so the
+   virtualizer windows a decade-deep log to a fixed DOM node count; the whole page
+   scrolls around it exactly as the Calendar does. The day headings ride the surface
+   (calm, non-sticky). */
+.history-scroll {
+  height: 60vh;
+  margin-top: var(--space-4);
+}
+.history-heading {
   margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-}
-.diary-day {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-.diary-day__label {
-  margin: 0;
+  padding: var(--space-4) var(--space-1) var(--space-1);
   display: flex;
   align-items: baseline;
   gap: var(--space-2);
@@ -3086,23 +3118,37 @@ body {
   font-weight: 600;
   letter-spacing: -0.01em;
   color: var(--color-fg);
+  background: var(--color-bg);
 }
-.diary-day__count {
+.history-heading__count {
   font-size: 0.8rem;
   font-weight: 500;
   color: var(--color-muted);
 }
-.diary-day__label--skeleton {
-  height: 1rem;
-  width: 40%;
+.history-more {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-4) 0 var(--space-6);
 }
-.diary-groups {
+.history-skeleton-day {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
+}
+.history-skeleton-groups {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+}
+.diary-day__label--skeleton {
+  height: 1rem;
+  width: 40%;
 }
 .diary-card__trailing {
   flex: none;
@@ -3246,13 +3292,6 @@ body {
 .diary-card__poster--skeleton {
   animation: pulse 1.4s ease-in-out infinite;
 }
-.diary-more {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-2);
-  margin-top: var(--space-2);
-}
 .diary-more__error {
   margin: 0;
   font-size: 0.85rem;
@@ -3275,7 +3314,7 @@ body {
   .screen--profile .stat-row {
     gap: var(--space-2);
   }
-  .profile-settings {
+  .profile-hub {
     padding: var(--space-4);
   }
 }

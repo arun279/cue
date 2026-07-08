@@ -53,6 +53,47 @@ export interface GroupHistoryOptions {
   readonly timeZone: string;
 }
 
+/** A closed datetime window for the Trakt history `start_at`/`end_at` params. */
+export interface HistoryRange {
+  readonly startAt: string;
+  readonly endAt: string;
+}
+
+/**
+ * The UTC datetime bounds of a year (or a month within it) for the decade-jump
+ * scope — fed to Trakt's history `start_at`/`end_at`. `watched_at` is stored UTC,
+ * so UTC bounds keep the scope deterministic: a coarse "everything I watched in
+ * 2019 / March 2019" teleport, not a per-timezone-exact filter (the visible rows
+ * are still re-bucketed by the viewer's local day). A year is
+ * [Jan 1 00:00:00, Dec 31 23:59:59.999]; a month narrows to its own span.
+ */
+export function historyRange(year: number, month?: number): HistoryRange {
+  if (month === undefined) {
+    return {
+      startAt: `${year}-01-01T00:00:00.000Z`,
+      endAt: `${year}-12-31T23:59:59.999Z`,
+    };
+  }
+  const start = Date.UTC(year, month - 1, 1, 0, 0, 0, 0);
+  const nextMonth = Date.UTC(year, month, 1, 0, 0, 0, 0);
+  return {
+    startAt: new Date(start).toISOString(),
+    endAt: new Date(nextMonth - 1).toISOString(),
+  };
+}
+
+/**
+ * The stable scope segment shared by the history query key and the `/history` URL
+ * — `"recent"` (unbounded feed), `"2019"` (a year), or `"2019-03"` (a month). A
+ * pure string so the infinite query caches each scope separately while
+ * `historyPrefix()` still invalidates them as one.
+ */
+export function historyScopeKey(year?: number, month?: number): string {
+  if (year === undefined) return "recent";
+  if (month === undefined) return String(year);
+  return `${year}-${String(month).padStart(2, "0")}`;
+}
+
 /** Minute bucket of an instant — the honest precision Trakt normalizes plays to. */
 function minuteOf(ms: number): number {
   return Math.floor(ms / 60_000);

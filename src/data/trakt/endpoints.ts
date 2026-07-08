@@ -1,3 +1,4 @@
+import type { HistoryRange } from "@domain/history";
 import type { EpisodeIds, MovieIds, ShowIds } from "@domain/model/ids";
 import type { LastActivities } from "@domain/sync-activities";
 import type { z } from "zod";
@@ -242,6 +243,8 @@ type HistorySection = "all" | "episodes" | "movies";
  * earlier" tap advances meaningfully and the first page fills the screen, small
  * enough to stay one cheap GET. The returned `pagination` tells the caller whether
  * an earlier page exists. `extended=full,images` brings each row's poster inline.
+ * An optional `range` bounds the read to a year/month (the decade jump) via
+ * `start_at`/`end_at`, turning the unbounded feed into a finite, walkable window.
  */
 const HISTORY_PAGE_LIMIT = 30;
 
@@ -249,10 +252,12 @@ export async function getHistory(
   client: TraktClient,
   section: HistorySection,
   page: number,
+  range?: HistoryRange,
 ): Promise<TraktResult<HistoryItem[]>> {
   const path = section === "all" ? "/users/me/history" : `/users/me/history/${section}`;
+  const query = range === undefined ? undefined : { start_at: range.startAt, end_at: range.endAt };
   return parse(
-    await client.get(path, { extended: ART, page, limit: HISTORY_PAGE_LIMIT }),
+    await client.get(path, { extended: ART, page, limit: HISTORY_PAGE_LIMIT, query }),
     historySchema,
   );
 }

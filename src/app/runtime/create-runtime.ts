@@ -389,11 +389,12 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       };
     },
 
-    async loadHistory(section, page): Promise<HistoryPageData> {
+    async loadHistory(section, page, range): Promise<HistoryPageData> {
       // A single page only — history is unbounded, so the infinite query walks it
       // one page at a time. A transient 429 is absorbed so a rate-limit mid-scroll
-      // doesn't flip the Diary to error over its cached pages.
-      const result = await withReadRateRetry(() => getHistory(client, section, page));
+      // doesn't flip the Diary to error over its cached pages. `range` scopes the
+      // read to a year/month window (the decade jump).
+      const result = await withReadRateRetry(() => getHistory(client, section, page, range));
       if (!result.ok) throw new Error("Failed to load history");
       return {
         entries: assembleHistoryEntries(result.data),

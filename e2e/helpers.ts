@@ -1832,8 +1832,18 @@ export async function installHistoryRoutes(
       : path.endsWith("/movies")
         ? "movie"
         : "all";
+    // The decade jump bounds the read with start_at/end_at (ISO-8601); honor it so
+    // a year/month scope narrows the feed the way real Trakt does.
+    const startAt = url.searchParams.get("start_at");
+    const endAt = url.searchParams.get("end_at");
+    const inRange = (watchedAt: string): boolean => {
+      if (startAt !== null && watchedAt < startAt) return false;
+      if (endAt !== null && watchedAt > endAt) return false;
+      return true;
+    };
     const matching = rows.filter(
-      (r) => !removedIds.has(r.id) && (section === "all" || r.type === section),
+      (r) =>
+        !removedIds.has(r.id) && (section === "all" || r.type === section) && inRange(r.watchedAt),
     );
     const pageCount = Math.max(1, Math.ceil(matching.length / pageSize));
     const slice = matching.slice((page - 1) * pageSize, page * pageSize);

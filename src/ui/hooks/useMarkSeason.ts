@@ -355,7 +355,7 @@ export function useMarkSeason(): MarkSeasonController {
           forgetSeasonMark(target.showId, season.number);
           setNotice(
             plan.keptRewatch.length > 0
-              ? "These plays are rewatches — remove specific ones in your Diary."
+              ? "These plays are rewatches — remove specific ones in your watch history."
               : "No plays to unmark for this season.",
           );
           return;
@@ -444,7 +444,7 @@ export function useMarkSeason(): MarkSeasonController {
           if (resolution.kind === "rewatch") {
             patch(target.showId, matchEpisode, true);
             setNotice(
-              `This episode has ${resolution.count} plays — remove a specific one in your Diary.`,
+              `This episode has ${resolution.count} plays — remove a specific one in your watch history.`,
             );
             return;
           }

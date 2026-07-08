@@ -6,7 +6,6 @@ import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { useStats } from "@ui/hooks/useStats";
 import type { MediaVisibility } from "@ui/prefs/media-visibility";
 import { usePrefs } from "@ui/prefs/prefs-store";
-import { Diary } from "@ui/screens/profile/Diary";
 import type { ReactElement, ReactNode } from "react";
 
 const COUNT = new Intl.NumberFormat("en-US");
@@ -117,14 +116,97 @@ function Skeleton(): ReactElement {
   );
 }
 
+function HistoryIcon(): ReactElement {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        d="M3.05 11a9 9 0 1 1 .5 4M3 11V6m0 5h5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M12 7.5V12l3 2"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function GearIcon(): ReactElement {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="2" />
+      <path
+        d="M12 2.5v2.2M12 19.3v2.2M4.5 4.5l1.6 1.6M17.9 17.9l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.5 19.5l1.6-1.6M17.9 6.1l1.6-1.6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+/** A tappable Profile hub row — icon well, title/subtitle, chevron — that navigates
+ * into a bounded destination (the watch history log, Settings). Keeping these as
+ * short labelled rows means Settings is never trapped below an unbounded scroll. */
+function HubCard({
+  to,
+  testId,
+  icon,
+  title,
+  sub,
+}: {
+  readonly to: "/history" | "/settings";
+  readonly testId: string;
+  readonly icon: ReactNode;
+  readonly title: string;
+  readonly sub: string;
+}): ReactElement {
+  return (
+    <Link className="profile-hub" to={to} data-testid={testId}>
+      <span className="profile-hub__icon" aria-hidden="true">
+        {icon}
+      </span>
+      <span className="profile-hub__text">
+        <span className="profile-hub__title">{title}</span>
+        <span className="profile-hub__sub">{sub}</span>
+      </span>
+      <svg
+        className="profile-hub__chevron"
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+        focusable="false"
+      >
+        <path
+          d="M9 6l6 6-6 6"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </Link>
+  );
+}
+
 /**
- * Profile — the watch-stats theatre + the Diary. The signed-in
- * user's lifetime totals from `/users/me/stats` in the display face — one featured
- * watch-time figure over a triad of Episodes / Movies / Shows counts — crown a
- * reverse-chronological watch history (Cue's past tense and durable reversal home),
- * so the log rolls up to the numbers above it. Every state is designed — skeleton,
- * hard error with retry, a brand-new-account (all-zero) empty state, and a
- * persistent link into Settings so connections stay one tap away.
+ * Profile — a short hub. The signed-in user's lifetime totals from
+ * `/users/me/stats` in the display face — one featured watch-time figure over a
+ * triad of Episodes / Movies / Shows counts — crown two bounded hub rows: into the
+ * full watch history (Cue's past tense and durable reversal home, now its own
+ * `/history` route) and into Settings & connections. Keeping the unbounded log off
+ * this screen means Settings stays a tap away at the top rather than beneath a
+ * decade-deep scroll. Every stats state is designed — skeleton, hard error with
+ * retry, and a brand-new-account (all-zero) empty state.
  */
 export function Profile(): ReactElement {
   useDocumentTitle("Profile · Cue");
@@ -182,43 +264,22 @@ export function Profile(): ReactElement {
 
       {body}
 
-      <Diary />
-
-      <Link className="profile-settings" to="/settings" data-testid="link-settings">
-        <span className="profile-settings__icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="2" />
-            <path
-              d="M12 2.5v2.2M12 19.3v2.2M4.5 4.5l1.6 1.6M17.9 17.9l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.5 19.5l1.6-1.6M17.9 6.1l1.6-1.6"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-            />
-          </svg>
-        </span>
-        <span className="profile-settings__text">
-          <span className="profile-settings__title">Settings &amp; connections</span>
-          <span className="profile-settings__sub">
-            Appearance, preferences, and your Trakt connection
-          </span>
-        </span>
-        <svg
-          className="profile-settings__chevron"
-          viewBox="0 0 24 24"
-          aria-hidden="true"
-          focusable="false"
-        >
-          <path
-            d="M9 6l6 6-6 6"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      </Link>
+      <nav className="profile-hubs" aria-label="Profile">
+        <HubCard
+          to="/history"
+          testId="link-history"
+          icon={<HistoryIcon />}
+          title="Watch history"
+          sub="Your reverse-chronological record — jump to any year or month"
+        />
+        <HubCard
+          to="/settings"
+          testId="link-settings"
+          icon={<GearIcon />}
+          title="Settings & connections"
+          sub="Appearance, preferences, and your Trakt connection"
+        />
+      </nav>
     </section>
   );
 }

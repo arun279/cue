@@ -75,6 +75,32 @@ const discoverRedirect = createRoute({
 const profileRoute = createRoute({ getParentRoute: () => rootRoute, path: "/profile" }).lazy(() =>
   import("@app/routes/profile.lazy").then((module) => module.Route),
 );
+/** The watch-history log lives in the URL so every scope is deep-linkable and
+ * scroll-restorable: `?type` picks the medium (All is the default, carrying no
+ * param), and `?year`/`?month` are the decade jump. `month` is only meaningful
+ * inside a `year`, so it is dropped when no valid year is present. The year sanity
+ * range is generous (a deep link to any real year works) — the picker's own floor
+ * only shapes which years it offers as chips, never which the URL accepts. */
+interface HistorySearch {
+  readonly type?: "tv" | "movies";
+  readonly year?: number;
+  readonly month?: number;
+}
+const historyRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/history",
+  validateSearch: (search: Record<string, unknown>): HistorySearch => {
+    const out: { type?: "tv" | "movies"; year?: number; month?: number } = {};
+    if (search["type"] === "tv" || search["type"] === "movies") out.type = search["type"];
+    const year = Number(search["year"]);
+    if (Number.isInteger(year) && year >= 1970 && year <= 2100) out.year = year;
+    const month = Number(search["month"]);
+    if (out.year !== undefined && Number.isInteger(month) && month >= 1 && month <= 12) {
+      out.month = month;
+    }
+    return out;
+  },
+}).lazy(() => import("@app/routes/history.lazy").then((module) => module.Route));
 const authCallbackRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/auth/callback",
@@ -106,6 +132,7 @@ const routeTree = rootRoute.addChildren([
   myShowsRedirect,
   discoverRedirect,
   profileRoute,
+  historyRoute,
   authCallbackRoute,
   settingsRoute,
   showRoute,

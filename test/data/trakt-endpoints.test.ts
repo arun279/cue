@@ -358,6 +358,40 @@ describe("getHistory (the Diary feed)", () => {
     expect(url?.searchParams.get("extended")).toBe("full,images");
   });
 
+  it("bounds the read with start_at/end_at for a year/month scope (the decade jump)", async () => {
+    let url: URL | undefined;
+    server.use(
+      http.get(`${TRAKT_API_BASE}/users/me/history`, ({ request }) => {
+        url = new URL(request.url);
+        return HttpResponse.json([historyRow] as never, {
+          headers: { "X-Pagination-Page": "1", "X-Pagination-Page-Count": "1" },
+        });
+      }),
+    );
+    const result = await getHistory(client, "all", 1, {
+      startAt: "2019-01-01T00:00:00.000Z",
+      endAt: "2019-12-31T23:59:59.999Z",
+    });
+    expect(result.ok).toBe(true);
+    expect(url?.searchParams.get("start_at")).toBe("2019-01-01T00:00:00.000Z");
+    expect(url?.searchParams.get("end_at")).toBe("2019-12-31T23:59:59.999Z");
+  });
+
+  it("omits start_at/end_at entirely for the unbounded recent feed", async () => {
+    let url: URL | undefined;
+    server.use(
+      http.get(`${TRAKT_API_BASE}/users/me/history`, ({ request }) => {
+        url = new URL(request.url);
+        return HttpResponse.json([] as never, {
+          headers: { "X-Pagination-Page": "1", "X-Pagination-Page-Count": "1" },
+        });
+      }),
+    );
+    await getHistory(client, "all", 1);
+    expect(url?.searchParams.has("start_at")).toBe(false);
+    expect(url?.searchParams.has("end_at")).toBe(false);
+  });
+
   it("scopes to the episodes slice for the TV filter", async () => {
     let path: string | undefined;
     server.use(

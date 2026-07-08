@@ -224,7 +224,7 @@ test("Settings switch keeps its compact ink but a 44px hit-slop; threshold selec
   await expectTapTarget(page.getByTestId("threshold-select"), "height");
 });
 
-test("Diary remove is a 44px target @390", async ({ page }) => {
+test("watch-history remove is a 44px target @390", async ({ page }) => {
   const rows: HistoryRowFixture[] = [
     {
       id: 11,
@@ -239,9 +239,9 @@ test("Diary remove is a 44px target @390", async ({ page }) => {
   ];
   await installHistoryRoutes(page.context(), rows);
   await page.setViewportSize(PHONE);
-  await page.goto("/profile");
+  await page.goto("/history");
 
-  const remove = page.getByTestId("diary-remove").first();
+  const remove = page.getByTestId("history-remove").first();
   await expect(remove).toBeVisible();
   await expectTapTarget(remove, "height");
 });

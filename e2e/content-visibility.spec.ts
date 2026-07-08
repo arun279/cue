@@ -155,10 +155,12 @@ test("TV-only: Profile hides the Movies tile and its minutes leave the total", a
   await expect(time).toContainText("days");
   await expect(time).not.toContainText("22");
 
-  // The Diary is locked to TV: no type toggle, and only TV plays appear.
-  await expect(page.getByTestId("diary-filter-movies")).toHaveCount(0);
-  await expect(page.getByTestId("diary-row").filter({ hasText: "The Bear" })).toBeVisible();
-  await expect(page.getByTestId("diary-row").filter({ hasText: "Interstellar" })).toHaveCount(0);
+  // The watch history is locked to TV: no type toggle, and only TV plays appear.
+  await page.goto("/history");
+  await expect(page.getByTestId("screen-history")).toBeVisible();
+  await expect(page.getByTestId("history-filter-movies")).toHaveCount(0);
+  await expect(page.getByTestId("history-row").filter({ hasText: "The Bear" })).toBeVisible();
+  await expect(page.getByTestId("history-row").filter({ hasText: "Interstellar" })).toHaveCount(0);
 });
 
 // ---- TV disabled (the movies-only case) ----
