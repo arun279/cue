@@ -5,14 +5,14 @@ import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { ChevronIcon } from "@ui/components/ChevronIcon";
 import { DetailBack } from "@ui/components/DetailBack";
 import { ErrorRetry, ErrorToast } from "@ui/components/ErrorStates";
+import { Snackbar } from "@ui/components/Snackbar";
 import { SyncStatusPill } from "@ui/components/SyncStatusPill";
 import { VirtualList } from "@ui/components/VirtualList";
+import { episodeCode } from "@ui/format";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { type HistoryFilter, type HistoryScope, useHistory } from "@ui/hooks/useHistory";
 import { usePrefs } from "@ui/prefs/prefs-store";
-import { episodeCode } from "@ui/screens/up-next/format";
 import { Poster } from "@ui/screens/up-next/Poster";
-import { Snackbar } from "@ui/screens/up-next/Snackbar";
 import { Accordion, ToggleGroup } from "radix-ui";
 import { type ReactElement, type ReactNode, useMemo } from "react";
 

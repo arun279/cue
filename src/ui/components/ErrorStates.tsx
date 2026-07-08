@@ -1,4 +1,4 @@
-import { Snackbar } from "@ui/screens/up-next/Snackbar";
+import { Snackbar } from "@ui/components/Snackbar";
 import type { ReactElement } from "react";
 
 interface ErrorRetryProps {

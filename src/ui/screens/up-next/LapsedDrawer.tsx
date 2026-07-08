@@ -2,10 +2,10 @@ import type { TmdbImageConfig } from "@data/image-source";
 import { Link } from "@tanstack/react-router";
 import { ChevronIcon } from "@ui/components/ChevronIcon";
 import { MarkWatchedButton } from "@ui/components/MarkWatchedButton";
+import { episodeCode, relativeDays } from "@ui/format";
 import type { UpNextCard as UpNextCardModel } from "@ui/hooks/useUpNext";
 import { Accordion } from "radix-ui";
 import type { ReactElement } from "react";
-import { episodeCode, relativeDays } from "./format";
 import { Poster } from "./Poster";
 
 interface LapsedDrawerProps {

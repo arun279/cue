@@ -1,9 +1,9 @@
 import type { TmdbImageConfig } from "@data/image-source";
 import { Link } from "@tanstack/react-router";
 import { MarkWatchedButton } from "@ui/components/MarkWatchedButton";
+import { episodeCode, relativeDays, watchedPercent } from "@ui/format";
 import type { UpNextCard as UpNextCardModel } from "@ui/hooks/useUpNext";
 import type { ReactElement } from "react";
-import { episodeCode, relativeDays, watchedPercent } from "./format";
 import { Poster } from "./Poster";
 
 interface UpNextCardProps {

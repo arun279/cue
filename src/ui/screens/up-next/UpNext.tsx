@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { CachedRetryBanner } from "@ui/components/CachedRetryBanner";
 import { CardListSkeleton } from "@ui/components/CardListSkeleton";
 import { ErrorRetry, ErrorToast } from "@ui/components/ErrorStates";
+import { Snackbar } from "@ui/components/Snackbar";
 import { SyncStatusPill } from "@ui/components/SyncStatusPill";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { useHideShow } from "@ui/hooks/useHideShow";
@@ -13,7 +14,6 @@ import type { ReactElement, ReactNode } from "react";
 import emptyAllCaughtUp from "./assets/empty-all-caught-up.webp";
 import emptyNothingTracked from "./assets/empty-nothing-tracked.webp";
 import { LapsedDrawer } from "./LapsedDrawer";
-import { Snackbar } from "./Snackbar";
 import { UpNextCard } from "./UpNextCard";
 
 const UNDO_MS = 6000;

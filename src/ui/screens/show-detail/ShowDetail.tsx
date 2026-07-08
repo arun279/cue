@@ -6,6 +6,14 @@ import { DetailHeroSkeleton } from "@ui/components/DetailHeroSkeleton";
 import { ErrorRetry, ErrorToast } from "@ui/components/ErrorStates";
 import { MarkIcon } from "@ui/components/MarkIcon";
 import { RatingControl } from "@ui/components/RatingControl";
+import { Snackbar } from "@ui/components/Snackbar";
+import {
+  episodeCode,
+  formatAirDate,
+  formatWatchedDate,
+  titleCase,
+  watchedPercent,
+} from "@ui/format";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { useHideShow } from "@ui/hooks/useHideShow";
 import { useLibrarySnapshot } from "@ui/hooks/useLibrarySnapshot";
@@ -15,15 +23,7 @@ import { useRate } from "@ui/hooks/useRate";
 import { useSeasons } from "@ui/hooks/useSeasons";
 import { useShowDetail } from "@ui/hooks/useShowDetail";
 import { useToggleWatchlist } from "@ui/hooks/useToggleWatchlist";
-import {
-  episodeCode,
-  formatAirDate,
-  formatWatchedDate,
-  titleCase,
-  watchedPercent,
-} from "@ui/screens/up-next/format";
 import { Poster } from "@ui/screens/up-next/Poster";
-import { Snackbar } from "@ui/screens/up-next/Snackbar";
 import { Accordion } from "radix-ui";
 import { type ReactElement, useState } from "react";
 import { SeasonPanel } from "./SeasonPanel";

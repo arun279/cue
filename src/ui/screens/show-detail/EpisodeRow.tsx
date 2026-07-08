@@ -1,6 +1,6 @@
 import type { EpisodeView } from "@data/trakt/show-detail";
 import { Link } from "@tanstack/react-router";
-import { episodeCode, formatWatchedDate } from "@ui/screens/up-next/format";
+import { episodeCode, formatWatchedDate } from "@ui/format";
 import type { ReactElement } from "react";
 import { Still } from "./Still";
 

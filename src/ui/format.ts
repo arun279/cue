@@ -1,4 +1,4 @@
-/** Presentation helpers shared by the Up Next spotlight and its queue rows. */
+/** Presentation helpers shared across screens (dates, episode codes, progress). */
 
 import { localTimeZone } from "@domain/time";
 

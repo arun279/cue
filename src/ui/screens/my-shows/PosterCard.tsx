@@ -1,7 +1,7 @@
 import type { TmdbImageConfig } from "@data/image-source";
 import type { LibraryEntry } from "@data/trakt/library";
 import { Link } from "@tanstack/react-router";
-import { episodeCode, watchedPercent } from "@ui/screens/up-next/format";
+import { episodeCode, watchedPercent } from "@ui/format";
 import { Poster } from "@ui/screens/up-next/Poster";
 import type { ReactElement } from "react";
 

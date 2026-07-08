@@ -3,10 +3,10 @@ import { advancePastNext, type LibraryEntry, type MarkContext } from "@data/trak
 import { isTerminalStatus } from "@domain/watch-status";
 import { buildMarkEpisodeOp, buildUnmarkEpisodeOp } from "@domain/write-queue/ops";
 import { useQueryClient } from "@tanstack/react-query";
+import { episodeCode } from "@ui/format";
 import { patchLibraryEntry } from "@ui/hooks/library-cache";
 import { useOptimisticWrite } from "@ui/hooks/useOptimisticWrite";
 import type { SubmitOutcome } from "@ui/runtime/runtime";
-import { episodeCode } from "@ui/screens/up-next/format";
 import { useCallback, useRef, useState } from "react";
 
 interface UndoState {

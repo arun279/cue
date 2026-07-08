@@ -6,6 +6,8 @@ import { DetailBack } from "@ui/components/DetailBack";
 import { DetailHeroSkeleton } from "@ui/components/DetailHeroSkeleton";
 import { ErrorRetry, ErrorToast } from "@ui/components/ErrorStates";
 import { RatingControl } from "@ui/components/RatingControl";
+import { Snackbar } from "@ui/components/Snackbar";
+import { formatAirDate, formatWatchedDate, titleCase } from "@ui/format";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { useMovieActions } from "@ui/hooks/useMovieActions";
 import { useMovieDetail } from "@ui/hooks/useMovieDetail";
@@ -15,9 +17,7 @@ import { useRate } from "@ui/hooks/useRate";
 import { useWatchlistAdd } from "@ui/hooks/useWatchlistAdd";
 import { usePrefs } from "@ui/prefs/prefs-store";
 import { DiscoverGrid } from "@ui/screens/search/DiscoverCard";
-import { formatAirDate, formatWatchedDate, titleCase } from "@ui/screens/up-next/format";
 import { Poster } from "@ui/screens/up-next/Poster";
-import { Snackbar } from "@ui/screens/up-next/Snackbar";
 import { type ReactElement, useState } from "react";
 
 const UNDO_MS = 6000;

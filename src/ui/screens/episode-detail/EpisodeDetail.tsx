@@ -8,14 +8,14 @@ import { DetailBack } from "@ui/components/DetailBack";
 import { DetailHeroSkeleton } from "@ui/components/DetailHeroSkeleton";
 import { ErrorRetry, ErrorToast } from "@ui/components/ErrorStates";
 import { RatingControl } from "@ui/components/RatingControl";
+import { Snackbar } from "@ui/components/Snackbar";
+import { episodeCode, formatAirDate, formatWatchedDate } from "@ui/format";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { useEpisode } from "@ui/hooks/useEpisode";
 import { useRate } from "@ui/hooks/useRate";
 import { useShowDetail } from "@ui/hooks/useShowDetail";
 import { useToggleEpisodeWatched } from "@ui/hooks/useToggleEpisodeWatched";
-import { episodeCode, formatAirDate, formatWatchedDate } from "@ui/screens/up-next/format";
 import { Poster } from "@ui/screens/up-next/Poster";
-import { Snackbar } from "@ui/screens/up-next/Snackbar";
 import { type ReactElement, useState } from "react";
 
 /** The cinematic 16:9 still, cropped into the hero's fixed-height backdrop band

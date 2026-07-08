@@ -3,7 +3,7 @@ import type { CalendarRow as CalendarRowModel } from "@domain/calendar";
 import { localTimeZone } from "@domain/time";
 import { Link } from "@tanstack/react-router";
 import { MarkWatchedButton } from "@ui/components/MarkWatchedButton";
-import { episodeCode } from "@ui/screens/up-next/format";
+import { episodeCode } from "@ui/format";
 import { Poster } from "@ui/screens/up-next/Poster";
 import type { ReactElement } from "react";
 

@@ -2,11 +2,11 @@ import type { CalendarDay, CalendarRow as CalendarRowModel } from "@domain/calen
 import { CachedRetryBanner } from "@ui/components/CachedRetryBanner";
 import { CardListSkeleton } from "@ui/components/CardListSkeleton";
 import { ErrorRetry, ErrorToast } from "@ui/components/ErrorStates";
+import { Snackbar } from "@ui/components/Snackbar";
 import { SyncStatusPill } from "@ui/components/SyncStatusPill";
 import { VirtualList } from "@ui/components/VirtualList";
 import { CALENDAR_WINDOWS, useCalendar } from "@ui/hooks/useCalendar";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
-import { Snackbar } from "@ui/screens/up-next/Snackbar";
 import { ToggleGroup } from "radix-ui";
 import { type ReactElement, type ReactNode, useMemo } from "react";
 import { CalendarRow } from "./CalendarRow";
