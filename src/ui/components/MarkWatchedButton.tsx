@@ -30,6 +30,12 @@ export function MarkWatchedButton({
   busy = false,
   onMark,
 }: MarkWatchedButtonProps): ReactElement {
+  // Split off the trailing word ("watched") into its own span so a phone can drop it
+  // for density — the button reads "Mark" there — while the full label stays on
+  // desktop and the accessible name (ariaLabel) is always the complete action.
+  const words = label.split(" ");
+  const suffix = words.length > 1 ? (words.pop() ?? null) : null;
+  const base = words.join(" ");
   return (
     <button
       type="button"
@@ -41,7 +47,10 @@ export function MarkWatchedButton({
       onClick={onMark}
     >
       <MarkIcon className="card__check" />
-      <span className="card__mark-text">{label}</span>
+      <span className="card__mark-text">
+        {base}
+        {suffix !== null && <span className="card__mark-suffix"> {suffix}</span>}
+      </span>
     </button>
   );
 }

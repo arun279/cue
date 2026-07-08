@@ -41,6 +41,13 @@
   --space-7: 48px;
   --space-8: 64px;
 
+  /* The Cue touch-target floor: one system-wide minimum for a comfortable finger
+   * target. 44 CSS px is Apple HIG's 44pt and the size WCAG 2.5.5 names, and the
+   * largest common minimum that still fits Cue's compact card rows without a second
+   * layout — so it is a single documented constant, applied at shared class
+   * definitions rather than per-screen (Nielsen #4 / Shneiderman #1 consistency). */
+  --tap-min: 44px;
+
   --radius-poster: 6px;
   --radius-1: 10px;
   --radius-2: 14px;
@@ -145,10 +152,45 @@ body {
   letter-spacing: 0.04em;
 }
 
+/* ---- The Cue touch-target standard (one standard, applied at shared classes) ----
+ * Every interactive control clears a var(--tap-min) (44px) finger target, decoupling
+ * HIT AREA from VISUAL SIZE via four rules (WCAG 2.5.5 / 2.5.8):
+ *   1. GROW — standalone controls take min-height:--tap-min + padding; the ink can
+ *      still read compact because the padding IS part of the control. (buttons,
+ *      back links, segmented items, filter/sort inputs, header icons, the mark pill)
+ *   2. HIT-SLOP — a deliberately tiny, visually-fixed, isolated control keeps its
+ *      pixels and grows only its target with a centred transparent pseudo-element,
+ *      no visual ballooning. (the Settings switch track)  → .hit-slop
+ *   3. TILE — a run of adjacent tiny targets (the 1–10 rating) can't each be 44 wide
+ *      (ten 44px cells = 440px, wider than a phone) without a 2-row grid that breaks
+ *      the left-to-right 1–10 reading. Instead the ten cells tile edge-to-edge with
+ *      NO dead gap: the group is one continuous 260×44 target where every pixel maps
+ *      to a value, so a tap never misses; per-value precision rides the 44px height +
+ *      instant fill feedback + one-tap reversal (Clear / re-tap). (.rating__scale)
+ *   4. SPACE — keep ≥--space-2 between SEPARATE targets so one control's slop can't
+ *      collide with its neighbor. (the Up Next body link vs. its mark action) */
+.hit-slop {
+  position: relative;
+}
+.hit-slop::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100%, var(--tap-min));
+  height: var(--tap-min);
+  transform: translate(-50%, -50%);
+}
+
 .skip-link {
   position: absolute;
   left: var(--space-2);
   top: -3rem;
+  /* the keyboard bypass link is a real 44px target when revealed on focus
+   * (was a 32px text link); inline-flex centres the label without enlarging type. */
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-min);
   padding: var(--space-1) var(--space-3);
   background: var(--color-accent);
   color: var(--color-accent-fg);
@@ -164,6 +206,9 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 10px;
+  /* the wordmark is a link home — give it a full-height tap target without
+   * enlarging the ink (the 44px lives as the row it sits in, not bigger type). */
+  min-height: var(--tap-min);
   font-family: var(--font-display);
   font-weight: 600;
   font-size: 1.35rem;
@@ -202,7 +247,9 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
+  /* Tighter vertical padding so the 44px brand + action targets don't inflate the
+   * sticky header height (which would eat into the Up Next fold). */
+  padding: var(--space-2) var(--space-4);
   background: color-mix(in srgb, var(--color-bg) 86%, transparent);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--color-border);
@@ -272,8 +319,9 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.5rem;
-  height: 2.5rem;
+  /* 44×44 finger target; the icon inside stays its own size. */
+  width: var(--tap-min);
+  height: var(--tap-min);
   border-radius: var(--radius-1);
   color: var(--color-ink2);
   text-decoration: none;
@@ -416,6 +464,18 @@ body {
   position: relative;
   cursor: pointer;
   flex: none;
+}
+/* the track stays a deliberate 40×22 pill, but a centred
+   transparent pseudo-element gives the finger a real 44×44 target without ballooning
+   the ink — pointer events on the pseudo belong to the switch button. */
+.switch::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100%, var(--tap-min));
+  height: var(--tap-min);
+  transform: translate(-50%, -50%);
 }
 .switch[data-state="checked"] {
   background: var(--color-accent);
@@ -738,6 +798,9 @@ body {
   color: var(--color-fg);
 }
 .button--sm {
+  /* Compact ink, honest target: the smaller font + horizontal padding read as a
+   * secondary control, but this keeps the finger target at 44px tall. */
+  min-height: var(--tap-min);
   padding: 6px var(--space-3);
   font-size: 0.85rem;
   flex: none;
@@ -997,6 +1060,8 @@ body {
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
+  /* the shared mark ACTION always clears a 44px finger target. */
+  min-height: var(--tap-min);
   padding: 10px var(--space-4);
   border-radius: var(--radius-pill);
   font-family: var(--font-ui);
@@ -1073,15 +1138,12 @@ body {
 }
 /* The first card of the honest sort is a calm "start here" marker, not a cinematic
    hero: no poster/title bump and no accent border (which over-read as an editorial
-   recommendation of a merely most-recently-watched show). Its one distinction is a
-   filled "Mark watched" CTA that WRAPS onto its own full-width row, so poster + body
-   keep the whole line and a normal title never clips to a letter at 390px. */
-.card--lead {
-  flex-wrap: wrap;
-}
+   recommendation of a merely most-recently-watched show). Its one distinction is the
+   FILLED amber action — but it stays INLINE and compact like every other card, never
+   a full-width CTA. A full-width action (the old lead + old phone layout) made every
+   card ~188px tall so only 3 cleared the 390px fold; keeping the action a trailing
+   pill roughly halves card height so ~5 episodes are visible. */
 .card--lead .card__mark {
-  flex-basis: 100%;
-  width: 100%;
   background: var(--color-accent);
   border-color: var(--color-accent);
   color: var(--color-accent-fg);
@@ -1090,16 +1152,19 @@ body {
   background: var(--color-accent-strong);
   border-color: var(--color-accent-strong);
 }
-/* On a phone the wider "Mark watched" action would crowd a queue title to a few
-   letters, so every Up Next card drops its action to a full-width row below the
-   body (the lead already does at all widths) — titles stay legible at 390px. */
+/* On a phone the full "Mark watched" label would crowd a queue title to a few
+   letters, so the trailing action compacts to the plus glyph + "Mark" (the "watched"
+   suffix drops) while the aria-label stays the full "Mark <title> <code> watched" —
+   still an honest ACTION, never a done-badge, and reversible via the Undo toast. The
+   ≥--space-4 flex gap keeps the action's 44px target clear of the body link.*/
 @media (max-width: 639px) {
-  .card--up-next {
-    flex-wrap: wrap;
+  .card--up-next .card__mark,
+  .lapsed-row__mark.card__mark {
+    padding-inline: var(--space-3);
+    font-size: 0.85rem;
   }
-  .card--up-next .card__mark {
-    flex-basis: 100%;
-    width: 100%;
+  .card__mark-suffix {
+    display: none;
   }
 }
 
@@ -1211,7 +1276,9 @@ body {
   align-items: center;
   gap: var(--space-3);
   max-width: calc(100vw - 2 * var(--space-4));
-  padding: var(--space-3) var(--space-4);
+  /* Reduced vertical padding: the reversal controls now carry the 44px target, so
+   * the toast's height is defined by them, not by extra chrome padding. */
+  padding: var(--space-2) var(--space-4);
   background: var(--color-overlay);
   color: var(--color-fg);
   border: 1px solid var(--color-border);
@@ -1232,6 +1299,13 @@ body {
   font-weight: 700;
   cursor: pointer;
   flex: none;
+  /* reversal is the crux of the honest-mark model — the Undo control must be
+   * a full 44px finger target, not a 38×22 text link a phone user keeps missing. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap-min);
+  padding-inline: var(--space-2);
 }
 .snackbar__dismiss {
   appearance: none;
@@ -1242,6 +1316,13 @@ body {
   line-height: 1;
   cursor: pointer;
   flex: none;
+  /* the "×" glyph dismiss was a 13×19 hazard next to Undo — give it a real
+   * square 44×44 target (both dims, since a glyph has no elastic text width). */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap-min);
+  min-width: var(--tap-min);
 }
 @media (min-width: 900px) {
   .snackbar {
@@ -1275,7 +1356,13 @@ body {
   border: none;
   background: transparent;
   color: var(--color-muted);
-  padding: var(--space-1) var(--space-3);
+  /* the pill reads compact but each segment is a 44px-tall finger target —
+   * the shared idiom for Library type, Calendar range, and Diary filter. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap-min);
+  padding: var(--space-1) var(--space-4);
   border-radius: var(--radius-pill);
   font-size: 0.9rem;
   font-weight: 600;
@@ -1296,6 +1383,8 @@ body {
 }
 .library-sort__select {
   appearance: none;
+  /* 44px-tall target (shared by the Library sort + the Settings threshold). */
+  min-height: var(--tap-min);
   padding: var(--space-1) calc(var(--space-3) + 14px) var(--space-1) var(--space-3);
   background:
     linear-gradient(45deg, transparent 50%, var(--color-muted) 50%)
@@ -1357,6 +1446,8 @@ body {
 .library-filter {
   appearance: none;
   min-width: 12rem;
+  /* 44px-tall text field so the filter matches the sort control's target. */
+  min-height: var(--tap-min);
   padding: var(--space-1) var(--space-3);
   background: var(--color-surface);
   color: var(--color-fg);
@@ -1596,8 +1687,12 @@ body {
   margin: 0 auto;
 }
 .detail-back {
-  display: inline-block;
-  margin-bottom: var(--space-4);
+  /* a 44px-tall back target (was a 22px text link) — inline-flex so the
+   * chevron + label centre without enlarging the type. */
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-min);
+  margin-bottom: var(--space-2);
   color: var(--color-ink2);
   text-decoration: none;
   font-size: 0.9rem;
@@ -1722,7 +1817,13 @@ body {
   font-size: 0.9rem;
   font-weight: 500;
   cursor: pointer;
-  padding: var(--space-2);
+  /* a consequential action (drops the show from Up Next + calendar) — a real
+   * 44px target, was a 37px text button. Ink stays quiet; the row carries the size. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap-min);
+  padding: var(--space-2) var(--space-3);
 }
 .show-hero__stop:hover {
   color: var(--color-danger);
@@ -1850,13 +1951,19 @@ body {
   letter-spacing: -0.01em;
 }
 .detail-specials {
+  /* the whole label (native <label> → its 13px checkbox) is one 44px-tall
+   * click target, so the tiny native box is never the only thing to hit. */
   display: inline-flex;
   align-items: center;
+  min-height: var(--tap-min);
   gap: var(--space-2);
   font-size: 0.85rem;
   color: var(--color-ink2);
+  cursor: pointer;
 }
 .detail-specials input {
+  width: 18px;
+  height: 18px;
   accent-color: var(--color-accent);
   cursor: pointer;
 }
@@ -2037,8 +2144,13 @@ body {
   position: absolute;
   top: 6px;
   right: 6px;
-  width: 26px;
-  height: 26px;
+  /* the per-episode mark/unmark — the primary "easy to mark unwatched"
+   * affordance from the feedback — is a full 44×44 finger target. The visible check
+   * badge stays a compact centred circle so a 158px still isn't swallowed. */
+  display: grid;
+  place-items: center;
+  width: var(--tap-min);
+  height: var(--tap-min);
   cursor: pointer;
 }
 .ep-still__box {
@@ -2052,8 +2164,8 @@ body {
   cursor: not-allowed;
 }
 .ep-still__badge {
-  position: absolute;
-  inset: 0;
+  width: 30px;
+  height: 30px;
   display: grid;
   place-items: center;
   pointer-events: none;
@@ -2094,7 +2206,12 @@ body {
   color: var(--color-fg);
   font-size: 0.7rem;
   font-weight: 600;
-  padding: 4px 8px;
+  /* 44px target for the hover/focus-revealed catch-up shortcut (the touch
+   * path to the same action is NextUp's always-visible "Mark up to here"). */
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-min);
+  padding: 4px var(--space-3);
   cursor: pointer;
   opacity: 0;
   transition: opacity var(--dur-quick) var(--ease-standard);
@@ -2151,9 +2268,13 @@ body {
   gap: var(--space-3);
   flex-wrap: wrap;
 }
+/* the ten cells tile edge-to-edge with NO dead gap, forming one
+   continuous 260×44 target — a tap always lands on the nearest value, and per-value
+   precision rides the 44px height + instant fill + one-tap reversal. (Ten 44px-wide
+   cells would be 440px — wider than a phone; a 2-row grid breaks the 1–10 reading.) */
 .rating__scale {
   display: flex;
-  gap: 3px;
+  gap: 0;
   border: none;
   margin: 0;
   padding: 0;
@@ -2161,23 +2282,35 @@ body {
 }
 .rating__seg {
   appearance: none;
-  width: 22px;
-  height: 12px;
+  width: 26px;
+  height: var(--tap-min);
   padding: 0;
   border: none;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+/* The VISIBLE meter is a slim centred band; the 3px separation between bars lives on
+   the ink (::before margin), never on the contiguous hit area. */
+.rating__seg::before {
+  content: "";
+  display: block;
+  width: 100%;
+  height: 12px;
+  margin: 0 1.5px;
   border-radius: 3px;
   background: var(--color-elevated);
-  cursor: pointer;
   transition: background var(--dur-quick) var(--ease-standard);
 }
-.rating__seg[data-fill="true"] {
+.rating__seg[data-fill="true"]::before {
   background: var(--color-accent);
 }
 /* Hover preview: fill the hovered segment and every one before it, clear those after. */
-.rating__scale:not(:disabled):hover .rating__seg {
+.rating__scale:not(:disabled):hover .rating__seg::before {
   background: var(--color-accent);
 }
-.rating__scale:not(:disabled) .rating__seg:hover ~ .rating__seg {
+.rating__scale:not(:disabled) .rating__seg:hover ~ .rating__seg::before {
   background: var(--color-elevated);
 }
 .rating__scale:disabled {
@@ -2201,7 +2334,13 @@ body {
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
-  padding: 2px 4px;
+  /* a real 44×44 target for the "remove rating" affordance. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap-min);
+  min-width: var(--tap-min);
+  padding: 2px var(--space-2);
 }
 .rating__clear:hover {
   color: var(--color-fg);
@@ -2226,6 +2365,10 @@ body {
   text-transform: uppercase;
   color: var(--color-muted);
 }
+/* Deliberately NOT grown to 44px: this is an inline link inside the running eyebrow
+ * sentence ("THE BEAR · Season 1"), so WCAG 2.5.8's Inline exception applies, and the
+ * standalone "‹ The Bear" back link above it is a 44px Equivalent to the same show.
+ * Forcing a 44px block here would break the sentence flow the standard exempts. */
 .episode-hero__show {
   color: var(--color-ink2);
   text-decoration: none;
@@ -2263,7 +2406,7 @@ body {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  min-height: 44px;
+  min-height: var(--tap-min);
   padding: 0 var(--space-4);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-1);
@@ -2323,7 +2466,7 @@ body {
   display: inline-flex;
   flex-direction: column;
   gap: 2px;
-  min-height: 44px;
+  min-height: var(--tap-min);
   justify-content: center;
   padding: var(--space-3) var(--space-4);
   border: 1px solid var(--color-border);
@@ -2536,7 +2679,12 @@ body {
   bottom: var(--space-2);
   appearance: none;
   border: none;
-  padding: 5px 10px;
+  /* a 44px-tall target for the inline watchlist add that repeats on every
+   * poster in Search + related rails (~99 instances at 44×28 before). */
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-min);
+  padding: 5px var(--space-3);
   border-radius: var(--radius-pill);
   background: var(--color-accent);
   color: var(--color-accent-fg);
@@ -2967,7 +3115,11 @@ body {
   font-family: inherit;
   font-size: 0.78rem;
   font-weight: 600;
-  padding: var(--space-1) var(--space-2);
+  /* a 44px-tall target for a consequential (per-play removal) action. */
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-min);
+  padding: var(--space-1) var(--space-3);
   border-radius: var(--radius-pill);
   cursor: pointer;
   flex: none;
