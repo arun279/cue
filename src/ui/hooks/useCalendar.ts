@@ -1,5 +1,5 @@
 import type { TmdbImageConfig } from "@data/image-source";
-import { showProgressKeys } from "@data/query-invalidation";
+import { invalidateShowProgress } from "@data/query-invalidation";
 import { queryKeys } from "@data/query-keys";
 import { type CalendarDay, type CalendarRow, groupCalendar } from "@domain/calendar";
 import { localTimeZone } from "@domain/time";
@@ -73,12 +73,7 @@ export function useCalendar(): CalendarView {
   const revalidateFor = useCallback(
     (row: CalendarRow) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.calendarPrefix() });
-      for (const queryKey of showProgressKeys(row.showId, {
-        season: row.season,
-        number: row.number,
-      })) {
-        void queryClient.invalidateQueries({ queryKey });
-      }
+      invalidateShowProgress(queryClient, row.showId, { season: row.season, number: row.number });
     },
     [queryClient],
   );

@@ -2,11 +2,8 @@ import type { TmdbImageConfig } from "@data/image-source";
 import { queryKeys } from "@data/query-keys";
 import type { SearchHit } from "@data/trakt/search";
 import { useQuery } from "@tanstack/react-query";
+import { DISCOVER_STALE_TIME_MS } from "@ui/hooks/query-freshness";
 import { useRuntime } from "@ui/runtime/runtime";
-
-/** Trending + popular shift slowly; a 5-minute stale window spares the movie home a
- * refetch on every revisit — matching the Search browse rails and related rail. */
-const STALE_MS = 5 * 60 * 1000;
 
 export interface MovieDiscoverView {
   readonly isLoading: boolean;
@@ -31,7 +28,7 @@ export function useMovieDiscover(enabled: boolean): MovieDiscoverView {
   const query = useQuery({
     queryKey: queryKeys.movieDiscover(),
     queryFn: () => runtime.loadMovieDiscover(),
-    staleTime: STALE_MS,
+    staleTime: DISCOVER_STALE_TIME_MS,
     enabled,
   });
   return {

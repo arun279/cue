@@ -33,10 +33,14 @@ function progressRatio(show: LibraryShow): number {
   return show.aired > 0 ? show.completed / show.aired : 0;
 }
 
+/** Case-insensitive title order — the shared alphabetical comparator for both the
+ * show-library buckets and the movie-library sorts. */
+export function byTitle<T extends { title: string }>(a: T, b: T): number {
+  return a.title.localeCompare(b.title, undefined, { sensitivity: "base" });
+}
+
 function comparatorFor(sort: LibrarySort): (a: LibraryShow, b: LibraryShow) => number {
-  if (sort === "alphabetical") {
-    return (a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: "base" });
-  }
+  if (sort === "alphabetical") return byTitle;
   if (sort === "progress") {
     return (a, b) => progressRatio(b) - progressRatio(a);
   }

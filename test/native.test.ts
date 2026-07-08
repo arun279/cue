@@ -1,8 +1,8 @@
-import { platformName } from "@platform/native";
+import { isNativePlatform } from "@platform/platform";
 import { describe, expect, it } from "vitest";
 
-describe("platformName", () => {
-  it("reports the Capacitor platform (web under jsdom)", () => {
-    expect(platformName()).toBe("web");
+describe("isNativePlatform", () => {
+  it("reports web (not native) under jsdom", () => {
+    expect(isNativePlatform()).toBe(false);
   });
 });

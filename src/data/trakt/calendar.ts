@@ -1,15 +1,6 @@
 import type { CalendarEntry } from "@domain/calendar";
-import type { EpisodeIds } from "@domain/model/ids";
 import type { CalendarItem } from "./schemas";
-
-function episodeIds(ids: CalendarItem["episode"]["ids"]): EpisodeIds {
-  return {
-    trakt: ids.trakt,
-    tvdb: ids.tvdb ?? undefined,
-    imdb: ids.imdb ?? undefined,
-    tmdb: ids.tmdb ?? undefined,
-  };
-}
+import { toEpisodeIds } from "./show-detail";
 
 /**
  * Flatten `/calendars/my/shows` rows into the domain `CalendarEntry[]` the
@@ -26,7 +17,7 @@ export function assembleCalendarEntries(items: readonly CalendarItem[]): Calenda
     number: item.episode.number,
     episodeTitle: item.episode.title ?? null,
     firstAired: item.first_aired,
-    ids: episodeIds(item.episode.ids),
+    ids: toEpisodeIds(item.episode.ids),
     posters: item.show.images?.poster ?? [],
     tmdbId: item.episode.ids.tmdb ?? null,
   }));

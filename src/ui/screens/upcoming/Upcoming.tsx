@@ -1,6 +1,8 @@
 import type { CalendarDay, CalendarRow as CalendarRowModel } from "@domain/calendar";
 import { CachedRetryBanner } from "@ui/components/CachedRetryBanner";
 import { CardListSkeleton } from "@ui/components/CardListSkeleton";
+import { ErrorRetry } from "@ui/components/ErrorRetry";
+import { ErrorToast } from "@ui/components/ErrorToast";
 import { SyncStatusPill } from "@ui/components/SyncStatusPill";
 import { VirtualList } from "@ui/components/VirtualList";
 import { CALENDAR_WINDOWS, useCalendar } from "@ui/hooks/useCalendar";
@@ -43,18 +45,12 @@ export function Upcoming(): ReactElement {
     body = <CardListSkeleton testId="upcoming-skeleton" />;
   } else if (view.isError && !view.hasData) {
     body = (
-      <div className="empty" data-testid="upcoming-error">
-        <h2 className="empty__title">Couldn't load your calendar</h2>
-        <p className="empty__body">Check your connection and try again.</p>
-        <button
-          type="button"
-          className="button"
-          data-testid="upcoming-error-retry"
-          onClick={view.refetch}
-        >
-          Retry
-        </button>
-      </div>
+      <ErrorRetry
+        title="Couldn't load your calendar"
+        testId="upcoming-error"
+        buttonTestId="upcoming-error-retry"
+        onRetry={view.refetch}
+      />
     );
   } else if (!hasEpisodes) {
     body = (
@@ -139,11 +135,9 @@ export function Upcoming(): ReactElement {
       {body}
 
       {view.markError !== null && (
-        <Snackbar
+        <ErrorToast
           testId="calendar-mark-error"
           message={view.markError}
-          actionLabel="Dismiss"
-          onAction={view.clearMarkError}
           onDismiss={view.clearMarkError}
         />
       )}

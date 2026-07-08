@@ -2,7 +2,10 @@ import type { TmdbImageConfig } from "@data/image-source";
 import type { HistoryDay, HistoryEntry, HistoryGroup } from "@domain/history";
 import { localTimeZone } from "@domain/time";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
+import { ChevronIcon } from "@ui/components/ChevronIcon";
 import { DetailBack } from "@ui/components/DetailBack";
+import { ErrorRetry } from "@ui/components/ErrorRetry";
+import { ErrorToast } from "@ui/components/ErrorToast";
 import { SyncStatusPill } from "@ui/components/SyncStatusPill";
 import { VirtualList } from "@ui/components/VirtualList";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
@@ -230,21 +233,7 @@ function HistoryCluster({
                       Logged together
                     </span>
                   )}
-                  <svg
-                    className="diary-cluster__chevron"
-                    viewBox="0 0 24 24"
-                    aria-hidden="true"
-                    focusable="false"
-                  >
-                    <path
-                      d="M6 9l6 6 6-6"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
+                  <ChevronIcon className="diary-cluster__chevron" />
                 </span>
               </Accordion.Trigger>
             </Accordion.Header>
@@ -295,7 +284,7 @@ function HistorySkeleton(): ReactElement {
           <ul className="history-skeleton-groups">
             {SKELETON_ROWS.map((row) => (
               <li key={row} className="card diary-card diary-card--skeleton">
-                <span className="poster poster--row diary-card__poster--skeleton" />
+                <span className="poster diary-card__poster--skeleton" />
                 <span className="skeleton-line skeleton-line--sub" />
               </li>
             ))}
@@ -398,18 +387,12 @@ export function History(): ReactElement {
     body = <HistorySkeleton />;
   } else if (view.isError && !view.hasData) {
     body = (
-      <div className="empty" data-testid="history-error">
-        <h2 className="empty__title">Couldn't load your history</h2>
-        <p className="empty__body">Check your connection and try again.</p>
-        <button
-          type="button"
-          className="button"
-          data-testid="history-error-retry"
-          onClick={view.refetch}
-        >
-          Retry
-        </button>
-      </div>
+      <ErrorRetry
+        title="Couldn't load your history"
+        testId="history-error"
+        buttonTestId="history-error-retry"
+        onRetry={view.refetch}
+      />
     );
   } else if (view.isEmpty) {
     body =
@@ -599,11 +582,9 @@ export function History(): ReactElement {
       {body}
 
       {view.error !== null && (
-        <Snackbar
+        <ErrorToast
           testId="history-remove-error"
           message={view.error}
-          actionLabel="Dismiss"
-          onAction={view.clearError}
           onDismiss={view.clearError}
         />
       )}

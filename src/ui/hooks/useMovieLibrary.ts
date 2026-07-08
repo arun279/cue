@@ -1,5 +1,6 @@
 import { queryKeys } from "@data/query-keys";
 import type { MovieEntry } from "@data/trakt/movie-library";
+import { byTitle } from "@domain/library-buckets";
 import { type QueryClient, useQuery } from "@tanstack/react-query";
 import { queryStatus, USER_STATE_STALE_TIME } from "@ui/hooks/query-freshness";
 import { type MovieLibraryData, useRuntime } from "@ui/runtime/runtime";
@@ -49,10 +50,6 @@ export function writeMovieEntry(client: QueryClient, entry: MovieEntry): void {
       : [...old.entries, entry];
     return { ...old, entries };
   });
-}
-
-function byTitle(a: MovieEntry, b: MovieEntry): number {
-  return a.title.localeCompare(b.title, undefined, { sensitivity: "base" });
 }
 
 function byWatchedAt(a: MovieEntry, b: MovieEntry): number {

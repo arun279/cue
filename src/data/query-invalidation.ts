@@ -1,4 +1,5 @@
 import type { InvalidationTarget } from "@domain/sync-activities";
+import type { QueryClient } from "@tanstack/react-query";
 import { queryKeys } from "./query-keys";
 
 /** A composite TanStack query key (a readonly tuple prefix). */
@@ -83,6 +84,24 @@ export function showProgressKeys(
   else if (episode !== undefined)
     keys.push(queryKeys.episode(showId, episode.season, episode.number));
   return keys;
+}
+
+/**
+ * Invalidate every cached query a local watched-progress mark on `showId` must
+ * refresh — the {@link showProgressKeys} fan-out, applied. Every mark surface (Up
+ * Next, calendar, season, episode toggle, diary) shares this instead of
+ * re-inlining the `for … invalidateQueries` loop, so how progress revalidates is
+ * changed in one place. `episode` scopes the episode-detail invalidation exactly
+ * as `showProgressKeys` documents.
+ */
+export function invalidateShowProgress(
+  qc: QueryClient,
+  showId: number,
+  episode?: { readonly season: number; readonly number: number } | "all",
+): void {
+  for (const queryKey of showProgressKeys(showId, episode)) {
+    void qc.invalidateQueries({ queryKey });
+  }
 }
 
 /**

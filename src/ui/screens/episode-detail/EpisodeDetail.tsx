@@ -6,6 +6,8 @@ import { artGradient } from "@ui/components/artGradient";
 import { CheckIcon } from "@ui/components/CheckIcon";
 import { DetailBack } from "@ui/components/DetailBack";
 import { DetailHeroSkeleton } from "@ui/components/DetailHeroSkeleton";
+import { ErrorRetry } from "@ui/components/ErrorRetry";
+import { ErrorToast } from "@ui/components/ErrorToast";
 import { RatingControl } from "@ui/components/RatingControl";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { useEpisode } from "@ui/hooks/useEpisode";
@@ -260,18 +262,12 @@ export function EpisodeDetail({
   if (episode === undefined) {
     return (
       <section className="screen screen--detail" data-testid="screen-episode-detail">
-        <div className="empty" data-testid="episode-error">
-          <h2 className="empty__title">Couldn't load this episode</h2>
-          <p className="empty__body">Check your connection and try again.</p>
-          <button
-            type="button"
-            className="button"
-            data-testid="episode-error-retry"
-            onClick={view.refetch}
-          >
-            Retry
-          </button>
-        </div>
+        <ErrorRetry
+          title="Couldn't load this episode"
+          testId="episode-error"
+          buttonTestId="episode-error-retry"
+          onRetry={view.refetch}
+        />
       </section>
     );
   }
@@ -308,11 +304,9 @@ export function EpisodeDetail({
       </nav>
 
       {watchedToggle.error !== null && (
-        <Snackbar
+        <ErrorToast
           testId="episode-watched-error"
           message={watchedToggle.error}
-          actionLabel="Dismiss"
-          onAction={watchedToggle.clearError}
           onDismiss={watchedToggle.clearError}
         />
       )}
@@ -326,11 +320,9 @@ export function EpisodeDetail({
         />
       )}
       {rate.error !== null && (
-        <Snackbar
+        <ErrorToast
           testId="episode-rating-error"
           message={rate.error}
-          actionLabel="Dismiss"
-          onAction={rate.clearError}
           onDismiss={rate.clearError}
         />
       )}

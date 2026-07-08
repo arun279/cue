@@ -2,6 +2,8 @@ import type { TmdbImageConfig } from "@data/image-source";
 import { Link } from "@tanstack/react-router";
 import { CachedRetryBanner } from "@ui/components/CachedRetryBanner";
 import { CardListSkeleton } from "@ui/components/CardListSkeleton";
+import { ErrorRetry } from "@ui/components/ErrorRetry";
+import { ErrorToast } from "@ui/components/ErrorToast";
 import { SyncStatusPill } from "@ui/components/SyncStatusPill";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { useHideShow } from "@ui/hooks/useHideShow";
@@ -142,18 +144,12 @@ export function UpNext(): ReactElement {
       {view.isLoading && <CardListSkeleton testId="up-next-skeleton" />}
 
       {!view.isLoading && view.isError && !view.hasData && (
-        <div className="empty" data-testid="up-next-error">
-          <h2 className="empty__title">Couldn't load your queue</h2>
-          <p className="empty__body">Check your connection and try again.</p>
-          <button
-            type="button"
-            className="button"
-            data-testid="up-next-error-retry"
-            onClick={view.refetch}
-          >
-            Retry
-          </button>
-        </div>
+        <ErrorRetry
+          title="Couldn't load your queue"
+          testId="up-next-error"
+          buttonTestId="up-next-error-retry"
+          onRetry={view.refetch}
+        />
       )}
 
       {showSections && emptyKind === "nothing-tracked" && (
@@ -232,13 +228,7 @@ export function UpNext(): ReactElement {
       )}
 
       {mark.error !== null && (
-        <Snackbar
-          testId="mark-error"
-          message={mark.error}
-          actionLabel="Dismiss"
-          onAction={mark.clearError}
-          onDismiss={mark.clearError}
-        />
+        <ErrorToast testId="mark-error" message={mark.error} onDismiss={mark.clearError} />
       )}
 
       {mark.undoable !== null && (
@@ -257,13 +247,7 @@ export function UpNext(): ReactElement {
       )}
 
       {stop.error !== null && (
-        <Snackbar
-          testId="stop-error"
-          message={stop.error}
-          actionLabel="Dismiss"
-          onAction={stop.clearError}
-          onDismiss={stop.clearError}
-        />
+        <ErrorToast testId="stop-error" message={stop.error} onDismiss={stop.clearError} />
       )}
 
       {stop.undoable !== null && (

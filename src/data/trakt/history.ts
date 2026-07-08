@@ -1,17 +1,8 @@
 import type { HistoryEntry } from "@domain/history";
-import type { MovieIds } from "@domain/model/ids";
 import type { EpisodePlay } from "@domain/reversal";
+import { toMovieIds } from "./movie-library";
 import type { HistoryItem } from "./schemas";
 import { toEpisodeIds } from "./show-detail";
-
-function movieIds(ids: NonNullable<HistoryItem["movie"]>["ids"]): MovieIds {
-  return {
-    trakt: ids.trakt,
-    slug: ids.slug,
-    imdb: ids.imdb ?? undefined,
-    tmdb: ids.tmdb ?? undefined,
-  };
-}
 
 /**
  * Flatten `/users/me/history` rows into domain `HistoryEntry[]`. An
@@ -44,7 +35,7 @@ export function assembleHistoryEntries(items: readonly HistoryItem[]): HistoryEn
         watchedAt: item.watched_at,
         type: "movie",
         mediaId: item.movie.ids.trakt,
-        ids: movieIds(item.movie.ids),
+        ids: toMovieIds(item.movie.ids),
         title: item.movie.title,
         year: item.movie.year ?? null,
         season: null,

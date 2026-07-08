@@ -1,9 +1,9 @@
 import { TRAKT_API_BASE, TraktClient } from "@data/trakt/client";
 import {
   getEpisode,
-  getEpisodePlays,
   getHidden,
   getHistory,
+  getItemPlays,
   getLastActivities,
   getMovie,
   getMyShowsCalendar,
@@ -12,7 +12,6 @@ import {
   getRatings,
   getRelatedMovies,
   getShow,
-  getShowPlays,
   getShowProgress,
   getShowSeasons,
   getTrendingMovies,
@@ -436,7 +435,7 @@ describe("scoped-history resolvers (durable per-play unmark)", () => {
         );
       }),
     );
-    const result = await getShowPlays(client, 1);
+    const result = await getItemPlays(client, "shows", 1);
     expect(result.ok && result.data.map((r) => r.id)).toEqual([1, 2]);
     expect(firstUrl?.pathname).toBe("/sync/history/shows/1");
     expect(firstUrl?.searchParams.get("extended")).toBe("full");
@@ -452,7 +451,7 @@ describe("scoped-history resolvers (durable per-play unmark)", () => {
         });
       }),
     );
-    const result = await getEpisodePlays(client, 12);
+    const result = await getItemPlays(client, "episodes", 12);
     expect(path).toBe("/sync/history/episodes/12");
     // Two rows for one episode = a rewatch; both plays (with distinct ids) come back.
     expect(result.ok && result.data.map((r) => r.id)).toEqual([1, 2]);

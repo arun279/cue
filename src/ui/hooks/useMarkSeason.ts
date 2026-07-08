@@ -1,4 +1,4 @@
-import { showProgressKeys } from "@data/query-invalidation";
+import { invalidateShowProgress } from "@data/query-invalidation";
 import { queryKeys } from "@data/query-keys";
 import type { EpisodeView, SeasonView, ShowHeader } from "@data/trakt/show-detail";
 import type { ShowIds } from "@domain/model/ids";
@@ -200,11 +200,8 @@ export function useMarkSeason(): MarkSeasonController {
   // passes "all" to invalidate the whole-show episode prefix — else a pre-cached
   // standalone episode page is left reading pre-mark progress.
   const revalidate = useCallback(
-    (showId: number, episode?: { readonly season: number; readonly number: number } | "all") => {
-      for (const queryKey of showProgressKeys(showId, episode)) {
-        void queryClient.invalidateQueries({ queryKey });
-      }
-    },
+    (showId: number, episode?: { readonly season: number; readonly number: number } | "all") =>
+      invalidateShowProgress(queryClient, showId, episode),
     [queryClient],
   );
 

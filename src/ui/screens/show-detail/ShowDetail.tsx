@@ -3,6 +3,8 @@ import type { EpisodeView, SeasonView, ShowHeader } from "@data/trakt/show-detai
 import { Link } from "@tanstack/react-router";
 import { DetailBack } from "@ui/components/DetailBack";
 import { DetailHeroSkeleton } from "@ui/components/DetailHeroSkeleton";
+import { ErrorRetry } from "@ui/components/ErrorRetry";
+import { ErrorToast } from "@ui/components/ErrorToast";
 import { MarkIcon } from "@ui/components/MarkIcon";
 import { RatingControl } from "@ui/components/RatingControl";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
@@ -305,18 +307,12 @@ export function ShowDetail({ showId }: { showId: number }): ReactElement {
   if (header === undefined) {
     return (
       <section className="screen screen--detail" data-testid="screen-show-detail">
-        <div className="empty" data-testid="detail-error">
-          <h2 className="empty__title">Couldn't load this show</h2>
-          <p className="empty__body">Check your connection and try again.</p>
-          <button
-            type="button"
-            className="button"
-            data-testid="detail-error-retry"
-            onClick={detail.refetch}
-          >
-            Retry
-          </button>
-        </div>
+        <ErrorRetry
+          title="Couldn't load this show"
+          testId="detail-error"
+          buttonTestId="detail-error-retry"
+          onRetry={detail.refetch}
+        />
       </section>
     );
   }
@@ -416,13 +412,7 @@ export function ShowDetail({ showId }: { showId: number }): ReactElement {
       )}
 
       {marks.error !== null && (
-        <Snackbar
-          testId="season-mark-error"
-          message={marks.error}
-          actionLabel="Dismiss"
-          onAction={marks.clearError}
-          onDismiss={marks.clearError}
-        />
+        <ErrorToast testId="season-mark-error" message={marks.error} onDismiss={marks.clearError} />
       )}
       {marks.undoable !== null && (
         <Snackbar
@@ -444,13 +434,7 @@ export function ShowDetail({ showId }: { showId: number }): ReactElement {
         />
       )}
       {hide.error !== null && (
-        <Snackbar
-          testId="hide-error"
-          message={hide.error}
-          actionLabel="Dismiss"
-          onAction={hide.clearError}
-          onDismiss={hide.clearError}
-        />
+        <ErrorToast testId="hide-error" message={hide.error} onDismiss={hide.clearError} />
       )}
       {hide.undoable !== null && (
         <Snackbar
@@ -467,20 +451,12 @@ export function ShowDetail({ showId }: { showId: number }): ReactElement {
         />
       )}
       {rate.error !== null && (
-        <Snackbar
-          testId="show-rating-error"
-          message={rate.error}
-          actionLabel="Dismiss"
-          onAction={rate.clearError}
-          onDismiss={rate.clearError}
-        />
+        <ErrorToast testId="show-rating-error" message={rate.error} onDismiss={rate.clearError} />
       )}
       {watchlist.error !== null && (
-        <Snackbar
+        <ErrorToast
           testId="watchlist-error"
           message={watchlist.error}
-          actionLabel="Dismiss"
-          onAction={watchlist.clearError}
           onDismiss={watchlist.clearError}
         />
       )}

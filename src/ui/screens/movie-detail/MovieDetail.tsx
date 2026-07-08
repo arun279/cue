@@ -4,6 +4,8 @@ import { Link } from "@tanstack/react-router";
 import { CheckIcon } from "@ui/components/CheckIcon";
 import { DetailBack } from "@ui/components/DetailBack";
 import { DetailHeroSkeleton } from "@ui/components/DetailHeroSkeleton";
+import { ErrorRetry } from "@ui/components/ErrorRetry";
+import { ErrorToast } from "@ui/components/ErrorToast";
 import { RatingControl } from "@ui/components/RatingControl";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { useMovieActions } from "@ui/hooks/useMovieActions";
@@ -186,18 +188,12 @@ function MovieDetailContent({ movieId }: { readonly movieId: number }): ReactEle
   if (header === undefined) {
     return (
       <section className="screen screen--detail" data-testid="screen-movie-detail">
-        <div className="empty" data-testid="movie-detail-error">
-          <h2 className="empty__title">Couldn't load this movie</h2>
-          <p className="empty__body">Check your connection and try again.</p>
-          <button
-            type="button"
-            className="button"
-            data-testid="movie-detail-error-retry"
-            onClick={detail.refetch}
-          >
-            Retry
-          </button>
-        </div>
+        <ErrorRetry
+          title="Couldn't load this movie"
+          testId="movie-detail-error"
+          buttonTestId="movie-detail-error-retry"
+          onRetry={detail.refetch}
+        />
       </section>
     );
   }
@@ -237,11 +233,9 @@ function MovieDetailContent({ movieId }: { readonly movieId: number }): ReactEle
       )}
 
       {watchlistAdd.addError !== null && (
-        <Snackbar
+        <ErrorToast
           testId="movie-related-add-error"
           message={watchlistAdd.addError}
-          actionLabel="Dismiss"
-          onAction={watchlistAdd.clearAddError}
           onDismiss={watchlistAdd.clearAddError}
         />
       )}
@@ -257,22 +251,14 @@ function MovieDetailContent({ movieId }: { readonly movieId: number }): ReactEle
         />
       )}
       {actions.error !== null && (
-        <Snackbar
+        <ErrorToast
           testId="movie-action-error"
           message={actions.error}
-          actionLabel="Dismiss"
-          onAction={actions.clearError}
           onDismiss={actions.clearError}
         />
       )}
       {rate.error !== null && (
-        <Snackbar
-          testId="movie-rating-error"
-          message={rate.error}
-          actionLabel="Dismiss"
-          onAction={rate.clearError}
-          onDismiss={rate.clearError}
-        />
+        <ErrorToast testId="movie-rating-error" message={rate.error} onDismiss={rate.clearError} />
       )}
     </section>
   );

@@ -1,9 +1,10 @@
 import type { SearchHit } from "@data/trakt/search";
+import { ErrorRetry } from "@ui/components/ErrorRetry";
+import { ErrorToast } from "@ui/components/ErrorToast";
 import { useBrowse } from "@ui/hooks/useBrowse";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { type SearchView, useSearch } from "@ui/hooks/useSearch";
 import { usePrefs } from "@ui/prefs/prefs-store";
-import { Snackbar } from "@ui/screens/up-next/Snackbar";
 import { type ReactElement, type ReactNode, useId } from "react";
 import { DiscoverGrid } from "./DiscoverCard";
 
@@ -77,18 +78,12 @@ function Browse({ view }: { view: SearchView }): ReactElement {
     );
   } else if (browse.isError) {
     rails = (
-      <div className="empty" data-testid="discover-error">
-        <h2 className="empty__title">Couldn't load browse</h2>
-        <p className="empty__body">Check your connection and try again.</p>
-        <button
-          type="button"
-          className="button"
-          data-testid="discover-error-retry"
-          onClick={browse.refetch}
-        >
-          Retry
-        </button>
-      </div>
+      <ErrorRetry
+        title="Couldn't load browse"
+        testId="discover-error"
+        buttonTestId="discover-error-retry"
+        onRetry={browse.refetch}
+      />
     );
   } else if (!anyRail) {
     rails = (
@@ -173,18 +168,12 @@ export function Search(): ReactElement {
     );
   } else if (view.status === "error") {
     body = (
-      <div className="empty" data-testid="search-error">
-        <h2 className="empty__title">Search failed</h2>
-        <p className="empty__body">Check your connection and try again.</p>
-        <button
-          type="button"
-          className="button"
-          data-testid="search-error-retry"
-          onClick={view.refetch}
-        >
-          Retry
-        </button>
-      </div>
+      <ErrorRetry
+        title="Search failed"
+        testId="search-error"
+        buttonTestId="search-error-retry"
+        onRetry={view.refetch}
+      />
     );
   } else if (view.status === "empty" || visibleHits.length === 0) {
     // A single-medium user whose query matched ONLY the hidden medium
@@ -261,11 +250,9 @@ export function Search(): ReactElement {
       {body}
 
       {view.addError !== null && (
-        <Snackbar
+        <ErrorToast
           testId="search-add-error"
           message={view.addError}
-          actionLabel="Dismiss"
-          onAction={view.clearAddError}
           onDismiss={view.clearAddError}
         />
       )}

@@ -2,5 +2,6 @@
   "path": ["src", "test"],
   "pattern": "**/*.{ts,tsx}",
   "minLines": 8,
+  "minTokens": 70,
   "threshold": 0
 }

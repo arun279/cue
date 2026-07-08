@@ -2,11 +2,8 @@ import type { TmdbImageConfig } from "@data/image-source";
 import { queryKeys } from "@data/query-keys";
 import type { SearchHit } from "@data/trakt/search";
 import { useQuery } from "@tanstack/react-query";
+import { DISCOVER_STALE_TIME_MS } from "@ui/hooks/query-freshness";
 import { useRuntime } from "@ui/runtime/runtime";
-
-/** Trending + popular shift slowly; a 5-minute stale window spares Discover a
- * refetch every time the query clears back to the browse rails. */
-const STALE_MS = 5 * 60 * 1000;
 
 export interface BrowseView {
   readonly isLoading: boolean;
@@ -36,7 +33,7 @@ export function useBrowse(): BrowseView {
   const query = useQuery({
     queryKey: queryKeys.discover(),
     queryFn: () => runtime.loadDiscover(),
-    staleTime: STALE_MS,
+    staleTime: DISCOVER_STALE_TIME_MS,
   });
   return {
     isLoading: query.isLoading,

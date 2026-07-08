@@ -1,4 +1,4 @@
-import { showProgressKeys } from "@data/query-invalidation";
+import { invalidateShowProgress } from "@data/query-invalidation";
 import { queryKeys } from "@data/query-keys";
 import type { EpisodeDetail } from "@data/trakt/episode-detail";
 import type { ShowHeader } from "@data/trakt/show-detail";
@@ -39,14 +39,11 @@ export function useToggleEpisodeWatched(): ToggleEpisodeWatched {
   const [notice, setNotice] = useState<string | null>(null);
 
   const revalidate = useCallback(
-    (episode: EpisodeDetail) => {
-      for (const queryKey of showProgressKeys(episode.showId, {
+    (episode: EpisodeDetail) =>
+      invalidateShowProgress(queryClient, episode.showId, {
         season: episode.season,
         number: episode.number,
-      })) {
-        void queryClient.invalidateQueries({ queryKey });
-      }
-    },
+      }),
     [queryClient],
   );
 
