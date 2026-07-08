@@ -16,6 +16,15 @@ export interface WatchlistAddView {
   clearAddError(): void;
 }
 
+/** Which watchlist sections a surface seeds membership from. A movie-only rail
+ * (Movie-detail "More like this", the movie-home Discover) passes `{ movies: true }`
+ * so it never spends a `/sync/watchlist/shows` read it can never use — the
+ * gated-by-medium rate budget. The mixed Discover search leaves both on (default). */
+interface WatchlistSections {
+  readonly shows?: boolean;
+  readonly movies?: boolean;
+}
+
 function sectionOf(type: "show" | "movie"): "shows" | "movies" {
   return type === "movie" ? "movies" : "shows";
 }
@@ -32,25 +41,32 @@ function addKey(hit: SearchHit): string {
  * already-listed hit shows as added and a remount doesn't forget a just-added
  * item; the add is optimistic through the durable queue, revalidating the section
  * only once the write lands (a still-deferred add keeps the optimistic "Added"
- * without a refetch that would read pre-add state).
+ * without a refetch that would read pre-add state). `sections` scopes which
+ * membership reads fire, so a movie-only rail never pulls the show watchlist.
  */
-export function useWatchlistAdd(): WatchlistAddView {
+export function useWatchlistAdd(
+  sections: WatchlistSections = { shows: true, movies: true },
+): WatchlistAddView {
   const runtime = useRuntime();
   const queryClient = useQueryClient();
   const write = useQueuedWrite();
   const [added, setAdded] = useState<ReadonlySet<string>>(() => new Set());
 
+  const showsEnabled = sections.shows ?? false;
+  const moviesEnabled = sections.movies ?? false;
   const [watchlistShows, watchlistMovies] = useQueries({
     queries: [
       {
         queryKey: queryKeys.watchlist("shows"),
         queryFn: () => runtime.loadWatchlistIds("shows"),
         staleTime: USER_STATE_STALE_TIME,
+        enabled: showsEnabled,
       },
       {
         queryKey: queryKeys.watchlist("movies"),
         queryFn: () => runtime.loadWatchlistIds("movies"),
         staleTime: USER_STATE_STALE_TIME,
+        enabled: moviesEnabled,
       },
     ],
   });

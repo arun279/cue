@@ -1403,6 +1403,9 @@ export interface MovieFixture {
   readonly released?: string;
   readonly posters?: readonly string[];
   readonly backdrops?: readonly string[];
+  /** The watchlist `listed_at` (add time) emitted on the `/sync/watchlist/movies`
+   * row — the movie-native queue order for the Watchlist segment. */
+  readonly listedAt?: string;
   /** Mutated in place by intercepted history writes so watched reads stay consistent. */
   watched: boolean;
   /** Mutated in place by intercepted watchlist writes so the Watchlist shelf stays consistent. */
@@ -1422,6 +1425,13 @@ export interface MovieControls {
   historyRemovePosts: () => readonly CapturedMovieWrite[];
   watchlistPosts: () => readonly CapturedMovieWrite[];
   watchlistRemovePosts: () => readonly CapturedMovieWrite[];
+  /** How many times the movie library's `/sync/watched/movies` read fired — proves
+   * the fetch-gating (a both-user on the Shows tab must not pull the movie library). */
+  movieLibraryReads: () => number;
+  /** How many times the SHOW watchlist `/sync/watchlist/shows` read fired. A
+   * movie-only surface must never touch it — this counts the wrong-medium read the
+   * catch-all would otherwise answer with `[]` and hide (gated-by-medium budget). */
+  showWatchlistReads: () => number;
 }
 
 function movieObject(movie: MovieFixture): Record<string, unknown> {
@@ -1460,8 +1470,14 @@ export async function installMovieRoutes(
   context: BrowserContext,
   movies: readonly MovieFixture[],
   related: readonly MovieFixture[] = [],
+  discover: {
+    readonly trending?: readonly MovieFixture[];
+    readonly popular?: readonly MovieFixture[];
+  } = {},
 ): Promise<MovieControls> {
   const writes: CapturedMovieWrite[] = [];
+  let movieLibraryReads = 0;
+  let showWatchlistReads = 0;
 
   const pngPixel = Buffer.from(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
@@ -1471,8 +1487,17 @@ export async function installMovieRoutes(
     route.fulfill({ status: 200, contentType: "image/png", body: pngPixel }),
   );
 
-  await context.route("**/api.trakt.tv/sync/watched/movies*", (route) =>
-    route.fulfill({
+  // A movie-only harness never registers show reads, so any `/sync/watchlist/shows`
+  // hit is a wrong-medium read the catch-all would silently answer with `[]`. Count
+  // it here so a movie surface reaching for the show watchlist fails the assertion.
+  await context.route("**/api.trakt.tv/sync/watchlist/shows*", (route) => {
+    showWatchlistReads += 1;
+    return route.fulfill({ status: 200, headers: JSON_HEADERS, body: "[]" });
+  });
+
+  await context.route("**/api.trakt.tv/sync/watched/movies*", (route) => {
+    movieLibraryReads += 1;
+    return route.fulfill({
       status: 200,
       headers: JSON_HEADERS,
       body: JSON.stringify(
@@ -1480,15 +1505,21 @@ export async function installMovieRoutes(
           .filter((m) => m.watched)
           .map((m) => ({ last_watched_at: "2026-06-01T00:00:00.000Z", movie: movieObject(m) })),
       ),
-    }),
-  );
+    });
+  });
 
   await context.route("**/api.trakt.tv/sync/watchlist/movies*", (route) =>
     route.fulfill({
       status: 200,
       headers: JSON_HEADERS,
       body: JSON.stringify(
-        movies.filter((m) => m.inWatchlist).map((m) => ({ type: "movie", movie: movieObject(m) })),
+        movies
+          .filter((m) => m.inWatchlist)
+          .map((m) => ({
+            type: "movie",
+            ...(m.listedAt === undefined ? {} : { listed_at: m.listedAt }),
+            movie: movieObject(m),
+          })),
       ),
     }),
   );
@@ -1508,6 +1539,27 @@ export async function installMovieRoutes(
       status: 200,
       headers: JSON_HEADERS,
       body: JSON.stringify(related.map(movieObject)),
+    }),
+  );
+
+  // The movie home's Discover rails. Registered AFTER the `/movies/*` detail glob
+  // (which would otherwise 404 `trending`/`popular` as unknown movie ids) so these
+  // win: `/movies/trending` wraps each movie in a watcher count, `/movies/popular`
+  // is a bare list — the movie analogue of the show charts.
+  await context.route("**/api.trakt.tv/movies/trending*", (route) =>
+    route.fulfill({
+      status: 200,
+      headers: JSON_HEADERS,
+      body: JSON.stringify(
+        (discover.trending ?? []).map((m) => ({ watchers: 100, movie: movieObject(m) })),
+      ),
+    }),
+  );
+  await context.route("**/api.trakt.tv/movies/popular*", (route) =>
+    route.fulfill({
+      status: 200,
+      headers: JSON_HEADERS,
+      body: JSON.stringify((discover.popular ?? []).map(movieObject)),
     }),
   );
 
@@ -1558,6 +1610,8 @@ export async function installMovieRoutes(
     historyRemovePosts: () => writes.filter((w) => w.path === "/sync/history/remove"),
     watchlistPosts: () => writes.filter((w) => w.path === "/sync/watchlist"),
     watchlistRemovePosts: () => writes.filter((w) => w.path === "/sync/watchlist/remove"),
+    movieLibraryReads: () => movieLibraryReads,
+    showWatchlistReads: () => showWatchlistReads,
   };
 }
 

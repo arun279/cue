@@ -63,10 +63,26 @@ function byYear(a: MovieEntry, b: MovieEntry): number {
   return (b.year ?? 0) - (a.year ?? 0) || byTitle(a, b);
 }
 
+/** Newest-added first — the queue order for the Watchlist (a film has no watch
+ * date to sort by, so "recently added" is the honest analogue). Falls back to
+ * title when `listedAt` is absent (a pre-`listedAt` cache), never throwing order away. */
+function byListedAt(a: MovieEntry, b: MovieEntry): number {
+  return (b.listedAt ?? "").localeCompare(a.listedAt ?? "") || byTitle(a, b);
+}
+
 function comparatorFor(sort: MovieSort): (a: MovieEntry, b: MovieEntry) => number {
   if (sort === "alphabetical") return byTitle;
   if (sort === "release-year") return byYear;
   return byWatchedAt;
+}
+
+/** The Watchlist's comparator: same A–Z / Release-year axes as Watched, but the
+ * default "recently" axis means recently *added* (there is no watch date on an
+ * unwatched film), so the freshest picks lead the queue. */
+function watchlistComparatorFor(sort: MovieSort): (a: MovieEntry, b: MovieEntry) => number {
+  if (sort === "alphabetical") return byTitle;
+  if (sort === "release-year") return byYear;
+  return byListedAt;
 }
 
 /**
@@ -93,9 +109,10 @@ export function useMovieLibrary(
   const entries = query.data?.entries;
   const segments = useMemo<MovieSegment[]>(() => {
     if (entries === undefined) return [];
-    const comparator = comparatorFor(sort);
-    const watched = [...entries.filter((e) => e.watched)].sort(comparator);
-    const watchlist = [...entries.filter((e) => e.inWatchlist && !e.watched)].sort(comparator);
+    const watched = [...entries.filter((e) => e.watched)].sort(comparatorFor(sort));
+    const watchlist = [...entries.filter((e) => e.inWatchlist && !e.watched)].sort(
+      watchlistComparatorFor(sort),
+    );
     // Watchlist first (the "want to watch" pool), then Watched — matching the model's
     // "Watchlist / Watched" order and the Shows side's Watchlist-first framing. An
     // empty segment is dropped so the library never renders a phantom "Watchlist (0)"

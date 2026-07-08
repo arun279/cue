@@ -1,5 +1,18 @@
 import { expect, test } from "@playwright/test";
-import { installHermeticRoutes, installMovieRoutes, type MovieFixture, seedAuth } from "./helpers";
+import {
+  agoIso,
+  installHermeticRoutes,
+  installLibraryRoutes,
+  installMovieRoutes,
+  type MovieFixture,
+  type ShowFixture,
+  seedAuth,
+  seedMediaVisibility,
+} from "./helpers";
+
+/** A movies-only viewer: shows turned off, movies on. The movie home is
+ * then their sole tab, so any `/sync/watchlist/shows` read is a wrong-medium spend. */
+const MOVIES_ONLY = { showsEnabled: false, moviesEnabled: true } as const;
 
 const POSTER = "media.trakt.tv/p.webp";
 const BACKDROP = "media.trakt.tv/b.webp";
@@ -301,4 +314,152 @@ test("adds a movie to the watchlist with the movies[] body", async ({ page }) =>
 
   await expect.poll(() => controls.watchlistPosts().length).toBe(1);
   expect(controls.watchlistPosts()[0]?.movieIds).toEqual([100]);
+});
+
+test("the movie home offers a Discover zone (trending + popular) with inline add", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1000, height: 1400 });
+  await seedMediaVisibility(page.context(), MOVIES_ONLY);
+  const controls = await installMovieRoutes(page.context(), movies(), [], {
+    trending: [
+      {
+        trakt: 900,
+        tmdb: 950,
+        title: "Trending Film",
+        year: 2024,
+        posters: [POSTER],
+        watched: false,
+      },
+    ],
+    popular: [
+      {
+        trakt: 901,
+        tmdb: 951,
+        title: "Popular Film",
+        year: 2023,
+        posters: [POSTER],
+        watched: false,
+      },
+    ],
+  });
+  await page.goto("/library?type=movies");
+
+  // The movie home is a real home, not a bare list: trending + popular rails sit
+  // below the user's own piles (the movie-native "find something to watch").
+  const discover = page.getByTestId("movie-discover");
+  await expect(discover).toBeVisible();
+  await expect(discover.getByRole("heading", { name: "More to watch" })).toBeVisible();
+  await expect(page.getByTestId("movie-discover-trending")).toContainText("Trending Film");
+  await expect(page.getByTestId("movie-discover-popular")).toContainText("Popular Film");
+
+  // Inline add on a discover tile fires a movies[] watchlist POST — the same
+  // SearchHit pipeline as search results and the related rail.
+  const trendingAdd = page.getByTestId("movie-discover-trending").getByTestId("search-add").first();
+  await trendingAdd.click();
+  await expect(trendingAdd).toHaveText("Added");
+  await expect.poll(() => controls.watchlistPosts().length).toBe(1);
+  expect(controls.watchlistPosts()[0]?.movieIds).toEqual([900]);
+
+  // The whole movie home — its Discover add included — spends zero show reads: the
+  // inline add seeds membership from the movie watchlist only, never `/watchlist/shows`.
+  expect(controls.showWatchlistReads()).toBe(0);
+});
+
+test("an empty movie library still offers Discover to find something to watch", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1000, height: 1400 });
+  await seedMediaVisibility(page.context(), MOVIES_ONLY);
+  const controls = await installMovieRoutes(page.context(), [], [], {
+    trending: [
+      {
+        trakt: 900,
+        tmdb: 950,
+        title: "Trending Film",
+        year: 2024,
+        posters: [POSTER],
+        watched: false,
+      },
+    ],
+  });
+  await page.goto("/library?type=movies");
+
+  // The empty state is no longer a dead end: Discover renders below it so a
+  // movies-only user with nothing tracked still has a home to browse.
+  await expect(page.getByTestId("movies-empty")).toBeVisible();
+  await expect(page.getByTestId("movie-discover")).toBeVisible();
+  await expect(page.getByTestId("movie-discover-trending")).toContainText("Trending Film");
+
+  // A movies-only home never reaches for the show watchlist to seed Discover membership.
+  expect(controls.showWatchlistReads()).toBe(0);
+});
+
+test("the Watchlist orders by recently added (the movie's queue), newest first", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1000, height: 1400 });
+  await installMovieRoutes(page.context(), [
+    {
+      trakt: 10,
+      title: "Added First",
+      year: 2016,
+      posters: [POSTER],
+      watched: false,
+      inWatchlist: true,
+      listedAt: "2026-01-01T00:00:00.000Z",
+    },
+    {
+      trakt: 20,
+      title: "Added Later",
+      year: 2015,
+      posters: [POSTER],
+      watched: false,
+      inWatchlist: true,
+      listedAt: "2026-06-01T00:00:00.000Z",
+    },
+  ]);
+  await page.goto("/library?type=movies");
+
+  // Default (recently-*) means recently ADDED for the unwatched Watchlist — a film
+  // has no watch date — so the most recently queued film leads, even though it
+  // sorts later by both title and release year.
+  await expect(page.getByTestId("movie-library-card").first()).toContainText("Added Later");
+  // A–Z still sorts by title, so the earlier-added-but-alphabetically-first leads.
+  await page.getByTestId("sort-select").selectOption("alphabetical");
+  await expect(page.getByTestId("movie-library-card").first()).toContainText("Added First");
+});
+
+test("a both-user on the Shows tab does not fetch the movie library until Movies is opened", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1000, height: 1400 });
+  const show: ShowFixture = {
+    trakt: 1,
+    title: "A Show",
+    status: "returning series",
+    lastWatchedAt: agoIso(2),
+    aired: 3,
+    completed: 1,
+    episodes: [
+      { season: 1, number: 1, title: "E1", firstAired: agoIso(10), traktId: 11 },
+      { season: 1, number: 2, title: "E2", firstAired: agoIso(9), traktId: 12 },
+      { season: 1, number: 3, title: "E3", firstAired: agoIso(8), traktId: 13 },
+    ],
+  };
+  await installLibraryRoutes(page.context(), [show]);
+  const movieControls = await installMovieRoutes(page.context(), movies());
+  await page.goto("/library");
+
+  // A both-user boots into Shows; the read must be gated by the ACTIVE medium, so
+  // the movie library is not fetched while the user is looking at shows.
+  await expect(page.getByTestId("type-shows")).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByTestId("pile-heading").first()).toBeVisible();
+  await expect.poll(() => movieControls.movieLibraryReads()).toBe(0);
+
+  // Opening Movies pulls the movie library exactly then — not a moment sooner.
+  await page.getByTestId("type-movies").click();
+  await expect(page).toHaveURL(/\/library\?type=movies/);
+  await expect(page.getByTestId("pile-heading").first()).toBeVisible();
+  await expect.poll(() => movieControls.movieLibraryReads()).toBeGreaterThan(0);
 });

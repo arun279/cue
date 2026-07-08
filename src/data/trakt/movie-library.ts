@@ -15,6 +15,14 @@ export interface MovieEntry {
   readonly watched: boolean;
   readonly watchedAt: string | null;
   readonly inWatchlist: boolean;
+  /**
+   * When the movie was added to the watchlist (`/sync/watchlist/movies`'
+   * `listed_at`), or `null` for a watched movie that was never watchlisted. This
+   * is the movie-native queue order — a film has no "next episode", so "recently
+   * added" is the honest ordering for the Watchlist (the movie's Up Next). Absent
+   * on a cache persisted before this field existed; ordering degrades to title.
+   */
+  readonly listedAt: string | null;
   readonly posters: readonly string[];
   readonly tmdbId: number | null;
 }
@@ -57,9 +65,12 @@ function toMovieIds(ids: MovieDetailData["ids"]): MovieIds {
  * Watchlist shelf after a refetch.
  */
 export function assembleMovieLibrary(input: MovieLibraryInput): MovieEntry[] {
-  const watchlistIds = new Set<number>();
+  // trakt id → its watchlist `listed_at` (the add time), so a watched movie that
+  // is also watchlisted still carries the queue order, and a watchlist-only movie
+  // sorts by when it was queued.
+  const listedAt = new Map<number, string | null>();
   for (const item of input.watchlistMovies) {
-    if (item.movie !== undefined) watchlistIds.add(item.movie.ids.trakt);
+    if (item.movie !== undefined) listedAt.set(item.movie.ids.trakt, item.listed_at ?? null);
   }
 
   const entries: MovieEntry[] = [];
@@ -75,7 +86,8 @@ export function assembleMovieLibrary(input: MovieLibraryInput): MovieEntry[] {
       year: movie.year ?? null,
       watched: true,
       watchedAt: watched.last_watched_at ?? null,
-      inWatchlist: watchlistIds.has(trakt),
+      inWatchlist: listedAt.has(trakt),
+      listedAt: listedAt.get(trakt) ?? null,
       posters: movie.images?.poster ?? [],
       tmdbId: movie.ids.tmdb ?? null,
     });
@@ -93,6 +105,7 @@ export function assembleMovieLibrary(input: MovieLibraryInput): MovieEntry[] {
       watched: false,
       watchedAt: null,
       inWatchlist: true,
+      listedAt: item.listed_at ?? null,
       posters: movie.images?.poster ?? [],
       tmdbId: movie.ids.tmdb ?? null,
     });

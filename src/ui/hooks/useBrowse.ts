@@ -25,6 +25,11 @@ export interface BrowseView {
  * instead of a bare prompt. Reuses the same `SearchHit` shape as search, so the
  * inline watchlist add and poster tiles are shared across every rail and the
  * results grid — movie hits route to `/movie/:id` through the same DiscoverCard.
+ *
+ * TODO(movie-gating): this shared Search read loads all four show+movie rails
+ * regardless of which media a single-medium user has on (the Search screen then
+ * UI-filters). The movie home's own Discover (useMovieDiscover) is medium-gated;
+ * this pre-existing Search over-fetch is a separate surface and left as-is.
  */
 export function useBrowse(): BrowseView {
   const runtime = useRuntime();

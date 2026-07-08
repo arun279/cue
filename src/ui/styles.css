@@ -2645,6 +2645,24 @@ body {
 .related-rail {
   margin-top: var(--space-7);
 }
+/* The movie home's Discover zone: trending/popular rails set off below the user's
+   own Watchlist/Watched piles by a divider, so browse reads as a distinct region. */
+.movie-discover {
+  margin-top: var(--space-7);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+.movie-discover__head {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--color-fg);
+}
 .discover-results__count {
   margin: 0;
   font-size: 0.85rem;

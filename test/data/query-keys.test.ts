@@ -9,6 +9,7 @@ describe("queryKeys factory", () => {
     expect(queryKeys.calendarPrefix()).toEqual(["calendar", "my-shows"]);
     expect(queryKeys.search("dune", "show,movie")).toEqual(["search", "show,movie", "dune"]);
     expect(queryKeys.discover()).toEqual(["discover", "shows-movies"]);
+    expect(queryKeys.movieDiscover()).toEqual(["discover", "movies"]);
     expect(queryKeys.lastActivities()).toEqual(["sync", "last_activities"]);
     expect(queryKeys.userStats()).toEqual(["users", "me", "stats"]);
     expect(queryKeys.library()).toEqual(["library"]);

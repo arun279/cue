@@ -16,6 +16,7 @@ import { Snackbar } from "@ui/screens/up-next/Snackbar";
 import { Accordion, ToggleGroup } from "radix-ui";
 import { type ReactElement, type ReactNode, useEffect, useMemo, useState } from "react";
 import { LibrarySkeleton } from "./LibrarySkeleton";
+import { MovieDiscover } from "./MovieDiscover";
 import { MoviePosterCard } from "./MoviePosterCard";
 import { PosterCard } from "./PosterCard";
 import { PosterGrid } from "./PosterGrid";
@@ -39,9 +40,11 @@ const SORT_LABEL: Record<LibrarySort, string> = {
 const SORTS: readonly LibrarySort[] = ["recently-watched", "alphabetical", "progress"];
 
 /** Movie sort keys: parity of placement with Shows, honest options — "Progress" is
- * meaningless for a binary movie, so Release year replaces it. */
+ * meaningless for a binary movie, so Release year replaces it.
+ * The recency axis reads "added/watched" because it sorts the movie-native way in
+ * each segment: Watchlist by `listed_at` (added), Watched by `last_watched_at`. */
 const MOVIE_SORT_LABEL: Record<MovieSort, string> = {
-  "recently-watched": "Recently watched",
+  "recently-watched": "Recently added/watched",
   alphabetical: "A–Z",
   "release-year": "Release year",
 };
@@ -294,10 +297,13 @@ export function Library(): ReactElement {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("");
 
-  // Only the enabled medium's read fires: a TV-only Library never fetches the movie
-  // library, and a movies-only Library never fetches the TV snapshot.
-  const view = useLibraryBuckets(showSort, showsEnabled);
-  const movieView = useMovieLibrary(movieSort, moviesEnabled);
+  // Only the ACTIVE medium's read fires — not merely the enabled one. A TV-only
+  // Library never fetches the movie library, and a both-user sitting on
+  // the Shows tab doesn't pull the movie library until they switch to Movies (and
+  // vice versa). Gating by active medium — not enabled medium — keeps a background
+  // tab off Trakt's rate budget; the persisted cache makes the first switch instant.
+  const view = useLibraryBuckets(showSort, showsEnabled && !isMovies);
+  const movieView = useMovieLibrary(movieSort, isMovies);
   const unhide = useHideShow();
   const active = isMovies ? movieView : view;
 
@@ -569,6 +575,14 @@ export function Library(): ReactElement {
       )}
 
       {body}
+
+      {/* The movie home's Discover zone sits below the user's own piles — and below
+          the empty state, so a movies-only user with nothing tracked still gets a
+          home to browse. Held back only while the library is loading, hard-erroring,
+          or being filtered (filtering is about your own library, not discovery). */}
+      {isMovies && !filtering && !active.isLoading && !(active.isError && !active.hasData) && (
+        <MovieDiscover active={isMovies} />
+      )}
 
       {unhide.error !== null && (
         <Snackbar

@@ -34,6 +34,7 @@ function toEntry(header: MovieHeader, existing: MovieEntry | undefined): MovieEn
       watched: false,
       watchedAt: null,
       inWatchlist: false,
+      listedAt: null,
       posters: header.posters,
       tmdbId: header.tmdbId,
     }
@@ -170,7 +171,7 @@ function MovieDetailContent({ movieId }: { readonly movieId: number }): ReactEle
   const actions = useMovieActions();
   const rate = useRate("movies");
   const related = useMovieRelated(movieId);
-  const watchlistAdd = useWatchlistAdd();
+  const watchlistAdd = useWatchlistAdd({ movies: true });
   const header = detail.header;
   useDocumentTitle(header !== undefined ? `${header.title} · Cue` : "Movie · Cue");
 
