@@ -1,11 +1,12 @@
-import { showProgressKeys } from "@data/query-invalidation";
-import { queryKeys } from "@data/query-keys";
+import { invalidateShowProgress } from "@data/query-invalidation";
 import { advancePastNext, type LibraryEntry, type MarkContext } from "@data/trakt/library";
 import { isTerminalStatus } from "@domain/watch-status";
 import { buildMarkEpisodeOp, buildUnmarkEpisodeOp } from "@domain/write-queue/ops";
 import { useQueryClient } from "@tanstack/react-query";
+import { patchLibraryEntry } from "@ui/hooks/library-cache";
 import { useOptimisticWrite } from "@ui/hooks/useOptimisticWrite";
-import type { SubmitOutcome, UpNextData } from "@ui/runtime/runtime";
+import type { SubmitOutcome } from "@ui/runtime/runtime";
+import { episodeCode } from "@ui/screens/up-next/format";
 import { useCallback, useRef, useState } from "react";
 
 interface UndoState {
@@ -43,12 +44,6 @@ interface PendingUndo {
   readonly beforeMark: LibraryEntry;
 }
 
-function episodeCodeOf(entry: LibraryEntry): string {
-  const ep = entry.nextEpisode;
-  if (ep === null) return "";
-  return `S${String(ep.season).padStart(2, "0")}E${String(ep.number).padStart(2, "0")}`;
-}
-
 /**
  * The mark-watched hot path: advance the card optimistically in
  * the Query cache BEFORE the network write, enqueue a durable, paced
@@ -74,13 +69,8 @@ export function useMarkWatched(): MarkWatched {
   const inFlight = useRef<Set<number>>(new Set());
 
   const patch = useCallback(
-    (showId: number, next: (entry: LibraryEntry) => LibraryEntry) => {
-      queryClient.setQueryData<UpNextData>(queryKeys.library(), (old) =>
-        old === undefined
-          ? old
-          : { ...old, entries: old.entries.map((e) => (e.showId === showId ? next(e) : e)) },
-      );
-    },
+    (showId: number, next: (entry: LibraryEntry) => LibraryEntry) =>
+      patchLibraryEntry(queryClient, showId, next),
     [queryClient],
   );
 
@@ -90,11 +80,8 @@ export function useMarkWatched(): MarkWatched {
   // Invalidate them alongside `library` so they refetch on next visit — durably,
   // since the invalidated flag persists across a reload.
   const revalidate = useCallback(
-    (showId: number, episode: { readonly season: number; readonly number: number }) => {
-      for (const queryKey of showProgressKeys(showId, episode)) {
-        void queryClient.invalidateQueries({ queryKey });
-      }
-    },
+    (showId: number, episode: { readonly season: number; readonly number: number }) =>
+      invalidateShowProgress(queryClient, showId, episode),
     [queryClient],
   );
 
@@ -108,7 +95,7 @@ export function useMarkWatched(): MarkWatched {
       inFlight.current.add(entry.showId);
       const watchedAt = new Date().toISOString();
       const beforeMark = entry;
-      const episodeCode = episodeCodeOf(entry);
+      const code = episodeCode(episode.season, episode.number);
       // The mark completes the show when it clears the last aired episode of a run
       // that has ended — a genuine closure, not a mid-run pause.
       const finished = isTerminalStatus(entry.status) && entry.completed + 1 >= entry.aired;
@@ -126,7 +113,7 @@ export function useMarkWatched(): MarkWatched {
         opId,
         showId: entry.showId,
         title: entry.title,
-        episodeCode,
+        episodeCode: code,
         finished,
         episodeIds: episode.ids,
         season: episode.season,

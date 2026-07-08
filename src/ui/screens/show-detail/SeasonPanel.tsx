@@ -1,5 +1,6 @@
 import type { SeasonView } from "@data/trakt/show-detail";
 import { CheckIcon } from "@ui/components/CheckIcon";
+import { ChevronIcon } from "@ui/components/ChevronIcon";
 import { MarkIcon } from "@ui/components/MarkIcon";
 import type {
   EpisodeBound,
@@ -124,21 +125,7 @@ export function SeasonPanel({
               {seasonTitle(season)}
               <small className="season__sub">{subtitle(season)}</small>
             </span>
-            <svg
-              className="season__chevron"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-              focusable="false"
-            >
-              <path
-                d="M6 9l6 6 6-6"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
+            <ChevronIcon className="season__chevron" />
           </Accordion.Trigger>
         </Accordion.Header>
         {complete ? (

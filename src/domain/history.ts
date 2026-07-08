@@ -1,4 +1,4 @@
-import { dayKeyFormatter, shiftDayKey } from "./day";
+import { dayLabeler } from "./day";
 import type { EpisodeIds, MovieIds } from "./model/ids";
 import { toMs } from "./time";
 
@@ -140,14 +140,9 @@ export function groupHistory(
   options: GroupHistoryOptions,
 ): HistoryDay[] {
   const { now, timeZone } = options;
-  const dayKeyOf = dayKeyFormatter(timeZone);
-  const todayKey = dayKeyOf(now);
-  const yesterdayKey = shiftDayKey(todayKey, -1);
-  const labelFmt = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    weekday: "short",
-    month: "short",
-    day: "numeric",
+  const { keyOf: dayKeyOf, label: labelFor } = dayLabeler(timeZone, now, {
+    delta: -1,
+    label: "Yesterday",
   });
 
   const byDay = new Map<string, HistoryEntry[]>();
@@ -164,15 +159,9 @@ export function groupHistory(
     .sort(([a], [b]) => (a < b ? 1 : a > b ? -1 : 0))
     .map(([dayKey, rows]) => {
       const ordered = [...rows].sort((a, b) => (toMs(b.watchedAt) ?? 0) - (toMs(a.watchedAt) ?? 0));
-      const label =
-        dayKey === todayKey
-          ? "Today"
-          : dayKey === yesterdayKey
-            ? "Yesterday"
-            : labelFmt.format(toMs(ordered[0]?.watchedAt ?? null) ?? now);
       return {
         dayKey,
-        label,
+        label: labelFor(dayKey, toMs(ordered[0]?.watchedAt ?? null) ?? now),
         episodeCount: ordered.filter((e) => e.type === "episode").length,
         movieCount: ordered.filter((e) => e.type === "movie").length,
         groups: groupDay(ordered),

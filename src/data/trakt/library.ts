@@ -1,6 +1,6 @@
-import type { EpisodeIds } from "@domain/model/ids";
 import type { EpisodeRef, LibraryShow } from "@domain/model/library";
 import type { HiddenItem, Progress, WatchedShow, WatchlistItem } from "./schemas";
+import { toEpisodeIds } from "./show-detail";
 
 /**
  * A `LibraryShow` (what the selectors read) enriched with the presentation
@@ -53,22 +53,13 @@ export interface LibraryInput {
 
 type SchemaEpisode = NonNullable<Progress["next_episode"]>;
 
-function episodeIds(ids: SchemaEpisode["ids"]): EpisodeIds {
-  return {
-    trakt: ids.trakt,
-    tvdb: ids.tvdb ?? undefined,
-    imdb: ids.imdb ?? undefined,
-    tmdb: ids.tmdb ?? undefined,
-  };
-}
-
 function toEpisodeRef(ep: SchemaEpisode): EpisodeRef {
   return {
     season: ep.season,
     number: ep.number,
     title: ep.title ?? null,
     firstAired: ep.first_aired ?? null,
-    ids: episodeIds(ep.ids),
+    ids: toEpisodeIds(ep.ids),
   };
 }
 

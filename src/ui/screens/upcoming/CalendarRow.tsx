@@ -3,6 +3,7 @@ import type { CalendarRow as CalendarRowModel } from "@domain/calendar";
 import { localTimeZone } from "@domain/time";
 import { Link } from "@tanstack/react-router";
 import { MarkWatchedButton } from "@ui/components/MarkWatchedButton";
+import { episodeCode } from "@ui/screens/up-next/format";
 import { Poster } from "@ui/screens/up-next/Poster";
 import type { ReactElement } from "react";
 
@@ -11,10 +12,6 @@ interface CalendarRowProps {
   readonly tmdbConfig: TmdbImageConfig | null;
   readonly watched: boolean;
   onMark(): void;
-}
-
-function episodeCode(season: number, number: number): string {
-  return `S${String(season).padStart(2, "0")}E${String(number).padStart(2, "0")}`;
 }
 
 const timeFmt = new Intl.DateTimeFormat("en-US", {

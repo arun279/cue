@@ -1,6 +1,7 @@
 import type { LibraryEntry } from "@data/trakt/library";
 import { groupUpNext, type UpNextItem } from "@domain/up-next";
 import { DEFAULT_NEW_EPISODE_WINDOW_MS } from "@domain/watch-status";
+import { queryStatus } from "@ui/hooks/query-freshness";
 import { useLibrarySnapshot } from "@ui/hooks/useLibrarySnapshot";
 import type { UpNextData } from "@ui/runtime/runtime";
 import { useMemo } from "react";
@@ -99,11 +100,7 @@ export function useUpNext(): UpNextView {
     trackedCount: counts.trackedCount,
     startedCount: counts.startedCount,
     tmdbConfig: data?.tmdbConfig ?? null,
-    isLoading: query.isLoading,
-    isFetching: query.isFetching,
-    isError: query.isError,
-    hasData: data !== undefined,
-    syncedAt: query.dataUpdatedAt,
+    ...queryStatus(query, data !== undefined),
     refetch: () => void query.refetch(),
   };
 }

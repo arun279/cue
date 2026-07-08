@@ -47,7 +47,12 @@ export interface MovieLibraryInput {
   readonly watchlistMovies: readonly WatchlistItem[];
 }
 
-function toMovieIds(ids: MovieDetailData["ids"]): MovieIds {
+export function toMovieIds(ids: {
+  trakt: number;
+  slug?: string;
+  imdb?: string | null;
+  tmdb?: number | null;
+}): MovieIds {
   return {
     trakt: ids.trakt,
     slug: ids.slug,

@@ -1,4 +1,5 @@
 import type { NavDestination } from "@ui/app-shell/nav";
+import { NavGlyph } from "@ui/components/NavGlyph";
 import type { ReactElement } from "react";
 
 const PATHS: Record<NavDestination["icon"], string> = {
@@ -10,18 +11,8 @@ const PATHS: Record<NavDestination["icon"], string> = {
 
 export function NavIcon({ icon }: { icon: NavDestination["icon"] }): ReactElement {
   return (
-    <svg
-      className="nav__icon"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-    >
+    <NavGlyph>
       <path d={PATHS[icon]} />
-    </svg>
+    </NavGlyph>
   );
 }

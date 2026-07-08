@@ -1,6 +1,6 @@
 import type { EpisodeView } from "@data/trakt/show-detail";
 import { Link } from "@tanstack/react-router";
-import { formatWatchedDate } from "@ui/screens/up-next/format";
+import { episodeCode, formatWatchedDate } from "@ui/screens/up-next/format";
 import type { ReactElement } from "react";
 import { Still } from "./Still";
 
@@ -10,10 +10,6 @@ interface EpisodeRowProps {
   readonly isNext: boolean;
   onToggle(): void;
   onMarkUpToHere(): void;
-}
-
-function episodeCode(season: number, number: number): string {
-  return `S${String(season).padStart(2, "0")}E${String(number).padStart(2, "0")}`;
 }
 
 function airLabel(firstAired: string | null): string {

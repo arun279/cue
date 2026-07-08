@@ -9,9 +9,9 @@ import { assembleCalendarEntries } from "@data/trakt/calendar";
 import { TraktClient, type TraktResult } from "@data/trakt/client";
 import {
   getEpisode,
-  getEpisodePlays,
   getHidden,
   getHistory,
+  getItemPlays,
   getMovie,
   getMyShowsCalendar,
   getPopularMovies,
@@ -19,7 +19,6 @@ import {
   getRatings,
   getRelatedMovies,
   getShow,
-  getShowPlays,
   getShowProgress,
   getShowSeasons,
   getTrendingMovies,
@@ -48,6 +47,7 @@ import type { Token } from "@domain/model/token";
 import type { LastActivities } from "@domain/sync-activities";
 import { WriteQueue } from "@domain/write-queue/queue";
 import type { QueuedOp } from "@domain/write-queue/types";
+import { createJsonStore } from "@platform/json-store";
 import type { KeyValueStore } from "@platform/kv";
 import type { TokenStore } from "@platform/token-store";
 import type {
@@ -137,17 +137,6 @@ export interface RuntimeDeps {
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function loadOpLog(kv: KeyValueStore): Promise<QueuedOp[]> {
-  const raw = await kv.read(OP_LOG_KEY);
-  if (raw === null) return [];
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    return Array.isArray(parsed) ? (parsed as QueuedOp[]) : [];
-  } catch {
-    return [];
-  }
-}
-
 async function resolveTmdbConfig(tmdbKey: string): Promise<TmdbImageConfig | null> {
   if (tmdbKey.trim().length === 0) return null;
   try {
@@ -206,24 +195,21 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     return markLanded(op.toState, context.preCompleted, result.data.completed);
   };
 
+  const opLogStore = createJsonStore<QueuedOp[]>(deps.kv, OP_LOG_KEY, (value) =>
+    Array.isArray(value) ? (value as QueuedOp[]) : [],
+  );
+  const activitiesStore = createJsonStore<LastActivities>(deps.kv, ACTIVITIES_KEY);
+
   const queue = new WriteQueue(
     { dispatch: createTraktTransport(client), sleep, now: Date.now, reconcile },
-    await loadOpLog(deps.kv),
+    (await opLogStore.read()) ?? [],
   );
 
-  const persistLog = (): Promise<void> =>
-    deps.kv.write(OP_LOG_KEY, JSON.stringify(queue.snapshot()));
+  const persistLog = (): Promise<void> => opLogStore.write(queue.snapshot());
 
   const activitiesRepo = createLastActivitiesRepository(client);
-  const readActivitiesSnapshot = async (): Promise<LastActivities | undefined> => {
-    const raw = await deps.kv.read(ACTIVITIES_KEY);
-    if (raw === null) return undefined;
-    try {
-      return JSON.parse(raw) as LastActivities;
-    } catch {
-      return undefined;
-    }
-  };
+  const readActivitiesSnapshot = async (): Promise<LastActivities | undefined> =>
+    (await activitiesStore.read()) ?? undefined;
 
   // Replay durable work from a prior session before accepting new writes: retire
   // ops Trakt already reflects, then flush the rest. This is the reload-survival
@@ -426,13 +412,13 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       // On-demand, user-initiated (a durable Unmark) so a full paged walk of the
       // show's plays is acceptable; a transient 429 is absorbed rather than failing
       // the unmark outright.
-      const result = await withReadRateRetry(() => getShowPlays(client, showId));
+      const result = await withReadRateRetry(() => getItemPlays(client, "shows", showId));
       if (!result.ok) throw new Error("Failed to load show history");
       return assembleEpisodePlays(result.data);
     },
 
     async loadEpisodePlays(episodeId) {
-      const result = await withReadRateRetry(() => getEpisodePlays(client, episodeId));
+      const result = await withReadRateRetry(() => getItemPlays(client, "episodes", episodeId));
       if (!result.ok) throw new Error("Failed to load episode history");
       return assembleEpisodePlays(result.data);
     },
@@ -500,7 +486,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       const keys = stored === undefined ? [] : invalidationKeys(poll.targets);
       return {
         keys,
-        commit: () => deps.kv.write(ACTIVITIES_KEY, JSON.stringify(fresh)),
+        commit: () => activitiesStore.write(fresh),
       };
     },
 
@@ -526,8 +512,8 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
         if (options.force !== true && queue.size > 0) throw new PendingWritesError();
         // Clear this device's per-account state so the next account never paints
         // stale data or dispatches a leftover op.
-        await deps.kv.remove(OP_LOG_KEY);
-        await deps.kv.remove(ACTIVITIES_KEY);
+        await opLogStore.clear();
+        await activitiesStore.clear();
         queryClient.clear();
         await queryPersister.removeClient();
       } finally {

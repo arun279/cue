@@ -1,11 +1,8 @@
 import { queryKeys } from "@data/query-keys";
 import type { SearchHit } from "@data/trakt/search";
 import { useQuery } from "@tanstack/react-query";
+import { DISCOVER_STALE_TIME_MS } from "@ui/hooks/query-freshness";
 import { useRuntime } from "@ui/runtime/runtime";
-
-/** Related films shift slowly; a 5-minute stale window spares detail re-mounts a
- * refetch, matching the browse rails. */
-const STALE_MS = 5 * 60 * 1000;
 
 export interface MovieRelatedView {
   readonly isLoading: boolean;
@@ -25,7 +22,7 @@ export function useMovieRelated(movieId: number): MovieRelatedView {
   const query = useQuery({
     queryKey: queryKeys.movieRelated(movieId),
     queryFn: () => runtime.loadMovieRelated(movieId),
-    staleTime: STALE_MS,
+    staleTime: DISCOVER_STALE_TIME_MS,
   });
   return {
     isLoading: query.isLoading,

@@ -1,5 +1,6 @@
 import type { TmdbImageConfig } from "@data/image-source";
 import { Link } from "@tanstack/react-router";
+import { ChevronIcon } from "@ui/components/ChevronIcon";
 import { MarkWatchedButton } from "@ui/components/MarkWatchedButton";
 import type { UpNextCard as UpNextCardModel } from "@ui/hooks/useUpNext";
 import { Accordion } from "radix-ui";
@@ -110,16 +111,7 @@ export function LapsedDrawer({
       <Accordion.Item className="pile" value="lapsed" data-status="lapsed">
         <Accordion.Header className="pile__header">
           <Accordion.Trigger className="pile__trigger" data-testid="lapsed-heading">
-            <svg className="pile__chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <path
-                d="M6 9l6 6 6-6"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
+            <ChevronIcon className="pile__chevron" />
             <span className="pile__name">Haven't watched in a while</span>
             <span className="pile__count library-heading__count" data-testid="lapsed-count">
               {cards.length}

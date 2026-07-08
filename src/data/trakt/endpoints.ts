@@ -269,25 +269,13 @@ export async function getHistory(
  * the per-play removal handle. Walked across pages (a long-running show can carry
  * many plays); `extended=full` brings each episode's season/number inline.
  */
-export async function getShowPlays(
+export async function getItemPlays(
   client: TraktClient,
-  showId: number | string,
+  kind: "shows" | "episodes",
+  id: number | string,
 ): Promise<TraktResult<HistoryItem[]>> {
   return parse(
-    await client.getAllPages(`/sync/history/shows/${showId}`, {
-      extended: ["full"],
-      limit: HISTORY_PAGE_LIMIT,
-    }),
-    historySchema,
-  );
-}
-
-export async function getEpisodePlays(
-  client: TraktClient,
-  episodeId: number | string,
-): Promise<TraktResult<HistoryItem[]>> {
-  return parse(
-    await client.getAllPages(`/sync/history/episodes/${episodeId}`, {
+    await client.getAllPages(`/sync/history/${kind}/${id}`, {
       extended: ["full"],
       limit: HISTORY_PAGE_LIMIT,
     }),

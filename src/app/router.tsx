@@ -50,27 +50,17 @@ const searchRoute = createRoute({ getParentRoute: () => rootRoute, path: "/searc
 // The three inner tabs were renamed (Upcoming→Calendar, My Shows→Library,
 // Discover→Search); these non-lazy redirect routes keep every legacy
 // bookmark and deep link working by throwing to the new path before load.
-const upcomingRedirect = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/upcoming",
-  beforeLoad: () => {
-    throw redirect({ to: "/calendar" });
-  },
-});
-const myShowsRedirect = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/my-shows",
-  beforeLoad: () => {
-    throw redirect({ to: "/library" });
-  },
-});
-const discoverRedirect = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/discover",
-  beforeLoad: () => {
-    throw redirect({ to: "/search" });
-  },
-});
+const legacyRedirect = (path: string, to: "/calendar" | "/library" | "/search") =>
+  createRoute({
+    getParentRoute: () => rootRoute,
+    path,
+    beforeLoad: () => {
+      throw redirect({ to });
+    },
+  });
+const upcomingRedirect = legacyRedirect("/upcoming", "/calendar");
+const myShowsRedirect = legacyRedirect("/my-shows", "/library");
+const discoverRedirect = legacyRedirect("/discover", "/search");
 
 const profileRoute = createRoute({ getParentRoute: () => rootRoute, path: "/profile" }).lazy(() =>
   import("@app/routes/profile.lazy").then((module) => module.Route),

@@ -1,4 +1,4 @@
-import { dayKeyFormatter, shiftDayKey } from "./day";
+import { dayLabeler } from "./day";
 import type { EpisodeIds } from "./model/ids";
 import { toMs } from "./time";
 
@@ -46,14 +46,9 @@ export function groupCalendar(
   options: GroupCalendarOptions,
 ): CalendarDay[] {
   const { now, timeZone, hiddenShowIds } = options;
-  const dayKeyOf = dayKeyFormatter(timeZone);
-  const todayKey = dayKeyOf(now);
-  const tomorrowKey = shiftDayKey(todayKey, 1);
-  const labelFmt = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    weekday: "short",
-    month: "short",
-    day: "numeric",
+  const { keyOf: dayKeyOf, label: labelFor } = dayLabeler(timeZone, now, {
+    delta: 1,
+    label: "Tomorrow",
   });
 
   const byDay = new Map<string, CalendarRow[]>();
@@ -74,12 +69,6 @@ export function groupCalendar(
         (a, b) => (toMs(a.firstAired) ?? 0) - (toMs(b.firstAired) ?? 0),
       );
       const sample = toMs(ordered[0]?.firstAired) ?? now;
-      const label =
-        dayKey === todayKey
-          ? "Today"
-          : dayKey === tomorrowKey
-            ? "Tomorrow"
-            : labelFmt.format(sample);
-      return { dayKey, label, rows: ordered };
+      return { dayKey, label: labelFor(dayKey, sample), rows: ordered };
     });
 }

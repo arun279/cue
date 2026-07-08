@@ -1,5 +1,5 @@
 import type { TmdbImageConfig } from "@data/image-source";
-import { showProgressKeys } from "@data/query-invalidation";
+import { invalidateShowProgress } from "@data/query-invalidation";
 import { queryKeys } from "@data/query-keys";
 import {
   groupHistory,
@@ -15,7 +15,7 @@ import {
   buildRemoveHistoryPlayOp,
 } from "@domain/write-queue/ops";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
-import { USER_STATE_STALE_TIME } from "@ui/hooks/query-freshness";
+import { queryStatus, USER_STATE_STALE_TIME } from "@ui/hooks/query-freshness";
 import { useOptimisticWrite } from "@ui/hooks/useOptimisticWrite";
 import { type HistorySection, type SubmitOutcome, useRuntime } from "@ui/runtime/runtime";
 import { useCallback, useMemo, useRef, useState } from "react";
@@ -146,9 +146,7 @@ export function useHistory(scope: HistoryScope): HistoryView {
         entry.season !== null && entry.number !== null
           ? { season: entry.season, number: entry.number }
           : undefined;
-      for (const queryKey of showProgressKeys(entry.mediaId, episode)) {
-        void queryClient.invalidateQueries({ queryKey });
-      }
+      invalidateShowProgress(queryClient, entry.mediaId, episode);
     },
     [queryClient],
   );
@@ -243,11 +241,7 @@ export function useHistory(scope: HistoryScope): HistoryView {
     days,
     filter,
     tmdbConfig: query.data?.pages[0]?.tmdbConfig ?? null,
-    isLoading: query.isLoading,
-    isError: query.isError,
-    isFetching: query.isFetching,
-    syncedAt: query.dataUpdatedAt,
-    hasData: query.data !== undefined,
+    ...queryStatus(query, query.data !== undefined),
     isEmpty: query.data !== undefined && entryCount === 0,
     refetch: () => void query.refetch(),
     hasMore: query.hasNextPage,

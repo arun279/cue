@@ -1,7 +1,7 @@
+import { ErrorToast } from "@ui/components/ErrorStates";
 import { useMovieDiscover } from "@ui/hooks/useMovieDiscover";
 import { useWatchlistAdd } from "@ui/hooks/useWatchlistAdd";
 import { DiscoverGrid } from "@ui/screens/search/DiscoverCard";
-import { Snackbar } from "@ui/screens/up-next/Snackbar";
 import type { ReactElement } from "react";
 
 /**
@@ -46,11 +46,9 @@ export function MovieDiscover({ active }: { readonly active: boolean }): ReactEl
         ))}
       </div>
       {watchlistAdd.addError !== null && (
-        <Snackbar
+        <ErrorToast
           testId="movie-discover-add-error"
           message={watchlistAdd.addError}
-          actionLabel="Dismiss"
-          onAction={watchlistAdd.clearAddError}
           onDismiss={watchlistAdd.clearAddError}
         />
       )}

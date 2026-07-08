@@ -5,6 +5,8 @@ import type { LibrarySort } from "@domain/library-buckets";
 import type { WatchStatus } from "@domain/watch-status";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { CachedRetryBanner } from "@ui/components/CachedRetryBanner";
+import { ChevronIcon } from "@ui/components/ChevronIcon";
+import { ErrorRetry, ErrorToast } from "@ui/components/ErrorStates";
 import { SyncStatusPill } from "@ui/components/SyncStatusPill";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { useHideShow } from "@ui/hooks/useHideShow";
@@ -180,21 +182,7 @@ function SegmentAccordion<E>({
               data-testid="pile-heading"
               data-status={pile.status}
             >
-              <svg
-                className="pile__chevron"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-                focusable="false"
-              >
-                <path
-                  d="M6 9l6 6 6-6"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
+              <ChevronIcon className="pile__chevron" />
               <span className="pile__name">{pile.label}</span>
               <span className="pile__count library-heading__count" data-testid="pile-count">
                 {filtering ? `${pile.shown.length}/${pile.total}` : pile.total}
@@ -390,20 +378,12 @@ export function Library(): ReactElement {
     body = <LibrarySkeleton testId={`${prefix}-skeleton`} />;
   } else if (active.isError && !active.hasData) {
     body = (
-      <div className="empty" data-testid={`${prefix}-error`}>
-        <h2 className="empty__title">
-          {isMovies ? "Couldn't load your movies" : "Couldn't load your library"}
-        </h2>
-        <p className="empty__body">Check your connection and try again.</p>
-        <button
-          type="button"
-          className="button"
-          data-testid={`${prefix}-error-retry`}
-          onClick={active.refetch}
-        >
-          Retry
-        </button>
-      </div>
+      <ErrorRetry
+        title={isMovies ? "Couldn't load your movies" : "Couldn't load your library"}
+        testId={`${prefix}-error`}
+        buttonTestId={`${prefix}-error-retry`}
+        onRetry={active.refetch}
+      />
     );
   } else if (emptyCount === 0) {
     body = (
@@ -585,13 +565,7 @@ export function Library(): ReactElement {
       )}
 
       {unhide.error !== null && (
-        <Snackbar
-          testId="resume-error"
-          message={unhide.error}
-          actionLabel="Dismiss"
-          onAction={unhide.clearError}
-          onDismiss={unhide.clearError}
-        />
+        <ErrorToast testId="resume-error" message={unhide.error} onDismiss={unhide.clearError} />
       )}
       {unhide.undoable !== null && (
         <Snackbar

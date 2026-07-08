@@ -1,6 +1,7 @@
 import type { UserStats } from "@data/trakt/schemas";
 import { humanizeWatchMinutes } from "@domain/time";
 import { Link } from "@tanstack/react-router";
+import { ErrorRetry } from "@ui/components/ErrorStates";
 import { SyncStatusPill } from "@ui/components/SyncStatusPill";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { useStats } from "@ui/hooks/useStats";
@@ -220,18 +221,12 @@ export function Profile(): ReactElement {
     body = <Skeleton />;
   } else if (view.isError && !view.hasData) {
     body = (
-      <div className="empty" data-testid="profile-error">
-        <h2 className="empty__title">Couldn't load your stats</h2>
-        <p className="empty__body">Check your connection and try again.</p>
-        <button
-          type="button"
-          className="button"
-          data-testid="profile-error-retry"
-          onClick={view.refetch}
-        >
-          Retry
-        </button>
-      </div>
+      <ErrorRetry
+        title="Couldn't load your stats"
+        testId="profile-error"
+        buttonTestId="profile-error-retry"
+        onRetry={view.refetch}
+      />
     );
   } else if (view.stats === undefined || isAllZero(view.stats, visibility)) {
     body = (
