@@ -5,7 +5,7 @@ import { type CalendarDay, type CalendarRow, groupCalendar } from "@domain/calen
 import { localTimeZone } from "@domain/time";
 import { buildMarkEpisodeOp, buildUnmarkEpisodeOp } from "@domain/write-queue/ops";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CONTENT_STALE_TIME_MS } from "@ui/hooks/query-freshness";
+import { CONTENT_STALE_TIME_MS, queryStatus } from "@ui/hooks/query-freshness";
 import { useRuntime } from "@ui/runtime/runtime";
 import { useCallback, useMemo, useState } from "react";
 import { useQueuedWrite } from "./useQueuedWrite";
@@ -23,6 +23,8 @@ export interface CalendarView {
   readonly isFetching: boolean;
   readonly isError: boolean;
   readonly hasData: boolean;
+  /** Epoch ms of the last successful sync — the pill's "· <time ago>" recency. */
+  readonly syncedAt: number;
   refetch(): void;
   isWatched(episodeId: number): boolean;
   markWatched(row: CalendarRow): Promise<void>;
@@ -177,10 +179,7 @@ export function useCalendar(): CalendarView {
     windowDays,
     setWindowDays,
     tmdbConfig: data?.tmdbConfig ?? null,
-    isLoading: query.isLoading,
-    isFetching: query.isFetching,
-    isError: query.isError,
-    hasData: data !== undefined,
+    ...queryStatus(query, data !== undefined),
     refetch: () => void query.refetch(),
     isWatched: (episodeId) => watched.has(episodeId),
     markWatched,

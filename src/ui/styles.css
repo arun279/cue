@@ -2687,6 +2687,28 @@ body {
   .next-up__actions {
     width: 100%;
   }
+  /* The season disclosure and its mark-season control (or completed "Watched"
+     status) share one crowded row on desktop; at phone widths the fixed-width
+     control crushed the title/meta into a word-per-line wrap and buried the
+     chevron. Wrap the head so the control drops to its own full-width row beneath
+     the title/meta — mirroring the Up Next card's stacked mobile action — leaving
+     the trigger (ring + title + chevron) the whole first row. */
+  .season__head {
+    flex-wrap: wrap;
+    gap: 0;
+    padding-right: 0;
+  }
+  .season__heading {
+    flex-basis: 100%;
+  }
+  .season__mark,
+  .season__status {
+    flex: 0 1 100%;
+    /* Inset to align with the trigger's own space-4 padding; bottom margin seats it
+       inside the card. Shrink (flex-basis 100% + shrink 1) absorbs the side margins
+       so the full-width control never overflows the row. */
+    margin: 0 var(--space-4) var(--space-4);
+  }
 }
 
 /* ---- Profile (stat theatre) ---- */

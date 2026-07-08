@@ -100,6 +100,7 @@ export function Upcoming(): ReactElement {
           testId="upcoming-status"
           isFetching={view.isFetching}
           isError={view.isError}
+          syncedAt={view.syncedAt}
         />
       </header>
 

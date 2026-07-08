@@ -84,6 +84,19 @@ test.beforeEach(async ({ page }) => {
   await seedAuth(page.context());
 });
 
+test("the sync pill shows the last-synced timestamp, not a bare 'Synced'", async ({ page }) => {
+  // Regression: the shared pill rendered a bare "Synced" on Library (and Calendar)
+  // while Up Next and Profile showed "Synced · <time ago>" — the same component,
+  // missing the `syncedAt` prop on these two routes. Wire it through so the recency
+  // read is identical everywhere.
+  await installLibraryRoutes(page.context(), oneOfEachPile());
+  await page.goto("/library");
+
+  const pill = page.getByTestId("my-shows-status");
+  await expect(pill).toHaveAttribute("data-state", "synced");
+  await expect(pill).toContainText("Synced · ");
+});
+
 test("renders the segments in canonical order with count badges", async ({ page }) => {
   await page.setViewportSize({ width: 1000, height: 2200 });
   await installLibraryRoutes(page.context(), oneOfEachPile());

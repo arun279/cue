@@ -78,6 +78,19 @@ test("groups episodes by localized day with Today/Tomorrow labels", async ({ pag
   await expect(page.getByTestId("calendar-row")).toHaveCount(3);
 });
 
+test("the sync pill shows the last-synced timestamp, not a bare 'Synced'", async ({ page }) => {
+  // Regression: the shared pill rendered a bare "Synced" on Calendar (and Library)
+  // while Up Next and Profile showed "Synced · <time ago>" — the same component,
+  // missing the `syncedAt` prop on these two routes. Wire it through so the recency
+  // read is identical everywhere.
+  await installCalendarRoutes(page.context(), spreadFixture());
+  await page.goto("/calendar");
+
+  const pill = page.getByTestId("upcoming-status");
+  await expect(pill).toHaveAttribute("data-state", "synced");
+  await expect(pill).toContainText("Synced · ");
+});
+
 test("excludes hidden shows even though the calendar feed still lists them", async ({ page }) => {
   const items = [
     calItem({

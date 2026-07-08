@@ -243,7 +243,7 @@ function NextUp({
             type="button"
             className="button button--sm"
             data-testid="next-up-mark"
-            onClick={() => void marks.toggleEpisode(target, next)}
+            onClick={() => void marks.toggleEpisode(target, next, `Marked ${code} watched.`)}
           >
             <MarkIcon />
             Mark watched
@@ -344,7 +344,12 @@ export function ShowDetail({ showId }: { showId: number }): ReactElement {
         watchlist={watchlist}
         rate={rate}
         onMarkNext={() => {
-          if (next !== null) void marks.toggleEpisode(target, next);
+          if (next !== null)
+            void marks.toggleEpisode(
+              target,
+              next,
+              `Marked ${episodeCode(next.season, next.number)} watched.`,
+            );
         }}
         hidden={hidden}
         onToggleHidden={() =>

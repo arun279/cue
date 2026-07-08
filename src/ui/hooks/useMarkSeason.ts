@@ -38,7 +38,13 @@ export interface MarkSeasonController {
     seasons: readonly SeasonView[],
     bound: EpisodeBound,
   ): Promise<void>;
-  toggleEpisode(target: MarkContextTarget, episode: EpisodeView): Promise<void>;
+  /**
+   * Toggle a single episode's watched flag. A one-tap "Mark watched" surface (the
+   * hero + Up-next strip) passes `undoLabel` to get the same point-of-action Undo
+   * as the Up Next list mark; a granular episode-row checkbox passes none — its
+   * deliberate reversal is unchecking, so it stays toast-free.
+   */
+  toggleEpisode(target: MarkContextTarget, episode: EpisodeView, undoLabel?: string): Promise<void>;
   undo(): Promise<void>;
   dismissUndo(): void;
   clearError(): void;
@@ -125,6 +131,12 @@ export function useMarkSeason(): MarkSeasonController {
   // mark's ref guard.
   const pendingSeasonsRef = useRef<Set<number>>(new Set());
   const [pendingSeasons, setPendingSeasons] = useState<ReadonlySet<number>>(() => new Set());
+  // Single-episode marks/unmarks in flight, keyed by `showId:season:number`. Like the
+  // season lock (and the Up Next list mark's `inFlight` ref) this is the SYNCHRONOUS
+  // gate: a fast double-tap fires a second `toggleEpisode` before React re-renders the
+  // ticked state, so without it the same episode would enqueue a duplicate play. Set
+  // before the async write and released when it settles.
+  const pendingEpisodesRef = useRef<Set<string>>(new Set());
   const withSeasonLock = useCallback(
     async (seasonNumber: number, run: () => Promise<void>): Promise<void> => {
       if (pendingSeasonsRef.current.has(seasonNumber)) return;
@@ -195,10 +207,18 @@ export function useMarkSeason(): MarkSeasonController {
       // the optimistic tick, BEFORE the paced/throttled write settles — mirroring the
       // Up Next mark. Otherwise the season shows its non-interactive "Watched"
       // done-state for the whole network flush with no way to reverse it, the exact
-      // silent-commit this Undo exists to prevent. `ops` identity tags the slot so a
-      // later settle only ever touches the toast THIS mark put up.
+      // silent-commit this Undo exists to prevent. `resumed` is captured synchronously
+      // from the mark-time Stopped state so this mark's Undo re-stops the show even
+      // when the (paced) auto-resume write hasn't landed yet. `ops` identity tags the
+      // slot so a later settle only ever touches the toast THIS mark put up.
       setError(null);
-      setUndoState({ showId: target.showId, ids: target.ids, label, ops, resumed: false });
+      setUndoState({
+        showId: target.showId,
+        ids: target.ids,
+        label,
+        ops,
+        resumed: resume.willResume(target.showId),
+      });
       // The batch settles to its worst op: any hard failure rolls the whole mark
       // back; a "deferred" chunk keeps the optimistic tick without revalidating (a
       // refetch would read pre-mark progress and un-tick the episodes). A watch on a
@@ -206,16 +226,7 @@ export function useMarkSeason(): MarkSeasonController {
       // so the library re-read doesn't refile the show back under Stopped.
       const outcome = await submit(ops, {
         rollback: () => queryClient.setQueryData(key, before),
-        onKept: async () => {
-          const kept = await resume.resumeIfStopped(target.showId, target.ids);
-          // The mark auto-resumed the show, so fold that into the live slot: its Undo
-          // must re-stop the show too. Guard on `ops` identity so a newer mark's toast
-          // (or one the user already undid) is never clobbered.
-          if (kept !== null) {
-            setUndoState((prev) => (prev?.ops === ops ? { ...prev, resumed: true } : prev));
-          }
-          return kept;
-        },
+        onKept: () => resume.resumeIfStopped(target.showId, target.ids),
         revalidate: () => revalidate(target.showId, "all"),
       });
       if (outcome === "failed") {
@@ -290,35 +301,68 @@ export function useMarkSeason(): MarkSeasonController {
   );
 
   const toggleEpisode = useCallback(
-    async (target: MarkContextTarget, episode: EpisodeView) => {
-      const next = !episode.watched;
-      // A lost response reconciles against the show's pre-op `completed` (via a
-      // progress re-read) rather than blind-retrying → never a duplicate play,
-      // matching the bulk path and the sibling episode/Up-Next mark hooks.
-      const params = {
-        opId: crypto.randomUUID(),
-        ids: episode.ids,
-        watchedAt: new Date().toISOString(),
-        inversePatch: reconcileAnchor(target.showId),
-      };
-      // Unchecking an episode is the sole deliberate way to reverse a settled watch
-      // (there is no whole-season unmark). buildUnmarkEpisodeOp removes the episode
-      // item, clearing the single play in the app's one-play-per-episode model. True
-      // per-play removal (by history event id) is the Diary's `buildRemoveHistoryPlayOp`
-      // — but that id only exists in `/users/me/history`, not at this mark surface, so
-      // the item-scoped remove is the correct reversal here.
-      const op = next ? buildMarkEpisodeOp(params) : buildUnmarkEpisodeOp(params);
-      const matchEpisode: EpisodeMatch = (s, n) => s === episode.season && n === episode.number;
-      patch(target.showId, matchEpisode, next);
-      // A watch on a Stopped show un-stops it (onKept): the unhide must land before
-      // revalidate so the library re-read doesn't refile the show under Stopped.
-      const outcome = await submit([op], {
-        rollback: () => patch(target.showId, matchEpisode, !next),
-        onKept: next ? () => resume.resumeIfStopped(target.showId, target.ids) : undefined,
-        revalidate: () =>
-          revalidate(target.showId, { season: episode.season, number: episode.number }),
-      });
-      if (outcome === "failed") setError("Couldn't update that episode. Please try again.");
+    async (target: MarkContextTarget, episode: EpisodeView, undoLabel?: string) => {
+      // Drop a second synchronous activation on the SAME episode (a fast double-tap):
+      // its optimistic tick hasn't re-rendered yet, so without this it would enqueue a
+      // duplicate play. Released in `finally` once the write settles.
+      const epKey = `${target.showId}:${episode.season}:${episode.number}`;
+      if (pendingEpisodesRef.current.has(epKey)) return;
+      pendingEpisodesRef.current.add(epKey);
+      try {
+        const next = !episode.watched;
+        // A lost response reconciles against the show's pre-op `completed` (via a
+        // progress re-read) rather than blind-retrying → never a duplicate play,
+        // matching the bulk path and the sibling episode/Up-Next mark hooks.
+        const params = {
+          opId: crypto.randomUUID(),
+          ids: episode.ids,
+          watchedAt: new Date().toISOString(),
+          inversePatch: reconcileAnchor(target.showId),
+        };
+        // Unchecking an episode is the sole deliberate way to reverse a settled watch
+        // (there is no whole-season unmark). buildUnmarkEpisodeOp removes the episode
+        // item, clearing the single play in the app's one-play-per-episode model. True
+        // per-play removal (by history event id) is the Diary's `buildRemoveHistoryPlayOp`
+        // — but that id only exists in `/users/me/history`, not at this mark surface, so
+        // the item-scoped remove is the correct reversal here.
+        const op = next ? buildMarkEpisodeOp(params) : buildUnmarkEpisodeOp(params);
+        const ops = [op];
+        const matchEpisode: EpisodeMatch = (s, n) => s === episode.season && n === episode.number;
+        patch(target.showId, matchEpisode, next);
+        // A one-tap "Mark watched" surface (hero / Up-next strip) mounts the same
+        // point-of-action Undo the bulk path does — synchronously with the optimistic
+        // tick, tagged by `ops` identity — reusing the shared undo/invert machinery so
+        // the reversal safety net is consistent with the Up Next list mark. `resumed`
+        // is captured synchronously from the mark-time Stopped state so this mark's Undo
+        // re-stops the show even before the (paced) auto-resume write has settled.
+        const withUndo = next && undoLabel !== undefined;
+        if (withUndo) {
+          setError(null);
+          setUndoState({
+            showId: target.showId,
+            ids: target.ids,
+            label: undoLabel,
+            ops,
+            resumed: resume.willResume(target.showId),
+          });
+        }
+        // A watch on a Stopped show un-stops it (onKept): the unhide must land before
+        // revalidate so the library re-read doesn't refile the show under Stopped.
+        const outcome = await submit(ops, {
+          rollback: () => patch(target.showId, matchEpisode, !next),
+          onKept: next ? () => resume.resumeIfStopped(target.showId, target.ids) : undefined,
+          revalidate: () =>
+            revalidate(target.showId, { season: episode.season, number: episode.number }),
+        });
+        if (outcome === "failed") {
+          // Retract this mark's toast (if it's still the one showing) — there's no Undo
+          // for a change the seam already rolled back.
+          if (withUndo) setUndoState((prev) => (prev?.ops === ops ? null : prev));
+          setError("Couldn't update that episode. Please try again.");
+        }
+      } finally {
+        pendingEpisodesRef.current.delete(epKey);
+      }
     },
     [patch, revalidate, submit, reconcileAnchor, resume],
   );

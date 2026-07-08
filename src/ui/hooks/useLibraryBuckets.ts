@@ -1,6 +1,7 @@
 import type { LibraryEntry } from "@data/trakt/library";
 import { groupLibrary, type LibrarySort } from "@domain/library-buckets";
 import type { WatchStatus } from "@domain/watch-status";
+import { queryStatus } from "@ui/hooks/query-freshness";
 import { useLibrarySnapshot } from "@ui/hooks/useLibrarySnapshot";
 import type { UpNextData } from "@ui/runtime/runtime";
 import { useMemo } from "react";
@@ -21,6 +22,8 @@ export interface LibraryBucketsView {
   readonly isFetching: boolean;
   readonly isError: boolean;
   readonly hasData: boolean;
+  /** Epoch ms of the last successful sync — the pill's "· <time ago>" recency. */
+  readonly syncedAt: number;
   refetch(): void;
 }
 
@@ -50,10 +53,7 @@ export function useLibraryBuckets(sort: LibrarySort, enabled = true): LibraryBuc
     trackedCount: data === undefined ? 0 : data.entries.filter((entry) => !entry.hidden).length,
     totalCount: data?.entries.length ?? 0,
     tmdbConfig: data?.tmdbConfig ?? null,
-    isLoading: query.isLoading,
-    isFetching: query.isFetching,
-    isError: query.isError,
-    hasData: data !== undefined,
+    ...queryStatus(query, data !== undefined),
     refetch: () => void query.refetch(),
   };
 }

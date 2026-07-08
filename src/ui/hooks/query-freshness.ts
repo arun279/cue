@@ -15,3 +15,38 @@ export const USER_STATE_STALE_TIME = Number.POSITIVE_INFINITY;
  * back-and-forth navigation a refetch.
  */
 export const CONTENT_STALE_TIME_MS = 60 * 60 * 1000;
+
+/**
+ * The status fields a persisted-SWR read hook forwards to its screen's
+ * {@link SyncStatusPill}. The read hooks wired for the pill's recency share this
+ * mapper rather than each inlining the identical `query → status` spread — the
+ * duplication gate (jscpd, 0% threshold) rejects the copy-pasted block. `hasData`
+ * is the caller's own has-data predicate (each hook derives it from its own selected
+ * slice); `syncedAt` is the query's last successful update, which the pill renders
+ * as the "· <time ago>" recency.
+ */
+interface QueryStatus {
+  readonly isLoading: boolean;
+  readonly isFetching: boolean;
+  readonly isError: boolean;
+  readonly hasData: boolean;
+  readonly syncedAt: number;
+}
+
+export function queryStatus(
+  query: {
+    readonly isLoading: boolean;
+    readonly isFetching: boolean;
+    readonly isError: boolean;
+    readonly dataUpdatedAt: number;
+  },
+  hasData: boolean,
+): QueryStatus {
+  return {
+    isLoading: query.isLoading,
+    isFetching: query.isFetching,
+    isError: query.isError,
+    hasData,
+    syncedAt: query.dataUpdatedAt,
+  };
+}

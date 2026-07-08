@@ -1,7 +1,7 @@
 import { queryKeys } from "@data/query-keys";
 import type { MovieEntry } from "@data/trakt/movie-library";
 import { type QueryClient, useQuery } from "@tanstack/react-query";
-import { USER_STATE_STALE_TIME } from "@ui/hooks/query-freshness";
+import { queryStatus, USER_STATE_STALE_TIME } from "@ui/hooks/query-freshness";
 import { type MovieLibraryData, useRuntime } from "@ui/runtime/runtime";
 import { useMemo } from "react";
 
@@ -28,6 +28,8 @@ export interface MovieLibraryView {
   readonly isFetching: boolean;
   readonly isError: boolean;
   readonly hasData: boolean;
+  /** Epoch ms of the last successful sync — the pill's "· <time ago>" recency. */
+  readonly syncedAt: number;
   entryFor(movieId: number): MovieEntry | undefined;
   refetch(): void;
 }
@@ -109,10 +111,7 @@ export function useMovieLibrary(
     segments,
     tmdbConfig: query.data?.tmdbConfig ?? null,
     trackedCount: entries?.length ?? 0,
-    isLoading: query.isLoading,
-    isFetching: query.isFetching,
-    isError: query.isError,
-    hasData: query.data !== undefined,
+    ...queryStatus(query, query.data !== undefined),
     entryFor: (movieId) => entries?.find((e) => e.movieId === movieId),
     refetch: () => void query.refetch(),
   };

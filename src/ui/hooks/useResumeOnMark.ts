@@ -7,6 +7,10 @@ import { useCallback } from "react";
 import { isLibraryHidden, patchLibraryHidden } from "./library-cache";
 
 export interface ResumeOnMark {
+  /** Whether marking this show right now WOULD auto-resume it — i.e. it is currently
+   * Stopped. Read synchronously at mark time so a mark's Undo can decide to re-stop
+   * from the mark-time state, without waiting for the (paced) resume write to settle. */
+  willResume(showId: number): boolean;
   /** If the show is Stopped (hidden), auto-resume it and resolve to how the unhide
    * write settled (so the caller can hold off revalidate until it lands); `null`
    * when the show wasn't stopped and no write was made. */
@@ -27,6 +31,11 @@ export interface ResumeOnMark {
 export function useResumeOnMark(): ResumeOnMark {
   const submit = useTrackedSubmit();
   const queryClient = useQueryClient();
+
+  const willResume = useCallback(
+    (showId: number): boolean => isLibraryHidden(queryClient, showId),
+    [queryClient],
+  );
 
   const resumeIfStopped = useCallback(
     async (showId: number, ids: ShowIds): Promise<SubmitOutcome | null> => {
@@ -57,5 +66,5 @@ export function useResumeOnMark(): ResumeOnMark {
     [queryClient, submit],
   );
 
-  return { resumeIfStopped, reStop };
+  return { willResume, resumeIfStopped, reStop };
 }

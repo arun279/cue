@@ -485,6 +485,7 @@ export function Library(): ReactElement {
           testId="my-shows-status"
           isFetching={active.isFetching}
           isError={active.isError}
+          syncedAt={active.syncedAt}
         />
       </header>
 

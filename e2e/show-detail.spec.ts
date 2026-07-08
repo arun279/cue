@@ -597,6 +597,127 @@ test("marking an episode of a Stopped show auto-resumes it", async ({ page }) =>
   );
 });
 
+test("the Up-next strip mark offers a point-of-action Undo that reverses the play", async ({
+  page,
+}) => {
+  // Consistency gap: marking the next episode from the show-detail "Up next" strip
+  // logged the play silently — no Undo — while the identical one-tap mark on the Up
+  // Next LIST offered one. The strip now surfaces the same reversal safety net.
+  const controls = await installLibraryRoutes(page.context(), [detailShow()]);
+  await page.goto("/show/1");
+
+  // The next unwatched aired episode is S01E03 (id 13); the header reads 2/7.
+  await expect(page.getByTestId("next-callout")).toContainText("S01E03");
+  await expect(page.getByTestId("overall-progress")).toHaveAttribute("aria-valuenow", "29");
+
+  await page.getByTestId("next-up-mark").click();
+
+  // The play lands AND a point-of-action Undo appears synchronously with the mark.
+  await expect(page.getByTestId("season-undo")).toBeVisible();
+  await expect.poll(() => controls.historyPosts().length).toBe(1);
+  expect(controls.historyPosts()[0]?.episodeIds).toContain(13);
+  await expect(page.getByTestId("next-callout")).toContainText("S01E04"); // advanced
+
+  // Undo re-sends the stored remove-by-item inverse for exactly that episode and the
+  // strip returns to S01E03 — the reversal, not a silent commit.
+  await page.getByTestId("season-undo-action").click();
+  await expect.poll(() => controls.removePosts().length).toBe(1);
+  expect(controls.removePosts()[0]?.episodeIds).toEqual([13]);
+  await expect(page.getByTestId("next-callout")).toContainText("S01E03");
+  await expect(page.getByTestId("overall-progress")).toHaveAttribute("aria-valuenow", "29");
+});
+
+test("the hero Mark-next button offers the same point-of-action Undo as the strip", async ({
+  page,
+}) => {
+  // Symmetry: the hero's primary "Mark next watched" action funnels through the same
+  // one-tap mark as the "Up next" strip, so it must raise the same reversible toast —
+  // not a silent commit — for the identical play.
+  const controls = await installLibraryRoutes(page.context(), [detailShow()]);
+  await page.goto("/show/1");
+
+  await page.getByTestId("mark-next").click();
+
+  await expect(page.getByTestId("season-undo")).toBeVisible();
+  await expect.poll(() => controls.historyPosts().length).toBe(1);
+  expect(controls.historyPosts()[0]?.episodeIds).toContain(13);
+});
+
+test("a double activation on the strip Mark-watched logs exactly one play", async ({ page }) => {
+  const controls = await installLibraryRoutes(page.context(), [detailShow()]);
+  await page.goto("/show/1");
+  await expect(page.getByTestId("next-callout")).toContainText("S01E03");
+
+  // Two synchronous activations in one task — before React re-renders the advanced
+  // next-up state — mimic a fast double-tap. The synchronous per-episode in-flight
+  // guard must drop the second before it enqueues a duplicate /sync/history play.
+  await page.getByTestId("next-up-mark").evaluate((el: HTMLElement) => {
+    el.click();
+    el.click();
+  });
+
+  // Exactly one play for S01E03 (id 13) reaches the network, and no duplicate surfaces
+  // across a two-pacing-interval window.
+  await expect.poll(() => controls.historyPosts().length).toBe(1);
+  await page.waitForTimeout(2000);
+  expect(controls.historyPosts().length).toBe(1);
+  expect(controls.historyPosts()[0]?.episodeIds).toContain(13);
+});
+
+test("at 390px the season row stacks: single-line title + meta, reachable chevron, full-width mark control", async ({
+  page,
+}) => {
+  // Regression: the fixed-width mark-season control + ring + chevron crushed the
+  // title/meta column on a phone, wrapping "Season 1" to two lines and the meta one
+  // word per line, and burying the disclosure chevron mid-text. The head now wraps so
+  // the mark control drops to its own full-width row beneath the title/meta.
+  await installLibraryRoutes(page.context(), [detailShow()]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/show/1");
+
+  const season1 = page.locator('[data-season="1"]');
+  await expect(season1).toBeVisible();
+
+  // The row itself never overflows its box (the crushed layout used to push content
+  // past the card edge) and it fits inside the 390px viewport.
+  const rowBox = await season1.boundingBox();
+  expect(rowBox).not.toBeNull();
+  expect(rowBox?.width ?? 0).toBeLessThanOrEqual(390);
+  const rowOverflow = await season1.evaluate((el) => el.scrollWidth - el.clientWidth);
+  expect(rowOverflow).toBeLessThanOrEqual(0);
+
+  // The title text node and the meta each render on exactly ONE line box — a wrapped
+  // title or a word-per-line meta would yield >1 client rect over the same text.
+  const titleLines = await season1.locator(".season__name").evaluate((el) => {
+    const range = document.createRange();
+    range.selectNode(el.firstChild as Node);
+    return range.getClientRects().length;
+  });
+  expect(titleLines).toBe(1);
+  const metaLines = await season1.locator(".season__sub").evaluate((el) => {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    return range.getClientRects().length;
+  });
+  expect(metaLines).toBe(1);
+
+  // The mark control dropped to its own full-width row BELOW the title (not squeezed
+  // beside it): wider than half the card and starting past the title's bottom.
+  const nameBox = await season1.locator(".season__name").boundingBox();
+  const markBox = await season1.getByTestId("mark-season").boundingBox();
+  expect(markBox?.y ?? 0).toBeGreaterThan(nameBox?.y ?? 0);
+  expect(markBox?.width ?? 0).toBeGreaterThan((rowBox?.width ?? 0) * 0.6);
+
+  // The disclosure chevron is a reachable tap target — fully within the viewport and
+  // it actually expands the shelf on tap.
+  const chevron = season1.locator(".season__chevron");
+  await expect(chevron).toBeVisible();
+  const chBox = await chevron.boundingBox();
+  expect((chBox?.x ?? 0) + (chBox?.width ?? 0)).toBeLessThanOrEqual(390);
+  await season1.getByTestId("season-trigger").click();
+  await expect(season1.getByTestId("episode-row").first()).toBeVisible();
+});
+
 test("Stop watching is reversible: Undo clears the hidden set and re-files the show", async ({
   page,
 }) => {
