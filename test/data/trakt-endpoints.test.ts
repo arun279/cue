@@ -1,6 +1,7 @@
 import { TRAKT_API_BASE, TraktClient } from "@data/trakt/client";
 import {
   getEpisode,
+  getEpisodePlays,
   getHidden,
   getHistory,
   getLastActivities,
@@ -11,6 +12,7 @@ import {
   getRatings,
   getRelatedMovies,
   getShow,
+  getShowPlays,
   getShowProgress,
   getShowSeasons,
   getTrendingMovies,
@@ -374,6 +376,52 @@ describe("getHistory (the Diary feed)", () => {
   it("throws on a malformed history row (missing the play id)", async () => {
     getJson("/users/me/history", [{ watched_at: "x", type: "movie" }]);
     await expect(getHistory(client, "all", 1)).rejects.toThrow();
+  });
+});
+
+describe("scoped-history resolvers (durable per-play unmark)", () => {
+  const playRow = (id: number, season: number, number: number, episodeTrakt: number) => ({
+    id,
+    watched_at: "2026-07-05T21:00:00.000Z",
+    action: "scrobble",
+    type: "episode",
+    episode: { season, number, title: `E${number}`, ids: { trakt: episodeTrakt } },
+    show: { title: "The Detail Show", ids: { trakt: 1 } },
+  });
+
+  it("walks every page of /sync/history/shows/:id, flattening the plays", async () => {
+    let firstUrl: URL | undefined;
+    server.use(
+      http.get(`${TRAKT_API_BASE}/sync/history/shows/1`, ({ request }) => {
+        const url = new URL(request.url);
+        const page = url.searchParams.get("page");
+        if (firstUrl === undefined) firstUrl = url;
+        return HttpResponse.json(
+          page === "2" ? ([playRow(2, 1, 2, 12)] as never) : ([playRow(1, 1, 1, 11)] as never),
+          { headers: { "X-Pagination-Page": page ?? "1", "X-Pagination-Page-Count": "2" } },
+        );
+      }),
+    );
+    const result = await getShowPlays(client, 1);
+    expect(result.ok && result.data.map((r) => r.id)).toEqual([1, 2]);
+    expect(firstUrl?.pathname).toBe("/sync/history/shows/1");
+    expect(firstUrl?.searchParams.get("extended")).toBe("full");
+  });
+
+  it("reads one item's plays from /sync/history/episodes/:id", async () => {
+    let path: string | undefined;
+    server.use(
+      http.get(`${TRAKT_API_BASE}/sync/history/episodes/12`, ({ request }) => {
+        path = new URL(request.url).pathname;
+        return HttpResponse.json([playRow(1, 1, 2, 12), playRow(2, 1, 2, 12)] as never, {
+          headers: { "X-Pagination-Page": "1", "X-Pagination-Page-Count": "1" },
+        });
+      }),
+    );
+    const result = await getEpisodePlays(client, 12);
+    expect(path).toBe("/sync/history/episodes/12");
+    // Two rows for one episode = a rewatch; both plays (with distinct ids) come back.
+    expect(result.ok && result.data.map((r) => r.id)).toEqual([1, 2]);
   });
 });
 

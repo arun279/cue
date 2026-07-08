@@ -118,6 +118,43 @@ export function buildRemoveHistoryPlayOp(params: RemoveHistoryPlayParams): Queue
   };
 }
 
+export interface RemovePlaysParams {
+  readonly opId: string;
+  /** The exact Trakt history-event ids to remove — never an item/season token. */
+  readonly ids: readonly number[];
+  /**
+   * The episodes to re-add for the Undo, each by its trakt id + frozen `watched_at`.
+   * Restore is best-effort (Trakt mints fresh history ids on the re-add), matching
+   * the Diary's per-play restore semantics.
+   */
+  readonly restore: readonly { readonly trakt: number; readonly watchedAt: string }[];
+}
+
+/**
+ * Remove a SET of episode plays by their exact history-event ids — the durable,
+ * per-play-safe reversal behind "Unmark season" and the per-episode uncheck
+ * Because it deletes precise history ids, it can never wipe a play it
+ * wasn't handed (a rewatch the planner deliberately left out survives). A lost
+ * remove is idempotent (the ids are already gone), so no reconcile anchor is
+ * needed; the inverse re-adds the removed episodes best-effort for the Undo.
+ */
+export function buildRemovePlaysOp(params: RemovePlaysParams): QueuedOp {
+  const ids = [...params.ids];
+  return {
+    id: params.opId,
+    itemKey: `history-plays:${[...ids].sort((a, b) => a - b).join(",")}`,
+    request: post(HISTORY_REMOVE, { ids }),
+    inverse: post(HISTORY, {
+      episodes: params.restore.map((r) => ({ ids: { trakt: r.trakt }, watched_at: r.watchedAt })),
+    }),
+    inversePatch: null,
+    watchedAt: params.restore[0]?.watchedAt ?? null,
+    fromState: "present",
+    toState: "absent",
+    reconcileKeys: ["progress/watched", "watched/shows"],
+  };
+}
+
 export interface HideOpParams {
   readonly opId: string;
   readonly ids: ShowIds;

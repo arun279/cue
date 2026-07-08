@@ -55,6 +55,26 @@ function detailShow(): ShowFixture {
   };
 }
 
+/**
+ * A show whose Season 1 is fully watched, with S01E01 watched TWICE (a rewatch).
+ * The durable Unmark must remove the single-play episodes by id while keeping the
+ * rewatched episode's plays intact.
+ */
+function rewatchShow(): ShowFixture {
+  return {
+    trakt: 2,
+    tmdb: 501,
+    title: "The Rewatch Show",
+    status: "returning series",
+    posters: ["media.trakt.tv/p.webp"],
+    lastWatchedAt: agoIso(2),
+    aired: 3,
+    completed: 3,
+    rewatchedEpisodeIds: [201],
+    episodes: [ep(1, 1, AIRED, 201), ep(1, 2, AIRED, 202), ep(1, 3, AIRED, 203)],
+  };
+}
+
 test.beforeEach(async ({ page }) => {
   await installHermeticRoutes(page.context());
   await seedAuth(page.context());
@@ -414,7 +434,7 @@ test("a partially-watched season mark logs only the unwatched delta, and Undo re
   await expect(season1.getByTestId("mark-season")).toBeVisible();
 });
 
-test("a completed season is a non-destructive status — no one-tap unmark-all; per-episode uncheck is the granular path", async ({
+test("a durable Unmark reverses ONLY the mark's delta — surviving the toast's expiry, never touching a pre-existing play", async ({
   page,
 }) => {
   const controls = await installLibraryRoutes(page.context(), [detailShow()]);
@@ -426,34 +446,96 @@ test("a completed season is a non-destructive status — no one-tap unmark-all; 
   await expect(season1.getByTestId("mark-season")).toHaveText(/Mark season watched/);
 
   // Marking the S01E03/E04 delta completes the season; the mark ACTION is replaced by
-  // a non-interactive "Watched" STATUS badge — there is NO one-tap unmark-all control
-  // that could silently wipe the season.
+  // a "Watched" STATUS badge PLUS a durable "Unmark" that reverses THIS mark.
   await season1.getByTestId("mark-season").click();
   await expect.poll(() => controls.historyPosts().length).toBe(1);
-  await expect(
-    page.getByTestId("episode-row").filter({ hasText: "S01E04" }).getByTestId("episode-toggle"),
-  ).toBeChecked();
   await expect(season1.getByTestId("season-complete")).toBeVisible();
-  await expect(season1.getByTestId("mark-season")).toHaveCount(0);
+  await expect(season1.getByTestId("unmark-season")).toBeVisible();
 
-  // Dismiss the mark's Undo toast; the completed header fires NOTHING on its own —
-  // no destructive whole-season remove exists to be triggered.
-  await page.getByTestId("season-undo-dismiss").click();
-  expect(controls.removePosts()).toHaveLength(0);
+  // The transient mark Undo is up now; the DURABLE reversal must not depend on it —
+  // wait for the toast to auto-dismiss (UNDO_MS), then unmark anyway.
+  await expect(page.getByTestId("season-undo")).toBeVisible();
+  await expect(page.getByTestId("season-undo")).toBeHidden({ timeout: 9000 });
+  controls.clearWrites();
 
-  // Granular correction stays: unchecking ONE episode removes only THAT episode's play
-  // (never the whole season), and the season falls back to the mark action.
-  const e4 = page
-    .getByTestId("episode-row")
-    .filter({ hasText: "S01E04" })
-    .getByTestId("episode-toggle");
-  await expect(e4).toBeChecked();
-  await e4.click();
+  await season1.getByTestId("unmark-season").click();
   await expect.poll(() => controls.removePosts().length).toBe(1);
-  expect(controls.removePosts()[0]?.episodeIds).toEqual([14]);
-  await expect(e4).not.toBeChecked();
-  await expect(season1.getByTestId("season-complete")).toHaveCount(0);
+  const removed = controls.removePosts()[0];
+  // Removed by EXACT per-play history ids for the DELTA ONLY (E03/E04 → 131/141).
+  // The pre-existing E01/E02 plays (111/121) are NOT in the body — "Unmark" reverses
+  // the mark, it does not clear the season.
+  expect(removed?.ids).toEqual([131, 141]);
+  expect(removed?.ids).not.toContain(111);
+  expect(removed?.ids).not.toContain(121);
+  expect(removed?.shows).toEqual([]);
+  // The season falls back to its PRE-MARK count (2/4), not to zero, and E01/E02 stay
+  // watched; the mark action returns.
   await expect(season1.getByTestId("mark-season")).toBeVisible();
+  await expect(season1.getByTestId("season-count")).toHaveText("2/4");
+  await expect(
+    page.getByTestId("episode-row").filter({ hasText: "S01E01" }).getByTestId("episode-toggle"),
+  ).toBeChecked();
+  await expect(
+    page.getByTestId("episode-row").filter({ hasText: "S01E02" }).getByTestId("episode-toggle"),
+  ).toBeChecked();
+});
+
+test("a genuinely-watched season offers no one-tap Unmark; a rewatched episode's extra play is protected", async ({
+  page,
+}) => {
+  const controls = await installLibraryRoutes(page.context(), [rewatchShow()]);
+  await page.goto("/show/2");
+  await expandSeason(page, 1);
+
+  const season1 = page.locator('[data-season="1"]');
+  await expect(season1.getByTestId("season-complete")).toBeVisible();
+  // No `Mark season watched` was made this session, so there is nothing to reverse:
+  // a genuinely-watched season shows "Watched" alone — no destructive one-tap wipe.
+  await expect(season1.getByTestId("unmark-season")).toHaveCount(0);
+
+  // Removing real history is a per-play job. Unchecking the rewatched S01E01 (two
+  // plays) is REFUSED — neither play is removed and the tick returns.
+  const e1 = page
+    .getByTestId("episode-row")
+    .filter({ hasText: "S01E01" })
+    .getByTestId("episode-toggle");
+  await expect(e1).toBeChecked();
+  await e1.click();
+  await expect(page.getByTestId("season-notice")).toContainText(/plays|Diary/i);
+  expect(controls.removePosts()).toHaveLength(0);
+  await expect(e1).toBeChecked();
+
+  // A single-play episode (S01E02 → play 2021) unchecks per-play-safely by history id.
+  const e2 = page
+    .getByTestId("episode-row")
+    .filter({ hasText: "S01E02" })
+    .getByTestId("episode-toggle");
+  await e2.click();
+  await expect.poll(() => controls.removePosts().length).toBe(1);
+  expect(controls.removePosts()[0]?.ids).toEqual([2021]);
+});
+
+test("unchecking one settled episode removes only its play by history id — never an item-scoped wipe", async ({
+  page,
+}) => {
+  const controls = await installLibraryRoutes(page.context(), [detailShow()]);
+  await page.goto("/show/1");
+  await expandSeason(page, 1);
+
+  // S01E02 is the last watched episode (completed=2), so unchecking it is consistent
+  // with the fixture's linear counter.
+  const e2 = page
+    .getByTestId("episode-row")
+    .filter({ hasText: "S01E02" })
+    .getByTestId("episode-toggle");
+  await expect(e2).toBeChecked();
+  await e2.click();
+  await expect(e2).not.toBeChecked(); // optimistic
+
+  await expect.poll(() => controls.removePosts().length).toBe(1);
+  const removed = controls.removePosts()[0];
+  expect(removed?.ids).toEqual([121]); // S01E02 trakt 12 → play 121, by history id
+  expect(removed?.episodeIds).toEqual([]); // never `{episodes:[{ids}]}`
 });
 
 test("a double activation on Mark season fires exactly one bulk POST", async ({ page }) => {

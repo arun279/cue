@@ -1,4 +1,4 @@
-import { assembleHistoryEntries } from "@data/trakt/history";
+import { assembleEpisodePlays, assembleHistoryEntries } from "@data/trakt/history";
 import type { HistoryItem } from "@data/trakt/schemas";
 import { describe, expect, it } from "vitest";
 
@@ -68,5 +68,27 @@ describe("assembleHistoryEntries", () => {
   it("preserves the feed order (newest-first from Trakt) so day grouping stays correct", () => {
     const entries = assembleHistoryEntries([movieItem, episodeItem]);
     expect(entries.map((e) => e.historyId)).toEqual([101, 100]);
+  });
+});
+
+describe("assembleEpisodePlays (scoped-history resolver)", () => {
+  it("keeps each episode play's history id + coordinate for per-play removal", () => {
+    const plays = assembleEpisodePlays([
+      episodeItem,
+      { ...episodeItem, id: 200 }, // a second play of the same episode = a rewatch
+    ]);
+    expect(plays).toEqual([
+      { historyId: 100, episodeTrakt: 55, season: 1, number: 5, watchedAt: WATCHED_AT },
+      { historyId: 200, episodeTrakt: 55, season: 1, number: 5, watchedAt: WATCHED_AT },
+    ]);
+  });
+
+  it("drops movie and malformed rows — only episode plays carry a season/number", () => {
+    const plays = assembleEpisodePlays([
+      movieItem,
+      { id: 103, watched_at: WATCHED_AT, type: "episode" }, // no episode payload
+      episodeItem,
+    ]);
+    expect(plays.map((p) => p.historyId)).toEqual([100]);
   });
 });

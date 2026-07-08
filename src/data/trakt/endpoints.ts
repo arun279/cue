@@ -257,6 +257,39 @@ export async function getHistory(
   );
 }
 
+/**
+ * Every watch-history play of one item, from `/sync/history/{shows|episodes}/:id`
+ * Unlike `/users/me/history`, this is scoped to a single show or
+ * episode, so a durable unmark can resolve exactly its plays — each row's `id` is
+ * the per-play removal handle. Walked across pages (a long-running show can carry
+ * many plays); `extended=full` brings each episode's season/number inline.
+ */
+export async function getShowPlays(
+  client: TraktClient,
+  showId: number | string,
+): Promise<TraktResult<HistoryItem[]>> {
+  return parse(
+    await client.getAllPages(`/sync/history/shows/${showId}`, {
+      extended: ["full"],
+      limit: HISTORY_PAGE_LIMIT,
+    }),
+    historySchema,
+  );
+}
+
+export async function getEpisodePlays(
+  client: TraktClient,
+  episodeId: number | string,
+): Promise<TraktResult<HistoryItem[]>> {
+  return parse(
+    await client.getAllPages(`/sync/history/episodes/${episodeId}`, {
+      extended: ["full"],
+      limit: HISTORY_PAGE_LIMIT,
+    }),
+    historySchema,
+  );
+}
+
 type IdBlock = ShowIds | MovieIds | EpisodeIds;
 
 /** A remove-by-item selection: any populated section becomes `[{ids},…]`. */

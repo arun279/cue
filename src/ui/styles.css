@@ -1990,12 +1990,18 @@ body {
 .season__mark {
   flex: none;
 }
-/* A completed season is a STATUS, not an action: a quiet green "done" chip (the
-   completion color the ring already uses, never the amber ACTION fill) so it can't
-   be read as a "mark" CTA and offers no destructive one-tap unmark. Shares the green
-   done-language with the movie watched toggle so a watched season and a watched movie
-   read alike. Non-interactive — reversal is the mark's Undo toast or
-   per-episode unchecking. */
+/* A completed season pairs a STATUS with a durable reversal: a quiet green "done"
+   chip (the completion color the ring already uses, never the amber ACTION fill) so
+   it reads as done, alongside a ghost "Unmark" control so the reversal is as easy as
+   the mark was — per-play-safe underneath, never a destructive one-tap wipe. Shares
+   the green done-language with the movie watched toggle so a watched season and a
+   watched movie read alike. */
+.season__done {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
 .season__status {
   flex: none;
   display: inline-flex;
@@ -2015,6 +2021,9 @@ body {
 .season__status svg {
   width: 1rem;
   height: 1rem;
+  flex: none;
+}
+.season__unmark {
   flex: none;
 }
 .season__heading {
@@ -2850,12 +2859,21 @@ body {
     flex-basis: 100%;
   }
   .season__mark,
-  .season__status {
+  .season__done {
     flex: 0 1 100%;
     /* Inset to align with the trigger's own space-4 padding; bottom margin seats it
        inside the card. Shrink (flex-basis 100% + shrink 1) absorbs the side margins
        so the full-width control never overflows the row. */
     margin: 0 var(--space-4) var(--space-4);
+  }
+  /* The done row splits its width between the status chip and the Unmark control so
+     neither is crushed and the reversal stays a full-comfort touch target. */
+  .season__done {
+    justify-content: space-between;
+  }
+  .season__status {
+    flex: 1 1 auto;
+    justify-content: center;
   }
 }
 

@@ -9,6 +9,7 @@ import { assembleCalendarEntries } from "@data/trakt/calendar";
 import { TraktClient, type TraktResult } from "@data/trakt/client";
 import {
   getEpisode,
+  getEpisodePlays,
   getHidden,
   getHistory,
   getMovie,
@@ -18,6 +19,7 @@ import {
   getRatings,
   getRelatedMovies,
   getShow,
+  getShowPlays,
   getShowProgress,
   getShowSeasons,
   getTrendingMovies,
@@ -29,7 +31,7 @@ import {
   searchTrakt,
 } from "@data/trakt/endpoints";
 import { assembleEpisodeDetail } from "@data/trakt/episode-detail";
-import { assembleHistoryEntries } from "@data/trakt/history";
+import { assembleEpisodePlays, assembleHistoryEntries } from "@data/trakt/history";
 import { assembleLibrary, markLanded, type ShowArt, showIdSet } from "@data/trakt/library";
 import { assembleMovieHeader, assembleMovieLibrary } from "@data/trakt/movie-library";
 import { createLastActivitiesRepository } from "@data/trakt/repositories";
@@ -399,6 +401,21 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
         pageCount: result.pagination?.pageCount ?? page,
         tmdbConfig,
       };
+    },
+
+    async loadShowPlays(showId) {
+      // On-demand, user-initiated (a durable Unmark) so a full paged walk of the
+      // show's plays is acceptable; a transient 429 is absorbed rather than failing
+      // the unmark outright.
+      const result = await withReadRateRetry(() => getShowPlays(client, showId));
+      if (!result.ok) throw new Error("Failed to load show history");
+      return assembleEpisodePlays(result.data);
+    },
+
+    async loadEpisodePlays(episodeId) {
+      const result = await withReadRateRetry(() => getEpisodePlays(client, episodeId));
+      if (!result.ok) throw new Error("Failed to load episode history");
+      return assembleEpisodePlays(result.data);
     },
 
     async search(query) {

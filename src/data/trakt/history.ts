@@ -1,5 +1,6 @@
 import type { HistoryEntry } from "@domain/history";
 import type { MovieIds } from "@domain/model/ids";
+import type { EpisodePlay } from "@domain/reversal";
 import type { HistoryItem } from "./schemas";
 import { toEpisodeIds } from "./show-detail";
 
@@ -55,4 +56,25 @@ export function assembleHistoryEntries(items: readonly HistoryItem[]): HistoryEn
     }
   }
   return entries;
+}
+
+/**
+ * Flatten scoped-history rows (`/sync/history/{shows|episodes}/:id`) into
+ * `EpisodePlay[]` for the durable per-play unmark. Only episode plays
+ * carry a season/number, so movie rows (and malformed rows) are dropped — the
+ * planners only ever reason about episode plays.
+ */
+export function assembleEpisodePlays(items: readonly HistoryItem[]): EpisodePlay[] {
+  const plays: EpisodePlay[] = [];
+  for (const item of items) {
+    if (item.type !== "episode" || item.episode === undefined) continue;
+    plays.push({
+      historyId: item.id,
+      episodeTrakt: item.episode.ids.trakt,
+      season: item.episode.season,
+      number: item.episode.number,
+      watchedAt: item.watched_at,
+    });
+  }
+  return plays;
 }

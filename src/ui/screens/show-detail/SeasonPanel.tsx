@@ -6,6 +6,7 @@ import type {
   MarkContextTarget,
   MarkSeasonController,
 } from "@ui/hooks/useMarkSeason";
+import { useHasSeasonReversal } from "@ui/hooks/useSeasonReversal";
 import { Accordion } from "radix-ui";
 import type { ReactElement } from "react";
 import { EpisodeRow } from "./EpisodeRow";
@@ -79,10 +80,13 @@ function subtitle(season: SeasonView): string {
  * funnels through the bulk builder — it can never touch unaired episodes or
  * collapse a season to a token, locks while its write is in flight, and is disabled
  * when the season has nothing aired (or is Specials while the opt-in is off). A
- * COMPLETE season shows a non-interactive "Watched" status badge, NOT a one-tap
- * unmark: reversal is the mark's point-of-action Undo (which removes exactly the
- * episodes that mark added, never pre-existing plays) or per-episode unchecking, so
- * a mis-tap can never silently wipe a partially-watched season down to zero.
+ * COMPLETE season shows a "Watched" status badge; when a `Mark season watched` from
+ * THIS session completed it, the badge is joined by a durable "Unmark" control
+ * that reverses exactly that mark — removing only the plays it added, by
+ * exact history id, KEEPING any pre-existing play or rewatch intact. It outlives the
+ * mark's transient Undo, so the mark can be reversed minutes later. A season completed
+ * by genuine per-episode watching shows only "Watched": removing real history is a
+ * per-play job (the episode uncheck or the Diary), never a one-tap season wipe.
  */
 export function SeasonPanel({
   season,
@@ -96,6 +100,10 @@ export function SeasonPanel({
   // can't read the season "complete" and offer an unmark that has nothing to remove.
   const airedDone = Math.min(season.completedCount, season.airedCount);
   const complete = season.airedCount > 0 && airedDone >= season.airedCount;
+  // The durable Unmark is offered only when a `Mark season watched` from this session
+  // completed the season — it reverses that specific mark. A genuinely-watched season
+  // has no mark to reverse and shows "Watched" alone (per-play removal lives elsewhere).
+  const reversible = useHasSeasonReversal(target.showId, season.number);
   const busy = marks.isSeasonPending(season.number);
   const markUpToHere = (bound: EpisodeBound): void => {
     void marks.markUpToHere(target, allSeasons, bound);
@@ -134,10 +142,24 @@ export function SeasonPanel({
           </Accordion.Trigger>
         </Accordion.Header>
         {complete ? (
-          <span className="season__status" data-testid="season-complete">
-            <CheckIcon />
-            Watched
-          </span>
+          <div className="season__done">
+            <span className="season__status" data-testid="season-complete">
+              <CheckIcon />
+              Watched
+            </span>
+            {reversible && (
+              <button
+                type="button"
+                className="button button--ghost button--sm season__unmark"
+                data-testid="unmark-season"
+                aria-busy={busy || undefined}
+                disabled={busy}
+                onClick={() => void marks.unmarkSeason(target, season)}
+              >
+                Unmark
+              </button>
+            )}
+          </div>
         ) : (
           <button
             type="button"

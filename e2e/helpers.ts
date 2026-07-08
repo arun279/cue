@@ -341,6 +341,12 @@ export interface ShowFixture {
   hidden?: boolean;
   /** Mutated in place by intercepted watchlist writes so the To-watch bucket stays consistent. */
   inWatchlist?: boolean;
+  /**
+   * Episode trakt ids that carry a SECOND play (a rewatch), so the scoped-history
+   * resolver returns two plays for them. A durable unmark must keep these intact —
+   * the durable per-play-safe reversal test asserts their plays survive.
+   */
+  rewatchedEpisodeIds?: readonly number[];
 }
 
 /** `ok` applies+200; `abort` fails as a pure network reject (never reached Trakt); `network-drop`
@@ -372,6 +378,8 @@ export interface CapturedWrite {
   readonly rating?: number | null;
   /** The keys present on the first captured `episodes[]` item (proves all-plays remove = ids only). */
   readonly episodeItemKeys?: readonly string[];
+  /** The `{ ids: [...] }` history-event ids of a per-play remove (durable unmark). */
+  readonly ids?: readonly number[];
 }
 
 export interface LibraryControls {
@@ -400,6 +408,41 @@ export interface LibraryControls {
 interface HistoryBody {
   episodes?: { ids?: { trakt?: number }; watched_at?: string }[];
   shows?: { ids?: { trakt?: number }; watched_at?: string; seasons?: CapturedSeason[] }[];
+  /** A per-play remove-by-history-id body (the durable per-play-safe unmark). */
+  ids?: number[];
+}
+
+/**
+ * Derive the scoped watch-history (`/sync/history/{shows|episodes}/:id`) plays a
+ * show currently holds from its linear `completed` counter: every watched episode
+ * carries one play (id `trakt*10 + 1`); a rewatched episode carries a second (id
+ * `trakt*10 + 2`). The floor(id/10) = episode trakt id, so a `{ ids }` remove maps
+ * back to episodes and drives the same linear counter — keeping the season tree,
+ * the resolver, and per-play removal mutually consistent.
+ */
+function playHistoryRows(show: ShowFixture): unknown[] {
+  const watchedAt = show.lastWatchedAt ?? "2026-06-01T00:00:00.000Z";
+  const rows: unknown[] = [];
+  show.episodes.forEach((ep, index) => {
+    if (index >= show.completed) return;
+    const item = {
+      watched_at: watchedAt,
+      action: "scrobble",
+      type: "episode",
+      episode: {
+        season: ep.season,
+        number: ep.number,
+        title: ep.title,
+        ids: { trakt: ep.traktId },
+      },
+      show: { title: show.title, ids: { trakt: show.trakt } },
+    };
+    rows.push({ id: ep.traktId * 10 + 1, ...item });
+    if (show.rewatchedEpisodeIds?.includes(ep.traktId)) {
+      rows.push({ id: ep.traktId * 10 + 2, ...item });
+    }
+  });
+  return rows;
 }
 
 const JSON_HEADERS = { "content-type": "application/json" } as const;
@@ -735,10 +778,16 @@ export async function installLibraryRoutes(
     const firstEpisode = body.episodes?.[0];
     const episodeItemKeys = firstEpisode === undefined ? undefined : Object.keys(firstEpisode);
     const path = remove ? "/sync/history/remove" : "/sync/history";
-    writes.push({ path, episodeIds, watchedAt, shows: showBodies, episodeItemKeys });
+    // A per-play remove-by-history-id (the durable unmark): map each history id back
+    // to its episode (floor(id/10)) so it drives the same linear `completed` counter.
+    const idBody = body.ids;
+    const idEpisodeIds =
+      idBody === undefined ? [] : [...new Set(idBody.map((id) => Math.floor(id / 10)))];
+    writes.push({ path, episodeIds, watchedAt, shows: showBodies, episodeItemKeys, ids: idBody });
 
     const apply = (): void => {
       applyWrite(shows, episodeIds, remove);
+      applyWrite(shows, idEpisodeIds, remove);
       applyBulkWrite(shows, showBodies, remove);
     };
 
@@ -770,6 +819,31 @@ export async function installLibraryRoutes(
 
   await context.route("**/api.trakt.tv/sync/history", handleHistory(false));
   await context.route("**/api.trakt.tv/sync/history/remove", handleHistory(true));
+
+  // Scoped-history resolvers behind the durable per-play unmark: the
+  // plays a show/episode currently holds, derived from the live `completed` counter.
+  await context.route("**/api.trakt.tv/sync/history/shows/*", (route) => {
+    if (readMode === "abort") return route.abort();
+    const id = Number(new URL(route.request().url()).pathname.split("/")[4]);
+    const show = shows.find((s) => s.trakt === id);
+    return route.fulfill({
+      status: 200,
+      headers: JSON_HEADERS,
+      body: show === undefined ? "[]" : JSON.stringify(playHistoryRows(show)),
+    });
+  });
+  await context.route("**/api.trakt.tv/sync/history/episodes/*", (route) => {
+    if (readMode === "abort") return route.abort();
+    const id = Number(new URL(route.request().url()).pathname.split("/")[4]);
+    const show = shows.find((s) => s.episodes.some((e) => e.traktId === id));
+    const rows =
+      show === undefined
+        ? []
+        : playHistoryRows(show).filter(
+            (r) => (r as { episode: { ids: { trakt: number } } }).episode.ids.trakt === id,
+          );
+    return route.fulfill({ status: 200, headers: JSON_HEADERS, body: JSON.stringify(rows) });
+  });
 
   // ---- Ratings (stateful: GET reflects captured POSTs) ----
   const showRatings = new Map<number, number>();

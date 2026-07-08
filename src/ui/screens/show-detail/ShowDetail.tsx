@@ -434,6 +434,15 @@ export function ShowDetail({ showId }: { showId: number }): ReactElement {
           onDismiss={marks.dismissUndo}
         />
       )}
+      {marks.undoable === null && marks.notice !== null && (
+        <Snackbar
+          testId="season-notice"
+          message={marks.notice}
+          actionLabel="Dismiss"
+          onAction={marks.dismissNotice}
+          onDismiss={marks.dismissNotice}
+        />
+      )}
       {hide.error !== null && (
         <Snackbar
           testId="hide-error"

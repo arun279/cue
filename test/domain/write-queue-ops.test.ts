@@ -5,6 +5,7 @@ import {
   buildMarkMovieOp,
   buildRateOp,
   buildRemoveHistoryPlayOp,
+  buildRemovePlaysOp,
   buildRemoveWatchlistOp,
   buildUnhideShowOp,
   buildUnmarkEpisodeOp,
@@ -163,6 +164,55 @@ describe("single-item history op builders", () => {
     });
     const item = (op.request.body as { episodes: Record<string, unknown>[] }).episodes[0];
     expect(Object.keys(item ?? {})).toEqual(["ids"]);
+  });
+});
+
+describe("buildRemovePlaysOp (durable per-play-safe unmark)", () => {
+  it("removes a SET of plays by exact history ids — never an item/season token", () => {
+    const op = buildRemovePlaysOp({
+      opId: "rp-1",
+      ids: [131, 121],
+      restore: [
+        { trakt: 13, watchedAt: WATCHED_AT },
+        { trakt: 12, watchedAt: WATCHED_AT },
+      ],
+    });
+    expect(op.request).toEqual({
+      method: "POST",
+      path: "/sync/history/remove",
+      body: { ids: [131, 121] },
+    });
+    // ids-only body — no `episodes`/`shows` section that would wipe every play.
+    expect(Object.keys(op.request.body as object)).toEqual(["ids"]);
+    // The itemKey sorts the ids so a repeat remove of the same set stays idempotent.
+    expect(op.itemKey).toBe("history-plays:121,131");
+    expect(op).toMatchObject({
+      fromState: "present",
+      toState: "absent",
+      inversePatch: null,
+      reconcileKeys: ["progress/watched", "watched/shows"],
+    });
+  });
+
+  it("its inverse re-adds exactly the removed episodes best-effort (by trakt + frozen watched_at)", () => {
+    const op = buildRemovePlaysOp({
+      opId: "rp-2",
+      ids: [131, 121],
+      restore: [
+        { trakt: 13, watchedAt: "2026-01-02T00:00:00.000Z" },
+        { trakt: 12, watchedAt: WATCHED_AT },
+      ],
+    });
+    expect(op.inverse).toEqual({
+      method: "POST",
+      path: "/sync/history",
+      body: {
+        episodes: [
+          { ids: { trakt: 13 }, watched_at: "2026-01-02T00:00:00.000Z" },
+          { ids: { trakt: 12 }, watched_at: WATCHED_AT },
+        ],
+      },
+    });
   });
 });
 

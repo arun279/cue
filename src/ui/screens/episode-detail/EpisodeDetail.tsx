@@ -316,6 +316,15 @@ export function EpisodeDetail({
           onDismiss={watchedToggle.clearError}
         />
       )}
+      {watchedToggle.error === null && watchedToggle.notice !== null && (
+        <Snackbar
+          testId="episode-watched-notice"
+          message={watchedToggle.notice}
+          actionLabel="Dismiss"
+          onAction={watchedToggle.dismissNotice}
+          onDismiss={watchedToggle.dismissNotice}
+        />
+      )}
       {rate.error !== null && (
         <Snackbar
           testId="episode-rating-error"

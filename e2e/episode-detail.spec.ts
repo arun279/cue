@@ -75,7 +75,7 @@ test("shows the still, title, code, air date, overview, and prev/next within the
   await expect(page.getByTestId("episode-next")).toContainText("S01E03");
 });
 
-test("toggling watched OFF fires POST /sync/history/remove {episodes:[{ids}]} — all plays, no history-id", async ({
+test("toggling watched OFF removes the single play by its exact history id — never an item-scoped wipe", async ({
   page,
 }) => {
   const controls = await installLibraryRoutes(page.context(), [detailShow()]);
@@ -88,10 +88,28 @@ test("toggling watched OFF fires POST /sync/history/remove {episodes:[{ids}]} �
 
   await expect.poll(() => controls.removePosts().length).toBe(1);
   const removed = controls.removePosts()[0];
-  expect(removed?.episodeIds).toContain(12);
-  // All-plays MVP semantic: the item carries ONLY ids — no history-id, no watched_at.
-  expect(removed?.episodeItemKeys).toEqual(["ids"]);
-  expect(removed?.watchedAt).toBeNull();
+  // Per-play-safe: removed by the resolved history-event id (S01E02 trakt 12 → play
+  // 121), NOT an item-scoped `{episodes:[{ids}]}` body that would wipe every play.
+  expect(removed?.ids).toEqual([121]);
+  expect(removed?.episodeIds).toEqual([]);
+  expect(removed?.episodeItemKeys).toBeUndefined();
+});
+
+test("unchecking a REWATCHED episode is refused — the extra play survives, per-play removal points to the Diary", async ({
+  page,
+}) => {
+  const rewatch: ShowFixture = { ...detailShow(), rewatchedEpisodeIds: [12] };
+  const controls = await installLibraryRoutes(page.context(), [rewatch]);
+  await page.goto("/show/1/episode/1/2");
+
+  const toggle = page.getByTestId("episode-watched-toggle");
+  await expect(toggle).toBeChecked();
+  await toggle.click();
+
+  // The uncheck is refused: no destructive remove fires and the tick returns.
+  await expect(page.getByTestId("episode-watched-notice")).toContainText(/plays/i);
+  await expect(toggle).toBeChecked();
+  expect(controls.removePosts()).toHaveLength(0);
 });
 
 test("toggling watched ON marks via POST /sync/history and shows the watched date", async ({
