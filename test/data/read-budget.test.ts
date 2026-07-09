@@ -33,7 +33,8 @@ interface Counts {
 /**
  * A watched show `i` in most-recently-watched-DESC order (show 0 is the most
  * recent). Each carries its bulk season breakdown (8 watched episodes) so a show
- * whose progress the budget skips still baselines to caught-up rather than zero.
+ * whose progress the budget skips still carries a real watched count (aired unknown
+ * → progress-unknown / sync-pending), not zero.
  */
 function watchedShow(i: number): unknown {
   return {
@@ -216,18 +217,19 @@ describe("cold-sync GET budget", () => {
     expect(counts.watchlist).toBe(2);
   });
 
-  it("fetches progress for the MOST-RECENTLY-watched head, tail baselines to caught-up", async () => {
+  it("fetches progress for the MOST-RECENTLY-watched head; the tail is progress-unknown, not caught-up", async () => {
     installColdSync(WATCHED_PROGRESS_BUDGET + 5);
     const { entries } = await loadUpNextEntries(client);
 
     // Show 0 is the most recent → in the budget head → real progress (aired 10, a
-    // next episode). The oldest show (index BUDGET+4) is beyond the head → the
-    // caught-up baseline from its bulk 8-episode breakdown, no next.
+    // next episode), progressKnown true. The oldest show (index BUDGET+4) is beyond
+    // the head → its bulk 8-episode breakdown gives completed, but aired is unknown,
+    // so progressKnown is false (status sync-pending) — never fabricated caught-up.
     const newest = entries.find((e) => e.showId === 1);
     const oldest = entries.find((e) => e.showId === WATCHED_PROGRESS_BUDGET + 5);
-    expect(newest).toMatchObject({ aired: 10, completed: 3 });
+    expect(newest).toMatchObject({ aired: 10, completed: 3, progressKnown: true });
     expect(newest?.nextEpisode).not.toBeNull();
-    expect(oldest).toMatchObject({ aired: 8, completed: 8, nextEpisode: null });
+    expect(oldest).toMatchObject({ completed: 8, nextEpisode: null, progressKnown: false });
   });
 
   it("a library within the budget fetches every show's progress and is not partial", async () => {

@@ -30,6 +30,7 @@ const PILE_LABEL: Partial<Record<WatchStatus, string>> = {
   "not-started": "Watchlist",
   watching: "Watching",
   "caught-up": "Caught up",
+  "sync-pending": "Still syncing",
   ended: "Finished",
   abandoned: "Stopped",
 };

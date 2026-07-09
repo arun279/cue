@@ -41,14 +41,16 @@ const DEFAULT_RATE_BACKOFF_MS = 1000;
  * cold-sync burst.
  *
  * The cost: a user actively juggling more than 60 shows carries the 61st-most-recent
- * onward at the caught-up baseline — by construction the least-recently-touched of
- * their in-flight shows. This is not silently presented as complete: the read reports
- * `partial`, the sync pill rests on "Recent shows synced" rather than "Synced · <when>"
- * and Up Next never claims "all caught up" while partial.
- * A show carried at the baseline gains real progress on the next cold sync once it
- * re-enters the fetched head — e.g. after it is watched again, which is when its queue position
- * would matter. (Opening its detail fetches fresh progress for that screen but does
- * not yet write it back into this library snapshot.)
+ * onward at the progress-unknown baseline — by construction the least-recently-touched
+ * of their in-flight shows. This is neither silently presented as complete NOR silently
+ * dropped: such a show is `progressKnown: false`, so its status is `sync-pending` — it
+ * sits in My Shows' own "Still syncing" pile (never the "Caught up" pile) rather than
+ * being fabricated caught-up. The read reports `partial`, the sync pill rests on "Recent
+ * shows synced" rather than "Synced · <when>", and Up Next never claims
+ * "all caught up" while partial. A show gains real progress on the next cold
+ * sync once it re-enters the fetched head — e.g. after it is watched again, which is when
+ * its queue position would matter. (Opening its detail fetches fresh progress for that
+ * screen but does not yet write it back into this library snapshot.)
  */
 export const WATCHED_PROGRESS_BUDGET = 60;
 
@@ -91,8 +93,9 @@ interface ColdSyncRead {
   readonly entries: LibraryEntry[];
   /**
    * True when the watched library is larger than the progress budget, so the shows
-   * beyond the most-recently-watched head carry the caught-up baseline rather than
-   * fetched progress — the honest "recent-only" signal the sync pill surfaces.
+   * beyond the most-recently-watched head carry the progress-unknown baseline
+   * (`sync-pending`) rather than fetched progress — the honest "recent-only" signal
+   * the sync pill surfaces.
    */
   readonly partial: boolean;
 }

@@ -1138,6 +1138,11 @@ function persistedEntry(index: number): unknown {
       firstAired: airedIso,
       ids: { trakt: 40000 + index },
     },
+    // A persisted entry is one the running app wrote from fetched progress, so its
+    // watch state is authoritative — never `sync-pending`. Matches the current
+    // (cue-m6) schema `assembleLibrary` writes; omitting it would model a pre-m6
+    // cache the buster now drops.
+    progressKnown: true,
     posters: [],
     backdrops: [],
     network: null,
@@ -1153,7 +1158,7 @@ function persistedEntry(index: number): unknown {
  * up-next entries. `buster` defaults to the app's current `PERSIST_BUSTER`; pass
  * an older value to simulate a pre-migration cache the persister must drop.
  */
-export function buildPersistedLibrary(count: number, ageMs: number, buster = "cue-m5"): string {
+export function buildPersistedLibrary(count: number, ageMs: number, buster = "cue-m6"): string {
   const updatedAt = Date.now() - ageMs;
   const entries = Array.from({ length: count }, (_, index) => persistedEntry(index));
   return JSON.stringify({
@@ -1166,7 +1171,7 @@ export function buildPersistedLibrary(count: number, ageMs: number, buster = "cu
           queryKey: ["library"],
           queryHash: '["library"]',
           state: {
-            data: { entries, tmdbConfig: null },
+            data: { entries, tmdbConfig: null, isPartial: false },
             dataUpdateCount: 1,
             dataUpdatedAt: updatedAt,
             error: null,

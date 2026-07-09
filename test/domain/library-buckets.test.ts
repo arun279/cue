@@ -147,6 +147,34 @@ describe("groupLibrary", () => {
     }
   });
 
+  it("buckets a progress-unknown (beyond-budget) show into its own Still-syncing pile, never Caught up", () => {
+    // A mid-watch tail show whose progress the cold-sync budget skipped: aired is
+    // unknown, so it must NOT be fabricated into the caught-up pile (the bug).
+    const pending = makeShow({
+      showId: 99,
+      title: "Pending",
+      progressKnown: false,
+      completed: 3,
+      aired: 3,
+      nextEpisode: null,
+    });
+    const caughtUp = makeShow({
+      showId: 7,
+      title: "Done",
+      progressKnown: true,
+      completed: 10,
+      aired: 10,
+      status: "returning series",
+      nextEpisode: null,
+    });
+    const buckets = groupLibrary([pending, caughtUp], NOW, THRESHOLD, "recently-watched");
+    expect(buckets.map((b) => b.status)).toEqual(["caught-up", "sync-pending"]);
+    const syncing = buckets.find((b) => b.status === "sync-pending");
+    expect(syncing?.shows.map((s) => s.showId)).toEqual([99]);
+    const done = buckets.find((b) => b.status === "caught-up");
+    expect(done?.shows.some((s) => s.showId === 99)).toBe(false);
+  });
+
   it("returns no buckets for an empty library", () => {
     expect(groupLibrary([], NOW, THRESHOLD, "recently-watched")).toEqual([]);
   });

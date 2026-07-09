@@ -37,7 +37,7 @@ export function PosterCard({ entry, tmdbConfig }: PosterCardProps): ReactElement
     >
       <span className="poster-wrap poster-wrap--tile">
         <Poster title={entry.title} posters={posters} tmdbConfig={tmdbConfig} variant="tile" />
-        {entry.aired > 0 && (
+        {entry.progressKnown && entry.aired > 0 && (
           <span className="poster__bar" aria-hidden="true">
             <i style={{ width: `${percent}%` }} />
           </span>
@@ -47,7 +47,14 @@ export function PosterCard({ entry, tmdbConfig }: PosterCardProps): ReactElement
       <div className="poster-card__meta">
         <h3 className="poster-card__title">{entry.title}</h3>
         <p className="poster-card__progress" data-testid="library-progress">
-          {entry.aired > 0 ? (
+          {/* A show beyond the cold-sync progress budget has a real watched count but
+              an unknown total — so show the count honestly (no fabricated x/y ratio
+              or "caught up" bar, and never "Not started" for a watched show). */}
+          {!entry.progressKnown ? (
+            <span className="poster-card__count poster-card__count--idle">
+              {entry.completed} watched
+            </span>
+          ) : entry.aired > 0 ? (
             <span className="poster-card__count">
               {entry.completed}/{entry.aired}
             </span>

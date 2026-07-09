@@ -93,6 +93,7 @@ const baseEntry: LibraryEntry = {
     firstAired: "2026-06-01T00:00:00.000Z",
     ids: { trakt: 4004 },
   },
+  progressKnown: true,
   posters: [],
   backdrops: [],
   network: null,
@@ -120,6 +121,9 @@ describe("assembleLibrary", () => {
     expect(a?.showId).toBe(1);
     expect(a?.inWatchlist).toBe(true);
     expect(a?.hidden).toBe(false);
+    expect(a?.progressKnown).toBe(true);
+    // B has no fetched progress in the map → progress unknown, not asserted complete.
+    expect(entries[1]?.progressKnown).toBe(false);
     expect(a?.posters).toEqual(["media.trakt.tv/a.webp"]);
     expect(a?.tmdbId).toBe(55);
     expect(a?.nextEpisode).toEqual({
@@ -131,7 +135,7 @@ describe("assembleLibrary", () => {
     });
   });
 
-  it("degrades a show with no fetched progress to zero-progress + no next episode", () => {
+  it("marks a show with no fetched progress and no breakdown as progress-unknown (no next)", () => {
     const entries = assembleLibrary({
       watchedShows: [watchedShow({ trakt: 7 })],
       progress: new Map(),
@@ -142,22 +146,29 @@ describe("assembleLibrary", () => {
       aired: 0,
       completed: 0,
       nextEpisode: null,
+      progressKnown: false,
       tmdbId: null,
       status: "returning series",
     });
   });
 
-  it("baselines an un-fetched watched show to its watched-episode count as caught-up", () => {
+  it("represents an un-fetched watched show as progress-unknown (sync-pending), NOT fabricated caught-up", () => {
     // Beyond the cold-sync progress budget: no progress entry, but the bulk watched
-    // breakdown carries the season/episode tree — so completed === aired (caught up,
-    // no next), NOT zero (which would misfile it as never-started). Specials excluded.
+    // breakdown carries the season/episode tree. `completed` is the real watched count
+    // (specials excluded), but `aired` is unknown — so `progressKnown` is false and the
+    // show must NOT be asserted complete (completed === aired = caught-up). A genuinely
+    // mid-watch tail show would otherwise be mislabeled caught-up and dropped (bug).
     const entries = assembleLibrary({
       watchedShows: [watchedShow({ trakt: 12, seasons: { 0: 2, 1: 8, 2: 6 } })],
       progress: new Map(),
       hiddenShowIds: new Set(),
       watchlistShows: [],
     });
-    expect(entries[0]).toMatchObject({ completed: 14, aired: 14, nextEpisode: null });
+    expect(entries[0]).toMatchObject({
+      completed: 14,
+      nextEpisode: null,
+      progressKnown: false,
+    });
   });
 
   it("maps a next episode carrying only a trakt id (optional ids omitted)", () => {
@@ -210,6 +221,7 @@ describe("assembleLibrary", () => {
       completed: 0,
       nextEpisode: null,
       lastWatchedAt: null,
+      progressKnown: true,
       posters: ["p.webp"],
       tmdbId: 77,
     });

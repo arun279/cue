@@ -5,14 +5,17 @@ import { del, get, set } from "idb-keyval";
 /**
  * Bump when the app version or a persisted-schema shape changes: the persister
  * drops any cache whose `buster` differs. This — not an age cap — is how stale
- * snapshots are retired. The m5 bump retires every pre-gate
- * (m4) cache: those were written under `staleTime: 0` with no co-persisted
- * last-activities baseline, so under the new `staleTime: Infinity` gate a
- * migrating user would otherwise trust a baseline-less restored cache forever.
- * Dropping them forces one clean reload that lands the cache and its baseline
- * together.
+ * snapshots are retired. This cache-version bump retires every pre-m6 cache:
+ * their entries were serialized before the `progressKnown` field existed, so a
+ * restored pre-m6 entry reads as `progressKnown: undefined` — which the watch-status
+ * gate treats as `sync-pending` and drops from Up Next, silently hiding a genuinely
+ * mid-watch show on the instant cache paint. Dropping the cache forces one clean
+ * reload that re-materializes every entry with the field set, so no mid-watch show
+ * is hidden. (The prior m5 bump likewise retired the pre-gate m4 caches, which had
+ * no co-persisted last-activities baseline and would be trusted forever under the
+ * `staleTime: Infinity` gate.)
  */
-export const PERSIST_BUSTER = "cue-m5";
+export const PERSIST_BUSTER = "cue-m6";
 
 /**
  * `maxAge` governs how long a restored cache may be replayed, NOT freshness.

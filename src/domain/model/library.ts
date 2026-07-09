@@ -29,4 +29,11 @@ export interface LibraryShow {
   readonly aired: number;
   readonly completed: number;
   readonly nextEpisode: EpisodeRef | null;
+  /**
+   * True when this show's per-show progress was fetched, so `aired`/`completed`/
+   * `nextEpisode` are authoritative. False for a show beyond the cold-sync progress
+   * budget: `completed` is its bulk watched count but `aired` is
+   * unknown — its watch status is `sync-pending`, never fabricated as caught-up.
+   */
+  readonly progressKnown: boolean;
 }

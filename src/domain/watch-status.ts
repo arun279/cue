@@ -7,6 +7,7 @@ export type WatchStatus =
   | "watching"
   | "lapsed"
   | "caught-up"
+  | "sync-pending"
   | "ended";
 
 const TERMINAL_STATUSES: ReadonlySet<string> = new Set(["ended", "canceled", "cancelled"]);
@@ -40,6 +41,10 @@ export function computeWatchStatus(
   thresholdMs: number,
 ): WatchStatus {
   if (show.hidden) return "abandoned";
+  // Beyond the cold-sync progress budget: `aired` is unknown, so the
+  // show's real progress can't be derived. It is neither fabricated caught-up nor
+  // misfiled not-started — it is honestly "still syncing" until its progress is read.
+  if (!show.progressKnown) return "sync-pending";
   const { aired, completed, nextEpisode, status } = show;
   if (completed <= 0) return "not-started";
   if (isTerminalStatus(status) && completed >= aired) return "ended";
