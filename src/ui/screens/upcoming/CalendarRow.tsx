@@ -2,6 +2,7 @@ import type { TmdbImageConfig } from "@data/image-source";
 import type { CalendarRow as CalendarRowModel } from "@domain/calendar";
 import { localTimeZone } from "@domain/time";
 import { Link } from "@tanstack/react-router";
+import { InlineUndo } from "@ui/components/InlineUndo";
 import { MarkWatchedButton } from "@ui/components/MarkWatchedButton";
 import { episodeCode } from "@ui/format";
 import { Poster } from "@ui/screens/up-next/Poster";
@@ -11,6 +12,10 @@ interface CalendarRowProps {
   readonly row: CalendarRowModel;
   readonly tmdbConfig: TmdbImageConfig | null;
   readonly watched: boolean;
+  /** True for the row whose mark just landed: show the point-of-action inline Undo
+   * beside the green done disc for the reversal window. */
+  readonly isUndoTarget: boolean;
+  onUndo(): void;
   onMark(): void;
 }
 
@@ -23,12 +28,20 @@ const timeFmt = new Intl.DateTimeFormat("en-US", {
 /**
  * One calendar episode row: poster, show + next-episode code/title, localized air
  * time, linking into Episode detail. An already-aired episode gets the SAME shared Cue
- * mark as Up Next — an amber ring that flips IN PLACE to a filled amber check the
- * instant it is marked (its point-of-action Undo lives in the snackbar; durable
- * reversal lives in History). A not-yet-aired episode shows no mark — you can't have
- * watched it yet.
+ * mark as Up Next — an amber ring that flips IN PLACE to a GREEN done check the instant
+ * it is marked (amber = action, green = done). Its PRIMARY reversal is the inline Undo
+ * that appears beside the done disc for the reversal window; the snackbar is the
+ * secondary announce and durable per-play reversal lives in History. A not-yet-aired
+ * episode shows no mark — you can't have watched it yet.
  */
-export function CalendarRow({ row, tmdbConfig, watched, onMark }: CalendarRowProps): ReactElement {
+export function CalendarRow({
+  row,
+  tmdbConfig,
+  watched,
+  isUndoTarget,
+  onUndo,
+  onMark,
+}: CalendarRowProps): ReactElement {
   const code = episodeCode(row.season, row.number);
   const airTime = timeFmt.format(new Date(row.firstAired));
 
@@ -60,13 +73,22 @@ export function CalendarRow({ row, tmdbConfig, watched, onMark }: CalendarRowPro
         </div>
       </Link>
       {row.aired ? (
-        <MarkWatchedButton
-          testId={watched ? "calendar-watched" : "calendar-mark"}
-          watched={watched}
-          ariaLabel={`Mark ${row.showTitle} ${code} watched`}
-          watchedAriaLabel={`${row.showTitle} ${code} watched`}
-          onMark={onMark}
-        />
+        <div className="calendar-card__action">
+          <MarkWatchedButton
+            testId={watched ? "calendar-watched" : "calendar-mark"}
+            watched={watched}
+            ariaLabel={`Mark ${row.showTitle} ${code} watched`}
+            watchedAriaLabel={`${row.showTitle} ${code} watched`}
+            onMark={onMark}
+          />
+          {isUndoTarget && (
+            <InlineUndo
+              testId="calendar-undo-inline"
+              ariaLabel={`Undo — mark ${row.showTitle} ${code} unwatched`}
+              onUndo={onUndo}
+            />
+          )}
+        </div>
       ) : (
         <span className="calendar-card__soon" data-testid="calendar-upcoming">
           Airs soon

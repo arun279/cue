@@ -28,9 +28,11 @@ export interface CalendarView {
   refetch(): void;
   isWatched(episodeId: number): boolean;
   markWatched(row: CalendarRow): Promise<void>;
-  /** Point-of-action Undo for the quick mark (the calendar's genuine reversal gap):
-   * the last-marked row + its frozen watched_at, so Undo can remove exactly that play. */
-  readonly undoable: { readonly showTitle: string } | null;
+  /** Point-of-action Undo for the quick mark (the calendar's genuine reversal gap): the
+   * last-marked row + its frozen watched_at, so Undo can remove exactly that play.
+   * `episodeId` identifies the row so it hosts the INLINE Undo; the toast is the
+   * secondary announce. */
+  readonly undoable: { readonly showTitle: string; readonly episodeId: number } | null;
   undo(): Promise<void>;
   dismissUndo(): void;
   readonly markError: string | null;
@@ -178,7 +180,10 @@ export function useCalendar(): CalendarView {
     refetch: () => void query.refetch(),
     isWatched: (episodeId) => watched.has(episodeId),
     markWatched,
-    undoable: undoState === null ? null : { showTitle: undoState.row.showTitle },
+    undoable:
+      undoState === null
+        ? null
+        : { showTitle: undoState.row.showTitle, episodeId: undoState.row.ids.trakt },
     undo,
     dismissUndo: () => setUndoState(null),
     markError: write.error,

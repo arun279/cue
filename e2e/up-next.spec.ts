@@ -134,6 +134,68 @@ test("Continue queue: excludes future next episodes and hidden shows; lapsed dro
   await expect(lapsedRow.getByTestId("lapsed-keep")).toHaveCount(0);
 });
 
+test("REGRESSION (coupling): the lead card's Cue mark is byte-for-byte the queue card's mark — one state-driven control, no lead/variant style, at a 56px target", async ({
+  page,
+}) => {
+  // This bug has recurred THREE times: a lead-specific mark style (a `.card--lead
+  // .cue-mark { … }` rule, or a lead/variant/size prop) making the first card's mark
+  // look different from every other row's. The mark's look must be a pure function of
+  // watched STATE, never of the container it sits in. This test fails the instant
+  // any lead-driven mark style is reintroduced.
+  await installLibraryRoutes(page.context(), [
+    soloShow({ trakt: 1, title: "Alpha", lastWatchedAt: agoIso(2) }),
+    soloShow({ trakt: 2, title: "Bravo", lastWatchedAt: agoIso(4) }),
+  ]);
+  await page.goto("/");
+
+  const cards = page.getByTestId("up-next-card");
+  await expect(cards).toHaveCount(2);
+  const lead = cards.first();
+  const queue = cards.nth(1);
+  // The cards differ (the lead carries its emphasis in CHROME — poster + "Next up"),
+  // which is exactly why the mark must NOT differ.
+  await expect(lead).toHaveClass(/card--lead/);
+  await expect(queue).not.toHaveClass(/card--lead/);
+
+  const leadMark = lead.getByTestId("mark-watched");
+  const queueMark = queue.getByTestId("mark-watched");
+  // Same component, and the class attribute is EXACTLY "cue-mark" in both — no lead /
+  // variant / size modifier class a per-container style could hook onto.
+  await expect(leadMark).toHaveClass("cue-mark");
+  await expect(queueMark).toHaveClass("cue-mark");
+
+  // Every visual property a lead-specific SELECTOR could change must be identical, even
+  // if the element's own class stayed "cue-mark". This is the deep lock.
+  const MARK_PROPS = [
+    "width",
+    "height",
+    "border-top-width",
+    "border-top-style",
+    "border-top-color",
+    "border-radius",
+    "background-color",
+    "color",
+    "box-sizing",
+  ];
+  const styleOf = (mark: typeof leadMark): Promise<Record<string, string>> =>
+    mark.evaluate((el, props: string[]) => {
+      const cs = getComputedStyle(el);
+      return Object.fromEntries(props.map((p) => [p, cs.getPropertyValue(p)]));
+    }, MARK_PROPS);
+  const [leadStyle, queueStyle] = await Promise.all([styleOf(leadMark), styleOf(queueMark)]);
+  expect(leadStyle).toEqual(queueStyle);
+
+  // …and the row mark is a 56px finger target (WCAG 2.5.5) in BOTH containers.
+  const leadBox = await leadMark.boundingBox();
+  const queueBox = await queueMark.boundingBox();
+  expect(leadBox).not.toBeNull();
+  expect(queueBox).not.toBeNull();
+  for (const box of [leadBox, queueBox]) {
+    expect(Math.round(box?.width ?? 0)).toBe(56);
+    expect(Math.round(box?.height ?? 0)).toBe(56);
+  }
+});
+
 test("the lead card shows its full title at 390px — no hero truncation", async ({ page }) => {
   // The reported regression: the elevated lead bumped the poster + title so the
   // title column collapsed and a normal show name clipped to a single letter on a
@@ -518,6 +580,33 @@ test("Undo issues the stored inverse /sync/history/remove and restores the card"
   expect(controls.removePosts()[0]?.path).toBe("/sync/history/remove");
   expect(controls.removePosts()[0]?.episodeIds).toContain(12);
   await expect(card.getByTestId("episode-code")).toHaveText("S01E02");
+});
+
+test("the point-of-action Undo is INLINE on the just-marked card — not only the bottom toast", async ({
+  page,
+}) => {
+  // The core UX requirement here: "you still just have a toast as undo." The PRIMARY
+  // reversal must live INLINE on the very card the mark happened on.
+  const controls = await installLibraryRoutes(page.context(), [soloShow()]);
+  await page.goto("/");
+  const card = page.getByTestId("up-next-card").first();
+  await expect(card.getByTestId("episode-code")).toHaveText("S01E02");
+
+  await card.getByTestId("mark-watched").click();
+  await expect(card.getByTestId("episode-code")).toHaveText("S01E03");
+
+  // An inline Undo sits ON the card, confirming what just landed — not only the snackbar.
+  const inlineUndo = card.getByTestId("mark-undo");
+  await expect(inlineUndo).toContainText("Marked S01E02 watched");
+  await expect(card.getByTestId("mark-undo-action")).toBeVisible();
+
+  // It reuses the SAME reversal seam as the snackbar: it restores the card and issues
+  // the stored inverse /sync/history/remove, then clears itself.
+  await card.getByTestId("mark-undo-action").click();
+  await expect(card.getByTestId("episode-code")).toHaveText("S01E02");
+  await expect(card.getByTestId("mark-undo")).toHaveCount(0);
+  await expect.poll(() => controls.removePosts().length).toBe(1);
+  expect(controls.removePosts()[0]?.episodeIds).toContain(12);
 });
 
 test("a double activation marks the episode exactly once — no duplicate history POST", async ({

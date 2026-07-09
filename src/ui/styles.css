@@ -1096,8 +1096,10 @@ body {
 }
 
 /* The Cue mark — ONE control, styled by its STATE, never by its container. Unwatched
-   is a 56px amber RING (your turn: tap to log); watched is that circle FILLED amber
-   with a check (done). It renders IDENTICALLY in the lead card and every queue, lapsed,
+   is a 56px amber RING (your turn: tap to log); watched is that circle turned GREEN
+   with a check (done). Amber is reserved for the ACTION / "you are here" and green
+   means done, so an unwatched ring and a done state can never be confused. It renders
+   IDENTICALLY in the lead card and every queue, lapsed,
    and calendar row — the "Next up" emphasis lives only in the poster + eyebrow, never
    here. There is deliberately no lead/size/variant selector below (and none in the
    component): an action control is styled by WHAT IT DOES, never WHERE IT SITS. The
@@ -1140,16 +1142,69 @@ button.cue-mark:focus-visible {
   opacity: 0.55;
   cursor: progress;
 }
-/* Done: the ring fills amber and reveals the check. A committed status indicator, not
-   a re-tap toggle — its reversal lives durably in History (+ the point-of-action Undo).*/
+/* Done: the ring turns GREEN and reveals the check — the app's one done color (amber
+   stays reserved for the ACTION), so an unwatched amber ring and a done state can never
+   be confused. Shares the green done-language of the detail .watched-field + season
+   done-chip, sized down to a disc. A committed status indicator, not a re-tap toggle —
+   its reversal lives durably in History (+ the point-of-action inline Undo). */
 .cue-mark--done {
-  background: var(--color-accent);
-  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-ok) 18%, transparent);
+  border-color: var(--color-ok);
+  color: var(--color-ok);
   cursor: default;
 }
 .cue-mark svg {
   inline-size: 1.6rem;
   block-size: 1.6rem;
+  flex: none;
+}
+
+/* The point-of-action Undo: the PRIMARY reversal for a just-landed mark, sitting
+   INLINE on the row/card the tap happened on — never only a bottom toast the user must
+   race. Quiet by default (the mark already landed); the Undo itself is a full 44px
+   finger target because the reversal is the trust anchor, not a stray text link. */
+.inline-undo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  font-size: 0.8rem;
+  color: var(--color-muted);
+}
+.inline-undo__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.inline-undo__action {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: var(--tap-min);
+  padding-inline: var(--space-3);
+  appearance: none;
+  border: 1px solid color-mix(in srgb, var(--color-accent) 45%, var(--color-border));
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  color: var(--color-accent);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.inline-undo__action:hover {
+  background: color-mix(in srgb, var(--color-accent) 18%, transparent);
+}
+.inline-undo__action:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+.inline-undo__action svg {
+  inline-size: 1rem;
+  block-size: 1rem;
   flex: none;
 }
 .card__meta {
@@ -2219,7 +2274,14 @@ button.cue-mark:focus-visible {
   width: 14px;
   height: 14px;
 }
-.ep-still__toggle[data-watched="true"] .ep-still__badge,
+/* Watched (done) = the app's one done color, GREEN — never the amber ACTION fill. */
+.ep-still__toggle[data-watched="true"] .ep-still__badge {
+  background: var(--color-ok);
+  border-color: var(--color-ok);
+  color: var(--color-accent-fg);
+}
+/* Hovering a still previews the mark ACTION (amber = action / "you are here"); it flips
+   to the green done state above once the play is recorded. */
 .ep-still__box:not(:disabled):hover + .ep-still__badge {
   background: var(--color-accent);
   border-color: var(--color-accent);
@@ -2567,6 +2629,16 @@ button.cue-mark:focus-visible {
   flex: none;
   color: var(--color-muted);
   font-size: 0.8rem;
+}
+/* Trailing action: the Cue mark, plus the point-of-action inline Undo beside it for the
+   reversal window. Wraps under the mark on a narrow row so neither is squeezed. */
+.calendar-card__action {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
 /* ---- Discover: poster-forward browse + search ---- */

@@ -1,5 +1,6 @@
 import type { TmdbImageConfig } from "@data/image-source";
 import { Link } from "@tanstack/react-router";
+import { InlineUndo } from "@ui/components/InlineUndo";
 import { MarkWatchedButton } from "@ui/components/MarkWatchedButton";
 import { episodeCode, relativeDays, watchedPercent } from "@ui/format";
 import { useShowArt } from "@ui/hooks/useShowArt";
@@ -13,6 +14,9 @@ interface UpNextCardProps {
   /** The first card of the honest sort renders `lead` — larger and calmer, but not
    * a cinematic recommendation (it is simply first-in-sort, not a "for you" pick). */
   readonly variant?: "lead" | "queue";
+  /** Set for the card whose mark just landed: the point-of-action inline Undo,
+   * carrying the just-marked episode code and the shared reversal seam. */
+  readonly undo?: { readonly code: string; onUndo(): void };
   onMark(): void;
 }
 
@@ -30,6 +34,7 @@ export function UpNextCard({
   card,
   tmdbConfig,
   variant = "queue",
+  undo,
   onMark,
 }: UpNextCardProps): ReactElement {
   const { entry, item } = card;
@@ -87,10 +92,19 @@ export function UpNextCard({
             <span className="card__episode-title">{item.episode.title}</span>
           )}
         </Link>
-        {lastWatched !== null && (
-          <p className="card__meta" data-testid="last-watched">
-            last watched {lastWatched}
-          </p>
+        {undo ? (
+          <InlineUndo
+            testId="mark-undo"
+            label={`Marked ${undo.code} watched`}
+            ariaLabel={`Undo — mark ${entry.title} ${undo.code} unwatched`}
+            onUndo={undo.onUndo}
+          />
+        ) : (
+          lastWatched !== null && (
+            <p className="card__meta" data-testid="last-watched">
+              last watched {lastWatched}
+            </p>
+          )
         )}
       </div>
 

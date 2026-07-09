@@ -79,6 +79,8 @@ export function Upcoming(): ReactElement {
               row={row.row}
               tmdbConfig={view.tmdbConfig}
               watched={view.isWatched(row.row.ids.trakt)}
+              isUndoTarget={view.undoable?.episodeId === row.row.ids.trakt}
+              onUndo={() => void view.undo()}
               onMark={() => void view.markWatched(row.row)}
             />
           )
@@ -141,6 +143,9 @@ export function Upcoming(): ReactElement {
         />
       )}
 
+      {/* SECONDARY polite announcement: the PRIMARY reversal is the inline Undo
+          that takes the just-marked row's trailing slot. This toast keeps the polite
+          screen-reader announce. */}
       {view.markError === null && view.undoable !== null && (
         <Snackbar
           testId="calendar-undo"

@@ -18,6 +18,15 @@ import { UpNextCard } from "./UpNextCard";
 
 const UNDO_MS = 6000;
 
+/** The point-of-action Undo target: the show whose mark just landed + its
+ * just-marked episode code, so whichever list card now holds that show (it may have
+ * re-sorted from the lapsed drawer into Continue) carries the inline Undo. */
+interface UndoTarget {
+  readonly showId: number;
+  readonly code: string;
+  onUndo(): void;
+}
+
 /** One card-list for a group; only its first card renders as the `lead` when this
  * group holds the very first card of the honest sort (`leadFirst`). */
 function QueueList({
@@ -25,12 +34,14 @@ function QueueList({
   tmdbConfig,
   leadFirst,
   listTestId,
+  undoTarget,
   onMark,
 }: {
   readonly cards: readonly UpNextCardModel[];
   readonly tmdbConfig: TmdbImageConfig | null;
   readonly leadFirst: boolean;
   readonly listTestId?: string;
+  readonly undoTarget: UndoTarget | null;
   onMark(card: UpNextCardModel): void;
 }): ReactElement {
   return (
@@ -41,6 +52,11 @@ function QueueList({
             card={card}
             tmdbConfig={tmdbConfig}
             variant={leadFirst && index === 0 ? "lead" : "queue"}
+            undo={
+              undoTarget?.showId === card.entry.showId
+                ? { code: undoTarget.code, onUndo: undoTarget.onUndo }
+                : undefined
+            }
             onMark={() => onMark(card)}
           />
         </li>
@@ -118,6 +134,18 @@ export function UpNext(): ReactElement {
   const stop = useHideShow();
 
   const markCard = (card: UpNextCardModel): void => void mark.markWatched(card.entry);
+
+  // The just-marked show's card carries the PRIMARY reversal inline; the toast
+  // below is the SECONDARY polite announcement. A finished show leaves the queue, so no
+  // card matches — the toast + durable History reversal cover that case.
+  const undoTarget: UndoTarget | null =
+    mark.undoable === null
+      ? null
+      : {
+          showId: mark.undoable.showId,
+          code: mark.undoable.episodeCode,
+          onUndo: () => void mark.undo(),
+        };
 
   const hasActive = view.newCards.length > 0 || view.continueCards.length > 0;
   const hasLapsed = view.lapsedCards.length > 0;
@@ -236,6 +264,7 @@ export function UpNext(): ReactElement {
             cards={view.newCards}
             tmdbConfig={view.tmdbConfig}
             leadFirst
+            undoTarget={undoTarget}
             onMark={markCard}
           />
         </section>
@@ -249,6 +278,7 @@ export function UpNext(): ReactElement {
             tmdbConfig={view.tmdbConfig}
             leadFirst={view.newCards.length === 0}
             listTestId="up-next-list"
+            undoTarget={undoTarget}
             onMark={markCard}
           />
         </section>
@@ -267,6 +297,10 @@ export function UpNext(): ReactElement {
         <ErrorToast testId="mark-error" message={mark.error} onDismiss={mark.clearError} />
       )}
 
+      {/* SECONDARY polite announcement: the PRIMARY reversal is the inline Undo on
+          the just-marked card above. This toast still politely announces the mark for a
+          screen reader and carries the reversal for the finished case, where the show
+          leaves the queue and no card remains to host the inline Undo. */}
       {mark.undoable !== null && (
         <Snackbar
           testId="undo"
