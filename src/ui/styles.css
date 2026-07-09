@@ -132,6 +132,20 @@ body {
   border-radius: 4px;
 }
 
+/* Visually hidden but announced: a status/label for screen readers while an
+ * aria-hidden skeleton carries the visual loading state. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -944,6 +958,7 @@ body {
   background: var(--color-elevated);
   flex: none;
   display: block;
+  overflow: hidden;
 }
 /* The Up Next queue (and the lapsed drawer) size their posters a touch larger
  * than the 56px base so the spotlight column reads as the primary shelf; the
@@ -965,30 +980,58 @@ body {
   width: clamp(120px, 34vw, 176px);
   box-shadow: var(--shadow-poster);
 }
-.poster--text {
+/* ---- The shared "no artwork" block ----
+ * An absolute fill so it backs a poster/still image and shows through until (or
+ * unless) art decodes: a deterministic warm gradient, a quiet media glyph, and the
+ * title monogram in the display face — a deliberate placeholder, never a broken
+ * image. `.poster__initials` stays the poster path's monogram hook (hero sizing). */
+.art-ph {
+  position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 6px;
   text-align: center;
   color: var(--color-fg);
+  border-radius: inherit;
   overflow: hidden;
 }
-.poster__initials {
+.art-ph__glyph {
+  width: clamp(18px, 22%, 30px);
+  height: auto;
+  color: color-mix(in srgb, var(--color-fg) 55%, transparent);
+}
+.art-ph__label {
   font-family: var(--font-display);
   font-weight: 600;
   font-size: 1.15rem;
   letter-spacing: 0.02em;
+  line-height: 1;
   text-shadow: 0 1px 3px rgb(0 0 0 / 0.35);
 }
 .poster--hero .poster__initials {
   font-size: 2rem;
 }
+/* Wider 16:9 frame: shrink the monogram and glyph so they sit calm on a still. */
+.art-ph--still {
+  gap: 4px;
+}
+.art-ph--still .art-ph__glyph {
+  width: clamp(16px, 13%, 26px);
+}
+.art-ph--still .art-ph__label {
+  font-size: 0.85rem;
+}
 .poster__retry {
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  transform: translateX(-50%);
   appearance: none;
   border: none;
-  background: rgb(0 0 0 / 0.35);
+  background: rgb(0 0 0 / 0.45);
   color: var(--color-fg);
   font-size: 0.6rem;
   cursor: pointer;
@@ -2114,7 +2157,9 @@ button.cue-mark:focus-visible {
   background: var(--color-elevated);
 }
 .still-thumb--text {
+  position: relative;
   border: 1px solid var(--color-border);
+  overflow: hidden;
 }
 .detail-seasons__head {
   display: flex;
@@ -2989,11 +3034,6 @@ button.cue-mark:focus-visible {
   pointer-events: none;
 }
 
-.search-status {
-  color: var(--color-muted);
-  text-align: center;
-  margin: var(--space-5) auto;
-}
 .search-recent {
   margin: 0;
 }

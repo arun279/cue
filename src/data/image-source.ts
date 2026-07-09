@@ -44,7 +44,9 @@ function ensureHttps(url: string): string {
   return /^https?:\/\//.test(url) ? url : `https://${url}`;
 }
 
-function initialsOf(title: string): string {
+/** The 1–2 letter monogram for a title, shared by the placeholder resolver and the
+ * designed no-artwork block so both derive the same initials from a title. */
+export function initialsOf(title: string): string {
   const words = title
     .trim()
     .split(/\s+/)

@@ -9,19 +9,42 @@ import { DiscoverGrid, DiscoverRail } from "./DiscoverCard";
 
 const SKELETON_TILES = [0, 1, 2, 3, 4, 5];
 
+function SkeletonTile({ tile }: { readonly tile: number }): ReactElement {
+  return (
+    <div key={tile} className="discover-card discover-card--skeleton">
+      <div className="poster poster--tile poster--skeleton" />
+      <div className="discover-card__meta">
+        <div className="skeleton-line skeleton-line--title" />
+        <div className="skeleton-line skeleton-line--sub" />
+      </div>
+    </div>
+  );
+}
+
 function RailSkeleton(): ReactElement {
   return (
     <div className="discover-rail__track" aria-hidden="true" data-testid="discover-skeleton">
       {SKELETON_TILES.map((tile) => (
-        <div key={tile} className="discover-card discover-card--skeleton">
-          <div className="poster poster--tile poster--skeleton" />
-          <div className="discover-card__meta">
-            <div className="skeleton-line skeleton-line--title" />
-            <div className="skeleton-line skeleton-line--sub" />
-          </div>
-        </div>
+        <SkeletonTile key={tile} tile={tile} />
       ))}
     </div>
+  );
+}
+
+/** The in-flight search state: the results grid's own silhouette so the query
+ * settles into place rather than a bare status line jumping to a grid (Nielsen #1). Marked aria-hidden; the visually-hidden status text announces it. */
+function ResultsSkeleton(): ReactElement {
+  return (
+    <>
+      <p className="sr-only" role="status" data-testid="search-searching">
+        Searching…
+      </p>
+      <div className="poster-grid--static" aria-hidden="true" data-testid="search-skeleton">
+        {SKELETON_TILES.map((tile) => (
+          <SkeletonTile key={tile} tile={tile} />
+        ))}
+      </div>
+    </>
   );
 }
 
@@ -160,11 +183,7 @@ export function Search(): ReactElement {
   if (view.status === "idle") {
     body = <Browse view={view} />;
   } else if (view.status === "searching") {
-    body = (
-      <p className="search-status" role="status" data-testid="search-searching">
-        Searching…
-      </p>
-    );
+    body = <ResultsSkeleton />;
   } else if (view.status === "error") {
     body = (
       <ErrorRetry
