@@ -11,6 +11,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { resolveMovieUnmark, routeMovieUnmark } from "@ui/hooks/resolveUnmark";
 import { writeMovieEntry } from "@ui/hooks/useMovieLibrary";
 import { useOptimisticWrite } from "@ui/hooks/useOptimisticWrite";
+import { useHaptics } from "@ui/runtime/haptics";
 import { useRuntime } from "@ui/runtime/runtime";
 import { useCallback, useRef, useState } from "react";
 
@@ -57,6 +58,7 @@ export function useMovieActions(): MovieActions {
   const submit = useOptimisticWrite();
   const queryClient = useQueryClient();
   const runtime = useRuntime();
+  const haptics = useHaptics();
   const [undo, setUndo] = useState<MarkUndo | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -112,6 +114,9 @@ export function useMovieActions(): MovieActions {
       pendingMark.current = mark;
       setUndo(mark);
       writeMovieEntry(queryClient, { ...entry, watched: true, watchedAt });
+      // One buzz at the point of action, once per committed mark — with the
+      // optimistic tick, never on the rollback path.
+      haptics.markCommitted();
       const op = buildMarkMovieOp({
         opId: crypto.randomUUID(),
         ids: entry.ids,
@@ -136,7 +141,7 @@ export function useMovieActions(): MovieActions {
       // reverses the exact op instead.
       if (outcome === "done") pendingMark.current = null;
     },
-    [queryClient, revalidate, submit],
+    [queryClient, revalidate, submit, haptics],
   );
 
   const markOff = useCallback(
@@ -226,9 +231,11 @@ export function useMovieActions(): MovieActions {
     if (pending === null) return;
     setUndo(null);
     pendingMark.current = null;
+    // The distinct take-back tick, once, with the optimistic reversal.
+    haptics.markUndone();
     const outcome = await reverseSessionMark(pending);
     if (outcome === "failed") setError(`Couldn't undo ${pending.title}. Please try again.`);
-  }, [undo, reverseSessionMark]);
+  }, [undo, reverseSessionMark, haptics]);
 
   return {
     markWatched,

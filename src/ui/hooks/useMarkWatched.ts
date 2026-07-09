@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { episodeCode } from "@ui/format";
 import { patchLibraryEntry } from "@ui/hooks/library-cache";
 import { useOptimisticWrite } from "@ui/hooks/useOptimisticWrite";
+import { useHaptics } from "@ui/runtime/haptics";
 import type { SubmitOutcome } from "@ui/runtime/runtime";
 import { useCallback, useRef, useState } from "react";
 
@@ -55,6 +56,7 @@ interface PendingUndo {
 export function useMarkWatched(): MarkWatched {
   const submit = useOptimisticWrite();
   const queryClient = useQueryClient();
+  const haptics = useHaptics();
   const [undo, setUndo] = useState<PendingUndo | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Which mark op currently owns the undo slot, tracked synchronously so an async
@@ -122,6 +124,9 @@ export function useMarkWatched(): MarkWatched {
         preCompleted: entry.completed,
         beforeMark,
       });
+      // One buzz at the point of action, once per committed mark — fired with the
+      // optimistic advance, never on the rollback path below.
+      haptics.markCommitted();
 
       const context: MarkContext = { showId: entry.showId, preCompleted: entry.completed };
       const op = buildMarkEpisodeOp({
@@ -156,7 +161,7 @@ export function useMarkWatched(): MarkWatched {
         setError(`Couldn't mark ${entry.title} watched. Please try again.`);
       }
     },
-    [patch, revalidate, submit],
+    [patch, revalidate, submit, haptics],
   );
 
   const runUndo = useCallback(async () => {
@@ -166,6 +171,8 @@ export function useMarkWatched(): MarkWatched {
     inFlight.current.delete(pending.showId);
     setUndo(null);
     patch(pending.showId, () => pending.beforeMark);
+    // The distinct take-back tick, once, with the optimistic reversal.
+    haptics.markUndone();
     const context: MarkContext = { showId: pending.showId, preCompleted: pending.preCompleted + 1 };
     const op = buildUnmarkEpisodeOp({
       opId: crypto.randomUUID(),
@@ -184,7 +191,7 @@ export function useMarkWatched(): MarkWatched {
         revalidate(pending.showId, { season: pending.season, number: pending.number }),
     });
     if (outcome === "failed") setError(`Couldn't undo ${pending.title}. Please try again.`);
-  }, [undo, patch, revalidate, submit]);
+  }, [undo, patch, revalidate, submit, haptics]);
 
   return {
     markWatched,

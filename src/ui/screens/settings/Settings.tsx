@@ -30,6 +30,8 @@ export function Settings(): ReactElement {
   const moviesEnabled = usePrefs((s) => s.moviesEnabled);
   const setShowsEnabled = usePrefs((s) => s.setShowsEnabled);
   const setMoviesEnabled = usePrefs((s) => s.setMoviesEnabled);
+  const hapticsEnabled = usePrefs((s) => s.hapticsEnabled);
+  const setHapticsEnabled = usePrefs((s) => s.setHapticsEnabled);
   const [disconnecting, setDisconnecting] = useState(false);
   const [disconnectError, setDisconnectError] = useState<string | null>(null);
 
@@ -59,6 +61,26 @@ export function Settings(): ReactElement {
           <dt>Theme</dt>
           <dd>
             <ThemeToggle />
+          </dd>
+        </div>
+        <div className="settings__row">
+          <dt>
+            Haptics
+            <small className="settings__hint">
+              A short buzz when you mark something watched or take it back. Applies on the phone
+              app.
+            </small>
+          </dt>
+          <dd>
+            <Switch.Root
+              className="switch"
+              checked={hapticsEnabled}
+              onCheckedChange={setHapticsEnabled}
+              aria-label="Haptics"
+              data-testid="haptics-toggle"
+            >
+              <Switch.Thumb className="switch__thumb" />
+            </Switch.Root>
           </dd>
         </div>
       </dl>

@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { initialHapticsEnabled, persistHapticsEnabled } from "./haptics-pref";
 import {
   initialMediaVisibility,
   type MediaVisibility,
@@ -16,6 +17,10 @@ interface PrefsState {
   moviesEnabled: boolean;
   setShowsEnabled: (enabled: boolean) => void;
   setMoviesEnabled: (enabled: boolean) => void;
+  /** The one buzz on a mark/undo: ON by default, device-local,
+   * read by the injected haptics seam at fire time. Silent no-op on web regardless. */
+  hapticsEnabled: boolean;
+  setHapticsEnabled: (enabled: boolean) => void;
 }
 
 /**
@@ -45,5 +50,10 @@ export const usePrefs = create<PrefsState>((set, get) => {
     setShowsEnabled: (showsEnabled) => commit({ showsEnabled, moviesEnabled: get().moviesEnabled }),
     setMoviesEnabled: (moviesEnabled) =>
       commit({ showsEnabled: get().showsEnabled, moviesEnabled }),
+    hapticsEnabled: initialHapticsEnabled(),
+    setHapticsEnabled: (hapticsEnabled) => {
+      persistHapticsEnabled(hapticsEnabled);
+      set({ hapticsEnabled });
+    },
   };
 });

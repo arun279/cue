@@ -30,8 +30,11 @@
     "prepare": "lefthook install"
   },
   "dependencies": {
+    "@capacitor/app": "^8.1.0",
     "@capacitor/core": "^8.4.1",
+    "@capacitor/haptics": "^8.0.2",
     "@capacitor/preferences": "8.0.1",
+    "@capacitor/status-bar": "^8.0.2",
     "@fontsource-variable/inter": "^5.2.8",
     "@fontsource-variable/space-grotesk": "^5.2.10",
     "@tanstack/query-async-storage-persister": "5.101.2",
