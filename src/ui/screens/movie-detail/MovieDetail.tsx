@@ -16,7 +16,7 @@ import { useMovieRelated } from "@ui/hooks/useMovieRelated";
 import { useRate } from "@ui/hooks/useRate";
 import { useWatchlistAdd } from "@ui/hooks/useWatchlistAdd";
 import { usePrefs } from "@ui/prefs/prefs-store";
-import { DiscoverGrid } from "@ui/screens/search/DiscoverCard";
+import { DiscoverRail } from "@ui/screens/search/DiscoverCard";
 import { Poster } from "@ui/screens/up-next/Poster";
 import { type ReactElement, useState } from "react";
 
@@ -218,12 +218,12 @@ function MovieDetailContent({ movieId }: { readonly movieId: number }): ReactEle
       {related.hits.length > 0 && (
         <section className="discover-rail related-rail" data-testid="movie-related">
           <h2 className="discover-rail__head">More like this</h2>
-          <DiscoverGrid
+          <DiscoverRail
             hits={related.hits}
             tmdbConfig={null}
             isAdded={watchlistAdd.isAdded}
             onAdd={(hit) => void watchlistAdd.add(hit)}
-            testId="movie-related-grid"
+            testId="movie-related-rail"
           />
         </section>
       )}

@@ -45,18 +45,6 @@ export interface DiscoverData {
   readonly tmdbConfig: TmdbImageConfig | null;
 }
 
-/**
- * The read side of the movie home's Discover zone: trending + popular movies as
- * poster rails. Movie-scoped (no show rails) and fetched only when the Movies home
- * is active, so it never rides along on a TV surface. Reuses the `SearchHit`
- * pipeline (DiscoverCard → `/movie/:id` + inline watchlist add).
- */
-export interface MovieDiscoverData {
-  readonly trending: readonly SearchHit[];
-  readonly popular: readonly SearchHit[];
-  readonly tmdbConfig: TmdbImageConfig | null;
-}
-
 /** The read side of the calendar: flattened air-dated episodes + the hidden set to exclude. */
 export interface CalendarData {
   readonly entries: readonly CalendarEntry[];
@@ -115,8 +103,6 @@ export interface CueRuntime {
   loadMovieHeader(movieId: number): Promise<MovieHeader>;
   /** "More like this" for a movie: `/movies/:id/related` as poster `SearchHit`s. */
   loadMovieRelated(movieId: number): Promise<readonly SearchHit[]>;
-  /** The movie home's Discover zone: trending + popular movies (movie-scoped, no show rails). */
-  loadMovieDiscover(): Promise<MovieDiscoverData>;
   /** Show detail hero + overall progress; paints before the season stream resolves. */
   loadShowHeader(showId: number): Promise<ShowHeader>;
   /** The season/episode tree merged with per-episode watched flags (streams in after the hero). */

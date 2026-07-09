@@ -1454,6 +1454,10 @@ export interface MovieControls {
    * movie-only surface must never touch it — this counts the wrong-medium read the
    * catch-all would otherwise answer with `[]` and hide (gated-by-medium budget). */
   showWatchlistReads: () => number;
+  /** How many times the movie browse charts (`/movies/trending` + `/movies/popular`)
+   * were read. The Library must never fire them: discovery leaves
+   * the library open path entirely, so this stays 0 on `/library?type=movies`. */
+  movieDiscoverReads: () => number;
 }
 
 function movieObject(movie: MovieFixture): Record<string, unknown> {
@@ -1500,6 +1504,7 @@ export async function installMovieRoutes(
   const writes: CapturedMovieWrite[] = [];
   let movieLibraryReads = 0;
   let showWatchlistReads = 0;
+  let movieDiscoverReads = 0;
 
   const pngPixel = Buffer.from(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
@@ -1568,22 +1573,24 @@ export async function installMovieRoutes(
   // (which would otherwise 404 `trending`/`popular` as unknown movie ids) so these
   // win: `/movies/trending` wraps each movie in a watcher count, `/movies/popular`
   // is a bare list — the movie analogue of the show charts.
-  await context.route("**/api.trakt.tv/movies/trending*", (route) =>
-    route.fulfill({
+  await context.route("**/api.trakt.tv/movies/trending*", (route) => {
+    movieDiscoverReads += 1;
+    return route.fulfill({
       status: 200,
       headers: JSON_HEADERS,
       body: JSON.stringify(
         (discover.trending ?? []).map((m) => ({ watchers: 100, movie: movieObject(m) })),
       ),
-    }),
-  );
-  await context.route("**/api.trakt.tv/movies/popular*", (route) =>
-    route.fulfill({
+    });
+  });
+  await context.route("**/api.trakt.tv/movies/popular*", (route) => {
+    movieDiscoverReads += 1;
+    return route.fulfill({
       status: 200,
       headers: JSON_HEADERS,
       body: JSON.stringify((discover.popular ?? []).map(movieObject)),
-    }),
-  );
+    });
+  });
 
   const handleHistory = (remove: boolean) => (route: import("@playwright/test").Route) => {
     const body = (route.request().postDataJSON() ?? {}) as {
@@ -1634,6 +1641,7 @@ export async function installMovieRoutes(
     watchlistRemovePosts: () => writes.filter((w) => w.path === "/sync/watchlist/remove"),
     movieLibraryReads: () => movieLibraryReads,
     showWatchlistReads: () => showWatchlistReads,
+    movieDiscoverReads: () => movieDiscoverReads,
   };
 }
 

@@ -5,13 +5,13 @@ import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { type SearchView, useSearch } from "@ui/hooks/useSearch";
 import { usePrefs } from "@ui/prefs/prefs-store";
 import { type ReactElement, type ReactNode, useId } from "react";
-import { DiscoverGrid } from "./DiscoverCard";
+import { DiscoverGrid, DiscoverRail } from "./DiscoverCard";
 
 const SKELETON_TILES = [0, 1, 2, 3, 4, 5];
 
 function RailSkeleton(): ReactElement {
   return (
-    <div className="poster-grid--static" aria-hidden="true" data-testid="discover-skeleton">
+    <div className="discover-rail__track" aria-hidden="true" data-testid="discover-skeleton">
       {SKELETON_TILES.map((tile) => (
         <div key={tile} className="discover-card discover-card--skeleton">
           <div className="poster poster--tile poster--skeleton" />
@@ -97,12 +97,12 @@ function Browse({ view }: { view: SearchView }): ReactElement {
       .map((row) => (
         <section key={row.testId} className="discover-rail" data-testid={row.testId}>
           <h2 className="discover-rail__head">{row.head}</h2>
-          <DiscoverGrid
+          <DiscoverRail
             hits={row.hits}
             tmdbConfig={browse.tmdbConfig}
             isAdded={view.isAdded}
             onAdd={(hit) => void view.add(hit)}
-            testId={`${row.testId}-grid`}
+            testId={`${row.testId}-rail`}
           />
         </section>
       ));

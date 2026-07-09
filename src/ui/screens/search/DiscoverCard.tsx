@@ -4,36 +4,69 @@ import { Link } from "@tanstack/react-router";
 import { Poster } from "@ui/screens/up-next/Poster";
 import type { ReactElement, ReactNode } from "react";
 
-/**
- * A static poster grid of DiscoverCards — the shared idiom for every discovery
- * surface: search results, the trending/popular browse rails, and the Movie-detail
- * "More like this" rail. Membership + add are injected so one grid serves all
- * callers (search state, or the standalone watchlist-add hook on detail).
- */
-export function DiscoverGrid({
-  hits,
-  tmdbConfig,
-  isAdded,
-  onAdd,
-  testId,
-}: {
+interface DiscoverListProps {
   readonly hits: readonly SearchHit[];
   readonly tmdbConfig: TmdbImageConfig | null;
   isAdded(hit: SearchHit): boolean;
   onAdd(hit: SearchHit): void;
   readonly testId: string;
-}): ReactElement {
+}
+
+/**
+ * Render a list of hits as DiscoverCards — the one place a hit becomes a tile.
+ * Both discovery idioms (the results grid and the bounded rail) differ only in
+ * their container and whether the list is capped; the tile itself is identical,
+ * so it lives here and neither wrapper repeats it.
+ */
+function discoverTiles({
+  hits,
+  tmdbConfig,
+  isAdded,
+  onAdd,
+}: Omit<DiscoverListProps, "testId">): readonly ReactElement[] {
+  return hits.map((hit) => (
+    <DiscoverCard
+      key={hit.key}
+      hit={hit}
+      tmdbConfig={tmdbConfig}
+      added={isAdded(hit)}
+      onAdd={() => onAdd(hit)}
+    />
+  ));
+}
+
+/**
+ * A static poster grid of DiscoverCards — reserved for an EXPLICIT query's
+ * results, which the user asked for and can legitimately be a full wrapping grid.
+ * Default browse (trending/popular) and in-context "More like this" use the bounded
+ * {@link DiscoverRail} instead, so discovery never inflates a page into a scroll
+ * wall. Membership + add are injected so both idioms serve every
+ * caller (search state, or the standalone watchlist-add hook on detail).
+ */
+export function DiscoverGrid({ testId, ...list }: DiscoverListProps): ReactElement {
   return (
     <div className="poster-grid--static" data-testid={testId}>
-      {hits.map((hit) => (
-        <DiscoverCard
-          key={hit.key}
-          hit={hit}
-          tmdbConfig={tmdbConfig}
-          added={isAdded(hit)}
-          onAdd={() => onAdd(hit)}
-        />
-      ))}
+      {discoverTiles(list)}
+    </div>
+  );
+}
+
+/**
+ * The bounded browse sample — a top-ten of DiscoverCards on ONE horizontal
+ * snap-scroll track at a fixed height. This is the only shape
+ * discovery is allowed to take outside the Discover tab's own search results:
+ * trending/popular and the Movie-detail "More like this" rail are legitimate
+ * recognition-over-recall, but a wrapping grid of 24 buried the user's own data
+ * under a 9k–16.6k-px wall. A rail scrolls sideways instead, so its height is one
+ * row regardless of count, and the count is capped to a "top ten" sample (the
+ * catalog lives in search, not in a browse rail).
+ */
+const RAIL_MAX = 10;
+
+export function DiscoverRail({ testId, hits, ...list }: DiscoverListProps): ReactElement {
+  return (
+    <div className="discover-rail__track" data-testid={testId}>
+      {discoverTiles({ ...list, hits: hits.slice(0, RAIL_MAX) })}
     </div>
   );
 }

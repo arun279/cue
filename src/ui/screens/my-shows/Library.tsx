@@ -18,7 +18,6 @@ import { usePrefs } from "@ui/prefs/prefs-store";
 import { Accordion, ToggleGroup } from "radix-ui";
 import { type ReactElement, type ReactNode, useEffect, useMemo, useState } from "react";
 import { LibrarySkeleton } from "./LibrarySkeleton";
-import { MovieDiscover } from "./MovieDiscover";
 import { MoviePosterCard } from "./MoviePosterCard";
 import { PosterCard } from "./PosterCard";
 import { PosterGrid } from "./PosterGrid";
@@ -559,13 +558,8 @@ export function Library(): ReactElement {
 
       {body}
 
-      {/* The movie home's Discover zone sits below the user's own piles — and below
-          the empty state, so a movies-only user with nothing tracked still gets a
-          home to browse. Held back only while the library is loading, hard-erroring,
-          or being filtered (filtering is about your own library, not discovery). */}
-      {isMovies && !filtering && !active.isLoading && !(active.isError && !active.hasData) && (
-        <MovieDiscover active={isMovies} />
-      )}
+      {/* Library shows only the user's OWN piles — discovery lives in the Discover
+          tab, never bolted below the library as a browse wall. */}
 
       {unhide.error !== null && (
         <ErrorToast testId="resume-error" message={unhide.error} onDismiss={unhide.clearError} />

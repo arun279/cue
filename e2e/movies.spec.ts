@@ -316,11 +316,14 @@ test("adds a movie to the watchlist with the movies[] body", async ({ page }) =>
   expect(controls.watchlistPosts()[0]?.movieIds).toEqual([100]);
 });
 
-test("the movie home offers a Discover zone (trending + popular) with inline add", async ({
+test("the movie library shows only the user's own piles — no discovery browse wall", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1000, height: 1400 });
   await seedMediaVisibility(page.context(), MOVIES_ONLY);
+  // Discovery routes are installed but must never be reached: the Library open path
+  // no longer bolts a browse zone below the user's piles — discovery lives in the
+  // Discover tab alone.
   const controls = await installMovieRoutes(page.context(), movies(), [], {
     trending: [
       {
@@ -345,28 +348,21 @@ test("the movie home offers a Discover zone (trending + popular) with inline add
   });
   await page.goto("/library?type=movies");
 
-  // The movie home is a real home, not a bare list: trending + popular rails sit
-  // below the user's own piles (the movie-native "find something to watch").
-  const discover = page.getByTestId("movie-discover");
-  await expect(discover).toBeVisible();
-  await expect(discover.getByRole("heading", { name: "More to watch" })).toBeVisible();
-  await expect(page.getByTestId("movie-discover-trending")).toContainText("Trending Film");
-  await expect(page.getByTestId("movie-discover-popular")).toContainText("Popular Film");
+  // The user's own library is what renders — the Watchlist pile of their tracked movies.
+  await expect(page.getByTestId("screen-library")).toBeVisible();
+  await expect(page.getByTestId("pile-heading").filter({ hasText: "Watchlist" })).toBeVisible();
 
-  // Inline add on a discover tile fires a movies[] watchlist POST — the same
-  // SearchHit pipeline as search results and the related rail.
-  const trendingAdd = page.getByTestId("movie-discover-trending").getByTestId("search-add").first();
-  await trendingAdd.click();
-  await expect(trendingAdd).toHaveText("Added");
-  await expect.poll(() => controls.watchlistPosts().length).toBe(1);
-  expect(controls.watchlistPosts()[0]?.movieIds).toEqual([900]);
-
-  // The whole movie home — its Discover add included — spends zero show reads: the
-  // inline add seeds membership from the movie watchlist only, never `/watchlist/shows`.
+  // No discovery browse zone colonizes the library, and — proving the two browse
+  // GETs left the Library open path — the trending/popular charts never fire.
+  await expect(page.getByTestId("movie-discover")).toHaveCount(0);
+  await expect(page.getByText("More to watch")).toHaveCount(0);
+  // Give any errant discovery fetch the debounce/settle window to fire, then assert none did.
+  await page.waitForTimeout(600);
+  expect(controls.movieDiscoverReads()).toBe(0);
   expect(controls.showWatchlistReads()).toBe(0);
 });
 
-test("an empty movie library still offers Discover to find something to watch", async ({
+test("an empty movie library shows just its empty state — no discovery browse wall", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1000, height: 1400 });
@@ -385,13 +381,12 @@ test("an empty movie library still offers Discover to find something to watch", 
   });
   await page.goto("/library?type=movies");
 
-  // The empty state is no longer a dead end: Discover renders below it so a
-  // movies-only user with nothing tracked still has a home to browse.
+  // The empty state stands alone — no browse wall dressed up as a "home". A
+  // movies-only user with nothing tracked finds things in the Discover tab.
   await expect(page.getByTestId("movies-empty")).toBeVisible();
-  await expect(page.getByTestId("movie-discover")).toBeVisible();
-  await expect(page.getByTestId("movie-discover-trending")).toContainText("Trending Film");
-
-  // A movies-only home never reaches for the show watchlist to seed Discover membership.
+  await expect(page.getByTestId("movie-discover")).toHaveCount(0);
+  await page.waitForTimeout(600);
+  expect(controls.movieDiscoverReads()).toBe(0);
   expect(controls.showWatchlistReads()).toBe(0);
 });
 

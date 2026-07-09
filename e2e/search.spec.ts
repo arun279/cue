@@ -111,7 +111,7 @@ test("the browse rails include Trending + Popular movies with inline add", async
   // Movie rails render alongside the show rails, same DiscoverCard poster idiom.
   await expect(page.getByTestId("discover-trending-movies")).toBeVisible();
   await expect(page.getByTestId("discover-popular-movies")).toBeVisible();
-  const trendingMovies = page.getByTestId("discover-trending-movies-grid");
+  const trendingMovies = page.getByTestId("discover-trending-movies-rail");
   await expect(trendingMovies.getByTestId("search-result")).toHaveCount(1);
 
   // Inline add on a movie rail fires a movies[] watchlist POST (routed by hit type).
@@ -132,7 +132,7 @@ test("discover poster tiles carry a gradient+initials placeholder so a lazy tile
   });
   await page.goto("/search");
 
-  const tile = page.getByTestId("discover-trending-grid").getByTestId("search-result").first();
+  const tile = page.getByTestId("discover-trending-rail").getByTestId("search-result").first();
   const frame = tile.locator(".poster").first();
   // The real poster image lays over an always-present placeholder backing: title
   // initials on a warm per-title gradient, so a below-the-fold tile that hasn't

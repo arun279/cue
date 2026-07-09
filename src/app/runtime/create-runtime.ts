@@ -60,7 +60,6 @@ import type {
   CueRuntime,
   DiscoverData,
   HistoryPageData,
-  MovieDiscoverData,
   MovieLibraryData,
   RatingMap,
   SubmitOutcome,
@@ -236,23 +235,6 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       const related = await getRelatedMovies(client, movieId);
       if (!related.ok) throw new Error("Failed to load related movies");
       return assembleMovieHits(related.data);
-    },
-
-    async loadMovieDiscover(): Promise<MovieDiscoverData> {
-      // Movie-only rails for the movie home (no show trending/popular): the movie
-      // half of `loadDiscover`, gated to the active Movies surface so a TV session
-      // never fires it. Each absorbs a transient 429 like the other discovery reads.
-      const [trending, popular] = await Promise.all([
-        withReadRateRetry(() => getTrendingMovies(client)),
-        withReadRateRetry(() => getPopularMovies(client)),
-      ]);
-      if (!trending.ok) throw new Error("Failed to load trending movies");
-      if (!popular.ok) throw new Error("Failed to load popular movies");
-      return {
-        trending: assembleMovieHits(trending.data.map((row) => row.movie)),
-        popular: assembleMovieHits(popular.data),
-        tmdbConfig,
-      };
     },
 
     async loadShowHeader(showId) {

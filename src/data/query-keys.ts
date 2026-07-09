@@ -13,9 +13,6 @@ export const queryKeys = {
   calendarPrefix: () => ["calendar", "my-shows"] as const,
   search: (query: string, types: string) => ["search", types, query] as const,
   discover: () => ["discover", "shows-movies"] as const,
-  /** Trending + popular movies for the movie home's Discover zone — fetched only
-   * when the Movies home is the active surface, so a TV session never loads it. */
-  movieDiscover: () => ["discover", "movies"] as const,
   lastActivities: () => ["sync", "last_activities"] as const,
   userStats: () => ["users", "me", "stats"] as const,
   /** The reverse-chronological watch history, per type filter AND decade scope

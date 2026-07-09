@@ -25,8 +25,8 @@ export interface BrowseView {
  *
  * TODO(movie-gating): this shared Search read loads all four show+movie rails
  * regardless of which media a single-medium user has on (the Search screen then
- * UI-filters). The movie home's own Discover (useMovieDiscover) is medium-gated;
- * this pre-existing Search over-fetch is a separate surface and left as-is.
+ * UI-filters). Each rail is rendered as a bounded DiscoverRail,
+ * so the over-fetch is a rail-count concern, not a page-height one.
  */
 export function useBrowse(): BrowseView {
   const runtime = useRuntime();

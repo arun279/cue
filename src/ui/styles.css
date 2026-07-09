@@ -2854,32 +2854,36 @@ button.cue-mark:focus-visible {
   letter-spacing: -0.01em;
   color: var(--color-fg);
 }
+/* The bounded browse rail: one horizontal snap-scroll row at a
+   fixed height, so trending/popular and "More like this" can never wrap into a
+   page-inflating grid. Each tile is fluid — ~42vw shows just over two across a
+   phone (a legible "scrolls sideways" affordance from the clipped edge tile),
+   capping at the 158px design width on larger screens — matching the stills shelf.
+   The scrollbar is hidden; the partial edge tile carries the affordance, and each
+   card link stays keyboard-reachable via Tab (which scrolls it into view). */
+.discover-rail__track {
+  display: flex;
+  gap: var(--space-3);
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+.discover-rail__track::-webkit-scrollbar {
+  display: none;
+}
+.discover-rail__track > .discover-card {
+  flex: none;
+  width: min(158px, 42vw);
+  scroll-snap-align: start;
+}
 .discover-results {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
 }
-/* "More like this" on Movie detail: the browse-rail idiom, set below the hero. */
+/* "More like this" on Movie detail: the bounded browse-rail idiom, set below the hero. */
 .related-rail {
   margin-top: var(--space-7);
-}
-/* The movie home's Discover zone: trending/popular rails set off below the user's
-   own Watchlist/Watched piles by a divider, so browse reads as a distinct region. */
-.movie-discover {
-  margin-top: var(--space-7);
-  padding-top: var(--space-6);
-  border-top: 1px solid var(--color-border);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-}
-.movie-discover__head {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: 1.25rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  color: var(--color-fg);
 }
 .discover-results__count {
   margin: 0;
