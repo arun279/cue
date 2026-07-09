@@ -12,6 +12,7 @@ import { resolveMovieUnmark, routeMovieUnmark } from "@ui/hooks/resolveUnmark";
 import { writeMovieEntry } from "@ui/hooks/useMovieLibrary";
 import { useOptimisticWrite } from "@ui/hooks/useOptimisticWrite";
 import { useHaptics } from "@ui/runtime/haptics";
+import type { SubmitOutcome } from "@ui/runtime/runtime";
 import { useRuntime } from "@ui/runtime/runtime";
 import { useCallback, useRef, useState } from "react";
 
@@ -67,6 +68,12 @@ export function useMovieActions(): MovieActions {
   // see an in-flight write). Set before the paced write, cleared once it lands
   // ("done"), is reversed, or hard-fails; kept while "deferred" (still un-landed).
   const pendingMark = useRef<MarkUndo | null>(null);
+  // Synchronous in-flight lock keyed by movie id, mirroring useMarkWatched: the
+  // optimistic `watched: true` patch only guards a re-tap AFTER it re-renders, so two
+  // activations on the same stale entry (a fast double-tap / Enter key-repeat) both fire
+  // a duplicate `POST /sync/history` and a second haptic. Checked-and-set before the
+  // patch drops the second in a synchronous burst; released when the write settles.
+  const inFlight = useRef<Set<number>>(new Set());
 
   const revalidate = useCallback(
     () => void queryClient.invalidateQueries({ queryKey: queryKeys.movieLibrary() }),
@@ -107,6 +114,10 @@ export function useMovieActions(): MovieActions {
 
   const markOn = useCallback(
     async (entry: MovieEntry) => {
+      // Second synchronous activation in the same burst — its optimistic tick hasn't
+      // re-rendered yet, so drop it before it can enqueue a duplicate play + second buzz.
+      if (inFlight.current.has(entry.movieId)) return;
+      inFlight.current.add(entry.movieId);
       const watchedAt = new Date().toISOString();
       const mark: MarkUndo = { title: entry.title, before: entry, watchedAt };
       // Claim the pending-mark slot synchronously and surface Undo at the point of
@@ -123,10 +134,17 @@ export function useMovieActions(): MovieActions {
         watchedAt,
         inversePatch: { kind: "movie", movieId: entry.movieId },
       });
-      const outcome = await submit([op], {
-        rollback: () => writeMovieEntry(queryClient, entry),
-        revalidate,
-      });
+      let outcome: SubmitOutcome;
+      try {
+        outcome = await submit([op], {
+          rollback: () => writeMovieEntry(queryClient, entry),
+          revalidate,
+        });
+      } finally {
+        // Settled (done | failed | deferred) or submit threw — release the lock either
+        // way so a deliberate later re-mark of the movie is never wedged behind it.
+        inFlight.current.delete(entry.movieId);
+      }
       // A concurrent unmark (or a newer mark) may have already consumed this slot —
       // only settle the outcome if it's still ours.
       if (pendingMark.current !== mark) return;
@@ -231,6 +249,7 @@ export function useMovieActions(): MovieActions {
     if (pending === null) return;
     setUndo(null);
     pendingMark.current = null;
+    inFlight.current.delete(pending.before.movieId);
     // The distinct take-back tick, once, with the optimistic reversal.
     haptics.markUndone();
     const outcome = await reverseSessionMark(pending);
@@ -241,7 +260,10 @@ export function useMovieActions(): MovieActions {
     markWatched,
     toggleWatchlist,
     undoMark,
-    dismissUndo: () => setUndo(null),
+    dismissUndo: () => {
+      if (undo !== null) inFlight.current.delete(undo.before.movieId);
+      setUndo(null);
+    },
     clearError: () => setError(null),
     notice,
     dismissNotice: () => setNotice(null),

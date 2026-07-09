@@ -116,6 +116,26 @@
   box-sizing: border-box;
 }
 
+/* ---- Native web-tells reset ("subtract the web tells") ----
+ * The loudest "this is a web page" signals fire in the first taps of every job — the grey
+ * tap flash, the long-press callout, iOS auto text-inflation, a poster that lifts as a drag
+ * ghost. Kill them once at the root so the PWA and the Capacitor shell both read as an app.
+ * Two constraints: readable TEXT stays selectable (titles remain copyable — this targets
+ * chrome + images, never body copy), and the tap-highlight removal is safe only because
+ * every interactive surface already carries its own :active/:focus-visible press feedback, so no control is left feeling dead. */
+:root {
+  text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+
+/* Poster / still artwork is chrome, not saveable content: never let it lift as a drag ghost. */
+img {
+  -webkit-user-drag: none;
+  user-drag: none;
+}
+
 body {
   margin: 0;
   min-height: 100dvh;
@@ -1258,7 +1278,6 @@ body {
   color: var(--color-accent-fg);
   cursor: pointer;
   appearance: none;
-  -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
   /* Only the press scales — the ring→check flip is a pure state swap that must land on
      the FIRST frame, so background / border are deliberately NOT transitioned. */
@@ -1331,7 +1350,6 @@ button.cue-mark:focus-visible {
   font: inherit;
   font-weight: 700;
   cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
 }
 .inline-undo__action:hover {
@@ -2693,7 +2711,6 @@ button.cue-mark:focus-visible {
    transition, so the flip lands on the FIRST frame (matches the row .cue-mark). */
 .watched-field {
   min-height: var(--tap-min);
-  -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
   transition: transform var(--dur-quick) var(--ease-standard);
 }
