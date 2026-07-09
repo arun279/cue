@@ -205,14 +205,20 @@ function RemoveActionSheet({
 function RowContent({
   title,
   meta,
+  footer,
 }: {
   readonly title: string;
   readonly meta: ReactNode;
+  /** An optional quiet third line under the meta (the cluster's "Logged together"
+   * caption) — kept out of the trailing edge so the title + episode range own the
+   * full row width and wrap instead of being crushed at ~320px (Rams #4). */
+  readonly footer?: ReactNode;
 }): ReactElement {
   return (
     <span className="card__body">
       <span className="card__title">{title}</span>
       <span className="diary-card__meta">{meta}</span>
+      {footer}
     </span>
   );
 }
@@ -289,15 +295,18 @@ function HistoryCluster({
                 className="diary-cluster__trigger"
                 data-testid="history-cluster-trigger"
               >
-                <RowContent title={head.title} meta={clusterSummary(group.entries)} />
-                <span className="diary-cluster__aside">
-                  {group.loggedTogether && (
-                    <span className="diary-card__together" data-testid="history-logged-together">
-                      Logged together
-                    </span>
-                  )}
-                  <ChevronIcon className="diary-cluster__chevron" />
-                </span>
+                <RowContent
+                  title={head.title}
+                  meta={clusterSummary(group.entries)}
+                  footer={
+                    group.loggedTogether && (
+                      <span className="diary-card__together" data-testid="history-logged-together">
+                        Logged together
+                      </span>
+                    )
+                  }
+                />
+                <ChevronIcon className="diary-cluster__chevron" />
               </Accordion.Trigger>
             </Accordion.Header>
           </div>
