@@ -85,3 +85,29 @@ export async function resolveMovieUnmark(
   const play = plays[0] as MoviePlay;
   return { kind: "remove", historyId: play.historyId, watchedAt: play.watchedAt };
 }
+
+/** Which path a movie unmark must take: reverse the exact op of a play added this
+ * session, or read the movie's live plays and act on the resolution. */
+export type MovieUnmarkRoute = "reverse-session-mark" | "resolve-live-plays";
+
+/**
+ * Guard the fast mark→unmark race. A play added THIS session whose mark op may
+ * still be queued cannot be resolved by reading live plays: the in-flight add is
+ * not on the server yet, so a live read returns zero and the unmark would report
+ * "none" — un-ticking the movie while the queued mark later lands and flips it back
+ * to watched. When a pending session mark exists FOR THIS MOVIE, reverse the exact
+ * op instead (it coalesces against the queued mark). A pending mark for a DIFFERENT
+ * movie must not be reversed, and with no pending mark the live-plays read is safe.
+ *
+ * `pendingMarkMovieId` is the per-mount ref's movie id (or `null` when unset). It
+ * survives only the component MOUNT: a mark deferred offline then a navigate-away
+ * loses it, so a later unmark reads live plays (0) and routes to "none" — a
+ * non-destructive but wrong flip-back once the durable queue flushes the mark. See
+ * TODO(cross-unmount-deferred-mark) at the call site.
+ */
+export function routeMovieUnmark(
+  pendingMarkMovieId: number | null,
+  movieId: number,
+): MovieUnmarkRoute {
+  return pendingMarkMovieId === movieId ? "reverse-session-mark" : "resolve-live-plays";
+}

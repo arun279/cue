@@ -8,7 +8,7 @@ import {
   buildUnmarkMovieOp,
 } from "@domain/write-queue/ops";
 import { useQueryClient } from "@tanstack/react-query";
-import { resolveMovieUnmark } from "@ui/hooks/resolveUnmark";
+import { resolveMovieUnmark, routeMovieUnmark } from "@ui/hooks/resolveUnmark";
 import { writeMovieEntry } from "@ui/hooks/useMovieLibrary";
 import { useOptimisticWrite } from "@ui/hooks/useOptimisticWrite";
 import { useRuntime } from "@ui/runtime/runtime";
@@ -76,6 +76,11 @@ export function useMovieActions(): MovieActions {
   // or landing behind it if it has. Because the mark ran from an unwatched entry
   // (zero prior plays), removing by item can't wipe a pre-existing rewatch. Shared by
   // the inline Undo and the fast unmark of a not-yet-settled mark.
+  // TODO(stale-multi-device-cache): this safety rests on `mark.before` being a
+  // truthful unwatched entry. A stale cross-device cache could show watched=false
+  // while another device has since added a real play; the remove-by-item inverse
+  // would then wipe that play. Inherited/bounded today (the mark only fires from an
+  // apparently-unwatched entry), but surface it if the cache-freshness model changes.
   const reverseSessionMark = useCallback(
     (mark: MarkUndo) => {
       writeMovieEntry(queryClient, mark.before);
@@ -138,8 +143,16 @@ export function useMovieActions(): MovieActions {
     async (entry: MovieEntry) => {
       // A prior mark's inline Undo is stale once we unmark — drop it.
       setUndo(null);
+      // TODO(cross-unmount-deferred-mark): `pendingMark` is a per-MOUNT ref, but a
+      // deferred (offline) mark lives in the DURABLE queue, which outlives the mount.
+      // Mark offline → navigate away (ref lost) → return → unmark reads live plays=0
+      // → "none" → un-ticks; the queue later flushes the mark and the movie flips back
+      // to watched. Non-destructive (no history loss) but wrong UX. A clean fix routes
+      // through the durable queue (consult a pending un-landed mark by itemKey), not
+      // only this ref — deferred as out of scope for broader safety hardening.
       const pending = pendingMark.current;
-      if (pending !== null && pending.before.movieId === entry.movieId) {
+      const route = routeMovieUnmark(pending?.before.movieId ?? null, entry.movieId);
+      if (route === "reverse-session-mark" && pending !== null) {
         // The play was added this session and may not have landed — reverse the exact
         // op (coalesces against the queued mark) rather than reading live plays, which
         // could return 0 for an in-flight mark and silently retain the play.

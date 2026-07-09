@@ -1,4 +1,8 @@
-import { assembleEpisodePlays, assembleHistoryEntries } from "@data/trakt/history";
+import {
+  assembleEpisodePlays,
+  assembleHistoryEntries,
+  assembleMoviePlays,
+} from "@data/trakt/history";
 import type { HistoryItem } from "@data/trakt/schemas";
 import { describe, expect, it } from "vitest";
 
@@ -90,5 +94,34 @@ describe("assembleEpisodePlays (scoped-history resolver)", () => {
       episodeItem,
     ]);
     expect(plays.map((p) => p.historyId)).toEqual([100]);
+  });
+});
+
+describe("assembleMoviePlays (scoped-history resolver)", () => {
+  it("keeps each movie play's exact history id + watched_at for per-play removal", () => {
+    const plays = assembleMoviePlays([movieItem]);
+    // A single play resolves to one exact history id — the handle resolveMovieUnmark
+    // removes by, never an item-scoped wipe.
+    expect(plays).toEqual([{ historyId: 101, watchedAt: WATCHED_AT }]);
+  });
+
+  it("keeps every play of a rewatch (two+ plays) so the rewatch guard can refuse the wipe", () => {
+    const plays = assembleMoviePlays([
+      movieItem,
+      { ...movieItem, id: 201, watched_at: "2026-01-01T00:00:00.000Z" }, // a second play
+    ]);
+    expect(plays).toEqual([
+      { historyId: 101, watchedAt: WATCHED_AT },
+      { historyId: 201, watchedAt: "2026-01-01T00:00:00.000Z" },
+    ]);
+  });
+
+  it("drops episode and malformed rows — only movie plays are kept", () => {
+    const plays = assembleMoviePlays([
+      episodeItem,
+      { id: 202, watched_at: WATCHED_AT, type: "movie" }, // no movie payload
+      movieItem,
+    ]);
+    expect(plays.map((p) => p.historyId)).toEqual([101]);
   });
 });
