@@ -145,7 +145,7 @@ describe("cold-sync GET budget", () => {
   // Trakt's authed rate limit is 1000 GET / 5 min / user. The bounded read must
   // stay FAR under it at every realistic library size — and, unlike the old
   // ~2-GET-per-show fan-out, must not scale with the library. This is the numeric
-  // gate: an asserted request count, not prose.
+  // gate this asserts: an asserted request count, not prose.
   const TRAKT_AUTHED_5MIN_BUDGET = 1000;
   // A generous ceiling for the whole cold-sync burst that still leaves ~9× of
   // Trakt's window free for the freshness poll, per-card art, the movie library

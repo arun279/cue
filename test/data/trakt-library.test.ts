@@ -157,7 +157,7 @@ describe("assembleLibrary", () => {
     // breakdown carries the season/episode tree. `completed` is the real watched count
     // (specials excluded), but `aired` is unknown — so `progressKnown` is false and the
     // show must NOT be asserted complete (completed === aired = caught-up). A genuinely
-    // mid-watch tail show would otherwise be mislabeled caught-up and dropped (bug).
+    // mid-watch tail show would otherwise be mislabeled caught-up and dropped.
     const entries = assembleLibrary({
       watchedShows: [watchedShow({ trakt: 12, seasons: { 0: 2, 1: 8, 2: 6 } })],
       progress: new Map(),

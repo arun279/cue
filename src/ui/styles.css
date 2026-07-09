@@ -7,7 +7,7 @@
  * watched-check, never hairlines or body text. The @theme values are the dark
  * defaults; [data-theme] blocks override per theme. main.tsx stamps data-theme
  * before first paint, so the [data-theme] selectors always drive. WCAG-verified
- * contrast pairs are chosen for AA contrast
+ * contrast pairs are chosen for AA contrast.
  */
 @theme {
   --color-bg: #0e0c0a; /* warm near-black canvas */
@@ -3340,8 +3340,8 @@ button.cue-mark:focus-visible {
   background: var(--color-elevated);
   border-color: color-mix(in srgb, var(--color-accent) 40%, var(--color-border));
 }
-/* Glyph in an amber-tinted well: signals "navigation into", not a content card
-  . Amber-washes on hover in step with the chevron. */
+/* Glyph in an amber-tinted well: signals "navigation into", not a content card.
+   Amber-washes on hover in step with the chevron. */
 .profile-hub__icon {
   display: grid;
   place-items: center;
@@ -3656,8 +3656,7 @@ button.cue-mark:focus-visible {
 }
 
 /* Mobile: stack the sync pill under the title so they stop competing on one row
-  , and tighten the stat cards so the triad stops feeling over-boxed
-  . */
+   and tighten the stat cards so the triad stops feeling over-boxed. */
 @media (max-width: 599px) {
   .screen__head--stack {
     flex-direction: column;

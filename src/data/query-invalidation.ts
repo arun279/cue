@@ -16,7 +16,7 @@ export type InvalidationKey = readonly unknown[];
  * Deliberately absent: `showHeader`/`showSeasons`/`episode` and the calendar.
  * Those carry Trakt content (airdates, newly-announced episodes) that doesn't
  * always bump user activity, so they refresh on a time-based content staleTime
- * rather than being gated on this diff (amendments a + b).
+ * rather than being gated on this diff.
  */
 function keysForTarget(target: InvalidationTarget): readonly InvalidationKey[] {
   switch (target) {

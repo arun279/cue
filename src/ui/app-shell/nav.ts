@@ -1,6 +1,6 @@
 /**
- * The primary bottom-nav / sidebar destinations — a 1:1 map of Cue's four jobs
- *: record+next, review+reverse, manage library, discover.
+ * The primary bottom-nav / sidebar destinations — a 1:1 map of Cue's four jobs:
+ * record+next, review+reverse, manage library, discover.
  * Calendar is deliberately NOT here — it demoted from a top slot to an "Upcoming"
  * view one tap inside Up Next. Profile + Settings left the bar too, onto a
  * header avatar. The flag only ever prunes the set; it never appends.

@@ -2,7 +2,7 @@ import { Preferences } from "@capacitor/preferences";
 import { del, get, set } from "idb-keyval";
 
 /**
- * One string key-value abstraction with two interchangeable backends
+ * One string key-value abstraction with two interchangeable backends.
  * Web persists to IndexedDB (idb-keyval) so a large cache
  * never blocks the main thread; native persists to Capacitor Preferences, the
  * one store the OS will not evict. Values round-trip byte-identical.

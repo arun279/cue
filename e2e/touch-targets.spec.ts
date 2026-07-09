@@ -15,7 +15,7 @@ import {
 
 /** The Cue touch-target floor (`--tap-min`): WCAG 2.5.5 / Apple HIG 44pt. */
 const TAP_MIN = 44;
-/** A common small phone. Matches a common phone viewport. */
+/** A common small phone — the primary audit viewport. */
 const PHONE = { width: 390, height: 844 } as const;
 const AIRED = "2026-01-01T00:00:00.000Z";
 

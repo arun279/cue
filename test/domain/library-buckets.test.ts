@@ -149,7 +149,7 @@ describe("groupLibrary", () => {
 
   it("buckets a progress-unknown (beyond-budget) show into its own Still-syncing pile, never Caught up", () => {
     // A mid-watch tail show whose progress the cold-sync budget skipped: aired is
-    // unknown, so it must NOT be fabricated into the caught-up pile (the bug).
+    // unknown, so it must NOT be fabricated into the caught-up pile.
     const pending = makeShow({
       showId: 99,
       title: "Pending",

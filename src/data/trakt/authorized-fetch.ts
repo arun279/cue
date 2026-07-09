@@ -40,7 +40,7 @@ export interface AuthorizedFetch {
 type RefreshOutcome = "refreshed" | "throttled" | "cleared" | "failed";
 
 /**
- * The one authenticated-request wrapper the runtime Trakt transport runs on
+ * The one authenticated-request wrapper the runtime Trakt transport runs on.
  * It (a) refreshes proactively before a call when the token
  * is past expiry, (b) refreshes-then-retries a read that still 401s, (c)
  * persists a rotated token before publishing it, (d) ends the session only on a

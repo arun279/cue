@@ -68,7 +68,7 @@ test("single-medium: a query matching only the hidden medium explains the filter
 }) => {
   // TV-only user searching a title that exists only as a movie: the movie hit is
   // filtered out, but the empty state must name the hidden results + the fix rather
-  // than read as a broken search (honest, settings-aware copy).
+  // than read as a broken search — honest, settings-aware copy.
   await seedMediaVisibility(page.context(), { showsEnabled: true, moviesEnabled: false });
   await installSearchRoutes(page.context(), (query) =>
     query.toLowerCase() === "dune" ? [DUNE] : [],
