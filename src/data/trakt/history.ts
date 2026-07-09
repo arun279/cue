@@ -1,5 +1,5 @@
 import type { HistoryEntry } from "@domain/history";
-import type { EpisodePlay } from "@domain/reversal";
+import type { EpisodePlay, MoviePlay } from "@domain/reversal";
 import { toMovieIds } from "./movie-library";
 import type { HistoryItem } from "./schemas";
 import { toEpisodeIds } from "./show-detail";
@@ -66,6 +66,21 @@ export function assembleEpisodePlays(items: readonly HistoryItem[]): EpisodePlay
       number: item.episode.number,
       watchedAt: item.watched_at,
     });
+  }
+  return plays;
+}
+
+/**
+ * Flatten a movie's scoped-history rows (`/sync/history/movies/:id`) into
+ * `MoviePlay[]` for the durable per-play unmark. Only movie plays are
+ * kept (malformed rows dropped); each carries just the per-play history id + its
+ * `watched_at`, which is all a per-play removal and its restore need.
+ */
+export function assembleMoviePlays(items: readonly HistoryItem[]): MoviePlay[] {
+  const plays: MoviePlay[] = [];
+  for (const item of items) {
+    if (item.type !== "movie" || item.movie === undefined) continue;
+    plays.push({ historyId: item.id, watchedAt: item.watched_at });
   }
   return plays;
 }

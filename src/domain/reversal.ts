@@ -26,6 +26,18 @@ export interface EpisodePlay {
   readonly watchedAt: string;
 }
 
+/**
+ * One resolved watch-history play of a movie. `historyId` is Trakt's per-play
+ * event id — the handle that removes THIS play and nothing else. A movie with two
+ * entries here has been watched twice (a rewatch), so a blunt item-scoped unmark
+ * would wipe history the user never asked to lose; the resolver refuses it and
+ * routes to the Diary, exactly as the episode path does.
+ */
+export interface MoviePlay {
+  readonly historyId: number;
+  readonly watchedAt: string;
+}
+
 /** The per-episode data a removed play needs to be re-added by the Undo. */
 interface UnmarkRestore {
   readonly trakt: number;

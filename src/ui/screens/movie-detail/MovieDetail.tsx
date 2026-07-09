@@ -1,6 +1,6 @@
 import { resolvePoster } from "@data/image-source";
 import type { MovieEntry, MovieHeader } from "@data/trakt/movie-library";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { CheckIcon } from "@ui/components/CheckIcon";
 import { DetailBack } from "@ui/components/DetailBack";
 import { DetailHeroSkeleton } from "@ui/components/DetailHeroSkeleton";
@@ -173,6 +173,7 @@ function MovieDetailContent({ movieId }: { readonly movieId: number }): ReactEle
   const rate = useRate("movies");
   const related = useMovieRelated(movieId);
   const watchlistAdd = useWatchlistAdd({ movies: true });
+  const navigate = useNavigate();
   const header = detail.header;
   useDocumentTitle(header !== undefined ? `${header.title} · Cue` : "Movie · Cue");
 
@@ -247,6 +248,18 @@ function MovieDetailContent({ movieId }: { readonly movieId: number }): ReactEle
           autoDismissMs={UNDO_MS}
           onAction={() => void actions.undoMark()}
           onDismiss={actions.dismissUndo}
+        />
+      )}
+      {actions.undoable === null && actions.notice !== null && (
+        <Snackbar
+          testId="movie-notice"
+          message={actions.notice}
+          actionLabel="Open history"
+          onAction={() => {
+            actions.dismissNotice();
+            void navigate({ to: "/history", search: { type: "movies" } });
+          }}
+          onDismiss={actions.dismissNotice}
         />
       )}
       {actions.error !== null && (

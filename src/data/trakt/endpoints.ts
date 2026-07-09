@@ -276,7 +276,7 @@ export async function getHistory(
  */
 export async function getItemPlays(
   client: TraktClient,
-  kind: "shows" | "episodes",
+  kind: "shows" | "episodes" | "movies",
   id: number | string,
 ): Promise<TraktResult<HistoryItem[]>> {
   return parse(

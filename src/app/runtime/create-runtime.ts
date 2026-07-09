@@ -29,7 +29,11 @@ import {
   searchTrakt,
 } from "@data/trakt/endpoints";
 import { assembleEpisodeDetail } from "@data/trakt/episode-detail";
-import { assembleEpisodePlays, assembleHistoryEntries } from "@data/trakt/history";
+import {
+  assembleEpisodePlays,
+  assembleHistoryEntries,
+  assembleMoviePlays,
+} from "@data/trakt/history";
 import { markLanded, type ShowArt, showIdSet } from "@data/trakt/library";
 import { assembleMovieHeader, assembleMovieLibrary } from "@data/trakt/movie-library";
 import { loadUpNextEntries, withReadRateRetry } from "@data/trakt/read-budget";
@@ -345,6 +349,12 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       const result = await withReadRateRetry(() => getItemPlays(client, "episodes", episodeId));
       if (!result.ok) throw new Error("Failed to load episode history");
       return assembleEpisodePlays(result.data);
+    },
+
+    async loadMoviePlays(movieId) {
+      const result = await withReadRateRetry(() => getItemPlays(client, "movies", movieId));
+      if (!result.ok) throw new Error("Failed to load movie history");
+      return assembleMoviePlays(result.data);
     },
 
     async search(query) {

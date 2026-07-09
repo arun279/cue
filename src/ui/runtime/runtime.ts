@@ -8,7 +8,7 @@ import type { SearchHit } from "@data/trakt/search";
 import type { SeasonView, ShowHeader } from "@data/trakt/show-detail";
 import type { CalendarEntry } from "@domain/calendar";
 import type { HistoryEntry, HistoryRange } from "@domain/history";
-import type { EpisodePlay } from "@domain/reversal";
+import type { EpisodePlay, MoviePlay } from "@domain/reversal";
 import type { QueuedOp } from "@domain/write-queue/types";
 import { createContext, useContext } from "react";
 
@@ -145,6 +145,10 @@ export interface CueRuntime {
   /** Every play of one episode, from `/sync/history/episodes/:id` — the
    * resolver behind a per-play-safe single-episode uncheck. */
   loadEpisodePlays(episodeId: number): Promise<readonly EpisodePlay[]>;
+  /** Every play of one movie, from `/sync/history/movies/:id` — the
+   * resolver behind a per-play-safe movie unmark: a single play reverses by its
+   * exact history id, a rewatch is refused and routed to the Diary (never wiped). */
+  loadMoviePlays(movieId: number): Promise<readonly MoviePlay[]>;
   /** Debounced show+movie search: one `/search/show,movie` per settled query, title-ranked. */
   search(query: string): Promise<readonly SearchHit[]>;
   /** Browse rails for empty-query Discover: trending + popular shows with poster art. */
