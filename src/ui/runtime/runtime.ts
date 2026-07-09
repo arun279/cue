@@ -1,7 +1,7 @@
 import type { TmdbImageConfig } from "@data/image-source";
 import type { InvalidationKey } from "@data/query-invalidation";
 import type { EpisodeDetail } from "@data/trakt/episode-detail";
-import type { LibraryEntry } from "@data/trakt/library";
+import type { LibraryEntry, ShowArt } from "@data/trakt/library";
 import type { MovieEntry, MovieHeader } from "@data/trakt/movie-library";
 import type { UserStats } from "@data/trakt/schemas";
 import type { SearchHit } from "@data/trakt/search";
@@ -19,6 +19,13 @@ export type RatingMap = Readonly<Record<number, number>>;
 export interface UpNextData {
   readonly entries: readonly LibraryEntry[];
   readonly tmdbConfig: TmdbImageConfig | null;
+  /**
+   * True when the watched library exceeds the cold-sync progress budget
+   * so entries beyond the most-recently-watched head carry a
+   * caught-up baseline rather than fetched progress. The sync pill surfaces this as
+   * an honest "recent shows synced" state instead of implying full completeness.
+   */
+  readonly isPartial: boolean;
 }
 
 /** The read side of the My Shows movie library: watched + watchlist movies + the image config. */
@@ -96,6 +103,12 @@ export interface ActivitiesReconcile {
  */
 export interface CueRuntime {
   loadUpNext(): Promise<UpNextData>;
+  /**
+   * Deferred per-card show art (poster/backdrop/network/genres) from `/shows/:id`.
+   * The cold-sync read omits art to stay within the GET budget; a visible show row
+   * lazily fetches its own via this, cached by trakt id.
+   */
+  loadShowArt(showId: number): Promise<ShowArt>;
   /** The My Shows movie library: watched movies + watchlist movies as poster shelves. */
   loadMovieLibrary(): Promise<MovieLibraryData>;
   /** Movie detail hero from `/movies/:id?extended=full,images` (title, year, overview, art). */

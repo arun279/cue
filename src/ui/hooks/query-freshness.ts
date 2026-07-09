@@ -33,7 +33,7 @@ export const DISCOVER_STALE_TIME_MS = 5 * 60 * 1000;
  * slice); `syncedAt` is the query's last successful update, which the pill renders
  * as the "· <time ago>" recency.
  */
-interface QueryStatus {
+export interface QueryStatus {
   readonly isLoading: boolean;
   readonly isFetching: boolean;
   readonly isError: boolean;

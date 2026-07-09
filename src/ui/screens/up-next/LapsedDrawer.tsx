@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { ChevronIcon } from "@ui/components/ChevronIcon";
 import { MarkWatchedButton } from "@ui/components/MarkWatchedButton";
 import { episodeCode, relativeDays } from "@ui/format";
+import { useShowArt } from "@ui/hooks/useShowArt";
 import type { UpNextCard as UpNextCardModel } from "@ui/hooks/useUpNext";
 import { Accordion } from "radix-ui";
 import type { ReactElement } from "react";
@@ -35,6 +36,12 @@ function LapsedRow({
   const code = episodeCode(item.episode.season, item.episode.number);
   const lastWatched = relativeDays(entry.lastWatchedAt, Date.now());
   const showParams = { showId: String(entry.showId) };
+  // Art is deferred out of the cold-sync budget: a lapsed row lazily
+  // fetches its own poster, and only when the drawer is expanded — Radix unmounts
+  // collapsed content, so a closed drawer fires no per-row art reads. Falls back to
+  // any inline list poster until it resolves.
+  const artPosters = useShowArt(entry.showId);
+  const posters = artPosters.length > 0 ? artPosters : entry.posters;
 
   return (
     <article className="lapsed-row" data-testid="lapsed-row" data-show-id={entry.showId}>
@@ -46,12 +53,7 @@ function LapsedRow({
         aria-label={entry.title}
       >
         <span className="poster-wrap poster-wrap--sm">
-          <Poster
-            title={entry.title}
-            posters={entry.posters}
-            tmdbConfig={tmdbConfig}
-            variant="queue"
-          />
+          <Poster title={entry.title} posters={posters} tmdbConfig={tmdbConfig} variant="queue" />
         </span>
       </Link>
       <div className="card__body">

@@ -106,6 +106,10 @@ export function assembleLibrary(input: LibraryInput): LibraryEntry[] {
     seen.add(trakt);
     const progress = input.progress.get(trakt);
     const next = progress?.next_episode ?? null;
+    // No fetched progress → fall back to the bulk watched-episode count as a
+    // caught-up baseline (completed === aired, no next), never zero — zero would
+    // misfile a watched-but-idle show as never-started.
+    const baseline = watchedEpisodeCount(watched);
     entries.push({
       showId: trakt,
       title: show.title,
@@ -113,8 +117,8 @@ export function assembleLibrary(input: LibraryInput): LibraryEntry[] {
       hidden: input.hiddenShowIds.has(trakt),
       inWatchlist: watchlistShowIds.has(trakt),
       lastWatchedAt: watched.last_watched_at ?? null,
-      aired: progress?.aired ?? 0,
-      completed: progress?.completed ?? 0,
+      aired: progress?.aired ?? baseline,
+      completed: progress?.completed ?? baseline,
       nextEpisode: next === null ? null : toEpisodeRef(next),
       ...artFields(input.details, trakt, show.images?.poster),
       tmdbId: show.ids.tmdb ?? null,
@@ -143,6 +147,23 @@ export function assembleLibrary(input: LibraryInput): LibraryEntry[] {
     });
   }
   return entries;
+}
+
+/**
+ * Watched-episode count from the bulk `/sync/watched/shows` breakdown, specials
+ * (season 0) excluded to match progress semantics. This is the caught-up baseline
+ * for a show whose per-show progress the bounded cold-sync fan-out
+ * did not fetch: `completed` without a second GET. `aired` is then pinned to it and
+ * `next_episode` left null, so an un-fetched watched show reads as caught-up rather
+ * than falsely as never-started — honest for the idle tail of a large library.
+ */
+function watchedEpisodeCount(watched: WatchedShow): number {
+  let count = 0;
+  for (const season of watched.seasons ?? []) {
+    if (season.number === 0) continue;
+    count += season.episodes.length;
+  }
+  return count;
 }
 
 /** Extract the set of Trakt show ids from a hidden / watchlist list (movies ignored). */

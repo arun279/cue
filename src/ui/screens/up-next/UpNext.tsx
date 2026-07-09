@@ -125,7 +125,9 @@ export function UpNext(): ReactElement {
         <SyncStatusPill
           testId="sync-status"
           isFetching={view.isFetching}
+          isLoading={view.isLoading}
           isError={view.isError}
+          isPartial={view.isPartial}
           count={view.cards.length + view.lapsedCards.length}
           syncedAt={view.syncedAt}
         />
@@ -187,8 +189,12 @@ export function UpNext(): ReactElement {
         <EmptyState
           testId="empty-all-caught-up"
           art={emptyAllCaughtUp}
-          title="You're all caught up"
-          body="No aired episodes are waiting. New episodes will appear here as they air."
+          title={view.isPartial ? "Caught up on recent shows" : "You're all caught up"}
+          body={
+            view.isPartial
+              ? "No recent shows are waiting. Older shows are still syncing — any with episodes to watch will appear here."
+              : "No aired episodes are waiting. New episodes will appear here as they air."
+          }
         />
       )}
 

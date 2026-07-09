@@ -31,6 +31,10 @@ export const queryKeys = {
   movieHeader: (movieId: number) => ["movie", "header", movieId] as const,
   /** "More like this" related movies for one movie's detail rail. */
   movieRelated: (movieId: number) => ["movie", "related", movieId] as const,
+  /** Deferred per-card show art (poster/backdrop), fetched lazily as a row renders
+   * cached by trakt id so a card paints its poster without the
+   * cold-sync read fanning `/shows/:id` out across the whole library up front. */
+  showArt: (showId: number) => ["show", "art", showId] as const,
   showHeader: (showId: number) => ["show", "header", showId] as const,
   showSeasons: (showId: number) => ["show", "seasons", showId] as const,
   episode: (showId: number, season: number, number: number) =>

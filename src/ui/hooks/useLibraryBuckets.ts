@@ -1,7 +1,7 @@
 import type { LibraryEntry } from "@data/trakt/library";
 import { groupLibrary, type LibrarySort } from "@domain/library-buckets";
 import type { WatchStatus } from "@domain/watch-status";
-import { queryStatus } from "@ui/hooks/query-freshness";
+import { type QueryStatus, queryStatus } from "@ui/hooks/query-freshness";
 import { useLibrarySnapshot } from "@ui/hooks/useLibrarySnapshot";
 import type { UpNextData } from "@ui/runtime/runtime";
 import { useMemo } from "react";
@@ -11,19 +11,16 @@ interface LibraryBucketView {
   readonly entries: readonly LibraryEntry[];
 }
 
-export interface LibraryBucketsView {
+export interface LibraryBucketsView extends QueryStatus {
   readonly buckets: readonly LibraryBucketView[];
   /** Non-hidden tracked shows — the count that decides an empty library (aligned with Up Next). */
   readonly trackedCount: number;
   /** Every tracked show, hidden included — 0 only when the library is truly empty. */
   readonly totalCount: number;
   readonly tmdbConfig: UpNextData["tmdbConfig"];
-  readonly isLoading: boolean;
-  readonly isFetching: boolean;
-  readonly isError: boolean;
-  readonly hasData: boolean;
-  /** Epoch ms of the last successful sync — the pill's "· <time ago>" recency. */
-  readonly syncedAt: number;
+  /** The library exceeds the cold-sync progress budget, so only recent shows are
+   * fully synced — the pill's honest "recent shows synced" state. */
+  readonly isPartial: boolean;
   refetch(): void;
 }
 
@@ -53,6 +50,7 @@ export function useLibraryBuckets(sort: LibrarySort, enabled = true): LibraryBuc
     trackedCount: data === undefined ? 0 : data.entries.filter((entry) => !entry.hidden).length,
     totalCount: data?.entries.length ?? 0,
     tmdbConfig: data?.tmdbConfig ?? null,
+    isPartial: data?.isPartial ?? false,
     ...queryStatus(query, data !== undefined),
     refetch: () => void query.refetch(),
   };

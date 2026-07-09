@@ -454,6 +454,22 @@ function isWatched(s: ShowFixture): boolean {
   return s.completed > 0 || s.lastWatchedAt !== null;
 }
 
+/** The bulk watched breakdown Trakt returns on `/sync/watched/shows`: only WATCHED
+ * episodes (index < completed), grouped by season. It is the caught-up baseline a
+ * show beyond the cold-sync progress budget reads instead of a
+ * per-show progress GET, so large-library fixtures bucket correctly without it. */
+function watchedSeasons(show: ShowFixture): unknown[] {
+  const bySeason = new Map<number, number[]>();
+  show.episodes.forEach((ep, index) => {
+    if (index >= show.completed) return;
+    bySeason.set(ep.season, [...(bySeason.get(ep.season) ?? []), ep.number]);
+  });
+  return [...bySeason.entries()].map(([number, numbers]) => ({
+    number,
+    episodes: numbers.map((n) => ({ number: n })),
+  }));
+}
+
 function watchedShowsBody(shows: readonly ShowFixture[]): string {
   return JSON.stringify(
     shows.filter(isWatched).map((s) => ({
@@ -464,6 +480,7 @@ function watchedShowsBody(shows: readonly ShowFixture[]): string {
         ids: { trakt: s.trakt, ...(s.tmdb === undefined ? {} : { tmdb: s.tmdb }) },
         ...(s.posters === undefined ? {} : { images: { poster: s.posters } }),
       },
+      seasons: watchedSeasons(s),
     })),
   );
 }

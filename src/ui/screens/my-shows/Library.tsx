@@ -470,7 +470,9 @@ export function Library(): ReactElement {
         <SyncStatusPill
           testId="my-shows-status"
           isFetching={active.isFetching}
+          isLoading={active.isLoading}
           isError={active.isError}
+          isPartial={!isMovies && view.isPartial}
           syncedAt={active.syncedAt}
         />
       </header>

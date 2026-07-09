@@ -2,6 +2,7 @@ import type { TmdbImageConfig } from "@data/image-source";
 import { Link } from "@tanstack/react-router";
 import { MarkWatchedButton } from "@ui/components/MarkWatchedButton";
 import { episodeCode, relativeDays, watchedPercent } from "@ui/format";
+import { useShowArt } from "@ui/hooks/useShowArt";
 import type { UpNextCard as UpNextCardModel } from "@ui/hooks/useUpNext";
 import type { ReactElement } from "react";
 import { Poster } from "./Poster";
@@ -37,6 +38,10 @@ export function UpNextCard({
   const lastWatched = relativeDays(entry.lastWatchedAt, Date.now());
   const showParams = { showId: String(entry.showId) };
   const isLead = variant === "lead";
+  // Art is deferred out of the cold-sync budget: this visible card lazily fetches
+  // its own poster, falling back to any inline list poster until it resolves.
+  const artPosters = useShowArt(entry.showId);
+  const posters = artPosters.length > 0 ? artPosters : entry.posters;
 
   return (
     <article
@@ -52,12 +57,7 @@ export function UpNextCard({
         aria-label={entry.title}
       >
         <span className={isLead ? "poster-wrap" : "poster-wrap poster-wrap--sm"}>
-          <Poster
-            title={entry.title}
-            posters={entry.posters}
-            tmdbConfig={tmdbConfig}
-            variant="queue"
-          />
+          <Poster title={entry.title} posters={posters} tmdbConfig={tmdbConfig} variant="queue" />
           <span className="poster__bar" aria-hidden="true">
             <i style={{ width: `${percent}%` }} />
           </span>

@@ -6,7 +6,7 @@ import { invalidationKeys } from "@data/query-invalidation";
 import { TmdbClient } from "@data/tmdb/client";
 import { createAuthorizedFetch } from "@data/trakt/authorized-fetch";
 import { assembleCalendarEntries } from "@data/trakt/calendar";
-import { TraktClient, type TraktResult } from "@data/trakt/client";
+import { TraktClient } from "@data/trakt/client";
 import {
   getEpisode,
   getHidden,
@@ -25,16 +25,16 @@ import {
   getTrendingShows,
   getUserStats,
   getWatchedMovies,
-  getWatchedShows,
   getWatchlist,
   searchTrakt,
 } from "@data/trakt/endpoints";
 import { assembleEpisodeDetail } from "@data/trakt/episode-detail";
 import { assembleEpisodePlays, assembleHistoryEntries } from "@data/trakt/history";
-import { assembleLibrary, markLanded, type ShowArt, showIdSet } from "@data/trakt/library";
+import { markLanded, type ShowArt, showIdSet } from "@data/trakt/library";
 import { assembleMovieHeader, assembleMovieLibrary } from "@data/trakt/movie-library";
+import { loadUpNextEntries, withReadRateRetry } from "@data/trakt/read-budget";
 import { createLastActivitiesRepository } from "@data/trakt/repositories";
-import type { Progress, UserStats } from "@data/trakt/schemas";
+import type { UserStats } from "@data/trakt/schemas";
 import {
   assembleMovieHits,
   assembleSearchHits,
@@ -66,53 +66,6 @@ import type {
 const OP_LOG_KEY = "cue.write-queue";
 /** The persisted `/sync/last_activities` baseline the freshness gate diffs against. */
 const ACTIVITIES_KEY = "cue.last-activities";
-
-/**
- * Read fan-out concurrency cap. Each in-flight show issues its progress + detail
- * GET in parallel, so capping at 6 shows holds concurrent GETs at ≤12 — the top
- * of the sync analysis's recommended 8–12 window — a >40× cut from the uncapped
- * 2N burst a 250-show library would otherwise fire, which is what tripped Trakt's
- * 1000-GET/5min ceiling into a 429.
- */
-const READ_CONCURRENCY = 6;
-/**
- * Bounded 429 retries per read before it surfaces. A transient rate-limit mid
- * fan-out is absorbed (honoring Retry-After) instead of failing the whole load
- * into Offline; after the budget the failure surfaces so cached data + the retry
- * banner take over rather than spinning forever.
- */
-const MAX_READ_RATE_RETRIES = 3;
-const DEFAULT_RATE_BACKOFF_MS = 1000;
-
-/** Run `fn` over `items` with at most `limit` in flight, preserving order. */
-async function mapWithConcurrency<T, R>(
-  items: readonly T[],
-  limit: number,
-  fn: (item: T) => Promise<R>,
-): Promise<R[]> {
-  const results = new Array<R>(items.length);
-  let cursor = 0;
-  const worker = async (): Promise<void> => {
-    while (cursor < items.length) {
-      const index = cursor;
-      cursor += 1;
-      results[index] = await fn(items[index] as T);
-    }
-  };
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
-  return results;
-}
-
-/** Retry a read only on a 429, honoring `Retry-After`, within a bounded budget. */
-async function withReadRateRetry<T>(read: () => Promise<TraktResult<T>>): Promise<TraktResult<T>> {
-  for (let attempt = 0; ; attempt += 1) {
-    const result = await read();
-    if (result.ok || result.error.kind !== "rate-limited" || attempt >= MAX_READ_RATE_RETRIES) {
-      return result;
-    }
-    await sleep(result.error.retryAfterMs ?? DEFAULT_RATE_BACKOFF_MS);
-  }
-}
 
 /**
  * The op's `inversePatch` read as a reconcile anchor: a `mark`/bulk write pivots
@@ -225,59 +178,30 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
 
   return {
     async loadUpNext(): Promise<UpNextData> {
-      // Every gating read absorbs a transient 429 (Retry-After) within a bounded
-      // budget so one rate-limit — on this list read or the per-show fan-out or
-      // the hidden/watchlist reads below — no longer throws the whole load to
-      // Offline; the persisted cache keeps showing while the retry rides it out.
-      const watched = await withReadRateRetry(() => getWatchedShows(client));
-      if (!watched.ok) throw new Error("Failed to load watched shows");
+      // The bounded cold-sync read: the paginated watched list +
+      // per-show progress for the most-recently-watched head only (the idle tail is
+      // the caught-up baseline from the bulk breakdown) + hidden + watchlist. No
+      // per-show art fan-out — poster/backdrop are deferred to a lazy per-visible-card
+      // read (`loadShowArt`), so the GET count stays bounded instead of ~2× library
+      // size. `partial` marks a library larger than the budget so the pill can say so.
+      const { entries, partial } = await loadUpNextEntries(client);
+      return { entries, tmdbConfig, isPartial: partial };
+    },
 
-      // Per show: strict progress (a failure must fail the whole read so React
-      // Query keeps the prior cached queue + retry banner instead of erasing a
-      // known show as "all caught up") plus best-effort show-detail art — the
-      // `/sync/watched/shows` list carries no `images`, so the real poster,
-      // backdrop, network and genres come from `/shows/:id`. Art that can't load
-      // simply degrades to the text fallback; it never fails the queue. The
-      // fan-out is concurrency-capped and each read absorbs a transient 429
-      // (Retry-After) so one rate-limit no longer fails the whole Promise.all.
-      const perShow = await mapWithConcurrency(watched.data, READ_CONCURRENCY, async (show) => {
-        const id = show.show.ids.trakt;
-        const [progress, detail] = await Promise.all([
-          withReadRateRetry(() => getShowProgress(client, id)),
-          withReadRateRetry(() => getShow(client, id)),
-        ]);
-        if (!progress.ok) throw new Error("Failed to load show progress");
-        return { id, progress: progress.data, detail: detail.ok ? detail.data : null };
-      });
-
-      const progress = new Map<number, Progress>(perShow.map((s) => [s.id, s.progress]));
-      const details = new Map<number, ShowArt>();
-      for (const s of perShow) {
-        if (s.detail === null) continue;
-        details.set(s.id, {
-          posters: s.detail.images?.poster ?? [],
-          backdrops: s.detail.images?.fanart ?? [],
-          network: s.detail.network ?? null,
-          genres: s.detail.genres ?? [],
-          runtime: s.detail.runtime ?? null,
-        });
-      }
-
-      const [hidden, watchlist] = await Promise.all([
-        withReadRateRetry(() => getHidden(client)),
-        withReadRateRetry(() => getWatchlist(client, "shows")),
-      ]);
-      if (!hidden.ok) throw new Error("Failed to load hidden shows");
-      if (!watchlist.ok) throw new Error("Failed to load watchlist");
-
-      const entries = assembleLibrary({
-        watchedShows: watched.data,
-        progress,
-        hiddenShowIds: showIdSet(hidden.data),
-        watchlistShows: watchlist.data,
-        details,
-      });
-      return { entries, tmdbConfig };
+    async loadShowArt(showId): Promise<ShowArt> {
+      // Deferred per-card art: the `/sync/watched/shows` list carries no `images`,
+      // so a visible show row lazily reads its poster/backdrop/network/genres from
+      // `/shows/:id` as it renders — one GET per visible card, cached by trakt id,
+      // never the whole library up front.
+      const show = await getShow(client, showId);
+      if (!show.ok) throw new Error("Failed to load show art");
+      return {
+        posters: show.data.images?.poster ?? [],
+        backdrops: show.data.images?.fanart ?? [],
+        network: show.data.network ?? null,
+        genres: show.data.genres ?? [],
+        runtime: show.data.runtime ?? null,
+      };
     },
 
     async loadMovieLibrary(): Promise<MovieLibraryData> {

@@ -55,6 +55,13 @@ const watchedShowSchema = z.object({
   last_watched_at: z.string().nullish(),
   plays: z.number().optional(),
   show: showSchema,
+  // The bulk `/sync/watched/shows` breakdown lists only WATCHED episodes per
+  // season (Trakt returns it by default). It is the caught-up baseline for a show
+  // whose per-show progress the bounded cold-sync fan-out did not
+  // fetch — the watched-episode count without a second GET.
+  seasons: z
+    .array(z.object({ number: z.number(), episodes: z.array(z.object({ number: z.number() })) }))
+    .optional(),
 });
 export const watchedShowsSchema = z.array(watchedShowSchema);
 

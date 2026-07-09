@@ -34,6 +34,8 @@ function watchedShow(overrides: {
   lastWatchedAt?: string | null;
   posters?: string[];
   tmdb?: number;
+  /** Watched-episode counts per season number (the bulk `/sync/watched/shows` breakdown). */
+  seasons?: Record<number, number>;
 }): WatchedShow {
   return {
     last_watched_at: overrides.lastWatchedAt ?? "2026-07-01T00:00:00.000Z",
@@ -43,6 +45,14 @@ function watchedShow(overrides: {
       ids: { trakt: overrides.trakt, tmdb: overrides.tmdb },
       images: overrides.posters ? { poster: overrides.posters } : undefined,
     },
+    ...(overrides.seasons === undefined
+      ? {}
+      : {
+          seasons: Object.entries(overrides.seasons).map(([number, count]) => ({
+            number: Number(number),
+            episodes: Array.from({ length: count }, (_, i) => ({ number: i + 1 })),
+          })),
+        }),
   };
 }
 
@@ -135,6 +145,19 @@ describe("assembleLibrary", () => {
       tmdbId: null,
       status: "returning series",
     });
+  });
+
+  it("baselines an un-fetched watched show to its watched-episode count as caught-up", () => {
+    // Beyond the cold-sync progress budget: no progress entry, but the bulk watched
+    // breakdown carries the season/episode tree — so completed === aired (caught up,
+    // no next), NOT zero (which would misfile it as never-started). Specials excluded.
+    const entries = assembleLibrary({
+      watchedShows: [watchedShow({ trakt: 12, seasons: { 0: 2, 1: 8, 2: 6 } })],
+      progress: new Map(),
+      hiddenShowIds: new Set(),
+      watchlistShows: [],
+    });
+    expect(entries[0]).toMatchObject({ completed: 14, aired: 14, nextEpisode: null });
   });
 
   it("maps a next episode carrying only a trakt id (optional ids omitted)", () => {

@@ -1,7 +1,7 @@
 import type { LibraryEntry } from "@data/trakt/library";
 import { groupUpNext, type UpNextItem } from "@domain/up-next";
 import { DEFAULT_NEW_EPISODE_WINDOW_MS } from "@domain/watch-status";
-import { queryStatus } from "@ui/hooks/query-freshness";
+import { type QueryStatus, queryStatus } from "@ui/hooks/query-freshness";
 import { useLibrarySnapshot } from "@ui/hooks/useLibrarySnapshot";
 import type { UpNextData } from "@ui/runtime/runtime";
 import { useMemo } from "react";
@@ -20,7 +20,7 @@ export interface UpNextCard {
   readonly entry: LibraryEntry;
 }
 
-export interface UpNextView {
+export interface UpNextView extends QueryStatus {
   /** New ⧺ Continue in render order — the flat active queue (drives the Up Next count). */
   readonly cards: readonly UpNextCard[];
   /** This week's freshly-aired next episodes ("New"). */
@@ -36,13 +36,9 @@ export interface UpNextView {
   /** Non-hidden shows with watch progress — 0 means nothing has been started yet. */
   readonly startedCount: number;
   readonly tmdbConfig: UpNextData["tmdbConfig"];
-  readonly isLoading: boolean;
-  readonly isFetching: boolean;
-  readonly isError: boolean;
-  /** Cached data is showing despite a failed refetch — the cached-retry affordance state. */
-  readonly hasData: boolean;
-  /** Epoch ms of the last successful library sync (drives the pill's recency). */
-  readonly syncedAt: number;
+  /** The library exceeds the cold-sync progress budget, so only recent shows are
+   * fully synced — the pill's honest "recent shows synced" state. */
+  readonly isPartial: boolean;
   refetch(): void;
 }
 
@@ -100,6 +96,7 @@ export function useUpNext(): UpNextView {
     trackedCount: counts.trackedCount,
     startedCount: counts.startedCount,
     tmdbConfig: data?.tmdbConfig ?? null,
+    isPartial: data?.isPartial ?? false,
     ...queryStatus(query, data !== undefined),
     refetch: () => void query.refetch(),
   };

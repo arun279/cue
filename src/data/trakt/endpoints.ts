@@ -48,12 +48,14 @@ const ART: readonly ["full", "images"] = ["full", "images"];
 const IMAGES: readonly ["images"] = ["images"];
 
 /**
- * Explicit page size for the now-paginated `/sync/watched/*` endpoints (Trakt
- * change #775, live 2026-06-30): the server default is 100 items/page. Pinning it
- * documents intent and keeps the page count stable against a future default
- * change rather than relying on Trakt's implicit default.
+ * Explicit page size for the paginated list reads the bounded cold-sync GET budget
+ * walks: `/sync/watched/*` (paginated since Trakt change #775, live
+ * 2026-06-30), the hidden set, and the watchlist. Pinning 100/page — versus Trakt's
+ * smaller implicit default — bounds each list to `ceil(size/100)` GETs, so a heavy
+ * account's hidden/watchlist can't quietly balloon the cold-sync burst past the
+ * budget. Endpoints Trakt returns unpaginated ignore it and resolve as one page.
  */
-const WATCHED_PAGE_LIMIT = 100;
+const LIST_PAGE_LIMIT = 100;
 
 /** Validate the ok payload (throws on malformed); pass transport failures through. */
 function parse<T>(result: TraktResult<unknown>, schema: z.ZodType<T>): TraktResult<T> {
@@ -66,7 +68,7 @@ export async function getWatchedShows(client: TraktClient): Promise<TraktResult<
   // inline, so the compact default is the honest payload — each show's real art
   // comes from `/shows/:id` in the library fan-out.
   return parse(
-    await client.getAllPages("/sync/watched/shows", { limit: WATCHED_PAGE_LIMIT }),
+    await client.getAllPages("/sync/watched/shows", { limit: LIST_PAGE_LIMIT }),
     watchedShowsSchema,
   );
 }
@@ -78,7 +80,7 @@ export async function getWatchedMovies(client: TraktClient): Promise<TraktResult
   return parse(
     await client.getAllPages("/sync/watched/movies", {
       extended: IMAGES,
-      limit: WATCHED_PAGE_LIMIT,
+      limit: LIST_PAGE_LIMIT,
     }),
     watchedMoviesSchema,
   );
@@ -136,7 +138,7 @@ export async function getWatchlist(
   type: "shows" | "movies",
 ): Promise<TraktResult<WatchlistItem[]>> {
   return parse(
-    await client.getAllPages(`/sync/watchlist/${type}`, { extended: ART }),
+    await client.getAllPages(`/sync/watchlist/${type}`, { extended: ART, limit: LIST_PAGE_LIMIT }),
     watchlistSchema,
   );
 }
@@ -225,7 +227,10 @@ export async function getUserStats(client: TraktClient): Promise<TraktResult<Use
 }
 
 export async function getHidden(client: TraktClient): Promise<TraktResult<HiddenItem[]>> {
-  return parse(await client.getAllPages("/users/hidden/progress_watched"), hiddenSchema);
+  return parse(
+    await client.getAllPages("/users/hidden/progress_watched", { limit: LIST_PAGE_LIMIT }),
+    hiddenSchema,
+  );
 }
 
 export async function getLastActivities(client: TraktClient): Promise<TraktResult<LastActivities>> {

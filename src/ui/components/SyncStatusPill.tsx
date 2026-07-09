@@ -5,6 +5,13 @@ interface SyncStatusPillProps {
   readonly testId: string;
   readonly isFetching: boolean;
   readonly isError: boolean;
+  /** First-ever load with no cached snapshot yet — the initial library fan-out is
+   * in flight, so the pill says so ("Syncing your library…") rather than a bare busy. */
+  readonly isLoading?: boolean;
+  /** The library is larger than the cold-sync progress budget, so
+   * only the most-recently-watched shows are fully synced. The pill says so rather
+   * than resting on "Synced · <when>" and implying the whole library is complete. */
+  readonly isPartial?: boolean;
   /** Optional live item count exposed as `data-count` (Up Next queue size). */
   readonly count?: number;
   /** Epoch ms of the last successful sync; renders "Synced · 2m ago" recency. */
@@ -30,29 +37,41 @@ function relativeSince(then: number): string {
  * (navigation no longer refetches), and the write-side flush signal is OR'd in so
  * "Syncing…" also covers a pending durable write — a plain page change with
  * nothing to sync rests truthfully on "Synced · <when>".
+ *
+ * Two honesty states beyond busy/offline/synced: the first cold fan-out reads
+ * "Syncing your library…" (not a bare "Synced · just now" while a large account is
+ * still materializing), and a library past the cold-sync progress budget rests on
+ * "Recent shows synced" rather than implying every show is complete.
  */
 export function SyncStatusPill({
   testId,
   isFetching,
   isError,
+  isLoading = false,
+  isPartial = false,
   count,
   syncedAt,
 }: SyncStatusPillProps): ReactElement {
   const isWriting = useSyncActivity((state) => state.pending > 0);
   const busy = isFetching || isWriting;
   const label = busy
-    ? "Syncing…"
+    ? isLoading
+      ? "Syncing your library…"
+      : "Syncing…"
     : isError
       ? "Offline"
-      : syncedAt !== undefined && syncedAt > 0
-        ? `Synced · ${relativeSince(syncedAt)}`
-        : "Synced";
+      : isPartial
+        ? "Recent shows synced"
+        : syncedAt !== undefined && syncedAt > 0
+          ? `Synced · ${relativeSince(syncedAt)}`
+          : "Synced";
   return (
     <p
       className="status-pill"
       role="status"
       data-testid={testId}
       data-state={busy ? "syncing" : isError ? "offline" : "synced"}
+      {...(isPartial && !busy && !isError ? { "data-partial": "true" } : {})}
       {...(count === undefined ? {} : { "data-count": count })}
     >
       {label}
