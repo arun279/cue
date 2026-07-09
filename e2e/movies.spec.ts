@@ -284,9 +284,9 @@ test("marks a movie watched with the movies[] history body and undoes it", async
   await page.goto("/movie/200"); // the watchlist-only (unwatched) movie
 
   const toggle = page.getByTestId("movie-watched-toggle");
-  await expect(toggle).not.toBeChecked();
+  await expect(toggle).toHaveAttribute("data-on", "false");
   await toggle.click();
-  await expect(toggle).toBeChecked(); // optimistic
+  await expect(toggle).toHaveAttribute("data-on", "true"); // optimistic
 
   await expect.poll(() => controls.historyPosts().length).toBe(1);
   const posted = controls.historyPosts()[0];

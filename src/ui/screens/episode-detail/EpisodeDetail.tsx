@@ -3,12 +3,12 @@ import type { EpisodeDetail as EpisodeDetailModel, EpisodeNav } from "@data/trak
 import type { ShowHeader } from "@data/trakt/show-detail";
 import { Link } from "@tanstack/react-router";
 import { artGradient } from "@ui/components/artGradient";
-import { CheckIcon } from "@ui/components/CheckIcon";
 import { DetailBack } from "@ui/components/DetailBack";
 import { DetailHeroSkeleton } from "@ui/components/DetailHeroSkeleton";
 import { ErrorRetry, ErrorToast } from "@ui/components/ErrorStates";
 import { RatingControl } from "@ui/components/RatingControl";
 import { Snackbar } from "@ui/components/Snackbar";
+import { WatchedField } from "@ui/components/WatchedField";
 import { episodeCode, formatAirDate, formatWatchedDate } from "@ui/format";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { useEpisode } from "@ui/hooks/useEpisode";
@@ -70,6 +70,7 @@ function EpisodeHero({
     : episode.aired
       ? "Mark watched"
       : "Not aired yet";
+  const markAria = episode.watched ? `Mark ${code} unwatched` : `Mark ${code} watched`;
   const showParams = { showId: String(episode.showId) };
 
   return (
@@ -144,27 +145,16 @@ function EpisodeHero({
 
       <div className="show-hero__controls episode-hero__controls">
         <div className="episode-status">
-          <label
-            className="watched-toggle"
-            data-on={episode.watched}
-            data-disabled={!episode.aired}
-          >
-            <input
-              type="checkbox"
-              checked={episode.watched}
-              disabled={!episode.aired}
-              onChange={() => void watchedToggle.toggle(episode)}
-              data-testid="episode-watched-toggle"
-              aria-label={`Mark ${code} watched`}
-            />
-            <CheckIcon />
-            <span>{watchedLabel}</span>
-          </label>
-          {episode.watched && watchedDate !== null && (
-            <span className="episode-status__date" data-testid="episode-watched-date">
-              Watched {watchedDate}
-            </span>
-          )}
+          <WatchedField
+            watched={episode.watched}
+            label={watchedLabel}
+            ariaLabel={markAria}
+            disabled={!episode.aired}
+            watchedDate={watchedDate}
+            testId="episode-watched-toggle"
+            dateTestId="episode-watched-date"
+            onToggle={() => void watchedToggle.toggle(episode)}
+          />
         </div>
 
         <div className="show-hero__rating">

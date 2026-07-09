@@ -19,12 +19,12 @@ interface UpNextCardProps {
 /**
  * One Up Next row: poster + title route to the Show page, the
  * amber episode code + name route to the Episode page, a quiet "last watched N days
- * ago" line, and one shared "Mark watched" ACTION that marks in place. The lead
- * card carries a "Next up" eyebrow so the biggest card reads as what-to-watch-next
- * (not what-you-just-watched), and on the lead the action drops to its own full-width
- * row so a long title stays legible at 390px. The mark button locks while an
- * optimistic advance awaits its authoritative refetch so a provisional episode is
- * never re-marked.
+ * ago" line, and the shared Cue mark (icon-only amber ring) on the trailing edge. The
+ * lead card reads as what-to-watch-next purely through its poster + "Next up" eyebrow
+ * — NEVER through a differently-styled mark; the ring is identical here and in every
+ * queue row. Freed of a text label, the title reclaims that width and may wrap to two
+ * lines. The mark locks while an optimistic advance awaits its authoritative refetch
+ * so a provisional episode is never re-marked.
  */
 export function UpNextCard({
   card,
@@ -96,7 +96,6 @@ export function UpNextCard({
 
       <MarkWatchedButton
         testId="mark-watched"
-        label="Mark watched"
         ariaLabel={`Mark ${entry.title} ${code} watched`}
         busy={entry.pendingAdvance}
         onMark={onMark}

@@ -152,7 +152,12 @@ function ShowHero({
 
         <div className="show-hero__actions">
           {canMarkNext && (
-            <button type="button" className="button" data-testid="mark-next" onClick={onMarkNext}>
+            <button
+              type="button"
+              className="button button--block"
+              data-testid="mark-next"
+              onClick={onMarkNext}
+            >
               <MarkIcon />
               Mark next watched
             </button>

@@ -1,56 +1,66 @@
 import type { ReactElement } from "react";
-import { MarkIcon } from "./MarkIcon";
+import { CheckIcon } from "./CheckIcon";
 
 interface MarkWatchedButtonProps {
-  /** Visible action wording, e.g. "Mark watched" — an ACTION to take, never the
-   * past-tense "Watched" that reads as a completed state on an unwatched card. */
-  readonly label: string;
-  /** Full accessible name, e.g. "Mark The Bear S01E05 watched". */
+  /** Full accessible name for the ACTION, e.g. "Mark The Bear S01E05 watched". The
+   * control is icon-only, so this name is the only label a screen reader gets — it
+   * must be the complete action (WCAG 4.1.2). */
   readonly ariaLabel: string;
   readonly testId: string;
-  readonly className?: string;
+  /** Watched STATE — the ONLY thing that changes the look. Unwatched → an amber RING
+   * (your turn: tap to log). Watched → the same circle FILLED amber with a check
+   * (done). Never driven by the card / list / lead the control happens to sit in. */
+  readonly watched?: boolean;
+  /** State-aware accessible name for the done indicator, e.g. "Aired Today S01E02
+   * watched". Falls back to `ariaLabel` when omitted. Used only when `watched`. */
+  readonly watchedAriaLabel?: string;
   /** In-flight lock (e.g. Up Next's optimistic advance). Expressed with
-   * `aria-disabled`, not the native attribute, so the button keeps DOM focus while
-   * its write settles; the owning hook guards against a duplicate activation. */
+   * `aria-disabled`, not the native attribute, so the button keeps DOM focus while its
+   * write settles; the owning hook guards against a duplicate activation. */
   readonly busy?: boolean;
   onMark(): void;
 }
 
 /**
- * The one shared mark-watched control: a plus glyph + an
- * action label, used across Up Next and the Calendar so the same action never
- * appears as a gold ✓ pill on one screen and a bare icon on another. Styling rides
- * `card__mark`; callers add a modifier class for the lead / calendar variants.
+ * The Cue mark — the app's one shared mark-watched control, rendered IDENTICALLY on
+ * every list row (Up Next, the lapsed drawer, the calendar). Its look is a pure
+ * function of watched STATE, never of where it sits: unwatched is a 56px amber RING,
+ * watched is that circle FILLED amber with a check. There is no text label — the title
+ * reclaims that horizontal space and may wrap — so the accessible name carries the
+ * whole action, and there is deliberately NO variant / size / lead prop and no
+ * container-class hook. An action control is styled by WHAT IT DOES, never WHERE IT
+ * SITS. Reversal is not a re-tap here: an in-place done row is reversed durably from
+ * History; the point-of-action Undo (the owning hook's snackbar) covers an accidental tap.
  */
 export function MarkWatchedButton({
-  label,
   ariaLabel,
   testId,
-  className,
+  watched = false,
+  watchedAriaLabel,
   busy = false,
   onMark,
 }: MarkWatchedButtonProps): ReactElement {
-  // Split off the trailing word ("watched") into its own span so a phone can drop it
-  // for density — the button reads "Mark" there — while the full label stays on
-  // desktop and the accessible name (ariaLabel) is always the complete action.
-  const words = label.split(" ");
-  const suffix = words.length > 1 ? (words.pop() ?? null) : null;
-  const base = words.join(" ");
+  if (watched) {
+    return (
+      <span
+        className="cue-mark cue-mark--done"
+        data-testid={testId}
+        role="img"
+        aria-label={watchedAriaLabel ?? ariaLabel}
+      >
+        <CheckIcon />
+      </span>
+    );
+  }
   return (
     <button
       type="button"
-      className={className === undefined ? "card__mark" : `card__mark ${className}`}
+      className="cue-mark"
       data-testid={testId}
       aria-label={ariaLabel}
       aria-disabled={busy || undefined}
       aria-busy={busy || undefined}
       onClick={onMark}
-    >
-      <MarkIcon className="card__check" />
-      <span className="card__mark-text">
-        {base}
-        {suffix !== null && <span className="card__mark-suffix"> {suffix}</span>}
-      </span>
-    </button>
+    />
   );
 }

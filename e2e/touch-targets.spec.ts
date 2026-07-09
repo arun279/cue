@@ -288,10 +288,9 @@ test("Episode detail: the back link is a 44px target @390", async ({ page }) => 
 
   // Shares the `.detail-back` treatment as the show-detail back link.
   await expectTapTarget(page.getByTestId("episode-back"), "height");
-  // The episode watched toggle (mark/unmark). The whole labelled control is the
-  // target — measure the `.watched-toggle` label, not its inset input which sits
-  // inside the label's 1px border.
-  await expectTapTarget(page.locator(".watched-toggle"), "height");
+  // The episode Cue mark (mark/unmark): a full-width labelled button that is itself
+  // the target, so measure the `.watched-field` button directly.
+  await expectTapTarget(page.locator(".watched-field"), "height");
 
   // NOTE: `.episode-hero__show` (the "THE DETAIL SHOW" eyebrow link) is deliberately
   // NOT asserted at 44px. It is an inline link inside the running eyebrow sentence

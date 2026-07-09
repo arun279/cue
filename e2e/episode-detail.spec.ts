@@ -66,8 +66,8 @@ test("shows the still, title, code, air date, overview, and prev/next within the
   await expect(page.getByTestId("episode-detail-overview")).toContainText("deepens the mystery");
   await expect(page.getByTestId("episode-air-date")).toBeVisible();
   await expect(page.getByTestId("episode-still")).toBeVisible();
-  // A watched episode surfaces its watched date.
-  await expect(page.getByTestId("episode-watched-toggle")).toBeChecked();
+  // A watched episode: the Cue mark reads as done and surfaces its watched date.
+  await expect(page.getByTestId("episode-watched-toggle")).toHaveAttribute("data-on", "true");
   await expect(page.getByTestId("episode-watched-date")).toBeVisible();
 
   // Prev = S01E01, Next = S01E03.
@@ -82,9 +82,9 @@ test("toggling watched OFF removes the single play by its exact history id — n
   await page.goto("/show/1/episode/1/2");
 
   const toggle = page.getByTestId("episode-watched-toggle");
-  await expect(toggle).toBeChecked();
+  await expect(toggle).toHaveAttribute("data-on", "true");
   await toggle.click();
-  await expect(toggle).not.toBeChecked(); // optimistic
+  await expect(toggle).toHaveAttribute("data-on", "false"); // optimistic
 
   await expect.poll(() => controls.removePosts().length).toBe(1);
   const removed = controls.removePosts()[0];
@@ -103,12 +103,12 @@ test("unchecking a REWATCHED episode is refused — the extra play survives, per
   await page.goto("/show/1/episode/1/2");
 
   const toggle = page.getByTestId("episode-watched-toggle");
-  await expect(toggle).toBeChecked();
+  await expect(toggle).toHaveAttribute("data-on", "true");
   await toggle.click();
 
-  // The uncheck is refused: no destructive remove fires and the tick returns.
+  // The unmark is refused: no destructive remove fires and the done state returns.
   await expect(page.getByTestId("episode-watched-notice")).toContainText(/plays/i);
-  await expect(toggle).toBeChecked();
+  await expect(toggle).toHaveAttribute("data-on", "true");
   expect(controls.removePosts()).toHaveLength(0);
 });
 
@@ -119,9 +119,9 @@ test("toggling watched ON marks via POST /sync/history and shows the watched dat
   await page.goto("/show/1/episode/1/3"); // aired but unwatched
 
   const toggle = page.getByTestId("episode-watched-toggle");
-  await expect(toggle).not.toBeChecked();
+  await expect(toggle).toHaveAttribute("data-on", "false");
   await toggle.click();
-  await expect(toggle).toBeChecked();
+  await expect(toggle).toHaveAttribute("data-on", "true");
 
   await expect.poll(() => controls.historyPosts().length).toBe(1);
   expect(controls.historyPosts()[0]?.episodeIds).toContain(13);

@@ -100,9 +100,14 @@ test("Continue queue: excludes future next episodes and hidden shows; lapsed dro
   const lead = cards.first();
   await expect(lead).toContainText("Alpha");
   await expect(lead.getByTestId("episode-code")).toHaveText("S01E02");
-  // The mark control reads as an ACTION ("Mark watched"), never a done-state ✓ pill;
-  // and the lead carries a "Next up" eyebrow so it reads as what-to-watch-next.
-  await expect(lead.getByTestId("mark-watched")).toContainText("Mark watched");
+  // The Cue mark is the icon-only amber RING (an ACTION), never a "+"/"✓" pill: it has
+  // no visible text, so its accessible name carries the whole action and the title
+  // reclaims the width. The lead carries a "Next up" eyebrow so it reads as
+  // what-to-watch-next — its emphasis is chrome, not a differently-styled mark.
+  const leadMark = lead.getByTestId("mark-watched");
+  await expect(leadMark).toHaveAttribute("aria-label", /^Mark .+ S01E02 watched$/);
+  await expect(leadMark).toHaveText("");
+  await expect(leadMark).toHaveClass(/cue-mark/);
   await expect(lead).toContainText("Next up");
   await expect(page.getByRole("heading", { name: "NoImage" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Future" })).toHaveCount(0);
@@ -119,12 +124,12 @@ test("Continue queue: excludes future next episodes and hidden shows; lapsed dro
   await page.getByTestId("lapsed-heading").click();
   const lapsedRow = page.getByTestId("lapsed-row").filter({ hasText: "Lapsed Show" });
   await expect(lapsedRow).toHaveCount(1);
-  // The drawer offers in-place catch-up + Stop watching — no "Keep". Its mark reads as
-  // an ACTION (the shared "Mark watched" copy + plus glyph), never a done-state ✓ pill,
-  // matching the Up Next cards' honest affordance.
+  // The drawer offers in-place catch-up + Stop watching — no "Keep". Its mark is the
+  // same icon-only amber RING as every queue row (an ACTION, never a done ✓), its
+  // accessible name carrying the whole action.
   const lapsedMark = lapsedRow.getByTestId("lapsed-mark");
-  await expect(lapsedMark).toContainText("Mark watched");
-  await expect(lapsedMark.locator(".card__check")).toBeVisible();
+  await expect(lapsedMark).toHaveAttribute("aria-label", /^Mark Lapsed Show .+ watched$/);
+  await expect(lapsedMark).toHaveClass(/cue-mark/);
   await expect(lapsedRow.getByTestId("lapsed-stop")).toBeVisible();
   await expect(lapsedRow.getByTestId("lapsed-keep")).toHaveCount(0);
 });

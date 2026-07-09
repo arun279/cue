@@ -537,6 +537,11 @@ body {
   color: var(--color-bg);
   filter: none;
 }
+/* Full-width primary: on detail the mark is the page's main action, so it takes its
+   own full row, with secondary actions wrapping beneath it. */
+.button--block {
+  width: 100%;
+}
 
 /* ---- Onboarding + auth ---- */
 .onboarding {
@@ -1090,63 +1095,62 @@ body {
   white-space: nowrap;
 }
 
-/* The shared one-tap mark-watched ACTION: an outlined accent pill (a plus glyph +
-   "Mark watched" label), not a filled ✓ that would read as an already-done state. */
-.card__mark {
-  appearance: none;
-  border: 1.5px solid var(--color-accent);
-  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
-  color: var(--color-accent);
+/* The Cue mark — ONE control, styled by its STATE, never by its container. Unwatched
+   is a 56px amber RING (your turn: tap to log); watched is that circle FILLED amber
+   with a check (done). It renders IDENTICALLY in the lead card and every queue, lapsed,
+   and calendar row — the "Next up" emphasis lives only in the poster + eyebrow, never
+   here. There is deliberately no lead/size/variant selector below (and none in the
+   component): an action control is styled by WHAT IT DOES, never WHERE IT SITS. The
+   56px circle is a device-independent finger target (WCAG 2.5.5), not a layout width. */
+.cue-mark {
+  flex: none;
+  box-sizing: border-box;
+  inline-size: 56px;
+  block-size: 56px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: var(--space-2);
-  /* the shared mark ACTION always clears a 44px finger target. */
-  min-height: var(--tap-min);
-  padding: 10px var(--space-4);
-  border-radius: var(--radius-pill);
-  font-family: var(--font-ui);
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  flex: none;
-  transition:
-    background var(--dur-quick) var(--ease-standard),
-    border-color var(--dur-quick) var(--ease-standard),
-    color var(--dur-quick) var(--ease-standard),
-    transform var(--dur-quick) var(--ease-standard);
-}
-.card__mark:hover {
-  background: var(--color-accent);
-  border-color: var(--color-accent);
+  padding: 0;
+  border: 2px solid var(--color-accent);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
   color: var(--color-accent-fg);
+  cursor: pointer;
+  appearance: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  /* Only the press scales — the ring→check flip is a pure state swap that must land on
+     the FIRST frame, so background / border are deliberately NOT transitioned. */
+  transition: transform var(--dur-quick) var(--ease-standard);
 }
-.card__mark:active {
-  transform: scale(0.97);
+button.cue-mark:hover {
+  background: color-mix(in srgb, var(--color-accent) 22%, transparent);
 }
-/* The pending-advance lock is expressed with aria-disabled, not the native
-   attribute, so the button keeps DOM focus while its optimistic advance settles
-   (toggling native disabled on a focused button drops focus to <body>). */
-.card__mark[aria-disabled="true"] {
-  opacity: 0.5;
+button.cue-mark:active {
+  transform: scale(0.92);
+}
+button.cue-mark:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+/* The pending-advance lock is expressed with aria-disabled, not the native attribute,
+   so the button keeps DOM focus while its optimistic advance settles (toggling native
+   disabled on a focused button drops focus to <body>). */
+.cue-mark[aria-disabled="true"] {
+  opacity: 0.55;
   cursor: progress;
 }
-.card__check {
-  width: 1.15rem;
-  height: 1.15rem;
+/* Done: the ring fills amber and reveals the check. A committed status indicator, not
+   a re-tap toggle — its reversal lives durably in History (+ the point-of-action Undo).*/
+.cue-mark--done {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  cursor: default;
+}
+.cue-mark svg {
+  inline-size: 1.6rem;
+  block-size: 1.6rem;
   flex: none;
-}
-.card__mark-text {
-  white-space: nowrap;
-}
-/* Compact variant for the dense calendar row. */
-.card__mark--sm {
-  padding: 7px var(--space-3);
-  font-size: 0.82rem;
-}
-.card__mark--sm .card__check {
-  width: 1rem;
-  height: 1rem;
 }
 .card__meta {
   margin: 6px 0 0;
@@ -1178,35 +1182,17 @@ body {
   color: var(--color-ink2);
 }
 /* The first card of the honest sort is a calm "start here" marker, not a cinematic
-   hero: no poster/title bump and no accent border (which over-read as an editorial
-   recommendation of a merely most-recently-watched show). Its one distinction is the
-   FILLED amber action — but it stays INLINE and compact like every other card, never
-   a full-width CTA. A full-width action (the old lead + old phone layout) made every
-   card ~188px tall so only 3 cleared the 390px fold; keeping the action a trailing
-   pill roughly halves card height so ~5 episodes are visible. */
-.card--lead .card__mark {
-  background: var(--color-accent);
-  border-color: var(--color-accent);
-  color: var(--color-accent-fg);
-}
-.card--lead .card__mark:hover {
-  background: var(--color-accent-strong);
-  border-color: var(--color-accent-strong);
-}
-/* On a phone the full "Mark watched" label would crowd a queue title to a few
-   letters, so the trailing action compacts to the plus glyph + "Mark" (the "watched"
-   suffix drops) while the aria-label stays the full "Mark <title> <code> watched" —
-   still an honest ACTION, never a done-badge, and reversible via the Undo toast. The
-   ≥--space-4 flex gap keeps the action's 44px target clear of the body link.*/
-@media (max-width: 639px) {
-  .card--up-next .card__mark,
-  .lapsed-row__mark.card__mark {
-    padding-inline: var(--space-3);
-    font-size: 0.85rem;
-  }
-  .card__mark-suffix {
-    display: none;
-  }
+   hero: no accent border (which over-read as an editorial recommendation of a merely
+   most-recently-watched show). It carries the "Next up" eyebrow and nothing more — the
+   emphasis lives in card chrome, NEVER in the mark (the Cue mark is identical here and
+   in every queue row; see .cue-mark). Freed of a text label, the title reclaims the
+   width the old "+ Mark" pill stole and wraps up to two lines instead of truncating. */
+.card--up-next .card__title {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
 /* "Haven't watched in a while" drawer — reuses the pile chrome; each row is a quiet
@@ -1227,24 +1213,23 @@ body {
   align-items: center;
   gap: var(--space-3);
 }
+/* Freed of the mark's text label (now the icon-only Cue mark), the lapsed title
+   reclaims the width and wraps up to two lines instead of truncating. */
 .lapsed-row__title {
   margin: 0 0 4px;
   font-size: 1rem;
   font-weight: 600;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 .lapsed-row__actions {
   display: flex;
+  align-items: center;
   gap: var(--space-2);
   flex: none;
-}
-/* The catch-up mark keeps DOM focus through its optimistic advance (aria-disabled,
-   not the native attribute) — mirrors the Continue card's Watched lock. */
-.lapsed-row__mark[aria-disabled="true"] {
-  opacity: 0.6;
-  cursor: progress;
 }
 .lapsed-row__stop {
   color: var(--color-muted);
@@ -2440,71 +2425,49 @@ body {
 .episode-hero__controls {
   gap: var(--space-3);
 }
+/* On detail the Cue mark stacks as the page's primary action: a full-width labelled
+   button, with any secondary control (the movie watchlist) and the logged date beneath
+   it — never a control crushed onto the same row. */
 .episode-status {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
   gap: var(--space-3);
-  flex-wrap: wrap;
 }
 .episode-status__date {
   font-size: 0.85rem;
   color: var(--color-muted);
 }
-/* The watched toggle is a real checkbox (keyboard + AT). Unwatched it is a neutral
-   pill; once the play is recorded it takes the green "done" treatment (matching the
-   season status + completion ring), deliberately NOT the amber ACTION fill — so a
-   recorded watch is never mistaken for a "Mark watched" CTA.*/
-.watched-toggle {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
+/* The detail Cue mark (see WatchedField): the primary watched control, full-width and
+   labelled. Unwatched it is the high-emphasis amber ACTION (inherits .button); once the
+   play is recorded it flips IN PLACE to the green "done" language it shares with the
+   season status + completion ring — deliberately NOT an amber fill, so a recorded watch
+   is never mistaken for a live "Mark watched" CTA (amber stays reserved for action).
+   Only the press scales; the ring→check glyph is a pure state swap with NO color
+   transition, so the flip lands on the FIRST frame (matches the row .cue-mark). */
+.watched-field {
   min-height: var(--tap-min);
-  padding: 0 var(--space-4);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-1);
-  background: var(--color-surface);
-  color: var(--color-fg);
-  font-weight: 600;
-  font-size: 0.95rem;
-  cursor: pointer;
-  transition:
-    background var(--dur-quick) var(--ease-standard),
-    border-color var(--dur-quick) var(--ease-standard),
-    color var(--dur-quick) var(--ease-standard);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: transform var(--dur-quick) var(--ease-standard);
 }
-.watched-toggle[data-on="true"] {
-  background: color-mix(in srgb, var(--color-ok) 14%, transparent);
-  border-color: color-mix(in srgb, var(--color-ok) 45%, transparent);
+.watched-field:active {
+  transform: scale(0.99);
+}
+.watched-field[data-on="true"] {
+  background: color-mix(in srgb, var(--color-ok) 16%, transparent);
   color: var(--color-ok);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-ok) 45%, transparent);
 }
-.watched-toggle[data-disabled="true"] {
-  opacity: 0.55;
-  cursor: not-allowed;
+.watched-field[data-on="true"]:hover {
+  background: color-mix(in srgb, var(--color-ok) 24%, transparent);
 }
-.watched-toggle:not([data-disabled="true"]):hover {
-  border-color: var(--color-accent);
-}
-.watched-toggle[data-on="true"]:not([data-disabled="true"]):hover {
-  background: color-mix(in srgb, var(--color-ok) 22%, transparent);
-  border-color: var(--color-ok);
-}
-.watched-toggle:focus-within {
-  outline: 2px solid var(--color-focus);
-  outline-offset: 2px;
-}
-.watched-toggle input {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  margin: 0;
-  opacity: 0;
-  cursor: inherit;
-}
-.watched-toggle .button__icon {
-  width: 1.1rem;
-  height: 1.1rem;
+/* An episode that hasn't aired: inert and neutral, never a faded amber CTA. */
+.watched-field:disabled {
+  background: var(--color-surface);
+  color: var(--color-muted);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  opacity: 1;
 }
 
 /* Prev/next paddles sit directly under the hero: equal-width cards so

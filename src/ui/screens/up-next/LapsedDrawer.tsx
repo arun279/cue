@@ -19,8 +19,8 @@ interface LapsedDrawerProps {
 }
 
 /** One row in the drawer: the show (poster + title route to Show detail), the next
- * episode + how long it's been, and the two one-tap decisions "Mark watched" (a plus
- * glyph — the shared mark ACTION, never a done-state ✓) / Stop watching. */
+ * episode + how long it's been, and the two one-tap decisions — the shared Cue mark
+ * (icon-only amber ring, identical to every queue row) and Stop watching. */
 function LapsedRow({
   card,
   tmdbConfig,
@@ -67,10 +67,8 @@ function LapsedRow({
       </div>
       <div className="lapsed-row__actions">
         <MarkWatchedButton
-          label="Mark watched"
           ariaLabel={`Mark ${entry.title} ${code} watched`}
           testId="lapsed-mark"
-          className="card__mark--sm lapsed-row__mark"
           busy={entry.pendingAdvance}
           onMark={onMark}
         />

@@ -1,12 +1,12 @@
 import { resolvePoster } from "@data/image-source";
 import type { MovieEntry, MovieHeader } from "@data/trakt/movie-library";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { CheckIcon } from "@ui/components/CheckIcon";
 import { DetailBack } from "@ui/components/DetailBack";
 import { DetailHeroSkeleton } from "@ui/components/DetailHeroSkeleton";
 import { ErrorRetry, ErrorToast } from "@ui/components/ErrorStates";
 import { RatingControl } from "@ui/components/RatingControl";
 import { Snackbar } from "@ui/components/Snackbar";
+import { WatchedField } from "@ui/components/WatchedField";
 import { formatAirDate, formatWatchedDate, titleCase } from "@ui/format";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { useMovieActions } from "@ui/hooks/useMovieActions";
@@ -63,6 +63,9 @@ function MovieHero({
   const genres = header.genres.slice(0, 3);
   const watchedDate = formatWatchedDate(entry.watchedAt);
   const released = formatAirDate(header.released);
+  const markAria = entry.watched
+    ? `Mark ${header.title} unwatched`
+    : `Mark ${header.title} watched`;
 
   return (
     <section className="show-hero" data-testid="movie-hero">
@@ -116,22 +119,15 @@ function MovieHero({
 
       <div className="show-hero__controls">
         <div className="episode-status">
-          <label className="watched-toggle" data-on={entry.watched}>
-            <input
-              type="checkbox"
-              checked={entry.watched}
-              onChange={() => void actions.markWatched(entry)}
-              data-testid="movie-watched-toggle"
-              aria-label={`Mark ${header.title} watched`}
-            />
-            <CheckIcon />
-            <span>{entry.watched ? "Watched" : "Mark watched"}</span>
-          </label>
-          {entry.watched && watchedDate !== null && (
-            <span className="episode-status__date" data-testid="movie-watched-date">
-              Watched {watchedDate}
-            </span>
-          )}
+          <WatchedField
+            watched={entry.watched}
+            label={entry.watched ? "Watched" : "Mark watched"}
+            ariaLabel={markAria}
+            watchedDate={watchedDate}
+            testId="movie-watched-toggle"
+            dateTestId="movie-watched-date"
+            onToggle={() => void actions.markWatched(entry)}
+          />
           <button
             type="button"
             className="button button--ghost"
