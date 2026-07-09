@@ -27,7 +27,7 @@ test("shows the pre-query empty state and issues no request before typing", asyn
   await page.goto("/search");
 
   await expect(page.getByTestId("screen-search")).toBeVisible();
-  await expect(page.getByRole("heading", { level: 1, name: "Search" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Discover" })).toBeVisible();
   await expect(page.getByTestId("search-prequery")).toBeVisible();
   // Give any errant debounce a chance to fire, then assert nothing was requested.
   await page.waitForTimeout(600);

@@ -61,17 +61,20 @@ describe("initialMediaVisibility", () => {
 });
 
 describe("navFor", () => {
-  it("shows all three primary tabs while TV is enabled (default + TV-only)", () => {
+  it("maps the four jobs to four tabs while TV is enabled (default + TV-only)", () => {
     expect(navFor({ showsEnabled: true }).map((d) => d.path)).toEqual([
       "/",
-      "/calendar",
       "/library",
+      "/history",
+      "/search",
     ]);
   });
 
-  it("sheds the TV-centric Up Next + Calendar tabs for a movies-only app", () => {
-    const destinations = navFor({ showsEnabled: false });
-    expect(destinations).toHaveLength(1);
-    expect(destinations[0]?.path).toBe("/library");
+  it("sheds only the episodic Up Next for a movies-only app (Library/History/Discover stay)", () => {
+    expect(navFor({ showsEnabled: false }).map((d) => d.path)).toEqual([
+      "/library",
+      "/history",
+      "/search",
+    ]);
   });
 });

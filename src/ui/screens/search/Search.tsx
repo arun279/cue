@@ -143,7 +143,7 @@ function Browse({ view }: { view: SearchView }): ReactElement {
  * retry.
  */
 export function Search(): ReactElement {
-  useDocumentTitle("Search · Cue");
+  useDocumentTitle("Discover · Cue");
   const view = useSearch();
   const inputId = useId();
   const showsEnabled = usePrefs((s) => s.showsEnabled);
@@ -219,7 +219,7 @@ export function Search(): ReactElement {
   return (
     <section className="screen screen--discover" data-testid="screen-search">
       <header className="screen__head">
-        <h1 className="screen__title">Search</h1>
+        <h1 className="screen__title">Discover</h1>
       </header>
 
       <search className="discover-search">

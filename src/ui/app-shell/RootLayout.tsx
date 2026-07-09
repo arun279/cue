@@ -31,13 +31,20 @@ function Brand(): ReactElement {
   );
 }
 
-/** The Search affordance's accessible name, derived from the active media the same
- * way the Search screen labels its field — so a single-medium user never reads
- * "shows and movies" for a search that only spans their one medium. */
-function searchLabel(showsEnabled: boolean, moviesEnabled: boolean): string {
-  const noun =
-    showsEnabled && moviesEnabled ? "shows and movies" : showsEnabled ? "shows" : "movies";
-  return `Search ${noun}`;
+/**
+ * Re-tapping the already-active tab scrolls its surface back to the top — the
+ * bottom-nav contract users carry between apps. Long lists
+ * (History, Upcoming) own an inner scroll region, so the window alone would not
+ * move; reset any announced [data-scroll-region] too. `prefers-reduced-motion` is
+ * honored in JS (instant), since `scrollTo({behavior})` ignores the CSS clamp.
+ */
+function scrollActiveSurfaceToTop(): void {
+  const reduce = globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+  const behavior: ScrollBehavior = reduce ? "auto" : "smooth";
+  globalThis.scrollTo({ top: 0, behavior });
+  for (const region of document.querySelectorAll<HTMLElement>("[data-scroll-region]")) {
+    region.scrollTo({ top: 0, behavior });
+  }
 }
 
 function NavLinks(): ReactNode {
@@ -49,20 +56,14 @@ function NavLinks(): ReactNode {
       className="nav__link"
       activeProps={{ className: "nav__link nav__link--active", "aria-current": "page" }}
       activeOptions={{ exact: true }}
+      onClick={() => {
+        if (globalThis.location.pathname === destination.path) scrollActiveSurfaceToTop();
+      }}
     >
       <NavIcon icon={destination.icon} />
       <span className="nav__text">{destination.label}</span>
     </Link>
   ));
-}
-
-function SearchIcon(): ReactElement {
-  return (
-    <NavGlyph>
-      <circle cx="11" cy="11" r="7" />
-      <path d="m20 20-3.5-3.5" />
-    </NavGlyph>
-  );
 }
 
 function ProfileIcon(): ReactElement {
@@ -83,44 +84,23 @@ function SettingsIcon(): ReactElement {
   );
 }
 
-/** The header Search + Profile affordances — persistent, non-tab controls reachable
- * from every screen (Search moved off the bottom bar to a header search; Profile to
- * a corner/account control). Icon-only in the topbar cluster to stay quiet. */
-function TopbarActions(): ReactElement {
-  const showsEnabled = usePrefs((s) => s.showsEnabled);
-  const moviesEnabled = usePrefs((s) => s.moviesEnabled);
+/** The header avatar — the utility hub entry. Profile + Settings are not
+ * among the four jobs, so they left the tab bar; this small round affordance opens
+ * the Profile hub, from which Settings and the Trakt connection are one tap. */
+function Avatar(): ReactElement {
   return (
-    <div className="topbar__actions">
-      <Link
-        to="/search"
-        className="topbar__action"
-        aria-label={searchLabel(showsEnabled, moviesEnabled)}
-      >
-        <SearchIcon />
-      </Link>
-      <Link to="/profile" className="topbar__action" aria-label="Profile">
-        <ProfileIcon />
-      </Link>
-    </div>
+    <Link to="/profile" className="topbar__avatar" aria-label="Profile">
+      <ProfileIcon />
+    </Link>
   );
 }
 
-/** The same Search / Profile / Settings affordances as labelled rows in the sidebar
- * footer, where the wider desktop chrome has room for text beside the icons. */
+/** The utility affordances as labelled rows in the sidebar footer, where the wider
+ * desktop chrome has room for text beside the icons. Discover is a primary tab now,
+ * so the footer carries only Profile + Settings. */
 function SidebarFooter(): ReactElement {
-  const showsEnabled = usePrefs((s) => s.showsEnabled);
-  const moviesEnabled = usePrefs((s) => s.moviesEnabled);
   return (
     <div className="sidebar__footer">
-      <Link
-        to="/search"
-        className="nav__link"
-        aria-label={searchLabel(showsEnabled, moviesEnabled)}
-        activeProps={{ className: "nav__link nav__link--active", "aria-current": "page" }}
-      >
-        <SearchIcon />
-        <span className="nav__text">Search</span>
-      </Link>
       <Link
         to="/profile"
         className="nav__link"
@@ -163,7 +143,7 @@ export function RootLayout(): ReactElement {
       <div className="content">
         <header className="topbar">
           <Brand />
-          <TopbarActions />
+          <Avatar />
         </header>
         <main id="main" className="main" tabIndex={-1}>
           <ErrorBoundary>

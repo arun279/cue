@@ -25,14 +25,19 @@ test("each route sets a truthful, distinct document title", async ({ page }) => 
   await page.goto("/");
   await expect(page).toHaveTitle("Up Next · Cue");
 
-  await page.getByRole("link", { name: "Calendar", exact: true }).first().click();
-  await expect(page).toHaveTitle("Calendar · Cue");
-
   await page.getByRole("link", { name: "Library", exact: true }).first().click();
   await expect(page).toHaveTitle("Library · Cue");
 
-  await page.goto("/search");
-  await expect(page).toHaveTitle("Search · Cue");
+  await page.getByRole("link", { name: "History", exact: true }).first().click();
+  await expect(page).toHaveTitle("Watch history · Cue");
+
+  await page.getByRole("link", { name: "Discover", exact: true }).first().click();
+  await expect(page).toHaveTitle("Discover · Cue");
+
+  // Calendar demoted to an "Upcoming" view one tap inside Up Next (no longer a tab).
+  await page.goto("/");
+  await page.getByTestId("up-next-upcoming").click();
+  await expect(page).toHaveTitle("Upcoming · Cue");
 
   await page.goto("/profile");
   await expect(page).toHaveTitle("Profile · Cue");
@@ -58,29 +63,36 @@ test("the brand wordmark is a link home with an accessible name", async ({ page 
   await expect(page.getByTestId("screen-up-next")).toBeVisible();
 });
 
-test("exactly three tabs plus Search and Profile as non-tab affordances", async ({ page }) => {
+test("exactly four job tabs; Calendar folds into Up Next, Profile is a header avatar", async ({
+  page,
+}) => {
   await page.goto("/");
   const sidebar = page.locator(".sidebar");
 
   await expect(page.getByTestId("screen-up-next")).toBeVisible();
 
-  // Exactly three primary destinations — Search and Profile are NOT tabs.
-  await expect(sidebar.locator(".sidebar__links a")).toHaveCount(3);
+  // Exactly four primary destinations = the four jobs. Profile/Settings are NOT tabs.
+  await expect(sidebar.locator(".sidebar__links a")).toHaveCount(4);
 
   for (const [label, testId] of [
-    ["Calendar", "screen-calendar"],
     ["Library", "screen-library"],
+    ["History", "screen-history"],
+    ["Discover", "screen-search"],
     ["Up Next", "screen-up-next"],
   ] as const) {
     await sidebar.getByRole("link", { name: label, exact: true }).click();
     await expect(page.getByTestId(testId)).toBeVisible();
   }
 
-  // Search + Profile are reachable non-tab affordances that navigate to their routes.
-  await sidebar.getByRole("link", { name: "Search shows and movies" }).click();
-  await expect(page.getByTestId("screen-search")).toBeVisible();
-  await expect(page).toHaveURL(/\/search$/);
+  // Calendar is demoted: not a tab, reachable one tap from Up Next as "Upcoming".
+  await expect(sidebar.getByRole("link", { name: "Calendar", exact: true })).toHaveCount(0);
+  await page.getByTestId("up-next-upcoming").click();
+  await expect(page.getByTestId("screen-calendar")).toBeVisible();
+  await expect(page).toHaveURL(/\/calendar$/);
 
+  // Profile is a reachable non-tab utility hub (header avatar on mobile, footer row
+  // on desktop); Settings lives one tap inside it.
+  await page.goto("/");
   await sidebar.getByRole("link", { name: "Profile", exact: true }).click();
   await expect(page.getByTestId("screen-profile")).toBeVisible();
   await expect(page).toHaveURL(/\/profile$/);

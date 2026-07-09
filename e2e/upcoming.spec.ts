@@ -67,7 +67,7 @@ test("groups episodes by localized day with Today/Tomorrow labels", async ({ pag
   await page.goto("/calendar");
 
   await expect(page.getByTestId("screen-calendar")).toBeVisible();
-  await expect(page.getByRole("heading", { level: 1, name: "Calendar" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Upcoming" })).toBeVisible();
 
   const headings = page.getByTestId("calendar-day-heading");
   // Within the default 7-day window: Today + Tomorrow (Next Week is outside it).

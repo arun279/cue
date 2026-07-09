@@ -37,6 +37,7 @@ export function VirtualList<T>({
       ref={scrollRef}
       className={className}
       data-testid="virtual-list"
+      data-scroll-region
       style={{ overflowY: "auto" }}
     >
       <ul

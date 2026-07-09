@@ -114,13 +114,14 @@ test("Up Next @390 clears more of the fold — compact inline mark, not a full-w
   expect(cardBox.height).toBeLessThan(150);
 });
 
-test("header Search + Profile icons are 44×44 finger targets @390", async ({ page }) => {
+test("header avatar is a 44×44 finger target @390", async ({ page }) => {
   await installLibraryRoutes(page.context(), continueShows(1));
   await page.setViewportSize(PHONE);
   await page.goto("/");
 
   const topbar = page.locator(".topbar");
-  await expectTapTarget(topbar.getByRole("link", { name: /Search/ }));
+  // Search moved onto the Discover tab; the header now carries only the Profile
+  // avatar (utility hub) beside the brand — both real finger targets.
   await expectTapTarget(topbar.getByRole("link", { name: "Profile" }));
   // The brand-home link keeps its compact wordmark but a full-height tap target.
   await expectTapTarget(topbar.getByRole("link", { name: "Cue home" }), "height");

@@ -244,8 +244,10 @@ test("a mark from the Calendar refreshes this show's detail progress — and it 
     .getByTestId("episode-toggle");
   await expect(s1e3).not.toBeChecked();
 
-  // Client-side to the Calendar; mark the aired S01E03 row and let the write land.
-  await page.getByRole("link", { name: "Calendar", exact: true }).first().click();
+  // Client-side to the Upcoming (calendar) view — Calendar is no longer a tab, so
+  // go via Up Next then its one-tap Upcoming affordance; mark the aired S01E03 row.
+  await page.getByRole("link", { name: "Up Next", exact: true }).first().click();
+  await page.getByTestId("up-next-upcoming").click();
   await expect(page.getByTestId("screen-calendar")).toBeVisible();
   await page.getByTestId("calendar-mark").click();
   await expect(page.getByTestId("calendar-watched")).toBeVisible(); // optimistic

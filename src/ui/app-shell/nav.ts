@@ -1,35 +1,37 @@
 /**
- * The three bottom-nav / sidebar destinations. These collapse the old
- * five-tab bar to exactly three so the tonight loop stays one glance wide (Rams
- * #10 — as little design as possible; the sanctioned divergence from the earlier
- * append-only five-destination rule). Search moved to a persistent header
- * affordance and Profile to a corner/account control — both reachable from
- * anywhere without spending a primary tab slot.
+ * The primary bottom-nav / sidebar destinations — a 1:1 map of Cue's four jobs
+ *: record+next, review+reverse, manage library, discover.
+ * Calendar is deliberately NOT here — it demoted from a top slot to an "Upcoming"
+ * view one tap inside Up Next. Profile + Settings left the bar too, onto a
+ * header avatar. The flag only ever prunes the set; it never appends.
  */
 export interface NavDestination {
   readonly path: string;
   readonly label: string;
-  readonly icon: "up-next" | "calendar" | "library";
+  readonly icon: "up-next" | "library" | "history" | "discover";
 }
 
-const navDestinations: readonly NavDestination[] = [
-  { path: "/", label: "Up Next", icon: "up-next" },
-  { path: "/calendar", label: "Calendar", icon: "calendar" },
+/** Up Next is episodic by construction, so it is the one tab a movies-only app
+ * sheds. Library / History / Discover all carry both media, so they stand for
+ * every user. */
+const upNext: NavDestination = { path: "/", label: "Up Next", icon: "up-next" };
+const crossMedia: readonly NavDestination[] = [
   { path: "/library", label: "Library", icon: "library" },
+  { path: "/history", label: "History", icon: "history" },
+  // Discover reuses the /search route + screen; only the label and icon changed.
+  { path: "/search", label: "Discover", icon: "discover" },
 ];
 
 /**
- * The primary destinations for the enabled media. Up Next and Calendar
- * are TV-centric by construction, so a movies-only app sheds both and Library
- * becomes the single primary tab (Search + Profile stay reachable as the header /
- * sidebar affordances). With TV present — the default and the TV-only case — all
- * three stand unchanged. The flag only ever prunes; it never appends.
+ * The primary destinations for the enabled media. With TV present — the
+ * default and the TV-only case — all four jobs get a tab. A movies-only app sheds
+ * the TV-centric Up Next and lands on Library / History / Discover (a coherent home,
+ * never an empty Up Next). The flag only ever prunes; it never appends.
  */
 export function navFor({
   showsEnabled,
 }: {
   readonly showsEnabled: boolean;
 }): readonly NavDestination[] {
-  if (showsEnabled) return navDestinations;
-  return [{ path: "/library", label: "Library", icon: "library" }];
+  return showsEnabled ? [upNext, ...crossMedia] : crossMedia;
 }

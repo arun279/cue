@@ -49,6 +49,34 @@ function QueueList({
   );
 }
 
+/** The one-tap Upcoming affordance — Calendar demoted from a tab to a view inside
+ * Up Next. Icon-only with an accessible name so it never widens the head and
+ * pushes the queue below the fold (the icon-only-with-name pattern of). */
+function UpcomingLink(): ReactElement {
+  return (
+    <Link
+      to="/calendar"
+      className="up-next-upcoming"
+      data-testid="up-next-upcoming"
+      aria-label="Upcoming episodes"
+      title="Upcoming episodes"
+    >
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+        focusable="false"
+      >
+        <path d="M7 2v3m10-3v3M3 8h18M5 5h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z" />
+      </svg>
+    </Link>
+  );
+}
+
 function EmptyState({
   testId,
   art,
@@ -122,15 +150,18 @@ export function UpNext(): ReactElement {
     <section className="screen screen--up-next" data-testid="screen-up-next">
       <header className="screen__head">
         <h1 className="screen__title">Up Next</h1>
-        <SyncStatusPill
-          testId="sync-status"
-          isFetching={view.isFetching}
-          isLoading={view.isLoading}
-          isError={view.isError}
-          isPartial={view.isPartial}
-          count={view.cards.length + view.lapsedCards.length}
-          syncedAt={view.syncedAt}
-        />
+        <div className="screen__head-actions">
+          <SyncStatusPill
+            testId="sync-status"
+            isFetching={view.isFetching}
+            isLoading={view.isLoading}
+            isError={view.isError}
+            isPartial={view.isPartial}
+            count={view.cards.length + view.lapsedCards.length}
+            syncedAt={view.syncedAt}
+          />
+          <UpcomingLink />
+        </div>
       </header>
 
       {view.isError && view.hasData && (

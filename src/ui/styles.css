@@ -227,9 +227,12 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  /* Tighter vertical padding so the 44px brand + action targets don't inflate the
-   * sticky header height (which would eat into the Up Next fold). */
-  padding: var(--space-2) var(--space-4);
+  /* Tighter vertical padding so the 44px brand + avatar don't inflate the sticky
+   * header height (which would eat into the Up Next fold). The top + horizontal
+   * safe-area insets keep the header clear of the notch / rounded corners under
+   * viewport-fit=cover; a browser resolves env() to 0. */
+  padding: calc(var(--space-2) + env(safe-area-inset-top)) max(var(--space-4), env(safe-area-inset-right))
+    var(--space-2) max(var(--space-4), env(safe-area-inset-left));
   background: color-mix(in srgb, var(--color-bg) 86%, transparent);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--color-border);
@@ -253,7 +256,10 @@ body {
   height: calc(66px + env(safe-area-inset-bottom));
   background: var(--color-surface);
   border-top: 1px solid var(--color-border);
-  padding: var(--space-2) 0 env(safe-area-inset-bottom);
+  /* Bottom inset clears the home indicator; the horizontal insets keep the end
+   * tabs off the rounded corners in landscape. */
+  padding: var(--space-2) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
 }
 
 .nav__link {
@@ -289,32 +295,34 @@ body {
   flex: none;
 }
 
-/* Header Search + Profile affordances (the two non-tab primary controls). */
-.topbar__actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-}
-.topbar__action {
+/* The header avatar — the utility hub entry (Profile → Settings). A round 44×44
+ * finger target; the person glyph inside keeps its own size. */
+.topbar__avatar {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  /* 44×44 finger target; the icon inside stays its own size. */
+  flex: none;
   width: var(--tap-min);
   height: var(--tap-min);
-  border-radius: var(--radius-1);
+  border-radius: var(--radius-pill);
+  background: var(--color-elevated);
   color: var(--color-ink2);
   text-decoration: none;
   transition:
     color var(--dur-quick) var(--ease-standard),
     background var(--dur-quick) var(--ease-standard);
 }
-.topbar__action:hover {
+.topbar__avatar:hover {
   color: var(--color-fg);
-  background: var(--color-elevated);
+  background: var(--color-surface);
 }
-.topbar__action[data-status="active"] {
-  color: var(--color-accent);
+/* Pressed feedback: the avatar dims on touch so it never feels dead. */
+.topbar__avatar:active {
+  background: var(--color-surface);
+}
+.topbar__avatar .nav__icon {
+  width: 1.35rem;
+  height: 1.35rem;
 }
 
 .tabbar .nav__link {
@@ -331,6 +339,11 @@ body {
 }
 .tabbar .nav__link--active {
   background: transparent;
+}
+/* Pressed feedback: a re-tap / press lifts the label toward full ink so the
+ * tab never reads as dead on touch (the amber active tab stays amber). */
+.tabbar .nav__link:active {
+  color: var(--color-fg);
 }
 
 @media (min-width: 900px) {
@@ -759,6 +772,43 @@ body {
 }
 .screen__head .screen__title {
   margin: 0;
+}
+/* The trailing cluster on a screen head (sync pill + any header action, e.g. Up
+ * Next's one-tap Upcoming). Wraps under the title on narrow phones. */
+.screen__head-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+/* Up Next's Upcoming affordance — a 44×44 ghost icon target that keeps the head to
+ * one line (icon-only so the queue never drops below the fold). */
+.up-next-upcoming {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--tap-min);
+  height: var(--tap-min);
+  border-radius: var(--radius-1);
+  border: 1px solid var(--color-border);
+  color: var(--color-ink2);
+  text-decoration: none;
+  transition:
+    color var(--dur-quick) var(--ease-standard),
+    background var(--dur-quick) var(--ease-standard);
+}
+.up-next-upcoming:hover {
+  color: var(--color-fg);
+  background: var(--color-elevated);
+}
+.up-next-upcoming:active {
+  background: var(--color-elevated);
+}
+.up-next-upcoming svg {
+  width: 1.25rem;
+  height: 1.25rem;
 }
 
 .banner {

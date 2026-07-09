@@ -34,7 +34,7 @@ function flatten(days: readonly CalendarDay[]): Row[] {
  * on aired rows.
  */
 export function Upcoming(): ReactElement {
-  useDocumentTitle("Calendar · Cue");
+  useDocumentTitle("Upcoming · Cue");
   const view = useCalendar();
   const rows = useMemo(() => flatten(view.days), [view.days]);
   const hasEpisodes = view.days.length > 0;
@@ -90,7 +90,7 @@ export function Upcoming(): ReactElement {
   return (
     <section className="screen screen--full" data-testid="screen-calendar">
       <header className="screen__head">
-        <h1 className="screen__title">Calendar</h1>
+        <h1 className="screen__title">Upcoming</h1>
         <SyncStatusPill
           testId="upcoming-status"
           isFetching={view.isFetching}

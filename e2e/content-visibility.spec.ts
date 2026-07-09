@@ -101,9 +101,10 @@ test("TV-only: Library shows only Shows with no toggle", async ({ page }) => {
   await expect(page.getByTestId("type-movies")).toHaveCount(0);
   await expect(page.getByTestId("library-filter")).toHaveAttribute("placeholder", "Filter shows…");
 
-  // The Search affordance names only the active medium, not "shows and movies".
+  // Discover is a first-class tab (Search's old header affordance); it stays for a
+  // single-medium user, searching only their active medium via the field label.
   await expect(
-    page.locator(".sidebar").getByRole("link", { name: "Search shows", exact: true }),
+    page.locator(".sidebar").getByRole("link", { name: "Discover", exact: true }),
   ).toBeVisible();
 });
 
@@ -165,18 +166,21 @@ test("TV-only: Profile hides the Movies tile and its minutes leave the total", a
 
 // ---- TV disabled (the movies-only case) ----
 
-test("movies-only: nav sheds the TV-centric tabs, leaving Library", async ({ page }) => {
+test("movies-only: nav sheds only the episodic Up Next, keeping Library/History/Discover", async ({
+  page,
+}) => {
   await seedMediaVisibility(page.context(), { showsEnabled: false, moviesEnabled: true });
   await installLibraryRoutes(page.context(), []);
   await page.goto("/library");
 
   const sidebar = page.locator(".sidebar");
-  await expect(sidebar.locator(".sidebar__links a")).toHaveCount(1);
+  // Three cross-media jobs remain; the TV-centric Up Next (and Calendar) are gone.
+  await expect(sidebar.locator(".sidebar__links a")).toHaveCount(3);
   await expect(sidebar.getByRole("link", { name: "Library", exact: true })).toBeVisible();
+  await expect(sidebar.getByRole("link", { name: "History", exact: true })).toBeVisible();
+  await expect(sidebar.getByRole("link", { name: "Discover", exact: true })).toBeVisible();
   await expect(sidebar.getByRole("link", { name: "Up Next", exact: true })).toHaveCount(0);
   await expect(sidebar.getByRole("link", { name: "Calendar", exact: true })).toHaveCount(0);
-  // The Search affordance names only the active medium.
-  await expect(sidebar.getByRole("link", { name: "Search movies", exact: true })).toBeVisible();
 });
 
 test("movies-only: home and calendar route to the movies Library", async ({ page }) => {
