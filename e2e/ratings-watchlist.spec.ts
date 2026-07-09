@@ -54,10 +54,13 @@ test("rating a show fires POST /sync/ratings optimistically and can be removed",
   const controls = await installLibraryRoutes(page.context(), [ratedShow()]);
   await page.goto("/show/1");
 
-  const eight = page.getByTestId("show-rating-value-8");
-  await expect(eight).toHaveAttribute("aria-pressed", "false");
-  await eight.click();
-  await expect(eight).toHaveAttribute("aria-pressed", "true"); // optimistic
+  // Tap the single 0–10 track at 80% of its width → the nearest value is 8.
+  const slider = page.getByTestId("show-rating-slider");
+  await expect(slider).toHaveAttribute("aria-valuenow", "0");
+  const track = await slider.boundingBox();
+  if (track === null) throw new Error("rating slider has no layout box");
+  await slider.click({ position: { x: track.width * 0.8, y: track.height / 2 } });
+  await expect(slider).toHaveAttribute("aria-valuenow", "8"); // optimistic
   await expect(page.getByTestId("show-rating-current")).toContainText("8/10");
 
   await expect.poll(() => controls.ratingPosts().length).toBe(1);
@@ -75,13 +78,46 @@ test("rating an episode fires POST /sync/ratings with the episodes[] body", asyn
   const controls = await installLibraryRoutes(page.context(), [ratedShow()]);
   await page.goto("/show/1/episode/1/2");
 
-  await page.getByTestId("episode-rating-value-7").click();
+  const slider = page.getByTestId("episode-rating-slider");
+  const track = await slider.boundingBox();
+  if (track === null) throw new Error("rating slider has no layout box");
+  await slider.click({ position: { x: track.width * 0.7, y: track.height / 2 } });
   await expect(page.getByTestId("episode-rating-current")).toContainText("7/10");
 
   await expect.poll(() => controls.ratingPosts().length).toBe(1);
   const posted = controls.ratingPosts()[0];
   expect(posted?.episodeIds).toEqual([12]);
   expect(posted?.rating).toBe(7);
+});
+
+test("rating slider is a keyboard-operable role=slider (screen-reader path) @320", async ({
+  page,
+}) => {
+  const controls = await installLibraryRoutes(page.context(), [ratedShow()]);
+  await page.setViewportSize({ width: 320, height: 720 });
+  await page.goto("/show/1");
+
+  const slider = page.getByTestId("show-rating-slider");
+  await expect(slider).toHaveAttribute("role", "slider");
+  await expect(slider).toHaveAttribute("aria-valuemin", "0");
+  await expect(slider).toHaveAttribute("aria-valuemax", "10");
+  await expect(slider).toHaveAttribute("aria-valuenow", "0");
+  // The polite status mirrors the SR value announcement (both derive from `readout`).
+  await expect(page.getByTestId("show-rating-current")).toContainText("Not rated");
+
+  // Keyboard only (no pointer): focus the track and raise the rating one step.
+  await slider.focus();
+  await slider.press("ArrowRight");
+  await expect(slider).toHaveAttribute("aria-valuenow", "1");
+  await expect(page.getByTestId("show-rating-current")).toContainText("1/10");
+  await expect.poll(() => controls.ratingPosts().length).toBe(1);
+  expect(controls.ratingPosts()[0]?.rating).toBe(1);
+
+  // Home clears back to unrated (fires the inverse remove).
+  await slider.press("Home");
+  await expect(slider).toHaveAttribute("aria-valuenow", "0");
+  await expect(page.getByTestId("show-rating-current")).toContainText("Not rated");
+  await expect.poll(() => controls.ratingRemovePosts().length).toBe(1);
 });
 
 test("adding a never-watched show to the watchlist surfaces it in the Library Watchlist segment", async ({

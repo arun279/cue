@@ -129,7 +129,7 @@ test("header avatar is a 44×44 finger target @390", async ({ page }) => {
   await expectTapTarget(page.locator(".skip-link"), "height");
 });
 
-test("show-detail controls clear the 44px floor: rating tiles edge-to-edge, back, specials, season mark", async ({
+test("show-detail controls clear the 44px floor: rating track, back, specials, season mark", async ({
   page,
 }) => {
   await installLibraryRoutes(page.context(), [detailShow()]);
@@ -139,14 +139,12 @@ test("show-detail controls clear the 44px floor: rating tiles edge-to-edge, back
 
   await expectTapTarget(page.getByTestId("detail-back"), "height");
 
-  // Rating (the severe 22×12 case): every cell is ≥44 tall AND the cells tile with no
-  // dead gap, so a tap always lands on the nearest value.
-  const segments = page.locator(".rating__scale .rating__seg");
-  await expect(segments).toHaveCount(10);
-  const first = await box(segments.nth(0));
-  const second = await box(segments.nth(1));
-  expect(first.height + 0.5).toBeGreaterThanOrEqual(TAP_MIN);
-  expect(Math.abs(first.x + first.width - second.x)).toBeLessThanOrEqual(1);
+  // Rating: the control is ONE wide slider track, not ten sub-44px stars
+  // (ten 44px stars would need 440px — wider than a phone). The whole track is a single
+  // ≥44px finger target a tap lands anywhere on, carrying role=slider for AT.
+  const slider = page.getByTestId("show-rating-slider");
+  await expect(slider).toHaveAttribute("role", "slider");
+  await expectTapTarget(slider, "height");
 
   // "Include specials" — the whole label is the 44-tall target, not its 13px box.
   await expectTapTarget(page.locator(".detail-specials"), "height");

@@ -61,7 +61,10 @@ export function PosterGrid<T>({ entries, keyOf, renderCell }: PosterGridProps<T>
     const el = containerRef.current;
     if (el === null) return;
     const width = el.clientWidth;
-    const cols = Math.max(2, Math.floor((width + GAP) / (MIN_COL + GAP)));
+    // Floor of 1 (not 2) so the grid reflows to a single column below ~160px — e.g. at
+    // 200%+ zoom — instead of forcing two sub-tile columns that overflow (WCAG 1.4.10).
+    // Every real phone (≥320px) still lands on 2 columns.
+    const cols = Math.max(1, Math.floor((width + GAP) / (MIN_COL + GAP)));
     const colWidth = (width - (cols - 1) * GAP) / cols;
     // getBoundingClientRect is page-relative regardless of positioned ancestors, so
     // a grid nested in a collapsible pile still knows where the window scroll starts.

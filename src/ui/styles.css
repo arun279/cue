@@ -48,6 +48,11 @@
    * definitions rather than per-screen (Nielsen #4 / Shneiderman #1 consistency). */
   --tap-min: 44px;
 
+  /* Fixed bottom tab bar height (mobile only). Single source of truth: the bar's own
+   * height, the scroll region's bottom clearance, and the snackbar offset all derive
+   * from it so they can never drift out of sync. */
+  --tabbar-h: 66px;
+
   --radius-poster: 6px;
   --radius-1: 10px;
   --radius-2: 14px;
@@ -154,12 +159,10 @@ body {
  *   2. HIT-SLOP — a deliberately tiny, visually-fixed, isolated control keeps its
  *      pixels and grows only its target with a centred transparent pseudo-element,
  *      no visual ballooning. (the Settings switch track, via an inline .switch::before)
- *   3. TILE — a run of adjacent tiny targets (the 1–10 rating) can't each be 44 wide
- *      (ten 44px cells = 440px, wider than a phone) without a 2-row grid that breaks
- *      the left-to-right 1–10 reading. Instead the ten cells tile edge-to-edge with
- *      NO dead gap: the group is one continuous 260×44 target where every pixel maps
- *      to a value, so a tap never misses; per-value precision rides the 44px height +
- *      instant fill feedback + one-tap reversal (Clear / re-tap). (.rating__scale)
+ *   3. TRACK — a value scale that can't give each value its own 44px target (ten 44px
+ *      rating cells = 440px, wider than a phone) collapses to ONE wide target: a single
+ *      ≥44px slider track (role=slider) where a tap maps to the nearest value and a big
+ *      numeric readout makes it unmistakable, so a tap never misses. (.rating__slider)
  *   4. SPACE — keep ≥--space-2 between SEPARATE targets so one control's slop can't
  *      collide with its neighbor. (the Up Next body link vs. its mark action) */
 .skip-link {
@@ -241,8 +244,9 @@ body {
 .main {
   flex: 1;
   padding: var(--space-4);
-  /* Clear the fixed bottom tab bar (66px) + the device safe area. */
-  padding-bottom: calc(66px + var(--space-5) + env(safe-area-inset-bottom));
+  /* Clear the fixed bottom tab bar + a full section gap + the device safe area, so the
+     last card row sits comfortably above the bar instead of bleeding under it. */
+  padding-bottom: calc(var(--tabbar-h) + var(--space-6) + env(safe-area-inset-bottom));
 }
 
 .tabbar {
@@ -253,7 +257,7 @@ body {
   z-index: 10;
   display: flex;
   justify-content: space-around;
-  height: calc(66px + env(safe-area-inset-bottom));
+  height: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
   background: var(--color-surface);
   border-top: 1px solid var(--color-border);
   /* Bottom inset clears the home indicator; the horizontal insets keep the end
@@ -953,10 +957,12 @@ body {
     width: 72px;
   }
 }
+/* Fluid hero poster: grows CONTINUOUSLY with the viewport instead of snapping at the
+   639px breakpoint (avoids hardcoded px that break on other phones). 34vw reaches
+   the 176px desktop ceiling at ~518px and floors at the old 120px mobile size below
+   ~353px; the 2:3 ratio is inherited from .poster so height follows the width. */
 .poster--hero {
-  width: 172px;
-  height: 258px;
-  aspect-ratio: auto;
+  width: clamp(120px, 34vw, 176px);
   box-shadow: var(--shadow-poster);
 }
 .poster--text {
@@ -1418,8 +1424,7 @@ button.cue-mark:focus-visible {
   align-items: center;
 }
 .empty__art {
-  width: 190px;
-  max-width: 60%;
+  width: min(190px, 60%);
   height: auto;
   border-radius: var(--radius-3);
   margin-bottom: var(--space-5);
@@ -1440,7 +1445,7 @@ button.cue-mark:focus-visible {
 .snackbar {
   position: fixed;
   left: 50%;
-  bottom: calc(66px + env(safe-area-inset-bottom) + var(--space-3));
+  bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + var(--space-3));
   transform: translateX(-50%);
   z-index: 30;
   display: flex;
@@ -1757,7 +1762,9 @@ button.cue-mark:focus-visible {
 }
 .poster-grid--static {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  /* min(150px, 100%) lets the last track shrink below 150px rather than force a
+     horizontal scroll when the container is narrower than one tile (WCAG 1.4.10). */
+  grid-template-columns: repeat(auto-fill, minmax(min(150px, 100%), 1fr));
   gap: var(--space-5) var(--space-3);
 }
 .poster-grid__cell {
@@ -1923,11 +1930,6 @@ button.cue-mark:focus-visible {
 .show-hero__poster {
   flex: none;
 }
-.show-hero__poster .poster--hero {
-  width: 176px;
-  height: 264px;
-  box-shadow: var(--shadow-poster);
-}
 .show-hero__info {
   flex: 1;
   min-width: 0;
@@ -1975,6 +1977,9 @@ button.cue-mark:focus-visible {
   align-items: center;
   gap: var(--space-3);
   max-width: 28rem;
+  /* "Last watched …" drops to its own line rather than clipping past the viewport at
+     ~320px / 200% zoom (WCAG 1.4.10). */
+  flex-wrap: wrap;
 }
 .show-hero__actions {
   display: flex;
@@ -2045,7 +2050,9 @@ button.cue-mark:focus-visible {
 }
 .next-up__still {
   flex: none;
-  width: 150px;
+  /* Fluid still: floors at the 120px mobile size, grows to the 150px design width by
+     ~469px — no snap at the 639px breakpoint. */
+  width: clamp(120px, 32vw, 150px);
 }
 .next-up__still .still-thumb {
   object-position: center 30%;
@@ -2311,7 +2318,9 @@ button.cue-mark:focus-visible {
 }
 .ep-still {
   flex: none;
-  width: 158px;
+  /* Fluid shelf tile: ~42vw shows just over two stills across a phone (a legible
+     "more to scroll" affordance), capping at the 158px design width on larger screens. */
+  width: min(158px, 42vw);
   scroll-snap-align: start;
 }
 .ep-still__thumb {
@@ -2448,66 +2457,107 @@ button.cue-mark:focus-visible {
   color: var(--color-muted);
 }
 
-/* ---- Ratings (compact segmented 1–10 with cumulative fill + hover preview) ---- */
+/* ---- Rating ---- */
+/* Ten 44px stars need 440px — wider than a phone — so per-value targets can never be
+   compliant. Instead the WHOLE track is one finger target (role=slider): tap or drag
+   anywhere sets the nearest value, a big numeric readout makes it unmistakable, and it
+   stays fluid (100% width) so it works down to 320px. */
 .rating {
-  display: inline-flex;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+  max-width: 24rem;
 }
 .rating__row {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  flex-wrap: wrap;
+  gap: var(--space-4);
 }
-/* the ten cells tile edge-to-edge with NO dead gap, forming one
-   continuous 260×44 target — a tap always lands on the nearest value, and per-value
-   precision rides the 44px height + instant fill + one-tap reversal. (Ten 44px-wide
-   cells would be 440px — wider than a phone; a 2-row grid breaks the 1–10 reading.) */
-.rating__scale {
+.rating__readout {
+  flex: none;
   display: flex;
-  gap: 0;
-  border: none;
-  margin: 0;
-  padding: 0;
-  min-width: 0;
+  align-items: baseline;
+  gap: 2px;
+  min-width: 2.6ch;
 }
-.rating__seg {
-  appearance: none;
-  width: 26px;
-  height: var(--tap-min);
-  padding: 0;
-  border: none;
-  background: transparent;
-  cursor: pointer;
+.rating__value {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-fg);
+  font-variant-numeric: tabular-nums;
+}
+.rating__value[data-empty="true"] {
+  color: var(--color-muted);
+}
+.rating__max {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-muted);
+}
+/* The track is the target: full-width, ≥44px tall, touch-action:none so a
+   horizontal drag sets the value instead of scrolling the page. */
+.rating__slider {
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
+  min-height: var(--tap-min);
+  cursor: pointer;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
-/* The VISIBLE meter is a slim centred band; the 3px separation between bars lives on
-   the ink (::before margin), never on the contiguous hit area. */
-.rating__seg::before {
-  content: "";
-  display: block;
-  width: 100%;
-  height: 12px;
-  margin: 0 1.5px;
-  border-radius: 3px;
-  background: var(--color-elevated);
-  transition: background var(--dur-quick) var(--ease-standard);
-}
-.rating__seg[data-fill="true"]::before {
-  background: var(--color-accent);
-}
-/* Hover preview: fill the hovered segment and every one before it, clear those after. */
-.rating__scale:not(:disabled):hover .rating__seg::before {
-  background: var(--color-accent);
-}
-.rating__scale:not(:disabled) .rating__seg:hover ~ .rating__seg::before {
-  background: var(--color-elevated);
-}
-.rating__scale:disabled {
+.rating__slider[aria-disabled="true"] {
+  cursor: progress;
   opacity: 0.55;
 }
-.rating__scale:disabled .rating__seg {
-  cursor: progress;
+.rating__track {
+  position: relative;
+  width: 100%;
+  height: 12px;
+  border-radius: var(--radius-pill);
+  background: var(--color-elevated);
+  overflow: hidden;
+}
+.rating__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  height: 100%;
+  background: var(--color-accent);
+  border-radius: inherit;
+  transition: width var(--dur-quick) var(--ease-standard);
+}
+/* Nine hairline dividers mark the ten integer steps so the fill reads as a 1–10
+   scale, not a continuous meter — pointer-transparent so the whole track stays live. */
+.rating__ticks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0 calc(10% - 1px),
+    color-mix(in srgb, var(--color-surface) 70%, transparent) calc(10% - 1px) 10%
+  );
+}
+/* Visible press + focus feedback (the highlight-removal reset relies on it). */
+.rating__slider:active .rating__fill {
+  background: var(--color-accent-strong);
+}
+.rating__slider:focus-visible {
+  outline: none;
+}
+.rating__slider:focus-visible .rating__track {
+  outline: 2px solid var(--color-accent-strong);
+  outline-offset: 3px;
+}
+.rating__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
 }
 .rating__status {
   margin: 0;
@@ -2524,12 +2574,11 @@ button.cue-mark:focus-visible {
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
-  /* a real 44×44 target for the "remove rating" affordance. */
+  /* a real 44px-tall target for the "remove rating" affordance. */
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-height: var(--tap-min);
-  min-width: var(--tap-min);
   padding: 2px var(--space-2);
 }
 .rating__clear:hover {
@@ -2977,10 +3026,6 @@ button.cue-mark:focus-visible {
     padding: 0 var(--space-4);
     margin-top: 116px;
   }
-  .show-hero__poster .poster--hero {
-    width: 120px;
-    height: 180px;
-  }
   .show-hero__info {
     padding-top: 0;
   }
@@ -2999,9 +3044,6 @@ button.cue-mark:focus-visible {
   .next-up {
     flex-wrap: wrap;
   }
-  .next-up__still {
-    width: 120px;
-  }
   /* Stack code over a wrapping title so the primary next episode is never
      truncated to "Crazy Hand…". */
   .next-up__title {
@@ -3018,6 +3060,12 @@ button.cue-mark:focus-visible {
   }
   .next-up__actions {
     width: 100%;
+    flex-wrap: wrap;
+  }
+  /* The two marks share the row when they fit and wrap to stack when they don't, so
+     "Mark up to here" never bleeds past the viewport at ~320px (WCAG 1.4.10). */
+  .next-up__actions .button {
+    flex: 1 1 auto;
   }
   /* The season disclosure and its mark-season control (or completed "Watched"
      status) share one crowded row on desktop; at phone widths the fixed-width
@@ -3417,7 +3465,10 @@ button.cue-mark:focus-visible {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  flex: none;
+  /* Shrinkable (not flex:none) so the "Logged together" badge truncates with an
+     ellipsis before it can collide with the title at ~320px; the chevron stays fixed. */
+  flex: 0 1 auto;
+  min-width: 0;
 }
 .diary-card__together {
   font-size: 0.72rem;
@@ -3425,8 +3476,13 @@ button.cue-mark:focus-visible {
   letter-spacing: 0.02em;
   text-transform: uppercase;
   color: var(--color-muted);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .diary-cluster__chevron {
+  flex: none;
   width: 1.15rem;
   height: 1.15rem;
   color: var(--color-muted);
