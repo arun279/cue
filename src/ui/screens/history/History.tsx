@@ -8,12 +8,12 @@ import { ErrorRetry, ErrorToast } from "@ui/components/ErrorStates";
 import { Snackbar } from "@ui/components/Snackbar";
 import { SyncStatusPill } from "@ui/components/SyncStatusPill";
 import { VirtualList } from "@ui/components/VirtualList";
-import { episodeCode } from "@ui/format";
+import { episodeCode, formatWatchedDate } from "@ui/format";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { type HistoryFilter, type HistoryScope, useHistory } from "@ui/hooks/useHistory";
 import { usePrefs } from "@ui/prefs/prefs-store";
 import { Poster } from "@ui/screens/up-next/Poster";
-import { Accordion, ToggleGroup } from "radix-ui";
+import { Accordion, AlertDialog, ToggleGroup } from "radix-ui";
 import { type ReactElement, type ReactNode, useMemo } from "react";
 
 const UNDO_MS = 6000;
@@ -123,39 +123,103 @@ function EntryPoster({
   return <Poster title={entry.title} posters={entry.posters} tmdbConfig={tmdbConfig} />;
 }
 
-function RemoveButton({
+function OverflowIcon(): ReactElement {
+  return (
+    <svg className="diary-overflow__glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <circle cx="5" cy="12" r="1.7" fill="currentColor" />
+      <circle cx="12" cy="12" r="1.7" fill="currentColor" />
+      <circle cx="19" cy="12" r="1.7" fill="currentColor" />
+    </svg>
+  );
+}
+
+/** The per-play reversal: a 44px trailing ⋯ that opens a CONFIRMED action sheet
+ * naming the exact play (title · what · when), gated by a caution confirm. An accidental
+ * destructive tap becomes destructive-by-intent (Shneiderman #5/#6, Nielsen #5). Radix
+ * AlertDialog gives the focus trap + Escape + confirm gating; the sheet is bottom
+ * -anchored with a safe-area inset. Shared by single rows AND cluster child rows — the
+ * removal still runs through the exact history-event-id seam (`onRemove`). */
+function RemoveActionSheet({
   entry,
   onRemove,
 }: {
   readonly entry: HistoryEntry;
   onRemove(entry: HistoryEntry): void;
 }): ReactElement {
-  const what = entry.type === "movie" ? entry.title : `${entry.title} ${entryMeta(entry)}`;
+  const what = entryMeta(entry);
+  const when = `${formatWatchedDate(entry.watchedAt) ?? ""} · ${timeFmt.format(new Date(entry.watchedAt))}`;
   return (
-    <button
-      type="button"
-      className="diary-remove"
-      data-testid="history-remove"
-      aria-label={`Remove this play of ${what}`}
-      onClick={() => onRemove(entry)}
-    >
-      Remove this play
-    </button>
+    <AlertDialog.Root>
+      <AlertDialog.Trigger asChild>
+        <button
+          type="button"
+          className="diary-overflow"
+          data-testid="history-remove-menu"
+          aria-label={`More actions for ${entry.title} · ${what}`}
+        >
+          <OverflowIcon />
+        </button>
+      </AlertDialog.Trigger>
+      <AlertDialog.Portal>
+        <AlertDialog.Overlay className="action-sheet__overlay" />
+        <AlertDialog.Content
+          className="action-sheet"
+          data-testid="history-remove-sheet"
+          aria-modal="true"
+        >
+          <div className="action-sheet__head">
+            <AlertDialog.Title className="action-sheet__title">{entry.title}</AlertDialog.Title>
+            <AlertDialog.Description className="action-sheet__meta">{what}</AlertDialog.Description>
+          </div>
+          <div className="action-sheet__actions">
+            <AlertDialog.Action asChild>
+              <button
+                type="button"
+                className="action-sheet__item action-sheet__item--danger"
+                data-testid="history-remove"
+                onClick={() => onRemove(entry)}
+              >
+                <span>Remove this play</span>
+                <span className="action-sheet__item-when">{when}</span>
+              </button>
+            </AlertDialog.Action>
+            <AlertDialog.Cancel asChild>
+              <button
+                type="button"
+                className="action-sheet__item"
+                data-testid="history-remove-cancel"
+              >
+                Cancel
+              </button>
+            </AlertDialog.Cancel>
+          </div>
+        </AlertDialog.Content>
+      </AlertDialog.Portal>
+    </AlertDialog.Root>
   );
 }
 
-function EntryBody({ entry }: { readonly entry: HistoryEntry }): ReactElement {
+/** The shared row language for single plays AND cluster heads: a title that owns the
+ * row and WRAPS (up to two lines, never crushed to an ellipsis), over a secondary meta
+ * line. Both surfaces render identical markup so they read the same. */
+function RowContent({
+  title,
+  meta,
+}: {
+  readonly title: string;
+  readonly meta: ReactNode;
+}): ReactElement {
   return (
-    <div className="card__body">
-      <h4 className="card__title">{entry.title}</h4>
-      <p className="diary-card__meta" data-testid="history-meta">
-        {entryMeta(entry)}
-      </p>
-    </div>
+    <span className="card__body">
+      <span className="card__title">{title}</span>
+      <span className="diary-card__meta">{meta}</span>
+    </span>
   );
 }
 
-/** One standalone play — a lone episode or a movie. Quiet, past-tense, no ✓ pill. */
+/** One standalone play — a lone episode or a movie. Quiet, past-tense, no ✓ pill. The
+ * play time folds into the secondary meta line (not a competing trailing column), so
+ * the title owns the row exactly as a cluster head does. */
 function HistorySingle({
   entry,
   tmdbConfig,
@@ -165,6 +229,14 @@ function HistorySingle({
   readonly tmdbConfig: TmdbImageConfig | null;
   onRemove(entry: HistoryEntry): void;
 }): ReactElement {
+  const meta: ReactNode = (
+    <>
+      {entryMeta(entry)}
+      {" · "}
+      <time dateTime={entry.watchedAt}>{timeFmt.format(new Date(entry.watchedAt))}</time>
+    </>
+  );
+  const content = <RowContent title={entry.title} meta={meta} />;
   const link: ReactNode =
     entry.type === "movie" ? (
       <Link
@@ -173,23 +245,18 @@ function HistorySingle({
         className="card__link"
         data-testid="history-row-link"
       >
-        <EntryBody entry={entry} />
+        {content}
       </Link>
     ) : (
       <Link {...episodeDetailLink(entry)} className="card__link" data-testid="history-row-link">
-        <EntryBody entry={entry} />
+        {content}
       </Link>
     );
   return (
     <div className="card diary-card" data-testid="history-row" data-type={entry.type}>
       <EntryPoster entry={entry} tmdbConfig={tmdbConfig} />
       {link}
-      <div className="diary-card__trailing">
-        <time className="diary-card__time" dateTime={entry.watchedAt}>
-          {timeFmt.format(new Date(entry.watchedAt))}
-        </time>
-        <RemoveButton entry={entry} onRemove={onRemove} />
-      </div>
+      <RemoveActionSheet entry={entry} onRemove={onRemove} />
     </div>
   );
 }
@@ -222,10 +289,7 @@ function HistoryCluster({
                 className="diary-cluster__trigger"
                 data-testid="history-cluster-trigger"
               >
-                <span className="card__body">
-                  <span className="card__title">{head.title}</span>
-                  <span className="diary-card__meta">{clusterSummary(group.entries)}</span>
-                </span>
+                <RowContent title={head.title} meta={clusterSummary(group.entries)} />
                 <span className="diary-cluster__aside">
                   {group.loggedTogether && (
                     <span className="diary-card__together" data-testid="history-logged-together">
@@ -259,7 +323,7 @@ function HistoryCluster({
                         {timeFmt.format(new Date(entry.watchedAt))}
                       </time>
                     )}
-                    <RemoveButton entry={entry} onRemove={onRemove} />
+                    <RemoveActionSheet entry={entry} onRemove={onRemove} />
                   </div>
                 </li>
               ))}
@@ -323,8 +387,9 @@ const YEAR_RECENT = "";
  * reverse-chronological, virtualized watch log grouped by the viewer's local day,
  * with a type filter and a decade jump (Year → Month) so a ten-thousand-play,
  * decade-deep account can teleport to any window instead of scrolling forever.
- * Rows stay calm and past-tense (no amber ✓) and each offers an exact, reversible
- * "Remove this play". Every state is designed: skeleton, hard error with retry, a
+ * Rows stay calm and past-tense (no amber ✓); a trailing ⋯ opens a confirmed action
+ * sheet that removes exactly that one play (by history event id), reversibly. Every
+ * state is designed: skeleton, hard error with retry, a
  * scope-aware empty state, and a "Load earlier" sentinel that walks the window one
  * page at a time. Reached from the Profile hub; Back returns there.
  */

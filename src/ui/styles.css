@@ -753,6 +753,96 @@ body {
   gap: var(--space-3);
 }
 
+/* ---- Action sheet (Radix AlertDialog, bottom-anchored) — confirms a per-play
+   removal by naming the exact play, so a destructive tap is by intent, not by
+   accident. Pure-web this phase: overscroll-behavior containment + a safe-area
+   bottom inset; native drag/snap/haptic feedback are deferred. ---- */
+.action-sheet__overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgb(0 0 0 / 0.55);
+  backdrop-filter: blur(2px);
+}
+.action-sheet {
+  position: fixed;
+  z-index: 51;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: min(100vw, 32rem);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-4)
+    calc(var(--space-4) + env(safe-area-inset-bottom));
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-bottom: none;
+  border-radius: var(--radius-3) var(--radius-3) 0 0;
+  box-shadow: var(--shadow-poster);
+  overscroll-behavior: contain;
+}
+.action-sheet__head {
+  padding: var(--space-2) var(--space-2) 0;
+  text-align: center;
+}
+.action-sheet__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+.action-sheet__meta {
+  margin: var(--space-1) 0 0;
+  color: var(--color-ink2);
+  font-size: 0.85rem;
+}
+.action-sheet__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.action-sheet__item {
+  appearance: none;
+  width: 100%;
+  min-height: var(--tap-min);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-2);
+  background: var(--color-elevated);
+  color: var(--color-fg);
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background var(--dur-quick) var(--ease-standard),
+    color var(--dur-quick) var(--ease-standard),
+    border-color var(--dur-quick) var(--ease-standard);
+}
+.action-sheet__item--danger {
+  color: var(--color-danger);
+  border-color: color-mix(in srgb, var(--color-danger) 45%, var(--color-border));
+}
+.action-sheet__item--danger:hover {
+  background: var(--color-danger);
+  color: var(--color-bg);
+}
+.action-sheet__item-when {
+  font-size: 0.78rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+
 .badge {
   display: inline-block;
   padding: 2px var(--space-2);
@@ -3135,9 +3225,21 @@ button.cue-mark:focus-visible {
 
 /* ---- Watch history screen ---- Cue's past tense on its own `/history`
    route: a virtualized, reverse-chronological watch log with a decade jump. Calm,
-   past-tense rows (no amber ✓ pill) under local-day headers, each row offering an
-   exact "Remove this play". The card internals below still carry the `diary-*`
-   names they were born with — the visual idiom is unchanged. */
+   past-tense rows (no amber ✓ pill) under local-day headers; a trailing ⋯ opens a
+   confirmed action sheet that removes exactly one play. The card internals below still
+   carry the `diary-*` names they were born with — the visual idiom is unchanged. */
+
+/* ONE row language for single plays AND cluster heads: the title owns the row and
+   wraps up to two lines (never crushed to an ellipsis like "In…"), mirroring the Up
+   Next lead card. The secondary meta line (SxEy · time, or a cluster range) stays
+   quiet beneath it. */
+.diary-card .card__title {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
 
 /* The Year/Month decade-jump controls sit beside the type filter. */
 .history-controls {
@@ -3256,29 +3358,33 @@ button.cue-mark:focus-visible {
   font-variant-numeric: tabular-nums;
   flex: none;
 }
-.diary-remove {
+/* The per-play reversal trigger: a quiet 44px trailing ⋯ that opens the confirm
+   action sheet. a full finger target for a consequential action,
+   without stealing the horizontal room a destructive text link used to. */
+.diary-overflow {
   appearance: none;
-  background: transparent;
-  border: 1px solid transparent;
-  color: var(--color-muted);
-  font-family: inherit;
-  font-size: 0.78rem;
-  font-weight: 600;
-  /* a 44px-tall target for a consequential (per-play removal) action. */
+  flex: none;
   display: inline-flex;
   align-items: center;
-  min-height: var(--tap-min);
-  padding: var(--space-1) var(--space-3);
+  justify-content: center;
+  width: var(--tap-min);
+  height: var(--tap-min);
+  background: transparent;
+  border: none;
   border-radius: var(--radius-pill);
+  color: var(--color-muted);
   cursor: pointer;
-  flex: none;
   transition:
     color var(--dur-quick) var(--ease-standard),
-    border-color var(--dur-quick) var(--ease-standard);
+    background var(--dur-quick) var(--ease-standard);
 }
-.diary-remove:hover {
-  color: var(--color-danger);
-  border-color: color-mix(in srgb, var(--color-danger) 40%, transparent);
+.diary-overflow:hover {
+  color: var(--color-fg);
+  background: var(--color-elevated);
+}
+.diary-overflow__glyph {
+  width: 1.35rem;
+  height: 1.35rem;
 }
 
 /* Collapsed same-show cluster: a card whose header is a disclosure trigger. */

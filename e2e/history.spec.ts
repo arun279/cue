@@ -270,7 +270,10 @@ test("removes EXACTLY one play by its history id, then restores it with Undo", a
 
   const movieRow = page.getByTestId("history-row").filter({ hasText: "Interstellar" });
   await expect(movieRow).toBeVisible();
-  await movieRow.getByTestId("history-remove").click();
+  // Destructive-by-intent: the row's ⋯ opens a confirm sheet; the removal only
+  // fires on the sheet's "Remove this play".
+  await movieRow.getByTestId("history-remove-menu").click();
+  await page.getByTestId("history-remove").click();
 
   // Optimistically gone + honest confirmation.
   await expect(movieRow).toHaveCount(0);
@@ -290,6 +293,25 @@ test("removes EXACTLY one play by its history id, then restores it with Undo", a
   await expect(page.getByTestId("history-row").filter({ hasText: "Interstellar" })).toBeVisible();
 });
 
+test("the confirm sheet names the exact play and Cancel removes nothing", async ({ page }) => {
+  const controls = await installHistoryRoutes(page.context(), recentRows());
+  await page.goto("/history");
+
+  const movieRow = page.getByTestId("history-row").filter({ hasText: "Interstellar" });
+  await movieRow.getByTestId("history-remove-menu").click();
+
+  // The sheet names the exact play (title + its release year) before any removal.
+  const sheet = page.getByTestId("history-remove-sheet");
+  await expect(sheet).toContainText("Interstellar");
+  await expect(sheet).toContainText("2014");
+
+  // Cancel dismisses without touching history — no write, row still present.
+  await page.getByTestId("history-remove-cancel").click();
+  await expect(sheet).toHaveCount(0);
+  await expect(movieRow).toBeVisible();
+  expect(controls.removePosts()).toHaveLength(0);
+});
+
 test("a failed Undo re-add keeps the play removed and never falsely claims Restored", async ({
   page,
 }) => {
@@ -298,7 +320,10 @@ test("a failed Undo re-add keeps the play removed and never falsely claims Resto
 
   const movieRow = page.getByTestId("history-row").filter({ hasText: "Interstellar" });
   await expect(movieRow).toBeVisible();
-  await movieRow.getByTestId("history-remove").click();
+  // Destructive-by-intent: the row's ⋯ opens a confirm sheet; the removal only
+  // fires on the sheet's "Remove this play".
+  await movieRow.getByTestId("history-remove-menu").click();
+  await page.getByTestId("history-remove").click();
   await expect(movieRow).toHaveCount(0);
   await expect(page.getByTestId("history-undo")).toContainText("Removed from history");
 
@@ -325,7 +350,10 @@ test("Undo during an in-flight remove that then fails never re-adds a duplicate 
 
   // Hold the remove open so the Undo races an unsettled removal.
   controls.setRemoveMode("hold");
-  await movieRow.getByTestId("history-remove").click();
+  // Destructive-by-intent: the row's ⋯ opens a confirm sheet; the removal only
+  // fires on the sheet's "Remove this play".
+  await movieRow.getByTestId("history-remove-menu").click();
+  await page.getByTestId("history-remove").click();
   await expect(movieRow).toHaveCount(0);
   await expect(page.getByTestId("history-undo")).toBeVisible();
 

@@ -242,7 +242,9 @@ test("watch-history remove is a 44px target @390", async ({ page }) => {
   await page.setViewportSize(PHONE);
   await page.goto("/history");
 
-  const remove = page.getByTestId("history-remove").first();
+  // The row's trailing ⋯ (which opens the confirm sheet) is the consequential
+  // control that must be a full finger target.
+  const remove = page.getByTestId("history-remove-menu").first();
   await expect(remove).toBeVisible();
   await expectTapTarget(remove, "height");
 });
