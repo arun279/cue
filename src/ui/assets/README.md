@@ -1,10 +1,7 @@
 # UI assets
 
-## `trakt-logo.svg` — required attribution asset (not committed)
+## `trakt-logo.svg` — required attribution asset
 
-Settings → About shows a "Powered by Trakt" credit. Trakt's API terms require the **unaltered official Trakt logo** to appear there. That asset is not redistributed in this repo; drop it in as `trakt-logo.svg` in this folder:
+Settings → About shows a "Powered by Trakt" credit. Trakt's API terms require the **unaltered official Trakt logo** to appear there. That asset is present in this folder as `trakt-logo.svg` and `Settings.tsx` picks it up automatically via `import.meta.glob`.
 
-1. Download the logo from <https://app.trakt.tv/branding>.
-2. Use the **dark** asset (the About panel sits on a dark surface).
-3. Keep it **unaltered** and preserve its required clear-space.
-4. Save it here as `trakt-logo.svg` — no code change is needed. `Settings.tsx` picks it up automatically (`import.meta.glob`) and renders it; until then the text credit stands on its own, which already satisfies the terms.
+The committed file is the official **gradient logomark** from <https://trakt.tv/branding>, downloaded unaltered. The gradient mark is used (rather than a white-on-dark wordmark) because the About surface follows the app's light/dark theme, and the gradient tile stays legible on both. Keep it **unaltered** and preserve its required clear-space if you ever replace it.

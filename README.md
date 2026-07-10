@@ -84,7 +84,7 @@ On device, the Trakt OAuth token is stored via Capacitor Preferences so it survi
 
 Powered by [Trakt](https://trakt.tv).
 
-Cue uses the Trakt API but is not created, endorsed, or sponsored by Trakt. The app name is deliberately Trakt-free so Cue is never mistaken for an official Trakt product. The unaltered official Trakt logo, from [app.trakt.tv/branding](https://app.trakt.tv/branding), belongs in the Settings → About credit and in `src/ui/assets/trakt-logo.svg` (see that folder's README); it is not redistributed here.
+Cue uses the Trakt API but is not created, endorsed, or sponsored by Trakt. The app name is deliberately Trakt-free so Cue is never mistaken for an official Trakt product. The unaltered official Trakt logo, from [trakt.tv/branding](https://trakt.tv/branding), appears in the Settings → About credit and ships in `src/ui/assets/trakt-logo.svg` (see that folder's README).
 
 ## Privacy
 

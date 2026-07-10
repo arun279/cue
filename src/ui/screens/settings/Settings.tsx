@@ -11,13 +11,10 @@ import { type ReactElement, useState } from "react";
 /** Trakt account deletion lives on Trakt — Cue only hands the user off to it. */
 const TRAKT_ACCOUNT_SETTINGS_URL = "https://app.trakt.tv/settings/advanced";
 
-// The official Trakt logo is a required attribution asset that must ship
-// UNALTERED, so it is not committed here — only its slot is. `import.meta.glob`
-// resolves to `{}` while the file is absent (no build break) and picks it up
-// automatically once dropped in, at which point the image below renders.
-// TODO(trakt-logo): drop the unaltered official Trakt logo from
-// app.trakt.tv/branding into src/ui/assets/trakt-logo.svg (use the dark asset;
-// preserve its required clear-space). No other change is needed.
+// The official Trakt logo ships UNALTERED as a required attribution asset.
+// `import.meta.glob` resolves it eagerly and it renders in the "Powered by
+// Trakt" credit below; the `?? null` fallback keeps the build green if the
+// asset is ever absent.
 const traktLogoModules = import.meta.glob<{ readonly default: string }>(
   "../../assets/trakt-logo.svg",
   { eager: true },

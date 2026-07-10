@@ -24,7 +24,7 @@ Cue collects no analytics and sends no telemetry. It makes no network requests e
 
 ## Hosting this document
 
-To serve as the public "delete account URL" that Google Play and other stores require, this statement must be reachable at a stable public URL. Host it publicly — for example via GitHub Pages — using the ready-made page at [`docs/privacy.html`](docs/privacy.html), and point the store listing at that URL.
+To serve as the public "delete account URL" that Google Play and other stores require, this statement must be reachable at a stable public URL. This file (`PRIVACY.md`) is the single source of truth: it is served from the repository's own public URL, and can optionally be published via GitHub Pages. Point the store listing at that URL.
 
 ## Attribution
 
