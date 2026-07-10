@@ -756,6 +756,35 @@ body {
 .settings__handoff {
   margin-top: var(--space-5);
 }
+/* A text link with a trailing up-right arrow — reads as "opens Trakt", never as a
+   second in-app button peering the destructive Disconnect pill above it. */
+.settings__handoff-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--tap-min);
+  color: var(--color-accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.settings__handoff-link:hover {
+  color: var(--color-accent-strong);
+}
+.settings__handoff-icon {
+  width: 1em;
+  height: 1em;
+  flex: none;
+}
+/* The Trakt attribution reads as one intentional line whether or not the logo
+   asset is present — never a two-column row missing its value. */
+.settings__attribution {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-2);
+  font-weight: 600;
+}
 .settings__trakt-logo {
   height: 1.5rem;
   width: auto;

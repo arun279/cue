@@ -250,27 +250,38 @@ export function Settings(): ReactElement {
           has no account of its own to delete.
         </p>
         <a
-          className="button button--ghost"
+          className="settings__handoff-link"
           data-testid="link-delete-account"
           href={TRAKT_ACCOUNT_SETTINGS_URL}
           target="_blank"
           rel="noopener noreferrer"
         >
           Delete your Trakt account
+          <svg
+            className="settings__handoff-icon"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path
+              d="M7 17 17 7M9 7h8v8"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
         </a>
       </div>
 
       <h2 className="settings__heading">About</h2>
-      <dl className="settings__list">
-        <div className="settings__row">
-          <dt>Powered by Trakt</dt>
-          <dd>
-            {traktLogoSrc !== null && (
-              <img className="settings__trakt-logo" src={traktLogoSrc} alt="Trakt" />
-            )}
-          </dd>
-        </div>
-      </dl>
+      <p className="settings__attribution" data-testid="powered-by-trakt">
+        {traktLogoSrc !== null && (
+          <img className="settings__trakt-logo" src={traktLogoSrc} alt="Trakt" />
+        )}
+        Powered by Trakt
+      </p>
       <p className="settings__note" data-testid="trakt-attribution">
         Cue uses the Trakt API but is not created, endorsed, or sponsored by Trakt.
       </p>
