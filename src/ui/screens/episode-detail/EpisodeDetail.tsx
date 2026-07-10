@@ -86,12 +86,7 @@ function EpisodeHero({
             aria-label={`Go to ${showHeader.title}`}
             data-testid="episode-show-poster"
           >
-            <Poster
-              title={showHeader.title}
-              posters={showHeader.posters}
-              tmdbConfig={null}
-              variant="hero"
-            />
+            <Poster title={showHeader.title} posters={showHeader.posters} variant="hero" />
           </Link>
         )}
 

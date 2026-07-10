@@ -11,8 +11,8 @@ ios/
 android/
 .wrangler/
 
-# Env — the real .env (your Trakt app's PUBLIC client id + optional TMDB key) is
-# local-only. Committed: .env.example (placeholders) + .env.test (CI/e2e dummy id).
+# Env — the real .env (your Trakt app's PUBLIC client id) is local-only.
+# Committed: .env.example (placeholders) + .env.test (CI/e2e dummy id).
 .env*
 !.env.example
 !.env.test

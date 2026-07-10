@@ -1,42 +1,21 @@
 /**
- * Pluggable image resolution: Trakt inline poster → TMDB (when
- * configured) → initials placeholder. A missing/low-res Trakt image degrades
- * gracefully instead of rendering a broken tile. Trakt image URLs are
- * host-relative (`media.trakt.tv/...`); TMDB URLs are built from the cached
- * `/3/configuration` base + size tier.
+ * Image resolution: a Trakt inline poster (host-relative `media.trakt.tv/...`)
+ * when present, else the initials placeholder. A missing/low-res image degrades
+ * to the monogram block instead of rendering a broken tile.
  */
-
-export interface TmdbImageConfig {
-  readonly secureBaseUrl: string;
-  readonly posterSize: string;
-}
 
 export interface PosterInput {
   readonly title: string;
   readonly traktPosters?: readonly string[] | null;
-  readonly tmdbPath?: string | null;
-  readonly tmdbConfig?: TmdbImageConfig | null;
 }
 
 export type ResolvedImage =
   | { readonly source: "trakt"; readonly url: string }
-  | { readonly source: "tmdb"; readonly url: string }
   | { readonly source: "placeholder"; readonly initials: string };
 
 export function resolvePoster(input: PosterInput): ResolvedImage {
   const traktPoster = input.traktPosters?.find((url) => url.length > 0);
   if (traktPoster !== undefined) return { source: "trakt", url: ensureHttps(traktPoster) };
-  if (
-    input.tmdbPath !== undefined &&
-    input.tmdbPath !== null &&
-    input.tmdbPath.length > 0 &&
-    input.tmdbConfig != null
-  ) {
-    return {
-      source: "tmdb",
-      url: `${input.tmdbConfig.secureBaseUrl}${input.tmdbConfig.posterSize}${input.tmdbPath}`,
-    };
-  }
   return { source: "placeholder", initials: initialsOf(input.title) };
 }
 

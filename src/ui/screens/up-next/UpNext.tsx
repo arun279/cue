@@ -1,4 +1,3 @@
-import type { TmdbImageConfig } from "@data/image-source";
 import { Link } from "@tanstack/react-router";
 import { CachedRetryBanner } from "@ui/components/CachedRetryBanner";
 import { CardListSkeleton } from "@ui/components/CardListSkeleton";
@@ -31,14 +30,12 @@ interface UndoTarget {
  * group holds the very first card of the honest sort (`leadFirst`). */
 function QueueList({
   cards,
-  tmdbConfig,
   leadFirst,
   listTestId,
   undoTarget,
   onMark,
 }: {
   readonly cards: readonly UpNextCardModel[];
-  readonly tmdbConfig: TmdbImageConfig | null;
   readonly leadFirst: boolean;
   readonly listTestId?: string;
   readonly undoTarget: UndoTarget | null;
@@ -50,7 +47,6 @@ function QueueList({
         <li key={card.entry.showId}>
           <UpNextCard
             card={card}
-            tmdbConfig={tmdbConfig}
             variant={leadFirst && index === 0 ? "lead" : "queue"}
             undo={
               undoTarget?.showId === card.entry.showId
@@ -260,13 +256,7 @@ export function UpNext(): ReactElement {
       {showSections && view.newCards.length > 0 && (
         <section className="up-next-group" data-testid="up-next-new">
           <h2 className="section-heading">New</h2>
-          <QueueList
-            cards={view.newCards}
-            tmdbConfig={view.tmdbConfig}
-            leadFirst
-            undoTarget={undoTarget}
-            onMark={markCard}
-          />
+          <QueueList cards={view.newCards} leadFirst undoTarget={undoTarget} onMark={markCard} />
         </section>
       )}
 
@@ -275,7 +265,6 @@ export function UpNext(): ReactElement {
           <h2 className="section-heading">Continue</h2>
           <QueueList
             cards={view.continueCards}
-            tmdbConfig={view.tmdbConfig}
             leadFirst={view.newCards.length === 0}
             listTestId="up-next-list"
             undoTarget={undoTarget}
@@ -285,12 +274,7 @@ export function UpNext(): ReactElement {
       )}
 
       {showSections && hasLapsed && (
-        <LapsedDrawer
-          cards={view.lapsedCards}
-          tmdbConfig={view.tmdbConfig}
-          onMark={markCard}
-          onStop={stopWatching}
-        />
+        <LapsedDrawer cards={view.lapsedCards} onMark={markCard} onStop={stopWatching} />
       )}
 
       {mark.error !== null && (

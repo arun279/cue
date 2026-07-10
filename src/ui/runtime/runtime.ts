@@ -1,4 +1,3 @@
-import type { TmdbImageConfig } from "@data/image-source";
 import type { InvalidationKey } from "@data/query-invalidation";
 import type { EpisodeDetail } from "@data/trakt/episode-detail";
 import type { LibraryEntry, ShowArt } from "@data/trakt/library";
@@ -15,10 +14,9 @@ import { createContext, useContext } from "react";
 /** trakt id → 1–10 rating, for the currently-rated items of one section. */
 export type RatingMap = Readonly<Record<number, number>>;
 
-/** The read side of the home surface: the assembled queue + the image resolver config. */
+/** The read side of the home surface: the assembled active queue. */
 export interface UpNextData {
   readonly entries: readonly LibraryEntry[];
-  readonly tmdbConfig: TmdbImageConfig | null;
   /**
    * True when the watched library exceeds the cold-sync progress budget
    * so entries beyond the most-recently-watched head carry a
@@ -28,28 +26,25 @@ export interface UpNextData {
   readonly isPartial: boolean;
 }
 
-/** The read side of the My Shows movie library: watched + watchlist movies + the image config. */
+/** The read side of the My Shows movie library: watched + watchlist movies. */
 export interface MovieLibraryData {
   readonly entries: readonly MovieEntry[];
-  readonly tmdbConfig: TmdbImageConfig | null;
 }
 
 /** The read side of Discover browse: trending + popular poster rails for
- * shows AND movies + the image config. Movies reuse the show-rail `SearchHit`
+ * shows AND movies. Movies reuse the show-rail `SearchHit`
  * pipeline (DiscoverCard → `/movie/:id` + inline watchlist add). */
 export interface DiscoverData {
   readonly trending: readonly SearchHit[];
   readonly popular: readonly SearchHit[];
   readonly trendingMovies: readonly SearchHit[];
   readonly popularMovies: readonly SearchHit[];
-  readonly tmdbConfig: TmdbImageConfig | null;
 }
 
 /** The read side of the calendar: flattened air-dated episodes + the hidden set to exclude. */
 export interface CalendarData {
   readonly entries: readonly CalendarEntry[];
   readonly hiddenShowIds: readonly number[];
-  readonly tmdbConfig: TmdbImageConfig | null;
 }
 
 /** Which slice of history a Diary type filter reads (TV → episode plays). */
@@ -64,7 +59,6 @@ export interface HistoryPageData {
   readonly entries: readonly HistoryEntry[];
   readonly page: number;
   readonly pageCount: number;
-  readonly tmdbConfig: TmdbImageConfig | null;
 }
 
 /** How a submitted write settled: applied, definitively rejected, or still durable-pending. */

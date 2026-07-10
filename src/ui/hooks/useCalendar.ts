@@ -1,4 +1,3 @@
-import type { TmdbImageConfig } from "@data/image-source";
 import { invalidateShowProgress } from "@data/query-invalidation";
 import { queryKeys } from "@data/query-keys";
 import { type CalendarDay, type CalendarRow, groupCalendar } from "@domain/calendar";
@@ -18,7 +17,6 @@ export interface CalendarView {
   readonly days: readonly CalendarDay[];
   readonly windowDays: number;
   setWindowDays(days: number): void;
-  readonly tmdbConfig: TmdbImageConfig | null;
   readonly isLoading: boolean;
   readonly isFetching: boolean;
   readonly isError: boolean;
@@ -175,7 +173,6 @@ export function useCalendar(): CalendarView {
     days,
     windowDays,
     setWindowDays,
-    tmdbConfig: data?.tmdbConfig ?? null,
     ...queryStatus(query, data !== undefined),
     refetch: () => void query.refetch(),
     isWatched: (episodeId) => watched.has(episodeId),

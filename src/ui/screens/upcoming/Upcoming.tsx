@@ -77,7 +77,6 @@ export function Upcoming(): ReactElement {
           ) : (
             <CalendarRow
               row={row.row}
-              tmdbConfig={view.tmdbConfig}
               watched={view.isWatched(row.row.ids.trakt)}
               isUndoTarget={view.undoable?.episodeId === row.row.ids.trakt}
               onUndo={() => void view.undo()}

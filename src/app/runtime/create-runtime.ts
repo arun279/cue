@@ -1,9 +1,7 @@
-import { TMDB_KEY, TRAKT_CLIENT_ID } from "@app/config";
+import { TRAKT_CLIENT_ID } from "@app/config";
 import { queryClient, queryPersister } from "@app/query-client";
 import { PendingWritesError, type TeardownOptions } from "@app/session";
-import type { TmdbImageConfig } from "@data/image-source";
 import { invalidationKeys } from "@data/query-invalidation";
-import { TmdbClient } from "@data/tmdb/client";
 import { createAuthorizedFetch } from "@data/trakt/authorized-fetch";
 import { assembleCalendarEntries } from "@data/trakt/calendar";
 import { TraktClient } from "@data/trakt/client";
@@ -93,15 +91,6 @@ export interface RuntimeDeps {
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function resolveTmdbConfig(tmdbKey: string): Promise<TmdbImageConfig | null> {
-  if (tmdbKey.trim().length === 0) return null;
-  try {
-    return await new TmdbClient({ credential: tmdbKey }).getImageConfig();
-  } catch {
-    return null;
-  }
-}
-
 /**
  * Build the composition-root services the UI runs on. Wires an
  * authenticated Trakt client, the durable write-queue (dispatch = transport, reconcile = a progress re-read, never a blind re-POST), restores
@@ -124,7 +113,6 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     getToken: () => authorized.accessToken(),
     fetch: authorized.fetch,
   });
-  const tmdbConfig = await resolveTmdbConfig(TMDB_KEY);
 
   const reconcile = async (op: QueuedOp): Promise<boolean> => {
     const context = op.inversePatch as ReconcileContext | null;
@@ -188,7 +176,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       // read (`loadShowArt`), so the GET count stays bounded instead of ~2× library
       // size. `partial` marks a library larger than the budget so the pill can say so.
       const { entries, partial } = await loadUpNextEntries(client);
-      return { entries, tmdbConfig, isPartial: partial };
+      return { entries, isPartial: partial };
     },
 
     async loadShowArt(showId): Promise<ShowArt> {
@@ -222,7 +210,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
         watchedMovies: watched.data,
         watchlistMovies: watchlist.data,
       });
-      return { entries, tmdbConfig };
+      return { entries };
     },
 
     async loadMovieHeader(movieId) {
@@ -299,7 +287,6 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       return {
         entries: assembleCalendarEntries(calendar.data),
         hiddenShowIds: [...showIdSet(hidden.data)],
-        tmdbConfig,
       };
     },
 
@@ -314,7 +301,6 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
         entries: assembleHistoryEntries(result.data),
         page: result.pagination?.page ?? page,
         pageCount: result.pagination?.pageCount ?? page,
-        tmdbConfig,
       };
     },
 
@@ -361,7 +347,6 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
         popular: assembleShowHits(popular.data),
         trendingMovies: assembleMovieHits(trendingMovies.data.map((row) => row.movie)),
         popularMovies: assembleMovieHits(popularMovies.data),
-        tmdbConfig,
       };
     },
 

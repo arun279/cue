@@ -7,12 +7,7 @@ export interface HermeticControls {
   setCount: (count: number) => void;
 }
 
-const OTHER_ORIGINS = [
-  "**/api.trakt.tv/**",
-  "**/trakt.tv/**",
-  "**/api.themoviedb.org/**",
-  "**/image.tmdb.org/**",
-];
+const OTHER_ORIGINS = ["**/api.trakt.tv/**", "**/trakt.tv/**"];
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -28,7 +23,7 @@ export function agoIso(days: number): string {
 }
 
 /**
- * Intercept every Trakt/TMDB origin at the browser-context level so no request
+ * Intercept every Trakt origin at the browser-context level so no request
  * escapes to the real network (hermetic e2e). The frame's `/networks`
  * boot probe is controllable so persistence tests can delay or fail it on demand.
  */
@@ -1171,7 +1166,7 @@ export function buildPersistedLibrary(count: number, ageMs: number, buster = "cu
           queryKey: ["library"],
           queryHash: '["library"]',
           state: {
-            data: { entries, tmdbConfig: null, isPartial: false },
+            data: { entries, isPartial: false },
             dataUpdateCount: 1,
             dataUpdatedAt: updatedAt,
             error: null,

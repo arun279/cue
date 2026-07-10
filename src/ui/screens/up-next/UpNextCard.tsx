@@ -1,4 +1,3 @@
-import type { TmdbImageConfig } from "@data/image-source";
 import { Link } from "@tanstack/react-router";
 import { InlineUndo } from "@ui/components/InlineUndo";
 import { MarkWatchedButton } from "@ui/components/MarkWatchedButton";
@@ -10,7 +9,6 @@ import { Poster } from "./Poster";
 
 interface UpNextCardProps {
   readonly card: UpNextCardModel;
-  readonly tmdbConfig: TmdbImageConfig | null;
   /** The first card of the honest sort renders `lead` — larger and calmer, but not
    * a cinematic recommendation (it is simply first-in-sort, not a "for you" pick). */
   readonly variant?: "lead" | "queue";
@@ -32,7 +30,6 @@ interface UpNextCardProps {
  */
 export function UpNextCard({
   card,
-  tmdbConfig,
   variant = "queue",
   undo,
   onMark,
@@ -62,7 +59,7 @@ export function UpNextCard({
         aria-label={entry.title}
       >
         <span className={isLead ? "poster-wrap" : "poster-wrap poster-wrap--sm"}>
-          <Poster title={entry.title} posters={posters} tmdbConfig={tmdbConfig} variant="queue" />
+          <Poster title={entry.title} posters={posters} variant="queue" />
           <span className="poster__bar" aria-hidden="true">
             <i style={{ width: `${percent}%` }} />
           </span>

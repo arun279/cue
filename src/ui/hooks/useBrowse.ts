@@ -1,4 +1,3 @@
-import type { TmdbImageConfig } from "@data/image-source";
 import { queryKeys } from "@data/query-keys";
 import type { SearchHit } from "@data/trakt/search";
 import { useQuery } from "@tanstack/react-query";
@@ -12,7 +11,6 @@ export interface BrowseView {
   readonly popular: readonly SearchHit[];
   readonly trendingMovies: readonly SearchHit[];
   readonly popularMovies: readonly SearchHit[];
-  readonly tmdbConfig: TmdbImageConfig | null;
   refetch(): void;
 }
 
@@ -42,7 +40,6 @@ export function useBrowse(): BrowseView {
     popular: query.data?.popular ?? [],
     trendingMovies: query.data?.trendingMovies ?? [],
     popularMovies: query.data?.popularMovies ?? [],
-    tmdbConfig: query.data?.tmdbConfig ?? null,
     refetch: () => void query.refetch(),
   };
 }

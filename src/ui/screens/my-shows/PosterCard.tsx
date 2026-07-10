@@ -1,4 +1,3 @@
-import type { TmdbImageConfig } from "@data/image-source";
 import type { LibraryEntry } from "@data/trakt/library";
 import { Link } from "@tanstack/react-router";
 import { episodeCode, watchedPercent } from "@ui/format";
@@ -8,7 +7,6 @@ import type { ReactElement } from "react";
 
 interface PosterCardProps {
   readonly entry: LibraryEntry;
-  readonly tmdbConfig: TmdbImageConfig | null;
 }
 
 /**
@@ -18,7 +16,7 @@ interface PosterCardProps {
  * (the global "tap any poster → Show page" rule) — one tab stop with an
  * accessible name, not a nested control.
  */
-export function PosterCard({ entry, tmdbConfig }: PosterCardProps): ReactElement {
+export function PosterCard({ entry }: PosterCardProps): ReactElement {
   const percent = watchedPercent(entry.completed, entry.aired);
   const next = entry.nextEpisode;
   // Deferred per-card art: the virtualized grid only mounts visible
@@ -36,7 +34,7 @@ export function PosterCard({ entry, tmdbConfig }: PosterCardProps): ReactElement
       data-show-id={entry.showId}
     >
       <span className="poster-wrap poster-wrap--tile">
-        <Poster title={entry.title} posters={posters} tmdbConfig={tmdbConfig} variant="tile" />
+        <Poster title={entry.title} posters={posters} variant="tile" />
         {entry.progressKnown && entry.aired > 0 && (
           <span className="poster__bar" aria-hidden="true">
             <i style={{ width: `${percent}%` }} />

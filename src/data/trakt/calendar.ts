@@ -7,7 +7,7 @@ import { toEpisodeIds } from "./show-detail";
  * grouping selector consumes. The row-level `first_aired` is the
  * authoritative air instant (an episode can be re-aired), so it wins over the
  * episode body's own date. Poster candidates come off the show for the image
- * resolver; the episode's tmdb id backs the TMDB still fallback.
+ * resolver.
  */
 export function assembleCalendarEntries(items: readonly CalendarItem[]): CalendarEntry[] {
   return items.map((item) => ({

@@ -21,12 +21,11 @@ test.describe("onboarding + auth", () => {
     await expect(page.getByRole("heading", { name: "Welcome to Cue" })).toBeVisible();
     await expect(page.getByTestId("button-connect")).toHaveText("Continue with Trakt");
 
-    // The whole developer-facing surface is gone: no client-id / TMDB fields, no
+    // The whole developer-facing surface is gone: no client-id field, no
     // "add this redirect URI to your Trakt app" callout. A user never enters a
     // client id — it is embedded once by the app author.
     await expect(page.locator("input")).toHaveCount(0);
     await expect(page.getByTestId("input-client-id")).toHaveCount(0);
-    await expect(page.getByTestId("input-tmdb-key")).toHaveCount(0);
     await expect(page.getByTestId("callback-url")).toHaveCount(0);
   });
 

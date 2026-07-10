@@ -1,4 +1,4 @@
-import { resolvePoster, type TmdbImageConfig } from "@data/image-source";
+import { resolvePoster } from "@data/image-source";
 import { ArtPlaceholder } from "@ui/components/ArtPlaceholder";
 import { artGradient } from "@ui/components/artGradient";
 import { type ReactElement, useState } from "react";
@@ -8,12 +8,11 @@ type PosterVariant = "row" | "queue" | "hero" | "tile";
 interface PosterProps {
   readonly title: string;
   readonly posters?: readonly string[] | null;
-  readonly tmdbConfig: TmdbImageConfig | null;
   readonly variant?: PosterVariant;
 }
 
 /**
- * Poster tile via the image resolver (Trakt inline → TMDB → placeholder). The
+ * Poster tile via the image resolver (Trakt inline → placeholder). The
  * shared {@link ArtPlaceholder} is ALWAYS the backing layer: when a poster URL
  * resolves, the `<img>` sits on top and fades in once it decodes, so a lazy
  * below-the-fold tile in a discover / library grid reads as the designed
@@ -22,11 +21,11 @@ interface PosterProps {
  * leaves a torn card. The `variant` sizes the tile for its context (queue row,
  * hero inset, list row); progress rails are drawn by the consumer wrapper.
  */
-export function Poster({ title, posters, tmdbConfig, variant = "row" }: PosterProps): ReactElement {
+export function Poster({ title, posters, variant = "row" }: PosterProps): ReactElement {
   const [brokenSrc, setBrokenSrc] = useState<string | null>(null);
   const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
-  const resolved = resolvePoster({ title, traktPosters: posters, tmdbConfig });
+  const resolved = resolvePoster({ title, traktPosters: posters });
   // Null when there is no resolvable art: the tile stays the placeholder block with
   // no image layer.
   const url = resolved.source === "placeholder" ? null : resolved.url;

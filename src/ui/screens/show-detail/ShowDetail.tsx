@@ -84,7 +84,7 @@ function ShowHero({
       <div className="show-hero__scrim" />
       <div className="show-hero__body">
         <span className="poster-wrap show-hero__poster">
-          <Poster title={header.title} posters={header.posters} tmdbConfig={null} variant="hero" />
+          <Poster title={header.title} posters={header.posters} variant="hero" />
           {header.aired > 0 && (
             <span className="poster__bar" aria-hidden="true">
               <i style={{ width: `${pct}%` }} />

@@ -1,4 +1,3 @@
-import type { TmdbImageConfig } from "@data/image-source";
 import type { LibraryEntry } from "@data/trakt/library";
 import type { MovieEntry } from "@data/trakt/movie-library";
 import type { LibrarySort } from "@domain/library-buckets";
@@ -207,16 +206,14 @@ function SegmentAccordion<E>({
  * Stopping keeps your history; Resume just brings the show back into your library. */
 function StoppedTile({
   entry,
-  tmdbConfig,
   onResume,
 }: {
   readonly entry: LibraryEntry;
-  readonly tmdbConfig: TmdbImageConfig | null;
   onResume(): void;
 }): ReactElement {
   return (
     <div className="pile-tile">
-      <PosterCard entry={entry} tmdbConfig={tmdbConfig} />
+      <PosterCard entry={entry} />
       <button
         type="button"
         className="pile-tile__resume"
@@ -233,17 +230,11 @@ function StoppedTile({
 /** A Caught-up tile: the shared PosterCard plus a quiet "returning <date>" caption
  * when the next (unaired) episode has a known air date — the "Caught up · returning
  * Mar 2027" reading, split across the segment header and this per-tile note. */
-function CaughtUpTile({
-  entry,
-  tmdbConfig,
-}: {
-  readonly entry: LibraryEntry;
-  readonly tmdbConfig: TmdbImageConfig | null;
-}): ReactElement {
+function CaughtUpTile({ entry }: { readonly entry: LibraryEntry }): ReactElement {
   const returning = entry.nextEpisode === null ? null : formatAirDate(entry.nextEpisode.firstAired);
   return (
     <div className="pile-tile">
-      <PosterCard entry={entry} tmdbConfig={tmdbConfig} />
+      <PosterCard entry={entry} />
       {returning !== null && (
         <p className="pile-tile__note" data-testid="returning-note">
           · returning {returning}
@@ -425,9 +416,7 @@ export function Library(): ReactElement {
             onOpenChange={onOpenChange}
             filtering={filtering}
             keyOf={(movie: MovieEntry) => movie.movieId}
-            renderCell={(movie: MovieEntry) => (
-              <MoviePosterCard entry={movie} tmdbConfig={movieView.tmdbConfig} />
-            )}
+            renderCell={(movie: MovieEntry) => <MoviePosterCard entry={movie} />}
           />
         ) : (
           <SegmentAccordion
@@ -441,7 +430,6 @@ export function Library(): ReactElement {
                 return (
                   <StoppedTile
                     entry={entry}
-                    tmdbConfig={view.tmdbConfig}
                     onResume={() =>
                       void unhide.unhide(
                         entry.showId,
@@ -453,9 +441,9 @@ export function Library(): ReactElement {
                 );
               }
               if (pile.status === "caught-up") {
-                return <CaughtUpTile entry={entry} tmdbConfig={view.tmdbConfig} />;
+                return <CaughtUpTile entry={entry} />;
               }
-              return <PosterCard entry={entry} tmdbConfig={view.tmdbConfig} />;
+              return <PosterCard entry={entry} />;
             }}
           />
         )}

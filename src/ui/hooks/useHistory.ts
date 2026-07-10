@@ -1,4 +1,3 @@
-import type { TmdbImageConfig } from "@data/image-source";
 import { invalidateShowProgress } from "@data/query-invalidation";
 import { queryKeys } from "@data/query-keys";
 import {
@@ -53,7 +52,6 @@ type RemovalToast =
 export interface HistoryView {
   readonly days: readonly HistoryDay[];
   readonly filter: HistoryFilter;
-  readonly tmdbConfig: TmdbImageConfig | null;
   readonly isLoading: boolean;
   readonly isError: boolean;
   /** True while a change-driven refetch is in flight — drives the sync pill. */
@@ -240,7 +238,6 @@ export function useHistory(scope: HistoryScope): HistoryView {
   return {
     days,
     filter,
-    tmdbConfig: query.data?.pages[0]?.tmdbConfig ?? null,
     ...queryStatus(query, query.data !== undefined),
     isEmpty: query.data !== undefined && entryCount === 0,
     refetch: () => void query.refetch(),

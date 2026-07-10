@@ -19,6 +19,3 @@ if (TRAKT_CLIENT_ID === "") {
       "app's public client id (register one at https://trakt.tv/oauth/applications).",
   );
 }
-
-/** Optional author-embedded TMDB key for higher-res artwork; empty falls back to Trakt images. */
-export const TMDB_KEY: string = readEnv(import.meta.env["VITE_TMDB_KEY"]);

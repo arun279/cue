@@ -122,7 +122,6 @@ function Browse({ view }: { view: SearchView }): ReactElement {
           <h2 className="discover-rail__head">{row.head}</h2>
           <DiscoverRail
             hits={row.hits}
-            tmdbConfig={browse.tmdbConfig}
             isAdded={view.isAdded}
             onAdd={(hit) => void view.add(hit)}
             testId={`${row.testId}-rail`}
@@ -226,7 +225,6 @@ export function Search(): ReactElement {
         </p>
         <DiscoverGrid
           hits={visibleHits}
-          tmdbConfig={null}
           isAdded={view.isAdded}
           onAdd={(hit) => void view.add(hit)}
           testId="search-results"

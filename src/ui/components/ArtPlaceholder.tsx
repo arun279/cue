@@ -37,7 +37,7 @@ interface ArtPlaceholderProps {
 }
 
 /**
- * The single designed no-artwork mark. With the TMDB key blank every
+ * The single designed no-artwork mark. Whenever a title has no Trakt poster every
  * poster resolves here, so it must read as intentional: a quiet media glyph and the
  * title's monogram in the display face — never a broken-image icon or a flat grey
  * void. Rendered as an absolute fill so it overlays the hosting media surface

@@ -1,4 +1,3 @@
-import type { TmdbImageConfig } from "@data/image-source";
 import { Link } from "@tanstack/react-router";
 import { ChevronIcon } from "@ui/components/ChevronIcon";
 import { MarkWatchedButton } from "@ui/components/MarkWatchedButton";
@@ -11,7 +10,6 @@ import { Poster } from "./Poster";
 
 interface LapsedDrawerProps {
   readonly cards: readonly UpNextCardModel[];
-  readonly tmdbConfig: TmdbImageConfig | null;
   /** Catch up in place — mark the lapsed show's next episode, re-sorting it to Continue. */
   onMark(card: UpNextCardModel): void;
   /** Stop watching a lapsed show — the parent owns the hide + its Undo snackbar. */
@@ -23,12 +21,10 @@ interface LapsedDrawerProps {
  * (icon-only amber ring, identical to every queue row) and Stop watching. */
 function LapsedRow({
   card,
-  tmdbConfig,
   onMark,
   onStop,
 }: {
   readonly card: LapsedDrawerProps["cards"][number];
-  readonly tmdbConfig: TmdbImageConfig | null;
   onMark(): void;
   onStop(): void;
 }): ReactElement {
@@ -53,7 +49,7 @@ function LapsedRow({
         aria-label={entry.title}
       >
         <span className="poster-wrap poster-wrap--sm">
-          <Poster title={entry.title} posters={posters} tmdbConfig={tmdbConfig} variant="queue" />
+          <Poster title={entry.title} posters={posters} variant="queue" />
         </span>
       </Link>
       <div className="card__body">
@@ -93,12 +89,7 @@ function LapsedRow({
  * parent's optimistic hide + Undo). A decided show leaves the drawer on its own,
  * so there is no local per-session dismissal to lose on reload.
  */
-export function LapsedDrawer({
-  cards,
-  tmdbConfig,
-  onMark,
-  onStop,
-}: LapsedDrawerProps): ReactElement | null {
+export function LapsedDrawer({ cards, onMark, onStop }: LapsedDrawerProps): ReactElement | null {
   if (cards.length === 0) return null;
 
   return (
@@ -122,12 +113,7 @@ export function LapsedDrawer({
           <ul className="lapsed-list">
             {cards.map((card) => (
               <li key={card.entry.showId}>
-                <LapsedRow
-                  card={card}
-                  tmdbConfig={tmdbConfig}
-                  onMark={() => onMark(card)}
-                  onStop={() => onStop(card)}
-                />
+                <LapsedRow card={card} onMark={() => onMark(card)} onStop={() => onStop(card)} />
               </li>
             ))}
           </ul>

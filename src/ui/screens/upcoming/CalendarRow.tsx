@@ -1,4 +1,3 @@
-import type { TmdbImageConfig } from "@data/image-source";
 import type { CalendarRow as CalendarRowModel } from "@domain/calendar";
 import { localTimeZone } from "@domain/time";
 import { Link } from "@tanstack/react-router";
@@ -10,7 +9,6 @@ import type { ReactElement } from "react";
 
 interface CalendarRowProps {
   readonly row: CalendarRowModel;
-  readonly tmdbConfig: TmdbImageConfig | null;
   readonly watched: boolean;
   /** True for the row whose mark just landed: show the point-of-action inline Undo
    * beside the green done disc for the reversal window. */
@@ -36,7 +34,6 @@ const timeFmt = new Intl.DateTimeFormat("en-US", {
  */
 export function CalendarRow({
   row,
-  tmdbConfig,
   watched,
   isUndoTarget,
   onUndo,
@@ -47,7 +44,7 @@ export function CalendarRow({
 
   return (
     <article className="card calendar-card" data-testid="calendar-row" data-show-id={row.showId}>
-      <Poster title={row.showTitle} posters={row.posters} tmdbConfig={tmdbConfig} />
+      <Poster title={row.showTitle} posters={row.posters} />
       <Link
         to="/show/$showId/episode/$season/$episode"
         params={{

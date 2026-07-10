@@ -1,4 +1,3 @@
-import type { TmdbImageConfig } from "@data/image-source";
 import type { MovieEntry } from "@data/trakt/movie-library";
 import { Link } from "@tanstack/react-router";
 import { Poster } from "@ui/screens/up-next/Poster";
@@ -6,7 +5,6 @@ import type { ReactElement } from "react";
 
 interface MoviePosterCardProps {
   readonly entry: MovieEntry;
-  readonly tmdbConfig: TmdbImageConfig | null;
 }
 
 /**
@@ -15,7 +13,7 @@ interface MoviePosterCardProps {
  * tile is a single link into Movie detail (the "tap any poster → detail"
  * rule) — one tab stop with an accessible name, not a nested control.
  */
-export function MoviePosterCard({ entry, tmdbConfig }: MoviePosterCardProps): ReactElement {
+export function MoviePosterCard({ entry }: MoviePosterCardProps): ReactElement {
   return (
     <Link
       to="/movie/$movieId"
@@ -25,12 +23,7 @@ export function MoviePosterCard({ entry, tmdbConfig }: MoviePosterCardProps): Re
       data-movie-id={entry.movieId}
     >
       <span className="poster-wrap poster-wrap--tile">
-        <Poster
-          variant="tile"
-          title={entry.title}
-          posters={entry.posters}
-          tmdbConfig={tmdbConfig}
-        />
+        <Poster variant="tile" title={entry.title} posters={entry.posters} />
       </span>
 
       <div className="poster-card__meta">

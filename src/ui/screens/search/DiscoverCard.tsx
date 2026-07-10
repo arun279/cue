@@ -1,4 +1,3 @@
-import type { TmdbImageConfig } from "@data/image-source";
 import type { SearchHit } from "@data/trakt/search";
 import { Link } from "@tanstack/react-router";
 import { Poster } from "@ui/screens/up-next/Poster";
@@ -6,7 +5,6 @@ import type { ReactElement, ReactNode } from "react";
 
 interface DiscoverListProps {
   readonly hits: readonly SearchHit[];
-  readonly tmdbConfig: TmdbImageConfig | null;
   isAdded(hit: SearchHit): boolean;
   onAdd(hit: SearchHit): void;
   readonly testId: string;
@@ -20,18 +18,11 @@ interface DiscoverListProps {
  */
 function discoverTiles({
   hits,
-  tmdbConfig,
   isAdded,
   onAdd,
 }: Omit<DiscoverListProps, "testId">): readonly ReactElement[] {
   return hits.map((hit) => (
-    <DiscoverCard
-      key={hit.key}
-      hit={hit}
-      tmdbConfig={tmdbConfig}
-      added={isAdded(hit)}
-      onAdd={() => onAdd(hit)}
-    />
+    <DiscoverCard key={hit.key} hit={hit} added={isAdded(hit)} onAdd={() => onAdd(hit)} />
   ));
 }
 
@@ -73,7 +64,6 @@ export function DiscoverRail({ testId, hits, ...list }: DiscoverListProps): Reac
 
 interface DiscoverCardProps {
   readonly hit: SearchHit;
-  readonly tmdbConfig: TmdbImageConfig | null;
   readonly added: boolean;
   onAdd(): void;
 }
@@ -86,10 +76,10 @@ interface DiscoverCardProps {
  * in the anchor) so both are independent tab stops, and it reflects the optimistic
  * added state with a lock against a double-add.
  */
-function DiscoverCard({ hit, tmdbConfig, added, onAdd }: DiscoverCardProps): ReactElement {
+function DiscoverCard({ hit, added, onAdd }: DiscoverCardProps): ReactElement {
   const poster = (
     <span className="poster-wrap poster-wrap--tile">
-      <Poster title={hit.title} posters={hit.posters} tmdbConfig={tmdbConfig} variant="tile" />
+      <Poster title={hit.title} posters={hit.posters} variant="tile" />
     </span>
   );
 

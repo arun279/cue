@@ -14,7 +14,7 @@ Cue is a personal, zero-backend TV and movie tracker that syncs to your own [Tra
 
 ## How it works
 
-Cue is **zero-backend**. It is a browser SPA (with a thin Capacitor shell for mobile) that talks directly to the Trakt API over OAuth using the PKCE flow — there is **no client secret and no server** of any kind. Sync state (history, watchlist, ratings, progress) lives in your Trakt account; artwork and metadata come optionally from [TMDB](https://www.themoviedb.org) for higher-resolution art. Nothing is proxied through a backend because there is no backend.
+Cue is **zero-backend**. It is a browser SPA (with a thin Capacitor shell for mobile) that talks directly to the Trakt API over OAuth using the PKCE flow — there is **no client secret and no server** of any kind. Sync state (history, watchlist, ratings, progress) lives in your Trakt account; posters and metadata come from Trakt. Nothing is proxied through a backend because there is no backend.
 
 ## Setup
 
@@ -23,7 +23,6 @@ Cue authenticates as a public OAuth client, so it ships **no secret** — the ap
 1. Register a free API app at [trakt.tv/oauth/applications](https://trakt.tv/oauth/applications).
 2. Set its Redirect URI to `http://localhost:5199/auth/callback` for local development, plus `<your-production-origin>/auth/callback` for deploys. (Trakt matches the redirect URI exactly, so register every origin you serve from.)
 3. Copy `.env.example` to `.env` and set `VITE_TRAKT_CLIENT_ID` to the app's **Client ID**. It is public — it ships in the built JS and there is no client secret.
-4. _(Optional)_ Set `VITE_TMDB_KEY` to a free [TMDB](https://www.themoviedb.org/settings/api) API key for higher-resolution posters and stills. Leave it blank to use Trakt images only.
 
 The client id is public by design; the only thing kept on-device is each user's own Trakt OAuth token. Your real `.env` stays local (gitignored); `.env.example` and `.env.test` are the committed placeholders.
 

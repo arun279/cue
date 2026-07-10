@@ -82,7 +82,7 @@ function MovieHero({
       <div className="show-hero__scrim" />
       <div className="show-hero__body">
         <span className="poster-wrap show-hero__poster">
-          <Poster title={header.title} posters={header.posters} tmdbConfig={null} variant="hero" />
+          <Poster title={header.title} posters={header.posters} variant="hero" />
         </span>
 
         <div className="show-hero__info">
@@ -220,7 +220,6 @@ function MovieDetailContent({ movieId }: { readonly movieId: number }): ReactEle
           <h2 className="discover-rail__head">More like this</h2>
           <DiscoverRail
             hits={related.hits}
-            tmdbConfig={null}
             isAdded={watchlistAdd.isAdded}
             onAdd={(hit) => void watchlistAdd.add(hit)}
             testId="movie-related-rail"

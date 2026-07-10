@@ -5,8 +5,9 @@ import { toEpisodeIds } from "./show-detail";
 /**
  * A `LibraryShow` (what the selectors read) enriched with the presentation
  * data the Up Next card needs but the pure domain type omits: the Trakt inline
- * poster candidates + a TMDB id for the image resolver, and `pendingAdvance` —
- * set while an optimistic mark's next episode is a client guess awaiting the
+ * poster candidates for the image resolver, the show's TMDB id (an alternate
+ * `/sync/*` write identifier for hide/watchlist), and `pendingAdvance` — set
+ * while an optimistic mark's next episode is a client guess awaiting the
  * authoritative progress refetch, so the card can lock its action until then.
  */
 export interface LibraryEntry extends LibraryShow {

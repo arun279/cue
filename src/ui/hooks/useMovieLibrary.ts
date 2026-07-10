@@ -23,7 +23,6 @@ export type MovieSort = "recently-watched" | "alphabetical" | "release-year";
 
 export interface MovieLibraryView {
   readonly segments: readonly MovieSegment[];
-  readonly tmdbConfig: MovieLibraryData["tmdbConfig"];
   readonly trackedCount: number;
   readonly isLoading: boolean;
   readonly isFetching: boolean;
@@ -123,7 +122,6 @@ export function useMovieLibrary(
 
   return {
     segments,
-    tmdbConfig: query.data?.tmdbConfig ?? null,
     trackedCount: entries?.length ?? 0,
     ...queryStatus(query, query.data !== undefined),
     entryFor: (movieId) => entries?.find((e) => e.movieId === movieId),

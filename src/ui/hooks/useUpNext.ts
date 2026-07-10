@@ -3,7 +3,6 @@ import { groupUpNext, type UpNextItem } from "@domain/up-next";
 import { DEFAULT_NEW_EPISODE_WINDOW_MS } from "@domain/watch-status";
 import { type QueryStatus, queryStatus } from "@ui/hooks/query-freshness";
 import { useLibrarySnapshot } from "@ui/hooks/useLibrarySnapshot";
-import type { UpNextData } from "@ui/runtime/runtime";
 import { useMemo } from "react";
 
 interface EmptyStateCounts {
@@ -35,7 +34,6 @@ export interface UpNextView extends QueryStatus {
   readonly trackedCount: number;
   /** Non-hidden shows with watch progress — 0 means nothing has been started yet. */
   readonly startedCount: number;
-  readonly tmdbConfig: UpNextData["tmdbConfig"];
   /** The library exceeds the cold-sync progress budget, so only recent shows are
    * fully synced — the pill's honest "recent shows synced" state. */
   readonly isPartial: boolean;
@@ -95,7 +93,6 @@ export function useUpNext(): UpNextView {
     totalCount: counts.totalCount,
     trackedCount: counts.trackedCount,
     startedCount: counts.startedCount,
-    tmdbConfig: data?.tmdbConfig ?? null,
     isPartial: data?.isPartial ?? false,
     ...queryStatus(query, data !== undefined),
     refetch: () => void query.refetch(),

@@ -1,4 +1,3 @@
-import type { TmdbImageConfig } from "@data/image-source";
 import type { HistoryDay, HistoryEntry, HistoryGroup } from "@domain/history";
 import { localTimeZone } from "@domain/time";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
@@ -113,14 +112,8 @@ function episodeDetailLink(entry: HistoryEntry): {
   };
 }
 
-function EntryPoster({
-  entry,
-  tmdbConfig,
-}: {
-  readonly entry: HistoryEntry;
-  readonly tmdbConfig: TmdbImageConfig | null;
-}): ReactElement {
-  return <Poster title={entry.title} posters={entry.posters} tmdbConfig={tmdbConfig} />;
+function EntryPoster({ entry }: { readonly entry: HistoryEntry }): ReactElement {
+  return <Poster title={entry.title} posters={entry.posters} />;
 }
 
 function OverflowIcon(): ReactElement {
@@ -228,11 +221,9 @@ function RowContent({
  * the title owns the row exactly as a cluster head does. */
 function HistorySingle({
   entry,
-  tmdbConfig,
   onRemove,
 }: {
   readonly entry: HistoryEntry;
-  readonly tmdbConfig: TmdbImageConfig | null;
   onRemove(entry: HistoryEntry): void;
 }): ReactElement {
   const meta: ReactNode = (
@@ -260,7 +251,7 @@ function HistorySingle({
     );
   return (
     <div className="card diary-card" data-testid="history-row" data-type={entry.type}>
-      <EntryPoster entry={entry} tmdbConfig={tmdbConfig} />
+      <EntryPoster entry={entry} />
       {link}
       <RemoveActionSheet entry={entry} onRemove={onRemove} />
     </div>
@@ -272,11 +263,9 @@ function HistorySingle({
  * rows hide the synthetic clock; a real binge shows each play's own time. */
 function HistoryCluster({
   group,
-  tmdbConfig,
   onRemove,
 }: {
   readonly group: HistoryGroup;
-  readonly tmdbConfig: TmdbImageConfig | null;
   onRemove(entry: HistoryEntry): void;
 }): ReactElement {
   const head = group.entries[0] as HistoryEntry;
@@ -289,7 +278,7 @@ function HistoryCluster({
       <Accordion.Root type="single" collapsible className="diary-cluster__root">
         <Accordion.Item value="entries" className="diary-cluster__item">
           <div className="card diary-card diary-cluster__head">
-            <EntryPoster entry={head} tmdbConfig={tmdbConfig} />
+            <EntryPoster entry={head} />
             <Accordion.Header className="diary-cluster__header">
               <Accordion.Trigger
                 className="diary-cluster__trigger"
@@ -519,18 +508,13 @@ export function History(): ReactElement {
             return (
               <HistorySingle
                 entry={row.group.entries[0] as HistoryEntry}
-                tmdbConfig={view.tmdbConfig}
                 onRemove={(entry) => void view.removePlay(entry)}
               />
             );
           }
           if (row.kind === "cluster") {
             return (
-              <HistoryCluster
-                group={row.group}
-                tmdbConfig={view.tmdbConfig}
-                onRemove={(entry) => void view.removePlay(entry)}
-              />
+              <HistoryCluster group={row.group} onRemove={(entry) => void view.removePlay(entry)} />
             );
           }
           return (
