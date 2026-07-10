@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Cue — Privacy &amp; Data Deletion</title>
+    <meta
+      name="description"
+      content="Cue stores nothing off your device and runs no server. How to delete your Cue data and your Trakt account."
+    />
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #ffffff;
+        --fg: #17150f;
+        --muted: #5b5648;
+        --accent: #b4690e;
+        --border: #e4e0d5;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #14120a;
+          --fg: #f1ede2;
+          --muted: #b3ac99;
+          --accent: #e0a34a;
+          --border: #2c2820;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font: 16px/1.6 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      }
+      main {
+        max-width: 42rem;
+        margin: 0 auto;
+        padding: 2.5rem 1.25rem 4rem;
+      }
+      h1 {
+        font-size: 1.9rem;
+        line-height: 1.2;
+        margin: 0 0 0.25rem;
+      }
+      h2 {
+        font-size: 1.2rem;
+        margin: 2rem 0 0.5rem;
+      }
+      p,
+      li {
+        color: var(--fg);
+      }
+      .lead {
+        color: var(--muted);
+        margin-top: 0;
+      }
+      a {
+        color: var(--accent);
+      }
+      ul {
+        padding-left: 1.25rem;
+      }
+      li {
+        margin: 0.35rem 0;
+      }
+      footer {
+        margin-top: 2.5rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Cue — Privacy &amp; Data Deletion</h1>
+      <p class="lead">
+        Cue is a personal TV and movie tracker that talks directly to your own
+        <a href="https://trakt.tv">Trakt</a> account.
+      </p>
+
+      <h2>No server, nothing stored off your device</h2>
+      <p>
+        Cue runs no server of its own — there is no backend, no Cue account, and no database Cue
+        controls. Everything Cue keeps lives only on the device you use it on: your Trakt sign-in
+        token, a local cache of the shows and history Cue reads from Trakt, and your in-app
+        settings. All of your sync state (watch history, watchlist, ratings, progress) lives in your
+        own Trakt account, reached directly over HTTPS.
+      </p>
+
+      <h2>No analytics, no telemetry</h2>
+      <p>
+        Cue collects no analytics and sends no telemetry. It makes no network requests except
+        directly to Trakt (and the image hosts Trakt points at) to do the tracking you asked for.
+      </p>
+
+      <h2>Deleting your data</h2>
+      <ul>
+        <li>
+          <strong>Cue's on-device data:</strong> open <em>Settings → Disconnect Trakt</em>.
+          Disconnecting revokes this device's access to your Trakt account, signs you out, and
+          deletes the local cache and Trakt token stored on the device. Uninstalling the app removes
+          the same data.
+        </li>
+        <li>
+          <strong>Your Trakt account itself:</strong> Cue cannot delete it — Cue has no account of
+          its own and no server-side copy of your data. Only Trakt can delete a Trakt account, at
+          <a href="https://app.trakt.tv/settings/advanced">app.trakt.tv/settings/advanced</a>.
+        </li>
+      </ul>
+
+      <footer>
+        <p>Powered by Trakt. Cue uses the Trakt API but is not created, endorsed, or sponsored by Trakt.</p>
+      </footer>
+    </main>
+  </body>
+</html>

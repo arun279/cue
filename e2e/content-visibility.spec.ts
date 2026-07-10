@@ -256,3 +256,25 @@ test("the choice persists across reload and lives only in localStorage", async (
   await page.goto("/library");
   await expect(page.getByTestId("type-movies")).toHaveCount(0);
 });
+
+// ---- Compliance surfaces: Trakt attribution + account-deletion hand-off ----
+
+test("Settings carries the Trakt attribution and a distinct delete-account hand-off to Trakt", async ({
+  page,
+}) => {
+  await page.goto("/settings");
+
+  // Required Trakt attribution (a condition of the free API).
+  await expect(page.getByTestId("trakt-attribution")).toContainText(
+    "not created, endorsed, or sponsored by Trakt",
+  );
+
+  // A delete-account row distinct from Disconnect that opens Trakt's own settings
+  // in a new browser context (Apple 5.1.1(v) / Google account-deletion).
+  const deleteAccount = page.getByTestId("link-delete-account");
+  await expect(deleteAccount).toHaveAttribute("href", "https://app.trakt.tv/settings/advanced");
+  await expect(deleteAccount).toHaveAttribute("target", "_blank");
+  await expect(deleteAccount).toHaveAttribute("rel", /noopener/);
+  // It is a separate control from Disconnect, not a relabel of it.
+  await expect(page.getByTestId("button-disconnect")).toBeVisible();
+});

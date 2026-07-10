@@ -46,6 +46,14 @@ describe("parseRetryAfterMs", () => {
     expect(parseRetryAfterMs({}, 0)).toBeNull();
     expect(parseRetryAfterMs({ "retry-after": "soon" }, 0)).toBeNull();
   });
+  it("clamps an over-long wait to the backoff ceiling so a server can't stall sync for minutes", () => {
+    // A raw `Retry-After: 300` (5 min) is honored no longer than the 30s cap the
+    // self-computed backoff already tops out at.
+    expect(parseRetryAfterMs({ "retry-after": "300" }, 0)).toBe(30_000);
+    const now = Date.parse("2026-07-05T00:00:00.000Z");
+    const farFuture = { "retry-after": "Sun, 05 Jul 2026 00:10:00 GMT" };
+    expect(parseRetryAfterMs(farFuture, now)).toBe(30_000);
+  });
 });
 
 describe("backoffMs", () => {

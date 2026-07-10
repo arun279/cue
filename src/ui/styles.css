@@ -751,6 +751,16 @@ body {
   font-size: 0.9rem;
   max-width: 42rem;
 }
+/* Trakt-account deletion is a hand-off OFF to Trakt, set apart from the in-app
+   Disconnect so the two are never mistaken for one another. */
+.settings__handoff {
+  margin-top: var(--space-5);
+}
+.settings__trakt-logo {
+  height: 1.5rem;
+  width: auto;
+  max-width: 100%;
+}
 /* ---- Confirmation dialog (Radix AlertDialog) — guards a consequential action ---- */
 .dialog__overlay {
   position: fixed;

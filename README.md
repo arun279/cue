@@ -80,9 +80,17 @@ On device, the Trakt OAuth token is stored via Capacitor Preferences so it survi
 - **Capacitor 8** thin shell for iOS/Android — all `@capacitor/*` imports confined to `src/platform`.
 - Source is layered under `src/domain`, `src/data`, `src/ui`, `src/app`, and `src/platform`.
 
+## Attribution
+
+Powered by [Trakt](https://trakt.tv).
+
+Cue uses the Trakt API but is not created, endorsed, or sponsored by Trakt. The app name is deliberately Trakt-free so Cue is never mistaken for an official Trakt product. The unaltered official Trakt logo, from [app.trakt.tv/branding](https://app.trakt.tv/branding), belongs in the Settings → About credit and in `src/ui/assets/trakt-logo.svg` (see that folder's README); it is not redistributed here.
+
 ## Privacy
 
-Nothing is stored server-side because there is no server. Your Trakt OAuth token and your settings live only in the browser or on the device. All sync state lives in your own Trakt account, reached directly over HTTPS.
+Cue runs no server and stores nothing off your device — there is no analytics or telemetry of any kind. Your Trakt OAuth token, your settings, and a local cache of the data Cue reads live only in this browser or on this device. All sync state lives in your own Trakt account, reached directly over HTTPS. To erase Cue's on-device data, use **Settings → Disconnect Trakt** or uninstall the app. Cue cannot delete your Trakt account; only Trakt can, at [app.trakt.tv/settings/advanced](https://app.trakt.tv/settings/advanced).
+
+The full statement is in [PRIVACY.md](PRIVACY.md).
 
 ## License
 

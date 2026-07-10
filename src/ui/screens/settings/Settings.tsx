@@ -8,6 +8,22 @@ import { ThemeToggle } from "@ui/theme/ThemeToggle";
 import { AlertDialog, Switch } from "radix-ui";
 import { type ReactElement, useState } from "react";
 
+/** Trakt account deletion lives on Trakt — Cue only hands the user off to it. */
+const TRAKT_ACCOUNT_SETTINGS_URL = "https://app.trakt.tv/settings/advanced";
+
+// The official Trakt logo is a required attribution asset that must ship
+// UNALTERED, so it is not committed here — only its slot is. `import.meta.glob`
+// resolves to `{}` while the file is absent (no build break) and picks it up
+// automatically once dropped in, at which point the image below renders.
+// TODO(trakt-logo): drop the unaltered official Trakt logo from
+// app.trakt.tv/branding into src/ui/assets/trakt-logo.svg (use the dark asset;
+// preserve its required clear-space). No other change is needed.
+const traktLogoModules = import.meta.glob<{ readonly default: string }>(
+  "../../assets/trakt-logo.svg",
+  { eager: true },
+);
+const traktLogoSrc = Object.values(traktLogoModules)[0]?.default ?? null;
+
 /** "2 weeks" / "3 weeks" — every threshold option is a whole number of weeks. */
 function weeksLabel(days: number): string {
   const weeks = days / 7;
@@ -154,7 +170,9 @@ export function Settings(): ReactElement {
       </dl>
 
       <p className="settings__note">
-        Disconnecting revokes this device's access to your Trakt account and signs you out of Cue.
+        Disconnecting revokes this device's access to your Trakt account, signs you out of Cue, and
+        deletes everything Cue kept on this device — the local cache and your Trakt token. Your
+        watch history stays in your Trakt account.
       </p>
       {disconnectError !== null && (
         <p className="settings__error" role="alert" data-testid="disconnect-error">
@@ -181,8 +199,9 @@ export function Settings(): ReactElement {
           >
             <AlertDialog.Title className="dialog__title">Disconnect Trakt?</AlertDialog.Title>
             <AlertDialog.Description className="dialog__body">
-              Your watch history stays safe in your Trakt account — disconnecting only signs this
-              device out of Cue. Reconnecting takes just a few seconds.
+              Your watch history stays safe in your Trakt account. Disconnecting signs this device
+              out of Cue and deletes the local cache and Trakt token stored on this device.
+              Reconnecting takes just a few seconds.
             </AlertDialog.Description>
             <div className="dialog__actions">
               <AlertDialog.Cancel asChild>
@@ -224,6 +243,37 @@ export function Settings(): ReactElement {
           </AlertDialog.Content>
         </AlertDialog.Portal>
       </AlertDialog.Root>
+
+      <div className="settings__handoff">
+        <p className="settings__note">
+          Only Trakt can delete your Trakt account. This opens Trakt in your browser to do it — Cue
+          has no account of its own to delete.
+        </p>
+        <a
+          className="button button--ghost"
+          data-testid="link-delete-account"
+          href={TRAKT_ACCOUNT_SETTINGS_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Delete your Trakt account
+        </a>
+      </div>
+
+      <h2 className="settings__heading">About</h2>
+      <dl className="settings__list">
+        <div className="settings__row">
+          <dt>Powered by Trakt</dt>
+          <dd>
+            {traktLogoSrc !== null && (
+              <img className="settings__trakt-logo" src={traktLogoSrc} alt="Trakt" />
+            )}
+          </dd>
+        </div>
+      </dl>
+      <p className="settings__note" data-testid="trakt-attribution">
+        Cue uses the Trakt API but is not created, endorsed, or sponsored by Trakt.
+      </p>
     </section>
   );
 }
