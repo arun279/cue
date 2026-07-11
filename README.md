@@ -94,4 +94,4 @@ The full statement is in [PRIVACY.md](PRIVACY.md).
 
 ## License
 
-[MIT](LICENSE)
+Cue's own source is licensed under [MIT](LICENSE). The Trakt name and logo are trademarks of Trakt, used under Trakt's [branding guidelines](https://trakt.tv/branding) and are not covered by that license.
