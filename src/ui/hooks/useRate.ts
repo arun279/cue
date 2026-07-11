@@ -22,7 +22,7 @@ export interface RateController {
 }
 
 /**
- * The 1–10 rating control's data: reads the section's current ratings and
+ * The 1-10 rating control's data: reads the section's current ratings and
  * writes optimistically through the durable queue. Setting a rating patches the
  * cache instantly, then enqueues `POST /sync/ratings`; clearing enqueues
  * `.../remove` whose inverse restores the prior value. A re-rate coalesces on the

@@ -294,7 +294,7 @@ test("Mark up to here fires ONE batched POST with only the aired, unwatched delt
   await expect.poll(() => controls.historyPosts().length).toBe(1);
   const posted = controls.historyPosts()[0];
   // S01E01/E02 already watched (completed=2) → only the unwatched S01E03/E04 delta
-  // is logged, never a whole-season token; S02E01–E03 are the aired unwatched delta.
+  // is logged, never a whole-season token; S02E01-E03 are the aired unwatched delta.
   expect(posted?.shows?.[0]?.seasons).toEqual([
     { number: 1, episodes: [{ number: 3 }, { number: 4 }] },
     { number: 2, episodes: [{ number: 1 }, { number: 2 }, { number: 3 }] },

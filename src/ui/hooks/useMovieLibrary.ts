@@ -18,7 +18,7 @@ interface MovieSegment {
 
 /** Movie-appropriate sort keys (parity of placement, honesty of options): the
  * show "Progress" axis is meaningless for a binary movie, so the film triad is
- * Recently watched (last_watched_at desc) / A–Z / Release year (newest first). */
+ * Recently watched (last_watched_at desc) / A-Z / Release year (newest first). */
 export type MovieSort = "recently-watched" | "alphabetical" | "release-year";
 
 export interface MovieLibraryView {
@@ -72,7 +72,7 @@ function comparatorFor(sort: MovieSort): (a: MovieEntry, b: MovieEntry) => numbe
   return byWatchedAt;
 }
 
-/** The Watchlist's comparator: same A–Z / Release-year axes as Watched, but the
+/** The Watchlist's comparator: same A-Z / Release-year axes as Watched, but the
  * default "recently" axis means recently *added* (there is no watch date on an
  * unwatched film), so the freshest picks lead the queue. */
 function watchlistComparatorFor(sort: MovieSort): (a: MovieEntry, b: MovieEntry) => number {

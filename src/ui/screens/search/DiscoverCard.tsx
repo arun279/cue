@@ -48,7 +48,7 @@ export function DiscoverGrid({ testId, ...list }: DiscoverListProps): ReactEleme
  * discovery is allowed to take outside the Discover tab's own search results:
  * trending/popular and the Movie-detail "More like this" rail are legitimate
  * recognition-over-recall, but a wrapping grid of 24 buried the user's own data
- * under a 9k–16.6k-px wall. A rail scrolls sideways instead, so its height is one
+ * under a 9k-16.6k-px wall. A rail scrolls sideways instead, so its height is one
  * row regardless of count, and the count is capped to a "top ten" sample (the
  * catalog lives in search, not in a browse rail).
  */

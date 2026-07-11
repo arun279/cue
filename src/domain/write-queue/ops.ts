@@ -201,7 +201,7 @@ export interface RateOpParams {
   readonly opId: string;
   readonly section: RateSection;
   readonly ids: ShowIds | EpisodeIds | MovieIds;
-  /** 1–10 (Trakt numeric model). */
+  /** 1-10 (Trakt numeric model). */
   readonly rating: number;
   /**
    * The rating this item carried before this write, or `null` if it was unrated.

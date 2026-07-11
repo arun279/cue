@@ -11,7 +11,7 @@ import type { EpisodePlay, MoviePlay } from "@domain/reversal";
 import type { QueuedOp } from "@domain/write-queue/types";
 import { createContext, useContext } from "react";
 
-/** trakt id → 1–10 rating, for the currently-rated items of one section. */
+/** trakt id → 1-10 rating, for the currently-rated items of one section. */
 export type RatingMap = Readonly<Record<number, number>>;
 
 /** The read side of the home surface: the assembled active queue. */
@@ -103,7 +103,7 @@ export interface CueRuntime {
   loadShowSeasons(showId: number): Promise<readonly SeasonView[]>;
   /** Episode detail: content + still + watched state + prev/next nav. */
   loadEpisode(showId: number, season: number, number: number): Promise<EpisodeDetail>;
-  /** Current 1–10 ratings for a section, keyed by trakt id. */
+  /** Current 1-10 ratings for a section, keyed by trakt id. */
   loadRatings(section: "shows" | "episodes" | "movies"): Promise<RatingMap>;
   /** Trakt ids currently on the watchlist for a section. */
   loadWatchlistIds(section: "shows" | "movies"): Promise<readonly number[]>;

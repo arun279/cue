@@ -70,7 +70,7 @@ export function relativeDays(iso: string | null, now: number): string | null {
   return `${days} days ago`;
 }
 
-/** Whole-percent watched, clamped to 0–100; 0 when nothing has aired yet. */
+/** Whole-percent watched, clamped to 0-100; 0 when nothing has aired yet. */
 export function watchedPercent(completed: number, aired: number): number {
   if (aired <= 0) return 0;
   return Math.max(0, Math.min(100, Math.round((completed / aired) * 100)));

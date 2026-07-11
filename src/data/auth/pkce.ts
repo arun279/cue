@@ -17,7 +17,7 @@ function base64UrlEncode(bytes: Uint8Array): string {
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-/** 32 random bytes → a 43-char base64url verifier (within RFC 7636's 43–128 range). */
+/** 32 random bytes → a 43-char base64url verifier (within RFC 7636's 43-128 range). */
 export function createCodeVerifier(): string {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);

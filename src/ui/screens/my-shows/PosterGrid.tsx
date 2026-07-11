@@ -41,7 +41,7 @@ interface GridMetrics {
 /**
  * A responsive, window-virtualized poster grid: one per My Shows shelf,
  * shared by the show buckets and the movie shelves. The grid fills the screen
- * width (6–8 cols desktop, 2–3 mobile) so a library never leaves a dead field,
+ * width (6-8 cols desktop, 2-3 mobile) so a library never leaves a dead field,
  * while row windowing keeps the DOM bounded on the Capacitor WebView even when a
  * single shelf holds hundreds of tiles. Uniform 2:3 tiles make every row a fixed
  * height, so the virtualizer needs no per-item measurement and the page scrolls

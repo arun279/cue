@@ -7,7 +7,7 @@ import { useWatchlistAdd } from "./useWatchlistAdd";
 
 /**
  * Settle delay before a query fires. 300ms sits below the ~1s that
- * reads as sluggish yet above a fast typist's ~100–150ms inter-keystroke gap, so
+ * reads as sluggish yet above a fast typist's ~100-150ms inter-keystroke gap, so
  * a mid-word burst collapses to exactly one `/search` request.
  */
 const DEBOUNCE_MS = 300;

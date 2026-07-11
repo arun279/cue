@@ -123,7 +123,7 @@ test("the movie Sort control reorders films within a segment", async ({ page }) 
   ]);
   await page.goto("/library?type=movies");
 
-  // Default (recently-watched → A–Z for unwatched films): Arrival leads Watchlist.
+  // Default (recently-watched → A-Z for unwatched films): Arrival leads Watchlist.
   await expect(page.getByTestId("movie-library-card").first()).toContainText("Arrival");
   await page.getByTestId("sort-select").selectOption("release-year");
   await expect(page.getByTestId("movie-library-card").first()).toContainText("Dune");
@@ -420,7 +420,7 @@ test("the Watchlist orders by recently added (the movie's queue), newest first",
   // has no watch date: so the most recently queued film leads, even though it
   // sorts later by both title and release year.
   await expect(page.getByTestId("movie-library-card").first()).toContainText("Added Later");
-  // A–Z still sorts by title, so the earlier-added-but-alphabetically-first leads.
+  // A-Z still sorts by title, so the earlier-added-but-alphabetically-first leads.
   await page.getByTestId("sort-select").selectOption("alphabetical");
   await expect(page.getByTestId("movie-library-card").first()).toContainText("Added First");
 });

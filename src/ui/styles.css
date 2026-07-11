@@ -2684,7 +2684,7 @@ button.cue-mark:focus-visible {
   border-radius: inherit;
   transition: width var(--dur-quick) var(--ease-standard);
 }
-/* Nine hairline dividers mark the ten integer steps so the fill reads as a 1–10
+/* Nine hairline dividers mark the ten integer steps so the fill reads as a 1-10
    scale, not a continuous meter: pointer-transparent so the whole track stays live. */
 .rating__ticks {
   position: absolute;

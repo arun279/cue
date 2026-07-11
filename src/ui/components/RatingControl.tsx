@@ -2,7 +2,7 @@ import type { EpisodeIds, MovieIds, ShowIds } from "@domain/model/ids";
 import type { RateController } from "@ui/hooks/useRate";
 import { type KeyboardEvent, type PointerEvent, type ReactElement, useRef, useState } from "react";
 
-/** Trakt ratings are 1–10; 0 is our sentinel for "cleared / not rated" so the whole
+/** Trakt ratings are 1-10; 0 is our sentinel for "cleared / not rated" so the whole
  * track (including its far-left) has a meaning and the slider always carries a value. */
 const MIN = 0;
 const MAX = 10;
@@ -14,7 +14,7 @@ interface RatingControlProps {
   readonly testId: string;
 }
 
-/** Nearest integer 0–10 for a pointer x within the track. The whole track is the
+/** Nearest integer 0-10 for a pointer x within the track. The whole track is the
  * target, so a tap anywhere lands on the closest value (dragging past 0 clears). */
 function valueFromPointer(el: HTMLElement, clientX: number): number {
   const rect = el.getBoundingClientRect();
@@ -24,7 +24,7 @@ function valueFromPointer(el: HTMLElement, clientX: number): number {
 }
 
 /**
- * The 1–10 rating control. Ten 44px stars would need 440px: wider than a
+ * The 1-10 rating control. Ten 44px stars would need 440px: wider than a
  * phone: so per-value hit areas can never be WCAG-compliant. This is instead a single
  * `role="slider"` TRACK: the whole bar is one finger target, tap-or-drag sets the value,
  * and a big numeric readout makes it unmistakable. It is keyboard-operable (arrows /
@@ -113,7 +113,7 @@ export function RatingControl({
       <div className="rating__row">
         <div className="rating__readout" aria-hidden="true">
           <span className="rating__value" data-empty={readout === null}>
-            {readout ?? "–"}
+            {readout ?? "-"}
           </span>
           <span className="rating__max">/10</span>
         </div>

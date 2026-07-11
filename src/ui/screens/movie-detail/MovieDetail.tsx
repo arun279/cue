@@ -45,7 +45,7 @@ function toEntry(header: MovieHeader, existing: MovieEntry | undefined): MovieEn
 /** The full-bleed media hero: fanart backdrop with a scrim fading into the card,
  * poster inset, editorial title + year, runtime/release/genre chips, overview,
  * then the grouped control surface: the watched toggle (with its logged date),
- * the watchlist toggle, and the compact 1–10 rating. */
+ * the watchlist toggle, and the compact 1-10 rating. */
 function MovieHero({
   header,
   entry,
@@ -158,7 +158,7 @@ function MovieHero({
  * Movie detail as a media page in the screening-room language: a full-bleed
  * fanart hero (poster inset, editorial title + year, runtime/release/genre chips,
  * overview) over one grouped control surface: Mark watched (with date) /
- * watchlist toggle / 1–10 rating: all optimistic through the durable write-queue
+ * watchlist toggle / 1-10 rating: all optimistic through the durable write-queue
  * with Undo. Every state is designed: hero skeleton, hard-error retry, and an
  * unwatched movie that carries no logged date.
  */

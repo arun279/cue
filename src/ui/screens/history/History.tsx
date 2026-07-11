@@ -78,7 +78,7 @@ function entryMeta(entry: HistoryEntry): string {
   return entry.episodeTitle === null ? code : `${code} · ${entry.episodeTitle}`;
 }
 
-/** A collapsed same-show cluster header, e.g. "S1 E5–E8 · 4 episodes". */
+/** A collapsed same-show cluster header, e.g. "S1 E5-E8 · 4 episodes". */
 function clusterSummary(entries: readonly HistoryEntry[]): string {
   const count = plural(entries.length, "episode");
   const seasons = new Set(entries.map((e) => e.season));
@@ -87,7 +87,7 @@ function clusterSummary(entries: readonly HistoryEntry[]): string {
   const numbers = entries.map((e) => e.number ?? 0);
   const lo = Math.min(...numbers);
   const hi = Math.max(...numbers);
-  const range = lo === hi ? `E${lo}` : `E${lo}–E${hi}`;
+  const range = lo === hi ? `E${lo}` : `E${lo}-E${hi}`;
   return `S${season} ${range} · ${count}`;
 }
 

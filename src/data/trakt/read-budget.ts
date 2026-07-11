@@ -6,7 +6,7 @@ import type { Progress, WatchedShow } from "./schemas";
 /**
  * Read fan-out concurrency cap. Each in-flight show issues a single progress GET,
  * so capping at 6 holds concurrent authed GETs at ≤6: inside the sync analysis's
- * 8–12 window with margin: instead of firing the whole bounded head at once.
+ * 8-12 window with margin: instead of firing the whole bounded head at once.
  */
 const READ_CONCURRENCY = 6;
 
@@ -31,7 +31,7 @@ const DEFAULT_RATE_BACKOFF_MS = 1000;
  * bounded by *how many shows one person actively has in flight*, not by library
  * size.
  *
- * Why 60: power-user behavior tops out around 20–50 shows watched
+ * Why 60: power-user behavior tops out around 20-50 shows watched
  * concurrently; 60 covers that with headroom while staying a hard ceiling. It also
  * holds the worst-case cold-sync GET count far under Trakt's authed 1000-GET / 5-min
  * budget: a 1000-show library costs ceil(1000/100)=10 watched pages + 60 progress +

@@ -35,7 +35,7 @@ const PILE_LABEL: Partial<Record<WatchStatus, string>> = {
 
 const SORT_LABEL: Record<LibrarySort, string> = {
   "recently-watched": "Recently watched",
-  alphabetical: "A–Z",
+  alphabetical: "A-Z",
   progress: "Progress",
 };
 const SORTS: readonly LibrarySort[] = ["recently-watched", "alphabetical", "progress"];
@@ -46,7 +46,7 @@ const SORTS: readonly LibrarySort[] = ["recently-watched", "alphabetical", "prog
  * each segment: Watchlist by `listed_at` (added), Watched by `last_watched_at`. */
 const MOVIE_SORT_LABEL: Record<MovieSort, string> = {
   "recently-watched": "Recently added/watched",
-  alphabetical: "A–Z",
+  alphabetical: "A-Z",
   "release-year": "Release year",
 };
 const MOVIE_SORTS: readonly MovieSort[] = ["recently-watched", "alphabetical", "release-year"];
@@ -391,7 +391,7 @@ export function Library(): ReactElement {
     body = (
       <div className="empty" data-testid={`${prefix}-filter-empty`}>
         <h2 className="empty__title">
-          No {isMovies ? "movies" : "shows"} match “{filter}”
+          No {isMovies ? "movies" : "shows"} match "{filter}"
         </h2>
         <p className="empty__body">
           Try a different title, or clear the filter to see every {isMovies ? "movie" : "show"}.

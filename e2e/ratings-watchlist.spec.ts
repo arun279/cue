@@ -54,7 +54,7 @@ test("rating a show fires POST /sync/ratings optimistically and can be removed",
   const controls = await installLibraryRoutes(page.context(), [ratedShow()]);
   await page.goto("/show/1");
 
-  // Tap the single 0–10 track at 80% of its width → the nearest value is 8.
+  // Tap the single 0-10 track at 80% of its width → the nearest value is 8.
   const slider = page.getByTestId("show-rating-slider");
   await expect(slider).toHaveAttribute("aria-valuenow", "0");
   const track = await slider.boundingBox();
