@@ -13,7 +13,7 @@ import {
 /**
  * A last-activities baseline OLDER than the library harness's fixture stamps
  * (2026-07-04): the boot poll diffs it, sees the change, and revalidates the
- * restored cache — the poll-driven successor to refetch-on-mount that the
+ * restored cache: the poll-driven successor to refetch-on-mount that the
  * stale-while-revalidate boot now rides on.
  */
 const STALE_ACTIVITIES = { episodes: { watched_at: "2026-07-01T00:00:00.000Z" } };
@@ -77,7 +77,7 @@ test.describe("persisted cache boot", () => {
 
     const status = page.getByTestId("sync-status");
     // The delayed network response is 2s out, so a count of 1 within 1.5s can
-    // only be the restored cache painting — proof of stale-while-revalidate boot.
+    // only be the restored cache painting: proof of stale-while-revalidate boot.
     await expect(status).toHaveAttribute("data-count", "1", { timeout: 1500 });
     // Then the background refetch (2 shows) resolves and replaces it.
     await expect(status).toHaveAttribute("data-count", "2", { timeout: 6000 });

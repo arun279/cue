@@ -53,7 +53,7 @@ export async function installHermeticRoutes(context: BrowserContext): Promise<He
   );
 
   // The freshness gate polls `/sync/last_activities`; the array catch-all would
-  // fail the object schema, so answer with a valid empty stamp table — a boot with
+  // fail the object schema, so answer with a valid empty stamp table: a boot with
   // no baseline commits it and invalidates nothing (a clean no-op poll).
   // installLibraryRoutes overrides this with a mutable, bump-able table.
   await context.route("**/api.trakt.tv/sync/last_activities*", (route) =>
@@ -86,7 +86,7 @@ export async function installHermeticRoutes(context: BrowserContext): Promise<He
 
 /**
  * A stored session token, minted live (`created_at = now`) so it is genuinely
- * unexpired against the real wall clock — the transport's proactive expiry check
+ * unexpired against the real wall clock: the transport's proactive expiry check
  * must NOT fire for a freshly-seeded session. Refresh paths are exercised by
  * `gateReadsUntilRefreshed`, which forces a 401 regardless of local expiry.
  */
@@ -136,7 +136,7 @@ export async function seedAuth(context: BrowserContext): Promise<void> {
 /**
  * Seed the device-local media-visibility pref into localStorage before
  * the app boots, so a suite starts as a TV-only or movies-only user. Both-on is
- * the default and needs no seed — the pref is purely additive and localStorage-only
+ * the default and needs no seed: the pref is purely additive and localStorage-only
  * (never Trakt-synced), so a fresh context always boots with both media on.
  */
 export async function seedMediaVisibility(
@@ -153,7 +153,7 @@ export async function seedMediaVisibility(
  * Force the given read routes to 401 while the request still carries the stale
  * bearer, then fall through to the already-registered fixture once the transport
  * has refreshed to a new token. Register AFTER the fixture/catch-all routes so
- * this gate wins first and `route.fallback()` defers to them — this drives the refresh-on-401 + retry path end-to-end (a live 401 → one refresh → retry).
+ * this gate wins first and `route.fallback()` defers to them: this drives the refresh-on-401 + retry path end-to-end (a live 401 → one refresh → retry).
  */
 export async function gateReadsUntilRefreshed(
   context: BrowserContext,
@@ -338,14 +338,14 @@ export interface ShowFixture {
   inWatchlist?: boolean;
   /**
    * Episode trakt ids that carry a SECOND play (a rewatch), so the scoped-history
-   * resolver returns two plays for them. A durable unmark must keep these intact —
+   * resolver returns two plays for them. A durable unmark must keep these intact:
    * the durable per-play-safe reversal test asserts their plays survive.
    */
   rewatchedEpisodeIds?: readonly number[];
 }
 
 /** `ok` applies+200; `abort` fails as a pure network reject (never reached Trakt); `network-drop`
- * applies then aborts (reached Trakt, response lost — the reconcile case); `rate-limit-once` 429s
+ * applies then aborts (reached Trakt, response lost: the reconcile case); `rate-limit-once` 429s
  * the first attempt then applies; `delay` applies after a long wait. */
 export type WriteMode = "ok" | "abort" | "network-drop" | "rate-limit-once" | "delay";
 
@@ -366,7 +366,7 @@ export interface CapturedWrite {
   /** The `shows[]` subtree of a bulk history or hidden write (season tokens / enumerated eps). */
   readonly shows?: readonly CapturedShow[];
   readonly showIds?: readonly number[];
-  /** The `movies[]` trakt ids of a watchlist write — kept distinct from `showIds`
+  /** The `movies[]` trakt ids of a watchlist write: kept distinct from `showIds`
    * so a rail add can prove a movie hit routed to the movie section, not shows[]. */
   readonly movieIds?: readonly number[];
   /** The rating value on a `/sync/ratings` write (null on a remove). */
@@ -383,7 +383,7 @@ export interface LibraryControls {
   setReadDelayMs: (ms: number) => void;
   /** Abort only these shows' progress reads (partial-outage case); [] restores all. */
   failProgressFor: (traktIds: readonly number[]) => void;
-  /** 429 the next `n` progress reads (with Retry-After) then serve them — the read
+  /** 429 the next `n` progress reads (with Retry-After) then serve them: the read
    * rate-limit-then-recover path. */
   rateLimitProgressReads: (n: number) => void;
   /** Advance one `/sync/last_activities` stamp so the next poll diffs a real change. */
@@ -412,7 +412,7 @@ interface HistoryBody {
  * show currently holds from its linear `completed` counter: every watched episode
  * carries one play (id `trakt*10 + 1`); a rewatched episode carries a second (id
  * `trakt*10 + 2`). The floor(id/10) = episode trakt id, so a `{ ids }` remove maps
- * back to episodes and drives the same linear counter — keeping the season tree,
+ * back to episodes and drives the same linear counter: keeping the season tree,
  * the resolver, and per-play removal mutually consistent.
  */
 function playHistoryRows(show: ShowFixture): unknown[] {
@@ -1134,7 +1134,7 @@ function persistedEntry(index: number): unknown {
       ids: { trakt: 40000 + index },
     },
     // A persisted entry is one the running app wrote from fetched progress, so its
-    // watch state is authoritative — never `sync-pending`. Matches the current
+    // watch state is authoritative: never `sync-pending`. Matches the current
     // (cue-m6) schema `assembleLibrary` writes; omitting it would model a pre-m6
     // cache the buster now drops.
     progressKnown: true,
@@ -1190,7 +1190,7 @@ export function buildPersistedLibrary(count: number, ageMs: number, buster = "cu
  * boots (at document start, like `seedAuth`), so the boot poll has a prior stamp
  * table to diff against. A baseline MATCHING the harness fixture makes the first
  * poll a clean no-op; a baseline OLDER than it drives the poll to detect a change
- * and revalidate — the poll-driven successor to refetch-on-mount.
+ * and revalidate: the poll-driven successor to refetch-on-mount.
  */
 export async function seedActivities(context: BrowserContext, snapshot: unknown): Promise<void> {
   await context.addInitScript(
@@ -1421,7 +1421,7 @@ export interface MovieFixture {
   readonly posters?: readonly string[];
   readonly backdrops?: readonly string[];
   /** The watchlist `listed_at` (add time) emitted on the `/sync/watchlist/movies`
-   * row — the movie-native queue order for the Watchlist segment. */
+   * row: the movie-native queue order for the Watchlist segment. */
   readonly listedAt?: string;
   /** Mutated in place by intercepted history writes so watched reads stay consistent. */
   watched: boolean;
@@ -1442,11 +1442,11 @@ export interface MovieControls {
   historyRemovePosts: () => readonly CapturedMovieWrite[];
   watchlistPosts: () => readonly CapturedMovieWrite[];
   watchlistRemovePosts: () => readonly CapturedMovieWrite[];
-  /** How many times the movie library's `/sync/watched/movies` read fired — proves
+  /** How many times the movie library's `/sync/watched/movies` read fired: proves
    * the fetch-gating (a both-user on the Shows tab must not pull the movie library). */
   movieLibraryReads: () => number;
   /** How many times the SHOW watchlist `/sync/watchlist/shows` read fired. A
-   * movie-only surface must never touch it — this counts the wrong-medium read the
+   * movie-only surface must never touch it: this counts the wrong-medium read the
    * catch-all would otherwise answer with `[]` and hide (gated-by-medium budget). */
   showWatchlistReads: () => number;
   /** How many times the movie browse charts (`/movies/trending` + `/movies/popular`)
@@ -1554,7 +1554,7 @@ export async function installMovieRoutes(
     return route.fulfill({ status: 200, headers: JSON_HEADERS, body: movieDetailBody(movie) });
   });
 
-  // "More like this": `/movies/:id/related` — a bare movie list (disjoint from the
+  // "More like this": `/movies/:id/related`: a bare movie list (disjoint from the
   // `/movies/*` detail glob, which stops at one path segment).
   await context.route("**/api.trakt.tv/movies/*/related*", (route) =>
     route.fulfill({
@@ -1567,7 +1567,7 @@ export async function installMovieRoutes(
   // The movie home's Discover rails. Registered AFTER the `/movies/*` detail glob
   // (which would otherwise 404 `trending`/`popular` as unknown movie ids) so these
   // win: `/movies/trending` wraps each movie in a watcher count, `/movies/popular`
-  // is a bare list — the movie analogue of the show charts.
+  // is a bare list: the movie analogue of the show charts.
   await context.route("**/api.trakt.tv/movies/trending*", (route) => {
     movieDiscoverReads += 1;
     return route.fulfill({
@@ -1828,7 +1828,7 @@ export interface HistoryRowFixture {
   readonly year?: number;
 }
 
-/** A captured `/sync/history/remove` body — proves per-play (ids) vs item removal. */
+/** A captured `/sync/history/remove` body: proves per-play (ids) vs item removal. */
 export interface HistoryRemoveCapture {
   readonly ids?: readonly number[];
   readonly hasEpisodesSection: boolean;
@@ -1836,7 +1836,7 @@ export interface HistoryRemoveCapture {
 }
 
 /** How the per-play remove settles: `ok` applies+200; `reject` 403s WITHOUT
- * removing (the play survives — the undo-must-not-duplicate case); `hold` keeps
+ * removing (the play survives: the undo-must-not-duplicate case); `hold` keeps
  * the POST open until `releaseRemove`, to interleave an Undo with an in-flight
  * remove. */
 export type HistoryRemoveMode = "ok" | "reject" | "hold";
@@ -1885,7 +1885,7 @@ function historyRowBody(row: HistoryRowFixture): unknown {
 /**
  * Intercept the Diary read+write surface: `/users/me/history[/episodes|/movies]`
  * paged by the requested `page` (a small `pageSize` so "Load earlier" is easy to
- * exercise), the per-play `POST /sync/history/remove` (captured and applied — the
+ * exercise), the per-play `POST /sync/history/remove` (captured and applied: the
  * removed id disappears from later reads), and the Undo re-add `POST /sync/history`
  * (restores all). Register AFTER `installHermeticRoutes` so these routes win.
  */

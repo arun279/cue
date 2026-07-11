@@ -53,7 +53,7 @@ export type HistorySection = "all" | "episodes" | "movies";
 /**
  * One page of the Diary: flattened plays newest-first, plus the paging
  * position so the infinite query knows whether an earlier page exists. History is
- * unbounded, so this is always a single page — never a full walk.
+ * unbounded, so this is always a single page: never a full walk.
  */
 export interface HistoryPageData {
   readonly entries: readonly HistoryEntry[];
@@ -117,15 +117,15 @@ export interface CueRuntime {
     range?: HistoryRange,
   ): Promise<HistoryPageData>;
   /**
-   * Every episode play of one show, from `/sync/history/shows/:id` —
+   * Every episode play of one show, from `/sync/history/shows/:id`:
    * the scoped resolver a durable "Unmark season" reads so it can remove exactly
    * the season's plays by history id and leave rewatches intact.
    */
   loadShowPlays(showId: number): Promise<readonly EpisodePlay[]>;
-  /** Every play of one episode, from `/sync/history/episodes/:id` — the
+  /** Every play of one episode, from `/sync/history/episodes/:id`: the
    * resolver behind a per-play-safe single-episode uncheck. */
   loadEpisodePlays(episodeId: number): Promise<readonly EpisodePlay[]>;
-  /** Every play of one movie, from `/sync/history/movies/:id` — the
+  /** Every play of one movie, from `/sync/history/movies/:id`: the
    * resolver behind a per-play-safe movie unmark: a single play reverses by its
    * exact history id, a rewatch is refused and routed to the Diary (never wiped). */
   loadMoviePlays(movieId: number): Promise<readonly MoviePlay[]>;
@@ -167,7 +167,7 @@ export function useRuntime(): CueRuntime {
 }
 
 /**
- * The runtime when a session is mounted, else `null` — for the app shell, which
+ * The runtime when a session is mounted, else `null`: for the app shell, which
  * renders (without a RuntimeProvider) during the pre-token `/auth/callback` return
  * where no runtime exists yet. Feature hooks must use {@link useRuntime}.
  */

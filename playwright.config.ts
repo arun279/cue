@@ -21,7 +21,7 @@ export default defineConfig({
     trace: "on-first-retry",
     // The Calendar and Diary group by the viewer's *device* timezone
     // (`localTimeZone()`). Pin the browser to a fixed non-UTC zone so day-boundary
-    // grouping is deterministic on any host — the fixtures are authored against it.
+    // grouping is deterministic on any host: the fixtures are authored against it.
     timezoneId: "America/New_York",
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],

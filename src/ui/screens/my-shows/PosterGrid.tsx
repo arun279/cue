@@ -20,12 +20,12 @@ interface PosterGridProps<T> {
 
 /** Smallest tile the grid ever draws; below it a 2:3 poster stops reading as
  * cover art. Drives the column count: ~5 columns of ~178px posters at the
- * desktop content width, 2-up on a 390px phone — near the grid target,
+ * desktop content width, 2-up on a 390px phone: near the grid target,
  * sized so tiles read as curated cover art and stay identical across buckets. */
 const MIN_COL = 150;
 /** Column gutter = the established shelf gap (`--space-3`). */
 const GAP = 12;
-/** Vertical rhythm between poster rows (`--space-5`) — tighter than the 32px
+/** Vertical rhythm between poster rows (`--space-5`): tighter than the 32px
  * section gap so a shelf reads as one block, looser than the column gutter. */
 const ROW_GAP = 24;
 /** Title + ratio meta block beneath a poster, plus the poster→meta gap
@@ -39,7 +39,7 @@ interface GridMetrics {
 }
 
 /**
- * A responsive, window-virtualized poster grid — one per My Shows shelf,
+ * A responsive, window-virtualized poster grid: one per My Shows shelf,
  * shared by the show buckets and the movie shelves. The grid fills the screen
  * width (6–8 cols desktop, 2–3 mobile) so a library never leaves a dead field,
  * while row windowing keeps the DOM bounded on the Capacitor WebView even when a
@@ -61,8 +61,8 @@ export function PosterGrid<T>({ entries, keyOf, renderCell }: PosterGridProps<T>
     const el = containerRef.current;
     if (el === null) return;
     const width = el.clientWidth;
-    // Floor of 1 (not 2) so the grid reflows to a single column below ~160px — e.g. at
-    // 200%+ zoom — instead of forcing two sub-tile columns that overflow (WCAG 1.4.10).
+    // Floor of 1 (not 2) so the grid reflows to a single column below ~160px: e.g. at
+    // 200%+ zoom: instead of forcing two sub-tile columns that overflow (WCAG 1.4.10).
     // Every real phone (≥320px) still lands on 2 columns.
     const cols = Math.max(1, Math.floor((width + GAP) / (MIN_COL + GAP)));
     const colWidth = (width - (cols - 1) * GAP) / cols;
@@ -79,7 +79,7 @@ export function PosterGrid<T>({ entries, keyOf, renderCell }: PosterGridProps<T>
   }, []);
 
   // A pile toggling/filtering ABOVE this grid moves its top offset without changing
-  // its own size, so a ResizeObserver can't catch it — but every such change
+  // its own size, so a ResizeObserver can't catch it: but every such change
   // re-renders this tree, so remeasure on each commit; sameMetrics drops no-op sets.
   useLayoutEffect(() => {
     measure();

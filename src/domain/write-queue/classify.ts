@@ -1,13 +1,13 @@
 import type { DispatchResult } from "./types";
 
-/** Trakt writes are capped at 1/sec — the hard limit that paces every dispatch. */
+/** Trakt writes are capped at 1/sec: the hard limit that paces every dispatch. */
 export const MIN_WRITE_INTERVAL_MS = 1000;
 
 /**
- * Backoff floor = the write pacing interval (a shorter wait is pointless — the
+ * Backoff floor = the write pacing interval (a shorter wait is pointless: the
  * pacer already enforces ≥1s); ceiling bounds BOTH the self-computed exponential
  * backoff AND an honored `Retry-After` (see `parseRetryAfterMs`), so a healed
- * server is retried promptly rather than after a runaway wait — whether that wait
+ * server is retried promptly rather than after a runaway wait: whether that wait
  * is one Cue computed or one the server dictated.
  */
 const BACKOFF_BASE_MS = MIN_WRITE_INTERVAL_MS;
@@ -20,7 +20,7 @@ export type Classification =
 
 /**
  * Classify a completed dispatch (a *rejected* dispatch is a NetworkError, the
- * ambiguous class handled by the queue's reconcile path — not here):
+ * ambiguous class handled by the queue's reconcile path: not here):
  * 2xx = ok; 429/5xx = safe-retry (honor `Retry-After`, else backoff); any other
  * 4xx = a definite failure the request did not apply, so roll back.
  */
@@ -39,7 +39,7 @@ export function classifyStatus(
 }
 
 /**
- * `Retry-After` as ms — accepts a delta-seconds value or an HTTP-date — clamped
+ * `Retry-After` as ms, accepts a delta-seconds value or an HTTP-date, clamped
  * to `[0, BACKOFF_MAX_MS]`. This is the single parse point every honored wait
  * flows through (write-queue retry delay, the OAuth-refresh throttle floor, and
  * the read rate-limit sleep), so the clamp lives here to bound them all at once.
@@ -61,7 +61,7 @@ export function parseRetryAfterMs(
   return Number.isNaN(date) ? null : clampWaitMs(date - now);
 }
 
-/** Bound a wait to `[0, BACKOFF_MAX_MS]` — see `parseRetryAfterMs`. */
+/** Bound a wait to `[0, BACKOFF_MAX_MS]`: see `parseRetryAfterMs`. */
 function clampWaitMs(ms: number): number {
   return Math.min(BACKOFF_MAX_MS, Math.max(0, ms));
 }

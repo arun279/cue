@@ -2,14 +2,14 @@ import { create } from "zustand";
 
 /**
  * Session record of reversible season marks. When a `Mark season
- * watched` completes a season it stores that mark's OWN delta — the aired,
+ * watched` completes a season it stores that mark's OWN delta: the aired,
  * previously-unwatched episode numbers it added a play to. The durable "Unmark" on a
  * completed season reverses exactly this delta (never a pre-existing play), so the
  * mark can be undone minutes later, long after the transient toast is gone, without
  * wiping watch history it never created.
  *
  * In-memory only: it survives navigation within a session but not a reload. That is
- * deliberate — after a reload there is no "mark you just made" to reverse, and the
+ * deliberate: after a reload there is no "mark you just made" to reverse, and the
  * reload-durable, per-play-safe home for editing genuine history is the Diary (and
  * the per-episode uncheck). Because it is never persisted it can never leak a stale
  * delta across a reload or a different account, and because the unmark always

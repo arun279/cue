@@ -35,7 +35,7 @@ interface UndoState {
   readonly resumed: boolean;
   /** The season number a whole-season mark reverses, so its point-of-action Undo
    * also drops the retained mark delta (the durable "Unmark" reverses the same
-   * mark — once the toast has undone it there is nothing left to durably reverse). */
+   * mark: once the toast has undone it there is nothing left to durably reverse). */
   readonly reversibleSeason: number | null;
 }
 
@@ -44,7 +44,7 @@ export interface MarkSeasonController {
   /**
    * The durable, per-play-safe reversal of a `Mark season watched`:
    * resolve the show's real Trakt plays and remove ONLY the plays of that mark's own
-   * delta by exact history id — a play that predates the mark is never touched, and a
+   * delta by exact history id: a play that predates the mark is never touched, and a
    * delta episode rewatched afterwards keeps its extra play. Outlives the transient
    * toast (the delta is remembered for the session), so the mark can be reversed
    * minutes later, not only in the 6-second Undo window. Rewatched episodes it kept
@@ -71,7 +71,7 @@ export interface MarkSeasonController {
   /** A non-error advisory (e.g. an uncheck refused because the episode is a rewatch,
    * or a season unmark that kept rewatched episodes) pointing the user at the Diary. */
   dismissNotice(): void;
-  /** True while a mark/unmark write for this season number is in flight — the season
+  /** True while a mark/unmark write for this season number is in flight: the season
    * button locks so a second activation can't race a duplicate bulk write. */
   isSeasonPending(seasonNumber: number): boolean;
   readonly undoable: { readonly label: string } | null;
@@ -132,13 +132,13 @@ function seasonLabel(season: number): string {
  * Show-detail marking: whole-season, mark-up-to-here, and single
  * episode toggle, each optimistic (episodes check instantly, before the write
  * settles) and funnelled through the bulk builder so a batched mark carries
- * only the aired, still-unwatched delta — never a whole-season token, never
+ * only the aired, still-unwatched delta: never a whole-season token, never
  * unaired episodes, and never specials unless opted in. Bulk marks expose a
  * point-of-action Undo that re-sends the stored inverse `/sync/history/remove`,
  * scoped to that same delta so it reverts EXACTLY the episodes this mark added and
  * never touches plays that predate it (a partial season un-does to its original
- * count, never to zero). A completed season also carries a DURABLE reversal —
- * `unmarkSeason` — that outlives the transient Undo: it re-resolves the show's real
+ * count, never to zero). A completed season also carries a DURABLE reversal,
+ * `unmarkSeason`: that outlives the transient Undo: it re-resolves the show's real
  * Trakt plays and removes, by exact history id, ONLY the plays of that mark's own
  * delta (remembered for the session), deliberately KEEPING a pre-existing play or a
  * rewatched episode intact. Every uncheck here (single episode or whole season) is
@@ -155,7 +155,7 @@ export function useMarkSeason(): MarkSeasonController {
   const [notice, setNotice] = useState<string | null>(null);
   // Which season numbers currently have a bulk mark write in flight, so the season
   // button locks (a second activation can't enqueue a duplicate bulk write). The ref
-  // is the SYNCHRONOUS gate — checked-and-set before the async op so a double-tap in
+  // is the SYNCHRONOUS gate: checked-and-set before the async op so a double-tap in
   // one task (before React re-renders the disabled/aria-busy state) is dropped, not
   // double-fired; the state mirror only drives the visual lock. Mirrors the Up Next
   // mark's ref guard.
@@ -197,7 +197,7 @@ export function useMarkSeason(): MarkSeasonController {
 
   // A single-episode toggle passes its coordinate so that episode's own detail read
   // is invalidated too; a bulk mark/unmark spans an unknown set of episodes, so it
-  // passes "all" to invalidate the whole-show episode prefix — else a pre-cached
+  // passes "all" to invalidate the whole-show episode prefix: else a pre-cached
   // standalone episode page is left reading pre-mark progress.
   const revalidate = useCallback(
     (showId: number, episode?: { readonly season: number; readonly number: number } | "all") =>
@@ -226,13 +226,13 @@ export function useMarkSeason(): MarkSeasonController {
     ): Promise<"done" | "failed" | "deferred"> => {
       if (ops.length === 0) return "done";
       // Snapshot the season tree before the optimistic write so a hard failure can
-      // restore it verbatim — `match` spans episodes on the other side of the write
+      // restore it verbatim: `match` spans episodes on the other side of the write
       // too, so a naive un-patch would wrongly flip pre-existing ticks.
       const key = queryKeys.showSeasons(target.showId);
       const before = queryClient.getQueryData<readonly SeasonView[]>(key);
       patch(target.showId, match, true);
       // Confirmation + Undo AT THE POINT OF ACTION: mount the toast synchronously with
-      // the optimistic tick, BEFORE the paced/throttled write settles — mirroring the
+      // the optimistic tick, BEFORE the paced/throttled write settles: mirroring the
       // Up Next mark. Otherwise the season shows its non-interactive "Watched"
       // done-state for the whole network flush with no way to reverse it, the exact
       // silent-commit this Undo exists to prevent. `resumed` is captured synchronously
@@ -251,7 +251,7 @@ export function useMarkSeason(): MarkSeasonController {
       // The batch settles to its worst op: any hard failure rolls the whole mark
       // back; a "deferred" chunk keeps the optimistic tick without revalidating (a
       // refetch would read pre-mark progress and un-tick the episodes). A watch on a
-      // Stopped show un-stops it (onKept) — that unhide must land before revalidate
+      // Stopped show un-stops it (onKept): that unhide must land before revalidate
       // so the library re-read doesn't refile the show back under Stopped.
       const outcome = await submit(ops, {
         rollback: () => queryClient.setQueryData(key, before),
@@ -259,11 +259,11 @@ export function useMarkSeason(): MarkSeasonController {
         revalidate: () => revalidate(target.showId, "all"),
       });
       if (outcome === "failed") {
-        // The mark didn't land and the seam already rolled the ticks back — retract
+        // The mark didn't land and the seam already rolled the ticks back: retract
         // this mark's toast (if it's still the one showing) so there's no Undo for a
         // change that never happened, and surface the retry copy.
         setUndoState((prev) => (prev?.ops === ops ? null : prev));
-        setError("Couldn't save that change. It'll retry — check your connection.");
+        setError("Couldn't save that change. It'll retry, check your connection.");
       }
       return outcome;
     },
@@ -305,7 +305,7 @@ export function useMarkSeason(): MarkSeasonController {
         if (ops.length === 0) return;
         // This mark's OWN delta: the aired, previously-unwatched episodes it adds a
         // play to (the same predicate the bulk builder scopes on). Remembered so
-        // the durable Unmark reverses exactly this set — never a pre-existing play —
+        // the durable Unmark reverses exactly this set, never a pre-existing play,
         // once the transient toast is gone.
         const delta = season.episodes
           .filter(
@@ -347,18 +347,18 @@ export function useMarkSeason(): MarkSeasonController {
         const plan = planSeasonUnmark(plays, season.number, target.includeSpecials, delta);
         if (plan.removeIds.length === 0) {
           // Nothing safe to remove: the mark's delta plays are gone (already unchecked)
-          // or every one became a rewatch — drop the retained mark (there is nothing
+          // or every one became a rewatch: drop the retained mark (there is nothing
           // left to durably reverse) and route per-play removal to the Diary.
           forgetSeasonMark(target.showId, season.number);
           setNotice(
             plan.keptRewatch.length > 0
-              ? "These plays are rewatches — remove specific ones in your watch history."
+              ? "These plays are rewatches. Remove specific ones in your watch history."
               : "No plays to unmark for this season.",
           );
           return;
         }
         // Snapshot the season tree so a hard failure restores it verbatim, then
-        // optimistically un-tick exactly the episodes whose single play we remove —
+        // optimistically un-tick exactly the episodes whose single play we remove:
         // rewatched episodes stay ticked (their extra play survives).
         const key = queryKeys.showSeasons(target.showId);
         const before = queryClient.getQueryData<readonly SeasonView[]>(key);
@@ -375,7 +375,7 @@ export function useMarkSeason(): MarkSeasonController {
         const kept = plan.keptRewatch.length;
         const keptSuffix =
           kept > 0 ? ` · kept ${kept} rewatched episode${kept === 1 ? "" : "s"}` : "";
-        // The mark is being reversed — drop it from the reversible record so the
+        // The mark is being reversed: drop it from the reversible record so the
         // durable Unmark isn't offered again for the same (now consumed) mark.
         forgetSeasonMark(target.showId, season.number);
         setUndoState({
@@ -392,7 +392,7 @@ export function useMarkSeason(): MarkSeasonController {
         });
         if (outcome === "failed") {
           setUndoState((prev) => (prev?.ops === ops ? null : prev));
-          setError("Couldn't unmark that season. It'll retry — check your connection.");
+          setError("Couldn't unmark that season. It'll retry, check your connection.");
         }
       });
     },
@@ -429,7 +429,7 @@ export function useMarkSeason(): MarkSeasonController {
         if (episode.watched) {
           // OFF: a DURABLE, per-play-safe uncheck. Optimistically un-tick,
           // then resolve the episode's real plays and remove the single play by its
-          // exact history id — never an item-scoped wipe. A rewatch (two or more plays)
+          // exact history id: never an item-scoped wipe. A rewatch (two or more plays)
           // is refused and pointed at the Diary, so it can never be destroyed here.
           patch(target.showId, matchEpisode, false);
           const resolution = await resolveEpisodeUnmark(runtime, episode.ids.trakt);
@@ -441,7 +441,7 @@ export function useMarkSeason(): MarkSeasonController {
           if (resolution.kind === "rewatch") {
             patch(target.showId, matchEpisode, true);
             setNotice(
-              `This episode has ${resolution.count} plays — remove a specific one in your watch history.`,
+              `This episode has ${resolution.count} plays. Remove a specific one in your watch history.`,
             );
             return;
           }
@@ -479,8 +479,8 @@ export function useMarkSeason(): MarkSeasonController {
         const ops = [op];
         patch(target.showId, matchEpisode, true);
         // A one-tap "Mark watched" surface (hero / Up-next strip) mounts the same
-        // point-of-action Undo the bulk path does — synchronously with the optimistic
-        // tick, tagged by `ops` identity — reusing the shared undo/invert machinery so
+        // point-of-action Undo the bulk path does: synchronously with the optimistic
+        // tick, tagged by `ops` identity: reusing the shared undo/invert machinery so
         // the reversal safety net is consistent with the Up Next list mark. `resumed`
         // is captured synchronously from the mark-time Stopped state so this mark's Undo
         // re-stops the show even before the (paced) auto-resume write has settled.
@@ -520,11 +520,11 @@ export function useMarkSeason(): MarkSeasonController {
     if (pending === null) return;
     setUndoState(null);
     // A whole-season mark's toast Undo reverses the same mark the durable Unmark
-    // would — once it has, drop the retained delta so no stale Unmark lingers.
+    // would: once it has, drop the retained delta so no stale Unmark lingers.
     if (pending.reversibleSeason !== null) {
       forgetSeasonMark(pending.showId, pending.reversibleSeason);
     }
-    // If the mark auto-resumed the show, its Undo must re-stop it (onKept) — the
+    // If the mark auto-resumed the show, its Undo must re-stop it (onKept): the
     // re-hide has to land before revalidate so the library re-read stays Stopped.
     await submit(pending.ops.map(invert), {
       rollback: () => {},

@@ -4,7 +4,7 @@ import type { MovieDetailData, WatchedMovie, WatchlistItem } from "./schemas";
 /**
  * One movie in the My Shows movie library: merged from `/sync/watched/movies`
  * (watched + `watchedAt`) and `/sync/watchlist/movies` (membership). Unlike a
- * show there is no per-episode progress — a movie is watched or not — so the
+ * show there is no per-episode progress, a movie is watched or not, so the
  * shelf card renders a poster, title, year and its watched/watchlist state.
  */
 export interface MovieEntry {
@@ -18,7 +18,7 @@ export interface MovieEntry {
   /**
    * When the movie was added to the watchlist (`/sync/watchlist/movies`'
    * `listed_at`), or `null` for a watched movie that was never watchlisted. This
-   * is the movie-native queue order — a film has no "next episode", so "recently
+   * is the movie-native queue order: a film has no "next episode", so "recently
    * added" is the honest ordering for the Watchlist (the movie's Up Next). Absent
    * on a cache persisted before this field existed; ordering degrades to title.
    */
@@ -66,7 +66,7 @@ export function toMovieIds(ids: {
  * Shows movie shelves and the Movie detail flags derive from. A watchlisted
  * movie that has never been watched has no `/sync/watched/movies` row, so it is
  * materialized here as an unwatched, watchlist-only entry (mirroring the show
- * library's watchlist-only handling) — otherwise it would vanish from the
+ * library's watchlist-only handling): otherwise it would vanish from the
  * Watchlist shelf after a refetch.
  */
 export function assembleMovieLibrary(input: MovieLibraryInput): MovieEntry[] {

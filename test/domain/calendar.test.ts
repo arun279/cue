@@ -41,7 +41,7 @@ describe("groupCalendar", () => {
   });
 
   it("localizes to the timezone: a late-UTC air time lands on the previous local day", () => {
-    // 02:00Z on 07-05 is 22:00 on 07-04 in New York — a UTC grouping would mis-file it.
+    // 02:00Z on 07-05 is 22:00 on 07-04 in New York: a UTC grouping would mis-file it.
     const days = groupCalendar([entry({ showId: 1, firstAired: "2026-07-05T02:00:00.000Z" })], {
       now: NOW,
       timeZone: NY,

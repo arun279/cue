@@ -15,7 +15,7 @@ import {
 
 /** The Cue touch-target floor (`--tap-min`): WCAG 2.5.5 / Apple HIG 44pt. */
 const TAP_MIN = 44;
-/** A common small phone — the primary audit viewport. */
+/** A common small phone: the primary audit viewport. */
 const PHONE = { width: 390, height: 844 } as const;
 const AIRED = "2026-01-01T00:00:00.000Z";
 
@@ -80,7 +80,7 @@ test.beforeEach(async ({ page }) => {
   await seedAuth(page.context());
 });
 
-test("Up Next @390 clears more of the fold — compact inline mark, not a full-width CTA", async ({
+test("Up Next @390 clears more of the fold: compact inline mark, not a full-width CTA", async ({
   page,
 }) => {
   await installLibraryRoutes(page.context(), continueShows(6));
@@ -121,7 +121,7 @@ test("header avatar is a 44×44 finger target @390", async ({ page }) => {
 
   const topbar = page.locator(".topbar");
   // Search moved onto the Discover tab; the header now carries only the Profile
-  // avatar (utility hub) beside the brand — both real finger targets.
+  // avatar (utility hub) beside the brand: both real finger targets.
   await expectTapTarget(topbar.getByRole("link", { name: "Profile" }));
   // The brand-home link keeps its compact wordmark but a full-height tap target.
   await expectTapTarget(topbar.getByRole("link", { name: "Cue home" }), "height");
@@ -140,16 +140,16 @@ test("show-detail controls clear the 44px floor: rating track, back, specials, s
   await expectTapTarget(page.getByTestId("detail-back"), "height");
 
   // Rating: the control is ONE wide slider track, not ten sub-44px stars
-  // (ten 44px stars would need 440px — wider than a phone). The whole track is a single
+  // (ten 44px stars would need 440px: wider than a phone). The whole track is a single
   // ≥44px finger target a tap lands anywhere on, carrying role=slider for AT.
   const slider = page.getByTestId("show-rating-slider");
   await expect(slider).toHaveAttribute("role", "slider");
   await expectTapTarget(slider, "height");
 
-  // "Include specials" — the whole label is the 44-tall target, not its 13px box.
+  // "Include specials": the whole label is the 44-tall target, not its 13px box.
   await expectTapTarget(page.locator(".detail-specials"), "height");
 
-  // "Stop watching" — a consequential action (drops the show from Up Next + calendar).
+  // "Stop watching": a consequential action (drops the show from Up Next + calendar).
   await expectTapTarget(page.getByTestId("hide-show"), "height");
 
   // The show-level "Up next" module (aired next episode): the primary mark and the
@@ -160,8 +160,8 @@ test("show-detail controls clear the 44px floor: rating track, back, specials, s
   // The per-season "Mark season watched" action.
   await expectTapTarget(page.locator('[data-season="1"]').getByTestId("mark-season"), "height");
 
-  // Expand a season: the per-episode watched toggle — the primary "mark unwatched"
-  // affordance — is a full 44×44 target (BOTH dims: a square check on the still, not a
+  // Expand a season. The per-episode watched toggle, the primary "mark unwatched"
+  // affordance, is a full 44×44 target (BOTH dims: a square check on the still, not a
   // text button), with the visible badge kept compact so a 158px still isn't swallowed.
   await page.locator('[data-season="1"]').getByTestId("season-trigger").click();
   const toggle = page

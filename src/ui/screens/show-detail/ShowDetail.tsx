@@ -65,7 +65,7 @@ function ShowHero({
   // Once a show has progress its state is derived from that progress, not from
   // watchlist membership, so hide the watchlist toggle (it would contradict the
   // Library's "Watching" filing). Stop is only meaningful for a show that is
-  // actually being watched or already stopped — never a not-started one.
+  // actually being watched or already stopped: never a not-started one.
   const showWatchlist = header.completed === 0;
   const canStop = hidden || header.completed > 0;
 
@@ -196,8 +196,8 @@ function ShowHero({
         {canStop && (
           <p className="show-hero__stop-note" data-testid="stop-note">
             {hidden
-              ? "History kept — resume to pick up where you left off."
-              : "Stopping keeps your watch history — resume anytime."}
+              ? "History kept, resume to pick up where you left off."
+              : "Stopping keeps your watch history, resume anytime."}
           </p>
         )}
 
@@ -278,7 +278,7 @@ function NextUp({
  * Show detail as a media page: a full-bleed backdrop hero
  * (poster inset, editorial title, chips, overview, overall progress, primary
  * actions, compact rating) that paints first, a show-level "Up next" module, then
- * the season shelves — each a completion ring + Mark-season header expanding into
+ * the season shelves: each a completion ring + Mark-season header expanding into
  * a shelf of episode stills with watched toggles and "mark up to here". A Stop
  * action drops the show from Up Next and the calendar. Every state is designed:
  * hero skeleton, hero error retry, streaming seasons, season error retry, and an
@@ -292,7 +292,7 @@ export function ShowDetail({ showId }: { showId: number }): ReactElement {
   const rate = useRate("shows");
   const watchlist = useToggleWatchlist();
   const [includeSpecials, setIncludeSpecials] = useState(false);
-  // Read the shared library snapshot (SWR — cached instantly on navigation, fetched
+  // Read the shared library snapshot (SWR: cached instantly on navigation, fetched
   // once on a direct /show/:id load) so the abandon action reflects the real hidden
   // state and flips live when the optimistic hide/unhide patches the shared entry.
   const hidden = useLibrarySnapshot().byId.get(showId)?.hidden ?? false;

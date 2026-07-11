@@ -1,6 +1,6 @@
 import type { ReactElement } from "react";
 
-/** The disclosure chevron shared by every accordion trigger — library piles, diary
+/** The disclosure chevron shared by every accordion trigger: library piles, diary
  * clusters, season shelves, and the lapsed drawer. Only the wrapper class differs
  * per surface, so callers pass their own `className`. */
 export function ChevronIcon({ className }: { className?: string }): ReactElement {

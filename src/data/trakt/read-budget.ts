@@ -5,8 +5,8 @@ import type { Progress, WatchedShow } from "./schemas";
 
 /**
  * Read fan-out concurrency cap. Each in-flight show issues a single progress GET,
- * so capping at 6 holds concurrent authed GETs at ≤6 — inside the sync analysis's
- * 8–12 window with margin — instead of firing the whole bounded head at once.
+ * so capping at 6 holds concurrent authed GETs at ≤6: inside the sync analysis's
+ * 8–12 window with margin: instead of firing the whole bounded head at once.
  */
 const READ_CONCURRENCY = 6;
 
@@ -25,7 +25,7 @@ const DEFAULT_RATE_BACKOFF_MS = 1000;
  *
  * Why a cap at all: Up Next and the Library "Watching" pile are the only surfaces
  * that need live per-show progress (aired vs. completed + the next episode), and a
- * show can only be in either if it was watched recently — the ranking is by
+ * show can only be in either if it was watched recently: the ranking is by
  * `last_watched_at`. The idle tail (finished / long-abandoned shows) is bucketed
  * from the bulk watched breakdown as caught-up, no per-show GET. So the fan-out is
  * bounded by *how many shows one person actively has in flight*, not by library
@@ -34,21 +34,21 @@ const DEFAULT_RATE_BACKOFF_MS = 1000;
  * Why 60: power-user behavior tops out around 20–50 shows watched
  * concurrently; 60 covers that with headroom while staying a hard ceiling. It also
  * holds the worst-case cold-sync GET count far under Trakt's authed 1000-GET / 5-min
- * budget — for a 1000-show library: ceil(1000/100)=10 watched pages + 60 progress +
+ * budget: a 1000-show library costs ceil(1000/100)=10 watched pages + 60 progress +
  * ~1 hidden + ~1 watchlist ≈ 72 GETs (~7% of the ceiling, a >13× margin), versus the
  * previous ~2000 (2 GETs × 1000 shows) that blew straight through it. Per-row art is
  * deferred to a separate lazy per-card read, so it never rides the
  * cold-sync burst.
  *
  * The cost: a user actively juggling more than 60 shows carries the 61st-most-recent
- * onward at the progress-unknown baseline — by construction the least-recently-touched
+ * onward at the progress-unknown baseline: by construction the least-recently-touched
  * of their in-flight shows. This is neither silently presented as complete NOR silently
- * dropped: such a show is `progressKnown: false`, so its status is `sync-pending` — it
+ * dropped: such a show is `progressKnown: false`, so its status is `sync-pending`: it
  * sits in My Shows' own "Still syncing" pile (never the "Caught up" pile) rather than
  * being fabricated caught-up. The read reports `partial`, the sync pill rests on "Recent
  * shows synced" rather than "Synced · <when>", and Up Next never claims
  * "all caught up" while partial. A show gains real progress on the next cold
- * sync once it re-enters the fetched head — e.g. after it is watched again, which is when
+ * sync once it re-enters the fetched head: e.g. after it is watched again, which is when
  * its queue position would matter. (Opening its detail fetches fresh progress for that
  * screen but does not yet write it back into this library snapshot.)
  */
@@ -94,7 +94,7 @@ interface ColdSyncRead {
   /**
    * True when the watched library is larger than the progress budget, so the shows
    * beyond the most-recently-watched head carry the progress-unknown baseline
-   * (`sync-pending`) rather than fetched progress — the honest "recent-only" signal
+   * (`sync-pending`) rather than fetched progress: the honest "recent-only" signal
    * the sync pill surfaces.
    */
   readonly partial: boolean;
@@ -112,8 +112,8 @@ function byLastWatchedDesc(a: WatchedShow, b: WatchedShow): number {
  * Paint the shared library snapshot (Up Next + My Shows) from bounded bulk reads:
  * the paginated watched list, per-show progress for the most-recently-watched
  * {@link WATCHED_PROGRESS_BUDGET} shows only, plus the hidden set and watchlist.
- * Per-show ART/detail is NOT fetched here — it is deferred to a lazy per-visible-card
- * read — so the cold-sync GET count is bounded and does not scale ~2×
+ * Per-show ART/detail is NOT fetched here: it is deferred to a lazy per-visible-card
+ * read: so the cold-sync GET count is bounded and does not scale ~2×
  * with library size. Progress failure throws (the whole read fails so React Query
  * keeps the prior cached queue + retry banner instead of erasing a known show); a
  * transient 429 on any read is absorbed within a bounded budget.

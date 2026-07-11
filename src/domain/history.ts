@@ -4,7 +4,7 @@ import { toMs } from "./time";
 
 /**
  * One watch-history play, flattened from a `/users/me/history` row. The
- * `historyId` is Trakt's per-play event id — the handle that lets a single play be
+ * `historyId` is Trakt's per-play event id: the handle that lets a single play be
  * removed WITHOUT touching the item's other plays/rewatches. `ids` is the item's
  * own id block, kept for the best-effort restore (re-adding the play by item).
  */
@@ -12,7 +12,7 @@ export interface HistoryEntry {
   readonly historyId: number;
   readonly watchedAt: string;
   readonly type: "episode" | "movie";
-  /** The show (episode) or movie trakt id — the poster subject + detail link. */
+  /** The show (episode) or movie trakt id: the poster subject + detail link. */
   readonly mediaId: number;
   readonly ids: EpisodeIds | MovieIds;
   readonly title: string;
@@ -29,7 +29,7 @@ export interface HistoryEntry {
  * A run of history rows collapsed under one card. A lone play (or movie) is a
  * one-entry group; consecutive same-show episodes on the same day fold into a
  * multi-entry group with an expand affordance. `loggedTogether` marks a group
- * whose plays all share the same minute — a bulk "mark season/all", where the
+ * whose plays all share the same minute: a bulk "mark season/all", where the
  * timestamps are a best-effort stamp, not real per-episode watch times, so the UI
  * says "Logged together" and hides the (synthetic) per-play clock.
  */
@@ -61,7 +61,7 @@ export interface HistoryRange {
 
 /**
  * The UTC datetime bounds of a year (or a month within it) for the decade-jump
- * scope — fed to Trakt's history `start_at`/`end_at`. `watched_at` is stored UTC,
+ * scope: fed to Trakt's history `start_at`/`end_at`. `watched_at` is stored UTC,
  * so UTC bounds keep the scope deterministic: a coarse "everything I watched in
  * 2019 / March 2019" teleport, not a per-timezone-exact filter (the visible rows
  * are still re-bucketed by the viewer's local day). A year is
@@ -83,8 +83,8 @@ export function historyRange(year: number, month?: number): HistoryRange {
 }
 
 /**
- * The stable scope segment shared by the history query key and the `/history` URL
- * — `"recent"` (unbounded feed), `"2019"` (a year), or `"2019-03"` (a month). A
+ * The stable scope segment shared by the history query key and the `/history` URL:
+ * `"recent"` (unbounded feed), `"2019"` (a year), or `"2019-03"` (a month). A
  * pure string so the infinite query caches each scope separately while
  * `historyPrefix()` still invalidates them as one.
  */
@@ -94,12 +94,12 @@ export function historyScopeKey(year?: number, month?: number): string {
   return `${year}-${String(month).padStart(2, "0")}`;
 }
 
-/** Minute bucket of an instant — the honest precision Trakt normalizes plays to. */
+/** Minute bucket of an instant: the honest precision Trakt normalizes plays to. */
 function minuteOf(ms: number): number {
   return Math.floor(ms / 60_000);
 }
 
-/** Same show, both episodes — the only pair that folds into one card. */
+/** Same show, both episodes: the only pair that folds into one card. */
 function sameShowEpisodes(a: HistoryEntry, b: HistoryEntry): boolean {
   return a.type === "episode" && b.type === "episode" && a.mediaId === b.mediaId;
 }

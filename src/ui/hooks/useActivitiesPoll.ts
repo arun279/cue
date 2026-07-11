@@ -15,7 +15,7 @@ const POLL_INTERVAL_MS = 60_000;
  * `/sync/last_activities`: on mount (establish the baseline / catch anything that
  * changed while away), on regaining visibility, on reconnect, and on a 60s
  * interval while visible. A diffed change invalidates exactly the affected query
- * keys and — once they have refetched — advances the persisted baseline. A failed
+ * keys and, once they have refetched, advances the persisted baseline. A failed
  * check stays silent (cached data keeps showing); it never flips the pill.
  * Navigation triggers none of this, so moving between pages costs zero Trakt
  * calls and the pill rests on "Synced".
@@ -44,7 +44,7 @@ export function useActivitiesPoll(): void {
           if (cancelled) return;
         }
         // Advance the baseline ONLY after the invalidated queries refetched, and
-        // only if none ended in error — a failed refetch must be re-detected on the
+        // only if none ended in error: a failed refetch must be re-detected on the
         // next poll rather than silently skipped by an advanced snapshot.
         const anyError = reconcile.keys.some((queryKey) =>
           queryClient

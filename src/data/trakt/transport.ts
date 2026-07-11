@@ -4,7 +4,7 @@ import type { TraktClient } from "./client";
 /**
  * Bridge the pure write queue to the Trakt transport: a `RequestDescriptor`
  * becomes a raw `DispatchResult` for the queue to classify. A fetch reject
- * propagates as a throw — exactly the NetworkError the queue reconciles before
+ * propagates as a throw: exactly the NetworkError the queue reconciles before
  * retry; every HTTP response (incl. 429/5xx) resolves so `classifyStatus`
  * can read its status + `Retry-After`.
  */

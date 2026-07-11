@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Cue — a Trakt-backed Up Next queue. Web-first PWA with a Capacitor mobile shell.",
+  "description": "Cue: a Trakt-backed Up Next queue. Web-first PWA with a Capacitor mobile shell.",
   "packageManager": "pnpm@10.33.0",
   "engines": {
     "node": ">=22.12.0"

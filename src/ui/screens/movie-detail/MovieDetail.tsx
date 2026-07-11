@@ -24,7 +24,7 @@ const UNDO_MS = 6000;
 
 /** Build the toggle target from the movie-library entry, or synthesize an
  * unwatched, un-watchlisted one for a movie reached directly by URL that isn't in
- * the library yet — the mark/watchlist toggles then materialize it in the cache. */
+ * the library yet: the mark/watchlist toggles then materialize it in the cache. */
 function toEntry(header: MovieHeader, existing: MovieEntry | undefined): MovieEntry {
   return (
     existing ?? {
@@ -44,7 +44,7 @@ function toEntry(header: MovieHeader, existing: MovieEntry | undefined): MovieEn
 
 /** The full-bleed media hero: fanart backdrop with a scrim fading into the card,
  * poster inset, editorial title + year, runtime/release/genre chips, overview,
- * then the grouped control surface — the watched toggle (with its logged date),
+ * then the grouped control surface: the watched toggle (with its logged date),
  * the watchlist toggle, and the compact 1–10 rating. */
 function MovieHero({
   header,
@@ -157,8 +157,8 @@ function MovieHero({
 /**
  * Movie detail as a media page in the screening-room language: a full-bleed
  * fanart hero (poster inset, editorial title + year, runtime/release/genre chips,
- * overview) over one grouped control surface — Mark watched (with date) /
- * watchlist toggle / 1–10 rating — all optimistic through the durable write-queue
+ * overview) over one grouped control surface: Mark watched (with date) /
+ * watchlist toggle / 1–10 rating: all optimistic through the durable write-queue
  * with Undo. Every state is designed: hero skeleton, hard-error retry, and an
  * unwatched movie that carries no logged date.
  */
@@ -273,7 +273,7 @@ function MovieDetailContent({ movieId }: { readonly movieId: number }): ReactEle
 
 /**
  * Movie-detail route gate. When Movies are turned off, a stale link or
- * bookmark lands on a quiet notice with a way back on — and, crucially, the movie
+ * bookmark lands on a quiet notice with a way back on, and, crucially, the movie
  * read hooks live in `MovieDetailContent`, which only mounts when Movies are on, so
  * a hidden medium issues no movie reads (never a detail/library/related fetch for a
  * disabled section). With Movies on, the full detail page renders unchanged.

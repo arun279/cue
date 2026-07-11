@@ -61,7 +61,7 @@ export type HttpMethod = "GET" | "POST";
 /**
  * Typed Trakt fetch. Sets the required headers, builds the `extended`
  * param, exposes pagination, and maps status → a closed `TraktResult` union.
- * Never throws across the boundary except when a body is unparseable JSON — the
+ * Never throws across the boundary except when a body is unparseable JSON: the
  * schema layer (`endpoints.ts`) turns a wrong-shape body into a throw via zod.
  */
 export class TraktClient {
@@ -123,7 +123,7 @@ export class TraktClient {
 
   /**
    * Walk every page of a list endpoint via `X-Pagination-Page-Count`, flattening
-   * into one array — the initial library snapshot helper. Endpoints without
+   * into one array: the initial library snapshot helper. Endpoints without
    * pagination headers resolve as a single page.
    */
   async getAllPages(path: string, options: RequestOptions = {}): Promise<TraktResult<unknown[]>> {

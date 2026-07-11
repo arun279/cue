@@ -6,11 +6,11 @@ import { useLibrarySnapshot } from "@ui/hooks/useLibrarySnapshot";
 import { useMemo } from "react";
 
 interface EmptyStateCounts {
-  /** Every tracked show, hidden included — 0 only when the library is truly empty. */
+  /** Every tracked show, hidden included: 0 only when the library is truly empty. */
   readonly totalCount: number;
-  /** Non-hidden tracked shows — 0 distinguishes an only-Stopped library from a real one. */
+  /** Non-hidden tracked shows: 0 distinguishes an only-Stopped library from a real one. */
   readonly trackedCount: number;
-  /** Non-hidden shows with at least one watched episode — 0 means nothing has been started. */
+  /** Non-hidden shows with at least one watched episode: 0 means nothing has been started. */
   readonly startedCount: number;
 }
 
@@ -20,22 +20,22 @@ export interface UpNextCard {
 }
 
 export interface UpNextView extends QueryStatus {
-  /** New ⧺ Continue in render order — the flat active queue (drives the Up Next count). */
+  /** New ⧺ Continue in render order: the flat active queue (drives the Up Next count). */
   readonly cards: readonly UpNextCard[];
   /** This week's freshly-aired next episodes ("New"). */
   readonly newCards: readonly UpNextCard[];
   /** Mid-run shows, most-recently-watched first ("Continue"). */
   readonly continueCards: readonly UpNextCard[];
-  /** In-progress but idle — the collapsed "Haven't watched in a while" drawer. */
+  /** In-progress but idle: the collapsed "Haven't watched in a while" drawer. */
   readonly lapsedCards: readonly UpNextCard[];
-  /** Every tracked show, hidden included — 0 only when the library is truly empty. */
+  /** Every tracked show, hidden included: 0 only when the library is truly empty. */
   readonly totalCount: number;
-  /** Every non-hidden tracked show — distinguishes an only-Stopped library from a real one. */
+  /** Every non-hidden tracked show: distinguishes an only-Stopped library from a real one. */
   readonly trackedCount: number;
-  /** Non-hidden shows with watch progress — 0 means nothing has been started yet. */
+  /** Non-hidden shows with watch progress: 0 means nothing has been started yet. */
   readonly startedCount: number;
   /** The library exceeds the cold-sync progress budget, so only recent shows are
-   * fully synced — the pill's honest "recent shows synced" state. */
+   * fully synced: the pill's honest "recent shows synced" state. */
   readonly isPartial: boolean;
   refetch(): void;
 }

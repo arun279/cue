@@ -2,7 +2,7 @@ import { invalidationKeys, showProgressKeys } from "@data/query-invalidation";
 import { queryKeys } from "@data/query-keys";
 import { describe, expect, it } from "vitest";
 
-describe("showProgressKeys — the keys a local mark on show X must refresh", () => {
+describe("showProgressKeys: the keys a local mark on show X must refresh", () => {
   it("invalidates the library aggregate AND the show's own detail views, not just library", () => {
     const keys = showProgressKeys(42);
     expect(keys).toEqual([
@@ -32,8 +32,8 @@ describe("showProgressKeys — the keys a local mark on show X must refresh", ()
 
   it("adds the whole-show episode prefix for a bulk/range mark ('all')", () => {
     // A bulk mark/undo touches an unknown set of episodes, so it invalidates the
-    // episode prefix — which TanStack prefix-matches every cached episode of the show
-    // — rather than one coordinate, so no pre-cached standalone episode page is stale.
+    // episode prefix, which TanStack prefix-matches every cached episode of the show
+    // rather than one coordinate, so no pre-cached standalone episode page is stale.
     const keys = showProgressKeys(42, "all");
     expect(keys).toEqual([
       queryKeys.library(),

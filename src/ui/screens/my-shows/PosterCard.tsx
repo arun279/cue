@@ -13,7 +13,7 @@ interface PosterCardProps {
  * One My Shows library tile: a poster-forward 2:3 card carrying an amber progress
  * rail pinned to the poster edge, the title, a `watched/aired` ratio, and the
  * next-episode code hint. The whole tile is a single link target into Show detail
- * (the global "tap any poster → Show page" rule) — one tab stop with an
+ * (the global "tap any poster → Show page" rule): one tab stop with an
  * accessible name, not a nested control.
  */
 export function PosterCard({ entry }: PosterCardProps): ReactElement {
@@ -46,7 +46,7 @@ export function PosterCard({ entry }: PosterCardProps): ReactElement {
         <h3 className="poster-card__title">{entry.title}</h3>
         <p className="poster-card__progress" data-testid="library-progress">
           {/* A show beyond the cold-sync progress budget has a real watched count but
-              an unknown total — so show the count honestly (no fabricated x/y ratio
+              an unknown total, so show the count honestly (no fabricated x/y ratio
               or "caught up" bar, and never "Not started" for a watched show). */}
           {!entry.progressKnown ? (
             <span className="poster-card__count poster-card__count--idle">

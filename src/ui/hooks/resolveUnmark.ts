@@ -10,7 +10,7 @@ import type { CueRuntime } from "@ui/runtime/runtime";
  * The outcome of resolving a single-episode uncheck against its real Trakt plays
  * `remove` carries the per-play plan (safe id-scoped removal);
  * `rewatch` means the episode has more than one play, so a one-tap uncheck would
- * destroy watch history — the caller must refuse and route to the Diary; `none`
+ * destroy watch history: the caller must refuse and route to the Diary; `none`
  * means the server already holds no play (nothing to remove); `error` means the
  * resolve read itself failed.
  */
@@ -46,7 +46,7 @@ export async function resolveEpisodeUnmark(
  * The outcome of resolving a movie unmark against its real Trakt plays, mirroring
  * {@link EpisodeUnmarkResolution} so movies reverse exactly like episodes: `remove`
  * carries the one play's exact history id (safe id-scoped removal); `rewatch` means
- * the movie has more than one play, so a blunt unmark would destroy watch history —
+ * the movie has more than one play, so a blunt unmark would destroy watch history:
  * the caller must refuse and route to the watch history (MovieDetail's notice links
  * to `/history?type=movies`); `none` means the server already holds no play; `error`
  * means the resolve read itself failed.
@@ -65,7 +65,7 @@ export type MovieUnmarkResolution =
 
 /**
  * Resolve a movie's plays and decide how (or whether) to unmark it. A movie is a
- * single item, so the decision is a play count — one play removes by its exact
+ * single item, so the decision is a play count: one play removes by its exact
  * history id; two or more refuse and route to the watch history (never an item-scoped
  * wipe of every play). The read fails safe: any error keeps the watched state rather
  * than falling back to the destructive removal.
@@ -94,14 +94,14 @@ export type MovieUnmarkRoute = "reverse-session-mark" | "resolve-live-plays";
  * Guard the fast mark→unmark race. A play added THIS session whose mark op may
  * still be queued cannot be resolved by reading live plays: the in-flight add is
  * not on the server yet, so a live read returns zero and the unmark would report
- * "none" — un-ticking the movie while the queued mark later lands and flips it back
+ * "none": un-ticking the movie while the queued mark later lands and flips it back
  * to watched. When a pending session mark exists FOR THIS MOVIE, reverse the exact
  * op instead (it coalesces against the queued mark). A pending mark for a DIFFERENT
  * movie must not be reversed, and with no pending mark the live-plays read is safe.
  *
  * `pendingMarkMovieId` is the per-mount ref's movie id (or `null` when unset). It
  * survives only the component MOUNT: a mark deferred offline then a navigate-away
- * loses it, so a later unmark reads live plays (0) and routes to "none" — a
+ * loses it, so a later unmark reads live plays (0) and routes to "none": a
  * non-destructive but wrong flip-back once the durable queue flushes the mark. See
  * TODO(cross-unmount-deferred-mark) at the call site.
  */

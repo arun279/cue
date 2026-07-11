@@ -29,7 +29,7 @@ function seasonTitle(season: SeasonView): string {
 const RING_R = 15;
 const RING_C = 2 * Math.PI * RING_R;
 
-/** A completion ring reading `done/aired` — the season-shelf progress glyph.
+/** A completion ring reading `done/aired`: the season-shelf progress glyph.
  * `done` is clamped to the aired basis so a watched *unaired* special can never
  * render an over-full "9/8" label against a "complete" subtitle. */
 function CompletionRing({ done, aired }: { done: number; aired: number }): ReactElement {
@@ -78,12 +78,12 @@ function subtitle(season: SeasonView): string {
  * One expandable season shelf: a disclosure header carrying the completion ring,
  * count, and a state-aware control, expanding into a horizontal shelf of episode
  * stills. A partial season offers a "Mark season watched" ACTION (plus glyph) that
- * funnels through the bulk builder — it can never touch unaired episodes or
+ * funnels through the bulk builder: it can never touch unaired episodes or
  * collapse a season to a token, locks while its write is in flight, and is disabled
  * when the season has nothing aired (or is Specials while the opt-in is off). A
  * COMPLETE season shows a "Watched" status badge; when a `Mark season watched` from
  * THIS session completed it, the badge is joined by a durable "Unmark" control
- * that reverses exactly that mark — removing only the plays it added, by
+ * that reverses exactly that mark: removing only the plays it added, by
  * exact history id, KEEPING any pre-existing play or rewatch intact. It outlives the
  * mark's transient Undo, so the mark can be reversed minutes later. A season completed
  * by genuine per-episode watching shows only "Watched": removing real history is a
@@ -102,7 +102,7 @@ export function SeasonPanel({
   const airedDone = Math.min(season.completedCount, season.airedCount);
   const complete = season.airedCount > 0 && airedDone >= season.airedCount;
   // The durable Unmark is offered only when a `Mark season watched` from this session
-  // completed the season — it reverses that specific mark. A genuinely-watched season
+  // completed the season: it reverses that specific mark. A genuinely-watched season
   // has no mark to reverse and shows "Watched" alone (per-play removal lives elsewhere).
   const reversible = useHasSeasonReversal(target.showId, season.number);
   const busy = marks.isSeasonPending(season.number);

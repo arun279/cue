@@ -6,7 +6,7 @@ import { useOptimisticWrite } from "@ui/hooks/useOptimisticWrite";
 import { useCallback, useState } from "react";
 import { patchLibraryHidden } from "./library-cache";
 
-/** Which direction the last action moved the show — drives the Undo copy + inverse. */
+/** Which direction the last action moved the show: drives the Undo copy + inverse. */
 type HideKind = "hide" | "unhide";
 
 interface HideUndo {
@@ -103,7 +103,7 @@ export function useHideShow(): HideController {
       ids: pending.ids,
       inversePatch: { kind: "hidden", showId: pending.showId },
     });
-    // `patchHidden` above is the forward (undone) state, not a rollback — so a hard
+    // `patchHidden` above is the forward (undone) state, not a rollback: so a hard
     // failure of the inverse write must flip it back to the post-action state, else
     // the row is stranded undone while Trakt never changed. Revalidate only once it lands.
     const outcome = await submit([op], {

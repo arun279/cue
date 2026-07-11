@@ -7,7 +7,7 @@ export function toMs(iso: string | null | undefined): number | null {
 
 /**
  * The viewer's real device timezone (IANA), the honest basis for grouping dated
- * things by "local day" — the Calendar's upcoming days and the Diary's watch
+ * things by "local day": the Calendar's upcoming days and the Diary's watch
  * history alike. Reading it from the runtime rather than hardcoding a fixed zone
  * means a day-boundary label ("Today" / "Yesterday") reflects where the user
  * actually is, so it never mislabels a late-evening watch as the wrong day.
@@ -28,7 +28,7 @@ export interface WatchTime {
 /**
  * Humanize a total watch-time in minutes into a headline unit + a finer detail
  * line. Days lead once past 24h (with an hr/min remainder), then hours (with a
- * min remainder), then minutes — so the biggest true unit is always the number
+ * min remainder), then minutes: so the biggest true unit is always the number
  * the eye lands on. Abbreviated remainders stay singular (`6 hr 30 min`).
  * Negative/NaN inputs clamp to zero.
  */
@@ -52,7 +52,7 @@ export function humanizeWatchMinutes(minutes: number): WatchTime {
 
 /**
  * Has this episode aired at or before `now`? A missing/unparseable air date is
- * treated as not-yet-aired — the aired-only surfaces must never surface an
+ * treated as not-yet-aired: the aired-only surfaces must never surface an
  * episode whose air date we can't establish.
  */
 export function isAired(firstAired: string | null | undefined, now: number): boolean {

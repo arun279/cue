@@ -103,7 +103,7 @@ test("Continue queue: excludes future next episodes and hidden shows; lapsed dro
   // The Cue mark is the icon-only amber RING (an ACTION), never a "+"/"✓" pill: it has
   // no visible text, so its accessible name carries the whole action and the title
   // reclaims the width. The lead carries a "Next up" eyebrow so it reads as
-  // what-to-watch-next — its emphasis is chrome, not a differently-styled mark.
+  // what-to-watch-next: its emphasis is chrome, not a differently-styled mark.
   const leadMark = lead.getByTestId("mark-watched");
   await expect(leadMark).toHaveAttribute("aria-label", /^Mark .+ S01E02 watched$/);
   await expect(leadMark).toHaveText("");
@@ -117,14 +117,14 @@ test("Continue queue: excludes future next episodes and hidden shows; lapsed dro
   await expect(lead.getByTestId("poster-image")).toBeVisible();
   await expect(cards.filter({ hasText: "NoImage" }).getByTestId("poster-text")).toBeVisible();
 
-  // The lapsed show is NOT gone — it collapses into the drawer with Mark watched / Stop watching.
+  // The lapsed show is NOT gone: it collapses into the drawer with Mark watched / Stop watching.
   const drawer = page.getByTestId("lapsed-drawer");
   await expect(drawer).toBeVisible();
   await expect(page.getByTestId("lapsed-heading")).toContainText("Haven't watched in a while");
   await page.getByTestId("lapsed-heading").click();
   const lapsedRow = page.getByTestId("lapsed-row").filter({ hasText: "Lapsed Show" });
   await expect(lapsedRow).toHaveCount(1);
-  // The drawer offers in-place catch-up + Stop watching — no "Keep". Its mark is the
+  // The drawer offers in-place catch-up + Stop watching: no "Keep". Its mark is the
   // same icon-only amber RING as every queue row (an ACTION, never a done ✓), its
   // accessible name carrying the whole action.
   const lapsedMark = lapsedRow.getByTestId("lapsed-mark");
@@ -134,7 +134,7 @@ test("Continue queue: excludes future next episodes and hidden shows; lapsed dro
   await expect(lapsedRow.getByTestId("lapsed-keep")).toHaveCount(0);
 });
 
-test("REGRESSION (coupling): the lead card's Cue mark is byte-for-byte the queue card's mark — one state-driven control, no lead/variant style, at a 56px target", async ({
+test("REGRESSION (coupling): the lead card's Cue mark is byte-for-byte the queue card's mark: one state-driven control, no lead/variant style, at a 56px target", async ({
   page,
 }) => {
   // This bug has recurred THREE times: a lead-specific mark style (a `.card--lead
@@ -152,14 +152,14 @@ test("REGRESSION (coupling): the lead card's Cue mark is byte-for-byte the queue
   await expect(cards).toHaveCount(2);
   const lead = cards.first();
   const queue = cards.nth(1);
-  // The cards differ (the lead carries its emphasis in CHROME — poster + "Next up"),
+  // The cards differ (the lead carries its emphasis in CHROME: poster + "Next up"),
   // which is exactly why the mark must NOT differ.
   await expect(lead).toHaveClass(/card--lead/);
   await expect(queue).not.toHaveClass(/card--lead/);
 
   const leadMark = lead.getByTestId("mark-watched");
   const queueMark = queue.getByTestId("mark-watched");
-  // Same component, and the class attribute is EXACTLY "cue-mark" in both — no lead /
+  // Same component, and the class attribute is EXACTLY "cue-mark" in both: no lead /
   // variant / size modifier class a per-container style could hook onto.
   await expect(leadMark).toHaveClass("cue-mark");
   await expect(queueMark).toHaveClass("cue-mark");
@@ -196,7 +196,7 @@ test("REGRESSION (coupling): the lead card's Cue mark is byte-for-byte the queue
   }
 });
 
-test("the lead card shows its full title at 390px — no hero truncation", async ({ page }) => {
+test("the lead card shows its full title at 390px: no hero truncation", async ({ page }) => {
   // The reported regression: the elevated lead bumped the poster + title so the
   // title column collapsed and a normal show name clipped to a single letter on a
   // phone. The calmer lead (base-card metrics) must show the whole name.
@@ -334,7 +334,7 @@ test("marking a season finale does not project a phantom episode into New/lead",
   await expect(card.getByTestId("episode-code")).toHaveText("S01E03");
   await expect(card.getByTestId("mark-watched")).toBeDisabled();
   // …but the phantom NEVER clings to "New": that group empties, and the provisional
-  // card sits under Continue instead — no fabricated finale-plus episode in the lead.
+  // card sits under Continue instead: no fabricated finale-plus episode in the lead.
   await expect(page.getByTestId("up-next-new")).toHaveCount(0);
   await expect(page.getByTestId("up-next-continue").getByTestId("up-next-card")).toHaveCount(1);
 });
@@ -555,7 +555,7 @@ test("the Undo toast appears synchronously with the advance, before the write se
   await card.getByTestId("mark-watched").click();
 
   // The advance AND its confirmation/Undo appear together while the write is still
-  // in flight — the button is still locked (pendingAdvance), so the toast is not
+  // in flight: the button is still locked (pendingAdvance), so the toast is not
   // gated behind the write-queue pacing + network round-trip.
   await expect(card.getByTestId("episode-code")).toHaveText("S01E03");
   await expect(page.getByTestId("undo")).toContainText("Marked Solo S01E02 watched");
@@ -582,7 +582,7 @@ test("Undo issues the stored inverse /sync/history/remove and restores the card"
   await expect(card.getByTestId("episode-code")).toHaveText("S01E02");
 });
 
-test("the point-of-action Undo is INLINE on the just-marked card — not only the bottom toast", async ({
+test("the point-of-action Undo is INLINE on the just-marked card: not only the bottom toast", async ({
   page,
 }) => {
   // The core UX requirement here: "you still just have a toast as undo." The PRIMARY
@@ -595,7 +595,7 @@ test("the point-of-action Undo is INLINE on the just-marked card — not only th
   await card.getByTestId("mark-watched").click();
   await expect(card.getByTestId("episode-code")).toHaveText("S01E03");
 
-  // An inline Undo sits ON the card, confirming what just landed — not only the snackbar.
+  // An inline Undo sits ON the card, confirming what just landed: not only the snackbar.
   const inlineUndo = card.getByTestId("mark-undo");
   await expect(inlineUndo).toContainText("Marked S01E02 watched");
   await expect(card.getByTestId("mark-undo-action")).toBeVisible();
@@ -609,21 +609,21 @@ test("the point-of-action Undo is INLINE on the just-marked card — not only th
   expect(controls.removePosts()[0]?.episodeIds).toContain(12);
 });
 
-test("a double activation marks the episode exactly once — no duplicate history POST", async ({
+test("a double activation marks the episode exactly once: no duplicate history POST", async ({
   page,
 }) => {
   const controls = await installLibraryRoutes(page.context(), [soloShow()]);
   // Immediate write mode ON PURPOSE (not `delay`): a second enqueued op would
   // dispatch on the next pacing tick (~1s, the write pacer's floor), so a 2s settle
   // window genuinely surfaces a duplicate if one ever escaped. `delay` would mask
-  // it — the second POST would sit paced behind the 5s-held first, invisible to a
+  // it: the second POST would sit paced behind the 5s-held first, invisible to a
   // short poll no matter how broken the guard.
   await page.goto("/");
   const card = page.getByTestId("up-next-card").first();
   await expect(card.getByTestId("episode-code")).toHaveText("S01E02");
 
-  // Two synchronous activations in one task — before React can re-render and set
-  // pendingAdvance — mimic a fast double-click / Enter key-repeat on the same card.
+  // Two synchronous activations in one task: before React can re-render and set
+  // pendingAdvance: mimic a fast double-click / Enter key-repeat on the same card.
   await card.getByTestId("mark-watched").evaluate((el: HTMLElement) => {
     el.click();
     el.click();
@@ -644,7 +644,7 @@ test("a held-open write then an immediate Undo issues the ordered add-then-remov
   page,
 }) => {
   const controls = await installLibraryRoutes(page.context(), [soloShow()]);
-  // Keep the add POST in flight so Undo enqueues a compensating remove behind it —
+  // Keep the add POST in flight so Undo enqueues a compensating remove behind it:
   // the exact flow the opId-guarded failure path protects (never a lost intent).
   controls.setWriteMode("delay");
   await page.goto("/");
@@ -659,7 +659,7 @@ test("a held-open write then an immediate Undo issues the ordered add-then-remov
   await page.getByTestId("undo-action").click();
   await expect(card.getByTestId("episode-code")).toHaveText("S01E02");
 
-  // …and both writes land in order — the add first (in flight), then its inverse remove.
+  // …and both writes land in order: the add first (in flight), then its inverse remove.
   await expect.poll(() => controls.removePosts().length, { timeout: 12_000 }).toBe(1);
   expect(controls.writes().map((w) => w.path)).toEqual(["/sync/history", "/sync/history/remove"]);
   expect(controls.historyPosts()[0]?.episodeIds).toContain(12);

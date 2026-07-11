@@ -2,7 +2,7 @@ const REQUESTED_FLAG = "cue.persist-requested";
 
 /**
  * Ask the browser to make storage durable so the persisted
- * Query cache and (web) token store survive eviction under storage pressure —
+ * Query cache and (web) token store survive eviction under storage pressure:
  * the eviction the write-queue durability promise depends on not happening.
  * Requested once, at first run.
  */

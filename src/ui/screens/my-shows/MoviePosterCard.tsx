@@ -11,7 +11,7 @@ interface MoviePosterCardProps {
  * One My Shows movie tile: a poster-forward 2:3 card with the title and release
  * year, plus a "Watchlist" hint when the movie is queued but unwatched. The whole
  * tile is a single link into Movie detail (the "tap any poster → detail"
- * rule) — one tab stop with an accessible name, not a nested control.
+ * rule): one tab stop with an accessible name, not a nested control.
  */
 export function MoviePosterCard({ entry }: MoviePosterCardProps): ReactElement {
   return (

@@ -14,7 +14,7 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
-    // plugin wired minimally — precache manifest + SW are generated, but
+    // plugin wired minimally: precache manifest + SW are generated, but
     // registration is deferred (injectRegister: null) so no service worker runs
     // yet. Full app-shell precache + bounded image cache land in a later milestone.
     VitePWA({

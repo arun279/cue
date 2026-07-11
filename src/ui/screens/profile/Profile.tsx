@@ -21,7 +21,7 @@ interface CountTile {
 
 /** The count tiles for the enabled media, in the canonical order (Episodes /
  * Movies / Shows). A single-medium user sees only their medium's tiles;
- * the honesty rule is that watch-time and tiles move together — never a Movies tile
+ * the honesty rule is that watch-time and tiles move together: never a Movies tile
  * hidden while its minutes still swell the total (or vice-versa). */
 function countTiles(
   stats: UserStats,
@@ -155,7 +155,7 @@ function GearIcon(): ReactElement {
   );
 }
 
-/** A tappable Profile hub row — icon well, title/subtitle, chevron — that navigates
+/** A tappable Profile hub row, icon well, title/subtitle, chevron, that navigates
  * into a bounded destination (the watch history log, Settings). Keeping these as
  * short labelled rows means Settings is never trapped below an unbounded scroll. */
 function HubCard({
@@ -200,13 +200,13 @@ function HubCard({
 }
 
 /**
- * Profile — a short hub. The signed-in user's lifetime totals from
- * `/users/me/stats` in the display face — one featured watch-time figure over a
- * triad of Episodes / Movies / Shows counts — crown two bounded hub rows: into the
+ * Profile: a short hub. The signed-in user's lifetime totals from
+ * `/users/me/stats` in the display face: one featured watch-time figure over a
+ * triad of Episodes / Movies / Shows counts: crown two bounded hub rows: into the
  * full watch history (Cue's past tense and durable reversal home, now its own
  * `/history` route) and into Settings & connections. Keeping the unbounded log off
  * this screen means Settings stays a tap away at the top rather than beneath a
- * decade-deep scroll. Every stats state is designed — skeleton, hard error with
+ * decade-deep scroll. Every stats state is designed: skeleton, hard error with
  * retry, and a brand-new-account (all-zero) empty state.
  */
 export function Profile(): ReactElement {
@@ -265,7 +265,7 @@ export function Profile(): ReactElement {
           testId="link-history"
           icon={<HistoryIcon />}
           title="Watch history"
-          sub="Your reverse-chronological record — jump to any year or month"
+          sub="Your reverse-chronological record: jump to any year or month"
         />
         <HubCard
           to="/settings"

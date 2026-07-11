@@ -114,9 +114,9 @@ describe("single-item history op builders", () => {
     expect(op.inversePatch).toBe(patch);
   });
 
-  it("removes ONE play by its history event id — the Diary's exact per-play removal", () => {
+  it("removes ONE play by its history event id: the Diary's exact per-play removal", () => {
     // The whole point: `{ ids: [historyId] }` deletes exactly this play, so a
-    // rewatched item's OTHER plays survive — unlike the remove-by-item builders.
+    // rewatched item's OTHER plays survive: unlike the remove-by-item builders.
     const op = buildRemoveHistoryPlayOp({
       opId: "rm-1",
       ids: [1982],
@@ -127,7 +127,7 @@ describe("single-item history op builders", () => {
       path: "/sync/history/remove",
       body: { ids: [1982] },
     });
-    // The body is history-ids only — no `episodes`/`movies` item section (which would
+    // The body is history-ids only: no `episodes`/`movies` item section (which would
     // wipe every play of the item).
     expect(Object.keys(op.request.body as object)).toEqual(["ids"]);
     expect(op).toMatchObject({
@@ -153,9 +153,9 @@ describe("single-item history op builders", () => {
     expect(op.reconcileKeys).toEqual(["watched/movies", "movie-progress"]);
   });
 
-  it("unmark removes by item id only — the all-plays MVP semantic (no history-id, no watched_at)", () => {
+  it("unmark removes by item id only: the all-plays MVP semantic (no history-id, no watched_at)", () => {
     // A rewatched episode (multiple plays): a single remove-by-item clears every
-    // play. The body carries only `{ids}` — no `id`/history-id, no `watched_at`.
+    // play. The body carries only `{ids}`: no `id`/history-id, no `watched_at`.
     const op = buildUnmarkEpisodeOp({ opId: "rw-1", ids: { trakt: 99 }, watchedAt: WATCHED_AT });
     expect(op.request).toEqual({
       method: "POST",
@@ -168,7 +168,7 @@ describe("single-item history op builders", () => {
 });
 
 describe("buildRemovePlaysOp (durable per-play-safe unmark)", () => {
-  it("removes a SET of plays by exact history ids — never an item/season token", () => {
+  it("removes a SET of plays by exact history ids: never an item/season token", () => {
     const op = buildRemovePlaysOp({
       opId: "rp-1",
       ids: [131, 121],
@@ -182,7 +182,7 @@ describe("buildRemovePlaysOp (durable per-play-safe unmark)", () => {
       path: "/sync/history/remove",
       body: { ids: [131, 121] },
     });
-    // ids-only body — no `episodes`/`shows` section that would wipe every play.
+    // ids-only body: no `episodes`/`shows` section that would wipe every play.
     expect(Object.keys(op.request.body as object)).toEqual(["ids"]);
     // The itemKey sorts the ids so a repeat remove of the same set stays idempotent.
     expect(op.itemKey).toBe("history-plays:121,131");

@@ -4,16 +4,16 @@ import { installHermeticRoutes, installOAuthRoutes, readStored, seedAuth } from 
 
 // The public client id embedded at build time from .env.test (mirrors the app's
 // VITE_TRAKT_CLIENT_ID). Every OAuth request must carry THIS id, never a
-// user-entered one — users only sign into their own Trakt account.
+// user-entered one: users only sign into their own Trakt account.
 const CLIENT_ID = "a".repeat(64);
 
-/** base64url(SHA-256(verifier)) — the S256 challenge a compliant client must derive. */
+/** base64url(SHA-256(verifier)): the S256 challenge a compliant client must derive. */
 function s256(verifier: string): string {
   return createHash("sha256").update(verifier).digest("base64url");
 }
 
 test.describe("onboarding + auth", () => {
-  test("first run is a single connect screen — no credential inputs to fill", async ({ page }) => {
+  test("first run is a single connect screen: no credential inputs to fill", async ({ page }) => {
     await installHermeticRoutes(page.context());
     await page.goto("/");
 
@@ -23,7 +23,7 @@ test.describe("onboarding + auth", () => {
 
     // The whole developer-facing surface is gone: no client-id field, no
     // "add this redirect URI to your Trakt app" callout. A user never enters a
-    // client id — it is embedded once by the app author.
+    // client id: it is embedded once by the app author.
     await expect(page.locator("input")).toHaveCount(0);
     await expect(page.getByTestId("input-client-id")).toHaveCount(0);
     await expect(page.getByTestId("callback-url")).toHaveCount(0);
@@ -41,8 +41,8 @@ test.describe("onboarding + auth", () => {
     await expect(page.getByTestId("screen-up-next")).toBeVisible();
     await expect(page).toHaveURL(/\/$/);
 
-    // The authorize redirect carried the build-time embedded public client id —
-    // NOT anything the user typed (there is no input) — plus a non-empty state.
+    // The authorize redirect carried the build-time embedded public client id,
+    // NOT anything the user typed (there is no input): plus a non-empty state.
     expect(oauth.getAuthorizeClientId()).toBe(CLIENT_ID);
     const state = oauth.getAuthorizeState();
     expect(state).not.toBeNull();
@@ -104,7 +104,7 @@ test.describe("onboarding + auth", () => {
     await expect(page.getByTestId("screen-up-next")).toBeVisible({ timeout: 15_000 });
 
     // The device-code request bound the flow with an S256 PKCE challenge, and the
-    // poll proved the matching verifier — meaningful PKCE, no secret.
+    // poll proved the matching verifier: meaningful PKCE, no secret.
     const { challenge, method } = oauth.getDeviceChallenge();
     expect(method).toBe("S256");
     expect((challenge ?? "").length).toBeGreaterThan(0);
@@ -146,7 +146,7 @@ test.describe("onboarding + auth", () => {
     await expect(page.getByTestId("connection-status")).toContainText("Connected");
 
     const revoke = page.waitForRequest("**/api.trakt.tv/oauth/revoke");
-    // Disconnect is guarded by a confirmation dialog — only Confirm revokes.
+    // Disconnect is guarded by a confirmation dialog: only Confirm revokes.
     await page.getByTestId("button-disconnect").click();
     await expect(page.getByTestId("disconnect-dialog")).toBeVisible();
     await page.getByTestId("button-disconnect-confirm").click();
@@ -162,11 +162,11 @@ test.describe("onboarding + auth", () => {
     });
     expect(oauth.getRevokeRequests()[0]).not.toHaveProperty("client_secret");
 
-    // Local auth is genuinely gone from IndexedDB — not merely hidden in memory.
+    // Local auth is genuinely gone from IndexedDB: not merely hidden in memory.
     expect(await readStored(page, "cue.trakt.token")).toBeNull();
   });
 
-  test("Cancel on the disconnect confirmation keeps you connected — no revoke fires", async ({
+  test("Cancel on the disconnect confirmation keeps you connected: no revoke fires", async ({
     page,
   }) => {
     await installHermeticRoutes(page.context());
@@ -209,7 +209,7 @@ test.describe("onboarding + auth", () => {
       .poll(() => dialog.evaluate((el) => el.contains(document.activeElement)))
       .toBe(true);
 
-    // Tabbing cycles within the dialog — focus is trapped, never escaping to the page.
+    // Tabbing cycles within the dialog: focus is trapped, never escaping to the page.
     for (let i = 0; i < 6; i += 1) {
       await page.keyboard.press("Tab");
       expect(await dialog.evaluate((el) => el.contains(document.activeElement))).toBe(true);
@@ -227,7 +227,7 @@ test.describe("onboarding + auth", () => {
     await expect(dialog).toHaveCount(0);
     await expect(trigger).toBeFocused();
 
-    // The session is still connected throughout — cancelling never revokes.
+    // The session is still connected throughout: cancelling never revokes.
     await expect(page.getByTestId("screen-settings")).toBeVisible();
     expect(oauth.getRevokeRequests()).toHaveLength(0);
     expect(await readStored(page, "cue.trakt.token")).not.toBeNull();

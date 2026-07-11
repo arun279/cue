@@ -7,8 +7,8 @@ import type { DispatchResult, QueuedOp, RequestDescriptor } from "./types";
  * attempts (~covering a multi-second transient-error window at ≥1s pacing) is
  * long enough to ride out a blip yet short enough that a flush never spins
  * forever. Only a definite non-retryable 4xx rolls back; a still-retryable
- * (429/5xx/network) op that outlasts the budget is *deferred* — kept durable at
- * the head for the next flush — never dropped, so a persistent outage or rate
+ * (429/5xx/network) op that outlasts the budget is *deferred*: kept durable at
+ * the head for the next flush: never dropped, so a persistent outage or rate
  * limit can't silently lose the user's action.
  */
 const MAX_ATTEMPTS = 5;
@@ -65,7 +65,7 @@ export class WriteQueue {
   /**
    * Coalesce against the *undelivered* tail only. An op already in flight is
    * skipped: its request may still land, so an opposite toggle must enqueue a
-   * compensating op behind it — never cancel the in-flight write and lose the
+   * compensating op behind it: never cancel the in-flight write and lose the
    * user's final intent.
    */
   enqueue(op: QueuedOp): void {
@@ -81,7 +81,7 @@ export class WriteQueue {
    * Startup pass (before any replay): retire ops that already landed on Trakt
    * pre-crash so a resume never re-applies them (the double-count guard). A
    * reconcile read that fails (offline / 5xx) can't determine landing, so the op
-   * is *kept* durable for a later flush — mirroring `deliver`'s reconcile-throw →
+   * is *kept* durable for a later flush: mirroring `deliver`'s reconcile-throw →
    * defer. Startup must never throw: a boot that can't reach Trakt still mounts.
    */
   async startupReconcile(): Promise<void> {

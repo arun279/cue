@@ -7,7 +7,7 @@ import { useCallback } from "react";
 import { isLibraryHidden, patchLibraryHidden } from "./library-cache";
 
 export interface ResumeOnMark {
-  /** Whether marking this show right now WOULD auto-resume it — i.e. it is currently
+  /** Whether marking this show right now WOULD auto-resume it: i.e. it is currently
    * Stopped. Read synchronously at mark time so a mark's Undo can decide to re-stop
    * from the mark-time state, without waiting for the (paced) resume write to settle. */
   willResume(showId: number): boolean;
@@ -15,7 +15,7 @@ export interface ResumeOnMark {
    * write settled (so the caller can hold off revalidate until it lands); `null`
    * when the show wasn't stopped and no write was made. */
   resumeIfStopped(showId: number, ids: ShowIds): Promise<SubmitOutcome | null>;
-  /** Re-stop a show that a mark auto-resumed — invoked by that mark's Undo; resolves
+  /** Re-stop a show that a mark auto-resumed: invoked by that mark's Undo; resolves
    * to how the re-hide write settled. */
   reStop(showId: number, ids: ShowIds): Promise<SubmitOutcome>;
 }
@@ -23,7 +23,7 @@ export interface ResumeOnMark {
 /**
  * Marking an episode of a Stopped show auto-resumes it:
  * state is derived from progress, so recording a watch must also clear the one
- * manual `hidden` flag — otherwise the show stays filed under Stopped despite new
+ * manual `hidden` flag: otherwise the show stays filed under Stopped despite new
  * progress. Silent (no snackbar); the show simply returns to Up Next and the
  * detail action flips back to "Stop watching". Undo of that mark re-stops the show
  * only when the mark actually resumed it.

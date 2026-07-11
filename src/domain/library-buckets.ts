@@ -12,7 +12,7 @@ export interface LibraryBucket {
 /**
  * Library shows ONE Watching segment: the "haven't watched in a while" (lapsed)
  * cut is now only Up Next's soft drawer, so here the derived `lapsed` status folds
- * back into Watching. Watchlist (not-started) leads — it is the "things you chose
+ * back into Watching. Watchlist (not-started) leads: it is the "things you chose
  * to start" pool, presented first.
  */
 const DISPLAY_ORDER: readonly WatchStatus[] = [
@@ -34,7 +34,7 @@ function progressRatio(show: LibraryShow): number {
   return show.aired > 0 ? show.completed / show.aired : 0;
 }
 
-/** Case-insensitive title order — the shared alphabetical comparator for both the
+/** Case-insensitive title order: the shared alphabetical comparator for both the
  * show-library buckets and the movie-library sorts. */
 export function byTitle<T extends { title: string }>(a: T, b: T): number {
   return a.title.localeCompare(b.title, undefined, { sensitivity: "base" });

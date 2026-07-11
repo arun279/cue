@@ -31,7 +31,7 @@ export function formatAirDate(iso: string | null): string | null {
 
 /** "Mar 16, 2008" in the viewer's LOCAL day. Unlike an air date (a fixed
  * broadcast fact that reads the same everywhere), a watched date is a real
- * per-viewer event — the same instant the Diary buckets by local day — so a
+ * per-viewer event, the same instant the Diary buckets by local day, so a
  * late-evening play that lands after UTC midnight must read as the local day it
  * was watched, not a day ahead. */
 const watchedDateFmt = new Intl.DateTimeFormat("en-US", {

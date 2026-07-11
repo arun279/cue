@@ -12,12 +12,12 @@ interface LibraryBucketView {
 
 export interface LibraryBucketsView extends QueryStatus {
   readonly buckets: readonly LibraryBucketView[];
-  /** Non-hidden tracked shows — the count that decides an empty library (aligned with Up Next). */
+  /** Non-hidden tracked shows: the count that decides an empty library (aligned with Up Next). */
   readonly trackedCount: number;
-  /** Every tracked show, hidden included — 0 only when the library is truly empty. */
+  /** Every tracked show, hidden included: 0 only when the library is truly empty. */
   readonly totalCount: number;
   /** The library exceeds the cold-sync progress budget, so only recent shows are
-   * fully synced — the pill's honest "recent shows synced" state. */
+   * fully synced: the pill's honest "recent shows synced" state. */
   readonly isPartial: boolean;
   refetch(): void;
 }

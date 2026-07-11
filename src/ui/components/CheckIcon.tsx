@@ -1,7 +1,7 @@
 import type { ReactElement } from "react";
 
 /** The done-state check glyph shared by the Cue mark disc + the detail watched-field.
- * Color comes from context (green on a recorded watch — amber is reserved for action). */
+ * Color comes from context (green on a recorded watch: amber is reserved for action). */
 export function CheckIcon(): ReactElement {
   return (
     <svg

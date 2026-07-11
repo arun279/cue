@@ -16,12 +16,12 @@ export const queryKeys = {
   lastActivities: () => ["sync", "last_activities"] as const,
   userStats: () => ["users", "me", "stats"] as const,
   /** The reverse-chronological watch history, per type filter AND decade scope
-   * ("recent" | "2019" | "2019-03") — an infinite query paged one Trakt page at a
+   * ("recent" | "2019" | "2019-03"): an infinite query paged one Trakt page at a
    * time. Each scope caches separately; the prefix still invalidates all as one. */
   history: (type: "all" | "tv" | "movies", scope = "recent") => ["history", type, scope] as const,
   /** Prefix over every `history(...)` query, so any watch change invalidates them as one. */
   historyPrefix: () => ["history"] as const,
-  /** The assembled Up Next library — one persisted entry that paints instantly on boot. */
+  /** The assembled Up Next library: one persisted entry that paints instantly on boot. */
   library: () => ["library"] as const,
   /** The assembled movie library (watched + watchlist), grouped into My Shows shelves. */
   movieLibrary: () => ["movie-library"] as const,

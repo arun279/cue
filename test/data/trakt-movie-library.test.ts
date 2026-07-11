@@ -59,7 +59,7 @@ describe("assembleMovieLibrary", () => {
       watched: true,
       watchedAt: "2026-07-01T00:00:00.000Z",
       inWatchlist: false,
-      // A watched movie that was never watchlisted has no add time — the queue
+      // A watched movie that was never watchlisted has no add time: the queue
       // order is only meaningful for the Watchlist.
       listedAt: null,
       posters: ["media.trakt.tv/d.webp"],

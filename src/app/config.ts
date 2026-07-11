@@ -1,6 +1,6 @@
 /**
  * Build-time app configuration. Cue is a public OAuth client:
- * its Trakt `client_id` is embedded once by the app author and is PUBLIC — it
+ * its Trakt `client_id` is embedded once by the app author and is PUBLIC: it
  * ships in the built JS and travels in plaintext in every authorize URL, and it
  * carries no secret because PKCE proves possession per attempt. Each user then
  * authorizes their OWN Trakt account via OAuth; they never supply a client id.

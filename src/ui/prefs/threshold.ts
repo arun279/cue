@@ -11,7 +11,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export const THRESHOLD_OPTIONS: readonly number[] = [14, 21, 28, 42];
 
 /**
- * 21 days — three stacked unwatched weekly episodes, the knee past single-skip
+ * 21 days: three stacked unwatched weekly episodes, the knee past single-skip
  * tolerance before backlog dread. Derived from the domain constant so the default
  * stays a single source of truth.
  */
@@ -41,6 +41,6 @@ export function persistThresholdDays(days: number): void {
   try {
     localStorage.setItem(STORAGE_KEY, String(days));
   } catch {
-    // A restricted-storage failure just forgets the choice next visit — non-fatal.
+    // A restricted-storage failure just forgets the choice next visit: non-fatal.
   }
 }

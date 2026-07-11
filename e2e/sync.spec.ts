@@ -21,7 +21,7 @@ const AIRED = "2026-01-01T00:00:00.000Z";
 
 /**
  * A baseline that MATCHES the library harness's fixture stamps (2026-07-04), so the
- * boot poll is a clean no-op and the test starts from a settled, gated state — no
+ * boot poll is a clean no-op and the test starts from a settled, gated state: no
  * cold-boot commit race before we drive a change.
  */
 const MATCHING_BASELINE = {
@@ -85,7 +85,7 @@ test("navigating between pages with nothing changed fires zero Trakt data calls 
   await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "synced");
 });
 
-test("a last_activities change refetches only the affected keys — an episode watch, not a ratings-only change", async ({
+test("a last_activities change refetches only the affected keys: an episode watch, not a ratings-only change", async ({
   page,
 }) => {
   await installHermeticRoutes(page.context());
@@ -98,7 +98,7 @@ test("a last_activities change refetches only the affected keys — an episode w
   await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "synced");
   const baseline = controls.progressReads();
 
-  // A shows-ratings change maps to the ratings key only — NOT the library.
+  // A shows-ratings change maps to the ratings key only: NOT the library.
   controls.bumpActivity("shows", "rated_at");
   await pollNow(page);
   await page.waitForTimeout(600);
@@ -110,7 +110,7 @@ test("a last_activities change refetches only the affected keys — an episode w
   await expect.poll(() => controls.progressReads()).toBeGreaterThan(baseline);
 });
 
-test("a 429 mid-fan-out keeps cached data — no Offline wipe", async ({ page }) => {
+test("a 429 mid-fan-out keeps cached data: no Offline wipe", async ({ page }) => {
   await installHermeticRoutes(page.context());
   const controls = await installLibraryRoutes(page.context(), shows());
   await seedAuth(page.context());
@@ -141,7 +141,7 @@ test("disconnect flushes the pending write and clears this device's caches", asy
   await installOAuthRoutes(page.context());
   const controls = await installLibraryRoutes(page.context(), shows());
   await seedAuth(page.context());
-  // A durable mark left pending by a prior session — it must reach Trakt, never be
+  // A durable mark left pending by a prior session: it must reach Trakt, never be
   // dropped when the op-log is cleared on sign-out.
   await seedOpLog(page.context(), [
     seededMarkOp({ episodeId: 12, showId: 1, preCompleted: 1, watchedAt: AIRED }),
@@ -161,7 +161,7 @@ test("disconnect flushes the pending write and clears this device's caches", asy
   await expect(page.getByTestId("screen-onboarding")).toBeVisible();
 
   // endLocalSession removed the durable op-log, the activities baseline, and the
-  // persisted query cache — the next account starts clean — and the write survived.
+  // persisted query cache, the next account starts clean, and the write survived.
   expect(await readStored(page, "cue.write-queue")).toBeNull();
   expect(await readStored(page, "cue.query-cache")).toBeNull();
   expect(await readStored(page, "cue.last-activities")).toBeNull();
@@ -187,12 +187,12 @@ test("watched movies keep their posters (images stay on /sync/watched/movies)", 
   await seedAuth(page.context());
   await page.goto("/library?type=movies");
 
-  // Watched films sit in the Watched segment — the only non-empty pile here, so it
+  // Watched films sit in the Watched segment: the only non-empty pile here, so it
   // opens by default (first-non-empty fallback) and the tile mounts without a click.
   const card = page.getByTestId("movie-library-card").filter({ hasText: "Watched Movie" });
   await expect(card).toHaveCount(1);
   // The poster resolved to a real image (from the watched-movies `images`), not the
-  // text-initials fallback — proof the posters survived the payload trim.
+  // text-initials fallback: proof the posters survived the payload trim.
   await expect(card.getByTestId("poster-image")).toBeVisible();
 });
 
@@ -204,7 +204,7 @@ test("a pre-gate persisted cache with no baseline is dropped, not trusted foreve
   await seedAuth(page.context());
   // The migration shape: a library cache persisted before the freshness gate (an
   // older buster), and NO last-activities baseline. Under staleTime:Infinity a
-  // baseline-less restored cache would be trusted forever — the buster bump must
+  // baseline-less restored cache would be trusted forever: the buster bump must
   // drop it so the app loads fresh instead of stranding the user on stale data.
   await seedQueryCacheAtStart(page.context(), buildPersistedLibrary(1, 0, "cue-m4"));
 
@@ -217,7 +217,7 @@ test("a pre-gate persisted cache with no baseline is dropped, not trusted foreve
   await expect(page.getByText("Cached Show 1")).toHaveCount(0);
 });
 
-test("disconnect is refused — writes preserved — when a pending write can't be flushed", async ({
+test("disconnect is refused, writes preserved, when a pending write can't be flushed", async ({
   page,
 }) => {
   await installHermeticRoutes(page.context());
@@ -238,7 +238,7 @@ test("disconnect is refused — writes preserved — when a pending write can't 
   await page.getByTestId("button-disconnect-confirm").click();
 
   // The disconnect is refused: the user stays connected (still on Settings, not
-  // onboarding) with an honest message, and the durable op-log survives — the
+  // onboarding) with an honest message, and the durable op-log survives: the
   // queued write is neither lost nor cleared to replay under another account.
   await expect(page.getByTestId("disconnect-error")).toBeVisible();
   await expect(page.getByTestId("screen-onboarding")).toHaveCount(0);
@@ -267,7 +267,7 @@ test("a dead refresh token force-clears the pending op-log (no cross-account rep
   await page.goto("/");
 
   // The dead token tears the session down to onboarding AND force-clears this
-  // device's per-account state — the leftover op-log can't replay under the next
+  // device's per-account state: the leftover op-log can't replay under the next
   // account, and the stale baseline is gone too.
   await expect(page.getByTestId("screen-onboarding")).toBeVisible();
   expect(await readStored(page, "cue.write-queue")).toBeNull();

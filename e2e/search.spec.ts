@@ -47,7 +47,7 @@ test("debounces to exactly one request after the user settles, then renders resu
   await expect(page.getByTestId("search-result")).toHaveCount(2);
   // Advance a full debounce window past the settle: a late duplicate (e.g. a re-fire
   // on results render) would have landed by now. The recorded query list must still
-  // be exactly the one settled term — one request, not one per keystroke, and no tail.
+  // be exactly the one settled term: one request, not one per keystroke, and no tail.
   await page.waitForTimeout(600);
   expect(controls.searchQueries()).toEqual(["severance"]);
 });
@@ -68,7 +68,7 @@ test("single-medium: a query matching only the hidden medium explains the filter
 }) => {
   // TV-only user searching a title that exists only as a movie: the movie hit is
   // filtered out, but the empty state must name the hidden results + the fix rather
-  // than read as a broken search — honest, settings-aware copy.
+  // than read as a broken search: honest, settings-aware copy.
   await seedMediaVisibility(page.context(), { showsEnabled: true, moviesEnabled: false });
   await installSearchRoutes(page.context(), (query) =>
     query.toLowerCase() === "dune" ? [DUNE] : [],
@@ -118,7 +118,7 @@ test("the browse rails include Trending + Popular movies with inline add", async
   await trendingMovies.getByTestId("search-add").first().click();
   await expect.poll(() => controls.watchlistPosts().length).toBe(1);
   const post = controls.watchlistPosts()[0];
-  // Proven to route into the movies[] body — not mis-filed under shows[].
+  // Proven to route into the movies[] body: not mis-filed under shows[].
   expect(post?.movieIds).toEqual([9]);
   expect(post?.showIds).toEqual([]);
 });

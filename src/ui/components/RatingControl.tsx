@@ -24,13 +24,13 @@ function valueFromPointer(el: HTMLElement, clientX: number): number {
 }
 
 /**
- * The 1–10 rating control. Ten 44px stars would need 440px — wider than a
- * phone — so per-value hit areas can never be WCAG-compliant. This is instead a single
+ * The 1–10 rating control. Ten 44px stars would need 440px: wider than a
+ * phone: so per-value hit areas can never be WCAG-compliant. This is instead a single
  * `role="slider"` TRACK: the whole bar is one finger target, tap-or-drag sets the value,
  * and a big numeric readout makes it unmistakable. It is keyboard-operable (arrows /
  * Home / End), announces `aria-valuenow`/`aria-valuetext`, carries a visible focus ring,
- * and works at 320px because the track is fluid (100% width). Sliding to 0 — or the
- * Clear action that appears once rated — removes the rating.
+ * and works at 320px because the track is fluid (100% width). Sliding to 0: or the
+ * Clear action that appears once rated: removes the rating.
  */
 export function RatingControl({
   ids,
@@ -121,7 +121,7 @@ export function RatingControl({
           role="slider"
           className="rating__slider"
           tabIndex={locked ? -1 : 0}
-          aria-label={`${label} — your rating, 0 to 10`}
+          aria-label={`${label}: your rating, 0 to 10`}
           aria-valuemin={MIN}
           aria-valuemax={MAX}
           aria-valuenow={displayed}

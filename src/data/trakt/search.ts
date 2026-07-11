@@ -3,7 +3,7 @@ import type { MovieSummary, SearchResult, ShowSummary } from "./schemas";
 
 /** A show/movie search hit, flattened for the result row + inline watchlist add. */
 export interface SearchHit {
-  /** `${type}:${trakt}` — stable React key + dedupe handle. */
+  /** `${type}:${trakt}`: stable React key + dedupe handle. */
   readonly key: string;
   readonly type: "show" | "movie";
   readonly traktId: number;
@@ -61,7 +61,7 @@ export function assembleShowHits(shows: readonly ShowSummary[]): SearchHit[] {
 }
 
 /** Map a bare movie list (`/movies/trending`, `/movies/popular`, `/movies/:id/related`)
- * to movie-typed poster hits — the same `SearchHit` the DiscoverCard routes to
+ * to movie-typed poster hits: the same `SearchHit` the DiscoverCard routes to
  * `/movie/:id` and adds to the watchlist inline. */
 export function assembleMovieHits(movies: readonly MovieSummary[]): SearchHit[] {
   return movies.map((movie) => buildHit(movie, "movie"));

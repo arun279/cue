@@ -22,7 +22,7 @@ import { PosterCard } from "./PosterCard";
 import { PosterGrid } from "./PosterGrid";
 
 /** Plain, real-world segment labels. Watchlist (not-started) is framed as the
- * things you chose to start — never a "backlog". "Finished"/"Stopped" replace the
+ * things you chose to start: never a "backlog". "Finished"/"Stopped" replace the
  * internal "Ended"/"Abandoned"; the derived enum values (data-status) stay put. */
 const PILE_LABEL: Partial<Record<WatchStatus, string>> = {
   "not-started": "Watchlist",
@@ -40,7 +40,7 @@ const SORT_LABEL: Record<LibrarySort, string> = {
 };
 const SORTS: readonly LibrarySort[] = ["recently-watched", "alphabetical", "progress"];
 
-/** Movie sort keys: parity of placement with Shows, honest options — "Progress" is
+/** Movie sort keys: parity of placement with Shows, honest options: "Progress" is
  * meaningless for a binary movie, so Release year replaces it.
  * The recency axis reads "added/watched" because it sorts the movie-native way in
  * each segment: Watchlist by `listed_at` (added), Watched by `last_watched_at`. */
@@ -94,7 +94,7 @@ function readOpenSet<T extends string>(
 }
 
 /** The default open set when the user hasn't chosen one: the preferred segment if
- * it's present, else the first non-empty segment — so a library whose preferred pile
+ * it's present, else the first non-empty segment: so a library whose preferred pile
  * is empty-and-dropped still loads with something expanded, never all collapsed. */
 function resolveDefaultOpen(
   piles: readonly { readonly key: string }[],
@@ -108,7 +108,7 @@ function persistOpen(storageKey: string, value: readonly string[]): void {
   try {
     localStorage.setItem(storageKey, JSON.stringify(value));
   } catch {
-    // A private-mode storage failure just forgets the layout next visit — non-fatal.
+    // A private-mode storage failure just forgets the layout next visit: non-fatal.
   }
 }
 
@@ -125,7 +125,7 @@ interface SegmentPile<E> {
   readonly label: string;
   readonly status?: WatchStatus;
   readonly total: number;
-  /** Tiles to render — every entry when idle, only title matches while filtering. */
+  /** Tiles to render: every entry when idle, only title matches while filtering. */
   readonly shown: readonly E[];
 }
 
@@ -201,7 +201,7 @@ function SegmentAccordion<E>({
   );
 }
 
-/** A single Stopped tile — the whole PosterCard links to Show detail, with the
+/** A single Stopped tile: the whole PosterCard links to Show detail, with the
  * Resume recovery action pinned as a sibling overlay (never a nested control).
  * Stopping keeps your history; Resume just brings the show back into your library. */
 function StoppedTile({
@@ -228,7 +228,7 @@ function StoppedTile({
 }
 
 /** A Caught-up tile: the shared PosterCard plus a quiet "returning <date>" caption
- * when the next (unaired) episode has a known air date — the "Caught up · returning
+ * when the next (unaired) episode has a known air date: the "Caught up · returning
  * Mar 2027" reading, split across the segment header and this per-tile note. */
 function CaughtUpTile({ entry }: { readonly entry: LibraryEntry }): ReactElement {
   const returning = entry.nextEpisode === null ? null : formatAirDate(entry.nextEpisode.firstAired);
@@ -245,12 +245,12 @@ function CaughtUpTile({ entry }: { readonly entry: LibraryEntry }): ReactElement
 }
 
 /**
- * Library — one screen frame and control set shared by Shows and Movies.
+ * Library: one screen frame and control set shared by Shows and Movies.
  * A Shows⇄Movies segmented toggle (URL `?type`), a debounced cross-segment filter,
  * a media-appropriate Sort control, and a Radix Accordion of collapsible segments
  * (chevron + count badge over the shared PosterGrid) render identically for both.
  * The TAXONOMY stays honest: Shows keep their five progress-derived piles;
- * movies get Watchlist / Watched — no fabricated episode-progress on a film
+ * movies get Watchlist / Watched: no fabricated episode-progress on a film
  * (Rams #6). Every state is designed: skeleton, hard error, cached-error banner,
  * empty library, only-stopped library, and no-filter-match.
  */
@@ -276,10 +276,10 @@ export function Library(): ReactElement {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("");
 
-  // Only the ACTIVE medium's read fires — not merely the enabled one. A TV-only
+  // Only the ACTIVE medium's read fires: not merely the enabled one. A TV-only
   // Library never fetches the movie library, and a both-user sitting on
   // the Shows tab doesn't pull the movie library until they switch to Movies (and
-  // vice versa). Gating by active medium — not enabled medium — keeps a background
+  // vice versa). Gating by active medium, not enabled medium, keeps a background
   // tab off Trakt's rate budget; the persisted cache makes the first switch instant.
   const view = useLibraryBuckets(showSort, showsEnabled && !isMovies);
   const movieView = useMovieLibrary(movieSort, isMovies);
@@ -324,7 +324,7 @@ export function Library(): ReactElement {
   const savedOpen: readonly string[] | null = isMovies ? openMovies : openPiles;
   const preferredOpen = isMovies ? MOVIE_DEFAULT_OPEN : SHOW_DEFAULT_OPEN;
   // While filtering, the open set is derived from the matches (ephemeral) so it never
-  // overwrites the saved layout. Idle, it follows the saved state — or, on a first
+  // overwrites the saved layout. Idle, it follows the saved state: or, on a first
   // visit with nothing saved, a data-derived default (preferred pile, else first).
   const openValue: string[] = filtering
     ? meta.filter((pile) => pile.shown.length > 0).map((pile) => pile.key)
@@ -383,7 +383,7 @@ export function Library(): ReactElement {
         <p className="empty__body">
           {isMovies
             ? "Mark a movie watched or add one to your watchlist and it'll show up here."
-            : "Follow a show and mark an episode watched — it'll show up here, sorted by where you are."}
+            : "Follow a show and mark an episode watched: it'll show up here, sorted by where you are."}
         </p>
       </div>
     );
@@ -539,14 +539,14 @@ export function Library(): ReactElement {
         <CachedRetryBanner
           testId="my-shows-cached-retry"
           buttonTestId="my-shows-cached-retry-button"
-          message="Showing your last synced library — Trakt couldn't be reached."
+          message="Showing your last synced library. Trakt couldn't be reached."
           onRetry={active.refetch}
         />
       )}
 
       {body}
 
-      {/* Library shows only the user's OWN piles — discovery lives in the Discover
+      {/* Library shows only the user's OWN piles: discovery lives in the Discover
           tab, never bolted below the library as a browse wall. */}
 
       {unhide.error !== null && (

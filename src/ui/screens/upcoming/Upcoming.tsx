@@ -127,7 +127,7 @@ export function Upcoming(): ReactElement {
         <CachedRetryBanner
           testId="upcoming-cached-retry"
           buttonTestId="upcoming-cached-retry-button"
-          message="Showing your last synced calendar — Trakt couldn't be reached."
+          message="Showing your last synced calendar. Trakt couldn't be reached."
           onRetry={view.refetch}
         />
       )}

@@ -50,8 +50,8 @@ const IMAGES: readonly ["images"] = ["images"];
 /**
  * Explicit page size for the paginated list reads the bounded cold-sync GET budget
  * walks: `/sync/watched/*` (paginated since Trakt change #775, live
- * 2026-06-30), the hidden set, and the watchlist. Pinning 100/page — versus Trakt's
- * smaller implicit default — bounds each list to `ceil(size/100)` GETs, so a heavy
+ * 2026-06-30), the hidden set, and the watchlist. Pinning 100/page: versus Trakt's
+ * smaller implicit default: bounds each list to `ceil(size/100)` GETs, so a heavy
  * account's hidden/watchlist can't quietly balloon the cold-sync burst past the
  * budget. Endpoints Trakt returns unpaginated ignore it and resolve as one page.
  */
@@ -65,7 +65,7 @@ function parse<T>(result: TraktResult<unknown>, schema: z.ZodType<T>): TraktResu
 
 export async function getWatchedShows(client: TraktClient): Promise<TraktResult<WatchedShow[]>> {
   // No `extended`: post-#775 `full` is a no-op here and images aren't returned
-  // inline, so the compact default is the honest payload — each show's real art
+  // inline, so the compact default is the honest payload: each show's real art
   // comes from `/shows/:id` in the library fan-out.
   return parse(
     await client.getAllPages("/sync/watched/shows", { limit: LIST_PAGE_LIMIT }),
@@ -76,7 +76,7 @@ export async function getWatchedShows(client: TraktClient): Promise<TraktResult<
 export async function getWatchedMovies(client: TraktClient): Promise<TraktResult<WatchedMovie[]>> {
   // Keep `images` (dropped `full`, a no-op post-#775): watched movies have no
   // per-movie detail fetch in the library fan-out, so their poster art comes from
-  // THIS call — dropping images would strip the movie posters.
+  // THIS call: dropping images would strip the movie posters.
   return parse(
     await client.getAllPages("/sync/watched/movies", {
       extended: IMAGES,
@@ -189,7 +189,7 @@ export async function getPopularShows(
 }
 
 /** Movie discover rails: current trending + all-time popular
- * movies with art, for the Search browse surface — the movie analogue of
+ * movies with art, for the Search browse surface: the movie analogue of
  * `getTrendingShows`/`getPopularShows`, feeding the same `SearchHit` pipeline. */
 export async function getTrendingMovies(
   client: TraktClient,
@@ -208,7 +208,7 @@ export async function getPopularMovies(
   return parse(await client.get("/movies/popular", { extended: ART, limit }), popularMoviesSchema);
 }
 
-/** "More like this" for a movie: `/movies/:id/related` — a bare movie list, art
+/** "More like this" for a movie: `/movies/:id/related`: a bare movie list, art
  * included, for the read-only related rail on Movie detail. */
 export async function getRelatedMovies(
   client: TraktClient,
@@ -243,7 +243,7 @@ type HistorySection = "all" | "episodes" | "movies";
 /**
  * One page of the reverse-chronological watch history. History is
  * UNBOUNDED (a large Trakt migration can be thousands of plays), so this reads a
- * single explicit page — the infinite-query building block — and NEVER walks all
+ * single explicit page, the infinite-query building block, and NEVER walks all
  * pages. A page of 30 plays is a display-paging size: enough that one "Load
  * earlier" tap advances meaningfully and the first page fills the screen, small
  * enough to stay one cheap GET. The returned `pagination` tells the caller whether
@@ -270,7 +270,7 @@ export async function getHistory(
 /**
  * Every watch-history play of one item, from `/sync/history/{shows|episodes}/:id`
  * Unlike `/users/me/history`, this is scoped to a single show or
- * episode, so a durable unmark can resolve exactly its plays — each row's `id` is
+ * episode, so a durable unmark can resolve exactly its plays: each row's `id` is
  * the per-play removal handle. Walked across pages (a long-running show can carry
  * many plays); `extended=full` brings each episode's season/number inline.
  */

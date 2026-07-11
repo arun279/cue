@@ -162,7 +162,7 @@ test("catches a thrown render error in the boundary instead of blanking", async 
 });
 
 test("defaults to the dark screening room and persists the toggle choice", async ({ page }) => {
-  // Dark is Cue's unconditional default — even a light OS preference lands dark.
+  // Dark is Cue's unconditional default: even a light OS preference lands dark.
   await page.emulateMedia({ colorScheme: "light" });
   // The theme toggle now lives in Settings ▸ Appearance, not the header/sidebar.
   await page.goto("/settings");

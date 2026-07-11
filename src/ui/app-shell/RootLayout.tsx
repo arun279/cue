@@ -11,7 +11,7 @@ import type { ReactElement, ReactNode } from "react";
 /**
  * Test-only seam: `?crash=1` throws during render so
  * the hermetic suite can prove the error boundary catches it. Harmless in normal
- * use — the param is never set by the app.
+ * use: the param is never set by the app.
  */
 function CrashOnParam(): ReactElement | null {
   if (new URLSearchParams(globalThis.location.search).get("crash") === "1") {
@@ -21,7 +21,7 @@ function CrashOnParam(): ReactElement | null {
 }
 
 /** The wordmark links home (= Up Next), honoring the universal logo→home
- * convention. The mark is decorative — the adjacent "Cue" text names the link. */
+ * convention. The mark is decorative: the adjacent "Cue" text names the link. */
 function Brand(): ReactElement {
   return (
     <Link to="/" className="brand" aria-label="Cue home">
@@ -32,7 +32,7 @@ function Brand(): ReactElement {
 }
 
 /**
- * Re-tapping the already-active tab scrolls its surface back to the top — the
+ * Re-tapping the already-active tab scrolls its surface back to the top: the
  * bottom-nav contract users carry between apps. Long lists
  * (History, Upcoming) own an inner scroll region, so the window alone would not
  * move; reset any announced [data-scroll-region] too. `prefers-reduced-motion` is
@@ -84,7 +84,7 @@ function SettingsIcon(): ReactElement {
   );
 }
 
-/** The header avatar — the utility hub entry. Profile + Settings are not
+/** The header avatar: the utility hub entry. Profile + Settings are not
  * among the four jobs, so they left the tab bar; this small round affordance opens
  * the Profile hub, from which Settings and the Trakt connection are one tap. */
 function Avatar(): ReactElement {

@@ -9,7 +9,7 @@ export type RefreshTrigger = "expiry-check" | "unauthorized";
 
 /**
  * Lazy-refresh decision: refresh only when a call 401s or the stored token
- * is already past expiry — never on a timer, and never without a refresh token.
+ * is already past expiry: never on a timer, and never without a refresh token.
  */
 export function shouldRefresh(token: Token, now: number, trigger: RefreshTrigger): boolean {
   if (token.refresh_token.length === 0) return false;

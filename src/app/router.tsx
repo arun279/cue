@@ -7,7 +7,7 @@ const rootRoute = createRootRoute({ component: RootLayout });
 // Up Next, Calendar, and the show/episode detail pages are TV-centric surfaces; a
 // movies-only app (TV disabled in Settings) routes their deep links home
 // to the movies Library rather than paint a screen for a hidden medium. The nav
-// already omits the tabs; this guards the URL — including stale show/episode links.
+// already omits the tabs; this guards the URL: including stale show/episode links.
 const requireShows = (): void => {
   if (!usePrefs.getState().showsEnabled) throw redirect({ to: "/library" });
 };
@@ -69,7 +69,7 @@ const profileRoute = createRoute({ getParentRoute: () => rootRoute, path: "/prof
  * scroll-restorable: `?type` picks the medium (All is the default, carrying no
  * param), and `?year`/`?month` are the decade jump. `month` is only meaningful
  * inside a `year`, so it is dropped when no valid year is present. The year sanity
- * range is generous (a deep link to any real year works) — the picker's own floor
+ * range is generous (a deep link to any real year works): the picker's own floor
  * only shapes which years it offers as chips, never which the URL accepts. */
 interface HistorySearch {
   readonly type?: "tv" | "movies";

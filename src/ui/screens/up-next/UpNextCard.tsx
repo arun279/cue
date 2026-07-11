@@ -9,7 +9,7 @@ import { Poster } from "./Poster";
 
 interface UpNextCardProps {
   readonly card: UpNextCardModel;
-  /** The first card of the honest sort renders `lead` — larger and calmer, but not
+  /** The first card of the honest sort renders `lead`: larger and calmer, but not
    * a cinematic recommendation (it is simply first-in-sort, not a "for you" pick). */
   readonly variant?: "lead" | "queue";
   /** Set for the card whose mark just landed: the point-of-action inline Undo,
@@ -22,8 +22,8 @@ interface UpNextCardProps {
  * One Up Next row: poster + title route to the Show page, the
  * amber episode code + name route to the Episode page, a quiet "last watched N days
  * ago" line, and the shared Cue mark (icon-only amber ring) on the trailing edge. The
- * lead card reads as what-to-watch-next purely through its poster + "Next up" eyebrow
- * — NEVER through a differently-styled mark; the ring is identical here and in every
+ * lead card reads as what-to-watch-next purely through its poster + "Next up" eyebrow,
+ * NEVER through a differently-styled mark; the ring is identical here and in every
  * queue row. Freed of a text label, the title reclaims that width and may wrap to two
  * lines. The mark locks while an optimistic advance awaits its authoritative refetch
  * so a provisional episode is never re-marked.
@@ -93,7 +93,7 @@ export function UpNextCard({
           <InlineUndo
             testId="mark-undo"
             label={`Marked ${undo.code} watched`}
-            ariaLabel={`Undo — mark ${entry.title} ${undo.code} unwatched`}
+            ariaLabel={`Undo: mark ${entry.title} ${undo.code} unwatched`}
             onUndo={undo.onUndo}
           />
         ) : (

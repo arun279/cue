@@ -280,7 +280,7 @@ describe("watched endpoints send the honest post-#775 payload params", () => {
     );
     await getWatchedMovies(client);
     // Movies have no per-movie detail fetch in the library, so their poster art
-    // comes from THIS call — `images` must stay (only the no-op `full` is dropped).
+    // comes from THIS call: `images` must stay (only the no-op `full` is dropped).
     expect(seen?.searchParams.get("extended")).toBe("images");
     expect(seen?.searchParams.get("limit")).toBe("100");
   });

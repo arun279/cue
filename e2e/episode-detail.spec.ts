@@ -75,7 +75,7 @@ test("shows the still, title, code, air date, overview, and prev/next within the
   await expect(page.getByTestId("episode-next")).toContainText("S01E03");
 });
 
-test("toggling watched OFF removes the single play by its exact history id — never an item-scoped wipe", async ({
+test("toggling watched OFF removes the single play by its exact history id: never an item-scoped wipe", async ({
   page,
 }) => {
   const controls = await installLibraryRoutes(page.context(), [detailShow()]);
@@ -95,7 +95,7 @@ test("toggling watched OFF removes the single play by its exact history id — n
   expect(removed?.episodeItemKeys).toBeUndefined();
 });
 
-test("unchecking a REWATCHED episode is refused — the extra play survives, per-play removal points to the Diary", async ({
+test("unchecking a REWATCHED episode is refused: the extra play survives, per-play removal points to the Diary", async ({
   page,
 }) => {
   const rewatch: ShowFixture = { ...detailShow(), rewatchedEpisodeIds: [12] };

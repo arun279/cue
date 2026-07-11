@@ -22,7 +22,7 @@ export interface AuthDeps {
   readonly tokenStore: TokenStore;
   /** The app's public Trakt client id, embedded at build time. */
   readonly clientId: string;
-  /** `${origin}/auth/callback` — the OAuth redirect target. */
+  /** `${origin}/auth/callback`: the OAuth redirect target. */
   readonly redirectUri: string;
   /** Full-page navigation (injected so tests/native can override). */
   readonly redirect: (url: string) => void;
@@ -150,7 +150,7 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
           });
           return;
         }
-        // State accepted — the single-use nonce + verifier are now spent.
+        // State accepted: the single-use nonce + verifier are now spent.
         sessionStorage.removeItem(STATE_KEY);
         sessionStorage.removeItem(VERIFIER_KEY);
         if (code === null) {
@@ -175,7 +175,7 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
         activeAttempt += 1;
         // Flush any pending writes and clear this device's caches (op-log,
         // last-activities baseline, persisted query cache) FIRST, while the token
-        // is still valid — so a queued write isn't lost and the next account never
+        // is still valid: so a queued write isn't lost and the next account never
         // paints stale data.
         try {
           await sessionTeardown.run();
@@ -184,7 +184,7 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
           // protects the queued writes from loss AND from replaying under another
           // account) and surface it so they can reconnect + retry.
           if (error instanceof PendingWritesError) throw error;
-          // Any other teardown fault must not strand sign-out — proceed to clear.
+          // Any other teardown fault must not strand sign-out: proceed to clear.
         }
         const token = await deps.tokenStore.read();
         // Revoke is best-effort: a network/HTTP failure must not strand the
@@ -203,7 +203,7 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
         // already useless, so skip the network revoke disconnect does. Force-clear
         // this device's per-account state (op-log, last-activities baseline,
         // persisted query cache) so a leftover op can't replay under the next
-        // account — the dead token can't send those writes anyway. Best-effort:
+        // account: the dead token can't send those writes anyway. Best-effort:
         // a teardown fault must not block routing back to onboarding.
         activeAttempt += 1;
         try {

@@ -7,7 +7,7 @@ import type { QueuedOp } from "./types";
  * 100-item limit (the pagination max, and the reference client's ≤100-shows
  * batch): the platform-consistent unit that keeps each body small, not a round
  * guess. A single long-running show can exceed this on its own, so we chunk by
- * represented episode count — the reference's per-show batching is not enough.
+ * represented episode count: the reference's per-show batching is not enough.
  */
 export const MAX_EPISODES_PER_CHUNK = 100;
 
@@ -17,7 +17,7 @@ const HISTORY_REMOVE = "/sync/history/remove";
 export interface EpisodeAir {
   readonly number: number;
   readonly firstAired: string | null;
-  /** Whether this episode already carries a play at mark time — the pivot the
+  /** Whether this episode already carries a play at mark time: the pivot the
    * delta planner scopes on so a mark touches only previously-unwatched episodes. */
   readonly watched: boolean;
 }
@@ -48,14 +48,14 @@ interface PlannedSeason {
 /**
  * delta subtree builder. Emits one durable `/sync/history` op per
  * ≤`MAX_EPISODES_PER_CHUNK` chunk, each enumerating ONLY the aired, in-bound,
- * currently-UNWATCHED episodes — the true delta this mark creates. The inverse
+ * currently-UNWATCHED episodes: the true delta this mark creates. The inverse
  * `/sync/history/remove` is scoped to that same delta, so the mark's point-of-action
  * Undo removes exactly the plays this mark added and can NEVER touch history that
  * predates it: because every delta episode had no prior play, the mark-then-Undo
  * round trip always returns to the precise pre-mark state (a partially-watched
  * season un-does back to its original count, never to zero). Marking only-unwatched
  * episodes likewise avoids duplicate plays on a re-mark. A whole-season token is
- * never emitted — it would mark (and, inverted, remove) every episode of the season,
+ * never emitted: it would mark (and, inverted, remove) every episode of the season,
  * both bugs the delta scoping prevents. Specials (season 0) are skipped unless opted
  * in; unaired episodes are never marked.
  */
@@ -97,7 +97,7 @@ function planSeasons(target: BulkMarkTarget, now: number): PlannedSeason[] {
     if (target.upTo !== undefined && season.number > target.upTo.season) continue;
     const delta = season.episodes.filter(
       (ep) =>
-        // Only previously-unwatched, aired, in-bound episodes — the true mark delta
+        // Only previously-unwatched, aired, in-bound episodes: the true mark delta
         // (an unaired episode has no play and must never be marked).
         !ep.watched &&
         isAired(ep.firstAired, now) &&

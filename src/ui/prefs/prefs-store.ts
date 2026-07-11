@@ -24,7 +24,7 @@ interface PrefsState {
 }
 
 /**
- * Local display preferences — mirrors
+ * Local display preferences: mirrors
  * `theme-store`: the staleness threshold that splits the Watching pile (and Up
  * Next) from Not-watched-in-a-while, and the TV/Movies visibility toggles.
  * Persisted to `localStorage`, never Trakt-synced; both revert to their principled
@@ -32,8 +32,8 @@ interface PrefsState {
  */
 export const usePrefs = create<PrefsState>((set, get) => {
   const media = initialMediaVisibility();
-  // One commit path enforces the single invariant — the app is never emptied of
-  // both media — so a setter that would turn off the last-enabled medium no-ops.
+  // One commit path enforces the single invariant: the app is never emptied of
+  // both media: so a setter that would turn off the last-enabled medium no-ops.
   const commit = (next: MediaVisibility): void => {
     if (!next.showsEnabled && !next.moviesEnabled) return;
     persistMediaVisibility(next);

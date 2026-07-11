@@ -42,7 +42,7 @@ const SECTION: Record<HistoryFilter, HistorySection> = {
 
 /**
  * The transient snackbar after a per-play removal. `removed` offers the Undo;
- * `restored` confirms a best-effort re-add. The copy is deliberately honest — the
+ * `restored` confirms a best-effort re-add. The copy is deliberately honest: the
  * removal is exact (by history id), the restore is not forensic.
  */
 type RemovalToast =
@@ -54,7 +54,7 @@ export interface HistoryView {
   readonly filter: HistoryFilter;
   readonly isLoading: boolean;
   readonly isError: boolean;
-  /** True while a change-driven refetch is in flight — drives the sync pill. */
+  /** True while a change-driven refetch is in flight: drives the sync pill. */
   readonly isFetching: boolean;
   /** Epoch ms of the last successful read, for the pill's recency. */
   readonly syncedAt: number;
@@ -82,7 +82,7 @@ const withoutId = (set: ReadonlySet<number>, id: number): Set<number> => {
 
 /**
  * The Diary read + reversal hook. An infinite query over
- * `/users/me/history` — the FIRST page paints, then "Load earlier" walks one page
+ * `/users/me/history`: the FIRST page paints, then "Load earlier" walks one page
  * at a time (history is unbounded; a full walk is forbidden). Loaded pages are
  * flattened and grouped by the viewer's local day. A type filter [All · TV ·
  * Movies] re-scopes the feed server-side. Each row can remove its own exact play
@@ -101,7 +101,7 @@ export function useHistory(scope: HistoryScope): HistoryView {
   const [toast, setToast] = useState<RemovalToast | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // The decade window (`start_at`/`end_at`) — undefined for the unbounded recent
+  // The decade window (`start_at`/`end_at`): undefined for the unbounded recent
   // feed. A scoped read is finite, so "Load earlier" naturally runs out of pages.
   const range = useMemo(
     () => (year === undefined ? undefined : historyRange(year, month)),
@@ -133,7 +133,7 @@ export function useHistory(scope: HistoryScope): HistoryView {
         void queryClient.invalidateQueries({ queryKey: queryKeys.movieLibrary() });
         return;
       }
-      // Episode play: also refresh the show's OWN detail reads — its header
+      // Episode play: also refresh the show's OWN detail reads: its header
       // (overall X/Y + next-up), its season tree (per-season counts + per-episode
       // ticks + watched dates), and that episode's detail. These live on separate
       // cache keys the last-activities gate never re-syncs for a local write, so
@@ -160,7 +160,7 @@ export function useHistory(scope: HistoryScope): HistoryView {
       setError(null);
       setRemovedIds((prev) => new Set(prev).add(entry.historyId));
       // Confirmation + Undo at the point of action, mounted synchronously with the
-      // optimistic hide — the durable removal settles behind it.
+      // optimistic hide: the durable removal settles behind it.
       setToast({ kind: "removed", entry });
       const op = buildRemoveHistoryPlayOp({
         opId: crypto.randomUUID(),
@@ -194,7 +194,7 @@ export function useHistory(scope: HistoryScope): HistoryView {
     if (cur === null || cur.kind !== "removed") return;
     const { entry } = cur;
     // Wait for the remove to actually settle before restoring. If it hard-failed,
-    // the play was NEVER deleted — re-adding it would duplicate the play (the
+    // the play was NEVER deleted: re-adding it would duplicate the play (the
     // exact history loss the user is fanatical about). So enqueue no restore; just
     // re-show the row and drop the toast (removePlay already surfaces the error).
     const removeOutcome = await removeOutcomes.current.get(entry.historyId);
@@ -204,7 +204,7 @@ export function useHistory(scope: HistoryScope): HistoryView {
       return;
     }
     // The remove landed (or is durably queued): un-hide optimistically and re-add
-    // the play best-effort (a fresh mark op — Trakt may mint a new history id).
+    // the play best-effort (a fresh mark op: Trakt may mint a new history id).
     setRemovedIds((prev) => withoutId(prev, entry.historyId));
     setToast(null);
     const op =

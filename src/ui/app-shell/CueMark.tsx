@@ -2,7 +2,7 @@ import type { ReactElement } from "react";
 
 /**
  * The Cue brand mark: an ivory "C" cradling the amber cue-dot on a warm
- * near-black tile — the tally-lamp "on-air" cue that gives the app its name.
+ * near-black tile: the tally-lamp "on-air" cue that gives the app its name.
  * A vector mark (matches public/icon.svg used for the favicon + app icon) so it
  * stays crisp from the 1.75rem sidebar mark to any store size.
  */

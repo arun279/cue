@@ -7,7 +7,7 @@ export interface QueuedWrite {
    * Submit an already-optimistically-applied op through the shared write seam. A
    * hard failure runs `rollback` and raises `message`; a settled ("done") write
    * runs `revalidate`; a still-durable ("deferred") write keeps the optimistic
-   * state and does neither — so a queued write never triggers a refetch that would
+   * state and does neither: so a queued write never triggers a refetch that would
    * read pre-write server state and bounce the caller's UI.
    */
   run(op: QueuedOp, rollback: () => void, message: string, revalidate: () => void): Promise<void>;
@@ -16,7 +16,7 @@ export interface QueuedWrite {
 }
 
 /**
- * The shared optimistic-write tail (hot path) for the lighter actions —
+ * The shared optimistic-write tail (hot path) for the lighter actions:
  * calendar quick mark-watched and the search inline watchlist add. The caller
  * patches its own UI first, then hands the durable op here; the seam owns the one
  * correct outcome dispatch (rollback on fail, revalidate only on a landed write).

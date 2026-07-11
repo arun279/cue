@@ -5,7 +5,7 @@ interface InlineUndoProps {
    * watched". Omit where the point of action already reads as done (e.g. a green done
    * disc sitting right next to the Undo). */
   readonly label?: string;
-  /** Full accessible name for the reversal, e.g. "Undo — mark Solo S01E02 unwatched",
+  /** Full accessible name for the reversal, e.g. "Undo: mark Solo S01E02 unwatched",
    * so a screen reader hears the whole action, not a bare "Undo" (WCAG 4.1.2). */
   readonly ariaLabel: string;
   readonly testId: string;
@@ -14,10 +14,10 @@ interface InlineUndoProps {
 
 /**
  * The point-of-action Undo: the PRIMARY reversal for a just-landed
- * mark, rendered INLINE on the very row/card where the tap happened — not a bottom
+ * mark, rendered INLINE on the very row/card where the tap happened: not a bottom
  * snackbar the user has to race. It reuses the owning
  * hook's reversal seam (`undoable` / `undo`); it never forks a new reversal path. The
- * Undo control is a full 44px finger target (the reversal is the trust anchor — it must
+ * Undo control is a full 44px finger target (the reversal is the trust anchor: it must
  * not be a text link a phone user keeps missing). The Snackbar stays as a SECONDARY
  * polite announcement, and the durable per-play reversal lives on, forever, in History.
  */

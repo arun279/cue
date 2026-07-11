@@ -33,7 +33,7 @@ const Check = (): ReactElement => (
 
 /**
  * One episode as a still card in the season shelf: a 16:9 thumbnail carrying the
- * watched toggle as a check badge — GREEN once watched (done), amber only while
+ * watched toggle as a check badge: GREEN once watched (done), amber only while
  * hovering an unwatched still as an action preview (disabled + locked while unaired so
  * an unaired episode can never be marked). The SxEy code + title link into Episode
  * detail, and a "Mark up to here" catch-up affordance sits on aired episodes. The

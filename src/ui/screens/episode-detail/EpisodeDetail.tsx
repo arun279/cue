@@ -49,7 +49,7 @@ function HeroBackdrop({ episode }: { episode: EpisodeDetailModel }): ReactElemen
 }
 
 /** Cinematic still + show poster inset + broadcast metadata + editorial title,
- * with a grouped control surface (watched toggle, logged date, rating) below —
+ * with a grouped control surface (watched toggle, logged date, rating) below:
  * the same media-hero composition as the Show page. */
 function EpisodeHero({
   episode,
@@ -207,12 +207,12 @@ function NavLink({
 
 /**
  * Episode detail in the screening-room language: the same
- * media-hero composition as the Show page — a cinematic still cropped into a
+ * media-hero composition as the Show page: a cinematic still cropped into a
  * fixed-height backdrop band, the show poster inset (poster-first, links back to
  * the show), broadcast metadata, the editorial title and overview, then one
  * grouped control surface carrying the watched toggle (with its logged date and
  * all-plays unwatch semantics, optimistic writes) and the compact RatingControl.
- * Enlarged prev/next paddles sit directly beneath. Every state is designed —
+ * Enlarged prev/next paddles sit directly beneath. Every state is designed,
  * skeleton, hard-error retry, and the "details not available yet" partial (the
  * toggle still works).
  */

@@ -11,8 +11,8 @@ const WATCHED_PAGE_LIMIT = 100;
 
 /**
  * A heavy account's hidden set and watchlist each run to a few hundred entries. 200
- * exercises real multi-page pagination (2 pages at 100/page) — the case the old
- * single-page model silently missed — while staying inside the smallest
+ * exercises real multi-page pagination (2 pages at 100/page): the case the old
+ * single-page model silently missed: while staying inside the smallest
  * (250-show) library's id range so these membership reads flip flags without
  * fabricating extra library entries. (Overlap with the watched set is irrelevant to
  * the GET count this suite gates; it just isolates the count from entry assembly,
@@ -24,7 +24,7 @@ const WATCHLIST_COUNT = 200;
 interface Counts {
   watchedPages: number;
   progress: number;
-  /** Bare `/shows/:id` art reads — must be ZERO in cold sync (art is deferred). */
+  /** Bare `/shows/:id` art reads: must be ZERO in cold sync (art is deferred). */
   art: number;
   hidden: number;
   watchlist: number;
@@ -61,7 +61,7 @@ function progressBody(id: number): unknown {
   };
 }
 
-/** A hidden-set row (`/users/hidden/progress_watched`) for show `id` — flips the
+/** A hidden-set row (`/users/hidden/progress_watched`) for show `id`: flips the
  * hidden flag only, materializes no library entry. */
 function hiddenItem(id: number): unknown {
   return {
@@ -121,7 +121,7 @@ function installColdSync(n: number, hiddenCount = 0, watchlistCount = 0): Counts
       counts.progress += 1;
       return HttpResponse.json(progressBody(Number(params["id"])) as never);
     }),
-    // A bare `/shows/:id` art read — deferred to the lazy per-card query, so the
+    // A bare `/shows/:id` art read: deferred to the lazy per-card query, so the
     // cold-sync read must never hit this. Counted to prove art is NOT up-front.
     http.get(`${TRAKT_API_BASE}/shows/:id`, () => {
       counts.art += 1;
@@ -143,14 +143,14 @@ const total = (c: Counts): number => c.watchedPages + c.progress + c.art + c.hid
 
 describe("cold-sync GET budget", () => {
   // Trakt's authed rate limit is 1000 GET / 5 min / user. The bounded read must
-  // stay FAR under it at every realistic library size — and, unlike the old
+  // stay FAR under it at every realistic library size: and, unlike the old
   // ~2-GET-per-show fan-out, must not scale with the library. This is the numeric
   // gate this asserts: an asserted request count, not prose.
   const TRAKT_AUTHED_5MIN_BUDGET = 1000;
   // A generous ceiling for the whole cold-sync burst that still leaves ~9× of
   // Trakt's window free for the freshness poll, per-card art, the movie library
-  // read, and bounded 429 retries. Every case below — including a heavy hidden set
-  // and watchlist — comes in well under it.
+  // read, and bounded 429 retries. Every case below: including a heavy hidden set
+  // and watchlist: comes in well under it.
   const COLD_SYNC_CEILING = 100;
 
   it.each([
@@ -174,10 +174,10 @@ describe("cold-sync GET budget", () => {
 
     expect(counts.watchedPages).toBe(expectedWatchedPages);
     expect(counts.progress).toBe(expectedProgress);
-    // Art is NEVER fetched in cold sync — it loads lazily per visible row.
+    // Art is NEVER fetched in cold sync: it loads lazily per visible row.
     expect(counts.art).toBe(0);
     // Hidden + watchlist are paginated bulk reads, counted at their real page cost
-    // (a heavy account spills past one page) — not the single GET the model assumed.
+    // (a heavy account spills past one page): not the single GET the model assumed.
     expect(counts.hidden).toBe(expectedHiddenPages);
     expect(counts.watchlist).toBe(expectedWatchlistPages);
     expect(total(counts)).toBe(expectedTotal);
@@ -210,7 +210,7 @@ describe("cold-sync GET budget", () => {
 
   it("bounds the hidden + watchlist reads: a heavy account spills to ceil(size/100) pages", async () => {
     // The reads the old model missed: with 200 hidden + 200 watchlist rows at
-    // 100/page, each walks exactly 2 pages — bounded, not one GET and not unbounded.
+    // 100/page, each walks exactly 2 pages: bounded, not one GET and not unbounded.
     const counts = installColdSync(300, HIDDEN_COUNT, WATCHLIST_COUNT);
     await loadUpNextEntries(client);
     expect(counts.hidden).toBe(2);
@@ -224,7 +224,7 @@ describe("cold-sync GET budget", () => {
     // Show 0 is the most recent → in the budget head → real progress (aired 10, a
     // next episode), progressKnown true. The oldest show (index BUDGET+4) is beyond
     // the head → its bulk 8-episode breakdown gives completed, but aired is unknown,
-    // so progressKnown is false (status sync-pending) — never fabricated caught-up.
+    // so progressKnown is false (status sync-pending): never fabricated caught-up.
     const newest = entries.find((e) => e.showId === 1);
     const oldest = entries.find((e) => e.showId === WATCHED_PROGRESS_BUDGET + 5);
     expect(newest).toMatchObject({ aired: 10, completed: 3, progressKnown: true });

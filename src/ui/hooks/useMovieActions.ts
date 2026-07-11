@@ -46,13 +46,13 @@ export interface MovieActions {
  * shared `movieLibrary` cache is patched instantly (materializing an entry for a
  * movie not yet in the library) so both the detail hero and the My Shows shelves
  * update at once; a hard failure rolls the patch back. A mark exposes an inline Undo
- * (the item-scoped `/sync/history/remove` inverse — it reverses the play you just
+ * (the item-scoped `/sync/history/remove` inverse: it reverses the play you just
  * added). A durable unmark of a settled watch is per-play-safe and mirrors episodes
  * it resolves the movie's real plays and removes the single play by its exact
  * history id; a rewatched movie (two or more plays) is refused and routed to the
  * watch history rather than wiping every play. An unmark of a play added THIS session
- * that hasn't landed yet (its mark op still queued) reverses that exact op — which
- * coalesces against the pending mark — instead of reading live plays, which would
+ * that hasn't landed yet (its mark op still queued) reverses that exact op: which
+ * coalesces against the pending mark: instead of reading live plays, which would
  * miss the in-flight write and silently retain the play.
  */
 export function useMovieActions(): MovieActions {
@@ -81,7 +81,7 @@ export function useMovieActions(): MovieActions {
   );
 
   // Reverse a play added this session by its item-scoped inverse, which coalesces
-  // against the still-queued mark — cancelling it outright if it hasn't dispatched,
+  // against the still-queued mark: cancelling it outright if it hasn't dispatched,
   // or landing behind it if it has. Because the mark ran from an unwatched entry
   // (zero prior plays), removing by item can't wipe a pre-existing rewatch. Shared by
   // the inline Undo and the fast unmark of a not-yet-settled mark.
@@ -114,18 +114,18 @@ export function useMovieActions(): MovieActions {
 
   const markOn = useCallback(
     async (entry: MovieEntry) => {
-      // Second synchronous activation in the same burst — its optimistic tick hasn't
+      // Second synchronous activation in the same burst: its optimistic tick hasn't
       // re-rendered yet, so drop it before it can enqueue a duplicate play + second buzz.
       if (inFlight.current.has(entry.movieId)) return;
       inFlight.current.add(entry.movieId);
       const watchedAt = new Date().toISOString();
       const mark: MarkUndo = { title: entry.title, before: entry, watchedAt };
       // Claim the pending-mark slot synchronously and surface Undo at the point of
-      // action — both must be readable by a concurrent unmark before the paced write settles.
+      // action: both must be readable by a concurrent unmark before the paced write settles.
       pendingMark.current = mark;
       setUndo(mark);
       writeMovieEntry(queryClient, { ...entry, watched: true, watchedAt });
-      // One buzz at the point of action, once per committed mark — with the
+      // One buzz at the point of action, once per committed mark: with the
       // optimistic tick, never on the rollback path.
       haptics.markCommitted();
       const op = buildMarkMovieOp({
@@ -141,11 +141,11 @@ export function useMovieActions(): MovieActions {
           revalidate,
         });
       } finally {
-        // Settled (done | failed | deferred) or submit threw — release the lock either
+        // Settled (done | failed | deferred) or submit threw: release the lock either
         // way so a deliberate later re-mark of the movie is never wedged behind it.
         inFlight.current.delete(entry.movieId);
       }
-      // A concurrent unmark (or a newer mark) may have already consumed this slot —
+      // A concurrent unmark (or a newer mark) may have already consumed this slot,
       // only settle the outcome if it's still ours.
       if (pendingMark.current !== mark) return;
       if (outcome === "failed") {
@@ -164,7 +164,7 @@ export function useMovieActions(): MovieActions {
 
   const markOff = useCallback(
     async (entry: MovieEntry) => {
-      // A prior mark's inline Undo is stale once we unmark — drop it.
+      // A prior mark's inline Undo is stale once we unmark: drop it.
       setUndo(null);
       // TODO(cross-unmount-deferred-mark): `pendingMark` is a per-MOUNT ref, but a
       // deferred (offline) mark lives in the DURABLE queue, which outlives the mount.
@@ -172,11 +172,11 @@ export function useMovieActions(): MovieActions {
       // → "none" → un-ticks; the queue later flushes the mark and the movie flips back
       // to watched. Non-destructive (no history loss) but wrong UX. A clean fix routes
       // through the durable queue (consult a pending un-landed mark by itemKey), not
-      // only this ref — deferred as out of scope for broader safety hardening.
+      // only this ref: deferred as out of scope for broader safety hardening.
       const pending = pendingMark.current;
       const route = routeMovieUnmark(pending?.before.movieId ?? null, entry.movieId);
       if (route === "reverse-session-mark" && pending !== null) {
-        // The play was added this session and may not have landed — reverse the exact
+        // The play was added this session and may not have landed: reverse the exact
         // op (coalesces against the queued mark) rather than reading live plays, which
         // could return 0 for an in-flight mark and silently retain the play.
         pendingMark.current = null;
@@ -194,16 +194,16 @@ export function useMovieActions(): MovieActions {
         return;
       }
       if (resolution.kind === "rewatch") {
-        // More than one play — refuse the wipe and keep the tick; per-play removal
+        // More than one play: refuse the wipe and keep the tick; per-play removal
         // is the watch history's job (identical to the rewatched-episode path).
         restoreTick();
         setNotice(
-          `This movie has ${resolution.count} plays — remove a specific play in your watch history.`,
+          `This movie has ${resolution.count} plays. Remove a specific play in your watch history.`,
         );
         return;
       }
       if (resolution.kind === "none") {
-        // The server already holds no play; the optimistic un-tick is correct — reconcile.
+        // The server already holds no play; the optimistic un-tick is correct: reconcile.
         revalidate();
         return;
       }

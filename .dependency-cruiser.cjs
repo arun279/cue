@@ -1,7 +1,7 @@
 // dependency-cruiser resolves every `to.path` against the *resolved* module
 // path, not the import specifier. Under pnpm that means npm packages surface as
 // `node_modules/.pnpm/<pkg>@<ver>/node_modules/<pkg>/...`, so npm bans must match
-// the `(^|/)node_modules/<pkg>/` tail — a bare `^react` / `^@capacitor/` anchor
+// the `(^|/)node_modules/<pkg>/` tail: a bare `^react` / `^@capacitor/` anchor
 // never fires. Node built-ins carry dependencyType "core", matched separately.
 const RE_REACT = "(^|/)node_modules/react/";
 const RE_REACT_DOM = "(^|/)node_modules/react-dom/";

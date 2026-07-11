@@ -4,10 +4,10 @@ import { del, get, set } from "idb-keyval";
 
 /**
  * Bump when the app version or a persisted-schema shape changes: the persister
- * drops any cache whose `buster` differs. This — not an age cap — is how stale
+ * drops any cache whose `buster` differs. This, not an age cap, is how stale
  * snapshots are retired. This cache-version bump retires every pre-m6 cache:
  * their entries were serialized before the `progressKnown` field existed, so a
- * restored pre-m6 entry reads as `progressKnown: undefined` — which the watch-status
+ * restored pre-m6 entry reads as `progressKnown: undefined`: which the watch-status
  * gate treats as `sync-pending` and drops from Up Next, silently hiding a genuinely
  * mid-watch show on the instant cache paint. Dropping the cache forces one clean
  * reload that re-materializes every entry with the field set, so no mid-watch show
@@ -20,7 +20,7 @@ export const PERSIST_BUSTER = "cue-m6";
 /**
  * `maxAge` governs how long a restored cache may be replayed, NOT freshness.
  * Freshness is owned by the last-activities reconciler, so an age cap here would
- * boot an offline user to an empty screen — the exact failure to avoid. Left
+ * boot an offline user to an empty screen: the exact failure to avoid. Left
  * effectively unbounded; `buster` is the only invalidator. `gcTime` matches so
  * restored queries are never collected before they can paint.
  */
@@ -36,7 +36,7 @@ export const queryClient = new QueryClient({
       // calendar) set a finite content window. The 0 default only covers ephemeral
       // reads (search) that are keyed per query and fine to refetch on mount.
       staleTime: 0,
-      // Focus/reconnect no longer trigger a blanket per-screen re-fetch — a single
+      // Focus/reconnect no longer trigger a blanket per-screen re-fetch: a single
       // Page-Visibility-gated `/sync/last_activities` poll is the one freshness
       // check on regaining visibility, so navigation costs zero Trakt data calls.
       refetchOnWindowFocus: false,

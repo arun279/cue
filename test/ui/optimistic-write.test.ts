@@ -77,7 +77,7 @@ const cases: readonly Case[] = [
     revalidated: true,
   },
   {
-    name: 'single "deferred" keeps optimistic — neither effect',
+    name: 'single "deferred" keeps optimistic: neither effect',
     outcomes: ["deferred"],
     settled: "deferred",
     rolledBack: false,
@@ -120,7 +120,7 @@ const cases: readonly Case[] = [
   },
 ];
 
-describe("applyOptimisticWrite — the shared write seam", () => {
+describe("applyOptimisticWrite: the shared write seam", () => {
   it.each(cases)("$name", async ({ outcomes, settled, rolledBack, revalidated }) => {
     const { outcome, rollback, revalidate } = await exercise(outcomes);
     expect(outcome).toBe(settled);

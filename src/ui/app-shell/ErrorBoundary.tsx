@@ -35,7 +35,7 @@ export class ErrorBoundary extends Component<Props, State> {
         <div className="boundary" role="alert" data-testid="error-boundary">
           <h1 className="boundary__title">Something went wrong</h1>
           <p className="boundary__body">
-            The screen hit an unexpected error. Your data is safe — try again.
+            The screen hit an unexpected error. Your data is safe. Try again.
           </p>
           <button type="button" className="button" onClick={this.reset}>
             Try again

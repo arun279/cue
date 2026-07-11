@@ -6,8 +6,8 @@ import { queryStatus, USER_STATE_STALE_TIME } from "@ui/hooks/query-freshness";
 import { type MovieLibraryData, useRuntime } from "@ui/runtime/runtime";
 import { useMemo } from "react";
 
-/** Honest movie taxonomy (Rams #6): a film is watched or not — no episode
- * progress — so the library groups into Watchlist (want to watch) and Watched
+/** Honest movie taxonomy (Rams #6): a film is watched or not: no episode
+ * progress: so the library groups into Watchlist (want to watch) and Watched
  * (seen). Collection (owned) would be a third, non-empty-only segment once
  * `/sync/collection/movies` is wired (deferred). */
 interface MovieSegment {
@@ -28,7 +28,7 @@ export interface MovieLibraryView {
   readonly isFetching: boolean;
   readonly isError: boolean;
   readonly hasData: boolean;
-  /** Epoch ms of the last successful sync — the pill's "· <time ago>" recency. */
+  /** Epoch ms of the last successful sync: the pill's "· <time ago>" recency. */
   readonly syncedAt: number;
   entryFor(movieId: number): MovieEntry | undefined;
   refetch(): void;
@@ -59,7 +59,7 @@ function byYear(a: MovieEntry, b: MovieEntry): number {
   return (b.year ?? 0) - (a.year ?? 0) || byTitle(a, b);
 }
 
-/** Newest-added first — the queue order for the Watchlist (a film has no watch
+/** Newest-added first: the queue order for the Watchlist (a film has no watch
  * date to sort by, so "recently added" is the honest analogue). Falls back to
  * title when `listedAt` is absent (a pre-`listedAt` cache), never throwing order away. */
 function byListedAt(a: MovieEntry, b: MovieEntry): number {
@@ -97,7 +97,7 @@ export function useMovieLibrary(
     queryKey: queryKeys.movieLibrary(),
     queryFn: () => runtime.loadMovieLibrary(),
     staleTime: USER_STATE_STALE_TIME,
-    // A single-medium user never fetches the medium they turned off — a
+    // A single-medium user never fetches the medium they turned off: a
     // movies-off Library leaves this query idle rather than reading a hidden section.
     enabled,
   });
@@ -109,10 +109,10 @@ export function useMovieLibrary(
     const watchlist = [...entries.filter((e) => e.inWatchlist && !e.watched)].sort(
       watchlistComparatorFor(sort),
     );
-    // Watchlist first (the "want to watch" pool), then Watched — matching the model's
+    // Watchlist first (the "want to watch" pool), then Watched: matching the model's
     // "Watchlist / Watched" order and the Shows side's Watchlist-first framing. An
     // empty segment is dropped so the library never renders a phantom "Watchlist (0)"
-    // header — parity with Shows' groupLibrary, which omits empty buckets.
+    // header: parity with Shows' groupLibrary, which omits empty buckets.
     const ordered: MovieSegment[] = [
       { key: "watchlist", label: "Watchlist", entries: watchlist },
       { key: "watched", label: "Watched", entries: watched },

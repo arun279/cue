@@ -20,7 +20,7 @@ export interface DispatchResult {
 export interface QueuedOp {
   /** Stable client op-id; a retry re-sends the identical op. */
   readonly id: string;
-  /** Coalescing key — redundant ops on the same key collapse. */
+  /** Coalescing key: redundant ops on the same key collapse. */
   readonly itemKey: string;
   readonly request: RequestDescriptor;
   /** Compensating request for undo (`remove` inverts an add, and vice versa). */

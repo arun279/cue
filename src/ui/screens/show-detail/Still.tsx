@@ -12,7 +12,7 @@ interface StillProps {
 /**
  * A 16:9 episode still that resolves the Trakt inline screenshot and degrades to
  * the shared no-artwork block when art is missing or fails to load, so a
- * broken image never tears the season shelf — the same designed placeholder the
+ * broken image never tears the season shelf: the same designed placeholder the
  * poster tiles use, sized for the wider frame.
  */
 export function Still({ title, stills, className }: StillProps): ReactElement {

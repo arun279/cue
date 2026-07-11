@@ -5,7 +5,7 @@ interface SyncStatusPillProps {
   readonly testId: string;
   readonly isFetching: boolean;
   readonly isError: boolean;
-  /** First-ever load with no cached snapshot yet — the initial library fan-out is
+  /** First-ever load with no cached snapshot yet: the initial library fan-out is
    * in flight, so the pill says so ("Syncing your library…") rather than a bare busy. */
   readonly isLoading?: boolean;
   /** The library is larger than the cold-sync progress budget, so
@@ -35,7 +35,7 @@ function relativeSince(then: number): string {
  * real change-driven revalidate (or its failure) is announced without stealing
  * focus. Post-gating, `isFetching` fires only on a genuine change-driven refetch
  * (navigation no longer refetches), and the write-side flush signal is OR'd in so
- * "Syncing…" also covers a pending durable write — a plain page change with
+ * "Syncing…" also covers a pending durable write: a plain page change with
  * nothing to sync rests truthfully on "Synced · <when>".
  *
  * Two honesty states beyond busy/offline/synced: the first cold fan-out reads

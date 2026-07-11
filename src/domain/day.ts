@@ -1,6 +1,6 @@
 /**
  * Local-day grouping primitives shared by the Calendar (upcoming days) and the
- * Diary (watch-history days) so both bucket and shift days the same way — the one
+ * Diary (watch-history days) so both bucket and shift days the same way: the one
  * source of truth for "which local day does this instant fall on".
  */
 
@@ -29,7 +29,7 @@ function shiftDayKey(key: string, deltaDays: number): string {
 
 /** Buckets days by local key and labels them "Today" / an adjacent word / "Mon, Jan 5". */
 interface DayLabeler {
-  /** `ms → "YYYY-MM-DD"` local-day key — the bucket handle. */
+  /** `ms → "YYYY-MM-DD"` local-day key: the bucket handle. */
   readonly keyOf: (ms: number) => string;
   /** A day's human label; `sampleMs` is any instant within the day, for the date fallback. */
   readonly label: (dayKey: string, sampleMs: number) => string;
@@ -39,7 +39,7 @@ interface DayLabeler {
  * The shared local-day bucketer + labeler for the Calendar (upcoming) and the
  * Diary (watch history): one `Intl` key formatter, one "Mon, Jan 5" date
  * formatter, and the Today / adjacent-word / date resolution, built once. Only the
- * single neighboring day that earns a relative word differs — the Calendar looks
+ * single neighboring day that earns a relative word differs: the Calendar looks
  * forward (`{ delta: 1, label: "Tomorrow" }`), the Diary looks back
  * (`{ delta: -1, label: "Yesterday" }`).
  */

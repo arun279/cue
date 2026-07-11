@@ -28,7 +28,7 @@ function ratedShow(): ShowFixture {
   };
 }
 
-/** A not-yet-started show (aired 0, completed 0) — buckets as Watchlist until watchlisted. */
+/** A not-yet-started show (aired 0, completed 0): buckets as Watchlist until watchlisted. */
 function notStartedShow(): ShowFixture {
   return {
     trakt: 2,
@@ -127,7 +127,7 @@ test("adding a never-watched show to the watchlist surfaces it in the Library Wa
   await page.setViewportSize({ width: 1000, height: 1400 });
 
   // A never-watched, un-watchlisted show is absent from /sync/watched/shows and the
-  // watchlist, so it does not appear in My Shows at all — the watchlist is its only
+  // watchlist, so it does not appear in My Shows at all: the watchlist is its only
   // route into the library (regression guard for the watchlist-only refetch bug).
   await page.goto("/library");
   await expect(page.getByTestId("pile-heading").filter({ hasText: "Watchlist" })).toHaveCount(0);

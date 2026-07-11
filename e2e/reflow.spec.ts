@@ -11,7 +11,7 @@ import {
 } from "./helpers";
 
 /** ~320 CSS px is WCAG 1.4.10's reflow width (1280px at 400% zoom). Content must fit
- * with no horizontal scroll — grids reflow to a single column, rows wrap. */
+ * with no horizontal scroll: grids reflow to a single column, rows wrap. */
 const NARROW = { width: 320, height: 720 } as const;
 const AIRED = "2026-01-01T00:00:00.000Z";
 
@@ -43,8 +43,8 @@ async function horizontalOverflow(page: Page): Promise<number> {
 }
 
 /** 200% browser zoom halves the usable CSS width, so any control or row with an
- * intrinsic width wider than that half — a long Sort option, the three-item History
- * segmented, the Up Next mark column — would push the body into a sideways scroll (a
+ * intrinsic width wider than that half: a long Sort option, the three-item History
+ * segmented, the Up Next mark column: would push the body into a sideways scroll (a
  * WCAG 1.4.4 / 1.4.10 failure). Emulate it exactly as a design review does: stamp
  * `zoom: 2` on the document element and re-assert no horizontal overflow. The overflow case
  * was captured at 390px, so the tests lock that width. */
@@ -59,7 +59,7 @@ async function setZoom(page: Page, factor: number): Promise<void> {
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r(null))));
 }
 
-/** A same-minute, same-show pair — the cluster whose trailing "Logged together" aside
+/** A same-minute, same-show pair: the cluster whose trailing "Logged together" aside
  * used to crush the title to one word per line at ~320px (now a caption below the title
  * and episode range). Shared by the @320 reflow test and the 200%-zoom test. */
 function clusteredHistoryRows(): HistoryRowFixture[] {
@@ -103,7 +103,7 @@ test("Library poster grid reflows with no horizontal scroll @320", async ({ page
 });
 
 test("Watch history rows reflow with no horizontal scroll @320", async ({ page }) => {
-  // A same-minute, same-show pair clusters with the "Logged together" caption — the
+  // A same-minute, same-show pair clusters with the "Logged together" caption: the
   // affordance that used to crush the title + episode range at narrow widths.
   await installHistoryRoutes(page.context(), clusteredHistoryRows());
   await page.setViewportSize(NARROW);

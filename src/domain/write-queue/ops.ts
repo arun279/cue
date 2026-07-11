@@ -74,7 +74,7 @@ export interface RemoveHistoryPlayParams {
   readonly opId: string;
   /**
    * The exact Trakt history-event ids to remove. `/sync/history/remove { ids }`
-   * deletes precisely these plays and NOTHING else — the item's other plays and
+   * deletes precisely these plays and NOTHING else: the item's other plays and
    * rewatches survive. This is the only history removal that is truly per-play; a
    * remove-by-item (`{ episodes|movies:[{ids}] }`) wipes every play of the item.
    */
@@ -82,7 +82,7 @@ export interface RemoveHistoryPlayParams {
   /**
    * The item + timestamp for the best-effort restore inverse. Removal by history
    * id is EXACT; the restore re-adds the play by item + `watched_at`, so Trakt may
-   * mint a new history id / action — the reversal is best-effort, not forensic.
+   * mint a new history id / action: the reversal is best-effort, not forensic.
    */
   readonly restore: {
     readonly section: HistorySection;
@@ -93,7 +93,7 @@ export interface RemoveHistoryPlayParams {
 }
 
 /**
- * Remove exactly one (or a few) history plays by their Trakt event ids — the
+ * Remove exactly one (or a few) history plays by their Trakt event ids: the
  * canonical safe removal the Diary offers on each row. Unlike
  * the mark-undo path, the Diary reads real `id`s from `/users/me/history`, so it
  * can scope the delete to the precise play and never disturb a rewatch. Retrying a
@@ -120,7 +120,7 @@ export function buildRemoveHistoryPlayOp(params: RemoveHistoryPlayParams): Queue
 
 export interface RemovePlaysParams {
   readonly opId: string;
-  /** The exact Trakt history-event ids to remove — never an item/season token. */
+  /** The exact Trakt history-event ids to remove: never an item/season token. */
   readonly ids: readonly number[];
   /**
    * The episodes to re-add for the Undo, each by its trakt id + frozen `watched_at`.
@@ -131,7 +131,7 @@ export interface RemovePlaysParams {
 }
 
 /**
- * Remove a SET of episode plays by their exact history-event ids — the durable,
+ * Remove a SET of episode plays by their exact history-event ids: the durable,
  * per-play-safe reversal behind "Unmark season" and the per-episode uncheck
  * Because it deletes precise history ids, it can never wipe a play it
  * wasn't handed (a rewatch the planner deliberately left out survives). A lost
@@ -163,8 +163,8 @@ export interface HideOpParams {
 
 /**
  * Add/remove a show from Trakt's hidden set. Hiding is the add
- * (`/users/hidden/progress_watched`); its inverse un-hides. `watchedAt` is null
- * — this op carries no history play. The hidden set is Cue's client-side
+ * (`/users/hidden/progress_watched`); its inverse un-hides. `watchedAt` is null,
+ * this op carries no history play. The hidden set is Cue's client-side
  * exclusion source, filtered out of Up Next + the calendar on every read.
  */
 function hideOp(toState: "present" | "absent", params: HideOpParams): QueuedOp {
@@ -226,7 +226,7 @@ export interface UnrateOpParams {
  * undoes *this* write: for a first rating it removes the rating; for a re-rate it
  * restores `previousRating`, so Undo of 6 → 8 returns to 6 instead of clearing it.
  * A re-rate on the same item coalesces on `itemKey` so only the last value
- * survives. Rating writes carry no `watched_at` and are idempotent — a
+ * survives. Rating writes carry no `watched_at` and are idempotent: a
  * lost-response retry re-sends the same value, so no reconcile anchor is needed.
  */
 export function buildRateOp(params: RateOpParams): QueuedOp {

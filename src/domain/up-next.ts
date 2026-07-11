@@ -16,7 +16,7 @@ export interface UpNextItem {
 /**
  * The honest partition of the tonight list: `fresh` (this week's newly-aired next
  * episode), `continued` (mid-run, ordered by your own recency), and `lapsed`
- * (in-progress but idle past the threshold — the soft drawer at the bottom).
+ * (in-progress but idle past the threshold: the soft drawer at the bottom).
  */
 export interface UpNextGroups {
   readonly fresh: UpNextItem[];
@@ -25,18 +25,18 @@ export interface UpNextGroups {
 }
 
 /**
- * Partition in-progress shows for Up Next on verifiable facts only — no taste,
+ * Partition in-progress shows for Up Next on verifiable facts only: no taste,
  * popularity, or "for you" ranking. Shows in a state with no next to
  * queue (`abandoned`/`not-started`/`ended`) are always excluded; of the rest, a
  * `watching`/`lapsed` show (in-progress with an AIRED unwatched next) or a just-marked
  * show still carrying its provisional next projection is considered. Each lands in
  * exactly one group:
- *   • fresh     — the next unwatched episode aired within `newWindowMs` (this
+ *   • fresh    : the next unwatched episode aired within `newWindowMs` (this
  *                 week's drop). This overrides the idle flag, so a long-idle
  *                 returning show with a brand-new episode surfaces in "New" instead
  *                 of sinking into the drawer (the reconciled tension-#2 win).
- *   • lapsed    — idle past `thresholdMs` AND not fresh — the collapsed drawer.
- *   • continued — the rest, mid-binge, plus any show whose next is still a
+ *   • lapsed   : idle past `thresholdMs` AND not fresh, the collapsed drawer.
+ *   • continued: the rest, mid-binge, plus any show whose next is still a
  *                 provisional post-mark projection (`ids.trakt === 0`, air date
  *                 unknown): kept visible + locked, but never surfaced as this
  *                 week's fresh drop until the authoritative refetch lands.
@@ -63,7 +63,7 @@ export function groupUpNext(
     if (status === "abandoned" || status === "not-started" || status === "ended") continue;
     // A just-marked show still showing its optimistic next-episode projection
     // (`ids.trakt === 0`, air date not yet known): keep the card visible and locked
-    // in Continue (pendingAdvance), but never as this week's fresh drop — that is how
+    // in Continue (pendingAdvance), but never as this week's fresh drop: that is how
     // a season-finale phantom would otherwise cling to the "New"/lead slot.
     const provisional = ep.ids.trakt === 0;
     let group: UpNextGroup;
@@ -117,7 +117,7 @@ function byRecentlyWatched(a: UpNextItem, b: UpNextItem): number {
   return airMs(a) - airMs(b);
 }
 
-/** Longest-idle first — the oldest `lastWatchedAt` (unknown = oldest) leads. */
+/** Longest-idle first: the oldest `lastWatchedAt` (unknown = oldest) leads. */
 function byMostLapsed(a: UpNextItem, b: UpNextItem): number {
   return watchedMs(a) - watchedMs(b);
 }

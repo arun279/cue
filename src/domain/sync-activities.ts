@@ -4,7 +4,7 @@
  * `staleTime: Infinity` and are invalidated ONLY here, so this map must be exact
  * and complete: an unmapped field advancing invalidates nothing, and identical
  * timestamps invalidate nothing. Content-carrying queries (show header/seasons,
- * calendar) are deliberately NOT gated on this diff — they carry Trakt airdates
+ * calendar) are deliberately NOT gated on this diff: they carry Trakt airdates
  * and newly-announced episodes that don't always bump user activity, so they run
  * on a time-based content refresh instead.
  */
@@ -25,7 +25,7 @@ export interface LastActivities {
 
 /**
  * Cache query keys plus the client-side recomputes the table calls out
- * (`recompute:*`) — the derived Following/bucket views that no single query key
+ * (`recompute:*`): the derived Following/bucket views that no single query key
  * owns but that a given activity change must refresh.
  */
 export type InvalidationTarget =

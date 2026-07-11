@@ -9,7 +9,7 @@ import type { FetchLike } from "../trakt/client";
  * per-attempt `code_verifier` (see `pkce.ts`). The user-facing
  * `authorize`/`activate` pages live on `trakt.tv`; the token/device/revoke
  * endpoints on `api.trakt.tv`. Trakt allows CORS on `/oauth/token`, so the
- * code→token exchange runs directly in the browser — no backend.
+ * code→token exchange runs directly in the browser: no backend.
  */
 const TRAKT_SITE_BASE = "https://trakt.tv";
 export const TRAKT_API_BASE = "https://api.trakt.tv";
@@ -80,7 +80,7 @@ async function postJson(
 /**
  * The full-page redirect target that starts the web auth-code flow. Carries the
  * S256 `code_challenge` so the later token exchange can prove possession of the
- * matching verifier — the PKCE substitute for a client secret.
+ * matching verifier: the PKCE substitute for a client secret.
  */
 export function buildAuthorizeUrl(
   config: OAuthConfig,
@@ -122,7 +122,7 @@ export async function exchangeCodeForToken(
  * A rejected `/oauth/token` refresh, carrying the HTTP `status` (0 = network
  * reject), the OAuth `error` `code` from the body, and any `Retry-After`. The transport reads these to tell a dead refresh token (`invalid_grant` → end the
  * session) from a transient rate-limit/5xx or a config/request bug (back off,
- * keep the session) — see `authorized-fetch.ts`.
+ * keep the session): see `authorized-fetch.ts`.
  */
 export class TokenRefreshError extends Error {
   readonly status: number;
@@ -183,7 +183,7 @@ export async function revokeToken(config: OAuthConfig, accessToken: string): Pro
 /**
  * Start the device-code flow: returns the code to display + the poll interval.
  * Carries the S256 `code_challenge` so the later `pollDeviceToken` verifier is
- * bound to this request — the PKCE substitute for the client secret the device
+ * bound to this request: the PKCE substitute for the client secret the device
  * flow would otherwise need.
  */
 export async function requestDeviceCode(

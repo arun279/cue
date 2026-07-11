@@ -96,7 +96,7 @@ function decadeRows(): HistoryRowFixture[] {
   ];
 }
 
-/** Forty movie plays on distinct days — enough that a non-virtualized list would
+/** Forty movie plays on distinct days: enough that a non-virtualized list would
  * mount every row, so a windowed count proves virtualization. */
 function manyRows(): HistoryRowFixture[] {
   const rows: HistoryRowFixture[] = [];
@@ -141,7 +141,7 @@ test("loads, groups by local day, collapses a same-show binge, and loads earlier
   await expect(cluster).toContainText("3 episodes");
   await expect(page.getByTestId("history-row").filter({ hasText: "Interstellar" })).toBeVisible();
 
-  // Yesterday is a second page — "Load earlier" pulls it in.
+  // Yesterday is a second page: "Load earlier" pulls it in.
   await expect(page.getByTestId("history-day-heading")).toHaveCount(1);
   await page.getByTestId("history-load-earlier").click();
   await expect(page.getByTestId("history-day-heading")).toHaveCount(2);
@@ -166,7 +166,7 @@ test("surfaces a Load-earlier failure inline and recovers on Retry", async ({ pa
   await expect(page.getByTestId("history-day-heading")).toHaveCount(1);
   await page.getByTestId("history-load-earlier").click();
 
-  // The failure surfaces inline — first-page data stays put — and the control
+  // The failure surfaces inline, first-page data stays put, and the control
   // becomes a Retry rather than silently swallowing the error.
   await expect(page.getByTestId("history-load-earlier-error")).toBeVisible();
   await expect(page.getByTestId("history-load-earlier")).toContainText("Retry");
@@ -200,7 +200,7 @@ test("jumps to a year: the read is scoped by start_at/end_at, out-of-year plays 
   await expect(page.getByTestId("history-row").filter({ hasText: "Interstellar" })).toBeVisible();
   await expect(page.getByTestId("history-row").filter({ hasText: "Dune" })).toBeVisible();
 
-  // Jump to 2024 — the 2026 play drops (proof the range was sent to Trakt, since the
+  // Jump to 2024: the 2026 play drops (proof the range was sent to Trakt, since the
   // mock only filters when start_at/end_at are present).
   await page.getByTestId("history-year").selectOption("2024");
   await expect(page).toHaveURL(/year=2024/);
@@ -305,7 +305,7 @@ test("the confirm sheet names the exact play and Cancel removes nothing", async 
   await expect(sheet).toContainText("Interstellar");
   await expect(sheet).toContainText("2014");
 
-  // Cancel dismisses without touching history — no write, row still present.
+  // Cancel dismisses without touching history: no write, row still present.
   await page.getByTestId("history-remove-cancel").click();
   await expect(sheet).toHaveCount(0);
   await expect(movieRow).toBeVisible();

@@ -61,7 +61,7 @@ function QueueList({
   );
 }
 
-/** The one-tap Upcoming affordance — Calendar demoted from a tab to a view inside
+/** The one-tap Upcoming affordance: Calendar demoted from a tab to a view inside
  * Up Next. Icon-only with an accessible name so it never widens the head and
  * pushes the queue below the fold (the icon-only-with-name pattern of). */
 function UpcomingLink(): ReactElement {
@@ -113,7 +113,7 @@ function EmptyState({
 }
 
 /**
- * Up Next — the home screen and the honest heart of Cue. It shows only in-progress
+ * Up Next: the home screen and the honest heart of Cue. It shows only in-progress
  * shows with an unwatched AIRED next episode, partitioned on verifiable facts: a
  * "New" group (this week's freshly-aired episodes, hidden when empty), then a
  * "Continue" group (mid-run, your-own-recency order). The very first card of the
@@ -133,7 +133,7 @@ export function UpNext(): ReactElement {
 
   // The just-marked show's card carries the PRIMARY reversal inline; the toast
   // below is the SECONDARY polite announcement. A finished show leaves the queue, so no
-  // card matches — the toast + durable History reversal cover that case.
+  // card matches: the toast + durable History reversal cover that case.
   const undoTarget: UndoTarget | null =
     mark.undoable === null
       ? null
@@ -192,7 +192,7 @@ export function UpNext(): ReactElement {
         <CachedRetryBanner
           testId="cached-retry"
           buttonTestId="cached-retry-button"
-          message="Showing your last synced queue — Trakt couldn't be reached."
+          message="Showing your last synced queue. Trakt couldn't be reached."
           onRetry={view.refetch}
         />
       )}
@@ -213,7 +213,7 @@ export function UpNext(): ReactElement {
           testId="empty-nothing-tracked"
           art={emptyNothingTracked}
           title="Nothing tracked yet"
-          body="Follow a show and mark an episode watched — its next episode will queue up here."
+          body="Follow a show and mark an episode watched: its next episode will queue up here."
         />
       )}
 
@@ -222,7 +222,7 @@ export function UpNext(): ReactElement {
           testId="empty-only-stopped"
           art={emptyNothingTracked}
           title="All your shows are stopped"
-          body="Resume one to bring it back into your queue — your watch history is kept."
+          body="Resume one to bring it back into your queue. Your watch history is kept."
           action={
             <Link to="/library" className="button button--ghost" data-testid="empty-to-library">
               Go to Library
@@ -247,7 +247,7 @@ export function UpNext(): ReactElement {
           title={view.isPartial ? "Caught up on recent shows" : "You're all caught up"}
           body={
             view.isPartial
-              ? "No recent shows are waiting. Older shows are still syncing — any with episodes to watch will appear here."
+              ? "No recent shows are waiting. Older shows are still syncing, any with episodes to watch will appear here."
               : "No aired episodes are waiting. New episodes will appear here as they air."
           }
         />

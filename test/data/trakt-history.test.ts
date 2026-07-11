@@ -30,7 +30,7 @@ describe("assembleHistoryEntries", () => {
       historyId: 100,
       watchedAt: WATCHED_AT,
       type: "episode",
-      mediaId: 9, // the SHOW id — the poster + detail-link subject
+      mediaId: 9, // the SHOW id: the poster + detail-link subject
       title: "The Bear",
       season: 1,
       number: 5,
@@ -87,7 +87,7 @@ describe("assembleEpisodePlays (scoped-history resolver)", () => {
     ]);
   });
 
-  it("drops movie and malformed rows — only episode plays carry a season/number", () => {
+  it("drops movie and malformed rows: only episode plays carry a season/number", () => {
     const plays = assembleEpisodePlays([
       movieItem,
       { id: 103, watched_at: WATCHED_AT, type: "episode" }, // no episode payload
@@ -100,7 +100,7 @@ describe("assembleEpisodePlays (scoped-history resolver)", () => {
 describe("assembleMoviePlays (scoped-history resolver)", () => {
   it("keeps each movie play's exact history id + watched_at for per-play removal", () => {
     const plays = assembleMoviePlays([movieItem]);
-    // A single play resolves to one exact history id — the handle resolveMovieUnmark
+    // A single play resolves to one exact history id: the handle resolveMovieUnmark
     // removes by, never an item-scoped wipe.
     expect(plays).toEqual([{ historyId: 101, watchedAt: WATCHED_AT }]);
   });
@@ -116,7 +116,7 @@ describe("assembleMoviePlays (scoped-history resolver)", () => {
     ]);
   });
 
-  it("drops episode and malformed rows — only movie plays are kept", () => {
+  it("drops episode and malformed rows: only movie plays are kept", () => {
     const plays = assembleMoviePlays([
       episodeItem,
       { id: 202, watched_at: WATCHED_AT, type: "movie" }, // no movie payload

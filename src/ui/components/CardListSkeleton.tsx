@@ -7,7 +7,7 @@ interface CardListSkeletonProps {
 
 /**
  * The shared poster-card loading placeholder for the card-list surfaces (Up Next,
- * Upcoming). Marked `aria-hidden` — a screen reader hears the "syncing" status
+ * Upcoming). Marked `aria-hidden`: a screen reader hears the "syncing" status
  * pill, not a wall of empty rows.
  */
 export function CardListSkeleton({ testId, rows = 4 }: CardListSkeletonProps): ReactElement {

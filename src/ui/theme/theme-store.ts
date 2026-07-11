@@ -7,7 +7,7 @@ interface ThemeState {
   toggle: () => void;
 }
 
-/** Tiny cross-tree client state — the toggle's single source. */
+/** Tiny cross-tree client state: the toggle's single source. */
 export const useThemeStore = create<ThemeState>((set, get) => ({
   theme: initialTheme(),
   setTheme: (theme) => {

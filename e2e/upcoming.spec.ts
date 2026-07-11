@@ -80,7 +80,7 @@ test("groups episodes by localized day with Today/Tomorrow labels", async ({ pag
 
 test("the sync pill shows the last-synced timestamp, not a bare 'Synced'", async ({ page }) => {
   // Regression: the shared pill rendered a bare "Synced" on Calendar (and Library)
-  // while Up Next and Profile showed "Synced · <time ago>" — the same component,
+  // while Up Next and Profile showed "Synced · <time ago>": the same component,
   // missing the `syncedAt` prop on these two routes. Wire it through so the recency
   // read is identical everywhere.
   await installCalendarRoutes(page.context(), spreadFixture());
@@ -190,7 +190,7 @@ test("shows the empty-window state when nothing is airing", async ({ page }) => 
 test("a long calendar stays virtualized: bounded window, yet scrolling reaches late rows", async ({
   page,
 }) => {
-  // 120 episodes, one per hour from today forward — all inside the default 7-day window.
+  // 120 episodes, one per hour from today forward: all inside the default 7-day window.
   const many: CalendarEpisodeFixture[] = Array.from({ length: 120 }, (_, i) => ({
     showId: 1000 + i,
     showTitle: `Show ${i}`,
@@ -208,7 +208,7 @@ test("a long calendar stays virtualized: bounded window, yet scrolling reaches l
   expect(initial).toBeGreaterThan(0);
   expect(initial).toBeLessThan(40);
 
-  // The final row (far past the initial window) is not mounted yet — proof the list
+  // The final row (far past the initial window) is not mounted yet: proof the list
   // is truly windowed, not a hard-capped slice of the first N rows.
   const lastRow = page.getByText("Show 119", { exact: true });
   await expect(lastRow).toHaveCount(0);
@@ -223,7 +223,7 @@ test("a long calendar stays virtualized: bounded window, yet scrolling reaches l
   }
 
   await expect(lastRow).toBeVisible();
-  // Still bounded after scrolling — the early rows were unmounted as later ones mounted.
+  // Still bounded after scrolling: the early rows were unmounted as later ones mounted.
   expect(await page.getByTestId("virtual-row").count()).toBeLessThan(40);
 });
 

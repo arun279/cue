@@ -35,7 +35,7 @@ export interface GroupCalendarOptions {
 
 /**
  * Group upcoming episodes by their local calendar day: exclude
- * hidden shows (Cue's client-side exclusion — Trakt still lists them), bucket by
+ * hidden shows (Cue's client-side exclusion: Trakt still lists them), bucket by
  * the day the episode airs in `timeZone`, sort days ascending and episodes within
  * a day by air time, and label each day Today / Tomorrow / weekday-date. Each row
  * carries an `aired` flag so the UI can offer quick mark-watched only on episodes

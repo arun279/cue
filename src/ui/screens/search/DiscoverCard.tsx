@@ -11,7 +11,7 @@ interface DiscoverListProps {
 }
 
 /**
- * Render a list of hits as DiscoverCards — the one place a hit becomes a tile.
+ * Render a list of hits as DiscoverCards: the one place a hit becomes a tile.
  * Both discovery idioms (the results grid and the bounded rail) differ only in
  * their container and whether the list is capped; the tile itself is identical,
  * so it lives here and neither wrapper repeats it.
@@ -27,7 +27,7 @@ function discoverTiles({
 }
 
 /**
- * A static poster grid of DiscoverCards — reserved for an EXPLICIT query's
+ * A static poster grid of DiscoverCards: reserved for an EXPLICIT query's
  * results, which the user asked for and can legitimately be a full wrapping grid.
  * Default browse (trending/popular) and in-context "More like this" use the bounded
  * {@link DiscoverRail} instead, so discovery never inflates a page into a scroll
@@ -43,7 +43,7 @@ export function DiscoverGrid({ testId, ...list }: DiscoverListProps): ReactEleme
 }
 
 /**
- * The bounded browse sample — a top-ten of DiscoverCards on ONE horizontal
+ * The bounded browse sample: a top-ten of DiscoverCards on ONE horizontal
  * snap-scroll track at a fixed height. This is the only shape
  * discovery is allowed to take outside the Discover tab's own search results:
  * trending/popular and the Movie-detail "More like this" rail are legitimate
@@ -69,7 +69,7 @@ interface DiscoverCardProps {
 }
 
 /**
- * One Discover tile — a poster-forward 2:3 card shared by the browse rails and
+ * One Discover tile: a poster-forward 2:3 card shared by the browse rails and
  * the search results grid. Every poster is a single link into its detail page
  * (the "tap any poster → detail" rule): shows to /show/$showId, movies to
  * /movie/$movieId. The inline watchlist add is a sibling of the link (never nested

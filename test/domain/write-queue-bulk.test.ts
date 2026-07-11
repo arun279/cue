@@ -18,7 +18,7 @@ type SeasonBody = { number: number; episodes?: Array<{ number: number }> };
 
 type BuildOptions = Partial<Pick<BulkMarkTarget, "includeSpecials" | "upTo">>;
 
-/** Aired, still-UNWATCHED episodes — the raw material of a mark delta. */
+/** Aired, still-UNWATCHED episodes: the raw material of a mark delta. */
 function airedEpisodes(count: number, from = 1): EpisodeAir[] {
   return Array.from({ length: count }, (_unused, i) => ({
     number: from + i,
@@ -33,7 +33,7 @@ function unairedEpisodes(count: number, from: number): EpisodeAir[] {
     watched: false,
   }));
 }
-/** Aired episodes that already carry a play — excluded from the mark delta. */
+/** Aired episodes that already carry a play: excluded from the mark delta. */
 function watchedEpisodes(count: number, from = 1): EpisodeAir[] {
   return airedEpisodes(count, from).map((ep) => ({ ...ep, watched: true }));
 }
@@ -85,13 +85,13 @@ describe("buildBulkMarkOps", () => {
 
   it("marks ONLY the previously-unwatched delta of a partially-watched season (5 of 8 → +E6-E8)", () => {
     // A 5-of-8 season: E01–E05 already carry plays; only E06–E08 are the delta this
-    // mark creates. This is the history-loss guard — the mark, and its inverse, can
+    // mark creates. This is the history-loss guard: the mark, and its inverse, can
     // only ever touch the 3 newly-added plays, so a mark-then-Undo returns to 5/8,
     // never zeroing the 5 pre-existing plays.
     const ops = build([{ number: 1, episodes: [...watchedEpisodes(5), ...airedEpisodes(3, 6)] }]);
     expect(ops).toHaveLength(1);
     expect(seasonsOf(ops[0])).toEqual([{ number: 1, episodes: enumerated(6, 7, 8) }]);
-    // The inverse (the Undo) removes exactly that delta — the pre-existing E01–E05
+    // The inverse (the Undo) removes exactly that delta: the pre-existing E01–E05
     // plays are never enumerated, so Undo restores the precise pre-mark state.
     expect(inverseSeasonsOf(ops[0])).toEqual([{ number: 1, episodes: enumerated(6, 7, 8) }]);
   });

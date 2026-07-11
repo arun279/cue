@@ -52,7 +52,7 @@ export function assembleHistoryEntries(items: readonly HistoryItem[]): HistoryEn
 /**
  * Flatten scoped-history rows (`/sync/history/{shows|episodes}/:id`) into
  * `EpisodePlay[]` for the durable per-play unmark. Only episode plays
- * carry a season/number, so movie rows (and malformed rows) are dropped — the
+ * carry a season/number, so movie rows (and malformed rows) are dropped: the
  * planners only ever reason about episode plays.
  */
 export function assembleEpisodePlays(items: readonly HistoryItem[]): EpisodePlay[] {

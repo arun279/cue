@@ -5,9 +5,9 @@ import type { FetchLike } from "./client";
 
 /**
  * A Trakt access token is valid for ~7 days, so a *legitimate* refresh happens at
- * most about weekly (lazily, on the first call past expiry — never on a timer).
- * The throttle exists only to collapse a stale-session burst — one screen's read
- * fan-out all 401ing at once — into a single `/oauth/token` call rather than one
+ * most about weekly (lazily, on the first call past expiry: never on a timer).
+ * The throttle exists only to collapse a stale-session burst: one screen's read
+ * fan-out all 401ing at once: into a single `/oauth/token` call rather than one
  * per request. 60s comfortably covers a navigation's async fan-out plus
  * interactive tapping while sitting ~4 orders of magnitude below the token
  * lifetime, so it can never block a refresh the app actually needs. A
@@ -45,7 +45,7 @@ type RefreshOutcome = "refreshed" | "throttled" | "cleared" | "failed";
  * is past expiry, (b) refreshes-then-retries a read that still 401s, (c)
  * persists a rotated token before publishing it, (d) ends the session only on a
  * dead refresh token (`invalid_grant`), and (e) honors a refresh throttle +
- * `Retry-After` (upward only) and never blind re-POSTs a mutating write — a
+ * `Retry-After` (upward only) and never blind re-POSTs a mutating write: a
  * write that 401s is surfaced as a throw so the durable write-queue reconciles
  * it (rolled back only when the session is truly dead; a transient refresh
  * failure keeps it queued). Concurrent 401s share ONE refresh via the
@@ -80,7 +80,7 @@ export function createAuthorizedFetch(deps: AuthorizedFetchDeps): AuthorizedFetc
       nextRefreshAllowedAt = now() + throttleMs;
       return "refreshed";
     } catch (error) {
-      // `Retry-After` only ever extends the throttle floor upward — a short
+      // `Retry-After` only ever extends the throttle floor upward: a short
       // Retry-After must never shorten the 60s single-flight floor.
       const backoff = error instanceof TokenRefreshError ? error.retryAfterMs : null;
       nextRefreshAllowedAt = now() + Math.max(throttleMs, backoff ?? 0);
@@ -114,7 +114,7 @@ export function createAuthorizedFetch(deps: AuthorizedFetchDeps): AuthorizedFetc
     const response = await deps.inner(input, authorize(init));
     if (response.status !== 401) return response;
 
-    // The bearer we sent was rejected. Refresh (single-flight — shared with any
+    // The bearer we sent was rejected. Refresh (single-flight: shared with any
     // concurrent 401) then check whether the token actually rotated: our own
     // refresh, OR one a sibling request already landed while ours was in flight.
     // Keying the retry on rotation (not this caller's outcome) means a 401 that
@@ -127,8 +127,8 @@ export function createAuthorizedFetch(deps: AuthorizedFetchDeps): AuthorizedFetc
       // Never a blind re-POST. A dead session rolls the optimistic write back
       // (the queue classifies the returned 401 as a definite failure). Otherwise
       // throw so the durable write-queue reconciles then re-dispatches: with the
-      // rotated token when we have one, or — after a transient refresh failure
-      // (429/5xx/offline) — once refresh recovers on a later flush. A transient
+      // rotated token when we have one, or, after a transient refresh failure
+      // (429/5xx/offline), once refresh recovers on a later flush. A transient
       // hiccup must keep the user's write queued, never roll it back.
       if (!rotated && sessionEnded) return response;
       throw new UnauthorizedWriteError();
@@ -163,7 +163,7 @@ export class UnauthorizedWriteError extends Error {
 /**
  * The refresh token is dead only when Trakt says so explicitly: an `invalid_grant`
  * on `/oauth/token`. Any other 400/401 (`invalid_request`/`invalid_client`, a
- * redirect-URI/config bug, a malformed body) is our fault, not a dead token —
+ * redirect-URI/config bug, a malformed body) is our fault, not a dead token:
  * keep the session so a code bug never signs a valid user out.
  */
 function isDeadRefreshToken(error: unknown): boolean {

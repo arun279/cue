@@ -4,7 +4,7 @@ import type { QueuedOp } from "./types";
  * Collapse a redundant op against the pending queue: a rapid toggle on one
  * item settles to its net state. A pending op with the same `itemKey` that ends
  * in the same state as the incoming op makes the incoming op redundant (kept
- * once); one that ends in the opposite state cancels — both vanish, returning
+ * once); one that ends in the opposite state cancels: both vanish, returning
  * the item to its original state.
  */
 export function coalesce(pending: readonly QueuedOp[], incoming: QueuedOp): QueuedOp[] {

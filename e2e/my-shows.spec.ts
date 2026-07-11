@@ -86,7 +86,7 @@ test.beforeEach(async ({ page }) => {
 
 test("the sync pill shows the last-synced timestamp, not a bare 'Synced'", async ({ page }) => {
   // Regression: the shared pill rendered a bare "Synced" on Library (and Calendar)
-  // while Up Next and Profile showed "Synced · <time ago>" — the same component,
+  // while Up Next and Profile showed "Synced · <time ago>": the same component,
   // missing the `syncedAt` prop on these two routes. Wire it through so the recency
   // read is identical everywhere.
   await installLibraryRoutes(page.context(), oneOfEachPile());
@@ -110,7 +110,7 @@ test("renders the segments in canonical order with count badges", async ({ page 
   await expect(headings.nth(3)).toHaveAttribute("data-status", "ended");
   await expect(headings.nth(4)).toHaveAttribute("data-status", "abandoned");
 
-  // Plain, real-world labels — no dev jargon.
+  // Plain, real-world labels: no dev jargon.
   await expect(headings.nth(0)).toContainText("Watchlist");
   await expect(headings.nth(1)).toContainText("Watching");
   await expect(headings.nth(3)).toContainText("Finished");
@@ -130,7 +130,7 @@ test("default-open falls back to the first non-empty segment when Watching is em
   page,
 }) => {
   await page.setViewportSize({ width: 1000, height: 1600 });
-  // A library with nothing mid-watch — only a watchlist pick and a finished show, so
+  // A library with nothing mid-watch: only a watchlist pick and a finished show, so
   // the preferred default segment (Watching) is absent entirely.
   await installLibraryRoutes(page.context(), [
     {
@@ -241,7 +241,7 @@ test("filtering never rewrites the persisted open-state; it survives a reload in
 
   await page.reload();
   // The stored layout survives the reload byte-for-byte, and the transient Finished
-  // expansion is gone — only the segments the user actually opened are open.
+  // expansion is gone: only the segments the user actually opened are open.
   expect(await page.evaluate(() => localStorage.getItem("cue.piles-open"))).toBe(before);
   await expect(page.getByTestId("pile-heading").filter({ hasText: "Finished" })).toHaveAttribute(
     "data-state",

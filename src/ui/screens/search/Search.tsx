@@ -157,7 +157,7 @@ function Browse({ view }: { view: SearchView }): ReactElement {
 }
 
 /**
- * Discover — a poster-forward browse + search screen. Empty query
+ * Discover: a poster-forward browse + search screen. Empty query
  * shows trending + popular poster rails; a debounced query returns a title-ranked
  * poster grid of real results, each tile linking to its Show page with an inline
  * watchlist add. Every state is designed: browse skeleton/error, in-flight,
@@ -194,7 +194,7 @@ export function Search(): ReactElement {
     );
   } else if (view.status === "empty" || visibleHits.length === 0) {
     // A single-medium user whose query matched ONLY the hidden medium
-    // would otherwise read a bare "No matches" — a search that looks broken rather
+    // would otherwise read a bare "No matches": a search that looks broken rather
     // than settings-filtered. Name the hidden results and point to the fix instead
     // (Rams #6 honest design; Nielsen match between system and the real world).
     const hiddenCount = view.status === "empty" ? 0 : view.hits.length;

@@ -7,11 +7,11 @@ export type InvalidationKey = readonly unknown[];
 
 /**
  * Which cached queries a single `/sync/last_activities` target actually feeds.
- * Only the surfaces this app renders are listed — a target with no cached query
+ * Only the surfaces this app renders are listed: a target with no cached query
  * (episode watchlist, favorites, movie hidden) maps to nothing, so a change there
  * costs zero refetches. `userStats` AND the Diary's `history` ride every
  * watch/progress change because the Profile totals and the watch log both move
- * with them — so a mark made on any surface shows up in the Diary on the next poll.
+ * with them: so a mark made on any surface shows up in the Diary on the next poll.
  *
  * Deliberately absent: `showHeader`/`showSeasons`/`episode` and the calendar.
  * Those carry Trakt content (airdates, newly-announced episodes) that doesn't
@@ -52,8 +52,8 @@ function keysForTarget(target: InvalidationTarget): readonly InvalidationKey[] {
 /**
  * The cached queries a local watched-progress mark on show X must refresh,
  * whichever surface issued it: the Up Next `library` aggregate PLUS the show's own
- * detail reads — its header (overall `X/Y` + next-up) and its season tree
- * (per-season counts + per-episode ticks) — and, when the mark targets one known
+ * detail reads: its header (overall `X/Y` + next-up) and its season tree
+ * (per-season counts + per-episode ticks): and, when the mark targets one known
  * episode, that episode's detail read.
  *
  * These per-show keys are deliberately ABSENT from `keysForTarget` above: the
@@ -62,7 +62,7 @@ function keysForTarget(target: InvalidationTarget): readonly InvalidationKey[] {
  * A mark surface that invalidates only `library` therefore leaves the show-detail
  * persisted cache reading pre-mark progress until an unrelated remote change (or
  * the content window lapsing). Invalidating them at the mark seam marks the
- * (usually inactive) show-detail queries stale so they refetch on next mount —
+ * (usually inactive) show-detail queries stale so they refetch on next mount,
  * and, because the invalidated flag is persisted, after a full reload too.
  *
  * `episode` scopes the episode-detail invalidation: a single `{season,number}`
@@ -88,7 +88,7 @@ export function showProgressKeys(
 
 /**
  * Invalidate every cached query a local watched-progress mark on `showId` must
- * refresh — the {@link showProgressKeys} fan-out, applied. Every mark surface (Up
+ * refresh: the {@link showProgressKeys} fan-out, applied. Every mark surface (Up
  * Next, calendar, season, episode toggle, diary) shares this instead of
  * re-inlining the `for … invalidateQueries` loop, so how progress revalidates is
  * changed in one place. `episode` scopes the episode-detail invalidation exactly

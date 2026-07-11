@@ -2,8 +2,8 @@ import { initialsOf } from "@data/image-source";
 import type { ReactElement } from "react";
 
 /** The one "no artwork" mark reused by every placeholder: a quiet media
- * glyph that reads as *deliberately* art-less, not a broken image. Medium-neutral
- * — the card's own badge/context already says show vs movie — so it never needs
+ * glyph that reads as *deliberately* art-less, not a broken image. Medium-neutral:
+ * the card's own badge/context already says show vs movie, so it never needs
  * threading a `medium` prop through every caller. */
 function MediaGlyph(): ReactElement {
   return (
@@ -39,11 +39,11 @@ interface ArtPlaceholderProps {
 /**
  * The single designed no-artwork mark. Whenever a title has no Trakt poster every
  * poster resolves here, so it must read as intentional: a quiet media glyph and the
- * title's monogram in the display face — never a broken-image icon or a flat grey
+ * title's monogram in the display face: never a broken-image icon or a flat grey
  * void. Rendered as an absolute fill so it overlays the hosting media surface
  * (poster frame / still), which owns the deterministic warm {@link artGradient}
- * backing — the same convention the episode hero backdrop uses. Reused by the
- * Poster tile and the season/next-up Still — one mark, everywhere posters render.
+ * backing: the same convention the episode hero backdrop uses. Reused by the
+ * Poster tile and the season/next-up Still: one mark, everywhere posters render.
  */
 export function ArtPlaceholder({
   title,

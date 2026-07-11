@@ -1,21 +1,21 @@
 /**
  * Durable, per-play-safe reversal planning. A settled watch is undone
- * by removing its EXACT Trakt history-event ids — never an item/season token wipe.
+ * by removing its EXACT Trakt history-event ids: never an item/season token wipe.
  * The planners here take the plays resolved from `/sync/history/{shows|episodes}/:id`
  * and decide which history ids to remove, how to restore them (the Undo re-add),
- * and — crucially — which episodes to KEEP untouched because they carry more than
+ * and, crucially, which episodes to KEEP untouched because they carry more than
  * one play (a rewatch). Removing a rewatched episode's plays would destroy watch
  * history the user did not ask to lose, so those episodes are deliberately skipped
  * and surfaced back to the caller, who routes the user to the Diary for per-play
  * removal. This is the guarantee that an unmark can never wipe a rewatch. The
  * season planner is additionally scoped to the mark's own delta, so a play that
- * predates the mark is never in the removal set either — a durable "Unmark" reverses
+ * predates the mark is never in the removal set either: a durable "Unmark" reverses
  * exactly what the mark added, never a genuine watch it did not create.
  */
 
 /**
  * One resolved watch-history play of an episode. `historyId` is Trakt's per-play
- * event id — the handle that removes THIS play and nothing else. An episode with
+ * event id: the handle that removes THIS play and nothing else. An episode with
  * two entries here has been watched twice (a rewatch).
  */
 export interface EpisodePlay {
@@ -28,7 +28,7 @@ export interface EpisodePlay {
 
 /**
  * One resolved watch-history play of a movie. `historyId` is Trakt's per-play
- * event id — the handle that removes THIS play and nothing else. A movie with two
+ * event id: the handle that removes THIS play and nothing else. A movie with two
  * entries here has been watched twice (a rewatch), so a blunt item-scoped unmark
  * would wipe history the user never asked to lose; the resolver refuses it and
  * routes to the Diary, exactly as the episode path does.
@@ -72,7 +72,7 @@ function groupByEpisode(plays: readonly EpisodePlay[]): Map<number, EpisodePlay[
 
 /**
  * Reduce grouped plays to a plan: an episode with EXACTLY ONE play is removed by
- * that play's id (safe — no rewatch to lose); an episode with two or more plays is
+ * that play's id (safe: no rewatch to lose); an episode with two or more plays is
  * kept intact and reported as a rewatch. Sorted by (season, number) so the removal
  * body and the restore are deterministic (stable e2e assertions, byte-stable retry).
  */
@@ -105,7 +105,7 @@ function planFrom(groups: Iterable<EpisodePlay[]>): UnmarkPlan {
 }
 
 /**
- * Plan a durable season unmark scoped to a MARK'S OWN DELTA — the aired,
+ * Plan a durable season unmark scoped to a MARK'S OWN DELTA: the aired,
  * previously-unwatched episodes a `Mark season watched` added a play to. Only those
  * episodes are considered, so a play that PREDATES the mark (a genuine watch the
  * user never asked to lose) is never removed: "Unmark" reverses the mark, it does

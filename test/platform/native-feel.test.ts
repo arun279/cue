@@ -13,7 +13,7 @@ describe("native seams degrade to silent no-ops on web", () => {
   it("createNativeHaptics fires nothing and never consults the settings toggle", () => {
     const isEnabled = vi.fn(() => true);
     const haptics = createNativeHaptics(isEnabled);
-    // No throw, and the enabled-getter is never even read — web is unconditionally silent.
+    // No throw, and the enabled-getter is never even read: web is unconditionally silent.
     expect(() => {
       haptics.markCommitted();
       haptics.markUndone();

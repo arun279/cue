@@ -47,7 +47,7 @@ export function dispatchResult(
   return { status, headers, data: null };
 }
 
-/** A clock whose `sleep` advances time — deterministic pacing without real timers. */
+/** A clock whose `sleep` advances time: deterministic pacing without real timers. */
 export function fakeClock(start = 0): {
   now: () => number;
   sleep: (ms: number) => Promise<void>;

@@ -9,7 +9,7 @@ import { type ReactElement, type ReactNode, useCallback, useEffect, useRef, useS
 export interface RuntimeBootProps {
   readonly tokenStore: TokenStore;
   readonly kv: KeyValueStore;
-  /** `${origin}/auth/callback` — passed to the runtime for the token-refresh grant. */
+  /** `${origin}/auth/callback`: passed to the runtime for the token-refresh grant. */
   readonly redirectUri: string;
   readonly children: ReactNode;
 }

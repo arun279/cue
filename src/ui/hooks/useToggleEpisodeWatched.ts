@@ -24,7 +24,7 @@ export interface ToggleEpisodeWatched {
  * The Episode-detail watched toggle. Marking ON enqueues
  * a durable `POST /sync/history`. Marking OFF is a DURABLE, per-play-safe unmark:
  * it resolves the episode's real Trakt plays and removes the single play by its
- * exact history id — never an item-scoped `remove {episodes:[{ids}]}` that would
+ * exact history id: never an item-scoped `remove {episodes:[{ids}]}` that would
  * wipe a rewatch. If the episode carries two or more plays, the uncheck is refused
  * and the user is pointed at the Diary (where each play is individually removable),
  * so a rewatch can never be destroyed here. The toggle is optimistic (the detail
@@ -93,17 +93,17 @@ export function useToggleEpisodeWatched(): ToggleEpisodeWatched {
         return;
       }
       if (resolution.kind === "rewatch") {
-        // More than one play — refuse the wipe and keep the tick; per-play removal
+        // More than one play: refuse the wipe and keep the tick; per-play removal
         // is the Diary's job.
         restoreTick();
         setNotice(
-          `This episode has ${resolution.count} plays — remove a specific one in your watch history.`,
+          `This episode has ${resolution.count} plays. Remove a specific one in your watch history.`,
         );
         return;
       }
       if (resolution.kind === "none") {
         // The server already holds no play for this episode; the optimistic un-tick
-        // is correct — just reconcile the show's progress reads.
+        // is correct: just reconcile the show's progress reads.
         revalidate(episode);
         return;
       }

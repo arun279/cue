@@ -50,7 +50,7 @@ test("Profile is a hub: Settings sits above no unbounded scroll and is reachable
 }) => {
   await page.goto("/profile");
 
-  // The unbounded watch log is NOT on Profile any more — it is a spoke, not the body.
+  // The unbounded watch log is NOT on Profile any more: it is a spoke, not the body.
   await expect(page.getByTestId("profile-diary")).toHaveCount(0);
   await expect(page.getByTestId("screen-history")).toHaveCount(0);
 

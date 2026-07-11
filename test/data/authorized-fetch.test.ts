@@ -89,7 +89,7 @@ async function on401(method: "GET" | "POST") {
   return { ...ctx, inner, res };
 }
 
-describe("createAuthorizedFetch — proactive refresh", () => {
+describe("createAuthorizedFetch: proactive refresh", () => {
   it("refreshes a past-expiry token before the call and sends the rotated bearer", async () => {
     const refresh = stubRefresh(okRefresh);
     const { authorized, persist, inner } = build({ token: expiredToken() });
@@ -115,7 +115,7 @@ describe("createAuthorizedFetch — proactive refresh", () => {
   });
 });
 
-describe("createAuthorizedFetch — reactive 401 refresh + retry", () => {
+describe("createAuthorizedFetch: reactive 401 refresh + retry", () => {
   it("refreshes once and retries an idempotent read with the rotated bearer", async () => {
     const refresh = stubRefresh(okRefresh);
     const inner = vi.fn<FetchLike>();
@@ -156,7 +156,7 @@ describe("createAuthorizedFetch — reactive 401 refresh + retry", () => {
   });
 });
 
-describe("createAuthorizedFetch — dead refresh token", () => {
+describe("createAuthorizedFetch: dead refresh token", () => {
   it("ends the session on a 401 invalid_grant and does not retry", async () => {
     stubRefresh(() => HttpResponse.json({ error: "invalid_grant" }, { status: 401 }));
     const { res, endSession, inner } = await on401("GET");
@@ -203,7 +203,7 @@ describe("createAuthorizedFetch — dead refresh token", () => {
   });
 });
 
-describe("createAuthorizedFetch — mutating writes are never blind re-POSTed", () => {
+describe("createAuthorizedFetch: mutating writes are never blind re-POSTed", () => {
   it("throws after refreshing so the write-queue reconciles, never re-sending the body", async () => {
     const refresh = stubRefresh(okRefresh);
     const inner = vi.fn<FetchLike>(() => Promise.resolve(res401()));
@@ -241,7 +241,7 @@ describe("createAuthorizedFetch — mutating writes are never blind re-POSTed", 
   });
 });
 
-describe("createAuthorizedFetch — refresh throttle", () => {
+describe("createAuthorizedFetch: refresh throttle", () => {
   it("collapses a stale-session burst of sequential 401s into one refresh", async () => {
     const refresh = stubRefresh(() => HttpResponse.json({ ...ROTATED, expires_in: 100 }));
     const inner = vi.fn<FetchLike>(() => Promise.resolve(new Response("[]", { status: 200 })));

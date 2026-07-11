@@ -83,7 +83,7 @@ export interface RuntimeDeps {
   readonly kv: KeyValueStore;
   /** Where a rotated token is persisted so it survives reload. */
   readonly tokenStore: TokenStore;
-  /** `${origin}/auth/callback` — the PKCE refresh grant echoes it back. */
+  /** `${origin}/auth/callback`: the PKCE refresh grant echoes it back. */
   readonly redirectUri: string;
   /** Called when the refresh token is dead: clears the session → onboarding. */
   readonly endSession: () => Promise<void>;
@@ -127,7 +127,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       return op.toState === "present" ? isHidden : !isHidden;
     }
     // A movie mark/unwatch pivots on watched-movie membership, read fresh from
-    // `/sync/watched/movies` — the movie analogue of the hidden-set reconcile.
+    // `/sync/watched/movies`: the movie analogue of the hidden-set reconcile.
     if (context.kind === "movie") {
       const watched = await getWatchedMovies(client);
       if (!watched.ok) throw new Error("reconcile read failed");
@@ -172,7 +172,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       // The bounded cold-sync read: the paginated watched list +
       // per-show progress for the most-recently-watched head only (the idle tail is
       // the caught-up baseline from the bulk breakdown) + hidden + watchlist. No
-      // per-show art fan-out — poster/backdrop are deferred to a lazy per-visible-card
+      // per-show art fan-out: poster/backdrop are deferred to a lazy per-visible-card
       // read (`loadShowArt`), so the GET count stays bounded instead of ~2× library
       // size. `partial` marks a library larger than the budget so the pill can say so.
       const { entries, partial } = await loadUpNextEntries(client);
@@ -182,7 +182,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     async loadShowArt(showId): Promise<ShowArt> {
       // Deferred per-card art: the `/sync/watched/shows` list carries no `images`,
       // so a visible show row lazily reads its poster/backdrop/network/genres from
-      // `/shows/:id` as it renders — one GET per visible card, cached by trakt id,
+      // `/shows/:id` as it renders: one GET per visible card, cached by trakt id,
       // never the whole library up front.
       const show = await getShow(client, showId);
       if (!show.ok) throw new Error("Failed to load show art");
@@ -197,8 +197,8 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
 
     async loadMovieLibrary(): Promise<MovieLibraryData> {
       // Both reads carry `images` (watched via `getWatchedMovies`, watchlist via
-      // `getWatchlist`), so watched + watchlist movies supply their own poster art
-      // — no per-movie detail fetch needed. Each absorbs a transient 429 so a
+      // `getWatchlist`), so watched + watchlist movies supply their own poster art,
+      // no per-movie detail fetch needed. Each absorbs a transient 429 so a
       // rate-limit doesn't flip the library to Offline over its cached posters.
       const [watched, watchlist] = await Promise.all([
         withReadRateRetry(() => getWatchedMovies(client)),
@@ -291,7 +291,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     },
 
     async loadHistory(section, page, range): Promise<HistoryPageData> {
-      // A single page only — history is unbounded, so the infinite query walks it
+      // A single page only: history is unbounded, so the infinite query walks it
       // one page at a time. A transient 429 is absorbed so a rate-limit mid-scroll
       // doesn't flip the Diary to error over its cached pages. `range` scopes the
       // read to a year/month window (the decade jump).
@@ -372,7 +372,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       try {
         poll = await activitiesRepo.poll(stored);
       } catch {
-        // A malformed/absent body (schema throw) is a failed freshness check —
+        // A malformed/absent body (schema throw) is a failed freshness check:
         // stay silent rather than surface it. The next poll retries.
         return null;
       }
@@ -401,12 +401,12 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
         try {
           await queue.flush();
         } catch {
-          // offline / transient — the size check decides whether we may clear
+          // offline / transient: the size check decides whether we may clear
         }
         await persistLog();
         // A normal disconnect that couldn't drain the queue must NOT drop the
         // op-log (that loses the user's writes) nor keep it across sign-out (it
-        // could replay under a different account) — so refuse and let the user
+        // could replay under a different account): so refuse and let the user
         // reconnect + retry. The dead-token path forces past this: those writes
         // can never be sent, and clearing is what prevents the cross-account
         // replay.

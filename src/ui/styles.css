@@ -3,7 +3,7 @@
 /*
  * "The screening room" design tokens (Tailwind v4 @theme). Dark is the default
  * and the hero: depth comes from a warm surface-luminance ladder, not shadows,
- * and amber (#F5B841) is the single accent — CTAs, active nav, progress, the
+ * and amber (#F5B841) is the single accent: CTAs, active nav, progress, the
  * watched-check, never hairlines or body text. The @theme values are the dark
  * defaults; [data-theme] blocks override per theme. main.tsx stamps data-theme
  * before first paint, so the [data-theme] selectors always drive. WCAG-verified
@@ -44,7 +44,7 @@
   /* The Cue touch-target floor: one system-wide minimum for a comfortable finger
    * target. 44 CSS px is Apple HIG's 44pt and the size WCAG 2.5.5 names, and the
    * largest common minimum that still fits Cue's compact card rows without a second
-   * layout — so it is a single documented constant, applied at shared class
+   * layout: so it is a single documented constant, applied at shared class
    * definitions rather than per-screen (Nielsen #4 / Shneiderman #1 consistency). */
   --tap-min: 44px;
 
@@ -117,10 +117,10 @@
 }
 
 /* ---- Native web-tells reset ("subtract the web tells") ----
- * The loudest "this is a web page" signals fire in the first taps of every job — the grey
+ * The loudest "this is a web page" signals fire in the first taps of every job: the grey
  * tap flash, the long-press callout, iOS auto text-inflation, a poster that lifts as a drag
  * ghost. Kill them once at the root so the PWA and the Capacitor shell both read as an app.
- * Two constraints: readable TEXT stays selectable (titles remain copyable — this targets
+ * Two constraints: readable TEXT stays selectable (titles remain copyable: this targets
  * chrome + images, never body copy), and the tap-highlight removal is safe only because
  * every interactive surface already carries its own :active/:focus-visible press feedback, so no control is left feeling dead. */
 :root {
@@ -187,17 +187,17 @@ body {
 /* ---- The Cue touch-target standard (one standard, applied at shared classes) ----
  * Every interactive control clears a var(--tap-min) (44px) finger target, decoupling
  * HIT AREA from VISUAL SIZE via four rules (WCAG 2.5.5 / 2.5.8):
- *   1. GROW — standalone controls take min-height:--tap-min + padding; the ink can
+ *   1. GROW: standalone controls take min-height:--tap-min + padding; the ink can
  *      still read compact because the padding IS part of the control. (buttons,
  *      back links, segmented items, filter/sort inputs, header icons, the mark pill)
- *   2. HIT-SLOP — a deliberately tiny, visually-fixed, isolated control keeps its
+ *   2. HIT-SLOP: a deliberately tiny, visually-fixed, isolated control keeps its
  *      pixels and grows only its target with a centred transparent pseudo-element,
  *      no visual ballooning. (the Settings switch track, via an inline .switch::before)
- *   3. TRACK — a value scale that can't give each value its own 44px target (ten 44px
+ *   3. TRACK: a value scale that can't give each value its own 44px target (ten 44px
  *      rating cells = 440px, wider than a phone) collapses to ONE wide target: a single
  *      ≥44px slider track (role=slider) where a tap maps to the nearest value and a big
  *      numeric readout makes it unmistakable, so a tap never misses. (.rating__slider)
- *   4. SPACE — keep ≥--space-2 between SEPARATE targets so one control's slop can't
+ *   4. SPACE: keep ≥--space-2 between SEPARATE targets so one control's slop can't
  *      collide with its neighbor. (the Up Next body link vs. its mark action) */
 .skip-link {
   position: absolute;
@@ -223,7 +223,7 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  /* the wordmark is a link home — give it a full-height tap target without
+  /* the wordmark is a link home: give it a full-height tap target without
    * enlarging the ink (the 44px lives as the row it sits in, not bigger type). */
   min-height: var(--tap-min);
   font-family: var(--font-display);
@@ -333,7 +333,7 @@ body {
   flex: none;
 }
 
-/* The header avatar — the utility hub entry (Profile → Settings). A round 44×44
+/* The header avatar: the utility hub entry (Profile → Settings). A round 44×44
  * finger target; the person glyph inside keeps its own size. */
 .topbar__avatar {
   display: inline-flex;
@@ -497,7 +497,7 @@ body {
 }
 /* the track stays a deliberate 40×22 pill, but a centred
    transparent pseudo-element gives the finger a real 44×44 target without ballooning
-   the ink — pointer events on the pseudo belong to the switch button. */
+   the ink: pointer events on the pseudo belong to the switch button. */
 .switch::before {
   content: "";
   position: absolute;
@@ -756,7 +756,7 @@ body {
 .settings__handoff {
   margin-top: var(--space-5);
 }
-/* A text link with a trailing up-right arrow — reads as "opens Trakt", never as a
+/* A text link with a trailing up-right arrow: reads as "opens Trakt", never as a
    second in-app button peering the destructive Disconnect pill above it. */
 .settings__handoff-link {
   display: inline-flex;
@@ -777,7 +777,7 @@ body {
   flex: none;
 }
 /* The Trakt attribution reads as one intentional line whether or not the logo
-   asset is present — never a two-column row missing its value. */
+   asset is present: never a two-column row missing its value. */
 .settings__attribution {
   display: flex;
   align-items: center;
@@ -790,7 +790,7 @@ body {
   width: auto;
   max-width: 100%;
 }
-/* ---- Confirmation dialog (Radix AlertDialog) — guards a consequential action ---- */
+/* ---- Confirmation dialog (Radix AlertDialog): guards a consequential action ---- */
 .dialog__overlay {
   position: fixed;
   inset: 0;
@@ -830,7 +830,7 @@ body {
   gap: var(--space-3);
 }
 
-/* ---- Action sheet (Radix AlertDialog, bottom-anchored) — confirms a per-play
+/* ---- Action sheet (Radix AlertDialog, bottom-anchored): confirms a per-play
    removal by naming the exact play, so a destructive tap is by intent, not by
    accident. Pure-web this phase: overscroll-behavior containment + a safe-area
    bottom inset; native drag/snap/haptic feedback are deferred. ---- */
@@ -954,7 +954,7 @@ body {
   flex-wrap: wrap;
   gap: var(--space-2);
 }
-/* Up Next's Upcoming affordance — a 44×44 ghost icon target that keeps the head to
+/* Up Next's Upcoming affordance: a 44×44 ghost icon target that keeps the head to
  * one line (icon-only so the queue never drops below the fold). */
 .up-next-upcoming {
   display: inline-flex;
@@ -1042,7 +1042,7 @@ body {
 /* ---- The shared "no artwork" block ----
  * An absolute fill so it backs a poster/still image and shows through until (or
  * unless) art decodes: a deterministic warm gradient, a quiet media glyph, and the
- * title monogram in the display face — a deliberate placeholder, never a broken
+ * title monogram in the display face: a deliberate placeholder, never a broken
  * image. `.poster__initials` stays the poster path's monogram hook (hero sizing). */
 .art-ph {
   position: absolute;
@@ -1103,7 +1103,7 @@ body {
 /* The real poster image, laid over the gradient-initials placeholder that every
    .poster carries. It starts transparent and fades in once decoded, so a lazy
    below-the-fold tile in a discover / library grid shows the warm titled placeholder
-   until its art arrives — never a flat grey blank. */
+   until its art arrives: never a flat grey blank. */
 .poster__img {
   position: absolute;
   inset: 0;
@@ -1289,7 +1289,7 @@ body {
 }
 /* One deliberate, uniform treatment for the episode name across EVERY Up Next / calendar
    row (lead and queue alike): a single-line ellipsis. A short name shows in full and a
-   long one clips with "…" — the same rule everywhere, so the clip reads as intentional
+   long one clips with "…": the same rule everywhere, so the clip reads as intentional
    rather than accidental. min-width:0 makes the ellipsis fire reliably as a flex child
    (not merely inherited from the parent's min-width). */
 .card__episode-title {
@@ -1299,12 +1299,12 @@ body {
   white-space: nowrap;
 }
 
-/* The Cue mark — ONE control, styled by its STATE, never by its container. Unwatched
+/* The Cue mark: ONE control, styled by its STATE, never by its container. Unwatched
    is a 56px amber RING (your turn: tap to log); watched is that circle turned GREEN
    with a check (done). Amber is reserved for the ACTION / "you are here" and green
    means done, so an unwatched ring and a done state can never be confused. It renders
    IDENTICALLY in the lead card and every queue, lapsed,
-   and calendar row — the "Next up" emphasis lives only in the poster + eyebrow, never
+   and calendar row: the "Next up" emphasis lives only in the poster + eyebrow, never
    here. There is deliberately no lead/size/variant selector below (and none in the
    component): an action control is styled by WHAT IT DOES, never WHERE IT SITS. The
    56px circle is a device-independent finger target (WCAG 2.5.5), not a layout width. */
@@ -1324,7 +1324,7 @@ body {
   cursor: pointer;
   appearance: none;
   touch-action: manipulation;
-  /* Only the press scales — the ring→check flip is a pure state swap that must land on
+  /* Only the press scales: the ring→check flip is a pure state swap that must land on
      the FIRST frame, so background / border are deliberately NOT transitioned. */
   transition: transform var(--dur-quick) var(--ease-standard);
 }
@@ -1345,10 +1345,10 @@ button.cue-mark:focus-visible {
   opacity: 0.55;
   cursor: progress;
 }
-/* Done: the ring turns GREEN and reveals the check — the app's one done color (amber
+/* Done: the ring turns GREEN and reveals the check: the app's one done color (amber
    stays reserved for the ACTION), so an unwatched amber ring and a done state can never
    be confused. Shares the green done-language of the detail .watched-field + season
-   done-chip, sized down to a disc. A committed status indicator, not a re-tap toggle —
+   done-chip, sized down to a disc. A committed status indicator, not a re-tap toggle:
    its reversal lives durably in History (+ the point-of-action inline Undo). */
 .cue-mark--done {
   background: color-mix(in srgb, var(--color-ok) 18%, transparent);
@@ -1363,7 +1363,7 @@ button.cue-mark:focus-visible {
 }
 
 /* The point-of-action Undo: the PRIMARY reversal for a just-landed mark, sitting
-   INLINE on the row/card the tap happened on — never only a bottom toast the user must
+   INLINE on the row/card the tap happened on: never only a bottom toast the user must
    race. Quiet by default (the mark already landed); the Undo itself is a full 44px
    finger target because the reversal is the trust anchor, not a stray text link. */
 .inline-undo {
@@ -1440,7 +1440,7 @@ button.cue-mark:focus-visible {
 }
 /* The first card of the honest sort is a calm "start here" marker, not a cinematic
    hero: no accent border (which over-read as an editorial recommendation of a merely
-   most-recently-watched show). It carries the "Next up" eyebrow and nothing more — the
+   most-recently-watched show). It carries the "Next up" eyebrow and nothing more: the
    emphasis lives in card chrome, NEVER in the mark (the Cue mark is identical here and
    in every queue row; see .cue-mark). Freed of a text label, the title reclaims the
    width the old "+ Mark" pill stole and wraps up to two lines instead of truncating. */
@@ -1452,7 +1452,7 @@ button.cue-mark:focus-visible {
   line-clamp: 2;
 }
 /* Reflow safety (WCAG 1.4.10 / 1.4.4): at 200% zoom the card's content box can shrink
-   below poster + mark + gaps, leaving zero room for the title/episode code — so the
+   below poster + mark + gaps, leaving zero room for the title/episode code: so the
    flex:none amber code used to paint UNDER the mark ring. Let the row wrap so the mark
    drops to its own line at those pathological widths; the poster + title + episode code
    then own the full first row and the code never collides with the ring. At every normal
@@ -1466,7 +1466,7 @@ button.cue-mark:focus-visible {
    floor on one row at the 200%-zoom widths (only the mark drops). min-width:0
    still lets the body shrink under this basis at pathological widths rather than forcing a
    horizontal scroll (WCAG 1.4.4). Poster + floor + mark only fail to share a row below
-   ~200px of effective width — never at a phone ≥ 320px, where the body is far wider. */
+   ~200px of effective width: never at a phone ≥ 320px, where the body is far wider. */
 .card--up-next .card__body {
   flex: 1 1 3.5rem;
   min-width: 0;
@@ -1477,7 +1477,7 @@ button.cue-mark:focus-visible {
   margin-inline-start: auto;
 }
 
-/* "Haven't watched in a while" drawer — reuses the pile chrome; each row is a quiet
+/* "Haven't watched in a while" drawer: reuses the pile chrome; each row is a quiet
    prune prompt with in-place Watched (catch-up) / Stop watching. */
 .lapsed-drawer {
   margin-top: var(--space-5);
@@ -1606,7 +1606,7 @@ button.cue-mark:focus-visible {
   font-weight: 700;
   cursor: pointer;
   flex: none;
-  /* reversal is the crux of the honest-mark model — the Undo control must be
+  /* reversal is the crux of the honest-mark model: the Undo control must be
    * a full 44px finger target, not a 38×22 text link a phone user keeps missing. */
   display: inline-flex;
   align-items: center;
@@ -1623,7 +1623,7 @@ button.cue-mark:focus-visible {
   line-height: 1;
   cursor: pointer;
   flex: none;
-  /* the "×" glyph dismiss was a 13×19 hazard next to Undo — give it a real
+  /* the "×" glyph dismiss was a 13×19 hazard next to Undo: give it a real
    * square 44×44 target (both dims, since a glyph has no elastic text width). */
   display: inline-flex;
   align-items: center;
@@ -1668,7 +1668,7 @@ button.cue-mark:focus-visible {
   border: none;
   background: transparent;
   color: var(--color-muted);
-  /* the pill reads compact but each segment is a 44px-tall finger target —
+  /* the pill reads compact but each segment is a 44px-tall finger target:
    * the shared idiom for Library type, Calendar range, and Diary filter. */
   display: inline-flex;
   align-items: center;
@@ -1886,7 +1886,7 @@ button.cue-mark:focus-visible {
   text-align: center;
 }
 
-/* Responsive, window-virtualized poster grid — one per status bucket. Rows are
+/* Responsive, window-virtualized poster grid: one per status bucket. Rows are
    absolutely positioned by the virtualizer (fixed height per row); the static
    modifier lays the same tiles out with plain grid flow for the skeleton. */
 .poster-grid {
@@ -2020,7 +2020,7 @@ button.cue-mark:focus-visible {
   margin: 0 auto;
 }
 .detail-back {
-  /* a 44px-tall back target (was a 22px text link) — inline-flex so the
+  /* a 44px-tall back target (was a 22px text link): inline-flex so the
    * chevron + label centre without enlarging the type. */
   display: inline-flex;
   align-items: center;
@@ -2030,7 +2030,7 @@ button.cue-mark:focus-visible {
   text-decoration: none;
   font-size: 0.9rem;
   /* The history-aware back affordance renders as a <button> when there is history
-     to pop and a fallback <a> on a direct load — reset the button to match the link. */
+     to pop and a fallback <a> on a direct load: reset the button to match the link. */
   font-family: inherit;
   background: none;
   border: none;
@@ -2115,7 +2115,7 @@ button.cue-mark:focus-visible {
   max-width: 64ch;
 }
 /* The control zone: progress, actions and rating grouped as one deliberate block
-   below the poster/title columns — reclaims the dead space under the
+   below the poster/title columns: reclaims the dead space under the
    poster and reads as a structured cluster rather than scattered rows. */
 .show-hero__controls {
   position: relative;
@@ -2148,7 +2148,7 @@ button.cue-mark:focus-visible {
   font-size: 0.9rem;
   font-weight: 500;
   cursor: pointer;
-  /* a consequential action (drops the show from Up Next + calendar) — a real
+  /* a consequential action (drops the show from Up Next + calendar): a real
    * 44px target, was a 37px text button. Ink stays quiet; the row carries the size. */
   display: inline-flex;
   align-items: center;
@@ -2203,7 +2203,7 @@ button.cue-mark:focus-visible {
 .next-up__still {
   flex: none;
   /* Fluid still: floors at the 120px mobile size, grows to the 150px design width by
-     ~469px — no snap at the 639px breakpoint. */
+     ~469px: no snap at the 639px breakpoint. */
   width: clamp(120px, 32vw, 150px);
 }
 .next-up__still .still-thumb {
@@ -2328,7 +2328,7 @@ button.cue-mark:focus-visible {
 /* A completed season pairs a STATUS with a durable reversal: a quiet green "done"
    chip (the completion color the ring already uses, never the amber ACTION fill) so
    it reads as done, alongside a ghost "Unmark" control so the reversal is as easy as
-   the mark was — per-play-safe underneath, never a destructive one-tap wipe. Shares
+   the mark was: per-play-safe underneath, never a destructive one-tap wipe. Shares
    the green done-language with the movie watched toggle so a watched season and a
    watched movie read alike. */
 .season__done {
@@ -2490,8 +2490,8 @@ button.cue-mark:focus-visible {
   position: absolute;
   top: 6px;
   right: 6px;
-  /* the per-episode mark/unmark — the primary "easy to mark unwatched"
-   * affordance from the feedback — is a full 44×44 finger target. The visible check
+  /* the per-episode mark/unmark: the primary "easy to mark unwatched"
+   * affordance from the feedback: is a full 44×44 finger target. The visible check
    * badge stays a compact centred circle so a 158px still isn't swallowed. */
   display: grid;
   place-items: center;
@@ -2527,7 +2527,7 @@ button.cue-mark:focus-visible {
   width: 14px;
   height: 14px;
 }
-/* Watched (done) = the app's one done color, GREEN — never the amber ACTION fill. */
+/* Watched (done) = the app's one done color, GREEN: never the amber ACTION fill. */
 .ep-still__toggle[data-watched="true"] .ep-still__badge {
   background: var(--color-ok);
   border-color: var(--color-ok);
@@ -2612,7 +2612,7 @@ button.cue-mark:focus-visible {
 }
 
 /* ---- Rating ---- */
-/* Ten 44px stars need 440px — wider than a phone — so per-value targets can never be
+/* Ten 44px stars need 440px, wider than a phone, so per-value targets can never be
    compliant. Instead the WHOLE track is one finger target (role=slider): tap or drag
    anywhere sets the nearest value, a big numeric readout makes it unmistakable, and it
    stays fluid (100% width) so it works down to 320px. */
@@ -2685,7 +2685,7 @@ button.cue-mark:focus-visible {
   transition: width var(--dur-quick) var(--ease-standard);
 }
 /* Nine hairline dividers mark the ten integer steps so the fill reads as a 1–10
-   scale, not a continuous meter — pointer-transparent so the whole track stays live. */
+   scale, not a continuous meter: pointer-transparent so the whole track stays live. */
 .rating__ticks {
   position: absolute;
   inset: 0;
@@ -2782,7 +2782,7 @@ button.cue-mark:focus-visible {
 }
 /* On detail the Cue mark stacks as the page's primary action: a full-width labelled
    button, with any secondary control (the movie watchlist) and the logged date beneath
-   it — never a control crushed onto the same row. */
+   it: never a control crushed onto the same row. */
 .episode-status {
   display: flex;
   flex-direction: column;
@@ -2796,7 +2796,7 @@ button.cue-mark:focus-visible {
 /* The detail Cue mark (see WatchedField): the primary watched control, full-width and
    labelled. Unwatched it is the high-emphasis amber ACTION (inherits .button); once the
    play is recorded it flips IN PLACE to the green "done" language it shares with the
-   season status + completion ring — deliberately NOT an amber fill, so a recorded watch
+   season status + completion ring: deliberately NOT an amber fill, so a recorded watch
    is never mistaken for a live "Mark watched" CTA (amber stays reserved for action).
    Only the press scales; the ring→check glyph is a pure state swap with NO color
    transition, so the flip lands on the FIRST frame (matches the row .cue-mark). */
@@ -3009,9 +3009,9 @@ button.cue-mark:focus-visible {
 }
 /* The bounded browse rail: one horizontal snap-scroll row at a
    fixed height, so trending/popular and "More like this" can never wrap into a
-   page-inflating grid. Each tile is fluid — ~42vw shows just over two across a
+   page-inflating grid. Each tile is fluid: ~42vw shows just over two across a
    phone (a legible "scrolls sideways" affordance from the clipped edge tile),
-   capping at the 158px design width on larger screens — matching the stills shelf.
+   capping at the 158px design width on larger screens: matching the stills shelf.
    The scrollbar is hidden; the partial edge tile carries the affordance, and each
    card link stays keyboard-reachable via Tab (which scrolls it into view). */
 .discover-rail__track {
@@ -3223,7 +3223,7 @@ button.cue-mark:focus-visible {
      status) share one crowded row on desktop; at phone widths the fixed-width
      control crushed the title/meta into a word-per-line wrap and buried the
      chevron. Wrap the head so the control drops to its own full-width row beneath
-     the title/meta — mirroring the Up Next card's stacked mobile action — leaving
+     the title/meta, mirroring the Up Next card's stacked mobile action, leaving
      the trigger (ring + title + chevron) the whole first row. */
   .season__head {
     flex-wrap: wrap;
@@ -3295,7 +3295,7 @@ button.cue-mark:focus-visible {
 }
 
 /* Featured figure: the total watch time, set large in the display face with the
-   unit riding the baseline beside it — the "theatre" the app opens with.
+   unit riding the baseline beside it: the "theatre" the app opens with.
    A faint amber "on-air" glow bleeds from the corner so the hero reads cinematic,
    not like a flat analytics card; text stays clear of it and AA-legible. */
 .stat-tile--hero {
@@ -3351,8 +3351,8 @@ button.cue-mark:focus-visible {
 }
 
 /* Profile hub: the short stack of tappable rows below the stats theatre (Watch
-   history, Settings). Each reads as a navigation affordance — chevron plus a hover
-   lift — so the log and connections stay one tap away, and Settings is never
+   history, Settings). Each reads as a navigation affordance: chevron plus a hover
+   lift: so the log and connections stay one tap away, and Settings is never
    trapped below an unbounded scroll. */
 .profile-hubs {
   display: flex;
@@ -3427,7 +3427,7 @@ button.cue-mark:focus-visible {
    route: a virtualized, reverse-chronological watch log with a decade jump. Calm,
    past-tense rows (no amber ✓ pill) under local-day headers; a trailing ⋯ opens a
    confirmed action sheet that removes exactly one play. The card internals below still
-   carry the `diary-*` names they were born with — the visual idiom is unchanged. */
+   carry the `diary-*` names they were born with: the visual idiom is unchanged. */
 
 /* ONE row language for single plays AND cluster heads: the title owns the row and
    wraps up to two lines (never crushed to an ellipsis like "In…"), mirroring the Up

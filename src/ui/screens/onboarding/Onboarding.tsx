@@ -77,7 +77,7 @@ export function Onboarding(): ReactElement {
         Welcome to Cue
       </h1>
       <p className="onboarding__lead">
-        Your Up Next queue, library, and stats — kept in sync with your own Trakt account.
+        Your Up Next queue, library, and stats, kept in sync with your own Trakt account.
       </p>
 
       {errorMessage !== null && (

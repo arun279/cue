@@ -5,9 +5,9 @@ import { DAY, iso, makeEpisode, makeShow, NOW, THRESHOLD } from "./_helpers";
 
 const NEW_WINDOW = DEFAULT_NEW_EPISODE_WINDOW_MS;
 
-/** Aired 1 day ago — inside the 7-day New window. */
+/** Aired 1 day ago: inside the 7-day New window. */
 const airedRecent = makeEpisode({ firstAired: iso(NOW - DAY) });
-/** Aired 10 days ago — past the New window, so it never counts as "New". */
+/** Aired 10 days ago: past the New window, so it never counts as "New". */
 const airedOld = makeEpisode({ firstAired: iso(NOW - 10 * DAY) });
 const future = makeEpisode({ firstAired: iso(NOW + DAY) });
 
@@ -92,7 +92,7 @@ describe("groupUpNext partitioning", () => {
   it("keeps a provisional post-mark projection in Continue, never New", () => {
     // A just-marked show still showing its optimistic next-episode projection
     // (ids.trakt === 0). Even with a recent-looking air date it must not surface
-    // as New/lead — the season-finale phantom bug — and must stay visible (Continue).
+    // as New/lead, the season-finale phantom bug, and must stay visible (Continue).
     const provisional = makeShow({
       showId: 1,
       nextEpisode: makeEpisode({ firstAired: iso(NOW - DAY), ids: { trakt: 0 } }),
@@ -118,7 +118,7 @@ describe("groupUpNext partitioning", () => {
   it("drops a provisional projection whose show is ended or hidden from every group", () => {
     // Marking a series finale leaves an optimistic phantom next (ids.trakt === 0) on
     // an `ended`, fully-watched show; a hidden show can carry one mid-unhide. Neither
-    // has a real next — the provisional flag must not resurrect it into the queue.
+    // has a real next: the provisional flag must not resurrect it into the queue.
     const endedFinale = makeShow({
       showId: 1,
       status: "ended",

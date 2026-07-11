@@ -10,14 +10,14 @@ import { Poster } from "./Poster";
 
 interface LapsedDrawerProps {
   readonly cards: readonly UpNextCardModel[];
-  /** Catch up in place — mark the lapsed show's next episode, re-sorting it to Continue. */
+  /** Catch up in place: mark the lapsed show's next episode, re-sorting it to Continue. */
   onMark(card: UpNextCardModel): void;
-  /** Stop watching a lapsed show — the parent owns the hide + its Undo snackbar. */
+  /** Stop watching a lapsed show: the parent owns the hide + its Undo snackbar. */
   onStop(card: UpNextCardModel): void;
 }
 
 /** One row in the drawer: the show (poster + title route to Show detail), the next
- * episode + how long it's been, and the two one-tap decisions — the shared Cue mark
+ * episode + how long it's been, and the two one-tap decisions: the shared Cue mark
  * (icon-only amber ring, identical to every queue row) and Stop watching. */
 function LapsedRow({
   card,
@@ -33,7 +33,7 @@ function LapsedRow({
   const lastWatched = relativeDays(entry.lastWatchedAt, Date.now());
   const showParams = { showId: String(entry.showId) };
   // Art is deferred out of the cold-sync budget: a lapsed row lazily
-  // fetches its own poster, and only when the drawer is expanded — Radix unmounts
+  // fetches its own poster, and only when the drawer is expanded: Radix unmounts
   // collapsed content, so a closed drawer fires no per-row art reads. Falls back to
   // any inline list poster until it resolves.
   const artPosters = useShowArt(entry.showId);
@@ -82,10 +82,10 @@ function LapsedRow({
 }
 
 /**
- * "Haven't watched in a while" — the soft, collapsed drawer at the bottom of Up
+ * "Haven't watched in a while": the soft, collapsed drawer at the bottom of Up
  * Next for in-progress-but-idle shows (longest-idle first). It is a pruning prompt,
  * never a wall of shame: each row offers a one-tap "Mark watched" (the direct catch-up
- * path — marking re-sorts the show to the top of Continue) or Stop watching (the
+ * path: marking re-sorts the show to the top of Continue) or Stop watching (the
  * parent's optimistic hide + Undo). A decided show leaves the drawer on its own,
  * so there is no local per-session dismissal to lose on reload.
  */

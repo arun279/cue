@@ -21,7 +21,7 @@ describe("coalesce", () => {
     expect(next[0]?.id).toBe("a");
   });
 
-  it("cancels an opposite op — a toggle-untoggle vanishes", () => {
+  it("cancels an opposite op: a toggle-untoggle vanishes", () => {
     const next = coalesce([mark("a", 1)], unmark("b", 1));
     expect(next).toEqual([]);
   });

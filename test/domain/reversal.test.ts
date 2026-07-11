@@ -26,9 +26,9 @@ describe("planSeasonUnmark", () => {
     expect(plan.keptRewatch).toEqual([]);
   });
 
-  it("NEVER removes a play outside the mark delta — a pre-existing watch is left intact", () => {
+  it("NEVER removes a play outside the mark delta: a pre-existing watch is left intact", () => {
     // E01/E02 were watched before the mark; the mark added only E03. The unmark must
-    // touch E03 alone — removing E01/E02 would destroy history the mark never created.
+    // touch E03 alone: removing E01/E02 would destroy history the mark never created.
     const plays = [play(111, 1, 1, 11), play(121, 1, 2, 12), play(131, 1, 3, 13)];
     const plan = planSeasonUnmark(plays, 1, false, new Set([3]));
     expect(plan.removeIds).toEqual([131]);
@@ -37,7 +37,7 @@ describe("planSeasonUnmark", () => {
     expect(plan.restore).toEqual([{ trakt: 13, season: 1, number: 3, watchedAt: WATCHED_AT }]);
   });
 
-  it("KEEPS a delta episode that gained a rewatch — its plays are never in the removal set", () => {
+  it("KEEPS a delta episode that gained a rewatch: its plays are never in the removal set", () => {
     const plays = [
       play(111, 1, 1, 11), // E01 watched once (from the mark)
       play(112, 1, 1, 11), // E01 watched again → rewatch after the mark
@@ -52,7 +52,7 @@ describe("planSeasonUnmark", () => {
     expect(plan.keptRewatch).toEqual([{ season: 1, number: 1 }]);
   });
 
-  it("scopes strictly to the target season — other seasons' plays are untouched", () => {
+  it("scopes strictly to the target season: other seasons' plays are untouched", () => {
     const plays = [play(111, 1, 1, 11), play(211, 2, 1, 21)];
     const plan = planSeasonUnmark(plays, 2, false, new Set([1]));
     expect(plan.removeIds).toEqual([211]);
@@ -80,7 +80,7 @@ describe("planEpisodeUnmark", () => {
     expect(plan.keptRewatch).toEqual([]);
   });
 
-  it("refuses a rewatch — reports it kept, removes nothing", () => {
+  it("refuses a rewatch: reports it kept, removes nothing", () => {
     const plan = planEpisodeUnmark([play(121, 1, 2, 12), play(122, 1, 2, 12)], 12);
     expect(plan.removeIds).toEqual([]);
     expect(plan.keptRewatch).toEqual([{ season: 1, number: 2 }]);

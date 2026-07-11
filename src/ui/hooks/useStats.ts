@@ -17,7 +17,7 @@ export interface StatsView {
 
 /**
  * The Profile read: the signed-in user's lifetime `/users/me/stats`. A
- * standalone query — the numbers change only when a mark syncs, so it holds its
+ * standalone query: the numbers change only when a mark syncs, so it holds its
  * own cache key rather than riding the library snapshot.
  */
 export function useStats(): StatsView {

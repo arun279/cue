@@ -121,7 +121,7 @@ test("surfaces per-show watched dates on the header and watched episode rows", a
   await installLibraryRoutes(page.context(), [detailShow()]);
   await page.goto("/show/1");
 
-  // Header recognition cue — WHEN you last watched, not just that you did.
+  // Header recognition cue: WHEN you last watched, not just that you did.
   await expect(page.getByTestId("last-watched")).toContainText("Last watched");
 
   await expandSeason(page, 1);
@@ -138,7 +138,7 @@ test("surfaces per-show watched dates on the header and watched episode rows", a
 
 test("renders the last-watched date in the viewer's local day, not UTC", async ({ page }) => {
   // 02:00Z on Jul 15 is 22:00 on Jul 14 in America/New_York (the pinned e2e tz).
-  // A UTC format would misread this as Jul 15 — but a watched date is a real
+  // A UTC format would misread this as Jul 15: but a watched date is a real
   // per-viewer event, bucketed to the local day exactly like the Diary.
   const boundaryShow: ShowFixture = { ...detailShow(), lastWatchedAt: "2026-07-15T02:00:00.000Z" };
   await installLibraryRoutes(page.context(), [boundaryShow]);
@@ -147,12 +147,12 @@ test("renders the last-watched date in the viewer's local day, not UTC", async (
   await expect(page.getByTestId("last-watched")).toContainText("Jul 14, 2026");
 });
 
-test("a mark from Up Next refreshes this show's detail progress — and it survives a reload", async ({
+test("a mark from Up Next refreshes this show's detail progress: and it survives a reload", async ({
   page,
 }) => {
   // The regression: marking an episode from Up Next advanced Up Next/Library but
   // left the show-detail header, season ticks and next-up reading the PRE-mark
-  // cache — and it stayed wrong across reloads with the sync pill at rest, because
+  // cache: and it stayed wrong across reloads with the sync pill at rest, because
   // the mark invalidated only ['library'], not this show's header/seasons queries.
   // Navigation is client-side (Links, not full reloads) so the QueryClient stays in
   // memory and the stale-cache path the bug lived on is exercised faithfully.
@@ -163,7 +163,7 @@ test("a mark from Up Next refreshes this show's detail progress — and it survi
   await expect(card.getByTestId("episode-code")).toHaveText("S01E03");
 
   // Visit the show detail first so its header/seasons are cached at the pre-mark
-  // state (2/7, next up S01E03, S01E03 unwatched) — this is the cache that went stale.
+  // state (2/7, next up S01E03, S01E03 unwatched): this is the cache that went stale.
   await card.locator(".card__title-link").click();
   await expect(page.getByTestId("overall-progress")).toHaveAttribute("aria-valuenow", "29");
   await expect(page.getByTestId("next-callout")).toContainText("S01E03");
@@ -183,7 +183,7 @@ test("a mark from Up Next refreshes this show's detail progress — and it survi
   await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "synced");
 
   // Re-open the show detail over the now-stale in-memory cache: header (3/7),
-  // next-up (S01E04) and the season tick must reflect the new progress — this is
+  // next-up (S01E04) and the season tick must reflect the new progress: this is
   // what the missing header/seasons invalidation used to leave reading 2/7 / S01E03.
   await card.locator(".card__title-link").click();
   await expect(page.getByTestId("overall-progress")).toHaveAttribute("aria-valuenow", "43");
@@ -221,7 +221,7 @@ function detailShowCalendarRow(): CalendarEpisodeFixture {
   };
 }
 
-test("a mark from the Calendar refreshes this show's detail progress — and it survives a reload", async ({
+test("a mark from the Calendar refreshes this show's detail progress: and it survives a reload", async ({
   page,
 }) => {
   // The same regression as the Up Next case, on the Calendar quick-mark surface:
@@ -244,7 +244,7 @@ test("a mark from the Calendar refreshes this show's detail progress — and it 
     .getByTestId("episode-toggle");
   await expect(s1e3).not.toBeChecked();
 
-  // Client-side to the Upcoming (calendar) view — Calendar is no longer a tab, so
+  // Client-side to the Upcoming (calendar) view: Calendar is no longer a tab, so
   // go via Up Next then its one-tap Upcoming affordance; mark the aired S01E03 row.
   await page.getByRole("link", { name: "Up Next", exact: true }).first().click();
   await page.getByTestId("up-next-upcoming").click();
@@ -255,8 +255,8 @@ test("a mark from the Calendar refreshes this show's detail progress — and it 
   expect(controls.historyPosts()[0]?.episodeIds).toEqual([13]);
 
   // Re-open the show detail over the now-stale in-memory cache (Up Next → title
-  // link): header (3/7), next-up (S01E04) and the S01E03 tick must reflect the mark
-  // — this is what a `library`-only invalidation used to leave reading 2/7 / S01E03.
+  // link): header (3/7), next-up (S01E04) and the S01E03 tick must reflect the mark,
+  // this is what a `library`-only invalidation used to leave reading 2/7 / S01E03.
   await page.getByRole("link", { name: "Up Next", exact: true }).first().click();
   const card = page.getByTestId("up-next-card").first();
   await expect(card.getByTestId("episode-code")).toHaveText("S01E04");
@@ -278,7 +278,7 @@ test("a mark from the Calendar refreshes this show's detail progress — and it 
   expect(await readStored(page, "cue.write-queue")).toBe("[]");
 });
 
-test("Mark up to here fires ONE batched POST with only the aired, unwatched delta — no unaired, no specials", async ({
+test("Mark up to here fires ONE batched POST with only the aired, unwatched delta: no unaired, no specials", async ({
   page,
 }) => {
   const controls = await installLibraryRoutes(page.context(), [detailShow()]);
@@ -330,7 +330,7 @@ test("specials are included in a bulk mark only when opted in", async ({ page })
   await expect.poll(() => controls.historyPosts().length).toBe(1);
   const seasons = controls.historyPosts()[0]?.shows?.[0]?.seasons ?? [];
   // The special (S00E01) and the unwatched Season 1 delta (S01E03/E04) are enumerated
-  // per episode — a delta mark never collapses a season to a bare token.
+  // per episode: a delta mark never collapses a season to a bare token.
   expect(seasons).toContainEqual({ number: 0, episodes: [{ number: 1 }] });
   expect(seasons).toContainEqual({ number: 1, episodes: [{ number: 3 }, { number: 4 }] });
 });
@@ -411,8 +411,8 @@ test("a partially-watched season mark logs only the unwatched delta, and Undo re
   await expect(season1.getByTestId("season-count")).toHaveText("2/4");
   await season1.getByTestId("mark-season").click();
 
-  // The ADD marks ONLY the previously-unwatched aired episodes (E03/E04) — never the
-  // whole season — so the already-watched E01/E02 are not re-logged (no duplicate plays).
+  // The ADD marks ONLY the previously-unwatched aired episodes (E03/E04): never the
+  // whole season: so the already-watched E01/E02 are not re-logged (no duplicate plays).
   await expect.poll(() => controls.historyPosts().length).toBe(1);
   expect(controls.historyPosts()[0]?.shows?.[0]?.seasons).toEqual([
     { number: 1, episodes: [{ number: 3 }, { number: 4 }] },
@@ -424,7 +424,7 @@ test("a partially-watched season mark logs only the unwatched delta, and Undo re
   await expect(page.getByTestId("season-undo")).toBeVisible();
 
   // Undo removes EXACTLY that delta; the pre-existing E01/E02 plays stay intact, so the
-  // season returns to 2/4 — NEVER 0/4 — and the mark action comes back.
+  // season returns to 2/4, NEVER 0/4, and the mark action comes back.
   await page.getByTestId("season-undo-action").click();
   await expect.poll(() => controls.removePosts().length).toBe(1);
   expect(controls.removePosts()[0]?.shows?.[0]?.seasons).toEqual([
@@ -436,7 +436,7 @@ test("a partially-watched season mark logs only the unwatched delta, and Undo re
   await expect(season1.getByTestId("mark-season")).toBeVisible();
 });
 
-test("a durable Unmark reverses ONLY the mark's delta — surviving the toast's expiry, never touching a pre-existing play", async ({
+test("a durable Unmark reverses ONLY the mark's delta: surviving the toast's expiry, never touching a pre-existing play", async ({
   page,
 }) => {
   const controls = await installLibraryRoutes(page.context(), [detailShow()]);
@@ -454,7 +454,7 @@ test("a durable Unmark reverses ONLY the mark's delta — surviving the toast's 
   await expect(season1.getByTestId("season-complete")).toBeVisible();
   await expect(season1.getByTestId("unmark-season")).toBeVisible();
 
-  // The transient mark Undo is up now; the DURABLE reversal must not depend on it —
+  // The transient mark Undo is up now; the DURABLE reversal must not depend on it:
   // wait for the toast to auto-dismiss (UNDO_MS), then unmark anyway.
   await expect(page.getByTestId("season-undo")).toBeVisible();
   await expect(page.getByTestId("season-undo")).toBeHidden({ timeout: 9000 });
@@ -464,7 +464,7 @@ test("a durable Unmark reverses ONLY the mark's delta — surviving the toast's 
   await expect.poll(() => controls.removePosts().length).toBe(1);
   const removed = controls.removePosts()[0];
   // Removed by EXACT per-play history ids for the DELTA ONLY (E03/E04 → 131/141).
-  // The pre-existing E01/E02 plays (111/121) are NOT in the body — "Unmark" reverses
+  // The pre-existing E01/E02 plays (111/121) are NOT in the body: "Unmark" reverses
   // the mark, it does not clear the season.
   expect(removed?.ids).toEqual([131, 141]);
   expect(removed?.ids).not.toContain(111);
@@ -492,11 +492,11 @@ test("a genuinely-watched season offers no one-tap Unmark; a rewatched episode's
   const season1 = page.locator('[data-season="1"]');
   await expect(season1.getByTestId("season-complete")).toBeVisible();
   // No `Mark season watched` was made this session, so there is nothing to reverse:
-  // a genuinely-watched season shows "Watched" alone — no destructive one-tap wipe.
+  // a genuinely-watched season shows "Watched" alone: no destructive one-tap wipe.
   await expect(season1.getByTestId("unmark-season")).toHaveCount(0);
 
   // Removing real history is a per-play job. Unchecking the rewatched S01E01 (two
-  // plays) is REFUSED — neither play is removed and the tick returns.
+  // plays) is REFUSED: neither play is removed and the tick returns.
   const e1 = page
     .getByTestId("episode-row")
     .filter({ hasText: "S01E01" })
@@ -517,7 +517,7 @@ test("a genuinely-watched season offers no one-tap Unmark; a rewatched episode's
   expect(controls.removePosts()[0]?.ids).toEqual([2021]);
 });
 
-test("unchecking one settled episode removes only its play by history id — never an item-scoped wipe", async ({
+test("unchecking one settled episode removes only its play by history id: never an item-scoped wipe", async ({
   page,
 }) => {
   const controls = await installLibraryRoutes(page.context(), [detailShow()]);
@@ -544,8 +544,8 @@ test("a double activation on Mark season fires exactly one bulk POST", async ({ 
   const controls = await installLibraryRoutes(page.context(), [detailShow()]);
   await page.goto("/show/1");
 
-  // Two synchronous activations in one task — before React re-renders the button into
-  // its aria-busy / status-flipped state — mimic a fast double-click. The synchronous
+  // Two synchronous activations in one task: before React re-renders the button into
+  // its aria-busy / status-flipped state: mimic a fast double-click. The synchronous
   // pendingSeasonsRef guard must drop the second before it enqueues a second bulk op.
   await page
     .locator('[data-season="2"]')
@@ -640,7 +640,7 @@ test("Stop watching drops the show from Up Next and moves it to the Stopped segm
   await page.goto("/");
   await expect(page.getByTestId("up-next-card")).toHaveCount(0);
 
-  // Present only under the Stopped segment in Library — the only non-empty pile now,
+  // Present only under the Stopped segment in Library: the only non-empty pile now,
   // so it opens by default (never a fully-collapsed library) and the tile is visible.
   await page.setViewportSize({ width: 1000, height: 1400 });
   await page.goto("/library");
@@ -662,7 +662,7 @@ test("marking an episode of a Stopped show auto-resumes it", async ({ page }) =>
   await page.getByTestId("next-up-mark").click();
 
   // The mark logs the play AND clears the hidden flag (unhide remove), so the show
-  // un-stops with no manual Resume — state follows progress.
+  // un-stops with no manual Resume: state follows progress.
   await expect.poll(() => controls.historyPosts().length).toBeGreaterThan(0);
   await expect
     .poll(
@@ -685,7 +685,7 @@ test("the Up-next strip mark offers a point-of-action Undo that reverses the pla
   page,
 }) => {
   // Consistency gap: marking the next episode from the show-detail "Up next" strip
-  // logged the play silently — no Undo — while the identical one-tap mark on the Up
+  // logged the play silently, no Undo, while the identical one-tap mark on the Up
   // Next LIST offered one. The strip now surfaces the same reversal safety net.
   const controls = await installLibraryRoutes(page.context(), [detailShow()]);
   await page.goto("/show/1");
@@ -703,7 +703,7 @@ test("the Up-next strip mark offers a point-of-action Undo that reverses the pla
   await expect(page.getByTestId("next-callout")).toContainText("S01E04"); // advanced
 
   // Undo re-sends the stored remove-by-item inverse for exactly that episode and the
-  // strip returns to S01E03 — the reversal, not a silent commit.
+  // strip returns to S01E03: the reversal, not a silent commit.
   await page.getByTestId("season-undo-action").click();
   await expect.poll(() => controls.removePosts().length).toBe(1);
   expect(controls.removePosts()[0]?.episodeIds).toEqual([13]);
@@ -715,8 +715,8 @@ test("the hero Mark-next button offers the same point-of-action Undo as the stri
   page,
 }) => {
   // Symmetry: the hero's primary "Mark next watched" action funnels through the same
-  // one-tap mark as the "Up next" strip, so it must raise the same reversible toast —
-  // not a silent commit — for the identical play.
+  // one-tap mark as the "Up next" strip, so it must raise the same reversible toast,
+  // not a silent commit: for the identical play.
   const controls = await installLibraryRoutes(page.context(), [detailShow()]);
   await page.goto("/show/1");
 
@@ -732,8 +732,8 @@ test("a double activation on the strip Mark-watched logs exactly one play", asyn
   await page.goto("/show/1");
   await expect(page.getByTestId("next-callout")).toContainText("S01E03");
 
-  // Two synchronous activations in one task — before React re-renders the advanced
-  // next-up state — mimic a fast double-tap. The synchronous per-episode in-flight
+  // Two synchronous activations in one task: before React re-renders the advanced
+  // next-up state: mimic a fast double-tap. The synchronous per-episode in-flight
   // guard must drop the second before it enqueues a duplicate /sync/history play.
   await page.getByTestId("next-up-mark").evaluate((el: HTMLElement) => {
     el.click();
@@ -770,7 +770,7 @@ test("at 390px the season row stacks: single-line title + meta, reachable chevro
   const rowOverflow = await season1.evaluate((el) => el.scrollWidth - el.clientWidth);
   expect(rowOverflow).toBeLessThanOrEqual(0);
 
-  // The title text node and the meta each render on exactly ONE line box — a wrapped
+  // The title text node and the meta each render on exactly ONE line box: a wrapped
   // title or a word-per-line meta would yield >1 client rect over the same text.
   const titleLines = await season1.locator(".season__name").evaluate((el) => {
     const range = document.createRange();
@@ -792,7 +792,7 @@ test("at 390px the season row stacks: single-line title + meta, reachable chevro
   expect(markBox?.y ?? 0).toBeGreaterThan(nameBox?.y ?? 0);
   expect(markBox?.width ?? 0).toBeGreaterThan((rowBox?.width ?? 0) * 0.6);
 
-  // The disclosure chevron is a reachable tap target — fully within the viewport and
+  // The disclosure chevron is a reachable tap target: fully within the viewport and
   // it actually expands the shelf on tap.
   const chevron = season1.locator(".season__chevron");
   await expect(chevron).toBeVisible();
@@ -839,12 +839,12 @@ test("a bulk mark auto-resumes a Stopped show and its Undo re-stops it", async (
     .toBe(1);
   await expect(page.getByTestId("hide-show")).toHaveText("Stop watching");
 
-  // Undo reverses BOTH sides — not just the re-hide: it re-sends the stored inverse
+  // Undo reverses BOTH sides, not just the re-hide: it re-sends the stored inverse
   // /sync/history/remove AND re-stops (re-hides) the show it had auto-resumed.
   await page.getByTestId("season-undo-action").click();
   await expect.poll(() => controls.removePosts().length).toBe(1);
-  // Season 1 is partially watched (S01E01/E02 already logged), so the mark — and its
-  // inverse remove — carry only the unwatched delta (S01E03/E04), never the whole
+  // Season 1 is partially watched (S01E01/E02 already logged), so the mark: and its
+  // inverse remove: carry only the unwatched delta (S01E03/E04), never the whole
   // season, so Undo can't delete the pre-existing E01/E02 plays.
   expect(controls.removePosts()[0]?.shows?.[0]?.seasons).toEqual([
     { number: 1, episodes: [{ number: 3 }, { number: 4 }] },

@@ -1,6 +1,6 @@
 # UI assets
 
-## `trakt-logo.svg` — required attribution asset
+## `trakt-logo.svg`: required attribution asset
 
 Settings → About shows a "Powered by Trakt" credit. Trakt's API terms require the **unaltered official Trakt logo** to appear there. That asset is present in this folder as `trakt-logo.svg` and `Settings.tsx` picks it up automatically via `import.meta.glob`.
 

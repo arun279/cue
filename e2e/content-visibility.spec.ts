@@ -69,7 +69,7 @@ test.beforeEach(async ({ page }) => {
 
 // ---- Default: both media on, everything unchanged ----
 
-test("defaults to both media on — Library toggle + both Settings switches present", async ({
+test("defaults to both media on: Library toggle + both Settings switches present", async ({
   page,
 }) => {
   await installLibraryRoutes(page.context(), oneShow());
@@ -149,7 +149,7 @@ test("TV-only: Profile hides the Movies tile and its minutes leave the total", a
   await expect(page.getByTestId("stat-episodes")).toBeVisible();
   await expect(page.getByTestId("stat-shows")).toBeVisible();
   // The Movies tile is gone, and the total is recomputed to TV minutes only (17,330
-  // min → 12 days) — not the both-media 32,980 min (22 days).
+  // min → 12 days): not the both-media 32,980 min (22 days).
   await expect(page.getByTestId("stat-movies")).toHaveCount(0);
   const time = page.getByTestId("stat-time");
   await expect(time).toContainText("12");
@@ -229,7 +229,7 @@ test("disabling the last-enabled medium is prevented", async ({ page }) => {
   await page.getByTestId("content-toggle-movies").click();
   await expect(page.getByTestId("content-toggle-movies")).not.toBeChecked();
 
-  // The Shows switch — now the last one on — is locked so the app can't be emptied,
+  // The Shows switch, now the last one on, is locked so the app can't be emptied,
   // and stays checked. A short hint explains the rule.
   await expect(page.getByTestId("content-toggle-shows")).toBeDisabled();
   await expect(page.getByTestId("content-toggle-shows")).toBeChecked();
@@ -244,7 +244,7 @@ test("the choice persists across reload and lives only in localStorage", async (
   await expect(page.getByTestId("content-toggle-movies")).not.toBeChecked();
 
   await page.reload();
-  // The stored choice wins after reload — Movies stays off, Shows stays locked-on.
+  // The stored choice wins after reload: Movies stays off, Shows stays locked-on.
   await expect(page.getByTestId("content-toggle-movies")).not.toBeChecked();
   await expect(page.getByTestId("content-toggle-shows")).toBeDisabled();
 
@@ -252,7 +252,7 @@ test("the choice persists across reload and lives only in localStorage", async (
   const stored = await page.evaluate(() => localStorage.getItem("cue.movies-enabled"));
   expect(stored).toBe("0");
 
-  // And it drives the surfaces after reload — Library shows no movie toggle.
+  // And it drives the surfaces after reload: Library shows no movie toggle.
   await page.goto("/library");
   await expect(page.getByTestId("type-movies")).toHaveCount(0);
 });

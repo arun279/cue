@@ -13,7 +13,7 @@ export interface MovieRelatedView {
 /**
  * The Movie-detail "More like this" rail (`/movies/:id/related`): a read-only
  * discovery rail of related films as poster `SearchHit`s, reusing the DiscoverCard
- * idiom (route to `/movie/:id` + inline watchlist add). Quiet and additive — the
+ * idiom (route to `/movie/:id` + inline watchlist add). Quiet and additive: the
  * caller renders the rail only when hits resolve, so a loading/empty/error state
  * simply shows nothing rather than intruding on the detail controls.
  */

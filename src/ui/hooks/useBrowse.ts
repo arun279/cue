@@ -19,7 +19,7 @@ export interface BrowseView {
  * hits, loaded once and cached so an empty query paints a real browse surface
  * instead of a bare prompt. Reuses the same `SearchHit` shape as search, so the
  * inline watchlist add and poster tiles are shared across every rail and the
- * results grid — movie hits route to `/movie/:id` through the same DiscoverCard.
+ * results grid: movie hits route to `/movie/:id` through the same DiscoverCard.
  *
  * TODO(movie-gating): this shared Search read loads all four show+movie rails
  * regardless of which media a single-medium user has on (the Search screen then

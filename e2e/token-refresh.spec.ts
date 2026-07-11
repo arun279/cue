@@ -22,11 +22,11 @@ test.describe("token auto-refresh", () => {
     await page.goto("/");
 
     // Wait for the settled queue (not the loading shell): the gated read's retry
-    // landed with the rotated token and Up Next resolved — no sign-out.
+    // landed with the rotated token and Up Next resolved: no sign-out.
     await expect(page.getByTestId("empty-nothing-tracked")).toBeVisible();
 
     // Exactly one refresh, carrying the PKCE refresh grant with the seeded refresh
-    // token and client id — and no client secret ever leaves the browser.
+    // token and client id: and no client secret ever leaves the browser.
     const tokenRequests = oauth.getTokenRequests();
     expect(tokenRequests).toHaveLength(1);
     expect(tokenRequests[0]).toMatchObject({
@@ -72,7 +72,7 @@ test.describe("token auto-refresh", () => {
 
     // The failed refresh tears the session down and routes back to onboarding.
     await expect(page.getByTestId("screen-onboarding")).toBeVisible();
-    // Local auth is genuinely gone from IndexedDB — not merely hidden in memory.
+    // Local auth is genuinely gone from IndexedDB: not merely hidden in memory.
     expect(await readStored(page, "cue.trakt.token")).toBeNull();
   });
 });

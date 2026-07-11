@@ -3,7 +3,7 @@ import { z } from "zod";
 /**
  * Zod contracts for the Trakt bodies the app reads. Only the
  * fields the domain consumes are validated; Trakt's many extras are stripped.
- * A wrong-shape (or non-JSON → `null`) body fails `.parse` — the "malformed
+ * A wrong-shape (or non-JSON → `null`) body fails `.parse`: the "malformed
  * body throws" guarantee lives here, not in the transport.
  */
 
@@ -58,7 +58,7 @@ const watchedShowSchema = z.object({
   // The bulk `/sync/watched/shows` breakdown lists only WATCHED episodes per
   // season (Trakt returns it by default). It is the caught-up baseline for a show
   // whose per-show progress the bounded cold-sync fan-out did not
-  // fetch — the watched-episode count without a second GET.
+  // fetch: the watched-episode count without a second GET.
   seasons: z
     .array(z.object({ number: z.number(), episodes: z.array(z.object({ number: z.number() })) }))
     .optional(),
@@ -157,7 +157,7 @@ export const calendarSchema = z.array(
  * `/users/me/history` rows. Each row is one *play*: `id` is the unique
  * Trakt history-event id (the per-play removal handle), `watched_at` is
  * minute-precision, and the row carries the show+episode or the movie. `action`
- * (scrobble/checkin/watch) and other extras are stripped — the Diary only reads
+ * (scrobble/checkin/watch) and other extras are stripped: the Diary only reads
  * the item + when it was played.
  */
 const historyItemSchema = z.object({
@@ -204,7 +204,7 @@ export const hiddenSchema = z.array(
 );
 
 /**
- * `/users/me/stats` — only the sections the Profile theatre reads: the
+ * `/users/me/stats`, keeping only the sections the Profile theatre reads: the
  * distinct-item counts and the watch-time minutes. Trakt's `plays`, `collected`,
  * `ratings`, `network`, and rating-distribution extras are stripped by zod.
  */

@@ -139,7 +139,7 @@ describe("groupHistory", () => {
   });
 
   it("localizes to the timezone: a late-UTC play lands on the previous local day", () => {
-    // 02:00Z on 07-05 is 22:00 on 07-04 in New York — a UTC grouping would mis-file it.
+    // 02:00Z on 07-05 is 22:00 on 07-04 in New York: a UTC grouping would mis-file it.
     const days = groupHistory([ep("2026-07-05T02:00:00.000Z", 1, 1)], OPTS);
     expect(days).toHaveLength(1);
     expect(days[0]?.dayKey).toBe("2026-07-04");

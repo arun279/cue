@@ -26,11 +26,11 @@ const timeFmt = new Intl.DateTimeFormat("en-US", {
 /**
  * One calendar episode row: poster, show + next-episode code/title, localized air
  * time, linking into Episode detail. An already-aired episode gets the SAME shared Cue
- * mark as Up Next — an amber ring that flips IN PLACE to a GREEN done check the instant
+ * mark as Up Next: an amber ring that flips IN PLACE to a GREEN done check the instant
  * it is marked (amber = action, green = done). Its PRIMARY reversal is the inline Undo
  * that appears beside the done disc for the reversal window; the snackbar is the
  * secondary announce and durable per-play reversal lives in History. A not-yet-aired
- * episode shows no mark — you can't have watched it yet.
+ * episode shows no mark: you can't have watched it yet.
  */
 export function CalendarRow({
   row,
@@ -81,7 +81,7 @@ export function CalendarRow({
           {isUndoTarget && (
             <InlineUndo
               testId="calendar-undo-inline"
-              ariaLabel={`Undo — mark ${row.showTitle} ${code} unwatched`}
+              ariaLabel={`Undo: mark ${row.showTitle} ${code} unwatched`}
               onUndo={onUndo}
             />
           )}

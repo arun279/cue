@@ -21,7 +21,7 @@ export interface CalendarView {
   readonly isFetching: boolean;
   readonly isError: boolean;
   readonly hasData: boolean;
-  /** Epoch ms of the last successful sync — the pill's "· <time ago>" recency. */
+  /** Epoch ms of the last successful sync: the pill's "· <time ago>" recency. */
   readonly syncedAt: number;
   refetch(): void;
   isWatched(episodeId: number): boolean;
@@ -69,7 +69,7 @@ export function useCalendar(): CalendarView {
   // The calendar mark + its Undo both refresh the calendar window (this episode
   // leaves/rejoins the unwatched-aired set) AND the marked show's detail reads via
   // `showProgressKeys`, else show-detail reads pre-mark progress until an unrelated
-  // remote change — the same stale-cache defect the Up Next mark had.
+  // remote change: the same stale-cache defect the Up Next mark had.
   const revalidateFor = useCallback(
     (row: CalendarRow) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.calendarPrefix() });
@@ -123,7 +123,7 @@ export function useCalendar(): CalendarView {
         ids: row.ids,
         watchedAt,
         // No progress is loaded on this surface; anchor on 0 like the episode-detail
-        // toggle does — a lost-response reconcile then retires on any fresh play.
+        // toggle does: a lost-response reconcile then retires on any fresh play.
         inversePatch: { showId: row.showId, preCompleted: 0 },
       });
       await write.run(
@@ -148,7 +148,7 @@ export function useCalendar(): CalendarView {
     const episodeId = pending.row.ids.trakt;
     unwatch(episodeId);
     // The compensating remove is keyed by episode item, so it removes ALL plays of
-    // this episode — exact for the just-marked play (a calendar row is a freshly-aired
+    // this episode: exact for the just-marked play (a calendar row is a freshly-aired
     // episode with no prior play in the app's single-play model). The exact per-play
     // removal (by history event id) is the Diary's `buildRemoveHistoryPlayOp`; that id
     // lives only in `/users/me/history`, not at this point-of-action undo, so the

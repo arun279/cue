@@ -17,7 +17,7 @@ const MOVIES_ONLY = { showsEnabled: false, moviesEnabled: true } as const;
 const POSTER = "media.trakt.tv/p.webp";
 const BACKDROP = "media.trakt.tv/b.webp";
 
-/** A watched movie and a watchlist-only movie — one per honest movie segment. */
+/** A watched movie and a watchlist-only movie: one per honest movie segment. */
 function movies(): MovieFixture[] {
   return [
     {
@@ -60,7 +60,7 @@ test("the Movies tab groups films into collapsible Watchlist and Watched segment
   await installMovieRoutes(page.context(), movies());
   await page.goto("/library?type=movies");
 
-  // Honest taxonomy: Watchlist / Watched — the same chevron+count-badge idiom Shows use.
+  // Honest taxonomy: Watchlist / Watched: the same chevron+count-badge idiom Shows use.
   const headings = page.getByTestId("pile-heading");
   await expect(headings).toHaveCount(2);
   await expect(headings.nth(0)).toContainText("Watchlist");
@@ -179,7 +179,7 @@ test("shows an empty state when the movie library is empty", async ({ page }) =>
   await expect(page.getByTestId("movies-empty")).toBeVisible();
 });
 
-test("a watched-only library renders just Watched — no phantom empty Watchlist segment", async ({
+test("a watched-only library renders just Watched: no phantom empty Watchlist segment", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1000, height: 1400 });
@@ -197,7 +197,7 @@ test("a watched-only library renders just Watched — no phantom empty Watchlist
   await expect(headings.nth(0).getByTestId("pile-count")).toHaveText("1");
 
   // Default-open falls back to the first non-empty segment when the preferred pile
-  // (Watchlist) is absent, so the film is visible immediately — never stranded behind
+  // (Watchlist) is absent, so the film is visible immediately: never stranded behind
   // a collapsed header with nothing else expanded.
   await expect(headings.nth(0)).toHaveAttribute("data-state", "open");
   await expect(
@@ -292,7 +292,7 @@ test("marks a movie watched with the movies[] history body and undoes it", async
   const posted = controls.historyPosts()[0];
   expect(posted?.movieIds).toEqual([200]);
   expect(posted?.watchedAt).not.toBeNull();
-  // The mark body is `{ movies: [{ ids, watched_at }] }` — the movie history shape.
+  // The mark body is `{ movies: [{ ids, watched_at }] }`: the movie history shape.
   expect(posted?.movieItemKeys).toEqual(["ids", "watched_at"]);
 
   // Undo re-sends the stored movies[] remove-by-item inverse.
@@ -316,13 +316,13 @@ test("adds a movie to the watchlist with the movies[] body", async ({ page }) =>
   expect(controls.watchlistPosts()[0]?.movieIds).toEqual([100]);
 });
 
-test("the movie library shows only the user's own piles — no discovery browse wall", async ({
+test("the movie library shows only the user's own piles: no discovery browse wall", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1000, height: 1400 });
   await seedMediaVisibility(page.context(), MOVIES_ONLY);
   // Discovery routes are installed but must never be reached: the Library open path
-  // no longer bolts a browse zone below the user's piles — discovery lives in the
+  // no longer bolts a browse zone below the user's piles: discovery lives in the
   // Discover tab alone.
   const controls = await installMovieRoutes(page.context(), movies(), [], {
     trending: [
@@ -348,12 +348,12 @@ test("the movie library shows only the user's own piles — no discovery browse 
   });
   await page.goto("/library?type=movies");
 
-  // The user's own library is what renders — the Watchlist pile of their tracked movies.
+  // The user's own library is what renders: the Watchlist pile of their tracked movies.
   await expect(page.getByTestId("screen-library")).toBeVisible();
   await expect(page.getByTestId("pile-heading").filter({ hasText: "Watchlist" })).toBeVisible();
 
-  // No discovery browse zone colonizes the library, and — proving the two browse
-  // GETs left the Library open path — the trending/popular charts never fire.
+  // No discovery browse zone colonizes the library. The two browse GETs left the
+  // Library open path, so the trending/popular charts never fire.
   await expect(page.getByTestId("movie-discover")).toHaveCount(0);
   await expect(page.getByText("More to watch")).toHaveCount(0);
   // Give any errant discovery fetch the debounce/settle window to fire, then assert none did.
@@ -362,7 +362,7 @@ test("the movie library shows only the user's own piles — no discovery browse 
   expect(controls.showWatchlistReads()).toBe(0);
 });
 
-test("an empty movie library shows just its empty state — no discovery browse wall", async ({
+test("an empty movie library shows just its empty state: no discovery browse wall", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1000, height: 1400 });
@@ -381,7 +381,7 @@ test("an empty movie library shows just its empty state — no discovery browse 
   });
   await page.goto("/library?type=movies");
 
-  // The empty state stands alone — no browse wall dressed up as a "home". A
+  // The empty state stands alone: no browse wall dressed up as a "home". A
   // movies-only user with nothing tracked finds things in the Discover tab.
   await expect(page.getByTestId("movies-empty")).toBeVisible();
   await expect(page.getByTestId("movie-discover")).toHaveCount(0);
@@ -416,8 +416,8 @@ test("the Watchlist orders by recently added (the movie's queue), newest first",
   ]);
   await page.goto("/library?type=movies");
 
-  // Default (recently-*) means recently ADDED for the unwatched Watchlist — a film
-  // has no watch date — so the most recently queued film leads, even though it
+  // Default (recently-*) means recently ADDED for the unwatched Watchlist: a film
+  // has no watch date: so the most recently queued film leads, even though it
   // sorts later by both title and release year.
   await expect(page.getByTestId("movie-library-card").first()).toContainText("Added Later");
   // A–Z still sorts by title, so the earlier-added-but-alphabetically-first leads.
@@ -452,7 +452,7 @@ test("a both-user on the Shows tab does not fetch the movie library until Movies
   await expect(page.getByTestId("pile-heading").first()).toBeVisible();
   await expect.poll(() => movieControls.movieLibraryReads()).toBe(0);
 
-  // Opening Movies pulls the movie library exactly then — not a moment sooner.
+  // Opening Movies pulls the movie library exactly then: not a moment sooner.
   await page.getByTestId("type-movies").click();
   await expect(page).toHaveURL(/\/library\?type=movies/);
   await expect(page.getByTestId("pile-heading").first()).toBeVisible();

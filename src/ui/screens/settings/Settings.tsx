@@ -8,7 +8,7 @@ import { ThemeToggle } from "@ui/theme/ThemeToggle";
 import { AlertDialog, Switch } from "radix-ui";
 import { type ReactElement, useState } from "react";
 
-/** Trakt account deletion lives on Trakt — Cue only hands the user off to it. */
+/** Trakt account deletion lives on Trakt: Cue only hands the user off to it. */
 const TRAKT_ACCOUNT_SETTINGS_URL = "https://app.trakt.tv/settings/advanced";
 
 // The official Trakt logo ships UNALTERED as a required attribution asset.
@@ -21,7 +21,7 @@ const traktLogoModules = import.meta.glob<{ readonly default: string }>(
 );
 const traktLogoSrc = Object.values(traktLogoModules)[0]?.default ?? null;
 
-/** "2 weeks" / "3 weeks" — every threshold option is a whole number of weeks. */
+/** "2 weeks" / "3 weeks": every threshold option is a whole number of weeks. */
 function weeksLabel(days: number): string {
   const weeks = days / 7;
   return `${weeks} week${weeks === 1 ? "" : "s"}`;
@@ -48,7 +48,7 @@ export function Settings(): ReactElement {
   const [disconnecting, setDisconnecting] = useState(false);
   const [disconnectError, setDisconnectError] = useState<string | null>(null);
 
-  // The one enabled medium can't be turned off — the app is never emptied of both.
+  // The one enabled medium can't be turned off: the app is never emptied of both.
   const media = [
     { key: "shows", label: "TV shows", enabled: showsEnabled, setEnabled: setShowsEnabled },
     { key: "movies", label: "Movies", enabled: moviesEnabled, setEnabled: setMoviesEnabled },
@@ -122,7 +122,7 @@ export function Settings(): ReactElement {
         })}
       </dl>
       <p className="settings__note" data-testid="content-hint">
-        Track TV shows, movies, or both. Turn off a medium and Cue hides it everywhere — Library,
+        Track TV shows, movies, or both. Turn off a medium and Cue hides it everywhere: Library,
         Search, and your history. At least one stays on.
       </p>
 
@@ -168,8 +168,8 @@ export function Settings(): ReactElement {
 
       <p className="settings__note">
         Disconnecting revokes this device's access to your Trakt account, signs you out of Cue, and
-        deletes everything Cue kept on this device — the local cache and your Trakt token. Your
-        watch history stays in your Trakt account.
+        deletes everything Cue kept on this device: the local cache and your Trakt token. Your watch
+        history stays in your Trakt account.
       </p>
       {disconnectError !== null && (
         <p className="settings__error" role="alert" data-testid="disconnect-error">
@@ -243,7 +243,7 @@ export function Settings(): ReactElement {
 
       <div className="settings__handoff">
         <p className="settings__note">
-          Only Trakt can delete your Trakt account. This opens Trakt in your browser to do it — Cue
+          Only Trakt can delete your Trakt account. This opens Trakt in your browser to do it. Cue
           has no account of its own to delete.
         </p>
         <a

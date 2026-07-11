@@ -8,7 +8,7 @@ import { useRuntime } from "@ui/runtime/runtime";
 import { useCallback, useState } from "react";
 
 export interface WatchlistAddView {
-  /** True once this hit is on the watchlist — optimistically added here or already listed. */
+  /** True once this hit is on the watchlist: optimistically added here or already listed. */
   isAdded(hit: SearchHit): boolean;
   /** Optimistically add a hit to its section's watchlist through the durable queue. */
   add(hit: SearchHit): Promise<void>;
@@ -18,7 +18,7 @@ export interface WatchlistAddView {
 
 /** Which watchlist sections a surface seeds membership from. A movie-only rail
  * (Movie-detail "More like this", the movie-home Discover) passes `{ movies: true }`
- * so it never spends a `/sync/watchlist/shows` read it can never use — the
+ * so it never spends a `/sync/watchlist/shows` read it can never use: the
  * gated-by-medium rate budget. The mixed Discover search leaves both on (default). */
 interface WatchlistSections {
   readonly shows?: boolean;
@@ -35,7 +35,7 @@ function addKey(hit: SearchHit): string {
 }
 
 /**
- * The inline "add to watchlist" surface shared by every poster rail — Discover
+ * The inline "add to watchlist" surface shared by every poster rail: Discover
  * search results, the trending/popular browse rails, and the Movie-detail "More
  * like this" rail. Membership is seeded from the shared watchlist caches so an
  * already-listed hit shows as added and a remount doesn't forget a just-added

@@ -130,7 +130,7 @@ function OverflowIcon(): ReactElement {
  * naming the exact play (title · what · when), gated by a caution confirm. An accidental
  * destructive tap becomes destructive-by-intent (Shneiderman #5/#6, Nielsen #5). Radix
  * AlertDialog gives the focus trap + Escape + confirm gating; the sheet is bottom
- * -anchored with a safe-area inset. Shared by single rows AND cluster child rows — the
+ * -anchored with a safe-area inset. Shared by single rows AND cluster child rows: the
  * removal still runs through the exact history-event-id seam (`onRemove`). */
 function RemoveActionSheet({
   entry,
@@ -203,7 +203,7 @@ function RowContent({
   readonly title: string;
   readonly meta: ReactNode;
   /** An optional quiet third line under the meta (the cluster's "Logged together"
-   * caption) — kept out of the trailing edge so the title + episode range own the
+   * caption): kept out of the trailing edge so the title + episode range own the
    * full row width and wrap instead of being crushed at ~320px (Rams #4). */
   readonly footer?: ReactNode;
 }): ReactElement {
@@ -216,7 +216,7 @@ function RowContent({
   );
 }
 
-/** One standalone play — a lone episode or a movie. Quiet, past-tense, no ✓ pill. The
+/** One standalone play: a lone episode or a movie. Quiet, past-tense, no ✓ pill. The
  * play time folds into the secondary meta line (not a competing trailing column), so
  * the title owns the row exactly as a cluster head does. */
 function HistorySingle({
@@ -398,7 +398,7 @@ export function History(): ReactElement {
   const showsEnabled = usePrefs((s) => s.showsEnabled);
   const moviesEnabled = usePrefs((s) => s.moviesEnabled);
 
-  // A single-medium user is pinned to their medium and shown no toggle —
+  // A single-medium user is pinned to their medium and shown no toggle:
   // the same "one active medium shows no toggle" idiom as the Library.
   const lockedFilter: HistoryFilter | undefined = !moviesEnabled
     ? "tv"
@@ -462,8 +462,7 @@ export function History(): ReactElement {
         <div className="empty" data-testid="history-empty">
           <h2 className="empty__title">Nothing logged yet</h2>
           <p className="empty__body">
-            Mark an episode or movie watched and it appears here — your reverse-chronological
-            record.
+            Mark an episode or movie watched and it appears here: your reverse-chronological record.
           </p>
           <Link className="button" to="/search" data-testid="history-empty-discover">
             Find something to watch
@@ -570,7 +569,7 @@ export function History(): ReactElement {
 
       {/* TODO(history-search): the decade jump (Year/Month) covers "find what I
           watched around <time>"; a title-scoped filter ("an episode of Show X years
-          ago") would round out findability. Deferred deliberately — it needs a
+          ago") would round out findability. Deferred deliberately: it needs a
           title picker over `/search` routing to an item-scoped `/users/me/history`
           read, out of scope for this pass. */}
       <div className="library-controls history-controls">

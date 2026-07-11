@@ -14,7 +14,7 @@ interface UndoState {
   readonly showId: number;
   readonly title: string;
   readonly episodeCode: string;
-  /** True when this mark completed an ended/canceled show — drives the quiet
+  /** True when this mark completed an ended/canceled show: drives the quiet
    * "You finished X" closure copy (no gamification). */
   readonly finished: boolean;
 }
@@ -29,7 +29,7 @@ export interface MarkWatched {
 }
 
 interface PendingUndo {
-  /** The mark op that owns this undo slot — so a *later* hard failure of an
+  /** The mark op that owns this undo slot: so a *later* hard failure of an
    * earlier mark can't clear a newer show's toast (or one the user already undid). */
   readonly opId: string;
   readonly showId: number;
@@ -79,7 +79,7 @@ export function useMarkWatched(): MarkWatched {
   // A mark from Up Next advances the library card, but the marked show's detail
   // views (header X/Y + next-up, season ticks, the marked episode) live on
   // separate cache keys the last-activities gate never re-syncs for a local write.
-  // Invalidate them alongside `library` so they refetch on next visit — durably,
+  // Invalidate them alongside `library` so they refetch on next visit: durably,
   // since the invalidated flag persists across a reload.
   const revalidate = useCallback(
     (showId: number, episode: { readonly season: number; readonly number: number }) =>
@@ -91,7 +91,7 @@ export function useMarkWatched(): MarkWatched {
     async (entry: LibraryEntry) => {
       const episode = entry.nextEpisode;
       if (episode === null || entry.pendingAdvance) return;
-      // Second synchronous activation in the same burst — its optimistic advance
+      // Second synchronous activation in the same burst: its optimistic advance
       // hasn't re-rendered yet, so drop it before it can enqueue a duplicate play.
       if (inFlight.current.has(entry.showId)) return;
       inFlight.current.add(entry.showId);
@@ -99,14 +99,14 @@ export function useMarkWatched(): MarkWatched {
       const beforeMark = entry;
       const code = episodeCode(episode.season, episode.number);
       // The mark completes the show when it clears the last aired episode of a run
-      // that has ended — a genuine closure, not a mid-run pause.
+      // that has ended: a genuine closure, not a mid-run pause.
       const finished = isTerminalStatus(entry.status) && entry.completed + 1 >= entry.aired;
 
       // Optimistic first: the card advances before we ever touch the network.
       patch(entry.showId, (e) => advancePastNext(e, watchedAt));
 
       // Confirmation + Undo AT THE POINT OF ACTION: fire synchronously with the
-      // optimistic advance, not after the paced/throttled write settles — otherwise
+      // optimistic advance, not after the paced/throttled write settles: otherwise
       // the card jumps a full second before any toast and reads as a silent bump.
       const opId = crypto.randomUUID();
       activeOpId.current = opId;
@@ -124,7 +124,7 @@ export function useMarkWatched(): MarkWatched {
         preCompleted: entry.completed,
         beforeMark,
       });
-      // One buzz at the point of action, once per committed mark — fired with the
+      // One buzz at the point of action, once per committed mark: fired with the
       // optimistic advance, never on the rollback path below.
       haptics.markCommitted();
 
@@ -137,7 +137,7 @@ export function useMarkWatched(): MarkWatched {
       });
 
       // The seam rolls the optimistic advance back on a hard failure and revalidates
-      // only once the write lands ("deferred" keeps the advance — a refetch would
+      // only once the write lands ("deferred" keeps the advance: a refetch would
       // read pre-mark server state and bounce the card back).
       let outcome: SubmitOutcome;
       try {
@@ -147,7 +147,7 @@ export function useMarkWatched(): MarkWatched {
             revalidate(entry.showId, { season: episode.season, number: episode.number }),
         });
       } finally {
-        // The write has settled (done | failed | deferred) — or submit threw
+        // The write has settled (done | failed | deferred): or submit threw
         // (a persistence fault): release the lock either way so a deliberate later
         // mark of the show's next episode is never wedged behind a stuck lock.
         inFlight.current.delete(entry.showId);
@@ -180,7 +180,7 @@ export function useMarkWatched(): MarkWatched {
       watchedAt: pending.watchedAt,
       inversePatch: context,
     });
-    // `patch` above is the forward (undone) state, not a rollback — so a hard failure
+    // `patch` above is the forward (undone) state, not a rollback: so a hard failure
     // of the removal must re-advance the card to the marked state it restores to, else
     // it's stranded un-advanced while Trakt still holds the play. A "deferred" removal
     // keeps the undone state (revalidating before it lands would refetch pre-undo state).

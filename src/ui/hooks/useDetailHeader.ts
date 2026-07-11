@@ -11,8 +11,8 @@ export interface DetailHeaderView<T> {
 
 /**
  * The shared content-detail hero read (show + movie): a standalone query on the
- * content staleTime so the hero paints from cache, retries on its own, and — being
- * content, not user state — refreshes on a time window rather than the
+ * content staleTime so the hero paints from cache, retries on its own, and, being
+ * content, not user state, refreshes on a time window rather than the
  * last_activities gate. One seam so both detail heroes stay in lock-step.
  */
 export function useDetailHeader<T>(

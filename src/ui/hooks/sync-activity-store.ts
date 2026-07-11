@@ -11,10 +11,10 @@ interface SyncActivityState {
  * A tiny global counter of in-flight write-queue flushes so the sync pill can rest
  * honestly. Read-side freshness lights the pill via a query's `isFetching` (which,
  * post-gating, only fires on a real change-driven refetch); this counter is the
- * DISTINCT write-side signal — the pill ORs the two so "Syncing…" also covers a
+ * DISTINCT write-side signal: the pill ORs the two so "Syncing…" also covers a
  * pending write flush without conflating a read revalidate with the write queue.
  * Every write funnels through `useTrackedSubmit` (which `useOptimisticWrite` and
- * the direct submitters — rating, watchlist, resume — all use), and it brackets
+ * the direct submitters, rating, watchlist, resume, all use), and it brackets
  * `runtime.submit` with begin/end, so the count reflects exactly the writes being
  * sent.
  */

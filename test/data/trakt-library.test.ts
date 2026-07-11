@@ -155,7 +155,7 @@ describe("assembleLibrary", () => {
   it("represents an un-fetched watched show as progress-unknown (sync-pending), NOT fabricated caught-up", () => {
     // Beyond the cold-sync progress budget: no progress entry, but the bulk watched
     // breakdown carries the season/episode tree. `completed` is the real watched count
-    // (specials excluded), but `aired` is unknown — so `progressKnown` is false and the
+    // (specials excluded), but `aired` is unknown: so `progressKnown` is false and the
     // show must NOT be asserted complete (completed === aired = caught-up). A genuinely
     // mid-watch tail show would otherwise be mislabeled caught-up and dropped.
     const entries = assembleLibrary({
@@ -310,7 +310,7 @@ describe("advancePastNext", () => {
   });
 
   it("never inherits the watched episode's air date (no season-finale phantom in New)", () => {
-    // A recent air date on the source episode must NOT flow onto the projection —
+    // A recent air date on the source episode must NOT flow onto the projection:
     // that is exactly what made a marked finale cling to the fresh/lead slot.
     const entry: LibraryEntry = {
       ...baseEntry,
