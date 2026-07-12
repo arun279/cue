@@ -24,7 +24,10 @@ pre-commit:
       stage_fixed: true
     dprint:
       glob: "*.md"
-      run: pnpm exec dprint check {staged_files}
+      # --allow-no-files mirrors biome's --no-errors-on-unmatched above: when the
+      # staged *.md all fall under dprint.json's excludes (ios/**, android/**),
+      # dprint would otherwise exit 14 ("no files") and fail the commit.
+      run: pnpm exec dprint check --allow-no-files {staged_files}
     cspell:
       glob: "*.{ts,tsx,css,md}"
       run: pnpm exec cspell --no-progress --no-must-find-files {staged_files}
