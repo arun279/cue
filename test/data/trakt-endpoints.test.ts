@@ -9,7 +9,6 @@ import {
   getMyShowsCalendar,
   getPopularMovies,
   getPopularShows,
-  getRatings,
   getRelatedMovies,
   getShow,
   getShowProgress,
@@ -159,14 +158,6 @@ describe("Trakt read endpoints zod-parse well-formed fixtures", () => {
     ]);
     const result = await getWatchlist(client, "shows");
     expect(result.ok && result.data[0]?.type).toBe("show");
-  });
-
-  it("parses ratings items", async () => {
-    getJson("/sync/ratings/shows", [
-      { rated_at: "2026-06-01T00:00:00.000Z", rating: 9, type: "show", show: showObj },
-    ]);
-    const result = await getRatings(client, "shows");
-    expect(result.ok && result.data[0]?.rating).toBe(9);
   });
 
   it("parses the personalized shows calendar", async () => {

@@ -7,7 +7,6 @@
  */
 export const queryKeys = {
   watchlist: (type: "shows" | "movies") => ["watchlist", type] as const,
-  ratings: (type: "shows" | "movies" | "episodes") => ["ratings", type] as const,
   calendar: (startDate: string, days: number) => ["calendar", "my-shows", startDate, days] as const,
   /** Prefix over every windowed `calendar(...)` query, for invalidating them as one. */
   calendarPrefix: () => ["calendar", "my-shows"] as const,

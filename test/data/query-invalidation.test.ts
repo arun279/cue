@@ -77,11 +77,6 @@ describe("invalidationKeys maps last_activities targets to cached query keys", (
     ]);
   });
 
-  it("routes each ratings section to only its own key", () => {
-    expect(invalidationKeys(["ratings/shows"])).toEqual([queryKeys.ratings("shows")]);
-    expect(invalidationKeys(["ratings/episodes"])).toEqual([queryKeys.ratings("episodes")]);
-  });
-
   it("routes an abandon (hidden) change and bucket recompute to the library", () => {
     expect(invalidationKeys(["hidden/progress_watched", "recompute:buckets"])).toEqual([
       queryKeys.library(),

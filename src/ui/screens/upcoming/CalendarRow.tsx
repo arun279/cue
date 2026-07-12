@@ -1,21 +1,15 @@
+import { queryKeys } from "@data/query-keys";
 import type { CalendarRow as CalendarRowModel } from "@domain/calendar";
 import { localTimeZone } from "@domain/time";
-import { Link } from "@tanstack/react-router";
-import { InlineUndo } from "@ui/components/InlineUndo";
-import { MarkWatchedButton } from "@ui/components/MarkWatchedButton";
-import { episodeCode } from "@ui/format";
+import { useQuery } from "@tanstack/react-query";
+import { Badge } from "@ui/components/Badge";
+import { EpisodeRow } from "@ui/components/EpisodeRow";
+import { epCode } from "@ui/format";
+import { CONTENT_STALE_TIME_MS } from "@ui/hooks/query-freshness";
+import { useRuntime } from "@ui/runtime/runtime";
 import { Poster } from "@ui/screens/up-next/Poster";
 import type { ReactElement } from "react";
-
-interface CalendarRowProps {
-  readonly row: CalendarRowModel;
-  readonly watched: boolean;
-  /** True for the row whose mark just landed: show the point-of-action inline Undo
-   * beside the green done disc for the reversal window. */
-  readonly isUndoTarget: boolean;
-  onUndo(): void;
-  onMark(): void;
-}
+import { trailingChip } from "./agenda";
 
 const timeFmt = new Intl.DateTimeFormat("en-US", {
   timeZone: localTimeZone(),
@@ -24,73 +18,66 @@ const timeFmt = new Intl.DateTimeFormat("en-US", {
 });
 
 /**
- * One calendar episode row: poster, show + next-episode code/title, localized air
- * time, linking into Episode detail. An already-aired episode gets the SAME shared Cue
- * mark as Up Next: an amber ring that flips IN PLACE to a GREEN done check the instant
- * it is marked (amber = action, green = done). Its PRIMARY reversal is the inline Undo
- * that appears beside the done disc for the reversal window; the snackbar is the
- * secondary announce and durable per-play reversal lives in History. A not-yet-aired
- * episode shows no mark: you can't have watched it yet.
+ * The row's show art + network, via the same deferred per-show read the queue
+ * rows use (identical cache key, so a show seen on two surfaces never
+ * refetches). Read here in full rather than through `useShowArt`, whose slice
+ * omits the network the calendar's time line carries.
  */
-export function CalendarRow({
-  row,
-  watched,
-  isUndoTarget,
-  onUndo,
-  onMark,
-}: CalendarRowProps): ReactElement {
-  const code = episodeCode(row.season, row.number);
-  const airTime = timeFmt.format(new Date(row.firstAired));
+function useShowMeta(showId: number): { posters: readonly string[]; network: string | null } {
+  const runtime = useRuntime();
+  const query = useQuery({
+    queryKey: queryKeys.showArt(showId),
+    queryFn: () => runtime.loadShowArt(showId),
+    staleTime: CONTENT_STALE_TIME_MS,
+  });
+  return { posters: query.data?.posters ?? [], network: query.data?.network ?? null };
+}
+
+interface CalendarRowProps {
+  readonly row: CalendarRowModel;
+  /** Whole local days from today; 0 = today. */
+  readonly offset: number;
+}
+
+/**
+ * One calendar agenda row: poster, show title, quiet episode line, air
+ * time + network, and a trailing countdown chip. The body links to the show —
+ * never a check; today's already-aired episodes read "Aired 8:00 PM" and are
+ * marked from Up Next, one home per action.
+ */
+export function CalendarRow({ row, offset }: CalendarRowProps): ReactElement {
+  const meta = useShowMeta(row.showId);
+  const posters = meta.posters.length > 0 ? meta.posters : row.posters;
+  const time = timeFmt.format(new Date(row.firstAired));
+  const chip = trailingChip(offset, row.aired, time);
+  // Today's unaired rows carry the time in the trailing chip, so the text line
+  // keeps only the network rather than stating the hour twice.
+  const when = row.aired ? `Aired ${time}` : offset > 0 ? time : null;
+  const whenLine = [when, meta.network].filter((part) => part !== null).join(" · ");
 
   return (
-    <article className="card calendar-card" data-testid="calendar-row" data-show-id={row.showId}>
-      <Poster title={row.showTitle} posters={row.posters} />
-      <Link
-        to="/show/$showId/episode/$season/$episode"
-        params={{
-          showId: String(row.showId),
-          season: String(row.season),
-          episode: String(row.number),
-        }}
-        className="card__link"
-        data-testid="calendar-row-link"
-        aria-label={`${row.showTitle} ${code} details`}
-      >
-        <div className="card__body">
-          <h3 className="card__title">{row.showTitle}</h3>
-          <p className="card__episode">
-            <span className="card__code" data-testid="episode-code">
-              {code}
-            </span>
-            {row.episodeTitle !== null && (
-              <span className="card__episode-title">{row.episodeTitle}</span>
-            )}
-          </p>
-          <p className="calendar-card__time">{airTime}</p>
-        </div>
-      </Link>
-      {row.aired ? (
-        <div className="calendar-card__action">
-          <MarkWatchedButton
-            testId={watched ? "calendar-watched" : "calendar-mark"}
-            watched={watched}
-            ariaLabel={`Mark ${row.showTitle} ${code} watched`}
-            watchedAriaLabel={`${row.showTitle} ${code} watched`}
-            onMark={onMark}
-          />
-          {isUndoTarget && (
-            <InlineUndo
-              testId="calendar-undo-inline"
-              ariaLabel={`Undo: mark ${row.showTitle} ${code} unwatched`}
-              onUndo={onUndo}
-            />
-          )}
-        </div>
-      ) : (
-        <span className="calendar-card__soon" data-testid="calendar-upcoming">
-          Airs soon
-        </span>
-      )}
-    </article>
+    <EpisodeRow
+      variant="calendar"
+      testId="calendar-row"
+      showId={row.showId}
+      art={<Poster title={row.showTitle} posters={posters} variant="s40" />}
+      title={row.showTitle}
+      meta={
+        <>
+          <span className="ep-row__code">{epCode(row.season, row.number)}</span>
+          {row.episodeTitle !== null && ` · ${row.episodeTitle}`}
+        </>
+      }
+      footer={whenLine === "" ? undefined : <span className="calendar-when">{whenLine}</span>}
+      trailing={
+        chip === null ? undefined : (
+          <Badge variant="countdown" testId="calendar-countdown">
+            {chip}
+          </Badge>
+        )
+      }
+      link={{ to: "/show/$showId", params: { showId: String(row.showId) } }}
+      linkLabel={row.showTitle}
+    />
   );
 }

@@ -7,8 +7,10 @@ import {
   buildRemoveWatchlistOp,
   buildUnmarkMovieOp,
 } from "@domain/write-queue/ops";
+import type { QueuedOp } from "@domain/write-queue/types";
 import { useQueryClient } from "@tanstack/react-query";
 import { resolveMovieUnmark, routeMovieUnmark } from "@ui/hooks/resolveUnmark";
+import { invertOp } from "@ui/hooks/useMarkSeason";
 import { writeMovieEntry } from "@ui/hooks/useMovieLibrary";
 import { useOptimisticWrite } from "@ui/hooks/useOptimisticWrite";
 import { useHaptics } from "@ui/runtime/haptics";
@@ -21,6 +23,17 @@ interface MarkUndo {
   /** The exact pre-mark entry, restored verbatim on Undo. */
   readonly before: MovieEntry;
   readonly watchedAt: string;
+  /** Monotonic counter so a snackbar effect keys on "a new mark arrived". */
+  readonly seq: number;
+}
+
+/** A settled play removal: `op` re-adds the play on Undo (null when the removal
+ * was itself the reversal of a not-yet-landed session mark: nothing to re-add). */
+interface RemovedState {
+  readonly seq: number;
+  readonly op: QueuedOp | null;
+  /** The watched entry the removal un-ticked, restored verbatim on Undo. */
+  readonly before: MovieEntry;
 }
 
 export interface MovieActions {
@@ -30,12 +43,16 @@ export interface MovieActions {
   toggleWatchlist(entry: MovieEntry): Promise<void>;
   undoMark(): Promise<void>;
   dismissUndo(): void;
+  undoRemove(): Promise<void>;
   clearError(): void;
   /** A non-error advisory: the unmark was refused because the movie has more than
    * one play (a rewatch) and per-play removal lives in the watch history. */
   readonly notice: string | null;
   dismissNotice(): void;
-  readonly undoable: { readonly title: string } | null;
+  readonly undoable: { readonly title: string; readonly seq: number } | null;
+  /** The last play removal, for the `Removed play` snackbar (`canUndo` = a
+   * settled play whose exact-id removal can be re-added). */
+  readonly removed: { readonly seq: number; readonly canUndo: boolean } | null;
   readonly error: string | null;
 }
 
@@ -61,8 +78,10 @@ export function useMovieActions(): MovieActions {
   const runtime = useRuntime();
   const haptics = useHaptics();
   const [undo, setUndo] = useState<MarkUndo | null>(null);
+  const [removed, setRemoved] = useState<RemovedState | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const seqRef = useRef(0);
   // The play added this session whose mark op may not have landed yet, tracked in a
   // ref so a concurrent unmark can observe it synchronously (a live-plays read can't
   // see an in-flight write). Set before the paced write, cleared once it lands
@@ -119,7 +138,13 @@ export function useMovieActions(): MovieActions {
       if (inFlight.current.has(entry.movieId)) return;
       inFlight.current.add(entry.movieId);
       const watchedAt = new Date().toISOString();
-      const mark: MarkUndo = { title: entry.title, before: entry, watchedAt };
+      seqRef.current += 1;
+      const mark: MarkUndo = {
+        title: entry.title,
+        before: entry,
+        watchedAt,
+        seq: seqRef.current,
+      };
       // Claim the pending-mark slot synchronously and surface Undo at the point of
       // action: both must be readable by a concurrent unmark before the paced write settles.
       pendingMark.current = mark;
@@ -178,8 +203,11 @@ export function useMovieActions(): MovieActions {
       if (route === "reverse-session-mark" && pending !== null) {
         // The play was added this session and may not have landed: reverse the exact
         // op (coalesces against the queued mark) rather than reading live plays, which
-        // could return 0 for an in-flight mark and silently retain the play.
+        // could return 0 for an in-flight mark and silently retain the play. Nothing
+        // durable to re-add afterwards, so the removal feedback carries no Undo.
         pendingMark.current = null;
+        seqRef.current += 1;
+        setRemoved({ seq: seqRef.current, op: null, before: entry });
         const outcome = await reverseSessionMark(pending);
         if (outcome === "failed") setError(`Couldn't update ${entry.title}. Please try again.`);
         return;
@@ -213,8 +241,15 @@ export function useMovieActions(): MovieActions {
         restore: { section: "movies", ids: entry.ids, watchedAt: resolution.watchedAt },
         inversePatch: { kind: "movie", movieId: entry.movieId },
       });
+      // Removal feedback + Undo at the point of action, mirroring the mark path;
+      // `op` identity tags the slot so a later hard failure only retracts its own.
+      seqRef.current += 1;
+      setRemoved({ seq: seqRef.current, op, before: entry });
       const outcome = await submit([op], { rollback: restoreTick, revalidate });
-      if (outcome === "failed") setError(`Couldn't update ${entry.title}. Please try again.`);
+      if (outcome === "failed") {
+        setRemoved((prev) => (prev?.op === op ? null : prev));
+        setError(`Couldn't update ${entry.title}. Please try again.`);
+      }
     },
     [queryClient, revalidate, runtime, submit, reverseSessionMark],
   );
@@ -223,6 +258,7 @@ export function useMovieActions(): MovieActions {
     async (entry: MovieEntry) => {
       setError(null);
       setNotice(null);
+      setRemoved(null);
       if (entry.watched) await markOff(entry);
       else await markOn(entry);
     },
@@ -256,6 +292,24 @@ export function useMovieActions(): MovieActions {
     if (outcome === "failed") setError(`Couldn't undo ${pending.title}. Please try again.`);
   }, [undo, reverseSessionMark, haptics]);
 
+  // Re-add the removed play: restore the watched entry and re-send the removal
+  // op's stored inverse (`/sync/history` with the frozen watched_at) as a fresh op.
+  const undoRemove = useCallback(async () => {
+    const pending = removed;
+    if (pending === null || pending.op === null) return;
+    setRemoved(null);
+    haptics.markUndone();
+    writeMovieEntry(queryClient, pending.before);
+    const outcome = await submit([invertOp(pending.op)], {
+      rollback: () =>
+        writeMovieEntry(queryClient, { ...pending.before, watched: false, watchedAt: null }),
+      revalidate,
+    });
+    if (outcome === "failed") {
+      setError(`Couldn't undo ${pending.before.title}. Please try again.`);
+    }
+  }, [removed, haptics, queryClient, submit, revalidate]);
+
   return {
     markWatched,
     toggleWatchlist,
@@ -264,10 +318,12 @@ export function useMovieActions(): MovieActions {
       if (undo !== null) inFlight.current.delete(undo.before.movieId);
       setUndo(null);
     },
+    undoRemove,
     clearError: () => setError(null),
     notice,
     dismissNotice: () => setNotice(null),
-    undoable: undo === null ? null : { title: undo.title },
+    undoable: undo === null ? null : { title: undo.title, seq: undo.seq },
+    removed: removed === null ? null : { seq: removed.seq, canUndo: removed.op !== null },
     error,
   };
 }

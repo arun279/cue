@@ -3,12 +3,13 @@ import { ArtPlaceholder } from "@ui/components/ArtPlaceholder";
 import { artGradient } from "@ui/components/artGradient";
 import { type ReactElement, useState } from "react";
 
-type PosterVariant = "row" | "queue" | "hero" | "tile";
+/** The strict 2:3 size scale (`sNN` = NN px wide). */
+type PosterVariant = "s32" | "s40" | "s44" | "s48" | "s64" | "s96" | "s115";
 
 interface PosterProps {
   readonly title: string;
   readonly posters?: readonly string[] | null;
-  readonly variant?: PosterVariant;
+  readonly variant: PosterVariant;
 }
 
 /**
@@ -18,10 +19,10 @@ interface PosterProps {
  * below-the-fold tile in a discover / library grid reads as the designed
  * no-artwork block rather than a flat grey blank (Rams #8). A URL that fails
  * to load degrades to the same block with a retry chip, so a broken image never
- * leaves a torn card. The `variant` sizes the tile for its context (queue row,
- * hero inset, list row); progress rails are drawn by the consumer wrapper.
+ * leaves a torn card. The `variant` picks the tile's step on the 2:3 size
+ * scale; progress rails are drawn by the consumer wrapper.
  */
-export function Poster({ title, posters, variant = "row" }: PosterProps): ReactElement {
+export function Poster({ title, posters, variant }: PosterProps): ReactElement {
   const [brokenSrc, setBrokenSrc] = useState<string | null>(null);
   const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);

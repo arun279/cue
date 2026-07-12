@@ -1,26 +1,24 @@
-import { resolvePoster } from "@data/image-source";
 import type { MovieEntry, MovieHeader } from "@data/trakt/movie-library";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { DetailBack } from "@ui/components/DetailBack";
+import { ActionSheet, type ActionSheetRow } from "@ui/components/ActionSheet";
+import { Badge } from "@ui/components/Badge";
+import { CheckControl } from "@ui/components/CheckControl";
 import { DetailHeroSkeleton } from "@ui/components/DetailHeroSkeleton";
-import { ErrorRetry, ErrorToast } from "@ui/components/ErrorStates";
-import { RatingControl } from "@ui/components/RatingControl";
-import { Snackbar } from "@ui/components/Snackbar";
-import { WatchedField } from "@ui/components/WatchedField";
-import { formatAirDate, formatWatchedDate, titleCase } from "@ui/format";
+import { EmptyState } from "@ui/components/EmptyState";
+import { ErrorRetry } from "@ui/components/ErrorStates";
+import { dismissSnack, showSnack } from "@ui/components/snackbar-store";
+import { formatWatchedDate, middleTruncate, titleCase } from "@ui/format";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { useMovieActions } from "@ui/hooks/useMovieActions";
 import { useMovieDetail } from "@ui/hooks/useMovieDetail";
 import { useMovieLibrary } from "@ui/hooks/useMovieLibrary";
 import { useMovieRelated } from "@ui/hooks/useMovieRelated";
-import { useRate } from "@ui/hooks/useRate";
-import { useWatchlistAdd } from "@ui/hooks/useWatchlistAdd";
 import { usePrefs } from "@ui/prefs/prefs-store";
-import { DiscoverRail } from "@ui/screens/search/DiscoverCard";
+import { BackDisc, DetailHero } from "@ui/screens/show-detail/DetailChrome";
+import { metaLine, openExternal, traktMovieUrl } from "@ui/screens/show-detail/detail-logic";
 import { Poster } from "@ui/screens/up-next/Poster";
-import { type ReactElement, useState } from "react";
-
-const UNDO_MS = 6000;
+import { ExternalLink } from "lucide-react";
+import { type ReactElement, useEffect, useRef, useState } from "react";
 
 /** Build the toggle target from the movie-library entry, or synthesize an
  * unwatched, un-watchlisted one for a movie reached directly by URL that isn't in
@@ -42,148 +40,109 @@ function toEntry(header: MovieHeader, existing: MovieEntry | undefined): MovieEn
   );
 }
 
-/** The full-bleed media hero: fanart backdrop with a scrim fading into the card,
- * poster inset, editorial title + year, runtime/release/genre chips, overview,
- * then the grouped control surface: the watched toggle (with its logged date),
- * the watchlist toggle, and the compact 1-10 rating. */
-function MovieHero({
-  header,
-  entry,
-  actions,
-  rate,
-}: {
-  readonly header: MovieHeader;
-  readonly entry: MovieEntry;
-  readonly actions: ReturnType<typeof useMovieActions>;
-  readonly rate: ReturnType<typeof useRate>;
-}): ReactElement {
-  const [broken, setBroken] = useState(false);
-  const art = resolvePoster({ title: header.title, traktPosters: header.backdrops });
-  const backdrop = art.source === "placeholder" ? null : art.url;
-  const genres = header.genres.slice(0, 3);
-  const watchedDate = formatWatchedDate(entry.watchedAt);
-  const released = formatAirDate(header.released);
-  const markAria = entry.watched
-    ? `Mark ${header.title} unwatched`
-    : `Mark ${header.title} watched`;
-
-  return (
-    <section className="show-hero" data-testid="movie-hero">
-      {backdrop !== null && !broken && (
-        <img
-          className="show-hero__backdrop"
-          src={backdrop}
-          alt=""
-          decoding="async"
-          data-testid="movie-backdrop"
-          onError={() => setBroken(true)}
-        />
-      )}
-      <div className="show-hero__scrim" />
-      <div className="show-hero__body">
-        <span className="poster-wrap show-hero__poster">
-          <Poster title={header.title} posters={header.posters} variant="hero" />
-        </span>
-
-        <div className="show-hero__info">
-          <h1 className="show-hero__title" data-testid="movie-detail-title">
-            {header.title}
-            {header.year !== null && <span className="show-hero__year"> {header.year}</span>}
-          </h1>
-
-          <div className="show-hero__chips">
-            {header.runtime !== null && (
-              <span className="chip" data-testid="movie-runtime">
-                {header.runtime} min
-              </span>
-            )}
-            {released !== null && (
-              <span className="chip" data-testid="movie-release">
-                {released}
-              </span>
-            )}
-            {genres.map((genre) => (
-              <span key={genre} className="chip">
-                {titleCase(genre)}
-              </span>
-            ))}
-          </div>
-
-          {header.overview !== null && (
-            <p className="show-hero__overview" data-testid="movie-detail-overview">
-              {header.overview}
-            </p>
-          )}
-        </div>
-      </div>
-
-      <div className="show-hero__controls">
-        <div className="episode-status">
-          <WatchedField
-            watched={entry.watched}
-            label={entry.watched ? "Watched" : "Mark watched"}
-            ariaLabel={markAria}
-            watchedDate={watchedDate}
-            testId="movie-watched-toggle"
-            dateTestId="movie-watched-date"
-            onToggle={() => void actions.markWatched(entry)}
-          />
-          <button
-            type="button"
-            className="button button--ghost"
-            aria-pressed={entry.inWatchlist}
-            data-testid="movie-watchlist-toggle"
-            data-on={entry.inWatchlist}
-            onClick={() => void actions.toggleWatchlist(entry)}
-          >
-            {entry.inWatchlist ? "On watchlist ✓" : "Add to watchlist"}
-          </button>
-        </div>
-
-        <div className="show-hero__rating">
-          <span className="rating__lead">Your rating</span>
-          <RatingControl
-            ids={entry.ids}
-            label={entry.title}
-            controller={rate}
-            testId="movie-rating"
-          />
-        </div>
-      </div>
-    </section>
-  );
-}
-
 /**
- * Movie detail as a media page in the screening-room language: a full-bleed
- * fanart hero (poster inset, editorial title + year, runtime/release/genre chips,
- * overview) over one grouped control surface: Mark watched (with date) /
- * watchlist toggle / 1-10 rating: all optimistic through the durable write-queue
- * with Undo. Every state is designed: hero skeleton, hard-error retry, and an
- * unwatched movie that carries no logged date.
+ * Movie detail (§3.3.5): hero, one 64px mark row whose 56px check is a durable,
+ * rewatch-safe toggle (a settled play is removed by its exact history id; a
+ * multi-play movie is refused and routed to History), the clamped overview, and
+ * a related grid. Watchlist and the Trakt hand-off live in the overflow disc.
  */
 function MovieDetailContent({ movieId }: { readonly movieId: number }): ReactElement {
   const detail = useMovieDetail(movieId);
   const library = useMovieLibrary();
   const actions = useMovieActions();
-  const rate = useRate("movies");
   const related = useMovieRelated(movieId);
-  const watchlistAdd = useWatchlistAdd({ movies: true });
   const navigate = useNavigate();
+  const [overflowOpen, setOverflowOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const header = detail.header;
   useDocumentTitle(header !== undefined ? `${header.title} · Cue` : "Movie · Cue");
 
+  const entry = header === undefined ? undefined : toEntry(header, library.entryFor(movieId));
+  // Snackbar Undo closures must see the post-action entry/controller, not the
+  // render they were created in.
+  const entryRef = useRef(entry);
+  entryRef.current = entry;
+  const actionsRef = useRef(actions);
+  actionsRef.current = actions;
+
+  const markSeq = actions.undoable?.seq;
+  const markTitle = actions.undoable?.title;
+  const { undoMark } = actions;
+  useEffect(() => {
+    if (markSeq === undefined || markTitle === undefined) return;
+    showSnack({
+      message: `${middleTruncate(markTitle)} marked`,
+      actions: [
+        {
+          label: "Undo",
+          testId: "snackbar-undo",
+          onPress: () => {
+            dismissSnack();
+            void undoMark();
+          },
+        },
+      ],
+    });
+  }, [markSeq, markTitle, undoMark]);
+
+  const removedSeq = actions.removed?.seq;
+  const removedCanUndo = actions.removed?.canUndo;
+  const { undoRemove } = actions;
+  useEffect(() => {
+    if (removedSeq === undefined) return;
+    showSnack({
+      message: "Removed play",
+      actions:
+        removedCanUndo === true
+          ? [
+              {
+                label: "Undo",
+                testId: "snackbar-undo",
+                onPress: () => {
+                  dismissSnack();
+                  void undoRemove();
+                },
+              },
+            ]
+          : [],
+    });
+  }, [removedSeq, removedCanUndo, undoRemove]);
+
+  const { notice, dismissNotice, error, clearError } = actions;
+  useEffect(() => {
+    if (notice === null) return;
+    showSnack({
+      message: notice,
+      actions: [
+        {
+          label: "Open history",
+          onPress: () => {
+            dismissSnack();
+            void navigate({ to: "/history", search: { type: "movies" } });
+          },
+        },
+      ],
+    });
+    dismissNotice();
+  }, [notice, dismissNotice, navigate]);
+  useEffect(() => {
+    if (error === null) return;
+    showSnack({ message: error, actions: [{ label: "Dismiss", onPress: dismissSnack }] });
+    clearError();
+  }, [error, clearError]);
+
   if (detail.isLoading) {
     return (
-      <section className="screen screen--detail" data-testid="screen-movie-detail">
-        <DetailHeroSkeleton testId="movie-skeleton" />
+      <section className="screen-detail" data-testid="screen-movie-detail">
+        <DetailHeroSkeleton testId="movie-skeleton" rows={1} />
       </section>
     );
   }
 
-  if (header === undefined) {
+  if (header === undefined || entry === undefined) {
     return (
-      <section className="screen screen--detail" data-testid="screen-movie-detail">
+      <section className="screen-detail" data-testid="screen-movie-detail">
+        <BackDisc testId="movie-back" fallbackSearch={{ type: "movies" }} />
         <ErrorRetry
           title="Couldn't load this movie"
           testId="movie-detail-error"
@@ -194,79 +153,127 @@ function MovieDetailContent({ movieId }: { readonly movieId: number }): ReactEle
     );
   }
 
-  const entry = toEntry(header, library.entryFor(movieId));
+  const watchedDate = formatWatchedDate(entry.watchedAt);
+  const relatedMovies = related.hits.filter((hit) => hit.type === "movie").slice(0, 6);
+  const overflowRows: ActionSheetRow[] = [
+    {
+      label: entry.inWatchlist ? "Remove from Watchlist" : "Add to Watchlist",
+      testId: "overflow-watchlist",
+      onPress: () => {
+        const adding = !entry.inWatchlist;
+        void actions.toggleWatchlist(entry);
+        showSnack({
+          message: `${middleTruncate(entry.title)} ${adding ? "added to" : "removed from"} Watchlist`,
+          actions: [
+            {
+              label: "Undo",
+              testId: "snackbar-undo",
+              onPress: () => {
+                dismissSnack();
+                const current = entryRef.current;
+                if (current !== undefined) void actionsRef.current.toggleWatchlist(current);
+              },
+            },
+          ],
+        });
+      },
+    },
+    {
+      label: "Open on Trakt",
+      icon: <ExternalLink aria-hidden="true" />,
+      testId: "overflow-trakt",
+      onPress: () => openExternal(traktMovieUrl(header.ids)),
+    },
+  ];
 
   return (
-    <section className="screen screen--detail" data-testid="screen-movie-detail">
-      <DetailBack
-        testId="movie-back"
-        label="‹ Back"
-        fallback={
-          <Link
-            to="/library"
-            search={{ type: "movies" }}
-            className="detail-back"
-            data-testid="movie-back"
-          >
-            ‹ Library
-          </Link>
-        }
+    <section className="screen-detail" data-testid="screen-movie-detail">
+      <DetailHero
+        header={header}
+        meta={metaLine([
+          header.year === null ? null : String(header.year),
+          header.runtime === null ? null : `${header.runtime} min`,
+          ...header.genres.slice(0, 2).map(titleCase),
+        ])}
+        testIds={{
+          hero: "movie-hero",
+          backdrop: "movie-backdrop",
+          title: "movie-detail-title",
+          back: "movie-back",
+          overflow: "movie-overflow",
+        }}
+        onOverflow={() => setOverflowOpen(true)}
+        backFallbackSearch={{ type: "movies" }}
       />
 
-      <MovieHero header={header} entry={entry} actions={actions} rate={rate} />
+      <div className="mark-row" data-testid="movie-mark-row">
+        <span className="mark-row__text">
+          <span className="mark-row__status">
+            {entry.watched
+              ? watchedDate === null
+                ? "Watched"
+                : `Watched ${watchedDate}`
+              : "Not watched yet"}
+          </span>
+          {entry.watched && <span className="mark-row__hint">tap the check to remove</span>}
+        </span>
+        <CheckControl
+          size={56}
+          state={entry.watched ? "watched" : "unwatched"}
+          label={entry.watched ? "Watched — tap to remove" : `Mark ${entry.title} watched`}
+          testId="movie-check"
+          onPress={() => void actions.markWatched(entry)}
+        />
+      </div>
 
-      {related.hits.length > 0 && (
-        <section className="discover-rail related-rail" data-testid="movie-related">
-          <h2 className="discover-rail__head">More like this</h2>
-          <DiscoverRail
-            hits={related.hits}
-            isAdded={watchlistAdd.isAdded}
-            onAdd={(hit) => void watchlistAdd.add(hit)}
-            testId="movie-related-rail"
-          />
+      {header.overview !== null && (
+        <section className="detail-about">
+          <div className="detail-about__overview">
+            <p className="clamp-4" data-expanded={expanded} data-testid="movie-detail-overview">
+              {header.overview}
+            </p>
+            {!expanded && (
+              <button type="button" className="text-more" onClick={() => setExpanded(true)}>
+                More
+              </button>
+            )}
+          </div>
         </section>
       )}
 
-      {watchlistAdd.addError !== null && (
-        <ErrorToast
-          testId="movie-related-add-error"
-          message={watchlistAdd.addError}
-          onDismiss={watchlistAdd.clearAddError}
-        />
+      {relatedMovies.length > 0 && (
+        <section className="detail-related" data-testid="movie-related">
+          <h2 className="detail-related__head">More like this</h2>
+          <div className="poster-tile-grid">
+            {relatedMovies.map((hit) => (
+              <Link
+                key={hit.key}
+                to="/movie/$movieId"
+                params={{ movieId: String(hit.traktId) }}
+                className="poster-tile"
+                data-testid="movie-related-tile"
+              >
+                <span className="poster-tile__art">
+                  <Poster title={hit.title} posters={hit.posters} variant="s115" />
+                  {hit.year !== null && (
+                    <span className="poster-tile__badge">
+                      <Badge variant="year">{hit.year}</Badge>
+                    </span>
+                  )}
+                </span>
+                <span className="poster-tile__title">{hit.title}</span>
+              </Link>
+            ))}
+          </div>
+        </section>
       )}
 
-      {actions.undoable !== null && (
-        <Snackbar
-          testId="movie-undo"
-          message={`Marked ${actions.undoable.title} watched.`}
-          actionLabel="Undo"
-          autoDismissMs={UNDO_MS}
-          onAction={() => void actions.undoMark()}
-          onDismiss={actions.dismissUndo}
-        />
-      )}
-      {actions.undoable === null && actions.notice !== null && (
-        <Snackbar
-          testId="movie-notice"
-          message={actions.notice}
-          actionLabel="Open history"
-          onAction={() => {
-            actions.dismissNotice();
-            void navigate({ to: "/history", search: { type: "movies" } });
-          }}
-          onDismiss={actions.dismissNotice}
-        />
-      )}
-      {actions.error !== null && (
-        <ErrorToast
-          testId="movie-action-error"
-          message={actions.error}
-          onDismiss={actions.clearError}
-        />
-      )}
-      {rate.error !== null && (
-        <ErrorToast testId="movie-rating-error" message={rate.error} onDismiss={rate.clearError} />
-      )}
+      <ActionSheet
+        open={overflowOpen}
+        onOpenChange={setOverflowOpen}
+        title={header.title}
+        rows={overflowRows}
+      />
     </section>
   );
 }
@@ -282,23 +289,17 @@ export function MovieDetail({ movieId }: { readonly movieId: number }): ReactEle
   const moviesEnabled = usePrefs((s) => s.moviesEnabled);
   if (!moviesEnabled) {
     return (
-      <section className="screen screen--detail" data-testid="screen-movie-detail">
-        <DetailBack
-          testId="movie-back"
-          label="‹ Back"
-          fallback={
-            <Link to="/library" className="detail-back" data-testid="movie-back">
-              ‹ Library
-            </Link>
-          }
-        />
-        <div className="empty" data-testid="movies-off">
-          <h2 className="empty__title">Movies are turned off</h2>
-          <p className="empty__body">Turn Movies back on in Settings to browse and track films.</p>
+      <section className="screen-detail" data-testid="screen-movie-detail">
+        <BackDisc testId="movie-back" />
+        <EmptyState
+          testId="movies-off"
+          headline="Movies are turned off"
+          body="Turn Movies back on in Settings to browse and track films."
+        >
           <Link className="button" to="/settings" data-testid="movies-off-settings">
             Open Settings
           </Link>
-        </div>
+        </EmptyState>
       </section>
     );
   }

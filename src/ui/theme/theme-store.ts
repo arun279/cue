@@ -1,21 +1,40 @@
-import { applyTheme, initialTheme, persistTheme, type Theme } from "@ui/theme/theme";
+import {
+  applyTheme,
+  initialThemePreference,
+  onSystemThemeChange,
+  persistThemePreference,
+  resolveTheme,
+  type Theme,
+  type ThemePreference,
+} from "@ui/theme/theme";
 import { create } from "zustand";
 
 interface ThemeState {
+  preference: ThemePreference;
+  /** The resolved, stamped theme: what the status bar and pre-paint stamp read.
+   * Under `system` it tracks the live OS scheme. */
   theme: Theme;
-  setTheme: (theme: Theme) => void;
-  toggle: () => void;
+  setPreference: (preference: ThemePreference) => void;
 }
 
-/** Tiny cross-tree client state: the toggle's single source. */
-export const useThemeStore = create<ThemeState>((set, get) => ({
-  theme: initialTheme(),
-  setTheme: (theme) => {
+/** Tiny cross-tree client state: the Settings theme control's single source. */
+export const useThemeStore = create<ThemeState>((set, get) => {
+  const preference = initialThemePreference();
+  // App-lifetime subscription: while the preference is `system`, an OS scheme
+  // flip re-stamps the document without a visit to Settings.
+  onSystemThemeChange((theme) => {
+    if (get().preference !== "system") return;
     applyTheme(theme);
-    persistTheme(theme);
     set({ theme });
-  },
-  toggle: () => {
-    get().setTheme(get().theme === "dark" ? "light" : "dark");
-  },
-}));
+  });
+  return {
+    preference,
+    theme: resolveTheme(preference),
+    setPreference: (next) => {
+      const theme = resolveTheme(next);
+      applyTheme(theme);
+      persistThemePreference(next);
+      set({ preference: next, theme });
+    },
+  };
+});

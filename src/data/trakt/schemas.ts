@@ -138,17 +138,6 @@ export const watchlistSchema = z.array(
   }),
 );
 
-export const ratingsSchema = z.array(
-  z.object({
-    rated_at: z.string().optional(),
-    rating: z.number(),
-    type: z.string(),
-    show: showSchema.optional(),
-    movie: movieSchema.optional(),
-    episode: episodeSchema.optional(),
-  }),
-);
-
 export const calendarSchema = z.array(
   z.object({ first_aired: z.string(), episode: episodeSchema, show: showSchema }),
 );
@@ -235,7 +224,6 @@ export type MovieDetailData = z.infer<typeof movieDetailSchema>;
 export type ShowDetailData = z.infer<typeof showDetailSchema>;
 export type SeasonData = z.infer<typeof seasonsSchema>[number];
 export type WatchlistItem = z.infer<typeof watchlistSchema>[number];
-export type RatingItem = z.infer<typeof ratingsSchema>[number];
 export type CalendarItem = z.infer<typeof calendarSchema>[number];
 export type HistoryItem = z.infer<typeof historyItemSchema>;
 export type SearchResult = z.infer<typeof searchSchema>[number];

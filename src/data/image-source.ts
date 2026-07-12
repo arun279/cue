@@ -19,6 +19,22 @@ export function resolvePoster(input: PosterInput): ResolvedImage {
   return { source: "placeholder", initials: initialsOf(input.title) };
 }
 
+/** First usable candidate as an https URL; null means "use the monogram block". */
+function firstUrl(candidates: readonly string[] | null | undefined): string | null {
+  const url = candidates?.find((candidate) => candidate.length > 0);
+  return url === undefined ? null : ensureHttps(url);
+}
+
+/** An episode's 16:9 still from its `images.screenshot` candidates. */
+export function resolveStill(screenshots: readonly string[] | null | undefined): string | null {
+  return firstUrl(screenshots);
+}
+
+/** A show/movie 16:9 backdrop from its `images.fanart` candidates. */
+export function resolveBackdrop(fanart: readonly string[] | null | undefined): string | null {
+  return firstUrl(fanart);
+}
+
 function ensureHttps(url: string): string {
   return /^https?:\/\//.test(url) ? url : `https://${url}`;
 }

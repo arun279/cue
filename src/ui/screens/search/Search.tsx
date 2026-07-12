@@ -1,155 +1,115 @@
 import type { SearchHit } from "@data/trakt/search";
-import { ErrorRetry, ErrorToast } from "@ui/components/ErrorStates";
+import { ScreenHeader } from "@ui/app-shell/ScreenHeader";
+import { EmptyState } from "@ui/components/EmptyState";
+import { ErrorRetry } from "@ui/components/ErrorStates";
+import { SectionHeader } from "@ui/components/SectionHeader";
+import { SkeletonRows } from "@ui/components/Skeletons";
+import { dismissSnack, showSnack } from "@ui/components/snackbar-store";
+import { middleTruncate } from "@ui/format";
 import { useBrowse } from "@ui/hooks/useBrowse";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
-import { type SearchView, useSearch } from "@ui/hooks/useSearch";
+import { useIsOffline } from "@ui/hooks/useIsOffline";
+import { type SearchView, useSearch, visibleSearchHits } from "@ui/hooks/useSearch";
 import { usePrefs } from "@ui/prefs/prefs-store";
-import { type ReactElement, type ReactNode, useId } from "react";
-import { DiscoverGrid, DiscoverRail } from "./DiscoverCard";
+import { ArrowUpLeft } from "lucide-react";
+import { type ReactElement, type ReactNode, useEffect } from "react";
+import { HitTile } from "./HitTile";
+import { ResultRow } from "./ResultRow";
+import { SearchField } from "./SearchField";
 
-const SKELETON_TILES = [0, 1, 2, 3, 4, 5];
+/** Each browse grid is a 3×3 sample: the catalog lives in search, not in a wall. */
+const BROWSE_CELLS = 9;
+const SKELETON_TILES = Array.from({ length: BROWSE_CELLS }, (_, index) => index);
 
-function SkeletonTile({ tile }: { readonly tile: number }): ReactElement {
+function BrowseSkeleton(): ReactElement {
   return (
-    <div key={tile} className="discover-card discover-card--skeleton">
-      <div className="poster poster--tile poster--skeleton" />
-      <div className="discover-card__meta">
-        <div className="skeleton-line skeleton-line--title" />
-        <div className="skeleton-line skeleton-line--sub" />
-      </div>
-    </div>
-  );
-}
-
-function RailSkeleton(): ReactElement {
-  return (
-    <div className="discover-rail__track" aria-hidden="true" data-testid="discover-skeleton">
+    <div className="search-grid-skeleton" aria-hidden="true" data-testid="browse-skeleton">
       {SKELETON_TILES.map((tile) => (
-        <SkeletonTile key={tile} tile={tile} />
+        <div key={tile} className="search-grid-skeleton__tile">
+          <div className="search-grid-skeleton__art" />
+          <div className="search-grid-skeleton__cap" />
+        </div>
       ))}
     </div>
   );
 }
 
-/** The in-flight search state: the results grid's own silhouette so the query
- * settles into place rather than a bare status line jumping to a grid (Nielsen #1). Marked aria-hidden; the visually-hidden status text announces it. */
-function ResultsSkeleton(): ReactElement {
-  return (
-    <>
-      <p className="sr-only" role="status" data-testid="search-searching">
-        Searching…
-      </p>
-      <div className="poster-grid--static" aria-hidden="true" data-testid="search-skeleton">
-        {SKELETON_TILES.map((tile) => (
-          <SkeletonTile key={tile} tile={tile} />
-        ))}
-      </div>
-    </>
-  );
-}
-
-/** Empty-query browse: trending + popular poster rails for shows AND movies, with
- * recent searches as quick re-run chips above them. Every rail state is designed
- * (skeleton, error retry, real posters); each rail is the same poster idiom, so
- * movie hits route to `/movie/:id` and add inline exactly like the show rails. */
-function Browse({ view }: { view: SearchView }): ReactElement {
+/** Idle (empty query): session-recent searches as re-run rows, then the
+ * trending-shows / popular-movies poster grids — grids, not rails. */
+function Browse({
+  view,
+  showsEnabled,
+  moviesEnabled,
+}: {
+  readonly view: SearchView;
+  readonly showsEnabled: boolean;
+  readonly moviesEnabled: boolean;
+}): ReactElement {
   const browse = useBrowse();
-  const showsEnabled = usePrefs((s) => s.showsEnabled);
-  const moviesEnabled = usePrefs((s) => s.moviesEnabled);
-  // A single-medium user never sees the other medium's discover rails.
-  const rows: readonly {
-    readonly testId: string;
-    readonly head: string;
-    readonly hits: readonly SearchHit[];
-    readonly enabled: boolean;
-  }[] = [
+  // A single-medium user never sees the other medium's browse grid.
+  const grids = [
     {
-      testId: "discover-trending",
-      head: "Trending shows",
+      key: "search-trending-shows",
+      label: "Trending shows",
       hits: browse.trending,
       enabled: showsEnabled,
     },
     {
-      testId: "discover-popular",
-      head: "Popular shows",
-      hits: browse.popular,
-      enabled: showsEnabled,
-    },
-    {
-      testId: "discover-trending-movies",
-      head: "Trending movies",
-      hits: browse.trendingMovies,
-      enabled: moviesEnabled,
-    },
-    {
-      testId: "discover-popular-movies",
-      head: "Popular movies",
+      key: "search-popular-movies",
+      label: "Popular movies",
       hits: browse.popularMovies,
       enabled: moviesEnabled,
     },
-  ].filter((row) => row.enabled);
-  const anyRail = rows.some((row) => row.hits.length > 0);
+  ].filter((grid) => grid.enabled);
 
   let rails: ReactNode;
   if (browse.isLoading) {
-    rails = (
-      <>
-        <RailSkeleton />
-        <RailSkeleton />
-      </>
-    );
+    rails = <BrowseSkeleton />;
   } else if (browse.isError) {
     rails = (
       <ErrorRetry
         title="Couldn't load browse"
-        testId="discover-error"
-        buttonTestId="discover-error-retry"
+        testId="browse-error"
+        buttonTestId="browse-error-retry"
         onRetry={browse.refetch}
       />
     );
-  } else if (!anyRail) {
-    rails = (
-      <div className="empty" data-testid="discover-empty">
-        <h2 className="empty__title">Find something to watch</h2>
-        <p className="empty__body">Search any show or movie by name to add it to your watchlist.</p>
-      </div>
-    );
   } else {
-    rails = rows
-      .filter((row) => row.hits.length > 0)
-      .map((row) => (
-        <section key={row.testId} className="discover-rail" data-testid={row.testId}>
-          <h2 className="discover-rail__head">{row.head}</h2>
-          <DiscoverRail
-            hits={row.hits}
-            isAdded={view.isAdded}
-            onAdd={(hit) => void view.add(hit)}
-            testId={`${row.testId}-rail`}
-          />
+    rails = grids
+      .filter((grid) => grid.hits.length > 0)
+      .map((grid) => (
+        <section key={grid.key} className="search-rail" data-testid={grid.key}>
+          <SectionHeader label={grid.label} />
+          <div className="poster-tile-grid">
+            {grid.hits.slice(0, BROWSE_CELLS).map((hit) => (
+              <HitTile key={hit.key} hit={hit} />
+            ))}
+          </div>
         </section>
       ));
   }
 
   return (
-    <div className="discover-browse" data-testid="search-prequery">
+    <div data-testid="search-browse">
       {view.recent.length > 0 && (
-        <div className="search-recent" data-testid="search-recent">
-          <p className="search-recent__label">Recent searches</p>
-          <ul className="search-recent__list">
+        <section className="search-rail" data-testid="search-recent">
+          <SectionHeader label="Recent" />
+          <ul className="row-list">
             {view.recent.map((term) => (
               <li key={term}>
                 <button
                   type="button"
-                  className="badge search-recent__chip"
-                  data-testid="search-recent-chip"
+                  className="recent-row"
+                  data-testid="search-recent-row"
                   onClick={() => view.setInput(term)}
                 >
-                  {term}
+                  <span className="recent-row__term">{term}</span>
+                  <ArrowUpLeft aria-hidden="true" />
                 </button>
               </li>
             ))}
           </ul>
-        </div>
+        </section>
       )}
       {rails}
     </div>
@@ -157,32 +117,76 @@ function Browse({ view }: { view: SearchView }): ReactElement {
 }
 
 /**
- * Discover: a poster-forward browse + search screen. Empty query
- * shows trending + popular poster rails; a debounced query returns a title-ranked
- * poster grid of real results, each tile linking to its Show page with an inline
- * watchlist add. Every state is designed: browse skeleton/error, in-flight,
- * title-ranked results with a count, a no-results empty state, and a hard-error
- * retry.
+ * Search: one field over two honest states. Idle shows recent searches and a
+ * small trending/popular browse sample; a settled query returns mixed
+ * show/movie rows with a deterministic "+ Watchlist" add (undo via snackbar).
+ * Every state is designed: shimmer rows in flight, a no-results line that
+ * blames the spelling rather than the user, inline retry on failure, and an
+ * offline panel — search is the one surface that genuinely needs a connection.
  */
 export function Search(): ReactElement {
-  useDocumentTitle("Discover · Cue");
+  useDocumentTitle("Search · Cue");
   const view = useSearch();
-  const inputId = useId();
+  const offline = useIsOffline();
   const showsEnabled = usePrefs((s) => s.showsEnabled);
   const moviesEnabled = usePrefs((s) => s.moviesEnabled);
-  // A single-medium user never sees the other medium as a result tile
-  // (which would be a live entry point into a hidden section).
-  const visibleHits = view.hits.filter((hit) =>
-    hit.type === "movie" ? moviesEnabled : showsEnabled,
-  );
-  const mediumWord =
-    showsEnabled && moviesEnabled ? "shows and movies" : showsEnabled ? "shows" : "movies";
+  const visibleHits = visibleSearchHits(view.hits, showsEnabled, moviesEnabled);
+  const placeholder =
+    showsEnabled && moviesEnabled ? "Shows and movies…" : showsEnabled ? "Shows…" : "Movies…";
+
+  const { addError, clearAddError } = view;
+  useEffect(() => {
+    if (addError !== null) {
+      showSnack({
+        message: addError,
+        actions: [
+          {
+            label: "Dismiss",
+            onPress: () => {
+              clearAddError();
+              dismissSnack();
+            },
+          },
+        ],
+      });
+    }
+  }, [addError, clearAddError]);
+
+  const onAdd = (hit: SearchHit): void => {
+    void view.add(hit);
+    showSnack({
+      message: (
+        <>
+          <strong>{middleTruncate(hit.title)}</strong> added to Watchlist
+        </>
+      ),
+      actions: [
+        {
+          label: "Undo",
+          testId: "snackbar-undo",
+          onPress: () => {
+            dismissSnack();
+            void view.remove(hit);
+          },
+        },
+      ],
+    });
+  };
 
   let body: ReactNode;
-  if (view.status === "idle") {
-    body = <Browse view={view} />;
+  if (offline && view.status !== "idle") {
+    body = <EmptyState testId="search-offline" headline="Search needs a connection." />;
+  } else if (view.status === "idle") {
+    body = <Browse view={view} showsEnabled={showsEnabled} moviesEnabled={moviesEnabled} />;
   } else if (view.status === "searching") {
-    body = <ResultsSkeleton />;
+    body = (
+      <>
+        <p className="sr-only" role="status" data-testid="search-searching">
+          Searching…
+        </p>
+        <SkeletonRows rows={6} testId="search-skeleton" />
+      </>
+    );
   } else if (view.status === "error") {
     body = (
       <ErrorRetry
@@ -193,85 +197,49 @@ export function Search(): ReactElement {
       />
     );
   } else if (view.status === "empty" || visibleHits.length === 0) {
-    // A single-medium user whose query matched ONLY the hidden medium
-    // would otherwise read a bare "No matches": a search that looks broken rather
-    // than settings-filtered. Name the hidden results and point to the fix instead
-    // (Rams #6 honest design; Nielsen match between system and the real world).
+    // A single-medium user whose query matched ONLY the hidden medium would
+    // otherwise read a bare no-results: a search that looks broken rather than
+    // settings-filtered. Name the hidden results and point to the fix instead.
     const hiddenCount = view.status === "empty" ? 0 : view.hits.length;
     const hiddenLabel = moviesEnabled ? "TV shows" : "Movies";
     body = (
-      <div className="empty" data-testid="search-no-results">
-        <h2 className="empty__title">
-          {hiddenCount > 0
-            ? `No ${mediumWord} match "${view.query}"`
-            : `No matches for "${view.query}"`}
-        </h2>
-        {hiddenCount > 0 ? (
-          <p className="empty__body" data-testid="search-hidden-note">
-            {hiddenCount} {hiddenCount === 1 ? "result" : "results"} in {hiddenLabel}{" "}
-            {hiddenCount === 1 ? "is" : "are"} hidden. Turn {hiddenLabel} on in Settings to see{" "}
-            {hiddenCount === 1 ? "it" : "them"}.
-          </p>
-        ) : (
-          <p className="empty__body">Try a different title or check the spelling.</p>
-        )}
-      </div>
+      <EmptyState
+        testId="search-no-results"
+        headline={`Nothing for "${view.query}".`}
+        body={
+          hiddenCount > 0
+            ? `${hiddenCount} ${hiddenCount === 1 ? "result is" : "results are"} hidden in ${hiddenLabel}. Turn ${hiddenLabel} on in Settings to see ${hiddenCount === 1 ? "it" : "them"}.`
+            : "Check spelling or try the year."
+        }
+      />
     );
   } else {
     body = (
-      <div className="discover-results">
-        <p className="discover-results__count" role="status" data-testid="search-result-count">
+      <>
+        <p className="sr-only" role="status" data-testid="search-result-count">
           {visibleHits.length} {visibleHits.length === 1 ? "result" : "results"} for "{view.query}"
         </p>
-        <DiscoverGrid
-          hits={visibleHits}
-          isAdded={view.isAdded}
-          onAdd={(hit) => void view.add(hit)}
-          testId="search-results"
-        />
-      </div>
+        <ul className="row-list" data-testid="search-results">
+          {visibleHits.map((hit) => (
+            <li key={hit.key}>
+              <ResultRow hit={hit} added={view.isAdded(hit)} onAdd={onAdd} />
+            </li>
+          ))}
+        </ul>
+      </>
     );
   }
 
   return (
-    <section className="screen screen--discover" data-testid="screen-search">
-      <header className="screen__head">
-        <h1 className="screen__title">Discover</h1>
-      </header>
-
-      <search className="discover-search">
-        <label className="discover-search__label" htmlFor={inputId}>
-          Search {mediumWord}
-        </label>
-        <div className="discover-search__field">
-          <svg className="discover-search__icon" viewBox="0 0 20 20" aria-hidden="true">
-            <path
-              d="M9 3a6 6 0 1 0 3.7 10.7l3.3 3.3 1.4-1.4-3.3-3.3A6 6 0 0 0 9 3Zm0 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z"
-              fill="currentColor"
-            />
-          </svg>
-          <input
-            id={inputId}
-            type="search"
-            className="discover-search__input"
-            data-testid="search-input"
-            placeholder={`Search ${mediumWord}…`}
-            autoComplete="off"
-            value={view.input}
-            onChange={(event) => view.setInput(event.target.value)}
-          />
-        </div>
-      </search>
-
+    <section className="screen-search" data-testid="screen-search">
+      <ScreenHeader title="Search" variant="root" />
+      <SearchField
+        value={view.input}
+        onChange={view.setInput}
+        placeholder={placeholder}
+        label={`Search ${showsEnabled && moviesEnabled ? "shows and movies" : showsEnabled ? "shows" : "movies"}`}
+      />
       {body}
-
-      {view.addError !== null && (
-        <ErrorToast
-          testId="search-add-error"
-          message={view.addError}
-          onDismiss={view.clearAddError}
-        />
-      )}
     </section>
   );
 }

@@ -9,22 +9,38 @@ import type { CueRuntime } from "@ui/runtime/runtime";
 /**
  * The outcome of resolving a single-episode uncheck against its real Trakt plays
  * `remove` carries the per-play plan (safe id-scoped removal);
- * `rewatch` means the episode has more than one play, so a one-tap uncheck would
- * destroy watch history: the caller must refuse and route to the Diary; `none`
+ * `rewatch` means the episode has more than one play, so an item-scoped uncheck
+ * would destroy watch history: the caller removes ONLY `latest` (the newest play,
+ * by exact history id) and keeps the check filled — `previous` is the play that
+ * survives, so the caller can keep its watched-at display truthful; `none`
  * means the server already holds no play (nothing to remove); `error` means the
  * resolve read itself failed.
  */
 export type EpisodeUnmarkResolution =
   | { readonly kind: "remove"; readonly plan: UnmarkPlan }
-  | { readonly kind: "rewatch"; readonly count: number }
+  | {
+      readonly kind: "rewatch";
+      readonly count: number;
+      readonly latest: EpisodePlay;
+      readonly previous: EpisodePlay;
+    }
   | { readonly kind: "none" }
   | { readonly kind: "error" };
 
+/** Newest-first play ordering: watched-at moment, then history id as the
+ * tiebreak (Trakt ids are monotonic, so the higher id is the later log entry). */
+function newestFirst(a: EpisodePlay, b: EpisodePlay): number {
+  const at = Date.parse(b.watchedAt) - Date.parse(a.watchedAt);
+  return at !== 0 ? at : b.historyId - a.historyId;
+}
+
 /**
  * Resolve an episode's plays and decide how (or whether) to unmark it, so every
- * durable uncheck removes exact history ids and never wipes a rewatch. Shared by
- * the show-detail season row and the episode-detail toggle so the two surfaces
- * behave identically.
+ * durable uncheck removes exact history ids and never wipes a rewatch: a
+ * single play is removed outright; a rewatch yields only its newest play as the
+ * removal candidate (the check stays filled, the earlier plays are untouchable
+ * here). Shared by the show-detail season rows and the episode sheet so both
+ * surfaces behave identically.
  */
 export async function resolveEpisodeUnmark(
   runtime: CueRuntime,
@@ -37,7 +53,13 @@ export async function resolveEpisodeUnmark(
     return { kind: "error" };
   }
   const plan = planEpisodeUnmark(plays, episodeTrakt);
-  if (plan.keptRewatch.length > 0) return { kind: "rewatch", count: plays.length };
+  if (plan.keptRewatch.length > 0) {
+    const ordered = plays.filter((play) => play.episodeTrakt === episodeTrakt).sort(newestFirst);
+    const [latest, previous] = ordered;
+    if (latest !== undefined && previous !== undefined) {
+      return { kind: "rewatch", count: ordered.length, latest, previous };
+    }
+  }
   if (plan.removeIds.length === 0) return { kind: "none" };
   return { kind: "remove", plan };
 }
@@ -50,12 +72,6 @@ export async function resolveEpisodeUnmark(
  * the caller must refuse and route to the watch history (MovieDetail's notice links
  * to `/history?type=movies`); `none` means the server already holds no play; `error`
  * means the resolve read itself failed.
- *
- * TODO(episode-detail-parity): the episode-detail toggle (useToggleEpisodeWatched)
- * shares this seam but still (a) has no in-flight-mark guard, so the same fast
- * mark→unmark race can silently retain an episode play, and (b) shows a Dismiss-only
- * rewatch notice with no link to `/history?type=tv`. Mirror the movie fixes on the
- * TV surface in a TV-scoped pass.
  */
 export type MovieUnmarkResolution =
   | { readonly kind: "remove"; readonly historyId: number; readonly watchedAt: string }

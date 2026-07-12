@@ -1,57 +1,38 @@
-import type { HistoryDay, HistoryEntry, HistoryGroup } from "@domain/history";
+import type { HistoryEntry } from "@domain/history";
 import { localTimeZone } from "@domain/time";
-import { Link, useNavigate, useSearch } from "@tanstack/react-router";
-import { ChevronIcon } from "@ui/components/ChevronIcon";
-import { DetailBack } from "@ui/components/DetailBack";
-import { ErrorRetry, ErrorToast } from "@ui/components/ErrorStates";
-import { Snackbar } from "@ui/components/Snackbar";
-import { SyncStatusPill } from "@ui/components/SyncStatusPill";
-import { VirtualList } from "@ui/components/VirtualList";
-import { episodeCode, formatWatchedDate } from "@ui/format";
+import { useNavigate, useSearch } from "@tanstack/react-router";
+import { ScreenHeader } from "@ui/app-shell/ScreenHeader";
+import { SyncStrip } from "@ui/app-shell/SyncStrip";
+import { Badge } from "@ui/components/Badge";
+import { CheckControl } from "@ui/components/CheckControl";
+import { Chip } from "@ui/components/Chip";
+import { ContextMenu } from "@ui/components/ContextMenu";
+import { EmptyState } from "@ui/components/EmptyState";
+import { EpisodeRow } from "@ui/components/EpisodeRow";
+import { ErrorRetry } from "@ui/components/ErrorStates";
+import { SkeletonRows } from "@ui/components/Skeletons";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { type HistoryFilter, type HistoryScope, useHistory } from "@ui/hooks/useHistory";
+import { useRemovalSnacks } from "@ui/hooks/useRemovalSnacks";
 import { usePrefs } from "@ui/prefs/prefs-store";
 import { Poster } from "@ui/screens/up-next/Poster";
-import { Accordion, AlertDialog, ToggleGroup } from "radix-ui";
-import { type ReactElement, type ReactNode, useMemo } from "react";
+import { type ReactElement, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { HistorySearch } from "./HistorySearch";
+import {
+  buildBlocks,
+  countItemPlays,
+  entryDetail,
+  entryLink,
+  type HistoryRowVM,
+  jumpLabel,
+} from "./history-view";
+import { type HistoryJumpScope, MonthJumpSheet } from "./MonthJumpSheet";
 
-const UNDO_MS = 6000;
-const RESTORED_MS = 4000;
-
-/** The card row estimate (px) for the virtualizer's first paint; real heights are
- * measured after mount, so this only shapes initial overscan. Matches the Calendar
- * row card, which shares the same poster + two-line body dimensions. */
-const ROW_ESTIMATE = 92;
-
-const FILTERS = [
+const FILTERS: readonly { readonly value: HistoryFilter; readonly label: string }[] = [
   { value: "all", label: "All" },
-  { value: "tv", label: "TV" },
+  { value: "tv", label: "Shows" },
   { value: "movies", label: "Movies" },
-] as const;
-
-/**
- * The decade-jump floor for the Year picker: no year older than this is offered as
- * a chip. Cue's only backend is Trakt, and a large Trakt migration (the app's
- * origin story) carries plays no earlier than the early-2010s tracking era; 2010
- * sits comfortably before that, so the picker spans every realistic year without an
- * endless list of empty ones. A deep link (`?year=2004`) still reaches any older
- * year the picker doesn't list, so this floor never hides real history. */
-const HISTORY_EPOCH_YEAR = 2010;
-
-const MONTHS = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-] as const;
+];
 
 const timeFmt = new Intl.DateTimeFormat("en-US", {
   timeZone: localTimeZone(),
@@ -59,346 +40,105 @@ const timeFmt = new Intl.DateTimeFormat("en-US", {
   minute: "2-digit",
 });
 
-function plural(n: number, unit: string): string {
-  return `${n} ${unit}${n === 1 ? "" : "s"}`;
-}
-
-/** The quiet per-day rollup, e.g. "3 episodes · 1 movie". */
-function dayRollup(day: HistoryDay): string {
-  const parts: string[] = [];
-  if (day.episodeCount > 0) parts.push(plural(day.episodeCount, "episode"));
-  if (day.movieCount > 0) parts.push(plural(day.movieCount, "movie"));
-  return parts.join(" · ");
-}
-
-/** The played thing's secondary line: SxEy · title for an episode, release year for a movie. */
-function entryMeta(entry: HistoryEntry): string {
-  if (entry.type === "movie") return entry.year === null ? "Movie" : String(entry.year);
-  const code = episodeCode(entry.season ?? 0, entry.number ?? 0);
-  return entry.episodeTitle === null ? code : `${code} · ${entry.episodeTitle}`;
-}
-
-/** A collapsed same-show cluster header, e.g. "S1 E5-E8 · 4 episodes". */
-function clusterSummary(entries: readonly HistoryEntry[]): string {
-  const count = plural(entries.length, "episode");
-  const seasons = new Set(entries.map((e) => e.season));
-  if (seasons.size !== 1) return count;
-  const season = entries[0]?.season ?? 0;
-  const numbers = entries.map((e) => e.number ?? 0);
-  const lo = Math.min(...numbers);
-  const hi = Math.max(...numbers);
-  const range = lo === hi ? `E${lo}` : `E${lo}-E${hi}`;
-  return `S${season} ${range} · ${count}`;
-}
-
-/** The human scope label for headings/empty states: "2019" or "March 2019". */
-function scopeLabel(year: number | undefined, month: number | undefined): string | null {
-  if (year === undefined) return null;
-  if (month === undefined) return String(year);
-  return `${MONTHS[month - 1]} ${year}`;
-}
-
-function episodeDetailLink(entry: HistoryEntry): {
-  readonly to: "/show/$showId/episode/$season/$episode";
-  readonly params: { readonly showId: string; readonly season: string; readonly episode: string };
-} {
-  return {
-    to: "/show/$showId/episode/$season/$episode",
-    params: {
-      showId: String(entry.mediaId),
-      season: String(entry.season ?? 0),
-      episode: String(entry.number ?? 0),
-    },
-  };
-}
-
-function EntryPoster({ entry }: { readonly entry: HistoryEntry }): ReactElement {
-  return <Poster title={entry.title} posters={entry.posters} />;
-}
-
-function OverflowIcon(): ReactElement {
-  return (
-    <svg className="diary-overflow__glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <circle cx="5" cy="12" r="1.7" fill="currentColor" />
-      <circle cx="12" cy="12" r="1.7" fill="currentColor" />
-      <circle cx="19" cy="12" r="1.7" fill="currentColor" />
-    </svg>
-  );
-}
-
-/** The per-play reversal: a 44px trailing ⋯ that opens a CONFIRMED action sheet
- * naming the exact play (title · what · when), gated by a caution confirm. An accidental
- * destructive tap becomes destructive-by-intent (Shneiderman #5/#6, Nielsen #5). Radix
- * AlertDialog gives the focus trap + Escape + confirm gating; the sheet is bottom
- * -anchored with a safe-area inset. Shared by single rows AND cluster child rows: the
- * removal still runs through the exact history-event-id seam (`onRemove`). */
-function RemoveActionSheet({
-  entry,
+function HistoryRow({
+  row,
   onRemove,
+  onGoTo,
 }: {
-  readonly entry: HistoryEntry;
-  onRemove(entry: HistoryEntry): void;
+  readonly row: HistoryRowVM;
+  onRemove(row: HistoryRowVM): void;
+  onGoTo(entry: HistoryEntry): void;
 }): ReactElement {
-  const what = entryMeta(entry);
-  const when = `${formatWatchedDate(entry.watchedAt) ?? ""} · ${timeFmt.format(new Date(entry.watchedAt))}`;
+  const { entry } = row;
+  const detail = entryDetail(entry);
   return (
-    <AlertDialog.Root>
-      <AlertDialog.Trigger asChild>
-        <button
-          type="button"
-          className="diary-overflow"
-          data-testid="history-remove-menu"
-          aria-label={`More actions for ${entry.title} · ${what}`}
-        >
-          <OverflowIcon />
-        </button>
-      </AlertDialog.Trigger>
-      <AlertDialog.Portal>
-        <AlertDialog.Overlay className="action-sheet__overlay" />
-        <AlertDialog.Content
-          className="action-sheet"
-          data-testid="history-remove-sheet"
-          aria-modal="true"
-        >
-          <div className="action-sheet__head">
-            <AlertDialog.Title className="action-sheet__title">{entry.title}</AlertDialog.Title>
-            <AlertDialog.Description className="action-sheet__meta">{what}</AlertDialog.Description>
-          </div>
-          <div className="action-sheet__actions">
-            <AlertDialog.Action asChild>
-              <button
-                type="button"
-                className="action-sheet__item action-sheet__item--danger"
-                data-testid="history-remove"
-                onClick={() => onRemove(entry)}
-              >
-                <span>Remove this play</span>
-                <span className="action-sheet__item-when">{when}</span>
-              </button>
-            </AlertDialog.Action>
-            <AlertDialog.Cancel asChild>
-              <button
-                type="button"
-                className="action-sheet__item"
-                data-testid="history-remove-cancel"
-              >
-                Cancel
-              </button>
-            </AlertDialog.Cancel>
-          </div>
-        </AlertDialog.Content>
-      </AlertDialog.Portal>
-    </AlertDialog.Root>
-  );
-}
-
-/** The shared row language for single plays AND cluster heads: a title that owns the
- * row and WRAPS (up to two lines, never crushed to an ellipsis), over a secondary meta
- * line. Both surfaces render identical markup so they read the same. */
-function RowContent({
-  title,
-  meta,
-  footer,
-}: {
-  readonly title: string;
-  readonly meta: ReactNode;
-  /** An optional quiet third line under the meta (the cluster's "Logged together"
-   * caption): kept out of the trailing edge so the title + episode range own the
-   * full row width and wrap instead of being crushed at ~320px (Rams #4). */
-  readonly footer?: ReactNode;
-}): ReactElement {
-  return (
-    <span className="card__body">
-      <span className="card__title">{title}</span>
-      <span className="diary-card__meta">{meta}</span>
-      {footer}
-    </span>
-  );
-}
-
-/** One standalone play: a lone episode or a movie. Quiet, past-tense, no ✓ pill. The
- * play time folds into the secondary meta line (not a competing trailing column), so
- * the title owns the row exactly as a cluster head does. */
-function HistorySingle({
-  entry,
-  onRemove,
-}: {
-  readonly entry: HistoryEntry;
-  onRemove(entry: HistoryEntry): void;
-}): ReactElement {
-  const meta: ReactNode = (
-    <>
-      {entryMeta(entry)}
-      {" · "}
-      <time dateTime={entry.watchedAt}>{timeFmt.format(new Date(entry.watchedAt))}</time>
-    </>
-  );
-  const content = <RowContent title={entry.title} meta={meta} />;
-  const link: ReactNode =
-    entry.type === "movie" ? (
-      <Link
-        to="/movie/$movieId"
-        params={{ movieId: String(entry.mediaId) }}
-        className="card__link"
-        data-testid="history-row-link"
-      >
-        {content}
-      </Link>
-    ) : (
-      <Link {...episodeDetailLink(entry)} className="card__link" data-testid="history-row-link">
-        {content}
-      </Link>
-    );
-  return (
-    <div className="card diary-card" data-testid="history-row" data-type={entry.type}>
-      <EntryPoster entry={entry} />
-      {link}
-      <RemoveActionSheet entry={entry} onRemove={onRemove} />
-    </div>
-  );
-}
-
-/** A collapsed same-show cluster: one card that expands to its individual plays. A
- * bulk mark (all plays one minute) is labelled "Logged together" and its child
- * rows hide the synthetic clock; a real binge shows each play's own time. */
-function HistoryCluster({
-  group,
-  onRemove,
-}: {
-  readonly group: HistoryGroup;
-  onRemove(entry: HistoryEntry): void;
-}): ReactElement {
-  const head = group.entries[0] as HistoryEntry;
-  return (
-    <div
-      className="diary-cluster"
-      data-testid="history-cluster"
-      data-logged-together={group.loggedTogether}
+    <ContextMenu
+      title={entry.title}
+      rows={[
+        {
+          label: entry.type === "movie" ? "Go to movie" : "Go to episode",
+          testId: "history-menu-open",
+          onPress: () => onGoTo(entry),
+        },
+        {
+          label: "Remove this play",
+          danger: true,
+          testId: "history-menu-remove",
+          onPress: () => onRemove(row),
+        },
+      ]}
     >
-      <Accordion.Root type="single" collapsible className="diary-cluster__root">
-        <Accordion.Item value="entries" className="diary-cluster__item">
-          <div className="card diary-card diary-cluster__head">
-            <EntryPoster entry={head} />
-            <Accordion.Header className="diary-cluster__header">
-              <Accordion.Trigger
-                className="diary-cluster__trigger"
-                data-testid="history-cluster-trigger"
-              >
-                <RowContent
-                  title={head.title}
-                  meta={clusterSummary(group.entries)}
-                  footer={
-                    group.loggedTogether && (
-                      <span className="diary-card__together" data-testid="history-logged-together">
-                        Logged together
-                      </span>
-                    )
-                  }
-                />
-                <ChevronIcon className="diary-cluster__chevron" />
-              </Accordion.Trigger>
-            </Accordion.Header>
-          </div>
-          <Accordion.Content className="diary-cluster__content">
-            <ul className="diary-cluster__list">
-              {group.entries.map((entry) => (
-                <li key={entry.historyId} className="diary-child" data-testid="history-child">
-                  <Link
-                    {...episodeDetailLink(entry)}
-                    className="diary-child__link"
-                    data-testid="history-row-link"
-                  >
-                    <span className="diary-child__code">
-                      {episodeCode(entry.season ?? 0, entry.number ?? 0)}
-                    </span>
-                    {entry.episodeTitle !== null && (
-                      <span className="diary-child__title">{entry.episodeTitle}</span>
-                    )}
-                  </Link>
-                  <div className="diary-card__trailing">
-                    {!group.loggedTogether && (
-                      <time className="diary-card__time" dateTime={entry.watchedAt}>
-                        {timeFmt.format(new Date(entry.watchedAt))}
-                      </time>
-                    )}
-                    <RemoveActionSheet entry={entry} onRemove={onRemove} />
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </Accordion.Content>
-        </Accordion.Item>
-      </Accordion.Root>
-    </div>
+      <EpisodeRow
+        variant="history"
+        testId="history-row"
+        art={
+          <>
+            <time className="hist-time" dateTime={entry.watchedAt}>
+              {timeFmt.format(new Date(entry.watchedAt))}
+            </time>
+            <Poster title={entry.title} posters={entry.posters} variant="s32" />
+          </>
+        }
+        title={
+          <>
+            <span className="hist-title">
+              <strong>{entry.title}</strong> · {detail}
+            </span>
+            {row.plays > 1 && (
+              <Badge variant="plays" testId="history-plays">
+                ×{row.plays}
+              </Badge>
+            )}
+          </>
+        }
+        trailing={
+          <CheckControl
+            state="watched"
+            size={44}
+            label="Watched — tap to remove"
+            onPress={() => onRemove(row)}
+          />
+        }
+        link={entryLink(entry)}
+        linkLabel={`${entry.title} · ${detail}`}
+      />
+    </ContextMenu>
   );
 }
-
-const SKELETON_DAYS = [0, 1];
-const SKELETON_ROWS = [0, 1, 2];
 
 function HistorySkeleton(): ReactElement {
   return (
-    <div className="history-scroll" aria-hidden="true" data-testid="history-skeleton">
-      {SKELETON_DAYS.map((day) => (
-        <div key={day} className="history-skeleton-day">
-          <span className="skeleton-line skeleton-line--title diary-day__label--skeleton" />
-          <ul className="history-skeleton-groups">
-            {SKELETON_ROWS.map((row) => (
-              <li key={row} className="card diary-card diary-card--skeleton">
-                <span className="poster diary-card__poster--skeleton" />
-                <span className="skeleton-line skeleton-line--sub" />
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
+    <div aria-hidden="true" data-testid="history-skeleton">
+      <span className="skeleton-row__bar hist-skel-day" />
+      <SkeletonRows rows={4} />
     </div>
   );
 }
 
-/** The flattened, virtualizer-friendly row stream: a day heading, then its plays
- * (single or collapsed cluster), then an optional "Load earlier" sentinel. */
-type Row =
-  | { readonly kind: "day"; readonly day: HistoryDay }
-  | { readonly kind: "single"; readonly group: HistoryGroup }
-  | { readonly kind: "cluster"; readonly group: HistoryGroup }
-  | { readonly kind: "more" };
-
-function flatten(days: readonly HistoryDay[], hasMore: boolean): Row[] {
-  const rows: Row[] = [];
-  for (const day of days) {
-    rows.push({ kind: "day", day });
-    for (const group of day.groups) {
-      rows.push(
-        group.entries.length === 1 ? { kind: "single", group } : { kind: "cluster", group },
-      );
-    }
-  }
-  if (hasMore) rows.push({ kind: "more" });
-  return rows;
+/** The human scope label for empty states: "2019" or "Mar 2019". */
+function scopeLabel(year: number | undefined, month: number | undefined): string | null {
+  return year === undefined ? null : jumpLabel(year, month, Date.now());
 }
 
-const YEAR_RECENT = "";
-
 /**
- * Watch history at scale. Cue's past tense on its own route: a
- * reverse-chronological, virtualized watch log grouped by the viewer's local day,
- * with a type filter and a decade jump (Year → Month) so a ten-thousand-play,
- * decade-deep account can teleport to any window instead of scrolling forever.
- * Rows stay calm and past-tense (no amber ✓); a trailing ⋯ opens a confirmed action
- * sheet that removes exactly that one play (by history event id), reversibly. Every
- * state is designed: skeleton, hard error with retry, a
- * scope-aware empty state, and a "Load earlier" sentinel that walks the window one
- * page at a time. Reached from the Profile hub; Back returns there.
+ * Watch history: Cue's past tense on its own route, reached from Profile. A
+ * reverse-chronological log grouped by local day, with a type filter, an
+ * in-header title filter over the loaded window, and a month/year jump — a
+ * decade-deep account teleports to any window instead of scrolling forever.
+ * Scrolling pages in more history by itself. Every filled check is the durable
+ * unmark path: a tap removes exactly that play (by history event id),
+ * optimistically, with a snackbar Undo; long-press offers the same plus
+ * navigation. The scope lives in the URL (`?type`/`?year`/`?month`), so every
+ * window is deep-linkable.
  */
 export function History(): ReactElement {
-  useDocumentTitle("Watch history · Cue");
+  useDocumentTitle("History · Cue");
   const { type, year, month } = useSearch({ from: "/history" });
   const navigate = useNavigate();
   const showsEnabled = usePrefs((s) => s.showsEnabled);
   const moviesEnabled = usePrefs((s) => s.moviesEnabled);
 
-  // A single-medium user is pinned to their medium and shown no toggle:
+  // A single-medium user is pinned to their medium and shown no filter chips:
   // the same "one active medium shows no toggle" idiom as the Library.
   const lockedFilter: HistoryFilter | undefined = !moviesEnabled
     ? "tv"
@@ -409,8 +149,49 @@ export function History(): ReactElement {
   const scope: HistoryScope = { filter, year, month };
   const view = useHistory(scope);
 
-  const rows = useMemo(() => flatten(view.days, view.hasMore), [view.days, view.hasMore]);
-  const label = scopeLabel(year, month);
+  const [titleQuery, setTitleQuery] = useState("");
+  const [jumpOpen, setJumpOpen] = useState(false);
+
+  const blocks = useMemo(() => buildBlocks(view.days, titleQuery), [view.days, titleQuery]);
+
+  // The removal wrapper stamps how many plays of the item remain in the loaded
+  // window BEFORE the optimistic hide, so the snackbar effect (which fires after
+  // the hide) can honestly say "Removed 1 play — N remain" without re-deriving
+  // state that has already shifted under it.
+  const lastRemoval = useRef<{ readonly historyId: number; readonly remain: number } | null>(null);
+  const removeRow = (row: HistoryRowVM): void => {
+    lastRemoval.current = {
+      historyId: row.entry.historyId,
+      remain: countItemPlays(view.days, row.entry) - 1,
+    };
+    void view.removePlay(row.entry);
+  };
+
+  useRemovalSnacks(view, (entry) => {
+    const removal = lastRemoval.current;
+    const remain = removal !== null && removal.historyId === entry.historyId ? removal.remain : 0;
+    return remain > 0
+      ? `Removed 1 play — ${remain} remain${remain === 1 ? "s" : ""}`
+      : "Removed play";
+  });
+
+  // Infinite scroll: a sentinel below the list pulls the next page as it nears
+  // the viewport. A failed page falls back to the explicit Retry button (no
+  // observer), so an outage can't hammer the endpoint on every scroll twitch.
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const { hasMore, isLoadingMore, isLoadMoreError, loadEarlier } = view;
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (sentinel === null || !hasMore || isLoadingMore || isLoadMoreError) return;
+    const observer = new IntersectionObserver(
+      (hits) => {
+        if (hits.some((hit) => hit.isIntersecting)) loadEarlier();
+      },
+      { rootMargin: "480px 0px" },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, isLoadingMore, isLoadMoreError, loadEarlier]);
 
   const setFilter = (value: HistoryFilter): void => {
     void navigate({
@@ -420,29 +201,24 @@ export function History(): ReactElement {
     });
   };
 
-  const years: number[] = [];
-  for (let y = new Date().getFullYear(); y >= HISTORY_EPOCH_YEAR; y -= 1) years.push(y);
-  // A deep-linked year older than the epoch floor still gets its own option so the
-  // control reflects the real scope rather than silently snapping to "Recent".
-  if (year !== undefined && !years.includes(year)) years.push(year);
-
-  const onYear = (value: string): void => {
+  const jumpTo = (target: HistoryJumpScope): void => {
     void navigate({
       to: "/history",
-      // Switching year clears any month drill (a month is meaningless without it).
+      // A month is meaningless without its year, so clearing the year clears both.
       search: (prev) => ({
         ...prev,
-        year: value === YEAR_RECENT ? undefined : Number(value),
-        month: undefined,
+        year: target.year,
+        month: target.year === undefined ? undefined : target.month,
       }),
     });
   };
-  const onMonth = (value: string): void => {
-    void navigate({
-      to: "/history",
-      search: (prev) => ({ ...prev, month: value === "" ? undefined : Number(value) }),
-    });
+
+  const goTo = (entry: HistoryEntry): void => {
+    void navigate(entryLink(entry));
   };
+
+  const label = scopeLabel(year, month);
+  const filtering = titleQuery.trim() !== "";
 
   let body: ReactNode;
   if (view.isLoading) {
@@ -456,214 +232,133 @@ export function History(): ReactElement {
         onRetry={view.refetch}
       />
     );
-  } else if (view.isEmpty) {
+  } else if (view.isEmpty && !filtering) {
     body =
       label === null ? (
-        <div className="empty" data-testid="history-empty">
-          <h2 className="empty__title">Nothing logged yet</h2>
-          <p className="empty__body">
-            Mark an episode or movie watched and it appears here: your reverse-chronological record.
-          </p>
-          <Link className="button" to="/search" data-testid="history-empty-discover">
-            Find something to watch
-          </Link>
-        </div>
+        <EmptyState
+          testId="history-empty"
+          headline="Nothing logged yet."
+          body="Everything you mark lands here — and can be removed here."
+        />
       ) : (
-        <div className="empty" data-testid="history-empty">
-          <h2 className="empty__title">Nothing watched in {label}</h2>
-          <p className="empty__body">
-            No plays fall in this window. Pick another month or year, or return to your recent
-            history.
-          </p>
+        <EmptyState
+          testId="history-empty"
+          headline={`Nothing watched in ${label}.`}
+          body="No plays fall in this window. Pick another month, or head back to recent history."
+        >
           <button
             type="button"
             className="button"
             data-testid="history-empty-recent"
-            onClick={() => onYear(YEAR_RECENT)}
+            onClick={() => jumpTo({})}
           >
             Back to recent
           </button>
-        </div>
+        </EmptyState>
       );
+  } else if (blocks.length === 0 && filtering) {
+    body = (
+      <EmptyState
+        testId="history-filter-empty"
+        headline="No titles match."
+        body={`Nothing loaded matches "${titleQuery.trim()}". Scroll loads more history to search.`}
+      />
+    );
   } else {
     body = (
-      <VirtualList
-        items={rows}
-        estimateSize={ROW_ESTIMATE}
-        label={`Watch history${label === null ? "" : ` for ${label}`}, grouped by day`}
-        className="history-scroll"
-        renderItem={(row) => {
-          if (row.kind === "day") {
-            return (
-              <h3 className="history-heading" data-testid="history-day-heading">
-                {row.day.label}
-                <span className="history-heading__count" data-testid="history-day-count">
-                  {dayRollup(row.day)}
-                </span>
+      <>
+        {blocks.map((block) =>
+          block.kind === "year" ? (
+            <h2 key={`year-${block.year}`} className="hist-year" data-testid="history-year">
+              {block.year}
+            </h2>
+          ) : (
+            <section key={block.day.dayKey} className="hist-day-group">
+              <h3 className="hist-day" data-testid="history-day-heading">
+                {block.day.label}
+                <span className="hist-day__count"> · {block.day.rollup}</span>
               </h3>
-            );
-          }
-          if (row.kind === "single") {
-            return (
-              <HistorySingle
-                entry={row.group.entries[0] as HistoryEntry}
-                onRemove={(entry) => void view.removePlay(entry)}
-              />
-            );
-          }
-          if (row.kind === "cluster") {
-            return (
-              <HistoryCluster group={row.group} onRemove={(entry) => void view.removePlay(entry)} />
-            );
-          }
-          return (
-            <div className="history-more">
-              {view.isLoadMoreError && !view.isLoadingMore && (
+              <ul className="row-list">
+                {block.day.rows.map((row) => (
+                  <li key={row.entry.historyId}>
+                    <HistoryRow row={row} onRemove={removeRow} onGoTo={goTo} />
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ),
+        )}
+        {hasMore && (
+          <div className="hist-more">
+            {isLoadingMore && <SkeletonRows rows={2} testId="history-loading-more" />}
+            {isLoadMoreError && !isLoadingMore && (
+              <>
                 <p
-                  className="diary-more__error"
+                  className="hist-more__error"
                   role="alert"
                   data-testid="history-load-earlier-error"
                 >
                   Couldn't load earlier history.
                 </p>
-              )}
-              <button
-                type="button"
-                className="button button--ghost"
-                data-testid="history-load-earlier"
-                aria-busy={view.isLoadingMore || undefined}
-                disabled={view.isLoadingMore}
-                onClick={view.loadEarlier}
-              >
-                {view.isLoadingMore ? "Loading…" : view.isLoadMoreError ? "Retry" : "Load earlier"}
-              </button>
-            </div>
-          );
-        }}
-      />
+                <button
+                  type="button"
+                  className="button button--ghost"
+                  data-testid="history-load-earlier"
+                  onClick={loadEarlier}
+                >
+                  Retry
+                </button>
+              </>
+            )}
+            <div ref={sentinelRef} className="hist-sentinel" aria-hidden="true" />
+          </div>
+        )}
+      </>
     );
   }
 
   return (
-    <section className="screen screen--full screen--history" data-testid="screen-history">
-      <header className="screen__head screen__head--stack">
-        <div className="screen__headline">
-          <DetailBack
-            testId="history-back"
-            label="‹ Back"
-            fallback={
-              <Link className="detail-back" to="/profile" data-testid="history-back">
-                ‹ Profile
-              </Link>
-            }
-          />
-          <h1 className="screen__title">Watch history</h1>
-        </div>
-        <SyncStatusPill
-          testId="history-status"
-          isFetching={view.isFetching}
-          isError={view.isError}
-          syncedAt={view.syncedAt}
-        />
-      </header>
+    <section className="screen-history" data-testid="screen-history">
+      <ScreenHeader
+        title="History"
+        variant="child"
+        trailing={<HistorySearch value={titleQuery} onChange={setTitleQuery} />}
+      />
+      <SyncStrip isError={view.isError} onRetry={view.refetch} />
 
-      {/* TODO(history-search): the decade jump (Year/Month) covers "find what I
-          watched around <time>"; a title-scoped filter ("an episode of Show X years
-          ago") would round out findability. Deferred deliberately: it needs a
-          title picker over `/search` routing to an item-scoped `/users/me/history`
-          read, out of scope for this pass. */}
-      <div className="library-controls history-controls">
+      <div className="hist-filters">
         {lockedFilter === undefined && (
-          <ToggleGroup.Root
-            type="single"
-            className="segmented"
-            aria-label="History type"
-            value={filter}
-            onValueChange={(value) => {
-              if (value !== "") setFilter(value as HistoryFilter);
-            }}
-          >
+          <fieldset className="hist-filters__chips">
+            <legend className="sr-only">History type</legend>
             {FILTERS.map((option) => (
-              <ToggleGroup.Item
+              <Chip
                 key={option.value}
-                className="segmented__item"
-                value={option.value}
-                data-testid={`history-filter-${option.value}`}
-              >
-                {option.label}
-              </ToggleGroup.Item>
+                variant="filter"
+                label={option.label}
+                selected={filter === option.value}
+                testId={`history-filter-${option.value}`}
+                onPress={() => setFilter(option.value)}
+              />
             ))}
-          </ToggleGroup.Root>
+          </fieldset>
         )}
-
-        <div className="history-jump">
-          <label className="history-jump__field">
-            <span className="history-jump__label">Year</span>
-            <select
-              className="history-select"
-              data-testid="history-year"
-              value={year === undefined ? YEAR_RECENT : String(year)}
-              onChange={(e) => onYear(e.target.value)}
-            >
-              <option value={YEAR_RECENT}>Recent</option>
-              {years.map((y) => (
-                <option key={y} value={String(y)}>
-                  {y}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          {year !== undefined && (
-            <label className="history-jump__field">
-              <span className="history-jump__label">Month</span>
-              <select
-                className="history-select"
-                data-testid="history-month"
-                value={month === undefined ? "" : String(month)}
-                onChange={(e) => onMonth(e.target.value)}
-              >
-                <option value="">All of {year}</option>
-                {MONTHS.map((name, i) => (
-                  <option key={name} value={String(i + 1)}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-        </div>
+        <Chip
+          variant="month-jump"
+          label={jumpLabel(year, month, Date.now())}
+          testId="history-jump"
+          onPress={() => setJumpOpen(true)}
+        />
       </div>
 
       {body}
 
-      {view.error !== null && (
-        <ErrorToast
-          testId="history-remove-error"
-          message={view.error}
-          onDismiss={view.clearError}
-        />
-      )}
-      {view.error === null && view.toast?.kind === "removed" && (
-        <Snackbar
-          testId="history-undo"
-          message="Removed from history"
-          actionLabel="Undo"
-          autoDismissMs={UNDO_MS}
-          onAction={() => void view.undo()}
-          onDismiss={view.dismissToast}
-        />
-      )}
-      {view.error === null && view.toast?.kind === "restored" && (
-        <Snackbar
-          testId="history-restored"
-          message="Restored to history"
-          actionLabel="Dismiss"
-          autoDismissMs={RESTORED_MS}
-          onAction={view.dismissToast}
-          onDismiss={view.dismissToast}
-        />
-      )}
+      <MonthJumpSheet
+        open={jumpOpen}
+        onOpenChange={setJumpOpen}
+        year={year}
+        month={month}
+        onPick={jumpTo}
+      />
     </section>
   );
 }

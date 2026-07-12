@@ -1,26 +1,26 @@
+import { SegmentedControl } from "@ui/components/SegmentedControl";
+import type { ThemePreference } from "@ui/theme/theme";
 import { useThemeStore } from "@ui/theme/theme-store";
-import { Switch } from "radix-ui";
 import type { ReactElement } from "react";
 
+const OPTIONS: readonly { readonly value: ThemePreference; readonly label: string }[] = [
+  { value: "system", label: "System" },
+  { value: "dark", label: "Dark" },
+  { value: "light", label: "Light" },
+];
+
+/** The Settings ▸ Appearance theme control: System / Dark / Light. */
 export function ThemeToggle(): ReactElement {
-  const theme = useThemeStore((state) => state.theme);
-  const setTheme = useThemeStore((state) => state.setTheme);
-  const isDark = theme === "dark";
+  const preference = useThemeStore((state) => state.preference);
+  const setPreference = useThemeStore((state) => state.setPreference);
 
   return (
-    <div className="theme-toggle">
-      <span className="theme-toggle__label" aria-hidden="true">
-        Dark theme
-      </span>
-      <Switch.Root
-        className="switch"
-        checked={isDark}
-        onCheckedChange={(checked) => setTheme(checked ? "dark" : "light")}
-        aria-label="Dark theme"
-        data-testid="theme-toggle"
-      >
-        <Switch.Thumb className="switch__thumb" />
-      </Switch.Root>
-    </div>
+    <SegmentedControl
+      options={OPTIONS}
+      value={preference}
+      onChange={setPreference}
+      ariaLabel="Theme"
+      testId="theme-toggle"
+    />
   );
 }

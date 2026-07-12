@@ -27,8 +27,20 @@ export interface SearchView {
   refetch(): void;
   isAdded(hit: SearchHit): boolean;
   add(hit: SearchHit): Promise<void>;
+  /** Reverse of `add`, for the snackbar Undo. */
+  remove(hit: SearchHit): Promise<void>;
   readonly addError: string | null;
   clearAddError(): void;
+}
+
+/** A single-medium user never sees the other medium as a result row (which
+ * would be a live entry point into a hidden section). */
+export function visibleSearchHits(
+  hits: readonly SearchHit[],
+  showsEnabled: boolean,
+  moviesEnabled: boolean,
+): readonly SearchHit[] {
+  return hits.filter((hit) => (hit.type === "movie" ? moviesEnabled : showsEnabled));
 }
 
 /**
@@ -85,6 +97,7 @@ export function useSearch(): SearchView {
     refetch: () => void query.refetch(),
     isAdded: watchlist.isAdded,
     add: watchlist.add,
+    remove: watchlist.remove,
     addError: watchlist.addError,
     clearAddError: watchlist.clearAddError,
   };

@@ -1,4 +1,5 @@
 import type { EpisodeRef, LibraryShow } from "@domain/model/library";
+import { resolveStill } from "../image-source";
 import type { HiddenItem, Progress, WatchedShow, WatchlistItem } from "./schemas";
 import { toEpisodeIds } from "./show-detail";
 
@@ -60,6 +61,7 @@ function toEpisodeRef(ep: SchemaEpisode): EpisodeRef {
     number: ep.number,
     title: ep.title ?? null,
     firstAired: ep.first_aired ?? null,
+    still: resolveStill(ep.images?.screenshot),
     ids: toEpisodeIds(ep.ids),
   };
 }
@@ -206,6 +208,7 @@ export function advancePastNext(entry: LibraryEntry, watchedAt: string): Library
           number: current.number + 1,
           title: null,
           firstAired: null,
+          still: null,
           ids: { trakt: 0 },
         };
   return {

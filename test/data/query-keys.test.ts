@@ -4,7 +4,6 @@ import { describe, expect, it } from "vitest";
 describe("queryKeys factory", () => {
   it("produces stable readonly tuples per section", () => {
     expect(queryKeys.watchlist("shows")).toEqual(["watchlist", "shows"]);
-    expect(queryKeys.ratings("episodes")).toEqual(["ratings", "episodes"]);
     expect(queryKeys.calendar("2026-07-05", 7)).toEqual(["calendar", "my-shows", "2026-07-05", 7]);
     expect(queryKeys.calendarPrefix()).toEqual(["calendar", "my-shows"]);
     expect(queryKeys.search("dune", "show,movie")).toEqual(["search", "show,movie", "dune"]);

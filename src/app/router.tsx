@@ -107,10 +107,13 @@ const movieRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/movie/$movieId",
 }).lazy(() => import("@app/routes/movie.lazy").then((module) => module.Route));
+// A layout child of the show route: the episode URL renders the show page with
+// the episode bottom sheet presented over it (cold deep links included), so
+// dismissing the sheet is one history pop. The parent's `requireShows` guard
+// runs for this path too.
 const episodeRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/show/$showId/episode/$season/$episode",
-  beforeLoad: requireShows,
+  getParentRoute: () => showRoute,
+  path: "episode/$season/$episode",
 }).lazy(() => import("@app/routes/episode.lazy").then((module) => module.Route));
 
 const routeTree = rootRoute.addChildren([
@@ -125,9 +128,8 @@ const routeTree = rootRoute.addChildren([
   historyRoute,
   authCallbackRoute,
   settingsRoute,
-  showRoute,
+  showRoute.addChildren([episodeRoute]),
   movieRoute,
-  episodeRoute,
 ]);
 
 export const router = createRouter({

@@ -4,17 +4,20 @@ Cue is a personal, zero-backend TV and movie tracker that syncs to your own [Tra
 
 ## Features
 
-- **Up Next**: a poster-first queue of the next episode to watch across every show you follow, with one-tap mark-as-watched (optimistic, undoable, durable through offline).
-- **My Shows**: your full library bucketed by status (watching, up next, upcoming, ended), backed by a virtualized poster grid.
-- **Show and Episode detail**: season shelves with per-season and per-episode marking, a cinematic still, and inline ratings.
-- **Calendar**: upcoming episodes for the shows you track.
-- **Discover**: debounced search with inline add, plus browse rails.
-- **Profile**: viewing stats tiles built from your Trakt history.
-- **Watchlist and ratings**: add to your Trakt watchlist and rate shows and episodes, written back through an optimistic write-queue.
+Four tabs — Up Next, Library, Calendar, Search — with History, Profile, and Settings behind the header avatar.
+
+- **Up Next**: the home timeline. A marquee spotlight on the show to resume, the queue of next episodes, an "On the way" shelf for episodes with an air date, a "Haven't watched lately" drawer for idle shows, and "Previously" for what you just watched.
+- **One-tap marking**: optimistic mark-as-watched everywhere (tap the check, or swipe a row), batched into a single snackbar Undo and durable through offline via a write-queue.
+- **Library**: every show and movie you track behind status chips (Watching, Watchlist, Stopped, Finished), on a virtualized poster grid with filter and sort.
+- **Calendar**: the upcoming agenda for your shows, day by day with countdown chips.
+- **Search**: debounced show and movie search with inline watchlist add, and trending/popular browse grids while idle.
+- **Show, episode, and movie detail**: season shelves with per-episode ticks, bulk "mark up to here" and season marking, and an episode bottom sheet with spoiler-guarded stills (unwatched artwork stays hidden until revealed; the guard can be turned off in Settings).
+- **History and Profile**: viewing stats tiles and the full watch log — browsable by year and month, with per-play removal.
+- **Watchlist**: add shows and movies to your Trakt watchlist, written back through the same optimistic write-queue.
 
 ## How it works
 
-Cue is **zero-backend**. It is a browser SPA (with a thin Capacitor shell for mobile) that talks directly to the Trakt API over OAuth using the PKCE flow: there is **no client secret and no server** of any kind. Sync state (history, watchlist, ratings, progress) lives in your Trakt account; posters and metadata come from Trakt. Nothing is proxied through a backend because there is no backend.
+Cue is **zero-backend**. It is a browser SPA (with a thin Capacitor shell for mobile) that talks directly to the Trakt API over OAuth using the PKCE flow: there is **no client secret and no server** of any kind. Sync state (history, watchlist, progress) lives in your Trakt account; posters and metadata come from Trakt. Nothing is proxied through a backend because there is no backend.
 
 ## Setup
 

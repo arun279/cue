@@ -1,4 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
+import { applyReconcile } from "@ui/hooks/apply-reconcile";
 import { useOptionalRuntime } from "@ui/runtime/runtime";
 import { useEffect } from "react";
 
@@ -37,22 +38,7 @@ export function useActivitiesPoll(): void {
       try {
         const reconcile = await runtime.pollActivities();
         if (cancelled || reconcile === null) return;
-        if (reconcile.keys.length > 0) {
-          await Promise.all(
-            reconcile.keys.map((queryKey) => queryClient.invalidateQueries({ queryKey })),
-          );
-          if (cancelled) return;
-        }
-        // Advance the baseline ONLY after the invalidated queries refetched, and
-        // only if none ended in error: a failed refetch must be re-detected on the
-        // next poll rather than silently skipped by an advanced snapshot.
-        const anyError = reconcile.keys.some((queryKey) =>
-          queryClient
-            .getQueryCache()
-            .findAll({ queryKey })
-            .some((query) => query.state.status === "error"),
-        );
-        if (!anyError) await reconcile.commit();
+        await applyReconcile(queryClient, reconcile, () => cancelled);
       } finally {
         running = false;
       }

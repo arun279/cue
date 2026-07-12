@@ -5,8 +5,6 @@ const HISTORY = "/sync/history";
 const HISTORY_REMOVE = "/sync/history/remove";
 const HIDDEN = "/users/hidden/progress_watched";
 const HIDDEN_REMOVE = "/users/hidden/progress_watched/remove";
-const RATINGS = "/sync/ratings";
-const RATINGS_REMOVE = "/sync/ratings/remove";
 const WATCHLIST = "/sync/watchlist";
 const WATCHLIST_REMOVE = "/sync/watchlist/remove";
 
@@ -193,76 +191,7 @@ export function buildUnhideShowOp(params: HideOpParams): QueuedOp {
   return hideOp("absent", params);
 }
 
-/** Rate/watchlist target on shows or episodes (movies only). */
-export type RateSection = "shows" | "episodes" | "movies";
 type WatchlistSection = "shows" | "movies";
-
-export interface RateOpParams {
-  readonly opId: string;
-  readonly section: RateSection;
-  readonly ids: ShowIds | EpisodeIds | MovieIds;
-  /** 1-10 (Trakt numeric model). */
-  readonly rating: number;
-  /**
-   * The rating this item carried before this write, or `null` if it was unrated.
-   * The inverse restores it so an Undo of a re-rate (6 → 8) returns to 6 rather
-   * than removing the rating outright.
-   */
-  readonly previousRating?: number | null;
-  readonly inversePatch?: unknown;
-}
-
-export interface UnrateOpParams {
-  readonly opId: string;
-  readonly section: RateSection;
-  readonly ids: ShowIds | EpisodeIds | MovieIds;
-  /** Restored by the inverse so an Undo re-applies the exact prior rating. */
-  readonly previousRating: number;
-  readonly inversePatch?: unknown;
-}
-
-/**
- * A rating write. Setting a rating is a `POST /sync/ratings` whose inverse
- * undoes *this* write: for a first rating it removes the rating; for a re-rate it
- * restores `previousRating`, so Undo of 6 → 8 returns to 6 instead of clearing it.
- * A re-rate on the same item coalesces on `itemKey` so only the last value
- * survives. Rating writes carry no `watched_at` and are idempotent: a
- * lost-response retry re-sends the same value, so no reconcile anchor is needed.
- */
-export function buildRateOp(params: RateOpParams): QueuedOp {
-  const item = { ids: params.ids };
-  const previous = params.previousRating ?? null;
-  return {
-    id: params.opId,
-    itemKey: `rating:${params.section}:${params.ids.trakt}`,
-    request: post(RATINGS, { [params.section]: [{ ...item, rating: params.rating }] }),
-    inverse:
-      previous === null
-        ? post(RATINGS_REMOVE, { [params.section]: [item] })
-        : post(RATINGS, { [params.section]: [{ ...item, rating: previous }] }),
-    inversePatch: params.inversePatch ?? null,
-    watchedAt: null,
-    fromState: previous === null ? "absent" : "present",
-    toState: "present",
-    reconcileKeys: [`ratings/${params.section}`],
-  };
-}
-
-/** Remove a rating; its inverse restores `previousRating` so Undo is exact. */
-export function buildUnrateOp(params: UnrateOpParams): QueuedOp {
-  const item = { ids: params.ids };
-  return {
-    id: params.opId,
-    itemKey: `rating:${params.section}:${params.ids.trakt}`,
-    request: post(RATINGS_REMOVE, { [params.section]: [item] }),
-    inverse: post(RATINGS, { [params.section]: [{ ...item, rating: params.previousRating }] }),
-    inversePatch: params.inversePatch ?? null,
-    watchedAt: null,
-    fromState: "present",
-    toState: "absent",
-    reconcileKeys: [`ratings/${params.section}`],
-  };
-}
 
 export interface WatchlistOpParams {
   readonly opId: string;

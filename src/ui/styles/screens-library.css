@@ -1,0 +1,201 @@
+/* ---- Library (/library) ---- */
+.screen-library {
+  display: flex;
+  flex-direction: column;
+}
+.screen-library > .app-header,
+.screen-library > .sync-strip {
+  margin-bottom: var(--space-3);
+}
+.screen-library > .app-header + .sync-strip {
+  margin-top: calc(-1 * var(--space-3));
+}
+
+/* Control row: the Shows|Movies segment leads, 44px icon tools trail. */
+.library-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--tap-min);
+}
+.library-toolbar__spacer {
+  flex: 1;
+}
+.library-tool {
+  appearance: none;
+  border: none;
+  background: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--tap-min);
+  height: var(--tap-min);
+  padding: 0;
+  border-radius: var(--radius-pill);
+  color: var(--color-ink2);
+  cursor: pointer;
+}
+.library-tool svg {
+  width: 22px;
+  height: 22px;
+}
+.library-tool:active {
+  background: var(--color-elevated);
+}
+.library-tool[aria-expanded="true"] {
+  color: var(--color-accent);
+}
+
+/* The tap-to-reveal title filter: one full-width 44px field, session-scoped. */
+.library-filter-row {
+  display: flex;
+  margin-top: var(--space-2);
+}
+.library-filter-field {
+  width: 100%;
+  height: var(--tap-min);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background: var(--color-elevated);
+  color: var(--color-fg);
+  font: inherit;
+  font-size: 15px;
+}
+.library-filter-field::placeholder {
+  color: var(--color-muted);
+}
+
+/* Status chips: one horizontal-scroll row, no wrap, exactly one active.
+ * The scroll box clips hit slop, so its own padding carries the 44px target. */
+.library-chips {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding-block: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.library-chips::-webkit-scrollbar {
+  display: none;
+}
+
+/* ---- The virtualized 3-column poster grid ---- */
+.library-grid {
+  position: relative;
+  margin-top: var(--space-3);
+}
+.library-grid__row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.library-grid__cell {
+  min-width: 0;
+}
+
+/* ---- Tile overlays (per-chip grammar; never color-only) ---- */
+.library-tile__scrim {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 28px;
+  border-radius: 0 0 var(--radius-poster) var(--radius-poster);
+  background: linear-gradient(to top, var(--color-scrim), transparent);
+  pointer-events: none;
+}
+.library-tile__bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: auto;
+  border-radius: 0 0 var(--radius-poster) var(--radius-poster);
+}
+.library-tile__left {
+  position: absolute;
+  top: var(--space-1);
+  right: var(--space-1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: rgb(10 8 6 / 0.7);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.library-tile__done {
+  position: absolute;
+  top: var(--space-1);
+  right: var(--space-1);
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-pill);
+  background: var(--color-watched);
+  color: var(--color-watched-fg);
+}
+.library-tile__done svg {
+  width: 14px;
+  height: 14px;
+}
+.library-tile__done--sync {
+  background: var(--color-elevated);
+  color: var(--color-ink2);
+}
+
+/* ---- Per-chip empty state: one honest line + optional action ---- */
+.library-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-6) 0;
+}
+.library-empty p {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 450;
+  line-height: 1.45;
+  color: var(--color-ink2);
+}
+
+/* ---- Loading: nine shimmer tiles matching the final grid ---- */
+.library-skeleton {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: var(--space-3);
+}
+.library-skeleton__tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.library-skeleton__art {
+  aspect-ratio: 2 / 3;
+  border-radius: var(--radius-poster);
+  background: var(--color-elevated);
+  animation: pulse 1.2s linear infinite;
+}
+.library-skeleton__cap {
+  height: 12px;
+  width: 70%;
+  border-radius: var(--radius-pill);
+  background: var(--color-elevated);
+  animation: pulse 1.2s linear infinite;
+}

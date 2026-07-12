@@ -1,13 +1,25 @@
-import { Link } from "@tanstack/react-router";
-import { useAuth } from "@ui/auth/store";
-import { DetailBack } from "@ui/components/DetailBack";
+import { ScreenHeader } from "@ui/app-shell/ScreenHeader";
+import { ActionSheet } from "@ui/components/ActionSheet";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { usePrefs } from "@ui/prefs/prefs-store";
 import { THRESHOLD_OPTIONS } from "@ui/prefs/threshold";
+import type { NextEpisodeOrder } from "@ui/prefs/tracking";
 import { ThemeToggle } from "@ui/theme/ThemeToggle";
-import { AlertDialog, Switch } from "radix-ui";
+import { Check, RefreshCw } from "lucide-react";
 import { type ReactElement, useState } from "react";
+import { version } from "../../../../package.json";
+import {
+  SettingLinkRow,
+  SettingRow,
+  SettingSection,
+  SettingSelectRow,
+  SettingSwitch,
+} from "./SettingRow";
+import { SignOutRow } from "./SignOutRow";
+import { useSyncStatus } from "./useSyncStatus";
 
+/** Trakt account management lives on Trakt: Cue only hands the user off to it. */
+const TRAKT_SETTINGS_URL = "https://app.trakt.tv/settings";
 /** Trakt account deletion lives on Trakt: Cue only hands the user off to it. */
 const TRAKT_ACCOUNT_SETTINGS_URL = "https://app.trakt.tv/settings/advanced";
 
@@ -27,16 +39,27 @@ function weeksLabel(days: number): string {
   return `${weeks} week${weeks === 1 ? "" : "s"}`;
 }
 
+const ORDER_LABELS: Record<NextEpisodeOrder, string> = {
+  "oldest-unwatched": "Oldest unwatched",
+  "after-last-watched": "After last watched",
+};
+const ORDER_OPTIONS: readonly NextEpisodeOrder[] = ["oldest-unwatched", "after-last-watched"];
+
+/** The picked-option tell for radio sheets; the blank keeps labels aligned. */
+function radioIcon(selected: boolean): ReactElement {
+  return selected ? <Check aria-hidden="true" /> : <span className="setting-radio-gap" />;
+}
+
 /**
- * Settings → Preferences + Connections: the appearance toggle
- * (relocated here off the header/sidebar), the threshold that decides when an
- * in-progress show collapses into Up Next's "Haven't watched in a while" drawer,
- * the connected token's status, and a
- * Disconnect that revokes on Trakt and clears the store, returning to onboarding.
+ * Settings: grouped rows over the device-local preference stores plus the two
+ * account hand-offs. Appearance (theme + haptics), Tracking (spoiler stills,
+ * queue order, the staleness threshold that feeds Up Next's lapsed drawer),
+ * Content (media visibility with the last-one-on guard), Data (the one place
+ * full sync state lives), Account (Trakt hand-offs + sign out), About (version
+ * + the required Trakt attribution).
  */
 export function Settings(): ReactElement {
   useDocumentTitle("Settings · Cue");
-  const disconnect = useAuth((s) => s.disconnect);
   const thresholdDays = usePrefs((s) => s.thresholdDays);
   const setThresholdDays = usePrefs((s) => s.setThresholdDays);
   const showsEnabled = usePrefs((s) => s.showsEnabled);
@@ -45,8 +68,14 @@ export function Settings(): ReactElement {
   const setMoviesEnabled = usePrefs((s) => s.setMoviesEnabled);
   const hapticsEnabled = usePrefs((s) => s.hapticsEnabled);
   const setHapticsEnabled = usePrefs((s) => s.setHapticsEnabled);
-  const [disconnecting, setDisconnecting] = useState(false);
-  const [disconnectError, setDisconnectError] = useState<string | null>(null);
+  const hideStills = usePrefs((s) => s.hideStillsUntilWatched);
+  const setHideStills = usePrefs((s) => s.setHideStillsUntilWatched);
+  const order = usePrefs((s) => s.nextEpisodeOrder);
+  const setOrder = usePrefs((s) => s.setNextEpisodeOrder);
+
+  const [orderOpen, setOrderOpen] = useState(false);
+  const [thresholdOpen, setThresholdOpen] = useState(false);
+  const sync = useSyncStatus();
 
   // The one enabled medium can't be turned off: the app is never emptied of both.
   const media = [
@@ -56,232 +85,161 @@ export function Settings(): ReactElement {
   const enabledCount = (showsEnabled ? 1 : 0) + (moviesEnabled ? 1 : 0);
 
   return (
-    <section className="screen" data-testid="screen-settings">
-      <DetailBack
-        testId="settings-back"
-        label="‹ Back"
-        fallback={
-          <Link to="/profile" className="detail-back" data-testid="settings-back">
-            ‹ Profile
-          </Link>
-        }
-      />
-      <h1 className="screen__title">Settings</h1>
+    <section className="screen-settings" data-testid="screen-settings">
+      <ScreenHeader title="Settings" variant="child" />
 
-      <h2 className="settings__heading">Appearance</h2>
-      <dl className="settings__list">
-        <div className="settings__row">
-          <dt>Theme</dt>
-          <dd>
-            <ThemeToggle />
-          </dd>
-        </div>
-        <div className="settings__row">
-          <dt>
-            Haptics
-            <small className="settings__hint">
-              A short buzz when you mark something watched or take it back. Applies on the phone
-              app.
-            </small>
-          </dt>
-          <dd>
-            <Switch.Root
-              className="switch"
+      <SettingSection label="Appearance">
+        <SettingRow label="Theme" control={<ThemeToggle />} />
+        <SettingRow
+          label="Haptics"
+          hint="A short buzz when you mark something watched or take it back. Applies on the phone app."
+          control={
+            <SettingSwitch
               checked={hapticsEnabled}
-              onCheckedChange={setHapticsEnabled}
-              aria-label="Haptics"
-              data-testid="haptics-toggle"
-            >
-              <Switch.Thumb className="switch__thumb" />
-            </Switch.Root>
-          </dd>
-        </div>
-      </dl>
+              onChange={setHapticsEnabled}
+              label="Haptics"
+              testId="haptics-toggle"
+            />
+          }
+        />
+      </SettingSection>
 
-      <h2 className="settings__heading">Content</h2>
-      <dl className="settings__list" data-testid="content-section">
-        {media.map((item) => {
-          const isLastEnabled = item.enabled && enabledCount === 1;
-          return (
-            <div className="settings__row" key={item.key}>
-              <dt>{item.label}</dt>
-              <dd>
-                <Switch.Root
-                  className="switch"
-                  checked={item.enabled}
-                  disabled={isLastEnabled}
-                  onCheckedChange={(checked) => item.setEnabled(checked)}
-                  aria-label={item.label}
-                  data-testid={`content-toggle-${item.key}`}
-                >
-                  <Switch.Thumb className="switch__thumb" />
-                </Switch.Root>
-              </dd>
-            </div>
-          );
-        })}
-      </dl>
-      <p className="settings__note" data-testid="content-hint">
-        Track TV shows, movies, or both. Turn off a medium and Cue hides it everywhere: Library,
-        Search, and your history. At least one stays on.
-      </p>
+      <SettingSection label="Tracking">
+        <SettingRow
+          label="Hide episode stills until watched"
+          hint="Keeps unwatched episode images spoiler-safe until you reveal them."
+          control={
+            <SettingSwitch
+              checked={hideStills}
+              onChange={setHideStills}
+              label="Hide episode stills until watched"
+              testId="stills-toggle"
+            />
+          }
+        />
+        <SettingSelectRow
+          label="Next episode order"
+          value={ORDER_LABELS[order]}
+          testId="order-select"
+          onPress={() => setOrderOpen(true)}
+        />
+        <SettingSelectRow
+          label="Haven't watched in a while after"
+          hint="Shows you haven't touched for longer collapse into the drawer at the bottom of Up Next."
+          value={weeksLabel(thresholdDays)}
+          testId="threshold-select"
+          onPress={() => setThresholdOpen(true)}
+        />
+      </SettingSection>
 
-      <h2 className="settings__heading">Preferences</h2>
-      <dl className="settings__list">
-        <div className="settings__row">
-          <dt>
-            Haven't watched in a while after
-            <small className="settings__hint">
-              Shows you haven't touched for longer collapse into the "Haven't watched in a while"
-              drawer at the bottom of Up Next.
-            </small>
-          </dt>
-          <dd>
-            <label className="library-sort">
-              <span className="library-sort__label">Inactivity</span>
-              <select
-                className="library-sort__select"
-                data-testid="threshold-select"
-                value={thresholdDays}
-                onChange={(event) => setThresholdDays(Number(event.target.value))}
-              >
-                {THRESHOLD_OPTIONS.map((days) => (
-                  <option key={days} value={days}>
-                    {weeksLabel(days)}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </dd>
-        </div>
-      </dl>
-
-      <h2 className="settings__heading">Connections</h2>
-      <dl className="settings__list">
-        <div className="settings__row">
-          <dt>Trakt</dt>
-          <dd data-testid="connection-status">
-            <span className="badge badge--ok">Connected</span>
-          </dd>
-        </div>
-      </dl>
-
-      <p className="settings__note">
-        Disconnecting revokes this device's access to your Trakt account, signs you out of Cue, and
-        deletes everything Cue kept on this device: the local cache and your Trakt token. Your watch
-        history stays in your Trakt account.
-      </p>
-      {disconnectError !== null && (
-        <p className="settings__error" role="alert" data-testid="disconnect-error">
-          {disconnectError}
+      <SettingSection label="Content" testId="content-section">
+        {media.map((item) => (
+          <SettingRow
+            key={item.key}
+            label={item.label}
+            control={
+              <SettingSwitch
+                checked={item.enabled}
+                disabled={item.enabled && enabledCount === 1}
+                onChange={(checked) => item.setEnabled(checked)}
+                label={item.label}
+                testId={`content-toggle-${item.key}`}
+              />
+            }
+          />
+        ))}
+        <p className="setting-note" data-testid="content-hint">
+          Track TV shows, movies, or both. Turn off a medium and Cue hides it everywhere: Library,
+          Search, and your history. At least one stays on.
         </p>
-      )}
-      <AlertDialog.Root>
-        <AlertDialog.Trigger asChild>
-          <button
-            type="button"
-            className="button button--danger"
-            data-testid="button-disconnect"
-            disabled={disconnecting}
-          >
-            {disconnecting ? "Disconnecting…" : "Disconnect Trakt"}
-          </button>
-        </AlertDialog.Trigger>
-        <AlertDialog.Portal>
-          <AlertDialog.Overlay className="dialog__overlay" />
-          <AlertDialog.Content
-            className="dialog__content"
-            data-testid="disconnect-dialog"
-            aria-modal="true"
-          >
-            <AlertDialog.Title className="dialog__title">Disconnect Trakt?</AlertDialog.Title>
-            <AlertDialog.Description className="dialog__body">
-              Your watch history stays safe in your Trakt account. Disconnecting signs this device
-              out of Cue and deletes the local cache and Trakt token stored on this device.
-              Reconnecting takes just a few seconds.
-            </AlertDialog.Description>
-            <div className="dialog__actions">
-              <AlertDialog.Cancel asChild>
-                <button
-                  type="button"
-                  className="button button--ghost"
-                  data-testid="disconnect-cancel"
-                >
-                  Cancel
-                </button>
-              </AlertDialog.Cancel>
-              <AlertDialog.Action asChild>
-                <button
-                  type="button"
-                  className="button button--danger"
-                  data-testid="button-disconnect-confirm"
-                  onClick={() => {
-                    setDisconnecting(true);
-                    setDisconnectError(null);
-                    disconnect().catch((error: unknown) => {
-                      // A successful disconnect unmounts this screen; only a failure
-                      // lands here, where the button must recover so the user can retry.
-                      setDisconnecting(false);
-                      // A refused disconnect (writes still queued offline) gets an
-                      // honest, actionable message instead of the generic failure.
-                      const pending = error instanceof Error && error.name === "PendingWritesError";
-                      setDisconnectError(
-                        pending
-                          ? "Some changes haven't synced yet. Reconnect to the internet, then try disconnecting again."
-                          : "Couldn't finish disconnecting. Please try again.",
-                      );
-                    });
-                  }}
-                >
-                  Disconnect
-                </button>
-              </AlertDialog.Action>
-            </div>
-          </AlertDialog.Content>
-        </AlertDialog.Portal>
-      </AlertDialog.Root>
+      </SettingSection>
 
-      <div className="settings__handoff">
-        <p className="settings__note">
+      <SettingSection label="Data">
+        <p
+          className="setting-status"
+          data-ok={sync.pending === 0 || undefined}
+          data-testid="sync-status"
+        >
+          {sync.line}
+        </p>
+        <button
+          type="button"
+          className="setting-row setting-row--press"
+          data-testid="sync-now"
+          disabled={sync.syncing}
+          onClick={() => void sync.syncNow()}
+        >
+          <span className="setting-row__label">{sync.syncing ? "Syncing…" : "Sync now"}</span>
+          <RefreshCw className="setting-row__external" aria-hidden="true" />
+        </button>
+      </SettingSection>
+
+      <SettingSection label="Account">
+        <SettingLinkRow
+          label="Manage Trakt account"
+          href={TRAKT_SETTINGS_URL}
+          testId="link-manage-account"
+        />
+        <SignOutRow />
+        <p className="setting-note">
           Only Trakt can delete your Trakt account. This opens Trakt in your browser to do it. Cue
           has no account of its own to delete.
         </p>
-        <a
-          className="settings__handoff-link"
-          data-testid="link-delete-account"
+        <SettingLinkRow
+          label="Delete your Trakt account"
           href={TRAKT_ACCOUNT_SETTINGS_URL}
+          testId="link-delete-account"
+        />
+      </SettingSection>
+
+      <SettingSection label="About">
+        <SettingRow
+          label="Version"
+          control={
+            <span className="setting-row__value" data-testid="settings-version">
+              {version}
+            </span>
+          }
+        />
+        <a
+          className="setting-attribution"
+          href="https://trakt.tv"
           target="_blank"
           rel="noopener noreferrer"
+          data-testid="powered-by-trakt"
         >
-          Delete your Trakt account
-          <svg
-            className="settings__handoff-icon"
-            viewBox="0 0 24 24"
-            aria-hidden="true"
-            focusable="false"
-          >
-            <path
-              d="M7 17 17 7M9 7h8v8"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
+          {traktLogoSrc !== null && (
+            <img className="setting-attribution__logo" src={traktLogoSrc} alt="Trakt" />
+          )}
+          Powered by Trakt
         </a>
-      </div>
+        <p className="setting-note" data-testid="trakt-attribution">
+          Cue uses the Trakt API but is not created, endorsed, or sponsored by Trakt.
+        </p>
+      </SettingSection>
 
-      <h2 className="settings__heading">About</h2>
-      <p className="settings__attribution" data-testid="powered-by-trakt">
-        {traktLogoSrc !== null && (
-          <img className="settings__trakt-logo" src={traktLogoSrc} alt="Trakt" />
-        )}
-        Powered by Trakt
-      </p>
-      <p className="settings__note" data-testid="trakt-attribution">
-        Cue uses the Trakt API but is not created, endorsed, or sponsored by Trakt.
-      </p>
+      <ActionSheet
+        open={orderOpen}
+        onOpenChange={setOrderOpen}
+        title="Next episode order"
+        rows={ORDER_OPTIONS.map((option) => ({
+          label: ORDER_LABELS[option],
+          icon: radioIcon(option === order),
+          testId: `order-${option}`,
+          onPress: () => setOrder(option),
+        }))}
+      />
+      <ActionSheet
+        open={thresholdOpen}
+        onOpenChange={setThresholdOpen}
+        title="Haven't watched in a while after"
+        rows={THRESHOLD_OPTIONS.map((days) => ({
+          label: weeksLabel(days),
+          icon: radioIcon(days === thresholdDays),
+          testId: `threshold-${days}`,
+          onPress: () => setThresholdDays(days),
+        }))}
+      />
     </section>
   );
 }

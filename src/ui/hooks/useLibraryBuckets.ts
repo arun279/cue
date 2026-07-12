@@ -1,50 +1,103 @@
 import type { LibraryEntry } from "@data/trakt/library";
-import { groupLibrary, type LibrarySort } from "@domain/library-buckets";
-import type { WatchStatus } from "@domain/watch-status";
+import { byTitle, type LibrarySort } from "@domain/library-buckets";
+import { toMs } from "@domain/time";
+import { computeWatchStatus } from "@domain/watch-status";
 import { type QueryStatus, queryStatus } from "@ui/hooks/query-freshness";
 import { useLibrarySnapshot } from "@ui/hooks/useLibrarySnapshot";
 import { useMemo } from "react";
 
-interface LibraryBucketView {
-  readonly status: WatchStatus;
-  readonly entries: readonly LibraryEntry[];
+/**
+ * The Library status chips. Statuses map onto them plainly: `caught-up` folds
+ * into Watching (an up-to-date show is still one you watch — Finished is
+ * reserved for completed terminal runs), `lapsed` folds into Watching (the
+ * lapsed cut is Up Next's drawer, not a Library pile), `not-started` reads as
+ * Watchlist, `abandoned` as Stopped, `sync-pending` as Still syncing.
+ */
+export type LibraryChipKey = "watching" | "watchlist" | "stopped" | "finished" | "syncing";
+
+export type LibraryChips = Readonly<Record<LibraryChipKey, readonly LibraryEntry[]>>;
+
+function progressRatio(entry: LibraryEntry): number {
+  return entry.aired > 0 ? entry.completed / entry.aired : 0;
 }
 
-export interface LibraryBucketsView extends QueryStatus {
-  readonly buckets: readonly LibraryBucketView[];
+/** The domain bucket comparators (the S10 sort set), restated over entries so
+ * the merged Watching chip keeps one order across its two source statuses. */
+function comparatorFor(sort: LibrarySort): (a: LibraryEntry, b: LibraryEntry) => number {
+  if (sort === "alphabetical") return byTitle;
+  if (sort === "progress") return (a, b) => progressRatio(b) - progressRatio(a);
+  return (a, b) => (toMs(b.lastWatchedAt) ?? 0) - (toMs(a.lastWatchedAt) ?? 0);
+}
+
+function chipOf(entry: LibraryEntry, now: number, thresholdMs: number): LibraryChipKey {
+  const status = computeWatchStatus(entry, now, thresholdMs);
+  switch (status) {
+    case "watching":
+    case "lapsed":
+    case "caught-up":
+      return "watching";
+    case "not-started":
+      return "watchlist";
+    case "abandoned":
+      return "stopped";
+    case "ended":
+      return "finished";
+    case "sync-pending":
+      return "syncing";
+  }
+}
+
+/** Pure chip grouping: every entry lands in exactly one chip, each chip sorted
+ * by the segment's chosen comparator. */
+export function chipBuckets(
+  entries: readonly LibraryEntry[],
+  now: number,
+  thresholdMs: number,
+  sort: LibrarySort,
+): LibraryChips {
+  const lists: Record<LibraryChipKey, LibraryEntry[]> = {
+    watching: [],
+    watchlist: [],
+    stopped: [],
+    finished: [],
+    syncing: [],
+  };
+  for (const entry of entries) {
+    lists[chipOf(entry, now, thresholdMs)].push(entry);
+  }
+  const comparator = comparatorFor(sort);
+  for (const list of Object.values(lists)) list.sort(comparator);
+  return lists;
+}
+
+export interface LibraryChipsView extends QueryStatus {
+  readonly chips: LibraryChips;
   /** Non-hidden tracked shows: the count that decides an empty library (aligned with Up Next). */
   readonly trackedCount: number;
   /** Every tracked show, hidden included: 0 only when the library is truly empty. */
   readonly totalCount: number;
   /** The library exceeds the cold-sync progress budget, so only recent shows are
-   * fully synced: the pill's honest "recent shows synced" state. */
+   * fully synced: the honest "recent shows synced" state. */
   readonly isPartial: boolean;
   refetch(): void;
 }
 
 /**
- * My Shows read hook: the same persisted `library` snapshot Up Next paints from,
- * grouped into the piles via the pure `groupLibrary` selector against the
- * live staleness threshold. Reuses the shared cache so the screen paints instantly
- * on navigation with no extra fetch.
+ * The Library shows read hook: the same persisted `library` snapshot Up Next
+ * paints from, grouped into the status chips against the live staleness
+ * threshold. Reuses the shared cache so the screen paints instantly on
+ * navigation with no extra fetch.
  */
-export function useLibraryBuckets(sort: LibrarySort, enabled = true): LibraryBucketsView {
-  const { query, data, byId, thresholdMs } = useLibrarySnapshot(enabled);
+export function useLibraryBuckets(sort: LibrarySort, enabled = true): LibraryChipsView {
+  const { query, data, thresholdMs } = useLibrarySnapshot(enabled);
 
-  const buckets = useMemo<LibraryBucketView[]>(() => {
-    if (data === undefined) return [];
-    const now = Date.now();
-    return groupLibrary(data.entries, now, thresholdMs, sort).map((bucket) => ({
-      status: bucket.status,
-      entries: bucket.shows.flatMap((show) => {
-        const entry = byId.get(show.showId);
-        return entry === undefined ? [] : [entry];
-      }),
-    }));
-  }, [data, byId, thresholdMs, sort]);
+  const chips = useMemo<LibraryChips>(
+    () => chipBuckets(data?.entries ?? [], Date.now(), thresholdMs, sort),
+    [data, thresholdMs, sort],
+  );
 
   return {
-    buckets,
+    chips,
     trackedCount: data === undefined ? 0 : data.entries.filter((entry) => !entry.hidden).length,
     totalCount: data?.entries.length ?? 0,
     isPartial: data?.isPartial ?? false,

@@ -6,6 +6,13 @@ import {
   persistMediaVisibility,
 } from "./media-visibility";
 import { initialThresholdDays, persistThresholdDays } from "./threshold";
+import {
+  initialHideStillsUntilWatched,
+  initialNextEpisodeOrder,
+  type NextEpisodeOrder,
+  persistHideStillsUntilWatched,
+  persistNextEpisodeOrder,
+} from "./tracking";
 
 interface PrefsState {
   /** Days of inactivity before a show falls from Watching to Not-watched-in-a-while. */
@@ -21,6 +28,13 @@ interface PrefsState {
    * read by the injected haptics seam at fire time. Silent no-op on web regardless. */
   hapticsEnabled: boolean;
   setHapticsEnabled: (enabled: boolean) => void;
+  /** Spoiler guard: blur unwatched episode stills until revealed. Default ON. */
+  hideStillsUntilWatched: boolean;
+  setHideStillsUntilWatched: (enabled: boolean) => void;
+  /** How the Up Next queue orders shows: oldest waiting episode first (default)
+   * or the user's own last-watched recency. */
+  nextEpisodeOrder: NextEpisodeOrder;
+  setNextEpisodeOrder: (order: NextEpisodeOrder) => void;
 }
 
 /**
@@ -54,6 +68,16 @@ export const usePrefs = create<PrefsState>((set, get) => {
     setHapticsEnabled: (hapticsEnabled) => {
       persistHapticsEnabled(hapticsEnabled);
       set({ hapticsEnabled });
+    },
+    hideStillsUntilWatched: initialHideStillsUntilWatched(),
+    setHideStillsUntilWatched: (hideStillsUntilWatched) => {
+      persistHideStillsUntilWatched(hideStillsUntilWatched);
+      set({ hideStillsUntilWatched });
+    },
+    nextEpisodeOrder: initialNextEpisodeOrder(),
+    setNextEpisodeOrder: (nextEpisodeOrder) => {
+      persistNextEpisodeOrder(nextEpisodeOrder);
+      set({ nextEpisodeOrder });
     },
   };
 });

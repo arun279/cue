@@ -1,37 +1,30 @@
 import type { LibraryEntry } from "@data/trakt/library";
 import type { MovieEntry } from "@data/trakt/movie-library";
 import type { LibrarySort } from "@domain/library-buckets";
-import type { WatchStatus } from "@domain/watch-status";
-import { useNavigate, useSearch } from "@tanstack/react-router";
-import { CachedRetryBanner } from "@ui/components/CachedRetryBanner";
-import { ChevronIcon } from "@ui/components/ChevronIcon";
-import { ErrorRetry, ErrorToast } from "@ui/components/ErrorStates";
-import { Snackbar } from "@ui/components/Snackbar";
-import { SyncStatusPill } from "@ui/components/SyncStatusPill";
-import { formatAirDate } from "@ui/format";
+import { isAired } from "@domain/time";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
+import { ScreenHeader } from "@ui/app-shell/ScreenHeader";
+import { SyncStrip } from "@ui/app-shell/SyncStrip";
+import { ActionSheet, type ActionSheetRow } from "@ui/components/ActionSheet";
+import { Chip } from "@ui/components/Chip";
+import { ContextMenu } from "@ui/components/ContextMenu";
+import { ErrorRetry } from "@ui/components/ErrorStates";
+import { SegmentedControl } from "@ui/components/SegmentedControl";
+import { dismissSnack, showSnack } from "@ui/components/snackbar-store";
+import { epCode } from "@ui/format";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { useHideShow } from "@ui/hooks/useHideShow";
-import { useLibraryBuckets } from "@ui/hooks/useLibraryBuckets";
+import { type LibraryChipKey, useLibraryBuckets } from "@ui/hooks/useLibraryBuckets";
+import { useMarkWatched } from "@ui/hooks/useMarkWatched";
+import { useMovieActions } from "@ui/hooks/useMovieActions";
 import { type MovieSort, useMovieLibrary } from "@ui/hooks/useMovieLibrary";
 import { usePrefs } from "@ui/prefs/prefs-store";
-import { Accordion, ToggleGroup } from "radix-ui";
-import { type ReactElement, type ReactNode, useEffect, useMemo, useState } from "react";
+import { ArrowUpDown, Check, Search as SearchIcon } from "lucide-react";
+import { type ReactElement, type ReactNode, useEffect, useRef, useState } from "react";
 import { LibrarySkeleton } from "./LibrarySkeleton";
-import { MoviePosterCard } from "./MoviePosterCard";
-import { PosterCard } from "./PosterCard";
+import { MovieTile } from "./MovieTile";
 import { PosterGrid } from "./PosterGrid";
-
-/** Plain, real-world segment labels. Watchlist (not-started) is framed as the
- * things you chose to start: never a "backlog". "Finished"/"Stopped" replace the
- * internal "Ended"/"Abandoned"; the derived enum values (data-status) stay put. */
-const PILE_LABEL: Partial<Record<WatchStatus, string>> = {
-  "not-started": "Watchlist",
-  watching: "Watching",
-  "caught-up": "Caught up",
-  "sync-pending": "Still syncing",
-  ended: "Finished",
-  abandoned: "Stopped",
-};
+import { ShowTile } from "./ShowTile";
 
 const SORT_LABEL: Record<LibrarySort, string> = {
   "recently-watched": "Recently watched",
@@ -41,9 +34,7 @@ const SORT_LABEL: Record<LibrarySort, string> = {
 const SORTS: readonly LibrarySort[] = ["recently-watched", "alphabetical", "progress"];
 
 /** Movie sort keys: parity of placement with Shows, honest options: "Progress" is
- * meaningless for a binary movie, so Release year replaces it.
- * The recency axis reads "added/watched" because it sorts the movie-native way in
- * each segment: Watchlist by `listed_at` (added), Watched by `last_watched_at`. */
+ * meaningless for a binary movie, so Release year replaces it. */
 const MOVIE_SORT_LABEL: Record<MovieSort, string> = {
   "recently-watched": "Recently added/watched",
   alphabetical: "A-Z",
@@ -51,208 +42,75 @@ const MOVIE_SORT_LABEL: Record<MovieSort, string> = {
 };
 const MOVIE_SORTS: readonly MovieSort[] = ["recently-watched", "alphabetical", "release-year"];
 
-type MovieSegmentKey = "watchlist" | "watched";
-const MOVIE_SEGMENT_KEYS: readonly MovieSegmentKey[] = ["watchlist", "watched"];
+type MovieChipKey = "watchlist" | "watched";
 
-/** On first visit Shows open Watching and Movies open Watchlist (the actionable
- * pool). When that preferred segment is absent (empty and dropped), the first
- * non-empty segment opens instead, so the library never loads fully collapsed.
- * Every other segment stays a labelled, counted header (recognition over recall)
- * until the user reaches for it. */
-const SHOW_DEFAULT_OPEN: WatchStatus = "watching";
-const OPEN_KEY = "cue.piles-open";
-const MOVIE_DEFAULT_OPEN: MovieSegmentKey = "watchlist";
-const MOVIE_OPEN_KEY = "cue.movie-piles-open";
+const SHOW_CHIP_KEYS: readonly LibraryChipKey[] = [
+  "watching",
+  "watchlist",
+  "stopped",
+  "finished",
+  "syncing",
+];
+const MOVIE_CHIP_KEYS: readonly MovieChipKey[] = ["watchlist", "watched"];
+
+/** Exactly one chip is active; the last choice is remembered per segment. */
+const SHOW_CHIP_STORAGE = "cue.library-chip";
+const MOVIE_CHIP_STORAGE = "cue.library-movie-chip";
+
+const SHOW_CHIP_LABEL: Record<LibraryChipKey, string> = {
+  watching: "Watching",
+  watchlist: "Watchlist",
+  stopped: "Stopped",
+  finished: "Finished",
+  syncing: "Still syncing",
+};
+
+/** Genuine emptiness per chip reads as orientation, never as failure. */
+const SHOW_CHIP_EMPTY: Record<LibraryChipKey, string> = {
+  watching: "Shows you're watching land here. Find one in Search.",
+  watchlist: "Things you want to watch land here. Add them from Search.",
+  stopped: "Shows you stop keep their progress. Resume any time.",
+  finished: "Shows you finish land here.",
+  syncing: "Nothing is waiting on a sync.",
+};
+const MOVIE_CHIP_EMPTY: Record<MovieChipKey, string> = {
+  watchlist: "Things you want to watch land here. Add them from Search.",
+  watched: "Movies you watch land here.",
+};
 
 /**
- * Reuse the Discover settle delay (300ms): below the ~1s that reads as sluggish,
- * above a fast typist's inter-keystroke gap, so a mid-word burst expands the piles
- * once rather than thrashing on every keystroke.
+ * Debounce before the title filter applies: below the ~1s that reads as
+ * sluggish, above a fast typist's inter-keystroke gap, so a mid-word burst
+ * filters the grid once rather than thrashing on every keystroke.
  */
 const FILTER_DEBOUNCE_MS = 300;
 
-const isPileStatus = (v: string): v is WatchStatus => Object.hasOwn(PILE_LABEL, v);
-const isMovieSegment = (v: string): v is MovieSegmentKey =>
-  (MOVIE_SEGMENT_KEYS as readonly string[]).includes(v);
-
-/** Read a persisted open-segment set for either taxonomy, keeping only keys still
- * valid for that view. Returns null when nothing is stored yet, so the caller falls
- * back to a data-derived default (rather than a fixed pile that may be empty). */
-function readOpenSet<T extends string>(
-  storageKey: string,
-  valid: (v: string) => v is T,
-): T[] | null {
+function readChip<T extends string>(storageKey: string, valid: readonly T[]): T | null {
   try {
     const raw = localStorage.getItem(storageKey);
-    if (raw === null) return null;
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return null;
-    return parsed.filter((v): v is T => typeof v === "string" && valid(v));
+    return valid.find((key) => key === raw) ?? null;
   } catch {
     return null;
   }
 }
 
-/** The default open set when the user hasn't chosen one: the preferred segment if
- * it's present, else the first non-empty segment: so a library whose preferred pile
- * is empty-and-dropped still loads with something expanded, never all collapsed. */
-function resolveDefaultOpen(
-  piles: readonly { readonly key: string }[],
-  preferred: string,
-): string[] {
-  const first = piles.find((pile) => pile.key === preferred) ?? piles[0];
-  return first === undefined ? [] : [first.key];
-}
-
-function persistOpen(storageKey: string, value: readonly string[]): void {
+function persistChip(storageKey: string, value: string): void {
   try {
-    localStorage.setItem(storageKey, JSON.stringify(value));
+    localStorage.setItem(storageKey, value);
   } catch {
-    // A private-mode storage failure just forgets the layout next visit: non-fatal.
+    // A private-mode storage failure just forgets the chip next visit: non-fatal.
   }
 }
 
-interface SegmentSource<E> {
-  readonly key: string;
-  readonly label: string;
-  /** Shows carry a derived `WatchStatus` for per-status styling; movies leave it unset. */
-  readonly status?: WatchStatus;
-  readonly entries: readonly E[];
-}
-
-interface SegmentPile<E> {
-  readonly key: string;
-  readonly label: string;
-  readonly status?: WatchStatus;
-  readonly total: number;
-  /** Tiles to render: every entry when idle, only title matches while filtering. */
-  readonly shown: readonly E[];
-}
-
-/** Apply the debounced cross-segment title filter to a taxonomy's segments,
- * carrying total + matched counts for the header badge. Shared by both views. */
-function filterSegments<E extends { readonly title: string }>(
-  sources: readonly SegmentSource<E>[],
-  filter: string,
-): SegmentPile<E>[] {
-  const filtering = filter.length > 0;
-  return sources.map((source) => ({
-    key: source.key,
-    label: source.label,
-    status: source.status,
-    total: source.entries.length,
-    shown: filtering
-      ? source.entries.filter((entry) => entry.title.toLowerCase().includes(filter))
-      : source.entries,
-  }));
-}
-
-/** The shared collapsible-segment body: a Radix Accordion where each item is a
- * disclosure header (chevron + name + right-aligned count badge) over a
- * PosterGrid. Identical chrome for Shows and Movies; only the cell renderer and
- * entry type differ (Shneiderman #1 / Nielsen #4 consistency). */
-function SegmentAccordion<E>({
-  piles,
-  openValue,
-  onOpenChange,
-  filtering,
-  keyOf,
-  renderCell,
-}: {
-  readonly piles: readonly SegmentPile<E>[];
-  readonly openValue: string[];
-  onOpenChange(values: string[]): void;
-  readonly filtering: boolean;
-  keyOf(entry: E): string | number;
-  renderCell(entry: E, pile: SegmentPile<E>): ReactNode;
-}): ReactElement {
-  return (
-    <Accordion.Root
-      type="multiple"
-      className="piles"
-      value={openValue}
-      onValueChange={onOpenChange}
-    >
-      {piles.map((pile) => (
-        <Accordion.Item key={pile.key} className="pile" value={pile.key} data-status={pile.status}>
-          <Accordion.Header className="pile__header">
-            <Accordion.Trigger
-              className="pile__trigger"
-              data-testid="pile-heading"
-              data-status={pile.status}
-            >
-              <ChevronIcon className="pile__chevron" />
-              <span className="pile__name">{pile.label}</span>
-              <span className="pile__count library-heading__count" data-testid="pile-count">
-                {filtering ? `${pile.shown.length}/${pile.total}` : pile.total}
-              </span>
-            </Accordion.Trigger>
-          </Accordion.Header>
-          <Accordion.Content className="pile__content">
-            <PosterGrid
-              entries={pile.shown}
-              keyOf={keyOf}
-              renderCell={(entry: E) => renderCell(entry, pile)}
-            />
-          </Accordion.Content>
-        </Accordion.Item>
-      ))}
-    </Accordion.Root>
-  );
-}
-
-/** A single Stopped tile: the whole PosterCard links to Show detail, with the
- * Resume recovery action pinned as a sibling overlay (never a nested control).
- * Stopping keeps your history; Resume just brings the show back into your library. */
-function StoppedTile({
-  entry,
-  onResume,
-}: {
-  readonly entry: LibraryEntry;
-  onResume(): void;
-}): ReactElement {
-  return (
-    <div className="pile-tile">
-      <PosterCard entry={entry} />
-      <button
-        type="button"
-        className="pile-tile__resume"
-        data-testid="resume"
-        data-show-id={entry.showId}
-        onClick={onResume}
-      >
-        Resume
-      </button>
-    </div>
-  );
-}
-
-/** A Caught-up tile: the shared PosterCard plus a quiet "returning <date>" caption
- * when the next (unaired) episode has a known air date: the "Caught up · returning
- * Mar 2027" reading, split across the segment header and this per-tile note. */
-function CaughtUpTile({ entry }: { readonly entry: LibraryEntry }): ReactElement {
-  const returning = entry.nextEpisode === null ? null : formatAirDate(entry.nextEpisode.firstAired);
-  return (
-    <div className="pile-tile">
-      <PosterCard entry={entry} />
-      {returning !== null && (
-        <p className="pile-tile__note" data-testid="returning-note">
-          · returning {returning}
-        </p>
-      )}
-    </div>
-  );
-}
-
 /**
- * Library: one screen frame and control set shared by Shows and Movies.
- * A Shows⇄Movies segmented toggle (URL `?type`), a debounced cross-segment filter,
- * a media-appropriate Sort control, and a Radix Accordion of collapsible segments
- * (chevron + count badge over the shared PosterGrid) render identically for both.
- * The TAXONOMY stays honest: Shows keep their five progress-derived piles;
- * movies get Watchlist / Watched: no fabricated episode-progress on a film
- * (Rams #6). Every state is designed: skeleton, hard error, cached-error banner,
- * empty library, only-stopped library, and no-filter-match.
+ * Library: one screen frame shared by Shows and Movies. A Shows⇄Movies
+ * segment (URL `?type`), a tap-to-reveal title filter, a per-segment sort
+ * sheet, and a row of status chips — exactly one active — over a virtualized
+ * 3-column poster grid. The taxonomy stays honest: shows carry their
+ * progress-derived chips; movies get Watchlist / Watched, no fabricated
+ * episode progress on a film. Long-press on a tile opens its quick actions
+ * (mark next episode, stop/resume, details); there is deliberately no
+ * "remove from library" — no single Trakt op backs it.
  */
 export function Library(): ReactElement {
   useDocumentTitle("Library · Cue");
@@ -267,23 +125,25 @@ export function Library(): ReactElement {
 
   const [showSort, setShowSort] = useState<LibrarySort>("recently-watched");
   const [movieSort, setMovieSort] = useState<MovieSort>("recently-watched");
-  const [openPiles, setOpenPiles] = useState<WatchStatus[] | null>(() =>
-    readOpenSet(OPEN_KEY, isPileStatus),
+  const [showChip, setShowChip] = useState<LibraryChipKey>(
+    () => readChip(SHOW_CHIP_STORAGE, SHOW_CHIP_KEYS) ?? "watching",
   );
-  const [openMovies, setOpenMovies] = useState<MovieSegmentKey[] | null>(() =>
-    readOpenSet(MOVIE_OPEN_KEY, isMovieSegment),
+  const [movieChip, setMovieChip] = useState<MovieChipKey>(
+    () => readChip(MOVIE_CHIP_STORAGE, MOVIE_CHIP_KEYS) ?? "watchlist",
   );
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [sortOpen, setSortOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("");
+  const filterRef = useRef<HTMLInputElement>(null);
 
-  // Only the ACTIVE medium's read fires: not merely the enabled one. A TV-only
-  // Library never fetches the movie library, and a both-user sitting on
-  // the Shows tab doesn't pull the movie library until they switch to Movies (and
-  // vice versa). Gating by active medium, not enabled medium, keeps a background
-  // tab off Trakt's rate budget; the persisted cache makes the first switch instant.
+  // Only the ACTIVE medium's read fires, keeping a background segment off
+  // Trakt's rate budget; the persisted cache makes the first switch instant.
   const view = useLibraryBuckets(showSort, showsEnabled && !isMovies);
   const movieView = useMovieLibrary(movieSort, isMovies);
-  const unhide = useHideShow();
+  const hideShow = useHideShow();
+  const mark = useMarkWatched();
+  const movieActions = useMovieActions();
   const active = isMovies ? movieView : view;
 
   useEffect(() => {
@@ -291,281 +151,406 @@ export function Library(): ReactElement {
     return () => clearTimeout(timer);
   }, [query]);
 
-  const filtering = filter.length > 0;
+  useEffect(() => {
+    if (filterOpen) filterRef.current?.focus();
+  }, [filterOpen]);
 
-  const showSources = useMemo<SegmentSource<LibraryEntry>[]>(
-    () =>
-      view.buckets.map((bucket) => ({
-        key: bucket.status,
-        label: PILE_LABEL[bucket.status] ?? bucket.status,
-        status: bucket.status,
-        entries: bucket.entries,
-      })),
-    [view.buckets],
-  );
-  const movieSources = useMemo<SegmentSource<MovieEntry>[]>(
-    () =>
-      movieView.segments.map((segment) => ({
-        key: segment.key,
-        label: segment.label,
-        entries: segment.entries,
-      })),
-    [movieView.segments],
-  );
+  const { undoable: hideUndoable, error: hideError, undo: hideUndo, clearError } = hideShow;
+  useEffect(() => {
+    if (hideError !== null) {
+      showSnack({
+        message: hideError,
+        actions: [
+          {
+            label: "Dismiss",
+            onPress: () => {
+              clearError();
+              dismissSnack();
+            },
+          },
+        ],
+      });
+      return;
+    }
+    if (hideUndoable !== null) {
+      showSnack({
+        message: `${hideUndoable.title} ${hideUndoable.kind === "hide" ? "stopped" : "resumed"}`,
+        actions: [
+          {
+            label: "Undo",
+            testId: "snackbar-undo",
+            onPress: () => {
+              dismissSnack();
+              void hideUndo();
+            },
+          },
+        ],
+      });
+    }
+  }, [hideUndoable, hideError, hideUndo, clearError]);
 
-  const showPiles = useMemo(() => filterSegments(showSources, filter), [showSources, filter]);
-  const moviePiles = useMemo(() => filterSegments(movieSources, filter), [movieSources, filter]);
+  const {
+    undoable: movieUndoable,
+    error: movieError,
+    notice: movieNotice,
+    undoMark,
+    clearError: movieClearError,
+    dismissNotice,
+  } = movieActions;
+  useEffect(() => {
+    if (movieError !== null) {
+      showSnack({
+        message: movieError,
+        actions: [
+          {
+            label: "Dismiss",
+            onPress: () => {
+              movieClearError();
+              dismissSnack();
+            },
+          },
+        ],
+      });
+      return;
+    }
+    if (movieNotice !== null) {
+      showSnack({
+        message: movieNotice,
+        actions: [
+          {
+            label: "Dismiss",
+            onPress: () => {
+              dismissNotice();
+              dismissSnack();
+            },
+          },
+        ],
+      });
+      return;
+    }
+    if (movieUndoable !== null) {
+      showSnack({
+        message: `${movieUndoable.title} marked`,
+        actions: [
+          {
+            label: "Undo",
+            testId: "snackbar-undo",
+            onPress: () => {
+              dismissSnack();
+              void undoMark();
+            },
+          },
+        ],
+      });
+    }
+  }, [movieUndoable, movieError, movieNotice, undoMark, movieClearError, dismissNotice]);
 
-  const meta: readonly SegmentPile<{ readonly title: string }>[] = isMovies
-    ? moviePiles
-    : showPiles;
-  const matchCount = filtering ? meta.reduce((sum, pile) => sum + pile.shown.length, 0) : 0;
-
-  const savedOpen: readonly string[] | null = isMovies ? openMovies : openPiles;
-  const preferredOpen = isMovies ? MOVIE_DEFAULT_OPEN : SHOW_DEFAULT_OPEN;
-  // While filtering, the open set is derived from the matches (ephemeral) so it never
-  // overwrites the saved layout. Idle, it follows the saved state: or, on a first
-  // visit with nothing saved, a data-derived default (preferred pile, else first).
-  const openValue: string[] = filtering
-    ? meta.filter((pile) => pile.shown.length > 0).map((pile) => pile.key)
-    : savedOpen !== null
-      ? [...savedOpen]
-      : resolveDefaultOpen(meta, preferredOpen);
-
-  // Clearing must reset both the input and the debounced filter synchronously, or
-  // the empty/expanded filter state lingers for the 300ms debounce window.
+  // Clearing must reset both the input and the debounced filter synchronously,
+  // or the stale filter lingers for the debounce window.
   const clearFilter = (): void => {
     setQuery("");
     setFilter("");
   };
 
-  const onOpenChange = (values: string[]): void => {
-    if (filtering) return; // the filter owns the open set; don't persist transient state
-    if (isMovies) {
-      const next = values.filter(isMovieSegment);
-      setOpenMovies(next);
-      persistOpen(MOVIE_OPEN_KEY, next);
-    } else {
-      const next = values.filter(isPileStatus);
-      setOpenPiles(next);
-      persistOpen(OPEN_KEY, next);
+  const toggleFilter = (): void => {
+    if (filterOpen) clearFilter();
+    setFilterOpen((open) => !open);
+  };
+
+  const onSegment = (value: "shows" | "movies"): void => {
+    // The toggle is view-state, not a distinct page: replace (don't push) so
+    // Back skips past it. The filter is session-scoped per segment visit, so a
+    // show query never carries into the movie library.
+    clearFilter();
+    setFilterOpen(false);
+    void navigate({
+      to: "/library",
+      search: value === "movies" ? { type: "movies" } : {},
+      replace: true,
+    });
+  };
+
+  const movieEntriesFor = (key: MovieChipKey): readonly MovieEntry[] =>
+    movieView.segments.find((segment) => segment.key === key)?.entries ?? [];
+
+  const showChipKeys = SHOW_CHIP_KEYS.filter(
+    (key) => key !== "syncing" || view.chips.syncing.length > 0,
+  );
+
+  // A persisted "Still syncing" chip whose bucket has since drained falls back
+  // to Watching rather than pointing at a chip that no longer renders.
+  const activeShowChip =
+    showChip === "syncing" && view.chips.syncing.length === 0 ? "watching" : showChip;
+  const activeChipKey = isMovies ? movieChip : activeShowChip;
+
+  const sortRows: ActionSheetRow[] = isMovies
+    ? MOVIE_SORTS.map((option) => ({
+        label: MOVIE_SORT_LABEL[option],
+        icon: movieSort === option ? <Check /> : undefined,
+        testId: `sort-${option}`,
+        onPress: () => setMovieSort(option),
+      }))
+    : SORTS.map((option) => ({
+        label: SORT_LABEL[option],
+        icon: showSort === option ? <Check /> : undefined,
+        testId: `sort-${option}`,
+        onPress: () => setShowSort(option),
+      }));
+
+  const showIdsOf = (entry: LibraryEntry): { trakt: number; tmdb?: number } => ({
+    trakt: entry.showId,
+    tmdb: entry.tmdbId ?? undefined,
+  });
+
+  const showRows = (entry: LibraryEntry): ActionSheetRow[] => {
+    const rows: ActionSheetRow[] = [];
+    const next = entry.nextEpisode;
+    // The expert accelerator rides the exact queue pipeline (optimistic patch,
+    // batch snackbar, reverse window) and only offers itself when the next
+    // episode is known and aired — never a guessed coordinate.
+    if (
+      entry.progressKnown &&
+      !entry.pendingAdvance &&
+      next !== null &&
+      isAired(next.firstAired, Date.now())
+    ) {
+      rows.push({
+        label: `Mark ${epCode(next.season, next.number)} watched`,
+        testId: "quick-mark",
+        onPress: () => void mark.mark(entry),
+      });
     }
+    rows.push(
+      entry.hidden
+        ? {
+            label: "Resume show",
+            testId: "quick-resume",
+            onPress: () => void hideShow.unhide(entry.showId, showIdsOf(entry), entry.title),
+          }
+        : {
+            label: "Stop show",
+            testId: "quick-stop",
+            onPress: () => void hideShow.hide(entry.showId, showIdsOf(entry), entry.title),
+          },
+    );
+    rows.push({
+      label: "Show details",
+      testId: "quick-details",
+      onPress: () =>
+        void navigate({ to: "/show/$showId", params: { showId: String(entry.showId) } }),
+    });
+    return rows;
   };
 
-  const prefix = isMovies ? "movies" : "my-shows";
-  const emptyCount = isMovies ? movieView.trackedCount : view.totalCount;
-  const onlyAbandoned = !isMovies && view.trackedCount === 0 && view.totalCount > 0;
-
-  const sortOptions: readonly string[] = isMovies ? MOVIE_SORTS : SORTS;
-  const sortLabels: Record<string, string> = isMovies ? MOVIE_SORT_LABEL : SORT_LABEL;
-  const sortValue = isMovies ? movieSort : showSort;
-  const onSortChange = (value: string): void => {
-    if (isMovies) setMovieSort(value as MovieSort);
-    else setShowSort(value as LibrarySort);
+  const removeFromWatchlist = (entry: MovieEntry): void => {
+    void movieActions.toggleWatchlist(entry);
+    showSnack({
+      message: `${entry.title} removed from Watchlist`,
+      actions: [
+        {
+          label: "Undo",
+          testId: "snackbar-undo",
+          onPress: () => {
+            dismissSnack();
+            const current = movieView.entryFor(entry.movieId);
+            if (current !== undefined && !current.inWatchlist) {
+              void movieActions.toggleWatchlist(current);
+            }
+          },
+        },
+      ],
+    });
   };
+
+  const movieRows = (entry: MovieEntry): ActionSheetRow[] => {
+    const rows: ActionSheetRow[] = [];
+    if (!entry.watched) {
+      rows.push({
+        label: "Mark watched",
+        testId: "quick-mark",
+        onPress: () => void movieActions.markWatched(entry),
+      });
+    }
+    if (entry.inWatchlist) {
+      rows.push({
+        label: "Remove from Watchlist",
+        testId: "quick-remove-watchlist",
+        onPress: () => removeFromWatchlist(entry),
+      });
+    }
+    rows.push({
+      label: "Show details",
+      testId: "quick-details",
+      onPress: () =>
+        void navigate({ to: "/movie/$movieId", params: { movieId: String(entry.movieId) } }),
+    });
+    return rows;
+  };
+
+  const filtering = filter.length > 0;
+  const matches = <E extends { readonly title: string }>(entries: readonly E[]): readonly E[] =>
+    filtering ? entries.filter((entry) => entry.title.toLowerCase().includes(filter)) : entries;
+
+  const emptyBlock = (): ReactNode => (
+    <div className="library-empty" data-testid={`library-empty-${activeChipKey}`}>
+      <p>
+        {filtering
+          ? `No ${isMovies ? "movies" : "shows"} match "${filter}".`
+          : isMovies
+            ? MOVIE_CHIP_EMPTY[movieChip]
+            : SHOW_CHIP_EMPTY[activeShowChip]}
+      </p>
+      {filtering ? (
+        <button type="button" className="button button--ghost" onClick={clearFilter}>
+          Clear filter
+        </button>
+      ) : (
+        !isMovies &&
+        activeShowChip === "watching" && (
+          <Link to="/search" className="button" data-testid="library-search-shows">
+            Search shows
+          </Link>
+        )
+      )}
+    </div>
+  );
 
   let body: ReactNode;
   if (active.isLoading) {
-    body = <LibrarySkeleton testId={`${prefix}-skeleton`} />;
+    body = <LibrarySkeleton testId="library-skeleton" />;
   } else if (active.isError && !active.hasData) {
     body = (
       <ErrorRetry
         title={isMovies ? "Couldn't load your movies" : "Couldn't load your library"}
-        testId={`${prefix}-error`}
-        buttonTestId={`${prefix}-error-retry`}
+        testId="library-error"
+        buttonTestId="library-error-retry"
         onRetry={active.refetch}
       />
     );
-  } else if (emptyCount === 0) {
-    body = (
-      <div className="empty" data-testid={`${prefix}-empty`}>
-        <h2 className="empty__title">{isMovies ? "No movies yet" : "Nothing tracked yet"}</h2>
-        <p className="empty__body">
-          {isMovies
-            ? "Mark a movie watched or add one to your watchlist and it'll show up here."
-            : "Follow a show and mark an episode watched: it'll show up here, sorted by where you are."}
-        </p>
-      </div>
-    );
-  } else if (filtering && matchCount === 0) {
-    body = (
-      <div className="empty" data-testid={`${prefix}-filter-empty`}>
-        <h2 className="empty__title">
-          No {isMovies ? "movies" : "shows"} match "{filter}"
-        </h2>
-        <p className="empty__body">
-          Try a different title, or clear the filter to see every {isMovies ? "movie" : "show"}.
-        </p>
-        <button type="button" className="button button--ghost" onClick={clearFilter}>
-          Clear filter
-        </button>
-      </div>
-    );
+  } else if (isMovies) {
+    const shown = matches(movieEntriesFor(movieChip));
+    body =
+      shown.length === 0 ? (
+        emptyBlock()
+      ) : (
+        <PosterGrid
+          entries={shown}
+          keyOf={(entry) => entry.movieId}
+          renderCell={(entry) => (
+            <ContextMenu title={entry.title} rows={movieRows(entry)}>
+              <MovieTile entry={entry} />
+            </ContextMenu>
+          )}
+        />
+      );
   } else {
-    body = (
-      <>
-        {onlyAbandoned && (
-          <p className="library-note" data-testid="my-shows-only-abandoned">
-            Every show you follow is stopped. Resume one to bring it back into your library.
-          </p>
-        )}
-        {isMovies ? (
-          <SegmentAccordion
-            piles={moviePiles}
-            openValue={openValue}
-            onOpenChange={onOpenChange}
-            filtering={filtering}
-            keyOf={(movie: MovieEntry) => movie.movieId}
-            renderCell={(movie: MovieEntry) => <MoviePosterCard entry={movie} />}
-          />
-        ) : (
-          <SegmentAccordion
-            piles={showPiles}
-            openValue={openValue}
-            onOpenChange={onOpenChange}
-            filtering={filtering}
-            keyOf={(entry: LibraryEntry) => entry.showId}
-            renderCell={(entry: LibraryEntry, pile) => {
-              if (pile.status === "abandoned") {
-                return (
-                  <StoppedTile
-                    entry={entry}
-                    onResume={() =>
-                      void unhide.unhide(
-                        entry.showId,
-                        { trakt: entry.showId, tmdb: entry.tmdbId ?? undefined },
-                        entry.title,
-                      )
-                    }
-                  />
-                );
-              }
-              if (pile.status === "caught-up") {
-                return <CaughtUpTile entry={entry} />;
-              }
-              return <PosterCard entry={entry} />;
-            }}
-          />
-        )}
-      </>
-    );
+    const shown = matches(view.chips[activeShowChip]);
+    body =
+      shown.length === 0 ? (
+        emptyBlock()
+      ) : (
+        <PosterGrid
+          entries={shown}
+          keyOf={(entry) => entry.showId}
+          renderCell={(entry) => (
+            <ContextMenu title={entry.title} rows={showRows(entry)}>
+              <ShowTile entry={entry} chip={activeShowChip} />
+            </ContextMenu>
+          )}
+        />
+      );
   }
 
   return (
-    <section className="screen screen--library" data-testid="screen-library">
-      <header className="screen__head">
-        <h1 className="screen__title">Library</h1>
-        <SyncStatusPill
-          testId="my-shows-status"
-          isFetching={active.isFetching}
-          isLoading={active.isLoading}
-          isError={active.isError}
-          isPartial={!isMovies && view.isPartial}
-          syncedAt={active.syncedAt}
-        />
-      </header>
+    <section className="screen-library" data-testid="screen-library">
+      <ScreenHeader title="Library" variant="root" />
+      <SyncStrip isError={active.isError} onRetry={active.refetch} />
 
-      <div className="library-controls" data-single-medium={!bothEnabled || undefined}>
+      <div className="library-toolbar">
         {bothEnabled && (
-          <ToggleGroup.Root
-            type="single"
-            className="segmented"
-            aria-label="Library type"
+          <SegmentedControl
+            options={[
+              { value: "shows", label: "Shows", testId: "type-shows" },
+              { value: "movies", label: "Movies", testId: "type-movies" },
+            ]}
             value={isMovies ? "movies" : "shows"}
-            onValueChange={(value) => {
-              // The toggle is view-state, not a distinct page: replace (don't push) so
-              // Back skips past it, while the search param it writes still lets Back
-              // from a detail page restore whichever tab launched it. Shows carries no
-              // param (the canonical default); only Movies pins ?type=movies.
-              if (value === "shows" || value === "movies") {
-                // Reset the cross-segment filter on the switch so "Filter movies…"
-                // starts clean rather than carrying a show query into the movie library.
-                clearFilter();
-                void navigate({
-                  to: "/library",
-                  search: value === "movies" ? { type: "movies" } : {},
-                  replace: true,
-                });
-              }
-            }}
-          >
-            <ToggleGroup.Item className="segmented__item" value="shows" data-testid="type-shows">
-              Shows
-            </ToggleGroup.Item>
-            <ToggleGroup.Item className="segmented__item" value="movies" data-testid="type-movies">
-              Movies
-            </ToggleGroup.Item>
-          </ToggleGroup.Root>
+            onChange={onSegment}
+            ariaLabel="Library type"
+          />
         )}
+        <span className="library-toolbar__spacer" />
+        <button
+          type="button"
+          className="library-tool"
+          aria-label="Filter by title"
+          aria-expanded={filterOpen}
+          data-testid="library-filter-toggle"
+          onClick={toggleFilter}
+        >
+          <SearchIcon aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          className="library-tool"
+          aria-label="Sort"
+          data-testid="library-sort"
+          onClick={() => setSortOpen(true)}
+        >
+          <ArrowUpDown aria-hidden="true" />
+        </button>
+      </div>
 
-        <div className="library-controls__tools">
+      {filterOpen && (
+        <div className="library-filter-row">
           <input
+            ref={filterRef}
             type="search"
-            className="library-filter"
-            placeholder={isMovies ? "Filter movies…" : "Filter shows…"}
-            aria-label={
-              isMovies ? "Filter movies across your library" : "Filter shows across your library"
-            }
+            className="library-filter-field"
+            placeholder="Filter by title…"
+            aria-label="Filter by title"
+            autoComplete="off"
             data-testid="library-filter"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
-          <label className="library-sort">
-            <span className="library-sort__label">Sort</span>
-            <select
-              className="library-sort__select"
-              data-testid="sort-select"
-              value={sortValue}
-              onChange={(event) => onSortChange(event.target.value)}
-            >
-              {sortOptions.map((option) => (
-                <option key={option} value={option}>
-                  {sortLabels[option]}
-                </option>
-              ))}
-            </select>
-          </label>
         </div>
+      )}
+
+      <div className="library-chips" data-testid="library-chips">
+        {isMovies
+          ? MOVIE_CHIP_KEYS.map((key) => (
+              <Chip
+                key={key}
+                variant="status"
+                label={key === "watchlist" ? "Watchlist" : "Watched"}
+                count={movieEntriesFor(key).length}
+                selected={key === movieChip}
+                testId={`chip-${key}`}
+                onPress={() => {
+                  setMovieChip(key);
+                  persistChip(MOVIE_CHIP_STORAGE, key);
+                }}
+              />
+            ))
+          : showChipKeys.map((key) => (
+              <Chip
+                key={key}
+                variant="status"
+                label={SHOW_CHIP_LABEL[key]}
+                count={view.chips[key].length}
+                selected={key === activeShowChip}
+                testId={`chip-${key}`}
+                onPress={() => {
+                  setShowChip(key);
+                  persistChip(SHOW_CHIP_STORAGE, key);
+                }}
+              />
+            ))}
       </div>
-
-      {filtering && matchCount > 0 && (
-        <p className="library-filter__summary" role="status" data-testid="filter-summary">
-          {matchCount} matching{" "}
-          {matchCount === 1 ? (isMovies ? "movie" : "show") : isMovies ? "movies" : "shows"}
-        </p>
-      )}
-
-      {active.isError && active.hasData && (
-        <CachedRetryBanner
-          testId="my-shows-cached-retry"
-          buttonTestId="my-shows-cached-retry-button"
-          message="Showing your last synced library. Trakt couldn't be reached."
-          onRetry={active.refetch}
-        />
-      )}
 
       {body}
 
-      {/* Library shows only the user's OWN piles: discovery lives in the Discover
-          tab, never bolted below the library as a browse wall. */}
-
-      {unhide.error !== null && (
-        <ErrorToast testId="resume-error" message={unhide.error} onDismiss={unhide.clearError} />
-      )}
-      {unhide.undoable !== null && (
-        <Snackbar
-          testId="resume-undo"
-          message={
-            unhide.undoable.kind === "hide"
-              ? `Stopped watching ${unhide.undoable.title}.`
-              : `Resumed ${unhide.undoable.title}.`
-          }
-          actionLabel="Undo"
-          autoDismissMs={6000}
-          onAction={() => void unhide.undo()}
-          onDismiss={unhide.dismissUndo}
-        />
-      )}
+      <ActionSheet open={sortOpen} onOpenChange={setSortOpen} title="Sort by" rows={sortRows} />
     </section>
   );
 }

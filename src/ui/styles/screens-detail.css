@@ -1,0 +1,629 @@
+/* ---- Detail surfaces: show / movie pages + the episode sheet ---- */
+
+.screen-detail {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+/* ---- Full-bleed hero: backdrop, scrims, floating discs, title stack ----
+ * Bleeds across .main's gutter (the .app-header negative-margin idiom) and
+ * under the status bar; the scrims are theme-invariant dark so the on-image
+ * type passes AA on both themes. */
+.detail-hero {
+  position: relative;
+  height: calc(240px + env(safe-area-inset-top));
+  margin: calc(-1 * var(--space-4)) calc(-1 * var(--space-4)) 0;
+  overflow: hidden;
+}
+.detail-hero__backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transform: scale(1.04);
+  transition:
+    opacity 400ms var(--ease-standard),
+    transform 400ms var(--ease-standard);
+}
+.detail-hero__backdrop[data-loaded="true"] {
+  opacity: 1;
+  transform: none;
+}
+.detail-hero__plate {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+.detail-hero__scrim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(to bottom, rgba(10, 8, 6, 0.5), rgba(10, 8, 6, 0) 80px),
+    linear-gradient(to top, rgba(10, 8, 6, 0.78), rgba(10, 8, 6, 0) 96px);
+}
+.detail-hero__stack {
+  position: absolute;
+  left: var(--space-4);
+  right: var(--space-4);
+  bottom: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.detail-hero__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+  color: var(--color-on-image);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.detail-hero__meta {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-on-image-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Solid discs (no backdrop-filter: jank-prone on Android WebView). On the
+ * hero they float over the art; on hero-less states (error, movies-off) they
+ * anchor to the screen's own corner. */
+.detail-disc {
+  position: absolute;
+  top: calc(env(safe-area-inset-top) + var(--space-2));
+  z-index: 6;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: rgba(10, 8, 6, 0.55);
+  color: var(--color-on-image);
+  cursor: pointer;
+}
+.detail-disc svg {
+  width: 24px;
+  height: 24px;
+}
+.detail-disc:active {
+  background: rgba(10, 8, 6, 0.75);
+}
+.detail-disc--back {
+  left: var(--space-4);
+}
+.detail-disc--overflow {
+  right: var(--space-4);
+}
+
+/* ---- Continue bar: 72px sticky card ---- */
+.continue {
+  position: sticky;
+  top: calc(env(safe-area-inset-top) + var(--space-2));
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 72px;
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+}
+.continue__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: inherit;
+  text-decoration: none;
+}
+.continue__eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+.continue__line {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.continue__line--muted {
+  color: var(--color-muted);
+  font-weight: 500;
+}
+.continue__code {
+  font-variant-numeric: tabular-nums;
+}
+.continue__count {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
+}
+.continue__count .countdown-text {
+  font-size: 12px;
+}
+.continue__bar {
+  width: auto;
+  max-width: 220px;
+  margin-top: 2px;
+}
+.continue__check {
+  flex: none;
+}
+
+/* ---- Seasons accordion ---- */
+.season-list {
+  display: flex;
+  flex-direction: column;
+}
+.season {
+  border-bottom: 1px solid var(--color-border);
+}
+.season:last-child {
+  border-bottom: none;
+}
+.season__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.season__heading {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  margin: 0;
+}
+.season__trigger {
+  appearance: none;
+  border: none;
+  background: none;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 56px;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.season__name {
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.season__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+.season__count {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
+}
+.season__bar {
+  width: 48px;
+}
+.season__chevron {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  color: var(--color-muted);
+  transition: transform var(--dur-base) var(--ease-standard);
+}
+.season__trigger[data-state="open"] .season__chevron {
+  transform: rotate(180deg);
+}
+.season__content {
+  overflow: hidden;
+}
+.season__content[data-state="open"] {
+  animation: season-open var(--dur-gentle) var(--ease-emphasized);
+}
+.season__content[data-state="closed"] {
+  animation: season-close var(--dur-base) var(--ease-standard);
+}
+@keyframes season-open {
+  from {
+    height: 0;
+  }
+  to {
+    height: var(--radix-accordion-content-height);
+  }
+}
+@keyframes season-close {
+  from {
+    height: var(--radix-accordion-content-height);
+  }
+  to {
+    height: 0;
+  }
+}
+.season__episodes {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 var(--space-2);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Season episode rows: 56px, number column, dimmed watched titles. */
+.ep-row[data-variant="season"] .ep-row__body {
+  min-height: 56px;
+}
+.ep-row[data-variant="season"] .ep-row__art {
+  width: 24px;
+}
+.ep-row__num {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
+}
+.ep-row[data-variant="season"] .ep-row__title {
+  font-size: 14px;
+  font-weight: 500;
+}
+.ep-row[data-variant="season"] .ep-row__meta {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+.season-ep__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.season-ep__title[data-watched="true"] {
+  color: color-mix(in srgb, var(--color-ink2) 60%, transparent);
+}
+.season-ep__done {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: var(--color-watched);
+}
+
+/* ---- About block ---- */
+.detail-about {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.detail-about__overview {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+.detail-about__facts {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-muted);
+}
+.detail-about__record {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-ink2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Shared 4-line clamp + its quiet expander (About, sheet/movie overviews). */
+.clamp-4 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 450;
+  line-height: 1.45;
+  color: var(--color-ink2);
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.clamp-4[data-expanded="true"] {
+  display: block;
+  overflow: visible;
+}
+.text-more {
+  position: relative;
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--color-accent);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+/* HIT-SLOP: a text button in a text column earns its 44px invisibly. */
+.text-more::after {
+  content: "";
+  position: absolute;
+  inset: -14px -8px;
+}
+.text-more:hover {
+  color: var(--color-accent-strong);
+}
+
+/* ---- Inline season error ---- */
+.detail-inline-error {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 56px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-ink2);
+}
+.detail-inline-error__retry {
+  appearance: none;
+  border: none;
+  background: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-min);
+  padding-inline: var(--space-2);
+  color: var(--color-accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.detail-inline-error__retry:hover {
+  color: var(--color-accent-strong);
+}
+
+/* ---- Detail skeleton (RM clamp freezes the shimmer) ---- */
+.detail-skel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.detail-skel__hero {
+  height: calc(240px + env(safe-area-inset-top));
+  margin: calc(-1 * var(--space-4)) calc(-1 * var(--space-4)) 0;
+  background: var(--color-elevated);
+  animation: pulse 1.2s linear infinite;
+}
+.detail-skel__bar {
+  height: 16px;
+  width: 55%;
+  border-radius: var(--radius-pill);
+  background: var(--color-elevated);
+  animation: pulse 1.2s linear infinite;
+}
+.detail-skel__bar--title {
+  height: 24px;
+  margin-top: var(--space-2);
+}
+.detail-skel__row {
+  height: 56px;
+  border-radius: var(--radius-control);
+  background: var(--color-elevated);
+  animation: pulse 1.2s linear infinite;
+}
+
+/* ---- Mark row: the 64px elevated card (episode sheet + movie detail) ---- */
+.mark-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 64px;
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-4);
+  background: var(--color-elevated);
+  border-radius: var(--radius-control);
+}
+.mark-row__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.mark-row__status {
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mark-row__hint {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-muted);
+}
+
+/* ---- Episode sheet content ---- */
+.ep-sheet {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-top: var(--space-1);
+}
+.ep-sheet__overflow {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 2;
+  appearance: none;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tap-min);
+  height: var(--tap-min);
+  padding: 0;
+  border-radius: var(--radius-pill);
+  background: rgba(10, 8, 6, 0.55);
+  color: var(--color-on-image);
+  cursor: pointer;
+}
+.ep-sheet__overflow svg {
+  width: 20px;
+  height: 20px;
+}
+.ep-sheet__still {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: none;
+  padding: 0;
+  border-radius: var(--radius-control);
+  overflow: hidden;
+  background: var(--color-elevated);
+}
+.ep-sheet__still img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.ep-sheet__still--guarded {
+  cursor: pointer;
+}
+.ep-sheet__still--guarded img {
+  filter: blur(24px);
+  transform: scale(1.08);
+}
+.ep-sheet__reveal {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 6px 12px;
+  border-radius: var(--radius-pill);
+  background: rgba(10, 8, 6, 0.7);
+  color: var(--color-on-image);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.ep-sheet__meta {
+  margin: 0;
+  padding-right: var(--tap-min);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-ink2);
+  font-variant-numeric: tabular-nums;
+}
+.ep-sheet__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.ep-sheet__overview {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+.ep-sheet__pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--space-1);
+}
+.ep-sheet__page {
+  appearance: none;
+  border: none;
+  background: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-min);
+  min-width: var(--tap-min);
+  padding: 0 var(--space-2);
+  color: var(--color-accent);
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.ep-sheet__page:hover:not(:disabled) {
+  color: var(--color-accent-strong);
+}
+.ep-sheet__page:disabled {
+  color: var(--color-muted);
+  opacity: 0.5;
+  cursor: default;
+}
+.ep-sheet__skel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.ep-sheet__skel-still {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-control);
+  background: var(--color-elevated);
+  animation: pulse 1.2s linear infinite;
+}
+.ep-sheet__skel-bar {
+  height: 14px;
+  width: 45%;
+  border-radius: var(--radius-pill);
+  background: var(--color-elevated);
+  animation: pulse 1.2s linear infinite;
+}
+.ep-sheet__skel-bar--wide {
+  width: 75%;
+  height: 20px;
+}
+
+/* ---- Related grid (movie detail) ---- */
+.detail-related {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.detail-related__head {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+@media (min-width: 900px) {
+  .detail-hero,
+  .detail-skel__hero {
+    margin: calc(-1 * var(--space-6)) calc(-1 * var(--space-7)) 0;
+  }
+}

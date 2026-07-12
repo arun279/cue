@@ -1,0 +1,191 @@
+/* ---- Search (/search) ---- */
+.screen-search {
+  display: flex;
+  flex-direction: column;
+}
+.screen-search > .app-header,
+.screen-search > .sync-strip {
+  margin-bottom: var(--space-3);
+}
+.screen-search > .app-header + .sync-strip {
+  margin-top: calc(-1 * var(--space-3));
+}
+
+/* ---- SearchField: 48px elevated bar, magnifier leading, clear trailing ---- */
+.search-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-bottom: var(--space-2);
+}
+.search-field__icon {
+  position: absolute;
+  left: var(--space-3);
+  width: 20px;
+  height: 20px;
+  color: var(--color-muted);
+  pointer-events: none;
+}
+.search-field__input {
+  width: 100%;
+  height: 48px;
+  padding: 0 var(--space-7) 0 44px;
+  border: none;
+  border-radius: var(--radius-control);
+  background: var(--color-elevated);
+  color: var(--color-fg);
+  font: inherit;
+  font-size: 15px;
+}
+.search-field__input::placeholder {
+  color: var(--color-muted);
+}
+/* One clear affordance: ours (the native cancel button would double it). */
+.search-field__input::-webkit-search-cancel-button,
+.search-field__input::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+}
+.search-field__clear {
+  appearance: none;
+  border: none;
+  background: none;
+  position: absolute;
+  right: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tap-min);
+  height: var(--tap-min);
+  padding: 0;
+  border-radius: var(--radius-pill);
+  color: var(--color-ink2);
+  cursor: pointer;
+}
+.search-field__clear svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ---- Idle browse: RECENT rows + trending/popular poster grids ---- */
+.search-rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: var(--space-3);
+}
+.recent-row {
+  appearance: none;
+  border: none;
+  background: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: var(--tap-min);
+  padding: 0;
+  color: var(--color-fg);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+.recent-row__term {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.recent-row svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  color: var(--color-muted);
+}
+
+/* ---- Result rows: title + media badge, trailing add control ---- */
+.ep-row[data-variant="search"] .ep-row__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.search-hit-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ep-row[data-variant="search"] .ep-row__title .badge-pill {
+  height: 18px;
+  min-width: 0;
+  padding: 0 6px;
+}
+.ep-row[data-variant="search"] .ep-row__meta {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+/* The deterministic add: a 32px outline pill in a 44px vertical hit slop
+ * (sideways slop would crowd the row's body link — SPACE rule). */
+.add-pill {
+  appearance: none;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  height: 32px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--color-accent);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+button.add-pill::after {
+  content: "";
+  position: absolute;
+  inset: calc((100% - var(--tap-min)) / 2) 0;
+}
+.add-pill[data-state="added"] {
+  background: var(--color-accent);
+  color: var(--color-accent-fg);
+}
+.in-library {
+  flex: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+
+/* ---- Browse loading: one shimmer grid in the tile silhouette ---- */
+.search-grid-skeleton {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+.search-grid-skeleton__tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.search-grid-skeleton__art {
+  aspect-ratio: 2 / 3;
+  border-radius: var(--radius-poster);
+  background: var(--color-elevated);
+  animation: pulse 1.2s linear infinite;
+}
+.search-grid-skeleton__cap {
+  height: 12px;
+  width: 70%;
+  border-radius: var(--radius-pill);
+  background: var(--color-elevated);
+  animation: pulse 1.2s linear infinite;
+}

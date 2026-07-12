@@ -235,21 +235,30 @@ export function useHistory(scope: HistoryScope): HistoryView {
 
   const entryCount = query.data?.pages.reduce((n, page) => n + page.entries.length, 0) ?? 0;
 
+  // Stable identities: the History screen re-arms its infinite-scroll observer
+  // and both consumers re-run their snackbar effect on these, so a fresh closure
+  // per render would churn the observer and reset the snack timer on every render.
+  const { refetch: queryRefetch, fetchNextPage } = query;
+  const refetch = useCallback(() => void queryRefetch(), [queryRefetch]);
+  const loadEarlier = useCallback(() => void fetchNextPage(), [fetchNextPage]);
+  const dismissToast = useCallback(() => setToast(null), []);
+  const clearError = useCallback(() => setError(null), []);
+
   return {
     days,
     filter,
     ...queryStatus(query, query.data !== undefined),
     isEmpty: query.data !== undefined && entryCount === 0,
-    refetch: () => void query.refetch(),
+    refetch,
     hasMore: query.hasNextPage,
     isLoadingMore: query.isFetchingNextPage,
     isLoadMoreError: query.isFetchNextPageError,
-    loadEarlier: () => void query.fetchNextPage(),
+    loadEarlier,
     removePlay,
     undo,
     toast,
-    dismissToast: () => setToast(null),
+    dismissToast,
     error,
-    clearError: () => setError(null),
+    clearError,
   };
 }

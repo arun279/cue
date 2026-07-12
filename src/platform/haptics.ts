@@ -10,9 +10,10 @@ import { isNativePlatform } from "./platform";
 export interface NativeHaptics {
   markCommitted(): void;
   markUndone(): void;
+  swipeThreshold(): void;
 }
 
-const SILENT: NativeHaptics = { markCommitted() {}, markUndone() {} };
+const SILENT: NativeHaptics = { markCommitted() {}, markUndone() {}, swipeThreshold() {} };
 
 function prefersReducedMotion(): boolean {
   return globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
@@ -34,5 +35,7 @@ export function createNativeHaptics(isEnabled: () => boolean): NativeHaptics {
   return {
     markCommitted: () => fire(() => Haptics.impact({ style: ImpactStyle.Light })),
     markUndone: () => fire(() => Haptics.selectionChanged()),
+    // Firmer than the mark's light tap: the tick that says "release commits now".
+    swipeThreshold: () => fire(() => Haptics.impact({ style: ImpactStyle.Medium })),
   };
 }

@@ -20,8 +20,6 @@ import {
   popularMoviesSchema,
   popularShowsSchema,
   progressSchema,
-  type RatingItem,
-  ratingsSchema,
   relatedMoviesSchema,
   type SearchResult,
   type SeasonData,
@@ -93,9 +91,11 @@ export async function getShowProgress(
 ): Promise<TraktResult<Progress>> {
   // Show-detail's season tree opts specials in so a watched special reads as
   // watched (and isn't re-marked); Up Next / header keep them out of the counts.
+  // `images` rides along so `next_episode` carries its screenshot: the episode
+  // still comes free on the read every queue surface already makes.
   const specials = includeSpecials ? "true" : "false";
   const options: RequestOptions = {
-    extended: ["full"],
+    extended: ART,
     query: { hidden: "false", specials, count_specials: specials },
   };
   return parse(await client.get(`/shows/${showId}/progress/watched`, options), progressSchema);
@@ -140,16 +140,6 @@ export async function getWatchlist(
   return parse(
     await client.getAllPages(`/sync/watchlist/${type}`, { extended: ART, limit: LIST_PAGE_LIMIT }),
     watchlistSchema,
-  );
-}
-
-export async function getRatings(
-  client: TraktClient,
-  type: "shows" | "movies" | "episodes",
-): Promise<TraktResult<RatingItem[]>> {
-  return parse(
-    await client.getAllPages(`/sync/ratings/${type}`, { extended: ["full"] }),
-    ratingsSchema,
   );
 }
 

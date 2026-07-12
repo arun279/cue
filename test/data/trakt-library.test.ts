@@ -72,6 +72,7 @@ function progress(overrides: {
             title: "Four",
             first_aired: "2026-06-01T00:00:00.000Z",
             ids: { trakt: 4004, tvdb: 9, imdb: "tt4", tmdb: 44 },
+            images: { screenshot: ["media.trakt.tv/still.webp"] },
           }
         : overrides.next,
   };
@@ -91,6 +92,7 @@ const baseEntry: LibraryEntry = {
     number: 4,
     title: "Four",
     firstAired: "2026-06-01T00:00:00.000Z",
+    still: null,
     ids: { trakt: 4004 },
   },
   progressKnown: true,
@@ -131,6 +133,7 @@ describe("assembleLibrary", () => {
       number: 4,
       title: "Four",
       firstAired: "2026-06-01T00:00:00.000Z",
+      still: "https://media.trakt.tv/still.webp",
       ids: { trakt: 4004, tvdb: 9, imdb: "tt4", tmdb: 44 },
     });
   });
@@ -305,6 +308,7 @@ describe("advancePastNext", () => {
       number: 5,
       title: null,
       firstAired: null,
+      still: null,
       ids: { trakt: 0 },
     });
   });
@@ -319,6 +323,7 @@ describe("advancePastNext", () => {
         number: 4,
         title: "Finale",
         firstAired: "2026-07-04T00:00:00.000Z",
+        still: null,
         ids: { trakt: 4004 },
       },
     };

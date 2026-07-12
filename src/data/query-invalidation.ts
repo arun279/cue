@@ -30,12 +30,6 @@ function keysForTarget(target: InvalidationTarget): readonly InvalidationKey[] {
       return [queryKeys.library(), queryKeys.watchlist("shows")];
     case "watchlist/movies":
       return [queryKeys.movieLibrary(), queryKeys.watchlist("movies")];
-    case "ratings/shows":
-      return [queryKeys.ratings("shows")];
-    case "ratings/movies":
-      return [queryKeys.ratings("movies")];
-    case "ratings/episodes":
-      return [queryKeys.ratings("episodes")];
     case "hidden/progress_watched":
     case "recompute:buckets":
     case "recompute:to-watch":

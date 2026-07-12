@@ -18,19 +18,15 @@ interface PosterGridProps<T> {
   renderCell(entry: T): ReactNode;
 }
 
-/** Smallest tile the grid ever draws; below it a 2:3 poster stops reading as
- * cover art. Drives the column count: ~5 columns of ~178px posters at the
- * desktop content width, 2-up on a 390px phone: near the grid target,
- * sized so tiles read as curated cover art and stay identical across buckets. */
-const MIN_COL = 150;
-/** Column gutter = the established shelf gap (`--space-3`). */
-const GAP = 12;
-/** Vertical rhythm between poster rows (`--space-5`): tighter than the 32px
- * section gap so a shelf reads as one block, looser than the column gutter. */
-const ROW_GAP = 24;
-/** Title + ratio meta block beneath a poster, plus the poster→meta gap
- * (`--space-2`). A hair over the measured height so a row never crowds the next. */
-const CARD_META = 48;
+/** Gutter between cells, both axes. */
+const GAP = 8;
+/** Phone floor: three columns exactly (115px posters at the reference width). */
+const MIN_COLS = 3;
+/** Widest a poster may grow before the grid adds a column, so desktop tiles
+ * stay cover-art sized instead of stretching three cells across the window. */
+const MAX_COL = 180;
+/** The 1-line caption under a poster (12px title) plus its 4px gap. */
+const CAPTION = 24;
 
 interface GridMetrics {
   readonly cols: number;
@@ -39,20 +35,18 @@ interface GridMetrics {
 }
 
 /**
- * A responsive, window-virtualized poster grid: one per My Shows shelf,
- * shared by the show buckets and the movie shelves. The grid fills the screen
- * width (6-8 cols desktop, 2-3 mobile) so a library never leaves a dead field,
- * while row windowing keeps the DOM bounded on the Capacitor WebView even when a
- * single shelf holds hundreds of tiles. Uniform 2:3 tiles make every row a fixed
- * height, so the virtualizer needs no per-item measurement and the page scrolls
- * (not a nested rail). The cell renderer is injected so a show or movie tile
- * shares this identical windowing.
+ * The Library poster grid: window-virtualized 3-column (wider viewports add
+ * columns) 2:3 tiles with 8px gutters. Row windowing keeps the DOM bounded on
+ * the Capacitor WebView even when a chip holds hundreds of tiles, and uniform
+ * tiles make every row a fixed height, so the virtualizer needs no per-item
+ * measurement and the page scrolls (never a nested rail). The cell renderer is
+ * injected so show and movie tiles share the identical windowing.
  */
 export function PosterGrid<T>({ entries, keyOf, renderCell }: PosterGridProps<T>): ReactElement {
   const containerRef = useRef<HTMLDivElement>(null);
   const metricsRef = useRef<GridMetrics>({
-    cols: 2,
-    rowHeight: MIN_COL * 1.5 + CARD_META + ROW_GAP,
+    cols: MIN_COLS,
+    rowHeight: Math.round(120 * 1.5) + CAPTION + GAP,
     scrollMargin: 0,
   });
   const [metrics, setMetrics] = useState<GridMetrics>(metricsRef.current);
@@ -61,16 +55,14 @@ export function PosterGrid<T>({ entries, keyOf, renderCell }: PosterGridProps<T>
     const el = containerRef.current;
     if (el === null) return;
     const width = el.clientWidth;
-    // Floor of 1 (not 2) so the grid reflows to a single column below ~160px: e.g. at
-    // 200%+ zoom: instead of forcing two sub-tile columns that overflow (WCAG 1.4.10).
-    // Every real phone (≥320px) still lands on 2 columns.
-    const cols = Math.max(1, Math.floor((width + GAP) / (MIN_COL + GAP)));
+    const cols = Math.max(MIN_COLS, Math.ceil((width + GAP) / (MAX_COL + GAP)));
     const colWidth = (width - (cols - 1) * GAP) / cols;
-    // getBoundingClientRect is page-relative regardless of positioned ancestors, so
-    // a grid nested in a collapsible pile still knows where the window scroll starts.
+    // getBoundingClientRect is page-relative regardless of positioned ancestors,
+    // so the grid knows where the window scroll starts even as the controls,
+    // chips, or SyncStrip above it change height.
     const next: GridMetrics = {
       cols,
-      rowHeight: Math.round(colWidth * 1.5) + CARD_META + ROW_GAP,
+      rowHeight: Math.round(colWidth * 1.5) + CAPTION + GAP,
       scrollMargin: Math.round(el.getBoundingClientRect().top + window.scrollY),
     };
     if (sameMetrics(metricsRef.current, next)) return;
@@ -78,15 +70,16 @@ export function PosterGrid<T>({ entries, keyOf, renderCell }: PosterGridProps<T>
     setMetrics(next);
   }, []);
 
-  // A pile toggling/filtering ABOVE this grid moves its top offset without changing
-  // its own size, so a ResizeObserver can't catch it: but every such change
-  // re-renders this tree, so remeasure on each commit; sameMetrics drops no-op sets.
+  // Anything toggling ABOVE this grid (filter field, sync strip) moves its top
+  // offset without changing its own size, so a ResizeObserver can't catch it:
+  // but every such change re-renders this tree, so remeasure on each commit;
+  // sameMetrics drops no-op sets.
   useLayoutEffect(() => {
     measure();
   });
 
-  // This grid's own width changing (viewport resize / orientation) doesn't re-render
-  // it, so a ResizeObserver keeps the column math and row height live.
+  // This grid's own width changing (viewport resize / orientation) doesn't
+  // re-render it, so a ResizeObserver keeps the column math and row height live.
   useLayoutEffect(() => {
     const el = containerRef.current;
     if (el === null) return;
@@ -107,7 +100,7 @@ export function PosterGrid<T>({ entries, keyOf, renderCell }: PosterGridProps<T>
   return (
     <div
       ref={containerRef}
-      className="poster-grid"
+      className="library-grid"
       data-testid="virtual-list"
       style={{ height: virtualizer.getTotalSize() }}
     >
@@ -116,7 +109,7 @@ export function PosterGrid<T>({ entries, keyOf, renderCell }: PosterGridProps<T>
         return (
           <ul
             key={row.key}
-            className="poster-grid__row"
+            className="library-grid__row"
             data-testid="virtual-row"
             data-index={row.index}
             style={{
@@ -125,7 +118,7 @@ export function PosterGrid<T>({ entries, keyOf, renderCell }: PosterGridProps<T>
             }}
           >
             {entries.slice(start, start + cols).map((entry) => (
-              <li key={keyOf(entry)} className="poster-grid__cell">
+              <li key={keyOf(entry)} className="library-grid__cell">
                 {renderCell(entry)}
               </li>
             ))}

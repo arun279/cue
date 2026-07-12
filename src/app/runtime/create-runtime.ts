@@ -14,7 +14,6 @@ import {
   getMyShowsCalendar,
   getPopularMovies,
   getPopularShows,
-  getRatings,
   getRelatedMovies,
   getShow,
   getShowProgress,
@@ -59,7 +58,6 @@ import type {
   DiscoverData,
   HistoryPageData,
   MovieLibraryData,
-  RatingMap,
   SubmitOutcome,
   UpNextData,
 } from "@ui/runtime/runtime";
@@ -253,17 +251,6 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       if (!episode.ok) throw new Error("Failed to load episode");
       if (!progress.ok) throw new Error("Failed to load show progress");
       return assembleEpisodeDetail(showId, episode.data, progress.data, Date.now());
-    },
-
-    async loadRatings(section): Promise<RatingMap> {
-      const result = await getRatings(client, section);
-      if (!result.ok) throw new Error("Failed to load ratings");
-      const map: Record<number, number> = {};
-      for (const item of result.data) {
-        const trakt = item.show?.ids.trakt ?? item.movie?.ids.trakt ?? item.episode?.ids.trakt;
-        if (trakt !== undefined) map[trakt] = item.rating;
-      }
-      return map;
     },
 
     async loadWatchlistIds(section) {

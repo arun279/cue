@@ -11,7 +11,7 @@ Cue runs no server of its own. There is no backend, no Cue account, and no datab
 - your Trakt OAuth token (so you stay signed in), and
 - a local cache of the shows, episodes, and history Cue reads from Trakt, plus your in-app settings.
 
-All of your sync state (watch history, watchlist, ratings, progress) lives in **your own Trakt account**, which Cue reaches directly over HTTPS. Cue never proxies your data through any intermediary because there is no intermediary.
+All of your sync state (watch history, watchlist, progress) lives in **your own Trakt account**, which Cue reaches directly over HTTPS. Cue never proxies your data through any intermediary because there is no intermediary.
 
 ## No analytics, no telemetry
 
