@@ -37,8 +37,8 @@ const DISCOVER = {
   movies: [{ traktId: 9, title: "Dune", year: 2021 }],
 } as const;
 
-/** One TV play + one movie play, so a locked single-medium Diary can be shown to
- * carry only its own medium's rows. */
+/** One TV play + one movie play, so a locked single-medium History can be shown
+ * to carry only its own medium's rows. */
 function historyRows(): HistoryRowFixture[] {
   return [
     {
@@ -69,13 +69,13 @@ test.beforeEach(async ({ page }) => {
 
 // ---- Default: both media on, everything unchanged ----
 
-test("defaults to both media on: Library toggle + both Settings switches present", async ({
+test("defaults to both media on: Library segment + both Settings switches present", async ({
   page,
 }) => {
   await installLibraryRoutes(page.context(), oneShow());
   await page.goto("/library");
 
-  // The Shows/Movies segmented toggle is present when both media are on.
+  // The Shows/Movies segmented control is present when both media are on.
   await expect(page.getByTestId("type-shows")).toBeVisible();
   await expect(page.getByTestId("type-movies")).toBeVisible();
 
@@ -90,32 +90,31 @@ test("defaults to both media on: Library toggle + both Settings switches present
 
 // ---- Movies disabled (the common TV-only case) ----
 
-test("TV-only: Library shows only Shows with no toggle", async ({ page }) => {
+test("TV-only: Library pins to Shows with no segment; all four tabs stay", async ({ page }) => {
   await seedMediaVisibility(page.context(), { showsEnabled: true, moviesEnabled: false });
   await installLibraryRoutes(page.context(), oneShow());
   await page.goto("/library");
 
   await expect(page.getByTestId("screen-library")).toBeVisible();
-  // A single active medium shows no Shows/Movies toggle.
+  // A single active medium shows no Shows/Movies segment: the show chips render directly.
   await expect(page.getByTestId("type-shows")).toHaveCount(0);
   await expect(page.getByTestId("type-movies")).toHaveCount(0);
-  await expect(page.getByTestId("library-filter")).toHaveAttribute("placeholder", "Filter shows…");
+  await expect(page.getByTestId("chip-watching")).toBeVisible();
 
-  // Discover is a first-class tab (Search's old header affordance); it stays for a
-  // single-medium user, searching only their active medium via the field label.
+  // A TV-only user keeps the full 4-tab set (Up Next, Library, Calendar, Search).
+  await expect(page.locator(".sidebar__links a")).toHaveCount(4);
   await expect(
-    page.locator(".sidebar").getByRole("link", { name: "Discover", exact: true }),
+    page.locator(".sidebar").getByRole("link", { name: "Search", exact: true }),
   ).toBeVisible();
 });
 
-test("TV-only: Search hides the movie discover rails", async ({ page }) => {
+test("TV-only: Search hides the movie browse grid", async ({ page }) => {
   await seedMediaVisibility(page.context(), { showsEnabled: true, moviesEnabled: false });
   await installDiscoverRoutes(page.context(), DISCOVER);
   await page.goto("/search");
 
-  await expect(page.getByTestId("discover-trending")).toBeVisible();
-  await expect(page.getByTestId("discover-trending-movies")).toHaveCount(0);
-  await expect(page.getByTestId("discover-popular-movies")).toHaveCount(0);
+  await expect(page.getByTestId("search-trending-shows")).toBeVisible();
+  await expect(page.getByTestId("search-popular-movies")).toHaveCount(0);
 });
 
 test("TV-only: /library?type=movies is redirected to Shows", async ({ page }) => {
@@ -124,7 +123,7 @@ test("TV-only: /library?type=movies is redirected to Shows", async ({ page }) =>
   await page.goto("/library?type=movies");
 
   await expect(page).toHaveURL(/\/library$/);
-  await expect(page.getByTestId("library-filter")).toHaveAttribute("placeholder", "Filter shows…");
+  await expect(page.getByTestId("chip-watching")).toBeVisible();
 });
 
 test("TV-only: /movie/:id lands on a quiet Movies-are-off notice with a Settings link", async ({
@@ -148,15 +147,15 @@ test("TV-only: Profile hides the Movies tile and its minutes leave the total", a
   await expect(page.getByTestId("stat-theatre")).toBeVisible();
   await expect(page.getByTestId("stat-episodes")).toBeVisible();
   await expect(page.getByTestId("stat-shows")).toBeVisible();
-  // The Movies tile is gone, and the total is recomputed to TV minutes only (17,330
-  // min → 12 days): not the both-media 32,980 min (22 days).
+  // The Movies tile is gone, and the total is recomputed to TV minutes only
+  // (17,330 min → 12 days): not the both-media 32,980 min (22 days).
   await expect(page.getByTestId("stat-movies")).toHaveCount(0);
   const time = page.getByTestId("stat-time");
   await expect(time).toContainText("12");
   await expect(time).toContainText("days");
   await expect(time).not.toContainText("22");
 
-  // The watch history is locked to TV: no type toggle, and only TV plays appear.
+  // The watch history is locked to TV: no medium chips, and only TV plays appear.
   await page.goto("/history");
   await expect(page.getByTestId("screen-history")).toBeVisible();
   await expect(page.getByTestId("history-filter-movies")).toHaveCount(0);
@@ -166,7 +165,7 @@ test("TV-only: Profile hides the Movies tile and its minutes leave the total", a
 
 // ---- TV disabled (the movies-only case) ----
 
-test("movies-only: nav sheds only the episodic Up Next, keeping Library/History/Discover", async ({
+test("movies-only: the nav prunes Up Next AND Calendar, keeping Library + Search", async ({
   page,
 }) => {
   await seedMediaVisibility(page.context(), { showsEnabled: false, moviesEnabled: true });
@@ -174,13 +173,20 @@ test("movies-only: nav sheds only the episodic Up Next, keeping Library/History/
   await page.goto("/library");
 
   const sidebar = page.locator(".sidebar");
-  // Three cross-media jobs remain; the TV-centric Up Next (and Calendar) are gone.
-  await expect(sidebar.locator(".sidebar__links a")).toHaveCount(3);
+  // The episodic Up Next AND the episodic Calendar are gone: two cross-media
+  // jobs remain (History lives under Profile, so it never was a tab).
+  await expect(sidebar.locator(".sidebar__links a")).toHaveCount(2);
   await expect(sidebar.getByRole("link", { name: "Library", exact: true })).toBeVisible();
-  await expect(sidebar.getByRole("link", { name: "History", exact: true })).toBeVisible();
-  await expect(sidebar.getByRole("link", { name: "Discover", exact: true })).toBeVisible();
+  await expect(sidebar.getByRole("link", { name: "Search", exact: true })).toBeVisible();
   await expect(sidebar.getByRole("link", { name: "Up Next", exact: true })).toHaveCount(0);
   await expect(sidebar.getByRole("link", { name: "Calendar", exact: true })).toHaveCount(0);
+
+  // The phone tab bar prunes identically.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByTestId("tab-library")).toBeVisible();
+  await expect(page.getByTestId("tab-search")).toBeVisible();
+  await expect(page.getByTestId("tab-up-next")).toHaveCount(0);
+  await expect(page.getByTestId("tab-calendar")).toHaveCount(0);
 });
 
 test("movies-only: home and calendar route to the movies Library", async ({ page }) => {
@@ -189,21 +195,20 @@ test("movies-only: home and calendar route to the movies Library", async ({ page
 
   await page.goto("/");
   await expect(page).toHaveURL(/\/library$/);
-  await expect(page.getByTestId("library-filter")).toHaveAttribute("placeholder", "Filter movies…");
+  await expect(page.getByTestId("chip-watchlist")).toBeVisible();
 
   await page.goto("/calendar");
   await expect(page).toHaveURL(/\/library$/);
   await expect(page.getByTestId("screen-library")).toBeVisible();
 });
 
-test("movies-only: Search hides the show discover rails", async ({ page }) => {
+test("movies-only: Search hides the show browse grid", async ({ page }) => {
   await seedMediaVisibility(page.context(), { showsEnabled: false, moviesEnabled: true });
   await installDiscoverRoutes(page.context(), DISCOVER);
   await page.goto("/search");
 
-  await expect(page.getByTestId("discover-trending-movies")).toBeVisible();
-  await expect(page.getByTestId("discover-trending")).toHaveCount(0);
-  await expect(page.getByTestId("discover-popular")).toHaveCount(0);
+  await expect(page.getByTestId("search-popular-movies")).toBeVisible();
+  await expect(page.getByTestId("search-trending-shows")).toHaveCount(0);
 });
 
 test("movies-only: Profile keeps only the Movies tile and its minutes", async ({ page }) => {
@@ -252,7 +257,7 @@ test("the choice persists across reload and lives only in localStorage", async (
   const stored = await page.evaluate(() => localStorage.getItem("cue.movies-enabled"));
   expect(stored).toBe("0");
 
-  // And it drives the surfaces after reload: Library shows no movie toggle.
+  // And it drives the surfaces after reload: Library shows no movie segment.
   await page.goto("/library");
   await expect(page.getByTestId("type-movies")).toHaveCount(0);
 });
@@ -268,13 +273,14 @@ test("Settings carries the Trakt attribution and a distinct delete-account hand-
   await expect(page.getByTestId("trakt-attribution")).toContainText(
     "not created, endorsed, or sponsored by Trakt",
   );
+  await expect(page.getByTestId("powered-by-trakt")).toContainText("Powered by Trakt");
 
-  // A delete-account row distinct from Disconnect that opens Trakt's own settings
+  // A delete-account row distinct from Sign out that opens Trakt's own settings
   // in a new browser context (Apple 5.1.1(v) / Google account-deletion).
   const deleteAccount = page.getByTestId("link-delete-account");
   await expect(deleteAccount).toHaveAttribute("href", "https://app.trakt.tv/settings/advanced");
   await expect(deleteAccount).toHaveAttribute("target", "_blank");
   await expect(deleteAccount).toHaveAttribute("rel", /noopener/);
-  // It is a separate control from Disconnect, not a relabel of it.
+  // It is a separate control from Sign out, not a relabel of it.
   await expect(page.getByTestId("button-disconnect")).toBeVisible();
 });

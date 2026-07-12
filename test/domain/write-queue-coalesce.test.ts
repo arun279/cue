@@ -1,5 +1,9 @@
 import { coalesce } from "@domain/write-queue/coalesce";
-import { buildMarkEpisodeOp, buildUnmarkEpisodeOp } from "@domain/write-queue/ops";
+import {
+  buildAddEpisodePlayOp,
+  buildMarkEpisodeOp,
+  buildUnmarkEpisodeOp,
+} from "@domain/write-queue/ops";
 import type { QueuedOp } from "@domain/write-queue/types";
 import { describe, expect, it } from "vitest";
 
@@ -8,6 +12,8 @@ const mark = (id: string, trakt: number): QueuedOp =>
   buildMarkEpisodeOp({ opId: id, ids: { trakt }, watchedAt: WATCHED_AT });
 const unmark = (id: string, trakt: number): QueuedOp =>
   buildUnmarkEpisodeOp({ opId: id, ids: { trakt }, watchedAt: WATCHED_AT });
+const addPlay = (id: string, trakt: number): QueuedOp =>
+  buildAddEpisodePlayOp({ opId: id, ids: { trakt }, watchedAt: WATCHED_AT });
 
 describe("coalesce", () => {
   it("appends an op on a fresh item key", () => {
@@ -30,5 +36,20 @@ describe("coalesce", () => {
     const pending = [mark("a", 1), mark("b", 2)];
     const next = coalesce(pending, unmark("c", 1));
     expect(next.map((o) => o.itemKey)).toEqual(["episode:2"]);
+  });
+
+  it("never swallows an additive play against a pending mark of the same episode", () => {
+    const next = coalesce([mark("a", 1)], addPlay("b", 1));
+    expect(next.map((o) => o.id)).toEqual(["a", "b"]);
+  });
+
+  it("never cancels an additive play against a pending unmark of the same episode", () => {
+    const next = coalesce([unmark("a", 1)], addPlay("b", 1));
+    expect(next.map((o) => o.id)).toEqual(["a", "b"]);
+  });
+
+  it("keeps two deliberate extra plays of one episode as two ops", () => {
+    const next = coalesce([addPlay("a", 1)], addPlay("b", 1));
+    expect(next.map((o) => o.id)).toEqual(["a", "b"]);
   });
 });

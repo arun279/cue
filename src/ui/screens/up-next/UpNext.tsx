@@ -26,7 +26,7 @@ import { useShowArt } from "@ui/hooks/useShowArt";
 import { type UpNextCard, useUpNext } from "@ui/hooks/useUpNext";
 import { type ReactElement, type ReactNode, useEffect, useMemo, useState } from "react";
 import { LapsedDrawer } from "./LapsedDrawer";
-import { buildOnTheWay, OnTheWay } from "./OnTheWay";
+import { buildOnTheWay, OnTheWay, useOnTheWayClock } from "./OnTheWay";
 import { Poster } from "./Poster";
 import { Previously } from "./Previously";
 import { QueueRow } from "./QueueRow";
@@ -137,7 +137,10 @@ export function UpNext(): ReactElement {
     }
   }, [stopUndoable, stopError, stopUndo, clearError]);
 
-  const onTheWay = useMemo(() => buildOnTheWay(calendar.days, Date.now()), [calendar.days]);
+  // The coarse hourly clock keeps "Tonight" honest: an episode that airs while
+  // the screen sits open drops out on the next hour flip.
+  const clock = useOnTheWayClock();
+  const onTheWay = useMemo(() => buildOnTheWay(calendar.days, clock), [calendar.days, clock]);
 
   const stopWatching = (card: UpNextCard): void => {
     void stop.hide(

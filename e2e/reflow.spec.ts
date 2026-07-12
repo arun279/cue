@@ -8,10 +8,11 @@ import {
   installLibraryRoutes,
   type ShowFixture,
   seedAuth,
+  seedTutorialDismissed,
 } from "./helpers";
 
 /** ~320 CSS px is WCAG 1.4.10's reflow width (1280px at 400% zoom). Content must fit
- * with no horizontal scroll: grids reflow to a single column, rows wrap. */
+ * with no horizontal scroll: grids reflow, rows wrap. */
 const NARROW = { width: 320, height: 720 } as const;
 const AIRED = "2026-01-01T00:00:00.000Z";
 
@@ -34,7 +35,7 @@ function libraryShows(): ShowFixture[] {
 }
 
 /** The document's own horizontal overflow (0 or ≤1px sub-pixel = no scroll). Inner
- * overflow-x containers (the stills shelf) clip their own content and never widen this. */
+ * overflow-x containers (the chips row) clip their own content and never widen this. */
 async function horizontalOverflow(page: Page): Promise<number> {
   return page.evaluate(() => {
     const el = document.scrollingElement ?? document.documentElement;
@@ -42,12 +43,9 @@ async function horizontalOverflow(page: Page): Promise<number> {
   });
 }
 
-/** 200% browser zoom halves the usable CSS width, so any control or row with an
- * intrinsic width wider than that half: a long Sort option, the three-item History
- * segmented, the Up Next mark column: would push the body into a sideways scroll (a
- * WCAG 1.4.4 / 1.4.10 failure). Emulate it exactly as a design review does: stamp
- * `zoom: 2` on the document element and re-assert no horizontal overflow. The overflow case
- * was captured at 390px, so the tests lock that width. */
+/** 200% browser zoom halves the usable CSS width; any control or row with an
+ * intrinsic width wider than that half would push the body into a sideways
+ * scroll (a WCAG 1.4.4 / 1.4.10 failure). */
 const ZOOM = { width: 390, height: 780 } as const;
 
 async function setZoom(page: Page, factor: number): Promise<void> {
@@ -59,11 +57,8 @@ async function setZoom(page: Page, factor: number): Promise<void> {
   await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r(null))));
 }
 
-/** A same-minute, same-show pair: the cluster whose trailing "Logged together" aside
- * used to crush the title to one word per line at ~320px (now a caption below the title
- * and episode range). Shared by the @320 reflow test and the 200%-zoom test. */
-function clusteredHistoryRows(): HistoryRowFixture[] {
-  const together = agoIso(1);
+/** Long-titled plays across two days: the width pressure on history rows. */
+function longHistoryRows(): HistoryRowFixture[] {
   return [
     {
       id: 1,
@@ -73,7 +68,7 @@ function clusteredHistoryRows(): HistoryRowFixture[] {
       season: 1,
       number: 1,
       episodeTitle: "The First Case of the Season",
-      watchedAt: together,
+      watchedAt: agoIso(1),
     },
     {
       id: 2,
@@ -83,7 +78,7 @@ function clusteredHistoryRows(): HistoryRowFixture[] {
       season: 1,
       number: 2,
       episodeTitle: "The Case of the Missing Afternoon Appointment",
-      watchedAt: together,
+      watchedAt: agoIso(1),
     },
   ];
 }
@@ -91,62 +86,71 @@ function clusteredHistoryRows(): HistoryRowFixture[] {
 test.beforeEach(async ({ page }) => {
   await installHermeticRoutes(page.context());
   await seedAuth(page.context());
+  await seedTutorialDismissed(page.context());
 });
 
-test("Library poster grid reflows with no horizontal scroll @320", async ({ page }) => {
+test("Library poster grid + chips reflow with no horizontal scroll @320", async ({ page }) => {
   await installLibraryRoutes(page.context(), libraryShows());
   await page.setViewportSize(NARROW);
   await page.goto("/library");
-  await expect(page.getByTestId("screen-library")).toBeVisible();
+  await expect(page.getByTestId("library-card").first()).toBeVisible();
 
   expect(await horizontalOverflow(page)).toBeLessThanOrEqual(1);
 });
 
 test("Watch history rows reflow with no horizontal scroll @320", async ({ page }) => {
-  // A same-minute, same-show pair clusters with the "Logged together" caption: the
-  // affordance that used to crush the title + episode range at narrow widths.
-  await installHistoryRoutes(page.context(), clusteredHistoryRows());
+  await installHistoryRoutes(page.context(), longHistoryRows());
   await page.setViewportSize(NARROW);
   await page.goto("/history");
-  await expect(page.getByTestId("history-logged-together").first()).toBeVisible();
+  await expect(page.getByTestId("history-row").first()).toBeVisible();
 
   expect(await horizontalOverflow(page)).toBeLessThanOrEqual(1);
 });
 
 test("Library controls reflow with no horizontal scroll at 200% zoom", async ({ page }) => {
-  // The Sort <select> ("Recently added/watched") and Shows/Movies segmented are the
-  // widest controls; at 200% zoom they must cap + wrap, never scroll the body.
+  // `.library-toolbar` (Shows/Movies segment + the two 44px tool buttons)
+  // wraps: the tool cluster drops to a second row instead of pushing the body
+  // into a sideways scroll (WCAG 1.4.4/1.4.10).
   await installLibraryRoutes(page.context(), libraryShows());
   await page.setViewportSize(ZOOM);
   await page.goto("/library");
-  await expect(page.getByTestId("screen-library")).toBeVisible();
+  await expect(page.getByTestId("library-card").first()).toBeVisible();
 
   await setZoom(page, 2);
   expect(await horizontalOverflow(page)).toBeLessThanOrEqual(1);
 });
 
 test("Watch history reflows with no horizontal scroll at 200% zoom", async ({ page }) => {
-  // The three-item All/TV/Movies segmented plus the decade-jump selects are the width
-  // pressure here; they must wrap/cap rather than push a sideways scroll.
-  await installHistoryRoutes(page.context(), clusteredHistoryRows());
+  // The filter chips + month-jump chip are the width pressure here.
+  await installHistoryRoutes(page.context(), longHistoryRows());
   await page.setViewportSize(ZOOM);
   await page.goto("/history");
-  await expect(page.getByTestId("screen-history")).toBeVisible();
-  await expect(page.getByTestId("history-logged-together").first()).toBeVisible();
+  await expect(page.getByTestId("history-row").first()).toBeVisible();
 
   await setZoom(page, 2);
   expect(await horizontalOverflow(page)).toBeLessThanOrEqual(1);
 });
 
 test("Up Next reflows with no horizontal scroll at 200% zoom", async ({ page }) => {
-  // The trailing 56px mark column crowds the poster + text at 200% zoom; the row must
-  // wrap the mark instead of overflowing the body.
+  // The trailing 48px check crowds the poster + text at 200% zoom; the row must
+  // absorb it instead of overflowing the body.
   await installLibraryRoutes(page.context(), libraryShows());
   await page.setViewportSize(ZOOM);
   await page.goto("/");
   await expect(page.getByTestId("up-next-card").first()).toBeVisible();
 
   await setZoom(page, 2);
+  expect(await horizontalOverflow(page)).toBeLessThanOrEqual(1);
+});
+
+test("Up Next (marquee + queue + sections) reflows with no horizontal scroll @320", async ({
+  page,
+}) => {
+  await installLibraryRoutes(page.context(), libraryShows());
+  await page.setViewportSize(NARROW);
+  await page.goto("/");
+  await expect(page.getByTestId("marquee-card")).toBeVisible();
+
   expect(await horizontalOverflow(page)).toBeLessThanOrEqual(1);
 });
 
@@ -167,6 +171,51 @@ test("Show detail reflows with no horizontal scroll @320", async ({ page }) => {
   await page.setViewportSize(NARROW);
   await page.goto("/show/1");
   await expect(page.getByTestId("detail-title")).toBeVisible();
+  await expect(page.getByTestId("season-panel").first()).toBeVisible();
 
   expect(await horizontalOverflow(page)).toBeLessThanOrEqual(1);
+});
+
+test("the episode sheet reflows with no horizontal scroll @320", async ({ page }) => {
+  await installLibraryRoutes(page.context(), [
+    {
+      trakt: 1,
+      tmdb: 500,
+      title: "The Detail Show",
+      status: "returning series",
+      posters: ["media.trakt.tv/p.webp"],
+      lastWatchedAt: agoIso(2),
+      aired: 3,
+      completed: 1,
+      episodes: [
+        { ...ep(1, 1, 11), stills: ["media.trakt.tv/still.webp"] },
+        { ...ep(1, 2, 12), stills: ["media.trakt.tv/still.webp"] },
+        { ...ep(1, 3, 13), stills: ["media.trakt.tv/still.webp"] },
+      ],
+    },
+  ]);
+  await page.setViewportSize(NARROW);
+  await page.goto("/show/1/episode/1/1");
+  await expect(page.getByTestId("episode-sheet")).toBeVisible();
+  await expect(page.getByTestId("episode-detail-title")).toBeVisible();
+
+  expect(await horizontalOverflow(page)).toBeLessThanOrEqual(1);
+});
+
+test("Calendar, Search, Profile, and Settings reflow with no horizontal scroll @320", async ({
+  page,
+}) => {
+  await installLibraryRoutes(page.context(), libraryShows());
+  await page.setViewportSize(NARROW);
+
+  for (const [path, marker] of [
+    ["/calendar", "screen-calendar"],
+    ["/search", "screen-search"],
+    ["/profile", "screen-profile"],
+    ["/settings", "screen-settings"],
+  ] as const) {
+    await page.goto(path);
+    await expect(page.getByTestId(marker)).toBeVisible();
+    expect(await horizontalOverflow(page), `${path} overflows`).toBeLessThanOrEqual(1);
+  }
 });

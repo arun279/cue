@@ -1,15 +1,19 @@
 import type { CalendarDay, CalendarRow } from "@domain/calendar";
+import { dayKeyOf } from "@domain/day";
 import { localTimeZone } from "@domain/time";
 import { Badge } from "@ui/components/Badge";
 import { EpisodeRow } from "@ui/components/EpisodeRow";
 import { SectionHeader } from "@ui/components/SectionHeader";
 import { epCode } from "@ui/format";
 import { Poster } from "@ui/screens/up-next/Poster";
-import { Fragment, type ReactElement } from "react";
+import { Fragment, type ReactElement, useEffect, useState } from "react";
 
 const SCOPE_MS = 72 * 60 * 60 * 1000;
 const MAX_ROWS = 6;
 const DAY_MS = 24 * 60 * 60 * 1000;
+const HOUR_MS = 60 * 60 * 1000;
+/** How often the coarse clock re-checks whether the wall hour has flipped. */
+const CLOCK_CHECK_MS = 60_000;
 
 export interface OnTheWayDay {
   readonly key: string;
@@ -36,25 +40,46 @@ function dayOffset(fromKey: string, toKey: string): number {
 }
 
 /**
+ * A clock re-stamped when the wall hour flips: the `buildOnTheWay` memo input
+ * that makes an episode airing while the home screen sits open drop from
+ * "Tonight" within the hour, instead of lingering until the day flips.
+ */
+export function useOnTheWayClock(): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (Math.floor(Date.now() / HOUR_MS) !== Math.floor(now / HOUR_MS)) setNow(Date.now());
+    }, CLOCK_CHECK_MS);
+    return () => clearInterval(timer);
+  }, [now]);
+  return now;
+}
+
+/**
  * The home slice of the calendar read: not-yet-aired episodes within the next
  * 72 hours, capped at six rows, day labels re-voiced for the home scroll
  * (Tonight / Tomorrow / weekday). Aired episodes never appear — they already
  * live in the queue, one home per action.
  */
 export function buildOnTheWay(days: readonly CalendarDay[], now: number): OnTheWayDay[] {
-  const todayKey = days.find((day) => day.label === "Today")?.dayKey;
+  // Derived from the clock, not the sparse groups: on a day with no airing,
+  // no group is labeled "Today", yet offsets must still count from today.
+  const todayKey = dayKeyOf(localTimeZone(), now);
   const out: OnTheWayDay[] = [];
   let taken = 0;
   for (const day of days) {
     if (taken >= MAX_ROWS) break;
     const rows = day.rows.filter((row) => {
       const ms = Date.parse(row.firstAired);
-      return !row.aired && !Number.isNaN(ms) && ms - now <= SCOPE_MS;
+      // `ms > now` is the direct check (NaN also fails it); the `aired` flag
+      // alone can be stale — it was stamped by the calendar grouping's own
+      // clock, which only re-anchors on a day flip.
+      return !row.aired && ms > now && ms - now <= SCOPE_MS;
     });
     if (rows.length === 0) continue;
     const kept = rows.slice(0, MAX_ROWS - taken);
     taken += kept.length;
-    const offset = todayKey === undefined ? 1 : dayOffset(todayKey, day.dayKey);
+    const offset = dayOffset(todayKey, day.dayKey);
     const label =
       day.label === "Today"
         ? "Tonight"

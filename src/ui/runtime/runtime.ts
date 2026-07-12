@@ -134,6 +134,28 @@ export interface CueRuntime {
   /** The signed-in user's Trakt identity (username + avatar) for the Profile header. */
   loadUserProfile(): Promise<UserProfile>;
   submit(op: QueuedOp): Promise<SubmitOutcome>;
+  /** Durable ops still awaiting Trakt (deferred offline/rate-limited included). */
+  pendingWrites(): number;
+  /**
+   * Snapshot of the durable op-log: every op still awaiting Trakt, including
+   * the one currently being delivered. Mark surfaces consult it by op id /
+   * itemKey to route safely: drop a duplicate mark whose play is already
+   * pending, cancel a still-queued mark via its coalescing inverse, or per-play
+   * reverse one that already landed.
+   */
+  pendingOps(): readonly QueuedOp[];
+  /** Id of the op currently being delivered, or null. A mid-delivery op can be
+   * neither coalesce-cancelled nor per-play-resolved (its POST may still land),
+   * so reversals wait it out rather than guessing. */
+  inFlightOpId(): string | null;
+  /**
+   * Drive one flush of the durable queue and persist the surviving op-log.
+   * Resolves to the count still pending afterwards: zero means fully drained.
+   * The manual "Sync now" path runs this BEFORE the freshness poll so a
+   * deferred mark actually lands instead of being reported as synced-with-zero-
+   * pending while it sits in the log.
+   */
+  flushWrites(): Promise<number>;
   /**
    * The single freshness gate: fetch `/sync/last_activities`, diff it
    * against the persisted baseline, and report the exact keys to invalidate.

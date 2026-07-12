@@ -2,15 +2,11 @@ import { ScreenHeader } from "@ui/app-shell/ScreenHeader";
 import { SyncStrip } from "@ui/app-shell/SyncStrip";
 import { EmptyState } from "@ui/components/EmptyState";
 import { ErrorRetry } from "@ui/components/ErrorStates";
-import { useCalendar } from "@ui/hooks/useCalendar";
+import { CALENDAR_WINDOW_DAYS, useCalendar } from "@ui/hooks/useCalendar";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { type ReactElement, type ReactNode, useMemo } from "react";
 import { buildAgenda } from "./agenda";
 import { CalendarAgenda } from "./CalendarAgenda";
-
-/** Forward agenda depth: four weeks is far enough to answer "when is it
- * back?" for anything actually scheduled, without a range toggle. */
-const CALENDAR_WINDOW_DAYS = 28;
 
 const SKELETON_ROWS = [0, 1, 2, 3];
 
@@ -59,8 +55,7 @@ export function Upcoming(): ReactElement {
     body = (
       <EmptyState
         testId="upcoming-empty"
-        headline="No upcoming episodes"
-        body="Your shows are between seasons."
+        headline="No upcoming episodes — your shows are between seasons."
       />
     );
   } else {

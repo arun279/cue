@@ -6,11 +6,32 @@ import { CONTENT_STALE_TIME_MS, type QueryStatus, queryStatus } from "@ui/hooks/
 import { useRuntime } from "@ui/runtime/runtime";
 import { useEffect, useMemo, useState } from "react";
 
-/** The home "On the way" slice reads one week; the Calendar screen widens it. */
+/**
+ * The Calendar screen's agenda depth — and the ONE window the query ever
+ * fetches. Every consumer shares this single cache entry (one GET per window,
+ * whichever surface loads first); narrower views slice it client-side.
+ */
+export const CALENDAR_WINDOW_DAYS = 28;
+
+/** The home "On the way" slice: one week of the shared read. */
 const DEFAULT_CALENDAR_WINDOW = 7;
 
 /** How often the day clock re-checks whether the local day has flipped. */
 const DAY_CHECK_MS = 60_000;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** The shared 28-day read cut to a caller's narrower window ("YYYY-MM-DD"
+ * day keys are pure dates, so key arithmetic is DST-safe). */
+export function sliceCalendarDays(
+  days: readonly CalendarDay[],
+  startKey: string,
+  windowDays: number,
+): readonly CalendarDay[] {
+  if (windowDays >= CALENDAR_WINDOW_DAYS) return days;
+  const limit = Date.parse(startKey) + windowDays * DAY_MS;
+  return days.filter((day) => Date.parse(day.dayKey) < limit);
+}
 
 export interface CalendarView extends QueryStatus {
   readonly days: readonly CalendarDay[];
@@ -48,33 +69,36 @@ function useDayClock(): number {
 }
 
 /**
- * The forward-calendar read hook. Fetches the personalized window
- * (`windowDays` wide, anchored on the local today) and groups episodes by local
- * day through the pure domain `groupCalendar` (hidden shows excluded, aired
- * rows flagged). Read-only: the calendar renders no marks — aired episodes are
- * marked from the Up Next queue, one home per action.
+ * The forward-calendar read hook. Fetches the full shared window (always
+ * `CALENDAR_WINDOW_DAYS`, anchored on the local today — one cache key, so the
+ * home slice and the Calendar screen never each fire their own GET), groups
+ * episodes by local day through the pure domain `groupCalendar` (hidden shows
+ * excluded, aired rows flagged), and returns the caller's `windowDays` slice.
+ * Read-only: the calendar renders no marks — aired episodes are marked from
+ * the Up Next queue, one home per action.
  */
 export function useCalendar(windowDays: number = DEFAULT_CALENDAR_WINDOW): CalendarView {
   const runtime = useRuntime();
   const now = useDayClock();
   const startDate = localDayKey(now);
   const query = useQuery({
-    queryKey: queryKeys.calendar(startDate, windowDays),
-    queryFn: () => runtime.loadCalendar(startDate, windowDays),
+    queryKey: queryKeys.calendar(startDate, CALENDAR_WINDOW_DAYS),
+    queryFn: () => runtime.loadCalendar(startDate, CALENDAR_WINDOW_DAYS),
     // Time/content-driven, NOT gated on last_activities: newly-announced or
     // newly-aired future episodes don't always bump user activity.
     staleTime: CONTENT_STALE_TIME_MS,
   });
 
   const data = query.data;
-  const days = useMemo<CalendarDay[]>(() => {
+  const days = useMemo<readonly CalendarDay[]>(() => {
     if (data === undefined) return [];
-    return groupCalendar(data.entries, {
+    const grouped = groupCalendar(data.entries, {
       now,
       timeZone: localTimeZone(),
       hiddenShowIds: new Set(data.hiddenShowIds),
     });
-  }, [data, now]);
+    return sliceCalendarDays(grouped, startDate, windowDays);
+  }, [data, now, startDate, windowDays]);
 
   return {
     days,

@@ -361,6 +361,24 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       return "deferred";
     },
 
+    pendingWrites(): number {
+      return queue.snapshot().length;
+    },
+
+    pendingOps(): readonly QueuedOp[] {
+      return queue.snapshot();
+    },
+
+    inFlightOpId(): string | null {
+      return queue.inFlightId;
+    },
+
+    async flushWrites(): Promise<number> {
+      await queue.flush();
+      await persistLog();
+      return queue.snapshot().length;
+    },
+
     async pollActivities(): Promise<ActivitiesReconcile | null> {
       const stored = await readActivitiesSnapshot();
       let poll: Awaited<ReturnType<typeof activitiesRepo.poll>>;

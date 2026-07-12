@@ -11,27 +11,9 @@ import { ContextMenu } from "@ui/components/ContextMenu";
 import { CountdownPanel } from "@ui/components/CountdownPanel";
 import { SegmentedControl } from "@ui/components/SegmentedControl";
 import { Sheet } from "@ui/components/Sheet";
-import { act, type ReactNode } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
-
-(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-
-let root: Root | null = null;
-let host: HTMLElement | null = null;
-
-function mount(node: ReactNode): void {
-  host = document.createElement("div");
-  document.body.appendChild(host);
-  root = createRoot(host);
-  act(() => root?.render(node));
-}
-
-afterEach(() => {
-  act(() => root?.unmount());
-  host?.remove();
-  document.body.innerHTML = "";
-});
+import { act } from "react";
+import { describe, expect, it, vi } from "vitest";
+import { mount } from "./_mount";
 
 const dialog = (): HTMLElement | null => document.querySelector("[role='dialog']");
 const click = (el: Element | null): void => {
@@ -56,6 +38,20 @@ describe("overlay primitive smoke", () => {
     expect(panel?.querySelector(".sheet__handle")?.getAttribute("aria-hidden")).toBe("true");
     expect(panel?.querySelector(".sheet__grabber")).not.toBeNull();
     expect(document.querySelector(".sheet-scrim")).not.toBeNull();
+  });
+
+  it("opens with focus on the panel itself, not the first control", () => {
+    mount(
+      <Sheet open onOpenChange={() => {}}>
+        <h2>Season 2</h2>
+        <button type="button" data-testid="first-control">
+          Mark all watched
+        </button>
+      </Sheet>,
+    );
+    // The dialog must announce (focus inside), but no control may sit ringed
+    // "at rest": opening focus belongs to the container.
+    expect(document.activeElement).toBe(dialog());
   });
 
   it("opens a tall Sheet at the 65% detent", () => {

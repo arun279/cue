@@ -93,6 +93,34 @@ describe("assembleEpisodeDetail", () => {
     expect(assembleEpisodeDetail(1, noArt, progress, NOW).stills).toEqual([]);
   });
 
+  it("orders Specials after the numbered run, matching the season list", () => {
+    // `‹ prev` from S1 E1 must be a bound, never a jump into Specials.
+    const withSpecials: Progress = {
+      ...progress,
+      seasons: [
+        {
+          number: 0,
+          aired: 1,
+          completed: 0,
+          episodes: [{ number: 1, completed: false }],
+        },
+        ...(progress.seasons ?? []),
+      ],
+    };
+    const first = assembleEpisodeDetail(1, { ...episode, number: 1 }, withSpecials, NOW);
+    expect(first.prev).toBeNull();
+    const last = assembleEpisodeDetail(1, { ...episode, number: 3 }, withSpecials, NOW);
+    expect(last.next).toEqual({ season: 0, number: 1 });
+    const special = assembleEpisodeDetail(
+      1,
+      { ...episode, season: 0, number: 1, ids: { trakt: 90 } },
+      withSpecials,
+      NOW,
+    );
+    expect(special.prev).toEqual({ season: 1, number: 3 });
+    expect(special.next).toBeNull();
+  });
+
   it("tolerates progress with no seasons array", () => {
     const detail = assembleEpisodeDetail(
       1,

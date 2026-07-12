@@ -1,5 +1,5 @@
 import type { EpisodePlay } from "@domain/reversal";
-import { resolveEpisodeUnmark } from "@ui/hooks/resolveUnmark";
+import { findMarkPlay, resolveEpisodeUnmark } from "@ui/hooks/resolveUnmark";
 import type { CueRuntime } from "@ui/runtime/runtime";
 import { describe, expect, it } from "vitest";
 
@@ -67,5 +67,41 @@ describe("resolveEpisodeUnmark", () => {
   it("reads no plays as none, and a failed read as error", async () => {
     expect((await resolveEpisodeUnmark(runtimeWith([]), EP)).kind).toBe("none");
     expect((await resolveEpisodeUnmark(runtimeWith(new Error("net")), EP)).kind).toBe("error");
+  });
+});
+
+describe("findMarkPlay (landed-mark undo resolution)", () => {
+  const MARKED_AT = "2026-07-09T12:00:00.123Z";
+
+  it("finds the play matching the mark's frozen watched_at exactly", () => {
+    const own = play(21, MARKED_AT);
+    expect(findMarkPlay([play(11, "2026-07-01T00:00:00.000Z"), own], EP, MARKED_AT)).toBe(own);
+  });
+
+  it("tolerates Trakt truncating the echoed timestamp to the minute", () => {
+    // Marked at 12:00:42.123, echoed back floored to 12:00:00.
+    const echoed = play(21, "2026-07-09T12:00:00.000Z");
+    expect(findMarkPlay([echoed], EP, "2026-07-09T12:00:42.123Z")).toBe(echoed);
+  });
+
+  it("rejects a play beyond the truncation window", () => {
+    expect(findMarkPlay([play(21, "2026-07-09T11:58:59.000Z")], EP, MARKED_AT)).toBeUndefined();
+  });
+
+  it("never selects a historical play: restart-show rewatch history is untouchable", () => {
+    // The mark hard-failed (or was removed elsewhere): only old plays remain.
+    const plays = [play(11, "2024-03-01T00:00:00.000Z"), play(12, "2025-01-01T00:00:00.000Z")];
+    expect(findMarkPlay(plays, EP, MARKED_AT)).toBeUndefined();
+  });
+
+  it("prefers the newest of two plays inside the echo tolerance", () => {
+    const older = play(21, "2026-07-09T11:59:58.000Z");
+    const newer = play(22, "2026-07-09T12:00:00.000Z");
+    expect(findMarkPlay([older, newer], EP, MARKED_AT)).toBe(newer);
+  });
+
+  it("ignores other episodes' plays and resolves nothing from an empty history", () => {
+    expect(findMarkPlay([play(99, MARKED_AT, 999)], EP, MARKED_AT)).toBeUndefined();
+    expect(findMarkPlay([], EP, MARKED_AT)).toBeUndefined();
   });
 });

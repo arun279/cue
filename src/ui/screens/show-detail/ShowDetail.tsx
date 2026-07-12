@@ -124,7 +124,9 @@ export function ShowDetail({ showId }: { readonly showId: number }): ReactElemen
   }, [episodeOpen]);
 
   const header = detail.header;
-  useDocumentTitle(header !== undefined ? `${header.title} · Cue` : "Show · Cue");
+  useDocumentTitle(
+    episodeOpen ? null : header !== undefined ? `${header.title} · Cue` : "Show · Cue",
+  );
 
   // Stop/resume + watchlist feedback (§4.3): keyed on primitives so a re-render
   // while the snack is up never replaces it and resets its timer.

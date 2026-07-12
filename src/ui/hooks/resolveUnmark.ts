@@ -64,6 +64,33 @@ export async function resolveEpisodeUnmark(
   return { kind: "remove", plan };
 }
 
+/** Trakt truncates the stored `watched_at` (observed: to the whole minute), so a
+ * play created from a frozen millisecond timestamp echoes back within this
+ * window; anything further out is some other play and untouchable. A whole
+ * minute is still orders of magnitude tighter than any real historical play. */
+const MARK_MATCH_TOLERANCE_MS = 60_000;
+
+/**
+ * Identify the play a LANDED mark created, so its undo removes exactly that play
+ * by history id instead of removing by item, which wipes EVERY play of the
+ * episode: "restart show" rewatchers keep years of history under reset progress,
+ * and an item-scoped undo would destroy it. Newest-first, the first play whose
+ * watched-at sits within the echo tolerance of the mark's frozen `watchedAt` is
+ * the mark's own; `undefined` means no play is provably the mark's (it never
+ * landed, or was already removed elsewhere) and nothing may be removed.
+ */
+export function findMarkPlay(
+  plays: readonly EpisodePlay[],
+  episodeTrakt: number,
+  watchedAt: string,
+): EpisodePlay | undefined {
+  const markedAt = Date.parse(watchedAt);
+  return plays
+    .filter((play) => play.episodeTrakt === episodeTrakt)
+    .sort(newestFirst)
+    .find((play) => Math.abs(Date.parse(play.watchedAt) - markedAt) <= MARK_MATCH_TOLERANCE_MS);
+}
+
 /**
  * The outcome of resolving a movie unmark against its real Trakt plays, mirroring
  * {@link EpisodeUnmarkResolution} so movies reverse exactly like episodes: `remove`

@@ -1,4 +1,8 @@
-import { buildMarkEpisodeOp, buildUnmarkEpisodeOp } from "@domain/write-queue/ops";
+import {
+  buildAddEpisodePlayOp,
+  buildMarkEpisodeOp,
+  buildUnmarkEpisodeOp,
+} from "@domain/write-queue/ops";
 import { WriteQueue, type WriteQueueDeps } from "@domain/write-queue/queue";
 import type { DispatchResult, QueuedOp } from "@domain/write-queue/types";
 import { describe, expect, it, vi } from "vitest";
@@ -172,6 +176,22 @@ describe("WriteQueue concurrency safety", () => {
     expect(r1).toBe(r2);
     expect(h.dispatch).toHaveBeenCalledTimes(2);
   });
+
+  it("exposes the delivering op's id while (and only while) it is in flight", async () => {
+    let release: (r: DispatchResult) => void = () => {};
+    const gate = new Promise<DispatchResult>((res) => {
+      release = res;
+    });
+    const h = harness({ dispatch: () => gate });
+    const q = new WriteQueue(h.deps, [mark("a", 1)]);
+    expect(q.inFlightId).toBeNull();
+    const flushed = q.flush();
+    await Promise.resolve();
+    expect(q.inFlightId).toBe("a");
+    release(dispatchResult(200));
+    await flushed;
+    expect(q.inFlightId).toBeNull();
+  });
 });
 
 describe("WriteQueue coalescing + durability", () => {
@@ -181,6 +201,17 @@ describe("WriteQueue coalescing + durability", () => {
     q.enqueue(mark("a", 1));
     q.enqueue(buildUnmarkEpisodeOp({ opId: "b", ids: { trakt: 1 }, watchedAt: WATCHED_AT }));
     expect(q.size).toBe(0);
+  });
+
+  it("dispatches BOTH a queued mark and a queued additive play of the same episode", async () => {
+    const h = harness({ dispatch: () => Promise.resolve(dispatchResult(200)) });
+    const q = new WriteQueue(h.deps);
+    q.enqueue(mark("a", 1));
+    q.enqueue(buildAddEpisodePlayOp({ opId: "b", ids: { trakt: 1 }, watchedAt: WATCHED_AT }));
+    expect(q.size).toBe(2); // additive intent is never redundant: nothing swallowed
+    const res = await q.flush();
+    expect(res.completed.map((o) => o.id)).toEqual(["a", "b"]);
+    expect(h.dispatch).toHaveBeenCalledTimes(2);
   });
 
   it("survives persist → reload and retires ops that already landed pre-crash", async () => {

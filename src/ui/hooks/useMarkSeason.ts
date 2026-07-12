@@ -1,13 +1,24 @@
 import { invalidateShowProgress } from "@data/query-invalidation";
 import { queryKeys } from "@data/query-keys";
-import type { EpisodeDetail } from "@data/trakt/episode-detail";
 import type { SeasonView, ShowHeader } from "@data/trakt/show-detail";
 import type { EpisodeIds, ShowIds } from "@domain/model/ids";
 import { planSeasonUnmark } from "@domain/reversal";
 import { buildBulkMarkOps, type SeasonTree } from "@domain/write-queue/bulk";
-import { buildMarkEpisodeOp, buildRemovePlaysOp } from "@domain/write-queue/ops";
+import {
+  buildAddEpisodePlayOp,
+  buildMarkEpisodeOp,
+  buildRemovePlaysOp,
+  buildUnmarkEpisodeOp,
+  episodeItemKey,
+} from "@domain/write-queue/ops";
 import type { QueuedOp } from "@domain/write-queue/types";
 import { useQueryClient } from "@tanstack/react-query";
+import {
+  type EpisodeMatch,
+  patchEpisodeDetail as patchEpisodeDetailCache,
+  patchShowSeasons,
+} from "@ui/hooks/library-cache";
+import { hasPendingMark, registerPendingMark, releasePendingMark } from "@ui/hooks/mark-store";
 import { useOptimisticWrite } from "@ui/hooks/useOptimisticWrite";
 import { useRuntime } from "@ui/runtime/runtime";
 import { useCallback, useRef, useState } from "react";
@@ -126,27 +137,6 @@ export interface MarkSeasonController {
   readonly undoable: { readonly label: string; readonly seq: number } | null;
   readonly notice: string | null;
   readonly error: string | null;
-}
-
-type EpisodeMatch = (season: number, number: number, aired: boolean) => boolean;
-
-function patchEpisodes(
-  seasons: readonly SeasonView[],
-  match: EpisodeMatch,
-  watched: boolean,
-): SeasonView[] {
-  return seasons.map((season) => {
-    let changed = false;
-    const episodes = season.episodes.map((episode) => {
-      if (match(season.number, episode.number, episode.aired) && episode.watched !== watched) {
-        changed = true;
-        return { ...episode, watched };
-      }
-      return episode;
-    });
-    if (!changed) return season;
-    return { ...season, episodes, completedCount: episodes.filter((e) => e.watched).length };
-  });
 }
 
 function toSeasonTrees(seasons: readonly SeasonView[]): SeasonTree[] {
@@ -273,23 +263,16 @@ export function useMarkSeason(): MarkSeasonController {
   );
 
   const patch = useCallback(
-    (showId: number, match: EpisodeMatch, watched: boolean) => {
-      queryClient.setQueryData<readonly SeasonView[]>(queryKeys.showSeasons(showId), (old) =>
-        old === undefined ? old : patchEpisodes(old, match, watched),
-      );
-    },
+    (showId: number, match: EpisodeMatch, watched: boolean) =>
+      patchShowSeasons(queryClient, showId, match, watched),
     [queryClient],
   );
 
   // A per-episode action also patches that episode's own detail read (the sheet
   // renders from it), so a mark made on either surface ticks both instantly.
   const patchEpisodeDetail = useCallback(
-    (showId: number, episode: EpisodeBound, watched: boolean, watchedAt: string | null) => {
-      queryClient.setQueryData<EpisodeDetail>(
-        queryKeys.episode(showId, episode.season, episode.number),
-        (old) => (old === undefined ? old : { ...old, watched, watchedAt }),
-      );
-    },
+    (showId: number, episode: EpisodeBound, watched: boolean, watchedAt: string | null) =>
+      patchEpisodeDetailCache(queryClient, showId, episode, watched, watchedAt),
     [queryClient],
   );
 
@@ -530,7 +513,9 @@ export function useMarkSeason(): MarkSeasonController {
         // unwatched, so the chunked `/sync/history` POST adds one fresh play per
         // episode: the rewatch. `preCompleted: -1` makes a startup reconcile of a
         // lost response read as "landed" (completed can never be < 0): duplicating
-        // an unverifiable rewatch play would be worse than dropping it.
+        // an unverifiable rewatch play would be worse than dropping it. `additive`
+        // uniquifies the chunk itemKeys so a pending mark of the same episodes can
+        // never coalesce-swallow this deliberate rewatch pass.
         const ops = buildBulkMarkOps(
           {
             showIds: target.ids,
@@ -546,6 +531,7 @@ export function useMarkSeason(): MarkSeasonController {
             ],
             includeSpecials: target.includeSpecials,
             inversePatch: { showId: target.showId, preCompleted: -1 },
+            additive: true,
           },
           Date.now(),
           new Date().toISOString(),
@@ -618,6 +604,33 @@ export function useMarkSeason(): MarkSeasonController {
             patch(target.showId, matchEpisode, true);
             patchEpisodeDetail(target.showId, bound, true, episode.watchedAt ?? null);
           };
+          // A mark for this episode may still sit in the durable queue (this
+          // session's tap, or an op restored from a previous one). Live plays
+          // can't see it, so resolving now would report "none" and leave the
+          // queued mark alive to flip the episode back once it flushes. Enqueue
+          // the inverse instead: coalescing cancels the queued pair (or
+          // compensates behind one already mid-delivery) and the episode
+          // settles unwatched — the movie path's reverse-session-mark guard,
+          // sourced from the durable queue instead of a per-mount ref.
+          const queuedMark = runtime
+            .pendingOps()
+            .find(
+              (op) => op.itemKey === episodeItemKey(episode.ids.trakt) && op.toState === "present",
+            );
+          if (queuedMark !== undefined) {
+            unTick();
+            const op = buildUnmarkEpisodeOp({
+              opId: crypto.randomUUID(),
+              ids: episode.ids,
+              watchedAt: queuedMark.watchedAt ?? new Date().toISOString(),
+            });
+            const outcome = await submit([op], {
+              rollback: restoreTick,
+              revalidate: () => revalidate(target.showId, bound),
+            });
+            if (outcome === "failed") setError("Couldn't update that episode. Please try again.");
+            return;
+          }
           if (!knownRewatch) unTick();
           const resolution = await resolveEpisodeUnmark(runtime, episode.ids.trakt);
           if (resolution.kind === "error") {
@@ -682,47 +695,59 @@ export function useMarkSeason(): MarkSeasonController {
         // ON: mark the single episode. A lost response reconciles against the show's
         // pre-op `completed` (a progress re-read) rather than blind-retrying → never a
         // duplicate play, matching the bulk path and the sibling mark hooks.
+        const itemKey = episodeItemKey(episode.ids.trakt);
+        // A mark for this episode is already pending from ANOTHER path (a queue
+        // mark whose seasons-cache patch this surface hasn't rendered yet, or an
+        // op restored from a previous session): drop it before it enqueues a
+        // duplicate play, exactly like the synchronous episode lock above.
+        if (hasPendingMark(runtime, itemKey)) return;
         const watchedAt = new Date().toISOString();
-        const op = buildMarkEpisodeOp({
-          opId: crypto.randomUUID(),
-          ids: episode.ids,
-          watchedAt,
-          inversePatch: reconcileAnchor(target.showId),
-        });
-        const ops = [op];
-        patch(target.showId, matchEpisode, true);
-        patchEpisodeDetail(target.showId, bound, true, watchedAt);
-        // A one-tap mark surface mounts the same point-of-action Undo the bulk path
-        // does: synchronously with the optimistic tick, tagged by `ops` identity:
-        // reusing the shared undo/invert machinery so the reversal safety net is
-        // consistent with the Up Next list mark. `resumed` is captured synchronously
-        // from the mark-time Stopped state so this mark's Undo re-stops the show even
-        // before the (paced) auto-resume write has settled.
-        const withUndo = options?.undoLabel !== undefined;
-        if (withUndo) {
-          setError(null);
-          putUndo({
-            showId: target.showId,
-            ids: target.ids,
-            label: options?.undoLabel ?? "",
-            ops,
-            resumed: resume.willResume(target.showId),
-            reversibleSeason: null,
+        const opId = crypto.randomUUID();
+        registerPendingMark(itemKey, opId);
+        try {
+          const op = buildMarkEpisodeOp({
+            opId,
+            ids: episode.ids,
+            watchedAt,
+            inversePatch: reconcileAnchor(target.showId),
           });
-        }
-        // A watch on a Stopped show un-stops it (onKept): the unhide must land before
-        // revalidate so the library re-read doesn't refile the show under Stopped.
-        const outcome = await submit(ops, {
-          rollback: () => {
-            patch(target.showId, matchEpisode, false);
-            patchEpisodeDetail(target.showId, bound, false, null);
-          },
-          onKept: () => resume.resumeIfStopped(target.showId, target.ids),
-          revalidate: () => revalidate(target.showId, bound),
-        });
-        if (outcome === "failed") {
-          if (withUndo) retractUndo(ops);
-          setError("Couldn't update that episode. Please try again.");
+          const ops = [op];
+          patch(target.showId, matchEpisode, true);
+          patchEpisodeDetail(target.showId, bound, true, watchedAt);
+          // A one-tap mark surface mounts the same point-of-action Undo the bulk path
+          // does: synchronously with the optimistic tick, tagged by `ops` identity:
+          // reusing the shared undo/invert machinery so the reversal safety net is
+          // consistent with the Up Next list mark. `resumed` is captured synchronously
+          // from the mark-time Stopped state so this mark's Undo re-stops the show even
+          // before the (paced) auto-resume write has settled.
+          const withUndo = options?.undoLabel !== undefined;
+          if (withUndo) {
+            setError(null);
+            putUndo({
+              showId: target.showId,
+              ids: target.ids,
+              label: options?.undoLabel ?? "",
+              ops,
+              resumed: resume.willResume(target.showId),
+              reversibleSeason: null,
+            });
+          }
+          // A watch on a Stopped show un-stops it (onKept): the unhide must land before
+          // revalidate so the library re-read doesn't refile the show under Stopped.
+          const outcome = await submit(ops, {
+            rollback: () => {
+              patch(target.showId, matchEpisode, false);
+              patchEpisodeDetail(target.showId, bound, false, null);
+            },
+            onKept: () => resume.resumeIfStopped(target.showId, target.ids),
+            revalidate: () => revalidate(target.showId, bound),
+          });
+          if (outcome === "failed") {
+            if (withUndo) retractUndo(ops);
+            setError("Couldn't update that episode. Please try again.");
+          }
+        } finally {
+          releasePendingMark(itemKey, opId);
         }
       });
     },
@@ -745,7 +770,9 @@ export function useMarkSeason(): MarkSeasonController {
       await withEpisodeLock(target, episode, async () => {
         // `preCompleted: -1`: a lost response must reconcile as "landed" (see
         // rewatchSeason) — re-POSTing an unverifiable rewatch play would duplicate it.
-        const op = buildMarkEpisodeOp({
+        // The ADDITIVE builder uniquifies the itemKey so a pending mark of the same
+        // episode can never coalesce-swallow this deliberate extra play.
+        const op = buildAddEpisodePlayOp({
           opId: crypto.randomUUID(),
           ids: episode.ids,
           watchedAt: new Date().toISOString(),

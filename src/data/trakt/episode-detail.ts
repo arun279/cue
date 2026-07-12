@@ -62,7 +62,13 @@ export function assembleEpisodeDetail(
   }
   ordering.set(key(target.season, target.number), target);
 
-  const ordered = [...ordering.values()].sort((a, b) => a.season - b.season || a.number - b.number);
+  // Mirrors the season list's shelf order (assembleSeasons): Specials (season
+  // 0) page AFTER the numbered run, so `‹ prev` from S1 E1 is a bound, never a
+  // jump into Specials.
+  const ordered = [...ordering.values()].sort(
+    (a, b) =>
+      Number(a.season === 0) - Number(b.season === 0) || a.season - b.season || a.number - b.number,
+  );
   const index = ordered.findIndex((e) => e.season === target.season && e.number === target.number);
   const stills = episode.images?.screenshot ?? episode.images?.thumb ?? [];
 

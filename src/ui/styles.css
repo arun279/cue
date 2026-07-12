@@ -37,6 +37,9 @@
   --color-accent: #f5b841; /* action amber (fills pair with accent-fg) */
   --color-accent-strong: #ffc966; /* pressed / hover */
   --color-accent-fg: #140e04; /* ink ON amber fills */
+  /* Amber as FOREGROUND text/icons/borders (Undo, active tab, links, retry) —
+   * AA (≥4.5:1) on both themes' surfaces; fills stay --color-accent. */
+  --color-accent-ink: #f5b841;
   --color-focus: #ffc966;
   --color-progress: #f5b841; /* progress fill (deepened on the light theme) */
   --color-track: #2a241c; /* progress track */
@@ -105,6 +108,7 @@
   --color-accent: #f5b841;
   --color-accent-strong: #ffc966;
   --color-accent-fg: #140e04;
+  --color-accent-ink: #f5b841;
   --color-focus: #ffc966;
   --color-progress: #f5b841;
   --color-track: #2a241c;
@@ -130,6 +134,7 @@
   --color-accent: #f0a62a; /* amber fill with dark ink */
   --color-accent-strong: #d98f13;
   --color-accent-fg: #1a1206;
+  --color-accent-ink: #935800; /* deep amber: bright amber is ~2:1 as text on paper */
   --color-focus: #935800;
   --color-progress: #b26a00; /* deep amber: bright amber is invisible on white */
   --color-track: #e7e2d8;

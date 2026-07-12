@@ -33,9 +33,13 @@ export const DEFAULT_SNACK_TIMEOUT_MS = 5000;
  * any surface, React or not, talks to it through {@link showSnack}. The one
  * mounted `AppSnackbar` renders it.
  */
-export const useSnackbar = create<SnackbarState>((set, get) => ({
+// Monotonic across dismissals: ownership checks (`seq === owned`) must never
+// see a reused number after the slot cycles through null.
+let nextSeq = 1;
+
+export const useSnackbar = create<SnackbarState>((set) => ({
   snack: null,
-  show: (input) => set({ snack: { ...input, seq: (get().snack?.seq ?? 0) + 1 } }),
+  show: (input) => set({ snack: { ...input, seq: nextSeq++ } }),
   dismiss: () => set({ snack: null }),
 }));
 

@@ -57,6 +57,13 @@ export class WriteQueue {
     return this.pending.length;
   }
 
+  /** Id of the op currently being delivered (still the durable head of the
+   * pending log), or null: an in-flight op can be neither coalesce-cancelled
+   * nor treated as landed, so reversal routing must see it distinctly. */
+  get inFlightId(): string | null {
+    return this.inFlight?.id ?? null;
+  }
+
   /** Serializable copy of the pending log for persistence. */
   snapshot(): QueuedOp[] {
     return this.pending.map((op) => structuredCopy(op));

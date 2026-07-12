@@ -312,7 +312,7 @@
   font-weight: 700;
   line-height: 1.1;
   font-variant-numeric: tabular-nums;
-  color: var(--color-accent);
+  color: var(--color-accent-ink);
 }
 .stat-hero__unit {
   font-size: 20px;

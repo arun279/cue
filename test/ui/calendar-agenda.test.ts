@@ -15,6 +15,7 @@ function row(id: number, aired = false): CalendarRow {
     firstAired: new Date(NOW).toISOString(),
     ids: { trakt: id },
     posters: [],
+    network: null,
     tmdbId: null,
     aired,
   };

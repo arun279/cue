@@ -22,6 +22,13 @@ function post(path: string, body: unknown): RequestDescriptor {
   return { method: "POST", path, body };
 }
 
+/** Coalescing key of a single-episode history op: exported so every mark
+ * surface (and the UI's pending-mark registry) keys the same episode the same
+ * way the ops do. */
+export function episodeItemKey(trakt: number): string {
+  return `episode:${trakt}`;
+}
+
 /**
  * A single-item history op and its inverse. Marking is an add whose inverse is a
  * remove-by-item (all plays); unmarking is the mirror. `watchedAt` is frozen on
@@ -38,7 +45,7 @@ function historyOp(
   const marking = toState === "present";
   return {
     id: params.opId,
-    itemKey: `${section === "movies" ? "movie" : "episode"}:${params.ids.trakt}`,
+    itemKey: section === "movies" ? `movie:${params.ids.trakt}` : episodeItemKey(params.ids.trakt),
     request: marking ? add : remove,
     inverse: marking ? remove : add,
     inversePatch: params.inversePatch ?? null,
@@ -58,6 +65,19 @@ export function buildMarkEpisodeOp(params: HistoryOpParams): QueuedOp {
 
 export function buildUnmarkEpisodeOp(params: HistoryOpParams): QueuedOp {
   return historyOp("episodes", "absent", params);
+}
+
+/**
+ * A deliberate ADDITIVE play: the rewatch increment behind "Add another play".
+ * The request is a normal history add, but the itemKey is uniquified by the op
+ * id so coalescing can never treat it as redundant against a pending mark (or
+ * cancel it against a pending unmark) of the same episode: additive intent is
+ * never one side of a toggle. Like every rewatch addition, its item-scoped
+ * inverse is why the callers surface no Undo for it.
+ */
+export function buildAddEpisodePlayOp(params: HistoryOpParams): QueuedOp {
+  const op = historyOp("episodes", "present", params);
+  return { ...op, itemKey: `${op.itemKey}:add:${params.opId}` };
 }
 
 export function buildMarkMovieOp(params: HistoryOpParams): QueuedOp {

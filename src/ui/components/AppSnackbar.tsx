@@ -61,6 +61,13 @@ export function AppSnackbar(): ReactElement | null {
       onFocusCapture={() => setPaused(true)}
       onBlurCapture={() => setPaused(false)}
       onPointerDown={(e) => {
+        // The snackbar rides above the sheet stack (z-index 60), so its taps
+        // are self-contained: never let the pointerdown reach the document,
+        // where an open sheet's dismiss layer would read it as an outside tap
+        // and close the sheet. A containment check on the sheet side can't
+        // work — an action's own onPress may unmount the tapped button (the
+        // snack gets replaced) before the layer's deferred click-time check.
+        e.stopPropagation();
         drag.current = { startY: e.clientY, captured: false };
       }}
       onPointerMove={(e) => {

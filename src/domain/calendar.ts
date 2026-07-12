@@ -12,6 +12,7 @@ export interface CalendarEntry {
   readonly firstAired: string;
   readonly ids: EpisodeIds;
   readonly posters: readonly string[];
+  readonly network: string | null;
   readonly tmdbId: number | null;
 }
 

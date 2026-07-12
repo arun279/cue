@@ -1,5 +1,6 @@
 import { useSyncActivity } from "@ui/hooks/sync-activity-store";
 import { useIsOffline } from "@ui/hooks/useIsOffline";
+import { useOptionalRuntime } from "@ui/runtime/runtime";
 import { type ReactElement, useEffect, useState } from "react";
 
 interface SyncStripProps {
@@ -9,15 +10,32 @@ interface SyncStripProps {
   readonly onRetry?: () => void;
 }
 
-/** Marks in flight before the strip bothers the user, and for how long they
- * must stay in flight: a brief burst (binge-marking on good network) flushes
+/** Marks pending before the strip bothers the user, and for how long they
+ * must stay pending: a brief burst (binge-marking on good network) flushes
  * inside the grace window and never surfaces. */
 const PENDING_THRESHOLD = 3;
 const PENDING_GRACE_MS = 5000;
+/** Re-sample cadence for the durable queue while it holds ops: the op-log has
+ * no subscription surface, and a background flush (poll, reconnect) drains it
+ * without any in-flight transition to re-render on. */
+const QUEUE_SAMPLE_MS = 1000;
 
-/** True once the write-queue has held ≥3 in-flight marks for >5s. */
+/** True once ≥3 marks have been pending for >5s. Pending is the HIGHER of the
+ * in-flight flush count and the durable queue depth: a mark deferred offline
+ * sits in the op-log with nothing in flight, and it is still pending. */
 function usePendingLate(): { late: boolean; pending: number } {
-  const pending = useSyncActivity((state) => state.pending);
+  const runtime = useOptionalRuntime();
+  const inFlight = useSyncActivity((state) => state.pending);
+  const durable = runtime?.pendingWrites() ?? 0;
+  const pending = Math.max(inFlight, durable);
+  const hasDurable = durable > 0;
+  const [, setSample] = useState(0);
+  useEffect(() => {
+    if (!hasDurable) return;
+    const timer = setInterval(() => setSample((tick) => tick + 1), QUEUE_SAMPLE_MS);
+    return () => clearInterval(timer);
+  }, [hasDurable]);
+
   const backedUp = pending >= PENDING_THRESHOLD;
   const [late, setLate] = useState(false);
   useEffect(() => {

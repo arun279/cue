@@ -23,7 +23,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 // we seed so our seed is the final write the reload restores from.
 const PERSIST_THROTTLE_MS = 1200;
 
-/** `networkCount` distinct shows, each with one aired unwatched next episode → one card apiece. */
+/** `networkCount` distinct shows, each with one aired unwatched next episode → one queue row apiece. */
 function networkShows(count: number): ShowFixture[] {
   return Array.from({ length: count }, (_, index) => ({
     trakt: 100 + index,
@@ -58,8 +58,8 @@ async function bootThenSeed(page: Page, controls: LibraryControls, ageMs: number
   await seedActivities(page.context(), STALE_ACTIVITIES);
   controls.setReadMode("abort");
   await page.goto("/");
-  // No cache yet + reads aborted → the hard-error state, sync pill offline.
-  await expect(page.getByTestId("sync-status")).toHaveAttribute("data-state", "offline");
+  // No cache yet + reads aborted → the hard-error state.
+  await expect(page.getByTestId("up-next-error")).toBeVisible();
   await page.waitForTimeout(PERSIST_THROTTLE_MS);
 
   await seedQueryCache(page, buildPersistedLibrary(1, ageMs));
@@ -75,12 +75,14 @@ test.describe("persisted cache boot", () => {
     const controls = await installLibraryRoutes(page.context(), networkShows(2));
     await bootThenSeed(page, controls, 0);
 
-    const status = page.getByTestId("sync-status");
-    // The delayed network response is 2s out, so a count of 1 within 1.5s can
-    // only be the restored cache painting: proof of stale-while-revalidate boot.
-    await expect(status).toHaveAttribute("data-count", "1", { timeout: 1500 });
-    // Then the background refetch (2 shows) resolves and replaces it.
-    await expect(status).toHaveAttribute("data-count", "2", { timeout: 6000 });
+    // The delayed network response is 2s out, so the seeded cache entry painting
+    // within 1.5s can only be the restore: proof of stale-while-revalidate boot.
+    const cards = page.getByTestId("up-next-card");
+    await expect(cards.filter({ hasText: "Cached Show 1" })).toBeVisible({ timeout: 1500 });
+    // Then the background refetch (2 live shows) resolves and replaces it.
+    await expect(cards).toHaveCount(2, { timeout: 6000 });
+    await expect(cards.filter({ hasText: "Network Show 1" })).toBeVisible();
+    await expect(cards.filter({ hasText: "Cached Show 1" })).toHaveCount(0);
   });
 
   test("a cache seeded far in the past still paints (maxAge decoupled from staleTime)", async ({
@@ -90,10 +92,10 @@ test.describe("persisted cache boot", () => {
     const controls = await installLibraryRoutes(page.context(), networkShows(2));
     await bootThenSeed(page, controls, 25 * DAY_MS);
 
-    const status = page.getByTestId("sync-status");
     // A 25-day-old snapshot would be dropped by a 24h maxAge; that it still paints
     // proves maxAge is decoupled and only `buster` invalidates.
-    await expect(status).toHaveAttribute("data-count", "1", { timeout: 1500 });
-    await expect(status).toHaveAttribute("data-count", "2", { timeout: 6000 });
+    const cards = page.getByTestId("up-next-card");
+    await expect(cards.filter({ hasText: "Cached Show 1" })).toBeVisible({ timeout: 1500 });
+    await expect(cards).toHaveCount(2, { timeout: 6000 });
   });
 });

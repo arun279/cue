@@ -27,6 +27,11 @@ function shiftDayKey(key: string, deltaDays: number): string {
   return `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())}`;
 }
 
+/** The local-day key ("YYYY-MM-DD") an instant falls on, without a labeler. */
+export function dayKeyOf(timeZone: string, ms: number): string {
+  return dayKeyFormatter(timeZone)(ms);
+}
+
 /** Buckets days by local key and labels them "Today" / an adjacent word / "Mon, Jan 5". */
 interface DayLabeler {
   /** `ms → "YYYY-MM-DD"` local-day key: the bucket handle. */

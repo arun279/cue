@@ -10,14 +10,13 @@ import {
   seedMediaVisibility,
 } from "./helpers";
 
-/** A movies-only viewer: shows turned off, movies on. The movie home is
- * then their sole tab, so any `/sync/watchlist/shows` read is a wrong-medium spend. */
+/** A movies-only viewer: shows turned off, movies on. */
 const MOVIES_ONLY = { showsEnabled: false, moviesEnabled: true } as const;
 
 const POSTER = "media.trakt.tv/p.webp";
 const BACKDROP = "media.trakt.tv/b.webp";
 
-/** A watched movie and a watchlist-only movie: one per honest movie segment. */
+/** A watched movie and a watchlist-only movie: one per honest movie chip. */
 function movies(): MovieFixture[] {
   return [
     {
@@ -53,24 +52,20 @@ test.beforeEach(async ({ page }) => {
   await seedAuth(page.context());
 });
 
-test("the Movies tab groups films into collapsible Watchlist and Watched segments", async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 1000, height: 1400 });
+test("the Movies segment carries Watchlist/Watched status chips with counts", async ({ page }) => {
   await installMovieRoutes(page.context(), movies());
   await page.goto("/library?type=movies");
 
-  // Honest taxonomy: Watchlist / Watched: the same chevron+count-badge idiom Shows use.
-  const headings = page.getByTestId("pile-heading");
-  await expect(headings).toHaveCount(2);
-  await expect(headings.nth(0)).toContainText("Watchlist");
-  await expect(headings.nth(1)).toContainText("Watched");
-  await expect(headings.nth(0).getByTestId("pile-count")).toHaveText("1");
-  await expect(headings.nth(1).getByTestId("pile-count")).toHaveText("1");
+  // Honest movie taxonomy: Watchlist / Watched: no fabricated episode progress.
+  const watchlistChip = page.getByTestId("chip-watchlist");
+  const watchedChip = page.getByTestId("chip-watched");
+  await expect(watchlistChip).toContainText("Watchlist");
+  await expect(watchlistChip).toContainText("1");
+  await expect(watchedChip).toContainText("Watched");
+  await expect(watchedChip).toContainText("1");
 
-  // Watchlist (the actionable pool) opens first; Watched is a collapsed header.
-  await expect(headings.nth(0)).toHaveAttribute("data-state", "open");
-  await expect(headings.nth(1)).toHaveAttribute("data-state", "closed");
+  // Watchlist (the actionable pool) is the default-active chip.
+  await expect(watchlistChip).toHaveAttribute("aria-pressed", "true");
   await expect(
     page.getByTestId("movie-library-card").filter({ hasText: "Queued Movie" }),
   ).toBeVisible();
@@ -78,38 +73,40 @@ test("the Movies tab groups films into collapsible Watchlist and Watched segment
     page.getByTestId("movie-library-card").filter({ hasText: "Watched Movie" }),
   ).toHaveCount(0);
 
-  // Expanding Watched mounts its tile (no fabricated episode-progress piles).
-  await headings.nth(1).click();
+  // Switching chips swaps the grid; the watched tile carries no year badge but
+  // its done state.
+  await watchedChip.click();
   await expect(
     page.getByTestId("movie-library-card").filter({ hasText: "Watched Movie" }),
   ).toBeVisible();
+  await expect(
+    page.getByTestId("movie-library-card").filter({ hasText: "Queued Movie" }),
+  ).toHaveCount(0);
 });
 
-test("the Movies tab has the same filter + sort chrome as Shows, with honest options", async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 1000, height: 1400 });
+test("the title filter lives behind its icon and scopes the active chip", async ({ page }) => {
   await installMovieRoutes(page.context(), movies());
   await page.goto("/library?type=movies");
 
-  // Parity: the filter box and Sort control render for Movies too (the dropped chrome).
-  await expect(page.getByTestId("library-filter")).toHaveAttribute("placeholder", "Filter movies…");
-  const sort = page.getByTestId("sort-select");
-  await expect(sort).toBeVisible();
-  // Movie-appropriate sort keys: Release year replaces the meaningless "Progress".
-  await expect(sort.locator("option", { hasText: "Release year" })).toHaveCount(1);
-  await expect(sort.locator("option", { hasText: "Progress" })).toHaveCount(0);
+  // The filter field is hidden until the tool is toggled.
+  await expect(page.getByTestId("library-filter")).toHaveCount(0);
+  await page.getByTestId("library-filter-toggle").click();
+  const field = page.getByTestId("library-filter");
+  await expect(field).toBeVisible();
+  await expect(field).toHaveAttribute("placeholder", "Filter by title…");
 
-  // The cross-segment filter surfaces a match in the collapsed Watched segment.
-  await page.getByTestId("library-filter").fill("watched movie");
-  await expect(page.getByTestId("filter-summary")).toContainText("1 matching movie");
+  // A non-match reads honest empty copy with a way back.
+  await field.fill("watched movie");
+  await expect(page.getByTestId("library-empty-watchlist")).toContainText(
+    'No movies match "watched movie".',
+  );
+  await page.getByRole("button", { name: "Clear filter" }).click();
   await expect(
-    page.getByTestId("movie-library-card").filter({ hasText: "Watched Movie" }),
+    page.getByTestId("movie-library-card").filter({ hasText: "Queued Movie" }),
   ).toBeVisible();
 });
 
-test("the movie Sort control reorders films within a segment", async ({ page }) => {
-  await page.setViewportSize({ width: 1000, height: 1400 });
+test("the sort sheet reorders films within a chip (movie-honest options)", async ({ page }) => {
   await installMovieRoutes(page.context(), [
     {
       trakt: 10,
@@ -118,19 +115,36 @@ test("the movie Sort control reorders films within a segment", async ({ page }) 
       posters: [POSTER],
       watched: false,
       inWatchlist: true,
+      listedAt: "2026-06-01T00:00:00.000Z",
     },
-    { trakt: 20, title: "Dune", year: 2021, posters: [POSTER], watched: false, inWatchlist: true },
+    {
+      trakt: 20,
+      title: "Dune",
+      year: 2021,
+      posters: [POSTER],
+      watched: false,
+      inWatchlist: true,
+      listedAt: "2026-01-01T00:00:00.000Z",
+    },
   ]);
   await page.goto("/library?type=movies");
 
-  // Default (recently-watched → A-Z for unwatched films): Arrival leads Watchlist.
+  // Default (recently added for an unwatched Watchlist): Arrival (June) leads.
   await expect(page.getByTestId("movie-library-card").first()).toContainText("Arrival");
-  await page.getByTestId("sort-select").selectOption("release-year");
+
+  // Release year is offered instead of the meaningless "Progress".
+  await page.getByTestId("library-sort").click();
+  await expect(page.getByTestId("sort-progress")).toHaveCount(0);
+  await page.getByTestId("sort-release-year").click();
   await expect(page.getByTestId("movie-library-card").first()).toContainText("Dune");
+
+  // A-Z still sorts by title.
+  await page.getByTestId("library-sort").click();
+  await page.getByTestId("sort-alphabetical").click();
+  await expect(page.getByTestId("movie-library-card").first()).toContainText("Arrival");
 });
 
-test("Movies → movie detail → Back returns to the Movies tab (not Shows)", async ({ page }) => {
-  await page.setViewportSize({ width: 1000, height: 1400 });
+test("Movies → movie detail → Back returns to the Movies segment (not Shows)", async ({ page }) => {
   await installMovieRoutes(page.context(), movies());
   await page.goto("/library");
 
@@ -138,103 +152,138 @@ test("Movies → movie detail → Back returns to the Movies tab (not Shows)", a
   await page.getByTestId("type-movies").click();
   await expect(page).toHaveURL(/\/library\?type=movies/);
 
-  // Queued Movie sits in the open Watchlist segment.
   await page.getByTestId("movie-library-card").filter({ hasText: "Queued Movie" }).click();
   await expect(page.getByTestId("movie-detail-title")).toContainText("Queued Movie");
+  await expect(page).toHaveTitle("Queued Movie · Cue");
 
   // History-aware back returns to Movies; the confirmed pre-fix bug reset it to Shows.
   await page.getByTestId("movie-back").click();
   await expect(page).toHaveURL(/\/library\?type=movies/);
-  await expect(page.getByTestId("type-movies")).toHaveAttribute("aria-checked", "true");
-  await expect(page.getByTestId("pile-heading").first()).toBeVisible();
+  await expect(page.getByTestId("chip-watchlist")).toBeVisible();
 });
 
-test("a deep link to ?type=movies opens the Movies tab directly", async ({ page }) => {
-  await page.setViewportSize({ width: 1000, height: 1400 });
+test("a deep link to ?type=movies opens the Movies segment directly", async ({ page }) => {
   await installMovieRoutes(page.context(), movies());
   await page.goto("/library?type=movies");
 
-  await expect(page.getByTestId("type-movies")).toHaveAttribute("aria-checked", "true");
-  await expect(page.getByTestId("pile-heading")).toHaveCount(2);
+  await expect(page.getByTestId("chip-watchlist")).toBeVisible();
+  await expect(page.getByTestId("chip-watched")).toBeVisible();
+  // The show chips are absent: this is the movie taxonomy.
+  await expect(page.getByTestId("chip-watching")).toHaveCount(0);
 });
 
-test("a movie card routes to the movie detail page", async ({ page }) => {
-  await page.setViewportSize({ width: 1000, height: 1400 });
+test("movie detail renders the hero, meta, overview, and mark row", async ({ page }) => {
   await installMovieRoutes(page.context(), movies());
-  await page.goto("/library?type=movies");
+  await page.goto("/movie/100");
 
-  // Watched Movie lives in the collapsed Watched segment; open it, then tap through.
-  await page.getByTestId("pile-heading").filter({ hasText: "Watched" }).click();
-  await page.getByTestId("movie-library-card").filter({ hasText: "Watched Movie" }).click();
   await expect(page.getByTestId("movie-detail-title")).toContainText("Watched Movie");
-  await expect(page).toHaveTitle("Watched Movie · Cue");
+  await expect(page.getByTestId("screen-movie-detail")).toContainText("155 min");
   await expect(page.getByTestId("movie-detail-overview")).toBeVisible();
-  await expect(page.getByTestId("movie-runtime")).toContainText("155 min");
+  const markRow = page.getByTestId("movie-mark-row");
+  await expect(markRow).toContainText("Watched");
+  await expect(page.getByTestId("movie-check")).toHaveAttribute("data-state", "watched");
 });
 
-test("shows an empty state when the movie library is empty", async ({ page }) => {
-  await page.setViewportSize({ width: 1000, height: 1400 });
+test("shows honest empty copy when the movie library is empty", async ({ page }) => {
   await installMovieRoutes(page.context(), []);
   await page.goto("/library?type=movies");
-  await expect(page.getByTestId("movies-empty")).toBeVisible();
+  await expect(page.getByTestId("library-empty-watchlist")).toContainText(
+    "Things you want to watch land here.",
+  );
 });
 
-test("a watched-only library renders just Watched: no phantom empty Watchlist segment", async ({
+test("marks a movie watched with the movies[] history body and undoes it", async ({ page }) => {
+  const controls = await installMovieRoutes(page.context(), movies());
+  await page.goto("/movie/200"); // the watchlist-only (unwatched) movie
+
+  const check = page.getByTestId("movie-check");
+  await expect(check).toHaveAttribute("data-state", "unwatched");
+  await expect(page.getByTestId("movie-mark-row")).toContainText("Not watched yet");
+  await check.click();
+  await expect(check).toHaveAttribute("data-state", "watched"); // optimistic
+
+  await expect.poll(() => controls.historyPosts().length).toBe(1);
+  const posted = controls.historyPosts()[0];
+  expect(posted?.movieIds).toEqual([200]);
+  expect(posted?.watchedAt).not.toBeNull();
+  // The mark body is `{ movies: [{ ids, watched_at }] }`: the movie history shape.
+  expect(posted?.movieItemKeys).toEqual(["ids", "watched_at"]);
+
+  // The one snackbar confirms; Undo re-sends the stored movies[] remove-by-item inverse.
+  await expect(page.getByTestId("snackbar")).toContainText("Queued Movie marked");
+  await page.getByTestId("snackbar-undo").click();
+  await expect.poll(() => controls.historyRemovePosts().length).toBe(1);
+  expect(controls.historyRemovePosts()[0]?.movieIds).toEqual([200]);
+  await expect(check).toHaveAttribute("data-state", "unwatched");
+});
+
+test("unmarking a settled watch removes the single play by its exact history id", async ({
   page,
 }) => {
-  await page.setViewportSize({ width: 1000, height: 1400 });
-  await installMovieRoutes(page.context(), [
+  const controls = await installMovieRoutes(page.context(), movies());
+  await page.goto("/movie/100"); // watched long ago (a settled play)
+
+  const check = page.getByTestId("movie-check");
+  await expect(check).toHaveAttribute("data-state", "watched");
+  await check.click();
+
+  // Per-play-safe: the resolved history id (trakt 100 → play 1001), never an
+  // item-scoped movies[] wipe.
+  await expect.poll(() => controls.historyRemovePosts().length).toBe(1);
+  const removed = controls.historyRemovePosts()[0];
+  expect(removed?.ids).toEqual([1001]);
+  expect(removed?.movieItemKeys).toBeUndefined();
+  await expect(page.getByTestId("snackbar")).toContainText("Removed play");
+  await expect(check).toHaveAttribute("data-state", "unwatched");
+});
+
+test("unmarking a REWATCHED movie is refused and routed to the watch history", async ({ page }) => {
+  const rewatched: MovieFixture[] = [
+    {
+      trakt: 100,
+      tmdb: 500,
+      title: "Watched Movie",
+      year: 2021,
+      posters: [POSTER],
+      watched: true,
+      rewatched: true,
+    },
+  ];
+  const controls = await installMovieRoutes(page.context(), rewatched);
+  await page.goto("/movie/100");
+
+  const check = page.getByTestId("movie-check");
+  await expect(check).toHaveAttribute("data-state", "watched");
+  await check.click();
+
+  // Two plays: the wipe is refused; the notice routes per-play removal to History.
+  await expect(page.getByTestId("snackbar")).toContainText("2 plays");
+  await expect(page.getByTestId("snackbar")).toContainText("watch history");
+  await expect(check).toHaveAttribute("data-state", "watched");
+  expect(controls.historyRemovePosts()).toHaveLength(0);
+});
+
+test("the overflow toggles the watchlist with the movies[] body", async ({ page }) => {
+  const controls = await installMovieRoutes(page.context(), [
     { trakt: 100, tmdb: 500, title: "Watched Movie", year: 2021, posters: [POSTER], watched: true },
   ]);
-  await page.goto("/library?type=movies");
+  await page.goto("/movie/100");
 
-  // Only the non-empty segment renders (parity with Shows, which drops empty buckets):
-  // one "Watched" header, and crucially no "Watchlist (0)" phantom.
-  const headings = page.getByTestId("pile-heading");
-  await expect(headings).toHaveCount(1);
-  await expect(headings.nth(0)).toContainText("Watched");
-  await expect(page.getByTestId("pile-heading").filter({ hasText: "Watchlist" })).toHaveCount(0);
-  await expect(headings.nth(0).getByTestId("pile-count")).toHaveText("1");
+  await page.getByTestId("movie-overflow").click();
+  await expect(page.getByTestId("overflow-watchlist")).toHaveText("Add to Watchlist");
+  await page.getByTestId("overflow-watchlist").click();
 
-  // Default-open falls back to the first non-empty segment when the preferred pile
-  // (Watchlist) is absent, so the film is visible immediately: never stranded behind
-  // a collapsed header with nothing else expanded.
-  await expect(headings.nth(0)).toHaveAttribute("data-state", "open");
-  await expect(
-    page.getByTestId("movie-library-card").filter({ hasText: "Watched Movie" }),
-  ).toBeVisible();
+  await expect(page.getByTestId("snackbar")).toContainText("Watched Movie added to Watchlist");
+  await expect.poll(() => controls.watchlistPosts().length).toBe(1);
+  expect(controls.watchlistPosts()[0]?.movieIds).toEqual([100]);
+
+  // The membership flipped: the overflow now offers removal.
+  await page.getByTestId("movie-overflow").click();
+  await expect(page.getByTestId("overflow-watchlist")).toHaveText("Remove from Watchlist");
 });
 
-test("a watchlist-only library renders just the Watchlist segment, opened", async ({ page }) => {
-  await page.setViewportSize({ width: 1000, height: 1400 });
-  await installMovieRoutes(page.context(), [
-    {
-      trakt: 200,
-      tmdb: 600,
-      title: "Queued Movie",
-      year: 2020,
-      posters: [POSTER],
-      watched: false,
-      inWatchlist: true,
-    },
-  ]);
-  await page.goto("/library?type=movies");
-
-  const headings = page.getByTestId("pile-heading");
-  await expect(headings).toHaveCount(1);
-  await expect(headings.nth(0)).toContainText("Watchlist");
-  await expect(page.getByTestId("pile-heading").filter({ hasText: "Watched" })).toHaveCount(0);
-  // Watchlist is the default-open segment, so the queued film is visible immediately.
-  await expect(headings.nth(0)).toHaveAttribute("data-state", "open");
-  await expect(
-    page.getByTestId("movie-library-card").filter({ hasText: "Queued Movie" }),
-  ).toBeVisible();
-});
-
-test("movie detail shows a 'More like this' related rail with inline watchlist add", async ({
-  page,
-}) => {
-  const controls = await installMovieRoutes(
+test("movie detail shows a 'More like this' grid routing to other movies", async ({ page }) => {
+  await installMovieRoutes(
     page.context(),
     [
       {
@@ -244,6 +293,14 @@ test("movie detail shows a 'More like this' related rail with inline watchlist a
         year: 2021,
         posters: [POSTER],
         watched: true,
+      },
+      {
+        trakt: 300,
+        tmdb: 700,
+        title: "Related One",
+        year: 2019,
+        posters: [POSTER],
+        watched: false,
       },
     ],
     [
@@ -270,60 +327,16 @@ test("movie detail shows a 'More like this' related rail with inline watchlist a
   const rail = page.getByTestId("movie-related");
   await expect(rail).toBeVisible();
   await expect(rail.getByRole("heading", { name: "More like this" })).toBeVisible();
-  await expect(rail.getByTestId("search-result")).toHaveCount(2);
+  await expect(rail.getByTestId("movie-related-tile")).toHaveCount(2);
 
-  // Inline add on a related tile fires a movies[] watchlist POST (the SearchHit pipeline).
-  await rail.getByTestId("search-add").first().click();
-  await expect(rail.getByTestId("search-add").first()).toHaveText("Added");
-  await expect.poll(() => controls.watchlistPosts().length).toBe(1);
-  expect(controls.watchlistPosts()[0]?.movieIds).toEqual([300]);
+  await rail.getByTestId("movie-related-tile").first().click();
+  await expect(page.getByTestId("movie-detail-title")).toContainText("Related One");
 });
 
-test("marks a movie watched with the movies[] history body and undoes it", async ({ page }) => {
-  const controls = await installMovieRoutes(page.context(), movies());
-  await page.goto("/movie/200"); // the watchlist-only (unwatched) movie
-
-  const toggle = page.getByTestId("movie-watched-toggle");
-  await expect(toggle).toHaveAttribute("data-on", "false");
-  await toggle.click();
-  await expect(toggle).toHaveAttribute("data-on", "true"); // optimistic
-
-  await expect.poll(() => controls.historyPosts().length).toBe(1);
-  const posted = controls.historyPosts()[0];
-  expect(posted?.movieIds).toEqual([200]);
-  expect(posted?.watchedAt).not.toBeNull();
-  // The mark body is `{ movies: [{ ids, watched_at }] }`: the movie history shape.
-  expect(posted?.movieItemKeys).toEqual(["ids", "watched_at"]);
-
-  // Undo re-sends the stored movies[] remove-by-item inverse.
-  await page.getByTestId("movie-undo-action").click();
-  await expect.poll(() => controls.historyRemovePosts().length).toBe(1);
-  expect(controls.historyRemovePosts()[0]?.movieIds).toEqual([200]);
-});
-
-test("adds a movie to the watchlist with the movies[] body", async ({ page }) => {
-  const controls = await installMovieRoutes(page.context(), [
-    { trakt: 100, tmdb: 500, title: "Watched Movie", year: 2021, posters: [POSTER], watched: true },
-  ]);
-  await page.goto("/movie/100");
-
-  const watchlist = page.getByTestId("movie-watchlist-toggle");
-  await expect(watchlist).toHaveText(/Add to watchlist/);
-  await watchlist.click();
-  await expect(watchlist).toHaveText(/On watchlist/); // optimistic
-
-  await expect.poll(() => controls.watchlistPosts().length).toBe(1);
-  expect(controls.watchlistPosts()[0]?.movieIds).toEqual([100]);
-});
-
-test("the movie library shows only the user's own piles: no discovery browse wall", async ({
+test("the movie library never reaches for discovery charts or the show watchlist", async ({
   page,
 }) => {
-  await page.setViewportSize({ width: 1000, height: 1400 });
   await seedMediaVisibility(page.context(), MOVIES_ONLY);
-  // Discovery routes are installed but must never be reached: the Library open path
-  // no longer bolts a browse zone below the user's piles: discovery lives in the
-  // Discover tab alone.
   const controls = await installMovieRoutes(page.context(), movies(), [], {
     trending: [
       {
@@ -348,52 +361,21 @@ test("the movie library shows only the user's own piles: no discovery browse wal
   });
   await page.goto("/library?type=movies");
 
-  // The user's own library is what renders: the Watchlist pile of their tracked movies.
   await expect(page.getByTestId("screen-library")).toBeVisible();
-  await expect(page.getByTestId("pile-heading").filter({ hasText: "Watchlist" })).toBeVisible();
+  await expect(
+    page.getByTestId("movie-library-card").filter({ hasText: "Queued Movie" }),
+  ).toBeVisible();
 
-  // No discovery browse zone colonizes the library. The two browse GETs left the
-  // Library open path, so the trending/popular charts never fire.
-  await expect(page.getByTestId("movie-discover")).toHaveCount(0);
-  await expect(page.getByText("More to watch")).toHaveCount(0);
-  // Give any errant discovery fetch the debounce/settle window to fire, then assert none did.
+  // No discovery browse zone colonizes the library, and no wrong-medium read
+  // fires: discovery lives on the Search tab alone.
   await page.waitForTimeout(600);
   expect(controls.movieDiscoverReads()).toBe(0);
   expect(controls.showWatchlistReads()).toBe(0);
 });
 
-test("an empty movie library shows just its empty state: no discovery browse wall", async ({
+test("the Watchlist chip orders by recently added (the movie's queue), newest first", async ({
   page,
 }) => {
-  await page.setViewportSize({ width: 1000, height: 1400 });
-  await seedMediaVisibility(page.context(), MOVIES_ONLY);
-  const controls = await installMovieRoutes(page.context(), [], [], {
-    trending: [
-      {
-        trakt: 900,
-        tmdb: 950,
-        title: "Trending Film",
-        year: 2024,
-        posters: [POSTER],
-        watched: false,
-      },
-    ],
-  });
-  await page.goto("/library?type=movies");
-
-  // The empty state stands alone: no browse wall dressed up as a "home". A
-  // movies-only user with nothing tracked finds things in the Discover tab.
-  await expect(page.getByTestId("movies-empty")).toBeVisible();
-  await expect(page.getByTestId("movie-discover")).toHaveCount(0);
-  await page.waitForTimeout(600);
-  expect(controls.movieDiscoverReads()).toBe(0);
-  expect(controls.showWatchlistReads()).toBe(0);
-});
-
-test("the Watchlist orders by recently added (the movie's queue), newest first", async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 1000, height: 1400 });
   await installMovieRoutes(page.context(), [
     {
       trakt: 10,
@@ -416,19 +398,18 @@ test("the Watchlist orders by recently added (the movie's queue), newest first",
   ]);
   await page.goto("/library?type=movies");
 
-  // Default (recently-*) means recently ADDED for the unwatched Watchlist: a film
-  // has no watch date: so the most recently queued film leads, even though it
-  // sorts later by both title and release year.
+  // Default (recently-*) means recently ADDED for the unwatched Watchlist: the
+  // most recently queued film leads, even though it sorts later by both title
+  // and release year.
   await expect(page.getByTestId("movie-library-card").first()).toContainText("Added Later");
-  // A-Z still sorts by title, so the earlier-added-but-alphabetically-first leads.
-  await page.getByTestId("sort-select").selectOption("alphabetical");
+  await page.getByTestId("library-sort").click();
+  await page.getByTestId("sort-alphabetical").click();
   await expect(page.getByTestId("movie-library-card").first()).toContainText("Added First");
 });
 
-test("a both-user on the Shows tab does not fetch the movie library until Movies is opened", async ({
+test("a both-user on the Shows segment does not fetch the movie library until Movies is opened", async ({
   page,
 }) => {
-  await page.setViewportSize({ width: 1000, height: 1400 });
   const show: ShowFixture = {
     trakt: 1,
     title: "A Show",
@@ -446,15 +427,13 @@ test("a both-user on the Shows tab does not fetch the movie library until Movies
   const movieControls = await installMovieRoutes(page.context(), movies());
   await page.goto("/library");
 
-  // A both-user boots into Shows; the read must be gated by the ACTIVE medium, so
-  // the movie library is not fetched while the user is looking at shows.
-  await expect(page.getByTestId("type-shows")).toHaveAttribute("aria-checked", "true");
-  await expect(page.getByTestId("pile-heading").first()).toBeVisible();
+  // A both-user boots into Shows; the read must be gated by the ACTIVE medium.
+  await expect(page.getByTestId("library-card").first()).toBeVisible();
   await expect.poll(() => movieControls.movieLibraryReads()).toBe(0);
 
   // Opening Movies pulls the movie library exactly then: not a moment sooner.
   await page.getByTestId("type-movies").click();
   await expect(page).toHaveURL(/\/library\?type=movies/);
-  await expect(page.getByTestId("pile-heading").first()).toBeVisible();
+  await expect(page.getByTestId("movie-library-card").first()).toBeVisible();
   await expect.poll(() => movieControls.movieLibraryReads()).toBeGreaterThan(0);
 });

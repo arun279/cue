@@ -1,37 +1,36 @@
 import { invalidateShowProgress } from "@data/query-invalidation";
 import { queryKeys } from "@data/query-keys";
 import { advancePastNext, type LibraryEntry, type MarkContext } from "@data/trakt/library";
-import { buildMarkEpisodeOp, buildUnmarkEpisodeOp } from "@domain/write-queue/ops";
+import {
+  buildMarkEpisodeOp,
+  buildRemovePlaysOp,
+  buildUnmarkEpisodeOp,
+  episodeItemKey,
+} from "@domain/write-queue/ops";
 import { useQueryClient } from "@tanstack/react-query";
 import { dismissSnack, showSnack, useSnackbar } from "@ui/components/snackbar-store";
 import { epCode, middleTruncate } from "@ui/format";
-import { patchLibraryEntry } from "@ui/hooks/library-cache";
+import { patchEpisodeDetail, patchLibraryEntry, patchShowSeasons } from "@ui/hooks/library-cache";
+import {
+  hasPendingMark,
+  isReversalRequested,
+  lockShow,
+  type MarkRecord,
+  ownsSnack,
+  registerPendingMark,
+  releasePendingMark,
+  requestReversal,
+  setOwnedSnackSeq,
+  settleReversal,
+  unlockShow,
+  useMarkStore,
+} from "@ui/hooks/mark-store";
 import { appendToBatch } from "@ui/hooks/mark-undo-window";
+import { findMarkPlay } from "@ui/hooks/resolveUnmark";
 import { useOptimisticWrite } from "@ui/hooks/useOptimisticWrite";
 import { useHaptics } from "@ui/runtime/haptics";
-import type { SubmitOutcome } from "@ui/runtime/runtime";
-import { useCallback, useRef, useState } from "react";
-
-/**
- * One committed mark, held for the two reversal affordances: the live-toggle
- * window on the row's check (until re-arm) and the snackbar batch (5s rolling
- * window). `beforeMark` is the verbatim pre-mark cache entry, so a reversal
- * restores exactly what the tap replaced.
- */
-interface MarkRecord {
-  readonly opId: string;
-  readonly showId: number;
-  readonly title: string;
-  readonly code: string;
-  /** Epoch ms of the tap: the batch window + re-arm floor pivot. */
-  readonly at: number;
-  readonly episodeIds: NonNullable<LibraryEntry["nextEpisode"]>["ids"];
-  readonly season: number;
-  readonly number: number;
-  readonly watchedAt: string;
-  readonly preCompleted: number;
-  readonly beforeMark: LibraryEntry;
-}
+import { type CueRuntime, type SubmitOutcome, useRuntime } from "@ui/runtime/runtime";
+import { useCallback } from "react";
 
 export interface MarkWatched {
   /** Optimistically mark `entry`'s next episode; the op submits at t=0. */
@@ -47,43 +46,53 @@ export interface MarkWatched {
   justMarkedAt(showId: number): number | null;
 }
 
+/** Reversal of a mark that is mid-delivery waits for the queue to settle it in
+ * these steps: it can be neither cancelled (its POST may land) nor resolved
+ * per-play (its play isn't in history yet). Bounded: a retry storm must not
+ * wedge the undo forever. */
+const IN_FLIGHT_POLL_MS = 200;
+const IN_FLIGHT_POLL_TRIES = 50;
+
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Resolve true once the op is no longer being delivered; false = wait budget spent. */
+async function waitWhileInFlight(runtime: CueRuntime, opId: string): Promise<boolean> {
+  for (let attempt = 0; attempt < IN_FLIGHT_POLL_TRIES; attempt += 1) {
+    if (runtime.inFlightOpId() !== opId) return true;
+    await sleep(IN_FLIGHT_POLL_MS);
+  }
+  return false;
+}
+
+function showUndoFailed(title: string): void {
+  showSnack({
+    message: `Couldn't undo ${title}. Please try again.`,
+    actions: [{ label: "Dismiss", onPress: dismissSnack }],
+  });
+}
+
 /**
  * The mark-watched hot path: advance the entry optimistically in the Query
  * cache BEFORE the network write, enqueue a durable, paced `POST /sync/history`
  * (frozen `watched_at`) through the injected runtime, and feed the app snackbar
  * a rolling batch whose Undo reverses every mark in it. Until the authoritative
  * next episode lands the filled check stays a live undo toggle (`reverse`);
- * reversal cancels the queued op via write-queue coalescing, or enqueues the
- * inverse once flushed. A hard failure rolls the cache back; a success
- * revalidates for the authoritative next episode. Unmount during the window
- * keeps the op — only the visuals are windowed. 429/network handling lives in
- * the queue behind `runtime.submit`.
+ * reversal cancels a still-queued op via write-queue coalescing, and per-play
+ * reverses one that already landed (never a remove-by-item, which would wipe
+ * plays predating the mark). A hard failure rolls the cache back; a success
+ * revalidates for the authoritative next episode. All window/batch state lives
+ * in the module-level mark store, so every mounted surface shares one truth and
+ * unmount during the window keeps the op AND the reverse affordance. 429 and
+ * network handling live in the queue behind `runtime.submit`.
  */
 export function useMarkWatched(): MarkWatched {
   const submit = useOptimisticWrite();
   const queryClient = useQueryClient();
+  const runtime = useRuntime();
   const haptics = useHaptics();
-  // The open reverse windows, mirrored two ways: the ref feeds async closures
-  // (which must survive re-renders and unmount), the stamp map drives rendering.
-  const records = useRef(new Map<number, MarkRecord>());
-  const [stamps, setStamps] = useState<ReadonlyMap<number, number>>(new Map());
-  // The rolling snackbar batch (chronological) + the seq of the snack it owns,
-  // so a retraction never clobbers an unrelated snack that replaced it.
-  const batch = useRef<readonly MarkRecord[]>([]);
-  const ownedSnackSeq = useRef(0);
-  // Synchronous in-flight lock keyed by show id. `entry.pendingAdvance` only guards
-  // AFTER the optimistic cache patch re-renders, so two activations on the same
-  // stale `entry` (a fast double-click / Enter key-repeat) both clear it and enqueue
-  // a duplicate `POST /sync/history`. This ref is checked-and-set before the patch,
-  // dropping the second activation in a synchronous burst, and released when the
-  // write settles (done | failed | deferred) or the mark is reversed.
-  const inFlight = useRef<Set<number>>(new Set());
-
-  // Ops whose reversal has been requested: their mark-side revalidate is
-  // suppressed, else a landed mark's refetch would clobber the undone UI with
-  // post-mark server state until the unmark lands (the reversal's own
-  // revalidate reconciles once it does).
-  const reversedOps = useRef<Set<string>>(new Set());
+  // Reactive view of the shared reverse windows: `justMarkedAt` re-renders every
+  // consumer, whichever surface opened the window.
+  const records = useMarkStore((s) => s.records);
 
   // Abort any in-flight library refetch before an optimistic patch, so a
   // response already on the wire can't land after the patch and flicker the
@@ -94,6 +103,56 @@ export function useMarkWatched(): MarkWatched {
       patchLibraryEntry(queryClient, showId, next);
     },
     [queryClient],
+  );
+
+  // A queue mark must tick the show-detail surfaces in the same frame as the
+  // library advance: the season tree and the marked episode's detail read
+  // otherwise lag until the op lands and revalidates, and a season row still
+  // showing unwatched for that window is a second tap → duplicate play. Cancels
+  // in-flight refetches on those keys first, same defense `patch` runs.
+  const patchProgress = useCallback(
+    (
+      showId: number,
+      episode: { readonly season: number; readonly number: number },
+      watched: boolean,
+      watchedAt: string | null,
+    ) => {
+      void queryClient.cancelQueries({ queryKey: queryKeys.showSeasons(showId) });
+      void queryClient.cancelQueries({
+        queryKey: queryKeys.episode(showId, episode.season, episode.number),
+      });
+      patchShowSeasons(
+        queryClient,
+        showId,
+        (s, n) => s === episode.season && n === episode.number,
+        watched,
+      );
+      patchEpisodeDetail(queryClient, showId, episode, watched, watchedAt);
+    },
+    [queryClient],
+  );
+
+  /** Restore every cache the mark touched to its pre-mark state. */
+  const restorePreMark = useCallback(
+    (record: MarkRecord) => {
+      patch(record.showId, () => record.beforeMark);
+      patchProgress(record.showId, { season: record.season, number: record.number }, false, null);
+    },
+    [patch, patchProgress],
+  );
+
+  /** Re-apply the mark's optimistic state (a failed reversal: Trakt still holds the play). */
+  const reapplyMark = useCallback(
+    (record: MarkRecord) => {
+      patch(record.showId, () => advancePastNext(record.beforeMark, record.watchedAt));
+      patchProgress(
+        record.showId,
+        { season: record.season, number: record.number },
+        true,
+        record.watchedAt,
+      );
+    },
+    [patch, patchProgress],
   );
 
   // A mark from Up Next advances the library entry, but the marked show's detail
@@ -111,83 +170,112 @@ export function useMarkWatched(): MarkWatched {
     [queryClient],
   );
 
-  const openWindow = useCallback((record: MarkRecord) => {
-    records.current.set(record.showId, record);
-    setStamps((prev) => new Map(prev).set(record.showId, record.at));
-  }, []);
+  /**
+   * Enqueue the durable reversal of one record. The forward (undone) patch has
+   * already run. Routing by the durable queue: a STILL-QUEUED mark is reversed
+   * by its coalescing inverse (the pair vanishes, nothing was ever sent); a
+   * LANDED mark is reversed per-play: resolve the episode's real plays and
+   * remove only the play this mark created, by exact history id, so plays that
+   * predate the mark ("restart show" rewatchers) are untouchable. When the play
+   * can't be identified (offline), the undo fails honestly: the marked row is
+   * restored and the snackbar says so: never a silent remove-by-item.
+   */
+  const runReversal = useCallback(
+    async (record: MarkRecord): Promise<SubmitOutcome | null> => {
+      const effects = {
+        // A hard failure means Trakt still holds the play: re-advance to the
+        // marked state; a deferred removal keeps the undone state (revalidating
+        // before it lands would refetch pre-undo server state).
+        rollback: () => reapplyMark(record),
+        revalidate: () =>
+          revalidate(record.showId, { season: record.season, number: record.number }),
+      };
+      if (!(await waitWhileInFlight(runtime, record.opId))) {
+        reapplyMark(record);
+        showUndoFailed(record.title);
+        return null;
+      }
+      if (runtime.pendingOps().some((op) => op.id === record.opId)) {
+        // Still queued, undelivered: the inverse coalesce-cancels the pair.
+        const context: MarkContext = {
+          showId: record.showId,
+          preCompleted: record.preCompleted + 1,
+        };
+        const op = buildUnmarkEpisodeOp({
+          opId: crypto.randomUUID(),
+          ids: record.episodeIds,
+          watchedAt: record.watchedAt,
+          inversePatch: context,
+        });
+        return submit([op], effects);
+      }
+      // The mark left the queue: it landed (or hard-failed, in which case no
+      // play matches below and nothing is removed). Reverse per-play.
+      let plays: Awaited<ReturnType<CueRuntime["loadEpisodePlays"]>>;
+      try {
+        plays = await runtime.loadEpisodePlays(record.episodeIds.trakt);
+      } catch {
+        reapplyMark(record);
+        showUndoFailed(record.title);
+        return null;
+      }
+      const target = findMarkPlay(plays, record.episodeIds.trakt, record.watchedAt);
+      if (target === undefined) {
+        // The mark's play isn't on the server (never landed, or already removed
+        // elsewhere): the undo intent is already satisfied; reconcile the row.
+        effects.revalidate();
+        return null;
+      }
+      return submit(
+        [
+          buildRemovePlaysOp({
+            opId: crypto.randomUUID(),
+            ids: [target.historyId],
+            restore: [{ trakt: record.episodeIds.trakt, watchedAt: target.watchedAt }],
+          }),
+        ],
+        effects,
+      );
+    },
+    [runtime, submit, reapplyMark, revalidate],
+  );
 
-  /** Close the show's window; with `opId`, only if that op still owns it (a
-   * later hard failure of an earlier mark can't clear a newer window). */
-  const closeWindow = useCallback((showId: number, opId?: string): boolean => {
-    const current = records.current.get(showId);
-    if (current === undefined || (opId !== undefined && current.opId !== opId)) return false;
-    records.current.delete(showId);
-    setStamps((prev) => {
-      const next = new Map(prev);
-      next.delete(showId);
-      return next;
-    });
-    return true;
-  }, []);
-
-  /** Enqueue the inverse of one record. The forward (undone) patch has already
-   * run, so a hard failure must re-advance to the marked state Trakt still
-   * holds; a deferred removal keeps the undone state (revalidating before it
-   * lands would refetch pre-undo server state). */
   const submitReversal = useCallback(
     async (record: MarkRecord) => {
-      reversedOps.current.add(record.opId);
-      const context: MarkContext = {
-        showId: record.showId,
-        preCompleted: record.preCompleted + 1,
-      };
-      const op = buildUnmarkEpisodeOp({
-        opId: crypto.randomUUID(),
-        ids: record.episodeIds,
-        watchedAt: record.watchedAt,
-        inversePatch: context,
-      });
-      let outcome: SubmitOutcome;
+      requestReversal(record.opId);
+      let outcome: SubmitOutcome | null;
       try {
-        outcome = await submit([op], {
-          rollback: () =>
-            patch(record.showId, () => advancePastNext(record.beforeMark, record.watchedAt)),
-          revalidate: () =>
-            revalidate(record.showId, { season: record.season, number: record.number }),
-        });
+        outcome = await runReversal(record);
       } finally {
         // The queue is ordered, so the mark op settled before its reversal did:
         // the suppression entry is spent and must not accumulate.
-        reversedOps.current.delete(record.opId);
+        settleReversal(record.opId);
       }
-      if (outcome === "failed") {
-        showSnack({
-          message: `Couldn't undo ${record.title}. Please try again.`,
-          actions: [{ label: "Dismiss", onPress: dismissSnack }],
-        });
-      }
+      if (outcome === "failed") showUndoFailed(record.title);
     },
-    [submit, patch, revalidate],
+    [runReversal],
   );
 
   const undoBatch = useCallback(async () => {
+    const store = useMarkStore.getState();
     // Newest first, so a binge on one show settles at its EARLIEST beforeMark.
-    const pending = [...batch.current].reverse();
-    batch.current = [];
+    const pending = [...store.batch].reverse();
+    store.setBatch([]);
     dismissSnack();
     if (pending.length === 0) return;
     haptics.markUndone();
     for (const record of pending) {
-      closeWindow(record.showId, record.opId);
-      inFlight.current.delete(record.showId);
-      patch(record.showId, () => record.beforeMark);
+      store.close(record.showId, record.opId);
+      unlockShow(record.showId);
+      releasePendingMark(episodeItemKey(record.episodeIds.trakt), record.opId);
+      restorePreMark(record);
     }
     await Promise.all(pending.map((record) => submitReversal(record)));
-  }, [haptics, closeWindow, patch, submitReversal]);
+  }, [haptics, restorePreMark, submitReversal]);
 
   /** Show (or update) the snack for the current batch; empty batch retracts it. */
   const presentBatch = useCallback(() => {
-    const current = batch.current;
+    const current = useMarkStore.getState().batch;
     const head = current[current.length - 1];
     if (head === undefined) {
       dismissSnack();
@@ -201,7 +289,7 @@ export function useMarkWatched(): MarkWatched {
       message,
       actions: [{ label: "Undo", testId: "snackbar-undo", onPress: () => void undoBatch() }],
     });
-    ownedSnackSeq.current = useSnackbar.getState().snack?.seq ?? 0;
+    setOwnedSnackSeq(useSnackbar.getState().snack?.seq ?? 0);
   }, [undoBatch]);
 
   const mark = useCallback(
@@ -210,10 +298,18 @@ export function useMarkWatched(): MarkWatched {
       if (episode === null || entry.pendingAdvance) return;
       // Second synchronous activation in the same burst: its optimistic advance
       // hasn't re-rendered yet, so drop it before it can enqueue a duplicate play.
-      if (inFlight.current.has(entry.showId)) return;
-      inFlight.current.add(entry.showId);
+      if (!lockShow(entry.showId)) return;
+      const itemKey = episodeItemKey(episode.ids.trakt);
+      // A mark for this exact episode is already pending from ANOTHER path (a
+      // season-row/sheet toggle, or an op restored from a previous session):
+      // drop it exactly like the same-path lock above.
+      if (hasPendingMark(runtime, itemKey)) {
+        unlockShow(entry.showId);
+        return;
+      }
       const watchedAt = new Date().toISOString();
       const opId = crypto.randomUUID();
+      registerPendingMark(itemKey, opId);
       const record: MarkRecord = {
         opId,
         showId: entry.showId,
@@ -228,11 +324,19 @@ export function useMarkWatched(): MarkWatched {
         beforeMark: entry,
       };
 
-      // Optimistic first: the row advances before we ever touch the network, and
-      // the snackbar + reverse window mount synchronously with it.
+      // Optimistic first: the row advances (and the show's own season tree +
+      // episode detail tick) before we ever touch the network, and the snackbar
+      // + reverse window mount synchronously with it.
       patch(entry.showId, (e) => advancePastNext(e, watchedAt));
-      openWindow(record);
-      batch.current = appendToBatch(batch.current, record);
+      patchProgress(
+        entry.showId,
+        { season: episode.season, number: episode.number },
+        true,
+        watchedAt,
+      );
+      const store = useMarkStore.getState();
+      store.open(record);
+      store.setBatch(appendToBatch(store.batch, record));
       presentBatch();
       // One buzz at the point of action, once per committed mark: fired with the
       // optimistic advance, never on the rollback path below.
@@ -247,25 +351,27 @@ export function useMarkWatched(): MarkWatched {
       let outcome: SubmitOutcome;
       try {
         outcome = await submit([op], {
-          rollback: () => patch(entry.showId, () => record.beforeMark),
+          rollback: () => restorePreMark(record),
           revalidate: () => {
-            if (reversedOps.current.has(opId)) return;
+            if (isReversalRequested(opId)) return;
             revalidate(entry.showId, { season: episode.season, number: episode.number });
           },
         });
       } finally {
         // The write has settled (done | failed | deferred): or submit threw
-        // (a persistence fault): release the lock either way so a deliberate later
+        // (a persistence fault): release the locks either way so a deliberate later
         // mark of the show's next episode is never wedged behind a stuck lock.
-        inFlight.current.delete(entry.showId);
+        unlockShow(entry.showId);
+        releasePendingMark(itemKey, opId);
       }
       if (outcome !== "failed") return;
       // Rollback already ran; retire this op's window + batch entry. Only surface
       // the error if the user hadn't already reversed it (a reversal against a
-      // never-landed mark coalesces to a no-op, so silence is correct there).
-      const ownedWindow = closeWindow(entry.showId, opId);
-      const inBatch = batch.current.some((r) => r.opId === opId);
-      batch.current = batch.current.filter((r) => r.opId !== opId);
+      // never-landed mark resolves to a no-op, so silence is correct there).
+      const after = useMarkStore.getState();
+      const ownedWindow = after.close(entry.showId, opId);
+      const inBatch = after.batch.some((r) => r.opId === opId);
+      after.setBatch(after.batch.filter((r) => r.opId !== opId));
       if (ownedWindow || inBatch) {
         showSnack({
           message: `Couldn't mark ${entry.title} watched. Please try again.`,
@@ -273,30 +379,33 @@ export function useMarkWatched(): MarkWatched {
         });
       }
     },
-    [patch, openWindow, presentBatch, closeWindow, revalidate, submit, haptics],
+    [runtime, patch, patchProgress, presentBatch, restorePreMark, revalidate, submit, haptics],
   );
 
   const reverse = useCallback(
     async (showId: number) => {
-      const record = records.current.get(showId);
+      const store = useMarkStore.getState();
+      const record = store.records.get(showId);
       if (record === undefined) return;
-      closeWindow(showId);
-      inFlight.current.delete(showId);
-      batch.current = batch.current.filter((r) => r.opId !== record.opId);
+      store.close(showId);
+      unlockShow(showId);
+      // The mark no longer stands: free the episode for a deliberate re-mark.
+      releasePendingMark(episodeItemKey(record.episodeIds.trakt), record.opId);
+      store.setBatch(store.batch.filter((r) => r.opId !== record.opId));
       // Retract (or recount) the mark snack — but never a snack that replaced it.
-      if (useSnackbar.getState().snack?.seq === ownedSnackSeq.current) presentBatch();
-      patch(showId, () => record.beforeMark);
+      if (ownsSnack(useSnackbar.getState().snack?.seq)) presentBatch();
+      restorePreMark(record);
       // The distinct take-back tick, once, with the optimistic reversal.
       haptics.markUndone();
       await submitReversal(record);
     },
-    [closeWindow, presentBatch, patch, haptics, submitReversal],
+    [presentBatch, restorePreMark, haptics, submitReversal],
   );
 
   return {
     mark,
     reverse,
-    reArm: useCallback((showId: number) => void closeWindow(showId), [closeWindow]),
-    justMarkedAt: (showId) => stamps.get(showId) ?? null,
+    reArm: useCallback((showId: number) => void useMarkStore.getState().close(showId), []),
+    justMarkedAt: (showId) => records.get(showId)?.at ?? null,
   };
 }

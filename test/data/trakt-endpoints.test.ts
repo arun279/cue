@@ -161,12 +161,19 @@ describe("Trakt read endpoints zod-parse well-formed fixtures", () => {
     expect(result.ok && result.data[0]?.type).toBe("show");
   });
 
-  it("parses the personalized shows calendar", async () => {
+  it("parses the personalized shows calendar, keeping the show's network", async () => {
     getJson("/calendars/my/shows/2026-07-05/7", [
       { first_aired: "2026-07-06T01:00:00.000Z", episode: episodeObj, show: showObj },
+      {
+        first_aired: "2026-07-06T02:00:00.000Z",
+        episode: episodeObj,
+        show: { ...showObj, network: "Apple TV+" },
+      },
     ]);
     const result = await getMyShowsCalendar(client, "2026-07-05", 7);
     expect(result.ok && result.data[0]?.episode.number).toBe(3);
+    expect(result.ok && result.data[0]?.show.network).toBeUndefined();
+    expect(result.ok && result.data[1]?.show.network).toBe("Apple TV+");
   });
 
   it("parses search results", async () => {

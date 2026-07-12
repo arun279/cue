@@ -12,7 +12,7 @@ const TICK_MS = 30_000;
 interface SyncStatus {
   /** `Last synced 2 min ago · 0 pending` */
   readonly line: string;
-  /** In-flight write-queue flushes (the SyncStrip's own pending signal). */
+  /** Durable ops still awaiting Trakt (deferred writes included). */
   readonly pending: number;
   readonly syncing: boolean;
   syncNow(): Promise<void>;
@@ -31,7 +31,11 @@ interface SyncStatus {
 export function useSyncStatus(): SyncStatus {
   const runtime = useRuntime();
   const queryClient = useQueryClient();
-  const pending = useSyncActivity((state) => state.pending);
+  // Re-render signal only: any flush activity means the durable count may have
+  // moved. The count itself reads the queue's snapshot, so a mark deferred
+  // offline stays counted until it truly lands (never "0 pending" by omission).
+  useSyncActivity((state) => state.pending);
+  const pending = runtime.pendingWrites();
   const [syncing, setSyncing] = useState(false);
   const [checkedAt, setCheckedAt] = useState(0);
   const [now, setNow] = useState(() => Date.now());
@@ -44,7 +48,10 @@ export function useSyncStatus(): SyncStatus {
   const syncNow = useCallback(async (): Promise<void> => {
     setSyncing(true);
     try {
-      const reconcile = await runtime.pollActivities();
+      // Land our own writes before asking what changed: a deferred mark must
+      // flush here, not sit in the log behind a "synced just now" line.
+      const remaining = await runtime.flushWrites();
+      const reconcile = remaining === 0 ? await runtime.pollActivities() : null;
       if (reconcile === null) {
         showSnack({
           message: "Couldn't reach Trakt — check your connection.",

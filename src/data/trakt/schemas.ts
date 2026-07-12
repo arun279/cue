@@ -138,8 +138,11 @@ export const watchlistSchema = z.array(
   }),
 );
 
+/** The calendar read fetches `extended=full`, whose show block carries the
+ * `network` the agenda row renders inline — no per-row `/shows/:id` follow-up. */
+const calendarShowSchema = showSchema.extend({ network: z.string().nullish() });
 export const calendarSchema = z.array(
-  z.object({ first_aired: z.string(), episode: episodeSchema, show: showSchema }),
+  z.object({ first_aired: z.string(), episode: episodeSchema, show: calendarShowSchema }),
 );
 
 /**

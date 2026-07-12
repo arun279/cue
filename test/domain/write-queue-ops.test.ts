@@ -1,4 +1,5 @@
 import {
+  buildAddEpisodePlayOp,
   buildAddWatchlistOp,
   buildHideShowOp,
   buildMarkEpisodeOp,
@@ -9,6 +10,7 @@ import {
   buildUnhideShowOp,
   buildUnmarkEpisodeOp,
   buildUnmarkMovieOp,
+  episodeItemKey,
 } from "@domain/write-queue/ops";
 import { describe, expect, it } from "vitest";
 
@@ -35,6 +37,27 @@ describe("single-item history op builders", () => {
       toState: "present",
       reconcileKeys: ["progress/watched", "watched/shows"],
     });
+  });
+
+  it("exports the episode item key the mark ops coalesce on", () => {
+    expect(episodeItemKey(42)).toBe(
+      buildMarkEpisodeOp({ opId: "op-k", ids: { trakt: 42 }, watchedAt: WATCHED_AT }).itemKey,
+    );
+  });
+
+  it("builds an additive play with a mark's request but an opId-unique item key", () => {
+    const add = buildAddEpisodePlayOp({ opId: "op-a", ids: { trakt: 42 }, watchedAt: WATCHED_AT });
+    const mark = buildMarkEpisodeOp({ opId: "op-a", ids: { trakt: 42 }, watchedAt: WATCHED_AT });
+    expect(add.request).toEqual(mark.request);
+    expect(add.toState).toBe("present");
+    expect(add.itemKey).toBe("episode:42:add:op-a");
+    // Two deliberate extra plays never collapse into one either.
+    const again = buildAddEpisodePlayOp({
+      opId: "op-b",
+      ids: { trakt: 42 },
+      watchedAt: WATCHED_AT,
+    });
+    expect(again.itemKey).not.toBe(add.itemKey);
   });
 
   it("unmarking an episode inverts the request/inverse (remove-by-item, all plays)", () => {

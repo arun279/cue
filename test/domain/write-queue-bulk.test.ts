@@ -16,7 +16,7 @@ const opId = (i: number): string => `op-${i}`;
 type Body = { shows: Array<{ ids: unknown; watched_at?: string; seasons: SeasonBody[] }> };
 type SeasonBody = { number: number; episodes?: Array<{ number: number }> };
 
-type BuildOptions = Partial<Pick<BulkMarkTarget, "includeSpecials" | "upTo">>;
+type BuildOptions = Partial<Pick<BulkMarkTarget, "includeSpecials" | "upTo" | "additive">>;
 
 /** Aired, still-UNWATCHED episodes: the raw material of a mark delta. */
 function airedEpisodes(count: number, from = 1): EpisodeAir[] {
@@ -177,6 +177,16 @@ describe("buildBulkMarkOps", () => {
     const wholeAgain = build([{ number: 1, episodes: airedEpisodes(3) }])[0];
     expect(whole?.itemKey).not.toBe(upTo?.itemKey);
     expect(whole?.itemKey).toBe(wholeAgain?.itemKey);
+  });
+
+  it("uniquifies an additive (rewatch) pass's item key so a pending mark can't swallow it", () => {
+    const seasons: SeasonTree[] = [{ number: 1, episodes: airedEpisodes(3) }];
+    const plain = build(seasons)[0];
+    const rewatch = build(seasons, { additive: true })[0];
+    expect(rewatch?.itemKey).not.toBe(plain?.itemKey);
+    expect(rewatch?.itemKey).toBe(`${plain?.itemKey}:add:${rewatch?.id}`);
+    // The request itself is a normal chunked mark: only the coalescing key changes.
+    expect(rewatch?.request).toEqual(plain?.request);
   });
 
   it("packs enumerated seasons into ≤cap chunks, splitting across chunk boundaries", () => {

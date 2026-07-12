@@ -136,8 +136,14 @@ export function Sheet({
           data-detent={detent}
           data-dragging={dragY !== null}
           // Focus the panel itself, not the first control: an auto-focused
-          // button would sit ringed "at rest" before any keyboard intent.
-          onOpenAutoFocus={(e) => e.preventDefault()}
+          // button would sit ringed "at rest" before any keyboard intent. The
+          // explicit focus (not just preventDefault) guarantees focus and the
+          // SR announcement land inside the dialog on every Radix branch; the
+          // panel's own `outline: none` keeps it ringless.
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            panelRef.current?.focus();
+          }}
           style={dragY === null ? undefined : { transform: `translateY(${dragY}px)` }}
           onPointerDown={(e) => {
             if (e.pointerType === "mouse" && e.button !== 0) return;

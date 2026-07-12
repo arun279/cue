@@ -14,6 +14,9 @@
 /* Control row: the Shows|Movies segment leads, 44px icon tools trail. */
 .library-toolbar {
   display: flex;
+  /* 200% zoom / 320px reflow: the tool cluster drops to a second row instead
+   * of forcing the body into horizontal scroll (WCAG 1.4.4 / 1.4.10). */
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
   min-height: var(--tap-min);
@@ -44,7 +47,7 @@
   background: var(--color-elevated);
 }
 .library-tool[aria-expanded="true"] {
-  color: var(--color-accent);
+  color: var(--color-accent-ink);
 }
 
 /* The tap-to-reveal title filter: one full-width 44px field, session-scoped. */

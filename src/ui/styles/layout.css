@@ -146,13 +146,13 @@
   align-items: center;
   min-height: var(--tap-min);
   padding-inline: var(--space-2);
-  color: var(--color-accent);
+  color: var(--color-accent-ink);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
 }
 .sync-strip__retry:hover {
-  color: var(--color-accent-strong);
+  color: color-mix(in srgb, var(--color-accent-ink) 85%, var(--color-fg));
 }
 
 /* ---- Bottom tab bar (phone) ---- */
@@ -195,7 +195,7 @@
 }
 .tabbar__item--active,
 .tabbar__item--active:active {
-  color: var(--color-accent);
+  color: var(--color-accent-ink);
 }
 
 /* ---- Sidebar (desktop; the phone is the primary chrome) ---- */
@@ -272,7 +272,7 @@
   }
   .sidebar__link--active,
   .sidebar__link--active:hover {
-    color: var(--color-accent);
+    color: var(--color-accent-ink);
     background: color-mix(in srgb, var(--color-accent) 12%, transparent);
     font-weight: 600;
   }

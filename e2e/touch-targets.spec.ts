@@ -5,12 +5,14 @@ import {
   type EpisodeFixture,
   type HistoryRowFixture,
   installCalendarRoutes,
-  installDiscoverRoutes,
   installHermeticRoutes,
   installHistoryRoutes,
   installLibraryRoutes,
+  installSearchRoutes,
+  type SearchHitFixture,
   type ShowFixture,
   seedAuth,
+  seedTutorialDismissed,
 } from "./helpers";
 
 /** The Cue touch-target floor (`--tap-min`): WCAG 2.5.5 / Apple HIG 44pt. */
@@ -20,10 +22,17 @@ const PHONE = { width: 390, height: 844 } as const;
 const AIRED = "2026-01-01T00:00:00.000Z";
 
 function ep(season: number, number: number, traktId: number, firstAired = AIRED): EpisodeFixture {
-  return { season, number, title: `Episode ${number}`, firstAired, traktId };
+  return {
+    season,
+    number,
+    title: `Episode ${number}`,
+    firstAired,
+    traktId,
+    stills: ["media.trakt.tv/still.webp"],
+  };
 }
 
-/** A run of in-progress "Continue" shows, each with an aired next episode to queue. */
+/** A run of in-progress queue shows, each with an aired next episode. */
 function continueShows(n: number): ShowFixture[] {
   return Array.from({ length: n }, (_, i) => ({
     trakt: i + 1,
@@ -38,7 +47,7 @@ function continueShows(n: number): ShowFixture[] {
   }));
 }
 
-/** A partially-watched show for the detail-screen controls (rating, specials, season mark). */
+/** A partially-watched show for the detail-screen controls. */
 function detailShow(): ShowFixture {
   return {
     trakt: 1,
@@ -66,70 +75,97 @@ async function box(locator: Locator): Promise<Box> {
   return b;
 }
 
-/** Assert a control clears the shared 44px finger target (both dims, or height only
- * for controls whose width is legitimately elastic / text-driven). The 0.5 tolerance
- * absorbs sub-pixel rounding of a `min-height: 44px` box. */
+/**
+ * The element's EFFECTIVE target box: its border box grown by any ::before/
+ * ::after hit-slop overlay (the GROW/HIT-SLOP rules keep visual ink compact
+ * while the finger target clears 44px). Playwright's boundingBox ignores
+ * pseudo-elements, so the slop is measured from computed styles.
+ */
+async function effectiveTarget(locator: Locator): Promise<{ width: number; height: number }> {
+  return locator.evaluate((el) => {
+    const base = el.getBoundingClientRect();
+    let width = base.width;
+    let height = base.height;
+    for (const pseudo of ["::before", "::after"] as const) {
+      const cs = getComputedStyle(el, pseudo);
+      if (cs.content === "none" || cs.position !== "absolute") continue;
+      const top = Number.parseFloat(cs.top);
+      const bottom = Number.parseFloat(cs.bottom);
+      const left = Number.parseFloat(cs.left);
+      const right = Number.parseFloat(cs.right);
+      // inset offsets are negative when the slop extends beyond the box.
+      if (!Number.isNaN(top) && !Number.isNaN(bottom)) {
+        height = Math.max(height, base.height - top - bottom);
+      }
+      if (!Number.isNaN(left) && !Number.isNaN(right)) {
+        width = Math.max(width, base.width - left - right);
+      }
+    }
+    return { width, height };
+  });
+}
+
+/** Assert a control clears the shared 44px finger target (both dims, or height
+ * only for controls whose width is legitimately elastic / text-driven). The 0.5
+ * tolerance absorbs sub-pixel rounding. */
 async function expectTapTarget(locator: Locator, dims: "both" | "height" = "both"): Promise<void> {
-  const b = await box(locator);
-  expect(b.height + 0.5).toBeGreaterThanOrEqual(TAP_MIN);
-  if (dims === "both") expect(b.width + 0.5).toBeGreaterThanOrEqual(TAP_MIN);
+  const t = await effectiveTarget(locator);
+  expect(t.height + 0.5).toBeGreaterThanOrEqual(TAP_MIN);
+  if (dims === "both") expect(t.width + 0.5).toBeGreaterThanOrEqual(TAP_MIN);
 }
 
 test.beforeEach(async ({ page }) => {
   await installHermeticRoutes(page.context());
   await seedAuth(page.context());
+  await seedTutorialDismissed(page.context());
 });
 
-test("Up Next @390 clears more of the fold: compact inline mark, not a full-width CTA", async ({
+test("Up Next @390: every check clears the floor and 6+ queue shows sit above the fold", async ({
   page,
 }) => {
-  await installLibraryRoutes(page.context(), continueShows(6));
+  await installLibraryRoutes(page.context(), continueShows(7));
   await page.setViewportSize(PHONE);
   await page.goto("/");
 
+  // Marquee (56 check) + queue rows (48 checks): all real ≥44 targets.
+  await expectTapTarget(page.getByTestId("marquee-card").getByTestId("mark-watched"));
   const cards = page.getByTestId("up-next-card");
   await expect(cards.first()).toBeVisible();
-  await expect(cards).toHaveCount(6);
+  await expectTapTarget(cards.first().getByTestId("mark-watched"));
 
-  // Count cards FULLY above the 844px fold. The legacy full-width-action layout
-  // left only 3 fully visible (measurements.json upNext_390.episodeCards); dropping the
-  // action to a compact trailing pill roughly halves card height, so strictly more of
-  // the queue clears the fold.
-  let fullyVisible = 0;
+  // The dense 76px rows put 6+ shows above the 844px fold (marquee included).
+  let fullyVisible = 1; // the marquee's show
   const total = await cards.count();
   for (let i = 0; i < total; i++) {
     const b = await box(cards.nth(i));
     if (b.y >= 0 && b.y + b.height <= PHONE.height) fullyVisible += 1;
   }
-  expect(fullyVisible).toBeGreaterThanOrEqual(4);
+  expect(fullyVisible).toBeGreaterThanOrEqual(6);
 
-  // The lead's mark is an inline trailing pill (far narrower than the card), not the
-  // old full-width CTA, and still clears the 44px target.
-  const lead = cards.first();
-  const cardBox = await box(lead);
-  const markBox = await box(lead.getByTestId("mark-watched"));
-  expect(markBox.width).toBeLessThan(cardBox.width * 0.5);
-  expect(markBox.height + 0.5).toBeGreaterThanOrEqual(TAP_MIN);
-  // Compaction: a card is now well under the legacy 188px height.
-  expect(cardBox.height).toBeLessThan(150);
-});
-
-test("header avatar is a 44×44 finger target @390", async ({ page }) => {
-  await installLibraryRoutes(page.context(), continueShows(1));
-  await page.setViewportSize(PHONE);
-  await page.goto("/");
-
-  const topbar = page.locator(".topbar");
-  // Search moved onto the Discover tab; the header now carries only the Profile
-  // avatar (utility hub) beside the brand: both real finger targets.
-  await expectTapTarget(topbar.getByRole("link", { name: "Profile" }));
-  // The brand-home link keeps its compact wordmark but a full-height tap target.
-  await expectTapTarget(topbar.getByRole("link", { name: "Cue home" }), "height");
-  // The keyboard bypass link (revealed on focus) is a real 44px target too.
+  // Tab bar items and the header avatar are real targets too.
+  for (const id of ["tab-up-next", "tab-library", "tab-calendar", "tab-search"]) {
+    await expectTapTarget(page.getByTestId(id), "height");
+  }
+  await expectTapTarget(page.getByTestId("avatar-link"));
+  // The keyboard bypass link (revealed on focus) is a real 44px target.
   await expectTapTarget(page.locator(".skip-link"), "height");
 });
 
-test("show-detail controls clear the 44px floor: rating track, back, specials, season mark", async ({
+test("the snackbar's Undo is a 44px target after a mark @390", async ({ page }) => {
+  await installLibraryRoutes(page.context(), continueShows(3));
+  await page.setViewportSize(PHONE);
+  await page.goto("/");
+
+  const card = page.getByTestId("up-next-card").first();
+  await expect(card).toBeVisible();
+  await card.getByTestId("mark-watched").click();
+
+  const snackbar = page.getByTestId("snackbar");
+  await expect(snackbar).toBeVisible();
+  await expectTapTarget(page.getByTestId("snackbar-undo"), "height");
+});
+
+test("show-detail controls clear the 44px floor: back, overflow, checks, season rows", async ({
   page,
 }) => {
   await installLibraryRoutes(page.context(), [detailShow()]);
@@ -137,73 +173,69 @@ test("show-detail controls clear the 44px floor: rating track, back, specials, s
   await page.goto("/show/1");
   await expect(page.getByTestId("detail-title")).toBeVisible();
 
-  await expectTapTarget(page.getByTestId("detail-back"), "height");
+  await expectTapTarget(page.getByTestId("detail-back"));
+  await expectTapTarget(page.getByTestId("detail-overflow"));
+  await expectTapTarget(page.getByTestId("continue-check"));
 
-  // Rating: the control is ONE wide slider track, not ten sub-44px stars
-  // (ten 44px stars would need 440px: wider than a phone). The whole track is a single
-  // ≥44px finger target a tap lands anywhere on, carrying role=slider for AT.
-  const slider = page.getByTestId("show-rating-slider");
-  await expect(slider).toHaveAttribute("role", "slider");
-  await expectTapTarget(slider, "height");
-
-  // "Include specials": the whole label is the 44-tall target, not its 13px box.
-  await expectTapTarget(page.locator(".detail-specials"), "height");
-
-  // "Stop watching": a consequential action (drops the show from Up Next + calendar).
-  await expectTapTarget(page.getByTestId("hide-show"), "height");
-
-  // The show-level "Up next" module (aired next episode): the primary mark and the
-  // always-visible catch-up are both 44 tall (the touch path to "mark up to here").
-  await expectTapTarget(page.getByTestId("next-up-mark"), "height");
-  await expectTapTarget(page.getByTestId("next-up-catchup"), "height");
-
-  // The per-season "Mark season watched" action.
-  await expectTapTarget(page.locator('[data-season="1"]').getByTestId("mark-season"), "height");
-
-  // Expand a season. The per-episode watched toggle, the primary "mark unwatched"
-  // affordance, is a full 44×44 target (BOTH dims: a square check on the still, not a
-  // text button), with the visible badge kept compact so a 158px still isn't swallowed.
-  await page.locator('[data-season="1"]').getByTestId("season-trigger").click();
-  const toggle = page
-    .locator('[data-season="1"]')
-    .getByTestId("episode-row")
-    .first()
-    .locator(".ep-still__toggle");
-  await expect(toggle).toBeVisible();
-  await expectTapTarget(toggle, "both");
+  // The season bulk check + the per-episode toggles (44px CheckControls with
+  // ≥48px slop), and the season trigger row itself.
+  const season1 = page.locator('[data-season="1"]');
+  await expectTapTarget(season1.getByTestId("season-check"));
+  await expectTapTarget(season1.getByTestId("season-trigger"), "height");
+  const firstRowCheck = season1.getByTestId("episode-row").first().getByTestId("episode-check");
+  await expect(firstRowCheck).toBeVisible();
+  await expectTapTarget(firstRowCheck);
 });
 
-test("Library chrome clears the 44px floor @390", async ({ page }) => {
+test("the episode sheet's mark, pager, and overflow are real targets @390", async ({ page }) => {
+  await installLibraryRoutes(page.context(), [detailShow()]);
+  await page.setViewportSize(PHONE);
+  await page.goto("/show/1/episode/1/3");
+  await expect(page.getByTestId("episode-sheet")).toBeVisible();
+
+  await expectTapTarget(page.getByTestId("episode-sheet-check"));
+  await expectTapTarget(page.getByTestId("episode-prev"), "height");
+  await expectTapTarget(page.getByTestId("episode-next"), "height");
+  await expectTapTarget(page.getByTestId("sheet-overflow"));
+});
+
+test("Library chrome clears the 44px floor @390: tools, segment, chips", async ({ page }) => {
   await installLibraryRoutes(page.context(), [detailShow()]);
   await page.setViewportSize(PHONE);
   await page.goto("/library");
   await expect(page.getByTestId("screen-library")).toBeVisible();
 
+  await expectTapTarget(page.getByTestId("library-filter-toggle"));
+  await expectTapTarget(page.getByTestId("library-sort"));
+  // Segments + chips keep compact ink with vertical hit-slop to 44.
   await expectTapTarget(page.getByTestId("type-shows"), "height");
+  await expectTapTarget(page.getByTestId("chip-watching"), "height");
+  await expectTapTarget(page.getByTestId("chip-finished"), "height");
+
+  await page.getByTestId("library-filter-toggle").click();
   await expectTapTarget(page.getByTestId("library-filter"), "height");
-  await expectTapTarget(page.getByTestId("sort-select"), "height");
 });
 
-test("Calendar range toggles are 44px targets @390", async ({ page }) => {
+test("Calendar rows are real targets @390", async ({ page }) => {
   const item: CalendarEpisodeFixture = {
     showId: 1,
     showTitle: "Fixture Show",
     season: 1,
     number: 1,
     title: "An Episode",
-    firstAired: agoIso(0),
+    firstAired: new Date(Date.now() + 3 * 3_600_000).toISOString(),
     traktId: 11,
   };
   await installCalendarRoutes(page.context(), [item]);
   await page.setViewportSize(PHONE);
   await page.goto("/calendar");
 
-  await expect(page.getByTestId("window-7")).toBeVisible();
-  await expectTapTarget(page.getByTestId("window-7"), "height");
-  await expectTapTarget(page.getByTestId("window-14"), "height");
+  const row = page.getByTestId("calendar-row").first();
+  await expect(row).toBeVisible();
+  await expectTapTarget(row, "height");
 });
 
-test("Settings switch keeps its compact ink but a 44px hit-slop; threshold select is 44 tall", async ({
+test("Settings switches keep compact ink with a 44px hit-slop; select rows are 44 tall", async ({
   page,
 }) => {
   await page.setViewportSize(PHONE);
@@ -214,16 +246,17 @@ test("Settings switch keeps its compact ink but a 44px hit-slop; threshold selec
   // The visible track stays a deliberate ≤44 pill (keep the ink tiny)…
   const inkBox = await box(sw);
   expect(inkBox.height).toBeLessThan(TAP_MIN);
-  // …but its centred ::before pseudo-element gives the finger a real 44px target.
-  const slopHeight = await sw.evaluate((el) =>
-    Number.parseFloat(getComputedStyle(el, "::before").height),
-  );
-  expect(slopHeight).toBeGreaterThanOrEqual(TAP_MIN);
+  // …but its slop pseudo-element gives the finger a real 44px target.
+  await expectTapTarget(sw, "height");
 
   await expectTapTarget(page.getByTestId("threshold-select"), "height");
+  await expectTapTarget(page.getByTestId("order-select"), "height");
+  await expectTapTarget(page.getByTestId("sync-now"), "height");
+  // The theme segments carry vertical slop to 44 within the 36px track.
+  await expectTapTarget(page.getByTestId("theme-toggle").getByText("Dark"), "height");
 });
 
-test("watch-history remove is a 44px target @390", async ({ page }) => {
+test("History's checks, chips, and header tools clear the floor @390", async ({ page }) => {
   const rows: HistoryRowFixture[] = [
     {
       id: 11,
@@ -240,61 +273,49 @@ test("watch-history remove is a 44px target @390", async ({ page }) => {
   await page.setViewportSize(PHONE);
   await page.goto("/history");
 
-  // The row's trailing ⋯ (which opens the confirm sheet) is the consequential
-  // control that must be a full finger target.
-  const remove = page.getByTestId("history-remove-menu").first();
-  await expect(remove).toBeVisible();
-  await expectTapTarget(remove, "height");
+  // The per-play removal check IS the consequential control here.
+  const check = page.getByTestId("history-row").first().getByTestId("mark-watched");
+  await expect(check).toBeVisible();
+  await expectTapTarget(check);
+
+  await expectTapTarget(page.getByRole("button", { name: "Back" }));
+  await expectTapTarget(page.getByTestId("history-search-toggle"));
+  await expectTapTarget(page.getByTestId("history-filter-all"), "height");
+  await expectTapTarget(page.getByTestId("history-jump"), "height");
 });
 
-test("Search watchlist add is a 44px target @390", async ({ page }) => {
-  await installDiscoverRoutes(page.context(), {
-    shows: [{ traktId: 1, title: "Severance", year: 2022 }],
-    movies: [],
-  });
-  await page.setViewportSize(PHONE);
-  await page.goto("/search");
-
-  const add = page.getByTestId("search-add").first();
-  await expect(add).toBeVisible();
-  await expectTapTarget(add, "height");
-});
-
-test("Up Next reversal toast: Undo + dismiss are 44px targets after a mark @390", async ({
-  page,
-}) => {
-  await installLibraryRoutes(page.context(), continueShows(3));
+test("the 'Previously' checks on home clear the floor @390", async ({ page }) => {
+  await installLibraryRoutes(page.context(), continueShows(1));
+  const rows: HistoryRowFixture[] = [
+    {
+      id: 71,
+      type: "episode",
+      showId: 1,
+      showTitle: "Continue Show 1",
+      season: 1,
+      number: 1,
+      episodeTitle: "One",
+      watchedAt: new Date(Date.now() - 2 * 3_600_000).toISOString(),
+    },
+  ];
+  await installHistoryRoutes(page.context(), rows);
   await page.setViewportSize(PHONE);
   await page.goto("/");
 
-  const lead = page.getByTestId("up-next-card").first();
-  await expect(lead).toBeVisible();
-  await lead.getByTestId("mark-watched").click();
-
-  // Reversibility is the crux of the honest mark: the Undo toast's action must be a
-  // real finger target (was 38×22), and its "×" dismiss a full 44×44 square (a glyph
-  // has no elastic text width, so BOTH dims are asserted; was 13×19).
-  const toast = page.getByTestId("undo");
-  await expect(toast).toBeVisible();
-  await expectTapTarget(toast.getByTestId("undo-action"), "height");
-  await expectTapTarget(toast.getByTestId("undo-dismiss"), "both");
+  const check = page.getByTestId("previously-row").first().getByTestId("mark-watched");
+  await expect(check).toBeVisible();
+  await expectTapTarget(check);
 });
 
-test("Episode detail: the back link is a 44px target @390", async ({ page }) => {
-  await installLibraryRoutes(page.context(), [detailShow()]);
+test("Search's field and watchlist add clear the floor @390", async ({ page }) => {
+  const HIT: SearchHitFixture = { type: "show", traktId: 1, title: "Severance", year: 2022 };
+  await installSearchRoutes(page.context(), () => [HIT]);
   await page.setViewportSize(PHONE);
-  await page.goto("/show/1/episode/1/3");
-  await expect(page.getByTestId("episode-back")).toBeVisible();
+  await page.goto("/search");
 
-  // Shares the `.detail-back` treatment as the show-detail back link.
-  await expectTapTarget(page.getByTestId("episode-back"), "height");
-  // The episode Cue mark (mark/unmark): a full-width labelled button that is itself
-  // the target, so measure the `.watched-field` button directly.
-  await expectTapTarget(page.locator(".watched-field"), "height");
-
-  // NOTE: `.episode-hero__show` (the "THE DETAIL SHOW" eyebrow link) is deliberately
-  // NOT asserted at 44px. It is an inline link inside the running eyebrow sentence
-  // ("<show> · Season N"), which WCAG 2.5.8's Inline exception exempts, and the 44px
-  // "‹ <show>" back link above is its Equivalent to the same destination. Forcing a
-  // 44px block there would break the sentence flow the standard itself carves out.
+  await expectTapTarget(page.getByTestId("search-input"), "height");
+  await page.getByTestId("search-input").pressSequentially("severance", { delay: 40 });
+  const add = page.getByTestId("search-add").first();
+  await expect(add).toBeVisible();
+  await expectTapTarget(add, "height");
 });

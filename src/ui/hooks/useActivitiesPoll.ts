@@ -32,10 +32,19 @@ export function useActivitiesPoll(): void {
     let cancelled = false;
     let running = false;
 
+    const flushPending = async (): Promise<number> =>
+      runtime.pendingWrites() > 0 ? runtime.flushWrites() : 0;
+
     const runPoll = async (): Promise<void> => {
       if (running || document.visibilityState === "hidden") return;
       running = true;
       try {
+        // Local ops land BEFORE the freshness check, and a reconcile never
+        // applies over ops still in the log: invalidating then would repaint
+        // server state that is missing the local marks (mid-binge bounce).
+        // A flush that can't drain (offline / rate-limited) skips this cycle;
+        // the next trigger retries.
+        if ((await flushPending()) > 0 || cancelled) return;
         const reconcile = await runtime.pollActivities();
         if (cancelled || reconcile === null) return;
         await applyReconcile(queryClient, reconcile, () => cancelled);
@@ -48,16 +57,22 @@ export function useActivitiesPoll(): void {
     const onVisible = (): void => {
       if (document.visibilityState === "visible") poll();
     };
+    // Reconnect always attempts to land deferred writes, even from a hidden
+    // tab; the poll itself (and so the reconcile) stays visibility-gated.
+    const onOnline = (): void => {
+      if (document.visibilityState === "hidden") void flushPending();
+      else poll();
+    };
 
     poll();
     document.addEventListener("visibilitychange", onVisible);
-    globalThis.addEventListener("online", poll);
+    globalThis.addEventListener("online", onOnline);
     const interval = globalThis.setInterval(poll, POLL_INTERVAL_MS);
 
     return () => {
       cancelled = true;
       document.removeEventListener("visibilitychange", onVisible);
-      globalThis.removeEventListener("online", poll);
+      globalThis.removeEventListener("online", onOnline);
       globalThis.clearInterval(interval);
     };
   }, [runtime, queryClient]);
