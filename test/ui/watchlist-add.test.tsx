@@ -24,6 +24,20 @@ function Probe({ slot }: { readonly slot: WatchlistAddView[] }): null {
   return null;
 }
 
+async function mountProbe(
+  client: QueryClient,
+  runtime: CueRuntime,
+  slot: WatchlistAddView[],
+): Promise<void> {
+  await mountAsync(
+    <QueryClientProvider client={client}>
+      <RuntimeProvider value={runtime}>
+        <Probe slot={slot} />
+      </RuntimeProvider>
+    </QueryClientProvider>,
+  );
+}
+
 it("drops aggregate membership immediately when a landed add is undone", async () => {
   let listed: readonly number[] = [];
   const runtime = {
@@ -42,14 +56,7 @@ it("drops aggregate membership immediately when a landed add is undone", async (
   client.setQueryData(queryKeys.watchlist("shows"), []);
   client.setQueryData<UpNextData>(queryKeys.library(), { entries: [], isPartial: false });
   const slot: WatchlistAddView[] = [];
-
-  await mountAsync(
-    <QueryClientProvider client={client}>
-      <RuntimeProvider value={runtime}>
-        <Probe slot={slot} />
-      </RuntimeProvider>
-    </QueryClientProvider>,
-  );
+  await mountProbe(client, runtime, slot);
 
   await act(async () => slot[0]?.add(hit));
   const aggregateEntry = { showId: hit.traktId } as LibraryEntry;
@@ -65,4 +72,26 @@ it("drops aggregate membership immediately when a landed add is undone", async (
 
   expect(slot[0]?.isAdded(hit)).toBe(false);
   expect(client.getQueryData<UpNextData>(queryKeys.library())?.entries).toEqual([]);
+});
+
+it("restores watchlist and aggregate caches after a hard-failed remove", async () => {
+  const aggregateEntry = { showId: hit.traktId } as LibraryEntry;
+  const runtime = {
+    loadWatchlistIds: () => Promise.resolve([hit.traktId]),
+    loadUpNext: () => Promise.resolve({ entries: [aggregateEntry], isPartial: false }),
+    loadMovieLibrary: () => Promise.resolve({ entries: [] }),
+    submit: () => Promise.resolve("failed"),
+  } as unknown as CueRuntime;
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  client.setQueryData(queryKeys.watchlist("shows"), [hit.traktId]);
+  const aggregate: UpNextData = { entries: [aggregateEntry], isPartial: false };
+  client.setQueryData(queryKeys.library(), aggregate);
+  const slot: WatchlistAddView[] = [];
+  await mountProbe(client, runtime, slot);
+
+  await act(async () => slot[0]?.remove(hit));
+
+  expect(slot[0]?.isAdded(hit)).toBe(true);
+  expect(client.getQueryData(queryKeys.watchlist("shows"))).toEqual([hit.traktId]);
+  expect(client.getQueryData(queryKeys.library())).toEqual(aggregate);
 });

@@ -136,6 +136,7 @@ export function Library(): ReactElement {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("");
   const filterRef = useRef<HTMLInputElement>(null);
+  const chipsRef = useRef<HTMLDivElement>(null);
 
   // Only the ACTIVE medium's read fires, keeping a background segment off
   // Trakt's rate budget; the persisted cache makes the first switch instant.
@@ -282,6 +283,19 @@ export function Library(): ReactElement {
   const activeShowChip =
     showChip === "syncing" && view.chips.syncing.length === 0 ? "watching" : showChip;
   const activeChipKey = isMovies ? movieChip : activeShowChip;
+
+  useEffect(() => {
+    const rail = chipsRef.current;
+    const selected = rail?.querySelector<HTMLElement>(`[data-testid="chip-${activeChipKey}"]`);
+    if (rail === null || rail === undefined || selected === null || selected === undefined) return;
+    const railBounds = rail.getBoundingClientRect();
+    const selectedBounds = selected.getBoundingClientRect();
+    if (selectedBounds.left < railBounds.left) {
+      rail.scrollLeft -= railBounds.left - selectedBounds.left;
+    } else if (selectedBounds.right > railBounds.right) {
+      rail.scrollLeft += selectedBounds.right - railBounds.right;
+    }
+  }, [activeChipKey]);
 
   const sortRows: ActionSheetRow[] = isMovies
     ? MOVIE_SORTS.map((option) => ({
@@ -516,7 +530,7 @@ export function Library(): ReactElement {
         </div>
       )}
 
-      <div className="library-chips" data-testid="library-chips">
+      <div ref={chipsRef} className="library-chips" data-testid="library-chips">
         {isMovies
           ? MOVIE_CHIP_KEYS.map((key) => (
               <Chip

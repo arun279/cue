@@ -464,9 +464,6 @@ export function useMarkSeason(): MarkSeasonController {
         // label so a single snackbar carries the whole honest outcome.
         const kept = plan.keptRewatch.length;
         const keptSuffix = kept > 0 ? ` · kept ${kept} rewatched ${plural(kept)}` : "";
-        // Any remembered mark is consumed by this reversal: drop it so the durable
-        // Unmark isn't offered again for the same (now reversed) mark.
-        forgetSeasonMark(target.showId, season.number);
         const count = plan.removeIds.length;
         putUndo({
           showId: target.showId,
@@ -483,6 +480,10 @@ export function useMarkSeason(): MarkSeasonController {
         if (outcome === "failed") {
           retractUndo(ops);
           setError("Couldn't unmark that season. Please try again.");
+        } else {
+          // A kept reversal consumes the remembered mark. A hard failure keeps
+          // its exact delta so a retry cannot fall back to the full aired season.
+          forgetSeasonMark(target.showId, season.number);
         }
       });
     },

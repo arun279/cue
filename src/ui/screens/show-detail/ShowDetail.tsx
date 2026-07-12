@@ -244,9 +244,7 @@ export function ShowDetail({ showId }: { readonly showId: number }): ReactElemen
     );
   };
 
-  const onFallbackMark = (): void => {
-    const next = header.nextEpisode;
-    if (next === null) return;
+  const onFallbackMark = (next: EpisodeView): void => {
     backfillRef.current = null;
     void marks.toggleEpisode(targetFor(next.season), next, {
       undoLabel: `${middleTruncate(header.title)} ${epCode(next.season, next.number)} marked`,
@@ -392,6 +390,7 @@ export function ShowDetail({ showId }: { readonly showId: number }): ReactElemen
           showId={showId}
           header={header}
           entry={entry}
+          seasons={seasonsView.seasons}
           mark={mark}
           onFallbackMark={onFallbackMark}
         />

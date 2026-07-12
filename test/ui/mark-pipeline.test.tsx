@@ -20,6 +20,11 @@ import { resetMarkStore } from "@ui/hooks/mark-store";
 import { type MarkSeasonController, useMarkSeason } from "@ui/hooks/useMarkSeason";
 import { useMarkSnacks } from "@ui/hooks/useMarkSnacks";
 import { type MarkWatched, useMarkWatched } from "@ui/hooks/useMarkWatched";
+import {
+  forgetSeasonMark,
+  getSeasonMarkDelta,
+  rememberSeasonMark,
+} from "@ui/hooks/useSeasonReversal";
 import { type CueRuntime, RuntimeProvider, type UpNextData } from "@ui/runtime/runtime";
 import { act } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -88,18 +93,24 @@ interface FakeRuntime {
   /** The simulated durable queue `pendingOps()` reads. */
   readonly queued: QueuedOp[];
   readonly loadEpisodePlays: ReturnType<typeof vi.fn>;
+  readonly loadShowPlays: ReturnType<typeof vi.fn>;
 }
 
 function fakeRuntime(opts: {
   /** Per-op settle; default resolves "done" and never keeps the op queued. */
   submit?(op: QueuedOp): Promise<"done" | "failed" | "deferred">;
   plays?: readonly EpisodePlay[] | Error;
+  showPlays?: readonly EpisodePlay[] | Error;
   inFlightOpId?(): string | null;
 }): FakeRuntime {
   const submitted: QueuedOp[] = [];
   const queued: QueuedOp[] = [];
   const loadEpisodePlays = vi.fn((_id: number) => {
     const plays = opts.plays ?? [];
+    return plays instanceof Error ? Promise.reject(plays) : Promise.resolve(plays);
+  });
+  const loadShowPlays = vi.fn((_id: number) => {
+    const plays = opts.showPlays ?? [];
     return plays instanceof Error ? Promise.reject(plays) : Promise.resolve(plays);
   });
   const runtime = {
@@ -110,8 +121,9 @@ function fakeRuntime(opts: {
     pendingOps: () => [...queued],
     inFlightOpId: opts.inFlightOpId ?? (() => null),
     loadEpisodePlays,
+    loadShowPlays,
   } as unknown as CueRuntime;
-  return { runtime, submitted, queued, loadEpisodePlays };
+  return { runtime, submitted, queued, loadEpisodePlays, loadShowPlays };
 }
 
 interface Api {
@@ -229,6 +241,7 @@ async function markThenReverse(
 
 beforeEach(() => {
   resetMarkStore();
+  forgetSeasonMark(SHOW, 1);
   dismissSnack();
 });
 
@@ -434,6 +447,44 @@ describe("F14: undoing a landed mark is per-play, never remove-by-item", () => {
 });
 
 describe("season write guards and Undo failures", () => {
+  it("retains a partial mark delta after failed unmark and scopes the retry to it", async () => {
+    const oldPlay: EpisodePlay = {
+      historyId: 11,
+      episodeTrakt: 101,
+      season: 1,
+      number: 1,
+      watchedAt: "2023-01-01T00:00:00.000Z",
+    };
+    const markedPlay: EpisodePlay = {
+      historyId: 22,
+      episodeTrakt: 102,
+      season: 1,
+      number: 2,
+      watchedAt: "2026-07-12T00:00:00.000Z",
+    };
+    let removals = 0;
+    const fake = fakeRuntime({
+      showPlays: [oldPlay, markedPlay],
+      submit: (op) =>
+        op.request.path === "/sync/history/remove"
+          ? Promise.resolve(removals++ === 0 ? "failed" : "done")
+          : Promise.resolve("done"),
+    });
+    const season = seasonView([episodeView(1, true), episodeView(2, true)]);
+    const { a } = mountSeasonSurfaces(fake, season.episodes);
+    rememberSeasonMark(SHOW, 1, [2]);
+
+    await act(async () => a[0]?.season.unmarkSeason(TARGET, season));
+
+    expect(getSeasonMarkDelta(SHOW, 1)).toEqual(new Set([2]));
+    expect(fake.submitted[0]?.request.body).toEqual({ ids: [22] });
+
+    await act(async () => a[0]?.season.unmarkSeason(TARGET, season));
+
+    expect(fake.submitted.map((op) => op.request.body)).toEqual([{ ids: [22] }, { ids: [22] }]);
+    expect(getSeasonMarkDelta(SHOW, 1)).toBeUndefined();
+  });
+
   it("drops a second season activation while the first write is in flight", () => {
     const fake = fakeRuntime({ submit: () => new Promise(() => {}) });
     const { a } = mountSeasonSurfaces(fake, [episodeView(1), episodeView(2)]);

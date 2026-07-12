@@ -161,7 +161,10 @@ export function useWatchlistAdd(
         queryClient.cancelQueries({ queryKey: queryKeys.watchlist(section) }),
         queryClient.cancelQueries({ queryKey: aggregateKey }),
       ]);
-      queryClient.setQueryData<readonly number[]>(queryKeys.watchlist(section), (old) =>
+      const watchlistKey = queryKeys.watchlist(section);
+      const beforeWatchlist = queryClient.getQueryData<readonly number[]>(watchlistKey);
+      const beforeAggregate = queryClient.getQueryData<UpNextData | MovieLibraryData>(aggregateKey);
+      queryClient.setQueryData<readonly number[]>(watchlistKey, (old) =>
         old?.filter((id) => id !== hit.traktId),
       );
       if (section === "movies") {
@@ -182,7 +185,11 @@ export function useWatchlistAdd(
         op,
         // Trakt still lists it: restore the added state rather than stranding
         // the row unlisted while the server never changed.
-        () => setAdded((prev) => new Set(prev).add(key)),
+        () => {
+          setAdded((prev) => new Set(prev).add(key));
+          queryClient.setQueryData(watchlistKey, beforeWatchlist);
+          queryClient.setQueryData(aggregateKey, beforeAggregate);
+        },
         `Couldn't remove ${hit.title} from your watchlist. Please try again.`,
         () => revalidateMembership(section),
       );

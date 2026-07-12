@@ -1,5 +1,5 @@
 import type { LibraryEntry } from "@data/trakt/library";
-import type { ShowHeader } from "@data/trakt/show-detail";
+import type { EpisodeView, SeasonView, ShowHeader } from "@data/trakt/show-detail";
 import { isAired } from "@domain/time";
 import { Link } from "@tanstack/react-router";
 import { CheckControl } from "@ui/components/CheckControl";
@@ -17,10 +17,40 @@ interface ContinueBarProps {
   /** The shared library entry, when the show is tracked: its optimistic advance
    * is what lets the bar roll to the next episode in place. */
   readonly entry: LibraryEntry | undefined;
+  /** The optimistic season tree supplies fallback progress for watchlist-only
+   * and budget-tail entries once it has loaded. */
+  readonly seasons: readonly SeasonView[];
   readonly mark: MarkWatched;
   /** Mark for a show with no library entry yet (deep link / watchlist-only):
    * routed through the show-surface toggle instead of the queue pipeline. */
-  onFallbackMark(): void;
+  onFallbackMark(episode: EpisodeView): void;
+}
+
+interface FallbackProgress {
+  readonly aired: number;
+  readonly completed: number;
+  readonly nextEpisode: EpisodeView | null;
+}
+
+function isWatchlistOnlyPlaceholder(entry: LibraryEntry): boolean {
+  return (
+    entry.progressKnown &&
+    entry.completed === 0 &&
+    entry.aired === 0 &&
+    entry.nextEpisode === null &&
+    entry.lastWatchedAt === null
+  );
+}
+
+function seasonProgress(seasons: readonly SeasonView[]): FallbackProgress {
+  const airedEpisodes = seasons
+    .filter((season) => !season.isSpecial)
+    .flatMap((season) => season.episodes.filter((episode) => episode.aired));
+  return {
+    aired: airedEpisodes.length,
+    completed: airedEpisodes.filter((episode) => episode.watched).length,
+    nextEpisode: airedEpisodes.find((episode) => !episode.watched) ?? null,
+  };
 }
 
 function Shell({
@@ -105,21 +135,27 @@ function EntryCheck({
  * The 72px sticky continue bar: NEXT eyebrow + episode line + series
  * progress with the check trailing; caught-up returning shows read the season
  * countdown, and a finished ended show reads its epitaph. When the shared
- * library entry is still beyond the progress budget, the loaded detail header
- * supplies authoritative progress and the check uses the fallback mark path.
- * The bar body (not the check) opens the episode sheet.
+ * library entry is unavailable or not a real progress source, the loaded season
+ * tree supplies optimistic progress and falls back to the detail header until it
+ * loads. The check uses the fallback mark path. The bar body (not the check)
+ * opens the episode sheet.
  */
 export function ContinueBar({
   showId,
   header,
   entry,
+  seasons,
   mark,
   onFallbackMark,
 }: ContinueBarProps): ReactElement | null {
-  const tracked = entry?.progressKnown === true;
-  const aired = tracked ? entry.aired : header.aired;
-  const completed = tracked ? entry.completed : header.completed;
-  const next = tracked ? entry.nextEpisode : header.nextEpisode;
+  const tracked = entry?.progressKnown === true && !isWatchlistOnlyPlaceholder(entry);
+  const fallback: FallbackProgress =
+    seasons.length > 0
+      ? seasonProgress(seasons)
+      : { aired: header.aired, completed: header.completed, nextEpisode: header.nextEpisode };
+  const aired = tracked ? entry.aired : fallback.aired;
+  const completed = tracked ? entry.completed : fallback.completed;
+  const next = tracked ? entry.nextEpisode : fallback.nextEpisode;
 
   // The optimistic advance projects a provisional next episode: keep the "next"
   // body (the check is mid-window/re-arming) instead of misreading it as done.
@@ -152,7 +188,9 @@ export function ContinueBar({
               size={48}
               label={`Mark ${header.title} ${epCode(next.season, next.number)} watched`}
               testId="continue-check"
-              onPress={onFallbackMark}
+              onPress={() => {
+                if (fallback.nextEpisode !== null) onFallbackMark(fallback.nextEpisode);
+              }}
             />
           )
         }

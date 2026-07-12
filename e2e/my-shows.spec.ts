@@ -129,14 +129,35 @@ test("tile overlays carry non-color cues: remaining badge, PAUSED tag, finished 
 
 test("the active chip is remembered per segment across a reload", async ({ page }) => {
   await installLibraryRoutes(page.context(), oneOfEachChip());
+  await page.setViewportSize({ width: 393, height: 852 });
   await page.goto("/library");
 
   await page.getByTestId("chip-finished").click();
   await expect(page.getByTestId("library-card").filter({ hasText: "Done Show" })).toBeVisible();
 
   await page.reload();
-  await expect(page.getByTestId("chip-finished")).toHaveAttribute("aria-pressed", "true");
+  const finished = page.getByTestId("chip-finished");
+  const rail = page.getByTestId("library-chips");
+  await expect(finished).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByTestId("library-card").filter({ hasText: "Done Show" })).toBeVisible();
+  await expect
+    .poll(async () => {
+      const railBox = await rail.boundingBox();
+      const chipBox = await finished.boundingBox();
+      return (
+        railBox !== null &&
+        chipBox !== null &&
+        chipBox.x >= railBox.x &&
+        chipBox.x + chipBox.width <= railBox.x + railBox.width + 0.5
+      );
+    })
+    .toBe(true);
+  expect(await rail.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
 });
 
 test("the tap-to-reveal filter scopes the grid and clears honestly", async ({ page }) => {
