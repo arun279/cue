@@ -147,12 +147,19 @@ export function useMarkWatched(): MarkWatched {
         watchedAt: record.watchedAt,
         inversePatch: context,
       });
-      const outcome = await submit([op], {
-        rollback: () =>
-          patch(record.showId, () => advancePastNext(record.beforeMark, record.watchedAt)),
-        revalidate: () =>
-          revalidate(record.showId, { season: record.season, number: record.number }),
-      });
+      let outcome: SubmitOutcome;
+      try {
+        outcome = await submit([op], {
+          rollback: () =>
+            patch(record.showId, () => advancePastNext(record.beforeMark, record.watchedAt)),
+          revalidate: () =>
+            revalidate(record.showId, { season: record.season, number: record.number }),
+        });
+      } finally {
+        // The queue is ordered, so the mark op settled before its reversal did:
+        // the suppression entry is spent and must not accumulate.
+        reversedOps.current.delete(record.opId);
+      }
       if (outcome === "failed") {
         showSnack({
           message: `Couldn't undo ${record.title}. Please try again.`,

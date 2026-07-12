@@ -320,16 +320,18 @@ export function EpisodeSheet({
         detents="tall"
       >
         <article className="ep-sheet" data-testid="episode-sheet">
-          <button
-            type="button"
-            className="ep-sheet__overflow"
-            aria-label={`More actions for ${code}`}
-            aria-haspopup="dialog"
-            data-testid="sheet-overflow"
-            onClick={() => setOverflowOpen(true)}
-          >
-            <Ellipsis aria-hidden="true" />
-          </button>
+          <div className="ep-sheet__header">
+            <button
+              type="button"
+              className="ep-sheet__overflow"
+              aria-label={`More actions for ${code}`}
+              aria-haspopup="dialog"
+              data-testid="sheet-overflow"
+              onClick={() => setOverflowOpen(true)}
+            >
+              <Ellipsis aria-hidden="true" />
+            </button>
+          </div>
 
           {view.isLoading && (
             <div className="ep-sheet__skel" data-testid="episode-skeleton" aria-hidden="true">

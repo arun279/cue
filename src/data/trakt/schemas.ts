@@ -203,6 +203,19 @@ export const userStatsSchema = z.object({
   shows: z.object({ watched: z.number() }),
 });
 
+/**
+ * `/users/settings`, keeping only the identity block the Profile header renders:
+ * username, optional display name, and the avatar URL. The account, connections,
+ * and sharing sections are stripped by zod.
+ */
+export const userSettingsSchema = z.object({
+  user: z.object({
+    username: z.string(),
+    name: z.string().nullish(),
+    images: z.object({ avatar: z.object({ full: z.string().nullish() }).nullish() }).nullish(),
+  }),
+});
+
 const stampsSchema = z.record(z.string(), z.string()).optional();
 export const lastActivitiesSchema = z.object({
   all: z.string().optional(),
@@ -233,3 +246,4 @@ export type TrendingShow = z.infer<typeof trendingShowsSchema>[number];
 export type TrendingMovie = z.infer<typeof trendingMoviesSchema>[number];
 export type HiddenItem = z.infer<typeof hiddenSchema>[number];
 export type UserStats = z.infer<typeof userStatsSchema>;
+export type UserSettings = z.infer<typeof userSettingsSchema>;

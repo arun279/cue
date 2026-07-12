@@ -14,6 +14,9 @@ export const queryKeys = {
   discover: () => ["discover", "shows-movies"] as const,
   lastActivities: () => ["sync", "last_activities"] as const,
   userStats: () => ["users", "me", "stats"] as const,
+  /** The signed-in user's identity (`/users/settings`): outside the
+   * last-activities gate — no activity stamp moves on a rename or re-avatar. */
+  userSettings: () => ["users", "settings"] as const,
   /** The reverse-chronological watch history, per type filter AND decade scope
    * ("recent" | "2019" | "2019-03"): an infinite query paged one Trakt page at a
    * time. Each scope caches separately; the prefix still invalidates all as one. */

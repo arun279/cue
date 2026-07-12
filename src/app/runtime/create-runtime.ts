@@ -20,6 +20,7 @@ import {
   getShowSeasons,
   getTrendingMovies,
   getTrendingShows,
+  getUserSettings,
   getUserStats,
   getWatchedMovies,
   getWatchlist,
@@ -44,6 +45,7 @@ import {
 } from "@data/trakt/search";
 import { assembleHeader, assembleSeasons } from "@data/trakt/show-detail";
 import { createTraktTransport } from "@data/trakt/transport";
+import { assembleUserProfile, type UserProfile } from "@data/trakt/user-profile";
 import type { Token } from "@domain/model/token";
 import type { LastActivities } from "@domain/sync-activities";
 import { WriteQueue } from "@domain/write-queue/queue";
@@ -341,6 +343,12 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       const result = await getUserStats(client);
       if (!result.ok) throw new Error("Failed to load user stats");
       return result.data;
+    },
+
+    async loadUserProfile(): Promise<UserProfile> {
+      const result = await getUserSettings(client);
+      if (!result.ok) throw new Error("Failed to load user settings");
+      return assembleUserProfile(result.data);
     },
 
     async submit(op: QueuedOp): Promise<SubmitOutcome> {

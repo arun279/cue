@@ -1,4 +1,5 @@
 import type { UserStats } from "@data/trakt/schemas";
+import type { UserProfile } from "@data/trakt/user-profile";
 import { humanizeWatchMinutes } from "@domain/time";
 import { Link } from "@tanstack/react-router";
 import { ScreenHeader } from "@ui/app-shell/ScreenHeader";
@@ -7,6 +8,7 @@ import { EmptyState } from "@ui/components/EmptyState";
 import { ErrorRetry } from "@ui/components/ErrorStates";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { useStats } from "@ui/hooks/useStats";
+import { useUserProfile } from "@ui/hooks/useUserProfile";
 import type { MediaVisibility } from "@ui/prefs/media-visibility";
 import { usePrefs } from "@ui/prefs/prefs-store";
 import { SignOutRow } from "@ui/screens/settings/SignOutRow";
@@ -16,7 +18,7 @@ import {
   History as HistoryGlyph,
   Settings as SettingsGlyph,
 } from "lucide-react";
-import type { ReactElement, ReactNode } from "react";
+import { type ReactElement, type ReactNode, useState } from "react";
 import { countTiles, isAllZero, watchTimeMinutes } from "./stats";
 
 const COUNT = new Intl.NumberFormat("en-US");
@@ -51,6 +53,34 @@ function StatsBlock({
   );
 }
 
+/** Who is signed in: real avatar + display name once `/users/settings` lands,
+ * the neutral glyph + "Trakt account" while loading (or when the read failed —
+ * identity is decoration here, never worth an error state). */
+function IdentityRow({ profile }: { readonly profile: UserProfile | undefined }): ReactElement {
+  const [brokenAvatar, setBrokenAvatar] = useState<string | null>(null);
+  const avatar = profile?.avatar ?? null;
+  const showImage = avatar !== null && avatar !== brokenAvatar;
+  return (
+    <div className="you-identity" data-testid="profile-identity">
+      <span className="you-identity__avatar" aria-hidden="true">
+        {showImage ? (
+          <img src={avatar} alt="" onError={() => setBrokenAvatar(avatar)} />
+        ) : (
+          <CircleUserRound />
+        )}
+      </span>
+      <span className="you-identity__text">
+        <span className="you-identity__name" data-testid="profile-username">
+          {profile?.displayName ?? "Trakt account"}
+        </span>
+        <span className="you-identity__sub" data-testid="connection-status">
+          {profile === undefined ? "Connected" : "Trakt account"}
+        </span>
+      </span>
+    </div>
+  );
+}
+
 const SKELETON_CELLS = [0, 1, 2];
 
 function Skeleton(): ReactElement {
@@ -67,17 +97,17 @@ function Skeleton(): ReactElement {
 }
 
 /**
- * Profile ("You"): a short hub. Who is signed in, the lifetime totals from
- * `/users/me/stats` (one featured watch-time figure over the Episodes / Movies /
- * Shows trio), two bounded nav rows into History and Settings, and Sign out.
- * Keeping the unbounded log off this screen means Settings stays a tap away
- * rather than beneath a decade-deep scroll. Trakt exposes no avatar or username
- * through the reads Cue performs, so the identity row states the connection
- * plainly instead of pretending to a name it doesn't have.
+ * Profile ("You"): a short hub. Who is signed in (`/users/settings` identity,
+ * read once and cached), the lifetime totals from `/users/me/stats` (one
+ * featured watch-time figure over the Episodes / Movies / Shows trio), two
+ * bounded nav rows into History and Settings, and Sign out. Keeping the
+ * unbounded log off this screen means Settings stays a tap away rather than
+ * beneath a decade-deep scroll.
  */
 export function Profile(): ReactElement {
   useDocumentTitle("Profile · Cue");
   const view = useStats();
+  const profile = useUserProfile();
   const showsEnabled = usePrefs((s) => s.showsEnabled);
   const moviesEnabled = usePrefs((s) => s.moviesEnabled);
   const visibility: MediaVisibility = { showsEnabled, moviesEnabled };
@@ -115,17 +145,7 @@ export function Profile(): ReactElement {
       <ScreenHeader title="You" variant="child" />
       <SyncStrip isError={view.isError} onRetry={view.refetch} />
 
-      <div className="you-identity" data-testid="profile-identity">
-        <span className="you-identity__avatar" aria-hidden="true">
-          <CircleUserRound />
-        </span>
-        <span className="you-identity__text">
-          <span className="you-identity__name">Trakt account</span>
-          <span className="you-identity__sub" data-testid="connection-status">
-            Connected
-          </span>
-        </span>
-      </div>
+      <IdentityRow profile={profile} />
 
       {body}
 

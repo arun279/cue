@@ -467,29 +467,44 @@
 
 /* ---- Episode sheet content ---- */
 .ep-sheet {
-  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  padding-top: var(--space-1);
+}
+/* The slim sheet header: with the grabber row above it, 44px of chrome
+ * between the panel edge and the still — the overflow never sits on art. */
+.ep-sheet__header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  height: 28px;
+  margin: calc(-1 * var(--space-1)) 0 calc(-1 * var(--space-2));
 }
 .ep-sheet__overflow {
-  position: absolute;
-  top: 0;
-  right: 0;
-  z-index: 2;
+  position: relative;
   appearance: none;
   border: none;
+  background: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: var(--tap-min);
-  height: var(--tap-min);
+  width: 28px;
+  height: 28px;
+  margin-right: calc(-1 * var(--space-1));
   padding: 0;
   border-radius: var(--radius-pill);
-  background: rgba(10, 8, 6, 0.55);
-  color: var(--color-on-image);
+  color: var(--color-ink2);
   cursor: pointer;
+}
+/* HIT-SLOP: a 28px visual row, a 44px target. */
+.ep-sheet__overflow::after {
+  content: "";
+  position: absolute;
+  inset: min(0px, calc((100% - var(--tap-min)) / 2));
+}
+.ep-sheet__overflow:hover,
+.ep-sheet__overflow:active {
+  color: var(--color-fg);
 }
 .ep-sheet__overflow svg {
   width: 20px;
@@ -534,7 +549,6 @@
 }
 .ep-sheet__meta {
   margin: 0;
-  padding-right: var(--tap-min);
   font-size: 13px;
   font-weight: 500;
   color: var(--color-ink2);

@@ -135,6 +135,9 @@ export function Sheet({
           data-detents={detents}
           data-detent={detent}
           data-dragging={dragY !== null}
+          // Focus the panel itself, not the first control: an auto-focused
+          // button would sit ringed "at rest" before any keyboard intent.
+          onOpenAutoFocus={(e) => e.preventDefault()}
           style={dragY === null ? undefined : { transform: `translateY(${dragY}px)` }}
           onPointerDown={(e) => {
             if (e.pointerType === "mouse" && e.button !== 0) return;

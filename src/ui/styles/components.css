@@ -102,13 +102,17 @@
   stroke-dashoffset: 0;
   transition: stroke-dashoffset 160ms var(--ease-standard) 60ms;
 }
-/* Season-bulk partial: hollow ring with a quiet center dot. */
+/* Season-bulk partial: hollow ring with a quiet center dot. The rest glyph
+ * yields entirely — overlapped strokes read as a smudge at 44px. */
 .check__dot {
   position: absolute;
   width: 6px;
   height: 6px;
   border-radius: var(--radius-pill);
   background: var(--color-muted);
+}
+.check[data-partial="true"] .check__rest {
+  opacity: 0;
 }
 /* Multi-play ×N badge, pinned to the disc's corner. */
 .check__plays {
@@ -860,6 +864,8 @@
   box-shadow: var(--shadow-2);
   transition: transform var(--dur-gentle) var(--ease-emphasized);
   overscroll-behavior: contain;
+  /* The panel takes the dialog's opening focus (a container, not a control). */
+  outline: none;
 }
 .sheet[data-state="open"] {
   animation: sheet-in var(--dur-slow) var(--ease-emphasized);

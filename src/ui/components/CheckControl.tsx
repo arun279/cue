@@ -104,6 +104,7 @@ export function CheckControl({
       data-state={state}
       data-size={size}
       data-mode={mode}
+      {...(partial && !filled ? { "data-partial": "true" } : {})}
       onClick={onPress}
     >
       <span className="check__disc" aria-hidden="true">

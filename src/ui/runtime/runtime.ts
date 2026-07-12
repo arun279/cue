@@ -5,6 +5,7 @@ import type { MovieEntry, MovieHeader } from "@data/trakt/movie-library";
 import type { UserStats } from "@data/trakt/schemas";
 import type { SearchHit } from "@data/trakt/search";
 import type { SeasonView, ShowHeader } from "@data/trakt/show-detail";
+import type { UserProfile } from "@data/trakt/user-profile";
 import type { CalendarEntry } from "@domain/calendar";
 import type { HistoryEntry, HistoryRange } from "@domain/history";
 import type { EpisodePlay, MoviePlay } from "@domain/reversal";
@@ -130,6 +131,8 @@ export interface CueRuntime {
   loadDiscover(): Promise<DiscoverData>;
   /** The signed-in user's lifetime watch stats for the Profile theatre. */
   loadStats(): Promise<UserStats>;
+  /** The signed-in user's Trakt identity (username + avatar) for the Profile header. */
+  loadUserProfile(): Promise<UserProfile>;
   submit(op: QueuedOp): Promise<SubmitOutcome>;
   /**
    * The single freshness gate: fetch `/sync/last_activities`, diff it

@@ -160,12 +160,14 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Wide enough for a tabular "12:11 PM" on one line — the time never wraps. */
 .hist-time {
   flex: none;
-  width: 48px;
+  width: 62px;
   font-size: 12px;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
   color: var(--color-muted);
 }
 .hist-more {
@@ -252,6 +254,12 @@
 .you-identity__avatar svg {
   width: 28px;
   height: 28px;
+}
+.you-identity__avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  object-fit: cover;
 }
 .you-identity__text {
   display: flex;

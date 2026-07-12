@@ -15,6 +15,7 @@ import {
   getShowSeasons,
   getTrendingMovies,
   getTrendingShows,
+  getUserSettings,
   getUserStats,
   getWatchedMovies,
   getWatchedShows,
@@ -235,6 +236,37 @@ describe("Trakt read endpoints zod-parse well-formed fixtures", () => {
     expect(result.ok && "network" in result.data).toBe(false);
   });
 
+  it("parses user settings, stripping everything but the identity block", async () => {
+    getJson("/users/settings", {
+      user: {
+        username: "sean",
+        private: false,
+        name: "Sean Porter",
+        vip: true,
+        ids: { slug: "sean" },
+        images: { avatar: { full: "https://media.trakt.tv/avatar.jpg" } },
+      },
+      account: { timezone: "America/Los_Angeles", token: null },
+      connections: { twitter: false },
+      sharing_text: { watching: null },
+    });
+    const result = await getUserSettings(client);
+    expect(result.ok && result.data.user.username).toBe("sean");
+    expect(result.ok && result.data.user.name).toBe("Sean Porter");
+    expect(result.ok && result.data.user.images?.avatar?.full).toBe(
+      "https://media.trakt.tv/avatar.jpg",
+    );
+    // Stripped extras must not survive the parse.
+    expect(result.ok && "account" in result.data).toBe(false);
+  });
+
+  it("tolerates user settings without a name or avatar", async () => {
+    getJson("/users/settings", { user: { username: "sean" } });
+    const result = await getUserSettings(client);
+    expect(result.ok && result.data.user.username).toBe("sean");
+    expect(result.ok && result.data.user.name).toBeUndefined();
+  });
+
   it("parses last_activities into the domain shape", async () => {
     getJson("/sync/last_activities", {
       all: "2026-07-01T00:00:00.000Z",
@@ -296,6 +328,11 @@ describe("malformed bodies throw a zod error", () => {
   it("throws when user stats omit a required section", async () => {
     getJson("/users/me/stats", { movies: { watched: 1, minutes: 90 }, shows: { watched: 1 } });
     await expect(getUserStats(client)).rejects.toThrow();
+  });
+
+  it("throws when user settings omit the username", async () => {
+    getJson("/users/settings", { user: { name: "No Handle" } });
+    await expect(getUserSettings(client)).rejects.toThrow();
   });
 
   it("throws when the body is not JSON (null)", async () => {

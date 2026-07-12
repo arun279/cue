@@ -143,7 +143,8 @@ export function backfillRangeLabel(
 }
 
 /** The accordion panel to auto-expand: the next episode's season, else the first
- * season with unwatched aired episodes, else the last season. */
+ * season with unwatched aired episodes, else the last numbered season (Specials
+ * sort after the numbered run and are never the default focus). */
 export function currentSeasonValue(
   seasons: readonly SeasonView[],
   next: { readonly season: number } | null,
@@ -155,7 +156,8 @@ export function currentSeasonValue(
   const incomplete = seasons.find(
     (s) => s.number !== 0 && s.episodes.some((e) => e.aired && !e.watched),
   );
-  const fallback = seasons[seasons.length - 1];
+  const numbered = seasons.filter((s) => !s.isSpecial);
+  const fallback = numbered[numbered.length - 1] ?? seasons[seasons.length - 1];
   return `s${(incomplete ?? fallback)?.number ?? 0}`;
 }
 

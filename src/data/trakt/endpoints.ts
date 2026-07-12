@@ -32,7 +32,9 @@ import {
   type TrendingShow,
   trendingMoviesSchema,
   trendingShowsSchema,
+  type UserSettings,
   type UserStats,
+  userSettingsSchema,
   userStatsSchema,
   type WatchedMovie,
   type WatchedShow,
@@ -214,6 +216,11 @@ export async function getRelatedMovies(
 /** The signed-in user's lifetime watch stats: watch-time minutes + distinct counts. */
 export async function getUserStats(client: TraktClient): Promise<TraktResult<UserStats>> {
   return parse(await client.get("/users/me/stats"), userStatsSchema);
+}
+
+/** The signed-in user's account settings; only the identity block is consumed. */
+export async function getUserSettings(client: TraktClient): Promise<TraktResult<UserSettings>> {
+  return parse(await client.get("/users/settings"), userSettingsSchema);
 }
 
 export async function getHidden(client: TraktClient): Promise<TraktResult<HiddenItem[]>> {
