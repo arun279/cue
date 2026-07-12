@@ -36,9 +36,12 @@ pnpm dev       # start the Vite dev server
 pnpm build     # build the static SPA into dist/
 pnpm check     # run the full deterministic check harness
 pnpm e2e       # run the Playwright end-to-end suite
+pnpm e2e:mobile # run focused Pixel/Chromium + iPhone/WebKit checks
 ```
 
-First e2e run only: `pnpm exec playwright install chromium`.
+First e2e run only: `pnpm exec playwright install chromium webkit`.
+
+Use `pnpm e2e:mobile --headed` when you want to watch the mobile browser checks run.
 
 ### Check harness
 

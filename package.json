@@ -20,6 +20,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "e2e": "playwright test",
+    "e2e:mobile": "playwright test --project=mobile-chromium --project=mobile-webkit",
     "check:md": "dprint check",
     "check:spell": "cspell --no-progress --no-summary \"**/*.{ts,tsx,css,md}\"",
     "check:arch": "depcruise src --config .dependency-cruiser.cjs",
