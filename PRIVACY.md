@@ -11,7 +11,7 @@ Cue runs no server of its own. There is no backend, no Cue account, and no datab
 - your Trakt OAuth token (so you stay signed in), and
 - a local cache of the shows, episodes, and history Cue reads from Trakt, plus your in-app settings.
 
-All of your sync state (watch history, watchlist, ratings, progress) lives in **your own Trakt account**, which Cue reaches directly over HTTPS. Cue never proxies your data through any intermediary because there is no intermediary.
+All of your sync state (watch history, watchlist, progress) lives in **your own Trakt account**, which Cue reaches directly over HTTPS. Cue never proxies your data through any intermediary because there is no intermediary.
 
 ## No analytics, no telemetry
 
@@ -19,7 +19,7 @@ Cue collects no analytics and sends no telemetry. It makes no network requests e
 
 ## Deleting your data
 
-- **Cue's on-device data:** open **Settings → Disconnect Trakt**. Disconnecting revokes this device's access to your Trakt account, signs you out, and deletes the local cache and Trakt token stored on the device. Uninstalling the app removes the same data.
+- **Cue's on-device data:** open **Settings → Sign out**. Signing out revokes this device's access to your Trakt account and deletes Cue's local settings, cache, and Trakt token stored on the device. Uninstalling the app removes the same data.
 - **Your Trakt account itself:** Cue cannot delete it: Cue has no account of its own and no server-side copy of your data to delete. Only Trakt can delete a Trakt account. Do it at <https://app.trakt.tv/settings/advanced>.
 
 ## Hosting this document

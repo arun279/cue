@@ -63,8 +63,3 @@ export function getSeasonMarkDelta(
 ): ReadonlySet<number> | undefined {
   return useSeasonReversalStore.getState().deltas.get(keyOf(showId, season));
 }
-
-/** Reactive: does this season carry a reversible mark delta (so it can offer Unmark)? */
-export function useHasSeasonReversal(showId: number, season: number): boolean {
-  return useSeasonReversalStore((state) => state.deltas.has(keyOf(showId, season)));
-}

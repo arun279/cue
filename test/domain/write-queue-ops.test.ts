@@ -1,16 +1,16 @@
 import {
+  buildAddEpisodePlayOp,
   buildAddWatchlistOp,
   buildHideShowOp,
   buildMarkEpisodeOp,
   buildMarkMovieOp,
-  buildRateOp,
   buildRemoveHistoryPlayOp,
   buildRemovePlaysOp,
   buildRemoveWatchlistOp,
   buildUnhideShowOp,
   buildUnmarkEpisodeOp,
   buildUnmarkMovieOp,
-  buildUnrateOp,
+  episodeItemKey,
 } from "@domain/write-queue/ops";
 import { describe, expect, it } from "vitest";
 
@@ -37,6 +37,27 @@ describe("single-item history op builders", () => {
       toState: "present",
       reconcileKeys: ["progress/watched", "watched/shows"],
     });
+  });
+
+  it("exports the episode item key the mark ops coalesce on", () => {
+    expect(episodeItemKey(42)).toBe(
+      buildMarkEpisodeOp({ opId: "op-k", ids: { trakt: 42 }, watchedAt: WATCHED_AT }).itemKey,
+    );
+  });
+
+  it("builds an additive play with a mark's request but an opId-unique item key", () => {
+    const add = buildAddEpisodePlayOp({ opId: "op-a", ids: { trakt: 42 }, watchedAt: WATCHED_AT });
+    const mark = buildMarkEpisodeOp({ opId: "op-a", ids: { trakt: 42 }, watchedAt: WATCHED_AT });
+    expect(add.request).toEqual(mark.request);
+    expect(add.toState).toBe("present");
+    expect(add.itemKey).toBe("episode:42:add:op-a");
+    // Two deliberate extra plays never collapse into one either.
+    const again = buildAddEpisodePlayOp({
+      opId: "op-b",
+      ids: { trakt: 42 },
+      watchedAt: WATCHED_AT,
+    });
+    expect(again.itemKey).not.toBe(add.itemKey);
   });
 
   it("unmarking an episode inverts the request/inverse (remove-by-item, all plays)", () => {
@@ -213,80 +234,6 @@ describe("buildRemovePlaysOp (durable per-play-safe unmark)", () => {
         ],
       },
     });
-  });
-});
-
-describe("rating op builders", () => {
-  it("rates a show: add request, remove inverse, no watched_at, coalescing item key", () => {
-    const op = buildRateOp({ opId: "r-1", section: "shows", ids: { trakt: 1 }, rating: 9 });
-    expect(op.request).toEqual({
-      method: "POST",
-      path: "/sync/ratings",
-      body: { shows: [{ ids: { trakt: 1 }, rating: 9 }] },
-    });
-    expect(op.inverse).toEqual({
-      method: "POST",
-      path: "/sync/ratings/remove",
-      body: { shows: [{ ids: { trakt: 1 } }] },
-    });
-    expect(op).toMatchObject({
-      itemKey: "rating:shows:1",
-      watchedAt: null,
-      fromState: "absent",
-      toState: "present",
-      reconcileKeys: ["ratings/shows"],
-    });
-  });
-
-  it("rates an episode with the episodes[] shape", () => {
-    const op = buildRateOp({ opId: "r-2", section: "episodes", ids: { trakt: 42 }, rating: 7 });
-    expect(op.request.body).toEqual({ episodes: [{ ids: { trakt: 42 }, rating: 7 }] });
-    expect(op.itemKey).toBe("rating:episodes:42");
-  });
-
-  it("a re-rate's inverse restores the previous rating (Undo of 6 → 8 returns to 6, not remove)", () => {
-    const op = buildRateOp({
-      opId: "r-4",
-      section: "shows",
-      ids: { trakt: 1 },
-      rating: 8,
-      previousRating: 6,
-    });
-    expect(op.request.body).toEqual({ shows: [{ ids: { trakt: 1 }, rating: 8 }] });
-    expect(op.inverse).toEqual({
-      method: "POST",
-      path: "/sync/ratings",
-      body: { shows: [{ ids: { trakt: 1 }, rating: 6 }] },
-    });
-    expect(op).toMatchObject({ fromState: "present", toState: "present" });
-  });
-
-  it("a first rating (no previous) inverts to a remove", () => {
-    const op = buildRateOp({
-      opId: "r-5",
-      section: "shows",
-      ids: { trakt: 1 },
-      rating: 8,
-      previousRating: null,
-    });
-    expect(op.inverse.path).toBe("/sync/ratings/remove");
-    expect(op.fromState).toBe("absent");
-  });
-
-  it("removes a rating; its inverse restores the previous value for Undo", () => {
-    const op = buildUnrateOp({
-      opId: "r-3",
-      section: "shows",
-      ids: { trakt: 1 },
-      previousRating: 6,
-    });
-    expect(op.request).toEqual({
-      method: "POST",
-      path: "/sync/ratings/remove",
-      body: { shows: [{ ids: { trakt: 1 } }] },
-    });
-    expect(op.inverse.body).toEqual({ shows: [{ ids: { trakt: 1 }, rating: 6 }] });
-    expect(op).toMatchObject({ fromState: "present", toState: "absent" });
   });
 });
 

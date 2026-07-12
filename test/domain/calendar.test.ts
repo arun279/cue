@@ -15,6 +15,7 @@ function entry(
     episodeTitle: "Pilot",
     ids: { trakt: overrides.showId * 100 },
     posters: [],
+    network: null,
     tmdbId: null,
     ...overrides,
   };

@@ -52,6 +52,33 @@ export async function installHermeticRoutes(context: BrowserContext): Promise<He
     }),
   );
 
+  // Profile's identity read (`/users/settings`): the array catch-all would fail
+  // the object schema, so answer with a stable identity fixture.
+  await context.route("**/api.trakt.tv/users/settings*", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        user: {
+          username: "test-user",
+          name: "Test User",
+          images: { avatar: { full: "https://media.trakt.tv/avatar.png" } },
+        },
+      }),
+    }),
+  );
+
+  // Serve any Trakt-hosted image (posters, avatars) as a real 1×1 PNG so image
+  // loads resolve deterministically. Suites that install richer harnesses
+  // re-register this same route; the last registration wins either way.
+  const pngPixel = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+    "base64",
+  );
+  await context.route("**/media.trakt.tv/**", (route) =>
+    route.fulfill({ status: 200, contentType: "image/png", body: pngPixel }),
+  );
+
   // The freshness gate polls `/sync/last_activities`; the array catch-all would
   // fail the object schema, so answer with a valid empty stamp table: a boot with
   // no baseline commits it and invalidates nothing (a clean no-op poll).
@@ -147,6 +174,17 @@ export async function seedMediaVisibility(
     localStorage.setItem("cue.shows-enabled", v.showsEnabled ? "1" : "0");
     localStorage.setItem("cue.movies-enabled", v.moviesEnabled ? "1" : "0");
   }, visibility);
+}
+
+/**
+ * Pre-dismiss the one-time mark tutorial caption so Up Next suites that aren't
+ * about the tutorial never render (or race) it. The caption is keyed on this
+ * localStorage flag and dies permanently on the first-ever mark.
+ */
+export async function seedTutorialDismissed(context: BrowserContext): Promise<void> {
+  await context.addInitScript(() => {
+    localStorage.setItem("cue.tutorial-mark-dismissed", "1");
+  });
 }
 
 /**
@@ -338,8 +376,8 @@ export interface ShowFixture {
   inWatchlist?: boolean;
   /**
    * Episode trakt ids that carry a SECOND play (a rewatch), so the scoped-history
-   * resolver returns two plays for them. A durable unmark must keep these intact:
-   * the durable per-play-safe reversal test asserts their plays survive.
+   * resolver returns two plays for them. A durable unmark must keep these intact.
+   * Mutated in place when a per-play remove targets the rewatch play (`id*10+2`).
    */
   rewatchedEpisodeIds?: readonly number[];
 }
@@ -369,8 +407,6 @@ export interface CapturedWrite {
   /** The `movies[]` trakt ids of a watchlist write: kept distinct from `showIds`
    * so a rail add can prove a movie hit routed to the movie section, not shows[]. */
   readonly movieIds?: readonly number[];
-  /** The rating value on a `/sync/ratings` write (null on a remove). */
-  readonly rating?: number | null;
   /** The keys present on the first captured `episodes[]` item (proves all-plays remove = ids only). */
   readonly episodeItemKeys?: readonly string[];
   /** The `{ ids: [...] }` history-event ids of a per-play remove (durable unmark). */
@@ -393,11 +429,11 @@ export interface LibraryControls {
   historyPosts: () => readonly CapturedWrite[];
   removePosts: () => readonly CapturedWrite[];
   hiddenPosts: () => readonly CapturedWrite[];
-  ratingPosts: () => readonly CapturedWrite[];
-  ratingRemovePosts: () => readonly CapturedWrite[];
   watchlistPosts: () => readonly CapturedWrite[];
   watchlistRemovePosts: () => readonly CapturedWrite[];
   progressReads: () => number;
+  /** The `extended` query param the most recent progress read carried. */
+  progressExtended: () => string | null;
 }
 
 interface HistoryBody {
@@ -413,15 +449,17 @@ interface HistoryBody {
  * carries one play (id `trakt*10 + 1`); a rewatched episode carries a second (id
  * `trakt*10 + 2`). The floor(id/10) = episode trakt id, so a `{ ids }` remove maps
  * back to episodes and drives the same linear counter: keeping the season tree,
- * the resolver, and per-play removal mutually consistent.
+ * the resolver, and per-play removal mutually consistent. `markedAt` carries the
+ * exact `watched_at` a session mark POSTed for an episode: the per-play undo
+ * resolves the play to remove by that timestamp, so plays must echo it.
  */
-function playHistoryRows(show: ShowFixture): unknown[] {
-  const watchedAt = show.lastWatchedAt ?? "2026-06-01T00:00:00.000Z";
+function playHistoryRows(show: ShowFixture, markedAt: ReadonlyMap<number, string>): unknown[] {
+  const defaultAt = show.lastWatchedAt ?? "2026-06-01T00:00:00.000Z";
   const rows: unknown[] = [];
   show.episodes.forEach((ep, index) => {
     if (index >= show.completed) return;
     const item = {
-      watched_at: watchedAt,
+      watched_at: markedAt.get(ep.traktId) ?? defaultAt,
       action: "scrobble",
       type: "episode",
       episode: {
@@ -533,6 +571,9 @@ function progressBody(show: ShowFixture): string {
             title: next.title,
             first_aired: next.firstAired,
             ids: { trakt: next.traktId },
+            // The progress read now rides `extended=full,images`, so a fixture
+            // episode with stills carries its screenshot inline (EpisodeRef.still).
+            images: next.stills === undefined ? {} : { screenshot: next.stills },
           },
     seasons: progressSeasons(show),
   });
@@ -631,7 +672,11 @@ export async function installLibraryRoutes(
   let failedProgressIds = new Set<number>();
   const writes: CapturedWrite[] = [];
   let progressReads = 0;
+  let progressExtended: string | null = null;
   let progressRateLimitBudget = 0;
+  // The exact watched_at each session mark POSTed, keyed by episode trakt id:
+  // echoed on the scoped-history plays so the per-play undo can resolve them.
+  const markedAt = new Map<number, string>();
 
   // A mutable `/sync/last_activities` stamp table. Seeded newer than any baseline
   // snapshot a test seeds, so a boot with an OLDER stored snapshot diffs a change;
@@ -689,7 +734,9 @@ export async function installLibraryRoutes(
 
   await context.route("**/api.trakt.tv/shows/*/progress/watched*", async (route) => {
     progressReads += 1;
-    const id = Number(new URL(route.request().url()).pathname.split("/")[2]);
+    const url = new URL(route.request().url());
+    progressExtended = url.searchParams.get("extended");
+    const id = Number(url.pathname.split("/")[2]);
     if (readMode === "abort" || failedProgressIds.has(id)) return route.abort();
     if (progressRateLimitBudget > 0) {
       progressRateLimitBudget -= 1;
@@ -790,17 +837,55 @@ export async function installLibraryRoutes(
     const firstEpisode = body.episodes?.[0];
     const episodeItemKeys = firstEpisode === undefined ? undefined : Object.keys(firstEpisode);
     const path = remove ? "/sync/history/remove" : "/sync/history";
-    // A per-play remove-by-history-id (the durable unmark): map each history id back
-    // to its episode (floor(id/10)) so it drives the same linear `completed` counter.
+    // A per-play remove-by-history-id (the durable unmark). Only a PRIMARY play
+    // (`id*10 + 1`) moves the linear `completed` counter; removing a rewatch
+    // play (`id*10 + 2`) keeps the episode watched and just clears its flag.
     const idBody = body.ids;
-    const idEpisodeIds =
-      idBody === undefined ? [] : [...new Set(idBody.map((id) => Math.floor(id / 10)))];
+    const primaryEpisodeIds =
+      idBody === undefined
+        ? []
+        : [...new Set(idBody.filter((id) => id % 10 === 1).map((id) => Math.floor(id / 10)))];
+    const rewatchEpisodeIds =
+      idBody === undefined
+        ? []
+        : idBody.filter((id) => id % 10 === 2).map((id) => Math.floor(id / 10));
     writes.push({ path, episodeIds, watchedAt, shows: showBodies, episodeItemKeys, ids: idBody });
+
+    // Stamp the exact watched_at each mark posted: the per-play undo resolves
+    // the play to remove by this timestamp on the scoped-history read.
+    if (!remove) {
+      for (const item of body.episodes ?? []) {
+        if (item.ids?.trakt !== undefined && item.watched_at !== undefined) {
+          markedAt.set(item.ids.trakt, item.watched_at);
+        }
+      }
+      for (const bulk of body.shows ?? []) {
+        const show = shows.find((s) => s.trakt === bulk.ids?.trakt);
+        if (show === undefined || bulk.watched_at === undefined) continue;
+        for (const season of bulk.seasons ?? []) {
+          for (const epRef of season.episodes ?? []) {
+            const ep = show.episodes.find(
+              (e) => e.season === season.number && e.number === epRef.number,
+            );
+            if (ep !== undefined) markedAt.set(ep.traktId, bulk.watched_at);
+          }
+        }
+      }
+    }
 
     const apply = (): void => {
       applyWrite(shows, episodeIds, remove);
-      applyWrite(shows, idEpisodeIds, remove);
+      applyWrite(shows, primaryEpisodeIds, remove);
       applyBulkWrite(shows, showBodies, remove);
+      if (remove) {
+        for (const epId of rewatchEpisodeIds) {
+          for (const show of shows) {
+            if (show.rewatchedEpisodeIds?.includes(epId)) {
+              show.rewatchedEpisodeIds = show.rewatchedEpisodeIds.filter((id) => id !== epId);
+            }
+          }
+        }
+      }
     };
 
     if (!remove && writeMode === "abort") return route.abort();
@@ -841,7 +926,7 @@ export async function installLibraryRoutes(
     return route.fulfill({
       status: 200,
       headers: JSON_HEADERS,
-      body: show === undefined ? "[]" : JSON.stringify(playHistoryRows(show)),
+      body: show === undefined ? "[]" : JSON.stringify(playHistoryRows(show, markedAt)),
     });
   });
   await context.route("**/api.trakt.tv/sync/history/episodes/*", (route) => {
@@ -851,87 +936,11 @@ export async function installLibraryRoutes(
     const rows =
       show === undefined
         ? []
-        : playHistoryRows(show).filter(
+        : playHistoryRows(show, markedAt).filter(
             (r) => (r as { episode: { ids: { trakt: number } } }).episode.ids.trakt === id,
           );
     return route.fulfill({ status: 200, headers: JSON_HEADERS, body: JSON.stringify(rows) });
   });
-
-  // ---- Ratings (stateful: GET reflects captured POSTs) ----
-  const showRatings = new Map<number, number>();
-  const episodeRatings = new Map<number, number>();
-
-  const findEpisode = (trakt: number): EpisodeFixture | undefined => {
-    for (const show of shows) {
-      const ep = show.episodes.find((e) => e.traktId === trakt);
-      if (ep !== undefined) return ep;
-    }
-    return undefined;
-  };
-
-  const handleRatings = (remove: boolean) => (route: import("@playwright/test").Route) => {
-    const body = (route.request().postDataJSON() ?? {}) as {
-      shows?: { ids?: { trakt?: number }; rating?: number }[];
-      episodes?: { ids?: { trakt?: number }; rating?: number }[];
-    };
-    const showIds = (body.shows ?? []).map((s) => s.ids?.trakt ?? -1);
-    const episodeIds = (body.episodes ?? []).map((e) => e.ids?.trakt ?? -1);
-    const rating = body.shows?.[0]?.rating ?? body.episodes?.[0]?.rating ?? null;
-    for (const id of showIds) {
-      if (remove) showRatings.delete(id);
-      else if (rating !== null) showRatings.set(id, rating);
-    }
-    for (const id of episodeIds) {
-      if (remove) episodeRatings.delete(id);
-      else if (rating !== null) episodeRatings.set(id, rating);
-    }
-    writes.push({
-      path: remove ? "/sync/ratings/remove" : "/sync/ratings",
-      episodeIds,
-      showIds,
-      rating,
-      watchedAt: null,
-    });
-    return route.fulfill({
-      status: 200,
-      headers: JSON_HEADERS,
-      body: JSON.stringify({ [remove ? "deleted" : "added"]: {} }),
-    });
-  };
-
-  await context.route("**/api.trakt.tv/sync/ratings/shows*", (route) => {
-    if (route.request().method() === "POST") return handleRatings(false)(route);
-    return route.fulfill({
-      status: 200,
-      headers: JSON_HEADERS,
-      body: JSON.stringify(
-        [...showRatings.entries()].map(([trakt, rating]) => ({
-          type: "show",
-          rating,
-          show: { title: shows.find((s) => s.trakt === trakt)?.title ?? "", ids: { trakt } },
-        })),
-      ),
-    });
-  });
-  await context.route("**/api.trakt.tv/sync/ratings/episodes*", (route) => {
-    if (route.request().method() === "POST") return handleRatings(false)(route);
-    return route.fulfill({
-      status: 200,
-      headers: JSON_HEADERS,
-      body: JSON.stringify(
-        [...episodeRatings.entries()].map(([trakt, rating]) => {
-          const ep = findEpisode(trakt);
-          return {
-            type: "episode",
-            rating,
-            episode: { season: ep?.season ?? 0, number: ep?.number ?? 0, ids: { trakt } },
-          };
-        }),
-      ),
-    });
-  });
-  await context.route("**/api.trakt.tv/sync/ratings", handleRatings(false));
-  await context.route("**/api.trakt.tv/sync/ratings/remove", handleRatings(true));
 
   // ---- Watchlist writes (mutate `inWatchlist` so the GET + To-watch bucket reflect it) ----
   const handleWatchlist = (remove: boolean) => (route: import("@playwright/test").Route) => {
@@ -985,11 +994,10 @@ export async function installLibraryRoutes(
     historyPosts: () => writes.filter((w) => w.path === "/sync/history"),
     removePosts: () => writes.filter((w) => w.path === "/sync/history/remove"),
     hiddenPosts: () => writes.filter((w) => w.path === "/users/hidden/progress_watched"),
-    ratingPosts: () => writes.filter((w) => w.path === "/sync/ratings"),
-    ratingRemovePosts: () => writes.filter((w) => w.path === "/sync/ratings/remove"),
     watchlistPosts: () => writes.filter((w) => w.path === "/sync/watchlist"),
     watchlistRemovePosts: () => writes.filter((w) => w.path === "/sync/watchlist/remove"),
     progressReads: () => progressReads,
+    progressExtended: () => progressExtended,
   };
 }
 
@@ -1040,6 +1048,65 @@ export function seededMarkOp(opts: {
       body: { episodes: [{ ids: { trakt: opts.episodeId } }] },
     },
     inversePatch: { showId: opts.showId, preCompleted: opts.preCompleted },
+    watchedAt: opts.watchedAt,
+    fromState: "absent",
+    toState: "present",
+    reconcileKeys: ["progress/watched", "watched/shows"],
+  };
+}
+
+/** A persisted additive episode play carrying its watched-at play probe. */
+export function seededAdditiveEpisodeOp(opts: {
+  readonly episodeId: number;
+  readonly watchedAt: string;
+}): unknown {
+  return {
+    id: `seeded-additive-${opts.episodeId}`,
+    itemKey: `episode:${opts.episodeId}:add:seeded`,
+    request: {
+      method: "POST",
+      path: "/sync/history",
+      body: { episodes: [{ ids: { trakt: opts.episodeId }, watched_at: opts.watchedAt }] },
+    },
+    inverse: {
+      method: "POST",
+      path: "/sync/history/remove",
+      body: { episodes: [{ ids: { trakt: opts.episodeId } }] },
+    },
+    inversePatch: { kind: "additive-episode", episodeTrakt: opts.episodeId },
+    watchedAt: opts.watchedAt,
+    fromState: "absent",
+    toState: "present",
+    reconcileKeys: ["progress/watched", "watched/shows"],
+  };
+}
+
+/** A persisted additive season chunk carrying its first represented episode probe. */
+export function seededAdditiveSeasonOp(opts: {
+  readonly showId: number;
+  readonly season: number;
+  readonly number: number;
+  readonly watchedAt: string;
+}): unknown {
+  const seasons = [{ number: opts.season, episodes: [{ number: opts.number }] }];
+  return {
+    id: `seeded-additive-season-${opts.showId}`,
+    itemKey: `show:${opts.showId}:bulk:seeded:add:seeded`,
+    request: {
+      method: "POST",
+      path: "/sync/history",
+      body: { shows: [{ ids: { trakt: opts.showId }, watched_at: opts.watchedAt, seasons }] },
+    },
+    inverse: {
+      method: "POST",
+      path: "/sync/history/remove",
+      body: { shows: [{ ids: { trakt: opts.showId }, seasons }] },
+    },
+    inversePatch: {
+      kind: "additive-season",
+      showId: opts.showId,
+      probe: { season: opts.season, number: opts.number },
+    },
     watchedAt: opts.watchedAt,
     fromState: "absent",
     toState: "present",
@@ -1131,12 +1198,13 @@ function persistedEntry(index: number): unknown {
       number: 4,
       title: "Cached Next",
       firstAired: airedIso,
+      still: null,
       ids: { trakt: 40000 + index },
     },
     // A persisted entry is one the running app wrote from fetched progress, so its
     // watch state is authoritative: never `sync-pending`. Matches the current
-    // (cue-m6) schema `assembleLibrary` writes; omitting it would model a pre-m6
-    // cache the buster now drops.
+    // (cue-m7) schema `assembleLibrary` writes (`nextEpisode.still` included);
+    // omitting fields would model a pre-m7 cache the buster now drops.
     progressKnown: true,
     posters: [],
     backdrops: [],
@@ -1153,7 +1221,7 @@ function persistedEntry(index: number): unknown {
  * up-next entries. `buster` defaults to the app's current `PERSIST_BUSTER`; pass
  * an older value to simulate a pre-migration cache the persister must drop.
  */
-export function buildPersistedLibrary(count: number, ageMs: number, buster = "cue-m6"): string {
+export function buildPersistedLibrary(count: number, ageMs: number, buster = "cue-m7"): string {
   const updatedAt = Date.now() - ageMs;
   const entries = Array.from({ length: count }, (_, index) => persistedEntry(index));
   return JSON.stringify({
@@ -1282,19 +1350,9 @@ export interface CalendarRequest {
   readonly days: number;
 }
 
-/** `ok` applies+200; `delay` holds the POST open so the op stays durable; `rate-limit-once`
- * 429s the first attempt (Retry-After) then applies; `reject` hard-fails (403) so the durable
- * queue rolls the optimistic mark back. */
-export type CalendarWriteMode = "ok" | "delay" | "rate-limit-once" | "reject";
-
 export interface CalendarControls {
-  /** Every `/calendars/my/shows/{start}/{days}` request, in order (proves widen refetches). */
+  /** Every `/calendars/my/shows/{start}/{days}` request, in order (proves the window). */
   calendarRequests: () => readonly CalendarRequest[];
-  /** Captured `POST /sync/history` attempts (proves the quick mark-watched fired + retried). */
-  historyPosts: () => readonly CapturedWrite[];
-  /** Captured `POST /sync/history/remove` attempts (proves the point-of-action Undo fired). */
-  removePosts: () => readonly CapturedWrite[];
-  setWriteMode: (mode: CalendarWriteMode) => void;
 }
 
 function calendarItemBody(items: readonly CalendarEpisodeFixture[]): string {
@@ -1313,9 +1371,12 @@ function calendarItemBody(items: readonly CalendarEpisodeFixture[]): string {
 }
 
 /**
- * Intercept the Upcoming read+write surface: the personalized calendar window
- * (filtered by the requested `days` so widening genuinely adds rows), the hidden
- * set (excluded client-side), and history writes from the quick mark-watched.
+ * Intercept the Calendar read surface: the personalized calendar window
+ * (filtered by the requested `days`) and the hidden set (excluded client-side).
+ * The redesigned Calendar is read-only. Aired episodes are marked from Up
+ * Next, so no write routes live here; a suite that needs both the calendar
+ * AND the library write engine registers this FIRST so the library's
+ * `/sync/history` handlers (registered later) win their shared paths.
  * Register AFTER `installHermeticRoutes` so these specific routes win.
  */
 export async function installCalendarRoutes(
@@ -1324,9 +1385,6 @@ export async function installCalendarRoutes(
   hiddenShowIds: readonly number[] = [],
 ): Promise<CalendarControls> {
   const requests: CalendarRequest[] = [];
-  const writes: CapturedWrite[] = [];
-  let writeMode: CalendarWriteMode = "ok";
-  let rateLimitConsumed = false;
 
   await context.route("**/api.trakt.tv/calendars/my/shows/*/*", (route) => {
     const parts = new URL(route.request().url()).pathname.split("/");
@@ -1356,57 +1414,7 @@ export async function installCalendarRoutes(
     }),
   );
 
-  await context.route("**/api.trakt.tv/sync/history", async (route) => {
-    const body = (route.request().postDataJSON() ?? {}) as {
-      episodes?: { ids?: { trakt?: number }; watched_at?: string }[];
-    };
-    const episodeIds = (body.episodes ?? []).map((e) => e.ids?.trakt ?? -1);
-    writes.push({
-      path: "/sync/history",
-      episodeIds,
-      watchedAt: body.episodes?.[0]?.watched_at ?? null,
-    });
-    if (writeMode === "reject") {
-      return route.fulfill({ status: 403, headers: JSON_HEADERS, body: "{}" });
-    }
-    if (writeMode === "rate-limit-once" && !rateLimitConsumed) {
-      rateLimitConsumed = true;
-      return route.fulfill({
-        status: 429,
-        headers: { ...JSON_HEADERS, "retry-after": "1" },
-        body: "{}",
-      });
-    }
-    if (writeMode === "delay") await sleep(5000);
-    return route.fulfill({
-      status: 200,
-      headers: JSON_HEADERS,
-      body: JSON.stringify({ added: { episodes: episodeIds.length } }),
-    });
-  });
-
-  // The Undo's compensating remove.
-  await context.route("**/api.trakt.tv/sync/history/remove", (route) => {
-    const body = (route.request().postDataJSON() ?? {}) as {
-      episodes?: { ids?: { trakt?: number } }[];
-    };
-    const episodeIds = (body.episodes ?? []).map((e) => e.ids?.trakt ?? -1);
-    writes.push({ path: "/sync/history/remove", episodeIds, watchedAt: null });
-    return route.fulfill({
-      status: 200,
-      headers: JSON_HEADERS,
-      body: JSON.stringify({ deleted: { episodes: episodeIds.length } }),
-    });
-  });
-
-  return {
-    calendarRequests: () => requests,
-    historyPosts: () => writes.filter((w) => w.path === "/sync/history"),
-    removePosts: () => writes.filter((w) => w.path === "/sync/history/remove"),
-    setWriteMode: (mode) => {
-      writeMode = mode;
-    },
-  };
+  return { calendarRequests: () => requests };
 }
 
 /** A movie fixture for the movie-library + detail + mark-watched surface. */
@@ -1427,6 +1435,8 @@ export interface MovieFixture {
   watched: boolean;
   /** Mutated in place by intercepted watchlist writes so the Watchlist shelf stays consistent. */
   inWatchlist?: boolean;
+  /** A second play (a rewatch): the per-play-safe unmark must refuse the wipe. */
+  readonly rewatched?: boolean;
 }
 
 export interface CapturedMovieWrite {
@@ -1435,6 +1445,8 @@ export interface CapturedMovieWrite {
   readonly watchedAt: string | null;
   /** The keys on the first `movies[]` item (proves an all-plays remove is ids only). */
   readonly movieItemKeys?: readonly string[];
+  /** The `{ ids: [...] }` history-event ids of a per-play remove (durable unmark). */
+  readonly ids?: readonly number[];
 }
 
 export interface MovieControls {
@@ -1590,15 +1602,21 @@ export async function installMovieRoutes(
   const handleHistory = (remove: boolean) => (route: import("@playwright/test").Route) => {
     const body = (route.request().postDataJSON() ?? {}) as {
       movies?: { ids?: { trakt?: number }; watched_at?: string }[];
+      /** A per-play remove-by-history-id (the durable per-play-safe unmark). */
+      ids?: number[];
     };
     const items = body.movies ?? [];
-    const movieIds = items.map((m) => m.ids?.trakt ?? -1);
+    // Per-play removes carry `{ ids }`: map each history id back to its movie
+    // (floor(id/10) = movie trakt id) so the watched flag stays consistent.
+    const idMovieIds = (body.ids ?? []).map((id) => Math.floor(id / 10));
+    const movieIds = [...items.map((m) => m.ids?.trakt ?? -1), ...idMovieIds];
     for (const movie of movies) if (movieIds.includes(movie.trakt)) movie.watched = !remove;
     writes.push({
       path: remove ? "/sync/history/remove" : "/sync/history",
       movieIds,
       watchedAt: items[0]?.watched_at ?? null,
       movieItemKeys: items[0] === undefined ? undefined : Object.keys(items[0]),
+      ids: body.ids,
     });
     return route.fulfill({
       status: 200,
@@ -1608,6 +1626,28 @@ export async function installMovieRoutes(
   };
   await context.route("**/api.trakt.tv/sync/history", handleHistory(false));
   await context.route("**/api.trakt.tv/sync/history/remove", handleHistory(true));
+
+  // The scoped-history resolver behind the durable per-play unmark: the plays a
+  // movie currently holds (one per watch, id `trakt*10 + 1`; a rewatched movie
+  // carries a second, `trakt*10 + 2`).
+  await context.route("**/api.trakt.tv/sync/history/movies/*", (route) => {
+    const id = Number(new URL(route.request().url()).pathname.split("/")[4]);
+    const movie = movies.find((m) => m.trakt === id);
+    const rows =
+      movie === undefined || !movie.watched
+        ? []
+        : [
+            { id: movie.trakt * 10 + 1 },
+            ...(movie.rewatched === true ? [{ id: movie.trakt * 10 + 2 }] : []),
+          ].map((play) => ({
+            id: play.id,
+            watched_at: "2026-06-01T00:00:00.000Z",
+            action: "watch",
+            type: "movie",
+            movie: movieObject(movie),
+          }));
+    return route.fulfill({ status: 200, headers: JSON_HEADERS, body: JSON.stringify(rows) });
+  });
 
   const handleWatchlist = (remove: boolean) => (route: import("@playwright/test").Route) => {
     const body = (route.request().postDataJSON() ?? {}) as {
@@ -1654,6 +1694,8 @@ export interface SearchControls {
   searchQueries: () => readonly string[];
   /** Captured `POST /sync/watchlist` writes (proves the inline Add fired). */
   watchlistPosts: () => readonly CapturedWrite[];
+  /** Captured `POST /sync/watchlist/remove` writes (the add snackbar's Undo). */
+  watchlistRemovePosts: () => readonly CapturedWrite[];
 }
 
 function searchResultBody(hits: readonly SearchHitFixture[]): string {
@@ -1692,25 +1734,37 @@ export async function installSearchRoutes(
     });
   });
 
-  await context.route("**/api.trakt.tv/sync/watchlist", (route) => {
+  const handleWatchlist = (remove: boolean) => (route: import("@playwright/test").Route) => {
     const body = (route.request().postDataJSON() ?? {}) as {
       shows?: { ids?: { trakt?: number } }[];
       movies?: { ids?: { trakt?: number } }[];
     };
     const showIds = [...(body.shows ?? []), ...(body.movies ?? [])].map((s) => s.ids?.trakt ?? -1);
-    writes.push({ path: "/sync/watchlist", episodeIds: [], showIds, watchedAt: null });
+    writes.push({
+      path: remove ? "/sync/watchlist/remove" : "/sync/watchlist",
+      episodeIds: [],
+      showIds,
+      watchedAt: null,
+    });
     return route.fulfill({
       status: 200,
       headers: JSON_HEADERS,
       body: JSON.stringify({
-        added: { shows: body.shows?.length ?? 0, movies: body.movies?.length ?? 0 },
+        [remove ? "deleted" : "added"]: {
+          shows: body.shows?.length ?? 0,
+          movies: body.movies?.length ?? 0,
+        },
       }),
     });
-  });
+  };
+  await context.route("**/api.trakt.tv/sync/watchlist", handleWatchlist(false));
+  // The snackbar Undo's inverse; registered after the add so each exact path wins.
+  await context.route("**/api.trakt.tv/sync/watchlist/remove", handleWatchlist(true));
 
   return {
     searchQueries: () => queries,
     watchlistPosts: () => writes.filter((w) => w.path === "/sync/watchlist"),
+    watchlistRemovePosts: () => writes.filter((w) => w.path === "/sync/watchlist/remove"),
   };
 }
 
@@ -1842,6 +1896,8 @@ export interface HistoryRemoveCapture {
 export type HistoryRemoveMode = "ok" | "reject" | "hold";
 
 export interface HistoryControls {
+  /** Number of paged `/users/me/history` GETs served. */
+  historyReads: () => number;
   /** Captured `POST /sync/history/remove` bodies (the per-play removals). */
   removePosts: () => readonly HistoryRemoveCapture[];
   /** Captured `POST /sync/history` bodies (the best-effort Undo re-adds). */
@@ -1901,8 +1957,10 @@ export async function installHistoryRoutes(
   let addMode: "ok" | "reject" = "ok";
   let removeReleaseAs: "ok" | "reject" = "ok";
   let releaseHeld: (() => void) | null = null;
+  let reads = 0;
 
   await context.route(/\/users\/me\/history(\/episodes|\/movies)?(\?|$)/, (route) => {
+    reads += 1;
     const url = new URL(route.request().url());
     const path = url.pathname;
     const page = Number(url.searchParams.get("page") ?? "1");
@@ -1988,6 +2046,7 @@ export async function installHistoryRoutes(
   });
 
   return {
+    historyReads: () => reads,
     removePosts: () => removes,
     addPosts: () => adds,
     setRemoveMode: (mode) => {

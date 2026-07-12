@@ -1,6 +1,6 @@
 import { createLazyRoute } from "@tanstack/react-router";
-import { Upcoming } from "@ui/screens/upcoming/Upcoming";
+import { Calendar } from "@ui/screens/calendar/Calendar";
 
 export const Route = createLazyRoute("/calendar")({
-  component: Upcoming,
+  component: Calendar,
 });

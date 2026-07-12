@@ -4,17 +4,20 @@ Cue is a personal, zero-backend TV and movie tracker that syncs to your own [Tra
 
 ## Features
 
-- **Up Next**: a poster-first queue of the next episode to watch across every show you follow, with one-tap mark-as-watched (optimistic, undoable, durable through offline).
-- **My Shows**: your full library bucketed by status (watching, up next, upcoming, ended), backed by a virtualized poster grid.
-- **Show and Episode detail**: season shelves with per-season and per-episode marking, a cinematic still, and inline ratings.
-- **Calendar**: upcoming episodes for the shows you track.
-- **Discover**: debounced search with inline add, plus browse rails.
-- **Profile**: viewing stats tiles built from your Trakt history.
-- **Watchlist and ratings**: add to your Trakt watchlist and rate shows and episodes, written back through an optimistic write-queue.
+Four tabs: Up Next, Library, Calendar, Search, with History, Profile, and Settings behind the header avatar.
+
+- **Up Next**: the home timeline. A marquee spotlight on the show to resume, the queue of next episodes, an "On the way" shelf for episodes with an air date, a "Haven't watched lately" drawer for idle shows, and "Previously" for what you just watched.
+- **One-tap marking**: optimistic mark-as-watched everywhere (tap the check, or swipe a row), batched into a single snackbar Undo and durable through offline via a write-queue.
+- **Library**: every show and movie you track behind status chips (Watching, Watchlist, Stopped, Finished), on a virtualized poster grid with filter and sort.
+- **Calendar**: the upcoming agenda for your shows, day by day with countdown chips.
+- **Search**: debounced show and movie search with inline watchlist add, and trending/popular browse grids while idle.
+- **Show, episode, and movie detail**: season shelves with per-episode ticks, bulk "mark up to here" and season marking, and an episode bottom sheet with spoiler-guarded stills (unwatched artwork stays hidden until revealed; the guard can be turned off in Settings).
+- **History and Profile**: viewing stats tiles and the full watch log, browsable by year and month, with per-play removal.
+- **Watchlist**: add shows and movies to your Trakt watchlist, written back through the same optimistic write-queue.
 
 ## How it works
 
-Cue is **zero-backend**. It is a browser SPA (with a thin Capacitor shell for mobile) that talks directly to the Trakt API over OAuth using the PKCE flow: there is **no client secret and no server** of any kind. Sync state (history, watchlist, ratings, progress) lives in your Trakt account; posters and metadata come from Trakt. Nothing is proxied through a backend because there is no backend.
+Cue is **zero-backend**. It is a browser SPA (with a thin Capacitor shell for mobile) that talks directly to the Trakt API over OAuth using the PKCE flow: there is **no client secret and no server** of any kind. Sync state (history, watchlist, progress) lives in your Trakt account; posters and metadata come from Trakt. Nothing is proxied through a backend because there is no backend.
 
 ## Setup
 
@@ -24,7 +27,7 @@ Cue authenticates as a public OAuth client, so it ships **no secret**: the app a
 2. Set its Redirect URI to `http://localhost:5199/auth/callback` for local development, plus `<your-production-origin>/auth/callback` for deploys. (Trakt matches the redirect URI exactly, so register every origin you serve from.)
 3. Copy `.env.example` to `.env` and set `VITE_TRAKT_CLIENT_ID` to the app's **Client ID**. It is public: it ships in the built JS and there is no client secret.
 
-The client id is public by design; the only thing kept on-device is each user's own Trakt OAuth token. Your real `.env` stays local (gitignored); `.env.example` and `.env.test` are the committed placeholders.
+The client id is public by design. Cue keeps each user's Trakt OAuth token, settings, and a local data cache on-device. Your real `.env` stays local (gitignored); `.env.example` and `.env.test` are the committed placeholders.
 
 ## Development
 
@@ -36,9 +39,12 @@ pnpm dev       # start the Vite dev server
 pnpm build     # build the static SPA into dist/
 pnpm check     # run the full deterministic check harness
 pnpm e2e       # run the Playwright end-to-end suite
+pnpm e2e:mobile # run focused Pixel/Chromium + iPhone/WebKit checks
 ```
 
-First e2e run only: `pnpm exec playwright install chromium`.
+First e2e run only: `pnpm exec playwright install chromium webkit`.
+
+Use `pnpm e2e:mobile --headed` when you want to watch the mobile browser checks run.
 
 ### Check harness
 
@@ -88,7 +94,7 @@ Cue uses the Trakt API but is not created, endorsed, or sponsored by Trakt. The 
 
 ## Privacy
 
-Cue runs no server and stores nothing off your device: there is no analytics or telemetry of any kind. Your Trakt OAuth token, your settings, and a local cache of the data Cue reads live only in this browser or on this device. All sync state lives in your own Trakt account, reached directly over HTTPS. To erase Cue's on-device data, use **Settings → Disconnect Trakt** or uninstall the app. Cue cannot delete your Trakt account; only Trakt can, at [app.trakt.tv/settings/advanced](https://app.trakt.tv/settings/advanced).
+Cue runs no server and stores nothing off your device: there is no analytics or telemetry of any kind. Your Trakt OAuth token, your settings, and a local cache of the data Cue reads live only in this browser or on this device. All sync state lives in your own Trakt account, reached directly over HTTPS. To erase Cue's on-device data, use **Settings → Sign out** or uninstall the app. Cue cannot delete your Trakt account; only Trakt can, at [app.trakt.tv/settings/advanced](https://app.trakt.tv/settings/advanced).
 
 The full statement is in [PRIVACY.md](PRIVACY.md).
 

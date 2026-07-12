@@ -2,7 +2,7 @@ import type { MovieIds } from "@domain/model/ids";
 import type { MovieDetailData, WatchedMovie, WatchlistItem } from "./schemas";
 
 /**
- * One movie in the My Shows movie library: merged from `/sync/watched/movies`
+ * One movie in the Library movie collection: merged from `/sync/watched/movies`
  * (watched + `watchedAt`) and `/sync/watchlist/movies` (membership). Unlike a
  * show there is no per-episode progress, a movie is watched or not, so the
  * shelf card renders a poster, title, year and its watched/watchlist state.
@@ -62,8 +62,8 @@ export function toMovieIds(ids: {
 }
 
 /**
- * Merge watched movies with the movie watchlist into the `MovieEntry[]` the My
- * Shows movie shelves and the Movie detail flags derive from. A watchlisted
+ * Merge watched movies with the movie watchlist into the `MovieEntry[]` the
+ * Library movie shelves and the Movie detail flags derive from. A watchlisted
  * movie that has never been watched has no `/sync/watched/movies` row, so it is
  * materialized here as an unwatched, watchlist-only entry (mirroring the show
  * library's watchlist-only handling): otherwise it would vanish from the

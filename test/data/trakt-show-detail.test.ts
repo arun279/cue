@@ -141,8 +141,8 @@ describe("assembleHeader", () => {
 describe("assembleSeasons", () => {
   it("merges per-episode watched flags, sorts seasons + episodes, and derives aired", () => {
     const views = assembleSeasons(seasons, progress, NOW);
-    expect(views.map((s) => s.number)).toEqual([0, 1]);
-    const s1 = views[1];
+    expect(views.map((s) => s.number)).toEqual([1, 0]);
+    const s1 = views[0];
     expect(s1?.episodes.map((e) => e.number)).toEqual([1, 2, 3]);
     expect(s1?.episodes.map((e) => e.watched)).toEqual([true, true, false]);
     expect(s1?.episodes.map((e) => e.aired)).toEqual([true, true, false]);
@@ -150,12 +150,12 @@ describe("assembleSeasons", () => {
   });
 
   it("surfaces each watched episode's date and leaves unwatched ones null", () => {
-    const s1 = assembleSeasons(seasons, progress, NOW)[1];
+    const s1 = assembleSeasons(seasons, progress, NOW)[0];
     expect(s1?.episodes.map((e) => e.watchedAt)).toEqual([WATCHED_AT, WATCHED_AT, null]);
   });
 
-  it("flags season 0 as specials and defaults an unknown watched flag to false", () => {
-    const specials = assembleSeasons(seasons, progress, NOW)[0];
+  it("flags season 0 as specials and sorts it after the numbered run", () => {
+    const specials = assembleSeasons(seasons, progress, NOW)[1];
     expect(specials).toMatchObject({ number: 0, isSpecial: true });
     expect(specials?.episodes[0]?.watched).toBe(false);
   });

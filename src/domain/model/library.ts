@@ -10,6 +10,8 @@ export interface EpisodeRef {
   readonly number: number;
   readonly title: string | null;
   readonly firstAired: string | null;
+  /** The episode's 16:9 screenshot URL (https), or null when Trakt has none. */
+  readonly still: string | null;
   readonly ids: EpisodeIds;
 }
 

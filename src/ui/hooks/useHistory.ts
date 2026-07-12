@@ -32,6 +32,7 @@ export interface HistoryScope {
   readonly filter: HistoryFilter;
   readonly year?: number;
   readonly month?: number;
+  readonly preview?: boolean;
 }
 
 const SECTION: Record<HistoryFilter, HistorySection> = {
@@ -91,7 +92,7 @@ const withoutId = (set: ReadonlySet<number>, id: number): Set<number> => {
  * gated only by the last_activities poll, so a mark on any surface surfaces here.
  */
 export function useHistory(scope: HistoryScope): HistoryView {
-  const { filter, year, month } = scope;
+  const { filter, year, month, preview } = scope;
   const runtime = useRuntime();
   const queryClient = useQueryClient();
   const submit = useOptimisticWrite();
@@ -107,7 +108,7 @@ export function useHistory(scope: HistoryScope): HistoryView {
     () => (year === undefined ? undefined : historyRange(year, month)),
     [year, month],
   );
-  const scopeKey = historyScopeKey(year, month);
+  const scopeKey = preview === true ? "preview" : historyScopeKey(year, month);
 
   const query = useInfiniteQuery({
     queryKey: queryKeys.history(filter, scopeKey),
@@ -235,21 +236,30 @@ export function useHistory(scope: HistoryScope): HistoryView {
 
   const entryCount = query.data?.pages.reduce((n, page) => n + page.entries.length, 0) ?? 0;
 
+  // Stable identities: the History screen re-arms its infinite-scroll observer
+  // and both consumers re-run their snackbar effect on these, so a fresh closure
+  // per render would churn the observer and reset the snack timer on every render.
+  const { refetch: queryRefetch, fetchNextPage } = query;
+  const refetch = useCallback(() => void queryRefetch(), [queryRefetch]);
+  const loadEarlier = useCallback(() => void fetchNextPage(), [fetchNextPage]);
+  const dismissToast = useCallback(() => setToast(null), []);
+  const clearError = useCallback(() => setError(null), []);
+
   return {
     days,
     filter,
     ...queryStatus(query, query.data !== undefined),
     isEmpty: query.data !== undefined && entryCount === 0,
-    refetch: () => void query.refetch(),
+    refetch,
     hasMore: query.hasNextPage,
     isLoadingMore: query.isFetchingNextPage,
     isLoadMoreError: query.isFetchNextPageError,
-    loadEarlier: () => void query.fetchNextPage(),
+    loadEarlier,
     removePlay,
     undo,
     toast,
-    dismissToast: () => setToast(null),
+    dismissToast,
     error,
-    clearError: () => setError(null),
+    clearError,
   };
 }

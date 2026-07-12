@@ -15,6 +15,7 @@ function item(overrides: Partial<CalendarItem> = {}): CalendarItem {
       title: "Example",
       ids: { trakt: 5 },
       images: { poster: ["media.trakt.tv/p.webp"] },
+      network: "Apple TV+",
     },
     ...overrides,
   };
@@ -32,6 +33,7 @@ describe("assembleCalendarEntries", () => {
       firstAired: "2026-07-05T01:00:00.000Z",
       ids: { trakt: 42, tvdb: 7, imdb: undefined, tmdb: 900 },
       posters: ["media.trakt.tv/p.webp"],
+      network: "Apple TV+",
       tmdbId: 900,
     });
   });
@@ -41,7 +43,7 @@ describe("assembleCalendarEntries", () => {
     expect(entry?.firstAired).toBe("2026-08-01T12:00:00.000Z");
   });
 
-  it("defaults missing images and tmdb id", () => {
+  it("defaults missing images, network, and tmdb id", () => {
     const [entry] = assembleCalendarEntries([
       item({
         episode: { season: 1, number: 1, title: null, ids: { trakt: 1 } },
@@ -49,6 +51,7 @@ describe("assembleCalendarEntries", () => {
       }),
     ]);
     expect(entry?.posters).toEqual([]);
+    expect(entry?.network).toBeNull();
     expect(entry?.tmdbId).toBeNull();
     expect(entry?.episodeTitle).toBeNull();
   });

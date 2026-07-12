@@ -28,17 +28,17 @@ function AuthCallbackScreen(): ReactElement {
   }, [connectStatus, navigate]);
 
   return (
-    <main className="onboarding" data-testid="screen-auth-callback">
-      <section className="onboarding__card">
+    <main className="onb" data-testid="screen-auth-callback">
+      <section className="onb__card">
         {connectStatus === "error" ? (
           <>
-            <h1 className="onboarding__title">Connecting didn't finish</h1>
-            <p className="onboarding__error" role="alert" data-testid="callback-error">
+            <h1 className="onb__title">Connecting didn't finish</h1>
+            <p className="onb__error" role="alert" data-testid="callback-error">
               {errorMessage}
             </p>
             <button
               type="button"
-              className="button"
+              className="onb__cta"
               data-testid="callback-retry"
               onClick={() => void navigate({ to: "/" })}
             >
@@ -47,8 +47,8 @@ function AuthCallbackScreen(): ReactElement {
           </>
         ) : (
           <>
-            <h1 className="onboarding__title">Finishing up…</h1>
-            <p className="onboarding__lead" role="status">
+            <h1 className="onb__title">Finishing up…</h1>
+            <p className="onb__lead" role="status">
               Connecting Cue to your Trakt account.
             </p>
           </>

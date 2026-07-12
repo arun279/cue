@@ -9,13 +9,13 @@ import {
   getMyShowsCalendar,
   getPopularMovies,
   getPopularShows,
-  getRatings,
   getRelatedMovies,
   getShow,
   getShowProgress,
   getShowSeasons,
   getTrendingMovies,
   getTrendingShows,
+  getUserSettings,
   getUserStats,
   getWatchedMovies,
   getWatchedShows,
@@ -161,20 +161,19 @@ describe("Trakt read endpoints zod-parse well-formed fixtures", () => {
     expect(result.ok && result.data[0]?.type).toBe("show");
   });
 
-  it("parses ratings items", async () => {
-    getJson("/sync/ratings/shows", [
-      { rated_at: "2026-06-01T00:00:00.000Z", rating: 9, type: "show", show: showObj },
-    ]);
-    const result = await getRatings(client, "shows");
-    expect(result.ok && result.data[0]?.rating).toBe(9);
-  });
-
-  it("parses the personalized shows calendar", async () => {
+  it("parses the personalized shows calendar, keeping the show's network", async () => {
     getJson("/calendars/my/shows/2026-07-05/7", [
       { first_aired: "2026-07-06T01:00:00.000Z", episode: episodeObj, show: showObj },
+      {
+        first_aired: "2026-07-06T02:00:00.000Z",
+        episode: episodeObj,
+        show: { ...showObj, network: "Apple TV+" },
+      },
     ]);
     const result = await getMyShowsCalendar(client, "2026-07-05", 7);
     expect(result.ok && result.data[0]?.episode.number).toBe(3);
+    expect(result.ok && result.data[0]?.show.network).toBeUndefined();
+    expect(result.ok && result.data[1]?.show.network).toBe("Apple TV+");
   });
 
   it("parses search results", async () => {
@@ -244,6 +243,37 @@ describe("Trakt read endpoints zod-parse well-formed fixtures", () => {
     expect(result.ok && "network" in result.data).toBe(false);
   });
 
+  it("parses user settings, stripping everything but the identity block", async () => {
+    getJson("/users/settings", {
+      user: {
+        username: "sean",
+        private: false,
+        name: "Sean Porter",
+        vip: true,
+        ids: { slug: "sean" },
+        images: { avatar: { full: "https://media.trakt.tv/avatar.jpg" } },
+      },
+      account: { timezone: "America/Los_Angeles", token: null },
+      connections: { twitter: false },
+      sharing_text: { watching: null },
+    });
+    const result = await getUserSettings(client);
+    expect(result.ok && result.data.user.username).toBe("sean");
+    expect(result.ok && result.data.user.name).toBe("Sean Porter");
+    expect(result.ok && result.data.user.images?.avatar?.full).toBe(
+      "https://media.trakt.tv/avatar.jpg",
+    );
+    // Stripped extras must not survive the parse.
+    expect(result.ok && "account" in result.data).toBe(false);
+  });
+
+  it("tolerates user settings without a name or avatar", async () => {
+    getJson("/users/settings", { user: { username: "sean" } });
+    const result = await getUserSettings(client);
+    expect(result.ok && result.data.user.username).toBe("sean");
+    expect(result.ok && result.data.user.name).toBeUndefined();
+  });
+
   it("parses last_activities into the domain shape", async () => {
     getJson("/sync/last_activities", {
       all: "2026-07-01T00:00:00.000Z",
@@ -305,6 +335,11 @@ describe("malformed bodies throw a zod error", () => {
   it("throws when user stats omit a required section", async () => {
     getJson("/users/me/stats", { movies: { watched: 1, minutes: 90 }, shows: { watched: 1 } });
     await expect(getUserStats(client)).rejects.toThrow();
+  });
+
+  it("throws when user settings omit the username", async () => {
+    getJson("/users/settings", { user: { name: "No Handle" } });
+    await expect(getUserSettings(client)).rejects.toThrow();
   });
 
   it("throws when the body is not JSON (null)", async () => {

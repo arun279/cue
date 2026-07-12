@@ -20,8 +20,6 @@ import {
   popularMoviesSchema,
   popularShowsSchema,
   progressSchema,
-  type RatingItem,
-  ratingsSchema,
   relatedMoviesSchema,
   type SearchResult,
   type SeasonData,
@@ -34,7 +32,9 @@ import {
   type TrendingShow,
   trendingMoviesSchema,
   trendingShowsSchema,
+  type UserSettings,
   type UserStats,
+  userSettingsSchema,
   userStatsSchema,
   type WatchedMovie,
   type WatchedShow,
@@ -93,9 +93,11 @@ export async function getShowProgress(
 ): Promise<TraktResult<Progress>> {
   // Show-detail's season tree opts specials in so a watched special reads as
   // watched (and isn't re-marked); Up Next / header keep them out of the counts.
+  // `images` rides along so `next_episode` carries its screenshot: the episode
+  // still comes free on the read every queue surface already makes.
   const specials = includeSpecials ? "true" : "false";
   const options: RequestOptions = {
-    extended: ["full"],
+    extended: ART,
     query: { hidden: "false", specials, count_specials: specials },
   };
   return parse(await client.get(`/shows/${showId}/progress/watched`, options), progressSchema);
@@ -143,16 +145,6 @@ export async function getWatchlist(
   );
 }
 
-export async function getRatings(
-  client: TraktClient,
-  type: "shows" | "movies" | "episodes",
-): Promise<TraktResult<RatingItem[]>> {
-  return parse(
-    await client.getAllPages(`/sync/ratings/${type}`, { extended: ["full"] }),
-    ratingsSchema,
-  );
-}
-
 export async function getMyShowsCalendar(
   client: TraktClient,
   startDate: string,
@@ -171,7 +163,7 @@ export async function searchTrakt(
   return parse(await client.get(path, { query: { query }, extended: ART }), searchSchema);
 }
 
-/** Browse rails for empty-query Discover: the current trending + all-time
+/** Browse rails for the empty Search screen: the current trending + all-time
  * popular shows, art included so each renders a real 2:3 poster. Trakt caps a
  * single page at its own limit; the caller asks for one shelf's worth. */
 export async function getTrendingShows(
@@ -188,7 +180,7 @@ export async function getPopularShows(
   return parse(await client.get("/shows/popular", { extended: ART, limit }), popularShowsSchema);
 }
 
-/** Movie discover rails: current trending + all-time popular
+/** Movie browse rails: current trending + all-time popular
  * movies with art, for the Search browse surface: the movie analogue of
  * `getTrendingShows`/`getPopularShows`, feeding the same `SearchHit` pipeline. */
 export async function getTrendingMovies(
@@ -224,6 +216,11 @@ export async function getRelatedMovies(
 /** The signed-in user's lifetime watch stats: watch-time minutes + distinct counts. */
 export async function getUserStats(client: TraktClient): Promise<TraktResult<UserStats>> {
   return parse(await client.get("/users/me/stats"), userStatsSchema);
+}
+
+/** The signed-in user's account settings; only the identity block is consumed. */
+export async function getUserSettings(client: TraktClient): Promise<TraktResult<UserSettings>> {
+  return parse(await client.get("/users/settings"), userSettingsSchema);
 }
 
 export async function getHidden(client: TraktClient): Promise<TraktResult<HiddenItem[]>> {

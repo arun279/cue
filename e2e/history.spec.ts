@@ -6,13 +6,13 @@ import {
   seedAuth,
 } from "./helpers";
 
-// Freeze the clock so day grouping (Today / Yesterday) AND the Year picker's
+// Freeze the clock so day grouping (Today / Yesterday) AND the month-jump's
 // "current year" are deterministic. 2026-07-15T16:00Z = 12:00 in America/New_York
 // (the pinned Playwright timezone), so "today" is 2026-07-15 and the year is 2026.
 const FIXED = new Date("2026-07-15T16:00:00.000Z");
 
-/** A day of plays: a 3-episode The Bear binge (collapses to one card) + a movie on
- * "today", plus one Severance episode "yesterday" (a second page at pageSize 4). */
+/** A day of plays: three The Bear episodes + a movie "today", plus one
+ * Severance episode "yesterday" (a second page at pageSize 4). */
 function recentRows(): HistoryRowFixture[] {
   return [
     {
@@ -66,7 +66,7 @@ function recentRows(): HistoryRowFixture[] {
   ];
 }
 
-/** Plays spread across years and months, for the decade-jump (Year → Month) tests. */
+/** Plays spread across years and months, for the month-jump tests. */
 function decadeRows(): HistoryRowFixture[] {
   return [
     {
@@ -96,32 +96,13 @@ function decadeRows(): HistoryRowFixture[] {
   ];
 }
 
-/** Forty movie plays on distinct days: enough that a non-virtualized list would
- * mount every row, so a windowed count proves virtualization. */
-function manyRows(): HistoryRowFixture[] {
-  const rows: HistoryRowFixture[] = [];
-  const base = Date.parse("2026-06-30T18:00:00.000Z");
-  for (let i = 0; i < 40; i += 1) {
-    const n = i + 1;
-    rows.push({
-      id: 500 + n,
-      type: "movie",
-      movieId: 500 + n,
-      movieTitle: `Archive Film ${String(n).padStart(2, "0")}`,
-      year: 2000 + n,
-      watchedAt: new Date(base - i * 86_400_000).toISOString(),
-    });
-  }
-  return rows;
-}
-
 test.beforeEach(async ({ page }) => {
   await installHermeticRoutes(page.context());
   await seedAuth(page.context());
   await page.clock.setFixedTime(FIXED);
 });
 
-test("loads, groups by local day, collapses a same-show binge, and loads earlier", async ({
+test("groups by local day with rollup headers and pages in earlier history by scrolling", async ({
   page,
 }) => {
   await installHistoryRoutes(page.context(), recentRows());
@@ -129,27 +110,63 @@ test("loads, groups by local day, collapses a same-show binge, and loads earlier
 
   await expect(page.getByTestId("screen-history")).toBeVisible();
 
-  // Today's header carries the play-count rollup; the binge folds into ONE card.
+  // Today's sticky header carries the play-count rollup.
   const days = page.getByTestId("history-day-heading");
   await expect(days.first()).toContainText("Today");
-  await expect(page.getByTestId("history-day-count").first()).toContainText("3 episodes");
-  await expect(page.getByTestId("history-day-count").first()).toContainText("1 movie");
+  await expect(days.first()).toContainText("3 episodes");
+  await expect(days.first()).toContainText("1 movie");
 
-  const cluster = page.getByTestId("history-cluster");
-  await expect(cluster).toHaveCount(1);
-  await expect(cluster).toContainText("The Bear");
-  await expect(cluster).toContainText("3 episodes");
+  // Distinct episodes are distinct rows (only same-item plays collapse).
+  await expect(page.getByTestId("history-row").filter({ hasText: "The Bear" })).toHaveCount(3);
   await expect(page.getByTestId("history-row").filter({ hasText: "Interstellar" })).toBeVisible();
 
-  // Yesterday is a second page: "Load earlier" pulls it in.
-  await expect(page.getByTestId("history-day-heading")).toHaveCount(1);
-  await page.getByTestId("history-load-earlier").click();
-  await expect(page.getByTestId("history-day-heading")).toHaveCount(2);
+  // Yesterday is a second page: infinite scroll pulls it in via the sentinel
+  // (no button press needed on a short list: the sentinel is already near).
   await expect(page.getByTestId("history-day-heading").nth(1)).toContainText("Yesterday");
   await expect(page.getByTestId("history-row").filter({ hasText: "Severance" })).toBeVisible();
 });
 
-test("surfaces a Load-earlier failure inline and recovers on Retry", async ({ page }) => {
+test("same-item plays within a day collapse to one ×N row whose check removes the newest", async ({
+  page,
+}) => {
+  const rows: HistoryRowFixture[] = [
+    {
+      id: 41,
+      type: "episode",
+      showId: 100,
+      showTitle: "The Bear",
+      season: 1,
+      number: 8,
+      episodeTitle: "Braciole",
+      watchedAt: "2026-07-15T15:00:00.000Z",
+    },
+    {
+      id: 42,
+      type: "episode",
+      showId: 100,
+      showTitle: "The Bear",
+      season: 1,
+      number: 8,
+      episodeTitle: "Braciole",
+      watchedAt: "2026-07-15T09:00:00.000Z",
+    },
+  ];
+  const controls = await installHistoryRoutes(page.context(), rows);
+  await page.goto("/history");
+
+  // One row, ×2 badge: never two identical lines for a same-day rewatch.
+  const row = page.getByTestId("history-row");
+  await expect(row).toHaveCount(1);
+  await expect(page.getByTestId("history-plays")).toHaveText("×2");
+
+  // The check removes exactly the NEWEST play, and says what remains.
+  await row.getByTestId("mark-watched").click();
+  await expect.poll(() => controls.removePosts().length).toBe(1);
+  expect(controls.removePosts()[0]?.ids).toEqual([41]);
+  await expect(page.getByTestId("snackbar")).toContainText("Removed 1 play · 1 remain");
+});
+
+test("surfaces a load-earlier failure inline and recovers on Retry", async ({ page }) => {
   await installHistoryRoutes(page.context(), recentRows());
   // Fail the FIRST second-page fetch, then let later ones through.
   let failedPageTwo = false;
@@ -163,13 +180,10 @@ test("surfaces a Load-earlier failure inline and recovers on Retry", async ({ pa
   });
   await page.goto("/history");
 
-  await expect(page.getByTestId("history-day-heading")).toHaveCount(1);
-  await page.getByTestId("history-load-earlier").click();
-
-  // The failure surfaces inline, first-page data stays put, and the control
-  // becomes a Retry rather than silently swallowing the error.
+  // The auto-scroll pull fails: the failure surfaces inline, first-page data
+  // stays put, and the control becomes an explicit Retry (the observer disarms
+  // so an outage can't be hammered on every scroll twitch).
   await expect(page.getByTestId("history-load-earlier-error")).toBeVisible();
-  await expect(page.getByTestId("history-load-earlier")).toContainText("Retry");
   await expect(page.getByTestId("history-day-heading")).toHaveCount(1);
 
   await page.getByTestId("history-load-earlier").click();
@@ -178,38 +192,40 @@ test("surfaces a Load-earlier failure inline and recovers on Retry", async ({ pa
   await expect(page.getByTestId("history-load-earlier-error")).toHaveCount(0);
 });
 
-test("the type filter scopes the feed to movies only", async ({ page }) => {
+test("the filter chips scope the feed by medium (URL ?type)", async ({ page }) => {
   await installHistoryRoutes(page.context(), recentRows());
   await page.goto("/history");
-  await expect(page.getByTestId("history-cluster")).toHaveCount(1);
+  await expect(page.getByTestId("history-row").filter({ hasText: "The Bear" })).toHaveCount(3);
 
   await page.getByTestId("history-filter-movies").click();
   await expect(page).toHaveURL(/type=movies/);
-  await expect(page.getByTestId("history-cluster")).toHaveCount(0);
+  await expect(page.getByTestId("history-row").filter({ hasText: "The Bear" })).toHaveCount(0);
   await expect(page.getByTestId("history-row").filter({ hasText: "Interstellar" })).toBeVisible();
-  await expect(page.getByTestId("history-row")).toHaveCount(1);
+
+  await page.getByTestId("history-filter-all").click();
+  await expect(page).not.toHaveURL(/type=/);
+  await expect(page.getByTestId("history-row").filter({ hasText: "The Bear" })).toHaveCount(3);
 });
 
-test("jumps to a year: the read is scoped by start_at/end_at, out-of-year plays drop", async ({
-  page,
-}) => {
+test("the month-jump sheet scopes to a year (start_at/end_at sent to Trakt)", async ({ page }) => {
   await installHistoryRoutes(page.context(), decadeRows(), 60);
   await page.goto("/history");
 
-  // Recent feed carries every year's plays.
+  // Recent feed carries every year's plays (year separators at boundaries).
   await expect(page.getByTestId("history-row").filter({ hasText: "Interstellar" })).toBeVisible();
   await expect(page.getByTestId("history-row").filter({ hasText: "Dune" })).toBeVisible();
+  await expect(page.getByTestId("history-year")).toContainText("2024");
 
-  // Jump to 2024: the 2026 play drops (proof the range was sent to Trakt, since the
-  // mock only filters when start_at/end_at are present).
-  await page.getByTestId("history-year").selectOption("2024");
+  // Jump to all of 2024: the 2026 play drops (proof the range was sent to
+  // Trakt, since the mock only filters when start_at/end_at are present).
+  await page.getByTestId("history-jump").click();
+  await expect(page.getByTestId("history-jump-sheet")).toBeVisible();
+  await page.getByTestId("history-jump-year-2024").click();
+  await page.getByTestId("history-jump-all").click();
   await expect(page).toHaveURL(/year=2024/);
   await expect(page.getByTestId("history-row").filter({ hasText: "Interstellar" })).toHaveCount(0);
   await expect(page.getByTestId("history-row").filter({ hasText: "Dune" })).toBeVisible();
   await expect(page.getByTestId("history-row").filter({ hasText: "Oppenheimer" })).toBeVisible();
-
-  // A year scope reveals the Month drill.
-  await expect(page.getByTestId("history-month")).toBeVisible();
 });
 
 test("drills into a month within a busy year", async ({ page }) => {
@@ -220,15 +236,14 @@ test("drills into a month within a busy year", async ({ page }) => {
   await expect(page.getByTestId("history-row").filter({ hasText: "Oppenheimer" })).toBeVisible();
 
   // March keeps only the March play; the June play drops out of the window.
-  await page.getByTestId("history-month").selectOption("3");
+  await page.getByTestId("history-jump").click();
+  await page.getByTestId("history-jump-month-3").click();
   await expect(page).toHaveURL(/month=3/);
   await expect(page.getByTestId("history-row").filter({ hasText: "Dune" })).toBeVisible();
   await expect(page.getByTestId("history-row").filter({ hasText: "Oppenheimer" })).toHaveCount(0);
 });
 
-test("an empty year/month window shows a scope-aware empty state with a way back", async ({
-  page,
-}) => {
+test("an empty year window shows a scope-aware empty state with a way back", async ({ page }) => {
   await installHistoryRoutes(page.context(), decadeRows(), 60);
   await page.goto("/history?year=2020");
 
@@ -240,44 +255,40 @@ test("an empty year/month window shows a scope-aware empty state with a way back
   await expect(page.getByTestId("history-row").filter({ hasText: "Interstellar" })).toBeVisible();
 });
 
-test("virtualizes: only a window of rows is mounted, and scrolling reaches the oldest", async ({
-  page,
-}) => {
-  await installHistoryRoutes(page.context(), manyRows(), 60);
+test("the in-header title filter live-filters loaded entries", async ({ page }) => {
+  await installHistoryRoutes(page.context(), recentRows());
   await page.goto("/history");
+  await expect(page.getByTestId("history-row").filter({ hasText: "Interstellar" })).toBeVisible();
 
-  await expect(page.getByTestId("screen-history")).toBeVisible();
-  await expect(page.getByTestId("history-row").first()).toBeVisible();
+  await page.getByTestId("history-search-toggle").click();
+  const field = page.getByTestId("history-search-field");
+  await expect(field).toBeVisible();
+  await field.fill("bear");
 
-  // 40 plays on distinct days = 80 flattened rows; a windowed list mounts far fewer,
-  // and the oldest play is absent from the DOM until scrolled to.
-  const mounted = await page.getByTestId("virtual-row").count();
-  expect(mounted).toBeGreaterThan(0);
-  expect(mounted).toBeLessThan(60);
-  await expect(page.getByTestId("history-row").filter({ hasText: "Archive Film 40" })).toHaveCount(
-    0,
-  );
+  // Only the matching show's rows remain; day headers stay honest.
+  await expect(page.getByTestId("history-row").filter({ hasText: "The Bear" })).toHaveCount(3);
+  await expect(page.getByTestId("history-row").filter({ hasText: "Interstellar" })).toHaveCount(0);
 
-  await page.getByTestId("virtual-list").evaluate((el) => el.scrollTo(0, el.scrollHeight));
-  await expect(
-    page.getByTestId("history-row").filter({ hasText: "Archive Film 40" }),
-  ).toBeVisible();
+  // A no-match reads its own copy, and closing the field restores the feed.
+  await field.fill("zzzz");
+  await expect(page.getByTestId("history-filter-empty")).toBeVisible();
+  await page.getByTestId("history-search-close").click();
+  await expect(page.getByTestId("history-row").filter({ hasText: "Interstellar" })).toBeVisible();
 });
 
-test("removes EXACTLY one play by its history id, then restores it with Undo", async ({ page }) => {
+test("the green check removes EXACTLY one play by its history id, then restores it with Undo", async ({
+  page,
+}) => {
   const controls = await installHistoryRoutes(page.context(), recentRows());
   await page.goto("/history");
 
   const movieRow = page.getByTestId("history-row").filter({ hasText: "Interstellar" });
   await expect(movieRow).toBeVisible();
-  // Destructive-by-intent: the row's ⋯ opens a confirm sheet; the removal only
-  // fires on the sheet's "Remove this play".
-  await movieRow.getByTestId("history-remove-menu").click();
-  await page.getByTestId("history-remove").click();
+  // The filled check IS the durable unmark path: one tap, optimistic, reversible.
+  await movieRow.getByTestId("mark-watched").click();
 
-  // Optimistically gone + honest confirmation.
   await expect(movieRow).toHaveCount(0);
-  await expect(page.getByTestId("history-undo")).toContainText("Removed from history");
+  await expect(page.getByTestId("snackbar")).toContainText("Removed play");
 
   // The write targeted the exact history event id (14), NOT an item-scoped wipe.
   await expect.poll(() => controls.removePosts().length).toBeGreaterThan(0);
@@ -286,56 +297,43 @@ test("removes EXACTLY one play by its history id, then restores it with Undo", a
   expect(removal?.hasMoviesSection).toBe(false);
   expect(removal?.hasEpisodesSection).toBe(false);
 
-  // Undo re-adds it best-effort and says so.
-  await page.getByTestId("history-undo-action").click();
-  await expect(page.getByTestId("history-restored")).toContainText("Restored to history");
+  // Undo re-adds it best-effort; the row reappearing is the confirmation.
+  await page.getByTestId("snackbar-undo").click();
   await expect.poll(() => controls.addPosts().length).toBeGreaterThan(0);
   await expect(page.getByTestId("history-row").filter({ hasText: "Interstellar" })).toBeVisible();
 });
 
-test("the confirm sheet names the exact play and Cancel removes nothing", async ({ page }) => {
+test("long-press offers Go-to + Remove-this-play on an entry", async ({ page }) => {
   const controls = await installHistoryRoutes(page.context(), recentRows());
   await page.goto("/history");
 
   const movieRow = page.getByTestId("history-row").filter({ hasText: "Interstellar" });
-  await movieRow.getByTestId("history-remove-menu").click();
+  // Desktop context-menu = the long-press equivalent (same sheet).
+  await movieRow.click({ button: "right" });
+  await expect(page.getByTestId("history-menu-open")).toHaveText("Go to movie");
+  await page.getByTestId("history-menu-remove").click();
 
-  // The sheet names the exact play (title + its release year) before any removal.
-  const sheet = page.getByTestId("history-remove-sheet");
-  await expect(sheet).toContainText("Interstellar");
-  await expect(sheet).toContainText("2014");
-
-  // Cancel dismisses without touching history: no write, row still present.
-  await page.getByTestId("history-remove-cancel").click();
-  await expect(sheet).toHaveCount(0);
-  await expect(movieRow).toBeVisible();
-  expect(controls.removePosts()).toHaveLength(0);
+  await expect(movieRow).toHaveCount(0);
+  await expect.poll(() => controls.removePosts().length).toBe(1);
+  expect(controls.removePosts()[0]?.ids).toEqual([14]);
 });
 
-test("a failed Undo re-add keeps the play removed and never falsely claims Restored", async ({
+test("a failed Undo re-add keeps the play removed and surfaces the honest error", async ({
   page,
 }) => {
   const controls = await installHistoryRoutes(page.context(), recentRows());
   await page.goto("/history");
 
   const movieRow = page.getByTestId("history-row").filter({ hasText: "Interstellar" });
-  await expect(movieRow).toBeVisible();
-  // Destructive-by-intent: the row's ⋯ opens a confirm sheet; the removal only
-  // fires on the sheet's "Remove this play".
-  await movieRow.getByTestId("history-remove-menu").click();
-  await page.getByTestId("history-remove").click();
+  await movieRow.getByTestId("mark-watched").click();
   await expect(movieRow).toHaveCount(0);
-  await expect(page.getByTestId("history-undo")).toContainText("Removed from history");
 
   // The remove landed; the best-effort Undo re-add will hard-fail (403).
   controls.setAddMode("reject");
-  await page.getByTestId("history-undo-action").click();
+  await page.getByTestId("snackbar-undo").click();
 
   await expect.poll(() => controls.addPosts().length).toBeGreaterThan(0);
-  await expect(page.getByTestId("history-remove-error")).toContainText(
-    "Couldn't restore that play",
-  );
-  await expect(page.getByTestId("history-restored")).toHaveCount(0);
+  await expect(page.getByTestId("snackbar")).toContainText("Couldn't restore that play");
   await expect(movieRow).toHaveCount(0);
 });
 
@@ -350,22 +348,17 @@ test("Undo during an in-flight remove that then fails never re-adds a duplicate 
 
   // Hold the remove open so the Undo races an unsettled removal.
   controls.setRemoveMode("hold");
-  // Destructive-by-intent: the row's ⋯ opens a confirm sheet; the removal only
-  // fires on the sheet's "Remove this play".
-  await movieRow.getByTestId("history-remove-menu").click();
-  await page.getByTestId("history-remove").click();
+  await movieRow.getByTestId("mark-watched").click();
   await expect(movieRow).toHaveCount(0);
-  await expect(page.getByTestId("history-undo")).toBeVisible();
+  await expect(page.getByTestId("snackbar-undo")).toBeVisible();
 
   // Undo BEFORE the remove settles, then let the remove hard-fail.
-  await page.getByTestId("history-undo-action").click();
+  await page.getByTestId("snackbar-undo").click();
   controls.releaseRemove("reject");
 
-  // The play was never deleted, so Undo must NOT re-add it. The row returns, no
-  // "Restored" lie, and no re-add is ever sent.
+  // The play was never deleted, so Undo must NOT re-add it. The row returns and
+  // no re-add is ever sent.
   await expect(movieRow).toBeVisible();
-  await expect(page.getByTestId("history-remove-error")).toContainText("Couldn't remove that play");
-  await expect(page.getByTestId("history-restored")).toHaveCount(0);
   expect(controls.addPosts()).toHaveLength(0);
   expect(controls.removePosts()).toHaveLength(1);
 });

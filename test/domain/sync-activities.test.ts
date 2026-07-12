@@ -29,15 +29,19 @@ describe("diffActivities", () => {
     expect(diffActivities(stored, fresh)).toEqual([]);
   });
 
-  it("ignores unmapped sections (collected/commented/seasons/lists/account)", () => {
+  it("ignores unmapped fields (collected/commented/rated/seasons/lists/account)", () => {
     const stored: LastActivities = {
-      episodes: { collected_at: T0, commented_at: T0 },
+      episodes: { collected_at: T0, commented_at: T0, rated_at: T0 },
+      shows: { rated_at: T0 },
+      movies: { rated_at: T0 },
       seasons: { rated_at: T0 },
       lists: { updated_at: T0 },
       account: { settings_at: T0 },
     };
     const fresh: LastActivities = {
-      episodes: { collected_at: T1, commented_at: T1 },
+      episodes: { collected_at: T1, commented_at: T1, rated_at: T1 },
+      shows: { rated_at: T1 },
+      movies: { rated_at: T1 },
       seasons: { rated_at: T1 },
       lists: { updated_at: T1 },
       account: { settings_at: T1 },
@@ -56,19 +60,9 @@ describe("diffActivities", () => {
       targets: ["watched/shows", "progress/watched"],
     },
     {
-      before: { episodes: section("rated_at", T0) },
-      after: { episodes: section("rated_at", T1) },
-      targets: ["ratings/episodes"],
-    },
-    {
       before: { episodes: section("watchlisted_at", T0) },
       after: { episodes: section("watchlisted_at", T1) },
       targets: ["watchlist/episodes"],
-    },
-    {
-      before: { shows: { rated_at: T0 } },
-      after: { shows: { rated_at: T1 } },
-      targets: ["ratings/shows"],
     },
     {
       before: { shows: { hidden_at: T0 } },
@@ -89,11 +83,6 @@ describe("diffActivities", () => {
       before: { movies: { watched_at: T0 } },
       after: { movies: { watched_at: T1 } },
       targets: ["watched/movies", "movie-progress"],
-    },
-    {
-      before: { movies: { rated_at: T0 } },
-      after: { movies: { rated_at: T1 } },
-      targets: ["ratings/movies"],
     },
     {
       before: { movies: { watchlisted_at: T0 } },

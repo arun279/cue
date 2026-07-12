@@ -19,6 +19,7 @@ export function assembleCalendarEntries(items: readonly CalendarItem[]): Calenda
     firstAired: item.first_aired,
     ids: toEpisodeIds(item.episode.ids),
     posters: item.show.images?.poster ?? [],
+    network: item.show.network ?? null,
     tmdbId: item.episode.ids.tmdb ?? null,
   }));
 }

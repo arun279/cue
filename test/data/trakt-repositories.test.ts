@@ -11,8 +11,8 @@ const client = new TraktClient({ clientId: "cid" });
 /**
  * Pinned `/sync/last_activities` fixture. Every mapped section advances
  * from the STORED snapshot below, so the diff must yield the full invalidation
- * set; the unmapped `seasons`/`lists`/`account`/`collaborations` sections
- * advance too and must yield nothing.
+ * set; the unmapped fields (every `rated_at`, the `seasons`/`lists`/`account`/
+ * `collaborations` sections) advance too and must yield nothing.
  */
 const STORED: LastActivities = {
   all: "2026-07-01T00:00:00.000Z",
@@ -76,9 +76,7 @@ describe("last_activities repository drives the invalidation map", () => {
       [
         "watched/shows",
         "progress/watched",
-        "ratings/episodes",
         "watchlist/episodes",
-        "ratings/shows",
         "hidden/progress_watched",
         "recompute:buckets",
         "watchlist/shows",
@@ -87,7 +85,6 @@ describe("last_activities repository drives the invalidation map", () => {
         "favorites/shows",
         "watched/movies",
         "movie-progress",
-        "ratings/movies",
         "watchlist/movies",
         "hidden/movies",
         "favorites/movies",

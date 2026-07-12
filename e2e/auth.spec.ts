@@ -18,8 +18,11 @@ test.describe("onboarding + auth", () => {
     await page.goto("/");
 
     await expect(page.getByTestId("screen-onboarding")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Welcome to Cue" })).toBeVisible();
-    await expect(page.getByTestId("button-connect")).toHaveText("Continue with Trakt");
+    // The welcome beat: wordmark + one line + the amber CTA + Trakt attribution.
+    await expect(page.getByRole("heading", { name: "Cue" })).toBeVisible();
+    await expect(page.getByText("Your shows. One tap ahead.")).toBeVisible();
+    await expect(page.getByTestId("button-connect")).toHaveText("Connect Trakt");
+    await expect(page.getByText("Powered by Trakt")).toBeVisible();
 
     // The whole developer-facing surface is gone: no client-id field, no
     // "add this redirect URI to your Trakt app" callout. A user never enters a
@@ -29,7 +32,7 @@ test.describe("onboarding + auth", () => {
     await expect(page.getByTestId("callback-url")).toHaveCount(0);
   });
 
-  test("Continue with Trakt redirects to a trakt.tv authorize URL carrying the embedded client id, then completes the exchange", async ({
+  test("Connect Trakt redirects to a trakt.tv authorize URL carrying the embedded client id, then completes the exchange", async ({
     page,
   }) => {
     await installHermeticRoutes(page.context());
@@ -133,22 +136,27 @@ test.describe("onboarding + auth", () => {
     expect(await readStored(page, "cue.trakt.token")).toBeNull();
   });
 
-  test("disconnect revokes the token, clears the persisted store, and returns to onboarding", async ({
+  test("sign out revokes the token, clears the persisted store, and returns to onboarding", async ({
     page,
   }) => {
     await installHermeticRoutes(page.context());
     const oauth = await installOAuthRoutes(page.context());
     await seedAuth(page.context());
     await page.goto("/profile");
+    await page.evaluate(() => {
+      localStorage.setItem("cue.theme", "dark");
+      localStorage.setItem("cue.threshold-days", "21");
+      localStorage.setItem("unrelated", "kept");
+    });
 
     await page.getByTestId("link-settings").click();
     await expect(page.getByTestId("screen-settings")).toBeVisible();
-    await expect(page.getByTestId("connection-status")).toContainText("Connected");
 
     const revoke = page.waitForRequest("**/api.trakt.tv/oauth/revoke");
-    // Disconnect is guarded by a confirmation dialog: only Confirm revokes.
+    // Sign out is guarded by a ConfirmSheet: only its primary revokes.
     await page.getByTestId("button-disconnect").click();
-    await expect(page.getByTestId("disconnect-dialog")).toBeVisible();
+    await expect(page.getByText("Sign out of Cue?")).toBeVisible();
+    await expect(page.getByText("Your Trakt history stays on Trakt.")).toBeVisible();
     await page.getByTestId("button-disconnect-confirm").click();
     await revoke;
 
@@ -164,9 +172,13 @@ test.describe("onboarding + auth", () => {
 
     // Local auth is genuinely gone from IndexedDB: not merely hidden in memory.
     expect(await readStored(page, "cue.trakt.token")).toBeNull();
+    expect(
+      await page.evaluate(() => Object.keys(localStorage).filter((key) => key.startsWith("cue."))),
+    ).toEqual([]);
+    expect(await page.evaluate(() => localStorage.getItem("unrelated"))).toBe("kept");
   });
 
-  test("Cancel on the disconnect confirmation keeps you connected: no revoke fires", async ({
+  test("Cancel on the sign-out confirmation keeps you connected: no revoke fires", async ({
     page,
   }) => {
     await installHermeticRoutes(page.context());
@@ -176,17 +188,17 @@ test.describe("onboarding + auth", () => {
     await expect(page.getByTestId("screen-settings")).toBeVisible();
 
     await page.getByTestId("button-disconnect").click();
-    await expect(page.getByTestId("disconnect-dialog")).toBeVisible();
-    await page.getByTestId("disconnect-cancel").click();
+    await expect(page.getByTestId("button-disconnect-confirm")).toBeVisible();
+    await page.getByRole("button", { name: "Cancel" }).click();
 
-    // The dialog closes, the session survives, and no revoke was ever sent.
-    await expect(page.getByTestId("disconnect-dialog")).toHaveCount(0);
+    // The sheet closes, the session survives, and no revoke was ever sent.
+    await expect(page.getByTestId("button-disconnect-confirm")).toHaveCount(0);
     await expect(page.getByTestId("screen-settings")).toBeVisible();
     expect(oauth.getRevokeRequests()).toHaveLength(0);
     expect(await readStored(page, "cue.trakt.token")).not.toBeNull();
   });
 
-  test("the disconnect dialog is modal: focus is trapped, and Esc/Cancel restore focus without revoking", async ({
+  test("the sign-out sheet is a modal dialog: focus stays inside, and Esc/Cancel close without revoking", async ({
     page,
   }) => {
     await installHermeticRoutes(page.context());
@@ -197,14 +209,14 @@ test.describe("onboarding + auth", () => {
 
     const trigger = page.getByTestId("button-disconnect");
     await trigger.click();
-    const dialog = page.getByTestId("disconnect-dialog");
+    const dialog = page.getByRole("dialog", { name: "Sign out of Cue?" });
     await expect(dialog).toBeVisible();
 
-    // The content is exposed as a modal dialog to assistive tech.
-    await expect(dialog).toHaveAttribute("role", "alertdialog");
-    await expect(dialog).toHaveAttribute("aria-modal", "true");
+    // The content is exposed as an open dialog to assistive tech.
+    await expect(dialog).toHaveAttribute("data-state", "open");
 
-    // Initial focus lands inside the dialog (Radix moves it off the trigger).
+    // Sheets deliberately do NOT auto-focus their first control (no pre-armed
+    // destructive button); focus lands on the panel itself.
     await expect
       .poll(() => dialog.evaluate((el) => el.contains(document.activeElement)))
       .toBe(true);
@@ -215,17 +227,18 @@ test.describe("onboarding + auth", () => {
       expect(await dialog.evaluate((el) => el.contains(document.activeElement))).toBe(true);
     }
 
-    // Esc closes the dialog and restores focus to the Disconnect trigger.
+    // Esc closes the sheet and releases the focus trap back to the page.
     await page.keyboard.press("Escape");
     await expect(dialog).toHaveCount(0);
-    await expect(trigger).toBeFocused();
+    await expect
+      .poll(() => page.evaluate(() => document.querySelector(".sheet") === null))
+      .toBe(true);
 
-    // Reopen and dismiss via Cancel: focus returns to the trigger the same way.
+    // Reopen and dismiss via Cancel: the sheet closes the same way.
     await trigger.click();
     await expect(dialog).toBeVisible();
-    await page.getByTestId("disconnect-cancel").click();
+    await page.getByRole("button", { name: "Cancel" }).click();
     await expect(dialog).toHaveCount(0);
-    await expect(trigger).toBeFocused();
 
     // The session is still connected throughout: cancelling never revokes.
     await expect(page.getByTestId("screen-settings")).toBeVisible();

@@ -1,119 +1,76 @@
-import { Link } from "@tanstack/react-router";
-import { ChevronIcon } from "@ui/components/ChevronIcon";
-import { MarkWatchedButton } from "@ui/components/MarkWatchedButton";
-import { episodeCode, relativeDays } from "@ui/format";
-import { useShowArt } from "@ui/hooks/useShowArt";
-import type { UpNextCard as UpNextCardModel } from "@ui/hooks/useUpNext";
+import { Badge } from "@ui/components/Badge";
+import { ConfirmSheet } from "@ui/components/ConfirmSheet";
+import type { MarkWatched } from "@ui/hooks/useMarkWatched";
+import type { UpNextCard } from "@ui/hooks/useUpNext";
+import { ChevronDown, EllipsisVertical } from "lucide-react";
 import { Accordion } from "radix-ui";
-import type { ReactElement } from "react";
-import { Poster } from "./Poster";
+import { type ReactElement, useState } from "react";
+import { QueueRow } from "./QueueRow";
 
 interface LapsedDrawerProps {
-  readonly cards: readonly UpNextCardModel[];
-  /** Catch up in place: mark the lapsed show's next episode, re-sorting it to Continue. */
-  onMark(card: UpNextCardModel): void;
-  /** Stop watching a lapsed show: the parent owns the hide + its Undo snackbar. */
-  onStop(card: UpNextCardModel): void;
+  readonly cards: readonly UpNextCard[];
+  readonly mark: MarkWatched;
+  /** Stop watching a lapsed show: the parent owns the hide + its snackbar. */
+  onStop(card: UpNextCard): void;
 }
 
-/** One row in the drawer: the show (poster + title route to Show detail), the next
- * episode + how long it's been, and the two one-tap decisions: the shared Cue mark
- * (icon-only amber ring, identical to every queue row) and Stop watching. */
-function LapsedRow({
-  card,
-  onMark,
-  onStop,
-}: {
-  readonly card: LapsedDrawerProps["cards"][number];
-  onMark(): void;
-  onStop(): void;
-}): ReactElement {
-  const { entry, item } = card;
-  const code = episodeCode(item.episode.season, item.episode.number);
-  const lastWatched = relativeDays(entry.lastWatchedAt, Date.now());
-  const showParams = { showId: String(entry.showId) };
-  // Art is deferred out of the cold-sync budget: a lapsed row lazily
-  // fetches its own poster, and only when the drawer is expanded: Radix unmounts
-  // collapsed content, so a closed drawer fires no per-row art reads. Falls back to
-  // any inline list poster until it resolves.
-  const artPosters = useShowArt(entry.showId);
-  const posters = artPosters.length > 0 ? artPosters : entry.posters;
-
+/** The non-gesture Stop path: a 44px overflow opening the shared ConfirmSheet, so
+ * swipe-left is an accelerator, never the only way (WCAG 2.5.1). */
+function StopSheet({ title, onStop }: { readonly title: string; onStop(): void }): ReactElement {
+  const [open, setOpen] = useState(false);
   return (
-    <article className="lapsed-row" data-testid="lapsed-row" data-show-id={entry.showId}>
-      <Link
-        to="/show/$showId"
-        params={showParams}
-        className="card__poster-link"
-        tabIndex={-1}
-        aria-label={entry.title}
+    <>
+      <button
+        type="button"
+        className="row-overflow"
+        data-testid="lapsed-overflow"
+        aria-label={`More actions for ${title}`}
+        onClick={() => setOpen(true)}
       >
-        <span className="poster-wrap poster-wrap--sm">
-          <Poster title={entry.title} posters={posters} variant="queue" />
-        </span>
-      </Link>
-      <div className="card__body">
-        <Link to="/show/$showId" params={showParams} className="card__title-link">
-          <h3 className="lapsed-row__title">{entry.title}</h3>
-        </Link>
-        <p className="card__meta">
-          <span className="card__code">{code}</span>
-          {lastWatched !== null && <span> · last watched {lastWatched}</span>}
-        </p>
-      </div>
-      <div className="lapsed-row__actions">
-        <MarkWatchedButton
-          ariaLabel={`Mark ${entry.title} ${code} watched`}
-          testId="lapsed-mark"
-          busy={entry.pendingAdvance}
-          onMark={onMark}
-        />
-        <button
-          type="button"
-          className="button button--ghost button--sm lapsed-row__stop"
-          data-testid="lapsed-stop"
-          onClick={onStop}
-        >
-          Stop watching
-        </button>
-      </div>
-    </article>
+        <EllipsisVertical aria-hidden="true" />
+      </button>
+      <ConfirmSheet
+        open={open}
+        onOpenChange={setOpen}
+        title={title}
+        body="Stopping keeps your watch history."
+        primary={{ label: "Stop show", testId: "lapsed-stop", onPress: onStop }}
+      />
+    </>
   );
 }
 
 /**
- * "Haven't watched in a while": the soft, collapsed drawer at the bottom of Up
- * Next for in-progress-but-idle shows (longest-idle first). It is a pruning prompt,
- * never a wall of shame: each row offers a one-tap "Mark watched" (the direct catch-up
- * path: marking re-sorts the show to the top of Continue) or Stop watching (the
- * parent's optimistic hide + Undo). A decided show leaves the drawer on its own,
- * so there is no local per-session dismissal to lose on reload.
+ * "Haven't watched lately": the collapsed disclosure at the bottom of the queue
+ * for in-progress-but-idle shows (longest-idle first). A pruning prompt, never a
+ * wall of shame: mark to catch up in place (the show re-sorts into the queue) or
+ * stop it (swipe-left / overflow, snackbar-reversible). A decided show leaves on
+ * its own, so there is no per-session dismissal to lose on reload.
  */
-export function LapsedDrawer({ cards, onMark, onStop }: LapsedDrawerProps): ReactElement | null {
+export function LapsedDrawer({ cards, mark, onStop }: LapsedDrawerProps): ReactElement | null {
   if (cards.length === 0) return null;
 
   return (
-    <Accordion.Root
-      type="single"
-      collapsible
-      className="piles lapsed-drawer"
-      data-testid="lapsed-drawer"
-    >
-      <Accordion.Item className="pile" value="lapsed" data-status="lapsed">
-        <Accordion.Header className="pile__header">
-          <Accordion.Trigger className="pile__trigger" data-testid="lapsed-heading">
-            <ChevronIcon className="pile__chevron" />
-            <span className="pile__name">Haven't watched in a while</span>
-            <span className="pile__count library-heading__count" data-testid="lapsed-count">
-              {cards.length}
-            </span>
+    <Accordion.Root type="single" collapsible className="lapsed" data-testid="lapsed-drawer">
+      <Accordion.Item value="lapsed">
+        <Accordion.Header className="lapsed__header">
+          <Accordion.Trigger className="lapsed__trigger" data-testid="lapsed-heading">
+            Haven't watched lately
+            <Badge testId="lapsed-count">{cards.length}</Badge>
+            <ChevronDown className="lapsed__chevron" aria-hidden="true" />
           </Accordion.Trigger>
         </Accordion.Header>
-        <Accordion.Content className="pile__content">
-          <ul className="lapsed-list">
+        <Accordion.Content className="lapsed__content">
+          <ul className="row-list">
             {cards.map((card) => (
               <li key={card.entry.showId}>
-                <LapsedRow card={card} onMark={() => onMark(card)} onStop={() => onStop(card)} />
+                <QueueRow
+                  card={card}
+                  mark={mark}
+                  variant="lapsed"
+                  onStop={() => onStop(card)}
+                  trailingExtra={<StopSheet title={card.entry.title} onStop={() => onStop(card)} />}
+                />
               </li>
             ))}
           </ul>

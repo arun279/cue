@@ -1,4 +1,6 @@
 import type { EpisodeRef, LibraryShow } from "@domain/model/library";
+import { type EpisodePlay, MARK_MATCH_TOLERANCE_MS } from "@domain/reversal";
+import { resolveStill } from "../image-source";
 import type { HiddenItem, Progress, WatchedShow, WatchlistItem } from "./schemas";
 import { toEpisodeIds } from "./show-detail";
 
@@ -60,6 +62,7 @@ function toEpisodeRef(ep: SchemaEpisode): EpisodeRef {
     number: ep.number,
     title: ep.title ?? null,
     firstAired: ep.first_aired ?? null,
+    still: resolveStill(ep.images?.screenshot),
     ids: toEpisodeIds(ep.ids),
   };
 }
@@ -206,6 +209,7 @@ export function advancePastNext(entry: LibraryEntry, watchedAt: string): Library
           number: current.number + 1,
           title: null,
           firstAired: null,
+          still: null,
           ids: { trakt: 0 },
         };
   return {
@@ -229,4 +233,24 @@ export function markLanded(
   freshCompleted: number,
 ): boolean {
   return toState === "present" ? freshCompleted > preCompleted : freshCompleted < preCompleted;
+}
+
+export type AdditiveMatch =
+  | { readonly episodeTrakt: number }
+  | { readonly season: number; readonly number: number };
+
+/** Did an additive write create its probed play at the frozen watched-at time? */
+export function additiveLanded(
+  plays: readonly EpisodePlay[],
+  match: AdditiveMatch,
+  watchedAt: string,
+): boolean {
+  const markedAt = Date.parse(watchedAt);
+  return plays.some((play) => {
+    const matches =
+      "episodeTrakt" in match
+        ? play.episodeTrakt === match.episodeTrakt
+        : play.season === match.season && play.number === match.number;
+    return matches && Math.abs(Date.parse(play.watchedAt) - markedAt) <= MARK_MATCH_TOLERANCE_MS;
+  });
 }

@@ -18,7 +18,7 @@ export interface LibrarySnapshot {
 
 /**
  * The shared read for the home surfaces: the persisted-SWR `library` query Up Next
- * and My Shows both paint from, plus the live threshold and an id→entry index. One
+ * and Library both paint from, plus the live threshold and an id→entry index. One
  * source so both hooks stay in lock-step and neither re-fetches on navigation.
  */
 export function useLibrarySnapshot(enabled = true): LibrarySnapshot {

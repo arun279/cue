@@ -25,19 +25,19 @@ test("each route sets a truthful, distinct document title", async ({ page }) => 
   await page.goto("/");
   await expect(page).toHaveTitle("Up Next · Cue");
 
-  await page.getByRole("link", { name: "Library", exact: true }).first().click();
+  const sidebar = page.locator(".sidebar");
+  await sidebar.getByRole("link", { name: "Library", exact: true }).click();
   await expect(page).toHaveTitle("Library · Cue");
 
-  await page.getByRole("link", { name: "History", exact: true }).first().click();
-  await expect(page).toHaveTitle("Watch history · Cue");
+  await sidebar.getByRole("link", { name: "Calendar", exact: true }).click();
+  await expect(page).toHaveTitle("Calendar · Cue");
 
-  await page.getByRole("link", { name: "Discover", exact: true }).first().click();
-  await expect(page).toHaveTitle("Discover · Cue");
+  await sidebar.getByRole("link", { name: "Search", exact: true }).click();
+  await expect(page).toHaveTitle("Search · Cue");
 
-  // Calendar demoted to an "Upcoming" view one tap inside Up Next (no longer a tab).
-  await page.goto("/");
-  await page.getByTestId("up-next-upcoming").click();
-  await expect(page).toHaveTitle("Upcoming · Cue");
+  // History is a Profile child now, not a tab: deep link it.
+  await page.goto("/history");
+  await expect(page).toHaveTitle("History · Cue");
 
   await page.goto("/profile");
   await expect(page).toHaveTitle("Profile · Cue");
@@ -45,25 +45,12 @@ test("each route sets a truthful, distinct document title", async ({ page }) => 
   await page.goto("/settings");
   await expect(page).toHaveTitle("Settings · Cue");
 
-  // Dynamic detail titles name the entity; the OAuth return names its purpose.
+  // The OAuth return names its purpose.
   await page.goto("/auth/callback");
   await expect(page).toHaveTitle("Connecting · Cue");
 });
 
-test("the brand wordmark is a link home with an accessible name", async ({ page }) => {
-  await page.goto("/profile");
-  await expect(page.getByTestId("screen-profile")).toBeVisible();
-
-  // The mark is not a dead <span>: it is a labelled link back to Up Next (home).
-  const brand = page.getByRole("link", { name: "Cue home" }).first();
-  await expect(brand).toBeVisible();
-  await brand.click();
-
-  await expect(page).toHaveURL(/\/$/);
-  await expect(page.getByTestId("screen-up-next")).toBeVisible();
-});
-
-test("exactly four job tabs; Calendar folds into Up Next, Profile is a header avatar", async ({
+test("exactly four job tabs: Up Next, Library, Calendar, Search; History and Profile are not tabs", async ({
   page,
 }) => {
   await page.goto("/");
@@ -71,34 +58,60 @@ test("exactly four job tabs; Calendar folds into Up Next, Profile is a header av
 
   await expect(page.getByTestId("screen-up-next")).toBeVisible();
 
-  // Exactly four primary destinations = the four jobs. Profile/Settings are NOT tabs.
+  // Exactly four primary destinations cover the four main jobs. No fifth tab.
   await expect(sidebar.locator(".sidebar__links a")).toHaveCount(4);
 
-  for (const [label, testId] of [
+  for (const [label, screen] of [
     ["Library", "screen-library"],
-    ["History", "screen-history"],
-    ["Discover", "screen-search"],
+    ["Calendar", "screen-calendar"],
+    ["Search", "screen-search"],
     ["Up Next", "screen-up-next"],
   ] as const) {
     await sidebar.getByRole("link", { name: label, exact: true }).click();
-    await expect(page.getByTestId(testId)).toBeVisible();
+    await expect(page.getByTestId(screen)).toBeVisible();
   }
 
-  // Calendar is demoted: not a tab, reachable one tap from Up Next as "Upcoming".
-  await expect(sidebar.getByRole("link", { name: "Calendar", exact: true })).toHaveCount(0);
-  await page.getByTestId("up-next-upcoming").click();
-  await expect(page.getByTestId("screen-calendar")).toBeVisible();
-  await expect(page).toHaveURL(/\/calendar$/);
+  // The Discover label is dead (the screen is honest "Search"), and History is
+  // no longer a tab: it lives under Profile.
+  await expect(sidebar.getByRole("link", { name: "Discover", exact: true })).toHaveCount(0);
+  await expect(sidebar.locator(".sidebar__links a", { hasText: "History" })).toHaveCount(0);
 
-  // Profile is a reachable non-tab utility hub (header avatar on mobile, footer row
-  // on desktop); Settings lives one tap inside it.
-  await page.goto("/");
+  // Profile is a reachable non-tab utility hub; History is one tap inside it.
   await sidebar.getByRole("link", { name: "Profile", exact: true }).click();
   await expect(page.getByTestId("screen-profile")).toBeVisible();
   await expect(page).toHaveURL(/\/profile$/);
+  await page.getByTestId("link-history").click();
+  await expect(page.getByTestId("screen-history")).toBeVisible();
+  await expect(page).toHaveURL(/\/history$/);
 
   await page.goto("/auth/callback");
   await expect(page.getByTestId("screen-auth-callback")).toBeVisible();
+});
+
+test("the phone tab bar carries the four labeled tabs and the header avatar opens Profile", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+
+  // The four tab items, by stable id, all visible on the phone bar.
+  for (const id of ["tab-up-next", "tab-library", "tab-calendar", "tab-search"]) {
+    await expect(page.getByTestId(id)).toBeVisible();
+  }
+  await page.getByTestId("tab-library").click();
+  await expect(page.getByTestId("screen-library")).toBeVisible();
+  await page.getByTestId("tab-calendar").click();
+  await expect(page.getByTestId("screen-calendar")).toBeVisible();
+  await page.getByTestId("tab-search").click();
+  await expect(page.getByTestId("screen-search")).toBeVisible();
+  await page.getByTestId("tab-up-next").click();
+  await expect(page.getByTestId("screen-up-next")).toBeVisible();
+
+  // The brand bar is gone; the root header carries the screen title + avatar.
+  await expect(page.getByRole("link", { name: "Cue home" })).toHaveCount(0);
+  await page.getByTestId("avatar-link").click();
+  await expect(page.getByTestId("screen-profile")).toBeVisible();
+  await expect(page).toHaveURL(/\/profile$/);
 });
 
 // Every legacy tab path must still resolve so old bookmarks / deep links work.
@@ -113,6 +126,15 @@ for (const [legacy, target, screen] of [
     await expect(page.getByTestId(screen)).toBeVisible();
   });
 }
+
+test("a cold Settings link falls back to Profile", async ({ page }) => {
+  await page.goto("/settings");
+  const back = page.getByRole("link", { name: "Back to Profile" });
+  await expect(back).toBeVisible();
+  await back.click();
+  await expect(page).toHaveURL(/\/profile$/);
+  await expect(page.getByTestId("screen-profile")).toBeVisible();
+});
 
 test("renders a sidebar at 1280px and a bottom tab bar at 390px", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
@@ -161,18 +183,23 @@ test("catches a thrown render error in the boundary instead of blanking", async 
   await expect(page.getByRole("alert")).toContainText("Something went wrong");
 });
 
-test("defaults to the dark screening room and persists the toggle choice", async ({ page }) => {
-  // Dark is Cue's unconditional default: even a light OS preference lands dark.
+test("theme follows the OS under System, and an explicit choice persists", async ({ page }) => {
+  // System is the default preference: a light OS scheme lands light…
   await page.emulateMedia({ colorScheme: "light" });
-  // The theme toggle now lives in Settings ▸ Appearance, not the header/sidebar.
   await page.goto("/settings");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+
+  // …and a dark OS scheme re-stamps live, no reload.
+  await page.emulateMedia({ colorScheme: "dark" });
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
 
-  await page.getByTestId("theme-toggle").click();
+  // An explicit choice (Settings ▸ Appearance, System/Dark/Light segmented)
+  // overrides the OS and persists across a reload.
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.getByTestId("theme-toggle").getByText("Light", { exact: true }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
 
   await page.reload();
-  // The stored choice wins over the dark default after reload.
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
 });
 

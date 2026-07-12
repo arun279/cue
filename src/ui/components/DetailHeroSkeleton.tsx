@@ -1,18 +1,22 @@
 import type { ReactElement } from "react";
 
-/** The shared loading silhouette for the Show and Episode media heroes: a
- * poster-shaped block beside title/sub lines, matching the final hero layout so
- * there is no shift on load (Rams 8). */
-export function DetailHeroSkeleton({ testId }: { readonly testId: string }): ReactElement {
+/** The detail-page loading silhouette: a hero-shaped shimmer plate over a title
+ * bar and three season-row blocks, matching the final layout so there is no
+ * shift on load. `aria-hidden`: the screen announces loading, not empty rows. */
+export function DetailHeroSkeleton({
+  testId,
+  rows = 3,
+}: {
+  readonly testId: string;
+  readonly rows?: number;
+}): ReactElement {
   return (
-    <div className="show-hero show-hero--skeleton" data-testid={testId}>
-      <div className="show-hero__body">
-        <div className="poster poster--skeleton poster--hero show-hero__poster" />
-        <div className="show-hero__info">
-          <div className="skeleton-line skeleton-line--title" />
-          <div className="skeleton-line skeleton-line--sub" />
-        </div>
-      </div>
+    <div className="detail-skel" data-testid={testId} aria-hidden="true">
+      <div className="detail-skel__hero" />
+      <div className="detail-skel__bar detail-skel__bar--title" />
+      {Array.from({ length: rows }, (_, index) => index).map((row) => (
+        <div key={row} className="detail-skel__row" />
+      ))}
     </div>
   );
 }

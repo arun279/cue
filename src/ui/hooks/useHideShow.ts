@@ -52,7 +52,7 @@ export function useHideShow(): HideController {
       void queryClient.invalidateQueries({ queryKey: queryKeys.library() });
       void queryClient.invalidateQueries({ queryKey: queryKeys.showHeader(showId) });
       // The hidden set also filters the calendar; drop any cached window so a
-      // hidden show can't linger in Upcoming.
+      // hidden show can't linger in Calendar.
       void queryClient.invalidateQueries({ queryKey: queryKeys.calendarPrefix() });
     },
     [queryClient],

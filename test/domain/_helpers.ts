@@ -15,6 +15,7 @@ export function makeEpisode(overrides: Partial<EpisodeRef> = {}): EpisodeRef {
     number: 1,
     title: "Pilot",
     firstAired: iso(NOW - DAY),
+    still: null,
     ids: { trakt: 900 },
     ...overrides,
   };

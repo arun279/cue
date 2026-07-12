@@ -1,0 +1,1207 @@
+/* ---- Shared component styles: the design system's controls and blocks ---- */
+
+/* ---- CheckControl: the one mark-watched shape ---- */
+.check {
+  appearance: none;
+  border: none;
+  background: none;
+  margin: 0;
+  padding: 0;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  cursor: pointer;
+  color: var(--color-muted);
+}
+.check[data-size="44"] {
+  width: 44px;
+  height: 44px;
+}
+.check[data-size="48"] {
+  width: 48px;
+  height: 48px;
+}
+.check[data-size="56"] {
+  width: 56px;
+  height: 56px;
+}
+/* HIT-SLOP: whatever the visual size, the target clears 48px. */
+.check::after {
+  content: "";
+  position: absolute;
+  inset: min(0px, calc((100% - 48px) / 2));
+}
+.check__disc {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: calc(100% - 8px);
+  height: calc(100% - 8px);
+  border-radius: var(--radius-pill);
+  border: 2px solid var(--color-border-strong);
+  transition:
+    transform var(--dur-quick) var(--ease-standard),
+    border-color var(--dur-quick) var(--ease-standard);
+}
+.check:active .check__disc {
+  transform: scale(0.9);
+  border-color: var(--color-accent);
+}
+.check[data-state="syncing"] {
+  cursor: default;
+}
+.check[data-state="syncing"] .check__disc {
+  opacity: 0.3;
+}
+/* The rest glyph: a check waiting to happen, cross-fading out under the fill. */
+.check__rest {
+  width: 50%;
+  height: 50%;
+  transition: opacity 140ms var(--ease-standard);
+}
+.check[data-state="watched"] .check__rest,
+.check[data-state="just-marked"] .check__rest {
+  opacity: 0;
+}
+/* The green disc scales in over the ring; its glyph stroke-draws after it. */
+.check__fill-disc {
+  position: absolute;
+  inset: -2px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-pill);
+  background: var(--color-watched);
+  color: var(--color-watched-fg);
+  transform: scale(0.4);
+  opacity: 0;
+  transition:
+    transform 140ms var(--ease-standard),
+    opacity 140ms var(--ease-standard);
+}
+.check[data-state="watched"] .check__fill-disc,
+.check[data-state="just-marked"] .check__fill-disc {
+  transform: scale(1);
+  opacity: 1;
+  transition:
+    transform 180ms var(--ease-emphasized),
+    opacity 180ms var(--ease-emphasized);
+}
+.check__fill {
+  width: 50%;
+  height: 50%;
+}
+.check__fill .check__glyph {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset 120ms var(--ease-standard);
+}
+.check[data-state="watched"] .check__fill .check__glyph,
+.check[data-state="just-marked"] .check__fill .check__glyph {
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 160ms var(--ease-standard) 60ms;
+}
+/* Season-bulk partial: hollow ring with a quiet center dot. The rest glyph
+ * yields entirely. Overlapped strokes read as a smudge at 44px. */
+.check__dot {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-muted);
+}
+.check[data-partial="true"] .check__rest {
+  opacity: 0;
+}
+/* Multi-play ×N badge, pinned to the disc's corner. */
+.check__plays {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: var(--radius-pill);
+  background: var(--color-elevated);
+  color: var(--color-fg);
+  font-size: 10px;
+  font-weight: 700;
+}
+/* Unaired: the control gives way to a micro date chip. There is nothing to mark yet. */
+.check-date {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-elevated);
+  color: var(--color-ink2);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- App snackbar: the one ephemeral pattern ---- */
+.app-snackbar {
+  position: fixed;
+  left: var(--space-4);
+  right: var(--space-4);
+  bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + var(--space-2));
+  /* Above the sheet stack (scrim 50 / panel 51): snackbar actions (Undo,
+   * backfill) must stay tappable while a sheet is open, and a tap on them must
+   * never fall through to the scrim and dismiss the sheet instead. z-index
+   * wins the paint order; pointer-events restores hit-testing under the modal
+   * sheet's `body { pointer-events: none }` (the component keeps its taps from
+   * reaching the sheet's outside-tap dismissal). */
+  z-index: 60;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 48px;
+  padding: var(--space-1) var(--space-2) var(--space-1) var(--space-4);
+  border-radius: var(--radius-control);
+  background: var(--color-overlay);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-2);
+  transition: transform var(--dur-base) var(--ease-standard);
+  animation: snackbar-in var(--dur-base) var(--ease-emphasized);
+  touch-action: none;
+}
+@keyframes snackbar-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+.app-snackbar[data-state="closing"] {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms var(--ease-standard);
+}
+.app-snackbar__message {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-fg);
+}
+.app-snackbar__message strong {
+  font-weight: 600;
+}
+.app-snackbar__action {
+  appearance: none;
+  border: none;
+  background: none;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap-min);
+  min-width: var(--tap-min);
+  padding-inline: var(--space-2);
+  color: var(--color-accent-ink);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.app-snackbar__action + .app-snackbar__action {
+  margin-left: var(--space-2);
+}
+/* Hover lifts amber ink toward the theme's fg: brighter on dark, deeper on
+ * light. Contrast rises in both directions (accent-strong fails AA on light). */
+.app-snackbar__action:hover {
+  color: color-mix(in srgb, var(--color-accent-ink) 85%, var(--color-fg));
+}
+@media (min-width: 900px) {
+  .app-snackbar {
+    left: auto;
+    right: var(--space-5);
+    bottom: var(--space-5);
+    width: min(420px, calc(100vw - 2 * var(--space-5)));
+  }
+}
+
+/* ---- ProgressBar ---- */
+.progress-bar {
+  display: inline-block;
+  flex: none;
+  width: 64px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-track);
+  overflow: hidden;
+}
+.progress-bar > i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--color-progress);
+  transition: width var(--dur-gentle) var(--ease-standard);
+}
+.progress-bar[data-complete="true"] > i {
+  background: var(--color-watched);
+}
+/* Static stripes: the honest "still syncing" texture, never a fabricated number. */
+.progress-bar[data-striped="true"] {
+  background: repeating-linear-gradient(
+    45deg,
+    color-mix(in srgb, var(--color-muted) 40%, transparent) 0 3px,
+    var(--color-track) 3px 6px
+  );
+}
+
+/* ---- Badge ---- */
+.badge-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  height: 24px;
+  min-width: 24px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-elevated);
+  color: var(--color-ink2);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.badge-pill[data-variant="media-type"] {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.badge-pill[data-variant="plays"] {
+  height: 14px;
+  min-width: 14px;
+  padding: 0 3px;
+  font-size: 10px;
+}
+
+/* ---- SectionHeader + day sub-headers ---- */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: var(--tap-min);
+}
+.section-header__label {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+.section-header__link {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  min-height: var(--tap-min);
+  padding-inline: var(--space-2);
+  margin-right: calc(-1 * var(--space-2));
+  color: var(--color-accent-ink);
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.section-header__link:hover {
+  color: color-mix(in srgb, var(--color-accent-ink) 85%, var(--color-fg));
+}
+.day-subheader {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  margin: var(--space-1) 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+/* ---- EpisodeRow: the shared list-row shell ---- */
+.row-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ep-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.ep-row__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 72px;
+  color: inherit;
+  text-decoration: none;
+}
+.ep-row[data-variant="on-the-way"] .ep-row__body {
+  min-height: 60px;
+}
+.ep-row[data-variant="previously"] .ep-row__body {
+  min-height: 56px;
+}
+.ep-row__art {
+  flex: none;
+  display: inline-flex;
+}
+.ep-row__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ep-row__title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ep-row[data-variant="on-the-way"] .ep-row__title {
+  font-size: 14px;
+}
+.ep-row[data-variant="previously"] .ep-row__title {
+  font-size: 14px;
+  font-weight: 500;
+}
+.ep-row__title strong {
+  font-weight: 600;
+}
+.ep-row__meta {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-ink2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ep-row[data-variant="previously"] .ep-row__meta {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+.ep-row__code {
+  font-variant-numeric: tabular-nums;
+}
+.ep-row__footer {
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.ep-row__count {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* SPACE rule: adjacent trailing targets (overflow ⋯ beside a check) keep ≥8px
+ * between their boxes so hit slops never collide. */
+.ep-row__trailing {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* A 44px trailing overflow (⋯) beside a row's check. */
+.row-overflow {
+  appearance: none;
+  border: none;
+  background: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tap-min);
+  height: var(--tap-min);
+  padding: 0;
+  border-radius: var(--radius-pill);
+  color: var(--color-muted);
+  cursor: pointer;
+}
+.row-overflow svg {
+  width: 20px;
+  height: 20px;
+}
+.row-overflow:hover {
+  color: var(--color-fg);
+}
+
+/* ---- Poster (universal 2:3 tile; leaf img or gradient-initials fallback) ----
+ * The base carries the ratio; the strict `sNN` scale (NN px wide) sets the width. */
+.poster {
+  position: relative;
+  aspect-ratio: 2 / 3;
+  border-radius: var(--radius-poster);
+  background: var(--color-elevated);
+  flex: none;
+  display: block;
+  overflow: hidden;
+}
+.poster--s32 {
+  width: 32px;
+  border-radius: 6px;
+}
+.poster--s40 {
+  width: 40px;
+}
+.poster--s44 {
+  width: 44px;
+}
+.poster--s48 {
+  width: 48px;
+}
+.poster--s64 {
+  width: 64px;
+}
+.poster--s96 {
+  width: 96px;
+}
+.poster--s115 {
+  width: 115px;
+}
+/* The real poster image, laid over the gradient-initials placeholder that every
+   .poster carries. It starts transparent and fades in once decoded, so a lazy
+   below-the-fold tile in a library grid shows the warm titled placeholder
+   until its art arrives: never a flat grey blank. */
+.poster__img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity var(--dur-base) var(--ease-standard);
+}
+.poster__img--loaded {
+  opacity: 1;
+}
+/* ---- The shared "no artwork" block ----
+ * An absolute fill so it backs a poster/still image and shows through until (or
+ * unless) art decodes: a deterministic warm gradient, a quiet media glyph, and the
+ * title monogram in the display face: a deliberate placeholder, never a broken
+ * image. */
+.art-ph {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+  color: var(--color-fg);
+  border-radius: inherit;
+  overflow: hidden;
+}
+.art-ph__glyph {
+  width: clamp(18px, 22%, 30px);
+  height: auto;
+  color: color-mix(in srgb, var(--color-fg) 55%, transparent);
+}
+.art-ph__label {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.15rem;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.35);
+}
+
+/* ---- PosterTile + grid ---- */
+.poster-tile-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-2);
+}
+.poster-tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+.poster-tile__art {
+  position: relative;
+  display: block;
+}
+.poster-tile__art .poster {
+  width: 100%;
+}
+.poster-tile__badge {
+  position: absolute;
+  top: var(--space-1);
+  right: var(--space-1);
+}
+.poster-tile__title {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-ink2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---- MarqueeCard: the only card on the home screen ---- */
+.marquee {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  /* SPACE rule: the body link and the check are separate targets. */
+  gap: var(--space-2);
+  height: 140px;
+  margin-bottom: var(--space-3);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  background: var(--color-surface);
+}
+.marquee__backdrop,
+.marquee__plate {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.marquee__scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(to right, rgb(10 8 6 / 0.4), transparent 40%),
+    linear-gradient(to top, rgb(10 8 6 / 0.86) 0%, rgb(10 8 6 / 0.35) 55%, rgb(10 8 6 / 0) 100%);
+}
+.marquee__body {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  color: inherit;
+  text-decoration: none;
+}
+.marquee__poster {
+  flex: none;
+  align-self: center;
+}
+.marquee__stack {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.marquee__eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-on-image-2);
+}
+.marquee__title {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-on-image);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.marquee__meta {
+  font-size: 13px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-on-image-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.marquee__progress {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: 3px;
+}
+.marquee__progress .progress-bar {
+  width: 120px;
+}
+.marquee__left {
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-on-image);
+}
+.marquee__check {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding-right: var(--space-3);
+}
+/* Over artwork the rest ring needs on-image ink, not canvas ink. */
+.marquee__check .check {
+  color: var(--color-on-image-2);
+}
+.marquee__check .check__disc {
+  border-color: color-mix(in srgb, var(--color-on-image) 55%, transparent);
+}
+
+/* ---- Button: the inline CTA (empty-state actions, retry, settings hand-offs) ---- */
+.button {
+  appearance: none;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--tap-min);
+  background: var(--color-accent);
+  color: var(--color-accent-fg);
+  padding: 12px var(--space-5);
+  border-radius: var(--radius-control);
+  font-family: var(--font-ui);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--dur-quick) var(--ease-standard);
+}
+.button:hover {
+  background: var(--color-accent-strong);
+}
+.button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.button--ghost {
+  background: transparent;
+  color: var(--color-fg);
+  border: 1px solid var(--color-border);
+}
+.button--ghost:hover {
+  background: var(--color-elevated);
+}
+
+/* ---- The hard load-failure block (ErrorRetry): title, hint, Retry. Distinct from
+ * EmptyState below, which means success ("all caught up"), not failure. ---- */
+.empty {
+  text-align: center;
+  max-width: 30rem;
+  margin: var(--space-7) auto;
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.empty__title {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.4rem;
+  letter-spacing: -0.01em;
+}
+.empty__body {
+  margin: 0 0 var(--space-4);
+  color: var(--color-ink2);
+  line-height: 1.5;
+}
+
+/* ---- EmptyState ---- */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-7) 0 var(--space-5);
+}
+.empty-state__headline {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+}
+.empty-state__body {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 450;
+  line-height: 1.45;
+  color: var(--color-ink2);
+}
+
+/* ---- Skeletons (RM clamp freezes the shimmer) ---- */
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+.skeleton-marquee {
+  height: 140px;
+  margin-bottom: var(--space-3);
+  border-radius: var(--radius-card);
+  background: var(--color-elevated);
+  animation: pulse 1.2s linear infinite;
+}
+.skeleton-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 72px;
+}
+.skeleton-row__poster {
+  flex: none;
+  width: 48px;
+  height: 72px;
+  border-radius: var(--radius-poster);
+  background: var(--color-elevated);
+  animation: pulse 1.2s linear infinite;
+}
+.skeleton-row__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.skeleton-row__bar {
+  height: 12px;
+  border-radius: var(--radius-pill);
+  background: var(--color-elevated);
+  animation: pulse 1.2s linear infinite;
+}
+.skeleton-row__bar--title {
+  width: 60%;
+}
+.skeleton-row__bar--meta {
+  width: 40%;
+}
+.skeleton-row__bar--progress {
+  width: 64px;
+  height: 4px;
+}
+
+/* ---- TutorialCaption ---- */
+.tutorial-caption {
+  margin: 0;
+  padding-right: var(--space-2);
+  text-align: right;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-muted);
+}
+
+/* ---- Sheet: the base bottom sheet under every overlay ---- */
+.sheet-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: color-mix(in srgb, var(--color-scrim) 65%, transparent);
+}
+.sheet-scrim[data-state="open"] {
+  animation: sheet-scrim-in var(--dur-base) var(--ease-standard);
+}
+.sheet-scrim[data-state="closed"] {
+  animation: sheet-scrim-out var(--dur-base) var(--ease-standard) forwards;
+}
+@keyframes sheet-scrim-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes sheet-scrim-out {
+  to {
+    opacity: 0;
+  }
+}
+.sheet {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 51;
+  margin-inline: auto;
+  width: min(100%, 32rem);
+  max-height: 92dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-overlay);
+  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+  box-shadow: var(--shadow-2);
+  transition: transform var(--dur-gentle) var(--ease-emphasized);
+  overscroll-behavior: contain;
+  /* The panel takes the dialog's opening focus (a container, not a control). */
+  outline: none;
+}
+.sheet[data-state="open"] {
+  animation: sheet-in var(--dur-slow) var(--ease-emphasized);
+}
+.sheet[data-state="closed"] {
+  animation: sheet-out var(--dur-base) var(--ease-standard) forwards;
+}
+/* While the finger owns the sheet, the detent transition gets out of the way. */
+.sheet[data-dragging="true"] {
+  transition: none;
+}
+@keyframes sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+}
+/* No `from`: the exit leaves from wherever the drag released the panel. */
+@keyframes sheet-out {
+  to {
+    transform: translateY(100%);
+  }
+}
+/* Spec fallback (the global RM clamp shortens these to an instant): the sheet
+ * fades in place, no travel. */
+@media (prefers-reduced-motion: reduce) {
+  .sheet[data-state="open"] {
+    animation: sheet-fade-in 100ms linear;
+  }
+  .sheet[data-state="closed"] {
+    animation: sheet-fade-out 100ms linear forwards;
+  }
+}
+@keyframes sheet-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes sheet-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+.sheet__handle {
+  flex: none;
+  display: grid;
+  place-items: center;
+  padding: var(--space-2) 0 var(--space-1);
+  touch-action: none;
+  cursor: grab;
+}
+.sheet__grabber {
+  width: 36px;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--color-border-strong);
+}
+.sheet__body {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  padding: 0 var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom));
+}
+.sheet[data-detents="tall"] {
+  height: 92dvh;
+}
+/* The 65% detent: the 92%-tall panel translated by its own height so the same
+ * fraction shows; keep in sync with OPEN_DETENT_FRACTION (1 - 65/92). */
+.sheet[data-detents="tall"][data-detent="open"] {
+  transform: translateY(29.35%);
+}
+/* Content scrolls only at the full detent; at 65% a drag moves the sheet. */
+.sheet[data-detents="tall"][data-detent="open"] .sheet__body {
+  overflow: hidden;
+}
+
+/* ---- ActionSheet: a titled list of 52px action rows ---- */
+.sheet-menu {
+  display: flex;
+  flex-direction: column;
+}
+.sheet-menu__title {
+  margin: 0;
+  padding: var(--space-1) var(--space-1) var(--space-2);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-fg);
+}
+.sheet-menu__row {
+  appearance: none;
+  border: none;
+  background: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 52px;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-control);
+  color: var(--color-fg);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.sheet-menu__row:hover {
+  background: var(--color-elevated);
+}
+.sheet-menu__row[data-danger] {
+  color: var(--color-danger);
+}
+.sheet-menu__icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--color-muted);
+}
+.sheet-menu__icon svg {
+  width: 20px;
+  height: 20px;
+}
+.sheet-menu__row[data-danger] .sheet-menu__icon {
+  color: inherit;
+}
+
+/* ---- ConfirmSheet: title + consequence line + stacked 52px decisions ---- */
+.confirm-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-1);
+}
+.confirm-sheet__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+}
+.confirm-sheet__body {
+  margin: 0 0 var(--space-2);
+  font-size: 15px;
+  font-weight: 450;
+  line-height: 1.45;
+  color: var(--color-ink2);
+}
+.sheet-btn {
+  appearance: none;
+  border: none;
+  background: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 52px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-control);
+  color: var(--color-fg);
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background var(--dur-quick) var(--ease-standard),
+    color var(--dur-quick) var(--ease-standard);
+}
+.sheet-btn:hover {
+  background: var(--color-elevated);
+}
+.sheet-btn--primary {
+  background: var(--color-accent);
+  color: var(--color-accent-fg);
+}
+.sheet-btn--primary:hover {
+  background: var(--color-accent-strong);
+}
+/* Danger ink is the canvas color: near-black on the dark theme's salmon,
+ * near-white on the light theme's deep red; AA both ways. */
+.sheet-btn--danger {
+  background: var(--color-danger);
+  color: var(--color-bg);
+}
+.sheet-btn--danger:hover {
+  background: color-mix(in srgb, var(--color-danger) 85%, var(--color-fg));
+}
+
+/* ---- ContextMenu: the long-press wrapper adds no box of its own ---- */
+.context-menu-target {
+  display: contents;
+}
+
+/* ---- Chip: the pill control (status counts, filters, month jump) ---- */
+.chip {
+  appearance: none;
+  border: none;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  height: 32px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--color-elevated);
+  color: var(--color-ink2);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+/* HIT-SLOP, vertical only: chips sit 8px apart in a row, so sideways slop
+ * would collide with the neighbor's target (SPACE rule). */
+.chip::after {
+  content: "";
+  position: absolute;
+  inset: calc((100% - var(--tap-min)) / 2) 0;
+}
+.chip[data-selected] {
+  background: var(--color-accent);
+  color: var(--color-accent-fg);
+}
+.chip__count {
+  font-variant-numeric: tabular-nums;
+}
+.chip[data-variant="filter"] {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+.chip[data-variant="month-jump"] svg {
+  width: 16px;
+  height: 16px;
+  margin-right: -2px;
+}
+
+/* ---- SegmentedControl: 2-3 segments on a 36px elevated track ---- */
+.segments {
+  display: inline-flex;
+  max-width: 100%;
+  height: 36px;
+  padding: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--color-elevated);
+}
+.segments__item {
+  appearance: none;
+  border: none;
+  background: none;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-pill);
+  color: var(--color-muted);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+/* HIT-SLOP, vertical only; segments touch side by side. */
+.segments__item::after {
+  content: "";
+  position: absolute;
+  inset: calc((100% - var(--tap-min)) / 2) 0;
+}
+.segments__item[data-state="on"] {
+  background: var(--color-surface);
+  color: var(--color-fg);
+  box-shadow: var(--shadow-1);
+}
+
+/* ---- CountdownPanel: future-date copy, nothing to mark yet ---- */
+.countdown-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  min-height: 120px;
+  padding: var(--space-4);
+  border-radius: var(--radius-control);
+  background: var(--color-elevated);
+  text-align: center;
+}
+.countdown-panel__title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-fg);
+}
+.countdown-panel__when {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-ink2);
+  font-variant-numeric: tabular-nums;
+}
+.countdown-text {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-ink2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- SwipeAction ---- */
+.swipe {
+  position: relative;
+  overflow: hidden;
+  touch-action: pan-y;
+}
+.swipe__underlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  opacity: 0;
+}
+.swipe__underlay svg {
+  width: 24px;
+  height: 24px;
+}
+.swipe__underlay--mark {
+  justify-content: flex-start;
+  padding-left: var(--space-5);
+  background: var(--color-watched);
+  color: var(--color-watched-fg);
+}
+.swipe__underlay--stop {
+  justify-content: flex-end;
+  padding-right: var(--space-5);
+  background: var(--color-elevated);
+  color: var(--color-fg);
+}
+.swipe[data-direction="right"] .swipe__underlay--mark,
+.swipe[data-direction="left"] .swipe__underlay--stop {
+  opacity: 1;
+}
+.swipe__content {
+  position: relative;
+  background: var(--color-bg);
+  transition: transform 260ms var(--ease-emphasized);
+}

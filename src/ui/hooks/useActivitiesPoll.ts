@@ -1,4 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
+import { applyReconcile } from "@ui/hooks/apply-reconcile";
 import { useOptionalRuntime } from "@ui/runtime/runtime";
 import { useEffect } from "react";
 
@@ -31,28 +32,22 @@ export function useActivitiesPoll(): void {
     let cancelled = false;
     let running = false;
 
+    const flushPending = async (): Promise<number> =>
+      runtime.pendingWrites() > 0 ? runtime.flushWrites() : 0;
+
     const runPoll = async (): Promise<void> => {
       if (running || document.visibilityState === "hidden") return;
       running = true;
       try {
+        // Local ops land BEFORE the freshness check, and a reconcile never
+        // applies over ops still in the log: invalidating then would repaint
+        // server state that is missing the local marks (mid-binge bounce).
+        // A flush that can't drain (offline / rate-limited) skips this cycle;
+        // the next trigger retries.
+        if ((await flushPending()) > 0 || cancelled) return;
         const reconcile = await runtime.pollActivities();
         if (cancelled || reconcile === null) return;
-        if (reconcile.keys.length > 0) {
-          await Promise.all(
-            reconcile.keys.map((queryKey) => queryClient.invalidateQueries({ queryKey })),
-          );
-          if (cancelled) return;
-        }
-        // Advance the baseline ONLY after the invalidated queries refetched, and
-        // only if none ended in error: a failed refetch must be re-detected on the
-        // next poll rather than silently skipped by an advanced snapshot.
-        const anyError = reconcile.keys.some((queryKey) =>
-          queryClient
-            .getQueryCache()
-            .findAll({ queryKey })
-            .some((query) => query.state.status === "error"),
-        );
-        if (!anyError) await reconcile.commit();
+        await applyReconcile(queryClient, reconcile, () => cancelled);
       } finally {
         running = false;
       }
@@ -62,16 +57,22 @@ export function useActivitiesPoll(): void {
     const onVisible = (): void => {
       if (document.visibilityState === "visible") poll();
     };
+    // Reconnect always attempts to land deferred writes, even from a hidden
+    // tab; the poll itself (and so the reconcile) stays visibility-gated.
+    const onOnline = (): void => {
+      if (document.visibilityState === "hidden") void flushPending();
+      else poll();
+    };
 
     poll();
     document.addEventListener("visibilitychange", onVisible);
-    globalThis.addEventListener("online", poll);
+    globalThis.addEventListener("online", onOnline);
     const interval = globalThis.setInterval(poll, POLL_INTERVAL_MS);
 
     return () => {
       cancelled = true;
       document.removeEventListener("visibilitychange", onVisible);
-      globalThis.removeEventListener("online", poll);
+      globalThis.removeEventListener("online", onOnline);
       globalThis.clearInterval(interval);
     };
   }, [runtime, queryClient]);

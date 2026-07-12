@@ -75,21 +75,28 @@ export function RuntimeBoot({
 
   if (failed && runtime === null) {
     return (
-      <main className="onboarding" data-testid="runtime-error">
-        <p className="onboarding__lead" role="alert">
-          Couldn't start Cue.
-        </p>
-        <button type="button" className="button" data-testid="runtime-error-retry" onClick={boot}>
-          Retry
-        </button>
+      <main className="onb" data-testid="runtime-error">
+        <section className="onb__card">
+          <p className="onb__lead" role="alert">
+            Couldn't start Cue.
+          </p>
+          <button
+            type="button"
+            className="onb__cta"
+            data-testid="runtime-error-retry"
+            onClick={boot}
+          >
+            Retry
+          </button>
+        </section>
       </main>
     );
   }
 
   if (runtime === null) {
     return (
-      <main className="onboarding" data-testid="runtime-loading">
-        <p className="onboarding__lead" role="status">
+      <main className="onb" data-testid="runtime-loading">
+        <p className="onb__lead" role="status">
           Loading your queue…
         </p>
       </main>

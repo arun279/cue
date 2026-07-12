@@ -35,8 +35,8 @@ function Gate({ stores }: { stores: RuntimeStores }): ReactElement {
   if (onCallback) return <RouterProvider router={router} />;
   if (phase === "loading") {
     return (
-      <main className="onboarding" data-testid="auth-loading">
-        <p className="onboarding__lead" role="status">
+      <main className="onb" data-testid="auth-loading">
+        <p className="onb__lead" role="status">
           Loading…
         </p>
       </main>

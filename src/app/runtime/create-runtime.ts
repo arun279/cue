@@ -14,13 +14,13 @@ import {
   getMyShowsCalendar,
   getPopularMovies,
   getPopularShows,
-  getRatings,
   getRelatedMovies,
   getShow,
   getShowProgress,
   getShowSeasons,
   getTrendingMovies,
   getTrendingShows,
+  getUserSettings,
   getUserStats,
   getWatchedMovies,
   getWatchlist,
@@ -32,7 +32,7 @@ import {
   assembleHistoryEntries,
   assembleMoviePlays,
 } from "@data/trakt/history";
-import { markLanded, type ShowArt, showIdSet } from "@data/trakt/library";
+import { additiveLanded, markLanded, type ShowArt, showIdSet } from "@data/trakt/library";
 import { assembleMovieHeader, assembleMovieLibrary } from "@data/trakt/movie-library";
 import { loadUpNextEntries, withReadRateRetry } from "@data/trakt/read-budget";
 import { createLastActivitiesRepository } from "@data/trakt/repositories";
@@ -45,6 +45,7 @@ import {
 } from "@data/trakt/search";
 import { assembleHeader, assembleSeasons } from "@data/trakt/show-detail";
 import { createTraktTransport } from "@data/trakt/transport";
+import { assembleUserProfile, type UserProfile } from "@data/trakt/user-profile";
 import type { Token } from "@domain/model/token";
 import type { LastActivities } from "@domain/sync-activities";
 import { WriteQueue } from "@domain/write-queue/queue";
@@ -54,12 +55,11 @@ import type { KeyValueStore } from "@platform/kv";
 import type { TokenStore } from "@platform/token-store";
 import type {
   ActivitiesReconcile,
+  BrowseData,
   CalendarData,
   CueRuntime,
-  DiscoverData,
   HistoryPageData,
   MovieLibraryData,
-  RatingMap,
   SubmitOutcome,
   UpNextData,
 } from "@ui/runtime/runtime";
@@ -67,6 +67,13 @@ import type {
 const OP_LOG_KEY = "cue.write-queue";
 /** The persisted `/sync/last_activities` baseline the freshness gate diffs against. */
 const ACTIVITIES_KEY = "cue.last-activities";
+
+function clearCueLocalStorage(): void {
+  for (let index = localStorage.length - 1; index >= 0; index -= 1) {
+    const key = localStorage.key(index);
+    if (key?.startsWith("cue.") === true) localStorage.removeItem(key);
+  }
+}
 
 /**
  * The op's `inversePatch` read as a reconcile anchor: a `mark`/bulk write pivots
@@ -76,7 +83,13 @@ const ACTIVITIES_KEY = "cue.last-activities";
 type ReconcileContext =
   | { readonly kind?: "mark"; readonly showId: number; readonly preCompleted: number }
   | { readonly kind: "hidden"; readonly showId: number }
-  | { readonly kind: "movie"; readonly movieId: number };
+  | { readonly kind: "movie"; readonly movieId: number }
+  | { readonly kind: "additive-episode"; readonly episodeTrakt: number }
+  | {
+      readonly kind: "additive-season";
+      readonly showId: number;
+      readonly probe: { readonly season: number; readonly number: number };
+    };
 
 export interface RuntimeDeps {
   readonly token: Token;
@@ -133,6 +146,22 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       if (!watched.ok) throw new Error("reconcile read failed");
       const isWatched = watched.data.some((row) => row.movie.ids.trakt === context.movieId);
       return op.toState === "present" ? isWatched : !isWatched;
+    }
+    if (context.kind === "additive-episode") {
+      if (op.watchedAt === null) return false;
+      const result = await getItemPlays(client, "episodes", context.episodeTrakt);
+      if (!result.ok) throw new Error("reconcile read failed");
+      return additiveLanded(
+        assembleEpisodePlays(result.data),
+        { episodeTrakt: context.episodeTrakt },
+        op.watchedAt,
+      );
+    }
+    if (context.kind === "additive-season") {
+      if (op.watchedAt === null) return false;
+      const result = await getItemPlays(client, "shows", context.showId);
+      if (!result.ok) throw new Error("reconcile read failed");
+      return additiveLanded(assembleEpisodePlays(result.data), context.probe, op.watchedAt);
     }
     const result = await getShowProgress(client, context.showId);
     if (!result.ok) throw new Error("reconcile read failed");
@@ -255,17 +284,6 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       return assembleEpisodeDetail(showId, episode.data, progress.data, Date.now());
     },
 
-    async loadRatings(section): Promise<RatingMap> {
-      const result = await getRatings(client, section);
-      if (!result.ok) throw new Error("Failed to load ratings");
-      const map: Record<number, number> = {};
-      for (const item of result.data) {
-        const trakt = item.show?.ids.trakt ?? item.movie?.ids.trakt ?? item.episode?.ids.trakt;
-        if (trakt !== undefined) map[trakt] = item.rating;
-      }
-      return map;
-    },
-
     async loadWatchlistIds(section) {
       const result = await getWatchlist(client, section);
       if (!result.ok) throw new Error("Failed to load watchlist");
@@ -331,7 +349,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       return rankSearchHits(assembleSearchHits(result.data), query);
     },
 
-    async loadDiscover(): Promise<DiscoverData> {
+    async loadBrowse(): Promise<BrowseData> {
       const [trending, popular, trendingMovies, popularMovies] = await Promise.all([
         getTrendingShows(client),
         getPopularShows(client),
@@ -356,6 +374,12 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       return result.data;
     },
 
+    async loadUserProfile(): Promise<UserProfile> {
+      const result = await getUserSettings(client);
+      if (!result.ok) throw new Error("Failed to load user settings");
+      return assembleUserProfile(result.data);
+    },
+
     async submit(op: QueuedOp): Promise<SubmitOutcome> {
       queue.enqueue(op);
       await persistLog();
@@ -364,6 +388,24 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       if (result.completed.some((done) => done.id === op.id)) return "done";
       if (result.failed.some((failure) => failure.op.id === op.id)) return "failed";
       return "deferred";
+    },
+
+    pendingWrites(): number {
+      return queue.snapshot().length;
+    },
+
+    pendingOps(): readonly QueuedOp[] {
+      return queue.snapshot();
+    },
+
+    inFlightOpId(): string | null {
+      return queue.inFlightId;
+    },
+
+    async flushWrites(): Promise<number> {
+      await queue.flush();
+      await persistLog();
+      return queue.snapshot().length;
     },
 
     async pollActivities(): Promise<ActivitiesReconcile | null> {
@@ -411,6 +453,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
         // can never be sent, and clearing is what prevents the cross-account
         // replay.
         if (options.force !== true && queue.size > 0) throw new PendingWritesError();
+        clearCueLocalStorage();
         // Clear this device's per-account state so the next account never paints
         // stale data or dispatches a leftover op.
         await opLogStore.clear();

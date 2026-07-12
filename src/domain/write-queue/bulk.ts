@@ -36,6 +36,12 @@ export interface BulkMarkTarget {
   readonly upTo?: { readonly season: number; readonly number: number };
   /** Opaque reconcile anchor stamped on every chunk so a lost response is retired, not re-POSTed. */
   readonly inversePatch?: unknown;
+  /** Build a reconcile anchor from the first represented episode in each chunk. */
+  readonly inversePatchForChunk?: (probe: { season: number; number: number }) => unknown;
+  /** A deliberate rewatch pass: uniquify each chunk's itemKey by its op id so a
+   * pending mark of the same subtree can never coalesce-swallow it (additive
+   * intent is never redundant, unlike an identical re-mark toggle). */
+  readonly additive?: boolean;
 }
 
 type SeasonBody = { number: number; episodes: { number: number }[] };
@@ -66,10 +72,12 @@ export function buildBulkMarkOps(
   makeOpId: (chunkIndex: number) => string,
 ): QueuedOp[] {
   const chunks = chunkSeasons(planSeasons(target, now));
-  return chunks.map(
-    (seasons, index): QueuedOp => ({
-      id: makeOpId(index),
-      itemKey: `show:${target.showIds.trakt}:bulk:${hashSeasons(seasons)}`,
+  return chunks.map((seasons, index): QueuedOp => {
+    const id = makeOpId(index);
+    const key = `show:${target.showIds.trakt}:bulk:${hashSeasons(seasons)}`;
+    return {
+      id,
+      itemKey: target.additive === true ? `${key}:add:${id}` : key,
       request: {
         method: "POST",
         path: HISTORY,
@@ -80,13 +88,21 @@ export function buildBulkMarkOps(
         path: HISTORY_REMOVE,
         body: { shows: [{ ids: target.showIds, seasons }] },
       },
-      inversePatch: target.inversePatch ?? null,
+      inversePatch: chunkInversePatch(target, seasons),
       watchedAt,
       fromState: "absent",
       toState: "present",
       reconcileKeys: ["progress/watched", "watched/shows"],
-    }),
-  );
+    };
+  });
+}
+
+function chunkInversePatch(target: BulkMarkTarget, seasons: readonly SeasonBody[]): unknown {
+  if (target.inversePatchForChunk === undefined) return target.inversePatch ?? null;
+  const firstSeason = seasons[0];
+  const firstEpisode = firstSeason?.episodes[0];
+  if (firstSeason === undefined || firstEpisode === undefined) return target.inversePatch ?? null;
+  return target.inversePatchForChunk({ season: firstSeason.number, number: firstEpisode.number });
 }
 
 function planSeasons(target: BulkMarkTarget, now: number): PlannedSeason[] {

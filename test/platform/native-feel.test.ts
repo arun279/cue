@@ -17,6 +17,7 @@ describe("native seams degrade to silent no-ops on web", () => {
     expect(() => {
       haptics.markCommitted();
       haptics.markUndone();
+      haptics.swipeThreshold();
     }).not.toThrow();
     expect(isEnabled).not.toHaveBeenCalled();
   });

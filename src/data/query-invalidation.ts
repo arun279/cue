@@ -16,7 +16,9 @@ export type InvalidationKey = readonly unknown[];
  * Deliberately absent: `showHeader`/`showSeasons`/`episode` and the calendar.
  * Those carry Trakt content (airdates, newly-announced episodes) that doesn't
  * always bump user activity, so they refresh on a time-based content staleTime
- * rather than being gated on this diff.
+ * rather than being gated on this diff. `userSettings` is absent too: identity
+ * changes about never and moves no activity stamp, so the read stays cached
+ * until sign-out clears it.
  */
 function keysForTarget(target: InvalidationTarget): readonly InvalidationKey[] {
   switch (target) {
@@ -30,12 +32,6 @@ function keysForTarget(target: InvalidationTarget): readonly InvalidationKey[] {
       return [queryKeys.library(), queryKeys.watchlist("shows")];
     case "watchlist/movies":
       return [queryKeys.movieLibrary(), queryKeys.watchlist("movies")];
-    case "ratings/shows":
-      return [queryKeys.ratings("shows")];
-    case "ratings/movies":
-      return [queryKeys.ratings("movies")];
-    case "ratings/episodes":
-      return [queryKeys.ratings("episodes")];
     case "hidden/progress_watched":
     case "recompute:buckets":
     case "recompute:to-watch":

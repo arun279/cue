@@ -138,19 +138,11 @@ export const watchlistSchema = z.array(
   }),
 );
 
-export const ratingsSchema = z.array(
-  z.object({
-    rated_at: z.string().optional(),
-    rating: z.number(),
-    type: z.string(),
-    show: showSchema.optional(),
-    movie: movieSchema.optional(),
-    episode: episodeSchema.optional(),
-  }),
-);
-
+/** The calendar read fetches `extended=full`, whose show block carries the
+ * `network` the agenda row renders inline. No per-row `/shows/:id` follow-up. */
+const calendarShowSchema = showSchema.extend({ network: z.string().nullish() });
 export const calendarSchema = z.array(
-  z.object({ first_aired: z.string(), episode: episodeSchema, show: showSchema }),
+  z.object({ first_aired: z.string(), episode: episodeSchema, show: calendarShowSchema }),
 );
 
 /**
@@ -185,7 +177,7 @@ export const trendingShowsSchema = z.array(
 );
 export const popularShowsSchema = z.array(showSchema);
 
-/** The movie discover rails, mirroring the show charts: `/movies/trending` wraps
+/** The movie browse rails, mirroring the show charts: `/movies/trending` wraps
  * the movie in a watcher count, `/movies/popular` is a bare movie list, and
  * `/movies/:id/related` returns a bare movie list ("more like this"). */
 export const trendingMoviesSchema = z.array(
@@ -214,6 +206,19 @@ export const userStatsSchema = z.object({
   shows: z.object({ watched: z.number() }),
 });
 
+/**
+ * `/users/settings`, keeping only the identity block the Profile header renders:
+ * username, optional display name, and the avatar URL. The account, connections,
+ * and sharing sections are stripped by zod.
+ */
+export const userSettingsSchema = z.object({
+  user: z.object({
+    username: z.string(),
+    name: z.string().nullish(),
+    images: z.object({ avatar: z.object({ full: z.string().nullish() }).nullish() }).nullish(),
+  }),
+});
+
 const stampsSchema = z.record(z.string(), z.string()).optional();
 export const lastActivitiesSchema = z.object({
   all: z.string().optional(),
@@ -235,7 +240,6 @@ export type MovieDetailData = z.infer<typeof movieDetailSchema>;
 export type ShowDetailData = z.infer<typeof showDetailSchema>;
 export type SeasonData = z.infer<typeof seasonsSchema>[number];
 export type WatchlistItem = z.infer<typeof watchlistSchema>[number];
-export type RatingItem = z.infer<typeof ratingsSchema>[number];
 export type CalendarItem = z.infer<typeof calendarSchema>[number];
 export type HistoryItem = z.infer<typeof historyItemSchema>;
 export type SearchResult = z.infer<typeof searchSchema>[number];
@@ -245,3 +249,4 @@ export type TrendingShow = z.infer<typeof trendingShowsSchema>[number];
 export type TrendingMovie = z.infer<typeof trendingMoviesSchema>[number];
 export type HiddenItem = z.infer<typeof hiddenSchema>[number];
 export type UserStats = z.infer<typeof userStatsSchema>;
+export type UserSettings = z.infer<typeof userSettingsSchema>;

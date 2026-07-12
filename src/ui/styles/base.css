@@ -1,0 +1,122 @@
+* {
+  box-sizing: border-box;
+}
+
+/* ---- Native web-tells reset ("subtract the web tells") ----
+ * The loudest "this is a web page" signals fire in the first taps of every job: the grey
+ * tap flash, the long-press callout, iOS auto text-inflation, a poster that lifts as a drag
+ * ghost. Kill them once at the root so the PWA and the Capacitor shell both read as an app.
+ * Two constraints: readable TEXT stays selectable (titles remain copyable: this targets
+ * chrome + images, never body copy), and the tap-highlight removal is safe only because
+ * every interactive surface already carries its own :active/:focus-visible press feedback, so no control is left feeling dead. */
+:root {
+  text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+
+/* Poster / still artwork is chrome, not saveable content: never let it lift as a drag ghost. */
+img {
+  -webkit-user-drag: none;
+  user-drag: none;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* The app-shell error boundary's full-page fallback. */
+.boundary {
+  max-width: 32rem;
+  margin: 4rem auto;
+  text-align: center;
+}
+.boundary__title {
+  font-size: 1.4rem;
+  margin: 0 0 var(--space-2);
+}
+.boundary__body {
+  color: var(--color-muted);
+  margin: 0 0 var(--space-4);
+}
+
+/* Visually hidden but announced: a status/label for screen readers while an
+ * aria-hidden skeleton carries the visual loading state. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---- Type-scale helpers (Inter chrome + Space Grotesk display) ---- */
+.code {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+/* ---- The Cue touch-target standard (one standard, applied at shared classes) ----
+ * Every interactive control clears a var(--tap-min) (44px) finger target, decoupling
+ * HIT AREA from VISUAL SIZE via four rules (WCAG 2.5.5 / 2.5.8):
+ *   1. GROW: standalone controls take min-height:--tap-min + padding; the ink can
+ *      still read compact because the padding IS part of the control. (buttons,
+ *      back links, segmented items, filter/sort inputs, header icons, the mark pill)
+ *   2. HIT-SLOP: a deliberately tiny, visually-fixed, isolated control keeps its
+ *      pixels and grows only its target with a centred transparent pseudo-element,
+ *      no visual ballooning. (the Settings switch track, via an inline .switch::before)
+ *   3. TRACK: a value scale that can't give each value its own 44px target (ten 44px
+ *      cells = 440px, wider than a phone) collapses to ONE wide target: a single
+ *      ≥44px slider track (role=slider) where a tap maps to the nearest value and a big
+ *      numeric readout makes it unmistakable, so a tap never misses. (no current
+ *      instance; the standard for any future value scale)
+ *   4. SPACE: keep ≥--space-2 between SEPARATE targets so one control's slop can't
+ *      collide with its neighbor. (the Up Next body link vs. its mark action) */
+.skip-link {
+  position: absolute;
+  left: var(--space-2);
+  top: -3rem;
+  /* the keyboard bypass link is a real 44px target when revealed on focus
+   * (was a 32px text link); inline-flex centres the label without enlarging type. */
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-min);
+  padding: var(--space-1) var(--space-3);
+  background: var(--color-accent);
+  color: var(--color-accent-fg);
+  border-radius: var(--radius-control);
+  z-index: 20;
+  transition: top 0.15s ease;
+}
+.skip-link:focus {
+  top: var(--space-2);
+}

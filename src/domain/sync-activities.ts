@@ -1,6 +1,6 @@
 /**
  * `/sync/last_activities` diff → the exact set of things to invalidate.
- * The user-state queries (library, movie library, watchlist, ratings, stats) use
+ * The user-state queries (library, movie library, watchlist, stats) use
  * `staleTime: Infinity` and are invalidated ONLY here, so this map must be exact
  * and complete: an unmapped field advancing invalidates nothing, and identical
  * timestamps invalidate nothing. Content-carrying queries (show header/seasons,
@@ -36,9 +36,6 @@ export type InvalidationTarget =
   | "watchlist/shows"
   | "watchlist/movies"
   | "watchlist/episodes"
-  | "ratings/shows"
-  | "ratings/movies"
-  | "ratings/episodes"
   | "hidden/progress_watched"
   | "hidden/movies"
   | "favorites/shows"
@@ -57,9 +54,7 @@ interface ActivityRule {
 
 const ACTIVITY_RULES: readonly ActivityRule[] = [
   { section: "episodes", field: "watched_at", targets: ["watched/shows", "progress/watched"] },
-  { section: "episodes", field: "rated_at", targets: ["ratings/episodes"] },
   { section: "episodes", field: "watchlisted_at", targets: ["watchlist/episodes"] },
-  { section: "shows", field: "rated_at", targets: ["ratings/shows"] },
   {
     section: "shows",
     field: "hidden_at",
@@ -72,7 +67,6 @@ const ACTIVITY_RULES: readonly ActivityRule[] = [
   },
   { section: "shows", field: "favorited_at", targets: ["favorites/shows"] },
   { section: "movies", field: "watched_at", targets: ["watched/movies", "movie-progress"] },
-  { section: "movies", field: "rated_at", targets: ["ratings/movies"] },
   {
     section: "movies",
     field: "watchlisted_at",

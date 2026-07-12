@@ -5,14 +5,12 @@ import type { MovieEntry, MovieHeader } from "@data/trakt/movie-library";
 import type { UserStats } from "@data/trakt/schemas";
 import type { SearchHit } from "@data/trakt/search";
 import type { SeasonView, ShowHeader } from "@data/trakt/show-detail";
+import type { UserProfile } from "@data/trakt/user-profile";
 import type { CalendarEntry } from "@domain/calendar";
 import type { HistoryEntry, HistoryRange } from "@domain/history";
 import type { EpisodePlay, MoviePlay } from "@domain/reversal";
 import type { QueuedOp } from "@domain/write-queue/types";
 import { createContext, useContext } from "react";
-
-/** trakt id → 1-10 rating, for the currently-rated items of one section. */
-export type RatingMap = Readonly<Record<number, number>>;
 
 /** The read side of the home surface: the assembled active queue. */
 export interface UpNextData {
@@ -26,15 +24,15 @@ export interface UpNextData {
   readonly isPartial: boolean;
 }
 
-/** The read side of the My Shows movie library: watched + watchlist movies. */
+/** The read side of the Library movie collection: watched + watchlist movies. */
 export interface MovieLibraryData {
   readonly entries: readonly MovieEntry[];
 }
 
-/** The read side of Discover browse: trending + popular poster rails for
+/** The read side of Search browse: trending + popular poster rails for
  * shows AND movies. Movies reuse the show-rail `SearchHit`
- * pipeline (DiscoverCard → `/movie/:id` + inline watchlist add). */
-export interface DiscoverData {
+ * pipeline (browse tile → `/movie/:id` + inline watchlist add). */
+export interface BrowseData {
   readonly trending: readonly SearchHit[];
   readonly popular: readonly SearchHit[];
   readonly trendingMovies: readonly SearchHit[];
@@ -91,7 +89,7 @@ export interface CueRuntime {
    * lazily fetches its own via this, cached by trakt id.
    */
   loadShowArt(showId: number): Promise<ShowArt>;
-  /** The My Shows movie library: watched movies + watchlist movies as poster shelves. */
+  /** The Library movie collection: watched movies + watchlist movies as poster shelves. */
   loadMovieLibrary(): Promise<MovieLibraryData>;
   /** Movie detail hero from `/movies/:id?extended=full,images` (title, year, overview, art). */
   loadMovieHeader(movieId: number): Promise<MovieHeader>;
@@ -103,8 +101,6 @@ export interface CueRuntime {
   loadShowSeasons(showId: number): Promise<readonly SeasonView[]>;
   /** Episode detail: content + still + watched state + prev/next nav. */
   loadEpisode(showId: number, season: number, number: number): Promise<EpisodeDetail>;
-  /** Current 1-10 ratings for a section, keyed by trakt id. */
-  loadRatings(section: "shows" | "episodes" | "movies"): Promise<RatingMap>;
   /** Trakt ids currently on the watchlist for a section. */
   loadWatchlistIds(section: "shows" | "movies"): Promise<readonly number[]>;
   /** Personalized calendar window: `/calendars/my/shows/{start}/{days}` + the hidden set. */
@@ -131,11 +127,35 @@ export interface CueRuntime {
   loadMoviePlays(movieId: number): Promise<readonly MoviePlay[]>;
   /** Debounced show+movie search: one `/search/show,movie` per settled query, title-ranked. */
   search(query: string): Promise<readonly SearchHit[]>;
-  /** Browse rails for empty-query Discover: trending + popular shows with poster art. */
-  loadDiscover(): Promise<DiscoverData>;
+  /** Browse rails for empty Search: trending + popular shows with poster art. */
+  loadBrowse(): Promise<BrowseData>;
   /** The signed-in user's lifetime watch stats for the Profile theatre. */
   loadStats(): Promise<UserStats>;
+  /** The signed-in user's Trakt identity (username + avatar) for the Profile header. */
+  loadUserProfile(): Promise<UserProfile>;
   submit(op: QueuedOp): Promise<SubmitOutcome>;
+  /** Durable ops still awaiting Trakt (deferred offline/rate-limited included). */
+  pendingWrites(): number;
+  /**
+   * Snapshot of the durable op-log: every op still awaiting Trakt, including
+   * the one currently being delivered. Mark surfaces consult it by op id /
+   * itemKey to route safely: drop a duplicate mark whose play is already
+   * pending, cancel a still-queued mark via its coalescing inverse, or per-play
+   * reverse one that already landed.
+   */
+  pendingOps(): readonly QueuedOp[];
+  /** Id of the op currently being delivered, or null. A mid-delivery op can be
+   * neither coalesce-cancelled nor per-play-resolved (its POST may still land),
+   * so reversals wait it out rather than guessing. */
+  inFlightOpId(): string | null;
+  /**
+   * Drive one flush of the durable queue and persist the surviving op-log.
+   * Resolves to the count still pending afterwards: zero means fully drained.
+   * The manual "Sync now" path runs this BEFORE the freshness poll so a
+   * deferred mark actually lands instead of being reported as synced-with-zero-
+   * pending while it sits in the log.
+   */
+  flushWrites(): Promise<number>;
   /**
    * The single freshness gate: fetch `/sync/last_activities`, diff it
    * against the persisted baseline, and report the exact keys to invalidate.

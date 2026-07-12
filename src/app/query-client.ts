@@ -5,17 +5,14 @@ import { del, get, set } from "idb-keyval";
 /**
  * Bump when the app version or a persisted-schema shape changes: the persister
  * drops any cache whose `buster` differs. This, not an age cap, is how stale
- * snapshots are retired. This cache-version bump retires every pre-m6 cache:
- * their entries were serialized before the `progressKnown` field existed, so a
- * restored pre-m6 entry reads as `progressKnown: undefined`: which the watch-status
- * gate treats as `sync-pending` and drops from Up Next, silently hiding a genuinely
- * mid-watch show on the instant cache paint. Dropping the cache forces one clean
- * reload that re-materializes every entry with the field set, so no mid-watch show
- * is hidden. (The prior m5 bump likewise retired the pre-gate m4 caches, which had
- * no co-persisted last-activities baseline and would be trusted forever under the
- * `staleTime: Infinity` gate.)
+ * snapshots are retired. This cache-version bump retires every pre-m7 cache:
+ * the progress read grew `?extended=images` (each entry's `nextEpisode` now
+ * carries a `still`), so a restored pre-m7 entry would read `still: undefined`
+ * and, under the `staleTime: Infinity` gate, never refetch to pick the field
+ * up. (The prior m6 bump likewise retired pre-`progressKnown` caches whose
+ * entries would silently hide mid-watch shows as `sync-pending`.)
  */
-export const PERSIST_BUSTER = "cue-m6";
+export const PERSIST_BUSTER = "cue-m7";
 
 /**
  * `maxAge` governs how long a restored cache may be replayed, NOT freshness.
@@ -31,7 +28,7 @@ export const queryClient = new QueryClient({
     queries: {
       gcTime: PERSIST_MAX_AGE,
       // Per-query freshness is explicit: user-state reads (library, movie library,
-      // stats, watchlist, ratings) set `staleTime: Infinity` and revalidate ONLY
+      // stats, watchlist) set `staleTime: Infinity` and revalidate ONLY
       // through the last-activities reconciler; content reads (show detail,
       // calendar) set a finite content window. The 0 default only covers ephemeral
       // reads (search) that are keyed per query and fine to refetch on mount.

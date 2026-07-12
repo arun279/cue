@@ -1,469 +1,451 @@
-import { resolvePoster } from "@data/image-source";
 import type { EpisodeView, SeasonView, ShowHeader } from "@data/trakt/show-detail";
-import { Link } from "@tanstack/react-router";
-import { DetailBack } from "@ui/components/DetailBack";
+import { Outlet, useRouterState } from "@tanstack/react-router";
+import { ActionSheet, type ActionSheetRow } from "@ui/components/ActionSheet";
+import { ConfirmSheet } from "@ui/components/ConfirmSheet";
 import { DetailHeroSkeleton } from "@ui/components/DetailHeroSkeleton";
-import { ErrorRetry, ErrorToast } from "@ui/components/ErrorStates";
-import { MarkIcon } from "@ui/components/MarkIcon";
-import { RatingControl } from "@ui/components/RatingControl";
-import { Snackbar } from "@ui/components/Snackbar";
-import {
-  episodeCode,
-  formatAirDate,
-  formatWatchedDate,
-  titleCase,
-  watchedPercent,
-} from "@ui/format";
+import { EmptyState } from "@ui/components/EmptyState";
+import { ErrorRetry } from "@ui/components/ErrorStates";
+import { SkeletonRows } from "@ui/components/Skeletons";
+import { dismissSnack, showSnack } from "@ui/components/snackbar-store";
+import { epCode, middleTruncate, titleCase } from "@ui/format";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { useHideShow } from "@ui/hooks/useHideShow";
 import { useLibrarySnapshot } from "@ui/hooks/useLibrarySnapshot";
-import type { MarkContextTarget, MarkSeasonController } from "@ui/hooks/useMarkSeason";
-import { useMarkSeason } from "@ui/hooks/useMarkSeason";
-import { useRate } from "@ui/hooks/useRate";
+import { type EpisodeBound, type MarkContextTarget, useMarkSeason } from "@ui/hooks/useMarkSeason";
+import { type BackfillOffer, useMarkSnacks } from "@ui/hooks/useMarkSnacks";
+import { useMarkWatched } from "@ui/hooks/useMarkWatched";
 import { useSeasons } from "@ui/hooks/useSeasons";
 import { useShowDetail } from "@ui/hooks/useShowDetail";
 import { useToggleWatchlist } from "@ui/hooks/useToggleWatchlist";
-import { Poster } from "@ui/screens/up-next/Poster";
-import { Accordion } from "radix-ui";
-import { type ReactElement, useState } from "react";
-import { SeasonPanel } from "./SeasonPanel";
-import { Still } from "./Still";
+import { SheetReturnContext } from "@ui/screens/episode-detail/sheet-return";
+import { ExternalLink } from "lucide-react";
+import { type ReactElement, useEffect, useRef, useState } from "react";
+import { ContinueBar } from "./ContinueBar";
+import { BackDisc, DetailHero } from "./DetailChrome";
+import {
+  airedUnwatchedCount,
+  backfillRangeLabel,
+  currentSeasonValue,
+  earlierUnwatchedCount,
+  lastAiredBound,
+  metaLine,
+  openExternal,
+  seasonCheckFacts,
+  traktShowUrl,
+  watchRecordLine,
+} from "./detail-logic";
+import { SeasonList } from "./SeasonList";
 
-const UNDO_MS = 6000;
+type ConfirmState =
+  | { readonly kind: "mark-season"; readonly season: SeasonView }
+  | { readonly kind: "unmark-season"; readonly season: SeasonView }
+  | { readonly kind: "mark-show" };
 
-function backdropUrlOf(header: ShowHeader): string | null {
-  const resolved = resolvePoster({ title: header.title, traktPosters: header.backdrops });
-  return resolved.source === "placeholder" ? null : resolved.url;
+function eps(count: number): string {
+  return `${count} episode${count === 1 ? "" : "s"}`;
 }
 
-/** The full-bleed media hero: backdrop with a scrim fading into the card, poster
- * inset with an amber progress rail, editorial title, broadcast chips, overview,
- * and the primary actions (Mark next / Watchlist / Stop watching) + compact rating. */
-function ShowHero({
+function About({
   header,
-  onWatchlist,
-  watchlist,
-  rate,
-  onMarkNext,
-  hidden,
-  onToggleHidden,
+  runtime,
 }: {
   readonly header: ShowHeader;
-  readonly onWatchlist: boolean;
-  readonly watchlist: ReturnType<typeof useToggleWatchlist>;
-  readonly rate: ReturnType<typeof useRate>;
-  onMarkNext(): void;
-  readonly hidden: boolean;
-  onToggleHidden(): void;
-}): ReactElement {
-  const [bdBroken, setBdBroken] = useState(false);
-  const backdrop = backdropUrlOf(header);
-  const pct = watchedPercent(header.completed, header.aired);
-  const next = header.nextEpisode;
-  const canMarkNext = next?.aired === true;
-  const genres = header.genres.slice(0, 3);
-  // Once a show has progress its state is derived from that progress, not from
-  // watchlist membership, so hide the watchlist toggle (it would contradict the
-  // Library's "Watching" filing). Stop is only meaningful for a show that is
-  // actually being watched or already stopped: never a not-started one.
-  const showWatchlist = header.completed === 0;
-  const canStop = hidden || header.completed > 0;
-
+  readonly runtime: number | null;
+}): ReactElement | null {
+  const [expanded, setExpanded] = useState(false);
+  const facts = metaLine([...header.genres.slice(0, 3).map(titleCase), header.network]);
+  const record = watchRecordLine(header.completed, header.aired, runtime);
+  if (header.overview === null && facts === "" && record === null) return null;
   return (
-    <section className="show-hero">
-      {backdrop !== null && !bdBroken && (
-        <img
-          className="show-hero__backdrop"
-          src={backdrop}
-          alt=""
-          decoding="async"
-          data-testid="hero-backdrop"
-          onError={() => setBdBroken(true)}
-        />
-      )}
-      <div className="show-hero__scrim" />
-      <div className="show-hero__body">
-        <span className="poster-wrap show-hero__poster">
-          <Poster title={header.title} posters={header.posters} variant="hero" />
-          {header.aired > 0 && (
-            <span className="poster__bar" aria-hidden="true">
-              <i style={{ width: `${pct}%` }} />
-            </span>
-          )}
-        </span>
-
-        <div className="show-hero__info">
-          <h1 className="show-hero__title" data-testid="detail-title">
-            {header.title}
-            {header.year !== null && <span className="show-hero__year"> {header.year}</span>}
-          </h1>
-
-          <div className="show-hero__chips">
-            {header.network !== null && (
-              <span className="chip" data-testid="detail-network">
-                {header.network}
-              </span>
-            )}
-            {header.status !== "" && (
-              <span className="chip show-hero__status">{header.status}</span>
-            )}
-            {genres.map((genre) => (
-              <span key={genre} className="chip">
-                {titleCase(genre)}
-              </span>
-            ))}
-            {header.aired > 0 && (
-              <span className="chip">
-                {header.aired} episode{header.aired === 1 ? "" : "s"}
-              </span>
-            )}
-          </div>
-
-          {header.overview !== null && (
-            <p className="show-hero__overview" data-testid="detail-overview">
-              {header.overview}
-            </p>
-          )}
-        </div>
-      </div>
-
-      <div className="show-hero__controls">
-        <div className="show-hero__progress">
-          <div
-            className="progress"
-            role="progressbar"
-            aria-valuenow={pct}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-label="Overall watched progress"
-            data-testid="overall-progress"
-          >
-            <i style={{ width: `${pct}%` }} />
-          </div>
-          <span className="progress-ratio">
-            {header.completed} / {header.aired} watched
-          </span>
-          {header.completed > 0 && header.lastWatchedAt !== null && (
-            <span className="show-hero__last-watched" data-testid="last-watched">
-              Last watched {formatWatchedDate(header.lastWatchedAt)}
-            </span>
-          )}
-        </div>
-
-        <div className="show-hero__actions">
-          {canMarkNext && (
-            <button
-              type="button"
-              className="button button--block"
-              data-testid="mark-next"
-              onClick={onMarkNext}
-            >
-              <MarkIcon />
-              Mark next watched
-            </button>
-          )}
-          {showWatchlist && (
-            <button
-              type="button"
-              className="button button--ghost"
-              aria-pressed={onWatchlist}
-              aria-busy={watchlist.isLoading}
-              disabled={watchlist.isLoading}
-              data-testid="watchlist-toggle"
-              data-on={onWatchlist}
-              onClick={() => void watchlist.toggle(header.ids)}
-            >
-              {watchlist.isLoading
-                ? "Checking…"
-                : onWatchlist
-                  ? "On watchlist ✓"
-                  : "Add to watchlist"}
-            </button>
-          )}
-          {canStop && (
-            <button
-              type="button"
-              className="show-hero__stop"
-              data-testid="hide-show"
-              data-hidden={hidden}
-              onClick={onToggleHidden}
-            >
-              {hidden ? "Resume" : "Stop watching"}
-            </button>
-          )}
-        </div>
-
-        {canStop && (
-          <p className="show-hero__stop-note" data-testid="stop-note">
-            {hidden
-              ? "History kept, resume to pick up where you left off."
-              : "Stopping keeps your watch history, resume anytime."}
+    <section className="detail-about">
+      {header.overview !== null && (
+        <div className="detail-about__overview">
+          <p className="clamp-4" data-expanded={expanded} data-testid="detail-overview">
+            {header.overview}
           </p>
-        )}
-
-        <div className="show-hero__rating">
-          <span className="rating__lead">Your rating</span>
-          <RatingControl
-            ids={header.ids}
-            label={header.title}
-            controller={rate}
-            testId="show-rating"
-          />
+          {!expanded && (
+            <button type="button" className="text-more" onClick={() => setExpanded(true)}>
+              More
+            </button>
+          )}
         </div>
-      </div>
-    </section>
-  );
-}
-
-/** The show-level "Up next" module: the next unwatched episode as a 16:9 still
- * with one-tap Mark watched + Mark up to here (aired), or an air-date callout. */
-function NextUp({
-  next,
-  target,
-  seasons,
-  marks,
-}: {
-  readonly next: EpisodeView;
-  readonly target: MarkContextTarget;
-  readonly seasons: readonly SeasonView[];
-  readonly marks: MarkSeasonController;
-}): ReactElement {
-  const code = episodeCode(next.season, next.number);
-  const airDate = formatAirDate(next.firstAired);
-  return (
-    <section className="next-up" data-testid="next-callout" data-aired={next.aired}>
-      <div className="next-up__still">
-        <Still title={next.title ?? code} stills={next.stills} />
-      </div>
-      <div className="next-up__body">
-        <p className="next-up__eyebrow">{next.aired ? "Up next" : "Next airs"}</p>
-        <p className="next-up__title">
-          <span className="next-up__code">{code}</span>
-          {next.title !== null && <span className="next-up__name">{next.title}</span>}
+      )}
+      {facts !== "" && <p className="detail-about__facts">{facts}</p>}
+      {record !== null && (
+        <p className="detail-about__record" data-testid="detail-record">
+          {record}
         </p>
-        {!next.aired && airDate !== null && <p className="next-up__air">Airs {airDate}</p>}
-      </div>
-      {next.aired && (
-        <div className="next-up__actions">
-          <button
-            type="button"
-            className="button button--sm"
-            data-testid="next-up-mark"
-            onClick={() => void marks.toggleEpisode(target, next, `Marked ${code} watched.`)}
-          >
-            <MarkIcon />
-            Mark watched
-          </button>
-          <button
-            type="button"
-            className="button button--ghost button--sm"
-            data-testid="next-up-catchup"
-            disabled={seasons.length === 0}
-            onClick={() =>
-              void marks.markUpToHere(target, seasons, {
-                season: next.season,
-                number: next.number,
-              })
-            }
-          >
-            Mark up to here
-          </button>
-        </div>
       )}
     </section>
   );
 }
 
 /**
- * Show detail as a media page: a full-bleed backdrop hero
- * (poster inset, editorial title, chips, overview, overall progress, primary
- * actions, compact rating) that paints first, a show-level "Up next" module, then
- * the season shelves: each a completion ring + Mark-season header expanding into
- * a shelf of episode stills with watched toggles and "mark up to here". A Stop
- * action drops the show from Up Next and the calendar. Every state is designed:
- * hero skeleton, hero error retry, streaming seasons, season error retry, and an
- * announced-only empty tree.
+ * Show detail: full-bleed hero, the sticky continue bar running the same
+ * advance pipeline as the Up Next queue, the seasons accordion with bulk season
+ * checks behind confirmation and per-episode toggles with backfill feedback,
+ * and the About block. The episode sheet is a child route presented over this
+ * page; the overflow disc carries stop/resume, watchlist, whole-show marking,
+ * and the Trakt hand-off. Every state is designed: hero skeleton, hero error
+ * retry, season skeletons, season error retry, and an announced-only empty tree.
  */
-export function ShowDetail({ showId }: { showId: number }): ReactElement {
+export function ShowDetail({ showId }: { readonly showId: number }): ReactElement {
   const detail = useShowDetail(showId);
   const seasonsView = useSeasons(showId);
   const marks = useMarkSeason();
+  const mark = useMarkWatched();
   const hide = useHideShow();
-  const rate = useRate("shows");
   const watchlist = useToggleWatchlist();
-  const [includeSpecials, setIncludeSpecials] = useState(false);
-  // Read the shared library snapshot (SWR: cached instantly on navigation, fetched
-  // once on a direct /show/:id load) so the abandon action reflects the real hidden
-  // state and flips live when the optimistic hide/unhide patches the shared entry.
-  const hidden = useLibrarySnapshot().byId.get(showId)?.hidden ?? false;
+  const entry = useLibrarySnapshot().byId.get(showId);
+  const [overflowOpen, setOverflowOpen] = useState(false);
+  // The confirm content outlives `confirmOpen` so the sheet keeps its copy
+  // through the exit animation instead of vanishing mid-dismissal.
+  const [confirm, setConfirm] = useState<ConfirmState | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const openConfirm = (next: ConfirmState): void => {
+    setConfirm(next);
+    setConfirmOpen(true);
+  };
+  const backfillRef = useRef<BackfillOffer | null>(null);
+  // Fresh season tree for deferred actions (the "+N earlier" backfill runs after
+  // the single mark already patched the cache; a stale closure would re-mark it).
+  const seasonsRef = useRef(seasonsView.seasons);
+  seasonsRef.current = seasonsView.seasons;
+  useMarkSnacks(marks, { backfill: backfillRef });
+
+  // How the episode sheet (this route's child) should close: once this page has
+  // rendered WITHOUT the sheet, the sheet was pushed over it and Back returns here.
+  const episodeOpen = useRouterState({
+    select: (state) => state.location.pathname.includes("/episode/"),
+  });
+  const returnRef = useRef(false);
+  useEffect(() => {
+    if (!episodeOpen) returnRef.current = true;
+  }, [episodeOpen]);
 
   const header = detail.header;
-  useDocumentTitle(header !== undefined ? `${header.title} · Cue` : "Show · Cue");
+  useDocumentTitle(
+    episodeOpen ? null : header !== undefined ? `${header.title} · Cue` : "Show · Cue",
+  );
 
+  // Stop/resume and watchlist feedback is keyed on primitives so a re-render
+  // while the snack is up never replaces it and resets its timer.
+  const stopKind = hide.undoable?.kind ?? null;
+  const stopTitle = hide.undoable?.title ?? null;
+  const { undo: hideUndo } = hide;
+  useEffect(() => {
+    if (stopKind === null || stopTitle === null) return;
+    showSnack({
+      message: `${middleTruncate(stopTitle)} ${stopKind === "hide" ? "stopped" : "resumed"}`,
+      actions: [
+        {
+          label: "Undo",
+          testId: "snackbar-undo",
+          onPress: () => {
+            dismissSnack();
+            void hideUndo();
+          },
+        },
+      ],
+    });
+  }, [stopKind, stopTitle, hideUndo]);
+  const hideError = hide.error;
+  const { clearError: clearHideError } = hide;
+  useEffect(() => {
+    if (hideError === null) return;
+    showSnack({ message: hideError, actions: [{ label: "Dismiss", onPress: dismissSnack }] });
+    clearHideError();
+  }, [hideError, clearHideError]);
+  const watchlistError = watchlist.error;
+  const { clearError: clearWatchlistError } = watchlist;
+  useEffect(() => {
+    if (watchlistError === null) return;
+    showSnack({ message: watchlistError, actions: [{ label: "Dismiss", onPress: dismissSnack }] });
+    clearWatchlistError();
+  }, [watchlistError, clearWatchlistError]);
+  // The Undo on the watchlist snack must see the post-add membership, not the
+  // closure it was created in.
+  const watchlistRef = useRef(watchlist);
+  watchlistRef.current = watchlist;
+
+  // Loading/error still render the Outlet + return context: a cold deep link to
+  // the episode URL presents the sheet (with its own skeleton) over this state,
+  // so the two reads race in parallel instead of serializing.
   if (detail.isLoading) {
     return (
-      <section className="screen screen--detail" data-testid="screen-show-detail">
-        <DetailHeroSkeleton testId="detail-skeleton" />
-      </section>
+      <SheetReturnContext.Provider value={returnRef}>
+        <section className="screen-detail" data-testid="screen-show-detail">
+          <DetailHeroSkeleton testId="detail-skeleton" />
+        </section>
+        <Outlet />
+      </SheetReturnContext.Provider>
     );
   }
 
   if (header === undefined) {
     return (
-      <section className="screen screen--detail" data-testid="screen-show-detail">
-        <ErrorRetry
-          title="Couldn't load this show"
-          testId="detail-error"
-          buttonTestId="detail-error-retry"
-          onRetry={detail.refetch}
-        />
-      </section>
+      <SheetReturnContext.Provider value={returnRef}>
+        <section className="screen-detail" data-testid="screen-show-detail">
+          <BackDisc />
+          <ErrorRetry
+            title="Couldn't load this show"
+            testId="detail-error"
+            buttonTestId="detail-error-retry"
+            onRetry={detail.refetch}
+          />
+        </section>
+        <Outlet />
+      </SheetReturnContext.Provider>
     );
   }
 
-  const target: MarkContextTarget = { showId, ids: header.ids, includeSpecials };
-  const onWatchlist = watchlist.isOnWatchlist(showId);
-  const next = header.nextEpisode;
-  const nextKey = next === null ? null : `${next.season}:${next.number}`;
+  const seasons = seasonsView.seasons;
+  const hidden = entry?.hidden ?? false;
+  const runtime = entry?.runtime ?? null;
+  const targetFor = (seasonNumber: number): MarkContextTarget => ({
+    showId,
+    ids: header.ids,
+    includeSpecials: seasonNumber === 0,
+  });
+
+  const onEpisodeToggle = (season: SeasonView, episode: EpisodeView): void => {
+    const target = targetFor(season.number);
+    if (episode.watched) {
+      backfillRef.current = null;
+      void marks.toggleEpisode(target, episode);
+      return;
+    }
+    const bound: EpisodeBound = { season: episode.season, number: episode.number };
+    const code = epCode(episode.season, episode.number);
+    const gap = earlierUnwatchedCount(seasonsRef.current, bound);
+    const label = gap > 0 ? `${code} marked` : `${middleTruncate(header.title)} ${code} marked`;
+    backfillRef.current =
+      gap > 0
+        ? {
+            markLabel: label,
+            count: gap,
+            run: () => {
+              const fresh = seasonsRef.current;
+              void marks.markUpToHere(targetFor(1), fresh, bound, {
+                label: backfillRangeLabel(fresh, bound, gap),
+                absorbUndo: true,
+              });
+            },
+          }
+        : null;
+    void marks.toggleEpisode(target, episode, { undoLabel: label });
+  };
+
+  const onSeasonCheck = (season: SeasonView): void => {
+    openConfirm(
+      seasonCheckFacts(season).complete
+        ? { kind: "unmark-season", season }
+        : { kind: "mark-season", season },
+    );
+  };
+
+  const onFallbackMark = (next: EpisodeView): void => {
+    backfillRef.current = null;
+    void marks.toggleEpisode(targetFor(next.season), next, {
+      undoLabel: `${middleTruncate(header.title)} ${epCode(next.season, next.number)} marked`,
+    });
+  };
+
+  const canStop = hidden || header.completed > 0;
+  const offerWatchlist =
+    header.completed === 0 && !watchlist.isLoading && !watchlist.isOnWatchlist(showId);
+  const unwatchedTotal = airedUnwatchedCount(seasons);
+  const overflowRows: ActionSheetRow[] = [
+    ...(canStop
+      ? [
+          {
+            label: hidden ? "Resume show" : "Stop show",
+            testId: "overflow-stop",
+            onPress: () => {
+              void (hidden
+                ? hide.unhide(showId, header.ids, header.title)
+                : hide.hide(showId, header.ids, header.title));
+            },
+          },
+        ]
+      : []),
+    ...(offerWatchlist
+      ? [
+          {
+            label: "Move to Watchlist",
+            testId: "overflow-watchlist",
+            onPress: () => {
+              void watchlist.toggle(header.ids);
+              showSnack({
+                message: `${middleTruncate(header.title)} added to Watchlist`,
+                actions: [
+                  {
+                    label: "Undo",
+                    testId: "snackbar-undo",
+                    onPress: () => {
+                      dismissSnack();
+                      void watchlistRef.current.toggle(header.ids);
+                    },
+                  },
+                ],
+              });
+            },
+          },
+        ]
+      : []),
+    ...(unwatchedTotal > 0
+      ? [
+          {
+            label: "Mark whole show watched…",
+            testId: "overflow-mark-show",
+            onPress: () => openConfirm({ kind: "mark-show" }),
+          },
+        ]
+      : []),
+    {
+      label: "Open on Trakt",
+      icon: <ExternalLink aria-hidden="true" />,
+      testId: "overflow-trakt",
+      onPress: () => openExternal(traktShowUrl(header.ids)),
+    },
+  ];
+
+  let confirmView: {
+    readonly title: string;
+    readonly body: string;
+    readonly primary: { readonly label: string; readonly danger?: boolean; onPress(): void };
+    readonly secondary?: { readonly label: string; readonly testId?: string; onPress(): void };
+  } | null = null;
+  if (confirm !== null && confirm.kind !== "mark-show") {
+    const season = confirm.season;
+    const name = season.isSpecial ? "Specials" : `Season ${season.number}`;
+    const { airedDone } = seasonCheckFacts(season);
+    if (confirm.kind === "unmark-season") {
+      confirmView = {
+        title: `Unmark ${name}?`,
+        body: `Removes ${eps(airedDone)} from your history.`,
+        primary: {
+          label: `Remove ${eps(airedDone)}`,
+          danger: true,
+          onPress: () => void marks.unmarkSeason(targetFor(season.number), season),
+        },
+      };
+    } else {
+      const remaining = season.airedCount - airedDone;
+      confirmView = {
+        title: `Mark ${name} watched?`,
+        body:
+          airedDone === 0
+            ? `${eps(remaining)} will be added to your history.`
+            : `${remaining} of ${season.airedCount} episodes are unwatched.`,
+        primary: {
+          label: airedDone === 0 ? `Mark ${eps(remaining)}` : `Mark ${remaining} remaining`,
+          onPress: () => void marks.markSeason(targetFor(season.number), season),
+        },
+        ...(airedDone === 0
+          ? {}
+          : {
+              secondary: {
+                label: `Mark all ${season.airedCount} again (rewatch)`,
+                testId: "confirm-sheet-rewatch",
+                onPress: () => void marks.rewatchSeason(targetFor(season.number), season),
+              },
+            }),
+      };
+    }
+  } else if (confirm !== null) {
+    const bound = lastAiredBound(seasons);
+    confirmView = {
+      title: "Mark whole show watched?",
+      body: `${eps(unwatchedTotal)} will be added to your history.`,
+      primary: {
+        label: `Mark ${eps(unwatchedTotal)}`,
+        onPress: () => {
+          if (bound !== null) {
+            void marks.markUpToHere(targetFor(1), seasonsRef.current, bound, {
+              label: `${middleTruncate(header.title)} marked · ${eps(unwatchedTotal)}`,
+            });
+          }
+        },
+      },
+    };
+  }
 
   return (
-    <section className="screen screen--detail" data-testid="screen-show-detail">
-      <DetailBack
-        testId="detail-back"
-        label="‹ Back"
-        fallback={
-          <Link to="/library" className="detail-back" data-testid="detail-back">
-            ‹ Library
-          </Link>
-        }
-      />
+    <SheetReturnContext.Provider value={returnRef}>
+      <section className="screen-detail" data-testid="screen-show-detail">
+        <DetailHero
+          header={header}
+          meta={metaLine([
+            header.year === null ? null : String(header.year),
+            header.status === "" ? null : titleCase(header.status),
+            header.network,
+            runtime === null ? null : `${runtime} min`,
+          ])}
+          testIds={{ hero: "detail-hero", backdrop: "hero-backdrop", title: "detail-title" }}
+          onOverflow={() => setOverflowOpen(true)}
+        />
 
-      <ShowHero
-        header={header}
-        onWatchlist={onWatchlist}
-        watchlist={watchlist}
-        rate={rate}
-        onMarkNext={() => {
-          if (next !== null)
-            void marks.toggleEpisode(
-              target,
-              next,
-              `Marked ${episodeCode(next.season, next.number)} watched.`,
-            );
-        }}
-        hidden={hidden}
-        onToggleHidden={() =>
-          void (hidden
-            ? hide.unhide(showId, header.ids, header.title)
-            : hide.hide(showId, header.ids, header.title))
-        }
-      />
+        <ContinueBar
+          showId={showId}
+          header={header}
+          entry={entry}
+          seasons={seasonsView.seasons}
+          mark={mark}
+          onFallbackMark={onFallbackMark}
+        />
 
-      {next !== null && (
-        <NextUp next={next} target={target} seasons={seasonsView.seasons} marks={marks} />
-      )}
-
-      <div className="detail-seasons__head">
-        <h2 className="detail-seasons__title">Seasons</h2>
-        <label className="detail-specials">
-          <input
-            type="checkbox"
-            checked={includeSpecials}
-            onChange={(event) => setIncludeSpecials(event.target.checked)}
-            data-testid="include-specials"
+        {seasonsView.isLoading && <SkeletonRows rows={3} testId="seasons-loading" />}
+        {!seasonsView.isLoading && seasonsView.isError && !seasonsView.hasData && (
+          <div className="detail-inline-error" data-testid="seasons-error">
+            <span>Couldn't load episodes</span>
+            <button
+              type="button"
+              className="detail-inline-error__retry"
+              data-testid="seasons-error-retry"
+              onClick={seasonsView.refetch}
+            >
+              Retry
+            </button>
+          </div>
+        )}
+        {!seasonsView.isLoading && seasonsView.hasData && seasons.length === 0 && (
+          <EmptyState
+            testId="seasons-empty"
+            headline="No episodes announced yet"
+            body="Seasons land here as soon as this show has episodes."
           />
-          Include specials in bulk marks
-        </label>
-      </div>
+        )}
+        {seasons.length > 0 && (
+          <SeasonList
+            showId={showId}
+            seasons={seasons}
+            defaultOpen={currentSeasonValue(seasons, header.nextEpisode)}
+            onSeasonCheck={onSeasonCheck}
+            onEpisodeToggle={onEpisodeToggle}
+          />
+        )}
 
-      {seasonsView.isLoading && (
-        <p className="detail-seasons__loading" role="status" data-testid="seasons-loading">
-          Loading seasons…
-        </p>
-      )}
-      {!seasonsView.isLoading && seasonsView.isError && !seasonsView.hasData && (
-        <div className="banner banner--warn" role="alert" data-testid="seasons-error">
-          <span>Couldn't load the seasons for this show.</span>
-          <button
-            type="button"
-            className="button button--ghost button--sm"
-            data-testid="seasons-error-retry"
-            onClick={seasonsView.refetch}
-          >
-            Retry
-          </button>
-        </div>
-      )}
-      {!seasonsView.isLoading && seasonsView.hasData && seasonsView.seasons.length === 0 && (
-        <div className="empty" data-testid="seasons-empty">
-          <h2 className="empty__title">No episodes announced yet</h2>
-          <p className="empty__body">We'll list seasons here as soon as this show has episodes.</p>
-        </div>
-      )}
-      {seasonsView.seasons.length > 0 && (
-        <Accordion.Root type="multiple" className="season-list" data-testid="season-list">
-          {seasonsView.seasons.map((season) => (
-            <SeasonPanel
-              key={season.number}
-              season={season}
-              allSeasons={seasonsView.seasons}
-              target={target}
-              marks={marks}
-              nextKey={nextKey}
-            />
-          ))}
-        </Accordion.Root>
-      )}
+        <About header={header} runtime={runtime} />
 
-      {marks.error !== null && (
-        <ErrorToast testId="season-mark-error" message={marks.error} onDismiss={marks.clearError} />
-      )}
-      {marks.undoable !== null && (
-        <Snackbar
-          testId="season-undo"
-          message={marks.undoable.label}
-          actionLabel="Undo"
-          autoDismissMs={UNDO_MS}
-          onAction={() => void marks.undo()}
-          onDismiss={marks.dismissUndo}
+        <ActionSheet
+          open={overflowOpen}
+          onOpenChange={setOverflowOpen}
+          title={header.title}
+          rows={overflowRows}
         />
-      )}
-      {marks.undoable === null && marks.notice !== null && (
-        <Snackbar
-          testId="season-notice"
-          message={marks.notice}
-          actionLabel="Dismiss"
-          onAction={marks.dismissNotice}
-          onDismiss={marks.dismissNotice}
-        />
-      )}
-      {hide.error !== null && (
-        <ErrorToast testId="hide-error" message={hide.error} onDismiss={hide.clearError} />
-      )}
-      {hide.undoable !== null && (
-        <Snackbar
-          testId="hide-undo"
-          message={
-            hide.undoable.kind === "hide"
-              ? `Stopped watching ${hide.undoable.title}.`
-              : `Resumed ${hide.undoable.title}.`
-          }
-          actionLabel="Undo"
-          autoDismissMs={UNDO_MS}
-          onAction={() => void hide.undo()}
-          onDismiss={hide.dismissUndo}
-        />
-      )}
-      {rate.error !== null && (
-        <ErrorToast testId="show-rating-error" message={rate.error} onDismiss={rate.clearError} />
-      )}
-      {watchlist.error !== null && (
-        <ErrorToast
-          testId="watchlist-error"
-          message={watchlist.error}
-          onDismiss={watchlist.clearError}
-        />
-      )}
-    </section>
+        {confirmView !== null && (
+          <ConfirmSheet
+            open={confirmOpen}
+            onOpenChange={setConfirmOpen}
+            title={confirmView.title}
+            body={confirmView.body}
+            primary={{ ...confirmView.primary, testId: "confirm-sheet-primary" }}
+            {...(confirmView.secondary === undefined ? {} : { secondary: confirmView.secondary })}
+          />
+        )}
+      </section>
+      <Outlet />
+    </SheetReturnContext.Provider>
   );
 }
