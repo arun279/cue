@@ -1,0 +1,163 @@
+name: Mobile release
+
+# Ships the Capacitor app to the stores from the same web bundle the site uses.
+#   push to main      -> beta lanes    -> TestFlight + Play internal (testers)
+#   push a v* tag      -> release lanes -> App Store + Play production (auto-release)
+#   manual dispatch    -> pick platform (ios/android/both) and lane (beta/release)
+# The existing CI workflow (ci.yml) remains the quality gate; require it via
+# branch protection so only green commits reach main and therefore this pipeline.
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Platform(s) to build
+        type: choice
+        options: [both, ios, android]
+        default: both
+      lane:
+        description: "beta = testers, release = production stores"
+        type: choice
+        options: [beta, release]
+        default: beta
+
+concurrency:
+  group: mobile-release-${{ github.ref }}-${{ github.event.inputs.lane || 'auto' }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  config:
+    # Resolve which platforms and which lane to run from the trigger, so the
+    # ios/android jobs stay simple and the same file handles all three triggers.
+    runs-on: ubuntu-latest
+    outputs:
+      build_ios: ${{ steps.resolve.outputs.build_ios }}
+      build_android: ${{ steps.resolve.outputs.build_android }}
+      lane: ${{ steps.resolve.outputs.lane }}
+      app_version: ${{ steps.resolve.outputs.app_version }}
+    steps:
+      - id: resolve
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_PLATFORM: ${{ github.event.inputs.platform }}
+          INPUT_LANE: ${{ github.event.inputs.lane }}
+        run: |
+          platform="both"
+          lane="beta"
+          app_version=""
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            platform="$INPUT_PLATFORM"
+            lane="$INPUT_LANE"
+          elif [ "$REF_TYPE" = "tag" ]; then
+            lane="release"
+            app_version="${REF_NAME#v}"
+          fi
+          case "$platform" in
+            ios) build_ios=true; build_android=false ;;
+            android) build_ios=false; build_android=true ;;
+            *) build_ios=true; build_android=true ;;
+          esac
+          {
+            echo "build_ios=$build_ios"
+            echo "build_android=$build_android"
+            echo "lane=$lane"
+            echo "app_version=$app_version"
+          } >> "$GITHUB_OUTPUT"
+
+  android:
+    needs: config
+    if: needs.config.outputs.build_android == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+      - run: gem install fastlane -N
+      - run: pnpm install --frozen-lockfile
+      - name: Build web bundle
+        env:
+          VITE_TRAKT_CLIENT_ID: ${{ vars.VITE_TRAKT_CLIENT_ID }}
+        run: pnpm build
+      - run: npx cap sync android
+      - name: Write signing material
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/upload.keystore"
+          cat > android/keystore.properties <<EOF
+          storeFile=$RUNNER_TEMP/upload.keystore
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          keyPassword=$ANDROID_KEY_PASSWORD
+          EOF
+      - name: Fastlane android ${{ needs.config.outputs.lane }}
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+          APP_VERSION: ${{ needs.config.outputs.app_version }}
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: fastlane android ${{ needs.config.outputs.lane }}
+
+  ios:
+    needs: config
+    if: needs.config.outputs.build_ios == 'true'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+      - run: gem install fastlane -N
+      - run: pnpm install --frozen-lockfile
+      - name: Build web bundle
+        env:
+          VITE_TRAKT_CLIENT_ID: ${{ vars.VITE_TRAKT_CLIENT_ID }}
+        run: pnpm build
+      - run: npx cap sync ios
+      - name: Import signing certificate
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          p12-password: ${{ secrets.P12_PASSWORD }}
+          keychain-password: ${{ secrets.KEYCHAIN_PASSWORD }}
+      - name: Install provisioning profile
+        env:
+          BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
+        run: |
+          profiles_dir="$HOME/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "$profiles_dir"
+          echo "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode > "$profiles_dir/build.mobileprovision"
+      - name: Fastlane ios ${{ needs.config.outputs.lane }}
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+          APP_VERSION: ${{ needs.config.outputs.app_version }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_KEY: ${{ secrets.APP_STORE_CONNECT_KEY }}
+          IOS_PROVISIONING_PROFILE_NAME: ${{ secrets.IOS_PROVISIONING_PROFILE_NAME }}
+        run: fastlane ios ${{ needs.config.outputs.lane }}

@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Cue Privacy</title>
+    <style>
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: #0e0c0a;
+        color: #f4efe7;
+        font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      main { max-width: 46rem; margin: 0 auto; padding: 3rem 1.25rem 4rem; }
+      h1 { font-size: 1.9rem; margin: 0 0 0.25rem; }
+      h2 { font-size: 1.15rem; margin: 2.25rem 0 0.5rem; }
+      a { color: #f5b841; }
+      .meta { color: #a49e93; font-size: 0.9rem; margin: 0 0 2rem; }
+      ul { padding-left: 1.2rem; }
+      li { margin: 0.35rem 0; }
+      code { background: #1c1915; padding: 0.1rem 0.35rem; border-radius: 4px; font-size: 0.9em; }
+      footer { margin-top: 3rem; color: #a49e93; font-size: 0.85rem; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Cue Privacy</h1>
+      <p class="meta">Last reviewed: July 2026</p>
+
+      <p>
+        Cue is a personal TV and movie tracker that talks directly to your own
+        <a href="https://trakt.tv">Trakt</a> account. This is the whole of what it does with your
+        data.
+      </p>
+
+      <h2>No server, nothing stored off your device</h2>
+      <p>
+        Cue runs no server of its own. There is no backend, no Cue account, and no database that Cue
+        controls. Everything Cue keeps lives only on the device you use it on:
+      </p>
+      <ul>
+        <li>your Trakt OAuth token (so you stay signed in), and</li>
+        <li>a local cache of the shows, episodes, and history Cue reads from Trakt, plus your in-app
+          settings.</li>
+      </ul>
+      <p>
+        All of your sync state (watch history, watchlist, progress) lives in your own Trakt account,
+        which Cue reaches directly over HTTPS. Cue never proxies your data through any intermediary
+        because there is no intermediary.
+      </p>
+
+      <h2>No analytics, no telemetry</h2>
+      <p>
+        Cue collects no analytics and sends no telemetry. It makes no network requests except
+        directly to Trakt (and to the image hosts Trakt points at) to do the tracking you asked for.
+      </p>
+
+      <h2>Deleting your data</h2>
+      <ul>
+        <li>
+          <strong>Cue's on-device data:</strong> open <strong>Settings &rarr; Sign out</strong>.
+          Signing out revokes this device's access to your Trakt account and deletes Cue's local
+          settings, cache, and Trakt token stored on the device. Uninstalling the app removes the
+          same data.
+        </li>
+        <li>
+          <strong>Your Trakt account itself:</strong> Cue cannot delete it. Cue has no account of
+          its own and no server-side copy of your data to delete. Only Trakt can delete a Trakt
+          account, at
+          <a href="https://app.trakt.tv/settings/advanced">app.trakt.tv/settings/advanced</a>.
+        </li>
+      </ul>
+
+      <h2>Support</h2>
+      <p>
+        Questions or issues: open one at
+        <a href="https://github.com/arun279/cue/issues">github.com/arun279/cue/issues</a>.
+      </p>
+
+      <h2>Attribution</h2>
+      <p>
+        Powered by Trakt. Cue uses the Trakt API but is not created, endorsed, or sponsored by
+        Trakt.
+      </p>
+
+      <footer>Cue is open source under the MIT license.</footer>
+    </main>
+  </body>
+</html>
