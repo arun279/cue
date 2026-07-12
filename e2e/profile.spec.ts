@@ -55,7 +55,7 @@ test("shows a brand-new-account empty state when every count is zero", async ({ 
   await expect(page.getByTestId("profile-empty")).toBeVisible();
   await expect(page.getByTestId("stat-theatre")).toHaveCount(0);
 
-  await page.getByTestId("profile-empty-discover").click();
+  await page.getByTestId("profile-empty-search").click();
   await expect(page.getByTestId("screen-search")).toBeVisible();
   await expect(page).toHaveURL(/\/search$/);
 });

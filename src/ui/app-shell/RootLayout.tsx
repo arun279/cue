@@ -22,7 +22,7 @@ function CrashOnParam(): ReactElement | null {
 /**
  * Re-tapping the already-active tab scrolls its surface back to the top: the
  * bottom-nav contract users carry between apps. Long lists
- * (History, Upcoming) own an inner scroll region, so the window alone would not
+ * (History, Calendar) own an inner scroll region, so the window alone would not
  * move; reset any announced [data-scroll-region] too. `prefers-reduced-motion` is
  * honored in JS (instant), since `scrollTo({behavior})` ignores the CSS clamp.
  */

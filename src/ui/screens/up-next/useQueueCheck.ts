@@ -42,7 +42,7 @@ export function useQueueCheck(entry: LibraryEntry, mark: MarkWatched): QueueChec
     };
   }
   if (entry.pendingAdvance) {
-    return { state: "watched", label: "Watched. Tap to remove.", onPress: () => {} };
+    return { state: "watched", label: "Watched", onPress: () => {} };
   }
   const episode = entry.nextEpisode;
   const code = episode === null ? "" : epCode(episode.season, episode.number);

@@ -13,12 +13,12 @@ export async function applyReconcile(
   queryClient: QueryClient,
   reconcile: ActivitiesReconcile,
   isCancelled?: () => boolean,
-): Promise<void> {
+): Promise<boolean> {
   if (reconcile.keys.length > 0) {
     await Promise.all(
       reconcile.keys.map((queryKey) => queryClient.invalidateQueries({ queryKey })),
     );
-    if (isCancelled?.() === true) return;
+    if (isCancelled?.() === true) return false;
   }
   const anyError = reconcile.keys.some((queryKey) =>
     queryClient
@@ -26,5 +26,7 @@ export async function applyReconcile(
       .findAll({ queryKey })
       .some((query) => query.state.status === "error"),
   );
-  if (!anyError) await reconcile.commit();
+  if (anyError) return false;
+  await reconcile.commit();
+  return true;
 }

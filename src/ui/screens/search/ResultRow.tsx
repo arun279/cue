@@ -78,7 +78,9 @@ export function ResultRow({ hit, added, onAdd }: ResultRowProps): ReactElement {
       meta={hit.year ?? undefined}
       trailing={trailing}
       link={linkFor(hit)}
-      linkLabel={hit.title}
+      linkLabel={`${hit.title}, ${hit.type === "movie" ? "Movie" : "Show"}${
+        hit.year === null ? "" : `, ${hit.year}`
+      }`}
     />
   );
 }

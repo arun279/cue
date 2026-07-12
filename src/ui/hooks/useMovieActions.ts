@@ -61,7 +61,7 @@ export interface MovieActions {
  * `watched_at`) and watchlist add/remove, each optimistic through the durable
  * write-queue and reconciled against watched-movie / watchlist membership. The
  * shared `movieLibrary` cache is patched instantly (materializing an entry for a
- * movie not yet in the library) so both the detail hero and the My Shows shelves
+ * movie not yet in the library) so both the detail hero and the Library shelves
  * update at once; a hard failure rolls the patch back. A mark exposes an inline Undo
  * (the item-scoped `/sync/history/remove` inverse: it reverses the play you just
  * added). A durable unmark of a settled watch is per-play-safe and mirrors episodes

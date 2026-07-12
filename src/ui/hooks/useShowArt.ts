@@ -13,7 +13,7 @@ const EMPTY: ShowArtSlice = { posters: [], backdrops: [] };
 /**
  * Deferred per-card show art. The bounded cold-sync read paints the
  * queue and buckets WITHOUT a per-show `/shows/:id` art fan-out; a show row instead
- * lazily fetches its own poster/backdrop here as it renders. Because My Shows is
+ * lazily fetches its own poster/backdrop here as it renders. Because Library is
  * window-virtualized and Up Next is a small queue, only cards actually in the DOM
  * fire this: art loads per visible row, not for every library show up front.
  *

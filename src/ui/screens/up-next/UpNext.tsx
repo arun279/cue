@@ -69,7 +69,7 @@ function SyncPendingRow({ entry }: { readonly entry: LibraryEntry }): ReactEleme
       footer={<ProgressBar striped className="ep-row__bar" />}
       trailing={<CheckControl state="syncing" size={48} label="" />}
       link={{ to: "/show/$showId", params: { showId: String(entry.showId) } }}
-      linkLabel={entry.title}
+      linkLabel={`${entry.title}, Syncing progress`}
     />
   );
 }
@@ -251,11 +251,7 @@ export function UpNext(): ReactElement {
           <EmptyState
             testId="empty-all-caught-up"
             headline="You're all caught up."
-            body={
-              onTheWay.length === 0
-                ? "Nothing airing this week. Your shows are between seasons."
-                : undefined
-            }
+            body={onTheWay.length === 0 ? "Nothing airing in the next few days." : undefined}
           />
           <OnTheWay days={onTheWay} />
           <LapsedDrawer cards={view.lapsedCards} mark={mark} onStop={stopWatching} />

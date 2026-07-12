@@ -44,7 +44,7 @@ export function visibleSearchHits(
 }
 
 /**
- * The Discover search hook: a debounced text input that issues one
+ * The Search hook: a debounced text input that issues one
  * `/search/show,movie` after the user settles, tracks recent queries for the
  * pre-query state, and adds a hit to the watchlist optimistically. Empty input
  * issues no request (the pre-query empty state owns that). The inline watchlist

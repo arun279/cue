@@ -22,7 +22,7 @@ export interface WatchlistController {
 /**
  * The show watchlist toggle. Add/remove writes `POST /sync/watchlist`(+
  * remove) through the durable queue, optimistically flipping both the watchlist
- * membership cache and the library entry's `inWatchlist` flag so the My Shows
+ * membership cache and the library entry's `inWatchlist` flag so the Library
  * "To watch" bucket updates instantly (a not-yet-started watchlisted show buckets
  * as To watch). A hard failure rolls both back.
  */

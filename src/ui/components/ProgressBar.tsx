@@ -3,8 +3,6 @@ import type { ReactElement } from "react";
 interface ProgressBarProps {
   /** 0-100. Ignored when `striped` (indeterminate: no fabricated number). */
   readonly percent?: number;
-  /** 3px under grid captions, 4px everywhere else. */
-  readonly height?: 3 | 4;
   /** Static diagonal stripes: the honest sync-pending texture. */
   readonly striped?: boolean;
   readonly className?: string;
@@ -18,7 +16,6 @@ interface ProgressBarProps {
  */
 export function ProgressBar({
   percent = 0,
-  height = 4,
   striped = false,
   className,
 }: ProgressBarProps): ReactElement {
@@ -26,7 +23,6 @@ export function ProgressBar({
   return (
     <span
       className={`progress-bar${className === undefined ? "" : ` ${className}`}`}
-      data-height={height}
       {...(striped ? { "data-striped": "true" } : {})}
       {...(clamped >= 100 && !striped ? { "data-complete": "true" } : {})}
       aria-hidden="true"

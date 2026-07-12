@@ -1,6 +1,6 @@
 /**
- * Pure timing rules for the mark loop: the rolling snackbar batch (§ rapid-fire
- * coalescing) and the queue check's re-arm gate. Kept free of React and cache
+ * Pure timing rules for the mark loop: rapid-fire marks coalesce into the
+ * rolling snackbar batch, and the queue check waits on its re-arm gate. Kept free of React and cache
  * types so both are unit-testable on the clock alone.
  */
 

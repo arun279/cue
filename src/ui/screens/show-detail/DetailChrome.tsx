@@ -72,7 +72,7 @@ function OverflowDisc({
 }
 
 /**
- * The full-bleed hero shared by the show and movie pages (§3.3.1): the backdrop
+ * The full-bleed hero shared by the show and movie pages: the backdrop
  * (fading in once decoded, or the monogram gradient plate with a centered
  * poster when there is none / it breaks), the status-bar scrim, the floating
  * back/overflow discs, and the title + quiet meta line. Each page keeps its own

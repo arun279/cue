@@ -177,7 +177,7 @@ export const trendingShowsSchema = z.array(
 );
 export const popularShowsSchema = z.array(showSchema);
 
-/** The movie discover rails, mirroring the show charts: `/movies/trending` wraps
+/** The movie browse rails, mirroring the show charts: `/movies/trending` wraps
  * the movie in a watcher count, `/movies/popular` is a bare movie list, and
  * `/movies/:id/related` returns a bare movie list ("more like this"). */
 export const trendingMoviesSchema = z.array(

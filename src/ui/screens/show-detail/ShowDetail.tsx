@@ -81,9 +81,9 @@ function About({
 }
 
 /**
- * Show detail (§3.3): full-bleed hero, the sticky continue bar running the same
+ * Show detail: full-bleed hero, the sticky continue bar running the same
  * advance pipeline as the Up Next queue, the seasons accordion with bulk season
- * checks (confirm flows §4.5) and per-episode toggles (backfill snackbar §4.3),
+ * checks behind confirmation and per-episode toggles with backfill feedback,
  * and the About block. The episode sheet is a child route presented over this
  * page; the overflow disc carries stop/resume, watchlist, whole-show marking,
  * and the Trakt hand-off. Every state is designed: hero skeleton, hero error
@@ -128,7 +128,7 @@ export function ShowDetail({ showId }: { readonly showId: number }): ReactElemen
     episodeOpen ? null : header !== undefined ? `${header.title} · Cue` : "Show · Cue",
   );
 
-  // Stop/resume + watchlist feedback (§4.3): keyed on primitives so a re-render
+  // Stop/resume and watchlist feedback is keyed on primitives so a re-render
   // while the snack is up never replaces it and resets its timer.
   const stopKind = hide.undoable?.kind ?? null;
   const stopTitle = hide.undoable?.title ?? null;

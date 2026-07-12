@@ -240,9 +240,6 @@
   background: var(--color-track);
   overflow: hidden;
 }
-.progress-bar[data-height="3"] {
-  height: 3px;
-}
 .progress-bar > i {
   display: block;
   height: 100%;
@@ -505,21 +502,6 @@
 .poster__img--loaded {
   opacity: 1;
 }
-.poster__retry {
-  position: absolute;
-  left: 50%;
-  bottom: 8px;
-  transform: translateX(-50%);
-  appearance: none;
-  border: none;
-  background: rgb(0 0 0 / 0.45);
-  color: var(--color-fg);
-  font-size: 0.6rem;
-  cursor: pointer;
-  padding: 2px 6px;
-  border-radius: var(--radius-pill);
-}
-
 /* ---- The shared "no artwork" block ----
  * An absolute fill so it backs a poster/still image and shows through until (or
  * unless) art decodes: a deterministic warm gradient, a quiet media glyph, and the

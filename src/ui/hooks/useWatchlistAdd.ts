@@ -4,7 +4,7 @@ import { buildAddWatchlistOp, buildRemoveWatchlistOp } from "@domain/write-queue
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { USER_STATE_STALE_TIME } from "@ui/hooks/query-freshness";
 import { useQueuedWrite } from "@ui/hooks/useQueuedWrite";
-import { useRuntime } from "@ui/runtime/runtime";
+import { type MovieLibraryData, type UpNextData, useRuntime } from "@ui/runtime/runtime";
 import { useCallback, useState } from "react";
 
 export interface WatchlistAddView {
@@ -21,9 +21,9 @@ export interface WatchlistAddView {
 }
 
 /** Which watchlist sections a surface seeds membership from. A movie-only rail
- * (Movie-detail "More like this", the movie-home Discover) passes `{ movies: true }`
+ * (Movie detail "More like this", the movie browse rails) passes `{ movies: true }`
  * so it never spends a `/sync/watchlist/shows` read it can never use: the
- * gated-by-medium rate budget. The mixed Discover search leaves both on (default). */
+ * gated-by-medium rate budget. Mixed Search results leave both on by default. */
 interface WatchlistSections {
   readonly shows?: boolean;
   readonly movies?: boolean;
@@ -39,7 +39,7 @@ function addKey(hit: SearchHit): string {
 }
 
 /**
- * The inline "add to watchlist" surface shared by every poster rail: Discover
+ * The inline "add to watchlist" surface shared by every poster rail: Search
  * search results, the trending/popular browse rails, and the Movie-detail "More
  * like this" rail. Membership is seeded from the shared watchlist caches so an
  * already-listed hit shows as added and a remount doesn't forget a just-added
@@ -156,10 +156,27 @@ export function useWatchlistAdd(
         next.delete(key);
         return next;
       });
-      await queryClient.cancelQueries({ queryKey: queryKeys.watchlist(section) });
+      const aggregateKey = section === "movies" ? queryKeys.movieLibrary() : queryKeys.library();
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: queryKeys.watchlist(section) }),
+        queryClient.cancelQueries({ queryKey: aggregateKey }),
+      ]);
       queryClient.setQueryData<readonly number[]>(queryKeys.watchlist(section), (old) =>
         old?.filter((id) => id !== hit.traktId),
       );
+      if (section === "movies") {
+        queryClient.setQueryData<MovieLibraryData>(queryKeys.movieLibrary(), (old) =>
+          old === undefined
+            ? undefined
+            : { ...old, entries: old.entries.filter((entry) => entry.movieId !== hit.traktId) },
+        );
+      } else {
+        queryClient.setQueryData<UpNextData>(queryKeys.library(), (old) =>
+          old === undefined
+            ? undefined
+            : { ...old, entries: old.entries.filter((entry) => entry.showId !== hit.traktId) },
+        );
+      }
       const op = buildRemoveWatchlistOp({ opId: crypto.randomUUID(), section, ids: hit.ids });
       await write.run(
         op,

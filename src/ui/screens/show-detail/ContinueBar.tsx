@@ -102,10 +102,11 @@ function EntryCheck({
 }
 
 /**
- * The 72px sticky continue bar (§3.3.2): NEXT eyebrow + episode line + series
+ * The 72px sticky continue bar: NEXT eyebrow + episode line + series
  * progress with the check trailing; caught-up returning shows read the season
- * countdown, a finished ended show reads its epitaph, and a show still beyond
- * the progress budget reads the striped syncing state with a disabled check.
+ * countdown, and a finished ended show reads its epitaph. When the shared
+ * library entry is still beyond the progress budget, the loaded detail header
+ * supplies authoritative progress and the check uses the fallback mark path.
  * The bar body (not the check) opens the episode sheet.
  */
 export function ContinueBar({
@@ -115,21 +116,7 @@ export function ContinueBar({
   mark,
   onFallbackMark,
 }: ContinueBarProps): ReactElement | null {
-  if (entry !== undefined && !entry.progressKnown) {
-    return (
-      <Shell
-        variant="syncing"
-        trailing={<CheckControl state="syncing" size={48} label="" testId="continue-check" />}
-      >
-        <span className="continue__body">
-          <span className="continue__line continue__line--muted">Syncing your history…</span>
-          <ProgressBar striped className="continue__bar" />
-        </span>
-      </Shell>
-    );
-  }
-
-  const tracked = entry?.progressKnown;
+  const tracked = entry?.progressKnown === true;
   const aired = tracked ? entry.aired : header.aired;
   const completed = tracked ? entry.completed : header.completed;
   const next = tracked ? entry.nextEpisode : header.nextEpisode;

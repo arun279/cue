@@ -131,9 +131,6 @@ export interface MarkSeasonController {
   /** A non-error advisory (e.g. a rewatch season marked again, or an unmark that
    * found nothing safe to remove) for a message-only snackbar. */
   dismissNotice(): void;
-  /** True while a mark/unmark write for this season number is in flight: the season
-   * control locks so a second activation can't race a duplicate bulk write. */
-  isSeasonPending(seasonNumber: number): boolean;
   readonly undoable: { readonly label: string; readonly seq: number } | null;
   readonly notice: string | null;
   readonly error: string | null;
@@ -216,14 +213,10 @@ export function useMarkSeason(): MarkSeasonController {
     },
     [putUndo],
   );
-  // Which season numbers currently have a bulk mark write in flight, so the season
-  // control locks (a second activation can't enqueue a duplicate bulk write). The ref
-  // is the SYNCHRONOUS gate: checked-and-set before the async op so a double-tap in
-  // one task (before React re-renders the disabled/aria-busy state) is dropped, not
-  // double-fired; the state mirror only drives the visual lock. Mirrors the Up Next
-  // mark's ref guard.
+  // Which season numbers currently have a bulk mark write in flight. The ref is
+  // the synchronous gate: checked and set before the async op so a double-tap in
+  // one task is dropped instead of enqueuing a duplicate bulk write.
   const pendingSeasonsRef = useRef<Set<number>>(new Set());
-  const [pendingSeasons, setPendingSeasons] = useState<ReadonlySet<number>>(() => new Set());
   // Single-episode marks/unmarks in flight, keyed by `showId:season:number`. Like the
   // season lock (and the Up Next list mark's `inFlight` ref) this is the SYNCHRONOUS
   // gate: a fast double-tap fires a second `toggleEpisode` before React re-renders the
@@ -234,16 +227,10 @@ export function useMarkSeason(): MarkSeasonController {
     async (seasonNumber: number, run: () => Promise<void>): Promise<void> => {
       if (pendingSeasonsRef.current.has(seasonNumber)) return;
       pendingSeasonsRef.current.add(seasonNumber);
-      setPendingSeasons((prev) => new Set(prev).add(seasonNumber));
       try {
         await run();
       } finally {
         pendingSeasonsRef.current.delete(seasonNumber);
-        setPendingSeasons((prev) => {
-          const next = new Set(prev);
-          next.delete(seasonNumber);
-          return next;
-        });
       }
     },
     [],
@@ -362,7 +349,7 @@ export function useMarkSeason(): MarkSeasonController {
         // this mark's toast (if it's still the one showing) so there's no Undo for a
         // change that never happened, and surface the retry copy.
         retractUndo(undoOps);
-        setError("Couldn't save that change. It'll retry, check your connection.");
+        setError("Couldn't save that change. Please try again.");
       }
       return outcome;
     },
@@ -495,7 +482,7 @@ export function useMarkSeason(): MarkSeasonController {
         });
         if (outcome === "failed") {
           retractUndo(ops);
-          setError("Couldn't unmark that season. It'll retry, check your connection.");
+          setError("Couldn't unmark that season. Please try again.");
         }
       });
     },
@@ -549,7 +536,7 @@ export function useMarkSeason(): MarkSeasonController {
         const outcome = await submitSeasonWrite(target, before, ops);
         if (outcome === "failed") {
           setNotice(null);
-          setError("Couldn't save that change. It'll retry, check your connection.");
+          setError("Couldn't save that change. Please try again.");
         }
       });
     },
@@ -862,11 +849,12 @@ export function useMarkSeason(): MarkSeasonController {
     }
     // If the mark auto-resumed the show, its Undo must re-stop it (onKept): the
     // re-hide has to land before revalidate so the library re-read stays Stopped.
-    await submit(pending.ops.map(invertOp), {
+    const outcome = await submit(pending.ops.map(invertOp), {
       rollback: () => {},
       onKept: pending.resumed ? () => resume.reStop(pending.showId, pending.ids) : undefined,
       revalidate: () => revalidate(pending.showId, "all"),
     });
+    if (outcome === "failed") setError("Couldn't undo that. Please try again.");
   }, [undoState, putUndo, revalidate, submit, resume]);
 
   return {
@@ -881,7 +869,6 @@ export function useMarkSeason(): MarkSeasonController {
     dismissUndo: () => putUndo(null),
     clearError: () => setError(null),
     dismissNotice: () => setNotice(null),
-    isSeasonPending: (seasonNumber) => pendingSeasons.has(seasonNumber),
     undoable: undoState === null ? null : { label: undoState.label, seq: undoState.seq },
     notice,
     error,

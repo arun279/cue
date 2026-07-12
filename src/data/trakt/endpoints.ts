@@ -163,7 +163,7 @@ export async function searchTrakt(
   return parse(await client.get(path, { query: { query }, extended: ART }), searchSchema);
 }
 
-/** Browse rails for empty-query Discover: the current trending + all-time
+/** Browse rails for the empty Search screen: the current trending + all-time
  * popular shows, art included so each renders a real 2:3 poster. Trakt caps a
  * single page at its own limit; the caller asks for one shelf's worth. */
 export async function getTrendingShows(
@@ -180,7 +180,7 @@ export async function getPopularShows(
   return parse(await client.get("/shows/popular", { extended: ART, limit }), popularShowsSchema);
 }
 
-/** Movie discover rails: current trending + all-time popular
+/** Movie browse rails: current trending + all-time popular
  * movies with art, for the Search browse surface: the movie analogue of
  * `getTrendingShows`/`getPopularShows`, feeding the same `SearchHit` pipeline. */
 export async function getTrendingMovies(

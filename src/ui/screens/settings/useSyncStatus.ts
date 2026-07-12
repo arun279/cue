@@ -1,3 +1,4 @@
+import { queryKeys } from "@data/query-keys";
 import { useQueryClient } from "@tanstack/react-query";
 import { dismissSnack, showSnack } from "@ui/components/snackbar-store";
 import { applyReconcile } from "@ui/hooks/apply-reconcile";
@@ -8,6 +9,18 @@ import { newestSyncedAt, syncStatusLine } from "./sync-status";
 
 /** How often the "N min ago" phrase re-renders while the screen is open. */
 const TICK_MS = 30_000;
+
+const ACCOUNT_QUERY_PREFIXES = [
+  queryKeys.library(),
+  queryKeys.movieLibrary(),
+  queryKeys.watchlist("shows"),
+  queryKeys.watchlist("movies"),
+  queryKeys.historyPrefix(),
+  queryKeys.calendarPrefix(),
+  queryKeys.lastActivities(),
+  queryKeys.userStats(),
+  queryKeys.userSettings(),
+] as const;
 
 interface SyncStatus {
   /** `Last synced 2 min ago · 0 pending` */
@@ -59,7 +72,14 @@ export function useSyncStatus(): SyncStatus {
         });
         return;
       }
-      await applyReconcile(queryClient, reconcile);
+      const clean = await applyReconcile(queryClient, reconcile);
+      if (!clean) {
+        showSnack({
+          message: "Couldn't reach Trakt. Check your connection.",
+          actions: [{ label: "Dismiss", onPress: dismissSnack }],
+        });
+        return;
+      }
       setCheckedAt(Date.now());
       setNow(Date.now());
     } finally {
@@ -68,12 +88,7 @@ export function useSyncStatus(): SyncStatus {
   }, [runtime, queryClient]);
 
   const syncedAt = Math.max(
-    newestSyncedAt(
-      queryClient
-        .getQueryCache()
-        .getAll()
-        .map((query) => query.state),
-    ),
+    newestSyncedAt(queryClient.getQueryCache().getAll(), ACCOUNT_QUERY_PREFIXES),
     checkedAt,
   );
 

@@ -1,7 +1,7 @@
 /**
  * The SyncStrip's pending signal reads the DURABLE queue depth, not only the
  * in-flight flush counter: a mark deferred offline sits in the op-log with
- * nothing in flight, and the strip must still say so (spec §2.3: ≥3 pending
+ * nothing in flight, and the strip must still say so (at least 3 pending
  * for >5s → "N marks pending · will sync").
  */
 import { SyncStrip } from "@ui/app-shell/SyncStrip";

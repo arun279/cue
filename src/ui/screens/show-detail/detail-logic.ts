@@ -41,7 +41,7 @@ interface NextEpisodeLike {
   readonly firstAired: string | null;
 }
 
-/** Which continue-bar body a show earns (§3.3.2). */
+/** Which continue-bar body a show earns from progress and status. */
 export type ContinueKind =
   | { readonly kind: "next" }
   | { readonly kind: "returning"; readonly season: number; readonly date: string }
@@ -119,7 +119,7 @@ export function earlierUnwatchedCount(seasons: readonly SeasonView[], bound: Epi
   return count;
 }
 
-/** The post-backfill snackbar message (§4.3): `S2 E1-E5 marked` when the gap sits
+/** The post-backfill snackbar message: `S2 E1-E5 marked` when the gap sits
  * inside the bound's season, else the honest coalesced count. */
 export function backfillRangeLabel(
   seasons: readonly SeasonView[],

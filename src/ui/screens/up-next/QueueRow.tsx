@@ -85,7 +85,9 @@ export function QueueRow({
           </>
         }
         link={{ to: "/show/$showId", params: { showId: String(entry.showId) } }}
-        linkLabel={entry.title}
+        linkLabel={`${entry.title}, ${epCode(item.episode.season, item.episode.number)}${
+          item.episode.title === null ? "" : ` ${item.episode.title}`
+        }`}
       />
     </SwipeAction>
   );

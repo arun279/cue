@@ -127,7 +127,9 @@ export function OnTheWay({ days }: OnTheWayProps): ReactElement | null {
                     day.offset > 0 ? <Badge variant="countdown">{day.offset}d</Badge> : undefined
                   }
                   link={{ to: "/show/$showId", params: { showId: String(row.showId) } }}
-                  linkLabel={row.showTitle}
+                  linkLabel={`${row.showTitle}, ${epCode(row.season, row.number)}, ${timeFmt.format(
+                    new Date(row.firstAired),
+                  )}`}
                 />
               </li>
             ))}

@@ -55,9 +55,9 @@ import type { KeyValueStore } from "@platform/kv";
 import type { TokenStore } from "@platform/token-store";
 import type {
   ActivitiesReconcile,
+  BrowseData,
   CalendarData,
   CueRuntime,
-  DiscoverData,
   HistoryPageData,
   MovieLibraryData,
   SubmitOutcome,
@@ -67,6 +67,13 @@ import type {
 const OP_LOG_KEY = "cue.write-queue";
 /** The persisted `/sync/last_activities` baseline the freshness gate diffs against. */
 const ACTIVITIES_KEY = "cue.last-activities";
+
+function clearCueLocalStorage(): void {
+  for (let index = localStorage.length - 1; index >= 0; index -= 1) {
+    const key = localStorage.key(index);
+    if (key?.startsWith("cue.") === true) localStorage.removeItem(key);
+  }
+}
 
 /**
  * The op's `inversePatch` read as a reconcile anchor: a `mark`/bulk write pivots
@@ -320,7 +327,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       return rankSearchHits(assembleSearchHits(result.data), query);
     },
 
-    async loadDiscover(): Promise<DiscoverData> {
+    async loadBrowse(): Promise<BrowseData> {
       const [trending, popular, trendingMovies, popularMovies] = await Promise.all([
         getTrendingShows(client),
         getPopularShows(client),
@@ -424,6 +431,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
         // can never be sent, and clearing is what prevents the cross-account
         // replay.
         if (options.force !== true && queue.size > 0) throw new PendingWritesError();
+        clearCueLocalStorage();
         // Clear this device's per-account state so the next account never paints
         // stale data or dispatches a leftover op.
         await opLogStore.clear();

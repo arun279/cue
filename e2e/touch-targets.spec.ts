@@ -278,7 +278,7 @@ test("History's checks, chips, and header tools clear the floor @390", async ({ 
   await expect(check).toBeVisible();
   await expectTapTarget(check);
 
-  await expectTapTarget(page.getByRole("button", { name: "Back" }));
+  await expectTapTarget(page.getByRole("link", { name: "Back to Profile" }));
   await expectTapTarget(page.getByTestId("history-search-toggle"));
   await expectTapTarget(page.getByTestId("history-filter-all"), "height");
   await expectTapTarget(page.getByTestId("history-jump"), "height");

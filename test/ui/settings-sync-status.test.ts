@@ -4,22 +4,43 @@ import { describe, expect, it } from "vitest";
 const NOW = 1_750_000_000_000;
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
+const ACCOUNT_PREFIXES = [["library"]] as const;
+
+const query = (queryKey: readonly unknown[], status: string, dataUpdatedAt: number) => ({
+  queryKey,
+  state: { status, dataUpdatedAt },
+});
 
 describe("newestSyncedAt", () => {
   it("picks the newest successful read and ignores everything else", () => {
     expect(
-      newestSyncedAt([
-        { status: "success", dataUpdatedAt: NOW - HOUR },
-        { status: "success", dataUpdatedAt: NOW - MINUTE },
-        { status: "error", dataUpdatedAt: NOW },
-        { status: "pending", dataUpdatedAt: 0 },
-      ]),
+      newestSyncedAt(
+        [
+          query(["library"], "success", NOW - HOUR),
+          query(["library"], "success", NOW - MINUTE),
+          query(["library"], "error", NOW),
+          query(["library"], "pending", 0),
+        ],
+        ACCOUNT_PREFIXES,
+      ),
     ).toBe(NOW - MINUTE);
   });
 
+  it("ignores newer successful non-account reads", () => {
+    expect(
+      newestSyncedAt(
+        [
+          query(["library"], "success", NOW - HOUR),
+          query(["discover", "shows-movies"], "success", NOW),
+        ],
+        ACCOUNT_PREFIXES,
+      ),
+    ).toBe(NOW - HOUR);
+  });
+
   it("reports 0 when nothing has loaded", () => {
-    expect(newestSyncedAt([])).toBe(0);
-    expect(newestSyncedAt([{ status: "pending", dataUpdatedAt: 0 }])).toBe(0);
+    expect(newestSyncedAt([], ACCOUNT_PREFIXES)).toBe(0);
+    expect(newestSyncedAt([query(["library"], "pending", 0)], ACCOUNT_PREFIXES)).toBe(0);
   });
 });
 

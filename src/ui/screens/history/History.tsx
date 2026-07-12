@@ -219,6 +219,27 @@ export function History(): ReactElement {
 
   const label = scopeLabel(year, month);
   const filtering = titleQuery.trim() !== "";
+  const loadMore = hasMore ? (
+    <div className="hist-more">
+      {isLoadingMore && <SkeletonRows rows={2} testId="history-loading-more" />}
+      {isLoadMoreError && !isLoadingMore && (
+        <>
+          <p className="hist-more__error" role="alert" data-testid="history-load-earlier-error">
+            Couldn't load earlier history.
+          </p>
+          <button
+            type="button"
+            className="button button--ghost"
+            data-testid="history-load-earlier"
+            onClick={loadEarlier}
+          >
+            Retry
+          </button>
+        </>
+      )}
+      <div ref={sentinelRef} className="hist-sentinel" aria-hidden="true" />
+    </div>
+  ) : null;
 
   let body: ReactNode;
   if (view.isLoading) {
@@ -258,11 +279,14 @@ export function History(): ReactElement {
       );
   } else if (blocks.length === 0 && filtering) {
     body = (
-      <EmptyState
-        testId="history-filter-empty"
-        headline="No titles match."
-        body={`Nothing loaded matches "${titleQuery.trim()}". Scroll loads more history to search.`}
-      />
+      <>
+        <EmptyState
+          testId="history-filter-empty"
+          headline="No titles match."
+          body={`Nothing loaded matches "${titleQuery.trim()}". Scroll loads more history to search.`}
+        />
+        {loadMore}
+      </>
     );
   } else {
     body = (
@@ -288,31 +312,7 @@ export function History(): ReactElement {
             </section>
           ),
         )}
-        {hasMore && (
-          <div className="hist-more">
-            {isLoadingMore && <SkeletonRows rows={2} testId="history-loading-more" />}
-            {isLoadMoreError && !isLoadingMore && (
-              <>
-                <p
-                  className="hist-more__error"
-                  role="alert"
-                  data-testid="history-load-earlier-error"
-                >
-                  Couldn't load earlier history.
-                </p>
-                <button
-                  type="button"
-                  className="button button--ghost"
-                  data-testid="history-load-earlier"
-                  onClick={loadEarlier}
-                >
-                  Retry
-                </button>
-              </>
-            )}
-            <div ref={sentinelRef} className="hist-sentinel" aria-hidden="true" />
-          </div>
-        )}
+        {loadMore}
       </>
     );
   }
@@ -322,6 +322,7 @@ export function History(): ReactElement {
       <ScreenHeader
         title="History"
         variant="child"
+        fallback="/profile"
         trailing={<HistorySearch value={titleQuery} onChange={setTitleQuery} />}
       />
       <SyncStrip isError={view.isError} onRetry={view.refetch} />

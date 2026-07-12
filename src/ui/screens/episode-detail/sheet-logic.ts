@@ -15,7 +15,7 @@ export function sheetMetaLine(
   ]);
 }
 
-/** The mark row's status line (§3.4.5). `plays` null = count still resolving:
+/** The mark row's status line. `plays` null = count still resolving:
  * read as a single play until known. */
 export function watchedStatusLine(watchedAt: string | null, plays: number | null): string {
   if (plays !== null && plays >= 2) {
@@ -25,7 +25,7 @@ export function watchedStatusLine(watchedAt: string | null, plays: number | null
   return date === null ? "Watched" : `Watched ${date}`;
 }
 
-/** The remove-all ConfirmSheet consequence line (§4.4.2 exact for two plays). */
+/** The remove-all ConfirmSheet consequence line, exact for two plays. */
 export function removeAllBody(code: string, plays: number): string {
   const tail = plays === 2 ? "both" : `all ${plays}`;
   return `${code} has ${plays} plays. This removes ${tail} from your history.`;

@@ -57,7 +57,9 @@ export function CalendarRow({ row, offset }: CalendarRowProps): ReactElement {
         )
       }
       link={{ to: "/show/$showId", params: { showId: String(row.showId) } }}
-      linkLabel={row.showTitle}
+      linkLabel={`${row.showTitle}, ${epCode(row.season, row.number)}${
+        row.episodeTitle === null ? "" : ` ${row.episodeTitle}`
+      }, ${row.aired ? "Aired " : ""}${time}${row.network === null ? "" : `, ${row.network}`}`}
     />
   );
 }

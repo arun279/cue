@@ -1,5 +1,5 @@
 import type { CalendarDay, CalendarRow } from "@domain/calendar";
-import { buildAgenda, trailingChip } from "@ui/screens/upcoming/agenda";
+import { buildAgenda, trailingChip } from "@ui/screens/calendar/agenda";
 import { describe, expect, it } from "vitest";
 
 /** Noon UTC on 2026-07-05, evaluated in the UTC zone: tz-deterministic. */

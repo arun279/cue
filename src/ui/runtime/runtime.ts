@@ -24,15 +24,15 @@ export interface UpNextData {
   readonly isPartial: boolean;
 }
 
-/** The read side of the My Shows movie library: watched + watchlist movies. */
+/** The read side of the Library movie collection: watched + watchlist movies. */
 export interface MovieLibraryData {
   readonly entries: readonly MovieEntry[];
 }
 
-/** The read side of Discover browse: trending + popular poster rails for
+/** The read side of Search browse: trending + popular poster rails for
  * shows AND movies. Movies reuse the show-rail `SearchHit`
- * pipeline (DiscoverCard → `/movie/:id` + inline watchlist add). */
-export interface DiscoverData {
+ * pipeline (browse tile → `/movie/:id` + inline watchlist add). */
+export interface BrowseData {
   readonly trending: readonly SearchHit[];
   readonly popular: readonly SearchHit[];
   readonly trendingMovies: readonly SearchHit[];
@@ -89,7 +89,7 @@ export interface CueRuntime {
    * lazily fetches its own via this, cached by trakt id.
    */
   loadShowArt(showId: number): Promise<ShowArt>;
-  /** The My Shows movie library: watched movies + watchlist movies as poster shelves. */
+  /** The Library movie collection: watched movies + watchlist movies as poster shelves. */
   loadMovieLibrary(): Promise<MovieLibraryData>;
   /** Movie detail hero from `/movies/:id?extended=full,images` (title, year, overview, art). */
   loadMovieHeader(movieId: number): Promise<MovieHeader>;
@@ -127,8 +127,8 @@ export interface CueRuntime {
   loadMoviePlays(movieId: number): Promise<readonly MoviePlay[]>;
   /** Debounced show+movie search: one `/search/show,movie` per settled query, title-ranked. */
   search(query: string): Promise<readonly SearchHit[]>;
-  /** Browse rails for empty-query Discover: trending + popular shows with poster art. */
-  loadDiscover(): Promise<DiscoverData>;
+  /** Browse rails for empty Search: trending + popular shows with poster art. */
+  loadBrowse(): Promise<BrowseData>;
   /** The signed-in user's lifetime watch stats for the Profile theatre. */
   loadStats(): Promise<UserStats>;
   /** The signed-in user's Trakt identity (username + avatar) for the Profile header. */

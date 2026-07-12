@@ -131,7 +131,7 @@ export function Profile(): ReactElement {
         headline="Nothing tallied yet."
         body="Mark an episode or movie watched and your watch time adds up here."
       >
-        <Link className="button" to="/search" data-testid="profile-empty-discover">
+        <Link className="button" to="/search" data-testid="profile-empty-search">
           Find something to watch
         </Link>
       </EmptyState>
@@ -142,7 +142,7 @@ export function Profile(): ReactElement {
 
   return (
     <section className="screen-you" data-testid="screen-profile">
-      <ScreenHeader title="You" variant="child" />
+      <ScreenHeader title="You" variant="child" fallback="/" />
       <SyncStrip isError={view.isError} onRetry={view.refetch} />
 
       <IdentityRow profile={profile} />

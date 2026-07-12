@@ -58,7 +58,7 @@ test("exactly four job tabs: Up Next, Library, Calendar, Search; History and Pro
 
   await expect(page.getByTestId("screen-up-next")).toBeVisible();
 
-  // Exactly four primary destinations = the four jobs (§2.1). No fifth tab, ever.
+  // Exactly four primary destinations cover the four main jobs. No fifth tab.
   await expect(sidebar.locator(".sidebar__links a")).toHaveCount(4);
 
   for (const [label, screen] of [
@@ -126,6 +126,15 @@ for (const [legacy, target, screen] of [
     await expect(page.getByTestId(screen)).toBeVisible();
   });
 }
+
+test("a cold Settings link falls back to Profile", async ({ page }) => {
+  await page.goto("/settings");
+  const back = page.getByRole("link", { name: "Back to Profile" });
+  await expect(back).toBeVisible();
+  await back.click();
+  await expect(page).toHaveURL(/\/profile$/);
+  await expect(page.getByTestId("screen-profile")).toBeVisible();
+});
 
 test("renders a sidebar at 1280px and a bottom tab bar at 390px", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });

@@ -73,14 +73,14 @@ function EpisodeItem({
             episode: String(episode.number),
           },
         }}
-        linkLabel={`${code} ${name}`}
+        linkLabel={`${code} ${name}${air === null ? "" : `, ${air}`}`}
       />
     </li>
   );
 }
 
 /**
- * The seasons accordion (§3.3.3): 56px header rows with name, watched count, a
+ * The seasons accordion: 56px header rows with name, watched count, a
  * 48×4 bar, the season bulk check (hollow / partial-dot / filled → confirm
  * flows), and chevron, expanding in place into 56px episode rows. No season
  * sub-pages: one page keeps the mark loop fast.

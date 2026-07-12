@@ -139,7 +139,9 @@ test("shows the between-seasons empty state when nothing is airing", async ({ pa
 
   await expect(page.getByTestId("upcoming-empty")).toBeVisible();
   await expect(page.getByTestId("upcoming-empty")).toContainText("No upcoming episodes");
-  await expect(page.getByTestId("upcoming-empty")).toContainText("between seasons");
+  await expect(page.getByTestId("upcoming-empty")).toContainText(
+    "No upcoming episodes in the next 28 days.",
+  );
 });
 
 test("a long agenda stays virtualized: bounded window, yet scrolling reaches late rows", async ({

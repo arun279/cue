@@ -36,7 +36,7 @@ interface MarkState {
 }
 
 /**
- * The app-level mark manager (spec §9.3): reverse windows and the rolling
+ * The app-level mark manager: reverse windows and the rolling
  * snackbar batch live at MODULE level, one store for the whole session, like
  * the snackbar's. Marks made on different surfaces therefore share one batch
  * (two surfaces within 5s coalesce into `N episodes marked` · Undo-all), and a

@@ -7,7 +7,7 @@ describe("queryKeys factory", () => {
     expect(queryKeys.calendar("2026-07-05", 7)).toEqual(["calendar", "my-shows", "2026-07-05", 7]);
     expect(queryKeys.calendarPrefix()).toEqual(["calendar", "my-shows"]);
     expect(queryKeys.search("dune", "show,movie")).toEqual(["search", "show,movie", "dune"]);
-    expect(queryKeys.discover()).toEqual(["discover", "shows-movies"]);
+    expect(queryKeys.browse()).toEqual(["discover", "shows-movies"]);
     expect(queryKeys.lastActivities()).toEqual(["sync", "last_activities"]);
     expect(queryKeys.userStats()).toEqual(["users", "me", "stats"]);
     expect(queryKeys.userSettings()).toEqual(["users", "settings"]);

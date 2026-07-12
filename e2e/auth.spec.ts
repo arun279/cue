@@ -143,6 +143,11 @@ test.describe("onboarding + auth", () => {
     const oauth = await installOAuthRoutes(page.context());
     await seedAuth(page.context());
     await page.goto("/profile");
+    await page.evaluate(() => {
+      localStorage.setItem("cue.theme", "dark");
+      localStorage.setItem("cue.threshold-days", "21");
+      localStorage.setItem("unrelated", "kept");
+    });
 
     await page.getByTestId("link-settings").click();
     await expect(page.getByTestId("screen-settings")).toBeVisible();
@@ -167,6 +172,10 @@ test.describe("onboarding + auth", () => {
 
     // Local auth is genuinely gone from IndexedDB: not merely hidden in memory.
     expect(await readStored(page, "cue.trakt.token")).toBeNull();
+    expect(
+      await page.evaluate(() => Object.keys(localStorage).filter((key) => key.startsWith("cue."))),
+    ).toEqual([]);
+    expect(await page.evaluate(() => localStorage.getItem("unrelated"))).toBe("kept");
   });
 
   test("Cancel on the sign-out confirmation keeps you connected: no revoke fires", async ({

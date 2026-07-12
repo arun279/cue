@@ -34,7 +34,7 @@ function CalendarSkeleton(): ReactElement {
  * second place to mark. Error keeps the cached agenda under the SyncStrip; a
  * truly empty window is honest news, not a failure.
  */
-export function Upcoming(): ReactElement {
+export function Calendar(): ReactElement {
   useDocumentTitle("Calendar · Cue");
   const view = useCalendar(CALENDAR_WINDOW_DAYS);
   const items = useMemo(() => buildAgenda(view.days, view.now), [view.days, view.now]);
@@ -55,7 +55,7 @@ export function Upcoming(): ReactElement {
     body = (
       <EmptyState
         testId="upcoming-empty"
-        headline="No upcoming episodes. Your shows are between seasons."
+        headline={`No upcoming episodes in the next ${CALENDAR_WINDOW_DAYS} days.`}
       />
     );
   } else {

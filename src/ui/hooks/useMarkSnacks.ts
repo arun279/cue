@@ -22,7 +22,7 @@ interface MarkSnackOptions {
 }
 
 /**
- * Map a MarkSeasonController's outcomes onto the app snackbar (§4.3): undoable →
+ * Map a MarkSeasonController's outcomes onto the app snackbar: undoable →
  * message + `Undo` (plus the dual-action `+N earlier` when a backfill offer is
  * riding on that exact mark), notice → message-only, error → message + Dismiss.
  * One shared wiring so the show page and the episode sheet read identically.

@@ -44,7 +44,7 @@ const DEFAULT_RATE_BACKOFF_MS = 1000;
  * onward at the progress-unknown baseline: by construction the least-recently-touched
  * of their in-flight shows. This is neither silently presented as complete NOR silently
  * dropped: such a show is `progressKnown: false`, so its status is `sync-pending`: it
- * sits in My Shows' own "Still syncing" pile (never the "Caught up" pile) rather than
+ * sits in Library's own "Still syncing" pile (never the "Caught up" pile) rather than
  * being fabricated caught-up. The read reports `partial`, the sync pill rests on "Recent
  * shows synced" rather than "Synced · <when>", and Up Next never claims
  * "all caught up" while partial. A show gains real progress on the next cold
@@ -109,7 +109,7 @@ function byLastWatchedDesc(a: WatchedShow, b: WatchedShow): number {
 }
 
 /**
- * Paint the shared library snapshot (Up Next + My Shows) from bounded bulk reads:
+ * Paint the shared library snapshot (Up Next + Library) from bounded bulk reads:
  * the paginated watched list, per-show progress for the most-recently-watched
  * {@link WATCHED_PROGRESS_BUDGET} shows only, plus the hidden set and watchlist.
  * Per-show ART/detail is NOT fetched here: it is deferred to a lazy per-visible-card

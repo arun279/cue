@@ -86,7 +86,7 @@ export function Settings(): ReactElement {
 
   return (
     <section className="screen-settings" data-testid="screen-settings">
-      <ScreenHeader title="Settings" variant="child" />
+      <ScreenHeader title="Settings" variant="child" fallback="/profile" />
 
       <SettingSection label="Appearance">
         <SettingRow label="Theme" control={<ThemeToggle />} />

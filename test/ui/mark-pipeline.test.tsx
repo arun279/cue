@@ -18,6 +18,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { dismissSnack, useSnackbar } from "@ui/components/snackbar-store";
 import { resetMarkStore } from "@ui/hooks/mark-store";
 import { type MarkSeasonController, useMarkSeason } from "@ui/hooks/useMarkSeason";
+import { useMarkSnacks } from "@ui/hooks/useMarkSnacks";
 import { type MarkWatched, useMarkWatched } from "@ui/hooks/useMarkWatched";
 import { type CueRuntime, RuntimeProvider, type UpNextData } from "@ui/runtime/runtime";
 import { act } from "react";
@@ -121,6 +122,7 @@ interface Api {
 function Probe({ slot }: { slot: Api[] }) {
   const mark = useMarkWatched();
   const season = useMarkSeason();
+  useMarkSnacks(season);
   slot[0] = { mark, season };
   return null;
 }
@@ -428,5 +430,36 @@ describe("F14: undoing a landed mark is per-play, never remove-by-item", () => {
     const qc = await markThenReverse(fake, entry);
     expect(fake.submitted).toHaveLength(1); // no reversal op: nothing provably ours
     expect(entryOf(qc, SHOW)).toStrictEqual(entry); // undone UI kept; revalidate reconciles
+  });
+});
+
+describe("season write guards and Undo failures", () => {
+  it("drops a second season activation while the first write is in flight", () => {
+    const fake = fakeRuntime({ submit: () => new Promise(() => {}) });
+    const { a } = mountSeasonSurfaces(fake, [episodeView(1), episodeView(2)]);
+    const season = seasonView([episodeView(1), episodeView(2)]);
+
+    act(() => {
+      void a[0]?.season.markSeason(TARGET, season);
+      void a[0]?.season.markSeason(TARGET, season);
+    });
+
+    expect(fake.submitted).toHaveLength(1);
+  });
+
+  it("surfaces a hard-failed inverse submit through the existing error snack", async () => {
+    let submits = 0;
+    const fake = fakeRuntime({
+      submit: () => Promise.resolve(submits++ === 0 ? "done" : "failed"),
+    });
+    const { a } = mountSeasonSurfaces(fake, [episodeView(1), episodeView(2)]);
+
+    await act(async () =>
+      a[0]?.season.markSeason(TARGET, seasonView([episodeView(1), episodeView(2)])),
+    );
+    await act(async () => a[0]?.season.undo());
+    await flush();
+
+    expect(useSnackbar.getState().snack?.message).toBe("Couldn't undo that. Please try again.");
   });
 });

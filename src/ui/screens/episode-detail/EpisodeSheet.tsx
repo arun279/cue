@@ -80,7 +80,7 @@ function StillBlock({
 }
 
 /** The 64px elevated mark row: status text left, the 56px toggle check right.
- * A watched check long-presses into the rewatch menu (§4.4.2). */
+ * A watched check long-presses into the rewatch menu. */
 function MarkRow({
   episode,
   plays,
@@ -156,7 +156,7 @@ function PagerButton({
 }
 
 /**
- * The episode surface: a route-backed bottom sheet (§3.4) presented over the
+ * The episode surface: a route-backed bottom sheet presented over the
  * show page. Still (spoiler-guarded by the stills pref), quiet meta line, title,
  * clamped overview, the mark row with the plays-aware toggle, and a footer pager
  * that replaces the URL in place so one Back always lands beneath the sheet.

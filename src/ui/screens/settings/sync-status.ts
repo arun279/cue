@@ -1,8 +1,8 @@
 /**
  * Pure derivations for the Settings ▸ Data status line. "Last synced" is read
- * off the query cache (the newest successful read of anything), not a separate
- * clock: silence-means-synced everywhere else in the app, so the one place that
- * SAYS when must derive from the same freshness the screens actually render.
+ * off successful account-data queries in the cache, not a separate clock.
+ * Editorial browse, search, artwork, and detail reads do not represent an
+ * account sync and therefore cannot advance this line.
  */
 
 interface QueryStateLike {
@@ -10,10 +10,23 @@ interface QueryStateLike {
   readonly dataUpdatedAt: number;
 }
 
-/** The newest successful read across the cache; 0 when nothing has loaded yet. */
-export function newestSyncedAt(states: readonly QueryStateLike[]): number {
+interface QueryLike {
+  readonly queryKey: readonly unknown[];
+  readonly state: QueryStateLike;
+}
+
+function startsWithKey(queryKey: readonly unknown[], prefix: readonly unknown[]): boolean {
+  return prefix.every((part, index) => queryKey[index] === part);
+}
+
+/** The newest successful account-data read; 0 when none has loaded yet. */
+export function newestSyncedAt(
+  queries: readonly QueryLike[],
+  accountPrefixes: readonly (readonly unknown[])[],
+): number {
   let newest = 0;
-  for (const state of states) {
+  for (const { queryKey, state } of queries) {
+    if (!accountPrefixes.some((prefix) => startsWithKey(queryKey, prefix))) continue;
     if (state.status === "success" && state.dataUpdatedAt > newest) {
       newest = state.dataUpdatedAt;
     }

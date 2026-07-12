@@ -27,7 +27,7 @@ Cue authenticates as a public OAuth client, so it ships **no secret**: the app a
 2. Set its Redirect URI to `http://localhost:5199/auth/callback` for local development, plus `<your-production-origin>/auth/callback` for deploys. (Trakt matches the redirect URI exactly, so register every origin you serve from.)
 3. Copy `.env.example` to `.env` and set `VITE_TRAKT_CLIENT_ID` to the app's **Client ID**. It is public: it ships in the built JS and there is no client secret.
 
-The client id is public by design; the only thing kept on-device is each user's own Trakt OAuth token. Your real `.env` stays local (gitignored); `.env.example` and `.env.test` are the committed placeholders.
+The client id is public by design. Cue keeps each user's Trakt OAuth token, settings, and a local data cache on-device. Your real `.env` stays local (gitignored); `.env.example` and `.env.test` are the committed placeholders.
 
 ## Development
 
@@ -94,7 +94,7 @@ Cue uses the Trakt API but is not created, endorsed, or sponsored by Trakt. The 
 
 ## Privacy
 
-Cue runs no server and stores nothing off your device: there is no analytics or telemetry of any kind. Your Trakt OAuth token, your settings, and a local cache of the data Cue reads live only in this browser or on this device. All sync state lives in your own Trakt account, reached directly over HTTPS. To erase Cue's on-device data, use **Settings → Disconnect Trakt** or uninstall the app. Cue cannot delete your Trakt account; only Trakt can, at [app.trakt.tv/settings/advanced](https://app.trakt.tv/settings/advanced).
+Cue runs no server and stores nothing off your device: there is no analytics or telemetry of any kind. Your Trakt OAuth token, your settings, and a local cache of the data Cue reads live only in this browser or on this device. All sync state lives in your own Trakt account, reached directly over HTTPS. To erase Cue's on-device data, use **Settings → Sign out** or uninstall the app. Cue cannot delete your Trakt account; only Trakt can, at [app.trakt.tv/settings/advanced](https://app.trakt.tv/settings/advanced).
 
 The full statement is in [PRIVACY.md](PRIVACY.md).
 

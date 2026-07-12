@@ -41,7 +41,7 @@ function toEntry(header: MovieHeader, existing: MovieEntry | undefined): MovieEn
 }
 
 /**
- * Movie detail (§3.3.5): hero, one 64px mark row whose 56px check is a durable,
+ * Movie detail: hero, one 64px mark row whose 56px check is a durable,
  * rewatch-safe toggle (a settled play is removed by its exact history id; a
  * multi-play movie is refused and routed to History), the clamped overview, and
  * a related grid. Watchlist and the Trakt hand-off live in the overflow disc.
