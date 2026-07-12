@@ -9,8 +9,8 @@ const ROW_H = 64;
 
 /**
  * The agenda list: window-virtualized (a 4-week window can hold hundreds of
- * rows on the Capacitor WebView) with sticky day headers. The active header —
- * the last one at or above the viewport start — renders `position: sticky`
+ * rows on the Capacitor WebView) with sticky day headers. The active header,
+ * the last one at or above the viewport start, renders `position: sticky`
  * under the screen header while every other item stays absolutely positioned;
  * the range extractor keeps that header mounted even once its own row scrolls
  * out of range.

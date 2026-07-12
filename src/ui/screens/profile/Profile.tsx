@@ -54,7 +54,7 @@ function StatsBlock({
 }
 
 /** Who is signed in: real avatar + display name once `/users/settings` lands,
- * the neutral glyph + "Trakt account" while loading (or when the read failed —
+ * the neutral glyph + "Trakt account" while loading (or when the read failed;
  * identity is decoration here, never worth an error state). */
 function IdentityRow({ profile }: { readonly profile: UserProfile | undefined }): ReactElement {
   const [brokenAvatar, setBrokenAvatar] = useState<string | null>(null);

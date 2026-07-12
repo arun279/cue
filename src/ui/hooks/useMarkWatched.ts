@@ -392,7 +392,7 @@ export function useMarkWatched(): MarkWatched {
       // The mark no longer stands: free the episode for a deliberate re-mark.
       releasePendingMark(episodeItemKey(record.episodeIds.trakt), record.opId);
       store.setBatch(store.batch.filter((r) => r.opId !== record.opId));
-      // Retract (or recount) the mark snack — but never a snack that replaced it.
+      // Retract (or recount) the mark snack, but never a snack that replaced it.
       if (ownsSnack(useSnackbar.getState().snack?.seq)) presentBatch();
       restorePreMark(record);
       // The distinct take-back tick, once, with the optimistic reversal.

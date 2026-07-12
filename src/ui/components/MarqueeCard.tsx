@@ -23,7 +23,7 @@ interface MarqueeCardProps {
 
 /**
  * The one card on the home screen: the top-of-queue show over its SHOW backdrop
- * (never the episode still — stills are spoilers), under a scrim for text, with the
+ * (never the episode still because stills are spoilers), under a scrim for text, with the
  * 56px check trailing. Rendered only when the queue holds ≥3 shows; the caller
  * owns that rule. Backdrop missing → the monogram gradient with a 64×96 poster
  * standing in at the left, same text stack.

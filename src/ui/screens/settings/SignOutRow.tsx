@@ -9,7 +9,7 @@ import { type ReactElement, useState } from "react";
  * A successful disconnect unmounts the row; only a failure lands back here,
  * where the button recovers so the user can retry. A refused disconnect (writes
  * still queued offline) gets an honest, actionable message instead of the
- * generic failure — those queued marks must not be silently lost.
+ * generic failure. Those queued marks must not be silently lost.
  */
 export function SignOutRow(): ReactElement {
   const disconnect = useAuth((s) => s.disconnect);

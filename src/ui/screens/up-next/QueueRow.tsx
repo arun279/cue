@@ -15,8 +15,8 @@ interface QueueRowProps {
   readonly mark: MarkWatched;
   /** Stop the show (swipe-left commit); the parent owns the hide + its snackbar. */
   onStop(): void;
-  /** Lapsed drawer rows: line 3 leads with relative time — there the idle
-   * stretch IS the signal — instead of the queue's remaining count. */
+  /** Lapsed drawer rows: line 3 leads with relative time. There the idle
+   * stretch IS the signal instead of the queue's remaining count. */
   readonly variant?: "queue" | "lapsed";
   /** Extra control after the check (the lapsed drawer's overflow Stop sheet). */
   readonly trailingExtra?: ReactNode;

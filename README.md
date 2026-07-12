@@ -4,7 +4,7 @@ Cue is a personal, zero-backend TV and movie tracker that syncs to your own [Tra
 
 ## Features
 
-Four tabs — Up Next, Library, Calendar, Search — with History, Profile, and Settings behind the header avatar.
+Four tabs: Up Next, Library, Calendar, Search, with History, Profile, and Settings behind the header avatar.
 
 - **Up Next**: the home timeline. A marquee spotlight on the show to resume, the queue of next episodes, an "On the way" shelf for episodes with an air date, a "Haven't watched lately" drawer for idle shows, and "Previously" for what you just watched.
 - **One-tap marking**: optimistic mark-as-watched everywhere (tap the check, or swipe a row), batched into a single snackbar Undo and durable through offline via a write-queue.
@@ -12,7 +12,7 @@ Four tabs — Up Next, Library, Calendar, Search — with History, Profile, and 
 - **Calendar**: the upcoming agenda for your shows, day by day with countdown chips.
 - **Search**: debounced show and movie search with inline watchlist add, and trending/popular browse grids while idle.
 - **Show, episode, and movie detail**: season shelves with per-episode ticks, bulk "mark up to here" and season marking, and an episode bottom sheet with spoiler-guarded stills (unwatched artwork stays hidden until revealed; the guard can be turned off in Settings).
-- **History and Profile**: viewing stats tiles and the full watch log — browsable by year and month, with per-play removal.
+- **History and Profile**: viewing stats tiles and the full watch log, browsable by year and month, with per-play removal.
 - **Watchlist**: add shows and movies to your Trakt watchlist, written back through the same optimistic write-queue.
 
 ## How it works

@@ -384,7 +384,7 @@ test("a per-episode mark with a gap offers the dual-action '+N earlier' backfill
   // re-labels to the whole range, the gap ticks optimistically, and ONE bulk
   // POST follows the held single mark through the queue.
   await backfill.click();
-  await expect(page.getByTestId("snackbar")).toContainText("S2 E1–E3 marked");
+  await expect(page.getByTestId("snackbar")).toContainText("S2 E1-E3 marked");
   // The gap ticks optimistically: the season header count completes.
   await expect(season(page, 2).getByTestId("season-count")).toHaveText("3/3");
   await expect.poll(() => controls.historyPosts().length, { timeout: 15_000 }).toBe(2);
@@ -392,7 +392,7 @@ test("a per-episode mark with a gap offers the dual-action '+N earlier' backfill
     { number: 2, episodes: [{ number: 1 }, { number: 2 }] },
   ]);
 
-  // Undo reverses the WHOLE absorbed delta — the tapped episode AND the gap —
+  // Undo reverses the WHOLE absorbed delta, the tapped episode AND the gap,
   // whatever mix of remove bodies (per-play ids / enumerated episodes / season
   // subtrees) the reversal machinery routes them through.
   await page.getByTestId("snackbar-undo").click();
@@ -457,7 +457,7 @@ test("unchecking a REWATCHED episode removes only the latest play; the check sta
   // reads the honest remainder.
   await expect.poll(() => controls.removePosts().length).toBe(1);
   expect(controls.removePosts()[0]?.ids).toEqual([2012]);
-  await expect(page.getByTestId("snackbar")).toContainText("Removed 1 play — 1 remain");
+  await expect(page.getByTestId("snackbar")).toContainText("Removed 1 play · 1 remain");
   await expect(e1).toHaveAttribute("data-state", "watched");
 });
 

@@ -103,7 +103,7 @@
   transition: stroke-dashoffset 160ms var(--ease-standard) 60ms;
 }
 /* Season-bulk partial: hollow ring with a quiet center dot. The rest glyph
- * yields entirely — overlapped strokes read as a smudge at 44px. */
+ * yields entirely. Overlapped strokes read as a smudge at 44px. */
 .check__dot {
   position: absolute;
   width: 6px;
@@ -131,7 +131,7 @@
   font-size: 10px;
   font-weight: 700;
 }
-/* Unaired: the control gives way to a micro date chip — nothing to mark yet. */
+/* Unaired: the control gives way to a micro date chip. There is nothing to mark yet. */
 .check-date {
   display: inline-flex;
   align-items: center;
@@ -217,7 +217,7 @@
   margin-left: var(--space-2);
 }
 /* Hover lifts amber ink toward the theme's fg: brighter on dark, deeper on
- * light — contrast rises in both directions (accent-strong fails AA on light). */
+ * light. Contrast rises in both directions (accent-strong fails AA on light). */
 .app-snackbar__action:hover {
   color: color-mix(in srgb, var(--color-accent-ink) 85%, var(--color-fg));
 }
@@ -1058,7 +1058,7 @@
   background: var(--color-accent-strong);
 }
 /* Danger ink is the canvas color: near-black on the dark theme's salmon,
- * near-white on the light theme's deep red — AA both ways. */
+ * near-white on the light theme's deep red; AA both ways. */
 .sheet-btn--danger {
   background: var(--color-danger);
   color: var(--color-bg);
@@ -1142,7 +1142,7 @@
   font-weight: 600;
   cursor: pointer;
 }
-/* HIT-SLOP, vertical only — segments touch side by side. */
+/* HIT-SLOP, vertical only; segments touch side by side. */
 .segments__item::after {
   content: "";
   position: absolute;

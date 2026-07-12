@@ -35,7 +35,7 @@ export function syncedPhrase(syncedAt: number, now: number): string {
   return `Last synced ${days} day${days === 1 ? "" : "s"} ago`;
 }
 
-/** `Last synced 2 min ago · 0 pending` — the one place full sync state lives. */
+/** `Last synced 2 min ago · 0 pending`, the one place full sync state lives. */
 export function syncStatusLine(syncedAt: number, pending: number, now: number): string {
   return `${syncedPhrase(syncedAt, now)} · ${pending} pending`;
 }

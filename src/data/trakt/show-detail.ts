@@ -120,7 +120,7 @@ export function assembleHeader(show: ShowDetailData, progress: Progress, now: nu
  * Merge the seasons tree (`/shows/:id/seasons?extended=episodes`) with the
  * per-episode watched flags from `progress/watched`, deriving each episode's
  * aired flag against `now`. Numbered seasons sort ascending with Specials
- * (season 0) after them — the run of the show reads first, the extras trail;
+ * (season 0) after them. The run of the show reads first, the extras trail;
  * the safety-critical bulk-mark builder consumes the same episode `firstAired`
  * to keep unaired episodes out of every write.
  */

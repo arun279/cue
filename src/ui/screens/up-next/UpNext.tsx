@@ -75,7 +75,7 @@ function SyncPendingRow({ entry }: { readonly entry: LibraryEntry }): ReactEleme
 }
 
 /**
- * Up Next: the home screen and the heart of Cue — one timeline of your watching
+ * Up Next is the home screen and the heart of Cue, one timeline of your watching
  * life. What's next on top (marquee + queue), what's coming below ("On the
  * way"), what you just did at the bottom ("Previously"); a mark visibly travels
  * down that timeline. Every state is designed: skeletons, four honest empty
@@ -253,7 +253,7 @@ export function UpNext(): ReactElement {
             headline="You're all caught up."
             body={
               onTheWay.length === 0
-                ? "Nothing airing this week — your shows are between seasons."
+                ? "Nothing airing this week. Your shows are between seasons."
                 : undefined
             }
           />

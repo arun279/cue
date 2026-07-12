@@ -4,7 +4,7 @@ import type { ReactElement } from "react";
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** Air moments are appointments, so they read in the viewer's LOCAL day and
- * clock — unlike a past air date, "tonight at 8" must mean the viewer's 8. */
+ * clock. Unlike a past air date, "tonight at 8" must mean the viewer's 8. */
 const airsDayFmt = new Intl.DateTimeFormat("en-US", {
   timeZone: localTimeZone(),
   weekday: "short",
@@ -48,7 +48,7 @@ interface CountdownPanelProps {
 }
 
 /** Purely presentational future-date copy: nothing to mark yet, so it renders
- * text only — no control, no fabricated progress. */
+ * text only: no control, no fabricated progress. */
 export function CountdownPanel({
   mode,
   date,

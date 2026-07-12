@@ -7,7 +7,7 @@ import { type ReactElement, useState } from "react";
 
 /**
  * The floating hero chrome shared by the show and movie detail pages: solid
- * 44px discs over the artwork (no backdrop-filter — jank-prone on Android
+ * 44px discs over the artwork (no backdrop-filter; jank-prone on Android
  * WebView). Back pops the real entry point when there is in-app history;
  * a cold deep link falls back to a Library link so the page is never a dead end.
  */

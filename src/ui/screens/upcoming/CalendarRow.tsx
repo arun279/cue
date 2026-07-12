@@ -23,7 +23,7 @@ interface CalendarRowProps {
  * One calendar agenda row: poster, show title, quiet episode line, air
  * time + network, and a trailing countdown chip. Poster and network both
  * arrive inline on the calendar read (`extended=full,images`), so a row costs
- * zero follow-up GETs. The body links to the show — never a check; today's
+ * zero follow-up GETs. The body links to the show, never a check; today's
  * already-aired episodes read "Aired 8:00 PM" and are marked from Up Next,
  * one home per action.
  */

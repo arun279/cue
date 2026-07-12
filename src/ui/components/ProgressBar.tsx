@@ -13,7 +13,7 @@ interface ProgressBarProps {
 /**
  * The one progress bar: amber fill on the shared track, flipping to the watched
  * green when complete; a striped static pattern (never a fabricated number) while
- * a show's progress is still syncing. Purely decorative — always paired with a
+ * a show's progress is still syncing. Purely decorative, always paired with a
  * numeric count or label by its consumer, so it carries `aria-hidden`.
  */
 export function ProgressBar({

@@ -11,7 +11,7 @@ const SWIPE_COMMIT_PX = 96;
 const INTENT_LOCK_PX = 12;
 
 /** `pending` = under the lock radius; `horizontal` = ours; `vertical` = the
- * scroller's — release the gesture entirely. */
+ * scroller's, so release the gesture entirely. */
 export type SwipeIntent = "pending" | "horizontal" | "vertical";
 
 export function resolveIntent(

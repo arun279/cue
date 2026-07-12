@@ -11,7 +11,7 @@ import type { CueRuntime } from "@ui/runtime/runtime";
  * `remove` carries the per-play plan (safe id-scoped removal);
  * `rewatch` means the episode has more than one play, so an item-scoped uncheck
  * would destroy watch history: the caller removes ONLY `latest` (the newest play,
- * by exact history id) and keeps the check filled — `previous` is the play that
+ * by exact history id) and keeps the check filled. `previous` is the play that
  * survives, so the caller can keep its watched-at display truthful; `none`
  * means the server already holds no play (nothing to remove); `error` means the
  * resolve read itself failed.

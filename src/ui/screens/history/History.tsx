@@ -95,7 +95,7 @@ function HistoryRow({
           <CheckControl
             state="watched"
             size={44}
-            label="Watched — tap to remove"
+            label="Watched. Tap to remove."
             onPress={() => onRemove(row)}
           />
         }
@@ -123,7 +123,7 @@ function scopeLabel(year: number | undefined, month: number | undefined): string
 /**
  * Watch history: Cue's past tense on its own route, reached from Profile. A
  * reverse-chronological log grouped by local day, with a type filter, an
- * in-header title filter over the loaded window, and a month/year jump — a
+ * in-header title filter over the loaded window, and a month/year jump. A
  * decade-deep account teleports to any window instead of scrolling forever.
  * Scrolling pages in more history by itself. Every filled check is the durable
  * unmark path: a tap removes exactly that play (by history event id),
@@ -156,7 +156,7 @@ export function History(): ReactElement {
 
   // The removal wrapper stamps how many plays of the item remain in the loaded
   // window BEFORE the optimistic hide, so the snackbar effect (which fires after
-  // the hide) can honestly say "Removed 1 play — N remain" without re-deriving
+  // the hide) can honestly say "Removed 1 play · N remain" without re-deriving
   // state that has already shifted under it.
   const lastRemoval = useRef<{ readonly historyId: number; readonly remain: number } | null>(null);
   const removeRow = (row: HistoryRowVM): void => {
@@ -171,7 +171,7 @@ export function History(): ReactElement {
     const removal = lastRemoval.current;
     const remain = removal !== null && removal.historyId === entry.historyId ? removal.remain : 0;
     return remain > 0
-      ? `Removed 1 play — ${remain} remain${remain === 1 ? "s" : ""}`
+      ? `Removed 1 play · ${remain} remain${remain === 1 ? "s" : ""}`
       : "Removed play";
   });
 
@@ -238,7 +238,7 @@ export function History(): ReactElement {
         <EmptyState
           testId="history-empty"
           headline="Nothing logged yet."
-          body="Everything you mark lands here — and can be removed here."
+          body="Everything you mark lands here and can be removed here."
         />
       ) : (
         <EmptyState

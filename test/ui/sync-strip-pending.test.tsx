@@ -2,7 +2,7 @@
  * The SyncStrip's pending signal reads the DURABLE queue depth, not only the
  * in-flight flush counter: a mark deferred offline sits in the op-log with
  * nothing in flight, and the strip must still say so (spec §2.3: ≥3 pending
- * for >5s → "N marks pending — will sync").
+ * for >5s → "N marks pending · will sync").
  */
 import { SyncStrip } from "@ui/app-shell/SyncStrip";
 import { type CueRuntime, RuntimeProvider } from "@ui/runtime/runtime";
@@ -52,7 +52,7 @@ describe("SyncStrip durable pending", () => {
     expect(strip()).toBeNull();
     act(() => vi.advanceTimersByTime(5100));
     expect(strip()?.getAttribute("data-state")).toBe("pending");
-    expect(strip()?.textContent).toContain("3 marks pending — will sync");
+    expect(strip()?.textContent).toContain("3 marks pending · will sync");
   });
 
   it("stays silent below the threshold", () => {

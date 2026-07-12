@@ -62,7 +62,7 @@ function CodeCard({ code }: { code: string }): ReactElement {
 
 /**
  * Onboarding: one welcome beat, then the Trakt hand-off. Web connects through
- * the full-page PKCE redirect; native (where the redirect can't return — the
+ * the full-page PKCE redirect; native (where the redirect can't return; the
  * app origin is capacitor://localhost) runs the device-code grant with a
  * copy-on-tap code and a live polling state. The auth store owns every
  * transition; this screen only dresses it.
@@ -167,7 +167,7 @@ export function Onboarding(): ReactElement {
       )}
 
       <p className="onb__foot">
-        Powered by Trakt — your data lives in your Trakt account.{" "}
+        Powered by Trakt. Your data lives in your Trakt account.{" "}
         <a className="onb__link" href={TRAKT_URL} target="_blank" rel="noopener noreferrer">
           What's Trakt?
         </a>

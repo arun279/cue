@@ -7,7 +7,7 @@ import type { ReactElement, ReactNode } from "react";
 /**
  * One browse-grid poster cell (trending shows / popular movies): 2:3 art with
  * a year badge and a 1-line caption, the whole cell a link into its detail
- * page. No add control here — posters are content; adding happens on the
+ * page. No add control here. Posters are content; adding happens on the
  * result rows and the detail screens.
  */
 export function HitTile({ hit }: { readonly hit: SearchHit }): ReactElement {

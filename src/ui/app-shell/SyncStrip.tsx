@@ -63,10 +63,10 @@ export function SyncStrip({ isError, onRetry }: SyncStripProps): ReactElement | 
 
   const message =
     state === "offline"
-      ? "Offline — your marks are saved"
+      ? "Offline. Your marks are saved."
       : state === "error"
-        ? "Trakt unreachable — showing your cached data"
-        : `${pending} marks pending — will sync`;
+        ? "Trakt unreachable. Showing your cached data."
+        : `${pending} marks pending · will sync`;
 
   return (
     <div className="sync-strip" role="status" data-state={state} data-testid="sync-strip">

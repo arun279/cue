@@ -24,7 +24,7 @@ interface GestureState {
  * green mark underlay, left the stop underlay; releasing past the 96px threshold
  * commits through the SAME handler the visible check uses, with a haptic tick at
  * the threshold cross. A 12px intent lock keeps vertical scrolling untouched,
- * and the gesture is touch/pen-only — never the only path (the check is the
+ * and the gesture is touch/pen-only, never the only path (the check is the
  * accessible equivalent), so the wrapper itself carries no semantics.
  */
 export function SwipeAction({

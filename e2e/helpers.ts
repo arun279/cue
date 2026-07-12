@@ -1314,8 +1314,8 @@ function calendarItemBody(items: readonly CalendarEpisodeFixture[]): string {
 /**
  * Intercept the Calendar read surface: the personalized calendar window
  * (filtered by the requested `days`) and the hidden set (excluded client-side).
- * The redesigned Calendar is read-only — aired episodes are marked from Up
- * Next — so no write routes live here; a suite that needs both the calendar
+ * The redesigned Calendar is read-only. Aired episodes are marked from Up
+ * Next, so no write routes live here; a suite that needs both the calendar
  * AND the library write engine registers this FIRST so the library's
  * `/sync/history` handlers (registered later) win their shared paths.
  * Register AFTER `installHermeticRoutes` so these specific routes win.

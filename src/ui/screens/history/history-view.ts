@@ -75,7 +75,7 @@ function dayRollup(rows: readonly HistoryRowVM[]): string {
 
 /**
  * Build the render stream from the loaded days: filter by title (a live,
- * client-side narrowing of what is already loaded — never a server search),
+ * client-side narrowing of what is already loaded, never a server search),
  * collapse same-item plays per day, and insert a year separator wherever two
  * adjacent days straddle a year boundary. Days emptied by the filter vanish.
  */

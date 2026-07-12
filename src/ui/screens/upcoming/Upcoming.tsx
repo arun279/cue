@@ -29,7 +29,7 @@ function CalendarSkeleton(): ReactElement {
 
 /**
  * Calendar: the forward-looking agenda of the user's shows, ~4 weeks deep,
- * grouped under sticky day headers. Read-only by design — aired-unwatched
+ * grouped under sticky day headers. Read-only by design: aired-unwatched
  * episodes already live in the Up Next queue, so this screen never offers a
  * second place to mark. Error keeps the cached agenda under the SyncStrip; a
  * truly empty window is honest news, not a failure.
@@ -55,7 +55,7 @@ export function Upcoming(): ReactElement {
     body = (
       <EmptyState
         testId="upcoming-empty"
-        headline="No upcoming episodes — your shows are between seasons."
+        headline="No upcoming episodes. Your shows are between seasons."
       />
     );
   } else {

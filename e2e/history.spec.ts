@@ -163,7 +163,7 @@ test("same-item plays within a day collapse to one ×N row whose check removes t
   await row.getByTestId("mark-watched").click();
   await expect.poll(() => controls.removePosts().length).toBe(1);
   expect(controls.removePosts()[0]?.ids).toEqual([41]);
-  await expect(page.getByTestId("snackbar")).toContainText("Removed 1 play — 1 remain");
+  await expect(page.getByTestId("snackbar")).toContainText("Removed 1 play · 1 remain");
 });
 
 test("surfaces a load-earlier failure inline and recovers on Retry", async ({ page }) => {

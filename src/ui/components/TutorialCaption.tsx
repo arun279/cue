@@ -21,13 +21,13 @@ export function persistTutorialDismissed(): void {
 
 /**
  * The entire tutorial: one quiet first-session caption under the first queue
- * row's check. It dismisses permanently on the first mark — the action teaches
+ * row's check. It dismisses permanently on the first mark; the action teaches
  * itself from then on.
  */
 export function TutorialCaption(): ReactElement {
   return (
     <p className="tutorial-caption" data-testid="tutorial-caption">
-      Tap to mark watched — Undo appears below.
+      Tap to mark watched. Undo appears below.
     </p>
   );
 }

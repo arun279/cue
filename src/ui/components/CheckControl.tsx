@@ -14,7 +14,7 @@ interface CheckControlProps {
    */
   readonly mode?: "advance" | "toggle";
   /** Full accessible name for the CURRENT action, e.g. "Mark The Wire S1 E5
-   * watched" or "Watched — tap to remove". Ignored for `syncing` (which carries
+   * watched" or "Watched. Tap to remove." Ignored for `syncing` (which carries
    * its own fixed label) and `unaired` (a non-interactive date chip). */
   readonly label: string;
   readonly testId?: string;
@@ -85,7 +85,7 @@ export function CheckControl({
         data-testid={testId}
         data-state="syncing"
         data-size={size}
-        aria-label="Progress syncing — check back shortly"
+        aria-label="Progress syncing. Check back shortly."
         aria-disabled="true"
       >
         <span className="check__disc" aria-hidden="true" />

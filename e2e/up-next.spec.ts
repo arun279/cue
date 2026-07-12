@@ -354,7 +354,7 @@ test("a read error over a warm cache keeps the queue under the SyncStrip error v
   await page.getByTestId("mark-watched").click(); // triggers a revalidate that will fail
   const strip = page.getByTestId("sync-strip");
   await expect(strip).toHaveAttribute("data-state", "error");
-  await expect(strip).toContainText("Trakt unreachable — showing your cached data");
+  await expect(strip).toContainText("Trakt unreachable. Showing your cached data.");
   await expect(page.getByTestId("up-next-card")).toHaveCount(1);
 
   controls.setReadMode("ok");
@@ -458,7 +458,7 @@ test("snackbar Undo of a LANDED mark removes exactly its play, by history id", a
   await card.getByTestId("mark-watched").click();
   await expect(card.locator(".ep-row__code")).toHaveText("S1 E3");
   // Let the add fully land (op retired from the durable log) so the Undo takes
-  // the per-play path: resolve the mark's own play and remove it by exact id —
+  // the per-play path: resolve the mark's own play and remove it by exact id,
   // never a remove-by-item that could wipe plays predating the mark.
   await expect.poll(() => controls.historyPosts().length).toBe(1);
   await expect.poll(async () => await readStored(page, "cue.write-queue")).toBe("[]");
@@ -630,7 +630,7 @@ test("a held-open write then an immediate snackbar Undo issues the ordered add-t
   await page.getByTestId("snackbar-undo").click();
   await expect(card.locator(".ep-row__code")).toHaveText("S1 E2");
 
-  // …and both writes land in order: the add first (held in flight — the undo
+  // …and both writes land in order: the add first (held in flight while the undo
   // WAITS for it rather than cancelling a POST that may land), then the
   // per-play remove of exactly the play it created.
   await expect.poll(() => controls.removePosts().length, { timeout: 15_000 }).toBe(1);
@@ -758,7 +758,7 @@ test("'Previously' shows recent plays whose green check removes exactly that pla
   // unmark affordance, right on the home scroll.
   const check = entries.first().getByTestId("mark-watched");
   await expect(check).toHaveAttribute("data-state", "watched");
-  await expect(check).toHaveAttribute("aria-label", "Watched — tap to remove");
+  await expect(check).toHaveAttribute("aria-label", "Watched. Tap to remove.");
 
   // Tapping it removes that exact play (by history event id) with an Undo.
   await check.click();
@@ -805,7 +805,7 @@ test("shows beyond the progress budget render as sync-pending rows with disabled
   const check = pending.getByTestId("mark-watched");
   await expect(check).toHaveAttribute("data-state", "syncing");
   await expect(check).toHaveAttribute("aria-disabled", "true");
-  await expect(check).toHaveAttribute("aria-label", "Progress syncing — check back shortly");
+  await expect(check).toHaveAttribute("aria-label", "Progress syncing. Check back shortly.");
 });
 
 test("the one-time tutorial caption shows on a first session and dies on the first mark", async ({

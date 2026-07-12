@@ -58,7 +58,7 @@ export function useOnTheWayClock(): number {
 /**
  * The home slice of the calendar read: not-yet-aired episodes within the next
  * 72 hours, capped at six rows, day labels re-voiced for the home scroll
- * (Tonight / Tomorrow / weekday). Aired episodes never appear — they already
+ * (Tonight / Tomorrow / weekday). Aired episodes never appear because they already
  * live in the queue, one home per action.
  */
 export function buildOnTheWay(days: readonly CalendarDay[], now: number): OnTheWayDay[] {
@@ -72,7 +72,7 @@ export function buildOnTheWay(days: readonly CalendarDay[], now: number): OnTheW
     const rows = day.rows.filter((row) => {
       const ms = Date.parse(row.firstAired);
       // `ms > now` is the direct check (NaN also fails it); the `aired` flag
-      // alone can be stale — it was stamped by the calendar grouping's own
+      // alone can be stale. It was stamped by the calendar grouping's own
       // clock, which only re-anchors on a day flip.
       return !row.aired && ms > now && ms - now <= SCOPE_MS;
     });

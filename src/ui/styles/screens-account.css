@@ -160,7 +160,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* Wide enough for a tabular "12:11 PM" on one line — the time never wraps. */
+/* Wide enough for a tabular "12:11 PM" on one line, so the time never wraps. */
 .hist-time {
   flex: none;
   width: 62px;

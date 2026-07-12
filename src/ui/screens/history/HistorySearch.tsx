@@ -8,7 +8,7 @@ interface HistorySearchProps {
 
 /**
  * The in-header title filter: a 44px search icon that expands to a 44px field
- * overlaying the header's title slot. Session-scoped by design — closing (or
+ * overlaying the header's title slot. It is session-scoped by design; closing (or
  * leaving the screen) clears the query; a filter is a moment, not a mode.
  */
 export function HistorySearch({ value, onChange }: HistorySearchProps): ReactElement {

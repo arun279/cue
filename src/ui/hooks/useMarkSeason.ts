@@ -90,7 +90,7 @@ export interface MarkSeasonController {
    * this session completed the season, it reverses exactly that mark's delta by
    * exact history id (a play that predates the mark is never touched). Without a
    * session mark on record (the user confirmed "Unmark Season N?" on a genuinely
-   * watched season) it spans every aired episode instead — still per-play-safe:
+   * watched season) it spans every aired episode instead, still per-play-safe:
    * only single plays are removed, by exact id, and every rewatched episode is
    * kept intact and surfaced in the snackbar label.
    */
@@ -111,7 +111,7 @@ export interface MarkSeasonController {
    * `undoLabel` mounts the same point-of-action Undo as the bulk paths. Marking
    * OFF is the silent, per-play-safe removal: a single play is removed by its
    * exact history id; a rewatch loses only its NEWEST play (the check stays
-   * filled and `Removed 1 play — N remain` carries the Undo), so no tap here can
+   * filled and `Removed 1 play · N remain` carries the Undo), so no tap here can
    * ever destroy plays it didn't target.
    */
   toggleEpisode(
@@ -187,7 +187,7 @@ function plural(count: number): string {
  * uncheck here (single episode or whole season) is per-play-safe and id-scoped,
  * so a reversal can never silently destroy a rewatch or a genuine watch the mark
  * never created. Rewatch ADDITIONS (`rewatchSeason`, `addEpisodePlay`) carry no
- * Undo at all — their only inverse would be an item-scoped wipe.
+ * Undo at all because their only inverse would be an item-scoped wipe.
  */
 export function useMarkSeason(): MarkSeasonController {
   const submit = useOptimisticWrite();
@@ -610,7 +610,7 @@ export function useMarkSeason(): MarkSeasonController {
           // queued mark alive to flip the episode back once it flushes. Enqueue
           // the inverse instead: coalescing cancels the queued pair (or
           // compensates behind one already mid-delivery) and the episode
-          // settles unwatched — the movie path's reverse-session-mark guard,
+          // settles unwatched. The movie path's reverse-session-mark guard,
           // sourced from the durable queue instead of a per-mount ref.
           const queuedMark = runtime
             .pendingOps()
@@ -650,7 +650,7 @@ export function useMarkSeason(): MarkSeasonController {
             patch(target.showId, matchEpisode, true);
             patchEpisodeDetail(target.showId, bound, true, resolution.previous.watchedAt);
           } else if (knownRewatch) {
-            // The known count was stale — resolution proved a single play.
+            // The known count was stale; resolution proved a single play.
             unTick();
           }
           const op = rewatch
@@ -671,7 +671,7 @@ export function useMarkSeason(): MarkSeasonController {
           putUndo({
             showId: target.showId,
             ids: target.ids,
-            label: rewatch ? `Removed 1 play — ${resolution.count - 1} remain` : "Removed play",
+            label: rewatch ? `Removed 1 play · ${resolution.count - 1} remain` : "Removed play",
             ops,
             resumed: false,
             reversibleSeason: null,
@@ -769,7 +769,7 @@ export function useMarkSeason(): MarkSeasonController {
     async (target: MarkContextTarget, episode: MarkableEpisode) => {
       await withEpisodeLock(target, episode, async () => {
         // `preCompleted: -1`: a lost response must reconcile as "landed" (see
-        // rewatchSeason) — re-POSTing an unverifiable rewatch play would duplicate it.
+        // rewatchSeason). Re-POSTing an unverifiable rewatch play would duplicate it.
         // The ADDITIVE builder uniquifies the itemKey so a pending mark of the same
         // episode can never coalesce-swallow this deliberate extra play.
         const op = buildAddEpisodePlayOp({

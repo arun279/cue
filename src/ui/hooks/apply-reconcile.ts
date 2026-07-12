@@ -5,7 +5,7 @@ import type { ActivitiesReconcile } from "@ui/runtime/runtime";
  * Apply one `/sync/last_activities` reconcile, shared by the background poll and
  * Settings' manual "Sync now": invalidate exactly the diffed keys, then advance
  * the persisted baseline ONLY after those queries refetched and none ended in
- * error — a failed refetch must be re-detected on the next pass rather than
+ * error. A failed refetch must be re-detected on the next pass rather than
  * silently skipped by an advanced snapshot. `isCancelled` lets an unmounting
  * caller abandon the commit so a torn-down session never advances the baseline.
  */

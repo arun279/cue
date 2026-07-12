@@ -11,7 +11,7 @@ interface SearchFieldProps {
 
 /**
  * The Search screen's query field: 48px elevated bar with a leading magnifier
- * and a trailing clear button once filled. Deliberately never auto-focused —
+ * and a trailing clear button once filled. Deliberately never auto-focused;
  * focus comes from a tap, so the keyboard never pops uninvited.
  */
 export function SearchField({

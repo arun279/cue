@@ -34,7 +34,7 @@ interface PreviouslyDay {
 
 /**
  * "Previously": the last seven days of plays (capped at ten) at the bottom of
- * the home scroll — the everyday mis-tap fix, one scroll away, where a fresh
+ * the home scroll: the everyday mis-tap fix, one scroll away, where a fresh
  * mark visibly lands. A preview by rule: it never grows filters or search; the
  * canonical History is `/history`. Each entry's filled check removes exactly
  * that play (by history event id), snackbar-reversible.
@@ -82,7 +82,7 @@ export function Previously(): ReactElement | null {
                     <CheckControl
                       state="watched"
                       size={44}
-                      label="Watched — tap to remove"
+                      label="Watched. Tap to remove."
                       onPress={() => void view.removePlay(entry)}
                     />
                   }

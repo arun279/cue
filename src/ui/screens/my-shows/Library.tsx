@@ -105,12 +105,12 @@ function persistChip(storageKey: string, value: string): void {
 /**
  * Library: one screen frame shared by Shows and Movies. A Shows⇄Movies
  * segment (URL `?type`), a tap-to-reveal title filter, a per-segment sort
- * sheet, and a row of status chips — exactly one active — over a virtualized
+ * sheet, and a row of status chips, exactly one active, over a virtualized
  * 3-column poster grid. The taxonomy stays honest: shows carry their
  * progress-derived chips; movies get Watchlist / Watched, no fabricated
  * episode progress on a film. Long-press on a tile opens its quick actions
  * (mark next episode, stop/resume, details); there is deliberately no
- * "remove from library" — no single Trakt op backs it.
+ * "remove from library": no single Trakt op backs it.
  */
 export function Library(): ReactElement {
   useDocumentTitle("Library · Cue");
@@ -307,7 +307,7 @@ export function Library(): ReactElement {
     const next = entry.nextEpisode;
     // The expert accelerator rides the exact queue pipeline (optimistic patch,
     // batch snackbar, reverse window) and only offers itself when the next
-    // episode is known and aired — never a guessed coordinate.
+    // episode is known and aired, never a guessed coordinate.
     if (
       entry.progressKnown &&
       !entry.pendingAdvance &&

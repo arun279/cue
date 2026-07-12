@@ -35,7 +35,7 @@ function BrowseSkeleton(): ReactElement {
 }
 
 /** Idle (empty query): session-recent searches as re-run rows, then the
- * trending-shows / popular-movies poster grids — grids, not rails. */
+ * trending-shows / popular-movies poster grids, not rails. */
 function Browse({
   view,
   showsEnabled,
@@ -122,7 +122,7 @@ function Browse({
  * show/movie rows with a deterministic "+ Watchlist" add (undo via snackbar).
  * Every state is designed: shimmer rows in flight, a no-results line that
  * blames the spelling rather than the user, inline retry on failure, and an
- * offline panel — search is the one surface that genuinely needs a connection.
+ * offline panel. Search is the one surface that genuinely needs a connection.
  */
 export function Search(): ReactElement {
   useDocumentTitle("Search · Cue");

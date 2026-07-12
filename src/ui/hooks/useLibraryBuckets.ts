@@ -8,7 +8,7 @@ import { useMemo } from "react";
 
 /**
  * The Library status chips. Statuses map onto them plainly: `caught-up` folds
- * into Watching (an up-to-date show is still one you watch — Finished is
+ * into Watching (an up-to-date show is still one you watch; Finished is
  * reserved for completed terminal runs), `lapsed` folds into Watching (the
  * lapsed cut is Up Next's drawer, not a Library pile), `not-started` reads as
  * Watchlist, `abandoned` as Stopped, `sync-pending` as Still syncing.

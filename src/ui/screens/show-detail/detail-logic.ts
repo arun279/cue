@@ -119,7 +119,7 @@ export function earlierUnwatchedCount(seasons: readonly SeasonView[], bound: Epi
   return count;
 }
 
-/** The post-backfill snackbar message (§4.3): `S2 E1–E5 marked` when the gap sits
+/** The post-backfill snackbar message (§4.3): `S2 E1-E5 marked` when the gap sits
  * inside the bound's season, else the honest coalesced count. */
 export function backfillRangeLabel(
   seasons: readonly SeasonView[],
@@ -139,7 +139,7 @@ export function backfillRangeLabel(
     }
   }
   if (crossSeason || first === null) return `${gapCount + 1} episodes marked`;
-  return `S${bound.season} E${first}–E${bound.number} marked`;
+  return `S${bound.season} E${first}-E${bound.number} marked`;
 }
 
 /** The accordion panel to auto-expand: the next episode's season, else the first
@@ -161,7 +161,7 @@ export function currentSeasonValue(
   return `s${(incomplete ?? fallback)?.number ?? 0}`;
 }
 
-/** `You've watched 38 of 60 · 41 hr` — hours only when the runtime is known. */
+/** `You've watched 38 of 60 · 41 hr`; hours appear only when the runtime is known. */
 export function watchRecordLine(
   completed: number,
   aired: number,

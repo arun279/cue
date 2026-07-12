@@ -22,7 +22,7 @@ interface SyncStatus {
  * The Settings ▸ Data view over the sync machinery that already exists: the
  * status line derives from the query cache's freshness plus the write-queue's
  * in-flight counter, and `syncNow` runs one manual pass of the same
- * `/sync/last_activities` reconcile the background poll drives — invalidate
+ * `/sync/last_activities` reconcile the background poll drives. Invalidate
  * exactly the changed keys, and advance the baseline only after those queries
  * refetched cleanly (a failed refetch must be re-detected next pass, never
  * silently skipped). A clean pass with zero changes still counts as "synced
@@ -54,7 +54,7 @@ export function useSyncStatus(): SyncStatus {
       const reconcile = remaining === 0 ? await runtime.pollActivities() : null;
       if (reconcile === null) {
         showSnack({
-          message: "Couldn't reach Trakt — check your connection.",
+          message: "Couldn't reach Trakt. Check your connection.",
           actions: [{ label: "Dismiss", onPress: dismissSnack }],
         });
         return;

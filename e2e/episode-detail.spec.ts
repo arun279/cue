@@ -29,7 +29,7 @@ function ep(
   };
 }
 
-/** Two watched episodes, an aired-unwatched next, and an unaired tail — every
+/** Two watched episodes, an aired-unwatched next, and an unaired tail. Every
  * episode carrying a screenshot so the still + spoiler guard are exercised. */
 function detailShow(): ShowFixture {
   return {
@@ -140,17 +140,17 @@ test("the snackbar's '+N earlier' backfill and Undo are tappable OVER the open s
   await expect.poll(() => controls.historyPosts().length, { timeout: 15_000 }).toBe(1);
 
   // The snackbar sits ABOVE the sheet stack: accepting the backfill is a real
-  // tap while the sheet is open. It must run the action — never fall through
+  // tap while the sheet is open. It must run the action and never fall through
   // to the scrim and dismiss the sheet.
   await backfill.click();
-  await expect(page.getByTestId("snackbar")).toContainText("S1 E2–E3 marked");
+  await expect(page.getByTestId("snackbar")).toContainText("S1 E2-E3 marked");
   await expect(page.getByTestId("episode-sheet")).toBeVisible();
   await expect.poll(() => controls.historyPosts().length, { timeout: 15_000 }).toBe(2);
   expect(controls.historyPosts()[1]?.shows?.[0]?.seasons).toEqual([
     { number: 1, episodes: [{ number: 2 }] },
   ]);
 
-  // Undo reverses the WHOLE absorbed delta — the tapped episode AND the gap —
+  // Undo reverses the WHOLE absorbed delta, the tapped episode AND the gap,
   // again as a real tap over the sheet, and the sheet stays open.
   await page.getByTestId("snackbar-undo").click();
   await expect(page.getByTestId("episode-sheet")).toBeVisible();
@@ -209,7 +209,7 @@ test("a rewatched episode shows ×2, and a tap removes only the LATEST play", as
   // snackbar reads the honest remainder. Rewatch data is never wiped by one tap.
   await expect.poll(() => controls.removePosts().length).toBe(1);
   expect(controls.removePosts()[0]?.ids).toEqual([122]);
-  await expect(page.getByTestId("snackbar")).toContainText("Removed 1 play — 1 remain");
+  await expect(page.getByTestId("snackbar")).toContainText("Removed 1 play · 1 remain");
   await expect(check).toHaveAttribute("data-state", "watched");
 });
 

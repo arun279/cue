@@ -11,7 +11,7 @@ interface ContextMenuProps {
 
 /**
  * The long-press menu: hold the wrapped child 500ms (or right-click on
- * desktop) to open its actions as an ActionSheet — phones don't do floating
+ * desktop) to open its actions as an ActionSheet. Phones don't do floating
  * menus well, so every menu shares the one bottom-sheet grammar. Movement past
  * the slop or an early lift cancels the hold; a fired hold swallows the click
  * that follows so the child's own tap action never double-fires.

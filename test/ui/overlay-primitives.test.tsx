@@ -1,7 +1,7 @@
 /**
  * Mount-level smoke for the shared overlay/control primitives: until the
  * screens adopt them (and the Playwright suite takes over), this is the only
- * gate proving the Radix wiring holds — the portal mounts, the dialog is
+ * gate proving the Radix wiring holds: the portal mounts, the dialog is
  * labeled by its first heading, and rows/buttons run-then-close.
  */
 import { ActionSheet } from "@ui/components/ActionSheet";

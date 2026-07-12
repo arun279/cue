@@ -37,7 +37,7 @@
   --color-accent: #f5b841; /* action amber (fills pair with accent-fg) */
   --color-accent-strong: #ffc966; /* pressed / hover */
   --color-accent-fg: #140e04; /* ink ON amber fills */
-  /* Amber as FOREGROUND text/icons/borders (Undo, active tab, links, retry) —
+  /* Amber as FOREGROUND text/icons/borders (Undo, active tab, links, retry):
    * AA (≥4.5:1) on both themes' surfaces; fills stay --color-accent. */
   --color-accent-ink: #f5b841;
   --color-focus: #ffc966;

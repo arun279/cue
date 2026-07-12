@@ -8,7 +8,7 @@ import type { ReactElement } from "react";
 /**
  * One Library movie tile: 2:3 poster + 1-line caption linking into Movie
  * detail. Watched movies carry the green done badge; watchlist movies their
- * release year. Overlays are aria-hidden — the active chip names the state.
+ * release year. Overlays are aria-hidden; the active chip names the state.
  */
 export function MovieTile({ entry }: { readonly entry: MovieEntry }): ReactElement {
   return (

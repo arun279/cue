@@ -203,7 +203,7 @@ export function ContinueBar({
     return (
       <Shell variant="finished">
         <span className="continue__body">
-          <span className="continue__line">Ended — you finished it.</span>
+          <span className="continue__line">Ended. You finished it.</span>
         </span>
       </Shell>
     );

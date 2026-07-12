@@ -122,7 +122,7 @@ describe("backfillRangeLabel", () => {
         ep(2, 5, { watched: true }),
       ]),
     ];
-    expect(backfillRangeLabel(seasons, { season: 2, number: 5 }, 3)).toBe("S2 E1–E5 marked");
+    expect(backfillRangeLabel(seasons, { season: 2, number: 5 }, 3)).toBe("S2 E1-E5 marked");
   });
   it("falls back to a coalesced count across seasons", () => {
     const seasons = [seasonOf(1, [ep(1, 1)]), seasonOf(2, [ep(2, 1), ep(2, 2, { watched: true })])];

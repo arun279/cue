@@ -27,7 +27,7 @@ function dayOffset(fromKey: string, toKey: string): number {
 /**
  * Flatten the grouped calendar days into one window-friendly sequence of
  * sticky day headers and episode rows. Every row carries its day's distance from
- * today so the countdown chips and the day labels can never disagree — both
+ * today so the countdown chips and the day labels can never disagree. Both
  * derive from the same frozen `now`.
  */
 export function buildAgenda(
@@ -54,7 +54,7 @@ export function buildAgenda(
 /**
  * The row's trailing countdown chip: days away for future days, air time for
  * today's still-unaired episodes, nothing once aired (the "Aired 8:00 PM" text
- * line takes over — and there is never a check here; marking lives in Up Next).
+ * line takes over, and there is never a check here; marking lives in Up Next).
  */
 export function trailingChip(offset: number, aired: boolean, timeLabel: string): string | null {
   if (aired) return null;

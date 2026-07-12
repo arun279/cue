@@ -220,7 +220,7 @@ function MovieDetailContent({ movieId }: { readonly movieId: number }): ReactEle
         <CheckControl
           size={56}
           state={entry.watched ? "watched" : "unwatched"}
-          label={entry.watched ? "Watched — tap to remove" : `Mark ${entry.title} watched`}
+          label={entry.watched ? "Watched. Tap to remove." : `Mark ${entry.title} watched`}
           testId="movie-check"
           onPress={() => void actions.markWatched(entry)}
         />

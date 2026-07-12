@@ -20,7 +20,7 @@ const EMPTY: ShowArtSlice = { posters: [], backdrops: [] };
  * Returns the Trakt inline poster + backdrop candidates for the image resolvers;
  * empty lists (not yet resolved, or a show with no art) fall through to the
  * designed placeholder. Cached by trakt id at the content horizon, so revisiting
- * a row — or seeing the same show on two surfaces — never refetches.
+ * a row or seeing the same show on two surfaces never refetches.
  */
 export function useShowArt(showId: number): ShowArtSlice {
   const runtime = useRuntime();

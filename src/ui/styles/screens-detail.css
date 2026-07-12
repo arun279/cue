@@ -477,7 +477,7 @@
   gap: var(--space-3);
 }
 /* The slim sheet header: with the grabber row above it, 44px of chrome
- * between the panel edge and the still — the overflow never sits on art. */
+ * between the panel edge and the still, so the overflow never sits on art. */
 .ep-sheet__header {
   display: flex;
   align-items: center;

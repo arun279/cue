@@ -10,7 +10,7 @@ interface EmptyStateProps {
 
 /**
  * The designed empty state: a display headline, one honest sentence, and an
- * optional action. Genuine emptiness reads as success, never as failure — hard
+ * optional action. Genuine emptiness reads as success, never as failure. Hard
  * errors use `ErrorRetry` instead.
  */
 export function EmptyState({ headline, body, children, testId }: EmptyStateProps): ReactElement {

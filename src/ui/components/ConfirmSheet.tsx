@@ -29,7 +29,7 @@ interface ConfirmSheetProps {
 /**
  * The one confirming overlay: title, consequence line, a filled primary and
  * plain secondary/cancel rows. Bulk marking is the only marking act that goes
- * through here — singles stay instant and snackbar-reversible.
+ * through here. Singles stay instant and snackbar-reversible.
  */
 export function ConfirmSheet({
   open,

@@ -48,7 +48,7 @@ interface SheetProps {
 
 /**
  * The base bottom sheet under every overlay: Radix Dialog (focus trap, Esc,
- * scrim dismiss, scroll lock) plus the phone grammar Radix doesn't do —
+ * scrim dismiss, scroll lock) plus the phone grammar Radix doesn't do:
  * a grabber, finger-tracked drag-to-dismiss (release past 30% of the visible
  * sheet or a downward flick), and for tall sheets a 65%→92% detent pair.
  * The panel is labeled by the first heading its children render.

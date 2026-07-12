@@ -15,7 +15,7 @@ export interface QueueCheck {
  * The queue-surface check grammar (marquee, queue rows, lapsed rows): unwatched
  * taps mark; a just-marked check is a live undo toggle until it re-arms; the
  * re-arm waits for the authoritative next episode (`pendingAdvance` cleared) and
- * the minimum visual window — never a guessed coordinate. A remount mid-advance
+ * the minimum visual window, never a guessed coordinate. A remount mid-advance
  * (window lost) renders plain watched: filled, inert, re-arming on refetch.
  */
 export function useQueueCheck(entry: LibraryEntry, mark: MarkWatched): QueueCheck {
@@ -37,12 +37,12 @@ export function useQueueCheck(entry: LibraryEntry, mark: MarkWatched): QueueChec
   if (markedAt !== null) {
     return {
       state: "just-marked",
-      label: "Watched — tap to remove",
+      label: "Watched. Tap to remove.",
       onPress: () => void mark.reverse(entry.showId),
     };
   }
   if (entry.pendingAdvance) {
-    return { state: "watched", label: "Watched — tap to remove", onPress: () => {} };
+    return { state: "watched", label: "Watched. Tap to remove.", onPress: () => {} };
   }
   const episode = entry.nextEpisode;
   const code = episode === null ? "" : epCode(episode.season, episode.number);

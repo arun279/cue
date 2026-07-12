@@ -7,7 +7,7 @@ import { useRuntime } from "@ui/runtime/runtime";
 import { useEffect, useMemo, useState } from "react";
 
 /**
- * The Calendar screen's agenda depth — and the ONE window the query ever
+ * The Calendar screen's agenda depth and the ONE window the query ever
  * fetches. Every consumer shares this single cache entry (one GET per window,
  * whichever surface loads first); narrower views slice it client-side.
  */
@@ -70,11 +70,11 @@ function useDayClock(): number {
 
 /**
  * The forward-calendar read hook. Fetches the full shared window (always
- * `CALENDAR_WINDOW_DAYS`, anchored on the local today — one cache key, so the
+ * `CALENDAR_WINDOW_DAYS`, anchored on the local today. One cache key means the
  * home slice and the Calendar screen never each fire their own GET), groups
  * episodes by local day through the pure domain `groupCalendar` (hidden shows
  * excluded, aired rows flagged), and returns the caller's `windowDays` slice.
- * Read-only: the calendar renders no marks — aired episodes are marked from
+ * Read-only: the calendar renders no marks. Aired episodes are marked from
  * the Up Next queue, one home per action.
  */
 export function useCalendar(windowDays: number = DEFAULT_CALENDAR_WINDOW): CalendarView {

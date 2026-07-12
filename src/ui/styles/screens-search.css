@@ -128,7 +128,7 @@
 }
 
 /* The deterministic add: a 32px outline pill in a 44px vertical hit slop
- * (sideways slop would crowd the row's body link — SPACE rule). */
+ * (sideways slop would crowd the row's body link per the SPACE rule). */
 .add-pill {
   appearance: none;
   position: relative;

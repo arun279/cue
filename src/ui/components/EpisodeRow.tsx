@@ -47,7 +47,7 @@ interface EpisodeRowProps {
 /**
  * The shared list-row shell: leading art + a stacked text column inside one
  * body link, with an interactive trailing slot kept ≥8px clear of it (the SPACE
- * rule). Rows sit flat on the canvas — no cards, no dividers; density comes from
+ * rule). Rows sit flat on the canvas with no cards or dividers; density comes from
  * the variant.
  */
 export function EpisodeRow({

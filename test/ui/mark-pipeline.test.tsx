@@ -5,7 +5,7 @@
  * queued mark cancels the pair instead of leaving it to flip back (F5), the
  * reverse windows + snackbar batch are one module-level truth across hook
  * instances (F11), and undoing a LANDED mark removes only the mark's own play by
- * exact history id — never remove-by-item — with an honest failure when the play
+ * exact history id, never remove-by-item, with an honest failure when the play
  * can't be identified (F14).
  */
 import { queryKeys } from "@data/query-keys";

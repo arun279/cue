@@ -22,7 +22,7 @@ function linkFor(hit: SearchHit): EpisodeRowLink {
 
 /**
  * One search result: poster, title + SHOW/MOVIE badge + year, the body a link
- * into detail. The trailing control is deterministic — always "+ Watchlist" —
+ * into detail. The trailing control is always "+ Watchlist",
  * flashing to a filled "Added ✓" on tap before settling into the static
  * "In library" chip. No control ever covers poster art.
  */

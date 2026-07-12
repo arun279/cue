@@ -17,7 +17,7 @@ const MONTHS = [
   "Dec",
 ] as const;
 
-/** The quiet episode code: `S1 E5` — space-separated, no zero padding, tabular ink. */
+/** The quiet episode code: `S1 E5`: space-separated, no zero padding, tabular ink. */
 export function epCode(season: number, number: number): string {
   return `S${season} E${number}`;
 }

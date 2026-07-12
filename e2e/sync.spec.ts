@@ -64,7 +64,7 @@ test("navigating between pages with nothing changed fires zero Trakt data calls;
 
   await page.goto("/");
   await expect(page.getByTestId("up-next-card")).toHaveCount(2);
-  // Ambient sync: nothing renders while healthy — no strip, no pill anywhere.
+  // Ambient sync: nothing renders while healthy. No strip or pill appears anywhere.
   await expect(page.getByTestId("sync-strip")).toHaveCount(0);
 
   // The progress read carries `extended=full,images` (the episode still rides

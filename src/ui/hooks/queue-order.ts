@@ -33,7 +33,7 @@ export function sortQueue(items: readonly UpNextItem[], order: NextEpisodeOrder)
 /**
  * Pin just-marked rows (provisional next, `ids.trakt === 0`) to the slot they
  * held before the mark. Both sort orders would otherwise move a row the instant
- * it is tapped — pulling its live undo toggle out from under the finger and
+ * it is tapped, pulling its live undo toggle out from under the finger and
  * putting a DIFFERENT show's unwatched check there (the exact double-tap
  * hazard the reverse window exists to absorb). The row FLIPs to its real slot
  * once the authoritative next episode lands and the check re-arms.

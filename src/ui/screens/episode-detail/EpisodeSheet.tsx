@@ -97,7 +97,7 @@ function MarkRow({
     <CheckControl
       size={56}
       state={episode.watched ? "watched" : "unwatched"}
-      label={episode.watched ? "Watched — tap to remove" : `Mark ${code} watched`}
+      label={episode.watched ? "Watched. Tap to remove." : `Mark ${code} watched`}
       testId="episode-sheet-check"
       {...(plays !== null && plays > 1 ? { plays } : {})}
       onPress={onToggle}
