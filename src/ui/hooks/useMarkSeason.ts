@@ -499,11 +499,10 @@ export function useMarkSeason(): MarkSeasonController {
         if (aired.length === 0) return;
         // Feed the bulk builder a tree that presents every aired episode as
         // unwatched, so the chunked `/sync/history` POST adds one fresh play per
-        // episode: the rewatch. `preCompleted: -1` makes a startup reconcile of a
-        // lost response read as "landed" (completed can never be < 0): duplicating
-        // an unverifiable rewatch play would be worse than dropping it. `additive`
-        // uniquifies the chunk itemKeys so a pending mark of the same episodes can
-        // never coalesce-swallow this deliberate rewatch pass.
+        // episode: the rewatch. Each chunk carries its first episode as a play
+        // probe, so startup reconcile retires only a matching play near the frozen
+        // watched-at time. `additive` uniquifies the chunk itemKeys so a pending
+        // mark of the same episodes can never coalesce-swallow this deliberate pass.
         const ops = buildBulkMarkOps(
           {
             showIds: target.ids,
@@ -518,7 +517,11 @@ export function useMarkSeason(): MarkSeasonController {
               },
             ],
             includeSpecials: target.includeSpecials,
-            inversePatch: { showId: target.showId, preCompleted: -1 },
+            inversePatchForChunk: (probe) => ({
+              kind: "additive-season",
+              showId: target.showId,
+              probe,
+            }),
             additive: true,
           },
           Date.now(),
@@ -756,15 +759,15 @@ export function useMarkSeason(): MarkSeasonController {
   const addEpisodePlay = useCallback(
     async (target: MarkContextTarget, episode: MarkableEpisode) => {
       await withEpisodeLock(target, episode, async () => {
-        // `preCompleted: -1`: a lost response must reconcile as "landed" (see
-        // rewatchSeason). Re-POSTing an unverifiable rewatch play would duplicate it.
-        // The ADDITIVE builder uniquifies the itemKey so a pending mark of the same
-        // episode can never coalesce-swallow this deliberate extra play.
+        // The episode id is a play probe: startup reconcile retires this additive
+        // write only when a matching play sits near its frozen watched-at time.
+        // The ADDITIVE builder uniquifies the itemKey so a pending mark of the
+        // same episode can never coalesce-swallow this deliberate extra play.
         const op = buildAddEpisodePlayOp({
           opId: crypto.randomUUID(),
           ids: episode.ids,
           watchedAt: new Date().toISOString(),
-          inversePatch: { showId: target.showId, preCompleted: -1 },
+          inversePatch: { kind: "additive-episode", episodeTrakt: episode.ids.trakt },
         });
         setError(null);
         setNotice("Play added");

@@ -1055,6 +1055,65 @@ export function seededMarkOp(opts: {
   };
 }
 
+/** A persisted additive episode play carrying its watched-at play probe. */
+export function seededAdditiveEpisodeOp(opts: {
+  readonly episodeId: number;
+  readonly watchedAt: string;
+}): unknown {
+  return {
+    id: `seeded-additive-${opts.episodeId}`,
+    itemKey: `episode:${opts.episodeId}:add:seeded`,
+    request: {
+      method: "POST",
+      path: "/sync/history",
+      body: { episodes: [{ ids: { trakt: opts.episodeId }, watched_at: opts.watchedAt }] },
+    },
+    inverse: {
+      method: "POST",
+      path: "/sync/history/remove",
+      body: { episodes: [{ ids: { trakt: opts.episodeId } }] },
+    },
+    inversePatch: { kind: "additive-episode", episodeTrakt: opts.episodeId },
+    watchedAt: opts.watchedAt,
+    fromState: "absent",
+    toState: "present",
+    reconcileKeys: ["progress/watched", "watched/shows"],
+  };
+}
+
+/** A persisted additive season chunk carrying its first represented episode probe. */
+export function seededAdditiveSeasonOp(opts: {
+  readonly showId: number;
+  readonly season: number;
+  readonly number: number;
+  readonly watchedAt: string;
+}): unknown {
+  const seasons = [{ number: opts.season, episodes: [{ number: opts.number }] }];
+  return {
+    id: `seeded-additive-season-${opts.showId}`,
+    itemKey: `show:${opts.showId}:bulk:seeded:add:seeded`,
+    request: {
+      method: "POST",
+      path: "/sync/history",
+      body: { shows: [{ ids: { trakt: opts.showId }, watched_at: opts.watchedAt, seasons }] },
+    },
+    inverse: {
+      method: "POST",
+      path: "/sync/history/remove",
+      body: { shows: [{ ids: { trakt: opts.showId }, seasons }] },
+    },
+    inversePatch: {
+      kind: "additive-season",
+      showId: opts.showId,
+      probe: { season: opts.season, number: opts.number },
+    },
+    watchedAt: opts.watchedAt,
+    fromState: "absent",
+    toState: "present",
+    reconcileKeys: ["progress/watched", "watched/shows"],
+  };
+}
+
 /** A persisted bulk season-mark op (as `buildBulkMarkOps` serializes) carrying its reconcile anchor. */
 export function seededBulkOp(opts: {
   readonly showId: number;
@@ -1837,6 +1896,8 @@ export interface HistoryRemoveCapture {
 export type HistoryRemoveMode = "ok" | "reject" | "hold";
 
 export interface HistoryControls {
+  /** Number of paged `/users/me/history` GETs served. */
+  historyReads: () => number;
   /** Captured `POST /sync/history/remove` bodies (the per-play removals). */
   removePosts: () => readonly HistoryRemoveCapture[];
   /** Captured `POST /sync/history` bodies (the best-effort Undo re-adds). */
@@ -1896,8 +1957,10 @@ export async function installHistoryRoutes(
   let addMode: "ok" | "reject" = "ok";
   let removeReleaseAs: "ok" | "reject" = "ok";
   let releaseHeld: (() => void) | null = null;
+  let reads = 0;
 
   await context.route(/\/users\/me\/history(\/episodes|\/movies)?(\?|$)/, (route) => {
+    reads += 1;
     const url = new URL(route.request().url());
     const path = url.pathname;
     const page = Number(url.searchParams.get("page") ?? "1");
@@ -1983,6 +2046,7 @@ export async function installHistoryRoutes(
   });
 
   return {
+    historyReads: () => reads,
     removePosts: () => removes,
     addPosts: () => adds,
     setRemoveMode: (mode) => {

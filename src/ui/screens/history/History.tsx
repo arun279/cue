@@ -299,8 +299,7 @@ export function History(): ReactElement {
           ) : (
             <section key={block.day.dayKey} className="hist-day-group">
               <h3 className="hist-day" data-testid="history-day-heading">
-                {block.day.label}
-                <span className="hist-day__count"> · {block.day.rollup}</span>
+                {block.day.label} · {block.day.rollup}
               </h3>
               <ul className="row-list">
                 {block.day.rows.map((row) => (

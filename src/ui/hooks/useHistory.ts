@@ -32,6 +32,7 @@ export interface HistoryScope {
   readonly filter: HistoryFilter;
   readonly year?: number;
   readonly month?: number;
+  readonly preview?: boolean;
 }
 
 const SECTION: Record<HistoryFilter, HistorySection> = {
@@ -91,7 +92,7 @@ const withoutId = (set: ReadonlySet<number>, id: number): Set<number> => {
  * gated only by the last_activities poll, so a mark on any surface surfaces here.
  */
 export function useHistory(scope: HistoryScope): HistoryView {
-  const { filter, year, month } = scope;
+  const { filter, year, month, preview } = scope;
   const runtime = useRuntime();
   const queryClient = useQueryClient();
   const submit = useOptimisticWrite();
@@ -107,7 +108,7 @@ export function useHistory(scope: HistoryScope): HistoryView {
     () => (year === undefined ? undefined : historyRange(year, month)),
     [year, month],
   );
-  const scopeKey = historyScopeKey(year, month);
+  const scopeKey = preview === true ? "preview" : historyScopeKey(year, month);
 
   const query = useInfiniteQuery({
     queryKey: queryKeys.history(filter, scopeKey),

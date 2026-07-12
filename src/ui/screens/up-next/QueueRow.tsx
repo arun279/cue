@@ -64,10 +64,7 @@ export function QueueRow({
         }
         footer={
           <>
-            <ProgressBar
-              percent={watchedPercent(entry.completed, entry.aired)}
-              className="ep-row__bar"
-            />
+            <ProgressBar percent={watchedPercent(entry.completed, entry.aired)} />
             {variant === "queue" && <span className="ep-row__count">{left} left</span>}
             {idle !== null && <span className="ep-row__count">last watched {idle}</span>}
           </>

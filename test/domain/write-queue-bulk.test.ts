@@ -16,7 +16,9 @@ const opId = (i: number): string => `op-${i}`;
 type Body = { shows: Array<{ ids: unknown; watched_at?: string; seasons: SeasonBody[] }> };
 type SeasonBody = { number: number; episodes?: Array<{ number: number }> };
 
-type BuildOptions = Partial<Pick<BulkMarkTarget, "includeSpecials" | "upTo" | "additive">>;
+type BuildOptions = Partial<
+  Pick<BulkMarkTarget, "includeSpecials" | "upTo" | "additive" | "inversePatchForChunk">
+>;
 
 /** Aired, still-UNWATCHED episodes: the raw material of a mark delta. */
 function airedEpisodes(count: number, from = 1): EpisodeAir[] {
@@ -187,6 +189,23 @@ describe("buildBulkMarkOps", () => {
     expect(rewatch?.itemKey).toBe(`${plain?.itemKey}:add:${rewatch?.id}`);
     // The request itself is a normal chunked mark: only the coalescing key changes.
     expect(rewatch?.request).toEqual(plain?.request);
+  });
+
+  it("builds each chunk's inverse patch from its first represented episode", () => {
+    const inversePatchForChunk = (probe: { season: number; number: number }): unknown => ({
+      kind: "additive-season",
+      showId: IDS.trakt,
+      probe,
+    });
+    const ops = build([{ number: 2, episodes: airedEpisodes(250) }], {
+      additive: true,
+      inversePatchForChunk,
+    });
+    expect(ops.map((op) => op.inversePatch)).toEqual([
+      { kind: "additive-season", showId: 55, probe: { season: 2, number: 1 } },
+      { kind: "additive-season", showId: 55, probe: { season: 2, number: 101 } },
+      { kind: "additive-season", showId: 55, probe: { season: 2, number: 201 } },
+    ]);
   });
 
   it("packs enumerated seasons into ≤cap chunks, splitting across chunk boundaries", () => {

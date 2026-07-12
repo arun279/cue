@@ -38,6 +38,12 @@ export interface MoviePlay {
   readonly watchedAt: string;
 }
 
+/** Trakt truncates the stored `watched_at` (observed: to the whole minute), so a
+ * play created from a frozen millisecond timestamp echoes back within this
+ * window; anything further out is some other play and untouchable. A whole
+ * minute is still orders of magnitude tighter than any real historical play. */
+export const MARK_MATCH_TOLERANCE_MS = 60_000;
+
 /** The per-episode data a removed play needs to be re-added by the Undo. */
 interface UnmarkRestore {
   readonly trakt: number;

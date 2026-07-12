@@ -33,6 +33,7 @@ export function AppSnackbar(): ReactElement | null {
   // non-interactive "closing" phase for the fade-out, then unmount.
   useEffect(() => {
     if (snack !== null) {
+      setPaused(false);
       last.current = snack;
       setClosing(null);
       setDragY(0);

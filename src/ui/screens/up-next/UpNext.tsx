@@ -66,7 +66,7 @@ function SyncPendingRow({ entry }: { readonly entry: LibraryEntry }): ReactEleme
       art={<Poster title={entry.title} posters={posters} variant="s48" />}
       title={entry.title}
       meta="Syncing progress…"
-      footer={<ProgressBar striped className="ep-row__bar" />}
+      footer={<ProgressBar striped />}
       trailing={<CheckControl state="syncing" size={48} label="" />}
       link={{ to: "/show/$showId", params: { showId: String(entry.showId) } }}
       linkLabel={`${entry.title}, Syncing progress`}
@@ -264,7 +264,7 @@ export function UpNext(): ReactElement {
           {marquee !== undefined && <MarqueeSlot card={marquee} mark={mark} />}
 
           {rows.length > 0 && (
-            <ul className="row-list row-list--queue" data-testid="up-next-list">
+            <ul className="row-list" data-testid="up-next-list">
               {rows.map((card, index) => (
                 <li key={card.entry.showId} ref={flip.ref(card.entry.showId)}>
                   <QueueRow card={card} mark={mark} onStop={() => stopWatching(card)} />

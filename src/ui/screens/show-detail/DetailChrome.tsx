@@ -127,9 +127,7 @@ export function DetailHero({
           style={{ background: artGradient(title) }}
           aria-hidden="true"
         >
-          <span className="detail-hero__plate-poster">
-            <Poster title={title} posters={posters} variant="s96" />
-          </span>
+          <Poster title={title} posters={posters} variant="s96" />
         </span>
       )}
       <span className="detail-hero__scrim" aria-hidden="true" />

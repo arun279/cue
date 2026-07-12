@@ -30,7 +30,7 @@ import { findMarkPlay } from "@ui/hooks/resolveUnmark";
 import { useOptimisticWrite } from "@ui/hooks/useOptimisticWrite";
 import { useHaptics } from "@ui/runtime/haptics";
 import { type CueRuntime, type SubmitOutcome, useRuntime } from "@ui/runtime/runtime";
-import { useCallback } from "react";
+import { createElement, Fragment, useCallback } from "react";
 
 export interface MarkWatched {
   /** Optimistically mark `entry`'s next episode; the op submits at t=0. */
@@ -283,7 +283,12 @@ export function useMarkWatched(): MarkWatched {
     }
     const message =
       current.length === 1
-        ? `${middleTruncate(head.title)} ${head.code} marked`
+        ? createElement(
+            Fragment,
+            null,
+            createElement("strong", null, middleTruncate(head.title)),
+            ` ${head.code} marked`,
+          )
         : `${current.length} episodes marked`;
     showSnack({
       message,

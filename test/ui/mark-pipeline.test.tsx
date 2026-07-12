@@ -305,6 +305,10 @@ describe("F3b: a pending mark is dropped by every other on-mark path", () => {
     expect(fake.submitted[0]?.itemKey).toBe(
       `episode:${NEXT_EP_TRAKT}:add:${fake.submitted[0]?.id}`,
     );
+    expect(fake.submitted[0]?.inversePatch).toEqual({
+      kind: "additive-episode",
+      episodeTrakt: NEXT_EP_TRAKT,
+    });
   });
 });
 

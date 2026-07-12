@@ -10,6 +10,8 @@ import {
   readStored,
   type ShowFixture,
   seedAuth,
+  seededAdditiveEpisodeOp,
+  seededAdditiveSeasonOp,
   seededMarkOp,
   seedOpLog,
   seedTutorialDismissed,
@@ -241,6 +243,26 @@ test("Stop from the lapsed drawer confirms, snackbar-reversibly", async ({ page 
   await expect(page.getByTestId("lapsed-drawer")).toBeVisible();
 });
 
+test("a focused Undo that is replaced without blur leaves the next snackbar unpaused", async ({
+  page,
+}) => {
+  const controls = await installLibraryRoutes(page.context(), [soloShow()]);
+  await page.goto("/");
+
+  await page.getByTestId("up-next-card").first().getByTestId("mark-watched").click();
+  await expect(page.getByTestId("snackbar")).toContainText("Solo S1 E2 marked");
+  await expect.poll(async () => await readStored(page, "cue.write-queue")).toBe("[]");
+
+  controls.setReadMode("abort");
+  const undo = page.getByTestId("snackbar-undo");
+  await undo.focus();
+  await expect(undo).toBeFocused();
+  await page.keyboard.press("Enter");
+
+  await expect(page.getByTestId("snackbar")).toContainText("Couldn't undo Solo");
+  await expect(page.getByTestId("snackbar")).toHaveCount(0, { timeout: 7000 });
+});
+
 test("shows the 'nothing queued' empty state when the library is empty", async ({ page }) => {
   await installLibraryRoutes(page.context(), []);
   await page.goto("/");
@@ -404,6 +426,43 @@ test("boot survives a startup-reconcile outage: the app mounts instead of hangin
   expect(log).toHaveLength(1);
 });
 
+test("a persisted additive season chunk dispatches when its frozen play probe is absent", async ({
+  page,
+}) => {
+  const controls = await installLibraryRoutes(page.context(), [soloShow()]);
+  await seedOpLog(page.context(), [
+    seededAdditiveSeasonOp({
+      showId: 1,
+      season: 1,
+      number: 1,
+      watchedAt: AIRED,
+    }),
+  ]);
+
+  await page.goto("/");
+
+  await expect.poll(() => controls.historyPosts().length).toBe(1);
+  expect(controls.historyPosts()[0]?.shows?.[0]?.seasons).toEqual([
+    { number: 1, episodes: [{ number: 1 }] },
+  ]);
+  await expect.poll(async () => await readStored(page, "cue.write-queue")).toBe("[]");
+});
+
+test("a persisted additive episode retires without POST when its play probe is within 60s", async ({
+  page,
+}) => {
+  const watchedAt = "2026-07-12T12:00:00.000Z";
+  const controls = await installLibraryRoutes(page.context(), [
+    soloShow({ lastWatchedAt: watchedAt }),
+  ]);
+  await seedOpLog(page.context(), [seededAdditiveEpisodeOp({ episodeId: 11, watchedAt })]);
+
+  await page.goto("/");
+
+  await expect.poll(async () => await readStored(page, "cue.write-queue")).toBe("[]");
+  expect(controls.historyPosts()).toHaveLength(0);
+});
+
 test("mark-watched advances the row in place before the history write settles", async ({
   page,
 }) => {
@@ -446,6 +505,8 @@ test("the snackbar appears synchronously with the advance, before the write sett
   // flight: the ONE app snackbar, with its Undo action: no inline undo pill.
   await expect(card.locator(".ep-row__code")).toHaveText("S1 E3");
   await expect(page.getByTestId("snackbar")).toContainText("Solo S1 E2 marked");
+  await expect(page.getByTestId("snackbar").locator("strong")).toHaveText("Solo");
+  await expect(page.getByTestId("snackbar").locator("strong")).toHaveCSS("font-weight", "600");
   await expect(page.getByTestId("snackbar-undo")).toBeVisible();
   await expect(page.getByTestId("mark-undo")).toHaveCount(0);
 });
@@ -775,6 +836,36 @@ test("'Previously' shows recent plays whose green check removes exactly that pla
   // The section links to the full History screen.
   await page.getByTestId("previously-history").click();
   await expect(page.getByTestId("screen-history")).toBeVisible();
+});
+
+test("returning from a paginated History feed refetches only one Previously preview page", async ({
+  page,
+}) => {
+  await installLibraryRoutes(page.context(), [soloShow()]);
+  const rows: HistoryRowFixture[] = Array.from({ length: 8 }, (_, index) => ({
+    id: 100 + index,
+    type: "episode",
+    showId: 1,
+    showTitle: "Solo",
+    season: 1,
+    number: index + 1,
+    episodeTitle: `Episode ${index + 1}`,
+    watchedAt: new Date(Date.now() - index * 3_600_000).toISOString(),
+  }));
+  const history = await installHistoryRoutes(page.context(), rows, 1);
+  await page.goto("/history");
+
+  await expect.poll(() => history.historyReads()).toBeGreaterThanOrEqual(3);
+  await expect.poll(() => page.getByTestId("history-row").count()).toBeGreaterThanOrEqual(3);
+  await page.locator(".sidebar").getByRole("link", { name: "Up Next", exact: true }).click();
+  await expect(page.getByTestId("previously")).toBeVisible();
+  const beforeMark = history.historyReads();
+
+  await page.getByTestId("up-next-card").first().getByTestId("mark-watched").click();
+
+  await expect.poll(() => history.historyReads() - beforeMark).toBe(1);
+  await page.waitForTimeout(500);
+  expect(history.historyReads() - beforeMark).toBe(1);
 });
 
 test("shows beyond the progress budget render as sync-pending rows with disabled checks", async ({

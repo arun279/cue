@@ -1,5 +1,6 @@
 import {
   type EpisodePlay,
+  MARK_MATCH_TOLERANCE_MS,
   type MoviePlay,
   planEpisodeUnmark,
   type UnmarkPlan,
@@ -63,12 +64,6 @@ export async function resolveEpisodeUnmark(
   if (plan.removeIds.length === 0) return { kind: "none" };
   return { kind: "remove", plan };
 }
-
-/** Trakt truncates the stored `watched_at` (observed: to the whole minute), so a
- * play created from a frozen millisecond timestamp echoes back within this
- * window; anything further out is some other play and untouchable. A whole
- * minute is still orders of magnitude tighter than any real historical play. */
-const MARK_MATCH_TOLERANCE_MS = 60_000;
 
 /**
  * Identify the play a LANDED mark created, so its undo removes exactly that play

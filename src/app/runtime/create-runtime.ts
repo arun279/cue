@@ -32,7 +32,7 @@ import {
   assembleHistoryEntries,
   assembleMoviePlays,
 } from "@data/trakt/history";
-import { markLanded, type ShowArt, showIdSet } from "@data/trakt/library";
+import { additiveLanded, markLanded, type ShowArt, showIdSet } from "@data/trakt/library";
 import { assembleMovieHeader, assembleMovieLibrary } from "@data/trakt/movie-library";
 import { loadUpNextEntries, withReadRateRetry } from "@data/trakt/read-budget";
 import { createLastActivitiesRepository } from "@data/trakt/repositories";
@@ -83,7 +83,13 @@ function clearCueLocalStorage(): void {
 type ReconcileContext =
   | { readonly kind?: "mark"; readonly showId: number; readonly preCompleted: number }
   | { readonly kind: "hidden"; readonly showId: number }
-  | { readonly kind: "movie"; readonly movieId: number };
+  | { readonly kind: "movie"; readonly movieId: number }
+  | { readonly kind: "additive-episode"; readonly episodeTrakt: number }
+  | {
+      readonly kind: "additive-season";
+      readonly showId: number;
+      readonly probe: { readonly season: number; readonly number: number };
+    };
 
 export interface RuntimeDeps {
   readonly token: Token;
@@ -140,6 +146,22 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       if (!watched.ok) throw new Error("reconcile read failed");
       const isWatched = watched.data.some((row) => row.movie.ids.trakt === context.movieId);
       return op.toState === "present" ? isWatched : !isWatched;
+    }
+    if (context.kind === "additive-episode") {
+      if (op.watchedAt === null) return false;
+      const result = await getItemPlays(client, "episodes", context.episodeTrakt);
+      if (!result.ok) throw new Error("reconcile read failed");
+      return additiveLanded(
+        assembleEpisodePlays(result.data),
+        { episodeTrakt: context.episodeTrakt },
+        op.watchedAt,
+      );
+    }
+    if (context.kind === "additive-season") {
+      if (op.watchedAt === null) return false;
+      const result = await getItemPlays(client, "shows", context.showId);
+      if (!result.ok) throw new Error("reconcile read failed");
+      return additiveLanded(assembleEpisodePlays(result.data), context.probe, op.watchedAt);
     }
     const result = await getShowProgress(client, context.showId);
     if (!result.ok) throw new Error("reconcile read failed");

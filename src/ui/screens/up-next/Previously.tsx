@@ -5,6 +5,7 @@ import { EpisodeRow } from "@ui/components/EpisodeRow";
 import { SectionHeader } from "@ui/components/SectionHeader";
 import { useHistory } from "@ui/hooks/useHistory";
 import { useRemovalSnacks } from "@ui/hooks/useRemovalSnacks";
+import { usePrefs } from "@ui/prefs/prefs-store";
 import { entryDetail, entryLink } from "@ui/screens/history/history-view";
 import { Poster } from "@ui/screens/up-next/Poster";
 import { Fragment, type ReactElement } from "react";
@@ -40,7 +41,10 @@ interface PreviouslyDay {
  * that play (by history event id), snackbar-reversible.
  */
 export function Previously(): ReactElement | null {
-  const view = useHistory({ filter: "all" });
+  const showsEnabled = usePrefs((s) => s.showsEnabled);
+  const moviesEnabled = usePrefs((s) => s.moviesEnabled);
+  const filter = !moviesEnabled ? "tv" : !showsEnabled ? "movies" : "all";
+  const view = useHistory({ filter, preview: true });
   useRemovalSnacks(view);
 
   const cutoffKey = dayKeyFmt.format(Date.now() - (SCOPE_DAYS - 1) * DAY_MS);

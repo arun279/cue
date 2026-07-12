@@ -55,7 +55,7 @@ export function LapsedDrawer({ cards, mark, onStop }: LapsedDrawerProps): ReactE
       <Accordion.Item value="lapsed">
         <Accordion.Header className="lapsed__header">
           <Accordion.Trigger className="lapsed__trigger" data-testid="lapsed-heading">
-            <span className="lapsed__name">Haven't watched lately</span>
+            Haven't watched lately
             <Badge testId="lapsed-count">{cards.length}</Badge>
             <ChevronDown className="lapsed__chevron" aria-hidden="true" />
           </Accordion.Trigger>

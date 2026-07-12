@@ -138,6 +138,28 @@ test("TV-only: /movie/:id lands on a quiet Movies-are-off notice with a Settings
   await expect(page.getByTestId("screen-settings")).toBeVisible();
 });
 
+test("TV-only: home Previously excludes recent movie plays", async ({ page }) => {
+  await seedMediaVisibility(page.context(), { showsEnabled: true, moviesEnabled: false });
+  await installLibraryRoutes(page.context(), oneShow());
+  await installHistoryRoutes(
+    page.context(),
+    historyRows().map((row, index) => ({
+      ...row,
+      watchedAt: new Date(Date.now() - (index + 1) * 3_600_000).toISOString(),
+    })),
+  );
+  await page.goto("/");
+
+  const previously = page.getByTestId("previously");
+  await expect(previously).toBeVisible();
+  await expect(
+    previously.getByTestId("previously-row").filter({ hasText: "The Bear" }),
+  ).toBeVisible();
+  await expect(
+    previously.getByTestId("previously-row").filter({ hasText: "Interstellar" }),
+  ).toHaveCount(0);
+});
+
 test("TV-only: Profile hides the Movies tile and its minutes leave the total", async ({ page }) => {
   await seedMediaVisibility(page.context(), { showsEnabled: true, moviesEnabled: false });
   await installHistoryRoutes(page.context(), historyRows());

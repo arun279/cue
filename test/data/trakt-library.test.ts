@@ -1,4 +1,5 @@
 import {
+  additiveLanded,
   advancePastNext,
   assembleLibrary,
   type LibraryEntry,
@@ -7,6 +8,7 @@ import {
   showIdSet,
 } from "@data/trakt/library";
 import type { Progress, WatchedShow, WatchlistItem } from "@data/trakt/schemas";
+import type { EpisodePlay } from "@domain/reversal";
 import { describe, expect, it } from "vitest";
 
 function watchlistItem(overrides: {
@@ -347,5 +349,47 @@ describe("markLanded", () => {
   it("an unmark landed once completed fell below the pre-op count", () => {
     expect(markLanded("absent", 4, 3)).toBe(true);
     expect(markLanded("absent", 4, 4)).toBe(false);
+  });
+});
+
+describe("additiveLanded", () => {
+  const watchedAt = "2026-07-05T12:34:00.000Z";
+  const play = (overrides: Partial<EpisodePlay> = {}): EpisodePlay => ({
+    historyId: 1,
+    episodeTrakt: 4004,
+    season: 4,
+    number: 4,
+    watchedAt,
+    ...overrides,
+  });
+
+  it("hits an episode play at the exact watched-at minute", () => {
+    expect(additiveLanded([play()], { episodeTrakt: 4004 }, watchedAt)).toBe(true);
+  });
+
+  it("hits a season probe with 59 seconds of watched-at skew", () => {
+    expect(
+      additiveLanded(
+        [play({ watchedAt: "2026-07-05T12:34:59.000Z" })],
+        { season: 4, number: 4 },
+        watchedAt,
+      ),
+    ).toBe(true);
+  });
+
+  it("misses a matching play with 61 seconds of watched-at skew", () => {
+    expect(
+      additiveLanded(
+        [play({ watchedAt: "2026-07-05T12:35:01.000Z" })],
+        { episodeTrakt: 4004 },
+        watchedAt,
+      ),
+    ).toBe(false);
+  });
+
+  it("misses the wrong episode id or season probe", () => {
+    expect(additiveLanded([play()], { episodeTrakt: 4005 }, watchedAt)).toBe(false);
+    expect(additiveLanded([play()], { season: 5, number: 4 }, watchedAt)).toBe(false);
+    expect(additiveLanded([play()], { season: 4, number: 5 }, watchedAt)).toBe(false);
   });
 });
