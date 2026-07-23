@@ -1,14 +1,22 @@
 apply plugin: 'com.android.application'
+apply plugin: 'org.jetbrains.kotlin.android'
 
-// Release signing reads a gitignored keystore.properties (CI writes it from
-// repository secrets; create it locally for on-device release builds). When it
-// is absent the release build stays unsigned, so debug builds and CI checks
-// that never sign still run.
+// Release signing reads CI credentials directly from the environment, falling
+// back to the gitignored android/keystore.properties for local builds. When
+// neither is configured the release build stays unsigned, so debug builds and
+// CI checks that never sign still run.
+def androidKeystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
+def androidKeystorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+def androidKeyAlias = System.getenv("ANDROID_KEY_ALIAS")
+def androidKeyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+def environmentSigningConfigured = [androidKeystorePath, androidKeystorePassword, androidKeyAlias, androidKeyPassword].every { it }
 def keystorePropertiesFile = rootProject.file("keystore.properties")
 def keystoreProperties = new Properties()
-if (keystorePropertiesFile.exists()) {
+def localSigningConfigured = !environmentSigningConfigured && keystorePropertiesFile.exists()
+if (localSigningConfigured) {
     keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
 }
+def releaseSigningConfigured = environmentSigningConfigured || localSigningConfigured
 
 android {
     namespace = "app.cuetracker"
@@ -28,22 +36,28 @@ android {
     }
     signingConfigs {
         release {
-            if (keystorePropertiesFile.exists()) {
-                storeFile file(keystoreProperties['storeFile'])
-                storePassword keystoreProperties['storePassword']
-                keyAlias keystoreProperties['keyAlias']
-                keyPassword keystoreProperties['keyPassword']
+            if (releaseSigningConfigured) {
+                storeFile file(environmentSigningConfigured ? androidKeystorePath : keystoreProperties['storeFile'])
+                storePassword environmentSigningConfigured ? androidKeystorePassword : keystoreProperties['storePassword']
+                keyAlias environmentSigningConfigured ? androidKeyAlias : keystoreProperties['keyAlias']
+                keyPassword environmentSigningConfigured ? androidKeyPassword : keystoreProperties['keyPassword']
             }
         }
     }
     buildTypes {
         release {
-            if (keystorePropertiesFile.exists()) {
+            if (releaseSigningConfigured) {
                 signingConfig signingConfigs.release
             }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21
     }
 }
 

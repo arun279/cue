@@ -4,6 +4,8 @@ node_modules/
 # Build output
 dist/
 dev-dist/
+/build/
+*.ipa
 *.tsbuildinfo
 
 # Capacitor native projects are committed. Their nested ios/.gitignore and
@@ -49,3 +51,8 @@ design-review/
 
 # Logs
 *.log
+
+# fastlane output
+/fastlane/report.xml
+/fastlane/Preview.html
+/fastlane/test_output/
