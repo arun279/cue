@@ -5,6 +5,7 @@ const MOBILE_EXPERIENCE_SPECS = ["reflow.spec.ts", "touch-targets.spec.ts"];
 
 export default defineConfig({
   testDir: "./e2e",
+  globalSetup: "./e2e/global-setup.ts",
   fullyParallel: true,
   workers: 1,
   webServer: {
