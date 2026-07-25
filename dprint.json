@@ -8,7 +8,7 @@
     "emphasisKind": "underscores",
     "strongKind": "asterisks"
   },
-  "includes": ["**/*.md"],
+  "includes": ["**/*.md", "**/*.yml", "**/*.yaml"],
   "excludes": [
     "**/node_modules",
     "**/dist",
@@ -19,5 +19,8 @@
     "android/**",
     "pnpm-lock.yaml"
   ],
-  "plugins": ["https://plugins.dprint.dev/markdown-0.18.0.wasm"]
+  "plugins": [
+    "https://plugins.dprint.dev/markdown-0.18.0.wasm",
+    "https://plugins.dprint.dev/g-plane/pretty_yaml-v0.6.0.wasm"
+  ]
 }

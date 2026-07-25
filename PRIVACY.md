@@ -1,6 +1,6 @@
 # Cue Privacy
 
-_Last reviewed: 2026-07._
+_Last reviewed: July 2026._
 
 Cue is a personal TV and movie tracker that talks directly to your own [Trakt](https://trakt.tv) account. This is the whole of what it does with your data.
 
@@ -24,7 +24,7 @@ Cue collects no analytics and sends no telemetry. It makes no network requests e
 
 ## Hosting this document
 
-To serve as the public "delete account URL" that Google Play and other stores require, this statement must be reachable at a stable public URL. This file (`PRIVACY.md`) is the single source of truth: it is served from the repository's own public URL, and can optionally be published via GitHub Pages. Point the store listing at that URL.
+The canonical served copy of this policy is [`docs/index.html`](docs/index.html), published by GitHub Pages at <https://arun279.github.io/cue/>. Point store privacy and account-deletion links at that stable URL; this Markdown file is the repository-readable companion.
 
 ## Attribution
 

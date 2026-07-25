@@ -1,0 +1,5 @@
+app_identifier("app.cuetracker")
+
+# No Apple ID or password is stored here: App Store Connect auth is done at
+# runtime with an App Store Connect API key (see the Fastfile), and Play auth
+# with a service-account JSON. Both come from CI secrets.

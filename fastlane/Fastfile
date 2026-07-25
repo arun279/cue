@@ -1,0 +1,122 @@
+# Cue release automation.
+#
+# iOS has tester and production lanes; Android ships only to Firebase testers:
+#   ios beta        -> TestFlight internal testers
+#   ios release     -> App Store review + auto-release
+#   android beta    -> Firebase App Distribution
+#
+# Build numbers come from BUILD_NUMBER (CI combines github.run_number and
+# github.run_attempt) so every upload is unique and strictly increasing. The
+# marketing version comes from APP_VERSION on releases and otherwise stays at
+# the native default. All signing material and distribution credentials are
+# injected via environment variables from CI secrets; nothing sensitive lives
+# in the repo.
+#
+# The web bundle must already be built (`pnpm build`) and synced into the native
+# projects (`pnpm exec cap sync <platform>`) before these lanes run; CI does that.
+
+APP_IDENTIFIER = "app.cuetracker".freeze
+IOS_PROJECT = "ios/App/App.xcodeproj".freeze
+IOS_SCHEME = "App".freeze
+ANDROID_DIR = "android".freeze
+ANDROID_APK = "android/app/build/outputs/apk/release/app-release.apk".freeze
+
+default_platform(:ios)
+
+def asc_api_key
+  app_store_connect_api_key(
+    key_id: ENV.fetch("APP_STORE_CONNECT_KEY_ID"),
+    issuer_id: ENV.fetch("APP_STORE_CONNECT_ISSUER_ID"),
+    key_content: ENV.fetch("APP_STORE_CONNECT_KEY"),
+    is_key_content_base64: true
+  )
+end
+
+def app_version
+  version = ENV["APP_VERSION"].to_s
+  version.empty? ? "1.0" : version
+end
+
+def build_ios_ipa
+  install_provisioning_profile(path: ENV.fetch("PROVISIONING_PROFILE_PATH"))
+  update_code_signing_settings(
+    use_automatic_signing: false,
+    team_id: ENV.fetch("IOS_TEAM_ID"),
+    profile_name: ENV.fetch("IOS_PROVISIONING_PROFILE_NAME"),
+    code_sign_identity: "Apple Distribution",
+    targets: ["App"],
+    path: IOS_PROJECT,
+    build_configurations: ["Release"]
+  )
+  build_app(
+    project: IOS_PROJECT,
+    scheme: IOS_SCHEME,
+    configuration: "Release",
+    export_method: "app-store",
+    output_directory: "build/ios",
+    output_name: "App.ipa",
+    xcargs: "CURRENT_PROJECT_VERSION=#{ENV.fetch("BUILD_NUMBER")} MARKETING_VERSION=#{app_version}",
+    export_options: {
+      signingStyle: "manual",
+      teamID: ENV.fetch("IOS_TEAM_ID"),
+      provisioningProfiles: {APP_IDENTIFIER => ENV.fetch("IOS_PROVISIONING_PROFILE_NAME")}
+    }
+  )
+end
+
+platform :ios do
+  desc "Build a signed IPA and ship to TestFlight (no review after the first build)"
+  lane :beta do
+    key = asc_api_key
+    build_ios_ipa
+    upload_to_testflight(
+      api_key: key,
+      skip_waiting_for_build_processing: true,
+      distribute_external: false
+    )
+  end
+
+  desc "Build a signed IPA and submit to the App Store (auto-release on approval)"
+  lane :release do
+    # The first submission requires the app record, metadata, screenshots, and
+    # age rating to exist in App Store Connect before this lane can submit it.
+    key = asc_api_key
+    build_ios_ipa
+    upload_to_app_store(
+      api_key: key,
+      submit_for_review: true,
+      automatic_release: true,
+      force: true,
+      run_precheck_before_submit: false,
+      skip_metadata: true,
+      skip_screenshots: true,
+      submission_information: {add_id_info_uses_idfa: false}
+    )
+  end
+end
+
+def build_android_apk
+  gradle(
+    project_dir: ANDROID_DIR,
+    task: "assemble",
+    build_type: "Release",
+    properties: {
+      "android.injected.version.code" => Integer(ENV.fetch("BUILD_NUMBER")),
+      "android.injected.version.name" => app_version
+    }
+  )
+end
+
+platform :android do
+  desc "Build a signed APK and ship to Firebase App Distribution testers"
+  lane :beta do
+    build_android_apk
+    firebase_app_distribution(
+      app: "1:768077963989:android:2f55dce37b989717ca785c",
+      groups: "friends",
+      android_artifact_type: "APK",
+      android_artifact_path: ANDROID_APK,
+      service_credentials_json_data: ENV.fetch("FIREBASE_SERVICE_ACCOUNT_JSON")
+    )
+  end
+end

@@ -23,8 +23,11 @@ pre-commit:
       run: pnpm biome check --staged --no-errors-on-unmatched --write {staged_files}
       stage_fixed: true
     dprint:
-      glob: "*.md"
-      run: pnpm exec dprint check {staged_files}
+      glob: "*.{md,yml,yaml}"
+      # --allow-no-files mirrors biome's --no-errors-on-unmatched above: when the
+      # staged files all fall under dprint.json's excludes (ios/**, android/**),
+      # dprint would otherwise exit 14 ("no files") and fail the commit.
+      run: pnpm exec dprint check --allow-no-files {staged_files}
     cspell:
       glob: "*.{ts,tsx,css,md}"
       run: pnpm exec cspell --no-progress --no-must-find-files {staged_files}
@@ -37,8 +40,9 @@ pre-push:
   commands:
     refuse-force-push:
       priority: 1
-      # The wire protocol can't tell --force from --force-with-lease, so detect
-      # via the parent process command line. Override: ALLOW_FORCE_PUSH=1.
+      # Best-effort only: $PPID normally identifies lefthook rather than git, so
+      # this process check can miss force pushes. Server-side branch protection
+      # is the real guard. Override: ALLOW_FORCE_PUSH=1.
       run: |
         cmd=$(ps -ocommand= -p $PPID 2>/dev/null || true)
         if echo "$cmd" | grep -qE -- '(--force|--force-with-lease|(^| )-f( |$))'; then
