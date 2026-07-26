@@ -56,10 +56,9 @@ const entry: LibraryEntry = {
   hidden: false,
   inWatchlist: false,
   lastWatchedAt: "2026-06-01T00:00:00.000Z",
-  aired: 4,
+  aired: 10,
   completed: 4,
   nextEpisode: null,
-  progressKnown: false,
   posters: [],
   backdrops: [],
   network: null,
@@ -124,7 +123,6 @@ it("uses header progress for a never-watched watchlist placeholder", () => {
     aired: 0,
     completed: 0,
     nextEpisode: null,
-    progressKnown: true,
   };
   const onFallbackMark = vi.fn();
   const { bar, check } = renderBar({ header: startHeader, entry: placeholder, onFallbackMark });

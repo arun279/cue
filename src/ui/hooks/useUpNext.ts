@@ -14,6 +14,12 @@ interface EmptyStateCounts {
   readonly trackedCount: number;
   /** Non-hidden shows with at least one watched episode: 0 means nothing has been started. */
   readonly startedCount: number;
+  /**
+   * Non-hidden shows with episodes left whose next episode is not known, so no card
+   * can name one: past the cold-sync progress budget. Above zero, "you're all
+   * caught up" would be a lie.
+   */
+  readonly unresolvedCount: number;
 }
 
 export interface UpNextCard {
@@ -27,9 +33,6 @@ export interface UpNextView extends QueryStatus {
   readonly queue: readonly UpNextCard[];
   /** In-progress but idle: the collapsed "Haven't watched lately" drawer. */
   readonly lapsedCards: readonly UpNextCard[];
-  /** Shows beyond the cold-sync progress budget: rendered with the striped
-   * bar + disabled-syncing check until their progress is read. */
-  readonly syncPending: readonly LibraryEntry[];
   /** Watchlist members, for the empty state's "From your watchlist" tiles. */
   readonly watchlistEntries: readonly LibraryEntry[];
   /** Every tracked show, hidden included: 0 only when the library is truly empty. */
@@ -38,9 +41,9 @@ export interface UpNextView extends QueryStatus {
   readonly trackedCount: number;
   /** Non-hidden shows with watch progress: 0 means nothing has been started yet. */
   readonly startedCount: number;
-  /** The library exceeds the cold-sync progress budget, so only recent shows are
-   * fully synced: the honest "recent shows synced" caveat. */
-  readonly isPartial: boolean;
+  /** Non-hidden shows with episodes left but no known next episode: above zero the
+   * queue cannot be empty AND the user caught up. */
+  readonly unresolvedCount: number;
   refetch(): void;
 }
 
@@ -62,7 +65,6 @@ export function useUpNext(): UpNextView {
     const empty = {
       queue: [] as UpNextCard[],
       lapsedCards: [] as UpNextCard[],
-      syncPending: [] as LibraryEntry[],
       watchlistEntries: [] as LibraryEntry[],
     };
     if (data === undefined) return empty;
@@ -80,7 +82,6 @@ export function useUpNext(): UpNextView {
     return {
       queue: toCards(stabilizeProvisional(sorted, previousOrder.current)),
       lapsedCards: toCards(partition.lapsed),
-      syncPending: data.entries.filter((entry) => !entry.progressKnown && !entry.hidden),
       watchlistEntries: data.entries.filter((entry) => entry.inWatchlist && !entry.hidden),
     };
   }, [data, byId, thresholdMs, order]);
@@ -90,19 +91,23 @@ export function useUpNext(): UpNextView {
   }, [groups.queue]);
 
   const counts = useMemo<EmptyStateCounts>(() => {
-    if (data === undefined) return { totalCount: 0, trackedCount: 0, startedCount: 0 };
+    if (data === undefined) {
+      return { totalCount: 0, trackedCount: 0, startedCount: 0, unresolvedCount: 0 };
+    }
     const tracked = data.entries.filter((entry) => !entry.hidden);
     return {
       totalCount: data.entries.length,
       trackedCount: tracked.length,
       startedCount: tracked.filter((entry) => entry.completed > 0).length,
+      unresolvedCount: tracked.filter(
+        (entry) => entry.nextEpisode === null && entry.completed < entry.aired,
+      ).length,
     };
   }, [data]);
 
   return {
     ...groups,
     ...counts,
-    isPartial: data?.isPartial ?? false,
     ...queryStatus(query, data !== undefined),
     refetch: () => void query.refetch(),
   };

@@ -198,14 +198,12 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
 
   return {
     async loadUpNext(): Promise<UpNextData> {
-      // The bounded cold-sync read: the paginated watched list +
-      // per-show progress for the most-recently-watched head only (the idle tail is
-      // the caught-up baseline from the bulk breakdown) + hidden + watchlist. No
-      // per-show art fan-out: poster/backdrop are deferred to a lazy per-visible-card
-      // read (`loadShowArt`), so the GET count stays bounded instead of ~2× library
-      // size. `partial` marks a library larger than the budget so the pill can say so.
-      const { entries, partial } = await loadUpNextEntries(client);
-      return { entries, isPartial: partial };
+      // The bounded cold-sync read: the paginated watched list (every show's aired +
+      // watched counts) + per-show progress for the bounded head that still has a
+      // next episode to resolve + hidden + watchlist. No per-show art fan-out:
+      // poster/backdrop are deferred to a lazy per-visible-card read (`loadShowArt`),
+      // so the GET count stays bounded instead of ~2× library size.
+      return { entries: await loadUpNextEntries(client) };
     },
 
     async loadShowArt(showId): Promise<ShowArt> {

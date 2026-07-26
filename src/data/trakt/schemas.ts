@@ -54,11 +54,22 @@ export const episodeSchema = z.object({
 const watchedShowSchema = z.object({
   last_watched_at: z.string().nullish(),
   plays: z.number().optional(),
-  show: showSchema,
-  // The bulk `/sync/watched/shows` breakdown lists only WATCHED episodes per
-  // season (Trakt returns it by default). It is the caught-up baseline for a show
-  // whose per-show progress the bounded cold-sync fan-out did not
-  // fetch: the watched-episode count without a second GET.
+  /**
+   * Trakt's "restart show": `/progress/watched` then counts only post-reset plays
+   * while the breakdown below still lists every one, so a reset show's bulk count
+   * overstates it. Such a show must be resolved by a real progress read rather
+   * than read as caught-up off the bulk numbers.
+   */
+  reset_at: z.string().nullish(),
+  // `aired_episodes` is REQUIRED, not optional: every un-fetched show's backlog is
+  // derived from it, and a silent absence would read the whole library as
+  // caught-up. Trakt returns it on the default payload (no `extended` needed), so
+  // it cannot be lost to an `extended` regression; anything else is a contract
+  // change that must fail loudly here.
+  show: showSchema.extend({ aired_episodes: z.number() }),
+  // The per-season WATCHED-episode breakdown, returned only under
+  // `extended=progress` (Trakt change #775). It is where every show's `completed`
+  // comes from without a second GET.
   seasons: z
     .array(z.object({ number: z.number(), episodes: z.array(z.object({ number: z.number() })) }))
     .optional(),

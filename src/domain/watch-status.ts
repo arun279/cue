@@ -7,7 +7,6 @@ export type WatchStatus =
   | "watching"
   | "lapsed"
   | "caught-up"
-  | "sync-pending"
   | "ended";
 
 const TERMINAL_STATUSES: ReadonlySet<string> = new Set(["ended", "canceled", "cancelled"]);
@@ -41,15 +40,14 @@ export function computeWatchStatus(
   thresholdMs: number,
 ): WatchStatus {
   if (show.hidden) return "abandoned";
-  // Beyond the cold-sync progress budget: `aired` is unknown, so the
-  // show's real progress can't be derived. It is neither fabricated caught-up nor
-  // misfiled not-started: it is honestly "still syncing" until its progress is read.
-  if (!show.progressKnown) return "sync-pending";
   const { aired, completed, nextEpisode, status } = show;
   if (completed <= 0) return "not-started";
   if (isTerminalStatus(status) && completed >= aired) return "ended";
   const hasAiredNext = nextEpisode !== null && isAired(nextEpisode.firstAired, now);
-  if (!hasAiredNext) return "caught-up";
+  // Unwatched aired episodes make a show in-progress whether or not the next one
+  // is named: a show past the cold-sync progress budget has real counts but no
+  // `nextEpisode`, and must not be filed as caught up on the strength of that gap.
+  if (!hasAiredNext && completed >= aired) return "caught-up";
   const last = toMs(show.lastWatchedAt);
   return last !== null && now - last <= thresholdMs ? "watching" : "lapsed";
 }

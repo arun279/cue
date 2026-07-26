@@ -1,6 +1,6 @@
 import type { ReactElement } from "react";
 
-export type CheckState = "unwatched" | "just-marked" | "watched" | "syncing" | "unaired";
+export type CheckState = "unwatched" | "just-marked" | "watched" | "unaired";
 
 interface CheckControlProps {
   readonly state: CheckState;
@@ -14,8 +14,8 @@ interface CheckControlProps {
    */
   readonly mode?: "advance" | "toggle";
   /** Full accessible name for the CURRENT action, e.g. "Mark The Wire S1 E5
-   * watched" or "Watched. Tap to remove." Ignored for `syncing` (which carries
-   * its own fixed label) and `unaired` (a non-interactive date chip). */
+   * watched" or "Watched. Tap to remove." Ignored for `unaired` (a
+   * non-interactive date chip). */
   readonly label: string;
   readonly testId?: string;
   /** Play count; ≥2 renders the ×N badge on the watched disc. */
@@ -75,21 +75,6 @@ export function CheckControl({
       <span className="check-date" data-testid={testId} data-state="unaired">
         {unairedDate}
       </span>
-    );
-  }
-  if (state === "syncing") {
-    return (
-      <button
-        type="button"
-        className="check"
-        data-testid={testId}
-        data-state="syncing"
-        data-size={size}
-        aria-label="Progress syncing. Check back shortly."
-        aria-disabled="true"
-      >
-        <span className="check__disc" aria-hidden="true" />
-      </button>
     );
   }
   const filled = state !== "unwatched";

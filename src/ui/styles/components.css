@@ -49,12 +49,6 @@
   transform: scale(0.9);
   border-color: var(--color-accent);
 }
-.check[data-state="syncing"] {
-  cursor: default;
-}
-.check[data-state="syncing"] .check__disc {
-  opacity: 0.3;
-}
 /* The rest glyph: a check waiting to happen, cross-fading out under the fill. */
 .check__rest {
   width: 50%;
@@ -251,14 +245,6 @@
 }
 .progress-bar[data-complete="true"] > i {
   background: var(--color-watched);
-}
-/* Static stripes: the honest "still syncing" texture, never a fabricated number. */
-.progress-bar[data-striped="true"] {
-  background: repeating-linear-gradient(
-    45deg,
-    color-mix(in srgb, var(--color-muted) 40%, transparent) 0 3px,
-    var(--color-track) 3px 6px
-  );
 }
 
 /* ---- Badge ---- */

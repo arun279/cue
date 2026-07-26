@@ -32,15 +32,23 @@ interface Counts {
 
 /**
  * A watched show `i` in most-recently-watched-DESC order (show 0 is the most
- * recent). Each carries its bulk season breakdown (8 watched episodes) so a show
- * whose progress the budget skips still carries a real watched count (aired unknown
- * → progress-unknown / sync-pending), not zero.
+ * recent), carrying the bulk counts every row now brings: 10 aired episodes and a
+ * season breakdown of `watched` watched ones. The default leaves a backlog, which
+ * is what makes a show worth spending a progress read on.
  */
-function watchedShow(i: number): unknown {
+function watchedShow(i: number, watched = 8): unknown {
   return {
     last_watched_at: new Date(Date.UTC(2026, 0, 1) - i * 86_400_000).toISOString(),
-    show: { title: `Show ${i}`, status: "returning series", ids: { trakt: i + 1 } },
-    seasons: [{ number: 1, episodes: Array.from({ length: 8 }, (_, e) => ({ number: e + 1 })) }],
+    show: {
+      title: `Show ${i}`,
+      status: "returning series",
+      aired_episodes: 10,
+      ids: { trakt: i + 1 },
+    },
+    reset_at: null,
+    seasons: [
+      { number: 1, episodes: Array.from({ length: watched }, (_, e) => ({ number: e + 1 })) },
+    ],
   };
 }
 
@@ -106,9 +114,13 @@ function pageResponse(all: readonly unknown[], url: URL) {
  * page each). Every list endpoint paginates through {@link pageResponse}, so the
  * hidden/watchlist reads are counted at their real paginated cost, not as one GET.
  */
-function installColdSync(n: number, hiddenCount = 0, watchlistCount = 0): Counts {
+function installColdSync(
+  n: number,
+  hiddenCount = 0,
+  watchlistCount = 0,
+  shows: readonly unknown[] = Array.from({ length: n }, (_, i) => watchedShow(i)),
+): Counts {
   const counts: Counts = { watchedPages: 0, progress: 0, art: 0, hidden: 0, watchlist: 0 };
-  const shows = Array.from({ length: n }, (_, i) => watchedShow(i));
   const hiddenItems = Array.from({ length: hiddenCount }, (_, i) => hiddenItem(i + 1));
   const watchlistItems = Array.from({ length: watchlistCount }, (_, i) => watchlistItem(i + 1));
 
@@ -170,7 +182,7 @@ describe("cold-sync GET budget", () => {
       expectedWatchedPages + expectedProgress + expectedHiddenPages + expectedWatchlistPages;
 
     const counts = installColdSync(n, HIDDEN_COUNT, WATCHLIST_COUNT);
-    const { entries, partial } = await loadUpNextEntries(client);
+    const entries = await loadUpNextEntries(client);
 
     expect(counts.watchedPages).toBe(expectedWatchedPages);
     expect(counts.progress).toBe(expectedProgress);
@@ -185,7 +197,6 @@ describe("cold-sync GET budget", () => {
     // The whole library is present; only the progress fan-out is capped. The
     // watchlist rows overlap the watched set, so they add no entries here.
     expect(entries).toHaveLength(n);
-    expect(partial).toBe(true);
 
     // The bounded budget: comfortably under the ceiling AND Trakt's 5-min window.
     expect(total(counts)).toBeLessThan(COLD_SYNC_CEILING);
@@ -217,26 +228,60 @@ describe("cold-sync GET budget", () => {
     expect(counts.watchlist).toBe(2);
   });
 
-  it("fetches progress for the MOST-RECENTLY-watched head; the tail is progress-unknown, not caught-up", async () => {
+  it("fetches progress for the MOST-RECENTLY-watched head; the tail keeps its real bulk counts", async () => {
     installColdSync(WATCHED_PROGRESS_BUDGET + 5);
-    const { entries } = await loadUpNextEntries(client);
+    const entries = await loadUpNextEntries(client);
 
-    // Show 0 is the most recent → in the budget head → real progress (aired 10, a
-    // next episode), progressKnown true. The oldest show (index BUDGET+4) is beyond
-    // the head → its bulk 8-episode breakdown gives completed, but aired is unknown,
-    // so progressKnown is false (status sync-pending): never fabricated caught-up.
+    // Show 0 is the most recent → in the budget head → real progress (aired 10,
+    // completed 3, a next episode). The oldest show (index BUDGET+4) is beyond the
+    // head, so its counts come from the bulk row: 8 of 10 watched. Its backlog is
+    // real and visible; only the next episode's identity is missing.
     const newest = entries.find((e) => e.showId === 1);
     const oldest = entries.find((e) => e.showId === WATCHED_PROGRESS_BUDGET + 5);
-    expect(newest).toMatchObject({ aired: 10, completed: 3, progressKnown: true });
+    expect(newest).toMatchObject({ aired: 10, completed: 3 });
     expect(newest?.nextEpisode).not.toBeNull();
-    expect(oldest).toMatchObject({ completed: 8, nextEpisode: null, progressKnown: false });
+    expect(oldest).toMatchObject({ aired: 10, completed: 8, nextEpisode: null });
   });
 
-  it("a library within the budget fetches every show's progress and is not partial", async () => {
+  it("a library within the budget fetches every show's progress", async () => {
     const counts = installColdSync(WATCHED_PROGRESS_BUDGET - 20);
-    const { partial } = await loadUpNextEntries(client);
+    await loadUpNextEntries(client);
     expect(counts.progress).toBe(WATCHED_PROGRESS_BUDGET - 20);
     expect(counts.art).toBe(0);
-    expect(partial).toBe(false);
+  });
+
+  it("spends nothing on caught-up shows: a fully-watched library costs ZERO progress reads", async () => {
+    // Every show's counts already arrive in bulk, so a progress read buys only the
+    // next episode's identity. A show with nothing left has no next episode to name.
+    const shows = Array.from({ length: 300 }, (_, i) => watchedShow(i, 10));
+    const counts = installColdSync(300, 0, 0, shows);
+    const entries = await loadUpNextEntries(client);
+    expect(counts.progress).toBe(0);
+    expect(entries).toHaveLength(300);
+    expect(entries.every((e) => e.aired === 10 && e.completed === 10)).toBe(true);
+  });
+
+  it("spends the budget on shows with a backlog, most-recently-watched first", async () => {
+    // 20 caught-up shows interleaved ahead of the ones with a backlog: the caught-up
+    // rows must not consume budget the backlog rows need.
+    const shows = Array.from({ length: 80 }, (_, i) => watchedShow(i, i < 20 ? 10 : 8));
+    const counts = installColdSync(80, 0, 0, shows);
+    const entries = await loadUpNextEntries(client);
+    expect(counts.progress).toBe(WATCHED_PROGRESS_BUDGET);
+    // Shows 20..79 have the backlog: exactly the 60 that fit the budget, so every
+    // one of them is resolved and none of the caught-up rows was read.
+    expect(entries.filter((e) => e.nextEpisode !== null)).toHaveLength(WATCHED_PROGRESS_BUDGET);
+    expect(entries.find((e) => e.showId === 1)?.nextEpisode).toBeNull();
+  });
+
+  it("spends a read on a restarted show, whose bulk count would otherwise overstate it", async () => {
+    // Trakt's "restart show" leaves the pre-reset plays in the bulk breakdown while
+    // `/progress/watched` counts only the plays since, so a reset show looks
+    // caught-up in bulk. It must be resolved by a real read, never trusted.
+    const reset = { ...(watchedShow(0, 10) as Record<string, unknown>), reset_at: "2026-01-01" };
+    const counts = installColdSync(1, 0, 0, [reset]);
+    const entries = await loadUpNextEntries(client);
+    expect(counts.progress).toBe(1);
+    expect(entries[0]).toMatchObject({ aired: 10, completed: 3 });
   });
 });

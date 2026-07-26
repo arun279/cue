@@ -6,7 +6,7 @@ import { episodesLeft, watchedPercent } from "@ui/format";
 import type { LibraryChipKey } from "@ui/hooks/useLibraryBuckets";
 import { useShowArt } from "@ui/hooks/useShowArt";
 import { Poster } from "@ui/screens/up-next/Poster";
-import { Check, RefreshCw } from "lucide-react";
+import { Check } from "lucide-react";
 import type { ReactElement, ReactNode } from "react";
 
 interface ShowTileProps {
@@ -19,9 +19,8 @@ interface ShowTileProps {
  * One Library show tile: 2:3 poster + 1-line caption, the whole cell a link
  * into Show detail. The active chip decides the overlay: Watching gets the
  * scrim + progress bar + remaining count (number and bar, never color alone),
- * Stopped a PAUSED tag, Finished the green done badge, Still-syncing the sync
- * badge over a striped bar. Overlays are aria-hidden: the chip already names
- * the state, so the link's accessible name stays the title.
+ * Stopped a PAUSED tag, Finished the green done badge. Overlays are aria-hidden:
+ * the chip already names the state, so the link's accessible name stays the title.
  */
 export function ShowTile({ entry, chip }: ShowTileProps): ReactElement {
   // Art is deferred out of the cold-sync budget: the visible tile lazily
@@ -56,15 +55,6 @@ export function ShowTile({ entry, chip }: ShowTileProps): ReactElement {
     overlay = (
       <span className="library-tile__done" aria-hidden="true">
         <Check />
-      </span>
-    );
-  } else if (chip === "syncing") {
-    overlay = (
-      <span aria-hidden="true">
-        <span className="library-tile__done library-tile__done--sync">
-          <RefreshCw />
-        </span>
-        <ProgressBar striped className="library-tile__bar" />
       </span>
     );
   }

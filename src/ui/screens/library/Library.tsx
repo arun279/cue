@@ -44,13 +44,7 @@ const MOVIE_SORTS: readonly MovieSort[] = ["recently-watched", "alphabetical", "
 
 type MovieChipKey = "watchlist" | "watched";
 
-const SHOW_CHIP_KEYS: readonly LibraryChipKey[] = [
-  "watching",
-  "watchlist",
-  "stopped",
-  "finished",
-  "syncing",
-];
+const SHOW_CHIP_KEYS: readonly LibraryChipKey[] = ["watching", "watchlist", "stopped", "finished"];
 const MOVIE_CHIP_KEYS: readonly MovieChipKey[] = ["watchlist", "watched"];
 
 /** Exactly one chip is active; the last choice is remembered per segment. */
@@ -62,7 +56,6 @@ const SHOW_CHIP_LABEL: Record<LibraryChipKey, string> = {
   watchlist: "Watchlist",
   stopped: "Stopped",
   finished: "Finished",
-  syncing: "Still syncing",
 };
 
 /** Genuine emptiness per chip reads as orientation, never as failure. */
@@ -71,7 +64,6 @@ const SHOW_CHIP_EMPTY: Record<LibraryChipKey, string> = {
   watchlist: "Things you want to watch land here. Add them from Search.",
   stopped: "Shows you stop keep their progress. Resume any time.",
   finished: "Shows you finish land here.",
-  syncing: "Nothing is waiting on a sync.",
 };
 const MOVIE_CHIP_EMPTY: Record<MovieChipKey, string> = {
   watchlist: "Things you want to watch land here. Add them from Search.",
@@ -274,15 +266,7 @@ export function Library(): ReactElement {
   const movieEntriesFor = (key: MovieChipKey): readonly MovieEntry[] =>
     movieView.segments.find((segment) => segment.key === key)?.entries ?? [];
 
-  const showChipKeys = SHOW_CHIP_KEYS.filter(
-    (key) => key !== "syncing" || view.chips.syncing.length > 0,
-  );
-
-  // A persisted "Still syncing" chip whose bucket has since drained falls back
-  // to Watching rather than pointing at a chip that no longer renders.
-  const activeShowChip =
-    showChip === "syncing" && view.chips.syncing.length === 0 ? "watching" : showChip;
-  const activeChipKey = isMovies ? movieChip : activeShowChip;
+  const activeChipKey = isMovies ? movieChip : showChip;
 
   useEffect(() => {
     const rail = chipsRef.current;
@@ -322,12 +306,7 @@ export function Library(): ReactElement {
     // The expert accelerator rides the exact queue pipeline (optimistic patch,
     // batch snackbar, reverse window) and only offers itself when the next
     // episode is known and aired, never a guessed coordinate.
-    if (
-      entry.progressKnown &&
-      !entry.pendingAdvance &&
-      next !== null &&
-      isAired(next.firstAired, Date.now())
-    ) {
+    if (!entry.pendingAdvance && next !== null && isAired(next.firstAired, Date.now())) {
       rows.push({
         label: `Mark ${epCode(next.season, next.number)} watched`,
         testId: "quick-mark",
@@ -412,7 +391,7 @@ export function Library(): ReactElement {
           ? `No ${isMovies ? "movies" : "shows"} match "${filter}".`
           : isMovies
             ? MOVIE_CHIP_EMPTY[movieChip]
-            : SHOW_CHIP_EMPTY[activeShowChip]}
+            : SHOW_CHIP_EMPTY[showChip]}
       </p>
       {filtering ? (
         <button type="button" className="button button--ghost" onClick={clearFilter}>
@@ -420,7 +399,7 @@ export function Library(): ReactElement {
         </button>
       ) : (
         !isMovies &&
-        activeShowChip === "watching" && (
+        showChip === "watching" && (
           <Link to="/search" className="button" data-testid="library-search-shows">
             Search shows
           </Link>
@@ -458,7 +437,7 @@ export function Library(): ReactElement {
         />
       );
   } else {
-    const shown = matches(view.chips[activeShowChip]);
+    const shown = matches(view.chips[showChip]);
     body =
       shown.length === 0 ? (
         emptyBlock()
@@ -468,7 +447,7 @@ export function Library(): ReactElement {
           keyOf={(entry) => entry.showId}
           renderCell={(entry) => (
             <ContextMenu title={entry.title} rows={showRows(entry)}>
-              <ShowTile entry={entry} chip={activeShowChip} />
+              <ShowTile entry={entry} chip={showChip} />
             </ContextMenu>
           )}
         />
@@ -546,13 +525,13 @@ export function Library(): ReactElement {
                 }}
               />
             ))
-          : showChipKeys.map((key) => (
+          : SHOW_CHIP_KEYS.map((key) => (
               <Chip
                 key={key}
                 variant="status"
                 label={SHOW_CHIP_LABEL[key]}
                 count={view.chips[key].length}
-                selected={key === activeShowChip}
+                selected={key === showChip}
                 testId={`chip-${key}`}
                 onPress={() => {
                   setShowChip(key);

@@ -6,7 +6,7 @@ const TRAKT_API_VERSION = "2";
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
 /** `extended` richness levels, comma-combined into the query. */
-type Extended = "min" | "full" | "images" | "episodes";
+type Extended = "min" | "full" | "images" | "episodes" | "progress";
 
 export interface TraktClientConfig {
   readonly clientId: string;

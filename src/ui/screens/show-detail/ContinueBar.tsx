@@ -32,14 +32,15 @@ interface FallbackProgress {
   readonly nextEpisode: EpisodeView | null;
 }
 
-function isWatchlistOnlyPlaceholder(entry: LibraryEntry): boolean {
-  return (
-    entry.progressKnown &&
-    entry.completed === 0 &&
-    entry.aired === 0 &&
-    entry.nextEpisode === null &&
-    entry.lastWatchedAt === null
-  );
+/**
+ * Can the shared library entry drive this bar? Not the zero-progress watchlist
+ * placeholder, and it must either name a next episode or be genuinely caught up.
+ * A show past the cold-sync progress budget has real counts but no next-episode
+ * identity, so the loaded season tree drives the bar instead.
+ */
+function isResolved(entry: LibraryEntry): boolean {
+  if (entry.aired === 0 && entry.completed === 0) return false;
+  return entry.nextEpisode !== null || entry.completed >= entry.aired;
 }
 
 function seasonProgress(seasons: readonly SeasonView[]): FallbackProgress {
@@ -148,7 +149,7 @@ export function ContinueBar({
   mark,
   onFallbackMark,
 }: ContinueBarProps): ReactElement | null {
-  const tracked = entry?.progressKnown === true && !isWatchlistOnlyPlaceholder(entry);
+  const tracked = entry !== undefined && isResolved(entry);
   const fallback: FallbackProgress =
     seasons.length > 0
       ? seasonProgress(seasons)

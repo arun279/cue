@@ -36,14 +36,24 @@ describe("computeWatchStatus", () => {
       expect: "not-started",
     },
     {
-      name: "progress unknown (beyond budget) → sync-pending, never fabricated caught-up",
-      show: makeShow({ progressKnown: false, completed: 3, aired: 3, nextEpisode: null }),
-      expect: "sync-pending",
+      name: "backlog with no known next (beyond budget) → watching, never fabricated caught-up",
+      show: makeShow({
+        completed: 3,
+        aired: 10,
+        nextEpisode: null,
+        lastWatchedAt: iso(NOW - DAY),
+      }),
+      expect: "watching",
     },
     {
-      name: "hidden overrides progress-unknown → abandoned",
-      show: makeShow({ hidden: true, progressKnown: false, completed: 3, aired: 3 }),
-      expect: "abandoned",
+      name: "idle backlog with no known next → lapsed",
+      show: makeShow({
+        completed: 3,
+        aired: 10,
+        nextEpisode: null,
+        lastWatchedAt: iso(NOW - THRESHOLD - 1),
+      }),
+      expect: "lapsed",
     },
     {
       name: "caught up, ended → ended",

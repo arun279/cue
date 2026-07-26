@@ -154,10 +154,6 @@
   width: 14px;
   height: 14px;
 }
-.library-tile__done--sync {
-  background: var(--color-elevated);
-  color: var(--color-ink2);
-}
 
 /* ---- Per-chip empty state: one honest line + optional action ---- */
 .library-empty {

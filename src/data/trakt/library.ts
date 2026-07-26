@@ -68,16 +68,6 @@ function toEpisodeRef(ep: SchemaEpisode): EpisodeRef {
 }
 
 /**
- * Merge the watched-shows list with per-show progress, the hidden set, and
- * watchlist membership into the `LibraryEntry[]` every home surface derives
- * from. A watched show with no fetched progress (beyond the
- * read-budget head) carries its bulk watched count with `progressKnown: false`,
- * surfaced as `sync-pending`, never fabricated caught-up nor dropped. A
- * never-watched show that is on the watchlist has no `/sync/watched/shows` row,
- * so it is materialized here as a zero-progress `to-watch` entry: otherwise it
- * would vanish from "To watch" after a refetch.
- */
-/**
  * The art + broadcast fields for one entry: prefer the fetched show-detail art
  * (the only source that carries images), falling back to whatever inline posters
  * the source list itself provided and empty metadata otherwise.
@@ -97,6 +87,18 @@ function artFields(
   };
 }
 
+/**
+ * Merge the watched-shows list with per-show progress, the hidden set, and
+ * watchlist membership into the `LibraryEntry[]` every home surface derives from.
+ * Every watched show carries real counts: `aired` from the bulk row's
+ * `aired_episodes` and `completed` from its watched breakdown, both present on
+ * `/sync/watched/shows`. A fetched per-show progress overrides both (it is the
+ * authority on hidden seasons, specials, and a restarted show) and is the only
+ * source of the NEXT episode's identity. A never-watched show that is on the
+ * watchlist has no `/sync/watched/shows` row, so it is materialized here as a
+ * zero-progress `to-watch` entry: otherwise it would vanish from "To watch" after
+ * a refetch.
+ */
 export function assembleLibrary(input: LibraryInput): LibraryEntry[] {
   const watchlistShowIds = new Set<number>();
   for (const item of input.watchlistShows) {
@@ -111,14 +113,6 @@ export function assembleLibrary(input: LibraryInput): LibraryEntry[] {
     seen.add(trakt);
     const progress = input.progress.get(trakt);
     const next = progress?.next_episode ?? null;
-    // Beyond the cold-sync progress budget a show has no fetched
-    // progress: `completed` is its real bulk watched count, but `aired` is unknown.
-    // `progressKnown: false` marks that. The derived status is `sync-pending`, so it
-    // is neither fabricated as caught-up (completed === aired) nor misfiled as
-    // never-started. `aired` is pinned to the watched count only as a non-negative
-    // placeholder; no honest-status code trusts it while `progressKnown` is false.
-    const progressKnown = progress !== undefined;
-    const baseline = watchedEpisodeCount(watched);
     entries.push({
       showId: trakt,
       title: show.title,
@@ -126,10 +120,9 @@ export function assembleLibrary(input: LibraryInput): LibraryEntry[] {
       hidden: input.hiddenShowIds.has(trakt),
       inWatchlist: watchlistShowIds.has(trakt),
       lastWatchedAt: watched.last_watched_at ?? null,
-      aired: progress?.aired ?? baseline,
-      completed: progress?.completed ?? baseline,
+      aired: progress?.aired ?? show.aired_episodes,
+      completed: progress?.completed ?? watchedEpisodeCount(watched),
       nextEpisode: next === null ? null : toEpisodeRef(next),
-      progressKnown,
       ...artFields(input.details, trakt, show.images?.poster),
       tmdbId: show.ids.tmdb ?? null,
       pendingAdvance: false,
@@ -151,8 +144,6 @@ export function assembleLibrary(input: LibraryInput): LibraryEntry[] {
       aired: 0,
       completed: 0,
       nextEpisode: null,
-      // A never-watched watchlist show is genuinely known: 0/0, not-started.
-      progressKnown: true,
       ...artFields(input.details, trakt, show.images?.poster),
       tmdbId: show.ids.tmdb ?? null,
       pendingAdvance: false,
@@ -163,13 +154,13 @@ export function assembleLibrary(input: LibraryInput): LibraryEntry[] {
 
 /**
  * Watched-episode count from the bulk `/sync/watched/shows` breakdown, specials
- * (season 0) excluded to match progress semantics. This is the real `completed`
- * for a show whose per-show progress the bounded cold-sync fan-out
- * did not fetch: the count we DO know without a second GET. Because `aired` stays
- * unknown, such a show is marked `progressKnown: false` (status `sync-pending`), not
- * asserted caught-up: honest for the un-synced tail of a large library.
+ * (season 0) excluded to match progress semantics. Paired with the row's
+ * `aired_episodes` this is every show's real progress without a second GET, so a
+ * per-show progress read buys only the next episode's identity. The breakdown
+ * lists each watched episode once (rewatches carry `plays`, not duplicate rows),
+ * so this counts distinct episodes.
  */
-function watchedEpisodeCount(watched: WatchedShow): number {
+export function watchedEpisodeCount(watched: WatchedShow): number {
   let count = 0;
   for (const season of watched.seasons ?? []) {
     if (season.number === 0) continue;

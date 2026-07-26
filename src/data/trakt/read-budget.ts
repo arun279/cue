@@ -1,6 +1,6 @@
 import type { TraktClient, TraktResult } from "./client";
 import { getHidden, getShowProgress, getWatchedShows, getWatchlist } from "./endpoints";
-import { assembleLibrary, type LibraryEntry, showIdSet } from "./library";
+import { assembleLibrary, type LibraryEntry, showIdSet, watchedEpisodeCount } from "./library";
 import type { Progress, WatchedShow } from "./schemas";
 
 /**
@@ -21,36 +21,28 @@ const DEFAULT_RATE_BACKOFF_MS = 1000;
 
 /**
  * The cold-sync per-show progress budget: at most this many `/shows/:id/progress`
- * GETs fire up front, for the most-recently-watched shows only.
+ * GETs fire up front.
  *
- * Why a cap at all: Up Next and the Library "Watching" pile are the only surfaces
- * that need live per-show progress (aired vs. completed + the next episode), and a
- * show can only be in either if it was watched recently: the ranking is by
- * `last_watched_at`. The idle tail (finished / long-abandoned shows) is bucketed
- * from the bulk watched breakdown as caught-up, no per-show GET. So the fan-out is
- * bounded by *how many shows one person actively has in flight*, not by library
- * size.
+ * Every show's counts already arrive in bulk (`aired_episodes` + the watched
+ * breakdown), so a per-show read buys exactly one thing: the IDENTITY of the next
+ * episode. Only a show with unwatched aired episodes has a next episode to name,
+ * so only those spend the budget, most-recently-watched first. A caught-up
+ * library now costs zero progress GETs.
  *
- * Why 60: power-user behavior tops out around 20-50 shows watched
- * concurrently; 60 covers that with headroom while staying a hard ceiling. It also
- * holds the worst-case cold-sync GET count far under Trakt's authed 1000-GET / 5-min
- * budget: a 1000-show library costs ceil(1000/100)=10 watched pages + 60 progress +
- * ~1 hidden + ~1 watchlist ≈ 72 GETs (~7% of the ceiling, a >13× margin), versus the
- * previous ~2000 (2 GETs × 1000 shows) that blew straight through it. Per-row art is
- * deferred to a separate lazy per-card read, so it never rides the
- * cold-sync burst.
+ * Why 60: power-user behavior tops out around 20-50 shows watched concurrently; 60
+ * covers that with headroom while staying a hard ceiling. It also holds the
+ * worst-case cold-sync GET count far under Trakt's authed 1000-GET / 5-min budget:
+ * a 1000-show library costs ceil(1000/100)=10 watched pages + at most 60 progress +
+ * ~1 hidden + ~1 watchlist ≈ 72 GETs (~7% of the ceiling, a >13× margin), versus
+ * the previous ~2000 (2 GETs × 1000 shows) that blew straight through it. Per-row
+ * art is deferred to a separate lazy per-card read, so it never rides the cold-sync
+ * burst.
  *
- * The cost: a user actively juggling more than 60 shows carries the 61st-most-recent
- * onward at the progress-unknown baseline: by construction the least-recently-touched
- * of their in-flight shows. This is neither silently presented as complete NOR silently
- * dropped: such a show is `progressKnown: false`, so its status is `sync-pending`: it
- * sits in Library's own "Still syncing" pile (never the "Caught up" pile) rather than
- * being fabricated caught-up. The read reports `partial`, the sync pill rests on "Recent
- * shows synced" rather than "Synced · <when>", and Up Next never claims
- * "all caught up" while partial. A show gains real progress on the next cold
- * sync once it re-enters the fetched head: e.g. after it is watched again, which is when
- * its queue position would matter. (Opening its detail fetches fresh progress for that
- * screen but does not yet write it back into this library snapshot.)
+ * The cost: a user with more than 60 shows carrying a backlog gets the 61st-most-
+ * recent onward with real counts but no next episode, so Up Next cannot queue a
+ * card for it (there is no episode to name and one must never be guessed). It is
+ * neither fabricated caught-up nor dropped: Library shows it under Watching with
+ * its real progress, and opening it reads its progress for real.
  */
 export const WATCHED_PROGRESS_BUDGET = 60;
 
@@ -88,18 +80,6 @@ export async function withReadRateRetry<T>(
   }
 }
 
-/** The bounded cold-sync read: the assembled library plus whether it is partial. */
-interface ColdSyncRead {
-  readonly entries: LibraryEntry[];
-  /**
-   * True when the watched library is larger than the progress budget, so the shows
-   * beyond the most-recently-watched head carry the progress-unknown baseline
-   * (`sync-pending`) rather than fetched progress: the honest "recent-only" signal
-   * the sync pill surfaces.
-   */
-  readonly partial: boolean;
-}
-
 const parseInstant = (iso: string | null | undefined): number =>
   iso === null || iso === undefined ? 0 : Date.parse(iso) || 0;
 
@@ -109,20 +89,35 @@ function byLastWatchedDesc(a: WatchedShow, b: WatchedShow): number {
 }
 
 /**
+ * Is a per-show progress GET worth spending on this show? Only when the bulk data
+ * leaves something the read can answer: unwatched aired episodes (whose next
+ * episode only progress can name), or a "restart show" reset, after which the bulk
+ * breakdown still lists the pre-reset plays and so overstates `completed`.
+ */
+function needsProgress(watched: WatchedShow): boolean {
+  if (watched.reset_at !== null && watched.reset_at !== undefined) return true;
+  return watchedEpisodeCount(watched) < watched.show.aired_episodes;
+}
+
+/**
  * Paint the shared library snapshot (Up Next + Library) from bounded bulk reads:
- * the paginated watched list, per-show progress for the most-recently-watched
- * {@link WATCHED_PROGRESS_BUDGET} shows only, plus the hidden set and watchlist.
+ * the paginated watched list (which carries every show's aired + watched counts),
+ * per-show progress for the {@link WATCHED_PROGRESS_BUDGET} most-recently-watched
+ * shows that have something left to resolve, plus the hidden set and watchlist.
  * Per-show ART/detail is NOT fetched here: it is deferred to a lazy per-visible-card
  * read: so the cold-sync GET count is bounded and does not scale ~2×
  * with library size. Progress failure throws (the whole read fails so React Query
  * keeps the prior cached queue + retry banner instead of erasing a known show); a
  * transient 429 on any read is absorbed within a bounded budget.
  */
-export async function loadUpNextEntries(client: TraktClient): Promise<ColdSyncRead> {
+export async function loadUpNextEntries(client: TraktClient): Promise<LibraryEntry[]> {
   const watched = await withReadRateRetry(() => getWatchedShows(client));
   if (!watched.ok) throw new Error("Failed to load watched shows");
 
-  const head = [...watched.data].sort(byLastWatchedDesc).slice(0, WATCHED_PROGRESS_BUDGET);
+  const head = watched.data
+    .filter(needsProgress)
+    .sort(byLastWatchedDesc)
+    .slice(0, WATCHED_PROGRESS_BUDGET);
   const perShow = await mapWithConcurrency(head, READ_CONCURRENCY, async (show) => {
     const id = show.show.ids.trakt;
     const progress = await withReadRateRetry(() => getShowProgress(client, id));
@@ -138,11 +133,10 @@ export async function loadUpNextEntries(client: TraktClient): Promise<ColdSyncRe
   if (!hidden.ok) throw new Error("Failed to load hidden shows");
   if (!watchlist.ok) throw new Error("Failed to load watchlist");
 
-  const entries = assembleLibrary({
+  return assembleLibrary({
     watchedShows: watched.data,
     progress,
     hiddenShowIds: showIdSet(hidden.data),
     watchlistShows: watchlist.data,
   });
-  return { entries, partial: watched.data.length > WATCHED_PROGRESS_BUDGET };
 }

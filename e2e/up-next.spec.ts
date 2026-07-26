@@ -868,35 +868,75 @@ test("returning from a paginated History feed refetches only one Previously prev
   expect(history.historyReads() - beforeMark).toBe(1);
 });
 
-test("shows beyond the progress budget render as sync-pending rows with disabled checks", async ({
-  page,
-}) => {
-  // 61 shows: one past the 60-show cold-sync progress budget. The oldest-watched
-  // show misses the budget and must read as honestly syncing: striped bar,
-  // disabled check: never fabricated as caught-up or markable.
-  const many: ShowFixture[] = Array.from({ length: 61 }, (_, i) => ({
+/** `count` bulk shows, most-recently-watched first, each `completed` of 2 aired. */
+function bulkShows(count: number, completed: number): ShowFixture[] {
+  return Array.from({ length: count }, (_, i) => ({
     trakt: 1000 + i,
     title: `Bulk Show ${i + 1}`,
     status: "returning series",
     lastWatchedAt: new Date(Date.now() - (i + 1) * 3_600_000).toISOString(),
     aired: 2,
-    completed: 1,
+    completed,
     episodes: [
       { season: 1, number: 1, title: "One", firstAired: AIRED, traktId: (1000 + i) * 10 + 1 },
       { season: 1, number: 2, title: "Two", firstAired: AIRED, traktId: (1000 + i) * 10 + 2 },
     ],
   }));
-  await installLibraryRoutes(page.context(), many);
+}
+
+test("a show past the progress budget keeps its real progress instead of a syncing placeholder", async ({
+  page,
+}) => {
+  // 61 shows with a backlog: one past the 60-read budget. Its counts come from the
+  // bulk read, so it is neither fabricated caught-up nor parked in a row that
+  // describes a sync nobody is running. It just has no next episode to name, so
+  // Library carries it with its real remaining count.
+  const controls = await installLibraryRoutes(page.context(), bulkShows(61, 1));
   await page.goto("/");
 
-  const pending = page.getByTestId("sync-pending-row");
-  await expect(pending).toHaveCount(1, { timeout: 15_000 });
-  await expect(pending).toContainText("Bulk Show 61");
-  await expect(pending).toContainText("Syncing progress…");
-  const check = pending.getByTestId("mark-watched");
-  await expect(check).toHaveAttribute("data-state", "syncing");
-  await expect(check).toHaveAttribute("aria-disabled", "true");
-  await expect(check).toHaveAttribute("aria-label", "Progress syncing. Check back shortly.");
+  await expect(page.getByTestId("up-next-card").first()).toBeVisible({ timeout: 15_000 });
+  await expect.poll(() => controls.progressReads()).toBe(60);
+  await expect(page.getByTestId("up-next-list")).not.toContainText("Bulk Show 61");
+
+  // The virtualized grid only mounts what is on screen, so filter down to the tail.
+  await page.goto("/library");
+  await page.getByTestId("library-filter-toggle").click();
+  await page.getByTestId("library-filter").fill("Bulk Show 61");
+  const tail = page.getByTestId("library-card");
+  await expect(tail).toHaveCount(1);
+  await expect(tail.getByTestId("library-remaining")).toHaveText("1");
+});
+
+test("a caught-up library costs zero progress reads", async ({ page }) => {
+  // Every show's counts arrive in bulk, so a progress read buys only the next
+  // episode's identity. A library with nothing left has none to buy.
+  const controls = await installLibraryRoutes(page.context(), bulkShows(30, 2));
+  await page.goto("/");
+
+  await expect(page.getByTestId("empty-all-caught-up")).toBeVisible({ timeout: 15_000 });
+  expect(controls.progressReads()).toBe(0);
+});
+
+test("never claims caught up while shows past the budget still have episodes left", async ({
+  page,
+}) => {
+  // The 60 most recent shows are caught-up but restarted, so they soak the budget
+  // (a reset show's bulk count still includes its pre-reset plays, so it is read
+  // for real rather than trusted). That leaves the 61st with a backlog and no next
+  // episode: nothing can be queued, but "you're all caught up" would be a lie, so
+  // the screen points at Library instead.
+  const shows = bulkShows(61, 2).map((show, index) =>
+    index < 60 ? { ...show, resetAt: "2026-01-01T00:00:00.000Z" } : { ...show, completed: 1 },
+  );
+  await installLibraryRoutes(page.context(), shows);
+  await page.goto("/");
+
+  await expect(page.getByTestId("empty-unresolved")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("empty-all-caught-up")).toHaveCount(0);
+  // The CTA has to land somewhere that actually holds the show: all 61 are tracked
+  // under Watching, the stranded one included.
+  await page.getByTestId("empty-to-library").click();
+  await expect(page.getByTestId("chip-watching")).toContainText("61");
 });
 
 test("the one-time tutorial caption shows on a first session and dies on the first mark", async ({

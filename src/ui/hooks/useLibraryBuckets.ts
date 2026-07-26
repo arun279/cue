@@ -11,9 +11,9 @@ import { useMemo } from "react";
  * into Watching (an up-to-date show is still one you watch; Finished is
  * reserved for completed terminal runs), `lapsed` folds into Watching (the
  * lapsed cut is Up Next's drawer, not a Library pile), `not-started` reads as
- * Watchlist, `abandoned` as Stopped, `sync-pending` as Still syncing.
+ * Watchlist, `abandoned` as Stopped.
  */
-export type LibraryChipKey = "watching" | "watchlist" | "stopped" | "finished" | "syncing";
+export type LibraryChipKey = "watching" | "watchlist" | "stopped" | "finished";
 
 export type LibraryChips = Readonly<Record<LibraryChipKey, readonly LibraryEntry[]>>;
 
@@ -42,8 +42,6 @@ function chipOf(entry: LibraryEntry, now: number, thresholdMs: number): LibraryC
       return "stopped";
     case "ended":
       return "finished";
-    case "sync-pending":
-      return "syncing";
   }
 }
 
@@ -60,7 +58,6 @@ export function chipBuckets(
     watchlist: [],
     stopped: [],
     finished: [],
-    syncing: [],
   };
   for (const entry of entries) {
     lists[chipOf(entry, now, thresholdMs)].push(entry);

@@ -5,14 +5,12 @@ import { del, get, set } from "idb-keyval";
 /**
  * Bump when the app version or a persisted-schema shape changes: the persister
  * drops any cache whose `buster` differs. This, not an age cap, is how stale
- * snapshots are retired. This cache-version bump retires every pre-m7 cache:
- * the progress read grew `?extended=images` (each entry's `nextEpisode` now
- * carries a `still`), so a restored pre-m7 entry would read `still: undefined`
- * and, under the `staleTime: Infinity` gate, never refetch to pick the field
- * up. (The prior m6 bump likewise retired pre-`progressKnown` caches whose
- * entries would silently hide mid-watch shows as `sync-pending`.)
+ * snapshots are retired. This cache-version bump retires every pre-m8 cache: a
+ * pre-m8 entry beyond the progress budget carried `aired` pinned to its watched
+ * count, which now reads as caught-up, and under the `staleTime: Infinity` gate
+ * it would never refetch to correct itself.
  */
-export const PERSIST_BUSTER = "cue-m7";
+export const PERSIST_BUSTER = "cue-m8";
 
 /**
  * `maxAge` governs how long a restored cache may be replayed, NOT freshness.

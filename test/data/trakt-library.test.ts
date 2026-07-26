@@ -36,6 +36,8 @@ function watchedShow(overrides: {
   lastWatchedAt?: string | null;
   posters?: string[];
   tmdb?: number;
+  /** The row's `aired_episodes`: aired-to-date, the bulk `aired` every entry carries. */
+  airedEpisodes?: number;
   /** Watched-episode counts per season number (the bulk `/sync/watched/shows` breakdown). */
   seasons?: Record<number, number>;
 }): WatchedShow {
@@ -44,6 +46,7 @@ function watchedShow(overrides: {
     show: {
       title: overrides.title ?? "Show",
       status: overrides.status ?? "returning series",
+      aired_episodes: overrides.airedEpisodes ?? 0,
       ids: { trakt: overrides.trakt, tmdb: overrides.tmdb },
       images: overrides.posters ? { poster: overrides.posters } : undefined,
     },
@@ -97,7 +100,6 @@ const baseEntry: LibraryEntry = {
     still: null,
     ids: { trakt: 4004 },
   },
-  progressKnown: true,
   posters: [],
   backdrops: [],
   network: null,
@@ -125,9 +127,8 @@ describe("assembleLibrary", () => {
     expect(a?.showId).toBe(1);
     expect(a?.inWatchlist).toBe(true);
     expect(a?.hidden).toBe(false);
-    expect(a?.progressKnown).toBe(true);
-    // B has no fetched progress in the map → progress unknown, not asserted complete.
-    expect(entries[1]?.progressKnown).toBe(false);
+    // A has fetched progress, so it overrides the bulk counts.
+    expect(a).toMatchObject({ aired: 10, completed: 3 });
     expect(a?.posters).toEqual(["media.trakt.tv/a.webp"]);
     expect(a?.tmdbId).toBe(55);
     expect(a?.nextEpisode).toEqual({
@@ -140,39 +141,23 @@ describe("assembleLibrary", () => {
     });
   });
 
-  it("marks a show with no fetched progress and no breakdown as progress-unknown (no next)", () => {
+  it("gives an un-fetched watched show its real bulk counts, specials excluded", () => {
+    // Beyond the cold-sync progress budget: no progress entry, so `aired` is the row's
+    // `aired_episodes` and `completed` is its watched breakdown with season 0 dropped
+    // (matching progress semantics). The backlog is real; only the next episode's
+    // identity is missing, and the show is never asserted caught-up to cover that.
     const entries = assembleLibrary({
-      watchedShows: [watchedShow({ trakt: 7 })],
+      watchedShows: [watchedShow({ trakt: 12, airedEpisodes: 20, seasons: { 0: 2, 1: 8, 2: 6 } })],
       progress: new Map(),
       hiddenShowIds: new Set(),
       watchlistShows: [],
     });
     expect(entries[0]).toMatchObject({
-      aired: 0,
-      completed: 0,
-      nextEpisode: null,
-      progressKnown: false,
-      tmdbId: null,
-      status: "returning series",
-    });
-  });
-
-  it("represents an un-fetched watched show as progress-unknown (sync-pending), NOT fabricated caught-up", () => {
-    // Beyond the cold-sync progress budget: no progress entry, but the bulk watched
-    // breakdown carries the season/episode tree. `completed` is the real watched count
-    // (specials excluded), but `aired` is unknown: so `progressKnown` is false and the
-    // show must NOT be asserted complete (completed === aired = caught-up). A genuinely
-    // mid-watch tail show would otherwise be mislabeled caught-up and dropped.
-    const entries = assembleLibrary({
-      watchedShows: [watchedShow({ trakt: 12, seasons: { 0: 2, 1: 8, 2: 6 } })],
-      progress: new Map(),
-      hiddenShowIds: new Set(),
-      watchlistShows: [],
-    });
-    expect(entries[0]).toMatchObject({
+      aired: 20,
       completed: 14,
       nextEpisode: null,
-      progressKnown: false,
+      tmdbId: null,
+      status: "returning series",
     });
   });
 
@@ -226,7 +211,6 @@ describe("assembleLibrary", () => {
       completed: 0,
       nextEpisode: null,
       lastWatchedAt: null,
-      progressKnown: true,
       posters: ["p.webp"],
       tmdbId: 77,
     });

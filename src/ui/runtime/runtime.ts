@@ -15,13 +15,6 @@ import { createContext, useContext } from "react";
 /** The read side of the home surface: the assembled active queue. */
 export interface UpNextData {
   readonly entries: readonly LibraryEntry[];
-  /**
-   * True when the watched library exceeds the cold-sync progress budget
-   * so entries beyond the most-recently-watched head carry a
-   * caught-up baseline rather than fetched progress. The sync pill surfaces this as
-   * an honest "recent shows synced" state instead of implying full completeness.
-   */
-  readonly isPartial: boolean;
 }
 
 /** The read side of the Library movie collection: watched + watchlist movies. */

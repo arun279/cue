@@ -34,21 +34,22 @@ const watchlisted = entry({
 });
 const stopped = entry({ showId: 5, title: "Echo", hidden: true });
 const finished = entry({ showId: 6, title: "Foxtrot", status: "ended", aired: 8, completed: 8 });
-const syncing = entry({ showId: 7, title: "Golf", progressKnown: false });
+const tailBacklog = entry({ showId: 7, title: "Golf", aired: 10, completed: 3, nextEpisode: null });
 
 describe("chipBuckets", () => {
   it("routes every status to exactly one chip", () => {
     const chips = chipBuckets(
-      [watching, caughtUp, lapsed, watchlisted, stopped, finished, syncing],
+      [watching, caughtUp, lapsed, watchlisted, stopped, finished, tailBacklog],
       NOW,
       THRESHOLD,
       "recently-watched",
     );
-    expect(chips.watching.map((e) => e.showId)).toEqual([1, 2, 3]);
+    // Golf is past the progress budget: real counts, no next episode named. Its
+    // backlog puts it in Watching, never in Finished.
+    expect(chips.watching.map((e) => e.showId)).toEqual([1, 7, 2, 3]);
     expect(chips.watchlist.map((e) => e.showId)).toEqual([4]);
     expect(chips.stopped.map((e) => e.showId)).toEqual([5]);
     expect(chips.finished.map((e) => e.showId)).toEqual([6]);
-    expect(chips.syncing.map((e) => e.showId)).toEqual([7]);
   });
 
   it("keeps one recency order across the merged watching + caught-up statuses", () => {
@@ -82,6 +83,6 @@ describe("chipBuckets", () => {
   it("returns empty chips for an empty library", () => {
     const chips = chipBuckets([], NOW, THRESHOLD, "recently-watched");
     expect(chips.watching).toEqual([]);
-    expect(chips.syncing).toEqual([]);
+    expect(chips.finished).toEqual([]);
   });
 });

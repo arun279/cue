@@ -408,6 +408,10 @@ export interface ShowFixture {
   readonly overview?: string;
   readonly network?: string;
   readonly lastWatchedAt: string | null;
+  /** Trakt's "restart show" stamp: makes the show worth a progress read even when
+   * its bulk counts read as caught-up (those still include the pre-reset plays). */
+  readonly resetAt?: string;
+  /** Aired-to-date, specials excluded: the row's `aired_episodes`. */
   readonly aired: number;
   /** Mutated in place by intercepted history writes so reads stay self-consistent. */
   completed: number;
@@ -529,10 +533,10 @@ function isWatched(s: ShowFixture): boolean {
   return s.completed > 0 || s.lastWatchedAt !== null;
 }
 
-/** The bulk watched breakdown Trakt returns on `/sync/watched/shows`: only WATCHED
- * episodes (index < completed), grouped by season. It is the caught-up baseline a
- * show beyond the cold-sync progress budget reads instead of a
- * per-show progress GET, so large-library fixtures bucket correctly without it. */
+/** The bulk watched breakdown `/sync/watched/shows` returns under
+ * `extended=progress`: only WATCHED episodes (index < completed), grouped by
+ * season. It is where every show's `completed` comes from without a per-show
+ * progress GET. */
 function watchedSeasons(show: ShowFixture): unknown[] {
   const bySeason = new Map<number, number[]>();
   show.episodes.forEach((ep, index) => {
@@ -545,17 +549,28 @@ function watchedSeasons(show: ShowFixture): unknown[] {
   }));
 }
 
-function watchedShowsBody(shows: readonly ShowFixture[]): string {
+/**
+ * `/sync/watched/shows` EXACTLY as Trakt serves it post-change-#775: the
+ * per-season watched breakdown only under `extended=progress`, the show's
+ * `status` only under `extended=full`, and `aired_episodes` always. A fixture
+ * more generous than the API certifies an API that does not exist: dropping
+ * either level from the request must break the suite, which is the whole point of
+ * reading the param here rather than emitting everything unconditionally.
+ */
+function watchedShowsBody(shows: readonly ShowFixture[], extended: string | null): string {
+  const levels = new Set((extended ?? "").split(","));
   return JSON.stringify(
     shows.filter(isWatched).map((s) => ({
       last_watched_at: s.lastWatchedAt,
       show: {
         title: s.title,
-        status: s.status,
+        aired_episodes: s.aired,
+        ...(levels.has("full") ? { status: s.status } : {}),
         ids: { trakt: s.trakt, ...(s.tmdb === undefined ? {} : { tmdb: s.tmdb }) },
         ...(s.posters === undefined ? {} : { images: { poster: s.posters } }),
       },
-      seasons: watchedSeasons(s),
+      reset_at: s.resetAt ?? null,
+      ...(levels.has("progress") ? { seasons: watchedSeasons(s) } : {}),
     })),
   );
 }
@@ -747,7 +762,12 @@ export async function installLibraryRoutes(
   await context.route("**/api.trakt.tv/sync/watched/shows*", async (route) => {
     if (readMode === "abort") return route.abort();
     await readWait();
-    return route.fulfill({ status: 200, headers: JSON_HEADERS, body: watchedShowsBody(shows) });
+    const extended = new URL(route.request().url()).searchParams.get("extended");
+    return route.fulfill({
+      status: 200,
+      headers: JSON_HEADERS,
+      body: watchedShowsBody(shows, extended),
+    });
   });
 
   // The freshness gate's poll. Cheap (no readWait) but honors `abort` so an offline
@@ -1243,11 +1263,9 @@ function persistedEntry(index: number): unknown {
       still: null,
       ids: { trakt: 40000 + index },
     },
-    // A persisted entry is one the running app wrote from fetched progress, so its
-    // watch state is authoritative: never `sync-pending`. Matches the current
-    // (cue-m7) schema `assembleLibrary` writes (`nextEpisode.still` included);
-    // omitting fields would model a pre-m7 cache the buster now drops.
-    progressKnown: true,
+    // Matches the current (cue-m8) schema `assembleLibrary` writes
+    // (`nextEpisode.still` included); omitting fields would model an older cache
+    // the buster now drops.
     posters: [],
     backdrops: [],
     network: null,
@@ -1263,7 +1281,7 @@ function persistedEntry(index: number): unknown {
  * up-next entries. `buster` defaults to the app's current `PERSIST_BUSTER`; pass
  * an older value to simulate a pre-migration cache the persister must drop.
  */
-export function buildPersistedLibrary(count: number, ageMs: number, buster = "cue-m7"): string {
+export function buildPersistedLibrary(count: number, ageMs: number, buster = "cue-m8"): string {
   const updatedAt = Date.now() - ageMs;
   const entries = Array.from({ length: count }, (_, index) => persistedEntry(index));
   return JSON.stringify({
@@ -1276,7 +1294,7 @@ export function buildPersistedLibrary(count: number, ageMs: number, buster = "cu
           queryKey: ["library"],
           queryHash: '["library"]',
           state: {
-            data: { entries, isPartial: false },
+            data: { entries },
             dataUpdateCount: 1,
             dataUpdatedAt: updatedAt,
             error: null,

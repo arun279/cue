@@ -91,14 +91,13 @@ test("renders the status chips with counts; Watching is default-active with its 
   await page.goto("/library");
 
   // Chips with always-visible counts: Watching absorbs lapsed + caught-up (3),
-  // the rest hold one each. No "Still syncing" chip when nothing is pending.
+  // the rest hold one each.
   const watching = page.getByTestId("chip-watching");
   await expect(watching).toContainText("Watching");
   await expect(watching).toContainText("3");
   await expect(page.getByTestId("chip-watchlist")).toContainText("1");
   await expect(page.getByTestId("chip-stopped")).toContainText("1");
   await expect(page.getByTestId("chip-finished")).toContainText("1");
-  await expect(page.getByTestId("chip-syncing")).toHaveCount(0);
 
   // Exactly one active chip; its bucket fills the grid.
   await expect(watching).toHaveAttribute("aria-pressed", "true");
