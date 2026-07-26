@@ -1,10 +1,11 @@
 import { readFileSync } from "node:fs";
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import {
   installHermeticRoutes,
   installHistoryRoutes,
   installLibraryRoutes,
   installMovieRoutes,
+  installOAuthRoutes,
   type MovieFixture,
   type ShowFixture,
   seedAuth,
@@ -106,9 +107,34 @@ function extractRouterPaths(source: string): string[] {
   ].flatMap((match) => (match[1] === undefined ? [] : [match[1]]));
 }
 
+/** Every text control the page currently renders must compute to 16px or larger:
+ * anything smaller re-arms the iOS focus zoom the viewport meta cannot undo. */
+async function expectNoZoomingControls(page: Page, label: string): Promise<void> {
+  const controls = await page.locator(CONTROL_SELECTOR).evaluateAll((elements) =>
+    elements.map((element) => {
+      const testId = element.getAttribute("data-testid");
+      const selector = `${element.tagName.toLowerCase()}${
+        element.id === "" ? "" : `#${element.id}`
+      }${[...element.classList].map((name) => `.${name}`).join("")}${
+        testId === null ? "" : `[data-testid="${testId}"]`
+      }`;
+      return {
+        selector,
+        fontSize: Number.parseFloat(getComputedStyle(element).fontSize),
+      };
+    }),
+  );
+
+  for (const control of controls) {
+    expect(
+      control.fontSize,
+      `${label}: ${control.selector} computed font-size is ${control.fontSize}px`,
+    ).toBeGreaterThanOrEqual(MIN_CONTROL_FONT_SIZE);
+  }
+}
+
 test.beforeEach(async ({ page }) => {
   await installHermeticRoutes(page.context());
-  await seedAuth(page.context());
   await seedTutorialDismissed(page.context());
   await installLibraryRoutes(page.context(), [SHOW]);
   await installMovieRoutes(page.context(), [MOVIE]);
@@ -131,6 +157,7 @@ test("viewport meta preserves user zoom", async ({ page }) => {
 
 for (const route of ROUTES) {
   test(`${route.routerPath} keeps text controls at 16px or larger`, async ({ page }) => {
+    await seedAuth(page.context());
     await page.goto(route.href);
     await expect(page.getByTestId(route.screenTestId)).toBeVisible();
 
@@ -143,26 +170,25 @@ for (const route of ROUTES) {
       await expect(page.getByTestId("history-search-field")).toBeVisible();
     }
 
-    const controls = await page.locator(CONTROL_SELECTOR).evaluateAll((elements) =>
-      elements.map((element) => {
-        const testId = element.getAttribute("data-testid");
-        const selector = `${element.tagName.toLowerCase()}${
-          element.id === "" ? "" : `#${element.id}`
-        }${[...element.classList].map((name) => `.${name}`).join("")}${
-          testId === null ? "" : `[data-testid="${testId}"]`
-        }`;
-        return {
-          selector,
-          fontSize: Number.parseFloat(getComputedStyle(element).fontSize),
-        };
-      }),
-    );
-
-    for (const control of controls) {
-      expect(
-        control.fontSize,
-        `${route.href}: ${control.selector} computed font-size is ${control.fontSize}px`,
-      ).toBeGreaterThanOrEqual(MIN_CONTROL_FONT_SIZE);
-    }
+    await expectNoZoomingControls(page, route.href);
   });
 }
+
+// The signed-out surface renders before any route audit can reach it, so it is
+// walked here as its own phase: connect, the device-code wait, and the error the
+// declined poll returns to.
+test("signed out screens keep text controls at 16px or larger", async ({ page }) => {
+  const oauth = await installOAuthRoutes(page.context());
+  oauth.setDeviceOutcome("denied");
+  await page.goto("/");
+
+  await expect(page.getByTestId("screen-onboarding")).toBeVisible();
+  await expectNoZoomingControls(page, "onboarding");
+
+  await page.getByTestId("button-device-code").click();
+  await expect(page.getByTestId("device-user-code")).toHaveText("CUE-1234");
+  await expectNoZoomingControls(page, "onboarding device code");
+
+  await expect(page.getByTestId("connect-error")).toContainText("declined");
+  await expectNoZoomingControls(page, "onboarding connect error");
+});
