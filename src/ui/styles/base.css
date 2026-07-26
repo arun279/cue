@@ -16,6 +16,14 @@
   -webkit-touch-callout: none;
 }
 
+/* iOS focus zooms controls below 16px and can leave the shell magnified, so control type keeps this floor. */
+input,
+textarea,
+select {
+  font: inherit;
+  font-size: 16px;
+}
+
 /* Poster / still artwork is chrome, not saveable content: never let it lift as a drag ghost. */
 img {
   -webkit-user-drag: none;

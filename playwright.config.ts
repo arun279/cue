@@ -1,7 +1,11 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const PREVIEW_URL = "http://127.0.0.1:4173";
-const MOBILE_EXPERIENCE_SPECS = ["reflow.spec.ts", "touch-targets.spec.ts"];
+const MOBILE_EXPERIENCE_SPECS = [
+  "reflow.spec.ts",
+  "touch-targets.spec.ts",
+  "viewport-zoom.spec.ts",
+];
 
 export default defineConfig({
   testDir: "./e2e",

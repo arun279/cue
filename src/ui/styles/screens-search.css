@@ -34,8 +34,6 @@
   border-radius: var(--radius-control);
   background: var(--color-elevated);
   color: var(--color-fg);
-  font: inherit;
-  font-size: 15px;
 }
 .search-field__input::placeholder {
   color: var(--color-muted);
