@@ -1,16 +1,39 @@
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
-import { QueryClient } from "@tanstack/react-query";
+import { type Query, QueryClient } from "@tanstack/react-query";
 import { del, get, set } from "idb-keyval";
 
+/** The build's own identity, injected by `vite.config.ts`. */
+declare const __BUILD_ID__: string;
+
 /**
- * Bump when the app version or a persisted-schema shape changes: the persister
- * drops any cache whose `buster` differs. This, not an age cap, is how stale
- * snapshots are retired. This cache-version bump retires every pre-m8 cache: a
- * pre-m8 entry beyond the progress budget carried `aired` pinned to its watched
- * count, which now reads as caught-up, and under the `staleTime: Infinity` gate
- * it would never refetch to correct itself.
+ * The persisted-cache buster: any cache a different build wrote is dropped rather
+ * than replayed. Derived from the build rather than hand-typed because under
+ * `staleTime: Infinity`, with freshness gated only on `/sync/last_activities`, a
+ * forgotten bump after a shape change is silent and permanent corruption with no
+ * self-heal path. This, not an age cap, is how stale snapshots are retired.
  */
-export const PERSIST_BUSTER = "cue-m8";
+export const PERSIST_BUSTER = __BUILD_ID__;
+
+/**
+ * Query-key heads whose data earns its place in the restored blob: the user-state
+ * reads that must paint before the network answers. Everything else (search,
+ * browse, the finite-`staleTime` content reads) refetches on mount anyway, so
+ * persisting it would only bloat every launch's restore.
+ */
+const PERSISTED_KEY_HEADS: ReadonlySet<unknown> = new Set([
+  "library",
+  "movie-library",
+  "watchlist",
+  "users",
+]);
+
+export function shouldDehydrateQuery(query: Query): boolean {
+  if (query.state.status !== "success") return false;
+  const [head, section] = query.queryKey;
+  // Per-card art is the one `show` read worth keeping: it is what a restored row
+  // paints its poster from, and re-reading it costs a GET per visible card.
+  return PERSISTED_KEY_HEADS.has(head) || (head === "show" && section === "art");
+}
 
 /**
  * `maxAge` governs how long a restored cache may be replayed, NOT freshness.

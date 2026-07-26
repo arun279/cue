@@ -121,8 +121,11 @@ export class TraktClient {
 
   /**
    * Walk every page of a list endpoint via `X-Pagination-Page-Count`, flattening
-   * into one array: the initial library snapshot helper. Endpoints without
-   * pagination headers resolve as a single page.
+   * into one array: the initial library snapshot helper. The page count comes from
+   * the response headers rather than the requested `limit`, because Trakt may apply
+   * a smaller one than asked for, and an empty page ends the walk early in case the
+   * count itself is wrong. Endpoints without pagination headers resolve as a single
+   * page.
    */
   async getAllPages(path: string, options: RequestOptions = {}): Promise<TraktResult<unknown[]>> {
     const first = await this.get(path, { ...options, page: 1 });
@@ -132,7 +135,9 @@ export class TraktClient {
     for (let page = 2; page <= pageCount; page += 1) {
       const next = await this.get(path, { ...options, page });
       if (!next.ok) return next;
-      acc.push(...asArray(next.data));
+      const rows = asArray(next.data);
+      if (rows.length === 0) break;
+      acc.push(...rows);
     }
     return { ok: true, data: acc, pagination: first.pagination };
   }

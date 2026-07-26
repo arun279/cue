@@ -4,6 +4,7 @@ import {
   installHermeticRoutes,
   installLibraryRoutes,
   type LibraryControls,
+  readPersistedBuster,
   type ShowFixture,
   seedActivities,
   seedAuth,
@@ -62,7 +63,7 @@ async function bootThenSeed(page: Page, controls: LibraryControls, ageMs: number
   await expect(page.getByTestId("up-next-error")).toBeVisible();
   await page.waitForTimeout(PERSIST_THROTTLE_MS);
 
-  await seedQueryCache(page, buildPersistedLibrary(1, ageMs));
+  await seedQueryCache(page, buildPersistedLibrary(1, ageMs, await readPersistedBuster(page)));
 
   controls.setReadMode("ok");
   controls.setReadDelayMs(2000);

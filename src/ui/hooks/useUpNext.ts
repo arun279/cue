@@ -55,7 +55,7 @@ export interface UpNextView extends QueryStatus {
  * preference; the domain grouping semantics themselves are untouched.
  */
 export function useUpNext(): UpNextView {
-  const { query, data, byId, thresholdMs } = useLibrarySnapshot();
+  const { query, data, thresholdMs } = useLibrarySnapshot();
   const order = usePrefs((s) => s.nextEpisodeOrder);
   // Last committed queue order (show ids): a just-marked row is pinned to its
   // slot through the reverse window instead of jumping mid-tap.
@@ -70,6 +70,8 @@ export function useUpNext(): UpNextView {
     if (data === undefined) return empty;
     const now = Date.now();
     const partition = groupUpNext(data.entries, now, thresholdMs, DEFAULT_NEW_EPISODE_WINDOW_MS);
+    // trakt id → entry, to re-join each grouped item to its poster + action.
+    const byId = new Map(data.entries.map((entry) => [entry.showId, entry]));
     const toCards = (items: readonly UpNextItem[]): UpNextCard[] => {
       const out: UpNextCard[] = [];
       for (const item of items) {
@@ -84,7 +86,7 @@ export function useUpNext(): UpNextView {
       lapsedCards: toCards(partition.lapsed),
       watchlistEntries: data.entries.filter((entry) => entry.inWatchlist && !entry.hidden),
     };
-  }, [data, byId, thresholdMs, order]);
+  }, [data, thresholdMs, order]);
 
   useEffect(() => {
     previousOrder.current = groups.queue.map((card) => card.entry.showId);

@@ -2,7 +2,13 @@ import { AuthGate } from "@app/AuthGate";
 import { createAuthStore } from "@app/auth/create-auth-store";
 import { TRAKT_CLIENT_ID } from "@app/config";
 import { requestPersistentStorage } from "@app/persist";
-import { PERSIST_BUSTER, PERSIST_MAX_AGE, queryClient, queryPersister } from "@app/query-client";
+import {
+  PERSIST_BUSTER,
+  PERSIST_MAX_AGE,
+  queryClient,
+  queryPersister,
+  shouldDehydrateQuery,
+} from "@app/query-client";
 import { router } from "@app/router";
 import { getNativeAppVersion } from "@platform/app-version";
 import { bindHardwareBack } from "@platform/back-button";
@@ -83,6 +89,7 @@ export function AppProviders(): ReactElement {
         persister: queryPersister,
         maxAge: PERSIST_MAX_AGE,
         buster: PERSIST_BUSTER,
+        dehydrateOptions: { shouldDehydrateQuery },
       }}
     >
       <HapticsProvider value={haptics}>

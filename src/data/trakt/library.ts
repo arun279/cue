@@ -1,5 +1,6 @@
 import type { EpisodeRef, LibraryShow } from "@domain/model/library";
 import { type EpisodePlay, MARK_MATCH_TOLERANCE_MS } from "@domain/reversal";
+import { toMs } from "@domain/time";
 import { resolveStill } from "../image-source";
 import type { HiddenItem, Progress, WatchedShow, WatchlistItem } from "./schemas";
 import { toEpisodeIds } from "./show-detail";
@@ -93,11 +94,10 @@ function artFields(
  * Every watched show carries real counts: `aired` from the bulk row's
  * `aired_episodes` and `completed` from its watched breakdown, both present on
  * `/sync/watched/shows`. A fetched per-show progress overrides both (it is the
- * authority on hidden seasons, specials, and a restarted show) and is the only
- * source of the NEXT episode's identity. A never-watched show that is on the
- * watchlist has no `/sync/watched/shows` row, so it is materialized here as a
- * zero-progress `to-watch` entry: otherwise it would vanish from "To watch" after
- * a refetch.
+ * authority on the user's hidden seasons) and is the only source of the NEXT
+ * episode's identity. A never-watched show that is on the watchlist has no
+ * `/sync/watched/shows` row, so it is materialized here as a zero-progress
+ * `to-watch` entry: otherwise it would vanish from "To watch" after a refetch.
  */
 export function assembleLibrary(input: LibraryInput): LibraryEntry[] {
   const watchlistShowIds = new Set<number>();
@@ -153,18 +153,30 @@ export function assembleLibrary(input: LibraryInput): LibraryEntry[] {
 }
 
 /**
- * Watched-episode count from the bulk `/sync/watched/shows` breakdown, specials
- * (season 0) excluded to match progress semantics. Paired with the row's
- * `aired_episodes` this is every show's real progress without a second GET, so a
- * per-show progress read buys only the next episode's identity. The breakdown
- * lists each watched episode once (rewatches carry `plays`, not duplicate rows),
- * so this counts distinct episodes.
+ * Watched-episode count from the bulk `/sync/watched/shows` breakdown, paired with
+ * the row's `aired_episodes` to give every show its real progress without a second
+ * GET, so a per-show progress read buys only the next episode's identity. The
+ * breakdown lists each watched episode once (rewatches carry `plays`, not
+ * duplicate rows), so this counts distinct episodes.
+ *
+ * Two cuts make it agree with `/progress/watched`:
+ *   • Specials (season 0) are excluded, because `aired_episodes` is the season sum
+ *     EXCLUDING season 0. Counting them would read a show with watched specials as
+ *     past its own aired count and silently drop it from the queue.
+ *   • Plays before a "restart show" `reset_at` are excluded, which is the only
+ *     thing the progress read would have done differently, so a reset show is
+ *     resolved here rather than by spending a GET. An episode with no stamp on a
+ *     reset show counts as pre-reset: understating `completed` leaves the show in
+ *     the queue, which is the harmless direction.
  */
 export function watchedEpisodeCount(watched: WatchedShow): number {
+  const resetAt = toMs(watched.reset_at);
   let count = 0;
   for (const season of watched.seasons ?? []) {
     if (season.number === 0) continue;
-    count += season.episodes.length;
+    for (const episode of season.episodes) {
+      if (resetAt === null || (toMs(episode.last_watched_at) ?? 0) >= resetAt) count += 1;
+    }
   }
   return count;
 }

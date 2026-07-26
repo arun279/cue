@@ -1,3 +1,4 @@
+import { toMs } from "@domain/time";
 import type { TraktClient, TraktResult } from "./client";
 import { getHidden, getShowProgress, getWatchedShows, getWatchlist } from "./endpoints";
 import { assembleLibrary, type LibraryEntry, showIdSet, watchedEpisodeCount } from "./library";
@@ -18,6 +19,15 @@ const READ_CONCURRENCY = 6;
  */
 const MAX_READ_RATE_RETRIES = 3;
 const DEFAULT_RATE_BACKOFF_MS = 1000;
+
+/**
+ * The instant reads may resume, shared by all of them. Trakt's limits are per
+ * WINDOW rather than per connection, and its guidance on a 429 is to pause
+ * requests for `Retry-After`, so one read's 429 holds the rest of the fan-out back
+ * too: otherwise each sleeps alone while its neighbours keep firing into the same
+ * closed window and burn their own retry budgets on it.
+ */
+let resumeReadsAt = 0;
 
 /**
  * The cold-sync per-show progress budget: at most this many `/shows/:id/progress`
@@ -67,43 +77,35 @@ async function mapWithConcurrency<T, R>(
   return results;
 }
 
-/** Retry a read only on a 429, honoring `Retry-After`, within a bounded budget. */
+/**
+ * Retry a read only on a 429, honoring `Retry-After`, within a bounded budget, and
+ * hold every other read behind the same pause while it waits.
+ */
 export async function withReadRateRetry<T>(
   read: () => Promise<TraktResult<T>>,
 ): Promise<TraktResult<T>> {
   for (let attempt = 0; ; attempt += 1) {
+    const pause = resumeReadsAt - Date.now();
+    if (pause > 0) await sleep(pause);
     const result = await read();
     if (result.ok || result.error.kind !== "rate-limited" || attempt >= MAX_READ_RATE_RETRIES) {
       return result;
     }
-    await sleep(result.error.retryAfterMs ?? DEFAULT_RATE_BACKOFF_MS);
+    const backoff = result.error.retryAfterMs ?? DEFAULT_RATE_BACKOFF_MS;
+    resumeReadsAt = Math.max(resumeReadsAt, Date.now() + backoff);
   }
 }
 
-const parseInstant = (iso: string | null | undefined): number =>
-  iso === null || iso === undefined ? 0 : Date.parse(iso) || 0;
-
 /** Most-recently-watched first (unknown last-watched sorts oldest). */
 function byLastWatchedDesc(a: WatchedShow, b: WatchedShow): number {
-  return parseInstant(b.last_watched_at) - parseInstant(a.last_watched_at);
-}
-
-/**
- * Is a per-show progress GET worth spending on this show? Only when the bulk data
- * leaves something the read can answer: unwatched aired episodes (whose next
- * episode only progress can name), or a "restart show" reset, after which the bulk
- * breakdown still lists the pre-reset plays and so overstates `completed`.
- */
-function needsProgress(watched: WatchedShow): boolean {
-  if (watched.reset_at !== null && watched.reset_at !== undefined) return true;
-  return watchedEpisodeCount(watched) < watched.show.aired_episodes;
+  return (toMs(b.last_watched_at) ?? 0) - (toMs(a.last_watched_at) ?? 0);
 }
 
 /**
  * Paint the shared library snapshot (Up Next + Library) from bounded bulk reads:
  * the paginated watched list (which carries every show's aired + watched counts),
  * per-show progress for the {@link WATCHED_PROGRESS_BUDGET} most-recently-watched
- * shows that have something left to resolve, plus the hidden set and watchlist.
+ * shows with a backlog, plus the hidden set and watchlist.
  * Per-show ART/detail is NOT fetched here: it is deferred to a lazy per-visible-card
  * read: so the cold-sync GET count is bounded and does not scale ~2×
  * with library size. Progress failure throws (the whole read fails so React Query
@@ -115,7 +117,7 @@ export async function loadUpNextEntries(client: TraktClient): Promise<LibraryEnt
   if (!watched.ok) throw new Error("Failed to load watched shows");
 
   const head = watched.data
-    .filter(needsProgress)
+    .filter((show) => watchedEpisodeCount(show) < show.show.aired_episodes)
     .sort(byLastWatchedDesc)
     .slice(0, WATCHED_PROGRESS_BUDGET);
   const perShow = await mapWithConcurrency(head, READ_CONCURRENCY, async (show) => {

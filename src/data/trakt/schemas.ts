@@ -56,9 +56,9 @@ const watchedShowSchema = z.object({
   plays: z.number().optional(),
   /**
    * Trakt's "restart show": `/progress/watched` then counts only post-reset plays
-   * while the breakdown below still lists every one, so a reset show's bulk count
-   * overstates it. Such a show must be resolved by a real progress read rather
-   * than read as caught-up off the bulk numbers.
+   * while the breakdown below still lists every one. The breakdown stamps each
+   * watched episode, so the same cut is made locally and a reset show costs no
+   * progress read of its own.
    */
   reset_at: z.string().nullish(),
   // `aired_episodes` is REQUIRED, not optional: every un-fetched show's backlog is
@@ -69,9 +69,15 @@ const watchedShowSchema = z.object({
   show: showSchema.extend({ aired_episodes: z.number() }),
   // The per-season WATCHED-episode breakdown, returned only under
   // `extended=progress` (Trakt change #775). It is where every show's `completed`
-  // comes from without a second GET.
+  // comes from without a second GET, and every episode carries the `last_watched_at`
+  // a `reset_at` is cut against.
   seasons: z
-    .array(z.object({ number: z.number(), episodes: z.array(z.object({ number: z.number() })) }))
+    .array(
+      z.object({
+        number: z.number(),
+        episodes: z.array(z.object({ number: z.number(), last_watched_at: z.string().nullish() })),
+      }),
+    )
     .optional(),
 });
 export const watchedShowsSchema = z.array(watchedShowSchema);

@@ -408,8 +408,8 @@ export interface ShowFixture {
   readonly overview?: string;
   readonly network?: string;
   readonly lastWatchedAt: string | null;
-  /** Trakt's "restart show" stamp: makes the show worth a progress read even when
-   * its bulk counts read as caught-up (those still include the pre-reset plays). */
+  /** Trakt's "restart show" stamp. The bulk breakdown still lists the pre-reset
+   * plays, so a `resetAt` after them zeroes the show's local count. */
   readonly resetAt?: string;
   /** Aired-to-date, specials excluded: the row's `aired_episodes`. */
   readonly aired: number;
@@ -535,9 +535,11 @@ function isWatched(s: ShowFixture): boolean {
 
 /** The bulk watched breakdown `/sync/watched/shows` returns under
  * `extended=progress`: only WATCHED episodes (index < completed), grouped by
- * season. It is where every show's `completed` comes from without a per-show
- * progress GET. */
+ * season, each stamped with its `last_watched_at` as Trakt stamps them. It is
+ * where every show's `completed` comes from without a per-show progress GET, and
+ * the stamps are what a `reset_at` is cut against. */
 function watchedSeasons(show: ShowFixture): unknown[] {
+  const watchedAt = show.lastWatchedAt ?? "2026-06-01T00:00:00.000Z";
   const bySeason = new Map<number, number[]>();
   show.episodes.forEach((ep, index) => {
     if (index >= show.completed) return;
@@ -545,7 +547,7 @@ function watchedSeasons(show: ShowFixture): unknown[] {
   });
   return [...bySeason.entries()].map(([number, numbers]) => ({
     number,
-    episodes: numbers.map((n) => ({ number: n })),
+    episodes: numbers.map((n) => ({ number: n, last_watched_at: watchedAt, plays: 1 })),
   }));
 }
 
@@ -1263,9 +1265,8 @@ function persistedEntry(index: number): unknown {
       still: null,
       ids: { trakt: 40000 + index },
     },
-    // Matches the current (cue-m8) schema `assembleLibrary` writes
-    // (`nextEpisode.still` included); omitting fields would model an older cache
-    // the buster now drops.
+    // Matches the shape `assembleLibrary` writes (`nextEpisode.still` included);
+    // omitting fields would model an older cache the buster now drops.
     posters: [],
     backdrops: [],
     network: null,
@@ -1277,11 +1278,24 @@ function persistedEntry(index: number): unknown {
 }
 
 /**
- * A dehydrated Query cache holding the assembled `library` query with `count`
- * up-next entries. `buster` defaults to the app's current `PERSIST_BUSTER`; pass
- * an older value to simulate a pre-migration cache the persister must drop.
+ * The `buster` the running build stamped on the cache it persisted: the app's own
+ * build id, so a seeded cache is trusted for the same reason a real one is. Read
+ * back rather than restated, because restating it would pass whatever the app
+ * wrote and prove nothing.
  */
-export function buildPersistedLibrary(count: number, ageMs: number, buster = "cue-m8"): string {
+export async function readPersistedBuster(page: Page): Promise<string> {
+  const stored = await readStored(page, "cue.query-cache");
+  if (stored === null) throw new Error("no persisted query cache to read a buster from");
+  return (JSON.parse(stored) as { buster: string }).buster;
+}
+
+/**
+ * A dehydrated Query cache holding the assembled `library` query with `count`
+ * up-next entries, stamped with `buster`: the running build's own (see
+ * {@link readPersistedBuster}) for a cache the persister must trust, anything else
+ * for a pre-migration one it must drop.
+ */
+export function buildPersistedLibrary(count: number, ageMs: number, buster: string): string {
   const updatedAt = Date.now() - ageMs;
   const entries = Array.from({ length: count }, (_, index) => persistedEntry(index));
   return JSON.stringify({

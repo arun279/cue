@@ -6,6 +6,7 @@ import {
   type LibraryInput,
   markLanded,
   showIdSet,
+  watchedEpisodeCount,
 } from "@data/trakt/library";
 import type { Progress, WatchedShow, WatchlistItem } from "@data/trakt/schemas";
 import type { EpisodePlay } from "@domain/reversal";
@@ -270,6 +271,47 @@ describe("assembleLibrary", () => {
     expect(entries).toHaveLength(1);
     expect(entries[0]?.inWatchlist).toBe(true);
     expect(entries[0]?.completed).toBe(3);
+  });
+});
+
+describe("watchedEpisodeCount", () => {
+  it("counts Doctor Who's 78 non-special episodes, never the 159 that include specials", () => {
+    // Measured against the live API on 2026-07-26: 78 watched excluding season 0,
+    // 159 including it, against an `aired_episodes` of 153. Trakt's `aired_episodes`
+    // is the season sum EXCLUDING season 0, so counting specials would put this show
+    // 6 episodes past its own aired count, read it as caught-up, and drop it out of
+    // the queue. The exclusion is load-bearing, not cosmetic.
+    const show = watchedShow({ trakt: 56, airedEpisodes: 153, seasons: { 0: 81, 1: 78 } });
+    expect(watchedEpisodeCount(show)).toBe(78);
+
+    const entries = assembleLibrary({
+      watchedShows: [show],
+      progress: new Map(),
+      hiddenShowIds: new Set(),
+      watchlistShows: [],
+    });
+    expect(entries[0]).toMatchObject({ aired: 153, completed: 78 });
+  });
+
+  it("drops plays from before a restart, so no progress read is needed to make the cut", () => {
+    const restarted: WatchedShow = {
+      last_watched_at: "2026-07-01T00:00:00.000Z",
+      reset_at: "2026-06-01T00:00:00.000Z",
+      show: { title: "Restarted", aired_episodes: 10, ids: { trakt: 1 } },
+      seasons: [
+        {
+          number: 1,
+          episodes: [
+            { number: 1, last_watched_at: "2026-05-01T00:00:00.000Z" },
+            { number: 2, last_watched_at: "2026-07-01T00:00:00.000Z" },
+            // No stamp: counted as pre-reset, which understates `completed` and
+            // leaves the show in the queue rather than fabricating it caught-up.
+            { number: 3, last_watched_at: null },
+          ],
+        },
+      ],
+    };
+    expect(watchedEpisodeCount(restarted)).toBe(1);
   });
 });
 

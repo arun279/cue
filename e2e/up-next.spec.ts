@@ -920,13 +920,14 @@ test("a caught-up library costs zero progress reads", async ({ page }) => {
 test("never claims caught up while shows past the budget still have episodes left", async ({
   page,
 }) => {
-  // The 60 most recent shows are caught-up but restarted, so they soak the budget
-  // (a reset show's bulk count still includes its pre-reset plays, so it is read
-  // for real rather than trusted). That leaves the 61st with a backlog and no next
-  // episode: nothing can be queued, but "you're all caught up" would be a lie, so
-  // the screen points at Library instead.
+  // The 60 most recent shows were restarted after their last play, so every play in
+  // the bulk breakdown predates the reset and each reads as a full backlog: they
+  // soak the budget, and their progress reads then answer "nothing left". That
+  // leaves the 61st with a real backlog and no next episode: nothing can be queued,
+  // but "you're all caught up" would be a lie, so the screen points at Library.
+  const restartedAt = new Date().toISOString();
   const shows = bulkShows(61, 2).map((show, index) =>
-    index < 60 ? { ...show, resetAt: "2026-01-01T00:00:00.000Z" } : { ...show, completed: 1 },
+    index < 60 ? { ...show, resetAt: restartedAt } : { ...show, completed: 1 },
   );
   await installLibraryRoutes(page.context(), shows);
   await page.goto("/");

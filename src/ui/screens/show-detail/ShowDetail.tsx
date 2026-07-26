@@ -10,7 +10,7 @@ import { dismissSnack, showSnack } from "@ui/components/snackbar-store";
 import { epCode, middleTruncate, titleCase } from "@ui/format";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { useHideShow } from "@ui/hooks/useHideShow";
-import { useLibrarySnapshot } from "@ui/hooks/useLibrarySnapshot";
+import { useLibraryEntry } from "@ui/hooks/useLibrarySnapshot";
 import { type EpisodeBound, type MarkContextTarget, useMarkSeason } from "@ui/hooks/useMarkSeason";
 import { type BackfillOffer, useMarkSnacks } from "@ui/hooks/useMarkSnacks";
 import { useMarkWatched } from "@ui/hooks/useMarkWatched";
@@ -96,7 +96,7 @@ export function ShowDetail({ showId }: { readonly showId: number }): ReactElemen
   const mark = useMarkWatched();
   const hide = useHideShow();
   const watchlist = useToggleWatchlist();
-  const entry = useLibrarySnapshot().byId.get(showId);
+  const entry = useLibraryEntry(showId);
   const [overflowOpen, setOverflowOpen] = useState(false);
   // The confirm content outlives `confirmOpen` so the sheet keeps its copy
   // through the exit animation instead of vanishing mid-dismissal.

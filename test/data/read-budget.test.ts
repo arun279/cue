@@ -37,8 +37,9 @@ interface Counts {
  * is what makes a show worth spending a progress read on.
  */
 function watchedShow(i: number, watched = 8): unknown {
+  const lastWatchedAt = new Date(Date.UTC(2026, 0, 1) - i * 86_400_000).toISOString();
   return {
-    last_watched_at: new Date(Date.UTC(2026, 0, 1) - i * 86_400_000).toISOString(),
+    last_watched_at: lastWatchedAt,
     show: {
       title: `Show ${i}`,
       status: "returning series",
@@ -47,7 +48,13 @@ function watchedShow(i: number, watched = 8): unknown {
     },
     reset_at: null,
     seasons: [
-      { number: 1, episodes: Array.from({ length: watched }, (_, e) => ({ number: e + 1 })) },
+      {
+        number: 1,
+        episodes: Array.from({ length: watched }, (_, e) => ({
+          number: e + 1,
+          last_watched_at: lastWatchedAt,
+        })),
+      },
     ],
   };
 }
@@ -274,14 +281,59 @@ describe("cold-sync GET budget", () => {
     expect(entries.find((e) => e.showId === 1)?.nextEpisode).toBeNull();
   });
 
-  it("spends a read on a restarted show, whose bulk count would otherwise overstate it", async () => {
-    // Trakt's "restart show" leaves the pre-reset plays in the bulk breakdown while
-    // `/progress/watched` counts only the plays since, so a reset show looks
-    // caught-up in bulk. It must be resolved by a real read, never trusted.
-    const reset = { ...(watchedShow(0, 10) as Record<string, unknown>), reset_at: "2026-01-01" };
+  it("resolves a restarted show from the bulk breakdown, spending no read of its own", async () => {
+    // Trakt's "restart show" leaves the pre-reset plays in the breakdown while
+    // `/progress/watched` counts only the plays since. Every breakdown episode is
+    // stamped, so the same cut is made here: all 10 plays predate the reset, so the
+    // show reads as zero-watched with a real backlog and its progress read buys
+    // only the next episode's identity, exactly as any other backlog show's does.
+    const reset = {
+      ...(watchedShow(0, 10) as Record<string, unknown>),
+      reset_at: "2026-06-01T00:00:00.000Z",
+    };
     const counts = installColdSync(1, 0, 0, [reset]);
     const entries = await loadUpNextEntries(client);
     expect(counts.progress).toBe(1);
     expect(entries[0]).toMatchObject({ aired: 10, completed: 3 });
+  });
+
+  it("pauses the whole fan-out on one 429 instead of each read waiting alone", async () => {
+    // Trakt's limits are per WINDOW, and its guidance on a 429 is to pause requests
+    // for Retry-After. With 10 backlog shows and 6 in flight, the six that already
+    // left are unaffected, but the four behind them must wait out the same second
+    // rather than firing straight into the window that just closed.
+    const startedAt: number[] = [];
+    let rateLimited = false;
+    installColdSync(10);
+    server.use(
+      http.get(`${TRAKT_API_BASE}/shows/:id/progress/watched`, ({ params }) => {
+        startedAt.push(Date.now());
+        if (rateLimited) return HttpResponse.json(progressBody(Number(params["id"])) as never);
+        rateLimited = true;
+        return HttpResponse.json({} as never, { status: 429, headers: { "retry-after": "1" } });
+      }),
+    );
+
+    await loadUpNextEntries(client);
+
+    // 10 shows plus the one retried read, and nothing beyond the already-in-flight
+    // six started inside the paused second.
+    expect(startedAt).toHaveLength(11);
+    const blockedAt = startedAt[0] as number;
+    expect(startedAt.filter((at) => at - blockedAt < 900).length).toBeLessThanOrEqual(6);
+  });
+
+  it("costs zero reads for a restarted show already caught up on its post-reset plays", async () => {
+    // The read the old reset special case always spent and never needed: every play
+    // postdates the reset, so the local count matches `aired_episodes` and there is
+    // no next episode to name.
+    const reset = {
+      ...(watchedShow(0, 10) as Record<string, unknown>),
+      reset_at: "2020-01-01T00:00:00.000Z",
+    };
+    const counts = installColdSync(1, 0, 0, [reset]);
+    const entries = await loadUpNextEntries(client);
+    expect(counts.progress).toBe(0);
+    expect(entries[0]).toMatchObject({ aired: 10, completed: 10, nextEpisode: null });
   });
 });

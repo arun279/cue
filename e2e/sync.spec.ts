@@ -203,11 +203,11 @@ test("a pre-gate persisted cache with no baseline is dropped, not trusted foreve
   await installHermeticRoutes(page.context());
   const controls = await installLibraryRoutes(page.context(), shows());
   await seedAuth(page.context());
-  // The migration shape: a library cache persisted before the current schema (an
-  // older buster), and NO last-activities baseline. Under staleTime:Infinity a
-  // baseline-less restored cache would be trusted forever: the buster bump must
-  // drop it so the app loads fresh instead of stranding the user on stale data.
-  await seedQueryCacheAtStart(page.context(), buildPersistedLibrary(1, 0, "cue-m6"));
+  // The migration shape: a library cache persisted by an earlier build (any buster
+  // but this build's), and NO last-activities baseline. Under staleTime:Infinity a
+  // baseline-less restored cache would be trusted forever: the build-derived buster
+  // must drop it so the app loads fresh instead of stranding the user on stale data.
+  await seedQueryCacheAtStart(page.context(), buildPersistedLibrary(1, 0, "an-earlier-build"));
 
   await page.goto("/");
   // Real network reads ran (the stale cache was NOT trusted); the live library
