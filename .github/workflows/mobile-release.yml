@@ -148,9 +148,13 @@ jobs:
   ios:
     needs: config
     if: needs.config.outputs.build_ios == 'true' && (needs.config.outputs.lane == 'release' || github.ref_type == 'branch')
-    runs-on: macos-latest
+    # Image and Xcode are pinned to keep the iOS SDK below 27: the 27 SDK makes
+    # UIKit kill apps that have no UIScene life cycle, which Capacitor lacks.
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.6.app
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
