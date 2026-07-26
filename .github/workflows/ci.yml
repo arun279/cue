@@ -72,8 +72,7 @@ jobs:
         working-directory: android
         run: |
           ./gradlew assembleDebug -PcueVersionCode=42 -PcueVersionName=9.9.9
-          jq -e '.elements[0] | .versionCode == 42 and .versionName == "9.9.9"' \
-            app/build/outputs/apk/debug/output-metadata.json
+          ../scripts/verify-apk-version.sh app/build/outputs/apk/debug/app-debug.apk 42 9.9.9
   e2e:
     needs: check
     runs-on: ubuntu-latest
