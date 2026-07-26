@@ -66,7 +66,14 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: pnpm exec cap sync android
-      - run: cd android && ./gradlew assembleDebug
+      # The version properties must reach the APK, otherwise every release ships
+      # as the placeholder 1.0 (1) and testers stop getting updates.
+      - name: Build the debug APK and check the version wiring
+        working-directory: android
+        run: |
+          ./gradlew assembleDebug -PcueVersionCode=42 -PcueVersionName=9.9.9
+          jq -e '.elements[0] | .versionCode == 42 and .versionName == "9.9.9"' \
+            app/build/outputs/apk/debug/output-metadata.json
   e2e:
     needs: check
     runs-on: ubuntu-latest
