@@ -13,7 +13,9 @@ import {
 } from "./helpers";
 
 const MIN_CONTROL_FONT_SIZE = 16;
-const CONTROL_SELECTOR = "input, textarea, select, [contentEditable]";
+// Kept identical to the control floor's selector list in `src/ui/styles/base.css`: the gate must
+// audit exactly the elements the stylesheet protects, never a superset it would pass by accident.
+const CONTROL_SELECTOR = "input, textarea, select, [contenteditable]";
 const VIEWPORT_CONTENT = "width=device-width, initial-scale=1, viewport-fit=cover";
 
 interface RouteAudit {
