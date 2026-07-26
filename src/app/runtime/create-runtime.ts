@@ -1,6 +1,7 @@
 import { TRAKT_CLIENT_ID } from "@app/config";
 import { queryClient, queryPersister } from "@app/query-client";
 import { PendingWritesError, type TeardownOptions } from "@app/session";
+import { createConcurrencyGate } from "@data/concurrency-gate";
 import { invalidationKeys } from "@data/query-invalidation";
 import { createAuthorizedFetch } from "@data/trakt/authorized-fetch";
 import { assembleCalendarEntries } from "@data/trakt/calendar";
@@ -36,7 +37,7 @@ import { additiveLanded, markLanded, type ShowArt, showIdSet } from "@data/trakt
 import { assembleMovieHeader, assembleMovieLibrary } from "@data/trakt/movie-library";
 import { loadUpNextEntries, withReadRateRetry } from "@data/trakt/read-budget";
 import { createLastActivitiesRepository } from "@data/trakt/repositories";
-import type { UserStats } from "@data/trakt/schemas";
+import type { Progress, UserStats } from "@data/trakt/schemas";
 import {
   assembleMovieHits,
   assembleSearchHits,
@@ -67,6 +68,8 @@ import type {
 const OP_LOG_KEY = "cue.write-queue";
 /** The persisted `/sync/last_activities` baseline the freshness gate diffs against. */
 const ACTIVITIES_KEY = "cue.last-activities";
+/** Matches the cold-sync fan-out cap: visible-row reads hold concurrent authed GETs at ≤6. */
+const VISIBLE_PROGRESS_CONCURRENCY = 6;
 
 function clearCueLocalStorage(): void {
   for (let index = localStorage.length - 1; index >= 0; index -= 1) {
@@ -126,6 +129,16 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     getToken: () => authorized.accessToken(),
     fetch: authorized.fetch,
   });
+  // The lazy budget-tail read: gated so a long tail scrolling past never fans out
+  // wider than the cold sync did, and rate-retried like every other progress read so
+  // a 429 mid fan-out is absorbed instead of surfacing as a row-level failure.
+  const withProgressSlot = createConcurrencyGate(VISIBLE_PROGRESS_CONCURRENCY);
+  const loadShowProgress = (showId: number, signal?: AbortSignal): Promise<Progress> =>
+    withProgressSlot(async () => {
+      const progress = await withReadRateRetry(() => getShowProgress(client, showId));
+      if (!progress.ok) throw new Error("Failed to load show progress");
+      return progress.data;
+    }, signal);
 
   const reconcile = async (op: QueuedOp): Promise<boolean> => {
     const context = op.inversePatch as ReconcileContext | null;
@@ -199,8 +212,8 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
   return {
     async loadUpNext(): Promise<UpNextData> {
       // The bounded cold-sync read: the paginated watched list +
-      // per-show progress for the most-recently-watched head only (the idle tail is
-      // the caught-up baseline from the bulk breakdown) + hidden + watchlist. No
+      // per-show progress for the most-recently-watched head only (the idle tail
+      // carries a progress-unknown baseline) + hidden + watchlist. No
       // per-show art fan-out: poster/backdrop are deferred to a lazy per-visible-card
       // read (`loadShowArt`), so the GET count stays bounded instead of ~2× library
       // size. `partial` marks a library larger than the budget so the pill can say so.
@@ -223,6 +236,8 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
         runtime: show.data.runtime ?? null,
       };
     },
+
+    loadShowProgress,
 
     async loadMovieLibrary(): Promise<MovieLibraryData> {
       // Both reads carry `images` (watched via `getWatchedMovies`, watchlist via

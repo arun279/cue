@@ -47,10 +47,9 @@ const DEFAULT_RATE_BACKOFF_MS = 1000;
  * sits in Library's own "Still syncing" pile (never the "Caught up" pile) rather than
  * being fabricated caught-up. The read reports `partial`, the sync pill rests on "Recent
  * shows synced" rather than "Synced · <when>", and Up Next never claims
- * "all caught up" while partial. A show gains real progress on the next cold
- * sync once it re-enters the fetched head: e.g. after it is watched again, which is when
- * its queue position would matter. (Opening its detail fetches fresh progress for that
- * screen but does not yet write it back into this library snapshot.)
+ * "all caught up" while partial. A visible sync-pending row lazily reads its own
+ * progress and writes it into the shared library snapshot, promoting the show
+ * into its real queue or library bucket without expanding this cold-sync budget.
  */
 export const WATCHED_PROGRESS_BUDGET = 60;
 

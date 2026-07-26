@@ -1,14 +1,10 @@
-import type { LibraryEntry } from "@data/trakt/library";
 import { Link } from "@tanstack/react-router";
 import { ScreenHeader } from "@ui/app-shell/ScreenHeader";
 import { SyncStrip } from "@ui/app-shell/SyncStrip";
-import { CheckControl } from "@ui/components/CheckControl";
 import { EmptyState } from "@ui/components/EmptyState";
-import { EpisodeRow } from "@ui/components/EpisodeRow";
 import { ErrorRetry } from "@ui/components/ErrorStates";
 import { MarqueeCard } from "@ui/components/MarqueeCard";
 import { PosterTile } from "@ui/components/PosterTile";
-import { ProgressBar } from "@ui/components/ProgressBar";
 import { SectionHeader } from "@ui/components/SectionHeader";
 import { SkeletonMarquee, SkeletonRows } from "@ui/components/Skeletons";
 import { dismissSnack, showSnack } from "@ui/components/snackbar-store";
@@ -22,14 +18,13 @@ import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { useFlip } from "@ui/hooks/useFlip";
 import { useHideShow } from "@ui/hooks/useHideShow";
 import { type MarkWatched, useMarkWatched } from "@ui/hooks/useMarkWatched";
-import { useShowArt } from "@ui/hooks/useShowArt";
 import { type UpNextCard, useUpNext } from "@ui/hooks/useUpNext";
 import { type ReactElement, type ReactNode, useEffect, useMemo, useState } from "react";
 import { LapsedDrawer } from "./LapsedDrawer";
 import { buildOnTheWay, OnTheWay, useOnTheWayClock } from "./OnTheWay";
-import { Poster } from "./Poster";
 import { Previously } from "./Previously";
 import { QueueRow } from "./QueueRow";
+import { SyncPendingList } from "./SyncPendingList";
 import { useQueueCheck } from "./useQueueCheck";
 
 /** The marquee's check shares the queue grammar; a thin slot component so the
@@ -49,27 +44,6 @@ function MarqueeSlot({
       checkState={check.state}
       checkLabel={check.label}
       onCheck={check.onPress}
-    />
-  );
-}
-
-/** A show beyond the progress budget: poster + title, striped bar, disabled
- * check. Opening the row's show detail triggers its on-demand progress fetch. */
-function SyncPendingRow({ entry }: { readonly entry: LibraryEntry }): ReactElement {
-  const art = useShowArt(entry.showId);
-  const posters = art.posters.length > 0 ? art.posters : entry.posters;
-  return (
-    <EpisodeRow
-      variant="queue"
-      testId="sync-pending-row"
-      showId={entry.showId}
-      art={<Poster title={entry.title} posters={posters} variant="s48" />}
-      title={entry.title}
-      meta="Syncing progress…"
-      footer={<ProgressBar striped />}
-      trailing={<CheckControl state="syncing" size={48} label="" />}
-      link={{ to: "/show/$showId", params: { showId: String(entry.showId) } }}
-      linkLabel={`${entry.title}, Syncing progress`}
     />
   );
 }
@@ -274,15 +248,7 @@ export function UpNext(): ReactElement {
             </ul>
           )}
 
-          {view.syncPending.length > 0 && (
-            <ul className="row-list" data-testid="sync-pending-list">
-              {view.syncPending.map((entry) => (
-                <li key={entry.showId}>
-                  <SyncPendingRow entry={entry} />
-                </li>
-              ))}
-            </ul>
-          )}
+          {view.syncPending.length > 0 && <SyncPendingList entries={view.syncPending} />}
 
           <LapsedDrawer cards={view.lapsedCards} mark={mark} onStop={stopWatching} />
           <OnTheWay days={onTheWay} />

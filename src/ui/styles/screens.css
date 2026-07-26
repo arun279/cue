@@ -18,6 +18,34 @@
   gap: var(--space-1);
   margin-top: var(--space-4);
 }
+.sync-pending {
+  position: relative;
+}
+.sync-pending__list {
+  position: relative;
+  list-style: none;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+.sync-pending__item {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+}
+.sync-pending__retry {
+  appearance: none;
+  border: none;
+  background: none;
+  min-width: var(--tap-min);
+  min-height: var(--tap-min);
+  padding: 0 var(--space-2);
+  color: var(--color-accent-ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
 
 /* The lapsed disclosure: a 52px trigger in the row voice, chevron trailing. */
 .lapsed {

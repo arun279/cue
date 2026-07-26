@@ -56,7 +56,8 @@ export interface LibraryInput {
 
 type SchemaEpisode = NonNullable<Progress["next_episode"]>;
 
-function toEpisodeRef(ep: SchemaEpisode): EpisodeRef {
+function toEpisodeRef(ep: SchemaEpisode | null): EpisodeRef | null {
+  if (ep === null) return null;
   return {
     season: ep.season,
     number: ep.number,
@@ -128,7 +129,7 @@ export function assembleLibrary(input: LibraryInput): LibraryEntry[] {
       lastWatchedAt: watched.last_watched_at ?? null,
       aired: progress?.aired ?? baseline,
       completed: progress?.completed ?? baseline,
-      nextEpisode: next === null ? null : toEpisodeRef(next),
+      nextEpisode: toEpisodeRef(next),
       progressKnown,
       ...artFields(input.details, trakt, show.images?.poster),
       tmdbId: show.ids.tmdb ?? null,
@@ -159,6 +160,19 @@ export function assembleLibrary(input: LibraryInput): LibraryEntry[] {
     });
   }
   return entries;
+}
+
+/** Replace a budget-tail placeholder with one authoritative progress read. */
+export function applyLibraryProgress(entry: LibraryEntry, progress: Progress): LibraryEntry {
+  return {
+    ...entry,
+    lastWatchedAt: progress.last_watched_at ?? entry.lastWatchedAt,
+    aired: progress.aired,
+    completed: progress.completed,
+    nextEpisode: toEpisodeRef(progress.next_episode),
+    progressKnown: true,
+    pendingAdvance: false,
+  };
 }
 
 /**

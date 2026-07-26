@@ -14,6 +14,7 @@ describe("queryKeys factory", () => {
     expect(queryKeys.library()).toEqual(["library"]);
     expect(queryKeys.movieLibrary()).toEqual(["movie-library"]);
     expect(queryKeys.movieRelated(5)).toEqual(["movie", "related", 5]);
+    expect(queryKeys.showProgress(1)).toEqual(["show", "progress", 1]);
     expect(queryKeys.showHeader(1)).toEqual(["show", "header", 1]);
     expect(queryKeys.showSeasons(1)).toEqual(["show", "seasons", 1]);
     expect(queryKeys.history("tv")).toEqual(["history", "tv", "recent"]);

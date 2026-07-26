@@ -2,7 +2,7 @@ import type { InvalidationKey } from "@data/query-invalidation";
 import type { EpisodeDetail } from "@data/trakt/episode-detail";
 import type { LibraryEntry, ShowArt } from "@data/trakt/library";
 import type { MovieEntry, MovieHeader } from "@data/trakt/movie-library";
-import type { UserStats } from "@data/trakt/schemas";
+import type { Progress, UserStats } from "@data/trakt/schemas";
 import type { SearchHit } from "@data/trakt/search";
 import type { SeasonView, ShowHeader } from "@data/trakt/show-detail";
 import type { UserProfile } from "@data/trakt/user-profile";
@@ -18,8 +18,8 @@ export interface UpNextData {
   /**
    * True when the watched library exceeds the cold-sync progress budget
    * so entries beyond the most-recently-watched head carry a
-   * caught-up baseline rather than fetched progress. The sync pill surfaces this as
-   * an honest "recent shows synced" state instead of implying full completeness.
+   * progress-unknown baseline rather than fetched progress. The sync pill surfaces
+   * this as an honest "recent shows synced" state instead of implying completeness.
    */
   readonly isPartial: boolean;
 }
@@ -89,6 +89,8 @@ export interface CueRuntime {
    * lazily fetches its own via this, cached by trakt id.
    */
   loadShowArt(showId: number): Promise<ShowArt>;
+  /** Deferred watched progress for one visible budget-tail row. */
+  loadShowProgress(showId: number, signal?: AbortSignal): Promise<Progress>;
   /** The Library movie collection: watched movies + watchlist movies as poster shelves. */
   loadMovieLibrary(): Promise<MovieLibraryData>;
   /** Movie detail hero from `/movies/:id?extended=full,images` (title, year, overview, art). */

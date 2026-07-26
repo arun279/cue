@@ -868,12 +868,9 @@ test("returning from a paginated History feed refetches only one Previously prev
   expect(history.historyReads() - beforeMark).toBe(1);
 });
 
-test("shows beyond the progress budget render as sync-pending rows with disabled checks", async ({
-  page,
-}) => {
-  // 61 shows: one past the 60-show cold-sync progress budget. The oldest-watched
-  // show misses the budget and must read as honestly syncing: striped bar,
-  // disabled check: never fabricated as caught-up or markable.
+test("shows beyond the progress budget resolve lazily when visible", async ({ page }) => {
+  // 61 shows leave one row past the cold-sync progress budget. Its data-layer
+  // placeholder stays honest until the visible row performs one lazy read.
   const many: ShowFixture[] = Array.from({ length: 61 }, (_, i) => ({
     trakt: 1000 + i,
     title: `Bulk Show ${i + 1}`,
@@ -886,17 +883,25 @@ test("shows beyond the progress budget render as sync-pending rows with disabled
       { season: 1, number: 2, title: "Two", firstAired: AIRED, traktId: (1000 + i) * 10 + 2 },
     ],
   }));
-  await installLibraryRoutes(page.context(), many);
+  const controls = await installLibraryRoutes(page.context(), many);
   await page.goto("/");
 
-  const pending = page.getByTestId("sync-pending-row");
-  await expect(pending).toHaveCount(1, { timeout: 15_000 });
-  await expect(pending).toContainText("Bulk Show 61");
-  await expect(pending).toContainText("Syncing progress…");
-  const check = pending.getByTestId("mark-watched");
-  await expect(check).toHaveAttribute("data-state", "syncing");
-  await expect(check).toHaveAttribute("aria-disabled", "true");
-  await expect(check).toHaveAttribute("aria-label", "Progress syncing. Check back shortly.");
+  const pendingList = page.getByTestId("sync-pending-list");
+  await expect(pendingList).toBeAttached({ timeout: 15_000 });
+  await expect.poll(() => controls.progressReads()).toBe(60);
+
+  await pendingList.evaluate((element) => element.scrollIntoView({ block: "center" }));
+  await expect.poll(() => controls.progressReads()).toBe(61);
+  await expect(page.getByTestId("sync-pending-row")).toHaveCount(0);
+
+  const resolved = page.locator('[data-testid="up-next-card"][data-show-id="1060"]');
+  await expect(resolved).toContainText("Bulk Show 61");
+  await expect(resolved.locator(".ep-row__code")).toHaveText("S1 E2");
+  const check = resolved.getByTestId("mark-watched");
+  await expect(check).toHaveAttribute("data-state", "unwatched");
+  await expect(check).toHaveAttribute("role", "switch");
+  await expect(check).not.toHaveAttribute("aria-disabled");
+  await expect(check).toHaveAttribute("aria-label", "Mark Bulk Show 61 S1 E2 watched");
 });
 
 test("the one-time tutorial caption shows on a first session and dies on the first mark", async ({

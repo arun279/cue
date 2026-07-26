@@ -47,8 +47,9 @@ function keysForTarget(target: InvalidationTarget): readonly InvalidationKey[] {
 
 /**
  * The cached queries a local watched-progress mark on show X must refresh,
- * whichever surface issued it: the Up Next `library` aggregate PLUS the show's own
- * detail reads: its header (overall `X/Y` + next-up) and its season tree
+ * whichever surface issued it: the Up Next `library` aggregate, the lazy row
+ * progress read, PLUS the show's own detail reads: its header (overall `X/Y` +
+ * next-up) and its season tree
  * (per-season counts + per-episode ticks): and, when the mark targets one known
  * episode, that episode's detail read.
  *
@@ -73,6 +74,7 @@ export function showProgressKeys(
 ): InvalidationKey[] {
   const keys: InvalidationKey[] = [
     queryKeys.library(),
+    queryKeys.showProgress(showId),
     queryKeys.showHeader(showId),
     queryKeys.showSeasons(showId),
   ];

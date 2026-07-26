@@ -35,6 +35,7 @@ export const queryKeys = {
    * cached by trakt id so a card paints its poster without the
    * cold-sync read fanning `/shows/:id` out across the whole library up front. */
   showArt: (showId: number) => ["show", "art", showId] as const,
+  showProgress: (showId: number) => ["show", "progress", showId] as const,
   showHeader: (showId: number) => ["show", "header", showId] as const,
   showSeasons: (showId: number) => ["show", "seasons", showId] as const,
   episode: (showId: number, season: number, number: number) =>
