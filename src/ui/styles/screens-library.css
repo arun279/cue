@@ -63,8 +63,6 @@
   border-radius: var(--radius-control);
   background: var(--color-elevated);
   color: var(--color-fg);
-  font: inherit;
-  font-size: 15px;
 }
 .library-filter-field::placeholder {
   color: var(--color-muted);

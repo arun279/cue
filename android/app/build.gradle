@@ -18,6 +18,13 @@ if (localSigningConfigured) {
 }
 def releaseSigningConfigured = environmentSigningConfigured || localSigningConfigured
 
+// Release builds take their version from these properties. AGP dropped the
+// android.injected.version.* convention in 7.3, so fastlane passes our own
+// names instead. Debug and local builds run without them and keep the
+// placeholders.
+def cueVersionCode = (project.findProperty("cueVersionCode") ?: "1").toInteger()
+def cueVersionName = project.findProperty("cueVersionName") ?: "1.0"
+
 android {
     namespace = "app.cuetracker"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -25,8 +32,8 @@ android {
         applicationId "app.cuetracker"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode cueVersionCode
+        versionName cueVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

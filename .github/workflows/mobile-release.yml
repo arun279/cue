@@ -89,6 +89,9 @@ jobs:
             fi
             build_android=false
           fi
+          # github.run_number is scoped to this workflow file, so renaming or
+          # recreating it restarts the count and Android then refuses to install
+          # the lower versionCode over an existing tester build.
           build_number=$((RUN_NUMBER * 100 + RUN_ATTEMPT))
           {
             echo "build_ios=$build_ios"
