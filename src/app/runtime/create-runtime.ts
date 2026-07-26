@@ -208,10 +208,12 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
 
     async loadShowArt(showId): Promise<ShowArt> {
       // Deferred per-card art: the `/sync/watched/shows` list carries no `images`,
-      // so a visible show row lazily reads its poster/backdrop/network/genres from
-      // `/shows/:id` as it renders: one GET per visible card, cached by trakt id,
-      // never the whole library up front.
-      const show = await getShow(client, showId);
+      // so a show card lazily reads its poster/backdrop/network/genres from
+      // `/shows/:id` once it settles on screen: one GET per card looked at, cached
+      // by trakt id, never the whole library up front. It goes through the shared
+      // read gate like every other read, so a scrolled list can neither exceed the
+      // concurrency pool nor fire into a window a 429 just closed.
+      const show = await withReadRateRetry(() => getShow(client, showId));
       if (!show.ok) throw new Error("Failed to load show art");
       return {
         posters: show.data.images?.poster ?? [],

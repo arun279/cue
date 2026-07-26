@@ -468,6 +468,10 @@ export interface LibraryControls {
   /** 429 the next `n` progress reads (with Retry-After) then serve them: the read
    * rate-limit-then-recover path. */
   rateLimitProgressReads: (n: number) => void;
+  /** 429 the next `n` per-card art reads (`/shows/:id`) then serve them. */
+  rateLimitArtReads: (n: number) => void;
+  /** Bare `/shows/:id` reads served so far (per-card art and the detail header). */
+  artReads: () => number;
   /** Advance one `/sync/last_activities` stamp so the next poll diffs a real change. */
   bumpActivity: (section: string, field: string) => void;
   clearWrites: () => void;
@@ -733,6 +737,8 @@ export async function installLibraryRoutes(
   let progressReads = 0;
   let progressExtended: string | null = null;
   let progressRateLimitBudget = 0;
+  let artReads = 0;
+  let artRateLimitBudget = 0;
   // The exact watched_at each session mark POSTed, keyed by episode trakt id:
   // echoed on the scoped-history plays so the per-play undo can resolve them.
   const markedAt = new Map<number, string>();
@@ -787,8 +793,17 @@ export async function installLibraryRoutes(
   // so those more-specific paths, registered later, win over this catch (last
   // route registered wins).
   await context.route("**/api.trakt.tv/shows/*", async (route) => {
+    artReads += 1;
     const id = Number(new URL(route.request().url()).pathname.split("/")[2]);
     if (readMode === "abort") return route.abort();
+    if (artRateLimitBudget > 0) {
+      artRateLimitBudget -= 1;
+      return route.fulfill({
+        status: 429,
+        headers: { ...JSON_HEADERS, "retry-after": "1" },
+        body: "{}",
+      });
+    }
     await readWait();
     const show = shows.find((s) => s.trakt === id);
     if (show === undefined)
@@ -1046,6 +1061,10 @@ export async function installLibraryRoutes(
     rateLimitProgressReads: (n) => {
       progressRateLimitBudget = n;
     },
+    rateLimitArtReads: (n) => {
+      artRateLimitBudget = n;
+    },
+    artReads: () => artReads,
     bumpActivity: (section, field) => {
       activityTick += 1;
       const iso = new Date(ACTIVITY_BASE + activityTick * 60_000).toISOString();

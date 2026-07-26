@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import type { ReactElement, ReactNode } from "react";
+import type { ReactElement, ReactNode, Ref } from "react";
 
 /** Row heights/densities, one class hook per surface. */
 type EpisodeRowVariant =
@@ -42,6 +42,8 @@ interface EpisodeRowProps {
   readonly linkLabel: string;
   readonly testId?: string;
   readonly showId?: number;
+  /** The row element, for callers that observe when the row is on screen. */
+  readonly ref?: Ref<HTMLDivElement>;
 }
 
 /**
@@ -61,9 +63,11 @@ export function EpisodeRow({
   linkLabel,
   testId,
   showId,
+  ref,
 }: EpisodeRowProps): ReactElement {
   return (
     <div
+      ref={ref}
       className="ep-row"
       data-variant={variant}
       {...(testId === undefined ? {} : { "data-testid": testId })}

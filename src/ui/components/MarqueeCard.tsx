@@ -35,8 +35,8 @@ export function MarqueeCard({
   checkLabel,
   onCheck,
 }: MarqueeCardProps): ReactElement {
-  // Art is deferred out of the cold-sync budget: the visible card lazily fetches
-  // its own backdrop, falling back to any already-assembled entry art.
+  // Art is deferred out of the cold-sync budget: the card reads its own backdrop
+  // once it settles on screen, falling back to any already-assembled entry art.
   const art = useShowArt(entry.showId);
   const backdrop = resolveBackdrop(art.backdrops.length > 0 ? art.backdrops : entry.backdrops);
   const airedMs = toMs(episode.firstAired);
@@ -46,7 +46,12 @@ export function MarqueeCard({
   const left = episodesLeft(entry.aired, entry.completed);
 
   return (
-    <article className="marquee" data-testid="marquee-card" data-show-id={entry.showId}>
+    <article
+      ref={art.ref}
+      className="marquee"
+      data-testid="marquee-card"
+      data-show-id={entry.showId}
+    >
       {backdrop === null ? (
         <span
           className="marquee__plate"

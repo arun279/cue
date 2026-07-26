@@ -1,5 +1,10 @@
-import { TRAKT_API_BASE, TraktClient } from "@data/trakt/client";
-import { loadUpNextEntries, WATCHED_PROGRESS_BUDGET } from "@data/trakt/read-budget";
+import { TRAKT_API_BASE, TraktClient, type TraktResult } from "@data/trakt/client";
+import {
+  loadUpNextEntries,
+  READ_CONCURRENCY,
+  WATCHED_PROGRESS_BUDGET,
+  withReadRateRetry,
+} from "@data/trakt/read-budget";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 import { mswServer } from "./_msw";
@@ -321,6 +326,40 @@ describe("cold-sync GET budget", () => {
     expect(startedAt).toHaveLength(11);
     const blockedAt = startedAt[0] as number;
     expect(startedAt.filter((at) => at - blockedAt < 900).length).toBeLessThanOrEqual(6);
+  });
+
+  it("caps concurrent reads across independent callers, not per fan-out", async () => {
+    // The lazy per-card art reads a scrolling list issues are 300 separate calls,
+    // not one fan-out. A cap owned by the fan-out leaves their sum unbounded, which
+    // is the shape of every burst that has taken this app off the air.
+    let inFlight = 0;
+    let peak = 0;
+    const read = async (): Promise<TraktResult<number>> => {
+      inFlight += 1;
+      peak = Math.max(peak, inFlight);
+      await new Promise((resolve) => setTimeout(resolve, 2));
+      inFlight -= 1;
+      return { ok: true, data: 1, pagination: null };
+    };
+
+    await Promise.all(Array.from({ length: 300 }, () => withReadRateRetry(read)));
+
+    expect(peak).toBe(READ_CONCURRENCY);
+  });
+
+  it("reads a show whose local count EXCEEDS aired_episodes instead of calling it caught up", async () => {
+    // 12 plays against 10 aired: the two numbers cannot both be right (plays exist
+    // on episodes Trakt does not count as aired, reachable from another client), so
+    // `/progress/watched` is the only thing that can settle it. A `<` filter would
+    // read this as caught up, and for an ended show `aired_episodes` never grows
+    // again, so it would never be looked at again.
+    const overCounted = watchedShow(0, 12);
+    const counts = installColdSync(1, 0, 0, [overCounted]);
+    const entries = await loadUpNextEntries(client);
+
+    expect(counts.progress).toBe(1);
+    expect(entries[0]).toMatchObject({ aired: 10, completed: 3 });
+    expect(entries[0]?.nextEpisode).not.toBeNull();
   });
 
   it("costs zero reads for a restarted show already caught up on its post-reset plays", async () => {

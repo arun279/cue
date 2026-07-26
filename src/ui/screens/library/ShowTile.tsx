@@ -23,8 +23,8 @@ interface ShowTileProps {
  * the chip already names the state, so the link's accessible name stays the title.
  */
 export function ShowTile({ entry, chip }: ShowTileProps): ReactElement {
-  // Art is deferred out of the cold-sync budget: the visible tile lazily
-  // fetches its own poster, falling back to any inline list poster.
+  // Art is deferred out of the cold-sync budget: a tile that settles on screen
+  // reads its own poster, falling back to any inline list poster.
   const art = useShowArt(entry.showId);
   const posters = art.posters.length > 0 ? art.posters : entry.posters;
   const left = episodesLeft(entry.aired, entry.completed);
@@ -61,6 +61,7 @@ export function ShowTile({ entry, chip }: ShowTileProps): ReactElement {
 
   return (
     <Link
+      ref={art.ref}
       to="/show/$showId"
       params={{ showId: String(entry.showId) }}
       className="poster-tile"

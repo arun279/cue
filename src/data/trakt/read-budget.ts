@@ -5,11 +5,13 @@ import { assembleLibrary, type LibraryEntry, showIdSet, watchedEpisodeCount } fr
 import type { Progress, WatchedShow } from "./schemas";
 
 /**
- * Read fan-out concurrency cap. Each in-flight show issues a single progress GET,
- * so capping at 6 holds concurrent authed GETs at ≤6: inside the sync analysis's
- * 8-12 window with margin: instead of firing the whole bounded head at once.
+ * Concurrency cap on authed GETs, shared by EVERY read: the cold-sync progress
+ * head, the movie library, and the lazy per-card art reads a scrolling list
+ * issues. Capping the pool rather than each caller is what holds the TOTAL at ≤6,
+ * inside the sync analysis's 8-12 window with margin; a per-caller cap leaves the
+ * sum unbounded, which is how a scrolled library stampedes the window on its own.
  */
-const READ_CONCURRENCY = 6;
+export const READ_CONCURRENCY = 6;
 
 /**
  * Bounded 429 retries per read before it surfaces. A transient rate-limit mid
@@ -35,9 +37,9 @@ let resumeReadsAt = 0;
  *
  * Every show's counts already arrive in bulk (`aired_episodes` + the watched
  * breakdown), so a per-show read buys exactly one thing: the IDENTITY of the next
- * episode. Only a show with unwatched aired episodes has a next episode to name,
- * so only those spend the budget, most-recently-watched first. A caught-up
- * library now costs zero progress GETs.
+ * episode. Only a show whose bulk counts leave that open has one to name, so only
+ * those spend the budget, most-recently-watched first. A caught-up library now
+ * costs zero progress GETs.
  *
  * Why 60: power-user behavior tops out around 20-50 shows watched concurrently; 60
  * covers that with headroom while staying a hard ceiling. It also holds the
@@ -58,41 +60,47 @@ export const WATCHED_PROGRESS_BUDGET = 60;
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** Run `fn` over `items` with at most `limit` in flight, preserving order. */
-async function mapWithConcurrency<T, R>(
-  items: readonly T[],
-  limit: number,
-  fn: (item: T) => Promise<R>,
-): Promise<R[]> {
-  const results = new Array<R>(items.length);
-  let cursor = 0;
-  const worker = async (): Promise<void> => {
-    while (cursor < items.length) {
-      const index = cursor;
-      cursor += 1;
-      results[index] = await fn(items[index] as T);
-    }
-  };
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
-  return results;
+/** Reads waiting for one of the {@link READ_CONCURRENCY} slots, in request order. */
+const waitingForSlot: (() => void)[] = [];
+let readsInFlight = 0;
+
+async function acquireReadSlot(): Promise<void> {
+  if (readsInFlight < READ_CONCURRENCY) {
+    readsInFlight += 1;
+    return;
+  }
+  await new Promise<void>((resolve) => waitingForSlot.push(resolve));
+}
+
+function releaseReadSlot(): void {
+  const next = waitingForSlot.shift();
+  if (next === undefined) readsInFlight -= 1;
+  else next();
 }
 
 /**
- * Retry a read only on a 429, honoring `Retry-After`, within a bounded budget, and
- * hold every other read behind the same pause while it waits.
+ * Run a read inside the shared concurrency pool, retrying only on a 429, honoring
+ * `Retry-After` within a bounded budget, and holding every other read behind the
+ * same pause while it waits. Every authed read goes through here, so the pool is
+ * the app's single ceiling on concurrent GETs and the pause is global.
  */
 export async function withReadRateRetry<T>(
   read: () => Promise<TraktResult<T>>,
 ): Promise<TraktResult<T>> {
-  for (let attempt = 0; ; attempt += 1) {
-    const pause = resumeReadsAt - Date.now();
-    if (pause > 0) await sleep(pause);
-    const result = await read();
-    if (result.ok || result.error.kind !== "rate-limited" || attempt >= MAX_READ_RATE_RETRIES) {
-      return result;
+  await acquireReadSlot();
+  try {
+    for (let attempt = 0; ; attempt += 1) {
+      const pause = resumeReadsAt - Date.now();
+      if (pause > 0) await sleep(pause);
+      const result = await read();
+      if (result.ok || result.error.kind !== "rate-limited" || attempt >= MAX_READ_RATE_RETRIES) {
+        return result;
+      }
+      const backoff = result.error.retryAfterMs ?? DEFAULT_RATE_BACKOFF_MS;
+      resumeReadsAt = Math.max(resumeReadsAt, Date.now() + backoff);
     }
-    const backoff = result.error.retryAfterMs ?? DEFAULT_RATE_BACKOFF_MS;
-    resumeReadsAt = Math.max(resumeReadsAt, Date.now() + backoff);
+  } finally {
+    releaseReadSlot();
   }
 }
 
@@ -116,16 +124,23 @@ export async function loadUpNextEntries(client: TraktClient): Promise<LibraryEnt
   const watched = await withReadRateRetry(() => getWatchedShows(client));
   if (!watched.ok) throw new Error("Failed to load watched shows");
 
+  // Anything whose local count DISAGREES with `aired_episodes`, either way.
+  // Under-count is the ordinary backlog; over-count means plays exist on episodes
+  // Trakt does not count as aired, so the two numbers cannot both be right and
+  // only `/progress/watched` can settle it. A `<` here would read those as caught
+  // up, and an ended show's `aired_episodes` never grows again to reopen them.
   const head = watched.data
-    .filter((show) => watchedEpisodeCount(show) < show.show.aired_episodes)
+    .filter((show) => watchedEpisodeCount(show) !== show.show.aired_episodes)
     .sort(byLastWatchedDesc)
     .slice(0, WATCHED_PROGRESS_BUDGET);
-  const perShow = await mapWithConcurrency(head, READ_CONCURRENCY, async (show) => {
-    const id = show.show.ids.trakt;
-    const progress = await withReadRateRetry(() => getShowProgress(client, id));
-    if (!progress.ok) throw new Error("Failed to load show progress");
-    return { id, progress: progress.data };
-  });
+  const perShow = await Promise.all(
+    head.map(async (show) => {
+      const id = show.show.ids.trakt;
+      const progress = await withReadRateRetry(() => getShowProgress(client, id));
+      if (!progress.ok) throw new Error("Failed to load show progress");
+      return { id, progress: progress.data };
+    }),
+  );
   const progress = new Map<number, Progress>(perShow.map((s) => [s.id, s.progress]));
 
   const [hidden, watchlist] = await Promise.all([

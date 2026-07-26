@@ -2,36 +2,46 @@ import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persi
 import { type Query, QueryClient } from "@tanstack/react-query";
 import { del, get, set } from "idb-keyval";
 
-/** The build's own identity, injected by `vite.config.ts`. */
-declare const __BUILD_ID__: string;
+/** A content hash over the persisted shapes, injected by `vite.config.ts`. */
+declare const __PERSIST_BUSTER__: string;
 
 /**
- * The persisted-cache buster: any cache a different build wrote is dropped rather
- * than replayed. Derived from the build rather than hand-typed because under
- * `staleTime: Infinity`, with freshness gated only on `/sync/last_activities`, a
- * forgotten bump after a shape change is silent and permanent corruption with no
- * self-heal path. This, not an age cap, is how stale snapshots are retired.
+ * The persisted-cache buster: any cache written against a different shape is
+ * dropped rather than replayed. Derived from the shape's own source rather than
+ * hand-typed because under `staleTime: Infinity`, with freshness gated only on
+ * `/sync/last_activities`, a forgotten bump after a shape change is silent and
+ * permanent corruption with no self-heal path. This, not an age cap, is how stale
+ * snapshots are retired.
  */
-export const PERSIST_BUSTER = __BUILD_ID__;
+export const PERSIST_BUSTER = __PERSIST_BUSTER__;
 
 /**
- * Query-key heads whose data earns its place in the restored blob: the user-state
- * reads that must paint before the network answers. Everything else (search,
- * browse, the finite-`staleTime` content reads) refetches on mount anyway, so
- * persisting it would only bloat every launch's restore.
+ * Query-key heads whose data earns its place in the restored blob: everything a
+ * home, Library, Diary or Profile screen paints from before the network answers,
+ * and no more. `library`, `movie-library`, `watchlist`, `users` and `history` are
+ * `staleTime: Infinity` user state that only the last-activities reconciler ever
+ * refreshes, so dropping them from the blob strips those screens on a cold or
+ * offline boot with nothing to restore them. `calendar` carries a finite horizon
+ * but is what "On the way" paints, so it is persisted for the same reason.
+ *
+ * Left out: `search` and `discover` (unbounded key spaces nobody boots into), and
+ * the per-show/per-movie detail trees, whose count grows with every title ever
+ * opened and which cost a single GET to re-read on demand. Per-card `show/art` is
+ * the one exception: it is bounded by the library, it is what a restored row
+ * paints its poster from, and re-reading it costs a GET per card on screen.
  */
 const PERSISTED_KEY_HEADS: ReadonlySet<unknown> = new Set([
   "library",
   "movie-library",
   "watchlist",
   "users",
+  "history",
+  "calendar",
 ]);
 
 export function shouldDehydrateQuery(query: Query): boolean {
   if (query.state.status !== "success") return false;
   const [head, section] = query.queryKey;
-  // Per-card art is the one `show` read worth keeping: it is what a restored row
-  // paints its poster from, and re-reading it costs a GET per visible card.
   return PERSISTED_KEY_HEADS.has(head) || (head === "show" && section === "art");
 }
 
