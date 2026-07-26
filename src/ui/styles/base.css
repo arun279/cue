@@ -22,8 +22,7 @@
  * back under the zoom threshold for anyone reading at a smaller-than-default size. */
 input,
 textarea,
-select,
-[contenteditable] {
+select {
   font: inherit;
   font-size: max(1rem, 16px);
 }

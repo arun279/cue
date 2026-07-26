@@ -13,8 +13,10 @@ import {
 } from "./helpers";
 
 const MIN_CONTROL_FONT_SIZE = 16;
-// Kept identical to the control floor's selector list in `src/ui/styles/base.css`: the gate must
-// audit exactly the elements the stylesheet protects, never a superset it would pass by accident.
+// Deliberately wider than the floor in `src/ui/styles/base.css`, which covers the three form
+// elements and stops there. `contenteditable` is an attribute that can land on any element, so a
+// stylesheet rule would silently clamp the typography of a future rich-text surface. The app has
+// none today; if one arrives, this gate should fail loudly and let a human pick its type size.
 const CONTROL_SELECTOR = "input, textarea, select, [contenteditable]";
 const VIEWPORT_CONTENT = "width=device-width, initial-scale=1, viewport-fit=cover";
 
