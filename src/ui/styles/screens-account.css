@@ -65,8 +65,6 @@
   border-radius: var(--radius-control);
   background: var(--color-elevated);
   color: var(--color-fg);
-  font-family: inherit;
-  font-size: 15px;
 }
 .hist-search__input::placeholder {
   color: var(--color-muted);
