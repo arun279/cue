@@ -15,11 +15,13 @@
 # The web bundle must already be built (`pnpm build`) and synced into the native
 # projects (`pnpm exec cap sync <platform>`) before these lanes run; CI does that.
 
+REPO_ROOT = File.expand_path("..", __dir__).freeze
 APP_IDENTIFIER = "app.cuetracker".freeze
 IOS_PROJECT = "ios/App/App.xcodeproj".freeze
 IOS_SCHEME = "App".freeze
 ANDROID_DIR = "android".freeze
 ANDROID_APK = "android/app/build/outputs/apk/release/app-release.apk".freeze
+VERIFY_APK_VERSION = "scripts/verify-apk-version.sh".freeze
 
 default_platform(:ios)
 
@@ -35,6 +37,10 @@ end
 def app_version
   version = ENV["APP_VERSION"].to_s
   version.empty? ? "1.0" : version
+end
+
+def build_number
+  Integer(ENV.fetch("BUILD_NUMBER"))
 end
 
 def build_ios_ipa
@@ -55,7 +61,7 @@ def build_ios_ipa
     export_method: "app-store",
     output_directory: "build/ios",
     output_name: "App.ipa",
-    xcargs: "CURRENT_PROJECT_VERSION=#{ENV.fetch("BUILD_NUMBER")} MARKETING_VERSION=#{app_version}",
+    xcargs: "CURRENT_PROJECT_VERSION=#{build_number} MARKETING_VERSION=#{app_version}",
     export_options: {
       signingStyle: "manual",
       teamID: ENV.fetch("IOS_TEAM_ID"),
@@ -101,9 +107,21 @@ def build_android_apk
     task: "assemble",
     build_type: "Release",
     properties: {
-      "android.injected.version.code" => Integer(ENV.fetch("BUILD_NUMBER")),
-      "android.injected.version.name" => app_version
+      "cueVersionCode" => build_number,
+      "cueVersionName" => app_version
     }
+  )
+  verify_android_apk_version
+end
+
+# android/app/build.gradle is Capacitor-generated, so regenerating the platform
+# would drop the version wiring and quietly ship every build as 1.0 (1) again.
+def verify_android_apk_version
+  sh(
+    File.join(REPO_ROOT, VERIFY_APK_VERSION),
+    File.join(REPO_ROOT, ANDROID_APK),
+    build_number.to_s,
+    app_version
   )
 end
 
