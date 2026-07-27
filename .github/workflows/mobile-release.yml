@@ -12,7 +12,27 @@ on:
   push:
     branches: [main]
     tags: ["v*"]
-    paths-ignore: ["docs/**", "**/*.md", ".github/**", "LICENSE"]
+    paths-ignore: [
+      "docs/**",
+      "**/*.md",
+      ".github/**",
+      "LICENSE",
+      "e2e/**",
+      "test/**",
+      "playwright.config.ts",
+      "vitest.config.ts",
+      "lefthook.yml",
+      "cspell.json",
+      "dprint.json",
+      "biome.jsonc",
+      "knip.json",
+      ".jscpd.json",
+      ".dependency-cruiser.cjs",
+      ".env.example",
+      ".env.test",
+      ".gitignore",
+      "assets/**",
+    ]
   workflow_dispatch:
     inputs:
       platform:
