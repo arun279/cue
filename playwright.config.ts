@@ -1,8 +1,14 @@
 import { defineConfig, devices } from "@playwright/test";
 
-// Vite's default preview port. Override with E2E_PREVIEW_PORT so two checkouts
-// can run their suites at once on one machine instead of fighting over it.
-const PREVIEW_PORT = process.env["E2E_PREVIEW_PORT"] ?? "4173";
+// 4173 is Vite's preview default. Override with E2E_PREVIEW_PORT so two checkouts can
+// run their suites at once on one machine instead of fighting over it. The value is
+// interpolated into the shell command below, so reject anything that is not a port: a
+// typo has to fail here rather than as a two-minute wait on a URL nothing ever bound.
+const PORT_OVERRIDE = process.env["E2E_PREVIEW_PORT"];
+const PREVIEW_PORT = Number(PORT_OVERRIDE ?? 4173);
+if (!Number.isInteger(PREVIEW_PORT) || PREVIEW_PORT < 1 || PREVIEW_PORT > 65535) {
+  throw new Error(`E2E_PREVIEW_PORT must be a port from 1 to 65535, got "${PORT_OVERRIDE}"`);
+}
 const PREVIEW_URL = `http://127.0.0.1:${PREVIEW_PORT}`;
 const MOBILE_EXPERIENCE_SPECS = [
   "reflow.spec.ts",
