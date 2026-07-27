@@ -272,6 +272,13 @@ describe("privacy copy agreement and storage anchors", () => {
       value !== null &&
       typeof (value as { getState?: unknown }).getState === "function";
 
+    function requireAuthStore(store: AuthStoreLike | null): AuthStoreLike {
+      if (store === null) {
+        throw new Error("src/app/providers.tsx did not render AuthGate with an auth store.");
+      }
+      return store;
+    }
+
     let capturedStore: AuthStoreLike | null = null;
     vi.doMock("@app/AuthGate", () => ({
       AuthGate: (props: Record<string, unknown>) => {
@@ -290,13 +297,10 @@ describe("privacy copy agreement and storage anchors", () => {
     try {
       await act(async () => root.render(createElement(AppProviders)));
 
-      expect(
-        capturedStore,
-        "src/app/providers.tsx did not render AuthGate with an auth store.",
-      ).not.toBeNull();
+      const authStore = requireAuthStore(capturedStore);
 
       await act(async () => {
-        await capturedStore!.getState().connectWithDeviceCode();
+        await authStore.getState().connectWithDeviceCode();
       });
 
       expect(Preferences.set, staleClaim).toHaveBeenCalledWith({
