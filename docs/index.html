@@ -64,11 +64,11 @@
           <strong>Android:</strong> Cue opts out. Nothing Cue stores is included in a Google backup
           or carried over by Android's own device-to-device transfer, so a restored or replaced
           phone starts signed out. Signing back in is one short code at
-          <a href="https://trakt.tv/activate">trakt.tv/activate</a>. Versions of Cue before July
-          2026 did not opt out, so Google may still hold a backup taken while an older version was
-          installed. Deleting that device's backup from your Google account removes it. Signing out
-          asks Trakt to revoke this device's access token, but Trakt always answers success, so
-          that alone does not confirm it worked; revoke Cue at
+          <a href="https://trakt.tv/activate">trakt.tv/activate</a>. A backup taken by an earlier
+          build of Cue may still sit in your Google account. Deleting that device's backup from
+          your Google account removes it. Signing out asks Trakt to revoke this device's access
+          token, but Trakt always answers success, so that alone does not confirm it worked;
+          revoke Cue at
           <a href="https://app.trakt.tv/settings/applications">app.trakt.tv/settings/applications</a>
           to be sure.
         </li>
@@ -97,12 +97,12 @@
       <ul>
         <li>
           <strong>Cue's on-device data:</strong> open <strong>Settings &rarr; Sign out</strong>.
-          Signing out asks Trakt to revoke this device's access to your Trakt account, and deletes
-          Cue's local settings, cache, and Trakt token stored on the device. The delete is what Cue
-          can guarantee: the revoke is a request to Trakt, so if it does not go through, revoke Cue
-          from your Trakt account settings as well. Uninstalling the app removes the same local
-          data. Neither reaches a copy already sitting in a device backup, which is what the backup
-          section above is for.
+          Signing out asks Trakt to revoke this device's access token, and deletes Cue's local
+          settings, cache, and Trakt token stored on the device. The delete is what Cue can
+          guarantee: Trakt always answers success, so that alone does not confirm the revoke
+          worked; revoke Cue from your Trakt account settings as well. Uninstalling the app removes
+          the same local data. Neither reaches a copy already sitting in a device backup, which is
+          what the backup section above is for.
         </li>
         <li>
           <strong>Your Trakt account itself:</strong> Cue cannot delete it. Cue has no account of

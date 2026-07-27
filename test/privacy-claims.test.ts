@@ -169,7 +169,7 @@ const claims = [
   "Everything Cue keeps is written to your device's own app storage:",
   "anything you have marked that has not reached Trakt yet",
   "Nothing Cue stores is included in a Google backup or carried over by Android's own device-to-device transfer",
-  "Versions of Cue before July 2026 did not opt out",
+  "A backup taken by an earlier build of Cue may still sit in your Google account",
   "iOS keeps app preferences, your Trakt token among them, in a store that is included in a device backup by default, and Cue has not moved the token off that store yet",
   "That switch does not reach a backup stored on a computer, so delete that one yourself.",
   "Neither reaches a copy already sitting in a device backup",
@@ -178,7 +178,7 @@ const claims = [
 const readmeClaims = [
   "anything you have marked that has not synced yet",
   "on Android Cue opts out of Google backup and of Android's own device-to-device transfer",
-  "on iOS Cue does not yet opt out, since app preferences are included in a device backup by default",
+  "on iOS Cue has not moved the token off the preferences store yet, which a device backup includes by default",
 ];
 
 describe("privacy copy agreement and storage anchors", () => {
