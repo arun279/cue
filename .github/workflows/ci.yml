@@ -9,8 +9,15 @@ on:
     - cron: "0 6 * * 1"
 permissions:
   contents: read
+# github.ref is refs/heads/main for every push, so consecutive main pushes
+# shared one group and cancelled each other. Four pushes in 41 seconds left only
+# the first and last running. PR refs use refs/pull/N/merge and were not part of
+# the main collision. Scope PR runs to the PR number and other runs to the commit
+# SHA, so only runs of the identical commit collide. Every Dependabot commit now
+# runs full CI instead of coalescing a burst. The repository is public, so
+# Actions minutes are free and that cost is acceptable.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: true
 jobs:
   check:
