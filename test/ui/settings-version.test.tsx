@@ -1,6 +1,6 @@
-import { Settings } from "@ui/screens/settings/Settings";
-import { act } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { AppProviders } from "@app/providers";
+import { act, type ReactNode } from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { version as packageVersion } from "../../package.json";
 import { mount } from "./_mount";
 
@@ -12,20 +12,28 @@ const nativeApp = vi.hoisted(() => {
     build: "native-build-765",
   };
   let settle: (value: typeof info) => void = () => {};
-  const pending = new Promise<typeof info>((resolve) => {
-    settle = resolve;
-  });
+  let fail: (reason: unknown) => void = () => {};
   return {
     info,
-    getInfo: vi.fn(() => pending),
+    getInfo: vi.fn(
+      () =>
+        new Promise<typeof info>((resolve, reject) => {
+          settle = resolve;
+          fail = reject;
+        }),
+    ),
     resolve: () => settle(info),
+    reject: (reason: unknown) => fail(reason),
   };
 });
 
 vi.mock("@capacitor/app", () => ({ App: { getInfo: nativeApp.getInfo } }));
 vi.mock("@platform/platform", () => ({ isNativePlatform: () => true }));
 
-vi.mock("@app/AuthGate", () => ({ AuthGate: () => null }));
+vi.mock("@app/AuthGate", async () => {
+  const { Settings } = await import("@ui/screens/settings/Settings");
+  return { AuthGate: () => <Settings /> };
+});
 vi.mock("@app/auth/create-auth-store", () => ({ createAuthStore: () => ({}) }));
 vi.mock("@app/config", () => ({ TRAKT_CLIENT_ID: "native-version-test" }));
 vi.mock("@app/persist", () => ({ requestPersistentStorage: vi.fn() }));
@@ -34,6 +42,9 @@ vi.mock("@app/query-client", () => ({
   PERSIST_MAX_AGE: Number.POSITIVE_INFINITY,
   queryClient: {},
   queryPersister: {},
+}));
+vi.mock("@tanstack/react-query-persist-client", () => ({
+  PersistQueryClientProvider: ({ children }: { children: ReactNode }) => children,
 }));
 vi.mock("@app/router", () => ({
   router: { history: { back: vi.fn(), canGoBack: () => false } },
@@ -55,11 +66,13 @@ vi.mock("@ui/screens/settings/useSyncStatus", () => ({
   }),
 }));
 
-await import("@app/providers");
-
 describe("Settings native app version", () => {
+  beforeEach(() => {
+    nativeApp.getInfo.mockClear();
+  });
+
   it("replaces the package fallback with the native plugin identity", async () => {
-    mount(<Settings />);
+    mount(<AppProviders />);
     const rendered = document.querySelector<HTMLElement>('[data-testid="settings-version"]');
     expect(rendered?.textContent).toBe(packageVersion);
 
@@ -73,5 +86,23 @@ describe("Settings native app version", () => {
       "native Settings must not render the package.json version",
     ).not.toBe(packageVersion);
     expect(rendered?.textContent).toBe(`${nativeApp.info.version} (${nativeApp.info.build})`);
+  });
+
+  it("keeps the package fallback when the native plugin rejects", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      mount(<AppProviders />);
+      const rendered = document.querySelector<HTMLElement>('[data-testid="settings-version"]');
+      expect(rendered?.textContent).toBe(packageVersion);
+
+      await act(async () => {
+        nativeApp.reject(new Error("native bridge failed"));
+      });
+
+      expect(rendered?.textContent).toBe(packageVersion);
+      expect(error).toHaveBeenCalledTimes(1);
+    } finally {
+      error.mockRestore();
+    }
   });
 });

@@ -12,11 +12,12 @@ import { isNativePlatform } from "@platform/platform";
 import { applyStatusBarTheme } from "@platform/status-bar";
 import { createTokenStore } from "@platform/token-store";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
-import { useAppVersionStore } from "@ui/app-version-store";
 import { usePrefs } from "@ui/prefs/prefs-store";
+import { AppVersionProvider } from "@ui/runtime/app-version";
 import { HapticsProvider } from "@ui/runtime/haptics";
 import { useThemeStore } from "@ui/theme/theme-store";
-import { type ReactElement, useEffect } from "react";
+import { type ReactElement, useEffect, useState } from "react";
+import { version } from "../../package.json";
 
 // One key-value backend for the whole session (web: IndexedDB, native:
 // Preferences), backing the token store the auth store wires.
@@ -26,12 +27,6 @@ const tokenStore = createTokenStore(kv);
 // The tactile seam, built once: silent on web, and on native
 // gated at fire time on the Settings "Haptics" toggle + prefers-reduced-motion.
 const haptics = createNativeHaptics(() => usePrefs.getState().hapticsEnabled);
-// Replace the package fallback once the native shell reports its shipped identity.
-void getNativeAppVersion()
-  .then((nativeAppVersion) => {
-    if (nativeAppVersion !== null) useAppVersionStore.getState().setAppVersion(nativeAppVersion);
-  })
-  .catch(() => {});
 const redirectUri = `${globalThis.location.origin}/auth/callback`;
 const authStore = createAuthStore({
   tokenStore,
@@ -47,15 +42,25 @@ const authStore = createAuthStore({
  * `maxAge` is decoupled from `staleTime` in `query-client.ts`.
  */
 export function AppProviders(): ReactElement {
+  const [appVersion, setAppVersion] = useState(version);
+
   useEffect(() => {
     void requestPersistentStorage();
   }, []);
 
-  // Native platform garnish (all silent no-ops on web): match the status bar to
-  // the active theme and re-match on every toggle, and map Android hardware Back
-  // to the router (exit at a root tab). The router uses browser history, so iOS
-  // edge-swipe-back maps to the router natively.
+  // Native platform garnish (all silent no-ops on web): read the shipped app
+  // identity, match the status bar to the active theme and re-match on every
+  // toggle, and map Android hardware Back to the router (exit at a root tab).
+  // The router uses browser history, so iOS edge-swipe-back maps to the router
+  // natively.
   useEffect(() => {
+    void getNativeAppVersion()
+      .then((nativeAppVersion) => {
+        if (nativeAppVersion !== null) setAppVersion(nativeAppVersion);
+      })
+      .catch((cause: unknown) => {
+        console.error("Failed to read native app version", cause);
+      });
     applyStatusBarTheme(useThemeStore.getState().theme);
     const unsubscribeTheme = useThemeStore.subscribe((state) => applyStatusBarTheme(state.theme));
     const unbindBack = bindHardwareBack(() => {
@@ -79,7 +84,9 @@ export function AppProviders(): ReactElement {
       }}
     >
       <HapticsProvider value={haptics}>
-        <AuthGate store={authStore} stores={{ tokenStore, kv, redirectUri }} />
+        <AppVersionProvider value={appVersion}>
+          <AuthGate store={authStore} stores={{ tokenStore, kv, redirectUri }} />
+        </AppVersionProvider>
       </HapticsProvider>
     </PersistQueryClientProvider>
   );

@@ -1,10 +1,10 @@
 import { ScreenHeader } from "@ui/app-shell/ScreenHeader";
-import { useAppVersionStore } from "@ui/app-version-store";
 import { ActionSheet } from "@ui/components/ActionSheet";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { usePrefs } from "@ui/prefs/prefs-store";
 import { THRESHOLD_OPTIONS } from "@ui/prefs/threshold";
 import type { NextEpisodeOrder } from "@ui/prefs/tracking";
+import { useAppVersion } from "@ui/runtime/app-version";
 import { ThemeToggle } from "@ui/theme/ThemeToggle";
 import { Check, RefreshCw } from "lucide-react";
 import { type ReactElement, useState } from "react";
@@ -60,7 +60,7 @@ function radioIcon(selected: boolean): ReactElement {
  */
 export function Settings(): ReactElement {
   useDocumentTitle("Settings · Cue");
-  const appVersion = useAppVersionStore((s) => s.appVersion);
+  const appVersion = useAppVersion();
   const thresholdDays = usePrefs((s) => s.thresholdDays);
   const setThresholdDays = usePrefs((s) => s.setThresholdDays);
   const showsEnabled = usePrefs((s) => s.showsEnabled);
