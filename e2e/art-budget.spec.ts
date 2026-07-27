@@ -36,8 +36,13 @@ const LIBRARY_SIZE = 300;
  * The ceiling this suite gates: scrolling the whole library end to end must cost
  * FAR fewer GETs than it has shows. Art belongs to the cards a reader stops on,
  * not to every row a virtualized grid mounts and unmounts on the way past.
+ *
+ * Measured cost over three headed runs of this exact scroll: 25 GETs,
+ * deterministic. 50 is a 2x margin over that measurement, not `LIBRARY_SIZE / 2`
+ * (150): a ceiling six times the real cost passes a six-times regression, which is
+ * the exact way this gate went slack once already.
  */
-const SCROLL_ART_CEILING = LIBRARY_SIZE / 2;
+const SCROLL_ART_CEILING = 50;
 
 function ep(season: number, number: number, traktId: number): EpisodeFixture {
   return { season, number, title: `Episode ${number}`, firstAired: AIRED, traktId };
@@ -67,6 +72,11 @@ test.beforeEach(async ({ page }) => {
 test("scrolling the whole library costs far fewer art reads than it has shows", async ({
   page,
 }) => {
+  // Headless Chromium on this VM does not deliver IntersectionObserver callbacks
+  // on authed pages, so this spec must run headed here; headed adds real render +
+  // input latency on top of the ~14.6s of hard waits below, so give it margin
+  // instead of inheriting a tight suite-wide default.
+  test.setTimeout(60_000);
   await installLibraryRoutes(
     page.context(),
     Array.from({ length: LIBRARY_SIZE }, (_, i) => show(i)),
