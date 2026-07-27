@@ -4,11 +4,13 @@ import { withReadRateRetry } from "./read-budget";
 
 /**
  * Every authed GET the runtime and repositories issue OUTSIDE `read-budget.ts`
- * itself, pre-bound to {@link withReadRateRetry}. This is the only door in: the
- * architecture rule in `.dependency-cruiser.cjs` forbids importing
- * `./endpoints` from anywhere but this file and `read-budget.ts`, so a read
- * reachable from the runtime without a pooled wrapper here cannot compile
- * clean, instead of relying on a caller remembering to wrap each call site.
+ * itself, pre-bound to {@link withReadRateRetry}. The architecture rule in
+ * `.dependency-cruiser.cjs` forbids importing `./endpoints` from anywhere but
+ * this file and `read-budget.ts`, so no OTHER caller can reach a raw read
+ * directly. It does not, by itself, prove every export below is actually
+ * wrapped in `pool()` rather than re-exported raw from here: that is what
+ * `test/data/trakt-pooled-endpoints.test.ts`'s identity check gates, by naming
+ * any export that stops being reference-distinct from its `raw` counterpart.
  */
 
 function pool<Args extends unknown[], T>(

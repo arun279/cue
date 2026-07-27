@@ -41,6 +41,85 @@ const EMPTY_ACCOUNT_READS = [
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
+/**
+ * Headless Chromium on this VM never delivers real IntersectionObserver
+ * callbacks (confirmed by probing a bare `about:blank` page: `visibilityState`
+ * reads "visible" but no callback fires within 5s even for a freshly appended,
+ * fully-in-viewport div). Specs that gate on a card "settling on screen"
+ * (`useShowArt`'s `useSettledOnScreen`) therefore cannot rely on the browser's
+ * own implementation in CI's headless run.
+ *
+ * Install this before navigation to replace `window.IntersectionObserver` with
+ * a rect-based polyfill that honours the same contract real IO gives callers
+ * (an initial callback with current state, then a callback on every
+ * intersecting/not-intersecting transition). This VM's headless Chromium never
+ * ticks `requestAnimationFrame` either (probed the same way: zero callbacks in
+ * 3s on a bare page), so the polyfill polls on `setInterval`, which is the one
+ * timer this environment's already-passing specs prove does run headless. The
+ * production code path is untouched: `useShowArt` still observes real DOM
+ * nodes through the standard API, just backed by a working implementation.
+ */
+export async function installIntersectionObserverPolyfill(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const POLL_MS = 50;
+    type Entry = { target: Element; isIntersecting: boolean; intersectionRatio: number };
+    class RectIntersectionObserver {
+      private readonly callback: (entries: Entry[], observer: RectIntersectionObserver) => void;
+      private readonly states = new Map<Element, boolean | undefined>();
+      private timer: ReturnType<typeof setInterval> | null = null;
+
+      constructor(callback: (entries: Entry[], observer: RectIntersectionObserver) => void) {
+        this.callback = callback;
+      }
+
+      observe(target: Element): void {
+        this.states.set(target, undefined);
+        this.schedule();
+      }
+
+      unobserve(target: Element): void {
+        this.states.delete(target);
+      }
+
+      disconnect(): void {
+        this.states.clear();
+        if (this.timer !== null) clearInterval(this.timer);
+        this.timer = null;
+      }
+
+      takeRecords(): Entry[] {
+        return [];
+      }
+
+      private schedule(): void {
+        if (this.timer !== null) return;
+        this.timer = setInterval(() => this.tick(), POLL_MS);
+      }
+
+      private tick(): void {
+        const entries: Entry[] = [];
+        for (const [target, wasIntersecting] of this.states) {
+          const rect = target.getBoundingClientRect();
+          const isIntersecting =
+            rect.width > 0 &&
+            rect.height > 0 &&
+            rect.bottom > 0 &&
+            rect.right > 0 &&
+            rect.top < window.innerHeight &&
+            rect.left < window.innerWidth;
+          if (isIntersecting !== wasIntersecting) {
+            this.states.set(target, isIntersecting);
+            entries.push({ target, isIntersecting, intersectionRatio: isIntersecting ? 1 : 0 });
+          }
+        }
+        if (entries.length > 0) this.callback(entries, this);
+      }
+    }
+    (window as unknown as { IntersectionObserver: unknown }).IntersectionObserver =
+      RectIntersectionObserver;
+  });
+}
+
 const DAY = 86_400_000;
 
 /**

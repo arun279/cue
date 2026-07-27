@@ -3,6 +3,7 @@ import {
   agoIso,
   type EpisodeFixture,
   installHermeticRoutes,
+  installIntersectionObserverPolyfill,
   installLibraryRoutes,
   readStored,
   type ShowFixture,
@@ -37,12 +38,16 @@ const LIBRARY_SIZE = 300;
  * FAR fewer GETs than it has shows. Art belongs to the cards a reader stops on,
  * not to every row a virtualized grid mounts and unmounts on the way past.
  *
- * Measured cost over three headed runs of this exact scroll: 25 GETs,
- * deterministic. 50 is a 2x margin over that measurement, not `LIBRARY_SIZE / 2`
- * (150): a ceiling six times the real cost passes a six-times regression, which is
- * the exact way this gate went slack once already.
+ * Measured cost over three runs of this exact scroll, against
+ * `installIntersectionObserverPolyfill`'s rect-based settle gate (this VM's
+ * headless Chromium never ticks a real `IntersectionObserver`, so the gate that
+ * actually runs in CI is the polyfill's, not the browser's): 60 GETs,
+ * deterministic across all three. 120 is a 2x margin over that measurement, not
+ * `LIBRARY_SIZE / 2` (150): a ceiling five times the real cost passes a
+ * five-times regression, which is the exact way this gate went slack once
+ * already.
  */
-const SCROLL_ART_CEILING = 50;
+const SCROLL_ART_CEILING = 120;
 
 function ep(season: number, number: number, traktId: number): EpisodeFixture {
   return { season, number, title: `Episode ${number}`, firstAired: AIRED, traktId };
@@ -72,11 +77,13 @@ test.beforeEach(async ({ page }) => {
 test("scrolling the whole library costs far fewer art reads than it has shows", async ({
   page,
 }) => {
-  // Headless Chromium on this VM does not deliver IntersectionObserver callbacks
-  // on authed pages, so this spec must run headed here; headed adds real render +
-  // input latency on top of the ~14.6s of hard waits below, so give it margin
-  // instead of inheriting a tight suite-wide default.
+  // Headless Chromium on this VM never delivers real IntersectionObserver
+  // callbacks (see `installIntersectionObserverPolyfill`), so the settle gate
+  // this test exercises runs against a rect-based polyfill instead. The scroll
+  // itself plus the polyfill's rAF-driven settle timing still cost real wall
+  // clock, so give this test margin over the suite-wide default.
   test.setTimeout(60_000);
+  await installIntersectionObserverPolyfill(page);
   await installLibraryRoutes(
     page.context(),
     Array.from({ length: LIBRARY_SIZE }, (_, i) => show(i)),
@@ -112,6 +119,7 @@ test("opening a show reuses the card's `/shows/:id` read instead of paying twice
   // The card art and the detail hero want the same `/shows/:id` payload. Under two
   // query keys that was two GETs for one URL, charged every time a reader tapped a
   // card they had just looked at.
+  await installIntersectionObserverPolyfill(page);
   const controls = await installLibraryRoutes(page.context(), [show(0)]);
 
   await page.goto("/library");
