@@ -11,9 +11,7 @@ const nativeApp = vi.hoisted(() => {
     version: "9.8-native",
     build: "native-build-765",
   };
-  let settle = (_value: typeof info): void => {
-    throw new Error("Native app-info promise was not initialized");
-  };
+  let settle: (value: typeof info) => void = () => {};
   const pending = new Promise<typeof info>((resolve) => {
     settle = resolve;
   });

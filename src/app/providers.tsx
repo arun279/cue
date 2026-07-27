@@ -12,6 +12,7 @@ import { isNativePlatform } from "@platform/platform";
 import { applyStatusBarTheme } from "@platform/status-bar";
 import { createTokenStore } from "@platform/token-store";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
+import { useAppVersionStore } from "@ui/app-version-store";
 import { usePrefs } from "@ui/prefs/prefs-store";
 import { HapticsProvider } from "@ui/runtime/haptics";
 import { useThemeStore } from "@ui/theme/theme-store";
@@ -25,11 +26,12 @@ const tokenStore = createTokenStore(kv);
 // The tactile seam, built once: silent on web, and on native
 // gated at fire time on the Settings "Haptics" toggle + prefers-reduced-motion.
 const haptics = createNativeHaptics(() => usePrefs.getState().hapticsEnabled);
-// Resolve the store-facing native identity once; Settings keeps its package
-// fallback on web and while the native plugin responds.
-void getNativeAppVersion().then((nativeAppVersion) => {
-  if (nativeAppVersion !== null) usePrefs.getState().setNativeAppVersion(nativeAppVersion);
-});
+// Replace the package fallback once the native shell reports its shipped identity.
+void getNativeAppVersion()
+  .then((nativeAppVersion) => {
+    if (nativeAppVersion !== null) useAppVersionStore.getState().setAppVersion(nativeAppVersion);
+  })
+  .catch(() => {});
 const redirectUri = `${globalThis.location.origin}/auth/callback`;
 const authStore = createAuthStore({
   tokenStore,

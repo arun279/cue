@@ -1,4 +1,5 @@
 import { ScreenHeader } from "@ui/app-shell/ScreenHeader";
+import { useAppVersionStore } from "@ui/app-version-store";
 import { ActionSheet } from "@ui/components/ActionSheet";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { usePrefs } from "@ui/prefs/prefs-store";
@@ -7,7 +8,6 @@ import type { NextEpisodeOrder } from "@ui/prefs/tracking";
 import { ThemeToggle } from "@ui/theme/ThemeToggle";
 import { Check, RefreshCw } from "lucide-react";
 import { type ReactElement, useState } from "react";
-import { version } from "../../../../package.json";
 import {
   SettingLinkRow,
   SettingRow,
@@ -60,7 +60,7 @@ function radioIcon(selected: boolean): ReactElement {
  */
 export function Settings(): ReactElement {
   useDocumentTitle("Settings · Cue");
-  const nativeAppVersion = usePrefs((s) => s.nativeAppVersion);
+  const appVersion = useAppVersionStore((s) => s.appVersion);
   const thresholdDays = usePrefs((s) => s.thresholdDays);
   const setThresholdDays = usePrefs((s) => s.setThresholdDays);
   const showsEnabled = usePrefs((s) => s.showsEnabled);
@@ -198,7 +198,7 @@ export function Settings(): ReactElement {
           label="Version"
           control={
             <span className="setting-row__value" data-testid="settings-version">
-              {nativeAppVersion ?? version}
+              {appVersion}
             </span>
           }
         />
