@@ -72,13 +72,6 @@ export function chipBuckets(
 
 export interface LibraryChipsView extends QueryStatus {
   readonly chips: LibraryChips;
-  /** Non-hidden tracked shows: the count that decides an empty library (aligned with Up Next). */
-  readonly trackedCount: number;
-  /** Every tracked show, hidden included: 0 only when the library is truly empty. */
-  readonly totalCount: number;
-  /** The library exceeds the cold-sync progress budget, so only recent shows are
-   * fully synced: the honest "recent shows synced" state. */
-  readonly isPartial: boolean;
   refetch(): void;
 }
 
@@ -98,9 +91,6 @@ export function useLibraryBuckets(sort: LibrarySort, enabled = true): LibraryChi
 
   return {
     chips,
-    trackedCount: data === undefined ? 0 : data.entries.filter((entry) => !entry.hidden).length,
-    totalCount: data?.entries.length ?? 0,
-    isPartial: data?.isPartial ?? false,
     ...queryStatus(query, data !== undefined),
     refetch: () => void query.refetch(),
   };

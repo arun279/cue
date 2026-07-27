@@ -19,9 +19,7 @@ export interface TraktClientConfig {
 /** Parsed `X-Pagination-*` headers; `null` when the endpoint sends none. */
 interface Pagination {
   readonly page: number;
-  readonly limit: number;
   readonly pageCount: number;
-  readonly itemCount: number;
 }
 
 /**
@@ -165,12 +163,7 @@ function readPagination(headers: Readonly<Record<string, string>>): Pagination |
   const page = numberHeader(headers, "x-pagination-page");
   const pageCount = numberHeader(headers, "x-pagination-page-count");
   if (page === null || pageCount === null) return null;
-  return {
-    page,
-    pageCount,
-    limit: numberHeader(headers, "x-pagination-limit") ?? 0,
-    itemCount: numberHeader(headers, "x-pagination-item-count") ?? 0,
-  };
+  return { page, pageCount };
 }
 
 function numberHeader(headers: Readonly<Record<string, string>>, name: string): number | null {

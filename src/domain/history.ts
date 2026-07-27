@@ -39,12 +39,10 @@ export interface HistoryGroup {
   readonly loggedTogether: boolean;
 }
 
-/** One local day of history, newest-first, with a quiet play-count rollup. */
+/** One local day of history, newest-first. */
 export interface HistoryDay {
   readonly dayKey: string;
   readonly label: string;
-  readonly episodeCount: number;
-  readonly movieCount: number;
   readonly groups: readonly HistoryGroup[];
 }
 
@@ -162,8 +160,6 @@ export function groupHistory(
       return {
         dayKey,
         label: labelFor(dayKey, toMs(ordered[0]?.watchedAt ?? null) ?? now),
-        episodeCount: ordered.filter((e) => e.type === "episode").length,
-        movieCount: ordered.filter((e) => e.type === "movie").length,
         groups: groupDay(ordered),
       };
     });

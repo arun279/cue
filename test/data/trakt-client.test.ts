@@ -65,12 +65,7 @@ describe("TraktClient pagination", () => {
       ),
     );
     const result = await client().get("/sync/history");
-    expect(result.ok && result.pagination).toEqual({
-      page: 1,
-      limit: 10,
-      pageCount: 3,
-      itemCount: 25,
-    });
+    expect(result.ok && result.pagination).toEqual({ page: 1, pageCount: 3 });
   });
 
   it("walks every page via getAllPages and flattens the arrays", async () => {

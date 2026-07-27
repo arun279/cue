@@ -37,8 +37,6 @@ function day(dayKey: string, entries: readonly HistoryEntry[]): HistoryDay {
   return {
     dayKey,
     label: "Thu, Jul 9",
-    episodeCount: entries.filter((e) => e.type === "episode").length,
-    movieCount: entries.filter((e) => e.type === "movie").length,
     groups,
   };
 }

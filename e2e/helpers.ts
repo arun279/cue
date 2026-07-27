@@ -9,6 +9,36 @@ export interface HermeticControls {
 
 const OTHER_ORIGINS = ["**/api.trakt.tv/**", "**/trakt.tv/**"];
 
+/**
+ * The empty-account baseline: every list read a spec reaches without installing a
+ * richer harness, answered with the `[]` Trakt really returns for an account that
+ * tracks nothing. The set is deliberately CLOSED and path-exact. Anything outside
+ * it throws, so a path the app requests but no fixture models fails the test
+ * instead of resolving as a silent empty success.
+ */
+const EMPTY_ACCOUNT_READS = [
+  // Cold sync's list reads: a signed-in account with no shows, no movies, nothing
+  // hidden and an empty watchlist. Suites with a real library install
+  // `installLibraryRoutes` / `installMovieRoutes` over these.
+  "**/api.trakt.tv/sync/watched/shows*",
+  "**/api.trakt.tv/sync/watched/movies*",
+  "**/api.trakt.tv/sync/watchlist/shows*",
+  "**/api.trakt.tv/sync/watchlist/movies*",
+  "**/api.trakt.tv/users/hidden/progress_watched*",
+  // Calendar's agenda window: no upcoming airings. `installCalendarRoutes` wins
+  // for the suites that assert real airings.
+  "**/api.trakt.tv/calendars/my/shows/*/*",
+  // Diary's first page: an account with no plays. `installHistoryRoutes` wins for
+  // the suites that assert real plays.
+  "**/api.trakt.tv/users/me/history*",
+  // The Search browse grids. Empty rails are a legitimate render, so these must be
+  // named: they are exactly the reads a permissive catch-all used to hide.
+  "**/api.trakt.tv/shows/trending*",
+  "**/api.trakt.tv/shows/popular*",
+  "**/api.trakt.tv/movies/trending*",
+  "**/api.trakt.tv/movies/popular*",
+];
+
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 const DAY = 86_400_000;
@@ -31,15 +61,27 @@ export async function installHermeticRoutes(context: BrowserContext): Promise<He
   let mode: NetworkMode = "ok";
   let count = 12;
 
-  // Catch-alls first; the specific /networks route is registered last so it wins.
+  // Catch-alls first; every specific route below is registered later so it wins.
+  // A fixture more permissive than the API cannot fail, so the floor is a THROW: a
+  // Trakt path no fixture models is a test failure, never an empty 200.
   for (const pattern of OTHER_ORIGINS) {
+    await context.route(pattern, (route) => {
+      throw new Error(
+        `No e2e fixture routes this Trakt request: ${route.request().method()} ` +
+          `${route.request().url()}\nAdd an explicit route (and say why it is ` +
+          "legitimate) rather than widening the catch-all.",
+      );
+    });
+  }
+
+  for (const pattern of EMPTY_ACCOUNT_READS) {
     await context.route(pattern, (route) =>
       route.fulfill({ status: 200, contentType: "application/json", body: "[]" }),
     );
   }
 
-  // Profile reads `/users/me/stats`; the array catch-all above would fail the
-  // object schema, so answer it with a valid non-zero stats fixture.
+  // Profile reads `/users/me/stats`. An object read, so the `[]` baseline above
+  // does not fit it: answer with a valid non-zero stats fixture.
   await context.route("**/api.trakt.tv/users/me/stats*", (route) =>
     route.fulfill({
       status: 200,
@@ -52,8 +94,8 @@ export async function installHermeticRoutes(context: BrowserContext): Promise<He
     }),
   );
 
-  // Profile's identity read (`/users/settings`): the array catch-all would fail
-  // the object schema, so answer with a stable identity fixture.
+  // Profile's identity read (`/users/settings`): another object read, so answer
+  // with a stable identity fixture rather than the `[]` baseline.
   await context.route("**/api.trakt.tv/users/settings*", (route) =>
     route.fulfill({
       status: 200,
@@ -79,9 +121,9 @@ export async function installHermeticRoutes(context: BrowserContext): Promise<He
     route.fulfill({ status: 200, contentType: "image/png", body: pngPixel }),
   );
 
-  // The freshness gate polls `/sync/last_activities`; the array catch-all would
-  // fail the object schema, so answer with a valid empty stamp table: a boot with
-  // no baseline commits it and invalidates nothing (a clean no-op poll).
+  // The freshness gate polls `/sync/last_activities`; an object read, so answer
+  // with a valid empty stamp table rather than the `[]` baseline: a boot with no
+  // baseline commits it and invalidates nothing (a clean no-op poll).
   // installLibraryRoutes overrides this with a mutable, bump-able table.
   await context.route("**/api.trakt.tv/sync/last_activities*", (route) =>
     route.fulfill({ status: 200, contentType: "application/json", body: "{}" }),
