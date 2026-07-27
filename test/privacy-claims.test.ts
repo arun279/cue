@@ -1,0 +1,174 @@
+import { TRAKT_API_BASE } from "@data/trakt/client";
+import { describe, expect, it } from "vitest";
+import androidManifestSource from "../android/app/src/main/AndroidManifest.xml?raw";
+import extractionRulesSource from "../android/app/src/main/res/xml/data_extraction_rules.xml?raw";
+import capacitorConfig from "../capacitor.config";
+import servedPolicy from "../docs/index.html?raw";
+import infoPlistSource from "../ios/App/App/Info.plist?raw";
+import policy from "../PRIVACY.md?raw";
+
+/**
+ * The native shells are the one part of this repo nothing else reads: biome,
+ * dprint, cspell and dependency-cruiser all skip `ios/` and `android/`, and
+ * tsconfig excludes them. Cue's published privacy policy makes claims that only
+ * hold if those shells are configured a particular way, so each claim is pinned
+ * here to the shipped file that makes it true. The policy and its served copy
+ * are checked against each other for the same reason: a claim corrected in one
+ * and not the other is how the two drifted apart in the first place.
+ *
+ * Everything is imported rather than read from disk so paths resolve against
+ * this module instead of the working directory vitest happened to start in.
+ */
+
+/** Comments quote the very attributes asserted below, so they must not count either way. */
+const stripComments = (xml: string): string => xml.replace(/<!--[\s\S]*?-->/g, "");
+
+const androidManifest = stripComments(androidManifestSource);
+const extractionRules = stripComments(extractionRulesSource);
+const infoPlist = stripComments(infoPlistSource);
+
+/** Every storage domain Android's backup rules can name, device-protected ones included. */
+const backupDomains = [
+  "root",
+  "file",
+  "database",
+  "sharedpref",
+  "external",
+  "device_root",
+  "device_file",
+  "device_database",
+  "device_sharedpref",
+];
+
+const ruleSection = (name: string): string =>
+  extractionRules.match(new RegExp(`<${name}\\b[^>]*>([\\s\\S]*?)</${name}>`))?.[1] ?? "";
+
+/** Domains a section drops wholesale. A narrower `path` protects one file and leaks the rest. */
+const domainsExcludedWholesale = (section: string): string[] =>
+  [...section.matchAll(/<exclude\b[^>]*>/g)]
+    .map(([element]) => element)
+    .filter((element) => /\bpath="\."/.test(element))
+    .flatMap((element) => element.match(/\bdomain="([^"]+)"/)?.[1] ?? []);
+
+/** A variant overlay outranks `main` in the merged manifest, so it must not touch any of these. */
+const postureAttributes = [
+  "allowBackup",
+  "dataExtractionRules",
+  "fullBackupContent",
+  "usesCleartextTraffic",
+  "networkSecurityConfig",
+  "uses-permission",
+];
+
+const variantManifests = Object.entries(
+  import.meta.glob<string>("../android/app/src/*/AndroidManifest.xml", {
+    query: "?raw",
+    import: "default",
+    eager: true,
+  }),
+).filter(([path]) => !path.includes("/main/"));
+
+describe("claim: nothing Cue stores is copied off an Android device", () => {
+  // Several assertions below are negative, and a `?raw` import that resolved to
+  // an empty string would satisfy every one of them without reading anything.
+  it.each([
+    ["the Android manifest", androidManifest],
+    ["the extraction rules", extractionRules],
+    ["the iOS Info.plist", infoPlist],
+    ["the policy", policy],
+    ["the served policy", servedPolicy],
+  ])("actually loaded %s", (_name, source) => {
+    expect(source.length).toBeGreaterThan(0);
+  });
+
+  it("keeps the app out of Google backup and adb backup", () => {
+    expect(androidManifest).toMatch(/android:allowBackup\s*=\s*"false"/);
+  });
+
+  it("points at the rules that also cover device-to-device transfer", () => {
+    expect(androidManifest).toMatch(
+      /android:dataExtractionRules\s*=\s*"@xml\/data_extraction_rules"/,
+    );
+  });
+
+  it.each(["cloud-backup", "device-transfer"])("excludes every storage domain from %s", (name) => {
+    expect(domainsExcludedWholesale(ruleSection(name))).toEqual(
+      expect.arrayContaining(backupDomains),
+    );
+  });
+
+  it("adds no include rule, which would flip a section back to an allowlist", () => {
+    expect(extractionRules).not.toContain("<include");
+  });
+
+  it("lets no build variant overlay the posture main declares", () => {
+    for (const [path, manifest] of variantManifests) {
+      for (const attribute of postureAttributes) {
+        expect(stripComments(manifest), path).not.toContain(attribute);
+      }
+    }
+  });
+});
+
+describe("claim: Cue collects nothing and reaches Trakt directly over HTTPS", () => {
+  it("declares no Android permission of its own beyond INTERNET", () => {
+    const declared = [...androidManifest.matchAll(/<uses-permission\b[^>]*>/g)].flatMap(
+      ([element]) => element.match(/\bandroid:name="([^"]+)"/)?.[1] ?? [],
+    );
+    expect(declared).toEqual(["android.permission.INTERNET"]);
+  });
+
+  it("declares no iOS usage description, because Cue asks for no protected data", () => {
+    expect(infoPlist).not.toMatch(/NS\w+UsageDescription/);
+  });
+
+  it("serves the app from the bundle rather than a remote origin", () => {
+    expect(capacitorConfig.server).toBeUndefined();
+  });
+
+  it("talks to Trakt itself and not to a host standing in for it", () => {
+    expect(TRAKT_API_BASE).toBe("https://api.trakt.tv");
+  });
+
+  it("permits no cleartext traffic on either platform", () => {
+    expect(androidManifest).not.toMatch(/android:usesCleartextTraffic\s*=\s*"true"/);
+    // A network security config or an ATS dictionary can re-admit cleartext per
+    // domain, so the invariant is that neither platform declares one at all.
+    expect(androidManifest).not.toContain("networkSecurityConfig");
+    expect(infoPlist).not.toContain("NSAppTransportSecurity");
+  });
+});
+
+/** `docs/index.html` is the copy stores link to; PRIVACY.md is its repo companion. */
+const servedText = servedPolicy
+  .replace(/<(script|style)[\s\S]*?<\/\1>/g, " ")
+  .replace(/<[^>]+>/g, " ")
+  .replace(/&rarr;/g, "→")
+  .replace(/&(?:apos|#39);/g, "'")
+  .replace(/&quot;/g, '"')
+  .replace(/&amp;/g, "&")
+  .replace(/\s+/g, " ");
+
+const policyText = policy.replace(/\*\*/g, "").replace(/\s+/g, " ");
+
+/**
+ * One sentence per promise the native config has to keep. Anything asserted
+ * above should be represented here, or the config could be corrected while the
+ * published wording still says the old thing.
+ */
+const claims = [
+  "Everything Cue keeps is written to your device's own app storage:",
+  "anything you have marked that has not reached Trakt yet",
+  "Nothing Cue stores is included in a Google backup or carried over by a device-to-device transfer",
+  "Versions of Cue before this one did not opt out",
+  "iOS keeps app preferences, your Trakt token among them, in a store that is always part of a device backup and that apps are given no way to exclude",
+  "That switch does not reach a backup stored on a computer, so delete that one yourself.",
+  "Neither reaches a copy already sitting in a device backup",
+];
+
+describe("the served policy and the repo policy state the same thing", () => {
+  it.each(claims)("both state: %s", (claim) => {
+    expect(policyText).toContain(claim);
+    expect(servedText).toContain(claim);
+  });
+});
