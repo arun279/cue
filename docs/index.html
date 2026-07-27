@@ -64,20 +64,26 @@
           <strong>Android:</strong> Cue opts out. Nothing Cue stores is included in a Google backup
           or carried over by Android's own device-to-device transfer, so a restored or replaced
           phone starts signed out. Signing back in is one short code at
-          <a href="https://trakt.tv/activate">trakt.tv/activate</a>. Versions of Cue before this one
-          did not opt out, so Google may still hold a backup taken while an older version was
-          installed. Deleting that device's backup from your Google account removes it, and signing
-          out asks Trakt to revoke the token inside it either way.
+          <a href="https://trakt.tv/activate">trakt.tv/activate</a>. Versions of Cue before July
+          2026 did not opt out, so Google may still hold a backup taken while an older version was
+          installed. Deleting that device's backup from your Google account removes it. Signing out
+          asks Trakt to revoke this device's access token, but Trakt always answers success, so
+          that alone does not confirm it worked; revoke Cue at
+          <a href="https://app.trakt.tv/settings/applications">app.trakt.tv/settings/applications</a>
+          to be sure.
         </li>
         <li>
-          <strong>iOS:</strong> Cue does not yet opt out. iOS keeps app preferences, your Trakt
+          <strong>iOS:</strong> iOS keeps app preferences, your Trakt
           token among them, in a store that is included in a device backup by default, and Cue has
           not moved the token off that store yet, so your token can sit inside an iCloud backup or
           a backup you have taken to a computer. For iCloud, open <strong>Settings &rarr; [your name] &rarr; iCloud &rarr;
-          Manage Account Storage &rarr; Backups</strong>, pick your device, and switch Cue off: iOS
+          Manage Account Storage &rarr; Backups</strong>, tap the device you are using, and switch Cue off: iOS
           stops backing Cue up and removes what iCloud already holds. That switch does not reach a
           backup stored on a computer, so delete that one yourself. Signing out asks Trakt to revoke
-          the token in any copy.
+          this device's access token, but Trakt always answers success, so that alone does not
+          confirm it worked; revoke Cue at
+          <a href="https://app.trakt.tv/settings/applications">app.trakt.tv/settings/applications</a>
+          to be sure.
         </li>
       </ul>
 
