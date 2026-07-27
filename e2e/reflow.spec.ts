@@ -15,6 +15,12 @@ import {
  * with no horizontal scroll: grids reflow, rows wrap. */
 const NARROW = { width: 320, height: 720 } as const;
 const AIRED = "2026-01-01T00:00:00.000Z";
+const BREAKPOINT_CASES = [
+  { width: 874, height: 402, primary: "tabbar" },
+  { width: 956, height: 440, primary: "tabbar" },
+  { width: 1024, height: 768, primary: "sidebar" },
+  { width: 390, height: 844, primary: "tabbar" },
+] as const;
 
 function ep(season: number, number: number, traktId: number): EpisodeFixture {
   return { season, number, title: `Episode ${number}`, firstAired: AIRED, traktId };
@@ -87,6 +93,79 @@ test.beforeEach(async ({ page }) => {
   await installHermeticRoutes(page.context());
   await seedAuth(page.context());
   await seedTutorialDismissed(page.context());
+});
+
+test.describe("landscape and breakpoint navigation gate", () => {
+  for (const viewport of BREAKPOINT_CASES) {
+    const label = `${viewport.width}x${viewport.height}`;
+
+    test(`${label} shows only the reachable ${viewport.primary} with no horizontal overflow`, async ({
+      browserName,
+      page,
+    }) => {
+      await installLibraryRoutes(page.context(), libraryShows());
+      await page.setViewportSize(viewport);
+
+      if (label === "874x402" && browserName === "chromium") {
+        const cdp = await page.context().newCDPSession(page);
+        await cdp.send("Emulation.setSafeAreaInsetsOverride", {
+          insets: { left: 47, right: 47, bottom: 21 },
+        });
+      }
+
+      await page.goto("/");
+      await expect(
+        page.getByTestId("screen-up-next"),
+        `${label} Up Next route is reachable`,
+      ).toBeVisible();
+
+      const tabbar = page.locator(".tabbar");
+      const sidebar = page.locator(".sidebar");
+      if (viewport.primary === "tabbar") {
+        await expect(tabbar, `${label} tabbar is visible`).toBeVisible();
+        await expect(sidebar, `${label} sidebar is hidden`).toBeHidden();
+      } else {
+        await expect(sidebar, `${label} sidebar is visible`).toBeVisible();
+        await expect(tabbar, `${label} tabbar is hidden`).toBeHidden();
+      }
+
+      expect(
+        await horizontalOverflow(page),
+        `${label} document overflows horizontally`,
+      ).toBeLessThanOrEqual(1);
+
+      if (label === "874x402") {
+        // The CDP safe-area override above is chromium-only; without it webkit's
+        // insets stay at 0 and this assertion degrades to a padding tautology
+        // (-16 === -16) instead of proving anything. Skip rather than overstate
+        // webkit's coverage.
+        test.skip(browserName === "webkit", "no CDP safe-area override on webkit");
+
+        const alignment = await page.evaluate(() => {
+          const mainElement = document.querySelector<HTMLElement>(".main");
+          const headerElement = document.querySelector<HTMLElement>(".app-header");
+          if (!mainElement || !headerElement) throw new Error("App shell styles are unavailable");
+          const main = getComputedStyle(mainElement);
+          const header = getComputedStyle(headerElement);
+          return {
+            mainLeft: Number.parseFloat(main.paddingLeft),
+            mainRight: Number.parseFloat(main.paddingRight),
+            headerLeft: Number.parseFloat(header.marginLeft),
+            headerRight: Number.parseFloat(header.marginRight),
+          };
+        });
+
+        expect(
+          alignment.headerLeft,
+          "874x402 .app-header margin-left negates .main padding-left",
+        ).toBe(-alignment.mainLeft);
+        expect(
+          alignment.headerRight,
+          "874x402 .app-header margin-right negates .main padding-right",
+        ).toBe(-alignment.mainRight);
+      }
+    });
+  }
 });
 
 test("Library poster grid + chips reflow with no horizontal scroll @320", async ({ page }) => {

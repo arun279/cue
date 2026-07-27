@@ -640,7 +640,9 @@
   color: var(--color-muted);
 }
 
-@media (min-width: 900px) {
+/* Same min-width/min-height gate as layout.css's sidebar breakpoint (see that
+ * comment for the height rationale); keep in sync. */
+@media (min-width: 900px) and (min-height: 500px) {
   .detail-hero,
   .detail-skel__hero {
     margin: calc(-1 * var(--space-6)) calc(-1 * var(--space-7)) 0;

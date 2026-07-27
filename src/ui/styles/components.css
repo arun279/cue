@@ -221,7 +221,9 @@
 .app-snackbar__action:hover {
   color: color-mix(in srgb, var(--color-accent-ink) 85%, var(--color-fg));
 }
-@media (min-width: 900px) {
+/* Same min-width/min-height gate as layout.css's sidebar breakpoint (see that
+ * comment for the height rationale); keep in sync. */
+@media (min-width: 900px) and (min-height: 500px) {
   .app-snackbar {
     left: auto;
     right: var(--space-5);
