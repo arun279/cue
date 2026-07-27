@@ -4,7 +4,7 @@ import {
   type LastActivities,
 } from "@domain/sync-activities";
 import type { TraktClient, TraktFailure } from "./client";
-import { getLastActivities } from "./endpoints";
+import { getLastActivities } from "./pooled-endpoints";
 
 type ActivitiesPoll =
   | {

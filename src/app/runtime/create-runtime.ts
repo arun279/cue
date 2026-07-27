@@ -5,6 +5,14 @@ import { invalidationKeys } from "@data/query-invalidation";
 import { createAuthorizedFetch } from "@data/trakt/authorized-fetch";
 import { assembleCalendarEntries } from "@data/trakt/calendar";
 import { TraktClient } from "@data/trakt/client";
+import { assembleEpisodeDetail } from "@data/trakt/episode-detail";
+import {
+  assembleEpisodePlays,
+  assembleHistoryEntries,
+  assembleMoviePlays,
+} from "@data/trakt/history";
+import { additiveLanded, markLanded, showIdSet } from "@data/trakt/library";
+import { assembleMovieHeader, assembleMovieLibrary } from "@data/trakt/movie-library";
 import {
   getEpisode,
   getHidden,
@@ -25,16 +33,8 @@ import {
   getWatchedMovies,
   getWatchlist,
   searchTrakt,
-} from "@data/trakt/endpoints";
-import { assembleEpisodeDetail } from "@data/trakt/episode-detail";
-import {
-  assembleEpisodePlays,
-  assembleHistoryEntries,
-  assembleMoviePlays,
-} from "@data/trakt/history";
-import { additiveLanded, markLanded, showIdSet } from "@data/trakt/library";
-import { assembleMovieHeader, assembleMovieLibrary } from "@data/trakt/movie-library";
-import { loadUpNextEntries, withReadRateRetry } from "@data/trakt/read-budget";
+} from "@data/trakt/pooled-endpoints";
+import { loadUpNextEntries } from "@data/trakt/read-budget";
 import { createLastActivitiesRepository } from "@data/trakt/repositories";
 import type { UserStats } from "@data/trakt/schemas";
 import {
@@ -214,7 +214,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       // same cache entry for its hero. It goes through the shared read gate like
       // every other read, so a scrolled list can neither exceed the concurrency
       // pool nor fire into a window a 429 just closed.
-      const show = await withReadRateRetry(() => getShow(client, showId));
+      const show = await getShow(client, showId);
       if (!show.ok) throw new Error("Failed to load show");
       return assembleShowInfo(show.data);
     },
@@ -225,8 +225,8 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       // no per-movie detail fetch needed. Each absorbs a transient 429 so a
       // rate-limit doesn't flip the library to Offline over its cached posters.
       const [watched, watchlist] = await Promise.all([
-        withReadRateRetry(() => getWatchedMovies(client)),
-        withReadRateRetry(() => getWatchlist(client, "movies")),
+        getWatchedMovies(client),
+        getWatchlist(client, "movies"),
       ]);
       if (!watched.ok) throw new Error("Failed to load watched movies");
       if (!watchlist.ok) throw new Error("Failed to load movie watchlist");
@@ -304,7 +304,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       // one page at a time. A transient 429 is absorbed so a rate-limit mid-scroll
       // doesn't flip the Diary to error over its cached pages. `range` scopes the
       // read to a year/month window (the decade jump).
-      const result = await withReadRateRetry(() => getHistory(client, section, page, range));
+      const result = await getHistory(client, section, page, range);
       if (!result.ok) throw new Error("Failed to load history");
       return {
         entries: assembleHistoryEntries(result.data),
@@ -317,19 +317,19 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       // On-demand, user-initiated (a durable Unmark) so a full paged walk of the
       // show's plays is acceptable; a transient 429 is absorbed rather than failing
       // the unmark outright.
-      const result = await withReadRateRetry(() => getItemPlays(client, "shows", showId));
+      const result = await getItemPlays(client, "shows", showId);
       if (!result.ok) throw new Error("Failed to load show history");
       return assembleEpisodePlays(result.data);
     },
 
     async loadEpisodePlays(episodeId) {
-      const result = await withReadRateRetry(() => getItemPlays(client, "episodes", episodeId));
+      const result = await getItemPlays(client, "episodes", episodeId);
       if (!result.ok) throw new Error("Failed to load episode history");
       return assembleEpisodePlays(result.data);
     },
 
     async loadMoviePlays(movieId) {
-      const result = await withReadRateRetry(() => getItemPlays(client, "movies", movieId));
+      const result = await getItemPlays(client, "movies", movieId);
       if (!result.ok) throw new Error("Failed to load movie history");
       return assembleMoviePlays(result.data);
     },

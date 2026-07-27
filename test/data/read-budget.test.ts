@@ -5,8 +5,10 @@ import {
   WATCHED_PROGRESS_BUDGET,
   withReadRateRetry,
 } from "@data/trakt/read-budget";
-import { HttpResponse, http } from "msw";
-import { describe, expect, it } from "vitest";
+import type { KeyValueStore } from "@platform/kv";
+import type { TokenStore } from "@platform/token-store";
+import { delay, HttpResponse, http } from "msw";
+import { describe, expect, it, vi } from "vitest";
 import { mswServer } from "./_msw";
 
 const server = mswServer();
@@ -343,6 +345,53 @@ describe("cold-sync GET budget", () => {
     };
 
     await Promise.all(Array.from({ length: 300 }, () => withReadRateRetry(read)));
+
+    expect(peak).toBe(READ_CONCURRENCY);
+  });
+
+  it("caps concurrent production endpoint reads across independent runtime callers", async () => {
+    vi.stubGlobal("__PERSIST_BUSTER__", "test");
+    const { createCueRuntime } = await import("@app/runtime/create-runtime");
+    let inFlight = 0;
+    let peak = 0;
+    const browse = async (): Promise<Response> => {
+      inFlight += 1;
+      peak = Math.max(peak, inFlight);
+      await delay(25);
+      inFlight -= 1;
+      return HttpResponse.json([]);
+    };
+    server.use(
+      http.get(`${TRAKT_API_BASE}/shows/trending`, browse),
+      http.get(`${TRAKT_API_BASE}/shows/popular`, browse),
+      http.get(`${TRAKT_API_BASE}/movies/trending`, browse),
+      http.get(`${TRAKT_API_BASE}/movies/popular`, browse),
+    );
+    const values = new Map<string, string>();
+    const kv: KeyValueStore = {
+      read: async (key) => values.get(key) ?? null,
+      write: async (key, value) => void values.set(key, value),
+      remove: async (key) => void values.delete(key),
+    };
+    const tokenStore: TokenStore = {
+      read: async () => null,
+      write: async () => undefined,
+      clear: async () => undefined,
+    };
+    const runtime = await createCueRuntime({
+      token: {
+        access_token: "access",
+        refresh_token: "refresh",
+        created_at: Math.floor(Date.now() / 1000),
+        expires_in: 604_800,
+      },
+      kv,
+      tokenStore,
+      redirectUri: "https://cue.test/auth/callback",
+      endSession: async () => undefined,
+    });
+
+    await Promise.all([runtime.loadBrowse(), runtime.loadBrowse()]);
 
     expect(peak).toBe(READ_CONCURRENCY);
   });
