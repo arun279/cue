@@ -46,6 +46,8 @@ First e2e run only: `pnpm exec playwright install chromium webkit`.
 
 Use `pnpm e2e:mobile --headed` when you want to watch the mobile browser checks run.
 
+Every e2e run builds the app and starts its own preview server on port 4173. Set `E2E_PREVIEW_PORT` to move that off the default when a second suite is already running on the same machine.
+
 ### Check harness
 
 `pnpm check` is a single deterministic gate that must be green before anything merges. It runs, in order:
