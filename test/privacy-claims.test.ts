@@ -6,8 +6,10 @@ import capacitorConfig from "../capacitor.config";
 import servedPolicy from "../docs/index.html?raw";
 import infoPlistSource from "../ios/App/App/Info.plist?raw";
 import policy from "../PRIVACY.md?raw";
+import readme from "../README.md?raw";
+import providersSource from "../src/app/providers.tsx?raw";
+import runtimeSource from "../src/app/runtime/create-runtime.ts?raw";
 import kvSource from "../src/platform/kv.ts?raw";
-import tokenStoreSource from "../src/platform/token-store.ts?raw";
 
 /**
  * The native shells are the one part of this repo nothing else reads: biome,
@@ -33,7 +35,8 @@ const androidManifest = stripComments(androidManifestSource);
 const extractionRules = stripComments(extractionRulesSource);
 const infoPlist = stripComments(infoPlistSource);
 const kv = stripComments(kvSource);
-const tokenStore = stripComments(tokenStoreSource);
+const providers = stripComments(providersSource);
+const runtime = stripComments(runtimeSource);
 
 /** Every storage domain Android's backup rules can name, device-protected ones included. */
 const backupDomains = [
@@ -147,22 +150,20 @@ describe("claim: Cue collects nothing and reaches Trakt directly over HTTPS", ()
   });
 });
 
-/** `docs/index.html` is the copy stores link to; PRIVACY.md is its repo companion. */
+/** Normalize the privacy copies enough for stable source-text assertions. */
 const servedText = servedPolicy
   .replace(/<(script|style)[\s\S]*?<\/\1>/g, " ")
   .replace(/<[^>]+>/g, " ")
   .replace(/&rarr;/g, "→")
-  .replace(/&(?:apos|#39);/g, "'")
-  .replace(/&quot;/g, '"')
-  .replace(/&amp;/g, "&")
   .replace(/\s+/g, " ");
 
 const policyText = policy.replace(/\*\*/g, "").replace(/\s+/g, " ");
+const readmeText = readme.replace(/\*\*/g, "").replace(/\s+/g, " ");
 
 /**
- * One sentence per promise the native config has to keep. Anything asserted
- * above should be represented here, or the config could be corrected while the
- * published wording still says the old thing.
+ * These strings keep the repository and served policy copies aligned. Some
+ * claims are anchored independently above or below; the rest catch document
+ * drift only and do not verify the underlying behavior.
  */
 const claims = [
   "Everything Cue keeps is written to your device's own app storage:",
@@ -174,10 +175,29 @@ const claims = [
   "Neither reaches a copy already sitting in a device backup",
 ];
 
-describe("the served policy and the repo policy state the same thing", () => {
-  it.each(claims)("both state: %s", (claim) => {
+const readmeClaims = [
+  "anything you have marked that has not synced yet",
+  "on Android Cue opts out of Google backup and of Android's own device-to-device transfer",
+  "on iOS Cue does not yet opt out, since app preferences are included in a device backup by default",
+];
+
+describe("privacy copy agreement and storage anchors", () => {
+  it.each(claims)("keeps both policy copies in agreement: %s", (claim) => {
     expect(policyText).toContain(claim);
     expect(servedText).toContain(claim);
+  });
+
+  it.each(readmeClaims)("keeps the README summary pinned: %s", (claim) => {
+    expect(readmeText).toContain(claim);
+  });
+
+  it("anchors unsynced marks to the persisted operation log", () => {
+    expect(
+      runtime,
+      "Unsynced marks must remain in the persisted cue.write-queue operation log.",
+    ).toMatch(
+      /const\s+OP_LOG_KEY\s*=\s*["']cue\.write-queue["'];[\s\S]*?const\s+([A-Za-z_$][\w$]*)\s*=\s*createJsonStore<QueuedOp\[\]>\(\s*deps\.kv,\s*OP_LOG_KEY,[\s\S]*?\1\.write\(\s*queue\.snapshot\(\)\s*\)/,
+    );
   });
 
   it("anchors the iOS backup claim to the native token backend", () => {
@@ -185,9 +205,13 @@ describe("the served policy and the repo policy state the same thing", () => {
       'The iOS "store included in backup by default" claim is stale. Update PRIVACY.md, README.md, and docs/index.html.';
     const nativeKeyValueStore =
       kv.match(
-        /function nativeKeyValueStore[\s\S]*?(?=\nexport function createKeyValueStore)/,
+        /^(?:export\s+)?function\s+nativeKeyValueStore\s*\([^)]*\)\s*:\s*KeyValueStore\s*\{[\s\S]*?^\}/m,
       )?.[0] ?? "";
 
+    expect(
+      nativeKeyValueStore,
+      "Could not find the nativeKeyValueStore function body in src/platform/kv.ts.",
+    ).not.toBe("");
     expect(kv, staleClaim).toMatch(
       /import\s*\{[^}]*\bPreferences\b[^}]*\}\s*from\s*["']@capacitor\/preferences["']/,
     );
@@ -198,6 +222,8 @@ describe("the served policy and the repo policy state the same thing", () => {
         new RegExp(`\\bPreferences\\.${method}\\s*\\(`),
       );
     }
-    expect(`${kv}\n${tokenStore}`, staleClaim).not.toMatch(/\b[\w-]*keychain[\w-]*\b/i);
+    expect(providers, staleClaim).toMatch(
+      /\bconst\s+([A-Za-z_$][\w$]*)\s*=\s*createKeyValueStore\s*\([^;]*\)\s*;[\s\S]*?\bconst\s+[A-Za-z_$][\w$]*\s*=\s*createTokenStore\s*\(\s*\1\s*\)\s*;/,
+    );
   });
 });
