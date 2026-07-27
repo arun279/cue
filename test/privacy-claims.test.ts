@@ -218,6 +218,17 @@ describe("privacy copy agreement and storage anchors", () => {
 
     // Force the composition root down its native path.
     vi.doMock("@capacitor/core", () => ({ Capacitor: { getPlatform: () => "ios" } }));
+    // providers.tsx also reads the native app version on this path, and
+    // back-button.ts registers a hardware-back listener through the same
+    // plugin. This anchor is about the token store, not either of those, so
+    // stub both instead of letting the real web shim reject "Not implemented".
+    vi.doMock("@capacitor/app", () => ({
+      App: {
+        getInfo: vi.fn(async () => ({ version: "1.0", build: "1" })),
+        addListener: vi.fn(async () => ({ remove: async () => {} })),
+        exitApp: vi.fn(async () => {}),
+      },
+    }));
 
     // The one point of observation: whatever the real store ends up being, a
     // connected token must round-trip through this mock to count as reaching
