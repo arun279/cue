@@ -7,6 +7,7 @@ name: Mobile release
 # CI (ci.yml) is the quality gate, enforced twice: branch protection keeps red
 # commits off main, and the gate job below re-checks the exact commit this run
 # would ship.
+# A dispatch or tag on a commit never pushed to main finds no CI checks and times out at DEADLINE_MINUTES rather than releasing.
 
 on:
   push:
@@ -14,7 +15,7 @@ on:
     tags: ["v*"]
     paths-ignore: [
       "docs/**",
-      "**/*.md",
+      "*.md",
       ".github/**",
       "LICENSE",
       "e2e/**",
@@ -140,7 +141,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           SHA: ${{ github.sha }}
-          RUN_ID: ${{ github.run_id }}
           # Job names that exist in ci.yml today. Never list one that does not:
           # a check that can never report turns the wait below into a guaranteed
           # timeout on every release.
@@ -152,16 +152,34 @@ jobs:
         run: |
           set -euo pipefail
 
-          # ci.yml and this workflow both have a job named "android" and both
-          # report against this commit. Dropping our own check suite stops this
-          # run from reading its own result as CI's.
-          own_suite=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq '.check_suite_id')
+          # ci.yml and this workflow both have a job named "android". Filtering
+          # positively to ci.yml's own check suite instead of negatively excluding
+          # this run's suite keeps tag pushes and workflow_dispatch runs from
+          # mistaking a stale mobile-release "android" check for CI's.
           deadline=$(( $(date +%s) + DEADLINE_MINUTES * 60 ))
 
           while :; do
-            status=$(gh api --paginate --slurp "repos/$REPO/commits/$SHA/check-runs?per_page=100" \
-              | jq -c --argjson app "$APP_ID" --argjson suite "$own_suite" --argjson required "$REQUIRED" '
-                  [ .[].check_runs[] | select(.app.id == $app and .check_suite.id != $suite) ] as $runs
+            if ! ci_run=$(gh api \
+              "repos/$REPO/actions/workflows/ci.yml/runs?head_sha=$SHA&event=push&per_page=1" \
+              --jq '.workflow_runs[0].check_suite_id // empty'); then
+              echo "Transient error finding ci.yml check suite, retrying"
+              sleep "$POLL_SECONDS"
+              continue
+            fi
+
+            if [ -z "$ci_run" ]; then
+              status=$(jq -cn --argjson required "$REQUIRED" '
+                [ $required[] | { name: ., state: "missing", verdict: "pending" } ]')
+            else
+              if ! raw=$(gh api --paginate --slurp \
+                "repos/$REPO/commits/$SHA/check-runs?per_page=100"); then
+                echo "Transient error fetching check-runs, retrying"
+                sleep "$POLL_SECONDS"
+                continue
+              fi
+
+              status=$(jq -c --argjson app "$APP_ID" --argjson suite "$ci_run" --argjson required "$REQUIRED" '
+                  [ .[].check_runs[] | select(.app.id == $app and .check_suite.id == $suite) ] as $runs
                   | [ $required[]
                       | . as $name
                       | ([ $runs[] | select(.name == $name) ] | sort_by(.started_at) | last) as $latest
@@ -169,7 +187,8 @@ jobs:
                         elif $latest.status != "completed" then { name: $name, state: $latest.status, verdict: "pending" }
                         elif $latest.conclusion == "success" then { name: $name, state: "success", verdict: "ok" }
                         else { name: $name, state: ($latest.conclusion // "unknown"), verdict: "failed" }
-                        end ]')
+                        end ]' <<<"$raw")
+            fi
 
             failed=$(jq -r '[ .[] | select(.verdict == "failed") | "\(.name) (\(.state))" ] | join(", ")' <<<"$status")
             if [ -n "$failed" ]; then

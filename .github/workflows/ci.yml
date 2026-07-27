@@ -16,8 +16,11 @@ permissions:
 # SHA, so only runs of the identical commit collide. Every Dependabot commit now
 # runs full CI instead of coalescing a burst. The repository is public, so
 # Actions minutes are free and that cost is acceptable.
+# The event name is also part of the group: the weekly schedule run and a push
+# landing on the same commit both resolve to the same SHA, and without the
+# event name the schedule run would cancel a same-commit push run in progress.
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.sha }}
+  group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: true
 jobs:
   check:

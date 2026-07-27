@@ -4,23 +4,26 @@ import path from "node:path";
 import picomatch from "picomatch";
 import { describe, expect, it } from "vitest";
 
-// Vitest is only ever invoked from the repository root (the `test` script in
-// package.json), so process.cwd() is the anchor rather than import.meta.url,
-// which this loader does not resolve to a file: URL.
-const REPOSITORY_ROOT = process.cwd();
+const REPOSITORY_ROOT = execFileSync("git", ["rev-parse", "--show-toplevel"], {
+  encoding: "utf8",
+}).trim();
+const CI_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/ci.yml");
 const MOBILE_RELEASE_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/mobile-release.yml");
 
+// Markdown inside a shipping tree stays in SHIPS. Vite copies public/** into
+// dist verbatim, so excluding *.md by extension misclassified those files; the
+// existing "when in doubt, SHIPS" rule applies to every shipping tree.
 const SHIPS = [
-  "src/**/!(*.md)",
+  "src/**",
   "index.html",
-  "public/**/!(*.md)",
+  "public/**",
   "vite.config.ts",
   "package.json",
   "pnpm-lock.yaml",
   "capacitor.config.ts",
-  "android/**/!(*.md)",
-  "ios/**/!(*.md)",
-  "fastlane/**/!(*.md)",
+  "android/**",
+  "ios/**",
+  "fastlane/**",
   "Gemfile",
   "Gemfile.lock",
   ".nvmrc",
@@ -31,7 +34,7 @@ const SHIPS = [
 
 const DOES_NOT_SHIP = [
   "docs/**",
-  "**/*.md",
+  "*.md",
   ".github/**",
   "LICENSE",
   "e2e/**",
@@ -101,6 +104,39 @@ const readPathsIgnore = (): string[] => {
   return parsed;
 };
 
+const readCiJobNames = (): string[] => {
+  const workflow = readFileSync(CI_WORKFLOW, "utf8");
+
+  // This intentionally parses only the top-level jobs block and its
+  // two-space-indented job IDs, not general YAML.
+  const matches = [
+    ...workflow.matchAll(/^jobs:[ \t]*\r?\n([\s\S]*?)(?=^[^ \t\r\n#][^:\r\n]*:|(?![\s\S]))/gm),
+  ];
+  const jobsBlock = matches.length === 1 ? matches[0]?.[1] : undefined;
+  if (jobsBlock === undefined) {
+    throw new Error(`expected one jobs block, found ${matches.length}`);
+  }
+
+  return [...jobsBlock.matchAll(/^ {2}([A-Za-z_][A-Za-z0-9_-]*):[ \t]*(?:#.*)?\r?$/gm)].map(
+    (match) => match[1] as string,
+  );
+};
+
+const readRequiredChecks = (): string[] => {
+  const workflow = readFileSync(MOBILE_RELEASE_WORKFLOW, "utf8");
+  const matches = [...workflow.matchAll(/^ {10}REQUIRED:[ \t]*'(\[[^\]]*\])'[ \t]*$/gm)];
+  const raw = matches.length === 1 ? matches[0]?.[1] : undefined;
+  if (raw === undefined) {
+    throw new Error(`expected one REQUIRED JSON array, found ${matches.length}`);
+  }
+
+  const parsed: unknown = JSON.parse(raw);
+  if (!isStringArray(parsed)) {
+    throw new Error("REQUIRED must be an array of strings");
+  }
+  return parsed;
+};
+
 describe("mobile release path partition", () => {
   it("classifies every tracked file", () => {
     const unmatched = trackedFiles.filter(
@@ -109,7 +145,10 @@ describe("mobile release path partition", () => {
         matchingPatterns(file, DOES_NOT_SHIP_MATCHERS).length === 0,
     );
 
-    expect(unmatched, `Unclassified tracked files:\n${unmatched.join("\n")}`).toEqual([]);
+    expect(
+      unmatched,
+      `Unclassified tracked files (add each to SHIPS unless you can show it does not enter the shipped bundle, then update mobile-release.yml's paths-ignore to match):\n${unmatched.join("\n")}`,
+    ).toEqual([]);
   });
 
   it("does not classify any tracked file both ways", () => {
@@ -130,5 +169,11 @@ describe("mobile release path partition", () => {
 
   it("keeps paths-ignore aligned with non-shipping paths", () => {
     expect([...readPathsIgnore()].sort()).toEqual([...DOES_NOT_SHIP].sort());
+  });
+});
+
+describe("mobile release gate required checks", () => {
+  it("keeps REQUIRED aligned with CI jobs", () => {
+    expect([...readRequiredChecks()].sort()).toEqual([...readCiJobNames()].sort());
   });
 });
