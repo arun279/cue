@@ -6,8 +6,6 @@ import { mount } from "./_mount";
 
 const nativeApp = vi.hoisted(() => {
   const info = {
-    name: "Cue Native Gate",
-    id: "com.cue.native-gate",
     version: "9.8-native",
     build: "native-build-765",
   };
@@ -81,26 +79,23 @@ describe("Settings native app version", () => {
     });
 
     expect(nativeApp.getInfo).toHaveBeenCalledTimes(1);
-    expect(
-      rendered?.textContent,
-      "native Settings must not render the package.json version",
-    ).not.toBe(packageVersion);
     expect(rendered?.textContent).toBe(`${nativeApp.info.version} (${nativeApp.info.build})`);
   });
 
-  it("keeps the package fallback when the native plugin rejects", async () => {
+  it("shows an unknown version when the native plugin rejects", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
       mount(<AppProviders />);
       const rendered = document.querySelector<HTMLElement>('[data-testid="settings-version"]');
       expect(rendered?.textContent).toBe(packageVersion);
 
+      const rejection = new Error("native bridge failed");
       await act(async () => {
-        nativeApp.reject(new Error("native bridge failed"));
+        nativeApp.reject(rejection);
       });
 
-      expect(rendered?.textContent).toBe(packageVersion);
-      expect(error).toHaveBeenCalledTimes(1);
+      expect(rendered?.textContent).toBe("Unknown");
+      expect(error).toHaveBeenCalledWith("Failed to read native app version", rejection);
     } finally {
       error.mockRestore();
     }

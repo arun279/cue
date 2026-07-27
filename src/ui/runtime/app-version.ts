@@ -1,13 +1,14 @@
 import { createContext, useContext } from "react";
-import { version } from "../../../package.json";
 
 /**
  * The app identity Settings renders, injected from the composition root so
- * `@ui` stays free of `@app`/`@platform`. The default is the package version,
- * so the browser build and tests need no provider; native replaces it with the
- * shipped version and build.
+ * `@ui` stays free of `@app`/`@platform`. The inert default supports isolated
+ * callers; the composition root supplies the package or native version in the
+ * real app.
  */
-const AppVersionContext = createContext<string>(version);
+const EMPTY_APP_VERSION = "";
+
+const AppVersionContext = createContext<string>(EMPTY_APP_VERSION);
 
 export const AppVersionProvider = AppVersionContext.Provider;
 

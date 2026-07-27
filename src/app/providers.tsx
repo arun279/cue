@@ -59,6 +59,8 @@ export function AppProviders(): ReactElement {
         if (nativeAppVersion !== null) setAppVersion(nativeAppVersion);
       })
       .catch((cause: unknown) => {
+        // "Unknown" keeps a native bridge failure from looking like a real version.
+        if (native) setAppVersion("Unknown");
         console.error("Failed to read native app version", cause);
       });
     applyStatusBarTheme(useThemeStore.getState().theme);
