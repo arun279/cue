@@ -15,6 +15,9 @@ import {
 } from "./tracking";
 
 interface PrefsState {
+  /** Store-facing native identity; null keeps the package fallback until resolved. */
+  nativeAppVersion: string | null;
+  setNativeAppVersion: (version: string) => void;
   /** Days of inactivity before a show falls from Watching to Not-watched-in-a-while. */
   thresholdDays: number;
   setThresholdDays: (days: number) => void;
@@ -54,6 +57,8 @@ export const usePrefs = create<PrefsState>((set, get) => {
     set(next);
   };
   return {
+    nativeAppVersion: null,
+    setNativeAppVersion: (nativeAppVersion) => set({ nativeAppVersion }),
     thresholdDays: initialThresholdDays(),
     setThresholdDays: (thresholdDays) => {
       persistThresholdDays(thresholdDays);

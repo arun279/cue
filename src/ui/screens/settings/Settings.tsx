@@ -60,6 +60,7 @@ function radioIcon(selected: boolean): ReactElement {
  */
 export function Settings(): ReactElement {
   useDocumentTitle("Settings · Cue");
+  const nativeAppVersion = usePrefs((s) => s.nativeAppVersion);
   const thresholdDays = usePrefs((s) => s.thresholdDays);
   const setThresholdDays = usePrefs((s) => s.setThresholdDays);
   const showsEnabled = usePrefs((s) => s.showsEnabled);
@@ -197,7 +198,7 @@ export function Settings(): ReactElement {
           label="Version"
           control={
             <span className="setting-row__value" data-testid="settings-version">
-              {version}
+              {nativeAppVersion ?? version}
             </span>
           }
         />

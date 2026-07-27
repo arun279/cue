@@ -4,6 +4,7 @@ import { TRAKT_CLIENT_ID } from "@app/config";
 import { requestPersistentStorage } from "@app/persist";
 import { PERSIST_BUSTER, PERSIST_MAX_AGE, queryClient, queryPersister } from "@app/query-client";
 import { router } from "@app/router";
+import { getNativeAppVersion } from "@platform/app-version";
 import { bindHardwareBack } from "@platform/back-button";
 import { createNativeHaptics } from "@platform/haptics";
 import { createKeyValueStore } from "@platform/kv";
@@ -24,6 +25,11 @@ const tokenStore = createTokenStore(kv);
 // The tactile seam, built once: silent on web, and on native
 // gated at fire time on the Settings "Haptics" toggle + prefers-reduced-motion.
 const haptics = createNativeHaptics(() => usePrefs.getState().hapticsEnabled);
+// Resolve the store-facing native identity once; Settings keeps its package
+// fallback on web and while the native plugin responds.
+void getNativeAppVersion().then((nativeAppVersion) => {
+  if (nativeAppVersion !== null) usePrefs.getState().setNativeAppVersion(nativeAppVersion);
+});
 const redirectUri = `${globalThis.location.origin}/auth/callback`;
 const authStore = createAuthStore({
   tokenStore,
