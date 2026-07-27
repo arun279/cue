@@ -298,6 +298,10 @@ describe("privacy copy agreement and storage anchors", () => {
       },
     }));
 
+    // query-client.ts reads this build-time define (injected by vite.config.ts's
+    // `define`, which vitest does not apply); stub it so the real module loads.
+    vi.stubGlobal("__PERSIST_BUSTER__", "test");
+
     vi.resetModules();
     const { AppProviders } = await import("@app/providers");
     const { Preferences } = await import("@capacitor/preferences");

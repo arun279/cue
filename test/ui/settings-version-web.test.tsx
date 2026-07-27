@@ -19,6 +19,7 @@ vi.mock("@app/query-client", () => ({
   queryClient: {},
   PERSIST_MAX_AGE: Number.POSITIVE_INFINITY,
   PERSIST_BUSTER: "web-test",
+  shouldDehydrateQuery: () => false,
 }));
 vi.mock("@tanstack/react-query-persist-client", () => ({
   PersistQueryClientProvider: ({ children }: { children: ReactNode }) => children,
