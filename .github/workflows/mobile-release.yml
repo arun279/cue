@@ -227,9 +227,22 @@ jobs:
   ios:
     needs: [config, gate]
     if: needs.config.outputs.build_ios == 'true' && (needs.config.outputs.lane == 'release' || github.ref_type == 'branch')
-    runs-on: macos-latest
+    # TODO(ios-uiscene-pin): Starting with iOS 27, UIKit kills apps that have
+    # not adopted the UIScene life cycle. Capacitor has not shipped scene
+    # support; ionic-team/capacitor#7961 is open and targeted for 8.5. Remove
+    # this pin when #7961 lands with CAPSceneDelegateProxy, or when this repo
+    # lands its UIScene shim from fix/ios-uiscene-lifecycle. GitHub moved
+    # macos-latest from macOS 15 to macOS 26 between 2026-06-15 and mid-July
+    # 2026. macos-latest and macos-26 currently name the same image, so the pin
+    # is a no-op today. It prevents the next image migration from silently
+    # advancing the SDK. When the runner image prunes Xcode 26.6, the explicit
+    # xcode-select path fails loudly instead of falling through to the next
+    # Xcode. Adopt UIScene then; do not bump the pinned path.
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.6.app
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
