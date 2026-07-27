@@ -57,6 +57,25 @@ pre-push:
     check:
       priority: 2
       run: pnpm check
-    e2e:
-      priority: 3
-      run: pnpm e2e
+    # TODO: restore the e2e command here once WebKit is reliable on this machine.
+    #   e2e:
+    #     priority: 3
+    #     run: pnpm e2e
+    #
+    # It was removed, not weakened away: ci.yml runs the same suite on ubuntu for
+    # every pull request, and ruleset 18841630 requires the `e2e` context from
+    # GitHub Actions, so a commit still cannot reach main without it passing.
+    # What is lost locally is only the earlier signal.
+    #
+    # Why it had to go: Playwright WebKit on this Apple Virtualization guest
+    # stalls a hard 15.00s per new WebKit process inside IOServiceOpen against
+    # AppleVideoToolboxParavirtualizationDriver, whose backend lives in the host.
+    # Measured 2026-07-27: launch 0.11s, newPage 30.10s, goto 15.02s; the suite
+    # went from 294 passed in 3.4 minutes to 258 passed / 36 failed in 22.2
+    # minutes. A reboot clears it for only 3 to 4 hours, so it is not a fix, and
+    # there is no sudo here to reset the driver any other way.
+    #
+    # Restore when either is true: the paravirtualisation fault is gone for good,
+    # or a WebKit preference is found that skips the VP9 hardware-decode probe
+    # that triggers it. Verify with a timing probe first, importing webkit from
+    # "@playwright/test": healthy newPage is sub-second, broken is 15s.
