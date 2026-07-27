@@ -23,6 +23,15 @@ module.exports = {
     },
     // These patterns mirror DOES_NOT_SHIP in test/ci/release-paths.test.ts.
     // Changes to that list require matching updates here.
+    // Known gaps: this rule is static analysis over import specifiers that
+    // dependency-cruiser can resolve. import.meta.glob(...) and
+    // new URL("...", import.meta.url) are invisible to it. Neither produces a
+    // resolvable import edge that dependency-cruiser follows, so a file matched
+    // by either idiom is never flagged, even if it points at a non-shipping
+    // path. import.meta.glob(...) is already used in
+    // src/ui/screens/settings/Settings.tsx. Also, from.path "^src/" covers only
+    // the first edge out of src. It does not cover a transitive hop through a
+    // non-src root file that imports a non-shipping path.
     {
       name: "src-no-non-shipping-imports",
       severity: "error",

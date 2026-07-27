@@ -144,7 +144,7 @@ const readRequiredChecks = (): string[] => {
 describe("mobile release path partition", () => {
   it("uses only path pattern syntax shared with GitHub Actions", () => {
     for (const pattern of [...SHIPS, ...DOES_NOT_SHIP]) {
-      const character = [...pattern].find((candidate) => "?[]!+@(".includes(candidate));
+      const character = [...pattern].find((candidate) => "?[]!+@(){}".includes(candidate));
       expect(
         character,
         `Unsafe path pattern "${pattern}": character "${character}" differs between picomatch and GitHub Actions`,
@@ -194,11 +194,11 @@ describe("mobile release gate required checks", () => {
   it("uses CI job IDs as check-run names", () => {
     const unsupportedOverrides = getJobsBlock()
       .split(/\r?\n/)
-      .filter((line) => /^ {4}(?:name|strategy):/.test(line));
+      .filter((line) => /^ {4}(?:name|strategy|if):/.test(line));
 
     expect(
       unsupportedOverrides,
-      "A job-level name or strategy (matrix) override means the check-run name no longer equals the job ID. Update the gate's REQUIRED list and the polling logic in mobile-release.yml to match real check-run names before adding the override.",
+      "A job-level name or strategy (matrix) override means the check-run name no longer equals the job ID, while a job-level if can give it a skipped conclusion, which the release gate treats as a failure. Update the gate's REQUIRED list and the polling logic in mobile-release.yml to handle real check-run names or skipped conclusions before adding the override.",
     ).toEqual([]);
   });
 });

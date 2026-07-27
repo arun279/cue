@@ -287,10 +287,10 @@ jobs:
     # lands its UIScene shim from fix/ios-uiscene-lifecycle. GitHub moved
     # macos-latest from macOS 15 to macOS 26 between 2026-06-15 and mid-July
     # 2026, so runs-on: macos-26 below is a no-op today. The xcode-select step
-    # is not: the macos-26 image's default Xcode is 26.5, with 26.6 installed
-    # alongside, so this step moves the toolchain from 26.5 to 26.6 right now.
-    # Together they prevent the next image migration from silently advancing
-    # the SDK further. When the runner image prunes Xcode 26.6, the explicit
+    # is not: it explicitly pins the toolchain regardless of whichever Xcode
+    # version the image ships as default. Together they prevent the next image
+    # migration from silently advancing the SDK further. When the runner image
+    # prunes Xcode 26.6, the explicit
     # xcode-select path fails loudly instead of falling through to the next
     # Xcode. Adopt UIScene then; do not bump the pinned path.
     runs-on: macos-26
