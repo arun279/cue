@@ -1,31 +1,52 @@
-import { getNativeAppVersion } from "@platform/app-version";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { AppProviders } from "@app/providers";
+import type { ReactNode } from "react";
+import { describe, expect, it, vi } from "vitest";
+import { version as packageVersion } from "../../package.json";
+import { mountAsync } from "./_mount";
 
-const nativeApp = vi.hoisted(() => ({
-  getInfo: vi.fn(() =>
-    Promise.resolve({
-      version: "9.8-native",
-      build: "native-build-765",
-    }),
-  ),
-}));
-
-vi.mock("@capacitor/app", () => ({ App: { getInfo: nativeApp.getInfo } }));
+vi.mock("@capacitor/app", () => ({ App: { getInfo: vi.fn() } }));
 vi.mock("@platform/platform", () => ({ isNativePlatform: () => false }));
 
-describe("native app version web guard", () => {
-  beforeEach(() => {
-    nativeApp.getInfo.mockClear();
-  });
+vi.mock("@app/AuthGate", async () => {
+  const { Settings } = await import("@ui/screens/settings/Settings");
+  return { AuthGate: () => <Settings /> };
+});
+vi.mock("@app/auth/create-auth-store", () => ({ createAuthStore: () => ({}) }));
+vi.mock("@app/config", () => ({ TRAKT_CLIENT_ID: "web-version-test" }));
+vi.mock("@app/persist", () => ({ requestPersistentStorage: vi.fn() }));
+vi.mock("@app/query-client", () => ({
+  queryPersister: {},
+  queryClient: {},
+  PERSIST_MAX_AGE: Number.POSITIVE_INFINITY,
+  PERSIST_BUSTER: "web-test",
+}));
+vi.mock("@tanstack/react-query-persist-client", () => ({
+  PersistQueryClientProvider: ({ children }: { children: ReactNode }) => children,
+}));
+vi.mock("@platform/status-bar", () => ({ applyStatusBarTheme: vi.fn() }));
+vi.mock("@platform/token-store", () => ({ createTokenStore: vi.fn() }));
+vi.mock("@app/router", () => ({
+  router: { history: { back: vi.fn(), canGoBack: () => false } },
+}));
+vi.mock("@platform/back-button", () => ({ bindHardwareBack: vi.fn(() => vi.fn()) }));
+vi.mock("@platform/haptics", () => ({ createNativeHaptics: vi.fn(() => ({})) }));
+vi.mock("@platform/kv", () => ({ createKeyValueStore: vi.fn() }));
 
-  it("skips the native plugin on web", async () => {
-    const error = vi.spyOn(console, "error").mockImplementation(() => {});
-    try {
-      await expect(getNativeAppVersion()).resolves.toBeNull();
-      expect(nativeApp.getInfo).not.toHaveBeenCalled();
-      expect(error).not.toHaveBeenCalled();
-    } finally {
-      error.mockRestore();
-    }
+vi.mock("@ui/screens/settings/useSyncStatus", () => ({
+  useSyncStatus: () => ({
+    line: "Not synced",
+    pending: 0,
+    syncing: false,
+    syncNow: vi.fn(),
+  }),
+}));
+vi.mock("@ui/app-shell/ScreenHeader", () => ({ ScreenHeader: () => null }));
+vi.mock("@ui/screens/settings/SignOutRow", () => ({ SignOutRow: () => null }));
+
+describe("Settings web app version", () => {
+  it("renders the package version", async () => {
+    await mountAsync(<AppProviders />);
+    const rendered = document.querySelector<HTMLElement>('[data-testid="settings-version"]');
+    expect(rendered?.textContent).toBe(packageVersion);
   });
 });

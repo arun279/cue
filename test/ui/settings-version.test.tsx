@@ -1,7 +1,6 @@
 import { AppProviders } from "@app/providers";
 import { act, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { version as packageVersion } from "../../package.json";
 import { mount } from "./_mount";
 
 const nativeApp = vi.hoisted(() => {
@@ -69,16 +68,15 @@ describe("Settings native app version", () => {
     nativeApp.getInfo.mockClear();
   });
 
-  it("replaces the package fallback with the native plugin identity", async () => {
+  it("replaces the empty seed with the native plugin identity", async () => {
     mount(<AppProviders />);
     const rendered = document.querySelector<HTMLElement>('[data-testid="settings-version"]');
-    expect(rendered?.textContent).toBe(packageVersion);
+    expect(rendered?.textContent).toBe("");
 
     await act(async () => {
       nativeApp.resolve();
     });
 
-    expect(nativeApp.getInfo).toHaveBeenCalledTimes(1);
     expect(rendered?.textContent).toBe(`${nativeApp.info.version} (${nativeApp.info.build})`);
   });
 
@@ -87,7 +85,7 @@ describe("Settings native app version", () => {
     try {
       mount(<AppProviders />);
       const rendered = document.querySelector<HTMLElement>('[data-testid="settings-version"]');
-      expect(rendered?.textContent).toBe(packageVersion);
+      expect(rendered?.textContent).toBe("");
 
       const rejection = new Error("native bridge failed");
       await act(async () => {

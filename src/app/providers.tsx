@@ -42,7 +42,7 @@ const authStore = createAuthStore({
  * `maxAge` is decoupled from `staleTime` in `query-client.ts`.
  */
 export function AppProviders(): ReactElement {
-  const [appVersion, setAppVersion] = useState(version);
+  const [appVersion, setAppVersion] = useState(native ? "" : version);
 
   useEffect(() => {
     void requestPersistentStorage();
@@ -60,7 +60,7 @@ export function AppProviders(): ReactElement {
       })
       .catch((cause: unknown) => {
         // "Unknown" keeps a native bridge failure from looking like a real version.
-        if (native) setAppVersion("Unknown");
+        setAppVersion("Unknown");
         console.error("Failed to read native app version", cause);
       });
     applyStatusBarTheme(useThemeStore.getState().theme);

@@ -6,9 +6,7 @@ import { createContext, useContext } from "react";
  * callers; the composition root supplies the package or native version in the
  * real app.
  */
-const EMPTY_APP_VERSION = "";
-
-const AppVersionContext = createContext<string>(EMPTY_APP_VERSION);
+const AppVersionContext = createContext<string>("");
 
 export const AppVersionProvider = AppVersionContext.Provider;
 
