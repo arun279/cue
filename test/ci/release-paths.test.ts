@@ -142,6 +142,16 @@ const readRequiredChecks = (): string[] => {
 };
 
 describe("mobile release path partition", () => {
+  it("uses only path pattern syntax shared with GitHub Actions", () => {
+    for (const pattern of [...SHIPS, ...DOES_NOT_SHIP]) {
+      const character = [...pattern].find((candidate) => "?[]!+@(".includes(candidate));
+      expect(
+        character,
+        `Unsafe path pattern "${pattern}": character "${character}" differs between picomatch and GitHub Actions`,
+      ).toBeUndefined();
+    }
+  });
+
   it("classifies every tracked file", () => {
     const unmatched = trackedFiles.filter(
       (file) =>
