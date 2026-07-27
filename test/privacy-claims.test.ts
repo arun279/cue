@@ -174,7 +174,7 @@ const claims = [
   "iOS keeps app preferences, your Trakt token among them, in a store that is included in a device backup by default, and Cue has not moved the token off that store yet",
   "That switch does not reach a backup stored on a computer, so delete that one yourself.",
   "Neither reaches a copy already sitting in a device backup",
-  "app.trakt.tv/settings/apps",
+  "Cue cannot delete it. Cue has no account of its own and no server-side copy of your data to delete.",
 ];
 
 const readmeClaims = [
@@ -191,6 +191,14 @@ describe("privacy copy agreement and storage anchors", () => {
 
   it.each(readmeClaims)("keeps the README summary pinned: %s", (claim) => {
     expect(readmeText).toContain(claim);
+  });
+
+  it("pins the revoke-Cue link to app.trakt.tv/settings/apps, not the dead /applications route", () => {
+    const occurrences = (text: string) => text.split("app.trakt.tv/settings/apps").length - 1;
+    expect(occurrences(policyText), "PRIVACY.md").toBe(3);
+    expect(occurrences(servedText), "docs/index.html").toBe(3);
+    expect(policy).not.toContain("settings/applications");
+    expect(servedPolicy).not.toContain("settings/applications");
   });
 
   it("anchors unsynced marks to the persisted operation log", () => {
@@ -254,12 +262,20 @@ describe("privacy copy agreement and storage anchors", () => {
     // AuthGate is the one seam between the composition root and the screen it
     // renders: replacing it with a prop-capturing stub gets us the exact
     // `AuthStore` `src/app/providers.tsx` built and wired, without needing the
-    // router or the onboarding screen it would otherwise mount.
-    let capturedStore: { getState: () => { connectWithDeviceCode: () => Promise<void> } } | null =
-      null;
+    // router or the onboarding screen it would otherwise mount. The store is
+    // picked out of the props by shape (the one value with a `getState`
+    // method), not by a hardcoded prop name, so renaming that prop is not a
+    // wiring change this anchor can mistake for a storage regression.
+    type AuthStoreLike = { getState: () => { connectWithDeviceCode: () => Promise<void> } };
+    const isAuthStoreLike = (value: unknown): value is AuthStoreLike =>
+      typeof value === "object" &&
+      value !== null &&
+      typeof (value as { getState?: unknown }).getState === "function";
+
+    let capturedStore: AuthStoreLike | null = null;
     vi.doMock("@app/AuthGate", () => ({
-      AuthGate: ({ store }: { store: typeof capturedStore }) => {
-        capturedStore = store;
+      AuthGate: (props: Record<string, unknown>) => {
+        capturedStore = Object.values(props).find(isAuthStoreLike) ?? null;
         return null;
       },
     }));
@@ -280,7 +296,7 @@ describe("privacy copy agreement and storage anchors", () => {
       ).not.toBeNull();
 
       await act(async () => {
-        await capturedStore?.getState().connectWithDeviceCode();
+        await capturedStore!.getState().connectWithDeviceCode();
       });
 
       expect(Preferences.set, staleClaim).toHaveBeenCalledWith({

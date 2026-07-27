@@ -23,7 +23,7 @@ Cue is **zero-backend**. It is a browser SPA (with a thin Capacitor shell for mo
 
 Cue authenticates as a public OAuth client, so it ships **no secret**: the app author registers one Trakt app and embeds its public client id at build time. Users never see or enter a client id; they just sign into their own Trakt account.
 
-1. Register a free API app at [trakt.tv/oauth/applications](https://trakt.tv/oauth/applications).
+1. Register a free API app with Trakt. Current instructions live at [docs.trakt.tv](https://docs.trakt.tv).
 2. Set its Redirect URI to `http://localhost:5199/auth/callback` for local development, plus `<your-production-origin>/auth/callback` for deploys. (Trakt matches the redirect URI exactly, so register every origin you serve from.)
 3. Copy `.env.example` to `.env` and set `VITE_TRAKT_CLIENT_ID` to the app's **Client ID**. It is public: it ships in the built JS and there is no client secret.
 
