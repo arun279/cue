@@ -62,18 +62,18 @@
       <ul>
         <li>
           <strong>Android:</strong> Cue opts out. Nothing Cue stores is included in a Google backup
-          or carried over by a device-to-device transfer, so a restored or replaced phone starts
-          signed out. Signing back in is one short code at
+          or carried over by Android's own device-to-device transfer, so a restored or replaced
+          phone starts signed out. Signing back in is one short code at
           <a href="https://trakt.tv/activate">trakt.tv/activate</a>. Versions of Cue before this one
           did not opt out, so Google may still hold a backup taken while an older version was
           installed. Deleting that device's backup from your Google account removes it, and signing
           out asks Trakt to revoke the token inside it either way.
         </li>
         <li>
-          <strong>iOS:</strong> Cue cannot opt out. iOS keeps app preferences, your Trakt token
-          among them, in a store that is always part of a device backup and that apps are given no
-          way to exclude, so your token can sit inside an iCloud backup or a backup you have taken
-          to a computer. For iCloud, open <strong>Settings &rarr; [your name] &rarr; iCloud &rarr;
+          <strong>iOS:</strong> Cue does not yet opt out. iOS keeps app preferences, your Trakt
+          token among them, in a store that is included in a device backup by default, and Cue has
+          not moved the token off that store yet, so your token can sit inside an iCloud backup or
+          a backup you have taken to a computer. For iCloud, open <strong>Settings &rarr; [your name] &rarr; iCloud &rarr;
           Manage Account Storage &rarr; Backups</strong>, pick your device, and switch Cue off: iOS
           stops backing Cue up and removes what iCloud already holds. That switch does not reach a
           backup stored on a computer, so delete that one yourself. Signing out asks Trakt to revoke

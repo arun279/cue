@@ -159,9 +159,9 @@ const policyText = policy.replace(/\*\*/g, "").replace(/\s+/g, " ");
 const claims = [
   "Everything Cue keeps is written to your device's own app storage:",
   "anything you have marked that has not reached Trakt yet",
-  "Nothing Cue stores is included in a Google backup or carried over by a device-to-device transfer",
+  "Nothing Cue stores is included in a Google backup or carried over by Android's own device-to-device transfer",
   "Versions of Cue before this one did not opt out",
-  "iOS keeps app preferences, your Trakt token among them, in a store that is always part of a device backup and that apps are given no way to exclude",
+  "iOS keeps app preferences, your Trakt token among them, in a store that is included in a device backup by default, and Cue has not moved the token off that store yet",
   "That switch does not reach a backup stored on a computer, so delete that one yourself.",
   "Neither reaches a copy already sitting in a device backup",
 ];
