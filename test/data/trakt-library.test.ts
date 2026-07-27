@@ -6,6 +6,7 @@ import {
   type LibraryInput,
   markLanded,
   showIdSet,
+  watchedEpisodeCount,
 } from "@data/trakt/library";
 import type { Progress, WatchedShow, WatchlistItem } from "@data/trakt/schemas";
 import type { EpisodePlay } from "@domain/reversal";
@@ -15,7 +16,6 @@ function watchlistItem(overrides: {
   trakt: number;
   title?: string;
   status?: string;
-  posters?: string[];
   tmdb?: number;
 }): WatchlistItem {
   return {
@@ -24,7 +24,6 @@ function watchlistItem(overrides: {
       title: overrides.title ?? "Watchlisted",
       status: overrides.status ?? "returning series",
       ids: { trakt: overrides.trakt, tmdb: overrides.tmdb },
-      images: overrides.posters ? { poster: overrides.posters } : undefined,
     },
   };
 }
@@ -34,8 +33,9 @@ function watchedShow(overrides: {
   title?: string;
   status?: string;
   lastWatchedAt?: string | null;
-  posters?: string[];
   tmdb?: number;
+  /** The row's `aired_episodes`: aired-to-date, the bulk `aired` every entry carries. */
+  airedEpisodes?: number;
   /** Watched-episode counts per season number (the bulk `/sync/watched/shows` breakdown). */
   seasons?: Record<number, number>;
 }): WatchedShow {
@@ -44,8 +44,8 @@ function watchedShow(overrides: {
     show: {
       title: overrides.title ?? "Show",
       status: overrides.status ?? "returning series",
+      aired_episodes: overrides.airedEpisodes ?? 0,
       ids: { trakt: overrides.trakt, tmdb: overrides.tmdb },
-      images: overrides.posters ? { poster: overrides.posters } : undefined,
     },
     ...(overrides.seasons === undefined
       ? {}
@@ -97,23 +97,14 @@ const baseEntry: LibraryEntry = {
     still: null,
     ids: { trakt: 4004 },
   },
-  progressKnown: true,
-  posters: [],
-  backdrops: [],
-  network: null,
-  genres: [],
-  runtime: null,
   tmdbId: null,
   pendingAdvance: false,
 };
 
 describe("assembleLibrary", () => {
-  it("merges watched + progress + hidden + watchlist + images into entries", () => {
+  it("merges watched + progress + hidden + watchlist into entries", () => {
     const input: LibraryInput = {
-      watchedShows: [
-        watchedShow({ trakt: 1, title: "A", posters: ["media.trakt.tv/a.webp"], tmdb: 55 }),
-        watchedShow({ trakt: 2, title: "B" }),
-      ],
+      watchedShows: [watchedShow({ trakt: 1, title: "A", tmdb: 55 }), watchedShow({ trakt: 2 })],
       progress: new Map([[1, progress({})]]),
       hiddenShowIds: new Set([2]),
       watchlistShows: [watchlistItem({ trakt: 1, title: "A" })],
@@ -125,10 +116,8 @@ describe("assembleLibrary", () => {
     expect(a?.showId).toBe(1);
     expect(a?.inWatchlist).toBe(true);
     expect(a?.hidden).toBe(false);
-    expect(a?.progressKnown).toBe(true);
-    // B has no fetched progress in the map → progress unknown, not asserted complete.
-    expect(entries[1]?.progressKnown).toBe(false);
-    expect(a?.posters).toEqual(["media.trakt.tv/a.webp"]);
+    // A has fetched progress, so it overrides the bulk counts.
+    expect(a).toMatchObject({ aired: 10, completed: 3 });
     expect(a?.tmdbId).toBe(55);
     expect(a?.nextEpisode).toEqual({
       season: 1,
@@ -140,39 +129,23 @@ describe("assembleLibrary", () => {
     });
   });
 
-  it("marks a show with no fetched progress and no breakdown as progress-unknown (no next)", () => {
+  it("gives an un-fetched watched show its real bulk counts, specials excluded", () => {
+    // Beyond the cold-sync progress budget: no progress entry, so `aired` is the row's
+    // `aired_episodes` and `completed` is its watched breakdown with season 0 dropped
+    // (matching progress semantics). The backlog is real; only the next episode's
+    // identity is missing, and the show is never asserted caught-up to cover that.
     const entries = assembleLibrary({
-      watchedShows: [watchedShow({ trakt: 7 })],
+      watchedShows: [watchedShow({ trakt: 12, airedEpisodes: 20, seasons: { 0: 2, 1: 8, 2: 6 } })],
       progress: new Map(),
       hiddenShowIds: new Set(),
       watchlistShows: [],
     });
     expect(entries[0]).toMatchObject({
-      aired: 0,
-      completed: 0,
-      nextEpisode: null,
-      progressKnown: false,
-      tmdbId: null,
-      status: "returning series",
-    });
-  });
-
-  it("represents an un-fetched watched show as progress-unknown (sync-pending), NOT fabricated caught-up", () => {
-    // Beyond the cold-sync progress budget: no progress entry, but the bulk watched
-    // breakdown carries the season/episode tree. `completed` is the real watched count
-    // (specials excluded), but `aired` is unknown: so `progressKnown` is false and the
-    // show must NOT be asserted complete (completed === aired = caught-up). A genuinely
-    // mid-watch tail show would otherwise be mislabeled caught-up and dropped.
-    const entries = assembleLibrary({
-      watchedShows: [watchedShow({ trakt: 12, seasons: { 0: 2, 1: 8, 2: 6 } })],
-      progress: new Map(),
-      hiddenShowIds: new Set(),
-      watchlistShows: [],
-    });
-    expect(entries[0]).toMatchObject({
+      aired: 20,
       completed: 14,
       nextEpisode: null,
-      progressKnown: false,
+      tmdbId: null,
+      status: "returning series",
     });
   });
 
@@ -215,7 +188,7 @@ describe("assembleLibrary", () => {
       watchedShows: [],
       progress: new Map(),
       hiddenShowIds: new Set(),
-      watchlistShows: [watchlistItem({ trakt: 9, title: "Queued", posters: ["p.webp"], tmdb: 77 })],
+      watchlistShows: [watchlistItem({ trakt: 9, title: "Queued", tmdb: 77 })],
     });
     expect(entries).toHaveLength(1);
     expect(entries[0]).toMatchObject({
@@ -226,54 +199,21 @@ describe("assembleLibrary", () => {
       completed: 0,
       nextEpisode: null,
       lastWatchedAt: null,
-      progressKnown: true,
-      posters: ["p.webp"],
       tmdbId: 77,
     });
   });
 
-  it("merges show-detail art (poster/backdrop/network/genres/runtime) over the inline list", () => {
+  it("carries no art: every card reads its own from `/shows/:id`", () => {
+    // `/sync/watched/shows` returns no `images` block at all (the app does not even
+    // ask for one), so an entry could only ever carry a null poster. The whole
+    // field set is gone rather than shipped structurally empty.
     const entries = assembleLibrary({
-      watchedShows: [watchedShow({ trakt: 5, title: "Detailed", posters: ["inline.webp"] })],
+      watchedShows: [watchedShow({ trakt: 5, title: "Detailed" })],
       progress: new Map([[5, progress({})]]),
       hiddenShowIds: new Set(),
       watchlistShows: [],
-      details: new Map([
-        [
-          5,
-          {
-            posters: ["detail-poster.webp"],
-            backdrops: ["detail-fanart.webp"],
-            network: "AMC",
-            genres: ["drama", "crime"],
-            runtime: 47,
-          },
-        ],
-      ]),
     });
-    expect(entries[0]).toMatchObject({
-      posters: ["detail-poster.webp"],
-      backdrops: ["detail-fanart.webp"],
-      network: "AMC",
-      genres: ["drama", "crime"],
-      runtime: 47,
-    });
-  });
-
-  it("falls back to the inline poster and empty metadata when no detail art is provided", () => {
-    const entries = assembleLibrary({
-      watchedShows: [watchedShow({ trakt: 6, posters: ["inline.webp"] })],
-      progress: new Map([[6, progress({})]]),
-      hiddenShowIds: new Set(),
-      watchlistShows: [],
-    });
-    expect(entries[0]).toMatchObject({
-      posters: ["inline.webp"],
-      backdrops: [],
-      network: null,
-      genres: [],
-      runtime: null,
-    });
+    expect(Object.keys(entries[0] ?? {}).sort()).toEqual(Object.keys(baseEntry).sort());
   });
 
   it("does not duplicate a watchlisted show that is also watched", () => {
@@ -286,6 +226,47 @@ describe("assembleLibrary", () => {
     expect(entries).toHaveLength(1);
     expect(entries[0]?.inWatchlist).toBe(true);
     expect(entries[0]?.completed).toBe(3);
+  });
+});
+
+describe("watchedEpisodeCount", () => {
+  it("counts Doctor Who's 78 non-special episodes, never the 159 that include specials", () => {
+    // Measured against the live API on 2026-07-26: 78 watched excluding season 0,
+    // 159 including it, against an `aired_episodes` of 153. Trakt's `aired_episodes`
+    // is the season sum EXCLUDING season 0, so counting specials would put this show
+    // 6 episodes past its own aired count, read it as caught-up, and drop it out of
+    // the queue. The exclusion is load-bearing, not cosmetic.
+    const show = watchedShow({ trakt: 56, airedEpisodes: 153, seasons: { 0: 81, 1: 78 } });
+    expect(watchedEpisodeCount(show)).toBe(78);
+
+    const entries = assembleLibrary({
+      watchedShows: [show],
+      progress: new Map(),
+      hiddenShowIds: new Set(),
+      watchlistShows: [],
+    });
+    expect(entries[0]).toMatchObject({ aired: 153, completed: 78 });
+  });
+
+  it("drops plays from before a restart, so no progress read is needed to make the cut", () => {
+    const restarted: WatchedShow = {
+      last_watched_at: "2026-07-01T00:00:00.000Z",
+      reset_at: "2026-06-01T00:00:00.000Z",
+      show: { title: "Restarted", aired_episodes: 10, ids: { trakt: 1 } },
+      seasons: [
+        {
+          number: 1,
+          episodes: [
+            { number: 1, last_watched_at: "2026-05-01T00:00:00.000Z" },
+            { number: 2, last_watched_at: "2026-07-01T00:00:00.000Z" },
+            // No stamp: counted as pre-reset, which understates `completed` and
+            // leaves the show in the queue rather than fabricating it caught-up.
+            { number: 3, last_watched_at: null },
+          ],
+        },
+      ],
+    };
+    expect(watchedEpisodeCount(restarted)).toBe(1);
   });
 });
 

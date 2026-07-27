@@ -25,7 +25,10 @@
   align-items: center;
   gap: var(--space-2);
   height: calc(56px + env(safe-area-inset-top));
-  margin: calc(-1 * var(--space-4)) calc(-1 * var(--space-4)) 0;
+  /* Mirrors .main's max(gutter, safe-area) side padding. */
+  margin: calc(-1 * var(--space-4))
+    calc(-1 * max(var(--space-4), env(safe-area-inset-right))) 0
+    calc(-1 * max(var(--space-4), env(safe-area-inset-left)));
   padding: env(safe-area-inset-top) max(var(--space-4), env(safe-area-inset-right)) 0
     max(var(--space-4), env(safe-area-inset-left));
   background: var(--color-bg);
@@ -101,7 +104,9 @@
   align-items: center;
   gap: var(--space-2);
   height: 32px;
-  margin: 0 calc(-1 * var(--space-4));
+  /* Mirrors .main's max(gutter, safe-area) side padding. */
+  margin: 0 calc(-1 * max(var(--space-4), env(safe-area-inset-right))) 0
+    calc(-1 * max(var(--space-4), env(safe-area-inset-left)));
   padding: 0 max(var(--space-4), env(safe-area-inset-right)) 0
     max(var(--space-4), env(safe-area-inset-left));
   background: var(--color-elevated);
@@ -203,7 +208,15 @@
   display: none;
 }
 
-@media (min-width: 900px) {
+/* Desktop breakpoint: width alone is the wrong test. A phone in landscape
+ * clears 900px (iPhone 16 Pro Max is 956 CSS px wide) but has nowhere near a
+ * desktop's vertical room, so width-only would route it onto this sidebar
+ * path and lose every env(safe-area-inset-*) the phone layout relies on.
+ * Height separates the populations cleanly: every iPhone landscape viewport
+ * tops out at 440px tall, every iPad landscape starts at 744px. This
+ * condition is duplicated in components.css (.app-snackbar) and
+ * screens-detail.css (.detail-hero); keep all three in sync. */
+@media (min-width: 900px) and (min-height: 500px) {
   .layout {
     display: grid;
     grid-template-columns: 15.5rem 1fr;
@@ -212,7 +225,10 @@
     display: none;
   }
   .main {
-    padding: var(--space-6) var(--space-7);
+    padding: max(var(--space-6), env(safe-area-inset-top))
+      max(var(--space-7), env(safe-area-inset-right))
+      max(var(--space-6), env(safe-area-inset-bottom))
+      max(var(--space-7), env(safe-area-inset-left));
   }
   .app-header {
     margin: calc(-1 * var(--space-6)) calc(-1 * var(--space-7)) 0;
@@ -229,7 +245,9 @@
     top: 0;
     height: 100dvh;
     gap: 2px;
-    padding: var(--space-5) var(--space-4);
+    padding: var(--space-5) var(--space-4)
+      max(var(--space-5), env(safe-area-inset-bottom))
+      max(var(--space-4), env(safe-area-inset-left));
     background: var(--color-surface);
     border-right: 1px solid var(--color-border);
   }

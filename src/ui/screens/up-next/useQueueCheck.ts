@@ -31,9 +31,6 @@ export function useQueueCheck(entry: LibraryEntry, mark: MarkWatched): QueueChec
     return () => clearTimeout(timer);
   }, [markedAt, pendingAdvance, showId, reArm]);
 
-  if (entry.progressKnown === false) {
-    return { state: "syncing", label: "", onPress: () => {} };
-  }
   if (markedAt !== null) {
     return {
       state: "just-marked",

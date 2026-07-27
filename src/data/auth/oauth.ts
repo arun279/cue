@@ -172,7 +172,12 @@ function headerRecord(headers: Headers): Record<string, string> {
   return record;
 }
 
-/** Revoke the access token on sign-out; best-effort, resolves regardless of body. */
+/**
+ * Revoke the access token on sign-out; best-effort, resolves regardless of body.
+ * Trakt documents `client_secret` as required for this endpoint
+ * (https://docs.trakt.tv/reference/postoauthrevoke); Cue is a public PKCE client with no
+ * secret to send, so the call is unverifiable by construction.
+ */
 export async function revokeToken(config: OAuthConfig, accessToken: string): Promise<void> {
   await postJson(config, "/oauth/revoke", {
     token: accessToken,

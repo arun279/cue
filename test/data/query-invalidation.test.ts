@@ -7,19 +7,22 @@ describe("showProgressKeys: the keys a local mark on show X must refresh", () =>
     const keys = showProgressKeys(42);
     expect(keys).toEqual([
       queryKeys.library(),
-      queryKeys.showHeader(42),
+      queryKeys.showProgress(42),
       queryKeys.showSeasons(42),
     ]);
     // The regression this guards: a mark that touched only `library` left the
-    // show-detail header/seasons persisted cache stale across reloads.
-    expect(keys).toContainEqual(queryKeys.showHeader(42));
+    // show-detail progress/seasons persisted cache stale across reloads.
+    expect(keys).toContainEqual(queryKeys.showProgress(42));
     expect(keys).toContainEqual(queryKeys.showSeasons(42));
+    // A mark moves the viewer's progress, never the show's own facts, so the
+    // `/shows/:id` entry the card art and the hero share is left alone.
+    expect(keys).not.toContainEqual(queryKeys.showInfo(42));
   });
 
   it("adds the marked episode's detail read when an episode coordinate is given", () => {
     expect(showProgressKeys(42, { season: 1, number: 5 })).toEqual([
       queryKeys.library(),
-      queryKeys.showHeader(42),
+      queryKeys.showProgress(42),
       queryKeys.showSeasons(42),
       queryKeys.episode(42, 1, 5),
     ]);
@@ -37,7 +40,7 @@ describe("showProgressKeys: the keys a local mark on show X must refresh", () =>
     const keys = showProgressKeys(42, "all");
     expect(keys).toEqual([
       queryKeys.library(),
-      queryKeys.showHeader(42),
+      queryKeys.showProgress(42),
       queryKeys.showSeasons(42),
       queryKeys.episodePrefix(42),
     ]);
@@ -47,8 +50,8 @@ describe("showProgressKeys: the keys a local mark on show X must refresh", () =>
 
   it("scopes the show-detail keys to the marked show id", () => {
     const keys = showProgressKeys(99, { season: 2, number: 3 });
-    expect(keys).toContainEqual(queryKeys.showHeader(99));
-    expect(keys).not.toContainEqual(queryKeys.showHeader(42));
+    expect(keys).toContainEqual(queryKeys.showProgress(99));
+    expect(keys).not.toContainEqual(queryKeys.showProgress(42));
     expect(keys).toContainEqual(queryKeys.episode(99, 2, 3));
   });
 });

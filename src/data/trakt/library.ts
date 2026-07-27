@@ -1,39 +1,24 @@
 import type { EpisodeRef, LibraryShow } from "@domain/model/library";
 import { type EpisodePlay, MARK_MATCH_TOLERANCE_MS } from "@domain/reversal";
+import { toMs } from "@domain/time";
 import { resolveStill } from "../image-source";
 import type { HiddenItem, Progress, WatchedShow, WatchlistItem } from "./schemas";
 import { toEpisodeIds } from "./show-detail";
 
 /**
- * A `LibraryShow` (what the selectors read) enriched with the presentation
- * data the Up Next card needs but the pure domain type omits: the Trakt inline
- * poster candidates for the image resolver, the show's TMDB id (an alternate
+ * A `LibraryShow` (what the selectors read) plus the two things the Up Next card
+ * needs and the pure domain type omits: the show's TMDB id (an alternate
  * `/sync/*` write identifier for hide/watchlist), and `pendingAdvance`: set
  * while an optimistic mark's next episode is a client guess awaiting the
  * authoritative progress refetch, so the card can lock its action until then.
+ *
+ * Art is deliberately absent. `/sync/watched/shows` carries no `images` block,
+ * so a poster here could only ever be null; every card reads its own from the
+ * deferred `/shows/:id` query instead (`useShowArt`).
  */
 export interface LibraryEntry extends LibraryShow {
-  readonly posters: readonly string[];
-  readonly backdrops: readonly string[];
-  readonly network: string | null;
-  readonly genres: readonly string[];
-  readonly runtime: number | null;
   readonly tmdbId: number | null;
   readonly pendingAdvance: boolean;
-}
-
-/**
- * Presentation art + broadcast metadata for one show, sourced from
- * `/shows/:id?extended=full,images`: the `/sync/watched/shows` list omits the
- * `images` block, so the poster/backdrop the hero and cards render come from
- * here, keyed by trakt id and merged in `assembleLibrary`.
- */
-export interface ShowArt {
-  readonly posters: readonly string[];
-  readonly backdrops: readonly string[];
-  readonly network: string | null;
-  readonly genres: readonly string[];
-  readonly runtime: number | null;
 }
 
 /** What the write-queue op carries (as its opaque `inversePatch`) to reconcile a mark. */
@@ -50,8 +35,6 @@ export interface LibraryInput {
   readonly hiddenShowIds: ReadonlySet<number>;
   /** Full watchlist items: the source of both membership flags and watchlist-only entries. */
   readonly watchlistShows: readonly WatchlistItem[];
-  /** Per-show art + broadcast metadata (poster/backdrop/network/genres/runtime), keyed by trakt id. */
-  readonly details?: ReadonlyMap<number, ShowArt>;
 }
 
 type SchemaEpisode = NonNullable<Progress["next_episode"]>;
@@ -69,34 +52,15 @@ function toEpisodeRef(ep: SchemaEpisode): EpisodeRef {
 
 /**
  * Merge the watched-shows list with per-show progress, the hidden set, and
- * watchlist membership into the `LibraryEntry[]` every home surface derives
- * from. A watched show with no fetched progress (beyond the
- * read-budget head) carries its bulk watched count with `progressKnown: false`,
- * surfaced as `sync-pending`, never fabricated caught-up nor dropped. A
- * never-watched show that is on the watchlist has no `/sync/watched/shows` row,
- * so it is materialized here as a zero-progress `to-watch` entry: otherwise it
- * would vanish from "To watch" after a refetch.
+ * watchlist membership into the `LibraryEntry[]` every home surface derives from.
+ * Every watched show carries real counts: `aired` from the bulk row's
+ * `aired_episodes` and `completed` from its watched breakdown, both present on
+ * `/sync/watched/shows`. A fetched per-show progress overrides both (it is the
+ * authority on the user's hidden seasons) and is the only source of the NEXT
+ * episode's identity. A never-watched show that is on the watchlist has no
+ * `/sync/watched/shows` row, so it is materialized here as a zero-progress
+ * `to-watch` entry: otherwise it would vanish from "To watch" after a refetch.
  */
-/**
- * The art + broadcast fields for one entry: prefer the fetched show-detail art
- * (the only source that carries images), falling back to whatever inline posters
- * the source list itself provided and empty metadata otherwise.
- */
-function artFields(
-  details: ReadonlyMap<number, ShowArt> | undefined,
-  showId: number,
-  inlinePosters: readonly string[] | undefined,
-): ShowArt {
-  const art = details?.get(showId);
-  return {
-    posters: art?.posters ?? inlinePosters ?? [],
-    backdrops: art?.backdrops ?? [],
-    network: art?.network ?? null,
-    genres: art?.genres ?? [],
-    runtime: art?.runtime ?? null,
-  };
-}
-
 export function assembleLibrary(input: LibraryInput): LibraryEntry[] {
   const watchlistShowIds = new Set<number>();
   for (const item of input.watchlistShows) {
@@ -111,14 +75,6 @@ export function assembleLibrary(input: LibraryInput): LibraryEntry[] {
     seen.add(trakt);
     const progress = input.progress.get(trakt);
     const next = progress?.next_episode ?? null;
-    // Beyond the cold-sync progress budget a show has no fetched
-    // progress: `completed` is its real bulk watched count, but `aired` is unknown.
-    // `progressKnown: false` marks that. The derived status is `sync-pending`, so it
-    // is neither fabricated as caught-up (completed === aired) nor misfiled as
-    // never-started. `aired` is pinned to the watched count only as a non-negative
-    // placeholder; no honest-status code trusts it while `progressKnown` is false.
-    const progressKnown = progress !== undefined;
-    const baseline = watchedEpisodeCount(watched);
     entries.push({
       showId: trakt,
       title: show.title,
@@ -126,11 +82,9 @@ export function assembleLibrary(input: LibraryInput): LibraryEntry[] {
       hidden: input.hiddenShowIds.has(trakt),
       inWatchlist: watchlistShowIds.has(trakt),
       lastWatchedAt: watched.last_watched_at ?? null,
-      aired: progress?.aired ?? baseline,
-      completed: progress?.completed ?? baseline,
+      aired: progress?.aired ?? show.aired_episodes,
+      completed: progress?.completed ?? watchedEpisodeCount(watched),
       nextEpisode: next === null ? null : toEpisodeRef(next),
-      progressKnown,
-      ...artFields(input.details, trakt, show.images?.poster),
       tmdbId: show.ids.tmdb ?? null,
       pendingAdvance: false,
     });
@@ -151,9 +105,6 @@ export function assembleLibrary(input: LibraryInput): LibraryEntry[] {
       aired: 0,
       completed: 0,
       nextEpisode: null,
-      // A never-watched watchlist show is genuinely known: 0/0, not-started.
-      progressKnown: true,
-      ...artFields(input.details, trakt, show.images?.poster),
       tmdbId: show.ids.tmdb ?? null,
       pendingAdvance: false,
     });
@@ -162,18 +113,30 @@ export function assembleLibrary(input: LibraryInput): LibraryEntry[] {
 }
 
 /**
- * Watched-episode count from the bulk `/sync/watched/shows` breakdown, specials
- * (season 0) excluded to match progress semantics. This is the real `completed`
- * for a show whose per-show progress the bounded cold-sync fan-out
- * did not fetch: the count we DO know without a second GET. Because `aired` stays
- * unknown, such a show is marked `progressKnown: false` (status `sync-pending`), not
- * asserted caught-up: honest for the un-synced tail of a large library.
+ * Watched-episode count from the bulk `/sync/watched/shows` breakdown, paired with
+ * the row's `aired_episodes` to give every show its real progress without a second
+ * GET, so a per-show progress read buys only the next episode's identity. The
+ * breakdown lists each watched episode once (rewatches carry `plays`, not
+ * duplicate rows), so this counts distinct episodes.
+ *
+ * Two cuts make it agree with `/progress/watched`:
+ *   • Specials (season 0) are excluded, because `aired_episodes` is the season sum
+ *     EXCLUDING season 0. Counting them would read a show with watched specials as
+ *     past its own aired count and silently drop it from the queue.
+ *   • Plays before a "restart show" `reset_at` are excluded, which is the only
+ *     thing the progress read would have done differently, so a reset show is
+ *     resolved here rather than by spending a GET. An episode with no stamp on a
+ *     reset show counts as pre-reset: understating `completed` leaves the show in
+ *     the queue, which is the harmless direction.
  */
-function watchedEpisodeCount(watched: WatchedShow): number {
+export function watchedEpisodeCount(watched: WatchedShow): number {
+  const resetAt = toMs(watched.reset_at);
   let count = 0;
   for (const season of watched.seasons ?? []) {
     if (season.number === 0) continue;
-    count += season.episodes.length;
+    for (const episode of season.episodes) {
+      if (resetAt === null || (toMs(episode.last_watched_at) ?? 0) >= resetAt) count += 1;
+    }
   }
   return count;
 }

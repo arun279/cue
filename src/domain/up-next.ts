@@ -70,11 +70,14 @@ export function groupUpNext(
     if (provisional) {
       group = "continued";
     } else {
-      // Otherwise only in-progress shows with an aired next surface; `watching`/
-      // `lapsed` already guarantee a non-null aired next, `caught-up` is excluded.
+      // Otherwise only in-progress shows with an AIRED next surface. The air test is
+      // explicit rather than inferred from the status: a show past the progress
+      // budget is in-progress on its bulk counts alone, and an unaired (or
+      // unknown-date) next episode is never something to queue tonight.
       if (status !== "watching" && status !== "lapsed") continue;
       const airedMs = toMs(ep.firstAired);
-      const isFresh = airedMs !== null && now - airedMs <= newWindowMs;
+      if (airedMs === null || airedMs > now) continue;
+      const isFresh = now - airedMs <= newWindowMs;
       group = isFresh ? "fresh" : status === "lapsed" ? "lapsed" : "continued";
     }
     const item: UpNextItem = {

@@ -6,7 +6,7 @@ import { episodesLeft, watchedPercent } from "@ui/format";
 import type { LibraryChipKey } from "@ui/hooks/useLibraryBuckets";
 import { useShowArt } from "@ui/hooks/useShowArt";
 import { Poster } from "@ui/screens/up-next/Poster";
-import { Check, RefreshCw } from "lucide-react";
+import { Check } from "lucide-react";
 import type { ReactElement, ReactNode } from "react";
 
 interface ShowTileProps {
@@ -19,15 +19,13 @@ interface ShowTileProps {
  * One Library show tile: 2:3 poster + 1-line caption, the whole cell a link
  * into Show detail. The active chip decides the overlay: Watching gets the
  * scrim + progress bar + remaining count (number and bar, never color alone),
- * Stopped a PAUSED tag, Finished the green done badge, Still-syncing the sync
- * badge over a striped bar. Overlays are aria-hidden: the chip already names
- * the state, so the link's accessible name stays the title.
+ * Stopped a PAUSED tag, Finished the green done badge. Overlays are aria-hidden:
+ * the chip already names the state, so the link's accessible name stays the title.
  */
 export function ShowTile({ entry, chip }: ShowTileProps): ReactElement {
-  // Art is deferred out of the cold-sync budget: the visible tile lazily
-  // fetches its own poster, falling back to any inline list poster.
+  // Art is deferred out of the cold-sync budget: a tile that settles on screen
+  // reads its own poster.
   const art = useShowArt(entry.showId);
-  const posters = art.posters.length > 0 ? art.posters : entry.posters;
   const left = episodesLeft(entry.aired, entry.completed);
 
   let overlay: ReactNode = null;
@@ -58,19 +56,11 @@ export function ShowTile({ entry, chip }: ShowTileProps): ReactElement {
         <Check />
       </span>
     );
-  } else if (chip === "syncing") {
-    overlay = (
-      <span aria-hidden="true">
-        <span className="library-tile__done library-tile__done--sync">
-          <RefreshCw />
-        </span>
-        <ProgressBar striped className="library-tile__bar" />
-      </span>
-    );
   }
 
   return (
     <Link
+      ref={art.ref}
       to="/show/$showId"
       params={{ showId: String(entry.showId) }}
       className="poster-tile"
@@ -78,7 +68,7 @@ export function ShowTile({ entry, chip }: ShowTileProps): ReactElement {
       data-show-id={entry.showId}
     >
       <span className="poster-tile__art">
-        <Poster title={entry.title} posters={posters} variant="s115" />
+        <Poster title={entry.title} posters={art.posters} variant="s115" />
         {overlay}
       </span>
       <span className="poster-tile__title">{entry.title}</span>

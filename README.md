@@ -23,7 +23,7 @@ Cue is **zero-backend**. It is a browser SPA (with a thin Capacitor shell for mo
 
 Cue authenticates as a public OAuth client, so it ships **no secret**: the app author registers one Trakt app and embeds its public client id at build time. Users never see or enter a client id; they just sign into their own Trakt account.
 
-1. Register a free API app at [trakt.tv/oauth/applications](https://trakt.tv/oauth/applications).
+1. Register a free API app with Trakt. Current instructions live at [docs.trakt.tv](https://docs.trakt.tv).
 2. Set its Redirect URI to `http://localhost:5199/auth/callback` for local development, plus `<your-production-origin>/auth/callback` for deploys. (Trakt matches the redirect URI exactly, so register every origin you serve from.)
 3. Copy `.env.example` to `.env` and set `VITE_TRAKT_CLIENT_ID` to the app's **Client ID**. It is public: it ships in the built JS and there is no client secret.
 
@@ -96,7 +96,7 @@ Cue uses the Trakt API but is not created, endorsed, or sponsored by Trakt. The 
 
 ## Privacy
 
-Cue runs no server and stores nothing off your device: there is no analytics or telemetry of any kind. Your Trakt OAuth token, your settings, and a local cache of the data Cue reads live only in this browser or on this device. All sync state lives in your own Trakt account, reached directly over HTTPS. To erase Cue's on-device data, use **Settings → Sign out** or uninstall the app. Cue cannot delete your Trakt account; only Trakt can, at [app.trakt.tv/settings/advanced](https://app.trakt.tv/settings/advanced).
+Cue runs no server and has no backend of its own, so there is no Cue-side copy of anything: no analytics, no telemetry. It talks to Trakt and to the image hosts Trakt points at, and nowhere else. Your Trakt OAuth token, your settings, anything you have marked that has not synced yet, and a local cache of the data Cue reads are written to this browser or to this device's own app storage. All sync state lives in your own Trakt account, reached directly over HTTPS. The one thing Cue does not control is your phone's own backup service: on Android Cue opts out of Google backup and of Android's own device-to-device transfer, and on iOS Cue has not moved the token off the preferences store yet, which a device backup includes by default; [PRIVACY.md](PRIVACY.md) explains how to turn iCloud Backup off for Cue. To erase Cue's on-device data, use **Settings → Sign out** or uninstall the app. Cue cannot delete your Trakt account; only Trakt can, at [app.trakt.tv/settings/advanced](https://app.trakt.tv/settings/advanced).
 
 The full statement is in [PRIVACY.md](PRIVACY.md).
 

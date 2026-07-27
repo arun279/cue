@@ -46,6 +46,7 @@ import {
 
 const ART: readonly ["full", "images"] = ["full", "images"];
 const IMAGES: readonly ["images"] = ["images"];
+const WATCHED_SHOWS_EXTENDED: readonly ["full", "progress"] = ["full", "progress"];
 
 /**
  * Explicit page size for the paginated list reads the bounded cold-sync GET budget
@@ -64,11 +65,17 @@ function parse<T>(result: TraktResult<unknown>, schema: z.ZodType<T>): TraktResu
 }
 
 export async function getWatchedShows(client: TraktClient): Promise<TraktResult<WatchedShow[]>> {
-  // No `extended`: post-#775 `full` is a no-op here and images aren't returned
-  // inline, so the compact default is the honest payload: each show's real art
-  // comes from `/shows/:id` in the library fan-out.
+  // Both levels are load-bearing post-#775: `progress` is the only way the
+  // per-season watched breakdown comes back (without it every show reads
+  // zero-watched), and `full` is the only way the show's `status` does (without it
+  // no show can ever read as ended). Neither adds a page: `progress` caps a page at
+  // 100 and `LIST_PAGE_LIMIT` is already 100. Images are still not returned inline,
+  // so each show's art keeps coming from the lazy `/shows/:id` read.
   return parse(
-    await client.getAllPages("/sync/watched/shows", { limit: LIST_PAGE_LIMIT }),
+    await client.getAllPages("/sync/watched/shows", {
+      extended: WATCHED_SHOWS_EXTENDED,
+      limit: LIST_PAGE_LIMIT,
+    }),
     watchedShowsSchema,
   );
 }

@@ -17,9 +17,13 @@ export interface EpisodeRef {
 
 /**
  * The merged per-show snapshot the derived selectors read: `/sync/watched/shows`
- * (title, `lastWatchedAt`) + `/shows/:id/progress/watched` (`aired`, `completed`,
- * `nextEpisode`) + the hidden set + watchlist membership. `aired` counts episodes
- * aired-to-date (Trakt progress semantics), `completed` counts watched.
+ * (title, `lastWatchedAt`, `aired`, `completed`) + the hidden set + watchlist
+ * membership, with `/shows/:id/progress/watched` supplying `nextEpisode` (and
+ * overriding the counts) for the shows the read budget resolved. `aired` counts
+ * episodes aired-to-date (Trakt progress semantics), `completed` counts watched, so
+ * `completed < aired` is the backlog test every surface uses. A `nextEpisode` of
+ * null with a backlog means the next episode is simply not known yet, never that
+ * the show is caught up.
  */
 export interface LibraryShow {
   readonly showId: number;
@@ -31,11 +35,4 @@ export interface LibraryShow {
   readonly aired: number;
   readonly completed: number;
   readonly nextEpisode: EpisodeRef | null;
-  /**
-   * True when this show's per-show progress was fetched, so `aired`/`completed`/
-   * `nextEpisode` are authoritative. False for a show beyond the cold-sync progress
-   * budget: `completed` is its bulk watched count but `aired` is
-   * unknown: its watch status is `sync-pending`, never fabricated as caught-up.
-   */
-  readonly progressKnown: boolean;
 }

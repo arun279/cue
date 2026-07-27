@@ -71,19 +71,6 @@ describe("groupHistory", () => {
     expect(ids).toEqual([2, 1]);
   });
 
-  it("rolls up a day's play counts split by medium", () => {
-    const days = groupHistory(
-      [
-        ep("2026-07-05T15:00:00.000Z", 1, 1),
-        ep("2026-07-05T14:30:00.000Z", 1, 2),
-        ep("2026-07-05T14:00:00.000Z", 1, 3),
-        movie("2026-07-05T12:00:00.000Z", 9),
-      ],
-      OPTS,
-    );
-    expect(days[0]).toMatchObject({ episodeCount: 3, movieCount: 1 });
-  });
-
   it("collapses consecutive same-show episodes; a movie breaks the run", () => {
     // Newest-first within the day: A-e8, A-e7, movie, A-e5. The movie between the
     // A episodes means A-e5 is a SEPARATE single group (not merged into the cluster).

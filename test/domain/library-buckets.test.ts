@@ -147,30 +147,29 @@ describe("groupLibrary", () => {
     }
   });
 
-  it("buckets a progress-unknown (beyond-budget) show into its own Still-syncing pile, never Caught up", () => {
-    // A mid-watch tail show whose progress the cold-sync budget skipped: aired is
-    // unknown, so it must NOT be fabricated into the caught-up pile.
-    const pending = makeShow({
+  it("buckets a beyond-budget show with backlog into Watching, never Caught up", () => {
+    // A tail show the progress budget skipped: real counts from the bulk read but
+    // no next episode named. Unwatched aired episodes make it in-progress; the
+    // missing next episode must not fabricate it into the caught-up pile.
+    const tail = makeShow({
       showId: 99,
-      title: "Pending",
-      progressKnown: false,
+      title: "Tail",
       completed: 3,
-      aired: 3,
+      aired: 10,
       nextEpisode: null,
     });
     const caughtUp = makeShow({
       showId: 7,
       title: "Done",
-      progressKnown: true,
       completed: 10,
       aired: 10,
       status: "returning series",
       nextEpisode: null,
     });
-    const buckets = groupLibrary([pending, caughtUp], NOW, THRESHOLD, "recently-watched");
-    expect(buckets.map((b) => b.status)).toEqual(["caught-up", "sync-pending"]);
-    const syncing = buckets.find((b) => b.status === "sync-pending");
-    expect(syncing?.shows.map((s) => s.showId)).toEqual([99]);
+    const buckets = groupLibrary([tail, caughtUp], NOW, THRESHOLD, "recently-watched");
+    expect(buckets.map((b) => b.status)).toEqual(["watching", "caught-up"]);
+    const watching = buckets.find((b) => b.status === "watching");
+    expect(watching?.shows.map((s) => s.showId)).toEqual([99]);
     const done = buckets.find((b) => b.status === "caught-up");
     expect(done?.shows.some((s) => s.showId === 99)).toBe(false);
   });

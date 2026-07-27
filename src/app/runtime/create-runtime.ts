@@ -5,6 +5,14 @@ import { invalidationKeys } from "@data/query-invalidation";
 import { createAuthorizedFetch } from "@data/trakt/authorized-fetch";
 import { assembleCalendarEntries } from "@data/trakt/calendar";
 import { TraktClient } from "@data/trakt/client";
+import { assembleEpisodeDetail } from "@data/trakt/episode-detail";
+import {
+  assembleEpisodePlays,
+  assembleHistoryEntries,
+  assembleMoviePlays,
+} from "@data/trakt/history";
+import { additiveLanded, markLanded, showIdSet } from "@data/trakt/library";
+import { assembleMovieHeader, assembleMovieLibrary } from "@data/trakt/movie-library";
 import {
   getEpisode,
   getHidden,
@@ -25,16 +33,8 @@ import {
   getWatchedMovies,
   getWatchlist,
   searchTrakt,
-} from "@data/trakt/endpoints";
-import { assembleEpisodeDetail } from "@data/trakt/episode-detail";
-import {
-  assembleEpisodePlays,
-  assembleHistoryEntries,
-  assembleMoviePlays,
-} from "@data/trakt/history";
-import { additiveLanded, markLanded, type ShowArt, showIdSet } from "@data/trakt/library";
-import { assembleMovieHeader, assembleMovieLibrary } from "@data/trakt/movie-library";
-import { loadUpNextEntries, withReadRateRetry } from "@data/trakt/read-budget";
+} from "@data/trakt/pooled-endpoints";
+import { loadUpNextEntries } from "@data/trakt/read-budget";
 import { createLastActivitiesRepository } from "@data/trakt/repositories";
 import type { UserStats } from "@data/trakt/schemas";
 import {
@@ -43,7 +43,7 @@ import {
   assembleShowHits,
   rankSearchHits,
 } from "@data/trakt/search";
-import { assembleHeader, assembleSeasons } from "@data/trakt/show-detail";
+import { assembleSeasons, assembleShowInfo, assembleShowProgress } from "@data/trakt/show-detail";
 import { createTraktTransport } from "@data/trakt/transport";
 import { assembleUserProfile, type UserProfile } from "@data/trakt/user-profile";
 import type { Token } from "@domain/model/token";
@@ -198,30 +198,25 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
 
   return {
     async loadUpNext(): Promise<UpNextData> {
-      // The bounded cold-sync read: the paginated watched list +
-      // per-show progress for the most-recently-watched head only (the idle tail is
-      // the caught-up baseline from the bulk breakdown) + hidden + watchlist. No
-      // per-show art fan-out: poster/backdrop are deferred to a lazy per-visible-card
-      // read (`loadShowArt`), so the GET count stays bounded instead of ~2× library
-      // size. `partial` marks a library larger than the budget so the pill can say so.
-      const { entries, partial } = await loadUpNextEntries(client);
-      return { entries, isPartial: partial };
+      // The bounded cold-sync read: the paginated watched list (every show's aired +
+      // watched counts) + per-show progress for the bounded head that still has a
+      // next episode to resolve + hidden + watchlist. No per-show art fan-out:
+      // poster/backdrop are deferred to a lazy per-visible-card read (`loadShowArt`),
+      // so the GET count stays bounded instead of ~2× library size.
+      return { entries: await loadUpNextEntries(client) };
     },
 
-    async loadShowArt(showId): Promise<ShowArt> {
-      // Deferred per-card art: the `/sync/watched/shows` list carries no `images`,
-      // so a visible show row lazily reads its poster/backdrop/network/genres from
-      // `/shows/:id` as it renders: one GET per visible card, cached by trakt id,
-      // never the whole library up front.
+    async loadShowInfo(showId) {
+      // The app's ONE `/shows/:id` read. Deferred out of the cold-sync budget: the
+      // `/sync/watched/shows` list carries no `images`, so a show card lazily reads
+      // its own facts once it settles on screen, one GET per card looked at, cached
+      // by trakt id, never the whole library up front. Opening that show reuses the
+      // same cache entry for its hero. It goes through the shared read gate like
+      // every other read, so a scrolled list can neither exceed the concurrency
+      // pool nor fire into a window a 429 just closed.
       const show = await getShow(client, showId);
-      if (!show.ok) throw new Error("Failed to load show art");
-      return {
-        posters: show.data.images?.poster ?? [],
-        backdrops: show.data.images?.fanart ?? [],
-        network: show.data.network ?? null,
-        genres: show.data.genres ?? [],
-        runtime: show.data.runtime ?? null,
-      };
+      if (!show.ok) throw new Error("Failed to load show");
+      return assembleShowInfo(show.data);
     },
 
     async loadMovieLibrary(): Promise<MovieLibraryData> {
@@ -230,8 +225,8 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       // no per-movie detail fetch needed. Each absorbs a transient 429 so a
       // rate-limit doesn't flip the library to Offline over its cached posters.
       const [watched, watchlist] = await Promise.all([
-        withReadRateRetry(() => getWatchedMovies(client)),
-        withReadRateRetry(() => getWatchlist(client, "movies")),
+        getWatchedMovies(client),
+        getWatchlist(client, "movies"),
       ]);
       if (!watched.ok) throw new Error("Failed to load watched movies");
       if (!watchlist.ok) throw new Error("Failed to load movie watchlist");
@@ -254,14 +249,10 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       return assembleMovieHits(related.data);
     },
 
-    async loadShowHeader(showId) {
-      const [show, progress] = await Promise.all([
-        getShow(client, showId),
-        getShowProgress(client, showId),
-      ]);
-      if (!show.ok) throw new Error("Failed to load show");
+    async loadShowProgress(showId) {
+      const progress = await getShowProgress(client, showId);
       if (!progress.ok) throw new Error("Failed to load show progress");
-      return assembleHeader(show.data, progress.data, Date.now());
+      return assembleShowProgress(progress.data, Date.now());
     },
 
     async loadShowSeasons(showId) {
@@ -313,7 +304,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       // one page at a time. A transient 429 is absorbed so a rate-limit mid-scroll
       // doesn't flip the Diary to error over its cached pages. `range` scopes the
       // read to a year/month window (the decade jump).
-      const result = await withReadRateRetry(() => getHistory(client, section, page, range));
+      const result = await getHistory(client, section, page, range);
       if (!result.ok) throw new Error("Failed to load history");
       return {
         entries: assembleHistoryEntries(result.data),
@@ -326,19 +317,19 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       // On-demand, user-initiated (a durable Unmark) so a full paged walk of the
       // show's plays is acceptable; a transient 429 is absorbed rather than failing
       // the unmark outright.
-      const result = await withReadRateRetry(() => getItemPlays(client, "shows", showId));
+      const result = await getItemPlays(client, "shows", showId);
       if (!result.ok) throw new Error("Failed to load show history");
       return assembleEpisodePlays(result.data);
     },
 
     async loadEpisodePlays(episodeId) {
-      const result = await withReadRateRetry(() => getItemPlays(client, "episodes", episodeId));
+      const result = await getItemPlays(client, "episodes", episodeId);
       if (!result.ok) throw new Error("Failed to load episode history");
       return assembleEpisodePlays(result.data);
     },
 
     async loadMoviePlays(movieId) {
-      const result = await withReadRateRetry(() => getItemPlays(client, "movies", movieId));
+      const result = await getItemPlays(client, "movies", movieId);
       if (!result.ok) throw new Error("Failed to load movie history");
       return assembleMoviePlays(result.data);
     },

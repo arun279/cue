@@ -54,13 +54,30 @@ export const episodeSchema = z.object({
 const watchedShowSchema = z.object({
   last_watched_at: z.string().nullish(),
   plays: z.number().optional(),
-  show: showSchema,
-  // The bulk `/sync/watched/shows` breakdown lists only WATCHED episodes per
-  // season (Trakt returns it by default). It is the caught-up baseline for a show
-  // whose per-show progress the bounded cold-sync fan-out did not
-  // fetch: the watched-episode count without a second GET.
+  /**
+   * Trakt's "restart show": `/progress/watched` then counts only post-reset plays
+   * while the breakdown below still lists every one. The breakdown stamps each
+   * watched episode, so the same cut is made locally and a reset show costs no
+   * progress read of its own.
+   */
+  reset_at: z.string().nullish(),
+  // `aired_episodes` is REQUIRED, not optional: every un-fetched show's backlog is
+  // derived from it, and a silent absence would read the whole library as
+  // caught-up. Trakt returns it on the default payload (no `extended` needed), so
+  // it cannot be lost to an `extended` regression; anything else is a contract
+  // change that must fail loudly here.
+  show: showSchema.extend({ aired_episodes: z.number() }),
+  // The per-season WATCHED-episode breakdown, returned only under
+  // `extended=progress` (Trakt change #775). It is where every show's `completed`
+  // comes from without a second GET, and every episode carries the `last_watched_at`
+  // a `reset_at` is cut against.
   seasons: z
-    .array(z.object({ number: z.number(), episodes: z.array(z.object({ number: z.number() })) }))
+    .array(
+      z.object({
+        number: z.number(),
+        episodes: z.array(z.object({ number: z.number(), last_watched_at: z.string().nullish() })),
+      }),
+    )
     .optional(),
 });
 export const watchedShowsSchema = z.array(watchedShowSchema);
@@ -75,7 +92,6 @@ export const watchedMoviesSchema = z.array(watchedMovieSchema);
 export const progressSchema = z.object({
   aired: z.number(),
   completed: z.number(),
-  last_watched_at: z.string().nullish(),
   next_episode: episodeSchema.nullable(),
   seasons: z
     .array(
@@ -123,7 +139,6 @@ export const seasonsSchema = z.array(
   z.object({
     number: z.number(),
     title: z.string().nullish(),
-    images: imagesSchema,
     episodes: z.array(episodeSchema).optional(),
   }),
 );

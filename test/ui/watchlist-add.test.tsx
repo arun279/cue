@@ -42,7 +42,7 @@ it("drops aggregate membership immediately when a landed add is undone", async (
   let listed: readonly number[] = [];
   const runtime = {
     loadWatchlistIds: () => Promise.resolve(listed),
-    loadUpNext: () => Promise.resolve({ entries: [], isPartial: false }),
+    loadUpNext: () => Promise.resolve({ entries: [] }),
     loadMovieLibrary: () => Promise.resolve({ entries: [] }),
     submit: (op: { readonly request: { readonly path: string } }) => {
       if (op.request.path === "/sync/watchlist") {
@@ -54,17 +54,14 @@ it("drops aggregate membership immediately when a landed add is undone", async (
   } as unknown as CueRuntime;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   client.setQueryData(queryKeys.watchlist("shows"), []);
-  client.setQueryData<UpNextData>(queryKeys.library(), { entries: [], isPartial: false });
+  client.setQueryData<UpNextData>(queryKeys.library(), { entries: [] });
   const slot: WatchlistAddView[] = [];
   await mountProbe(client, runtime, slot);
 
   await act(async () => slot[0]?.add(hit));
   const aggregateEntry = { showId: hit.traktId } as LibraryEntry;
   await act(async () => {
-    client.setQueryData<UpNextData>(queryKeys.library(), {
-      entries: [aggregateEntry],
-      isPartial: false,
-    });
+    client.setQueryData<UpNextData>(queryKeys.library(), { entries: [aggregateEntry] });
   });
   expect(slot[0]?.isAdded(hit)).toBe(true);
 
@@ -78,13 +75,13 @@ it("restores watchlist and aggregate caches after a hard-failed remove", async (
   const aggregateEntry = { showId: hit.traktId } as LibraryEntry;
   const runtime = {
     loadWatchlistIds: () => Promise.resolve([hit.traktId]),
-    loadUpNext: () => Promise.resolve({ entries: [aggregateEntry], isPartial: false }),
+    loadUpNext: () => Promise.resolve({ entries: [aggregateEntry] }),
     loadMovieLibrary: () => Promise.resolve({ entries: [] }),
     submit: () => Promise.resolve("failed"),
   } as unknown as CueRuntime;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   client.setQueryData(queryKeys.watchlist("shows"), [hit.traktId]);
-  const aggregate: UpNextData = { entries: [aggregateEntry], isPartial: false };
+  const aggregate: UpNextData = { entries: [aggregateEntry] };
   client.setQueryData(queryKeys.library(), aggregate);
   const slot: WatchlistAddView[] = [];
   await mountProbe(client, runtime, slot);

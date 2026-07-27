@@ -23,6 +23,12 @@ function webKeyValueStore(): KeyValueStore {
   };
 }
 
+// TODO(ios-keychain): the token rides here alongside the cache, and on iOS
+// Capacitor Preferences is UserDefaults, which the OS always puts in a device
+// backup with no opt-out. Android is handled in the manifest; iOS needs the
+// token split onto a Keychain-backed store with a ThisDeviceOnly accessibility
+// class, plus a migration off UserDefaults and a purge on reinstall (Keychain
+// items outlive an uninstall). PRIVACY.md documents the gap until then.
 function nativeKeyValueStore(): KeyValueStore {
   return {
     async read(key) {

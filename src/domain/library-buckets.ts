@@ -19,7 +19,6 @@ const DISPLAY_ORDER: readonly WatchStatus[] = [
   "not-started",
   "watching",
   "caught-up",
-  "sync-pending",
   "ended",
   "abandoned",
 ];

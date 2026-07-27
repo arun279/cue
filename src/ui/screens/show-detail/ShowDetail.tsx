@@ -10,7 +10,7 @@ import { dismissSnack, showSnack } from "@ui/components/snackbar-store";
 import { epCode, middleTruncate, titleCase } from "@ui/format";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { useHideShow } from "@ui/hooks/useHideShow";
-import { useLibrarySnapshot } from "@ui/hooks/useLibrarySnapshot";
+import { useLibraryEntry } from "@ui/hooks/useLibrarySnapshot";
 import { type EpisodeBound, type MarkContextTarget, useMarkSeason } from "@ui/hooks/useMarkSeason";
 import { type BackfillOffer, useMarkSnacks } from "@ui/hooks/useMarkSnacks";
 import { useMarkWatched } from "@ui/hooks/useMarkWatched";
@@ -45,16 +45,10 @@ function eps(count: number): string {
   return `${count} episode${count === 1 ? "" : "s"}`;
 }
 
-function About({
-  header,
-  runtime,
-}: {
-  readonly header: ShowHeader;
-  readonly runtime: number | null;
-}): ReactElement | null {
+function About({ header }: { readonly header: ShowHeader }): ReactElement | null {
   const [expanded, setExpanded] = useState(false);
   const facts = metaLine([...header.genres.slice(0, 3).map(titleCase), header.network]);
-  const record = watchRecordLine(header.completed, header.aired, runtime);
+  const record = watchRecordLine(header.completed, header.aired, header.runtime);
   if (header.overview === null && facts === "" && record === null) return null;
   return (
     <section className="detail-about">
@@ -96,7 +90,7 @@ export function ShowDetail({ showId }: { readonly showId: number }): ReactElemen
   const mark = useMarkWatched();
   const hide = useHideShow();
   const watchlist = useToggleWatchlist();
-  const entry = useLibrarySnapshot().byId.get(showId);
+  const entry = useLibraryEntry(showId);
   const [overflowOpen, setOverflowOpen] = useState(false);
   // The confirm content outlives `confirmOpen` so the sheet keeps its copy
   // through the exit animation instead of vanishing mid-dismissal.
@@ -201,7 +195,6 @@ export function ShowDetail({ showId }: { readonly showId: number }): ReactElemen
 
   const seasons = seasonsView.seasons;
   const hidden = entry?.hidden ?? false;
-  const runtime = entry?.runtime ?? null;
   const targetFor = (seasonNumber: number): MarkContextTarget => ({
     showId,
     ids: header.ids,
@@ -380,7 +373,7 @@ export function ShowDetail({ showId }: { readonly showId: number }): ReactElemen
             header.year === null ? null : String(header.year),
             header.status === "" ? null : titleCase(header.status),
             header.network,
-            runtime === null ? null : `${runtime} min`,
+            header.runtime === null ? null : `${header.runtime} min`,
           ])}
           testIds={{ hero: "detail-hero", backdrop: "hero-backdrop", title: "detail-title" }}
           onOverflow={() => setOverflowOpen(true)}
@@ -426,7 +419,7 @@ export function ShowDetail({ showId }: { readonly showId: number }): ReactElemen
           />
         )}
 
-        <About header={header} runtime={runtime} />
+        <About header={header} />
 
         <ActionSheet
           open={overflowOpen}

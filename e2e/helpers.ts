@@ -9,7 +9,116 @@ export interface HermeticControls {
 
 const OTHER_ORIGINS = ["**/api.trakt.tv/**", "**/trakt.tv/**"];
 
+/**
+ * The empty-account baseline: every list read a spec reaches without installing a
+ * richer harness, answered with the `[]` Trakt really returns for an account that
+ * tracks nothing. The set is deliberately CLOSED and path-exact. Anything outside
+ * it throws, so a path the app requests but no fixture models fails the test
+ * instead of resolving as a silent empty success.
+ */
+const EMPTY_ACCOUNT_READS = [
+  // Cold sync's list reads: a signed-in account with no shows, no movies, nothing
+  // hidden and an empty watchlist. Suites with a real library install
+  // `installLibraryRoutes` / `installMovieRoutes` over these.
+  "**/api.trakt.tv/sync/watched/shows*",
+  "**/api.trakt.tv/sync/watched/movies*",
+  "**/api.trakt.tv/sync/watchlist/shows*",
+  "**/api.trakt.tv/sync/watchlist/movies*",
+  "**/api.trakt.tv/users/hidden/progress_watched*",
+  // Calendar's agenda window: no upcoming airings. `installCalendarRoutes` wins
+  // for the suites that assert real airings.
+  "**/api.trakt.tv/calendars/my/shows/*/*",
+  // Diary's first page: an account with no plays. `installHistoryRoutes` wins for
+  // the suites that assert real plays.
+  "**/api.trakt.tv/users/me/history*",
+  // The Search browse grids. Empty rails are a legitimate render, so these must be
+  // named: they are exactly the reads a permissive catch-all used to hide.
+  "**/api.trakt.tv/shows/trending*",
+  "**/api.trakt.tv/shows/popular*",
+  "**/api.trakt.tv/movies/trending*",
+  "**/api.trakt.tv/movies/popular*",
+];
+
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Headless Chromium on this VM never delivers real IntersectionObserver
+ * callbacks (confirmed by probing a bare `about:blank` page: `visibilityState`
+ * reads "visible" but no callback fires within 5s even for a freshly appended,
+ * fully-in-viewport div). Specs that gate on a card "settling on screen"
+ * (`useShowArt`'s `useSettledOnScreen`) therefore cannot rely on the browser's
+ * own implementation in CI's headless run.
+ *
+ * Install this before navigation to replace `window.IntersectionObserver` with
+ * a rect-based polyfill that honours the same contract real IO gives callers
+ * (an initial callback with current state, then a callback on every
+ * intersecting/not-intersecting transition). This VM's headless Chromium never
+ * ticks `requestAnimationFrame` either (probed the same way: zero callbacks in
+ * 3s on a bare page), so the polyfill polls on `setInterval`, which is the one
+ * timer this environment's already-passing specs prove does run headless. The
+ * production code path is untouched: `useShowArt` still observes real DOM
+ * nodes through the standard API, just backed by a working implementation.
+ */
+export async function installIntersectionObserverPolyfill(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const POLL_MS = 50;
+    type Entry = { target: Element; isIntersecting: boolean; intersectionRatio: number };
+    class RectIntersectionObserver {
+      private readonly callback: (entries: Entry[], observer: RectIntersectionObserver) => void;
+      private readonly states = new Map<Element, boolean | undefined>();
+      private timer: ReturnType<typeof setInterval> | null = null;
+
+      constructor(callback: (entries: Entry[], observer: RectIntersectionObserver) => void) {
+        this.callback = callback;
+      }
+
+      observe(target: Element): void {
+        this.states.set(target, undefined);
+        this.schedule();
+      }
+
+      unobserve(target: Element): void {
+        this.states.delete(target);
+      }
+
+      disconnect(): void {
+        this.states.clear();
+        if (this.timer !== null) clearInterval(this.timer);
+        this.timer = null;
+      }
+
+      takeRecords(): Entry[] {
+        return [];
+      }
+
+      private schedule(): void {
+        if (this.timer !== null) return;
+        this.timer = setInterval(() => this.tick(), POLL_MS);
+      }
+
+      private tick(): void {
+        const entries: Entry[] = [];
+        for (const [target, wasIntersecting] of this.states) {
+          const rect = target.getBoundingClientRect();
+          const isIntersecting =
+            rect.width > 0 &&
+            rect.height > 0 &&
+            rect.bottom > 0 &&
+            rect.right > 0 &&
+            rect.top < window.innerHeight &&
+            rect.left < window.innerWidth;
+          if (isIntersecting !== wasIntersecting) {
+            this.states.set(target, isIntersecting);
+            entries.push({ target, isIntersecting, intersectionRatio: isIntersecting ? 1 : 0 });
+          }
+        }
+        if (entries.length > 0) this.callback(entries, this);
+      }
+    }
+    (window as unknown as { IntersectionObserver: unknown }).IntersectionObserver =
+      RectIntersectionObserver;
+  });
+}
 
 const DAY = 86_400_000;
 
@@ -31,15 +140,27 @@ export async function installHermeticRoutes(context: BrowserContext): Promise<He
   let mode: NetworkMode = "ok";
   let count = 12;
 
-  // Catch-alls first; the specific /networks route is registered last so it wins.
+  // Catch-alls first; every specific route below is registered later so it wins.
+  // A fixture more permissive than the API cannot fail, so the floor is a THROW: a
+  // Trakt path no fixture models is a test failure, never an empty 200.
   for (const pattern of OTHER_ORIGINS) {
+    await context.route(pattern, (route) => {
+      throw new Error(
+        `No e2e fixture routes this Trakt request: ${route.request().method()} ` +
+          `${route.request().url()}\nAdd an explicit route (and say why it is ` +
+          "legitimate) rather than widening the catch-all.",
+      );
+    });
+  }
+
+  for (const pattern of EMPTY_ACCOUNT_READS) {
     await context.route(pattern, (route) =>
       route.fulfill({ status: 200, contentType: "application/json", body: "[]" }),
     );
   }
 
-  // Profile reads `/users/me/stats`; the array catch-all above would fail the
-  // object schema, so answer it with a valid non-zero stats fixture.
+  // Profile reads `/users/me/stats`. An object read, so the `[]` baseline above
+  // does not fit it: answer with a valid non-zero stats fixture.
   await context.route("**/api.trakt.tv/users/me/stats*", (route) =>
     route.fulfill({
       status: 200,
@@ -52,8 +173,8 @@ export async function installHermeticRoutes(context: BrowserContext): Promise<He
     }),
   );
 
-  // Profile's identity read (`/users/settings`): the array catch-all would fail
-  // the object schema, so answer with a stable identity fixture.
+  // Profile's identity read (`/users/settings`): another object read, so answer
+  // with a stable identity fixture rather than the `[]` baseline.
   await context.route("**/api.trakt.tv/users/settings*", (route) =>
     route.fulfill({
       status: 200,
@@ -79,9 +200,9 @@ export async function installHermeticRoutes(context: BrowserContext): Promise<He
     route.fulfill({ status: 200, contentType: "image/png", body: pngPixel }),
   );
 
-  // The freshness gate polls `/sync/last_activities`; the array catch-all would
-  // fail the object schema, so answer with a valid empty stamp table: a boot with
-  // no baseline commits it and invalidates nothing (a clean no-op poll).
+  // The freshness gate polls `/sync/last_activities`; an object read, so answer
+  // with a valid empty stamp table rather than the `[]` baseline: a boot with no
+  // baseline commits it and invalidates nothing (a clean no-op poll).
   // installLibraryRoutes overrides this with a mutable, bump-able table.
   await context.route("**/api.trakt.tv/sync/last_activities*", (route) =>
     route.fulfill({ status: 200, contentType: "application/json", body: "{}" }),
@@ -365,7 +486,13 @@ export interface ShowFixture {
   readonly backdrops?: readonly string[];
   readonly overview?: string;
   readonly network?: string;
+  /** Episode runtime in minutes, on `/shows/:id` only (the About block's source). */
+  readonly runtime?: number;
   readonly lastWatchedAt: string | null;
+  /** Trakt's "restart show" stamp. The bulk breakdown still lists the pre-reset
+   * plays, so a `resetAt` after them zeroes the show's local count. */
+  readonly resetAt?: string;
+  /** Aired-to-date, specials excluded: the row's `aired_episodes`. */
   readonly aired: number;
   /** Mutated in place by intercepted history writes so reads stay self-consistent. */
   completed: number;
@@ -422,6 +549,10 @@ export interface LibraryControls {
   /** 429 the next `n` progress reads (with Retry-After) then serve them: the read
    * rate-limit-then-recover path. */
   rateLimitProgressReads: (n: number) => void;
+  /** 429 the next `n` per-card art reads (`/shows/:id`) then serve them. */
+  rateLimitArtReads: (n: number) => void;
+  /** Bare `/shows/:id` reads served so far (per-card art and the detail header). */
+  artReads: () => number;
   /** Advance one `/sync/last_activities` stamp so the next poll diffs a real change. */
   bumpActivity: (section: string, field: string) => void;
   clearWrites: () => void;
@@ -487,11 +618,13 @@ function isWatched(s: ShowFixture): boolean {
   return s.completed > 0 || s.lastWatchedAt !== null;
 }
 
-/** The bulk watched breakdown Trakt returns on `/sync/watched/shows`: only WATCHED
- * episodes (index < completed), grouped by season. It is the caught-up baseline a
- * show beyond the cold-sync progress budget reads instead of a
- * per-show progress GET, so large-library fixtures bucket correctly without it. */
+/** The bulk watched breakdown `/sync/watched/shows` returns under
+ * `extended=progress`: only WATCHED episodes (index < completed), grouped by
+ * season, each stamped with its `last_watched_at` as Trakt stamps them. It is
+ * where every show's `completed` comes from without a per-show progress GET, and
+ * the stamps are what a `reset_at` is cut against. */
 function watchedSeasons(show: ShowFixture): unknown[] {
+  const watchedAt = show.lastWatchedAt ?? "2026-06-01T00:00:00.000Z";
   const bySeason = new Map<number, number[]>();
   show.episodes.forEach((ep, index) => {
     if (index >= show.completed) return;
@@ -499,21 +632,33 @@ function watchedSeasons(show: ShowFixture): unknown[] {
   });
   return [...bySeason.entries()].map(([number, numbers]) => ({
     number,
-    episodes: numbers.map((n) => ({ number: n })),
+    episodes: numbers.map((n) => ({ number: n, last_watched_at: watchedAt, plays: 1 })),
   }));
 }
 
-function watchedShowsBody(shows: readonly ShowFixture[]): string {
+/**
+ * `/sync/watched/shows` EXACTLY as Trakt serves it post-change-#775: the
+ * per-season watched breakdown only under `extended=progress`, the show's
+ * `status` only under `extended=full`, `aired_episodes` always, and NO `images`
+ * block at any level. A fixture more generous than the API certifies an API that
+ * does not exist: dropping either level from the request must break the suite,
+ * which is the whole point of reading the param here rather than emitting
+ * everything unconditionally, and a poster served here would let a card paint
+ * from a field production can never fill.
+ */
+function watchedShowsBody(shows: readonly ShowFixture[], extended: string | null): string {
+  const levels = new Set((extended ?? "").split(","));
   return JSON.stringify(
     shows.filter(isWatched).map((s) => ({
       last_watched_at: s.lastWatchedAt,
       show: {
         title: s.title,
-        status: s.status,
+        aired_episodes: s.aired,
+        ...(levels.has("full") ? { status: s.status } : {}),
         ids: { trakt: s.trakt, ...(s.tmdb === undefined ? {} : { tmdb: s.tmdb }) },
-        ...(s.posters === undefined ? {} : { images: { poster: s.posters } }),
       },
-      seasons: watchedSeasons(s),
+      reset_at: s.resetAt ?? null,
+      ...(levels.has("progress") ? { seasons: watchedSeasons(s) } : {}),
     })),
   );
 }
@@ -585,6 +730,7 @@ function showDetailBody(show: ShowFixture): string {
     status: show.status,
     overview: show.overview ?? null,
     network: show.network ?? null,
+    runtime: show.runtime ?? null,
     first_aired: show.episodes[0]?.firstAired ?? null,
     ids: { trakt: show.trakt, ...(show.tmdb === undefined ? {} : { tmdb: show.tmdb }) },
     images: {
@@ -674,6 +820,8 @@ export async function installLibraryRoutes(
   let progressReads = 0;
   let progressExtended: string | null = null;
   let progressRateLimitBudget = 0;
+  let artReads = 0;
+  let artRateLimitBudget = 0;
   // The exact watched_at each session mark POSTed, keyed by episode trakt id:
   // echoed on the scoped-history plays so the per-play undo can resolve them.
   const markedAt = new Map<number, string>();
@@ -705,7 +853,12 @@ export async function installLibraryRoutes(
   await context.route("**/api.trakt.tv/sync/watched/shows*", async (route) => {
     if (readMode === "abort") return route.abort();
     await readWait();
-    return route.fulfill({ status: 200, headers: JSON_HEADERS, body: watchedShowsBody(shows) });
+    const extended = new URL(route.request().url()).searchParams.get("extended");
+    return route.fulfill({
+      status: 200,
+      headers: JSON_HEADERS,
+      body: watchedShowsBody(shows, extended),
+    });
   });
 
   // The freshness gate's poll. Cheap (no readWait) but honors `abort` so an offline
@@ -723,8 +876,17 @@ export async function installLibraryRoutes(
   // so those more-specific paths, registered later, win over this catch (last
   // route registered wins).
   await context.route("**/api.trakt.tv/shows/*", async (route) => {
+    artReads += 1;
     const id = Number(new URL(route.request().url()).pathname.split("/")[2]);
     if (readMode === "abort") return route.abort();
+    if (artRateLimitBudget > 0) {
+      artRateLimitBudget -= 1;
+      return route.fulfill({
+        status: 429,
+        headers: { ...JSON_HEADERS, "retry-after": "1" },
+        body: "{}",
+      });
+    }
     await readWait();
     const show = shows.find((s) => s.trakt === id);
     if (show === undefined)
@@ -982,6 +1144,10 @@ export async function installLibraryRoutes(
     rateLimitProgressReads: (n) => {
       progressRateLimitBudget = n;
     },
+    rateLimitArtReads: (n) => {
+      artRateLimitBudget = n;
+    },
+    artReads: () => artReads,
     bumpActivity: (section, field) => {
       activityTick += 1;
       const iso = new Date(ACTIVITY_BASE + activityTick * 60_000).toISOString();
@@ -1201,27 +1367,32 @@ function persistedEntry(index: number): unknown {
       still: null,
       ids: { trakt: 40000 + index },
     },
-    // A persisted entry is one the running app wrote from fetched progress, so its
-    // watch state is authoritative: never `sync-pending`. Matches the current
-    // (cue-m7) schema `assembleLibrary` writes (`nextEpisode.still` included);
-    // omitting fields would model a pre-m7 cache the buster now drops.
-    progressKnown: true,
-    posters: [],
-    backdrops: [],
-    network: null,
-    genres: [],
-    runtime: null,
+    // Matches the shape `assembleLibrary` writes (`nextEpisode.still` included);
+    // omitting fields would model an older cache the buster now drops.
     tmdbId: null,
     pendingAdvance: false,
   };
 }
 
 /**
- * A dehydrated Query cache holding the assembled `library` query with `count`
- * up-next entries. `buster` defaults to the app's current `PERSIST_BUSTER`; pass
- * an older value to simulate a pre-migration cache the persister must drop.
+ * The `buster` the running build stamped on the cache it persisted: the app's own
+ * build id, so a seeded cache is trusted for the same reason a real one is. Read
+ * back rather than restated, because restating it would pass whatever the app
+ * wrote and prove nothing.
  */
-export function buildPersistedLibrary(count: number, ageMs: number, buster = "cue-m7"): string {
+export async function readPersistedBuster(page: Page): Promise<string> {
+  const stored = await readStored(page, "cue.query-cache");
+  if (stored === null) throw new Error("no persisted query cache to read a buster from");
+  return (JSON.parse(stored) as { buster: string }).buster;
+}
+
+/**
+ * A dehydrated Query cache holding the assembled `library` query with `count`
+ * up-next entries, stamped with `buster`: the running build's own (see
+ * {@link readPersistedBuster}) for a cache the persister must trust, anything else
+ * for a pre-migration one it must drop.
+ */
+export function buildPersistedLibrary(count: number, ageMs: number, buster: string): string {
   const updatedAt = Date.now() - ageMs;
   const entries = Array.from({ length: count }, (_, index) => persistedEntry(index));
   return JSON.stringify({
@@ -1234,7 +1405,7 @@ export function buildPersistedLibrary(count: number, ageMs: number, buster = "cu
           queryKey: ["library"],
           queryHash: '["library"]',
           state: {
-            data: { entries, isPartial: false },
+            data: { entries },
             dataUpdateCount: 1,
             dataUpdatedAt: updatedAt,
             error: null,

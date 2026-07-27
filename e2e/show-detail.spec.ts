@@ -35,6 +35,7 @@ function detailShow(overrides: Partial<ShowFixture> = {}): ShowFixture {
     backdrops: ["media.trakt.tv/b.webp"],
     overview: "A show built for testing the detail screen.",
     network: "Testnet",
+    runtime: 60,
     lastWatchedAt: agoIso(2),
     aired: 7,
     completed: 2,
@@ -122,6 +123,13 @@ test("renders the hero, continue bar, seasons accordion (Specials last), and Abo
   await expect(page.getByTestId("hero-backdrop")).toBeVisible();
   await expect(page.getByTestId("screen-show-detail")).toContainText("Testnet");
   await expect(page.getByTestId("detail-overview")).toBeVisible();
+  // Runtime comes off the `/shows/:id` read the hero already makes. It used to be
+  // read from the library entry, which never carries one, so the meta chip and the
+  // About watch record silently dropped it on every show.
+  await expect(page.getByTestId("screen-show-detail")).toContainText("60 min");
+  await expect(page.getByTestId("screen-show-detail")).toContainText(
+    "You've watched 2 of 7 · 2 hr",
+  );
 
   // The continue bar carries the next episode + honest series progress.
   const bar = page.getByTestId("continue-bar");

@@ -55,12 +55,29 @@ describe("Trakt read endpoints zod-parse well-formed fixtures", () => {
       {
         last_watched_at: "2026-07-01T00:00:00.000Z",
         plays: 3,
-        show: { ...showObj, images: { poster: ["media.trakt.tv/p.webp"] } },
+        reset_at: null,
+        show: {
+          ...showObj,
+          aired_episodes: 19,
+          images: { poster: ["media.trakt.tv/p.webp"] },
+        },
+        seasons: [{ number: 1, episodes: [{ number: 1 }, { number: 2 }] }],
       },
     ]);
     const result = await getWatchedShows(client);
     expect(result.ok && result.data[0]?.show.title).toBe("Severance");
+    expect(result.ok && result.data[0]?.show.aired_episodes).toBe(19);
+    expect(result.ok && result.data[0]?.seasons?.[0]?.episodes).toHaveLength(2);
     expect(result.ok && result.data[0]?.show.images?.poster).toEqual(["media.trakt.tv/p.webp"]);
+  });
+
+  it("rejects a watched-shows row with no aired_episodes rather than reading it as caught-up", async () => {
+    // `aired_episodes` is what every un-fetched show's backlog is derived from, so
+    // losing it must fail loudly here, not silently file the library as finished.
+    getJson("/sync/watched/shows", [
+      { last_watched_at: "2026-07-01T00:00:00.000Z", show: showObj, seasons: [] },
+    ]);
+    await expect(getWatchedShows(client)).rejects.toThrow();
   });
 
   it("parses watched movies", async () => {
@@ -285,7 +302,7 @@ describe("Trakt read endpoints zod-parse well-formed fixtures", () => {
 });
 
 describe("watched endpoints send the honest post-#775 payload params", () => {
-  it("requests compact watched shows (no extended) with an explicit page limit", async () => {
+  it("requests watched shows with extended=full,progress and an explicit page limit", async () => {
     let seen: URL | undefined;
     server.use(
       http.get(`${TRAKT_API_BASE}/sync/watched/shows`, ({ request }) => {
@@ -294,9 +311,10 @@ describe("watched endpoints send the honest post-#775 payload params", () => {
       }),
     );
     await getWatchedShows(client);
-    // No `extended`: `full` is a no-op and images aren't returned inline; shows get
-    // their art from `/shows/:id` in the library fan-out.
-    expect(seen?.searchParams.get("extended")).toBeNull();
+    // Post-#775 the watched breakdown ships only under `progress` and the show's
+    // `status` only under `full`. Dropping either silently zeroes every show's
+    // watched count or makes no show ever read as ended.
+    expect(seen?.searchParams.get("extended")).toBe("full,progress");
     expect(seen?.searchParams.get("limit")).toBe("100");
   });
 

@@ -1,9 +1,12 @@
 import { expect, type Page, test } from "@playwright/test";
 import {
   buildPersistedLibrary,
+  installCalendarRoutes,
   installHermeticRoutes,
+  installHistoryRoutes,
   installLibraryRoutes,
   type LibraryControls,
+  readPersistedBuster,
   type ShowFixture,
   seedActivities,
   seedAuth,
@@ -62,7 +65,7 @@ async function bootThenSeed(page: Page, controls: LibraryControls, ageMs: number
   await expect(page.getByTestId("up-next-error")).toBeVisible();
   await page.waitForTimeout(PERSIST_THROTTLE_MS);
 
-  await seedQueryCache(page, buildPersistedLibrary(1, ageMs));
+  await seedQueryCache(page, buildPersistedLibrary(1, ageMs, await readPersistedBuster(page)));
 
   controls.setReadMode("ok");
   controls.setReadDelayMs(2000);
@@ -97,5 +100,53 @@ test.describe("persisted cache boot", () => {
     const cards = page.getByTestId("up-next-card");
     await expect(cards.filter({ hasText: "Cached Show 1" })).toBeVisible({ timeout: 1500 });
     await expect(cards).toHaveCount(2, { timeout: 6000 });
+  });
+
+  test("an offline boot restores the whole home screen, not only the queue", async ({ page }) => {
+    // The three home sections read three different queries, and Previously's is
+    // `staleTime: Infinity` gated on last-activities: dropping it from the
+    // persisted set does not degrade the section, it deletes it, with nothing to
+    // bring it back until the network answers.
+    await installHermeticRoutes(page.context());
+    await installLibraryRoutes(page.context(), networkShows(2));
+    await installHistoryRoutes(page.context(), [
+      {
+        id: 11,
+        type: "episode",
+        showId: 100,
+        showTitle: "Network Show 1",
+        season: 1,
+        number: 1,
+        episodeTitle: "One",
+        watchedAt: new Date(Date.now() - 3_600_000).toISOString(),
+      },
+    ]);
+    await installCalendarRoutes(page.context(), [
+      {
+        showId: 100,
+        showTitle: "Network Show 1",
+        season: 1,
+        number: 3,
+        title: "Three",
+        firstAired: new Date(Date.now() + DAY_MS).toISOString(),
+        traktId: 9001,
+      },
+    ]);
+    await seedAuth(page.context());
+
+    await page.goto("/");
+    await expect(page.getByTestId("up-next-card").first()).toBeVisible();
+    await expect(page.getByTestId("on-the-way")).toBeVisible();
+    await expect(page.getByTestId("previously")).toBeVisible();
+    await page.waitForTimeout(PERSIST_THROTTLE_MS);
+
+    // Registered last, so it wins over every fixture route: nothing that paints
+    // after this can have come from the network.
+    await page.context().route("**/api.trakt.tv/**", (route) => route.abort());
+    await page.reload();
+
+    await expect(page.getByTestId("up-next-card").first()).toBeVisible();
+    await expect(page.getByTestId("on-the-way")).toBeVisible();
+    await expect(page.getByTestId("previously")).toBeVisible();
   });
 });

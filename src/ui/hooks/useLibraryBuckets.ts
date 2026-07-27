@@ -11,9 +11,9 @@ import { useMemo } from "react";
  * into Watching (an up-to-date show is still one you watch; Finished is
  * reserved for completed terminal runs), `lapsed` folds into Watching (the
  * lapsed cut is Up Next's drawer, not a Library pile), `not-started` reads as
- * Watchlist, `abandoned` as Stopped, `sync-pending` as Still syncing.
+ * Watchlist, `abandoned` as Stopped.
  */
-export type LibraryChipKey = "watching" | "watchlist" | "stopped" | "finished" | "syncing";
+export type LibraryChipKey = "watching" | "watchlist" | "stopped" | "finished";
 
 export type LibraryChips = Readonly<Record<LibraryChipKey, readonly LibraryEntry[]>>;
 
@@ -42,8 +42,6 @@ function chipOf(entry: LibraryEntry, now: number, thresholdMs: number): LibraryC
       return "stopped";
     case "ended":
       return "finished";
-    case "sync-pending":
-      return "syncing";
   }
 }
 
@@ -60,7 +58,6 @@ export function chipBuckets(
     watchlist: [],
     stopped: [],
     finished: [],
-    syncing: [],
   };
   for (const entry of entries) {
     lists[chipOf(entry, now, thresholdMs)].push(entry);
@@ -72,13 +69,6 @@ export function chipBuckets(
 
 export interface LibraryChipsView extends QueryStatus {
   readonly chips: LibraryChips;
-  /** Non-hidden tracked shows: the count that decides an empty library (aligned with Up Next). */
-  readonly trackedCount: number;
-  /** Every tracked show, hidden included: 0 only when the library is truly empty. */
-  readonly totalCount: number;
-  /** The library exceeds the cold-sync progress budget, so only recent shows are
-   * fully synced: the honest "recent shows synced" state. */
-  readonly isPartial: boolean;
   refetch(): void;
 }
 
@@ -98,9 +88,6 @@ export function useLibraryBuckets(sort: LibrarySort, enabled = true): LibraryChi
 
   return {
     chips,
-    trackedCount: data === undefined ? 0 : data.entries.filter((entry) => !entry.hidden).length,
-    totalCount: data?.entries.length ?? 0,
-    isPartial: data?.isPartial ?? false,
     ...queryStatus(query, data !== undefined),
     refetch: () => void query.refetch(),
   };

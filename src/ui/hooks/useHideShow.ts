@@ -50,7 +50,7 @@ export function useHideShow(): HideController {
   const revalidate = useCallback(
     (showId: number) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.library() });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.showHeader(showId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.showProgress(showId) });
       // The hidden set also filters the calendar; drop any cached window so a
       // hidden show can't linger in Calendar.
       void queryClient.invalidateQueries({ queryKey: queryKeys.calendarPrefix() });

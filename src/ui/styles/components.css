@@ -49,12 +49,6 @@
   transform: scale(0.9);
   border-color: var(--color-accent);
 }
-.check[data-state="syncing"] {
-  cursor: default;
-}
-.check[data-state="syncing"] .check__disc {
-  opacity: 0.3;
-}
 /* The rest glyph: a check waiting to happen, cross-fading out under the fill. */
 .check__rest {
   width: 50%;
@@ -221,7 +215,9 @@
 .app-snackbar__action:hover {
   color: color-mix(in srgb, var(--color-accent-ink) 85%, var(--color-fg));
 }
-@media (min-width: 900px) {
+/* Same min-width/min-height gate as layout.css's sidebar breakpoint (see that
+ * comment for the height rationale); keep in sync. */
+@media (min-width: 900px) and (min-height: 500px) {
   .app-snackbar {
     left: auto;
     right: var(--space-5);
@@ -249,14 +245,6 @@
 }
 .progress-bar[data-complete="true"] > i {
   background: var(--color-watched);
-}
-/* Static stripes: the honest "still syncing" texture, never a fabricated number. */
-.progress-bar[data-striped="true"] {
-  background: repeating-linear-gradient(
-    45deg,
-    color-mix(in srgb, var(--color-muted) 40%, transparent) 0 3px,
-    var(--color-track) 3px 6px
-  );
 }
 
 /* ---- Badge ---- */

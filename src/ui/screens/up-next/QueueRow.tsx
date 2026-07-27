@@ -36,12 +36,10 @@ export function QueueRow({
 }: QueueRowProps): ReactElement {
   const { entry, item } = card;
   const check = useQueueCheck(entry, mark);
-  // Art is deferred out of the cold-sync budget: the visible row lazily fetches
-  // its own poster, falling back to any inline list poster until it resolves.
-  // (Lapsed rows only mount while the drawer is expanded, so a closed drawer
-  // fires no per-row art reads.)
+  // Art is deferred out of the cold-sync budget: a row that settles on screen
+  // reads its own poster. The queue is not virtualized, so every row mounts at
+  // once; only the ones actually on screen spend a read.
   const art = useShowArt(entry.showId);
-  const posters = art.posters.length > 0 ? art.posters : entry.posters;
   const idle = variant === "lapsed" ? lastWatchedPhrase(entry.lastWatchedAt, Date.now()) : null;
   const left = episodesLeft(entry.aired, entry.completed);
 
@@ -51,10 +49,11 @@ export function QueueRow({
       onSwipeLeft={onStop}
     >
       <EpisodeRow
+        ref={art.ref}
         variant={variant}
         testId={variant === "lapsed" ? "lapsed-row" : "up-next-card"}
         showId={entry.showId}
-        art={<Poster title={entry.title} posters={posters} variant="s48" />}
+        art={<Poster title={entry.title} posters={art.posters} variant="s48" />}
         title={entry.title}
         meta={
           <>

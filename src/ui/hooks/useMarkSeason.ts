@@ -1,6 +1,6 @@
 import { invalidateShowProgress } from "@data/query-invalidation";
 import { queryKeys } from "@data/query-keys";
-import type { SeasonView, ShowHeader } from "@data/trakt/show-detail";
+import type { SeasonView, ShowProgress } from "@data/trakt/show-detail";
 import type { EpisodeIds, ShowIds } from "@domain/model/ids";
 import { planSeasonUnmark } from "@domain/reversal";
 import { buildBulkMarkOps, type SeasonTree } from "@domain/write-queue/bulk";
@@ -297,8 +297,8 @@ export function useMarkSeason(): MarkSeasonController {
   // (against a fresh progress re-read) instead of re-POSTing → duplicate plays.
   const reconcileAnchor = useCallback(
     (showId: number): { readonly showId: number; readonly preCompleted: number } => {
-      const header = queryClient.getQueryData<ShowHeader>(queryKeys.showHeader(showId));
-      return { showId, preCompleted: header?.completed ?? 0 };
+      const progress = queryClient.getQueryData<ShowProgress>(queryKeys.showProgress(showId));
+      return { showId, preCompleted: progress?.completed ?? 0 };
     },
     [queryClient],
   );

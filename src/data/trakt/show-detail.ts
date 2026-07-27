@@ -33,25 +33,34 @@ export interface SeasonView {
   readonly completedCount: number;
 }
 
-/** The Show detail hero + overall-progress model. */
-export interface ShowHeader {
-  readonly showId: number;
+/**
+ * Everything `/shows/:id?extended=full,images` says about a show: content, not
+ * user state. Cached once per show and shared by BOTH readers of that URL, the
+ * deferred per-card art read and the Show detail hero, so opening a show whose
+ * card already resolved costs only its progress GET.
+ */
+export interface ShowInfo {
   readonly ids: ShowIds;
   readonly title: string;
   readonly year: number | null;
   readonly status: string;
   readonly network: string | null;
   readonly genres: readonly string[];
+  readonly runtime: number | null;
   readonly overview: string | null;
   readonly posters: readonly string[];
   readonly backdrops: readonly string[];
-  readonly tmdbId: number | null;
+}
+
+/** The user's progress through one show, from `/shows/:id/progress/watched`. */
+export interface ShowProgress {
   readonly aired: number;
   readonly completed: number;
-  /** The show's most recent play (progress `last_watched_at`); null if never watched. */
-  readonly lastWatchedAt: string | null;
   readonly nextEpisode: EpisodeView | null;
 }
+
+/** The Show detail hero: the show's own facts merged with the viewer's progress. */
+export interface ShowHeader extends ShowInfo, ShowProgress {}
 
 export function toEpisodeIds(ids: {
   trakt: number;
@@ -77,28 +86,32 @@ function toShowIds(ids: ShowDetailData["ids"]): ShowIds {
   };
 }
 
-/**
- * Assemble the Show detail hero from the extended show payload + progress. The
- * next-episode callout is derived from Trakt's `next_episode` and carries its
- * own aired flag so the UI can label "next up" vs "airs on".
- */
-export function assembleHeader(show: ShowDetailData, progress: Progress, now: number): ShowHeader {
-  const next = progress.next_episode;
+/** Project the extended show payload onto the shared per-show content entity. */
+export function assembleShowInfo(show: ShowDetailData): ShowInfo {
   return {
-    showId: show.ids.trakt,
     ids: toShowIds(show.ids),
     title: show.title,
     year: show.year ?? null,
     status: show.status ?? "",
     network: show.network ?? null,
     genres: show.genres ?? [],
+    runtime: show.runtime ?? null,
     overview: show.overview ?? null,
     posters: show.images?.poster ?? [],
     backdrops: show.images?.fanart ?? [],
-    tmdbId: show.ids.tmdb ?? null,
+  };
+}
+
+/**
+ * Project `/shows/:id/progress/watched` onto the hero's progress half. The
+ * next-episode callout carries its own aired flag so the UI can label "next up"
+ * vs "airs on".
+ */
+export function assembleShowProgress(progress: Progress, now: number): ShowProgress {
+  const next = progress.next_episode;
+  return {
     aired: progress.aired,
     completed: progress.completed,
-    lastWatchedAt: progress.last_watched_at ?? null,
     nextEpisode:
       next === null
         ? null

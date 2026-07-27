@@ -76,12 +76,6 @@ function libraryEntry(showId = SHOW): LibraryEntry {
       still: null,
       ids: { trakt: showId === SHOW ? NEXT_EP_TRAKT : showId * 1000 },
     },
-    progressKnown: true,
-    posters: [],
-    backdrops: [],
-    network: null,
-    genres: [],
-    runtime: null,
     tmdbId: null,
     pendingAdvance: false,
   };
@@ -156,7 +150,7 @@ function mountSurfaces(runtime: CueRuntime, qc: QueryClient): [Api[], Api[]] {
 
 function seededClient(entries: readonly LibraryEntry[], seasons?: readonly SeasonView[]) {
   const qc = new QueryClient();
-  qc.setQueryData<UpNextData>(queryKeys.library(), { entries, isPartial: false });
+  qc.setQueryData<UpNextData>(queryKeys.library(), { entries });
   if (seasons !== undefined) {
     qc.setQueryData<readonly SeasonView[]>(queryKeys.showSeasons(SHOW), seasons);
     for (const s of seasons) {

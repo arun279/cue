@@ -6,7 +6,7 @@ const TRAKT_API_VERSION = "2";
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
 /** `extended` richness levels, comma-combined into the query. */
-type Extended = "min" | "full" | "images" | "episodes";
+type Extended = "min" | "full" | "images" | "episodes" | "progress";
 
 export interface TraktClientConfig {
   readonly clientId: string;
@@ -19,9 +19,7 @@ export interface TraktClientConfig {
 /** Parsed `X-Pagination-*` headers; `null` when the endpoint sends none. */
 interface Pagination {
   readonly page: number;
-  readonly limit: number;
   readonly pageCount: number;
-  readonly itemCount: number;
 }
 
 /**
@@ -123,8 +121,11 @@ export class TraktClient {
 
   /**
    * Walk every page of a list endpoint via `X-Pagination-Page-Count`, flattening
-   * into one array: the initial library snapshot helper. Endpoints without
-   * pagination headers resolve as a single page.
+   * into one array: the initial library snapshot helper. The page count comes from
+   * the response headers rather than the requested `limit`, because Trakt may apply
+   * a smaller one than asked for, and an empty page ends the walk early in case the
+   * count itself is wrong. Endpoints without pagination headers resolve as a single
+   * page.
    */
   async getAllPages(path: string, options: RequestOptions = {}): Promise<TraktResult<unknown[]>> {
     const first = await this.get(path, { ...options, page: 1 });
@@ -134,7 +135,9 @@ export class TraktClient {
     for (let page = 2; page <= pageCount; page += 1) {
       const next = await this.get(path, { ...options, page });
       if (!next.ok) return next;
-      acc.push(...asArray(next.data));
+      const rows = asArray(next.data);
+      if (rows.length === 0) break;
+      acc.push(...rows);
     }
     return { ok: true, data: acc, pagination: first.pagination };
   }
@@ -165,12 +168,7 @@ function readPagination(headers: Readonly<Record<string, string>>): Pagination |
   const page = numberHeader(headers, "x-pagination-page");
   const pageCount = numberHeader(headers, "x-pagination-page-count");
   if (page === null || pageCount === null) return null;
-  return {
-    page,
-    pageCount,
-    limit: numberHeader(headers, "x-pagination-limit") ?? 0,
-    itemCount: numberHeader(headers, "x-pagination-item-count") ?? 0,
-  };
+  return { page, pageCount };
 }
 
 function numberHeader(headers: Readonly<Record<string, string>>, name: string): number | null {

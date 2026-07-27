@@ -32,20 +32,18 @@ const nextEpisode = {
 } as const;
 
 const header: ShowHeader = {
-  showId: 1,
   ids: { trakt: 1 },
   title: "Budget Tail",
   year: 2024,
   status: "returning series",
   network: null,
   genres: [],
+  runtime: null,
   overview: null,
   posters: [],
   backdrops: [],
-  tmdbId: null,
   aired: 10,
   completed: 4,
-  lastWatchedAt: "2026-06-01T00:00:00.000Z",
   nextEpisode,
 };
 
@@ -56,15 +54,9 @@ const entry: LibraryEntry = {
   hidden: false,
   inWatchlist: false,
   lastWatchedAt: "2026-06-01T00:00:00.000Z",
-  aired: 4,
+  aired: 10,
   completed: 4,
   nextEpisode: null,
-  progressKnown: false,
-  posters: [],
-  backdrops: [],
-  network: null,
-  genres: [],
-  runtime: null,
   tmdbId: null,
   pendingAdvance: false,
 };
@@ -114,7 +106,6 @@ it("uses header progress for a never-watched watchlist placeholder", () => {
     ...header,
     aired: 6,
     completed: 0,
-    lastWatchedAt: null,
     nextEpisode: first,
   };
   const placeholder: LibraryEntry = {
@@ -124,7 +115,6 @@ it("uses header progress for a never-watched watchlist placeholder", () => {
     aired: 0,
     completed: 0,
     nextEpisode: null,
-    progressKnown: true,
   };
   const onFallbackMark = vi.fn();
   const { bar, check } = renderBar({ header: startHeader, entry: placeholder, onFallbackMark });
