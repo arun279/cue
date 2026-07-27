@@ -173,6 +173,7 @@ const claims = [
   "iOS keeps app preferences, your Trakt token among them, in a store that is included in a device backup by default, and Cue has not moved the token off that store yet",
   "That switch does not reach a backup stored on a computer, so delete that one yourself.",
   "Neither reaches a copy already sitting in a device backup",
+  "app.trakt.tv/settings/apps",
 ];
 
 const readmeClaims = [

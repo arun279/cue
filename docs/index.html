@@ -55,9 +55,10 @@
       </ul>
       <p>
         Cue itself never copies any of that off the device, beyond the syncing with Trakt you asked
-        for. Your phone's own backup service is a separate matter: it copies app storage into your
-        personal cloud account, and that is your operating system doing the copying, not Cue. The
-        two platforms give apps different amounts of say in it, so Cue's answer differs:
+        for. Your phone's own backup service is a separate matter: it copies app storage to
+        wherever that backup goes, whether that is a cloud account, another device, or a computer,
+        and that is your operating system doing the copying, not Cue. The two platforms give apps
+        different amounts of say in it, so Cue's answer differs:
       </p>
       <ul>
         <li>
@@ -69,20 +70,21 @@
           your Google account removes it. Signing out asks Trakt to revoke this device's access
           token, but Trakt always answers success, so that alone does not confirm it worked;
           revoke Cue at
-          <a href="https://app.trakt.tv/settings/applications">app.trakt.tv/settings/applications</a>
+          <a href="https://app.trakt.tv/settings/apps">app.trakt.tv/settings/apps</a>
           to be sure.
         </li>
         <li>
           <strong>iOS:</strong> iOS keeps app preferences, your Trakt
           token among them, in a store that is included in a device backup by default, and Cue has
           not moved the token off that store yet, so your token can sit inside an iCloud backup or
-          a backup you have taken to a computer. For iCloud, open <strong>Settings &rarr; [your name] &rarr; iCloud &rarr;
-          Manage Account Storage &rarr; Backups</strong>, tap the device you are using, and switch Cue off: iOS
+          a backup you have taken to a computer. For iCloud, open <strong>Settings &rarr; [your name] &rarr; iCloud</strong>,
+          tap <strong>Storage</strong> or <strong>Manage Account Storage</strong>, then tap <strong>Backups</strong>,
+          tap the device you are using, and switch Cue off: iOS
           stops backing Cue up and removes what iCloud already holds. That switch does not reach a
           backup stored on a computer, so delete that one yourself. Signing out asks Trakt to revoke
           this device's access token, but Trakt always answers success, so that alone does not
           confirm it worked; revoke Cue at
-          <a href="https://app.trakt.tv/settings/applications">app.trakt.tv/settings/applications</a>
+          <a href="https://app.trakt.tv/settings/apps">app.trakt.tv/settings/apps</a>
           to be sure.
         </li>
       </ul>
@@ -100,7 +102,9 @@
           Signing out asks Trakt to revoke this device's access token, and deletes Cue's local
           settings, cache, and Trakt token stored on the device. The delete is what Cue can
           guarantee: Trakt always answers success, so that alone does not confirm the revoke
-          worked; revoke Cue from your Trakt account settings as well. Uninstalling the app removes
+          worked; revoke Cue from your Trakt account settings at
+          <a href="https://app.trakt.tv/settings/apps">app.trakt.tv/settings/apps</a> as well.
+          Uninstalling the app removes
           the same local data. Neither reaches a copy already sitting in a device backup, which is
           what the backup section above is for.
         </li>
