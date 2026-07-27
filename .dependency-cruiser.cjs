@@ -6,6 +6,10 @@
 const RE_REACT = "(^|/)node_modules/react/";
 const RE_REACT_DOM = "(^|/)node_modules/react-dom/";
 const RE_CAPACITOR = "(^|/)node_modules/@capacitor/";
+const RE_DOES_NOT_SHIP_DIRECTORY = "^(docs|\\.github|e2e|test|assets)(/|$)";
+const RE_DOES_NOT_SHIP_MARKDOWN = "^[^/]*\\.md$";
+const RE_DOES_NOT_SHIP_FILE =
+  "^(LICENSE|playwright\\.config\\.ts|vitest\\.config\\.ts|lefthook\\.yml|cspell\\.json|dprint\\.json|biome\\.jsonc|knip\\.json|\\.jscpd\\.json|\\.dependency-cruiser\\.cjs|\\.env\\.example|\\.env\\.test|\\.gitignore)$";
 
 /** @type {import("dependency-cruiser").IConfiguration} */
 module.exports = {
@@ -16,6 +20,27 @@ module.exports = {
       comment: "Circular dependencies are disallowed.",
       from: {},
       to: { circular: true },
+    },
+    // These patterns mirror DOES_NOT_SHIP in test/ci/release-paths.test.ts.
+    // Changes to that list require matching updates here.
+    // Known gaps: this rule is static analysis over import specifiers that
+    // dependency-cruiser can resolve. import.meta.glob(...) and
+    // new URL("...", import.meta.url) are invisible to it. Neither produces a
+    // resolvable import edge that dependency-cruiser follows, so a file matched
+    // by either idiom is never flagged, even if it points at a non-shipping
+    // path. import.meta.glob(...) is already used in
+    // src/ui/screens/settings/Settings.tsx. Also, from.path "^src/" covers only
+    // the first edge out of src. It does not cover a transitive hop through a
+    // non-src root file that imports a non-shipping path.
+    {
+      name: "src-no-non-shipping-imports",
+      severity: "error",
+      comment:
+        "Importing a non-shipping path into src can put it in the production bundle while mobile release paths-ignore still skips changes to it.",
+      from: { path: "^src/" },
+      to: {
+        path: [RE_DOES_NOT_SHIP_DIRECTORY, RE_DOES_NOT_SHIP_MARKDOWN, RE_DOES_NOT_SHIP_FILE],
+      },
     },
     {
       name: "domain-stays-pure",

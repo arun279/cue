@@ -4,14 +4,36 @@ name: Mobile release
 #   push to main       -> TestFlight + Firebase App Distribution (testers)
 #   push a v* tag      -> App Store release (auto-release after approval)
 #   manual dispatch    -> tester builds, or an iOS App Store release
-# The existing CI workflow (ci.yml) remains the quality gate; require it via
-# branch protection so only green commits reach main and therefore this pipeline.
+# CI (ci.yml) is the quality gate, enforced twice: branch protection keeps red
+# commits off main, and the gate job below re-checks the exact commit this run
+# would ship.
+# A dispatch or tag on a commit never pushed to main finds no CI checks and times out at DEADLINE_MINUTES rather than releasing.
 
 on:
   push:
     branches: [main]
     tags: ["v*"]
-    paths-ignore: ["docs/**", "**/*.md", ".github/**", "LICENSE"]
+    paths-ignore: [
+      "docs/**",
+      "*.md",
+      ".github/**",
+      "LICENSE",
+      "e2e/**",
+      "test/**",
+      "playwright.config.ts",
+      "vitest.config.ts",
+      "lefthook.yml",
+      "cspell.json",
+      "dprint.json",
+      "biome.jsonc",
+      "knip.json",
+      ".jscpd.json",
+      ".dependency-cruiser.cjs",
+      ".env.example",
+      ".env.test",
+      ".gitignore",
+      "assets/**",
+    ]
   workflow_dispatch:
     inputs:
       platform:
@@ -101,14 +123,121 @@ jobs:
             echo "build_number=$build_number"
           } >> "$GITHUB_OUTPUT"
 
+  gate:
+    # Second layer of the CI gate. Branch protection is the first and keeps red
+    # commits off main; this job re-checks the exact commit about to ship, so a
+    # bypassed, misconfigured or later-edited ruleset cannot quietly release an
+    # unverified build. The required names below are a deliberate copy of the
+    # ruleset's contexts rather than a read of it: a gate that asks the thing it
+    # guards whether that thing is happy is not a gate. Keep the two in step.
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      actions: read
+      checks: read
+    steps:
+      - name: Require green CI for the shipped commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          # Job names that exist in ci.yml today. Never list one that does not:
+          # a check that can never report turns the wait below into a guaranteed
+          # timeout on every release.
+          REQUIRED: '["check","audit","actionlint","standardrb","android","e2e"]'
+          # GitHub Actions, so no other check provider can satisfy a required name.
+          APP_ID: "15368"
+          DEADLINE_MINUTES: "30"
+          POLL_SECONDS: "20"
+        run: |
+          set -euo pipefail
+
+          # ci.yml and this workflow both have a job named "android". Filtering
+          # positively to ci.yml's own check suite instead of negatively excluding
+          # this run's suite keeps tag pushes and workflow_dispatch runs from
+          # mistaking a stale mobile-release "android" check for CI's.
+          deadline=$(( $(date +%s) + DEADLINE_MINUTES * 60 ))
+          ci_run_errors=0
+          check_runs_errors=0
+
+          while :; do
+            if ! ci_run=$(gh api \
+              "repos/$REPO/actions/workflows/ci.yml/runs?head_sha=$SHA&event=push&per_page=1" \
+              --jq '.workflow_runs[0].check_suite_id // empty'); then
+              ci_run_errors=$((ci_run_errors + 1))
+              if [ "$ci_run_errors" -ge 3 ]; then
+                echo "::error::Refusing to ship $SHA: gh api failed 3 times in a row querying ci.yml workflow runs, giving up rather than waiting out the full deadline"
+                exit 1
+              fi
+              echo "Transient error finding ci.yml check suite, retrying"
+              sleep "$POLL_SECONDS"
+              continue
+            fi
+            ci_run_errors=0
+
+            if [ -z "$ci_run" ]; then
+              status=$(jq -cn --argjson required "$REQUIRED" '
+                [ $required[] | { name: ., state: "missing", verdict: "pending" } ]')
+            else
+              if ! raw=$(gh api --paginate --slurp \
+                "repos/$REPO/commits/$SHA/check-runs?filter=all&app_id=$APP_ID&per_page=100"); then
+                check_runs_errors=$((check_runs_errors + 1))
+                if [ "$check_runs_errors" -ge 3 ]; then
+                  echo "::error::Refusing to ship $SHA: gh api failed 3 times in a row querying check runs, giving up rather than waiting out the full deadline"
+                  exit 1
+                fi
+                echo "Transient error fetching check-runs, retrying"
+                sleep "$POLL_SECONDS"
+                continue
+              fi
+              check_runs_errors=0
+
+              status=$(jq -c --argjson app "$APP_ID" --argjson suite "$ci_run" --argjson required "$REQUIRED" '
+                  [ .[].check_runs[] | select(.app.id == $app and .check_suite.id == $suite) ] as $runs
+                  | [ $required[]
+                      | . as $name
+                      | ([ $runs[] | select(.name == $name) ] | sort_by(.started_at) | last) as $latest
+                      | if $latest == null then { name: $name, state: "missing", verdict: "pending" }
+                        elif $latest.status != "completed" then { name: $name, state: $latest.status, verdict: "pending" }
+                        elif $latest.conclusion == "success" then { name: $name, state: "success", verdict: "ok" }
+                        else { name: $name, state: ($latest.conclusion // "unknown"), verdict: "failed" }
+                        end ]' <<<"$raw")
+            fi
+
+            failed=$(jq -r '[ .[] | select(.verdict == "failed") | "\(.name) (\(.state))" ] | join(", ")' <<<"$status")
+            if [ -n "$failed" ]; then
+              echo "::error::Refusing to ship $SHA: required CI checks did not pass: $failed"
+              exit 1
+            fi
+
+            pending=$(jq -r '[ .[] | select(.verdict == "pending") | "\(.name) (\(.state))" ] | join(", ")' <<<"$status")
+            if [ -z "$pending" ]; then
+              jq -r '.[] | "  \(.state)  \(.name)"' <<<"$status"
+              echo "All required CI checks passed for $SHA."
+              exit 0
+            fi
+
+            # "missing" counts as pending, not as pass: CI starts alongside this
+            # workflow, so its checks appear a little after we begin polling. A
+            # commit that never reports them therefore times out here instead of
+            # sailing through on an empty list.
+            if [ "$(date +%s)" -ge "$deadline" ]; then
+              echo "::error::Refusing to ship $SHA: required CI checks never reported within ${DEADLINE_MINUTES}m: $pending"
+              exit 1
+            fi
+
+            echo "Waiting on $pending"
+            sleep "$POLL_SECONDS"
+          done
+
   android:
-    needs: config
+    needs: [config, gate]
     if: needs.config.outputs.build_android == 'true' && github.ref_type == 'branch'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
           cache: pnpm
@@ -149,13 +278,28 @@ jobs:
         run: bundle exec fastlane android ${{ needs.config.outputs.lane }}
 
   ios:
-    needs: config
+    needs: [config, gate]
     if: needs.config.outputs.build_ios == 'true' && (needs.config.outputs.lane == 'release' || github.ref_type == 'branch')
-    runs-on: macos-latest
+    # TODO(ios-uiscene-pin): Starting with iOS 27, UIKit kills apps that have
+    # not adopted the UIScene life cycle. Capacitor has not shipped scene
+    # support; ionic-team/capacitor#7961 is open and targeted for 8.5. Remove
+    # this pin when #7961 lands with CAPSceneDelegateProxy, or when this repo
+    # lands its UIScene shim from fix/ios-uiscene-lifecycle. GitHub moved
+    # macos-latest from macOS 15 to macOS 26 between 2026-06-15 and mid-July
+    # 2026, so runs-on: macos-26 below is a no-op today. The xcode-select step
+    # is not: it explicitly pins the toolchain regardless of whichever Xcode
+    # version the image ships as default. Together they prevent the next image
+    # migration from silently advancing the SDK further. When the runner image
+    # prunes Xcode 26.6, the explicit
+    # xcode-select path fails loudly instead of falling through to the next
+    # Xcode. Adopt UIScene then; do not bump the pinned path.
+    runs-on: macos-26
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.6.app
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
           cache: pnpm

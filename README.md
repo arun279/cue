@@ -46,6 +46,8 @@ First e2e run only: `pnpm exec playwright install chromium webkit`.
 
 Use `pnpm e2e:mobile --headed` when you want to watch the mobile browser checks run.
 
+Every e2e run builds the app and starts its own preview server on port 4173. Set `E2E_PREVIEW_PORT` to move that off the default when a second suite is already running on the same machine.
+
 ### Check harness
 
 `pnpm check` is a single deterministic gate that must be green before anything merges. It runs, in order:
@@ -62,7 +64,7 @@ Use `pnpm e2e:mobile --headed` when you want to watch the mobile browser checks 
 
 `pnpm e2e` runs the Playwright suite (chromium). `pnpm audit` (high/critical production advisories) is deliberately kept out of `pnpm check` because it reads live advisory state; it runs as its own CI job on every push and on a weekly schedule.
 
-Git hooks are wired with [lefthook](https://lefthook.dev) (`pnpm install` runs `lefthook install`): pre-commit runs the fast gates, pre-push runs the full `pnpm check` and `pnpm e2e`. The same gates run in CI (`.github/workflows/ci.yml`) on Node 22.
+Git hooks are wired with [lefthook](https://lefthook.dev) (`pnpm install` runs `lefthook install`): pre-commit runs the fast gates, pre-push runs `pnpm check`. The full Playwright e2e suite runs in CI (`.github/workflows/ci.yml`, Node 22) on every pull request, and branch protection ruleset 18841630 requires the `e2e` context, so it still gates every merge.
 
 ## Mobile
 
