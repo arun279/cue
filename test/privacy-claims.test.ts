@@ -6,6 +6,8 @@ import capacitorConfig from "../capacitor.config";
 import servedPolicy from "../docs/index.html?raw";
 import infoPlistSource from "../ios/App/App/Info.plist?raw";
 import policy from "../PRIVACY.md?raw";
+import kvSource from "../src/platform/kv.ts?raw";
+import tokenStoreSource from "../src/platform/token-store.ts?raw";
 
 /**
  * The native shells are the one part of this repo nothing else reads: biome,
@@ -20,12 +22,18 @@ import policy from "../PRIVACY.md?raw";
  * this module instead of the working directory vitest happened to start in.
  */
 
-/** Comments quote the very attributes asserted below, so they must not count either way. */
-const stripComments = (xml: string): string => xml.replace(/<!--[\s\S]*?-->/g, "");
+/** Comments quote the very attributes and APIs asserted below, so they must not count either way. */
+const stripComments = (source: string): string =>
+  source
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/(^|\s)\/\/.*$/gm, "$1");
 
 const androidManifest = stripComments(androidManifestSource);
 const extractionRules = stripComments(extractionRulesSource);
 const infoPlist = stripComments(infoPlistSource);
+const kv = stripComments(kvSource);
+const tokenStore = stripComments(tokenStoreSource);
 
 /** Every storage domain Android's backup rules can name, device-protected ones included. */
 const backupDomains = [
@@ -170,5 +178,26 @@ describe("the served policy and the repo policy state the same thing", () => {
   it.each(claims)("both state: %s", (claim) => {
     expect(policyText).toContain(claim);
     expect(servedText).toContain(claim);
+  });
+
+  it("anchors the iOS backup claim to the native token backend", () => {
+    const staleClaim =
+      'The iOS "store included in backup by default" claim is stale. Update PRIVACY.md, README.md, and docs/index.html.';
+    const nativeKeyValueStore =
+      kv.match(
+        /function nativeKeyValueStore[\s\S]*?(?=\nexport function createKeyValueStore)/,
+      )?.[0] ?? "";
+
+    expect(kv, staleClaim).toMatch(
+      /import\s*\{[^}]*\bPreferences\b[^}]*\}\s*from\s*["']@capacitor\/preferences["']/,
+    );
+    // An unused import could survive a backend rewrite, so every native
+    // operation must still use Preferences.
+    for (const method of ["get", "set", "remove"]) {
+      expect(nativeKeyValueStore, staleClaim).toMatch(
+        new RegExp(`\\bPreferences\\.${method}\\s*\\(`),
+      );
+    }
+    expect(`${kv}\n${tokenStore}`, staleClaim).not.toMatch(/\b[\w-]*keychain[\w-]*\b/i);
   });
 });
