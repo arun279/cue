@@ -4,8 +4,9 @@ name: Mobile release
 #   push to main       -> TestFlight + Firebase App Distribution (testers)
 #   push a v* tag      -> App Store release (auto-release after approval)
 #   manual dispatch    -> tester builds, or an iOS App Store release
-# The existing CI workflow (ci.yml) remains the quality gate; require it via
-# branch protection so only green commits reach main and therefore this pipeline.
+# CI (ci.yml) is the quality gate, enforced twice: branch protection keeps red
+# commits off main, and the gate job below re-checks the exact commit this run
+# would ship.
 
 on:
   push:
@@ -101,8 +102,83 @@ jobs:
             echo "build_number=$build_number"
           } >> "$GITHUB_OUTPUT"
 
+  gate:
+    # Second layer of the CI gate. Branch protection is the first and keeps red
+    # commits off main; this job re-checks the exact commit about to ship, so a
+    # bypassed, misconfigured or later-edited ruleset cannot quietly release an
+    # unverified build. The required names below are a deliberate copy of the
+    # ruleset's contexts rather than a read of it: a gate that asks the thing it
+    # guards whether that thing is happy is not a gate. Keep the two in step.
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      actions: read
+      checks: read
+    steps:
+      - name: Require green CI for the shipped commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
+          # Job names that exist in ci.yml today. Never list one that does not:
+          # a check that can never report turns the wait below into a guaranteed
+          # timeout on every release.
+          REQUIRED: '["check","audit","actionlint","standardrb","android","e2e"]'
+          # GitHub Actions, so no other check provider can satisfy a required name.
+          APP_ID: "15368"
+          DEADLINE_MINUTES: "30"
+          POLL_SECONDS: "20"
+        run: |
+          set -euo pipefail
+
+          # ci.yml and this workflow both have a job named "android" and both
+          # report against this commit. Dropping our own check suite stops this
+          # run from reading its own result as CI's.
+          own_suite=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq '.check_suite_id')
+          deadline=$(( $(date +%s) + DEADLINE_MINUTES * 60 ))
+
+          while :; do
+            status=$(gh api --paginate --slurp "repos/$REPO/commits/$SHA/check-runs?per_page=100" \
+              | jq -c --argjson app "$APP_ID" --argjson suite "$own_suite" --argjson required "$REQUIRED" '
+                  [ .[].check_runs[] | select(.app.id == $app and .check_suite.id != $suite) ] as $runs
+                  | [ $required[]
+                      | . as $name
+                      | ([ $runs[] | select(.name == $name) ] | sort_by(.started_at) | last) as $latest
+                      | if $latest == null then { name: $name, state: "missing", verdict: "pending" }
+                        elif $latest.status != "completed" then { name: $name, state: $latest.status, verdict: "pending" }
+                        elif $latest.conclusion == "success" then { name: $name, state: "success", verdict: "ok" }
+                        else { name: $name, state: ($latest.conclusion // "unknown"), verdict: "failed" }
+                        end ]')
+
+            failed=$(jq -r '[ .[] | select(.verdict == "failed") | "\(.name) (\(.state))" ] | join(", ")' <<<"$status")
+            if [ -n "$failed" ]; then
+              echo "::error::Refusing to ship $SHA: required CI checks did not pass: $failed"
+              exit 1
+            fi
+
+            pending=$(jq -r '[ .[] | select(.verdict == "pending") | "\(.name) (\(.state))" ] | join(", ")' <<<"$status")
+            if [ -z "$pending" ]; then
+              jq -r '.[] | "  \(.state)  \(.name)"' <<<"$status"
+              echo "All required CI checks passed for $SHA."
+              exit 0
+            fi
+
+            # "missing" counts as pending, not as pass: CI starts alongside this
+            # workflow, so its checks appear a little after we begin polling. A
+            # commit that never reports them therefore times out here instead of
+            # sailing through on an empty list.
+            if [ "$(date +%s)" -ge "$deadline" ]; then
+              echo "::error::Refusing to ship $SHA: required CI checks never reported within ${DEADLINE_MINUTES}m: $pending"
+              exit 1
+            fi
+
+            echo "Waiting on $pending"
+            sleep "$POLL_SECONDS"
+          done
+
   android:
-    needs: config
+    needs: [config, gate]
     if: needs.config.outputs.build_android == 'true' && github.ref_type == 'branch'
     runs-on: ubuntu-latest
     steps:
@@ -149,7 +225,7 @@ jobs:
         run: bundle exec fastlane android ${{ needs.config.outputs.lane }}
 
   ios:
-    needs: config
+    needs: [config, gate]
     if: needs.config.outputs.build_ios == 'true' && (needs.config.outputs.lane == 'release' || github.ref_type == 'branch')
     runs-on: macos-latest
     steps:
