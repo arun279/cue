@@ -1,5 +1,8 @@
 import { TRAKT_API_BASE } from "@data/trakt/client";
-import { describe, expect, it } from "vitest";
+import type { Token } from "@domain/model/token";
+import { act, createElement } from "react";
+import { createRoot } from "react-dom/client";
+import { describe, expect, it, vi } from "vitest";
 import androidManifestSource from "../android/app/src/main/AndroidManifest.xml?raw";
 import extractionRulesSource from "../android/app/src/main/res/xml/data_extraction_rules.xml?raw";
 import capacitorConfig from "../capacitor.config";
@@ -7,9 +10,9 @@ import servedPolicy from "../docs/index.html?raw";
 import infoPlistSource from "../ios/App/App/Info.plist?raw";
 import policy from "../PRIVACY.md?raw";
 import readme from "../README.md?raw";
-import providersSource from "../src/app/providers.tsx?raw";
 import runtimeSource from "../src/app/runtime/create-runtime.ts?raw";
-import kvSource from "../src/platform/kv.ts?raw";
+
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 /**
  * The native shells are the one part of this repo nothing else reads: biome,
@@ -34,8 +37,6 @@ const stripComments = (source: string): string =>
 const androidManifest = stripComments(androidManifestSource);
 const extractionRules = stripComments(extractionRulesSource);
 const infoPlist = stripComments(infoPlistSource);
-const kv = stripComments(kvSource);
-const providers = stripComments(providersSource);
 const runtime = stripComments(runtimeSource);
 
 /** Every storage domain Android's backup rules can name, device-protected ones included. */
@@ -201,38 +202,94 @@ describe("privacy copy agreement and storage anchors", () => {
     );
   });
 
-  it("anchors the iOS backup claim to the native token backend", () => {
+  it("anchors the iOS backup claim to the native token backend", async () => {
     const staleClaim =
-      'The iOS "store included in backup by default" claim is stale. Update PRIVACY.md, README.md, and docs/index.html.';
-    const staleImportClaim = `${staleClaim} Any additional import, such as a Keychain or SecureStorage plugin, must not appear in src/platform/kv.ts without updating PRIVACY.md, README.md, and docs/index.html.`;
-    const nativeKeyValueStore =
-      kv.match(
-        /^(?:export\s+)?function\s+nativeKeyValueStore\s*\([^)]*\)\s*:\s*KeyValueStore\s*\{[\s\S]*?^\}/m,
-      )?.[0] ?? "";
+      "The Trakt token no longer reaches Capacitor Preferences on native, so the iOS " +
+      '"store included in backup by default" claim is stale. Update PRIVACY.md, README.md, ' +
+      "and docs/index.html.";
 
-    expect(
-      nativeKeyValueStore,
-      "Could not find the nativeKeyValueStore function body in src/platform/kv.ts.",
-    ).not.toBe("");
-    expect(kv, staleClaim).toMatch(
-      /import\s*\{[^}]*\bPreferences\b[^}]*\}\s*from\s*["']@capacitor\/preferences["']/,
-    );
-    expect(
-      new Set(Array.from(kv.matchAll(/from\s*["']([^"']+)["']/g), (match) => match[1])),
-      staleImportClaim,
-    ).toEqual(new Set(["@capacitor/preferences", "idb-keyval"]));
-    // An unused import could survive a backend rewrite, so every native
-    // operation must still use Preferences.
-    for (const method of ["get", "set", "remove"]) {
-      expect(nativeKeyValueStore, staleClaim).toMatch(
-        new RegExp(`\\bPreferences\\.${method}\\s*\\(`),
-      );
+    // Force the composition root down its native path.
+    vi.doMock("@capacitor/core", () => ({ Capacitor: { getPlatform: () => "ios" } }));
+
+    // The one point of observation: whatever the real store ends up being, a
+    // connected token must round-trip through this mock to count as reaching
+    // the OS-backed Preferences store.
+    const nativeBacking = new Map<string, string>();
+    vi.doMock("@capacitor/preferences", async () => {
+      const { createPreferencesMock } = await import("./support/capacitor-preferences-mock");
+      return createPreferencesMock(nativeBacking);
+    });
+    // The query-cache persister also touches idb-keyval; stub it so mounting
+    // the composition root never reaches for real IndexedDB.
+    vi.doMock("idb-keyval", () => ({
+      get: vi.fn(async () => undefined),
+      set: vi.fn(async () => {}),
+      del: vi.fn(async () => {}),
+    }));
+
+    const token: Token = {
+      access_token: "behavioral-anchor-access",
+      refresh_token: "behavioral-anchor-refresh",
+      created_at: 1_700_000_000,
+      expires_in: 7_776_000,
+    };
+    // Short-circuit the device-code round trip: only the persist step, not
+    // Trakt's network protocol, is what this test is anchoring.
+    vi.doMock("@data/auth/oauth", () => ({
+      requestDeviceCode: vi.fn(async () => ({
+        userCode: "ABCD1234",
+        verificationUrl: "https://trakt.tv/activate",
+        deviceCode: "device-code",
+        intervalMs: 1,
+      })),
+      pollDeviceToken: vi.fn(async () => ({ status: "success" as const, token })),
+      buildAuthorizeUrl: vi.fn(),
+      exchangeCodeForToken: vi.fn(),
+      revokeToken: vi.fn(),
+    }));
+    vi.doMock("@data/auth/pkce", () => ({
+      createPkcePair: vi.fn(async () => ({ verifier: "verifier", challenge: "challenge" })),
+    }));
+
+    // AuthGate is the one seam between the composition root and the screen it
+    // renders: replacing it with a prop-capturing stub gets us the exact
+    // `AuthStore` `src/app/providers.tsx` built and wired, without needing the
+    // router or the onboarding screen it would otherwise mount.
+    let capturedStore: { getState: () => { connectWithDeviceCode: () => Promise<void> } } | null =
+      null;
+    vi.doMock("@app/AuthGate", () => ({
+      AuthGate: ({ store }: { store: typeof capturedStore }) => {
+        capturedStore = store;
+        return null;
+      },
+    }));
+
+    vi.resetModules();
+    const { AppProviders } = await import("@app/providers");
+    const { Preferences } = await import("@capacitor/preferences");
+
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    try {
+      await act(async () => root.render(createElement(AppProviders)));
+
+      expect(
+        capturedStore,
+        "src/app/providers.tsx did not render AuthGate with an auth store.",
+      ).not.toBeNull();
+
+      await act(async () => {
+        await capturedStore?.getState().connectWithDeviceCode();
+      });
+
+      expect(Preferences.set, staleClaim).toHaveBeenCalledWith({
+        key: "cue.trakt.token",
+        value: expect.any(String),
+      });
+    } finally {
+      act(() => root.unmount());
+      host.remove();
     }
-    expect(
-      providers,
-      "createTokenStore must receive the createKeyValueStore result in src/app/providers.tsx",
-    ).toMatch(
-      /\bconst\s+([A-Za-z_$][\w$]*)\s*(?::[^=]+)?\s*=\s*createKeyValueStore\s*\([^;]*\)\s*;[\s\S]*?\bconst\s+[A-Za-z_$][\w$]*\s*(?::[^=]+)?\s*=\s*createTokenStore\s*\(\s*\1\s*\)\s*;/,
-    );
   });
 });
