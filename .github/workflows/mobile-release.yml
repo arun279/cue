@@ -157,26 +157,40 @@ jobs:
           # this run's suite keeps tag pushes and workflow_dispatch runs from
           # mistaking a stale mobile-release "android" check for CI's.
           deadline=$(( $(date +%s) + DEADLINE_MINUTES * 60 ))
+          ci_run_errors=0
+          check_runs_errors=0
 
           while :; do
             if ! ci_run=$(gh api \
               "repos/$REPO/actions/workflows/ci.yml/runs?head_sha=$SHA&event=push&per_page=1" \
               --jq '.workflow_runs[0].check_suite_id // empty'); then
+              ci_run_errors=$((ci_run_errors + 1))
+              if [ "$ci_run_errors" -ge 3 ]; then
+                echo "::error::Refusing to ship $SHA: gh api failed 3 times in a row querying check runs, giving up rather than waiting out the full deadline"
+                exit 1
+              fi
               echo "Transient error finding ci.yml check suite, retrying"
               sleep "$POLL_SECONDS"
               continue
             fi
+            ci_run_errors=0
 
             if [ -z "$ci_run" ]; then
               status=$(jq -cn --argjson required "$REQUIRED" '
                 [ $required[] | { name: ., state: "missing", verdict: "pending" } ]')
             else
               if ! raw=$(gh api --paginate --slurp \
-                "repos/$REPO/commits/$SHA/check-runs?per_page=100"); then
+                "repos/$REPO/commits/$SHA/check-runs?filter=all&app_id=$APP_ID&per_page=100"); then
+                check_runs_errors=$((check_runs_errors + 1))
+                if [ "$check_runs_errors" -ge 3 ]; then
+                  echo "::error::Refusing to ship $SHA: gh api failed 3 times in a row querying check runs, giving up rather than waiting out the full deadline"
+                  exit 1
+                fi
                 echo "Transient error fetching check-runs, retrying"
                 sleep "$POLL_SECONDS"
                 continue
               fi
+              check_runs_errors=0
 
               status=$(jq -c --argjson app "$APP_ID" --argjson suite "$ci_run" --argjson required "$REQUIRED" '
                   [ .[].check_runs[] | select(.app.id == $app and .check_suite.id == $suite) ] as $runs

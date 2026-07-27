@@ -104,7 +104,7 @@ const readPathsIgnore = (): string[] => {
   return parsed;
 };
 
-const readCiJobNames = (): string[] => {
+const getJobsBlock = (): string => {
   const workflow = readFileSync(CI_WORKFLOW, "utf8");
 
   // This intentionally parses only the top-level jobs block and its
@@ -116,7 +116,11 @@ const readCiJobNames = (): string[] => {
   if (jobsBlock === undefined) {
     throw new Error(`expected one jobs block, found ${matches.length}`);
   }
+  return jobsBlock;
+};
 
+const readCiJobNames = (): string[] => {
+  const jobsBlock = getJobsBlock();
   return [...jobsBlock.matchAll(/^ {2}([A-Za-z_][A-Za-z0-9_-]*):[ \t]*(?:#.*)?\r?$/gm)].map(
     (match) => match[1] as string,
   );
@@ -175,5 +179,16 @@ describe("mobile release path partition", () => {
 describe("mobile release gate required checks", () => {
   it("keeps REQUIRED aligned with CI jobs", () => {
     expect([...readRequiredChecks()].sort()).toEqual([...readCiJobNames()].sort());
+  });
+
+  it("uses CI job IDs as check-run names", () => {
+    const unsupportedOverrides = getJobsBlock()
+      .split(/\r?\n/)
+      .filter((line) => /^ {4}(?:name|strategy):/.test(line));
+
+    expect(
+      unsupportedOverrides,
+      "A job-level name or strategy (matrix) override means the check-run name no longer equals the job ID. Update the gate's REQUIRED list and the polling logic in mobile-release.yml to match real check-run names before adding the override.",
+    ).toEqual([]);
   });
 });
