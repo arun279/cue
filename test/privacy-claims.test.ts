@@ -196,13 +196,14 @@ describe("privacy copy agreement and storage anchors", () => {
       runtime,
       "Unsynced marks must remain in the persisted cue.write-queue operation log.",
     ).toMatch(
-      /const\s+OP_LOG_KEY\s*=\s*["']cue\.write-queue["'];[\s\S]*?const\s+([A-Za-z_$][\w$]*)\s*=\s*createJsonStore<QueuedOp\[\]>\(\s*deps\.kv,\s*OP_LOG_KEY,[\s\S]*?\1\.write\(\s*queue\.snapshot\(\)\s*\)/,
+      /const\s+OP_LOG_KEY\s*=\s*["']cue\.write-queue["'];[\s\S]*?const\s+([A-Za-z_$][\w$]*)\s*=\s*createJsonStore(?:<[^>]*>)?\(\s*[\w.]+,\s*OP_LOG_KEY,[\s\S]*?\1\.write\(\s*queue\.snapshot\(\)\s*\)/,
     );
   });
 
   it("anchors the iOS backup claim to the native token backend", () => {
     const staleClaim =
       'The iOS "store included in backup by default" claim is stale. Update PRIVACY.md, README.md, and docs/index.html.';
+    const staleImportClaim = `${staleClaim} Any additional import, such as a Keychain or SecureStorage plugin, must not appear in src/platform/kv.ts without updating PRIVACY.md, README.md, and docs/index.html.`;
     const nativeKeyValueStore =
       kv.match(
         /^(?:export\s+)?function\s+nativeKeyValueStore\s*\([^)]*\)\s*:\s*KeyValueStore\s*\{[\s\S]*?^\}/m,
@@ -215,6 +216,10 @@ describe("privacy copy agreement and storage anchors", () => {
     expect(kv, staleClaim).toMatch(
       /import\s*\{[^}]*\bPreferences\b[^}]*\}\s*from\s*["']@capacitor\/preferences["']/,
     );
+    expect(
+      new Set(Array.from(kv.matchAll(/from\s*["']([^"']+)["']/g), (match) => match[1])),
+      staleImportClaim,
+    ).toEqual(new Set(["@capacitor/preferences", "idb-keyval"]));
     // An unused import could survive a backend rewrite, so every native
     // operation must still use Preferences.
     for (const method of ["get", "set", "remove"]) {
@@ -222,8 +227,11 @@ describe("privacy copy agreement and storage anchors", () => {
         new RegExp(`\\bPreferences\\.${method}\\s*\\(`),
       );
     }
-    expect(providers, staleClaim).toMatch(
-      /\bconst\s+([A-Za-z_$][\w$]*)\s*=\s*createKeyValueStore\s*\([^;]*\)\s*;[\s\S]*?\bconst\s+[A-Za-z_$][\w$]*\s*=\s*createTokenStore\s*\(\s*\1\s*\)\s*;/,
+    expect(
+      providers,
+      "createTokenStore must receive the createKeyValueStore result in src/app/providers.tsx",
+    ).toMatch(
+      /\bconst\s+([A-Za-z_$][\w$]*)\s*(?::[^=]+)?\s*=\s*createKeyValueStore\s*\([^;]*\)\s*;[\s\S]*?\bconst\s+[A-Za-z_$][\w$]*\s*(?::[^=]+)?\s*=\s*createTokenStore\s*\(\s*\1\s*\)\s*;/,
     );
   });
 });
