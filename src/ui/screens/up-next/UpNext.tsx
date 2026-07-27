@@ -160,7 +160,6 @@ export function UpNext(): ReactElement {
             key={entry.showId}
             showId={entry.showId}
             title={entry.title}
-            posters={entry.posters}
             testId="watchlist-tile"
           />
         ))}

@@ -92,7 +92,6 @@ export const watchedMoviesSchema = z.array(watchedMovieSchema);
 export const progressSchema = z.object({
   aired: z.number(),
   completed: z.number(),
-  last_watched_at: z.string().nullish(),
   next_episode: episodeSchema.nullable(),
   seasons: z
     .array(
@@ -140,7 +139,6 @@ export const seasonsSchema = z.array(
   z.object({
     number: z.number(),
     title: z.string().nullish(),
-    images: imagesSchema,
     episodes: z.array(episodeSchema).optional(),
   }),
 );

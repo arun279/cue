@@ -1,5 +1,5 @@
 import type { Progress, SeasonData, ShowDetailData } from "@data/trakt/schemas";
-import { assembleHeader, assembleSeasons } from "@data/trakt/show-detail";
+import { assembleSeasons, assembleShowInfo, assembleShowProgress } from "@data/trakt/show-detail";
 import { describe, expect, it } from "vitest";
 
 const NOW = Date.UTC(2026, 6, 5);
@@ -12,6 +12,7 @@ const showData: ShowDetailData = {
   status: "returning series",
   overview: "Work-life balance, taken literally.",
   network: "Apple TV+",
+  runtime: 47,
   first_aired: iso(NOW - 400 * DAY),
   ids: { trakt: 1, slug: "severance", tmdb: 95396 },
   images: { poster: ["media.trakt.tv/p.webp"], fanart: ["media.trakt.tv/b.webp"] },
@@ -22,7 +23,6 @@ const WATCHED_AT = "2026-07-03T21:30:00.000Z";
 const progress: Progress = {
   aired: 3,
   completed: 2,
-  last_watched_at: WATCHED_AT,
   next_episode: {
     season: 1,
     number: 3,
@@ -87,26 +87,51 @@ const seasons: SeasonData[] = [
   },
 ];
 
-describe("assembleHeader", () => {
-  it("maps the extended show payload + progress into the hero model", () => {
-    const header = assembleHeader(showData, progress, NOW);
-    expect(header).toMatchObject({
-      showId: 1,
+describe("assembleShowInfo", () => {
+  it("maps the extended show payload onto the shared per-show content entity", () => {
+    const info = assembleShowInfo(showData);
+    expect(info).toEqual({
+      ids: { trakt: 1, slug: "severance", tmdb: 95396 },
       title: "Severance",
       year: 2022,
+      status: "returning series",
       network: "Apple TV+",
+      genres: [],
+      runtime: 47,
       overview: "Work-life balance, taken literally.",
       posters: ["media.trakt.tv/p.webp"],
       backdrops: ["media.trakt.tv/b.webp"],
-      tmdbId: 95396,
-      aired: 3,
-      completed: 2,
     });
-    expect(header.ids).toEqual({ trakt: 1, slug: "severance", tmdb: 95396 });
+  });
+
+  it("keeps the runtime the About block's watch record is derived from", () => {
+    // The regression this guards: runtime used to be read off the library entry,
+    // where it was structurally null, so "X min" and the total watch time never
+    // rendered. It comes from the same `/shows/:id` read the hero already makes.
+    expect(assembleShowInfo(showData).runtime).toBe(47);
+  });
+
+  it("tolerates missing optional fields", () => {
+    expect(assembleShowInfo({ title: "Bare", ids: { trakt: 9 } })).toMatchObject({
+      year: null,
+      status: "",
+      network: null,
+      genres: [],
+      runtime: null,
+      overview: null,
+      posters: [],
+      backdrops: [],
+    });
+  });
+});
+
+describe("assembleShowProgress", () => {
+  it("maps the progress payload onto the hero's counts", () => {
+    expect(assembleShowProgress(progress, NOW)).toMatchObject({ aired: 3, completed: 2 });
   });
 
   it("derives the next-episode callout with its aired flag", () => {
-    expect(assembleHeader(showData, progress, NOW).nextEpisode).toMatchObject({
+    expect(assembleShowProgress(progress, NOW).nextEpisode).toMatchObject({
       season: 1,
       number: 3,
       aired: true,
@@ -114,27 +139,9 @@ describe("assembleHeader", () => {
     });
   });
 
-  it("surfaces the show's last-watched date (recognition over recall)", () => {
-    expect(assembleHeader(showData, progress, NOW).lastWatchedAt).toBe(WATCHED_AT);
-  });
-
-  it("nulls last-watched for a never-watched show", () => {
-    const bare: ShowDetailData = { title: "Bare", ids: { trakt: 9 } };
-    const header = assembleHeader(bare, { aired: 0, completed: 0, next_episode: null }, NOW);
-    expect(header.lastWatchedAt).toBeNull();
-  });
-
-  it("nulls the callout when caught up and tolerates missing optional fields", () => {
-    const bare: ShowDetailData = { title: "Bare", ids: { trakt: 9 } };
-    const header = assembleHeader(bare, { aired: 0, completed: 0, next_episode: null }, NOW);
-    expect(header.nextEpisode).toBeNull();
-    expect(header).toMatchObject({
-      year: null,
-      network: null,
-      overview: null,
-      posters: [],
-      backdrops: [],
-    });
+  it("nulls the callout when caught up", () => {
+    const caughtUp = assembleShowProgress({ aired: 0, completed: 0, next_episode: null }, NOW);
+    expect(caughtUp.nextEpisode).toBeNull();
   });
 });
 

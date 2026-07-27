@@ -76,11 +76,6 @@ function libraryEntry(showId = SHOW): LibraryEntry {
       still: null,
       ids: { trakt: showId === SHOW ? NEXT_EP_TRAKT : showId * 1000 },
     },
-    posters: [],
-    backdrops: [],
-    network: null,
-    genres: [],
-    runtime: null,
     tmdbId: null,
     pendingAdvance: false,
   };

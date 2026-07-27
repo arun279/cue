@@ -1,3 +1,4 @@
+import { queryKeys } from "@data/query-keys";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import { type Query, QueryClient } from "@tanstack/react-query";
 import { del, get, set } from "idb-keyval";
@@ -26,9 +27,9 @@ export const PERSIST_BUSTER = __PERSIST_BUSTER__;
  *
  * Left out: `search` and `discover` (unbounded key spaces nobody boots into), and
  * the per-show/per-movie detail trees, whose count grows with every title ever
- * opened and which cost a single GET to re-read on demand. Per-card `show/art` is
- * the one exception: it is bounded by the library, it is what a restored row
- * paints its poster from, and re-reading it costs a GET per card on screen.
+ * opened and which cost a single GET to re-read on demand. A LIBRARY show's
+ * `show/info` is the one exception: it is what a restored row paints its poster
+ * from, and re-reading it costs a GET per card on screen.
  */
 const PERSISTED_KEY_HEADS: ReadonlySet<unknown> = new Set([
   "library",
@@ -38,12 +39,6 @@ const PERSISTED_KEY_HEADS: ReadonlySet<unknown> = new Set([
   "history",
   "calendar",
 ]);
-
-export function shouldDehydrateQuery(query: Query): boolean {
-  if (query.state.status !== "success") return false;
-  const [head, section] = query.queryKey;
-  return PERSISTED_KEY_HEADS.has(head) || (head === "show" && section === "art");
-}
 
 /**
  * `maxAge` governs how long a restored cache may be replayed, NOT freshness.
@@ -73,6 +68,28 @@ export const queryClient = new QueryClient({
     },
   },
 });
+
+/**
+ * Does the restored library hold a card for this show? Show detail and the
+ * per-card art read share one `showInfo` entry, so anything opened from Search,
+ * Calendar or the Diary writes one too. Those have no card to paint on a cold
+ * boot, and with `gcTime` and `PERSIST_MAX_AGE` both unbounded they would
+ * accumulate in the blob for the life of the install. Gating on library
+ * membership is what keeps the persisted set bounded by the library.
+ */
+function paintsALibraryCard(showId: unknown): boolean {
+  const library = queryClient.getQueryData<{
+    readonly entries: readonly { readonly showId: number }[];
+  }>(queryKeys.library());
+  return library?.entries.some((entry) => entry.showId === showId) ?? false;
+}
+
+export function shouldDehydrateQuery(query: Query): boolean {
+  if (query.state.status !== "success") return false;
+  const [head, section, showId] = query.queryKey;
+  if (head === "show") return section === "info" && paintsALibraryCard(showId);
+  return PERSISTED_KEY_HEADS.has(head);
+}
 
 export const queryPersister = createAsyncStoragePersister({
   key: "cue.query-cache",

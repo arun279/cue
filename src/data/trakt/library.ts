@@ -6,35 +6,19 @@ import type { HiddenItem, Progress, WatchedShow, WatchlistItem } from "./schemas
 import { toEpisodeIds } from "./show-detail";
 
 /**
- * A `LibraryShow` (what the selectors read) enriched with the presentation
- * data the Up Next card needs but the pure domain type omits: the Trakt inline
- * poster candidates for the image resolver, the show's TMDB id (an alternate
+ * A `LibraryShow` (what the selectors read) plus the two things the Up Next card
+ * needs and the pure domain type omits: the show's TMDB id (an alternate
  * `/sync/*` write identifier for hide/watchlist), and `pendingAdvance`: set
  * while an optimistic mark's next episode is a client guess awaiting the
  * authoritative progress refetch, so the card can lock its action until then.
+ *
+ * Art is deliberately absent. `/sync/watched/shows` carries no `images` block,
+ * so a poster here could only ever be null; every card reads its own from the
+ * deferred `/shows/:id` query instead (`useShowArt`).
  */
 export interface LibraryEntry extends LibraryShow {
-  readonly posters: readonly string[];
-  readonly backdrops: readonly string[];
-  readonly network: string | null;
-  readonly genres: readonly string[];
-  readonly runtime: number | null;
   readonly tmdbId: number | null;
   readonly pendingAdvance: boolean;
-}
-
-/**
- * Presentation art + broadcast metadata for one show, sourced from
- * `/shows/:id?extended=full,images`: the `/sync/watched/shows` list omits the
- * `images` block, so the poster/backdrop the hero and cards render come from
- * here, keyed by trakt id and merged in `assembleLibrary`.
- */
-export interface ShowArt {
-  readonly posters: readonly string[];
-  readonly backdrops: readonly string[];
-  readonly network: string | null;
-  readonly genres: readonly string[];
-  readonly runtime: number | null;
 }
 
 /** What the write-queue op carries (as its opaque `inversePatch`) to reconcile a mark. */
@@ -51,8 +35,6 @@ export interface LibraryInput {
   readonly hiddenShowIds: ReadonlySet<number>;
   /** Full watchlist items: the source of both membership flags and watchlist-only entries. */
   readonly watchlistShows: readonly WatchlistItem[];
-  /** Per-show art + broadcast metadata (poster/backdrop/network/genres/runtime), keyed by trakt id. */
-  readonly details?: ReadonlyMap<number, ShowArt>;
 }
 
 type SchemaEpisode = NonNullable<Progress["next_episode"]>;
@@ -65,26 +47,6 @@ function toEpisodeRef(ep: SchemaEpisode): EpisodeRef {
     firstAired: ep.first_aired ?? null,
     still: resolveStill(ep.images?.screenshot),
     ids: toEpisodeIds(ep.ids),
-  };
-}
-
-/**
- * The art + broadcast fields for one entry: prefer the fetched show-detail art
- * (the only source that carries images), falling back to whatever inline posters
- * the source list itself provided and empty metadata otherwise.
- */
-function artFields(
-  details: ReadonlyMap<number, ShowArt> | undefined,
-  showId: number,
-  inlinePosters: readonly string[] | undefined,
-): ShowArt {
-  const art = details?.get(showId);
-  return {
-    posters: art?.posters ?? inlinePosters ?? [],
-    backdrops: art?.backdrops ?? [],
-    network: art?.network ?? null,
-    genres: art?.genres ?? [],
-    runtime: art?.runtime ?? null,
   };
 }
 
@@ -123,7 +85,6 @@ export function assembleLibrary(input: LibraryInput): LibraryEntry[] {
       aired: progress?.aired ?? show.aired_episodes,
       completed: progress?.completed ?? watchedEpisodeCount(watched),
       nextEpisode: next === null ? null : toEpisodeRef(next),
-      ...artFields(input.details, trakt, show.images?.poster),
       tmdbId: show.ids.tmdb ?? null,
       pendingAdvance: false,
     });
@@ -144,7 +105,6 @@ export function assembleLibrary(input: LibraryInput): LibraryEntry[] {
       aired: 0,
       completed: 0,
       nextEpisode: null,
-      ...artFields(input.details, trakt, show.images?.poster),
       tmdbId: show.ids.tmdb ?? null,
       pendingAdvance: false,
     });

@@ -6,11 +6,6 @@ import { DAY, iso, makeShow, NOW, THRESHOLD } from "../domain/_helpers";
 function entry(overrides: Partial<LibraryEntry> = {}): LibraryEntry {
   return {
     ...makeShow(),
-    posters: [],
-    backdrops: [],
-    network: null,
-    genres: [],
-    runtime: null,
     tmdbId: null,
     pendingAdvance: false,
     ...overrides,

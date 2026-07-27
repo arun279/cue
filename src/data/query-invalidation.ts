@@ -13,7 +13,7 @@ export type InvalidationKey = readonly unknown[];
  * watch/progress change because the Profile totals and the watch log both move
  * with them: so a mark made on any surface shows up in the Diary on the next poll.
  *
- * Deliberately absent: `showHeader`/`showSeasons`/`episode` and the calendar.
+ * Deliberately absent: `showProgress`/`showSeasons`/`episode` and the calendar.
  * Those carry Trakt content (airdates, newly-announced episodes) that doesn't
  * always bump user activity, so they refresh on a time-based content staleTime
  * rather than being gated on this diff. `userSettings` is absent too: identity
@@ -48,9 +48,10 @@ function keysForTarget(target: InvalidationTarget): readonly InvalidationKey[] {
 /**
  * The cached queries a local watched-progress mark on show X must refresh,
  * whichever surface issued it: the Up Next `library` aggregate PLUS the show's own
- * detail reads: its header (overall `X/Y` + next-up) and its season tree
+ * progress reads: its hero progress (overall `X/Y` + next-up) and its season tree
  * (per-season counts + per-episode ticks): and, when the mark targets one known
- * episode, that episode's detail read.
+ * episode, that episode's detail read. The show's own `showInfo` facts are
+ * deliberately absent: a mark changes no air date, network or genre.
  *
  * These per-show keys are deliberately ABSENT from `keysForTarget` above: the
  * last-activities gate maps a *remote* diff, and it stores the app's own write
@@ -73,7 +74,7 @@ export function showProgressKeys(
 ): InvalidationKey[] {
   const keys: InvalidationKey[] = [
     queryKeys.library(),
-    queryKeys.showHeader(showId),
+    queryKeys.showProgress(showId),
     queryKeys.showSeasons(showId),
   ];
   if (episode === "all") keys.push(queryKeys.episodePrefix(showId));

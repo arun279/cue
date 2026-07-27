@@ -36,9 +36,9 @@ export function MarqueeCard({
   onCheck,
 }: MarqueeCardProps): ReactElement {
   // Art is deferred out of the cold-sync budget: the card reads its own backdrop
-  // once it settles on screen, falling back to any already-assembled entry art.
+  // once it settles on screen.
   const art = useShowArt(entry.showId);
-  const backdrop = resolveBackdrop(art.backdrops.length > 0 ? art.backdrops : entry.backdrops);
+  const backdrop = resolveBackdrop(art.backdrops);
   const airedMs = toMs(episode.firstAired);
   const now = Date.now();
   const airedLastNight = airedMs !== null && now - airedMs <= AIRED_LAST_NIGHT_MS && airedMs <= now;
@@ -70,7 +70,7 @@ export function MarqueeCard({
       >
         {backdrop === null && (
           <span className="marquee__poster">
-            <Poster title={entry.title} posters={entry.posters} variant="s64" />
+            <Poster title={entry.title} posters={art.posters} variant="s64" />
           </span>
         )}
         <span className="marquee__stack">

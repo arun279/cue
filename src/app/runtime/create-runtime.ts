@@ -32,7 +32,7 @@ import {
   assembleHistoryEntries,
   assembleMoviePlays,
 } from "@data/trakt/history";
-import { additiveLanded, markLanded, type ShowArt, showIdSet } from "@data/trakt/library";
+import { additiveLanded, markLanded, showIdSet } from "@data/trakt/library";
 import { assembleMovieHeader, assembleMovieLibrary } from "@data/trakt/movie-library";
 import { loadUpNextEntries, withReadRateRetry } from "@data/trakt/read-budget";
 import { createLastActivitiesRepository } from "@data/trakt/repositories";
@@ -43,7 +43,7 @@ import {
   assembleShowHits,
   rankSearchHits,
 } from "@data/trakt/search";
-import { assembleHeader, assembleSeasons } from "@data/trakt/show-detail";
+import { assembleSeasons, assembleShowInfo, assembleShowProgress } from "@data/trakt/show-detail";
 import { createTraktTransport } from "@data/trakt/transport";
 import { assembleUserProfile, type UserProfile } from "@data/trakt/user-profile";
 import type { Token } from "@domain/model/token";
@@ -206,22 +206,17 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       return { entries: await loadUpNextEntries(client) };
     },
 
-    async loadShowArt(showId): Promise<ShowArt> {
-      // Deferred per-card art: the `/sync/watched/shows` list carries no `images`,
-      // so a show card lazily reads its poster/backdrop/network/genres from
-      // `/shows/:id` once it settles on screen: one GET per card looked at, cached
-      // by trakt id, never the whole library up front. It goes through the shared
-      // read gate like every other read, so a scrolled list can neither exceed the
-      // concurrency pool nor fire into a window a 429 just closed.
+    async loadShowInfo(showId) {
+      // The app's ONE `/shows/:id` read. Deferred out of the cold-sync budget: the
+      // `/sync/watched/shows` list carries no `images`, so a show card lazily reads
+      // its own facts once it settles on screen, one GET per card looked at, cached
+      // by trakt id, never the whole library up front. Opening that show reuses the
+      // same cache entry for its hero. It goes through the shared read gate like
+      // every other read, so a scrolled list can neither exceed the concurrency
+      // pool nor fire into a window a 429 just closed.
       const show = await withReadRateRetry(() => getShow(client, showId));
-      if (!show.ok) throw new Error("Failed to load show art");
-      return {
-        posters: show.data.images?.poster ?? [],
-        backdrops: show.data.images?.fanart ?? [],
-        network: show.data.network ?? null,
-        genres: show.data.genres ?? [],
-        runtime: show.data.runtime ?? null,
-      };
+      if (!show.ok) throw new Error("Failed to load show");
+      return assembleShowInfo(show.data);
     },
 
     async loadMovieLibrary(): Promise<MovieLibraryData> {
@@ -254,14 +249,10 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       return assembleMovieHits(related.data);
     },
 
-    async loadShowHeader(showId) {
-      const [show, progress] = await Promise.all([
-        getShow(client, showId),
-        getShowProgress(client, showId),
-      ]);
-      if (!show.ok) throw new Error("Failed to load show");
+    async loadShowProgress(showId) {
+      const progress = await getShowProgress(client, showId);
       if (!progress.ok) throw new Error("Failed to load show progress");
-      return assembleHeader(show.data, progress.data, Date.now());
+      return assembleShowProgress(progress.data, Date.now());
     },
 
     async loadShowSeasons(showId) {

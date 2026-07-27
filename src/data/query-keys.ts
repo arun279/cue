@@ -31,11 +31,14 @@ export const queryKeys = {
   movieHeader: (movieId: number) => ["movie", "header", movieId] as const,
   /** "More like this" related movies for one movie's detail rail. */
   movieRelated: (movieId: number) => ["movie", "related", movieId] as const,
-  /** Deferred per-card show art (poster/backdrop), fetched lazily as a row renders
-   * cached by trakt id so a card paints its poster without the
-   * cold-sync read fanning `/shows/:id` out across the whole library up front. */
-  showArt: (showId: number) => ["show", "art", showId] as const,
-  showHeader: (showId: number) => ["show", "header", showId] as const,
+  /** One `/shows/:id` payload, cached once per show and read by BOTH the deferred
+   * per-card art and the Show detail hero. A card fetches it lazily as it settles
+   * on screen, so the cold-sync read never fans `/shows/:id` out across the whole
+   * library and opening that card's show does not pay for the same URL twice. */
+  showInfo: (showId: number) => ["show", "info", showId] as const,
+  /** The viewer's progress through one show (`/shows/:id/progress/watched`),
+   * separate from {@link showInfo} because it is user state a mark invalidates. */
+  showProgress: (showId: number) => ["show", "progress", showId] as const,
   showSeasons: (showId: number) => ["show", "seasons", showId] as const,
   episode: (showId: number, season: number, number: number) =>
     ["show", "episode", showId, season, number] as const,

@@ -407,6 +407,8 @@ export interface ShowFixture {
   readonly backdrops?: readonly string[];
   readonly overview?: string;
   readonly network?: string;
+  /** Episode runtime in minutes, on `/shows/:id` only (the About block's source). */
+  readonly runtime?: number;
   readonly lastWatchedAt: string | null;
   /** Trakt's "restart show" stamp. The bulk breakdown still lists the pre-reset
    * plays, so a `resetAt` after them zeroes the show's local count. */
@@ -558,10 +560,12 @@ function watchedSeasons(show: ShowFixture): unknown[] {
 /**
  * `/sync/watched/shows` EXACTLY as Trakt serves it post-change-#775: the
  * per-season watched breakdown only under `extended=progress`, the show's
- * `status` only under `extended=full`, and `aired_episodes` always. A fixture
- * more generous than the API certifies an API that does not exist: dropping
- * either level from the request must break the suite, which is the whole point of
- * reading the param here rather than emitting everything unconditionally.
+ * `status` only under `extended=full`, `aired_episodes` always, and NO `images`
+ * block at any level. A fixture more generous than the API certifies an API that
+ * does not exist: dropping either level from the request must break the suite,
+ * which is the whole point of reading the param here rather than emitting
+ * everything unconditionally, and a poster served here would let a card paint
+ * from a field production can never fill.
  */
 function watchedShowsBody(shows: readonly ShowFixture[], extended: string | null): string {
   const levels = new Set((extended ?? "").split(","));
@@ -573,7 +577,6 @@ function watchedShowsBody(shows: readonly ShowFixture[], extended: string | null
         aired_episodes: s.aired,
         ...(levels.has("full") ? { status: s.status } : {}),
         ids: { trakt: s.trakt, ...(s.tmdb === undefined ? {} : { tmdb: s.tmdb }) },
-        ...(s.posters === undefined ? {} : { images: { poster: s.posters } }),
       },
       reset_at: s.resetAt ?? null,
       ...(levels.has("progress") ? { seasons: watchedSeasons(s) } : {}),
@@ -648,6 +651,7 @@ function showDetailBody(show: ShowFixture): string {
     status: show.status,
     overview: show.overview ?? null,
     network: show.network ?? null,
+    runtime: show.runtime ?? null,
     first_aired: show.episodes[0]?.firstAired ?? null,
     ids: { trakt: show.trakt, ...(show.tmdb === undefined ? {} : { tmdb: show.tmdb }) },
     images: {
@@ -1286,11 +1290,6 @@ function persistedEntry(index: number): unknown {
     },
     // Matches the shape `assembleLibrary` writes (`nextEpisode.still` included);
     // omitting fields would model an older cache the buster now drops.
-    posters: [],
-    backdrops: [],
-    network: null,
-    genres: [],
-    runtime: null,
     tmdbId: null,
     pendingAdvance: false,
   };

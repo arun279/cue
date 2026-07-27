@@ -24,9 +24,8 @@ interface ShowTileProps {
  */
 export function ShowTile({ entry, chip }: ShowTileProps): ReactElement {
   // Art is deferred out of the cold-sync budget: a tile that settles on screen
-  // reads its own poster, falling back to any inline list poster.
+  // reads its own poster.
   const art = useShowArt(entry.showId);
-  const posters = art.posters.length > 0 ? art.posters : entry.posters;
   const left = episodesLeft(entry.aired, entry.completed);
 
   let overlay: ReactNode = null;
@@ -69,7 +68,7 @@ export function ShowTile({ entry, chip }: ShowTileProps): ReactElement {
       data-show-id={entry.showId}
     >
       <span className="poster-tile__art">
-        <Poster title={entry.title} posters={posters} variant="s115" />
+        <Poster title={entry.title} posters={art.posters} variant="s115" />
         {overlay}
       </span>
       <span className="poster-tile__title">{entry.title}</span>

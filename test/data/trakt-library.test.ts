@@ -16,7 +16,6 @@ function watchlistItem(overrides: {
   trakt: number;
   title?: string;
   status?: string;
-  posters?: string[];
   tmdb?: number;
 }): WatchlistItem {
   return {
@@ -25,7 +24,6 @@ function watchlistItem(overrides: {
       title: overrides.title ?? "Watchlisted",
       status: overrides.status ?? "returning series",
       ids: { trakt: overrides.trakt, tmdb: overrides.tmdb },
-      images: overrides.posters ? { poster: overrides.posters } : undefined,
     },
   };
 }
@@ -35,7 +33,6 @@ function watchedShow(overrides: {
   title?: string;
   status?: string;
   lastWatchedAt?: string | null;
-  posters?: string[];
   tmdb?: number;
   /** The row's `aired_episodes`: aired-to-date, the bulk `aired` every entry carries. */
   airedEpisodes?: number;
@@ -49,7 +46,6 @@ function watchedShow(overrides: {
       status: overrides.status ?? "returning series",
       aired_episodes: overrides.airedEpisodes ?? 0,
       ids: { trakt: overrides.trakt, tmdb: overrides.tmdb },
-      images: overrides.posters ? { poster: overrides.posters } : undefined,
     },
     ...(overrides.seasons === undefined
       ? {}
@@ -101,22 +97,14 @@ const baseEntry: LibraryEntry = {
     still: null,
     ids: { trakt: 4004 },
   },
-  posters: [],
-  backdrops: [],
-  network: null,
-  genres: [],
-  runtime: null,
   tmdbId: null,
   pendingAdvance: false,
 };
 
 describe("assembleLibrary", () => {
-  it("merges watched + progress + hidden + watchlist + images into entries", () => {
+  it("merges watched + progress + hidden + watchlist into entries", () => {
     const input: LibraryInput = {
-      watchedShows: [
-        watchedShow({ trakt: 1, title: "A", posters: ["media.trakt.tv/a.webp"], tmdb: 55 }),
-        watchedShow({ trakt: 2, title: "B" }),
-      ],
+      watchedShows: [watchedShow({ trakt: 1, title: "A", tmdb: 55 }), watchedShow({ trakt: 2 })],
       progress: new Map([[1, progress({})]]),
       hiddenShowIds: new Set([2]),
       watchlistShows: [watchlistItem({ trakt: 1, title: "A" })],
@@ -130,7 +118,6 @@ describe("assembleLibrary", () => {
     expect(a?.hidden).toBe(false);
     // A has fetched progress, so it overrides the bulk counts.
     expect(a).toMatchObject({ aired: 10, completed: 3 });
-    expect(a?.posters).toEqual(["media.trakt.tv/a.webp"]);
     expect(a?.tmdbId).toBe(55);
     expect(a?.nextEpisode).toEqual({
       season: 1,
@@ -201,7 +188,7 @@ describe("assembleLibrary", () => {
       watchedShows: [],
       progress: new Map(),
       hiddenShowIds: new Set(),
-      watchlistShows: [watchlistItem({ trakt: 9, title: "Queued", posters: ["p.webp"], tmdb: 77 })],
+      watchlistShows: [watchlistItem({ trakt: 9, title: "Queued", tmdb: 77 })],
     });
     expect(entries).toHaveLength(1);
     expect(entries[0]).toMatchObject({
@@ -212,53 +199,21 @@ describe("assembleLibrary", () => {
       completed: 0,
       nextEpisode: null,
       lastWatchedAt: null,
-      posters: ["p.webp"],
       tmdbId: 77,
     });
   });
 
-  it("merges show-detail art (poster/backdrop/network/genres/runtime) over the inline list", () => {
+  it("carries no art: every card reads its own from `/shows/:id`", () => {
+    // `/sync/watched/shows` returns no `images` block at all (the app does not even
+    // ask for one), so an entry could only ever carry a null poster. The whole
+    // field set is gone rather than shipped structurally empty.
     const entries = assembleLibrary({
-      watchedShows: [watchedShow({ trakt: 5, title: "Detailed", posters: ["inline.webp"] })],
+      watchedShows: [watchedShow({ trakt: 5, title: "Detailed" })],
       progress: new Map([[5, progress({})]]),
       hiddenShowIds: new Set(),
       watchlistShows: [],
-      details: new Map([
-        [
-          5,
-          {
-            posters: ["detail-poster.webp"],
-            backdrops: ["detail-fanart.webp"],
-            network: "AMC",
-            genres: ["drama", "crime"],
-            runtime: 47,
-          },
-        ],
-      ]),
     });
-    expect(entries[0]).toMatchObject({
-      posters: ["detail-poster.webp"],
-      backdrops: ["detail-fanart.webp"],
-      network: "AMC",
-      genres: ["drama", "crime"],
-      runtime: 47,
-    });
-  });
-
-  it("falls back to the inline poster and empty metadata when no detail art is provided", () => {
-    const entries = assembleLibrary({
-      watchedShows: [watchedShow({ trakt: 6, posters: ["inline.webp"] })],
-      progress: new Map([[6, progress({})]]),
-      hiddenShowIds: new Set(),
-      watchlistShows: [],
-    });
-    expect(entries[0]).toMatchObject({
-      posters: ["inline.webp"],
-      backdrops: [],
-      network: null,
-      genres: [],
-      runtime: null,
-    });
+    expect(Object.keys(entries[0] ?? {}).sort()).toEqual(Object.keys(baseEntry).sort());
   });
 
   it("does not duplicate a watchlisted show that is also watched", () => {

@@ -1,10 +1,10 @@
 import type { InvalidationKey } from "@data/query-invalidation";
 import type { EpisodeDetail } from "@data/trakt/episode-detail";
-import type { LibraryEntry, ShowArt } from "@data/trakt/library";
+import type { LibraryEntry } from "@data/trakt/library";
 import type { MovieEntry, MovieHeader } from "@data/trakt/movie-library";
 import type { UserStats } from "@data/trakt/schemas";
 import type { SearchHit } from "@data/trakt/search";
-import type { SeasonView, ShowHeader } from "@data/trakt/show-detail";
+import type { SeasonView, ShowInfo, ShowProgress } from "@data/trakt/show-detail";
 import type { UserProfile } from "@data/trakt/user-profile";
 import type { CalendarEntry } from "@domain/calendar";
 import type { HistoryEntry, HistoryRange } from "@domain/history";
@@ -77,19 +77,21 @@ export interface ActivitiesReconcile {
 export interface CueRuntime {
   loadUpNext(): Promise<UpNextData>;
   /**
-   * Deferred per-card show art (poster/backdrop/network/genres) from `/shows/:id`.
-   * The cold-sync read omits art to stay within the GET budget; a visible show row
-   * lazily fetches its own via this, cached by trakt id.
+   * One show's `/shows/:id` facts, the single read behind both the deferred
+   * per-card art and the Show detail hero. The cold-sync read omits it to stay
+   * within the GET budget; a visible show row lazily fetches its own, and the
+   * detail hero reuses whatever the card already cached.
    */
-  loadShowArt(showId: number): Promise<ShowArt>;
+  loadShowInfo(showId: number): Promise<ShowInfo>;
   /** The Library movie collection: watched movies + watchlist movies as poster shelves. */
   loadMovieLibrary(): Promise<MovieLibraryData>;
   /** Movie detail hero from `/movies/:id?extended=full,images` (title, year, overview, art). */
   loadMovieHeader(movieId: number): Promise<MovieHeader>;
   /** "More like this" for a movie: `/movies/:id/related` as poster `SearchHit`s. */
   loadMovieRelated(movieId: number): Promise<readonly SearchHit[]>;
-  /** Show detail hero + overall progress; paints before the season stream resolves. */
-  loadShowHeader(showId: number): Promise<ShowHeader>;
+  /** The viewer's progress through one show: the hero's other half, and the
+   * pre-write `completed` anchor a bulk season mark reconciles against. */
+  loadShowProgress(showId: number): Promise<ShowProgress>;
   /** The season/episode tree merged with per-episode watched flags (streams in after the hero). */
   loadShowSeasons(showId: number): Promise<readonly SeasonView[]>;
   /** Episode detail: content + still + watched state + prev/next nav. */

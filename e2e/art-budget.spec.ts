@@ -1,14 +1,30 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import {
   agoIso,
   type EpisodeFixture,
   installHermeticRoutes,
   installLibraryRoutes,
+  readStored,
   type ShowFixture,
   seedAuth,
 } from "./helpers";
 
 const AIRED = "2026-01-01T00:00:00.000Z";
+
+/** The persister saves on a ~1s throttle; wait it out before reading the blob. */
+const PERSIST_THROTTLE_MS = 1200;
+
+/** The trakt ids whose `/shows/:id` facts the persisted cache actually carries. */
+async function persistedShowInfoIds(page: Page): Promise<number[]> {
+  const stored = await readStored(page, "cue.query-cache");
+  if (stored === null) throw new Error("no persisted query cache");
+  const { clientState } = JSON.parse(stored) as {
+    clientState: { queries: { queryKey: unknown[] }[] };
+  };
+  return clientState.queries
+    .filter((query) => query.queryKey[0] === "show" && query.queryKey[1] === "info")
+    .map((query) => query.queryKey[2] as number);
+}
 
 /**
  * A library big enough that a per-card art read fanning out across it would be a
@@ -78,6 +94,59 @@ test("scrolling the whole library costs far fewer art reads than it has shows", 
   expect(atRest).toBeGreaterThan(0);
   expect(atRest).toBeLessThan(SCROLL_ART_CEILING);
   expect(art).toBeLessThan(SCROLL_ART_CEILING);
+});
+
+test("opening a show reuses the card's `/shows/:id` read instead of paying twice", async ({
+  page,
+}) => {
+  // The card art and the detail hero want the same `/shows/:id` payload. Under two
+  // query keys that was two GETs for one URL, charged every time a reader tapped a
+  // card they had just looked at.
+  const controls = await installLibraryRoutes(page.context(), [show(0)]);
+
+  await page.goto("/library");
+  const tile = page.getByTestId("library-card").first();
+  await expect(tile).toBeVisible();
+  await expect.poll(() => controls.artReads(), { timeout: 15_000 }).toBe(1);
+
+  await tile.click();
+  await expect(page.getByTestId("detail-title")).toBeVisible();
+  await expect(page.getByTestId("continue-bar")).toBeVisible();
+
+  // The hero paints from the entry the tile already filled and spends only its own
+  // progress read.
+  expect(controls.artReads()).toBe(1);
+});
+
+test("only a library show's facts reach the persisted blob", async ({ page }) => {
+  // Sharing one cache entry between the card art and the hero means Show detail
+  // writes `show/info` for anything opened from Search, Calendar or the Diary too.
+  // Those have no card to restore, and with gcTime and maxAge both unbounded they
+  // would pile up in IndexedDB for the life of the install.
+  const offLibrary: ShowFixture = {
+    ...show(9),
+    trakt: 2000,
+    title: "Never Tracked",
+    lastWatchedAt: null,
+    completed: 0,
+  };
+  await installLibraryRoutes(page.context(), [show(0), offLibrary]);
+
+  await page.goto("/library");
+  await expect(page.getByTestId("library-card")).toHaveCount(1);
+  await page.getByTestId("library-card").first().click();
+  await expect(page.getByTestId("detail-title")).toContainText("Show 000");
+  await page.waitForTimeout(PERSIST_THROTTLE_MS);
+
+  // A library show's facts DO earn their place: that is what a restored row
+  // paints its poster from offline.
+  expect(await persistedShowInfoIds(page)).toEqual([1000]);
+
+  await page.goto("/show/2000");
+  await expect(page.getByTestId("detail-title")).toContainText("Never Tracked");
+  await page.waitForTimeout(PERSIST_THROTTLE_MS);
+
+  expect(await persistedShowInfoIds(page)).toEqual([1000]);
 });
 
 test("a rate-limited art read recovers instead of leaving the card unresolved", async ({
