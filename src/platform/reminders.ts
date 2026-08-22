@@ -10,7 +10,8 @@ import { isNativePlatform } from "./platform";
  */
 const CHANNEL_ID = "cue-airing-today";
 
-/** Groups consecutive days into one stack on iOS instead of separate banners. */
+/** Collects the digests under one heading in iOS Notification Center. Each one
+ * still arrives as its own banner: threading groups what is already delivered. */
 const THREAD_ID = CHANNEL_ID;
 
 /** Matches Android's IMPORTANCE_DEFAULT: it makes a sound, it does not barge in

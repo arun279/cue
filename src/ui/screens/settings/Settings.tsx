@@ -189,7 +189,7 @@ export function Settings(): ReactElement {
       <SettingSection label="Notifications">
         <SettingRow
           label="Episode reminders"
-          hint="One notification each morning naming what airs that day, scheduled on the phone itself. Applies on the phone app."
+          hint="One notification each morning naming what airs that day, scheduled on the device itself. Applies on the phone app."
           control={
             <SettingSwitch
               checked={remindersEnabled}

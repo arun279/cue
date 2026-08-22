@@ -72,6 +72,9 @@ describe("indicator sweep", () => {
 
 describe("settle", () => {
   it("holds a fast pass up to the minimum visible spin", () => {
+    // Unqualified, so the component's own default is pinned and not only the
+    // arithmetic around whatever it happens to be.
+    expect(settleDelayMs(0)).toBe(600);
     expect(settleDelayMs(0, 600)).toBe(600);
     expect(settleDelayMs(250, 600)).toBe(350);
   });
