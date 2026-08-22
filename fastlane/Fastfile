@@ -111,12 +111,15 @@ def build_android_apk
       "cueVersionName" => app_version
     }
   )
-  verify_android_apk_version
+  verify_android_apk
 end
 
 # android/app/build.gradle is Capacitor-generated, so regenerating the platform
 # would drop the version wiring and quietly ship every build as 1.0 (1) again.
-def verify_android_apk_version
+# The same read pins the permission set the phone shows a tester, which is a
+# merge result no repo file can be checked for: any dependency's manifest can
+# add to it.
+def verify_android_apk
   sh(
     File.join(REPO_ROOT, VERIFY_APK),
     File.join(REPO_ROOT, ANDROID_APK),
