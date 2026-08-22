@@ -15,10 +15,12 @@ dev-dist/
 .wrangler/
 
 # Env: the real .env (your Trakt app's PUBLIC client id) is local-only.
-# Committed: .env.example (placeholders) + .env.test (CI/e2e dummy id).
+# Committed: .env.example (placeholders), .env.test (CI/e2e dummy id) and
+# .env.mock (the `--mode mock` harness pointing at the local fake Trakt).
 .env*
 !.env.example
 !.env.test
+!.env.mock
 *.local
 *.pem
 *.key

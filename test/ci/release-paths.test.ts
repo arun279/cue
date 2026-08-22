@@ -50,8 +50,10 @@ const DOES_NOT_SHIP = [
   ".jscpd.json",
   ".dependency-cruiser.cjs",
   "scripts/diff-footprint.sh",
+  "scripts/mock-trakt/**",
   ".env.example",
   ".env.test",
+  ".env.mock",
   ".gitignore",
   "assets/**",
 ] as const;
