@@ -59,6 +59,33 @@ jobs:
         with:
           bundler-cache: true
       - run: bundle exec standardrb fastlane/Fastfile fastlane/Appfile
+  footprint:
+    # Fork and Dependabot runs receive a read-only token.
+    # Skip them because that token cannot post comments.
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'
+    permissions:
+      contents: read
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Measure the diff footprint
+        run: scripts/diff-footprint.sh "origin/${{ github.base_ref }}" > footprint.md
+      - name: Update the pull request comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          comments_url="repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments"
+          comment_ids=$(gh api --paginate "$comments_url" --jq '.[] | select(.body | startswith("<!-- diff-footprint -->")) | .id')
+          comment_id=${comment_ids%%$'\n'*}
+          if [ -n "$comment_id" ]; then
+            comment_url="repos/${{ github.repository }}/issues/comments/$comment_id"
+            gh api --method PATCH "$comment_url" -F body=@footprint.md
+          else
+            gh api --method POST "$comments_url" -F body=@footprint.md
+          fi
   android:
     runs-on: ubuntu-latest
     steps:

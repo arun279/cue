@@ -1,6 +1,6 @@
 import { toMs } from "@domain/time";
 import type { UpNextItem } from "@domain/up-next";
-import type { NextEpisodeOrder } from "@ui/prefs/tracking";
+import type { LapsedOrder, NextEpisodeOrder } from "@ui/prefs/tracking";
 
 function airMs(item: UpNextItem): number {
   // A provisional post-mark projection has no air date. Treating it as OLDEST
@@ -13,6 +13,12 @@ function watchedMs(item: UpNextItem): number {
   return toMs(item.lastWatchedAt) ?? Number.NEGATIVE_INFINITY;
 }
 
+const byRecentlyWatched = (a: UpNextItem, b: UpNextItem): number =>
+  watchedMs(b) - watchedMs(a) || airMs(a) - airMs(b);
+
+const byLongestIdle = (a: UpNextItem, b: UpNextItem): number =>
+  watchedMs(a) - watchedMs(b) || airMs(a) - airMs(b);
+
 /**
  * Order the flat Up Next queue per the "Next episode order" preference:
  * `oldest-unwatched` (default) leads with the show whose next unwatched episode
@@ -23,7 +29,7 @@ function watchedMs(item: UpNextItem): number {
 export function sortQueue(items: readonly UpNextItem[], order: NextEpisodeOrder): UpNextItem[] {
   const sorted = [...items];
   if (order === "after-last-watched") {
-    sorted.sort((a, b) => watchedMs(b) - watchedMs(a) || airMs(a) - airMs(b));
+    sorted.sort(byRecentlyWatched);
   } else {
     sorted.sort((a, b) => airMs(a) - airMs(b) || watchedMs(b) - watchedMs(a));
   }
@@ -31,26 +37,42 @@ export function sortQueue(items: readonly UpNextItem[], order: NextEpisodeOrder)
 }
 
 /**
- * Pin just-marked rows (provisional next, `ids.trakt === 0`) to the slot they
- * held before the mark. Both sort orders would otherwise move a row the instant
- * it is tapped, pulling its live undo toggle out from under the finger and
- * putting a DIFFERENT show's unwatched check there (the exact double-tap
- * hazard the reverse window exists to absorb). The row FLIPs to its real slot
- * once the authoritative next episode lands and the check re-arms.
+ * Order the "Haven't watched lately" drawer per its preference: `recently-watched`
+ * (default) leads with the show the user most recently touched, so a show just
+ * dropped sits at the top; `longest-idle` leads with the oldest `lastWatchedAt`
+ * (unknown = oldest). Ties fall through to air date (ascending).
  */
-export function stabilizeProvisional(
+export function sortLapsed(items: readonly UpNextItem[], order: LapsedOrder): UpNextItem[] {
+  const sorted = [...items];
+  if (order === "recently-watched") {
+    sorted.sort(byRecentlyWatched);
+  } else {
+    sorted.sort(byLongestIdle);
+  }
+  return sorted;
+}
+
+/**
+ * Pin just-marked rows to the slot they held before the mark. Both sort orders
+ * would otherwise move a row the instant it is tapped, pulling its live undo
+ * toggle out from under the finger and putting a different show's unwatched
+ * check there. The row moves to its real slot once the authoritative next
+ * episode lands and the check re-arms.
+ */
+export function stabilizePendingAdvance(
   sorted: readonly UpNextItem[],
   previousOrder: readonly number[],
+  isPending: (showId: number) => boolean,
 ): UpNextItem[] {
-  const provisional = sorted.filter((item) => item.episode.ids.trakt === 0);
-  if (provisional.length === 0) return [...sorted];
-  const out = sorted.filter((item) => item.episode.ids.trakt !== 0);
+  const pending = sorted.filter((item) => isPending(item.showId));
+  if (pending.length === 0) return [...sorted];
+  const out = sorted.filter((item) => !isPending(item.showId));
   // An unknown previous slot (fresh mount mid-advance) keeps the sorted slot.
   const slotOf = (item: UpNextItem): number => {
     const previous = previousOrder.indexOf(item.showId);
     return previous === -1 ? sorted.indexOf(item) : previous;
   };
-  for (const item of [...provisional].sort((a, b) => slotOf(a) - slotOf(b))) {
+  for (const item of [...pending].sort((a, b) => slotOf(a) - slotOf(b))) {
     out.splice(Math.min(slotOf(item), out.length), 0, item);
   }
   return out;

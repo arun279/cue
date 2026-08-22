@@ -1,10 +1,16 @@
 /** Which episode order the Up Next queue presents: the show whose oldest
  * unwatched episode has waited longest first (default), or the user's own
  * last-watched recency. Device-local, never Trakt-synced. */
-export type NextEpisodeOrder = "oldest-unwatched" | "after-last-watched";
+export const NEXT_EPISODE_ORDER_OPTIONS = ["oldest-unwatched", "after-last-watched"] as const;
+export type NextEpisodeOrder = (typeof NEXT_EPISODE_ORDER_OPTIONS)[number];
+
+/** Which order the lapsed drawer presents: recently watched first (default), or longest idle. */
+export const LAPSED_ORDER_OPTIONS = ["recently-watched", "longest-idle"] as const;
+export type LapsedOrder = (typeof LAPSED_ORDER_OPTIONS)[number];
 
 const STILLS_KEY = "cue.hide-stills-until-watched";
 const ORDER_KEY = "cue.next-episode-order";
+const LAPSED_ORDER_KEY = "cue.lapsed-order";
 
 /**
  * The spoiler guard for episode stills: ON by default (an unwatched episode's
@@ -28,19 +34,33 @@ export function persistHideStillsUntilWatched(enabled: boolean): void {
   }
 }
 
-export function initialNextEpisodeOrder(): NextEpisodeOrder {
-  try {
-    const raw = localStorage.getItem(ORDER_KEY);
-    return raw === "after-last-watched" ? raw : "oldest-unwatched";
-  } catch {
-    return "oldest-unwatched";
-  }
+function choicePref<T extends string>(key: string, options: readonly T[], fallback: T) {
+  return {
+    initial(): T {
+      try {
+        const stored = localStorage.getItem(key);
+        return options.find((option) => option === stored) ?? fallback;
+      } catch {
+        return fallback;
+      }
+    },
+    persist(value: T): void {
+      try {
+        localStorage.setItem(key, value);
+      } catch {
+        // A restricted-storage failure just forgets the choice next visit: non-fatal.
+      }
+    },
+  };
 }
 
-export function persistNextEpisodeOrder(order: NextEpisodeOrder): void {
-  try {
-    localStorage.setItem(ORDER_KEY, order);
-  } catch {
-    // A restricted-storage failure just forgets the choice next visit: non-fatal.
-  }
-}
+export const nextEpisodeOrderPref = choicePref(
+  ORDER_KEY,
+  NEXT_EPISODE_ORDER_OPTIONS,
+  "oldest-unwatched",
+);
+export const lapsedOrderPref = choicePref(
+  LAPSED_ORDER_KEY,
+  LAPSED_ORDER_OPTIONS,
+  "recently-watched",
+);

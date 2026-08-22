@@ -15,6 +15,16 @@ export interface EpisodeRef {
   readonly ids: EpisodeIds;
 }
 
+/** A season/episode position, the order shows air in. */
+export interface EpisodeKey {
+  readonly season: number;
+  readonly number: number;
+}
+
+export function compareEpisodeKeys(a: EpisodeKey, b: EpisodeKey): number {
+  return a.season - b.season || a.number - b.number;
+}
+
 /**
  * The merged per-show snapshot the derived selectors read: `/sync/watched/shows`
  * (title, `lastWatchedAt`, `aired`, `completed`) + the hidden set + watchlist
@@ -35,4 +45,12 @@ export interface LibraryShow {
   readonly aired: number;
   readonly completed: number;
   readonly nextEpisode: EpisodeRef | null;
+  /**
+   * The last episode the snapshot knows aired (specials excluded): the end of the
+   * progress breakdown when it was read, else the last watched episode in the bulk
+   * breakdown, else null. Trakt's per-user progress refreshes only when the user
+   * writes history for the show, so anything that aired after it is missing; this
+   * frontier is what the calendar is reconciled against.
+   */
+  readonly lastAired: EpisodeKey | null;
 }

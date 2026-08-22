@@ -144,6 +144,164 @@ test("queue: excludes future next episodes and hidden shows; lapsed drops to the
   await expect(lapsedRow.getByTestId("lapsed-overflow")).toBeVisible();
 });
 
+test("a new season the cached progress predates surfaces from the calendar", async ({ page }) => {
+  const newSeason: ShowFixture["episodes"] = [
+    { season: 2, number: 1, title: "Premiere", firstAired: agoIso(9), traktId: 73 },
+    { season: 2, number: 2, title: "Second", firstAired: agoIso(2), traktId: 74 },
+  ];
+  const returning: ShowFixture = {
+    trakt: 7,
+    title: "Returning",
+    status: "returning series",
+    lastWatchedAt: agoIso(400),
+    aired: 2,
+    completed: 2,
+    episodes: [
+      { season: 1, number: 1, title: "One", firstAired: AIRED, traktId: 71 },
+      { season: 1, number: 2, title: "Two", firstAired: AIRED, traktId: 72 },
+    ],
+    airedSinceSync: newSeason,
+  };
+  const calendar: CalendarEpisodeFixture[] = [
+    ...newSeason.map((episode) => ({
+      showId: returning.trakt,
+      showTitle: returning.title,
+      ...episode,
+    })),
+    {
+      showId: returning.trakt,
+      showTitle: returning.title,
+      season: 2,
+      number: 3,
+      title: "Third",
+      firstAired: agoIso(-1),
+      traktId: 75,
+    },
+  ];
+  const calendarControls = await installCalendarRoutes(page.context(), calendar);
+  await installLibraryRoutes(page.context(), [returning]);
+  await page.goto("/");
+
+  const card = page.getByTestId("up-next-card").filter({ hasText: "Returning" });
+  await expect(card.locator(".ep-row__code")).toHaveText("S2 E1");
+  await expect(card.locator(".ep-row__count")).toHaveText("2 left");
+  await expect(page.getByTestId("lapsed-drawer")).toHaveCount(0);
+  const onTheWay = page.getByTestId("on-the-way-row").filter({ hasText: "Returning" });
+  await expect(onTheWay.locator(".ep-row__code")).toHaveText("S2 E3");
+
+  const today = await page.evaluate(() =>
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(Date.now()),
+  );
+  const recentStart = new Date(Date.parse(today) - 32 * 86_400_000).toISOString().slice(0, 10);
+  expect(calendarControls.calendarRequests()).toEqual(
+    expect.arrayContaining([
+      { start: today, days: 28 },
+      { start: recentStart, days: 33 },
+    ]),
+  );
+
+  await page.goto("/show/7");
+  const continueBar = page.getByTestId("continue-bar");
+  await expect(continueBar).toHaveAttribute("data-variant", "next");
+  await expect(continueBar).toContainText("S2 E1");
+});
+
+test("the progress snapshot's own aired next is kept when the calendar adds newer episodes", async ({
+  page,
+}) => {
+  const newerEpisode = {
+    season: 1,
+    number: 4,
+    title: "Four",
+    firstAired: agoIso(1),
+    traktId: 84,
+  };
+  const show: ShowFixture = {
+    trakt: 8,
+    title: "Snapshot",
+    status: "returning series",
+    lastWatchedAt: agoIso(2),
+    aired: 3,
+    completed: 1,
+    episodes: [
+      { season: 1, number: 1, title: "One", firstAired: AIRED, traktId: 81 },
+      { season: 1, number: 2, title: "Two", firstAired: AIRED, traktId: 82 },
+      { season: 1, number: 3, title: "Three", firstAired: AIRED, traktId: 83 },
+    ],
+    airedSinceSync: [newerEpisode],
+  };
+  await installCalendarRoutes(page.context(), [
+    {
+      showId: show.trakt,
+      showTitle: show.title,
+      ...newerEpisode,
+    },
+  ]);
+  await installLibraryRoutes(page.context(), [show]);
+  await page.goto("/");
+
+  const card = page.getByTestId("up-next-card").filter({ hasText: "Snapshot" });
+  await expect(card.locator(".ep-row__code")).toHaveText("S1 E2");
+  await expect(card.locator(".ep-row__count")).toHaveText("3 left");
+});
+
+test("the drawer lists most recently watched first by default and longest idle first by preference", async ({
+  page,
+}) => {
+  await installLibraryRoutes(page.context(), [
+    soloShow({
+      trakt: 9,
+      title: "Dropped Recently",
+      lastWatchedAt: agoIso(40),
+      aired: 2,
+      episodes: [
+        { season: 1, number: 1, title: "One", firstAired: AIRED, traktId: 91 },
+        { season: 1, number: 2, title: "Two", firstAired: AIRED, traktId: 92 },
+      ],
+    }),
+    soloShow({
+      trakt: 10,
+      title: "Dropped Long Ago",
+      lastWatchedAt: agoIso(90),
+      aired: 2,
+      episodes: [
+        { season: 1, number: 1, title: "One", firstAired: AIRED, traktId: 101 },
+        { season: 1, number: 2, title: "Two", firstAired: AIRED, traktId: 102 },
+      ],
+    }),
+  ]);
+  await page.goto("/");
+
+  await page.getByTestId("lapsed-heading").click();
+  await expect(page.getByTestId("lapsed-row").locator(".ep-row__title")).toHaveText([
+    "Dropped Recently",
+    "Dropped Long Ago",
+  ]);
+
+  await page.goto("/settings");
+  await page.getByTestId("lapsed-order-select").click();
+  await page.getByTestId("lapsed-order-longest-idle").click();
+  await expect(page.getByTestId("lapsed-order-select")).toContainText("Longest idle first");
+  await page.goto("/");
+  await page.getByTestId("lapsed-heading").click();
+  await expect(page.getByTestId("lapsed-row").locator(".ep-row__title")).toHaveText([
+    "Dropped Long Ago",
+    "Dropped Recently",
+  ]);
+
+  await page.reload();
+  await page.getByTestId("lapsed-heading").click();
+  await expect(page.getByTestId("lapsed-row").locator(".ep-row__title")).toHaveText([
+    "Dropped Long Ago",
+    "Dropped Recently",
+  ]);
+});
+
 test("three or more queued shows promote the top of the queue into the marquee card", async ({
   page,
 }) => {

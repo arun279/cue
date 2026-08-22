@@ -57,6 +57,7 @@ const entry: LibraryEntry = {
   aired: 10,
   completed: 4,
   nextEpisode: null,
+  lastAired: null,
   tmdbId: null,
   pendingAdvance: false,
 };
@@ -147,6 +148,7 @@ function fallbackSeason(episodes: readonly EpisodeView[]): SeasonView {
     number: 1,
     title: "Season 1",
     isSpecial: false,
+    isHidden: false,
     episodes,
     airedCount: episodes.length,
     completedCount: episodes.filter((episode) => episode.watched).length,

@@ -52,6 +52,7 @@ function seasonView(episodes: readonly EpisodeView[]): SeasonView {
     number: 1,
     title: "Season 1",
     isSpecial: false,
+    isHidden: false,
     episodes,
     airedCount: episodes.length,
     completedCount: episodes.filter((e) => e.watched).length,
@@ -76,6 +77,7 @@ function libraryEntry(showId = SHOW): LibraryEntry {
       still: null,
       ids: { trakt: showId === SHOW ? NEXT_EP_TRAKT : showId * 1000 },
     },
+    lastAired: null,
     tmdbId: null,
     pendingAdvance: false,
   };

@@ -1,5 +1,10 @@
 import type { LibraryEntry } from "@data/trakt/library";
-import type { EpisodeView, SeasonView, ShowHeader } from "@data/trakt/show-detail";
+import {
+  type EpisodeView,
+  firstUnwatchedAired,
+  type SeasonView,
+  type ShowHeader,
+} from "@data/trakt/show-detail";
 import { isAired } from "@domain/time";
 import { Link } from "@tanstack/react-router";
 import { CheckControl } from "@ui/components/CheckControl";
@@ -45,12 +50,12 @@ function isResolved(entry: LibraryEntry): boolean {
 
 function seasonProgress(seasons: readonly SeasonView[]): FallbackProgress {
   const airedEpisodes = seasons
-    .filter((season) => !season.isSpecial)
+    .filter((season) => !season.isSpecial && !season.isHidden)
     .flatMap((season) => season.episodes.filter((episode) => episode.aired));
   return {
     aired: airedEpisodes.length,
     completed: airedEpisodes.filter((episode) => episode.watched).length,
-    nextEpisode: airedEpisodes.find((episode) => !episode.watched) ?? null,
+    nextEpisode: firstUnwatchedAired(seasons),
   };
 }
 

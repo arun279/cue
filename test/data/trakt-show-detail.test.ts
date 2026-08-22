@@ -1,5 +1,12 @@
 import type { Progress, SeasonData, ShowDetailData } from "@data/trakt/schemas";
-import { assembleSeasons, assembleShowInfo, assembleShowProgress } from "@data/trakt/show-detail";
+import {
+  assembleSeasons,
+  assembleShowInfo,
+  assembleShowProgress,
+  type EpisodeView,
+  firstUnwatchedAired,
+  type SeasonView,
+} from "@data/trakt/show-detail";
 import { describe, expect, it } from "vitest";
 
 const NOW = Date.UTC(2026, 6, 5);
@@ -153,7 +160,12 @@ describe("assembleSeasons", () => {
     expect(s1?.episodes.map((e) => e.number)).toEqual([1, 2, 3]);
     expect(s1?.episodes.map((e) => e.watched)).toEqual([true, true, false]);
     expect(s1?.episodes.map((e) => e.aired)).toEqual([true, true, false]);
-    expect(s1).toMatchObject({ airedCount: 2, completedCount: 2, isSpecial: false });
+    expect(s1).toMatchObject({
+      airedCount: 2,
+      completedCount: 2,
+      isSpecial: false,
+      isHidden: false,
+    });
   });
 
   it("surfaces each watched episode's date and leaves unwatched ones null", () => {
@@ -172,8 +184,96 @@ describe("assembleSeasons", () => {
     expect(views.every((s) => s.completedCount === 0)).toBe(true);
   });
 
+  it("identifies hidden older seasons without hiding seasons beyond the progress frontier", () => {
+    const tree = [1, 2, 3].map<SeasonData>((number) => ({
+      number,
+      episodes: [
+        {
+          season: number,
+          number: 1,
+          title: null,
+          first_aired: iso(NOW - DAY),
+          ids: { trakt: number },
+        },
+      ],
+    }));
+    const visibleProgress: Progress = {
+      aired: 1,
+      completed: 1,
+      next_episode: null,
+      seasons: [
+        {
+          number: 2,
+          aired: 1,
+          completed: 1,
+          episodes: [{ number: 1, completed: true }],
+        },
+      ],
+    };
+
+    const views = assembleSeasons(tree, visibleProgress, NOW);
+
+    expect(views.map((view) => [view.number, view.isHidden])).toEqual([
+      [1, true],
+      [2, false],
+      [3, false],
+    ]);
+    expect(firstUnwatchedAired(views)?.season).toBe(3);
+  });
+
   it("tolerates a season with no episodes array", () => {
     const views = assembleSeasons([{ number: 4, title: "Upcoming" }], progress, NOW);
     expect(views[0]).toMatchObject({ number: 4, episodes: [], airedCount: 0, completedCount: 0 });
+  });
+});
+
+function episode(overrides: Partial<EpisodeView> = {}): EpisodeView {
+  return {
+    season: 1,
+    number: 1,
+    title: "Episode",
+    firstAired: iso(NOW - DAY),
+    ids: { trakt: 1 },
+    stills: [],
+    watched: false,
+    watchedAt: null,
+    aired: true,
+    ...overrides,
+  };
+}
+
+function season(number: number, episodes: readonly EpisodeView[]): SeasonView {
+  return {
+    number,
+    title: null,
+    isSpecial: number === 0,
+    isHidden: false,
+    episodes,
+    airedCount: episodes.filter((item) => item.aired).length,
+    completedCount: episodes.filter((item) => item.watched).length,
+  };
+}
+
+describe("firstUnwatchedAired", () => {
+  it("skips specials, unaired episodes, and watched episodes", () => {
+    const result = firstUnwatchedAired([
+      season(0, [episode({ season: 0, ids: { trakt: 10 } })]),
+      season(1, [
+        episode({ number: 1, ids: { trakt: 11 }, watched: true }),
+        episode({ number: 2, ids: { trakt: 12 }, aired: false }),
+        episode({ number: 3, ids: { trakt: 13 } }),
+      ]),
+    ]);
+
+    expect(result?.ids.trakt).toBe(13);
+  });
+
+  it("returns null when no regular episode is both aired and unwatched", () => {
+    expect(
+      firstUnwatchedAired([
+        season(0, [episode({ season: 0 })]),
+        season(1, [episode({ watched: true }), episode({ number: 2, aired: false })]),
+      ]),
+    ).toBeNull();
   });
 });

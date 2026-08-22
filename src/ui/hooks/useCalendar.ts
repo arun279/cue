@@ -1,5 +1,5 @@
 import { queryKeys } from "@data/query-keys";
-import { type CalendarDay, groupCalendar } from "@domain/calendar";
+import { type CalendarDay, type CalendarEntry, groupCalendar } from "@domain/calendar";
 import { localTimeZone } from "@domain/time";
 import { useQuery } from "@tanstack/react-query";
 import { CONTENT_STALE_TIME_MS, type QueryStatus, queryStatus } from "@ui/hooks/query-freshness";
@@ -16,10 +16,19 @@ export const CALENDAR_WINDOW_DAYS = 28;
 /** The home "On the way" slice: one week of the shared read. */
 const DEFAULT_CALENDAR_WINDOW = 7;
 
+/** Trakt caps one calendar read at 33 days (docs.trakt.tv, About Calendars). */
+const RECENT_WINDOW_DAYS = 33;
+
 /** How often the day clock re-checks whether the local day has flipped. */
 const DAY_CHECK_MS = 60_000;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+export function recentCalendarStart(dayKey: string): string {
+  return new Date(Date.parse(dayKey) - (RECENT_WINDOW_DAYS - 1) * DAY_MS)
+    .toISOString()
+    .slice(0, 10);
+}
 
 /** The shared 28-day read cut to a caller's narrower window ("YYYY-MM-DD"
  * day keys are pure dates, so key arithmetic is DST-safe). */
@@ -66,6 +75,31 @@ function useDayClock(): number {
     return () => clearInterval(timer);
   }, [dayKey]);
   return now;
+}
+
+/**
+ * The recent-airings read: the trailing 33-day window ending today, on the same
+ * content cadence as the forward calendar. It is what the library selector
+ * reconciles cached per-show progress against, since Trakt only refreshes that
+ * progress when the user writes history for the show. Undefined until loaded;
+ * a failed read leaves the library exactly as its own read produced it.
+ */
+export function useRecentlyAired(enabled = true): readonly CalendarEntry[] | undefined {
+  const runtime = useRuntime();
+  const now = useDayClock();
+  const startDate = recentCalendarStart(localDayKey(now));
+  const query = useQuery({
+    queryKey: queryKeys.calendar(startDate, RECENT_WINDOW_DAYS),
+    queryFn: () => runtime.loadCalendar(startDate, RECENT_WINDOW_DAYS),
+    staleTime: CONTENT_STALE_TIME_MS,
+    enabled,
+  });
+  const data = query.data;
+  return useMemo(() => {
+    if (data === undefined) return undefined;
+    const hidden = new Set(data.hiddenShowIds);
+    return data.entries.filter((entry) => !hidden.has(entry.showId));
+  }, [data]);
 }
 
 /**

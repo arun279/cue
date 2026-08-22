@@ -1,4 +1,9 @@
-import type { EpisodeRef, LibraryShow } from "@domain/model/library";
+import {
+  compareEpisodeKeys,
+  type EpisodeKey,
+  type EpisodeRef,
+  type LibraryShow,
+} from "@domain/model/library";
 import { type EpisodePlay, MARK_MATCH_TOLERANCE_MS } from "@domain/reversal";
 import { toMs } from "@domain/time";
 import { resolveStill } from "../image-source";
@@ -85,6 +90,7 @@ export function assembleLibrary(input: LibraryInput): LibraryEntry[] {
       aired: progress?.aired ?? show.aired_episodes,
       completed: progress?.completed ?? watchedEpisodeCount(watched),
       nextEpisode: next === null ? null : toEpisodeRef(next),
+      lastAired: lastAiredKey(progress, watched),
       tmdbId: show.ids.tmdb ?? null,
       pendingAdvance: false,
     });
@@ -105,6 +111,7 @@ export function assembleLibrary(input: LibraryInput): LibraryEntry[] {
       aired: 0,
       completed: 0,
       nextEpisode: null,
+      lastAired: null,
       tmdbId: show.ids.tmdb ?? null,
       pendingAdvance: false,
     });
@@ -141,6 +148,20 @@ export function watchedEpisodeCount(watched: WatchedShow): number {
   return count;
 }
 
+/** The snapshot's highest regular episode, preferring the progress breakdown when available. */
+function lastAiredKey(progress: Progress | undefined, watched: WatchedShow): EpisodeKey | null {
+  let last: EpisodeKey | null = null;
+  const seasons = progress === undefined ? watched.seasons : progress.seasons;
+  for (const season of seasons ?? []) {
+    if (progress === undefined && season.number === 0) continue;
+    for (const episode of season.episodes) {
+      const key = { season: season.number, number: episode.number };
+      if (last === null || compareEpisodeKeys(key, last) > 0) last = key;
+    }
+  }
+  return last;
+}
+
 /** Extract the set of Trakt show ids from a hidden / watchlist list (movies ignored). */
 export function showIdSet(items: readonly (HiddenItem | WatchlistItem)[]): Set<number> {
   const ids = new Set<number>();
@@ -157,10 +178,10 @@ export function showIdSet(items: readonly (HiddenItem | WatchlistItem)[]): Set<n
  * the following episode (`number + 1`, title + air date unknown until refetch).
  * The projection carries `firstAired: null`: inheriting the just-watched
  * episode's air date would fabricate a season-finale phantom (S0xE(last+1)) with
- * a real recent date and cling it to the "New"/lead slot. `ids.trakt: 0` +
+ * a real recent date and cling it to the lead slot. `ids.trakt: 0` +
  * `pendingAdvance` mark it provisional: the Up Next grouping reads a zero-id next
- * as unknown-air and keeps it visible mid-binge but never ranks it as this week's
- * fresh drop until the authoritative progress refetch lands.
+ * as unknown-air and keeps it visible mid-binge until the authoritative progress
+ * refetch lands.
  */
 export function advancePastNext(entry: LibraryEntry, watchedAt: string): LibraryEntry {
   const current = entry.nextEpisode;

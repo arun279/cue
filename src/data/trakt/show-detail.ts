@@ -1,5 +1,7 @@
 import type { EpisodeIds, ShowIds } from "@domain/model/ids";
+import type { EpisodeRef } from "@domain/model/library";
 import { isAired } from "@domain/time";
+import { resolveStill } from "../image-source";
 import type { EpisodeData, Progress, SeasonData, ShowDetailData } from "./schemas";
 
 /** Trakt inline still candidates, screenshot preferred over the lower-res thumb. */
@@ -28,9 +30,36 @@ export interface SeasonView {
   readonly number: number;
   readonly title: string | null;
   readonly isSpecial: boolean;
+  /**
+   * Hidden on Trakt. The progress read excludes hidden seasons from its breakdown and stats, so a
+   * numbered season the tree lists below the breakdown's last season, which the breakdown omits,
+   * is one the user hid; seasons past that frontier are simply newer than the snapshot.
+   */
+  readonly isHidden: boolean;
   readonly episodes: readonly EpisodeView[];
   readonly airedCount: number;
   readonly completedCount: number;
+}
+
+/** The first aired, unwatched, regular episode of the tree. */
+export function firstUnwatchedAired(seasons: readonly SeasonView[]): EpisodeView | null {
+  for (const season of seasons) {
+    if (season.isSpecial || season.isHidden) continue;
+    const episode = season.episodes.find((candidate) => candidate.aired && !candidate.watched);
+    if (episode !== undefined) return episode;
+  }
+  return null;
+}
+
+export function toEpisodeRef(episode: EpisodeView): EpisodeRef {
+  return {
+    season: episode.season,
+    number: episode.number,
+    title: episode.title,
+    firstAired: episode.firstAired,
+    still: resolveStill(episode.stills),
+    ids: episode.ids,
+  };
 }
 
 /**
@@ -142,6 +171,11 @@ export function assembleSeasons(
   progress: Progress,
   now: number,
 ): SeasonView[] {
+  // See `SeasonView.isHidden` for how omitted seasons below this frontier are classified.
+  const progressSeasonNumbers = new Set(
+    (progress.seasons ?? []).filter((season) => season.number !== 0).map((season) => season.number),
+  );
+  const highestProgressSeason = Math.max(...progressSeasonNumbers, Number.NEGATIVE_INFINITY);
   const watched = new Map<string, { completed: boolean; lastWatchedAt: string | null }>();
   for (const season of progress.seasons ?? []) {
     for (const episode of season.episodes) {
@@ -175,6 +209,10 @@ export function assembleSeasons(
         number: season.number,
         title: season.title ?? null,
         isSpecial: season.number === 0,
+        isHidden:
+          season.number !== 0 &&
+          season.number < highestProgressSeason &&
+          !progressSeasonNumbers.has(season.number),
         episodes,
         airedCount: episodes.filter((episode) => episode.aired).length,
         completedCount: episodes.filter((episode) => episode.watched).length,

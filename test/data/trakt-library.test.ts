@@ -62,6 +62,7 @@ function progress(overrides: {
   aired?: number;
   completed?: number;
   next?: Progress["next_episode"];
+  seasons?: Progress["seasons"];
 }): Progress {
   return {
     aired: overrides.aired ?? 10,
@@ -77,6 +78,7 @@ function progress(overrides: {
             images: { screenshot: ["media.trakt.tv/still.webp"] },
           }
         : overrides.next,
+    seasons: overrides.seasons,
   };
 }
 
@@ -97,6 +99,7 @@ const baseEntry: LibraryEntry = {
     still: null,
     ids: { trakt: 4004 },
   },
+  lastAired: null,
   tmdbId: null,
   pendingAdvance: false,
 };
@@ -105,7 +108,33 @@ describe("assembleLibrary", () => {
   it("merges watched + progress + hidden + watchlist into entries", () => {
     const input: LibraryInput = {
       watchedShows: [watchedShow({ trakt: 1, title: "A", tmdb: 55 }), watchedShow({ trakt: 2 })],
-      progress: new Map([[1, progress({})]]),
+      progress: new Map([
+        [
+          1,
+          progress({
+            seasons: [
+              {
+                number: 0,
+                aired: 2,
+                completed: 2,
+                episodes: [{ number: 9, completed: true, last_watched_at: null }],
+              },
+              {
+                number: 1,
+                aired: 8,
+                completed: 8,
+                episodes: [{ number: 8, completed: true, last_watched_at: null }],
+              },
+              {
+                number: 2,
+                aired: 3,
+                completed: 1,
+                episodes: [{ number: 3, completed: false, last_watched_at: null }],
+              },
+            ],
+          }),
+        ],
+      ]),
       hiddenShowIds: new Set([2]),
       watchlistShows: [watchlistItem({ trakt: 1, title: "A" })],
     };
@@ -118,6 +147,8 @@ describe("assembleLibrary", () => {
     expect(a?.hidden).toBe(false);
     // A has fetched progress, so it overrides the bulk counts.
     expect(a).toMatchObject({ aired: 10, completed: 3 });
+    expect(a?.lastAired).toEqual({ season: 2, number: 3 });
+    expect(entries[1]?.lastAired).toBeNull();
     expect(a?.tmdbId).toBe(55);
     expect(a?.nextEpisode).toEqual({
       season: 1,
@@ -146,7 +177,34 @@ describe("assembleLibrary", () => {
       nextEpisode: null,
       tmdbId: null,
       status: "returning series",
+      lastAired: { season: 2, number: 6 },
     });
+  });
+
+  it("uses the last regular watched episode when the fallback includes a later special", () => {
+    const watched: WatchedShow = {
+      last_watched_at: "2026-07-01T00:00:00.000Z",
+      show: { title: "Show", aired_episodes: 8, ids: { trakt: 13 } },
+      seasons: [
+        { number: 0, episodes: [{ number: 99 }] },
+        { number: 1, episodes: [{ number: 8 }] },
+      ],
+    };
+    const entries = assembleLibrary({
+      watchedShows: [
+        watched,
+        {
+          last_watched_at: "2026-07-01T00:00:00.000Z",
+          show: { title: "Special only", aired_episodes: 0, ids: { trakt: 14 } },
+          seasons: [{ number: 0, episodes: [{ number: 99 }] }],
+        },
+      ],
+      progress: new Map(),
+      hiddenShowIds: new Set(),
+      watchlistShows: [],
+    });
+    expect(entries[0]?.lastAired).toEqual({ season: 1, number: 8 });
+    expect(entries[1]?.lastAired).toBeNull();
   });
 
   it("maps a next episode carrying only a trakt id (optional ids omitted)", () => {
@@ -183,6 +241,16 @@ describe("assembleLibrary", () => {
     expect(entries[0]?.nextEpisode).toBeNull();
   });
 
+  it("does not fall back to the watched frontier when fetched progress has no breakdown", () => {
+    const entries = assembleLibrary({
+      watchedShows: [watchedShow({ trakt: 6, seasons: { 1: 3 } })],
+      progress: new Map([[6, progress({ seasons: undefined })]]),
+      hiddenShowIds: new Set(),
+      watchlistShows: [],
+    });
+    expect(entries[0]?.lastAired).toBeNull();
+  });
+
   it("materializes a never-watched watchlisted show as a zero-progress to-watch entry", () => {
     const entries = assembleLibrary({
       watchedShows: [],
@@ -199,6 +267,7 @@ describe("assembleLibrary", () => {
       completed: 0,
       nextEpisode: null,
       lastWatchedAt: null,
+      lastAired: null,
       tmdbId: 77,
     });
   });
@@ -296,9 +365,9 @@ describe("advancePastNext", () => {
     });
   });
 
-  it("never inherits the watched episode's air date (no season-finale phantom in New)", () => {
+  it("never inherits the watched episode's air date (no season-finale phantom in the lead slot)", () => {
     // A recent air date on the source episode must NOT flow onto the projection:
-    // that is exactly what made a marked finale cling to the fresh/lead slot.
+    // that is exactly what made a marked finale cling to the lead slot.
     const entry: LibraryEntry = {
       ...baseEntry,
       nextEpisode: {

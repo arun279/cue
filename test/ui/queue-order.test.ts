@@ -1,5 +1,5 @@
 import type { UpNextItem } from "@domain/up-next";
-import { sortQueue, stabilizeProvisional } from "@ui/hooks/queue-order";
+import { sortLapsed, sortQueue, stabilizePendingAdvance } from "@ui/hooks/queue-order";
 import { describe, expect, it } from "vitest";
 
 function item(
@@ -21,7 +21,6 @@ function item(
     },
     lastWatchedAt,
     backlog: 1,
-    group: "continued",
   };
 }
 
@@ -53,24 +52,66 @@ describe("sortQueue", () => {
   });
 });
 
-describe("stabilizeProvisional", () => {
+describe("sortLapsed", () => {
+  const unknown = item(4, "2026-03-01T00:00:00Z", null);
+
+  it("orders recently watched first by default preference", () => {
+    expect(sortLapsed([oldest, middle, unknown], "recently-watched").map((i) => i.showId)).toEqual([
+      2, 1, 4,
+    ]);
+  });
+
+  it("orders longest idle first", () => {
+    expect(sortLapsed([oldest, middle, unknown], "longest-idle").map((i) => i.showId)).toEqual([
+      4, 1, 2,
+    ]);
+  });
+
+  it("places unknown last watched last for recently watched and first for longest idle", () => {
+    expect(sortLapsed([oldest, unknown], "recently-watched")[1]?.showId).toBe(4);
+    expect(sortLapsed([oldest, unknown], "longest-idle")[0]?.showId).toBe(4);
+  });
+
+  it("does not mutate its input", () => {
+    const input = [middle, oldest];
+    sortLapsed(input, "longest-idle");
+    expect(input.map((i) => i.showId)).toEqual([2, 1]);
+  });
+});
+
+describe("stabilizePendingAdvance", () => {
   it("pins a just-marked row to the slot it held before the mark", () => {
     const marked = item(2, null, "2026-07-12T00:00:00Z", true);
+    const isPending = (showId: number): boolean => showId === marked.showId;
     // The sort would promote the provisional row to the head…
     const sorted = [marked, oldest, newest];
     // …but it held slot 1 before the mark, so it stays there.
-    const stable = stabilizeProvisional(sorted, [1, 2, 3]);
+    const stable = stabilizePendingAdvance(sorted, [1, 2, 3], isPending);
     expect(stable.map((i) => i.showId)).toEqual([1, 2, 3]);
   });
 
   it("keeps the sorted slot when the previous order is unknown", () => {
     const marked = item(4, null, "2026-07-12T00:00:00Z", true);
-    const stable = stabilizeProvisional([oldest, marked, newest], []);
+    const stable = stabilizePendingAdvance(
+      [oldest, marked, newest],
+      [],
+      (showId) => showId === marked.showId,
+    );
     expect(stable.map((i) => i.showId)).toEqual([1, 4, 3]);
   });
 
   it("leaves an all-authoritative queue untouched", () => {
-    const stable = stabilizeProvisional([oldest, middle], [2, 1]);
+    const stable = stabilizePendingAdvance([oldest, middle], [2, 1], () => false);
     expect(stable.map((i) => i.showId)).toEqual([1, 2]);
+  });
+
+  it("pins a pending row whose season tree already supplied a real episode id", () => {
+    const marked = item(2, "2026-07-12T00:00:00Z", "2026-07-12T00:00:00Z");
+    const stable = stabilizePendingAdvance(
+      [oldest, newest, marked],
+      [1, 2, 3],
+      (showId) => showId === marked.showId,
+    );
+    expect(stable.map((i) => i.showId)).toEqual([1, 2, 3]);
   });
 });
