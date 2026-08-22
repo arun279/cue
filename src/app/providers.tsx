@@ -1,6 +1,6 @@
 import { AuthGate } from "@app/AuthGate";
 import { createAuthStore } from "@app/auth/create-auth-store";
-import { TRAKT_CLIENT_ID } from "@app/config";
+import { TRAKT_BASE_OVERRIDE, TRAKT_CLIENT_ID } from "@app/config";
 import { requestPersistentStorage } from "@app/persist";
 import {
   PERSIST_BUSTER,
@@ -40,6 +40,7 @@ const authStore = createAuthStore({
   redirectUri,
   redirect: (url) => globalThis.location.assign(url),
   native,
+  traktBaseUrl: TRAKT_BASE_OVERRIDE,
 });
 
 /**

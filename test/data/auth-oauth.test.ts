@@ -78,6 +78,12 @@ describe("exchangeCodeForToken", () => {
     expect(body()).not.toHaveProperty("client_secret");
   });
 
+  it("honors an overridden api base", async () => {
+    server.use(http.post("http://127.0.0.1:8787/oauth/token", () => HttpResponse.json(token)));
+    const mocked = { ...config, apiBaseUrl: "http://127.0.0.1:8787/" };
+    expect(await exchangeCodeForToken(mocked, "the-code", "verifier-1")).toEqual(token);
+  });
+
   it("throws on a non-2xx (rejected exchange)", async () => {
     server.use(
       http.post(`${TRAKT_API_BASE}/oauth/token`, () =>
