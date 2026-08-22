@@ -25,10 +25,15 @@ describe("native seams degrade to silent no-ops on web", () => {
     expect(isEnabled).not.toHaveBeenCalled();
   });
 
-  it("bindHardwareBack never invokes the back handler and returns a callable cleanup", () => {
-    const onBack = vi.fn(() => true);
-    const cleanup = bindHardwareBack(onBack);
-    expect(onBack).not.toHaveBeenCalled();
+  it("bindHardwareBack never touches the history and returns a callable cleanup", () => {
+    const history = {
+      canGoBack: vi.fn(() => true),
+      back: vi.fn(),
+      subscribe: vi.fn(() => () => {}),
+    };
+    const cleanup = bindHardwareBack(history);
+    expect(history.canGoBack).not.toHaveBeenCalled();
+    expect(history.subscribe).not.toHaveBeenCalled();
     expect(() => cleanup()).not.toThrow();
   });
 

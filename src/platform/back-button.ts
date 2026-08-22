@@ -1,21 +1,35 @@
 import { App } from "@capacitor/app";
 import { isNativePlatform } from "./platform";
 
+/** The bits of the router's history this seam drives. */
+export interface BackHistory {
+  canGoBack(): boolean;
+  back(): void;
+  subscribe(listener: () => void): () => void;
+}
+
 /**
- * Honor the platform back contract on native Android: the
- * hardware/gesture Back button maps to the injected `onBack`, which pops the
- * router when there is history to pop and returns `true`; at a root tab it
- * returns `false` and this seam exits the app. Registering the listener overrides
- * Capacitor's default WebView-history back, so there is no double-fire with the
- * router's own `popstate`. No-op on web / in tests, the browser owns Back, and
- * on iOS, where system edge-swipe is OS-handled. Returns a cleanup.
+ * Honor the platform back contract on native Android: while the router has
+ * history to pop, Back pops it; at a root tab the handler is switched off so
+ * the system plays the predictive back-to-home animation and closes the app
+ * itself. An enabled handler is exactly what suppresses both, so the claim is
+ * re-read on every history change rather than held open for the session. No-op
+ * on web / in tests, where the browser owns Back, and on iOS, where the edge
+ * swipe is OS-handled. Returns a cleanup.
  */
-export function bindHardwareBack(onBack: () => boolean): () => void {
+export function bindHardwareBack(history: BackHistory): () => void {
   if (!isNativePlatform()) return () => {};
+  const claim = (): void => {
+    void App.toggleBackButtonHandler({ enabled: history.canGoBack() });
+  };
+  claim();
+  const unsubscribe = history.subscribe(claim);
   const handle = App.addListener("backButton", () => {
-    if (!onBack()) void App.exitApp();
+    history.back();
+    claim();
   });
   return () => {
+    unsubscribe();
     void handle.then((h) => h.remove());
   };
 }

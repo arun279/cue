@@ -58,9 +58,9 @@ export function AppProviders(): ReactElement {
 
   // Native platform garnish (all silent no-ops on web): read the shipped app
   // identity, match the status bar to the active theme and re-match on every
-  // toggle, and map Android hardware Back to the router (exit at a root tab).
-  // The router uses browser history, so iOS edge-swipe-back maps to the router
-  // natively.
+  // toggle, and hand Android Back to the router while it has history to pop,
+  // giving it back to the system at a root tab. The router uses browser
+  // history, so the iOS edge swipe maps to it natively.
   useEffect(() => {
     void getNativeAppVersion()
       .then((nativeAppVersion) => {
@@ -73,11 +73,7 @@ export function AppProviders(): ReactElement {
       });
     applyStatusBarTheme(useThemeStore.getState().theme);
     const unsubscribeTheme = useThemeStore.subscribe((state) => applyStatusBarTheme(state.theme));
-    const unbindBack = bindHardwareBack(() => {
-      if (!router.history.canGoBack()) return false;
-      router.history.back();
-      return true;
-    });
+    const unbindBack = bindHardwareBack(router.history);
     return () => {
       unsubscribeTheme();
       unbindBack();

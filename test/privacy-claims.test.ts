@@ -230,7 +230,7 @@ describe("privacy copy agreement and storage anchors", () => {
       App: {
         getInfo: vi.fn(async () => ({ version: "1.0", build: "1" })),
         addListener: vi.fn(async () => ({ remove: async () => {} })),
-        exitApp: vi.fn(async () => {}),
+        toggleBackButtonHandler: vi.fn(async () => {}),
       },
     }));
 
