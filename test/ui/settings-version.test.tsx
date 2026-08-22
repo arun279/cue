@@ -32,7 +32,7 @@ vi.mock("@app/AuthGate", async () => {
   return { AuthGate: () => <Settings /> };
 });
 vi.mock("@app/auth/create-auth-store", () => ({ createAuthStore: () => ({}) }));
-vi.mock("@app/config", () => ({ TRAKT_CLIENT_ID: "native-version-test" }));
+vi.mock("@app/config", () => ({ TRAKT_CLIENT_ID: "native-test", TRAKT_BASE_OVERRIDE: undefined }));
 vi.mock("@app/persist", () => ({ requestPersistentStorage: vi.fn() }));
 vi.mock("@app/query-client", () => ({
   PERSIST_BUSTER: "test",
