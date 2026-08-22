@@ -104,12 +104,14 @@ jobs:
       - run: pnpm build
       - run: pnpm exec cap sync android
       # The version properties must reach the APK, otherwise every release ships
-      # as the placeholder 1.0 (1) and testers stop getting updates.
-      - name: Build the debug APK and check the version wiring
+      # as the placeholder 1.0 (1) and testers stop getting updates. The same
+      # read pins the merged permission set, which no repo file can be checked
+      # for: any dependency's manifest can add to it.
+      - name: Build the debug APK and check what it declares
         working-directory: android
         run: |
           ./gradlew assembleDebug -PcueVersionCode=42 -PcueVersionName=9.9.9
-          ../scripts/verify-apk-version.sh app/build/outputs/apk/debug/app-debug.apk 42 9.9.9
+          ../scripts/verify-apk.sh app/build/outputs/apk/debug/app-debug.apk 42 9.9.9
   e2e:
     needs: check
     runs-on: ubuntu-latest

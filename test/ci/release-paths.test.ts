@@ -29,7 +29,7 @@ const SHIPS = [
   "Gemfile.lock",
   ".nvmrc",
   ".ruby-version",
-  "scripts/verify-apk-version.sh",
+  "scripts/verify-apk.sh",
   "tsconfig.json",
 ] as const;
 

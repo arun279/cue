@@ -126,8 +126,10 @@ describe("claim: nothing Cue stores is copied off an Android device", () => {
 describe("claim: Cue collects nothing and reaches Trakt directly over HTTPS", () => {
   // A `tools:node="remove"` entry is the opposite of a request: it strips a
   // permission a plugin's own manifest would otherwise merge in. So the two
-  // kinds are pinned separately, and both exactly.
-  const permissionElements = [...androidManifest.matchAll(/<uses-permission\b[^>]*?\/>/gs)].map(
+  // kinds are pinned separately, and both exactly. The pattern deliberately does
+  // not require a self-closing tag: `<uses-permission ...></uses-permission>`
+  // declares exactly the same thing and must not be able to hide from this.
+  const permissionElements = [...androidManifest.matchAll(/<uses-permission\b[^>]*>/g)].map(
     ([element]) => element,
   );
   const namesWhere = (keep: (element: string) => boolean): string[] =>
