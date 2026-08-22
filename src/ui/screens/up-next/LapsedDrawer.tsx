@@ -42,7 +42,7 @@ function StopSheet({ title, onStop }: { readonly title: string; onStop(): void }
 
 /**
  * "Haven't watched lately": the collapsed disclosure at the bottom of the queue
- * for in-progress-but-idle shows (longest-idle first). A pruning prompt, never a
+ * for in-progress-but-idle shows (ordered per the Haven't watched lately order preference). A pruning prompt, never a
  * wall of shame: mark to catch up in place (the show re-sorts into the queue) or
  * stop it (swipe-left / overflow, snackbar-reversible). A decided show leaves on
  * its own, so there is no per-session dismissal to lose on reload.

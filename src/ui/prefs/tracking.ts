@@ -3,8 +3,12 @@
  * last-watched recency. Device-local, never Trakt-synced. */
 export type NextEpisodeOrder = "oldest-unwatched" | "after-last-watched";
 
+/** Which order the lapsed drawer presents: recently watched first (default), or longest idle. */
+export type LapsedOrder = "recently-watched" | "longest-idle";
+
 const STILLS_KEY = "cue.hide-stills-until-watched";
 const ORDER_KEY = "cue.next-episode-order";
+const LAPSED_ORDER_KEY = "cue.lapsed-order";
 
 /**
  * The spoiler guard for episode stills: ON by default (an unwatched episode's
@@ -40,6 +44,23 @@ export function initialNextEpisodeOrder(): NextEpisodeOrder {
 export function persistNextEpisodeOrder(order: NextEpisodeOrder): void {
   try {
     localStorage.setItem(ORDER_KEY, order);
+  } catch {
+    // A restricted-storage failure just forgets the choice next visit: non-fatal.
+  }
+}
+
+export function initialLapsedOrder(): LapsedOrder {
+  try {
+    const raw = localStorage.getItem(LAPSED_ORDER_KEY);
+    return raw === "longest-idle" ? raw : "recently-watched";
+  } catch {
+    return "recently-watched";
+  }
+}
+
+export function persistLapsedOrder(order: LapsedOrder): void {
+  try {
+    localStorage.setItem(LAPSED_ORDER_KEY, order);
   } catch {
     // A restricted-storage failure just forgets the choice next visit: non-fatal.
   }

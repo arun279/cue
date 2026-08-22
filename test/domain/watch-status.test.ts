@@ -20,19 +20,12 @@ describe("computeWatchStatus", () => {
   }> = [
     {
       name: "hidden overrides everything → abandoned",
-      show: makeShow({
-        hidden: true,
-        completed: 0,
-        aired: 10,
-        status: "ended",
-        nextEpisode: airedNext,
-        lastWatchedAt: iso(NOW - DAY),
-      }),
+      show: makeShow({ hidden: true, completed: 0, aired: 10, status: "ended" }),
       expect: "abandoned",
     },
     {
       name: "completed 0 → not-started",
-      show: makeShow({ completed: 0, inWatchlist: true, nextEpisode: airedNext }),
+      show: makeShow({ completed: 0, inWatchlist: true }),
       expect: "not-started",
     },
     {
@@ -56,18 +49,18 @@ describe("computeWatchStatus", () => {
       expect: "lapsed",
     },
     {
-      name: "caught up, ended → ended",
+      name: "caught up terminal show → ended",
       show: makeShow({ completed: 10, aired: 10, status: "ended", nextEpisode: null }),
       expect: "ended",
     },
     {
-      name: "caught up, canceled → ended",
+      name: "canceled spelling → ended",
       show: makeShow({ completed: 10, aired: 10, status: "canceled", nextEpisode: futureNext }),
       expect: "ended",
     },
     {
-      name: "caught up, cancelled → ended",
-      show: makeShow({ completed: 10, aired: 10, status: "cancelled", nextEpisode: airedNext }),
+      name: "cancelled spelling → ended",
+      show: makeShow({ completed: 10, aired: 10, status: "cancelled" }),
       expect: "ended",
     },
     {
@@ -76,64 +69,62 @@ describe("computeWatchStatus", () => {
       expect: "ended",
     },
     {
-      name: "caught up, returning, nothing announced → caught-up",
-      show: makeShow({ completed: 10, aired: 10, status: "returning series", nextEpisode: null }),
+      name: "returning show with nothing announced → caught-up",
+      show: makeShow({ completed: 10, aired: 10, nextEpisode: null }),
       expect: "caught-up",
     },
     {
-      name: "caught up, returning, future-only next → caught-up",
-      show: makeShow({
-        completed: 10,
-        aired: 10,
-        status: "returning series",
-        nextEpisode: futureNext,
-      }),
+      name: "future-only next → caught-up",
+      show: makeShow({ completed: 10, aired: 10, nextEpisode: futureNext }),
       expect: "caught-up",
     },
     {
-      name: "fresh with aired next → watching",
+      name: "last watch 40 days ago and next aired 2 days ago → watching",
       show: makeShow({
-        completed: 10,
-        aired: 10,
-        nextEpisode: airedNext,
-        lastWatchedAt: iso(NOW - THRESHOLD),
+        nextEpisode: { ...airedNext, firstAired: iso(NOW - 2 * DAY) },
+        lastWatchedAt: iso(NOW - 40 * DAY),
       }),
       expect: "watching",
     },
     {
-      name: "stale with aired next → lapsed",
+      name: "last watch 40 days ago and next aired 30 days ago → lapsed",
       show: makeShow({
-        completed: 10,
-        aired: 10,
-        nextEpisode: airedNext,
-        lastWatchedAt: iso(NOW - THRESHOLD - 1),
+        nextEpisode: { ...airedNext, firstAired: iso(NOW - 30 * DAY) },
+        lastWatchedAt: iso(NOW - 40 * DAY),
       }),
       expect: "lapsed",
     },
     {
-      name: "null lastWatchedAt with aired next → lapsed",
-      show: makeShow({ completed: 10, aired: 10, nextEpisode: airedNext, lastWatchedAt: null }),
+      name: "null last watched and next aired 2 days ago → watching",
+      show: makeShow({
+        nextEpisode: { ...airedNext, firstAired: iso(NOW - 2 * DAY) },
+        lastWatchedAt: null,
+      }),
+      expect: "watching",
+    },
+    {
+      name: "null last watched and next aired 30 days ago → lapsed",
+      show: makeShow({
+        nextEpisode: { ...airedNext, firstAired: iso(NOW - 30 * DAY) },
+        lastWatchedAt: null,
+      }),
       expect: "lapsed",
     },
     {
-      name: "fresh backlog with aired next → watching",
+      name: "last watch 1 day ago and next aired 60 days ago → watching",
       show: makeShow({
-        completed: 5,
-        aired: 10,
-        nextEpisode: airedNext,
+        nextEpisode: { ...airedNext, firstAired: iso(NOW - 60 * DAY) },
         lastWatchedAt: iso(NOW - DAY),
       }),
       expect: "watching",
     },
     {
-      name: "stale backlog with aired next → lapsed",
+      name: "idle exactly at threshold → watching",
       show: makeShow({
-        completed: 5,
-        aired: 10,
-        nextEpisode: airedNext,
-        lastWatchedAt: iso(NOW - THRESHOLD - 1),
+        nextEpisode: { ...airedNext, firstAired: iso(NOW - THRESHOLD) },
+        lastWatchedAt: iso(NOW - THRESHOLD),
       }),
-      expect: "lapsed",
+      expect: "watching",
     },
   ];
 

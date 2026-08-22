@@ -32,6 +32,7 @@ export function makeShow(overrides: Partial<LibraryShow> = {}): LibraryShow {
     aired: 10,
     completed: 5,
     nextEpisode: makeEpisode(),
+    lastAired: null,
     ...overrides,
   };
 }

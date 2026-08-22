@@ -1,5 +1,5 @@
 import type { LibraryShow } from "./model/library";
-import { isAired, toMs } from "./time";
+import { toMs } from "./time";
 
 export type WatchStatus =
   | "abandoned"
@@ -23,17 +23,6 @@ export function isTerminalStatus(status: string): boolean {
  */
 export const DEFAULT_STALENESS_THRESHOLD_MS = 21 * 24 * 60 * 60 * 1000;
 
-/**
- * 7 days = one weekly release cycle: the window in which the next unwatched
- * episode counts as this week's fresh drop and pulls its show into the "New"
- * group. Grounded, not a round guess: it is the same weekly-cadence family as the
- * 21-day (3-week) lapse threshold above, one cycle rather than three. Flagged as a
- * value to revisit: ideally personalized to a show's own inter-episode cadence
- * (a daily-drop and a weekly-drop shouldn't share one window), never a
- * round-number-from-air.
- */
-export const DEFAULT_NEW_EPISODE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
-
 export function computeWatchStatus(
   show: LibraryShow,
   now: number,
@@ -43,11 +32,19 @@ export function computeWatchStatus(
   const { aired, completed, nextEpisode, status } = show;
   if (completed <= 0) return "not-started";
   if (isTerminalStatus(status) && completed >= aired) return "ended";
-  const hasAiredNext = nextEpisode !== null && isAired(nextEpisode.firstAired, now);
+  const nextAiredMs = nextEpisode === null ? null : toMs(nextEpisode.firstAired);
+  const hasAiredNext = nextAiredMs !== null && nextAiredMs <= now;
   // Unwatched aired episodes make a show in-progress whether or not the next one
   // is named: a show past the cold-sync progress budget has real counts but no
   // `nextEpisode`, and must not be filed as caught up on the strength of that gap.
   if (!hasAiredNext && completed >= aired) return "caught-up";
-  const last = toMs(show.lastWatchedAt);
-  return last !== null && now - last <= thresholdMs ? "watching" : "lapsed";
+  // Idleness runs from the last chance to watch, not the last watch: a show
+  // finished a year ago whose new season landed yesterday has been waiting one
+  // day, not a year. The show has been ignorable only since BOTH the user's last
+  // play AND the next episode's air date.
+  const idleSince = Math.max(
+    toMs(show.lastWatchedAt) ?? Number.NEGATIVE_INFINITY,
+    hasAiredNext ? nextAiredMs : Number.NEGATIVE_INFINITY,
+  );
+  return now - idleSince <= thresholdMs ? "watching" : "lapsed";
 }

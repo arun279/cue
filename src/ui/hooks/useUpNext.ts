@@ -1,8 +1,7 @@
 import type { LibraryEntry } from "@data/trakt/library";
 import { groupUpNext, type UpNextItem } from "@domain/up-next";
-import { DEFAULT_NEW_EPISODE_WINDOW_MS } from "@domain/watch-status";
 import { type QueryStatus, queryStatus } from "@ui/hooks/query-freshness";
-import { sortQueue, stabilizeProvisional } from "@ui/hooks/queue-order";
+import { sortLapsed, sortQueue, stabilizeProvisional } from "@ui/hooks/queue-order";
 import { useLibrarySnapshot } from "@ui/hooks/useLibrarySnapshot";
 import { usePrefs } from "@ui/prefs/prefs-store";
 import { useEffect, useMemo, useRef } from "react";
@@ -31,7 +30,7 @@ export interface UpNextView extends QueryStatus {
   /** The flat active queue (marquee = its head when ≥3), ordered per the
    * "Next episode order" preference. */
   readonly queue: readonly UpNextCard[];
-  /** In-progress but idle: the collapsed "Haven't watched lately" drawer. */
+  /** In-progress but idle: the drawer ordered per the "Haven't watched lately order" preference. */
   readonly lapsedCards: readonly UpNextCard[];
   /** Watchlist members, for the empty state's "From your watchlist" tiles. */
   readonly watchlistEntries: readonly LibraryEntry[];
@@ -51,12 +50,12 @@ export interface UpNextView extends QueryStatus {
  * The Up Next read hook: the persisted-SWR `library` snapshot (instant paint from
  * the restored cache, background revalidate) run through the pure `groupUpNext`
  * partition, each item re-joined to its `LibraryEntry` for poster + action. The
- * fresh + continued groups flatten into one queue sorted per the user's order
- * preference; the domain grouping semantics themselves are untouched.
+ * queue and drawer are sorted per their respective user preferences.
  */
 export function useUpNext(): UpNextView {
   const { query, data, thresholdMs } = useLibrarySnapshot();
   const order = usePrefs((s) => s.nextEpisodeOrder);
+  const lapsedOrder = usePrefs((s) => s.lapsedOrder);
   // Last committed queue order (show ids): a just-marked row is pinned to its
   // slot through the reverse window instead of jumping mid-tap.
   const previousOrder = useRef<readonly number[]>([]);
@@ -69,7 +68,7 @@ export function useUpNext(): UpNextView {
     };
     if (data === undefined) return empty;
     const now = Date.now();
-    const partition = groupUpNext(data.entries, now, thresholdMs, DEFAULT_NEW_EPISODE_WINDOW_MS);
+    const partition = groupUpNext(data.entries, now, thresholdMs);
     // trakt id → entry, to re-join each grouped item to its poster + action.
     const byId = new Map(data.entries.map((entry) => [entry.showId, entry]));
     const toCards = (items: readonly UpNextItem[]): UpNextCard[] => {
@@ -80,13 +79,13 @@ export function useUpNext(): UpNextView {
       }
       return out;
     };
-    const sorted = sortQueue([...partition.fresh, ...partition.continued], order);
+    const sorted = sortQueue(partition.queue, order);
     return {
       queue: toCards(stabilizeProvisional(sorted, previousOrder.current)),
-      lapsedCards: toCards(partition.lapsed),
+      lapsedCards: toCards(sortLapsed(partition.lapsed, lapsedOrder)),
       watchlistEntries: data.entries.filter((entry) => entry.inWatchlist && !entry.hidden),
     };
-  }, [data, thresholdMs, order]);
+  }, [data, thresholdMs, order, lapsedOrder]);
 
   useEffect(() => {
     previousOrder.current = groups.queue.map((card) => card.entry.showId);

@@ -3,7 +3,7 @@ import { ActionSheet } from "@ui/components/ActionSheet";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { usePrefs } from "@ui/prefs/prefs-store";
 import { THRESHOLD_OPTIONS } from "@ui/prefs/threshold";
-import type { NextEpisodeOrder } from "@ui/prefs/tracking";
+import type { LapsedOrder, NextEpisodeOrder } from "@ui/prefs/tracking";
 import { useAppVersion } from "@ui/runtime/app-version";
 import { ThemeToggle } from "@ui/theme/ThemeToggle";
 import { Check, RefreshCw } from "lucide-react";
@@ -44,6 +44,11 @@ const ORDER_LABELS: Record<NextEpisodeOrder, string> = {
   "after-last-watched": "After last watched",
 };
 const ORDER_OPTIONS: readonly NextEpisodeOrder[] = ["oldest-unwatched", "after-last-watched"];
+const LAPSED_ORDER_LABELS: Record<LapsedOrder, string> = {
+  "recently-watched": "Recently watched first",
+  "longest-idle": "Longest idle first",
+};
+const LAPSED_ORDER_OPTIONS: readonly LapsedOrder[] = ["recently-watched", "longest-idle"];
 
 /** The picked-option tell for radio sheets; the blank keeps labels aligned. */
 function radioIcon(selected: boolean): ReactElement {
@@ -53,7 +58,7 @@ function radioIcon(selected: boolean): ReactElement {
 /**
  * Settings: grouped rows over the device-local preference stores plus the two
  * account hand-offs. Appearance (theme + haptics), Tracking (spoiler stills,
- * queue order, the staleness threshold that feeds Up Next's lapsed drawer),
+ * queue order, drawer order, the staleness threshold that feeds Up Next's lapsed drawer),
  * Content (media visibility with the last-one-on guard), Data (the one place
  * full sync state lives), Account (Trakt hand-offs + sign out), About (version
  * + the required Trakt attribution).
@@ -73,8 +78,11 @@ export function Settings(): ReactElement {
   const setHideStills = usePrefs((s) => s.setHideStillsUntilWatched);
   const order = usePrefs((s) => s.nextEpisodeOrder);
   const setOrder = usePrefs((s) => s.setNextEpisodeOrder);
+  const lapsedOrder = usePrefs((s) => s.lapsedOrder);
+  const setLapsedOrder = usePrefs((s) => s.setLapsedOrder);
 
   const [orderOpen, setOrderOpen] = useState(false);
+  const [lapsedOrderOpen, setLapsedOrderOpen] = useState(false);
   const [thresholdOpen, setThresholdOpen] = useState(false);
   const sync = useSyncStatus();
 
@@ -125,8 +133,14 @@ export function Settings(): ReactElement {
           onPress={() => setOrderOpen(true)}
         />
         <SettingSelectRow
+          label="Haven't watched lately order"
+          value={LAPSED_ORDER_LABELS[lapsedOrder]}
+          testId="lapsed-order-select"
+          onPress={() => setLapsedOrderOpen(true)}
+        />
+        <SettingSelectRow
           label="Haven't watched in a while after"
-          hint="Shows you haven't touched for longer collapse into the drawer at the bottom of Up Next."
+          hint="A show whose next episode has been waiting longer than this collapses into the drawer at the bottom of Up Next."
           value={weeksLabel(thresholdDays)}
           testId="threshold-select"
           onPress={() => setThresholdOpen(true)}
@@ -228,6 +242,17 @@ export function Settings(): ReactElement {
           icon: radioIcon(option === order),
           testId: `order-${option}`,
           onPress: () => setOrder(option),
+        }))}
+      />
+      <ActionSheet
+        open={lapsedOrderOpen}
+        onOpenChange={setLapsedOrderOpen}
+        title="Haven't watched lately order"
+        rows={LAPSED_ORDER_OPTIONS.map((option) => ({
+          label: LAPSED_ORDER_LABELS[option],
+          icon: radioIcon(option === lapsedOrder),
+          testId: `lapsed-order-${option}`,
+          onPress: () => setLapsedOrder(option),
         }))}
       />
       <ActionSheet

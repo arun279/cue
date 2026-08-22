@@ -1,6 +1,6 @@
 import { toMs } from "@domain/time";
 import type { UpNextItem } from "@domain/up-next";
-import type { NextEpisodeOrder } from "@ui/prefs/tracking";
+import type { LapsedOrder, NextEpisodeOrder } from "@ui/prefs/tracking";
 
 function airMs(item: UpNextItem): number {
   // A provisional post-mark projection has no air date. Treating it as OLDEST
@@ -13,6 +13,12 @@ function watchedMs(item: UpNextItem): number {
   return toMs(item.lastWatchedAt) ?? Number.NEGATIVE_INFINITY;
 }
 
+const byRecentlyWatched = (a: UpNextItem, b: UpNextItem): number =>
+  watchedMs(b) - watchedMs(a) || airMs(a) - airMs(b);
+
+const byLongestIdle = (a: UpNextItem, b: UpNextItem): number =>
+  watchedMs(a) - watchedMs(b) || airMs(a) - airMs(b);
+
 /**
  * Order the flat Up Next queue per the "Next episode order" preference:
  * `oldest-unwatched` (default) leads with the show whose next unwatched episode
@@ -23,9 +29,25 @@ function watchedMs(item: UpNextItem): number {
 export function sortQueue(items: readonly UpNextItem[], order: NextEpisodeOrder): UpNextItem[] {
   const sorted = [...items];
   if (order === "after-last-watched") {
-    sorted.sort((a, b) => watchedMs(b) - watchedMs(a) || airMs(a) - airMs(b));
+    sorted.sort(byRecentlyWatched);
   } else {
     sorted.sort((a, b) => airMs(a) - airMs(b) || watchedMs(b) - watchedMs(a));
+  }
+  return sorted;
+}
+
+/**
+ * Order the "Haven't watched lately" drawer per its preference: `recently-watched`
+ * (default) leads with the show the user most recently touched, so a show just
+ * dropped sits at the top; `longest-idle` leads with the oldest `lastWatchedAt`
+ * (unknown = oldest). Ties fall through to air date (ascending).
+ */
+export function sortLapsed(items: readonly UpNextItem[], order: LapsedOrder): UpNextItem[] {
+  const sorted = [...items];
+  if (order === "recently-watched") {
+    sorted.sort(byRecentlyWatched);
+  } else {
+    sorted.sort(byLongestIdle);
   }
   return sorted;
 }

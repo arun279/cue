@@ -57,6 +57,7 @@ const entry: LibraryEntry = {
   aired: 10,
   completed: 4,
   nextEpisode: null,
+  lastAired: null,
   tmdbId: null,
   pendingAdvance: false,
 };

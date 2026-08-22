@@ -1,5 +1,7 @@
 import type { EpisodeIds, ShowIds } from "@domain/model/ids";
+import type { EpisodeRef } from "@domain/model/library";
 import { isAired } from "@domain/time";
+import { resolveStill } from "../image-source";
 import type { EpisodeData, Progress, SeasonData, ShowDetailData } from "./schemas";
 
 /** Trakt inline still candidates, screenshot preferred over the lower-res thumb. */
@@ -31,6 +33,27 @@ export interface SeasonView {
   readonly episodes: readonly EpisodeView[];
   readonly airedCount: number;
   readonly completedCount: number;
+}
+
+/** The first aired, unwatched, regular episode of the tree. */
+export function firstUnwatchedAired(seasons: readonly SeasonView[]): EpisodeView | null {
+  for (const season of seasons) {
+    if (season.isSpecial) continue;
+    const episode = season.episodes.find((candidate) => candidate.aired && !candidate.watched);
+    if (episode !== undefined) return episode;
+  }
+  return null;
+}
+
+export function toEpisodeRef(episode: EpisodeView): EpisodeRef {
+  return {
+    season: episode.season,
+    number: episode.number,
+    title: episode.title,
+    firstAired: episode.firstAired,
+    still: resolveStill(episode.stills),
+    ids: episode.ids,
+  };
 }
 
 /**

@@ -8,9 +8,12 @@ import {
 import { initialThresholdDays, persistThresholdDays } from "./threshold";
 import {
   initialHideStillsUntilWatched,
+  initialLapsedOrder,
   initialNextEpisodeOrder,
+  type LapsedOrder,
   type NextEpisodeOrder,
   persistHideStillsUntilWatched,
+  persistLapsedOrder,
   persistNextEpisodeOrder,
 } from "./tracking";
 
@@ -35,6 +38,9 @@ interface PrefsState {
    * or the user's own last-watched recency. */
   nextEpisodeOrder: NextEpisodeOrder;
   setNextEpisodeOrder: (order: NextEpisodeOrder) => void;
+  /** How the Haven't watched lately drawer orders shows: most recently watched first (default) or longest idle first. */
+  lapsedOrder: LapsedOrder;
+  setLapsedOrder: (order: LapsedOrder) => void;
 }
 
 /**
@@ -78,6 +84,11 @@ export const usePrefs = create<PrefsState>((set, get) => {
     setNextEpisodeOrder: (nextEpisodeOrder) => {
       persistNextEpisodeOrder(nextEpisodeOrder);
       set({ nextEpisodeOrder });
+    },
+    lapsedOrder: initialLapsedOrder(),
+    setLapsedOrder: (lapsedOrder) => {
+      persistLapsedOrder(lapsedOrder);
+      set({ lapsedOrder });
     },
   };
 });

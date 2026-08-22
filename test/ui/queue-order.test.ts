@@ -1,5 +1,5 @@
 import type { UpNextItem } from "@domain/up-next";
-import { sortQueue, stabilizeProvisional } from "@ui/hooks/queue-order";
+import { sortLapsed, sortQueue, stabilizeProvisional } from "@ui/hooks/queue-order";
 import { describe, expect, it } from "vitest";
 
 function item(
@@ -21,7 +21,6 @@ function item(
     },
     lastWatchedAt,
     backlog: 1,
-    group: "continued",
   };
 }
 
@@ -50,6 +49,33 @@ describe("sortQueue", () => {
     const input = [newest, oldest];
     sortQueue(input, "oldest-unwatched");
     expect(input.map((i) => i.showId)).toEqual([3, 1]);
+  });
+});
+
+describe("sortLapsed", () => {
+  const unknown = item(4, "2026-03-01T00:00:00Z", null);
+
+  it("orders recently watched first by default preference", () => {
+    expect(sortLapsed([oldest, middle, unknown], "recently-watched").map((i) => i.showId)).toEqual([
+      2, 1, 4,
+    ]);
+  });
+
+  it("orders longest idle first", () => {
+    expect(sortLapsed([oldest, middle, unknown], "longest-idle").map((i) => i.showId)).toEqual([
+      4, 1, 2,
+    ]);
+  });
+
+  it("places unknown last watched last for recently watched and first for longest idle", () => {
+    expect(sortLapsed([oldest, unknown], "recently-watched")[1]?.showId).toBe(4);
+    expect(sortLapsed([oldest, unknown], "longest-idle")[0]?.showId).toBe(4);
+  });
+
+  it("does not mutate its input", () => {
+    const input = [middle, oldest];
+    sortLapsed(input, "longest-idle");
+    expect(input.map((i) => i.showId)).toEqual([2, 1]);
   });
 });
 

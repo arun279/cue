@@ -76,6 +76,7 @@ function libraryEntry(showId = SHOW): LibraryEntry {
       still: null,
       ids: { trakt: showId === SHOW ? NEXT_EP_TRAKT : showId * 1000 },
     },
+    lastAired: null,
     tmdbId: null,
     pendingAdvance: false,
   };

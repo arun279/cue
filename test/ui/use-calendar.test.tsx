@@ -5,7 +5,12 @@
  */
 import type { CalendarEntry } from "@domain/calendar";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { CALENDAR_WINDOW_DAYS, sliceCalendarDays, useCalendar } from "@ui/hooks/useCalendar";
+import {
+  CALENDAR_WINDOW_DAYS,
+  recentCalendarStart,
+  sliceCalendarDays,
+  useCalendar,
+} from "@ui/hooks/useCalendar";
 import { type CueRuntime, RuntimeProvider } from "@ui/runtime/runtime";
 import { act, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -100,5 +105,11 @@ describe("sliceCalendarDays", () => {
   it("returns the full grouping untouched at (or past) the full window", () => {
     const days = [day("2026-07-12"), day("2026-08-01")];
     expect(sliceCalendarDays(days, "2026-07-12", CALENDAR_WINDOW_DAYS)).toBe(days);
+  });
+});
+
+describe("recentCalendarStart", () => {
+  it("subtracts calendar days across a daylight-saving transition", () => {
+    expect(recentCalendarStart("2026-03-20")).toBe("2026-02-16");
   });
 });

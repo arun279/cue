@@ -497,6 +497,11 @@ export interface ShowFixture {
   /** Mutated in place by intercepted history writes so reads stay self-consistent. */
   completed: number;
   readonly episodes: readonly EpisodeFixture[];
+  /**
+   * Episodes the seasons tree and calendar know but the per-user snapshot
+   * predates. `aired` remains the snapshot's stale `aired_episodes` count.
+   */
+  readonly airedSinceSync?: readonly EpisodeFixture[];
   /** Mutated in place by intercepted hidden writes so Up Next / bucket reads stay consistent. */
   hidden?: boolean;
   /** Mutated in place by intercepted watchlist writes so the To-watch bucket stays consistent. */
@@ -742,7 +747,7 @@ function showDetailBody(show: ShowFixture): string {
 
 function seasonsBody(show: ShowFixture): string {
   const bySeason = new Map<number, EpisodeFixture[]>();
-  for (const ep of show.episodes) {
+  for (const ep of [...show.episodes, ...(show.airedSinceSync ?? [])]) {
     const list = bySeason.get(ep.season) ?? [];
     list.push(ep);
     bySeason.set(ep.season, list);
@@ -1367,7 +1372,8 @@ function persistedEntry(index: number): unknown {
       still: null,
       ids: { trakt: 40000 + index },
     },
-    // Matches the shape `assembleLibrary` writes (`nextEpisode.still` included);
+    lastAired: { season: 1, number: 10 },
+    // Matches the shape `assembleLibrary` writes (`nextEpisode.still` and `lastAired` included);
     // omitting fields would model an older cache the buster now drops.
     tmdbId: null,
     pendingAdvance: false,
@@ -1543,7 +1549,8 @@ function calendarItemBody(items: readonly CalendarEpisodeFixture[]): string {
 
 /**
  * Intercept the Calendar read surface: the personalized calendar window
- * (filtered by the requested `days`) and the hidden set (excluded client-side).
+ * (honouring both bounds of the requested start and `days`) and the hidden set
+ * (excluded client-side).
  * The redesigned Calendar is read-only. Aired episodes are marked from Up
  * Next, so no write routes live here; a suite that needs both the calendar
  * AND the library write engine registers this FIRST so the library's
@@ -1564,7 +1571,10 @@ export async function installCalendarRoutes(
     requests.push({ start, days });
     const startMs = Date.parse(`${start}T00:00:00.000Z`);
     const upper = startMs + days * DAY_MS;
-    const inWindow = items.filter((item) => Date.parse(item.firstAired) < upper);
+    const inWindow = items.filter((item) => {
+      const firstAired = Date.parse(item.firstAired);
+      return startMs <= firstAired && firstAired < upper;
+    });
     return route.fulfill({
       status: 200,
       headers: JSON_HEADERS,
