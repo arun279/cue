@@ -1,7 +1,11 @@
 name: CI
 on:
   push:
-    branches: [main]
+    # release/* branches run CI on push because the release gate ships a commit
+    # only once ci.yml's checks are green for that exact SHA, and it reads a
+    # push-event run. Without this, dispatching mobile-release.yml on a release
+    # branch waits out its deadline on checks that would never report.
+    branches: [main, "release/*"]
   pull_request:
   schedule:
     # Weekly re-run so the (non-deterministic) advisory audit catches newly
@@ -19,8 +23,11 @@ permissions:
 # The event name is also part of the group: the weekly schedule run and a push
 # landing on the same commit both resolve to the same SHA, and without the
 # event name the schedule run would cancel a same-commit push run in progress.
+# The ref is in the group for the same reason: a release branch cut from a main
+# commit pushes that SHA a second time, and without the ref that push would
+# cancel main's run and leave the commit's required checks cancelled.
 concurrency:
-  group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.sha }}
+  group: ci-${{ github.event_name }}-${{ github.ref }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: true
 jobs:
   check:

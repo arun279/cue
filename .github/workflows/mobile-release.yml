@@ -4,10 +4,14 @@ name: Mobile release
 #   push to main       -> TestFlight + Firebase App Distribution (testers)
 #   push a v* tag      -> App Store release (auto-release after approval)
 #   manual dispatch    -> tester builds, or an iOS App Store release
+# Dispatch is also how a release/* branch ships. main keeps releasing on push,
+# and a branch such as release/capacitor stays buildable on demand without ever
+# merging back, so an older code line can be rebuilt and shipped forward. ci.yml
+# runs on release/* pushes too, so the gate below has checks to read there.
 # CI (ci.yml) is the quality gate, enforced twice: branch protection keeps red
 # commits off main, and the gate job below re-checks the exact commit this run
 # would ship.
-# A dispatch or tag on a commit never pushed to main finds no CI checks and times out at DEADLINE_MINUTES rather than releasing.
+# A dispatch or tag on a commit CI never ran on, which is any ref outside main and release/*, finds no CI checks and times out at DEADLINE_MINUTES rather than releasing.
 
 on:
   push:
@@ -114,9 +118,13 @@ jobs:
             fi
             build_android=false
           fi
-          # github.run_number is scoped to this workflow file, so renaming or
-          # recreating it restarts the count and Android then refuses to install
-          # the lower versionCode over an existing tester build.
+          # github.run_number counts runs of this workflow file across the whole
+          # repository rather than per branch, so main and every release/* branch
+          # draw from one increasing sequence and a build cut from a release
+          # branch always outranks what testers already have. Android refuses to
+          # install a lower versionCode, and Apple has no revert, so both lines
+          # depend on that. Renaming or recreating this file restarts the count
+          # and breaks it.
           build_number=$((RUN_NUMBER * 100 + RUN_ATTEMPT))
           {
             echo "build_ios=$build_ios"
