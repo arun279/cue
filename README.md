@@ -27,7 +27,7 @@ Cue authenticates as a public OAuth client, so it ships **no secret**: the app a
 2. Set its Redirect URI to `http://localhost:5199/auth/callback` for local development, plus `<your-production-origin>/auth/callback` for deploys. (Trakt matches the redirect URI exactly, so register every origin you serve from.)
 3. Copy `.env.example` to `.env` and set `VITE_TRAKT_CLIENT_ID` to the app's **Client ID**. It is public: it ships in the built JS and there is no client secret.
 
-The client id is public by design. Cue keeps each user's Trakt OAuth token, settings, and a local data cache on-device. Your real `.env` stays local (gitignored); `.env.example` and `.env.test` are the committed placeholders.
+The client id is public by design. Cue keeps each user's Trakt OAuth token, settings, and a local data cache on-device. Your real `.env` stays local (gitignored); `.env.example`, `.env.test` and `.env.mock` are the committed placeholders.
 
 ## Development
 
@@ -65,6 +65,21 @@ Every e2e run builds the app and starts its own preview server on port 4173. Set
 `pnpm e2e` runs the Playwright suite (chromium). `pnpm audit` (high/critical production advisories) is deliberately kept out of `pnpm check` because it reads live advisory state; it runs as its own CI job on every push and on a weekly schedule.
 
 Git hooks are wired with [lefthook](https://lefthook.dev) (`pnpm install` runs `lefthook install`): pre-commit runs the fast gates, pre-push runs `pnpm check`. The full Playwright e2e suite runs in CI (`.github/workflows/ci.yml`, Node 22) on every pull request, and branch protection ruleset 18841630 requires the `e2e` context, so it still gates every merge.
+
+### Local fake Trakt
+
+`scripts/mock-trakt` is a dependency-free Node server that answers the Trakt endpoints Cue reads and writes, seeded with an account that has a queue, a lapsed drawer, upcoming airings, a watchlist and a couple of movies. It exists so the built app can be driven end to end without a Trakt account and without a network: in a browser, and in the iOS simulator, where Playwright route mocking does not exist.
+
+```sh
+pnpm mock:trakt # serve the fake Trakt on http://127.0.0.1:8787 (MOCK_TRAKT_PORT overrides the port)
+pnpm dev:mock   # run the dev server against it
+```
+
+`--mode mock` loads the committed `.env.mock`, which sets a dummy client id and `VITE_TRAKT_API_BASE=http://127.0.0.1:8787`. That variable is the whole switch: unset, which is every shipped build and every other mode, the app talks to `api.trakt.tv` and `trakt.tv`; set, it talks to the mock instead, sign-in included. `pnpm exec vite build --mode mock` produces the same thing as a static bundle to preview or to `cap sync` into a shell.
+
+Marks made in the app move the mock's in-memory account, so progress, history and the calendar stay consistent across a session. Any endpoint the mock does not model answers 404 with a logged line rather than an empty success, so a missing fixture reads as a hole instead of an account with nothing in it. `test/harness/mock-trakt.test.ts` boots the mock in-process and reads every seeded endpoint back through the app's own client and zod contracts, which is what keeps the two from drifting.
+
+Reaching it from the iOS simulator needs one thing this branch deliberately does not do: a Debug-only `NSAppTransportSecurity` dictionary in `ios/App/App/Info.plist`, either `NSAllowsLocalNetworking` or an `NSExceptionDomains` entry for `127.0.0.1`, because App Transport Security blocks plaintext HTTP. It must never reach a release build, and `test/privacy-claims.test.ts` fails if `NSAppTransportSecurity` appears in the committed `Info.plist` at all.
 
 ## Mobile
 

@@ -10,6 +10,8 @@
   },
   "scripts": {
     "dev": "vite",
+    "dev:mock": "vite --mode mock",
+    "mock:trakt": "node scripts/mock-trakt/server.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "sync": "cap sync",

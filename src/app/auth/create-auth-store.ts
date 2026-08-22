@@ -28,6 +28,8 @@ export interface AuthDeps {
   readonly redirect: (url: string) => void;
   /** True under Capacitor: device-code is the primary native path (redirect can't return). */
   readonly native: boolean;
+  /** Trakt origin override; undefined leaves the flow on the real Trakt hosts. */
+  readonly traktBaseUrl: string | undefined;
 }
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
@@ -39,7 +41,15 @@ const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
  * client id is embedded once by the app author, not entered per user.
  */
 export function createAuthStore(deps: AuthDeps): AuthStore {
-  const config: OAuthConfig = { clientId: deps.clientId, redirectUri: deps.redirectUri };
+  // One override drives both origins because the mock serves both: the token,
+  // device and revoke endpoints Trakt puts on `api.trakt.tv`, and the authorize
+  // page it puts on `trakt.tv`.
+  const config: OAuthConfig = {
+    clientId: deps.clientId,
+    redirectUri: deps.redirectUri,
+    apiBaseUrl: deps.traktBaseUrl,
+    siteBaseUrl: deps.traktBaseUrl,
+  };
 
   // Monotonic attempt id: every connect/cancel/disconnect bumps it, so a poll
   // sleeping from an earlier attempt can detect it no longer owns the flow and

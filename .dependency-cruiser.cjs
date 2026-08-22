@@ -6,10 +6,10 @@
 const RE_REACT = "(^|/)node_modules/react/";
 const RE_REACT_DOM = "(^|/)node_modules/react-dom/";
 const RE_CAPACITOR = "(^|/)node_modules/@capacitor/";
-const RE_DOES_NOT_SHIP_DIRECTORY = "^(docs|\\.github|e2e|test|assets)(/|$)";
+const RE_DOES_NOT_SHIP_DIRECTORY = "^(docs|\\.github|e2e|test|assets|scripts/mock-trakt)(/|$)";
 const RE_DOES_NOT_SHIP_MARKDOWN = "^[^/]*\\.md$";
 const RE_DOES_NOT_SHIP_FILE =
-  "^(LICENSE|playwright\\.config\\.ts|vitest\\.config\\.ts|lefthook\\.yml|cspell\\.json|dprint\\.json|biome\\.jsonc|knip\\.json|\\.jscpd\\.json|\\.dependency-cruiser\\.cjs|\\.env\\.example|\\.env\\.test|\\.gitignore)$";
+  "^(LICENSE|playwright\\.config\\.ts|vitest\\.config\\.ts|lefthook\\.yml|cspell\\.json|dprint\\.json|biome\\.jsonc|knip\\.json|\\.jscpd\\.json|\\.dependency-cruiser\\.cjs|\\.env\\.example|\\.env\\.test|\\.env\\.mock|\\.gitignore)$";
 
 /** @type {import("dependency-cruiser").IConfiguration} */
 module.exports = {

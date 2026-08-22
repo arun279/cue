@@ -15,6 +15,9 @@
       "@app/*": ["./src/app/*"],
       "@platform/*": ["./src/platform/*"]
     },
+    // scripts/mock-trakt runs under plain node (no build step), so its .mjs
+    // modules are JavaScript; the harness test imports them and infers types.
+    "allowJs": true,
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "isolatedModules": true,

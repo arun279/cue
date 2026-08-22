@@ -19,3 +19,12 @@ if (TRAKT_CLIENT_ID === "") {
       "app's public client id (register one at https://trakt.tv/oauth/applications).",
   );
 }
+
+/**
+ * Optional Trakt origin override (`VITE_TRAKT_API_BASE`), for pointing a build at
+ * the local mock (`scripts/mock-trakt`) instead of a real account. Unset (every
+ * shipped build) leaves the API client on `api.trakt.tv` and the OAuth authorize
+ * page on `trakt.tv`; set, one host serves both, because the mock does.
+ */
+const traktBase = readEnv(import.meta.env["VITE_TRAKT_API_BASE"]);
+export const TRAKT_BASE_OVERRIDE: string | undefined = traktBase === "" ? undefined : traktBase;
