@@ -6,7 +6,8 @@ import { useCallback, useState } from "react";
 
 interface SyncNow {
   readonly syncing: boolean;
-  /** Resolves true when the pass completed cleanly. */
+  /** Resolves true when the pass completed cleanly, and never rejects: a caller
+   * that shows the pass in progress can always settle on the answer. */
   run(): Promise<boolean>;
 }
 
@@ -29,17 +30,19 @@ export function useSyncNow(): SyncNow {
     try {
       const remaining = await runtime.flushWrites();
       const reconcile = remaining === 0 ? await runtime.pollActivities() : null;
-      const clean = reconcile !== null && (await applyReconcile(queryClient, reconcile));
-      if (!clean) {
-        showSnack({
-          message: "Couldn't reach Trakt. Check your connection.",
-          actions: [{ label: "Dismiss", onPress: dismissSnack }],
-        });
-      }
-      return clean;
+      if (reconcile !== null && (await applyReconcile(queryClient, reconcile))) return true;
+    } catch {
+      // A flush or a storage write can reject outright. That is the same failed
+      // pass as a refused one, and it takes the same message below, so neither
+      // caller is left showing a pass that never ends.
     } finally {
       setSyncing(false);
     }
+    showSnack({
+      message: "Couldn't reach Trakt. Check your connection.",
+      actions: [{ label: "Dismiss", onPress: dismissSnack }],
+    });
+    return false;
   }, [runtime, queryClient]);
 
   return { syncing, run };
