@@ -140,7 +140,7 @@ export function Settings(): ReactElement {
         />
         <SettingSelectRow
           label="Haven't watched in a while after"
-          hint="A show whose next episode has been waiting longer than this collapses into the drawer at the bottom of Up Next."
+          hint="A show drops into the drawer at the bottom of Up Next once this long has passed since both your last watch and its next episode aired."
           value={weeksLabel(thresholdDays)}
           testId="threshold-select"
           onPress={() => setThresholdOpen(true)}

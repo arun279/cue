@@ -153,7 +153,7 @@ function lastAiredKey(progress: Progress | undefined, watched: WatchedShow): Epi
   let last: EpisodeKey | null = null;
   const seasons = progress === undefined ? watched.seasons : progress.seasons;
   for (const season of seasons ?? []) {
-    if (season.number === 0) continue;
+    if (progress === undefined && season.number === 0) continue;
     for (const episode of season.episodes) {
       const key = { season: season.number, number: episode.number };
       if (last === null || compareEpisodeKeys(key, last) > 0) last = key;

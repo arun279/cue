@@ -38,7 +38,8 @@ interface PrefsState {
    * or the user's own last-watched recency. */
   nextEpisodeOrder: NextEpisodeOrder;
   setNextEpisodeOrder: (order: NextEpisodeOrder) => void;
-  /** How the Haven't watched lately drawer orders shows: most recently watched first (default) or longest idle first. */
+  /** How the Haven't watched lately drawer orders shows: most recently watched first
+   * (default) or longest idle first. */
   lapsedOrder: LapsedOrder;
   setLapsedOrder: (order: LapsedOrder) => void;
 }

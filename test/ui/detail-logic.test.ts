@@ -36,6 +36,7 @@ function seasonOf(number: number, episodes: EpisodeView[]): SeasonView {
     number,
     title: null,
     isSpecial: number === 0,
+    isHidden: false,
     episodes,
     airedCount: episodes.filter((e) => e.aired).length,
     completedCount: episodes.filter((e) => e.watched).length,

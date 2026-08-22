@@ -1,7 +1,7 @@
 import type { LibraryEntry } from "@data/trakt/library";
 import { groupUpNext, type UpNextItem } from "@domain/up-next";
 import { type QueryStatus, queryStatus } from "@ui/hooks/query-freshness";
-import { sortLapsed, sortQueue, stabilizeProvisional } from "@ui/hooks/queue-order";
+import { sortLapsed, sortQueue, stabilizePendingAdvance } from "@ui/hooks/queue-order";
 import { useLibrarySnapshot } from "@ui/hooks/useLibrarySnapshot";
 import { usePrefs } from "@ui/prefs/prefs-store";
 import { useEffect, useMemo, useRef } from "react";
@@ -81,7 +81,13 @@ export function useUpNext(): UpNextView {
     };
     const sorted = sortQueue(partition.queue, order);
     return {
-      queue: toCards(stabilizeProvisional(sorted, previousOrder.current)),
+      queue: toCards(
+        stabilizePendingAdvance(
+          sorted,
+          previousOrder.current,
+          (showId) => byId.get(showId)?.pendingAdvance === true,
+        ),
+      ),
       lapsedCards: toCards(sortLapsed(partition.lapsed, lapsedOrder)),
       watchlistEntries: data.entries.filter((entry) => entry.inWatchlist && !entry.hidden),
     };

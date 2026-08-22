@@ -25,7 +25,7 @@ export interface UpNextGroups {
 /**
  * Partition in-progress shows for Up Next on verifiable facts only: no taste,
  * popularity, or "for you" ranking. Shows in a state with no next to queue
- * (`abandoned`/`not-started`/`ended`/`caught-up`) are excluded; a `watching` show
+ * (`abandoned`/`not-started`/`ended`) are excluded; a `watching` show
  * queues, a `lapsed` one (idle past `thresholdMs` since it last had something to
  * watch) lands in the drawer. A just-marked show whose next is still a provisional
  * post-mark projection (`ids.trakt === 0`, air date unknown) stays in the queue,

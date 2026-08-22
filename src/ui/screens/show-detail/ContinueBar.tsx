@@ -50,7 +50,7 @@ function isResolved(entry: LibraryEntry): boolean {
 
 function seasonProgress(seasons: readonly SeasonView[]): FallbackProgress {
   const airedEpisodes = seasons
-    .filter((season) => !season.isSpecial)
+    .filter((season) => !season.isSpecial && !season.isHidden)
     .flatMap((season) => season.episodes.filter((episode) => episode.aired));
   return {
     aired: airedEpisodes.length,

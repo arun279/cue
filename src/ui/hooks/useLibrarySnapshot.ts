@@ -87,7 +87,8 @@ export function useLibrarySnapshot(enabled = true): LibrarySnapshot {
           ...entry,
           nextEpisode: next === null ? null : toEpisodeRef(next),
           aired: tree.reduce(
-            (count, season) => count + (season.isSpecial ? 0 : season.airedCount),
+            (count, season) =>
+              count + (season.isSpecial || season.isHidden ? 0 : season.airedCount),
             0,
           ),
         };

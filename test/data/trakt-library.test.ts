@@ -181,6 +181,32 @@ describe("assembleLibrary", () => {
     });
   });
 
+  it("uses the last regular watched episode when the fallback includes a later special", () => {
+    const watched: WatchedShow = {
+      last_watched_at: "2026-07-01T00:00:00.000Z",
+      show: { title: "Show", aired_episodes: 8, ids: { trakt: 13 } },
+      seasons: [
+        { number: 0, episodes: [{ number: 99 }] },
+        { number: 1, episodes: [{ number: 8 }] },
+      ],
+    };
+    const entries = assembleLibrary({
+      watchedShows: [
+        watched,
+        {
+          last_watched_at: "2026-07-01T00:00:00.000Z",
+          show: { title: "Special only", aired_episodes: 0, ids: { trakt: 14 } },
+          seasons: [{ number: 0, episodes: [{ number: 99 }] }],
+        },
+      ],
+      progress: new Map(),
+      hiddenShowIds: new Set(),
+      watchlistShows: [],
+    });
+    expect(entries[0]?.lastAired).toEqual({ season: 1, number: 8 });
+    expect(entries[1]?.lastAired).toBeNull();
+  });
+
   it("maps a next episode carrying only a trakt id (optional ids omitted)", () => {
     const entries = assembleLibrary({
       watchedShows: [watchedShow({ trakt: 8 })],

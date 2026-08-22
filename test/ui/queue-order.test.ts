@@ -1,5 +1,5 @@
 import type { UpNextItem } from "@domain/up-next";
-import { sortLapsed, sortQueue, stabilizeProvisional } from "@ui/hooks/queue-order";
+import { sortLapsed, sortQueue, stabilizePendingAdvance } from "@ui/hooks/queue-order";
 import { describe, expect, it } from "vitest";
 
 function item(
@@ -79,24 +79,39 @@ describe("sortLapsed", () => {
   });
 });
 
-describe("stabilizeProvisional", () => {
+describe("stabilizePendingAdvance", () => {
   it("pins a just-marked row to the slot it held before the mark", () => {
     const marked = item(2, null, "2026-07-12T00:00:00Z", true);
+    const isPending = (showId: number): boolean => showId === marked.showId;
     // The sort would promote the provisional row to the head…
     const sorted = [marked, oldest, newest];
     // …but it held slot 1 before the mark, so it stays there.
-    const stable = stabilizeProvisional(sorted, [1, 2, 3]);
+    const stable = stabilizePendingAdvance(sorted, [1, 2, 3], isPending);
     expect(stable.map((i) => i.showId)).toEqual([1, 2, 3]);
   });
 
   it("keeps the sorted slot when the previous order is unknown", () => {
     const marked = item(4, null, "2026-07-12T00:00:00Z", true);
-    const stable = stabilizeProvisional([oldest, marked, newest], []);
+    const stable = stabilizePendingAdvance(
+      [oldest, marked, newest],
+      [],
+      (showId) => showId === marked.showId,
+    );
     expect(stable.map((i) => i.showId)).toEqual([1, 4, 3]);
   });
 
   it("leaves an all-authoritative queue untouched", () => {
-    const stable = stabilizeProvisional([oldest, middle], [2, 1]);
+    const stable = stabilizePendingAdvance([oldest, middle], [2, 1], () => false);
     expect(stable.map((i) => i.showId)).toEqual([1, 2]);
+  });
+
+  it("pins a pending row whose season tree already supplied a real episode id", () => {
+    const marked = item(2, "2026-07-12T00:00:00Z", "2026-07-12T00:00:00Z");
+    const stable = stabilizePendingAdvance(
+      [oldest, newest, marked],
+      [1, 2, 3],
+      (showId) => showId === marked.showId,
+    );
+    expect(stable.map((i) => i.showId)).toEqual([1, 2, 3]);
   });
 });

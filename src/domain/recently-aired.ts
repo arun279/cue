@@ -26,10 +26,10 @@ export function reconcileRecentlyAired<T extends LibraryShow>(
 
   return shows.map((show) => {
     const recent = airedByShow.get(show.showId);
-    if (show.completed <= 0 || recent === undefined) return show;
+    if (show.completed <= 0 || show.lastAired === null || recent === undefined) return show;
     const frontier = show.lastAired;
     const unknown = recent
-      .filter((entry) => frontier === null || compareEpisodeKeys(entry, frontier) > 0)
+      .filter((entry) => compareEpisodeKeys(entry, frontier) > 0)
       .sort(compareEpisodeKeys);
     const last = unknown[unknown.length - 1];
     if (last === undefined) return show;

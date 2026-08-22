@@ -68,6 +68,11 @@ describe("reconcileRecentlyAired", () => {
     expect(reconcileRecentlyAired([show], [calendar(0, 1)], NOW)[0]).toBe(show);
   });
 
+  it("does not guess which regular episodes are new when the frontier is unknown", () => {
+    const show = makeShow({ nextEpisode: null, lastAired: null });
+    expect(reconcileRecentlyAired([show], [calendar(2, 1)], NOW)[0]).toBe(show);
+  });
+
   it("leaves a never-watched watchlist placeholder untouched", () => {
     const show = makeShow({
       completed: 0,

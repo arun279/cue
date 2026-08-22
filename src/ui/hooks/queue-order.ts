@@ -53,26 +53,26 @@ export function sortLapsed(items: readonly UpNextItem[], order: LapsedOrder): Up
 }
 
 /**
- * Pin just-marked rows (provisional next, `ids.trakt === 0`) to the slot they
- * held before the mark. Both sort orders would otherwise move a row the instant
- * it is tapped, pulling its live undo toggle out from under the finger and
- * putting a DIFFERENT show's unwatched check there (the exact double-tap
- * hazard the reverse window exists to absorb). The row FLIPs to its real slot
- * once the authoritative next episode lands and the check re-arms.
+ * Pin just-marked rows to the slot they held before the mark. Both sort orders
+ * would otherwise move a row the instant it is tapped, pulling its live undo
+ * toggle out from under the finger and putting a different show's unwatched
+ * check there. The row moves to its real slot once the authoritative next
+ * episode lands and the check re-arms.
  */
-export function stabilizeProvisional(
+export function stabilizePendingAdvance(
   sorted: readonly UpNextItem[],
   previousOrder: readonly number[],
+  isPending: (showId: number) => boolean,
 ): UpNextItem[] {
-  const provisional = sorted.filter((item) => item.episode.ids.trakt === 0);
-  if (provisional.length === 0) return [...sorted];
-  const out = sorted.filter((item) => item.episode.ids.trakt !== 0);
+  const pending = sorted.filter((item) => isPending(item.showId));
+  if (pending.length === 0) return [...sorted];
+  const out = sorted.filter((item) => !isPending(item.showId));
   // An unknown previous slot (fresh mount mid-advance) keeps the sorted slot.
   const slotOf = (item: UpNextItem): number => {
     const previous = previousOrder.indexOf(item.showId);
     return previous === -1 ? sorted.indexOf(item) : previous;
   };
-  for (const item of [...provisional].sort((a, b) => slotOf(a) - slotOf(b))) {
+  for (const item of [...pending].sort((a, b) => slotOf(a) - slotOf(b))) {
     out.splice(Math.min(slotOf(item), out.length), 0, item);
   }
   return out;

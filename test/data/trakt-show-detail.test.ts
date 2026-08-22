@@ -160,7 +160,12 @@ describe("assembleSeasons", () => {
     expect(s1?.episodes.map((e) => e.number)).toEqual([1, 2, 3]);
     expect(s1?.episodes.map((e) => e.watched)).toEqual([true, true, false]);
     expect(s1?.episodes.map((e) => e.aired)).toEqual([true, true, false]);
-    expect(s1).toMatchObject({ airedCount: 2, completedCount: 2, isSpecial: false });
+    expect(s1).toMatchObject({
+      airedCount: 2,
+      completedCount: 2,
+      isSpecial: false,
+      isHidden: false,
+    });
   });
 
   it("surfaces each watched episode's date and leaves unwatched ones null", () => {
@@ -177,6 +182,43 @@ describe("assembleSeasons", () => {
   it("treats a season with no progress entry as fully unwatched", () => {
     const views = assembleSeasons(seasons, { aired: 0, completed: 0, next_episode: null }, NOW);
     expect(views.every((s) => s.completedCount === 0)).toBe(true);
+  });
+
+  it("identifies hidden older seasons without hiding seasons beyond the progress frontier", () => {
+    const tree = [1, 2, 3].map<SeasonData>((number) => ({
+      number,
+      episodes: [
+        {
+          season: number,
+          number: 1,
+          title: null,
+          first_aired: iso(NOW - DAY),
+          ids: { trakt: number },
+        },
+      ],
+    }));
+    const visibleProgress: Progress = {
+      aired: 1,
+      completed: 1,
+      next_episode: null,
+      seasons: [
+        {
+          number: 2,
+          aired: 1,
+          completed: 1,
+          episodes: [{ number: 1, completed: true }],
+        },
+      ],
+    };
+
+    const views = assembleSeasons(tree, visibleProgress, NOW);
+
+    expect(views.map((view) => [view.number, view.isHidden])).toEqual([
+      [1, true],
+      [2, false],
+      [3, false],
+    ]);
+    expect(firstUnwatchedAired(views)?.season).toBe(3);
   });
 
   it("tolerates a season with no episodes array", () => {
@@ -205,6 +247,7 @@ function season(number: number, episodes: readonly EpisodeView[]): SeasonView {
     number,
     title: null,
     isSpecial: number === 0,
+    isHidden: false,
     episodes,
     airedCount: episodes.filter((item) => item.aired).length,
     completedCount: episodes.filter((item) => item.watched).length,

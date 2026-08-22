@@ -52,6 +52,7 @@ function seasonView(episodes: readonly EpisodeView[]): SeasonView {
     number: 1,
     title: "Season 1",
     isSpecial: false,
+    isHidden: false,
     episodes,
     airedCount: episodes.length,
     completedCount: episodes.filter((e) => e.watched).length,

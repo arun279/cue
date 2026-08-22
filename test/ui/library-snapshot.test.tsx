@@ -47,11 +47,12 @@ function episode(season: number, number: number, watched: boolean, trakt: number
   };
 }
 
-function season(number: number, episodes: readonly EpisodeView[]): SeasonView {
+function season(number: number, episodes: readonly EpisodeView[], isHidden = false): SeasonView {
   return {
     number,
     title: `Season ${number}`,
     isSpecial: false,
+    isHidden,
     episodes,
     airedCount: episodes.length,
     completedCount: episodes.filter((item) => item.watched).length,
@@ -139,6 +140,21 @@ async function mountWithoutSeasonRead(
   return snapshot;
 }
 
+async function mountWithResolvedTree(
+  entries: readonly LibraryEntry[],
+  calendar: readonly CalendarEntry[],
+  tree: readonly SeasonView[],
+  expected: object,
+): Promise<{ current: LibrarySnapshot | undefined; currentEntry: LibraryEntry | undefined }> {
+  const snapshot = await mountSnapshot(
+    runtimeFixture(entries, calendar, () => Promise.resolve(tree)),
+  );
+  await act(async () => {
+    await vi.waitFor(() => expect(snapshot.current?.data?.entries[0]).toMatchObject(expected));
+  });
+  return snapshot;
+}
+
 describe("useLibrarySnapshot", () => {
   it("resolves only a calendar-flagged show's queue position from its season tree", async () => {
     const stale = entry({ title: "Stale" });
@@ -214,18 +230,31 @@ describe("useLibrarySnapshot", () => {
   it("restores the authoritative aired count when the tree has no unwatched episode", async () => {
     const stale = entry();
     const tree = [season(1, [episode(1, 1, true, 11), episode(1, 2, true, 12)])];
-    const runtime = runtimeFixture([stale], [calendarEpisode(1)], () => Promise.resolve(tree));
-
-    const snapshot = await mountSnapshot(runtime);
-    await act(async () => {
-      await vi.waitFor(() => expect(snapshot.current?.data?.entries[0]?.aired).toBe(2));
-    });
-
-    expect(snapshot.current?.data?.entries[0]).toMatchObject({
+    const expected = {
       aired: 2,
       completed: 2,
       nextEpisode: null,
-    });
+    };
+    const snapshot = await mountWithResolvedTree([stale], [calendarEpisode(1)], tree, expected);
+
+    expect(snapshot.current?.data?.entries[0]).toMatchObject(expected);
+  });
+
+  it("excludes hidden seasons when resolving the next episode and aired count", async () => {
+    const stale = entry({ aired: 1, completed: 1, lastAired: { season: 2, number: 1 } });
+    const tree = [
+      season(1, [episode(1, 1, false, 11)], true),
+      season(2, [episode(2, 1, true, 21)]),
+      season(3, [episode(3, 1, false, 31)]),
+    ];
+    const calendar = [{ ...calendarEpisode(1), season: 3 }];
+    const expected = {
+      aired: 2,
+      nextEpisode: { season: 3, number: 1, ids: { trakt: 31 } },
+    };
+    const snapshot = await mountWithResolvedTree([stale], calendar, tree, expected);
+
+    expect(snapshot.current?.data?.entries[0]).toMatchObject(expected);
   });
 
   it("excludes hidden calendar shows before reconciliation", async () => {
