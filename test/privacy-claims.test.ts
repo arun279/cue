@@ -10,6 +10,7 @@ import servedPolicy from "../docs/index.html?raw";
 import infoPlistSource from "../ios/App/App/Info.plist?raw";
 import policy from "../PRIVACY.md?raw";
 import readme from "../README.md?raw";
+import configSource from "../src/app/config.ts?raw";
 import runtimeSource from "../src/app/runtime/create-runtime.ts?raw";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -153,6 +154,32 @@ describe("claim: Cue collects nothing and reaches Trakt directly over HTTPS", ()
 
   it("talks to Trakt itself and not to a host standing in for it", () => {
     expect(TRAKT_API_BASE).toBe("https://api.trakt.tv");
+  });
+
+  it("takes the local fake Trakt's origin only from a mock-mode build", async () => {
+    const standIn = "http://127.0.0.1:8787";
+    vi.stubEnv("VITE_TRAKT_API_BASE", standIn);
+    try {
+      for (const [mode, override] of [
+        ["production", undefined],
+        ["mock", standIn],
+      ] as const) {
+        vi.stubEnv("MODE", mode);
+        vi.resetModules();
+        expect((await import("@app/config")).TRAKT_BASE_OVERRIDE, mode).toBe(override);
+      }
+    } finally {
+      vi.unstubAllEnvs();
+      vi.resetModules();
+    }
+  });
+
+  it("names each build variable it reads, so no other one is inlined beside it", () => {
+    // Vite replaces a named `import.meta.env.NAME` with that variable's own
+    // literal, and an index access with the WHOLE env object. Under an index
+    // access a stray VITE_TRAKT_API_BASE would land in the bundle even though
+    // the gate above refuses to read it.
+    expect(stripComments(configSource)).not.toMatch(/import\.meta\.env\s*\[/);
   });
 
   it("permits no cleartext traffic on either platform", () => {
