@@ -28,7 +28,8 @@
     "check:arch": "depcruise src --config .dependency-cruiser.cjs",
     "check:knip": "knip",
     "check:dup": "jscpd",
-    "check": "biome check . && dprint check && pnpm check:spell && tsc --noEmit && pnpm check:arch && knip && jscpd && vite build && vitest run --coverage",
+    "check:bundle": "./scripts/verify-bundle.sh",
+    "check": "biome check . && dprint check && pnpm check:spell && tsc --noEmit && pnpm check:arch && knip && jscpd && pnpm check:bundle && vitest run --coverage",
     "audit": "pnpm audit --prod --audit-level=high",
     "prepare": "lefthook install"
   },

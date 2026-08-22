@@ -30,6 +30,7 @@ const SHIPS = [
   ".nvmrc",
   ".ruby-version",
   "scripts/verify-apk.sh",
+  "scripts/verify-bundle.sh",
   "tsconfig.json",
 ] as const;
 
