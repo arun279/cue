@@ -148,8 +148,13 @@ export function PullToRefresh({ children }: { readonly children: ReactNode }): R
         else settle();
       }}
       onPointerCancel={() => {
+        // Only the gesture that owns the region may settle it. A cancel for any
+        // other pointer (a second finger, a system gesture taking over) would
+        // otherwise drop a pass still in flight back to idle, and the next pull
+        // would run a second one beside it.
+        const g = gesture.current;
         gesture.current = null;
-        settle();
+        if (g?.intent === "vertical") settle();
       }}
     >
       <span
