@@ -112,6 +112,33 @@ jobs:
         run: |
           ./gradlew assembleDebug -PcueVersionCode=42 -PcueVersionName=9.9.9
           ../scripts/verify-apk.sh app/build/outputs/apk/debug/app-debug.apk 42 9.9.9
+  ios:
+    # The runner and the Xcode path are mobile-release.yml's pin, deliberately
+    # repeated: this job exists to compile what that one archives, so the two
+    # have to stay on one toolchain. Read the reasoning there before changing
+    # either.
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.6.app
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: ".nvmrc"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm exec cap sync ios
+      # The App target's own Swift and the hand-edited pbxproj are compiled
+      # nowhere else until `fastlane ios beta` tries a Release archive, which is
+      # a release-day discovery. A simulator destination asks for no signing
+      # material, so this runs on a fork's pull request too.
+      - name: Build the app for the simulator
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj -scheme App \
+            -configuration Release -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO build
   e2e:
     needs: check
     runs-on: ubuntu-latest

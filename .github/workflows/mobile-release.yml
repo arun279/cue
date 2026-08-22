@@ -147,7 +147,7 @@ jobs:
           # Job names that exist in ci.yml today. Never list one that does not:
           # a check that can never report turns the wait below into a guaranteed
           # timeout on every release.
-          REQUIRED: '["check","audit","actionlint","standardrb","android","e2e"]'
+          REQUIRED: '["check","audit","actionlint","standardrb","android","ios","e2e"]'
           # GitHub Actions, so no other check provider can satisfy a required name.
           APP_ID: "15368"
           DEADLINE_MINUTES: "30"
@@ -155,10 +155,10 @@ jobs:
         run: |
           set -euo pipefail
 
-          # ci.yml and this workflow both have a job named "android". Filtering
-          # positively to ci.yml's own check suite instead of negatively excluding
-          # this run's suite keeps tag pushes and workflow_dispatch runs from
-          # mistaking a stale mobile-release "android" check for CI's.
+          # ci.yml and this workflow both have jobs named "android" and "ios".
+          # Filtering positively to ci.yml's own check suite instead of negatively
+          # excluding this run's suite keeps tag pushes and workflow_dispatch runs
+          # from mistaking a stale mobile-release check for CI's.
           deadline=$(( $(date +%s) + DEADLINE_MINUTES * 60 ))
           ci_run_errors=0
           check_runs_errors=0
