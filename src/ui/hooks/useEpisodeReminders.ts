@@ -19,15 +19,20 @@ import { useEffect } from "react";
 export function useEpisodeReminders(): void {
   const reminders = useReminders();
   const enabled = usePrefs((state) => state.remindersEnabled);
-  const { days, now } = useCalendar(REMINDER_WINDOW_DAYS, enabled);
+  const { days, now, hasData } = useCalendar(REMINDER_WINDOW_DAYS, enabled);
 
   useEffect(() => {
     if (!enabled) {
       void reminders.cancelAll();
       return;
     }
+    // An unanswered calendar is not an empty one. Planning from `days: []`
+    // before the read lands, or while it keeps failing offline, would cancel
+    // every pending digest and put nothing back. A calendar that loaded empty
+    // does have `hasData`, and cancelling then is correct.
+    if (!hasData) return;
     void reminders.reconcile(planReminders(days, { now }));
-  }, [reminders, enabled, days, now]);
+  }, [reminders, enabled, hasData, days, now]);
 
   useEffect(() => () => void reminders.cancelAll(), [reminders]);
 }
