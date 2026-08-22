@@ -18,7 +18,8 @@ const THREAD_ID = CHANNEL_ID;
 const IMPORTANCE_DEFAULT = 3;
 
 /** Structurally the `@ui` Reminders port, so the composition root can inject it;
- * `@ui` never imports this (dependency-cruiser: @capacitor/* lives only here). */
+ * `@ui` never imports this (dependency-cruiser: @capacitor/* lives only here).
+ * None of the three ever rejects: see the seam at the bottom of this file. */
 export interface NativeReminders {
   requestPermission(): Promise<boolean>;
   reconcile(planned: readonly PlannedReminder[]): Promise<void>;
@@ -57,56 +58,64 @@ function toPending(notification: { id: number; extra?: unknown }): PendingRemind
 export function createNativeReminders(): NativeReminders {
   if (!isNativePlatform()) return SILENT;
   const android = Capacitor.getPlatform() === "android";
-  let channel: Promise<void> | null = null;
-  const ensureChannel = (): Promise<void> => {
-    // createChannel is Android-only; it rejects as unimplemented on iOS.
-    channel ??= android
-      ? LocalNotifications.createChannel({
-          id: CHANNEL_ID,
-          name: "Airing today",
-          description: "One notification each morning listing what airs that day.",
-          importance: IMPORTANCE_DEFAULT,
-        })
-      : Promise.resolve();
-    return channel;
+  let channelReady = false;
+
+  const ensureChannel = async (): Promise<void> => {
+    // createChannel is Android-only; it rejects as unimplemented on iOS. A
+    // failed creation leaves the flag down, so the next pass tries again rather
+    // than the first failure standing for the rest of the process.
+    if (!android || channelReady) return;
+    await LocalNotifications.createChannel({
+      id: CHANNEL_ID,
+      name: "Airing today",
+      description: "One notification each morning naming what airs that day.",
+      importance: IMPORTANCE_DEFAULT,
+    });
+    channelReady = true;
   };
 
+  const grant = async (): Promise<boolean> => {
+    const { display } = await LocalNotifications.requestPermissions();
+    if (display !== "granted") return false;
+    await ensureChannel();
+    return true;
+  };
+
+  const apply = async (planned: readonly PlannedReminder[]): Promise<void> => {
+    // schedule() requests the permission itself if it is missing. Check first
+    // so the prompt can only ever come from the Settings toggle, and so a
+    // later revoke in system settings simply stops the scheduling.
+    const { display } = await LocalNotifications.checkPermissions();
+    if (display !== "granted") return;
+    await ensureChannel();
+    const { notifications } = await LocalNotifications.getPending();
+    const { cancel, schedule } = diffReminders(planned, notifications.map(toPending));
+    if (cancel.length > 0) {
+      await LocalNotifications.cancel({ notifications: cancel.map((id) => ({ id })) });
+    }
+    if (schedule.length > 0) {
+      await LocalNotifications.schedule({
+        notifications: schedule.map((reminder) => ({
+          id: reminder.id,
+          title: reminder.title,
+          body: reminder.body,
+          channelId: CHANNEL_ID,
+          threadIdentifier: THREAD_ID,
+          extra: { fingerprint: reminder.fingerprint },
+          isExactNotification: false,
+          schedule: { at: new Date(reminder.atMs), allowWhileIdle: true },
+        })),
+      });
+    }
+  };
+
+  // A plugin rejection is swallowed here, the way the haptics seam swallows one:
+  // a missing plugin, a permission revoked mid-call or an OS refusal cannot be
+  // recovered from at this seam, and an unhandled rejection in the shell is
+  // worse than the honest fallback (nothing granted, nothing scheduled).
   return {
-    async requestPermission() {
-      const { display } = await LocalNotifications.requestPermissions();
-      if (display !== "granted") return false;
-      await ensureChannel();
-      return true;
-    },
-
-    async reconcile(planned) {
-      // schedule() requests the permission itself if it is missing. Check first
-      // so the prompt can only ever come from the Settings toggle, and so a
-      // later revoke in system settings simply stops the scheduling.
-      const { display } = await LocalNotifications.checkPermissions();
-      if (display !== "granted") return;
-      await ensureChannel();
-      const { notifications } = await LocalNotifications.getPending();
-      const { cancel, schedule } = diffReminders(planned, notifications.map(toPending));
-      if (cancel.length > 0) {
-        await LocalNotifications.cancel({ notifications: cancel.map((id) => ({ id })) });
-      }
-      if (schedule.length > 0) {
-        await LocalNotifications.schedule({
-          notifications: schedule.map((reminder) => ({
-            id: reminder.id,
-            title: reminder.title,
-            body: reminder.body,
-            channelId: CHANNEL_ID,
-            threadIdentifier: THREAD_ID,
-            extra: { fingerprint: reminder.fingerprint },
-            isExactNotification: false,
-            schedule: { at: new Date(reminder.atMs), allowWhileIdle: true },
-          })),
-        });
-      }
-    },
-
-    cancelAll: () => LocalNotifications.cancelAll(),
+    requestPermission: () => grant().catch(() => false),
+    reconcile: (planned) => apply(planned).catch(() => {}),
+    cancelAll: () => LocalNotifications.cancelAll().catch(() => {}),
   };
 }
