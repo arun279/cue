@@ -9,6 +9,7 @@ const REPOSITORY_ROOT = execFileSync("git", ["rev-parse", "--show-toplevel"], {
 }).trim();
 const CI_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/ci.yml");
 const MOBILE_RELEASE_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/mobile-release.yml");
+const NOT_REQUIRED = ["footprint"];
 
 // Markdown inside a shipping tree stays in SHIPS. Vite copies public/** into
 // dist verbatim, so excluding *.md by extension misclassified those files; the
@@ -48,6 +49,7 @@ const DOES_NOT_SHIP = [
   "knip.json",
   ".jscpd.json",
   ".dependency-cruiser.cjs",
+  "scripts/diff-footprint.sh",
   ".env.example",
   ".env.test",
   ".gitignore",
@@ -119,11 +121,21 @@ const getJobsBlock = (): string => {
   return jobsBlock;
 };
 
-const readCiJobNames = (): string[] => {
+type CiJob = {
+  name: string;
+  body: string;
+};
+
+const readCiJobs = (): CiJob[] => {
   const jobsBlock = getJobsBlock();
-  return [...jobsBlock.matchAll(/^ {2}([A-Za-z_][A-Za-z0-9_-]*):[ \t]*(?:#.*)?\r?$/gm)].map(
-    (match) => match[1] as string,
-  );
+  const headers = [...jobsBlock.matchAll(/^ {2}([A-Za-z_][A-Za-z0-9_-]*):[ \t]*(?:#.*)?\r?$/gm)];
+  return headers.map((header, index) => ({
+    name: header[1] as string,
+    body: jobsBlock.slice(
+      (header.index ?? 0) + header[0].length,
+      headers[index + 1]?.index ?? jobsBlock.length,
+    ),
+  }));
 };
 
 const readRequiredChecks = (): string[] => {
@@ -187,14 +199,18 @@ describe("mobile release path partition", () => {
 });
 
 describe("mobile release gate required checks", () => {
-  it("keeps REQUIRED aligned with CI jobs", () => {
-    expect([...readRequiredChecks()].sort()).toEqual([...readCiJobNames()].sort());
+  it("keeps REQUIRED aligned with CI jobs except explicit exemptions", () => {
+    const requiredJobs = readCiJobs().filter((job) => !NOT_REQUIRED.includes(job.name));
+    expect([...readRequiredChecks()].sort()).toEqual(requiredJobs.map((job) => job.name).sort());
   });
 
   it("uses CI job IDs as check-run names", () => {
-    const unsupportedOverrides = getJobsBlock()
-      .split(/\r?\n/)
-      .filter((line) => /^ {4}(?:name|strategy|if):/.test(line));
+    const requiredChecks = new Set(readRequiredChecks());
+    const unsupportedOverrides = readCiJobs()
+      .filter((job) => requiredChecks.has(job.name))
+      .flatMap((job) =>
+        job.body.split(/\r?\n/).filter((line) => /^ {4}(?:name|strategy|if):/.test(line)),
+      );
 
     expect(
       unsupportedOverrides,

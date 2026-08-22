@@ -29,6 +29,7 @@ on:
       "knip.json",
       ".jscpd.json",
       ".dependency-cruiser.cjs",
+      "scripts/diff-footprint.sh",
       ".env.example",
       ".env.test",
       ".gitignore",

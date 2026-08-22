@@ -8,13 +8,11 @@ import {
 import { initialThresholdDays, persistThresholdDays } from "./threshold";
 import {
   initialHideStillsUntilWatched,
-  initialLapsedOrder,
-  initialNextEpisodeOrder,
   type LapsedOrder,
+  lapsedOrderPref,
   type NextEpisodeOrder,
+  nextEpisodeOrderPref,
   persistHideStillsUntilWatched,
-  persistLapsedOrder,
-  persistNextEpisodeOrder,
 } from "./tracking";
 
 interface PrefsState {
@@ -81,14 +79,14 @@ export const usePrefs = create<PrefsState>((set, get) => {
       persistHideStillsUntilWatched(hideStillsUntilWatched);
       set({ hideStillsUntilWatched });
     },
-    nextEpisodeOrder: initialNextEpisodeOrder(),
+    nextEpisodeOrder: nextEpisodeOrderPref.initial(),
     setNextEpisodeOrder: (nextEpisodeOrder) => {
-      persistNextEpisodeOrder(nextEpisodeOrder);
+      nextEpisodeOrderPref.persist(nextEpisodeOrder);
       set({ nextEpisodeOrder });
     },
-    lapsedOrder: initialLapsedOrder(),
+    lapsedOrder: lapsedOrderPref.initial(),
     setLapsedOrder: (lapsedOrder) => {
-      persistLapsedOrder(lapsedOrder);
+      lapsedOrderPref.persist(lapsedOrder);
       set({ lapsedOrder });
     },
   };

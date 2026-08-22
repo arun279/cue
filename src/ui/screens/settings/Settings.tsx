@@ -3,7 +3,12 @@ import { ActionSheet } from "@ui/components/ActionSheet";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { usePrefs } from "@ui/prefs/prefs-store";
 import { THRESHOLD_OPTIONS } from "@ui/prefs/threshold";
-import type { LapsedOrder, NextEpisodeOrder } from "@ui/prefs/tracking";
+import {
+  LAPSED_ORDER_OPTIONS,
+  type LapsedOrder,
+  NEXT_EPISODE_ORDER_OPTIONS,
+  type NextEpisodeOrder,
+} from "@ui/prefs/tracking";
 import { useAppVersion } from "@ui/runtime/app-version";
 import { ThemeToggle } from "@ui/theme/ThemeToggle";
 import { Check, RefreshCw } from "lucide-react";
@@ -43,16 +48,61 @@ const ORDER_LABELS: Record<NextEpisodeOrder, string> = {
   "oldest-unwatched": "Oldest unwatched",
   "after-last-watched": "After last watched",
 };
-const ORDER_OPTIONS: readonly NextEpisodeOrder[] = ["oldest-unwatched", "after-last-watched"];
 const LAPSED_ORDER_LABELS: Record<LapsedOrder, string> = {
   "recently-watched": "Recently watched first",
   "longest-idle": "Longest idle first",
 };
-const LAPSED_ORDER_OPTIONS: readonly LapsedOrder[] = ["recently-watched", "longest-idle"];
 
 /** The picked-option tell for radio sheets; the blank keeps labels aligned. */
 function radioIcon(selected: boolean): ReactElement {
   return selected ? <Check aria-hidden="true" /> : <span className="setting-radio-gap" />;
+}
+
+function ChoiceSetting<T extends string | number>({
+  label,
+  hint,
+  testId,
+  title,
+  value,
+  options,
+  labelOf,
+  optionTestId,
+  onChange,
+}: {
+  readonly label: string;
+  readonly hint?: string;
+  readonly testId: string;
+  readonly title: string;
+  readonly value: T;
+  readonly options: readonly T[];
+  labelOf(option: T): string;
+  optionTestId(option: T): string;
+  onChange(option: T): void;
+}): ReactElement {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <SettingSelectRow
+        label={label}
+        hint={hint}
+        value={labelOf(value)}
+        testId={testId}
+        onPress={() => setOpen(true)}
+      />
+      <ActionSheet
+        open={open}
+        onOpenChange={setOpen}
+        title={title}
+        rows={options.map((option) => ({
+          label: labelOf(option),
+          icon: radioIcon(option === value),
+          testId: optionTestId(option),
+          onPress: () => onChange(option),
+        }))}
+      />
+    </>
+  );
 }
 
 /**
@@ -81,9 +131,6 @@ export function Settings(): ReactElement {
   const lapsedOrder = usePrefs((s) => s.lapsedOrder);
   const setLapsedOrder = usePrefs((s) => s.setLapsedOrder);
 
-  const [orderOpen, setOrderOpen] = useState(false);
-  const [lapsedOrderOpen, setLapsedOrderOpen] = useState(false);
-  const [thresholdOpen, setThresholdOpen] = useState(false);
   const sync = useSyncStatus();
 
   // The one enabled medium can't be turned off: the app is never emptied of both.
@@ -126,24 +173,36 @@ export function Settings(): ReactElement {
             />
           }
         />
-        <SettingSelectRow
+        <ChoiceSetting
           label="Next episode order"
-          value={ORDER_LABELS[order]}
           testId="order-select"
-          onPress={() => setOrderOpen(true)}
+          title="Next episode order"
+          value={order}
+          options={NEXT_EPISODE_ORDER_OPTIONS}
+          labelOf={(option) => ORDER_LABELS[option]}
+          optionTestId={(option) => `order-${option}`}
+          onChange={setOrder}
         />
-        <SettingSelectRow
+        <ChoiceSetting
           label="Haven't watched lately order"
-          value={LAPSED_ORDER_LABELS[lapsedOrder]}
           testId="lapsed-order-select"
-          onPress={() => setLapsedOrderOpen(true)}
+          title="Haven't watched lately order"
+          value={lapsedOrder}
+          options={LAPSED_ORDER_OPTIONS}
+          labelOf={(option) => LAPSED_ORDER_LABELS[option]}
+          optionTestId={(option) => `lapsed-order-${option}`}
+          onChange={setLapsedOrder}
         />
-        <SettingSelectRow
+        <ChoiceSetting
           label="Haven't watched in a while after"
           hint="A show drops into the drawer at the bottom of Up Next once this long has passed since both your last watch and its next episode aired."
-          value={weeksLabel(thresholdDays)}
           testId="threshold-select"
-          onPress={() => setThresholdOpen(true)}
+          title="Haven't watched in a while after"
+          value={thresholdDays}
+          options={THRESHOLD_OPTIONS}
+          labelOf={weeksLabel}
+          optionTestId={(days) => `threshold-${days}`}
+          onChange={setThresholdDays}
         />
       </SettingSection>
 
@@ -232,40 +291,6 @@ export function Settings(): ReactElement {
           Cue uses the Trakt API but is not created, endorsed, or sponsored by Trakt.
         </p>
       </SettingSection>
-
-      <ActionSheet
-        open={orderOpen}
-        onOpenChange={setOrderOpen}
-        title="Next episode order"
-        rows={ORDER_OPTIONS.map((option) => ({
-          label: ORDER_LABELS[option],
-          icon: radioIcon(option === order),
-          testId: `order-${option}`,
-          onPress: () => setOrder(option),
-        }))}
-      />
-      <ActionSheet
-        open={lapsedOrderOpen}
-        onOpenChange={setLapsedOrderOpen}
-        title="Haven't watched lately order"
-        rows={LAPSED_ORDER_OPTIONS.map((option) => ({
-          label: LAPSED_ORDER_LABELS[option],
-          icon: radioIcon(option === lapsedOrder),
-          testId: `lapsed-order-${option}`,
-          onPress: () => setLapsedOrder(option),
-        }))}
-      />
-      <ActionSheet
-        open={thresholdOpen}
-        onOpenChange={setThresholdOpen}
-        title="Haven't watched in a while after"
-        rows={THRESHOLD_OPTIONS.map((days) => ({
-          label: weeksLabel(days),
-          icon: radioIcon(days === thresholdDays),
-          testId: `threshold-${days}`,
-          onPress: () => setThresholdDays(days),
-        }))}
-      />
     </section>
   );
 }
