@@ -12,6 +12,7 @@ import {
   getEpisode,
   getHidden,
   getHistory,
+  getItemPlays,
   getLastActivities,
   getMovie,
   getMyShowsCalendar,
@@ -165,6 +166,26 @@ describe("the seeded account fills the surfaces the harness exists to demo", () 
   });
 });
 
+describe("the seeded bodies keep Trakt's shape, not the app's convenience", () => {
+  it("emits the watched breakdown, status and images only at the level that asks", async () => {
+    const bodyAt = async (query: string): Promise<string> =>
+      JSON.stringify(await (await fetch(`${baseUrl}/sync/watched/shows${query}`)).json());
+
+    // Trakt change #775: no images on this endpoint at any level, and the
+    // breakdown and status ride their own extended levels.
+    const bare = await bodyAt("");
+    expect(bare).not.toContain('"seasons"');
+    expect(bare).not.toContain('"status"');
+    expect(bare).not.toContain('"images"');
+
+    // The other direction, because a mock that emits everything unconditionally
+    // stops being able to fail when the app drops an extended level.
+    expect(await bodyAt("?extended=progress")).toContain('"seasons"');
+    expect(await bodyAt("?extended=full")).toContain('"status"');
+    expect(await bodyAt("?extended=full,images")).not.toContain('"images"');
+  });
+});
+
 describe("writes move the account the next read sees", () => {
   it("advances progress when an episode is marked, and rolls it back on removal", async () => {
     const show = firstSeededShow();
@@ -185,6 +206,69 @@ describe("writes move the account the next read sees", () => {
 
     ok(await client().post("/sync/history/remove", { episodes: body.episodes }));
     expect(ok(await getShowProgress(client(), show.trakt)).completed).toBe(before.completed);
+  });
+
+  it("serves one show's plays, and removes exactly the play a row names", async () => {
+    const show = firstSeededShow();
+    const before = ok(await getShowProgress(client(), show.trakt));
+    const plays = ok(await getItemPlays(client(), "shows", show.trakt));
+    // One row per watched episode, each carrying the id the removal is scoped by.
+    expect(plays.length).toBe(before.completed);
+
+    const newest = plays[0];
+    const episode = newest?.episode;
+    if (newest === undefined || episode === undefined) {
+      throw new Error("the seeded show must have an episode play to remove");
+    }
+    ok(await client().post("/sync/history/remove", { ids: [newest.id] }));
+    expect(ok(await getShowProgress(client(), show.trakt)).completed).toBe(before.completed - 1);
+
+    ok(
+      await client().post("/sync/history", {
+        episodes: [{ ids: { trakt: episode.ids.trakt }, watched_at: newest.watched_at }],
+      }),
+    );
+    expect(ok(await getShowProgress(client(), show.trakt)).completed).toBe(before.completed);
+  });
+
+  it("reports a write that matched nothing rather than answering a silent success", async () => {
+    const response = ok(
+      await client().post("/sync/history", {
+        episodes: [{ ids: { trakt: 1 }, watched_at: new Date().toISOString() }],
+      }),
+    );
+    expect(response).toMatchObject({
+      added: { episodes: 0 },
+      not_found: { episodes: [{ ids: { trakt: 1 } }] },
+    });
+  });
+
+  it("hides and unhides a show, which is what the hidden read then serves", async () => {
+    const show = firstSeededShow();
+    const body = { shows: [{ ids: { trakt: show.trakt } }] };
+
+    expect(ok(await client().post("/users/hidden/progress_watched", body))).toMatchObject({
+      added: { shows: 1 },
+    });
+    expect(ok(await getHidden(client())).map((row) => row.show?.ids.trakt)).toEqual([show.trakt]);
+
+    ok(await client().post("/users/hidden/progress_watched/remove", body));
+    expect(ok(await getHidden(client()))).toEqual([]);
+  });
+
+  it("adds and removes a watchlist entry the watchlist read then reflects", async () => {
+    const show = firstSeededShow();
+    const body = { shows: [{ ids: { trakt: show.trakt } }] };
+    const listed = async (): Promise<(number | undefined)[]> =>
+      ok(await getWatchlist(client(), "shows")).map((row) => row.show?.ids.trakt);
+    const before = await listed();
+    expect(before).not.toContain(show.trakt);
+
+    expect(ok(await client().post("/sync/watchlist", body))).toMatchObject({ added: { shows: 1 } });
+    expect(await listed()).toContain(show.trakt);
+
+    ok(await client().post("/sync/watchlist/remove", body));
+    expect(await listed()).toEqual(before);
   });
 });
 

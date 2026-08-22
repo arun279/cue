@@ -503,6 +503,15 @@ export function calendarBody(library, origin, extended, startMs, days) {
   return rows.sort((a, b) => a.first_aired.localeCompare(b.first_aired));
 }
 
+/**
+ * A history row's own id, and the item that row belongs to. Trakt mints one row
+ * per play and the app removes a play by that row id, so the two halves have to
+ * agree: `item trakt * 10 + play number` is reversible, which is what lets a
+ * `{ ids }` removal move the same linear counter a mark moves.
+ */
+const playId = (traktId) => traktId * 10 + 1;
+const playItem = (id) => Math.floor(id / 10);
+
 /** `/users/me/history`: one row per play, newest first. */
 export function historyRows(library, origin, extended, section) {
   const rows = [];
@@ -510,7 +519,7 @@ export function historyRows(library, origin, extended, section) {
     for (const show of library.shows) {
       show.episodes.slice(0, show.completed).forEach((ep, index) => {
         rows.push({
-          id: ep.traktId * 10 + 1,
+          id: playId(ep.traktId),
           watched_at: iso(watchedAtOf(show, index)),
           action: "scrobble",
           type: "episode",
@@ -524,7 +533,7 @@ export function historyRows(library, origin, extended, section) {
     for (const movie of library.movies) {
       if (movie.watchedAt === null) continue;
       rows.push({
-        id: movie.trakt * 10 + 1,
+        id: playId(movie.trakt),
         watched_at: iso(movie.watchedAt),
         action: "scrobble",
         type: "movie",
@@ -605,13 +614,43 @@ export function userStatsBody(library) {
   };
 }
 
+/**
+ * The seeded item a write's `{ids}` block names. Trakt accepts a trakt id or a
+ * slug in the same position, so both are tried, and an id block that names
+ * nothing resolves to undefined rather than to the first item.
+ */
+const showById = (library, ids) =>
+  library.shows.find((show) => show.trakt === ids.trakt || show.slug === ids.slug);
+
+const movieById = (library, ids) =>
+  library.movies.find((movie) => movie.trakt === ids.trakt || movie.slug === ids.slug);
+
+const episodeById = (library, ids) =>
+  library.shows.flatMap((show) => show.episodes).find((ep) => ep.traktId === ids.trakt);
+
+/** Split one `{ids}` section of a write body into the seeded items it names and
+ * the entries that name nothing, which Trakt echoes back under `not_found`. */
+function matchSection(items, lookup) {
+  const matched = [];
+  const missing = [];
+  for (const item of items ?? []) {
+    const found = lookup(item.ids ?? {});
+    if (found === undefined) missing.push(item);
+    else matched.push(found);
+  }
+  return { matched, missing };
+}
+
+/** The play a history-row id points at, whichever kind of item minted it. */
+const playTarget = (library, id) =>
+  episodeById(library, { trakt: playItem(id) }) ?? movieById(library, { trakt: playItem(id) });
+
 /** The episode trakt ids a history write targets, by any of the three routes in. */
 function targetedEpisodes(show, body) {
   const direct = [
     ...(body.episodes ?? []).map((item) => item.ids?.trakt),
-    // A per-play unmark sends history-play ids, which the history rows mint as
-    // `episode trakt * 10 + 1`.
-    ...(body.ids ?? []).map((id) => Math.floor(id / 10)),
+    // A per-play unmark sends history-play ids, which the rows mint with playId.
+    ...(body.ids ?? []).map(playItem),
   ];
   const bulk = (body.shows ?? []).filter((item) => item.ids?.trakt === show.trakt);
   return show.episodes.flatMap((ep, index) => {
@@ -631,7 +670,9 @@ function targetedEpisodes(show, body) {
  * Apply a `/sync/history` write (or its removal) to the linear counters, so the
  * next progress read reflects what the app just did. Bodies arrive as
  * `episodes[]`, a `shows[].seasons[]` subtree (bulk season marks), `movies[]`, or
- * `ids[]` of history plays (the per-play unmark).
+ * `ids[]` of history plays (the per-play unmark). Anything the seed does not
+ * have comes back in `not_found`: a write that matched nothing must not read as
+ * a success the account never took.
  */
 export function applyHistoryWrite(library, body, remove) {
   const stamped = Date.parse(
@@ -647,7 +688,9 @@ export function applyHistoryWrite(library, body, remove) {
     const indices = targetedEpisodes(show, body);
     if (indices.length === 0) continue;
     applied.episodes += indices.length;
-    library.activities.episodes = stamp;
+    // Trakt stamps the write, not the play: marking something as watched last
+    // Tuesday moves the account's activity to now.
+    library.activities.episodes = Date.now();
     if (remove) {
       show.completed = Math.min(show.completed, Math.min(...indices));
       for (const index of indices) show.watchedAt.delete(show.episodes[index].traktId);
@@ -661,12 +704,78 @@ export function applyHistoryWrite(library, body, remove) {
 
   for (const movie of library.movies) {
     const byItem = (body.movies ?? []).some((item) => item.ids?.trakt === movie.trakt);
-    if (!byItem && !(body.ids ?? []).includes(movie.trakt * 10 + 1)) continue;
+    if (!byItem && !(body.ids ?? []).includes(playId(movie.trakt))) continue;
     applied.movies += 1;
     movie.watchedAt = remove ? null : stamp;
-    library.activities.movies = stamp;
+    library.activities.movies = Date.now();
   }
 
   const counts = remove ? { deleted: applied } : { added: applied };
-  return { ...counts, not_found: { movies: [], shows: [], episodes: [], ids: [] } };
+  return {
+    ...counts,
+    not_found: {
+      movies: matchSection(body.movies, (ids) => movieById(library, ids)).missing,
+      shows: matchSection(body.shows, (ids) => showById(library, ids)).missing,
+      episodes: matchSection(body.episodes, (ids) => episodeById(library, ids)).missing,
+      ids: (body.ids ?? []).filter((id) => playTarget(library, id) === undefined),
+    },
+  };
+}
+
+/**
+ * `POST /users/hidden/progress_watched` and its `/remove`: Trakt's hidden set,
+ * which Cue reads as the exclusion source it filters Up Next and the calendar
+ * against. The body is the `{shows:[{ids}]}` shape every remove-by-item write
+ * shares.
+ */
+export function applyHiddenWrite(library, body, remove) {
+  const { matched, missing } = matchSection(body.shows, (ids) => showById(library, ids));
+  for (const show of matched) show.hidden = !remove;
+  if (matched.length > 0) library.activities.shows = Date.now();
+  const counts = { shows: matched.length };
+  return {
+    ...(remove ? { deleted: counts } : { added: counts }),
+    not_found: { movies: [], shows: missing, seasons: [] },
+  };
+}
+
+/**
+ * `POST /sync/watchlist` and its `/remove`. Cue's "To watch" bucket is derived
+ * from membership, so this moves the same `inWatchlist` flag the watchlist reads
+ * serve.
+ */
+export function applyWatchlistWrite(library, body, remove) {
+  const shows = matchSection(body.shows, (ids) => showById(library, ids));
+  const movies = matchSection(body.movies, (ids) => movieById(library, ids));
+  for (const item of [...shows.matched, ...movies.matched]) item.inWatchlist = !remove;
+  const counts = { shows: shows.matched.length, movies: movies.matched.length };
+  if (counts.shows + counts.movies > 0) library.activities.watchlist = Date.now();
+  return {
+    ...(remove ? { deleted: counts } : { added: counts }),
+    not_found: { movies: movies.missing, shows: shows.missing, seasons: [], episodes: [] },
+  };
+}
+
+/**
+ * `/sync/history/{shows|episodes|movies}/:id`: every play of ONE item, which is
+ * where a durable per-play unmark gets the row ids it removes. Null when the
+ * seed has no such item, so the route can answer 404 rather than an empty list
+ * that reads like an item nobody has watched.
+ */
+export function itemPlaysBody(library, origin, extended, kind, id) {
+  const ids = { trakt: Number(id), slug: String(id) };
+  const rows = () =>
+    historyRows(library, origin, extended, kind === "movies" ? "movies" : "episodes");
+  if (kind === "movies") {
+    const movie = movieById(library, ids);
+    return movie === undefined ? null : rows().filter((row) => row.movie.ids.trakt === movie.trakt);
+  }
+  if (kind === "shows") {
+    const show = showById(library, ids);
+    return show === undefined ? null : rows().filter((row) => row.show.ids.trakt === show.trakt);
+  }
+  const episode = episodeById(library, ids);
+  return episode === undefined
+    ? null
+    : rows().filter((row) => row.episode.ids.trakt === episode.traktId);
 }

@@ -15,12 +15,15 @@
 import { createServer } from "node:http";
 import { pathToFileURL } from "node:url";
 import {
+  applyHiddenWrite,
   applyHistoryWrite,
+  applyWatchlistWrite,
   calendarBody,
   createLibrary,
   episodeDetailBody,
   hiddenBody,
   historyRows,
+  itemPlaysBody,
   lastActivitiesBody,
   movieDetailBody,
   progressBody,
@@ -185,6 +188,16 @@ const ROUTES = [
     /^\/users\/hidden\/progress_watched$/,
     (ctx) => page(hiddenBody(ctx.library, ctx.origin), ctx.url, 10),
   ],
+  [
+    "POST",
+    /^\/users\/hidden\/progress_watched$/,
+    (ctx) => json(applyHiddenWrite(ctx.library, ctx.body, false)),
+  ],
+  [
+    "POST",
+    /^\/users\/hidden\/progress_watched\/remove$/,
+    (ctx) => json(applyHiddenWrite(ctx.library, ctx.body, true)),
+  ],
 
   // ---- Sync
   ["GET", /^\/sync\/last_activities$/, (ctx) => json(lastActivitiesBody(ctx.library))],
@@ -208,11 +221,27 @@ const ROUTES = [
         100,
       ),
   ],
+  [
+    "GET",
+    /^\/sync\/history\/(?<kind>shows|episodes|movies)\/(?<id>[^/]+)$/,
+    (ctx) => {
+      const { kind, id } = ctx.params;
+      const rows = itemPlaysBody(ctx.library, ctx.origin, extendedOf(ctx.url), kind, id);
+      if (rows === null) return notFound(`no seeded ${kind} ${id}`);
+      return page(rows, ctx.url, 10);
+    },
+  ],
   ["POST", /^\/sync\/history$/, (ctx) => json(applyHistoryWrite(ctx.library, ctx.body, false))],
   [
     "POST",
     /^\/sync\/history\/remove$/,
     (ctx) => json(applyHistoryWrite(ctx.library, ctx.body, true)),
+  ],
+  ["POST", /^\/sync\/watchlist$/, (ctx) => json(applyWatchlistWrite(ctx.library, ctx.body, false))],
+  [
+    "POST",
+    /^\/sync\/watchlist\/remove$/,
+    (ctx) => json(applyWatchlistWrite(ctx.library, ctx.body, true)),
   ],
 
   // ---- Shows
