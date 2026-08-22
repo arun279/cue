@@ -29,45 +29,52 @@ public class CueHapticsPlugin: CAPPlugin, CAPBridgedPlugin {
     private let activate = UIImpactFeedbackGenerator(style: .medium)
     private let deactivate = UIImpactFeedbackGenerator(style: .light)
     private let selectionGenerator = UISelectionFeedbackGenerator()
+    private lazy var generators: [UIFeedbackGenerator] = [
+        notification, activate, deactivate, selectionGenerator
+    ]
 
     @objc func success(_ call: CAPPluginCall) {
-        fire(call) { self.notification.notificationOccurred(.success) }
+        fire(call, notification) { $0.notificationOccurred(.success) }
     }
 
     @objc func thresholdActivate(_ call: CAPPluginCall) {
-        fire(call) { self.activate.impactOccurred() }
+        fire(call, activate) { $0.impactOccurred() }
     }
 
     @objc func thresholdDeactivate(_ call: CAPPluginCall) {
-        fire(call) { self.deactivate.impactOccurred() }
+        fire(call, deactivate) { $0.impactOccurred() }
     }
 
     @objc func selection(_ call: CAPPluginCall) {
-        fire(call) { self.selectionGenerator.selectionChanged() }
+        fire(call, selectionGenerator) { $0.selectionChanged() }
     }
 
     /// iOS has no context-click pattern of its own; Apple's own long-press
     /// sample fires selection feedback, so a menu opening is one of these.
     @objc func contextClick(_ call: CAPPluginCall) {
-        fire(call) { self.selectionGenerator.selectionChanged() }
+        fire(call, selectionGenerator) { $0.selectionChanged() }
     }
 
+    /// Warm all four: a gesture that ticks at its threshold is the one that ends
+    /// in a mark, so the notification generator needs the head start too.
     @objc func prepare(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
-            self.activate.prepare()
-            self.deactivate.prepare()
+            self.generators.forEach { $0.prepare() }
             call.resolve()
         }
     }
 
-    /// Re-prepare after firing: the engine idles again within a few seconds, and
-    /// a threshold pair or a run of marks usually wants a second tap right after
-    /// the first.
-    private func fire(_ call: CAPPluginCall, _ play: @escaping () -> Void) {
+    /// Re-prepare the generator that just fired: the engine idles again within a
+    /// few seconds, and a threshold pair or a run of marks usually wants a
+    /// second tap right after the first.
+    private func fire<Generator: UIFeedbackGenerator>(
+        _ call: CAPPluginCall,
+        _ generator: Generator,
+        _ play: @escaping (Generator) -> Void
+    ) {
         DispatchQueue.main.async {
-            play()
-            self.activate.prepare()
-            self.deactivate.prepare()
+            play(generator)
+            generator.prepare()
             call.resolve()
         }
     }

@@ -129,6 +129,11 @@ export function PullToRefresh({ children }: { readonly children: ReactNode }): R
           }
           g.intent = "vertical";
           event.currentTarget.setPointerCapture(event.pointerId);
+          // The head start SwipeAction takes at its own intent lock, and the
+          // pull needs it more: it is the slowest gesture in the app, so a
+          // generator fired cold at the threshold arrives late enough to read
+          // as unrelated to the drag.
+          haptics.prepare();
           setPhase("pulling");
         }
         const next = pullDistance(dy);
