@@ -54,6 +54,7 @@ const DOES_NOT_SHIP = [
   ".dependency-cruiser.cjs",
   "scripts/diff-footprint.sh",
   "scripts/mock-trakt/**",
+  "scripts/write-buster.mjs",
   ".env.example",
   ".env.test",
   ".env.mock",

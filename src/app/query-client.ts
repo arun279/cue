@@ -1,20 +1,10 @@
 import { queryKeys } from "@data/query-keys";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import { type Query, QueryClient } from "@tanstack/react-query";
+import { PERSISTED_CACHE } from "@ui/runtime/persist-buster";
 import { del, get, set } from "idb-keyval";
 
-/** A content hash over the persisted shapes, injected by `vite.config.ts`. */
-declare const __PERSIST_BUSTER__: string;
-
-/**
- * The persisted-cache buster: any cache written against a different shape is
- * dropped rather than replayed. Derived from the shape's own source rather than
- * hand-typed because under `staleTime: Infinity`, with freshness gated only on
- * `/sync/last_activities`, a forgotten bump after a shape change is silent and
- * permanent corruption with no self-heal path. This, not an age cap, is how stale
- * snapshots are retired.
- */
-export const PERSIST_BUSTER = __PERSIST_BUSTER__;
+export const PERSIST_BUSTER = PERSISTED_CACHE.buster;
 
 /**
  * Query-key heads whose data earns its place in the restored blob: everything a

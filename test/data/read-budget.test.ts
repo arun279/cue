@@ -8,7 +8,7 @@ import {
 import type { KeyValueStore } from "@platform/kv";
 import type { TokenStore } from "@platform/token-store";
 import { delay, HttpResponse, http } from "msw";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { mswServer } from "./_msw";
 
 const server = mswServer();
@@ -350,7 +350,6 @@ describe("cold-sync GET budget", () => {
   });
 
   it("caps concurrent production endpoint reads across independent runtime callers", async () => {
-    vi.stubGlobal("__PERSIST_BUSTER__", "test");
     const { createCueRuntime } = await import("@app/runtime/create-runtime");
     let inFlight = 0;
     let peak = 0;

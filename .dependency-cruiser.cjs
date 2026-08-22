@@ -9,7 +9,7 @@ const RE_CAPACITOR = "(^|/)node_modules/@capacitor/";
 const RE_DOES_NOT_SHIP_DIRECTORY = "^(docs|\\.github|e2e|test|assets|scripts/mock-trakt)(/|$)";
 const RE_DOES_NOT_SHIP_MARKDOWN = "^[^/]*\\.md$";
 const RE_DOES_NOT_SHIP_FILE =
-  "^(LICENSE|playwright\\.config\\.ts|vitest\\.config\\.ts|lefthook\\.yml|cspell\\.json|dprint\\.json|biome\\.jsonc|knip\\.json|\\.jscpd\\.json|\\.dependency-cruiser\\.cjs|\\.env\\.example|\\.env\\.test|\\.env\\.mock|\\.gitignore)$";
+  "^(LICENSE|playwright\\.config\\.ts|vitest\\.config\\.ts|lefthook\\.yml|cspell\\.json|dprint\\.json|biome\\.jsonc|knip\\.json|\\.jscpd\\.json|\\.dependency-cruiser\\.cjs|\\.env\\.example|\\.env\\.test|\\.env\\.mock|\\.gitignore|scripts/write-buster\\.mjs)$";
 
 /** @type {import("dependency-cruiser").IConfiguration} */
 module.exports = {
