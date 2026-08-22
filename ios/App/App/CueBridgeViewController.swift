@@ -16,7 +16,11 @@ class CueBridgeViewController: CAPBridgeViewController {
     }
 
     /// The router runs on browser history, so WebKit's own back gesture pops it
-    /// with no JS shim in between.
+    /// with no JS shim in between. If a tester reports the swipe dragging in a
+    /// flat panel rather than the previous screen, the interaction to revisit is
+    /// the router's `scrollRestoration: true`, which sets
+    /// `history.scrollRestoration = "manual"` and makes WebKit refuse its own
+    /// snapshot of any page that has been scrolled.
     override func viewDidLoad() {
         super.viewDidLoad()
         webView?.allowsBackForwardNavigationGestures = true
