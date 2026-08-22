@@ -101,6 +101,20 @@ Pull down on any of the four tabs to run the same sync as **Settings → Sync no
 
 Episode reminders are local notifications and nothing else: one digest each morning for the next two weeks, built on the device from the calendar Cue already reads, with no push service and no server. The Settings switch is the only place the OS notification permission is ever asked for. On Android they use a named channel and inexact alarms only, and `android/app/src/main/AndroidManifest.xml` strips the `SCHEDULE_EXACT_ALARM` permission the notifications plugin would otherwise merge into the app.
 
+### Releasing
+
+`.github/workflows/mobile-release.yml` builds and ships the app: a push to `main` goes to testers (TestFlight and Firebase App Distribution), a `v*` tag submits to the App Store, and a manual dispatch does either on whichever ref it runs against. Every trigger waits on a gate job that re-checks each required CI job for that exact commit, so an unverified commit cannot ship.
+
+A `release/*` branch is the on-demand lane: CI runs on those branches too, so a build can be cut from one without merging it to `main`.
+
+```sh
+git branch release/capacitor <sha>
+git push origin release/capacitor
+gh workflow run mobile-release.yml --ref release/capacitor
+```
+
+Build numbers come from that workflow's run counter, which every branch shares and which only increases. That is what makes going back possible: Android refuses a lower `versionCode` and Apple cannot revert an App Store version, so the way back is to dispatch the older ref and let it ship as a new, higher build.
+
 ## Tech stack
 
 - **React 19** + **TypeScript** (strict), built with **Vite** (Rolldown).
