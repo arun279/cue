@@ -10,8 +10,9 @@ import {
 
 // The pull gesture is touch/pen-only, so this suite drives REAL touch input
 // through CDP (chromium only), the same way the swipe suite does. What it pins
-// is the one thing a unit test cannot: that a released pull past the threshold
-// runs exactly one sync pass, and a short one runs none.
+// is what a unit test cannot: that a released pull past the threshold runs
+// exactly one sync pass, that a short one runs none, and that the gesture is
+// live across a screen's chrome and not only its list.
 
 const AIRED = "2026-01-01T00:00:00.000Z";
 
@@ -96,6 +97,28 @@ test("a pull past the threshold runs exactly one sync pass", async ({ page }) =>
   // Exactly one pass: nothing re-fires while the gesture settles.
   await page.waitForTimeout(1000);
   expect(controls.activitiesReads()).toBe(baseline + 1);
+});
+
+test("a pull that starts on the Library chip rail refreshes like any other", async ({ page }) => {
+  await installLibraryRoutes(page.context(), [soloShow()]);
+  await page.goto("/library");
+  const chips = page.getByTestId("library-chips");
+  await expect(chips).toBeVisible();
+
+  // The rail scrolls horizontally and is chrome rather than list, which is why
+  // it sat outside the pull region and silently ignored the gesture. Only an
+  // armed release reaches the refreshing state, so the state is the whole
+  // assertion: a drag the region never claimed leaves it idle.
+  const box = await chips.boundingBox();
+  if (box === null) throw new Error("the chip rail has no layout box");
+  // Left of centre, clear of the indicator: it parks above the region's own top
+  // edge at opacity 0, and a drag that started on it would be claimed whatever
+  // the rail belongs to.
+  await touchPull(page, box.x + 24, box.y + box.height / 2, 240);
+
+  const region = page.getByTestId("pull-to-refresh");
+  await expect(region).toHaveAttribute("data-state", "refreshing");
+  await expect(region).toHaveAttribute("data-state", "idle");
 });
 
 test("a pull released short of the threshold syncs nothing", async ({ page }) => {

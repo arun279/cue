@@ -460,89 +460,91 @@ export function Library(): ReactElement {
       <ScreenHeader title="Library" variant="root" />
       <SyncStrip isError={active.isError} onRetry={active.refetch} />
 
-      <div className="library-toolbar">
-        {bothEnabled && (
-          <SegmentedControl
-            options={[
-              { value: "shows", label: "Shows", testId: "type-shows" },
-              { value: "movies", label: "Movies", testId: "type-movies" },
-            ]}
-            value={isMovies ? "movies" : "shows"}
-            onChange={onSegment}
-            ariaLabel="Library type"
-          />
-        )}
-        <span className="library-toolbar__spacer" />
-        <button
-          type="button"
-          className="library-tool"
-          aria-label="Filter by title"
-          aria-expanded={filterOpen}
-          data-testid="library-filter-toggle"
-          onClick={toggleFilter}
-        >
-          <SearchIcon aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          className="library-tool"
-          aria-label="Sort"
-          data-testid="library-sort"
-          onClick={() => setSortOpen(true)}
-        >
-          <ArrowUpDown aria-hidden="true" />
-        </button>
-      </div>
-
-      {filterOpen && (
-        <div className="library-filter-row">
-          <input
-            ref={filterRef}
-            type="search"
-            className="library-filter-field"
-            placeholder="Filter by title…"
+      <PullToRefresh>
+        <div className="library-toolbar">
+          {bothEnabled && (
+            <SegmentedControl
+              options={[
+                { value: "shows", label: "Shows", testId: "type-shows" },
+                { value: "movies", label: "Movies", testId: "type-movies" },
+              ]}
+              value={isMovies ? "movies" : "shows"}
+              onChange={onSegment}
+              ariaLabel="Library type"
+            />
+          )}
+          <span className="library-toolbar__spacer" />
+          <button
+            type="button"
+            className="library-tool"
             aria-label="Filter by title"
-            autoComplete="off"
-            data-testid="library-filter"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
+            aria-expanded={filterOpen}
+            data-testid="library-filter-toggle"
+            onClick={toggleFilter}
+          >
+            <SearchIcon aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="library-tool"
+            aria-label="Sort"
+            data-testid="library-sort"
+            onClick={() => setSortOpen(true)}
+          >
+            <ArrowUpDown aria-hidden="true" />
+          </button>
         </div>
-      )}
 
-      <div ref={chipsRef} className="library-chips" data-testid="library-chips">
-        {isMovies
-          ? MOVIE_CHIP_KEYS.map((key) => (
-              <Chip
-                key={key}
-                variant="status"
-                label={key === "watchlist" ? "Watchlist" : "Watched"}
-                count={movieEntriesFor(key).length}
-                selected={key === movieChip}
-                testId={`chip-${key}`}
-                onPress={() => {
-                  setMovieChip(key);
-                  persistChip(MOVIE_CHIP_STORAGE, key);
-                }}
-              />
-            ))
-          : SHOW_CHIP_KEYS.map((key) => (
-              <Chip
-                key={key}
-                variant="status"
-                label={SHOW_CHIP_LABEL[key]}
-                count={view.chips[key].length}
-                selected={key === showChip}
-                testId={`chip-${key}`}
-                onPress={() => {
-                  setShowChip(key);
-                  persistChip(SHOW_CHIP_STORAGE, key);
-                }}
-              />
-            ))}
-      </div>
+        {filterOpen && (
+          <div className="library-filter-row">
+            <input
+              ref={filterRef}
+              type="search"
+              className="library-filter-field"
+              placeholder="Filter by title…"
+              aria-label="Filter by title"
+              autoComplete="off"
+              data-testid="library-filter"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </div>
+        )}
 
-      <PullToRefresh>{body}</PullToRefresh>
+        <div ref={chipsRef} className="library-chips" data-testid="library-chips">
+          {isMovies
+            ? MOVIE_CHIP_KEYS.map((key) => (
+                <Chip
+                  key={key}
+                  variant="status"
+                  label={key === "watchlist" ? "Watchlist" : "Watched"}
+                  count={movieEntriesFor(key).length}
+                  selected={key === movieChip}
+                  testId={`chip-${key}`}
+                  onPress={() => {
+                    setMovieChip(key);
+                    persistChip(MOVIE_CHIP_STORAGE, key);
+                  }}
+                />
+              ))
+            : SHOW_CHIP_KEYS.map((key) => (
+                <Chip
+                  key={key}
+                  variant="status"
+                  label={SHOW_CHIP_LABEL[key]}
+                  count={view.chips[key].length}
+                  selected={key === showChip}
+                  testId={`chip-${key}`}
+                  onPress={() => {
+                    setShowChip(key);
+                    persistChip(SHOW_CHIP_STORAGE, key);
+                  }}
+                />
+              ))}
+        </div>
+
+        {body}
+      </PullToRefresh>
 
       <ActionSheet open={sortOpen} onOpenChange={setSortOpen} title="Sort by" rows={sortRows} />
     </section>

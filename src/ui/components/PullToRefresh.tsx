@@ -45,6 +45,12 @@ function pulledStyle(distance: number, phase: Phase): CSSProperties | undefined 
  * Settings ▸ Sync now, which stays as the tap-only equivalent the gesture is
  * required to have. Touch and pen only, like the swipe rows, and locked to the
  * same 12px axis test so a row swipe and a pull can never both claim one drag.
+ *
+ * A screen wraps everything below its sticky header in this, chrome included: a
+ * drag that starts on a filter rail or a search field is the same gesture as one
+ * that starts on the list, and a band that ignores it is a dead zone the user
+ * finds by accident. The exceptions are the two things that do not move with the
+ * content: the sticky ScreenHeader, and the SyncStrip the indicator parks above.
  */
 export function PullToRefresh({ children }: { readonly children: ReactNode }): ReactElement {
   const haptics = useHaptics();

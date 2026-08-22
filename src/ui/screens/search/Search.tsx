@@ -234,13 +234,15 @@ export function Search(): ReactElement {
   return (
     <section className="screen-search" data-testid="screen-search">
       <ScreenHeader title="Search" variant="root" />
-      <SearchField
-        value={view.input}
-        onChange={view.setInput}
-        placeholder={placeholder}
-        label={`Search ${showsEnabled && moviesEnabled ? "shows and movies" : showsEnabled ? "shows" : "movies"}`}
-      />
-      <PullToRefresh>{body}</PullToRefresh>
+      <PullToRefresh>
+        <SearchField
+          value={view.input}
+          onChange={view.setInput}
+          placeholder={placeholder}
+          label={`Search ${showsEnabled && moviesEnabled ? "shows and movies" : showsEnabled ? "shows" : "movies"}`}
+        />
+        {body}
+      </PullToRefresh>
     </section>
   );
 }
