@@ -111,11 +111,11 @@ function ChoiceSetting<T extends string | number>({
  * Settings: grouped rows over the device-local preference stores plus the two
  * account hand-offs. Appearance (theme + haptics), Notifications (the daily
  * airing digest, and the one place its OS permission is ever asked for),
- * Tracking (spoiler stills,
- * queue order, drawer order, the staleness threshold that feeds Up Next's lapsed drawer),
- * Content (media visibility with the last-one-on guard), Data (the one place
- * full sync state lives), Account (Trakt hand-offs + sign out), About (version
- * + the required Trakt attribution).
+ * Tracking (spoiler stills, queue order, drawer order, the staleness threshold
+ * that feeds Up Next's lapsed drawer), Content (media visibility with the
+ * last-one-on guard), Data (the one place full sync state lives), Account
+ * (Trakt hand-offs + sign out), About (version + the required Trakt
+ * attribution).
  */
 export function Settings(): ReactElement {
   useDocumentTitle("Settings · Cue");
@@ -189,7 +189,7 @@ export function Settings(): ReactElement {
       <SettingSection label="Notifications">
         <SettingRow
           label="Episode reminders"
-          hint="One notification each morning naming what airs that day. Nothing leaves your device: it is scheduled on the phone from the calendar Cue already has. Applies on the phone app."
+          hint="One notification each morning naming what airs that day, scheduled on the phone itself. Applies on the phone app."
           control={
             <SettingSwitch
               checked={remindersEnabled}
