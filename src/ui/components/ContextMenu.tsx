@@ -1,5 +1,6 @@
 import { ActionSheet, type ActionSheetRow } from "@ui/components/ActionSheet";
 import { exceedsPressSlop, LONG_PRESS_MS } from "@ui/components/long-press-math";
+import { useHaptics } from "@ui/runtime/haptics";
 import { type ReactElement, type ReactNode, useEffect, useRef, useState } from "react";
 
 interface ContextMenuProps {
@@ -17,6 +18,7 @@ interface ContextMenuProps {
  * that follows so the child's own tap action never double-fires.
  */
 export function ContextMenu({ title, rows, children }: ContextMenuProps): ReactElement {
+  const haptics = useHaptics();
   const [open, setOpen] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const start = useRef<{ readonly x: number; readonly y: number } | null>(null);
@@ -48,6 +50,9 @@ export function ContextMenu({ title, rows, children }: ContextMenuProps): ReactE
           timer.current = setTimeout(() => {
             timer.current = null;
             fired.current = true;
+            // The hold has no visual tell until the sheet animates in, so the
+            // tap is what tells the finger the menu is coming.
+            haptics.contextClick();
             setOpen(true);
           }, LONG_PRESS_MS);
         }}

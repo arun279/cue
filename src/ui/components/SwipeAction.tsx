@@ -22,8 +22,9 @@ interface GestureState {
 /**
  * The swipe accelerator wrapping a queue/lapsed row: swipe right reveals the
  * green mark underlay, left the stop underlay; releasing past the 96px threshold
- * commits through the SAME handler the visible check uses, with a haptic tick at
- * the threshold cross. A 12px intent lock keeps vertical scrolling untouched,
+ * commits through the SAME handler the visible check uses, with a haptic tick
+ * each way across the threshold so the gesture is reversible in the fingers as
+ * well as on screen. A 12px intent lock keeps vertical scrolling untouched,
  * and the gesture is touch/pen-only, never the only path (the check is the
  * accessible equivalent), so the wrapper itself carries no semantics.
  */
@@ -63,10 +64,17 @@ export function SwipeAction({
         if (!g.captured) {
           e.currentTarget.setPointerCapture(e.pointerId);
           g.captured = true;
+          // The intent lock is the earliest moment we know a threshold tick is
+          // coming, and it leaves the engine the head start it needs to be
+          // felt at the threshold rather than after it.
+          haptics.prepare();
         }
         const next = clampOffset(dx, canRight, canLeft);
         const past = commitDirection(next) !== null;
-        if (past && !g.pastThreshold) haptics.swipeThreshold();
+        if (past !== g.pastThreshold) {
+          if (past) haptics.thresholdActivate();
+          else haptics.thresholdDeactivate();
+        }
         g.pastThreshold = past;
         setOffset(next);
       }}

@@ -1,41 +1,66 @@
-import { Haptics, ImpactStyle } from "@capacitor/haptics";
+import { registerPlugin } from "@capacitor/core";
 import { isNativePlatform } from "./platform";
 
 /**
- * The tactile port: one light impact when a mark commits, one
- * distinct selection tick when it is taken back: nothing else. Structurally
- * matches the `@ui` Haptics port so the composition root can inject it; `@ui`
- * never imports this (dependency-cruiser: @capacitor/* lives only in platform).
+ * The app's own haptics plugin, implemented in `ios/App/App/CueHaptics.swift`
+ * and `android/app/src/main/java/app/cuetracker/CueHapticsPlugin.kt`. Each
+ * method names an interaction, not an effect, so each platform can answer with
+ * its own system feedback: prepared UIFeedbackGenerators on iOS,
+ * `View.performHapticFeedback` with `HapticFeedbackConstants` on Android.
  */
+interface CueHapticsPlugin {
+  success(): Promise<void>;
+  thresholdActivate(): Promise<void>;
+  thresholdDeactivate(): Promise<void>;
+  selection(): Promise<void>;
+  contextClick(): Promise<void>;
+  prepare(): Promise<void>;
+}
+
+const CueHaptics = registerPlugin<CueHapticsPlugin>("CueHaptics");
+
+/** Structurally matches the `@ui` Haptics port so the composition root can
+ * inject it; `@ui` never imports this (dependency-cruiser: `@capacitor/*` lives
+ * only in platform). */
 export interface NativeHaptics {
-  markCommitted(): void;
-  markUndone(): void;
-  swipeThreshold(): void;
+  success(): void;
+  thresholdActivate(): void;
+  thresholdDeactivate(): void;
+  selection(): void;
+  contextClick(): void;
+  prepare(): void;
 }
 
-const SILENT: NativeHaptics = { markCommitted() {}, markUndone() {}, swipeThreshold() {} };
-
-function prefersReducedMotion(): boolean {
-  return globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-}
+const SILENT: NativeHaptics = {
+  success() {},
+  thresholdActivate() {},
+  thresholdDeactivate() {},
+  selection() {},
+  contextClick() {},
+  prepare() {},
+};
 
 /**
  * Build the tactile seam. `isEnabled` is the Settings "Haptics" toggle, read at
  * fire time. On web / in tests (non-native) this is a pure silent no-op: the
- * browser build is deliberately silent (no `navigator.vibrate` fallback). On
- * native, each fire is additionally gated on the toggle AND `prefers-reduced-motion`,
- * and swallows a missing vibration engine / plugin rejection so it never breaks a mark.
+ * browser build is deliberately silent (no `navigator.vibrate` fallback, which
+ * has never shipped in Safari anyway). On native the toggle is the only app-side
+ * gate: both platforms already honour their own system haptics settings, and
+ * Apple's instruction is to fire the event and let the system decide. Plugin
+ * rejections are swallowed so a missing engine never breaks a mark.
  */
 export function createNativeHaptics(isEnabled: () => boolean): NativeHaptics {
   if (!isNativePlatform()) return SILENT;
   const fire = (run: () => Promise<void>): void => {
-    if (!isEnabled() || prefersReducedMotion()) return;
+    if (!isEnabled()) return;
     void run().catch(() => {});
   };
   return {
-    markCommitted: () => fire(() => Haptics.impact({ style: ImpactStyle.Light })),
-    markUndone: () => fire(() => Haptics.selectionChanged()),
-    // Firmer than the mark's light tap: the tick that says "release commits now".
-    swipeThreshold: () => fire(() => Haptics.impact({ style: ImpactStyle.Medium })),
+    success: () => fire(() => CueHaptics.success()),
+    thresholdActivate: () => fire(() => CueHaptics.thresholdActivate()),
+    thresholdDeactivate: () => fire(() => CueHaptics.thresholdDeactivate()),
+    selection: () => fire(() => CueHaptics.selection()),
+    contextClick: () => fire(() => CueHaptics.contextClick()),
+    prepare: () => fire(() => CueHaptics.prepare()),
   };
 }

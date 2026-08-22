@@ -15,9 +15,12 @@ describe("native seams degrade to silent no-ops on web", () => {
     const haptics = createNativeHaptics(isEnabled);
     // No throw, and the enabled-getter is never even read: web is unconditionally silent.
     expect(() => {
-      haptics.markCommitted();
-      haptics.markUndone();
-      haptics.swipeThreshold();
+      haptics.success();
+      haptics.thresholdActivate();
+      haptics.thresholdDeactivate();
+      haptics.selection();
+      haptics.contextClick();
+      haptics.prepare();
     }).not.toThrow();
     expect(isEnabled).not.toHaveBeenCalled();
   });

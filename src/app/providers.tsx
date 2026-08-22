@@ -30,8 +30,9 @@ import { version } from "../../package.json";
 const native = isNativePlatform();
 const kv = createKeyValueStore(native);
 const tokenStore = createTokenStore(kv);
-// The tactile seam, built once: silent on web, and on native
-// gated at fire time on the Settings "Haptics" toggle + prefers-reduced-motion.
+// The tactile seam, built once: silent on web, and on native gated at fire time
+// on the Settings "Haptics" toggle alone. Both platforms honour their own
+// system haptics settings underneath, so nothing else here second-guesses them.
 const haptics = createNativeHaptics(() => usePrefs.getState().hapticsEnabled);
 const redirectUri = `${globalThis.location.origin}/auth/callback`;
 const authStore = createAuthStore({

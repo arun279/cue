@@ -216,8 +216,12 @@ describe("privacy copy agreement and storage anchors", () => {
       '"store included in backup by default" claim is stale. Update PRIVACY.md, README.md, ' +
       "and docs/index.html.";
 
-    // Force the composition root down its native path.
-    vi.doMock("@capacitor/core", () => ({ Capacitor: { getPlatform: () => "ios" } }));
+    // Force the composition root down its native path. `registerPlugin` is
+    // there for the haptics seam, which the root also builds on this path.
+    vi.doMock("@capacitor/core", () => ({
+      Capacitor: { getPlatform: () => "ios" },
+      registerPlugin: () => ({}),
+    }));
     // providers.tsx also reads the native app version on this path, and
     // back-button.ts registers a hardware-back listener through the same
     // plugin. This anchor is about the token store, not either of those, so

@@ -150,9 +150,9 @@ export function useMovieActions(): MovieActions {
       pendingMark.current = mark;
       setUndo(mark);
       writeMovieEntry(queryClient, { ...entry, watched: true, watchedAt });
-      // One buzz at the point of action, once per committed mark: with the
+      // One tap at the point of action, once per committed mark: with the
       // optimistic tick, never on the rollback path.
-      haptics.markCommitted();
+      haptics.success();
       const op = buildMarkMovieOp({
         opId: crypto.randomUUID(),
         ids: entry.ids,
@@ -286,8 +286,8 @@ export function useMovieActions(): MovieActions {
     setUndo(null);
     pendingMark.current = null;
     inFlight.current.delete(pending.before.movieId);
-    // The distinct take-back tick, once, with the optimistic reversal.
-    haptics.markUndone();
+    // The take-back is a completed action too, so it reports the same way.
+    haptics.success();
     const outcome = await reverseSessionMark(pending);
     if (outcome === "failed") setError(`Couldn't undo ${pending.title}. Please try again.`);
   }, [undo, reverseSessionMark, haptics]);
@@ -298,7 +298,7 @@ export function useMovieActions(): MovieActions {
     const pending = removed;
     if (pending === null || pending.op === null) return;
     setRemoved(null);
-    haptics.markUndone();
+    haptics.success();
     writeMovieEntry(queryClient, pending.before);
     const outcome = await submit([invertOp(pending.op)], {
       rollback: () =>

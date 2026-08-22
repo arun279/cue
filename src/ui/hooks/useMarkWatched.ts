@@ -263,7 +263,7 @@ export function useMarkWatched(): MarkWatched {
     store.setBatch([]);
     dismissSnack();
     if (pending.length === 0) return;
-    haptics.markUndone();
+    haptics.success();
     for (const record of pending) {
       store.close(record.showId, record.opId);
       unlockShow(record.showId);
@@ -343,9 +343,9 @@ export function useMarkWatched(): MarkWatched {
       store.open(record);
       store.setBatch(appendToBatch(store.batch, record));
       presentBatch();
-      // One buzz at the point of action, once per committed mark: fired with the
+      // One tap at the point of action, once per committed mark: fired with the
       // optimistic advance, never on the rollback path below.
-      haptics.markCommitted();
+      haptics.success();
 
       const context: MarkContext = { showId: entry.showId, preCompleted: entry.completed };
       const op = buildMarkEpisodeOp({ opId, ids: episode.ids, watchedAt, inversePatch: context });
@@ -400,8 +400,8 @@ export function useMarkWatched(): MarkWatched {
       // Retract (or recount) the mark snack, but never a snack that replaced it.
       if (ownsSnack(useSnackbar.getState().snack?.seq)) presentBatch();
       restorePreMark(record);
-      // The distinct take-back tick, once, with the optimistic reversal.
-      haptics.markUndone();
+      // The take-back is a completed action too, so it reports the same way.
+      haptics.success();
       await submitReversal(record);
     },
     [presentBatch, restorePreMark, haptics, submitReversal],
