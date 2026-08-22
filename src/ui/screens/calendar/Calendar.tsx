@@ -2,6 +2,7 @@ import { ScreenHeader } from "@ui/app-shell/ScreenHeader";
 import { SyncStrip } from "@ui/app-shell/SyncStrip";
 import { EmptyState } from "@ui/components/EmptyState";
 import { ErrorRetry } from "@ui/components/ErrorStates";
+import { PullToRefresh } from "@ui/components/PullToRefresh";
 import { CALENDAR_WINDOW_DAYS, useCalendar } from "@ui/hooks/useCalendar";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { type ReactElement, type ReactNode, useMemo } from "react";
@@ -66,7 +67,7 @@ export function Calendar(): ReactElement {
     <section className="screen-calendar" data-testid="screen-calendar">
       <ScreenHeader title="Calendar" variant="root" />
       <SyncStrip isError={view.isError} onRetry={view.refetch} />
-      {body}
+      <PullToRefresh>{body}</PullToRefresh>
     </section>
   );
 }

@@ -1,8 +1,7 @@
 import { queryKeys } from "@data/query-keys";
 import { useQueryClient } from "@tanstack/react-query";
-import { dismissSnack, showSnack } from "@ui/components/snackbar-store";
-import { applyReconcile } from "@ui/hooks/apply-reconcile";
 import { useSyncActivity } from "@ui/hooks/sync-activity-store";
+import { useSyncNow } from "@ui/hooks/useSyncNow";
 import { useRuntime } from "@ui/runtime/runtime";
 import { useCallback, useEffect, useState } from "react";
 import { newestSyncedAt, syncStatusLine } from "./sync-status";
@@ -34,12 +33,10 @@ interface SyncStatus {
 /**
  * The Settings ▸ Data view over the sync machinery that already exists: the
  * status line derives from the query cache's freshness plus the write-queue's
- * in-flight counter, and `syncNow` runs one manual pass of the same
- * `/sync/last_activities` reconcile the background poll drives. Invalidate
- * exactly the changed keys, and advance the baseline only after those queries
- * refetched cleanly (a failed refetch must be re-detected next pass, never
- * silently skipped). A clean pass with zero changes still counts as "synced
- * just now": server and device agreeing IS the sync.
+ * in-flight counter, and `syncNow` is the shared manual pass ({@link useSyncNow},
+ * the same one the pull gesture runs) plus the one thing only this screen shows:
+ * a clean pass with zero changes still counts as "synced just now", because
+ * server and device agreeing IS the sync.
  */
 export function useSyncStatus(): SyncStatus {
   const runtime = useRuntime();
@@ -49,7 +46,7 @@ export function useSyncStatus(): SyncStatus {
   // offline stays counted until it truly lands (never "0 pending" by omission).
   useSyncActivity((state) => state.pending);
   const pending = runtime.pendingWrites();
-  const [syncing, setSyncing] = useState(false);
+  const { syncing, run } = useSyncNow();
   const [checkedAt, setCheckedAt] = useState(0);
   const [now, setNow] = useState(() => Date.now());
 
@@ -59,33 +56,10 @@ export function useSyncStatus(): SyncStatus {
   }, []);
 
   const syncNow = useCallback(async (): Promise<void> => {
-    setSyncing(true);
-    try {
-      // Land our own writes before asking what changed: a deferred mark must
-      // flush here, not sit in the log behind a "synced just now" line.
-      const remaining = await runtime.flushWrites();
-      const reconcile = remaining === 0 ? await runtime.pollActivities() : null;
-      if (reconcile === null) {
-        showSnack({
-          message: "Couldn't reach Trakt. Check your connection.",
-          actions: [{ label: "Dismiss", onPress: dismissSnack }],
-        });
-        return;
-      }
-      const clean = await applyReconcile(queryClient, reconcile);
-      if (!clean) {
-        showSnack({
-          message: "Couldn't reach Trakt. Check your connection.",
-          actions: [{ label: "Dismiss", onPress: dismissSnack }],
-        });
-        return;
-      }
-      setCheckedAt(Date.now());
-      setNow(Date.now());
-    } finally {
-      setSyncing(false);
-    }
-  }, [runtime, queryClient]);
+    if (!(await run())) return;
+    setCheckedAt(Date.now());
+    setNow(Date.now());
+  }, [run]);
 
   const syncedAt = Math.max(
     newestSyncedAt(queryClient.getQueryCache().getAll(), ACCOUNT_QUERY_PREFIXES),

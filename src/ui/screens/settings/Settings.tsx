@@ -148,7 +148,7 @@ export function Settings(): ReactElement {
         <SettingRow label="Theme" control={<ThemeToggle />} />
         <SettingRow
           label="Haptics"
-          hint="Short taps as a mark lands, a swipe crosses its threshold, or you move between tabs. Applies on the phone app."
+          hint="Short taps as a mark lands, a swipe or pull crosses its threshold, or you move between tabs. Applies on the phone app."
           control={
             <SettingSwitch
               checked={hapticsEnabled}

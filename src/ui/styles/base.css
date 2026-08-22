@@ -14,6 +14,13 @@
   -webkit-text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;
   -webkit-touch-callout: none;
+  /* Cue owns the pull-at-the-top gesture (PullToRefresh), so the viewport must
+   * not also run the browser's. The CSS Overscroll Behavior spec's own
+   * motivating example is this exact case; `contain` leaves the scroller's own
+   * bounce alone and only stops the boundary action chaining out. Moot inside
+   * Capacitor's iOS web view, which has bounce turned off already, and
+   * load-bearing in Chrome for Android, where the same build runs as a PWA. */
+  overscroll-behavior-y: contain;
 }
 
 /* iOS focus zooms controls below 16px and can leave the shell magnified, so control type keeps this floor.

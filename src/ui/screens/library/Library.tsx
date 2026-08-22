@@ -9,6 +9,7 @@ import { ActionSheet, type ActionSheetRow } from "@ui/components/ActionSheet";
 import { Chip } from "@ui/components/Chip";
 import { ContextMenu } from "@ui/components/ContextMenu";
 import { ErrorRetry } from "@ui/components/ErrorStates";
+import { PullToRefresh } from "@ui/components/PullToRefresh";
 import { SegmentedControl } from "@ui/components/SegmentedControl";
 import { dismissSnack, showSnack } from "@ui/components/snackbar-store";
 import { epCode } from "@ui/format";
@@ -541,7 +542,7 @@ export function Library(): ReactElement {
             ))}
       </div>
 
-      {body}
+      <PullToRefresh>{body}</PullToRefresh>
 
       <ActionSheet open={sortOpen} onOpenChange={setSortOpen} title="Sort by" rows={sortRows} />
     </section>

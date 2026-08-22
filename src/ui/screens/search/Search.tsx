@@ -2,6 +2,7 @@ import type { SearchHit } from "@data/trakt/search";
 import { ScreenHeader } from "@ui/app-shell/ScreenHeader";
 import { EmptyState } from "@ui/components/EmptyState";
 import { ErrorRetry } from "@ui/components/ErrorStates";
+import { PullToRefresh } from "@ui/components/PullToRefresh";
 import { SectionHeader } from "@ui/components/SectionHeader";
 import { SkeletonRows } from "@ui/components/Skeletons";
 import { dismissSnack, showSnack } from "@ui/components/snackbar-store";
@@ -239,7 +240,7 @@ export function Search(): ReactElement {
         placeholder={placeholder}
         label={`Search ${showsEnabled && moviesEnabled ? "shows and movies" : showsEnabled ? "shows" : "movies"}`}
       />
-      {body}
+      <PullToRefresh>{body}</PullToRefresh>
     </section>
   );
 }

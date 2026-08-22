@@ -560,6 +560,9 @@ export interface LibraryControls {
   artReads: () => number;
   /** Advance one `/sync/last_activities` stamp so the next poll diffs a real change. */
   bumpActivity: (section: string, field: string) => void;
+  /** `/sync/last_activities` polls served so far: one per freshness pass, so a
+   * manual sync is countable against the background poll's own baseline. */
+  activitiesReads: () => number;
   clearWrites: () => void;
   writes: () => readonly CapturedWrite[];
   historyPosts: () => readonly CapturedWrite[];
@@ -827,6 +830,7 @@ export async function installLibraryRoutes(
   let progressRateLimitBudget = 0;
   let artReads = 0;
   let artRateLimitBudget = 0;
+  let activitiesReads = 0;
   // The exact watched_at each session mark POSTed, keyed by episode trakt id:
   // echoed on the scoped-history plays so the per-play undo can resolve them.
   const markedAt = new Map<number, string>();
@@ -869,6 +873,7 @@ export async function installLibraryRoutes(
   // The freshness gate's poll. Cheap (no readWait) but honors `abort` so an offline
   // boot's poll fails silently. Serves the live, bump-able stamp table.
   await context.route("**/api.trakt.tv/sync/last_activities*", (route) => {
+    activitiesReads += 1;
     if (readMode === "abort") return route.abort();
     return route.fulfill({
       status: 200,
@@ -1169,6 +1174,7 @@ export async function installLibraryRoutes(
     watchlistRemovePosts: () => writes.filter((w) => w.path === "/sync/watchlist/remove"),
     progressReads: () => progressReads,
     progressExtended: () => progressExtended,
+    activitiesReads: () => activitiesReads,
   };
 }
 
