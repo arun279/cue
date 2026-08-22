@@ -1,5 +1,6 @@
 import { TRAKT_API_BASE } from "@data/trakt/client";
 import type { Token } from "@domain/model/token";
+import { REMINDER_WINDOW_DAYS } from "@domain/reminders";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { describe, expect, it, vi } from "vitest";
@@ -206,6 +207,9 @@ const claims = [
   "A backup taken by an earlier build of Cue may still sit in your Google account",
   "iOS keeps app preferences, your Trakt token among them, in a store that is included in a device backup by default, and Cue has not moved the token off that store yet",
   "That switch does not reach a backup stored on a computer, so delete that one yourself.",
+  "up to fourteen notifications the operating system holds on Cue's behalf: one each morning, naming what airs that day",
+  "Turning the switch off, or signing out, cancels all of them",
+  "cancels every reminder the OS was holding for Cue",
   "Neither reaches a copy already sitting in a device backup",
   "Cue cannot delete it. Cue has no account of its own and no server-side copy of your data to delete.",
 ];
@@ -241,6 +245,13 @@ describe("privacy copy agreement and storage anchors", () => {
     ).toMatch(
       /const\s+OP_LOG_KEY\s*=\s*["']cue\.write-queue["'];[\s\S]*?const\s+([A-Za-z_$][\w$]*)\s*=\s*createJsonStore(?:<[^>]*>)?\(\s*[\w.]+,\s*OP_LOG_KEY,[\s\S]*?\1\.write\(\s*queue\.snapshot\(\)\s*\)/,
     );
+  });
+
+  it("anchors the fourteen held notifications to the window the planner reaches over", () => {
+    // One digest per day, so the ceiling the policy promises is the window
+    // itself. A wider window would put more of the user's shows on the OS's
+    // side than the policy accounts for.
+    expect(REMINDER_WINDOW_DAYS).toBe(14);
   });
 
   it("anchors the iOS backup claim to the native token backend", async () => {
