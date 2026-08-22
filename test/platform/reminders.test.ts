@@ -12,8 +12,10 @@ const plugin = vi.hoisted(() => ({
   cancelAll: vi.fn(async () => {}),
 }));
 
+const platform = vi.hoisted(() => ({ name: "android" }));
+
 vi.mock("@capacitor/local-notifications", () => ({ LocalNotifications: plugin }));
-vi.mock("@capacitor/core", () => ({ Capacitor: { getPlatform: () => "android" } }));
+vi.mock("@capacitor/core", () => ({ Capacitor: { getPlatform: () => platform.name } }));
 vi.mock("@platform/platform", () => ({ isNativePlatform: () => true }));
 
 const digest = (id: number): PlannedReminder => ({
@@ -27,6 +29,7 @@ const digest = (id: number): PlannedReminder => ({
 describe("the native reminders seam", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    platform.name = "android";
   });
 
   it("checks the permission before scheduling, so only the toggle can prompt", async () => {
@@ -83,6 +86,18 @@ describe("the native reminders seam", () => {
     await reminders.reconcile([digest(20_690)]);
 
     expect(plugin.createChannel).toHaveBeenCalledTimes(2);
+    expect(plugin.schedule).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves the Android-only channel alone on iOS and schedules anyway", async () => {
+    platform.name = "ios";
+
+    await createNativeReminders().reconcile([digest(20_690)]);
+
+    // createChannel is documented as unimplemented on iOS, so it rejects there,
+    // and the seam's catch would swallow the whole reconcile with it: the
+    // digest would silently never be scheduled.
+    expect(plugin.createChannel).not.toHaveBeenCalled();
     expect(plugin.schedule).toHaveBeenCalledTimes(1);
   });
 
