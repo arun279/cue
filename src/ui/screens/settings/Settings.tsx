@@ -1,5 +1,6 @@
 import { ScreenHeader } from "@ui/app-shell/ScreenHeader";
 import { ActionSheet } from "@ui/components/ActionSheet";
+import { dismissSnack, showSnack } from "@ui/components/snackbar-store";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { usePrefs } from "@ui/prefs/prefs-store";
 import { THRESHOLD_OPTIONS } from "@ui/prefs/threshold";
@@ -10,6 +11,7 @@ import {
   type NextEpisodeOrder,
 } from "@ui/prefs/tracking";
 import { useAppVersion } from "@ui/runtime/app-version";
+import { useReminders } from "@ui/runtime/reminders";
 import { ThemeToggle } from "@ui/theme/ThemeToggle";
 import { Check, RefreshCw } from "lucide-react";
 import { type ReactElement, useState } from "react";
@@ -107,7 +109,9 @@ function ChoiceSetting<T extends string | number>({
 
 /**
  * Settings: grouped rows over the device-local preference stores plus the two
- * account hand-offs. Appearance (theme + haptics), Tracking (spoiler stills,
+ * account hand-offs. Appearance (theme + haptics), Notifications (the daily
+ * airing digest, and the one place its OS permission is ever asked for),
+ * Tracking (spoiler stills,
  * queue order, drawer order, the staleness threshold that feeds Up Next's lapsed drawer),
  * Content (media visibility with the last-one-on guard), Data (the one place
  * full sync state lives), Account (Trakt hand-offs + sign out), About (version
@@ -124,6 +128,8 @@ export function Settings(): ReactElement {
   const setMoviesEnabled = usePrefs((s) => s.setMoviesEnabled);
   const hapticsEnabled = usePrefs((s) => s.hapticsEnabled);
   const setHapticsEnabled = usePrefs((s) => s.setHapticsEnabled);
+  const remindersEnabled = usePrefs((s) => s.remindersEnabled);
+  const setRemindersEnabled = usePrefs((s) => s.setRemindersEnabled);
   const hideStills = usePrefs((s) => s.hideStillsUntilWatched);
   const setHideStills = usePrefs((s) => s.setHideStillsUntilWatched);
   const order = usePrefs((s) => s.nextEpisodeOrder);
@@ -132,6 +138,26 @@ export function Settings(): ReactElement {
   const setLapsedOrder = usePrefs((s) => s.setLapsedOrder);
 
   const sync = useSyncStatus();
+  const reminders = useReminders();
+
+  // The OS prompt fires here and nowhere else: this row is the in-context ask
+  // both platforms call for, and its own line is the pre-prompt that explains
+  // what arrives. A refusal leaves the switch off rather than promising
+  // notifications the OS will never deliver.
+  const onRemindersChange = (checked: boolean): void => {
+    if (!checked) {
+      setRemindersEnabled(false);
+      return;
+    }
+    void reminders.requestPermission().then((granted) => {
+      setRemindersEnabled(granted);
+      if (granted) return;
+      showSnack({
+        message: "Notifications are off for Cue. Turn them on in your phone's settings.",
+        actions: [{ label: "Dismiss", onPress: dismissSnack }],
+      });
+    });
+  };
 
   // The one enabled medium can't be turned off: the app is never emptied of both.
   const media = [
@@ -155,6 +181,21 @@ export function Settings(): ReactElement {
               onChange={setHapticsEnabled}
               label="Haptics"
               testId="haptics-toggle"
+            />
+          }
+        />
+      </SettingSection>
+
+      <SettingSection label="Notifications">
+        <SettingRow
+          label="Episode reminders"
+          hint="One notification each morning naming what airs that day. Nothing leaves your device: it is scheduled on the phone from the calendar Cue already has. Applies on the phone app."
+          control={
+            <SettingSwitch
+              checked={remindersEnabled}
+              onChange={onRemindersChange}
+              label="Episode reminders"
+              testId="reminders-toggle"
             />
           }
         />

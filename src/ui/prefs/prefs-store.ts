@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { initialHapticsEnabled, persistHapticsEnabled } from "./haptics-pref";
+import { hapticsPref, remindersPref } from "./device-prefs";
 import {
   initialMediaVisibility,
   type MediaVisibility,
@@ -7,12 +7,11 @@ import {
 } from "./media-visibility";
 import { initialThresholdDays, persistThresholdDays } from "./threshold";
 import {
-  initialHideStillsUntilWatched,
+  hideStillsPref,
   type LapsedOrder,
   lapsedOrderPref,
   type NextEpisodeOrder,
   nextEpisodeOrderPref,
-  persistHideStillsUntilWatched,
 } from "./tracking";
 
 interface PrefsState {
@@ -25,10 +24,14 @@ interface PrefsState {
   moviesEnabled: boolean;
   setShowsEnabled: (enabled: boolean) => void;
   setMoviesEnabled: (enabled: boolean) => void;
-  /** The one buzz on a mark/undo: ON by default, device-local,
+  /** The one buzz on a mark/undo/armed pull: ON by default, device-local,
    * read by the injected haptics seam at fire time. Silent no-op on web regardless. */
   hapticsEnabled: boolean;
   setHapticsEnabled: (enabled: boolean) => void;
+  /** The daily "airing today" digest: OFF by default, flipped on only after the
+   * OS notification permission is granted in context. */
+  remindersEnabled: boolean;
+  setRemindersEnabled: (enabled: boolean) => void;
   /** Spoiler guard: blur unwatched episode stills until revealed. Default ON. */
   hideStillsUntilWatched: boolean;
   setHideStillsUntilWatched: (enabled: boolean) => void;
@@ -69,14 +72,19 @@ export const usePrefs = create<PrefsState>((set, get) => {
     setShowsEnabled: (showsEnabled) => commit({ showsEnabled, moviesEnabled: get().moviesEnabled }),
     setMoviesEnabled: (moviesEnabled) =>
       commit({ showsEnabled: get().showsEnabled, moviesEnabled }),
-    hapticsEnabled: initialHapticsEnabled(),
+    hapticsEnabled: hapticsPref.initial(),
     setHapticsEnabled: (hapticsEnabled) => {
-      persistHapticsEnabled(hapticsEnabled);
+      hapticsPref.persist(hapticsEnabled);
       set({ hapticsEnabled });
     },
-    hideStillsUntilWatched: initialHideStillsUntilWatched(),
+    remindersEnabled: remindersPref.initial(),
+    setRemindersEnabled: (remindersEnabled) => {
+      remindersPref.persist(remindersEnabled);
+      set({ remindersEnabled });
+    },
+    hideStillsUntilWatched: hideStillsPref.initial(),
     setHideStillsUntilWatched: (hideStillsUntilWatched) => {
-      persistHideStillsUntilWatched(hideStillsUntilWatched);
+      hideStillsPref.persist(hideStillsUntilWatched);
       set({ hideStillsUntilWatched });
     },
     nextEpisodeOrder: nextEpisodeOrderPref.initial(),

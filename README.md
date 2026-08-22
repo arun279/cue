@@ -13,6 +13,7 @@ Four tabs: Up Next, Library, Calendar, Search, with History, Profile, and Settin
 - **Search**: debounced show and movie search with inline watchlist add, and trending/popular browse grids while idle.
 - **Show, episode, and movie detail**: season shelves with per-episode ticks, bulk "mark up to here" and season marking, and an episode bottom sheet with spoiler-guarded stills (unwatched artwork stays hidden until revealed; the guard can be turned off in Settings).
 - **History and Profile**: viewing stats tiles and the full watch log, browsable by year and month, with per-play removal.
+- **Episode reminders**: an optional daily notification naming what airs that day, scheduled on the phone itself from the calendar Cue already holds. Off until you turn it on, and still no server anywhere.
 - **Watchlist**: add shows and movies to your Trakt watchlist, written back through the same optimistic write-queue.
 
 ## How it works
@@ -93,6 +94,10 @@ npx cap open ios       # build and run in Xcode (or Android Studio)
 ```
 
 On device, the Trakt OAuth token is stored via Capacitor Preferences so it survives storage eviction.
+
+Pull down on any of the four tabs to run the same sync as **Settings → Sync now**. Neither shell lends the app a native refresh control (Capacitor turns the iOS web view's bounce off, and Android WebView has no pull gesture), so the gesture lives in the DOM; Settings keeps its row as the tap-only equivalent.
+
+Episode reminders are local notifications and nothing else: one digest each morning for the next two weeks, built on the device from the calendar Cue already reads, with no push service and no server. The Settings switch is the only place the OS notification permission is ever asked for. On Android they use a named channel and inexact alarms only, and `android/app/src/main/AndroidManifest.xml` strips the `SCHEDULE_EXACT_ALARM` permission the notifications plugin would otherwise merge into the app.
 
 ## Tech stack
 

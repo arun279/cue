@@ -123,11 +123,24 @@ describe("claim: nothing Cue stores is copied off an Android device", () => {
 });
 
 describe("claim: Cue collects nothing and reaches Trakt directly over HTTPS", () => {
+  // A `tools:node="remove"` entry is the opposite of a request: it strips a
+  // permission a plugin's own manifest would otherwise merge in. So the two
+  // kinds are pinned separately, and both exactly.
+  const permissionElements = [...androidManifest.matchAll(/<uses-permission\b[^>]*?\/>/gs)].map(
+    ([element]) => element,
+  );
+  const namesWhere = (keep: (element: string) => boolean): string[] =>
+    permissionElements
+      .filter(keep)
+      .flatMap((element) => element.match(/\bandroid:name="([^"]+)"/)?.[1] ?? []);
+  const isRemoval = (element: string): boolean => /\btools:node="remove"/.test(element);
+
   it("declares no Android permission of its own beyond INTERNET", () => {
-    const declared = [...androidManifest.matchAll(/<uses-permission\b[^>]*>/g)].flatMap(
-      ([element]) => element.match(/\bandroid:name="([^"]+)"/)?.[1] ?? [],
-    );
-    expect(declared).toEqual(["android.permission.INTERNET"]);
+    expect(namesWhere((element) => !isRemoval(element))).toEqual(["android.permission.INTERNET"]);
+  });
+
+  it("strips the exact-alarm permission a plugin would otherwise merge in", () => {
+    expect(namesWhere(isRemoval)).toEqual(["android.permission.SCHEDULE_EXACT_ALARM"]);
   });
 
   it("declares no iOS usage description, because Cue asks for no protected data", () => {

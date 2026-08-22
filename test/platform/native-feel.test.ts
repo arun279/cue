@@ -1,10 +1,11 @@
 import { bindHardwareBack } from "@platform/back-button";
 import { createNativeHaptics } from "@platform/haptics";
+import { createNativeReminders } from "@platform/reminders";
 import { applyStatusBarTheme } from "@platform/status-bar";
 import { describe, expect, it, vi } from "vitest";
 
 /**
- * The native seams (haptics / hardware-back / status-bar) are additive
+ * The native seams (haptics / reminders / hardware-back / status-bar) are additive
  * garnish that MUST be a silent no-op on web and in tests (jsdom reports the web
  * runtime): a missing Capacitor plugin or a browser tab can never break a job.
  * These tests pin that contract so a future regression to the web build is caught.
@@ -23,6 +24,15 @@ describe("native seams degrade to silent no-ops on web", () => {
       haptics.prepare();
     }).not.toThrow();
     expect(isEnabled).not.toHaveBeenCalled();
+  });
+
+  it("createNativeReminders schedules nothing and grants without an OS prompt", async () => {
+    const reminders = createNativeReminders();
+    // Granting on web keeps the Settings toggle a plain preference there, the
+    // way the haptics one is; there is no notification to promise either way.
+    await expect(reminders.requestPermission()).resolves.toBe(true);
+    await expect(reminders.reconcile([])).resolves.toBeUndefined();
+    await expect(reminders.cancelAll()).resolves.toBeUndefined();
   });
 
   it("bindHardwareBack never touches the history and returns a callable cleanup", () => {

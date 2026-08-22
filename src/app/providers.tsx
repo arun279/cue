@@ -15,12 +15,14 @@ import { bindHardwareBack } from "@platform/back-button";
 import { createNativeHaptics } from "@platform/haptics";
 import { createKeyValueStore } from "@platform/kv";
 import { isNativePlatform } from "@platform/platform";
+import { createNativeReminders } from "@platform/reminders";
 import { applyStatusBarTheme } from "@platform/status-bar";
 import { createTokenStore } from "@platform/token-store";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { usePrefs } from "@ui/prefs/prefs-store";
 import { AppVersionProvider } from "@ui/runtime/app-version";
 import { HapticsProvider } from "@ui/runtime/haptics";
+import { RemindersProvider } from "@ui/runtime/reminders";
 import { useThemeStore } from "@ui/theme/theme-store";
 import { type ReactElement, useEffect, useState } from "react";
 import { version } from "../../package.json";
@@ -34,6 +36,9 @@ const tokenStore = createTokenStore(kv);
 // on the Settings "Haptics" toggle alone. Both platforms honour their own
 // system haptics settings underneath, so nothing else here second-guesses them.
 const haptics = createNativeHaptics(() => usePrefs.getState().hapticsEnabled);
+// The notification seam, built once: silent on web, and on native the only
+// caller of the local-notifications plugin.
+const reminders = createNativeReminders();
 const redirectUri = `${globalThis.location.origin}/auth/callback`;
 const authStore = createAuthStore({
   tokenStore,
@@ -91,9 +96,11 @@ export function AppProviders(): ReactElement {
       }}
     >
       <HapticsProvider value={haptics}>
-        <AppVersionProvider value={appVersion}>
-          <AuthGate store={authStore} stores={{ tokenStore, kv, redirectUri }} />
-        </AppVersionProvider>
+        <RemindersProvider value={reminders}>
+          <AppVersionProvider value={appVersion}>
+            <AuthGate store={authStore} stores={{ tokenStore, kv, redirectUri }} />
+          </AppVersionProvider>
+        </RemindersProvider>
       </HapticsProvider>
     </PersistQueryClientProvider>
   );
