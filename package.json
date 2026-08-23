@@ -23,6 +23,7 @@
     "test:coverage": "vitest run --coverage",
     "e2e": "pnpm --filter @cue/web e2e",
     "e2e:mobile": "pnpm --filter @cue/web e2e:mobile",
+    "e2e:mock": "pnpm --filter @cue/web e2e:mock",
     "check:md": "dprint check",
     "check:spell": "cspell --no-progress --no-summary \"**/*.{ts,tsx,css,md}\"",
     "check:arch": "depcruise packages --config .dependency-cruiser.cjs",

@@ -14,6 +14,7 @@
 
 import { createServer } from "node:http";
 import { pathToFileURL } from "node:url";
+import { createJournal } from "./journal.mjs";
 import {
   applyHiddenWrite,
   applyHistoryWrite,
@@ -347,17 +348,29 @@ function resolve(library, method, url, origin, body) {
  * A mock instance: `listen()` resolves with the URL it bound, and `library` is
  * the live account state, so a caller can assert a write landed.
  */
-export function createMockTrakt({ port = DEFAULT_PORT, host = "127.0.0.1", log = true } = {}) {
+export function createMockTrakt({
+  port = DEFAULT_PORT,
+  host = "127.0.0.1",
+  log = true,
+  journalFile = process.env["MOCK_TRAKT_JOURNAL"],
+} = {}) {
   const library = createLibrary();
+  const journal = createJournal(journalFile);
   const server = createServer((request, response) => {
     void (async () => {
       const origin = `http://${request.headers.host ?? `${host}:${port}`}`;
       const url = new URL(request.url ?? "/", origin);
       const method = request.method ?? "GET";
-      const result =
-        method === "OPTIONS"
-          ? { status: 204, headers: {}, body: "" }
-          : resolve(library, method, url, origin, await readBody(request));
+      if (method === "OPTIONS") {
+        response.writeHead(204, CORS);
+        response.end("");
+        return;
+      }
+      const body = await readBody(request);
+      // Journalled before the route runs, so a request with no route is still
+      // in the record: a hole has to be visible on both sides of a comparison.
+      journal.record(method, url.pathname, url.search, body);
+      const result = resolve(library, method, url, origin, body);
       if (log) {
         process.stdout.write(
           `mock-trakt ${method} ${url.pathname}${url.search} ${result.status}\n`,

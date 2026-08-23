@@ -39,6 +39,9 @@ android/keystore.properties
 coverage/
 playwright-report/
 test-results/
+# The equivalence lane's recording: one run's artifact, captured fresh on each
+# side of a comparison rather than carried in the tree to go stale.
+journal/
 .dprint-cache
 
 # Local design-review output (screenshots + notes). Never push.
