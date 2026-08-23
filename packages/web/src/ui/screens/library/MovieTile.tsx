@@ -1,4 +1,4 @@
-import type { MovieEntry } from "@data/trakt/movie-library";
+import type { MovieEntry } from "@cue/core/data/trakt/movie-library";
 import { Link } from "@tanstack/react-router";
 import { Badge } from "@ui/components/Badge";
 import { Poster } from "@ui/screens/up-next/Poster";

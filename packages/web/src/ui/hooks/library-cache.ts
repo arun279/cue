@@ -1,7 +1,7 @@
-import { queryKeys } from "@data/query-keys";
-import type { EpisodeDetail } from "@data/trakt/episode-detail";
-import type { LibraryEntry } from "@data/trakt/library";
-import type { SeasonView } from "@data/trakt/show-detail";
+import { queryKeys } from "@cue/core/data/query-keys";
+import type { EpisodeDetail } from "@cue/core/data/trakt/episode-detail";
+import type { LibraryEntry } from "@cue/core/data/trakt/library";
+import type { SeasonView } from "@cue/core/data/trakt/show-detail";
 import type { QueryClient } from "@tanstack/react-query";
 import type { UpNextData } from "@ui/runtime/runtime";
 

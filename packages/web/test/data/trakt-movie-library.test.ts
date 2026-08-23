@@ -2,8 +2,8 @@ import {
   assembleMovieHeader,
   assembleMovieLibrary,
   type MovieLibraryInput,
-} from "@data/trakt/movie-library";
-import type { MovieDetailData, WatchedMovie, WatchlistItem } from "@data/trakt/schemas";
+} from "@cue/core/data/trakt/movie-library";
+import type { MovieDetailData, WatchedMovie, WatchlistItem } from "@cue/core/data/trakt/schemas";
 import { describe, expect, it } from "vitest";
 
 function watchedMovie(overrides: {

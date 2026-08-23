@@ -1,5 +1,5 @@
-import type { EpisodeIds } from "@domain/model/ids";
-import { isAired } from "@domain/time";
+import type { EpisodeIds } from "../../domain/model/ids";
+import { isAired } from "../../domain/time";
 import type { EpisodeData, Progress } from "./schemas";
 import { toEpisodeIds } from "./show-detail";
 

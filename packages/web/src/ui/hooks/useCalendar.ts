@@ -1,6 +1,6 @@
-import { queryKeys } from "@data/query-keys";
-import { type CalendarDay, type CalendarEntry, groupCalendar } from "@domain/calendar";
-import { localTimeZone } from "@domain/time";
+import { queryKeys } from "@cue/core/data/query-keys";
+import { type CalendarDay, type CalendarEntry, groupCalendar } from "@cue/core/domain/calendar";
+import { localTimeZone } from "@cue/core/domain/time";
 import { useQuery } from "@tanstack/react-query";
 import { CONTENT_STALE_TIME_MS, type QueryStatus, queryStatus } from "@ui/hooks/query-freshness";
 import { useRuntime } from "@ui/runtime/runtime";

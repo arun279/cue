@@ -1,4 +1,4 @@
-import type { LibraryEntry } from "@data/trakt/library";
+import type { LibraryEntry } from "@cue/core/data/trakt/library";
 import type { CueRuntime } from "@ui/runtime/runtime";
 import { create } from "zustand";
 

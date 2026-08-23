@@ -1,5 +1,5 @@
-import { toMs } from "@domain/time";
-import type { UpNextItem } from "@domain/up-next";
+import { toMs } from "@cue/core/domain/time";
+import type { UpNextItem } from "@cue/core/domain/up-next";
 import type { LapsedOrder, NextEpisodeOrder } from "@ui/prefs/tracking";
 
 function airMs(item: UpNextItem): number {

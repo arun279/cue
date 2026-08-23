@@ -28,6 +28,7 @@
     "check:arch": "depcruise packages --config .dependency-cruiser.cjs",
     "check:knip": "knip",
     "check:dup": "jscpd",
+    "check:core-portable": "vitest run --project core test/ci/core-portable.test.ts",
     "check:bundle": "./scripts/verify-bundle.sh",
     "buster:check": "node scripts/write-buster.mjs --check",
     "buster:bump": "node scripts/write-buster.mjs --bump",

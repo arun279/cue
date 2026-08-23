@@ -1,12 +1,12 @@
-import { TRAKT_API_BASE, TraktClient, type TraktResult } from "@data/trakt/client";
+import { TRAKT_API_BASE, TraktClient, type TraktResult } from "@cue/core/data/trakt/client";
 import {
   loadUpNextEntries,
   READ_CONCURRENCY,
   WATCHED_PROGRESS_BUDGET,
   withReadRateRetry,
-} from "@data/trakt/read-budget";
-import type { KeyValueStore } from "@platform/kv";
-import type { TokenStore } from "@platform/token-store";
+} from "@cue/core/data/trakt/read-budget";
+import type { KeyValueStore } from "@cue/core/ports/kv";
+import type { TokenStore } from "@cue/core/ports/token-store";
 import { delay, HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 import { mswServer } from "./_msw";

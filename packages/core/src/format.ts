@@ -1,6 +1,6 @@
 /** Presentation helpers shared across screens (dates, episode codes, progress). */
 
-import { localTimeZone } from "@domain/time";
+import { localTimeZone } from "./domain/time";
 
 const MONTHS = [
   "Jan",

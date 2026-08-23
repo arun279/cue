@@ -10,6 +10,7 @@ import {
   shouldDehydrateQuery,
 } from "@app/query-client";
 import { router } from "@app/router";
+import { createTokenStore } from "@cue/core/ports/token-store";
 import { getNativeAppVersion } from "@platform/app-version";
 import { bindHardwareBack } from "@platform/back-button";
 import { createNativeHaptics } from "@platform/haptics";
@@ -17,7 +18,6 @@ import { createKeyValueStore } from "@platform/kv";
 import { isNativePlatform } from "@platform/platform";
 import { createNativeReminders } from "@platform/reminders";
 import { applyStatusBarTheme } from "@platform/status-bar";
-import { createTokenStore } from "@platform/token-store";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { usePrefs } from "@ui/prefs/prefs-store";
 import { AppVersionProvider } from "@ui/runtime/app-version";

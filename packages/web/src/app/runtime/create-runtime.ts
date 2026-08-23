@@ -1,18 +1,18 @@
 import { TRAKT_BASE_OVERRIDE, TRAKT_CLIENT_ID } from "@app/config";
 import { queryClient, queryPersister } from "@app/query-client";
 import { PendingWritesError, type TeardownOptions } from "@app/session";
-import { invalidationKeys } from "@data/query-invalidation";
-import { createAuthorizedFetch } from "@data/trakt/authorized-fetch";
-import { assembleCalendarEntries } from "@data/trakt/calendar";
-import { TraktClient } from "@data/trakt/client";
-import { assembleEpisodeDetail } from "@data/trakt/episode-detail";
+import { invalidationKeys } from "@cue/core/data/query-invalidation";
+import { createAuthorizedFetch } from "@cue/core/data/trakt/authorized-fetch";
+import { assembleCalendarEntries } from "@cue/core/data/trakt/calendar";
+import { TraktClient } from "@cue/core/data/trakt/client";
+import { assembleEpisodeDetail } from "@cue/core/data/trakt/episode-detail";
 import {
   assembleEpisodePlays,
   assembleHistoryEntries,
   assembleMoviePlays,
-} from "@data/trakt/history";
-import { additiveLanded, markLanded, showIdSet } from "@data/trakt/library";
-import { assembleMovieHeader, assembleMovieLibrary } from "@data/trakt/movie-library";
+} from "@cue/core/data/trakt/history";
+import { additiveLanded, markLanded, showIdSet } from "@cue/core/data/trakt/library";
+import { assembleMovieHeader, assembleMovieLibrary } from "@cue/core/data/trakt/movie-library";
 import {
   getEpisode,
   getHidden,
@@ -33,26 +33,30 @@ import {
   getWatchedMovies,
   getWatchlist,
   searchTrakt,
-} from "@data/trakt/pooled-endpoints";
-import { loadUpNextEntries } from "@data/trakt/read-budget";
-import { createLastActivitiesRepository } from "@data/trakt/repositories";
-import type { UserStats } from "@data/trakt/schemas";
+} from "@cue/core/data/trakt/pooled-endpoints";
+import { loadUpNextEntries } from "@cue/core/data/trakt/read-budget";
+import { createLastActivitiesRepository } from "@cue/core/data/trakt/repositories";
+import type { UserStats } from "@cue/core/data/trakt/schemas";
 import {
   assembleMovieHits,
   assembleSearchHits,
   assembleShowHits,
   rankSearchHits,
-} from "@data/trakt/search";
-import { assembleSeasons, assembleShowInfo, assembleShowProgress } from "@data/trakt/show-detail";
-import { createTraktTransport } from "@data/trakt/transport";
-import { assembleUserProfile, type UserProfile } from "@data/trakt/user-profile";
-import type { Token } from "@domain/model/token";
-import type { LastActivities } from "@domain/sync-activities";
-import { WriteQueue } from "@domain/write-queue/queue";
-import type { QueuedOp } from "@domain/write-queue/types";
-import { createJsonStore } from "@platform/json-store";
-import type { KeyValueStore } from "@platform/kv";
-import type { TokenStore } from "@platform/token-store";
+} from "@cue/core/data/trakt/search";
+import {
+  assembleSeasons,
+  assembleShowInfo,
+  assembleShowProgress,
+} from "@cue/core/data/trakt/show-detail";
+import { createTraktTransport } from "@cue/core/data/trakt/transport";
+import { assembleUserProfile, type UserProfile } from "@cue/core/data/trakt/user-profile";
+import type { Token } from "@cue/core/domain/model/token";
+import type { LastActivities } from "@cue/core/domain/sync-activities";
+import { WriteQueue } from "@cue/core/domain/write-queue/queue";
+import type { QueuedOp } from "@cue/core/domain/write-queue/types";
+import { createJsonStore } from "@cue/core/ports/json-store";
+import type { KeyValueStore } from "@cue/core/ports/kv";
+import type { TokenStore } from "@cue/core/ports/token-store";
 import type {
   ActivitiesReconcile,
   BrowseData,

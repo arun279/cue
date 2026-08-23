@@ -4,7 +4,7 @@ import {
   type MoviePlay,
   planEpisodeUnmark,
   type UnmarkPlan,
-} from "@domain/reversal";
+} from "@cue/core/domain/reversal";
 import type { CueRuntime } from "@ui/runtime/runtime";
 
 /**

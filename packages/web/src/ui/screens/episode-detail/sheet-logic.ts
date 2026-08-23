@@ -1,6 +1,6 @@
-import type { EpisodeDetail } from "@data/trakt/episode-detail";
-import { epCode } from "@domain/model/library";
-import { formatAirDate, formatWatchedDate } from "@ui/format";
+import type { EpisodeDetail } from "@cue/core/data/trakt/episode-detail";
+import { epCode } from "@cue/core/domain/model/library";
+import { formatAirDate, formatWatchedDate } from "@cue/core/format";
 import { metaLine } from "@ui/screens/show-detail/detail-logic";
 
 /** The sheet's quiet meta line: `S1 E5 · Aired Jul 1, 2002 · 60 min`, parts

@@ -1,4 +1,4 @@
-import type { QueuedOp } from "@domain/write-queue/types";
+import type { QueuedOp } from "@cue/core/domain/write-queue/types";
 import { useOptimisticWrite } from "@ui/hooks/useOptimisticWrite";
 import { useCallback, useState } from "react";
 

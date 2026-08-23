@@ -6,6 +6,10 @@
       "entry": ["scripts/*.mjs", "scripts/mock-trakt/*.mjs"],
       "project": ["scripts/**/*.mjs", "*.ts"]
     },
+    "packages/core": {
+      "entry": ["src/**/*.ts"],
+      "project": ["src/**/*.ts"]
+    },
     "packages/web": {
       "project": ["src/**/*.{ts,tsx}"],
       "ignoreDependencies": ["tailwindcss"]

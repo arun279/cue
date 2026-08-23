@@ -1,4 +1,4 @@
-import { groupUpNext } from "@domain/up-next";
+import { groupUpNext } from "@cue/core/domain/up-next";
 import { describe, expect, it } from "vitest";
 import { DAY, iso, makeEpisode, makeShow, NOW, THRESHOLD } from "./_helpers";
 

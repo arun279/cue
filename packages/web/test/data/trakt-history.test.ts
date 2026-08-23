@@ -2,8 +2,8 @@ import {
   assembleEpisodePlays,
   assembleHistoryEntries,
   assembleMoviePlays,
-} from "@data/trakt/history";
-import type { HistoryItem } from "@data/trakt/schemas";
+} from "@cue/core/data/trakt/history";
+import type { HistoryItem } from "@cue/core/data/trakt/schemas";
 import { describe, expect, it } from "vitest";
 
 const WATCHED_AT = "2026-07-05T21:24:00.000Z";

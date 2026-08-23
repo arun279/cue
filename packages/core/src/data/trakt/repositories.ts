@@ -2,7 +2,7 @@ import {
   diffActivities,
   type InvalidationTarget,
   type LastActivities,
-} from "@domain/sync-activities";
+} from "../../domain/sync-activities";
 import type { TraktClient, TraktFailure } from "./client";
 import { getLastActivities } from "./pooled-endpoints";
 

@@ -1,4 +1,4 @@
-import type { CalendarEntry } from "@domain/calendar";
+import type { CalendarEntry } from "../../domain/calendar";
 import type { CalendarItem } from "./schemas";
 import { toEpisodeIds } from "./show-detail";
 

@@ -1,8 +1,8 @@
-import type { LibraryEntry } from "@data/trakt/library";
+import type { LibraryEntry } from "@cue/core/data/trakt/library";
+import { episodesLeft, watchedPercent } from "@cue/core/format";
 import { Link } from "@tanstack/react-router";
 import { Badge } from "@ui/components/Badge";
 import { ProgressBar } from "@ui/components/ProgressBar";
-import { episodesLeft, watchedPercent } from "@ui/format";
 import type { LibraryChipKey } from "@ui/hooks/useLibraryBuckets";
 import { useShowArt } from "@ui/hooks/useShowArt";
 import { Poster } from "@ui/screens/up-next/Poster";

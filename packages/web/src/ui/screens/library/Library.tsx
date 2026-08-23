@@ -1,8 +1,8 @@
-import type { LibraryEntry } from "@data/trakt/library";
-import type { MovieEntry } from "@data/trakt/movie-library";
-import type { LibrarySort } from "@domain/library-buckets";
-import { epCode } from "@domain/model/library";
-import { isAired } from "@domain/time";
+import type { LibraryEntry } from "@cue/core/data/trakt/library";
+import type { MovieEntry } from "@cue/core/data/trakt/movie-library";
+import type { LibrarySort } from "@cue/core/domain/library-buckets";
+import { epCode } from "@cue/core/domain/model/library";
+import { isAired } from "@cue/core/domain/time";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { ScreenHeader } from "@ui/app-shell/ScreenHeader";
 import { SyncStrip } from "@ui/app-shell/SyncStrip";

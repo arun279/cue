@@ -1,4 +1,4 @@
-import type { SearchHit } from "@data/trakt/search";
+import type { SearchHit } from "@cue/core/data/trakt/search";
 import { visibleSearchHits } from "@ui/hooks/useSearch";
 import { describe, expect, it } from "vitest";
 

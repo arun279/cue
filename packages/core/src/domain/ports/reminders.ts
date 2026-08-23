@@ -1,4 +1,4 @@
-import type { PlannedReminder } from "@domain/reminders";
+import type { PlannedReminder } from "../reminders";
 
 /**
  * The notification port, declared where both sides of the seam can read it:

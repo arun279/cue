@@ -4,8 +4,8 @@ import {
   type EpisodeAir,
   MAX_EPISODES_PER_CHUNK,
   type SeasonTree,
-} from "@domain/write-queue/bulk";
-import type { QueuedOp } from "@domain/write-queue/types";
+} from "@cue/core/domain/write-queue/bulk";
+import type { QueuedOp } from "@cue/core/domain/write-queue/types";
 import { describe, expect, it } from "vitest";
 import { DAY, iso, NOW } from "./_helpers";
 

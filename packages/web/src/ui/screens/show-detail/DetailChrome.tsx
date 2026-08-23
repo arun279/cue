@@ -1,4 +1,4 @@
-import { resolveBackdrop } from "@data/image-source";
+import { resolveBackdrop } from "@cue/core/data/image-source";
 import { Link, useCanGoBack, useRouter } from "@tanstack/react-router";
 import { artGradient } from "@ui/components/artGradient";
 import { Poster } from "@ui/screens/up-next/Poster";

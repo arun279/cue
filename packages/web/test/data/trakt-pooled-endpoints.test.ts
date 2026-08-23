@@ -1,5 +1,5 @@
-import * as raw from "@data/trakt/endpoints";
-import * as pooled from "@data/trakt/pooled-endpoints";
+import * as raw from "@cue/core/data/trakt/endpoints";
+import * as pooled from "@cue/core/data/trakt/pooled-endpoints";
 import { describe, expect, it } from "vitest";
 
 /**

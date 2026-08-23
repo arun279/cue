@@ -1,5 +1,5 @@
 import { registerPlugin } from "@capacitor/core";
-import { type Haptics, SILENT } from "@domain/ports/haptics";
+import { type Haptics, SILENT } from "@cue/core/domain/ports/haptics";
 import { isNativePlatform } from "./platform";
 
 /**

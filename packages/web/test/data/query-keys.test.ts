@@ -1,4 +1,4 @@
-import { queryKeys } from "@data/query-keys";
+import { queryKeys } from "@cue/core/data/query-keys";
 import { describe, expect, it } from "vitest";
 
 describe("queryKeys factory", () => {

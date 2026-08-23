@@ -1,5 +1,5 @@
-import { isTokenExpired, shouldRefresh, TokenRefresher } from "@domain/auth/token";
-import type { Token } from "@domain/model/token";
+import { isTokenExpired, shouldRefresh, TokenRefresher } from "@cue/core/domain/auth/token";
+import type { Token } from "@cue/core/domain/model/token";
 import { describe, expect, it, vi } from "vitest";
 
 const CREATED_AT = 1_700_000_000; // unix seconds

@@ -1,4 +1,4 @@
-import { TRAKT_API_BASE, TraktClient } from "@data/trakt/client";
+import { TRAKT_API_BASE, TraktClient } from "@cue/core/data/trakt/client";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 import { mswServer } from "./_msw";

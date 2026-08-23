@@ -1,0 +1,21 @@
+{
+  "name": "@cue/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Cue's shared core: the domain, the Trakt data layer and the platform ports, as TypeScript source.",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "5.101.2",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
+  }
+}

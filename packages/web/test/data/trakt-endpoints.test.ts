@@ -1,4 +1,4 @@
-import { TRAKT_API_BASE, TraktClient } from "@data/trakt/client";
+import { TRAKT_API_BASE, TraktClient } from "@cue/core/data/trakt/client";
 import {
   getEpisode,
   getHidden,
@@ -22,7 +22,7 @@ import {
   getWatchlist,
   itemsBody,
   searchTrakt,
-} from "@data/trakt/endpoints";
+} from "@cue/core/data/trakt/endpoints";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 import { mswServer } from "./_msw";

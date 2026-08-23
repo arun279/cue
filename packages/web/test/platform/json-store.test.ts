@@ -1,7 +1,7 @@
-import type { Token } from "@domain/model/token";
-import { createJsonStore } from "@platform/json-store";
+import type { Token } from "@cue/core/domain/model/token";
+import { createJsonStore } from "@cue/core/ports/json-store";
+import { createTokenStore } from "@cue/core/ports/token-store";
 import { createKeyValueStore } from "@platform/kv";
-import { createTokenStore } from "@platform/token-store";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 

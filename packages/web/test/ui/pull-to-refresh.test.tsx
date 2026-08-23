@@ -5,7 +5,7 @@
  * non-passive `touchmove`, which is invisible from the page.
  */
 
-import type { Haptics } from "@domain/ports/haptics";
+import type { Haptics } from "@cue/core/domain/ports/haptics";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { PullToRefresh } from "@ui/components/PullToRefresh";
 import { HapticsProvider } from "@ui/runtime/haptics";

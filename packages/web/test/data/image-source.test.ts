@@ -1,4 +1,4 @@
-import { resolvePoster } from "@data/image-source";
+import { resolvePoster } from "@cue/core/data/image-source";
 import { describe, expect, it } from "vitest";
 
 describe("resolvePoster (Trakt inline → placeholder)", () => {

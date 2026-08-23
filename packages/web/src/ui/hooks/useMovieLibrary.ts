@@ -1,6 +1,6 @@
-import { queryKeys } from "@data/query-keys";
-import type { MovieEntry } from "@data/trakt/movie-library";
-import { byTitle } from "@domain/library-buckets";
+import { queryKeys } from "@cue/core/data/query-keys";
+import type { MovieEntry } from "@cue/core/data/trakt/movie-library";
+import { byTitle } from "@cue/core/domain/library-buckets";
 import { type QueryClient, useQuery } from "@tanstack/react-query";
 import { queryStatus, USER_STATE_STALE_TIME } from "@ui/hooks/query-freshness";
 import { type MovieLibraryData, useRuntime } from "@ui/runtime/runtime";

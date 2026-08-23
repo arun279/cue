@@ -1,4 +1,4 @@
-import { assembleUserProfile } from "@data/trakt/user-profile";
+import { assembleUserProfile } from "@cue/core/data/trakt/user-profile";
 import { describe, expect, it } from "vitest";
 
 describe("assembleUserProfile", () => {

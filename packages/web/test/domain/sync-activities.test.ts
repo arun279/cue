@@ -2,7 +2,7 @@ import {
   diffActivities,
   type InvalidationTarget,
   type LastActivities,
-} from "@domain/sync-activities";
+} from "@cue/core/domain/sync-activities";
 import { describe, expect, it } from "vitest";
 
 const T0 = "2026-07-01T00:00:00.000Z";

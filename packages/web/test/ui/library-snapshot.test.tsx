@@ -1,6 +1,6 @@
-import type { LibraryEntry } from "@data/trakt/library";
-import type { EpisodeView, SeasonView } from "@data/trakt/show-detail";
-import type { CalendarEntry } from "@domain/calendar";
+import type { LibraryEntry } from "@cue/core/data/trakt/library";
+import type { EpisodeView, SeasonView } from "@cue/core/data/trakt/show-detail";
+import type { CalendarEntry } from "@cue/core/domain/calendar";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   type LibrarySnapshot,

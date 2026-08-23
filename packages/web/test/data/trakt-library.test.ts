@@ -7,9 +7,9 @@ import {
   markLanded,
   showIdSet,
   watchedEpisodeCount,
-} from "@data/trakt/library";
-import type { Progress, WatchedShow, WatchlistItem } from "@data/trakt/schemas";
-import type { EpisodePlay } from "@domain/reversal";
+} from "@cue/core/data/trakt/library";
+import type { Progress, WatchedShow, WatchlistItem } from "@cue/core/data/trakt/schemas";
+import type { EpisodePlay } from "@cue/core/domain/reversal";
 import { describe, expect, it } from "vitest";
 
 function watchlistItem(overrides: {

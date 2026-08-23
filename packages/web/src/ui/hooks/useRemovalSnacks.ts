@@ -1,4 +1,4 @@
-import type { HistoryEntry } from "@domain/history";
+import type { HistoryEntry } from "@cue/core/domain/history";
 import { dismissSnack, showSnack } from "@ui/components/snackbar-store";
 import type { HistoryView } from "@ui/hooks/useHistory";
 import { useEffect, useRef } from "react";

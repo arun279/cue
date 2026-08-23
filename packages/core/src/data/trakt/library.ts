@@ -3,9 +3,9 @@ import {
   type EpisodeKey,
   type EpisodeRef,
   type LibraryShow,
-} from "@domain/model/library";
-import { type EpisodePlay, MARK_MATCH_TOLERANCE_MS } from "@domain/reversal";
-import { toMs } from "@domain/time";
+} from "../../domain/model/library";
+import { type EpisodePlay, MARK_MATCH_TOLERANCE_MS } from "../../domain/reversal";
+import { toMs } from "../../domain/time";
 import { resolveStill } from "../image-source";
 import type { HiddenItem, Progress, WatchedShow, WatchlistItem } from "./schemas";
 import { toEpisodeIds } from "./show-detail";

@@ -1,4 +1,4 @@
-import { parseRetryAfterMs } from "@domain/write-queue/classify";
+import { parseRetryAfterMs } from "../../domain/write-queue/classify";
 
 export const TRAKT_API_BASE = "https://api.trakt.tv";
 const TRAKT_API_VERSION = "2";

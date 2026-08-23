@@ -1,10 +1,10 @@
-import type { MovieSummary, SearchResult, ShowSummary } from "@data/trakt/schemas";
+import type { MovieSummary, SearchResult, ShowSummary } from "@cue/core/data/trakt/schemas";
 import {
   assembleMovieHits,
   assembleSearchHits,
   assembleShowHits,
   rankSearchHits,
-} from "@data/trakt/search";
+} from "@cue/core/data/trakt/search";
 import { describe, expect, it } from "vitest";
 
 describe("assembleSearchHits", () => {

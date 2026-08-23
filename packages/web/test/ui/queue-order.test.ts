@@ -1,4 +1,4 @@
-import type { UpNextItem } from "@domain/up-next";
+import type { UpNextItem } from "@cue/core/domain/up-next";
 import { sortLapsed, sortQueue, stabilizePendingAdvance } from "@ui/hooks/queue-order";
 import { describe, expect, it } from "vitest";
 

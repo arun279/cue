@@ -1,7 +1,7 @@
-import type { CalendarDay, CalendarRow } from "@domain/calendar";
-import { dayKeyOf } from "@domain/day";
-import { epCode } from "@domain/model/library";
-import { localTimeZone } from "@domain/time";
+import type { CalendarDay, CalendarRow } from "@cue/core/domain/calendar";
+import { dayKeyOf } from "@cue/core/domain/day";
+import { epCode } from "@cue/core/domain/model/library";
+import { localTimeZone } from "@cue/core/domain/time";
 import { Badge } from "@ui/components/Badge";
 import { EpisodeRow } from "@ui/components/EpisodeRow";
 import { SectionHeader } from "@ui/components/SectionHeader";

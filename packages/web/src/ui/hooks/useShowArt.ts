@@ -1,5 +1,5 @@
-import { queryKeys } from "@data/query-keys";
-import type { ShowInfo } from "@data/trakt/show-detail";
+import { queryKeys } from "@cue/core/data/query-keys";
+import type { ShowInfo } from "@cue/core/data/trakt/show-detail";
 import { useQuery } from "@tanstack/react-query";
 import { CONTENT_STALE_TIME_MS } from "@ui/hooks/query-freshness";
 import { useRuntime } from "@ui/runtime/runtime";

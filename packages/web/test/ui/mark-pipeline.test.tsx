@@ -8,12 +8,12 @@
  * exact history id, never remove-by-item, with an honest failure when the play
  * can't be identified (F14).
  */
-import { queryKeys } from "@data/query-keys";
-import type { EpisodeDetail } from "@data/trakt/episode-detail";
-import type { LibraryEntry } from "@data/trakt/library";
-import type { EpisodeView, SeasonView } from "@data/trakt/show-detail";
-import type { EpisodePlay } from "@domain/reversal";
-import type { QueuedOp } from "@domain/write-queue/types";
+import { queryKeys } from "@cue/core/data/query-keys";
+import type { EpisodeDetail } from "@cue/core/data/trakt/episode-detail";
+import type { LibraryEntry } from "@cue/core/data/trakt/library";
+import type { EpisodeView, SeasonView } from "@cue/core/data/trakt/show-detail";
+import type { EpisodePlay } from "@cue/core/domain/reversal";
+import type { QueuedOp } from "@cue/core/domain/write-queue/types";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { dismissSnack, useSnackbar } from "@ui/components/snackbar-store";
 import { resetMarkStore } from "@ui/hooks/mark-store";

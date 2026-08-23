@@ -1,4 +1,4 @@
-import type { SearchHit } from "@data/trakt/search";
+import type { SearchHit } from "@cue/core/data/trakt/search";
 import { Link } from "@tanstack/react-router";
 import { Badge } from "@ui/components/Badge";
 import { Poster } from "@ui/screens/up-next/Poster";

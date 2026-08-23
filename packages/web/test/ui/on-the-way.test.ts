@@ -1,4 +1,4 @@
-import type { CalendarDay, CalendarRow } from "@domain/calendar";
+import type { CalendarDay, CalendarRow } from "@cue/core/domain/calendar";
 import { buildOnTheWay } from "@ui/screens/up-next/OnTheWay";
 import { describe, expect, it } from "vitest";
 

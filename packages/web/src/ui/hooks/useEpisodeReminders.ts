@@ -1,4 +1,4 @@
-import { planReminders, REMINDER_WINDOW_DAYS } from "@domain/reminders";
+import { planReminders, REMINDER_WINDOW_DAYS } from "@cue/core/domain/reminders";
 import { useCalendar } from "@ui/hooks/useCalendar";
 import { usePrefs } from "@ui/prefs/prefs-store";
 import { useReminders } from "@ui/runtime/reminders";

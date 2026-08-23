@@ -1,5 +1,5 @@
-import type { LibraryEntry } from "@data/trakt/library";
-import type { EpisodeView, SeasonView, ShowHeader } from "@data/trakt/show-detail";
+import type { LibraryEntry } from "@cue/core/data/trakt/library";
+import type { EpisodeView, SeasonView, ShowHeader } from "@cue/core/data/trakt/show-detail";
 import { ContinueBar } from "@ui/screens/show-detail/ContinueBar";
 import { act, type ReactElement, type ReactNode, useState } from "react";
 import { expect, it, vi } from "vitest";

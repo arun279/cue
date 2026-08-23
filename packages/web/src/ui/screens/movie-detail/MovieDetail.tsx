@@ -1,4 +1,5 @@
-import type { MovieEntry, MovieHeader } from "@data/trakt/movie-library";
+import type { MovieEntry, MovieHeader } from "@cue/core/data/trakt/movie-library";
+import { formatWatchedDate, middleTruncate, titleCase } from "@cue/core/format";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { ActionSheet, type ActionSheetRow } from "@ui/components/ActionSheet";
 import { Badge } from "@ui/components/Badge";
@@ -7,7 +8,6 @@ import { DetailHeroSkeleton } from "@ui/components/DetailHeroSkeleton";
 import { EmptyState } from "@ui/components/EmptyState";
 import { ErrorRetry } from "@ui/components/ErrorStates";
 import { dismissSnack, showSnack } from "@ui/components/snackbar-store";
-import { formatWatchedDate, middleTruncate, titleCase } from "@ui/format";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { useMovieActions } from "@ui/hooks/useMovieActions";
 import { useMovieDetail } from "@ui/hooks/useMovieDetail";

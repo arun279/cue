@@ -11,7 +11,7 @@ import {
   buildUnmarkEpisodeOp,
   buildUnmarkMovieOp,
   episodeItemKey,
-} from "@domain/write-queue/ops";
+} from "@cue/core/domain/write-queue/ops";
 import { describe, expect, it } from "vitest";
 
 const WATCHED_AT = "2026-07-05T12:00:00.000Z";

@@ -7,8 +7,8 @@ import {
   requestDeviceCode,
   revokeToken,
   TRAKT_API_BASE,
-} from "@data/auth/oauth";
-import { TokenRefresher } from "@domain/auth/token";
+} from "@cue/core/data/auth/oauth";
+import { TokenRefresher } from "@cue/core/domain/auth/token";
 import { delay, HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 import { mswServer } from "./_msw";

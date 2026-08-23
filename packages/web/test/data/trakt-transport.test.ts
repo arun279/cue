@@ -1,7 +1,7 @@
-import { TRAKT_API_BASE, TraktClient } from "@data/trakt/client";
-import { createTraktTransport } from "@data/trakt/transport";
-import { buildMarkEpisodeOp } from "@domain/write-queue/ops";
-import { WriteQueue } from "@domain/write-queue/queue";
+import { TRAKT_API_BASE, TraktClient } from "@cue/core/data/trakt/client";
+import { createTraktTransport } from "@cue/core/data/trakt/transport";
+import { buildMarkEpisodeOp } from "@cue/core/domain/write-queue/ops";
+import { WriteQueue } from "@cue/core/domain/write-queue/queue";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it, vi } from "vitest";
 import { mswServer } from "./_msw";

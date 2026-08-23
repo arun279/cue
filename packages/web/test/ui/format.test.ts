@@ -1,5 +1,5 @@
-import { epCode } from "@domain/model/library";
-import { episodesLeft, lastWatchedPhrase, middleTruncate } from "@ui/format";
+import { epCode } from "@cue/core/domain/model/library";
+import { episodesLeft, lastWatchedPhrase, middleTruncate } from "@cue/core/format";
 import { describe, expect, it } from "vitest";
 
 describe("epCode", () => {

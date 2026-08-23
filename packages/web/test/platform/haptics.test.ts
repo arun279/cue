@@ -1,4 +1,4 @@
-import type { Haptics } from "@domain/ports/haptics";
+import type { Haptics } from "@cue/core/domain/ports/haptics";
 import { createNativeHaptics } from "@platform/haptics";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 

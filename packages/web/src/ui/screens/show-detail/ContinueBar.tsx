@@ -1,17 +1,17 @@
-import type { LibraryEntry } from "@data/trakt/library";
+import type { LibraryEntry } from "@cue/core/data/trakt/library";
 import {
   type EpisodeView,
   firstUnwatchedAired,
   type SeasonView,
   type ShowHeader,
-} from "@data/trakt/show-detail";
-import { epCode } from "@domain/model/library";
-import { isAired } from "@domain/time";
+} from "@cue/core/data/trakt/show-detail";
+import { epCode } from "@cue/core/domain/model/library";
+import { isAired } from "@cue/core/domain/time";
 import { Link } from "@tanstack/react-router";
 import { CheckControl } from "@ui/components/CheckControl";
 import { CountdownPanel } from "@ui/components/CountdownPanel";
 import { ProgressBar } from "@ui/components/ProgressBar";
-import { episodesLeft, watchedPercent } from "@ui/format";
+import { episodesLeft, watchedPercent } from "@cue/core/format";
 import type { MarkWatched } from "@ui/hooks/useMarkWatched";
 import { useQueueCheck } from "@ui/screens/up-next/useQueueCheck";
 import type { ReactElement, ReactNode } from "react";

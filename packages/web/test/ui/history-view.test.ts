@@ -1,4 +1,4 @@
-import type { HistoryDay, HistoryEntry, HistoryGroup } from "@domain/history";
+import type { HistoryDay, HistoryEntry, HistoryGroup } from "@cue/core/domain/history";
 import {
   buildBlocks,
   countItemPlays,

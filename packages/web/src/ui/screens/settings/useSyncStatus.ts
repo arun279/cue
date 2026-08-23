@@ -1,4 +1,4 @@
-import { queryKeys } from "@data/query-keys";
+import { queryKeys } from "@cue/core/data/query-keys";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSyncActivity } from "@ui/hooks/sync-activity-store";
 import { useSyncNow } from "@ui/hooks/useSyncNow";

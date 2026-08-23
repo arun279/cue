@@ -1,4 +1,4 @@
-import type { UserStats } from "@data/trakt/schemas";
+import type { UserStats } from "@cue/core/data/trakt/schemas";
 import type { MediaVisibility } from "@ui/prefs/media-visibility";
 
 interface CountTile {

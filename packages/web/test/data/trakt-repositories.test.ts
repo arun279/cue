@@ -1,6 +1,6 @@
-import { TRAKT_API_BASE, TraktClient } from "@data/trakt/client";
-import { createLastActivitiesRepository } from "@data/trakt/repositories";
-import type { LastActivities } from "@domain/sync-activities";
+import { TRAKT_API_BASE, TraktClient } from "@cue/core/data/trakt/client";
+import { createLastActivitiesRepository } from "@cue/core/data/trakt/repositories";
+import type { LastActivities } from "@cue/core/domain/sync-activities";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 import { mswServer } from "./_msw";

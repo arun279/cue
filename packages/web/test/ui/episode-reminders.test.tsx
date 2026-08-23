@@ -3,8 +3,8 @@
  * to move, and when it must be left alone. Cancelling is destructive and
  * silent, so the states that must NOT cancel matter more than the ones that do.
  */
-import type { CalendarEntry } from "@domain/calendar";
-import type { Reminders } from "@domain/ports/reminders";
+import type { CalendarEntry } from "@cue/core/domain/calendar";
+import type { Reminders } from "@cue/core/domain/ports/reminders";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEpisodeReminders } from "@ui/hooks/useEpisodeReminders";
 import { usePrefs } from "@ui/prefs/prefs-store";

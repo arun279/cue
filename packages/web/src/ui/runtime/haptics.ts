@@ -1,4 +1,4 @@
-import { type Haptics, SILENT } from "@domain/ports/haptics";
+import { type Haptics, SILENT } from "@cue/core/domain/ports/haptics";
 import { createContext, useContext } from "react";
 
 /** The tactile port as `@ui` reaches it, injected from the composition root so

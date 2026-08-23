@@ -1,6 +1,6 @@
-import { type Token, tokenSchema } from "@domain/model/token";
-import { parseRetryAfterMs } from "@domain/write-queue/classify";
 import { z } from "zod";
+import { type Token, tokenSchema } from "../../domain/model/token";
+import { parseRetryAfterMs } from "../../domain/write-queue/classify";
 import type { FetchLike } from "../trakt/client";
 
 /**

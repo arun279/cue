@@ -1,5 +1,5 @@
-import { queryKeys } from "@data/query-keys";
-import type { MovieHeader } from "@data/trakt/movie-library";
+import { queryKeys } from "@cue/core/data/query-keys";
+import type { MovieHeader } from "@cue/core/data/trakt/movie-library";
 import { type DetailHeaderView, useDetailHeader } from "@ui/hooks/useDetailHeader";
 import { useRuntime } from "@ui/runtime/runtime";
 

@@ -1,4 +1,4 @@
-import { queryKeys } from "@data/query-keys";
+import { queryKeys } from "@cue/core/data/query-keys";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import { type Query, QueryClient } from "@tanstack/react-query";
 import { PERSISTED_CACHE } from "@ui/runtime/persist-buster";

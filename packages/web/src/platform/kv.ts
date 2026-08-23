@@ -1,18 +1,12 @@
 import { Preferences } from "@capacitor/preferences";
+import type { KeyValueStore } from "@cue/core/ports/kv";
 import { del, get, set } from "idb-keyval";
 
 /**
- * One string key-value abstraction with two interchangeable backends.
- * Web persists to IndexedDB (idb-keyval) so a large cache
- * never blocks the main thread; native persists to Capacitor Preferences, the
- * one store the OS will not evict. Values round-trip byte-identical.
+ * The two interchangeable backends behind `KeyValueStore`. Web persists to
+ * IndexedDB (idb-keyval) so a large cache never blocks the main thread; native
+ * persists to Capacitor Preferences, the one store the OS will not evict.
  */
-export interface KeyValueStore {
-  read(key: string): Promise<string | null>;
-  write(key: string, value: string): Promise<void>;
-  remove(key: string): Promise<void>;
-}
-
 function webKeyValueStore(): KeyValueStore {
   return {
     async read(key) {

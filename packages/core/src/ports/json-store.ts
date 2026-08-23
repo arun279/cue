@@ -1,4 +1,4 @@
-import type { KeyValueStore } from "@platform/kv";
+import type { KeyValueStore } from "./kv";
 
 /**
  * A single JSON value behind the platform key-value abstraction.

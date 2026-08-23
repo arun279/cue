@@ -1,7 +1,7 @@
-import type { LibraryEntry } from "@data/trakt/library";
-import { byTitle, type LibrarySort } from "@domain/library-buckets";
-import { toMs } from "@domain/time";
-import { computeWatchStatus } from "@domain/watch-status";
+import type { LibraryEntry } from "@cue/core/data/trakt/library";
+import { byTitle, type LibrarySort } from "@cue/core/domain/library-buckets";
+import { toMs } from "@cue/core/domain/time";
+import { computeWatchStatus } from "@cue/core/domain/watch-status";
 import { type QueryStatus, queryStatus } from "@ui/hooks/query-freshness";
 import { useLibrarySnapshot } from "@ui/hooks/useLibrarySnapshot";
 import { useMemo } from "react";

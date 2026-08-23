@@ -1,5 +1,5 @@
-import type { CalendarEntry } from "@domain/calendar";
-import { needsNextEpisode, reconcileRecentlyAired } from "@domain/recently-aired";
+import type { CalendarEntry } from "@cue/core/domain/calendar";
+import { needsNextEpisode, reconcileRecentlyAired } from "@cue/core/domain/recently-aired";
 import { describe, expect, it } from "vitest";
 import { DAY, iso, makeEpisode, makeShow, NOW } from "./_helpers";
 

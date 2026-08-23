@@ -1,4 +1,4 @@
-import type { UserStats } from "@data/trakt/schemas";
+import type { UserStats } from "@cue/core/data/trakt/schemas";
 import { countTiles, isAllZero, watchTimeMinutes } from "@ui/screens/profile/stats";
 import { describe, expect, it } from "vitest";
 

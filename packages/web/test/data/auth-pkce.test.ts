@@ -1,4 +1,4 @@
-import { createCodeVerifier, createPkcePair, deriveCodeChallenge } from "@data/auth/pkce";
+import { createCodeVerifier, createPkcePair, deriveCodeChallenge } from "@cue/core/data/auth/pkce";
 import { describe, expect, it } from "vitest";
 
 const BASE64URL = /^[A-Za-z0-9_-]+$/;

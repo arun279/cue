@@ -8,8 +8,6 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      "@domain": src("domain"),
-      "@data": src("data"),
       "@ui": src("ui"),
       "@app": src("app"),
       "@platform": src("platform"),

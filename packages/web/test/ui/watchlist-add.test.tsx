@@ -1,6 +1,6 @@
-import { queryKeys } from "@data/query-keys";
-import type { LibraryEntry } from "@data/trakt/library";
-import type { SearchHit } from "@data/trakt/search";
+import { queryKeys } from "@cue/core/data/query-keys";
+import type { LibraryEntry } from "@cue/core/data/trakt/library";
+import type { SearchHit } from "@cue/core/data/trakt/search";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useWatchlistAdd, type WatchlistAddView } from "@ui/hooks/useWatchlistAdd";
 import { type CueRuntime, RuntimeProvider, type UpNextData } from "@ui/runtime/runtime";

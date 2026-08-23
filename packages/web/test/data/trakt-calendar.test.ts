@@ -1,5 +1,5 @@
-import { assembleCalendarEntries } from "@data/trakt/calendar";
-import type { CalendarItem } from "@data/trakt/schemas";
+import { assembleCalendarEntries } from "@cue/core/data/trakt/calendar";
+import type { CalendarItem } from "@cue/core/data/trakt/schemas";
 import { describe, expect, it } from "vitest";
 
 function item(overrides: Partial<CalendarItem> = {}): CalendarItem {

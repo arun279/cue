@@ -1,5 +1,5 @@
-import { buildAddEpisodePlayOp, buildMarkEpisodeOp } from "@domain/write-queue/ops";
-import type { QueuedOp } from "@domain/write-queue/types";
+import { buildAddEpisodePlayOp, buildMarkEpisodeOp } from "@cue/core/domain/write-queue/ops";
+import type { QueuedOp } from "@cue/core/domain/write-queue/types";
 import {
   hasPendingMark,
   lockShow,

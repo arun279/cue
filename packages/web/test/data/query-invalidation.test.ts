@@ -1,5 +1,5 @@
-import { invalidationKeys, showProgressKeys } from "@data/query-invalidation";
-import { queryKeys } from "@data/query-keys";
+import { invalidationKeys, showProgressKeys } from "@cue/core/data/query-invalidation";
+import { queryKeys } from "@cue/core/data/query-keys";
 import { describe, expect, it } from "vitest";
 
 describe("showProgressKeys: the keys a local mark on show X must refresh", () => {

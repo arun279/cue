@@ -19,8 +19,8 @@ const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
  * so these roots may be repathed without bumping anything.
  */
 const SHAPE_TREES = [
-  "packages/web/src/domain",
-  "packages/web/src/data",
+  "packages/core/src/domain",
+  "packages/core/src/data",
   "packages/web/src/ui/runtime",
 ];
 
@@ -28,12 +28,30 @@ const GENERATED = "packages/web/src/ui/runtime/persist-buster.ts";
 
 /**
  * Every module specifier in an `import`, `export ... from`, dynamic `import()`
- * or `require()` clause, collapsed to one constant before hashing. A refactor
- * that respells `@domain/up-next` as `@cue/core/domain/up-next` rewrites nearly
- * every file in these trees and changes no persisted shape; without this the
- * rename alone would drop every shipping user's cache.
+ * or `require()` clause, collapsed to one constant. A refactor that respells
+ * `@domain/up-next` as `@cue/core/domain/up-next` rewrites nearly every file in
+ * these trees and changes no persisted shape; without this the rename alone
+ * would drop every shipping user's cache.
  */
 const MODULE_SPECIFIER = /(?<![.\w$])(from|import|require)(\s*\(?\s*)(["'])(?:[^"'\\\n]|\\.)*?\3/g;
+
+/**
+ * A file reduced to the sorted multiset of its lines. Collapsing the specifier
+ * is not enough on its own: it changes the sort key organize-imports uses, so
+ * respelling one import reorders the whole block, and the file's bytes move
+ * again for the same non-reason. Sorting is also the right statement about what
+ * a shape is. A persisted value is a set of fields, so two declarations that
+ * swap places are the same shape, while a field added, removed or retyped
+ * changes a line and moves the digest.
+ */
+const normalise = (source) =>
+  source
+    .replace(MODULE_SPECIFIER, '$1$2$3"$3')
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .sort()
+    .join("\n");
 
 function filesUnder(tree) {
   const root = join(ROOT, tree);
@@ -43,15 +61,15 @@ function filesUnder(tree) {
 }
 
 /**
- * A digest per file, sorted, then hashed. No path component enters the hash, so
- * a file that moves between the trees produces the same witness; a file added,
- * deleted or edited does not.
+ * A digest per normalised file, sorted, then hashed. No path component enters
+ * the hash, so a file that moves between the trees produces the same witness; a
+ * file added, deleted or edited does not.
  */
 function shapeWitness() {
   const digests = SHAPE_TREES.flatMap(filesUnder)
     .map((path) =>
       createHash("sha256")
-        .update(readFileSync(join(ROOT, path), "utf8").replace(MODULE_SPECIFIER, '$1$2$3"$3'))
+        .update(normalise(readFileSync(join(ROOT, path), "utf8")))
         .digest("hex"),
     )
     .sort();

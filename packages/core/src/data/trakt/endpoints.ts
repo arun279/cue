@@ -1,7 +1,7 @@
-import type { HistoryRange } from "@domain/history";
-import type { EpisodeIds, MovieIds, ShowIds } from "@domain/model/ids";
-import type { LastActivities } from "@domain/sync-activities";
 import type { z } from "zod";
+import type { HistoryRange } from "../../domain/history";
+import type { EpisodeIds, MovieIds, ShowIds } from "../../domain/model/ids";
+import type { LastActivities } from "../../domain/sync-activities";
 import type { RequestOptions, TraktClient, TraktResult } from "./client";
 import {
   type CalendarItem,

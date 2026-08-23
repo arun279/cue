@@ -1,5 +1,5 @@
-import { queryKeys } from "@data/query-keys";
-import type { EpisodeDetail } from "@data/trakt/episode-detail";
+import { queryKeys } from "@cue/core/data/query-keys";
+import type { EpisodeDetail } from "@cue/core/data/trakt/episode-detail";
 import { useQuery } from "@tanstack/react-query";
 import { CONTENT_STALE_TIME_MS } from "@ui/hooks/query-freshness";
 import { useRuntime } from "@ui/runtime/runtime";

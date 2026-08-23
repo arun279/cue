@@ -1,4 +1,4 @@
-import type { MoviePlay } from "@domain/reversal";
+import type { MoviePlay } from "@cue/core/domain/reversal";
 import { resolveMovieUnmark, routeMovieUnmark } from "@ui/hooks/resolveUnmark";
 import type { CueRuntime } from "@ui/runtime/runtime";
 import { describe, expect, it } from "vitest";

@@ -1,4 +1,4 @@
-import { type EpisodePlay, planEpisodeUnmark, planSeasonUnmark } from "@domain/reversal";
+import { type EpisodePlay, planEpisodeUnmark, planSeasonUnmark } from "@cue/core/domain/reversal";
 import { describe, expect, it } from "vitest";
 
 const WATCHED_AT = "2026-06-01T00:00:00.000Z";

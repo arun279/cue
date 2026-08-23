@@ -1,5 +1,5 @@
-import type { EpisodeView, SeasonView, ShowHeader } from "@data/trakt/show-detail";
-import { epCode } from "@domain/model/library";
+import type { EpisodeView, SeasonView, ShowHeader } from "@cue/core/data/trakt/show-detail";
+import { epCode } from "@cue/core/domain/model/library";
 import { Outlet, useRouterState } from "@tanstack/react-router";
 import { ActionSheet, type ActionSheetRow } from "@ui/components/ActionSheet";
 import { ConfirmSheet } from "@ui/components/ConfirmSheet";
@@ -8,7 +8,7 @@ import { EmptyState } from "@ui/components/EmptyState";
 import { ErrorRetry } from "@ui/components/ErrorStates";
 import { SkeletonRows } from "@ui/components/Skeletons";
 import { dismissSnack, showSnack } from "@ui/components/snackbar-store";
-import { middleTruncate, titleCase } from "@ui/format";
+import { middleTruncate, titleCase } from "@cue/core/format";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { useHideShow } from "@ui/hooks/useHideShow";
 import { useLibraryEntry } from "@ui/hooks/useLibrarySnapshot";

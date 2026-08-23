@@ -1,4 +1,4 @@
-import { formatWatchedDate } from "@ui/format";
+import { formatWatchedDate } from "@cue/core/format";
 import {
   removeAllBody,
   sheetMetaLine,

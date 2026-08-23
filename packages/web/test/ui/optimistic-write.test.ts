@@ -1,4 +1,4 @@
-import type { QueuedOp } from "@domain/write-queue/types";
+import type { QueuedOp } from "@cue/core/domain/write-queue/types";
 import { applyOptimisticWrite } from "@ui/hooks/useOptimisticWrite";
 import type { SubmitOutcome } from "@ui/runtime/runtime";
 import { describe, expect, it, vi } from "vitest";

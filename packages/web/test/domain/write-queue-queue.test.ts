@@ -2,9 +2,9 @@ import {
   buildAddEpisodePlayOp,
   buildMarkEpisodeOp,
   buildUnmarkEpisodeOp,
-} from "@domain/write-queue/ops";
-import { WriteQueue, type WriteQueueDeps } from "@domain/write-queue/queue";
-import type { DispatchResult, QueuedOp } from "@domain/write-queue/types";
+} from "@cue/core/domain/write-queue/ops";
+import { WriteQueue, type WriteQueueDeps } from "@cue/core/domain/write-queue/queue";
+import type { DispatchResult, QueuedOp } from "@cue/core/domain/write-queue/types";
 import { describe, expect, it, vi } from "vitest";
 import { dispatchResult, fakeClock } from "./_helpers";
 

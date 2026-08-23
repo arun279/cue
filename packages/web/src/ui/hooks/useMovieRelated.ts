@@ -1,5 +1,5 @@
-import { queryKeys } from "@data/query-keys";
-import type { SearchHit } from "@data/trakt/search";
+import { queryKeys } from "@cue/core/data/query-keys";
+import type { SearchHit } from "@cue/core/data/trakt/search";
 import { useQuery } from "@tanstack/react-query";
 import { BROWSE_STALE_TIME_MS } from "@ui/hooks/query-freshness";
 import { useRuntime } from "@ui/runtime/runtime";

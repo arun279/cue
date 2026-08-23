@@ -1,5 +1,5 @@
-import type { HistoryDay, HistoryEntry } from "@domain/history";
-import { epCode } from "@domain/model/library";
+import type { HistoryDay, HistoryEntry } from "@cue/core/domain/history";
+import { epCode } from "@cue/core/domain/model/library";
 import type { EpisodeRowLink } from "@ui/components/EpisodeRow";
 
 /** Where a play's row links: the movie page, or the episode sheet it logged. */

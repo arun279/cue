@@ -1,4 +1,4 @@
-import type { DispatchResult, RequestDescriptor } from "@domain/write-queue/types";
+import type { DispatchResult, RequestDescriptor } from "../../domain/write-queue/types";
 import type { TraktClient } from "./client";
 
 /**

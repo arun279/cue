@@ -1,5 +1,5 @@
-import type { EpisodeRef, LibraryShow } from "@domain/model/library";
-import type { DispatchResult } from "@domain/write-queue/types";
+import type { EpisodeRef, LibraryShow } from "@cue/core/domain/model/library";
+import type { DispatchResult } from "@cue/core/domain/write-queue/types";
 
 export const DAY = 24 * 60 * 60 * 1000;
 /** Fixed "now" so aired/unaired fixtures are deterministic: 2026-07-05 UTC. */

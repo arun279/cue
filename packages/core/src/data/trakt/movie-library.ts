@@ -1,4 +1,4 @@
-import type { MovieIds } from "@domain/model/ids";
+import type { MovieIds } from "../../domain/model/ids";
 import type { MovieDetailData, WatchedMovie, WatchlistItem } from "./schemas";
 
 /**

@@ -1,15 +1,15 @@
-import type { InvalidationKey } from "@data/query-invalidation";
-import type { EpisodeDetail } from "@data/trakt/episode-detail";
-import type { LibraryEntry } from "@data/trakt/library";
-import type { MovieEntry, MovieHeader } from "@data/trakt/movie-library";
-import type { UserStats } from "@data/trakt/schemas";
-import type { SearchHit } from "@data/trakt/search";
-import type { SeasonView, ShowInfo, ShowProgress } from "@data/trakt/show-detail";
-import type { UserProfile } from "@data/trakt/user-profile";
-import type { CalendarEntry } from "@domain/calendar";
-import type { HistoryEntry, HistoryRange } from "@domain/history";
-import type { EpisodePlay, MoviePlay } from "@domain/reversal";
-import type { QueuedOp } from "@domain/write-queue/types";
+import type { InvalidationKey } from "@cue/core/data/query-invalidation";
+import type { EpisodeDetail } from "@cue/core/data/trakt/episode-detail";
+import type { LibraryEntry } from "@cue/core/data/trakt/library";
+import type { MovieEntry, MovieHeader } from "@cue/core/data/trakt/movie-library";
+import type { UserStats } from "@cue/core/data/trakt/schemas";
+import type { SearchHit } from "@cue/core/data/trakt/search";
+import type { SeasonView, ShowInfo, ShowProgress } from "@cue/core/data/trakt/show-detail";
+import type { UserProfile } from "@cue/core/data/trakt/user-profile";
+import type { CalendarEntry } from "@cue/core/domain/calendar";
+import type { HistoryEntry, HistoryRange } from "@cue/core/domain/history";
+import type { EpisodePlay, MoviePlay } from "@cue/core/domain/reversal";
+import type { QueuedOp } from "@cue/core/domain/write-queue/types";
 import { createContext, useContext } from "react";
 
 /** The read side of the home surface: the assembled active queue. */

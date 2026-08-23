@@ -1,4 +1,9 @@
-import { groupHistory, type HistoryEntry, historyRange, historyScopeKey } from "@domain/history";
+import {
+  groupHistory,
+  type HistoryEntry,
+  historyRange,
+  historyScopeKey,
+} from "@cue/core/domain/history";
 import { describe, expect, it } from "vitest";
 
 /** Fixed instant: 2026-07-05T16:00Z = 12:00 in America/New_York (EDT, UTC-4). */

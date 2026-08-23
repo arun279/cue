@@ -1,4 +1,4 @@
-import type { EpisodeView, SeasonView } from "@data/trakt/show-detail";
+import type { EpisodeView, SeasonView } from "@cue/core/data/trakt/show-detail";
 import {
   airedUnwatchedCount,
   backfillRangeLabel,

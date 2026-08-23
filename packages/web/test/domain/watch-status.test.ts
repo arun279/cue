@@ -1,4 +1,8 @@
-import { computeWatchStatus, isTerminalStatus, type WatchStatus } from "@domain/watch-status";
+import {
+  computeWatchStatus,
+  isTerminalStatus,
+  type WatchStatus,
+} from "@cue/core/domain/watch-status";
 import { describe, expect, it } from "vitest";
 import { airedNext, DAY, futureNext, iso, makeShow, NOW, THRESHOLD } from "./_helpers";
 

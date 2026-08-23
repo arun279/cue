@@ -6,10 +6,10 @@ import {
   pollDeviceToken,
   requestDeviceCode,
   revokeToken,
-} from "@data/auth/oauth";
-import { createPkcePair } from "@data/auth/pkce";
-import type { Token } from "@domain/model/token";
-import type { TokenStore } from "@platform/token-store";
+} from "@cue/core/data/auth/oauth";
+import { createPkcePair } from "@cue/core/data/auth/pkce";
+import type { Token } from "@cue/core/domain/model/token";
+import type { TokenStore } from "@cue/core/ports/token-store";
 import type { AuthActions, AuthState, AuthStore } from "@ui/auth/store";
 import { createStore } from "zustand/vanilla";
 

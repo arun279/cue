@@ -1,11 +1,11 @@
-import type { CalendarDay, CalendarRow } from "@domain/calendar";
+import type { CalendarDay, CalendarRow } from "@cue/core/domain/calendar";
 import {
   diffReminders,
   type PlannedReminder,
   planReminders,
   REMINDER_HOUR,
   REMINDER_WINDOW_DAYS,
-} from "@domain/reminders";
+} from "@cue/core/domain/reminders";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const DAY_MS = 24 * 60 * 60 * 1000;

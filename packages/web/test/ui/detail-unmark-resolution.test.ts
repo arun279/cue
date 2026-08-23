@@ -1,4 +1,4 @@
-import type { EpisodePlay } from "@domain/reversal";
+import type { EpisodePlay } from "@cue/core/domain/reversal";
 import { findMarkPlay, resolveEpisodeUnmark } from "@ui/hooks/resolveUnmark";
 import type { CueRuntime } from "@ui/runtime/runtime";
 import { describe, expect, it } from "vitest";

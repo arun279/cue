@@ -1,6 +1,6 @@
-import { queryKeys } from "@data/query-keys";
-import type { ShowIds } from "@domain/model/ids";
-import { buildAddWatchlistOp, buildRemoveWatchlistOp } from "@domain/write-queue/ops";
+import { queryKeys } from "@cue/core/data/query-keys";
+import type { ShowIds } from "@cue/core/domain/model/ids";
+import { buildAddWatchlistOp, buildRemoveWatchlistOp } from "@cue/core/domain/write-queue/ops";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { patchLibraryEntry } from "@ui/hooks/library-cache";
 import { USER_STATE_STALE_TIME } from "@ui/hooks/query-freshness";

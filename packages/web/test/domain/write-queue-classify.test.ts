@@ -4,7 +4,7 @@ import {
   computePacingDelay,
   MIN_WRITE_INTERVAL_MS,
   parseRetryAfterMs,
-} from "@domain/write-queue/classify";
+} from "@cue/core/domain/write-queue/classify";
 import { describe, expect, it } from "vitest";
 import { dispatchResult } from "./_helpers";
 

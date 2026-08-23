@@ -1,4 +1,4 @@
-import { type Reminders, SILENT } from "@domain/ports/reminders";
+import { type Reminders, SILENT } from "@cue/core/domain/ports/reminders";
 import { createContext, useContext } from "react";
 
 /** The notification port as `@ui` reaches it, injected from the composition root

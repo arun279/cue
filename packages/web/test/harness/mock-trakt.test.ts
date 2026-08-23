@@ -5,9 +5,9 @@ import {
   refreshAccessToken,
   requestDeviceCode,
   revokeToken,
-} from "@data/auth/oauth";
-import { resolvePoster } from "@data/image-source";
-import { TraktClient, type TraktResult } from "@data/trakt/client";
+} from "@cue/core/data/auth/oauth";
+import { resolvePoster } from "@cue/core/data/image-source";
+import { TraktClient, type TraktResult } from "@cue/core/data/trakt/client";
 import {
   getEpisode,
   getHidden,
@@ -28,10 +28,10 @@ import {
   getWatchedMovies,
   getWatchedShows,
   getWatchlist,
-} from "@data/trakt/endpoints";
-import { loadUpNextEntries } from "@data/trakt/read-budget";
-import { groupUpNext } from "@domain/up-next";
-import { DEFAULT_STALENESS_THRESHOLD_MS } from "@domain/watch-status";
+} from "@cue/core/data/trakt/endpoints";
+import { loadUpNextEntries } from "@cue/core/data/trakt/read-budget";
+import { groupUpNext } from "@cue/core/domain/up-next";
+import { DEFAULT_STALENESS_THRESHOLD_MS } from "@cue/core/domain/watch-status";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createMockTrakt } from "../../../../scripts/mock-trakt/server.mjs";
 

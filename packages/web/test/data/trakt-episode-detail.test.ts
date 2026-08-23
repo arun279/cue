@@ -1,5 +1,5 @@
-import { assembleEpisodeDetail } from "@data/trakt/episode-detail";
-import type { EpisodeData, Progress } from "@data/trakt/schemas";
+import { assembleEpisodeDetail } from "@cue/core/data/trakt/episode-detail";
+import type { EpisodeData, Progress } from "@cue/core/data/trakt/schemas";
 import { describe, expect, it } from "vitest";
 
 const NOW = Date.UTC(2026, 6, 5);

@@ -1,5 +1,5 @@
-import type { LibraryEntry } from "@data/trakt/library";
-import { groupUpNext, type UpNextItem } from "@domain/up-next";
+import type { LibraryEntry } from "@cue/core/data/trakt/library";
+import { groupUpNext, type UpNextItem } from "@cue/core/domain/up-next";
 import { type QueryStatus, queryStatus } from "@ui/hooks/query-freshness";
 import { sortLapsed, sortQueue, stabilizePendingAdvance } from "@ui/hooks/queue-order";
 import { useLibrarySnapshot } from "@ui/hooks/useLibrarySnapshot";

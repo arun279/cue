@@ -1,6 +1,6 @@
-import type { UserStats } from "@data/trakt/schemas";
-import type { UserProfile } from "@data/trakt/user-profile";
-import { humanizeWatchMinutes } from "@domain/time";
+import type { UserStats } from "@cue/core/data/trakt/schemas";
+import type { UserProfile } from "@cue/core/data/trakt/user-profile";
+import { humanizeWatchMinutes } from "@cue/core/domain/time";
 import { Link } from "@tanstack/react-router";
 import { ScreenHeader } from "@ui/app-shell/ScreenHeader";
 import { SyncStrip } from "@ui/app-shell/SyncStrip";

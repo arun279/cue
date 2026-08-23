@@ -1,4 +1,4 @@
-import { initialsOf } from "@data/image-source";
+import { initialsOf } from "@cue/core/data/image-source";
 import type { ReactElement } from "react";
 
 /** The one "no artwork" mark reused by every placeholder: a quiet media

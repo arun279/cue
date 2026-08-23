@@ -1,5 +1,5 @@
-import { shouldRefresh, TokenRefresher } from "@domain/auth/token";
-import type { Token } from "@domain/model/token";
+import { shouldRefresh, TokenRefresher } from "../../domain/auth/token";
+import type { Token } from "../../domain/model/token";
 import { type OAuthConfig, refreshAccessToken, TokenRefreshError } from "../auth/oauth";
 import type { FetchLike } from "./client";
 

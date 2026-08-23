@@ -1,4 +1,4 @@
-import { DEFAULT_STALENESS_THRESHOLD_MS } from "@domain/watch-status";
+import { DEFAULT_STALENESS_THRESHOLD_MS } from "@cue/core/domain/watch-status";
 import { choicePref } from "./pref-storage";
 
 const DAY_MS = 24 * 60 * 60 * 1000;

@@ -1,5 +1,5 @@
-import type { CalendarDay, CalendarRow } from "@domain/calendar";
-import { localTimeZone } from "@domain/time";
+import type { CalendarDay, CalendarRow } from "@cue/core/domain/calendar";
+import { localTimeZone } from "@cue/core/domain/time";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 

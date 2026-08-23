@@ -1,5 +1,5 @@
-import type { HistoryEntry } from "@domain/history";
-import type { EpisodePlay, MoviePlay } from "@domain/reversal";
+import type { HistoryEntry } from "../../domain/history";
+import type { EpisodePlay, MoviePlay } from "../../domain/reversal";
 import { toMovieIds } from "./movie-library";
 import type { HistoryItem } from "./schemas";
 import { toEpisodeIds } from "./show-detail";

@@ -1,4 +1,4 @@
-import { queryKeys } from "@data/query-keys";
+import { queryKeys } from "@cue/core/data/query-keys";
 import { QueryClient, QueryClientProvider, QueryObserver } from "@tanstack/react-query";
 import { dismissSnack, useSnackbar } from "@ui/components/snackbar-store";
 import { type CueRuntime, RuntimeProvider } from "@ui/runtime/runtime";

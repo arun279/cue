@@ -1,4 +1,4 @@
-import type { Progress, SeasonData, ShowDetailData } from "@data/trakt/schemas";
+import type { Progress, SeasonData, ShowDetailData } from "@cue/core/data/trakt/schemas";
 import {
   assembleSeasons,
   assembleShowInfo,
@@ -6,7 +6,7 @@ import {
   type EpisodeView,
   firstUnwatchedAired,
   type SeasonView,
-} from "@data/trakt/show-detail";
+} from "@cue/core/data/trakt/show-detail";
 import { describe, expect, it } from "vitest";
 
 const NOW = Date.UTC(2026, 6, 5);

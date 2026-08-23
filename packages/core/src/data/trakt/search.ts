@@ -1,4 +1,4 @@
-import type { MovieIds, ShowIds } from "@domain/model/ids";
+import type { MovieIds, ShowIds } from "../../domain/model/ids";
 import type { MovieSummary, SearchResult, ShowSummary } from "./schemas";
 
 /** A show/movie search hit, flattened for the result row + inline watchlist add. */

@@ -1,4 +1,4 @@
-import { resolvePoster } from "@data/image-source";
+import { resolvePoster } from "@cue/core/data/image-source";
 import { ArtPlaceholder } from "@ui/components/ArtPlaceholder";
 import { artGradient } from "@ui/components/artGradient";
 import { type ReactElement, useState } from "react";

@@ -1,4 +1,4 @@
-import { toMs } from "@domain/time";
+import { toMs } from "../../domain/time";
 import type { TraktClient, TraktResult } from "./client";
 import { getHidden, getShowProgress, getWatchedShows, getWatchlist } from "./endpoints";
 import { assembleLibrary, type LibraryEntry, showIdSet, watchedEpisodeCount } from "./library";

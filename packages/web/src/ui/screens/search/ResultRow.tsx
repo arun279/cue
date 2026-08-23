@@ -1,4 +1,4 @@
-import type { SearchHit } from "@data/trakt/search";
+import type { SearchHit } from "@cue/core/data/trakt/search";
 import { Badge } from "@ui/components/Badge";
 import { EpisodeRow, type EpisodeRowLink } from "@ui/components/EpisodeRow";
 import { Poster } from "@ui/screens/up-next/Poster";

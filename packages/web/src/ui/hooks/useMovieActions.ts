@@ -1,13 +1,13 @@
-import { queryKeys } from "@data/query-keys";
-import type { MovieEntry } from "@data/trakt/movie-library";
+import { queryKeys } from "@cue/core/data/query-keys";
+import type { MovieEntry } from "@cue/core/data/trakt/movie-library";
 import {
   buildAddWatchlistOp,
   buildMarkMovieOp,
   buildRemoveHistoryPlayOp,
   buildRemoveWatchlistOp,
   buildUnmarkMovieOp,
-} from "@domain/write-queue/ops";
-import type { QueuedOp } from "@domain/write-queue/types";
+} from "@cue/core/domain/write-queue/ops";
+import type { QueuedOp } from "@cue/core/domain/write-queue/types";
 import { useQueryClient } from "@tanstack/react-query";
 import { resolveMovieUnmark, routeMovieUnmark } from "@ui/hooks/resolveUnmark";
 import { invertOp } from "@ui/hooks/useMarkSeason";

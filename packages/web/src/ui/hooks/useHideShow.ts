@@ -1,6 +1,6 @@
-import { queryKeys } from "@data/query-keys";
-import type { ShowIds } from "@domain/model/ids";
-import { buildHideShowOp, buildUnhideShowOp } from "@domain/write-queue/ops";
+import { queryKeys } from "@cue/core/data/query-keys";
+import type { ShowIds } from "@cue/core/domain/model/ids";
+import { buildHideShowOp, buildUnhideShowOp } from "@cue/core/domain/write-queue/ops";
 import { useQueryClient } from "@tanstack/react-query";
 import { useOptimisticWrite } from "@ui/hooks/useOptimisticWrite";
 import { useCallback, useState } from "react";

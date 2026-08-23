@@ -1,4 +1,4 @@
-import type { PlannedReminder } from "@domain/reminders";
+import type { PlannedReminder } from "@cue/core/domain/reminders";
 import { createNativeReminders } from "@platform/reminders";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 

@@ -1,4 +1,5 @@
-import type { SearchHit } from "@data/trakt/search";
+import type { SearchHit } from "@cue/core/data/trakt/search";
+import { middleTruncate } from "@cue/core/format";
 import { ScreenHeader } from "@ui/app-shell/ScreenHeader";
 import { EmptyState } from "@ui/components/EmptyState";
 import { ErrorRetry } from "@ui/components/ErrorStates";
@@ -6,7 +7,6 @@ import { PullToRefresh } from "@ui/components/PullToRefresh";
 import { SectionHeader } from "@ui/components/SectionHeader";
 import { SkeletonRows } from "@ui/components/Skeletons";
 import { dismissSnack, showSnack } from "@ui/components/snackbar-store";
-import { middleTruncate } from "@ui/format";
 import { useBrowse } from "@ui/hooks/useBrowse";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { useIsOffline } from "@ui/hooks/useIsOffline";

@@ -1,11 +1,11 @@
-import { type OAuthConfig, TRAKT_API_BASE } from "@data/auth/oauth";
+import { type OAuthConfig, TRAKT_API_BASE } from "@cue/core/data/auth/oauth";
 import {
   type AuthorizedFetchDeps,
   createAuthorizedFetch,
   UnauthorizedWriteError,
-} from "@data/trakt/authorized-fetch";
-import type { FetchLike } from "@data/trakt/client";
-import type { Token } from "@domain/model/token";
+} from "@cue/core/data/trakt/authorized-fetch";
+import type { FetchLike } from "@cue/core/data/trakt/client";
+import type { Token } from "@cue/core/domain/model/token";
 import { delay, HttpResponse, http } from "msw";
 import { describe, expect, it, type Mock, vi } from "vitest";
 import { mswServer } from "./_msw";

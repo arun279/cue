@@ -1,5 +1,5 @@
-import type { HistoryEntry } from "@domain/history";
-import { localTimeZone } from "@domain/time";
+import type { HistoryEntry } from "@cue/core/domain/history";
+import { localTimeZone } from "@cue/core/domain/time";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { ScreenHeader } from "@ui/app-shell/ScreenHeader";
 import { SyncStrip } from "@ui/app-shell/SyncStrip";

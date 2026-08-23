@@ -1,18 +1,18 @@
-import { invalidateShowProgress } from "@data/query-invalidation";
-import { queryKeys } from "@data/query-keys";
+import { invalidateShowProgress } from "@cue/core/data/query-invalidation";
+import { queryKeys } from "@cue/core/data/query-keys";
 import {
   groupHistory,
   type HistoryDay,
   type HistoryEntry,
   historyRange,
   historyScopeKey,
-} from "@domain/history";
-import { localTimeZone } from "@domain/time";
+} from "@cue/core/domain/history";
+import { localTimeZone } from "@cue/core/domain/time";
 import {
   buildMarkEpisodeOp,
   buildMarkMovieOp,
   buildRemoveHistoryPlayOp,
-} from "@domain/write-queue/ops";
+} from "@cue/core/domain/write-queue/ops";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { queryStatus, USER_STATE_STALE_TIME } from "@ui/hooks/query-freshness";
 import { useOptimisticWrite } from "@ui/hooks/useOptimisticWrite";

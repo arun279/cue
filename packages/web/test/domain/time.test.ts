@@ -1,4 +1,4 @@
-import { humanizeWatchMinutes, isAired, toMs } from "@domain/time";
+import { humanizeWatchMinutes, isAired, toMs } from "@cue/core/domain/time";
 import { describe, expect, it } from "vitest";
 
 const T = Date.parse("2026-07-05T00:00:00.000Z");

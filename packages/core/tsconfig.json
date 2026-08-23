@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "../../tsconfig.base.json",
+  // No "dom": the core runs on a JavaScript engine with no window, no document
+  // and no navigator, so a reference to one is a compile error here rather than
+  // a crash on the other target. That guard does not see DOM JSX, which is why
+  // check:core-portable asserts this tree carries no .tsx and no .css.
+  "compilerOptions": {
+    "lib": ["ES2023"],
+    "types": ["node"]
+  },
+  "include": ["src", "test"],
+  "exclude": ["node_modules", "coverage"]
+}

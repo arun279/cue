@@ -1,5 +1,5 @@
-import type { InvalidationTarget } from "@domain/sync-activities";
 import type { QueryClient } from "@tanstack/react-query";
+import type { InvalidationTarget } from "../domain/sync-activities";
 import { queryKeys } from "./query-keys";
 
 /** A composite TanStack query key (a readonly tuple prefix). */

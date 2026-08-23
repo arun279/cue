@@ -1,6 +1,6 @@
-import { queryKeys } from "@data/query-keys";
-import type { SearchHit } from "@data/trakt/search";
-import { buildAddWatchlistOp, buildRemoveWatchlistOp } from "@domain/write-queue/ops";
+import { queryKeys } from "@cue/core/data/query-keys";
+import type { SearchHit } from "@cue/core/data/trakt/search";
+import { buildAddWatchlistOp, buildRemoveWatchlistOp } from "@cue/core/domain/write-queue/ops";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { USER_STATE_STALE_TIME } from "@ui/hooks/query-freshness";
 import { useQueuedWrite } from "@ui/hooks/useQueuedWrite";

@@ -1,4 +1,4 @@
-import { type CalendarEntry, groupCalendar } from "@domain/calendar";
+import { type CalendarEntry, groupCalendar } from "@cue/core/domain/calendar";
 import { describe, expect, it } from "vitest";
 
 /** Fixed instant: 2026-07-05T16:00Z = 12:00 in America/New_York (EDT, UTC-4). */

@@ -1,4 +1,4 @@
-import type { CalendarDay, CalendarRow } from "@domain/calendar";
+import type { CalendarDay, CalendarRow } from "@cue/core/domain/calendar";
 import { buildAgenda, trailingChip } from "@ui/screens/calendar/agenda";
 import { describe, expect, it } from "vitest";
 

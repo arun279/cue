@@ -1,6 +1,6 @@
-import type { CalendarRow as CalendarRowModel } from "@domain/calendar";
-import { epCode } from "@domain/model/library";
-import { localTimeZone } from "@domain/time";
+import type { CalendarRow as CalendarRowModel } from "@cue/core/domain/calendar";
+import { epCode } from "@cue/core/domain/model/library";
+import { localTimeZone } from "@cue/core/domain/time";
 import { Badge } from "@ui/components/Badge";
 import { EpisodeRow } from "@ui/components/EpisodeRow";
 import { Poster } from "@ui/screens/up-next/Poster";

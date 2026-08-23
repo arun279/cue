@@ -1,5 +1,5 @@
-import { queryKeys } from "@data/query-keys";
-import type { UserStats } from "@data/trakt/schemas";
+import { queryKeys } from "@cue/core/data/query-keys";
+import type { UserStats } from "@cue/core/data/trakt/schemas";
 import { useQuery } from "@tanstack/react-query";
 import { USER_STATE_STALE_TIME } from "@ui/hooks/query-freshness";
 import { useRuntime } from "@ui/runtime/runtime";

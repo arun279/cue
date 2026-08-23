@@ -1,4 +1,4 @@
-import { localTimeZone } from "@domain/time";
+import { localTimeZone } from "@cue/core/domain/time";
 import type { ReactElement } from "react";
 
 const DAY_MS = 24 * 60 * 60 * 1000;

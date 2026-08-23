@@ -1,5 +1,5 @@
-import type { HistoryEntry } from "@domain/history";
-import { localTimeZone } from "@domain/time";
+import type { HistoryEntry } from "@cue/core/domain/history";
+import { localTimeZone } from "@cue/core/domain/time";
 import { CheckControl } from "@ui/components/CheckControl";
 import { EpisodeRow } from "@ui/components/EpisodeRow";
 import { SectionHeader } from "@ui/components/SectionHeader";

@@ -1,4 +1,4 @@
-import type { QueuedOp } from "@domain/write-queue/types";
+import type { QueuedOp } from "@cue/core/domain/write-queue/types";
 import { trackWrite } from "@ui/hooks/sync-activity-store";
 import { type SubmitOutcome, useRuntime } from "@ui/runtime/runtime";
 import { useCallback } from "react";

@@ -1,5 +1,5 @@
-import type { ShowIds } from "@domain/model/ids";
-import { buildHideShowOp, buildUnhideShowOp } from "@domain/write-queue/ops";
+import type { ShowIds } from "@cue/core/domain/model/ids";
+import { buildHideShowOp, buildUnhideShowOp } from "@cue/core/domain/write-queue/ops";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTrackedSubmit } from "@ui/hooks/useOptimisticWrite";
 import type { SubmitOutcome } from "@ui/runtime/runtime";

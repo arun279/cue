@@ -1,7 +1,11 @@
-import { queryKeys } from "@data/query-keys";
-import type { LibraryEntry } from "@data/trakt/library";
-import { firstUnwatchedAired, type SeasonView, toEpisodeRef } from "@data/trakt/show-detail";
-import { needsNextEpisode, reconcileRecentlyAired } from "@domain/recently-aired";
+import { queryKeys } from "@cue/core/data/query-keys";
+import type { LibraryEntry } from "@cue/core/data/trakt/library";
+import {
+  firstUnwatchedAired,
+  type SeasonView,
+  toEpisodeRef,
+} from "@cue/core/data/trakt/show-detail";
+import { needsNextEpisode, reconcileRecentlyAired } from "@cue/core/domain/recently-aired";
 import { queryOptions, type UseQueryResult, useQueries, useQuery } from "@tanstack/react-query";
 import { CONTENT_STALE_TIME_MS, USER_STATE_STALE_TIME } from "@ui/hooks/query-freshness";
 import { useRecentlyAired } from "@ui/hooks/useCalendar";

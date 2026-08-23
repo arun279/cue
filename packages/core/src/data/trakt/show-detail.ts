@@ -1,6 +1,6 @@
-import type { EpisodeIds, ShowIds } from "@domain/model/ids";
-import type { EpisodeRef } from "@domain/model/library";
-import { isAired } from "@domain/time";
+import type { EpisodeIds, ShowIds } from "../../domain/model/ids";
+import type { EpisodeRef } from "../../domain/model/library";
+import { isAired } from "../../domain/time";
 import { resolveStill } from "../image-source";
 import type { EpisodeData, Progress, SeasonData, ShowDetailData } from "./schemas";
 

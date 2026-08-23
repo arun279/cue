@@ -1,10 +1,10 @@
-import { coalesce } from "@domain/write-queue/coalesce";
+import { coalesce } from "@cue/core/domain/write-queue/coalesce";
 import {
   buildAddEpisodePlayOp,
   buildMarkEpisodeOp,
   buildUnmarkEpisodeOp,
-} from "@domain/write-queue/ops";
-import type { QueuedOp } from "@domain/write-queue/types";
+} from "@cue/core/domain/write-queue/ops";
+import type { QueuedOp } from "@cue/core/domain/write-queue/types";
 import { describe, expect, it } from "vitest";
 
 const WATCHED_AT = "2026-07-05T12:00:00.000Z";

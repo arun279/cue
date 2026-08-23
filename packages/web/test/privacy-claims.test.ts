@@ -1,6 +1,6 @@
-import { TRAKT_API_BASE } from "@data/trakt/client";
-import type { Token } from "@domain/model/token";
-import { REMINDER_WINDOW_DAYS } from "@domain/reminders";
+import { TRAKT_API_BASE } from "@cue/core/data/trakt/client";
+import type { Token } from "@cue/core/domain/model/token";
+import { REMINDER_WINDOW_DAYS } from "@cue/core/domain/reminders";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { describe, expect, it, vi } from "vitest";
@@ -302,7 +302,7 @@ describe("privacy copy agreement and storage anchors", () => {
     };
     // Short-circuit the device-code round trip: only the persist step, not
     // Trakt's network protocol, is what this test is anchoring.
-    vi.doMock("@data/auth/oauth", () => ({
+    vi.doMock("@cue/core/data/auth/oauth", () => ({
       requestDeviceCode: vi.fn(async () => ({
         userCode: "ABCD1234",
         verificationUrl: "https://trakt.tv/activate",
@@ -314,7 +314,7 @@ describe("privacy copy agreement and storage anchors", () => {
       exchangeCodeForToken: vi.fn(),
       revokeToken: vi.fn(),
     }));
-    vi.doMock("@data/auth/pkce", () => ({
+    vi.doMock("@cue/core/data/auth/pkce", () => ({
       createPkcePair: vi.fn(async () => ({ verifier: "verifier", challenge: "challenge" })),
     }));
 
