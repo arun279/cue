@@ -65,16 +65,11 @@ module.exports = {
       name: "domain-stays-pure",
       severity: "error",
       comment:
-        "The domain is runtime-agnostic: global fetch + zod only. No data/ports, no app, no react, no react-dom, no capacitor.",
+        "The domain is runtime-agnostic: global fetch + zod only. Stated positively, as what it MAY reach rather than as a list of the directories it may not: the ban then covers a directory added to the core tomorrow instead of waiting to be amended. In-repo, the domain may reach the domain and nothing else; from npm it may take no react, no react-dom and no capacitor.",
       from: { path: "^packages/core/src/domain/" },
       to: {
-        path: [
-          "^packages/core/src/(data|ports)/",
-          "^packages/[^/]+/src/(ui|platform|app)/",
-          RE_REACT,
-          RE_REACT_DOM,
-          RE_CAPACITOR,
-        ],
+        path: ["^packages/", RE_REACT, RE_REACT_DOM, RE_CAPACITOR],
+        pathNot: "^packages/core/src/domain/",
       },
     },
     {
@@ -89,9 +84,12 @@ module.exports = {
       name: "data-stays-headless",
       severity: "error",
       comment:
-        "The data layer (clients/repos) may import domain, but never ui/app/platform, react, or react-dom.",
+        "The data layer (clients/repos) is stated the same way round: in-repo it may reach the domain, its own tree and the ports it is filled through, and nothing else. That is what keeps a repository from reaching a hook, a store or the auth layer, which the directory blacklist this replaces stopped covering the moment those trees moved into the core. From npm it may take no react and no react-dom.",
       from: { path: "^packages/core/src/data/" },
-      to: { path: ["^packages/[^/]+/src/(ui|platform|app)/", RE_REACT, RE_REACT_DOM] },
+      to: {
+        path: ["^packages/", RE_REACT, RE_REACT_DOM],
+        pathNot: "^packages/core/src/(data|domain|ports)/",
+      },
     },
     {
       name: "ports-have-no-impls",
