@@ -120,6 +120,7 @@ describe("the pull's haptics", () => {
   it("warms the engine as the gesture locks vertical, before any tick is due", () => {
     const haptics = {
       success: vi.fn(),
+      failure: vi.fn(),
       thresholdActivate: vi.fn(),
       thresholdDeactivate: vi.fn(),
       selection: vi.fn(),

@@ -18,6 +18,7 @@ public class CueHapticsPlugin: CAPPlugin, CAPBridgedPlugin {
     public let jsName = "CueHaptics"
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "success", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "failure", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "thresholdActivate", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "thresholdDeactivate", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "selection", returnType: CAPPluginReturnPromise),
@@ -35,6 +36,10 @@ public class CueHapticsPlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc func success(_ call: CAPPluginCall) {
         fire(call, notification) { $0.notificationOccurred(.success) }
+    }
+
+    @objc func failure(_ call: CAPPluginCall) {
+        fire(call, notification) { $0.notificationOccurred(.error) }
     }
 
     @objc func thresholdActivate(_ call: CAPPluginCall) {

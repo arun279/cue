@@ -32,6 +32,16 @@ class CueHapticsPlugin : Plugin() {
         else HapticFeedbackConstants.VIRTUAL_KEY,
     )
 
+    /** REJECT is API 30, and it is the constant that signals "the interaction
+     * did not take". Below it, LONG_PRESS is the longest of the pre-30 effects
+     * and the one androidx's HapticFeedbackConstantsCompat falls back to. */
+    @PluginMethod
+    fun failure(call: PluginCall) = perform(
+        call,
+        if (Build.VERSION.SDK_INT >= 30) HapticFeedbackConstants.REJECT
+        else HapticFeedbackConstants.LONG_PRESS,
+    )
+
     /** The gesture threshold pair is API 34. */
     @PluginMethod
     fun thresholdActivate(call: PluginCall) = perform(

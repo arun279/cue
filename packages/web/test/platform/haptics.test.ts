@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const plugin = vi.hoisted(() => ({
   success: vi.fn(async () => {}),
+  failure: vi.fn(async () => {}),
   thresholdActivate: vi.fn(async () => {}),
   thresholdDeactivate: vi.fn(async () => {}),
   selection: vi.fn(async () => {}),
@@ -20,6 +21,7 @@ vi.mock("@capacitor/core", () => ({
  * which system effect each one plays; this seam only owns the routing. */
 const vocabulary = [
   ["success", plugin.success],
+  ["failure", plugin.failure],
   ["thresholdActivate", plugin.thresholdActivate],
   ["thresholdDeactivate", plugin.thresholdDeactivate],
   ["selection", plugin.selection],
@@ -37,6 +39,11 @@ describe("the native haptics seam", () => {
     for (const [, fn] of vocabulary) {
       expect(fn).toHaveBeenCalledTimes(fn === expected ? 1 : 0);
     }
+  });
+
+  it("covers every verb the port declares, so a new one cannot arrive untested", () => {
+    const declared = Object.keys(createNativeHaptics(() => true)).sort();
+    expect(vocabulary.map(([method]) => method).sort()).toEqual(declared);
   });
 
   it("fires nothing while the Settings toggle is off", () => {

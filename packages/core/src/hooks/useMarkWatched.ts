@@ -11,7 +11,7 @@ import {
   episodeItemKey,
 } from "../domain/write-queue/ops";
 import { middleTruncate } from "../format";
-import { useHaptics } from "../ports/haptics";
+import { type Haptics, useHaptics } from "../ports/haptics";
 import { type CueRuntime, type SubmitOutcome, useRuntime } from "../runtime/runtime";
 import {
   hasPendingMark,
@@ -65,7 +65,8 @@ async function waitWhileInFlight(runtime: CueRuntime, opId: string): Promise<boo
   return false;
 }
 
-function showUndoFailed(title: string): void {
+function showUndoFailed(haptics: Haptics, title: string): void {
+  haptics.failure();
   showSnack({
     message: `Couldn't undo ${title}. Please try again.`,
     actions: [{ label: "Dismiss", onPress: dismissSnack }],
@@ -193,7 +194,7 @@ export function useMarkWatched(): MarkWatched {
       };
       if (!(await waitWhileInFlight(runtime, record.opId))) {
         reapplyMark(record);
-        showUndoFailed(record.title);
+        showUndoFailed(haptics, record.title);
         return null;
       }
       if (runtime.pendingOps().some((op) => op.id === record.opId)) {
@@ -217,7 +218,7 @@ export function useMarkWatched(): MarkWatched {
         plays = await runtime.loadEpisodePlays(record.episodeIds.trakt);
       } catch {
         reapplyMark(record);
-        showUndoFailed(record.title);
+        showUndoFailed(haptics, record.title);
         return null;
       }
       const target = findMarkPlay(plays, record.episodeIds.trakt, record.watchedAt);
@@ -238,7 +239,7 @@ export function useMarkWatched(): MarkWatched {
         effects,
       );
     },
-    [runtime, submit, reapplyMark, revalidate],
+    [runtime, submit, reapplyMark, revalidate, haptics],
   );
 
   const submitReversal = useCallback(
@@ -252,9 +253,9 @@ export function useMarkWatched(): MarkWatched {
         // the suppression entry is spent and must not accumulate.
         settleReversal(record.opId);
       }
-      if (outcome === "failed") showUndoFailed(record.title);
+      if (outcome === "failed") showUndoFailed(haptics, record.title);
     },
-    [runReversal],
+    [runReversal, haptics],
   );
 
   const undoBatch = useCallback(async () => {
@@ -379,6 +380,7 @@ export function useMarkWatched(): MarkWatched {
       const inBatch = after.batch.some((r) => r.opId === opId);
       after.setBatch(after.batch.filter((r) => r.opId !== opId));
       if (ownedWindow || inBatch) {
+        haptics.failure();
         showSnack({
           message: `Couldn't mark ${entry.title} watched. Please try again.`,
           actions: [{ label: "Dismiss", onPress: dismissSnack }],

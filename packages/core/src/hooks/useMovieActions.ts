@@ -176,6 +176,7 @@ export function useMovieActions(): MovieActions {
       if (outcome === "failed") {
         pendingMark.current = null;
         setUndo(null);
+        haptics.failure();
         setError(`Couldn't update ${entry.title}. Please try again.`);
         return;
       }
@@ -289,7 +290,10 @@ export function useMovieActions(): MovieActions {
     // The take-back is a completed action too, so it reports the same way.
     haptics.success();
     const outcome = await reverseSessionMark(pending);
-    if (outcome === "failed") setError(`Couldn't undo ${pending.title}. Please try again.`);
+    if (outcome === "failed") {
+      haptics.failure();
+      setError(`Couldn't undo ${pending.title}. Please try again.`);
+    }
   }, [undo, reverseSessionMark, haptics]);
 
   // Re-add the removed play: restore the watched entry and re-send the removal
@@ -306,6 +310,7 @@ export function useMovieActions(): MovieActions {
       revalidate,
     });
     if (outcome === "failed") {
+      haptics.failure();
       setError(`Couldn't undo ${pending.before.title}. Please try again.`);
     }
   }, [removed, haptics, queryClient, submit, revalidate]);

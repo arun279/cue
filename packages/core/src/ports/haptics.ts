@@ -10,6 +10,8 @@ import { createContext, useContext } from "react";
 export interface Haptics {
   /** A task completed: a watch mark landed, or was taken back. */
   success(): void;
+  /** A task did not complete: a mark or a take-back the user was told failed. */
+  failure(): void;
   /** A drag just crossed the threshold that arms its action on release. */
   thresholdActivate(): void;
   /** The drag retreated back under that threshold, disarming it. */
@@ -26,6 +28,7 @@ export interface Haptics {
 /** Fires nothing: the browser build, the pre-token shell, and tests. */
 export const SILENT: Haptics = {
   success() {},
+  failure() {},
   thresholdActivate() {},
   thresholdDeactivate() {},
   selection() {},
