@@ -1,5 +1,6 @@
-import { DEFAULT_STALENESS_THRESHOLD_MS } from "@cue/core/domain/watch-status";
-import { choicePref } from "./pref-storage";
+import { DEFAULT_STALENESS_THRESHOLD_MS } from "../domain/watch-status";
+import type { PreferenceStorage } from "../ports/preference-storage";
+import { choicePref, type Pref } from "./pref-storage";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -22,8 +23,5 @@ export function thresholdMsFromDays(days: number): number {
 }
 
 /** A stored choice wins; otherwise the principled 21-day default. */
-export const thresholdPref = choicePref(
-  "cue.staleness-threshold-days",
-  THRESHOLD_OPTIONS,
-  DEFAULT_THRESHOLD_DAYS,
-);
+export const thresholdPref = (storage: PreferenceStorage): Pref<number> =>
+  choicePref(storage, "cue.staleness-threshold-days", THRESHOLD_OPTIONS, DEFAULT_THRESHOLD_DAYS);

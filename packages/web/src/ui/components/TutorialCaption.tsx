@@ -1,23 +1,13 @@
+import { booleanPref } from "@cue/core/prefs/pref-storage";
+import { preferenceStorage } from "@ui/prefs/preference-storage";
 import type { ReactElement } from "react";
 
-const STORAGE_KEY = "cue.tutorial-mark-dismissed";
+const dismissedPref = booleanPref(preferenceStorage, "cue.tutorial-mark-dismissed", false);
 
 /** True once the one-time caption has been dismissed (by the first-ever mark). */
-export function initialTutorialDismissed(): boolean {
-  try {
-    return localStorage.getItem(STORAGE_KEY) === "1";
-  } catch {
-    return true;
-  }
-}
+export const initialTutorialDismissed = dismissedPref.initial;
 
-export function persistTutorialDismissed(): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, "1");
-  } catch {
-    // A restricted-storage failure re-shows the caption next visit: harmless.
-  }
-}
+export const persistTutorialDismissed = (): void => dismissedPref.persist(true);
 
 /**
  * The entire tutorial: one quiet first-session caption under the first queue

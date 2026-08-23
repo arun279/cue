@@ -1,5 +1,5 @@
 import type { UserStats } from "@cue/core/data/trakt/schemas";
-import type { MediaVisibility } from "@ui/prefs/media-visibility";
+import type { MediaVisibility } from "@cue/core/prefs/media-visibility";
 
 interface CountTile {
   readonly key: string;

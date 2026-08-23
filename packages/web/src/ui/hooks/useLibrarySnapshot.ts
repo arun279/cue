@@ -6,11 +6,11 @@ import {
   toEpisodeRef,
 } from "@cue/core/data/trakt/show-detail";
 import { needsNextEpisode, reconcileRecentlyAired } from "@cue/core/domain/recently-aired";
+import { thresholdMsFromDays } from "@cue/core/prefs/threshold";
 import { queryOptions, type UseQueryResult, useQueries, useQuery } from "@tanstack/react-query";
 import { CONTENT_STALE_TIME_MS, USER_STATE_STALE_TIME } from "@ui/hooks/query-freshness";
 import { useRecentlyAired } from "@ui/hooks/useCalendar";
 import { usePrefs } from "@ui/prefs/prefs-store";
-import { thresholdMsFromDays } from "@ui/prefs/threshold";
 import { type CueRuntime, type UpNextData, useRuntime } from "@ui/runtime/runtime";
 import { useMemo } from "react";
 

@@ -20,6 +20,7 @@ export default defineConfig({
         branches: 60,
         "packages/core/src/domain/**": { lines: 90, functions: 90, statements: 90, branches: 80 },
         "packages/core/src/data/**": { lines: 90, functions: 90, statements: 90, branches: 80 },
+        "packages/core/src/prefs/**": { lines: 90, functions: 90, statements: 90, branches: 80 },
       },
     },
   },

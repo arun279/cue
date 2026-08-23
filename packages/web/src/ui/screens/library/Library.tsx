@@ -3,6 +3,7 @@ import type { MovieEntry } from "@cue/core/data/trakt/movie-library";
 import type { LibrarySort } from "@cue/core/domain/library-buckets";
 import { epCode } from "@cue/core/domain/model/library";
 import { isAired } from "@cue/core/domain/time";
+import { choicePref } from "@cue/core/prefs/pref-storage";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { ScreenHeader } from "@ui/app-shell/ScreenHeader";
 import { SyncStrip } from "@ui/app-shell/SyncStrip";
@@ -19,6 +20,7 @@ import { type LibraryChipKey, useLibraryBuckets } from "@ui/hooks/useLibraryBuck
 import { useMarkWatched } from "@ui/hooks/useMarkWatched";
 import { useMovieActions } from "@ui/hooks/useMovieActions";
 import { type MovieSort, useMovieLibrary } from "@ui/hooks/useMovieLibrary";
+import { preferenceStorage } from "@ui/prefs/preference-storage";
 import { usePrefs } from "@ui/prefs/prefs-store";
 import { ArrowUpDown, Check, Search as SearchIcon } from "lucide-react";
 import { type ReactElement, type ReactNode, useEffect, useRef, useState } from "react";
@@ -49,8 +51,13 @@ const SHOW_CHIP_KEYS: readonly LibraryChipKey[] = ["watching", "watchlist", "sto
 const MOVIE_CHIP_KEYS: readonly MovieChipKey[] = ["watchlist", "watched"];
 
 /** Exactly one chip is active; the last choice is remembered per segment. */
-const SHOW_CHIP_STORAGE = "cue.library-chip";
-const MOVIE_CHIP_STORAGE = "cue.library-movie-chip";
+const showChipPref = choicePref(preferenceStorage, "cue.library-chip", SHOW_CHIP_KEYS, "watching");
+const movieChipPref = choicePref(
+  preferenceStorage,
+  "cue.library-movie-chip",
+  MOVIE_CHIP_KEYS,
+  "watchlist",
+);
 
 const SHOW_CHIP_LABEL: Record<LibraryChipKey, string> = {
   watching: "Watching",
@@ -78,23 +85,6 @@ const MOVIE_CHIP_EMPTY: Record<MovieChipKey, string> = {
  */
 const FILTER_DEBOUNCE_MS = 300;
 
-function readChip<T extends string>(storageKey: string, valid: readonly T[]): T | null {
-  try {
-    const raw = localStorage.getItem(storageKey);
-    return valid.find((key) => key === raw) ?? null;
-  } catch {
-    return null;
-  }
-}
-
-function persistChip(storageKey: string, value: string): void {
-  try {
-    localStorage.setItem(storageKey, value);
-  } catch {
-    // A private-mode storage failure just forgets the chip next visit: non-fatal.
-  }
-}
-
 /**
  * Library: one screen frame shared by Shows and Movies. A Shows⇄Movies
  * segment (URL `?type`), a tap-to-reveal title filter, a per-segment sort
@@ -118,12 +108,8 @@ export function Library(): ReactElement {
 
   const [showSort, setShowSort] = useState<LibrarySort>("recently-watched");
   const [movieSort, setMovieSort] = useState<MovieSort>("recently-watched");
-  const [showChip, setShowChip] = useState<LibraryChipKey>(
-    () => readChip(SHOW_CHIP_STORAGE, SHOW_CHIP_KEYS) ?? "watching",
-  );
-  const [movieChip, setMovieChip] = useState<MovieChipKey>(
-    () => readChip(MOVIE_CHIP_STORAGE, MOVIE_CHIP_KEYS) ?? "watchlist",
-  );
+  const [showChip, setShowChip] = useState<LibraryChipKey>(showChipPref.initial);
+  const [movieChip, setMovieChip] = useState<MovieChipKey>(movieChipPref.initial);
   const [filterOpen, setFilterOpen] = useState(false);
   const [sortOpen, setSortOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -523,7 +509,7 @@ export function Library(): ReactElement {
                   testId={`chip-${key}`}
                   onPress={() => {
                     setMovieChip(key);
-                    persistChip(MOVIE_CHIP_STORAGE, key);
+                    movieChipPref.persist(key);
                   }}
                 />
               ))
@@ -537,7 +523,7 @@ export function Library(): ReactElement {
                   testId={`chip-${key}`}
                   onPress={() => {
                     setShowChip(key);
-                    persistChip(SHOW_CHIP_STORAGE, key);
+                    showChipPref.persist(key);
                   }}
                 />
               ))}

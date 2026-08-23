@@ -1,3 +1,4 @@
+import type { PreferenceStorage } from "../ports/preference-storage";
 import { booleanPref } from "./pref-storage";
 
 /** Which media a user tracks. Both ON by default; the app is never emptied of
@@ -7,8 +8,8 @@ export interface MediaVisibility {
   readonly moviesEnabled: boolean;
 }
 
-const showsPref = booleanPref("cue.shows-enabled", true);
-const moviesPref = booleanPref("cue.movies-enabled", true);
+const showsPref = (storage: PreferenceStorage) => booleanPref(storage, "cue.shows-enabled", true);
+const moviesPref = (storage: PreferenceStorage) => booleanPref(storage, "cue.movies-enabled", true);
 
 /**
  * Both media are ON by default. Both-OFF is impossible by construction (the store
@@ -25,11 +26,14 @@ export function resolveMediaVisibility(
 }
 
 /** Absent (fresh device / reinstall) reads as ON. */
-export function initialMediaVisibility(): MediaVisibility {
-  return resolveMediaVisibility(showsPref.initial(), moviesPref.initial());
+export function initialMediaVisibility(storage: PreferenceStorage): MediaVisibility {
+  return resolveMediaVisibility(showsPref(storage).initial(), moviesPref(storage).initial());
 }
 
-export function persistMediaVisibility({ showsEnabled, moviesEnabled }: MediaVisibility): void {
-  showsPref.persist(showsEnabled);
-  moviesPref.persist(moviesEnabled);
+export function persistMediaVisibility(
+  storage: PreferenceStorage,
+  { showsEnabled, moviesEnabled }: MediaVisibility,
+): void {
+  showsPref(storage).persist(showsEnabled);
+  moviesPref(storage).persist(moviesEnabled);
 }

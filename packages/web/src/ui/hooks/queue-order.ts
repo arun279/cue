@@ -1,6 +1,6 @@
 import { toMs } from "@cue/core/domain/time";
 import type { UpNextItem } from "@cue/core/domain/up-next";
-import type { LapsedOrder, NextEpisodeOrder } from "@ui/prefs/tracking";
+import type { LapsedOrder, NextEpisodeOrder } from "@cue/core/prefs/tracking";
 
 function airMs(item: UpNextItem): number {
   // A provisional post-mark projection has no air date. Treating it as OLDEST
