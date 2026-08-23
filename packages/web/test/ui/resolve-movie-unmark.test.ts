@@ -1,6 +1,6 @@
 import type { MoviePlay } from "@cue/core/domain/reversal";
-import { resolveMovieUnmark, routeMovieUnmark } from "@ui/hooks/resolveUnmark";
-import type { CueRuntime } from "@ui/runtime/runtime";
+import { resolveMovieUnmark, routeMovieUnmark } from "@cue/core/hooks/resolveUnmark";
+import type { CueRuntime } from "@cue/core/runtime/runtime";
 import { describe, expect, it } from "vitest";
 
 /** A runtime that answers only `loadMoviePlays`: the sole read the resolver makes. */

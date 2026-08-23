@@ -1,6 +1,6 @@
 import type { SeasonView } from "@cue/core/data/trakt/show-detail";
 import type { MovieIds, ShowIds } from "@cue/core/domain/model/ids";
-import type { EpisodeBound } from "@ui/hooks/useMarkSeason";
+import type { EpisodeBound } from "@cue/core/hooks/useMarkSeason";
 
 /** Presentation + planning helpers for the detail surfaces, kept pure for tests. */
 

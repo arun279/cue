@@ -1,6 +1,6 @@
 import type { EpisodePlay } from "@cue/core/domain/reversal";
-import { findMarkPlay, resolveEpisodeUnmark } from "@ui/hooks/resolveUnmark";
-import type { CueRuntime } from "@ui/runtime/runtime";
+import { findMarkPlay, resolveEpisodeUnmark } from "@cue/core/hooks/resolveUnmark";
+import type { CueRuntime } from "@cue/core/runtime/runtime";
 import { describe, expect, it } from "vitest";
 
 const EP = 501;

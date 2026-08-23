@@ -1,6 +1,7 @@
+import { parseHistorySearch, parseLibrarySearch } from "@cue/core/url/search-params";
 import { createRootRoute, createRoute, createRouter, redirect } from "@tanstack/react-router";
 import { RootLayout } from "@ui/app-shell/RootLayout";
-import { usePrefs } from "@ui/prefs/prefs-store";
+import { prefsStore } from "@ui/prefs/prefs-store";
 
 const rootRoute = createRootRoute({ component: RootLayout });
 
@@ -9,7 +10,7 @@ const rootRoute = createRootRoute({ component: RootLayout });
 // to the movies Library rather than paint a screen for a hidden medium. The nav
 // already omits the tabs; this guards the URL: including stale show/episode links.
 const requireShows = (): void => {
-  if (!usePrefs.getState().showsEnabled) throw redirect({ to: "/library" });
+  if (!prefsStore.getState().showsEnabled) throw redirect({ to: "/library" });
 };
 
 const upNextRoute = createRoute({
@@ -27,18 +28,14 @@ const calendarRoute = createRoute({
  * returns to Movies (previously it reset to Shows). Shows is the canonical default
  * carrying no param, so bare `/library`, legacy redirects, and every existing
  * `to="/library"` link stay valid and clean; only Movies pins `?type=movies`. */
-interface LibrarySearch {
-  readonly type?: "movies";
-}
 const libraryRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/library",
-  validateSearch: (search: Record<string, unknown>): LibrarySearch =>
-    search["type"] === "movies" ? { type: "movies" } : {},
+  validateSearch: parseLibrarySearch,
   // A `?type=movies` deep link is meaningless once Movies are turned off; drop the
   // param so Library lands cleanly on Shows.
   beforeLoad: ({ search }) => {
-    if (search.type === "movies" && !usePrefs.getState().moviesEnabled) {
+    if (search.type === "movies" && !prefsStore.getState().moviesEnabled) {
       throw redirect({ to: "/library" });
     }
   },
@@ -71,25 +68,10 @@ const profileRoute = createRoute({ getParentRoute: () => rootRoute, path: "/prof
  * inside a `year`, so it is dropped when no valid year is present. The year sanity
  * range is generous (a deep link to any real year works): the picker's own floor
  * only shapes which years it offers as chips, never which the URL accepts. */
-interface HistorySearch {
-  readonly type?: "tv" | "movies";
-  readonly year?: number;
-  readonly month?: number;
-}
 const historyRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/history",
-  validateSearch: (search: Record<string, unknown>): HistorySearch => {
-    const out: { type?: "tv" | "movies"; year?: number; month?: number } = {};
-    if (search["type"] === "tv" || search["type"] === "movies") out.type = search["type"];
-    const year = Number(search["year"]);
-    if (Number.isInteger(year) && year >= 1970 && year <= 2100) out.year = year;
-    const month = Number(search["month"]);
-    if (out.year !== undefined && Number.isInteger(month) && month >= 1 && month <= 12) {
-      out.month = month;
-    }
-    return out;
-  },
+  validateSearch: parseHistorySearch,
 }).lazy(() => import("@app/routes/history.lazy").then((module) => module.Route));
 const authCallbackRoute = createRoute({
   getParentRoute: () => rootRoute,

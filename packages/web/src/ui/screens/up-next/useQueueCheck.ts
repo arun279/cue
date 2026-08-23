@@ -1,8 +1,8 @@
 import type { LibraryEntry } from "@cue/core/data/trakt/library";
 import { epCode } from "@cue/core/domain/model/library";
+import { reArmDelay } from "@cue/core/hooks/mark-undo-window";
+import type { MarkWatched } from "@cue/core/hooks/useMarkWatched";
 import type { CheckState } from "@ui/components/CheckControl";
-import { reArmDelay } from "@ui/hooks/mark-undo-window";
-import type { MarkWatched } from "@ui/hooks/useMarkWatched";
 import { useEffect } from "react";
 
 export interface QueueCheck {

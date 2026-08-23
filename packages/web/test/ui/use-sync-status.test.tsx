@@ -1,7 +1,7 @@
 import { queryKeys } from "@cue/core/data/query-keys";
+import { type CueRuntime, RuntimeProvider } from "@cue/core/runtime/runtime";
+import { dismissSnack, useSnackbar } from "@cue/core/stores/snackbar-store";
 import { QueryClient, QueryClientProvider, QueryObserver } from "@tanstack/react-query";
-import { dismissSnack, useSnackbar } from "@ui/components/snackbar-store";
-import { type CueRuntime, RuntimeProvider } from "@ui/runtime/runtime";
 import { useSyncStatus } from "@ui/screens/settings/useSyncStatus";
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";

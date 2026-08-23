@@ -14,18 +14,18 @@ import type { LibraryEntry } from "@cue/core/data/trakt/library";
 import type { EpisodeView, SeasonView } from "@cue/core/data/trakt/show-detail";
 import type { EpisodePlay } from "@cue/core/domain/reversal";
 import type { QueuedOp } from "@cue/core/domain/write-queue/types";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { dismissSnack, useSnackbar } from "@ui/components/snackbar-store";
-import { resetMarkStore } from "@ui/hooks/mark-store";
-import { type MarkSeasonController, useMarkSeason } from "@ui/hooks/useMarkSeason";
-import { useMarkSnacks } from "@ui/hooks/useMarkSnacks";
-import { type MarkWatched, useMarkWatched } from "@ui/hooks/useMarkWatched";
+import { type MarkSeasonController, useMarkSeason } from "@cue/core/hooks/useMarkSeason";
+import { useMarkSnacks } from "@cue/core/hooks/useMarkSnacks";
+import { type MarkWatched, useMarkWatched } from "@cue/core/hooks/useMarkWatched";
 import {
   forgetSeasonMark,
   getSeasonMarkDelta,
   rememberSeasonMark,
-} from "@ui/hooks/useSeasonReversal";
-import { type CueRuntime, RuntimeProvider, type UpNextData } from "@ui/runtime/runtime";
+} from "@cue/core/hooks/useSeasonReversal";
+import { type CueRuntime, RuntimeProvider, type UpNextData } from "@cue/core/runtime/runtime";
+import { resetMarkStore } from "@cue/core/stores/mark-store";
+import { dismissSnack, useSnackbar } from "@cue/core/stores/snackbar-store";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mount } from "./_mount";

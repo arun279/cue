@@ -4,11 +4,14 @@
  * (it would repaint server state missing the local marks). Reconnect always
  * attempts a flush, even hidden; the poll itself stays visibility-gated.
  */
+
+import { useActivitiesPoll } from "@cue/core/hooks/useActivitiesPoll";
+import { type AppVisibility, AppVisibilityProvider } from "@cue/core/runtime/app-visibility";
+import { type Network, NetworkProvider } from "@cue/core/runtime/network";
+import { type CueRuntime, RuntimeProvider } from "@cue/core/runtime/runtime";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useActivitiesPoll } from "@ui/hooks/useActivitiesPoll";
-import { type CueRuntime, RuntimeProvider } from "@ui/runtime/runtime";
 import { act } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { mountAsync } from "./_mount";
 
 function Probe(): null {
@@ -37,20 +40,31 @@ function stubRuntime(pending: number, afterFlush = 0): Stub {
   return { runtime, flushWrites, pollActivities };
 }
 
-const mountPoll = (runtime: CueRuntime): Promise<void> =>
-  mountAsync(
-    <QueryClientProvider client={new QueryClient()}>
-      <RuntimeProvider value={runtime}>
-        <Probe />
-      </RuntimeProvider>
-    </QueryClientProvider>,
-  );
-
-function setVisibility(state: DocumentVisibilityState): void {
-  Object.defineProperty(document, "visibilityState", { value: state, configurable: true });
+/** A port whose listeners the test fires by hand, so no global is patched. */
+function controllable(initial: boolean): { port: AppVisibility & Network; announce: () => void } {
+  const listeners = new Set<() => void>();
+  const subscribe = (listener: () => void): (() => void) => {
+    listeners.add(listener);
+    return () => listeners.delete(listener);
+  };
+  return {
+    port: { isVisible: () => initial, isOnline: () => true, subscribe },
+    announce: () => {
+      for (const listener of listeners) listener();
+    },
+  };
 }
 
-afterEach(() => setVisibility("visible"));
+const mountPoll = (runtime: CueRuntime, visible = true): Promise<void> =>
+  mountAsync(
+    <AppVisibilityProvider value={{ isVisible: () => visible, subscribe: () => () => {} }}>
+      <QueryClientProvider client={new QueryClient()}>
+        <RuntimeProvider value={runtime}>
+          <Probe />
+        </RuntimeProvider>
+      </QueryClientProvider>
+    </AppVisibilityProvider>,
+  );
 
 describe("useActivitiesPoll write-queue gating", () => {
   it("polls straight away when the queue is empty, without flushing", async () => {
@@ -75,12 +89,22 @@ describe("useActivitiesPoll write-queue gating", () => {
   });
 
   it("flushes on reconnect even while hidden, without polling", async () => {
-    setVisibility("hidden");
+    const hidden = controllable(false);
     const stub = stubRuntime(1, 0);
-    await mountPoll(stub.runtime);
+    await mountAsync(
+      <AppVisibilityProvider value={hidden.port}>
+        <NetworkProvider value={hidden.port}>
+          <QueryClientProvider client={new QueryClient()}>
+            <RuntimeProvider value={stub.runtime}>
+              <Probe />
+            </RuntimeProvider>
+          </QueryClientProvider>
+        </NetworkProvider>
+      </AppVisibilityProvider>,
+    );
     expect(stub.flushWrites).not.toHaveBeenCalled(); // mount poll is visibility-gated
     await act(async () => {
-      globalThis.dispatchEvent(new Event("online"));
+      hidden.announce();
     });
     expect(stub.flushWrites).toHaveBeenCalledTimes(1);
     expect(stub.pollActivities).not.toHaveBeenCalled();

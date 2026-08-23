@@ -4,7 +4,7 @@
  * footnote link is present (required attribution), and the device-code beat
  * renders the code + polling state.
  */
-import { type AuthActions, type AuthState, AuthStoreProvider } from "@ui/auth/store";
+import { type AuthActions, type AuthState, AuthStoreProvider } from "@cue/core/auth/store";
 import { Onboarding } from "@ui/screens/onboarding/Onboarding";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";

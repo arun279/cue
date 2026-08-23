@@ -1,5 +1,5 @@
 import type { SearchHit } from "@cue/core/data/trakt/search";
-import { visibleSearchHits } from "@ui/hooks/useSearch";
+import { visibleSearchHits } from "@cue/core/hooks/useSearch";
 import { describe, expect, it } from "vitest";
 
 function hit(type: "show" | "movie", traktId: number): SearchHit {

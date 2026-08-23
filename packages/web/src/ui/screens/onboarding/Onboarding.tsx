@@ -1,5 +1,5 @@
+import { useAuth } from "@cue/core/auth/store";
 import { CueMark } from "@ui/app-shell/CueMark";
-import { useAuth } from "@ui/auth/store";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { type ReactElement, type ReactNode, useState } from "react";
 

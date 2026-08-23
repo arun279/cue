@@ -1,6 +1,6 @@
-import { useSyncActivity } from "@ui/hooks/sync-activity-store";
-import { useIsOffline } from "@ui/hooks/useIsOffline";
-import { useOptionalRuntime } from "@ui/runtime/runtime";
+import { useIsOffline } from "@cue/core/hooks/useIsOffline";
+import { useOptionalRuntime } from "@cue/core/runtime/runtime";
+import { useSyncActivity } from "@cue/core/stores/sync-activity-store";
 import { type ReactElement, useEffect, useState } from "react";
 
 interface SyncStripProps {

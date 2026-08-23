@@ -1,6 +1,6 @@
+import { useHaptics } from "@cue/core/runtime/haptics";
 import { ActionSheet, type ActionSheetRow } from "@ui/components/ActionSheet";
 import { exceedsPressSlop, LONG_PRESS_MS } from "@ui/components/long-press-math";
-import { useHaptics } from "@ui/runtime/haptics";
 import { type ReactElement, type ReactNode, useEffect, useRef, useState } from "react";
 
 interface ContextMenuProps {

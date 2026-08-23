@@ -1,8 +1,8 @@
 import { queryKeys } from "@cue/core/data/query-keys";
 import type { ShowInfo } from "@cue/core/data/trakt/show-detail";
+import { CONTENT_STALE_TIME_MS } from "@cue/core/hooks/query-freshness";
+import { useRuntime } from "@cue/core/runtime/runtime";
 import { useQuery } from "@tanstack/react-query";
-import { CONTENT_STALE_TIME_MS } from "@ui/hooks/query-freshness";
-import { useRuntime } from "@ui/runtime/runtime";
 import { useCallback, useState } from "react";
 
 interface Art {

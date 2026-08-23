@@ -1,5 +1,19 @@
 import type { EpisodeView, SeasonView, ShowHeader } from "@cue/core/data/trakt/show-detail";
 import { epCode } from "@cue/core/domain/model/library";
+import { middleTruncate, titleCase } from "@cue/core/format";
+import { useHideShow } from "@cue/core/hooks/useHideShow";
+import { useLibraryEntry } from "@cue/core/hooks/useLibrarySnapshot";
+import {
+  type EpisodeBound,
+  type MarkContextTarget,
+  useMarkSeason,
+} from "@cue/core/hooks/useMarkSeason";
+import { type BackfillOffer, useMarkSnacks } from "@cue/core/hooks/useMarkSnacks";
+import { useMarkWatched } from "@cue/core/hooks/useMarkWatched";
+import { useSeasons } from "@cue/core/hooks/useSeasons";
+import { useShowDetail } from "@cue/core/hooks/useShowDetail";
+import { useToggleWatchlist } from "@cue/core/hooks/useToggleWatchlist";
+import { dismissSnack, showSnack } from "@cue/core/stores/snackbar-store";
 import { Outlet, useRouterState } from "@tanstack/react-router";
 import { ActionSheet, type ActionSheetRow } from "@ui/components/ActionSheet";
 import { ConfirmSheet } from "@ui/components/ConfirmSheet";
@@ -7,17 +21,7 @@ import { DetailHeroSkeleton } from "@ui/components/DetailHeroSkeleton";
 import { EmptyState } from "@ui/components/EmptyState";
 import { ErrorRetry } from "@ui/components/ErrorStates";
 import { SkeletonRows } from "@ui/components/Skeletons";
-import { dismissSnack, showSnack } from "@ui/components/snackbar-store";
-import { middleTruncate, titleCase } from "@cue/core/format";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
-import { useHideShow } from "@ui/hooks/useHideShow";
-import { useLibraryEntry } from "@ui/hooks/useLibrarySnapshot";
-import { type EpisodeBound, type MarkContextTarget, useMarkSeason } from "@ui/hooks/useMarkSeason";
-import { type BackfillOffer, useMarkSnacks } from "@ui/hooks/useMarkSnacks";
-import { useMarkWatched } from "@ui/hooks/useMarkWatched";
-import { useSeasons } from "@ui/hooks/useSeasons";
-import { useShowDetail } from "@ui/hooks/useShowDetail";
-import { useToggleWatchlist } from "@ui/hooks/useToggleWatchlist";
 import { SheetReturnContext } from "@ui/screens/episode-detail/sheet-return";
 import { ExternalLink } from "lucide-react";
 import { type ReactElement, useEffect, useRef, useState } from "react";

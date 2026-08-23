@@ -1,3 +1,5 @@
+import { useSyncNow } from "@cue/core/hooks/useSyncNow";
+import { useHaptics } from "@cue/core/runtime/haptics";
 import { resolveIntent } from "@ui/components/gesture-intent";
 import {
   isArmed,
@@ -6,8 +8,6 @@ import {
   pullProgress,
   settleDelayMs,
 } from "@ui/components/pull-math";
-import { useSyncNow } from "@ui/hooks/useSyncNow";
-import { useHaptics } from "@ui/runtime/haptics";
 import {
   type CSSProperties,
   type PointerEvent,

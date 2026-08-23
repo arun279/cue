@@ -1,6 +1,19 @@
 import { resolveStill } from "@cue/core/data/image-source";
 import type { EpisodeDetail, EpisodeNav } from "@cue/core/data/trakt/episode-detail";
 import { epCode } from "@cue/core/domain/model/library";
+import { middleTruncate } from "@cue/core/format";
+import { useEpisode } from "@cue/core/hooks/useEpisode";
+import { useEpisodePlays } from "@cue/core/hooks/useEpisodePlays";
+import {
+  type EpisodeBound,
+  type MarkContextTarget,
+  type MarkSeasonController,
+  useMarkSeason,
+} from "@cue/core/hooks/useMarkSeason";
+import { type BackfillOffer, useMarkSnacks } from "@cue/core/hooks/useMarkSnacks";
+import { useSeasons } from "@cue/core/hooks/useSeasons";
+import { useShowDetail } from "@cue/core/hooks/useShowDetail";
+import { usePrefs } from "@cue/core/prefs/prefs-store";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { ActionSheet, type ActionSheetRow } from "@ui/components/ActionSheet";
 import { CheckControl } from "@ui/components/CheckControl";
@@ -9,20 +22,7 @@ import { ContextMenu } from "@ui/components/ContextMenu";
 import { CountdownPanel } from "@ui/components/CountdownPanel";
 import { ErrorRetry } from "@ui/components/ErrorStates";
 import { Sheet } from "@ui/components/Sheet";
-import { middleTruncate } from "@cue/core/format";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
-import { useEpisode } from "@ui/hooks/useEpisode";
-import { useEpisodePlays } from "@ui/hooks/useEpisodePlays";
-import {
-  type EpisodeBound,
-  type MarkContextTarget,
-  type MarkSeasonController,
-  useMarkSeason,
-} from "@ui/hooks/useMarkSeason";
-import { type BackfillOffer, useMarkSnacks } from "@ui/hooks/useMarkSnacks";
-import { useSeasons } from "@ui/hooks/useSeasons";
-import { useShowDetail } from "@ui/hooks/useShowDetail";
-import { usePrefs } from "@ui/prefs/prefs-store";
 import {
   backfillRangeLabel,
   earlierUnwatchedCount,

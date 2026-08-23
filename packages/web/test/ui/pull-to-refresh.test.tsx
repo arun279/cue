@@ -6,10 +6,10 @@
  */
 
 import type { Haptics } from "@cue/core/domain/ports/haptics";
+import { HapticsProvider } from "@cue/core/runtime/haptics";
+import { type CueRuntime, RuntimeProvider } from "@cue/core/runtime/runtime";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { PullToRefresh } from "@ui/components/PullToRefresh";
-import { HapticsProvider } from "@ui/runtime/haptics";
-import { type CueRuntime, RuntimeProvider } from "@ui/runtime/runtime";
 import { act } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { mount } from "./_mount";

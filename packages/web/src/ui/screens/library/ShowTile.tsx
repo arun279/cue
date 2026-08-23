@@ -1,9 +1,9 @@
 import type { LibraryEntry } from "@cue/core/data/trakt/library";
 import { episodesLeft, watchedPercent } from "@cue/core/format";
+import type { LibraryChipKey } from "@cue/core/hooks/useLibraryBuckets";
 import { Link } from "@tanstack/react-router";
 import { Badge } from "@ui/components/Badge";
 import { ProgressBar } from "@ui/components/ProgressBar";
-import type { LibraryChipKey } from "@ui/hooks/useLibraryBuckets";
 import { useShowArt } from "@ui/hooks/useShowArt";
 import { Poster } from "@ui/screens/up-next/Poster";
 import { Check } from "lucide-react";

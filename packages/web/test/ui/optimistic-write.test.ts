@@ -1,6 +1,6 @@
 import type { QueuedOp } from "@cue/core/domain/write-queue/types";
-import { applyOptimisticWrite } from "@ui/hooks/useOptimisticWrite";
-import type { SubmitOutcome } from "@ui/runtime/runtime";
+import { applyOptimisticWrite } from "@cue/core/hooks/useOptimisticWrite";
+import type { SubmitOutcome } from "@cue/core/runtime/runtime";
 import { describe, expect, it, vi } from "vitest";
 
 /** A minimal op whose `id` doubles as a label so a fake submit can record order. */

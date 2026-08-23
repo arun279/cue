@@ -1,7 +1,7 @@
+import type { MarkWatched } from "@cue/core/hooks/useMarkWatched";
+import type { UpNextCard } from "@cue/core/hooks/useUpNext";
 import { Badge } from "@ui/components/Badge";
 import { ConfirmSheet } from "@ui/components/ConfirmSheet";
-import type { MarkWatched } from "@ui/hooks/useMarkWatched";
-import type { UpNextCard } from "@ui/hooks/useUpNext";
 import { ChevronDown, EllipsisVertical } from "lucide-react";
 import { Accordion } from "radix-ui";
 import { type ReactElement, useState } from "react";

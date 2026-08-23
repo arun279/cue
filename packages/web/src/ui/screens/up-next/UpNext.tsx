@@ -1,3 +1,8 @@
+import { useCalendar } from "@cue/core/hooks/useCalendar";
+import { useHideShow } from "@cue/core/hooks/useHideShow";
+import { type MarkWatched, useMarkWatched } from "@cue/core/hooks/useMarkWatched";
+import { type UpNextCard, useUpNext } from "@cue/core/hooks/useUpNext";
+import { dismissSnack, showSnack } from "@cue/core/stores/snackbar-store";
 import { Link } from "@tanstack/react-router";
 import { ScreenHeader } from "@ui/app-shell/ScreenHeader";
 import { SyncStrip } from "@ui/app-shell/SyncStrip";
@@ -8,18 +13,13 @@ import { PosterTile } from "@ui/components/PosterTile";
 import { PullToRefresh } from "@ui/components/PullToRefresh";
 import { SectionHeader } from "@ui/components/SectionHeader";
 import { SkeletonMarquee, SkeletonRows } from "@ui/components/Skeletons";
-import { dismissSnack, showSnack } from "@ui/components/snackbar-store";
 import {
   initialTutorialDismissed,
   persistTutorialDismissed,
   TutorialCaption,
 } from "@ui/components/TutorialCaption";
-import { useCalendar } from "@ui/hooks/useCalendar";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { useFlip } from "@ui/hooks/useFlip";
-import { useHideShow } from "@ui/hooks/useHideShow";
-import { type MarkWatched, useMarkWatched } from "@ui/hooks/useMarkWatched";
-import { type UpNextCard, useUpNext } from "@ui/hooks/useUpNext";
 import { type ReactElement, type ReactNode, useEffect, useMemo, useState } from "react";
 import { LapsedDrawer } from "./LapsedDrawer";
 import { buildOnTheWay, OnTheWay, useOnTheWayClock } from "./OnTheWay";

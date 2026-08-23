@@ -1,4 +1,4 @@
-import { DEFAULT_SNACK_TIMEOUT_MS, type Snack, useSnackbar } from "@ui/components/snackbar-store";
+import { DEFAULT_SNACK_TIMEOUT_MS, type Snack, useSnackbar } from "@cue/core/stores/snackbar-store";
 import { type ReactElement, useEffect, useRef, useState } from "react";
 
 /** Downward travel past which a release dismisses the snack. */

@@ -4,14 +4,14 @@
  * 28-day Calendar screen), and narrower callers get a client-side day slice.
  */
 import type { CalendarEntry } from "@cue/core/domain/calendar";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   CALENDAR_WINDOW_DAYS,
   recentCalendarStart,
   sliceCalendarDays,
   useCalendar,
-} from "@ui/hooks/useCalendar";
-import { type CueRuntime, RuntimeProvider } from "@ui/runtime/runtime";
+} from "@cue/core/hooks/useCalendar";
+import { type CueRuntime, RuntimeProvider } from "@cue/core/runtime/runtime";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";

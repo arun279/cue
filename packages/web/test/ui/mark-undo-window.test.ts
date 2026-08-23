@@ -1,4 +1,4 @@
-import { appendToBatch, reArmDelay } from "@ui/hooks/mark-undo-window";
+import { appendToBatch, reArmDelay } from "@cue/core/hooks/mark-undo-window";
 import { describe, expect, it } from "vitest";
 
 const at = (ms: number): { at: number; id: string } => ({ at: ms, id: String(ms) });

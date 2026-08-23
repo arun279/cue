@@ -1,5 +1,4 @@
 import { AuthGate } from "@app/AuthGate";
-import { createAuthStore } from "@app/auth/create-auth-store";
 import { TRAKT_BASE_OVERRIDE, TRAKT_CLIENT_ID } from "@app/config";
 import { requestPersistentStorage } from "@app/persist";
 import {
@@ -10,19 +9,26 @@ import {
   shouldDehydrateQuery,
 } from "@app/query-client";
 import { router } from "@app/router";
+import { createAuthStore } from "@cue/core/auth/create-auth-store";
 import { createTokenStore } from "@cue/core/ports/token-store";
+import { PrefsProvider } from "@cue/core/prefs/prefs-store";
+import { AppVersionProvider } from "@cue/core/runtime/app-version";
+import { AppVisibilityProvider } from "@cue/core/runtime/app-visibility";
+import { HapticsProvider } from "@cue/core/runtime/haptics";
+import { NetworkProvider } from "@cue/core/runtime/network";
+import { RemindersProvider } from "@cue/core/runtime/reminders";
 import { getNativeAppVersion } from "@platform/app-version";
+import { webAppVisibility } from "@platform/app-visibility";
 import { bindHardwareBack } from "@platform/back-button";
 import { createNativeHaptics } from "@platform/haptics";
 import { createKeyValueStore } from "@platform/kv";
+import { webNetwork } from "@platform/network";
 import { isNativePlatform } from "@platform/platform";
+import { sessionRedirectHandoff } from "@platform/redirect-handoff";
 import { createNativeReminders } from "@platform/reminders";
 import { applyStatusBarTheme } from "@platform/status-bar";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
-import { usePrefs } from "@ui/prefs/prefs-store";
-import { AppVersionProvider } from "@ui/runtime/app-version";
-import { HapticsProvider } from "@ui/runtime/haptics";
-import { RemindersProvider } from "@ui/runtime/reminders";
+import { prefsStore } from "@ui/prefs/prefs-store";
 import { useThemeStore } from "@ui/theme/theme-store";
 import { type ReactElement, useEffect, useState } from "react";
 import { version } from "../../package.json";
@@ -35,7 +41,7 @@ const tokenStore = createTokenStore(kv);
 // The tactile seam, built once: silent on web, and on native gated at fire time
 // on the Settings "Haptics" toggle alone. Both platforms honour their own
 // system haptics settings underneath, so nothing else here second-guesses them.
-const haptics = createNativeHaptics(() => usePrefs.getState().hapticsEnabled);
+const haptics = createNativeHaptics(() => prefsStore.getState().hapticsEnabled);
 // The notification seam, built once: silent on web, and on native the only
 // caller of the local-notifications plugin.
 const reminders = createNativeReminders();
@@ -45,6 +51,7 @@ const authStore = createAuthStore({
   clientId: TRAKT_CLIENT_ID,
   redirectUri,
   redirect: (url) => globalThis.location.assign(url),
+  redirectHandoff: sessionRedirectHandoff,
   native,
   traktBaseUrl: TRAKT_BASE_OVERRIDE,
 });
@@ -99,13 +106,19 @@ export function AppProviders(): ReactElement {
         dehydrateOptions: { shouldDehydrateQuery },
       }}
     >
-      <HapticsProvider value={haptics}>
-        <RemindersProvider value={reminders}>
-          <AppVersionProvider value={appVersion}>
-            <AuthGate store={authStore} stores={{ tokenStore, kv, redirectUri }} />
-          </AppVersionProvider>
-        </RemindersProvider>
-      </HapticsProvider>
+      <PrefsProvider value={prefsStore}>
+        <AppVisibilityProvider value={webAppVisibility}>
+          <NetworkProvider value={webNetwork}>
+            <HapticsProvider value={haptics}>
+              <RemindersProvider value={reminders}>
+                <AppVersionProvider value={appVersion}>
+                  <AuthGate store={authStore} stores={{ tokenStore, kv, redirectUri }} />
+                </AppVersionProvider>
+              </RemindersProvider>
+            </HapticsProvider>
+          </NetworkProvider>
+        </AppVisibilityProvider>
+      </PrefsProvider>
     </PersistQueryClientProvider>
   );
 }

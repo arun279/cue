@@ -26,4 +26,22 @@ export const preferenceStorage: PreferenceStorage = {
       // A restricted-storage failure just forgets the choice next visit: non-fatal.
     }
   },
+  clearNamespace(prefix) {
+    try {
+      for (let index = localStorage.length - 1; index >= 0; index -= 1) {
+        const key = localStorage.key(index);
+        if (key?.startsWith(prefix) === true) localStorage.removeItem(key);
+      }
+    } catch {
+      // Nothing was stored to begin with, so nothing is left behind.
+    }
+  },
 };
+
+/**
+ * What sign-out drops. On the web the namespaces are physically separate:
+ * `localStorage` holds only preferences, while the op log, the freshness
+ * baseline and the persisted query cache live in IndexedDB, so clearing `cue.`
+ * here cannot reach them.
+ */
+export const clearLocalPreferences = (): void => preferenceStorage.clearNamespace("cue.");

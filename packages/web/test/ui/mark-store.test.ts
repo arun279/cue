@@ -1,5 +1,6 @@
 import { buildAddEpisodePlayOp, buildMarkEpisodeOp } from "@cue/core/domain/write-queue/ops";
 import type { QueuedOp } from "@cue/core/domain/write-queue/types";
+import type { CueRuntime } from "@cue/core/runtime/runtime";
 import {
   hasPendingMark,
   lockShow,
@@ -9,8 +10,7 @@ import {
   resetMarkStore,
   unlockShow,
   useMarkStore,
-} from "@ui/hooks/mark-store";
-import type { CueRuntime } from "@ui/runtime/runtime";
+} from "@cue/core/stores/mark-store";
 import { beforeEach, describe, expect, it } from "vitest";
 
 const WATCHED_AT = "2026-07-05T12:00:00.000Z";

@@ -1,9 +1,9 @@
 import type { EpisodeView, SeasonView } from "@cue/core/data/trakt/show-detail";
 import { epCode } from "@cue/core/domain/model/library";
+import { formatAirDate } from "@cue/core/format";
 import { CheckControl } from "@ui/components/CheckControl";
 import { EpisodeRow } from "@ui/components/EpisodeRow";
 import { ProgressBar } from "@ui/components/ProgressBar";
-import { formatAirDate } from "@cue/core/format";
 import { Check, ChevronDown } from "lucide-react";
 import { Accordion } from "radix-ui";
 import type { ReactElement } from "react";

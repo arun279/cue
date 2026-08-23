@@ -21,10 +21,10 @@ const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const SHAPE_TREES = [
   "packages/core/src/domain",
   "packages/core/src/data",
-  "packages/web/src/ui/runtime",
+  "packages/core/src/runtime",
 ];
 
-const GENERATED = "packages/web/src/ui/runtime/persist-buster.ts";
+const GENERATED = "packages/core/src/runtime/persist-buster.ts";
 
 /**
  * Every module specifier in an `import`, `export ... from`, dynamic `import()`

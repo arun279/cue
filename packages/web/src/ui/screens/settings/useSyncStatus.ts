@@ -1,8 +1,8 @@
 import { queryKeys } from "@cue/core/data/query-keys";
+import { useSyncNow } from "@cue/core/hooks/useSyncNow";
+import { useRuntime } from "@cue/core/runtime/runtime";
+import { useSyncActivity } from "@cue/core/stores/sync-activity-store";
 import { useQueryClient } from "@tanstack/react-query";
-import { useSyncActivity } from "@ui/hooks/sync-activity-store";
-import { useSyncNow } from "@ui/hooks/useSyncNow";
-import { useRuntime } from "@ui/runtime/runtime";
 import { useCallback, useEffect, useState } from "react";
 import { newestSyncedAt, syncStatusLine } from "./sync-status";
 

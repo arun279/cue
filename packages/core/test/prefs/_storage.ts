@@ -7,5 +7,8 @@ export function fakeStorage(seed: Record<string, string> = {}): PreferenceStorag
   return {
     getItem: (key) => values.get(key) ?? null,
     setItem: (key, value) => void values.set(key, value),
+    clearNamespace: (prefix) => {
+      for (const key of values.keys()) if (key.startsWith(prefix)) values.delete(key);
+    },
   };
 }

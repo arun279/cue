@@ -1,4 +1,4 @@
-import { useAuth } from "@ui/auth/store";
+import { useAuth } from "@cue/core/auth/store";
 import { ConfirmSheet } from "@ui/components/ConfirmSheet";
 import { type ReactElement, useState } from "react";
 

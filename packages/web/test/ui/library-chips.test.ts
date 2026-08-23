@@ -1,5 +1,5 @@
 import type { LibraryEntry } from "@cue/core/data/trakt/library";
-import { chipBuckets } from "@ui/hooks/useLibraryBuckets";
+import { chipBuckets } from "@cue/core/hooks/useLibraryBuckets";
 import { describe, expect, it } from "vitest";
 import { DAY, iso, makeShow, NOW, THRESHOLD } from "../domain/_helpers";
 

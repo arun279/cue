@@ -1,11 +1,11 @@
 import type { HistoryEntry } from "@cue/core/domain/history";
 import { localTimeZone } from "@cue/core/domain/time";
+import { useHistory } from "@cue/core/hooks/useHistory";
+import { useRemovalSnacks } from "@cue/core/hooks/useRemovalSnacks";
+import { usePrefs } from "@cue/core/prefs/prefs-store";
 import { CheckControl } from "@ui/components/CheckControl";
 import { EpisodeRow } from "@ui/components/EpisodeRow";
 import { SectionHeader } from "@ui/components/SectionHeader";
-import { useHistory } from "@ui/hooks/useHistory";
-import { useRemovalSnacks } from "@ui/hooks/useRemovalSnacks";
-import { usePrefs } from "@ui/prefs/prefs-store";
 import { entryDetail, entryLink } from "@ui/screens/history/history-view";
 import { Poster } from "@ui/screens/up-next/Poster";
 import { Fragment, type ReactElement } from "react";

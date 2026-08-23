@@ -1,11 +1,13 @@
-import { createCueRuntime } from "@app/runtime/create-runtime";
-import { sessionTeardown } from "@app/session";
+import { TRAKT_BASE_OVERRIDE, TRAKT_CLIENT_ID } from "@app/config";
+import { clearPersistedCaches } from "@app/query-client";
+import { useAuth } from "@cue/core/auth/store";
+import { useEpisodeReminders } from "@cue/core/hooks/useEpisodeReminders";
 import type { KeyValueStore } from "@cue/core/ports/kv";
 import type { TokenStore } from "@cue/core/ports/token-store";
-import { useAuth } from "@ui/auth/store";
-import { useEpisodeReminders } from "@ui/hooks/useEpisodeReminders";
-import { type CueRuntime, RuntimeProvider } from "@ui/runtime/runtime";
-import { type ReactElement, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { useRuntimeBoot } from "@cue/core/runtime/boot";
+import { RuntimeProvider } from "@cue/core/runtime/runtime";
+import { clearLocalPreferences } from "@ui/prefs/preference-storage";
+import type { ReactElement, ReactNode } from "react";
 
 /** The reminder scheduler reads the calendar, so it runs under the runtime and
  * for exactly as long as the runtime exists. */
@@ -23,10 +25,11 @@ export interface RuntimeBootProps {
 }
 
 /**
- * Instantiate the authenticated runtime once the session is connected and hand
- * it to `@ui` through context (platform/data wiring lives here,
- * not in the UI). Boot reads the persisted token, restores the durable
- * write-queue, and replays it; the children mount only once it is ready.
+ * The web app's three boot surfaces over the shared boot effect: loading, a
+ * retryable failure, and the runtime handed to the tree through context. The
+ * effect itself (read the token, restore and replay the durable write-queue,
+ * register the teardown) is in `@cue/core/runtime/boot` and is the same on both
+ * targets; only these three renders differ.
  */
 export function RuntimeBoot({
   tokenStore,
@@ -34,52 +37,18 @@ export function RuntimeBoot({
   redirectUri,
   children,
 }: RuntimeBootProps): ReactElement {
-  const [runtime, setRuntime] = useState<CueRuntime | null>(null);
-  const [failed, setFailed] = useState(false);
-  const alive = useRef(true);
   // A dead refresh token routes through the auth store's teardown → onboarding.
   const endSession = useAuth((s) => s.endSession);
-
-  useEffect(() => {
-    alive.current = true;
-    return () => {
-      alive.current = false;
-      // No runtime is mounted anymore: a disconnect from here on has nothing to
-      // flush/clear through, so drop the registered teardown.
-      sessionTeardown.run = () => Promise.resolve();
-    };
-  }, []);
-
-  const boot = useCallback(() => {
-    setFailed(false);
-    void (async () => {
-      try {
-        const token = await tokenStore.read();
-        if (token === null) return;
-        const built = await createCueRuntime({
-          token,
-          kv,
-          tokenStore,
-          redirectUri,
-          endSession,
-        });
-        if (alive.current) {
-          // Hand disconnect a live teardown: flush pending writes + clear this
-          // device's caches through the runtime before the token is revoked.
-          sessionTeardown.run = (options) => built.endLocalSession(options);
-          setRuntime(built);
-        }
-      } catch {
-        // A boot rejection must never leave the app stuck on the loading spinner;
-        // surface a retryable error instead.
-        if (alive.current) setFailed(true);
-      }
-    })();
-  }, [tokenStore, kv, redirectUri, endSession]);
-
-  useEffect(() => {
-    boot();
-  }, [boot]);
+  const { runtime, failed, retry } = useRuntimeBoot({
+    tokenStore,
+    kv,
+    redirectUri,
+    clientId: TRAKT_CLIENT_ID,
+    apiBaseUrl: TRAKT_BASE_OVERRIDE,
+    endSession,
+    clearPersistedCaches,
+    clearLocalPreferences,
+  });
 
   if (failed && runtime === null) {
     return (
@@ -92,7 +61,7 @@ export function RuntimeBoot({
             type="button"
             className="onb__cta"
             data-testid="runtime-error-retry"
-            onClick={boot}
+            onClick={retry}
           >
             Retry
           </button>

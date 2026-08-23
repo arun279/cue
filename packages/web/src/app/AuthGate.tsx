@@ -1,9 +1,9 @@
 import { router } from "@app/router";
 import { RuntimeBoot } from "@app/runtime/RuntimeBoot";
+import { type AuthStore, AuthStoreProvider, useAuth } from "@cue/core/auth/store";
 import type { KeyValueStore } from "@cue/core/ports/kv";
 import type { TokenStore } from "@cue/core/ports/token-store";
 import { RouterProvider } from "@tanstack/react-router";
-import { type AuthStore, AuthStoreProvider, useAuth } from "@ui/auth/store";
 import { Onboarding } from "@ui/screens/onboarding/Onboarding";
 import type { ReactElement } from "react";
 

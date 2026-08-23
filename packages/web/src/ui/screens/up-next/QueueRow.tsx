@@ -1,12 +1,12 @@
 import { epCode } from "@cue/core/domain/model/library";
+import { episodesLeft, lastWatchedPhrase, watchedPercent } from "@cue/core/format";
+import type { MarkWatched } from "@cue/core/hooks/useMarkWatched";
+import type { UpNextCard } from "@cue/core/hooks/useUpNext";
 import { CheckControl } from "@ui/components/CheckControl";
 import { EpisodeRow } from "@ui/components/EpisodeRow";
 import { ProgressBar } from "@ui/components/ProgressBar";
 import { SwipeAction } from "@ui/components/SwipeAction";
-import { episodesLeft, lastWatchedPhrase, watchedPercent } from "@cue/core/format";
-import type { MarkWatched } from "@ui/hooks/useMarkWatched";
 import { useShowArt } from "@ui/hooks/useShowArt";
-import type { UpNextCard } from "@ui/hooks/useUpNext";
 import type { ReactElement, ReactNode } from "react";
 import { Poster } from "./Poster";
 import { useQueueCheck } from "./useQueueCheck";

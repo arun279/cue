@@ -1,10 +1,11 @@
+import { useActivitiesPoll } from "@cue/core/hooks/useActivitiesPoll";
+import { usePrefs } from "@cue/core/prefs/prefs-store";
+import { useHaptics } from "@cue/core/runtime/haptics";
+import { useOptionalRuntime } from "@cue/core/runtime/runtime";
 import { Link, Outlet } from "@tanstack/react-router";
 import { ErrorBoundary } from "@ui/app-shell/ErrorBoundary";
 import { navFor } from "@ui/app-shell/nav";
 import { AppSnackbar } from "@ui/components/AppSnackbar";
-import { useActivitiesPoll } from "@ui/hooks/useActivitiesPoll";
-import { usePrefs } from "@ui/prefs/prefs-store";
-import { useHaptics } from "@ui/runtime/haptics";
 import { CircleUserRound, Settings } from "lucide-react";
 import type { ReactElement, ReactNode } from "react";
 

@@ -25,7 +25,7 @@ export function mockCompositionRoot({
     const { Settings } = await import("@ui/screens/settings/Settings");
     return { AuthGate: () => <Settings /> };
   });
-  vi.doMock("@app/auth/create-auth-store", () => ({ createAuthStore: () => ({}) }));
+  vi.doMock("@cue/core/auth/create-auth-store", () => ({ createAuthStore: () => ({}) }));
   vi.doMock("@app/persist", () => ({ requestPersistentStorage: vi.fn() }));
   vi.doMock("@app/query-client", () => ({
     PERSIST_BUSTER: "test",

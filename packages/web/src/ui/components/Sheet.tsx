@@ -1,10 +1,10 @@
+import { useHaptics } from "@cue/core/runtime/haptics";
 import {
   DISMISS_FRACTION,
   type DragSample,
   releaseVelocity,
   settleSheet,
 } from "@ui/components/sheet-math";
-import { useHaptics } from "@ui/runtime/haptics";
 import { Dialog } from "radix-ui";
 import {
   type ReactElement,

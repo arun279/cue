@@ -1,5 +1,5 @@
 import type { UpNextItem } from "@cue/core/domain/up-next";
-import { sortLapsed, sortQueue, stabilizePendingAdvance } from "@ui/hooks/queue-order";
+import { sortLapsed, sortQueue, stabilizePendingAdvance } from "@cue/core/hooks/queue-order";
 import { describe, expect, it } from "vitest";
 
 function item(

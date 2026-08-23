@@ -5,11 +5,12 @@
  */
 import type { CalendarEntry } from "@cue/core/domain/calendar";
 import type { Reminders } from "@cue/core/domain/ports/reminders";
+import { useEpisodeReminders } from "@cue/core/hooks/useEpisodeReminders";
+import type { PreferenceStorage } from "@cue/core/ports/preference-storage";
+import { createPrefsStore, PrefsProvider } from "@cue/core/prefs/prefs-store";
+import { RemindersProvider } from "@cue/core/runtime/reminders";
+import { type CueRuntime, RuntimeProvider } from "@cue/core/runtime/runtime";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useEpisodeReminders } from "@ui/hooks/useEpisodeReminders";
-import { usePrefs } from "@ui/prefs/prefs-store";
-import { RemindersProvider } from "@ui/runtime/reminders";
-import { type CueRuntime, RuntimeProvider } from "@ui/runtime/runtime";
 import { act, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -47,18 +48,29 @@ function Probe(): null {
   return null;
 }
 
+/** The preferences this suite drives, over a storage that outlives nothing. */
+function memoryStorage(): PreferenceStorage {
+  const values = new Map<string, string>();
+  return {
+    getItem: (key) => values.get(key) ?? null,
+    setItem: (key, value) => void values.set(key, value),
+    clearNamespace: () => values.clear(),
+  };
+}
+
 let root: Root | null = null;
 let queryClient: QueryClient | null = null;
+let prefs = createPrefsStore(memoryStorage());
 
 beforeEach(() => {
-  usePrefs.setState({ remindersEnabled: true });
+  prefs = createPrefsStore(memoryStorage());
+  prefs.setState({ remindersEnabled: true });
 });
 
 afterEach(() => {
   act(() => root?.unmount());
   root = null;
   queryClient = null;
-  usePrefs.setState({ remindersEnabled: false });
   vi.useRealTimers();
 });
 
@@ -68,11 +80,13 @@ async function mountHook(loadCalendar: CueRuntime["loadCalendar"]): Promise<Remi
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const node: ReactElement = (
     <QueryClientProvider client={queryClient}>
-      <RuntimeProvider value={{ loadCalendar } as unknown as CueRuntime}>
-        <RemindersProvider value={reminders}>
-          <Probe />
-        </RemindersProvider>
-      </RuntimeProvider>
+      <PrefsProvider value={prefs}>
+        <RuntimeProvider value={{ loadCalendar } as unknown as CueRuntime}>
+          <RemindersProvider value={reminders}>
+            <Probe />
+          </RemindersProvider>
+        </RuntimeProvider>
+      </PrefsProvider>
     </QueryClientProvider>
   );
   root = createRoot(document.createElement("div"));
@@ -141,7 +155,7 @@ describe("useEpisodeReminders", () => {
       Promise.resolve({ entries: [airingAt(Date.now() + DAY_MS)], hiddenShowIds: [] }),
     );
 
-    await act(async () => usePrefs.setState({ remindersEnabled: false }));
+    await act(async () => prefs.setState({ remindersEnabled: false }));
     expect(reminders.cancelAll).toHaveBeenCalledTimes(1);
 
     // Nothing is scheduled while the switch is off, so signing out has nothing
@@ -165,7 +179,7 @@ describe("useEpisodeReminders", () => {
   });
 
   it("asks for nothing while the switch is off, cancel included", async () => {
-    usePrefs.setState({ remindersEnabled: false });
+    prefs.setState({ remindersEnabled: false });
     const reminders = await mountHook(() =>
       Promise.resolve({ entries: [airingAt(Date.now() + DAY_MS)], hiddenShowIds: [] }),
     );

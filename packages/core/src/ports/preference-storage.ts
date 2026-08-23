@@ -15,4 +15,9 @@
 export interface PreferenceStorage {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
+  /** Drop every key under a prefix. Sign-out calls it with the app's own, which
+   * on a device is a prefix of its own rather than the one the bulk store uses:
+   * the two share a database there, and a `cue.` clear would take the durable
+   * write queue and the install marker with the preferences. */
+  clearNamespace(prefix: string): void;
 }

@@ -1,5 +1,5 @@
+import { useAuth } from "@cue/core/auth/store";
 import { createLazyRoute, useNavigate } from "@tanstack/react-router";
-import { useAuth } from "@ui/auth/store";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { type ReactElement, useEffect, useRef } from "react";
 

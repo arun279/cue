@@ -1,9 +1,9 @@
 import { queryKeys } from "@cue/core/data/query-keys";
 import type { LibraryEntry } from "@cue/core/data/trakt/library";
 import type { SearchHit } from "@cue/core/data/trakt/search";
+import { useWatchlistAdd, type WatchlistAddView } from "@cue/core/hooks/useWatchlistAdd";
+import { type CueRuntime, RuntimeProvider, type UpNextData } from "@cue/core/runtime/runtime";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useWatchlistAdd, type WatchlistAddView } from "@ui/hooks/useWatchlistAdd";
-import { type CueRuntime, RuntimeProvider, type UpNextData } from "@ui/runtime/runtime";
 import { act } from "react";
 import { expect, it } from "vitest";
 import { mountAsync } from "./_mount";

@@ -1,5 +1,8 @@
 import type { HistoryEntry } from "@cue/core/domain/history";
 import { localTimeZone } from "@cue/core/domain/time";
+import { type HistoryFilter, type HistoryScope, useHistory } from "@cue/core/hooks/useHistory";
+import { useRemovalSnacks } from "@cue/core/hooks/useRemovalSnacks";
+import { usePrefs } from "@cue/core/prefs/prefs-store";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { ScreenHeader } from "@ui/app-shell/ScreenHeader";
 import { SyncStrip } from "@ui/app-shell/SyncStrip";
@@ -12,9 +15,6 @@ import { EpisodeRow } from "@ui/components/EpisodeRow";
 import { ErrorRetry } from "@ui/components/ErrorStates";
 import { SkeletonRows } from "@ui/components/Skeletons";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
-import { type HistoryFilter, type HistoryScope, useHistory } from "@ui/hooks/useHistory";
-import { useRemovalSnacks } from "@ui/hooks/useRemovalSnacks";
-import { usePrefs } from "@ui/prefs/prefs-store";
 import { Poster } from "@ui/screens/up-next/Poster";
 import { type ReactElement, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { HistorySearch } from "./HistorySearch";

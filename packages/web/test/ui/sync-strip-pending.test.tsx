@@ -4,8 +4,9 @@
  * nothing in flight, and the strip must still say so (at least 3 pending
  * for >5s → "N marks pending · will sync").
  */
+
+import { type CueRuntime, RuntimeProvider } from "@cue/core/runtime/runtime";
 import { SyncStrip } from "@ui/app-shell/SyncStrip";
-import { type CueRuntime, RuntimeProvider } from "@ui/runtime/runtime";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";

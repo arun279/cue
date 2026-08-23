@@ -1,16 +1,16 @@
 import type { UserStats } from "@cue/core/data/trakt/schemas";
 import type { UserProfile } from "@cue/core/data/trakt/user-profile";
 import { humanizeWatchMinutes } from "@cue/core/domain/time";
+import { useStats } from "@cue/core/hooks/useStats";
+import { useUserProfile } from "@cue/core/hooks/useUserProfile";
 import type { MediaVisibility } from "@cue/core/prefs/media-visibility";
+import { usePrefs } from "@cue/core/prefs/prefs-store";
 import { Link } from "@tanstack/react-router";
 import { ScreenHeader } from "@ui/app-shell/ScreenHeader";
 import { SyncStrip } from "@ui/app-shell/SyncStrip";
 import { EmptyState } from "@ui/components/EmptyState";
 import { ErrorRetry } from "@ui/components/ErrorStates";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
-import { useStats } from "@ui/hooks/useStats";
-import { useUserProfile } from "@ui/hooks/useUserProfile";
-import { usePrefs } from "@ui/prefs/prefs-store";
 import { SignOutRow } from "@ui/screens/settings/SignOutRow";
 import {
   ChevronRight,
