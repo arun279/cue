@@ -15,6 +15,7 @@
     "contenteditable",
     "cspell",
     "cuetracker",
+    "Cœur",
     "depcruise",
     "dprint",
     "fanart",
@@ -22,6 +23,7 @@
     "fontsource",
     "idb",
     "imdb",
+    "indexeddb",
     "jank",
     "jscpd",
     "jsdom",
@@ -83,7 +85,8 @@
     "wordmark",
     "Workbox",
     "Zod",
-    "Zustand"
+    "Zustand",
+    "Привет"
   ],
   "ignorePaths": [
     "node_modules/**",
