@@ -453,12 +453,16 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
         // can never be sent, and clearing is what prevents the cross-account
         // replay.
         if (options.force !== true && queue.size > 0) throw new PendingWritesError();
-        deps.clearLocalPreferences();
         // Clear this device's per-account state so the next account never paints
-        // stale data or dispatches a leftover op.
+        // stale data or dispatches a leftover op. Preferences go last, and the
+        // order is the point: they are device-local rather than account-scoped,
+        // so a storage that refuses the preference clear (a locked-down browser,
+        // a full device) leaves a theme behind rather than the op log that would
+        // replay under the next account.
         await opLogStore.clear();
         await activitiesStore.clear();
         await deps.clearPersistedCaches();
+        deps.clearLocalPreferences();
       } finally {
         tearingDown = false;
       }

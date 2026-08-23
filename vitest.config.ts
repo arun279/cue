@@ -6,18 +6,18 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "html", "lcov"],
-      include: ["packages/*/src/**"],
-      // The composition root (src/app) and every presentational surface (src/ui)
-      // are gated by the hermetic Playwright suite, not a line threshold
-      // Line coverage targets the logic layers below.
-      exclude: [
-        "**/*.d.ts",
-        "packages/web/src/app/**",
-        "packages/web/src/ui/**",
-        // The composition root, as src/app has always been. The ports beside it
-        // in core/src/runtime are library code both targets run, so they are in.
-        "packages/core/src/app/**",
+      // Stated as what the line gate covers rather than as what it lets through.
+      // Every composition root (both `src/app` directories) and every
+      // presentational surface (`web/src/ui`) is gated by the hermetic Playwright
+      // suite instead; `web/src/ui/prefs` is in because it is the preferences
+      // adapter rather than a screen, and sits under `ui` only because it is read
+      // at module scope, before React exists (ui-no-platform-impl).
+      include: [
+        "packages/core/src/**",
+        "packages/web/src/platform/**",
+        "packages/web/src/ui/prefs/**",
       ],
+      exclude: ["**/*.d.ts", "packages/core/src/app/**"],
       thresholds: {
         // Global floor = rot tripwire, not the quality bar. Logic layers carry
         // the real gate below; ui/ behavior is gated by the Playwright suite.

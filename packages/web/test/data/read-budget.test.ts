@@ -5,11 +5,10 @@ import {
   WATCHED_PROGRESS_BUDGET,
   withReadRateRetry,
 } from "@cue/core/data/trakt/read-budget";
-import type { KeyValueStore } from "@cue/core/ports/kv";
-import type { TokenStore } from "@cue/core/ports/token-store";
 import { delay, HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 import { mswServer } from "./_msw";
+import { buildRuntime } from "./_runtime";
 
 const server = mswServer();
 const client = new TraktClient({ clientId: "cid" });
@@ -350,7 +349,6 @@ describe("cold-sync GET budget", () => {
   });
 
   it("caps concurrent production endpoint reads across independent runtime callers", async () => {
-    const { createCueRuntime } = await import("@cue/core/app/create-runtime");
     let inFlight = 0;
     let peak = 0;
     const browse = async (): Promise<Response> => {
@@ -366,32 +364,7 @@ describe("cold-sync GET budget", () => {
       http.get(`${TRAKT_API_BASE}/movies/trending`, browse),
       http.get(`${TRAKT_API_BASE}/movies/popular`, browse),
     );
-    const values = new Map<string, string>();
-    const kv: KeyValueStore = {
-      read: async (key) => values.get(key) ?? null,
-      write: async (key, value) => void values.set(key, value),
-      remove: async (key) => void values.delete(key),
-    };
-    const tokenStore: TokenStore = {
-      read: async () => null,
-      write: async () => undefined,
-      clear: async () => undefined,
-    };
-    const runtime = await createCueRuntime({
-      token: {
-        access_token: "access",
-        refresh_token: "refresh",
-        created_at: Math.floor(Date.now() / 1000),
-        expires_in: 604_800,
-      },
-      kv,
-      tokenStore,
-      redirectUri: "https://cue.test/auth/callback",
-      clientId: "test-client",
-      endSession: async () => undefined,
-      clearPersistedCaches: async () => undefined,
-      clearLocalPreferences: () => undefined,
-    });
+    const runtime = await buildRuntime();
 
     await Promise.all([runtime.loadBrowse(), runtime.loadBrowse()]);
 
