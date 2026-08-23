@@ -4,11 +4,10 @@
  * silent, so the states that must NOT cancel matter more than the ones that do.
  */
 import type { CalendarEntry } from "@cue/core/domain/calendar";
-import type { Reminders } from "@cue/core/domain/ports/reminders";
 import { useEpisodeReminders } from "@cue/core/hooks/useEpisodeReminders";
 import type { PreferenceStorage } from "@cue/core/ports/preference-storage";
+import { type Reminders, RemindersProvider } from "@cue/core/ports/reminders";
 import { createPrefsStore, PrefsProvider } from "@cue/core/prefs/prefs-store";
-import { RemindersProvider } from "@cue/core/runtime/reminders";
 import { type CueRuntime, RuntimeProvider } from "@cue/core/runtime/runtime";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, type ReactElement } from "react";

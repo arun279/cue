@@ -1,11 +1,11 @@
 import { Capacitor } from "@capacitor/core";
 import { LocalNotifications } from "@capacitor/local-notifications";
-import { type Reminders, SILENT } from "@cue/core/domain/ports/reminders";
 import {
   diffReminders,
   type PendingReminder,
   type PlannedReminder,
 } from "@cue/core/domain/reminders";
+import { type Reminders, SILENT } from "@cue/core/ports/reminders";
 import { isNativePlatform } from "./platform";
 
 /**

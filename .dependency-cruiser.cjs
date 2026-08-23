@@ -103,11 +103,11 @@ module.exports = {
       name: "ports-have-no-impls",
       severity: "error",
       comment:
-        "A port is a seam the apps fill, so it may take value imports from the domain and from its sibling ports and nothing else. Stated that way rather than as 'types only': token-store.ts imports tokenSchema, a zod value, from domain/model/token, and that is correct code.",
+        "A port is a seam the apps fill, so it may take value imports from the domain, from its sibling ports and from react, and nothing else. Stated that way rather than as 'types only': token-store.ts imports tokenSchema, a zod value, from domain/model/token, and five of the ports publish a React context and hook beside their interface, which is how a component reaches the injected instance. React is the injection mechanism rather than an implementation, and everything an implementation would actually need (the DOM, idb-keyval, @capacitor/*, expo) is still banned here by core-stays-portable and by biome's globals override over this package.",
       from: { path: "^packages/core/src/ports/" },
       to: {
         dependencyTypesNot: ["type-only"],
-        pathNot: "^packages/core/src/(ports|domain)/",
+        pathNot: ["^packages/core/src/(ports|domain)/", RE_REACT],
       },
     },
     {

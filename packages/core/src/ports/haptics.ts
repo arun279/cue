@@ -1,3 +1,5 @@
+import { createContext, useContext } from "react";
+
 /**
  * The tactile port, declared where both sides of the seam can read it: `@ui`
  * fires through it, `@platform` implements it, and the composition root hands
@@ -30,3 +32,14 @@ export const SILENT: Haptics = {
   contextClick() {},
   prepare() {},
 };
+
+/** The port as `@ui` reaches it, injected from the composition root so `@ui`
+ * stays free of `@app`/`@platform`. The default is `SILENT`, so the browser
+ * build, the pre-token shell and tests need no provider. */
+const HapticsContext = createContext<Haptics>(SILENT);
+
+export const HapticsProvider = HapticsContext.Provider;
+
+export function useHaptics(): Haptics {
+  return useContext(HapticsContext);
+}

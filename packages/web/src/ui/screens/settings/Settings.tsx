@@ -1,3 +1,5 @@
+import { useAppVersion } from "@cue/core/ports/app-version";
+import { useReminders } from "@cue/core/ports/reminders";
 import { usePrefs } from "@cue/core/prefs/prefs-store";
 import { THRESHOLD_OPTIONS } from "@cue/core/prefs/threshold";
 import {
@@ -6,8 +8,6 @@ import {
   NEXT_EPISODE_ORDER_OPTIONS,
   type NextEpisodeOrder,
 } from "@cue/core/prefs/tracking";
-import { useAppVersion } from "@cue/core/runtime/app-version";
-import { useReminders } from "@cue/core/runtime/reminders";
 import { dismissSnack, showSnack } from "@cue/core/stores/snackbar-store";
 import { ScreenHeader } from "@ui/app-shell/ScreenHeader";
 import { ActionSheet } from "@ui/components/ActionSheet";

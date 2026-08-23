@@ -1,4 +1,4 @@
-import type { Network } from "@cue/core/runtime/network";
+import type { Network } from "@cue/core/ports/network";
 
 /** `Network` over `navigator.onLine` and the two window events that move it. */
 export const webNetwork: Network = {

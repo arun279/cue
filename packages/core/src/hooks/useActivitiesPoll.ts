@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
-import { useAppVisibility } from "../runtime/app-visibility";
-import { useNetwork } from "../runtime/network";
+import { useAppVisibility } from "../ports/app-visibility";
+import { useNetwork } from "../ports/network";
 import { useOptionalRuntime } from "../runtime/runtime";
 import { applyReconcile } from "./apply-reconcile";
 

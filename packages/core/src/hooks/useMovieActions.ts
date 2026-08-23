@@ -10,7 +10,7 @@ import {
   buildUnmarkMovieOp,
 } from "../domain/write-queue/ops";
 import type { QueuedOp } from "../domain/write-queue/types";
-import { useHaptics } from "../runtime/haptics";
+import { useHaptics } from "../ports/haptics";
 import type { SubmitOutcome } from "../runtime/runtime";
 import { useRuntime } from "../runtime/runtime";
 import { resolveMovieUnmark, routeMovieUnmark } from "./resolveUnmark";

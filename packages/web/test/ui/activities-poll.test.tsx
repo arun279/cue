@@ -6,8 +6,8 @@
  */
 
 import { useActivitiesPoll } from "@cue/core/hooks/useActivitiesPoll";
-import { type AppVisibility, AppVisibilityProvider } from "@cue/core/runtime/app-visibility";
-import { type Network, NetworkProvider } from "@cue/core/runtime/network";
+import { type AppVisibility, AppVisibilityProvider } from "@cue/core/ports/app-visibility";
+import { type Network, NetworkProvider } from "@cue/core/ports/network";
 import { type CueRuntime, RuntimeProvider } from "@cue/core/runtime/runtime";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";

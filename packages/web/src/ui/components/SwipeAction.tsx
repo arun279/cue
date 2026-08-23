@@ -1,4 +1,4 @@
-import { useHaptics } from "@cue/core/runtime/haptics";
+import { useHaptics } from "@cue/core/ports/haptics";
 import { resolveIntent } from "@ui/components/gesture-intent";
 import { clampOffset, commitDirection } from "@ui/components/swipe-math";
 import { Check, Pause } from "lucide-react";

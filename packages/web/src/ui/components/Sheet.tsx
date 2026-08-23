@@ -1,4 +1,4 @@
-import { useHaptics } from "@cue/core/runtime/haptics";
+import { useHaptics } from "@cue/core/ports/haptics";
 import {
   DISMISS_FRACTION,
   type DragSample,

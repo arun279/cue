@@ -9,8 +9,8 @@
  */
 
 import { useActivitiesPoll } from "@cue/core/hooks/useActivitiesPoll";
-import { AppVisibilityProvider } from "@cue/core/runtime/app-visibility";
-import { NetworkProvider } from "@cue/core/runtime/network";
+import { AppVisibilityProvider } from "@cue/core/ports/app-visibility";
+import { NetworkProvider } from "@cue/core/ports/network";
 import { type CueRuntime, RuntimeProvider } from "@cue/core/runtime/runtime";
 import { webAppVisibility } from "@platform/app-visibility";
 import { webNetwork } from "@platform/network";

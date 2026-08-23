@@ -1,4 +1,5 @@
-import type { PlannedReminder } from "../reminders";
+import { createContext, useContext } from "react";
+import type { PlannedReminder } from "../domain/reminders";
 
 /**
  * The notification port, declared where both sides of the seam can read it:
@@ -22,3 +23,14 @@ export const SILENT: Reminders = {
   reconcile: () => Promise.resolve(),
   cancelAll: () => Promise.resolve(),
 };
+
+/** The port as `@ui` reaches it, injected from the composition root so `@ui`
+ * stays free of `@app`/`@platform`. The default is `SILENT`, so no provider is
+ * needed off native. */
+const RemindersContext = createContext<Reminders>(SILENT);
+
+export const RemindersProvider = RemindersContext.Provider;
+
+export function useReminders(): Reminders {
+  return useContext(RemindersContext);
+}

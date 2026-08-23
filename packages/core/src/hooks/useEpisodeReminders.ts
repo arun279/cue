@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { planReminders, REMINDER_WINDOW_DAYS } from "../domain/reminders";
+import { useReminders } from "../ports/reminders";
 import { usePrefs } from "../prefs/prefs-store";
-import { useReminders } from "../runtime/reminders";
 import { useCalendar } from "./useCalendar";
 
 /**

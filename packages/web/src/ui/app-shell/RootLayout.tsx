@@ -1,7 +1,6 @@
 import { useActivitiesPoll } from "@cue/core/hooks/useActivitiesPoll";
+import { useHaptics } from "@cue/core/ports/haptics";
 import { usePrefs } from "@cue/core/prefs/prefs-store";
-import { useHaptics } from "@cue/core/runtime/haptics";
-import { useOptionalRuntime } from "@cue/core/runtime/runtime";
 import { Link, Outlet } from "@tanstack/react-router";
 import { ErrorBoundary } from "@ui/app-shell/ErrorBoundary";
 import { navFor } from "@ui/app-shell/nav";

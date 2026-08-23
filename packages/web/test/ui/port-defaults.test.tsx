@@ -8,10 +8,10 @@
  * without wiring four providers depends on without saying so.
  */
 
-import { useAppVisibility } from "@cue/core/runtime/app-visibility";
-import { useHaptics } from "@cue/core/runtime/haptics";
-import { useNetwork } from "@cue/core/runtime/network";
-import { useReminders } from "@cue/core/runtime/reminders";
+import { useAppVisibility } from "@cue/core/ports/app-visibility";
+import { useHaptics } from "@cue/core/ports/haptics";
+import { useNetwork } from "@cue/core/ports/network";
+import { useReminders } from "@cue/core/ports/reminders";
 import { describe, expect, it } from "vitest";
 import { mount } from "./_mount";
 

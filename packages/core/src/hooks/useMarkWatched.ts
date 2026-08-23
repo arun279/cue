@@ -11,7 +11,7 @@ import {
   episodeItemKey,
 } from "../domain/write-queue/ops";
 import { middleTruncate } from "../format";
-import { useHaptics } from "../runtime/haptics";
+import { useHaptics } from "../ports/haptics";
 import { type CueRuntime, type SubmitOutcome, useRuntime } from "../runtime/runtime";
 import {
   hasPendingMark,

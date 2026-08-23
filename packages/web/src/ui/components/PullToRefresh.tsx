@@ -1,5 +1,5 @@
 import { useSyncNow } from "@cue/core/hooks/useSyncNow";
-import { useHaptics } from "@cue/core/runtime/haptics";
+import { useHaptics } from "@cue/core/ports/haptics";
 import { resolveIntent } from "@ui/components/gesture-intent";
 import {
   isArmed,

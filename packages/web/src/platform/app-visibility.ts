@@ -1,4 +1,4 @@
-import type { AppVisibility } from "@cue/core/runtime/app-visibility";
+import type { AppVisibility } from "@cue/core/ports/app-visibility";
 
 /** `AppVisibility` over the Page Visibility API. */
 export const webAppVisibility: AppVisibility = {
