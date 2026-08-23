@@ -5,7 +5,7 @@ import {
   type PendingReminder,
   type PlannedReminder,
 } from "@cue/core/domain/reminders";
-import { type Reminders, SILENT } from "@cue/core/ports/reminders";
+import { neverRejects, type Reminders, SILENT } from "@cue/core/ports/reminders";
 import { isNativePlatform } from "./platform";
 
 /**
@@ -97,13 +97,9 @@ export function createNativeReminders(): Reminders {
     }
   };
 
-  // A plugin rejection is swallowed here, the way the haptics seam swallows one:
-  // a missing plugin, a permission revoked mid-call or an OS refusal cannot be
-  // recovered from at this seam, and an unhandled rejection in the shell is
-  // worse than the honest fallback (nothing granted, nothing scheduled).
-  return {
-    requestPermission: () => grant().catch(() => false),
-    reconcile: (planned) => apply(planned).catch(() => {}),
-    cancelAll: () => LocalNotifications.cancelAll().catch(() => {}),
-  };
+  return neverRejects({
+    requestPermission: grant,
+    reconcile: apply,
+    cancelAll: () => LocalNotifications.cancelAll(),
+  });
 }

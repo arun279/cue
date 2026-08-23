@@ -25,6 +25,9 @@ dev-dist/
 packages/native/ios/
 packages/native/android/
 packages/native/.expo/
+# The local Expo module is source; what Gradle leaves beside it is not.
+packages/native/modules/*/android/build/
+packages/native/modules/*/android/.cxx/
 
 # Env: the real .env (your Trakt app's PUBLIC client id) is local-only.
 # Committed: .env.example (placeholders), .env.test (CI/e2e dummy id) and

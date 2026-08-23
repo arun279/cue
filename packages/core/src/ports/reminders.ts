@@ -16,6 +16,20 @@ export interface Reminders {
   cancelAll(): Promise<void>;
 }
 
+/**
+ * The port's promise not to reject, applied rather than restated by each
+ * implementation. A permission revoked mid-call, a missing plugin or an OS
+ * refusal cannot be recovered from at this seam, and an unhandled rejection in a
+ * shell is worse than the honest fallback: nothing granted, nothing scheduled.
+ */
+export function neverRejects(reminders: Reminders): Reminders {
+  return {
+    requestPermission: () => reminders.requestPermission().catch(() => false),
+    reconcile: (planned) => reminders.reconcile(planned).catch(() => {}),
+    cancelAll: () => reminders.cancelAll().catch(() => {}),
+  };
+}
+
 /** Schedules nothing and grants everything, which keeps the Settings switch a
  * plain preference on the web build exactly as the haptics one is. */
 export const SILENT: Reminders = {

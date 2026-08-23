@@ -8,8 +8,15 @@
  *
  * `testMatch` names the test files rather than the directory, so a support
  * module beside them is not itself run as a suite with no tests in it.
+ *
+ * `moduleNameMapper` points `vitest` at a shim over jest's own globals: the
+ * shared `KeyValueStore` contract lives in `@cue/core`'s test tree and is run by
+ * both runners rather than transcribed into a second copy.
  */
-const project = { testMatch: ["<rootDir>/__tests__/**/*.test.{ts,tsx}"] };
+const project = {
+  testMatch: ["<rootDir>/__tests__/**/*.test.{ts,tsx}"],
+  moduleNameMapper: { "^vitest$": "<rootDir>/__tests__/support/vitest.ts" },
+};
 
 module.exports = {
   projects: [
