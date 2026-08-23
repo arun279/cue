@@ -62,6 +62,14 @@ module.exports = {
       },
     },
     {
+      name: "packages-declare-their-imports",
+      severity: "error",
+      comment:
+        "dependency-cruiser's own no-non-package-json, anchored at the packages. A package may import only what its OWN manifest declares. `nodeLinker: hoisted` (pnpm-workspace.yaml) puts every transitive dependency at the workspace root where any package can reach it undeclared, which is the strictness the default linker exists to provide and the price the native package's resolver charges for it. knip's dependency lane does not close this: react is a peerDependency of @tanstack/react-query, so it read 33 undeclared react imports in @cue/core as satisfied.",
+      from: { path: "^packages/" },
+      to: { dependencyTypes: ["npm-no-pkg", "npm-unknown"] },
+    },
+    {
       name: "domain-stays-pure",
       severity: "error",
       comment:
