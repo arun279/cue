@@ -14,8 +14,9 @@ export default defineConfig({
         "**/*.d.ts",
         "packages/web/src/app/**",
         "packages/web/src/ui/**",
-        // The composition root, as src/app has always been.
-        "packages/core/src/runtime/**",
+        // The composition root, as src/app has always been. The ports beside it
+        // in core/src/runtime are library code both targets run, so they are in.
+        "packages/core/src/app/**",
       ],
       thresholds: {
         // Global floor = rot tripwire, not the quality bar. Logic layers carry

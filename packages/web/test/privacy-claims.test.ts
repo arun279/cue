@@ -11,7 +11,7 @@ import servedPolicy from "../../../docs/index.html?raw";
 import infoPlistSource from "../../../ios/App/App/Info.plist?raw";
 import policy from "../../../PRIVACY.md?raw";
 import readme from "../../../README.md?raw";
-import runtimeSource from "../../core/src/runtime/create-runtime.ts?raw";
+import runtimeSource from "../../core/src/app/create-runtime.ts?raw";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

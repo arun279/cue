@@ -1,4 +1,5 @@
 import { createStore } from "zustand/vanilla";
+import { PendingWritesError, sessionTeardown } from "../app/session";
 import {
   buildAuthorizeUrl,
   exchangeCodeForToken,
@@ -11,7 +12,6 @@ import { createPkcePair } from "../data/auth/pkce";
 import type { Token } from "../domain/model/token";
 import type { RedirectHandoff } from "../ports/redirect-handoff";
 import type { TokenStore } from "../ports/token-store";
-import { PendingWritesError, sessionTeardown } from "../runtime/session";
 import type { AuthActions, AuthState, AuthStore } from "./store";
 
 export interface AuthDeps {

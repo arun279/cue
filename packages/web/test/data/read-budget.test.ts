@@ -350,7 +350,7 @@ describe("cold-sync GET budget", () => {
   });
 
   it("caps concurrent production endpoint reads across independent runtime callers", async () => {
-    const { createCueRuntime } = await import("@cue/core/runtime/create-runtime");
+    const { createCueRuntime } = await import("@cue/core/app/create-runtime");
     let inFlight = 0;
     let peak = 0;
     const browse = async (): Promise<Response> => {

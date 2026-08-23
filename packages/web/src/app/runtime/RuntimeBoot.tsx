@@ -1,10 +1,10 @@
 import { TRAKT_BASE_OVERRIDE, TRAKT_CLIENT_ID } from "@app/config";
 import { clearPersistedCaches } from "@app/query-client";
+import { useRuntimeBoot } from "@cue/core/app/boot";
 import { useAuth } from "@cue/core/auth/store";
 import { useEpisodeReminders } from "@cue/core/hooks/useEpisodeReminders";
 import type { KeyValueStore } from "@cue/core/ports/kv";
 import type { TokenStore } from "@cue/core/ports/token-store";
-import { useRuntimeBoot } from "@cue/core/runtime/boot";
 import { RuntimeProvider } from "@cue/core/runtime/runtime";
 import { clearLocalPreferences } from "@ui/prefs/preference-storage";
 import type { ReactElement, ReactNode } from "react";
@@ -28,7 +28,7 @@ export interface RuntimeBootProps {
  * The web app's three boot surfaces over the shared boot effect: loading, a
  * retryable failure, and the runtime handed to the tree through context. The
  * effect itself (read the token, restore and replay the durable write-queue,
- * register the teardown) is in `@cue/core/runtime/boot` and is the same on both
+ * register the teardown) is in `@cue/core/app/boot` and is the same on both
  * targets; only these three renders differ.
  */
 export function RuntimeBoot({

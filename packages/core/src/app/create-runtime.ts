@@ -59,7 +59,7 @@ import type {
   MovieLibraryData,
   SubmitOutcome,
   UpNextData,
-} from "./runtime";
+} from "../runtime/runtime";
 import { PendingWritesError, type TeardownOptions } from "./session";
 
 const OP_LOG_KEY = "cue.write-queue";

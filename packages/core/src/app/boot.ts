@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { CueRuntime } from "../runtime/runtime";
 import { createCueRuntime, type RuntimeDeps } from "./create-runtime";
-import type { CueRuntime } from "./runtime";
 import { sessionTeardown } from "./session";
 
 /** Everything the runtime needs except the token, which boot reads for itself. */
