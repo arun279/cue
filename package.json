@@ -49,6 +49,7 @@
     "@capacitor/android": "^8.5.0",
     "@capacitor/cli": "^8.5.0",
     "@capacitor/ios": "^8.5.0",
+    "@types/node": "^22.12.0",
     "@vitest/coverage-v8": "^4.1.9",
     "cspell": "^9.8.0",
     "dependency-cruiser": "^18.0.0",
