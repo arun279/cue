@@ -58,7 +58,7 @@ Every e2e run builds the app and starts its own preview server on port 4173. Set
 - **cspell**: spelling across TS/TSX/CSS/MD.
 - **tsc**: strict TypeScript type-check (`--noEmit`).
 - **dependency-cruiser**: layering rules (`@capacitor/*` confined to `packages/web/src/platform`), cruised over every package in one pass.
-- **knip**: no unused files, dependencies, or exports.
+- **knip**: no unused files, dependencies, or exports. `@cue/core` exports every module through one wildcard subpath, which would make each of its files an entry point and switch the export lane off over the shared package, so that workspace sets `includeEntryExports` and its public surface is reported the moment nothing imports it.
 - **jscpd**: duplicate-code detection.
 - **Vitest**: unit tests, one project per package, with coverage thresholds on `domain` and `data`.
 - **Vite build**: a production build must compile.

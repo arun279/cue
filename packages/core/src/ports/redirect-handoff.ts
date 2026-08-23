@@ -6,8 +6,8 @@
  * A port rather than `sessionStorage` because the semantics, not just the API,
  * are the browser's: per tab, and gone when the tab closes, which is exactly
  * what a single-use nonce wants and what makes an abandoned attempt expire on
- * its own. A target with no page navigation has no handoff to make and no flow
- * to make it for, so its implementation is the inert one below.
+ * its own. It is a required member of `AuthDeps`, so a target with no page
+ * navigation states what it does instead of inheriting a default.
  */
 export interface RedirectHandoff {
   read(): { readonly state: string; readonly verifier: string } | null;
@@ -15,10 +15,3 @@ export interface RedirectHandoff {
   /** Called the moment the state is accepted: both values are single-use. */
   clear(): void;
 }
-
-/** Nothing is stashed, so nothing is ever handed back and the flow refuses. */
-export const NO_REDIRECT_HANDOFF: RedirectHandoff = {
-  read: () => null,
-  write: () => {},
-  clear: () => {},
-};

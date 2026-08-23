@@ -7,8 +7,8 @@
       "project": ["scripts/**/*.mjs", "*.ts"]
     },
     "packages/core": {
-      "entry": ["src/**/*.ts"],
-      "project": ["src/**/*.ts"]
+      "project": ["src/**/*.ts"],
+      "includeEntryExports": true
     },
     "packages/web": {
       "project": ["src/**/*.{ts,tsx}"],
