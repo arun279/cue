@@ -1,6 +1,7 @@
 import { epCode } from "@cue/core/domain/model/library";
 import { useMarkWatched } from "@cue/core/hooks/useMarkWatched";
 import { useUpNext } from "@cue/core/hooks/useUpNext";
+import { Link } from "expo-router";
 import type { ReactElement } from "react";
 import { FlatList, Pressable, Text, View } from "react-native";
 
@@ -20,6 +21,11 @@ export function UpNext(): ReactElement {
   return (
     <View testID="screen-up-next">
       <Text accessibilityRole="header">Up Next</Text>
+      {/* The account area is behind the header avatar on every tab root; this is
+          that entry point before the header exists. */}
+      <Link href="/profile" testID="open-account">
+        Profile
+      </Link>
       <FlatList
         testID="up-next-list"
         data={queue}

@@ -126,7 +126,13 @@ function Gate(): ReactElement {
   if (phase === "connected") {
     return (
       <RuntimeBoot deps={runtimeDeps}>
-        <Stack />
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="(tabs)" />
+          {/* Presented from the root, over the tab bar, so it always dismisses
+              back to exactly where the user was rather than into whichever tab
+              happened to be selected. */}
+          <Stack.Screen name="(account)" options={{ presentation: "fullScreenModal" }} />
+        </Stack>
       </RuntimeBoot>
     );
   }
