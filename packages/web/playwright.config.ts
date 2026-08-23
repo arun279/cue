@@ -1,3 +1,4 @@
+import path from "node:path";
 import { defineConfig, devices } from "@playwright/test";
 
 // 4173 is Vite's preview default. Override with E2E_PREVIEW_PORT so two checkouts can
@@ -35,6 +36,12 @@ const MOCK_TRAKT_URL = "http://127.0.0.1:8787";
 const MOCK_PREVIEW_PORT = PREVIEW_PORT + 1;
 const MOCK_PREVIEW_URL = `http://127.0.0.1:${MOCK_PREVIEW_PORT}`;
 const JOURNAL = process.env["MOCK_TRAKT_JOURNAL"] ?? "journal/journal-a.ndjson";
+/**
+ * The same file, absolute. The mock resolves the relative name from its own cwd,
+ * which is this directory, and the teardown project reads the journal back from
+ * wherever `playwright test` was invoked.
+ */
+export const JOURNAL_FILE = path.resolve(import.meta.dirname, JOURNAL);
 
 const mockServers = [
   {
@@ -96,8 +103,14 @@ export default defineConfig({
           {
             name: "mock",
             testMatch: "mock/**/*.spec.ts",
+            teardown: "mock-journal",
             use: { ...devices["Desktop Chrome"], baseURL: MOCK_PREVIEW_URL },
           },
+          // Reads the recording the flows just produced, so the lane fails on a
+          // write the app stopped sending. A teardown project rather than a
+          // sixth spec: it must run once, after every flow, whatever order the
+          // files ran in.
+          { name: "mock-journal", testMatch: "mock/journal.teardown.ts" },
         ]
       : []),
   ],
