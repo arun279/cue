@@ -14,6 +14,18 @@ dev-dist/
 # via the patterns below.
 .wrangler/
 
+# The Expo app is generated, not committed: `expo prebuild` clears and
+# regenerates both native directories, so a hand edit has to live in a config
+# plugin whether or not the output is tracked, and tracking it only creates a
+# second copy that can disagree with the plugin. The typed-route declarations are
+# generated as well, and the native typecheck regenerates them before it
+# compiles, so a clean checkout compiles the program the author sees.
+# packages/native/.gitignore is expo-cli's own and covers expo-env.d.ts; it is
+# tracked because the CLI rewrites it on every `expo customize`.
+packages/native/ios/
+packages/native/android/
+packages/native/.expo/
+
 # Env: the real .env (your Trakt app's PUBLIC client id) is local-only.
 # Committed: .env.example (placeholders), .env.test (CI/e2e dummy id) and
 # .env.mock (the `--mode mock` harness pointing at the local fake Trakt).

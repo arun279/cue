@@ -13,6 +13,11 @@
     "packages/web": {
       "project": ["src/**/*.{ts,tsx}"],
       "ignoreDependencies": ["tailwindcss"]
+    },
+    "packages/native": {
+      "entry": ["plugins/*.js"],
+      "project": ["app/**/*.{ts,tsx}", "plugins/*.js"],
+      "babel": ["babel.config.js"]
     }
   }
 }

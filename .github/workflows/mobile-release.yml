@@ -26,6 +26,9 @@ on:
       "packages/*/test/**",
       "packages/*/playwright.config.ts",
       "packages/*/vitest.config.ts",
+      "packages/*/jest.config.js",
+      "packages/*/__tests__/**",
+      "packages/*/.gitignore",
       "packages/*/.env.example",
       "packages/*/.env.test",
       "packages/*/.env.mock",
@@ -145,7 +148,9 @@ jobs:
     # ruleset's contexts rather than a read of it: a gate that asks the thing it
     # guards whether that thing is happy is not a gate. Keep the two in step.
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    # Raised with the two native jobs: they generate both projects from scratch
+    # and then compile them, so the gate now waits on a slower set than it did.
+    timeout-minutes: 50
     permissions:
       actions: read
       checks: read
@@ -158,10 +163,10 @@ jobs:
           # Job names that exist in ci.yml today. Never list one that does not:
           # a check that can never report turns the wait below into a guaranteed
           # timeout on every release.
-          REQUIRED: '["check","audit","actionlint","standardrb","android","ios","e2e"]'
+          REQUIRED: '["check","audit","actionlint","standardrb","android","ios","native-android","native-ios","e2e"]'
           # GitHub Actions, so no other check provider can satisfy a required name.
           APP_ID: "15368"
-          DEADLINE_MINUTES: "30"
+          DEADLINE_MINUTES: "45"
           POLL_SECONDS: "20"
         run: |
           set -euo pipefail

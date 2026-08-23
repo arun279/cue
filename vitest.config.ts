@@ -2,7 +2,10 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
-    projects: ["packages/*"],
+    // Named rather than globbed: `packages/native` is a jest-expo package, and a
+    // glob would hand its `__tests__` to vitest, which has no React Native
+    // runtime and reports the suite as a failure rather than as not its job.
+    projects: ["packages/core", "packages/web"],
     coverage: {
       provider: "v8",
       reporter: ["text", "html", "lcov"],

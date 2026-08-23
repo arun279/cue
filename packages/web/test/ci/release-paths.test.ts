@@ -23,6 +23,16 @@ const SHIPS = [
   "packages/*/vite.config.ts",
   "packages/*/package.json",
   "packages/*/tsconfig.json",
+  // The Expo app. `app/**` is its route tree, `modules/**` is native source that
+  // is compiled into the binary, `plugins/**` writes the generated projects, and
+  // the app config is the whole native identity. The two bundler configs decide
+  // what the shipped JavaScript is, so they ship too.
+  "packages/*/app/**",
+  "packages/*/app.config.ts",
+  "packages/*/modules/**",
+  "packages/*/plugins/**",
+  "packages/*/babel.config.js",
+  "packages/*/metro.config.js",
   "package.json",
   "pnpm-lock.yaml",
   "pnpm-workspace.yaml",
@@ -49,6 +59,9 @@ const DOES_NOT_SHIP = [
   "packages/*/test/**",
   "packages/*/playwright.config.ts",
   "packages/*/vitest.config.ts",
+  "packages/*/jest.config.js",
+  "packages/*/__tests__/**",
+  "packages/*/.gitignore",
   "packages/*/.env.example",
   "packages/*/.env.test",
   "packages/*/.env.mock",
@@ -217,14 +230,17 @@ describe("the iOS toolchain pin", () => {
       (match) => match[1] ?? [],
     );
 
-  it("is the same Xcode in the CI build and the release archive", () => {
-    // ci.yml's ios job exists to compile what mobile-release.yml archives. Two
-    // toolchains would make it a green check for a build nobody ships, and the
-    // pin is deliberate: the runner image's default Xcode moves on its own.
+  it("is the same Xcode in every CI build and in the release archive", () => {
+    // ci.yml's iOS jobs exist to compile what mobile-release.yml archives. A
+    // second toolchain would make one of them a green check for a build nobody
+    // ships, and the pin is deliberate: the runner image's default Xcode moves
+    // on its own.
     const release = selectedXcode(MOBILE_RELEASE_WORKFLOW);
+    const ci = selectedXcode(CI_WORKFLOW);
 
     expect(release).toHaveLength(1);
-    expect(selectedXcode(CI_WORKFLOW)).toEqual(release);
+    expect(ci.length).toBeGreaterThan(0);
+    expect([...new Set(ci)]).toEqual(release);
   });
 });
 
