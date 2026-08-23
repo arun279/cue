@@ -4,13 +4,13 @@ import { REMINDER_WINDOW_DAYS } from "@domain/reminders";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { describe, expect, it, vi } from "vitest";
-import androidManifestSource from "../android/app/src/main/AndroidManifest.xml?raw";
-import extractionRulesSource from "../android/app/src/main/res/xml/data_extraction_rules.xml?raw";
-import capacitorConfig from "../capacitor.config";
-import servedPolicy from "../docs/index.html?raw";
-import infoPlistSource from "../ios/App/App/Info.plist?raw";
-import policy from "../PRIVACY.md?raw";
-import readme from "../README.md?raw";
+import androidManifestSource from "../../../android/app/src/main/AndroidManifest.xml?raw";
+import extractionRulesSource from "../../../android/app/src/main/res/xml/data_extraction_rules.xml?raw";
+import capacitorConfig from "../../../capacitor.config";
+import servedPolicy from "../../../docs/index.html?raw";
+import infoPlistSource from "../../../ios/App/App/Info.plist?raw";
+import policy from "../../../PRIVACY.md?raw";
+import readme from "../../../README.md?raw";
 import runtimeSource from "../src/app/runtime/create-runtime.ts?raw";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -74,7 +74,7 @@ const postureAttributes = [
 ];
 
 const variantManifests = Object.entries(
-  import.meta.glob<string>("../android/app/src/*/AndroidManifest.xml", {
+  import.meta.glob<string>("../../../android/app/src/*/AndroidManifest.xml", {
     query: "?raw",
     import: "default",
     eager: true,

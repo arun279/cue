@@ -1,6 +1,14 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "project": ["src/**/*.{ts,tsx}"],
-  "ignoreDependencies": ["tailwindcss"],
-  "ignoreBinaries": ["defaults"]
+  "ignoreBinaries": ["defaults"],
+  "workspaces": {
+    ".": {
+      "entry": ["scripts/*.mjs", "scripts/mock-trakt/*.mjs"],
+      "project": ["scripts/**/*.mjs", "*.ts"]
+    },
+    "packages/web": {
+      "project": ["src/**/*.{ts,tsx}"],
+      "ignoreDependencies": ["tailwindcss"]
+    }
+  }
 }

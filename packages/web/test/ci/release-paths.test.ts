@@ -17,12 +17,15 @@ const NOT_REQUIRED = ["footprint"];
 // dist verbatim, so excluding *.md by extension misclassified those files; the
 // existing "when in doubt, SHIPS" rule applies to every shipping tree.
 const SHIPS = [
-  "src/**",
-  "index.html",
-  "public/**",
-  "vite.config.ts",
+  "packages/*/src/**",
+  "packages/*/index.html",
+  "packages/*/public/**",
+  "packages/*/vite.config.ts",
+  "packages/*/package.json",
+  "packages/*/tsconfig.json",
   "package.json",
   "pnpm-lock.yaml",
+  "pnpm-workspace.yaml",
   "capacitor.config.ts",
   "android/**",
   "ios/**",
@@ -34,6 +37,7 @@ const SHIPS = [
   "scripts/verify-apk.sh",
   "scripts/verify-bundle.sh",
   "tsconfig.json",
+  "tsconfig.base.json",
 ] as const;
 
 const DOES_NOT_SHIP = [
@@ -41,9 +45,13 @@ const DOES_NOT_SHIP = [
   "*.md",
   ".github/**",
   "LICENSE",
-  "e2e/**",
-  "test/**",
-  "playwright.config.ts",
+  "packages/*/e2e/**",
+  "packages/*/test/**",
+  "packages/*/playwright.config.ts",
+  "packages/*/vitest.config.ts",
+  "packages/*/.env.example",
+  "packages/*/.env.test",
+  "packages/*/.env.mock",
   "vitest.config.ts",
   "lefthook.yml",
   "cspell.json",
@@ -55,9 +63,7 @@ const DOES_NOT_SHIP = [
   "scripts/diff-footprint.sh",
   "scripts/mock-trakt/**",
   "scripts/write-buster.mjs",
-  ".env.example",
-  ".env.test",
-  ".env.mock",
+  "tsconfig.depcruise.json",
   ".gitignore",
   "assets/**",
 ] as const;

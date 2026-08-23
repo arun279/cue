@@ -1,47 +1,14 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2023",
-    "lib": ["ES2023", "DOM", "DOM.Iterable"],
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "moduleDetection": "force",
-    "jsx": "react-jsx",
-    "types": ["vite/client", "node"],
-    "paths": {
-      "@domain/*": ["./src/domain/*"],
-      "@data/*": ["./src/data/*"],
-      "@ui/*": ["./src/ui/*"],
-      "@app/*": ["./src/app/*"],
-      "@platform/*": ["./src/platform/*"]
-    },
-    // scripts/mock-trakt runs under plain node (no build step), so its .mjs
-    // modules are JavaScript; the harness test imports them and infers types.
-    "allowJs": true,
-    "esModuleInterop": true,
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "verbatimModuleSyntax": true,
-    "skipLibCheck": true,
-    "strict": true,
-    "noUncheckedIndexedAccess": true,
-    "noImplicitOverride": true,
-    "noFallthroughCasesInSwitch": true,
-    "noPropertyAccessFromIndexSignature": true,
-    "allowUnreachableCode": false,
-    "allowUnusedLabels": false,
-    "forceConsistentCasingInFileNames": true,
-    "useDefineForClassFields": true,
-    "noEmit": true
+    "lib": ["ES2023"],
+    "types": ["node"]
   },
-  "include": [
-    "src",
-    "test",
-    "e2e",
-    "vite.config.ts",
-    "vitest.config.ts",
-    "playwright.config.ts",
-    "capacitor.config.ts"
-  ],
-  "exclude": ["node_modules", "dist", "coverage", "ios", "android"]
+  // The workspace root ships no product code, but it does carry TypeScript that
+  // has to compile: the vitest runner's own config and the Capacitor shells'.
+  // `pnpm -r typecheck` only reaches the packages, so without this program those
+  // two files would be the only TypeScript in the repository nothing checks.
+  "include": ["vitest.config.ts", "capacitor.config.ts"],
+  "exclude": ["node_modules", "packages"]
 }

@@ -18,9 +18,13 @@ const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
  * Moving a file between these trees, or into a package, is not a shape change,
  * so these roots may be repathed without bumping anything.
  */
-const SHAPE_TREES = ["src/domain", "src/data", "src/ui/runtime"];
+const SHAPE_TREES = [
+  "packages/web/src/domain",
+  "packages/web/src/data",
+  "packages/web/src/ui/runtime",
+];
 
-const GENERATED = "src/ui/runtime/persist-buster.ts";
+const GENERATED = "packages/web/src/ui/runtime/persist-buster.ts";
 
 /**
  * Every module specifier in an `import`, `export ... from`, dynamic `import()`

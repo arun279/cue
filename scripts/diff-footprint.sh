@@ -16,9 +16,9 @@ base_commit=$(git rev-parse --verify --end-of-options "${base_ref}^{commit}" 2>/
 git diff --no-renames --numstat "$base_commit"...HEAD | awk '
   BEGIN { FS = "\t" }
   function area(path) {
-    if (path ~ /^src\//) return "product"
-    if (path ~ /^test\//) return "tests"
-    if (path ~ /^e2e\//) return "e2e"
+    if (path ~ /^packages\/[^\/]+\/src\//) return "product"
+    if (path ~ /^packages\/[^\/]+\/(test|__tests__)\//) return "tests"
+    if (path ~ /^packages\/[^\/]+\/e2e\//) return "e2e"
     return "other"
   }
   {
@@ -41,16 +41,16 @@ git diff --no-renames --numstat "$base_commit"...HEAD | awk '
     print ""
     print "| area | added | removed | net |"
     print "| --- | ---: | ---: | ---: |"
-    row("product (src/)", "product")
-    row("tests (test/)", "tests")
-    row("e2e (e2e/)", "e2e")
+    row("product (packages/*/src/)", "product")
+    row("tests (packages/*/test/)", "tests")
+    row("e2e (packages/*/e2e/)", "e2e")
     row("other", "other")
     printf "| total | %d | %d | %+d |\n", total_added, total_removed, total_added - total_removed
     print ""
   }
 '
 
-git diff --no-renames --unified=0 --no-color "$base_commit"...HEAD -- src/ | awk '
+git diff --no-renames --unified=0 --no-color "$base_commit"...HEAD -- ':(glob)packages/*/src/**' | awk '
   function classify(line, direction) {
     sub(/^[[:space:]]+/, "", line)
     if (line == "") kind = "blank"

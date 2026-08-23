@@ -6,10 +6,13 @@
 const RE_REACT = "(^|/)node_modules/react/";
 const RE_REACT_DOM = "(^|/)node_modules/react-dom/";
 const RE_CAPACITOR = "(^|/)node_modules/@capacitor/";
-const RE_DOES_NOT_SHIP_DIRECTORY = "^(docs|\\.github|e2e|test|assets|scripts/mock-trakt)(/|$)";
+const RE_DOES_NOT_SHIP_DIRECTORY =
+  "^(docs|\\.github|assets|scripts/mock-trakt|packages/[^/]+/(e2e|test|__tests__))(/|$)";
 const RE_DOES_NOT_SHIP_MARKDOWN = "^[^/]*\\.md$";
 const RE_DOES_NOT_SHIP_FILE =
-  "^(LICENSE|playwright\\.config\\.ts|vitest\\.config\\.ts|lefthook\\.yml|cspell\\.json|dprint\\.json|biome\\.jsonc|knip\\.json|\\.jscpd\\.json|\\.dependency-cruiser\\.cjs|\\.env\\.example|\\.env\\.test|\\.env\\.mock|\\.gitignore|scripts/write-buster\\.mjs)$";
+  "^(LICENSE|vitest\\.config\\.ts|lefthook\\.yml|cspell\\.json|dprint\\.json|biome\\.jsonc|knip\\.json|\\.jscpd\\.json|\\.dependency-cruiser\\.cjs|\\.gitignore|scripts/write-buster\\.mjs|tsconfig\\.depcruise\\.json|packages/[^/]+/(playwright\\.config\\.ts|vitest\\.config\\.ts|\\.env\\.(example|test|mock)))$";
+
+const { join } = require("node:path");
 
 /** @type {import("dependency-cruiser").IConfiguration} */
 module.exports = {
@@ -37,7 +40,7 @@ module.exports = {
       severity: "error",
       comment:
         "Importing a non-shipping path into src can put it in the production bundle while mobile release paths-ignore still skips changes to it.",
-      from: { path: "^src/" },
+      from: { path: "^packages/[^/]+/src/" },
       to: {
         path: [RE_DOES_NOT_SHIP_DIRECTORY, RE_DOES_NOT_SHIP_MARKDOWN, RE_DOES_NOT_SHIP_FILE],
       },
@@ -47,17 +50,17 @@ module.exports = {
       severity: "error",
       comment:
         "src/domain is runtime-agnostic: global fetch + zod only. No data/ui/app/platform, no react, no react-dom, no capacitor.",
-      from: { path: "^src/domain/" },
+      from: { path: "^packages/web/src/domain/" },
       to: {
-        path: ["^src/(data|ui|platform|app)/", RE_REACT, RE_REACT_DOM, RE_CAPACITOR],
+        path: ["^packages/web/src/(data|ui|platform|app)/", RE_REACT, RE_REACT_DOM, RE_CAPACITOR],
       },
     },
     {
       name: "domain-no-node-builtins",
       severity: "error",
       comment:
-        "src/domain must not touch Node built-ins (fs/path/crypto/...); it runs in browser + native.",
-      from: { path: "^src/domain/" },
+        "domain must not touch Node built-ins (fs/path/crypto/...); it runs in browser + native.",
+      from: { path: "^packages/web/src/domain/" },
       to: { dependencyTypes: ["core"] },
     },
     {
@@ -65,16 +68,16 @@ module.exports = {
       severity: "error",
       comment:
         "src/data (clients/repos) may import domain, but never ui/app/platform, react, or react-dom.",
-      from: { path: "^src/data/" },
-      to: { path: ["^src/(ui|app|platform)/", RE_REACT, RE_REACT_DOM] },
+      from: { path: "^packages/web/src/data/" },
+      to: { path: ["^packages/web/src/(ui|app|platform)/", RE_REACT, RE_REACT_DOM] },
     },
     {
       name: "ui-no-platform-impl",
       severity: "error",
       comment:
         "src/ui depends on domain/data abstractions; platform impls and the app composition root are injected, not imported directly.",
-      from: { path: "^src/ui/" },
-      to: { path: "^src/(platform|app)/" },
+      from: { path: "^packages/web/src/ui/" },
+      to: { path: "^packages/web/src/(platform|app)/" },
     },
     {
       name: "trakt-reads-stay-pooled",
@@ -87,17 +90,17 @@ module.exports = {
         "fails here by naming the unpooled importer, instead of only an instance test " +
         "that a mutation can dodge by pooling one caller and leaving the rest raw.",
       from: {
-        path: "^src/",
-        pathNot: "^src/data/trakt/(read-budget|pooled-endpoints)\\.ts$",
+        path: "^packages/[^/]+/src/",
+        pathNot: "^packages/web/src/data/trakt/(read-budget|pooled-endpoints)\\.ts$",
       },
-      to: { path: "^src/data/trakt/endpoints\\.ts$" },
+      to: { path: "^packages/web/src/data/trakt/endpoints\\.ts$" },
     },
     {
       name: "capacitor-only-in-platform",
       severity: "error",
       comment:
         "@capacitor/* is imported ONLY in src/platform, keeping domain/data/ui/app portable and testable without native mocks.",
-      from: { path: "^src/", pathNot: "^src/platform/" },
+      from: { path: "^packages/[^/]+/src/", pathNot: "^packages/web/src/platform/" },
       to: { path: RE_CAPACITOR },
     },
   ],
@@ -106,9 +109,14 @@ module.exports = {
     // Anchor to project root: an unanchored `(^|/)dist/` also matched
     // node_modules/@capacitor/core/dist/*, silently excluding capacitor from the
     // graph so every capacitor ban passed.
-    exclude: { path: "^(dist|coverage|ios|android)/" },
+    exclude: { path: "^(packages/[^/]+/(dist|coverage)|coverage|ios|android)/" },
     tsPreCompilationDeps: true,
-    tsConfig: { fileName: "tsconfig.json" },
+    // The web package's aliases, reached through the wrapper that names their
+    // base directory; tsconfig.depcruise.json says why. Absolute, because
+    // dependency-cruiser hands this name to TypeScript as both the base path
+    // and the config name, and a relative one makes an `extends` resolve one
+    // directory level too deep.
+    tsConfig: { fileName: join(__dirname, "tsconfig.depcruise.json") },
     enhancedResolveOptions: {
       // Capacitor ships only `main`/`module` (no `exports`), so an
       // `exportsFields`-only resolver drops it from the graph entirely and every

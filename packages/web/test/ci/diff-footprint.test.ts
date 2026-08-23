@@ -36,21 +36,21 @@ describe("diff footprint", () => {
     git(repository, "config", "user.name", "Cue Tests");
     git(repository, "config", "user.email", "cue-tests@example.invalid");
 
-    write(repository, "src/removed.ts", "const removed = true;\n// removed\n\n");
-    write(repository, "test/moved.ts", "one\ntwo\n");
-    write(repository, "e2e/removed.ts", "removed\n");
+    write(repository, "packages/web/src/removed.ts", "const removed = true;\n// removed\n\n");
+    write(repository, "packages/web/test/moved.ts", "one\ntwo\n");
+    write(repository, "packages/web/e2e/removed.ts", "removed\n");
     write(repository, "docs/removed.md", "removed\n");
     write(repository, "assets/image.bin", new Uint8Array([0, 1, 2]));
     git(repository, "add", ".");
     git(repository, "commit", "--quiet", "-m", "base");
 
-    git(repository, "mv", "test/moved.ts", "src/moved.ts");
-    rmSync(path.join(repository, "src/removed.ts"));
-    rmSync(path.join(repository, "e2e/removed.ts"));
+    git(repository, "mv", "packages/web/test/moved.ts", "packages/web/src/moved.ts");
+    rmSync(path.join(repository, "packages/web/src/removed.ts"));
+    rmSync(path.join(repository, "packages/web/e2e/removed.ts"));
     rmSync(path.join(repository, "docs/removed.md"));
-    write(repository, "src/added.ts", "const added = true;\n /* added */\n \n");
-    write(repository, "test/added.ts", "added\n");
-    write(repository, "e2e/added.ts", "one\ntwo\n");
+    write(repository, "packages/web/src/added.ts", "const added = true;\n /* added */\n \n");
+    write(repository, "packages/web/test/added.ts", "added\n");
+    write(repository, "packages/web/e2e/added.ts", "one\ntwo\n");
     write(repository, "docs/added.md", "one\ntwo\nthree\n");
     write(repository, "assets/image.bin", new Uint8Array([0, 3, 4]));
     git(repository, "add", "-A");
@@ -63,9 +63,9 @@ describe("diff footprint", () => {
     });
 
     expect(output.split("\n")[0]).toBe("<!-- diff-footprint -->");
-    expect(output).toContain("| product (src/) | 5 | 3 | +2 |");
-    expect(output).toContain("| tests (test/) | 1 | 2 | -1 |");
-    expect(output).toContain("| e2e (e2e/) | 2 | 1 | +1 |");
+    expect(output).toContain("| product (packages/*/src/) | 5 | 3 | +2 |");
+    expect(output).toContain("| tests (packages/*/test/) | 1 | 2 | -1 |");
+    expect(output).toContain("| e2e (packages/*/e2e/) | 2 | 1 | +1 |");
     expect(output).toContain("| other | 3 | 1 | +2 |");
     expect(output).toContain("| total | 11 | 7 | +4 |");
     expect(output).toContain(

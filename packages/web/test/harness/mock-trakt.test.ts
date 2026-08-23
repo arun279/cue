@@ -33,7 +33,7 @@ import { loadUpNextEntries } from "@data/trakt/read-budget";
 import { groupUpNext } from "@domain/up-next";
 import { DEFAULT_STALENESS_THRESHOLD_MS } from "@domain/watch-status";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createMockTrakt } from "../../scripts/mock-trakt/server.mjs";
+import { createMockTrakt } from "../../../../scripts/mock-trakt/server.mjs";
 
 /**
  * What stops `scripts/mock-trakt` drifting from the app it exists to feed. The

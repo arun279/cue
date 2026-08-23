@@ -26,9 +26,9 @@ Cue authenticates as a public OAuth client, so it ships **no secret**: the app a
 
 1. Register a free API app with Trakt. Current instructions live at [docs.trakt.tv](https://docs.trakt.tv).
 2. Set its Redirect URI to `http://localhost:5199/auth/callback` for local development, plus `<your-production-origin>/auth/callback` for deploys. (Trakt matches the redirect URI exactly, so register every origin you serve from.)
-3. Copy `.env.example` to `.env` and set `VITE_TRAKT_CLIENT_ID` to the app's **Client ID**. It is public: it ships in the built JS and there is no client secret.
+3. Copy `packages/web/.env.example` to `packages/web/.env` and set `VITE_TRAKT_CLIENT_ID` to the app's **Client ID**. It is public: it ships in the built JS and there is no client secret.
 
-The client id is public by design. Cue keeps each user's Trakt OAuth token, settings, and a local data cache on-device. Your real `.env` stays local (gitignored); `.env.example`, `.env.test` and `.env.mock` are the committed placeholders.
+The client id is public by design. Cue keeps each user's Trakt OAuth token, settings, and a local data cache on-device. Your real `.env` stays local (gitignored); the committed placeholders `.env.example`, `.env.test` and `.env.mock` sit beside it in `packages/web`.
 
 ## Development
 
@@ -37,13 +37,13 @@ Requires Node 22+ and pnpm.
 ```sh
 pnpm install   # install dependencies
 pnpm dev       # start the Vite dev server
-pnpm build     # build the static SPA into dist/
+pnpm build     # build the static SPA into packages/web/dist/
 pnpm check     # run the full deterministic check harness
 pnpm e2e       # run the Playwright end-to-end suite
 pnpm e2e:mobile # run focused Pixel/Chromium + iPhone/WebKit checks
 ```
 
-First e2e run only: `pnpm exec playwright install chromium webkit`.
+First e2e run only: `pnpm --filter @cue/web exec playwright install chromium webkit`.
 
 Use `pnpm e2e:mobile --headed` when you want to watch the mobile browser checks run.
 
@@ -57,10 +57,10 @@ Every e2e run builds the app and starts its own preview server on port 4173. Set
 - **dprint**: Markdown formatting.
 - **cspell**: spelling across TS/TSX/CSS/MD.
 - **tsc**: strict TypeScript type-check (`--noEmit`).
-- **dependency-cruiser**: layering rules (`@capacitor/*` confined to `src/platform`).
+- **dependency-cruiser**: layering rules (`@capacitor/*` confined to `packages/web/src/platform`), cruised over every package in one pass.
 - **knip**: no unused files, dependencies, or exports.
 - **jscpd**: duplicate-code detection.
-- **Vitest**: unit tests with coverage thresholds on `src/domain` and `src/data`.
+- **Vitest**: unit tests, one project per package, with coverage thresholds on `domain` and `data`.
 - **Vite build**: a production build must compile.
 
 `pnpm e2e` runs the Playwright suite (chromium). `pnpm audit` (high/critical production advisories) is deliberately kept out of `pnpm check` because it reads live advisory state; it runs as its own CI job on every push and on a weekly schedule.
@@ -76,17 +76,17 @@ pnpm mock:trakt # serve the fake Trakt on http://127.0.0.1:8787 (MOCK_TRAKT_PORT
 pnpm dev:mock   # run the dev server against it
 ```
 
-`--mode mock` loads the committed `.env.mock`, which sets a dummy client id and `VITE_TRAKT_API_BASE=http://127.0.0.1:8787`. That variable is the whole switch: unset, which is every shipped build and every other mode, the app talks to `api.trakt.tv` and `trakt.tv`; set, it talks to the mock instead, sign-in included. `pnpm exec vite build --mode mock` produces the same thing as a static bundle to preview or to `cap sync` into a shell.
+`--mode mock` loads the committed `.env.mock`, which sets a dummy client id and `VITE_TRAKT_API_BASE=http://127.0.0.1:8787`. That variable is the whole switch: unset, which is every shipped build and every other mode, the app talks to `api.trakt.tv` and `trakt.tv`; set, it talks to the mock instead, sign-in included. `pnpm --filter @cue/web exec vite build --mode mock` produces the same thing as a static bundle to preview or to `cap sync` into a shell.
 
-Every write the app makes moves the mock's in-memory account: history marks and their removals (by item, by the bulk season subtree, and by history-play id), hiding and unhiding a show, and watchlist adds and removals. So progress, history, the hidden set, the watchlist and the calendar all stay consistent across a session, and a write naming something the seed does not have comes back in `not_found` rather than as a success the account never took. Any endpoint the mock does not model answers 404 with a logged line rather than an empty success, so a missing fixture reads as a hole instead of an account with nothing in it. Deliberately absent: the browse rails, served as the empty lists a demo account has; search, which is not modelled at all, so typing into it reaches the app's error state rather than an empty one; and rate limiting and failure of any kind, since the mock authorizes anybody and never answers 429. `test/harness/mock-trakt.test.ts` boots the mock in-process and reads every seeded endpoint back through the app's own client and zod contracts, which is what keeps the two from drifting.
+Every write the app makes moves the mock's in-memory account: history marks and their removals (by item, by the bulk season subtree, and by history-play id), hiding and unhiding a show, and watchlist adds and removals. So progress, history, the hidden set, the watchlist and the calendar all stay consistent across a session, and a write naming something the seed does not have comes back in `not_found` rather than as a success the account never took. Any endpoint the mock does not model answers 404 with a logged line rather than an empty success, so a missing fixture reads as a hole instead of an account with nothing in it. Deliberately absent: the browse rails, served as the empty lists a demo account has; search, which is not modelled at all, so typing into it reaches the app's error state rather than an empty one; and rate limiting and failure of any kind, since the mock authorizes anybody and never answers 429. `packages/web/test/harness/mock-trakt.test.ts` boots the mock in-process and reads every seeded endpoint back through the app's own client and zod contracts, which is what keeps the two from drifting.
 
-The Trakt wire shapes are built twice, here and in `e2e/helpers.ts`. Both run in Node and either could import the other, so what keeps them apart is the fixtures, not the module boundary: the mock seeds an account (a `library` with a linear `completed` counter, images served from its own origin, per-play watch stamps), while each Playwright spec seeds its own `shows` array with `hidden` and `inWatchlist` flags, serves no images at all, and gates every field on the `extended` level so a request that drops one breaks the suite. Unifying them means reconciling those two seed models, not moving a function. The duplication detector does not report the overlap either way: it reads `src` and `test`.
+The Trakt wire shapes are built twice, here and in `packages/web/e2e/helpers.ts`. Both run in Node and either could import the other, so what keeps them apart is the fixtures, not the module boundary: the mock seeds an account (a `library` with a linear `completed` counter, images served from its own origin, per-play watch stamps), while each Playwright spec seeds its own `shows` array with `hidden` and `inWatchlist` flags, serves no images at all, and gates every field on the `extended` level so a request that drops one breaks the suite. Unifying them means reconciling those two seed models, not moving a function. The duplication detector does not report the overlap either way: it reads each package's `src` and `test`.
 
-Reaching it from the iOS simulator needs one thing this branch deliberately does not do: a Debug-only `NSAppTransportSecurity` dictionary in `ios/App/App/Info.plist`, either `NSAllowsLocalNetworking` or an `NSExceptionDomains` entry for `127.0.0.1`, because App Transport Security blocks plaintext HTTP. It must never reach a release build, and `test/privacy-claims.test.ts` fails if `NSAppTransportSecurity` appears in the committed `Info.plist` at all.
+Reaching it from the iOS simulator needs one thing this branch deliberately does not do: a Debug-only `NSAppTransportSecurity` dictionary in `ios/App/App/Info.plist`, either `NSAllowsLocalNetworking` or an `NSExceptionDomains` entry for `127.0.0.1`, because App Transport Security blocks plaintext HTTP. It must never reach a release build, and `packages/web/test/privacy-claims.test.ts` fails if `NSAppTransportSecurity` appears in the committed `Info.plist` at all.
 
 ## Mobile
 
-iOS and Android ship from the same code via [Capacitor](https://capacitorjs.com). The web build in `dist/` is the source of truth for everything the user sees; the shells around it are committed, because they are hand-edited: the scene delegate, the bridge controller and the haptics plugin on iOS, the Kotlin haptics plugin and the manifest's permission removal on Android, plus both project files. `cap sync` rewrites the derived parts in place: the web assets it copies (`ios/App/App/public`, `android/app/src/main/assets/public`) and the generated config JSON are the only native paths git ignores, while the plugin manifests it writes (`Package.swift`, `capacitor.settings.gradle`, `capacitor.build.gradle`) are committed, so a plugin appearing or leaving shows up in review.
+iOS and Android ship from the same code via [Capacitor](https://capacitorjs.com). The web build in `packages/web/dist/` is the source of truth for everything the user sees; the shells around it are committed, because they are hand-edited: the scene delegate, the bridge controller and the haptics plugin on iOS, the Kotlin haptics plugin and the manifest's permission removal on Android, plus both project files. `cap sync` rewrites the derived parts in place: the web assets it copies (`ios/App/App/public`, `android/app/src/main/assets/public`) and the generated config JSON are the only native paths git ignores, while the plugin manifests it writes (`Package.swift`, `capacitor.settings.gradle`, `capacitor.build.gradle`) are committed, so a plugin appearing or leaving shows up in review.
 
 ```sh
 pnpm build
@@ -120,14 +120,14 @@ Build numbers come from that workflow's run counter, which every branch shares a
 - **Tailwind CSS v4** (`@theme` tokens) for styling.
 - **TanStack Query** (with persistence) and **TanStack Router** for data and routing.
 - **TanStack Virtual** for large lists, **Zustand** for local state, **Zod** for runtime boundary validation, **Radix UI** for primitives.
-- **Capacitor 8** thin shell for iOS/Android: all `@capacitor/*` imports confined to `src/platform`.
-- Source is layered under `src/domain`, `src/data`, `src/ui`, `src/app`, and `src/platform`.
+- **Capacitor 8** thin shell for iOS/Android: all `@capacitor/*` imports confined to `packages/web/src/platform`.
+- The repository is a pnpm workspace. `packages/web` is the Vite app, layered under `src/domain`, `src/data`, `src/ui`, `src/app`, and `src/platform`; the root carries the gate runner, the native shells and the release lanes.
 
 ## Attribution
 
 Powered by [Trakt](https://trakt.tv).
 
-Cue uses the Trakt API but is not created, endorsed, or sponsored by Trakt. The app name is deliberately Trakt-free so Cue is never mistaken for an official Trakt product. The unaltered official Trakt logo, from [trakt.tv/branding](https://trakt.tv/branding), appears in the Settings → About credit and ships in `src/ui/assets/trakt-logo.svg` (see that folder's README).
+Cue uses the Trakt API but is not created, endorsed, or sponsored by Trakt. The app name is deliberately Trakt-free so Cue is never mistaken for an official Trakt product. The unaltered official Trakt logo, from [trakt.tv/branding](https://trakt.tv/branding), appears in the Settings → About credit and ships in `packages/web/src/ui/assets/trakt-logo.svg` (see that folder's README).
 
 ## Privacy
 
