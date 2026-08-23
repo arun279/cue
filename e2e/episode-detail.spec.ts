@@ -253,6 +253,8 @@ test("an unaired episode trades the still for a countdown and carries no check",
 
   await expect(page.getByTestId("episode-sheet")).toBeVisible();
   await expect(page.getByTestId("episode-sheet")).toContainText("Airs");
+  // The meta line never claims a future episode aired; the countdown says when.
+  await expect(page.getByTestId("episode-detail-code")).not.toContainText("Aired");
   await expect(page.getByTestId("episode-sheet-check")).toHaveCount(0);
   await expect(page.getByTestId("episode-mark-row")).toHaveCount(0);
   await expect(page.getByTestId("still-reveal")).toHaveCount(0);
