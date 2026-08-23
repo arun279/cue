@@ -1,14 +1,13 @@
-@import "tailwindcss";
 /*
- * Where the utilities come from. Tailwind v4 detects content automatically from
- * the directory its config sits in, which made the generated set a function of
- * the repository layout rather than of the source: before the workspace move it
- * scanned from the repository root and emitted `.invisible` and `.lowercase`
- * from prose in .cjs and .md files, neither of which any markup has ever used.
- * Naming the source explicitly is what makes moving a directory generate exactly
- * the same utilities as before.
+ * Where the utilities come from. Tailwind v4's automatic content detection
+ * starts at the working directory the build runs in, which made the generated
+ * set a function of everything beside the app rather than of the app: prose in
+ * a unit test or a Playwright spec emitted utilities no markup has ever used.
+ * `source()` on the import moves that starting point to the `src` beside this
+ * file, which is the only tree that can contain markup. A bare `@source` rule
+ * cannot do this: it adds a path and leaves automatic detection running.
  */
-@source "../";
+@import "tailwindcss" source("../");
 @import "./styles/base.css";
 @import "./styles/layout.css";
 @import "./styles/components.css";
