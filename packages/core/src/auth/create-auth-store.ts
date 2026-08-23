@@ -34,7 +34,7 @@ const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
 
 /**
  * The concrete auth store injected into the UI (composition
- * root): pure UI state in `@ui/auth/store`, side effects (persist token, OAuth
+ * root): pure UI state in `auth/store.ts`, side effects (persist token, OAuth
  * network, full-page redirect) wired here where platform + data meet. The public
  * client id is embedded once by the app author, not entered per user.
  */

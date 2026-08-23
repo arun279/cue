@@ -57,10 +57,12 @@ Every e2e run builds the app and starts its own preview server on port 4173. Set
 - **dprint**: Markdown formatting.
 - **cspell**: spelling across TS/TSX/CSS/MD.
 - **tsc**: strict TypeScript type-check (`--noEmit`).
-- **dependency-cruiser**: layering rules (`@capacitor/*` confined to `packages/web/src/platform`), cruised over every package in one pass.
+- **dependency-cruiser**: sixteen layering rules cruised over every package in one pass. They keep `@cue/core` free of both apps and of either one's libraries, hold the domain and the data layer to what they may reach, confine `@capacitor/*` to `packages/web/src/platform`, keep every Trakt read behind the pooled wrapper that spends the read budget, and require each package to declare what it imports.
 - **knip**: no unused files, dependencies, or exports. `@cue/core` exports every module through one wildcard subpath, which would make each of its files an entry point and switch the export lane off over the shared package, so that workspace sets `includeEntryExports` and its public surface is reported the moment nothing imports it.
 - **jscpd**: duplicate-code detection.
-- **Vitest**: unit tests, one project per package, with coverage thresholds on `domain` and `data`.
+- **Vitest**: unit tests, one project per package. Coverage covers the shared core, the web app's platform adapters and its preferences adapter, with 90/90/90/80 on `domain`, `data`, `prefs`, `url` and `stores`, a ratchet on `hooks`, and a global floor everywhere else. Both composition roots and every screen are gated by the Playwright suite instead.
+- **`check:core-portable`**: `@cue/core` carries no `.tsx` and no `.css`, asserted over the index and the working tree so a new file fails before the commit exists.
+- **`buster:check`**: the committed persisted-shape witness still matches the shapes, so a cache that would be replayed against a changed type is dropped rather than trusted.
 - **Vite build**: a production build must compile.
 
 `pnpm e2e` runs the Playwright suite (chromium). `pnpm audit` (high/critical production advisories) is deliberately kept out of `pnpm check` because it reads live advisory state; it runs as its own CI job on every push and on a weekly schedule.
@@ -121,7 +123,10 @@ Build numbers come from that workflow's run counter, which every branch shares a
 - **TanStack Query** (with persistence) and **TanStack Router** for data and routing.
 - **TanStack Virtual** for large lists, **Zustand** for local state, **Zod** for runtime boundary validation, **Radix UI** for primitives.
 - **Capacitor 8** thin shell for iOS/Android: all `@capacitor/*` imports confined to `packages/web/src/platform`.
-- The repository is a pnpm workspace. `packages/web` is the Vite app, layered under `src/domain`, `src/data`, `src/ui`, `src/app`, and `src/platform`; the root carries the gate runner, the native shells and the release lanes.
+- The repository is a pnpm workspace of two packages, and the root carries only the gate runner, the native shells and the release lanes.
+  - **`@cue/core`** (`packages/core`) is everything that does not know what it is rendered on: the domain, the Trakt data layer, the durable write queue, the hooks, the stores, the preferences and the URL parsers, plus the ports each app fills (key-value storage, preference storage, haptics, reminders, connectivity, app visibility, the OAuth redirect handoff). It is TypeScript source with no build step, published to the workspace through one wildcard subpath (`@cue/core/domain/up-next`), and it contains no `.tsx` and no `.css`: its `tsconfig` omits the DOM lib and `pnpm check:core-portable` asserts the file types, because the two catch different halves of the same rule. `src/app` inside it is the composition root the apps call, and the only part of it excluded from the line-coverage gate.
+  - **`@cue/web`** (`packages/web`) is the Vite app: `src/ui` for screens and components, `src/app` for the composition root, `src/platform` for the browser side of every port, plus `test/`, `e2e/` and `public/`.
+  - Dependencies flow one way, and dependency-cruiser is what keeps that true rather than convention: the core imports neither app, the domain reaches only the domain, and the data layer reaches only the domain, its own tree and the ports.
 
 ## Attribution
 
