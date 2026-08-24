@@ -15,33 +15,11 @@ import {
   seededMarkOp,
   seedOpLog,
   seedTutorialDismissed,
+  soloShow,
 } from "./helpers";
 
 const AIRED = "2026-01-01T00:00:00.000Z";
 const FUTURE = "2027-01-01T00:00:00.000Z";
-
-/** One in-progress show, next = S1 E2, with a following S1 E3 to advance into.
- * Episode ids derive from the show id (`trakt*10 + n`) so multi-show fixtures
- * never share episode ids (the stateful write engine matches marks by them). */
-function soloShow(overrides: Partial<ShowFixture> = {}): ShowFixture {
-  const trakt = overrides.trakt ?? 1;
-  return {
-    trakt,
-    tmdb: 500 + trakt,
-    title: "Solo",
-    status: "returning series",
-    posters: ["media.trakt.tv/solo.webp"],
-    lastWatchedAt: agoIso(2),
-    aired: 3,
-    completed: 1,
-    episodes: [
-      { season: 1, number: 1, title: "One", firstAired: AIRED, traktId: trakt * 10 + 1 },
-      { season: 1, number: 2, title: "Two", firstAired: AIRED, traktId: trakt * 10 + 2 },
-      { season: 1, number: 3, title: "Three", firstAired: AIRED, traktId: trakt * 10 + 3 },
-    ],
-    ...overrides,
-  };
-}
 
 test.beforeEach(async ({ page }) => {
   await installHermeticRoutes(page.context());

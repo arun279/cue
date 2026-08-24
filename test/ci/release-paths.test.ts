@@ -203,8 +203,8 @@ describe("mobile release path partition", () => {
 
 describe("the iOS toolchain pin", () => {
   const selectedXcode = (workflow: string): string[] =>
-    [...readFileSync(workflow, "utf8").matchAll(/xcode-select -s (\S+)/g)].map(
-      ([, path]) => path as string,
+    [...readFileSync(workflow, "utf8").matchAll(/xcode-select -s (\S+)/g)].flatMap(
+      (match) => match[1] ?? [],
     );
 
   it("is the same Xcode in the CI build and the release archive", () => {

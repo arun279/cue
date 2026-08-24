@@ -43,6 +43,7 @@ export function mockCompositionRoot({
   vi.doMock("@platform/back-button", () => ({ bindHardwareBack: () => () => {} }));
   vi.doMock("@platform/haptics", () => ({ createNativeHaptics: () => ({}) }));
   vi.doMock("@platform/kv", () => ({ createKeyValueStore: () => ({}) }));
+  vi.doMock("@platform/reminders", () => ({ createNativeReminders: () => ({}) }));
   vi.doMock("@platform/status-bar", () => ({ applyStatusBarTheme: vi.fn() }));
   vi.doMock("@platform/token-store", () => ({ createTokenStore: () => ({}) }));
   vi.doMock("@ui/app-shell/ScreenHeader", () => ({ ScreenHeader: () => null }));

@@ -80,17 +80,16 @@ pnpm dev:mock   # run the dev server against it
 
 Every write the app makes moves the mock's in-memory account: history marks and their removals (by item, by the bulk season subtree, and by history-play id), hiding and unhiding a show, and watchlist adds and removals. So progress, history, the hidden set, the watchlist and the calendar all stay consistent across a session, and a write naming something the seed does not have comes back in `not_found` rather than as a success the account never took. Any endpoint the mock does not model answers 404 with a logged line rather than an empty success, so a missing fixture reads as a hole instead of an account with nothing in it. Deliberately absent: the browse rails, served as the empty lists a demo account has; search, which is not modelled at all, so typing into it reaches the app's error state rather than an empty one; and rate limiting and failure of any kind, since the mock authorizes anybody and never answers 429. `test/harness/mock-trakt.test.ts` boots the mock in-process and reads every seeded endpoint back through the app's own client and zod contracts, which is what keeps the two from drifting.
 
-The Trakt wire shapes are built twice, here and in `e2e/helpers.ts`, because the two consumers are a Node server and a browser fixture and neither existing layer is a home both can import from. That is a design decision this harness has not made rather than an oversight, and the duplication detector does not report it: it reads `src` and `test`.
+The Trakt wire shapes are built twice, here and in `e2e/helpers.ts`. Both run in Node and either could import the other, so what keeps them apart is the fixtures, not the module boundary: the mock seeds an account (a `library` with a linear `completed` counter, images served from its own origin, per-play watch stamps), while each Playwright spec seeds its own `shows` array with `hidden` and `inWatchlist` flags, serves no images at all, and gates every field on the `extended` level so a request that drops one breaks the suite. Unifying them means reconciling those two seed models, not moving a function. The duplication detector does not report the overlap either way: it reads `src` and `test`.
 
 Reaching it from the iOS simulator needs one thing this branch deliberately does not do: a Debug-only `NSAppTransportSecurity` dictionary in `ios/App/App/Info.plist`, either `NSAllowsLocalNetworking` or an `NSExceptionDomains` entry for `127.0.0.1`, because App Transport Security blocks plaintext HTTP. It must never reach a release build, and `test/privacy-claims.test.ts` fails if `NSAppTransportSecurity` appears in the committed `Info.plist` at all.
 
 ## Mobile
 
-iOS and Android ship from the same code via [Capacitor](https://capacitorjs.com). The web build in `dist/` is the source of truth; the native projects are generated, not committed.
+iOS and Android ship from the same code via [Capacitor](https://capacitorjs.com). The web build in `dist/` is the source of truth for everything the user sees; the shells around it are committed, because they are hand-edited: the scene delegate, the bridge controller and the haptics plugin on iOS, the Kotlin haptics plugin and the manifest's permission removal on Android, plus both project files. `cap sync` rewrites the derived parts in place: the web assets it copies (`ios/App/App/public`, `android/app/src/main/assets/public`) and the generated config JSON are the only native paths git ignores, while the plugin manifests it writes (`Package.swift`, `capacitor.settings.gradle`, `capacitor.build.gradle`) are committed, so a plugin appearing or leaving shows up in review.
 
 ```sh
 pnpm build
-npx cap add ios        # or: npx cap add android
 pnpm sync              # cap sync
 npx cap open ios       # build and run in Xcode (or Android Studio)
 ```
