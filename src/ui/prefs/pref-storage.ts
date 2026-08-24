@@ -37,14 +37,16 @@ export function booleanPref(key: string, fallback: boolean): Pref<boolean> {
   };
 }
 
-/** A stored member of `options`; anything else (absent, stale, corrupt) reads as `fallback`. */
-export function choicePref<T extends string>(
+/** A stored member of `options`; anything else (absent, stale, corrupt) reads as
+ * `fallback`. Numbers store as their decimal text, so an option list can be
+ * either words or figures. */
+export function choicePref<T extends string | number>(
   key: string,
   options: readonly T[],
   fallback: T,
 ): Pref<T> {
   return {
-    initial: () => options.find((option) => option === read(key)) ?? fallback,
-    persist: (value) => write(key, value),
+    initial: () => options.find((option) => String(option) === read(key)) ?? fallback,
+    persist: (value) => write(key, String(value)),
   };
 }

@@ -1,3 +1,4 @@
+import { resolveIntent } from "@ui/components/gesture-intent";
 import {
   isArmed,
   PULL_THRESHOLD_PX,
@@ -5,7 +6,6 @@ import {
   pullProgress,
   settleDelayMs,
 } from "@ui/components/pull-math";
-import { resolveIntent } from "@ui/components/swipe-math";
 import { useSyncNow } from "@ui/hooks/useSyncNow";
 import { useHaptics } from "@ui/runtime/haptics";
 import {

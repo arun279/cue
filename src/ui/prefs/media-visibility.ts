@@ -1,3 +1,5 @@
+import { booleanPref } from "./pref-storage";
+
 /** Which media a user tracks. Both ON by default; the app is never emptied of
  * both: a movies-only or TV-only user simply sheds the surfaces they don't use. */
 export interface MediaVisibility {
@@ -5,8 +7,8 @@ export interface MediaVisibility {
   readonly moviesEnabled: boolean;
 }
 
-const SHOWS_KEY = "cue.shows-enabled";
-const MOVIES_KEY = "cue.movies-enabled";
+const showsPref = booleanPref("cue.shows-enabled", true);
+const moviesPref = booleanPref("cue.movies-enabled", true);
 
 /**
  * Both media are ON by default. Both-OFF is impossible by construction (the store
@@ -22,24 +24,12 @@ export function resolveMediaVisibility(
   return { showsEnabled, moviesEnabled };
 }
 
-/** Absent (fresh device / reinstall) reads as ON; only an explicit "0" disables. */
-function readFlag(key: string): boolean {
-  try {
-    return localStorage.getItem(key) !== "0";
-  } catch {
-    return true;
-  }
-}
-
+/** Absent (fresh device / reinstall) reads as ON. */
 export function initialMediaVisibility(): MediaVisibility {
-  return resolveMediaVisibility(readFlag(SHOWS_KEY), readFlag(MOVIES_KEY));
+  return resolveMediaVisibility(showsPref.initial(), moviesPref.initial());
 }
 
 export function persistMediaVisibility({ showsEnabled, moviesEnabled }: MediaVisibility): void {
-  try {
-    localStorage.setItem(SHOWS_KEY, showsEnabled ? "1" : "0");
-    localStorage.setItem(MOVIES_KEY, moviesEnabled ? "1" : "0");
-  } catch {
-    // A restricted-storage failure just forgets the choice next visit: non-fatal.
-  }
+  showsPref.persist(showsEnabled);
+  moviesPref.persist(moviesEnabled);
 }

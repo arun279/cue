@@ -3,10 +3,8 @@ import { ErrorBoundary } from "@ui/app-shell/ErrorBoundary";
 import { navFor } from "@ui/app-shell/nav";
 import { AppSnackbar } from "@ui/components/AppSnackbar";
 import { useActivitiesPoll } from "@ui/hooks/useActivitiesPoll";
-import { useEpisodeReminders } from "@ui/hooks/useEpisodeReminders";
 import { usePrefs } from "@ui/prefs/prefs-store";
 import { useHaptics } from "@ui/runtime/haptics";
-import { useOptionalRuntime } from "@ui/runtime/runtime";
 import { CircleUserRound, Settings } from "lucide-react";
 import type { ReactElement, ReactNode } from "react";
 
@@ -91,26 +89,14 @@ function SidebarFooter(): ReactElement {
   );
 }
 
-/**
- * The reminder scheduler reads the calendar, so it needs a live session. The
- * shell also renders during the pre-token /auth/callback return, where there is
- * none, hence its own mount point rather than a hook call in the shell.
- */
-function EpisodeReminders(): null {
-  useEpisodeReminders();
-  return null;
-}
-
 export function RootLayout(): ReactElement {
   // The one freshness gate: a visibility-gated last_activities poll invalidates
   // exactly what changed. Navigation itself never refetches. It
   // no-ops until a session runtime exists (e.g. the pre-token /auth/callback render
   // renders this shell without a RuntimeProvider).
   useActivitiesPoll();
-  const session = useOptionalRuntime();
   return (
     <div className="layout">
-      {session !== null && <EpisodeReminders />}
       <a className="skip-link" href="#main">
         Skip to content
       </a>

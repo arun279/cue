@@ -1,4 +1,5 @@
-import { clampOffset, commitDirection, resolveIntent } from "@ui/components/swipe-math";
+import { resolveIntent } from "@ui/components/gesture-intent";
+import { clampOffset, commitDirection } from "@ui/components/swipe-math";
 import { useHaptics } from "@ui/runtime/haptics";
 import { Check, Pause } from "lucide-react";
 import { type ReactElement, type ReactNode, useRef, useState } from "react";

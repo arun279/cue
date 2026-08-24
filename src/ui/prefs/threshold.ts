@@ -1,6 +1,6 @@
 import { DEFAULT_STALENESS_THRESHOLD_MS } from "@domain/watch-status";
+import { choicePref } from "./pref-storage";
 
-const STORAGE_KEY = "cue.staleness-threshold-days";
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
@@ -21,26 +21,9 @@ export function thresholdMsFromDays(days: number): number {
   return days * DAY_MS;
 }
 
-function readStored(): number | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw === null) return null;
-    const days = Number(raw);
-    return THRESHOLD_OPTIONS.includes(days) ? days : null;
-  } catch {
-    return null;
-  }
-}
-
 /** A stored choice wins; otherwise the principled 21-day default. */
-export function initialThresholdDays(): number {
-  return readStored() ?? DEFAULT_THRESHOLD_DAYS;
-}
-
-export function persistThresholdDays(days: number): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, String(days));
-  } catch {
-    // A restricted-storage failure just forgets the choice next visit: non-fatal.
-  }
-}
+export const thresholdPref = choicePref(
+  "cue.staleness-threshold-days",
+  THRESHOLD_OPTIONS,
+  DEFAULT_THRESHOLD_DAYS,
+);

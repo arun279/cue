@@ -5,7 +5,7 @@ import {
   type MediaVisibility,
   persistMediaVisibility,
 } from "./media-visibility";
-import { initialThresholdDays, persistThresholdDays } from "./threshold";
+import { thresholdPref } from "./threshold";
 import {
   hideStillsPref,
   type LapsedOrder,
@@ -62,9 +62,9 @@ export const usePrefs = create<PrefsState>((set, get) => {
     set(next);
   };
   return {
-    thresholdDays: initialThresholdDays(),
+    thresholdDays: thresholdPref.initial(),
     setThresholdDays: (thresholdDays) => {
-      persistThresholdDays(thresholdDays);
+      thresholdPref.persist(thresholdDays);
       set({ thresholdDays });
     },
     showsEnabled: media.showsEnabled,
