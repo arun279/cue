@@ -201,6 +201,23 @@ describe("mobile release path partition", () => {
   });
 });
 
+describe("the iOS toolchain pin", () => {
+  const selectedXcode = (workflow: string): string[] =>
+    [...readFileSync(workflow, "utf8").matchAll(/xcode-select -s (\S+)/g)].map(
+      ([, path]) => path as string,
+    );
+
+  it("is the same Xcode in the CI build and the release archive", () => {
+    // ci.yml's ios job exists to compile what mobile-release.yml archives. Two
+    // toolchains would make it a green check for a build nobody ships, and the
+    // pin is deliberate: the runner image's default Xcode moves on its own.
+    const release = selectedXcode(MOBILE_RELEASE_WORKFLOW);
+
+    expect(release).toHaveLength(1);
+    expect(selectedXcode(CI_WORKFLOW)).toEqual(release);
+  });
+});
+
 describe("mobile release gate required checks", () => {
   it("keeps REQUIRED aligned with CI jobs except explicit exemptions", () => {
     const requiredJobs = readCiJobs().filter((job) => !NOT_REQUIRED.includes(job.name));
