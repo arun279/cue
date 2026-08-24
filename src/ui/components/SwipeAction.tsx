@@ -12,6 +12,10 @@ interface SwipeActionProps {
 }
 
 interface GestureState {
+  /** The one touch the row answers to: a second finger's events carry another
+   * id, and reading them as this gesture's would commit a write it never
+   * released. */
+  readonly pointerId: number;
   readonly startX: number;
   readonly startY: number;
   intent: "pending" | "horizontal" | "vertical";
@@ -45,8 +49,9 @@ export function SwipeAction({
       className="swipe"
       data-direction={offset > 0 ? "right" : offset < 0 ? "left" : "none"}
       onPointerDown={(e) => {
-        if (e.pointerType === "mouse") return;
+        if (e.pointerType === "mouse" || gesture.current !== null) return;
         gesture.current = {
+          pointerId: e.pointerId,
           startX: e.clientX,
           startY: e.clientY,
           intent: "pending",
@@ -56,7 +61,7 @@ export function SwipeAction({
       }}
       onPointerMove={(e) => {
         const g = gesture.current;
-        if (g === null || g.intent === "vertical") return;
+        if (g === null || g.pointerId !== e.pointerId || g.intent === "vertical") return;
         const dx = e.clientX - g.startX;
         const dy = e.clientY - g.startY;
         if (g.intent === "pending") g.intent = resolveIntent(dx, dy);
@@ -78,15 +83,16 @@ export function SwipeAction({
         g.pastThreshold = past;
         setOffset(next);
       }}
-      onPointerUp={() => {
-        if (gesture.current === null) return;
+      onPointerUp={(e) => {
+        if (gesture.current?.pointerId !== e.pointerId) return;
         const committed = commitDirection(offset);
         gesture.current = null;
         setOffset(0);
         if (committed === "right") onSwipeRight?.();
         if (committed === "left") onSwipeLeft?.();
       }}
-      onPointerCancel={() => {
+      onPointerCancel={(e) => {
+        if (gesture.current?.pointerId !== e.pointerId) return;
         gesture.current = null;
         setOffset(0);
       }}

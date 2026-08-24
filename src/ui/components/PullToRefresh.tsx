@@ -10,9 +10,10 @@ import { useSyncNow } from "@ui/hooks/useSyncNow";
 import { useHaptics } from "@ui/runtime/haptics";
 import {
   type CSSProperties,
+  type PointerEvent,
   type ReactElement,
   type ReactNode,
-  useEffect,
+  useCallback,
   useRef,
   useState,
 } from "react";
@@ -20,6 +21,9 @@ import {
 type Phase = "idle" | "pulling" | "refreshing";
 
 interface Gesture {
+  /** The one touch the region answers to: a second finger's events carry
+   * another id and belong to no gesture here. */
+  readonly pointerId: number;
   readonly startX: number;
   readonly startY: number;
   intent: "pending" | "vertical" | "abandoned";
@@ -59,22 +63,26 @@ export function PullToRefresh({ children }: { readonly children: ReactNode }): R
   const [distance, setDistance] = useState(0);
   const [announcement, setAnnouncement] = useState("");
   const gesture = useRef<Gesture | null>(null);
-  const host = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const node = host.current;
-    if (node === null) return;
-    // React registers touchmove passively at the root, so the only way to stop
-    // the web view scrolling (or rubber-banding) under a claimed pull is our own
-    // non-passive listener. touch-action stays at its default on the region:
-    // the pull shares the scroller's own axis, and pinning it would take the
-    // horizontal chip rails and swipe rows down with it.
-    const onTouchMove = (event: TouchEvent): void => {
-      if (gesture.current?.intent === "vertical") event.preventDefault();
-    };
-    node.addEventListener("touchmove", onTouchMove, { passive: false });
-    return () => node.removeEventListener("touchmove", onTouchMove);
+  // React registers touchmove passively at the root, so the only way to stop the
+  // web view scrolling (or rubber-banding) under a claimed pull is our own
+  // non-passive listener. It lives exactly as long as the gesture that may need
+  // it: the region wraps a whole tab screen, and a standing non-passive
+  // touchmove makes every scroll inside it wait on JS. touch-action stays at its
+  // default: the pull shares the scroller's own axis, and pinning it would take
+  // the horizontal chip rails and swipe rows down with it.
+  const claimScroll = useCallback((event: TouchEvent): void => {
+    if (gesture.current?.intent === "vertical") event.preventDefault();
   }, []);
+
+  /** End the owning pointer's gesture; `null` for anybody else's event. */
+  const release = (event: PointerEvent<HTMLDivElement>): Gesture | null => {
+    const g = gesture.current;
+    if (g === null || g.pointerId !== event.pointerId) return null;
+    gesture.current = null;
+    event.currentTarget.removeEventListener("touchmove", claimScroll);
+    return g;
+  };
 
   const settle = (): void => {
     setPhase("idle");
@@ -98,27 +106,34 @@ export function PullToRefresh({ children }: { readonly children: ReactNode }): R
 
   return (
     <div
-      ref={host}
       className="pull"
       data-state={phase}
       data-testid="pull-to-refresh"
       onPointerDown={(event) => {
         // Only from the very top of the scroller, decided at pointerdown: past
         // that the drag belongs to the scroll, and touch-action cannot be
-        // renegotiated once a gesture has started.
-        if (event.pointerType === "mouse" || phase === "refreshing" || globalThis.scrollY > 0) {
+        // renegotiated once a gesture has started. A finger arriving while
+        // another already owns the region is not a second pull.
+        if (
+          gesture.current !== null ||
+          event.pointerType === "mouse" ||
+          phase === "refreshing" ||
+          globalThis.scrollY > 0
+        ) {
           return;
         }
         gesture.current = {
+          pointerId: event.pointerId,
           startX: event.clientX,
           startY: event.clientY,
           intent: "pending",
           armed: false,
         };
+        event.currentTarget.addEventListener("touchmove", claimScroll, { passive: false });
       }}
       onPointerMove={(event) => {
         const g = gesture.current;
-        if (g === null || g.intent === "abandoned") return;
+        if (g === null || g.pointerId !== event.pointerId || g.intent === "abandoned") return;
         const dy = event.clientY - g.startY;
         if (g.intent === "pending") {
           const intent = resolveIntent(event.clientX - g.startX, dy);
@@ -145,20 +160,18 @@ export function PullToRefresh({ children }: { readonly children: ReactNode }): R
         }
         setDistance(next);
       }}
-      onPointerUp={() => {
-        const g = gesture.current;
-        gesture.current = null;
+      onPointerUp={(event) => {
+        const g = release(event);
         if (g === null || g.intent !== "vertical") return;
         if (g.armed) void refresh();
         else settle();
       }}
-      onPointerCancel={() => {
-        // Only the gesture that owns the region may settle it. A cancel for any
-        // other pointer (a second finger, a system gesture taking over) would
-        // otherwise drop a pass still in flight back to idle, and the next pull
-        // would run a second one beside it.
-        const g = gesture.current;
-        gesture.current = null;
+      onPointerCancel={(event) => {
+        // Only the gesture that owns the region may settle it: a system gesture
+        // taking over drops the pull, while a cancel for any other pointer would
+        // drop a pass still in flight back to idle, and the next pull would run
+        // a second one beside it.
+        const g = release(event);
         if (g?.intent === "vertical") settle();
       }}
     >

@@ -1,7 +1,8 @@
 /**
- * The two things about the pull region the Playwright suite cannot reach: a
- * `pointercancel`, which it cannot dispatch, and the haptic warm-up, which
- * leaves no mark on the DOM.
+ * What the Playwright suite cannot reach: a `pointercancel`, which it cannot
+ * dispatch; a second finger, which its single-touch drag helper cannot add; the
+ * haptic warm-up, which leaves no mark on the DOM; and the lifetime of the
+ * non-passive `touchmove`, which is invisible from the page.
  */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { PullToRefresh } from "@ui/components/PullToRefresh";
@@ -22,14 +23,14 @@ const region = (): HTMLElement => {
 };
 
 /** One touch point, dispatched where React's own delegation picks it up. */
-const pointer = (type: string, clientY: number): void => {
+const pointer = (type: string, clientY: number, pointerId = 1): void => {
   act(() => {
     region().dispatchEvent(
       new PointerEvent(type, {
         bubbles: true,
         clientX: 100,
         clientY,
-        pointerId: 1,
+        pointerId,
         pointerType: "touch",
       }),
     );
@@ -71,6 +72,46 @@ describe("a pull interrupted while its pass is still running", () => {
 
     pullAndRelease();
     expect(flushWrites).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("a second finger landing mid-pull", () => {
+  it("leaves the pull to the finger that claimed it", () => {
+    const flushWrites = vi.fn(() => Promise.resolve(0));
+    mountRegion({ flushWrites } as unknown as CueRuntime);
+
+    pointer("pointerdown", 100);
+    pointer("pointermove", 400);
+    expect(region().dataset["state"]).toBe("pulling");
+
+    // A thumb resting on the list while the index finger drags: its own down
+    // and up carry a different pointerId and mean nothing to this gesture.
+    pointer("pointerdown", 200, 2);
+    pointer("pointerup", 200, 2);
+    expect(region().dataset["state"]).toBe("pulling");
+
+    pointer("pointerup", 400);
+    expect(region().dataset["state"]).toBe("refreshing");
+    expect(flushWrites).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("the non-passive touchmove", () => {
+  it("is attached for the gesture and taken away with it", () => {
+    // It is what makes every scroll inside the region wait on JS, and the region
+    // wraps whole tab screens, so it may not outlive the gesture that needs it.
+    mountRegion({ flushWrites: () => Promise.resolve(0) } as unknown as CueRuntime);
+    const node = region();
+    const added = vi.spyOn(node, "addEventListener");
+    const removed = vi.spyOn(node, "removeEventListener");
+
+    pointer("pointerdown", 100);
+    expect(added.mock.calls.map(([type]) => type)).toEqual(["touchmove"]);
+    expect(removed).not.toHaveBeenCalled();
+
+    pointer("pointermove", 400);
+    pointer("pointerup", 400);
+    expect(removed.mock.calls.map(([type]) => type)).toEqual(["touchmove"]);
   });
 });
 
