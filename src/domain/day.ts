@@ -4,7 +4,7 @@
  * source of truth for "which local day does this instant fall on".
  */
 
-const pad = (n: number): string => String(n).padStart(2, "0");
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** `ms → "YYYY-MM-DD"` in `timeZone` (en-CA renders the ISO date order). */
 function dayKeyFormatter(timeZone: string): (ms: number) => string {
@@ -18,13 +18,12 @@ function dayKeyFormatter(timeZone: string): (ms: number) => string {
 }
 
 /**
- * The day-key `deltaDays` away from `key`, computed as pure Y-M-D arithmetic in
- * UTC (DST-safe: it never crosses a wall-clock offset that a local `Date` would).
+ * The day-key `deltaDays` away from `key`. A date-only key parses as UTC
+ * midnight, so this is whole-day arithmetic that never crosses a wall-clock
+ * offset the way a local `Date` would.
  */
 function shiftDayKey(key: string, deltaDays: number): string {
-  const [year, month, day] = key.split("-").map(Number);
-  const dt = new Date(Date.UTC(year ?? 0, (month ?? 1) - 1, (day ?? 1) + deltaDays));
-  return `${dt.getUTCFullYear()}-${pad(dt.getUTCMonth() + 1)}-${pad(dt.getUTCDate())}`;
+  return new Date(Date.parse(key) + deltaDays * DAY_MS).toISOString().slice(0, 10);
 }
 
 /** The local-day key ("YYYY-MM-DD") an instant falls on, without a labeler. */

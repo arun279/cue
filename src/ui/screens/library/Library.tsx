@@ -1,6 +1,7 @@
 import type { LibraryEntry } from "@data/trakt/library";
 import type { MovieEntry } from "@data/trakt/movie-library";
 import type { LibrarySort } from "@domain/library-buckets";
+import { epCode } from "@domain/model/library";
 import { isAired } from "@domain/time";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { ScreenHeader } from "@ui/app-shell/ScreenHeader";
@@ -12,7 +13,6 @@ import { ErrorRetry } from "@ui/components/ErrorStates";
 import { PullToRefresh } from "@ui/components/PullToRefresh";
 import { SegmentedControl } from "@ui/components/SegmentedControl";
 import { dismissSnack, showSnack } from "@ui/components/snackbar-store";
-import { epCode } from "@ui/format";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { useHideShow } from "@ui/hooks/useHideShow";
 import { type LibraryChipKey, useLibraryBuckets } from "@ui/hooks/useLibraryBuckets";

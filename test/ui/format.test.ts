@@ -1,4 +1,5 @@
-import { epCode, episodesLeft, lastWatchedPhrase, middleTruncate } from "@ui/format";
+import { epCode } from "@domain/model/library";
+import { episodesLeft, lastWatchedPhrase, middleTruncate } from "@ui/format";
 import { describe, expect, it } from "vitest";
 
 describe("epCode", () => {

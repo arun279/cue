@@ -1,4 +1,5 @@
 import type { CalendarDay } from "./calendar";
+import { epCode } from "./model/library";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -51,26 +52,21 @@ export interface ReminderDiff {
   readonly schedule: readonly PlannedReminder[];
 }
 
-/** `"YYYY-MM-DD"` split into the year/month-index/day a `Date` constructor takes. */
-function parts(dayKey: string): [number, number, number] {
-  const [year, month, day] = dayKey.split("-").map(Number);
-  return [year ?? 0, (month ?? 1) - 1, day ?? 1];
-}
-
-/** Days since the epoch, as pure UTC Y-M-D arithmetic. */
+/** Days since the epoch: a date-only day key parses as UTC midnight, so this is
+ * exact Y-M-D arithmetic with no timezone in it. */
 function dayId(dayKey: string): number {
-  return Math.round(Date.UTC(...parts(dayKey)) / DAY_MS);
+  return Date.parse(dayKey) / DAY_MS;
 }
 
 /**
- * The instant `REMINDER_HOUR` falls on that day, on the device's own clock. The
+ * The instant `REMINDER_HOUR` falls on that day, on the device's own clock: a
+ * date-time with no offset designator is local time by the language's own rule,
+ * which resolves the DST offset for that date rather than assuming today's. The
  * day keys come from the calendar grouped in the device's timezone, so the two
- * agree by construction, and the local `Date` constructor resolves the DST
- * offset for that date rather than assuming today's.
+ * agree by construction.
  */
 function fireAt(dayKey: string): number {
-  const [year, month, day] = parts(dayKey);
-  return new Date(year, month, day, REMINDER_HOUR).getTime();
+  return Date.parse(`${dayKey}T${String(REMINDER_HOUR).padStart(2, "0")}:00:00`);
 }
 
 /**
@@ -78,11 +74,10 @@ function fireAt(dayKey: string): number {
  * that the shows are what the eye needs, and a long list on a lock screen is
  * truncated anyway.
  */
-function digestBody(day: CalendarDay): string {
-  const rows = day.rows;
-  const only = rows[0];
-  if (rows.length === 1 && only !== undefined) {
-    return `${only.showTitle} S${only.season} E${only.number}`;
+function digestBody({ rows }: CalendarDay): string {
+  const [only, ...rest] = rows;
+  if (only !== undefined && rest.length === 0) {
+    return `${only.showTitle} ${epCode(only.season, only.number)}`;
   }
   const shows = [...new Set(rows.map((row) => row.showTitle))];
   if (shows.length <= NAMED_SHOWS) return shows.join(" and ");

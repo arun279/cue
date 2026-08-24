@@ -1,12 +1,13 @@
 import { resolveBackdrop } from "@data/image-source";
 import type { LibraryEntry } from "@data/trakt/library";
 import type { EpisodeRef } from "@domain/model/library";
+import { epCode } from "@domain/model/library";
 import { toMs } from "@domain/time";
 import { Link } from "@tanstack/react-router";
 import { artGradient } from "@ui/components/artGradient";
 import { CheckControl, type CheckState } from "@ui/components/CheckControl";
 import { ProgressBar } from "@ui/components/ProgressBar";
-import { epCode, episodesLeft, watchedPercent } from "@ui/format";
+import { episodesLeft, watchedPercent } from "@ui/format";
 import { useShowArt } from "@ui/hooks/useShowArt";
 import { Poster } from "@ui/screens/up-next/Poster";
 import type { ReactElement } from "react";

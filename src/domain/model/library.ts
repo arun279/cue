@@ -25,6 +25,12 @@ export function compareEpisodeKeys(a: EpisodeKey, b: EpisodeKey): number {
   return a.season - b.season || a.number - b.number;
 }
 
+/** The quiet episode code: `S1 E5`, space-separated, no zero padding. Every
+ * surface that names an episode reads from here, the morning digest included. */
+export function epCode(season: number, number: number): string {
+  return `S${season} E${number}`;
+}
+
 /**
  * The merged per-show snapshot the derived selectors read: `/sync/watched/shows`
  * (title, `lastWatchedAt`, `aired`, `completed`) + the hidden set + watchlist

@@ -6,7 +6,7 @@ import {
   REMINDER_HOUR,
   REMINDER_WINDOW_DAYS,
 } from "@domain/reminders";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -143,6 +143,34 @@ describe("planReminders", () => {
     expect(new Set(plan.map((reminder) => reminder.id)).size).toBe(plan.length);
     // Replanning the same calendar reproduces the same ids and fingerprints.
     expect(planReminders(days, { now })).toEqual(plan);
+  });
+});
+
+describe("the digest hour across a daylight-saving shift", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("fires at the reminder hour on the device clock on both sides of it", () => {
+    // The US spring-forward is 2026-03-08. A digest placed a fixed number of
+    // hours from UTC midnight would land an hour out on one side of it, and the
+    // day ids have to stay one apart per day whatever the offset does.
+    vi.stubEnv("TZ", "America/New_York");
+    const rows = [row("Severance", 2, 4)];
+
+    const plan = planReminders(
+      [
+        { dayKey: "2026-03-07", label: "", rows },
+        { dayKey: "2026-03-09", label: "", rows },
+      ],
+      { now: Date.parse("2026-03-06T12:00:00") },
+    );
+
+    expect(plan.map((reminder) => new Date(reminder.atMs).getHours())).toEqual([
+      REMINDER_HOUR,
+      REMINDER_HOUR,
+    ]);
+    expect((plan[1]?.id ?? 0) - (plan[0]?.id ?? 0)).toBe(2);
   });
 });
 

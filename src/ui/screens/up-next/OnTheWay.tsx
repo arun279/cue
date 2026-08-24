@@ -1,10 +1,10 @@
 import type { CalendarDay, CalendarRow } from "@domain/calendar";
 import { dayKeyOf } from "@domain/day";
+import { epCode } from "@domain/model/library";
 import { localTimeZone } from "@domain/time";
 import { Badge } from "@ui/components/Badge";
 import { EpisodeRow } from "@ui/components/EpisodeRow";
 import { SectionHeader } from "@ui/components/SectionHeader";
-import { epCode } from "@ui/format";
 import { Poster } from "@ui/screens/up-next/Poster";
 import { Fragment, type ReactElement, useEffect, useState } from "react";
 

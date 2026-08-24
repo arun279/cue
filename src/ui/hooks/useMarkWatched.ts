@@ -1,6 +1,7 @@
 import { invalidateShowProgress } from "@data/query-invalidation";
 import { queryKeys } from "@data/query-keys";
 import { advancePastNext, type LibraryEntry, type MarkContext } from "@data/trakt/library";
+import { epCode } from "@domain/model/library";
 import {
   buildMarkEpisodeOp,
   buildRemovePlaysOp,
@@ -9,7 +10,7 @@ import {
 } from "@domain/write-queue/ops";
 import { useQueryClient } from "@tanstack/react-query";
 import { dismissSnack, showSnack, useSnackbar } from "@ui/components/snackbar-store";
-import { epCode, middleTruncate } from "@ui/format";
+import { middleTruncate } from "@ui/format";
 import { patchEpisodeDetail, patchLibraryEntry, patchShowSeasons } from "@ui/hooks/library-cache";
 import {
   hasPendingMark,

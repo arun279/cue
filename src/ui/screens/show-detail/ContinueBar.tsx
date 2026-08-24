@@ -5,12 +5,13 @@ import {
   type SeasonView,
   type ShowHeader,
 } from "@data/trakt/show-detail";
+import { epCode } from "@domain/model/library";
 import { isAired } from "@domain/time";
 import { Link } from "@tanstack/react-router";
 import { CheckControl } from "@ui/components/CheckControl";
 import { CountdownPanel } from "@ui/components/CountdownPanel";
 import { ProgressBar } from "@ui/components/ProgressBar";
-import { epCode, episodesLeft, watchedPercent } from "@ui/format";
+import { episodesLeft, watchedPercent } from "@ui/format";
 import type { MarkWatched } from "@ui/hooks/useMarkWatched";
 import { useQueueCheck } from "@ui/screens/up-next/useQueueCheck";
 import type { ReactElement, ReactNode } from "react";
