@@ -3,9 +3,11 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import picomatch from "picomatch";
 import { describe, expect, it } from "vitest";
+import { gitEnv } from "../support/git-env";
 
 const REPOSITORY_ROOT = execFileSync("git", ["rev-parse", "--show-toplevel"], {
   encoding: "utf8",
+  env: gitEnv(),
 }).trim();
 const CI_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/ci.yml");
 const MOBILE_RELEASE_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/mobile-release.yml");
@@ -79,6 +81,7 @@ const DOES_NOT_SHIP_MATCHERS = compilePatterns(DOES_NOT_SHIP);
 const trackedFiles = execFileSync("git", ["ls-files", "-z"], {
   cwd: REPOSITORY_ROOT,
   encoding: "utf8",
+  env: gitEnv(),
 })
   .split("\0")
   .filter(Boolean);
