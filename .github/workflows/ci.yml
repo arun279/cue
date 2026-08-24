@@ -76,13 +76,14 @@ jobs:
         run: |
           comments_url="repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments"
           comment_ids=$(gh api --paginate "$comments_url" --jq '.[] | select(.body | startswith("<!-- diff-footprint -->")) | .id')
-          comment_id=${comment_ids%%$'\n'*}
-          if [ -n "$comment_id" ]; then
-            comment_url="repos/${{ github.repository }}/issues/comments/$comment_id"
-            gh api --method PATCH "$comment_url" -F body=@footprint.md
-          else
-            gh api --method POST "$comments_url" -F body=@footprint.md
-          fi
+          # Recreate rather than edit: GitHub keeps a comment's displayed
+          # timestamp at creation time forever, so an edited comment reads as
+          # stale no matter how fresh its body is. Deleting and reposting keeps
+          # one comment whose timestamp is always the run that produced it.
+          for comment_id in $comment_ids; do
+            gh api --method DELETE "repos/${{ github.repository }}/issues/comments/$comment_id"
+          done
+          gh api --method POST "$comments_url" -F body=@footprint.md
   android:
     runs-on: ubuntu-latest
     steps:
