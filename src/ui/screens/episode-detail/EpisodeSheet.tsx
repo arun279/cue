@@ -1,5 +1,6 @@
 import { resolveStill } from "@data/image-source";
 import type { EpisodeDetail, EpisodeNav } from "@data/trakt/episode-detail";
+import { epCode } from "@domain/model/library";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { ActionSheet, type ActionSheetRow } from "@ui/components/ActionSheet";
 import { CheckControl } from "@ui/components/CheckControl";
@@ -8,7 +9,7 @@ import { ContextMenu } from "@ui/components/ContextMenu";
 import { CountdownPanel } from "@ui/components/CountdownPanel";
 import { ErrorRetry } from "@ui/components/ErrorStates";
 import { Sheet } from "@ui/components/Sheet";
-import { epCode, middleTruncate } from "@ui/format";
+import { middleTruncate } from "@ui/format";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { useEpisode } from "@ui/hooks/useEpisode";
 import { useEpisodePlays } from "@ui/hooks/useEpisodePlays";

@@ -4,6 +4,7 @@ import { navFor } from "@ui/app-shell/nav";
 import { AppSnackbar } from "@ui/components/AppSnackbar";
 import { useActivitiesPoll } from "@ui/hooks/useActivitiesPoll";
 import { usePrefs } from "@ui/prefs/prefs-store";
+import { useHaptics } from "@ui/runtime/haptics";
 import { CircleUserRound, Settings } from "lucide-react";
 import type { ReactElement, ReactNode } from "react";
 
@@ -39,6 +40,7 @@ function scrollActiveSurfaceToTop(): void {
  * so each `tab-*` selector resolves to a single element. */
 function NavLinks({ variant }: { readonly variant: "tabbar" | "sidebar" }): ReactNode {
   const showsEnabled = usePrefs((s) => s.showsEnabled);
+  const haptics = useHaptics();
   const className = variant === "tabbar" ? "tabbar__item" : "sidebar__link";
   return navFor({ showsEnabled }).map((destination) => (
     <Link
@@ -49,7 +51,11 @@ function NavLinks({ variant }: { readonly variant: "tabbar" | "sidebar" }): Reac
       activeOptions={{ exact: true }}
       {...(variant === "tabbar" ? { "data-testid": destination.testId } : {})}
       onClick={() => {
+        // Moving between tabs is movement through a set of discrete choices,
+        // which is what both platforms' selection feedback is for. Re-tapping
+        // the tab you are on is not a move, so it stays silent.
         if (globalThis.location.pathname === destination.path) scrollActiveSurfaceToTop();
+        else haptics.selection();
       }}
     >
       <destination.icon aria-hidden="true" />

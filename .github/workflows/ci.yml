@@ -1,7 +1,11 @@
 name: CI
 on:
   push:
-    branches: [main]
+    # release/* branches run CI on push because the release gate ships a commit
+    # only once ci.yml's checks are green for that exact SHA, and it reads a
+    # push-event run. Without this, dispatching mobile-release.yml on a release
+    # branch waits out its deadline on checks that would never report.
+    branches: [main, "release/*"]
   pull_request:
   schedule:
     # Weekly re-run so the (non-deterministic) advisory audit catches newly
@@ -19,31 +23,24 @@ permissions:
 # The event name is also part of the group: the weekly schedule run and a push
 # landing on the same commit both resolve to the same SHA, and without the
 # event name the schedule run would cancel a same-commit push run in progress.
+# The ref is in the group for the same reason: a release branch cut from a main
+# commit pushes that SHA a second time, and without the ref that push would
+# cancel main's run and leave the commit's required checks cancelled.
 concurrency:
-  group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.sha }}
+  group: ci-${{ github.event_name }}-${{ github.ref }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: true
 jobs:
   check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version-file: ".nvmrc"
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup-node-pnpm
       - run: pnpm check
   audit:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version-file: ".nvmrc"
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup-node-pnpm
       - run: pnpm audit --prod --audit-level=high
   actionlint:
     runs-on: ubuntu-latest
@@ -79,13 +76,14 @@ jobs:
         run: |
           comments_url="repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments"
           comment_ids=$(gh api --paginate "$comments_url" --jq '.[] | select(.body | startswith("<!-- diff-footprint -->")) | .id')
-          comment_id=${comment_ids%%$'\n'*}
-          if [ -n "$comment_id" ]; then
-            comment_url="repos/${{ github.repository }}/issues/comments/$comment_id"
-            gh api --method PATCH "$comment_url" -F body=@footprint.md
-          else
-            gh api --method POST "$comments_url" -F body=@footprint.md
-          fi
+          # Recreate rather than edit: GitHub keeps a comment's displayed
+          # timestamp at creation time forever, so an edited comment reads as
+          # stale no matter how fresh its body is. Deleting and reposting keeps
+          # one comment whose timestamp is always the run that produced it.
+          for comment_id in $comment_ids; do
+            gh api --method DELETE "repos/${{ github.repository }}/issues/comments/$comment_id"
+          done
+          gh api --method POST "$comments_url" -F body=@footprint.md
   android:
     runs-on: ubuntu-latest
     steps:
@@ -95,32 +93,46 @@ jobs:
           distribution: temurin
           java-version: "21"
           cache: gradle
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version-file: ".nvmrc"
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup-node-pnpm
       - run: pnpm build
       - run: pnpm exec cap sync android
       # The version properties must reach the APK, otherwise every release ships
-      # as the placeholder 1.0 (1) and testers stop getting updates.
-      - name: Build the debug APK and check the version wiring
+      # as the placeholder 1.0 (1) and testers stop getting updates. The same
+      # read pins the merged permission set, which no repo file can be checked
+      # for: any dependency's manifest can add to it.
+      - name: Build the debug APK and check what it declares
         working-directory: android
         run: |
           ./gradlew assembleDebug -PcueVersionCode=42 -PcueVersionName=9.9.9
-          ../scripts/verify-apk-version.sh app/build/outputs/apk/debug/app-debug.apk 42 9.9.9
+          ../scripts/verify-apk.sh app/build/outputs/apk/debug/app-debug.apk 42 9.9.9
+  ios:
+    # The runner and the Xcode path are mobile-release.yml's pin, deliberately
+    # repeated: this job exists to compile what that one archives, so the two
+    # have to stay on one toolchain. Read the reasoning there before changing
+    # either.
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.6.app
+      - uses: ./.github/actions/setup-node-pnpm
+      - run: pnpm build
+      - run: pnpm exec cap sync ios
+      # The App target's own Swift and the hand-edited pbxproj are compiled
+      # nowhere else until `fastlane ios beta` tries a Release archive, which is
+      # a release-day discovery. A simulator destination asks for no signing
+      # material, so this runs on a fork's pull request too.
+      - name: Build the app for the simulator
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj -scheme App \
+            -configuration Release -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO build
   e2e:
     needs: check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version-file: ".nvmrc"
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup-node-pnpm
       - run: pnpm exec playwright install --with-deps chromium webkit
       - run: pnpm e2e
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

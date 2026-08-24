@@ -1,6 +1,6 @@
 import type { HistoryDay, HistoryEntry } from "@domain/history";
+import { epCode } from "@domain/model/library";
 import type { EpisodeRowLink } from "@ui/components/EpisodeRow";
-import { epCode } from "@ui/format";
 
 /** Where a play's row links: the movie page, or the episode sheet it logged. */
 export function entryLink(entry: HistoryEntry): EpisodeRowLink {

@@ -5,6 +5,7 @@ import { EmptyState } from "@ui/components/EmptyState";
 import { ErrorRetry } from "@ui/components/ErrorStates";
 import { MarqueeCard } from "@ui/components/MarqueeCard";
 import { PosterTile } from "@ui/components/PosterTile";
+import { PullToRefresh } from "@ui/components/PullToRefresh";
 import { SectionHeader } from "@ui/components/SectionHeader";
 import { SkeletonMarquee, SkeletonRows } from "@ui/components/Skeletons";
 import { dismissSnack, showSnack } from "@ui/components/snackbar-store";
@@ -172,50 +173,26 @@ export function UpNext(): ReactElement {
       <ScreenHeader title="Up Next" variant="root" />
       <SyncStrip isError={view.isError} onRetry={view.refetch} />
 
-      {view.isLoading && (
-        <div data-testid="up-next-skeleton">
-          <SkeletonMarquee />
-          <SkeletonRows />
-        </div>
-      )}
+      <PullToRefresh>
+        {view.isLoading && (
+          <div data-testid="up-next-skeleton">
+            <SkeletonMarquee />
+            <SkeletonRows />
+          </div>
+        )}
 
-      {!view.isLoading && view.isError && !view.hasData && (
-        <ErrorRetry
-          title="Couldn't load your queue"
-          testId="up-next-error"
-          buttonTestId="up-next-error-retry"
-          onRetry={view.refetch}
-        />
-      )}
+        {!view.isLoading && view.isError && !view.hasData && (
+          <ErrorRetry
+            title="Couldn't load your queue"
+            testId="up-next-error"
+            buttonTestId="up-next-error-retry"
+            onRetry={view.refetch}
+          />
+        )}
 
-      {showSections && emptyKind === "nothing-tracked" && (
-        <EmptyState
-          testId="empty-nothing-tracked"
-          headline="Nothing queued."
-          body="Find a show and Cue keeps your place."
-        >
-          <Link to="/search" className="button" data-testid="empty-search-shows">
-            Search shows
-          </Link>
-        </EmptyState>
-      )}
-
-      {showSections && emptyKind === "only-stopped" && (
-        <EmptyState
-          testId="empty-only-stopped"
-          headline="All your shows are stopped."
-          body="Resume one to bring it back into your queue. Your watch history is kept."
-        >
-          <Link to="/library" className="button button--ghost" data-testid="empty-to-library">
-            Go to Library
-          </Link>
-        </EmptyState>
-      )}
-
-      {showSections && emptyKind === "nothing-started" && (
-        <>
+        {showSections && emptyKind === "nothing-tracked" && (
           <EmptyState
-            testId="empty-nothing-started"
+            testId="empty-nothing-tracked"
             headline="Nothing queued."
             body="Find a show and Cue keeps your place."
           >
@@ -223,60 +200,86 @@ export function UpNext(): ReactElement {
               Search shows
             </Link>
           </EmptyState>
-          {watchlistTiles}
-        </>
-      )}
+        )}
 
-      {showSections && emptyKind === "unresolved" && (
-        <>
+        {showSections && emptyKind === "only-stopped" && (
           <EmptyState
-            testId="empty-unresolved"
-            headline="Nothing to queue right now."
-            body="Shows with episodes left are waiting in your Library."
+            testId="empty-only-stopped"
+            headline="All your shows are stopped."
+            body="Resume one to bring it back into your queue. Your watch history is kept."
           >
             <Link to="/library" className="button button--ghost" data-testid="empty-to-library">
               Go to Library
             </Link>
           </EmptyState>
-          <OnTheWay days={onTheWay} />
-          <LapsedDrawer cards={view.lapsedCards} mark={mark} onStop={stopWatching} />
-          <Previously />
-        </>
-      )}
+        )}
 
-      {showSections && emptyKind === "caught-up" && (
-        <>
-          <EmptyState
-            testId="empty-all-caught-up"
-            headline="You're all caught up."
-            body={onTheWay.length === 0 ? "Nothing airing in the next few days." : undefined}
-          />
-          <OnTheWay days={onTheWay} />
-          <LapsedDrawer cards={view.lapsedCards} mark={mark} onStop={stopWatching} />
-          <Previously />
-        </>
-      )}
+        {showSections && emptyKind === "nothing-started" && (
+          <>
+            <EmptyState
+              testId="empty-nothing-started"
+              headline="Nothing queued."
+              body="Find a show and Cue keeps your place."
+            >
+              <Link to="/search" className="button" data-testid="empty-search-shows">
+                Search shows
+              </Link>
+            </EmptyState>
+            {watchlistTiles}
+          </>
+        )}
 
-      {showSections && emptyKind === null && (
-        <>
-          {marquee !== undefined && <MarqueeSlot card={marquee} mark={mark} />}
+        {showSections && emptyKind === "unresolved" && (
+          <>
+            <EmptyState
+              testId="empty-unresolved"
+              headline="Nothing to queue right now."
+              body="Shows with episodes left are waiting in your Library."
+            >
+              <Link to="/library" className="button button--ghost" data-testid="empty-to-library">
+                Go to Library
+              </Link>
+            </EmptyState>
+            <OnTheWay days={onTheWay} />
+            <LapsedDrawer cards={view.lapsedCards} mark={mark} onStop={stopWatching} />
+            <Previously />
+          </>
+        )}
 
-          {rows.length > 0 && (
-            <ul className="row-list" data-testid="up-next-list">
-              {rows.map((card, index) => (
-                <li key={card.entry.showId} ref={flip.ref(card.entry.showId)}>
-                  <QueueRow card={card} mark={mark} onStop={() => stopWatching(card)} />
-                  {index === 0 && !tutorialDismissed && <TutorialCaption />}
-                </li>
-              ))}
-            </ul>
-          )}
+        {showSections && emptyKind === "caught-up" && (
+          <>
+            <EmptyState
+              testId="empty-all-caught-up"
+              headline="You're all caught up."
+              body={onTheWay.length === 0 ? "Nothing airing in the next few days." : undefined}
+            />
+            <OnTheWay days={onTheWay} />
+            <LapsedDrawer cards={view.lapsedCards} mark={mark} onStop={stopWatching} />
+            <Previously />
+          </>
+        )}
 
-          <LapsedDrawer cards={view.lapsedCards} mark={mark} onStop={stopWatching} />
-          <OnTheWay days={onTheWay} />
-          <Previously />
-        </>
-      )}
+        {showSections && emptyKind === null && (
+          <>
+            {marquee !== undefined && <MarqueeSlot card={marquee} mark={mark} />}
+
+            {rows.length > 0 && (
+              <ul className="row-list" data-testid="up-next-list">
+                {rows.map((card, index) => (
+                  <li key={card.entry.showId} ref={flip.ref(card.entry.showId)}>
+                    <QueueRow card={card} mark={mark} onStop={() => stopWatching(card)} />
+                    {index === 0 && !tutorialDismissed && <TutorialCaption />}
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <LapsedDrawer cards={view.lapsedCards} mark={mark} onStop={stopWatching} />
+            <OnTheWay days={onTheWay} />
+            <Previously />
+          </>
+        )}
+      </PullToRefresh>
     </section>
   );
 }

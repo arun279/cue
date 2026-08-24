@@ -514,6 +514,69 @@ export interface ShowFixture {
   rewatchedEpisodeIds?: readonly number[];
 }
 
+const SOLO_SHOW_AIRED = "2026-01-01T00:00:00.000Z";
+
+/**
+ * One in-progress show, next = S1 E2, with a following S1 E3 to advance into:
+ * the smallest fixture a queue row, a swipe or a pull can be driven against.
+ * Episode ids derive from the show id (`trakt*10 + n`) so multi-show fixtures
+ * never share episode ids (the stateful write engine matches marks by them).
+ */
+export function soloShow(overrides: Partial<ShowFixture> = {}): ShowFixture {
+  const trakt = overrides.trakt ?? 1;
+  return {
+    trakt,
+    tmdb: 500 + trakt,
+    title: "Solo",
+    status: "returning series",
+    posters: ["media.trakt.tv/solo.webp"],
+    lastWatchedAt: agoIso(2),
+    aired: 3,
+    completed: 1,
+    episodes: [
+      { season: 1, number: 1, title: "One", firstAired: SOLO_SHOW_AIRED, traktId: trakt * 10 + 1 },
+      { season: 1, number: 2, title: "Two", firstAired: SOLO_SHOW_AIRED, traktId: trakt * 10 + 2 },
+      {
+        season: 1,
+        number: 3,
+        title: "Three",
+        firstAired: SOLO_SHOW_AIRED,
+        traktId: trakt * 10 + 3,
+      },
+    ],
+    ...overrides,
+  };
+}
+
+/**
+ * Drive a touch drag with CDP (`Input.dispatchTouchEvent`): trusted touch input
+ * the browser synthesizes real pointer events from, which is what the gesture
+ * wrappers' pointer handlers (the 12px axis lock, the swipe's 96px commit, the
+ * pull's half-rate resistance and 80px arm) listen to. Generous distance plus
+ * small steps keeps the axis resolution stable. Chromium only.
+ */
+export async function touchDrag(
+  page: Page,
+  from: { readonly x: number; readonly y: number },
+  by: { readonly dx?: number; readonly dy?: number },
+): Promise<void> {
+  const { dx = 0, dy = 0 } = by;
+  const steps = 12;
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchStart",
+    touchPoints: [{ x: from.x, y: from.y, id: 1 }],
+  });
+  for (let step = 1; step <= steps; step += 1) {
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchMove",
+      touchPoints: [{ x: from.x + (dx * step) / steps, y: from.y + (dy * step) / steps, id: 1 }],
+    });
+  }
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await cdp.detach();
+}
+
 /** `ok` applies+200; `abort` fails as a pure network reject (never reached Trakt); `network-drop`
  * applies then aborts (reached Trakt, response lost: the reconcile case); `rate-limit-once` 429s
  * the first attempt then applies; `delay` applies after a long wait. */
@@ -560,6 +623,9 @@ export interface LibraryControls {
   artReads: () => number;
   /** Advance one `/sync/last_activities` stamp so the next poll diffs a real change. */
   bumpActivity: (section: string, field: string) => void;
+  /** `/sync/last_activities` polls served so far: one per freshness pass, so a
+   * manual sync is countable against the background poll's own baseline. */
+  activitiesReads: () => number;
   clearWrites: () => void;
   writes: () => readonly CapturedWrite[];
   historyPosts: () => readonly CapturedWrite[];
@@ -827,6 +893,7 @@ export async function installLibraryRoutes(
   let progressRateLimitBudget = 0;
   let artReads = 0;
   let artRateLimitBudget = 0;
+  let activitiesReads = 0;
   // The exact watched_at each session mark POSTed, keyed by episode trakt id:
   // echoed on the scoped-history plays so the per-play undo can resolve them.
   const markedAt = new Map<number, string>();
@@ -869,6 +936,7 @@ export async function installLibraryRoutes(
   // The freshness gate's poll. Cheap (no readWait) but honors `abort` so an offline
   // boot's poll fails silently. Serves the live, bump-able stamp table.
   await context.route("**/api.trakt.tv/sync/last_activities*", (route) => {
+    activitiesReads += 1;
     if (readMode === "abort") return route.abort();
     return route.fulfill({
       status: 200,
@@ -1169,6 +1237,7 @@ export async function installLibraryRoutes(
     watchlistRemovePosts: () => writes.filter((w) => w.path === "/sync/watchlist/remove"),
     progressReads: () => progressReads,
     progressExtended: () => progressExtended,
+    activitiesReads: () => activitiesReads,
   };
 }
 

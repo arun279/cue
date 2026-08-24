@@ -3,9 +3,11 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { gitEnv } from "../support/git-env";
 
 const REPOSITORY_ROOT = execFileSync("git", ["rev-parse", "--show-toplevel"], {
   encoding: "utf8",
+  env: gitEnv(),
 }).trim();
 const SCRIPT = path.join(REPOSITORY_ROOT, "scripts/diff-footprint.sh");
 const repositories: string[] = [];
@@ -17,7 +19,7 @@ const write = (repository: string, file: string, contents: string | Uint8Array):
 };
 
 const git = (repository: string, ...args: string[]): void => {
-  execFileSync("git", args, { cwd: repository, stdio: "ignore" });
+  execFileSync("git", args, { cwd: repository, stdio: "ignore", env: gitEnv() });
 };
 
 afterEach(() => {
@@ -57,6 +59,7 @@ describe("diff footprint", () => {
     const output = execFileSync(SCRIPT, ["HEAD~1"], {
       cwd: repository,
       encoding: "utf8",
+      env: gitEnv(),
     });
 
     expect(output.split("\n")[0]).toBe("<!-- diff-footprint -->");

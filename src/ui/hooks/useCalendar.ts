@@ -111,7 +111,10 @@ export function useRecentlyAired(enabled = true): readonly CalendarEntry[] | und
  * Read-only: the calendar renders no marks. Aired episodes are marked from
  * the Up Next queue, one home per action.
  */
-export function useCalendar(windowDays: number = DEFAULT_CALENDAR_WINDOW): CalendarView {
+export function useCalendar(
+  windowDays: number = DEFAULT_CALENDAR_WINDOW,
+  enabled = true,
+): CalendarView {
   const runtime = useRuntime();
   const now = useDayClock();
   const startDate = localDayKey(now);
@@ -121,6 +124,10 @@ export function useCalendar(windowDays: number = DEFAULT_CALENDAR_WINDOW): Calen
     // Time/content-driven, NOT gated on last_activities: newly-announced or
     // newly-aired future episodes don't always bump user activity.
     staleTime: CONTENT_STALE_TIME_MS,
+    // A background consumer (episode reminders) reads the same shared window
+    // without paying a GET for it: disabled, it still sees whatever a visible
+    // surface already loaded.
+    enabled,
   });
 
   const data = query.data;

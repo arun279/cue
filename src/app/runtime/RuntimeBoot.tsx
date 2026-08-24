@@ -3,8 +3,16 @@ import { sessionTeardown } from "@app/session";
 import type { KeyValueStore } from "@platform/kv";
 import type { TokenStore } from "@platform/token-store";
 import { useAuth } from "@ui/auth/store";
+import { useEpisodeReminders } from "@ui/hooks/useEpisodeReminders";
 import { type CueRuntime, RuntimeProvider } from "@ui/runtime/runtime";
 import { type ReactElement, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+
+/** The reminder scheduler reads the calendar, so it runs under the runtime and
+ * for exactly as long as the runtime exists. */
+function EpisodeReminders(): null {
+  useEpisodeReminders();
+  return null;
+}
 
 export interface RuntimeBootProps {
   readonly tokenStore: TokenStore;
@@ -103,5 +111,10 @@ export function RuntimeBoot({
     );
   }
 
-  return <RuntimeProvider value={runtime}>{children}</RuntimeProvider>;
+  return (
+    <RuntimeProvider value={runtime}>
+      <EpisodeReminders />
+      {children}
+    </RuntimeProvider>
+  );
 }

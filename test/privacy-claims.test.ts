@@ -1,5 +1,6 @@
 import { TRAKT_API_BASE } from "@data/trakt/client";
 import type { Token } from "@domain/model/token";
+import { REMINDER_WINDOW_DAYS } from "@domain/reminders";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { describe, expect, it, vi } from "vitest";
@@ -123,11 +124,26 @@ describe("claim: nothing Cue stores is copied off an Android device", () => {
 });
 
 describe("claim: Cue collects nothing and reaches Trakt directly over HTTPS", () => {
+  // A `tools:node="remove"` entry is the opposite of a request: it strips a
+  // permission a plugin's own manifest would otherwise merge in. So the two
+  // kinds are pinned separately, and both exactly. The pattern deliberately does
+  // not require a self-closing tag: `<uses-permission ...></uses-permission>`
+  // declares exactly the same thing and must not be able to hide from this.
+  const permissionElements = [...androidManifest.matchAll(/<uses-permission\b[^>]*>/g)].map(
+    ([element]) => element,
+  );
+  const namesWhere = (keep: (element: string) => boolean): string[] =>
+    permissionElements
+      .filter(keep)
+      .flatMap((element) => element.match(/\bandroid:name="([^"]+)"/)?.[1] ?? []);
+  const isRemoval = (element: string): boolean => /\btools:node="remove"/.test(element);
+
   it("declares no Android permission of its own beyond INTERNET", () => {
-    const declared = [...androidManifest.matchAll(/<uses-permission\b[^>]*>/g)].flatMap(
-      ([element]) => element.match(/\bandroid:name="([^"]+)"/)?.[1] ?? [],
-    );
-    expect(declared).toEqual(["android.permission.INTERNET"]);
+    expect(namesWhere((element) => !isRemoval(element))).toEqual(["android.permission.INTERNET"]);
+  });
+
+  it("strips the exact-alarm permission a plugin would otherwise merge in", () => {
+    expect(namesWhere(isRemoval)).toEqual(["android.permission.SCHEDULE_EXACT_ALARM"]);
   });
 
   it("declares no iOS usage description, because Cue asks for no protected data", () => {
@@ -140,6 +156,24 @@ describe("claim: Cue collects nothing and reaches Trakt directly over HTTPS", ()
 
   it("talks to Trakt itself and not to a host standing in for it", () => {
     expect(TRAKT_API_BASE).toBe("https://api.trakt.tv");
+  });
+
+  it("takes the local fake Trakt's origin only from a mock-mode build", async () => {
+    const standIn = "http://127.0.0.1:8787";
+    vi.stubEnv("VITE_TRAKT_API_BASE", standIn);
+    try {
+      for (const [mode, override] of [
+        ["production", undefined],
+        ["mock", standIn],
+      ] as const) {
+        vi.stubEnv("MODE", mode);
+        vi.resetModules();
+        expect((await import("@app/config")).TRAKT_BASE_OVERRIDE, mode).toBe(override);
+      }
+    } finally {
+      vi.unstubAllEnvs();
+      vi.resetModules();
+    }
   });
 
   it("permits no cleartext traffic on either platform", () => {
@@ -173,6 +207,9 @@ const claims = [
   "A backup taken by an earlier build of Cue may still sit in your Google account",
   "iOS keeps app preferences, your Trakt token among them, in a store that is included in a device backup by default, and Cue has not moved the token off that store yet",
   "That switch does not reach a backup stored on a computer, so delete that one yourself.",
+  "up to fourteen notifications the operating system holds on Cue's behalf: one each morning, naming what airs that day",
+  "Turning the switch off, or signing out, cancels all of them",
+  "cancels every reminder the OS was holding for Cue",
   "Neither reaches a copy already sitting in a device backup",
   "Cue cannot delete it. Cue has no account of its own and no server-side copy of your data to delete.",
 ];
@@ -210,14 +247,25 @@ describe("privacy copy agreement and storage anchors", () => {
     );
   });
 
+  it("anchors the fourteen held notifications to the window the planner reaches over", () => {
+    // One digest per day, so the ceiling the policy promises is the window
+    // itself. A wider window would put more of the user's shows on the OS's
+    // side than the policy accounts for.
+    expect(REMINDER_WINDOW_DAYS).toBe(14);
+  });
+
   it("anchors the iOS backup claim to the native token backend", async () => {
     const staleClaim =
       "The Trakt token no longer reaches Capacitor Preferences on native, so the iOS " +
       '"store included in backup by default" claim is stale. Update PRIVACY.md, README.md, ' +
       "and docs/index.html.";
 
-    // Force the composition root down its native path.
-    vi.doMock("@capacitor/core", () => ({ Capacitor: { getPlatform: () => "ios" } }));
+    // Force the composition root down its native path. `registerPlugin` is
+    // there for the haptics seam, which the root also builds on this path.
+    vi.doMock("@capacitor/core", () => ({
+      Capacitor: { getPlatform: () => "ios" },
+      registerPlugin: () => ({}),
+    }));
     // providers.tsx also reads the native app version on this path, and
     // back-button.ts registers a hardware-back listener through the same
     // plugin. This anchor is about the token store, not either of those, so
@@ -226,7 +274,7 @@ describe("privacy copy agreement and storage anchors", () => {
       App: {
         getInfo: vi.fn(async () => ({ version: "1.0", build: "1" })),
         addListener: vi.fn(async () => ({ remove: async () => {} })),
-        exitApp: vi.fn(async () => {}),
+        toggleBackButtonHandler: vi.fn(async () => {}),
       },
     }));
 

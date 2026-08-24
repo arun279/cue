@@ -17,11 +17,6 @@ const MONTHS = [
   "Dec",
 ] as const;
 
-/** The quiet episode code: `S1 E5`: space-separated, no zero padding, tabular ink. */
-export function epCode(season: number, number: number): string {
-  return `S${season} E${number}`;
-}
-
 /** "Mar 16, 2008" (UTC, timezone-stable so the same episode reads the same everywhere). */
 export function formatAirDate(iso: string | null): string | null {
   if (iso === null) return null;

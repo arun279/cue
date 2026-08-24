@@ -47,9 +47,10 @@ describe("initialMediaVisibility", () => {
     expect(initialMediaVisibility()).toEqual({ showsEnabled: false, moviesEnabled: true });
   });
 
-  it('treats only an explicit "0" as disabled', () => {
+  it("keeps a medium whose key was never written on", () => {
+    // Only one of the pair was ever persisted, e.g. a store written by a build
+    // that had no movies toggle yet.
     localStorage.setItem("cue.shows-enabled", "1");
-    // movies key absent → still on.
     expect(initialMediaVisibility()).toEqual({ showsEnabled: true, moviesEnabled: true });
   });
 

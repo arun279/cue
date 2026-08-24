@@ -9,11 +9,30 @@ import { describe, expect, it } from "vitest";
 describe("sheetMetaLine", () => {
   it("reads code · aired date · runtime", () => {
     expect(
-      sheetMetaLine({ season: 1, number: 5, firstAired: "2002-07-01T00:00:00.000Z", runtime: 60 }),
+      sheetMetaLine({
+        season: 1,
+        number: 5,
+        firstAired: "2002-07-01T00:00:00.000Z",
+        runtime: 60,
+        aired: true,
+      }),
     ).toBe("S1 E5 · Aired Jul 1, 2002 · 60 min");
   });
   it("drops the parts it doesn't know", () => {
-    expect(sheetMetaLine({ season: 1, number: 5, firstAired: null, runtime: null })).toBe("S1 E5");
+    expect(
+      sheetMetaLine({ season: 1, number: 5, firstAired: null, runtime: null, aired: false }),
+    ).toBe("S1 E5");
+  });
+  it("never claims an unaired episode aired: the countdown above it says when", () => {
+    expect(
+      sheetMetaLine({
+        season: 3,
+        number: 6,
+        firstAired: "2099-08-27T01:00:00.000Z",
+        runtime: 58,
+        aired: false,
+      }),
+    ).toBe("S3 E6 · 58 min");
   });
 });
 

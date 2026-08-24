@@ -1,6 +1,6 @@
 import type { LibraryEntry } from "@data/trakt/library";
+import { epCode } from "@domain/model/library";
 import type { CheckState } from "@ui/components/CheckControl";
-import { epCode } from "@ui/format";
 import { reArmDelay } from "@ui/hooks/mark-undo-window";
 import type { MarkWatched } from "@ui/hooks/useMarkWatched";
 import { useEffect } from "react";

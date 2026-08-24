@@ -1,6 +1,6 @@
 # Cue Privacy
 
-_Last reviewed: July 2026._
+_Last reviewed: 22 August 2026._
 
 Cue is a personal TV and movie tracker that talks directly to your own [Trakt](https://trakt.tv) account. This is the whole of what it does with your data.
 
@@ -13,8 +13,9 @@ Cue runs no server of its own. There is no backend, no Cue account, and no datab
 Everything Cue keeps is written to your device's own app storage:
 
 - your Trakt OAuth token (so you stay signed in),
-- anything you have marked that has not reached Trakt yet, and
-- a local cache of the shows, episodes, and history Cue reads from Trakt, plus your in-app settings.
+- anything you have marked that has not reached Trakt yet,
+- a local cache of the shows, episodes, and history Cue reads from Trakt, plus your in-app settings, and
+- with **Episode reminders** turned on, up to fourteen notifications the operating system holds on Cue's behalf: one each morning, naming what airs that day. Cue builds them on the device from the calendar it has already read and hands them to the OS, which holds them and shows them on your lock screen. Nothing about them is sent anywhere. Turning the switch off, or signing out, cancels all of them, and on Android your phone asks for permission to post notifications the first time you turn the switch on.
 
 Cue itself never copies any of that off the device, beyond the syncing with Trakt you asked for. Your phone's own backup service is a separate matter: it copies app storage to wherever that backup goes, whether that is a cloud account, another device, or a computer, and that is your operating system doing the copying, not Cue. The two platforms give apps different amounts of say in it, so Cue's answer differs:
 
@@ -27,7 +28,7 @@ Cue collects no analytics and sends no telemetry. It makes no network requests e
 
 ## Deleting your data
 
-- **Cue's on-device data:** open **Settings → Sign out**. Signing out asks Trakt to revoke this device's access token, and deletes Cue's local settings, cache, and Trakt token stored on the device. The delete is what Cue can guarantee: Trakt always answers success, so that alone does not confirm the revoke worked; revoke Cue from your Trakt account settings at <https://app.trakt.tv/settings/apps> as well. Uninstalling the app removes the same local data. Neither reaches a copy already sitting in a device backup, which is what the backup section above is for.
+- **Cue's on-device data:** open **Settings → Sign out**. Signing out asks Trakt to revoke this device's access token, deletes Cue's local settings, cache, and Trakt token stored on the device, and cancels every reminder the OS was holding for Cue. The delete is what Cue can guarantee: Trakt always answers success, so that alone does not confirm the revoke worked; revoke Cue from your Trakt account settings at <https://app.trakt.tv/settings/apps> as well. Uninstalling the app removes the same local data. Neither reaches a copy already sitting in a device backup, which is what the backup section above is for.
 - **Your Trakt account itself:** Cue cannot delete it. Cue has no account of its own and no server-side copy of your data to delete. Only Trakt can delete a Trakt account. Do it at <https://app.trakt.tv/settings/advanced>.
 
 ## Hosting this document

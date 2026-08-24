@@ -1,8 +1,9 @@
+import { epCode } from "@domain/model/library";
 import { CheckControl } from "@ui/components/CheckControl";
 import { EpisodeRow } from "@ui/components/EpisodeRow";
 import { ProgressBar } from "@ui/components/ProgressBar";
 import { SwipeAction } from "@ui/components/SwipeAction";
-import { epCode, episodesLeft, lastWatchedPhrase, watchedPercent } from "@ui/format";
+import { episodesLeft, lastWatchedPhrase, watchedPercent } from "@ui/format";
 import type { MarkWatched } from "@ui/hooks/useMarkWatched";
 import { useShowArt } from "@ui/hooks/useShowArt";
 import type { UpNextCard } from "@ui/hooks/useUpNext";

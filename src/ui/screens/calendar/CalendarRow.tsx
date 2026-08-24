@@ -1,8 +1,8 @@
 import type { CalendarRow as CalendarRowModel } from "@domain/calendar";
+import { epCode } from "@domain/model/library";
 import { localTimeZone } from "@domain/time";
 import { Badge } from "@ui/components/Badge";
 import { EpisodeRow } from "@ui/components/EpisodeRow";
-import { epCode } from "@ui/format";
 import { Poster } from "@ui/screens/up-next/Poster";
 import type { ReactElement } from "react";
 import { trailingChip } from "./agenda";

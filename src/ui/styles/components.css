@@ -1193,3 +1193,80 @@
   background: var(--color-bg);
   transition: transform 260ms var(--ease-emphasized);
 }
+
+/* ---- Pull to refresh ----
+ * The region keeps the scroller's default touch-action: the pull shares the
+ * scroller's own axis, so pinning it here would take the horizontal chip rails
+ * and swipe rows with it. The component's non-passive touchmove is what stops
+ * the web view scrolling under a claimed pull. min-height keeps a graspable
+ * surface on a screen whose content would otherwise end above the fold. */
+.pull {
+  position: relative;
+  min-height: 50dvh;
+}
+.pull__content {
+  transition: transform 260ms var(--ease-emphasized);
+}
+/* Parked in the header's band at rest (opacity 0 there anyway), so a threshold
+ * pull lands it clear of the header and the sync strip. */
+.pull__indicator {
+  position: absolute;
+  top: -36px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-left: -14px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  /* It floats over the content it pushes down, and surface-on-canvas is a 1.03:1
+   * step in the light theme; the border alone leaves it reading as a hairline. */
+  box-shadow: var(--shadow-1);
+  transition:
+    transform 260ms var(--ease-emphasized),
+    opacity 260ms var(--ease-standard);
+}
+.pull__ring {
+  width: 18px;
+  height: 18px;
+}
+.pull__track {
+  fill: none;
+  stroke: var(--color-track);
+  stroke-width: 2.5;
+}
+/* A determinate ring: the sweep grows clockwise from the accent dot at the top
+ * as the pull approaches its threshold, then becomes a fixed arc and spins. */
+.pull__sweep {
+  fill: none;
+  stroke: var(--color-fg);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+}
+.pull__dot {
+  /* The deepened amber, not the fill amber: this dot sits on a white surface in
+   * the light theme, where bright amber reads at roughly 2:1. */
+  fill: var(--color-progress);
+}
+.pull[data-state="refreshing"] .pull__sweep {
+  stroke-dasharray: 0.28 1;
+}
+.pull[data-state="refreshing"] .pull__ring {
+  animation: pull-spin 900ms linear infinite;
+}
+@keyframes pull-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+/* No spin to carry "busy", so the ring closes instead. */
+@media (prefers-reduced-motion: reduce) {
+  .pull[data-state="refreshing"] .pull__sweep {
+    stroke-dasharray: 1 1;
+  }
+}

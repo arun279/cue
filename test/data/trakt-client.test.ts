@@ -50,6 +50,21 @@ describe("TraktClient headers + extended", () => {
   });
 });
 
+describe("TraktClient base URL", () => {
+  it("sends requests to an injected baseUrl, trailing slash trimmed", async () => {
+    let url: string | undefined;
+    server.use(
+      http.get("http://127.0.0.1:8787/sync/watched/shows", ({ request }) => {
+        url = request.url;
+        return HttpResponse.json([]);
+      }),
+    );
+    const mocked = new TraktClient({ clientId: "cid-123", baseUrl: "http://127.0.0.1:8787/" });
+    expect((await mocked.get("/sync/watched/shows")).ok).toBe(true);
+    expect(url).toBe("http://127.0.0.1:8787/sync/watched/shows");
+  });
+});
+
 describe("TraktClient pagination", () => {
   const pageHeaders = (page: number, pageCount: number): Record<string, string> => ({
     "X-Pagination-Page": String(page),

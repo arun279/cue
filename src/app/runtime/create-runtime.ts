@@ -1,4 +1,4 @@
-import { TRAKT_CLIENT_ID } from "@app/config";
+import { TRAKT_BASE_OVERRIDE, TRAKT_CLIENT_ID } from "@app/config";
 import { queryClient, queryPersister } from "@app/query-client";
 import { PendingWritesError, type TeardownOptions } from "@app/session";
 import { invalidationKeys } from "@data/query-invalidation";
@@ -117,7 +117,11 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
   const authorized = createAuthorizedFetch({
     inner: (input, init) => globalThis.fetch(input, init),
     token: deps.token,
-    config: { clientId: TRAKT_CLIENT_ID, redirectUri: deps.redirectUri },
+    config: {
+      clientId: TRAKT_CLIENT_ID,
+      redirectUri: deps.redirectUri,
+      apiBaseUrl: TRAKT_BASE_OVERRIDE,
+    },
     persist: (token) => deps.tokenStore.write(token),
     endSession: deps.endSession,
   });
@@ -125,6 +129,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     clientId: TRAKT_CLIENT_ID,
     getToken: () => authorized.accessToken(),
     fetch: authorized.fetch,
+    baseUrl: TRAKT_BASE_OVERRIDE,
   });
 
   const reconcile = async (op: QueuedOp): Promise<boolean> => {

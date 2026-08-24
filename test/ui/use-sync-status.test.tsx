@@ -88,4 +88,23 @@ describe("useSyncStatus manual reconcile", () => {
     );
     unsubscribe();
   });
+
+  it("answers a thrown flush the same way as a refused pass", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const runtime = {
+      pendingWrites: () => 1,
+      flushWrites: () => Promise.reject(new Error("the operation log could not be written")),
+      pollActivities: () => Promise.reject(new Error("not reached")),
+    } as unknown as CueRuntime;
+    const slot = await mountStatus(runtime, client);
+
+    // Rejecting here would strand every caller that renders the pass in
+    // progress: the pull indicator has no other way back to idle.
+    await act(async () => slot[0]?.syncNow());
+
+    expect(slot[0]?.syncing).toBe(false);
+    expect(useSnackbar.getState().snack?.message).toBe(
+      "Couldn't reach Trakt. Check your connection.",
+    );
+  });
 });

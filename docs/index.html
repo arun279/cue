@@ -28,7 +28,7 @@
   <body>
     <main>
       <h1>Cue Privacy</h1>
-      <p class="meta">Last reviewed: July 2026</p>
+      <p class="meta">Last reviewed: 22 August 2026</p>
 
       <p>
         Cue is a personal TV and movie tracker that talks directly to your own
@@ -49,9 +49,15 @@
       <p>Everything Cue keeps is written to your device's own app storage:</p>
       <ul>
         <li>your Trakt OAuth token (so you stay signed in),</li>
-        <li>anything you have marked that has not reached Trakt yet, and</li>
+        <li>anything you have marked that has not reached Trakt yet,</li>
         <li>a local cache of the shows, episodes, and history Cue reads from Trakt, plus your in-app
-          settings.</li>
+          settings, and</li>
+        <li>with <strong>Episode reminders</strong> turned on, up to fourteen notifications the
+          operating system holds on Cue's behalf: one each morning, naming what airs that day. Cue
+          builds them on the device from the calendar it has already read and hands them to the OS,
+          which holds them and shows them on your lock screen. Nothing about them is sent anywhere.
+          Turning the switch off, or signing out, cancels all of them, and on Android your phone
+          asks for permission to post notifications the first time you turn the switch on.</li>
       </ul>
       <p>
         Cue itself never copies any of that off the device, beyond the syncing with Trakt you asked
@@ -99,8 +105,9 @@
       <ul>
         <li>
           <strong>Cue's on-device data:</strong> open <strong>Settings &rarr; Sign out</strong>.
-          Signing out asks Trakt to revoke this device's access token, and deletes Cue's local
-          settings, cache, and Trakt token stored on the device. The delete is what Cue can
+          Signing out asks Trakt to revoke this device's access token, deletes Cue's local
+          settings, cache, and Trakt token stored on the device, and cancels every reminder the OS
+          was holding for Cue. The delete is what Cue can
           guarantee: Trakt always answers success, so that alone does not confirm the revoke
           worked; revoke Cue from your Trakt account settings at
           <a href="https://app.trakt.tv/settings/apps">app.trakt.tv/settings/apps</a> as well.

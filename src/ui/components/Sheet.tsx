@@ -4,6 +4,7 @@ import {
   releaseVelocity,
   settleSheet,
 } from "@ui/components/sheet-math";
+import { useHaptics } from "@ui/runtime/haptics";
 import { Dialog } from "radix-ui";
 import {
   type ReactElement,
@@ -60,6 +61,7 @@ export function Sheet({
   detents = "content",
 }: SheetProps): ReactElement {
   const tall = detents === "tall";
+  const haptics = useHaptics();
   const panelRef = useRef<HTMLDivElement | null>(null);
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const drag = useRef<DragState | null>(null);
@@ -120,7 +122,11 @@ export function Sheet({
       return;
     }
     setDragY(null);
-    setDetent(settle.y > openOffset / 2 ? "open" : "full");
+    const next = settle.y > openOffset / 2 ? "open" : "full";
+    // The panel arriving at the other detent is movement between two discrete
+    // values; landing back where it started is not.
+    if (next !== detent) haptics.selection();
+    setDetent(next);
   };
 
   return (

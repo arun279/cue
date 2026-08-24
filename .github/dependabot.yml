@@ -4,6 +4,12 @@ updates:
     directory: /
     schedule:
       interval: weekly
+  # "/" reaches .github/workflows and a root action.yml, and nothing else, so a
+  # composite action is only kept up to date if its own directory is named here.
+  - package-ecosystem: github-actions
+    directory: /.github/actions/setup-node-pnpm
+    schedule:
+      interval: weekly
   - package-ecosystem: bundler
     directory: /
     schedule:

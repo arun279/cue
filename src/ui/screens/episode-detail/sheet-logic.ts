@@ -1,13 +1,15 @@
 import type { EpisodeDetail } from "@data/trakt/episode-detail";
-import { epCode, formatAirDate, formatWatchedDate } from "@ui/format";
+import { epCode } from "@domain/model/library";
+import { formatAirDate, formatWatchedDate } from "@ui/format";
 import { metaLine } from "@ui/screens/show-detail/detail-logic";
 
 /** The sheet's quiet meta line: `S1 E5 · Aired Jul 1, 2002 · 60 min`, parts
- * dropping out when unknown. */
+ * dropping out when unknown. An unaired episode drops the date rather than
+ * claiming it aired: the countdown panel above states when it airs. */
 export function sheetMetaLine(
-  episode: Pick<EpisodeDetail, "season" | "number" | "firstAired" | "runtime">,
+  episode: Pick<EpisodeDetail, "season" | "number" | "firstAired" | "runtime" | "aired">,
 ): string {
-  const air = formatAirDate(episode.firstAired);
+  const air = episode.aired ? formatAirDate(episode.firstAired) : null;
   return metaLine([
     epCode(episode.season, episode.number),
     air === null ? null : `Aired ${air}`,

@@ -3,9 +3,11 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import picomatch from "picomatch";
 import { describe, expect, it } from "vitest";
+import { gitEnv } from "../support/git-env";
 
 const REPOSITORY_ROOT = execFileSync("git", ["rev-parse", "--show-toplevel"], {
   encoding: "utf8",
+  env: gitEnv(),
 }).trim();
 const CI_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/ci.yml");
 const MOBILE_RELEASE_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/mobile-release.yml");
@@ -29,7 +31,8 @@ const SHIPS = [
   "Gemfile.lock",
   ".nvmrc",
   ".ruby-version",
-  "scripts/verify-apk-version.sh",
+  "scripts/verify-apk.sh",
+  "scripts/verify-bundle.sh",
   "tsconfig.json",
 ] as const;
 
@@ -50,8 +53,10 @@ const DOES_NOT_SHIP = [
   ".jscpd.json",
   ".dependency-cruiser.cjs",
   "scripts/diff-footprint.sh",
+  "scripts/mock-trakt/**",
   ".env.example",
   ".env.test",
+  ".env.mock",
   ".gitignore",
   "assets/**",
 ] as const;
@@ -76,6 +81,7 @@ const DOES_NOT_SHIP_MATCHERS = compilePatterns(DOES_NOT_SHIP);
 const trackedFiles = execFileSync("git", ["ls-files", "-z"], {
   cwd: REPOSITORY_ROOT,
   encoding: "utf8",
+  env: gitEnv(),
 })
   .split("\0")
   .filter(Boolean);
@@ -195,6 +201,23 @@ describe("mobile release path partition", () => {
 
   it("keeps paths-ignore aligned with non-shipping paths", () => {
     expect([...readPathsIgnore()].sort()).toEqual([...DOES_NOT_SHIP].sort());
+  });
+});
+
+describe("the iOS toolchain pin", () => {
+  const selectedXcode = (workflow: string): string[] =>
+    [...readFileSync(workflow, "utf8").matchAll(/xcode-select -s (\S+)/g)].flatMap(
+      (match) => match[1] ?? [],
+    );
+
+  it("is the same Xcode in the CI build and the release archive", () => {
+    // ci.yml's ios job exists to compile what mobile-release.yml archives. Two
+    // toolchains would make it a green check for a build nobody ships, and the
+    // pin is deliberate: the runner image's default Xcode moves on its own.
+    const release = selectedXcode(MOBILE_RELEASE_WORKFLOW);
+
+    expect(release).toHaveLength(1);
+    expect(selectedXcode(CI_WORKFLOW)).toEqual(release);
   });
 });
 

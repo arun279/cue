@@ -1,6 +1,7 @@
 import type { LibraryEntry } from "@data/trakt/library";
 import type { MovieEntry } from "@data/trakt/movie-library";
 import type { LibrarySort } from "@domain/library-buckets";
+import { epCode } from "@domain/model/library";
 import { isAired } from "@domain/time";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { ScreenHeader } from "@ui/app-shell/ScreenHeader";
@@ -9,9 +10,9 @@ import { ActionSheet, type ActionSheetRow } from "@ui/components/ActionSheet";
 import { Chip } from "@ui/components/Chip";
 import { ContextMenu } from "@ui/components/ContextMenu";
 import { ErrorRetry } from "@ui/components/ErrorStates";
+import { PullToRefresh } from "@ui/components/PullToRefresh";
 import { SegmentedControl } from "@ui/components/SegmentedControl";
 import { dismissSnack, showSnack } from "@ui/components/snackbar-store";
-import { epCode } from "@ui/format";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { useHideShow } from "@ui/hooks/useHideShow";
 import { type LibraryChipKey, useLibraryBuckets } from "@ui/hooks/useLibraryBuckets";
@@ -459,89 +460,91 @@ export function Library(): ReactElement {
       <ScreenHeader title="Library" variant="root" />
       <SyncStrip isError={active.isError} onRetry={active.refetch} />
 
-      <div className="library-toolbar">
-        {bothEnabled && (
-          <SegmentedControl
-            options={[
-              { value: "shows", label: "Shows", testId: "type-shows" },
-              { value: "movies", label: "Movies", testId: "type-movies" },
-            ]}
-            value={isMovies ? "movies" : "shows"}
-            onChange={onSegment}
-            ariaLabel="Library type"
-          />
-        )}
-        <span className="library-toolbar__spacer" />
-        <button
-          type="button"
-          className="library-tool"
-          aria-label="Filter by title"
-          aria-expanded={filterOpen}
-          data-testid="library-filter-toggle"
-          onClick={toggleFilter}
-        >
-          <SearchIcon aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          className="library-tool"
-          aria-label="Sort"
-          data-testid="library-sort"
-          onClick={() => setSortOpen(true)}
-        >
-          <ArrowUpDown aria-hidden="true" />
-        </button>
-      </div>
-
-      {filterOpen && (
-        <div className="library-filter-row">
-          <input
-            ref={filterRef}
-            type="search"
-            className="library-filter-field"
-            placeholder="Filter by title…"
+      <PullToRefresh>
+        <div className="library-toolbar">
+          {bothEnabled && (
+            <SegmentedControl
+              options={[
+                { value: "shows", label: "Shows", testId: "type-shows" },
+                { value: "movies", label: "Movies", testId: "type-movies" },
+              ]}
+              value={isMovies ? "movies" : "shows"}
+              onChange={onSegment}
+              ariaLabel="Library type"
+            />
+          )}
+          <span className="library-toolbar__spacer" />
+          <button
+            type="button"
+            className="library-tool"
             aria-label="Filter by title"
-            autoComplete="off"
-            data-testid="library-filter"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
+            aria-expanded={filterOpen}
+            data-testid="library-filter-toggle"
+            onClick={toggleFilter}
+          >
+            <SearchIcon aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            className="library-tool"
+            aria-label="Sort"
+            data-testid="library-sort"
+            onClick={() => setSortOpen(true)}
+          >
+            <ArrowUpDown aria-hidden="true" />
+          </button>
         </div>
-      )}
 
-      <div ref={chipsRef} className="library-chips" data-testid="library-chips">
-        {isMovies
-          ? MOVIE_CHIP_KEYS.map((key) => (
-              <Chip
-                key={key}
-                variant="status"
-                label={key === "watchlist" ? "Watchlist" : "Watched"}
-                count={movieEntriesFor(key).length}
-                selected={key === movieChip}
-                testId={`chip-${key}`}
-                onPress={() => {
-                  setMovieChip(key);
-                  persistChip(MOVIE_CHIP_STORAGE, key);
-                }}
-              />
-            ))
-          : SHOW_CHIP_KEYS.map((key) => (
-              <Chip
-                key={key}
-                variant="status"
-                label={SHOW_CHIP_LABEL[key]}
-                count={view.chips[key].length}
-                selected={key === showChip}
-                testId={`chip-${key}`}
-                onPress={() => {
-                  setShowChip(key);
-                  persistChip(SHOW_CHIP_STORAGE, key);
-                }}
-              />
-            ))}
-      </div>
+        {filterOpen && (
+          <div className="library-filter-row">
+            <input
+              ref={filterRef}
+              type="search"
+              className="library-filter-field"
+              placeholder="Filter by title…"
+              aria-label="Filter by title"
+              autoComplete="off"
+              data-testid="library-filter"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </div>
+        )}
 
-      {body}
+        <div ref={chipsRef} className="library-chips" data-testid="library-chips">
+          {isMovies
+            ? MOVIE_CHIP_KEYS.map((key) => (
+                <Chip
+                  key={key}
+                  variant="status"
+                  label={key === "watchlist" ? "Watchlist" : "Watched"}
+                  count={movieEntriesFor(key).length}
+                  selected={key === movieChip}
+                  testId={`chip-${key}`}
+                  onPress={() => {
+                    setMovieChip(key);
+                    persistChip(MOVIE_CHIP_STORAGE, key);
+                  }}
+                />
+              ))
+            : SHOW_CHIP_KEYS.map((key) => (
+                <Chip
+                  key={key}
+                  variant="status"
+                  label={SHOW_CHIP_LABEL[key]}
+                  count={view.chips[key].length}
+                  selected={key === showChip}
+                  testId={`chip-${key}`}
+                  onPress={() => {
+                    setShowChip(key);
+                    persistChip(SHOW_CHIP_STORAGE, key);
+                  }}
+                />
+              ))}
+        </div>
+
+        {body}
+      </PullToRefresh>
 
       <ActionSheet open={sortOpen} onOpenChange={setSortOpen} title="Sort by" rows={sortRows} />
     </section>
