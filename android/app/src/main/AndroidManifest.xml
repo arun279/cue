@@ -46,19 +46,12 @@
     <uses-permission android:name="android.permission.INTERNET" />
 
     <!--
-        The local-notifications plugin declares SCHEDULE_EXACT_ALARM in its own
-        manifest, and the merger would hand it to app.cuetracker. Cue never asks
-        for an exact alarm: every reminder is scheduled with
-        isExactNotification: false, so the plugin uses setAndAllowWhileIdle,
-        which is what Android's own guidance prescribes for a user-specified
-        time that may fall during Doze. Keeping the declaration would put an
-        "Alarms & reminders" entry in system settings for a permission the app
-        never uses, and the auto-granted alternative, USE_EXACT_ALARM, is
-        restricted by Play policy to alarm, timer and calendar apps. Remove it.
-        POST_NOTIFICATIONS, RECEIVE_BOOT_COMPLETED and WAKE_LOCK still merge in
-        from the same plugin and are all load-bearing: the runtime permission
-        from API 33, the reboot rescheduling that AlarmManager makes necessary,
-        and the alarm receiver's wake lock.
+        The local-notifications plugin declares SCHEDULE_EXACT_ALARM and the
+        merger would hand it to app.cuetracker, which would put an "Alarms &
+        reminders" entry in system settings for a permission Cue never asks for:
+        every reminder is scheduled with isExactNotification: false. The other
+        three the same plugin merges in (POST_NOTIFICATIONS,
+        RECEIVE_BOOT_COMPLETED, WAKE_LOCK) are all load-bearing.
     -->
     <uses-permission
         android:name="android.permission.SCHEDULE_EXACT_ALARM"

@@ -1,6 +1,16 @@
 /// <reference types="vite/client" />
 
 /**
+ * Turns off the `[key: string]: any` fallback on `ImportMetaEnv`, so reading a
+ * variable this file does not declare is a typecheck failure rather than a
+ * silent `any`. scripts/verify-bundle.sh makes the same claim about the built
+ * artifact; this one makes it about the source, before a build exists.
+ */
+interface ViteTypeOptions {
+  strictImportMetaEnv: unknown;
+}
+
+/**
  * The build-time variables Cue reads, declared so `src/app/config.ts` can name
  * each one with a property access. Vite replaces a named access with that
  * variable's literal value; an index access makes it inline the WHOLE env

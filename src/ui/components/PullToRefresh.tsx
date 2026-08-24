@@ -41,14 +41,12 @@ function pulledStyle(distance: number, phase: Phase): CSSProperties | undefined 
 }
 
 /**
- * Pull to refresh for a window-scrolled tab screen, in the DOM because neither
- * shell can lend us the native control: Capacitor turns the iOS web view's
- * bounce off (so a UIRefreshControl is never revealed) and Android WebView ships
- * no pull gesture at all, and neither native control could reach a DOM scroll
- * region anyway. Releasing past the threshold runs the SAME manual pass as
+ * Pull to refresh for a window-scrolled tab screen, in the DOM for the reason
+ * pull-math states. Releasing past the threshold runs the SAME manual pass as
  * Settings ▸ Sync now, which stays as the tap-only equivalent the gesture is
- * required to have. Touch and pen only, like the swipe rows, and locked to the
- * same 12px axis test so a row swipe and a pull can never both claim one drag.
+ * required to have. Touch and pen only, like the swipe rows, and resolved
+ * against the shared axis lock so a row swipe and a pull can never both claim
+ * one drag.
  *
  * A screen wraps everything below its sticky header in this, chrome included: a
  * drag that starts on a filter rail or a search field is the same gesture as one

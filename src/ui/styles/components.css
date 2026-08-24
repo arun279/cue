@@ -1194,7 +1194,7 @@
   transition: transform 260ms var(--ease-emphasized);
 }
 
-/* ---- Pull to refresh (DOM, because neither shell lends us the native control) ----
+/* ---- Pull to refresh ----
  * The region keeps the scroller's default touch-action: the pull shares the
  * scroller's own axis, so pinning it here would take the horizontal chip rails
  * and swipe rows with it. The component's non-passive touchmove is what stops

@@ -21,16 +21,20 @@ stray_origin="http://127.0.0.1:8787"
 
 VITE_TRAKT_API_BASE="$stray_origin" pnpm exec vite build "$@"
 
-if grep -rq "VITE_TRAKT_API_BASE" dist/assets; then
-  echo "verify-bundle: dist/assets names a build variable, so the build inlined the whole import.meta.env object. Name each variable it reads in src/app/config.ts." >&2
-  grep -rl "VITE_TRAKT_API_BASE" dist/assets >&2
+# The whole of dist, not just dist/assets: the service worker and its precache
+# manifest are written at the root, and they are shipped files like any other.
+refuse() {
+  local carriers
+  carriers=$(grep -rl "$1" dist || true)
+  [ -n "$carriers" ] || return 0
+  echo "verify-bundle: $2" >&2
+  echo "$carriers" >&2
   exit 1
-fi
+}
 
-if grep -rq "$stray_origin" dist/assets; then
-  echo "verify-bundle: dist/assets carries $stray_origin, so this build took the local fake Trakt's origin outside the mock mode." >&2
-  grep -rl "$stray_origin" dist/assets >&2
-  exit 1
-fi
+refuse "VITE_TRAKT_API_BASE" \
+  "dist names a build variable, so the build inlined the whole import.meta.env object. Name each variable it reads in src/app/config.ts."
+refuse "$stray_origin" \
+  "dist carries $stray_origin, so this build took the local fake Trakt's origin outside the mock mode."
 
-echo "verify-bundle: dist/assets names no build variable and carries no fake Trakt origin."
+echo "verify-bundle: dist names no build variable and carries no fake Trakt origin."

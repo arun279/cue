@@ -12,7 +12,9 @@ export const PULL_THRESHOLD_PX = 80;
 
 /** The pull tracks the finger at half rate (`DragMultiplier`), which is what
  * produces the rubber band a WebView cannot borrow from the scroller: Capacitor
- * turns iOS bounce off, and Android WebView has none to begin with. */
+ * turns iOS bounce off (so a UIRefreshControl is never revealed) and Android
+ * WebView ships no pull gesture at all, and neither native control could reach a
+ * DOM scroll region anyway. That is the whole reason the gesture is in the DOM. */
 const DRAG_MULTIPLIER = 0.5;
 
 /** Material limits the overshoot to 200% of the threshold; the tension curve
