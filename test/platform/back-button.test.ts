@@ -1,6 +1,7 @@
 import { type BackHistory, bindHardwareBack } from "@platform/back-button";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const platform = vi.hoisted(() => ({ current: "android" }));
 const app = vi.hoisted(() => ({
   toggleBackButtonHandler: vi.fn(async (_options: { enabled: boolean }) => {}),
   addListener: vi.fn(async (_event: string, _onBack: () => void) => ({
@@ -8,20 +9,29 @@ const app = vi.hoisted(() => ({
   })),
 }));
 
-vi.mock("@capacitor/core", () => ({ Capacitor: { getPlatform: () => "android" } }));
+vi.mock("@capacitor/core", () => ({ Capacitor: { getPlatform: () => platform.current } }));
 vi.mock("@capacitor/app", () => ({ App: app }));
 
-/** A history that starts at a root tab and can be pushed and popped. */
-function fakeHistory(): BackHistory & { push(): void } {
+/**
+ * A router history that starts at a root tab. `back()` only asks the browser to
+ * traverse: the depth moves, and subscribers hear about it, when `land()` runs
+ * the popstate the browser would deliver on its own task.
+ */
+function fakeHistory(): BackHistory & { push(): void; land(): void } {
   let depth = 0;
+  let popping = 0;
   const listeners = new Set<() => void>();
   const notify = (): void => {
     for (const listener of listeners) listener();
   };
   return {
-    canGoBack: () => depth > 0,
+    depth: () => depth,
     back: () => {
-      depth -= 1;
+      if (depth - popping > 0) popping += 1;
+    },
+    land: () => {
+      depth -= popping;
+      popping = 0;
       notify();
     },
     push: () => {
@@ -38,6 +48,20 @@ function fakeHistory(): BackHistory & { push(): void } {
 const claims = (): boolean[] =>
   app.toggleBackButtonHandler.mock.calls.map(([options]) => options.enabled);
 
+/** Android delivers Back to the app only while the handler is enabled; with it
+ * off the system plays its own predictive animation and finishes the activity. */
+function androidBack(): { press(): void; exits(): number } {
+  let exits = 0;
+  return {
+    press: () => {
+      const [, onBack] = app.addListener.mock.lastCall ?? [];
+      if (claims().at(-1) === true) onBack?.();
+      else exits += 1;
+    },
+    exits: () => exits,
+  };
+}
+
 /**
  * An enabled back handler is what suppresses Android's predictive back
  * animation and its back-to-home exit, so the app must only claim Back while it
@@ -45,6 +69,7 @@ const claims = (): boolean[] =>
  */
 describe("the Android back seam", () => {
   beforeEach(() => {
+    platform.current = "android";
     vi.clearAllMocks();
   });
 
@@ -55,25 +80,46 @@ describe("the Android back seam", () => {
 
   it("claims Back as soon as there is history to pop, and lets go on the way out", () => {
     const history = fakeHistory();
+    const os = androidBack();
     bindHardwareBack(history);
     history.push();
     history.push();
-    history.back();
-    history.back();
-    expect(claims()).toEqual([false, true, true, true, false]);
+    os.press();
+    history.land();
+    os.press();
+    history.land();
+    expect(claims()).toEqual([false, true, true, true, true, false, false]);
+    expect(os.exits()).toBe(0);
   });
 
-  it("pops one entry per Back press and re-reads the claim afterwards", () => {
+  it("pops one entry per Back press", () => {
     const history = fakeHistory();
+    const os = androidBack();
     bindHardwareBack(history);
-    const [, press] = app.addListener.mock.lastCall ?? [];
     history.push();
-    app.toggleBackButtonHandler.mockClear();
 
-    press?.();
+    os.press();
+    history.land();
 
-    expect(history.canGoBack()).toBe(false);
-    expect(claims()).toEqual([false, false]);
+    expect(history.depth()).toBe(0);
+    expect(claims().at(-1)).toBe(false);
+  });
+
+  it("hands a second Back to the system while the last pop is still in flight", () => {
+    // The router's depth moves only when the popstate lands, so a claim re-read
+    // between the two presses is the entry the app has already left: the second
+    // press would be spent popping nothing instead of closing the app.
+    const history = fakeHistory();
+    const os = androidBack();
+    bindHardwareBack(history);
+    history.push();
+
+    os.press();
+    os.press();
+    history.land();
+
+    expect(os.exits()).toBe(1);
+    expect(history.depth()).toBe(0);
   });
 
   it("stops listening and stops toggling once unbound", () => {
@@ -82,5 +128,17 @@ describe("the Android back seam", () => {
     vi.clearAllMocks();
     history.push();
     expect(app.toggleBackButtonHandler).not.toHaveBeenCalled();
+  });
+
+  it("touches nothing on iOS, where the plugin implements no back handler", () => {
+    // toggleBackButtonHandler is call.unimplemented() there, so every claim
+    // would be a rejected promise nobody is waiting on.
+    platform.current = "ios";
+    const history = fakeHistory();
+
+    bindHardwareBack(history);
+
+    expect(app.toggleBackButtonHandler).not.toHaveBeenCalled();
+    expect(app.addListener).not.toHaveBeenCalled();
   });
 });

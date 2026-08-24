@@ -78,7 +78,11 @@ export function AppProviders(): ReactElement {
       });
     applyStatusBarTheme(useThemeStore.getState().theme);
     const unsubscribeTheme = useThemeStore.subscribe((state) => applyStatusBarTheme(state.theme));
-    const unbindBack = bindHardwareBack(router.history);
+    const unbindBack = bindHardwareBack({
+      depth: () => router.history.location.state.__TSR_index,
+      back: () => router.history.back(),
+      subscribe: (listener) => router.history.subscribe(listener),
+    });
     return () => {
       unsubscribeTheme();
       unbindBack();
