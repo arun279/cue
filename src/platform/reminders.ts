@@ -1,5 +1,6 @@
 import { Capacitor } from "@capacitor/core";
 import { LocalNotifications } from "@capacitor/local-notifications";
+import { type Reminders, SILENT } from "@domain/ports/reminders";
 import { diffReminders, type PendingReminder, type PlannedReminder } from "@domain/reminders";
 import { isNativePlatform } from "./platform";
 
@@ -10,36 +11,15 @@ import { isNativePlatform } from "./platform";
  */
 const CHANNEL_ID = "cue-airing-today";
 
-/** Collects the digests under one heading in iOS Notification Center. Each one
- * still arrives as its own banner: threading groups what is already delivered. */
-const THREAD_ID = CHANNEL_ID;
-
 /** Matches Android's IMPORTANCE_DEFAULT: it makes a sound, it does not barge in
  * as a heads-up. A digest about the evening is not urgent. */
 const IMPORTANCE_DEFAULT = 3;
 
-/** Structurally the `@ui` Reminders port, so the composition root can inject it;
- * `@ui` never imports this (dependency-cruiser: @capacitor/* lives only here).
- * None of the three ever rejects: see the seam at the bottom of this file. */
-export interface NativeReminders {
-  requestPermission(): Promise<boolean>;
-  reconcile(planned: readonly PlannedReminder[]): Promise<void>;
-  cancelAll(): Promise<void>;
-}
-
-const SILENT: NativeReminders = {
-  requestPermission: () => Promise.resolve(true),
-  reconcile: () => Promise.resolve(),
-  cancelAll: () => Promise.resolve(),
-};
-
-function toPending(notification: { id: number; extra?: unknown }): PendingReminder {
-  const extra = notification.extra;
-  const fingerprint =
-    typeof extra === "object" && extra !== null && "fingerprint" in extra
-      ? String((extra as { fingerprint: unknown }).fingerprint)
-      : null;
-  return { id: notification.id, fingerprint };
+function toPending(notification: {
+  id: number;
+  extra?: { fingerprint?: string } | null;
+}): PendingReminder {
+  return { id: notification.id, fingerprint: notification.extra?.fingerprint ?? null };
 }
 
 /**
@@ -56,7 +36,7 @@ function toPending(notification: { id: number; extra?: unknown }): PendingRemind
  * case Android's own guidance answers with setAndAllowWhileIdle, which is what
  * `allowWhileIdle` without exactness selects.
  */
-export function createNativeReminders(): NativeReminders {
+export function createNativeReminders(): Reminders {
   if (!isNativePlatform()) return SILENT;
   const android = Capacitor.getPlatform() === "android";
   let channelReady = false;
@@ -101,7 +81,10 @@ export function createNativeReminders(): NativeReminders {
           title: reminder.title,
           body: reminder.body,
           channelId: CHANNEL_ID,
-          threadIdentifier: THREAD_ID,
+          // Collects the digests under one heading in iOS Notification Center.
+          // Each still arrives as its own banner: threading groups what is
+          // already delivered.
+          threadIdentifier: CHANNEL_ID,
           extra: { fingerprint: reminder.fingerprint },
           isExactNotification: false,
           schedule: { at: new Date(reminder.atMs), allowWhileIdle: true },

@@ -4,9 +4,11 @@
  * haptic warm-up, which leaves no mark on the DOM; and the lifetime of the
  * non-passive `touchmove`, which is invisible from the page.
  */
+
+import type { Haptics } from "@domain/ports/haptics";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { PullToRefresh } from "@ui/components/PullToRefresh";
-import { type Haptics, HapticsProvider } from "@ui/runtime/haptics";
+import { HapticsProvider } from "@ui/runtime/haptics";
 import { type CueRuntime, RuntimeProvider } from "@ui/runtime/runtime";
 import { act } from "react";
 import { describe, expect, it, vi } from "vitest";

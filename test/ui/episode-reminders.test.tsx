@@ -4,10 +4,11 @@
  * silent, so the states that must NOT cancel matter more than the ones that do.
  */
 import type { CalendarEntry } from "@domain/calendar";
+import type { Reminders } from "@domain/ports/reminders";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEpisodeReminders } from "@ui/hooks/useEpisodeReminders";
 import { usePrefs } from "@ui/prefs/prefs-store";
-import { type Reminders, RemindersProvider } from "@ui/runtime/reminders";
+import { RemindersProvider } from "@ui/runtime/reminders";
 import { type CueRuntime, RuntimeProvider } from "@ui/runtime/runtime";
 import { act, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";

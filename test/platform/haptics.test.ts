@@ -1,4 +1,5 @@
-import { createNativeHaptics, type NativeHaptics } from "@platform/haptics";
+import type { Haptics } from "@domain/ports/haptics";
+import { createNativeHaptics } from "@platform/haptics";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const plugin = vi.hoisted(() => ({
@@ -24,7 +25,7 @@ const vocabulary = [
   ["selection", plugin.selection],
   ["contextClick", plugin.contextClick],
   ["prepare", plugin.prepare],
-] as const satisfies readonly (readonly [keyof NativeHaptics, unknown])[];
+] as const satisfies readonly (readonly [keyof Haptics, unknown])[];
 
 describe("the native haptics seam", () => {
   beforeEach(() => {

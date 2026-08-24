@@ -1,4 +1,5 @@
 import { registerPlugin } from "@capacitor/core";
+import { type Haptics, SILENT } from "@domain/ports/haptics";
 import { isNativePlatform } from "./platform";
 
 /**
@@ -19,27 +20,6 @@ interface CueHapticsPlugin {
 
 const CueHaptics = registerPlugin<CueHapticsPlugin>("CueHaptics");
 
-/** Structurally matches the `@ui` Haptics port so the composition root can
- * inject it; `@ui` never imports this (dependency-cruiser: `@capacitor/*` lives
- * only in platform). */
-export interface NativeHaptics {
-  success(): void;
-  thresholdActivate(): void;
-  thresholdDeactivate(): void;
-  selection(): void;
-  contextClick(): void;
-  prepare(): void;
-}
-
-const SILENT: NativeHaptics = {
-  success() {},
-  thresholdActivate() {},
-  thresholdDeactivate() {},
-  selection() {},
-  contextClick() {},
-  prepare() {},
-};
-
 /**
  * Build the tactile seam. `isEnabled` is the Settings "Haptics" toggle, read at
  * fire time. On web / in tests (non-native) this is a pure silent no-op: the
@@ -49,7 +29,7 @@ const SILENT: NativeHaptics = {
  * Apple's instruction is to fire the event and let the system decide. Plugin
  * rejections are swallowed so a missing engine never breaks a mark.
  */
-export function createNativeHaptics(isEnabled: () => boolean): NativeHaptics {
+export function createNativeHaptics(isEnabled: () => boolean): Haptics {
   if (!isNativePlatform()) return SILENT;
   const fire = (run: () => Promise<void>): void => {
     if (!isEnabled()) return;
