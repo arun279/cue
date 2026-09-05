@@ -333,11 +333,20 @@ const CORS = {
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * The fault control plane, on the mock's own origin under a `__` prefix that no
- * Trakt path can collide with. POST arms a rule (or `{ rules: [...] }`), GET
- * reports what is armed, DELETE clears.
+ * The harness control plane, on the mock's own origin under a `__` prefix that no
+ * Trakt path can collide with. `/__fault`: POST arms a rule (or
+ * `{ rules: [...] }`), GET reports what is armed, DELETE clears. `/__reset`:
+ * POST puts the account back to the seed, for a flow whose assertions are about
+ * what is IN the account rather than about the order the flows ran in.
  */
-function controlRoute(faults, method, pathname, body) {
+function controlRoute(faults, reset, method, pathname, body) {
+  if (pathname === "/__reset") {
+    if (method === "POST") {
+      reset();
+      return json({ reset: true });
+    }
+    return notFound(`no control route for ${method} ${pathname}`);
+  }
   if (pathname !== "/__fault") return null;
   if (method === "POST") return json({ armed: faults.arm(body) });
   if (method === "DELETE") {
@@ -380,7 +389,7 @@ export function createMockTrakt({
   journalFile = process.env["MOCK_TRAKT_JOURNAL"],
   faults: faultSpec = faultsFromEnv(process.env["MOCK_TRAKT_FAULTS"]),
 } = {}) {
-  const library = createLibrary();
+  let library = createLibrary();
   const journal = createJournal(journalFile);
   const faults = createFaults(faultSpec);
   const server = createServer((request, response) => {
@@ -396,8 +405,21 @@ export function createMockTrakt({
       const body = await readBody(request);
       // Journalled before the route runs, so a request with no route is still
       // in the record: a hole has to be visible on both sides of a comparison.
-      journal.record(method, url.pathname, url.search, body);
-      const control = controlRoute(faults, method, url.pathname, body);
+      // The `__` control plane is the harness talking to the mock, not the app
+      // talking to Trakt, so it stays out of a recording that exists to be
+      // compared against another app's.
+      if (!url.pathname.startsWith("/__")) {
+        journal.record(method, url.pathname, url.search, body);
+      }
+      const control = controlRoute(
+        faults,
+        () => {
+          library = createLibrary();
+        },
+        method,
+        url.pathname,
+        body,
+      );
       const fault = control === null ? faults.next(method, url.pathname) : null;
       if (fault !== null) {
         if (log) process.stdout.write(`mock-trakt fault ${method} ${url.pathname}\n`);
@@ -421,7 +443,10 @@ export function createMockTrakt({
   });
 
   return {
-    library,
+    // A getter, because `/__reset` replaces the account wholesale.
+    get library() {
+      return library;
+    },
     faults,
     listen: () =>
       new Promise((resolve) => {

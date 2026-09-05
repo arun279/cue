@@ -1,17 +1,21 @@
 import { expect, test } from "@playwright/test";
-import { armFault, clearFaults, connect, landed, settle } from "./_flow";
+import { armFault, clearFaults, connect, landed, resetAccount, settle } from "./_flow";
 
 /**
- * The two defects the owner reported, driven against a Trakt that misbehaves on
- * purpose. Both were the app describing its own state wrongly: a rate limit
+ * Two defects, driven against a Trakt that misbehaves on purpose: a rate limit
  * reported as an outage over data that was on the screen and fine, and a row
  * that stayed green for as long as the write stayed undelivered.
  *
  * They belong in this lane rather than the hermetic one because both are
  * properties of Trakt's ANSWERS, and the native app has to survive the same
- * ones. Faults are cleared after each, so the account the earlier flows left
- * behind is the account this one leaves behind.
+ * ones. Unlike the flows before it, this one asserts on what is IN the queue
+ * rather than only driving actions through it, so it starts from the seeded
+ * account instead of from whatever backlog the earlier flows left standing.
  */
+
+test.beforeEach(async () => {
+  await resetAccount();
+});
 
 test.afterEach(async () => {
   await clearFaults();

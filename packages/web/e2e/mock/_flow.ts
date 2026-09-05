@@ -12,7 +12,10 @@ import { expect, type Page, test } from "@playwright/test";
  *
  * One account, one mock process, one ordered run: the files are numbered because
  * the account state each flow leaves behind is the state the next one starts
- * from, exactly as it will be on the other side of the comparison.
+ * from, exactly as it will be on the other side of the comparison. The one
+ * exception is a flow whose assertions are about what is IN the account rather
+ * than about the order: it calls {@link resetAccount} first, so it reads the
+ * same queue wherever it runs in the lane.
  */
 
 /** Sign in through the redirect flow the mock answers, and land on Up Next. */
@@ -90,4 +93,16 @@ export async function armFault(rule: Record<string, unknown>): Promise<void> {
 
 export async function clearFaults(): Promise<void> {
   await fetch(`${MOCK_TRAKT}/__fault`, { method: "DELETE" });
+}
+
+/**
+ * Put the fake Trakt's account back to the seed. For a flow that asserts on the
+ * queue's contents: without it such a flow reads whatever backlog the flows
+ * before it happened to leave, which is a different queue depending on where it
+ * runs and how many marks the earlier flows spent. The control plane is the
+ * harness talking to the mock, so it stays out of the journal.
+ */
+export async function resetAccount(): Promise<void> {
+  const response = await fetch(`${MOCK_TRAKT}/__reset`, { method: "POST" });
+  expect(response.ok).toBe(true);
 }
