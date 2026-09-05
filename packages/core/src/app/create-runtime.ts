@@ -1,7 +1,7 @@
 import { invalidationKeys } from "../data/query-invalidation";
 import { createAuthorizedFetch } from "../data/trakt/authorized-fetch";
 import { assembleCalendarEntries } from "../data/trakt/calendar";
-import { TraktClient } from "../data/trakt/client";
+import { TraktClient, unwrapRead } from "../data/trakt/client";
 import { assembleEpisodeDetail } from "../data/trakt/episode-detail";
 import {
   assembleEpisodePlays,
@@ -223,9 +223,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       // same cache entry for its hero. It goes through the shared read gate like
       // every other read, so a scrolled list can neither exceed the concurrency
       // pool nor fire into a window a 429 just closed.
-      const show = await getShow(client, showId);
-      if (!show.ok) throw new Error("Failed to load show");
-      return assembleShowInfo(show.data);
+      return assembleShowInfo(unwrapRead(await getShow(client, showId), "show"));
     },
 
     async loadMovieLibrary(): Promise<MovieLibraryData> {
@@ -237,31 +235,25 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
         getWatchedMovies(client),
         getWatchlist(client, "movies"),
       ]);
-      if (!watched.ok) throw new Error("Failed to load watched movies");
-      if (!watchlist.ok) throw new Error("Failed to load movie watchlist");
       const entries = assembleMovieLibrary({
-        watchedMovies: watched.data,
-        watchlistMovies: watchlist.data,
+        watchedMovies: unwrapRead(watched, "watched movies"),
+        watchlistMovies: unwrapRead(watchlist, "movie watchlist"),
       });
       return { entries };
     },
 
     async loadMovieHeader(movieId) {
-      const movie = await getMovie(client, movieId);
-      if (!movie.ok) throw new Error("Failed to load movie");
-      return assembleMovieHeader(movie.data);
+      return assembleMovieHeader(unwrapRead(await getMovie(client, movieId), "movie"));
     },
 
     async loadMovieRelated(movieId) {
       const related = await getRelatedMovies(client, movieId);
-      if (!related.ok) throw new Error("Failed to load related movies");
-      return assembleMovieHits(related.data);
+      return assembleMovieHits(unwrapRead(related, "related movies"));
     },
 
     async loadShowProgress(showId) {
       const progress = await getShowProgress(client, showId);
-      if (!progress.ok) throw new Error("Failed to load show progress");
-      return assembleShowProgress(progress.data, Date.now());
+      return assembleShowProgress(unwrapRead(progress, "show progress"), Date.now());
     },
 
     async loadShowSeasons(showId) {
@@ -269,9 +261,11 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
         getShowSeasons(client, showId),
         getShowProgress(client, showId, true),
       ]);
-      if (!seasons.ok) throw new Error("Failed to load seasons");
-      if (!progress.ok) throw new Error("Failed to load show progress");
-      return assembleSeasons(seasons.data, progress.data, Date.now());
+      return assembleSeasons(
+        unwrapRead(seasons, "seasons"),
+        unwrapRead(progress, "show progress"),
+        Date.now(),
+      );
     },
 
     async loadEpisode(showId, season, number) {
@@ -279,16 +273,18 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
         getEpisode(client, showId, season, number),
         getShowProgress(client, showId, true),
       ]);
-      if (!episode.ok) throw new Error("Failed to load episode");
-      if (!progress.ok) throw new Error("Failed to load show progress");
-      return assembleEpisodeDetail(showId, episode.data, progress.data, Date.now());
+      return assembleEpisodeDetail(
+        showId,
+        unwrapRead(episode, "episode"),
+        unwrapRead(progress, "show progress"),
+        Date.now(),
+      );
     },
 
     async loadWatchlistIds(section) {
-      const result = await getWatchlist(client, section);
-      if (!result.ok) throw new Error("Failed to load watchlist");
+      const items = unwrapRead(await getWatchlist(client, section), "watchlist");
       const ids: number[] = [];
-      for (const item of result.data) {
+      for (const item of items) {
         const trakt = (section === "shows" ? item.show : item.movie)?.ids.trakt;
         if (trakt !== undefined) ids.push(trakt);
       }
@@ -300,11 +296,9 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
         getMyShowsCalendar(client, startDate, days),
         getHidden(client),
       ]);
-      if (!calendar.ok) throw new Error("Failed to load calendar");
-      if (!hidden.ok) throw new Error("Failed to load hidden shows");
       return {
-        entries: assembleCalendarEntries(calendar.data),
-        hiddenShowIds: [...showIdSet(hidden.data)],
+        entries: assembleCalendarEntries(unwrapRead(calendar, "calendar")),
+        hiddenShowIds: [...showIdSet(unwrapRead(hidden, "hidden shows"))],
       };
     },
 
@@ -314,11 +308,12 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       // doesn't flip the Diary to error over its cached pages. `range` scopes the
       // read to a year/month window (the decade jump).
       const result = await getHistory(client, section, page, range);
-      if (!result.ok) throw new Error("Failed to load history");
+      const entries = assembleHistoryEntries(unwrapRead(result, "history"));
+      const pagination = result.ok ? result.pagination : null;
       return {
-        entries: assembleHistoryEntries(result.data),
-        page: result.pagination?.page ?? page,
-        pageCount: result.pagination?.pageCount ?? page,
+        entries,
+        page: pagination?.page ?? page,
+        pageCount: pagination?.pageCount ?? page,
       };
     },
 
@@ -327,26 +322,22 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       // show's plays is acceptable; a transient 429 is absorbed rather than failing
       // the unmark outright.
       const result = await getItemPlays(client, "shows", showId);
-      if (!result.ok) throw new Error("Failed to load show history");
-      return assembleEpisodePlays(result.data);
+      return assembleEpisodePlays(unwrapRead(result, "show history"));
     },
 
     async loadEpisodePlays(episodeId) {
       const result = await getItemPlays(client, "episodes", episodeId);
-      if (!result.ok) throw new Error("Failed to load episode history");
-      return assembleEpisodePlays(result.data);
+      return assembleEpisodePlays(unwrapRead(result, "episode history"));
     },
 
     async loadMoviePlays(movieId) {
       const result = await getItemPlays(client, "movies", movieId);
-      if (!result.ok) throw new Error("Failed to load movie history");
-      return assembleMoviePlays(result.data);
+      return assembleMoviePlays(unwrapRead(result, "movie history"));
     },
 
     async search(query) {
       const result = await searchTrakt(client, query);
-      if (!result.ok) throw new Error("Failed to search");
-      return rankSearchHits(assembleSearchHits(result.data), query);
+      return rankSearchHits(assembleSearchHits(unwrapRead(result, "search results")), query);
     },
 
     async loadBrowse(): Promise<BrowseData> {
@@ -356,28 +347,22 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
         getTrendingMovies(client),
         getPopularMovies(client),
       ]);
-      if (!trending.ok) throw new Error("Failed to load trending shows");
-      if (!popular.ok) throw new Error("Failed to load popular shows");
-      if (!trendingMovies.ok) throw new Error("Failed to load trending movies");
-      if (!popularMovies.ok) throw new Error("Failed to load popular movies");
       return {
-        trending: assembleShowHits(trending.data.map((row) => row.show)),
-        popular: assembleShowHits(popular.data),
-        trendingMovies: assembleMovieHits(trendingMovies.data.map((row) => row.movie)),
-        popularMovies: assembleMovieHits(popularMovies.data),
+        trending: assembleShowHits(unwrapRead(trending, "trending shows").map((row) => row.show)),
+        popular: assembleShowHits(unwrapRead(popular, "popular shows")),
+        trendingMovies: assembleMovieHits(
+          unwrapRead(trendingMovies, "trending movies").map((row) => row.movie),
+        ),
+        popularMovies: assembleMovieHits(unwrapRead(popularMovies, "popular movies")),
       };
     },
 
     async loadStats(): Promise<UserStats> {
-      const result = await getUserStats(client);
-      if (!result.ok) throw new Error("Failed to load user stats");
-      return result.data;
+      return unwrapRead(await getUserStats(client), "user stats");
     },
 
     async loadUserProfile(): Promise<UserProfile> {
-      const result = await getUserSettings(client);
-      if (!result.ok) throw new Error("Failed to load user settings");
-      return assembleUserProfile(result.data);
+      return assembleUserProfile(unwrapRead(await getUserSettings(client), "user settings"));
     },
 
     async submit(op: QueuedOp): Promise<SubmitOutcome> {

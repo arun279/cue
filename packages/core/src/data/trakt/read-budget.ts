@@ -1,5 +1,5 @@
 import { toMs } from "../../domain/time";
-import type { TraktClient, TraktResult } from "./client";
+import { type TraktClient, type TraktResult, unwrapRead } from "./client";
 import { getHidden, getShowProgress, getWatchedShows, getWatchlist } from "./endpoints";
 import { assembleLibrary, type LibraryEntry, showIdSet, watchedEpisodeCount } from "./library";
 import type { Progress, WatchedShow } from "./schemas";
@@ -28,8 +28,37 @@ const DEFAULT_RATE_BACKOFF_MS = 1000;
  * requests for `Retry-After`, so one read's 429 holds the rest of the fan-out back
  * too: otherwise each sleeps alone while its neighbours keep firing into the same
  * closed window and burn their own retry budgets on it.
+ *
+ * It is also the app's answer to "what is happening and when does it retry", so
+ * it is observable: the sync strip subscribes rather than inferring a rate limit
+ * from a query that happens to be failing.
  */
 let resumeReadsAt = 0;
+const pauseListeners = new Set<() => void>();
+
+/** Epoch ms reads resume; at or before now means nothing is paused. */
+export function readsPausedUntil(): number {
+  return resumeReadsAt;
+}
+
+export function subscribeReadPause(listener: () => void): () => void {
+  pauseListeners.add(listener);
+  return () => {
+    pauseListeners.delete(listener);
+  };
+}
+
+function pauseReadsUntil(at: number): void {
+  if (at <= resumeReadsAt) return;
+  resumeReadsAt = at;
+  for (const listener of pauseListeners) listener();
+}
+
+/** Test-only: drop the shared pause so one case's rate limit can't leak into the next. */
+export function resetReadPause(): void {
+  resumeReadsAt = 0;
+  pauseListeners.clear();
+}
 
 /**
  * The cold-sync per-show progress budget: at most this many `/shows/:id/progress`
@@ -93,11 +122,12 @@ export async function withReadRateRetry<T>(
       const pause = resumeReadsAt - Date.now();
       if (pause > 0) await sleep(pause);
       const result = await read();
-      if (result.ok || result.error.kind !== "rate-limited" || attempt >= MAX_READ_RATE_RETRIES) {
-        return result;
-      }
-      const backoff = result.error.retryAfterMs ?? DEFAULT_RATE_BACKOFF_MS;
-      resumeReadsAt = Math.max(resumeReadsAt, Date.now() + backoff);
+      if (result.ok || result.error.kind !== "rate-limited") return result;
+      // Trakt closed the window: hold every read back for as long as it asked,
+      // whether or not THIS read has budget left to wait it out. The pause is
+      // what the caller above retries against, and what the strip reads.
+      pauseReadsUntil(Date.now() + (result.error.retryAfterMs ?? DEFAULT_RATE_BACKOFF_MS));
+      if (attempt >= MAX_READ_RATE_RETRIES) return result;
     }
   } finally {
     releaseReadSlot();
@@ -121,24 +151,25 @@ function byLastWatchedDesc(a: WatchedShow, b: WatchedShow): number {
  * transient 429 on any read is absorbed within a bounded budget.
  */
 export async function loadUpNextEntries(client: TraktClient): Promise<LibraryEntry[]> {
-  const watched = await withReadRateRetry(() => getWatchedShows(client));
-  if (!watched.ok) throw new Error("Failed to load watched shows");
+  const watched = unwrapRead(
+    await withReadRateRetry(() => getWatchedShows(client)),
+    "watched shows",
+  );
 
   // Anything whose local count DISAGREES with `aired_episodes`, either way.
   // Under-count is the ordinary backlog; over-count means plays exist on episodes
   // Trakt does not count as aired, so the two numbers cannot both be right and
   // only `/progress/watched` can settle it. A `<` here would read those as caught
   // up, and an ended show's `aired_episodes` never grows again to reopen them.
-  const head = watched.data
+  const head = watched
     .filter((show) => watchedEpisodeCount(show) !== show.show.aired_episodes)
     .sort(byLastWatchedDesc)
     .slice(0, WATCHED_PROGRESS_BUDGET);
   const perShow = await Promise.all(
     head.map(async (show) => {
       const id = show.show.ids.trakt;
-      const progress = await withReadRateRetry(() => getShowProgress(client, id));
-      if (!progress.ok) throw new Error("Failed to load show progress");
-      return { id, progress: progress.data };
+      const read = await withReadRateRetry(() => getShowProgress(client, id));
+      return { id, progress: unwrapRead(read, "show progress") };
     }),
   );
   const progress = new Map<number, Progress>(perShow.map((s) => [s.id, s.progress]));
@@ -147,13 +178,10 @@ export async function loadUpNextEntries(client: TraktClient): Promise<LibraryEnt
     withReadRateRetry(() => getHidden(client)),
     withReadRateRetry(() => getWatchlist(client, "shows")),
   ]);
-  if (!hidden.ok) throw new Error("Failed to load hidden shows");
-  if (!watchlist.ok) throw new Error("Failed to load watchlist");
-
   return assembleLibrary({
-    watchedShows: watched.data,
+    watchedShows: watched,
     progress,
-    hiddenShowIds: showIdSet(hidden.data),
-    watchlistShows: watchlist.data,
+    hiddenShowIds: showIdSet(unwrapRead(hidden, "hidden shows")),
+    watchlistShows: unwrapRead(watchlist, "watchlist"),
   });
 }
