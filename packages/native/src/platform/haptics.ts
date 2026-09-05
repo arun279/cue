@@ -2,7 +2,7 @@ import type { Haptics } from "@cue/core/ports/haptics";
 import { CueHaptics } from "../../modules/cue-native/src";
 
 /**
- * The seven verbs, over the local module.
+ * The eight verbs, over the local module.
  *
  * `expo-haptics` is not a dependency of this app and cannot be: it exposes no
  * `prepare()`, so every generator is cold on first fire and a swipe threshold
@@ -25,6 +25,7 @@ export function createNativeHaptics(isEnabled: () => boolean): Haptics {
   return {
     success: fire(() => CueHaptics.success()),
     failure: fire(() => CueHaptics.failure()),
+    warning: fire(() => CueHaptics.warning()),
     thresholdActivate: fire(() => CueHaptics.thresholdActivate()),
     thresholdDeactivate: fire(() => CueHaptics.thresholdDeactivate()),
     selection: fire(() => CueHaptics.selection()),

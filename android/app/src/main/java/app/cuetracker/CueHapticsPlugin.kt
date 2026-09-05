@@ -42,6 +42,16 @@ class CueHapticsPlugin : Plugin() {
         else HapticFeedbackConstants.LONG_PRESS,
     )
 
+    /** Android publishes no warning constant, so the caveat takes the same
+     * REJECT the failure does: it is the nearest documented meaning, and
+     * inventing a waveform for it is what the platform's guidance rules out. */
+    @PluginMethod
+    fun warning(call: PluginCall) = perform(
+        call,
+        if (Build.VERSION.SDK_INT >= 30) HapticFeedbackConstants.REJECT
+        else HapticFeedbackConstants.LONG_PRESS,
+    )
+
     /** The gesture threshold pair is API 34. */
     @PluginMethod
     fun thresholdActivate(call: PluginCall) = perform(

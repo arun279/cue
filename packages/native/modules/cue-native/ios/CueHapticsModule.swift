@@ -33,6 +33,13 @@ public class CueHapticsModule: Module {
             self.fire(self.notification) { $0.notificationOccurred(.error) }
         }
 
+        // Apple: Warning "indicates that a task or action has produced a
+        // warning of some kind", which is a completed action with a caveat
+        // rather than a failure.
+        Function("warning") {
+            self.fire(self.notification) { $0.notificationOccurred(.warning) }
+        }
+
         Function("thresholdActivate") {
             self.fire(self.activate) { $0.impactOccurred() }
         }

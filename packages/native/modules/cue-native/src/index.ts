@@ -10,6 +10,7 @@ import { NativeModule, requireNativeModule } from "expo";
 declare class CueHapticsNativeModule extends NativeModule<Record<never, never>> {
   success(): void;
   failure(): void;
+  warning(): void;
   thresholdActivate(): void;
   thresholdDeactivate(): void;
   selection(): void;
@@ -22,7 +23,7 @@ declare class CueLegacyPreferencesNativeModule extends NativeModule<Record<never
   remove(key: string): Promise<void>;
 }
 
-/** The seven verbs, fired and forgotten: every one dispatches to the platform's
+/** The eight verbs, fired and forgotten: every one dispatches to the platform's
  * UI thread and returns nothing, so no caller ever has a promise to discard. */
 export const CueHaptics = requireNativeModule<CueHapticsNativeModule>("CueHaptics");
 

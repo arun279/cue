@@ -12,6 +12,7 @@ import { isNativePlatform } from "./platform";
 interface CueHapticsPlugin {
   success(): Promise<void>;
   failure(): Promise<void>;
+  warning(): Promise<void>;
   thresholdActivate(): Promise<void>;
   thresholdDeactivate(): Promise<void>;
   selection(): Promise<void>;
@@ -39,6 +40,7 @@ export function createNativeHaptics(isEnabled: () => boolean): Haptics {
   return {
     success: () => fire(() => CueHaptics.success()),
     failure: () => fire(() => CueHaptics.failure()),
+    warning: () => fire(() => CueHaptics.warning()),
     thresholdActivate: () => fire(() => CueHaptics.thresholdActivate()),
     thresholdDeactivate: () => fire(() => CueHaptics.thresholdDeactivate()),
     selection: () => fire(() => CueHaptics.selection()),

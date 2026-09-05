@@ -121,6 +121,7 @@ describe("the pull's haptics", () => {
     const haptics = {
       success: vi.fn(),
       failure: vi.fn(),
+      warning: vi.fn(),
       thresholdActivate: vi.fn(),
       thresholdDeactivate: vi.fn(),
       selection: vi.fn(),

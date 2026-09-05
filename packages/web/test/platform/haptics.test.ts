@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const plugin = vi.hoisted(() => ({
   success: vi.fn(async () => {}),
   failure: vi.fn(async () => {}),
+  warning: vi.fn(async () => {}),
   thresholdActivate: vi.fn(async () => {}),
   thresholdDeactivate: vi.fn(async () => {}),
   selection: vi.fn(async () => {}),
@@ -22,6 +23,7 @@ vi.mock("@capacitor/core", () => ({
 const vocabulary = [
   ["success", plugin.success],
   ["failure", plugin.failure],
+  ["warning", plugin.warning],
   ["thresholdActivate", plugin.thresholdActivate],
   ["thresholdDeactivate", plugin.thresholdDeactivate],
   ["selection", plugin.selection],
