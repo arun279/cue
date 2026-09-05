@@ -75,7 +75,6 @@ const DOES_NOT_SHIP = [
   ".jscpd.json",
   ".dependency-cruiser.cjs",
   ".size-limit.json",
-  ".github/workflows/codeql.yml",
   "scripts/assert-file-size.mjs",
   "scripts/assert-ipa-size.mjs",
   "scripts/check-size.mjs",
