@@ -1,0 +1,18 @@
+[
+  {
+    "name": "web initial load",
+    "path": [
+      "packages/web/dist/assets/index-*.js",
+      "packages/web/dist/assets/useDocumentTitle-*.js",
+      "packages/web/dist/assets/query-keys-*.js",
+      "packages/web/dist/assets/query-freshness-*.js",
+      "packages/web/dist/assets/index-*.css"
+    ],
+    "limit": "170 kB"
+  },
+  {
+    "name": "web all JavaScript and CSS",
+    "path": "packages/web/dist/**/*.{js,css}",
+    "limit": "285 kB"
+  }
+]
