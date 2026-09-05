@@ -1,5 +1,6 @@
-import { Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import type { ReactElement } from "react";
+import { Button } from "react-native";
 
 /**
  * Profile, Settings and History as one full-screen modal stack over the tabs.
@@ -18,9 +19,19 @@ import type { ReactElement } from "react";
 export const unstable_settings = { initialRouteName: "profile" };
 
 export default function AccountLayout(): ReactElement {
+  const router = useRouter();
+
   return (
     <Stack>
-      <Stack.Screen name="profile" options={{ title: "Profile" }} />
+      <Stack.Screen
+        name="profile"
+        options={{
+          title: "Profile",
+          headerRight: () => (
+            <Button testID="close-account" title="Done" onPress={() => router.dismissAll()} />
+          ),
+        }}
+      />
       <Stack.Screen name="settings" options={{ title: "Settings" }} />
       <Stack.Screen name="history" options={{ title: "History" }} />
     </Stack>

@@ -74,6 +74,7 @@ const DOES_NOT_SHIP = [
   ".jscpd.json",
   ".dependency-cruiser.cjs",
   "scripts/diff-footprint.sh",
+  "scripts/verify-ios-privacy.sh",
   "scripts/mock-trakt/**",
   "scripts/write-buster.mjs",
   "tsconfig.depcruise.json",

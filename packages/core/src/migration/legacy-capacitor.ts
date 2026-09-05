@@ -8,6 +8,7 @@ import type { PreferenceStorage } from "../ports/preference-storage";
 import type { TokenStore } from "../ports/token-store";
 
 const LEGACY_TOKEN_KEY = "cue.trakt.token";
+const ADOPTED_TOKEN_KEY = "cue.legacy-token-adopted";
 const LEGACY_OP_LOG_KEY = "cue.write-queue";
 const OP_LOG_KEY = "cue.write-queue";
 /** The one preference worth seeding: without it an established user is offered
@@ -85,9 +86,9 @@ export interface LegacyMigrationResult {
  * Not "migrate once when the secure store is empty". While a Capacitor build is
  * still a shippable rollback target, both apps can write a token, and the only
  * rule that matches what a user who rolled back, signed in again and rolled
- * forward expects is last-writer-wins with the legacy store preferred. So the
- * legacy token is read every boot and left where it is; it is removed in the
- * commit that removes the rollback target.
+ * forward expects is to adopt each distinct legacy token once. Its digest is
+ * recorded in the bulk store, while the token itself is left where it is for
+ * the rollback target. Both are removed with that target at cut-over.
  *
  * The op log is the opposite case and is removed on read: it is the one store
  * whose loss is silent data loss, an op in it is a play the user marked that
@@ -105,11 +106,15 @@ export async function migrateLegacyCapacitorData(
   if (rawToken !== null) {
     const token = tokenSchema.safeParse(tryParse(rawToken));
     if (token.success) {
-      await deps.tokenStore.write(token.data);
-      adoptedToken = true;
-      // An install that has a token is an install that has been used, so the
-      // one-time caption has been seen whether or not its own key survived.
-      deps.preferences.setItem(TUTORIAL_KEY, "1");
+      const digest = await digestToken(rawToken);
+      if (digest !== (await deps.bulk.read(ADOPTED_TOKEN_KEY))) {
+        await deps.tokenStore.write(token.data);
+        await deps.bulk.write(ADOPTED_TOKEN_KEY, digest);
+        adoptedToken = true;
+        // An install that has a token is an install that has been used, so the
+        // one-time caption has been seen whether or not its own key survived.
+        deps.preferences.setItem(TUTORIAL_KEY, "1");
+      }
     }
   }
 
@@ -130,6 +135,11 @@ export async function migrateLegacyCapacitorData(
   }
 
   return { adoptedToken, adoptedOps };
+}
+
+async function digestToken(raw: string): Promise<string> {
+  const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(raw));
+  return Array.from(new Uint8Array(bytes), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 function tryParse(raw: string): unknown {

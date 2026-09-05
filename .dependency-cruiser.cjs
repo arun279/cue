@@ -26,7 +26,7 @@ const RE_DOES_NOT_SHIP_DIRECTORY =
   "^(docs|\\.github|assets|scripts/mock-trakt|packages/[^/]+/(e2e|test|__tests__))(/|$)";
 const RE_DOES_NOT_SHIP_MARKDOWN = "^[^/]*\\.md$";
 const RE_DOES_NOT_SHIP_FILE =
-  "^(LICENSE|vitest\\.config\\.ts|lefthook\\.yml|cspell\\.json|dprint\\.json|biome\\.jsonc|knip\\.json|\\.jscpd\\.json|\\.dependency-cruiser\\.cjs|\\.gitignore|scripts/write-buster\\.mjs|tsconfig\\.depcruise\\.json|packages/[^/]+/(playwright\\.config\\.ts|vitest\\.config\\.ts|jest\\.config\\.js|\\.gitignore|\\.env\\.(example|test|mock)))$";
+  "^(LICENSE|vitest\\.config\\.ts|lefthook\\.yml|cspell\\.json|dprint\\.json|biome\\.jsonc|knip\\.json|\\.jscpd\\.json|\\.dependency-cruiser\\.cjs|\\.gitignore|scripts/(verify-ios-privacy\\.sh|write-buster\\.mjs)|tsconfig\\.depcruise\\.json|packages/[^/]+/(playwright\\.config\\.ts|vitest\\.config\\.ts|jest\\.config\\.js|\\.gitignore|\\.env\\.(example|test|mock)))$";
 
 const { join } = require("node:path");
 
@@ -66,8 +66,8 @@ module.exports = {
       severity: "error",
       comment:
         "dependency-cruiser's own no-non-package-json, anchored at the packages. A package may import only what its OWN manifest declares. `nodeLinker: hoisted` (pnpm-workspace.yaml) puts every transitive dependency at the workspace root where any package can reach it undeclared, which is the strictness the default linker exists to provide and the price the native package's resolver charges for it. knip's dependency lane does not close this: react is a peerDependency of @tanstack/react-query, so it read 33 undeclared react imports in @cue/core as satisfied.",
-      from: { path: "^packages/" },
-      to: { dependencyTypes: ["npm-no-pkg", "npm-unknown"] },
+      from: { path: "^packages/", pathNot: "^packages/web/src/vite-env\\.d\\.ts$" },
+      to: { dependencyTypes: ["npm-no-pkg", "npm-unknown", "unknown"] },
     },
     {
       name: "domain-stays-pure",
