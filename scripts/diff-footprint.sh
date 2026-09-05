@@ -82,7 +82,7 @@ const [basePath, headPath] = process.argv.slice(2);
 const base = JSON.parse(readFileSync(basePath, "utf8"));
 const head = JSON.parse(readFileSync(headPath, "utf8"));
 const byName = (entries) => Object.fromEntries(entries.map((entry) => [entry.name, entry]));
-const baseSizes = byName(base.sizes);
+const baseSizes = base.sizes === null ? null : byName(base.sizes);
 const headSizes = byName(head.sizes);
 
 const bytes = (value) =>
@@ -110,31 +110,41 @@ process.stdout.write("\n### Bundle size\n\n");
 process.stdout.write("| bundle | base | head | delta | limit |\n");
 process.stdout.write("| --- | ---: | ---: | ---: | ---: |\n");
 for (const [label, name] of sizeRows) {
-  const before = baseSizes[name];
+  const before = baseSizes?.[name];
   const after = headSizes[name];
+  const baseCell = before === undefined ? "n/a" : bytes(before.size);
+  const deltaCell = before === undefined ? "n/a" : deltaBytes(after.size - before.size);
   process.stdout.write(
-    `| ${label} | ${bytes(before.size)} | ${bytes(after.size)} | ${deltaBytes(after.size - before.size)} | ${after.sizeLimit / 1000} kB |\n`,
+    `| ${label} | ${baseCell} | ${bytes(after.size)} | ${deltaCell} | ${after.sizeLimit / 1000} kB |\n`,
   );
 }
 
 const complexityRows = [
-  ["functions over cognitive complexity 15", base.complexity.over15, head.complexity.over15, 0],
-  ["worst cognitive complexity", base.complexity.max, head.complexity.max, 0],
+  ["functions over cognitive complexity 15", base.complexity?.over15, head.complexity.over15, 0],
+  ["worst cognitive complexity", base.complexity?.max, head.complexity.max, 0],
   [
     "mean cognitive complexity (functions scoring 2 or more)",
-    base.complexity.mean,
+    base.complexity?.mean,
     head.complexity.mean,
     2,
   ],
-  ["product comment density", base.comments.total.density, head.comments.total.density, 2],
+  ["product comment density", base.comments?.total.density, head.comments.total.density, 2],
 ];
 process.stdout.write("\n### Complexity and comments\n\n");
 process.stdout.write("| metric | base | head | delta |\n");
 process.stdout.write("| --- | ---: | ---: | ---: |\n");
 for (const [label, before, after, digits] of complexityRows) {
   const suffix = label === "product comment density" ? " percent" : "";
+  const baseCell = before === undefined ? "n/a" : `${before.toFixed(digits)}${suffix}`;
+  const deltaCell = before === undefined ? "n/a" : signed(after - before, digits);
   process.stdout.write(
-    `| ${label} | ${Number(before).toFixed(digits)}${suffix} | ${Number(after).toFixed(digits)}${suffix} | ${signed(after - before, digits)} |\n`,
+    `| ${label} | ${baseCell} | ${after.toFixed(digits)}${suffix} | ${deltaCell} |\n`,
+  );
+}
+
+if (base.sizes === null || base.complexity === null || base.comments === null) {
+  process.stdout.write(
+    "\nThe merge base does not contain the measured packages, so its columns read n/a.\n",
   );
 }
 NODE

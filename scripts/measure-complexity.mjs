@@ -29,6 +29,14 @@ const files = execFileSync(
   .split("\0")
   .filter((file) => /\.tsx?$/.test(file));
 
+// A merge base that predates these packages has nothing to measure. Saying so
+// keeps the zero-functions guard below meaning "Biome produced nothing".
+if (files.length === 0) {
+  writeFileSync(output, "null\n");
+  process.stdout.write("null\n");
+  process.exit(0);
+}
+
 rmSync(shadow, { force: true, recursive: true });
 for (const file of files) {
   const target = path.join(shadow, file);

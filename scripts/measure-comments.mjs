@@ -26,6 +26,14 @@ const files = execFileSync(
   .split("\0")
   .filter((file) => /\.tsx?$/.test(file));
 
+// A merge base that predates these packages has nothing to measure, and a
+// density of zero over zero lines is not a measurement.
+if (files.length === 0) {
+  writeFileSync(output, "null\n");
+  process.stdout.write("null\n");
+  process.exit(0);
+}
+
 const packages = Object.fromEntries(
   ["core", "web", "native"].map((name) => [name, { code: 0, comments: 0, blank: 0 }]),
 );

@@ -10,6 +10,14 @@ head_root=$(git rev-parse --show-toplevel)
 tree=$(cd "$1" && pwd)
 output_dir=$(cd "$(dirname "$2")" && pwd)
 output="$output_dir/$(basename "$2")"
+
+# A merge base that predates these packages builds none of the measured
+# bundles, and size-limit would report every one of them as zero bytes.
+if [ ! -f "$tree/packages/web/package.json" ] || [ ! -f "$tree/packages/native/package.json" ]; then
+  echo null > "$output"
+  exit 0
+fi
+
 mkdir -p "$tree/node_modules/.tmp"
 export TMPDIR="$tree/node_modules/.tmp"
 
