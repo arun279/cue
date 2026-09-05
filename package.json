@@ -16,7 +16,7 @@
     "preview": "pnpm --filter @cue/web preview",
     "sync": "cap sync",
     "typecheck": "tsc --noEmit && pnpm -r typecheck",
-    "lint": "biome check .",
+    "lint": "biome check --error-on-warnings .",
     "format": "biome check --write . && dprint fmt",
     "test": "vitest run",
     "test:native": "pnpm --filter @cue/native test",
@@ -34,7 +34,7 @@
     "check:bundle": "./scripts/verify-bundle.sh",
     "buster:check": "node scripts/write-buster.mjs --check",
     "buster:bump": "node scripts/write-buster.mjs --bump",
-    "check": "biome check . && dprint check && pnpm check:spell && pnpm typecheck && pnpm check:arch && knip && jscpd && pnpm buster:check && pnpm check:bundle && vitest run --coverage && pnpm test:native",
+    "check": "biome check --error-on-warnings . && dprint check && pnpm check:spell && pnpm typecheck && pnpm check:arch && knip && jscpd && pnpm buster:check && pnpm check:bundle && vitest run --coverage && pnpm test:native",
     "audit": "pnpm audit --prod --audit-level=high",
     "prepare": "lefthook install"
   },
