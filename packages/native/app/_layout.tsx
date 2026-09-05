@@ -30,6 +30,7 @@ import {
   shouldDehydrateQuery,
 } from "../src/platform/query-persister";
 import { createNativeReminders } from "../src/platform/reminders";
+import { useScreenReader } from "../src/platform/screen-reader";
 import {
   bulkStore,
   clearLocalPreferences,
@@ -150,6 +151,7 @@ function Gate(): ReactElement {
 }
 
 export default function RootLayout(): ReactElement {
+  useScreenReader();
   const authStore = useNativeSession();
   const fontsSettled = useCueFonts();
 

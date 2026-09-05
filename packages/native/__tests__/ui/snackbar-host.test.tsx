@@ -1,7 +1,7 @@
 import { dismissSnack, showSnack, useSnackbar } from "@cue/core/stores/snackbar-store";
 import { act, render, screen, userEvent } from "@testing-library/react-native";
 import type { ReactElement } from "react";
-import { View } from "react-native";
+import { AccessibilityInfo, View } from "react-native";
 import { SnackbarHost } from "../../src/ui/SnackbarHost";
 
 jest.mock(
@@ -93,3 +93,19 @@ function undo() {
 function backfill() {
   return { label: "+2 earlier", testId: "snackbar-backfill", onPress: jest.fn() };
 }
+
+it("keeps a message for fifteen seconds when the screen reader query resolves true", async () => {
+  jest.useFakeTimers();
+  const query = jest.spyOn(AccessibilityInfo, "isScreenReaderEnabled").mockResolvedValue(true);
+  await act(async () => showSnack({ message: MESSAGE }));
+  const { rerender } = await render(<Hosts sheetOpen={false} />);
+
+  await act(async () => jest.advanceTimersByTime(5000));
+  expect(screen.queryByTestId("snackbar")).toBeOnTheScreen();
+  await rerender(<Hosts sheetOpen />);
+  await act(async () => jest.advanceTimersByTime(9999));
+  expect(screen.queryByTestId("snackbar")).toBeOnTheScreen();
+  await act(async () => jest.advanceTimersByTime(1));
+  expect(screen.queryByTestId("snackbar")).toBeNull();
+  query.mockRestore();
+});

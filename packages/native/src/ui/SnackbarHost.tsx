@@ -4,16 +4,10 @@ import {
   type Snack,
   useSnackbar,
 } from "@cue/core/stores/snackbar-store";
-import { type ReactElement, useEffect, useId, useState, useSyncExternalStore } from "react";
-import {
-  AccessibilityInfo,
-  Platform,
-  Pressable,
-  StyleSheet,
-  useWindowDimensions,
-  View,
-} from "react-native";
+import { type ReactElement, useEffect, useId, useSyncExternalStore } from "react";
+import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useScreenReader } from "../platform/screen-reader";
 import { useLiveRegion } from "./live-region";
 import { FLOAT_SHADOW, REFLOW_FONT_SCALE, SPACE, TARGET_MIN, useColors } from "./tokens";
 import { CueText } from "./type";
@@ -87,23 +81,7 @@ function useIsTopHost(): boolean {
  * timer, so the deadline is keyed on the snack's own sequence number and only a
  * replacing snack sets a new one.
  */
-let deadline: { readonly seq: number; readonly at: number } | null = null;
-
-function useScreenReader(): boolean {
-  const [enabled, setEnabled] = useState(false);
-  useEffect(() => {
-    let alive = true;
-    void AccessibilityInfo.isScreenReaderEnabled().then((on) => {
-      if (alive) setEnabled(on);
-    });
-    const subscription = AccessibilityInfo.addEventListener("screenReaderChanged", setEnabled);
-    return () => {
-      alive = false;
-      subscription.remove();
-    };
-  }, []);
-  return enabled;
-}
+let deadline: { readonly seq: number; readonly timeout: number; readonly at: number } | null = null;
 
 /**
  * One transient message, mounted in every presentation that can raise one and
@@ -143,7 +121,9 @@ function Snackbar({
     const timeout = screenReader
       ? SCREEN_READER_TIMEOUT_MS
       : (snack.timeoutMs ?? DEFAULT_SNACK_TIMEOUT_MS);
-    if (deadline?.seq !== snack.seq) deadline = { seq: snack.seq, at: Date.now() + timeout };
+    if (deadline?.seq !== snack.seq || deadline.timeout !== timeout) {
+      deadline = { seq: snack.seq, timeout, at: Date.now() + timeout };
+    }
     const timer = setTimeout(dismissSnack, Math.max(0, deadline.at - Date.now()));
     return () => clearTimeout(timer);
   }, [snack, screenReader]);
