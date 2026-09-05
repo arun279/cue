@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react-native";
-import { type StyleProp, StyleSheet, type TextStyle, View } from "react-native";
+import { Platform, type StyleProp, StyleSheet, type TextStyle, View } from "react-native";
 import { CueText, type TypeRole } from "../../src/ui/type";
 
 const ROLES: readonly TypeRole[] = [
@@ -39,7 +39,7 @@ function styleOf(testID: string): TextStyle {
   return StyleSheet.flatten(propsOf(testID).style);
 }
 
-it("scales every role, caps none, draws nothing below 11 and names only a loaded face", async () => {
+async function renderRoles() {
   await render(
     <View>
       {ROLES.map((role) => (
@@ -49,6 +49,10 @@ it("scales every role, caps none, draws nothing below 11 and names only a loaded
       ))}
     </View>,
   );
+}
+
+it("scales every role, caps none, draws nothing below 11 and names only a loaded face", async () => {
+  await renderRoles();
 
   for (const role of ROLES) {
     const style = styleOf(role);
@@ -121,4 +125,57 @@ it("puts counts on tabular figures only when asked", async () => {
 it("emphasizes row titles by default", async () => {
   await render(<CueText variant="rowTitle">Salt Air</CueText>);
   expect(screen.getByText("Salt Air")).toHaveStyle({ fontFamily: "Inter_600SemiBold" });
+});
+
+const APPLE_LARGE: Readonly<Record<string, readonly [number, number]>> = {
+  largeTitle: [34, 41],
+  title1: [28, 34],
+  title2: [22, 28],
+  title3: [20, 25],
+  headline: [17, 22],
+  body: [17, 22],
+  callout: [16, 21],
+  subheadline: [15, 20],
+  footnote: [13, 18],
+  caption1: [12, 16],
+  caption2: [11, 13],
+};
+
+const MATERIAL_3 = {
+  displaySmall: [36, 44],
+  headlineMedium: [28, 36],
+  headlineSmall: [24, 32],
+  titleLarge: [22, 28],
+  titleMedium: [16, 24],
+  bodyLarge: [16, 24],
+  bodyMedium: [14, 20],
+  bodySmall: [12, 16],
+  labelMedium: [12, 16],
+  labelSmall: [11, 16],
+} as const;
+
+const MATERIAL_ROLE: Readonly<Record<TypeRole, keyof typeof MATERIAL_3>> = {
+  screenTitle: "headlineMedium",
+  screenTitlePushed: "titleLarge",
+  detailTitle: "headlineSmall",
+  statHero: "displaySmall",
+  sectionHeading: "titleLarge",
+  identity: "titleMedium",
+  rowTitle: "bodyLarge",
+  rowTitleSecondary: "bodyMedium",
+  meta: "bodySmall",
+  caption: "labelMedium",
+  micro: "labelSmall",
+};
+
+it("uses the platform default size and line height for each mapped text style", async () => {
+  await renderRoles();
+  for (const role of ROLES) {
+    const style = styleOf(role);
+    const metrics =
+      Platform.OS === "ios"
+        ? APPLE_LARGE[propsOf(role).dynamicTypeRamp ?? ""]
+        : MATERIAL_3[MATERIAL_ROLE[role]];
+    expect({ role, metrics: [style.fontSize, style.lineHeight] }).toEqual({ role, metrics });
+  }
 });

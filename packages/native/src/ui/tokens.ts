@@ -9,7 +9,7 @@ import {
 } from "react-native";
 
 /** Native replaces border-strong with muted or platform strokes and retires the web focus ring. */
-const PALETTE = {
+export const PALETTE = {
   bg: { light: "#fbfaf7", dark: "#0e0c0a" },
   surface: { light: "#ffffff", dark: "#17140f" },
   elevated: { light: "#f4f1ea", dark: "#221d16" },
