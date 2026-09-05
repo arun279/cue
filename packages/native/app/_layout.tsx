@@ -38,6 +38,7 @@ import {
 } from "../src/platform/stores";
 import { Onboarding } from "../src/screens/Onboarding";
 import { RuntimeBoot } from "../src/screens/RuntimeBoot";
+import { useCueFonts } from "../src/ui/type";
 
 /**
  * The native composition root. It is the only file that knows both which
@@ -142,9 +143,12 @@ function Gate(): ReactElement {
 
 export default function RootLayout(): ReactElement {
   const authStore = useNativeSession();
+  const fontsSettled = useCueFonts();
 
-  // Nothing to paint until the stores are settled, and the splash is still up.
-  if (authStore === null) return <View testID="boot-hold" />;
+  // Nothing to paint until the stores and the faces are settled, and the splash
+  // is still up. "Settled" rather than "loaded" for the faces: one that will not
+  // load falls back to the platform's own, which is not a reason to hold here.
+  if (authStore === null || !fontsSettled) return <View testID="boot-hold" />;
 
   return (
     // The metrics the native side already knows, so the first frame is the app
