@@ -14,5 +14,17 @@
     "name": "web all JavaScript and CSS",
     "path": "packages/web/dist/**/*.{js,css}",
     "limit": "285 kB"
+  },
+  {
+    "name": "expo iOS bundle",
+    "path": "packages/native/dist/_expo/static/js/ios/entry-*.hbc",
+    "brotli": false,
+    "limit": "4450 kB"
+  },
+  {
+    "name": "expo Android bundle",
+    "path": "packages/native/dist/_expo/static/js/android/entry-*.hbc",
+    "brotli": false,
+    "limit": "4830 kB"
   }
 ]
