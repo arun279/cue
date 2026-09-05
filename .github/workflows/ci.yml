@@ -147,6 +147,8 @@ jobs:
       - run: pnpm --filter @cue/native exec expo prebuild --platform ios --clean
         env:
           EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
+      - name: Check the generated iOS privacy configuration
+        run: scripts/verify-ios-privacy.sh packages/native/ios/Cue/Info.plist packages/native/ios/Cue/Cue.entitlements
       - name: Build the app for the simulator
         working-directory: packages/native/ios
         run: |

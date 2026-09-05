@@ -76,9 +76,9 @@ export function nativeAppConfig(env: Readonly<Record<string, string | undefined>
 
   /**
    * The fake Trakt's origin, and the one reason this app would ever load plain
-   * HTTP. Read here so a build that is not pointed at the harness carries no
-   * `NSAppTransportSecurity` key at all rather than a disabled exception: the
-   * privacy gate asserts that key's absence out of the built `Info.plist`.
+   * HTTP. Read here so a build that is not pointed at the harness adds no ATS
+   * exception domains. The generated-project privacy gate requires arbitrary
+   * loads to stay disabled and exception domains to stay absent.
    */
   const mockTrakt = env["EXPO_PUBLIC_TRAKT_API_BASE"];
   const mockTraktHost =
