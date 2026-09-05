@@ -1,4 +1,9 @@
-import { TRAKT_API_BASE, TraktClient, type TraktResult } from "@cue/core/data/trakt/client";
+import {
+  TRAKT_API_BASE,
+  TraktClient,
+  TraktReadError,
+  type TraktResult,
+} from "@cue/core/data/trakt/client";
 import {
   loadUpNextEntries,
   READ_CONCURRENCY,
@@ -327,6 +332,26 @@ describe("cold-sync GET budget", () => {
     expect(startedAt).toHaveLength(11);
     const blockedAt = startedAt[0] as number;
     expect(startedAt.filter((at) => at - blockedAt < 900).length).toBeLessThanOrEqual(6);
+  });
+
+  it("abandons the rest of the fan-out the moment one member loses it", async () => {
+    // The aggregate is all-or-nothing, so once one progress read has failed the
+    // members still queued for a slot are reading an answer nobody can use. Left
+    // running they spend the window anyway, and their tail overlaps the caller's
+    // next attempt: the fan-out has to stop, and be settled, before it throws.
+    installColdSync(10);
+    let progressGets = 0;
+    server.use(
+      http.get(`${TRAKT_API_BASE}/shows/:id/progress/watched`, () => {
+        progressGets += 1;
+        return HttpResponse.json({} as never, { status: 503 });
+      }),
+    );
+
+    await expect(loadUpNextEntries(client)).rejects.toThrow(TraktReadError);
+
+    // Only the reads that already held a slot when the first failure landed.
+    expect(progressGets).toBe(READ_CONCURRENCY);
   });
 
   it("caps concurrent reads across independent callers, not per fan-out", async () => {

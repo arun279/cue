@@ -1,6 +1,7 @@
 import { QueryClient as Client, type Query, type QueryClient } from "@tanstack/react-query";
 import { queryKeys } from "../data/query-keys";
-import { readRetryDelayMs, shouldRetryRead } from "../sync-contract";
+import { backoffMs } from "../domain/write-queue/classify";
+import { shouldRetryRead } from "../sync-contract";
 import { PERSISTED_CACHE } from "./persist-buster";
 
 export const PERSIST_BUSTER = PERSISTED_CACHE.buster;
@@ -55,13 +56,15 @@ export function createQueryClient(): QueryClient {
         // check on regaining visibility, so navigation costs zero Trakt data calls.
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
-        // A rate limit or a transport blip is not a load failure yet, so a read
-        // that hits one retries itself, waiting exactly as long as Trakt asked
-        // (`Retry-After`). Only a failure that survives the budget reaches a
-        // screen, which is what stops a single 429 mid-refetch from painting a
-        // "can't reach Trakt" strip over data that is on the screen and fine.
+        // A transport blip or a 5xx is not a load failure yet, so a read that
+        // hits one retries itself before any screen is told, which is what stops
+        // it from painting a "can't reach Trakt" strip over data that is on the
+        // screen and fine. It backs off on the same ladder the write queue uses,
+        // so both sides of the app behave identically. A rate limit is NOT
+        // retried here: the read pool owns that one, on Trakt's own
+        // `Retry-After`, and two ladders over one 429 triple the reads.
         retry: shouldRetryRead,
-        retryDelay: readRetryDelayMs,
+        retryDelay: backoffMs,
       },
     },
   });

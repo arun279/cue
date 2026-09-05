@@ -19,7 +19,6 @@
  */
 
 import { type TraktFailure, TraktReadError } from "./data/trakt/client";
-import { backoffMs } from "./domain/write-queue/classify";
 
 /**
  * How long a mark stays take-back-able: the snackbar's Undo and the row's green
@@ -39,20 +38,27 @@ export const PENDING_GRACE_MS = 5000;
 export const PENDING_THRESHOLD = 3;
 
 /**
- * Attempts a single read gets before the app stops on its own. Three (the call
- * plus two retries) rides out a rate-limit window or a transport blip in a few
+ * Attempts a single read gets from the query layer before the app stops on its
+ * own. Three (the call plus two retries) rides out a transport blip in a few
  * seconds; past that the failure is real enough to show, with a Retry.
  */
 const MAX_READ_ATTEMPTS = 3;
 
 /**
- * Failures worth trying again: the window will reopen, the proxy will recover,
- * the socket will connect. A 4xx that is not a rate limit will not, so retrying
- * one only delays the truth. `server` carries its status because the client
- * folds every non-2xx it does not model into it.
+ * Failures the QUERY layer retries: the proxy will recover, the socket will
+ * connect, and nothing else is retrying them. A rate limit is deliberately
+ * absent. The read pool already retries a 429 on Trakt's own `Retry-After` and
+ * holds every other read behind the pause it opens, so one 429 is one bounded
+ * ladder there; retrying it here as well would re-run a whole aggregate read
+ * into a window the app already knows is closed, and multiply the very traffic
+ * the limit is asking it to reduce. The pool is also the only layer over the
+ * write queue's reconcile reads, so it is the one that has to own this. A 4xx
+ * that is not a rate limit will not heal, so retrying it only delays the truth;
+ * `server` carries its status because the client folds every non-2xx it does not
+ * model into it.
  */
-export function isTransientFailure(failure: TraktFailure): boolean {
-  if (failure.kind === "rate-limited" || failure.kind === "network") return true;
+function healsOnRetry(failure: TraktFailure): boolean {
+  if (failure.kind === "network") return true;
   return failure.kind === "server" && failure.status >= 500;
 }
 
@@ -64,19 +70,7 @@ export function readFailureOf(error: unknown): TraktFailure | null {
 /** TanStack `retry`: `failureCount` is the count BEFORE this failure is counted. */
 export function shouldRetryRead(failureCount: number, error: unknown): boolean {
   const failure = readFailureOf(error);
-  return failure !== null && isTransientFailure(failure) && failureCount + 1 < MAX_READ_ATTEMPTS;
-}
-
-/**
- * TanStack `retryDelay`. A rate limit waits exactly as long as Trakt asked
- * (`parseRetryAfterMs` already clamped it); everything else takes the same
- * exponential ladder the write queue retries on, so both sides of the app back
- * off identically.
- */
-export function readRetryDelayMs(failureCount: number, error: unknown): number {
-  const failure = readFailureOf(error);
-  const retryAfter = failure?.kind === "rate-limited" ? failure.retryAfterMs : null;
-  return retryAfter ?? backoffMs(failureCount);
+  return failure !== null && healsOnRetry(failure) && failureCount + 1 < MAX_READ_ATTEMPTS;
 }
 
 /**

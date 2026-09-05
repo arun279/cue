@@ -1,5 +1,5 @@
 import { toMs } from "../../domain/time";
-import { type TraktClient, type TraktResult, unwrapRead } from "./client";
+import { type TraktClient, TraktReadError, type TraktResult, unwrapRead } from "./client";
 import { getHidden, getShowProgress, getWatchedShows, getWatchlist } from "./endpoints";
 import { assembleLibrary, type LibraryEntry, showIdSet, watchedEpisodeCount } from "./library";
 import type { Progress, WatchedShow } from "./schemas";
@@ -18,8 +18,14 @@ export const READ_CONCURRENCY = 6;
  * fan-out is absorbed (honoring Retry-After) instead of failing the whole load
  * into Offline; after the budget the failure surfaces so cached data + the retry
  * banner take over rather than spinning forever.
+ *
+ * This is the app's ONLY retry ladder for a rate limit. The query layer
+ * deliberately does not retry one (`shouldRetryRead`), because two ladders over
+ * the same 429 multiply an aggregate read into the window that asked for less
+ * traffic; and this is the only layer above the write queue's reconcile reads,
+ * which have no query over them at all.
  */
-const MAX_READ_RATE_RETRIES = 3;
+export const MAX_READ_RATE_RETRIES = 3;
 const DEFAULT_RATE_BACKOFF_MS = 1000;
 
 /**
@@ -134,6 +140,50 @@ export async function withReadRateRetry<T>(
   }
 }
 
+/** Thrown by a fan-out member whose group has already lost, so it never issues its request. */
+const ABANDONED = Symbol("abandoned read");
+
+/**
+ * The per-show progress fan-out, run as one unit.
+ *
+ * The aggregate is all-or-nothing, so the first failure abandons every member
+ * still queued for a pool slot: a read whose answer nobody can use must not
+ * spend the rate-limit window, least of all the window that just closed. The
+ * decision is taken inside the pooled call, BEFORE the slot is handed on, so a
+ * member waking into a lost group cannot slip a request out first. And because
+ * no member ever rejects, the group has fully settled before this throws, so a
+ * caller's retry can never overlap the tail of the attempt it replaces.
+ */
+async function readProgressHead(
+  client: TraktClient,
+  head: readonly WatchedShow[],
+): Promise<Map<number, Progress>> {
+  let failure: unknown = null;
+  const entries = await Promise.all(
+    head.map(async (show) => {
+      const id = show.show.ids.trakt;
+      try {
+        const read = await withReadRateRetry(async () => {
+          if (failure !== null) throw ABANDONED;
+          const attempt = await getShowProgress(client, id);
+          // The pool retries a 429 itself, so only a failure it will not absorb
+          // loses the group here; one it does surface is caught below.
+          if (!attempt.ok && attempt.error.kind !== "rate-limited") {
+            failure = new TraktReadError(attempt.error, "show progress");
+          }
+          return attempt;
+        });
+        return [id, unwrapRead(read, "show progress")] as const;
+      } catch (error) {
+        if (error !== ABANDONED) failure ??= error;
+        return null;
+      }
+    }),
+  );
+  if (failure !== null) throw failure;
+  return new Map(entries.filter((entry) => entry !== null));
+}
+
 /** Most-recently-watched first (unknown last-watched sorts oldest). */
 function byLastWatchedDesc(a: WatchedShow, b: WatchedShow): number {
   return (toMs(b.last_watched_at) ?? 0) - (toMs(a.last_watched_at) ?? 0);
@@ -165,14 +215,7 @@ export async function loadUpNextEntries(client: TraktClient): Promise<LibraryEnt
     .filter((show) => watchedEpisodeCount(show) !== show.show.aired_episodes)
     .sort(byLastWatchedDesc)
     .slice(0, WATCHED_PROGRESS_BUDGET);
-  const perShow = await Promise.all(
-    head.map(async (show) => {
-      const id = show.show.ids.trakt;
-      const read = await withReadRateRetry(() => getShowProgress(client, id));
-      return { id, progress: unwrapRead(read, "show progress") };
-    }),
-  );
-  const progress = new Map<number, Progress>(perShow.map((s) => [s.id, s.progress]));
+  const progress = await readProgressHead(client, head);
 
   const [hidden, watchlist] = await Promise.all([
     withReadRateRetry(() => getHidden(client)),

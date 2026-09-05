@@ -6,8 +6,12 @@
  * outage over data that is on the screen and fine.
  */
 
-import { TraktReadError } from "@cue/core/data/trakt/client";
-import { resetReadPause } from "@cue/core/data/trakt/read-budget";
+import { TraktReadError, type TraktResult, unwrapRead } from "@cue/core/data/trakt/client";
+import {
+  MAX_READ_RATE_RETRIES,
+  resetReadPause,
+  withReadRateRetry,
+} from "@cue/core/data/trakt/read-budget";
 import { queryStatus } from "@cue/core/hooks/query-freshness";
 import { createQueryClient } from "@cue/core/runtime/query-cache";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
@@ -45,10 +49,8 @@ afterEach(() => {
 });
 
 describe("a read that keeps failing", () => {
-  it("is retried on the server's Retry-After before the screen hears about it", async () => {
-    const queryFn = vi.fn(() =>
-      Promise.reject(new TraktReadError({ kind: "rate-limited", retryAfterMs: 7000 }, "library")),
-    );
+  it("is retried on the shared backoff ladder before the screen hears about it", async () => {
+    const queryFn = vi.fn(() => Promise.reject(new TraktReadError({ kind: "network" }, "library")));
     const seen = mountRead(queryFn);
 
     // Still trying, so there is nothing for the user to retry.
@@ -59,15 +61,19 @@ describe("a read that keeps failing", () => {
     expect(last(seen).retrying).toBe(true);
     expect(last(seen).isError).toBe(false);
 
-    // Not a moment before Trakt said so.
+    // The same ladder the write queue backs off on: 1s, then 2s.
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(6000);
-    });
-    expect(queryFn).toHaveBeenCalledTimes(1);
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(1500);
+      await vi.advanceTimersByTimeAsync(1000);
     });
     expect(queryFn).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    expect(queryFn).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1100);
+    });
+    expect(queryFn).toHaveBeenCalledTimes(3);
   });
 
   it("settles on a failure the screen can name, and stops calling itself retrying", async () => {
@@ -139,6 +145,32 @@ describe("a read that keeps failing", () => {
 
     expect(queryFn).toHaveBeenCalledTimes(1);
     expect(last(seen).failure).toEqual({ kind: "unauthorized" });
+    expect(last(seen).retrying).toBe(false);
+  });
+});
+
+describe("a sustained rate limit", () => {
+  it("costs one bounded ladder of requests to the endpoint, not two stacked", async () => {
+    // The pool retries a 429 on Trakt's own schedule; the query layer must not
+    // retry the same failure on top of it, or one refetch of an aggregate read
+    // costs three times the requests into the window that asked for fewer.
+    let requests = 0;
+    const queryFn = () =>
+      withReadRateRetry(() => {
+        requests += 1;
+        return Promise.resolve({
+          ok: false,
+          error: { kind: "rate-limited", retryAfterMs: 1000 },
+        } as TraktResult<never>);
+      }).then((read) => unwrapRead(read, "watched shows"));
+
+    const seen = mountRead(queryFn);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(120_000);
+    });
+
+    expect(requests).toBe(MAX_READ_RATE_RETRIES + 1);
+    expect(last(seen).failure).toEqual({ kind: "rate-limited", retryAfterMs: 1000 });
     expect(last(seen).retrying).toBe(false);
   });
 });

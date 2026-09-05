@@ -9,11 +9,9 @@ import { describe, expect, it } from "vitest";
 import { TraktReadError } from "../src/data/trakt/client";
 import {
   appendToBatch,
-  isTransientFailure,
   markControlTickMs,
   markRecordRetireMs,
   readFailureBody,
-  readRetryDelayMs,
   resolveMarkControl,
   SYNC_BANNER_KINDS,
   type SyncBannerInput,
@@ -168,34 +166,26 @@ describe("readFailureBody", () => {
 });
 
 describe("read retry policy", () => {
-  it("retries a rate limit for exactly as long as Trakt asked", () => {
-    const error = readError({ kind: "rate-limited", retryAfterMs: 7000 });
-    expect(shouldRetryRead(0, error)).toBe(true);
-    expect(readRetryDelayMs(0, error)).toBe(7000);
-  });
-
-  it("backs off on its own when the server names no wait", () => {
-    const error = readError({ kind: "rate-limited", retryAfterMs: null });
-    expect(readRetryDelayMs(0, error)).toBe(1000);
-    expect(readRetryDelayMs(1, error)).toBe(2000);
-  });
-
   it("retries a 5xx and a transport failure, and stops at the budget", () => {
-    expect(shouldRetryRead(0, readError({ kind: "server", status: 502 }))).toBe(true);
+    expect(shouldRetryRead(0, readError({ kind: "server", status: 500 }))).toBe(true);
     expect(shouldRetryRead(0, readError({ kind: "network" }))).toBe(true);
     expect(shouldRetryRead(2, readError({ kind: "network" }))).toBe(false);
+  });
+
+  it("leaves a rate limit to the read pool, which is already retrying it", () => {
+    // Two ladders over one 429 multiply an aggregate read into the very window
+    // that asked for less traffic. The pool honours Retry-After and holds every
+    // other read behind the same pause, so it owns this one alone.
+    expect(shouldRetryRead(0, readError({ kind: "rate-limited", retryAfterMs: 7000 }))).toBe(false);
+    expect(shouldRetryRead(0, readError({ kind: "rate-limited", retryAfterMs: null }))).toBe(false);
   });
 
   it("never retries a failure that will not heal, nor a non-read throw", () => {
     expect(shouldRetryRead(0, readError({ kind: "unauthorized" }))).toBe(false);
     expect(shouldRetryRead(0, readError({ kind: "not-found" }))).toBe(false);
     expect(shouldRetryRead(0, readError({ kind: "server", status: 422 }))).toBe(false);
+    expect(shouldRetryRead(0, readError({ kind: "server", status: 400 }))).toBe(false);
     expect(shouldRetryRead(0, new Error("bad shape"))).toBe(false);
-  });
-
-  it("agrees with the failure predicate it is built on", () => {
-    expect(isTransientFailure({ kind: "server", status: 500 })).toBe(true);
-    expect(isTransientFailure({ kind: "server", status: 400 })).toBe(false);
   });
 });
 
