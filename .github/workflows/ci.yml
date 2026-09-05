@@ -68,8 +68,33 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+      - uses: ./.github/actions/setup-node-pnpm
       - name: Measure the diff footprint
-        run: scripts/diff-footprint.sh "origin/${{ github.base_ref }}" > footprint.md
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          base=$(git merge-base "origin/$BASE_REF" HEAD)
+          git worktree add ../base "$base"
+
+          scripts/measure-sizes.sh "$PWD" "$PWD/head-sizes.json"
+          node scripts/measure-complexity.mjs "$PWD" "$PWD/head-complexity.json"
+          node scripts/measure-comments.mjs "$PWD" "$PWD/head-comments.json"
+          scripts/measure-sizes.sh ../base "$PWD/base-sizes.json"
+          node scripts/measure-complexity.mjs ../base "$PWD/base-complexity.json"
+          node scripts/measure-comments.mjs ../base "$PWD/base-comments.json"
+
+          jq -n --slurpfile sizes head-sizes.json \
+            --slurpfile complexity head-complexity.json \
+            --slurpfile comments head-comments.json \
+            '{sizes: $sizes[0], complexity: $complexity[0], comments: $comments[0]}' \
+            > head-metrics.json
+          jq -n --slurpfile sizes base-sizes.json \
+            --slurpfile complexity base-complexity.json \
+            --slurpfile comments base-comments.json \
+            '{sizes: $sizes[0], complexity: $complexity[0], comments: $comments[0]}' \
+            > base-metrics.json
+          scripts/diff-footprint.sh "origin/$BASE_REF" base-metrics.json head-metrics.json \
+            > footprint.md
       - name: Update the pull request comment
         env:
           GH_TOKEN: ${{ github.token }}
