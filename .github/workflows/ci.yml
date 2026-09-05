@@ -208,10 +208,15 @@ jobs:
       # release with the debug keystore, so this needs no secret.
       - name: Build the release APK and check what it declares
         working-directory: packages/native/android
+        env:
+          # Google Play limits compressed downloads for one device to 200 MB.
+          APK_SIZE_LIMIT_BYTES: "200000000"
         run: |
           ./gradlew assembleRelease
+          apk=app/build/outputs/apk/release/app-release.apk
+          node ../../../scripts/assert-file-size.mjs "$apk" "$APK_SIZE_LIMIT_BYTES" "release APK"
           ../../../scripts/verify-apk.sh \
-            app/build/outputs/apk/release/app-release.apk 42 9.9.9 expo
+            "$apk" 42 9.9.9 expo
   e2e:
     needs: check
     runs-on: ubuntu-latest
