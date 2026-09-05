@@ -8,10 +8,11 @@
  *
  * `pnpm buster:check` recomputes `shape` and fails while the two disagree, so a
  * forgotten bump is a build failure rather than a silent one. The two fields
- * differ only between the commit that introduced this file and the first genuine
- * shape change after it.
+ * differ once per change to what the witness is taken over, which is a change to
+ * the measurement rather than to any shape, and once per genuine shape change
+ * after it.
  */
 export const PERSISTED_CACHE = {
   buster: "d0c3d97c58b8",
-  shape: "b76d12c06a3e",
+  shape: "e204ed829a75",
 } as const;

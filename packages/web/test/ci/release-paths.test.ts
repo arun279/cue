@@ -12,6 +12,7 @@ const REPOSITORY_ROOT = execFileSync("git", ["rev-parse", "--show-toplevel"], {
 const CI_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/ci.yml");
 const MOBILE_RELEASE_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/mobile-release.yml");
 const NOT_REQUIRED = ["footprint"];
+const REQUIRED_EXTERNAL = ["codeql"];
 
 // Markdown inside a shipping tree stays in SHIPS. Vite copies public/** into
 // dist verbatim, so excluding *.md by extension misclassified those files; the
@@ -73,7 +74,15 @@ const DOES_NOT_SHIP = [
   "knip.json",
   ".jscpd.json",
   ".dependency-cruiser.cjs",
+  ".size-limit.json",
+  ".github/workflows/codeql.yml",
+  "scripts/assert-file-size.mjs",
+  "scripts/assert-ipa-size.mjs",
+  "scripts/check-size.mjs",
+  "scripts/complexity/**",
   "scripts/diff-footprint.sh",
+  "scripts/measure-*.mjs",
+  "scripts/measure-sizes.sh",
   "scripts/mock-trakt/**",
   "scripts/write-buster.mjs",
   "tsconfig.depcruise.json",
@@ -247,7 +256,9 @@ describe("the iOS toolchain pin", () => {
 describe("mobile release gate required checks", () => {
   it("keeps REQUIRED aligned with CI jobs except explicit exemptions", () => {
     const requiredJobs = readCiJobs().filter((job) => !NOT_REQUIRED.includes(job.name));
-    expect([...readRequiredChecks()].sort()).toEqual(requiredJobs.map((job) => job.name).sort());
+    expect([...readRequiredChecks()].sort()).toEqual(
+      [...requiredJobs.map((job) => job.name), ...REQUIRED_EXTERNAL].sort(),
+    );
   });
 
   it("uses CI job IDs as check-run names", () => {
