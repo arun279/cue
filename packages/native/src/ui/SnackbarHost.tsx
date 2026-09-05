@@ -41,12 +41,6 @@ function rootBottom(insetBottom: number): number {
  */
 const SCREEN_READER_TIMEOUT_MS = 15_000;
 
-/**
- * Which host is topmost. It is a rule rather than a list, because a list goes
- * stale the moment a presentation is added: the deepest host that is mounted is
- * the one drawing, and every host reads the same store, so dismissing a
- * presentation while a snack is up only moves which host draws it.
- */
 let mounted: readonly string[] = [];
 const listeners = new Set<() => void>();
 
@@ -75,20 +69,9 @@ function useIsTopHost(): boolean {
   return useSyncExternalStore(subscribe, topHost) === id;
 }
 
-/**
- * The countdown, held outside the view. A presentation opening or closing
- * changes which host draws the snack, and re-hosting must not restart the
- * timer, so the deadline is keyed on the snack's own sequence number and only a
- * replacing snack sets a new one.
- */
+// Re-hosting preserves the deadline; a new snack or timeout resets it.
 let deadline: { readonly seq: number; readonly timeout: number; readonly at: number } | null = null;
 
-/**
- * One transient message, mounted in every presentation that can raise one and
- * drawn only by the topmost. There is no close control and no hover pause: the
- * timer and the actions are the whole of it, and Undo is never the only way
- * back, so a missed snackbar is an inconvenience rather than a loss.
- */
 export function SnackbarHost({
   placement,
 }: {
@@ -182,8 +165,6 @@ const styles = StyleSheet.create({
     paddingVertical: SPACE.s1 + 2,
     borderRadius: 14,
   },
-  // At the largest content sizes the message and its actions stop sharing a
-  // line rather than either of them shrinking below the target floor.
   stacked: { flexDirection: "column", alignItems: "stretch", gap: SPACE.s2 },
   message: { minWidth: 0 },
   messageInline: { flex: 1 },

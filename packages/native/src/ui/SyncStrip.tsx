@@ -37,13 +37,7 @@ const STATE_TEST_ID: Partial<Record<SyncStripProps["state"], string>> = {
   error: TEST_IDS.syncStripError,
 };
 
-/**
- * A 32 pt band the screen renders as the first thing in its scroll content, so
- * it scrolls away rather than spending 32 pt of every scrolled screen repeating
- * a message the reader has already taken in. It is announced politely on a state
- * change, never on a re-render, and the dot never carries the state on its own:
- * every state has its own sentence.
- */
+/** Render first inside scroll content so the strip scrolls away. */
 export function SyncStrip(props: SyncStripProps): ReactElement {
   const colors = useColors();
   const text = message(props);

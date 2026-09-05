@@ -59,7 +59,6 @@ interface RoleSpec {
   readonly face: Face;
 }
 
-/** The iOS text style each role scales with, which is A4's own mapping. */
 const RAMP: Readonly<Record<TypeRole, NonNullable<TextProps["dynamicTypeRamp"]>>> = {
   screenTitle: "largeTitle",
   screenTitlePushed: "headline",
@@ -94,12 +93,6 @@ const IOS_ROLES: Readonly<Record<TypeRole, RoleSpec>> = {
   micro: { size: 11, lineHeight: 13, weight: "bold", face: "ui" },
 };
 
-/**
- * The Material scale, with Cue's own weights rather than the baseline's, so a
- * row title reads the same on both platforms. Material components draw Inter
- * too: the theme's typography is the app's, and Roboto appears only where the
- * platform draws the type itself.
- */
 const ANDROID_ROLES: Readonly<Record<TypeRole, RoleSpec>> = {
   screenTitle: { size: 28, lineHeight: 36, weight: "semibold", face: "ui" },
   screenTitlePushed: {
@@ -162,11 +155,7 @@ const BASE = byRole((spec) => ({
   ...faceStyle(spec.face, spec.weight),
 }));
 
-/**
- * Section labels, day sub-headers and the marquee's lead-in: a role set in caps
- * and tracked out. Tracking is stated in ems by both style sheets and React
- * Native takes points, so it is resolved against the role's own size.
- */
+/** React Native takes tracking in points; the stylesheets specify ems. */
 const EYEBROW_TRACKING_EM = Platform.OS === "ios" ? 0.06 : 0.08;
 const EYEBROW = byRole<TextStyle>((spec) => ({
   textTransform: "uppercase",
@@ -185,7 +174,6 @@ export interface CueTextProps extends TextProps {
   readonly tabularNums?: boolean;
 }
 
-/** Text at one of the eleven roles, and the only way this app draws type. */
 export function CueText({
   variant,
   weight,

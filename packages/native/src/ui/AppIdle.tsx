@@ -13,16 +13,8 @@ import { TEST_IDS } from "./test-ids";
 const QUEUE_SAMPLE_MS = 1000;
 
 /**
- * The idle marker, and the reason the end-to-end lane records a behavior rather
- * than a race. It is present only when no read is in flight and nothing is
- * waiting to be written, which is the native equivalent of a network-idle wait:
- * pending is the higher of the in-flight flush count and the durable queue
- * depth, because a mark deferred offline sits in the op-log with nothing in
- * flight and is still pending.
- *
- * A point in the corner rather than a zero-sized view, so the hierarchy dump the
- * runner reads has something with bounds to find, and it neither takes touches
- * nor speaks.
+ * A point rather than a zero-sized view gives hierarchy dumps bounds to find.
+ * Pending durable writes count as busy even when no flush is in flight.
  */
 export function AppIdle(): ReactElement | null {
   const fetching = useIsFetching();

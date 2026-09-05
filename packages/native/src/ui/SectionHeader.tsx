@@ -16,11 +16,6 @@ export interface SectionHeaderProps {
   readonly testID?: string;
 }
 
-/**
- * A section label, and it is a real heading: the rotor and TalkBack's heading
- * navigation traverse these, which is how a screen reader user moves between
- * the parts of a screen instead of swiping through every row of it.
- */
 export function SectionHeader({ label, action, testID }: SectionHeaderProps): ReactElement {
   const colors = useColors();
 

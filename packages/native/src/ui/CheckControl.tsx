@@ -3,7 +3,6 @@ import { Pressable, StyleSheet, View } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import { CHECK_SIZE, RADIUS, SPACE, useColors } from "./tokens";
 
-/** The ring's own weight, and the glyph as a fraction of the disc it sits in. */
 const RING_WIDTH = 2;
 const GLYPH_RATIO = 0.52;
 
@@ -22,17 +21,8 @@ export interface CheckControlProps {
 }
 
 /**
- * The most-used control in the product.
- *
- * At rest the ring is `--color-muted` rather than the retired
- * `--color-border-strong`, which read 1.75:1 on the light background and 1.88:1
- * on the dark one: below the W3C's own published failure example for a checkbox
- * whose border is the only thing identifying it. `--color-muted` clears 3:1 on
- * every surface the check can sit on.
- *
- * It is a switch with a checked state rather than a button, and it is a sibling
- * of the row it belongs to rather than a child, because a control nested inside
- * another accessibility element is not a valid tree.
+ * The retired border-strong ring read 1.75:1 on light and 1.88:1 on dark.
+ * Muted clears 3:1 on every surface the check can sit on.
  */
 export function CheckControl({
   checked,

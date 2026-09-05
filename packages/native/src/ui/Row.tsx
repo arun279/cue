@@ -21,16 +21,6 @@ export interface RowProps {
   readonly children: ReactNode;
 }
 
-/**
- * A list row.
- *
- * Above `REFLOW_FONT_SCALE` the trailing cluster moves below the text column and
- * stays right-aligned, which is what UIKit does to a cell accessory at the
- * accessibility sizes: two fixed targets take a fifth of the width exactly when
- * the title needs all of it, and beside them a single unbreakable show title
- * would be drawn underneath them. The row grows and nothing is dropped, which is
- * the alternative to hyphenating a title mid-word.
- */
 export function Row({
   label,
   minHeight,

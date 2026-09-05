@@ -11,13 +11,7 @@ const ANDROID: Readonly<Record<Politeness, LiveRegionProps>> = {
 const NONE: LiveRegionProps = {};
 
 /**
- * The one place a status is announced.
- *
- * The web app has eleven live regions. Android has `accessibilityLiveRegion`
- * and iOS has only the imperative announcement, so both go through here rather
- * than being spelled out at each of them. Keyed on the message, so a state
- * change speaks and a re-render does not, and focus is never moved.
- *
+ * iOS needs an imperative announcement; Android has accessibilityLiveRegion.
  * Spread the result onto the view that holds the message.
  */
 export function useLiveRegion(message: string | null, politeness: Politeness): LiveRegionProps {

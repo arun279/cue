@@ -57,7 +57,6 @@ void SplashScreen.preventAutoHideAsync().catch(() => {});
 
 const prefsStore = createPrefsStore(preferenceStorage);
 const tokenStore = createTokenStore(secureStore);
-// Read at fire time rather than captured, exactly as the web build reads it.
 const haptics = createNativeHaptics(() => prefsStore.getState().hapticsEnabled);
 const reminders = createNativeReminders();
 const network = createNativeNetwork();
@@ -137,8 +136,6 @@ function Gate(): ReactElement {
                 happened to be selected. */}
             <Stack.Screen name="(account)" options={{ presentation: "fullScreenModal" }} />
           </Stack>
-          {/* The root host. Every presentation that can raise a snack mounts one
-              of its own, and only the topmost draws. */}
           <SnackbarHost placement="root" />
           <AppIdle />
         </View>
@@ -158,9 +155,6 @@ export default function RootLayout(): ReactElement {
     if (authStore !== null && fontsSettled) void SplashScreen.hideAsync().catch(() => {});
   }, [authStore, fontsSettled]);
 
-  // Nothing to paint until the stores and the faces are settled, and the splash
-  // is still up. "Settled" rather than "loaded" for the faces: one that will not
-  // load falls back to the platform's own, which is not a reason to hold here.
   if (authStore === null || !fontsSettled) return <View testID="boot-hold" />;
 
   return (

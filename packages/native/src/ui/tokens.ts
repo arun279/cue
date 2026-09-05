@@ -8,23 +8,7 @@ import {
   type ViewStyle,
 } from "react-native";
 
-/**
- * The design tokens, resolved for React Native.
- *
- * Every color below is a light/dark pair transcribed from the web app's
- * `src/ui/styles.css`, which is the one place the palette is defined. The pairs
- * are what iOS wants: a `DynamicColorIOS` value resolves itself, including under
- * `Appearance.setColorScheme`, so the three-way Theme setting drives the whole
- * palette, `useColorScheme` and `expo-status-bar` together and no token needs
- * plumbing of its own. Android has no such value, so `useColors` resolves the
- * pair against `useColorScheme` there.
- *
- * Two tokens do not survive the port. `--color-border-strong` is retired: its
- * five web users are the check ring, the sheet grabber, the History search
- * input, the Settings switch and the Library filter stroke, and on native the
- * first and last become `muted` while the middle three are drawn by the
- * platform. `--color-focus` goes with the CSS focus ring it exists for.
- */
+/** Native replaces border-strong with muted or platform strokes and retires the web focus ring. */
 const PALETTE = {
   bg: { light: "#fbfaf7", dark: "#0e0c0a" },
   surface: { light: "#ffffff", dark: "#17140f" },
@@ -99,10 +83,6 @@ export const SPACE = { s1: 4, s2: 8, s3: 12, s4: 16, s5: 24, s6: 32, s7: 48, s8:
 
 export const RADIUS = { poster: 8, control: 12, card: 16, sheet: 20, pill: 999 } as const;
 
-/**
- * No row has a height. Every row has a minimum and grows, so a title that wraps
- * at the largest content sizes takes the room it needs instead of truncating.
- */
 export const ROW_MIN_HEIGHT = {
   marquee: 140,
   queue: 72,
@@ -116,22 +96,16 @@ export const ROW_MIN_HEIGHT = {
   footer: 48,
 } as const;
 
-/** Apple's default control size is 44 by 44 pt; Material's is 48 dp. */
 export const TARGET_MIN = Platform.OS === "ios" ? 44 : 48;
 
-/** The check's two sizes. The 44 pt one went with the "Previously" strip. */
 export const CHECK_SIZE = { marquee: 56, row: 48 } as const;
 
 /** `.sep` is a half-point hairline on iOS; `DividerDefaults.Thickness` is 1 dp. */
 export const HAIRLINE = Platform.OS === "ios" ? StyleSheet.hairlineWidth : 1;
 
 /**
- * The lift under a surface that floats over the page. It is load bearing rather
- * than decoration: on the light theme `--color-overlay` is #ffffff on a #fbfaf7
- * page, 1.04:1, so nothing else separates a snackbar from what it covers.
- * Android takes elevation and the platform draws its own shadow; iOS takes the
- * offset, radius and opacity, with the shadow's own black rather than a palette
- * color, which is what a shadow is.
+ * Load bearing rather than decoration: the light overlay is #ffffff on a
+ * #fbfaf7 page, 1.04:1, so the shadow separates a snackbar from what it covers.
  */
 export const FLOAT_SHADOW: ViewStyle = Platform.select({
   android: { elevation: 6 },
