@@ -12,7 +12,7 @@ const REPOSITORY_ROOT = execFileSync("git", ["rev-parse", "--show-toplevel"], {
 const CI_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/ci.yml");
 const MOBILE_RELEASE_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/mobile-release.yml");
 const NOT_REQUIRED = ["footprint"];
-const REQUIRED_EXTERNAL = ["codeql"];
+const REQUIRED_EXTERNAL = ["codeql (javascript-typescript)", "codeql (actions)"];
 
 // Markdown inside a shipping tree stays in SHIPS. Vite copies public/** into
 // dist verbatim, so excluding *.md by extension misclassified those files; the

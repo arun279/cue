@@ -171,7 +171,7 @@ jobs:
           # Job names that exist in ci.yml or codeql.yml. Never list one that does not:
           # a check that can never report turns the wait below into a guaranteed
           # timeout on every release.
-          REQUIRED: '["check","audit","actionlint","standardrb","android","ios","native-android","native-ios","e2e","codeql"]'
+          REQUIRED: '["check","audit","actionlint","standardrb","android","ios","native-android","native-ios","e2e","codeql (javascript-typescript)","codeql (actions)"]'
           # GitHub Actions, so no other check provider can satisfy a required name.
           APP_ID: "15368"
           DEADLINE_MINUTES: "45"
@@ -224,7 +224,7 @@ jobs:
                   | [ $required[]
                       | . as $name
                       | ([ $all_runs[]
-                           | select(.name == $name and ($name == "codeql" or .check_suite.id == $suite))
+                           | select(.name == $name and (($name | startswith("codeql (")) or .check_suite.id == $suite))
                          ] | sort_by(.started_at) | last) as $latest
                       | if $latest == null then { name: $name, state: "missing", verdict: "pending" }
                         elif $latest.status != "completed" then { name: $name, state: $latest.status, verdict: "pending" }
