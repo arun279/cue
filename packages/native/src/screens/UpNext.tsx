@@ -1,26 +1,64 @@
 import { epCode } from "@cue/core/domain/model/library";
+import { useMarkControl } from "@cue/core/hooks/useMarkControl";
 import { useMarkWatched } from "@cue/core/hooks/useMarkWatched";
-import { useUpNext } from "@cue/core/hooks/useUpNext";
+import { useSyncBanner } from "@cue/core/hooks/useSyncBanner";
+import { type UpNextCard, useUpNext } from "@cue/core/hooks/useUpNext";
+import { readFailureBody } from "@cue/core/sync-contract";
 import { Link } from "expo-router";
 import type { ReactElement } from "react";
 import { FlatList, Pressable, Text, View } from "react-native";
 
+/** One row's check, over the shared grammar: green only through the undo
+ * window, then the advanced row, with a quiet note while the mark is still on
+ * its way to Trakt. Its own component so the hook has a stable home per card. */
+function Row({ card }: { readonly card: UpNextCard }): ReactElement {
+  const control = useMarkControl(card.entry, useMarkWatched());
+  return (
+    <View testID="up-next-card">
+      <Text>{card.entry.title}</Text>
+      <Text>{epCode(card.item.episode.season, card.item.episode.number)}</Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={control.label}
+        accessibilityState={{ checked: control.state !== "unwatched" }}
+        testID={`mark-watched-${card.entry.showId}`}
+        onPress={control.onPress}
+      >
+        <Text testID={`mark-state-${card.entry.showId}`}>{control.state}</Text>
+      </Pressable>
+      {control.pending && <Text testID={`mark-pending-${card.entry.showId}`}>Not synced yet</Text>}
+    </View>
+  );
+}
+
 /**
- * Up Next, over the shared hook and nothing else. Unstyled on purpose: the
+ * Up Next, over the shared hooks and nothing else. Unstyled on purpose: the
  * visual layer is its own piece of work, and what this has to prove first is
- * that the whole read path, the persisted cache, the write queue and the mark
- * surfaces already work on this target without a line of new logic.
+ * that the whole read path, the persisted cache, the write queue and the sync
+ * contract already work on this target without a line of new logic.
  */
 export function UpNext(): ReactElement {
-  const { queue, isLoading, isError, hasData } = useUpNext();
-  const marking = useMarkWatched();
+  const view = useUpNext();
+  const banner = useSyncBanner(view);
 
-  if (isLoading) return <Text testID="up-next-skeleton">Loading your queue…</Text>;
-  if (isError && !hasData) return <Text testID="up-next-error">Couldn't load your queue.</Text>;
+  if (view.isLoading) return <Text testID="up-next-skeleton">Loading your queue…</Text>;
+  if (view.isError && !view.hasData) {
+    return (
+      <View testID="up-next-error">
+        <Text>Couldn't load your queue.</Text>
+        <Text>{readFailureBody(view.failure)}</Text>
+      </View>
+    );
+  }
 
   return (
     <View testID="screen-up-next">
       <Text accessibilityRole="header">Up Next</Text>
+      {banner !== null && (
+        <Text accessibilityRole="alert" testID="sync-strip">
+          {banner.message}
+        </Text>
+      )}
       {/* The account area is behind the header avatar on every tab root; this is
           that entry point before the header exists. */}
       <Link href="/profile" testID="open-account">
@@ -28,23 +66,10 @@ export function UpNext(): ReactElement {
       </Link>
       <FlatList
         testID="up-next-list"
-        data={queue}
+        data={view.queue}
         keyExtractor={(card) => String(card.entry.showId)}
         ListEmptyComponent={<Text testID="up-next-empty">Nothing queued.</Text>}
-        renderItem={({ item: card }) => (
-          <View testID="up-next-card">
-            <Text>{card.entry.title}</Text>
-            <Text>{epCode(card.item.episode.season, card.item.episode.number)}</Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Mark ${card.entry.title} watched`}
-              testID={`mark-watched-${card.entry.showId}`}
-              onPress={() => void marking.mark(card.entry)}
-            >
-              <Text>Mark watched</Text>
-            </Pressable>
-          </View>
-        )}
+        renderItem={({ item: card }) => <Row card={card} />}
       />
     </View>
   );
