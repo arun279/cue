@@ -70,3 +70,24 @@ export async function landed(page: Page): Promise<void> {
     )
     .toBe("[]");
 }
+
+/** The fake Trakt's origin, where its fault control plane lives. */
+const MOCK_TRAKT = "http://127.0.0.1:8787";
+
+/**
+ * Arm the fake Trakt's fault modes for the next few requests. This is the one
+ * place a flow configures the SERVER rather than intercepting the app: what a
+ * rate limit or an outage does to Cue is a property of Trakt's answers, and the
+ * native app has to survive the same ones.
+ */
+export async function armFault(rule: Record<string, unknown>): Promise<void> {
+  const response = await fetch(`${MOCK_TRAKT}/__fault`, {
+    method: "POST",
+    body: JSON.stringify(rule),
+  });
+  expect(response.ok).toBe(true);
+}
+
+export async function clearFaults(): Promise<void> {
+  await fetch(`${MOCK_TRAKT}/__fault`, { method: "DELETE" });
+}

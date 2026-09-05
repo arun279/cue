@@ -511,12 +511,16 @@ test("a read error over a warm cache keeps the queue under the SyncStrip error v
   controls.setReadMode("abort");
   await page.getByTestId("mark-watched").click(); // triggers a revalidate that will fail
   const strip = page.getByTestId("sync-strip");
-  await expect(strip).toHaveAttribute("data-state", "error");
-  await expect(strip).toContainText("Trakt unreachable. Showing your cached data.");
+  await expect(strip).toHaveAttribute("data-state", "unreachable");
+  await expect(strip).toContainText("Can't reach Trakt. Showing your cached data.");
   await expect(page.getByTestId("up-next-card")).toHaveCount(1);
 
+  // Retry appears only once the read has spent its own attempts: while the app
+  // is still trying there is nothing for the user to do.
+  const retry = strip.getByRole("button", { name: "Retry" });
+  await expect(retry).toBeVisible({ timeout: 15_000 });
   controls.setReadMode("ok");
-  await strip.getByRole("button", { name: "Retry" }).click();
+  await retry.click();
   await expect(page.getByTestId("sync-strip")).toHaveCount(0);
 });
 
@@ -529,12 +533,14 @@ test("one show's progress outage keeps the warm queue instead of erasing it", as
   // survive under the strip, never silently collapse to "all caught up".
   controls.failProgressFor([1]);
   await page.getByTestId("mark-watched").click();
-  await expect(page.getByTestId("sync-strip")).toHaveAttribute("data-state", "error");
+  await expect(page.getByTestId("sync-strip")).toHaveAttribute("data-state", "unreachable");
   await expect(page.getByTestId("up-next-card")).toHaveCount(1);
   await expect(page.getByTestId("empty-all-caught-up")).toHaveCount(0);
 
+  const retry = page.getByTestId("sync-strip").getByRole("button", { name: "Retry" });
+  await expect(retry).toBeVisible({ timeout: 15_000 });
   controls.failProgressFor([]);
-  await page.getByTestId("sync-strip").getByRole("button", { name: "Retry" }).click();
+  await retry.click();
   await expect(page.getByTestId("sync-strip")).toHaveCount(0);
 });
 
@@ -554,8 +560,14 @@ test("boot survives a startup-reconcile outage: the app mounts instead of hangin
 
   await expect(page.getByTestId("screen-up-next")).toBeVisible();
   await expect(page.getByTestId("runtime-loading")).toHaveCount(0);
+  // With nothing cached the screen's own error carries the failure, honestly:
+  // a strip claiming to be showing cached data over an empty screen would be a
+  // second message and a false one.
   await expect(page.getByTestId("up-next-error")).toBeVisible();
-  await expect(page.getByTestId("sync-strip")).toHaveAttribute("data-state", "error");
+  await expect(page.getByTestId("up-next-error")).toContainText(
+    "Check your connection and try again.",
+  );
+  await expect(page.getByTestId("sync-strip")).toHaveCount(0);
 
   const logRaw = await readStored(page, "cue.write-queue");
   const log = JSON.parse(logRaw ?? "[]") as unknown[];

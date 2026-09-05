@@ -182,11 +182,10 @@ test("a long agenda stays virtualized: bounded window, yet scrolling reaches lat
   expect(await page.getByTestId("virtual-row").count()).toBeLessThan(60);
 });
 
-test("a calendar outage without cache shows the retry state, and recovery fills the agenda", async ({
+test("a single failed read is absorbed by the retry, never shown as an outage", async ({
   page,
 }) => {
   await installCalendarRoutes(page.context(), spreadFixture());
-  // First read fails hard; the screen must offer Retry rather than a blank.
   let failed = false;
   await page.context().route("**/api.trakt.tv/calendars/my/shows/*/*", (route) => {
     if (!failed) {
@@ -197,7 +196,30 @@ test("a calendar outage without cache shows the retry state, and recovery fills 
   });
   await page.goto("/calendar");
 
-  await expect(page.getByTestId("upcoming-error")).toBeVisible();
+  // The retry lands and the agenda fills; the user is never told about a blip
+  // the app recovered from on its own.
+  await expect(page.getByTestId("calendar-row")).toHaveCount(4);
+  await expect(page.getByTestId("upcoming-error")).toHaveCount(0);
+  await expect(page.getByTestId("sync-strip")).toHaveCount(0);
+});
+
+test("a sustained calendar outage shows the retry state, and recovery fills the agenda", async ({
+  page,
+}) => {
+  await installCalendarRoutes(page.context(), spreadFixture());
+  // Every attempt fails until the test relents, so the read spends its budget
+  // and the screen has something honest to say.
+  let failing = true;
+  await page.context().route("**/api.trakt.tv/calendars/my/shows/*/*", (route) => {
+    return failing ? route.abort() : route.fallback();
+  });
+  await page.goto("/calendar");
+
+  await expect(page.getByTestId("upcoming-error")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("upcoming-error")).toContainText(
+    "Check your connection and try again.",
+  );
+  failing = false;
   await page.getByTestId("upcoming-error-retry").click();
   await expect(page.getByTestId("calendar-row")).toHaveCount(4);
 });

@@ -168,12 +168,12 @@ test("same-item plays within a day collapse to one ×N row whose check removes t
 
 test("surfaces a load-earlier failure inline and recovers on Retry", async ({ page }) => {
   await installHistoryRoutes(page.context(), recentRows());
-  // Fail the FIRST second-page fetch, then let later ones through.
-  let failedPageTwo = false;
+  // Fail every second-page fetch until the test relents: a 500 is retried on its
+  // own now, so only an outage that outlasts the budget reaches the screen.
+  let failPageTwo = true;
   await page.context().route(/\/users\/me\/history(\/episodes|\/movies)?(\?|$)/, async (route) => {
     const isPageTwo = new URL(route.request().url()).searchParams.get("page") === "2";
-    if (isPageTwo && !failedPageTwo) {
-      failedPageTwo = true;
+    if (isPageTwo && failPageTwo) {
       return route.fulfill({ status: 500, contentType: "application/json", body: "{}" });
     }
     return route.fallback();
@@ -183,9 +183,10 @@ test("surfaces a load-earlier failure inline and recovers on Retry", async ({ pa
   // The auto-scroll pull fails: the failure surfaces inline, first-page data
   // stays put, and the control becomes an explicit Retry (the observer disarms
   // so an outage can't be hammered on every scroll twitch).
-  await expect(page.getByTestId("history-load-earlier-error")).toBeVisible();
+  await expect(page.getByTestId("history-load-earlier-error")).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId("history-day-heading")).toHaveCount(1);
 
+  failPageTwo = false;
   await page.getByTestId("history-load-earlier").click();
   await expect(page.getByTestId("history-day-heading")).toHaveCount(2);
   await expect(page.getByTestId("history-day-heading").nth(1)).toContainText("Yesterday");
