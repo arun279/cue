@@ -350,4 +350,6 @@ jobs:
           IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
           IOS_PROVISIONING_PROFILE_NAME: ${{ secrets.IOS_PROVISIONING_PROFILE_NAME }}
           PROVISIONING_PROFILE_PATH: ${{ runner.temp }}/build.mobileprovision
+          # App Store Connect flags variants above the 200 MB over-the-air limit.
+          IPA_SIZE_LIMIT_BYTES: "200000000"
         run: bundle exec fastlane ios ${{ needs.config.outputs.lane }}
