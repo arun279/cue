@@ -100,7 +100,6 @@ function useNativeSession(): AuthStore | null {
             traktBaseUrl: TRAKT_BASE_OVERRIDE,
           }),
         );
-        void SplashScreen.hideAsync().catch(() => {});
       });
     return () => {
       alive = false;
@@ -154,6 +153,10 @@ export default function RootLayout(): ReactElement {
   useScreenReader();
   const authStore = useNativeSession();
   const fontsSettled = useCueFonts();
+
+  useEffect(() => {
+    if (authStore !== null && fontsSettled) void SplashScreen.hideAsync().catch(() => {});
+  }, [authStore, fontsSettled]);
 
   // Nothing to paint until the stores and the faces are settled, and the splash
   // is still up. "Settled" rather than "loaded" for the faces: one that will not
