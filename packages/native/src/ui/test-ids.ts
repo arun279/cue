@@ -30,8 +30,6 @@ export const TEST_IDS = {
   lapsedRow: (traktId: number) => `lapsed-row-${traktId}`,
   lapsedRowMark: (traktId: number) => `lapsed-row-${traktId}-mark`,
   onTheWayList: "on-the-way-list",
-  previouslyList: "previously-list",
-  previouslyRowCheck: (index: number) => `previously-row-${index}-check`,
   upNextEmptyNothingQueued: "up-next-empty-nothing-queued",
   upNextEmptyAllCaughtUp: "up-next-empty-all-caught-up",
   upNextEmptyNothingStarted: "up-next-empty-nothing-started",
