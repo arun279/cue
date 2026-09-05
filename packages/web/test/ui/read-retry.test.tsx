@@ -7,11 +7,12 @@
  */
 
 import { TraktReadError } from "@cue/core/data/trakt/client";
+import { resetReadPause } from "@cue/core/data/trakt/read-budget";
 import { queryStatus } from "@cue/core/hooks/query-freshness";
 import { createQueryClient } from "@cue/core/runtime/query-cache";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { act } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mount } from "./_mount";
 
 type Status = ReturnType<typeof queryStatus>;
@@ -35,6 +36,12 @@ const last = (seen: Status[]): Status => seen[seen.length - 1] as Status;
 
 beforeEach(() => {
   vi.useFakeTimers();
+  resetReadPause();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+  resetReadPause();
 });
 
 describe("a read that keeps failing", () => {
@@ -74,6 +81,51 @@ describe("a read that keeps failing", () => {
     expect(last(seen).isError).toBe(true);
     expect(last(seen).retrying).toBe(false);
     expect(last(seen).failure).toEqual({ kind: "network" });
+  });
+
+  it("counts an already-failed read that is trying again as retrying", async () => {
+    // TanStack keeps `error` set across every later fetch once the query has
+    // data, so reading only `isError` reports "not retrying" for the whole of the
+    // next ladder and leaves a Retry button up while the app is already retrying.
+    let phase: "ok" | "fail" | "hang" = "ok";
+    const queryFn = vi.fn(() => {
+      if (phase === "ok") return Promise.resolve(1);
+      if (phase === "hang") return new Promise<number>(() => {});
+      return Promise.reject(new TraktReadError({ kind: "network" }, "library"));
+    });
+    const seen: Status[] = [];
+    let refetch = (): void => {};
+    function Probe(): null {
+      const query = useQuery({ queryKey: ["warm"], queryFn, staleTime: 0 });
+      refetch = () => void query.refetch();
+      seen.push(queryStatus(query, query.data !== undefined));
+      return null;
+    }
+    mount(
+      <QueryClientProvider client={createQueryClient()}>
+        <Probe />
+      </QueryClientProvider>,
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(last(seen).hasData).toBe(true);
+
+    phase = "fail";
+    await act(async () => {
+      refetch();
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    expect(last(seen).isError).toBe(true);
+    expect(last(seen).retrying).toBe(false);
+
+    phase = "hang";
+    await act(async () => {
+      refetch();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(last(seen).isError).toBe(true);
+    expect(last(seen).retrying).toBe(true);
   });
 
   it("does not retry a failure that will never heal", async () => {

@@ -37,9 +37,9 @@ export const BROWSE_STALE_TIME_MS = 5 * 60 * 1000;
  *
  * `failure` and `retrying` are what let a screen tell the truth about a failed
  * read: WHICH failure (a rate limit is not an outage) and whether the app is
- * still trying (in which case there is nothing for the user to retry). A read
- * between attempts reports through `failureReason`, so a mid-retry read is
- * visible before `error` is ever set.
+ * still trying (in which case there is nothing for the user to retry, and no
+ * outage to announce yet). A read between attempts reports through
+ * `failureReason`, so a mid-retry read is visible before `error` is ever set.
  */
 export interface QueryStatus {
   readonly isLoading: boolean;
@@ -48,7 +48,7 @@ export interface QueryStatus {
   readonly hasData: boolean;
   readonly syncedAt: number;
   readonly failure: TraktFailure | null;
-  /** The read failed but has attempts left: the app is retrying on its own. */
+  /** Something has failed and the app is trying again on its own. */
   readonly retrying: boolean;
 }
 
@@ -70,6 +70,12 @@ export function queryStatus(
     hasData,
     syncedAt: query.dataUpdatedAt,
     failure: readFailureOf(query.error ?? query.failureReason),
-    retrying: !query.isError && query.failureReason !== null,
+    // Honest in both directions. A fetch with a failure behind it is retrying,
+    // whether that failure is this attempt's `failureReason` or the settled
+    // `error` of a query that has data and is trying again: TanStack keeps
+    // `error` set across every later refetch once data exists, so reading only
+    // `isError` says "not retrying" for the whole of the next ladder and leaves
+    // a Retry button on screen while the app is already retrying.
+    retrying: query.isFetching && (query.isError || query.failureReason !== null),
   };
 }

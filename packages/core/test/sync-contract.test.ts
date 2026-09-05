@@ -15,6 +15,7 @@ import {
   readFailureBody,
   readRetryDelayMs,
   resolveMarkControl,
+  SYNC_BANNER_KINDS,
   type SyncBannerInput,
   shouldRetryRead,
   syncBanner,
@@ -90,9 +91,43 @@ describe("syncBanner", () => {
     expect(banner?.message).toBe("Trakt is having trouble. Showing your cached data.");
   });
 
-  it("offers no Retry while the read is still retrying itself", () => {
+  it("does not call a blip it is still chasing an outage, and offers no Retry for it", () => {
+    // The defect over a warm cache: the strip announced "Can't reach Trakt" on
+    // the FIRST failed attempt, held it for the backoff ladder, and then took it
+    // away again when the retry healed it.
     const banner = syncBanner({ ...healthy, failure: { kind: "network" }, retrying: true });
-    expect(banner?.retryable).toBe(false);
+    expect(banner).toEqual({
+      kind: "retrying",
+      message: "Couldn't refresh from Trakt. Retrying…",
+      retryable: false,
+    });
+  });
+
+  it("keeps a 5xx blip out of the outage line too, for as long as it is retrying", () => {
+    const banner = syncBanner({
+      ...healthy,
+      failure: { kind: "server", status: 502 },
+      retrying: true,
+    });
+    expect(banner?.kind).toBe("retrying");
+    expect(banner?.message).not.toContain("Showing your cached data.");
+  });
+
+  it("names the outage once the read has given up, and offers the Retry then", () => {
+    const banner = syncBanner({ ...healthy, failure: { kind: "network" }, retrying: false });
+    expect(banner?.kind).toBe("unreachable");
+    expect(banner?.retryable).toBe(true);
+  });
+
+  it("emits nothing outside the kinds it publishes", () => {
+    const kinds = [
+      syncBanner({ ...healthy, offline: true }),
+      syncBanner({ ...healthy, resumeReadsAt: NOW + 1000 }),
+      syncBanner({ ...healthy, failure: { kind: "network" }, retrying: true }),
+      syncBanner({ ...healthy, failure: { kind: "network" } }),
+      syncBanner({ ...healthy, pending: 3, pendingLate: true }),
+    ].map((banner) => banner?.kind);
+    expect(kinds).toEqual([...SYNC_BANNER_KINDS]);
   });
 
   it("never claims to be showing cached data when there is none", () => {

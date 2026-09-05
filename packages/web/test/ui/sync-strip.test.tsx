@@ -6,14 +6,13 @@
  * appearing only when there is something for the user to retry.
  */
 
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import type { TraktResult } from "@cue/core/data/trakt/client";
-import {
-  readsPausedUntil,
-  resetReadPause,
-  withReadRateRetry,
-} from "@cue/core/data/trakt/read-budget";
+import { resetReadPause, withReadRateRetry } from "@cue/core/data/trakt/read-budget";
 import type { QueryStatus } from "@cue/core/hooks/query-freshness";
 import { type CueRuntime, RuntimeProvider } from "@cue/core/runtime/runtime";
+import { SYNC_BANNER_KINDS } from "@cue/core/sync-contract";
 import { SyncStrip } from "@ui/app-shell/SyncStrip";
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -132,9 +131,35 @@ describe("SyncStrip", () => {
     expect(retry).toHaveBeenCalledOnce();
   });
 
-  it("leaves the pause at zero when nothing rate limited anything", () => {
-    mountStrip();
-    expect(readsPausedUntil()).toBe(0);
-    expect(strip()).toBeNull();
+  it("says it is retrying, with no Retry, while the read still has attempts left", () => {
+    const retry = vi.fn();
+    mountStrip(
+      { ...healthy, isFetching: true, failure: { kind: "network" }, retrying: true },
+      retry,
+    );
+    expect(strip()?.getAttribute("data-state")).toBe("retrying");
+    expect(strip()?.textContent).not.toContain("Can't reach Trakt");
+    expect(strip()?.querySelector(".sync-strip__retry")).toBeNull();
+  });
+});
+
+/**
+ * The dot's color is keyed off the kind the strip emits, and nothing in a
+ * stylesheet fails when that attribute is renamed: the outage dot lost its
+ * color to exactly that, a rule left targeting a kind the contract no longer
+ * publishes. This is the deterministic half of that: every kind a rule names has
+ * to be a kind that exists.
+ */
+describe("the strip's stylesheet", () => {
+  it("styles no sync-strip state the contract does not publish", () => {
+    const css = readFileSync(
+      path.resolve(import.meta.dirname, "../../src/ui/styles/layout.css"),
+      "utf8",
+    );
+    const styled = [...css.matchAll(/\.sync-strip\[data-state="([^"]+)"\]/g)].map(
+      (match) => match[1] as string,
+    );
+    expect(styled.length).toBeGreaterThan(0);
+    expect(styled.filter((kind) => !SYNC_BANNER_KINDS.some((known) => known === kind))).toEqual([]);
   });
 });

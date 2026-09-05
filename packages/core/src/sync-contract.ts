@@ -79,12 +79,25 @@ export function readRetryDelayMs(failureCount: number, error: unknown): number {
   return retryAfter ?? backoffMs(failureCount);
 }
 
-type SyncBannerKind = "offline" | "rate-limited" | "unreachable" | "pending";
+/**
+ * Every kind the strip can carry. An array rather than a bare union so a target
+ * can enumerate them: the web stylesheet is checked against this, which is what
+ * a renamed kind used to slip past silently.
+ */
+export const SYNC_BANNER_KINDS = [
+  "offline",
+  "rate-limited",
+  "retrying",
+  "unreachable",
+  "pending",
+] as const;
+
+type SyncBannerKind = (typeof SYNC_BANNER_KINDS)[number];
 
 export interface SyncBanner {
   readonly kind: SyncBannerKind;
   readonly message: string;
-  /** Whether to offer a manual retry. False whenever something is already retrying. */
+  /** Whether to offer a manual retry. Only a failure the app has stopped chasing has one. */
   readonly retryable: boolean;
 }
 
@@ -92,7 +105,7 @@ export interface SyncBannerInput {
   readonly offline: boolean;
   /** The screen's change-driven read: what failed, live or settled. */
   readonly failure: TraktFailure | null;
-  /** The read is between attempts, so the failure is not final. */
+  /** The read is trying again, so the failure is not final and there is nothing to retry. */
   readonly retrying: boolean;
   /** The screen has content to keep showing. */
   readonly hasData: boolean;
@@ -122,9 +135,9 @@ function rateLimitMessage(resumeAt: number, now: number): string {
 /**
  * The ambient strip, in priority order: an offline device fails every read, so
  * saying so first is the only honest line; a rate limit explains a stalled read
- * AND a stalled write, so it outranks both; a genuine failure over cached
- * content comes next; a backlog last. Null means silence, which is what healthy
- * looks like.
+ * AND a stalled write, so it outranks both; a read still trying comes next,
+ * then a failure the app has given up on; a backlog last. Null means silence,
+ * which is what healthy looks like.
  *
  * A read failure with nothing cached is deliberately absent: the screen shows
  * its own error state there, and a strip claiming to show cached data over an
@@ -146,11 +159,18 @@ export function syncBanner(input: SyncBannerInput): SyncBanner | null {
     };
   }
   if (input.failure !== null && input.hasData) {
-    return {
-      kind: "unreachable",
-      message: unreachableMessage(input.failure),
-      retryable: !input.retrying,
-    };
+    // A blip the app is still chasing is not an outage. Naming one on the first
+    // failed attempt is what put "Can't reach Trakt" over live data and then
+    // took it away again a few seconds later; until the retries are spent, the
+    // true and quiet thing to say is that a refresh is being tried again.
+    if (input.retrying) {
+      return {
+        kind: "retrying",
+        message: "Couldn't refresh from Trakt. Retrying…",
+        retryable: false,
+      };
+    }
+    return { kind: "unreachable", message: unreachableMessage(input.failure), retryable: true };
   }
   if (input.pendingLate && input.pending >= PENDING_THRESHOLD) {
     return {
