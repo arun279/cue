@@ -11,7 +11,7 @@ if (treeArgument === undefined || outputArgument === undefined) {
 const headRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const tree = path.resolve(treeArgument);
 const output = path.resolve(outputArgument);
-const shadow = path.join(tree, ".complexity-measure");
+const shadow = path.join(headRoot, ".complexity-measure");
 const files = execFileSync(
   "git",
   [
@@ -59,7 +59,7 @@ rmSync(shadow, { force: true, recursive: true });
 
 const report = JSON.parse(run.stdout);
 const parsed = report.diagnostics.flatMap(({ location, message }) => {
-  const match = /Excessive complexity of (\d+)/.exec(message);
+  const match = /Excessive complexity of (\d+) detected \(max: 1\)/.exec(message);
   const productPath = /packages\/[^/]+\/(?:src|app|modules)\/.+/.exec(location.path)?.[0];
   return match === null || productPath === undefined
     ? []
