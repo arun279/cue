@@ -10,9 +10,9 @@ const REPOSITORY_ROOT = execFileSync("git", ["rev-parse", "--show-toplevel"], {
   env: gitEnv(),
 }).trim();
 const CI_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/ci.yml");
+const CODEQL_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/codeql.yml");
 const MOBILE_RELEASE_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/mobile-release.yml");
 const NOT_REQUIRED = ["footprint"];
-const REQUIRED_EXTERNAL = ["codeql (javascript-typescript)", "codeql (actions)"];
 
 // Markdown inside a shipping tree stays in SHIPS. Vite copies public/** into
 // dist verbatim, so excluding *.md by extension misclassified those files; the
@@ -139,8 +139,8 @@ const readPathsIgnore = (): string[] => {
   return parsed;
 };
 
-const getJobsBlock = (): string => {
-  const workflow = readFileSync(CI_WORKFLOW, "utf8");
+const getJobsBlock = (workflowPath: string): string => {
+  const workflow = readFileSync(workflowPath, "utf8");
 
   // This intentionally parses only the top-level jobs block and its
   // two-space-indented job IDs, not general YAML.
@@ -159,8 +159,8 @@ type CiJob = {
   body: string;
 };
 
-const readCiJobs = (): CiJob[] => {
-  const jobsBlock = getJobsBlock();
+const readWorkflowJobs = (workflowPath: string): CiJob[] => {
+  const jobsBlock = getJobsBlock(workflowPath);
   const headers = [...jobsBlock.matchAll(/^ {2}([A-Za-z_][A-Za-z0-9_-]*):[ \t]*(?:#.*)?\r?$/gm)];
   return headers.map((header, index) => ({
     name: header[1] as string,
@@ -169,6 +169,35 @@ const readCiJobs = (): CiJob[] => {
       headers[index + 1]?.index ?? jobsBlock.length,
     ),
   }));
+};
+
+const readCiJobs = (): CiJob[] => readWorkflowJobs(CI_WORKFLOW);
+
+const readCodeqlContexts = (): string[] => {
+  const jobs = readWorkflowJobs(CODEQL_WORKFLOW);
+  const codeql = jobs.find((job) => job.name === "codeql");
+  if (codeql === undefined) throw new Error("expected a codeql job");
+
+  const nameMatches = [...codeql.body.matchAll(/^ {4}name:[ \t]*(.+?)[ \t]*$/gm)];
+  const name = nameMatches.length === 1 ? nameMatches[0]?.[1] : undefined;
+  const languageExpression = /\$\{\{\s*matrix\.language\s*\}\}/;
+  if (name === undefined || !languageExpression.test(name)) {
+    throw new Error(
+      `expected one CodeQL job name containing the language matrix, found ${nameMatches.length}`,
+    );
+  }
+
+  const languageMatches = [...codeql.body.matchAll(/^ {8}language:[ \t]*\[([^\]]*)\][ \t]*$/gm)];
+  const languageList = languageMatches.length === 1 ? languageMatches[0]?.[1] : undefined;
+  if (languageList === undefined) {
+    throw new Error(`expected one inline CodeQL language matrix, found ${languageMatches.length}`);
+  }
+
+  return languageList
+    .split(",")
+    .map((language) =>
+      name.replace(languageExpression, language.trim().replace(/^(["'])(.*)\1$/, "$2")),
+    );
 };
 
 const readRequiredChecks = (): string[] => {
@@ -255,21 +284,26 @@ describe("mobile release gate required checks", () => {
   it("keeps REQUIRED aligned with CI jobs except explicit exemptions", () => {
     const requiredJobs = readCiJobs().filter((job) => !NOT_REQUIRED.includes(job.name));
     expect([...readRequiredChecks()].sort()).toEqual(
-      [...requiredJobs.map((job) => job.name), ...REQUIRED_EXTERNAL].sort(),
+      [...requiredJobs.map((job) => job.name), ...readCodeqlContexts()].sort(),
     );
   });
 
-  it("uses CI job IDs as check-run names", () => {
+  it("uses only modeled workflow check-run names", () => {
     const requiredChecks = new Set(readRequiredChecks());
-    const unsupportedOverrides = readCiJobs()
-      .filter((job) => requiredChecks.has(job.name))
-      .flatMap((job) =>
-        job.body.split(/\r?\n/).filter((line) => /^ {4}(?:name|strategy|if):/.test(line)),
-      );
+    const unsupportedOverrides = [
+      ...readCiJobs()
+        .filter((job) => requiredChecks.has(job.name))
+        .flatMap((job) =>
+          job.body.split(/\r?\n/).filter((line) => /^ {4}(?:name|strategy|if):/.test(line)),
+        ),
+      ...readWorkflowJobs(CODEQL_WORKFLOW).flatMap((job) =>
+        job.body.split(/\r?\n/).filter((line) => /^ {4}if:/.test(line)),
+      ),
+    ];
 
     expect(
       unsupportedOverrides,
-      "A job-level name or strategy (matrix) override means the check-run name no longer equals the job ID, while a job-level if can give it a skipped conclusion, which the release gate treats as a failure. Update the gate's REQUIRED list and the polling logic in mobile-release.yml to handle real check-run names or skipped conclusions before adding the override.",
+      "An unsupported job-level name or strategy means the check-run name no longer matches the release gate, while a job-level if can give it a skipped conclusion, which the gate treats as a failure. Update the context derivation and polling logic in mobile-release.yml before adding the override.",
     ).toEqual([]);
   });
 });
