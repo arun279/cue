@@ -37,6 +37,14 @@ describe("the native app config", () => {
     expect(released.android?.versionCode).toBe(4207);
   });
 
+  it("targets the push environment its build configuration ships to", () => {
+    expect(config.plugins).toContainEqual(["expo-notifications", { mode: "development" }]);
+    expect(nativeAppConfig({ CONFIGURATION: "Release" }).plugins).toContainEqual([
+      "expo-notifications",
+      { mode: "production" },
+    ]);
+  });
+
   it("carries no transport-security exception unless the harness asks for one", () => {
     expect(config.ios?.infoPlist).toBeUndefined();
     expect(nativeAppConfig({ EXPO_PUBLIC_TRAKT_API_BASE: "" }).ios?.infoPlist).toBeUndefined();

@@ -75,6 +75,16 @@ export function nativeAppConfig(env: Readonly<Record<string, string | undefined>
   const buildNumber = env["BUILD_NUMBER"] ?? "1";
 
   /**
+   * Xcode's own name for the build configuration, which the release lane sets
+   * and `verify-ios-privacy.sh` is told so the two cannot drift.
+   * expo-notifications writes `aps-environment` from this; Apple resolves the
+   * value that ships from the provisioning profile at signing time, so what is
+   * generated here is the project's claim about which APNs environment it
+   * targets.
+   */
+  const apsEnvironment = env["CONFIGURATION"] === "Release" ? "production" : "development";
+
+  /**
    * The fake Trakt's origin, and the one reason this app would ever load plain
    * HTTP. Read here so a build that is not pointed at the harness adds no ATS
    * exception domains. The generated-project privacy gate requires arbitrary
@@ -131,7 +141,7 @@ export function nativeAppConfig(env: Readonly<Record<string, string | undefined>
       "expo-sqlite",
       "expo-status-bar",
       "expo-splash-screen",
-      "expo-notifications",
+      ["expo-notifications", { mode: apsEnvironment }],
       "./plugins/with-android-build-memory",
       "./plugins/with-android-privacy",
       "./plugins/with-ios-scene-lifecycle",
