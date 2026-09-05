@@ -96,6 +96,7 @@ const FILTER_DEBOUNCE_MS = 300;
  * (mark next episode, stop/resume, details); there is deliberately no
  * "remove from library": no single Trakt op backs it.
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Coordinates show and movie segments with their distinct filters, sorting, empty states, and quick actions.
 export function Library(): ReactElement {
   useDocumentTitle("Library · Cue");
   const { type } = useSearch({ from: "/library" });

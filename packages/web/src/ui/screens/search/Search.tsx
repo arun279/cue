@@ -125,6 +125,7 @@ function Browse({
  * blames the spelling rather than the user, inline retry on failure, and an
  * offline panel. Search is the one surface that genuinely needs a connection.
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Renders idle and queried search across connectivity, media preferences, result states, and watchlist actions.
 export function Search(): ReactElement {
   useDocumentTitle("Search · Cue");
   const view = useSearch();

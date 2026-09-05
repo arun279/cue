@@ -424,6 +424,7 @@ export function useMarkSeason(): MarkSeasonController {
         remembered ??
         new Set(season.episodes.filter((e) => e.aired).map((episode) => episode.number));
       if (delta.size === 0) return;
+      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Unmarks a season across remembered deltas, play resolution, optimistic cache changes, rollback, and rewatch preservation.
       await withSeasonLock(season.number, async () => {
         setError(null);
         setNotice(null);
@@ -578,6 +579,7 @@ export function useMarkSeason(): MarkSeasonController {
 
   const toggleEpisode = useCallback(
     async (target: MarkContextTarget, episode: MarkableEpisode, options?: ToggleEpisodeOptions) => {
+      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Toggles queued and live episode plays while preserving rewatches and defining rollback for every resolution outcome.
       await withEpisodeLock(target, episode, async () => {
         const matchEpisode: EpisodeMatch = (s, n) => s === episode.season && n === episode.number;
         const bound: EpisodeBound = { season: episode.season, number: episode.number };

@@ -131,6 +131,7 @@ function scopeLabel(year: number | undefined, month: number | undefined): string
  * navigation. The scope lives in the URL (`?type`/`?year`/`?month`), so every
  * window is deep-linkable.
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Renders history across media filters, scoped loading states, grouped results, pagination, and per-play removal feedback.
 export function History(): ReactElement {
   useDocumentTitle("History · Cue");
   const { type, year, month } = useSearch({ from: "/history" });

@@ -56,6 +56,7 @@ function MarqueeSlot({
  * branches on real library composition, and error = SyncStrip over cached
  * content, never a blank screen.
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Coordinates queue, calendar, stop and mark feedback, tutorial state, and every timeline loading or empty branch.
 export function UpNext(): ReactElement {
   useDocumentTitle("Up Next · Cue");
   const view = useUpNext();

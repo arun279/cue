@@ -136,6 +136,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     baseUrl: deps.apiBaseUrl,
   });
 
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Reconciles each queued operation kind against its distinct authoritative Trakt read and landing condition.
   const reconcile = async (op: QueuedOp): Promise<boolean> => {
     const context = op.inversePatch as ReconcileContext | null;
     if (context === null || typeof context !== "object") return false;

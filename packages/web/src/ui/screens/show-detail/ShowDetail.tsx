@@ -88,6 +88,7 @@ function About({ header }: { readonly header: ShowHeader }): ReactElement | null
  * and the Trakt hand-off. Every state is designed: hero skeleton, hero error
  * retry, season skeletons, season error retry, and an announced-only empty tree.
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Coordinates detail, season, marking, hiding, watchlist, confirmation, overflow, and nested episode route states.
 export function ShowDetail({ showId }: { readonly showId: number }): ReactElement {
   const detail = useShowDetail(showId);
   const seasonsView = useSeasons(showId);

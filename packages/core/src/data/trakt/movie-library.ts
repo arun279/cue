@@ -69,6 +69,7 @@ export function toMovieIds(ids: {
  * library's watchlist-only handling): otherwise it would vanish from the
  * Watchlist shelf after a refetch.
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Merges watched and watchlist movie sources while preserving ordering and watchlist-only entries.
 export function assembleMovieLibrary(input: MovieLibraryInput): MovieEntry[] {
   // trakt id → its watchlist `listed_at` (the add time), so a watched movie that
   // is also watchlisted still carries the queue order, and a watchlist-only movie

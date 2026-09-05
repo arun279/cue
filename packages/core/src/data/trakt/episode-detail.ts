@@ -41,6 +41,7 @@ const key = (season: number, number: number): string => `${season}:${number}`;
  * can't reach an unaired episode that isn't the target. Derive the ordering from
  * the full `/shows/:id/seasons` list and keep watched state from progress.
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Merges nested progress into watched state and a specially ordered previous and next episode navigation model.
 export function assembleEpisodeDetail(
   showId: number,
   episode: EpisodeData,

@@ -74,6 +74,7 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
       });
     }
 
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Models cancellation and every terminal or retryable device authorization polling outcome in one state transition loop.
     async function pollLoop(
       deviceCode: string,
       intervalMs: number,

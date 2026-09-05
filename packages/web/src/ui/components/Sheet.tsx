@@ -96,6 +96,7 @@ export function Sheet({
     return detent === "open" ? height * OPEN_DETENT_FRACTION : 0;
   };
 
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Settles cancelled and completed drags across dismissal and every available sheet detent.
   const endDrag = (e: ReactPointerEvent<HTMLDivElement>, cancelled: boolean): void => {
     const state = drag.current;
     drag.current = null;
@@ -162,6 +163,7 @@ export function Sheet({
               samples: [],
             };
           }}
+          // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Arbitrates horizontal child gestures, body scrolling, and sheet detent dragging after pointer intent is known.
           onPointerMove={(e) => {
             const state = drag.current;
             if (state === null) return;
