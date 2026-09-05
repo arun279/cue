@@ -28,12 +28,29 @@ import runtimeSource from "../../core/src/app/create-runtime.ts?raw";
  * this module instead of the working directory vitest happened to start in.
  */
 
+/**
+ * A block comment runs from an opener to its nearest closer, and text outside
+ * one is never reconsidered: that is how each of these files is parsed, and it
+ * is what keeps a cut from splicing an opener out of the characters either side
+ * of it and swallowing a real declaration on a second look.
+ */
+const stripBlocks = (source: string, open: string, close: string): string => {
+  let kept = "";
+  let index = 0;
+  let start = source.indexOf(open);
+  while (start !== -1) {
+    const end = source.indexOf(close, start + open.length);
+    if (end === -1) break;
+    kept += source.slice(index, start);
+    index = end + close.length;
+    start = source.indexOf(open, index);
+  }
+  return kept + source.slice(index);
+};
+
 /** Comments quote the very attributes and APIs asserted below, so they must not count either way. */
 const stripComments = (source: string): string =>
-  source
-    .replace(/<!--[\s\S]*?-->/g, "")
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/(^|\s)\/\/.*$/gm, "$1");
+  stripBlocks(stripBlocks(source, "<!--", "-->"), "/*", "*/").replace(/(^|\s)\/\/.*$/gm, "$1");
 
 const androidManifest = stripComments(androidManifestSource);
 const extractionRules = stripComments(extractionRulesSource);
@@ -80,6 +97,23 @@ const variantManifests = Object.entries(
     eager: true,
   }),
 ).filter(([path]) => !path.includes("/main/"));
+
+describe("comment stripping reads each file the way its own parser does", () => {
+  it("keeps text a cut put next to an opener out of the comment", () => {
+    // The cut leaves "<!--" standing. Reading the result again would take
+    // " keep " for a comment and drop it, which is how a real declaration
+    // would disappear from the assertions below.
+    expect(stripComments("<!-<!--x-->- keep -->")).toBe("<!-- keep -->");
+  });
+
+  it("leaves an opener that never closes, and everything after it, in place", () => {
+    expect(stripComments("<!-- unterminated <include")).toBe("<!-- unterminated <include");
+  });
+
+  it("cuts a block comment and the line comments around it", () => {
+    expect(stripComments("a /* b */ c\n// d\ne")).toBe("a  c\n\ne");
+  });
+});
 
 describe("claim: nothing Cue stores is copied off an Android device", () => {
   // Several assertions below are negative, and a `?raw` import that resolved to
