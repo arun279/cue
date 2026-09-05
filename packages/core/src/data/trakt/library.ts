@@ -66,6 +66,7 @@ function toEpisodeRef(ep: SchemaEpisode): EpisodeRef {
  * `/sync/watched/shows` row, so it is materialized here as a zero-progress
  * `to-watch` entry: otherwise it would vanish from "To watch" after a refetch.
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Merges watched, progress, hidden, and watchlist sources while preserving watchlist-only shows.
 export function assembleLibrary(input: LibraryInput): LibraryEntry[] {
   const watchlistShowIds = new Set<number>();
   for (const item of input.watchlistShows) {

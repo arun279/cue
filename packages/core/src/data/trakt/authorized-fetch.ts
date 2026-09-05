@@ -98,6 +98,7 @@ export function createAuthorizedFetch(deps: AuthorizedFetchDeps): AuthorizedFetc
     return { ...init, headers };
   }
 
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Coordinates proactive refresh, concurrent token rotation, and separate safe retry policies for reads and writes.
   const fetch: FetchLike = async (input, init) => {
     const isWrite = isMutating(init?.method);
     let sessionEnded = false;

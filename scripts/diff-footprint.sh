@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
-# Usage: diff-footprint.sh <base-ref>
+# Usage: diff-footprint.sh <base-ref> [base-metrics.json] [head-metrics.json]
 #
 # Reports the changed-line footprint against a pull request's merge base.
 set -euo pipefail
 
 usage() {
-  echo "Usage: scripts/diff-footprint.sh <base-ref>" >&2
+  echo "Usage: scripts/diff-footprint.sh <base-ref> [base-metrics.json] [head-metrics.json]" >&2
   exit 1
 }
 
-[ "$#" -eq 1 ] || usage
+[ "$#" -eq 1 ] || [ "$#" -eq 3 ] || usage
 base_ref=$1
+base_metrics=${2:-}
+head_metrics=${3:-}
 base_commit=$(git rev-parse --verify --end-of-options "${base_ref}^{commit}" 2>/dev/null) || usage
 
 git diff --no-renames --numstat "$base_commit"...HEAD | awk '
@@ -71,3 +73,69 @@ git diff --no-renames --unified=0 --no-color "$base_commit"...HEAD -- ':(glob)pa
     print "Line types are split by line prefix after leading whitespace."
   }
 '
+
+if [ -r "$base_metrics" ] && [ -r "$head_metrics" ]; then
+  node --input-type=module - "$base_metrics" "$head_metrics" <<'NODE'
+import { readFileSync } from "node:fs";
+
+const [basePath, headPath] = process.argv.slice(2);
+const base = JSON.parse(readFileSync(basePath, "utf8"));
+const head = JSON.parse(readFileSync(headPath, "utf8"));
+const byName = (entries) => Object.fromEntries(entries.map((entry) => [entry.name, entry]));
+const baseSizes = byName(base.sizes);
+const headSizes = byName(head.sizes);
+
+const bytes = (value) =>
+  value >= 1_000_000 ? `${(value / 1_000_000).toFixed(2)} MB` : `${(value / 1000).toFixed(1)} kB`;
+const deltaBytes = (value) => {
+  if (value === 0) return "0 B";
+  const sign = value > 0 ? "+" : "-";
+  const magnitude = Math.abs(value);
+  return magnitude < 1000
+    ? `${sign}${magnitude} B`
+    : magnitude < 1_000_000
+      ? `${sign}${(magnitude / 1000).toFixed(1)} kB`
+      : `${sign}${(magnitude / 1_000_000).toFixed(2)} MB`;
+};
+const signed = (value, digits = 0) =>
+  value === 0 ? (digits === 0 ? "0" : value.toFixed(digits)) : `${value > 0 ? "+" : ""}${value.toFixed(digits)}`;
+const sizeRows = [
+  ["web initial load (brotli)", "web initial load"],
+  ["web all js and css (brotli)", "web all JavaScript and CSS"],
+  ["expo ios bundle (raw)", "expo iOS bundle"],
+  ["expo android bundle (raw)", "expo Android bundle"],
+];
+
+process.stdout.write("\n### Bundle size\n\n");
+process.stdout.write("| bundle | base | head | delta | limit |\n");
+process.stdout.write("| --- | ---: | ---: | ---: | ---: |\n");
+for (const [label, name] of sizeRows) {
+  const before = baseSizes[name];
+  const after = headSizes[name];
+  process.stdout.write(
+    `| ${label} | ${bytes(before.size)} | ${bytes(after.size)} | ${deltaBytes(after.size - before.size)} | ${after.sizeLimit / 1000} kB |\n`,
+  );
+}
+
+const complexityRows = [
+  ["functions over cognitive complexity 15", base.complexity.over15, head.complexity.over15, 0],
+  ["worst cognitive complexity", base.complexity.max, head.complexity.max, 0],
+  [
+    "mean cognitive complexity (functions scoring 2 or more)",
+    base.complexity.mean,
+    head.complexity.mean,
+    2,
+  ],
+  ["product comment density", base.comments.total.density, head.comments.total.density, 2],
+];
+process.stdout.write("\n### Complexity and comments\n\n");
+process.stdout.write("| metric | base | head | delta |\n");
+process.stdout.write("| --- | ---: | ---: | ---: |\n");
+for (const [label, before, after, digits] of complexityRows) {
+  const suffix = label === "product comment density" ? " percent" : "";
+  process.stdout.write(
+    `| ${label} | ${Number(before).toFixed(digits)}${suffix} | ${Number(after).toFixed(digits)}${suffix} | ${signed(after - before, digits)} |\n`,
+  );
+}
+NODE
+fi

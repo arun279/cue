@@ -96,6 +96,7 @@ export async function installIntersectionObserverPolyfill(page: Page): Promise<v
         this.timer = setInterval(() => this.tick(), POLL_MS);
       }
 
+      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Emulates viewport intersection by evaluating every rectangle edge and reporting only state transitions.
       private tick(): void {
         const entries: Entry[] = [];
         for (const [target, wasIntersecting] of this.states) {
@@ -1064,6 +1065,7 @@ export async function installLibraryRoutes(
     }),
   );
 
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Simulates episode and bulk show history writes, per-play removals, rewatches, and configured transport failures.
   const handleHistory = (remove: boolean) => async (route: import("@playwright/test").Route) => {
     const body = (route.request().postDataJSON() ?? {}) as HistoryBody;
     const episodeIds = (body.episodes ?? []).map((e) => e.ids?.trakt ?? -1);
@@ -1108,6 +1110,7 @@ export async function installLibraryRoutes(
       }
     }
 
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Applies episode, show, primary-play, and rewatch removal effects to the mutable test fixture.
     const apply = (): void => {
       applyWrite(shows, episodeIds, remove);
       applyWrite(shows, primaryEpisodeIds, remove);
@@ -1849,6 +1852,7 @@ export async function installMovieRoutes(
     });
   });
 
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Simulates movie history add and removal requests across item and per-play identifier shapes.
   const handleHistory = (remove: boolean) => (route: import("@playwright/test").Route) => {
     const body = (route.request().postDataJSON() ?? {}) as {
       movies?: { ids?: { trakt?: number }; watched_at?: string }[];

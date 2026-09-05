@@ -147,6 +147,7 @@ function EntryCheck({
  * loads. The check uses the fallback mark path. The bar body (not the check)
  * opens the episode sheet.
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Selects tracked or fallback progress and renders next, caught-up, countdown, and finished continuation states.
 export function ContinueBar({
   showId,
   header,

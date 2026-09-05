@@ -129,6 +129,7 @@ export function PullToRefresh({ children }: { readonly children: ReactNode }): R
         };
         event.currentTarget.addEventListener("touchmove", claimScroll, { passive: false });
       }}
+      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Resolves pointer ownership, gesture direction, pull threshold transitions, and haptic feedback in one event handler.
       onPointerMove={(event) => {
         const g = gesture.current;
         if (g === null || g.pointerId !== event.pointerId || g.intent === "abandoned") return;

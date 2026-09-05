@@ -31,6 +31,7 @@ export interface UpNextGroups {
  * post-mark projection (`ids.trakt === 0`, air date unknown) stays in the queue,
  * visible and locked, until the authoritative refetch lands.
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Partitions shows using status, provisional advance, air time, and lapse rules that jointly define queue membership.
 export function groupUpNext(
   shows: readonly LibraryShow[],
   now: number,

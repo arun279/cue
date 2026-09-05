@@ -121,6 +121,7 @@ export function earlierUnwatchedCount(seasons: readonly SeasonView[], bound: Epi
 
 /** The post-backfill snackbar message: `S2 E1-E5 marked` when the gap sits
  * inside the bound's season, else the honest coalesced count. */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Scans nested seasons to distinguish same-season episode ranges from cross-season backfills.
 export function backfillRangeLabel(
   seasons: readonly SeasonView[],
   bound: EpisodeBound,

@@ -165,6 +165,7 @@ function PagerButton({
  * mark path runs through the same show-surface controller the season list uses,
  * so both surfaces tick together and share one snackbar grammar.
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Coordinates episode loading, navigation, spoiler, play, marking, and modal states within the route-backed sheet.
 export function EpisodeSheet({
   showId,
   season,

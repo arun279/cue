@@ -674,6 +674,7 @@ function targetedEpisodes(show, body) {
  * have comes back in `not_found`: a write that matched nothing must not read as
  * a success the account never took.
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Applies episode, bulk show, movie, and play-id history bodies for both additions and removals.
 export function applyHistoryWrite(library, body, remove) {
   const stamped = Date.parse(
     (body.episodes ?? [])[0]?.watched_at ??

@@ -46,6 +46,7 @@ function toEntry(header: MovieHeader, existing: MovieEntry | undefined): MovieEn
  * multi-play movie is refused and routed to History), the clamped overview, and
  * a related grid. Watchlist and the Trakt hand-off live in the overflow disc.
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Coordinates movie loading, watch and watchlist actions, undo feedback, overflow controls, and related content states.
 function MovieDetailContent({ movieId }: { readonly movieId: number }): ReactElement {
   const detail = useMovieDetail(movieId);
   const library = useMovieLibrary();
