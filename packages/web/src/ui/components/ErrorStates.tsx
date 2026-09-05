@@ -5,8 +5,10 @@ import type { ReactElement } from "react";
 interface ErrorRetryProps {
   readonly title: string;
   /** What actually failed, so the hint under the title is true of it: "check
-   * your connection" is wrong for a rate limit, which is nobody's connection. */
-  readonly failure?: TraktFailure | null;
+   * your connection" is wrong for a rate limit, which is nobody's connection.
+   * Required, so a screen that forgets to plumb it fails to compile rather than
+   * quietly falling back to the vaguest line in the contract. */
+  readonly failure: TraktFailure | null;
   readonly testId: string;
   readonly buttonTestId: string;
   onRetry(): void;
@@ -19,7 +21,7 @@ interface ErrorRetryProps {
  */
 export function ErrorRetry({
   title,
-  failure = null,
+  failure,
   testId,
   buttonTestId,
   onRetry,

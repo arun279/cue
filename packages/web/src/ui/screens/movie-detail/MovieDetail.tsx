@@ -145,6 +145,7 @@ function MovieDetailContent({ movieId }: { readonly movieId: number }): ReactEle
         <BackDisc testId="movie-back" fallbackSearch={{ type: "movies" }} />
         <ErrorRetry
           title="Couldn't load this movie"
+          failure={detail.failure}
           testId="movie-detail-error"
           buttonTestId="movie-detail-error-retry"
           onRetry={detail.refetch}

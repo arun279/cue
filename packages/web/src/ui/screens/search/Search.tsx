@@ -70,6 +70,7 @@ function Browse({
     rails = (
       <ErrorRetry
         title="Couldn't load browse"
+        failure={browse.failure}
         testId="browse-error"
         buttonTestId="browse-error-retry"
         onRetry={browse.refetch}
@@ -192,6 +193,7 @@ export function Search(): ReactElement {
     body = (
       <ErrorRetry
         title="Search failed"
+        failure={view.failure}
         testId="search-error"
         buttonTestId="search-error-retry"
         onRetry={view.refetch}

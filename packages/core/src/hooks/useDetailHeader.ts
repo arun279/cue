@@ -1,4 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
+import type { TraktFailure } from "../data/trakt/client";
+import { readFailureOf } from "../sync-contract";
 import { CONTENT_STALE_TIME_MS } from "./query-freshness";
 
 export interface DetailHeaderView<T> {
@@ -6,6 +8,8 @@ export interface DetailHeaderView<T> {
   readonly isLoading: boolean;
   readonly isError: boolean;
   readonly hasData: boolean;
+  /** Why the read failed, so the screen's error body names it rather than guessing. */
+  readonly failure: TraktFailure | null;
   refetch(): void;
 }
 
@@ -26,6 +30,7 @@ export function useDetailHeader<T>(
     isLoading: query.isLoading,
     isError: query.isError,
     hasData: query.data !== undefined,
+    failure: readFailureOf(query.error),
     refetch: () => void query.refetch(),
   };
 }
