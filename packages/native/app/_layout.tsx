@@ -38,6 +38,7 @@ import {
 } from "../src/platform/stores";
 import { Onboarding } from "../src/screens/Onboarding";
 import { RuntimeBoot } from "../src/screens/RuntimeBoot";
+import { AppIdle } from "../src/ui/AppIdle";
 import { SnackbarHost } from "../src/ui/SnackbarHost";
 import { useCueFonts } from "../src/ui/type";
 
@@ -139,6 +140,7 @@ function Gate(): ReactElement {
           {/* The root host. Every presentation that can raise a snack mounts one
               of its own, and only the topmost draws. */}
           <SnackbarHost placement="root" />
+          <AppIdle />
         </View>
       </RuntimeBoot>
     );
