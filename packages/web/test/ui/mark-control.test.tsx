@@ -1,10 +1,10 @@
 /**
- * The queue mark control over the real mark pipeline: the defect the owner saw
- * was a row that stayed green for as long as the write stayed undelivered, so
- * several rows could sit green at once with no way to tell whether anything was
- * wrong. These pin the fix: green is the undo window and nothing longer, the row
- * advances the instant it is tapped, and outstanding delivery is a quiet
- * indicator rather than a green check.
+ * The queue mark control over the real mark pipeline. A row that stays green for
+ * as long as the write stays undelivered leaves several rows green at once with
+ * no way to tell whether anything is wrong, so these pin the rule instead: green
+ * is the undo window and nothing longer, the row advances the instant it is
+ * tapped, and outstanding delivery is a quiet indicator rather than a green
+ * check.
  */
 
 import { queryKeys } from "@cue/core/data/query-keys";
