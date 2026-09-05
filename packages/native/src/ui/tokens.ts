@@ -66,7 +66,7 @@ const PALETTE = {
 } as const;
 
 type Pair = (typeof PALETTE)[keyof typeof PALETTE];
-export type ColorToken = keyof typeof PALETTE;
+type ColorToken = keyof typeof PALETTE;
 export type Colors = Readonly<Record<ColorToken, ColorValue>>;
 
 function mapPalette(pick: (pair: Pair) => ColorValue): Colors {

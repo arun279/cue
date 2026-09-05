@@ -41,7 +41,7 @@ export type TypeRole =
   | "caption"
   | "micro";
 
-export type TypeWeight = "regular" | "medium" | "semibold" | "bold";
+type TypeWeight = "regular" | "medium" | "semibold" | "bold";
 
 /**
  * `ui` is Inter, `display` is Space Grotesk, and `system` is the platform's own
