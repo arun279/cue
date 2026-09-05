@@ -1,32 +1,44 @@
-import { fireEvent, render } from "@testing-library/react-native";
+import { router, Stack } from "expo-router";
+import { act, fireEvent, renderRouter, screen } from "expo-router/testing-library";
+import type { ReactElement } from "react";
+import { View } from "react-native";
+import * as accountLayout from "../app/(account)/_layout";
 
-const mockDismissAll = jest.fn();
-
-jest.mock("expo-router", () => {
-  const { createElement, Fragment } = require("react");
-  const { View } = require("react-native");
-  const Stack = ({ children }: { children: React.ReactNode }) =>
-    createElement(Fragment, null, children);
-  Stack.Screen = ({
-    name,
-    options,
-  }: {
-    name: string;
-    options: { headerRight?: () => React.ReactNode };
-  }) => createElement(View, { testID: `account-route-${name}` }, options.headerRight?.());
-  return { Stack, useRouter: () => ({ dismissAll: mockDismissAll }) };
-});
-
-const AccountLayout = require("../app/(account)/_layout").default as () => React.JSX.Element;
+/**
+ * Done dismisses the modal, asserted by dismissing it.
+ *
+ * `dismissAll()` dispatches `POP_TO_TOP`, which the account stack declines
+ * because Profile is its initial route, and the root stack then pops the whole
+ * group. A mocked `useRouter` would only assert that a method with that name
+ * was called, which passes just as happily for one that dismisses nothing, so
+ * the tree below is the smallest one that reproduces what the composition root
+ * presents: the account group as a full-screen modal over the tabs.
+ */
+const routes = {
+  _layout: (): ReactElement => (
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="index" />
+      <Stack.Screen name="(account)" options={{ presentation: "fullScreenModal" }} />
+    </Stack>
+  ),
+  index: (): ReactElement => <View testID="screen-tabs" />,
+  "(account)/_layout": accountLayout,
+  "(account)/profile": (): ReactElement => <View testID="screen-profile" />,
+  "(account)/settings": (): ReactElement => <View testID="screen-settings" />,
+  "(account)/history": (): ReactElement => <View testID="screen-history" />,
+};
 
 describe("the account stack", () => {
-  beforeEach(() => mockDismissAll.mockClear());
+  it("dismisses the modal back to where the user was", async () => {
+    await renderRouter(routes, { initialUrl: "/" });
 
-  it("lets the initial profile route dismiss the modal", async () => {
-    const account = await render(<AccountLayout />);
+    await act(() => router.push("/profile"));
+    expect(screen.getByTestId("screen-profile")).toBeOnTheScreen();
 
-    expect(account.getByTestId("account-route-profile")).toBeOnTheScreen();
-    fireEvent.press(account.getByRole("button", { name: "Done" }));
-    expect(mockDismissAll).toHaveBeenCalledTimes(1);
+    // Case-insensitive: React Native renders an Android button title in capitals.
+    await fireEvent.press(screen.getByRole("button", { name: /^done$/i }));
+
+    expect(screen.queryByTestId("screen-profile")).toBeNull();
+    expect(screen.getByTestId("screen-tabs")).toBeOnTheScreen();
   });
 });

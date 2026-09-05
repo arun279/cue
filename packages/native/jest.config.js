@@ -12,10 +12,20 @@
  * `moduleNameMapper` points `vitest` at a shim over jest's own globals: the
  * shared `KeyValueStore` contract lives in `@cue/core`'s test tree and is run by
  * both runners rather than transcribed into a second copy.
+ *
+ * `nanoid` is added to jest-expo's transform allow-list rather than the list
+ * being restated: expo-router's vendored React Navigation imports
+ * `nanoid/non-secure`, which ships as ESM only, and jest-expo's own list stops
+ * at the Expo and React Navigation scopes.
  */
+const { transformIgnorePatterns } = require("jest-expo/jest-preset");
+
 const project = {
   testMatch: ["<rootDir>/__tests__/**/*.test.{ts,tsx}"],
   moduleNameMapper: { "^vitest$": "<rootDir>/__tests__/support/vitest.ts" },
+  transformIgnorePatterns: transformIgnorePatterns.map((pattern) =>
+    pattern.replace("(?!(", "(?!(nanoid|"),
+  ),
 };
 
 module.exports = {

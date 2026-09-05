@@ -28,12 +28,7 @@ export default function AccountLayout(): ReactElement {
         options={{
           title: "Profile",
           headerRight: () => (
-            <Button
-              accessibilityLabel="Done"
-              testID="close-account"
-              title="Done"
-              onPress={() => router.dismissAll()}
-            />
+            <Button testID="close-account" title="Done" onPress={() => router.dismissAll()} />
           ),
         }}
       />
