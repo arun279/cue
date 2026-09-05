@@ -11,6 +11,7 @@ const REPOSITORY_ROOT = execFileSync("git", ["rev-parse", "--show-toplevel"], {
 }).trim();
 const CI_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/ci.yml");
 const CODEQL_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/codeql.yml");
+const DEPENDENCY_CRUISER_CONFIG = path.join(REPOSITORY_ROOT, ".dependency-cruiser.cjs");
 const MOBILE_RELEASE_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/mobile-release.yml");
 const NOT_REQUIRED = ["footprint"];
 
@@ -173,6 +174,21 @@ const readWorkflowJobs = (workflowPath: string): CiJob[] => {
 
 const readCiJobs = (): CiJob[] => readWorkflowJobs(CI_WORKFLOW);
 
+const readArchitectureDoesNotShipMatchers = (): RegExp[] => {
+  const config = readFileSync(DEPENDENCY_CRUISER_CONFIG, "utf8");
+  return ["RE_DOES_NOT_SHIP_DIRECTORY", "RE_DOES_NOT_SHIP_MARKDOWN", "RE_DOES_NOT_SHIP_FILE"].map(
+    (name) => {
+      const match = new RegExp(`const ${name} =\\s*("(?:[^"\\\\]|\\\\.)*");`).exec(config);
+      const encoded = match?.[1];
+      if (encoded === undefined) throw new Error(`expected one ${name} string`);
+
+      const pattern: unknown = JSON.parse(encoded);
+      if (typeof pattern !== "string") throw new Error(`${name} must be a string`);
+      return new RegExp(pattern);
+    },
+  );
+};
+
 const readCodeqlContexts = (): string[] => {
   const jobs = readWorkflowJobs(CODEQL_WORKFLOW);
   const codeql = jobs.find((job) => job.name === "codeql");
@@ -257,6 +273,25 @@ describe("mobile release path partition", () => {
 
   it("keeps paths-ignore aligned with non-shipping paths", () => {
     expect([...readPathsIgnore()].sort()).toEqual([...DOES_NOT_SHIP].sort());
+  });
+
+  it("keeps architecture non-shipping paths aligned", () => {
+    const architectureMatchers = readArchitectureDoesNotShipMatchers();
+    const mismatches = trackedFiles.flatMap((file) => {
+      const release = matchingPatterns(file, DOES_NOT_SHIP_MATCHERS).length > 0;
+      const architecture = architectureMatchers.some((matcher) => matcher.test(file));
+      return release === architecture ? [] : [{ file, release, architecture }];
+    });
+
+    expect(
+      mismatches,
+      `Paths classified differently by DOES_NOT_SHIP and dependency-cruiser:\n${mismatches
+        .map(
+          ({ file, release, architecture }) =>
+            `${file}: DOES_NOT_SHIP=${release}, dependency-cruiser=${architecture}`,
+        )
+        .join("\n")}`,
+    ).toEqual([]);
   });
 });
 
