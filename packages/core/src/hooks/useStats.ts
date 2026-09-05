@@ -2,16 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { queryKeys } from "../data/query-keys";
 import type { UserStats } from "../data/trakt/schemas";
 import { useRuntime } from "../runtime/runtime";
-import { USER_STATE_STALE_TIME } from "./query-freshness";
+import { type QueryStatus, queryStatus, USER_STATE_STALE_TIME } from "./query-freshness";
 
-export interface StatsView {
+export interface StatsView extends QueryStatus {
   readonly stats: UserStats | undefined;
-  readonly isLoading: boolean;
-  readonly isFetching: boolean;
-  readonly isError: boolean;
-  readonly hasData: boolean;
-  /** Epoch ms of the last successful stats read (drives the pill's recency). */
-  readonly syncedAt: number;
   refetch(): void;
 }
 
@@ -29,11 +23,7 @@ export function useStats(): StatsView {
   });
   return {
     stats: query.data,
-    isLoading: query.isLoading,
-    isFetching: query.isFetching,
-    isError: query.isError,
-    hasData: query.data !== undefined,
-    syncedAt: query.dataUpdatedAt,
+    ...queryStatus(query, query.data !== undefined),
     refetch: () => void query.refetch(),
   };
 }

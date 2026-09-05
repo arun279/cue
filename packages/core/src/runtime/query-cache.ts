@@ -1,5 +1,6 @@
 import { QueryClient as Client, type Query, type QueryClient } from "@tanstack/react-query";
 import { queryKeys } from "../data/query-keys";
+import { readRetryDelayMs, shouldRetryRead } from "../sync-contract";
 import { PERSISTED_CACHE } from "./persist-buster";
 
 export const PERSIST_BUSTER = PERSISTED_CACHE.buster;
@@ -54,7 +55,13 @@ export function createQueryClient(): QueryClient {
         // check on regaining visibility, so navigation costs zero Trakt data calls.
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
-        retry: false,
+        // A rate limit or a transport blip is not a load failure yet, so a read
+        // that hits one retries itself, waiting exactly as long as Trakt asked
+        // (`Retry-After`). Only a failure that survives the budget reaches a
+        // screen, which is what stops a single 429 mid-refetch from painting a
+        // "can't reach Trakt" strip over data that is on the screen and fine.
+        retry: shouldRetryRead,
+        retryDelay: readRetryDelayMs,
       },
     },
   });

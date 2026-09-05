@@ -4,7 +4,7 @@ import { queryKeys } from "../data/query-keys";
 import type { MovieEntry } from "../data/trakt/movie-library";
 import { byTitle } from "../domain/library-buckets";
 import { type MovieLibraryData, useRuntime } from "../runtime/runtime";
-import { queryStatus, USER_STATE_STALE_TIME } from "./query-freshness";
+import { type QueryStatus, queryStatus, USER_STATE_STALE_TIME } from "./query-freshness";
 
 /** Honest movie taxonomy (Rams #6): a film is watched or not: no episode
  * progress: so the library groups into Watchlist (want to watch) and Watched
@@ -21,15 +21,9 @@ interface MovieSegment {
  * Recently watched (last_watched_at desc) / A-Z / Release year (newest first). */
 export type MovieSort = "recently-watched" | "alphabetical" | "release-year";
 
-export interface MovieLibraryView {
+export interface MovieLibraryView extends QueryStatus {
   readonly segments: readonly MovieSegment[];
   readonly trackedCount: number;
-  readonly isLoading: boolean;
-  readonly isFetching: boolean;
-  readonly isError: boolean;
-  readonly hasData: boolean;
-  /** Epoch ms of the last successful sync: the pill's "· <time ago>" recency. */
-  readonly syncedAt: number;
   entryFor(movieId: number): MovieEntry | undefined;
   refetch(): void;
 }

@@ -16,7 +16,7 @@ import {
   buildRemoveHistoryPlayOp,
 } from "../domain/write-queue/ops";
 import { type HistorySection, type SubmitOutcome, useRuntime } from "../runtime/runtime";
-import { queryStatus, USER_STATE_STALE_TIME } from "./query-freshness";
+import { type QueryStatus, queryStatus, USER_STATE_STALE_TIME } from "./query-freshness";
 import { useOptimisticWrite } from "./useOptimisticWrite";
 
 /** The history type filter, in user words; mapped to the history endpoint slice. */
@@ -50,16 +50,9 @@ type RemovalToast =
   | { readonly kind: "removed"; readonly entry: HistoryEntry }
   | { readonly kind: "restored" };
 
-export interface HistoryView {
+export interface HistoryView extends QueryStatus {
   readonly days: readonly HistoryDay[];
   readonly filter: HistoryFilter;
-  readonly isLoading: boolean;
-  readonly isError: boolean;
-  /** True while a change-driven refetch is in flight: drives the sync pill. */
-  readonly isFetching: boolean;
-  /** Epoch ms of the last successful read, for the pill's recency. */
-  readonly syncedAt: number;
-  readonly hasData: boolean;
   readonly isEmpty: boolean;
   refetch(): void;
   readonly hasMore: boolean;

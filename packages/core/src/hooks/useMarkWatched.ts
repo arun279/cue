@@ -28,8 +28,8 @@ import {
   useMarkStore,
 } from "../stores/mark-store";
 import { dismissSnack, showSnack, useSnackbar } from "../stores/snackbar-store";
+import { appendToBatch } from "../sync-contract";
 import { patchEpisodeDetail, patchLibraryEntry, patchShowSeasons } from "./library-cache";
-import { appendToBatch } from "./mark-undo-window";
 import { findMarkPlay } from "./resolveUnmark";
 import { useOptimisticWrite } from "./useOptimisticWrite";
 
@@ -39,11 +39,11 @@ export interface MarkWatched {
   /** Live-toggle reverse of the show's just-marked play: silent (no snackbar of
    * its own; it retracts the mark's), the "oops, wrong row" reflex path. */
   reverse(showId: number): Promise<void>;
-  /** Close the show's reverse window: the check re-arms for the next episode.
+  /** Retire the show's mark record: the check re-arms for the next episode.
    * Callers gate this on the authoritative next episode having landed
-   * (`pendingAdvance` cleared) plus the minimum visual window. */
+   * (`pendingAdvance` cleared) plus the undo window. */
   reArm(showId: number): void;
-  /** Epoch ms of the show's open reverse window, or null when re-armed. */
+  /** Epoch ms of the tap that marked this show, or null once retired. */
   justMarkedAt(showId: number): number | null;
 }
 
@@ -77,8 +77,8 @@ function showUndoFailed(haptics: Haptics, title: string): void {
  * The mark-watched hot path: advance the entry optimistically in the Query
  * cache BEFORE the network write, enqueue a durable, paced `POST /sync/history`
  * (frozen `watched_at`) through the injected runtime, and feed the app snackbar
- * a rolling batch whose Undo reverses every mark in it. Until the authoritative
- * next episode lands the filled check stays a live undo toggle (`reverse`);
+ * a rolling batch whose Undo reverses every mark in it. Through the undo window
+ * the filled check is a live undo toggle (`reverse`);
  * reversal cancels a still-queued op via write-queue coalescing, and per-play
  * reverses one that already landed (never a remove-by-item, which would wipe
  * plays predating the mark). A hard failure rolls the cache back; a success
@@ -92,7 +92,7 @@ export function useMarkWatched(): MarkWatched {
   const queryClient = useQueryClient();
   const runtime = useRuntime();
   const haptics = useHaptics();
-  // Reactive view of the shared reverse windows: `justMarkedAt` re-renders every
+  // Reactive view of the shared mark records: `justMarkedAt` re-renders every
   // consumer, whichever surface opened the window.
   const records = useMarkStore((s) => s.records);
 
