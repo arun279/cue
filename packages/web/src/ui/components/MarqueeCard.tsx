@@ -19,6 +19,8 @@ interface MarqueeCardProps {
   readonly episode: EpisodeRef;
   readonly checkState: CheckState;
   readonly checkLabel: string;
+  /** The mark behind an advancing card is still on its way to Trakt. */
+  readonly checkPending?: boolean;
   onCheck(): void;
 }
 
@@ -34,6 +36,7 @@ export function MarqueeCard({
   episode,
   checkState,
   checkLabel,
+  checkPending,
   onCheck,
 }: MarqueeCardProps): ReactElement {
   // Art is deferred out of the cold-sync budget: the card reads its own backdrop
@@ -92,6 +95,7 @@ export function MarqueeCard({
       <span className="marquee__check">
         <CheckControl
           state={checkState}
+          pending={checkPending}
           size={56}
           mode="advance"
           label={checkLabel}

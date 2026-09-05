@@ -1,5 +1,6 @@
 import { useCalendar } from "@cue/core/hooks/useCalendar";
 import { useHideShow } from "@cue/core/hooks/useHideShow";
+import { useMarkControl } from "@cue/core/hooks/useMarkControl";
 import { type MarkWatched, useMarkWatched } from "@cue/core/hooks/useMarkWatched";
 import { type UpNextCard, useUpNext } from "@cue/core/hooks/useUpNext";
 import { dismissSnack, showSnack } from "@cue/core/stores/snackbar-store";
@@ -25,7 +26,6 @@ import { LapsedDrawer } from "./LapsedDrawer";
 import { buildOnTheWay, OnTheWay, useOnTheWayClock } from "./OnTheWay";
 import { Previously } from "./Previously";
 import { QueueRow } from "./QueueRow";
-import { useQueueCheck } from "./useQueueCheck";
 
 /** The marquee's check shares the queue grammar; a thin slot component so the
  * check-state hook has a stable home per card. */
@@ -36,13 +36,14 @@ function MarqueeSlot({
   readonly card: UpNextCard;
   readonly mark: MarkWatched;
 }): ReactElement {
-  const check = useQueueCheck(card.entry, mark);
+  const check = useMarkControl(card.entry, mark);
   return (
     <MarqueeCard
       entry={card.entry}
       episode={card.item.episode}
       checkState={check.state}
       checkLabel={check.label}
+      checkPending={check.pending}
       onCheck={check.onPress}
     />
   );
@@ -172,7 +173,7 @@ export function UpNext(): ReactElement {
   return (
     <section className="screen-home" data-testid="screen-up-next">
       <ScreenHeader title="Up Next" variant="root" />
-      <SyncStrip isError={view.isError} onRetry={view.refetch} />
+      <SyncStrip status={view} onRetry={view.refetch} />
 
       <PullToRefresh>
         {view.isLoading && (
@@ -185,6 +186,7 @@ export function UpNext(): ReactElement {
         {!view.isLoading && view.isError && !view.hasData && (
           <ErrorRetry
             title="Couldn't load your queue"
+            failure={view.failure}
             testId="up-next-error"
             buttonTestId="up-next-error-retry"
             onRetry={view.refetch}

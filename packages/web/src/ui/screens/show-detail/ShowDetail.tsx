@@ -189,6 +189,7 @@ export function ShowDetail({ showId }: { readonly showId: number }): ReactElemen
           <BackDisc />
           <ErrorRetry
             title="Couldn't load this show"
+            failure={detail.failure}
             testId="detail-error"
             buttonTestId="detail-error-retry"
             onRetry={detail.refetch}

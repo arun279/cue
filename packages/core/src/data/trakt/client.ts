@@ -39,6 +39,28 @@ export type TraktResult<T> =
   | { readonly ok: true; readonly data: T; readonly pagination: Pagination | null }
   | { readonly ok: false; readonly error: TraktFailure };
 
+/**
+ * A read that failed, carrying WHY. Every read the runtime exposes throws this
+ * rather than a bare Error, because the screen above it has to tell a rate
+ * limit from an outage: they take different copy, different retry policy and,
+ * for one of them, no Retry button at all.
+ */
+export class TraktReadError extends Error {
+  readonly failure: TraktFailure;
+
+  constructor(failure: TraktFailure, what: string) {
+    super(`Failed to load ${what} (${failure.kind})`);
+    this.name = "TraktReadError";
+    this.failure = failure;
+  }
+}
+
+/** The read's data, or the typed failure. The one place a read becomes a throw. */
+export function unwrapRead<T>(result: TraktResult<T>, what: string): T {
+  if (result.ok) return result.data;
+  throw new TraktReadError(result.error, what);
+}
+
 /** Raw response the write-queue transport needs; a fetch reject throws (network). */
 export interface RawResponse {
   readonly status: number;

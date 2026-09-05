@@ -130,7 +130,7 @@
 .sync-strip[data-state="pending"] .sync-strip__dot {
   background: var(--color-accent);
 }
-.sync-strip[data-state="error"] .sync-strip__dot {
+.sync-strip[data-state="unreachable"] .sync-strip__dot {
   background: var(--color-danger);
 }
 .sync-strip__text {

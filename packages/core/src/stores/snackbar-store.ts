@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { create } from "zustand";
+import { UNDO_WINDOW_MS } from "../sync-contract";
 
 interface SnackAction {
   readonly label: string;
@@ -25,7 +26,11 @@ interface SnackbarState {
   dismiss(): void;
 }
 
-export const DEFAULT_SNACK_TIMEOUT_MS = 5000;
+/**
+ * The snackbar's Undo and the row's green check are the same take-back, so they
+ * appear and retract together: one number, not two literals that can drift.
+ */
+export const DEFAULT_SNACK_TIMEOUT_MS = UNDO_WINDOW_MS;
 
 /**
  * The app-level snackbar singleton's state: exactly one transient message, ever.

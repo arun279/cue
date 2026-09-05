@@ -249,6 +249,7 @@ export function History(): ReactElement {
     body = (
       <ErrorRetry
         title="Couldn't load your history"
+        failure={view.failure}
         testId="history-error"
         buttonTestId="history-error-retry"
         onRetry={view.refetch}
@@ -325,7 +326,7 @@ export function History(): ReactElement {
         fallback="/profile"
         trailing={<HistorySearch value={titleQuery} onChange={setTitleQuery} />}
       />
-      <SyncStrip isError={view.isError} onRetry={view.refetch} />
+      <SyncStrip status={view} onRetry={view.refetch} />
 
       <div className="hist-filters">
         {lockedFilter === undefined && (

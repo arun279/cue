@@ -1,12 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
 import { queryKeys } from "../data/query-keys";
+import type { TraktFailure } from "../data/trakt/client";
 import type { SearchHit } from "../data/trakt/search";
 import { useRuntime } from "../runtime/runtime";
+import { readFailureOf } from "../sync-contract";
 import { BROWSE_STALE_TIME_MS } from "./query-freshness";
 
 export interface BrowseView {
   readonly isLoading: boolean;
   readonly isError: boolean;
+  /** Why the read failed, so the screen's error body names it rather than guessing. */
+  readonly failure: TraktFailure | null;
   readonly trending: readonly SearchHit[];
   readonly popular: readonly SearchHit[];
   readonly trendingMovies: readonly SearchHit[];
@@ -36,6 +40,7 @@ export function useBrowse(): BrowseView {
   return {
     isLoading: query.isLoading,
     isError: query.isError,
+    failure: readFailureOf(query.error),
     trending: query.data?.trending ?? [],
     popular: query.data?.popular ?? [],
     trendingMovies: query.data?.trendingMovies ?? [],

@@ -119,6 +119,7 @@ export function Profile(): ReactElement {
     body = (
       <ErrorRetry
         title="Couldn't load your stats"
+        failure={view.failure}
         testId="profile-error"
         buttonTestId="profile-error-retry"
         onRetry={view.refetch}
@@ -143,7 +144,7 @@ export function Profile(): ReactElement {
   return (
     <section className="screen-you" data-testid="screen-profile">
       <ScreenHeader title="You" variant="child" fallback="/" />
-      <SyncStrip isError={view.isError} onRetry={view.refetch} />
+      <SyncStrip status={view} onRetry={view.refetch} />
 
       <IdentityRow profile={profile} />
 

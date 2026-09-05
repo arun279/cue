@@ -347,6 +347,7 @@ export function EpisodeSheet({
           {!view.isLoading && episode === undefined && (
             <ErrorRetry
               title="Couldn't load this episode"
+              failure={view.failure}
               testId="episode-error"
               buttonTestId="episode-error-retry"
               onRetry={view.refetch}

@@ -14,6 +14,7 @@
 
 import { createServer } from "node:http";
 import { pathToFileURL } from "node:url";
+import { createFaults, faultResponse, faultsFromEnv } from "./faults.mjs";
 import { createJournal } from "./journal.mjs";
 import {
   applyHiddenWrite,
@@ -318,10 +319,57 @@ const ROUTES = [
 
 const CORS = {
   "access-control-allow-origin": "*",
-  "access-control-allow-methods": "GET, POST, OPTIONS",
+  "access-control-allow-methods": "GET, POST, DELETE, OPTIONS",
   "access-control-allow-headers": "authorization, content-type, trakt-api-key, trakt-api-version",
+  // The app reads pagination off the headers and its backoff off `Retry-After`.
+  // Neither is CORS-safelisted, so without this the browser hands the app a
+  // response with those headers stripped and the mock silently stops modelling
+  // the thing under test.
+  "access-control-expose-headers":
+    "retry-after, x-pagination-page, x-pagination-limit, x-pagination-page-count, x-pagination-item-count",
   "access-control-max-age": "600",
 };
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * A fault's effect on the connection itself, before any response is composed.
+ * False when the fault ends the request without one.
+ */
+async function stall(fault, request) {
+  if (fault.drop === true) {
+    request.socket.destroy();
+    return false;
+  }
+  if (fault.hold === true) return false;
+  if (fault.delayMs !== undefined) await sleep(fault.delayMs);
+  return true;
+}
+
+/**
+ * The harness control plane, on the mock's own origin under a `__` prefix that no
+ * Trakt path can collide with. `/__fault`: POST arms a rule (or
+ * `{ rules: [...] }`), GET reports what is armed, DELETE clears. `/__reset`:
+ * POST puts the account back to the seed, for a flow whose assertions are about
+ * what is IN the account rather than about the order the flows ran in.
+ */
+function controlRoute(faults, reset, method, pathname, body) {
+  if (pathname === "/__reset") {
+    if (method === "POST") {
+      reset();
+      return json({ reset: true });
+    }
+    return notFound(`no control route for ${method} ${pathname}`);
+  }
+  if (pathname !== "/__fault") return null;
+  if (method === "POST") return json({ armed: faults.arm(body) });
+  if (method === "DELETE") {
+    faults.clear();
+    return json({ armed: 0 });
+  }
+  if (method === "GET") return json({ rules: faults.describe() });
+  return notFound(`no control route for ${method} ${pathname}`);
+}
 
 async function readBody(request) {
   const chunks = [];
@@ -353,9 +401,40 @@ export function createMockTrakt({
   host = "127.0.0.1",
   log = true,
   journalFile = process.env["MOCK_TRAKT_JOURNAL"],
+  faults: faultSpec = faultsFromEnv(process.env["MOCK_TRAKT_FAULTS"]),
 } = {}) {
-  const library = createLibrary();
+  let library = createLibrary();
   const journal = createJournal(journalFile);
+  const faults = createFaults(faultSpec);
+
+  /** The response to send, or null when a fault ended the request without one. */
+  const answer = async (request, method, url, origin) => {
+    const body = await readBody(request);
+    // Journalled before the route runs, so a request with no route is still
+    // in the record: a hole has to be visible on both sides of a comparison.
+    // The `__` control plane is the harness talking to the mock, not the app
+    // talking to Trakt, so it stays out of a recording that exists to be
+    // compared against another app's.
+    if (!url.pathname.startsWith("/__")) {
+      journal.record(method, url.pathname, url.search, body);
+    }
+    const control = controlRoute(
+      faults,
+      () => {
+        library = createLibrary();
+      },
+      method,
+      url.pathname,
+      body,
+    );
+    const fault = control === null ? faults.next(method, url.pathname) : null;
+    if (fault !== null) {
+      if (log) process.stdout.write(`mock-trakt fault ${method} ${url.pathname}\n`);
+      if (!(await stall(fault, request))) return null;
+    }
+    return control ?? faultResponse(fault ?? {}) ?? resolve(library, method, url, origin, body);
+  };
+
   const server = createServer((request, response) => {
     void (async () => {
       const origin = `http://${request.headers.host ?? `${host}:${port}`}`;
@@ -366,11 +445,8 @@ export function createMockTrakt({
         response.end("");
         return;
       }
-      const body = await readBody(request);
-      // Journalled before the route runs, so a request with no route is still
-      // in the record: a hole has to be visible on both sides of a comparison.
-      journal.record(method, url.pathname, url.search, body);
-      const result = resolve(library, method, url, origin, body);
+      const result = await answer(request, method, url, origin);
+      if (result === null) return;
       if (log) {
         process.stdout.write(
           `mock-trakt ${method} ${url.pathname}${url.search} ${result.status}\n`,
@@ -382,7 +458,11 @@ export function createMockTrakt({
   });
 
   return {
-    library,
+    // A getter, because `/__reset` replaces the account wholesale.
+    get library() {
+      return library;
+    },
+    faults,
     listen: () =>
       new Promise((resolve) => {
         server.listen(port, host, () => {

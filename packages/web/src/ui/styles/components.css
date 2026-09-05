@@ -96,6 +96,25 @@
   stroke-dashoffset: 0;
   transition: stroke-dashoffset 160ms var(--ease-standard) 60ms;
 }
+/* Advancing: the row has moved on and Trakt has yet to name its next episode.
+ * A dimmed ring, no fill: green would say take-back-able, which it no longer is,
+ * and an armed ring would offer a mark of a coordinate nobody knows yet. */
+.check[data-state="advancing"] {
+  cursor: default;
+  opacity: 0.55;
+}
+.check[data-state="advancing"] .check__rest {
+  opacity: 0.4;
+}
+.check[data-state="advancing"]:active .check__disc {
+  transform: none;
+  border-color: var(--color-border-strong);
+}
+/* The mark is still on its way to Trakt: the same quiet dot the partial state
+ * uses, in place of the glyph, and never a spinner. It is saved either way. */
+.check[data-pending="true"] .check__rest {
+  opacity: 0;
+}
 /* Season-bulk partial: hollow ring with a quiet center dot. The rest glyph
  * yields entirely. Overlapped strokes read as a smudge at 44px. */
 .check__dot {

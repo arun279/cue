@@ -1,3 +1,6 @@
+import type { TraktFailure } from "../data/trakt/client";
+import { readFailureOf } from "../sync-contract";
+
 /**
  * Freshness horizons for the read hooks.
  *
@@ -25,13 +28,18 @@ export const CONTENT_STALE_TIME_MS = 60 * 60 * 1000;
 export const BROWSE_STALE_TIME_MS = 5 * 60 * 1000;
 
 /**
- * The status fields a persisted-SWR read hook forwards to its screen's
- * {@link SyncStatusPill}. The read hooks wired for the pill's recency share this
- * mapper rather than each inlining the identical `query → status` spread: the
- * duplication gate (jscpd, 0% threshold) rejects the copy-pasted block. `hasData`
- * is the caller's own has-data predicate (each hook derives it from its own selected
- * slice); `syncedAt` is the query's last successful update, which the pill renders
- * as the "· <time ago>" recency.
+ * The status fields a persisted-SWR read hook forwards to its screen. The read
+ * hooks wired for the sync strip share this mapper rather than each inlining the
+ * identical `query → status` spread: the duplication gate (jscpd, 0% threshold)
+ * rejects the copy-pasted block. `hasData` is the caller's own has-data predicate
+ * (each hook derives it from its own selected slice); `syncedAt` is the query's
+ * last successful update, which Settings renders as its recency.
+ *
+ * `failure` and `retrying` are what let a screen tell the truth about a failed
+ * read: WHICH failure (a rate limit is not an outage) and whether the app is
+ * still trying (in which case there is nothing for the user to retry, and no
+ * outage to announce yet). A read between attempts reports through
+ * `failureReason`, so a mid-retry read is visible before `error` is ever set.
  */
 export interface QueryStatus {
   readonly isLoading: boolean;
@@ -39,6 +47,9 @@ export interface QueryStatus {
   readonly isError: boolean;
   readonly hasData: boolean;
   readonly syncedAt: number;
+  readonly failure: TraktFailure | null;
+  /** Something has failed and the app is trying again on its own. */
+  readonly retrying: boolean;
 }
 
 export function queryStatus(
@@ -47,6 +58,8 @@ export function queryStatus(
     readonly isFetching: boolean;
     readonly isError: boolean;
     readonly dataUpdatedAt: number;
+    readonly error: unknown;
+    readonly failureReason: unknown;
   },
   hasData: boolean,
 ): QueryStatus {
@@ -56,5 +69,13 @@ export function queryStatus(
     isError: query.isError,
     hasData,
     syncedAt: query.dataUpdatedAt,
+    failure: readFailureOf(query.error ?? query.failureReason),
+    // Honest in both directions. A fetch with a failure behind it is retrying,
+    // whether that failure is this attempt's `failureReason` or the settled
+    // `error` of a query that has data and is trying again: TanStack keeps
+    // `error` set across every later refetch once data exists, so reading only
+    // `isError` says "not retrying" for the whole of the next ladder and leaves
+    // a Retry button on screen while the app is already retrying.
+    retrying: query.isFetching && (query.isError || query.failureReason !== null),
   };
 }
