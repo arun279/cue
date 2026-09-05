@@ -61,15 +61,30 @@ describe("the Capacitor migration", () => {
     expect(fresh.preferences.values.size).toBe(0);
   });
 
-  it("adopts the legacy token and leaves it where it is", async () => {
+  it("adopts the legacy token once and leaves it where it is", async () => {
     const upgrade = deps({ "cue.trakt.token": JSON.stringify(TOKEN) });
     const result = await migrateLegacyCapacitorData(upgrade);
+    const second = await migrateLegacyCapacitorData(upgrade);
 
     expect(result.adoptedToken).toBe(true);
+    expect(second.adoptedToken).toBe(false);
     expect(await upgrade.tokenStore.read()).toEqual(TOKEN);
     // Left in place on purpose: a Capacitor build is still a rollback target,
     // and the rule that matches what a user expects is last writer wins.
     expect(upgrade.legacy.values.get("cue.trakt.token")).toBe(JSON.stringify(TOKEN));
+  });
+
+  it("adopts a changed legacy token", async () => {
+    const upgrade = deps({ "cue.trakt.token": JSON.stringify(TOKEN) });
+    await migrateLegacyCapacitorData(upgrade);
+    const changed = JSON.stringify({ ...TOKEN, access_token: "changed" });
+    upgrade.legacy.values.set("cue.trakt.token", changed);
+
+    const result = await migrateLegacyCapacitorData(upgrade);
+
+    expect(result.adoptedToken).toBe(true);
+    expect(await upgrade.tokenStore.read()).toEqual({ ...TOKEN, access_token: "changed" });
+    expect(upgrade.legacy.values.get("cue.trakt.token")).toBe(changed);
   });
 
   it("prefers the legacy token over one this install already holds", async () => {
@@ -141,12 +156,12 @@ describe("the Capacitor migration", () => {
     expect(JSON.parse(both.bulk.values.get("cue.write-queue") ?? "null")).toEqual([OP, mine]);
   });
 
-  it("is a no-op on the second launch, because the op log is gone and the token is idempotent", async () => {
+  it("is a no-op on the second launch", async () => {
     const upgrade = deps({ "cue.trakt.token": JSON.stringify(TOKEN) });
     await migrateLegacyCapacitorData({ ...upgrade, legacy: upgrade.legacy });
     const second = await migrateLegacyCapacitorData(upgrade);
 
-    expect(second).toEqual({ adoptedToken: true, adoptedOps: 0 });
+    expect(second).toEqual({ adoptedToken: false, adoptedOps: 0 });
     expect(await upgrade.tokenStore.read()).toEqual(TOKEN);
   });
 

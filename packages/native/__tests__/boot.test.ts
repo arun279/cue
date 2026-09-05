@@ -77,6 +77,18 @@ describe("the native boot", () => {
     expect(await createTokenStore(upgrade.secure).read()).toEqual(TOKEN);
   });
 
+  it("stays signed out after relaunching with an adopted legacy token", async () => {
+    const upgrade = deps({ legacy: { "cue.trakt.token": JSON.stringify(TOKEN) } });
+    await bootNativeStores(upgrade);
+    await createTokenStore(upgrade.secure).clear();
+
+    const result = await bootNativeStores(upgrade);
+
+    expect(result.migration.adoptedToken).toBe(false);
+    expect(await createTokenStore(upgrade.secure).read()).toBeNull();
+    expect(upgrade.legacy.values.get("cue.trakt.token")).toBe(JSON.stringify(TOKEN));
+  });
+
   it("installs the Web Crypto surface the shared OAuth code is written against", async () => {
     await bootNativeStores(deps({}));
 
