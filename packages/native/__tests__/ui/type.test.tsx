@@ -141,6 +141,9 @@ const APPLE_LARGE: Readonly<Record<string, readonly [number, number]>> = {
   caption2: [11, 13],
 };
 
+/** The stat hero scales with largeTitle and is set on the display face's own leading. */
+const IOS_DEVIATION: Partial<Record<TypeRole, readonly [number, number]>> = { statHero: [34, 38] };
+
 const MATERIAL_3 = {
   displaySmall: [36, 44],
   headlineMedium: [28, 36],
@@ -174,7 +177,7 @@ it("uses the platform default size and line height for each mapped text style", 
     const style = styleOf(role);
     const metrics =
       Platform.OS === "ios"
-        ? APPLE_LARGE[propsOf(role).dynamicTypeRamp ?? ""]
+        ? (IOS_DEVIATION[role] ?? APPLE_LARGE[propsOf(role).dynamicTypeRamp ?? ""])
         : MATERIAL_3[MATERIAL_ROLE[role]];
     expect({ role, metrics: [style.fontSize, style.lineHeight] }).toEqual({ role, metrics });
   }

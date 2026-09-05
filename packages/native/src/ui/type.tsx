@@ -83,7 +83,7 @@ const IOS_ROLES: Readonly<Record<TypeRole, RoleSpec>> = {
     face: "system",
   },
   detailTitle: { size: 28, lineHeight: 34, letterSpacing: -0.4, weight: "bold", face: "display" },
-  statHero: { size: 34, lineHeight: 41, letterSpacing: -0.4, weight: "bold", face: "display" },
+  statHero: { size: 34, lineHeight: 38, letterSpacing: -0.4, weight: "bold", face: "display" },
   sectionHeading: { size: 22, lineHeight: 28, letterSpacing: -0.26, weight: "bold", face: "ui" },
   identity: { size: 20, lineHeight: 25, weight: "semibold", face: "ui" },
   rowTitle: { size: 17, lineHeight: 22, letterSpacing: -0.2, weight: "semibold", face: "ui" },
