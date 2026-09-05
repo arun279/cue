@@ -26,7 +26,7 @@ const RE_DOES_NOT_SHIP_DIRECTORY =
   "^(docs|\\.github|assets|scripts/(complexity|mock-trakt)|packages/[^/]+/(e2e|test|__tests__))(/|$)";
 const RE_DOES_NOT_SHIP_MARKDOWN = "^[^/]*\\.md$";
 const RE_DOES_NOT_SHIP_FILE =
-  "^(LICENSE|vitest\\.config\\.ts|lefthook\\.yml|cspell\\.json|dprint\\.json|biome\\.jsonc|knip\\.json|\\.jscpd\\.json|\\.dependency-cruiser\\.cjs|\\.gitignore|\\.size-limit\\.json|scripts/(assert-file-size|assert-ipa-size|check-size|measure-comments|measure-complexity)\\.mjs|scripts/(diff-footprint|measure-sizes)\\.sh|scripts/write-buster\\.mjs|tsconfig\\.depcruise\\.json|packages/[^/]+/(playwright\\.config\\.ts|vitest\\.config\\.ts|jest\\.config\\.js|\\.gitignore|\\.env\\.(example|test|mock)))$";
+  "^(LICENSE|vitest\\.config\\.ts|lefthook\\.yml|cspell\\.json|dprint\\.json|biome\\.jsonc|knip\\.json|\\.jscpd\\.json|\\.dependency-cruiser\\.cjs|\\.gitignore|\\.size-limit\\.json|scripts/(assert-file-size|check-size|measure-comments|measure-complexity)\\.mjs|scripts/(diff-footprint|measure-sizes)\\.sh|scripts/write-buster\\.mjs|tsconfig\\.depcruise\\.json|packages/[^/]+/(playwright\\.config\\.ts|vitest\\.config\\.ts|jest\\.config\\.js|\\.gitignore|\\.env\\.(example|test|mock)))$";
 
 const { join } = require("node:path");
 

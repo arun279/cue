@@ -76,7 +76,6 @@ const DOES_NOT_SHIP = [
   ".dependency-cruiser.cjs",
   ".size-limit.json",
   "scripts/assert-file-size.mjs",
-  "scripts/assert-ipa-size.mjs",
   "scripts/check-size.mjs",
   "scripts/complexity/**",
   "scripts/diff-footprint.sh",
