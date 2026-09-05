@@ -87,7 +87,7 @@ const IOS_ROLES: Readonly<Record<TypeRole, RoleSpec>> = {
   statHero: { size: 34, lineHeight: 38, letterSpacing: -0.4, weight: "bold", face: "display" },
   sectionHeading: { size: 22, lineHeight: 28, letterSpacing: -0.26, weight: "bold", face: "ui" },
   identity: { size: 20, lineHeight: 25, weight: "semibold", face: "ui" },
-  rowTitle: { size: 17, lineHeight: 22, letterSpacing: -0.2, weight: "medium", face: "ui" },
+  rowTitle: { size: 17, lineHeight: 22, letterSpacing: -0.2, weight: "semibold", face: "ui" },
   rowTitleSecondary: { size: 15, lineHeight: 20, weight: "medium", face: "ui" },
   meta: { size: 13, lineHeight: 18, weight: "medium", face: "ui" },
   caption: { size: 12, lineHeight: 16, weight: "regular", face: "ui" },
@@ -113,7 +113,7 @@ const ANDROID_ROLES: Readonly<Record<TypeRole, RoleSpec>> = {
   statHero: { size: 36, lineHeight: 44, weight: "bold", face: "display" },
   sectionHeading: { size: 22, lineHeight: 28, letterSpacing: -0.2, weight: "semibold", face: "ui" },
   identity: { size: 16, lineHeight: 24, letterSpacing: 0.15, weight: "semibold", face: "ui" },
-  rowTitle: { size: 16, lineHeight: 24, letterSpacing: 0.1, weight: "regular", face: "ui" },
+  rowTitle: { size: 16, lineHeight: 24, letterSpacing: 0.1, weight: "semibold", face: "ui" },
   rowTitleSecondary: {
     size: 14,
     lineHeight: 20,

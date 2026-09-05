@@ -26,7 +26,13 @@ export function SectionHeader({ label, action, testID }: SectionHeaderProps): Re
 
   return (
     <View style={styles.header} testID={testID}>
-      <CueText variant="meta" eyebrow accessibilityRole="header" style={{ color: colors.muted }}>
+      <CueText
+        variant="meta"
+        weight="semibold"
+        eyebrow
+        accessibilityRole="header"
+        style={{ color: colors.muted }}
+      >
         {label}
       </CueText>
       {action === undefined ? null : (

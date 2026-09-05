@@ -1,6 +1,6 @@
-import { render, screen, userEvent } from "@testing-library/react-native";
+import { render, renderHook, screen, userEvent } from "@testing-library/react-native";
 import { CheckControl } from "../../src/ui/CheckControl";
-import { CHECK_SIZE } from "../../src/ui/tokens";
+import { CHECK_SIZE, useColors } from "../../src/ui/tokens";
 
 it("is a switch that carries its state, and says what it does rather than what it is", async () => {
   await render(<CheckControl checked={false} label="Mark Salt Air watched" onPress={jest.fn()} />);
@@ -44,4 +44,13 @@ it("toggles from its own tap", async () => {
   await user.press(screen.getByTestId("check"));
 
   expect(onPress).toHaveBeenCalledTimes(1);
+});
+
+it("merges the checked ring into its fill", async () => {
+  const { result } = await renderHook(() => useColors());
+  await render(<CheckControl checked label="Mark Salt Air watched" onPress={jest.fn()} />);
+  expect(screen.getByRole("switch").children[0]).toHaveStyle({
+    backgroundColor: result.current.watched,
+    borderColor: result.current.watched,
+  });
 });

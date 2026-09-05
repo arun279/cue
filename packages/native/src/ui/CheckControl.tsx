@@ -58,7 +58,7 @@ export function CheckControl({
       <View
         style={[
           styles.disc,
-          { width: disc, height: disc, borderColor: ink },
+          { width: disc, height: disc, borderColor: checked ? colors.watched : ink },
           checked && { backgroundColor: colors.watched },
         ]}
       >

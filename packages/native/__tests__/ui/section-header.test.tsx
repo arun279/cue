@@ -6,6 +6,7 @@ it("is a real heading, which is what the rotor and TalkBack traverse", async () 
   await render(<SectionHeader label="On the way" />);
 
   expect(screen.getByRole("header", { name: "On the way" })).toBeOnTheScreen();
+  expect(screen.getByRole("header")).toHaveStyle({ fontFamily: "Inter_600SemiBold" });
 });
 
 it("draws its link as a target at the floor and runs it from a tap", async () => {

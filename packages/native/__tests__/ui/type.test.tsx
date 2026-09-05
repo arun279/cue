@@ -65,7 +65,7 @@ it("scales every role, caps none, draws nothing below 11 and names only a loaded
 it("changes the face on the weight axis and leaves the size alone", async () => {
   await render(
     <View>
-      <CueText variant="rowTitle" testID="plain">
+      <CueText variant="rowTitle" weight="regular" testID="plain">
         Salt Air
       </CueText>
       <CueText variant="rowTitle" weight="semibold" testID="emphasized">
@@ -116,4 +116,9 @@ it("puts counts on tabular figures only when asked", async () => {
 
   expect(styleOf("tabular").fontVariant).toEqual(["tabular-nums"]);
   expect(styleOf("plain").fontVariant).toBeUndefined();
+});
+
+it("emphasizes row titles by default", async () => {
+  await render(<CueText variant="rowTitle">Salt Air</CueText>);
+  expect(screen.getByText("Salt Air")).toHaveStyle({ fontFamily: "Inter_600SemiBold" });
 });
