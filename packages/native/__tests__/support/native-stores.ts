@@ -74,6 +74,7 @@ export const cueNativeModule = {
   CueHaptics: {
     success: () => {},
     failure: () => {},
+    warning: () => {},
     thresholdActivate: () => {},
     thresholdDeactivate: () => {},
     selection: () => {},

@@ -12,6 +12,11 @@ export interface Haptics {
   success(): void;
   /** A task did not complete: a mark or a take-back the user was told failed. */
   failure(): void;
+  /** A user-initiated write or refresh completed, but with a caveat: a season
+   * mark that kept existing rewatches, or a refresh released during a rate-limit
+   * pause that ended on cached data. Never for a passive state, because nothing
+   * the user did produced one. */
+  warning(): void;
   /** A drag just crossed the threshold that arms its action on release. */
   thresholdActivate(): void;
   /** The drag retreated back under that threshold, disarming it. */
@@ -29,6 +34,7 @@ export interface Haptics {
 export const SILENT: Haptics = {
   success() {},
   failure() {},
+  warning() {},
   thresholdActivate() {},
   thresholdDeactivate() {},
   selection() {},

@@ -1,6 +1,7 @@
 import { Stack, useRouter } from "expo-router";
 import type { ReactElement } from "react";
-import { Button } from "react-native";
+import { Button, StyleSheet, View } from "react-native";
+import { SnackbarHost } from "../../src/ui/SnackbarHost";
 
 /**
  * Profile, Settings and History as one full-screen modal stack over the tabs.
@@ -22,18 +23,23 @@ export default function AccountLayout(): ReactElement {
   const router = useRouter();
 
   return (
-    <Stack>
-      <Stack.Screen
-        name="profile"
-        options={{
-          title: "Profile",
-          headerRight: () => (
-            <Button testID="close-account" title="Done" onPress={() => router.dismissAll()} />
-          ),
-        }}
-      />
-      <Stack.Screen name="settings" options={{ title: "Settings" }} />
-      <Stack.Screen name="history" options={{ title: "History" }} />
-    </Stack>
+    <View style={styles.root}>
+      <Stack>
+        <Stack.Screen
+          name="profile"
+          options={{
+            title: "Profile",
+            headerRight: () => (
+              <Button testID="close-account" title="Done" onPress={() => router.dismissAll()} />
+            ),
+          }}
+        />
+        <Stack.Screen name="settings" options={{ title: "Settings" }} />
+        <Stack.Screen name="history" options={{ title: "History" }} />
+      </Stack>
+      <SnackbarHost placement="presentation" />
+    </View>
   );
 }
+
+const styles = StyleSheet.create({ root: { flex: 1 } });

@@ -14,7 +14,7 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { type ReactElement, useEffect, useState } from "react";
-import { View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { initialWindowMetrics, SafeAreaProvider } from "react-native-safe-area-context";
 import { bootNativeStores } from "../src/boot";
 import { NATIVE_REDIRECT_URI, TRAKT_BASE_OVERRIDE, TRAKT_CLIENT_ID } from "../src/config";
@@ -30,6 +30,7 @@ import {
   shouldDehydrateQuery,
 } from "../src/platform/query-persister";
 import { createNativeReminders } from "../src/platform/reminders";
+import { useScreenReader } from "../src/platform/screen-reader";
 import {
   bulkStore,
   clearLocalPreferences,
@@ -38,6 +39,9 @@ import {
 } from "../src/platform/stores";
 import { Onboarding } from "../src/screens/Onboarding";
 import { RuntimeBoot } from "../src/screens/RuntimeBoot";
+import { AppIdle } from "../src/ui/AppIdle";
+import { SnackbarHost } from "../src/ui/SnackbarHost";
+import { useCueFonts } from "../src/ui/type";
 
 /**
  * The native composition root. It is the only file that knows both which
@@ -53,7 +57,6 @@ void SplashScreen.preventAutoHideAsync().catch(() => {});
 
 const prefsStore = createPrefsStore(preferenceStorage);
 const tokenStore = createTokenStore(secureStore);
-// Read at fire time rather than captured, exactly as the web build reads it.
 const haptics = createNativeHaptics(() => prefsStore.getState().hapticsEnabled);
 const reminders = createNativeReminders();
 const network = createNativeNetwork();
@@ -96,7 +99,6 @@ function useNativeSession(): AuthStore | null {
             traktBaseUrl: TRAKT_BASE_OVERRIDE,
           }),
         );
-        void SplashScreen.hideAsync().catch(() => {});
       });
     return () => {
       alive = false;
@@ -126,13 +128,17 @@ function Gate(): ReactElement {
   if (phase === "connected") {
     return (
       <RuntimeBoot deps={runtimeDeps}>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="(tabs)" />
-          {/* Presented from the root, over the tab bar, so it always dismisses
-              back to exactly where the user was rather than into whichever tab
-              happened to be selected. */}
-          <Stack.Screen name="(account)" options={{ presentation: "fullScreenModal" }} />
-        </Stack>
+        <View style={styles.root}>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="(tabs)" />
+            {/* Presented from the root, over the tab bar, so it always dismisses
+                back to exactly where the user was rather than into whichever tab
+                happened to be selected. */}
+            <Stack.Screen name="(account)" options={{ presentation: "fullScreenModal" }} />
+          </Stack>
+          <SnackbarHost placement="root" />
+          <AppIdle />
+        </View>
       </RuntimeBoot>
     );
   }
@@ -141,10 +147,15 @@ function Gate(): ReactElement {
 }
 
 export default function RootLayout(): ReactElement {
+  useScreenReader();
   const authStore = useNativeSession();
+  const fontsSettled = useCueFonts();
 
-  // Nothing to paint until the stores are settled, and the splash is still up.
-  if (authStore === null) return <View testID="boot-hold" />;
+  useEffect(() => {
+    if (authStore !== null && fontsSettled) void SplashScreen.hideAsync().catch(() => {});
+  }, [authStore, fontsSettled]);
+
+  if (authStore === null || !fontsSettled) return <View testID="boot-hold" />;
 
   return (
     // The metrics the native side already knows, so the first frame is the app
@@ -182,3 +193,5 @@ export default function RootLayout(): ReactElement {
     </SafeAreaProvider>
   );
 }
+
+const styles = StyleSheet.create({ root: { flex: 1 } });

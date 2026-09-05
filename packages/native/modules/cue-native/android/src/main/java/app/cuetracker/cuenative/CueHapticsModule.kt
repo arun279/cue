@@ -42,6 +42,16 @@ class CueHapticsModule : Module() {
             )
         }
 
+        /** Android publishes no warning constant, so the caveat takes the same
+         * REJECT the failure does: it is the nearest documented meaning, and
+         * inventing a waveform for it is what the platform's guidance rules out. */
+        Function("warning") {
+            perform(
+                if (Build.VERSION.SDK_INT >= 30) HapticFeedbackConstants.REJECT
+                else HapticFeedbackConstants.LONG_PRESS,
+            )
+        }
+
         /** The gesture threshold pair is API 34. */
         Function("thresholdActivate") {
             perform(
