@@ -1,5 +1,6 @@
 import { epCode } from "@cue/core/domain/model/library";
 import { episodesLeft, lastWatchedPhrase, watchedPercent } from "@cue/core/format";
+import { useMarkControl } from "@cue/core/hooks/useMarkControl";
 import type { MarkWatched } from "@cue/core/hooks/useMarkWatched";
 import type { UpNextCard } from "@cue/core/hooks/useUpNext";
 import { CheckControl } from "@ui/components/CheckControl";
@@ -9,7 +10,6 @@ import { SwipeAction } from "@ui/components/SwipeAction";
 import { useShowArt } from "@ui/hooks/useShowArt";
 import type { ReactElement, ReactNode } from "react";
 import { Poster } from "./Poster";
-import { useQueueCheck } from "./useQueueCheck";
 
 interface QueueRowProps {
   readonly card: UpNextCard;
@@ -36,7 +36,7 @@ export function QueueRow({
   trailingExtra,
 }: QueueRowProps): ReactElement {
   const { entry, item } = card;
-  const check = useQueueCheck(entry, mark);
+  const check = useMarkControl(entry, mark);
   // Art is deferred out of the cold-sync budget: a row that settles on screen
   // reads its own poster. The queue is not virtualized, so every row mounts at
   // once; only the ones actually on screen spend a read.
@@ -76,6 +76,7 @@ export function QueueRow({
               size={48}
               mode="advance"
               label={check.label}
+              pending={check.pending}
               onPress={check.onPress}
             />
             {trailingExtra}

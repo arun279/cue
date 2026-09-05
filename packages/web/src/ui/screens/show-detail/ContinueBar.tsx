@@ -8,12 +8,12 @@ import {
 import { epCode } from "@cue/core/domain/model/library";
 import { isAired } from "@cue/core/domain/time";
 import { episodesLeft, watchedPercent } from "@cue/core/format";
+import { useMarkControl } from "@cue/core/hooks/useMarkControl";
 import type { MarkWatched } from "@cue/core/hooks/useMarkWatched";
 import { Link } from "@tanstack/react-router";
 import { CheckControl } from "@ui/components/CheckControl";
 import { CountdownPanel } from "@ui/components/CountdownPanel";
 import { ProgressBar } from "@ui/components/ProgressBar";
-import { useQueueCheck } from "@ui/screens/up-next/useQueueCheck";
 import type { ReactElement, ReactNode } from "react";
 import { continueKind } from "./detail-logic";
 
@@ -116,8 +116,8 @@ function NextBody({
 }
 
 /** The tracked-show check: the identical advance-mode pipeline the Up Next queue
- * runs (optimistic advance, live reverse window, re-arm on the authoritative
- * next episode). Its own component so the hook has a stable home. */
+ * runs (optimistic advance, the undo window, then the advanced row). Its own
+ * component so the hook has a stable home. */
 function EntryCheck({
   entry,
   mark,
@@ -125,7 +125,7 @@ function EntryCheck({
   readonly entry: LibraryEntry;
   readonly mark: MarkWatched;
 }): ReactElement {
-  const check = useQueueCheck(entry, mark);
+  const check = useMarkControl(entry, mark);
   return (
     <CheckControl
       state={check.state}
@@ -133,6 +133,7 @@ function EntryCheck({
       mode="advance"
       label={check.label}
       testId="continue-check"
+      pending={check.pending}
       onPress={check.onPress}
     />
   );

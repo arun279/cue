@@ -47,6 +47,7 @@ export function Calendar(): ReactElement {
     body = (
       <ErrorRetry
         title="Couldn't load your calendar"
+        failure={view.failure}
         testId="upcoming-error"
         buttonTestId="upcoming-error-retry"
         onRetry={view.refetch}
@@ -66,7 +67,7 @@ export function Calendar(): ReactElement {
   return (
     <section className="screen-calendar" data-testid="screen-calendar">
       <ScreenHeader title="Calendar" variant="root" />
-      <SyncStrip isError={view.isError} onRetry={view.refetch} />
+      <SyncStrip status={view} onRetry={view.refetch} />
       <PullToRefresh>{body}</PullToRefresh>
     </section>
   );

@@ -403,6 +403,7 @@ export function Library(): ReactElement {
     body = (
       <ErrorRetry
         title={isMovies ? "Couldn't load your movies" : "Couldn't load your library"}
+        failure={active.failure}
         testId="library-error"
         buttonTestId="library-error-retry"
         onRetry={active.refetch}
@@ -445,7 +446,7 @@ export function Library(): ReactElement {
   return (
     <section className="screen-library" data-testid="screen-library">
       <ScreenHeader title="Library" variant="root" />
-      <SyncStrip isError={active.isError} onRetry={active.refetch} />
+      <SyncStrip status={active} onRetry={active.refetch} />
 
       <PullToRefresh>
         <div className="library-toolbar">
