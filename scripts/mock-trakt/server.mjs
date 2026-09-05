@@ -14,6 +14,7 @@
 
 import { createServer } from "node:http";
 import { pathToFileURL } from "node:url";
+import { createFaults, faultResponse, faultsFromEnv } from "./faults.mjs";
 import { createJournal } from "./journal.mjs";
 import {
   applyHiddenWrite,
@@ -318,10 +319,34 @@ const ROUTES = [
 
 const CORS = {
   "access-control-allow-origin": "*",
-  "access-control-allow-methods": "GET, POST, OPTIONS",
+  "access-control-allow-methods": "GET, POST, DELETE, OPTIONS",
   "access-control-allow-headers": "authorization, content-type, trakt-api-key, trakt-api-version",
+  // The app reads pagination off the headers and its backoff off `Retry-After`.
+  // Neither is CORS-safelisted, so without this the browser hands the app a
+  // response with those headers stripped and the mock silently stops modelling
+  // the thing under test.
+  "access-control-expose-headers":
+    "retry-after, x-pagination-page, x-pagination-limit, x-pagination-page-count, x-pagination-item-count",
   "access-control-max-age": "600",
 };
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * The fault control plane, on the mock's own origin under a `__` prefix that no
+ * Trakt path can collide with. POST arms a rule (or `{ rules: [...] }`), GET
+ * reports what is armed, DELETE clears.
+ */
+function controlRoute(faults, method, pathname, body) {
+  if (pathname !== "/__fault") return null;
+  if (method === "POST") return json({ armed: faults.arm(body) });
+  if (method === "DELETE") {
+    faults.clear();
+    return json({ armed: 0 });
+  }
+  if (method === "GET") return json({ rules: faults.describe() });
+  return notFound(`no control route for ${method} ${pathname}`);
+}
 
 async function readBody(request) {
   const chunks = [];
@@ -353,9 +378,11 @@ export function createMockTrakt({
   host = "127.0.0.1",
   log = true,
   journalFile = process.env["MOCK_TRAKT_JOURNAL"],
+  faults: faultSpec = faultsFromEnv(process.env["MOCK_TRAKT_FAULTS"]),
 } = {}) {
   const library = createLibrary();
   const journal = createJournal(journalFile);
+  const faults = createFaults(faultSpec);
   const server = createServer((request, response) => {
     void (async () => {
       const origin = `http://${request.headers.host ?? `${host}:${port}`}`;
@@ -370,7 +397,19 @@ export function createMockTrakt({
       // Journalled before the route runs, so a request with no route is still
       // in the record: a hole has to be visible on both sides of a comparison.
       journal.record(method, url.pathname, url.search, body);
-      const result = resolve(library, method, url, origin, body);
+      const control = controlRoute(faults, method, url.pathname, body);
+      const fault = control === null ? faults.next(method, url.pathname) : null;
+      if (fault !== null) {
+        if (log) process.stdout.write(`mock-trakt fault ${method} ${url.pathname}\n`);
+        if (fault.drop === true) {
+          request.socket.destroy();
+          return;
+        }
+        if (fault.hold === true) return;
+        if (fault.delayMs !== undefined) await sleep(fault.delayMs);
+      }
+      const result =
+        control ?? faultResponse(fault ?? {}) ?? resolve(library, method, url, origin, body);
       if (log) {
         process.stdout.write(
           `mock-trakt ${method} ${url.pathname}${url.search} ${result.status}\n`,
@@ -383,6 +422,7 @@ export function createMockTrakt({
 
   return {
     library,
+    faults,
     listen: () =>
       new Promise((resolve) => {
         server.listen(port, host, () => {
