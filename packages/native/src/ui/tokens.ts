@@ -5,6 +5,7 @@ import {
   PlatformColor,
   StyleSheet,
   useColorScheme,
+  type ViewStyle,
 } from "react-native";
 
 /**
@@ -123,6 +124,24 @@ export const CHECK_SIZE = { marquee: 56, row: 48 } as const;
 
 /** `.sep` is a half-point hairline on iOS; `DividerDefaults.Thickness` is 1 dp. */
 export const HAIRLINE = Platform.OS === "ios" ? StyleSheet.hairlineWidth : 1;
+
+/**
+ * The lift under a surface that floats over the page. It is load bearing rather
+ * than decoration: on the light theme `--color-overlay` is #ffffff on a #fbfaf7
+ * page, 1.04:1, so nothing else separates a snackbar from what it covers.
+ * Android takes elevation and the platform draws its own shadow; iOS takes the
+ * offset, radius and opacity, with the shadow's own black rather than a palette
+ * color, which is what a shadow is.
+ */
+export const FLOAT_SHADOW: ViewStyle = Platform.select({
+  android: { elevation: 6 },
+  default: {
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.45,
+    shadowRadius: 15,
+  },
+});
 
 /**
  * Where a row's trailing controls stop fitting beside its text and move below

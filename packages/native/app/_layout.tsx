@@ -14,7 +14,7 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { type ReactElement, useEffect, useState } from "react";
-import { View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { initialWindowMetrics, SafeAreaProvider } from "react-native-safe-area-context";
 import { bootNativeStores } from "../src/boot";
 import { NATIVE_REDIRECT_URI, TRAKT_BASE_OVERRIDE, TRAKT_CLIENT_ID } from "../src/config";
@@ -38,6 +38,7 @@ import {
 } from "../src/platform/stores";
 import { Onboarding } from "../src/screens/Onboarding";
 import { RuntimeBoot } from "../src/screens/RuntimeBoot";
+import { SnackbarHost } from "../src/ui/SnackbarHost";
 import { useCueFonts } from "../src/ui/type";
 
 /**
@@ -127,13 +128,18 @@ function Gate(): ReactElement {
   if (phase === "connected") {
     return (
       <RuntimeBoot deps={runtimeDeps}>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="(tabs)" />
-          {/* Presented from the root, over the tab bar, so it always dismisses
-              back to exactly where the user was rather than into whichever tab
-              happened to be selected. */}
-          <Stack.Screen name="(account)" options={{ presentation: "fullScreenModal" }} />
-        </Stack>
+        <View style={styles.root}>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="(tabs)" />
+            {/* Presented from the root, over the tab bar, so it always dismisses
+                back to exactly where the user was rather than into whichever tab
+                happened to be selected. */}
+            <Stack.Screen name="(account)" options={{ presentation: "fullScreenModal" }} />
+          </Stack>
+          {/* The root host. Every presentation that can raise a snack mounts one
+              of its own, and only the topmost draws. */}
+          <SnackbarHost placement="root" />
+        </View>
       </RuntimeBoot>
     );
   }
@@ -186,3 +192,5 @@ export default function RootLayout(): ReactElement {
     </SafeAreaProvider>
   );
 }
+
+const styles = StyleSheet.create({ root: { flex: 1 } });
