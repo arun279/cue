@@ -10,6 +10,10 @@ updates:
     directory: /.github/actions/setup-node-pnpm
     schedule:
       interval: weekly
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
   - package-ecosystem: bundler
     directory: /
     schedule:
