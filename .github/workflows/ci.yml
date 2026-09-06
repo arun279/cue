@@ -211,7 +211,13 @@ jobs:
       - name: Build and check release artifacts
         working-directory: packages/native/android
         env:
-          AAB_SIZE_LIMIT_BYTES: "60000000"
+          # A smoke ceiling on the upload, not a download budget. Measured, the
+          # bundle is 73.5 MB and two thirds of that is the native debug symbols
+          # and the R8 mapping, which Play strips before it serves anything; what
+          # a phone fetches is the bundletool estimate below. This number is
+          # measured plus headroom and its job is to catch a configuration the
+          # device spec does not sample, such as a new ABI or density.
+          AAB_SIZE_LIMIT_BYTES: "100000000"
           PLAY_SIZE_LIMIT_BYTES: "20000000"
         run: |
           ./gradlew bundleRelease
@@ -223,7 +229,15 @@ jobs:
             --bundle="$aab" --output=device.apks --device-spec=device.json
           java -jar bundletool.jar get-size total \
             --apks=device.apks --device-spec=device.json | tee play-size.csv
-          play_size=$(awk -F, 'NR == 2 { print $2 }' play-size.csv)
+          # bundletool writes CRLF, and `[ 123<CR> -gt 456 ]` is a usage error
+          # rather than a comparison: the shell reports it and steps over the if.
+          play_size=$(awk -F, 'NR == 2 { print $2 }' play-size.csv | tr -d '\r')
+          case $play_size in
+            '' | *[!0-9]*)
+              echo "bundletool reported no numeric download size: '$play_size'" >&2
+              exit 1
+              ;;
+          esac
           if [ "$play_size" -gt "$PLAY_SIZE_LIMIT_BYTES" ]; then
             echo "Play download: $play_size bytes, limit $PLAY_SIZE_LIMIT_BYTES bytes" >&2
             exit 1
