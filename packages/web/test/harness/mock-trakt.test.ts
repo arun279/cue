@@ -274,8 +274,10 @@ describe("fault profiles", () => {
     await armFault("hold-write");
     const controller = new AbortController();
     const request = historyWrite(controller.signal).catch(() => null);
+    // Long enough that an answered write would have answered: a window this
+    // assertion could lose on a loaded runner is a window that proves nothing.
     expect(
-      await Promise.race([request, new Promise((resolve) => setTimeout(resolve, 30, "held"))]),
+      await Promise.race([request, new Promise((resolve) => setTimeout(resolve, 250, "held"))]),
     ).toBe("held");
     controller.abort();
     await request;

@@ -89,6 +89,10 @@ export function nativeAppConfig(env: Readonly<Record<string, string | undefined>
    * HTTP. Read here so a build that is not pointed at the harness adds no ATS
    * exception domains. The generated-project privacy gate requires arbitrary
    * loads to stay disabled and exception domains to stay absent.
+   *
+   * ATS is not optional for this: it blocks a plain-HTTP load to a bare IP
+   * address, loopback included, so a simulator build with no exception cannot
+   * reach the harness at all.
    */
   const mockTrakt = env["EXPO_PUBLIC_TRAKT_API_BASE"];
   const mockTraktHost =
@@ -113,7 +117,14 @@ export function nativeAppConfig(env: Readonly<Record<string, string | undefined>
         ? {}
         : {
             infoPlist: {
+              // Expo replaces the whole dictionary rather than merging into it,
+              // so the prebuild template's own two keys are restated here. Left
+              // out, the harness build silently drops the app's declaration that
+              // arbitrary loads are off, which is the claim the privacy gate on
+              // the generated project exists to hold.
               NSAppTransportSecurity: {
+                NSAllowsArbitraryLoads: false,
+                NSAllowsLocalNetworking: true,
                 NSExceptionDomains: {
                   [mockTraktHost]: { NSExceptionAllowsInsecureHTTPLoads: true },
                 },

@@ -182,6 +182,9 @@ jobs:
       # Debug, because the Trakt origin override is compiled out of a release
       # bundle by design, and `FORCE_BUNDLING` because a Debug build otherwise
       # embeds no JavaScript at all and expects a Metro server that CI has none of.
+      # The generated build phase exports `SKIP_BUNDLING` for every Debug build
+      # and the bundling script reads it before `FORCE_BUNDLING`, so the phase's
+      # own hook for taking it back off is what lets the flag through.
       - name: Build the app for the simulator
         working-directory: packages/native/ios
         env:
@@ -189,6 +192,7 @@ jobs:
           EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
           FORCE_BUNDLING: "1"
         run: |
+          echo 'unset SKIP_BUNDLING' > .xcode.env.updates
           xcodebuild -workspace Cue.xcworkspace -scheme Cue \
             -configuration Debug -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath "$RUNNER_TEMP/native-ios-derived-data" \
