@@ -339,6 +339,25 @@ describe("Up Next's empty and off states", () => {
     expect(screen.getByText("You're all caught up.")).toBeOnTheScreen();
     expect(screen.queryByText("Nothing airing in the next few days.")).toBeNull();
     expect(screen.getByTestId("on-the-way-list")).toBeOnTheScreen();
+    // The log is still one tap away from a screen with no queue on it.
+    expect(screen.getByTestId("link-history")).toBeOnTheScreen();
+  });
+
+  it("says the second sentence when nothing is coming either", async () => {
+    const done = [entry({ completed: 21, nextEpisode: null })];
+    await paint({ entries: done });
+
+    expect(screen.getByText("Nothing airing in the next few days.")).toBeOnTheScreen();
+  });
+
+  it("stands no sections under a branch that is only one block of type", async () => {
+    // Nothing tracked: there is no queue to say what is coming after, and no
+    // history to open, so the screen is the sentence and its one action.
+    await paint({ entries: [], calendar: [airing()] });
+
+    expect(screen.getByText("Nothing queued.")).toBeOnTheScreen();
+    expect(screen.queryByTestId("on-the-way-list")).toBeNull();
+    expect(screen.queryByTestId("link-history")).toBeNull();
   });
 
   it("says so, and reads nothing, when TV shows are turned off", async () => {
