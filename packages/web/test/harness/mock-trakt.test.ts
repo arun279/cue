@@ -32,7 +32,7 @@ import {
 import { loadUpNextEntries } from "@cue/core/data/trakt/read-budget";
 import { groupUpNext } from "@cue/core/domain/up-next";
 import { DEFAULT_STALENESS_THRESHOLD_MS } from "@cue/core/domain/watch-status";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { createMockTrakt } from "../../../../scripts/mock-trakt/server.mjs";
 
 /**
@@ -56,6 +56,10 @@ afterAll(async () => {
   await mock.close();
 });
 
+afterEach(async () => {
+  await fetch(`${baseUrl}/__reset`, { method: "POST" });
+});
+
 const client = (): TraktClient =>
   new TraktClient({
     clientId: "mock-client",
@@ -77,6 +81,9 @@ const oauth = (): OAuthConfig => ({
 });
 
 const today = (): string => new Date().toISOString().slice(0, 10);
+
+const resetTo = async (seed: string): Promise<Response> =>
+  fetch(`${baseUrl}/__reset?seed=${seed}`, { method: "POST" });
 
 /** The first seeded show. A seed with none is a broken harness, not a skipped test. */
 function firstSeededShow(): (typeof mock.library.shows)[number] {
@@ -163,6 +170,67 @@ describe("the seeded account fills the surfaces the harness exists to demo", () 
     expect(groups.queue.length).toBeGreaterThan(1);
     expect(groups.lapsed.length).toBeGreaterThan(0);
     expect(entries.some((entry) => entry.inWatchlist && entry.completed === 0)).toBe(true);
+  });
+});
+
+describe("seed profiles", () => {
+  it("keeps the default account unchanged", async () => {
+    const response = await fetch(`${baseUrl}/__reset`, { method: "POST" });
+    expect(await response.json()).toEqual({ reset: true });
+    expect(mock.library.shows.map((show) => show.trakt)).toEqual([
+      8801, 8802, 8803, 8804, 8805, 8806, 8807, 8808,
+    ]);
+    expect(mock.library.movies.map((movie) => movie.trakt)).toEqual([5501, 5502, 5503]);
+  });
+
+  it("serves an empty library", async () => {
+    await resetTo("empty-library");
+    expect(ok(await getWatchedShows(client()))).toEqual([]);
+    expect(ok(await getWatchedMovies(client()))).toEqual([]);
+    expect(ok(await getWatchlist(client(), "shows"))).toEqual([]);
+    expect(ok(await getWatchlist(client(), "movies"))).toEqual([]);
+  });
+
+  it("serves a watchlist-only library", async () => {
+    await resetTo("watchlist-only");
+    expect(ok(await getWatchedShows(client()))).toEqual([]);
+    expect(ok(await getWatchedMovies(client()))).toEqual([]);
+    expect(ok(await getWatchlist(client(), "shows")).map((row) => row.show?.ids.trakt)).toEqual([
+      8808,
+    ]);
+    expect(ok(await getWatchlist(client(), "movies")).map((row) => row.movie?.ids.trakt)).toEqual([
+      5503,
+    ]);
+  });
+
+  it("serves a library containing only a stopped show", async () => {
+    await resetTo("only-stopped");
+    expect(ok(await getWatchedShows(client())).map((show) => show.show.ids.trakt)).toEqual([8805]);
+    expect(ok(await getHidden(client())).map((row) => row.show?.ids.trakt)).toEqual([8805]);
+    expect(ok(await getWatchlist(client(), "shows"))).toEqual([]);
+  });
+
+  it("serves a profile with zero stats", async () => {
+    await resetTo("zeroed-stats");
+    expect(ok(await getUserStats(client()))).toEqual({
+      movies: { watched: 0, minutes: 0 },
+      episodes: { watched: 0, minutes: 0 },
+      shows: { watched: 0 },
+    });
+  });
+
+  it("serves an episode with two plays", async () => {
+    await resetTo("rewatched-episode");
+    expect(ok(await getItemPlays(client(), "episodes", 880100)).map((row) => row.id)).toEqual([
+      8801002, 8801001,
+    ]);
+  });
+
+  it("serves a movie with two plays", async () => {
+    await resetTo("rewatched-movie");
+    expect(ok(await getItemPlays(client(), "movies", 5501)).map((row) => row.id)).toEqual([
+      55012, 55011,
+    ]);
   });
 });
 

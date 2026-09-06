@@ -21,8 +21,9 @@ import {
   applyHistoryWrite,
   applyWatchlistWrite,
   calendarBody,
-  createLibrary,
+  createSeedLibrary,
   episodeDetailBody,
+  hasSeedProfile,
   hiddenBody,
   historyRows,
   itemPlaysBody,
@@ -353,11 +354,13 @@ async function stall(fault, request) {
  * POST puts the account back to the seed, for a flow whose assertions are about
  * what is IN the account rather than about the order the flows ran in.
  */
-function controlRoute(faults, reset, method, pathname, body) {
+function controlRoute(faults, reset, method, url, body) {
+  const { pathname } = url;
   if (pathname === "/__reset") {
     if (method === "POST") {
-      reset();
-      return json({ reset: true });
+      const seed = url.searchParams.get("seed") ?? body.seed ?? "default";
+      if (!reset(seed)) return notFound(`no seed profile ${seed}`);
+      return json(seed === "default" ? { reset: true } : { reset: true, seed });
     }
     return notFound(`no control route for ${method} ${pathname}`);
   }
@@ -403,7 +406,7 @@ export function createMockTrakt({
   journalFile = process.env["MOCK_TRAKT_JOURNAL"],
   faults: faultSpec = faultsFromEnv(process.env["MOCK_TRAKT_FAULTS"]),
 } = {}) {
-  let library = createLibrary();
+  let library = createSeedLibrary();
   const journal = createJournal(journalFile);
   const faults = createFaults(faultSpec);
 
@@ -420,11 +423,13 @@ export function createMockTrakt({
     }
     const control = controlRoute(
       faults,
-      () => {
-        library = createLibrary();
+      (seed) => {
+        if (!hasSeedProfile(seed)) return false;
+        library = createSeedLibrary(seed);
+        return true;
       },
       method,
-      url.pathname,
+      url,
       body,
     );
     const fault = control === null ? faults.next(method, url.pathname) : null;
