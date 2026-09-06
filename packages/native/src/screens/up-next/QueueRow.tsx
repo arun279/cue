@@ -6,25 +6,19 @@ import type { MarkWatched } from "@cue/core/hooks/useMarkWatched";
 import type { UpNextCard } from "@cue/core/hooks/useUpNext";
 import { useRouter } from "expo-router";
 import type { ReactElement } from "react";
-import { StyleSheet, useWindowDimensions, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { useShowArt } from "../../hooks/useShowArt";
 import { CheckControl } from "../../ui/CheckControl";
 import { Poster } from "../../ui/Poster";
-import { ProgressBar } from "../../ui/ProgressBar";
 import { Row } from "../../ui/Row";
+import { RowFooter } from "../../ui/RowFooter";
 import { RowMenu } from "../../ui/RowMenu";
 import { SwipeRow } from "../../ui/SwipeRow";
 import { TEST_IDS } from "../../ui/test-ids";
-import {
-  CHECK_SIZE,
-  POSTER_WIDTH,
-  RAIL,
-  REFLOW_FONT_SCALE,
-  ROW_MIN_HEIGHT,
-  SPACE,
-  useColors,
-} from "../../ui/tokens";
+import { CHECK_SIZE, POSTER_WIDTH, RAIL, ROW_MIN_HEIGHT, SPACE, useColors } from "../../ui/tokens";
 import { CueText } from "../../ui/type";
+
+const STOP_LABEL = "Stop show";
 
 export interface QueueRowProps {
   readonly card: UpNextCard;
@@ -51,7 +45,6 @@ export function QueueRow({ card, mark, onStop, variant = "queue" }: QueueRowProp
   const colors = useColors();
   const control = useMarkControl(entry, mark);
   const art = useShowArt(entry.showId);
-  const { fontScale } = useWindowDimensions();
 
   const code = epCode(item.episode.season, item.episode.number);
   const episodeTitle = item.episode.title;
@@ -63,7 +56,7 @@ export function QueueRow({ card, mark, onStop, variant = "queue" }: QueueRowProp
   const open = (): void => router.push(`/show/${entry.showId}`);
 
   const markable = control.state === "unwatched";
-  const stacked = fontScale >= REFLOW_FONT_SCALE;
+  const markLabel = `Mark ${code} watched`;
 
   return (
     <SwipeRow
@@ -78,6 +71,10 @@ export function QueueRow({ card, mark, onStop, variant = "queue" }: QueueRowProp
           label={[entry.title, code, episodeTitle, note].filter(Boolean).join(", ")}
           minHeight={ROW_MIN_HEIGHT.queue}
           onPress={open}
+          actions={[
+            ...(markable ? [{ name: "mark", label: markLabel, onPress: control.onPress }] : []),
+            { name: "stop", label: STOP_LABEL, onPress: onStop },
+          ]}
           leading={<Poster title={entry.title} posters={art.posters} width={POSTER_WIDTH.row} />}
           trailing={
             <>
@@ -87,11 +84,11 @@ export function QueueRow({ card, mark, onStop, variant = "queue" }: QueueRowProp
                 items={[
                   {
                     id: TEST_IDS.quickActionMark,
-                    label: `Mark ${code} watched`,
+                    label: markLabel,
                     available: quickMarkable(entry, Date.now()),
                     onPress: () => void mark.mark(entry),
                   },
-                  { id: TEST_IDS.quickActionStop, label: "Stop show", onPress: onStop },
+                  { id: TEST_IDS.quickActionStop, label: STOP_LABEL, onPress: onStop },
                   { id: TEST_IDS.quickActionDetails, label: "Show details", onPress: open },
                 ]}
               />
@@ -121,7 +118,8 @@ export function QueueRow({ card, mark, onStop, variant = "queue" }: QueueRowProp
           <RowFooter
             percent={watchedPercent(entry.completed, entry.aired)}
             note={note}
-            stacked={stacked}
+            rail={RAIL.row}
+            color={colors.muted}
           />
         </Row>
       </View>
@@ -129,38 +127,7 @@ export function QueueRow({ card, mark, onStop, variant = "queue" }: QueueRowProp
   );
 }
 
-/**
- * The rail and its count. Above the reflow threshold the two stop sharing a
- * line, the rail keeps the full width and the count wraps beneath it: the row
- * grows rather than shedding the only at-a-glance progress indication on the
- * home screen.
- */
-function RowFooter({
-  percent,
-  note,
-  stacked,
-}: {
-  readonly percent: number;
-  readonly note: string | null;
-  readonly stacked: boolean;
-}): ReactElement {
-  const colors = useColors();
-
-  return (
-    <View style={stacked ? styles.footerStacked : styles.footer}>
-      <ProgressBar percent={percent} width={stacked ? "100%" : RAIL.row} />
-      {note === null ? null : (
-        <CueText variant="caption" tabularNums style={{ color: colors.muted }}>
-          {note}
-        </CueText>
-      )}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   // Opaque, so the swipe reveal stays behind the row it is revealed by.
   surface: { paddingHorizontal: SPACE.s4, paddingVertical: SPACE.s2 },
-  footer: { flexDirection: "row", alignItems: "center", gap: SPACE.s2, paddingTop: SPACE.s1 },
-  footerStacked: { alignItems: "stretch", gap: SPACE.s1, paddingTop: SPACE.s1 },
 });
