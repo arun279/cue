@@ -129,12 +129,18 @@ const complexityRows = [
     2,
   ],
   ["product comment density", base.comments?.total.density, head.comments.total.density, 2],
+  ...["core", "web", "native"].map((name) => [
+    `${name} comment density`,
+    base.comments?.packages[name].density,
+    head.comments.packages[name].density,
+    2,
+  ]),
 ];
 process.stdout.write("\n### Complexity and comments\n\n");
 process.stdout.write("| metric | base | head | delta |\n");
 process.stdout.write("| --- | ---: | ---: | ---: |\n");
 for (const [label, before, after, digits] of complexityRows) {
-  const suffix = label === "product comment density" ? " percent" : "";
+  const suffix = label.endsWith("comment density") ? " percent" : "";
   const baseCell = before === undefined ? "n/a" : `${before.toFixed(digits)}${suffix}`;
   const deltaCell = before === undefined ? "n/a" : signed(after - before, digits);
   process.stdout.write(
