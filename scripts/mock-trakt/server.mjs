@@ -14,14 +14,14 @@
 
 import { createServer } from "node:http";
 import { pathToFileURL } from "node:url";
-import { createFaults, faultResponse, faultsFromEnv } from "./faults.mjs";
+import { createFaults, FAULT_PROFILE_NAMES, faultResponse, faultsFromEnv } from "./faults.mjs";
 import { createJournal } from "./journal.mjs";
 import {
   applyHiddenWrite,
   applyHistoryWrite,
   applyWatchlistWrite,
   calendarBody,
-  createLibrary,
+  createSeedLibrary,
   episodeDetailBody,
   hiddenBody,
   historyRows,
@@ -29,6 +29,7 @@ import {
   lastActivitiesBody,
   movieDetailBody,
   progressBody,
+  SEED_PROFILE_NAMES,
   seasonsBody,
   showDetailBody,
   userSettingsBody,
@@ -347,28 +348,46 @@ async function stall(fault, request) {
 }
 
 /**
- * The harness control plane, on the mock's own origin under a `__` prefix that no
- * Trakt path can collide with. `/__fault`: POST arms a rule (or
- * `{ rules: [...] }`), GET reports what is armed, DELETE clears. `/__reset`:
- * POST puts the account back to the seed, for a flow whose assertions are about
- * what is IN the account rather than about the order the flows ran in.
+ * POST puts the account back to a seed, for a flow whose assertions are about
+ * what is IN the account rather than about the order the flows ran in. `?seed=`
+ * names one of the profiles in `seed.mjs`; without it the account goes back to
+ * the default eight shows and three movies. It is the one control that returns
+ * the whole mock to a known state, so it disarms any faults with it.
  */
-function controlRoute(faults, reset, method, pathname, body) {
-  if (pathname === "/__reset") {
-    if (method === "POST") {
-      reset();
-      return json({ reset: true });
-    }
-    return notFound(`no control route for ${method} ${pathname}`);
+function resetRoute(reset, method, url) {
+  if (method !== "POST") return notFound(`no control route for ${method} ${url.pathname}`);
+  const seed = url.searchParams.get("seed") ?? "default";
+  if (!reset(seed)) return notFound(`no seed profile ${seed}`);
+  return json({ reset: true });
+}
+
+/**
+ * POST arms a rule (or `{ rules: [...] }`), or the named profile a `?<name>`
+ * query flag selects, and answers with the durable op-log that profile seeds.
+ * GET reports what is armed, DELETE clears.
+ */
+function faultRoute(faults, method, url, body) {
+  if (method === "POST") {
+    const profile = FAULT_PROFILE_NAMES.find((name) => url.searchParams.has(name));
+    if (profile === undefined) return json({ armed: faults.arm(body) });
+    return json({ armed: faults.armProfile(profile), profile, opLog: faults.opLog() });
   }
-  if (pathname !== "/__fault") return null;
-  if (method === "POST") return json({ armed: faults.arm(body) });
   if (method === "DELETE") {
     faults.clear();
     return json({ armed: 0 });
   }
-  if (method === "GET") return json({ rules: faults.describe() });
-  return notFound(`no control route for ${method} ${pathname}`);
+  if (method === "GET") return json({ rules: faults.describe(), opLog: faults.opLog() });
+  return notFound(`no control route for ${method} ${url.pathname}`);
+}
+
+/**
+ * The harness control plane, on the mock's own origin under a `__` prefix that
+ * no Trakt path can collide with.
+ */
+function controlRoute(faults, reset, method, url, body) {
+  if (url.pathname === "/__reset") return resetRoute(reset, method, url);
+  if (url.pathname === "/__fault") return faultRoute(faults, method, url, body);
+  return null;
 }
 
 async function readBody(request) {
@@ -403,7 +422,7 @@ export function createMockTrakt({
   journalFile = process.env["MOCK_TRAKT_JOURNAL"],
   faults: faultSpec = faultsFromEnv(process.env["MOCK_TRAKT_FAULTS"]),
 } = {}) {
-  let library = createLibrary();
+  let library = createSeedLibrary();
   const journal = createJournal(journalFile);
   const faults = createFaults(faultSpec);
 
@@ -420,14 +439,17 @@ export function createMockTrakt({
     }
     const control = controlRoute(
       faults,
-      () => {
-        library = createLibrary();
+      (seed) => {
+        if (!SEED_PROFILE_NAMES.includes(seed)) return false;
+        library = createSeedLibrary(seed);
+        faults.clear();
+        return true;
       },
       method,
-      url.pathname,
+      url,
       body,
     );
-    const fault = control === null ? faults.next(method, url.pathname) : null;
+    const fault = control === null ? faults.next(method, url) : null;
     if (fault !== null) {
       if (log) process.stdout.write(`mock-trakt fault ${method} ${url.pathname}\n`);
       if (!(await stall(fault, request))) return null;

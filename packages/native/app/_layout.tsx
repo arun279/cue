@@ -40,7 +40,9 @@ import {
 import { Onboarding } from "../src/screens/Onboarding";
 import { RuntimeBoot } from "../src/screens/RuntimeBoot";
 import { AppIdle } from "../src/ui/AppIdle";
+import { Marker } from "../src/ui/Marker";
 import { SnackbarHost } from "../src/ui/SnackbarHost";
+import { TEST_IDS } from "../src/ui/test-ids";
 import { useCueFonts } from "../src/ui/type";
 
 /**
@@ -60,6 +62,12 @@ const tokenStore = createTokenStore(secureStore);
 const haptics = createNativeHaptics(() => prefsStore.getState().hapticsEnabled);
 const reminders = createNativeReminders();
 const network = createNativeNetwork();
+
+/** What a launch says when the stores it depends on did not come up. The session
+ * still starts on whatever the token store answers, because a boot that cannot
+ * finish is not a reason to draw nothing; the message rides the auth store, so
+ * the sign-in screen's alert is where it lands. */
+const BOOT_FAILED_MESSAGE = "Cue could not open its storage. Some of your data may be missing.";
 
 /**
  * The purge, the migration, and only then the auth store.
@@ -82,23 +90,26 @@ function useNativeSession(): AuthStore | null {
       preferences: preferenceStorage,
       newInstallId: randomUUID,
     })
-      .catch(() => {})
-      .then(() => {
+      .then(
+        () => null,
+        () => BOOT_FAILED_MESSAGE,
+      )
+      .then((bootFailure) => {
         if (!alive) return;
-        setAuthStore(
-          createAuthStore({
-            tokenStore,
-            clientId: TRAKT_CLIENT_ID,
-            redirectUri: NATIVE_REDIRECT_URI,
-            // A device has no page navigation, so the two members that exist for
-            // one are stated rather than inherited: nothing redirects, and there
-            // is no handoff to stash across a navigation that never happens.
-            redirect: () => {},
-            redirectHandoff: { read: () => null, write: () => {}, clear: () => {} },
-            native: true,
-            traktBaseUrl: TRAKT_BASE_OVERRIDE,
-          }),
-        );
+        const store = createAuthStore({
+          tokenStore,
+          clientId: TRAKT_CLIENT_ID,
+          redirectUri: NATIVE_REDIRECT_URI,
+          // A device has no page navigation, so the two members that exist for
+          // one are stated rather than inherited: nothing redirects, and there
+          // is no handoff to stash across a navigation that never happens.
+          redirect: () => {},
+          redirectHandoff: { read: () => null, write: () => {}, clear: () => {} },
+          native: true,
+          traktBaseUrl: TRAKT_BASE_OVERRIDE,
+        });
+        if (bootFailure !== null) store.setState({ errorMessage: bootFailure });
+        setAuthStore(store);
       });
     return () => {
       alive = false;
@@ -142,7 +153,7 @@ function Gate(): ReactElement {
       </RuntimeBoot>
     );
   }
-  if (phase === "loading") return <View testID="auth-loading" />;
+  if (phase === "loading") return <Marker testID={TEST_IDS.authLoading} />;
   return <Onboarding />;
 }
 
@@ -155,7 +166,7 @@ export default function RootLayout(): ReactElement {
     if (authStore !== null && fontsSettled) void SplashScreen.hideAsync().catch(() => {});
   }, [authStore, fontsSettled]);
 
-  if (authStore === null || !fontsSettled) return <View testID="boot-hold" />;
+  if (authStore === null || !fontsSettled) return <Marker testID={TEST_IDS.bootHold} />;
 
   return (
     // The metrics the native side already knows, so the first frame is the app

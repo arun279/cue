@@ -32,7 +32,8 @@ import {
 import { loadUpNextEntries } from "@cue/core/data/trakt/read-budget";
 import { groupUpNext } from "@cue/core/domain/up-next";
 import { DEFAULT_STALENESS_THRESHOLD_MS } from "@cue/core/domain/watch-status";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { buildMarkEpisodeOp } from "@cue/core/domain/write-queue/ops";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { createMockTrakt } from "../../../../scripts/mock-trakt/server.mjs";
 
 /**
@@ -56,6 +57,10 @@ afterAll(async () => {
   await mock.close();
 });
 
+afterEach(async () => {
+  await fetch(`${baseUrl}/__reset`, { method: "POST" });
+});
+
 const client = (): TraktClient =>
   new TraktClient({
     clientId: "mock-client",
@@ -77,6 +82,20 @@ const oauth = (): OAuthConfig => ({
 });
 
 const today = (): string => new Date().toISOString().slice(0, 10);
+
+const resetTo = async (seed: string): Promise<Response> =>
+  fetch(`${baseUrl}/__reset?seed=${seed}`, { method: "POST" });
+
+const armFault = async (profile: string): Promise<Response> =>
+  fetch(`${baseUrl}/__fault?${profile}`, { method: "POST" });
+
+const historyWrite = (signal?: AbortSignal): Promise<Response> =>
+  fetch(`${baseUrl}/sync/history`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ episodes: [{ ids: { trakt: 880100 } }] }),
+    signal,
+  });
 
 /** The first seeded show. A seed with none is a broken harness, not a skipped test. */
 function firstSeededShow(): (typeof mock.library.shows)[number] {
@@ -163,6 +182,138 @@ describe("the seeded account fills the surfaces the harness exists to demo", () 
     expect(groups.queue.length).toBeGreaterThan(1);
     expect(groups.lapsed.length).toBeGreaterThan(0);
     expect(entries.some((entry) => entry.inWatchlist && entry.completed === 0)).toBe(true);
+  });
+});
+
+describe("seed profiles", () => {
+  it("keeps the default account unchanged", async () => {
+    const response = await fetch(`${baseUrl}/__reset`, { method: "POST" });
+    expect(await response.json()).toEqual({ reset: true });
+    expect(mock.library.shows.map((show) => show.trakt)).toEqual([
+      8801, 8802, 8803, 8804, 8805, 8806, 8807, 8808,
+    ]);
+    expect(mock.library.movies.map((movie) => movie.trakt)).toEqual([5501, 5502, 5503]);
+  });
+
+  it("serves an empty library", async () => {
+    await resetTo("empty-library");
+    expect(ok(await getWatchedShows(client()))).toEqual([]);
+    expect(ok(await getWatchedMovies(client()))).toEqual([]);
+    expect(ok(await getWatchlist(client(), "shows"))).toEqual([]);
+    expect(ok(await getWatchlist(client(), "movies"))).toEqual([]);
+  });
+
+  it("serves a watchlist-only library", async () => {
+    await resetTo("watchlist-only");
+    expect(ok(await getWatchedShows(client()))).toEqual([]);
+    expect(ok(await getWatchedMovies(client()))).toEqual([]);
+    expect(ok(await getWatchlist(client(), "shows")).map((row) => row.show?.ids.trakt)).toEqual([
+      8808,
+    ]);
+    expect(ok(await getWatchlist(client(), "movies")).map((row) => row.movie?.ids.trakt)).toEqual([
+      5503,
+    ]);
+  });
+
+  it("serves a library containing only a stopped show", async () => {
+    await resetTo("only-stopped");
+    expect(ok(await getWatchedShows(client())).map((show) => show.show.ids.trakt)).toEqual([8805]);
+    expect(ok(await getHidden(client())).map((row) => row.show?.ids.trakt)).toEqual([8805]);
+    expect(ok(await getWatchlist(client(), "shows"))).toEqual([]);
+  });
+
+  it("serves a profile with zero stats", async () => {
+    await resetTo("zeroed-stats");
+    expect(ok(await getUserStats(client()))).toEqual({
+      movies: { watched: 0, minutes: 0 },
+      episodes: { watched: 0, minutes: 0 },
+      shows: { watched: 0 },
+    });
+  });
+
+  it("serves an episode with two plays", async () => {
+    await resetTo("rewatched-episode");
+    expect(ok(await getItemPlays(client(), "episodes", 880100)).map((row) => row.id)).toEqual([
+      8801002, 8801001,
+    ]);
+  });
+
+  it("serves a movie with two plays", async () => {
+    await resetTo("rewatched-movie");
+    expect(ok(await getItemPlays(client(), "movies", 5501)).map((row) => row.id)).toEqual([
+      55012, 55011,
+    ]);
+  });
+});
+
+describe("fault profiles", () => {
+  it("returns one unauthorized read, then clears", async () => {
+    await armFault("next-read-401");
+    expect((await fetch(`${baseUrl}/users/settings`)).status).toBe(401);
+    expect((await fetch(`${baseUrl}/users/settings`)).status).toBe(200);
+  });
+
+  it("refuses refreshes until reset", async () => {
+    await armFault("refuse-refresh");
+    expect((await fetch(`${baseUrl}/oauth/token`, { method: "POST" })).status).toBe(401);
+    await fetch(`${baseUrl}/__reset`, { method: "POST" });
+    expect((await fetch(`${baseUrl}/oauth/token`, { method: "POST" })).status).toBe(200);
+  });
+
+  it("rate limits after a fan-out has begun until reset", async () => {
+    await armFault("rate-limit-progress");
+    expect((await fetch(`${baseUrl}/shows/8801/progress/watched`)).status).toBe(200);
+    const limited = await fetch(`${baseUrl}/shows/8802/progress/watched`);
+    expect(limited.status).toBe(429);
+    expect(limited.headers.get("retry-after")).toBe("1");
+    await fetch(`${baseUrl}/__reset`, { method: "POST" });
+    expect((await fetch(`${baseUrl}/shows/8802/progress/watched`)).status).toBe(200);
+  });
+
+  it("holds a write open until the client disconnects and reset clears it", async () => {
+    await armFault("hold-write");
+    const controller = new AbortController();
+    const request = historyWrite(controller.signal).catch(() => null);
+    // Long enough that an answered write would have answered: a window this
+    // assertion could lose on a loaded runner is a window that proves nothing.
+    expect(
+      await Promise.race([request, new Promise((resolve) => setTimeout(resolve, 250, "held"))]),
+    ).toBe("held");
+    controller.abort();
+    await request;
+    await fetch(`${baseUrl}/__reset`, { method: "POST" });
+    expect((await historyWrite()).status).toBe(200);
+  });
+
+  it("drops a write connection until reset", async () => {
+    await armFault("drop-write");
+    await expect(historyWrite()).rejects.toThrow("fetch failed");
+    await fetch(`${baseUrl}/__reset`, { method: "POST" });
+    expect((await historyWrite()).status).toBe(200);
+  });
+
+  it("fails only the second history page until reset", async () => {
+    await armFault("fail-history-page");
+    expect((await fetch(`${baseUrl}/users/me/history?page=1`)).status).toBe(200);
+    expect((await fetch(`${baseUrl}/users/me/history?page=2`)).status).toBe(503);
+    await fetch(`${baseUrl}/__reset`, { method: "POST" });
+    expect((await fetch(`${baseUrl}/users/me/history?page=2`)).status).toBe(200);
+  });
+
+  // The mock is plain Node with no build step, so its op-log is a literal. It is
+  // only worth seeding if it is what the app's own builder would have written.
+  it("seeds an operation log the write queue would replay, until reset", async () => {
+    const armed = await (await armFault("seed-op-log")).json();
+    expect(armed.opLog).toEqual([
+      buildMarkEpisodeOp({
+        opId: "e2e-pending-880100",
+        ids: { trakt: 880100 },
+        watchedAt: "2026-01-01T00:00:00.000Z",
+        inversePatch: { showId: 8801, preCompleted: 20 },
+      }),
+    ]);
+    await fetch(`${baseUrl}/__reset`, { method: "POST" });
+    expect((await (await fetch(`${baseUrl}/__fault`)).json()).opLog).toEqual([]);
   });
 });
 

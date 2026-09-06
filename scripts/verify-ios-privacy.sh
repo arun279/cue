@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: verify-ios-privacy.sh <Info.plist> <entitlements> [configuration]
+# Usage: verify-ios-privacy.sh <Info.plist> <entitlements> [configuration] [local_exception_domain]
 #
 # `configuration` is the Xcode build configuration the generated project is
 # about to be built in, `Debug` (the default) or `Release`, and it is stated by
@@ -10,6 +10,7 @@ set -euo pipefail
 info_plist=$1
 entitlements=$2
 configuration=${3:-Debug}
+local_exception_domain=${4:-}
 plist_buddy=/usr/libexec/PlistBuddy
 
 # expo-notifications writes this from its `mode` prop, which app.config.ts takes
@@ -32,9 +33,18 @@ if [ "$("$plist_buddy" -c 'Print :NSAppTransportSecurity:NSAllowsArbitraryLoads'
   exit 1
 fi
 
-if "$plist_buddy" -c 'Print :NSAppTransportSecurity:NSExceptionDomains' "$info_plist" >/dev/null 2>&1; then
-  echo "verify-ios-privacy: NSExceptionDomains must be absent." >&2
-  exit 1
+if [ -z "$local_exception_domain" ]; then
+  if "$plist_buddy" -c 'Print :NSAppTransportSecurity:NSExceptionDomains' "$info_plist" >/dev/null 2>&1; then
+    echo "verify-ios-privacy: NSExceptionDomains must be absent." >&2
+    exit 1
+  fi
+else
+  exceptions=$(plutil -extract NSAppTransportSecurity.NSExceptionDomains json -o - "$info_plist")
+  if ! jq -e --arg domain "$local_exception_domain" \
+    '. == {($domain): {NSExceptionAllowsInsecureHTTPLoads: true}}' <<< "$exceptions" >/dev/null; then
+    echo "verify-ios-privacy: the local transport exception differs from the expected domain." >&2
+    exit 1
+  fi
 fi
 
 delegate=$(

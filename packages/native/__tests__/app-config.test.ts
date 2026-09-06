@@ -63,6 +63,8 @@ describe("the native app config", () => {
 
     const harness = nativeAppConfig({ EXPO_PUBLIC_TRAKT_API_BASE: "http://127.0.0.1:8787" });
     expect(harness.ios?.infoPlist?.["NSAppTransportSecurity"]).toEqual({
+      NSAllowsArbitraryLoads: false,
+      NSAllowsLocalNetworking: true,
       NSExceptionDomains: { "127.0.0.1": { NSExceptionAllowsInsecureHTTPLoads: true } },
     });
   });

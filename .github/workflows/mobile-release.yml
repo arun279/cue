@@ -21,6 +21,7 @@ on:
       "docs/**",
       "*.md",
       ".github/**",
+      ".maestro/**",
       "LICENSE",
       "packages/*/e2e/**",
       "packages/*/test/**",

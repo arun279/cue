@@ -2,7 +2,12 @@ import { act, render, screen } from "@testing-library/react-native";
 import { useFonts } from "expo-font";
 import { hideAsync } from "expo-splash-screen";
 import { bootNativeStores } from "../src/boot";
-import { bulkBacking, legacyBacking, secureBacking } from "./support/native-stores";
+import {
+  bulkBacking,
+  legacyBacking,
+  secureBacking,
+  secureStoreModule,
+} from "./support/native-stores";
 
 // Every jest factory below is hoisted above the imports, so each one reaches its
 // fake through `require` rather than through a binding that does not exist yet.
@@ -74,6 +79,10 @@ const TOKEN = JSON.stringify({
 // it has to be loaded after the mocks above are in place.
 const RootLayout = require("../app/_layout").default as () => React.JSX.Element;
 
+afterEach(() => {
+  jest.restoreAllMocks();
+});
+
 /**
  * The composition root, rendered.
  *
@@ -130,6 +139,30 @@ describe("the native composition root", () => {
 
     expect([...bulkBacking.values.keys()]).not.toContain("cue.trakt.token");
     expect(secureBacking.get("cue.trakt.token")).toBe(TOKEN);
+  });
+
+  // The two ways a store can refuse. Neither has a phase of its own, and a
+  // launch that swallows either one ends on a gate rather than on a screen: the
+  // app is up and responsive with nothing on it and no way off it.
+  it("reaches a screen and says so when the store boot fails", async () => {
+    jest.mocked(bootNativeStores).mockRejectedValueOnce(new Error("kv-store unavailable"));
+
+    await render(<RootLayout />);
+
+    expect(await screen.findByTestId("screen-onboarding")).toBeOnTheScreen();
+    expect(screen.getByRole("alert")).toBeOnTheScreen();
+  });
+
+  it("reaches a screen and says so when the Keychain refuses the token read", async () => {
+    jest
+      .spyOn(secureStoreModule, "getItemAsync")
+      .mockRejectedValue(new Error("errSecMissingEntitlement"));
+
+    await render(<RootLayout />);
+
+    expect(await screen.findByTestId("screen-onboarding")).toBeOnTheScreen();
+    expect(screen.queryByTestId("auth-loading")).toBeNull();
+    expect(screen.getByRole("alert")).toBeOnTheScreen();
   });
 });
 
