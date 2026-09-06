@@ -1,8 +1,8 @@
 import { upNextEmptyKind } from "@cue/core/domain/up-next";
-import { useCalendar } from "@cue/core/hooks/useCalendar";
 import { stopWatching, useHideShow } from "@cue/core/hooks/useHideShow";
 import { useMarkControl } from "@cue/core/hooks/useMarkControl";
 import { type MarkWatched, useMarkWatched } from "@cue/core/hooks/useMarkWatched";
+import { useOnTheWay } from "@cue/core/hooks/useOnTheWay";
 import { useStopSnacks } from "@cue/core/hooks/useStopSnacks";
 import { type UpNextCard, useUpNext } from "@cue/core/hooks/useUpNext";
 import { Link } from "@tanstack/react-router";
@@ -24,7 +24,7 @@ import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { useFlip } from "@ui/hooks/useFlip";
 import { type ReactElement, type ReactNode, useState } from "react";
 import { LapsedDrawer } from "./LapsedDrawer";
-import { OnTheWay, useOnTheWayDays } from "./OnTheWay";
+import { MAX_ROWS, OnTheWay } from "./OnTheWay";
 import { Previously } from "./Previously";
 import { QueueRow } from "./QueueRow";
 
@@ -63,7 +63,6 @@ export function UpNext(): ReactElement {
   const view = useUpNext();
   const markController = useMarkWatched();
   const stop = useHideShow();
-  const calendar = useCalendar();
   const flip = useFlip();
   const [tutorialDismissed, setTutorialDismissed] = useState(initialTutorialDismissed);
 
@@ -80,10 +79,7 @@ export function UpNext(): ReactElement {
   };
 
   useStopSnacks(stop);
-
-  // The coarse hourly clock keeps "Tonight" honest: an episode that airs while
-  // the screen sits open drops out on the next hour flip.
-  const onTheWay = useOnTheWayDays(calendar.days);
+  const onTheWay = useOnTheWay(MAX_ROWS);
 
   const showSections = view.hasData && !view.isLoading;
   const marquee = view.queue.length >= 3 ? view.queue[0] : undefined;
