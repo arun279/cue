@@ -12,7 +12,7 @@ import { Image, Pressable, StyleSheet, useWindowDimensions, View } from "react-n
 import { useShowArt } from "../../hooks/useShowArt";
 import { CheckControl } from "../../ui/CheckControl";
 import { Poster, plate } from "../../ui/Poster";
-import { ProgressBar } from "../../ui/ProgressBar";
+import { RowFooter } from "../../ui/RowFooter";
 import { TEST_IDS } from "../../ui/test-ids";
 import {
   CHECK_SIZE,
@@ -124,17 +124,12 @@ export function MarqueeCard({ card, mark }: MarqueeCardProps): ReactElement {
             {code}
             {item.episode.title === null ? "" : ` · ${item.episode.title}`}
           </CueText>
-          <View style={styles.footer}>
-            <ProgressBar
-              percent={watchedPercent(entry.completed, entry.aired)}
-              width={stacked ? "100%" : RAIL.marquee}
-            />
-            {note === null ? null : (
-              <CueText variant="caption" tabularNums style={{ color: onImage }}>
-                {note}
-              </CueText>
-            )}
-          </View>
+          <RowFooter
+            percent={watchedPercent(entry.completed, entry.aired)}
+            note={note}
+            rail={RAIL.marquee}
+            color={onImage}
+          />
         </View>
       </Pressable>
       <View style={stacked ? styles.checkTop : styles.checkCentre}>
@@ -175,7 +170,6 @@ const styles = StyleSheet.create({
     padding: SPACE.s3,
   },
   stack: { flex: 1, minWidth: 0, gap: 2 },
-  footer: { flexDirection: "row", alignItems: "center", gap: SPACE.s2, paddingTop: SPACE.s1 },
   // Centred beside a card the height of its artwork, and pulled to the top once
   // the text has grown the card past it, so the reach stays short either way.
   checkCentre: { alignSelf: "center", paddingRight: SPACE.s3 },
