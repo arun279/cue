@@ -125,3 +125,38 @@ export const FLOAT_SHADOW: ViewStyle = Platform.select({
  * rather than inherited from this one.
  */
 export const REFLOW_FONT_SCALE = 1.6;
+
+/**
+ * Where the marquee stops being a scrim card. Text over artwork is the
+ * composition that fails first, so above this the card becomes a plain surface
+ * with its poster inline, which is the shape it already renders for a show with
+ * no backdrop.
+ */
+export const SCRIM_FONT_SCALE = 1.3;
+
+/** How far a queue row travels before its swipe is armed, the same commit
+ * distance the web app locks. */
+export const SWIPE_COMMIT = 96;
+
+/** Poster widths on the strict 2:3 scale, so a poster is `width` by `width * 1.5`. */
+export const POSTER_WIDTH = { row: 48, onTheWay: 40, marquee: 64 } as const;
+
+/** The progress rail: 4 pt tall, never scaled, and the row's only at-a-glance
+ * indication of how far through a show the reader is. */
+export const RAIL = { height: 4, row: 64, marquee: 120 } as const;
+
+/** Where a row's text column starts: the row's own leading padding plus its
+ * artwork and the gap after it, which is what a separator is inset by. */
+export const ROW_TEXT_INSET = SPACE.s4 + POSTER_WIDTH.row + SPACE.s3;
+
+/**
+ * How far a floating tab bar reaches up from the screen edge, which is what
+ * anything drawn over it or scrolling under it has to clear.
+ *
+ * iOS 26 floats the bar 40 pt off the edge and draws it 56 pt tall, and that 40
+ * already clears the bottom inset; Android's navigation bar is 80 dp drawn above
+ * the gesture inset.
+ */
+export function tabBarClearance(insetBottom: number): number {
+  return Platform.OS === "ios" ? 40 + 56 : insetBottom + 80;
+}

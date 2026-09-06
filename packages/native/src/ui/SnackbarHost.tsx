@@ -2,14 +2,22 @@ import {
   DEFAULT_SNACK_TIMEOUT_MS,
   dismissSnack,
   type Snack,
+  snackText,
   useSnackbar,
 } from "@cue/core/stores/snackbar-store";
 import { type ReactElement, useEffect, useId, useSyncExternalStore } from "react";
-import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
+import { Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useScreenReader } from "../platform/screen-reader";
 import { useLiveRegion } from "./live-region";
-import { FLOAT_SHADOW, REFLOW_FONT_SCALE, SPACE, TARGET_MIN, useColors } from "./tokens";
+import {
+  FLOAT_SHADOW,
+  REFLOW_FONT_SCALE,
+  SPACE,
+  TARGET_MIN,
+  tabBarClearance,
+  useColors,
+} from "./tokens";
 import { CueText } from "./type";
 
 /**
@@ -20,17 +28,6 @@ import { CueText } from "./type";
  * account modal is the second.
  */
 export type SnackbarPlacement = "root" | "presentation";
-
-/**
- * How far a root-placed snackbar sits off the bottom edge. iOS 26 floats the tab
- * bar 40 pt off the screen edge and draws it 56 pt tall, and that 40 already
- * clears the bottom inset; Android's navigation bar is 80 dp drawn above the
- * gesture inset. Either way the snackbar clears the bar rather than only the
- * inset, so at a sheet's own bottom edge it lands in the same visual place.
- */
-function rootBottom(insetBottom: number): number {
-  return Platform.OS === "ios" ? 40 + 56 : insetBottom + 80;
-}
 
 /**
  * A screen reader has to finish reading the message and its actions before the
@@ -95,10 +92,7 @@ function Snackbar({
   const insets = useSafeAreaInsets();
   const { fontScale } = useWindowDimensions();
   const screenReader = useScreenReader();
-  // Every snack the app raises today carries a string; a richer message is read
-  // by Android's live region and is what iOS's imperative announcement cannot take.
-  const spoken = typeof snack.message === "string" ? snack.message : null;
-  const liveRegion = useLiveRegion(spoken, "polite");
+  const liveRegion = useLiveRegion(snackText(snack.message), "polite");
 
   useEffect(() => {
     const timeout = screenReader
@@ -112,7 +106,9 @@ function Snackbar({
   }, [snack, screenReader]);
 
   const stacked = fontScale >= REFLOW_FONT_SCALE;
-  const bottom = (placement === "root" ? rootBottom(insets.bottom) : insets.bottom) + SPACE.s2;
+  // A root-placed snackbar clears the floating tab bar rather than only the
+  // inset, so at a sheet's own bottom edge it lands in the same visual place.
+  const bottom = (placement === "root" ? tabBarClearance(insets.bottom) : insets.bottom) + SPACE.s2;
 
   return (
     <View
@@ -130,7 +126,16 @@ function Snackbar({
         variant="rowTitle"
         style={[styles.message, !stacked && styles.messageInline, { color: colors.fg }]}
       >
-        {snack.message}
+        {typeof snack.message === "string" ? (
+          snack.message
+        ) : (
+          <>
+            <CueText variant="rowTitle" weight="bold">
+              {snack.message.subject}
+            </CueText>
+            {snack.message.predicate}
+          </>
+        )}
       </CueText>
       <View style={styles.actions}>
         {(snack.actions ?? []).map((action) => (
