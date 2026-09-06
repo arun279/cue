@@ -1,0 +1,50 @@
+import { useQuery } from "@tanstack/react-query";
+import { queryKeys } from "../data/query-keys";
+import type { TraktFailure } from "../data/trakt/client";
+import type { SearchHit } from "../data/trakt/search";
+import { useRuntime } from "../runtime/runtime";
+import { readFailureOf } from "../sync-contract";
+import { BROWSE_STALE_TIME_MS } from "./query-freshness";
+
+export interface BrowseView {
+  readonly isLoading: boolean;
+  readonly isError: boolean;
+  /** Why the read failed, so the screen's error body names it rather than guessing. */
+  readonly failure: TraktFailure | null;
+  readonly trending: readonly SearchHit[];
+  readonly popular: readonly SearchHit[];
+  readonly trendingMovies: readonly SearchHit[];
+  readonly popularMovies: readonly SearchHit[];
+  refetch(): void;
+}
+
+/**
+ * The Search browse rails: trending + popular shows AND movies as poster
+ * hits, loaded once and cached so an empty query paints a real browse surface
+ * instead of a bare prompt. Reuses the same `SearchHit` shape as search, so the
+ * inline watchlist add and poster tiles are shared across every rail and the
+ * results grid: movie hits route to `/movie/:id` through the same browse tile.
+ *
+ * TODO(movie-gating): this shared Search read loads all four show+movie rails
+ * regardless of which media a single-medium user has on (the Search screen then
+ * UI-filters). Each rail is rendered as a bounded browse rail,
+ * so the over-fetch is a rail-count concern, not a page-height one.
+ */
+export function useBrowse(): BrowseView {
+  const runtime = useRuntime();
+  const query = useQuery({
+    queryKey: queryKeys.browse(),
+    queryFn: () => runtime.loadBrowse(),
+    staleTime: BROWSE_STALE_TIME_MS,
+  });
+  return {
+    isLoading: query.isLoading,
+    isError: query.isError,
+    failure: readFailureOf(query.error),
+    trending: query.data?.trending ?? [],
+    popular: query.data?.popular ?? [],
+    trendingMovies: query.data?.trendingMovies ?? [],
+    popularMovies: query.data?.popularMovies ?? [],
+    refetch: () => void query.refetch(),
+  };
+}

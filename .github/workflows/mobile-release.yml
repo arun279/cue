@@ -21,10 +21,18 @@ on:
       "docs/**",
       "*.md",
       ".github/**",
+      ".maestro/**",
       "LICENSE",
-      "e2e/**",
-      "test/**",
-      "playwright.config.ts",
+      "packages/*/e2e/**",
+      "packages/*/test/**",
+      "packages/*/playwright.config.ts",
+      "packages/*/vitest.config.ts",
+      "packages/*/jest.config.js",
+      "packages/*/__tests__/**",
+      "packages/*/.gitignore",
+      "packages/*/.env.example",
+      "packages/*/.env.test",
+      "packages/*/.env.mock",
       "vitest.config.ts",
       "lefthook.yml",
       "cspell.json",
@@ -33,11 +41,20 @@ on:
       "knip.json",
       ".jscpd.json",
       ".dependency-cruiser.cjs",
+      ".size-limit.json",
+      "scripts/assert-file-size.mjs",
+      "scripts/check-quality-budget.mjs",
+      "scripts/check-size.mjs",
+      "scripts/check-type-suppressions.mjs",
+      "scripts/complexity/**",
       "scripts/diff-footprint.sh",
+      "scripts/measure-*.mjs",
+      "scripts/measure-sizes.sh",
       "scripts/mock-trakt/**",
-      ".env.example",
-      ".env.test",
-      ".env.mock",
+      "scripts/quality-budget.json",
+      "scripts/verify-ios-privacy.sh",
+      "scripts/write-buster.mjs",
+      "tsconfig.depcruise.json",
       ".gitignore",
       "assets/**",
     ]
@@ -142,7 +159,9 @@ jobs:
     # ruleset's contexts rather than a read of it: a gate that asks the thing it
     # guards whether that thing is happy is not a gate. Keep the two in step.
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    # Raised with the two native jobs: they generate both projects from scratch
+    # and then compile them, so the gate now waits on a slower set than it did.
+    timeout-minutes: 50
     permissions:
       actions: read
       checks: read
@@ -152,13 +171,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           SHA: ${{ github.sha }}
-          # Job names that exist in ci.yml today. Never list one that does not:
+          # Job names that exist in ci.yml or codeql.yml. Never list one that does not:
           # a check that can never report turns the wait below into a guaranteed
           # timeout on every release.
-          REQUIRED: '["check","audit","actionlint","standardrb","android","ios","e2e"]'
+          REQUIRED: '["check","audit","actionlint","standardrb","android","ios","native-android","native-ios","e2e","codeql (javascript-typescript)","codeql (actions)"]'
           # GitHub Actions, so no other check provider can satisfy a required name.
           APP_ID: "15368"
-          DEADLINE_MINUTES: "30"
+          DEADLINE_MINUTES: "45"
           POLL_SECONDS: "20"
         run: |
           set -euo pipefail
@@ -204,10 +223,12 @@ jobs:
               check_runs_errors=0
 
               status=$(jq -c --argjson app "$APP_ID" --argjson suite "$ci_run" --argjson required "$REQUIRED" '
-                  [ .[].check_runs[] | select(.app.id == $app and .check_suite.id == $suite) ] as $runs
+                  [ .[].check_runs[] | select(.app.id == $app) ] as $all_runs
                   | [ $required[]
                       | . as $name
-                      | ([ $runs[] | select(.name == $name) ] | sort_by(.started_at) | last) as $latest
+                      | ([ $all_runs[]
+                           | select(.name == $name and (($name | startswith("codeql (")) or .check_suite.id == $suite))
+                         ] | sort_by(.started_at) | last) as $latest
                       | if $latest == null then { name: $name, state: "missing", verdict: "pending" }
                         elif $latest.status != "completed" then { name: $name, state: $latest.status, verdict: "pending" }
                         elif $latest.conclusion == "success" then { name: $name, state: "success", verdict: "ok" }
@@ -342,4 +363,6 @@ jobs:
           IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
           IOS_PROVISIONING_PROFILE_NAME: ${{ secrets.IOS_PROVISIONING_PROFILE_NAME }}
           PROVISIONING_PROFILE_PATH: ${{ runner.temp }}/build.mobileprovision
+          # App Store Connect flags variants above the 200 MB over-the-air limit.
+          IPA_SIZE_LIMIT_BYTES: "200000000"
         run: bundle exec fastlane ios ${{ needs.config.outputs.lane }}

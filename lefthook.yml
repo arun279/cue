@@ -34,6 +34,12 @@ pre-commit:
     typecheck:
       glob: "*.{ts,tsx}"
       run: pnpm typecheck
+    core-portable:
+      # The one gate that has to run before the commit exists: it reads the
+      # working tree as well as the index, so a .tsx added under packages/core
+      # and not yet committed fails here rather than in CI afterwards.
+      glob: "packages/core/**"
+      run: pnpm check:core-portable
 
 pre-push:
   piped: true

@@ -1,0 +1,157 @@
+/*
+ * Where the utilities come from. Tailwind v4's automatic content detection
+ * starts at the working directory the build runs in, which made the generated
+ * set a function of everything beside the app rather than of the app: prose in
+ * a unit test or a Playwright spec emitted utilities no markup has ever used.
+ * `source()` on the import moves that starting point to the `src` beside this
+ * file, which is the only tree that can contain markup. A bare `@source` rule
+ * cannot do this: it adds a path and leaves automatic detection running.
+ */
+@import "tailwindcss" source("../");
+@import "./styles/base.css";
+@import "./styles/layout.css";
+@import "./styles/components.css";
+@import "./styles/screens.css";
+@import "./styles/screens-library.css";
+@import "./styles/screens-search.css";
+@import "./styles/screens-calendar.css";
+@import "./styles/screens-detail.css";
+@import "./styles/screens-account.css";
+
+/*
+ * "The screening room" design tokens (Tailwind v4 @theme; the entry file because
+ * v4 resolves @theme only here). Dark is the default and the hero: depth comes
+ * from a warm surface-luminance ladder, not shadows. Each color has one job:
+ * amber is action & progress (CTAs, active tab, links, focus), green is
+ * watched/done (check fill, complete progress: and nothing else), ink carries
+ * information. The @theme values are the dark defaults; [data-theme] blocks
+ * override per theme. main.tsx stamps data-theme before first paint, so the
+ * [data-theme] selectors always drive. WCAG-verified contrast pairs are chosen
+ * for AA contrast. Scrim/on-image tokens are theme-invariant: text over artwork
+ * always sits on a dark scrim. `static` because these ARE the design system:
+ * every token must exist at runtime, not only the ones a utility referenced.
+ */
+@theme static {
+  --color-bg: #0e0c0a; /* warm near-black canvas */
+  --color-surface: #17140f; /* raised: cards, tab bar, continue bar */
+  --color-elevated: #221d16; /* chips, controls, hover / pressed */
+  --color-overlay: #2b241b; /* sheets, snackbar, menus */
+  --color-border: #33291e; /* hairlines */
+  --color-border-strong: #4a3e2e; /* rest check ring, input strokes */
+
+  --color-fg: #f4efe7; /* ink-primary */
+  --color-ink2: #c6baa8; /* metadata, episode codes, overviews */
+  --color-muted: #978a78; /* labels, captions */
+
+  --color-accent: #f5b841; /* action amber (fills pair with accent-fg) */
+  --color-accent-strong: #ffc966; /* pressed / hover */
+  --color-accent-fg: #140e04; /* ink ON amber fills */
+  /* Amber as FOREGROUND text/icons/borders (Undo, active tab, links, retry):
+   * AA (≥4.5:1) on both themes' surfaces; fills stay --color-accent. */
+  --color-accent-ink: #f5b841;
+  --color-focus: #ffc966;
+  --color-progress: #f5b841; /* progress fill (deepened on the light theme) */
+  --color-track: #2a241c; /* progress track */
+
+  --color-watched: #57c996; /* watched check fill, complete progress */
+  --color-watched-fg: #08130d; /* check glyph on the watched fill */
+  --color-ok: #5fbe97; /* reserved: Settings sync-ok text only */
+  --color-danger: #f0857a;
+
+  --color-scrim: rgba(10, 8, 6, 0.86); /* image scrims (theme-invariant) */
+  --color-on-image: #ffffff; /* text over artwork */
+  --color-on-image-2: #d9cfc0; /* secondary text over artwork */
+
+  --font-display: "Space Grotesk Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-ui: "Inter Variable", ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+
+  /* The Cue touch-target floor: one system-wide minimum for a comfortable finger
+   * target. 44 CSS px is Apple HIG's 44pt and the size WCAG 2.5.5 names, and the
+   * largest common minimum that still fits Cue's compact card rows without a second
+   * layout: so it is a single documented constant, applied at shared class
+   * definitions rather than per-screen (Nielsen #4 / Shneiderman #1 consistency). */
+  --tap-min: 44px;
+
+  /* Fixed bottom tab bar height (mobile only). Single source of truth: the bar's own
+   * height, the scroll region's bottom clearance, and the snackbar offset all derive
+   * from it so they can never drift out of sync. */
+  --tabbar-h: 66px;
+
+  --radius-poster: 8px;
+  --radius-control: 12px; /* controls, fields */
+  --radius-card: 16px;
+  --radius-sheet: 20px; /* sheet top corners */
+  --radius-pill: 999px;
+
+  --shadow-1: none;
+  --shadow-2: none;
+  --shadow-poster: 0 14px 40px rgb(0 0 0 / 0.55);
+
+  --dur-quick: 120ms;
+  --dur-base: 200ms;
+  --dur-gentle: 240ms;
+  --dur-slow: 320ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.3, 0, 0, 1);
+}
+
+:root[data-theme="dark"] {
+  --color-bg: #0e0c0a;
+  --color-surface: #17140f;
+  --color-elevated: #221d16;
+  --color-overlay: #2b241b;
+  --color-border: #33291e;
+  --color-border-strong: #4a3e2e;
+  --color-fg: #f4efe7;
+  --color-ink2: #c6baa8;
+  --color-muted: #978a78;
+  --color-accent: #f5b841;
+  --color-accent-strong: #ffc966;
+  --color-accent-fg: #140e04;
+  --color-accent-ink: #f5b841;
+  --color-focus: #ffc966;
+  --color-progress: #f5b841;
+  --color-track: #2a241c;
+  --color-watched: #57c996;
+  --color-watched-fg: #08130d;
+  --color-ok: #5fbe97;
+  --color-danger: #f0857a;
+  --shadow-1: none;
+  --shadow-2: none;
+  --shadow-poster: 0 14px 40px rgb(0 0 0 / 0.55);
+}
+
+:root[data-theme="light"] {
+  --color-bg: #fbfaf7; /* warm paper, not clinical white */
+  --color-surface: #ffffff;
+  --color-elevated: #f4f1ea;
+  --color-overlay: #ffffff;
+  --color-border: #e7e2d8;
+  --color-border-strong: #c9bfa9;
+  --color-fg: #1a1712;
+  --color-ink2: #514a3e;
+  --color-muted: #6e6656;
+  --color-accent: #f0a62a; /* amber fill with dark ink */
+  --color-accent-strong: #d98f13;
+  --color-accent-fg: #1a1206;
+  --color-accent-ink: #935800; /* deep amber: bright amber is ~2:1 as text on paper */
+  --color-focus: #935800;
+  --color-progress: #b26a00; /* deep amber: bright amber is invisible on white */
+  --color-track: #e7e2d8;
+  --color-watched: #1e7a54;
+  --color-watched-fg: #ffffff;
+  --color-ok: #1f7a54;
+  --color-danger: #b4231b;
+  --shadow-1: 0 1px 2px rgb(20 18 12 / 0.06), 0 2px 6px rgb(20 18 12 / 0.08);
+  --shadow-2: 0 6px 20px rgb(20 18 12 / 0.12);
+  --shadow-poster: 0 10px 30px rgb(20 18 12 / 0.22);
+}

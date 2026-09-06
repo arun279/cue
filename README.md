@@ -26,9 +26,9 @@ Cue authenticates as a public OAuth client, so it ships **no secret**: the app a
 
 1. Register a free API app with Trakt. Current instructions live at [docs.trakt.tv](https://docs.trakt.tv).
 2. Set its Redirect URI to `http://localhost:5199/auth/callback` for local development, plus `<your-production-origin>/auth/callback` for deploys. (Trakt matches the redirect URI exactly, so register every origin you serve from.)
-3. Copy `.env.example` to `.env` and set `VITE_TRAKT_CLIENT_ID` to the app's **Client ID**. It is public: it ships in the built JS and there is no client secret.
+3. Copy `packages/web/.env.example` to `packages/web/.env` and set `VITE_TRAKT_CLIENT_ID` to the app's **Client ID**. It is public: it ships in the built JS and there is no client secret.
 
-The client id is public by design. Cue keeps each user's Trakt OAuth token, settings, and a local data cache on-device. Your real `.env` stays local (gitignored); `.env.example`, `.env.test` and `.env.mock` are the committed placeholders.
+The client id is public by design. Cue keeps each user's Trakt OAuth token, settings, and a local data cache on-device. Your real `.env` stays local (gitignored); the committed placeholders `.env.example`, `.env.test` and `.env.mock` sit beside it in `packages/web`.
 
 ## Development
 
@@ -37,13 +37,13 @@ Requires Node 22+ and pnpm.
 ```sh
 pnpm install   # install dependencies
 pnpm dev       # start the Vite dev server
-pnpm build     # build the static SPA into dist/
+pnpm build     # build the static SPA into packages/web/dist/
 pnpm check     # run the full deterministic check harness
 pnpm e2e       # run the Playwright end-to-end suite
 pnpm e2e:mobile # run focused Pixel/Chromium + iPhone/WebKit checks
 ```
 
-First e2e run only: `pnpm exec playwright install chromium webkit`.
+First e2e run only: `pnpm --filter @cue/web exec playwright install chromium webkit`.
 
 Use `pnpm e2e:mobile --headed` when you want to watch the mobile browser checks run.
 
@@ -57,13 +57,16 @@ Every e2e run builds the app and starts its own preview server on port 4173. Set
 - **dprint**: Markdown formatting.
 - **cspell**: spelling across TS/TSX/CSS/MD.
 - **tsc**: strict TypeScript type-check (`--noEmit`).
-- **dependency-cruiser**: layering rules (`@capacitor/*` confined to `src/platform`).
-- **knip**: no unused files, dependencies, or exports.
+- **dependency-cruiser**: sixteen layering rules cruised over every package in one pass. They keep `@cue/core` free of all three apps' libraries, keep Expo and React Native inside `packages/native` and the DOM inside `packages/web`, stop either app importing the other, hold the domain and the data layer to what they may reach, confine `@capacitor/*` to `packages/web/src/platform`, keep every Trakt read behind the pooled wrapper that spends the read budget, and require each package to declare what it imports.
+- **knip**: no unused files, dependencies, or exports. `@cue/core` exports every module through one wildcard subpath, which would make each of its files an entry point and switch the export lane off over the shared package, so that workspace sets `includeEntryExports` and its public surface is reported the moment nothing imports it.
 - **jscpd**: duplicate-code detection.
-- **Vitest**: unit tests with coverage thresholds on `src/domain` and `src/data`.
+- **Vitest**: unit tests for the two web-side packages. Coverage covers the shared core, the web app's platform adapters and its preferences adapter, with 90/90/90/80 on `domain`, `data`, `prefs`, `url` and `stores`, a ratchet on `hooks`, and a global floor everywhere else. Both composition roots and every screen are gated by the Playwright suite instead.
+- **jest-expo**: the native package's own suite, run under both the `ios` and the `android` preset, because that is what catches a platform-only divergence. It carries the composition root, the first-launch migration and the `KeyValueStore` contract, the last of which is the same suite `@cue/core` hands the web backends.
+- **`check:core-portable`**: `@cue/core` carries no `.tsx` and no `.css`, asserted over the index and the working tree so a new file fails before the commit exists.
+- **`buster:check`**: the committed persisted-shape witness still matches the shapes, so a cache that would be replayed against a changed type is dropped rather than trusted.
 - **Vite build**: a production build must compile.
 
-`pnpm e2e` runs the Playwright suite (chromium). `pnpm audit` (high/critical production advisories) is deliberately kept out of `pnpm check` because it reads live advisory state; it runs as its own CI job on every push and on a weekly schedule.
+`pnpm e2e` runs the Playwright suite (chromium); `pnpm e2e:mock` runs the equivalence lane (below). `pnpm audit` (high/critical production advisories) is deliberately kept out of `pnpm check` because it reads live advisory state; it runs as its own CI job on every push and on a weekly schedule.
 
 Git hooks are wired with [lefthook](https://lefthook.dev) (`pnpm install` runs `lefthook install`): pre-commit runs the fast gates, pre-push runs `pnpm check`. The full Playwright e2e suite runs in CI (`.github/workflows/ci.yml`, Node 22) on every pull request, and branch protection ruleset 18841630 requires the `e2e` context, so it still gates every merge.
 
@@ -76,17 +79,23 @@ pnpm mock:trakt # serve the fake Trakt on http://127.0.0.1:8787 (MOCK_TRAKT_PORT
 pnpm dev:mock   # run the dev server against it
 ```
 
-`--mode mock` loads the committed `.env.mock`, which sets a dummy client id and `VITE_TRAKT_API_BASE=http://127.0.0.1:8787`. That variable is the whole switch: unset, which is every shipped build and every other mode, the app talks to `api.trakt.tv` and `trakt.tv`; set, it talks to the mock instead, sign-in included. `pnpm exec vite build --mode mock` produces the same thing as a static bundle to preview or to `cap sync` into a shell.
+`--mode mock` loads the committed `.env.mock`, which sets a dummy client id and `VITE_TRAKT_API_BASE=http://127.0.0.1:8787`. That variable is the whole switch: unset, which is every shipped build and every other mode, the app talks to `api.trakt.tv` and `trakt.tv`; set, it talks to the mock instead, sign-in included. `pnpm --filter @cue/web exec vite build --mode mock` produces the same thing as a static bundle to preview or to `cap sync` into a shell.
 
-Every write the app makes moves the mock's in-memory account: history marks and their removals (by item, by the bulk season subtree, and by history-play id), hiding and unhiding a show, and watchlist adds and removals. So progress, history, the hidden set, the watchlist and the calendar all stay consistent across a session, and a write naming something the seed does not have comes back in `not_found` rather than as a success the account never took. Any endpoint the mock does not model answers 404 with a logged line rather than an empty success, so a missing fixture reads as a hole instead of an account with nothing in it. Deliberately absent: the browse rails, served as the empty lists a demo account has; search, which is not modelled at all, so typing into it reaches the app's error state rather than an empty one; and rate limiting and failure of any kind, since the mock authorizes anybody and never answers 429. `test/harness/mock-trakt.test.ts` boots the mock in-process and reads every seeded endpoint back through the app's own client and zod contracts, which is what keeps the two from drifting.
+Every write the app makes moves the mock's in-memory account: history marks and their removals (by item, by the bulk season subtree, and by history-play id), hiding and unhiding a show, and watchlist adds and removals. So progress, history, the hidden set, the watchlist and the calendar all stay consistent across a session, and a write naming something the seed does not have comes back in `not_found` rather than as a success the account never took. Any endpoint the mock does not model answers 404 with a logged line rather than an empty success, so a missing fixture reads as a hole instead of an account with nothing in it. Deliberately absent: the browse rails, served as the empty lists a demo account has; search, which is not modelled at all, so typing into it reaches the app's error state rather than an empty one; and rate limiting and failure of any kind, since the mock authorizes anybody and never answers 429. `packages/web/test/harness/mock-trakt.test.ts` boots the mock in-process and reads every seeded endpoint back through the app's own client and zod contracts, which is what keeps the two from drifting.
 
-The Trakt wire shapes are built twice, here and in `e2e/helpers.ts`. Both run in Node and either could import the other, so what keeps them apart is the fixtures, not the module boundary: the mock seeds an account (a `library` with a linear `completed` counter, images served from its own origin, per-play watch stamps), while each Playwright spec seeds its own `shows` array with `hidden` and `inWatchlist` flags, serves no images at all, and gates every field on the `extended` level so a request that drops one breaks the suite. Unifying them means reconciling those two seed models, not moving a function. The duplication detector does not report the overlap either way: it reads `src` and `test`.
+The Trakt wire shapes are built twice, here and in `packages/web/e2e/helpers.ts`. Both run in Node and either could import the other, so what keeps them apart is the fixtures, not the module boundary: the mock seeds an account (a `library` with a linear `completed` counter, images served from its own origin, per-play watch stamps), while each Playwright spec seeds its own `shows` array with `hidden` and `inWatchlist` flags, serves no images at all, and gates every field on the `extended` level so a request that drops one breaks the suite. Unifying them means reconciling those two seed models, not moving a function. The duplication detector does not report the overlap either way: it reads each package's `src` and `test`.
 
-Reaching it from the iOS simulator needs one thing this branch deliberately does not do: a Debug-only `NSAppTransportSecurity` dictionary in `ios/App/App/Info.plist`, either `NSAllowsLocalNetworking` or an `NSExceptionDomains` entry for `127.0.0.1`, because App Transport Security blocks plaintext HTTP. It must never reach a release build, and `test/privacy-claims.test.ts` fails if `NSAppTransportSecurity` appears in the committed `Info.plist` at all.
+### The equivalence lane
+
+`pnpm e2e:mock` is a separate Playwright project that drives the built app against the fake Trakt with no route interception at all, and records what the app asked Trakt for to `packages/web/journal/journal-a.ndjson`: method, path, query and body, in order. It exists for the native rewrite, and it catches the one failure nothing else can, that both apps look right while one of them sends a different payload, an extra read, or no write at all, because each is otherwise only ever compared with its own expectations. The 21 fixture specs are untouched and keep running against their own routes.
+
+The lane is off unless `E2E_MOCK=1` is set, because it costs a second build and two more processes on every run. `scripts/mock-trakt/journal.mjs` also owns what two runs may be compared on: artwork and the visibility-gated freshness poll are dropped, the sign-in leg is dropped because the two targets differ on it by design and its payloads are fresh every run, a token exchange keeps its `grant_type` and loses its secrets, and every date-shaped value is replaced so the same run yesterday equals the same run today. `packages/web/test/harness/journal.test.ts` is what stops that policy quietly dropping a real difference.
+
+Reaching it from the iOS simulator needs one thing this branch deliberately does not do: a Debug-only `NSAppTransportSecurity` dictionary in `ios/App/App/Info.plist`, either `NSAllowsLocalNetworking` or an `NSExceptionDomains` entry for `127.0.0.1`, because App Transport Security blocks plaintext HTTP. It must never reach a release build, and `packages/web/test/privacy-claims.test.ts` fails if `NSAppTransportSecurity` appears in the committed `Info.plist` at all.
 
 ## Mobile
 
-iOS and Android ship from the same code via [Capacitor](https://capacitorjs.com). The web build in `dist/` is the source of truth for everything the user sees; the shells around it are committed, because they are hand-edited: the scene delegate, the bridge controller and the haptics plugin on iOS, the Kotlin haptics plugin and the manifest's permission removal on Android, plus both project files. `cap sync` rewrites the derived parts in place: the web assets it copies (`ios/App/App/public`, `android/app/src/main/assets/public`) and the generated config JSON are the only native paths git ignores, while the plugin manifests it writes (`Package.swift`, `capacitor.settings.gradle`, `capacitor.build.gradle`) are committed, so a plugin appearing or leaving shows up in review.
+iOS and Android ship from the same code via [Capacitor](https://capacitorjs.com). The web build in `packages/web/dist/` is the source of truth for everything the user sees; the shells around it are committed, because they are hand-edited: the scene delegate, the bridge controller and the haptics plugin on iOS, the Kotlin haptics plugin and the manifest's permission removal on Android, plus both project files. `cap sync` rewrites the derived parts in place: the web assets it copies (`ios/App/App/public`, `android/app/src/main/assets/public`) and the generated config JSON are the only native paths git ignores, while the plugin manifests it writes (`Package.swift`, `capacitor.settings.gradle`, `capacitor.build.gradle`) are committed, so a plugin appearing or leaving shows up in review.
 
 ```sh
 pnpm build
@@ -120,14 +129,18 @@ Build numbers come from that workflow's run counter, which every branch shares a
 - **Tailwind CSS v4** (`@theme` tokens) for styling.
 - **TanStack Query** (with persistence) and **TanStack Router** for data and routing.
 - **TanStack Virtual** for large lists, **Zustand** for local state, **Zod** for runtime boundary validation, **Radix UI** for primitives.
-- **Capacitor 8** thin shell for iOS/Android: all `@capacitor/*` imports confined to `src/platform`.
-- Source is layered under `src/domain`, `src/data`, `src/ui`, `src/app`, and `src/platform`.
+- **Capacitor 8** thin shell for iOS/Android: all `@capacitor/*` imports confined to `packages/web/src/platform`.
+- The repository is a pnpm workspace of three packages, and the root carries only the gate runner, the Capacitor shells and the release lanes.
+  - **`@cue/core`** (`packages/core`) is everything that does not know what it is rendered on: the domain, the Trakt data layer, the durable write queue, the hooks, the stores, the preferences and the URL parsers, plus the ports each app fills (key-value storage, preference storage, haptics, reminders, connectivity, app visibility, the OAuth redirect handoff). It is TypeScript source with no build step, published to the workspace through one wildcard subpath (`@cue/core/domain/up-next`), and it contains no `.tsx` and no `.css`: its `tsconfig` omits the DOM lib and `pnpm check:core-portable` asserts the file types, because the two catch different halves of the same rule. `src/app` inside it is the composition root the apps call, and the only part of it excluded from the line-coverage gate.
+  - **`@cue/web`** (`packages/web`) is the Vite app: `src/ui` for screens and components, `src/app` for the composition root, `src/platform` for the browser side of every port, plus `test/`, `e2e/` and `public/`.
+  - **`@cue/native`** (`packages/native`) is the Expo app: `app/` for the expo-router tree, `src/` for the composition root, the screens and the native side of every port, `modules/cue-native` for the one local Expo module (the haptic vocabulary and the Capacitor preference reader), `plugins/` for the two config plugins, and `__tests__/` for the jest-expo suite. Its `ios/` and `android/` projects are generated by `expo prebuild` and are not committed, so every native fact lives in `app.config.ts` or in a config plugin.
+  - Dependencies flow one way, and dependency-cruiser is what keeps that true rather than convention: the core imports no app, neither app imports the other, the domain reaches only the domain, and the data layer reaches only the domain, its own tree and the ports.
 
 ## Attribution
 
 Powered by [Trakt](https://trakt.tv).
 
-Cue uses the Trakt API but is not created, endorsed, or sponsored by Trakt. The app name is deliberately Trakt-free so Cue is never mistaken for an official Trakt product. The unaltered official Trakt logo, from [trakt.tv/branding](https://trakt.tv/branding), appears in the Settings → About credit and ships in `src/ui/assets/trakt-logo.svg` (see that folder's README).
+Cue uses the Trakt API but is not created, endorsed, or sponsored by Trakt. The app name is deliberately Trakt-free so Cue is never mistaken for an official Trakt product. The unaltered official Trakt logo, from [trakt.tv/branding](https://trakt.tv/branding), appears in the Settings → About credit and ships in `packages/web/src/ui/assets/trakt-logo.svg` (see that folder's README).
 
 ## Privacy
 

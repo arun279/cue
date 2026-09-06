@@ -1,0 +1,297 @@
+/* ---- App shell: main scroll region + bottom tabs (phone) / sidebar (desktop) ---- */
+.layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+.main {
+  flex: 1;
+  padding: var(--space-4) max(var(--space-4), env(safe-area-inset-right))
+    calc(var(--tabbar-h) + var(--space-4) + env(safe-area-inset-bottom))
+    max(var(--space-4), env(safe-area-inset-left));
+}
+
+/* ---- Screen header (rendered per screen; sticky over its scroll) ----
+ * Bleeds across .main's gutter with negative margins so the hairline and
+ * background run edge-to-edge while screens keep rendering inside the padded
+ * scroll region; the top margin swallows .main's top padding so the header
+ * pins flush to the viewport edge. */
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: calc(56px + env(safe-area-inset-top));
+  /* Mirrors .main's max(gutter, safe-area) side padding. */
+  margin: calc(-1 * var(--space-4))
+    calc(-1 * max(var(--space-4), env(safe-area-inset-right))) 0
+    calc(-1 * max(var(--space-4), env(safe-area-inset-left)));
+  padding: env(safe-area-inset-top) max(var(--space-4), env(safe-area-inset-right)) 0
+    max(var(--space-4), env(safe-area-inset-left));
+  background: var(--color-bg);
+  border-bottom: 1px solid var(--color-border);
+}
+.app-header__title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-header--child .app-header__title {
+  font-family: var(--font-ui);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+/* The avatar affordance: a 32px person glyph inside the standard 44px target. */
+.app-header__avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--tap-min);
+  height: var(--tap-min);
+  margin-right: calc(-1 * var(--space-2));
+  border-radius: var(--radius-pill);
+  color: var(--color-ink2);
+  transition: color var(--dur-quick) var(--ease-standard);
+}
+.app-header__avatar svg {
+  width: 32px;
+  height: 32px;
+}
+.app-header__avatar:hover,
+.app-header__avatar:active {
+  color: var(--color-fg);
+}
+.app-header__back {
+  appearance: none;
+  border: none;
+  background: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--tap-min);
+  height: var(--tap-min);
+  /* Optical: the chevron's ink, not the invisible hit box, aligns to the gutter. */
+  margin-left: calc(-1 * var(--space-3));
+  padding: 0;
+  border-radius: var(--radius-pill);
+  color: var(--color-fg);
+  cursor: pointer;
+}
+.app-header__back svg {
+  width: 24px;
+  height: 24px;
+}
+.app-header__back:active {
+  background: var(--color-elevated);
+}
+
+/* ---- Sync strip: ambient sync state under the header; absent means synced ---- */
+.sync-strip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 32px;
+  /* Mirrors .main's max(gutter, safe-area) side padding. */
+  margin: 0 calc(-1 * max(var(--space-4), env(safe-area-inset-right))) 0
+    calc(-1 * max(var(--space-4), env(safe-area-inset-left)));
+  padding: 0 max(var(--space-4), env(safe-area-inset-right)) 0
+    max(var(--space-4), env(safe-area-inset-left));
+  background: var(--color-elevated);
+  color: var(--color-ink2);
+  font-size: 13px;
+  font-weight: 500;
+  animation: sync-strip-in 160ms var(--ease-standard);
+}
+@keyframes sync-strip-in {
+  from {
+    opacity: 0;
+  }
+}
+.sync-strip__dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-muted);
+}
+.sync-strip[data-state="pending"] .sync-strip__dot {
+  background: var(--color-accent);
+}
+.sync-strip[data-state="unreachable"] .sync-strip__dot {
+  background: var(--color-danger);
+}
+.sync-strip__text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* A 44px-tall text button centred in the 32px strip: transparent, so the
+ * overflowing hit slop is invisible (HIT-SLOP rule). */
+.sync-strip__retry {
+  appearance: none;
+  border: none;
+  background: none;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-min);
+  padding-inline: var(--space-2);
+  color: var(--color-accent-ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.sync-strip__retry:hover {
+  color: color-mix(in srgb, var(--color-accent-ink) 85%, var(--color-fg));
+}
+
+/* ---- Bottom tab bar (phone) ---- */
+.tabbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  display: flex;
+  height: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  /* Bottom inset clears the home indicator; the horizontal insets keep the end
+   * tabs off the rounded corners in landscape. */
+  padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+.tabbar__item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  color: var(--color-muted);
+  text-decoration: none;
+  font-size: 11px;
+  font-weight: 600;
+}
+.tabbar__item svg {
+  width: 24px;
+  height: 24px;
+  flex: none;
+}
+/* Pressed feedback: an inactive tab lifts toward full ink so it never reads as
+ * dead on touch (the amber active tab stays amber). */
+.tabbar__item:active {
+  color: var(--color-fg);
+}
+.tabbar__item--active,
+.tabbar__item--active:active {
+  color: var(--color-accent-ink);
+}
+
+/* ---- Sidebar (desktop; the phone is the primary chrome) ---- */
+.sidebar {
+  display: none;
+}
+
+/* Desktop breakpoint: width alone is the wrong test. A phone in landscape
+ * clears 900px (iPhone 16 Pro Max is 956 CSS px wide) but has nowhere near a
+ * desktop's vertical room, so width-only would route it onto this sidebar
+ * path and lose every env(safe-area-inset-*) the phone layout relies on.
+ * Height separates the populations cleanly: every iPhone landscape viewport
+ * tops out at 440px tall, every iPad landscape starts at 744px. This
+ * condition is duplicated in components.css (.app-snackbar) and
+ * screens-detail.css (.detail-hero); keep all three in sync. */
+@media (min-width: 900px) and (min-height: 500px) {
+  .layout {
+    display: grid;
+    grid-template-columns: 15.5rem 1fr;
+  }
+  .tabbar {
+    display: none;
+  }
+  .main {
+    padding: max(var(--space-6), env(safe-area-inset-top))
+      max(var(--space-7), env(safe-area-inset-right))
+      max(var(--space-6), env(safe-area-inset-bottom))
+      max(var(--space-7), env(safe-area-inset-left));
+  }
+  .app-header {
+    margin: calc(-1 * var(--space-6)) calc(-1 * var(--space-7)) 0;
+    padding: 0 var(--space-7);
+  }
+  .sync-strip {
+    margin: 0 calc(-1 * var(--space-7));
+    padding: 0 var(--space-7);
+  }
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    position: sticky;
+    top: 0;
+    height: 100dvh;
+    gap: 2px;
+    padding: var(--space-5) var(--space-4)
+      max(var(--space-5), env(safe-area-inset-bottom))
+      max(var(--space-4), env(safe-area-inset-left));
+    background: var(--color-surface);
+    border-right: 1px solid var(--color-border);
+  }
+  .sidebar__links {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .sidebar__footer {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: auto;
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--color-border);
+  }
+  .sidebar__link {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-height: var(--tap-min);
+    padding: var(--space-1) var(--space-3);
+    color: var(--color-ink2);
+    text-decoration: none;
+    border-radius: var(--radius-control);
+    font-size: 0.95rem;
+    font-weight: 500;
+    transition:
+      color var(--dur-quick) var(--ease-standard),
+      background var(--dur-quick) var(--ease-standard);
+  }
+  .sidebar__link svg {
+    width: 20px;
+    height: 20px;
+    flex: none;
+  }
+  .sidebar__link:hover {
+    color: var(--color-fg);
+    background: var(--color-elevated);
+  }
+  .sidebar__link--active,
+  .sidebar__link--active:hover {
+    color: var(--color-accent-ink);
+    background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+    font-weight: 600;
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  // dependency-cruiser reads the web package's path aliases through this file
+  // and nothing else does. It exists because its tsconfig-paths plugin resolves
+  // a `paths` entry against `baseUrl`, and dependency-cruiser substitutes the
+  // process working directory when the tsconfig declares none: from the
+  // workspace root that turns `./src/ui/*` into `<root>/src/ui/*`, which exists
+  // nowhere, so every aliased import drops out of the graph and every layering
+  // rule passes vacuously. Naming the base here fixes that without putting
+  // `baseUrl`, which TypeScript 6.0 rejects as deprecated, into a tsconfig the
+  // compiler actually reads.
+  "extends": "./packages/web/tsconfig.json",
+  "compilerOptions": { "baseUrl": "./packages/web" }
+}

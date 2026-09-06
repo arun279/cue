@@ -18,6 +18,8 @@ public class CueHapticsPlugin: CAPPlugin, CAPBridgedPlugin {
     public let jsName = "CueHaptics"
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "success", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "failure", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "warning", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "thresholdActivate", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "thresholdDeactivate", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "selection", returnType: CAPPluginReturnPromise),
@@ -35,6 +37,16 @@ public class CueHapticsPlugin: CAPPlugin, CAPBridgedPlugin {
 
     @objc func success(_ call: CAPPluginCall) {
         fire(call, notification) { $0.notificationOccurred(.success) }
+    }
+
+    @objc func failure(_ call: CAPPluginCall) {
+        fire(call, notification) { $0.notificationOccurred(.error) }
+    }
+
+    /// Apple: Warning "indicates that a task or action has produced a warning of
+    /// some kind", which is a completed action with a caveat rather than a failure.
+    @objc func warning(_ call: CAPPluginCall) {
+        fire(call, notification) { $0.notificationOccurred(.warning) }
     }
 
     @objc func thresholdActivate(_ call: CAPPluginCall) {

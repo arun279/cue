@@ -10,16 +10,20 @@
  * Only the endpoints the app actually calls are modelled. Anything else answers
  * 404 with a logged line, never a silent empty success: a path with no route has
  * to be visible as a hole rather than look like an account with nothing in it.
+ * The log line is where a caller reads back what it asked for; no response body
+ * ever quotes the request.
  */
 
 import { createServer } from "node:http";
 import { pathToFileURL } from "node:url";
+import { createFaults, FAULT_PROFILE_NAMES, faultResponse, faultsFromEnv } from "./faults.mjs";
+import { createJournal } from "./journal.mjs";
 import {
   applyHiddenWrite,
   applyHistoryWrite,
   applyWatchlistWrite,
   calendarBody,
-  createLibrary,
+  createSeedLibrary,
   episodeDetailBody,
   hiddenBody,
   historyRows,
@@ -27,6 +31,7 @@ import {
   lastActivitiesBody,
   movieDetailBody,
   progressBody,
+  SEED_PROFILE_NAMES,
   seasonsBody,
   showDetailBody,
   userSettingsBody,
@@ -83,7 +88,14 @@ const findShow = (library, id) =>
 const findMovie = (library, id) =>
   library.movies.find((movie) => movie.trakt === Number(id) || movie.slug === id);
 
-const ASPECTS = { poster: [400, 600], avatar: [240, 240] };
+const ASPECTS = new Map([
+  ["poster", [400, 600]],
+  ["avatar", [240, 240]],
+]);
+
+const XML_ESCAPES = { "&": "&amp;", "<": "&lt;", ">": "&gt;" };
+
+const xmlText = (value) => value.replace(/[&<>]/g, (char) => XML_ESCAPES[char]);
 
 /** Initials, so a poster in a screenshot is identifiable rather than a grey box. */
 function imageLabel(library, kind, id) {
@@ -111,8 +123,8 @@ function imageLabel(library, kind, id) {
  * a local plain-HTTP mock could never answer.
  */
 function placeholderImage(library, kind, id, slot) {
-  const [width, height] = ASPECTS[slot] ?? [640, 360];
-  const hue = (id * 37) % 360;
+  const [width, height] = ASPECTS.get(slot) ?? [640, 360];
+  const hue = Math.round((id * 37) % 360);
   const label = imageLabel(library, kind, id);
   return {
     status: 200,
@@ -122,7 +134,7 @@ function placeholderImage(library, kind, id, slot) {
 <stop offset="0" stop-color="hsl(${hue} 45% 32%)"/><stop offset="1" stop-color="hsl(${(hue + 40) % 360} 40% 14%)"/>
 </linearGradient></defs>
 <rect width="${width}" height="${height}" fill="url(#g)"/>
-<text x="50%" y="50%" fill="hsl(${hue} 60% 88%)" font-family="Helvetica, Arial, sans-serif" font-size="${Math.round(height / 4)}" font-weight="600" text-anchor="middle" dominant-baseline="central">${label}</text>
+<text x="50%" y="50%" fill="hsl(${hue} 60% 88%)" font-family="Helvetica, Arial, sans-serif" font-size="${Math.round(height / 4)}" font-weight="600" text-anchor="middle" dominant-baseline="central">${xmlText(label)}</text>
 </svg>`,
   };
 }
@@ -227,7 +239,7 @@ const ROUTES = [
     (ctx) => {
       const { kind, id } = ctx.params;
       const rows = itemPlaysBody(ctx.library, ctx.origin, extendedOf(ctx.url), kind, id);
-      if (rows === null) return notFound(`no seeded ${kind} ${id}`);
+      if (rows === null) return notFound("no seeded item");
       return page(rows, ctx.url, 10);
     },
   ],
@@ -251,7 +263,7 @@ const ROUTES = [
     /^\/shows\/(?<id>[^/]+)\/progress\/watched$/,
     (ctx) => {
       const show = findShow(ctx.library, ctx.params.id);
-      if (show === undefined) return notFound(`no seeded show ${ctx.params.id}`);
+      if (show === undefined) return notFound("no seeded show");
       return json(progressBody(show, ctx.library, ctx.origin, extendedOf(ctx.url)));
     },
   ],
@@ -263,7 +275,7 @@ const ROUTES = [
       const episode = show?.episodes.find(
         (ep) => ep.season === Number(ctx.params.season) && ep.number === Number(ctx.params.number),
       );
-      if (episode === undefined) return notFound(`no seeded episode ${ctx.url.pathname}`);
+      if (episode === undefined) return notFound("no seeded episode");
       return json(episodeDetailBody(episode, ctx.origin, extendedOf(ctx.url)));
     },
   ],
@@ -272,7 +284,7 @@ const ROUTES = [
     /^\/shows\/(?<id>[^/]+)\/seasons$/,
     (ctx) => {
       const show = findShow(ctx.library, ctx.params.id);
-      if (show === undefined) return notFound(`no seeded show ${ctx.params.id}`);
+      if (show === undefined) return notFound("no seeded show");
       return json(seasonsBody(show, ctx.origin, extendedOf(ctx.url)));
     },
   ],
@@ -281,7 +293,7 @@ const ROUTES = [
     /^\/shows\/(?<id>[^/]+)$/,
     (ctx) => {
       const show = findShow(ctx.library, ctx.params.id);
-      if (show === undefined) return notFound(`no seeded show ${ctx.params.id}`);
+      if (show === undefined) return notFound("no seeded show");
       return json(showDetailBody(show, ctx.origin, extendedOf(ctx.url)));
     },
   ],
@@ -293,7 +305,7 @@ const ROUTES = [
     /^\/movies\/(?<id>[^/]+)$/,
     (ctx) => {
       const movie = findMovie(ctx.library, ctx.params.id);
-      if (movie === undefined) return notFound(`no seeded movie ${ctx.params.id}`);
+      if (movie === undefined) return notFound("no seeded movie");
       return json(movieDetailBody(movie, ctx.origin, extendedOf(ctx.url)));
     },
   ],
@@ -317,10 +329,75 @@ const ROUTES = [
 
 const CORS = {
   "access-control-allow-origin": "*",
-  "access-control-allow-methods": "GET, POST, OPTIONS",
+  "access-control-allow-methods": "GET, POST, DELETE, OPTIONS",
   "access-control-allow-headers": "authorization, content-type, trakt-api-key, trakt-api-version",
+  // The app reads pagination off the headers and its backoff off `Retry-After`.
+  // Neither is CORS-safelisted, so without this the browser hands the app a
+  // response with those headers stripped and the mock silently stops modelling
+  // the thing under test.
+  "access-control-expose-headers":
+    "retry-after, x-pagination-page, x-pagination-limit, x-pagination-page-count, x-pagination-item-count",
   "access-control-max-age": "600",
 };
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * A fault's effect on the connection itself, before any response is composed.
+ * False when the fault ends the request without one.
+ */
+async function stall(fault, request) {
+  if (fault.drop === true) {
+    request.socket.destroy();
+    return false;
+  }
+  if (fault.hold === true) return false;
+  if (fault.delayMs !== undefined) await sleep(fault.delayMs);
+  return true;
+}
+
+/**
+ * POST puts the account back to a seed, for a flow whose assertions are about
+ * what is IN the account rather than about the order the flows ran in. `?seed=`
+ * names one of the profiles in `seed.mjs`; without it the account goes back to
+ * the default eight shows and three movies. It is the one control that returns
+ * the whole mock to a known state, so it disarms any faults with it.
+ */
+function resetRoute(reset, method, url) {
+  if (method !== "POST") return notFound("no control route");
+  const seed = url.searchParams.get("seed") ?? "default";
+  if (!reset(seed)) return notFound("no seed profile");
+  return json({ reset: true });
+}
+
+/**
+ * POST arms a rule (or `{ rules: [...] }`), or the named profile a `?<name>`
+ * query flag selects, and answers with the durable op-log that profile seeds.
+ * GET reports what is armed, DELETE clears.
+ */
+function faultRoute(faults, method, url, body) {
+  if (method === "POST") {
+    const profile = FAULT_PROFILE_NAMES.find((name) => url.searchParams.has(name));
+    if (profile === undefined) return json({ armed: faults.arm(body) });
+    return json({ armed: faults.armProfile(profile), profile, opLog: faults.opLog() });
+  }
+  if (method === "DELETE") {
+    faults.clear();
+    return json({ armed: 0 });
+  }
+  if (method === "GET") return json({ rules: faults.describe(), opLog: faults.opLog() });
+  return notFound("no control route");
+}
+
+/**
+ * The harness control plane, on the mock's own origin under a `__` prefix that
+ * no Trakt path can collide with.
+ */
+function controlRoute(faults, reset, method, url, body) {
+  if (url.pathname === "/__reset") return resetRoute(reset, method, url);
+  if (url.pathname === "/__fault") return faultRoute(faults, method, url, body);
+  return null;
+}
 
 async function readBody(request) {
   const chunks = [];
@@ -340,24 +417,67 @@ function resolve(library, method, url, origin, body) {
     if (match === null) continue;
     return handler({ library, url, origin, body, params: match.groups ?? {} });
   }
-  return notFound(`no route for ${method} ${url.pathname}`);
+  return notFound("no route");
 }
 
 /**
  * A mock instance: `listen()` resolves with the URL it bound, and `library` is
  * the live account state, so a caller can assert a write landed.
  */
-export function createMockTrakt({ port = DEFAULT_PORT, host = "127.0.0.1", log = true } = {}) {
-  const library = createLibrary();
+export function createMockTrakt({
+  port = DEFAULT_PORT,
+  host = "127.0.0.1",
+  log = true,
+  journalFile = process.env["MOCK_TRAKT_JOURNAL"],
+  faults: faultSpec = faultsFromEnv(process.env["MOCK_TRAKT_FAULTS"]),
+} = {}) {
+  let library = createSeedLibrary();
+  const journal = createJournal(journalFile);
+  const faults = createFaults(faultSpec);
+
+  /** The response to send, or null when a fault ended the request without one. */
+  const answer = async (request, method, url, origin) => {
+    const body = await readBody(request);
+    // Journalled before the route runs, so a request with no route is still
+    // in the record: a hole has to be visible on both sides of a comparison.
+    // The `__` control plane is the harness talking to the mock, not the app
+    // talking to Trakt, so it stays out of a recording that exists to be
+    // compared against another app's.
+    if (!url.pathname.startsWith("/__")) {
+      journal.record(method, url.pathname, url.search, body);
+    }
+    const control = controlRoute(
+      faults,
+      (seed) => {
+        if (!SEED_PROFILE_NAMES.includes(seed)) return false;
+        library = createSeedLibrary(seed);
+        faults.clear();
+        return true;
+      },
+      method,
+      url,
+      body,
+    );
+    const fault = control === null ? faults.next(method, url) : null;
+    if (fault !== null) {
+      if (log) process.stdout.write(`mock-trakt fault ${method} ${url.pathname}\n`);
+      if (!(await stall(fault, request))) return null;
+    }
+    return control ?? faultResponse(fault ?? {}) ?? resolve(library, method, url, origin, body);
+  };
+
   const server = createServer((request, response) => {
     void (async () => {
       const origin = `http://${request.headers.host ?? `${host}:${port}`}`;
       const url = new URL(request.url ?? "/", origin);
       const method = request.method ?? "GET";
-      const result =
-        method === "OPTIONS"
-          ? { status: 204, headers: {}, body: "" }
-          : resolve(library, method, url, origin, await readBody(request));
+      if (method === "OPTIONS") {
+        response.writeHead(204, CORS);
+        response.end("");
+        return;
+      }
+      const result = await answer(request, method, url, origin);
+      if (result === null) return;
       if (log) {
         process.stdout.write(
           `mock-trakt ${method} ${url.pathname}${url.search} ${result.status}\n`,
@@ -369,7 +489,11 @@ export function createMockTrakt({ port = DEFAULT_PORT, host = "127.0.0.1", log =
   });
 
   return {
-    library,
+    // A getter, because `/__reset` replaces the account wholesale.
+    get library() {
+      return library;
+    },
+    faults,
     listen: () =>
       new Promise((resolve) => {
         server.listen(port, host, () => {

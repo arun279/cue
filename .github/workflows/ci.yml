@@ -68,8 +68,33 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+      - uses: ./.github/actions/setup-node-pnpm
       - name: Measure the diff footprint
-        run: scripts/diff-footprint.sh "origin/${{ github.base_ref }}" > footprint.md
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          base=$(git merge-base "origin/$BASE_REF" HEAD)
+          git worktree add ../base "$base"
+
+          scripts/measure-sizes.sh "$PWD" "$PWD/head-sizes.json"
+          node scripts/measure-complexity.mjs "$PWD" "$PWD/head-complexity.json"
+          node scripts/measure-comments.mjs "$PWD" "$PWD/head-comments.json"
+          scripts/measure-sizes.sh ../base "$PWD/base-sizes.json"
+          node scripts/measure-complexity.mjs ../base "$PWD/base-complexity.json"
+          node scripts/measure-comments.mjs ../base "$PWD/base-comments.json"
+
+          jq -n --slurpfile sizes head-sizes.json \
+            --slurpfile complexity head-complexity.json \
+            --slurpfile comments head-comments.json \
+            '{sizes: $sizes[0], complexity: $complexity[0], comments: $comments[0]}' \
+            > head-metrics.json
+          jq -n --slurpfile sizes base-sizes.json \
+            --slurpfile complexity base-complexity.json \
+            --slurpfile comments base-comments.json \
+            '{sizes: $sizes[0], complexity: $complexity[0], comments: $comments[0]}' \
+            > base-metrics.json
+          scripts/diff-footprint.sh "origin/$BASE_REF" base-metrics.json head-metrics.json \
+            > footprint.md
       - name: Update the pull request comment
         env:
           GH_TOKEN: ${{ github.token }}
@@ -127,17 +152,239 @@ jobs:
           xcodebuild -project ios/App/App.xcodeproj -scheme App \
             -configuration Release -destination 'generic/platform=iOS Simulator' \
             CODE_SIGNING_ALLOWED=NO build
+  native-ios:
+    # The same runner and Xcode pin as the Capacitor iOS job, deliberately: the
+    # two lines have to stay on one toolchain until one of them stops shipping.
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.6.app
+      - uses: ./.github/actions/setup-node-pnpm
+      # The native projects are generated, so the first thing this job proves is
+      # that they generate: a config plugin that no longer matches the template
+      # fails here rather than on somebody's machine. Generated twice on purpose:
+      # the app the flows drive is pointed at the fake Trakt and carries the one
+      # transport exception that needs, and this pass is the shape without it,
+      # the only place anything asserts that such a build carries no exception.
+      # `--no-install` because nothing compiles this pass.
+      - run: pnpm --filter @cue/native exec expo prebuild --platform ios --clean --no-install
+        env:
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
+          CONFIGURATION: Release
+      - name: Check the generated iOS privacy configuration
+        run: scripts/verify-ios-privacy.sh packages/native/ios/Cue/Info.plist packages/native/ios/Cue/Cue.entitlements Release
+      - run: pnpm --filter @cue/native exec expo prebuild --platform ios --clean
+        env:
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
+          EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
+          CONFIGURATION: Release
+      - name: Check the harness transport exception
+        run: scripts/verify-ios-privacy.sh packages/native/ios/Cue/Info.plist packages/native/ios/Cue/Cue.entitlements Release 127.0.0.1
+      # Release, and not because of what it optimizes: an Expo bundle built for
+      # development throws on its first frame when it is embedded in the app
+      # instead of served by Metro, so a Debug binary cannot be launched by a
+      # flow at all. Release also bundles JavaScript without being asked.
+      #
+      # Signed, because this binary is run rather than only compiled. Signing a
+      # simulator build needs no team and no profile: Xcode writes a simulated
+      # entitlements file naming an application-identifier and links it into the
+      # binary. Without it iOS answers every Keychain call with
+      # errSecMissingEntitlement, so the app can neither read a session nor store
+      # the one the flow signs in with, and it stays on its loading gate.
+      - name: Build the app for the simulator
+        working-directory: packages/native/ios
+        env:
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
+          EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
+        run: |
+          xcodebuild -workspace Cue.xcworkspace -scheme Cue \
+            -configuration Release -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/native-ios-derived-data" \
+            build
+      # Two facts about the artifact that nothing in the sources states, both
+      # decided by the build and both invisible until the app is running. An
+      # artifact whose bundle lost the origin would point a flow at somebody's
+      # real Trakt account; an artifact whose binary lost the entitlements
+      # section has no Keychain, so it can neither restore a session nor keep
+      # one. The entitlements are linked into the executable rather than added to
+      # the signature, which is why this reads the binary and not `codesign -d`.
+      - name: Package the simulator app
+        run: |
+          products="$RUNNER_TEMP/native-ios-derived-data/Build/Products/Release-iphonesimulator"
+          LC_ALL=C grep -aq 'http://127.0.0.1:8787' "$products/Cue.app/main.jsbundle"
+          LC_ALL=C grep -aq 'application-identifier' "$products/Cue.app/Cue"
+          tar -czf "$RUNNER_TEMP/Cue.app.tgz" -C "$products" Cue.app
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cue-native-ios-simulator-app
+          path: ${{ runner.temp }}/Cue.app.tgz
+          retention-days: 1
+  native-e2e:
+    needs: native-ios
+    runs-on: macos-26
+    env:
+      # Job-wide, so it is set before the version check too: a first maestro run
+      # otherwise prints an analytics notice on stdout ahead of its answer.
+      MAESTRO_CLI_NO_ANALYTICS: "1"
+      # Maestro installs and launches its own XCUITest runner before the first
+      # command and waits 120s for it by default. On a cold runner that took
+      # 124s, so the flow never started. Five minutes, because a runner that is
+      # slower still should say what the flow did rather than that it was slow.
+      MAESTRO_DRIVER_STARTUP_TIMEOUT: "300000"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.6.app
+      - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: ./.github/actions/setup-node-pnpm
+      - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        with:
+          name: cue-native-ios-simulator-app
+          path: ${{ runner.temp }}/native-app
+      # Pinned by digest as well as by version, the way every action here is
+      # pinned by commit: a release asset can be replaced in place.
+      - name: Install Maestro 2.10.0
+        run: |
+          curl -fsSL \
+            https://github.com/mobile-dev-inc/Maestro/releases/download/cli-2.10.0/maestro.zip \
+            -o "$RUNNER_TEMP/maestro.zip"
+          echo "29b675e10cc12080e445e9bfb2e2b4e4dfb9c0f2e30d5884120d258b5e1cd991  $RUNNER_TEMP/maestro.zip" \
+            | shasum -a 256 -c -
+          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
+      - id: simulator
+        name: Boot an available iPhone simulator
+        run: |
+          device_id=$(xcrun simctl list devices available -j | \
+            jq -r '[.devices[] | .[] | select(.name | startswith("iPhone"))][0].udid')
+          test -n "$device_id"
+          xcrun simctl boot "$device_id"
+          xcrun simctl bootstatus "$device_id" -b
+          echo "device_id=$device_id" >> "$GITHUB_OUTPUT"
+      - name: Install the app
+        env:
+          DEVICE_ID: ${{ steps.simulator.outputs.device_id }}
+        run: |
+          tar -xzf "$RUNNER_TEMP/native-app/Cue.app.tgz" -C "$RUNNER_TEMP/native-app"
+          xcrun simctl install "$DEVICE_ID" "$RUNNER_TEMP/native-app/Cue.app"
+      - name: Start the fake Trakt
+        run: |
+          pnpm mock:trakt > "$RUNNER_TEMP/mock-trakt.log" 2>&1 &
+          for _ in {1..30}; do
+            if curl -fsS http://127.0.0.1:8787/users/settings > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          exit 1
+      - name: Run the launch flow
+        env:
+          DEVICE_ID: ${{ steps.simulator.outputs.device_id }}
+        run: |
+          maestro --device "$DEVICE_ID" test .maestro/flows/launch.yaml \
+            --format JUNIT \
+            --output "$RUNNER_TEMP/maestro-results.xml" \
+            --debug-output "$RUNNER_TEMP/maestro-debug" \
+            --test-output-dir "$RUNNER_TEMP/maestro-tests"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ failure() }}
+        with:
+          name: native-e2e-failure
+          path: |
+            ${{ runner.temp }}/maestro-debug/
+            ${{ runner.temp }}/maestro-tests/
+            ${{ runner.temp }}/maestro-results.xml
+            ${{ runner.temp }}/mock-trakt.log
+          retention-days: 7
+  native-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+      - uses: ./.github/actions/setup-node-pnpm
+      - name: Check native JavaScript bundle sizes
+        run: pnpm check:size:native
+        env:
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
+      - run: pnpm --filter @cue/native exec expo prebuild --platform android --clean
+        env:
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
+          APP_VERSION: 9.9.9
+          BUILD_NUMBER: "42"
+      - name: Download bundletool
+        working-directory: packages/native/android
+        env:
+          BUNDLETOOL_VERSION: "1.18.3"
+          BUNDLETOOL_SHA256: "a099cfa1543f55593bc2ed16a70a7c67fe54b1747bb7301f37fdfd6d91028e29"
+        run: |
+          curl --fail --location --retry 3 \
+            --output bundletool.jar \
+            "https://github.com/google/bundletool/releases/download/$BUNDLETOOL_VERSION/bundletool-all-$BUNDLETOOL_VERSION.jar"
+          echo "$BUNDLETOOL_SHA256  bundletool.jar" | sha256sum --check
+      # A release variant, because the permission set and the two backup
+      # properties are what testers install, and the debug flavour adds
+      # SYSTEM_ALERT_WINDOW for the development menu. Expo's template signs
+      # release with the debug keystore, so this needs no secret.
+      - name: Build and check release artifacts
+        working-directory: packages/native/android
+        env:
+          # A smoke ceiling on the upload, not a download budget. Measured, the
+          # bundle is 73.5 MB and two thirds of that is the native debug symbols
+          # and the R8 mapping, which Play strips before it serves anything; what
+          # a phone fetches is the bundletool estimate below. This number is
+          # measured plus headroom and its job is to catch a configuration the
+          # device spec does not sample, such as a new ABI or density.
+          AAB_SIZE_LIMIT_BYTES: "100000000"
+          PLAY_SIZE_LIMIT_BYTES: "20000000"
+        run: |
+          ./gradlew bundleRelease
+          aab=app/build/outputs/bundle/release/app-release.aab
+          node ../../../scripts/assert-file-size.mjs "$aab" "$AAB_SIZE_LIMIT_BYTES" "release AAB"
+
+          echo '{"supportedAbis":["arm64-v8a"],"supportedLocales":["en"],"screenDensity":480,"sdkVersion":35}' > device.json
+          java -jar bundletool.jar build-apks \
+            --bundle="$aab" --output=device.apks --device-spec=device.json
+          java -jar bundletool.jar get-size total \
+            --apks=device.apks --device-spec=device.json | tee play-size.csv
+          # bundletool writes CRLF, and `[ 123<CR> -gt 456 ]` is a usage error
+          # rather than a comparison: the shell reports it and steps over the if.
+          play_size=$(awk -F, 'NR == 2 { print $2 }' play-size.csv | tr -d '\r')
+          case $play_size in
+            '' | *[!0-9]*)
+              echo "bundletool reported no numeric download size: '$play_size'" >&2
+              exit 1
+              ;;
+          esac
+          if [ "$play_size" -gt "$PLAY_SIZE_LIMIT_BYTES" ]; then
+            echo "Play download: $play_size bytes, limit $PLAY_SIZE_LIMIT_BYTES bytes" >&2
+            exit 1
+          fi
+          echo "Play download: $play_size bytes, limit $PLAY_SIZE_LIMIT_BYTES bytes"
+
+          java -jar bundletool.jar build-apks \
+            --bundle="$aab" --output=universal.apks --mode=universal
+          unzip universal.apks universal.apk -d extracted
+          ../../../scripts/verify-apk.sh \
+            extracted/universal.apk 42 9.9.9 expo
   e2e:
     needs: check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup-node-pnpm
-      - run: pnpm exec playwright install --with-deps chromium webkit
+      - run: pnpm --filter @cue/web exec playwright install --with-deps chromium webkit
       - run: pnpm e2e
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ !cancelled() }}
         with:
           name: playwright-report
-          path: playwright-report/
+          path: packages/web/playwright-report/
           retention-days: 7

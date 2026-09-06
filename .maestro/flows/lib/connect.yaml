@@ -1,0 +1,15 @@
+appId: app.cuetracker
+---
+- launchApp:
+    clearState: true
+    clearKeychain: true
+- assertVisible:
+    id: "screen-onboarding"
+- tapOn:
+    id: "button-connect"
+- assertVisible:
+    id: "device-code-value"
+- assertVisible:
+    id: "screen-up-next"
+- assertNotVisible:
+    id: "up-next-skeleton"
