@@ -40,7 +40,9 @@ import {
 import { Onboarding } from "../src/screens/Onboarding";
 import { RuntimeBoot } from "../src/screens/RuntimeBoot";
 import { AppIdle } from "../src/ui/AppIdle";
+import { Marker } from "../src/ui/Marker";
 import { SnackbarHost } from "../src/ui/SnackbarHost";
+import { TEST_IDS } from "../src/ui/test-ids";
 import { useCueFonts } from "../src/ui/type";
 
 /**
@@ -142,7 +144,7 @@ function Gate(): ReactElement {
       </RuntimeBoot>
     );
   }
-  if (phase === "loading") return <View testID="auth-loading" />;
+  if (phase === "loading") return <Marker testID={TEST_IDS.authLoading} />;
   return <Onboarding />;
 }
 
@@ -155,7 +157,7 @@ export default function RootLayout(): ReactElement {
     if (authStore !== null && fontsSettled) void SplashScreen.hideAsync().catch(() => {});
   }, [authStore, fontsSettled]);
 
-  if (authStore === null || !fontsSettled) return <View testID="boot-hold" />;
+  if (authStore === null || !fontsSettled) return <Marker testID={TEST_IDS.bootHold} />;
 
   return (
     // The metrics the native side already knows, so the first frame is the app

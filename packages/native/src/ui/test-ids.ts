@@ -15,6 +15,13 @@ export const TEST_IDS = {
    * empty. Every flow waits on it, so without it a run records a race. */
   appIdle: "app-idle",
 
+  /** The two waits a launch can sit on before it draws anything: the stores and
+   * the fonts, then the persisted token. A launch that never paints is one of
+   * them, so each is a point rather than nothing and a hierarchy dump says
+   * which. (`runtime-loading`, the third, already draws its own text.) */
+  bootHold: "boot-hold",
+  authLoading: "auth-loading",
+
   screenOnboarding: "screen-onboarding",
   buttonConnect: "button-connect",
   deviceCodeValue: "device-code-value",
