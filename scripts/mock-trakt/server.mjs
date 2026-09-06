@@ -14,7 +14,7 @@
 
 import { createServer } from "node:http";
 import { pathToFileURL } from "node:url";
-import { createFaults, faultResponse, faultsFromEnv } from "./faults.mjs";
+import { createFaults, FAULT_PROFILE_NAMES, faultResponse, faultsFromEnv } from "./faults.mjs";
 import { createJournal } from "./journal.mjs";
 import {
   applyHiddenWrite,
@@ -354,24 +354,38 @@ async function stall(fault, request) {
  * POST puts the account back to the seed, for a flow whose assertions are about
  * what is IN the account rather than about the order the flows ran in.
  */
-function controlRoute(faults, reset, method, url, body) {
-  const { pathname } = url;
-  if (pathname === "/__reset") {
-    if (method === "POST") {
-      const seed = url.searchParams.get("seed") ?? body.seed ?? "default";
-      if (!reset(seed)) return notFound(`no seed profile ${seed}`);
-      return json(seed === "default" ? { reset: true } : { reset: true, seed });
-    }
-    return notFound(`no control route for ${method} ${pathname}`);
+function resetRoute(reset, method, url, body) {
+  if (method !== "POST") return notFound(`no control route for ${method} ${url.pathname}`);
+  const seed = url.searchParams.get("seed") ?? body.seed ?? "default";
+  if (!reset(seed)) return notFound(`no seed profile ${seed}`);
+  return json(seed === "default" ? { reset: true } : { reset: true, seed });
+}
+
+function faultRoute(faults, method, url, body) {
+  if (method === "POST") {
+    const profile = FAULT_PROFILE_NAMES.find((name) => url.searchParams.has(name));
+    if (profile === undefined) return json({ armed: faults.arm(body) });
+    const armed = faults.armProfile(profile);
+    const opLog = faults.opLog();
+    return json(opLog.length === 0 ? { armed, profile } : { armed, profile, opLog });
   }
-  if (pathname !== "/__fault") return null;
-  if (method === "POST") return json({ armed: faults.arm(body) });
   if (method === "DELETE") {
     faults.clear();
     return json({ armed: 0 });
   }
-  if (method === "GET") return json({ rules: faults.describe() });
-  return notFound(`no control route for ${method} ${pathname}`);
+  if (method === "GET") {
+    const opLog = faults.opLog();
+    return json(
+      opLog.length === 0 ? { rules: faults.describe() } : { rules: faults.describe(), opLog },
+    );
+  }
+  return notFound(`no control route for ${method} ${url.pathname}`);
+}
+
+function controlRoute(faults, reset, method, url, body) {
+  if (url.pathname === "/__reset") return resetRoute(reset, method, url, body);
+  if (url.pathname === "/__fault") return faultRoute(faults, method, url, body);
+  return null;
 }
 
 async function readBody(request) {
@@ -426,13 +440,14 @@ export function createMockTrakt({
       (seed) => {
         if (!hasSeedProfile(seed)) return false;
         library = createSeedLibrary(seed);
+        faults.clear();
         return true;
       },
       method,
       url,
       body,
     );
-    const fault = control === null ? faults.next(method, url.pathname) : null;
+    const fault = control === null ? faults.next(method, url) : null;
     if (fault !== null) {
       if (log) process.stdout.write(`mock-trakt fault ${method} ${url.pathname}\n`);
       if (!(await stall(fault, request))) return null;

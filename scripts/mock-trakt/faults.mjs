@@ -26,21 +26,77 @@
 
 const METHOD_OF = { reads: "GET", writes: "POST" };
 
+const DURABLE_OP_LOG = [
+  {
+    id: "e2e-pending-880100",
+    itemKey: "episode:880100",
+    request: {
+      method: "POST",
+      path: "/sync/history",
+      body: { episodes: [{ ids: { trakt: 880100 }, watched_at: "2026-01-01T00:00:00.000Z" }] },
+    },
+    inverse: {
+      method: "POST",
+      path: "/sync/history/remove",
+      body: { episodes: [{ ids: { trakt: 880100 } }] },
+    },
+    inversePatch: { showId: 8801, preCompleted: 20 },
+    watchedAt: "2026-01-01T00:00:00.000Z",
+    fromState: "absent",
+    toState: "present",
+    reconcileKeys: ["progress/watched", "watched/shows"],
+  },
+];
+
+const faultProfiles = {
+  "next-read-401": { rules: [{ match: "reads", status: 401, count: 1 }] },
+  "refuse-refresh": { rules: [{ path: "^/oauth/token$", status: 401 }] },
+  "rate-limit-progress": {
+    rules: [
+      {
+        match: "reads",
+        path: "^/shows/[^/]+/progress/watched$",
+        status: 429,
+        retryAfter: 1,
+        after: 1,
+      },
+    ],
+  },
+  "hold-write": { rules: [{ match: "writes", path: "^/sync/", hold: true }] },
+  "drop-write": { rules: [{ match: "writes", path: "^/sync/", drop: true }] },
+  "fail-history-page": {
+    rules: [
+      {
+        match: "reads",
+        path: "^/users/me/history$",
+        query: "(?:^|&)page=2(?:&|$)",
+        status: 503,
+      },
+    ],
+  },
+  "seed-op-log": { rules: [], opLog: DURABLE_OP_LOG },
+};
+
+export const FAULT_PROFILE_NAMES = Object.freeze(Object.keys(faultProfiles));
+
 function armed(rule, now) {
   return {
     ...rule,
     match: rule.match ?? "all",
     pattern: rule.path === undefined ? null : new RegExp(rule.path),
+    queryPattern: rule.query === undefined ? null : new RegExp(rule.query),
+    skip: rule.after ?? 0,
     remaining: rule.count ?? Number.POSITIVE_INFINITY,
     until: rule.forMs === undefined ? Number.POSITIVE_INFINITY : now + rule.forMs,
   };
 }
 
-function applies(rule, method, pathname, now) {
+function applies(rule, method, url, now) {
   if (rule.remaining <= 0 || now >= rule.until) return false;
   const wanted = METHOD_OF[rule.match];
   if (wanted !== undefined && wanted !== method) return false;
-  return rule.pattern === null || rule.pattern.test(pathname);
+  if (rule.pattern !== null && !rule.pattern.test(url.pathname)) return false;
+  return rule.queryPattern === null || rule.queryPattern.test(url.searchParams.toString());
 }
 
 /**
@@ -49,11 +105,13 @@ function applies(rule, method, pathname, now) {
  */
 export function createFaults(spec) {
   let rules = [];
+  let opLog = [];
 
   const arm = (input) => {
     const list = input === null || input === undefined ? [] : (input.rules ?? [input]);
     const now = Date.now();
     rules = list.map((rule) => armed(rule, now));
+    opLog = [];
     return rules.length;
   };
 
@@ -61,9 +119,18 @@ export function createFaults(spec) {
 
   return {
     arm,
+    armProfile(profile) {
+      const selected = faultProfiles[profile];
+      if (selected === undefined) return null;
+      const count = arm({ rules: selected.rules });
+      opLog = selected.opLog ?? [];
+      return count;
+    },
     clear: () => {
       rules = [];
+      opLog = [];
     },
+    opLog: () => opLog,
     describe: () =>
       rules.map((rule) => ({
         match: rule.match,
@@ -72,10 +139,14 @@ export function createFaults(spec) {
         remaining: rule.remaining === Number.POSITIVE_INFINITY ? null : rule.remaining,
         expired: Date.now() >= rule.until,
       })),
-    next(method, pathname) {
+    next(method, url) {
       const now = Date.now();
-      const rule = rules.find((candidate) => applies(candidate, method, pathname, now));
+      const rule = rules.find((candidate) => applies(candidate, method, url, now));
       if (rule === undefined) return null;
+      if (rule.skip > 0) {
+        rule.skip -= 1;
+        return null;
+      }
       rule.remaining -= 1;
       return rule;
     },

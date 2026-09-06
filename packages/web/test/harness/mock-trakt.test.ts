@@ -85,6 +85,17 @@ const today = (): string => new Date().toISOString().slice(0, 10);
 const resetTo = async (seed: string): Promise<Response> =>
   fetch(`${baseUrl}/__reset?seed=${seed}`, { method: "POST" });
 
+const armFault = async (profile: string): Promise<Response> =>
+  fetch(`${baseUrl}/__fault?${profile}`, { method: "POST" });
+
+const historyWrite = (signal?: AbortSignal): Promise<Response> =>
+  fetch(`${baseUrl}/sync/history`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ episodes: [{ ids: { trakt: 880100 } }] }),
+    signal,
+  });
+
 /** The first seeded show. A seed with none is a broken harness, not a skipped test. */
 function firstSeededShow(): (typeof mock.library.shows)[number] {
   const show = mock.library.shows[0];
@@ -231,6 +242,72 @@ describe("seed profiles", () => {
     expect(ok(await getItemPlays(client(), "movies", 5501)).map((row) => row.id)).toEqual([
       55012, 55011,
     ]);
+  });
+});
+
+describe("fault profiles", () => {
+  it("returns one unauthorized read, then clears", async () => {
+    await armFault("next-read-401");
+    expect((await fetch(`${baseUrl}/users/settings`)).status).toBe(401);
+    expect((await fetch(`${baseUrl}/users/settings`)).status).toBe(200);
+  });
+
+  it("refuses refreshes until reset", async () => {
+    await armFault("refuse-refresh");
+    expect((await fetch(`${baseUrl}/oauth/token`, { method: "POST" })).status).toBe(401);
+    await fetch(`${baseUrl}/__reset`, { method: "POST" });
+    expect((await fetch(`${baseUrl}/oauth/token`, { method: "POST" })).status).toBe(200);
+  });
+
+  it("rate limits after a fan-out has begun until reset", async () => {
+    await armFault("rate-limit-progress");
+    expect((await fetch(`${baseUrl}/shows/8801/progress/watched`)).status).toBe(200);
+    const limited = await fetch(`${baseUrl}/shows/8802/progress/watched`);
+    expect(limited.status).toBe(429);
+    expect(limited.headers.get("retry-after")).toBe("1");
+    await fetch(`${baseUrl}/__reset`, { method: "POST" });
+    expect((await fetch(`${baseUrl}/shows/8802/progress/watched`)).status).toBe(200);
+  });
+
+  it("holds a write open until the client disconnects and reset clears it", async () => {
+    await armFault("hold-write");
+    const controller = new AbortController();
+    const request = historyWrite(controller.signal).catch(() => null);
+    expect(
+      await Promise.race([request, new Promise((resolve) => setTimeout(resolve, 30, "held"))]),
+    ).toBe("held");
+    controller.abort();
+    await request;
+    await fetch(`${baseUrl}/__reset`, { method: "POST" });
+    expect((await historyWrite()).status).toBe(200);
+  });
+
+  it("drops a write connection until reset", async () => {
+    await armFault("drop-write");
+    await expect(historyWrite()).rejects.toThrow("fetch failed");
+    await fetch(`${baseUrl}/__reset`, { method: "POST" });
+    expect((await historyWrite()).status).toBe(200);
+  });
+
+  it("fails only the second history page until reset", async () => {
+    await armFault("fail-history-page");
+    expect((await fetch(`${baseUrl}/users/me/history?page=1`)).status).toBe(200);
+    expect((await fetch(`${baseUrl}/users/me/history?page=2`)).status).toBe(503);
+    await fetch(`${baseUrl}/__reset`, { method: "POST" });
+    expect((await fetch(`${baseUrl}/users/me/history?page=2`)).status).toBe(200);
+  });
+
+  it("provides a durable operation log until reset", async () => {
+    const armed = await (await armFault("seed-op-log")).json();
+    expect(armed.opLog).toEqual([
+      expect.objectContaining({
+        itemKey: "episode:880100",
+        request: expect.objectContaining({ path: "/sync/history" }),
+      }),
+    ]);
+    expect(await (await fetch(`${baseUrl}/__fault`)).json()).toHaveProperty("opLog");
+    await fetch(`${baseUrl}/__reset`, { method: "POST" });
+    expect(await (await fetch(`${baseUrl}/__fault`)).json()).not.toHaveProperty("opLog");
   });
 });
 
