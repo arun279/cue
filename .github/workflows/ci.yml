@@ -194,21 +194,61 @@ jobs:
           EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
           APP_VERSION: 9.9.9
           BUILD_NUMBER: "42"
+      - name: Download bundletool
+        working-directory: packages/native/android
+        env:
+          BUNDLETOOL_VERSION: "1.18.3"
+          BUNDLETOOL_SHA256: "a099cfa1543f55593bc2ed16a70a7c67fe54b1747bb7301f37fdfd6d91028e29"
+        run: |
+          curl --fail --location --retry 3 \
+            --output bundletool.jar \
+            "https://github.com/google/bundletool/releases/download/$BUNDLETOOL_VERSION/bundletool-all-$BUNDLETOOL_VERSION.jar"
+          echo "$BUNDLETOOL_SHA256  bundletool.jar" | sha256sum --check
       # A release variant, because the permission set and the two backup
       # properties are what testers install, and the debug flavour adds
       # SYSTEM_ALERT_WINDOW for the development menu. Expo's template signs
       # release with the debug keystore, so this needs no secret.
-      - name: Build the release APK and check what it declares
+      - name: Build and check release artifacts
         working-directory: packages/native/android
         env:
-          # Google Play limits compressed downloads for one device to 200 MB.
-          APK_SIZE_LIMIT_BYTES: "200000000"
+          # A smoke ceiling on the upload, not a download budget. Measured, the
+          # bundle is 73.5 MB and two thirds of that is the native debug symbols
+          # and the R8 mapping, which Play strips before it serves anything; what
+          # a phone fetches is the bundletool estimate below. This number is
+          # measured plus headroom and its job is to catch a configuration the
+          # device spec does not sample, such as a new ABI or density.
+          AAB_SIZE_LIMIT_BYTES: "100000000"
+          PLAY_SIZE_LIMIT_BYTES: "20000000"
         run: |
-          ./gradlew assembleRelease
-          apk=app/build/outputs/apk/release/app-release.apk
-          node ../../../scripts/assert-file-size.mjs "$apk" "$APK_SIZE_LIMIT_BYTES" "release APK"
+          ./gradlew bundleRelease
+          aab=app/build/outputs/bundle/release/app-release.aab
+          node ../../../scripts/assert-file-size.mjs "$aab" "$AAB_SIZE_LIMIT_BYTES" "release AAB"
+
+          echo '{"supportedAbis":["arm64-v8a"],"supportedLocales":["en"],"screenDensity":480,"sdkVersion":35}' > device.json
+          java -jar bundletool.jar build-apks \
+            --bundle="$aab" --output=device.apks --device-spec=device.json
+          java -jar bundletool.jar get-size total \
+            --apks=device.apks --device-spec=device.json | tee play-size.csv
+          # bundletool writes CRLF, and `[ 123<CR> -gt 456 ]` is a usage error
+          # rather than a comparison: the shell reports it and steps over the if.
+          play_size=$(awk -F, 'NR == 2 { print $2 }' play-size.csv | tr -d '\r')
+          case $play_size in
+            '' | *[!0-9]*)
+              echo "bundletool reported no numeric download size: '$play_size'" >&2
+              exit 1
+              ;;
+          esac
+          if [ "$play_size" -gt "$PLAY_SIZE_LIMIT_BYTES" ]; then
+            echo "Play download: $play_size bytes, limit $PLAY_SIZE_LIMIT_BYTES bytes" >&2
+            exit 1
+          fi
+          echo "Play download: $play_size bytes, limit $PLAY_SIZE_LIMIT_BYTES bytes"
+
+          java -jar bundletool.jar build-apks \
+            --bundle="$aab" --output=universal.apks --mode=universal
+          unzip universal.apks universal.apk -d extracted
           ../../../scripts/verify-apk.sh \
-            "$apk" 42 9.9.9 expo
+            extracted/universal.apk 42 9.9.9 expo
   e2e:
     needs: check
     runs-on: ubuntu-latest
