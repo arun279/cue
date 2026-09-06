@@ -35,9 +35,10 @@
     "check:size:native": "pnpm --filter @cue/native exec expo export --platform ios --platform android --output-dir dist && node scripts/check-size.mjs native",
     "check:bundle": "./scripts/verify-bundle.sh",
     "check:quality-budget": "node scripts/check-quality-budget.mjs",
+    "check:type-suppressions": "node scripts/check-type-suppressions.mjs",
     "buster:check": "node scripts/write-buster.mjs --check",
     "buster:bump": "node scripts/write-buster.mjs --bump",
-    "check": "biome check --error-on-warnings . && dprint check && pnpm check:spell && pnpm typecheck && pnpm check:arch && knip && jscpd && pnpm check:quality-budget && pnpm buster:check && pnpm check:size && pnpm check:bundle && vitest run --coverage && pnpm test:native",
+    "check": "biome check --error-on-warnings . && dprint check && pnpm check:spell && pnpm typecheck && pnpm check:arch && knip && jscpd && pnpm check:quality-budget && pnpm check:type-suppressions && pnpm buster:check && pnpm check:size && pnpm check:bundle && vitest run --coverage && pnpm test:native",
     "audit": "pnpm audit --prod --audit-level=high",
     "prepare": "lefthook install"
   },
