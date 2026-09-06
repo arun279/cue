@@ -71,3 +71,42 @@ export function groupUpNext(
 
   return { queue, lapsed };
 }
+
+/** Which of the five honest empty screens Up Next owes a library with no queue. */
+export type UpNextEmptyKind =
+  | "nothing-tracked"
+  | "only-stopped"
+  | "nothing-started"
+  | "unresolved"
+  | "caught-up";
+
+export interface UpNextComposition {
+  readonly queued: number;
+  /** Every tracked show, hidden included: 0 only when the library is truly empty. */
+  readonly totalCount: number;
+  /** Non-hidden tracked shows: 0 distinguishes an only-Stopped library from a real one. */
+  readonly trackedCount: number;
+  /** Non-hidden shows with at least one watched episode: 0 means nothing has been started. */
+  readonly startedCount: number;
+  /** Non-hidden shows with episodes left whose next episode is not known. */
+  readonly unresolvedCount: number;
+  /** Whether the library read has landed; before it has, no empty state is honest. */
+  readonly hasData: boolean;
+}
+
+/**
+ * The empty branch this library composition earns, or null when a card renders.
+ *
+ * Decided from real composition rather than from an empty array, so the home
+ * screen never tells a user the opposite of their state: a library of only
+ * stopped shows must not read "nothing queued", a watchlist-only library must
+ * not read "all caught up", and shows with episodes left whose next episode is
+ * still unknown must not be counted as caught up either.
+ */
+export function upNextEmptyKind(view: UpNextComposition): UpNextEmptyKind | null {
+  if (!view.hasData || view.queued > 0) return null;
+  if (view.totalCount === 0) return "nothing-tracked";
+  if (view.trackedCount === 0) return "only-stopped";
+  if (view.startedCount === 0) return "nothing-started";
+  return view.unresolvedCount > 0 ? "unresolved" : "caught-up";
+}

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { HistoryEntry } from "../domain/history";
-import { dismissSnack, showSnack } from "../stores/snackbar-store";
+import { showFailure, showUndoable } from "../stores/snackbar-store";
 import type { HistoryView } from "./useHistory";
 
 type RemovalView = Pick<HistoryView, "toast" | "error" | "undo" | "clearError" | "dismissToast">;
@@ -23,34 +23,11 @@ export function useRemovalSnacks(
 
   useEffect(() => {
     if (error !== null) {
-      showSnack({
-        message: error,
-        actions: [
-          {
-            label: "Dismiss",
-            onPress: () => {
-              clearError();
-              dismissSnack();
-            },
-          },
-        ],
-      });
+      showFailure(error, clearError);
       return;
     }
     if (toast?.kind === "removed") {
-      showSnack({
-        message: messageRef.current?.(toast.entry) ?? "Removed play",
-        actions: [
-          {
-            label: "Undo",
-            testId: "snackbar-undo",
-            onPress: () => {
-              dismissSnack();
-              void undo();
-            },
-          },
-        ],
-      });
+      showUndoable(messageRef.current?.(toast.entry) ?? "Removed play", () => void undo());
       return;
     }
     if (toast?.kind === "restored") dismissToast();

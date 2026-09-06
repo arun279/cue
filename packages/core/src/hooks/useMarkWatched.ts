@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { createElement, Fragment, useCallback } from "react";
+import { useCallback } from "react";
 import { invalidateShowProgress } from "../data/query-invalidation";
 import { queryKeys } from "../data/query-keys";
 import { advancePastNext, type LibraryEntry, type MarkContext } from "../data/trakt/library";
@@ -27,7 +27,7 @@ import {
   unlockShow,
   useMarkStore,
 } from "../stores/mark-store";
-import { dismissSnack, showSnack, useSnackbar } from "../stores/snackbar-store";
+import { dismissSnack, type SnackMessage, showSnack, useSnackbar } from "../stores/snackbar-store";
 import { appendToBatch } from "../sync-contract";
 import { patchEpisodeDetail, patchLibraryEntry, patchShowSeasons } from "./library-cache";
 import { findMarkPlay } from "./resolveUnmark";
@@ -283,14 +283,9 @@ export function useMarkWatched(): MarkWatched {
       dismissSnack();
       return;
     }
-    const message =
+    const message: SnackMessage =
       current.length === 1
-        ? createElement(
-            Fragment,
-            null,
-            createElement("strong", null, middleTruncate(head.title)),
-            ` ${head.code} marked`,
-          )
+        ? { subject: middleTruncate(head.title), predicate: ` ${head.code} marked` }
         : `${current.length} episodes marked`;
     showSnack({
       message,
