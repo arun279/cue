@@ -50,6 +50,7 @@ export function RowMenu({ title, items, testID }: RowMenuProps): ReactElement {
       onPressAction={({ nativeEvent }) => byId.get(nativeEvent.event)?.()}
     >
       <View
+        accessible
         accessibilityRole="button"
         accessibilityLabel={`More actions for ${title}`}
         style={styles.trigger}
