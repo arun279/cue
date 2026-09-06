@@ -13,7 +13,7 @@ const CI_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/ci.yml");
 const CODEQL_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/codeql.yml");
 const DEPENDENCY_CRUISER_CONFIG = path.join(REPOSITORY_ROOT, ".dependency-cruiser.cjs");
 const MOBILE_RELEASE_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/mobile-release.yml");
-const NOT_REQUIRED = ["footprint"];
+const NOT_REQUIRED = ["footprint", "native-e2e"];
 
 // Markdown inside a shipping tree stays in SHIPS. Vite copies public/** into
 // dist verbatim, so excluding *.md by extension misclassified those files; the

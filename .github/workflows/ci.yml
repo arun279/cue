@@ -167,14 +167,99 @@ jobs:
       - run: pnpm --filter @cue/native exec expo prebuild --platform ios --clean
         env:
           EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
+          EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
       - name: Check the generated iOS privacy configuration
-        run: scripts/verify-ios-privacy.sh packages/native/ios/Cue/Info.plist packages/native/ios/Cue/Cue.entitlements Debug
+        run: scripts/verify-ios-privacy.sh packages/native/ios/Cue/Info.plist packages/native/ios/Cue/Cue.entitlements Debug 127.0.0.1
       - name: Build the app for the simulator
         working-directory: packages/native/ios
+        env:
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
+          EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
+          FORCE_BUNDLING: "1"
         run: |
           xcodebuild -workspace Cue.xcworkspace -scheme Cue \
             -configuration Debug -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/native-ios-derived-data" \
             CODE_SIGNING_ALLOWED=NO build
+      - name: Package the simulator app
+        run: |
+          tar -czf "$RUNNER_TEMP/Cue.app.tgz" \
+            -C "$RUNNER_TEMP/native-ios-derived-data/Build/Products/Debug-iphonesimulator" Cue.app
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cue-native-ios-simulator-app
+          path: ${{ runner.temp }}/Cue.app.tgz
+          retention-days: 1
+  native-e2e:
+    needs: native-ios
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.6.app
+      - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: ./.github/actions/setup-node-pnpm
+      - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        with:
+          name: cue-native-ios-simulator-app
+          path: ${{ runner.temp }}/native-app
+      - name: Install Maestro 2.7.0
+        run: |
+          curl -fsSL \
+            https://github.com/mobile-dev-inc/Maestro/releases/download/cli-2.7.0/maestro.zip \
+            -o "$RUNNER_TEMP/maestro.zip"
+          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP/maestro"
+          version=$("$RUNNER_TEMP/maestro/bin/maestro" --version)
+          test "$version" = "2.7.0"
+          echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
+      - id: simulator
+        name: Boot an available iPhone simulator
+        run: |
+          device_id=$(xcrun simctl list devices available -j | \
+            jq -r '[.devices[] | .[] | select(.name | startswith("iPhone"))][0].udid')
+          test -n "$device_id"
+          xcrun simctl boot "$device_id"
+          xcrun simctl bootstatus "$device_id" -b
+          echo "device_id=$device_id" >> "$GITHUB_OUTPUT"
+      - name: Install the app
+        env:
+          DEVICE_ID: ${{ steps.simulator.outputs.device_id }}
+        run: |
+          tar -xzf "$RUNNER_TEMP/native-app/Cue.app.tgz" -C "$RUNNER_TEMP/native-app"
+          xcrun simctl install "$DEVICE_ID" "$RUNNER_TEMP/native-app/Cue.app"
+      - name: Start the fake Trakt
+        run: |
+          pnpm mock:trakt > "$RUNNER_TEMP/mock-trakt.log" 2>&1 &
+          for _ in {1..30}; do
+            if curl -fsS http://127.0.0.1:8787/users/settings > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          exit 1
+      - name: Run the launch flow
+        env:
+          DEVICE_ID: ${{ steps.simulator.outputs.device_id }}
+          MAESTRO_CLI_NO_ANALYTICS: "1"
+        run: |
+          maestro --device "$DEVICE_ID" test .maestro/flows/launch.yaml \
+            --format JUNIT \
+            --output "$RUNNER_TEMP/maestro-results.xml" \
+            --debug-output "$RUNNER_TEMP/maestro-debug" \
+            --test-output-dir "$RUNNER_TEMP/maestro-tests"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ failure() }}
+        with:
+          name: native-e2e-failure
+          path: |
+            ${{ runner.temp }}/maestro-debug/
+            ${{ runner.temp }}/maestro-tests/
+            ${{ runner.temp }}/maestro-results.xml
+            ${{ runner.temp }}/mock-trakt.log
+          retention-days: 7
   native-android:
     runs-on: ubuntu-latest
     steps:
