@@ -56,6 +56,7 @@ const DOES_NOT_SHIP = [
   "docs/**",
   "*.md",
   ".github/**",
+  ".maestro/**",
   "LICENSE",
   "packages/*/e2e/**",
   "packages/*/test/**",
