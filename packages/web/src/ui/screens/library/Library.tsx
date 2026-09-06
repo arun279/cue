@@ -259,9 +259,6 @@ export function Library(): ReactElement {
   const showRows = (entry: LibraryEntry): ActionSheetRow[] => {
     const rows: ActionSheetRow[] = [];
     const next = entry.nextEpisode;
-    // The expert accelerator rides the exact queue pipeline (optimistic patch,
-    // batch snackbar, reverse window) and only offers itself when the next
-    // episode is known and aired, never a guessed coordinate.
     if (next !== null && quickMarkable(entry, Date.now())) {
       rows.push({
         label: `Mark ${epCode(next.season, next.number)} watched`,
