@@ -1,3 +1,15 @@
+/**
+ * The size gates in `.size-limit.json`, run one scope at a time because the two
+ * artefacts are built by different steps: `pnpm check` builds and measures the
+ * web bundles, and CI's native-android job builds and measures the two Hermes
+ * bundles after an `expo export`.
+ *
+ * Every ceiling is the measured artefact plus headroom, which is the only method
+ * available for a number with no external anchor. The native pair was last
+ * measured at 5.11 MB on iOS and 5.24 MB on Android, when gesture handler,
+ * Reanimated, `@expo/ui` and the linear gradient entered the bundle. Moving a
+ * ceiling means re-measuring first and saying what it measured.
+ */
 import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
