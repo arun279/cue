@@ -7,6 +7,26 @@ import { TEST_IDS } from "../src/ui/test-ids";
 
 const flowsDirectory = join(__dirname, "../../../.maestro/flows");
 
+/**
+ * The wildcard a flow uses where a list gives one element per entity. Maestro
+ * matches `id` as a regular expression, so `queue-row-[0-9]+` selects the row
+ * whatever show it holds; the same row named by its entity is `queue-row-8805`.
+ * Both have to resolve to the factory that draws them, and no other wildcard
+ * spelling does, which is what keeps this gate a whitelist.
+ */
+const DIGITS = "[0-9]+";
+const PROBE_IDS = [1, 2, 3];
+
+function declaredPatterns(): RegExp[] {
+  const declared: readonly (string | ((...ids: number[]) => string))[] = Object.values(TEST_IDS);
+  return declared.map(
+    (value) =>
+      new RegExp(
+        `^${typeof value === "string" ? value : value(...PROBE_IDS).replace(/[0-9]+/g, DIGITS)}$`,
+      ),
+  );
+}
+
 function yamlFiles(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = join(directory, entry.name);
@@ -23,9 +43,7 @@ function collectIds(value: unknown): string[] {
 }
 
 it("uses only accessibility ids declared by the native app", () => {
-  const declared: ReadonlySet<string> = new Set(
-    Object.values(TEST_IDS).filter((value) => typeof value === "string"),
-  );
+  const patterns = declaredPatterns();
   const referenced = yamlFiles(flowsDirectory).flatMap((file) =>
     parseAllDocuments(readFileSync(file, "utf8")).flatMap((document) =>
       collectIds(document.toJS()),
@@ -33,5 +51,9 @@ it("uses only accessibility ids declared by the native app", () => {
   );
 
   expect(referenced).not.toEqual([]);
-  expect(referenced.filter((id) => !declared.has(id))).toEqual([]);
+  expect(
+    referenced.filter(
+      (id) => !patterns.some((pattern) => pattern.test(id.replaceAll(DIGITS, "0"))),
+    ),
+  ).toEqual([]);
 });

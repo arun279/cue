@@ -1,20 +1,17 @@
-import { readsPausedUntil } from "@cue/core/data/trakt/read-budget";
 import { type UpNextEmptyKind, upNextEmptyKind } from "@cue/core/domain/up-next";
 import { stopWatching, useHideShow } from "@cue/core/hooks/useHideShow";
 import { type MarkWatched, useMarkWatched } from "@cue/core/hooks/useMarkWatched";
 import { useOnTheWay } from "@cue/core/hooks/useOnTheWay";
 import { useStopSnacks } from "@cue/core/hooks/useStopSnacks";
 import { useSyncBanner } from "@cue/core/hooks/useSyncBanner";
-import { useSyncNow } from "@cue/core/hooks/useSyncNow";
 import { type UpNextCard, type UpNextView, useUpNext } from "@cue/core/hooks/useUpNext";
-import { useHaptics } from "@cue/core/ports/haptics";
 import { usePrefs } from "@cue/core/prefs/prefs-store";
-import { FlashList } from "@shopify/flash-list";
 import { Stack, useRouter } from "expo-router";
-import { type ReactElement, type ReactNode, useCallback, useState } from "react";
-import { RefreshControl, StyleSheet, View } from "react-native";
+import { type ReactElement, type ReactNode, useState } from "react";
+import { FlatList, RefreshControl, StyleSheet, View } from "react-native";
 import Animated, { LinearTransition } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { usePullToRefresh } from "../../hooks/usePullToRefresh";
 import { Chevron } from "../../ui/Chevron";
 import { Row, Separator } from "../../ui/Row";
 import { SyncStrip } from "../../ui/SyncStrip";
@@ -69,7 +66,7 @@ export function UpNext(): ReactElement {
   const marquee = view.queue.length >= MARQUEE_MIN_QUEUE ? view.queue[0] : undefined;
   const rows = marquee === undefined ? view.queue : view.queue.slice(1);
   const onTheWay = onTheWayDays.length === 0 ? null : <OnTheWay days={onTheWayDays} />;
-  const emptyKind = upNextEmptyKind({ ...view, queued: view.queue.length });
+  const branch = branchOf(view, showsEnabled);
 
   return (
     <View testID={TEST_IDS.screenUpNext} style={[styles.screen, { backgroundColor: colors.bg }]}>
@@ -80,7 +77,7 @@ export function UpNext(): ReactElement {
           headerRight: () => <UpNextBarItems onSync={refresh.sync} />,
         }}
       />
-      <FlashList
+      <FlatList
         testID={TEST_IDS.upNextList}
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={{ paddingBottom: tabBarClearance(insets.bottom) + SPACE.s4 }}
@@ -110,9 +107,8 @@ export function UpNext(): ReactElement {
           <View style={styles.lead}>
             {banner === null ? null : <SyncStrip banner={banner} onRetry={view.refetch} />}
             <Lead
+              branch={branch}
               view={view}
-              showsEnabled={showsEnabled}
-              emptyKind={emptyKind}
               marquee={marquee}
               mark={mark.controller}
               onTheWay={onTheWay}
@@ -120,7 +116,7 @@ export function UpNext(): ReactElement {
           </View>
         }
         ListFooterComponent={
-          emptyKind === null && showsEnabled && !view.isLoading ? (
+          branch === "queue" ? (
             <>
               <LapsedDrawer
                 cards={view.lapsedCards}
@@ -138,32 +134,44 @@ export function UpNext(): ReactElement {
 }
 
 /**
- * What stands above the queue: the branch the screen is actually in. Exactly one
- * of these renders, and the populated case renders the card and lets the list
- * draw the rest.
+ * Which screen this is, decided once and read by both halves of it. The drawer,
+ * "On the way" and the History footer belong to the queue and to nothing else:
+ * an error with no cache owes the reader a way back, not a list of sections
+ * standing over an empty screen.
+ */
+type Branch = "tv-off" | "loading" | "error" | "queue" | UpNextEmptyKind;
+
+function branchOf(view: UpNextView, showsEnabled: boolean): Branch {
+  if (!showsEnabled) return "tv-off";
+  if (view.isLoading) return "loading";
+  if (view.isError && !view.hasData) return "error";
+  return upNextEmptyKind({ ...view, queued: view.queue.length }) ?? "queue";
+}
+
+/**
+ * What stands above the queue. Exactly one of these renders, and the populated
+ * branch renders the card and lets the list draw the rest.
  */
 function Lead({
+  branch,
   view,
-  showsEnabled,
-  emptyKind,
   marquee,
   mark,
   onTheWay,
 }: {
+  readonly branch: Branch;
   readonly view: UpNextView;
-  readonly showsEnabled: boolean;
-  readonly emptyKind: UpNextEmptyKind | null;
   readonly marquee: UpNextCard | undefined;
   readonly mark: MarkWatched;
   readonly onTheWay: ReactNode;
 }): ReactElement | null {
-  if (!showsEnabled) return <TvShowsOff />;
-  if (view.isLoading) return <UpNextSkeleton />;
-  if (view.isError && !view.hasData) {
+  if (branch === "tv-off") return <TvShowsOff />;
+  if (branch === "loading") return <UpNextSkeleton />;
+  if (branch === "error") {
     return <UpNextError failure={view.failure} onRetry={view.refetch} />;
   }
-  if (emptyKind !== null) {
-    return <UpNextEmpty kind={emptyKind} watchlist={view.watchlistEntries} onTheWay={onTheWay} />;
+  if (branch !== "queue") {
+    return <UpNextEmpty kind={branch} watchlist={view.watchlistEntries} onTheWay={onTheWay} />;
   }
   return marquee === undefined ? null : <MarqueeCard card={marquee} mark={mark} />;
 }
@@ -221,38 +229,6 @@ function useTutorialGate(controller: MarkWatched): {
       },
     },
   };
-}
-
-/**
- * Pull to refresh, over the one manual sync pass the nav bar item and the
- * Settings row also run: two ways to ask for fresh data that do different things
- * is the divergence a design system exists to prevent.
- *
- * A pull released inside the client's 429 pause ends immediately on cached data
- * rather than spinning against a window the app already knows is closed, and
- * says so in the fingers with the warning tap. The strip states the reason.
- */
-function usePullToRefresh(): {
-  readonly refreshing: boolean;
-  pull(): void;
-  sync(): void;
-} {
-  const haptics = useHaptics();
-  const syncNow = useSyncNow();
-  const [pulling, setPulling] = useState(false);
-
-  const pull = useCallback(() => {
-    // Read live rather than from the last render: a 429 can open while the
-    // screen sits, and what matters is the window at the moment of release.
-    if (readsPausedUntil() > Date.now()) {
-      haptics.warning();
-      return;
-    }
-    setPulling(true);
-    void syncNow.run().finally(() => setPulling(false));
-  }, [haptics, syncNow]);
-
-  return { refreshing: pulling, pull, sync: () => void syncNow.run() };
 }
 
 const styles = StyleSheet.create({

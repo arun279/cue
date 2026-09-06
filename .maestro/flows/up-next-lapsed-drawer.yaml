@@ -1,0 +1,23 @@
+# "Haven't watched lately", and catching a show up in place.
+#
+# The drawer is a pruning prompt rather than a wall of shame: a show marked from
+# inside it re-files itself into the queue, which is what the last assertion is
+# about.
+appId: app.cuetracker
+---
+- runFlow: lib/connect.yaml
+- scrollUntilVisible:
+    element:
+      id: "lapsed-drawer-toggle"
+    direction: DOWN
+- tapOn:
+    id: "lapsed-drawer-toggle"
+- assertVisible:
+    id: "lapsed-row-8805"
+- tapOn:
+    id: "lapsed-row-8805-mark"
+- assertVisible:
+    id: "snackbar"
+- runFlow: lib/settle.yaml
+- assertVisible:
+    id: "queue-row-8805"
