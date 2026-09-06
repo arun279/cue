@@ -23,13 +23,24 @@ if (TRAKT_CLIENT_ID === "") {
 
 /**
  * Optional Trakt origin override, for pointing a build at the local fake Trakt
- * instead of a real account. Read only in a development build, which is the
- * native counterpart of the web app's `--mode mock` gate and holds the same
- * invariant: a stray env file or an exported shell variable cannot redirect a
- * build meant for a real account, because a release bundle compiles this branch
- * out entirely.
+ * instead of a real account. It is the native counterpart of the web app's
+ * `--mode mock` gate.
+ *
+ * It cannot be read behind `__DEV__`, which is where a JavaScript-side guard
+ * would want to sit. An Expo bundle built for development throws at startup when
+ * it is embedded in the app rather than served by Metro, and Expo's own answer is
+ * that the only way to avoid it is to bundle with development off
+ * (https://github.com/expo/expo/pull/37323). A `__DEV__` branch would therefore
+ * compile the override out of every binary that can actually be installed and
+ * driven, which is every binary the end-to-end lane builds.
+ *
+ * The invariant moves to the generated project, where it is checked rather than
+ * assumed. iOS refuses a plain HTTP load to an IP address unless the Info.plist
+ * names an App Transport Security exception for it; `app.config.ts` writes that
+ * exception only when this origin is set, and `verify-ios-privacy.sh` asserts on
+ * every generated project that a build without it carries none.
  */
-const traktBase = __DEV__ ? readEnv(process.env["EXPO_PUBLIC_TRAKT_API_BASE"]) : "";
+const traktBase = readEnv(process.env["EXPO_PUBLIC_TRAKT_API_BASE"]);
 export const TRAKT_BASE_OVERRIDE: string | undefined = traktBase === "" ? undefined : traktBase;
 
 /**
