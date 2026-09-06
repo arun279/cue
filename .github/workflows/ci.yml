@@ -214,9 +214,14 @@ jobs:
     needs: native-ios
     runs-on: macos-26
     env:
-      # Ahead of every maestro call, including the version check: without it the
-      # first run on a fresh runner prints an analytics notice on stdout.
+      # Job-wide, so it is set before the version check too: a first maestro run
+      # otherwise prints an analytics notice on stdout ahead of its answer.
       MAESTRO_CLI_NO_ANALYTICS: "1"
+      # Maestro installs and launches its own XCUITest runner before the first
+      # command and waits 120s for it by default. On a cold runner that took
+      # 124s, so the flow never started. Five minutes, because a runner that is
+      # slower still should say what the flow did rather than that it was slow.
+      MAESTRO_DRIVER_STARTUP_TIMEOUT: "300000"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Select Xcode
