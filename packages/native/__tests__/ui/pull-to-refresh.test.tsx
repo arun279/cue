@@ -60,6 +60,8 @@ describe("pull to refresh", () => {
   it("ends immediately on cached data inside a rate limit pause, and says so in the fingers", async () => {
     const flushWrites = jest.fn(() => Promise.resolve(0));
     const { result } = await mount(flushWrites);
+    // Opened while the screen sits, with no render in between: what matters is
+    // the window at the moment of release, not the one the last render saw.
     readsPausedUntil.mockReturnValue(Date.now() + PAUSE_MS);
 
     await act(async () => {
@@ -68,19 +70,6 @@ describe("pull to refresh", () => {
 
     expect(result.current.refreshing).toBe(false);
     expect(haptics.warning).toHaveBeenCalledTimes(1);
-    expect(flushWrites).not.toHaveBeenCalled();
-  });
-
-  it("reads the pause at the moment of release, not at the last render", async () => {
-    const flushWrites = jest.fn(() => Promise.resolve(0));
-    const { result } = await mount(flushWrites);
-
-    // The window opens while the screen sits, with no render in between.
-    readsPausedUntil.mockReturnValue(Date.now() + PAUSE_MS);
-    await act(async () => {
-      result.current.pull();
-    });
-
     expect(flushWrites).not.toHaveBeenCalled();
   });
 

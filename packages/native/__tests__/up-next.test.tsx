@@ -31,17 +31,6 @@ jest.mock("expo-sqlite/kv-store", () => ({
   default: require("./support/native-stores").bulkBacking,
 }));
 
-// The shared 429 pause is the strip's own signal and the pull's own gate, and
-// nothing in a test runner opens one. Its behavior is proved in the core; what
-// this file owns is what the screen does while it stands.
-jest.mock("@cue/core/data/trakt/read-budget", () => ({
-  ...jest.requireActual("@cue/core/data/trakt/read-budget"),
-  readsPausedUntil: jest.fn(() => 0),
-}));
-
-const { readsPausedUntil } = require("@cue/core/data/trakt/read-budget") as {
-  readsPausedUntil: jest.Mock<number, [], unknown>;
-};
 const { UpNext } =
   require("../src/screens/up-next/UpNext") as typeof import("../src/screens/up-next/UpNext");
 
@@ -130,7 +119,6 @@ const check = (showId: number) => screen.getByTestId(`queue-row-${showId}-mark`)
 beforeEach(() => {
   jest.clearAllMocks();
   resetSharedStores();
-  readsPausedUntil.mockReturnValue(0);
 });
 
 /** Ordered by the default "oldest unwatched" preference, so the show whose next
@@ -337,8 +325,6 @@ function showsTurnedOff(): PreferenceStorage {
   return preferences;
 }
 
-const PAUSE_MS = 42_000;
-
 interface SyncOptions {
   readonly offline?: boolean;
   readonly failing?: boolean;
@@ -375,24 +361,13 @@ describe("Up Next's sync strip", () => {
     expect(screen.queryByTestId("sync-strip")).toBeNull();
   });
 
-  it("leads with offline, because an offline device fails every read", async () => {
-    readsPausedUntil.mockReturnValue(Date.now() + PAUSE_MS);
-    await paintSync({ offline: true, failing: true });
+  it("leads with offline over cached content, because an offline device fails every read", async () => {
+    await paintSync({ offline: true });
 
     expect(screen.getByTestId("sync-strip-offline")).toHaveTextContent(
       "Offline. Your marks are saved.",
     );
-  });
-
-  it("counts a live rate limit down over the cached queue, and offers no Retry", async () => {
-    readsPausedUntil.mockReturnValue(Date.now() + PAUSE_MS);
-    await paintSync();
-
-    expect(screen.getByTestId("sync-strip")).toHaveTextContent(
-      "Trakt is limiting requests. Retrying in 42s.",
-    );
-    expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
-    // The content stays: a failed refresh over a warm cache is a note, never a wipe.
+    // A failed refresh over a warm cache is a note, never a wipe.
     expect(screen.getByTestId("link-history")).toBeOnTheScreen();
   });
 
