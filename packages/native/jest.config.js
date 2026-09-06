@@ -24,7 +24,7 @@ const project = {
   testMatch: ["<rootDir>/__tests__/**/*.test.{ts,tsx}"],
   // The gesture root installs a native binding on mount; without its own setup
   // every screen that renders under one fails before it draws anything.
-  setupFiles: ["<rootDir>/../../node_modules/react-native-gesture-handler/jestSetup.js"],
+  setupFiles: [require.resolve("react-native-gesture-handler/jestSetup")],
   setupFilesAfterEnv: ["<rootDir>/__tests__/support/reanimated.ts"],
   // Worklets is a native library and its `.native` entry points reach a binding
   // this runner has no host for. Its own resolver picks the web implementation

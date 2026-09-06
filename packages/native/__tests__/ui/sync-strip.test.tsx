@@ -1,5 +1,6 @@
 import { type SyncBanner, syncBanner } from "@cue/core/sync-contract";
 import { render, screen, userEvent } from "@testing-library/react-native";
+import { AccessibilityInfo, Platform } from "react-native";
 import { SyncStrip } from "../../src/ui/SyncStrip";
 import { TEST_IDS } from "../../src/ui/test-ids";
 import { TARGET_MIN } from "../../src/ui/tokens";
@@ -30,6 +31,19 @@ it("says offline in a sentence rather than leaving it to the dot", async () => {
   expect(screen.getByTestId(TEST_IDS.syncStripOffline)).toHaveTextContent(
     "Offline. Your marks are saved.",
   );
+});
+
+it("announces its line politely rather than asserting it over what is being read", async () => {
+  const announce = jest.spyOn(AccessibilityInfo, "announceForAccessibility");
+  await render(<SyncStrip banner={bannerOf({ offline: true })} onRetry={jest.fn()} />);
+
+  // The strip is ambient, not a control. Android has a live region for that;
+  // iOS has only the imperative announcement, and the same hook owes both.
+  if (Platform.OS === "android") {
+    expect(screen.getByTestId(TEST_IDS.syncStrip)).toHaveProp("accessibilityLiveRegion", "polite");
+  } else {
+    expect(announce).toHaveBeenCalledWith("Offline. Your marks are saved.");
+  }
 });
 
 it("counts a rate limit down, and offers no Retry for it", async () => {
