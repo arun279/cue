@@ -140,6 +140,15 @@ export function nativeAppConfig(env: Readonly<Record<string, string | undefined>
     },
     plugins: [
       "expo-router",
+      [
+        "expo-build-properties",
+        {
+          android: {
+            enableMinifyInReleaseBuilds: true,
+            enableShrinkResourcesInReleaseBuilds: true,
+          },
+        },
+      ],
       // Cue writes `allowBackup="false"` and its own data-extraction rules, and
       // this plugin writes both itself by default; told to stand down, it leaves
       // them to with-android-privacy, whose `sharedpref path="."` exclusion

@@ -47,13 +47,27 @@ const sizes = (initial: number, all: number, ios: number, android: number) => [
 const HEAD_METRICS = {
   sizes: sizes(101_500, 200_000, 4_001_000, 4_200_000),
   complexity: { functions: 496, max: 71, over15: 21, sum: 2484, mean: 5.01 },
-  comments: { total: { code: 9000, comments: 1050, blank: 500, density: 10.5 } },
+  comments: {
+    packages: {
+      core: { code: 3000, comments: 1200, blank: 100, density: 28.57 },
+      web: { code: 3000, comments: 500, blank: 200, density: 14.29 },
+      native: { code: 3000, comments: 800, blank: 200, density: 21.05 },
+    },
+    total: { code: 9000, comments: 1050, blank: 500, density: 10.5 },
+  },
 };
 
 const BASE_METRICS = {
   sizes: sizes(100_000, 200_000, 4_000_000, 4_200_000),
   complexity: { functions: 480, max: 60, over15: 18, sum: 2400, mean: 5 },
-  comments: { total: { code: 9000, comments: 1000, blank: 500, density: 10 } },
+  comments: {
+    packages: {
+      core: { code: 3000, comments: 1100, blank: 100, density: 26.83 },
+      web: { code: 3000, comments: 450, blank: 200, density: 13.04 },
+      native: { code: 3000, comments: 750, blank: 200, density: 20 },
+    },
+    total: { code: 9000, comments: 1000, blank: 500, density: 10 },
+  },
 };
 
 const runWithMetrics = (base: unknown): string => {
@@ -130,6 +144,9 @@ describe("diff footprint", () => {
       "| mean cognitive complexity (functions scoring 2 or more) | 5.00 | 5.01 | +0.01 |",
     );
     expect(output).toContain("| product comment density | 10.00 percent | 10.50 percent | +0.50 |");
+    expect(output).toContain("| core comment density | 26.83 percent | 28.57 percent | +1.74 |");
+    expect(output).toContain("| web comment density | 13.04 percent | 14.29 percent | +1.25 |");
+    expect(output).toContain("| native comment density | 20.00 percent | 21.05 percent | +1.05 |");
     expect(output).not.toContain("n/a");
   });
 

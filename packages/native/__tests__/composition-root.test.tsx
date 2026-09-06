@@ -166,23 +166,37 @@ describe("the native composition root", () => {
   });
 });
 
-// The store boot is settled first so the only thing still holding the splash is
-// the fonts, which is what these two cases are about. Left to resolve on its own
-// it lands whenever the runner gets to it, and on a loaded one that is after the
-// assertion below rather than before it.
+/**
+ * Renders with the stores deliberately pending, so a test can settle them at a
+ * chosen moment. The splash is held for two reasons at once, and a test that
+ * controls only one of them asserts on whichever happens to settle first.
+ */
+const renderWithPendingStores = async () => {
+  const boot = Promise.withResolvers<Awaited<ReturnType<typeof bootNativeStores>>>();
+  jest.mocked(bootNativeStores).mockReturnValueOnce(boot.promise);
+  const { rerender } = await render(<RootLayout />);
+
+  expect(screen.getByTestId("boot-hold")).toBeOnTheScreen();
+  expect(hideAsync).not.toHaveBeenCalled();
+
+  return {
+    rerender,
+    settleStores: () =>
+      act(async () =>
+        boot.resolve({ purged: true, migration: { adoptedToken: false, adoptedOps: 0 } }),
+      ),
+  };
+};
+
 it.each([
   null,
   new Error("Font unavailable"),
 ])("holds the splash until pending fonts settle with error %s", async (error) => {
   jest.mocked(hideAsync).mockClear();
   jest.mocked(useFonts).mockReturnValue([false, null]);
-  const boot = Promise.withResolvers<Awaited<ReturnType<typeof bootNativeStores>>>();
-  jest.mocked(bootNativeStores).mockReturnValueOnce(boot.promise);
-  const { rerender } = await render(<RootLayout />);
-  await act(async () =>
-    boot.resolve({ purged: true, migration: { adoptedToken: false, adoptedOps: 0 } }),
-  );
+  const { rerender, settleStores } = await renderWithPendingStores();
 
+  await settleStores();
   expect(screen.getByTestId("boot-hold")).toBeOnTheScreen();
   expect(hideAsync).not.toHaveBeenCalled();
 
@@ -196,16 +210,9 @@ it.each([
 it("holds the splash while stores are pending even if fonts have loaded", async () => {
   jest.mocked(hideAsync).mockClear();
   jest.mocked(useFonts).mockReturnValue([true, null]);
-  const boot = Promise.withResolvers<Awaited<ReturnType<typeof bootNativeStores>>>();
-  jest.mocked(bootNativeStores).mockReturnValueOnce(boot.promise);
-  await render(<RootLayout />);
+  const { settleStores } = await renderWithPendingStores();
 
-  expect(screen.getByTestId("boot-hold")).toBeOnTheScreen();
-  expect(hideAsync).not.toHaveBeenCalled();
-
-  await act(async () =>
-    boot.resolve({ purged: true, migration: { adoptedToken: false, adoptedOps: 0 } }),
-  );
+  await settleStores();
   expect(screen.queryByTestId("boot-hold")).toBeNull();
   expect(hideAsync).toHaveBeenCalledTimes(1);
 });

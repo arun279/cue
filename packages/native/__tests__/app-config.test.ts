@@ -45,6 +45,18 @@ describe("the native app config", () => {
     ]);
   });
 
+  it("minifies release code and removes unused Android resources", () => {
+    expect(config.plugins).toContainEqual([
+      "expo-build-properties",
+      {
+        android: {
+          enableMinifyInReleaseBuilds: true,
+          enableShrinkResourcesInReleaseBuilds: true,
+        },
+      },
+    ]);
+  });
+
   it("carries no transport-security exception unless the harness asks for one", () => {
     expect(config.ios?.infoPlist).toBeUndefined();
     expect(nativeAppConfig({ EXPO_PUBLIC_TRAKT_API_BASE: "" }).ios?.infoPlist).toBeUndefined();
