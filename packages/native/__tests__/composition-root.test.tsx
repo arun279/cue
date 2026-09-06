@@ -133,13 +133,22 @@ describe("the native composition root", () => {
   });
 });
 
+// The store boot is settled first so the only thing still holding the splash is
+// the fonts, which is what these two cases are about. Left to resolve on its own
+// it lands whenever the runner gets to it, and on a loaded one that is after the
+// assertion below rather than before it.
 it.each([
   null,
   new Error("Font unavailable"),
 ])("holds the splash until pending fonts settle with error %s", async (error) => {
   jest.mocked(hideAsync).mockClear();
   jest.mocked(useFonts).mockReturnValue([false, null]);
+  const boot = Promise.withResolvers<Awaited<ReturnType<typeof bootNativeStores>>>();
+  jest.mocked(bootNativeStores).mockReturnValueOnce(boot.promise);
   const { rerender } = await render(<RootLayout />);
+  await act(async () =>
+    boot.resolve({ purged: true, migration: { adoptedToken: false, adoptedOps: 0 } }),
+  );
 
   expect(screen.getByTestId("boot-hold")).toBeOnTheScreen();
   expect(hideAsync).not.toHaveBeenCalled();
