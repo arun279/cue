@@ -46,7 +46,7 @@ export function menuModule() {
           Pressable,
           {
             key: action.id ?? action.title,
-            testID: `menu-${action.id ?? action.title}`,
+            testID: action.id ?? action.title,
             accessibilityLabel: action.title,
             accessibilityState: { disabled: hidden(action) },
             onPress: () =>

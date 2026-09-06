@@ -2,7 +2,7 @@ import { TraktReadError } from "@cue/core/data/trakt/client";
 import type { LibraryEntry } from "@cue/core/data/trakt/library";
 import type { PreferenceStorage } from "@cue/core/ports/preference-storage";
 import { UNDO_WINDOW_MS } from "@cue/core/sync-contract";
-import { act, render, screen, userEvent, waitFor } from "@testing-library/react-native";
+import { act, render, screen, userEvent, waitFor, within } from "@testing-library/react-native";
 import {
   agesAgo,
   airing,
@@ -115,6 +115,7 @@ async function paint({ entries = queueOf(), calendar = [], submit }: Options = {
 }
 
 const check = (showId: number) => screen.getByTestId(`queue-row-${showId}-mark`);
+const row = (showId: number) => screen.getByTestId(`queue-row-${showId}`);
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -245,6 +246,45 @@ describe("Up Next's mark control", () => {
       disabled: true,
     });
     jest.useRealTimers();
+  });
+});
+
+describe("Up Next's row menu", () => {
+  it("is the tap path to Stop that the swipe would otherwise be the only way to", async () => {
+    const user = userEvent.setup();
+    await paint();
+
+    await user.press(within(row(CARTOGRAPHY)).getByTestId("quick-action-stop"));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("snackbar-message")).toHaveTextContent(/ stopped$/),
+    );
+    expect(screen.getByTestId("snackbar-undo")).toBeOnTheScreen();
+  });
+
+  it("names the episode a quick mark would write, and marks it", async () => {
+    const user = userEvent.setup();
+    await paint();
+
+    const quickMark = within(row(CARTOGRAPHY)).getByTestId("quick-action-mark");
+    expect(quickMark).toHaveAccessibleName("Mark S2 E3 watched");
+
+    await user.press(quickMark);
+
+    await waitFor(() => expect(screen.getByTestId("snackbar-undo")).toBeOnTheScreen());
+  });
+
+  it("withholds the quick mark while the next episode is a guess", async () => {
+    // pendingAdvance: the projection has not been confirmed by a read, and
+    // marking a guessed coordinate would write a play for an episode that may
+    // not exist.
+    const projected = queueOf().map((show) => ({ ...show, pendingAdvance: true }));
+    await paint({ entries: projected });
+
+    expect(within(row(CARTOGRAPHY)).getByTestId("quick-action-mark")).toHaveProp(
+      "accessibilityState",
+      { disabled: true },
+    );
   });
 });
 
