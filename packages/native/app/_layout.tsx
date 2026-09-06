@@ -63,6 +63,12 @@ const haptics = createNativeHaptics(() => prefsStore.getState().hapticsEnabled);
 const reminders = createNativeReminders();
 const network = createNativeNetwork();
 
+/** What a launch says when the stores it depends on did not come up. The session
+ * still starts on whatever the token store answers, because a boot that cannot
+ * finish is not a reason to draw nothing; the message rides the auth store, so
+ * the sign-in screen's alert is where it lands. */
+const BOOT_FAILED_MESSAGE = "Cue could not open its storage. Some of your data may be missing.";
+
 /**
  * The purge, the migration, and only then the auth store.
  *
@@ -84,23 +90,26 @@ function useNativeSession(): AuthStore | null {
       preferences: preferenceStorage,
       newInstallId: randomUUID,
     })
-      .catch(() => {})
-      .then(() => {
+      .then(
+        () => null,
+        () => BOOT_FAILED_MESSAGE,
+      )
+      .then((bootFailure) => {
         if (!alive) return;
-        setAuthStore(
-          createAuthStore({
-            tokenStore,
-            clientId: TRAKT_CLIENT_ID,
-            redirectUri: NATIVE_REDIRECT_URI,
-            // A device has no page navigation, so the two members that exist for
-            // one are stated rather than inherited: nothing redirects, and there
-            // is no handoff to stash across a navigation that never happens.
-            redirect: () => {},
-            redirectHandoff: { read: () => null, write: () => {}, clear: () => {} },
-            native: true,
-            traktBaseUrl: TRAKT_BASE_OVERRIDE,
-          }),
-        );
+        const store = createAuthStore({
+          tokenStore,
+          clientId: TRAKT_CLIENT_ID,
+          redirectUri: NATIVE_REDIRECT_URI,
+          // A device has no page navigation, so the two members that exist for
+          // one are stated rather than inherited: nothing redirects, and there
+          // is no handoff to stash across a navigation that never happens.
+          redirect: () => {},
+          redirectHandoff: { read: () => null, write: () => {}, clear: () => {} },
+          native: true,
+          traktBaseUrl: TRAKT_BASE_OVERRIDE,
+        });
+        if (bootFailure !== null) store.setState({ errorMessage: bootFailure });
+        setAuthStore(store);
       });
     return () => {
       alive = false;

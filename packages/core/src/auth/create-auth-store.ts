@@ -32,6 +32,11 @@ export interface AuthDeps {
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** Shown when the token store itself fails, rather than when it answers that
+ * there is no token. Connecting again is the only move left from here, and it
+ * is the one the screen carrying this message offers. */
+const SESSION_UNREADABLE = "Cue could not read your saved sign-in. Connect again to continue.";
+
 /**
  * The concrete auth store injected into the UI (composition
  * root): pure UI state in `auth/store.ts`, side effects (persist token, OAuth
@@ -233,8 +238,17 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
     // Token-only boot: the client id is a build-time constant, so a stored token
     // is the whole session. An absent or schema-rejected token means "not
     // connected yet" and drops to onboarding.
-    const token = await deps.tokenStore.read();
-    store.setState({ phase: token === null ? "onboarding" : "connected" });
+    //
+    // A store that will not answer at all is a different answer, and the one
+    // `phase` has no value for: left to reject it holds `loading` for the rest
+    // of the launch, which every client draws as a screen with nothing on it and
+    // no way off it. It drops to onboarding too, and says why.
+    try {
+      const token = await deps.tokenStore.read();
+      store.setState({ phase: token === null ? "onboarding" : "connected" });
+    } catch {
+      store.setState({ phase: "onboarding", errorMessage: SESSION_UNREADABLE });
+    }
   })();
 
   return store;

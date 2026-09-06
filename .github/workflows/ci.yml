@@ -185,6 +185,13 @@ jobs:
       # development throws on its first frame when it is embedded in the app
       # instead of served by Metro, so a Debug binary cannot be launched by a
       # flow at all. Release also bundles JavaScript without being asked.
+      #
+      # Signed, because this binary is run rather than only compiled. Signing a
+      # simulator build needs no team and no profile: Xcode writes a simulated
+      # entitlements file naming an application-identifier and links it into the
+      # binary. Without it iOS answers every Keychain call with
+      # errSecMissingEntitlement, so the app can neither read a session nor store
+      # the one the flow signs in with, and it stays on its loading gate.
       - name: Build the app for the simulator
         working-directory: packages/native/ios
         env:
@@ -194,14 +201,19 @@ jobs:
           xcodebuild -workspace Cue.xcworkspace -scheme Cue \
             -configuration Release -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath "$RUNNER_TEMP/native-ios-derived-data" \
-            CODE_SIGNING_ALLOWED=NO build
-      # Whether the origin reached the bundle is decided by babel-preset-expo, so
-      # nothing in the sources says whether it landed. An artifact that lost it
-      # would point a flow at somebody's real Trakt account.
+            build
+      # Two facts about the artifact that nothing in the sources states, both
+      # decided by the build and both invisible until the app is running. An
+      # artifact whose bundle lost the origin would point a flow at somebody's
+      # real Trakt account; an artifact whose binary lost the entitlements
+      # section has no Keychain, so it can neither restore a session nor keep
+      # one. The entitlements are linked into the executable rather than added to
+      # the signature, which is why this reads the binary and not `codesign -d`.
       - name: Package the simulator app
         run: |
           products="$RUNNER_TEMP/native-ios-derived-data/Build/Products/Release-iphonesimulator"
           LC_ALL=C grep -aq 'http://127.0.0.1:8787' "$products/Cue.app/main.jsbundle"
+          LC_ALL=C grep -aq 'application-identifier' "$products/Cue.app/Cue"
           tar -czf "$RUNNER_TEMP/Cue.app.tgz" -C "$products" Cue.app
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

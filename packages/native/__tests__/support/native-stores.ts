@@ -52,6 +52,10 @@ export const bulkBacking = createMemoryStorage();
 export const secureBacking = new Map<string, string>();
 
 export const secureStoreModule = {
+  // Declared an ES module so `import * as SecureStore` binds this object rather
+  // than a copy of it. Babel's wildcard interop copies the properties of a
+  // module that does not say it is one, and a copy cannot be spied on.
+  __esModule: true,
   WHEN_UNLOCKED_THIS_DEVICE_ONLY: "whenUnlockedThisDeviceOnly",
   getItemAsync: (key: string): Promise<string | null> =>
     Promise.resolve(secureBacking.get(key) ?? null),
