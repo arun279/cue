@@ -83,15 +83,16 @@ export function QueueRow({ card, mark, onStop, variant = "queue" }: QueueRowProp
             <>
               <RowMenu
                 title={entry.title}
+                testID={TEST_IDS.quickActions}
                 items={[
                   {
-                    id: "mark",
+                    id: TEST_IDS.quickActionMark,
                     label: `Mark ${code} watched`,
                     available: quickMarkable(entry, Date.now()),
                     onPress: () => void mark.mark(entry),
                   },
-                  { id: "stop", label: "Stop show", onPress: onStop },
-                  { id: "details", label: "Show details", onPress: open },
+                  { id: TEST_IDS.quickActionStop, label: "Stop show", onPress: onStop },
+                  { id: TEST_IDS.quickActionDetails, label: "Show details", onPress: open },
                 ]}
               />
               <CheckControl
