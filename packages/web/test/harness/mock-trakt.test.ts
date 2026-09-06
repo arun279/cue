@@ -175,6 +175,52 @@ describe("the seeded account parses through the app's own contracts", () => {
   });
 });
 
+describe("the placeholder images survive what they are asked to draw", () => {
+  it("escapes a title before it becomes SVG text", async () => {
+    const show = firstSeededShow();
+    show.title = "<Bob & Carol>";
+    const svg = await (await fetch(`${baseUrl}/images/shows/${show.trakt}/poster.svg`)).text();
+
+    expect(svg).toContain(">&lt;&amp;</text>");
+    const parsed = new DOMParser().parseFromString(svg, "image/svg+xml");
+    expect(parsed.documentElement.nodeName).toBe("svg");
+    expect(parsed.querySelector("text")?.textContent).toBe("<&");
+  });
+
+  it("serves a slot the aspect table does not name, prototype keys included", async () => {
+    const show = firstSeededShow();
+    for (const slot of ["fanart", "toString"]) {
+      expect((await fetch(`${baseUrl}/images/shows/${show.trakt}/${slot}.svg`)).status).toBe(200);
+    }
+  });
+});
+
+describe("a request the mock cannot answer", () => {
+  it("says so without quoting the request back", async () => {
+    const probe = encodeURIComponent("<script>alert(1)</script>");
+    const requests: [string, RequestInit?][] = [
+      [`/${probe}`],
+      [`/shows/${probe}`],
+      [`/shows/${probe}/seasons`],
+      [`/shows/${probe}/seasons/1/episodes/1`],
+      [`/movies/${probe}`],
+      [`/sync/history/shows/${probe}`],
+      [`/__reset?seed=${probe}`, { method: "POST" }],
+      [`/__reset?seed=${probe}`, { method: "DELETE" }],
+    ];
+    const answers = await Promise.all(
+      requests.map(async ([path, init]) => {
+        const response = await fetch(`${baseUrl}${path}`, init);
+        return { path, status: response.status, body: await response.text() };
+      }),
+    );
+
+    expect(
+      answers.filter((answer) => answer.status !== 404 || answer.body.includes("script")),
+    ).toEqual([]);
+  });
+});
+
 describe("the seeded account fills the surfaces the harness exists to demo", () => {
   it("produces both an Up Next queue and a lapsed drawer", async () => {
     const entries = await loadUpNextEntries(client());

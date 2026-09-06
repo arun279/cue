@@ -10,6 +10,8 @@
  * Only the endpoints the app actually calls are modelled. Anything else answers
  * 404 with a logged line, never a silent empty success: a path with no route has
  * to be visible as a hole rather than look like an account with nothing in it.
+ * The log line is where a caller reads back what it asked for; no response body
+ * ever quotes the request.
  */
 
 import { createServer } from "node:http";
@@ -86,7 +88,14 @@ const findShow = (library, id) =>
 const findMovie = (library, id) =>
   library.movies.find((movie) => movie.trakt === Number(id) || movie.slug === id);
 
-const ASPECTS = { poster: [400, 600], avatar: [240, 240] };
+const ASPECTS = new Map([
+  ["poster", [400, 600]],
+  ["avatar", [240, 240]],
+]);
+
+const XML_ESCAPES = { "&": "&amp;", "<": "&lt;", ">": "&gt;" };
+
+const xmlText = (value) => value.replace(/[&<>]/g, (char) => XML_ESCAPES[char]);
 
 /** Initials, so a poster in a screenshot is identifiable rather than a grey box. */
 function imageLabel(library, kind, id) {
@@ -114,8 +123,8 @@ function imageLabel(library, kind, id) {
  * a local plain-HTTP mock could never answer.
  */
 function placeholderImage(library, kind, id, slot) {
-  const [width, height] = ASPECTS[slot] ?? [640, 360];
-  const hue = (id * 37) % 360;
+  const [width, height] = ASPECTS.get(slot) ?? [640, 360];
+  const hue = Math.round((id * 37) % 360);
   const label = imageLabel(library, kind, id);
   return {
     status: 200,
@@ -125,7 +134,7 @@ function placeholderImage(library, kind, id, slot) {
 <stop offset="0" stop-color="hsl(${hue} 45% 32%)"/><stop offset="1" stop-color="hsl(${(hue + 40) % 360} 40% 14%)"/>
 </linearGradient></defs>
 <rect width="${width}" height="${height}" fill="url(#g)"/>
-<text x="50%" y="50%" fill="hsl(${hue} 60% 88%)" font-family="Helvetica, Arial, sans-serif" font-size="${Math.round(height / 4)}" font-weight="600" text-anchor="middle" dominant-baseline="central">${label}</text>
+<text x="50%" y="50%" fill="hsl(${hue} 60% 88%)" font-family="Helvetica, Arial, sans-serif" font-size="${Math.round(height / 4)}" font-weight="600" text-anchor="middle" dominant-baseline="central">${xmlText(label)}</text>
 </svg>`,
   };
 }
@@ -230,7 +239,7 @@ const ROUTES = [
     (ctx) => {
       const { kind, id } = ctx.params;
       const rows = itemPlaysBody(ctx.library, ctx.origin, extendedOf(ctx.url), kind, id);
-      if (rows === null) return notFound(`no seeded ${kind} ${id}`);
+      if (rows === null) return notFound("no seeded item");
       return page(rows, ctx.url, 10);
     },
   ],
@@ -254,7 +263,7 @@ const ROUTES = [
     /^\/shows\/(?<id>[^/]+)\/progress\/watched$/,
     (ctx) => {
       const show = findShow(ctx.library, ctx.params.id);
-      if (show === undefined) return notFound(`no seeded show ${ctx.params.id}`);
+      if (show === undefined) return notFound("no seeded show");
       return json(progressBody(show, ctx.library, ctx.origin, extendedOf(ctx.url)));
     },
   ],
@@ -266,7 +275,7 @@ const ROUTES = [
       const episode = show?.episodes.find(
         (ep) => ep.season === Number(ctx.params.season) && ep.number === Number(ctx.params.number),
       );
-      if (episode === undefined) return notFound(`no seeded episode ${ctx.url.pathname}`);
+      if (episode === undefined) return notFound("no seeded episode");
       return json(episodeDetailBody(episode, ctx.origin, extendedOf(ctx.url)));
     },
   ],
@@ -275,7 +284,7 @@ const ROUTES = [
     /^\/shows\/(?<id>[^/]+)\/seasons$/,
     (ctx) => {
       const show = findShow(ctx.library, ctx.params.id);
-      if (show === undefined) return notFound(`no seeded show ${ctx.params.id}`);
+      if (show === undefined) return notFound("no seeded show");
       return json(seasonsBody(show, ctx.origin, extendedOf(ctx.url)));
     },
   ],
@@ -284,7 +293,7 @@ const ROUTES = [
     /^\/shows\/(?<id>[^/]+)$/,
     (ctx) => {
       const show = findShow(ctx.library, ctx.params.id);
-      if (show === undefined) return notFound(`no seeded show ${ctx.params.id}`);
+      if (show === undefined) return notFound("no seeded show");
       return json(showDetailBody(show, ctx.origin, extendedOf(ctx.url)));
     },
   ],
@@ -296,7 +305,7 @@ const ROUTES = [
     /^\/movies\/(?<id>[^/]+)$/,
     (ctx) => {
       const movie = findMovie(ctx.library, ctx.params.id);
-      if (movie === undefined) return notFound(`no seeded movie ${ctx.params.id}`);
+      if (movie === undefined) return notFound("no seeded movie");
       return json(movieDetailBody(movie, ctx.origin, extendedOf(ctx.url)));
     },
   ],
@@ -355,9 +364,9 @@ async function stall(fault, request) {
  * the whole mock to a known state, so it disarms any faults with it.
  */
 function resetRoute(reset, method, url) {
-  if (method !== "POST") return notFound(`no control route for ${method} ${url.pathname}`);
+  if (method !== "POST") return notFound("no control route");
   const seed = url.searchParams.get("seed") ?? "default";
-  if (!reset(seed)) return notFound(`no seed profile ${seed}`);
+  if (!reset(seed)) return notFound("no seed profile");
   return json({ reset: true });
 }
 
@@ -377,7 +386,7 @@ function faultRoute(faults, method, url, body) {
     return json({ armed: 0 });
   }
   if (method === "GET") return json({ rules: faults.describe(), opLog: faults.opLog() });
-  return notFound(`no control route for ${method} ${url.pathname}`);
+  return notFound("no control route");
 }
 
 /**
@@ -408,7 +417,7 @@ function resolve(library, method, url, origin, body) {
     if (match === null) continue;
     return handler({ library, url, origin, body, params: match.groups ?? {} });
   }
-  return notFound(`no route for ${method} ${url.pathname}`);
+  return notFound("no route");
 }
 
 /**
