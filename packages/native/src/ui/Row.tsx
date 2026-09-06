@@ -2,6 +2,13 @@ import type { ReactElement, ReactNode } from "react";
 import { Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import { HAIRLINE, REFLOW_FONT_SCALE, SPACE, useColors } from "./tokens";
 
+interface RowAction {
+  /** The identifier the platform hands back when the action is chosen. */
+  readonly name: string;
+  readonly label: string;
+  onPress(): void;
+}
+
 export interface RowProps {
   /**
    * The composed label for the row body, in the order the row reads: show
@@ -17,6 +24,11 @@ export interface RowProps {
    * nested inside it. */
   readonly trailing?: ReactNode;
   readonly onPress?: () => void;
+  /** A swipeable row's actions, also reached through the rotor and TalkBack's
+   * actions menu. This is not the WCAG 2.5.1 answer, which is a visible tap
+   * target and lives beside the row; it is how a screen reader reaches the same
+   * actions without the gesture. */
+  readonly actions?: readonly RowAction[];
   readonly testID?: string;
   readonly children: ReactNode;
 }
@@ -27,6 +39,7 @@ export function Row({
   leading,
   trailing,
   onPress,
+  actions,
   testID,
   children,
 }: RowProps): ReactElement {
@@ -39,6 +52,13 @@ export function Row({
         accessible
         accessibilityRole={onPress === undefined ? undefined : "button"}
         accessibilityLabel={label}
+        accessibilityActions={actions?.map(({ name, label: actionLabel }) => ({
+          name,
+          label: actionLabel,
+        }))}
+        onAccessibilityAction={({ nativeEvent }) =>
+          actions?.find((action) => action.name === nativeEvent.actionName)?.onPress()
+        }
         testID={testID}
         onPress={onPress}
         style={[styles.body, { minHeight }]}
