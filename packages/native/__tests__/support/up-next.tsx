@@ -8,7 +8,7 @@ import { type CueRuntime, RuntimeProvider } from "@cue/core/runtime/runtime";
 import { resetMarkStore } from "@cue/core/stores/mark-store";
 import { dismissSnack } from "@cue/core/stores/snackbar-store";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { ReactElement, ReactNode } from "react";
+import { type ReactElement, type ReactNode, useState } from "react";
 import { SnackbarHost } from "../../src/ui/SnackbarHost";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -131,7 +131,15 @@ export function Harness({
   network,
   children,
 }: HarnessProps): ReactElement {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  // One client per mount, and no garbage collection timer: TanStack's own
+  // testing guide sets `gcTime` to Infinity under jest, because a five minute
+  // collection timer per query outlives the run and forces a worker exit.
+  const [client] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: { queries: { retry: false, gcTime: Number.POSITIVE_INFINITY } },
+      }),
+  );
   const tree = (
     <QueryClientProvider client={client}>
       <RuntimeProvider value={runtime}>

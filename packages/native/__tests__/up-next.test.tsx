@@ -134,7 +134,7 @@ const rows = () => screen.getAllByTestId(/^queue-row-\d+$/);
 describe("Up Next", () => {
   it("paints skeleton plates before it knows the words, and no spinner", async () => {
     const held = { ...fakeRuntime({}), loadUpNext: () => new Promise<never>(() => {}) };
-    await render(
+    const view = await render(
       <Harness runtime={held} haptics={haptics}>
         <UpNext />
       </Harness>,
@@ -143,6 +143,10 @@ describe("Up Next", () => {
     expect(screen.getByTestId("up-next-skeleton")).toBeOnTheScreen();
     expect(screen.queryByTestId("marquee-card")).toBeNull();
     expect(screen.queryByTestId("link-history")).toBeNull();
+    // Torn down while the read is still held, because the calendar query and the
+    // list's own cell batch both land after the last assertion, and an update
+    // with no case left to observe it is one React saw outside act.
+    view.unmount();
   });
 
   it("promotes the head of the queue into the card and starts the rows below it", async () => {
@@ -163,8 +167,17 @@ describe("Up Next", () => {
   });
 
   it("names the aired-but-unwatched count and never claims zero", async () => {
-    await paint();
+    // Harbor Lights' watched count has caught up with its aired count, which is
+    // the shape a just-marked row takes while its next episode is a projection
+    // and the only way the count could read zero. Zero is a number the app
+    // cannot stand by, so that row draws no count at all.
+    await paint({
+      entries: queueOf().map((show) =>
+        show.showId === HARBOR ? { ...show, completed: show.aired } : show,
+      ),
+    });
 
+    expect(screen.getByTestId(`queue-row-${HARBOR}`)).toBeOnTheScreen();
     expect(screen.getByText("1 left")).toBeOnTheScreen();
     expect(screen.getByText("2 left")).toBeOnTheScreen();
     expect(screen.queryByText("0 left")).toBeNull();
