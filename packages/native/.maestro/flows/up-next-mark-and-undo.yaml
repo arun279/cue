@@ -1,0 +1,26 @@
+# Marking from the check, and taking it back from the snackbar.
+#
+# The snack has to be there before the write settles: the row advances on the
+# clock, not on a round trip, so a queue that is offline or rate limited never
+# leaves a row looking marked and stuck.
+appId: app.cuetracker
+---
+- runFlow: lib/connect.yaml
+- assertVisible:
+    id: "up-next-list"
+- assertVisible:
+    id: "marquee-card"
+- tapOn:
+    id: "queue-row-[0-9]+-mark"
+    index: 0
+- assertVisible:
+    id: "snackbar"
+- assertVisible:
+    id: "snackbar-undo"
+- runFlow: lib/settle.yaml
+- tapOn:
+    id: "snackbar-undo"
+- runFlow: lib/settle.yaml
+- assertVisible:
+    id: "queue-row-[0-9]+-mark"
+    index: 0

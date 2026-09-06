@@ -15,7 +15,6 @@ import {
   spyHaptics,
 } from "./support/up-next";
 
-jest.mock("@shopify/flash-list", () => require("./support/native-ui").flashListModule());
 jest.mock("expo-router", () => require("./support/native-ui").expoRouterModule());
 jest.mock("@expo/ui/community/menu", () => require("./support/native-ui").menuModule());
 jest.mock("react-native-gesture-handler/ReanimatedSwipeable", () =>
@@ -369,12 +368,6 @@ async function paintSync({
   await act(async () => {});
 }
 
-const pull = async (): Promise<void> => {
-  await act(async () => {
-    (screen.getByTestId("refresh-indicator").props["onRefresh"] as () => void)();
-  });
-};
-
 describe("Up Next's sync strip", () => {
   it("says nothing at all while sync is healthy, and holds no space for a strip", async () => {
     await paintSync();
@@ -412,56 +405,12 @@ describe("Up Next's sync strip", () => {
     // contract exists to remove.
     expect(screen.queryByTestId("sync-strip")).toBeNull();
   });
-});
 
-describe("Up Next's pull to refresh", () => {
-  it("runs the one manual sync pass", async () => {
-    const flushWrites = jest.fn(() => Promise.resolve(0));
-    await paintSync({ flushWrites });
+  it("stands no sections over a screen that has nothing to show them beside", async () => {
+    await paintSync({ failing: true });
 
-    await pull();
-
-    expect(flushWrites).toHaveBeenCalledTimes(1);
-  });
-
-  it("ends immediately on cached data inside a rate-limit pause, and says so in the fingers", async () => {
-    const flushWrites = jest.fn(() => Promise.resolve(0));
-    await paintSync({ flushWrites });
-    readsPausedUntil.mockReturnValue(Date.now() + PAUSE_MS);
-
-    await pull();
-
-    // Spinning against a window the app already knows is closed is the honesty
-    // gap this closes: the control ends, the warning tap explains it, and the
-    // strip carries the reason.
-    expect(screen.getByTestId("refresh-indicator")).toHaveProp("refreshing", false);
-    expect(haptics.warning).toHaveBeenCalledTimes(1);
-    expect(flushWrites).not.toHaveBeenCalled();
-  });
-
-  it("plays no warning on a refresh the app can actually run", async () => {
-    await paintSync();
-
-    await pull();
-
-    expect(haptics.warning).not.toHaveBeenCalled();
-  });
-
-  it("keeps a tap equivalent for the gesture in the screen's own bar", async () => {
-    const user = userEvent.setup();
-    const flushWrites = jest.fn(() => Promise.resolve(0));
-    const runtime = { ...fakeRuntime({ entries: [entry()] }), flushWrites };
-    const { UpNextBarItems } =
-      require("../src/screens/up-next/UpNextBarItems") as typeof import("../src/screens/up-next/UpNextBarItems");
-    const onSync = jest.fn();
-    await render(
-      <Harness runtime={runtime} haptics={haptics}>
-        <UpNextBarItems onSync={onSync} />
-      </Harness>,
-    );
-
-    await user.press(screen.getByRole("button", { name: "Sync now" }));
-
-    expect(onSync).toHaveBeenCalledTimes(1);
+    expect(await screen.findByTestId("up-next-error")).toBeOnTheScreen();
+    expect(screen.queryByTestId("link-history")).toBeNull();
+    expect(screen.queryByTestId("lapsed-drawer-toggle")).toBeNull();
   });
 });

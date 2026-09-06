@@ -1,7 +1,6 @@
 /**
- * Stand-ins for the four platform edges a screen test cannot drive: a
- * virtualized list that never gets a layout pass, the router, the platform menu,
- * and the swipeable's own pan gesture.
+ * Stand-ins for the three platform edges a screen test cannot drive: the router,
+ * the platform menu, and the swipeable's own pan gesture.
  *
  * Each one keeps the library's documented contract and nothing more, so a test
  * over them is a test of Cue's wiring rather than of the library. The libraries
@@ -9,61 +8,6 @@
  */
 
 import type { ReactElement, ReactNode } from "react";
-
-interface RefreshProps {
-  readonly testID?: string;
-  readonly refreshing: boolean;
-  onRefresh(): void;
-}
-
-interface ListProps<T> {
-  readonly data?: readonly T[];
-  readonly testID?: string;
-  readonly refreshControl?: { readonly props: RefreshProps };
-  renderItem(info: { item: T; index: number }): ReactNode;
-  keyExtractor(item: T, index: number): string;
-  readonly ListHeaderComponent?: ReactNode;
-  readonly ListFooterComponent?: ReactNode;
-  readonly ItemSeparatorComponent?: () => ReactElement;
-}
-
-/**
- * Renders every row, because what the screen tests are about is which sections
- * and states are composed, not which of them a window happened to reach.
- *
- * The refresh control comes back as a plain view carrying its own props: the
- * platform control renders as a native `RCTRefreshControl` that keeps none of
- * them, so a test could otherwise neither find it nor release a pull on it.
- */
-export function flashListModule() {
-  const { createElement, Fragment } = require("react") as typeof import("react");
-  const { View } = require("react-native") as typeof import("react-native");
-
-  function FlashList<T>(props: ListProps<T>): ReactElement {
-    const { data = [], ItemSeparatorComponent } = props;
-    return createElement(
-      View,
-      { testID: props.testID },
-      props.refreshControl === undefined
-        ? null
-        : createElement(View, { ...props.refreshControl.props }),
-      props.ListHeaderComponent,
-      ...data.map((item, index) =>
-        createElement(
-          Fragment,
-          { key: props.keyExtractor(item, index) },
-          index > 0 && ItemSeparatorComponent !== undefined
-            ? createElement(ItemSeparatorComponent)
-            : null,
-          props.renderItem({ item, index }),
-        ),
-      ),
-      props.ListFooterComponent,
-    );
-  }
-
-  return { FlashList };
-}
 
 export const router = { push: jest.fn(), back: jest.fn(), replace: jest.fn() };
 
