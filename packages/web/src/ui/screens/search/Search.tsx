@@ -158,11 +158,7 @@ export function Search(): ReactElement {
   const onAdd = (hit: SearchHit): void => {
     void view.add(hit);
     showSnack({
-      message: (
-        <>
-          <strong>{middleTruncate(hit.title)}</strong> added to Watchlist
-        </>
-      ),
+      message: { subject: middleTruncate(hit.title), predicate: " added to Watchlist" },
       actions: [
         {
           label: "Undo",

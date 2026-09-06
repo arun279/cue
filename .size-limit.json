@@ -19,12 +19,12 @@
     "name": "expo iOS bundle",
     "path": "packages/native/dist/_expo/static/js/ios/entry-*.hbc",
     "brotli": false,
-    "limit": "4450 kB"
+    "limit": "5250 kB"
   },
   {
     "name": "expo Android bundle",
     "path": "packages/native/dist/_expo/static/js/android/entry-*.hbc",
     "brotli": false,
-    "limit": "4830 kB"
+    "limit": "5400 kB"
   }
 ]

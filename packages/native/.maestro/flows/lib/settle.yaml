@@ -1,0 +1,8 @@
+# The native equivalent of waiting for the network to go quiet. There is no such
+# wait in Maestro, so the app exposes an idle marker: a view present only when no
+# query is fetching and the durable write queue is empty. Without it a run
+# records a race rather than a behavior.
+appId: app.cuetracker
+---
+- assertVisible:
+    id: "app-idle"

@@ -1,0 +1,20 @@
+# A signed-in cold start, through the real device code leg against the fake Trakt.
+#
+# `clearKeychain` is not tidiness: expo-secure-store survives an uninstall by
+# Apple's design, so a token from the previous flow reads as a signed-in cold
+# start and the next flow silently tests nothing.
+appId: app.cuetracker
+---
+- launchApp:
+    clearState: true
+    clearKeychain: true
+- assertVisible:
+    id: "screen-onboarding"
+- tapOn:
+    id: "button-connect"
+- assertVisible:
+    id: "device-code-value"
+- assertVisible:
+    id: "screen-up-next"
+- assertNotVisible:
+    id: "up-next-skeleton"
