@@ -163,13 +163,25 @@ jobs:
       - uses: ./.github/actions/setup-node-pnpm
       # The native projects are generated, so the first thing this job proves is
       # that they generate: a config plugin that no longer matches the template
-      # fails here rather than on somebody's machine.
+      # fails here rather than on somebody's machine. Generated twice on purpose:
+      # the app the flows drive is pointed at the fake Trakt and carries the one
+      # transport exception that needs, and this pass is the shipping shape, the
+      # only place anything asserts that a build with no override adds none.
+      # `--no-install` because nothing compiles this pass.
+      - run: pnpm --filter @cue/native exec expo prebuild --platform ios --clean --no-install
+        env:
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
+      - name: Check the generated iOS privacy configuration
+        run: scripts/verify-ios-privacy.sh packages/native/ios/Cue/Info.plist packages/native/ios/Cue/Cue.entitlements Debug
       - run: pnpm --filter @cue/native exec expo prebuild --platform ios --clean
         env:
           EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
           EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
-      - name: Check the generated iOS privacy configuration
+      - name: Check the harness transport exception
         run: scripts/verify-ios-privacy.sh packages/native/ios/Cue/Info.plist packages/native/ios/Cue/Cue.entitlements Debug 127.0.0.1
+      # Debug, because the Trakt origin override is compiled out of a release
+      # bundle by design, and `FORCE_BUNDLING` because a Debug build otherwise
+      # embeds no JavaScript at all and expects a Metro server that CI has none of.
       - name: Build the app for the simulator
         working-directory: packages/native/ios
         env:
@@ -181,10 +193,14 @@ jobs:
             -configuration Debug -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath "$RUNNER_TEMP/native-ios-derived-data" \
             CODE_SIGNING_ALLOWED=NO build
+      # The override reaches the bundle through Expo's environment serializer, so
+      # nothing in the sources says whether it landed. An artifact that lost it
+      # would point a flow at somebody's real Trakt account.
       - name: Package the simulator app
         run: |
-          tar -czf "$RUNNER_TEMP/Cue.app.tgz" \
-            -C "$RUNNER_TEMP/native-ios-derived-data/Build/Products/Debug-iphonesimulator" Cue.app
+          products="$RUNNER_TEMP/native-ios-derived-data/Build/Products/Debug-iphonesimulator"
+          LC_ALL=C grep -aq 'http://127.0.0.1:8787' "$products/Cue.app/main.jsbundle"
+          tar -czf "$RUNNER_TEMP/Cue.app.tgz" -C "$products" Cue.app
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: cue-native-ios-simulator-app
@@ -193,6 +209,10 @@ jobs:
   native-e2e:
     needs: native-ios
     runs-on: macos-26
+    env:
+      # Ahead of every maestro call, including the version check: without it the
+      # first run on a fresh runner prints an analytics notice on stdout.
+      MAESTRO_CLI_NO_ANALYTICS: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Select Xcode
@@ -206,14 +226,16 @@ jobs:
         with:
           name: cue-native-ios-simulator-app
           path: ${{ runner.temp }}/native-app
-      - name: Install Maestro 2.7.0
+      # Pinned by digest as well as by version, the way every action here is
+      # pinned by commit: a release asset can be replaced in place.
+      - name: Install Maestro 2.10.0
         run: |
           curl -fsSL \
-            https://github.com/mobile-dev-inc/Maestro/releases/download/cli-2.7.0/maestro.zip \
+            https://github.com/mobile-dev-inc/Maestro/releases/download/cli-2.10.0/maestro.zip \
             -o "$RUNNER_TEMP/maestro.zip"
-          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP/maestro"
-          version=$("$RUNNER_TEMP/maestro/bin/maestro" --version)
-          test "$version" = "2.7.0"
+          echo "29b675e10cc12080e445e9bfb2e2b4e4dfb9c0f2e30d5884120d258b5e1cd991  $RUNNER_TEMP/maestro.zip" \
+            | shasum -a 256 -c -
+          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP"
           echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
       - id: simulator
         name: Boot an available iPhone simulator
@@ -243,7 +265,6 @@ jobs:
       - name: Run the launch flow
         env:
           DEVICE_ID: ${{ steps.simulator.outputs.device_id }}
-          MAESTRO_CLI_NO_ANALYTICS: "1"
         run: |
           maestro --device "$DEVICE_ID" test .maestro/flows/launch.yaml \
             --format JUNIT \
