@@ -5,7 +5,7 @@ import {
   type LibraryShow,
 } from "../../domain/model/library";
 import { type EpisodePlay, MARK_MATCH_TOLERANCE_MS } from "../../domain/reversal";
-import { toMs } from "../../domain/time";
+import { isAired, toMs } from "../../domain/time";
 import { resolveStill } from "../image-source";
 import type { HiddenItem, Progress, WatchedShow, WatchlistItem } from "./schemas";
 import { toEpisodeIds } from "./show-detail";
@@ -238,4 +238,19 @@ export function additiveLanded(
         : play.season === match.season && play.number === match.number;
     return matches && Math.abs(Date.parse(play.watchedAt) - markedAt) <= MARK_MATCH_TOLERANCE_MS;
   });
+}
+
+/**
+ * Whether a surface may offer to mark this show's next episode right now. The
+ * accelerator rides the exact queue pipeline, so it only offers itself when the
+ * next episode is known and has aired, never a guessed coordinate: a mark
+ * against a post-mark projection would write a play for an episode that may not
+ * exist yet.
+ */
+export function quickMarkable(entry: LibraryEntry, now: number): boolean {
+  return (
+    !entry.pendingAdvance &&
+    entry.nextEpisode !== null &&
+    isAired(entry.nextEpisode.firstAired, now)
+  );
 }

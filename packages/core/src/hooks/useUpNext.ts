@@ -51,9 +51,12 @@ export interface UpNextView extends QueryStatus {
  * the restored cache, background revalidate) run through the pure `groupUpNext`
  * partition, each item re-joined to its `LibraryEntry` for poster + action. The
  * queue and drawer are sorted per their respective user preferences.
+ *
+ * `enabled` false is the media-visibility branch: a reader who has turned TV
+ * shows off is shown why the screen is empty rather than having it read.
  */
-export function useUpNext(): UpNextView {
-  const { query, data, thresholdMs } = useLibrarySnapshot();
+export function useUpNext(enabled = true): UpNextView {
+  const { query, data, thresholdMs } = useLibrarySnapshot(enabled);
   const order = usePrefs((s) => s.nextEpisodeOrder);
   const lapsedOrder = usePrefs((s) => s.lapsedOrder);
   // Last committed queue order (show ids): a just-marked row is pinned to its

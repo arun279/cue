@@ -52,3 +52,12 @@ export function initialsOf(title: string): string {
     .map((word) => word[0]?.toUpperCase() ?? "")
     .join("");
 }
+
+/** The hue a title's no-artwork plate is tinted with, so both apps derive the
+ * same color for the same show and a placeholder reads as deliberate rather
+ * than as a flat grey void. */
+export function artHue(seed: string): number {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  return hash % 360;
+}

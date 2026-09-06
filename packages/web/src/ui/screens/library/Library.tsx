@@ -1,14 +1,13 @@
-import type { LibraryEntry } from "@cue/core/data/trakt/library";
+import { type LibraryEntry, quickMarkable } from "@cue/core/data/trakt/library";
 import type { MovieEntry } from "@cue/core/data/trakt/movie-library";
 import type { LibrarySort } from "@cue/core/domain/library-buckets";
 import { epCode } from "@cue/core/domain/model/library";
-import { isAired } from "@cue/core/domain/time";
-
 import { useHideShow } from "@cue/core/hooks/useHideShow";
 import { type LibraryChipKey, useLibraryBuckets } from "@cue/core/hooks/useLibraryBuckets";
 import { useMarkWatched } from "@cue/core/hooks/useMarkWatched";
 import { useMovieActions } from "@cue/core/hooks/useMovieActions";
 import { type MovieSort, useMovieLibrary } from "@cue/core/hooks/useMovieLibrary";
+import { useStopSnacks } from "@cue/core/hooks/useStopSnacks";
 import { choicePref } from "@cue/core/prefs/pref-storage";
 import { usePrefs } from "@cue/core/prefs/prefs-store";
 import { dismissSnack, showSnack } from "@cue/core/stores/snackbar-store";
@@ -137,39 +136,7 @@ export function Library(): ReactElement {
     if (filterOpen) filterRef.current?.focus();
   }, [filterOpen]);
 
-  const { undoable: hideUndoable, error: hideError, undo: hideUndo, clearError } = hideShow;
-  useEffect(() => {
-    if (hideError !== null) {
-      showSnack({
-        message: hideError,
-        actions: [
-          {
-            label: "Dismiss",
-            onPress: () => {
-              clearError();
-              dismissSnack();
-            },
-          },
-        ],
-      });
-      return;
-    }
-    if (hideUndoable !== null) {
-      showSnack({
-        message: `${hideUndoable.title} ${hideUndoable.kind === "hide" ? "stopped" : "resumed"}`,
-        actions: [
-          {
-            label: "Undo",
-            testId: "snackbar-undo",
-            onPress: () => {
-              dismissSnack();
-              void hideUndo();
-            },
-          },
-        ],
-      });
-    }
-  }, [hideUndoable, hideError, hideUndo, clearError]);
+  useStopSnacks(hideShow);
 
   const {
     undoable: movieUndoable,
@@ -295,7 +262,7 @@ export function Library(): ReactElement {
     // The expert accelerator rides the exact queue pipeline (optimistic patch,
     // batch snackbar, reverse window) and only offers itself when the next
     // episode is known and aired, never a guessed coordinate.
-    if (!entry.pendingAdvance && next !== null && isAired(next.firstAired, Date.now())) {
+    if (next !== null && quickMarkable(entry, Date.now())) {
       rows.push({
         label: `Mark ${epCode(next.season, next.number)} watched`,
         testId: "quick-mark",

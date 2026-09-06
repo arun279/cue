@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import { create } from "zustand";
 import { UNDO_WINDOW_MS } from "../sync-contract";
 
@@ -8,8 +7,28 @@ interface SnackAction {
   onPress(): void;
 }
 
+/**
+ * A sentence whose subject is emphasized: the app names a show and then says
+ * what happened to it. Which typeface carries the emphasis is each target's own
+ * business, so the store holds the two halves rather than markup. It used to
+ * hold a `<strong>` element, which is a DOM host component and crashes a native
+ * text tree outright.
+ */
+interface SnackSentence {
+  readonly subject: string;
+  /** What happened to the subject, including the space in front of it. */
+  readonly predicate: string;
+}
+
+export type SnackMessage = string | SnackSentence;
+
+/** The message as one line, for an announcement or an assertion. */
+export function snackText(message: SnackMessage): string {
+  return typeof message === "string" ? message : `${message.subject}${message.predicate}`;
+}
+
 export interface SnackInput {
-  readonly message: ReactNode;
+  readonly message: SnackMessage;
   readonly actions?: readonly SnackAction[];
   /** Auto-dismiss horizon; a replacing snack resets it. */
   readonly timeoutMs?: number;
@@ -54,4 +73,40 @@ export function showSnack(input: SnackInput): void {
 
 export function dismissSnack(): void {
   useSnackbar.getState().dismiss();
+}
+
+/**
+ * A failure that speaks once and clears itself when acknowledged. Only failures
+ * speak: a successful action is confirmed by what it did to the screen.
+ */
+export function showFailure(message: string, clear: () => void): void {
+  showSnack({
+    message,
+    actions: [
+      {
+        label: "Dismiss",
+        onPress: () => {
+          clear();
+          dismissSnack();
+        },
+      },
+    ],
+  });
+}
+
+/** An action that has landed and can still be taken back. */
+export function showUndoable(message: SnackMessage, undo: () => void): void {
+  showSnack({
+    message,
+    actions: [
+      {
+        label: "Undo",
+        testId: "snackbar-undo",
+        onPress: () => {
+          dismissSnack();
+          undo();
+        },
+      },
+    ],
+  });
 }
