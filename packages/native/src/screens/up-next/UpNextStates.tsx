@@ -3,7 +3,7 @@ import type { LibraryEntry } from "@cue/core/data/trakt/library";
 import type { UpNextEmptyKind } from "@cue/core/domain/up-next";
 import { readFailureBody } from "@cue/core/sync-contract";
 import { useRouter } from "expo-router";
-import type { ReactElement, ReactNode } from "react";
+import type { ReactElement } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { Button } from "../../ui/Button";
 import { EmptyState } from "../../ui/EmptyState";
@@ -135,22 +135,23 @@ export interface UpNextEmptyProps {
   /** Things the reader already said they wanted: the one place an empty screen
    * has something better to offer than a search field. */
   readonly watchlist: readonly LibraryEntry[];
-  /** "On the way", which is what answers "so when do I get something?" in the
-   * branches where the queue cannot resolve. Null when nothing is coming. */
-  readonly onTheWay: ReactNode;
+  /** Whether "On the way" has anything to say below this. It is what answers
+   * "so when do I get something?", and it is why the caught-up line needs no
+   * second sentence when something is coming. */
+  readonly airingSoon: boolean;
 }
 
 /**
  * The five branches, each aligned to the leading edge, because genuine emptiness
  * reads as success rather than as failure and must not be drawn like an error.
  */
-export function UpNextEmpty({ kind, watchlist, onTheWay }: UpNextEmptyProps): ReactElement {
+export function UpNextEmpty({ kind, watchlist, airingSoon }: UpNextEmptyProps): ReactElement {
   const router = useRouter();
   const copy = EMPTY[kind];
   // The caught-up sentence is only true when nothing is coming. With something
   // on the way the section below is the answer and a second line is noise.
   const body =
-    kind === "caught-up" && onTheWay === null ? "Nothing airing in the next few days." : copy.body;
+    kind === "caught-up" && !airingSoon ? "Nothing airing in the next few days." : copy.body;
 
   return (
     <>
@@ -165,7 +166,6 @@ export function UpNextEmpty({ kind, watchlist, onTheWay }: UpNextEmptyProps): Re
       {kind === "nothing-started" && watchlist.length > 0 ? (
         <WatchlistTiles entries={watchlist} />
       ) : null}
-      {onTheWay}
     </>
   );
 }

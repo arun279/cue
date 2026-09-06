@@ -7,7 +7,7 @@ import { useSyncBanner } from "@cue/core/hooks/useSyncBanner";
 import { type UpNextCard, type UpNextView, useUpNext } from "@cue/core/hooks/useUpNext";
 import { usePrefs } from "@cue/core/prefs/prefs-store";
 import { Stack, useRouter } from "expo-router";
-import { type ReactElement, type ReactNode, useState } from "react";
+import { type ReactElement, useState } from "react";
 import { FlatList, RefreshControl, StyleSheet, View } from "react-native";
 import Animated, { LinearTransition } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -65,7 +65,6 @@ export function UpNext(): ReactElement {
 
   const marquee = view.queue.length >= MARQUEE_MIN_QUEUE ? view.queue[0] : undefined;
   const rows = marquee === undefined ? view.queue : view.queue.slice(1);
-  const onTheWay = onTheWayDays.length === 0 ? null : <OnTheWay days={onTheWayDays} />;
   const branch = branchOf(view, showsEnabled);
 
   return (
@@ -118,19 +117,19 @@ export function UpNext(): ReactElement {
               view={view}
               marquee={marquee}
               mark={mark.controller}
-              onTheWay={onTheWay}
+              airingSoon={onTheWayDays.length > 0}
             />
           </View>
         }
         ListFooterComponent={
-          branch === "queue" ? (
+          SECTIONED.includes(branch) ? (
             <>
               <LapsedDrawer
                 cards={view.lapsedCards}
                 mark={mark.controller}
                 onStop={(card) => stopWatching(stop, card.entry)}
               />
-              {onTheWay}
+              <OnTheWay days={onTheWayDays} />
               <HistoryFooter />
             </>
           ) : null
@@ -148,6 +147,14 @@ export function UpNext(): ReactElement {
  */
 type Branch = "tv-off" | "loading" | "error" | "queue" | UpNextEmptyKind;
 
+/**
+ * The branches that carry the drawer, "On the way" and the History footer under
+ * them. A queue has all three; a reader whose queue cannot resolve still needs
+ * to know when something is coming and where the log is. Every other branch is
+ * one block of type on an otherwise empty screen.
+ */
+const SECTIONED: readonly Branch[] = ["queue", "unresolved", "caught-up"];
+
 function branchOf(view: UpNextView, showsEnabled: boolean): Branch {
   if (!showsEnabled) return "tv-off";
   if (view.isLoading) return "loading";
@@ -164,13 +171,13 @@ function Lead({
   view,
   marquee,
   mark,
-  onTheWay,
+  airingSoon,
 }: {
   readonly branch: Branch;
   readonly view: UpNextView;
   readonly marquee: UpNextCard | undefined;
   readonly mark: MarkWatched;
-  readonly onTheWay: ReactNode;
+  readonly airingSoon: boolean;
 }): ReactElement | null {
   if (branch === "tv-off") return <TvShowsOff />;
   if (branch === "loading") return <UpNextSkeleton />;
@@ -178,7 +185,7 @@ function Lead({
     return <UpNextError failure={view.failure} onRetry={view.refetch} />;
   }
   if (branch !== "queue") {
-    return <UpNextEmpty kind={branch} watchlist={view.watchlistEntries} onTheWay={onTheWay} />;
+    return <UpNextEmpty kind={branch} watchlist={view.watchlistEntries} airingSoon={airingSoon} />;
   }
   return marquee === undefined ? null : <MarqueeCard card={marquee} mark={mark} />;
 }
