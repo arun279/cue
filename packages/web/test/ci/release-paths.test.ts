@@ -63,6 +63,7 @@ const DOES_NOT_SHIP = [
   "packages/*/vitest.config.ts",
   "packages/*/jest.config.js",
   "packages/*/__tests__/**",
+  "packages/*/.maestro/**",
   "packages/*/.gitignore",
   "packages/*/.env.example",
   "packages/*/.env.test",
