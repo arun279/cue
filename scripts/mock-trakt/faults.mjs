@@ -11,21 +11,33 @@
  * A rule:
  *   match     "reads" (GET) | "writes" (POST) | "all"        default "all"
  *   path      regex source, matched against the pathname      default any
+ *   query     regex source, matched against the query string  default any
  *   status    answer with this status instead of routing      e.g. 429, 503
  *   retryAfter  seconds, sent as `Retry-After`
  *   delayMs   wait this long before answering
  *   hold      accept the request and never answer it
  *   drop      destroy the socket without a response
+ *   after     let this many matching requests through first
  *   count     apply to at most this many matching requests
  *   forMs     apply for this long after the rule is armed
  *
  * `{ match: "writes", status: 200 }` is the swallowed write: Trakt answers OK
  * and the account never changes, which is what the write queue's reconcile is
  * for. A rule with neither `count` nor `forMs` stands until it is cleared.
+ *
+ * The named profiles below are the same failures spelled once, so a browser
+ * flow and a simulator flow arm an identical Trakt through `POST /__fault?<name>`
+ * and their write journals stay comparable.
  */
 
 const METHOD_OF = { reads: "GET", writes: "POST" };
 
+/**
+ * One pending episode mark, in the shape `buildMarkEpisodeOp` serializes, for a
+ * harness to put into its own durable queue before the app boots. The mock
+ * cannot import the core to build it, so `mock-trakt.test.ts` asserts this
+ * against the real builder.
+ */
 const DURABLE_OP_LOG = [
   {
     id: "e2e-pending-880100",
@@ -77,7 +89,7 @@ const faultProfiles = {
   "seed-op-log": { rules: [], opLog: DURABLE_OP_LOG },
 };
 
-export const FAULT_PROFILE_NAMES = Object.freeze(Object.keys(faultProfiles));
+export const FAULT_PROFILE_NAMES = Object.keys(faultProfiles);
 
 function armed(rule, now) {
   return {

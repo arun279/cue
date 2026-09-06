@@ -32,6 +32,7 @@ import {
 import { loadUpNextEntries } from "@cue/core/data/trakt/read-budget";
 import { groupUpNext } from "@cue/core/domain/up-next";
 import { DEFAULT_STALENESS_THRESHOLD_MS } from "@cue/core/domain/watch-status";
+import { buildMarkEpisodeOp } from "@cue/core/domain/write-queue/ops";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { createMockTrakt } from "../../../../scripts/mock-trakt/server.mjs";
 
@@ -297,17 +298,20 @@ describe("fault profiles", () => {
     expect((await fetch(`${baseUrl}/users/me/history?page=2`)).status).toBe(200);
   });
 
-  it("provides a durable operation log until reset", async () => {
+  // The mock is plain Node with no build step, so its op-log is a literal. It is
+  // only worth seeding if it is what the app's own builder would have written.
+  it("seeds an operation log the write queue would replay, until reset", async () => {
     const armed = await (await armFault("seed-op-log")).json();
     expect(armed.opLog).toEqual([
-      expect.objectContaining({
-        itemKey: "episode:880100",
-        request: expect.objectContaining({ path: "/sync/history" }),
+      buildMarkEpisodeOp({
+        opId: "e2e-pending-880100",
+        ids: { trakt: 880100 },
+        watchedAt: "2026-01-01T00:00:00.000Z",
+        inversePatch: { showId: 8801, preCompleted: 20 },
       }),
     ]);
-    expect(await (await fetch(`${baseUrl}/__fault`)).json()).toHaveProperty("opLog");
     await fetch(`${baseUrl}/__reset`, { method: "POST" });
-    expect(await (await fetch(`${baseUrl}/__fault`)).json()).not.toHaveProperty("opLog");
+    expect((await (await fetch(`${baseUrl}/__fault`)).json()).opLog).toEqual([]);
   });
 });
 

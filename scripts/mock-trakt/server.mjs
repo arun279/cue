@@ -23,13 +23,13 @@ import {
   calendarBody,
   createSeedLibrary,
   episodeDetailBody,
-  hasSeedProfile,
   hiddenBody,
   historyRows,
   itemPlaysBody,
   lastActivitiesBody,
   movieDetailBody,
   progressBody,
+  SEED_PROFILE_NAMES,
   seasonsBody,
   showDetailBody,
   userSettingsBody,
@@ -348,42 +348,44 @@ async function stall(fault, request) {
 }
 
 /**
- * The harness control plane, on the mock's own origin under a `__` prefix that no
- * Trakt path can collide with. `/__fault`: POST arms a rule (or
- * `{ rules: [...] }`), GET reports what is armed, DELETE clears. `/__reset`:
- * POST puts the account back to the seed, for a flow whose assertions are about
- * what is IN the account rather than about the order the flows ran in.
+ * POST puts the account back to a seed, for a flow whose assertions are about
+ * what is IN the account rather than about the order the flows ran in. `?seed=`
+ * names one of the profiles in `seed.mjs`; without it the account goes back to
+ * the default eight shows and three movies. It is the one control that returns
+ * the whole mock to a known state, so it disarms any faults with it.
  */
-function resetRoute(reset, method, url, body) {
+function resetRoute(reset, method, url) {
   if (method !== "POST") return notFound(`no control route for ${method} ${url.pathname}`);
-  const seed = url.searchParams.get("seed") ?? body.seed ?? "default";
+  const seed = url.searchParams.get("seed") ?? "default";
   if (!reset(seed)) return notFound(`no seed profile ${seed}`);
-  return json(seed === "default" ? { reset: true } : { reset: true, seed });
+  return json({ reset: true });
 }
 
+/**
+ * POST arms a rule (or `{ rules: [...] }`), or the named profile a `?<name>`
+ * query flag selects, and answers with the durable op-log that profile seeds.
+ * GET reports what is armed, DELETE clears.
+ */
 function faultRoute(faults, method, url, body) {
   if (method === "POST") {
     const profile = FAULT_PROFILE_NAMES.find((name) => url.searchParams.has(name));
     if (profile === undefined) return json({ armed: faults.arm(body) });
-    const armed = faults.armProfile(profile);
-    const opLog = faults.opLog();
-    return json(opLog.length === 0 ? { armed, profile } : { armed, profile, opLog });
+    return json({ armed: faults.armProfile(profile), profile, opLog: faults.opLog() });
   }
   if (method === "DELETE") {
     faults.clear();
     return json({ armed: 0 });
   }
-  if (method === "GET") {
-    const opLog = faults.opLog();
-    return json(
-      opLog.length === 0 ? { rules: faults.describe() } : { rules: faults.describe(), opLog },
-    );
-  }
+  if (method === "GET") return json({ rules: faults.describe(), opLog: faults.opLog() });
   return notFound(`no control route for ${method} ${url.pathname}`);
 }
 
+/**
+ * The harness control plane, on the mock's own origin under a `__` prefix that
+ * no Trakt path can collide with.
+ */
 function controlRoute(faults, reset, method, url, body) {
-  if (url.pathname === "/__reset") return resetRoute(reset, method, url, body);
+  if (url.pathname === "/__reset") return resetRoute(reset, method, url);
   if (url.pathname === "/__fault") return faultRoute(faults, method, url, body);
   return null;
 }
@@ -438,7 +440,7 @@ export function createMockTrakt({
     const control = controlRoute(
       faults,
       (seed) => {
-        if (!hasSeedProfile(seed)) return false;
+        if (!SEED_PROFILE_NAMES.includes(seed)) return false;
         library = createSeedLibrary(seed);
         faults.clear();
         return true;

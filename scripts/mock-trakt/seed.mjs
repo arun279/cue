@@ -267,6 +267,10 @@ export function createLibrary(now = Date.now()) {
       watchedAt: spec.lastWatchedDaysAgo === null ? null : now - spec.lastWatchedDaysAgo * DAY,
     })),
     user: { username: "cue-demo", name: "Cue Demo", slug: "cue-demo" },
+    /** Second plays, by episode and by movie trakt id: a seed profile's only
+     * way to say an item was watched twice. */
+    rewatchedEpisodes: new Map(),
+    rewatchedMovies: new Map(),
     activities: {
       episodes: now - DAY,
       shows: now - DAY,
@@ -302,19 +306,17 @@ const seedProfiles = {
     for (const movie of library.movies) movie.watchedAt = null;
   },
   "rewatched-episode": (library) => {
-    const episode = library.shows[0].episodes[0];
-    library.rewatchedEpisodes = new Map([[episode.traktId, library.now - Math.floor(DAY / 2)]]);
+    library.rewatchedEpisodes.set(library.shows[0].episodes[0].traktId, library.now - DAY / 2);
   },
   "rewatched-movie": (library) => {
-    const movie = library.movies[0];
-    library.rewatchedMovies = new Map([[movie.trakt, library.now - Math.floor(DAY / 2)]]);
+    library.rewatchedMovies.set(library.movies[0].trakt, library.now - DAY / 2);
   },
 };
 
-export const hasSeedProfile = (profile) => Object.hasOwn(seedProfiles, profile);
+export const SEED_PROFILE_NAMES = Object.keys(seedProfiles);
 
+/** The seeded account under one of the profiles named above. */
 export function createSeedLibrary(profile = "default", now = Date.now()) {
-  if (!hasSeedProfile(profile)) throw new Error(`Unknown seed profile: ${profile}`);
   const library = createLibrary(now);
   seedProfiles[profile](library);
   return library;
@@ -410,7 +412,7 @@ function watchedSeasons(show, library) {
   const bySeason = new Map();
   show.episodes.slice(0, show.completed).forEach((ep, index) => {
     const episodes = bySeason.get(ep.season) ?? [];
-    const rewatchedAt = library.rewatchedEpisodes?.get(ep.traktId);
+    const rewatchedAt = library.rewatchedEpisodes.get(ep.traktId);
     episodes.push({
       number: ep.number,
       plays: rewatchedAt === undefined ? 1 : 2,
@@ -449,12 +451,15 @@ export function watchedShowsBody(library, extended) {
 export function watchedMoviesBody(library, origin, extended) {
   return library.movies
     .filter((movie) => movie.watchedAt !== null)
-    .map((movie) => ({
-      plays: library.rewatchedMovies?.has(movie.trakt) === true ? 2 : 1,
-      last_watched_at: iso(library.rewatchedMovies?.get(movie.trakt) ?? movie.watchedAt),
-      last_updated_at: iso(library.rewatchedMovies?.get(movie.trakt) ?? movie.watchedAt),
-      movie: movieRef(movie, origin, extended),
-    }));
+    .map((movie) => {
+      const rewatchedAt = library.rewatchedMovies.get(movie.trakt);
+      return {
+        plays: rewatchedAt === undefined ? 1 : 2,
+        last_watched_at: iso(rewatchedAt ?? movie.watchedAt),
+        last_updated_at: iso(rewatchedAt ?? movie.watchedAt),
+        movie: movieRef(movie, origin, extended),
+      };
+    });
 }
 
 /**
@@ -575,7 +580,7 @@ export function historyRows(library, origin, extended, section) {
           episode: episodeRef(ep, origin, extended),
           show: showRef(show, origin, extended),
         });
-        const rewatchedAt = library.rewatchedEpisodes?.get(ep.traktId);
+        const rewatchedAt = library.rewatchedEpisodes.get(ep.traktId);
         if (rewatchedAt !== undefined) {
           rows.push({
             id: playId(ep.traktId, 2),
@@ -599,7 +604,7 @@ export function historyRows(library, origin, extended, section) {
         type: "movie",
         movie: movieRef(movie, origin, extended),
       });
-      const rewatchedAt = library.rewatchedMovies?.get(movie.trakt);
+      const rewatchedAt = library.rewatchedMovies.get(movie.trakt);
       if (rewatchedAt !== undefined) {
         rows.push({
           id: playId(movie.trakt, 2),
