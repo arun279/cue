@@ -46,16 +46,26 @@ if (nativeSuppressions !== 0) {
     `cognitive complexity suppressions under packages/native/src: ${nativeSuppressions}, budget 0`,
   );
 }
-if (suppressions > budget.cognitiveComplexitySuppressions) {
+// Equality, not a ceiling: a ceiling above the measurement lets a commit raise
+// the budget instead of the debt and stay green, which is the one edit this
+// file exists to make visible.
+const ratchet = (label, measured, recorded, site = "") => {
+  if (measured === recorded) return;
+  const where = site === "" ? "" : ` (${site})`;
   throw new Error(
-    `cognitive complexity suppressions: ${suppressions}, budget ${budget.cognitiveComplexitySuppressions}`,
+    measured > recorded
+      ? `${label}: ${measured}, budget ${recorded}${where}`
+      : `${label}: ${measured}, budget ${recorded} is stale; record ${measured}${where}`,
   );
-}
-if (complexity.max > budget.worstCognitiveComplexity) {
-  throw new Error(
-    `worst cognitive complexity: ${complexity.max}, budget ${budget.worstCognitiveComplexity} (${complexity.maxSite})`,
-  );
-}
+};
+
+ratchet("cognitive complexity suppressions", suppressions, budget.cognitiveComplexitySuppressions);
+ratchet(
+  "worst cognitive complexity",
+  complexity.max,
+  budget.worstCognitiveComplexity,
+  complexity.maxSite,
+);
 
 process.stdout.write(
   `quality budget: ${suppressions} cognitive complexity suppressions, worst complexity ${complexity.max}\n`,
