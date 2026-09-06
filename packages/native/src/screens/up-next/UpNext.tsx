@@ -74,6 +74,13 @@ export function UpNext(): ReactElement {
         options={{
           title: "Up Next",
           headerLargeTitle: true,
+          // Both appearances take the page's own fill. At the scroll edge that
+          // reads as no background under the large title; once scrolled it is
+          // the opaque bar a screen with poster artwork under it has to have,
+          // because the platform's material samples what passes beneath and
+          // flips the whole bar to the light appearance over bright artwork.
+          headerStyle: { backgroundColor: colors.bg },
+          headerLargeStyle: { backgroundColor: colors.bg },
           headerRight: () => <UpNextBarItems onSync={refresh.sync} />,
         }}
       />
