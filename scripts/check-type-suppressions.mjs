@@ -10,17 +10,15 @@ const result = spawnSync(
     "-nE",
     "@ts-(expect-error|ignore)",
     "--",
-    ":(glob)packages/*/src/**",
-    ":(glob)packages/*/test/**",
+    ":(glob)packages/**/*.ts",
+    ":(glob)packages/**/*.tsx",
   ],
   { cwd: root, encoding: "utf8" },
 );
 
 if (result.status === 0) {
   process.stderr.write(result.stdout);
-  throw new Error(
-    "TypeScript suppressions are not allowed under packages/*/src or packages/*/test",
-  );
+  throw new Error("TypeScript suppressions are not allowed under packages");
 }
 if (result.status !== 1) throw new Error(result.stderr.trim());
 
