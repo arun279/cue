@@ -4,7 +4,8 @@
   "workspaces": {
     ".": {
       "entry": ["scripts/*.mjs", "scripts/mock-trakt/*.mjs"],
-      "project": ["scripts/**/*.mjs", "*.ts"]
+      "project": ["scripts/**/*.mjs", "*.ts"],
+      "ignoreDependencies": ["expo-atlas"]
     },
     "packages/core": {
       "project": ["src/**/*.ts"],

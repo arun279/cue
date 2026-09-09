@@ -63,14 +63,8 @@ import type {
 import { PendingWritesError, type TeardownOptions } from "./session";
 
 const OP_LOG_KEY = "cue.write-queue";
-/** The persisted `/sync/last_activities` baseline the freshness gate diffs against. */
 const ACTIVITIES_KEY = "cue.last-activities";
 
-/**
- * The op's `inversePatch` read as a reconcile anchor: a `mark`/bulk write pivots
- * on Trakt's `completed` (default `kind`, as the `MarkContext` serializes); a
- * `hidden` write pivots on hidden-set membership.
- */
 type ReconcileContext =
   | { readonly kind?: "mark"; readonly showId: number; readonly preCompleted: number }
   | { readonly kind: "hidden"; readonly showId: number }
@@ -85,40 +79,100 @@ type ReconcileContext =
 export interface RuntimeDeps {
   readonly token: Token;
   readonly kv: KeyValueStore;
-  /** Where a rotated token is persisted so it survives reload. */
   readonly tokenStore: TokenStore;
   /** `${origin}/auth/callback` on the web, the registered scheme on a device:
    * the PKCE refresh grant echoes it back, so it travels on every refresh and
    * not only on first sign-in. */
   readonly redirectUri: string;
-  /** Cue's public Trakt client id. Each app reads it from its own build
-   * environment, so nothing here reads an environment at all. */
   readonly clientId: string;
   /** The fake Trakt's origin under `--mode mock`, undefined in every real build. */
   readonly apiBaseUrl?: string | undefined;
   readonly browser: boolean;
-  /** Called when the refresh token is dead: clears the session → onboarding. */
   readonly endSession: () => Promise<void>;
-  /** Drop this device's query cache, live and persisted. One dependency rather
-   * than a QueryClient and a persister, because teardown calls exactly one
-   * method on each. */
   readonly clearPersistedCaches: () => Promise<void>;
-  /** Drop this device's `cue.`-prefixed preferences at sign-out. */
   readonly clearLocalPreferences: () => void;
 }
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
-/**
- * Build the composition-root services the UI runs on. Wires an
- * authenticated Trakt client, the durable write-queue (dispatch = transport, reconcile = a progress re-read, never a blind re-POST), restores
- * and replays the persisted op-log on boot, and exposes the persisted-SWR read.
- */
+async function reconcileHidden(
+  client: TraktClient,
+  op: QueuedOp,
+  context: Extract<ReconcileContext, { readonly kind: "hidden" }>,
+): Promise<boolean> {
+  const hidden = await getHidden(client);
+  if (!hidden.ok) throw new Error("reconcile read failed");
+  const isHidden = showIdSet(hidden.data).has(context.showId);
+  return op.toState === "present" ? isHidden : !isHidden;
+}
+
+async function reconcileMovie(
+  client: TraktClient,
+  op: QueuedOp,
+  context: Extract<ReconcileContext, { readonly kind: "movie" }>,
+): Promise<boolean> {
+  const watched = await getWatchedMovies(client);
+  if (!watched.ok) throw new Error("reconcile read failed");
+  const isWatched = watched.data.some((row) => row.movie.ids.trakt === context.movieId);
+  return op.toState === "present" ? isWatched : !isWatched;
+}
+
+async function reconcileAdditiveEpisode(
+  client: TraktClient,
+  op: QueuedOp,
+  context: Extract<ReconcileContext, { readonly kind: "additive-episode" }>,
+): Promise<boolean> {
+  if (op.watchedAt === null) return false;
+  const result = await getItemPlays(client, "episodes", context.episodeTrakt);
+  if (!result.ok) throw new Error("reconcile read failed");
+  return additiveLanded(
+    assembleEpisodePlays(result.data),
+    { episodeTrakt: context.episodeTrakt },
+    op.watchedAt,
+  );
+}
+
+async function reconcileAdditiveSeason(
+  client: TraktClient,
+  op: QueuedOp,
+  context: Extract<ReconcileContext, { readonly kind: "additive-season" }>,
+): Promise<boolean> {
+  if (op.watchedAt === null) return false;
+  const result = await getItemPlays(client, "shows", context.showId);
+  if (!result.ok) throw new Error("reconcile read failed");
+  return additiveLanded(assembleEpisodePlays(result.data), context.probe, op.watchedAt);
+}
+
+async function reconcileMark(
+  client: TraktClient,
+  op: QueuedOp,
+  context: Extract<ReconcileContext, { readonly kind?: "mark" }>,
+): Promise<boolean> {
+  const result = await getShowProgress(client, context.showId);
+  if (!result.ok) throw new Error("reconcile read failed");
+  return markLanded(op.toState, context.preCompleted, result.data.completed);
+}
+
+function createReconcile(client: TraktClient): (op: QueuedOp) => Promise<boolean> {
+  return async (op) => {
+    const context = op.inversePatch as ReconcileContext | null;
+    if (context === null || typeof context !== "object") return false;
+    switch (context.kind) {
+      case "hidden":
+        return reconcileHidden(client, op, context);
+      case "movie":
+        return reconcileMovie(client, op, context);
+      case "additive-episode":
+        return reconcileAdditiveEpisode(client, op, context);
+      case "additive-season":
+        return reconcileAdditiveSeason(client, op, context);
+      default:
+        return reconcileMark(client, op, context);
+    }
+  };
+}
+
 export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
-  // One authenticated transport for every Trakt call: refreshes proactively past
-  // expiry, refresh-and-retries a 401'd read, persists the rotation, and ends the
-  // session on a dead refresh token. A single-flight refresh means a burst
-  // of 401s shares one `/oauth/token` exchange.
   const authorized = createAuthorizedFetch({
     inner: (input, init) => globalThis.fetch(input, init),
     token: deps.token,
@@ -138,55 +192,18 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     browser: deps.browser,
   });
 
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Reconciles each queued operation kind against its distinct authoritative Trakt read and landing condition.
-  const reconcile = async (op: QueuedOp): Promise<boolean> => {
-    const context = op.inversePatch as ReconcileContext | null;
-    if (context === null || typeof context !== "object") return false;
-    // Hide/unhide land in the hidden set; a mark or bulk-season write advances
-    // Trakt's `completed`. Either lets reconcile retire an already-applied op
-    // whose response was lost, instead of a duplicate-play re-POST.
-    if (context.kind === "hidden") {
-      const hidden = await getHidden(client);
-      if (!hidden.ok) throw new Error("reconcile read failed");
-      const isHidden = showIdSet(hidden.data).has(context.showId);
-      return op.toState === "present" ? isHidden : !isHidden;
-    }
-    // A movie mark/unwatch pivots on watched-movie membership, read fresh from
-    // `/sync/watched/movies`: the movie analogue of the hidden-set reconcile.
-    if (context.kind === "movie") {
-      const watched = await getWatchedMovies(client);
-      if (!watched.ok) throw new Error("reconcile read failed");
-      const isWatched = watched.data.some((row) => row.movie.ids.trakt === context.movieId);
-      return op.toState === "present" ? isWatched : !isWatched;
-    }
-    if (context.kind === "additive-episode") {
-      if (op.watchedAt === null) return false;
-      const result = await getItemPlays(client, "episodes", context.episodeTrakt);
-      if (!result.ok) throw new Error("reconcile read failed");
-      return additiveLanded(
-        assembleEpisodePlays(result.data),
-        { episodeTrakt: context.episodeTrakt },
-        op.watchedAt,
-      );
-    }
-    if (context.kind === "additive-season") {
-      if (op.watchedAt === null) return false;
-      const result = await getItemPlays(client, "shows", context.showId);
-      if (!result.ok) throw new Error("reconcile read failed");
-      return additiveLanded(assembleEpisodePlays(result.data), context.probe, op.watchedAt);
-    }
-    const result = await getShowProgress(client, context.showId);
-    if (!result.ok) throw new Error("reconcile read failed");
-    return markLanded(op.toState, context.preCompleted, result.data.completed);
-  };
-
   const opLogStore = createJsonStore<QueuedOp[]>(deps.kv, OP_LOG_KEY, (value) =>
     Array.isArray(value) ? (value as QueuedOp[]) : [],
   );
   const activitiesStore = createJsonStore<LastActivities>(deps.kv, ACTIVITIES_KEY);
 
   const queue = new WriteQueue(
-    { dispatch: createTraktTransport(client), sleep, now: Date.now, reconcile },
+    {
+      dispatch: createTraktTransport(client),
+      sleep,
+      now: Date.now,
+      reconcile: createReconcile(client),
+    },
     (await opLogStore.read()) ?? [],
   );
 
@@ -196,9 +213,6 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
   const readActivitiesSnapshot = async (): Promise<LastActivities | undefined> =>
     (await activitiesStore.read()) ?? undefined;
 
-  // Replay durable work from a prior session before accepting new writes: retire
-  // ops Trakt already reflects, then flush the rest. This is the reload-survival
-  // path the hermetic e2e exercises.
   await queue.startupReconcile();
   await persistLog();
   void queue.flush().then(persistLog);
@@ -210,30 +224,14 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
 
   return {
     async loadUpNext(): Promise<UpNextData> {
-      // The bounded cold-sync read: the paginated watched list (every show's aired +
-      // watched counts) + per-show progress for the bounded head that still has a
-      // next episode to resolve + hidden + watchlist. No per-show art fan-out:
-      // poster/backdrop are deferred to a lazy per-visible-card read (`loadShowArt`),
-      // so the GET count stays bounded instead of ~2× library size.
       return { entries: await loadUpNextEntries(client) };
     },
 
     async loadShowInfo(showId) {
-      // The app's ONE `/shows/:id` read. Deferred out of the cold-sync budget: the
-      // `/sync/watched/shows` list carries no `images`, so a show card lazily reads
-      // its own facts once it settles on screen, one GET per card looked at, cached
-      // by trakt id, never the whole library up front. Opening that show reuses the
-      // same cache entry for its hero. It goes through the shared read gate like
-      // every other read, so a scrolled list can neither exceed the concurrency
-      // pool nor fire into a window a 429 just closed.
       return assembleShowInfo(unwrapRead(await getShow(client, showId), "show"));
     },
 
     async loadMovieLibrary(): Promise<MovieLibraryData> {
-      // Both reads carry `images` (watched via `getWatchedMovies`, watchlist via
-      // `getWatchlist`), so watched + watchlist movies supply their own poster art,
-      // no per-movie detail fetch needed. Each absorbs a transient 429 so a
-      // rate-limit doesn't flip the library to Offline over its cached posters.
       const [watched, watchlist] = await Promise.all([
         getWatchedMovies(client),
         getWatchlist(client, "movies"),
@@ -306,10 +304,6 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     },
 
     async loadHistory(section, page, range): Promise<HistoryPageData> {
-      // A single page only: history is unbounded, so the infinite query walks it
-      // one page at a time. A transient 429 is absorbed so a rate-limit mid-scroll
-      // doesn't flip the Diary to error over its cached pages. `range` scopes the
-      // read to a year/month window (the decade jump).
       const result = await getHistory(client, section, page, range);
       const entries = assembleHistoryEntries(unwrapRead(result, "history"));
       const pagination = result.ok ? result.pagination : null;
@@ -321,9 +315,6 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     },
 
     async loadShowPlays(showId) {
-      // On-demand, user-initiated (a durable Unmark) so a full paged walk of the
-      // show's plays is acceptable; a transient 429 is absorbed rather than failing
-      // the unmark outright.
       const result = await getItemPlays(client, "shows", showId);
       return assembleEpisodePlays(unwrapRead(result, "show history"));
     },
@@ -402,18 +393,10 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       try {
         poll = await activitiesRepo.poll(stored);
       } catch {
-        // A malformed/absent body (schema throw) is a failed freshness check:
-        // stay silent rather than surface it. The next poll retries.
         return null;
       }
-      // Offline / rate-limited: the check itself failed, so report nothing to
-      // invalidate and don't advance the baseline. Cached data keeps showing.
       if (!poll.ok) return null;
       const fresh = poll.activities;
-      // First poll (no baseline): establish the baseline WITHOUT invalidating.
-      // Cold-boot queries load naturally and a restored cache is trusted until a
-      // real diffed change; the snapshot persists alongside the query cache in
-      // normal operation, so a genuine warm reload always has a baseline to diff.
       const keys = stored === undefined ? [] : invalidationKeys(poll.targets);
       return {
         keys,
@@ -425,31 +408,20 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       if (tearingDown) return;
       tearingDown = true;
       try {
-        // Flush best-effort while the token is still valid so pending writes land
-        // before we drop the durable log; a flush failure (offline) falls through
-        // to the drain check below rather than stranding the disconnect.
-        try {
-          await queue.flush();
-        } catch {
-          // offline / transient: the size check decides whether we may clear
-        }
+        await queue.flush().catch(() => undefined);
         await persistLog();
-        // A normal disconnect that couldn't drain the queue must NOT drop the
-        // op-log (that loses the user's writes) nor keep it across sign-out (it
-        // could replay under a different account): so refuse and let the user
-        // reconnect + retry. The dead-token path forces past this: those writes
-        // can never be sent, and clearing is what prevents the cross-account
-        // replay.
+        // A disconnect that could not drain the queue must neither drop the
+        // op-log, which loses the user's writes, nor carry it across sign-out,
+        // where it would replay under the next account. The dead-token path
+        // forces past this: those writes can never be sent, and clearing is what
+        // prevents the cross-account replay.
         if (options.force !== true && queue.size > 0) throw new PendingWritesError();
-        // Clear this device's per-account state so the next account never paints
-        // stale data or dispatches a leftover op. Preferences go last, and the
-        // order is the point: they are device-local rather than account-scoped,
-        // so a storage that refuses the preference clear (a locked-down browser,
-        // a full device) leaves a theme behind rather than the op log that would
-        // replay under the next account.
         await opLogStore.clear();
         await activitiesStore.clear();
         await deps.clearPersistedCaches();
+        // Preferences go last because they are device-local rather than
+        // account-scoped: a storage that refuses this clear leaves a theme
+        // behind rather than the op log that would replay under the next account.
         deps.clearLocalPreferences();
       } finally {
         tearingDown = false;

@@ -10,17 +10,12 @@ export interface UpNextItem {
   readonly backlog: number;
 }
 
-/**
- * The honest partition of the tonight list: `queue` (in-progress with an aired
- * unwatched next, plus any just-marked show still carrying its provisional next
- * projection) and `lapsed` (in-progress but idle past the threshold: the soft
- * drawer at the bottom). Both come unordered; the presentation layer sorts each
- * by its own user preference.
- */
 export interface UpNextGroups {
   readonly queue: UpNextItem[];
   readonly lapsed: UpNextItem[];
 }
+
+type UpNextGroup = keyof UpNextGroups;
 
 /** The states with nothing to queue: hidden, never started, or a finished run. */
 const NOTHING_TO_QUEUE: ReadonlySet<WatchStatus> = new Set(["abandoned", "not-started", "ended"]);
@@ -37,6 +32,28 @@ function hasSomethingToWatch(show: LibraryShow, status: WatchStatus, now: number
   return airedMs !== null && airedMs <= now;
 }
 
+function classifyUpNextShow(
+  show: LibraryShow,
+  now: number,
+  thresholdMs: number,
+): UpNextGroup | null {
+  const status = computeWatchStatus(show, now, thresholdMs);
+  if (NOTHING_TO_QUEUE.has(status)) return null;
+  if (show.pendingAdvance) return "queue";
+  if (!hasSomethingToWatch(show, status, now)) return null;
+  return status === "lapsed" ? "lapsed" : "queue";
+}
+
+function toUpNextItem(show: LibraryShow): UpNextItem {
+  return {
+    showId: show.showId,
+    title: show.title,
+    episode: show.nextEpisode,
+    lastWatchedAt: show.lastWatchedAt,
+    backlog: Math.max(0, show.aired - show.completed),
+  };
+}
+
 /**
  * Partition in-progress shows for Up Next on verifiable facts only: no taste,
  * popularity, or "for you" ranking. Shows in a state with no next to queue
@@ -50,31 +67,21 @@ function hasSomethingToWatch(show: LibraryShow, status: WatchStatus, now: number
  * unknown) or, past the aired run, not knowable at all, and either way the row
  * belongs where the reader left it rather than vanishing under the finger that
  * marked it.
+ *
+ * Both groups come unordered; the presentation layer sorts each by its own user
+ * preference.
  */
 export function groupUpNext(
   shows: readonly LibraryShow[],
   now: number,
   thresholdMs: number,
 ): UpNextGroups {
-  const queue: UpNextItem[] = [];
-  const lapsed: UpNextItem[] = [];
-
+  const groups: UpNextGroups = { queue: [], lapsed: [] };
   for (const show of shows) {
-    const status = computeWatchStatus(show, now, thresholdMs);
-    if (NOTHING_TO_QUEUE.has(status)) continue;
-    if (!show.pendingAdvance && !hasSomethingToWatch(show, status, now)) continue;
-    const item: UpNextItem = {
-      showId: show.showId,
-      title: show.title,
-      episode: show.nextEpisode,
-      lastWatchedAt: show.lastWatchedAt,
-      backlog: Math.max(0, show.aired - show.completed),
-    };
-    if (!show.pendingAdvance && status === "lapsed") lapsed.push(item);
-    else queue.push(item);
+    const group = classifyUpNextShow(show, now, thresholdMs);
+    if (group !== null) groups[group].push(toUpNextItem(show));
   }
-
-  return { queue, lapsed };
+  return groups;
 }
 
 /** Which of the five honest empty screens Up Next owes a library with no queue. */

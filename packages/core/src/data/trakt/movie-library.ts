@@ -1,12 +1,6 @@
 import type { MovieIds } from "../../domain/model/ids";
 import type { MovieDetailData, WatchedMovie, WatchlistItem } from "./schemas";
 
-/**
- * One movie in the Library movie collection: merged from `/sync/watched/movies`
- * (watched + `watchedAt`) and `/sync/watchlist/movies` (membership). Unlike a
- * show there is no per-episode progress, a movie is watched or not, so the
- * shelf card renders a poster, title, year and its watched/watchlist state.
- */
 export interface MovieEntry {
   readonly movieId: number;
   readonly ids: MovieIds;
@@ -16,18 +10,15 @@ export interface MovieEntry {
   readonly watchedAt: string | null;
   readonly inWatchlist: boolean;
   /**
-   * When the movie was added to the watchlist (`/sync/watchlist/movies`'
-   * `listed_at`), or `null` for a watched movie that was never watchlisted. This
-   * is the movie-native queue order: a film has no "next episode", so "recently
-   * added" is the honest ordering for the Watchlist (the movie's Up Next). Absent
-   * on a cache persisted before this field existed; ordering degrades to title.
+   * The movie-native queue order: a film has no next episode, so the
+   * watchlist's `listed_at` is the honest one. Absent on a cache persisted
+   * before this field existed, where ordering degrades to title.
    */
   readonly listedAt: string | null;
   readonly posters: readonly string[];
   readonly tmdbId: number | null;
 }
 
-/** The Movie detail hero model, sourced from `/movies/:id?extended=full,images`. */
 export interface MovieHeader {
   readonly movieId: number;
   readonly ids: MovieIds;
@@ -61,65 +52,69 @@ export function toMovieIds(ids: {
   };
 }
 
-/**
- * Merge watched movies with the movie watchlist into the `MovieEntry[]` the
- * Library movie shelves and the Movie detail flags derive from. A watchlisted
- * movie that has never been watched has no `/sync/watched/movies` row, so it is
- * materialized here as an unwatched, watchlist-only entry (mirroring the show
- * library's watchlist-only handling): otherwise it would vanish from the
- * Watchlist shelf after a refetch.
- */
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Merges watched and watchlist movie sources while preserving ordering and watchlist-only entries.
-export function assembleMovieLibrary(input: MovieLibraryInput): MovieEntry[] {
-  // trakt id → its watchlist `listed_at` (the add time), so a watched movie that
-  // is also watchlisted still carries the queue order, and a watchlist-only movie
-  // sorts by when it was queued.
-  const listedAt = new Map<number, string | null>();
-  for (const item of input.watchlistMovies) {
-    if (item.movie !== undefined) listedAt.set(item.movie.ids.trakt, item.listed_at ?? null);
-  }
+type SchemaMovie = NonNullable<WatchlistItem["movie"]>;
 
-  const entries: MovieEntry[] = [];
-  const seen = new Set<number>();
-  for (const watched of input.watchedMovies) {
-    const { movie } = watched;
-    const trakt = movie.ids.trakt;
-    seen.add(trakt);
-    entries.push({
-      movieId: trakt,
-      ids: toMovieIds(movie.ids),
-      title: movie.title,
-      year: movie.year ?? null,
-      watched: true,
-      watchedAt: watched.last_watched_at ?? null,
-      inWatchlist: listedAt.has(trakt),
-      listedAt: listedAt.get(trakt) ?? null,
-      posters: movie.images?.poster ?? [],
-      tmdbId: movie.ids.tmdb ?? null,
-    });
-  }
-
-  for (const item of input.watchlistMovies) {
-    const movie = item.movie;
-    if (movie === undefined || seen.has(movie.ids.trakt)) continue;
-    seen.add(movie.ids.trakt);
-    entries.push({
-      movieId: movie.ids.trakt,
-      ids: toMovieIds(movie.ids),
-      title: movie.title,
-      year: movie.year ?? null,
-      watched: false,
-      watchedAt: null,
-      inWatchlist: true,
-      listedAt: item.listed_at ?? null,
-      posters: movie.images?.poster ?? [],
-      tmdbId: movie.ids.tmdb ?? null,
-    });
-  }
-  return entries;
+interface WatchlistMovie {
+  readonly movie: SchemaMovie;
+  readonly listedAt: string | null;
 }
 
-/** Map the extended movie payload to the Movie detail hero model. */
+function toWatchedMovieEntry(
+  watched: WatchedMovie,
+  watchlist: WatchlistMovie | undefined,
+): MovieEntry {
+  const { movie } = watched;
+  return {
+    movieId: movie.ids.trakt,
+    ids: toMovieIds(movie.ids),
+    title: movie.title,
+    year: movie.year ?? null,
+    watched: true,
+    watchedAt: watched.last_watched_at ?? null,
+    inWatchlist: watchlist !== undefined,
+    listedAt: watchlist?.listedAt ?? null,
+    posters: movie.images?.poster ?? [],
+    tmdbId: movie.ids.tmdb ?? null,
+  };
+}
+
+function toWatchlistMovieEntry({ movie, listedAt }: WatchlistMovie): MovieEntry {
+  return {
+    movieId: movie.ids.trakt,
+    ids: toMovieIds(movie.ids),
+    title: movie.title,
+    year: movie.year ?? null,
+    watched: false,
+    watchedAt: null,
+    inWatchlist: true,
+    listedAt,
+    posters: movie.images?.poster ?? [],
+    tmdbId: movie.ids.tmdb ?? null,
+  };
+}
+
+export function assembleMovieLibrary(input: MovieLibraryInput): MovieEntry[] {
+  const watchlistById = new Map<number, WatchlistMovie>();
+  for (const item of input.watchlistMovies) {
+    if (item.movie !== undefined && !watchlistById.has(item.movie.ids.trakt)) {
+      watchlistById.set(item.movie.ids.trakt, {
+        movie: item.movie,
+        listedAt: item.listed_at ?? null,
+      });
+    }
+  }
+
+  const watchedIds = new Set(input.watchedMovies.map(({ movie }) => movie.ids.trakt));
+  return [
+    ...input.watchedMovies.map((watched) =>
+      toWatchedMovieEntry(watched, watchlistById.get(watched.movie.ids.trakt)),
+    ),
+    ...[...watchlistById]
+      .filter(([trakt]) => !watchedIds.has(trakt))
+      .map(([, watchlist]) => toWatchlistMovieEntry(watchlist)),
+  ];
+}
+
 export function assembleMovieHeader(movie: MovieDetailData): MovieHeader {
   return {
     movieId: movie.ids.trakt,

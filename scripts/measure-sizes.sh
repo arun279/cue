@@ -64,4 +64,15 @@ node --input-type=module -e '
   cd "$tree"
   "$head_root/node_modules/.bin/size-limit" --json > "$state/sizes.json"
 )
-cp "$state/sizes.json" "$output"
+play_size=$("$head_root/scripts/measure-play-size.sh" "$tree")
+node --input-type=module -e '
+  import { readFileSync, writeFileSync } from "node:fs";
+  const [input, output, playSize] = process.argv.slice(1);
+  const sizes = JSON.parse(readFileSync(input, "utf8"));
+  sizes.push({
+    name: "Play download estimate",
+    size: Number(playSize),
+    sizeLimit: 20_000_000,
+  });
+  writeFileSync(output, `${JSON.stringify(sizes, null, 2)}\n`);
+' "$state/sizes.json" "$output" "$play_size"

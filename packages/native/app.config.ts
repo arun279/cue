@@ -142,6 +142,7 @@ export function nativeAppConfig(env: Readonly<Record<string, string | undefined>
             enableMinifyInReleaseBuilds: true,
             enableShrinkResourcesInReleaseBuilds: true,
           },
+          ios: { usePrecompiledModules: false },
         },
       ],
       // Cue writes `allowBackup="false"` and its own data-extraction rules, and
@@ -158,6 +159,7 @@ export function nativeAppConfig(env: Readonly<Record<string, string | undefined>
       "expo-splash-screen",
       ["expo-notifications", { mode: apsEnvironment }],
       "./plugins/with-android-build-memory",
+      "./plugins/with-android-tab-icons",
       "./plugins/with-android-privacy",
       "./plugins/with-ios-scene-lifecycle",
     ],
