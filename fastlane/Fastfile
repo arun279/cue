@@ -1,4 +1,5 @@
 require "tmpdir"
+require "tempfile"
 
 # Cue release automation.
 #
@@ -225,19 +226,27 @@ def build_expo_android_apk
     task: "bundle",
     build_type: "Release"
   )
-  sh(
-    "java",
-    "-jar",
-    ENV.fetch("BUNDLETOOL_PATH"),
-    "build-apks",
-    "--bundle=#{File.join(REPO_ROOT, EXPO_ANDROID_AAB)}",
-    "--output=#{File.join(REPO_ROOT, EXPO_ANDROID_APKS)}",
-    "--mode=universal",
-    "--ks=#{ENV.fetch("ANDROID_KEYSTORE_PATH")}",
-    "--ks-pass=env:ANDROID_KEYSTORE_PASSWORD",
-    "--ks-key-alias=#{ENV.fetch("ANDROID_KEY_ALIAS")}",
-    "--key-pass=env:ANDROID_KEY_PASSWORD"
-  )
+  Tempfile.create("cue-keystore-password") do |keystore_password|
+    Tempfile.create("cue-key-password") do |key_password|
+      keystore_password.write(ENV.fetch("ANDROID_KEYSTORE_PASSWORD"))
+      keystore_password.flush
+      key_password.write(ENV.fetch("ANDROID_KEY_PASSWORD"))
+      key_password.flush
+      sh(
+        "java",
+        "-jar",
+        ENV.fetch("BUNDLETOOL_PATH"),
+        "build-apks",
+        "--bundle=#{File.join(REPO_ROOT, EXPO_ANDROID_AAB)}",
+        "--output=#{File.join(REPO_ROOT, EXPO_ANDROID_APKS)}",
+        "--mode=universal",
+        "--ks=#{ENV.fetch("ANDROID_KEYSTORE_PATH")}",
+        "--ks-pass=file:#{keystore_password.path}",
+        "--ks-key-alias=#{ENV.fetch("ANDROID_KEY_ALIAS")}",
+        "--key-pass=file:#{key_password.path}"
+      )
+    end
+  end
   sh(
     "unzip",
     "-o",
