@@ -6,7 +6,8 @@ require "tmpdir"
 #   ios beta         -> Capacitor build for TestFlight internal testers
 #   ios expo_beta    -> Expo build for TestFlight internal testers
 #   ios release      -> Capacitor build for App Store review + auto-release
-#   android beta     -> Firebase App Distribution
+#   android beta      -> Capacitor build for Firebase App Distribution
+#   android expo_beta -> Expo build for Firebase App Distribution
 #
 # Build numbers come from BUILD_NUMBER (CI combines github.run_number and
 # github.run_attempt) so every upload is unique and strictly increasing. The
@@ -28,6 +29,11 @@ EXPO_IOS_SCHEME = "Cue".freeze
 EXPO_IOS_IPA = "build/ios/Cue.ipa".freeze
 ANDROID_DIR = "android".freeze
 ANDROID_APK = "android/app/build/outputs/apk/release/app-release.apk".freeze
+EXPO_ANDROID_DIR = "packages/native/android".freeze
+EXPO_ANDROID_AAB = "packages/native/android/app/build/outputs/bundle/release/app-release.aab".freeze
+EXPO_ANDROID_APKS = "packages/native/android/app/build/outputs/bundle/release/app-release.apks".freeze
+EXPO_ANDROID_APK = "packages/native/android/app/build/outputs/bundle/release/universal.apk".freeze
+FIREBASE_ANDROID_APP = "1:768077963989:android:2f55dce37b989717ca785c".freeze
 VERIFY_APK = "scripts/verify-apk.sh".freeze
 ASSERT_FILE_SIZE = "scripts/assert-file-size.mjs".freeze
 
@@ -213,16 +219,74 @@ def verify_android_apk
   )
 end
 
+def build_expo_android_apk
+  gradle(
+    project_dir: EXPO_ANDROID_DIR,
+    task: "bundle",
+    build_type: "Release"
+  )
+  sh(
+    "java",
+    "-jar",
+    ENV.fetch("BUNDLETOOL_PATH"),
+    "build-apks",
+    "--bundle=#{File.join(REPO_ROOT, EXPO_ANDROID_AAB)}",
+    "--output=#{File.join(REPO_ROOT, EXPO_ANDROID_APKS)}",
+    "--mode=universal",
+    "--ks=#{ENV.fetch("ANDROID_KEYSTORE_PATH")}",
+    "--ks-pass=env:ANDROID_KEYSTORE_PASSWORD",
+    "--ks-key-alias=#{ENV.fetch("ANDROID_KEY_ALIAS")}",
+    "--key-pass=env:ANDROID_KEY_PASSWORD"
+  )
+  sh(
+    "unzip",
+    "-o",
+    File.join(REPO_ROOT, EXPO_ANDROID_APKS),
+    "universal.apk",
+    "-d",
+    File.dirname(File.join(REPO_ROOT, EXPO_ANDROID_APK))
+  )
+  sh(
+    File.join(REPO_ROOT, VERIFY_APK),
+    File.join(REPO_ROOT, EXPO_ANDROID_APK),
+    build_number.to_s,
+    app_version,
+    "expo"
+  )
+end
+
+def ensure_firebase_build_number_available
+  latest = firebase_app_distribution_get_latest_release(
+    app: FIREBASE_ANDROID_APP,
+    service_credentials_json_data: ENV.fetch("FIREBASE_SERVICE_ACCOUNT_JSON")
+  )
+  latest_build_number = latest[:buildVersion].to_i
+  return if build_number > latest_build_number
+
+  UI.user_error!("BUILD_NUMBER #{build_number} must be greater than Firebase build #{latest_build_number}")
+end
+
+def distribute_android_apk(apk_path)
+  firebase_app_distribution(
+    app: FIREBASE_ANDROID_APP,
+    groups: "friends",
+    android_artifact_type: "APK",
+    android_artifact_path: apk_path,
+    service_credentials_json_data: ENV.fetch("FIREBASE_SERVICE_ACCOUNT_JSON")
+  )
+end
+
 platform :android do
   desc "Build a signed APK and ship to Firebase App Distribution testers"
   lane :beta do
     build_android_apk
-    firebase_app_distribution(
-      app: "1:768077963989:android:2f55dce37b989717ca785c",
-      groups: "friends",
-      android_artifact_type: "APK",
-      android_artifact_path: ANDROID_APK,
-      service_credentials_json_data: ENV.fetch("FIREBASE_SERVICE_ACCOUNT_JSON")
-    )
+    distribute_android_apk(ANDROID_APK)
+  end
+
+  desc "Build the Expo app and ship it to Firebase App Distribution testers"
+  lane :expo_beta do
+    build_expo_android_apk
+    ensure_firebase_build_number_available
+    distribute_android_apk(EXPO_ANDROID_APK)
   end
 end
