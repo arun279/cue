@@ -157,12 +157,12 @@ describe("TraktClient error mapping", () => {
     expect(await client().get(path)).toEqual({ ok: false, error: { kind: "network" } });
   });
 
-  it("classifies an unreadable Trakt response as server only in a browser", async () => {
+  it("distinguishes an unreadable Trakt response from server and network failures", async () => {
     server.use(http.get(`${TRAKT_API_BASE}${path}`, () => HttpResponse.error()));
     const browserClient = new TraktClient({ clientId: "cid-123", browser: true });
     expect(await browserClient.get(path)).toEqual({
       ok: false,
-      error: { kind: "server", status: 503 },
+      error: { kind: "unreadable-response" },
     });
   });
 

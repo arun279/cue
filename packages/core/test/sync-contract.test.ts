@@ -163,12 +163,19 @@ describe("readFailureBody", () => {
   it("does blame the connection for a transport failure", () => {
     expect(readFailureBody({ kind: "network" })).toBe("Check your connection and try again.");
   });
+
+  it("keeps unreadable response copy distinct from a connection failure", () => {
+    expect(readFailureBody({ kind: "unreadable-response" })).toBe(
+      "Trakt is having trouble. Try again in a moment.",
+    );
+  });
 });
 
 describe("read retry policy", () => {
   it("retries a 5xx and a transport failure, and stops at the budget", () => {
     expect(shouldRetryRead(0, readError({ kind: "server", status: 500 }))).toBe(true);
     expect(shouldRetryRead(0, readError({ kind: "network" }))).toBe(true);
+    expect(shouldRetryRead(0, readError({ kind: "unreadable-response" }))).toBe(true);
     expect(shouldRetryRead(2, readError({ kind: "network" }))).toBe(false);
   });
 

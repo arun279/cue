@@ -34,6 +34,7 @@ export type TraktFailure =
   | { readonly kind: "unauthorized" }
   | { readonly kind: "not-found" }
   | { readonly kind: "rate-limited"; readonly retryAfterMs: number | null }
+  | { readonly kind: "unreadable-response" }
   | { readonly kind: "server"; readonly status: number }
   | { readonly kind: "network" };
 
@@ -137,7 +138,7 @@ export class TraktClient {
   private rejectionFailure(cause: unknown): TraktFailure {
     const aborted = cause instanceof Error && cause.name === "AbortError";
     return !aborted && this.browser && this.baseUrl === TRAKT_API_BASE
-      ? { kind: "server", status: 503 }
+      ? { kind: "unreadable-response" }
       : { kind: "network" };
   }
 
