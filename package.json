@@ -31,6 +31,7 @@
     "check:knip": "knip",
     "check:dup": "jscpd",
     "check:core-portable": "vitest run --project core test/ci/core-portable.test.ts",
+    "check:render-counts": "node scripts/check-render-counts.mjs packages/native/.reassure/baseline.perf packages/native/.reassure/current.perf",
     "check:size": "pnpm build && node scripts/check-size.mjs web",
     "check:size:native": "pnpm --filter @cue/native exec expo export --platform ios --platform android --output-dir dist && node scripts/check-native-assets.mjs && node scripts/check-size.mjs native",
     "check:size-ratchet": "node scripts/check-size-ratchet.mjs",

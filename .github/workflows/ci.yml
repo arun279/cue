@@ -38,6 +38,23 @@ jobs:
           fetch-depth: 0
       - uses: ./.github/actions/setup-node-pnpm
       - run: pnpm check
+  render-performance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-node-pnpm
+      - name: Measure render performance
+        env:
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: test-client
+        run: pnpm --dir packages/native perf:render --compare=false
+      - name: Gate render counts and report duration
+        run: pnpm check:render-counts
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ !cancelled() }}
+        with:
+          name: reassure-render-performance
+          path: packages/native/.reassure/current.perf
+          retention-days: 7
   audit:
     runs-on: ubuntu-latest
     steps:
