@@ -33,6 +33,9 @@ interface Pagination {
 export type TraktFailure =
   | { readonly kind: "unauthorized" }
   | { readonly kind: "not-found" }
+  | { readonly kind: "account-limit" }
+  | { readonly kind: "account-locked" }
+  | { readonly kind: "vip-required" }
   | { readonly kind: "rate-limited"; readonly retryAfterMs: number | null }
   | { readonly kind: "unreadable-response" }
   | { readonly kind: "server"; readonly status: number }
@@ -203,6 +206,9 @@ export class TraktClient {
 function mapFailure(raw: RawResponse, method: HttpMethod): TraktFailure {
   if (raw.status === 401) return { kind: "unauthorized" };
   if (raw.status === 404) return { kind: "not-found" };
+  if (raw.status === 420) return { kind: "account-limit" };
+  if (raw.status === 423) return { kind: "account-locked" };
+  if (raw.status === 426) return { kind: "vip-required" };
   if (raw.status === 429) {
     return {
       kind: "rate-limited",

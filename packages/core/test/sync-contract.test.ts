@@ -169,6 +169,14 @@ describe("readFailureBody", () => {
       "Trakt is having trouble. Try again in a moment.",
     );
   });
+
+  it("names permanent account failures", () => {
+    expect(readFailureBody({ kind: "account-limit" })).toBe(
+      "Your Trakt account has reached its limit.",
+    );
+    expect(readFailureBody({ kind: "account-locked" })).toBe("Your Trakt account is locked.");
+    expect(readFailureBody({ kind: "vip-required" })).toBe("This requires Trakt VIP.");
+  });
 });
 
 describe("read retry policy", () => {

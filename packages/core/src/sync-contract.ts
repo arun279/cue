@@ -193,6 +193,12 @@ export function readFailureBody(failure: TraktFailure | null): string {
       return "Trakt is having trouble. Try again in a moment.";
     case "unauthorized":
       return "Your Trakt session needs to reconnect.";
+    case "account-limit":
+      return "Your Trakt account has reached its limit.";
+    case "account-locked":
+      return "Your Trakt account is locked.";
+    case "vip-required":
+      return "This requires Trakt VIP.";
     default:
       return "Try again in a moment.";
   }

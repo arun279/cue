@@ -2,6 +2,7 @@ import {
   TRAKT_API_BASE,
   TRAKT_REQUEST_TIMEOUT_MS,
   TraktClient,
+  type TraktFailure,
   unwrapRead,
 } from "@cue/core/data/trakt/client";
 import { HttpResponse, http } from "msw";
@@ -155,6 +156,15 @@ describe("TraktClient error mapping", () => {
   it("maps 404 to not-found", async () => {
     respond(404);
     expect(await client().get(path)).toEqual({ ok: false, error: { kind: "not-found" } });
+  });
+
+  it.each<{ status: number; kind: TraktFailure["kind"] }>([
+    { status: 420, kind: "account-limit" },
+    { status: 423, kind: "account-locked" },
+    { status: 426, kind: "vip-required" },
+  ])("maps permanent status $status to $kind", async ({ status, kind }) => {
+    respond(status);
+    expect(await client().get(path)).toEqual({ ok: false, error: { kind } });
   });
 
   it("maps 429 and reads Retry-After seconds", async () => {
