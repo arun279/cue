@@ -157,6 +157,25 @@ describe("TraktClient error mapping", () => {
     expect(await client().get(path)).toEqual({ ok: false, error: { kind: "network" } });
   });
 
+  it("classifies an unreadable Trakt response as server only in a browser", async () => {
+    server.use(http.get(`${TRAKT_API_BASE}${path}`, () => HttpResponse.error()));
+    const browserClient = new TraktClient({ clientId: "cid-123", browser: true });
+    expect(await browserClient.get(path)).toEqual({
+      ok: false,
+      error: { kind: "server", status: 503 },
+    });
+  });
+
+  it("keeps browser failures against other origins classified as network", async () => {
+    const browserClient = new TraktClient({
+      clientId: "cid-123",
+      browser: true,
+      baseUrl: "https://example.test",
+      fetch: () => Promise.reject(new Error("offline")),
+    });
+    expect(await browserClient.get(path)).toEqual({ ok: false, error: { kind: "network" } });
+  });
+
   it("rejects a held read as a typed network failure after the request timeout", async () => {
     vi.useFakeTimers();
     const held = new TraktClient({

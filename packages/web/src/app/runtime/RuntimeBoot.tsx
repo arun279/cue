@@ -45,6 +45,7 @@ export function RuntimeBoot({
     redirectUri,
     clientId: TRAKT_CLIENT_ID,
     apiBaseUrl: TRAKT_BASE_OVERRIDE,
+    browser: true,
     endSession,
     clearPersistedCaches,
     clearLocalPreferences,

@@ -11,6 +11,7 @@ type Extended = "min" | "full" | "images" | "episodes" | "progress";
 
 export interface TraktClientConfig {
   readonly clientId: string;
+  readonly browser?: boolean;
   /** Bearer token for authed calls; absent → the header is omitted. */
   readonly getToken?: () => string | null;
   readonly fetch?: FetchLike;
@@ -90,12 +91,14 @@ export class TraktClient {
   private readonly getToken: () => string | null;
   private readonly fetchFn: FetchLike;
   private readonly baseUrl: string;
+  private readonly browser: boolean;
 
   constructor(config: TraktClientConfig) {
     this.clientId = config.clientId;
     this.getToken = config.getToken ?? (() => null);
     this.fetchFn = config.fetch ?? ((input, init) => globalThis.fetch(input, init));
     this.baseUrl = (config.baseUrl ?? TRAKT_API_BASE).replace(/\/+$/, "");
+    this.browser = config.browser ?? false;
   }
 
   /** Low-level send used by the write-queue transport: raw response, throws on network reject. */
@@ -140,7 +143,13 @@ export class TraktClient {
     try {
       raw = await this.send(method, path, options);
     } catch {
-      return { ok: false, error: { kind: "network" } };
+      return {
+        ok: false,
+        error:
+          this.browser && this.baseUrl === TRAKT_API_BASE
+            ? { kind: "server", status: 503 }
+            : { kind: "network" },
+      };
     }
     if (raw.status >= 200 && raw.status < 300) {
       return { ok: true, data: raw.data, pagination: readPagination(raw.headers) };
