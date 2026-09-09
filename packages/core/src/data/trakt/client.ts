@@ -188,8 +188,8 @@ export class TraktClient {
    * into one array: the initial library snapshot helper. The page count comes from
    * the response headers rather than the requested `limit`, because Trakt may apply
    * a smaller one than asked for, and an empty page ends the walk early in case the
-   * count itself is wrong. Endpoints without pagination headers resolve as a single
-   * page.
+   * count itself is wrong. Endpoints without pagination headers walk until an
+   * empty page.
    */
   async getAllPages(path: string, options: RequestOptions = {}): Promise<TraktResult<unknown[]>> {
     const first = await this.get(path, { ...options, page: 1 });
