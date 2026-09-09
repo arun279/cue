@@ -89,6 +89,7 @@ export interface RuntimeDeps {
   /** The fake Trakt's origin under `--mode mock`, undefined in every real build. */
   readonly apiBaseUrl?: string | undefined;
   readonly browser: boolean;
+  readonly userAgent?: string;
   readonly endSession: () => Promise<void>;
   readonly clearPersistedCaches: () => Promise<void>;
   readonly clearLocalPreferences: () => void;
@@ -191,6 +192,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     fetch: authorized.fetch,
     baseUrl: deps.apiBaseUrl,
     browser: deps.browser,
+    userAgent: deps.userAgent,
   });
 
   const opLogStore = createJsonStore<QueuedOp[]>(deps.kv, OP_LOG_KEY, (value) =>

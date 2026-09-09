@@ -69,6 +69,18 @@ describe("TraktClient headers + extended", () => {
     expect(captured?.get("authorization")).toBe("Bearer tok-abc");
   });
 
+  it("sends an injected User-Agent", async () => {
+    let captured: Headers | undefined;
+    server.use(
+      http.get(`${TRAKT_API_BASE}/users/me`, ({ request }) => {
+        captured = request.headers;
+        return HttpResponse.json({});
+      }),
+    );
+    await new TraktClient({ clientId: "cid-123", userAgent: "Cue/1.0.0" }).get("/users/me");
+    expect(captured?.get("user-agent")).toBe("Cue/1.0.0");
+  });
+
   it("builds the comma-combined extended query param", async () => {
     let url: string | undefined;
     server.use(

@@ -12,6 +12,7 @@ type Extended = "min" | "full" | "images" | "episodes" | "progress";
 export interface TraktClientConfig {
   readonly clientId: string;
   readonly browser?: boolean;
+  readonly userAgent?: string;
   /** Bearer token for authed calls; absent → the header is omitted. */
   readonly getToken?: () => string | null;
   readonly fetch?: FetchLike;
@@ -96,6 +97,7 @@ export class TraktClient {
   private readonly fetchFn: FetchLike;
   private readonly baseUrl: string;
   private readonly browser: boolean;
+  private readonly userAgent: string | undefined;
   private readonly inFlightGets = new Map<string, Promise<TraktResult<unknown>>>();
 
   constructor(config: TraktClientConfig) {
@@ -104,6 +106,7 @@ export class TraktClient {
     this.fetchFn = config.fetch ?? ((input, init) => globalThis.fetch(input, init));
     this.baseUrl = (config.baseUrl ?? TRAKT_API_BASE).replace(/\/+$/, "");
     this.browser = config.browser ?? false;
+    this.userAgent = config.userAgent;
   }
 
   /** Low-level send used by the write-queue transport: raw response, throws on network reject. */
@@ -113,6 +116,7 @@ export class TraktClient {
       "trakt-api-version": TRAKT_API_VERSION,
       "trakt-api-key": this.clientId,
     };
+    if (this.userAgent !== undefined) headers["User-Agent"] = this.userAgent;
     const token = this.getToken();
     if (token !== null && token.length > 0) headers["Authorization"] = `Bearer ${token}`;
     const controller = new AbortController();

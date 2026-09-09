@@ -134,6 +134,7 @@ const runtimeDeps = {
   clientId: TRAKT_CLIENT_ID,
   apiBaseUrl: TRAKT_BASE_OVERRIDE,
   browser: false,
+  userAgent: `Cue/${nativeAppVersion}`,
   clearPersistedCaches,
   clearLocalPreferences,
 };
