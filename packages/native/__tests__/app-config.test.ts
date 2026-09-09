@@ -36,7 +36,7 @@ describe("the native app config", () => {
     ]);
   });
 
-  it("minifies release code and removes unused Android resources", () => {
+  it("configures native release builds", () => {
     expect(config.plugins).toContainEqual([
       "expo-build-properties",
       {
@@ -44,6 +44,7 @@ describe("the native app config", () => {
           enableMinifyInReleaseBuilds: true,
           enableShrinkResourcesInReleaseBuilds: true,
         },
+        ios: { usePrecompiledModules: false },
       },
     ]);
   });
