@@ -361,12 +361,14 @@ async function stall(fault, request, hold) {
  * what is IN the account rather than about the order the flows ran in. `?seed=`
  * names one of the profiles in `seed.mjs`; without it the account goes back to
  * the default eight shows and three movies. It is the one control that returns
- * the whole mock to a known state, so it disarms any faults with it.
+ * the whole mock to a known state, so it disarms any faults with it and lets go
+ * of anything a hold fault left waiting.
  */
-function resetRoute(reset, method, url) {
+function resetRoute(reset, releaseHeld, method, url) {
   if (method !== "POST") return notFound("no control route");
   const seed = url.searchParams.get("seed") ?? "default";
   if (!reset(seed)) return notFound("no seed profile");
+  releaseHeld();
   return json({ reset: true });
 }
 
@@ -395,7 +397,7 @@ function faultRoute(faults, method, url, body, releaseHeld) {
  * no Trakt path can collide with.
  */
 function controlRoute(faults, reset, releaseHeld, method, url, body) {
-  if (url.pathname === "/__reset") return resetRoute(reset, method, url);
+  if (url.pathname === "/__reset") return resetRoute(reset, releaseHeld, method, url);
   if (url.pathname === "/__fault") return faultRoute(faults, method, url, body, releaseHeld);
   return null;
 }

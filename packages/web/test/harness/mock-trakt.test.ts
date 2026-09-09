@@ -84,51 +84,6 @@ const oauth = (): OAuthConfig => ({
 
 const today = (): string => new Date().toISOString().slice(0, 10);
 
-it("projects only real aired coordinates across every seeded show", () => {
-  for (const show of mock.library.shows) {
-    const aired = show.episodes.filter((episode) => episode.firstAired <= mock.library.now);
-    const last = aired.at(-1);
-    for (const [index, episode] of aired.entries()) {
-      const entry: LibraryEntry = {
-        showId: show.trakt,
-        title: show.title,
-        status: show.status,
-        hidden: false,
-        inWatchlist: false,
-        lastWatchedAt: null,
-        aired: aired.length,
-        completed: index,
-        nextEpisode: {
-          season: episode.season,
-          number: episode.number,
-          title: episode.title,
-          firstAired: new Date(episode.firstAired).toISOString(),
-          still: null,
-          ids: { trakt: episode.traktId },
-        },
-        lastAired: last === undefined ? null : { season: last.season, number: last.number },
-        tmdbId: show.tmdb,
-        pendingAdvance: false,
-      };
-      const projected = advancePastNext(
-        entry,
-        new Date(mock.library.now).toISOString(),
-      ).nextEpisode;
-      expect({
-        show: show.title,
-        marked: `${episode.season}:${episode.number}`,
-        projected: projected === null ? null : `${projected.season}:${projected.number}`,
-        real:
-          projected === null ||
-          aired.some(
-            (candidate) =>
-              candidate.season === projected.season && candidate.number === projected.number,
-          ),
-      }).toMatchObject({ real: true });
-    }
-  }
-});
-
 const resetTo = async (seed: string): Promise<Response> =>
   fetch(`${baseUrl}/__reset?seed=${seed}`, { method: "POST" });
 
@@ -149,6 +104,58 @@ function firstSeededShow(): (typeof mock.library.shows)[number] {
   if (show === undefined) throw new Error("the mock seeds no shows");
   return show;
 }
+
+/**
+ * The post-mark projection against the catalogue it will be applied to: every
+ * coordinate `advancePastNext` invents for a seeded show has to be an episode
+ * that has actually aired, or the queue names an episode nobody can watch.
+ */
+describe("the post-mark projection over the seeded catalogue", () => {
+  it("projects only real aired coordinates across every seeded show", () => {
+    for (const show of mock.library.shows) {
+      const aired = show.episodes.filter((episode) => episode.firstAired <= mock.library.now);
+      const last = aired.at(-1);
+      for (const [index, episode] of aired.entries()) {
+        const entry: LibraryEntry = {
+          showId: show.trakt,
+          title: show.title,
+          status: show.status,
+          hidden: false,
+          inWatchlist: false,
+          lastWatchedAt: null,
+          aired: aired.length,
+          completed: index,
+          nextEpisode: {
+            season: episode.season,
+            number: episode.number,
+            title: episode.title,
+            firstAired: new Date(episode.firstAired).toISOString(),
+            still: null,
+            ids: { trakt: episode.traktId },
+          },
+          lastAired: last === undefined ? null : { season: last.season, number: last.number },
+          tmdbId: show.tmdb,
+          pendingAdvance: false,
+        };
+        const projected = advancePastNext(
+          entry,
+          new Date(mock.library.now).toISOString(),
+        ).nextEpisode;
+        expect({
+          show: show.title,
+          marked: `${episode.season}:${episode.number}`,
+          projected: projected === null ? null : `${projected.season}:${projected.number}`,
+          real:
+            projected === null ||
+            aired.some(
+              (candidate) =>
+                candidate.season === projected.season && candidate.number === projected.number,
+            ),
+        }).toMatchObject({ real: true });
+      }
+    }
+  });
+});
 
 describe("the seeded account parses through the app's own contracts", () => {
   it("serves the cold-sync reads", async () => {

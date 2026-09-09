@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { MOCK_TRAKT_PORT } from "../../playwright.config";
 
 /**
  * The equivalence lane's shared driving.
@@ -75,7 +76,7 @@ export async function landed(page: Page): Promise<void> {
 }
 
 /** The fake Trakt's origin, where its fault control plane lives. */
-const MOCK_TRAKT = "http://127.0.0.1:8787";
+const MOCK_TRAKT = `http://127.0.0.1:${MOCK_TRAKT_PORT}`;
 
 /**
  * Arm the fake Trakt's fault modes for the next few requests. This is the one
