@@ -17,6 +17,8 @@ function dayKeyFormatter(timeZone: string): (ms: number) => string {
   return (ms) => fmt.format(ms);
 }
 
+const dayKeyFormatters = new Map<string, (ms: number) => string>();
+
 /**
  * The day-key `deltaDays` away from `key`. A date-only key parses as UTC
  * midnight, so this is whole-day arithmetic that never crosses a wall-clock
@@ -28,7 +30,11 @@ function shiftDayKey(key: string, deltaDays: number): string {
 
 /** The local-day key ("YYYY-MM-DD") an instant falls on, without a labeler. */
 export function dayKeyOf(timeZone: string, ms: number): string {
-  return dayKeyFormatter(timeZone)(ms);
+  const cached = dayKeyFormatters.get(timeZone);
+  if (cached !== undefined) return cached(ms);
+  const formatter = dayKeyFormatter(timeZone);
+  dayKeyFormatters.set(timeZone, formatter);
+  return formatter(ms);
 }
 
 /** Buckets days by local key and labels them "Today" / an adjacent word / "Mon, Jan 5". */
