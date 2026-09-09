@@ -6,18 +6,18 @@ import {
   useSnackbar,
 } from "@cue/core/stores/snackbar-store";
 import { type ReactElement, useEffect, useId, useSyncExternalStore } from "react";
-import { Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useScreenReader } from "../platform/screen-reader";
 import { useLiveRegion } from "./live-region";
 import { TEST_IDS } from "./test-ids";
 import {
   FLOAT_SHADOW,
-  REFLOW_FONT_SCALE,
   SPACE,
   TARGET_MIN,
   tabBarClearance,
   useColors,
+  useStacked,
 } from "./tokens";
 import { CueText } from "./type";
 
@@ -91,7 +91,6 @@ function Snackbar({
 }): ReactElement {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { fontScale } = useWindowDimensions();
   const screenReader = useScreenReader();
   const liveRegion = useLiveRegion(snackText(snack.message), "polite");
 
@@ -106,7 +105,7 @@ function Snackbar({
     return () => clearTimeout(timer);
   }, [snack, screenReader]);
 
-  const stacked = fontScale >= REFLOW_FONT_SCALE;
+  const stacked = useStacked();
   // A root-placed snackbar clears the floating tab bar rather than only the
   // inset, so at a sheet's own bottom edge it lands in the same visual place.
   const bottom = (placement === "root" ? tabBarClearance(insets.bottom) : insets.bottom) + SPACE.s2;

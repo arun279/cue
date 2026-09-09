@@ -5,6 +5,7 @@ import {
   PlatformColor,
   StyleSheet,
   useColorScheme,
+  useWindowDimensions,
   type ViewStyle,
 } from "react-native";
 
@@ -159,4 +160,8 @@ export const ROW_TEXT_INSET = SPACE.s4 + POSTER_WIDTH.row + SPACE.s3;
  */
 export function tabBarClearance(insetBottom: number): number {
   return Platform.OS === "ios" ? 40 + 56 : insetBottom + 80;
+}
+
+export function useStacked(): boolean {
+  return useWindowDimensions().fontScale >= REFLOW_FONT_SCALE;
 }
