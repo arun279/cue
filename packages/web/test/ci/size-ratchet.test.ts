@@ -75,4 +75,24 @@ describe("size budget ratchet", () => {
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("Play download: limit 101 bytes exceeds previous 100 bytes");
   });
+
+  it("accepts a ceiling already established by either merge parent", () => {
+    const repository = setup();
+    execFileSync("git", ["switch", "-c", "larger"], { cwd: repository, env: gitEnv() });
+    const config = JSON.parse(readFileSync(path.join(repository, ".size-limit.json"), "utf8"));
+    config[0].limit = "110 kB";
+    writeFileSync(path.join(repository, ".size-limit.json"), JSON.stringify(config));
+    execFileSync("git", ["add", ".size-limit.json"], { cwd: repository, env: gitEnv() });
+    execFileSync("git", ["commit", "--quiet", "-m", "larger feature"], {
+      cwd: repository,
+      env: gitEnv(),
+    });
+    execFileSync("git", ["switch", "-"], { cwd: repository, env: gitEnv() });
+    execFileSync("git", ["merge", "--no-ff", "larger", "--quiet", "-m", "merge feature"], {
+      cwd: repository,
+      env: gitEnv(),
+    });
+
+    expect(runRatchet(repository).status).toBe(0);
+  });
 });
