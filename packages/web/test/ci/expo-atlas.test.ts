@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -59,6 +59,24 @@ describe("Expo Atlas attribution", () => {
         "| Android | android-library | 11 |\n" +
         "| Android | Cue app | 3 |\n",
     );
+  });
+
+  it("refuses an Atlas file that describes only one platform", () => {
+    const atlas = path.join(tempDirectory("cue-atlas-"), "atlas.jsonl");
+    writeFileSync(
+      atlas,
+      [
+        { name: "expo-atlas", version: "0.4.2" },
+        ["android", "project", "root", "modules", "client", [], [], {}, {}],
+      ]
+        .map((value) => JSON.stringify(value))
+        .join("\n"),
+    );
+
+    const result = spawnSync(process.execPath, [SCRIPT, atlas], { encoding: "utf8" });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("no ios bundle");
   });
 
   it("pins generation, comment rendering, and artifact upload in the footprint job", () => {

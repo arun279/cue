@@ -11,6 +11,10 @@ tree=$(cd "$1" && pwd)
 # The footprint job measures two trees, and a release Android project is several
 # gigabytes the runner needs for the next one.
 trap 'rm -rf "$tree/packages/native/android"' EXIT
+# Gradle bundles through `expo export:embed`, which rewrites .expo/atlas.jsonl
+# with its one Android bundle. Measuring a download must not overwrite the
+# attribution the two-platform export just produced.
+export EXPO_ATLAS=false
 bundletool="$head_root/node_modules/.cache/bundletool-1.18.3.jar"
 mkdir -p "$(dirname "$bundletool")"
 if [ ! -f "$bundletool" ]; then
