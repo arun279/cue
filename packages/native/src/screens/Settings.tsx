@@ -3,6 +3,7 @@ import { useAppVersion } from "@cue/core/ports/app-version";
 import { usePrefs } from "@cue/core/prefs/prefs-store";
 import type { ReactElement } from "react";
 import { Pressable, Switch, Text, View } from "react-native";
+import { TEST_IDS } from "../ui/test-ids";
 
 /** Settings: the device-local preferences, the app identity, and sign-out. */
 export function Settings(): ReactElement {
@@ -12,21 +13,21 @@ export function Settings(): ReactElement {
   const disconnect = useAuth((s) => s.disconnect);
 
   return (
-    <View testID="screen-settings">
+    <View testID={TEST_IDS.screenSettings}>
       <Text accessibilityRole="header">Settings</Text>
       <View>
         <Text>Haptics</Text>
         <Switch
-          testID="settings-haptics"
+          testID={TEST_IDS.settingsHaptics}
           accessibilityLabel="Haptics"
           value={hapticsEnabled}
           onValueChange={setHapticsEnabled}
         />
       </View>
-      <Text testID="settings-version">{version}</Text>
+      <Text testID={TEST_IDS.settingsVersion}>{version}</Text>
       <Pressable
         accessibilityRole="button"
-        testID="settings-disconnect"
+        testID={TEST_IDS.settingsDisconnect}
         onPress={() => void disconnect()}
       >
         <Text>Disconnect</Text>

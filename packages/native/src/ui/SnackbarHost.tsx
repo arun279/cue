@@ -10,6 +10,7 @@ import { Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useScreenReader } from "../platform/screen-reader";
 import { useLiveRegion } from "./live-region";
+import { TEST_IDS } from "./test-ids";
 import {
   FLOAT_SHADOW,
   REFLOW_FONT_SCALE,
@@ -112,7 +113,7 @@ function Snackbar({
 
   return (
     <View
-      testID="snackbar"
+      testID={TEST_IDS.snackbar}
       {...liveRegion}
       style={[
         styles.snackbar,
@@ -122,7 +123,7 @@ function Snackbar({
       ]}
     >
       <CueText
-        testID="snackbar-message"
+        testID={TEST_IDS.snackbarMessage}
         variant="rowTitle"
         style={[styles.message, !stacked && styles.messageInline, { color: colors.fg }]}
       >

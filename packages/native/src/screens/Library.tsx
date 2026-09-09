@@ -4,6 +4,7 @@ import { parseLibrarySearch } from "@cue/core/url/search-params";
 import { Link, useLocalSearchParams } from "expo-router";
 import type { ReactElement } from "react";
 import { FlatList, Text, View } from "react-native";
+import { TEST_IDS } from "../ui/test-ids";
 
 /**
  * Library, over the shared bucket hooks, with the segment read through the same
@@ -21,29 +22,29 @@ export function Library(): ReactElement {
   const movieLibrary = useMovieLibrary("alphabetical", movies);
 
   return (
-    <View testID="screen-library">
+    <View testID={TEST_IDS.screenLibrary}>
       <Text accessibilityRole="header">{movies ? "Library, movies" : "Library, shows"}</Text>
-      <Link href={movies ? "/library" : "/library?type=movies"} testID="library-segment">
+      <Link href={movies ? "/library" : "/library?type=movies"} testID={TEST_IDS.librarySegment}>
         {movies ? "Shows" : "Movies"}
       </Link>
       {movies ? (
         <FlatList
-          testID="library-list"
+          testID={TEST_IDS.libraryList}
           data={movieLibrary.segments.flatMap((segment) => segment.entries)}
           keyExtractor={(entry) => String(entry.movieId)}
           renderItem={({ item }) => (
-            <Link href={`/movie/${item.movieId}`} testID="library-row">
+            <Link href={`/movie/${item.movieId}`} testID={TEST_IDS.libraryRow(item.movieId)}>
               {item.title}
             </Link>
           )}
         />
       ) : (
         <FlatList
-          testID="library-list"
+          testID={TEST_IDS.libraryList}
           data={shows.chips.watching}
           keyExtractor={(entry) => String(entry.showId)}
           renderItem={({ item }) => (
-            <Link href={`/show/${item.showId}`} testID="library-row">
+            <Link href={`/show/${item.showId}`} testID={TEST_IDS.libraryRow(item.showId)}>
               {item.title}
             </Link>
           )}

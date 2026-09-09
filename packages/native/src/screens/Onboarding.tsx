@@ -3,6 +3,7 @@ import type { ReactElement } from "react";
 import { Linking, Pressable, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "../ui/Button";
+import { TEST_IDS } from "../ui/test-ids";
 import { SPACE, TARGET_MIN, useColors } from "../ui/tokens";
 import { CueText } from "../ui/type";
 
@@ -28,7 +29,7 @@ export function Onboarding(): ReactElement {
   if (deviceCode !== null) {
     return (
       <SafeAreaView
-        testID="screen-device-code"
+        testID={TEST_IDS.screenDeviceCode}
         style={[styles.page, { backgroundColor: colors.bg }]}
       >
         <CueText variant="detailTitle" accessibilityRole="header" style={{ color: colors.fg }}>
@@ -39,7 +40,7 @@ export function Onboarding(): ReactElement {
         </CueText>
         <Pressable
           accessibilityRole="link"
-          testID="device-code-url"
+          testID={TEST_IDS.deviceCodeUrl}
           style={styles.target}
           onPress={() => void Linking.openURL(deviceCode.verificationUrl)}
         >
@@ -50,7 +51,7 @@ export function Onboarding(): ReactElement {
         <CueText
           variant="detailTitle"
           tabularNums
-          testID="device-code-value"
+          testID={TEST_IDS.deviceCodeValue}
           accessibilityLabel={`Your code is ${deviceCode.userCode}`}
           style={{ color: colors.fg }}
         >
@@ -58,7 +59,7 @@ export function Onboarding(): ReactElement {
         </CueText>
         <Pressable
           accessibilityRole="button"
-          testID="device-code-cancel"
+          testID={TEST_IDS.deviceCodeCancel}
           style={styles.target}
           onPress={cancel}
         >
@@ -71,7 +72,10 @@ export function Onboarding(): ReactElement {
   }
 
   return (
-    <SafeAreaView testID="screen-onboarding" style={[styles.page, { backgroundColor: colors.bg }]}>
+    <SafeAreaView
+      testID={TEST_IDS.screenOnboarding}
+      style={[styles.page, { backgroundColor: colors.bg }]}
+    >
       <CueText variant="statHero" accessibilityRole="header" style={{ color: colors.fg }}>
         Cue
       </CueText>
@@ -85,7 +89,7 @@ export function Onboarding(): ReactElement {
       )}
       <Button
         label={status === "connecting" ? "Connecting…" : "Connect to Trakt"}
-        testID="button-connect"
+        testID={TEST_IDS.buttonConnect}
         disabled={status === "connecting"}
         onPress={() => void connect()}
       />

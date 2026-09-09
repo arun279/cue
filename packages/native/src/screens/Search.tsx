@@ -2,6 +2,7 @@ import { useSearch } from "@cue/core/hooks/useSearch";
 import { Link } from "expo-router";
 import type { ReactElement } from "react";
 import { FlatList, Text, TextInput, View } from "react-native";
+import { TEST_IDS } from "../ui/test-ids";
 
 /**
  * Search, over the shared debounced hook. The field is a plain `TextInput` for
@@ -13,10 +14,10 @@ export function Search(): ReactElement {
   const search = useSearch();
 
   return (
-    <View testID="screen-search">
+    <View testID={TEST_IDS.screenSearch}>
       <Text accessibilityRole="header">Search</Text>
       <TextInput
-        testID="search-input"
+        testID={TEST_IDS.searchInput}
         accessibilityLabel="Search shows and movies"
         value={search.input}
         onChangeText={search.setInput}
@@ -24,13 +25,13 @@ export function Search(): ReactElement {
         autoCapitalize="none"
       />
       <FlatList
-        testID="search-results"
+        testID={TEST_IDS.searchResults}
         data={search.hits}
         keyExtractor={(hit) => hit.key}
         renderItem={({ item }) => (
           <Link
             href={item.type === "movie" ? `/movie/${item.traktId}` : `/show/${item.traktId}`}
-            testID="search-row"
+            testID={TEST_IDS.searchRow(item.traktId)}
           >
             {item.title}
           </Link>

@@ -1,14 +1,13 @@
 import { render, screen } from "@testing-library/react-native";
 import { Text } from "react-native";
 import { EmptyState } from "../../src/ui/EmptyState";
-import { TEST_IDS } from "../../src/ui/test-ids";
 
 it("leads with a heading and carries whatever action it is given", async () => {
   await render(
     <EmptyState
       headline="Nothing queued"
       body="Start a show and it turns up here."
-      testID={TEST_IDS.upNextEmptyNothingQueued}
+      testID="empty-with-action"
     >
       <Text>Find something to watch</Text>
     </EmptyState>,
@@ -17,7 +16,7 @@ it("leads with a heading and carries whatever action it is given", async () => {
   expect(screen.getByRole("header", { name: "Nothing queued" })).toBeOnTheScreen();
   expect(screen.getByText("Start a show and it turns up here.")).toBeOnTheScreen();
   expect(screen.getByText("Find something to watch")).toBeOnTheScreen();
-  expect(screen.getByTestId(TEST_IDS.upNextEmptyNothingQueued)).toBeOnTheScreen();
+  expect(screen.getByTestId("empty-with-action")).toBeOnTheScreen();
 });
 
 it("left-aligns emptiness and centers failure, so the two never read the same", async () => {

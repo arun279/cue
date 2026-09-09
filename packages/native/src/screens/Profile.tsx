@@ -3,6 +3,7 @@ import { useUserProfile } from "@cue/core/hooks/useUserProfile";
 import { Link } from "expo-router";
 import type { ReactElement } from "react";
 import { Text, View } from "react-native";
+import { TEST_IDS } from "../ui/test-ids";
 
 /** Profile: the account the session belongs to, and the two ways out of it. */
 export function Profile(): ReactElement {
@@ -10,15 +11,17 @@ export function Profile(): ReactElement {
   const { stats } = useStats();
 
   return (
-    <View testID="screen-profile">
+    <View testID={TEST_IDS.screenProfile}>
       <Text accessibilityRole="header">{profile?.displayName ?? "Profile"}</Text>
       {stats !== undefined && (
-        <Text testID="profile-episode-count">{`${stats.episodes.watched} episodes watched`}</Text>
+        <Text
+          testID={TEST_IDS.profileEpisodeCount}
+        >{`${stats.episodes.watched} episodes watched`}</Text>
       )}
-      <Link href="/history" testID="profile-to-history">
+      <Link href="/history" testID={TEST_IDS.profileToHistory}>
         History
       </Link>
-      <Link href="/settings" testID="profile-to-settings">
+      <Link href="/settings" testID={TEST_IDS.profileToSettings}>
         Settings
       </Link>
     </View>
