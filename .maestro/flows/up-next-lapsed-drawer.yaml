@@ -1,8 +1,10 @@
 # "Haven't watched lately", and catching a show up in place.
 #
 # The drawer is a pruning prompt rather than a wall of shame: a show marked from
-# inside it re-files itself into the queue, which is what the last assertion is
-# about.
+# inside it re-files itself into the queue, which is what the last two
+# assertions are about. Re-filing puts it at the head, so it takes the card and
+# pushes what the card held down into the first row; the show itself carries no
+# row id to assert on while it is the card.
 appId: app.cuetracker
 ---
 - runFlow: lib/connect.yaml
@@ -19,5 +21,9 @@ appId: app.cuetracker
 - assertVisible:
     id: "snackbar"
 - runFlow: lib/settle.yaml
-- assertVisible:
-    id: "queue-row-8805"
+- assertNotVisible:
+    id: "lapsed-row-8805"
+- scrollUntilVisible:
+    element:
+      id: "queue-row-8801"
+    direction: UP
