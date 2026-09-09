@@ -3,22 +3,23 @@ import { useState } from "react";
 import { configure, measureRenders } from "reassure";
 import { CheckControl } from "../src/ui/CheckControl";
 import { TEST_IDS } from "../src/ui/test-ids";
-import { cardOf, entry, viewOf } from "./support/up-next";
+import { cardOf, entry, viewOf } from "./support/perf-up-next";
 
 configure({ testingLibrary: "react-native" });
 jest.setTimeout(15_000);
 
 jest.mock("expo-router", () => {
   const { Text } = require("react-native");
-  return { Link: Text };
+  return { Link: Text, Stack: { Screen: () => null }, useRouter: () => ({ push: jest.fn() }) };
 });
+const mockMark = {
+  mark: jest.fn(),
+  reverse: jest.fn(),
+  reArm: jest.fn(),
+  justMarkedAt: () => null,
+};
 jest.mock("@cue/core/hooks/useMarkWatched", () => ({
-  useMarkWatched: () => ({
-    mark: jest.fn(),
-    reverse: jest.fn(),
-    reArm: jest.fn(),
-    justMarkedAt: () => null,
-  }),
+  useMarkWatched: () => mockMark,
 }));
 jest.mock("@cue/core/hooks/useMarkControl", () => ({
   useMarkControl: () => {
@@ -34,6 +35,24 @@ jest.mock("@cue/core/hooks/useMarkControl", () => ({
 }));
 jest.mock("@cue/core/hooks/useSyncBanner", () => ({ useSyncBanner: () => null }));
 jest.mock("@cue/core/hooks/useUpNext", () => ({ useUpNext: () => mockView }));
+jest.mock("@cue/core/hooks/useHideShow", () => ({
+  stopWatching: jest.fn(),
+  useHideShow: () => ({}),
+}));
+jest.mock("@cue/core/hooks/useOnTheWay", () => ({ useOnTheWay: () => [] }));
+jest.mock("@cue/core/hooks/useStopSnacks", () => ({ useStopSnacks: jest.fn() }));
+jest.mock("@cue/core/prefs/prefs-store", () => ({
+  usePrefs: (select: (state: { showsEnabled: boolean }) => unknown) =>
+    select({ showsEnabled: true }),
+}));
+jest.mock("../src/hooks/usePullToRefresh", () => ({
+  usePullToRefresh: () => ({ pull: jest.fn(), refreshing: false, sync: jest.fn() }),
+}));
+jest.mock("../src/hooks/useShowArt", () => ({ useShowArt: () => ({ posters: [] }) }));
+jest.mock("../src/platform/stores", () => ({
+  preferenceStorage: { getItem: () => null, setItem: jest.fn(), clearNamespace: jest.fn() },
+}));
+jest.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ bottom: 0 }) }));
 
 const card = cardOf(false);
 const mockView = viewOf();
@@ -46,29 +65,29 @@ function InteractiveCheckControl() {
     <CheckControl
       checked={checked}
       label="Mark Salt Air watched"
-      testID={TEST_IDS.markWatched(entry.showId)}
+      testID={TEST_IDS.queueRowMark(entry.showId)}
       onPress={() => setChecked(true)}
     />
   );
 }
 
 test("queue row", async () => {
-  await measureRenders(<QueueRow card={card} />, {
+  await measureRenders(<QueueRow card={card} mark={mockMark} onStop={jest.fn()} />, {
     scenario: async (screen) =>
-      fireEvent.press(screen.getByTestId(TEST_IDS.markWatched(entry.showId))),
+      fireEvent.press(screen.getByTestId(TEST_IDS.queueRowMark(entry.showId))),
   });
 });
 
 test("check control", async () => {
   await measureRenders(<InteractiveCheckControl />, {
     scenario: async (screen) =>
-      fireEvent.press(screen.getByTestId(TEST_IDS.markWatched(entry.showId))),
+      fireEvent.press(screen.getByTestId(TEST_IDS.queueRowMark(entry.showId))),
   });
 });
 
 test("Up Next screen", async () => {
   await measureRenders(<UpNext />, {
     scenario: async (screen) =>
-      fireEvent.press(screen.getByTestId(TEST_IDS.markWatched(entry.showId))),
+      fireEvent.press(screen.getByTestId(TEST_IDS.queueRowMark(entry.showId))),
   });
 });

@@ -125,7 +125,7 @@ export const FLOAT_SHADOW: ViewStyle = Platform.select({
  * setting give a different answer, which is measured on an Android device
  * rather than inherited from this one.
  */
-const REFLOW_FONT_SCALE = 1.6;
+export const REFLOW_FONT_SCALE = 1.6;
 
 /**
  * Where the marquee stops being a scrim card. Text over artwork is the

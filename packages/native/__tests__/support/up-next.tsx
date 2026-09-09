@@ -72,6 +72,7 @@ export interface RuntimeFixture {
  */
 export function fakeRuntime({ entries = [], calendar = [], submit }: RuntimeFixture): CueRuntime {
   return {
+    newId: () => "test-op-id",
     loadUpNext: () => Promise.resolve({ entries: [...entries], isPartial: false }),
     loadCalendar: () => Promise.resolve({ entries: calendar, hiddenShowIds: [] }),
     loadShowSeasons: () => Promise.resolve([]),

@@ -11,14 +11,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useScreenReader } from "../platform/screen-reader";
 import { useLiveRegion } from "./live-region";
 import { TEST_IDS } from "./test-ids";
-import {
-  FLOAT_SHADOW,
-  SPACE,
-  TARGET_MIN,
-  tabBarClearance,
-  useColors,
-  useStacked,
-} from "./tokens";
+import { FLOAT_SHADOW, SPACE, TARGET_MIN, tabBarClearance, useColors, useStacked } from "./tokens";
 import { CueText } from "./type";
 
 /**
@@ -143,7 +136,7 @@ function Snackbar({
             key={action.label}
             accessibilityRole="button"
             accessibilityLabel={action.label}
-            testID={action.testId}
+            testID={action.label === "Undo" ? TEST_IDS.snackbarUndo : action.testId}
             onPress={action.onPress}
             style={styles.action}
           >
