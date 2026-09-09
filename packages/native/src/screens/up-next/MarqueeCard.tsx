@@ -1,5 +1,5 @@
 import { resolveBackdrop } from "@cue/core/data/image-source";
-import { epCode } from "@cue/core/domain/model/library";
+import { type EpisodeRef, epCode } from "@cue/core/domain/model/library";
 import { toMs } from "@cue/core/domain/time";
 import { episodesLeft, watchedPercent } from "@cue/core/format";
 import { useMarkControl } from "@cue/core/hooks/useMarkControl";
@@ -39,6 +39,9 @@ const SCRIM_ACROSS = ["rgba(10,8,6,0.4)", "rgba(10,8,6,0)"] as const;
 
 export interface MarqueeCardProps {
   readonly card: UpNextCard;
+  /** Passed rather than read off the card, because a card with no episode to
+   * headline is not drawn at all: the screen keeps that show as a queue row. */
+  readonly episode: EpisodeRef;
   readonly mark: MarkWatched;
 }
 
@@ -56,8 +59,8 @@ export interface MarqueeCardProps {
  * show with no backdrop: text over artwork is the composition that fails first
  * at the largest text sizes, so the card changes shape rather than clipping.
  */
-export function MarqueeCard({ card, mark }: MarqueeCardProps): ReactElement {
-  const { entry, item } = card;
+export function MarqueeCard({ card, episode, mark }: MarqueeCardProps): ReactElement {
+  const { entry } = card;
   const router = useRouter();
   const colors = useColors();
   const control = useMarkControl(entry, mark);
@@ -68,10 +71,10 @@ export function MarqueeCard({ card, mark }: MarqueeCardProps): ReactElement {
   // Null above the threshold, which is what turns the card into its plain
   // surface composition: the same shape it draws for a show with no backdrop.
   const backdrop = fontScale < SCRIM_FONT_SCALE ? resolveBackdrop(art.backdrops) : null;
-  const airedMs = toMs(item.episode.firstAired);
+  const airedMs = toMs(episode.firstAired);
   const now = Date.now();
   const scrim = backdrop !== null;
-  const code = epCode(item.episode.season, item.episode.number);
+  const code = epCode(episode.season, episode.number);
   const left = episodesLeft(entry.aired, entry.completed);
   const note = left > 0 ? `${left} left` : null;
   const eyebrow =
@@ -120,7 +123,7 @@ export function MarqueeCard({ card, mark }: MarqueeCardProps): ReactElement {
       <Pressable
         accessible
         accessibilityRole="button"
-        accessibilityLabel={[eyebrow, entry.title, code, item.episode.title, note]
+        accessibilityLabel={[eyebrow, entry.title, code, episode.title, note]
           .filter(Boolean)
           .join(", ")}
         onPress={() => router.push(`/show/${entry.showId}`)}
@@ -138,7 +141,7 @@ export function MarqueeCard({ card, mark }: MarqueeCardProps): ReactElement {
           </CueText>
           <CueText variant="meta" style={{ color: onImageQuiet }}>
             {code}
-            {item.episode.title === null ? "" : ` · ${item.episode.title}`}
+            {episode.title === null ? "" : ` · ${episode.title}`}
           </CueText>
           <RowFooter
             percent={watchedPercent(entry.completed, entry.aired)}

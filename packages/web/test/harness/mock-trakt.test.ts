@@ -29,6 +29,7 @@ import {
   getWatchedShows,
   getWatchlist,
 } from "@cue/core/data/trakt/endpoints";
+import { advancePastNext, type LibraryEntry } from "@cue/core/data/trakt/library";
 import { loadUpNextEntries } from "@cue/core/data/trakt/read-budget";
 import { groupUpNext } from "@cue/core/domain/up-next";
 import { DEFAULT_STALENESS_THRESHOLD_MS } from "@cue/core/domain/watch-status";
@@ -103,6 +104,58 @@ function firstSeededShow(): (typeof mock.library.shows)[number] {
   if (show === undefined) throw new Error("the mock seeds no shows");
   return show;
 }
+
+/**
+ * The post-mark projection against the catalogue it will be applied to: every
+ * coordinate `advancePastNext` invents for a seeded show has to be an episode
+ * that has actually aired, or the queue names an episode nobody can watch.
+ */
+describe("the post-mark projection over the seeded catalogue", () => {
+  it("projects only real aired coordinates across every seeded show", () => {
+    for (const show of mock.library.shows) {
+      const aired = show.episodes.filter((episode) => episode.firstAired <= mock.library.now);
+      const last = aired.at(-1);
+      for (const [index, episode] of aired.entries()) {
+        const entry: LibraryEntry = {
+          showId: show.trakt,
+          title: show.title,
+          status: show.status,
+          hidden: false,
+          inWatchlist: false,
+          lastWatchedAt: null,
+          aired: aired.length,
+          completed: index,
+          nextEpisode: {
+            season: episode.season,
+            number: episode.number,
+            title: episode.title,
+            firstAired: new Date(episode.firstAired).toISOString(),
+            still: null,
+            ids: { trakt: episode.traktId },
+          },
+          lastAired: last === undefined ? null : { season: last.season, number: last.number },
+          tmdbId: show.tmdb,
+          pendingAdvance: false,
+        };
+        const projected = advancePastNext(
+          entry,
+          new Date(mock.library.now).toISOString(),
+        ).nextEpisode;
+        expect({
+          show: show.title,
+          marked: `${episode.season}:${episode.number}`,
+          projected: projected === null ? null : `${projected.season}:${projected.number}`,
+          real:
+            projected === null ||
+            aired.some(
+              (candidate) =>
+                candidate.season === projected.season && candidate.number === projected.number,
+            ),
+        }).toMatchObject({ real: true });
+      }
+    }
+  });
+});
 
 describe("the seeded account parses through the app's own contracts", () => {
   it("serves the cold-sync reads", async () => {
@@ -316,19 +369,22 @@ describe("fault profiles", () => {
     expect((await fetch(`${baseUrl}/shows/8802/progress/watched`)).status).toBe(200);
   });
 
-  it("holds a write open until the client disconnects and reset clears it", async () => {
+  it("holds a write open until deleting the fault releases it", async () => {
     await armFault("hold-write");
     const controller = new AbortController();
-    const request = historyWrite(controller.signal).catch(() => null);
+    const request = historyWrite(controller.signal);
     // Long enough that an answered write would have answered: a window this
     // assertion could lose on a loaded runner is a window that proves nothing.
     expect(
       await Promise.race([request, new Promise((resolve) => setTimeout(resolve, 250, "held"))]),
     ).toBe("held");
+    await fetch(`${baseUrl}/__fault`, { method: "DELETE" });
+    const released = await Promise.race([
+      request.then((response) => response.status),
+      new Promise((resolve) => setTimeout(resolve, 250, "still held")),
+    ]);
     controller.abort();
-    await request;
-    await fetch(`${baseUrl}/__reset`, { method: "POST" });
-    expect((await historyWrite()).status).toBe(200);
+    expect(released).toBe(200);
   });
 
   it("drops a write connection until reset", async () => {

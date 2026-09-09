@@ -286,6 +286,24 @@ describe("Up Next's mark control", () => {
     });
     jest.useRealTimers();
   });
+
+  it("keeps a row whose projection has run out of episodes, and invents no code for it", async () => {
+    // Mid-advance past the last aired episode: the row has been marked, the
+    // confirming read has yet to name a next episode, and there may not be one.
+    await paint({
+      entries: [
+        entry({ completed: 21, nextEpisode: null, pendingAdvance: true }),
+        ...queueOf().slice(1),
+      ],
+    });
+
+    const row = screen.getByTestId(`queue-row-${HARBOR}`);
+    expect(within(row).getByText("Harbor Lights")).toBeOnTheScreen();
+    // Nothing episode-code shaped, which rules out the real next code and a
+    // placeholder standing in for one.
+    expect(within(row).queryByText(/^S.*E/)).toBeNull();
+    expect(check(HARBOR)).toHaveProp("accessibilityState", { checked: true, disabled: true });
+  });
 });
 
 describe("Up Next's row menu", () => {

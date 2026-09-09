@@ -1,6 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
-import { invalidateShowProgress } from "../data/query-invalidation";
 import { queryKeys } from "../data/query-keys";
 import { advancePastNext, type LibraryEntry, type MarkContext } from "../data/trakt/library";
 import { epCode } from "../domain/model/library";
@@ -29,7 +28,12 @@ import {
 } from "../stores/mark-store";
 import { dismissSnack, type SnackMessage, showSnack, useSnackbar } from "../stores/snackbar-store";
 import { appendToBatch } from "../sync-contract";
-import { patchEpisodeDetail, patchLibraryEntry, patchShowSeasons } from "./library-cache";
+import {
+  patchEpisodeDetail,
+  patchLibraryEntry,
+  patchShowSeasons,
+  refreshShowProgress,
+} from "./library-cache";
 import { findMarkPlay } from "./resolveUnmark";
 import { useOptimisticWrite } from "./useOptimisticWrite";
 
@@ -157,19 +161,14 @@ export function useMarkWatched(): MarkWatched {
     [patch, patchProgress],
   );
 
-  // A mark from Up Next advances the library entry, but the marked show's detail
-  // views (header X/Y + next-up, season ticks, the marked episode) live on
-  // separate cache keys the last-activities gate never re-syncs for a local write.
-  // Invalidate them alongside `library` so they refetch on next visit: durably,
-  // since the invalidated flag persists across a reload. History rides along so
-  // the fresh play surfaces in the home "Previously" section without waiting for
-  // the next activities poll.
+  // History rides along so the fresh play surfaces in the home "Previously"
+  // section without waiting for the next activities poll.
   const revalidate = useCallback(
     (showId: number, episode: { readonly season: number; readonly number: number }) => {
-      invalidateShowProgress(queryClient, showId, episode);
+      refreshShowProgress(queryClient, showId, () => runtime.loadShowProgress(showId), episode);
       void queryClient.invalidateQueries({ queryKey: queryKeys.historyPrefix() });
     },
-    [queryClient],
+    [queryClient, runtime],
   );
 
   /**

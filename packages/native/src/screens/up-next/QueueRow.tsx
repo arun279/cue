@@ -46,8 +46,11 @@ export function QueueRow({ card, mark, onStop, variant = "queue" }: QueueRowProp
   const control = useMarkControl(entry, mark);
   const art = useShowArt(entry.showId);
 
-  const code = epCode(item.episode.season, item.episode.number);
-  const episodeTitle = item.episode.title;
+  // Null mid-advance, when the projection has run past the last aired episode
+  // and the confirming read has yet to name the next one. The row keeps its
+  // place and drops the line it cannot fill.
+  const episode = item.episode;
+  const code = episode === null ? null : epCode(episode.season, episode.number);
   const left = episodesLeft(entry.aired, entry.completed);
   const idle = variant === "lapsed" ? lastWatchedPhrase(entry.lastWatchedAt, Date.now()) : null;
   // Never "0 left": a projection that has run past a show's last aired episode
@@ -56,7 +59,7 @@ export function QueueRow({ card, mark, onStop, variant = "queue" }: QueueRowProp
   const open = (): void => router.push(`/show/${entry.showId}`);
 
   const markable = control.state === "unwatched";
-  const markLabel = `Mark ${code} watched`;
+  const markLabel = code === null ? `Mark ${entry.title} watched` : `Mark ${code} watched`;
 
   return (
     <SwipeRow
@@ -68,7 +71,7 @@ export function QueueRow({ card, mark, onStop, variant = "queue" }: QueueRowProp
     >
       <View style={[styles.surface, { backgroundColor: colors.bg }]}>
         <Row
-          label={[entry.title, code, episodeTitle, note].filter(Boolean).join(", ")}
+          label={[entry.title, code, episode?.title, note].filter(Boolean).join(", ")}
           minHeight={ROW_MIN_HEIGHT.queue}
           onPress={open}
           actions={[
@@ -111,10 +114,12 @@ export function QueueRow({ card, mark, onStop, variant = "queue" }: QueueRowProp
           <CueText variant="rowTitle" style={{ color: colors.fg }}>
             {entry.title}
           </CueText>
-          <CueText variant="meta" style={{ color: colors.ink2 }}>
-            {code}
-            {episodeTitle === null ? "" : ` · ${episodeTitle}`}
-          </CueText>
+          {episode === null ? null : (
+            <CueText variant="meta" style={{ color: colors.ink2 }}>
+              {code}
+              {episode.title === null ? "" : ` · ${episode.title}`}
+            </CueText>
+          )}
           <RowFooter
             percent={watchedPercent(entry.completed, entry.aired)}
             note={note}

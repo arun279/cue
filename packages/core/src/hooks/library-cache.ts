@@ -1,8 +1,9 @@
 import type { QueryClient } from "@tanstack/react-query";
+import { invalidateShowProgress } from "../data/query-invalidation";
 import { queryKeys } from "../data/query-keys";
 import type { EpisodeDetail } from "../data/trakt/episode-detail";
 import type { LibraryEntry } from "../data/trakt/library";
-import type { SeasonView } from "../data/trakt/show-detail";
+import { type SeasonView, type ShowProgress, toEpisodeRef } from "../data/trakt/show-detail";
 import type { UpNextData } from "../runtime/runtime";
 
 /**
@@ -21,6 +22,44 @@ export function patchLibraryEntry(
       ? old
       : { ...old, entries: old.entries.map((e) => (e.showId === showId ? update(e) : e)) },
   );
+}
+
+/**
+ * Fold an authoritative `/shows/:id/progress/watched` read into the show's own
+ * library entry, leaving every other field the aggregate assembled (title,
+ * hidden, watchlist membership, the aired frontier) untouched.
+ */
+function patchLibraryProgress(qc: QueryClient, showId: number, progress: ShowProgress): void {
+  patchLibraryEntry(qc, showId, (entry) => ({
+    ...entry,
+    aired: progress.aired,
+    completed: progress.completed,
+    nextEpisode: progress.nextEpisode === null ? null : toEpisodeRef(progress.nextEpisode),
+    pendingAdvance: false,
+  }));
+}
+
+/**
+ * Reconcile one show after a local watched-progress write, whichever surface
+ * issued it. The show's own detail reads are invalidated so they refetch on next
+ * visit, and its single library entry is replaced from the scoped progress read:
+ * that endpoint's per-user snapshot is the one the write just invalidated on
+ * Trakt, and it is the only one a write on this show can have changed, so the Up
+ * Next aggregate is never rebuilt for it. A read that fails leaves
+ * `pendingAdvance` standing and the row advancing, which is the honest state
+ * until a later read names the next episode.
+ */
+export function refreshShowProgress(
+  qc: QueryClient,
+  showId: number,
+  load: () => Promise<ShowProgress>,
+  episode?: { readonly season: number; readonly number: number } | "all",
+): void {
+  invalidateShowProgress(qc, showId, episode);
+  void qc
+    .fetchQuery({ queryKey: queryKeys.showProgress(showId), queryFn: load })
+    .then((progress) => patchLibraryProgress(qc, showId, progress))
+    .catch(() => {});
 }
 
 /** Optimistically flip a library entry's `hidden` (Stopped) flag in the shared SWR cache. */

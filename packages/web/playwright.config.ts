@@ -31,8 +31,16 @@ const MOBILE_EXPERIENCE_SPECS = [
  */
 const MOCK_LANE = process.env["E2E_MOCK"] === "1";
 // `.env.mock` is committed with this origin in it, so the mock answers here or
-// the build does not reach it.
-const MOCK_TRAKT_URL = "http://127.0.0.1:8787";
+// the build does not reach it. `MOCK_TRAKT_PORT` overrides both halves at once,
+// for the same reason `E2E_PREVIEW_PORT` exists: two checkouts on one machine
+// have to be able to run this lane at the same time.
+export const MOCK_TRAKT_PORT = Number(process.env["MOCK_TRAKT_PORT"] ?? 8787);
+if (!Number.isInteger(MOCK_TRAKT_PORT) || MOCK_TRAKT_PORT < 1 || MOCK_TRAKT_PORT > 65535) {
+  throw new Error(
+    `MOCK_TRAKT_PORT must be a port from 1 to 65535, got "${process.env["MOCK_TRAKT_PORT"]}"`,
+  );
+}
+const MOCK_TRAKT_URL = `http://127.0.0.1:${MOCK_TRAKT_PORT}`;
 const MOCK_PREVIEW_PORT = PREVIEW_PORT + 1;
 const MOCK_PREVIEW_URL = `http://127.0.0.1:${MOCK_PREVIEW_PORT}`;
 const JOURNAL = process.env["MOCK_TRAKT_JOURNAL"] ?? "journal/journal-a.ndjson";
@@ -45,13 +53,13 @@ export const JOURNAL_FILE = path.resolve(import.meta.dirname, JOURNAL);
 
 const mockServers = [
   {
-    command: `MOCK_TRAKT_JOURNAL=${JOURNAL} node ../../scripts/mock-trakt/server.mjs`,
+    command: `MOCK_TRAKT_JOURNAL=${JOURNAL} MOCK_TRAKT_PORT=${MOCK_TRAKT_PORT} node ../../scripts/mock-trakt/server.mjs`,
     url: `${MOCK_TRAKT_URL}/users/settings`,
     reuseExistingServer: false,
     timeout: 30_000,
   },
   {
-    command: `pnpm exec vite build --mode mock && pnpm exec vite preview --host 127.0.0.1 --port ${MOCK_PREVIEW_PORT} --strictPort`,
+    command: `VITE_TRAKT_API_BASE=${MOCK_TRAKT_URL} pnpm exec vite build --mode mock && pnpm exec vite preview --host 127.0.0.1 --port ${MOCK_PREVIEW_PORT} --strictPort`,
     url: MOCK_PREVIEW_URL,
     reuseExistingServer: false,
     timeout: 120_000,

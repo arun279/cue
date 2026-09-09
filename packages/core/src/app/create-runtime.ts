@@ -96,6 +96,7 @@ export interface RuntimeDeps {
   readonly clientId: string;
   /** The fake Trakt's origin under `--mode mock`, undefined in every real build. */
   readonly apiBaseUrl?: string | undefined;
+  readonly browser: boolean;
   /** Called when the refresh token is dead: clears the session → onboarding. */
   readonly endSession: () => Promise<void>;
   /** Drop this device's query cache, live and persisted. One dependency rather
@@ -134,6 +135,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     getToken: () => authorized.accessToken(),
     fetch: authorized.fetch,
     baseUrl: deps.apiBaseUrl,
+    browser: deps.browser,
   });
 
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Reconciles each queued operation kind against its distinct authoritative Trakt read and landing condition.

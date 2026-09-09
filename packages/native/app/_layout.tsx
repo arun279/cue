@@ -129,6 +129,7 @@ const runtimeDeps = {
   redirectUri: NATIVE_REDIRECT_URI,
   clientId: TRAKT_CLIENT_ID,
   apiBaseUrl: TRAKT_BASE_OVERRIDE,
+  browser: false,
   clearPersistedCaches,
   clearLocalPreferences,
 };

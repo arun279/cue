@@ -110,6 +110,7 @@ export function UpNext(): ReactElement {
               view={view}
               marquee={marquee}
               mark={mark.controller}
+              onStop={(card) => stopWatching(stop, card.entry)}
               airingSoon={onTheWayDays.length > 0}
             />
           </View>
@@ -164,12 +165,14 @@ function Lead({
   view,
   marquee,
   mark,
+  onStop,
   airingSoon,
 }: {
   readonly branch: Branch;
   readonly view: UpNextView;
   readonly marquee: UpNextCard | undefined;
   readonly mark: MarkWatched;
+  readonly onStop: (card: UpNextCard) => void;
   readonly airingSoon: boolean;
 }): ReactElement | null {
   if (branch === "tv-off") return <TvShowsOff />;
@@ -180,7 +183,15 @@ function Lead({
   if (branch !== "queue") {
     return <UpNextEmpty kind={branch} watchlist={view.watchlistEntries} airingSoon={airingSoon} />;
   }
-  return marquee === undefined ? null : <MarqueeCard card={marquee} mark={mark} />;
+  if (marquee === undefined) return null;
+  // Mid-advance past the last aired episode there is no episode to headline, so
+  // the lead show keeps its place as a row until the confirming read either
+  // names the next one or drops it.
+  return marquee.item.episode === null ? (
+    <QueueRow card={marquee} mark={mark} onStop={() => onStop(marquee)} />
+  ) : (
+    <MarqueeCard card={marquee} episode={marquee.item.episode} mark={mark} />
+  );
 }
 
 /**

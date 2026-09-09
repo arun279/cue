@@ -12,6 +12,8 @@ export const MIN_WRITE_INTERVAL_MS = 1000;
  */
 const BACKOFF_BASE_MS = MIN_WRITE_INTERVAL_MS;
 const BACKOFF_MAX_MS = 30_000;
+const READ_RETRY_AFTER_MAX_MS = 300_000;
+const READ_RETRY_AFTER_MARGIN_MS = 500;
 
 export type Classification =
   | { readonly kind: "ok" }
@@ -39,31 +41,39 @@ export function classifyStatus(
 }
 
 /**
- * `Retry-After` as ms, accepts a delta-seconds value or an HTTP-date, clamped
- * to `[0, BACKOFF_MAX_MS]`. This is the single parse point every honored wait
- * flows through (write-queue retry delay, the OAuth-refresh throttle floor, and
- * the read rate-limit sleep), so the clamp lives here to bound them all at once.
- * The header is advisory and Trakt can name a wait of minutes; honoring it
- * verbatim would freeze the sync pill across the queue's five attempts (and stall
- * reads/refresh) for that whole span. Capping at the same ceiling the
- * self-computed backoff uses keeps any one wait bounded no matter who set it,
- * while still respecting a shorter server request.
+ * A write `Retry-After` as ms, accepting delta seconds or an HTTP date and
+ * clamping it to the write queue's bounded backoff ceiling.
  */
 export function parseRetryAfterMs(
   headers: Readonly<Record<string, string>>,
   now: number,
 ): number | null {
+  return parseRetryAfter(headers, now, BACKOFF_MAX_MS, 0);
+}
+
+export function parseReadRetryAfterMs(
+  headers: Readonly<Record<string, string>>,
+  now: number,
+): number | null {
+  return parseRetryAfter(headers, now, READ_RETRY_AFTER_MAX_MS, READ_RETRY_AFTER_MARGIN_MS);
+}
+
+function parseRetryAfter(
+  headers: Readonly<Record<string, string>>,
+  now: number,
+  maxMs: number,
+  marginMs: number,
+): number | null {
   const raw = headerValue(headers, "retry-after");
   if (raw === undefined) return null;
   const seconds = Number(raw);
-  if (Number.isFinite(seconds)) return clampWaitMs(seconds * 1000);
+  if (Number.isFinite(seconds)) return clampWaitMs(seconds * 1000, maxMs) + marginMs;
   const date = Date.parse(raw);
-  return Number.isNaN(date) ? null : clampWaitMs(date - now);
+  return Number.isNaN(date) ? null : clampWaitMs(date - now, maxMs) + marginMs;
 }
 
-/** Bound a wait to `[0, BACKOFF_MAX_MS]`: see `parseRetryAfterMs`. */
-function clampWaitMs(ms: number): number {
-  return Math.min(BACKOFF_MAX_MS, Math.max(0, ms));
+function clampWaitMs(ms: number, maxMs: number): number {
+  return Math.min(maxMs, Math.max(0, ms));
 }
 
 export function backoffMs(attempt: number): number {

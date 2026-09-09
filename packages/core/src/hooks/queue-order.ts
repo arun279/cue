@@ -6,7 +6,7 @@ function airMs(item: UpNextItem): number {
   // A provisional post-mark projection has no air date. Treating it as OLDEST
   // keeps a just-marked show at the head of the queue through its reverse window
   // instead of yanking it to the bottom until the authoritative next lands.
-  return toMs(item.episode.firstAired) ?? Number.NEGATIVE_INFINITY;
+  return toMs(item.episode?.firstAired ?? null) ?? Number.NEGATIVE_INFINITY;
 }
 
 function watchedMs(item: UpNextItem): number {

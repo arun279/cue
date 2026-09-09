@@ -217,7 +217,7 @@ test("a sustained calendar outage shows the retry state, and recovery fills the 
 
   await expect(page.getByTestId("upcoming-error")).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId("upcoming-error")).toContainText(
-    "Check your connection and try again.",
+    "Trakt is having trouble. Try again in a moment.",
   );
   failing = false;
   await page.getByTestId("upcoming-error-retry").click();
