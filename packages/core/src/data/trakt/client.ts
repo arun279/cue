@@ -179,8 +179,8 @@ export class TraktClient {
     const first = await this.get(path, { ...options, page: 1 });
     if (!first.ok) return first;
     const acc = asArray(first.data);
-    const pageCount = first.pagination?.pageCount ?? 1;
-    for (let page = 2; page <= pageCount; page += 1) {
+    const pageCount = first.pagination?.pageCount;
+    for (let page = 2; pageCount === undefined || page <= pageCount; page += 1) {
       const next = await this.get(path, { ...options, page });
       if (!next.ok) return next;
       const rows = asArray(next.data);

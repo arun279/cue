@@ -99,12 +99,16 @@ describe("TraktClient pagination", () => {
     expect(result.ok && result.data).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }]);
   });
 
-  it("treats an endpoint without pagination headers as a single page", async () => {
+  it("walks to an empty page when pagination headers are absent", async () => {
+    const rows = Array.from({ length: 250 }, (_, id) => ({ id }));
     server.use(
-      http.get(`${TRAKT_API_BASE}/sync/watched/shows`, () => HttpResponse.json([{ id: 1 }])),
+      http.get(`${TRAKT_API_BASE}/sync/watched/shows`, ({ request }) => {
+        const page = Number(new URL(request.url).searchParams.get("page"));
+        return HttpResponse.json(rows.slice((page - 1) * 100, page * 100));
+      }),
     );
     const result = await client().getAllPages("/sync/watched/shows");
-    expect(result.ok && result.data).toEqual([{ id: 1 }]);
+    expect(result.ok && result.data).toEqual(rows);
     expect(result.ok && result.pagination).toBeNull();
   });
 });
