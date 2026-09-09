@@ -1,4 +1,4 @@
-import { parseRetryAfterMs } from "../../domain/write-queue/classify";
+import { parseReadRetryAfterMs, parseRetryAfterMs } from "../../domain/write-queue/classify";
 
 export const TRAKT_API_BASE = "https://api.trakt.tv";
 const TRAKT_API_VERSION = "2";
@@ -138,7 +138,7 @@ export class TraktClient {
     if (raw.status >= 200 && raw.status < 300) {
       return { ok: true, data: raw.data, pagination: readPagination(raw.headers) };
     }
-    return { ok: false, error: mapFailure(raw) };
+    return { ok: false, error: mapFailure(raw, method) };
   }
 
   /**
@@ -165,11 +165,17 @@ export class TraktClient {
   }
 }
 
-function mapFailure(raw: RawResponse): TraktFailure {
+function mapFailure(raw: RawResponse, method: HttpMethod): TraktFailure {
   if (raw.status === 401) return { kind: "unauthorized" };
   if (raw.status === 404) return { kind: "not-found" };
   if (raw.status === 429) {
-    return { kind: "rate-limited", retryAfterMs: parseRetryAfterMs(raw.headers, Date.now()) };
+    return {
+      kind: "rate-limited",
+      retryAfterMs:
+        method === "GET"
+          ? parseReadRetryAfterMs(raw.headers, Date.now())
+          : parseRetryAfterMs(raw.headers, Date.now()),
+    };
   }
   return { kind: "server", status: raw.status };
 }

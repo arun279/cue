@@ -125,7 +125,16 @@ describe("TraktClient error mapping", () => {
   it("maps 429 and reads Retry-After seconds", async () => {
     respond(429, { "Retry-After": "3" });
     const result = await client().get(path);
-    expect(result).toEqual({ ok: false, error: { kind: "rate-limited", retryAfterMs: 3000 } });
+    expect(result).toEqual({ ok: false, error: { kind: "rate-limited", retryAfterMs: 3500 } });
+  });
+
+  it("honors a long read Retry-After with a positive margin", async () => {
+    respond(429, { "Retry-After": "120" });
+    const result = await client().get(path);
+    expect(result).toEqual({
+      ok: false,
+      error: { kind: "rate-limited", retryAfterMs: 120_500 },
+    });
   });
 
   it("maps 500 to server with the status", async () => {
