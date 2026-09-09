@@ -24,11 +24,15 @@ for (const [platform, { assets }] of Object.entries(metadata.fileMetadata)) {
 
 const expectedByPath = new Map(manifest.assets.map((asset) => [asset.path, asset]));
 for (const asset of actualByPath.values()) {
+  asset.platforms.sort();
   const expected = expectedByPath.get(asset.path);
   if (expected === undefined) {
     throw new Error(`unlisted native asset: ${asset.path} (${asset.bytes} bytes)`);
   }
-  if (JSON.stringify(asset) !== JSON.stringify(expected)) {
+  if (
+    JSON.stringify(asset) !==
+    JSON.stringify({ ...expected, platforms: expected.platforms.toSorted() })
+  ) {
     throw new Error(`native asset changed: ${asset.path}`);
   }
 }
