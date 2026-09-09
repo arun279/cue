@@ -27,19 +27,19 @@ export default function TabsLayout(): ReactElement {
   return (
     <NativeTabs>
       <NativeTabs.Trigger name="(up-next)">
-        <NativeTabs.Trigger.Icon sf="play.square.stack" md="play_circle" />
+        <NativeTabs.Trigger.Icon sf="play.square.stack" drawable="cue_tab_up_next" />
         <NativeTabs.Trigger.Label>Up Next</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="(library)">
-        <NativeTabs.Trigger.Icon sf="square.grid.2x2" md="grid_view" />
+        <NativeTabs.Trigger.Icon sf="square.grid.2x2" drawable="cue_tab_library" />
         <NativeTabs.Trigger.Label>Library</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="(calendar)">
-        <NativeTabs.Trigger.Icon sf="calendar" md="calendar_month" />
+        <NativeTabs.Trigger.Icon sf="calendar" drawable="cue_tab_calendar" />
         <NativeTabs.Trigger.Label>Calendar</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="(search)" role="search">
-        <NativeTabs.Trigger.Icon sf="magnifyingglass" md="search" />
+        <NativeTabs.Trigger.Icon sf="magnifyingglass" drawable="cue_tab_search" />
         <NativeTabs.Trigger.Label>Search</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
     </NativeTabs>

@@ -34,6 +34,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
       - uses: ./.github/actions/setup-node-pnpm
       - run: pnpm check
   audit:
@@ -68,6 +70,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+      - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
       - uses: ./.github/actions/setup-node-pnpm
       - name: Measure the diff footprint
         env:
@@ -76,7 +83,7 @@ jobs:
           base=$(git merge-base "origin/$BASE_REF" HEAD)
           git worktree add ../base "$base"
 
-          scripts/measure-sizes.sh "$PWD" "$PWD/head-sizes.json"
+          EXPO_ATLAS=true scripts/measure-sizes.sh "$PWD" "$PWD/head-sizes.json"
           node scripts/measure-complexity.mjs "$PWD" "$PWD/head-complexity.json"
           node scripts/measure-comments.mjs "$PWD" "$PWD/head-comments.json"
           scripts/measure-sizes.sh ../base "$PWD/base-sizes.json"
@@ -95,6 +102,13 @@ jobs:
             > base-metrics.json
           scripts/diff-footprint.sh "origin/$BASE_REF" base-metrics.json head-metrics.json \
             > footprint.md
+          node scripts/summarize-atlas.mjs packages/native/.expo/atlas.jsonl >> footprint.md
+      - name: Upload Expo Atlas
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: expo-atlas
+          path: packages/native/.expo/atlas.jsonl
+          retention-days: 7
       - name: Update the pull request comment
         env:
           GH_TOKEN: ${{ github.token }}
@@ -109,6 +123,10 @@ jobs:
             gh api --method DELETE "repos/${{ github.repository }}/issues/comments/$comment_id"
           done
           gh api --method POST "$comments_url" -F body=@footprint.md
+      - name: Check size deltas
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: node scripts/check-size-delta.mjs base-metrics.json head-metrics.json "$PR_BODY"
   android:
     runs-on: ubuntu-latest
     steps:
@@ -310,10 +328,6 @@ jobs:
           java-version: "21"
           cache: gradle
       - uses: ./.github/actions/setup-node-pnpm
-      - name: Check native JavaScript bundle sizes
-        run: pnpm check:size:native
-        env:
-          EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
       - run: pnpm --filter @cue/native exec expo prebuild --platform android --clean
         env:
           EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
@@ -336,38 +350,24 @@ jobs:
       - name: Build and check release artifacts
         working-directory: packages/native/android
         env:
-          # A smoke ceiling on the upload, not a download budget. Measured, the
-          # bundle is 73.5 MB and two thirds of that is the native debug symbols
-          # and the R8 mapping, which Play strips before it serves anything; what
-          # a phone fetches is the bundletool estimate below. This number is
-          # measured plus headroom and its job is to catch a configuration the
-          # device spec does not sample, such as a new ABI or density.
-          AAB_SIZE_LIMIT_BYTES: "100000000"
+          PLAY_SIZE_MEASUREMENT_BYTES: "16920872"
+          PLAY_SIZE_MEASURED_ON: "2026-09-09"
           PLAY_SIZE_LIMIT_BYTES: "20000000"
         run: |
           ./gradlew bundleRelease
           aab=app/build/outputs/bundle/release/app-release.aab
-          node ../../../scripts/assert-file-size.mjs "$aab" "$AAB_SIZE_LIMIT_BYTES" "release AAB"
 
-          echo '{"supportedAbis":["arm64-v8a"],"supportedLocales":["en"],"screenDensity":480,"sdkVersion":35}' > device.json
+          echo '{"supportedAbis":["arm64-v8a"],"supportedLocales":["en"],"screenDensity":640,"sdkVersion":35}' > device.json
           java -jar bundletool.jar build-apks \
-            --bundle="$aab" --output=device.apks --device-spec=device.json
+            --bundle="$aab" --output=all.apks
           java -jar bundletool.jar get-size total \
-            --apks=device.apks --device-spec=device.json | tee play-size.csv
-          # bundletool writes CRLF, and `[ 123<CR> -gt 456 ]` is a usage error
-          # rather than a comparison: the shell reports it and steps over the if.
-          play_size=$(awk -F, 'NR == 2 { print $2 }' play-size.csv | tr -d '\r')
-          case $play_size in
-            '' | *[!0-9]*)
-              echo "bundletool reported no numeric download size: '$play_size'" >&2
-              exit 1
-              ;;
-          esac
-          if [ "$play_size" -gt "$PLAY_SIZE_LIMIT_BYTES" ]; then
-            echo "Play download: $play_size bytes, limit $PLAY_SIZE_LIMIT_BYTES bytes" >&2
-            exit 1
-          fi
-          echo "Play download: $play_size bytes, limit $PLAY_SIZE_LIMIT_BYTES bytes"
+            --apks=all.apks --device-spec=device.json > play-size.csv
+          node ../../../scripts/bundletool-size.mjs \
+            play-size.csv "$PLAY_SIZE_LIMIT_BYTES" "Play download at XXXHDPI ARMv8"
+          java -jar bundletool.jar get-size total \
+            --apks=all.apks --dimensions=ALL > all-size.csv
+          node ../../../scripts/bundletool-size.mjs \
+            all-size.csv "$PLAY_SIZE_LIMIT_BYTES" "Play download maximum across all configurations"
 
           java -jar bundletool.jar build-apks \
             --bundle="$aab" --output=universal.apks --mode=universal

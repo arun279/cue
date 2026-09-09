@@ -1,16 +1,12 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { gitEnv } from "../support/git-env";
+import { repositoryPath } from "../support/repository-path";
+import { tempDirectory } from "../support/temp-directory";
 
-const REPOSITORY_ROOT = execFileSync("git", ["rev-parse", "--show-toplevel"], {
-  encoding: "utf8",
-  env: gitEnv(),
-}).trim();
-const SCRIPT = path.join(REPOSITORY_ROOT, "scripts/diff-footprint.sh");
-const repositories: string[] = [];
+const SCRIPT = repositoryPath("scripts/diff-footprint.sh");
 
 const write = (repository: string, file: string, contents: string | Uint8Array): void => {
   const target = path.join(repository, file);
@@ -22,15 +18,8 @@ const git = (repository: string, ...args: string[]): void => {
   execFileSync("git", args, { cwd: repository, stdio: "ignore", env: gitEnv() });
 };
 
-afterEach(() => {
-  for (const repository of repositories.splice(0)) {
-    rmSync(repository, { recursive: true, force: true });
-  }
-});
-
 const newRepository = (): string => {
-  const repository = mkdtempSync(path.join(tmpdir(), "cue-diff-footprint-"));
-  repositories.push(repository);
+  const repository = tempDirectory("cue-diff-footprint-");
   git(repository, "init", "--quiet");
   git(repository, "config", "user.name", "Cue Tests");
   git(repository, "config", "user.email", "cue-tests@example.invalid");
@@ -42,6 +31,7 @@ const sizes = (initial: number, all: number, ios: number, android: number) => [
   { name: "web all JavaScript and CSS", size: all, sizeLimit: 285_000 },
   { name: "expo iOS bundle", size: ios, sizeLimit: 4_450_000 },
   { name: "expo Android bundle", size: android, sizeLimit: 4_830_000 },
+  { name: "Play download estimate", size: 17_000_000, sizeLimit: 20_000_000 },
 ];
 
 const HEAD_METRICS = {
@@ -138,6 +128,9 @@ describe("diff footprint", () => {
     );
     expect(output).toContain("| expo ios bundle (raw) | 4.00 MB | 4.00 MB | +1.0 kB | 4450 kB |");
     expect(output).toContain("| expo android bundle (raw) | 4.20 MB | 4.20 MB | 0 B | 4830 kB |");
+    expect(output).toContain(
+      "| play download (xxxhdpi arm64) | 17.00 MB | 17.00 MB | 0 B | 20000 kB |",
+    );
     expect(output).toContain("| functions over cognitive complexity 15 | 18 | 21 | +3 |");
     expect(output).toContain("| worst cognitive complexity | 60 | 71 | +11 |");
     expect(output).toContain(

@@ -8,23 +8,27 @@
       "packages/web/dist/assets/query-freshness-*.js",
       "packages/web/dist/assets/index-*.css"
     ],
-    "limit": "170 kB"
+    "limit": "170 kB",
+    "message": "Measured 138056 bytes on 2026-09-09. Reduction target 110445 bytes, 20 percent below the measurement following web.dev."
   },
   {
     "name": "web all JavaScript and CSS",
     "path": "packages/web/dist/**/*.{js,css}",
-    "limit": "285 kB"
+    "limit": "285 kB",
+    "message": "Measured 229484 bytes on 2026-09-09. Reduction target 183587 bytes, 20 percent below the measurement following web.dev."
   },
   {
     "name": "expo iOS bundle",
     "path": "packages/native/dist/_expo/static/js/ios/entry-*.hbc",
     "brotli": false,
-    "limit": "4450 kB"
+    "limit": "4450 kB",
+    "message": "Measured 3609323 bytes on 2026-09-09. The ceiling retains size-limit regression headroom. Reduction target 2887458 bytes, 20 percent below the measurement following web.dev."
   },
   {
     "name": "expo Android bundle",
     "path": "packages/native/dist/_expo/static/js/android/entry-*.hbc",
     "brotli": false,
-    "limit": "4830 kB"
+    "limit": "4830 kB",
+    "message": "Measured 3803699 bytes on 2026-09-09. The ceiling retains size-limit regression headroom. Reduction target 3042959 bytes, 20 percent below the measurement following web.dev."
   }
 ]
