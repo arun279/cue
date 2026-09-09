@@ -42,6 +42,7 @@ const sizes = (initial: number, all: number, ios: number, android: number) => [
   { name: "web all JavaScript and CSS", size: all, sizeLimit: 285_000 },
   { name: "expo iOS bundle", size: ios, sizeLimit: 4_450_000 },
   { name: "expo Android bundle", size: android, sizeLimit: 4_830_000 },
+  { name: "Play download estimate", size: 17_000_000, sizeLimit: 20_000_000 },
 ];
 
 const HEAD_METRICS = {
@@ -138,6 +139,9 @@ describe("diff footprint", () => {
     );
     expect(output).toContain("| expo ios bundle (raw) | 4.00 MB | 4.00 MB | +1.0 kB | 4450 kB |");
     expect(output).toContain("| expo android bundle (raw) | 4.20 MB | 4.20 MB | 0 B | 4830 kB |");
+    expect(output).toContain(
+      "| Play download (arm64, en) | 17.00 MB | 17.00 MB | 0 B | 20000 kB |",
+    );
     expect(output).toContain("| functions over cognitive complexity 15 | 18 | 21 | +3 |");
     expect(output).toContain("| worst cognitive complexity | 60 | 71 | +11 |");
     expect(output).toContain(
