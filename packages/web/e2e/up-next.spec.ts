@@ -501,6 +501,7 @@ test("finishing an ended show lands on the 'all caught up' state after the write
 test("a read error over a warm cache keeps the queue under the SyncStrip error variant", async ({
   page,
 }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
   const controls = await installLibraryRoutes(page.context(), [soloShow()]);
   await page.goto("/");
   await expect(page.getByTestId("up-next-card")).toHaveCount(1);
@@ -524,6 +525,13 @@ test("a read error over a warm cache keeps the queue under the SyncStrip error v
   // Only once the read has spent its own attempts is it an outage, with a Retry.
   await expect(strip).toHaveAttribute("data-state", "unreachable", { timeout: 15_000 });
   await expect(strip).toContainText("Can't reach Trakt. Showing your cached data.");
+  await expect
+    .poll(() =>
+      strip
+        .locator(".sync-strip__text")
+        .evaluate((element) => element.scrollWidth <= element.clientWidth),
+    )
+    .toBe(true);
   const retry = strip.getByRole("button", { name: "Retry" });
   await expect(retry).toBeVisible();
   controls.setReadMode("ok");
