@@ -11,6 +11,9 @@ export interface ButtonProps {
    */
   readonly variant?: "primary" | "ghost" | "link";
   readonly onPress: () => void;
+  /** A control that is momentarily unavailable, which is a state rather than an
+   * absence: it keeps its place and says what it is waiting on. */
+  readonly disabled?: boolean;
   readonly testID?: string;
 }
 
@@ -21,7 +24,13 @@ export interface ButtonProps {
  * control's boundary is a best practice on top of it. On the dark theme the
  * stroke token is transparent, so the fill can draw it unconditionally.
  */
-export function Button({ label, variant = "primary", onPress, testID }: ButtonProps): ReactElement {
+export function Button({
+  label,
+  variant = "primary",
+  onPress,
+  disabled = false,
+  testID,
+}: ButtonProps): ReactElement {
   const colors = useColors();
   const primary = variant === "primary";
   const surface = primary ? colors.accent : variant === "ghost" ? colors.elevated : "transparent";
@@ -30,12 +39,14 @@ export function Button({ label, variant = "primary", onPress, testID }: ButtonPr
     <Pressable
       accessibilityRole="button"
       testID={testID}
+      disabled={disabled}
       onPress={onPress}
       style={[
         styles.button,
         variant === "link" ? styles.link : styles.filled,
         { backgroundColor: surface },
         primary && { borderWidth: HAIRLINE, borderColor: colors.accentFillStroke },
+        disabled && styles.disabled,
       ]}
     >
       <CueText
@@ -62,4 +73,5 @@ const styles = StyleSheet.create({
   // The ink stays on the leading edge and the target reaches the floor around
   // it, so a link lines up with the body text above it.
   link: { paddingRight: SPACE.s2 },
+  disabled: { opacity: 0.7 },
 });
