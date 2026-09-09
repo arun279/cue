@@ -30,8 +30,14 @@ import { mswServer } from "./_msw";
 const server = mswServer();
 const client = new TraktClient({ clientId: "cid" });
 
-function getJson(path: string, body: unknown): void {
-  server.use(http.get(`${TRAKT_API_BASE}${path}`, () => HttpResponse.json(body as never)));
+function getJson(path: string, body: Parameters<typeof HttpResponse.json>[0]): void {
+  server.use(
+    http.get(`${TRAKT_API_BASE}${path}`, () =>
+      HttpResponse.json(body, {
+        headers: { "X-Pagination-Page": "1", "X-Pagination-Page-Count": "1" },
+      }),
+    ),
+  );
 }
 
 const showObj = {

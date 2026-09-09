@@ -7,6 +7,7 @@ import { buildRuntime, memoryKv } from "./_runtime";
 
 const server = mswServer();
 const watchedAt = "2026-07-05T21:00:00.000Z";
+const onePage = { "X-Pagination-Page": "1", "X-Pagination-Page-Count": "1" };
 
 function queuedOp(id: string, inversePatch: unknown): QueuedOp {
   return {
@@ -57,23 +58,27 @@ describe("runtime write reconciliation", () => {
     const kv = memoryKv({ "cue.write-queue": queuedLog() });
     server.use(
       http.get(`${TRAKT_API_BASE}/users/hidden/progress_watched`, () =>
-        HttpResponse.json([
-          { hidden_at: watchedAt, type: "show", show: { title: "Show", ids: { trakt: 42 } } },
-        ]),
+        HttpResponse.json(
+          [{ hidden_at: watchedAt, type: "show", show: { title: "Show", ids: { trakt: 42 } } }],
+          { headers: onePage },
+        ),
       ),
       http.get(`${TRAKT_API_BASE}/sync/watched/movies`, () =>
-        HttpResponse.json([
-          {
-            last_watched_at: watchedAt,
-            movie: { title: "Movie", year: 2026, ids: { trakt: 84 } },
-          },
-        ]),
+        HttpResponse.json(
+          [
+            {
+              last_watched_at: watchedAt,
+              movie: { title: "Movie", year: 2026, ids: { trakt: 84 } },
+            },
+          ],
+          { headers: onePage },
+        ),
       ),
       http.get(`${TRAKT_API_BASE}/sync/history/episodes/101`, () =>
-        HttpResponse.json([episodePlay(101, 1, 1)]),
+        HttpResponse.json([episodePlay(101, 1, 1)], { headers: onePage }),
       ),
       http.get(`${TRAKT_API_BASE}/sync/history/shows/42`, () =>
-        HttpResponse.json([episodePlay(203, 2, 3)]),
+        HttpResponse.json([episodePlay(203, 2, 3)], { headers: onePage }),
       ),
       http.get(`${TRAKT_API_BASE}/shows/42/progress/watched`, () =>
         HttpResponse.json({ aired: 10, completed: 5, next_episode: null, seasons: [] }),
