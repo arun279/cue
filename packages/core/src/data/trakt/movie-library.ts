@@ -9,6 +9,11 @@ export interface MovieEntry {
   readonly watched: boolean;
   readonly watchedAt: string | null;
   readonly inWatchlist: boolean;
+  /**
+   * The movie-native queue order: a film has no next episode, so the
+   * watchlist's `listed_at` is the honest one. Absent on a cache persisted
+   * before this field existed, where ordering degrades to title.
+   */
   readonly listedAt: string | null;
   readonly posters: readonly string[];
   readonly tmdbId: number | null;

@@ -47,12 +47,22 @@ function flattenProgress(progress: Progress): ProgressEpisode[] {
   return episodes;
 }
 
-function navigation(episodes: readonly ProgressEpisode[], target: EpisodeNav) {
+/**
+ * TODO(episode-nav): `progress.seasons` only spans aired episodes, so prev/next
+ * cannot reach an unaired episode that is not the target. Derive the ordering
+ * from the full `/shows/:id/seasons` list and keep watched state from progress.
+ */
+function navigation(
+  episodes: readonly ProgressEpisode[],
+  target: EpisodeNav,
+): { readonly prev: EpisodeNav | null; readonly next: EpisodeNav | null } {
   const ordering = new Map(
     episodes.map(({ season, number }) => [key(season, number), { season, number }]),
   );
   ordering.set(key(target.season, target.number), target);
 
+  // Mirrors the season shelf order (assembleSeasons): Specials page AFTER the
+  // numbered run, so `prev` from S1 E1 is a bound rather than a jump into them.
   const ordered = [...ordering.values()].sort(
     (a, b) =>
       Number(a.season === 0) - Number(b.season === 0) || a.season - b.season || a.number - b.number,

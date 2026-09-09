@@ -47,6 +47,9 @@ interface MarkableEpisode {
 
 interface ToggleEpisodeOptions {
   readonly undoLabel?: string;
+  /** The episode's resolved play count, when the surface knows it: a rewatch
+   * uncheck then skips the optimistic un-tick, so the filled check never
+   * flickers while only the latest play is removed. */
   readonly knownPlays?: number;
 }
 
@@ -62,6 +65,8 @@ interface UndoState {
   readonly ops: readonly QueuedOp[];
   readonly resumed: boolean;
   readonly reversibleSeason: number | null;
+  /** Monotonic per-hook counter, so a snackbar effect can key on "a new
+   * undoable arrived" even when two consecutive actions share a label. */
   readonly seq: number;
 }
 
@@ -161,6 +166,9 @@ export function useMarkSeason(): MarkSeasonController {
     },
     [putUndo],
   );
+  // The synchronous gates, refs rather than state: a fast double-tap fires the
+  // second call before React re-renders the ticked episode, so a duplicate write
+  // is dropped here rather than enqueued.
   const pendingSeasonsRef = useRef<Set<number>>(new Set());
   const pendingEpisodesRef = useRef<Set<string>>(new Set());
   const withSeasonLock = useCallback(
@@ -225,6 +233,9 @@ export function useMarkSeason(): MarkSeasonController {
     [submit, queryClient, resume, revalidate],
   );
 
+  // The show's specials-excluded `completed` before the write, stamped on every
+  // chunk so startup reconcile can retire an applied-but-lost POST against a
+  // fresh progress read instead of re-POSTing into duplicate plays.
   const reconcileAnchor = useCallback(
     (showId: number): { readonly showId: number; readonly preCompleted: number } => {
       const progress = queryClient.getQueryData<ShowProgress>(queryKeys.showProgress(showId));
@@ -243,6 +254,9 @@ export function useMarkSeason(): MarkSeasonController {
       absorb: UndoState | null = null,
     ): Promise<"done" | "failed" | "deferred"> => {
       if (ops.length === 0) return "done";
+      // `match` spans episodes on the other side of this write too, so a hard
+      // failure restores the snapshot rather than un-patching the match, which
+      // would flip pre-existing ticks.
       const before = queryClient.getQueryData<readonly SeasonView[]>(
         queryKeys.showSeasons(target.showId),
       );
@@ -346,7 +360,7 @@ export function useMarkSeason(): MarkSeasonController {
       const key = queryKeys.showSeasons(target.showId);
       const before = queryClient.getQueryData<readonly SeasonView[]>(key);
       const removed = new Set(plan.restore.map((play) => `${play.season}:${play.number}`));
-      patch(target.showId, (number, episode) => removed.has(`${number}:${episode}`), false);
+      patch(target.showId, (season, number) => removed.has(`${season}:${number}`), false);
       const ops = [
         buildRemovePlaysOp({
           opId: crypto.randomUUID(),
@@ -409,6 +423,9 @@ export function useMarkSeason(): MarkSeasonController {
     [resolveSeasonUnmark, submitSeasonUnmark, withSeasonLock],
   );
 
+  /** Deliberately carries no Undo: Trakt mints the history ids only once the
+   * plays land, and the mark op's item-scoped inverse would wipe the
+   * pre-existing plays a rewatch exists to keep. */
   const rewatchSeason = useCallback(
     async (target: MarkContextTarget, season: SeasonView) => {
       await withSeasonLock(season.number, async () => {
@@ -604,6 +621,10 @@ export function useMarkSeason(): MarkSeasonController {
 
   const unmarkEpisode = useCallback(
     async (target: MarkContextTarget, episode: MarkableEpisode, knownPlays?: number) => {
+      // A mark for this episode may still sit in the durable queue. Live plays
+      // cannot see it, so resolving now would report none and leave the queued
+      // mark to flip the episode back once it flushes: enqueue the inverse
+      // instead, and coalescing settles the pair.
       const queuedMark = runtime
         .pendingOps()
         .find((op) => op.itemKey === episodeItemKey(episode.ids.trakt) && op.toState === "present");
@@ -675,6 +696,7 @@ export function useMarkSeason(): MarkSeasonController {
     [markEpisode, unmarkEpisode, withEpisodeLock],
   );
 
+  /** No Undo, for the same reason as {@link rewatchSeason}. */
   const addEpisodePlay = useCallback(
     async (target: MarkContextTarget, episode: MarkableEpisode) => {
       await withEpisodeLock(target, episode, async () => {
