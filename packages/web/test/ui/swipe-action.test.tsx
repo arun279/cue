@@ -6,7 +6,7 @@
 import { SwipeAction } from "@ui/components/SwipeAction";
 import { act } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { mount } from "./_mount";
+import { mount } from "../../../core/test/ui/_mount";
 
 // jsdom ships PointerEvent but no pointer capture, and the row captures the
 // pointer it claims.

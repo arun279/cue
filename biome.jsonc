@@ -47,7 +47,7 @@
       // the core does use, and the storage globals Node 22 added. Neither
       // exists on a React Native engine, and neither is an import, so no
       // dependency rule can see them.
-      "includes": ["packages/core/**"],
+      "includes": ["packages/core/src/**"],
       "linter": {
         "rules": {
           "style": {

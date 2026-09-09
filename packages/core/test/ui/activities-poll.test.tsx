@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * The activities poll is gated on the durable write queue: local ops flush
  * BEFORE the freshness check, and a reconcile never applies while ops remain

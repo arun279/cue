@@ -1,7 +1,7 @@
 import { act } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mount } from "../../../core/test/ui/_mount";
 import { mockCompositionRoot } from "../support/composition-root-mocks";
-import { mount } from "./_mount";
 
 const info = { version: "9.8-native", build: "native-build-765" };
 let settle: (value: typeof info) => void = () => {};

@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * The calendar cache-key unification: every `useCalendar` consumer keys the
  * SAME full-window query (one GET serves home's 72h "On the way" slice and the

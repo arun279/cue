@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * The read retry policy as the app actually wires it: a transient failure is
  * retried on the server's own schedule before any screen is told, and what a

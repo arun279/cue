@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * The strip renders the contract and decides nothing. What it has to prove here
  * is the wiring the contract cannot: the durable queue depth (a mark deferred
@@ -153,7 +154,7 @@ describe("SyncStrip", () => {
 describe("the strip's stylesheet", () => {
   it("styles no sync-strip state the contract does not publish", () => {
     const css = readFileSync(
-      path.resolve(import.meta.dirname, "../../src/ui/styles/layout.css"),
+      path.resolve(import.meta.dirname, "../../../web/src/ui/styles/layout.css"),
       "utf8",
     );
     const styled = [...css.matchAll(/\.sync-strip\[data-state="([^"]+)"\]/g)].map(

@@ -1,7 +1,7 @@
 import { Poster } from "@ui/screens/up-next/Poster";
 import { act } from "react";
 import { expect, it } from "vitest";
-import { mount } from "./_mount";
+import { mount } from "../../../core/test/ui/_mount";
 
 it("leaves only the designed placeholder after an image error", () => {
   mount(

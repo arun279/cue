@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { queryKeys } from "@cue/core/data/query-keys";
 import type { LibraryEntry } from "@cue/core/data/trakt/library";
 import type { SearchHit } from "@cue/core/data/trakt/search";

@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * What the Playwright suite cannot reach: a `pointercancel`, which it cannot
  * dispatch; a second finger, which its single-touch drag helper cannot add; the

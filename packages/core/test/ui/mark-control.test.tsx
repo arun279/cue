@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * The queue mark control over the real mark pipeline. A row that stays green for
  * as long as the write stays undelivered leaves several rows green at once with

@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * Hook-level coverage of the mark pipeline's cross-surface guarantees: a queue
  * mark ticks the show-detail caches in the same frame (F3a), a pending mark for

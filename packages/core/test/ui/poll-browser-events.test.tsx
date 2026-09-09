@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * The web adapters wired into the poll, driven by real browser events.
  *

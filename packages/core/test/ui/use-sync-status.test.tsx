@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { queryKeys } from "@cue/core/data/query-keys";
 import { type CueRuntime, RuntimeProvider } from "@cue/core/runtime/runtime";
 import { dismissSnack, useSnackbar } from "@cue/core/stores/snackbar-store";

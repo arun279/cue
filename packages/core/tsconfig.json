@@ -9,6 +9,6 @@
     "lib": ["ES2023"],
     "types": ["node"]
   },
-  "include": ["src", "test"],
+  "include": ["src"],
   "exclude": ["node_modules", "coverage"]
 }

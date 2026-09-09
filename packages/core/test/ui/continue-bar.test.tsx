@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import type { LibraryEntry } from "@cue/core/data/trakt/library";
 import type { EpisodeView, SeasonView, ShowHeader } from "@cue/core/data/trakt/show-detail";
 import { ContinueBar } from "@ui/screens/show-detail/ContinueBar";
