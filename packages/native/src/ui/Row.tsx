@@ -61,7 +61,7 @@ export function Row({
         }
         testID={testID}
         onPress={onPress}
-        style={[styles.body, { minHeight }]}
+        style={[styles.body, { minHeight }, stacked && styles.bodyTop]}
       >
         {leading}
         <View style={styles.stack}>{children}</View>
@@ -94,6 +94,10 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", gap: SPACE.s2 },
   rowStacked: { flexDirection: "column", alignItems: "stretch" },
   body: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: SPACE.s3 },
+  // Artwork does not scale with text, so once the text is several lines tall
+  // centring the two leaves the poster floating against the middle of a
+  // paragraph. It starts where the text starts, with room above it.
+  bodyTop: { alignItems: "flex-start", paddingVertical: SPACE.s2 },
   stack: { flex: 1, minWidth: 0, gap: 2 },
   trailing: {
     flexShrink: 0,
