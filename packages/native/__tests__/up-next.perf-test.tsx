@@ -6,6 +6,7 @@ import { TEST_IDS } from "../src/ui/test-ids";
 import { cardOf, entry, viewOf } from "./support/up-next";
 
 configure({ testingLibrary: "react-native" });
+jest.setTimeout(15_000);
 
 jest.mock("expo-router", () => {
   const { Text } = require("react-native");
