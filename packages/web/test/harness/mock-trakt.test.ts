@@ -29,6 +29,7 @@ import {
   getWatchedShows,
   getWatchlist,
 } from "@cue/core/data/trakt/endpoints";
+import { advancePastNext, type LibraryEntry } from "@cue/core/data/trakt/library";
 import { loadUpNextEntries } from "@cue/core/data/trakt/read-budget";
 import { groupUpNext } from "@cue/core/domain/up-next";
 import { DEFAULT_STALENESS_THRESHOLD_MS } from "@cue/core/domain/watch-status";
@@ -82,6 +83,51 @@ const oauth = (): OAuthConfig => ({
 });
 
 const today = (): string => new Date().toISOString().slice(0, 10);
+
+it("projects only real aired coordinates across every seeded show", () => {
+  for (const show of mock.library.shows) {
+    const aired = show.episodes.filter((episode) => episode.firstAired <= mock.library.now);
+    const last = aired.at(-1);
+    for (const [index, episode] of aired.entries()) {
+      const entry: LibraryEntry = {
+        showId: show.trakt,
+        title: show.title,
+        status: show.status,
+        hidden: false,
+        inWatchlist: false,
+        lastWatchedAt: null,
+        aired: aired.length,
+        completed: index,
+        nextEpisode: {
+          season: episode.season,
+          number: episode.number,
+          title: episode.title,
+          firstAired: new Date(episode.firstAired).toISOString(),
+          still: null,
+          ids: { trakt: episode.traktId },
+        },
+        lastAired: last === undefined ? null : { season: last.season, number: last.number },
+        tmdbId: show.tmdb,
+        pendingAdvance: false,
+      };
+      const projected = advancePastNext(
+        entry,
+        new Date(mock.library.now).toISOString(),
+      ).nextEpisode;
+      expect({
+        show: show.title,
+        marked: `${episode.season}:${episode.number}`,
+        projected: projected === null ? null : `${projected.season}:${projected.number}`,
+        real:
+          projected === null ||
+          aired.some(
+            (candidate) =>
+              candidate.season === projected.season && candidate.number === projected.number,
+          ),
+      }).toMatchObject({ real: true });
+    }
+  }
+});
 
 const resetTo = async (seed: string): Promise<Response> =>
   fetch(`${baseUrl}/__reset?seed=${seed}`, { method: "POST" });

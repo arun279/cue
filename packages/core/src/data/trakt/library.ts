@@ -187,7 +187,10 @@ export function showIdSet(items: readonly (HiddenItem | WatchlistItem)[]): Set<n
 export function advancePastNext(entry: LibraryEntry, watchedAt: string): LibraryEntry {
   const current = entry.nextEpisode;
   const nextEpisode: EpisodeRef | null =
-    current === null
+    current === null ||
+    entry.lastAired === null ||
+    current.season !== entry.lastAired.season ||
+    current.number >= entry.lastAired.number
       ? null
       : {
           season: current.season,

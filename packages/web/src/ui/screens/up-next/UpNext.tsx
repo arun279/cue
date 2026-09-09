@@ -32,11 +32,16 @@ import { QueueRow } from "./QueueRow";
 function MarqueeSlot({
   card,
   mark,
+  onStop,
 }: {
   readonly card: UpNextCard;
   readonly mark: MarkWatched;
+  onStop(): void;
 }): ReactElement {
   const check = useMarkControl(card.entry, mark);
+  if (card.item.episode === null) {
+    return <QueueRow card={card} mark={mark} onStop={onStop} />;
+  }
   return (
     <MarqueeCard
       entry={card.entry}
@@ -264,7 +269,9 @@ export function UpNext(): ReactElement {
 
         {showSections && emptyKind === null && (
           <>
-            {marquee !== undefined && <MarqueeSlot card={marquee} mark={mark} />}
+            {marquee !== undefined && (
+              <MarqueeSlot card={marquee} mark={mark} onStop={() => stopWatching(marquee)} />
+            )}
 
             {rows.length > 0 && (
               <ul className="row-list" data-testid="up-next-list">

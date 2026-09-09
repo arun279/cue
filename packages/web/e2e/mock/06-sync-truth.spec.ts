@@ -90,3 +90,20 @@ test("a mark advances the row at once and clears its pending note when the write
   await expect(settled).not.toHaveAttribute("data-pending", "true");
   await settle(page);
 });
+
+test("a held confirming read never invents an episode after the finale", async ({ page }) => {
+  await connect(page);
+  await armFault({
+    match: "reads",
+    path: "^/shows/8802/progress/watched$",
+    status: 503,
+  });
+  const row = page.locator('[data-show-id="8802"]');
+  await row.getByTestId("mark-watched").click();
+  const check = row.getByTestId("mark-watched");
+
+  await expect(check).toHaveAttribute("data-state", "advancing", { timeout: 15_000 });
+  await expect(check).toBeDisabled();
+  await expect(row.locator(".ep-row__code")).toHaveCount(0);
+  await expect(row).toContainText("The Quiet Frontier");
+});

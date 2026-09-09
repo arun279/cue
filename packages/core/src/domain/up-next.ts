@@ -5,7 +5,7 @@ import { computeWatchStatus } from "./watch-status";
 export interface UpNextItem {
   readonly showId: number;
   readonly title: string;
-  readonly episode: EpisodeRef;
+  readonly episode: EpisodeRef | null;
   readonly lastWatchedAt: string | null;
   readonly backlog: number;
 }
@@ -33,7 +33,7 @@ export interface UpNextGroups {
  */
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Partitions shows using status, provisional advance, air time, and lapse rules that jointly define queue membership.
 export function groupUpNext(
-  shows: readonly LibraryShow[],
+  shows: readonly (LibraryShow & { readonly pendingAdvance?: boolean })[],
   now: number,
   thresholdMs: number,
 ): UpNextGroups {
@@ -42,7 +42,18 @@ export function groupUpNext(
 
   for (const show of shows) {
     const ep = show.nextEpisode;
-    if (ep === null) continue;
+    if (ep === null) {
+      if (show.pendingAdvance && !show.hidden) {
+        queue.push({
+          showId: show.showId,
+          title: show.title,
+          episode: null,
+          lastWatchedAt: show.lastWatchedAt,
+          backlog: Math.max(0, show.aired - show.completed),
+        });
+      }
+      continue;
+    }
     const status = computeWatchStatus(show, now, thresholdMs);
     // Hard exclusions apply even to a just-marked show's optimistic projection: a
     // hidden (`abandoned`), never-started, or fully-watched `ended` show has no next
