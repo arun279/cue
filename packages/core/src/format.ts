@@ -1,6 +1,6 @@
 /** Presentation helpers shared across screens (dates, episode codes, progress). */
 
-import { localTimeZone } from "./domain/time";
+import { DAY_MS, localTimeZone } from "./domain/time";
 
 const MONTHS = [
   "Jan",
@@ -47,8 +47,6 @@ export function formatWatchedDate(iso: string | null): string | null {
 export function titleCase(value: string): string {
   return value.replace(/\b\w/g, (char) => char.toUpperCase());
 }
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * "today" / "yesterday" / "N days ago" / "N weeks ago" for the lapsed drawer,

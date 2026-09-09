@@ -1,5 +1,5 @@
 import type { HistoryEntry } from "@cue/core/domain/history";
-import { localTimeZone } from "@cue/core/domain/time";
+import { DAY_MS, localTimeZone } from "@cue/core/domain/time";
 import { useHistory } from "@cue/core/hooks/useHistory";
 import { useRemovalSnacks } from "@cue/core/hooks/useRemovalSnacks";
 import { usePrefs } from "@cue/core/prefs/prefs-store";
@@ -12,7 +12,6 @@ import { Fragment, type ReactElement } from "react";
 
 const SCOPE_DAYS = 7;
 const MAX_ENTRIES = 10;
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 const timeFmt = new Intl.DateTimeFormat("en-US", {
   timeZone: localTimeZone(),

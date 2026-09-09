@@ -1,7 +1,5 @@
-import { localTimeZone } from "@cue/core/domain/time";
+import { DAY_MS, localTimeZone } from "@cue/core/domain/time";
 import type { ReactElement } from "react";
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** Air moments are appointments, so they read in the viewer's LOCAL day and
  * clock. Unlike a past air date, "tonight at 8" must mean the viewer's 8. */

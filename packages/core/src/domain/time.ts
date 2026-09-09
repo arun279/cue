@@ -1,3 +1,5 @@
+export const DAY_MS = 24 * 60 * 60 * 1000;
+
 /** Parse an ISO timestamp to epoch ms, or `null` when absent/unparseable. */
 export function toMs(iso: string | null | undefined): number | null {
   if (iso == null) return null;

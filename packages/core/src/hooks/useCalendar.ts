@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { queryKeys } from "../data/query-keys";
 import { type CalendarDay, type CalendarEntry, groupCalendar } from "../domain/calendar";
-import { localTimeZone } from "../domain/time";
+import { DAY_MS, localTimeZone } from "../domain/time";
 import { useRuntime } from "../runtime/runtime";
 import { CONTENT_STALE_TIME_MS, type QueryStatus, queryStatus } from "./query-freshness";
 
@@ -21,8 +21,6 @@ const RECENT_WINDOW_DAYS = 33;
 
 /** How often the day clock re-checks whether the local day has flipped. */
 const DAY_CHECK_MS = 60_000;
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 export function recentCalendarStart(dayKey: string): string {
   return new Date(Date.parse(dayKey) - (RECENT_WINDOW_DAYS - 1) * DAY_MS)

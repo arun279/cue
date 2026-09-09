@@ -23,6 +23,11 @@ const suppressions = files.reduce(
     total + [...readFileSync(path.join(root, file), "utf8").matchAll(suppression)].length,
   0,
 );
+const dayMsDeclarations = files.flatMap((file) =>
+  [
+    ...readFileSync(path.join(root, file), "utf8").matchAll(/\b(?:export\s+)?const\s+DAY_MS\b/g),
+  ].map(() => file),
+);
 const nativeSuppressions = files
   .filter((file) => file.startsWith("packages/native/src/"))
   .reduce(
@@ -44,6 +49,11 @@ unlinkSync(measurement);
 if (nativeSuppressions !== 0) {
   throw new Error(
     `cognitive complexity suppressions under packages/native/src: ${nativeSuppressions}, budget 0`,
+  );
+}
+if (dayMsDeclarations.length !== 1 || dayMsDeclarations[0] !== "packages/core/src/domain/time.ts") {
+  throw new Error(
+    `DAY_MS must be declared once in packages/core/src/domain/time.ts; found ${dayMsDeclarations.length}: ${dayMsDeclarations.join(", ")}`,
   );
 }
 // Equality, not a ceiling: a ceiling above the measurement lets a commit raise

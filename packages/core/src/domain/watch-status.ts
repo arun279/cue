@@ -1,5 +1,5 @@
 import type { LibraryShow } from "./model/library";
-import { toMs } from "./time";
+import { DAY_MS, toMs } from "./time";
 
 export type WatchStatus =
   | "abandoned"
@@ -21,7 +21,7 @@ export function isTerminalStatus(status: string): boolean {
  * 21 days = three stacked unwatched weekly episodes: the knee past
  * single-skip tolerance, before backlog dread.
  */
-export const DEFAULT_STALENESS_THRESHOLD_MS = 21 * 24 * 60 * 60 * 1000;
+export const DEFAULT_STALENESS_THRESHOLD_MS = 21 * DAY_MS;
 
 export function computeWatchStatus(
   show: LibraryShow,

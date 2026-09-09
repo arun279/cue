@@ -4,7 +4,7 @@
  * source of truth for "which local day does this instant fall on".
  */
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+import { DAY_MS } from "./time";
 
 /** `ms → "YYYY-MM-DD"` in `timeZone` (en-CA renders the ISO date order). */
 function dayKeyFormatter(timeZone: string): (ms: number) => string {
