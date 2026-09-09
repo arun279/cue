@@ -18,6 +18,7 @@ const GLYPH_LENGTH = 24;
 const DRAW_IN_MS = 160;
 const DRAW_IN_DELAY_MS = 60;
 const DRAW_OUT_MS = 120;
+const FADE_MS = 140;
 const PENDING_DOT = 6;
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
@@ -42,6 +43,8 @@ export interface CheckControlProps {
   /** Over artwork the rest ring is `--color-on-image` at full strength. No alpha
    * variant of it exists and none is invented. */
   readonly onImage?: boolean;
+  /** The resting glyph takes this with a `-rest` suffix: it is decorative, so it
+   * carries no role a query could otherwise reach it by. */
   readonly testID?: string;
 }
 
@@ -49,10 +52,13 @@ export interface CheckControlProps {
  * The retired border-strong ring read 1.75:1 on light and 1.88:1 on dark.
  * Muted clears 3:1 on every surface the check can sit on.
  *
- * The tick draws itself, because this is the feedback for the most repeated
- * action in the product and it is what makes a mark feel committed rather than
- * merely recorded. Under Reduce Motion the tick appears without drawing: the
- * state change is not motion.
+ * The ring always carries a glyph, a check waiting to happen rather than an
+ * empty circle, which is what says the control marks rather than selects. The
+ * committed tick is a second layer that draws itself as the resting one fades,
+ * because this is the feedback for the most repeated action in the product and
+ * it is what makes a mark feel committed rather than merely recorded. Under
+ * Reduce Motion both layers change without drawing: the state change is not
+ * motion.
  */
 export function CheckControl({
   checked,
@@ -67,21 +73,24 @@ export function CheckControl({
   const colors = useColors();
   const reduced = useReducedMotion();
   const drawn = useSharedValue(checked ? 0 : GLYPH_LENGTH);
+  const resting = useSharedValue(checked ? 0 : 1);
 
   useEffect(() => {
-    const rest = checked ? 0 : GLYPH_LENGTH;
     if (reduced) {
-      drawn.value = rest;
+      drawn.value = checked ? 0 : GLYPH_LENGTH;
+      resting.value = checked ? 0 : 1;
       return;
     }
     drawn.value = checked
       ? withDelay(DRAW_IN_DELAY_MS, withTiming(0, { duration: DRAW_IN_MS }))
       : withTiming(GLYPH_LENGTH, { duration: DRAW_OUT_MS });
-  }, [checked, reduced, drawn]);
+    resting.value = withTiming(checked ? 0 : 1, { duration: FADE_MS });
+  }, [checked, reduced, drawn, resting]);
 
   const tick = useAnimatedProps(() => ({ strokeDashoffset: drawn.value }));
+  const rest = useAnimatedProps(() => ({ opacity: resting.value }));
   const disc = size - SPACE.s2;
-  const ink = checked ? colors.watchedFg : onImage ? colors.onImage : colors.muted;
+  const restInk = onImage ? colors.onImage : colors.muted;
 
   return (
     <View style={styles.control}>
@@ -104,16 +113,26 @@ export function CheckControl({
         <View
           style={[
             styles.disc,
-            { width: disc, height: disc, borderColor: checked ? colors.watched : ink },
+            { width: disc, height: disc, borderColor: checked ? colors.watched : restInk },
             checked && { backgroundColor: colors.watched },
           ]}
         >
           <Svg width={disc * GLYPH_RATIO} height={disc * GLYPH_RATIO} viewBox="0 0 24 24">
             <AnimatedPath
+              animatedProps={rest}
+              testID={testID === undefined ? undefined : `${testID}-rest`}
+              d={GLYPH}
+              fill="none"
+              stroke={restInk}
+              strokeWidth={3}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <AnimatedPath
               animatedProps={tick}
               d={GLYPH}
               fill="none"
-              stroke={ink}
+              stroke={colors.watchedFg}
               strokeDasharray={GLYPH_LENGTH}
               strokeWidth={3}
               strokeLinecap="round"

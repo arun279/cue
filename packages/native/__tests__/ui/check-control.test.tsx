@@ -46,6 +46,21 @@ it("toggles from its own tap", async () => {
   expect(onPress).toHaveBeenCalledTimes(1);
 });
 
+it("keeps a check waiting to happen inside the resting ring, in the ink its surface takes", async () => {
+  await render(
+    <>
+      <CheckControl checked={false} label="On the page" onPress={jest.fn()} testID="page" />
+      <CheckControl checked={false} onImage label="Over art" onPress={jest.fn()} testID="art" />
+    </>,
+  );
+
+  // Drawn rather than dashed: the resting glyph says the control marks rather
+  // than selects, and only the committed one draws itself in.
+  const resting = screen.getByTestId("page-rest");
+  expect(resting).not.toHaveProp("strokeDasharray");
+  expect(screen.getByTestId("art-rest").props["stroke"]).not.toEqual(resting.props["stroke"]);
+});
+
 it("merges the checked ring into its fill", async () => {
   const { result } = await renderHook(() => useColors());
   await render(<CheckControl checked label="Mark Salt Air watched" onPress={jest.fn()} />);
