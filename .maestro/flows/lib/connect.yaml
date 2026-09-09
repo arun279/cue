@@ -7,6 +7,11 @@ appId: app.cuetracker
     id: "screen-onboarding"
 - tapOn:
     id: "button-connect"
+    waitToSettleTimeoutMs: 100
+- extendedWaitUntil:
+    visible:
+      id: "device-code-value"
+    timeout: 30000
 - assertVisible:
     id: "device-code-value"
 - assertVisible:
