@@ -192,4 +192,24 @@ describe("TraktClient error mapping", () => {
     await rejection;
     vi.useRealTimers();
   }, 1000);
+
+  // The browser reclassification exists for a response the browser refused to
+  // show; a socket this client gave up on itself is the connection failing, and
+  // saying otherwise would tell a user on a dead network that Trakt is at fault.
+  it("keeps a timed-out browser request against Trakt a network failure", async () => {
+    vi.useFakeTimers();
+    const held = new TraktClient({
+      clientId: "cid-123",
+      browser: true,
+      fetch: (_input, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+        }),
+    });
+    const read = held.get(path);
+
+    await vi.advanceTimersByTimeAsync(TRAKT_REQUEST_TIMEOUT_MS);
+    expect(await read).toEqual({ ok: false, error: { kind: "network" } });
+    vi.useRealTimers();
+  }, 1000);
 });

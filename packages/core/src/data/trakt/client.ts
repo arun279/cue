@@ -126,6 +126,21 @@ export class TraktClient {
     }
   }
 
+  /**
+   * What a rejected fetch means. In a browser talking to Trakt itself it means
+   * the response was there and the browser refused to show it: Cloudflare answers
+   * a 429 or a 403 in front of the API with no `Access-Control-Allow-Origin`, so
+   * naming the user's connection would be a lie over a working one. Everywhere
+   * else, and for the timeout this client raises itself, the transport really did
+   * fail, which is what `network` says.
+   */
+  private rejectionFailure(cause: unknown): TraktFailure {
+    const aborted = cause instanceof Error && cause.name === "AbortError";
+    return !aborted && this.browser && this.baseUrl === TRAKT_API_BASE
+      ? { kind: "server", status: 503 }
+      : { kind: "network" };
+  }
+
   async get(path: string, options: RequestOptions = {}): Promise<TraktResult<unknown>> {
     return this.request("GET", path, options);
   }
@@ -142,14 +157,8 @@ export class TraktClient {
     let raw: RawResponse;
     try {
       raw = await this.send(method, path, options);
-    } catch {
-      return {
-        ok: false,
-        error:
-          this.browser && this.baseUrl === TRAKT_API_BASE
-            ? { kind: "server", status: 503 }
-            : { kind: "network" },
-      };
+    } catch (cause) {
+      return { ok: false, error: this.rejectionFailure(cause) };
     }
     if (raw.status >= 200 && raw.status < 300) {
       return { ok: true, data: raw.data, pagination: readPagination(raw.headers) };
