@@ -373,7 +373,7 @@ describe("cold-sync GET budget", () => {
     expect(peak).toBe(READ_CONCURRENCY);
   });
 
-  it("caps concurrent production endpoint reads across independent runtime callers", async () => {
+  it("coalesces duplicate production reads before they enter the shared pool", async () => {
     let inFlight = 0;
     let peak = 0;
     const browse = async (): Promise<Response> => {
@@ -393,7 +393,7 @@ describe("cold-sync GET budget", () => {
 
     await Promise.all([runtime.loadBrowse(), runtime.loadBrowse()]);
 
-    expect(peak).toBe(READ_CONCURRENCY);
+    expect(peak).toBe(4);
   });
 
   it("reads a show whose local count EXCEEDS aired_episodes instead of calling it caught up", async () => {
