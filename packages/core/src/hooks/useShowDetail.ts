@@ -2,8 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { queryKeys } from "../data/query-keys";
 import type { ShowHeader } from "../data/trakt/show-detail";
 import { useRuntime } from "../runtime/runtime";
-import { CONTENT_STALE_TIME_MS, queryStatus } from "./query-freshness";
-import type { DetailHeaderView } from "./useDetailHeader";
+import { CONTENT_STALE_TIME_MS, type DetailHeaderView, queryStatus } from "./query-freshness";
 
 export type ShowDetailView = DetailHeaderView<ShowHeader>;
 

@@ -17,7 +17,7 @@ import { useRuntime } from "../runtime/runtime";
 import { hasPendingMark, registerPendingMark, releasePendingMark } from "../stores/mark-store";
 import {
   type EpisodeMatch,
-  patchEpisodeDetail as patchEpisodeDetailCache,
+  patchEpisodeDetail,
   patchShowSeasons,
   refreshShowProgress,
 } from "./library-cache";
@@ -197,18 +197,6 @@ export function useMarkSeason(): MarkSeasonController {
     [],
   );
 
-  const patch = useCallback(
-    (showId: number, match: EpisodeMatch, watched: boolean) =>
-      patchShowSeasons(queryClient, showId, match, watched),
-    [queryClient],
-  );
-
-  const patchEpisodeDetail = useCallback(
-    (showId: number, episode: EpisodeBound, watched: boolean, watchedAt: string | null) =>
-      patchEpisodeDetailCache(queryClient, showId, episode, watched, watchedAt),
-    [queryClient],
-  );
-
   const revalidate = useCallback(
     (showId: number, episode?: { readonly season: number; readonly number: number } | "all") =>
       refreshShowProgress(queryClient, showId, () => runtime.loadShowProgress(showId), episode),
@@ -260,7 +248,7 @@ export function useMarkSeason(): MarkSeasonController {
       const before = queryClient.getQueryData<readonly SeasonView[]>(
         queryKeys.showSeasons(target.showId),
       );
-      patch(target.showId, match, true);
+      patchShowSeasons(queryClient, target.showId, match, true);
       setError(null);
       const undoOps = absorb === null ? ops : [...absorb.ops, ...ops];
       putUndo({
@@ -278,7 +266,7 @@ export function useMarkSeason(): MarkSeasonController {
       }
       return outcome;
     },
-    [patch, putUndo, retractUndo, queryClient, submitSeasonWrite, resume],
+    [putUndo, retractUndo, queryClient, submitSeasonWrite, resume],
   );
 
   const buildOps = useCallback(
@@ -360,7 +348,12 @@ export function useMarkSeason(): MarkSeasonController {
       const key = queryKeys.showSeasons(target.showId);
       const before = queryClient.getQueryData<readonly SeasonView[]>(key);
       const removed = new Set(plan.restore.map((play) => `${play.season}:${play.number}`));
-      patch(target.showId, (season, number) => removed.has(`${season}:${number}`), false);
+      patchShowSeasons(
+        queryClient,
+        target.showId,
+        (season, number) => removed.has(`${season}:${number}`),
+        false,
+      );
       const ops = [
         buildRemovePlaysOp({
           opId: crypto.randomUUID(),
@@ -393,7 +386,7 @@ export function useMarkSeason(): MarkSeasonController {
       }
       forgetSeasonMark(target.showId, season.number);
     },
-    [patch, putUndo, queryClient, retractUndo, revalidate, submit],
+    [putUndo, queryClient, retractUndo, revalidate, submit],
   );
 
   const unmarkSeason = useCallback(
@@ -463,7 +456,12 @@ export function useMarkSeason(): MarkSeasonController {
         const before = queryClient.getQueryData<readonly SeasonView[]>(
           queryKeys.showSeasons(target.showId),
         );
-        patch(target.showId, seasonMatch(season, target.includeSpecials), true);
+        patchShowSeasons(
+          queryClient,
+          target.showId,
+          seasonMatch(season, target.includeSpecials),
+          true,
+        );
         setNotice(
           `${seasonLabel(season.number)} marked again · ${aired.length} ${plural(aired.length)}`,
         );
@@ -474,7 +472,7 @@ export function useMarkSeason(): MarkSeasonController {
         }
       });
     },
-    [withSeasonLock, queryClient, patch, seasonMatch, submitSeasonWrite],
+    [withSeasonLock, queryClient, seasonMatch, submitSeasonWrite],
   );
 
   const markUpToHere = useCallback(
@@ -513,14 +511,15 @@ export function useMarkSeason(): MarkSeasonController {
       watched: boolean,
       watchedAt: string | null,
     ) => {
-      patch(
+      patchShowSeasons(
+        queryClient,
         target.showId,
         (season, number) => season === episode.season && number === episode.number,
         watched,
       );
-      patchEpisodeDetail(target.showId, episode, watched, watchedAt);
+      patchEpisodeDetail(queryClient, target.showId, episode, watched, watchedAt);
     },
-    [patch, patchEpisodeDetail],
+    [queryClient],
   );
 
   const submitQueuedEpisodeUnmark = useCallback(
@@ -744,8 +743,8 @@ export function useMarkSeason(): MarkSeasonController {
           return;
         }
         const matchEpisode: EpisodeMatch = (s, n) => s === episode.season && n === episode.number;
-        patch(target.showId, matchEpisode, false);
-        patchEpisodeDetail(target.showId, bound, false, null);
+        patchShowSeasons(queryClient, target.showId, matchEpisode, false);
+        patchEpisodeDetail(queryClient, target.showId, bound, false, null);
         const op = buildRemovePlaysOp({
           opId: crypto.randomUUID(),
           ids: own.map((play) => play.historyId),
@@ -763,8 +762,8 @@ export function useMarkSeason(): MarkSeasonController {
         });
         const outcome = await submit(ops, {
           rollback: () => {
-            patch(target.showId, matchEpisode, true);
-            patchEpisodeDetail(target.showId, bound, true, latest?.watchedAt ?? null);
+            patchShowSeasons(queryClient, target.showId, matchEpisode, true);
+            patchEpisodeDetail(queryClient, target.showId, bound, true, latest?.watchedAt ?? null);
           },
           revalidate: () => revalidate(target.showId, bound),
         });
@@ -774,7 +773,7 @@ export function useMarkSeason(): MarkSeasonController {
         }
       });
     },
-    [withEpisodeLock, runtime, patch, patchEpisodeDetail, putUndo, retractUndo, submit, revalidate],
+    [withEpisodeLock, runtime, queryClient, putUndo, retractUndo, submit, revalidate],
   );
 
   const undo = useCallback(async () => {
