@@ -33,14 +33,14 @@ import { mount } from "./_mount";
 const SHOW = 1;
 const NEXT_EP_TRAKT = 102;
 
-function episodeView(number: number, watched = false): EpisodeView {
+function episodeView(number: number, watched = false, stills: readonly string[] = []): EpisodeView {
   return {
     season: 1,
     number,
     title: null,
     firstAired: "2026-01-01T00:00:00.000Z",
     ids: { trakt: 100 + number },
-    stills: [],
+    stills,
     watched,
     watchedAt: watched ? "2026-07-01T00:00:00.000Z" : null,
     aired: true,
@@ -249,7 +249,11 @@ describe("F3a: a queue mark ticks the show-detail caches in the same frame", () 
   it("replaces only the marked library entry from its scoped progress read", async () => {
     const other = libraryEntry(2);
     const fake = fakeRuntime({
-      progress: { aired: 10, completed: 2, nextEpisode: episodeView(3) },
+      progress: {
+        aired: 12,
+        completed: 2,
+        nextEpisode: episodeView(3, false, ["media.trakt.tv/s3.jpg"]),
+      },
     });
     const entry = libraryEntry();
     const qc = seededClient([entry, other]);
@@ -258,13 +262,45 @@ describe("F3a: a queue mark ticks the show-detail caches in the same frame", () 
     await act(async () => surface[0]?.mark.mark(entry));
     await flush();
 
-    expect(entryOf(qc, SHOW)).toMatchObject({
+    const patched = entryOf(qc, SHOW);
+    expect(patched).toMatchObject({
+      aired: 12,
       completed: 2,
       pendingAdvance: false,
-      nextEpisode: { season: 1, number: 3, ids: { trakt: 103 } },
+      // Resolved as an https URL, exactly as the aggregate resolves the same
+      // host-relative candidate: a raw one renders as a broken still.
+      nextEpisode: { season: 1, number: 3, still: "https://media.trakt.tv/s3.jpg" },
+    });
+    // A per-show progress read knows nothing about the rest of the entry, so the
+    // patch has to carry the aggregate's own fields through untouched.
+    expect(patched).toMatchObject({
+      showId: entry.showId,
+      title: entry.title,
+      status: entry.status,
+      hidden: entry.hidden,
+      inWatchlist: entry.inWatchlist,
+      lastAired: entry.lastAired,
+      tmdbId: entry.tmdbId,
     });
     expect(entryOf(qc, 2)).toStrictEqual(other);
     expect(fake.runtime.loadShowProgress).toHaveBeenCalledOnce();
+  });
+
+  it("replaces the marked show's library entry from the season surface too", async () => {
+    // Every mark surface shares one reconcile. A surface that only invalidated
+    // show detail left the queue row naming an episode the season mark had just
+    // watched, until an unrelated remote change rebuilt the aggregate.
+    const fake = fakeRuntime({ progress: { aired: 10, completed: 10, nextEpisode: null } });
+    const season = seasonView([episodeView(1, true), episodeView(2)]);
+    const entry = libraryEntry();
+    const qc = seededClient([entry], [season]);
+    const [surface] = mountSurfaces(fake.runtime, qc);
+
+    await act(async () => surface[0]?.season.markSeason(TARGET, season));
+    await flush();
+
+    expect(entryOf(qc, SHOW)).toMatchObject({ completed: 10, nextEpisode: null });
+    expect(fake.runtime.loadShowProgress).toHaveBeenCalledWith(SHOW);
   });
 
   it("patches seasons + episode detail optimistically, and undo restores them", async () => {

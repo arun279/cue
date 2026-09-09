@@ -1,6 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { createElement, Fragment, useCallback } from "react";
-import { invalidateShowProgress } from "../data/query-invalidation";
 import { queryKeys } from "../data/query-keys";
 import { advancePastNext, type LibraryEntry, type MarkContext } from "../data/trakt/library";
 import { epCode } from "../domain/model/library";
@@ -32,8 +31,8 @@ import { appendToBatch } from "../sync-contract";
 import {
   patchEpisodeDetail,
   patchLibraryEntry,
-  patchLibraryProgress,
   patchShowSeasons,
+  refreshShowProgress,
 } from "./library-cache";
 import { findMarkPlay } from "./resolveUnmark";
 import { useOptimisticWrite } from "./useOptimisticWrite";
@@ -162,24 +161,12 @@ export function useMarkWatched(): MarkWatched {
     [patch, patchProgress],
   );
 
-  // A mark from Up Next advances the library entry, but the marked show's detail
-  // views (header X/Y + next-up, season ticks, the marked episode) live on
-  // separate cache keys the last-activities gate never re-syncs for a local write.
-  // Invalidate them so they refetch on next visit: durably, since the invalidated
-  // flag persists across a reload. The scoped progress read also replaces this
-  // show's library entry without rebuilding every show. History rides along so
-  // the fresh play surfaces in the home "Previously" section without waiting for
-  // the next activities poll.
+  // History rides along so the fresh play surfaces in the home "Previously"
+  // section without waiting for the next activities poll.
   const revalidate = useCallback(
     (showId: number, episode: { readonly season: number; readonly number: number }) => {
-      invalidateShowProgress(queryClient, showId, episode);
+      refreshShowProgress(queryClient, showId, () => runtime.loadShowProgress(showId), episode);
       void queryClient.invalidateQueries({ queryKey: queryKeys.historyPrefix() });
-      void queryClient
-        .fetchQuery({
-          queryKey: queryKeys.showProgress(showId),
-          queryFn: () => runtime.loadShowProgress(showId),
-        })
-        .then((progress) => patchLibraryProgress(queryClient, showId, progress));
     },
     [queryClient, runtime],
   );

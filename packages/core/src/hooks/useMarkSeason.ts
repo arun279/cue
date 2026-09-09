@@ -1,6 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useRef, useState } from "react";
-import { invalidateShowProgress } from "../data/query-invalidation";
 import { queryKeys } from "../data/query-keys";
 import type { SeasonView, ShowProgress } from "../data/trakt/show-detail";
 import type { EpisodeIds, ShowIds } from "../domain/model/ids";
@@ -20,6 +19,7 @@ import {
   type EpisodeMatch,
   patchEpisodeDetail as patchEpisodeDetailCache,
   patchShowSeasons,
+  refreshShowProgress,
 } from "./library-cache";
 import { resolveEpisodeUnmark } from "./resolveUnmark";
 import { useOptimisticWrite } from "./useOptimisticWrite";
@@ -269,15 +269,14 @@ export function useMarkSeason(): MarkSeasonController {
   // standalone episode page is left reading pre-mark progress.
   const revalidate = useCallback(
     (showId: number, episode?: { readonly season: number; readonly number: number } | "all") =>
-      invalidateShowProgress(queryClient, showId, episode),
-    [queryClient],
+      refreshShowProgress(queryClient, showId, () => runtime.loadShowProgress(showId), episode),
+    [queryClient, runtime],
   );
 
   // The one settle wiring for a season-tree write: a hard failure restores the
-  // pre-write snapshot verbatim, a kept watch un-stops a Stopped show (onKept:
-  // that unhide must land before revalidate so the library re-read doesn't
-  // refile the show back under Stopped), and settling revalidates whole-show
-  // progress.
+  // pre-write snapshot verbatim, a kept watch un-stops a Stopped show (onKept,
+  // so the unhide lands before the row is reconciled), and settling revalidates
+  // whole-show progress.
   const submitSeasonWrite = useCallback(
     (
       target: MarkContextTarget,
@@ -725,8 +724,8 @@ export function useMarkSeason(): MarkSeasonController {
               reversibleSeason: null,
             });
           }
-          // A watch on a Stopped show un-stops it (onKept): the unhide must land before
-          // revalidate so the library re-read doesn't refile the show under Stopped.
+          // A watch on a Stopped show un-stops it (onKept), which lands before the
+          // row is reconciled.
           const outcome = await submit(ops, {
             rollback: () => {
               patch(target.showId, matchEpisode, false);

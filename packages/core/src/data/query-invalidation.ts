@@ -47,11 +47,14 @@ function keysForTarget(target: InvalidationTarget): readonly InvalidationKey[] {
 
 /**
  * The cached queries a local watched-progress mark on show X must refresh,
- * whichever surface issued it: the show's own progress reads: its hero progress
- * (overall `X/Y` + next-up) and its season tree
- * (per-season counts + per-episode ticks): and, when the mark targets one known
- * episode, that episode's detail read. The show's own `showInfo` facts are
- * deliberately absent: a mark changes no air date, network or genre.
+ * whichever surface issued it: the show's own progress reads, its hero progress
+ * (overall `X/Y` + next-up) and its season tree (per-season counts + per-episode
+ * ticks); and, when the mark targets one known episode, that episode's detail
+ * read. The Up Next `library` aggregate is deliberately absent: a mark moves one
+ * show's snapshot, so `refreshShowProgress` folds the scoped progress read into
+ * that one entry rather than rebuilding every show. The show's own
+ * `showInfo` facts are absent for the same reason: a mark changes no air date,
+ * network or genre.
  *
  * These per-show keys are deliberately ABSENT from `keysForTarget` above: the
  * last-activities gate maps a *remote* diff, and it stores the app's own write

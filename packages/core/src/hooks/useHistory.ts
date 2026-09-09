@@ -1,6 +1,5 @@
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useRef, useState } from "react";
-import { invalidateShowProgress } from "../data/query-invalidation";
 import { queryKeys } from "../data/query-keys";
 import {
   groupHistory,
@@ -16,6 +15,7 @@ import {
   buildRemoveHistoryPlayOp,
 } from "../domain/write-queue/ops";
 import { type HistorySection, type SubmitOutcome, useRuntime } from "../runtime/runtime";
+import { refreshShowProgress } from "./library-cache";
 import { type QueryStatus, queryStatus, USER_STATE_STALE_TIME } from "./query-freshness";
 import { useOptimisticWrite } from "./useOptimisticWrite";
 
@@ -132,15 +132,20 @@ export function useHistory(scope: HistoryScope): HistoryView {
       // ticks + watched dates), and that episode's detail. These live on separate
       // cache keys the last-activities gate never re-syncs for a local write, so
       // without this a Diary removal/undo leaves show detail reading pre-removal
-      // progress until the content window lapses. `showProgressKeys` includes
-      // `library()`, the Up Next aggregate.
+      // progress until the content window lapses, and its Up Next row keeps
+      // naming the episode the removal just un-watched.
       const episode =
         entry.season !== null && entry.number !== null
           ? { season: entry.season, number: entry.number }
           : undefined;
-      invalidateShowProgress(queryClient, entry.mediaId, episode);
+      refreshShowProgress(
+        queryClient,
+        entry.mediaId,
+        () => runtime.loadShowProgress(entry.mediaId),
+        episode,
+      );
     },
-    [queryClient],
+    [queryClient, runtime],
   );
 
   // The in-flight remove per history id, so Undo can await the remove's OUTCOME
