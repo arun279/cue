@@ -3,8 +3,6 @@ import { createJsonStore, type JsonStore } from "./json-store";
 import type { KeyValueStore } from "./kv";
 import { TOKEN_KEY } from "./storage-keys";
 
-export { TOKEN_KEY } from "./storage-keys";
-
 /** The Trakt OAuth token behind the platform key-value abstraction. */
 export type TokenStore = JsonStore<Token>;
 

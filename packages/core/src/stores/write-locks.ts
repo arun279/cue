@@ -19,7 +19,7 @@ export function releaseWriteLock(key: string, owner: unknown): void {
   if (locks.get(key) === owner) locks.delete(key);
 }
 
-export function hasWriteLock(key: string): boolean {
+function hasWriteLock(key: string): boolean {
   return locks.has(key);
 }
 
