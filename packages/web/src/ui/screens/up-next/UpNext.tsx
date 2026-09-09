@@ -1,10 +1,11 @@
 import type { EpisodeRef } from "@cue/core/domain/model/library";
-import { useCalendar } from "@cue/core/hooks/useCalendar";
-import { useHideShow } from "@cue/core/hooks/useHideShow";
+import { upNextEmptyKind } from "@cue/core/domain/up-next";
+import { stopWatching, useHideShow } from "@cue/core/hooks/useHideShow";
 import { useMarkControl } from "@cue/core/hooks/useMarkControl";
 import { type MarkWatched, useMarkWatched } from "@cue/core/hooks/useMarkWatched";
+import { useOnTheWay } from "@cue/core/hooks/useOnTheWay";
+import { useStopSnacks } from "@cue/core/hooks/useStopSnacks";
 import { type UpNextCard, useUpNext } from "@cue/core/hooks/useUpNext";
-import { dismissSnack, showSnack } from "@cue/core/stores/snackbar-store";
 import { Link } from "@tanstack/react-router";
 import { ScreenHeader } from "@ui/app-shell/ScreenHeader";
 import { SyncStrip } from "@ui/app-shell/SyncStrip";
@@ -22,9 +23,9 @@ import {
 } from "@ui/components/TutorialCaption";
 import { useDocumentTitle } from "@ui/hooks/useDocumentTitle";
 import { useFlip } from "@ui/hooks/useFlip";
-import { type ReactElement, type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactElement, type ReactNode, useState } from "react";
 import { LapsedDrawer } from "./LapsedDrawer";
-import { buildOnTheWay, OnTheWay, useOnTheWayClock } from "./OnTheWay";
+import { MAX_ROWS, OnTheWay } from "./OnTheWay";
 import { Previously } from "./Previously";
 import { QueueRow } from "./QueueRow";
 
@@ -52,6 +53,25 @@ function MarqueeSlot({
   );
 }
 
+/** The head of the queue, promoted. Mid-advance past the last aired episode
+ * there is no episode to headline, so the lead show keeps its place as a queue
+ * row until the confirming read either names the next one or drops it. */
+function Lead({
+  card,
+  mark,
+  onStop,
+}: {
+  readonly card: UpNextCard;
+  readonly mark: MarkWatched;
+  readonly onStop: () => void;
+}): ReactElement {
+  return card.item.episode === null ? (
+    <QueueRow card={card} mark={mark} onStop={onStop} />
+  ) : (
+    <MarqueeSlot card={card} episode={card.item.episode} mark={mark} />
+  );
+}
+
 /**
  * Up Next is the home screen and the heart of Cue, one timeline of your watching
  * life. What's next on top (marquee + queue), what's coming below ("On the
@@ -60,13 +80,11 @@ function MarqueeSlot({
  * branches on real library composition, and error = SyncStrip over cached
  * content, never a blank screen.
  */
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Coordinates queue, calendar, stop and mark feedback, tutorial state, and every timeline loading or empty branch.
 export function UpNext(): ReactElement {
   useDocumentTitle("Up Next · Cue");
   const view = useUpNext();
   const markController = useMarkWatched();
   const stop = useHideShow();
-  const calendar = useCalendar();
   const flip = useFlip();
   const [tutorialDismissed, setTutorialDismissed] = useState(initialTutorialDismissed);
 
@@ -82,80 +100,28 @@ export function UpNext(): ReactElement {
     },
   };
 
-  const { undoable: stopUndoable, error: stopError, undo: stopUndo, clearError } = stop;
-  useEffect(() => {
-    if (stopError !== null) {
-      showSnack({
-        message: stopError,
-        actions: [
-          {
-            label: "Dismiss",
-            onPress: () => {
-              clearError();
-              dismissSnack();
-            },
-          },
-        ],
-      });
-      return;
-    }
-    if (stopUndoable !== null) {
-      showSnack({
-        message: `${stopUndoable.title} ${stopUndoable.kind === "hide" ? "stopped" : "resumed"}`,
-        actions: [
-          {
-            label: "Undo",
-            testId: "snackbar-undo",
-            onPress: () => {
-              dismissSnack();
-              void stopUndo();
-            },
-          },
-        ],
-      });
-    }
-  }, [stopUndoable, stopError, stopUndo, clearError]);
-
-  // The coarse hourly clock keeps "Tonight" honest: an episode that airs while
-  // the screen sits open drops out on the next hour flip.
-  const clock = useOnTheWayClock();
-  const onTheWay = useMemo(() => buildOnTheWay(calendar.days, clock), [calendar.days, clock]);
-
-  const stopWatching = (card: UpNextCard): void => {
-    void stop.hide(
-      card.entry.showId,
-      { trakt: card.entry.showId, tmdb: card.entry.tmdbId ?? undefined },
-      card.entry.title,
-    );
-  };
+  useStopSnacks(stop);
+  const onTheWay = useOnTheWay(MAX_ROWS);
 
   const showSections = view.hasData && !view.isLoading;
   const marquee = view.queue.length >= 3 ? view.queue[0] : undefined;
   const rows = marquee === undefined ? view.queue : view.queue.slice(1);
 
-  // The empty states branch on real library composition so the home screen never
-  // tells a user the opposite of their state: a library of only Stopped shows must
-  // not read "nothing queued", only-Watchlist must not read "all caught up", and
-  // shows with episodes left whose next episode is still unknown must not be
-  // counted as caught up either. Exactly one fires, only when no card renders.
-  const emptyKind:
-    | "nothing-tracked"
-    | "only-stopped"
-    | "nothing-started"
-    | "unresolved"
-    | "caught-up"
-    | null =
-    !view.hasData || view.queue.length > 0
-      ? null
-      : view.totalCount === 0
-        ? "nothing-tracked"
-        : view.trackedCount === 0
-          ? "only-stopped"
-          : view.startedCount === 0
-            ? "nothing-started"
-            : view.unresolvedCount > 0
-              ? "unresolved"
-              : "caught-up";
+  const emptyKind = upNextEmptyKind({ ...view, queued: view.queue.length });
+
+  // What sits under an empty queue in both branches that have one: when the
+  // queue does not resolve, "so when do I get something?" is still the question.
+  const timeline: ReactNode = (
+    <>
+      <OnTheWay days={onTheWay} />
+      <LapsedDrawer
+        cards={view.lapsedCards}
+        mark={mark}
+        onStop={(card) => stopWatching(stop, card.entry)}
+      />
+      <Previously />
+    </>
+  );
 
   const watchlistTiles: ReactNode = view.watchlistEntries.length > 0 && (
     <div className="home-section">
@@ -246,9 +212,7 @@ export function UpNext(): ReactElement {
                 Go to Library
               </Link>
             </EmptyState>
-            <OnTheWay days={onTheWay} />
-            <LapsedDrawer cards={view.lapsedCards} mark={mark} onStop={stopWatching} />
-            <Previously />
+            {timeline}
           </>
         )}
 
@@ -259,36 +223,36 @@ export function UpNext(): ReactElement {
               headline="You're all caught up."
               body={onTheWay.length === 0 ? "Nothing airing in the next few days." : undefined}
             />
-            <OnTheWay days={onTheWay} />
-            <LapsedDrawer cards={view.lapsedCards} mark={mark} onStop={stopWatching} />
-            <Previously />
+            {timeline}
           </>
         )}
 
         {showSections && emptyKind === null && (
           <>
-            {marquee !== undefined &&
-              (marquee.item.episode === null ? (
-                // Mid-advance past the last aired episode there is no episode to
-                // headline, so the lead show keeps its place as a queue row until
-                // the confirming read either names the next one or drops it.
-                <QueueRow card={marquee} mark={mark} onStop={() => stopWatching(marquee)} />
-              ) : (
-                <MarqueeSlot card={marquee} episode={marquee.item.episode} mark={mark} />
-              ))}
+            {marquee !== undefined && (
+              <Lead card={marquee} mark={mark} onStop={() => stopWatching(stop, marquee.entry)} />
+            )}
 
             {rows.length > 0 && (
               <ul className="row-list" data-testid="up-next-list">
                 {rows.map((card, index) => (
                   <li key={card.entry.showId} ref={flip.ref(card.entry.showId)}>
-                    <QueueRow card={card} mark={mark} onStop={() => stopWatching(card)} />
+                    <QueueRow
+                      card={card}
+                      mark={mark}
+                      onStop={() => stopWatching(stop, card.entry)}
+                    />
                     {index === 0 && !tutorialDismissed && <TutorialCaption />}
                   </li>
                 ))}
               </ul>
             )}
 
-            <LapsedDrawer cards={view.lapsedCards} mark={mark} onStop={stopWatching} />
+            <LapsedDrawer
+              cards={view.lapsedCards}
+              mark={mark}
+              onStop={(card) => stopWatching(stop, card.entry)}
+            />
             <OnTheWay days={onTheWay} />
             <Previously />
           </>

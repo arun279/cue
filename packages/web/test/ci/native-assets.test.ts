@@ -30,6 +30,28 @@ const setup = () => {
 };
 
 describe("native export assets", () => {
+  it("accepts platforms regardless of metadata key order", () => {
+    const { exported, manifest } = setup();
+    writeFileSync(
+      path.join(exported, "metadata.json"),
+      JSON.stringify({
+        fileMetadata: {
+          ios: { assets: [{ path: "assets/known", ext: "png" }] },
+          android: { assets: [{ path: "assets/known", ext: "png" }] },
+        },
+      }),
+    );
+    writeFileSync(
+      manifest,
+      JSON.stringify({
+        measuredOn: "2026-09-09",
+        assets: [{ path: "assets/known", type: "png", bytes: 5, platforms: ["ios", "android"] }],
+      }),
+    );
+
+    expect(spawnSync(process.execPath, [SCRIPT, exported, manifest]).status).toBe(0);
+  });
+
   it("rejects an asset that is not declared", () => {
     const { exported, manifest } = setup();
     writeFileSync(path.join(exported, "assets/arrival"), "new");

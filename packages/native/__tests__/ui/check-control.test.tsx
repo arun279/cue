@@ -1,4 +1,4 @@
-import { render, renderHook, screen, userEvent } from "@testing-library/react-native";
+import { fireEvent, render, renderHook, screen, userEvent } from "@testing-library/react-native";
 import { CheckControl } from "../../src/ui/CheckControl";
 import { CHECK_SIZE, useColors } from "../../src/ui/tokens";
 
@@ -46,6 +46,21 @@ it("toggles from its own tap", async () => {
   expect(onPress).toHaveBeenCalledTimes(1);
 });
 
+it("keeps a check waiting to happen inside the resting ring, in the ink its surface takes", async () => {
+  await render(
+    <>
+      <CheckControl checked={false} label="On the page" onPress={jest.fn()} testID="page" />
+      <CheckControl checked={false} onImage label="Over art" onPress={jest.fn()} testID="art" />
+    </>,
+  );
+
+  // Drawn rather than dashed: the resting glyph says the control marks rather
+  // than selects, and only the committed one draws itself in.
+  const resting = screen.getByTestId("page-rest");
+  expect(resting).not.toHaveProp("strokeDasharray");
+  expect(screen.getByTestId("art-rest").props["stroke"]).not.toEqual(resting.props["stroke"]);
+});
+
 it("merges the checked ring into its fill", async () => {
   const { result } = await renderHook(() => useColors());
   await render(<CheckControl checked label="Mark Salt Air watched" onPress={jest.fn()} />);
@@ -53,4 +68,34 @@ it("merges the checked ring into its fill", async () => {
     backgroundColor: result.current.watched,
     borderColor: result.current.watched,
   });
+});
+
+it("is checked and inert while its next episode is still a guess, with a quiet dot beside it", async () => {
+  const onPress = jest.fn();
+  await render(
+    <CheckControl
+      checked
+      disabled
+      pending
+      label="Watched. Not synced yet."
+      onPress={onPress}
+      testID="check"
+    />,
+  );
+
+  const check = screen.getByRole("switch", { name: "Watched. Not synced yet." });
+  expect(check).toHaveProp("accessibilityState", { checked: true, disabled: true });
+  // A target that answers nothing is worse than one that is honestly unavailable.
+  fireEvent.press(check);
+  expect(onPress).not.toHaveBeenCalled();
+  // The dot rides in the label, so it is drawn without being read twice.
+  expect(screen.getByTestId("check").parent?.children).toHaveLength(2);
+});
+
+it("draws no dot for a mark Trakt has already confirmed", async () => {
+  await render(
+    <CheckControl checked disabled label="Watched." onPress={jest.fn()} testID="check" />,
+  );
+
+  expect(screen.getByTestId("check").parent?.children).toHaveLength(1);
 });

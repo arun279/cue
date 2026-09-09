@@ -82,6 +82,18 @@ it("moves the trailing controls below the text column at the accessibility sizes
   expect(row()).toHaveStyle({ flexDirection: "column" });
 });
 
+it("starts the artwork where the text starts once the text is taller than it", async () => {
+  const { rerender } = await render(queueRow());
+  expect(screen.getByTestId("queue-row")).toHaveStyle({ alignItems: "center" });
+
+  atFontScale(1.6);
+  await rerender(queueRow());
+
+  // Artwork does not scale, so centring it against several lines of text leaves
+  // it floating in the middle of a paragraph.
+  expect(screen.getByTestId("queue-row")).toHaveStyle({ alignItems: "flex-start" });
+});
+
 it("draws the separator as a hairline in the platform separator, inset where asked", async () => {
   await render(<Separator inset={60} />);
 

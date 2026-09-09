@@ -92,7 +92,16 @@ export function AppSnackbar(): ReactElement | null {
         setDragY(0);
       }}
     >
-      <span className="app-snackbar__message">{shown.message}</span>
+      <span className="app-snackbar__message">
+        {typeof shown.message === "string" ? (
+          shown.message
+        ) : (
+          <>
+            <strong>{shown.message.subject}</strong>
+            {shown.message.predicate}
+          </>
+        )}
+      </span>
       {(shown.actions ?? []).map((action) => (
         <button
           key={action.label}

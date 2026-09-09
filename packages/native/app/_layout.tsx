@@ -10,11 +10,12 @@ import { createPrefsStore, PrefsProvider } from "@cue/core/prefs/prefs-store";
 import { PERSIST_BUSTER, PERSIST_MAX_AGE } from "@cue/core/runtime/query-cache";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { randomUUID } from "expo-crypto";
-import { Stack } from "expo-router";
+import { Stack, ThemeProvider } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { type ReactElement, useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { initialWindowMetrics, SafeAreaProvider } from "react-native-safe-area-context";
 import { bootNativeStores } from "../src/boot";
 import { NATIVE_REDIRECT_URI, TRAKT_BASE_OVERRIDE, TRAKT_CLIENT_ID } from "../src/config";
@@ -41,6 +42,7 @@ import { Onboarding } from "../src/screens/Onboarding";
 import { RuntimeBoot } from "../src/screens/RuntimeBoot";
 import { AppIdle } from "../src/ui/AppIdle";
 import { Marker } from "../src/ui/Marker";
+import { useNavigationTheme } from "../src/ui/navigation-theme";
 import { SnackbarHost } from "../src/ui/SnackbarHost";
 import { TEST_IDS } from "../src/ui/test-ids";
 import { useCueFonts } from "../src/ui/type";
@@ -162,6 +164,7 @@ export default function RootLayout(): ReactElement {
   useScreenReader();
   const authStore = useNativeSession();
   const fontsSettled = useCueFonts();
+  const navigationTheme = useNavigationTheme();
 
   useEffect(() => {
     if (authStore !== null && fontsSettled) void SplashScreen.hideAsync().catch(() => {});
@@ -170,39 +173,45 @@ export default function RootLayout(): ReactElement {
   if (authStore === null || !fontsSettled) return <Marker testID={TEST_IDS.bootHold} />;
 
   return (
-    // The metrics the native side already knows, so the first frame is the app
-    // rather than nothing.
-    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-      <PersistQueryClientProvider
-        client={queryClient}
-        persistOptions={{
-          persister: queryPersister,
-          maxAge: PERSIST_MAX_AGE,
-          buster: PERSIST_BUSTER,
-          dehydrateOptions: { shouldDehydrateQuery },
-        }}
-      >
-        <PrefsProvider value={prefsStore}>
-          <AppVisibilityProvider value={nativeAppVisibility}>
-            <NetworkProvider value={network}>
-              <HapticsProvider value={haptics}>
-                <RemindersProvider value={reminders}>
-                  <AppVersionProvider value={nativeAppVersion}>
-                    <AuthStoreProvider value={authStore}>
-                      {/* Declarative, and "auto" follows the system appearance the
+    // The entry point for every gesture in the app, which only recognizes
+    // gestures mounted under it, so it goes as close to the root as it can.
+    <GestureHandlerRootView style={styles.root}>
+      {/* The metrics the native side already knows, so the first frame is the
+          app rather than nothing. */}
+      <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+        <PersistQueryClientProvider
+          client={queryClient}
+          persistOptions={{
+            persister: queryPersister,
+            maxAge: PERSIST_MAX_AGE,
+            buster: PERSIST_BUSTER,
+            dehydrateOptions: { shouldDehydrateQuery },
+          }}
+        >
+          <PrefsProvider value={prefsStore}>
+            <AppVisibilityProvider value={nativeAppVisibility}>
+              <NetworkProvider value={network}>
+                <HapticsProvider value={haptics}>
+                  <RemindersProvider value={reminders}>
+                    <AppVersionProvider value={nativeAppVersion}>
+                      <AuthStoreProvider value={authStore}>
+                        {/* Declarative, and "auto" follows the system appearance the
                         app config already declares. The theme store drives it
                         once that store has a port of its own. */}
-                      <StatusBar style="auto" />
-                      <Gate />
-                    </AuthStoreProvider>
-                  </AppVersionProvider>
-                </RemindersProvider>
-              </HapticsProvider>
-            </NetworkProvider>
-          </AppVisibilityProvider>
-        </PrefsProvider>
-      </PersistQueryClientProvider>
-    </SafeAreaProvider>
+                        <StatusBar style="auto" />
+                        <ThemeProvider value={navigationTheme}>
+                          <Gate />
+                        </ThemeProvider>
+                      </AuthStoreProvider>
+                    </AppVersionProvider>
+                  </RemindersProvider>
+                </HapticsProvider>
+              </NetworkProvider>
+            </AppVisibilityProvider>
+          </PrefsProvider>
+        </PersistQueryClientProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 
