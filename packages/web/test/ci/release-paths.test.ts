@@ -82,6 +82,7 @@ const DOES_NOT_SHIP = [
   ".size-limit.json",
   "scripts/assert-file-size.mjs",
   "scripts/check-size.mjs",
+  "scripts/check-size-ratchet.mjs",
   "scripts/check-quality-budget.mjs",
   "scripts/check-type-suppressions.mjs",
   "scripts/quality-budget.json",
