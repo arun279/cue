@@ -14,5 +14,5 @@
  */
 export const PERSISTED_CACHE = {
   buster: "98bed29e81cd",
-  shape: "4ad64996f3a7",
+  shape: "20e2649b65bf",
 } as const;
