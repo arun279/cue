@@ -38,7 +38,6 @@ const SHIPS = [
   "packages/*/plugins/**",
   "packages/*/babel.config.js",
   "packages/*/metro.config.js",
-  "packages/*/metro/**",
   "package.json",
   "pnpm-lock.yaml",
   "pnpm-workspace.yaml",
