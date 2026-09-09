@@ -51,6 +51,7 @@ on:
       "scripts/check-native-assets.mjs",
       "scripts/check-size-ratchet.mjs",
       "scripts/check-size-delta.mjs",
+      "scripts/summarize-atlas.mjs",
       "scripts/check-type-suppressions.mjs",
       "scripts/complexity/**",
       "scripts/diff-footprint.sh",

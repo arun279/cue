@@ -1,22 +1,14 @@
-import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { spawnSync } from "node:child_process";
+import { writeFileSync } from "node:fs";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
+import { repositoryPath } from "../support/repository-path";
+import { tempDirectory } from "../support/temp-directory";
 
-const REPOSITORY_ROOT = execFileSync("git", ["rev-parse", "--show-toplevel"], {
-  encoding: "utf8",
-}).trim();
-const SCRIPT = path.join(REPOSITORY_ROOT, "scripts/check-size-delta.mjs");
-const directories: string[] = [];
-
-afterEach(() => {
-  for (const directory of directories.splice(0)) rmSync(directory, { recursive: true });
-});
+const SCRIPT = repositoryPath("scripts/check-size-delta.mjs");
 
 const run = (growth: number, rationale = "") => {
-  const directory = mkdtempSync(path.join(tmpdir(), "cue-size-delta-"));
-  directories.push(directory);
+  const directory = tempDirectory("cue-size-delta-");
   const names = ["expo iOS bundle", "expo Android bundle", "Play download estimate"];
   const sizes = (size: number) => names.map((name) => ({ name, size }));
   writeFileSync(path.join(directory, "base.json"), JSON.stringify({ sizes: sizes(1_000_000) }));
@@ -47,8 +39,7 @@ describe("size delta gate", () => {
   });
 
   it("does not gate a merge base without the packages", () => {
-    const directory = mkdtempSync(path.join(tmpdir(), "cue-size-delta-"));
-    directories.push(directory);
+    const directory = tempDirectory("cue-size-delta-");
     writeFileSync(path.join(directory, "base.json"), JSON.stringify({ sizes: null }));
     writeFileSync(path.join(directory, "head.json"), JSON.stringify({ sizes: [] }));
 

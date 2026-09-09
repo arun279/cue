@@ -1,24 +1,15 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { cpSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { gitEnv } from "../support/git-env";
+import { repositoryPath } from "../support/repository-path";
+import { tempDirectory } from "../support/temp-directory";
 
-const REPOSITORY_ROOT = execFileSync("git", ["rev-parse", "--show-toplevel"], {
-  encoding: "utf8",
-  env: gitEnv(),
-}).trim();
-const SCRIPT = path.join(REPOSITORY_ROOT, "scripts/check-size-ratchet.mjs");
-const repositories: string[] = [];
-
-afterEach(() => {
-  for (const repository of repositories.splice(0)) rmSync(repository, { recursive: true });
-});
+const SCRIPT = repositoryPath("scripts/check-size-ratchet.mjs");
 
 const setup = (): string => {
-  const repository = mkdtempSync(path.join(tmpdir(), "cue-size-ratchet-"));
-  repositories.push(repository);
+  const repository = tempDirectory("cue-size-ratchet-");
   mkdirSync(path.join(repository, "scripts"));
   mkdirSync(path.join(repository, ".github/workflows"), { recursive: true });
   cpSync(SCRIPT, path.join(repository, "scripts/check-size-ratchet.mjs"));
@@ -39,10 +30,7 @@ const setup = (): string => {
       },
     ]),
   );
-  writeFileSync(
-    path.join(repository, ".github/workflows/ci.yml"),
-    'PLAY_SIZE_MEASUREMENT_BYTES: "90"\nPLAY_SIZE_MEASURED_ON: "2026-09-09"\nPLAY_SIZE_LIMIT_BYTES: "100"\n',
-  );
+  writePlayLimit(repository, 100);
   execFileSync("git", ["add", "."], { cwd: repository, env: gitEnv() });
   execFileSync("git", ["commit", "--quiet", "-m", "baseline"], {
     cwd: repository,
@@ -51,6 +39,20 @@ const setup = (): string => {
   return repository;
 };
 
+const writePlayLimit = (repository: string, limit: number): void => {
+  writeFileSync(
+    path.join(repository, ".github/workflows/ci.yml"),
+    `PLAY_SIZE_MEASUREMENT_BYTES: "90"\nPLAY_SIZE_MEASURED_ON: "2026-09-09"\nPLAY_SIZE_LIMIT_BYTES: "${limit}"\n`,
+  );
+};
+
+const runRatchet = (repository: string) =>
+  spawnSync(process.execPath, ["scripts/check-size-ratchet.mjs"], {
+    cwd: repository,
+    encoding: "utf8",
+    env: gitEnv(),
+  });
+
 describe("size budget ratchet", () => {
   it("rejects a raised bundle limit", () => {
     const repository = setup();
@@ -58,11 +60,7 @@ describe("size budget ratchet", () => {
     config[0].limit = "101 kB";
     writeFileSync(path.join(repository, ".size-limit.json"), JSON.stringify(config));
 
-    const result = spawnSync(process.execPath, ["scripts/check-size-ratchet.mjs"], {
-      cwd: repository,
-      encoding: "utf8",
-      env: gitEnv(),
-    });
+    const result = runRatchet(repository);
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("bundle: limit 101000 bytes exceeds previous 100000 bytes");
@@ -70,16 +68,9 @@ describe("size budget ratchet", () => {
 
   it("rejects a raised Play download limit", () => {
     const repository = setup();
-    writeFileSync(
-      path.join(repository, ".github/workflows/ci.yml"),
-      'PLAY_SIZE_MEASUREMENT_BYTES: "90"\nPLAY_SIZE_MEASURED_ON: "2026-09-09"\nPLAY_SIZE_LIMIT_BYTES: "101"\n',
-    );
+    writePlayLimit(repository, 101);
 
-    const result = spawnSync(process.execPath, ["scripts/check-size-ratchet.mjs"], {
-      cwd: repository,
-      encoding: "utf8",
-      env: gitEnv(),
-    });
+    const result = runRatchet(repository);
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("Play download: limit 101 bytes exceeds previous 100 bytes");

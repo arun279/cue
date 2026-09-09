@@ -83,7 +83,7 @@ jobs:
           base=$(git merge-base "origin/$BASE_REF" HEAD)
           git worktree add ../base "$base"
 
-          scripts/measure-sizes.sh "$PWD" "$PWD/head-sizes.json"
+          EXPO_ATLAS=true scripts/measure-sizes.sh "$PWD" "$PWD/head-sizes.json"
           node scripts/measure-complexity.mjs "$PWD" "$PWD/head-complexity.json"
           node scripts/measure-comments.mjs "$PWD" "$PWD/head-comments.json"
           scripts/measure-sizes.sh ../base "$PWD/base-sizes.json"
@@ -102,6 +102,13 @@ jobs:
             > base-metrics.json
           scripts/diff-footprint.sh "origin/$BASE_REF" base-metrics.json head-metrics.json \
             > footprint.md
+          node scripts/summarize-atlas.mjs packages/native/.expo/atlas.jsonl >> footprint.md
+      - name: Upload Expo Atlas
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: expo-atlas
+          path: packages/native/.expo/atlas.jsonl
+          retention-days: 7
       - name: Update the pull request comment
         env:
           GH_TOKEN: ${{ github.token }}

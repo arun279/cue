@@ -1,16 +1,12 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { gitEnv } from "../support/git-env";
+import { repositoryPath } from "../support/repository-path";
+import { tempDirectory } from "../support/temp-directory";
 
-const REPOSITORY_ROOT = execFileSync("git", ["rev-parse", "--show-toplevel"], {
-  encoding: "utf8",
-  env: gitEnv(),
-}).trim();
-const SCRIPT = path.join(REPOSITORY_ROOT, "scripts/diff-footprint.sh");
-const repositories: string[] = [];
+const SCRIPT = repositoryPath("scripts/diff-footprint.sh");
 
 const write = (repository: string, file: string, contents: string | Uint8Array): void => {
   const target = path.join(repository, file);
@@ -22,15 +18,8 @@ const git = (repository: string, ...args: string[]): void => {
   execFileSync("git", args, { cwd: repository, stdio: "ignore", env: gitEnv() });
 };
 
-afterEach(() => {
-  for (const repository of repositories.splice(0)) {
-    rmSync(repository, { recursive: true, force: true });
-  }
-});
-
 const newRepository = (): string => {
-  const repository = mkdtempSync(path.join(tmpdir(), "cue-diff-footprint-"));
-  repositories.push(repository);
+  const repository = tempDirectory("cue-diff-footprint-");
   git(repository, "init", "--quiet");
   git(repository, "config", "user.name", "Cue Tests");
   git(repository, "config", "user.email", "cue-tests@example.invalid");
