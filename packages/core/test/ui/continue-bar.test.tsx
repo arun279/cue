@@ -45,6 +45,7 @@ const header: ShowHeader = {
   backdrops: [],
   aired: 10,
   completed: 4,
+  lastAired: { season: 2, number: 2 },
   nextEpisode,
 };
 

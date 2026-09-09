@@ -27,13 +27,17 @@ export function patchLibraryEntry(
 /**
  * Fold an authoritative `/shows/:id/progress/watched` read into the show's own
  * library entry, leaving every other field the aggregate assembled (title,
- * hidden, watchlist membership, the aired frontier) untouched.
+ * hidden and watchlist membership) untouched.
  */
 function patchLibraryProgress(qc: QueryClient, showId: number, progress: ShowProgress): void {
   patchLibraryEntry(qc, showId, (entry) => ({
     ...entry,
     aired: progress.aired,
     completed: progress.completed,
+    lastAired:
+      progress.lastAired === null
+        ? null
+        : { season: progress.lastAired.season, number: progress.lastAired.number },
     nextEpisode: progress.nextEpisode === null ? null : toEpisodeRef(progress.nextEpisode),
     pendingAdvance: false,
   }));

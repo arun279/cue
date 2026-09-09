@@ -254,6 +254,7 @@ describe("F3a: a queue mark ticks the show-detail caches in the same frame", () 
       progress: {
         aired: 12,
         completed: 2,
+        lastAired: episodeView(2),
         nextEpisode: episodeView(3, false, ["media.trakt.tv/s3.jpg"]),
       },
     });
@@ -268,6 +269,7 @@ describe("F3a: a queue mark ticks the show-detail caches in the same frame", () 
     expect(patched).toMatchObject({
       aired: 12,
       completed: 2,
+      lastAired: { season: 1, number: 2 },
       pendingAdvance: false,
       // Resolved as an https URL, exactly as the aggregate resolves the same
       // host-relative candidate: a raw one renders as a broken still.
@@ -281,7 +283,6 @@ describe("F3a: a queue mark ticks the show-detail caches in the same frame", () 
       status: entry.status,
       hidden: entry.hidden,
       inWatchlist: entry.inWatchlist,
-      lastAired: entry.lastAired,
       tmdbId: entry.tmdbId,
     });
     expect(entryOf(qc, 2)).toStrictEqual(other);
@@ -292,7 +293,9 @@ describe("F3a: a queue mark ticks the show-detail caches in the same frame", () 
     // Every mark surface shares one reconcile. A surface that only invalidated
     // show detail left the queue row naming an episode the season mark had just
     // watched, until an unrelated remote change rebuilt the aggregate.
-    const fake = fakeRuntime({ progress: { aired: 10, completed: 10, nextEpisode: null } });
+    const fake = fakeRuntime({
+      progress: { aired: 10, completed: 10, lastAired: episodeView(10), nextEpisode: null },
+    });
     const season = seasonView([episodeView(1, true), episodeView(2)]);
     const entry = libraryEntry();
     const qc = seededClient([entry], [season]);
