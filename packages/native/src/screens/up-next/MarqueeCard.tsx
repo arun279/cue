@@ -16,6 +16,7 @@ import { RowFooter } from "../../ui/RowFooter";
 import { TEST_IDS } from "../../ui/test-ids";
 import {
   CHECK_SIZE,
+  HAIRLINE,
   PALETTE,
   POSTER_WIDTH,
   RADIUS,
@@ -79,11 +80,26 @@ export function MarqueeCard({ card, mark }: MarqueeCardProps): ReactElement {
       : "Continue";
   const onImage = scrim ? PALETTE.onImage.dark : colors.fg;
   const onImageQuiet = scrim ? PALETTE.onImage2.dark : colors.ink2;
+  // The eyebrow reads over the scrim's own wash on artwork and takes the accent
+  // ink on the plain surface, where amber at 1.97:1 would carry the one line
+  // that says an episode is new.
+  const eyebrowInk = scrim ? PALETTE.onImage2.dark : colors.accentInk;
 
   return (
     <View
       testID={TEST_IDS.marqueeCard}
-      style={[styles.card, { backgroundColor: scrim ? plate(entry.title) : colors.surface }]}
+      style={[
+        styles.card,
+        scrim
+          ? { backgroundColor: plate(entry.title) }
+          : {
+              // #ffffff on the #fbfaf7 page is 1.04:1, so the plain surface is
+              // an edge away from not being a card at all.
+              backgroundColor: colors.surface,
+              borderWidth: HAIRLINE,
+              borderColor: colors.border,
+            },
+      ]}
     >
       {scrim ? (
         <>
@@ -108,13 +124,13 @@ export function MarqueeCard({ card, mark }: MarqueeCardProps): ReactElement {
           .filter(Boolean)
           .join(", ")}
         onPress={() => router.push(`/show/${entry.showId}`)}
-        style={styles.body}
+        style={[styles.body, scrim ? styles.bodyBottom : styles.bodyTop]}
       >
         {scrim ? null : (
           <Poster title={entry.title} posters={art.posters} width={POSTER_WIDTH.marquee} />
         )}
         <View style={styles.stack}>
-          <CueText variant="micro" weight="bold" eyebrow style={{ color: colors.accent }}>
+          <CueText variant="micro" weight="bold" eyebrow style={{ color: eyebrowInk }}>
             {eyebrow}
           </CueText>
           <CueText variant="rowTitle" style={{ color: onImage }}>
@@ -165,10 +181,14 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     flexDirection: "row",
-    alignItems: "flex-end",
     gap: SPACE.s3,
     padding: SPACE.s3,
   },
+  // Over artwork the stack sits on the scrim's strongest end; on the plain
+  // surface it starts at the top, beside a poster that no longer has a card the
+  // height of its own artwork to sit in the middle of.
+  bodyBottom: { alignItems: "flex-end" },
+  bodyTop: { alignItems: "flex-start" },
   stack: { flex: 1, minWidth: 0, gap: 2 },
   // Centred beside a card the height of its artwork, and pulled to the top once
   // the text has grown the card past it, so the reach stays short either way.

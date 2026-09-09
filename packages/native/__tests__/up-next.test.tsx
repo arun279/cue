@@ -2,7 +2,16 @@ import { TraktReadError } from "@cue/core/data/trakt/client";
 import type { LibraryEntry } from "@cue/core/data/trakt/library";
 import type { PreferenceStorage } from "@cue/core/ports/preference-storage";
 import { UNDO_WINDOW_MS } from "@cue/core/sync-contract";
-import { act, render, screen, userEvent, waitFor, within } from "@testing-library/react-native";
+import {
+  act,
+  render,
+  renderHook,
+  screen,
+  userEvent,
+  waitFor,
+  within,
+} from "@testing-library/react-native";
+import { useColors } from "../src/ui/tokens";
 import {
   agesAgo,
   airing,
@@ -157,6 +166,23 @@ describe("Up Next", () => {
     expect(screen.getByTestId("marquee-card")).toBeOnTheScreen();
     expect(rows()).toHaveLength(2);
     expect(screen.queryByTestId(`queue-row-${FRONTIER}`)).toBeNull();
+  });
+
+  it("gives the card an edge and starts its stack at the top once it goes plain", async () => {
+    const { result } = await renderHook(() => useColors());
+    await paint();
+
+    // A show with no backdrop, and every show past the scrim threshold, draws a
+    // surface the page would otherwise swallow, with the poster inline rather
+    // than a stack sitting on the bottom of artwork that is no longer there.
+    expect(screen.getByTestId("marquee-card")).toHaveStyle({
+      backgroundColor: result.current.surface,
+      borderColor: result.current.border,
+    });
+    expect(screen.getByLabelText(/^Continue, The Quiet Frontier/)).toHaveStyle({
+      alignItems: "flex-start",
+    });
+    expect(screen.getByText("Continue")).toHaveStyle({ color: result.current.accentInk });
   });
 
   it("keeps every show in the list when the queue is too short to promote one", async () => {
