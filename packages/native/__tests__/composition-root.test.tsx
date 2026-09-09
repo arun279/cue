@@ -59,13 +59,23 @@ jest.mock("expo-crypto", () => ({
   randomUUID: () => "an-install",
 }));
 // The navigator stands in for the whole route tree: what this file is about is
-// which of the two branches the gate takes, not what the router then draws.
+// which of the two branches the gate takes, not what the router then draws. The
+// two library themes come through unchanged, because the root reshapes them into
+// the app's own and a theme with no colors is a crash rather than a wrong color.
 jest.mock("expo-router", () => {
   const { createElement } = require("react");
   const { Text } = require("react-native");
+  const { DarkTheme, DefaultTheme } = jest.requireActual("expo-router");
   const Stack = () => createElement(Text, { testID: "router-stack" }, "routed");
   Stack.Screen = () => null;
-  return { Stack, Link: Text, Redirect: () => null };
+  return {
+    Stack,
+    Link: Text,
+    Redirect: () => null,
+    DarkTheme,
+    DefaultTheme,
+    ThemeProvider: ({ children }: { children: unknown }) => children,
+  };
 });
 
 const TOKEN = JSON.stringify({

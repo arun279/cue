@@ -19,7 +19,29 @@ export function expoRouterModule() {
   const { Text } = require("react-native") as typeof import("react-native");
   const Stack = (): null => null;
   Stack.Screen = (): null => null;
-  return { Stack, Link: Text, useRouter: () => router };
+  // The two library themes are data the app reads and reshapes, so the mock
+  // carries the shape rather than a stand-in: a theme missing its colors is a
+  // crash at the root rather than a wrong color.
+  const theme = (dark: boolean) => ({
+    dark,
+    colors: {
+      primary: "",
+      background: "",
+      card: "",
+      text: "",
+      border: "",
+      notification: "",
+    },
+    fonts: {},
+  });
+  return {
+    Stack,
+    Link: Text,
+    useRouter: () => router,
+    DarkTheme: theme(true),
+    DefaultTheme: theme(false),
+    ThemeProvider: ({ children }: { readonly children: ReactNode }) => children,
+  };
 }
 
 interface MenuProps {

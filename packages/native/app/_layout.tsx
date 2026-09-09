@@ -10,7 +10,7 @@ import { createPrefsStore, PrefsProvider } from "@cue/core/prefs/prefs-store";
 import { PERSIST_BUSTER, PERSIST_MAX_AGE } from "@cue/core/runtime/query-cache";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { randomUUID } from "expo-crypto";
-import { Stack } from "expo-router";
+import { Stack, ThemeProvider } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { type ReactElement, useEffect, useState } from "react";
@@ -42,6 +42,7 @@ import { Onboarding } from "../src/screens/Onboarding";
 import { RuntimeBoot } from "../src/screens/RuntimeBoot";
 import { AppIdle } from "../src/ui/AppIdle";
 import { Marker } from "../src/ui/Marker";
+import { useNavigationTheme } from "../src/ui/navigation-theme";
 import { SnackbarHost } from "../src/ui/SnackbarHost";
 import { TEST_IDS } from "../src/ui/test-ids";
 import { useCueFonts } from "../src/ui/type";
@@ -162,6 +163,7 @@ export default function RootLayout(): ReactElement {
   useScreenReader();
   const authStore = useNativeSession();
   const fontsSettled = useCueFonts();
+  const navigationTheme = useNavigationTheme();
 
   useEffect(() => {
     if (authStore !== null && fontsSettled) void SplashScreen.hideAsync().catch(() => {});
@@ -196,7 +198,9 @@ export default function RootLayout(): ReactElement {
                         app config already declares. The theme store drives it
                         once that store has a port of its own. */}
                         <StatusBar style="auto" />
-                        <Gate />
+                        <ThemeProvider value={navigationTheme}>
+                          <Gate />
+                        </ThemeProvider>
                       </AuthStoreProvider>
                     </AppVersionProvider>
                   </RemindersProvider>
