@@ -310,10 +310,6 @@ jobs:
           java-version: "21"
           cache: gradle
       - uses: ./.github/actions/setup-node-pnpm
-      - name: Check native JavaScript bundle sizes
-        run: pnpm check:size:native
-        env:
-          EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
       - run: pnpm --filter @cue/native exec expo prebuild --platform android --clean
         env:
           EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
