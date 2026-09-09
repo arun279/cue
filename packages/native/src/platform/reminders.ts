@@ -32,16 +32,6 @@ function toPending(request: Notifications.NotificationRequest): PendingReminder 
  * The notification seam on a device: the permission ask, the Android channel,
  * and the reconcile that makes the OS hold exactly the plan the domain produced.
  *
- * Every reminder is scheduled inexactly, and that is a property of the app's
- * manifest rather than of this call. `expo-notifications` asks
- * `AlarmManager.canScheduleExactAlarms()` and takes `setExactAndAllowWhileIdle`
- * when it can and `setAndAllowWhileIdle` when it cannot
- * (`ExpoSchedulingDelegate.kt:106-120`), and `app.config.ts` blocks
- * `SCHEDULE_EXACT_ALARM`, so the second branch is the only one this app takes.
- * That is the answer Android's own guidance prescribes for a user-specified time
- * that may fall during Doze, it keeps the "Alarms & reminders" screen out of the
- * first-run experience, and a morning digest does not care about a quarter hour.
- *
  * The identifier is the planner's own day id as a string, so a replan addresses
  * the same notification the last one scheduled rather than cancelling the world.
  */

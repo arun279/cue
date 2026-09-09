@@ -6,12 +6,7 @@ import type { ExpoConfig } from "expo/config";
  * set that survives, out of the built APK, so a new arrival fails a build rather
  * than shipping unannounced.
  *
- * Four groups, and each is a decision rather than tidiness:
- *
- * - **The exact alarm.** Every reminder is scheduled inexactly, so the
- *   declaration would put an "Alarms & reminders" entry in system settings for a
- *   permission the app never uses, and the auto-granted alternative is
- *   restricted by Play policy to alarm, timer and calendar apps.
+ * Three groups, and each is a decision rather than tidiness:
  * - **Expo's prebuild template**, whose own comment calls these optional.
  *   Haptics go through `performHapticFeedback`, which Android documents as not
  *   requiring VIBRATE; nothing reads or writes shared storage; nothing draws
@@ -27,7 +22,6 @@ import type { ExpoConfig } from "expo/config";
  *   kind of thing the permission gate exists to stop.
  */
 const BLOCKED_PERMISSIONS = [
-  "android.permission.SCHEDULE_EXACT_ALARM",
   "android.permission.SYSTEM_ALERT_WINDOW",
   "android.permission.VIBRATE",
   "android.permission.READ_EXTERNAL_STORAGE",

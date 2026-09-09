@@ -21,13 +21,10 @@ describe("the native app config", () => {
     expect(config.userInterfaceStyle).toBe("automatic");
   });
 
-  // The whole merged set is pinned by `verify-apk.sh` out of the built APK,
-  // which is the only place it can honestly be checked: any dependency's
-  // manifest can add to it. This is the one entry worth naming here, because its
-  // presence would put an "Alarms & reminders" screen in front of a user for a
-  // permission the app never uses.
-  it("never asks for an exact alarm", () => {
-    expect(config.android?.blockedPermissions).toContain("android.permission.SCHEDULE_EXACT_ALARM");
+  it("does not block a permission expo-notifications does not declare", () => {
+    expect(config.android?.blockedPermissions).not.toContain(
+      "android.permission.SCHEDULE_EXACT_ALARM",
+    );
   });
 
   it("takes the version and the build number from the environment", () => {
