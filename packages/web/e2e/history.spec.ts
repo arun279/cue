@@ -152,6 +152,16 @@ test("same-item plays within a day collapse to one ×N row whose check removes t
     },
   ];
   const controls = await installHistoryRoutes(page.context(), rows);
+  // Removing an episode play un-watches it, so the Diary reconciles that show
+  // from its own progress read. This suite seeds no library, so the read is
+  // answered here rather than by a fixture: what it has to do is parse.
+  await page.route("**/api.trakt.tv/shows/*/progress/watched*", (route) =>
+    route.fulfill({
+      status: 200,
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ aired: 0, completed: 0, next_episode: null }),
+    }),
+  );
   await page.goto("/history");
 
   // One row, ×2 badge: never two identical lines for a same-day rewatch.

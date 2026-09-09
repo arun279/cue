@@ -27,11 +27,11 @@ test("a 429 burst never says Trakt is unreachable, and clears itself", async ({ 
   await settle(page);
   await expect(page.getByTestId("sync-strip")).toHaveCount(0);
 
-  // Trakt closes the window on the library read twice, then serves it. The queue
-  // on screen is real and current; the only thing in trouble is a refresh.
+  // Trakt closes the window on the read a mark makes twice, then serves it. The
+  // queue on screen is real and current; the only thing in trouble is a refresh.
   await armFault({
     match: "reads",
-    path: "^/sync/watched/shows",
+    path: "^/shows/[^/]+/progress/watched$",
     status: 429,
     retryAfter: 3,
     count: 2,
@@ -66,8 +66,10 @@ test("a mark advances the row at once and clears its pending note when the write
   await armFault({ match: "writes", status: 429, retryAfter: 1, forMs: 12_000 });
   await lead.getByTestId("mark-watched").click();
 
-  // In the frame of the tap: the episode line has already moved on.
-  await expect(lead.locator(".ep-row__code")).not.toHaveText(code ?? "");
+  // In the frame of the tap the row has already moved on. It names the projected
+  // next episode, or, on the last one Trakt says has aired, it names none until
+  // the confirming read answers; either way it no longer names what was marked.
+  await expect(lead).not.toContainText(code ?? "");
   const check = lead.getByTestId("mark-watched");
   await expect(check).toHaveAttribute("data-state", "just-marked");
 

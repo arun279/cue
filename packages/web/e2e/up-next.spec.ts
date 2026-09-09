@@ -507,24 +507,31 @@ test("a read error over a warm cache keeps the queue under the SyncStrip error v
   await expect(page.getByTestId("up-next-card")).toHaveCount(1);
   await expect(page.getByTestId("sync-strip")).toHaveCount(0);
 
-  // A later refetch fails: the cached queue must remain, with the ambient strip
-  // (not a banner, not a wipe) carrying it.
-  controls.setReadMode("abort");
-  await page.getByTestId("mark-watched").click(); // triggers a revalidate that will fail
+  // A background refresh finds a real change and then fails to read it: the
+  // cached queue must remain, with the ambient strip (not a banner, not a wipe)
+  // carrying it. Only the show's progress leg fails, so the activities poll that
+  // discovers the change still lands.
+  controls.failProgressFor([1]);
+  controls.bumpActivity("episodes", "watched_at");
+  await page.evaluate(() => globalThis.dispatchEvent(new Event("online")));
   const strip = page.getByTestId("sync-strip");
 
   // The strip's FIRST word about a blip is that the app is retrying. Announcing
   // an outage on the first failed attempt and taking it back a few seconds later
   // is the defect: the app is still trying, so there is nothing to say about
   // reachability yet and nothing for the user to press.
-  await expect(strip).toHaveAttribute("data-state", "retrying");
-  await expect(strip).not.toContainText("Can't reach Trakt");
+  await expect(strip).toHaveAttribute("data-state", "retrying", { timeout: 15_000 });
+  await expect(strip).not.toContainText("Showing your cached data");
   await expect(strip.getByRole("button", { name: "Retry" })).toHaveCount(0);
   await expect(page.getByTestId("up-next-card")).toHaveCount(1);
 
   // Only once the read has spent its own attempts is it an outage, with a Retry.
   await expect(strip).toHaveAttribute("data-state", "unreachable", { timeout: 15_000 });
-  await expect(strip).toContainText("Can't reach Trakt. Showing your cached data.");
+  // In a browser a rejected fetch to Trakt's own origin is a response the browser
+  // refused to show, not the reader's connection, so the line names Trakt.
+  await expect(strip).toContainText("Trakt is having trouble. Showing your cached data.");
+  // The reassurance is the half a phone-width ellipsis used to cut, so the line
+  // has to wrap rather than overflow.
   await expect
     .poll(() =>
       strip
@@ -534,7 +541,15 @@ test("a read error over a warm cache keeps the queue under the SyncStrip error v
     .toBe(true);
   const retry = strip.getByRole("button", { name: "Retry" });
   await expect(retry).toBeVisible();
-  controls.setReadMode("ok");
+  // And wrapping must not push the action off the row: a taller strip is fine, a
+  // Retry the reader cannot reach is the same defect in the other direction.
+  const retryOnTheRow = await strip.evaluate((element) => {
+    const row = element.getBoundingClientRect();
+    const action = element.querySelector("button")?.getBoundingClientRect();
+    return action !== undefined && action.left >= row.left - 1 && action.right <= row.right + 1;
+  });
+  expect(retryOnTheRow).toBe(true);
+  controls.failProgressFor([]);
   await retry.click();
   await expect(page.getByTestId("sync-strip")).toHaveCount(0);
 });
@@ -544,21 +559,23 @@ test("one show's progress outage keeps the warm queue instead of erasing it", as
   await page.goto("/");
   await expect(page.getByTestId("up-next-card")).toHaveCount(1);
 
-  // A later revalidate hits a single-show progress failure; the cached queue must
-  // survive under the strip, never silently collapse to "all caught up".
+  // The mark's confirming read fails for this one show. The row advances anyway
+  // (the write is durable) and holds, locked, waiting for Trakt to name what is
+  // next; the queue must never silently collapse to "all caught up" around it.
   controls.failProgressFor([1]);
-  await page.getByTestId("mark-watched").click();
-  await expect(page.getByTestId("sync-strip")).toHaveAttribute("data-state", "unreachable", {
-    timeout: 15_000,
-  });
+  const check = page.getByTestId("mark-watched");
+  await check.click();
+  await expect(check).toHaveAttribute("data-state", "advancing", { timeout: 15_000 });
+  await expect(check).toBeDisabled();
   await expect(page.getByTestId("up-next-card")).toHaveCount(1);
   await expect(page.getByTestId("empty-all-caught-up")).toHaveCount(0);
 
-  const retry = page.getByTestId("sync-strip").getByRole("button", { name: "Retry" });
-  await expect(retry).toBeVisible({ timeout: 15_000 });
+  // Once the show answers again, the row takes Trakt's next episode and re-arms.
   controls.failProgressFor([]);
-  await retry.click();
-  await expect(page.getByTestId("sync-strip")).toHaveCount(0);
+  controls.bumpActivity("episodes", "watched_at");
+  await page.evaluate(() => globalThis.dispatchEvent(new Event("online")));
+  await expect(check).toHaveAttribute("data-state", "unwatched", { timeout: 15_000 });
+  await expect(page.getByTestId("up-next-card")).toHaveCount(1);
 });
 
 test("boot survives a startup-reconcile outage: the app mounts instead of hanging", async ({
@@ -582,7 +599,7 @@ test("boot survives a startup-reconcile outage: the app mounts instead of hangin
   // second message and a false one.
   await expect(page.getByTestId("up-next-error")).toBeVisible();
   await expect(page.getByTestId("up-next-error")).toContainText(
-    "Check your connection and try again.",
+    "Trakt is having trouble. Try again in a moment.",
   );
   await expect(page.getByTestId("sync-strip")).toHaveCount(0);
 
