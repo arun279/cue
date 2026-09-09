@@ -1,3 +1,4 @@
+import { useActivitiesPoll } from "@cue/core/hooks/useActivitiesPoll";
 import { act, render, screen } from "@testing-library/react-native";
 import { useFonts } from "expo-font";
 import { hideAsync } from "expo-splash-screen";
@@ -44,6 +45,7 @@ jest.mock("../src/boot", () => ({
   ...jest.requireActual("../src/boot"),
   bootNativeStores: jest.fn(jest.requireActual("../src/boot").bootNativeStores),
 }));
+jest.mock("@cue/core/hooks/useActivitiesPoll", () => ({ useActivitiesPoll: jest.fn() }));
 jest.mock("expo-application", () => ({
   nativeApplicationVersion: "1.2.3",
   nativeBuildVersion: "45",
@@ -110,6 +112,7 @@ describe("the native composition root", () => {
     bulkBacking.values.clear();
     secureBacking.clear();
     legacyBacking.clear();
+    jest.mocked(useActivitiesPoll).mockClear();
   });
 
   it("shows sign-in on a fresh install, even with a Keychain item that outlived an uninstall", async () => {
@@ -128,6 +131,7 @@ describe("the native composition root", () => {
 
     expect(await screen.findByTestId("router-stack")).toBeOnTheScreen();
     expect(screen.queryByTestId("screen-onboarding")).toBeNull();
+    expect(useActivitiesPoll).toHaveBeenCalled();
   });
 
   it("leaves the legacy token where it is, and takes the legacy op log away", async () => {

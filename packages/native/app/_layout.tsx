@@ -1,5 +1,6 @@
 import { createAuthStore } from "@cue/core/auth/create-auth-store";
 import { type AuthStore, AuthStoreProvider, useAuth } from "@cue/core/auth/store";
+import { useActivitiesPoll } from "@cue/core/hooks/useActivitiesPoll";
 import { AppVersionProvider } from "@cue/core/ports/app-version";
 import { AppVisibilityProvider } from "@cue/core/ports/app-visibility";
 import { HapticsProvider } from "@cue/core/ports/haptics";
@@ -142,22 +143,30 @@ function Gate(): ReactElement {
   if (phase === "connected") {
     return (
       <RuntimeBoot deps={runtimeDeps}>
-        <View style={styles.root}>
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="(tabs)" />
-            {/* Presented from the root, over the tab bar, so it always dismisses
-                back to exactly where the user was rather than into whichever tab
-                happened to be selected. */}
-            <Stack.Screen name="(account)" options={{ presentation: "fullScreenModal" }} />
-          </Stack>
-          <SnackbarHost placement="root" />
-          <AppIdle />
-        </View>
+        <RoutedApp />
       </RuntimeBoot>
     );
   }
   if (phase === "loading") return <Marker testID={TEST_IDS.authLoading} />;
   return <Onboarding />;
+}
+
+function RoutedApp(): ReactElement {
+  useActivitiesPoll();
+
+  return (
+    <View style={styles.root}>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="(tabs)" />
+        {/* Presented from the root, over the tab bar, so it always dismisses
+            back to exactly where the user was rather than into whichever tab
+            happened to be selected. */}
+        <Stack.Screen name="(account)" options={{ presentation: "fullScreenModal" }} />
+      </Stack>
+      <SnackbarHost placement="root" />
+      <AppIdle />
+    </View>
+  );
 }
 
 export default function RootLayout(): ReactElement {
