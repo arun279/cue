@@ -15,6 +15,32 @@ function client(token: string | null = null): TraktClient {
 }
 
 describe("TraktClient headers + extended", () => {
+  it("coalesces identical GETs only while the first is in flight", async () => {
+    let requests = 0;
+    let release: (() => void) | undefined;
+    server.use(
+      http.get(`${TRAKT_API_BASE}/sync/watched/shows`, async () => {
+        requests += 1;
+        await new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        return HttpResponse.json([]);
+      }),
+    );
+
+    const trakt = client();
+    const first = trakt.get("/sync/watched/shows");
+    const second = trakt.get("/sync/watched/shows");
+    await vi.waitFor(() => expect(requests).toBe(1));
+    release?.();
+    await Promise.all([first, second]);
+
+    const third = trakt.get("/sync/watched/shows");
+    await vi.waitFor(() => expect(requests).toBe(2));
+    release?.();
+    await third;
+  });
+
   it("sets the required Trakt headers and omits Authorization when no token", async () => {
     let captured: Headers | undefined;
     server.use(

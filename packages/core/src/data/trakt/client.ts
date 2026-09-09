@@ -93,6 +93,7 @@ export class TraktClient {
   private readonly fetchFn: FetchLike;
   private readonly baseUrl: string;
   private readonly browser: boolean;
+  private readonly inFlightGets = new Map<string, Promise<TraktResult<unknown>>>();
 
   constructor(config: TraktClientConfig) {
     this.clientId = config.clientId;
@@ -143,7 +144,15 @@ export class TraktClient {
   }
 
   async get(path: string, options: RequestOptions = {}): Promise<TraktResult<unknown>> {
-    return this.request("GET", path, options);
+    const key = buildPath(path, options);
+    const existing = this.inFlightGets.get(key);
+    if (existing !== undefined) return existing;
+    const request = this.request("GET", path, options);
+    this.inFlightGets.set(key, request);
+    request.finally(() => {
+      if (this.inFlightGets.get(key) === request) this.inFlightGets.delete(key);
+    });
+    return request;
   }
 
   async post(path: string, body: unknown): Promise<TraktResult<unknown>> {
