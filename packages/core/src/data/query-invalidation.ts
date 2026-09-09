@@ -47,8 +47,8 @@ function keysForTarget(target: InvalidationTarget): readonly InvalidationKey[] {
 
 /**
  * The cached queries a local watched-progress mark on show X must refresh,
- * whichever surface issued it: the Up Next `library` aggregate PLUS the show's own
- * progress reads: its hero progress (overall `X/Y` + next-up) and its season tree
+ * whichever surface issued it: the show's own progress reads: its hero progress
+ * (overall `X/Y` + next-up) and its season tree
  * (per-season counts + per-episode ticks): and, when the mark targets one known
  * episode, that episode's detail read. The show's own `showInfo` facts are
  * deliberately absent: a mark changes no air date, network or genre.
@@ -72,11 +72,7 @@ export function showProgressKeys(
   showId: number,
   episode?: { readonly season: number; readonly number: number } | "all",
 ): InvalidationKey[] {
-  const keys: InvalidationKey[] = [
-    queryKeys.library(),
-    queryKeys.showProgress(showId),
-    queryKeys.showSeasons(showId),
-  ];
+  const keys: InvalidationKey[] = [queryKeys.showProgress(showId), queryKeys.showSeasons(showId)];
   if (episode === "all") keys.push(queryKeys.episodePrefix(showId));
   else if (episode !== undefined)
     keys.push(queryKeys.episode(showId, episode.season, episode.number));

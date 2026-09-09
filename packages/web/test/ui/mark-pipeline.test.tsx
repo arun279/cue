@@ -11,7 +11,7 @@
 import { queryKeys } from "@cue/core/data/query-keys";
 import type { EpisodeDetail } from "@cue/core/data/trakt/episode-detail";
 import type { LibraryEntry } from "@cue/core/data/trakt/library";
-import type { EpisodeView, SeasonView } from "@cue/core/data/trakt/show-detail";
+import type { EpisodeView, SeasonView, ShowProgress } from "@cue/core/data/trakt/show-detail";
 import type { EpisodePlay } from "@cue/core/domain/reversal";
 import type { QueuedOp } from "@cue/core/domain/write-queue/types";
 import { type MarkSeasonController, useMarkSeason } from "@cue/core/hooks/useMarkSeason";
@@ -97,6 +97,7 @@ function fakeRuntime(opts: {
   submit?(op: QueuedOp): Promise<"done" | "failed" | "deferred">;
   plays?: readonly EpisodePlay[] | Error;
   showPlays?: readonly EpisodePlay[] | Error;
+  progress?: ShowProgress;
   inFlightOpId?(): string | null;
 }): FakeRuntime {
   const submitted: QueuedOp[] = [];
@@ -118,6 +119,9 @@ function fakeRuntime(opts: {
     inFlightOpId: opts.inFlightOpId ?? (() => null),
     loadEpisodePlays,
     loadShowPlays,
+    loadShowProgress: vi.fn(() =>
+      opts.progress === undefined ? new Promise(() => {}) : Promise.resolve(opts.progress),
+    ),
   } as unknown as CueRuntime;
   return { runtime, submitted, queued, loadEpisodePlays, loadShowPlays };
 }
@@ -242,6 +246,27 @@ beforeEach(() => {
 });
 
 describe("F3a: a queue mark ticks the show-detail caches in the same frame", () => {
+  it("replaces only the marked library entry from its scoped progress read", async () => {
+    const other = libraryEntry(2);
+    const fake = fakeRuntime({
+      progress: { aired: 10, completed: 2, nextEpisode: episodeView(3) },
+    });
+    const entry = libraryEntry();
+    const qc = seededClient([entry, other]);
+    const [surface] = mountSurfaces(fake.runtime, qc);
+
+    await act(async () => surface[0]?.mark.mark(entry));
+    await flush();
+
+    expect(entryOf(qc, SHOW)).toMatchObject({
+      completed: 2,
+      pendingAdvance: false,
+      nextEpisode: { season: 1, number: 3, ids: { trakt: 103 } },
+    });
+    expect(entryOf(qc, 2)).toStrictEqual(other);
+    expect(fake.runtime.loadShowProgress).toHaveBeenCalledOnce();
+  });
+
   it("patches seasons + episode detail optimistically, and undo restores them", async () => {
     const fake = fakeRuntime({});
     const { entry, qc, a } = mountSeasonSurfaces(fake);

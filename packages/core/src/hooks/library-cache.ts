@@ -2,7 +2,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import { queryKeys } from "../data/query-keys";
 import type { EpisodeDetail } from "../data/trakt/episode-detail";
 import type { LibraryEntry } from "../data/trakt/library";
-import type { SeasonView } from "../data/trakt/show-detail";
+import type { SeasonView, ShowProgress } from "../data/trakt/show-detail";
 import type { UpNextData } from "../runtime/runtime";
 
 /**
@@ -21,6 +21,30 @@ export function patchLibraryEntry(
       ? old
       : { ...old, entries: old.entries.map((e) => (e.showId === showId ? update(e) : e)) },
   );
+}
+
+export function patchLibraryProgress(
+  qc: QueryClient,
+  showId: number,
+  progress: ShowProgress,
+): void {
+  patchLibraryEntry(qc, showId, (entry) => ({
+    ...entry,
+    aired: progress.aired,
+    completed: progress.completed,
+    nextEpisode:
+      progress.nextEpisode === null
+        ? null
+        : {
+            season: progress.nextEpisode.season,
+            number: progress.nextEpisode.number,
+            title: progress.nextEpisode.title,
+            firstAired: progress.nextEpisode.firstAired,
+            still: progress.nextEpisode.stills[0] ?? null,
+            ids: progress.nextEpisode.ids,
+          },
+    pendingAdvance: false,
+  }));
 }
 
 /** Optimistically flip a library entry's `hidden` (Stopped) flag in the shared SWR cache. */
