@@ -136,7 +136,7 @@ export function useWatchlistAdd(
       if (added.has(key) || isListed(hit)) return;
       setAdded((prev) => new Set(prev).add(key));
       const section = sectionOf(hit.type);
-      const op = buildAddWatchlistOp({ opId: crypto.randomUUID(), section, ids: hit.ids });
+      const op = buildAddWatchlistOp({ opId: runtime.newId(), section, ids: hit.ids });
       await run(
         op,
         () =>
@@ -149,7 +149,7 @@ export function useWatchlistAdd(
         () => revalidateMembership(section),
       );
     },
-    [added, isListed, run, revalidateMembership],
+    [added, isListed, run, revalidateMembership, runtime.newId],
   );
 
   const remove = useCallback(
@@ -189,7 +189,7 @@ export function useWatchlistAdd(
             : { ...old, entries: old.entries.filter((entry) => entry.showId !== hit.traktId) },
         );
       }
-      const op = buildRemoveWatchlistOp({ opId: crypto.randomUUID(), section, ids: hit.ids });
+      const op = buildRemoveWatchlistOp({ opId: runtime.newId(), section, ids: hit.ids });
       await run(
         op,
         // Trakt still lists it: restore the added state rather than stranding
@@ -203,7 +203,7 @@ export function useWatchlistAdd(
         () => revalidateMembership(section),
       );
     },
-    [run, queryClient, revalidateMembership],
+    [run, queryClient, revalidateMembership, runtime.newId],
   );
 
   return { isAdded, add, remove, addError: error, clearAddError: () => setError(null) };

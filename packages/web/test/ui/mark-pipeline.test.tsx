@@ -111,6 +111,7 @@ function fakeRuntime(opts: {
     return plays instanceof Error ? Promise.reject(plays) : Promise.resolve(plays);
   });
   const runtime = {
+    newId: () => `op-${submitted.length}`,
     submit: (op: QueuedOp) => {
       submitted.push(op);
       return opts.submit?.(op) ?? Promise.resolve("done");

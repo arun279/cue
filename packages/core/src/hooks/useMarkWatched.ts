@@ -205,7 +205,7 @@ export function useMarkWatched(): MarkWatched {
           preCompleted: record.preCompleted + 1,
         };
         const op = buildUnmarkEpisodeOp({
-          opId: crypto.randomUUID(),
+          opId: runtime.newId(),
           ids: record.episodeIds,
           watchedAt: record.watchedAt,
           inversePatch: context,
@@ -232,7 +232,7 @@ export function useMarkWatched(): MarkWatched {
       return submit(
         [
           buildRemovePlaysOp({
-            opId: crypto.randomUUID(),
+            opId: runtime.newId(),
             ids: [target.historyId],
             restore: [{ trakt: record.episodeIds.trakt, watchedAt: target.watchedAt }],
           }),
@@ -299,7 +299,7 @@ export function useMarkWatched(): MarkWatched {
     async (entry: LibraryEntry) => {
       const episode = entry.nextEpisode;
       if (episode === null || entry.pendingAdvance) return;
-      const opId = crypto.randomUUID();
+      const opId = runtime.newId();
       const showLock = showWriteLock(entry.showId);
       // Second synchronous activation in the same burst: its optimistic advance
       // hasn't re-rendered yet, so drop it before it can enqueue a duplicate play.

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { tokenSchema } from "../domain/model/token";
 import type { QueuedOp } from "../domain/write-queue/types";
+import type { CryptoPort } from "../ports/crypto";
 import { createJsonStore } from "../ports/json-store";
 import type { KeyValueStore } from "../ports/kv";
 import type { LegacyStore } from "../ports/legacy-store";
@@ -63,6 +64,7 @@ function parseOpLog(raw: string): QueuedOp[] {
 }
 
 export interface LegacyMigrationDeps {
+  readonly digest: CryptoPort["digest"];
   readonly legacy: LegacyStore;
   /** The secure store the token lands in. */
   readonly tokenStore: TokenStore;
@@ -104,7 +106,7 @@ export async function migrateLegacyCapacitorData(
   if (rawToken !== null) {
     const token = tokenSchema.safeParse(tryParse(rawToken));
     if (token.success) {
-      const digest = await digestToken(rawToken);
+      const digest = await digestToken(rawToken, deps.digest);
       if (digest !== (await deps.bulk.read(ADOPTED_TOKEN_KEY))) {
         await deps.tokenStore.write(token.data);
         await deps.bulk.write(ADOPTED_TOKEN_KEY, digest);
@@ -135,9 +137,9 @@ export async function migrateLegacyCapacitorData(
   return { adoptedToken, adoptedOps };
 }
 
-async function digestToken(raw: string): Promise<string> {
-  const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(raw));
-  return Array.from(new Uint8Array(bytes), (byte) => byte.toString(16).padStart(2, "0")).join("");
+async function digestToken(raw: string, digest: CryptoPort["digest"]): Promise<string> {
+  const bytes = await digest(new TextEncoder().encode(raw));
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 function tryParse(raw: string): unknown {

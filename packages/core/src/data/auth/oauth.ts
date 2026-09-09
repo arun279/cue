@@ -87,15 +87,17 @@ export function buildAuthorizeUrl(
   state: string,
   codeChallenge: string,
 ): string {
-  const params = new URLSearchParams({
-    response_type: "code",
-    client_id: config.clientId,
-    redirect_uri: config.redirectUri,
-    state,
-    code_challenge: codeChallenge,
-    code_challenge_method: "S256",
-  });
-  return `${siteBase(config)}/oauth/authorize?${params.toString()}`;
+  const params = [
+    ["response_type", "code"],
+    ["client_id", config.clientId],
+    ["redirect_uri", config.redirectUri],
+    ["state", state],
+    ["code_challenge", codeChallenge],
+    ["code_challenge_method", "S256"],
+  ]
+    .map(([key, value]) => `${key}=${encodeURIComponent(value ?? "")}`)
+    .join("&");
+  return `${siteBase(config)}/oauth/authorize?${params}`;
 }
 
 /**

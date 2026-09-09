@@ -2,7 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import type { ShowIds } from "../domain/model/ids";
 import { buildHideShowOp, buildUnhideShowOp } from "../domain/write-queue/ops";
-import type { SubmitOutcome } from "../runtime/runtime";
+import { type SubmitOutcome, useRuntime } from "../runtime/runtime";
 import { isLibraryHidden, patchLibraryHidden } from "./library-cache";
 import { useTrackedSubmit } from "./useOptimisticWrite";
 
@@ -29,6 +29,7 @@ export interface ResumeOnMark {
  * only when the mark actually resumed it.
  */
 export function useResumeOnMark(): ResumeOnMark {
+  const runtime = useRuntime();
   const submit = useTrackedSubmit();
   const queryClient = useQueryClient();
 
@@ -43,13 +44,13 @@ export function useResumeOnMark(): ResumeOnMark {
       patchLibraryHidden(queryClient, showId, false);
       return submit(
         buildUnhideShowOp({
-          opId: crypto.randomUUID(),
+          opId: runtime.newId(),
           ids,
           inversePatch: { kind: "hidden", showId },
         }),
       );
     },
-    [queryClient, submit],
+    [queryClient, runtime, submit],
   );
 
   const reStop = useCallback(
@@ -57,13 +58,13 @@ export function useResumeOnMark(): ResumeOnMark {
       patchLibraryHidden(queryClient, showId, true);
       return submit(
         buildHideShowOp({
-          opId: crypto.randomUUID(),
+          opId: runtime.newId(),
           ids,
           inversePatch: { kind: "hidden", showId },
         }),
       );
     },
-    [queryClient, submit],
+    [queryClient, runtime, submit],
   );
 
   return { willResume, resumeIfStopped, reStop };

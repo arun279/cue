@@ -77,6 +77,7 @@ type ReconcileContext =
     };
 
 export interface RuntimeDeps {
+  readonly newId: () => string;
   readonly token: Token;
   readonly kv: KeyValueStore;
   readonly tokenStore: TokenStore;
@@ -223,6 +224,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
   let tearingDown = false;
 
   return {
+    newId: deps.newId,
     async loadUpNext(): Promise<UpNextData> {
       return { entries: await loadUpNextEntries(client) };
     },

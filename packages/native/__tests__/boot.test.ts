@@ -25,6 +25,7 @@ function deps(options: {
     legacy: memoryKeyValueStore(options.legacy) as LegacyStore & MemoryKeyValueStore,
     preferences: memoryPreferenceStorage(),
     newInstallId: () => "an-install",
+    digest: async (bytes: Uint8Array<ArrayBuffer>) => bytes,
   };
 }
 
@@ -87,13 +88,5 @@ describe("the native boot", () => {
     expect(result.migration.adoptedToken).toBe(false);
     expect(await createTokenStore(upgrade.secure).read()).toBeNull();
     expect(upgrade.legacy.values.get("cue.trakt.token")).toBe(JSON.stringify(TOKEN));
-  });
-
-  it("installs the Web Crypto surface the shared OAuth code is written against", async () => {
-    await bootNativeStores(deps({}));
-
-    expect(typeof globalThis.btoa).toBe("function");
-    expect(typeof globalThis.crypto.getRandomValues).toBe("function");
-    expect(typeof globalThis.crypto.subtle.digest).toBe("function");
   });
 });

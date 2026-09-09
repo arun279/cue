@@ -62,7 +62,11 @@
                   "require": "The core is ESM only.",
                   "localStorage": "Not on a React Native engine. Take a storage port instead.",
                   "sessionStorage": "Not on a React Native engine. Take a storage port instead.",
-                  "navigator": "Not on a React Native engine. Take a Network or AppVisibility port instead."
+                  "navigator": "Not on a React Native engine. Take a Network or AppVisibility port instead.",
+                  "crypto": "Not on every React Native engine. Take the injected crypto port instead.",
+                  "btoa": "Not on every React Native engine. Encode bytes without browser globals.",
+                  "atob": "Not on every React Native engine. Decode bytes without browser globals.",
+                  "URLSearchParams": "Not on every React Native engine. Encode query values without browser globals."
                 }
               }
             }

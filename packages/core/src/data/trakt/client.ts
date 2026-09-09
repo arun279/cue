@@ -206,14 +206,16 @@ function mapFailure(raw: RawResponse, method: HttpMethod): TraktFailure {
 }
 
 function buildPath(path: string, options: RequestOptions): string {
-  const params = new URLSearchParams();
+  const params: string[] = [];
   if (options.extended !== undefined && options.extended.length > 0) {
-    params.set("extended", options.extended.join(","));
+    params.push(`extended=${encodeURIComponent(options.extended.join(","))}`);
   }
-  if (options.page !== undefined) params.set("page", String(options.page));
-  if (options.limit !== undefined) params.set("limit", String(options.limit));
-  for (const [key, value] of Object.entries(options.query ?? {})) params.set(key, String(value));
-  const query = params.toString();
+  if (options.page !== undefined) params.push(`page=${options.page}`);
+  if (options.limit !== undefined) params.push(`limit=${options.limit}`);
+  for (const [key, value] of Object.entries(options.query ?? {})) {
+    params.push(`${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`);
+  }
+  const query = params.join("&");
   return query.length > 0 ? `${path}?${query}` : path;
 }
 

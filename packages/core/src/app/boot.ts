@@ -28,6 +28,7 @@ export function useRuntimeBoot(deps: RuntimeBootDeps): RuntimeBootState {
   const [failed, setFailed] = useState(false);
   const alive = useRef(true);
   const {
+    newId,
     tokenStore,
     kv,
     redirectUri,
@@ -56,6 +57,7 @@ export function useRuntimeBoot(deps: RuntimeBootDeps): RuntimeBootState {
         const token = await tokenStore.read();
         if (token === null) return;
         const built = await createCueRuntime({
+          newId,
           token,
           tokenStore,
           kv,
@@ -91,6 +93,7 @@ export function useRuntimeBoot(deps: RuntimeBootDeps): RuntimeBootState {
     endSession,
     clearPersistedCaches,
     clearLocalPreferences,
+    newId,
   ]);
 
   useEffect(() => {

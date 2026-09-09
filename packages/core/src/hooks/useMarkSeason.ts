@@ -131,10 +131,10 @@ function toSeasonTrees(seasons: readonly SeasonView[]): SeasonTree[] {
   }));
 }
 
-export function invertOp(op: QueuedOp): QueuedOp {
+export function invertOp(op: QueuedOp, newId: () => string): QueuedOp {
   return {
     ...op,
-    id: crypto.randomUUID(),
+    id: newId(),
     request: op.inverse,
     inverse: op.request,
     fromState: op.toState,
@@ -288,9 +288,9 @@ export function useMarkSeason(): MarkSeasonController {
         },
         Date.now(),
         new Date().toISOString(),
-        () => crypto.randomUUID(),
+        () => runtime.newId(),
       ),
-    [reconcileAnchor],
+    [reconcileAnchor, runtime.newId],
   );
 
   const seasonMatch = useCallback(
@@ -359,7 +359,7 @@ export function useMarkSeason(): MarkSeasonController {
       );
       const ops = [
         buildRemovePlaysOp({
-          opId: crypto.randomUUID(),
+          opId: runtime.newId(),
           ids: plan.removeIds,
           restore: plan.restore.map((play) => ({
             trakt: play.trakt,
@@ -389,7 +389,7 @@ export function useMarkSeason(): MarkSeasonController {
       }
       forgetSeasonMark(target.showId, season.number);
     },
-    [putUndo, queryClient, retractUndo, revalidate, submit],
+    [putUndo, queryClient, retractUndo, revalidate, submit, runtime.newId],
   );
 
   const unmarkSeason = useCallback(
@@ -452,7 +452,7 @@ export function useMarkSeason(): MarkSeasonController {
           },
           Date.now(),
           new Date().toISOString(),
-          () => crypto.randomUUID(),
+          () => runtime.newId(),
         );
         if (ops.length === 0) return;
         setError(null);
@@ -475,7 +475,7 @@ export function useMarkSeason(): MarkSeasonController {
         }
       });
     },
-    [withSeasonLock, queryClient, seasonMatch, submitSeasonWrite],
+    [withSeasonLock, queryClient, seasonMatch, submitSeasonWrite, runtime.newId],
   );
 
   const markUpToHere = useCallback(
@@ -531,7 +531,7 @@ export function useMarkSeason(): MarkSeasonController {
       const outcome = await submit(
         [
           buildUnmarkEpisodeOp({
-            opId: crypto.randomUUID(),
+            opId: runtime.newId(),
             ids: episode.ids,
             watchedAt: queuedMark.watchedAt ?? new Date().toISOString(),
           }),
@@ -543,7 +543,7 @@ export function useMarkSeason(): MarkSeasonController {
       );
       if (outcome === "failed") setError("Couldn't update that episode. Please try again.");
     },
-    [revalidate, setEpisodeWatched, submit],
+    [revalidate, setEpisodeWatched, submit, runtime.newId],
   );
 
   const submitEpisodePlayRemoval = useCallback(
@@ -561,12 +561,12 @@ export function useMarkSeason(): MarkSeasonController {
       }
       const op = rewatch
         ? buildRemovePlaysOp({
-            opId: crypto.randomUUID(),
+            opId: runtime.newId(),
             ids: [resolution.latest.historyId],
             restore: [{ trakt: episode.ids.trakt, watchedAt: resolution.latest.watchedAt }],
           })
         : buildRemovePlaysOp({
-            opId: crypto.randomUUID(),
+            opId: runtime.newId(),
             ids: resolution.plan.removeIds,
             restore: resolution.plan.restore.map((play) => ({
               trakt: play.trakt,
@@ -597,7 +597,7 @@ export function useMarkSeason(): MarkSeasonController {
         setError("Couldn't update that episode. Please try again.");
       }
     },
-    [putUndo, retractUndo, revalidate, setEpisodeWatched, submit],
+    [putUndo, retractUndo, revalidate, setEpisodeWatched, submit, runtime.newId],
   );
 
   const submitLiveEpisodeUnmark = useCallback(
@@ -644,7 +644,7 @@ export function useMarkSeason(): MarkSeasonController {
       const itemKey = episodeItemKey(episode.ids.trakt);
       if (hasPendingMark(runtime, itemKey)) return;
       const watchedAt = new Date().toISOString();
-      const opId = crypto.randomUUID();
+      const opId = runtime.newId();
       const lockKey = pendingMarkLock(itemKey);
       if (!claimWriteLock(lockKey, opId)) return;
       try {
@@ -704,7 +704,7 @@ export function useMarkSeason(): MarkSeasonController {
     async (target: MarkContextTarget, episode: MarkableEpisode) => {
       await withEpisodeLock(target, episode, async () => {
         const op = buildAddEpisodePlayOp({
-          opId: crypto.randomUUID(),
+          opId: runtime.newId(),
           ids: episode.ids,
           watchedAt: new Date().toISOString(),
           inversePatch: { kind: "additive-episode", episodeTrakt: episode.ids.trakt },
@@ -723,7 +723,7 @@ export function useMarkSeason(): MarkSeasonController {
         }
       });
     },
-    [withEpisodeLock, submit, resume, revalidate],
+    [withEpisodeLock, submit, resume, revalidate, runtime.newId],
   );
 
   const removeAllPlays = useCallback(
@@ -750,7 +750,7 @@ export function useMarkSeason(): MarkSeasonController {
         patchShowSeasons(queryClient, target.showId, matchEpisode, false);
         patchEpisodeDetail(queryClient, target.showId, bound, false, null);
         const op = buildRemovePlaysOp({
-          opId: crypto.randomUUID(),
+          opId: runtime.newId(),
           ids: own.map((play) => play.historyId),
           restore: own.map((play) => ({ trakt: play.episodeTrakt, watchedAt: play.watchedAt })),
         });
@@ -787,13 +787,16 @@ export function useMarkSeason(): MarkSeasonController {
     if (pending.reversibleSeason !== null) {
       forgetSeasonMark(pending.showId, pending.reversibleSeason);
     }
-    const outcome = await submit(pending.ops.map(invertOp), {
-      rollback: () => {},
-      onKept: pending.resumed ? () => resume.reStop(pending.showId, pending.ids) : undefined,
-      revalidate: () => revalidate(pending.showId, "all"),
-    });
+    const outcome = await submit(
+      pending.ops.map((op) => invertOp(op, runtime.newId)),
+      {
+        rollback: () => {},
+        onKept: pending.resumed ? () => resume.reStop(pending.showId, pending.ids) : undefined,
+        revalidate: () => revalidate(pending.showId, "all"),
+      },
+    );
     if (outcome === "failed") setError("Couldn't undo that. Please try again.");
-  }, [undoState, putUndo, revalidate, submit, resume]);
+  }, [undoState, putUndo, revalidate, submit, resume, runtime.newId]);
 
   return {
     markSeason,

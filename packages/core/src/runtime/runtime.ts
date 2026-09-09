@@ -75,6 +75,7 @@ export interface ActivitiesReconcile {
  * flushes (paced, 429/network aware), and reports how the head op settled.
  */
 export interface CueRuntime {
+  newId(): string;
   loadUpNext(): Promise<UpNextData>;
   /**
    * One show's `/shows/:id` facts, the single read behind both the deferred

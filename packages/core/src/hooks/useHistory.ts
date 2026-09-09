@@ -162,7 +162,7 @@ export function useHistory(scope: HistoryScope): HistoryView {
       // optimistic hide: the durable removal settles behind it.
       setToast({ kind: "removed", entry });
       const op = buildRemoveHistoryPlayOp({
-        opId: crypto.randomUUID(),
+        opId: runtime.newId(),
         ids: [entry.historyId],
         restore: {
           section: entry.type === "movie" ? "movies" : "episodes",
@@ -185,7 +185,7 @@ export function useHistory(scope: HistoryScope): HistoryView {
         setError("Couldn't remove that play. Please try again.");
       }
     },
-    [submit, revalidate],
+    [submit, revalidate, runtime.newId],
   );
 
   const undo = useCallback(async () => {
@@ -209,12 +209,12 @@ export function useHistory(scope: HistoryScope): HistoryView {
     const op =
       entry.type === "movie"
         ? buildMarkMovieOp({
-            opId: crypto.randomUUID(),
+            opId: runtime.newId(),
             ids: entry.ids,
             watchedAt: entry.watchedAt,
           })
         : buildMarkEpisodeOp({
-            opId: crypto.randomUUID(),
+            opId: runtime.newId(),
             ids: entry.ids,
             watchedAt: entry.watchedAt,
           });
@@ -230,7 +230,7 @@ export function useHistory(scope: HistoryScope): HistoryView {
     }
     // Only now, on a KEPT restore (landed or durably queued), claim it restored.
     setToast({ kind: "restored" });
-  }, [toast, submit, revalidate]);
+  }, [toast, submit, revalidate, runtime.newId]);
 
   const entryCount = query.data?.pages.reduce((n, page) => n + page.entries.length, 0) ?? 0;
 

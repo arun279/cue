@@ -2,11 +2,11 @@ import {
   type LegacyMigrationResult,
   migrateLegacyCapacitorData,
 } from "@cue/core/migration/legacy-capacitor";
+import type { CryptoPort } from "@cue/core/ports/crypto";
 import type { KeyValueStore } from "@cue/core/ports/kv";
 import type { LegacyStore } from "@cue/core/ports/legacy-store";
 import type { PreferenceStorage } from "@cue/core/ports/preference-storage";
 import { createTokenStore } from "@cue/core/ports/token-store";
-import { installWebCrypto } from "./crypto";
 
 /** The marker that says this install has launched before. It lives in the bulk
  * store, which is the one an uninstall clears, and under `cue.` rather than
@@ -19,6 +19,7 @@ export interface NativeBootDeps {
   readonly legacy: LegacyStore;
   readonly preferences: PreferenceStorage;
   readonly newInstallId: () => string;
+  readonly digest: CryptoPort["digest"];
 }
 
 export interface NativeBootResult {
@@ -44,8 +45,6 @@ export interface NativeBootResult {
  *    it is a unit test rather than a device session.
  */
 export async function bootNativeStores(deps: NativeBootDeps): Promise<NativeBootResult> {
-  installWebCrypto(globalThis as unknown as Record<string, unknown>);
-
   const purged = (await deps.bulk.read(INSTALL_MARKER_KEY)) === null;
   if (purged) {
     await createTokenStore(deps.secure).clear();
@@ -57,6 +56,7 @@ export async function bootNativeStores(deps: NativeBootDeps): Promise<NativeBoot
     tokenStore: createTokenStore(deps.secure),
     bulk: deps.bulk,
     preferences: deps.preferences,
+    digest: deps.digest,
   });
 
   return { purged, migration };

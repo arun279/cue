@@ -41,6 +41,7 @@ async function mountProbe(
 it("drops aggregate membership immediately when a landed add is undone", async () => {
   let listed: readonly number[] = [];
   const runtime = {
+    newId: () => "op-id",
     loadWatchlistIds: () => Promise.resolve(listed),
     loadUpNext: () => Promise.resolve({ entries: [] }),
     loadMovieLibrary: () => Promise.resolve({ entries: [] }),
@@ -74,6 +75,7 @@ it("drops aggregate membership immediately when a landed add is undone", async (
 it("restores watchlist and aggregate caches after a hard-failed remove", async () => {
   const aggregateEntry = { showId: hit.traktId } as LibraryEntry;
   const runtime = {
+    newId: () => "op-id",
     loadWatchlistIds: () => Promise.resolve([hit.traktId]),
     loadUpNext: () => Promise.resolve({ entries: [aggregateEntry] }),
     loadMovieLibrary: () => Promise.resolve({ entries: [] }),

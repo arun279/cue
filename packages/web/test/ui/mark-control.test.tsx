@@ -52,6 +52,7 @@ function entry(overrides: Partial<LibraryEntry> = {}): LibraryEntry {
 function heldRuntime(): CueRuntime {
   const queued: QueuedOp[] = [];
   return {
+    newId: () => `op-${queued.length}`,
     submit: (op: QueuedOp) => {
       queued.push(op);
       return new Promise(() => {});

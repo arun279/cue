@@ -10,7 +10,6 @@ import { createTokenStore } from "@cue/core/ports/token-store";
 import { createPrefsStore, PrefsProvider } from "@cue/core/prefs/prefs-store";
 import { PERSIST_BUSTER, PERSIST_MAX_AGE } from "@cue/core/runtime/query-cache";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
-import { randomUUID } from "expo-crypto";
 import { Stack, ThemeProvider } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
@@ -20,6 +19,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { initialWindowMetrics, SafeAreaProvider } from "react-native-safe-area-context";
 import { bootNativeStores } from "../src/boot";
 import { NATIVE_REDIRECT_URI, TRAKT_BASE_OVERRIDE, TRAKT_CLIENT_ID } from "../src/config";
+import { nativeCrypto } from "../src/crypto";
 import { nativeAppVersion } from "../src/platform/app-version";
 import { nativeAppVisibility } from "../src/platform/app-visibility";
 import { createNativeHaptics } from "../src/platform/haptics";
@@ -91,7 +91,8 @@ function useNativeSession(): AuthStore | null {
       bulk: bulkStore,
       legacy: legacyCapacitorStore,
       preferences: preferenceStorage,
-      newInstallId: randomUUID,
+      newInstallId: nativeCrypto.newId,
+      digest: nativeCrypto.digest,
     })
       .then(
         () => null,
@@ -100,6 +101,7 @@ function useNativeSession(): AuthStore | null {
       .then((bootFailure) => {
         if (!alive) return;
         const store = createAuthStore({
+          crypto: nativeCrypto,
           tokenStore,
           clientId: TRAKT_CLIENT_ID,
           redirectUri: NATIVE_REDIRECT_URI,
@@ -125,6 +127,7 @@ function useNativeSession(): AuthStore | null {
 /** Everything the runtime takes that this build decides, assembled once: the
  * boot component then knows only how to draw its three states. */
 const runtimeDeps = {
+  newId: nativeCrypto.newId,
   tokenStore,
   kv: bulkStore,
   redirectUri: NATIVE_REDIRECT_URI,
