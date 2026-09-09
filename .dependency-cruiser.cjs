@@ -130,8 +130,8 @@ module.exports = {
       name: "core-imports-no-app",
       severity: "error",
       comment:
-        "The shared package imports neither app. Dependencies flow into the core and never back out, or the claim that both targets run the same code is only a claim.",
-      from: { path: "^packages/core/" },
+        "Shared product code imports neither app. Dependencies flow into the core and never back out, or the claim that both targets run the same code is only a claim.",
+      from: { path: "^packages/core/src/" },
       to: { path: "^packages/(web|native)/" },
     },
     {
@@ -139,7 +139,7 @@ module.exports = {
       severity: "error",
       comment:
         "The DOM renderer and the libraries built on it belong to the web app. Named one by one rather than as a @tanstack/react-* glob, because @tanstack/react-query is portable and the core's own layer imports it.",
-      from: { path: "^packages/", pathNot: "^packages/web/" },
+      from: { path: "^packages/", pathNot: ["^packages/web/", "^packages/core/test/"] },
       to: { path: RE_WEB_ONLY },
     },
     {
