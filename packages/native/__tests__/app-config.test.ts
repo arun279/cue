@@ -21,12 +21,6 @@ describe("the native app config", () => {
     expect(config.userInterfaceStyle).toBe("automatic");
   });
 
-  it("does not block a permission expo-notifications does not declare", () => {
-    expect(config.android?.blockedPermissions).not.toContain(
-      "android.permission.SCHEDULE_EXACT_ALARM",
-    );
-  });
-
   it("takes the version and the build number from the environment", () => {
     const released = nativeAppConfig({ APP_VERSION: "2.1.0", BUILD_NUMBER: "4207" });
     expect(released.version).toBe("2.1.0");

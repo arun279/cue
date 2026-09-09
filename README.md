@@ -107,7 +107,7 @@ On device, the Trakt OAuth token is stored via Capacitor Preferences so it survi
 
 Pull down on any of the four tabs to run the same sync as **Settings → Sync now**. Neither shell lends the app a native refresh control (Capacitor turns the iOS web view's bounce off, and Android WebView has no pull gesture), so the gesture lives in the DOM; Settings keeps its row as the tap-only equivalent.
 
-Episode reminders are local notifications and nothing else: one digest each morning for the next two weeks, built on the device from the calendar Cue already reads, with no push service and no server. The Settings switch is the only place the OS notification permission is ever asked for. On Android they use a named notification channel.
+Episode reminders are local notifications and nothing else: one digest each morning for the next two weeks, built on the device from the calendar Cue already reads, with no push service and no server. The Settings switch is the only place the OS notification permission is ever asked for. On Android they use a named channel and inexact alarms only, and `android/app/src/main/AndroidManifest.xml` strips the `SCHEDULE_EXACT_ALARM` permission the Capacitor notifications plugin would otherwise merge into the app.
 
 ### Releasing
 

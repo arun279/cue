@@ -7,6 +7,7 @@ import type { ExpoConfig } from "expo/config";
  * than shipping unannounced.
  *
  * Three groups, and each is a decision rather than tidiness:
+ *
  * - **Expo's prebuild template**, whose own comment calls these optional.
  *   Haptics go through `performHapticFeedback`, which Android documents as not
  *   requiring VIBRATE; nothing reads or writes shared storage; nothing draws
