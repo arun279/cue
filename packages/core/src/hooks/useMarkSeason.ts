@@ -14,7 +14,14 @@ import {
 } from "../domain/write-queue/ops";
 import type { QueuedOp } from "../domain/write-queue/types";
 import { useRuntime } from "../runtime/runtime";
-import { hasPendingMark, registerPendingMark, releasePendingMark } from "../stores/mark-store";
+import {
+  claimWriteLock,
+  episodeWriteLock,
+  hasPendingMark,
+  pendingMarkLock,
+  releaseWriteLock,
+  seasonWriteLock,
+} from "../stores/write-locks";
 import {
   type EpisodeMatch,
   patchEpisodeDetail,
@@ -166,32 +173,28 @@ export function useMarkSeason(): MarkSeasonController {
     },
     [putUndo],
   );
-  // The synchronous gates, refs rather than state: a fast double-tap fires the
-  // second call before React re-renders the ticked episode, so a duplicate write
-  // is dropped here rather than enqueued.
-  const pendingSeasonsRef = useRef<Set<number>>(new Set());
-  const pendingEpisodesRef = useRef<Set<string>>(new Set());
   const withSeasonLock = useCallback(
-    async (seasonNumber: number, run: () => Promise<void>): Promise<void> => {
-      if (pendingSeasonsRef.current.has(seasonNumber)) return;
-      pendingSeasonsRef.current.add(seasonNumber);
+    async (target: MarkContextTarget, seasonNumber: number, run: () => Promise<void>) => {
+      const key = seasonWriteLock(target.showId, seasonNumber);
+      const owner = {};
+      if (!claimWriteLock(key, owner)) return;
       try {
         await run();
       } finally {
-        pendingSeasonsRef.current.delete(seasonNumber);
+        releaseWriteLock(key, owner);
       }
     },
     [],
   );
   const withEpisodeLock = useCallback(
     async (target: MarkContextTarget, episode: MarkableEpisode, run: () => Promise<void>) => {
-      const epKey = `${target.showId}:${episode.season}:${episode.number}`;
-      if (pendingEpisodesRef.current.has(epKey)) return;
-      pendingEpisodesRef.current.add(epKey);
+      const key = episodeWriteLock(target.showId, episode.season, episode.number);
+      const owner = {};
+      if (!claimWriteLock(key, owner)) return;
       try {
         await run();
       } finally {
-        pendingEpisodesRef.current.delete(epKey);
+        releaseWriteLock(key, owner);
       }
     },
     [],
@@ -299,7 +302,7 @@ export function useMarkSeason(): MarkSeasonController {
 
   const markSeason = useCallback(
     async (target: MarkContextTarget, season: SeasonView) => {
-      await withSeasonLock(season.number, async () => {
+      await withSeasonLock(target, season.number, async () => {
         const ops = buildOps(target, [season]);
         if (ops.length === 0) return;
         const delta = season.episodes
@@ -396,7 +399,7 @@ export function useMarkSeason(): MarkSeasonController {
         remembered ??
         new Set(season.episodes.filter((e) => e.aired).map((episode) => episode.number));
       if (delta.size === 0) return;
-      await withSeasonLock(season.number, async () => {
+      await withSeasonLock(target, season.number, async () => {
         setError(null);
         setNotice(null);
         const plan = await resolveSeasonUnmark(target, season, delta);
@@ -421,7 +424,7 @@ export function useMarkSeason(): MarkSeasonController {
    * pre-existing plays a rewatch exists to keep. */
   const rewatchSeason = useCallback(
     async (target: MarkContextTarget, season: SeasonView) => {
-      await withSeasonLock(season.number, async () => {
+      await withSeasonLock(target, season.number, async () => {
         const aired = season.episodes.filter(
           (episode) => episode.aired && (season.number !== 0 || target.includeSpecials),
         );
@@ -642,7 +645,8 @@ export function useMarkSeason(): MarkSeasonController {
       if (hasPendingMark(runtime, itemKey)) return;
       const watchedAt = new Date().toISOString();
       const opId = crypto.randomUUID();
-      registerPendingMark(itemKey, opId);
+      const lockKey = pendingMarkLock(itemKey);
+      if (!claimWriteLock(lockKey, opId)) return;
       try {
         const ops = [
           buildMarkEpisodeOp({
@@ -676,7 +680,7 @@ export function useMarkSeason(): MarkSeasonController {
           setError("Couldn't update that episode. Please try again.");
         }
       } finally {
-        releasePendingMark(itemKey, opId);
+        releaseWriteLock(lockKey, opId);
       }
     },
     [putUndo, reconcileAnchor, retractUndo, revalidate, resume, runtime, setEpisodeWatched, submit],

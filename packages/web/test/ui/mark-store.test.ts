@@ -1,16 +1,14 @@
 import { buildAddEpisodePlayOp, buildMarkEpisodeOp } from "@cue/core/domain/write-queue/ops";
 import type { QueuedOp } from "@cue/core/domain/write-queue/types";
 import type { CueRuntime } from "@cue/core/runtime/runtime";
+import { type MarkRecord, resetMarkStore, useMarkStore } from "@cue/core/stores/mark-store";
 import {
+  claimWriteLock,
   hasPendingMark,
-  lockShow,
-  type MarkRecord,
-  registerPendingMark,
-  releasePendingMark,
-  resetMarkStore,
-  unlockShow,
-  useMarkStore,
-} from "@cue/core/stores/mark-store";
+  pendingMarkLock,
+  releaseWriteLock,
+  showWriteLock,
+} from "@cue/core/stores/write-locks";
 import { beforeEach, describe, expect, it } from "vitest";
 
 const WATCHED_AT = "2026-07-05T12:00:00.000Z";
@@ -57,27 +55,31 @@ describe("mark store windows", () => {
 
 describe("show lock", () => {
   it("is a synchronous check-and-set, released explicitly", () => {
-    expect(lockShow(7)).toBe(true);
-    expect(lockShow(7)).toBe(false);
-    unlockShow(7);
-    expect(lockShow(7)).toBe(true);
+    const key = showWriteLock(7);
+    expect(claimWriteLock(key, "first")).toBe(true);
+    expect(claimWriteLock(key, "second")).toBe(false);
+    releaseWriteLock(key, "first");
+    expect(claimWriteLock(key, "second")).toBe(true);
   });
 });
 
 describe("pending-mark registry", () => {
   it("reports a mark registered synchronously (the pre-persist window)", () => {
-    registerPendingMark("episode:42", "op-1");
+    const key = pendingMarkLock("episode:42");
+    claimWriteLock(key, "op-1");
     expect(hasPendingMark(runtimeWith([]), "episode:42")).toBe(true);
-    releasePendingMark("episode:42", "op-1");
+    releaseWriteLock(key, "op-1");
     expect(hasPendingMark(runtimeWith([]), "episode:42")).toBe(false);
   });
 
   it("makes release idempotent by ownership: a spent mark can't clear its successor", () => {
-    registerPendingMark("episode:42", "op-1");
-    registerPendingMark("episode:42", "op-2"); // successor re-claims the key
-    releasePendingMark("episode:42", "op-1"); // late finally of the first mark
+    const key = pendingMarkLock("episode:42");
+    claimWriteLock(key, "op-1");
+    releaseWriteLock(key, "op-1");
+    claimWriteLock(key, "op-2");
+    releaseWriteLock(key, "op-1");
     expect(hasPendingMark(runtimeWith([]), "episode:42")).toBe(true);
-    releasePendingMark("episode:42", "op-2");
+    releaseWriteLock(key, "op-2");
     expect(hasPendingMark(runtimeWith([]), "episode:42")).toBe(false);
   });
 
