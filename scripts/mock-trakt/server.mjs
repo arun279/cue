@@ -346,12 +346,12 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
  * A fault's effect on the connection itself, before any response is composed.
  * False when the fault ends the request without one.
  */
-async function stall(fault, request) {
+async function stall(fault, request, hold) {
   if (fault.drop === true) {
     request.socket.destroy();
     return false;
   }
-  if (fault.hold === true) return false;
+  if (fault.hold === true) await hold();
   if (fault.delayMs !== undefined) await sleep(fault.delayMs);
   return true;
 }
@@ -375,7 +375,7 @@ function resetRoute(reset, method, url) {
  * query flag selects, and answers with the durable op-log that profile seeds.
  * GET reports what is armed, DELETE clears.
  */
-function faultRoute(faults, method, url, body) {
+function faultRoute(faults, method, url, body, releaseHeld) {
   if (method === "POST") {
     const profile = FAULT_PROFILE_NAMES.find((name) => url.searchParams.has(name));
     if (profile === undefined) return json({ armed: faults.arm(body) });
@@ -383,6 +383,7 @@ function faultRoute(faults, method, url, body) {
   }
   if (method === "DELETE") {
     faults.clear();
+    releaseHeld();
     return json({ armed: 0 });
   }
   if (method === "GET") return json({ rules: faults.describe(), opLog: faults.opLog() });
@@ -393,9 +394,9 @@ function faultRoute(faults, method, url, body) {
  * The harness control plane, on the mock's own origin under a `__` prefix that
  * no Trakt path can collide with.
  */
-function controlRoute(faults, reset, method, url, body) {
+function controlRoute(faults, reset, releaseHeld, method, url, body) {
   if (url.pathname === "/__reset") return resetRoute(reset, method, url);
-  if (url.pathname === "/__fault") return faultRoute(faults, method, url, body);
+  if (url.pathname === "/__fault") return faultRoute(faults, method, url, body, releaseHeld);
   return null;
 }
 
@@ -434,6 +435,13 @@ export function createMockTrakt({
   let library = createSeedLibrary();
   const journal = createJournal(journalFile);
   const faults = createFaults(faultSpec);
+  const held = new Set();
+  const hold = () => new Promise((resolve) => held.add(resolve));
+  const releaseHeld = () => {
+    const releases = [...held];
+    held.clear();
+    for (const release of releases) release();
+  };
 
   /** The response to send, or null when a fault ended the request without one. */
   const answer = async (request, method, url, origin) => {
@@ -454,6 +462,7 @@ export function createMockTrakt({
         faults.clear();
         return true;
       },
+      releaseHeld,
       method,
       url,
       body,
@@ -461,7 +470,7 @@ export function createMockTrakt({
     const fault = control === null ? faults.next(method, url) : null;
     if (fault !== null) {
       if (log) process.stdout.write(`mock-trakt fault ${method} ${url.pathname}\n`);
-      if (!(await stall(fault, request))) return null;
+      if (!(await stall(fault, request, hold))) return null;
     }
     return control ?? faultResponse(fault ?? {}) ?? resolve(library, method, url, origin, body);
   };
@@ -503,7 +512,10 @@ export function createMockTrakt({
           resolve(url);
         });
       }),
-    close: () => new Promise((resolve) => server.close(() => resolve())),
+    close: () => {
+      releaseHeld();
+      return new Promise((resolve) => server.close(() => resolve()));
+    },
   };
 }
 

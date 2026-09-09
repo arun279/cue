@@ -1,6 +1,11 @@
-import { TRAKT_API_BASE, TraktClient } from "@cue/core/data/trakt/client";
+import {
+  TRAKT_API_BASE,
+  TRAKT_REQUEST_TIMEOUT_MS,
+  TraktClient,
+  unwrapRead,
+} from "@cue/core/data/trakt/client";
 import { HttpResponse, http } from "msw";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { mswServer } from "./_msw";
 
 const server = mswServer();
@@ -151,4 +156,21 @@ describe("TraktClient error mapping", () => {
     server.use(http.get(`${TRAKT_API_BASE}${path}`, () => HttpResponse.error()));
     expect(await client().get(path)).toEqual({ ok: false, error: { kind: "network" } });
   });
+
+  it("rejects a held read as a typed network failure after the request timeout", async () => {
+    vi.useFakeTimers();
+    const held = new TraktClient({
+      clientId: "cid-123",
+      fetch: (_input, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+        }),
+    });
+    const read = held.get(path).then((result) => unwrapRead(result, "held read"));
+    const rejection = expect(read).rejects.toMatchObject({ failure: { kind: "network" } });
+
+    await vi.advanceTimersByTimeAsync(TRAKT_REQUEST_TIMEOUT_MS);
+    await rejection;
+    vi.useRealTimers();
+  }, 1000);
 });

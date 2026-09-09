@@ -1,6 +1,7 @@
 import { parseReadRetryAfterMs, parseRetryAfterMs } from "../../domain/write-queue/classify";
 
 export const TRAKT_API_BASE = "https://api.trakt.tv";
+export const TRAKT_REQUEST_TIMEOUT_MS = 15_000;
 const TRAKT_API_VERSION = "2";
 
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
@@ -106,14 +107,20 @@ export class TraktClient {
     };
     const token = this.getToken();
     if (token !== null && token.length > 0) headers["Authorization"] = `Bearer ${token}`;
-    const init: RequestInit = { method, headers };
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), TRAKT_REQUEST_TIMEOUT_MS);
+    const init: RequestInit = { method, headers, signal: controller.signal };
     if (options.body !== undefined) init.body = JSON.stringify(options.body);
-    const response = await this.fetchFn(`${this.baseUrl}${buildPath(path, options)}`, init);
-    return {
-      status: response.status,
-      headers: headerRecord(response.headers),
-      data: await readJson(response),
-    };
+    try {
+      const response = await this.fetchFn(`${this.baseUrl}${buildPath(path, options)}`, init);
+      return {
+        status: response.status,
+        headers: headerRecord(response.headers),
+        data: await readJson(response),
+      };
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   async get(path: string, options: RequestOptions = {}): Promise<TraktResult<unknown>> {

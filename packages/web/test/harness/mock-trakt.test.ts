@@ -362,19 +362,22 @@ describe("fault profiles", () => {
     expect((await fetch(`${baseUrl}/shows/8802/progress/watched`)).status).toBe(200);
   });
 
-  it("holds a write open until the client disconnects and reset clears it", async () => {
+  it("holds a write open until deleting the fault releases it", async () => {
     await armFault("hold-write");
     const controller = new AbortController();
-    const request = historyWrite(controller.signal).catch(() => null);
+    const request = historyWrite(controller.signal);
     // Long enough that an answered write would have answered: a window this
     // assertion could lose on a loaded runner is a window that proves nothing.
     expect(
       await Promise.race([request, new Promise((resolve) => setTimeout(resolve, 250, "held"))]),
     ).toBe("held");
+    await fetch(`${baseUrl}/__fault`, { method: "DELETE" });
+    const released = await Promise.race([
+      request.then((response) => response.status),
+      new Promise((resolve) => setTimeout(resolve, 250, "still held")),
+    ]);
     controller.abort();
-    await request;
-    await fetch(`${baseUrl}/__reset`, { method: "POST" });
-    expect((await historyWrite()).status).toBe(200);
+    expect(released).toBe(200);
   });
 
   it("drops a write connection until reset", async () => {
