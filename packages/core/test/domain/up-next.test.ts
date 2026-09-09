@@ -64,6 +64,7 @@ describe("groupUpNext partitioning", () => {
   it("keeps a provisional projection in the queue", () => {
     const provisional = makeShow({
       nextEpisode: makeEpisode({ firstAired: null, ids: { trakt: 0 } }),
+      pendingAdvance: true,
       lastWatchedAt: iso(NOW),
     });
     expect(group([provisional]).queue.map((item) => item.showId)).toEqual([1]);
@@ -72,6 +73,7 @@ describe("groupUpNext partitioning", () => {
   it("keeps a provisional projection out of the lapsed drawer even with an old air date", () => {
     const provisional = makeShow({
       nextEpisode: makeEpisode({ firstAired: airedOld.firstAired, ids: { trakt: 0 } }),
+      pendingAdvance: true,
       lastWatchedAt: iso(NOW - 30 * DAY),
     });
     expect(group([provisional])).toEqual({
@@ -82,11 +84,25 @@ describe("groupUpNext partitioning", () => {
 
   it("does not let provisional projections resurrect ended, hidden, or never-started shows", () => {
     const nextEpisode = makeEpisode({ firstAired: null, ids: { trakt: 0 } });
+    const advancing = { nextEpisode, pendingAdvance: true };
     const shows = [
-      makeShow({ status: "ended", aired: 10, completed: 10, nextEpisode }),
-      makeShow({ showId: 2, hidden: true, nextEpisode }),
-      makeShow({ showId: 3, completed: 0, nextEpisode }),
+      makeShow({ ...advancing, status: "ended", aired: 10, completed: 10 }),
+      makeShow({ ...advancing, showId: 2, hidden: true }),
+      makeShow({ ...advancing, showId: 3, completed: 0 }),
     ];
     expect(group(shows)).toEqual({ queue: [], lapsed: [] });
+  });
+
+  // The same rows past the aired run, where no coordinate is knowable: an
+  // advancing row with no episode is still a row, and a finished show is still
+  // finished.
+  it("keeps an advancing row with no next episode, and still excludes a finished one", () => {
+    const advancing = { nextEpisode: null, pendingAdvance: true };
+    const shows = [
+      makeShow({ ...advancing, aired: 10, completed: 10, lastWatchedAt: iso(NOW) }),
+      makeShow({ ...advancing, showId: 2, status: "ended", aired: 10, completed: 10 }),
+    ];
+    expect(group(shows).queue.map((item) => [item.showId, item.episode])).toEqual([[1, null]]);
+    expect(group(shows).lapsed).toEqual([]);
   });
 });

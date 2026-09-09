@@ -59,4 +59,8 @@ export interface LibraryShow {
    * frontier is what the calendar is reconciled against.
    */
   readonly lastAired: EpisodeKey | null;
+  /** Set while an optimistic mark's next episode is a client guess awaiting the
+   * authoritative progress refetch, so the queue can hold the row and the card
+   * can lock its action until then. */
+  readonly pendingAdvance: boolean;
 }

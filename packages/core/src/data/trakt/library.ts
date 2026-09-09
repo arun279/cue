@@ -11,11 +11,9 @@ import type { HiddenItem, Progress, WatchedShow, WatchlistItem } from "./schemas
 import { toEpisodeIds } from "./show-detail";
 
 /**
- * A `LibraryShow` (what the selectors read) plus the two things the Up Next card
- * needs and the pure domain type omits: the show's TMDB id (an alternate
- * `/sync/*` write identifier for hide/watchlist), and `pendingAdvance`: set
- * while an optimistic mark's next episode is a client guess awaiting the
- * authoritative progress refetch, so the card can lock its action until then.
+ * A `LibraryShow` (what the selectors read) plus the one thing the Up Next card
+ * needs and the pure domain type omits: the show's TMDB id, an alternate
+ * `/sync/*` write identifier for hide/watchlist.
  *
  * Art is deliberately absent. `/sync/watched/shows` carries no `images` block,
  * so a poster here could only ever be null; every card reads its own from the
@@ -23,7 +21,6 @@ import { toEpisodeIds } from "./show-detail";
  */
 export interface LibraryEntry extends LibraryShow {
   readonly tmdbId: number | null;
-  readonly pendingAdvance: boolean;
 }
 
 /** What the write-queue op carries (as its opaque `inversePatch`) to reconcile a mark. */
@@ -179,10 +176,17 @@ export function showIdSet(items: readonly (HiddenItem | WatchlistItem)[]): Set<n
  * the following episode (`number + 1`, title + air date unknown until refetch).
  * The projection carries `firstAired: null`: inheriting the just-watched
  * episode's air date would fabricate a season-finale phantom (S0xE(last+1)) with
- * a real recent date and cling it to the lead slot. `ids.trakt: 0` +
- * `pendingAdvance` mark it provisional: the Up Next grouping reads a zero-id next
- * as unknown-air and keeps it visible mid-binge until the authoritative progress
- * refetch lands.
+ * a real recent date and cling it to the lead slot.
+ *
+ * It is projected ONLY inside the season the snapshot's own `lastAired` frontier
+ * ends in, and only below that frontier's number. A client cannot infer where a
+ * season boundary falls or what comes after the aired run, so past either one
+ * there is no coordinate to carry and the row advances with none. Which episode
+ * is really next is then Trakt's answer alone.
+ *
+ * `pendingAdvance` marks the row provisional, which is what keeps it in the queue
+ * mid-binge until the authoritative progress refetch lands, and `ids.trakt: 0`
+ * says the coordinate is a guess rather than an episode anything may be read for.
  */
 export function advancePastNext(entry: LibraryEntry, watchedAt: string): LibraryEntry {
   const current = entry.nextEpisode;

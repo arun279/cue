@@ -57,7 +57,7 @@ export function QueueRow({
         art={<Poster title={entry.title} posters={art.posters} variant="s48" />}
         title={entry.title}
         meta={
-          item.episode === null ? null : (
+          item.episode === null ? undefined : (
             <>
               <span className="ep-row__code">
                 {epCode(item.episode.season, item.episode.number)}

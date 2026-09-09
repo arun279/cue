@@ -1,6 +1,6 @@
 import type { EpisodeRef, LibraryShow } from "./model/library";
 import { toMs } from "./time";
-import { computeWatchStatus } from "./watch-status";
+import { computeWatchStatus, type WatchStatus } from "./watch-status";
 
 export interface UpNextItem {
   readonly showId: number;
@@ -22,18 +22,37 @@ export interface UpNextGroups {
   readonly lapsed: UpNextItem[];
 }
 
+/** The states with nothing to queue: hidden, never started, or a finished run. */
+const NOTHING_TO_QUEUE: ReadonlySet<WatchStatus> = new Set(["abandoned", "not-started", "ended"]);
+
+/**
+ * Whether a show nobody has just marked belongs on tonight's list. The air test
+ * is explicit rather than inferred from the status: a show past the progress
+ * budget is in-progress on its bulk counts alone, and an unaired (or
+ * unknown-date) next episode is never something to queue tonight.
+ */
+function hasSomethingToWatch(show: LibraryShow, status: WatchStatus, now: number): boolean {
+  if (status !== "watching" && status !== "lapsed") return false;
+  const airedMs = show.nextEpisode === null ? null : toMs(show.nextEpisode.firstAired);
+  return airedMs !== null && airedMs <= now;
+}
+
 /**
  * Partition in-progress shows for Up Next on verifiable facts only: no taste,
  * popularity, or "for you" ranking. Shows in a state with no next to queue
- * (`abandoned`/`not-started`/`ended`) are excluded; a `watching` show
+ * (`abandoned`/`not-started`/`ended`) are excluded, even for a just-marked show,
+ * so an advancing row can never resurrect one into Up Next. A `watching` show
  * queues, a `lapsed` one (idle past `thresholdMs` since it last had something to
- * watch) lands in the drawer. A just-marked show whose next is still a provisional
- * post-mark projection (`ids.trakt === 0`, air date unknown) stays in the queue,
- * visible and locked, until the authoritative refetch lands.
+ * watch) lands in the drawer.
+ *
+ * A just-marked show stays in the queue, visible and locked, until the
+ * authoritative refetch lands: its next is either a client projection (air date
+ * unknown) or, past the aired run, not knowable at all, and either way the row
+ * belongs where the reader left it rather than vanishing under the finger that
+ * marked it.
  */
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Partitions shows using status, provisional advance, air time, and lapse rules that jointly define queue membership.
 export function groupUpNext(
-  shows: readonly (LibraryShow & { readonly pendingAdvance?: boolean })[],
+  shows: readonly LibraryShow[],
   now: number,
   thresholdMs: number,
 ): UpNextGroups {
@@ -41,42 +60,17 @@ export function groupUpNext(
   const lapsed: UpNextItem[] = [];
 
   for (const show of shows) {
-    const ep = show.nextEpisode;
-    if (ep === null) {
-      if (show.pendingAdvance && !show.hidden) {
-        queue.push({
-          showId: show.showId,
-          title: show.title,
-          episode: null,
-          lastWatchedAt: show.lastWatchedAt,
-          backlog: Math.max(0, show.aired - show.completed),
-        });
-      }
-      continue;
-    }
     const status = computeWatchStatus(show, now, thresholdMs);
-    // Hard exclusions apply even to a just-marked show's optimistic projection: a
-    // hidden (`abandoned`), never-started, or fully-watched `ended` show has no next
-    // to queue, so a provisional projection must never resurrect it into Up Next.
-    if (status === "abandoned" || status === "not-started" || status === "ended") continue;
-    const provisional = ep.ids.trakt === 0;
-    if (!provisional) {
-      // Otherwise only in-progress shows with an AIRED next surface. The air test is
-      // explicit rather than inferred from the status: a show past the progress
-      // budget is in-progress on its bulk counts alone, and an unaired (or
-      // unknown-date) next episode is never something to queue tonight.
-      if (status !== "watching" && status !== "lapsed") continue;
-      const airedMs = toMs(ep.firstAired);
-      if (airedMs === null || airedMs > now) continue;
-    }
+    if (NOTHING_TO_QUEUE.has(status)) continue;
+    if (!show.pendingAdvance && !hasSomethingToWatch(show, status, now)) continue;
     const item: UpNextItem = {
       showId: show.showId,
       title: show.title,
-      episode: ep,
+      episode: show.nextEpisode,
       lastWatchedAt: show.lastWatchedAt,
       backlog: Math.max(0, show.aired - show.completed),
     };
-    if (!provisional && status === "lapsed") lapsed.push(item);
+    if (!show.pendingAdvance && status === "lapsed") lapsed.push(item);
     else queue.push(item);
   }
 
