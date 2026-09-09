@@ -343,8 +343,8 @@ jobs:
       - name: Build and check release artifacts
         working-directory: packages/native/android
         env:
-          PLAY_SIZE_MEASUREMENT_BYTES: "17380488"
-          PLAY_SIZE_MEASURED_ON: "2026-09-08"
+          PLAY_SIZE_MEASUREMENT_BYTES: "16986000"
+          PLAY_SIZE_MEASURED_ON: "2026-09-09"
           PLAY_SIZE_LIMIT_BYTES: "20000000"
         run: |
           ./gradlew bundleRelease

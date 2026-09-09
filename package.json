@@ -32,7 +32,7 @@
     "check:dup": "jscpd",
     "check:core-portable": "vitest run --project core test/ci/core-portable.test.ts",
     "check:size": "pnpm build && node scripts/check-size.mjs web",
-    "check:size:native": "pnpm --filter @cue/native exec expo export --platform ios --platform android --output-dir dist && node scripts/check-size.mjs native",
+    "check:size:native": "pnpm --filter @cue/native exec expo export --platform ios --platform android --output-dir dist && node scripts/check-native-assets.mjs && node scripts/check-size.mjs native",
     "check:size-ratchet": "node scripts/check-size-ratchet.mjs",
     "check:bundle": "./scripts/verify-bundle.sh",
     "check:quality-budget": "node scripts/check-quality-budget.mjs",

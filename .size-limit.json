@@ -22,13 +22,13 @@
     "path": "packages/native/dist/_expo/static/js/ios/entry-*.hbc",
     "brotli": false,
     "limit": "4450 kB",
-    "message": "Measured 3609307 bytes on 2026-09-09. The ceiling retains size-limit regression headroom. Reduction target 2887446 bytes, 20 percent below the measurement following web.dev."
+    "message": "Measured 3609345 bytes on 2026-09-09. The ceiling retains size-limit regression headroom. Reduction target 2887476 bytes, 20 percent below the measurement following web.dev."
   },
   {
     "name": "expo Android bundle",
     "path": "packages/native/dist/_expo/static/js/android/entry-*.hbc",
     "brotli": false,
     "limit": "4830 kB",
-    "message": "Measured 3896944 bytes on 2026-09-09. The ceiling retains size-limit regression headroom. Reduction target 3117555 bytes, 20 percent below the measurement following web.dev."
+    "message": "Measured 3896638 bytes on 2026-09-09. The ceiling retains size-limit regression headroom. Reduction target 3117310 bytes, 20 percent below the measurement following web.dev."
   }
 ]
