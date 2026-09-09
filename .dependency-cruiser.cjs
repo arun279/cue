@@ -182,6 +182,23 @@ module.exports = {
       to: { path: "^packages/core/src/data/trakt/endpoints\\.ts$" },
     },
     {
+      name: "mark-revalidation-stays-scoped",
+      severity: "error",
+      comment:
+        "query-invalidation.ts refreshes a marked show's OWN detail reads and " +
+        "deliberately leaves the Up Next aggregate alone, so a surface that calls it " +
+        "directly ticks show detail and leaves the queue row reading pre-mark " +
+        "progress. Only hooks/library-cache.ts may reach it from the hook and UI " +
+        "layers: its refreshShowProgress pairs that invalidation with the scoped " +
+        "progress read that replaces the one library entry, so a new mark surface " +
+        "fails here rather than shipping a queue that quietly stops moving.",
+      from: {
+        path: "^packages/[^/]+/src/(hooks|ui)/",
+        pathNot: "^packages/core/src/hooks/library-cache\\.ts$",
+      },
+      to: { path: "^packages/core/src/data/query-invalidation\\.ts$" },
+    },
+    {
       name: "capacitor-only-in-platform",
       severity: "error",
       comment:

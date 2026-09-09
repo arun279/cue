@@ -3,13 +3,9 @@ import { queryKeys } from "@cue/core/data/query-keys";
 import { describe, expect, it } from "vitest";
 
 describe("showProgressKeys: the keys a local mark on show X must refresh", () => {
-  it("invalidates the library aggregate AND the show's own detail views, not just library", () => {
+  it("invalidates only the marked show's detail views", () => {
     const keys = showProgressKeys(42);
-    expect(keys).toEqual([
-      queryKeys.library(),
-      queryKeys.showProgress(42),
-      queryKeys.showSeasons(42),
-    ]);
+    expect(keys).toEqual([queryKeys.showProgress(42), queryKeys.showSeasons(42)]);
     // The regression this guards: a mark that touched only `library` left the
     // show-detail progress/seasons persisted cache stale across reloads.
     expect(keys).toContainEqual(queryKeys.showProgress(42));
@@ -17,11 +13,11 @@ describe("showProgressKeys: the keys a local mark on show X must refresh", () =>
     // A mark moves the viewer's progress, never the show's own facts, so the
     // `/shows/:id` entry the card art and the hero share is left alone.
     expect(keys).not.toContainEqual(queryKeys.showInfo(42));
+    expect(keys).not.toContainEqual(queryKeys.library());
   });
 
   it("adds the marked episode's detail read when an episode coordinate is given", () => {
     expect(showProgressKeys(42, { season: 1, number: 5 })).toEqual([
-      queryKeys.library(),
       queryKeys.showProgress(42),
       queryKeys.showSeasons(42),
       queryKeys.episode(42, 1, 5),
@@ -30,7 +26,7 @@ describe("showProgressKeys: the keys a local mark on show X must refresh", () =>
 
   it("omits the episode key for a whole-season / range mark (no single coordinate)", () => {
     expect(showProgressKeys(7)).not.toContainEqual(queryKeys.episode(7, 0, 0));
-    expect(showProgressKeys(7)).toHaveLength(3);
+    expect(showProgressKeys(7)).toHaveLength(2);
   });
 
   it("adds the whole-show episode prefix for a bulk/range mark ('all')", () => {
@@ -39,7 +35,6 @@ describe("showProgressKeys: the keys a local mark on show X must refresh", () =>
     // rather than one coordinate, so no pre-cached standalone episode page is stale.
     const keys = showProgressKeys(42, "all");
     expect(keys).toEqual([
-      queryKeys.library(),
       queryKeys.showProgress(42),
       queryKeys.showSeasons(42),
       queryKeys.episodePrefix(42),

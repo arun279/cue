@@ -99,7 +99,7 @@ const baseEntry: LibraryEntry = {
     still: null,
     ids: { trakt: 4004 },
   },
-  lastAired: null,
+  lastAired: { season: 1, number: 10 },
   tmdbId: null,
   pendingAdvance: false,
 };
@@ -387,6 +387,24 @@ describe("advancePastNext", () => {
     const advanced = advancePastNext(entry, "2026-07-05T12:00:00.000Z");
     expect(advanced.nextEpisode).toBeNull();
     expect(advanced.completed).toBe(4);
+  });
+
+  it("carries no coordinate after the last aired episode", () => {
+    const entry: LibraryEntry = {
+      ...baseEntry,
+      aired: 20,
+      completed: 19,
+      nextEpisode: {
+        season: 2,
+        number: 10,
+        title: "Finale",
+        firstAired: "2026-07-04T00:00:00.000Z",
+        still: null,
+        ids: { trakt: 2010 },
+      },
+      lastAired: { season: 2, number: 10 },
+    };
+    expect(advancePastNext(entry, "2026-07-05T12:00:00.000Z").nextEpisode).toBeNull();
   });
 });
 

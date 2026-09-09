@@ -143,6 +143,24 @@ describe("the native queue's mark control", () => {
     expect(mockMark.mark).not.toHaveBeenCalled();
     expect(mockMark.reverse).not.toHaveBeenCalled();
   });
+
+  it("keeps a completed advancing row without inventing an episode code", async () => {
+    markedAt = Date.now() - UNDO_WINDOW_MS;
+    mockView = viewOf({
+      queue: [
+        {
+          item: { ...cardOf(true).item, episode: null, backlog: 0 },
+          entry: { ...entry, completed: entry.aired, nextEpisode: null, pendingAdvance: true },
+        },
+      ],
+    });
+    await render(<UpNext />);
+
+    expect(screen.getByText("Harbor Lights")).toBeTruthy();
+    expect(screen.queryByText("S3 E7")).toBeNull();
+    expect(state()).toHaveTextContent("advancing");
+    expect(check()).toHaveProp("accessibilityState", { checked: true, disabled: true });
+  });
 });
 
 describe("the native queue's sync strip", () => {

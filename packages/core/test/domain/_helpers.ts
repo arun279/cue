@@ -33,6 +33,7 @@ export function makeShow(overrides: Partial<LibraryShow> = {}): LibraryShow {
     completed: 5,
     nextEpisode: makeEpisode(),
     lastAired: null,
+    pendingAdvance: false,
     ...overrides,
   };
 }

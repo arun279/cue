@@ -1,6 +1,7 @@
-import { parseRetryAfterMs } from "../../domain/write-queue/classify";
+import { parseReadRetryAfterMs, parseRetryAfterMs } from "../../domain/write-queue/classify";
 
 export const TRAKT_API_BASE = "https://api.trakt.tv";
+export const TRAKT_REQUEST_TIMEOUT_MS = 15_000;
 const TRAKT_API_VERSION = "2";
 
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
@@ -10,6 +11,7 @@ type Extended = "min" | "full" | "images" | "episodes" | "progress";
 
 export interface TraktClientConfig {
   readonly clientId: string;
+  readonly browser?: boolean;
   /** Bearer token for authed calls; absent → the header is omitted. */
   readonly getToken?: () => string | null;
   readonly fetch?: FetchLike;
@@ -89,12 +91,14 @@ export class TraktClient {
   private readonly getToken: () => string | null;
   private readonly fetchFn: FetchLike;
   private readonly baseUrl: string;
+  private readonly browser: boolean;
 
   constructor(config: TraktClientConfig) {
     this.clientId = config.clientId;
     this.getToken = config.getToken ?? (() => null);
     this.fetchFn = config.fetch ?? ((input, init) => globalThis.fetch(input, init));
     this.baseUrl = (config.baseUrl ?? TRAKT_API_BASE).replace(/\/+$/, "");
+    this.browser = config.browser ?? false;
   }
 
   /** Low-level send used by the write-queue transport: raw response, throws on network reject. */
@@ -106,14 +110,35 @@ export class TraktClient {
     };
     const token = this.getToken();
     if (token !== null && token.length > 0) headers["Authorization"] = `Bearer ${token}`;
-    const init: RequestInit = { method, headers };
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), TRAKT_REQUEST_TIMEOUT_MS);
+    const init: RequestInit = { method, headers, signal: controller.signal };
     if (options.body !== undefined) init.body = JSON.stringify(options.body);
-    const response = await this.fetchFn(`${this.baseUrl}${buildPath(path, options)}`, init);
-    return {
-      status: response.status,
-      headers: headerRecord(response.headers),
-      data: await readJson(response),
-    };
+    try {
+      const response = await this.fetchFn(`${this.baseUrl}${buildPath(path, options)}`, init);
+      return {
+        status: response.status,
+        headers: headerRecord(response.headers),
+        data: await readJson(response),
+      };
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  /**
+   * What a rejected fetch means. In a browser talking to Trakt itself it means
+   * the response was there and the browser refused to show it: Cloudflare answers
+   * a 429 or a 403 in front of the API with no `Access-Control-Allow-Origin`, so
+   * naming the user's connection would be a lie over a working one. Everywhere
+   * else, and for the timeout this client raises itself, the transport really did
+   * fail, which is what `network` says.
+   */
+  private rejectionFailure(cause: unknown): TraktFailure {
+    const aborted = cause instanceof Error && cause.name === "AbortError";
+    return !aborted && this.browser && this.baseUrl === TRAKT_API_BASE
+      ? { kind: "server", status: 503 }
+      : { kind: "network" };
   }
 
   async get(path: string, options: RequestOptions = {}): Promise<TraktResult<unknown>> {
@@ -132,13 +157,13 @@ export class TraktClient {
     let raw: RawResponse;
     try {
       raw = await this.send(method, path, options);
-    } catch {
-      return { ok: false, error: { kind: "network" } };
+    } catch (cause) {
+      return { ok: false, error: this.rejectionFailure(cause) };
     }
     if (raw.status >= 200 && raw.status < 300) {
       return { ok: true, data: raw.data, pagination: readPagination(raw.headers) };
     }
-    return { ok: false, error: mapFailure(raw) };
+    return { ok: false, error: mapFailure(raw, method) };
   }
 
   /**
@@ -165,11 +190,17 @@ export class TraktClient {
   }
 }
 
-function mapFailure(raw: RawResponse): TraktFailure {
+function mapFailure(raw: RawResponse, method: HttpMethod): TraktFailure {
   if (raw.status === 401) return { kind: "unauthorized" };
   if (raw.status === 404) return { kind: "not-found" };
   if (raw.status === 429) {
-    return { kind: "rate-limited", retryAfterMs: parseRetryAfterMs(raw.headers, Date.now()) };
+    return {
+      kind: "rate-limited",
+      retryAfterMs:
+        method === "GET"
+          ? parseReadRetryAfterMs(raw.headers, Date.now())
+          : parseRetryAfterMs(raw.headers, Date.now()),
+    };
   }
   return { kind: "server", status: raw.status };
 }

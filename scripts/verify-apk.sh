@@ -50,7 +50,7 @@ app.cuetracker.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
 #                         it is kept rather than blocked: the library reads the
 #                         Wi-Fi state to answer, and a blocked permission it
 #                         actually holds is a crash rather than a smaller set.
-# Twenty-five other permissions arrive from the same dependency tree and are
+# Twenty-four other permissions arrive from the same dependency tree and are
 # dropped in app.config.ts, which explains each one: the Expo template's four
 # optional ones, expo-secure-store's biometric pair, and expo-notifications'
 # push receive, install-referrer binding and per-OEM launcher badge set.

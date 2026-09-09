@@ -23,7 +23,9 @@ function Row({ card }: { readonly card: UpNextCard }): ReactElement {
   return (
     <View testID="up-next-card">
       <Text>{card.entry.title}</Text>
-      <Text>{epCode(card.item.episode.season, card.item.episode.number)}</Text>
+      {card.item.episode !== null && (
+        <Text>{epCode(card.item.episode.season, card.item.episode.number)}</Text>
+      )}
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={control.label}

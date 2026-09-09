@@ -41,7 +41,7 @@ function entry(overrides: Partial<LibraryEntry> = {}): LibraryEntry {
       still: null,
       ids: { trakt: 305 },
     },
-    lastAired: null,
+    lastAired: { season: 3, number: 10 },
     tmdbId: null,
     pendingAdvance: false,
     ...overrides,
