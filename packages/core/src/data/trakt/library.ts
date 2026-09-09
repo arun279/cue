@@ -23,11 +23,8 @@ export interface LibraryEntry extends LibraryShow {
   readonly tmdbId: number | null;
 }
 
-/** What the write-queue op carries (as its opaque `inversePatch`) to reconcile a mark. */
 export interface MarkContext {
   readonly showId: number;
-  /** Trakt's `completed` count before this op: the reconcile pivot. Rollback lives
-   * in the mark hook's closure (the pre-op cache snapshot), not in the durable op. */
   readonly preCompleted: number;
 }
 
@@ -35,11 +32,11 @@ export interface LibraryInput {
   readonly watchedShows: readonly WatchedShow[];
   readonly progress: ReadonlyMap<number, Progress>;
   readonly hiddenShowIds: ReadonlySet<number>;
-  /** Full watchlist items: the source of both membership flags and watchlist-only entries. */
   readonly watchlistShows: readonly WatchlistItem[];
 }
 
 type SchemaEpisode = NonNullable<Progress["next_episode"]>;
+type SchemaShow = NonNullable<WatchlistItem["show"]>;
 
 function toEpisodeRef(ep: SchemaEpisode): EpisodeRef {
   return {
@@ -52,69 +49,68 @@ function toEpisodeRef(ep: SchemaEpisode): EpisodeRef {
   };
 }
 
-/**
- * Merge the watched-shows list with per-show progress, the hidden set, and
- * watchlist membership into the `LibraryEntry[]` every home surface derives from.
- * Every watched show carries real counts: `aired` from the bulk row's
- * `aired_episodes` and `completed` from its watched breakdown, both present on
- * `/sync/watched/shows`. A fetched per-show progress overrides both (it is the
- * authority on the user's hidden seasons) and is the only source of the NEXT
- * episode's identity. A never-watched show that is on the watchlist has no
- * `/sync/watched/shows` row, so it is materialized here as a zero-progress
- * `to-watch` entry: otherwise it would vanish from "To watch" after a refetch.
- */
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Merges watched, progress, hidden, and watchlist sources while preserving watchlist-only shows.
+function toWatchedEntry(
+  watched: WatchedShow,
+  progress: Progress | undefined,
+  hidden: boolean,
+  inWatchlist: boolean,
+): LibraryEntry {
+  const { show } = watched;
+  return {
+    showId: show.ids.trakt,
+    title: show.title,
+    status: show.status ?? "",
+    hidden,
+    inWatchlist,
+    lastWatchedAt: watched.last_watched_at ?? null,
+    aired: progress?.aired ?? show.aired_episodes,
+    completed: progress?.completed ?? watchedEpisodeCount(watched),
+    nextEpisode: progress?.next_episode == null ? null : toEpisodeRef(progress.next_episode),
+    lastAired: lastAiredKey(progress, watched),
+    tmdbId: show.ids.tmdb ?? null,
+    pendingAdvance: false,
+  };
+}
+
+function toWatchlistEntry(show: SchemaShow, hidden: boolean): LibraryEntry {
+  return {
+    showId: show.ids.trakt,
+    title: show.title,
+    status: show.status ?? "",
+    hidden,
+    inWatchlist: true,
+    lastWatchedAt: null,
+    aired: 0,
+    completed: 0,
+    nextEpisode: null,
+    lastAired: null,
+    tmdbId: show.ids.tmdb ?? null,
+    pendingAdvance: false,
+  };
+}
+
 export function assembleLibrary(input: LibraryInput): LibraryEntry[] {
-  const watchlistShowIds = new Set<number>();
+  const watchlistById = new Map<number, SchemaShow>();
   for (const item of input.watchlistShows) {
-    if (item.show !== undefined) watchlistShowIds.add(item.show.ids.trakt);
+    if (item.show !== undefined && !watchlistById.has(item.show.ids.trakt)) {
+      watchlistById.set(item.show.ids.trakt, item.show);
+    }
   }
 
-  const entries: LibraryEntry[] = [];
-  const seen = new Set<number>();
-  for (const watched of input.watchedShows) {
-    const { show } = watched;
-    const trakt = show.ids.trakt;
-    seen.add(trakt);
-    const progress = input.progress.get(trakt);
-    const next = progress?.next_episode ?? null;
-    entries.push({
-      showId: trakt,
-      title: show.title,
-      status: show.status ?? "",
-      hidden: input.hiddenShowIds.has(trakt),
-      inWatchlist: watchlistShowIds.has(trakt),
-      lastWatchedAt: watched.last_watched_at ?? null,
-      aired: progress?.aired ?? show.aired_episodes,
-      completed: progress?.completed ?? watchedEpisodeCount(watched),
-      nextEpisode: next === null ? null : toEpisodeRef(next),
-      lastAired: lastAiredKey(progress, watched),
-      tmdbId: show.ids.tmdb ?? null,
-      pendingAdvance: false,
-    });
-  }
-
-  for (const item of input.watchlistShows) {
-    const show = item.show;
-    if (show === undefined || seen.has(show.ids.trakt)) continue;
-    const trakt = show.ids.trakt;
-    seen.add(trakt);
-    entries.push({
-      showId: trakt,
-      title: show.title,
-      status: show.status ?? "",
-      hidden: input.hiddenShowIds.has(trakt),
-      inWatchlist: true,
-      lastWatchedAt: null,
-      aired: 0,
-      completed: 0,
-      nextEpisode: null,
-      lastAired: null,
-      tmdbId: show.ids.tmdb ?? null,
-      pendingAdvance: false,
-    });
-  }
-  return entries;
+  const watchedIds = new Set(input.watchedShows.map(({ show }) => show.ids.trakt));
+  const watchedEntries = input.watchedShows.map((watched) => {
+    const trakt = watched.show.ids.trakt;
+    return toWatchedEntry(
+      watched,
+      input.progress.get(trakt),
+      input.hiddenShowIds.has(trakt),
+      watchlistById.has(trakt),
+    );
+  });
+  const watchlistEntries = [...watchlistById]
+    .filter(([trakt]) => !watchedIds.has(trakt))
+    .map(([trakt, show]) => toWatchlistEntry(show, input.hiddenShowIds.has(trakt)));
+  return [...watchedEntries, ...watchlistEntries];
 }
 
 /**
@@ -146,7 +142,6 @@ export function watchedEpisodeCount(watched: WatchedShow): number {
   return count;
 }
 
-/** The snapshot's highest regular episode, preferring the progress breakdown when available. */
 function lastAiredKey(progress: Progress | undefined, watched: WatchedShow): EpisodeKey | null {
   let last: EpisodeKey | null = null;
   const seasons = progress === undefined ? watched.seasons : progress.seasons;
@@ -160,7 +155,6 @@ function lastAiredKey(progress: Progress | undefined, watched: WatchedShow): Epi
   return last;
 }
 
-/** Extract the set of Trakt show ids from a hidden / watchlist list (movies ignored). */
 export function showIdSet(items: readonly (HiddenItem | WatchlistItem)[]): Set<number> {
   const ids = new Set<number>();
   for (const item of items) {
@@ -213,12 +207,6 @@ export function advancePastNext(entry: LibraryEntry, watchedAt: string): Library
   };
 }
 
-/**
- * Did a write land on Trakt, read from a fresh progress `completed`? A mark
- * (`toState: present`) lands when `completed` advanced past the pre-op count; an
- * unmark (`absent`) lands when it fell below it. This is the reconcile verdict
- * the write-queue consults instead of a blind re-POST after a network reject.
- */
 export function markLanded(
   toState: "present" | "absent",
   preCompleted: number,
@@ -231,7 +219,6 @@ export type AdditiveMatch =
   | { readonly episodeTrakt: number }
   | { readonly season: number; readonly number: number };
 
-/** Did an additive write create its probed play at the frozen watched-at time? */
 export function additiveLanded(
   plays: readonly EpisodePlay[],
   match: AdditiveMatch,

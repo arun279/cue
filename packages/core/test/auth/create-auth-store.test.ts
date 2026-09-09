@@ -1,7 +1,18 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type AuthDeps, createAuthStore } from "../../src/auth/create-auth-store";
+import { pollDeviceToken, requestDeviceCode } from "../../src/data/auth/oauth";
+import { createPkcePair } from "../../src/data/auth/pkce";
 import { createTokenStore, type TokenStore } from "../../src/ports/token-store";
 import { memoryKeyValueStore } from "../support/stores";
+
+vi.mock("../../src/data/auth/oauth", () => ({
+  buildAuthorizeUrl: vi.fn(),
+  exchangeCodeForToken: vi.fn(),
+  pollDeviceToken: vi.fn(),
+  requestDeviceCode: vi.fn(),
+  revokeToken: vi.fn(),
+}));
+vi.mock("../../src/data/auth/pkce", () => ({ createPkcePair: vi.fn() }));
 
 function authDeps(tokenStore: TokenStore): AuthDeps {
   return {
@@ -65,5 +76,74 @@ describe("the auth store's boot read", () => {
 
     await vi.waitFor(() => expect(store.getState().phase).toBe("onboarding"));
     expect(store.getState().errorMessage).toEqual(expect.any(String));
+  });
+});
+
+describe("device authorization polling", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.mocked(createPkcePair).mockResolvedValue({ verifier: "verifier", challenge: "challenge" });
+    vi.mocked(requestDeviceCode).mockResolvedValue({
+      deviceCode: "device-code",
+      userCode: "ABCD",
+      verificationUrl: "https://trakt.test/activate",
+      intervalMs: 1_000,
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.resetAllMocks();
+  });
+
+  it("waits through pending and slow-down responses before persisting a successful token", async () => {
+    const token = {
+      access_token: "access",
+      refresh_token: "refresh",
+      created_at: 1_700_000_000,
+      expires_in: 604_800,
+    };
+    const tokenStore = {
+      read: vi.fn(() => Promise.resolve(null)),
+      write: vi.fn(() => Promise.resolve()),
+      clear: vi.fn(() => Promise.resolve()),
+    };
+    vi.mocked(pollDeviceToken)
+      .mockResolvedValueOnce({ status: "pending" })
+      .mockResolvedValueOnce({ status: "slow-down" })
+      .mockResolvedValueOnce({ status: "success", token });
+    const store = createAuthStore(authDeps(tokenStore));
+
+    const connecting = store.getState().connectWithDeviceCode();
+    await vi.advanceTimersByTimeAsync(4_000);
+    await connecting;
+
+    expect(pollDeviceToken).toHaveBeenCalledTimes(3);
+    expect(tokenStore.write).toHaveBeenCalledWith(token);
+    expect(store.getState()).toMatchObject({
+      phase: "connected",
+      connectStatus: "success",
+      errorMessage: null,
+      deviceCode: null,
+    });
+  });
+
+  const terminalCases = [
+    ["denied", "You declined the request in Trakt. Try again when you're ready."],
+    ["expired", "That code expired before it was approved. Start again to get a new one."],
+    ["error", "Trakt could not authorize this device. Try again."],
+  ] satisfies readonly (readonly ["denied" | "expired" | "error", string])[];
+
+  it.each(terminalCases)("surfaces the %s terminal response", async (status, errorMessage) => {
+    vi.mocked(pollDeviceToken).mockResolvedValue(
+      status === "error" ? { status, code: 500 } : { status },
+    );
+    const store = createAuthStore(authDeps(createTokenStore(memoryKeyValueStore())));
+
+    const connecting = store.getState().connectWithDeviceCode();
+    await vi.advanceTimersByTimeAsync(1_000);
+    await connecting;
+
+    expect(store.getState()).toMatchObject({ connectStatus: "error", errorMessage });
   });
 });
