@@ -97,7 +97,7 @@ export function nativeAppConfig(env: Readonly<Record<string, string | undefined>
     name: "Cue",
     slug: "cue",
     scheme: "cue",
-    version: env["APP_VERSION"] ?? "1.0.0",
+    version: env["APP_VERSION"] ?? "2.0.0",
     // The shipping app allows portrait and both landscapes on iPhone and all
     // four on iPad; "default" preserves that instead of narrowing it.
     orientation: "default",
