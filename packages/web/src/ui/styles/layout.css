@@ -103,11 +103,12 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  height: 32px;
+  min-height: 32px;
   /* Mirrors .main's max(gutter, safe-area) side padding. */
   margin: 0 calc(-1 * max(var(--space-4), env(safe-area-inset-right))) 0
     calc(-1 * max(var(--space-4), env(safe-area-inset-left)));
-  padding: 0 max(var(--space-4), env(safe-area-inset-right)) 0
+  padding: var(--space-1) max(var(--space-4), env(safe-area-inset-right))
+    var(--space-1)
     max(var(--space-4), env(safe-area-inset-left));
   background: var(--color-elevated);
   color: var(--color-ink2);
@@ -136,11 +137,8 @@
 .sync-strip__text {
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
-/* A 44px-tall text button centred in the 32px strip: transparent, so the
+/* A 44px-tall text button centred in the strip: transparent, so the
  * overflowing hit slop is invisible (HIT-SLOP rule). */
 .sync-strip__retry {
   appearance: none;

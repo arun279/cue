@@ -38,6 +38,7 @@ export function buildRuntime(overrides: Partial<RuntimeDeps> = {}): Promise<CueR
     tokenStore: noopTokenStore,
     redirectUri: "https://cue.test/auth/callback",
     clientId: "test-client",
+    browser: false,
     endSession: async () => undefined,
     clearPersistedCaches: async () => undefined,
     clearLocalPreferences: () => undefined,

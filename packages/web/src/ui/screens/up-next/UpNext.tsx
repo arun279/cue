@@ -1,3 +1,4 @@
+import type { EpisodeRef } from "@cue/core/domain/model/library";
 import { useCalendar } from "@cue/core/hooks/useCalendar";
 import { useHideShow } from "@cue/core/hooks/useHideShow";
 import { useMarkControl } from "@cue/core/hooks/useMarkControl";
@@ -31,16 +32,18 @@ import { QueueRow } from "./QueueRow";
  * check-state hook has a stable home per card. */
 function MarqueeSlot({
   card,
+  episode,
   mark,
 }: {
   readonly card: UpNextCard;
+  readonly episode: EpisodeRef;
   readonly mark: MarkWatched;
 }): ReactElement {
   const check = useMarkControl(card.entry, mark);
   return (
     <MarqueeCard
       entry={card.entry}
-      episode={card.item.episode}
+      episode={episode}
       checkState={check.state}
       checkLabel={check.label}
       checkPending={check.pending}
@@ -264,7 +267,15 @@ export function UpNext(): ReactElement {
 
         {showSections && emptyKind === null && (
           <>
-            {marquee !== undefined && <MarqueeSlot card={marquee} mark={mark} />}
+            {marquee !== undefined &&
+              (marquee.item.episode === null ? (
+                // Mid-advance past the last aired episode there is no episode to
+                // headline, so the lead show keeps its place as a queue row until
+                // the confirming read either names the next one or drops it.
+                <QueueRow card={marquee} mark={mark} onStop={() => stopWatching(marquee)} />
+              ) : (
+                <MarqueeSlot card={marquee} episode={marquee.item.episode} mark={mark} />
+              ))}
 
             {rows.length > 0 && (
               <ul className="row-list" data-testid="up-next-list">

@@ -57,10 +57,14 @@ export function QueueRow({
         art={<Poster title={entry.title} posters={art.posters} variant="s48" />}
         title={entry.title}
         meta={
-          <>
-            <span className="ep-row__code">{epCode(item.episode.season, item.episode.number)}</span>
-            {item.episode.title !== null && ` · ${item.episode.title}`}
-          </>
+          item.episode === null ? undefined : (
+            <>
+              <span className="ep-row__code">
+                {epCode(item.episode.season, item.episode.number)}
+              </span>
+              {item.episode.title !== null && ` · ${item.episode.title}`}
+            </>
+          )
         }
         footer={
           <>
@@ -83,9 +87,13 @@ export function QueueRow({
           </>
         }
         link={{ to: "/show/$showId", params: { showId: String(entry.showId) } }}
-        linkLabel={`${entry.title}, ${epCode(item.episode.season, item.episode.number)}${
-          item.episode.title === null ? "" : ` ${item.episode.title}`
-        }`}
+        linkLabel={
+          item.episode === null
+            ? entry.title
+            : `${entry.title}, ${epCode(item.episode.season, item.episode.number)}${
+                item.episode.title === null ? "" : ` ${item.episode.title}`
+              }`
+        }
       />
     </SwipeAction>
   );

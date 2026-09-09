@@ -1,6 +1,11 @@
-import { TRAKT_API_BASE, TraktClient } from "@cue/core/data/trakt/client";
+import {
+  TRAKT_API_BASE,
+  TRAKT_REQUEST_TIMEOUT_MS,
+  TraktClient,
+  unwrapRead,
+} from "@cue/core/data/trakt/client";
 import { HttpResponse, http } from "msw";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { mswServer } from "./_msw";
 
 const server = mswServer();
@@ -125,7 +130,16 @@ describe("TraktClient error mapping", () => {
   it("maps 429 and reads Retry-After seconds", async () => {
     respond(429, { "Retry-After": "3" });
     const result = await client().get(path);
-    expect(result).toEqual({ ok: false, error: { kind: "rate-limited", retryAfterMs: 3000 } });
+    expect(result).toEqual({ ok: false, error: { kind: "rate-limited", retryAfterMs: 3500 } });
+  });
+
+  it("honors a long read Retry-After with a positive margin", async () => {
+    respond(429, { "Retry-After": "120" });
+    const result = await client().get(path);
+    expect(result).toEqual({
+      ok: false,
+      error: { kind: "rate-limited", retryAfterMs: 120_500 },
+    });
   });
 
   it("maps 500 to server with the status", async () => {
@@ -142,4 +156,60 @@ describe("TraktClient error mapping", () => {
     server.use(http.get(`${TRAKT_API_BASE}${path}`, () => HttpResponse.error()));
     expect(await client().get(path)).toEqual({ ok: false, error: { kind: "network" } });
   });
+
+  it("classifies an unreadable Trakt response as server only in a browser", async () => {
+    server.use(http.get(`${TRAKT_API_BASE}${path}`, () => HttpResponse.error()));
+    const browserClient = new TraktClient({ clientId: "cid-123", browser: true });
+    expect(await browserClient.get(path)).toEqual({
+      ok: false,
+      error: { kind: "server", status: 503 },
+    });
+  });
+
+  it("keeps browser failures against other origins classified as network", async () => {
+    const browserClient = new TraktClient({
+      clientId: "cid-123",
+      browser: true,
+      baseUrl: "https://example.test",
+      fetch: () => Promise.reject(new Error("offline")),
+    });
+    expect(await browserClient.get(path)).toEqual({ ok: false, error: { kind: "network" } });
+  });
+
+  it("rejects a held read as a typed network failure after the request timeout", async () => {
+    vi.useFakeTimers();
+    const held = new TraktClient({
+      clientId: "cid-123",
+      fetch: (_input, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+        }),
+    });
+    const read = held.get(path).then((result) => unwrapRead(result, "held read"));
+    const rejection = expect(read).rejects.toMatchObject({ failure: { kind: "network" } });
+
+    await vi.advanceTimersByTimeAsync(TRAKT_REQUEST_TIMEOUT_MS);
+    await rejection;
+    vi.useRealTimers();
+  }, 1000);
+
+  // The browser reclassification exists for a response the browser refused to
+  // show; a socket this client gave up on itself is the connection failing, and
+  // saying otherwise would tell a user on a dead network that Trakt is at fault.
+  it("keeps a timed-out browser request against Trakt a network failure", async () => {
+    vi.useFakeTimers();
+    const held = new TraktClient({
+      clientId: "cid-123",
+      browser: true,
+      fetch: (_input, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+        }),
+    });
+    const read = held.get(path);
+
+    await vi.advanceTimersByTimeAsync(TRAKT_REQUEST_TIMEOUT_MS);
+    expect(await read).toEqual({ ok: false, error: { kind: "network" } });
+    vi.useRealTimers();
+  }, 1000);
 });
