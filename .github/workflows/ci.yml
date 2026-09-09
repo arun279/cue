@@ -343,40 +343,24 @@ jobs:
       - name: Build and check release artifacts
         working-directory: packages/native/android
         env:
-          # A smoke ceiling on the upload, not a download budget. Measured, the
-          # bundle is 73.5 MB and two thirds of that is the native debug symbols
-          # and the R8 mapping, which Play strips before it serves anything; what
-          # a phone fetches is the bundletool estimate below. This number is
-          # measured plus headroom and its job is to catch a configuration the
-          # device spec does not sample, such as a new ABI or density.
-          AAB_SIZE_LIMIT_BYTES: "100000000"
           PLAY_SIZE_MEASUREMENT_BYTES: "17380488"
           PLAY_SIZE_MEASURED_ON: "2026-09-08"
           PLAY_SIZE_LIMIT_BYTES: "20000000"
         run: |
           ./gradlew bundleRelease
           aab=app/build/outputs/bundle/release/app-release.aab
-          node ../../../scripts/assert-file-size.mjs "$aab" "$AAB_SIZE_LIMIT_BYTES" "release AAB"
 
-          echo '{"supportedAbis":["arm64-v8a"],"supportedLocales":["en"],"screenDensity":480,"sdkVersion":35}' > device.json
+          echo '{"supportedAbis":["arm64-v8a"],"supportedLocales":["en"],"screenDensity":640,"sdkVersion":35}' > device.json
           java -jar bundletool.jar build-apks \
-            --bundle="$aab" --output=device.apks --device-spec=device.json
+            --bundle="$aab" --output=all.apks
           java -jar bundletool.jar get-size total \
-            --apks=device.apks --device-spec=device.json | tee play-size.csv
-          # bundletool writes CRLF, and `[ 123<CR> -gt 456 ]` is a usage error
-          # rather than a comparison: the shell reports it and steps over the if.
-          play_size=$(awk -F, 'NR == 2 { print $2 }' play-size.csv | tr -d '\r')
-          case $play_size in
-            '' | *[!0-9]*)
-              echo "bundletool reported no numeric download size: '$play_size'" >&2
-              exit 1
-              ;;
-          esac
-          if [ "$play_size" -gt "$PLAY_SIZE_LIMIT_BYTES" ]; then
-            echo "Play download: $play_size bytes, limit $PLAY_SIZE_LIMIT_BYTES bytes" >&2
-            exit 1
-          fi
-          echo "Play download: $play_size bytes, limit $PLAY_SIZE_LIMIT_BYTES bytes"
+            --apks=all.apks --device-spec=device.json > play-size.csv
+          node ../../../scripts/bundletool-size.mjs \
+            play-size.csv "$PLAY_SIZE_LIMIT_BYTES" "Play download at XXXHDPI ARMv8"
+          java -jar bundletool.jar get-size total \
+            --apks=all.apks --dimensions=ALL > all-size.csv
+          node ../../../scripts/bundletool-size.mjs \
+            all-size.csv "$PLAY_SIZE_LIMIT_BYTES" "Play download maximum across all configurations"
 
           java -jar bundletool.jar build-apks \
             --bundle="$aab" --output=universal.apks --mode=universal

@@ -25,9 +25,15 @@ echo "a099cfa1543f55593bc2ed16a70a7c67fe54b1747bb7301f37fdfd6d91028e29  $bundlet
   cd packages/native/android
   ./gradlew bundleRelease >&2
   aab=app/build/outputs/bundle/release/app-release.aab
-  echo '{"supportedAbis":["arm64-v8a"],"supportedLocales":["en"],"screenDensity":480,"sdkVersion":35}' > device.json
+  echo '{"supportedAbis":["arm64-v8a"],"supportedLocales":["en"],"screenDensity":640,"sdkVersion":35}' > device.json
   java -jar "$bundletool" build-apks --bundle="$aab" --output=all.apks --overwrite >&2
   java -jar "$bundletool" get-size total \
     --apks=all.apks --device-spec=device.json > play-size.csv
-  awk -F, 'NR == 2 { gsub(/\r/, "", $2); print $2 }' play-size.csv
+  java -jar "$bundletool" get-size total \
+    --apks=all.apks --dimensions=ALL > all-size.csv
+  node "$head_root/scripts/bundletool-size.mjs" play-size.csv --report \
+    "Play download at XXXHDPI ARMv8" >&2
+  node "$head_root/scripts/bundletool-size.mjs" all-size.csv --report \
+    "Play download maximum across all configurations" >&2
+  node "$head_root/scripts/bundletool-size.mjs" play-size.csv --value-only
 )

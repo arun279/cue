@@ -81,6 +81,8 @@ const DOES_NOT_SHIP = [
   ".dependency-cruiser.cjs",
   ".size-limit.json",
   "scripts/assert-file-size.mjs",
+  "scripts/assert-app-thinning-size.mjs",
+  "scripts/bundletool-size.mjs",
   "scripts/check-size.mjs",
   "scripts/check-size-ratchet.mjs",
   "scripts/check-size-delta.mjs",
