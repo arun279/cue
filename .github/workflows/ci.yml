@@ -220,19 +220,38 @@ jobs:
             -configuration Release -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath "$RUNNER_TEMP/native-ios-derived-data" \
             build
-      # Two facts about the artifact that nothing in the sources states, both
-      # decided by the build and both invisible until the app is running. An
+      # Three facts about the artifact that nothing in the sources states, all
+      # decided by the build and invisible until the app is running. An
       # artifact whose bundle lost the origin would point a flow at somebody's
       # real Trakt account; an artifact whose binary lost the entitlements
       # section has no Keychain, so it can neither restore a session nor keep
       # one. The entitlements are linked into the executable rather than added to
       # the signature, which is why this reads the binary and not `codesign -d`.
+      # Every dynamic framework named by the app or an embedded framework must
+      # also be in the bundle, or dyld kills the app before its first frame.
       - name: Package the simulator app
         run: |
           products="$RUNNER_TEMP/native-ios-derived-data/Build/Products/Release-iphonesimulator"
-          LC_ALL=C grep -aq 'http://127.0.0.1:8787' "$products/Cue.app/main.jsbundle"
-          LC_ALL=C grep -aq 'application-identifier' "$products/Cue.app/Cue"
-          tar -czf "$RUNNER_TEMP/Cue.app.tgz" -C "$products" Cue.app
+          app="$products/Cue.app"
+          LC_ALL=C grep -aq 'http://127.0.0.1:8787' "$app/main.jsbundle"
+          LC_ALL=C grep -aq 'application-identifier' "$app/Cue"
+          while IFS= read -r framework; do
+            test -d "$app/Frameworks/$framework" || {
+              echo "Missing embedded framework: $framework" >&2
+              exit 1
+            }
+          done < <(
+            {
+              otool -L "$app/Cue"
+              for bundle in "$app"/Frameworks/*.framework; do
+                executable=${bundle##*/}
+                otool -L "$bundle/${executable%.framework}"
+              done
+            } |
+              awk '$1 ~ /^@rpath\/.*\.framework\// { split($1, path, "/"); print path[2] }' |
+              sort -u
+          )
+          tar -czf "$RUNNER_TEMP/Cue.app.tgz" -C "$products" "${app##*/}"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: cue-native-ios-simulator-app

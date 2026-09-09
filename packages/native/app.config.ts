@@ -142,6 +142,7 @@ export function nativeAppConfig(env: Readonly<Record<string, string | undefined>
             enableMinifyInReleaseBuilds: true,
             enableShrinkResourcesInReleaseBuilds: true,
           },
+          ios: { usePrecompiledModules: false },
         },
       ],
       // Cue writes `allowBackup="false"` and its own data-extraction rules, and
