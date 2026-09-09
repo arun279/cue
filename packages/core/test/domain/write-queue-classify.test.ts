@@ -19,11 +19,11 @@ describe("classifyStatus", () => {
       kind: "retry",
       delayMs: 3000,
     });
-    expect(classifyStatus(dispatchResult(429), 0, 0)).toEqual({ kind: "retry", delayMs: 1000 });
+    expect(classifyStatus(dispatchResult(429), 0, 0)).toEqual({ kind: "retry", delayMs: 1100 });
   });
 
   it("safe-retries 5xx with backoff", () => {
-    expect(classifyStatus(dispatchResult(503), 1, 0)).toEqual({ kind: "retry", delayMs: 2000 });
+    expect(classifyStatus(dispatchResult(503), 1, 0)).toEqual({ kind: "retry", delayMs: 2200 });
   });
 
   it("fails on other 4xx (request did not apply → roll back)", () => {
@@ -59,18 +59,18 @@ describe("parseRetryAfterMs", () => {
 describe("backoffMs", () => {
   it("grows exponentially from the pacing floor and caps", () => {
     expect(backoffMs(0)).toBe(MIN_WRITE_INTERVAL_MS);
-    expect(backoffMs(1)).toBe(2000);
-    expect(backoffMs(2)).toBe(4000);
+    expect(backoffMs(1)).toBe(2200);
+    expect(backoffMs(2)).toBe(4400);
     expect(backoffMs(100)).toBe(30000);
   });
 });
 
 describe("computePacingDelay", () => {
-  it("is 0 on the first dispatch and floors at 0 once ≥1s has passed", () => {
+  it("is 0 on the first dispatch and floors at 0 once the pacing interval has passed", () => {
     expect(computePacingDelay(500, null)).toBe(0);
     expect(computePacingDelay(5000, 1000)).toBe(0);
   });
   it("waits out the remaining interval", () => {
-    expect(computePacingDelay(1300, 1000)).toBe(700);
+    expect(computePacingDelay(1300, 1000)).toBe(800);
   });
 });
