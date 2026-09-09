@@ -49,6 +49,7 @@ import { WriteQueue } from "../domain/write-queue/queue";
 import type { QueuedOp } from "../domain/write-queue/types";
 import { createJsonStore } from "../ports/json-store";
 import type { KeyValueStore } from "../ports/kv";
+import { OP_LOG_KEY } from "../ports/storage-keys";
 import type { TokenStore } from "../ports/token-store";
 import type {
   ActivitiesReconcile,
@@ -62,7 +63,6 @@ import type {
 } from "../runtime/runtime";
 import { PendingWritesError, type TeardownOptions } from "./session";
 
-const OP_LOG_KEY = "cue.write-queue";
 const ACTIVITIES_KEY = "cue.last-activities";
 
 type ReconcileContext =
