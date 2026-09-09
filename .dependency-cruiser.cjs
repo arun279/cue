@@ -26,7 +26,7 @@ const RE_DOES_NOT_SHIP_DIRECTORY =
   "^(docs|\\.github|\\.maestro|assets|scripts/(complexity|mock-trakt)|packages/[^/]+/(e2e|test|__tests__))(/|$)";
 const RE_DOES_NOT_SHIP_MARKDOWN = "^[^/]*\\.md$";
 const RE_DOES_NOT_SHIP_FILE =
-  "^(LICENSE|vitest\\.config\\.ts|lefthook\\.yml|cspell\\.json|dprint\\.json|biome\\.jsonc|knip\\.json|\\.jscpd\\.json|\\.dependency-cruiser\\.cjs|\\.gitignore|\\.size-limit\\.json|\\.native-assets\\.json|scripts/(assert-app-thinning-size|assert-file-size|bundletool-size|check-native-assets|check-quality-budget|check-size|check-size-delta|check-size-ratchet|check-type-suppressions|measure-comments|measure-complexity|summarize-atlas)\\.mjs|scripts/(diff-footprint|measure-play-size|measure-sizes|verify-ios-privacy)\\.sh|scripts/(quality-budget\\.json|write-buster\\.mjs)|tsconfig\\.depcruise\\.json|packages/[^/]+/(playwright\\.config\\.ts|vitest\\.config\\.ts|jest\\.config\\.js|\\.gitignore|\\.env\\.(example|test|mock)))$";
+  "^(LICENSE|vitest\\.config\\.ts|lefthook\\.yml|cspell\\.json|dprint\\.json|biome\\.jsonc|knip\\.json|\\.jscpd\\.json|\\.dependency-cruiser\\.cjs|\\.gitignore|\\.size-limit\\.json|\\.native-assets\\.json|scripts/(assert-file-size|bundletool-size|check-native-assets|check-quality-budget|check-size|check-size-delta|check-size-ratchet|check-type-suppressions|measure-comments|measure-complexity|summarize-atlas)\\.mjs|scripts/(diff-footprint|measure-play-size|measure-sizes|verify-ios-privacy)\\.sh|scripts/(quality-budget\\.json|write-buster\\.mjs)|tsconfig\\.depcruise\\.json|packages/[^/]+/(playwright\\.config\\.ts|vitest\\.config\\.ts|jest\\.config\\.js|\\.gitignore|\\.env\\.(example|test|mock)))$";
 
 const { join } = require("node:path");
 

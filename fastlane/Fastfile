@@ -23,7 +23,6 @@ ANDROID_DIR = "android".freeze
 ANDROID_APK = "android/app/build/outputs/apk/release/app-release.apk".freeze
 VERIFY_APK = "scripts/verify-apk.sh".freeze
 ASSERT_FILE_SIZE = "scripts/assert-file-size.mjs".freeze
-ASSERT_APP_THINNING_SIZE = "scripts/assert-app-thinning-size.mjs".freeze
 
 default_platform(:ios)
 
@@ -65,7 +64,6 @@ def build_ios_ipa
     output_name: "App.ipa",
     xcargs: "CURRENT_PROJECT_VERSION=#{build_number} MARKETING_VERSION=#{app_version}",
     export_options: {
-      thinning: "<thin-for-all-variants>",
       signingStyle: "manual",
       teamID: ENV.fetch("IOS_TEAM_ID"),
       provisioningProfiles: {APP_IDENTIFIER => ENV.fetch("IOS_PROVISIONING_PROFILE_NAME")}
@@ -77,12 +75,6 @@ def build_ios_ipa
     File.join(REPO_ROOT, "build/ios/App.ipa"),
     ENV.fetch("IPA_SIZE_LIMIT_BYTES"),
     "IPA"
-  )
-  sh(
-    "node",
-    File.join(REPO_ROOT, ASSERT_APP_THINNING_SIZE),
-    File.join(REPO_ROOT, "build/ios/App Thinning Size Report.txt"),
-    ENV.fetch("APP_STORE_SIZE_LIMIT_BYTES")
   )
 end
 

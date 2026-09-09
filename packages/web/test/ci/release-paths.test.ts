@@ -83,7 +83,6 @@ const DOES_NOT_SHIP = [
   ".size-limit.json",
   ".native-assets.json",
   "scripts/assert-file-size.mjs",
-  "scripts/assert-app-thinning-size.mjs",
   "scripts/bundletool-size.mjs",
   "scripts/check-size.mjs",
   "scripts/check-native-assets.mjs",

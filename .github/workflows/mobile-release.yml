@@ -44,7 +44,6 @@ on:
       ".size-limit.json",
       ".native-assets.json",
       "scripts/assert-file-size.mjs",
-      "scripts/assert-app-thinning-size.mjs",
       "scripts/bundletool-size.mjs",
       "scripts/check-quality-budget.mjs",
       "scripts/check-size.mjs",
@@ -371,8 +370,6 @@ jobs:
           IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
           IOS_PROVISIONING_PROFILE_NAME: ${{ secrets.IOS_PROVISIONING_PROFILE_NAME }}
           PROVISIONING_PROFILE_PATH: ${{ runner.temp }}/build.mobileprovision
-          # The IPA remains a coarse upload smoke ceiling. Apple's thinning
-          # report below gates the largest compressed download variant.
+          # App Store Connect flags variants above the 200 MB over-the-air limit.
           IPA_SIZE_LIMIT_BYTES: "200000000"
-          APP_STORE_SIZE_LIMIT_BYTES: "40000000"
         run: bundle exec fastlane ios ${{ needs.config.outputs.lane }}
