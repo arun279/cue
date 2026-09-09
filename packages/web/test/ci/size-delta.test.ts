@@ -7,10 +7,11 @@ import { tempDirectory } from "../support/temp-directory";
 
 const SCRIPT = repositoryPath("scripts/check-size-delta.mjs");
 
-const run = (growth: number, rationale = "") => {
+const MEASURED = ["expo iOS bundle", "expo Android bundle", "Play download estimate"];
+
+const run = (growth: number, rationale = "", measured: readonly string[] = MEASURED) => {
   const directory = tempDirectory("cue-size-delta-");
-  const names = ["expo iOS bundle", "expo Android bundle", "Play download estimate"];
-  const sizes = (size: number) => names.map((name) => ({ name, size }));
+  const sizes = (size: number) => measured.map((name) => ({ name, size }));
   writeFileSync(path.join(directory, "base.json"), JSON.stringify({ sizes: sizes(1_000_000) }));
   writeFileSync(
     path.join(directory, "head.json"),
@@ -36,6 +37,17 @@ describe("size delta gate", () => {
     expect(
       run(64_001, "Context\nBinary-Size: The larger artwork is worth the download.\n").status,
     ).toBe(0);
+  });
+
+  it("does not read prose as the rationale marker", () => {
+    expect(run(64_001, "The binary size: it grew.\nbinary-size: shrug\n").status).toBe(1);
+  });
+
+  it("fails when an artifact is missing from either side", () => {
+    const result = run(0, "", MEASURED.slice(0, 2));
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("Play download estimate: not measured on both sides");
   });
 
   it("does not gate a merge base without the packages", () => {

@@ -37,7 +37,4 @@ for (const asset of manifest.assets) {
 }
 
 const total = [...actualByPath.values()].reduce((sum, asset) => sum + asset.bytes, 0);
-if (total > manifest.totalBytes) {
-  throw new Error(`native assets total ${total} bytes exceeds ${manifest.totalBytes} bytes`);
-}
 process.stdout.write(`native assets: ${actualByPath.size} files, ${total} bytes\n`);

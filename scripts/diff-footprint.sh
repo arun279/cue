@@ -104,7 +104,7 @@ const sizeRows = [
   ["web all js and css (brotli)", "web all JavaScript and CSS"],
   ["expo ios bundle (raw)", "expo iOS bundle"],
   ["expo android bundle (raw)", "expo Android bundle"],
-  ["Play download (arm64, en)", "Play download estimate"],
+  ["play download (xxxhdpi arm64)", "Play download estimate"],
 ];
 
 process.stdout.write("\n### Bundle size\n\n");

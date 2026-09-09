@@ -19,14 +19,14 @@ const parseBytes = (value) => {
 };
 
 const config = JSON.parse(read(".size-limit.json"));
+const previousConfigs = history(".size-limit.json").flatMap((contents) => JSON.parse(contents));
 for (const entry of config) {
   if (
     !/^Measured \d+ bytes on \d{4}-\d{2}-\d{2}\..*Reduction target \d+ bytes/.test(entry.message)
   ) {
     throw new Error(`${entry.name}: missing measurement, date, or reduction target`);
   }
-  const previous = history(".size-limit.json")
-    .flatMap((contents) => JSON.parse(contents))
+  const previous = previousConfigs
     .filter(({ name }) => name === entry.name)
     .map(({ limit }) => parseBytes(limit));
   const limit = parseBytes(entry.limit);

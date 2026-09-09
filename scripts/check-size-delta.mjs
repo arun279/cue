@@ -17,7 +17,12 @@ const measured = ["expo iOS bundle", "expo Android bundle", "Play download estim
 const byName = (entries) => Object.fromEntries(entries.map((entry) => [entry.name, entry.size]));
 const before = byName(base.sizes);
 const after = byName(head.sizes);
-const exceeded = measured.filter((name) => after[name] - before[name] > threshold);
+const growth = measured.map((name) => {
+  const delta = after[name] - before[name];
+  if (!Number.isFinite(delta)) throw new Error(`${name}: not measured on both sides`);
+  return { name, delta };
+});
+const exceeded = growth.filter(({ delta }) => delta > threshold);
 
 if (exceeded.length === 0) {
   process.stdout.write(`size delta gate: all user artifacts grew by at most ${threshold} bytes\n`);
@@ -30,9 +35,7 @@ if (marker !== undefined) {
   process.exit(0);
 }
 
-const details = exceeded
-  .map((name) => `${name} grew by ${after[name] - before[name]} bytes`)
-  .join("; ");
+const details = exceeded.map(({ name, delta }) => `${name} grew by ${delta} bytes`).join("; ");
 throw new Error(
   `${details}; limit ${threshold} bytes. Add "Binary-Size: <rationale>" to the PR body.`,
 );

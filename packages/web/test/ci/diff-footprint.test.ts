@@ -129,7 +129,7 @@ describe("diff footprint", () => {
     expect(output).toContain("| expo ios bundle (raw) | 4.00 MB | 4.00 MB | +1.0 kB | 4450 kB |");
     expect(output).toContain("| expo android bundle (raw) | 4.20 MB | 4.20 MB | 0 B | 4830 kB |");
     expect(output).toContain(
-      "| Play download (arm64, en) | 17.00 MB | 17.00 MB | 0 B | 20000 kB |",
+      "| play download (xxxhdpi arm64) | 17.00 MB | 17.00 MB | 0 B | 20000 kB |",
     );
     expect(output).toContain("| functions over cognitive complexity 15 | 18 | 21 | +3 |");
     expect(output).toContain("| worst cognitive complexity | 60 | 71 | +11 |");

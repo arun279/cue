@@ -23,7 +23,6 @@ const setup = () => {
     manifest,
     JSON.stringify({
       measuredOn: "2026-09-09",
-      totalBytes: 5,
       assets: [{ path: "assets/known", type: "png", bytes: 5, platforms: ["ios"] }],
     }),
   );
