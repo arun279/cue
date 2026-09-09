@@ -1,11 +1,11 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { useRuntime } from "../runtime/runtime";
-import { USER_STATE_STALE_TIME } from "./query-freshness";
+import { type QueryStatus, queryStatus, USER_STATE_STALE_TIME } from "./query-freshness";
 
 const playsKey = (episodeTrakt: number) => ["episode-plays", episodeTrakt] as const;
 
-export interface EpisodePlaysView {
+export interface EpisodePlaysView extends QueryStatus {
   /** The episode's play count, or null while unknown (read still in flight). An
    * unwatched episode is 0 without a read. */
   readonly count: number | null;
@@ -38,9 +38,10 @@ export function useEpisodePlays(
       void queryClient.invalidateQueries({ queryKey: playsKey(episodeTrakt) });
     }
   }, [queryClient, episodeTrakt]);
-  if (!watched) return { count: 0, refresh };
+  if (!watched) return { count: 0, refresh, ...queryStatus(query, true) };
   return {
     count: query.data === undefined ? null : query.data.length,
     refresh,
+    ...queryStatus(query, query.data !== undefined),
   };
 }

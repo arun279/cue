@@ -2,8 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { queryKeys } from "../data/query-keys";
 import type { ShowHeader } from "../data/trakt/show-detail";
 import { useRuntime } from "../runtime/runtime";
-import { readFailureOf } from "../sync-contract";
-import { CONTENT_STALE_TIME_MS } from "./query-freshness";
+import { CONTENT_STALE_TIME_MS, queryStatus } from "./query-freshness";
 import type { DetailHeaderView } from "./useDetailHeader";
 
 export type ShowDetailView = DetailHeaderView<ShowHeader>;
@@ -35,10 +34,17 @@ export function useShowDetail(showId: number): ShowDetailView {
       : { ...info.data, ...progress.data };
   return {
     header,
-    isLoading: info.isLoading || progress.isLoading,
-    isError: info.isError || progress.isError,
-    hasData: header !== undefined,
-    failure: readFailureOf(info.error ?? progress.error),
+    ...queryStatus(
+      {
+        isLoading: info.isLoading || progress.isLoading,
+        isFetching: info.isFetching || progress.isFetching,
+        isError: info.isError || progress.isError,
+        dataUpdatedAt: Math.min(info.dataUpdatedAt, progress.dataUpdatedAt),
+        error: info.error ?? progress.error,
+        failureReason: info.failureReason ?? progress.failureReason,
+      },
+      header !== undefined,
+    ),
     refetch: () => {
       void info.refetch();
       void progress.refetch();

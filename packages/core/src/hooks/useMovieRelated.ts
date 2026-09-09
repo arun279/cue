@@ -2,11 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import { queryKeys } from "../data/query-keys";
 import type { SearchHit } from "../data/trakt/search";
 import { useRuntime } from "../runtime/runtime";
-import { BROWSE_STALE_TIME_MS } from "./query-freshness";
+import { BROWSE_STALE_TIME_MS, type QueryStatus, queryStatus } from "./query-freshness";
 
-export interface MovieRelatedView {
-  readonly isLoading: boolean;
-  readonly isError: boolean;
+export interface MovieRelatedView extends QueryStatus {
   readonly hits: readonly SearchHit[];
 }
 
@@ -25,8 +23,7 @@ export function useMovieRelated(movieId: number): MovieRelatedView {
     staleTime: BROWSE_STALE_TIME_MS,
   });
   return {
-    isLoading: query.isLoading,
-    isError: query.isError,
+    ...queryStatus(query, query.data !== undefined),
     hits: query.data ?? [],
   };
 }
