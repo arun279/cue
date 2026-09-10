@@ -15,6 +15,11 @@ import {
 import type { QueuedOp } from "../domain/write-queue/types";
 import { useRuntime } from "../runtime/runtime";
 import {
+  forgetSeasonMark,
+  getSeasonMarkDelta,
+  rememberSeasonMark,
+} from "../stores/season-reversal";
+import {
   claimWriteLock,
   episodeWriteLock,
   hasPendingMark,
@@ -28,10 +33,9 @@ import {
   patchShowSeasons,
   refreshShowProgress,
 } from "./library-cache";
-import { type EpisodeUnmarkResolution, resolveEpisodeUnmark } from "./resolveUnmark";
+import { type EpisodeUnmarkResolution, resolveEpisodeUnmark } from "./resolve-unmark";
 import { useOptimisticWrite } from "./useOptimisticWrite";
 import { useResumeOnMark } from "./useResumeOnMark";
-import { forgetSeasonMark, getSeasonMarkDelta, rememberSeasonMark } from "./useSeasonReversal";
 
 interface MarkContextTarget {
   readonly showId: number;

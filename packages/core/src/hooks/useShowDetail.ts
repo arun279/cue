@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { queryKeys } from "../data/query-keys";
 import type { ShowHeader } from "../data/trakt/show-detail";
+import { type DetailHeaderView, queryStatus } from "../queries/freshness";
+import { showInfoQuery, showProgressQuery } from "../queries/shows";
 import { useRuntime } from "../runtime/runtime";
-import { CONTENT_STALE_TIME_MS, type DetailHeaderView, queryStatus } from "./query-freshness";
 
 export type ShowDetailView = DetailHeaderView<ShowHeader>;
 
@@ -17,16 +17,8 @@ export type ShowDetailView = DetailHeaderView<ShowHeader>;
  */
 export function useShowDetail(showId: number): ShowDetailView {
   const runtime = useRuntime();
-  const info = useQuery({
-    queryKey: queryKeys.showInfo(showId),
-    queryFn: () => runtime.loadShowInfo(showId),
-    staleTime: CONTENT_STALE_TIME_MS,
-  });
-  const progress = useQuery({
-    queryKey: queryKeys.showProgress(showId),
-    queryFn: () => runtime.loadShowProgress(showId),
-    staleTime: CONTENT_STALE_TIME_MS,
-  });
+  const info = useQuery(showInfoQuery(runtime, showId));
+  const progress = useQuery(showProgressQuery(runtime, showId));
   const header =
     info.data === undefined || progress.data === undefined
       ? undefined

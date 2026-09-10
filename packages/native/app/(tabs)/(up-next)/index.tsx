@@ -1,5 +1,6 @@
 import { type UpNextEmptyKind, upNextEmptyKind } from "@cue/core/domain/up-next";
-import { stopWatching, useHideShow } from "@cue/core/hooks/useHideShow";
+import { stopWatching } from "@cue/core/hooks/stop-watching";
+import { useHideShow } from "@cue/core/hooks/useHideShow";
 import { type MarkWatched, useMarkWatched } from "@cue/core/hooks/useMarkWatched";
 import { useOnTheWay } from "@cue/core/hooks/useOnTheWay";
 import { useStopSnacks } from "@cue/core/hooks/useStopSnacks";

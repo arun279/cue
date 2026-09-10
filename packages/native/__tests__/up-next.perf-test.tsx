@@ -35,10 +35,8 @@ jest.mock("@cue/core/hooks/useMarkControl", () => ({
 }));
 jest.mock("@cue/core/hooks/useSyncBanner", () => ({ useSyncBanner: () => null }));
 jest.mock("@cue/core/hooks/useUpNext", () => ({ useUpNext: () => mockView }));
-jest.mock("@cue/core/hooks/useHideShow", () => ({
-  stopWatching: jest.fn(),
-  useHideShow: () => ({}),
-}));
+jest.mock("@cue/core/hooks/useHideShow", () => ({ useHideShow: () => ({}) }));
+jest.mock("@cue/core/hooks/stop-watching", () => ({ stopWatching: jest.fn() }));
 jest.mock("@cue/core/hooks/useOnTheWay", () => ({ useOnTheWay: () => [] }));
 jest.mock("@cue/core/hooks/useStopSnacks", () => ({ useStopSnacks: jest.fn() }));
 jest.mock("@cue/core/prefs/prefs-store", () => ({

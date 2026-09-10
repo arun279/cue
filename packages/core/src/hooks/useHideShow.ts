@@ -1,7 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 import { queryKeys } from "../data/query-keys";
-import type { LibraryEntry } from "../data/trakt/library";
 import type { ShowIds } from "../domain/model/ids";
 import { buildHideShowOp, buildUnhideShowOp } from "../domain/write-queue/ops";
 import { useRuntime } from "../runtime/runtime";
@@ -129,17 +128,4 @@ export function useHideShow(): HideController {
     undoable: undoState === null ? null : { title: undoState.title, kind: undoState.kind },
     error,
   };
-}
-
-/**
- * Stop watching one library entry. Every surface that offers it holds the same
- * entry and owes the same three arguments, and a screen assembling them by hand
- * is how two of them end up passing different ids for the same show.
- */
-export function stopWatching(stop: HideController, entry: LibraryEntry): void {
-  void stop.hide(
-    entry.showId,
-    { trakt: entry.showId, tmdb: entry.tmdbId ?? undefined },
-    entry.title,
-  );
 }

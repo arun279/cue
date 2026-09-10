@@ -4,8 +4,8 @@ import { queryKeys } from "../data/query-keys";
 import type { SearchHit } from "../data/trakt/search";
 import { buildAddWatchlistOp, buildRemoveWatchlistOp } from "../domain/write-queue/ops";
 import type { QueuedOp } from "../domain/write-queue/types";
+import { libraryQuery, movieLibraryQuery, watchlistQuery } from "../queries/library";
 import { type MovieLibraryData, type UpNextData, useRuntime } from "../runtime/runtime";
-import { USER_STATE_STALE_TIME } from "./query-freshness";
 import { useOptimisticWrite } from "./useOptimisticWrite";
 
 export interface WatchlistAddView {
@@ -72,18 +72,8 @@ export function useWatchlistAdd(
   const moviesEnabled = sections.movies ?? false;
   const [watchlistShows, watchlistMovies] = useQueries({
     queries: [
-      {
-        queryKey: queryKeys.watchlist("shows"),
-        queryFn: () => runtime.loadWatchlistIds("shows"),
-        staleTime: USER_STATE_STALE_TIME,
-        enabled: showsEnabled,
-      },
-      {
-        queryKey: queryKeys.watchlist("movies"),
-        queryFn: () => runtime.loadWatchlistIds("movies"),
-        staleTime: USER_STATE_STALE_TIME,
-        enabled: moviesEnabled,
-      },
+      { ...watchlistQuery(runtime, "shows"), enabled: showsEnabled },
+      { ...watchlistQuery(runtime, "movies"), enabled: moviesEnabled },
     ],
   });
   const listedShows = watchlistShows.data;
@@ -92,16 +82,8 @@ export function useWatchlistAdd(
   // Library membership is a cache PEEK, never a fetch: these disabled queries
   // subscribe to whatever the home/library screens already loaded (persisted
   // across boots), so "In library" costs this surface zero requests.
-  const libraryEntries = useQuery({
-    queryKey: queryKeys.library(),
-    queryFn: () => runtime.loadUpNext(),
-    enabled: false,
-  }).data?.entries;
-  const movieEntries = useQuery({
-    queryKey: queryKeys.movieLibrary(),
-    queryFn: () => runtime.loadMovieLibrary(),
-    enabled: false,
-  }).data?.entries;
+  const libraryEntries = useQuery({ ...libraryQuery(runtime), enabled: false }).data?.entries;
+  const movieEntries = useQuery({ ...movieLibraryQuery(runtime), enabled: false }).data?.entries;
 
   const isListed = useCallback(
     (hit: SearchHit) =>

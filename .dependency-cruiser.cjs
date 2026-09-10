@@ -114,6 +114,13 @@ module.exports = {
       to: { dependencyTypes: ["core"] },
     },
     {
+      name: "queries-have-no-react",
+      severity: "error",
+      comment: "Query option factories cannot import React.",
+      from: { path: "^packages/core/src/queries/" },
+      to: { path: RE_REACT },
+    },
+    {
       name: "core-imports-no-app",
       severity: "error",
       comment:
@@ -156,7 +163,7 @@ module.exports = {
         "progress read that replaces the one library entry, so a new mark surface " +
         "fails here rather than shipping a queue that quietly stops moving.",
       from: {
-        path: "^packages/[^/]+/src/(hooks|ui)/",
+        path: "^packages/[^/]+/(src/(hooks|queries|stores|ui|screens)|app)/",
         pathNot: "^packages/core/src/hooks/library-cache\\.ts$",
       },
       to: { path: "^packages/core/src/data/query-invalidation\\.ts$" },

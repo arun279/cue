@@ -4,6 +4,12 @@ import { computeWatchStatus, type WatchStatus } from "./watch-status";
 
 export type LibrarySort = "recently-watched" | "alphabetical" | "progress";
 
+type LibraryChipKey = "watching" | "watchlist" | "stopped" | "finished";
+
+export type LibraryChips<T extends LibraryShow = LibraryShow> = Readonly<
+  Record<LibraryChipKey, readonly T[]>
+>;
+
 export interface LibraryBucket {
   readonly status: WatchStatus;
   readonly shows: readonly LibraryShow[];
@@ -31,6 +37,40 @@ function bucketStatus(show: LibraryShow, now: number, thresholdMs: number): Watc
 
 function progressRatio(show: LibraryShow): number {
   return show.aired > 0 ? show.completed / show.aired : 0;
+}
+
+function chipOf(entry: LibraryShow, now: number, thresholdMs: number): LibraryChipKey {
+  const status = computeWatchStatus(entry, now, thresholdMs);
+  switch (status) {
+    case "watching":
+    case "lapsed":
+    case "caught-up":
+      return "watching";
+    case "not-started":
+      return "watchlist";
+    case "abandoned":
+      return "stopped";
+    case "ended":
+      return "finished";
+  }
+}
+
+export function chipBuckets<T extends LibraryShow>(
+  entries: readonly T[],
+  now: number,
+  thresholdMs: number,
+  sort: LibrarySort,
+): LibraryChips<T> {
+  const lists: Record<LibraryChipKey, T[]> = {
+    watching: [],
+    watchlist: [],
+    stopped: [],
+    finished: [],
+  };
+  for (const entry of entries) lists[chipOf(entry, now, thresholdMs)].push(entry);
+  const comparator = comparatorFor(sort);
+  for (const list of Object.values(lists)) list.sort(comparator);
+  return lists;
 }
 
 /** Case-insensitive title order: the shared alphabetical comparator for both the

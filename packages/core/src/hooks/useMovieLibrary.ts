@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
-import { queryKeys } from "../data/query-keys";
 import type { MovieEntry } from "../data/trakt/movie-library";
 import { byTitle } from "../domain/library-buckets";
+import { type QueryStatus, queryStatus } from "../queries/freshness";
+import { movieLibraryQuery } from "../queries/library";
 import { useRuntime } from "../runtime/runtime";
-import { type QueryStatus, queryStatus, USER_STATE_STALE_TIME } from "./query-freshness";
 
 /** Honest movie taxonomy (Rams #6): a film is watched or not: no episode
  * progress: so the library groups into Watchlist (want to watch) and Watched
@@ -71,9 +71,7 @@ export function useMovieLibrary(
 ): MovieLibraryView {
   const runtime = useRuntime();
   const query = useQuery({
-    queryKey: queryKeys.movieLibrary(),
-    queryFn: () => runtime.loadMovieLibrary(),
-    staleTime: USER_STATE_STALE_TIME,
+    ...movieLibraryQuery(runtime),
     // A single-medium user never fetches the medium they turned off: a
     // movies-off Library leaves this query idle rather than reading a hidden section.
     enabled,

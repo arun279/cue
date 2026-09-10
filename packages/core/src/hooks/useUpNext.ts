@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import type { LibraryEntry } from "../data/trakt/library";
 import { groupUpNext, type UpNextItem } from "../domain/up-next";
 import { usePrefs } from "../prefs/prefs-store";
-import { type QueryStatus, queryStatus } from "./query-freshness";
+import { type QueryStatus, queryStatus } from "../queries/freshness";
 import { sortLapsed, sortQueue, stabilizePendingAdvance } from "./queue-order";
 import { useLibrarySnapshot } from "./useLibrarySnapshot";
 

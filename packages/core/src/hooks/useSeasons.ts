@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { queryKeys } from "../data/query-keys";
 import type { SeasonView } from "../data/trakt/show-detail";
+import { type QueryStatus, queryStatus } from "../queries/freshness";
+import { showSeasonsQuery } from "../queries/shows";
 import { useRuntime } from "../runtime/runtime";
-import { CONTENT_STALE_TIME_MS, type QueryStatus, queryStatus } from "./query-freshness";
 
 export interface SeasonsView extends QueryStatus {
   readonly seasons: readonly SeasonView[];
@@ -16,11 +16,7 @@ export interface SeasonsView extends QueryStatus {
  */
 export function useSeasons(showId: number): SeasonsView {
   const runtime = useRuntime();
-  const query = useQuery({
-    queryKey: queryKeys.showSeasons(showId),
-    queryFn: () => runtime.loadShowSeasons(showId),
-    staleTime: CONTENT_STALE_TIME_MS,
-  });
+  const query = useQuery(showSeasonsQuery(runtime, showId));
   return {
     seasons: query.data ?? [],
     ...queryStatus(query, query.data !== undefined),

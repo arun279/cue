@@ -4,13 +4,13 @@
  * SAME full-window query (one GET serves home's 72h "On the way" slice and the
  * 28-day Calendar screen), and narrower callers get a client-side day slice.
  */
-import type { CalendarEntry } from "@cue/core/domain/calendar";
 import {
-  CALENDAR_WINDOW_DAYS,
+  type CalendarEntry,
   recentCalendarStart,
   sliceCalendarDays,
-  useCalendar,
-} from "@cue/core/hooks/useCalendar";
+} from "@cue/core/domain/calendar";
+import { useCalendar } from "@cue/core/hooks/useCalendar";
+import { CALENDAR_WINDOW_DAYS } from "@cue/core/queries/calendar";
 import { type CueRuntime, RuntimeProvider } from "@cue/core/runtime/runtime";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, type ReactElement } from "react";

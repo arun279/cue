@@ -36,7 +36,7 @@ import {
   patchShowSeasons,
   refreshShowProgress,
 } from "./library-cache";
-import { findMarkPlay } from "./resolveUnmark";
+import { findMarkPlay } from "./resolve-unmark";
 import { useOptimisticWrite } from "./useOptimisticWrite";
 
 export interface MarkWatched {

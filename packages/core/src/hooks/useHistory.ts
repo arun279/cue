@@ -14,14 +14,13 @@ import {
   buildMarkMovieOp,
   buildRemoveHistoryPlayOp,
 } from "../domain/write-queue/ops";
-import { type HistorySection, type SubmitOutcome, useRuntime } from "../runtime/runtime";
+import { type QueryStatus, queryStatus } from "../queries/freshness";
+import { type HistoryFilter, historyQuery } from "../queries/history";
+import { type SubmitOutcome, useRuntime } from "../runtime/runtime";
 import { refreshShowProgress } from "./library-cache";
-import { type QueryStatus, queryStatus, USER_STATE_STALE_TIME } from "./query-freshness";
 import { useOptimisticWrite } from "./useOptimisticWrite";
 
 /** The history type filter, in user words; mapped to the history endpoint slice. */
-type HistoryFilter = "all" | "tv" | "movies";
-
 /**
  * The full history read scope: which medium (type filter) and which decade window
  * (a year, or a month within it, or the unbounded recent feed when both are
@@ -34,12 +33,6 @@ export interface HistoryScope {
   readonly month?: number;
   readonly preview?: boolean;
 }
-
-const SECTION: Record<HistoryFilter, HistorySection> = {
-  all: "all",
-  tv: "episodes",
-  movies: "movies",
-};
 
 /**
  * The transient snackbar after a per-play removal. `removed` offers the Undo;
@@ -103,13 +96,7 @@ export function useHistory(scope: HistoryScope): HistoryView {
   );
   const scopeKey = preview === true ? "preview" : historyScopeKey(year, month);
 
-  const query = useInfiniteQuery({
-    queryKey: queryKeys.history(filter, scopeKey),
-    queryFn: ({ pageParam }) => runtime.loadHistory(SECTION[filter], pageParam, range),
-    initialPageParam: 1,
-    getNextPageParam: (last) => (last.page < last.pageCount ? last.page + 1 : undefined),
-    staleTime: USER_STATE_STALE_TIME,
-  });
+  const query = useInfiniteQuery(historyQuery(runtime, filter, scopeKey, range));
 
   const days = useMemo<HistoryDay[]>(() => {
     const all = query.data?.pages.flatMap((page) => page.entries) ?? [];

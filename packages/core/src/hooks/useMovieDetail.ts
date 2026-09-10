@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { queryKeys } from "../data/query-keys";
 import type { MovieHeader } from "../data/trakt/movie-library";
+import { type DetailHeaderView, queryStatus } from "../queries/freshness";
+import { movieHeaderQuery } from "../queries/movies";
 import { useRuntime } from "../runtime/runtime";
-import { CONTENT_STALE_TIME_MS, type DetailHeaderView, queryStatus } from "./query-freshness";
 
 export type MovieDetailView = DetailHeaderView<MovieHeader>;
 
@@ -14,11 +14,7 @@ export type MovieDetailView = DetailHeaderView<MovieHeader>;
  */
 export function useMovieDetail(movieId: number): MovieDetailView {
   const runtime = useRuntime();
-  const query = useQuery({
-    queryKey: queryKeys.movieHeader(movieId),
-    queryFn: () => runtime.loadMovieHeader(movieId),
-    staleTime: CONTENT_STALE_TIME_MS,
-  });
+  const query = useQuery(movieHeaderQuery(runtime, movieId));
   return {
     header: query.data,
     ...queryStatus(query, query.data !== undefined),

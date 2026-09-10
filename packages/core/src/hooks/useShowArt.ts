@@ -1,28 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { queryKeys } from "../data/query-keys";
-import type { ShowInfo } from "../data/trakt/show-detail";
+import { EMPTY_SHOW_ART, type ShowArt, selectArt, showInfoQuery } from "../queries/shows";
 import { useRuntime } from "../runtime/runtime";
-import { CONTENT_STALE_TIME_MS } from "./query-freshness";
 
-export interface ShowArt {
-  readonly posters: readonly string[];
-  readonly backdrops: readonly string[];
-}
-
-const EMPTY: ShowArt = { posters: [], backdrops: [] };
-
-/** Module-level so TanStack can memoize the slice instead of re-deriving it per render. */
-const selectArt = (info: ShowInfo): ShowArt => ({
-  posters: info.posters,
-  backdrops: info.backdrops,
-});
-
-/**
- * How long a card must hold still on screen before it is worth a GET. A card
- * flicked past crosses the viewport in well under this, so a scroll spends
- * nothing; a card the reader stops on resolves right after the scroll settles.
- */
-export const ART_SETTLE_MS = 250;
+export type { ShowArt };
 
 /**
  * Deferred per-card show art. The bounded cold-sync read paints the queue and
@@ -40,12 +20,6 @@ export const ART_SETTLE_MS = 250;
  */
 export function useShowArt(showId: number, enabled: boolean): ShowArt {
   const runtime = useRuntime();
-  const query = useQuery({
-    queryKey: queryKeys.showInfo(showId),
-    queryFn: () => runtime.loadShowInfo(showId),
-    staleTime: CONTENT_STALE_TIME_MS,
-    enabled,
-    select: selectArt,
-  });
-  return query.data ?? EMPTY;
+  const query = useQuery({ ...showInfoQuery(runtime, showId), enabled, select: selectArt });
+  return query.data ?? EMPTY_SHOW_ART;
 }

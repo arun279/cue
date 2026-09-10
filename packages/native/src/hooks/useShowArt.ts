@@ -1,8 +1,5 @@
-import {
-  ART_SETTLE_MS,
-  type ShowArt,
-  useShowArt as useShowArtQuery,
-} from "@cue/core/hooks/useShowArt";
+import { type ShowArt, useShowArt as useShowArtQuery } from "@cue/core/hooks/useShowArt";
+import { ART_SETTLE_MS } from "@cue/core/queries/shows";
 import { useEffect, useState } from "react";
 
 /**

@@ -1,8 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { queryKeys } from "../data/query-keys";
 import type { UserProfile } from "../data/trakt/user-profile";
+import { userProfileQuery } from "../queries/user";
 import { useRuntime } from "../runtime/runtime";
-import { USER_STATE_STALE_TIME } from "./query-freshness";
 
 /**
  * The Profile identity read: `/users/settings`, once. Identity changes about
@@ -13,10 +12,6 @@ import { USER_STATE_STALE_TIME } from "./query-freshness";
  */
 export function useUserProfile(): UserProfile | undefined {
   const runtime = useRuntime();
-  const query = useQuery({
-    queryKey: queryKeys.userSettings(),
-    queryFn: () => runtime.loadUserProfile(),
-    staleTime: USER_STATE_STALE_TIME,
-  });
+  const query = useQuery(userProfileQuery(runtime));
   return query.data;
 }

@@ -1,6 +1,8 @@
 import { dayLabeler } from "./day";
 import type { EpisodeIds } from "./model/ids";
-import { toMs } from "./time";
+import { DAY_MS, toMs } from "./time";
+
+const RECENT_CALENDAR_WINDOW_DAYS = 33;
 
 /** One upcoming/aired episode, flattened from a `/calendars/my/shows` row. */
 export interface CalendarEntry {
@@ -32,6 +34,23 @@ export interface GroupCalendarOptions {
   readonly now: number;
   readonly timeZone: string;
   readonly hiddenShowIds: ReadonlySet<number>;
+}
+
+export function recentCalendarStart(dayKey: string): string {
+  return new Date(Date.parse(dayKey) - (RECENT_CALENDAR_WINDOW_DAYS - 1) * DAY_MS)
+    .toISOString()
+    .slice(0, 10);
+}
+
+export function sliceCalendarDays(
+  days: readonly CalendarDay[],
+  startKey: string,
+  windowDays: number,
+  fullWindowDays = 28,
+): readonly CalendarDay[] {
+  if (windowDays >= fullWindowDays) return days;
+  const limit = Date.parse(startKey) + windowDays * DAY_MS;
+  return days.filter((day) => Date.parse(day.dayKey) < limit);
 }
 
 /**

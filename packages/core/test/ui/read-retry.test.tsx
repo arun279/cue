@@ -14,7 +14,7 @@ import {
   withReadRateRetry,
 } from "@cue/core/data/trakt/read-budget";
 import { backoffMs } from "@cue/core/domain/write-queue/classify";
-import { queryStatus } from "@cue/core/hooks/query-freshness";
+import { queryStatus } from "@cue/core/queries/freshness";
 import { createQueryClient } from "@cue/core/runtime/query-cache";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { act } from "react";

@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { queryKeys } from "../data/query-keys";
 import type { EpisodeDetail } from "../data/trakt/episode-detail";
+import { type QueryStatus, queryStatus } from "../queries/freshness";
+import { episodeQuery } from "../queries/shows";
 import { useRuntime } from "../runtime/runtime";
-import { CONTENT_STALE_TIME_MS, type QueryStatus, queryStatus } from "./query-freshness";
 
 export interface EpisodeView extends QueryStatus {
   readonly episode: EpisodeDetail | undefined;
@@ -16,11 +16,7 @@ export interface EpisodeView extends QueryStatus {
  */
 export function useEpisode(showId: number, season: number, number: number): EpisodeView {
   const runtime = useRuntime();
-  const query = useQuery({
-    queryKey: queryKeys.episode(showId, season, number),
-    queryFn: () => runtime.loadEpisode(showId, season, number),
-    staleTime: CONTENT_STALE_TIME_MS,
-  });
+  const query = useQuery(episodeQuery(runtime, showId, season, number));
   return {
     episode: query.data,
     ...queryStatus(query, query.data !== undefined),

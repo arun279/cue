@@ -1,9 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { queryKeys } from "../data/query-keys";
 import type { SearchHit } from "../data/trakt/search";
+import { searchQuery } from "../queries/discover";
+import { type QueryStatus, queryStatus } from "../queries/freshness";
 import { useRuntime } from "../runtime/runtime";
-import { type QueryStatus, queryStatus } from "./query-freshness";
 import { useWatchlistAdd } from "./useWatchlistAdd";
 
 /**
@@ -12,7 +12,6 @@ import { useWatchlistAdd } from "./useWatchlistAdd";
  * a mid-word burst collapses to exactly one `/search` request.
  */
 const DEBOUNCE_MS = 300;
-const SEARCH_TYPES = "show,movie";
 const RECENT_LIMIT = 5;
 
 type SearchStatus = "idle" | "searching" | "results" | "empty" | "error";
@@ -32,16 +31,6 @@ export interface SearchView extends QueryStatus {
   remove(hit: SearchHit): Promise<void>;
   readonly addError: string | null;
   clearAddError(): void;
-}
-
-/** A single-medium user never sees the other medium as a result row (which
- * would be a live entry point into a hidden section). */
-export function visibleSearchHits(
-  hits: readonly SearchHit[],
-  showsEnabled: boolean,
-  moviesEnabled: boolean,
-): readonly SearchHit[] {
-  return hits.filter((hit) => (hit.type === "movie" ? moviesEnabled : showsEnabled));
 }
 
 /**
@@ -66,11 +55,7 @@ export function useSearch(): SearchView {
   }, [trimmed]);
 
   const enabled = debounced.length > 0;
-  const query = useQuery({
-    queryKey: queryKeys.search(debounced, SEARCH_TYPES),
-    queryFn: () => runtime.search(debounced),
-    enabled,
-  });
+  const query = useQuery({ ...searchQuery(runtime, debounced), enabled });
 
   useEffect(() => {
     if (query.isSuccess && debounced.length > 0) {
