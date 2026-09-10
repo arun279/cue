@@ -5,8 +5,7 @@
  * modelled here rather than by intercepting requests in a test: a rate limit
  * that closes the window for a few seconds, a 502 from a proxy, a slow answer,
  * a connection that hangs, a connection that dies. Driven either by
- * `MOCK_TRAKT_FAULTS` at boot or by `POST /__fault` at runtime, so a Playwright
- * flow can arm one mid-session and watch the app react.
+ * `MOCK_TRAKT_FAULTS` at boot or by `POST /__fault` at runtime.
  *
  * A rule:
  *   match     "reads" (GET) | "writes" (POST) | "all"        default "all"
@@ -16,7 +15,8 @@
  *   retryAfter  seconds, sent as `Retry-After`
  *   delayMs   wait this long before answering
  *   hold      accept the request and never answer it
- *   drop      destroy the socket without a response
+ *   drop      destroy the socket before applying the route
+ *   dropAfter apply the route, then destroy the socket without a response
  *   after     let this many matching requests through first
  *   count     apply to at most this many matching requests
  *   forMs     apply for this long after the rule is armed
@@ -25,9 +25,8 @@
  * and the account never changes, which is what the write queue's reconcile is
  * for. A rule with neither `count` nor `forMs` stands until it is cleared.
  *
- * The named profiles below are the same failures spelled once, so a browser
- * flow and a simulator flow arm an identical Trakt through `POST /__fault?<name>`
- * and their write journals stay comparable.
+ * Named profiles spell each reusable failure once for the core harness and
+ * simulator flows.
  */
 
 const METHOD_OF = { reads: "GET", writes: "POST" };
@@ -62,7 +61,9 @@ const DURABLE_OP_LOG = [
 
 const faultProfiles = {
   "next-read-401": { rules: [{ match: "reads", status: 401, count: 1 }] },
-  "refuse-refresh": { rules: [{ path: "^/oauth/token$", status: 401 }] },
+  "refuse-refresh": {
+    rules: [{ path: "^/oauth/token$", status: 401, body: { error: "invalid_grant" } }],
+  },
   "rate-limit-progress": {
     rules: [
       {
@@ -76,6 +77,9 @@ const faultProfiles = {
   },
   "hold-write": { rules: [{ match: "writes", path: "^/sync/", hold: true }] },
   "drop-write": { rules: [{ match: "writes", path: "^/sync/", drop: true }] },
+  "apply-drop-write": {
+    rules: [{ match: "writes", path: "^/sync/history$", dropAfter: true, count: 1 }],
+  },
   "fail-history-page": {
     rules: [
       {
@@ -173,7 +177,9 @@ export function faultResponse(rule) {
   return {
     status: rule.status,
     headers,
-    body: JSON.stringify(rule.status === 429 ? { error: "rate limit exceeded" } : {}),
+    body: JSON.stringify(
+      rule.body ?? (rule.status === 429 ? { error: "rate limit exceeded" } : {}),
+    ),
   };
 }
 

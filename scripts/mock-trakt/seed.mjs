@@ -3,9 +3,8 @@
  *
  * One seeded library, held in memory and moved by the write endpoints, so a mark
  * made in the app shows up on the next progress read. Every show is a flat list
- * of episodes in watch order plus a linear `completed` counter: the same model
- * the hermetic Playwright fixtures use, because it keeps the watched breakdown,
- * the progress tree, the history rows and the writes all derivable from one
+ * of episodes in watch order plus a linear `completed` counter, which keeps the
+ * watched breakdown, progress tree, history rows, and writes derivable from one
  * number a write can move.
  *
  * The shapes are Trakt's, not the app's: `/sync/watched/shows` carries no images
