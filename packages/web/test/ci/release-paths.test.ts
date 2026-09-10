@@ -189,6 +189,19 @@ const readWorkflowJobs = (workflowPath: string): CiJob[] => {
 
 const readCiJobs = (): CiJob[] => readWorkflowJobs(CI_WORKFLOW);
 
+const readNamedStep = (workflowPath: string, jobName: string, stepName: string): string => {
+  const job = readWorkflowJobs(workflowPath).find(({ name }) => name === jobName);
+  if (job === undefined) throw new Error(`expected ${jobName} job`);
+
+  const marker = `      - name: ${stepName}`;
+  const start = job.body.indexOf(marker);
+  if (start === -1) throw new Error(`expected ${jobName} step ${stepName}`);
+
+  const remainder = job.body.slice(start + marker.length);
+  const nextStep = /^ {6}- /m.exec(remainder);
+  return remainder.slice(0, nextStep?.index ?? remainder.length);
+};
+
 const readArchitectureDoesNotShipMatchers = (): RegExp[] => {
   const config = readFileSync(DEPENDENCY_CRUISER_CONFIG, "utf8");
   return ["RE_DOES_NOT_SHIP_DIRECTORY", "RE_DOES_NOT_SHIP_MARKDOWN", "RE_DOES_NOT_SHIP_FILE"].map(
@@ -327,6 +340,28 @@ describe("the iOS toolchain pin", () => {
     expect(release).toHaveLength(1);
     expect(ci.length).toBeGreaterThan(0);
     expect([...new Set(ci)]).toEqual(release);
+  });
+});
+
+describe("native bundle environment", () => {
+  it.each([
+    [CI_WORKFLOW, "native-android", "Build and check release artifacts", "ci"],
+    [
+      MOBILE_RELEASE_WORKFLOW,
+      "android",
+      "Fastlane android ${{ needs.config.outputs.fastlane_lane }}",
+      "${{ vars.VITE_TRAKT_CLIENT_ID }}",
+    ],
+    [
+      MOBILE_RELEASE_WORKFLOW,
+      "ios",
+      "Fastlane ios ${{ needs.config.outputs.fastlane_lane }}",
+      "${{ vars.VITE_TRAKT_CLIENT_ID }}",
+    ],
+  ])("embeds the Trakt client id in %s's %s bundle", (workflow, job, step, value) => {
+    expect(readNamedStep(workflow, job, step)).toContain(
+      `          EXPO_PUBLIC_TRAKT_CLIENT_ID: ${value}`,
+    );
   });
 });
 

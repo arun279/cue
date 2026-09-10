@@ -342,6 +342,7 @@ jobs:
       - name: Build and check release artifacts
         working-directory: packages/native/android
         env:
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
           PLAY_SIZE_MEASUREMENT_BYTES: "16920872"
           PLAY_SIZE_MEASURED_ON: "2026-09-09"
           PLAY_SIZE_LIMIT_BYTES: "20000000"
