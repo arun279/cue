@@ -45,7 +45,6 @@ packages/native/modules/*/android/.cxx/
 secrets/
 # Testing
 coverage/
-playwright-report/
 test-results/
 # The equivalence lane's recording: one run's artifact, captured fresh on each
 # side of a comparison rather than carried in the tree to go stale.
@@ -58,8 +57,6 @@ packages/native/.reassure/*
 # Local design-review output (screenshots + notes). Never push.
 design-review/
 
-# Playwright MCP scratch output (console logs + snapshots) from local UI runs.
-.playwright-mcp/
 
 # Editor / OS
 .DS_Store

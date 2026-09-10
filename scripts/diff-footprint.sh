@@ -100,8 +100,6 @@ const deltaBytes = (value) => {
 const signed = (value, digits = 0) =>
   value === 0 ? (digits === 0 ? "0" : value.toFixed(digits)) : `${value > 0 ? "+" : ""}${value.toFixed(digits)}`;
 const sizeRows = [
-  ["web initial load (brotli)", "web initial load"],
-  ["web all js and css (brotli)", "web all JavaScript and CSS"],
   ["expo ios bundle (raw)", "expo iOS bundle"],
   ["expo android bundle (raw)", "expo Android bundle"],
   ["play download (xxxhdpi arm64)", "Play download estimate"],
@@ -130,7 +128,7 @@ const complexityRows = [
     2,
   ],
   ["product comment density", base.comments?.total.density, head.comments.total.density, 2],
-  ...["core", "web", "native"].map((name) => [
+  ...["core", "native"].map((name) => [
     `${name} comment density`,
     base.comments?.packages[name].density,
     head.comments.packages[name].density,

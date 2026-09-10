@@ -16,7 +16,6 @@ const files = execFileSync(
     "-z",
     "--",
     "packages/core/src",
-    "packages/web/src",
     "packages/native/src",
     "packages/native/app",
     "packages/native/modules",
@@ -35,7 +34,7 @@ if (files.length === 0) {
 }
 
 const packages = Object.fromEntries(
-  ["core", "web", "native"].map((name) => [name, { code: 0, comments: 0, blank: 0 }]),
+  ["core", "native"].map((name) => [name, { code: 0, comments: 0, blank: 0 }]),
 );
 for (const file of files) {
   const name = /^packages\/([^/]+)\//.exec(file)?.[1];

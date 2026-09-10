@@ -19,12 +19,11 @@ export interface RuntimeBootProps {
  *
  * The effect itself, which reads the token, restores and replays the durable
  * write queue and registers the teardown, is `@cue/core/app/boot` and is the
- * same on both targets; only these three renders differ. What must not be lost
- * in that split is the behavior behind it: a failed startup reconcile has to
+ * owned by the core package. A failed startup reconcile has to
  * reach a visible retry rather than a stuck spinner.
  *
  * The dependencies arrive assembled, from the composition root that already
- * knows which build this is and where the cache lives, so this file knows only
+ * knows the platform and where the cache lives, so this file knows only
  * how to draw three states.
  */
 export function RuntimeBoot({ deps, children }: RuntimeBootProps): ReactElement {

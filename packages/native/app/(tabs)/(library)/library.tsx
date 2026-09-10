@@ -7,9 +7,8 @@ import { FlatList, Text, View } from "react-native";
 import { TEST_IDS } from "../../../src/ui/test-ids";
 
 /**
- * Library, over the shared bucket hooks, with the segment read through the same
- * parser the web app validates its query string with. A route parameter is
- * untrusted text on both targets, from a deep link or a hand-edited address, so
+ * Library, over the shared bucket hooks, with the segment read through the core
+ * route parser. A route parameter is untrusted text from a deep link, so
  * the one that decides which medium is shown is parsed rather than trusted, and
  * the medium that is not shown leaves its query idle rather than reading a
  * section nobody is looking at.

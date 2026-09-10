@@ -1,8 +1,7 @@
 /**
  * The size gates in `.size-limit.json`, run one scope at a time because the two
- * artefacts are built by different steps: `pnpm check` builds and measures the
- * web bundles, and CI's native-android job builds and measures the two Hermes
- * bundles after an `expo export`.
+ * artifacts are built by different steps: the deterministic check exports and
+ * measures the two Hermes bundles, while CI also measures store artifacts.
  *
  * Every ceiling is the measured artefact plus headroom, which is the only method
  * available for a number with no external anchor. The native pair was last
@@ -17,12 +16,11 @@ import { fileURLToPath } from "node:url";
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const scope = process.argv[2];
-const prefix = scope === "web" ? "web " : scope === "native" ? "expo " : null;
-if (prefix === null) throw new Error("usage: check-size.mjs <web|native>");
+if (scope !== "native") throw new Error("usage: check-size.mjs native");
 
 const config = JSON.parse(readFileSync(path.join(root, ".size-limit.json"), "utf8"));
 const checks = config
-  .filter(({ name }) => name.startsWith(prefix))
+  .filter(({ name }) => name.startsWith("expo "))
   .map((check) => ({
     ...check,
     path: Array.isArray(check.path)

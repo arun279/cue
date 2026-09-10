@@ -5,9 +5,8 @@
  * jest-expo mocks the native modules but not functionally: `expo-sqlite`'s
  * `NativeDatabase` is not a constructor under it, and `expo-secure-store`'s
  * getter answers nothing it was given. So what runs here is the shape of the
- * calls each adapter makes and the key mapping it applies, which is the same
- * bargain the web lane uses for IndexedDB. The backends
- * themselves are proved on a simulator, where the SQLite file and the Keychain
+ * calls each adapter makes and the key mapping it applies. The backends are
+ * proved on a simulator, where the SQLite file and the Keychain
  * are real.
  */
 

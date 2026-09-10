@@ -24,9 +24,8 @@ import { Platform, Text, type TextProps, type TextStyle } from "react-native";
  * what puts it on Android 14's non-linear curve, and no spacing value anywhere
  * is in `sp`.
  *
- * The faces are `@expo-google-fonts` rather than the `@fontsource-variable`
- * packages the web app uses, which ship WOFF2 only; a native text engine needs
- * TTF or OTF.
+ * The faces use `@expo-google-fonts`, which provides the TTF or OTF assets a
+ * native text engine needs.
  */
 export type TypeRole =
   | "screenTitle"
@@ -155,7 +154,7 @@ const BASE = byRole((spec) => ({
   ...faceStyle(spec.face, spec.weight),
 }));
 
-/** React Native takes tracking in points; the stylesheets specify ems. */
+/** React Native takes tracking in points, so the ratio is applied to each role's size. */
 const EYEBROW_TRACKING_EM = Platform.OS === "ios" ? 0.06 : 0.08;
 const EYEBROW = byRole<TextStyle>((spec) => ({
   textTransform: "uppercase",

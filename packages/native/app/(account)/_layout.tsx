@@ -15,8 +15,8 @@ import { TEST_IDS } from "../../src/ui/test-ids";
  * screens and its own back stack rather than a scoped peek at the parent; it
  * would also make the month-jump sheet inside History a sheet over a sheet.
  *
- * `initialRouteName` is what builds Profile under a cold deep link into Settings
- * or History, which is what deletes the web app's per-route back fallbacks.
+ * `initialRouteName` builds Profile under a cold deep link into Settings or
+ * History, preserving a real back destination.
  */
 export const unstable_settings = { initialRouteName: "profile" };
 

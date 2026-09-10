@@ -6,8 +6,8 @@ import { SectionList, Text, View } from "react-native";
 import { TEST_IDS } from "../../src/ui/test-ids";
 
 /**
- * The diary, over the shared paged read. The medium and the month it is
- * scrolled to are the web app's own URL state, parsed by the same function: a
+ * The diary, over the shared paged read. Its medium and month route state use
+ * the core parser, where a
  * month without a valid year is not a position, so it is dropped with it.
  */
 export default function History(): ReactElement {

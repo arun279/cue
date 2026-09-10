@@ -23,8 +23,7 @@ if (TRAKT_CLIENT_ID === "") {
 
 /**
  * Optional Trakt origin override, for pointing a build at the local fake Trakt
- * instead of a real account. It is the native counterpart of the web app's
- * `--mode mock` gate.
+ * instead of a real account.
  *
  * It cannot be read behind `__DEV__`, which is where a JavaScript-side guard
  * would want to sit. An Expo bundle built for development throws at startup when
