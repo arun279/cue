@@ -300,14 +300,34 @@ jobs:
             --output "$RUNNER_TEMP/maestro-results.xml" \
             --debug-output "$RUNNER_TEMP/maestro-debug" \
             --test-output-dir "$RUNNER_TEMP/maestro-tests"
+      - name: Measure returning-user startup
+        env:
+          DEVICE_ID: ${{ steps.simulator.outputs.device_id }}
+        run: |
+          startup_ceiling_ms=$(jq -r .ceilingMs .startup-time-limit.json)
+          maestro --device "$DEVICE_ID" test .maestro/flows/startup.yaml \
+            --env STARTUP_CEILING_MS="$startup_ceiling_ms" \
+            --format JUNIT \
+            --output "$RUNNER_TEMP/maestro-startup-results.xml" \
+            --debug-output "$RUNNER_TEMP/maestro-startup-debug" \
+            --test-output-dir "$RUNNER_TEMP/maestro-startup-tests"
+      - name: Summarize startup timing
+        if: ${{ !cancelled() }}
+        run: |
+          node scripts/summarize-startup-timing.mjs \
+            "$RUNNER_TEMP/maestro-startup-tests" \
+            >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: ${{ failure() }}
+        if: ${{ !cancelled() }}
         with:
-          name: native-e2e-failure
+          name: native-e2e
           path: |
             ${{ runner.temp }}/maestro-debug/
             ${{ runner.temp }}/maestro-tests/
             ${{ runner.temp }}/maestro-results.xml
+            ${{ runner.temp }}/maestro-startup-debug/
+            ${{ runner.temp }}/maestro-startup-tests/
+            ${{ runner.temp }}/maestro-startup-results.xml
             ${{ runner.temp }}/mock-trakt.log
           retention-days: 7
   native-android:
@@ -399,9 +419,6 @@ jobs:
           arch: x86_64
           profile: pixel_7_pro
           script: bash scripts/verify-android-launch.sh "$RUNNER_TEMP/cue-native-android/universal.apk" "$RUNNER_TEMP/android-logcat.txt"
-      - name: Report skipped upgrade scenario
-        if: ${{ always() }}
-        run: echo "Upgrade scenario skipped because mobile-release run 33952387629 retained no APK artifact and CI has no release signing secrets with which to rebuild the same-signature Capacitor APK."
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ always() }}
         with:
