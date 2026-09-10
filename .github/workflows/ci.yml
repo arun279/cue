@@ -419,6 +419,7 @@ jobs:
     needs: native-android
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
           name: cue-native-android-release-apk
@@ -435,36 +436,10 @@ jobs:
           api-level: 35
           arch: x86_64
           profile: pixel_7_pro
-          script: |
-            set -eu
-            apk="$RUNNER_TEMP/cue-native-android/universal.apk"
-            logcat="$RUNNER_TEMP/android-logcat.txt"
-            : > "$logcat"
-            trap 'adb logcat -d -v threadtime > "$logcat"' EXIT
-
-            adb install "$apk"
-            adb shell am force-stop app.cuetracker
-            adb logcat -c
-            launch_status=0
-            adb shell am start -W -n app.cuetracker/.MainActivity || launch_status=$?
-            sleep 10
-            adb logcat -d -v threadtime > "$logcat"
-
-            if [ "$launch_status" -ne 0 ]; then
-              echo "Activity launch failed with status $launch_status" >&2
-              exit "$launch_status"
-            fi
-            if grep -Eq 'FATAL EXCEPTION|AndroidRuntime.*Process: app\.cuetracker|Process: app\.cuetracker' "$logcat"; then
-              grep -n -C 20 -E 'FATAL EXCEPTION|AndroidRuntime|Process: app\.cuetracker' "$logcat" >&2
-              exit 1
-            fi
-            pid=$(adb shell pidof app.cuetracker | tr -d '\r')
-            if [ -z "$pid" ]; then
-              echo "app.cuetracker is not running after launch" >&2
-              exit 1
-            fi
-            echo "app.cuetracker is alive as PID $pid"
-            echo "Upgrade scenario skipped: mobile-release run 33952387629 retained no APK artifact, and CI has no release signing secrets with which to rebuild the same-signature Capacitor APK."
+          script: bash scripts/verify-android-launch.sh "$RUNNER_TEMP/cue-native-android/universal.apk" "$RUNNER_TEMP/android-logcat.txt"
+      - name: Report skipped upgrade scenario
+        if: ${{ always() }}
+        run: echo "Upgrade scenario skipped because mobile-release run 33952387629 retained no APK artifact and CI has no release signing secrets with which to rebuild the same-signature Capacitor APK."
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ always() }}
         with:
