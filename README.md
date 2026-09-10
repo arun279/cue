@@ -18,7 +18,7 @@ Four tabs: Up Next, Library, Calendar, Search, with History, Profile, and Settin
 
 ## How it works
 
-Cue is **zero-backend**. It is a browser SPA (with a thin Capacitor shell for mobile) that talks directly to the Trakt API over OAuth using the PKCE flow: there is **no client secret and no server** of any kind. Sync state (history, watchlist, progress) lives in your Trakt account; posters and metadata come from Trakt. Nothing is proxied through a backend because there is no backend.
+Cue is **zero-backend**. The web PWA and Expo native app talk directly to the Trakt API over OAuth: there is **no client secret and no server** of any kind. Sync state (history, watchlist, progress) lives in your Trakt account; posters and metadata come from Trakt. Nothing is proxied through a backend because there is no backend.
 
 ## Setup
 
@@ -57,7 +57,7 @@ Every e2e run builds the app and starts its own preview server on port 4173. Set
 - **dprint**: Markdown formatting.
 - **cspell**: spelling across TS/TSX/CSS/MD.
 - **tsc**: strict TypeScript type-check (`--noEmit`).
-- **dependency-cruiser**: sixteen layering rules cruised over every package in one pass. They keep `@cue/core` free of all three apps' libraries, keep Expo and React Native inside `packages/native` and the DOM inside `packages/web`, stop either app importing the other, hold the domain and the data layer to what they may reach, confine `@capacitor/*` to `packages/web/src/platform`, keep every Trakt read behind the pooled wrapper that spends the read budget, and require each package to declare what it imports.
+- **dependency-cruiser**: fifteen layering rules cruised over every package in one pass. They keep `@cue/core` free of app libraries, keep Expo and React Native inside `packages/native` and the DOM inside `packages/web`, stop either app importing the other, hold the domain and the data layer to what they may reach, keep every Trakt read behind the pooled wrapper that spends the read budget, and require each package to declare what it imports.
 - **knip**: no unused files, dependencies, or exports. `@cue/core` exports every module through one wildcard subpath, which would make each of its files an entry point and switch the export lane off over the shared package, so that workspace sets `includeEntryExports` and its public surface is reported the moment nothing imports it.
 - **jscpd**: duplicate-code detection.
 - **Vitest**: unit tests for the two web-side packages. Coverage covers the shared core, the web app's platform adapters and its preferences adapter, with 90/90/90/80 on `domain`, `data`, `prefs`, `url` and `stores`, a ratchet on `hooks`, and a global floor everywhere else. Both composition roots and every screen are gated by the Playwright suite instead.
@@ -79,7 +79,7 @@ pnpm mock:trakt # serve the fake Trakt on http://127.0.0.1:8787 (MOCK_TRAKT_PORT
 pnpm dev:mock   # run the dev server against it
 ```
 
-`--mode mock` loads the committed `.env.mock`, which sets a dummy client id and `VITE_TRAKT_API_BASE=http://127.0.0.1:8787`. That variable is the whole switch: unset, which is every shipped build and every other mode, the app talks to `api.trakt.tv` and `trakt.tv`; set, it talks to the mock instead, sign-in included. `pnpm --filter @cue/web exec vite build --mode mock` produces the same thing as a static bundle to preview or to `cap sync` into a shell.
+`--mode mock` loads the committed `.env.mock`, which sets a dummy client id and `VITE_TRAKT_API_BASE=http://127.0.0.1:8787`. That variable is the whole switch: unset, which is every shipped build and every other mode, the app talks to `api.trakt.tv` and `trakt.tv`; set, it talks to the mock instead, sign-in included. `pnpm --filter @cue/web exec vite build --mode mock` produces the same static bundle the lane previews.
 
 Every write the app makes moves the mock's in-memory account: history marks and their removals (by item, by the bulk season subtree, and by history-play id), hiding and unhiding a show, and watchlist adds and removals. So progress, history, the hidden set, the watchlist and the calendar all stay consistent across a session, and a write naming something the seed does not have comes back in `not_found` rather than as a success the account never took. Any endpoint the mock does not model answers 404 with a logged line rather than an empty success, so a missing fixture reads as a hole instead of an account with nothing in it. Deliberately absent: the browse rails, served as the empty lists a demo account has; search, which is not modelled at all, so typing into it reaches the app's error state rather than an empty one; and rate limiting and failure of any kind, since the mock authorizes anybody and never answers 429. `packages/web/test/harness/mock-trakt.test.ts` boots the mock in-process and reads every seeded endpoint back through the app's own client and zod contracts, which is what keeps the two from drifting.
 
@@ -91,35 +91,24 @@ The Trakt wire shapes are built twice, here and in `packages/web/e2e/helpers.ts`
 
 The lane is off unless `E2E_MOCK=1` is set, because it costs a second build and two more processes on every run. `scripts/mock-trakt/journal.mjs` also owns what two runs may be compared on: artwork and the visibility-gated freshness poll are dropped, the sign-in leg is dropped because the two targets differ on it by design and its payloads are fresh every run, a token exchange keeps its `grant_type` and loses its secrets, and every date-shaped value is replaced so the same run yesterday equals the same run today. `packages/web/test/harness/journal.test.ts` is what stops that policy quietly dropping a real difference.
 
-Reaching it from the iOS simulator needs one thing this branch deliberately does not do: a Debug-only `NSAppTransportSecurity` dictionary in `ios/App/App/Info.plist`, either `NSAllowsLocalNetworking` or an `NSExceptionDomains` entry for `127.0.0.1`, because App Transport Security blocks plaintext HTTP. It must never reach a release build, and `packages/web/test/privacy-claims.test.ts` fails if `NSAppTransportSecurity` appears in the committed `Info.plist` at all.
+The Expo app adds a local-only `NSAppTransportSecurity` exception when `EXPO_PUBLIC_TRAKT_API_BASE` points at the mock. Release builds carry no exception.
 
 ## Mobile
 
-iOS and Android ship from the same code via [Capacitor](https://capacitorjs.com). The web build in `packages/web/dist/` is the source of truth for everything the user sees; the shells around it are committed, because they are hand-edited: the scene delegate, the bridge controller and the haptics plugin on iOS, the Kotlin haptics plugin and the manifest's permission removal on Android, plus both project files. `cap sync` rewrites the derived parts in place: the web assets it copies (`ios/App/App/public`, `android/app/src/main/assets/public`) and the generated config JSON are the only native paths git ignores, while the plugin manifests it writes (`Package.swift`, `capacitor.settings.gradle`, `capacitor.build.gradle`) are committed, so a plugin appearing or leaving shows up in review.
+iOS and Android ship from the Expo app in `packages/native`. Its native projects are generated by `expo prebuild`; app identity, permissions and native configuration live in `app.config.ts` and config plugins.
 
 ```sh
-pnpm build
-pnpm sync              # cap sync
-npx cap open ios       # build and run in Xcode (or Android Studio)
+pnpm --filter @cue/native start
+pnpm --filter @cue/native prebuild
 ```
 
-On device, the Trakt OAuth token is stored via Capacitor Preferences so it survives storage eviction.
-
-Pull down on any of the four tabs to run the same sync as **Settings → Sync now**. Neither shell lends the app a native refresh control (Capacitor turns the iOS web view's bounce off, and Android WebView has no pull gesture), so the gesture lives in the DOM; Settings keeps its row as the tap-only equivalent.
-
-Episode reminders are local notifications and nothing else: one digest each morning for the next two weeks, built on the device from the calendar Cue already reads, with no push service and no server. The Settings switch is the only place the OS notification permission is ever asked for. On Android they use a named channel and inexact alarms only, and `android/app/src/main/AndroidManifest.xml` strips the `SCHEDULE_EXACT_ALARM` permission the Capacitor notifications plugin would otherwise merge into the app.
+Pull down on any of the four tabs to run the same sync as **Settings → Sync now**. Episode reminders are local notifications: one digest each morning for the next two weeks, built on the device from the calendar Cue already reads, with no push service and no server.
 
 ### Releasing
 
 `.github/workflows/mobile-release.yml` builds and ships the app: a push to `main` goes to testers (TestFlight and Firebase App Distribution), a `v*` tag submits to the App Store, and a manual dispatch does either on whichever ref it runs against. Every trigger waits on a gate job that re-checks each required CI job for that exact commit, so an unverified commit cannot ship.
 
 A `release/*` branch is the on-demand lane: CI runs on those branches too, so a build can be cut from one without merging it to `main`.
-
-```sh
-git branch release/capacitor <sha>
-git push origin release/capacitor
-gh workflow run mobile-release.yml --ref release/capacitor
-```
 
 Build numbers come from that workflow's run counter, which every branch shares and which only increases. That is what makes going back possible: Android refuses a lower `versionCode` and Apple cannot revert an App Store version, so the way back is to dispatch the older ref and let it ship as a new, higher build.
 
@@ -129,11 +118,11 @@ Build numbers come from that workflow's run counter, which every branch shares a
 - **Tailwind CSS v4** (`@theme` tokens) for styling.
 - **TanStack Query** (with persistence) and **TanStack Router** for data and routing.
 - **TanStack Virtual** for large lists, **Zustand** for local state, **Zod** for runtime boundary validation, **Radix UI** for primitives.
-- **Capacitor 8** thin shell for iOS/Android: all `@capacitor/*` imports confined to `packages/web/src/platform`.
-- The repository is a pnpm workspace of three packages, and the root carries only the gate runner, the Capacitor shells and the release lanes.
+- **Expo SDK 57** and React Native for iOS and Android.
+- The repository is a pnpm workspace of three packages, with shared core, web and native apps.
   - **`@cue/core`** (`packages/core`) is everything that does not know what it is rendered on: the domain, the Trakt data layer, the durable write queue, the hooks, the stores, the preferences and the URL parsers, plus the ports each app fills (key-value storage, preference storage, haptics, reminders, connectivity, app visibility, the OAuth redirect handoff). It is TypeScript source with no build step, published to the workspace through one wildcard subpath (`@cue/core/domain/up-next`), and it contains no `.tsx` and no `.css`: its `tsconfig` omits the DOM lib and `pnpm check:core-portable` asserts the file types, because the two catch different halves of the same rule. `src/app` inside it is the composition root the apps call, and the only part of it excluded from the line-coverage gate.
   - **`@cue/web`** (`packages/web`) is the Vite app: `src/ui` for screens and components, `src/app` for the composition root, `src/platform` for the browser side of every port, plus `test/`, `e2e/` and `public/`.
-  - **`@cue/native`** (`packages/native`) is the Expo app: `app/` for the expo-router tree, `src/` for the composition root, the screens and the native side of every port, `modules/cue-native` for the one local Expo module (the haptic vocabulary and the Capacitor preference reader), `plugins/` for the two config plugins, and `__tests__/` for the jest-expo suite. Its `ios/` and `android/` projects are generated by `expo prebuild` and are not committed, so every native fact lives in `app.config.ts` or in a config plugin.
+  - **`@cue/native`** (`packages/native`) is the Expo app: `app/` for the expo-router tree, `src/` for the composition root, the screens and the native side of every port, `modules/cue-native` for its local Expo module, `plugins/` for config plugins, and `__tests__/` for the jest-expo suite. Its `ios/` and `android/` projects are generated by `expo prebuild` and are not committed, so every native fact lives in `app.config.ts` or in a config plugin.
   - Dependencies flow one way, and dependency-cruiser is what keeps that true rather than convention: the core imports no app, neither app imports the other, the domain reaches only the domain, and the data layer reaches only the domain, its own tree and the ports.
 
 ## Attribution

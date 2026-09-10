@@ -7,8 +7,7 @@ const RULES_PATH = join("app", "src", "main", "res", "xml", `${RULES_RESOURCE}.x
 
 /**
  * Every storage domain the platform can name, excluded from both channels.
- * Carried over verbatim from the Capacitor shell's committed rules, because the
- * claim they support is the one PRIVACY.md, docs/index.html and README.md all
+ * The claim they support is the one PRIVACY.md, docs/index.html and README.md all
  * make to users. `path="."` rather than a narrower path is what makes the
  * exclusion whole, which is also what covers the SecureStore shared-preferences
  * file; there is no `<include>` anywhere, because an include flips a section

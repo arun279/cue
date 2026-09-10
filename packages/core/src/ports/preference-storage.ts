@@ -1,8 +1,8 @@
 /**
  * Device-local preferences, and the one port that is synchronous by design.
  *
- * `KeyValueStore` is async because IndexedDB and Capacitor Preferences are.
- * Preferences cannot be: the prefs store reads every value at import time and
+ * `KeyValueStore` is async because its durable backends are. Preferences cannot
+ * be: the prefs store reads every value at import time and
  * the theme is applied before the first render specifically so there is no light
  * or dark flash. An await before first paint would put that flash back on both
  * targets. Every backend this needs can answer synchronously, `localStorage` on

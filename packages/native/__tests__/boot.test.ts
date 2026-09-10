@@ -62,10 +62,10 @@ describe("the native boot", () => {
     expect(returning.bulk.values.get("cue.install-id")).toBe("an-earlier-install");
   });
 
-  it("adopts the Capacitor build's token, after the purge rather than before it", async () => {
+  it("adopts the legacy token after the purge rather than before it", async () => {
     // Both run on the same launch: the purge clears a Keychain item this install
-    // never wrote, and the migration then puts back the one the Capacitor build
-    // did write. Reversed, an upgrading user is signed out.
+    // never wrote, and the migration then restores the legacy token. Reversed,
+    // an upgrading user is signed out.
     const upgrade = deps({
       secure: { "cue.trakt.token": JSON.stringify({ ...TOKEN, access_token: "stale" }) },
       legacy: { "cue.trakt.token": JSON.stringify(TOKEN) },

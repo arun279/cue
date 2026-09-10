@@ -9,7 +9,7 @@
  * shared preferences). The implementation owns that difference so the migration
  * can be a pure function of what it reads back.
  *
- * Only the native app provides one. The web app is the Capacitor build.
+ * Only the native app provides one.
  */
 export interface LegacyStore {
   read(key: string): Promise<string | null>;

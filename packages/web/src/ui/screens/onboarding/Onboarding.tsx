@@ -63,7 +63,7 @@ function CodeCard({ code }: { code: string }): ReactElement {
 /**
  * Onboarding: one welcome beat, then the Trakt hand-off. Web connects through
  * the full-page PKCE redirect; native (where the redirect can't return; the
- * app origin is capacitor://localhost) runs the device-code grant with a
+ * browser redirect is unavailable) runs the device-code grant with a
  * copy-on-tap code and a live polling state. The auth store owns every
  * transition; this screen only dresses it.
  */

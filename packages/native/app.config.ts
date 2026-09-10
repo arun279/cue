@@ -37,9 +37,7 @@ const BLOCKED_PERMISSIONS = [
  *
  * A function of the environment rather than `app.json`, because two of those
  * facts come from it. `BUILD_NUMBER` and `APP_VERSION` are what the release lane
- * computes; under CNG prebuild writes them into both projects, which is one
- * mechanism in place of the two the Capacitor line used (a build-setting
- * override on iOS, Gradle properties on Android).
+ * computes; under CNG prebuild writes them into both projects.
  *
  * The environment is a parameter rather than a global read because that is what
  * makes the four release blockers below testable: `babel-preset-expo` replaces

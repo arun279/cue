@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Cue's web app: the Vite PWA and the web bundle the Capacitor shells load.",
+  "description": "Cue's Vite progressive web app.",
   "scripts": {
     "dev": "vite",
     "dev:mock": "vite --mode mock",
@@ -15,11 +15,6 @@
     "e2e:mock": "E2E_MOCK=1 playwright test --project=mock"
   },
   "dependencies": {
-    "@capacitor/app": "^8.1.1",
-    "@capacitor/core": "^8.5.0",
-    "@capacitor/local-notifications": "^8.3.1",
-    "@capacitor/preferences": "8.0.1",
-    "@capacitor/status-bar": "^8.0.3",
     "@cue/core": "workspace:*",
     "@fontsource-variable/inter": "^5.2.8",
     "@fontsource-variable/space-grotesk": "^5.2.10",

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: verify-apk.sh <apk> <expected-version-code> <expected-version-name> [line]
+# Usage: verify-apk.sh <apk> <expected-version-code> <expected-version-name>
 #
 # What the packaged APK actually says about itself: the version testers see,
 # every permission the phone will show them, and the two backup properties
@@ -12,31 +12,11 @@
 # manifest can add to it, and a `tools:node="remove"` can silently stop applying.
 # So the merged set is pinned here, exactly, and a new one fails the build rather
 # than shipping unannounced.
-#
-# `line` is `capacitor` (the default, and the line that ships today) or `expo`.
-# The two build genuinely different sets and there is no honest way to write one
-# list that covers both: see the comments on each.
 set -euo pipefail
 
 apk=$1
 expected_code=$2
 expected_name=$3
-line=${4:-capacitor}
-
-# Every permission the Capacitor line's own manifest declares or accepts from a
-# plugin.
-#   INTERNET                                 Trakt, declared by hand
-#   POST_NOTIFICATIONS                       episode reminders (API 33+ runtime ask)
-#   RECEIVE_BOOT_COMPLETED, WAKE_LOCK        the notification plugin's alarm receiver
-#   DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION AGP's own, injected for targetSdk >= 33
-# SCHEDULE_EXACT_ALARM is absent deliberately: android/app/src/main/AndroidManifest.xml
-# removes it, and its absence here is what proves the removal still applies.
-capacitor_permissions="android.permission.INTERNET
-android.permission.POST_NOTIFICATIONS
-android.permission.RECEIVE_BOOT_COMPLETED
-android.permission.WAKE_LOCK
-app.cuetracker.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
-
 # The Expo line's set, measured from its generated release manifest. The two
 # network-state permissions come from expo-network, which fills the connectivity
 # port through getNetworkStateAsync. The Expo template's four optional
@@ -44,19 +24,10 @@ app.cuetracker.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
 # app.config.ts.
 # SYSTEM_ALERT_WINDOW is re-declared by the debug flavour for the development
 # menu, so a debug APK of this line carries it and a release APK does not.
-expo_permissions="android.permission.ACCESS_NETWORK_STATE
+expected_permissions="android.permission.ACCESS_NETWORK_STATE
 android.permission.ACCESS_WIFI_STATE
 android.permission.INTERNET
 app.cuetracker.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
-
-case "$line" in
-  capacitor) expected_permissions=$capacitor_permissions ;;
-  expo) expected_permissions=$expo_permissions ;;
-  *)
-    echo "verify-apk: unknown line '$line'; expected 'capacitor' or 'expo'." >&2
-    exit 1
-    ;;
-esac
 
 sdk=${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}
 aapt2=$(printf '%s\n' "$sdk/build-tools"/*/aapt2 | sort -V | tail -n 1)
@@ -139,4 +110,4 @@ if [ "$whole" != "18" ]; then
   exit 1
 fi
 
-echo "verify-apk: $apk is $name ($code) on the $line line, asking for $(wc -l <<<"$permissions" | tr -d ' ') permissions, with backup off and every storage domain excluded from both channels."
+echo "verify-apk: $apk is $name ($code), asking for $(wc -l <<<"$permissions" | tr -d ' ') permissions, with backup off and every storage domain excluded from both channels."

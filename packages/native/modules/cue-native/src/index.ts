@@ -24,7 +24,6 @@ export const CueHaptics = requireNativeModule<NativeModule<Record<never, never>>
   "CueHaptics",
 );
 
-/** Capacitor Preferences, read through the key shape each platform actually
- * used. Migration only. */
+/** Legacy preferences, read through each platform's stored key shape. */
 export const CueLegacyPreferences =
   requireNativeModule<CueLegacyPreferencesNativeModule>("CueLegacyPreferences");

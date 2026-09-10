@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Cue: a Trakt-backed Up Next queue. Web-first PWA with a Capacitor mobile shell.",
+  "description": "Cue: a Trakt-backed Up Next queue for web and native.",
   "packageManager": "pnpm@10.33.0",
   "engines": {
     "node": ">=22.12.0"
@@ -14,7 +14,6 @@
     "mock:trakt": "node scripts/mock-trakt/server.mjs",
     "build": "pnpm --filter @cue/web build",
     "preview": "pnpm --filter @cue/web preview",
-    "sync": "cap sync",
     "typecheck": "tsc --noEmit && pnpm -r typecheck",
     "lint": "biome check --error-on-warnings .",
     "format": "biome check --write . && dprint fmt",
@@ -44,18 +43,8 @@
     "audit": "pnpm audit --prod --audit-level=high",
     "prepare": "lefthook install"
   },
-  "dependencies": {
-    "@capacitor/app": "^8.1.1",
-    "@capacitor/core": "^8.5.0",
-    "@capacitor/local-notifications": "^8.3.1",
-    "@capacitor/preferences": "8.0.1",
-    "@capacitor/status-bar": "^8.0.3"
-  },
   "devDependencies": {
     "@biomejs/biome": "^2.5.2",
-    "@capacitor/android": "^8.5.0",
-    "@capacitor/cli": "^8.5.0",
-    "@capacitor/ios": "^8.5.0",
     "@size-limit/file": "^12.1.0",
     "@types/node": "^22.12.0",
     "@vitest/coverage-v8": "^4.1.9",
