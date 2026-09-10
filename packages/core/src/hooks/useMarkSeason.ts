@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef } from "react";
 import { queryKeys } from "../data/query-keys";
 import type { SeasonView, ShowProgress } from "../data/trakt/show-detail";
 import type { EpisodeIds, ShowIds } from "../domain/model/ids";
@@ -19,6 +19,7 @@ import {
   getSeasonMarkDelta,
   rememberSeasonMark,
 } from "../stores/season-reversal";
+import { dismissSnack, showSnack, showUndoable } from "../stores/snackbar-store";
 import {
   claimWriteLock,
   episodeWriteLock,
@@ -76,9 +77,6 @@ interface UndoState {
   readonly ops: readonly QueuedOp[];
   readonly resumed: boolean;
   readonly reversibleSeason: number | null;
-  /** Monotonic per-hook counter, so a snackbar effect can key on "a new
-   * undoable arrived" even when two consecutive actions share a label. */
-  readonly seq: number;
 }
 
 export interface MarkSeasonController {
@@ -116,12 +114,6 @@ export interface MarkSeasonController {
   addEpisodePlay(target: MarkContextTarget, episode: MarkableEpisode): Promise<void>;
   removeAllPlays(target: MarkContextTarget, episode: MarkableEpisode): Promise<void>;
   undo(): Promise<void>;
-  dismissUndo(): void;
-  clearError(): void;
-  dismissNotice(): void;
-  readonly undoable: { readonly label: string; readonly seq: number } | null;
-  readonly notice: string | null;
-  readonly error: string | null;
 }
 
 function toSeasonTrees(seasons: readonly SeasonView[]): SeasonTree[] {
@@ -155,21 +147,20 @@ function plural(count: number): string {
   return count === 1 ? "episode" : "episodes";
 }
 
+function showError(message: string): void {
+  showSnack({ message, actions: [{ label: "Dismiss", onPress: dismissSnack }] });
+}
+
 export function useMarkSeason(): MarkSeasonController {
   const submit = useOptimisticWrite();
   const queryClient = useQueryClient();
   const runtime = useRuntime();
   const resume = useResumeOnMark();
-  const [undoState, setUndoState] = useState<UndoState | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const undoRef = useRef<UndoState | null>(null);
-  const undoSeq = useRef(0);
-  const putUndo = useCallback((next: Omit<UndoState, "seq"> | null): void => {
-    undoSeq.current += 1;
-    const state = next === null ? null : { ...next, seq: undoSeq.current };
-    undoRef.current = state;
-    setUndoState(state);
+  const undoActionRef = useRef<() => void>(() => {});
+  const putUndo = useCallback((next: UndoState | null): void => {
+    undoRef.current = next;
+    if (next !== null) showUndoable(next.label, () => undoActionRef.current());
   }, []);
   const retractUndo = useCallback(
     (ops: readonly QueuedOp[]): void => {
@@ -256,7 +247,6 @@ export function useMarkSeason(): MarkSeasonController {
         queryKeys.showSeasons(target.showId),
       );
       patchShowSeasons(queryClient, target.showId, match, true);
-      setError(null);
       const undoOps = absorb === null ? ops : [...absorb.ops, ...ops];
       putUndo({
         showId: target.showId,
@@ -269,7 +259,7 @@ export function useMarkSeason(): MarkSeasonController {
       const outcome = await submitSeasonWrite(target, before, ops);
       if (outcome === "failed") {
         retractUndo(undoOps);
-        setError("Couldn't save that change. Please try again.");
+        showError("Couldn't save that change. Please try again.");
       }
       return outcome;
     },
@@ -343,7 +333,7 @@ export function useMarkSeason(): MarkSeasonController {
           delta,
         );
       } catch {
-        setError("Couldn't reach your history to unmark this season. Please try again.");
+        showError("Couldn't reach your history to unmark this season. Please try again.");
         return null;
       }
     },
@@ -388,7 +378,7 @@ export function useMarkSeason(): MarkSeasonController {
       });
       if (outcome === "failed") {
         retractUndo(ops);
-        setError("Couldn't unmark that season. Please try again.");
+        showError("Couldn't unmark that season. Please try again.");
         return;
       }
       forgetSeasonMark(target.showId, season.number);
@@ -404,17 +394,16 @@ export function useMarkSeason(): MarkSeasonController {
         new Set(season.episodes.filter((e) => e.aired).map((episode) => episode.number));
       if (delta.size === 0) return;
       await withSeasonLock(target, season.number, async () => {
-        setError(null);
-        setNotice(null);
         const plan = await resolveSeasonUnmark(target, season, delta);
         if (plan === null) return;
         if (plan.removeIds.length === 0) {
           forgetSeasonMark(target.showId, season.number);
-          setNotice(
-            plan.keptRewatch.length > 0
-              ? "These plays are rewatches. Remove specific ones in your watch history."
-              : "No plays to unmark for this season.",
-          );
+          showSnack({
+            message:
+              plan.keptRewatch.length > 0
+                ? "These plays are rewatches. Remove specific ones in your watch history."
+                : "No plays to unmark for this season.",
+          });
           return;
         }
         await submitSeasonUnmark(target, season, plan);
@@ -459,7 +448,6 @@ export function useMarkSeason(): MarkSeasonController {
           () => runtime.newId(),
         );
         if (ops.length === 0) return;
-        setError(null);
         const before = queryClient.getQueryData<readonly SeasonView[]>(
           queryKeys.showSeasons(target.showId),
         );
@@ -469,13 +457,12 @@ export function useMarkSeason(): MarkSeasonController {
           seasonMatch(season, target.includeSpecials),
           true,
         );
-        setNotice(
-          `${seasonLabel(season.number)} marked again · ${aired.length} ${plural(aired.length)}`,
-        );
+        showSnack({
+          message: `${seasonLabel(season.number)} marked again · ${aired.length} ${plural(aired.length)}`,
+        });
         const outcome = await submitSeasonWrite(target, before, ops);
         if (outcome === "failed") {
-          setNotice(null);
-          setError("Couldn't save that change. Please try again.");
+          showError("Couldn't save that change. Please try again.");
         }
       });
     },
@@ -545,7 +532,7 @@ export function useMarkSeason(): MarkSeasonController {
           revalidate: () => revalidate(target.showId, episode),
         },
       );
-      if (outcome === "failed") setError("Couldn't update that episode. Please try again.");
+      if (outcome === "failed") showError("Couldn't update that episode. Please try again.");
     },
     [revalidate, setEpisodeWatched, submit, runtime.newId],
   );
@@ -598,7 +585,7 @@ export function useMarkSeason(): MarkSeasonController {
       });
       if (outcome === "failed") {
         retractUndo(ops);
-        setError("Couldn't update that episode. Please try again.");
+        showError("Couldn't update that episode. Please try again.");
       }
     },
     [putUndo, retractUndo, revalidate, setEpisodeWatched, submit, runtime.newId],
@@ -612,7 +599,7 @@ export function useMarkSeason(): MarkSeasonController {
         if (!knownRewatch) {
           setEpisodeWatched(target, episode, true, episode.watchedAt ?? null);
         }
-        setError("Couldn't reach your history to unmark this. Please try again.");
+        showError("Couldn't reach your history to unmark this. Please try again.");
         return;
       }
       if (resolution.kind === "none") {
@@ -662,7 +649,6 @@ export function useMarkSeason(): MarkSeasonController {
         ];
         setEpisodeWatched(target, episode, true, watchedAt);
         if (undoLabel !== undefined) {
-          setError(null);
           putUndo({
             showId: target.showId,
             ids: target.ids,
@@ -681,7 +667,7 @@ export function useMarkSeason(): MarkSeasonController {
         });
         if (outcome === "failed") {
           if (undoLabel !== undefined) retractUndo(ops);
-          setError("Couldn't update that episode. Please try again.");
+          showError("Couldn't update that episode. Please try again.");
         }
       } finally {
         releaseWriteLock(lockKey, opId);
@@ -713,8 +699,7 @@ export function useMarkSeason(): MarkSeasonController {
           watchedAt: new Date().toISOString(),
           inversePatch: { kind: "additive-episode", episodeTrakt: episode.ids.trakt },
         });
-        setError(null);
-        setNotice("Play added");
+        showSnack({ message: "Play added" });
         const outcome = await submit([op], {
           rollback: () => {},
           onKept: () => resume.resumeIfStopped(target.showId, target.ids),
@@ -722,8 +707,7 @@ export function useMarkSeason(): MarkSeasonController {
             revalidate(target.showId, { season: episode.season, number: episode.number }),
         });
         if (outcome === "failed") {
-          setNotice(null);
-          setError("Couldn't add that play. Please try again.");
+          showError("Couldn't add that play. Please try again.");
         }
       });
     },
@@ -733,13 +717,11 @@ export function useMarkSeason(): MarkSeasonController {
   const removeAllPlays = useCallback(
     async (target: MarkContextTarget, episode: MarkableEpisode) => {
       await withEpisodeLock(target, episode, async () => {
-        setError(null);
-        setNotice(null);
         let plays: Awaited<ReturnType<typeof runtime.loadEpisodePlays>>;
         try {
           plays = await runtime.loadEpisodePlays(episode.ids.trakt);
         } catch {
-          setError("Couldn't reach your history. Please try again.");
+          showError("Couldn't reach your history. Please try again.");
           return;
         }
         const own = plays
@@ -777,7 +759,7 @@ export function useMarkSeason(): MarkSeasonController {
         });
         if (outcome === "failed") {
           retractUndo(ops);
-          setError("Couldn't remove those plays. Please try again.");
+          showError("Couldn't remove those plays. Please try again.");
         }
       });
     },
@@ -785,7 +767,7 @@ export function useMarkSeason(): MarkSeasonController {
   );
 
   const undo = useCallback(async () => {
-    const pending = undoState;
+    const pending = undoRef.current;
     if (pending === null) return;
     putUndo(null);
     if (pending.reversibleSeason !== null) {
@@ -799,8 +781,10 @@ export function useMarkSeason(): MarkSeasonController {
         revalidate: () => revalidate(pending.showId, "all"),
       },
     );
-    if (outcome === "failed") setError("Couldn't undo that. Please try again.");
-  }, [undoState, putUndo, revalidate, submit, resume, runtime.newId]);
+    if (outcome === "failed") showError("Couldn't undo that. Please try again.");
+  }, [putUndo, revalidate, submit, resume, runtime.newId]);
+
+  undoActionRef.current = () => void undo();
 
   return {
     markSeason,
@@ -811,11 +795,5 @@ export function useMarkSeason(): MarkSeasonController {
     addEpisodePlay,
     removeAllPlays,
     undo,
-    dismissUndo: () => putUndo(null),
-    clearError: () => setError(null),
-    dismissNotice: () => setNotice(null),
-    undoable: undoState === null ? null : { label: undoState.label, seq: undoState.seq },
-    notice,
-    error,
   };
 }

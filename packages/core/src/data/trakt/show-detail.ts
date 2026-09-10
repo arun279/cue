@@ -89,9 +89,6 @@ export interface ShowProgress {
   readonly nextEpisode: EpisodeView | null;
 }
 
-/** The Show detail hero: the show's own facts merged with the viewer's progress. */
-export interface ShowHeader extends ShowInfo, ShowProgress {}
-
 export function toEpisodeIds(ids: {
   trakt: number;
   tvdb?: number | null;

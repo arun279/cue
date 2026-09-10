@@ -1,5 +1,12 @@
-import { type ShowArt, useShowArt as useShowArtQuery } from "@cue/core/hooks/useShowArt";
-import { ART_SETTLE_MS } from "@cue/core/queries/shows";
+import {
+  ART_SETTLE_MS,
+  EMPTY_SHOW_ART,
+  type ShowArt,
+  selectArt,
+  showInfoQuery,
+} from "@cue/core/queries/shows";
+import { useRuntime } from "@cue/core/runtime/runtime";
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 /**
@@ -18,6 +25,7 @@ import { useEffect, useState } from "react";
  * report of what is on screen instead.
  */
 export function useShowArt(showId: number): ShowArt {
+  const runtime = useRuntime();
   const [settled, setSettled] = useState<number | null>(null);
 
   useEffect(() => {
@@ -25,5 +33,11 @@ export function useShowArt(showId: number): ShowArt {
     return () => clearTimeout(timer);
   }, [showId]);
 
-  return useShowArtQuery(showId, settled === showId);
+  return (
+    useQuery({
+      ...showInfoQuery(runtime, showId),
+      enabled: settled === showId,
+      select: selectArt,
+    }).data ?? EMPTY_SHOW_ART
+  );
 }
