@@ -6,5 +6,9 @@ appId: app.cuetracker
     id: "app-idle"
 - copyTextFrom:
     id: "startup-timing"
-- evalScript: ${output.startupTiming = maestro.copiedText}
-- evalScript: ${console.log('CUE_STARTUP_TIMING=' + output.startupTiming)}
+- evalScript: "${output.startupTiming = maestro.copiedText}"
+- evalScript: "${output.startupTimingMs = parseFloat(output.startupTiming.replace('Startup timing: ', ''))}"
+- evalScript: "${console.log('CUE_STARTUP_TIMING=' + output.startupTiming)}"
+- assertTrue:
+    condition: ${output.startupTimingMs <= parseFloat(STARTUP_CEILING_MS)}
+    label: "${'Startup timing ' + output.startupTimingMs + ' ms is at or below ' + STARTUP_CEILING_MS + ' ms'}"
