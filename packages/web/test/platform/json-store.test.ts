@@ -5,10 +5,7 @@ import { createKeyValueStore } from "@platform/kv";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
-const { webBacking, nativeBacking } = vi.hoisted(() => ({
-  webBacking: new Map<string, string>(),
-  nativeBacking: new Map<string, string>(),
-}));
+const webBacking = vi.hoisted(() => new Map<string, string>());
 
 vi.mock("idb-keyval", () => ({
   get: vi.fn(async (key: string) => webBacking.get(key)),
@@ -20,11 +17,6 @@ vi.mock("idb-keyval", () => ({
   }),
 }));
 
-vi.mock("@capacitor/preferences", async () => {
-  const { createPreferencesMock } = await import("../support/capacitor-preferences-mock");
-  return createPreferencesMock(nativeBacking);
-});
-
 interface Sample {
   a: number;
   b: string;
@@ -34,16 +26,13 @@ interface Sample {
 // store rejects a wrong-shaped persisted entry (schema validation at the boundary).
 const sampleSchema = z.object({ a: z.number(), b: z.string() });
 
-describe.each([
-  { name: "web (idb-keyval)", native: false, backing: webBacking },
-  { name: "native (Preferences)", native: true, backing: nativeBacking },
-])("createJsonStore on the $name backend", ({ native, backing }) => {
+describe("createJsonStore on the web backend", () => {
   beforeEach(() => {
-    backing.clear();
+    webBacking.clear();
   });
 
   it("round-trips a value and clears it", async () => {
-    const store = createJsonStore<Sample>(createKeyValueStore(native), "sample");
+    const store = createJsonStore<Sample>(createKeyValueStore(), "sample");
     const value: Sample = { a: 1, b: "two" };
 
     expect(await store.read()).toBeNull();
@@ -55,7 +44,7 @@ describe.each([
   });
 
   it("reads back null for a corrupt entry rather than throwing", async () => {
-    const kv = createKeyValueStore(native);
+    const kv = createKeyValueStore();
     await kv.write("sample", "{ not json");
     expect(await createJsonStore<Sample>(kv, "sample").read()).toBeNull();
   });
@@ -67,7 +56,7 @@ describe("parse-guarded stores reject the wrong shape", () => {
   });
 
   it("stores the token under its own key and round-trips it", async () => {
-    const kv = createKeyValueStore(false);
+    const kv = createKeyValueStore();
     const token: Token = {
       access_token: "a",
       refresh_token: "r",
@@ -82,7 +71,7 @@ describe("parse-guarded stores reject the wrong shape", () => {
   });
 
   it("reads back null when a persisted entry is valid JSON but the wrong shape", async () => {
-    const kv = createKeyValueStore(false);
+    const kv = createKeyValueStore();
     const sampleStore = createJsonStore<Sample>(kv, "cue.sample", (v) => sampleSchema.parse(v));
     // A migrated/partial token missing refresh_token, and a sample missing `b`.
     await kv.write("cue.trakt.token", JSON.stringify({ access_token: "only" }));

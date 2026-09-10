@@ -8,8 +8,7 @@ import type { PreferenceStorage } from "@cue/core/ports/preference-storage";
  *
  * It lives beside the preferences rather than in `src/platform` because it is
  * read at module scope, before anything React could inject, and because
- * `localStorage` is a browser global rather than a native bridge: nothing in
- * `src/ui` needs a Capacitor mock to run it.
+ * `localStorage` is a browser global rather than an injected service.
  */
 export const preferenceStorage: PreferenceStorage = {
   getItem(key) {

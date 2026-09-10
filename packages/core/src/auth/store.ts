@@ -16,7 +16,7 @@ export interface AuthState {
   readonly connectStatus: ConnectStatus;
   readonly errorMessage: string | null;
   readonly deviceCode: DeviceCodeView | null;
-  /** True under Capacitor: device-code is the primary (and only working) native path. */
+  /** True in a native client, where device-code is the primary sign-in path. */
   readonly native: boolean;
 }
 

@@ -23,7 +23,7 @@ export interface AuthDeps {
   readonly redirectUri: string;
   readonly redirect: (url: string) => void;
   readonly redirectHandoff: RedirectHandoff;
-  /** Capacitor cannot return through a browser redirect. */
+  /** Native clients cannot return through a browser redirect. */
   readonly native: boolean;
   readonly traktBaseUrl: string | undefined;
 }
