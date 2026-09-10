@@ -1,7 +1,6 @@
 /**
- * The two screens whose state lives in the URL, parsed once and shared. A route
- * parameter arrives as untrusted text on both targets, from a deep link or a
- * hand-edited address, so each parser drops anything it does not know
+ * The two screens whose state lives in route parameters, parsed once and shared.
+ * A parameter arrives as untrusted text from a deep link, so each parser drops anything it does not know
  * rather than carrying it into a query key.
  */
 

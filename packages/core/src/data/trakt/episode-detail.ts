@@ -3,7 +3,7 @@ import { isAired } from "../../domain/time";
 import type { EpisodeData, Progress } from "./schemas";
 import { toEpisodeIds } from "./show-detail";
 
-export interface EpisodeNav {
+interface EpisodeNav {
   readonly season: number;
   readonly number: number;
 }

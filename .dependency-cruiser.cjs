@@ -9,11 +9,7 @@
 const RE_REACT = "(^|/)node_modules/react/";
 const RE_REACT_DOM = "(^|/)node_modules/react-dom/";
 const RE_NATIVE = ["(^|/)node_modules/(expo|react-native)([-/]|$)", "^(expo|react-native)([-/]|$)"];
-// The web app's own libraries: the DOM renderer, its storage, its component
-// primitives, its router, its virtualiser and its icons. Named one by one on
-// purpose rather than as a @tanstack/react-* glob, because @tanstack/react-query
-// is a portable dependency of the core that BOTH targets use.
-const RE_WEB_ONLY = [
+const RE_DOM_ONLY = [
   RE_REACT_DOM,
   "(^|/)node_modules/idb-keyval/",
   "(^|/)node_modules/radix-ui/",
@@ -22,12 +18,10 @@ const RE_WEB_ONLY = [
   "(^|/)node_modules/lucide-react/",
 ];
 const RE_DOES_NOT_SHIP_DIRECTORY =
-  "^(docs|\\.github|\\.maestro|scripts/(complexity|mock-trakt)|packages/[^/]+/(e2e|test|__tests__))(/|$)";
+  "^(docs|test|\\.github|\\.maestro|scripts/(complexity|mock-trakt)|packages/[^/]+/(test|__tests__))(/|$)";
 const RE_DOES_NOT_SHIP_MARKDOWN = "^[^/]*\\.md$";
 const RE_DOES_NOT_SHIP_FILE =
-  "^(LICENSE|vitest\\.config\\.ts|lefthook\\.yml|cspell\\.json|dprint\\.json|biome\\.jsonc|knip\\.json|\\.jscpd\\.json|\\.dependency-cruiser\\.cjs|\\.gitignore|\\.size-limit\\.json|\\.native-assets\\.json|scripts/(assert-file-size|bundletool-size|check-native-assets|check-quality-budget|check-render-counts|check-size|check-size-delta|check-size-ratchet|check-type-suppressions|measure-comments|measure-complexity|summarize-atlas)\\.mjs|scripts/(diff-footprint|measure-play-size|measure-sizes|verify-ios-privacy)\\.sh|scripts/(quality-budget\\.json|write-buster\\.mjs)|tsconfig\\.depcruise\\.json|packages/[^/]+/(playwright\\.config\\.ts|vitest\\.config\\.ts|jest\\.config\\.js|tsconfig\\.test\\.json|\\.reassure/.+|\\.gitignore|\\.env\\.(example|test|mock)))$";
-
-const { join } = require("node:path");
+  "^(LICENSE|vitest\\.config\\.ts|lefthook\\.yml|cspell\\.json|dprint\\.json|biome\\.jsonc|knip\\.json|\\.jscpd\\.json|\\.dependency-cruiser\\.cjs|\\.gitignore|\\.size-limit\\.json|\\.native-assets\\.json|scripts/(assert-file-size|bundletool-size|check-native-assets|check-quality-budget|check-render-counts|check-size|check-size-delta|check-size-ratchet|check-type-suppressions|measure-comments|measure-complexity|summarize-atlas)\\.mjs|scripts/(diff-footprint|measure-play-size|measure-sizes|verify-ios-privacy)\\.sh|scripts/(quality-budget\\.json|write-buster\\.mjs)|packages/[^/]+/(vitest\\.config\\.ts|jest\\.config\\.js|tsconfig\\.test\\.json|\\.reassure/.+|\\.gitignore|\\.env\\.(example|test|mock)))$";
 
 /** @type {import("dependency-cruiser").IConfiguration} */
 module.exports = {
@@ -39,17 +33,11 @@ module.exports = {
       from: {},
       to: { circular: true },
     },
-    // These patterns mirror DOES_NOT_SHIP in packages/web/test/ci/release-paths.test.ts.
+    // These patterns mirror DOES_NOT_SHIP in test/ci/release-paths.test.ts.
     // Changes to that list require matching updates here.
-    // Known gaps: this rule is static analysis over import specifiers that
-    // dependency-cruiser can resolve. import.meta.glob(...) and
-    // new URL("...", import.meta.url) are invisible to it. Neither produces a
-    // resolvable import edge that dependency-cruiser follows, so a file matched
-    // by either idiom is never flagged, even if it points at a non-shipping
-    // path. import.meta.glob(...) is already used in
-    // packages/web/src/ui/screens/settings/Settings.tsx. Also, the from anchor
-    // covers only the first edge out of a package's src. It does not cover a
-    // transitive hop through a non-src root file that imports a non-shipping path.
+    // Known gap: the from anchor covers only the first edge out of a package's
+    // source tree. It does not cover a transitive hop through a non-source root
+    // file that imports a non-shipping path.
     {
       name: "src-no-non-shipping-imports",
       severity: "error",
@@ -65,7 +53,7 @@ module.exports = {
       severity: "error",
       comment:
         "dependency-cruiser's own no-non-package-json, anchored at the packages. A package may import only what its OWN manifest declares. `nodeLinker: hoisted` (pnpm-workspace.yaml) puts every transitive dependency at the workspace root where any package can reach it undeclared, which is the strictness the default linker exists to provide and the price the native package's resolver charges for it. knip's dependency lane does not close this: react is a peerDependency of @tanstack/react-query, so it read 33 undeclared react imports in @cue/core as satisfied.",
-      from: { path: "^packages/", pathNot: "^packages/web/src/vite-env\\.d\\.ts$" },
+      from: { path: "^packages/" },
       to: { dependencyTypes: ["npm-no-pkg", "npm-unknown", "unknown"] },
     },
     {
@@ -113,9 +101,9 @@ module.exports = {
       name: "core-stays-portable",
       severity: "error",
       comment:
-        "@cue/core executes on both targets, so it takes no library that belongs to one of them: not the DOM renderer or its storage and component primitives, not React Native or Expo, not the bundler. Anchored at src because the package's own vitest suite runs on Node and reads git; web-owns-dom and native-owns-expo hold the same line over its test tree.",
+        "@cue/core executes independently of its Expo host, so it takes neither DOM libraries nor React Native or Expo. Anchored at src because the package's own test suite runs on Node and reads git.",
       from: { path: "^packages/core/src/" },
-      to: { path: [...RE_WEB_ONLY, ...RE_NATIVE, "(^|/)node_modules/vite/"] },
+      to: { path: [...RE_DOM_ONLY, ...RE_NATIVE] },
     },
     {
       name: "core-stays-portable-node",
@@ -131,15 +119,7 @@ module.exports = {
       comment:
         "The shared package imports neither app. Dependencies flow into the core and never back out, or the claim that both targets run the same code is only a claim.",
       from: { path: "^packages/core/" },
-      to: { path: "^packages/(web|native)/" },
-    },
-    {
-      name: "web-owns-dom",
-      severity: "error",
-      comment:
-        "The DOM renderer and the libraries built on it belong to the web app. Named one by one rather than as a @tanstack/react-* glob, because @tanstack/react-query is portable and the core's own layer imports it.",
-      from: { path: "^packages/", pathNot: ["^packages/web/", "^packages/core/test/"] },
-      to: { path: RE_WEB_ONLY },
+      to: { path: "^packages/native/" },
     },
     {
       name: "native-owns-expo",
@@ -147,22 +127,6 @@ module.exports = {
       comment: "Expo and React Native belong to the native app and to nothing else.",
       from: { path: "^packages/", pathNot: "^packages/native/" },
       to: { path: RE_NATIVE },
-    },
-    {
-      name: "apps-do-not-cross",
-      severity: "error",
-      comment:
-        "Neither app imports the other; what they share, they share through @cue/core. The $1 backreference into the from group is what keeps this one rule: anchored without it, it forbids a package importing itself.",
-      from: { path: "^packages/(web|native)/" },
-      to: { path: "^packages/(web|native)/", pathNot: "^packages/$1/" },
-    },
-    {
-      name: "ui-no-platform-impl",
-      severity: "error",
-      comment:
-        "The web app's screens depend on core abstractions; platform impls and the composition root are injected, not imported directly.",
-      from: { path: "^packages/web/src/ui/" },
-      to: { path: "^packages/web/src/(platform|app)/" },
     },
     {
       name: "trakt-reads-stay-pooled",
@@ -202,12 +166,6 @@ module.exports = {
     doNotFollow: { path: "node_modules" },
     exclude: { path: "^(packages/[^/]+/(dist|coverage)|coverage)/" },
     tsPreCompilationDeps: true,
-    // The web package's aliases, reached through the wrapper that names their
-    // base directory; tsconfig.depcruise.json says why. Absolute, because
-    // dependency-cruiser hands this name to TypeScript as both the base path
-    // and the config name, and a relative one makes an `extends` resolve one
-    // directory level too deep.
-    tsConfig: { fileName: join(__dirname, "tsconfig.depcruise.json") },
     enhancedResolveOptions: {
       // exportsFields is what resolves @cue/core/... at all: the package declares
       // one wildcard subpath key and no main.

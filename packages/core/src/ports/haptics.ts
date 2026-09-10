@@ -30,8 +30,8 @@ export interface Haptics {
   prepare(): void;
 }
 
-/** Fires nothing: the browser build, the pre-token shell, and tests. */
-export const SILENT: Haptics = {
+/** Fires nothing for the pre-token shell and tests. */
+const SILENT: Haptics = {
   success() {},
   failure() {},
   warning() {},
@@ -43,8 +43,8 @@ export const SILENT: Haptics = {
 };
 
 /** The port as `@ui` reaches it, injected from the composition root so `@ui`
- * stays free of `@app`/`@platform`. The default is `SILENT`, so the browser
- * build, the pre-token shell and tests need no provider. */
+ * stays free of `@app`/`@platform`. The default is `SILENT`, so the pre-token
+ * shell and tests need no provider. */
 const HapticsContext = createContext<Haptics>(SILENT);
 
 export const HapticsProvider = HapticsContext.Provider;

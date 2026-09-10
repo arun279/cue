@@ -8,7 +8,7 @@ import type { MarkSeasonController } from "./useMarkSeason";
  * belongs to by label, so the dual-action snackbar only ever decorates its own
  * mark. `run` closes over the backfill (mark-up-to-here with absorbed Undo).
  */
-export interface BackfillOffer {
+interface BackfillOffer {
   /** The undo label of the single mark this offer rides on. */
   readonly markLabel: string;
   readonly count: number;

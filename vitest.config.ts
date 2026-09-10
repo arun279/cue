@@ -3,27 +3,18 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     // Named rather than globbed: `packages/native` is a jest-expo package, and a
-    // glob would hand its `__tests__` to vitest, which has no React Native
+    // glob would hand its `__tests__` to Vitest, which has no React Native
     // runtime and reports the suite as a failure rather than as not its job.
-    projects: ["packages/core", "packages/web"],
+    projects: ["packages/core", "test"],
     coverage: {
       provider: "v8",
       reporter: ["text", "html", "lcov"],
       // Stated as what the line gate covers rather than as what it lets through.
-      // Every composition root (both `src/app` directories) and every
-      // presentational surface (`web/src/ui`) is gated by the hermetic Playwright
-      // suite instead; `web/src/ui/prefs` is in because it is the preferences
-      // adapter rather than a screen, and sits under `ui` only because it is read
-      // at module scope, before React exists (ui-no-platform-impl).
-      include: [
-        "packages/core/src/**",
-        "packages/web/src/platform/**",
-        "packages/web/src/ui/prefs/**",
-      ],
+      include: ["packages/core/src/**"],
       exclude: ["**/*.d.ts", "packages/core/src/app/**"],
       thresholds: {
         // Global floor = rot tripwire, not the quality bar. Logic layers carry
-        // the real gate below; ui/ behavior is gated by the Playwright suite.
+        // the real gate below; native behavior has its own Jest and Maestro gates.
         lines: 70,
         functions: 70,
         statements: 70,

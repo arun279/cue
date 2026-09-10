@@ -16,9 +16,8 @@ export interface Reminders {
   cancelAll(): Promise<void>;
 }
 
-/** Schedules nothing and grants everything, which keeps the Settings switch a
- * plain preference on the web build exactly as the haptics one is. */
-export const SILENT: Reminders = {
+/** Schedules nothing and grants everything for contexts without notifications. */
+const SILENT: Reminders = {
   requestPermission: () => Promise.resolve(true),
   reconcile: () => Promise.resolve(),
   cancelAll: () => Promise.resolve(),
@@ -26,7 +25,7 @@ export const SILENT: Reminders = {
 
 /** The port as `@ui` reaches it, injected from the composition root so `@ui`
  * stays free of `@app`/`@platform`. The default is `SILENT`, so no provider is
- * needed off native. */
+ * needed outside the configured app runtime. */
 const RemindersContext = createContext<Reminders>(SILENT);
 
 export const RemindersProvider = RemindersContext.Provider;

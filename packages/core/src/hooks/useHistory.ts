@@ -20,7 +20,7 @@ import { type QueryStatus, queryStatus, USER_STATE_STALE_TIME } from "./query-fr
 import { useOptimisticWrite } from "./useOptimisticWrite";
 
 /** The history type filter, in user words; mapped to the history endpoint slice. */
-export type HistoryFilter = "all" | "tv" | "movies";
+type HistoryFilter = "all" | "tv" | "movies";
 
 /**
  * The full history read scope: which medium (type filter) and which decade window

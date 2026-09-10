@@ -1,52 +1,6 @@
 /** Presentation helpers shared across screens (dates, episode codes, progress). */
 
-import { DAY_MS, localTimeZone } from "./domain/time";
-
-const MONTHS = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
-  "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec",
-] as const;
-
-/** "Mar 16, 2008" (UTC, timezone-stable so the same episode reads the same everywhere). */
-export function formatAirDate(iso: string | null): string | null {
-  if (iso === null) return null;
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return null;
-  return `${MONTHS[date.getUTCMonth()]} ${date.getUTCDate()}, ${date.getUTCFullYear()}`;
-}
-
-/** "Mar 16, 2008" in the viewer's LOCAL day. Unlike an air date (a fixed
- * broadcast fact that reads the same everywhere), a watched date is a real
- * per-viewer event, the same instant the Diary buckets by local day, so a
- * late-evening play that lands after UTC midnight must read as the local day it
- * was watched, not a day ahead. */
-const watchedDateFmt = new Intl.DateTimeFormat("en-US", {
-  timeZone: localTimeZone(),
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-});
-
-export function formatWatchedDate(iso: string | null): string | null {
-  if (iso === null) return null;
-  const t = Date.parse(iso);
-  return Number.isNaN(t) ? null : watchedDateFmt.format(t);
-}
-
-/** Trakt genre slugs arrive lowercase ("crime"); the chips read as titles ("Crime"). */
-export function titleCase(value: string): string {
-  return value.replace(/\b\w/g, (char) => char.toUpperCase());
-}
+import { DAY_MS } from "./domain/time";
 
 /**
  * "today" / "yesterday" / "N days ago" / "N weeks ago" for the lapsed drawer,
