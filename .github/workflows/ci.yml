@@ -366,7 +366,9 @@ jobs:
             --ks=app/debug.keystore --ks-pass=pass:android \
             --ks-key-alias=androiddebugkey --key-pass=pass:android
           unzip universal.apks universal.apk -d extracted
-          apksigner verify extracted/universal.apk
+          apksigner=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner -print | sort -V | tail -n 1)
+          test -n "$apksigner"
+          "$apksigner" verify extracted/universal.apk
           ../../../scripts/verify-apk.sh \
             extracted/universal.apk 42 9.9.9
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
