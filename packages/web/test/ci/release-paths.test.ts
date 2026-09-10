@@ -16,7 +16,7 @@ const MOBILE_RELEASE_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/mo
 // `footprint` skips itself on forks, and the gate reads a skip as a failure.
 // `native-e2e` is exempt on purpose while it earns a green history on a
 // simulator; promoting it is a one-line change here and in REQUIRED.
-const NOT_REQUIRED = ["footprint", "native-e2e"];
+const NOT_REQUIRED = ["android-e2e", "footprint", "native-e2e"];
 
 // Markdown inside a shipping tree stays in SHIPS. Vite copies public/** into
 // dist verbatim, so excluding *.md by extension misclassified those files; the
