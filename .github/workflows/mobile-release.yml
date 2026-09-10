@@ -62,6 +62,7 @@ on:
       "scripts/measure-play-size.sh",
       "scripts/mock-trakt/**",
       "scripts/quality-budget.json",
+      "scripts/verify-android-launch.sh",
       "scripts/verify-ios-privacy.sh",
       "scripts/write-buster.mjs",
       "tsconfig.depcruise.json",

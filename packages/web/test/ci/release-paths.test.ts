@@ -100,6 +100,7 @@ const DOES_NOT_SHIP = [
   "scripts/measure-sizes.sh",
   "scripts/measure-play-size.sh",
   "scripts/mock-trakt/**",
+  "scripts/verify-android-launch.sh",
   "scripts/verify-ios-privacy.sh",
   "scripts/write-buster.mjs",
   "tsconfig.depcruise.json",
