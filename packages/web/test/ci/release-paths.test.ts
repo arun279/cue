@@ -41,9 +41,6 @@ const SHIPS = [
   "package.json",
   "pnpm-lock.yaml",
   "pnpm-workspace.yaml",
-  "capacitor.config.ts",
-  "android/**",
-  "ios/**",
   "fastlane/**",
   "Gemfile",
   "Gemfile.lock",
@@ -104,7 +101,6 @@ const DOES_NOT_SHIP = [
   "scripts/write-buster.mjs",
   "tsconfig.depcruise.json",
   ".gitignore",
-  "assets/**",
 ] as const;
 
 // Picomatch uses { dot: true }; GitHub path filters differ around ** and leading slashes, so this guard does not claim exact parity.

@@ -5,10 +5,6 @@
     "lib": ["ES2023"],
     "types": ["node"]
   },
-  // The workspace root ships no product code, but it does carry TypeScript that
-  // has to compile: the vitest runner's own config and the Capacitor shells'.
-  // `pnpm -r typecheck` only reaches the packages, so without this program those
-  // two files would be the only TypeScript in the repository nothing checks.
-  "include": ["vitest.config.ts", "capacitor.config.ts"],
+  "include": ["vitest.config.ts"],
   "exclude": ["node_modules", "packages"]
 }

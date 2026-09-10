@@ -66,7 +66,6 @@ on:
       "scripts/write-buster.mjs",
       "tsconfig.depcruise.json",
       ".gitignore",
-      "assets/**",
     ]
   workflow_dispatch:
     inputs:

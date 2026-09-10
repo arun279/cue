@@ -1,14 +1,13 @@
 // dependency-cruiser resolves every `to.path` against the *resolved* module
 // path, not the import specifier. Under pnpm that means npm packages surface as
 // `node_modules/.pnpm/<pkg>@<ver>/node_modules/<pkg>/...`, so npm bans must match
-// the `(^|/)node_modules/<pkg>/` tail: a bare `^react` / `^@capacitor/` anchor
-// never fires. Node built-ins carry dependencyType "core", matched separately.
+// the `(^|/)node_modules/<pkg>/` tail. Node built-ins carry dependencyType
+// "core", matched separately.
 // An UNINSTALLED package is the one exception: nothing resolves it, so its
 // module path is the specifier itself, which is why the expo and react-native
 // bans below carry both spellings.
 const RE_REACT = "(^|/)node_modules/react/";
 const RE_REACT_DOM = "(^|/)node_modules/react-dom/";
-const RE_CAPACITOR = "(^|/)node_modules/@capacitor/";
 const RE_NATIVE = ["(^|/)node_modules/(expo|react-native)([-/]|$)", "^(expo|react-native)([-/]|$)"];
 // The web app's own libraries: the DOM renderer, its storage, its component
 // primitives, its router, its virtualiser and its icons. Named one by one on
@@ -23,7 +22,7 @@ const RE_WEB_ONLY = [
   "(^|/)node_modules/lucide-react/",
 ];
 const RE_DOES_NOT_SHIP_DIRECTORY =
-  "^(docs|\\.github|\\.maestro|assets|scripts/(complexity|mock-trakt)|packages/[^/]+/(e2e|test|__tests__))(/|$)";
+  "^(docs|\\.github|\\.maestro|scripts/(complexity|mock-trakt)|packages/[^/]+/(e2e|test|__tests__))(/|$)";
 const RE_DOES_NOT_SHIP_MARKDOWN = "^[^/]*\\.md$";
 const RE_DOES_NOT_SHIP_FILE =
   "^(LICENSE|vitest\\.config\\.ts|lefthook\\.yml|cspell\\.json|dprint\\.json|biome\\.jsonc|knip\\.json|\\.jscpd\\.json|\\.dependency-cruiser\\.cjs|\\.gitignore|\\.size-limit\\.json|\\.native-assets\\.json|scripts/(assert-file-size|bundletool-size|check-native-assets|check-quality-budget|check-render-counts|check-size|check-size-delta|check-size-ratchet|check-type-suppressions|measure-comments|measure-complexity|summarize-atlas)\\.mjs|scripts/(diff-footprint|measure-play-size|measure-sizes|verify-ios-privacy)\\.sh|scripts/(quality-budget\\.json|write-buster\\.mjs)|tsconfig\\.depcruise\\.json|packages/[^/]+/(playwright\\.config\\.ts|vitest\\.config\\.ts|jest\\.config\\.js|tsconfig\\.test\\.json|\\.reassure/.+|\\.gitignore|\\.env\\.(example|test|mock)))$";
@@ -73,10 +72,10 @@ module.exports = {
       name: "domain-stays-pure",
       severity: "error",
       comment:
-        "The domain is runtime-agnostic: global fetch + zod only. Stated positively, as what it MAY reach rather than as a list of the directories it may not: the ban then covers a directory added to the core tomorrow instead of waiting to be amended. In-repo, the domain may reach the domain and nothing else; from npm it may take no react, no react-dom and no capacitor.",
+        "The domain is runtime-agnostic: global fetch + zod only. Stated positively, as what it MAY reach rather than as a list of the directories it may not: the ban then covers a directory added to the core tomorrow instead of waiting to be amended. In-repo, the domain may reach the domain and nothing else; from npm it may take no react and no react-dom.",
       from: { path: "^packages/core/src/domain/" },
       to: {
-        path: ["^packages/", RE_REACT, RE_REACT_DOM, RE_CAPACITOR],
+        path: ["^packages/", RE_REACT, RE_REACT_DOM],
         pathNot: "^packages/core/src/domain/",
       },
     },
@@ -103,7 +102,7 @@ module.exports = {
       name: "ports-have-no-impls",
       severity: "error",
       comment:
-        "A port is a seam the apps fill, so it may take value imports from the domain, from its sibling ports and from react, and nothing else. Stated that way rather than as 'types only': token-store.ts imports tokenSchema, a zod value, from domain/model/token, and five of the ports publish a React context and hook beside their interface, which is how a component reaches the injected instance. React is the injection mechanism rather than an implementation, and everything an implementation would actually need (the DOM, idb-keyval, @capacitor/*, expo) is still banned here by core-stays-portable and by biome's globals override over this package.",
+        "A port is a seam the apps fill, so it may take value imports from the domain, from its sibling ports and from react, and nothing else. Stated that way rather than as 'types only': token-store.ts imports tokenSchema, a zod value, from domain/model/token, and five of the ports publish a React context and hook beside their interface, which is how a component reaches the injected instance. React is the injection mechanism rather than an implementation, and everything an implementation would actually need (the DOM, idb-keyval or expo) is still banned here by core-stays-portable and by biome's globals override over this package.",
       from: { path: "^packages/core/src/ports/" },
       to: {
         dependencyTypesNot: ["type-only"],
@@ -198,21 +197,10 @@ module.exports = {
       },
       to: { path: "^packages/core/src/data/query-invalidation\\.ts$" },
     },
-    {
-      name: "capacitor-only-in-platform",
-      severity: "error",
-      comment:
-        "@capacitor/* is imported ONLY in the web app's platform directory, keeping the core and every screen portable and testable without native mocks.",
-      from: { path: "^packages/[^/]+/src/", pathNot: "^packages/web/src/platform/" },
-      to: { path: RE_CAPACITOR },
-    },
   ],
   options: {
     doNotFollow: { path: "node_modules" },
-    // Anchor to project root: an unanchored `(^|/)dist/` also matched
-    // node_modules/@capacitor/core/dist/*, silently excluding capacitor from the
-    // graph so every capacitor ban passed.
-    exclude: { path: "^(packages/[^/]+/(dist|coverage)|coverage|ios|android)/" },
+    exclude: { path: "^(packages/[^/]+/(dist|coverage)|coverage)/" },
     tsPreCompilationDeps: true,
     // The web package's aliases, reached through the wrapper that names their
     // base directory; tsconfig.depcruise.json says why. Absolute, because
@@ -222,9 +210,7 @@ module.exports = {
     tsConfig: { fileName: join(__dirname, "tsconfig.depcruise.json") },
     enhancedResolveOptions: {
       // exportsFields is what resolves @cue/core/... at all: the package declares
-      // one wildcard subpath key and no main. Capacitor is the mirror case, it
-      // ships only main/module and no exports, so dropping mainFields would take
-      // it out of the graph entirely and every capacitor ban would silently pass.
+      // one wildcard subpath key and no main.
       // preserveSymlinks defaults to false, which resolves the workspace link to
       // its realpath under packages/core, which is what makes the anchors above
       // match instead of node_modules.
