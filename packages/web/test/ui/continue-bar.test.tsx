@@ -3,7 +3,7 @@ import type { EpisodeView, SeasonView, ShowHeader } from "@cue/core/data/trakt/s
 import { ContinueBar } from "@ui/screens/show-detail/ContinueBar";
 import { act, type ReactElement, type ReactNode, useState } from "react";
 import { expect, it, vi } from "vitest";
-import { mount } from "./_mount";
+import { mount } from "../../../core/test/ui/_mount";
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({
@@ -44,6 +44,7 @@ const header: ShowHeader = {
   backdrops: [],
   aired: 10,
   completed: 4,
+  lastAired: { season: 2, number: 2 },
   nextEpisode,
 };
 

@@ -6,6 +6,7 @@ import { useEpisodeReminders } from "@cue/core/hooks/useEpisodeReminders";
 import type { KeyValueStore } from "@cue/core/ports/kv";
 import type { TokenStore } from "@cue/core/ports/token-store";
 import { RuntimeProvider } from "@cue/core/runtime/runtime";
+import { webCrypto } from "@platform/crypto";
 import { clearLocalPreferences } from "@ui/prefs/preference-storage";
 import type { ReactElement, ReactNode } from "react";
 
@@ -40,6 +41,7 @@ export function RuntimeBoot({
   // A dead refresh token routes through the auth store's teardown → onboarding.
   const endSession = useAuth((s) => s.endSession);
   const { runtime, failed, retry } = useRuntimeBoot({
+    newId: webCrypto.newId,
     tokenStore,
     kv,
     redirectUri,

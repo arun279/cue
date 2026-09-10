@@ -66,12 +66,12 @@ export function UpNextError({
 }): ReactElement {
   return (
     <EmptyState
-      testID="up-next-error"
+      testID={TEST_IDS.upNextError}
       centered
       headline="Couldn't load your queue"
       body={readFailureBody(failure)}
     >
-      <Button label="Retry" onPress={onRetry} testID="up-next-error-retry" />
+      <Button label="Retry" onPress={onRetry} testID={TEST_IDS.upNextErrorRetry} />
     </EmptyState>
   );
 }
@@ -87,7 +87,7 @@ export function TvShowsOff(): ReactElement {
 
   return (
     <EmptyState
-      testID="up-next-tv-off"
+      testID={TEST_IDS.upNextTvOff}
       headline="TV shows are turned off."
       body="Turn TV shows back on in Settings to see your queue."
     >
@@ -184,7 +184,7 @@ function WatchlistTiles({ entries }: { readonly entries: readonly LibraryEntry[]
             accessible
             accessibilityRole="button"
             accessibilityLabel={entry.title}
-            testID="watchlist-tile"
+            testID={TEST_IDS.watchlistTile}
             onPress={() => router.push(`/show/${entry.showId}`)}
             style={styles.tile}
           >

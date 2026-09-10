@@ -1,10 +1,13 @@
+import react from "@vitejs/plugin-react-swc";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
+  plugins: [react()],
   test: {
     name: "core",
     environment: "node",
     globals: true,
-    include: ["test/**/*.test.ts"],
+    setupFiles: ["./test/setup.ts"],
+    include: ["test/**/*.test.{ts,tsx}"],
   },
 });

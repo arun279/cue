@@ -681,7 +681,12 @@ function playHistoryRows(show: ShowFixture, markedAt: ReadonlyMap<number, string
   return rows;
 }
 
-const JSON_HEADERS = { "content-type": "application/json" } as const;
+const JSON_HEADERS = {
+  "content-type": "application/json",
+  "access-control-expose-headers": "X-Pagination-Page, X-Pagination-Page-Count",
+  "x-pagination-page": "1",
+  "x-pagination-page-count": "1",
+} as const;
 
 /** Trakt's `/sync/watched/shows` only lists shows with at least one play; a
  * never-watched show (no plays, no last-watched date) is absent here and reaches

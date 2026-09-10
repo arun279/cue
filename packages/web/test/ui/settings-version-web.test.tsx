@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+import { mountAsync } from "../../../core/test/ui/_mount";
 import { version as packageVersion } from "../../package.json";
 import { mockCompositionRoot } from "../support/composition-root-mocks";
-import { mountAsync } from "./_mount";
 
 vi.doMock("@capacitor/app", () => ({ App: { getInfo: vi.fn() } }));
 mockCompositionRoot({ native: false, clientId: "web-version-test" });

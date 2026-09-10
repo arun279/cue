@@ -1,6 +1,6 @@
 import type { ReactElement, ReactNode } from "react";
-import { Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
-import { HAIRLINE, REFLOW_FONT_SCALE, SPACE, useColors } from "./tokens";
+import { Pressable, StyleSheet, View } from "react-native";
+import { HAIRLINE, SPACE, useColors, useStacked } from "./tokens";
 
 interface RowAction {
   /** The identifier the platform hands back when the action is chosen. */
@@ -43,8 +43,7 @@ export function Row({
   testID,
   children,
 }: RowProps): ReactElement {
-  const { fontScale } = useWindowDimensions();
-  const stacked = fontScale >= REFLOW_FONT_SCALE;
+  const stacked = useStacked();
 
   return (
     <View style={[styles.row, stacked && styles.rowStacked]}>

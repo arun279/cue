@@ -20,6 +20,7 @@ import { PrefsProvider } from "@cue/core/prefs/prefs-store";
 import { getNativeAppVersion } from "@platform/app-version";
 import { webAppVisibility } from "@platform/app-visibility";
 import { bindHardwareBack } from "@platform/back-button";
+import { webCrypto } from "@platform/crypto";
 import { createNativeHaptics } from "@platform/haptics";
 import { createKeyValueStore } from "@platform/kv";
 import { webNetwork } from "@platform/network";
@@ -47,6 +48,7 @@ const haptics = createNativeHaptics(() => prefsStore.getState().hapticsEnabled);
 const reminders = createNativeReminders();
 const redirectUri = `${globalThis.location.origin}/auth/callback`;
 const authStore = createAuthStore({
+  crypto: webCrypto,
   tokenStore,
   clientId: TRAKT_CLIENT_ID,
   redirectUri,

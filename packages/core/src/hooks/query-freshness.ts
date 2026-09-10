@@ -52,6 +52,11 @@ export interface QueryStatus {
   readonly retrying: boolean;
 }
 
+export interface DetailHeaderView<T> extends QueryStatus {
+  readonly header: T | undefined;
+  refetch(): void;
+}
+
 export function queryStatus(
   query: {
     readonly isLoading: boolean;

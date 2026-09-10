@@ -23,6 +23,27 @@ const suppressions = files.reduce(
     total + [...readFileSync(path.join(root, file), "utf8").matchAll(suppression)].length,
   0,
 );
+// Concepts the tree has already drifted on once. Each is one line of source
+// that reads as harmless where it is copied, and each sits under jscpd's
+// minLines, so nothing else can see the second copy.
+const owned = [
+  ["DAY_MS", /\b(?:export\s+)?const\s+DAY_MS\b/, ["packages/core/src/domain/time.ts"]],
+  [
+    "the local day-key formatter",
+    /Intl\.DateTimeFormat\("en-CA"/,
+    ["packages/core/src/domain/day.ts"],
+  ],
+  [
+    "the persisted storage keys",
+    /"cue\.(?:write-queue|trakt\.token)"/,
+    ["packages/core/src/ports/storage-keys.ts"],
+  ],
+  [
+    "the read-failure mapper",
+    /readFailureOf\(/,
+    ["packages/core/src/sync-contract.ts", "packages/core/src/hooks/query-freshness.ts"],
+  ],
+];
 const nativeSuppressions = files
   .filter((file) => file.startsWith("packages/native/src/"))
   .reduce(
@@ -45,6 +66,16 @@ if (nativeSuppressions !== 0) {
   throw new Error(
     `cognitive complexity suppressions under packages/native/src: ${nativeSuppressions}, budget 0`,
   );
+}
+for (const [label, pattern, owners] of owned) {
+  const strays = files.filter(
+    (file) => !owners.includes(file) && pattern.test(readFileSync(path.join(root, file), "utf8")),
+  );
+  if (strays.length > 0) {
+    throw new Error(
+      `${label} may only appear in ${owners.join(", ")}; found in ${strays.join(", ")}`,
+    );
+  }
 }
 // Equality, not a ceiling: a ceiling above the measurement lets a commit raise
 // the budget instead of the debt and stay green, which is the one edit this

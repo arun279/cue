@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * The reminders wiring above the pure planner: when the OS schedule is allowed
  * to move, and when it must be left alone. Cancelling is destructive and

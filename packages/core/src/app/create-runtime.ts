@@ -49,6 +49,7 @@ import { WriteQueue } from "../domain/write-queue/queue";
 import type { QueuedOp } from "../domain/write-queue/types";
 import { createJsonStore } from "../ports/json-store";
 import type { KeyValueStore } from "../ports/kv";
+import { OP_LOG_KEY } from "../ports/storage-keys";
 import type { TokenStore } from "../ports/token-store";
 import type {
   ActivitiesReconcile,
@@ -62,7 +63,6 @@ import type {
 } from "../runtime/runtime";
 import { PendingWritesError, type TeardownOptions } from "./session";
 
-const OP_LOG_KEY = "cue.write-queue";
 const ACTIVITIES_KEY = "cue.last-activities";
 
 type ReconcileContext =
@@ -77,6 +77,7 @@ type ReconcileContext =
     };
 
 export interface RuntimeDeps {
+  readonly newId: () => string;
   readonly token: Token;
   readonly kv: KeyValueStore;
   readonly tokenStore: TokenStore;
@@ -88,6 +89,7 @@ export interface RuntimeDeps {
   /** The fake Trakt's origin under `--mode mock`, undefined in every real build. */
   readonly apiBaseUrl?: string | undefined;
   readonly browser: boolean;
+  readonly userAgent?: string;
   readonly endSession: () => Promise<void>;
   readonly clearPersistedCaches: () => Promise<void>;
   readonly clearLocalPreferences: () => void;
@@ -190,6 +192,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     fetch: authorized.fetch,
     baseUrl: deps.apiBaseUrl,
     browser: deps.browser,
+    userAgent: deps.userAgent,
   });
 
   const opLogStore = createJsonStore<QueuedOp[]>(deps.kv, OP_LOG_KEY, (value) =>
@@ -223,6 +226,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
   let tearingDown = false;
 
   return {
+    newId: deps.newId,
     async loadUpNext(): Promise<UpNextData> {
       return { entries: await loadUpNextEntries(client) };
     },

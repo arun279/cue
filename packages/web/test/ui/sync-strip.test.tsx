@@ -16,7 +16,7 @@ import { SYNC_BANNER_KINDS } from "@cue/core/sync-contract";
 import { SyncStrip } from "@ui/app-shell/SyncStrip";
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mount } from "./_mount";
+import { mount } from "../../../core/test/ui/_mount";
 
 let queueDepth = 0;
 const runtime = { pendingWrites: () => queueDepth } as unknown as CueRuntime;

@@ -8,7 +8,7 @@
       "ignoreDependencies": ["expo-atlas"]
     },
     "packages/core": {
-      "project": ["src/**/*.ts"],
+      "project": ["src/**/*.ts", "test/**/*.{ts,tsx}"],
       "includeEntryExports": true
     },
     "packages/web": {

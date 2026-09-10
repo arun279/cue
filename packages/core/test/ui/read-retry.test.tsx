@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * The read retry policy as the app actually wires it: a transient failure is
  * retried on the server's own schedule before any screen is told, and what a
@@ -12,6 +13,7 @@ import {
   resetReadPause,
   withReadRateRetry,
 } from "@cue/core/data/trakt/read-budget";
+import { backoffMs } from "@cue/core/domain/write-queue/classify";
 import { queryStatus } from "@cue/core/hooks/query-freshness";
 import { createQueryClient } from "@cue/core/runtime/query-cache";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
@@ -61,17 +63,17 @@ describe("a read that keeps failing", () => {
     expect(last(seen).retrying).toBe(true);
     expect(last(seen).isError).toBe(false);
 
-    // The same ladder the write queue backs off on: 1s, then 2s.
+    // The same ladder the write queue backs off on.
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(1000);
+      await vi.advanceTimersByTimeAsync(backoffMs(0) - 100);
     });
     expect(queryFn).toHaveBeenCalledTimes(2);
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(1000);
+      await vi.advanceTimersByTimeAsync(backoffMs(1) - 1);
     });
     expect(queryFn).toHaveBeenCalledTimes(2);
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(1100);
+      await vi.advanceTimersByTimeAsync(1);
     });
     expect(queryFn).toHaveBeenCalledTimes(3);
   });

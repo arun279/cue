@@ -2,6 +2,7 @@ import {
   TRAKT_API_BASE,
   TRAKT_REQUEST_TIMEOUT_MS,
   TraktClient,
+  type TraktFailure,
   unwrapRead,
 } from "@cue/core/data/trakt/client";
 import { HttpResponse, http } from "msw";
@@ -14,7 +15,45 @@ function client(token: string | null = null): TraktClient {
   return new TraktClient({ clientId: "cid-123", getToken: () => token });
 }
 
+async function headersFor(path: string, trakt = client()): Promise<Headers> {
+  const captured = new Headers();
+  server.use(
+    http.get(`${TRAKT_API_BASE}${path}`, ({ request }) => {
+      for (const [name, value] of request.headers) captured.set(name, value);
+      return HttpResponse.json({});
+    }),
+  );
+  await trakt.get(path);
+  return captured;
+}
+
 describe("TraktClient headers + extended", () => {
+  it("coalesces identical GETs only while the first is in flight", async () => {
+    let requests = 0;
+    let release: (() => void) | undefined;
+    server.use(
+      http.get(`${TRAKT_API_BASE}/sync/watched/shows`, async () => {
+        requests += 1;
+        await new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        return HttpResponse.json([]);
+      }),
+    );
+
+    const trakt = client();
+    const first = trakt.get("/sync/watched/shows");
+    const second = trakt.get("/sync/watched/shows");
+    await vi.waitFor(() => expect(requests).toBe(1));
+    release?.();
+    await Promise.all([first, second]);
+
+    const third = trakt.get("/sync/watched/shows");
+    await vi.waitFor(() => expect(requests).toBe(2));
+    release?.();
+    await third;
+  });
+
   it("sets the required Trakt headers and omits Authorization when no token", async () => {
     let captured: Headers | undefined;
     server.use(
@@ -31,15 +70,14 @@ describe("TraktClient headers + extended", () => {
   });
 
   it("adds a bearer Authorization header when a token is present", async () => {
-    let captured: Headers | undefined;
-    server.use(
-      http.get(`${TRAKT_API_BASE}/users/me`, ({ request }) => {
-        captured = request.headers;
-        return HttpResponse.json({});
-      }),
+    expect((await headersFor("/users/me", client("tok-abc"))).get("authorization")).toBe(
+      "Bearer tok-abc",
     );
-    await client("tok-abc").get("/users/me");
-    expect(captured?.get("authorization")).toBe("Bearer tok-abc");
+  });
+
+  it("sends an injected User-Agent", async () => {
+    const trakt = new TraktClient({ clientId: "cid-123", userAgent: "Cue/1.0.0" });
+    expect((await headersFor("/users/me", trakt)).get("user-agent")).toBe("Cue/1.0.0");
   });
 
   it("builds the comma-combined extended query param", async () => {
@@ -99,12 +137,16 @@ describe("TraktClient pagination", () => {
     expect(result.ok && result.data).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }]);
   });
 
-  it("treats an endpoint without pagination headers as a single page", async () => {
+  it("walks to an empty page when pagination headers are absent", async () => {
+    const rows = Array.from({ length: 250 }, (_, id) => ({ id }));
     server.use(
-      http.get(`${TRAKT_API_BASE}/sync/watched/shows`, () => HttpResponse.json([{ id: 1 }])),
+      http.get(`${TRAKT_API_BASE}/sync/watched/shows`, ({ request }) => {
+        const page = Number(new URL(request.url).searchParams.get("page"));
+        return HttpResponse.json(rows.slice((page - 1) * 100, page * 100));
+      }),
     );
     const result = await client().getAllPages("/sync/watched/shows");
-    expect(result.ok && result.data).toEqual([{ id: 1 }]);
+    expect(result.ok && result.data).toEqual(rows);
     expect(result.ok && result.pagination).toBeNull();
   });
 });
@@ -125,6 +167,15 @@ describe("TraktClient error mapping", () => {
   it("maps 404 to not-found", async () => {
     respond(404);
     expect(await client().get(path)).toEqual({ ok: false, error: { kind: "not-found" } });
+  });
+
+  it.each<{ status: number; kind: TraktFailure["kind"] }>([
+    { status: 420, kind: "account-limit" },
+    { status: 423, kind: "account-locked" },
+    { status: 426, kind: "vip-required" },
+  ])("maps permanent status $status to $kind", async ({ status, kind }) => {
+    respond(status);
+    expect(await client().get(path)).toEqual({ ok: false, error: { kind } });
   });
 
   it("maps 429 and reads Retry-After seconds", async () => {
@@ -157,12 +208,12 @@ describe("TraktClient error mapping", () => {
     expect(await client().get(path)).toEqual({ ok: false, error: { kind: "network" } });
   });
 
-  it("classifies an unreadable Trakt response as server only in a browser", async () => {
+  it("distinguishes an unreadable Trakt response from server and network failures", async () => {
     server.use(http.get(`${TRAKT_API_BASE}${path}`, () => HttpResponse.error()));
     const browserClient = new TraktClient({ clientId: "cid-123", browser: true });
     expect(await browserClient.get(path)).toEqual({
       ok: false,
-      error: { kind: "server", status: 503 },
+      error: { kind: "unreadable-response" },
     });
   });
 

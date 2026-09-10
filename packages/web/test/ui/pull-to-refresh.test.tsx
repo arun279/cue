@@ -11,7 +11,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { PullToRefresh } from "@ui/components/PullToRefresh";
 import { act } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { mount } from "./_mount";
+import { mount } from "../../../core/test/ui/_mount";
 
 // jsdom ships PointerEvent but no pointer capture, and the region captures the
 // pointer it claims.

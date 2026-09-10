@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
   type LegacyMigrationDeps,
@@ -36,6 +37,7 @@ function deps(legacySeed: Record<string, string> = {}): LegacyMigrationDeps & {
 } {
   const bulk = memoryKeyValueStore();
   return {
+    digest: async (bytes) => new Uint8Array(createHash("sha256").update(bytes).digest()),
     legacy: memoryKeyValueStore(legacySeed),
     tokenStore: createTokenStore(memoryKeyValueStore()),
     bulk,

@@ -1,10 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { queryKeys } from "../data/query-keys";
-import type { TraktFailure } from "../data/trakt/client";
 import type { SearchHit } from "../data/trakt/search";
 import { useRuntime } from "../runtime/runtime";
-import { readFailureOf } from "../sync-contract";
+import { type QueryStatus, queryStatus } from "./query-freshness";
 import { useWatchlistAdd } from "./useWatchlistAdd";
 
 /**
@@ -18,7 +17,7 @@ const RECENT_LIMIT = 5;
 
 type SearchStatus = "idle" | "searching" | "results" | "empty" | "error";
 
-export interface SearchView {
+export interface SearchView extends QueryStatus {
   readonly input: string;
   setInput(value: string): void;
   readonly status: SearchStatus;
@@ -26,8 +25,6 @@ export interface SearchView {
   readonly query: string;
   readonly hits: readonly SearchHit[];
   readonly recent: readonly string[];
-  /** Why the read failed, so the screen's error body names it rather than guessing. */
-  readonly failure: TraktFailure | null;
   refetch(): void;
   isAdded(hit: SearchHit): boolean;
   add(hit: SearchHit): Promise<void>;
@@ -92,13 +89,13 @@ export function useSearch(): SearchView {
   else status = hits.length === 0 ? "empty" : "results";
 
   return {
+    ...queryStatus(query, query.data !== undefined),
     input,
     setInput,
     status,
     query: debounced,
     hits,
     recent,
-    failure: readFailureOf(query.error),
     refetch: () => void query.refetch(),
     isAdded: watchlist.isAdded,
     add: watchlist.add,

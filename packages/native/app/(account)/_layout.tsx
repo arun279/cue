@@ -2,6 +2,7 @@ import { Stack, useRouter } from "expo-router";
 import type { ReactElement } from "react";
 import { Button, StyleSheet, View } from "react-native";
 import { SnackbarHost } from "../../src/ui/SnackbarHost";
+import { TEST_IDS } from "../../src/ui/test-ids";
 
 /**
  * Profile, Settings and History as one full-screen modal stack over the tabs.
@@ -30,7 +31,11 @@ export default function AccountLayout(): ReactElement {
           options={{
             title: "Profile",
             headerRight: () => (
-              <Button testID="close-account" title="Done" onPress={() => router.dismissAll()} />
+              <Button
+                testID={TEST_IDS.closeAccount}
+                title="Done"
+                onPress={() => router.dismissAll()}
+              />
             ),
           }}
         />

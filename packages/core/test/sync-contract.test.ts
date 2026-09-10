@@ -163,12 +163,27 @@ describe("readFailureBody", () => {
   it("does blame the connection for a transport failure", () => {
     expect(readFailureBody({ kind: "network" })).toBe("Check your connection and try again.");
   });
+
+  it("keeps unreadable response copy distinct from a connection failure", () => {
+    expect(readFailureBody({ kind: "unreadable-response" })).toBe(
+      "Trakt is having trouble. Try again in a moment.",
+    );
+  });
+
+  it("names permanent account failures", () => {
+    expect(readFailureBody({ kind: "account-limit" })).toBe(
+      "Your Trakt account has reached its limit.",
+    );
+    expect(readFailureBody({ kind: "account-locked" })).toBe("Your Trakt account is locked.");
+    expect(readFailureBody({ kind: "vip-required" })).toBe("This requires Trakt VIP.");
+  });
 });
 
 describe("read retry policy", () => {
   it("retries a 5xx and a transport failure, and stops at the budget", () => {
     expect(shouldRetryRead(0, readError({ kind: "server", status: 500 }))).toBe(true);
     expect(shouldRetryRead(0, readError({ kind: "network" }))).toBe(true);
+    expect(shouldRetryRead(0, readError({ kind: "unreadable-response" }))).toBe(true);
     expect(shouldRetryRead(2, readError({ kind: "network" }))).toBe(false);
   });
 

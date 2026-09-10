@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import type { LibraryEntry } from "@cue/core/data/trakt/library";
 import type { EpisodeView, SeasonView } from "@cue/core/data/trakt/show-detail";
 import type { CalendarEntry } from "@cue/core/domain/calendar";

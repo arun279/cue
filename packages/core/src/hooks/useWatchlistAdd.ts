@@ -3,9 +3,10 @@ import { useCallback, useState } from "react";
 import { queryKeys } from "../data/query-keys";
 import type { SearchHit } from "../data/trakt/search";
 import { buildAddWatchlistOp, buildRemoveWatchlistOp } from "../domain/write-queue/ops";
+import type { QueuedOp } from "../domain/write-queue/types";
 import { type MovieLibraryData, type UpNextData, useRuntime } from "../runtime/runtime";
 import { USER_STATE_STALE_TIME } from "./query-freshness";
-import { useQueuedWrite } from "./useQueuedWrite";
+import { useOptimisticWrite } from "./useOptimisticWrite";
 
 export interface WatchlistAddView {
   /** True once this hit is in the user's library in any sense: optimistically
@@ -56,8 +57,16 @@ export function useWatchlistAdd(
 ): WatchlistAddView {
   const runtime = useRuntime();
   const queryClient = useQueryClient();
-  const write = useQueuedWrite();
+  const submit = useOptimisticWrite();
+  const [error, setError] = useState<string | null>(null);
   const [added, setAdded] = useState<ReadonlySet<string>>(() => new Set());
+
+  const run = useCallback(
+    async (op: QueuedOp, rollback: () => void, message: string, revalidate: () => void) => {
+      if ((await submit([op], { rollback, revalidate })) === "failed") setError(message);
+    },
+    [submit],
+  );
 
   const showsEnabled = sections.shows ?? false;
   const moviesEnabled = sections.movies ?? false;
@@ -127,8 +136,8 @@ export function useWatchlistAdd(
       if (added.has(key) || isListed(hit)) return;
       setAdded((prev) => new Set(prev).add(key));
       const section = sectionOf(hit.type);
-      const op = buildAddWatchlistOp({ opId: crypto.randomUUID(), section, ids: hit.ids });
-      await write.run(
+      const op = buildAddWatchlistOp({ opId: runtime.newId(), section, ids: hit.ids });
+      await run(
         op,
         () =>
           setAdded((prev) => {
@@ -140,7 +149,7 @@ export function useWatchlistAdd(
         () => revalidateMembership(section),
       );
     },
-    [added, isListed, write, revalidateMembership],
+    [added, isListed, run, revalidateMembership, runtime.newId],
   );
 
   const remove = useCallback(
@@ -180,8 +189,8 @@ export function useWatchlistAdd(
             : { ...old, entries: old.entries.filter((entry) => entry.showId !== hit.traktId) },
         );
       }
-      const op = buildRemoveWatchlistOp({ opId: crypto.randomUUID(), section, ids: hit.ids });
-      await write.run(
+      const op = buildRemoveWatchlistOp({ opId: runtime.newId(), section, ids: hit.ids });
+      await run(
         op,
         // Trakt still lists it: restore the added state rather than stranding
         // the row unlisted while the server never changed.
@@ -194,8 +203,8 @@ export function useWatchlistAdd(
         () => revalidateMembership(section),
       );
     },
-    [write, queryClient, revalidateMembership],
+    [run, queryClient, revalidateMembership, runtime.newId],
   );
 
-  return { isAdded, add, remove, addError: write.error, clearAddError: write.clearError };
+  return { isAdded, add, remove, addError: error, clearAddError: () => setError(null) };
 }

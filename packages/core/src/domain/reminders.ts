@@ -1,7 +1,6 @@
 import type { CalendarDay } from "./calendar";
 import { epCode } from "./model/library";
-
-const DAY_MS = 24 * 60 * 60 * 1000;
+import { DAY_MS } from "./time";
 
 /**
  * The local hour the digest fires. Morning, because the point is to plan the

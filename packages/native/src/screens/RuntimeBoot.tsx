@@ -4,6 +4,7 @@ import { RuntimeProvider } from "@cue/core/runtime/runtime";
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, Text } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { TEST_IDS } from "../ui/test-ids";
 
 export interface RuntimeBootProps {
   /** Everything the runtime needs except the token, which boot reads for itself,
@@ -33,9 +34,9 @@ export function RuntimeBoot({ deps, children }: RuntimeBootProps): ReactElement 
 
   if (failed && runtime === null) {
     return (
-      <SafeAreaView testID="runtime-error">
+      <SafeAreaView testID={TEST_IDS.runtimeError}>
         <Text accessibilityRole="alert">Couldn't start Cue.</Text>
-        <Pressable accessibilityRole="button" testID="runtime-error-retry" onPress={retry}>
+        <Pressable accessibilityRole="button" testID={TEST_IDS.runtimeErrorRetry} onPress={retry}>
           <Text>Retry</Text>
         </Pressable>
       </SafeAreaView>
@@ -44,7 +45,7 @@ export function RuntimeBoot({ deps, children }: RuntimeBootProps): ReactElement 
 
   if (runtime === null) {
     return (
-      <SafeAreaView testID="runtime-loading">
+      <SafeAreaView testID={TEST_IDS.runtimeLoading}>
         <Text>Loading your queue…</Text>
       </SafeAreaView>
     );

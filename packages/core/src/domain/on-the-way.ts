@@ -1,9 +1,8 @@
 import type { CalendarDay, CalendarRow } from "./calendar";
 import { dayKeyOf } from "./day";
-import { localTimeZone } from "./time";
+import { DAY_MS, localTimeZone } from "./time";
 
-const SCOPE_MS = 72 * 60 * 60 * 1000;
-const DAY_MS = 24 * 60 * 60 * 1000;
+const SCOPE_MS = 3 * DAY_MS;
 
 export interface OnTheWayDay {
   readonly key: string;

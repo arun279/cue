@@ -1,7 +1,6 @@
 import type { CalendarDay, CalendarRow } from "@cue/core/domain/calendar";
-import { localTimeZone } from "@cue/core/domain/time";
-
-const DAY_MS = 24 * 60 * 60 * 1000;
+import { dayKeyOf } from "@cue/core/domain/day";
+import { DAY_MS, localTimeZone } from "@cue/core/domain/time";
 
 interface AgendaHeader {
   readonly kind: "header";
@@ -35,12 +34,7 @@ export function buildAgenda(
   now: number,
   timeZone: string = localTimeZone(),
 ): AgendaItem[] {
-  const todayKey = new Intl.DateTimeFormat("en-CA", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(now);
+  const todayKey = dayKeyOf(timeZone, now);
   const items: AgendaItem[] = [];
   for (const day of days) {
     if (day.rows.length === 0) continue;

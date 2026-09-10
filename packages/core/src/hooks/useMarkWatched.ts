@@ -13,20 +13,22 @@ import { middleTruncate } from "../format";
 import { type Haptics, useHaptics } from "../ports/haptics";
 import { type CueRuntime, type SubmitOutcome, useRuntime } from "../runtime/runtime";
 import {
-  hasPendingMark,
   isReversalRequested,
-  lockShow,
   type MarkRecord,
   ownsSnack,
-  registerPendingMark,
-  releasePendingMark,
   requestReversal,
   setOwnedSnackSeq,
   settleReversal,
-  unlockShow,
   useMarkStore,
 } from "../stores/mark-store";
 import { dismissSnack, type SnackMessage, showSnack, useSnackbar } from "../stores/snackbar-store";
+import {
+  claimWriteLock,
+  hasPendingMark,
+  pendingMarkLock,
+  releaseWriteLock,
+  showWriteLock,
+} from "../stores/write-locks";
 import { appendToBatch } from "../sync-contract";
 import {
   patchEpisodeDetail,
@@ -203,7 +205,7 @@ export function useMarkWatched(): MarkWatched {
           preCompleted: record.preCompleted + 1,
         };
         const op = buildUnmarkEpisodeOp({
-          opId: crypto.randomUUID(),
+          opId: runtime.newId(),
           ids: record.episodeIds,
           watchedAt: record.watchedAt,
           inversePatch: context,
@@ -230,7 +232,7 @@ export function useMarkWatched(): MarkWatched {
       return submit(
         [
           buildRemovePlaysOp({
-            opId: crypto.randomUUID(),
+            opId: runtime.newId(),
             ids: [target.historyId],
             restore: [{ trakt: record.episodeIds.trakt, watchedAt: target.watchedAt }],
           }),
@@ -267,8 +269,8 @@ export function useMarkWatched(): MarkWatched {
     haptics.success();
     for (const record of pending) {
       store.close(record.showId, record.opId);
-      unlockShow(record.showId);
-      releasePendingMark(episodeItemKey(record.episodeIds.trakt), record.opId);
+      releaseWriteLock(showWriteLock(record.showId), record.opId);
+      releaseWriteLock(pendingMarkLock(episodeItemKey(record.episodeIds.trakt)), record.opId);
       restorePreMark(record);
     }
     await Promise.all(pending.map((record) => submitReversal(record)));
@@ -297,20 +299,25 @@ export function useMarkWatched(): MarkWatched {
     async (entry: LibraryEntry) => {
       const episode = entry.nextEpisode;
       if (episode === null || entry.pendingAdvance) return;
+      const opId = runtime.newId();
+      const showLock = showWriteLock(entry.showId);
       // Second synchronous activation in the same burst: its optimistic advance
       // hasn't re-rendered yet, so drop it before it can enqueue a duplicate play.
-      if (!lockShow(entry.showId)) return;
+      if (!claimWriteLock(showLock, opId)) return;
       const itemKey = episodeItemKey(episode.ids.trakt);
       // A mark for this exact episode is already pending from ANOTHER path (a
       // season-row/sheet toggle, or an op restored from a previous session):
       // drop it exactly like the same-path lock above.
       if (hasPendingMark(runtime, itemKey)) {
-        unlockShow(entry.showId);
+        releaseWriteLock(showLock, opId);
+        return;
+      }
+      const pendingLock = pendingMarkLock(itemKey);
+      if (!claimWriteLock(pendingLock, opId)) {
+        releaseWriteLock(showLock, opId);
         return;
       }
       const watchedAt = new Date().toISOString();
-      const opId = crypto.randomUUID();
-      registerPendingMark(itemKey, opId);
       const record: MarkRecord = {
         opId,
         showId: entry.showId,
@@ -362,8 +369,8 @@ export function useMarkWatched(): MarkWatched {
         // The write has settled (done | failed | deferred): or submit threw
         // (a persistence fault): release the locks either way so a deliberate later
         // mark of the show's next episode is never wedged behind a stuck lock.
-        unlockShow(entry.showId);
-        releasePendingMark(itemKey, opId);
+        releaseWriteLock(showLock, opId);
+        releaseWriteLock(pendingLock, opId);
       }
       if (outcome !== "failed") return;
       // Rollback already ran; retire this op's window + batch entry. Only surface
@@ -390,9 +397,9 @@ export function useMarkWatched(): MarkWatched {
       const record = store.records.get(showId);
       if (record === undefined) return;
       store.close(showId);
-      unlockShow(showId);
+      releaseWriteLock(showWriteLock(showId), record.opId);
       // The mark no longer stands: free the episode for a deliberate re-mark.
-      releasePendingMark(episodeItemKey(record.episodeIds.trakt), record.opId);
+      releaseWriteLock(pendingMarkLock(episodeItemKey(record.episodeIds.trakt)), record.opId);
       store.setBatch(store.batch.filter((r) => r.opId !== record.opId));
       // Retract (or recount) the mark snack, but never a snack that replaced it.
       if (ownsSnack(useSnackbar.getState().snack?.seq)) presentBatch();

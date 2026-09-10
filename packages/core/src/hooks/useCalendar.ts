@@ -2,7 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { queryKeys } from "../data/query-keys";
 import { type CalendarDay, type CalendarEntry, groupCalendar } from "../domain/calendar";
-import { localTimeZone } from "../domain/time";
+import { dayKeyOf } from "../domain/day";
+import { DAY_MS, localTimeZone } from "../domain/time";
 import { useRuntime } from "../runtime/runtime";
 import { CONTENT_STALE_TIME_MS, type QueryStatus, queryStatus } from "./query-freshness";
 
@@ -21,8 +22,6 @@ const RECENT_WINDOW_DAYS = 33;
 
 /** How often the day clock re-checks whether the local day has flipped. */
 const DAY_CHECK_MS = 60_000;
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 export function recentCalendarStart(dayKey: string): string {
   return new Date(Date.parse(dayKey) - (RECENT_WINDOW_DAYS - 1) * DAY_MS)
@@ -50,16 +49,6 @@ export interface CalendarView extends QueryStatus {
   refetch(): void;
 }
 
-/** `ms → "YYYY-MM-DD"` in the viewer's local tz: the window anchor + day handle. */
-function localDayKey(ms: number): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: localTimeZone(),
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(ms);
-}
-
 /**
  * A clock frozen per render pass, re-stamped only when the local calendar day
  * changes: a session left open across midnight re-anchors the window and its
@@ -67,13 +56,14 @@ function localDayKey(ms: number): string {
  */
 function useDayClock(): number {
   const [now, setNow] = useState(() => Date.now());
-  const dayKey = localDayKey(now);
+  const timeZone = localTimeZone();
+  const dayKey = dayKeyOf(timeZone, now);
   useEffect(() => {
     const timer = setInterval(() => {
-      if (localDayKey(Date.now()) !== dayKey) setNow(Date.now());
+      if (dayKeyOf(timeZone, Date.now()) !== dayKey) setNow(Date.now());
     }, DAY_CHECK_MS);
     return () => clearInterval(timer);
-  }, [dayKey]);
+  }, [dayKey, timeZone]);
   return now;
 }
 
@@ -87,7 +77,7 @@ function useDayClock(): number {
 export function useRecentlyAired(enabled = true): readonly CalendarEntry[] | undefined {
   const runtime = useRuntime();
   const now = useDayClock();
-  const startDate = recentCalendarStart(localDayKey(now));
+  const startDate = recentCalendarStart(dayKeyOf(localTimeZone(), now));
   const query = useQuery({
     queryKey: queryKeys.calendar(startDate, RECENT_WINDOW_DAYS),
     queryFn: () => runtime.loadCalendar(startDate, RECENT_WINDOW_DAYS),
@@ -117,7 +107,7 @@ export function useCalendar(
 ): CalendarView {
   const runtime = useRuntime();
   const now = useDayClock();
-  const startDate = localDayKey(now);
+  const startDate = dayKeyOf(localTimeZone(), now);
   const query = useQuery({
     queryKey: queryKeys.calendar(startDate, CALENDAR_WINDOW_DAYS),
     queryFn: () => runtime.loadCalendar(startDate, CALENDAR_WINDOW_DAYS),

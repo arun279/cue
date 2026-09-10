@@ -40,8 +40,8 @@ jest.mock("expo-sqlite/kv-store", () => ({
   default: require("./support/native-stores").bulkBacking,
 }));
 
-const { UpNext } =
-  require("../src/screens/up-next/UpNext") as typeof import("../src/screens/up-next/UpNext");
+const UpNext = (require("../app/(tabs)/(up-next)") as typeof import("../app/(tabs)/(up-next)"))
+  .default;
 
 const haptics = spyHaptics();
 const HARBOR = 8801;

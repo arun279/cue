@@ -34,6 +34,7 @@ export function buildRuntime(overrides: Partial<RuntimeDeps> = {}): Promise<CueR
       created_at: Math.floor(Date.now() / 1000),
       expires_in: 604_800,
     },
+    newId: () => "test-op-id",
     kv: memoryKv(),
     tokenStore: noopTokenStore,
     redirectUri: "https://cue.test/auth/callback",

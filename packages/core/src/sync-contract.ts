@@ -58,7 +58,7 @@ const MAX_READ_ATTEMPTS = 3;
  * model into it.
  */
 function healsOnRetry(failure: TraktFailure): boolean {
-  if (failure.kind === "network") return true;
+  if (failure.kind === "network" || failure.kind === "unreadable-response") return true;
   return failure.kind === "server" && failure.status >= 500;
 }
 
@@ -114,7 +114,9 @@ export interface SyncBannerInput {
 
 function unreachableMessage(failure: TraktFailure): string {
   if (failure.kind === "network") return "Can't reach Trakt. Showing your cached data.";
-  if (failure.kind === "server") return "Trakt is having trouble. Showing your cached data.";
+  if (failure.kind === "server" || failure.kind === "unreadable-response") {
+    return "Trakt is having trouble. Showing your cached data.";
+  }
   // A rate limit whose window has since reopened lands here: the read gave up
   // inside it, so what is true now is that the refresh did not happen.
   return "Couldn't refresh from Trakt. Showing your cached data.";
@@ -187,9 +189,16 @@ export function readFailureBody(failure: TraktFailure | null): string {
     case "network":
       return "Check your connection and try again.";
     case "server":
+    case "unreadable-response":
       return "Trakt is having trouble. Try again in a moment.";
     case "unauthorized":
       return "Your Trakt session needs to reconnect.";
+    case "account-limit":
+      return "Your Trakt account has reached its limit.";
+    case "account-locked":
+      return "Your Trakt account is locked.";
+    case "vip-required":
+      return "This requires Trakt VIP.";
     default:
       return "Try again in a moment.";
   }

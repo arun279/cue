@@ -1,8 +1,7 @@
 import { type Token, tokenSchema } from "../domain/model/token";
 import { createJsonStore, type JsonStore } from "./json-store";
 import type { KeyValueStore } from "./kv";
-
-const TOKEN_KEY = "cue.trakt.token";
+import { TOKEN_KEY } from "./storage-keys";
 
 /** The Trakt OAuth token behind the platform key-value abstraction. */
 export type TokenStore = JsonStore<Token>;

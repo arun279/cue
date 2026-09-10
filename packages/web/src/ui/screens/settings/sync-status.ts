@@ -1,3 +1,5 @@
+import { DAY_MS } from "@cue/core/domain/time";
+
 /**
  * Pure derivations for the Settings ▸ Data status line. "Last synced" is read
  * off successful account-data queries in the cache, not a separate clock.
@@ -36,7 +38,6 @@ export function newestSyncedAt(
 
 const MINUTE_MS = 60_000;
 const HOUR_MS = 60 * MINUTE_MS;
-const DAY_MS = 24 * HOUR_MS;
 
 export function syncedPhrase(syncedAt: number, now: number): string {
   if (syncedAt <= 0) return "Not synced yet";

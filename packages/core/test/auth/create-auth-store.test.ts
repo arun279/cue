@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type AuthDeps, createAuthStore } from "../../src/auth/create-auth-store";
 import { pollDeviceToken, requestDeviceCode } from "../../src/data/auth/oauth";
@@ -16,6 +17,11 @@ vi.mock("../../src/data/auth/pkce", () => ({ createPkcePair: vi.fn() }));
 
 function authDeps(tokenStore: TokenStore): AuthDeps {
   return {
+    crypto: {
+      newId: () => "auth-state",
+      randomBytes: (length) => new Uint8Array(length),
+      digest: async (bytes) => new Uint8Array(createHash("sha256").update(bytes).digest()),
+    },
     tokenStore,
     clientId: "a-public-client-id",
     redirectUri: "cue://auth/callback",

@@ -60,8 +60,8 @@ export function useToggleWatchlist(): WatchlistController {
       const next = !onNow;
       patch(showId, next);
       const op = next
-        ? buildAddWatchlistOp({ opId: crypto.randomUUID(), section: "shows", ids })
-        : buildRemoveWatchlistOp({ opId: crypto.randomUUID(), section: "shows", ids });
+        ? buildAddWatchlistOp({ opId: runtime.newId(), section: "shows", ids })
+        : buildRemoveWatchlistOp({ opId: runtime.newId(), section: "shows", ids });
       const outcome = await submit(op);
       if (outcome === "failed") {
         patch(showId, onNow);
@@ -76,7 +76,7 @@ export function useToggleWatchlist(): WatchlistController {
         void queryClient.invalidateQueries({ queryKey: queryKeys.library() });
       }
     },
-    [queryClient, key, patch, query.data, submit],
+    [queryClient, key, patch, query.data, submit, runtime.newId],
   );
 
   return {

@@ -1,8 +1,7 @@
+import { DAY_MS } from "../domain/time";
 import { DEFAULT_STALENESS_THRESHOLD_MS } from "../domain/watch-status";
 import type { PreferenceStorage } from "../ports/preference-storage";
 import { choicePref, type Pref } from "./pref-storage";
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * The staleness-threshold choices, as week-multiples anchored to weekly release

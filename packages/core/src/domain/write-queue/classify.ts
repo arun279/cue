@@ -1,11 +1,11 @@
 import type { DispatchResult } from "./types";
 
-/** Trakt writes are capped at 1/sec: the hard limit that paces every dispatch. */
-export const MIN_WRITE_INTERVAL_MS = 1000;
+/** Trakt writes are capped at 1/sec; 100ms keeps dispatches off the boundary. */
+export const MIN_WRITE_INTERVAL_MS = 1100;
 
 /**
  * Backoff floor = the write pacing interval (a shorter wait is pointless: the
- * pacer already enforces ≥1s); ceiling bounds BOTH the self-computed exponential
+ * pacer already enforces its floor); ceiling bounds BOTH the self-computed exponential
  * backoff AND an honored `Retry-After` (see `parseRetryAfterMs`), so a healed
  * server is retried promptly rather than after a runaway wait: whether that wait
  * is one Cue computed or one the server dictated.
@@ -81,7 +81,7 @@ export function backoffMs(attempt: number): number {
   return Math.min(BACKOFF_MAX_MS, exp);
 }
 
-/** Ms to wait before the next dispatch to keep dispatches ≥1s apart. */
+/** Ms to wait before the next dispatch to keep dispatches at least 1.1s apart. */
 export function computePacingDelay(now: number, lastDispatchAt: number | null): number {
   if (lastDispatchAt === null) return 0;
   return Math.max(0, MIN_WRITE_INTERVAL_MS - (now - lastDispatchAt));

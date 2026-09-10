@@ -1,16 +1,15 @@
 import { z } from "zod";
 import { tokenSchema } from "../domain/model/token";
 import type { QueuedOp } from "../domain/write-queue/types";
+import type { CryptoPort } from "../ports/crypto";
 import { createJsonStore } from "../ports/json-store";
 import type { KeyValueStore } from "../ports/kv";
 import type { LegacyStore } from "../ports/legacy-store";
 import type { PreferenceStorage } from "../ports/preference-storage";
+import { OP_LOG_KEY, TOKEN_KEY } from "../ports/storage-keys";
 import type { TokenStore } from "../ports/token-store";
 
-const LEGACY_TOKEN_KEY = "cue.trakt.token";
 const ADOPTED_TOKEN_KEY = "cue.legacy-token-adopted";
-const LEGACY_OP_LOG_KEY = "cue.write-queue";
-const OP_LOG_KEY = "cue.write-queue";
 /** The one preference worth seeding: without it an established user is offered
  * the first-mark tutorial again, which is the only loss that reads as a bug
  * rather than as a reset. */
@@ -65,6 +64,7 @@ function parseOpLog(raw: string): QueuedOp[] {
 }
 
 export interface LegacyMigrationDeps {
+  readonly digest: CryptoPort["digest"];
   readonly legacy: LegacyStore;
   /** The secure store the token lands in. */
   readonly tokenStore: TokenStore;
@@ -101,12 +101,12 @@ export interface LegacyMigrationResult {
 export async function migrateLegacyCapacitorData(
   deps: LegacyMigrationDeps,
 ): Promise<LegacyMigrationResult> {
-  const rawToken = await deps.legacy.read(LEGACY_TOKEN_KEY);
+  const rawToken = await deps.legacy.read(TOKEN_KEY);
   let adoptedToken = false;
   if (rawToken !== null) {
     const token = tokenSchema.safeParse(tryParse(rawToken));
     if (token.success) {
-      const digest = await digestToken(rawToken);
+      const digest = await digestToken(rawToken, deps.digest);
       if (digest !== (await deps.bulk.read(ADOPTED_TOKEN_KEY))) {
         await deps.tokenStore.write(token.data);
         await deps.bulk.write(ADOPTED_TOKEN_KEY, digest);
@@ -118,7 +118,7 @@ export async function migrateLegacyCapacitorData(
     }
   }
 
-  const rawOpLog = await deps.legacy.read(LEGACY_OP_LOG_KEY);
+  const rawOpLog = await deps.legacy.read(OP_LOG_KEY);
   let adoptedOps = 0;
   if (rawOpLog !== null) {
     const migrated = parseOpLog(rawOpLog);
@@ -131,15 +131,15 @@ export async function migrateLegacyCapacitorData(
       await opLog.write([...migrated, ...((await opLog.read()) ?? [])]);
       adoptedOps = migrated.length;
     }
-    await deps.legacy.remove(LEGACY_OP_LOG_KEY);
+    await deps.legacy.remove(OP_LOG_KEY);
   }
 
   return { adoptedToken, adoptedOps };
 }
 
-async function digestToken(raw: string): Promise<string> {
-  const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(raw));
-  return Array.from(new Uint8Array(bytes), (byte) => byte.toString(16).padStart(2, "0")).join("");
+async function digestToken(raw: string, digest: CryptoPort["digest"]): Promise<string> {
+  const bytes = await digest(new TextEncoder().encode(raw));
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 function tryParse(raw: string): unknown {

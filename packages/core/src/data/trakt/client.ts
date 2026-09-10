@@ -12,6 +12,7 @@ type Extended = "min" | "full" | "images" | "episodes" | "progress";
 export interface TraktClientConfig {
   readonly clientId: string;
   readonly browser?: boolean;
+  readonly userAgent?: string;
   /** Bearer token for authed calls; absent → the header is omitted. */
   readonly getToken?: () => string | null;
   readonly fetch?: FetchLike;
@@ -33,7 +34,11 @@ interface Pagination {
 export type TraktFailure =
   | { readonly kind: "unauthorized" }
   | { readonly kind: "not-found" }
+  | { readonly kind: "account-limit" }
+  | { readonly kind: "account-locked" }
+  | { readonly kind: "vip-required" }
   | { readonly kind: "rate-limited"; readonly retryAfterMs: number | null }
+  | { readonly kind: "unreadable-response" }
   | { readonly kind: "server"; readonly status: number }
   | { readonly kind: "network" };
 
@@ -92,6 +97,8 @@ export class TraktClient {
   private readonly fetchFn: FetchLike;
   private readonly baseUrl: string;
   private readonly browser: boolean;
+  private readonly userAgent: string | undefined;
+  private readonly inFlightGets = new Map<string, Promise<TraktResult<unknown>>>();
 
   constructor(config: TraktClientConfig) {
     this.clientId = config.clientId;
@@ -99,6 +106,7 @@ export class TraktClient {
     this.fetchFn = config.fetch ?? ((input, init) => globalThis.fetch(input, init));
     this.baseUrl = (config.baseUrl ?? TRAKT_API_BASE).replace(/\/+$/, "");
     this.browser = config.browser ?? false;
+    this.userAgent = config.userAgent;
   }
 
   /** Low-level send used by the write-queue transport: raw response, throws on network reject. */
@@ -108,6 +116,7 @@ export class TraktClient {
       "trakt-api-version": TRAKT_API_VERSION,
       "trakt-api-key": this.clientId,
     };
+    if (this.userAgent !== undefined) headers["User-Agent"] = this.userAgent;
     const token = this.getToken();
     if (token !== null && token.length > 0) headers["Authorization"] = `Bearer ${token}`;
     const controller = new AbortController();
@@ -137,12 +146,20 @@ export class TraktClient {
   private rejectionFailure(cause: unknown): TraktFailure {
     const aborted = cause instanceof Error && cause.name === "AbortError";
     return !aborted && this.browser && this.baseUrl === TRAKT_API_BASE
-      ? { kind: "server", status: 503 }
+      ? { kind: "unreadable-response" }
       : { kind: "network" };
   }
 
   async get(path: string, options: RequestOptions = {}): Promise<TraktResult<unknown>> {
-    return this.request("GET", path, options);
+    const key = buildPath(path, options);
+    const existing = this.inFlightGets.get(key);
+    if (existing !== undefined) return existing;
+    const request = this.request("GET", path, options);
+    this.inFlightGets.set(key, request);
+    request.finally(() => {
+      if (this.inFlightGets.get(key) === request) this.inFlightGets.delete(key);
+    });
+    return request;
   }
 
   async post(path: string, body: unknown): Promise<TraktResult<unknown>> {
@@ -171,15 +188,15 @@ export class TraktClient {
    * into one array: the initial library snapshot helper. The page count comes from
    * the response headers rather than the requested `limit`, because Trakt may apply
    * a smaller one than asked for, and an empty page ends the walk early in case the
-   * count itself is wrong. Endpoints without pagination headers resolve as a single
-   * page.
+   * count itself is wrong. Endpoints without pagination headers walk until an
+   * empty page.
    */
   async getAllPages(path: string, options: RequestOptions = {}): Promise<TraktResult<unknown[]>> {
     const first = await this.get(path, { ...options, page: 1 });
     if (!first.ok) return first;
     const acc = asArray(first.data);
-    const pageCount = first.pagination?.pageCount ?? 1;
-    for (let page = 2; page <= pageCount; page += 1) {
+    const pageCount = first.pagination?.pageCount;
+    for (let page = 2; pageCount === undefined || page <= pageCount; page += 1) {
       const next = await this.get(path, { ...options, page });
       if (!next.ok) return next;
       const rows = asArray(next.data);
@@ -193,6 +210,9 @@ export class TraktClient {
 function mapFailure(raw: RawResponse, method: HttpMethod): TraktFailure {
   if (raw.status === 401) return { kind: "unauthorized" };
   if (raw.status === 404) return { kind: "not-found" };
+  if (raw.status === 420) return { kind: "account-limit" };
+  if (raw.status === 423) return { kind: "account-locked" };
+  if (raw.status === 426) return { kind: "vip-required" };
   if (raw.status === 429) {
     return {
       kind: "rate-limited",
@@ -206,14 +226,16 @@ function mapFailure(raw: RawResponse, method: HttpMethod): TraktFailure {
 }
 
 function buildPath(path: string, options: RequestOptions): string {
-  const params = new URLSearchParams();
+  const params: string[] = [];
   if (options.extended !== undefined && options.extended.length > 0) {
-    params.set("extended", options.extended.join(","));
+    params.push(`extended=${encodeURIComponent(options.extended.join(","))}`);
   }
-  if (options.page !== undefined) params.set("page", String(options.page));
-  if (options.limit !== undefined) params.set("limit", String(options.limit));
-  for (const [key, value] of Object.entries(options.query ?? {})) params.set(key, String(value));
-  const query = params.toString();
+  if (options.page !== undefined) params.push(`page=${options.page}`);
+  if (options.limit !== undefined) params.push(`limit=${options.limit}`);
+  for (const [key, value] of Object.entries(options.query ?? {})) {
+    params.push(`${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`);
+  }
+  const query = params.join("&");
   return query.length > 0 ? `${path}?${query}` : path;
 }
 

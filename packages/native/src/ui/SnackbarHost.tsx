@@ -6,18 +6,12 @@ import {
   useSnackbar,
 } from "@cue/core/stores/snackbar-store";
 import { type ReactElement, useEffect, useId, useSyncExternalStore } from "react";
-import { Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useScreenReader } from "../platform/screen-reader";
 import { useLiveRegion } from "./live-region";
-import {
-  FLOAT_SHADOW,
-  REFLOW_FONT_SCALE,
-  SPACE,
-  TARGET_MIN,
-  tabBarClearance,
-  useColors,
-} from "./tokens";
+import { TEST_IDS } from "./test-ids";
+import { FLOAT_SHADOW, SPACE, TARGET_MIN, tabBarClearance, useColors, useStacked } from "./tokens";
 import { CueText } from "./type";
 
 /**
@@ -90,7 +84,6 @@ function Snackbar({
 }): ReactElement {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { fontScale } = useWindowDimensions();
   const screenReader = useScreenReader();
   const liveRegion = useLiveRegion(snackText(snack.message), "polite");
 
@@ -105,14 +98,14 @@ function Snackbar({
     return () => clearTimeout(timer);
   }, [snack, screenReader]);
 
-  const stacked = fontScale >= REFLOW_FONT_SCALE;
+  const stacked = useStacked();
   // A root-placed snackbar clears the floating tab bar rather than only the
   // inset, so at a sheet's own bottom edge it lands in the same visual place.
   const bottom = (placement === "root" ? tabBarClearance(insets.bottom) : insets.bottom) + SPACE.s2;
 
   return (
     <View
-      testID="snackbar"
+      testID={TEST_IDS.snackbar}
       {...liveRegion}
       style={[
         styles.snackbar,
@@ -122,7 +115,7 @@ function Snackbar({
       ]}
     >
       <CueText
-        testID="snackbar-message"
+        testID={TEST_IDS.snackbarMessage}
         variant="rowTitle"
         style={[styles.message, !stacked && styles.messageInline, { color: colors.fg }]}
       >
@@ -143,7 +136,7 @@ function Snackbar({
             key={action.label}
             accessibilityRole="button"
             accessibilityLabel={action.label}
-            testID={action.testId}
+            testID={action.label === "Undo" ? TEST_IDS.snackbarUndo : action.testId}
             onPress={action.onPress}
             style={styles.action}
           >

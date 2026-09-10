@@ -12,6 +12,7 @@ import infoPlistSource from "../../../ios/App/App/Info.plist?raw";
 import policy from "../../../PRIVACY.md?raw";
 import readme from "../../../README.md?raw";
 import runtimeSource from "../../core/src/app/create-runtime.ts?raw";
+import storageKeysSource from "../../core/src/ports/storage-keys.ts?raw";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -56,6 +57,7 @@ const androidManifest = stripComments(androidManifestSource);
 const extractionRules = stripComments(extractionRulesSource);
 const infoPlist = stripComments(infoPlistSource);
 const runtime = stripComments(runtimeSource);
+const storageKeys = stripComments(storageKeysSource);
 
 /** Every storage domain Android's backup rules can name, device-protected ones included. */
 const backupDomains = [
@@ -273,11 +275,12 @@ describe("privacy copy agreement and storage anchors", () => {
   });
 
   it("anchors unsynced marks to the persisted operation log", () => {
+    expect(storageKeys).toMatch(/export\s+const\s+OP_LOG_KEY\s*=\s*["']cue\.write-queue["']/);
     expect(
       runtime,
       "Unsynced marks must remain in the persisted cue.write-queue operation log.",
     ).toMatch(
-      /const\s+OP_LOG_KEY\s*=\s*["']cue\.write-queue["'];[\s\S]*?const\s+([A-Za-z_$][\w$]*)\s*=\s*createJsonStore(?:<[^>]*>)?\(\s*[\w.]+,\s*OP_LOG_KEY,[\s\S]*?\1\.write\(\s*queue\.snapshot\(\)\s*\)/,
+      /const\s+([A-Za-z_$][\w$]*)\s*=\s*createJsonStore(?:<[^>]*>)?\(\s*[\w.]+,\s*OP_LOG_KEY,[\s\S]*?\1\.write\(\s*queue\.snapshot\(\)\s*\)/,
     );
   });
 

@@ -13,7 +13,7 @@ import { SegmentedControl } from "@ui/components/SegmentedControl";
 import { Sheet } from "@ui/components/Sheet";
 import { act } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { mount } from "./_mount";
+import { mount } from "../../../core/test/ui/_mount";
 
 const dialog = (): HTMLElement | null => document.querySelector("[role='dialog']");
 const click = (el: Element | null): void => {

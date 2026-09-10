@@ -11,11 +11,13 @@ import {
 } from "../data/auth/oauth";
 import { createPkcePair } from "../data/auth/pkce";
 import type { Token } from "../domain/model/token";
+import type { CryptoPort } from "../ports/crypto";
 import type { RedirectHandoff } from "../ports/redirect-handoff";
 import type { TokenStore } from "../ports/token-store";
 import type { AuthActions, AuthState, AuthStore } from "./store";
 
 export interface AuthDeps {
+  readonly crypto: CryptoPort;
   readonly tokenStore: TokenStore;
   readonly clientId: string;
   readonly redirectUri: string;
@@ -124,8 +126,8 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
       async connectWithRedirect() {
         activeAttempt += 1;
         set({ connectStatus: "connecting", errorMessage: null });
-        const state = crypto.randomUUID();
-        const { verifier, challenge } = await createPkcePair();
+        const state = deps.crypto.newId();
+        const { verifier, challenge } = await createPkcePair(deps.crypto);
         deps.redirectHandoff.write(state, verifier);
         deps.redirect(buildAuthorizeUrl(config, state, challenge));
       },
@@ -135,7 +137,7 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
         const attempt = activeAttempt;
         set({ connectStatus: "connecting", errorMessage: null, deviceCode: null });
         try {
-          const { verifier, challenge } = await createPkcePair();
+          const { verifier, challenge } = await createPkcePair(deps.crypto);
           const code = await requestDeviceCode(config, challenge);
           if (activeAttempt !== attempt) return;
           set({ deviceCode: { userCode: code.userCode, verificationUrl: code.verificationUrl } });

@@ -46,13 +46,13 @@ function harness(opts: {
 }
 
 describe("WriteQueue dispatch + pacing", () => {
-  it("dispatches queued ops ≥1000ms apart", async () => {
+  it("keeps every dispatch outside the prior request's one-second window", async () => {
     const h = harness({ dispatch: () => Promise.resolve(dispatchResult(200)) });
     const q = new WriteQueue(h.deps, [mark("a", 1), mark("b", 2), mark("c", 3)]);
     const res = await q.flush();
     expect(res.completed).toHaveLength(3);
-    expect(h.times).toEqual([0, 1000, 2000]);
-    expect(h.slept).toEqual([1000, 1000]);
+    expect(h.times).toEqual([0, 1100, 2200]);
+    expect(h.slept).toEqual([1100, 1100]);
   });
 });
 
@@ -97,7 +97,7 @@ describe("WriteQueue failure classification", () => {
     expect(res.failed).toHaveLength(0);
     expect(q.size).toBe(1); // safe-retryable → stays pending for the next flush
     expect(h.dispatch).toHaveBeenCalledTimes(5);
-    expect(h.slept).toEqual([1000, 2000, 4000, 8000]); // no wasted sleep after the final attempt
+    expect(h.slept).toEqual([1100, 2200, 4400, 8800]); // no wasted sleep after the final attempt
   });
 });
 

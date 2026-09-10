@@ -4,6 +4,7 @@ import { queryKeys } from "../data/query-keys";
 import type { LibraryEntry } from "../data/trakt/library";
 import type { ShowIds } from "../domain/model/ids";
 import { buildHideShowOp, buildUnhideShowOp } from "../domain/write-queue/ops";
+import { useRuntime } from "../runtime/runtime";
 import { patchLibraryHidden } from "./library-cache";
 import { useOptimisticWrite } from "./useOptimisticWrite";
 
@@ -38,6 +39,7 @@ export interface HideController {
  * a symmetric Undo that submits the inverse op.
  */
 export function useHideShow(): HideController {
+  const runtime = useRuntime();
   const submit = useOptimisticWrite();
   const queryClient = useQueryClient();
   const [undoState, setUndoState] = useState<HideUndo | null>(null);
@@ -65,7 +67,7 @@ export function useHideShow(): HideController {
       patchHidden(showId, hidden);
       const build = hidden ? buildHideShowOp : buildUnhideShowOp;
       const op = build({
-        opId: crypto.randomUUID(),
+        opId: runtime.newId(),
         ids,
         inversePatch: { kind: "hidden", showId },
       });
@@ -79,7 +81,7 @@ export function useHideShow(): HideController {
       }
       setUndoState({ showId, ids, title, kind });
     },
-    [patchHidden, revalidate, submit],
+    [patchHidden, revalidate, runtime, submit],
   );
 
   const hide = useCallback(
@@ -100,7 +102,7 @@ export function useHideShow(): HideController {
     patchHidden(pending.showId, restoreHidden);
     const build = restoreHidden ? buildHideShowOp : buildUnhideShowOp;
     const op = build({
-      opId: crypto.randomUUID(),
+      opId: runtime.newId(),
       ids: pending.ids,
       inversePatch: { kind: "hidden", showId: pending.showId },
     });
@@ -116,7 +118,7 @@ export function useHideShow(): HideController {
         `Couldn't ${restoreHidden ? "stop watching" : "resume"} ${pending.title}. Please try again.`,
       );
     }
-  }, [undoState, patchHidden, revalidate, submit]);
+  }, [undoState, patchHidden, revalidate, runtime, submit]);
 
   return {
     hide,

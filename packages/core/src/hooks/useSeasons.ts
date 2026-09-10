@@ -2,13 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { queryKeys } from "../data/query-keys";
 import type { SeasonView } from "../data/trakt/show-detail";
 import { useRuntime } from "../runtime/runtime";
-import { CONTENT_STALE_TIME_MS } from "./query-freshness";
+import { CONTENT_STALE_TIME_MS, type QueryStatus, queryStatus } from "./query-freshness";
 
-export interface SeasonsView {
+export interface SeasonsView extends QueryStatus {
   readonly seasons: readonly SeasonView[];
-  readonly isLoading: boolean;
-  readonly isError: boolean;
-  readonly hasData: boolean;
   refetch(): void;
 }
 
@@ -26,9 +23,7 @@ export function useSeasons(showId: number): SeasonsView {
   });
   return {
     seasons: query.data ?? [],
-    isLoading: query.isLoading,
-    isError: query.isError,
-    hasData: query.data !== undefined,
+    ...queryStatus(query, query.data !== undefined),
     refetch: () => void query.refetch(),
   };
 }

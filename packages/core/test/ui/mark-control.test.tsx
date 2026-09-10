@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * The queue mark control over the real mark pipeline. A row that stays green for
  * as long as the write stays undelivered leaves several rows green at once with
@@ -52,6 +53,7 @@ function entry(overrides: Partial<LibraryEntry> = {}): LibraryEntry {
 function heldRuntime(): CueRuntime {
   const queued: QueuedOp[] = [];
   return {
+    newId: () => `op-${queued.length}`,
     submit: (op: QueuedOp) => {
       queued.push(op);
       return new Promise(() => {});

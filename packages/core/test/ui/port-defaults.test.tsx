@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * The four context-carrying ports with no provider above them.
  *

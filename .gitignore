@@ -58,6 +58,9 @@ test-results/
 # side of a comparison rather than carried in the tree to go stale.
 journal/
 .dprint-cache
+.pnpm-store/
+packages/native/.reassure/*
+!packages/native/.reassure/baseline.perf
 
 # Local design-review output (screenshots + notes). Never push.
 design-review/

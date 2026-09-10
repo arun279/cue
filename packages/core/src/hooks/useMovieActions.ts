@@ -113,7 +113,7 @@ export function useMovieActions(): MovieActions {
     (mark: MarkUndo) => {
       writeMovieEntry(queryClient, mark.before);
       const op = buildUnmarkMovieOp({
-        opId: crypto.randomUUID(),
+        opId: runtime.newId(),
         ids: mark.before.ids,
         watchedAt: mark.watchedAt,
         inversePatch: { kind: "movie", movieId: mark.before.movieId },
@@ -128,7 +128,7 @@ export function useMovieActions(): MovieActions {
         revalidate,
       });
     },
-    [queryClient, revalidate, submit],
+    [queryClient, revalidate, submit, runtime.newId],
   );
 
   const markOn = useCallback(
@@ -154,7 +154,7 @@ export function useMovieActions(): MovieActions {
       // optimistic tick, never on the rollback path.
       haptics.success();
       const op = buildMarkMovieOp({
-        opId: crypto.randomUUID(),
+        opId: runtime.newId(),
         ids: entry.ids,
         watchedAt,
         inversePatch: { kind: "movie", movieId: entry.movieId },
@@ -185,7 +185,7 @@ export function useMovieActions(): MovieActions {
       // reverses the exact op instead.
       if (outcome === "done") pendingMark.current = null;
     },
-    [queryClient, revalidate, submit, haptics],
+    [queryClient, revalidate, submit, haptics, runtime.newId],
   );
 
   const markOff = useCallback(
@@ -237,7 +237,7 @@ export function useMovieActions(): MovieActions {
         return;
       }
       const op = buildRemoveHistoryPlayOp({
-        opId: crypto.randomUUID(),
+        opId: runtime.newId(),
         ids: [resolution.historyId],
         restore: { section: "movies", ids: entry.ids, watchedAt: resolution.watchedAt },
         inversePatch: { kind: "movie", movieId: entry.movieId },
@@ -271,14 +271,14 @@ export function useMovieActions(): MovieActions {
       const next = !entry.inWatchlist;
       writeMovieEntry(queryClient, { ...entry, inWatchlist: next });
       const build = next ? buildAddWatchlistOp : buildRemoveWatchlistOp;
-      const op = build({ opId: crypto.randomUUID(), section: "movies", ids: entry.ids });
+      const op = build({ opId: runtime.newId(), section: "movies", ids: entry.ids });
       const outcome = await submit([op], {
         rollback: () => writeMovieEntry(queryClient, entry),
         revalidate,
       });
       if (outcome === "failed") setError("Couldn't update your watchlist. Please try again.");
     },
-    [queryClient, revalidate, submit],
+    [queryClient, revalidate, submit, runtime.newId],
   );
 
   const undoMark = useCallback(async () => {
@@ -304,7 +304,7 @@ export function useMovieActions(): MovieActions {
     setRemoved(null);
     haptics.success();
     writeMovieEntry(queryClient, pending.before);
-    const outcome = await submit([invertOp(pending.op)], {
+    const outcome = await submit([invertOp(pending.op, runtime.newId)], {
       rollback: () =>
         writeMovieEntry(queryClient, { ...pending.before, watched: false, watchedAt: null }),
       revalidate,
@@ -313,7 +313,7 @@ export function useMovieActions(): MovieActions {
       haptics.failure();
       setError(`Couldn't undo ${pending.before.title}. Please try again.`);
     }
-  }, [removed, haptics, queryClient, submit, revalidate]);
+  }, [removed, haptics, queryClient, submit, revalidate, runtime.newId]);
 
   return {
     markWatched,

@@ -9,7 +9,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { buildRuntime, memoryKv } from "./_runtime";
+import { buildRuntime, memoryKv } from "../../../core/test/data/_runtime";
 
 const OP_LOG_KEY = "cue.write-queue";
 const ACTIVITIES_KEY = "cue.last-activities";
