@@ -1,6 +1,7 @@
 appId: app.cuetracker
 ---
-- assertTrue: ${http.post("http://127.0.0.1:8787/__reset?seed=default").ok}
+- runScript: lib/reset-fake.js
+- assertTrue: ${output.fakeReset}
 - runFlow: lib/connect.yaml
 - tapOn:
     id: "queue-row-8803"
