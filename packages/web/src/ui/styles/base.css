@@ -5,7 +5,7 @@
 /* ---- Native web-tells reset ("subtract the web tells") ----
  * The loudest "this is a web page" signals fire in the first taps of every job: the grey
  * tap flash, the long-press callout, iOS auto text-inflation, a poster that lifts as a drag
- * ghost. Kill them once at the root so the PWA and the Capacitor shell both read as an app.
+ * ghost. Kill them once at the root so the PWA reads as an app.
  * Two constraints: readable TEXT stays selectable (titles remain copyable: this targets
  * chrome + images, never body copy), and the tap-highlight removal is safe only because
  * every interactive surface already carries its own :active/:focus-visible press feedback, so no control is left feeling dead. */
@@ -18,7 +18,7 @@
    * not also run the browser's. The CSS Overscroll Behavior spec's own
    * motivating example is this exact case; `contain` leaves the scroller's own
    * bounce alone and only stops the boundary action chaining out. Moot inside
-   * Capacitor's iOS web view, which has bounce turned off already, and
+   * embedded iOS web views, which may have bounce turned off already, and
    * load-bearing in Chrome for Android, where the same build runs as a PWA. */
   overscroll-behavior-y: contain;
 }

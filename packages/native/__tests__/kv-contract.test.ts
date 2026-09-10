@@ -15,7 +15,7 @@ const { bulkStore, clearLocalPreferences, preferenceStorage, secureStore } =
 
 /**
  * The two native backends against the one contract every `KeyValueStore` has to
- * satisfy, the same suite the web store and the Capacitor store already run.
+ * satisfy, using the same suite as the web store.
  * This seam carries the OAuth token and the durable write queue, so a backend
  * that truncates a long value, mangles a non-latin1 one, throws instead of
  * answering null or forgets across a restart loses a user's writes silently.

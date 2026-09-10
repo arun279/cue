@@ -37,7 +37,7 @@ interface GridMetrics {
 /**
  * The Library poster grid: window-virtualized 3-column (wider viewports add
  * columns) 2:3 tiles with 8px gutters. Row windowing keeps the DOM bounded on
- * the Capacitor WebView even when a chip holds hundreds of tiles, and uniform
+ * mobile browsers even when a chip holds hundreds of tiles, and uniform
  * tiles make every row a fixed height, so the virtualizer needs no per-item
  * measurement and the page scrolls (never a nested rail). The cell renderer is
  * injected so show and movie tiles share the identical windowing.

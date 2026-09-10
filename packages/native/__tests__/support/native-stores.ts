@@ -6,7 +6,7 @@
  * `NativeDatabase` is not a constructor under it, and `expo-secure-store`'s
  * getter answers nothing it was given. So what runs here is the shape of the
  * calls each adapter makes and the key mapping it applies, which is the same
- * bargain the web lane already strikes for the Capacitor store. The backends
+ * bargain the web lane uses for IndexedDB. The backends
  * themselves are proved on a simulator, where the SQLite file and the Keychain
  * are real.
  */
@@ -69,7 +69,7 @@ export const secureStoreModule = {
   },
 };
 
-/** What the Capacitor build left behind, as the local module would read it. */
+/** What the legacy app left behind, as the local module would read it. */
 export const legacyBacking = new Map<string, string>();
 
 /** The local module's whole JavaScript surface: the seven silent verbs and the

@@ -8,10 +8,6 @@ dev-dist/
 *.ipa
 *.tsbuildinfo
 
-# Capacitor native projects are committed. Their nested ios/.gitignore and
-# android/.gitignore exclude build outputs (Pods, .gradle, build/, DerivedData)
-# and the web assets copied from dist/ by `cap sync`; signing material stays out
-# via the patterns below.
 .wrangler/
 
 # The Expo app is generated, not committed: `expo prebuild` clears and
@@ -47,9 +43,6 @@ packages/native/modules/*/android/.cxx/
 *.mobileprovision
 *.secret
 secrets/
-# Android signing passwords injected into Gradle at build time (never commit)
-android/keystore.properties
-
 # Testing
 coverage/
 playwright-report/

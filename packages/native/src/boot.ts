@@ -1,6 +1,6 @@
 import {
   type LegacyMigrationResult,
-  migrateLegacyCapacitorData,
+  migrateLegacyData,
 } from "@cue/core/migration/legacy-capacitor";
 import type { CryptoPort } from "@cue/core/ports/crypto";
 import type { KeyValueStore } from "@cue/core/ports/kv";
@@ -41,7 +41,7 @@ export interface NativeBootResult {
  *    what a fresh install looks like, so the absence of the marker is the
  *    signal, and the marker has to live there rather than in the Keychain for
  *    exactly the same reason.
- * 2. **The Capacitor migration.** Pure, over the legacy port, so every branch of
+ * 2. **The legacy migration.** Pure, over the legacy port, so every branch of
  *    it is a unit test rather than a device session.
  */
 export async function bootNativeStores(deps: NativeBootDeps): Promise<NativeBootResult> {
@@ -51,7 +51,7 @@ export async function bootNativeStores(deps: NativeBootDeps): Promise<NativeBoot
     await deps.bulk.write(INSTALL_MARKER_KEY, deps.newInstallId());
   }
 
-  const migration = await migrateLegacyCapacitorData({
+  const migration = await migrateLegacyData({
     legacy: deps.legacy,
     tokenStore: createTokenStore(deps.secure),
     bulk: deps.bulk,

@@ -8,7 +8,6 @@ import {
   queryPersister,
   shouldDehydrateQuery,
 } from "@app/query-client";
-import { router } from "@app/router";
 import { createAuthStore } from "@cue/core/auth/create-auth-store";
 import { AppVersionProvider } from "@cue/core/ports/app-version";
 import { AppVisibilityProvider } from "@cue/core/ports/app-visibility";
@@ -17,35 +16,20 @@ import { NetworkProvider } from "@cue/core/ports/network";
 import { RemindersProvider } from "@cue/core/ports/reminders";
 import { createTokenStore } from "@cue/core/ports/token-store";
 import { PrefsProvider } from "@cue/core/prefs/prefs-store";
-import { getNativeAppVersion } from "@platform/app-version";
 import { webAppVisibility } from "@platform/app-visibility";
-import { bindHardwareBack } from "@platform/back-button";
 import { webCrypto } from "@platform/crypto";
-import { createNativeHaptics } from "@platform/haptics";
+import { webHaptics } from "@platform/haptics";
 import { createKeyValueStore } from "@platform/kv";
 import { webNetwork } from "@platform/network";
-import { isNativePlatform } from "@platform/platform";
 import { sessionRedirectHandoff } from "@platform/redirect-handoff";
-import { createNativeReminders } from "@platform/reminders";
-import { applyStatusBarTheme } from "@platform/status-bar";
+import { webReminders } from "@platform/reminders";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { prefsStore } from "@ui/prefs/prefs-store";
-import { useThemeStore } from "@ui/theme/theme-store";
-import { type ReactElement, useEffect, useState } from "react";
+import { type ReactElement, useEffect } from "react";
 import { version } from "../../package.json";
 
-// One key-value backend for the whole session (web: IndexedDB, native:
-// Preferences), backing the token store the auth store wires.
-const native = isNativePlatform();
-const kv = createKeyValueStore(native);
+const kv = createKeyValueStore();
 const tokenStore = createTokenStore(kv);
-// The tactile seam, built once: silent on web, and on native gated at fire time
-// on the Settings "Haptics" toggle alone. Both platforms honour their own
-// system haptics settings underneath, so nothing else here second-guesses them.
-const haptics = createNativeHaptics(() => prefsStore.getState().hapticsEnabled);
-// The notification seam, built once: silent on web, and on native the only
-// caller of the local-notifications plugin.
-const reminders = createNativeReminders();
 const redirectUri = `${globalThis.location.origin}/auth/callback`;
 const authStore = createAuthStore({
   crypto: webCrypto,
@@ -54,7 +38,7 @@ const authStore = createAuthStore({
   redirectUri,
   redirect: (url) => globalThis.location.assign(url),
   redirectHandoff: sessionRedirectHandoff,
-  native,
+  native: false,
   traktBaseUrl: TRAKT_BASE_OVERRIDE,
 });
 
@@ -64,38 +48,8 @@ const authStore = createAuthStore({
  * `maxAge` is decoupled from `staleTime` in `query-client.ts`.
  */
 export function AppProviders(): ReactElement {
-  const [appVersion, setAppVersion] = useState(native ? "" : version);
-
   useEffect(() => {
     void requestPersistentStorage();
-  }, []);
-
-  // Native platform garnish (all silent no-ops on web): read the shipped app
-  // identity, match the status bar to the active theme and re-match on every
-  // toggle, and hand Android Back to the router while it has history to pop,
-  // giving it back to the system at a root tab. The router uses browser
-  // history, so the iOS edge swipe maps to it natively.
-  useEffect(() => {
-    void getNativeAppVersion()
-      .then((nativeAppVersion) => {
-        if (nativeAppVersion !== null) setAppVersion(nativeAppVersion);
-      })
-      .catch((cause: unknown) => {
-        // "Unknown" keeps a native bridge failure from looking like a real version.
-        setAppVersion("Unknown");
-        console.error("Failed to read native app version", cause);
-      });
-    applyStatusBarTheme(useThemeStore.getState().theme);
-    const unsubscribeTheme = useThemeStore.subscribe((state) => applyStatusBarTheme(state.theme));
-    const unbindBack = bindHardwareBack({
-      depth: () => router.history.location.state.__TSR_index,
-      back: () => router.history.back(),
-      subscribe: (listener) => router.history.subscribe(listener),
-    });
-    return () => {
-      unsubscribeTheme();
-      unbindBack();
-    };
   }, []);
 
   return (
@@ -111,9 +65,9 @@ export function AppProviders(): ReactElement {
       <PrefsProvider value={prefsStore}>
         <AppVisibilityProvider value={webAppVisibility}>
           <NetworkProvider value={webNetwork}>
-            <HapticsProvider value={haptics}>
-              <RemindersProvider value={reminders}>
-                <AppVersionProvider value={appVersion}>
+            <HapticsProvider value={webHaptics}>
+              <RemindersProvider value={webReminders}>
+                <AppVersionProvider value={version}>
                   <AuthGate store={authStore} stores={{ tokenStore, kv, redirectUri }} />
                 </AppVersionProvider>
               </RemindersProvider>

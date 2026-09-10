@@ -22,20 +22,6 @@ jest.mock(
   "react-native-safe-area-context",
   () => require("react-native-safe-area-context/jest/mock").default,
 );
-// Imported for its side effects by the reminders adapter, and on Android its
-// push-registration module throws under this runner. The seam it fills is not
-// what this file is about.
-jest.mock("expo-notifications", () => ({
-  AndroidImportance: { DEFAULT: 3 },
-  SchedulableTriggerInputTypes: { DATE: "date" },
-  setNotificationChannelAsync: () => Promise.resolve(null),
-  requestPermissionsAsync: () => Promise.resolve({ granted: false }),
-  getPermissionsAsync: () => Promise.resolve({ granted: false }),
-  getAllScheduledNotificationsAsync: () => Promise.resolve([]),
-  scheduleNotificationAsync: () => Promise.resolve(""),
-  cancelScheduledNotificationAsync: () => Promise.resolve(),
-  cancelAllScheduledNotificationsAsync: () => Promise.resolve(),
-}));
 jest.mock("expo-splash-screen", () => ({
   preventAutoHideAsync: () => Promise.resolve(true),
   hideAsync: jest.fn(() => Promise.resolve(true)),
@@ -99,7 +85,7 @@ afterEach(() => {
  * The composition root, rendered.
  *
  * What it has to get right is an ordering nothing else can check: the reinstall
- * purge and the Capacitor migration both change what the token store contains,
+ * purge and the legacy migration both change what the token store contains,
  * and the auth store reads that store the instant it is built. Build it too
  * early and a reinstalling user is signed in with a Keychain item their install
  * never wrote, or an upgrading user is dropped onto a sign-in screen with a
@@ -124,7 +110,7 @@ describe("the native composition root", () => {
     expect(screen.queryByTestId("router-stack")).toBeNull();
   });
 
-  it("boots straight into the app when the Capacitor build left a token", async () => {
+  it("boots straight into the app when the legacy store holds a token", async () => {
     legacyBacking.set("cue.trakt.token", TOKEN);
 
     await render(<RootLayout />);

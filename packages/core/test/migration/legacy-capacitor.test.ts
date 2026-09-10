@@ -1,9 +1,6 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import {
-  type LegacyMigrationDeps,
-  migrateLegacyCapacitorData,
-} from "../../src/migration/legacy-capacitor";
+import { type LegacyMigrationDeps, migrateLegacyData } from "../../src/migration/legacy-capacitor";
 import { createTokenStore } from "../../src/ports/token-store";
 import {
   type MemoryKeyValueStore,
@@ -55,7 +52,7 @@ function deps(legacySeed: Record<string, string> = {}): LegacyMigrationDeps & {
 describe("the Capacitor migration", () => {
   it("does nothing on a fresh install", async () => {
     const fresh = deps();
-    const result = await migrateLegacyCapacitorData(fresh);
+    const result = await migrateLegacyData(fresh);
 
     expect(result).toEqual({ adoptedToken: false, adoptedOps: 0 });
     expect(await fresh.tokenStore.read()).toBeNull();
@@ -65,24 +62,23 @@ describe("the Capacitor migration", () => {
 
   it("adopts the legacy token once and leaves it where it is", async () => {
     const upgrade = deps({ "cue.trakt.token": JSON.stringify(TOKEN) });
-    const result = await migrateLegacyCapacitorData(upgrade);
-    const second = await migrateLegacyCapacitorData(upgrade);
+    const result = await migrateLegacyData(upgrade);
+    const second = await migrateLegacyData(upgrade);
 
     expect(result.adoptedToken).toBe(true);
     expect(second.adoptedToken).toBe(false);
     expect(await upgrade.tokenStore.read()).toEqual(TOKEN);
-    // Left in place on purpose: a Capacitor build is still a rollback target,
-    // and the rule that matches what a user expects is last writer wins.
+    // Keep the source so its digest can detect a later change. Last writer wins.
     expect(upgrade.legacy.values.get("cue.trakt.token")).toBe(JSON.stringify(TOKEN));
   });
 
   it("adopts a changed legacy token", async () => {
     const upgrade = deps({ "cue.trakt.token": JSON.stringify(TOKEN) });
-    await migrateLegacyCapacitorData(upgrade);
+    await migrateLegacyData(upgrade);
     const changed = JSON.stringify({ ...TOKEN, access_token: "changed" });
     upgrade.legacy.values.set("cue.trakt.token", changed);
 
-    const result = await migrateLegacyCapacitorData(upgrade);
+    const result = await migrateLegacyData(upgrade);
 
     expect(result.adoptedToken).toBe(true);
     expect(await upgrade.tokenStore.read()).toEqual({ ...TOKEN, access_token: "changed" });
@@ -93,21 +89,21 @@ describe("the Capacitor migration", () => {
     const rolledBackAndForward = deps({ "cue.trakt.token": JSON.stringify(TOKEN) });
     await rolledBackAndForward.tokenStore.write({ ...TOKEN, access_token: "stale" });
 
-    await migrateLegacyCapacitorData(rolledBackAndForward);
+    await migrateLegacyData(rolledBackAndForward);
 
     expect((await rolledBackAndForward.tokenStore.read())?.access_token).toBe("access");
   });
 
   it("seeds the first-mark caption as seen, because an install with a token has been used", async () => {
     const upgrade = deps({ "cue.trakt.token": JSON.stringify(TOKEN) });
-    await migrateLegacyCapacitorData(upgrade);
+    await migrateLegacyData(upgrade);
 
     expect(upgrade.preferences.getItem("cue.tutorial-mark-dismissed")).toBe("1");
   });
 
   it("ignores a token the schema rejects rather than adopting half of one", async () => {
     const corrupt = deps({ "cue.trakt.token": JSON.stringify({ access_token: "only" }) });
-    const result = await migrateLegacyCapacitorData(corrupt);
+    const result = await migrateLegacyData(corrupt);
 
     expect(result.adoptedToken).toBe(false);
     expect(await corrupt.tokenStore.read()).toBeNull();
@@ -119,7 +115,7 @@ describe("the Capacitor migration", () => {
       "cue.trakt.token": JSON.stringify(TOKEN),
       "cue.write-queue": JSON.stringify([OP]),
     });
-    const result = await migrateLegacyCapacitorData(pending);
+    const result = await migrateLegacyData(pending);
 
     expect(result.adoptedOps).toBe(1);
     expect(JSON.parse(pending.bulk.values.get("cue.write-queue") ?? "null")).toEqual([OP]);
@@ -130,7 +126,7 @@ describe("the Capacitor migration", () => {
     const mixed = deps({
       "cue.write-queue": JSON.stringify([OP, { id: "op-2" }, { ...OP, id: "op-3" }]),
     });
-    const result = await migrateLegacyCapacitorData(mixed);
+    const result = await migrateLegacyData(mixed);
 
     expect(result.adoptedOps).toBe(2);
     expect(JSON.parse(mixed.bulk.values.get("cue.write-queue") ?? "null")).toEqual([
@@ -141,7 +137,7 @@ describe("the Capacitor migration", () => {
 
   it("treats a corrupt op log as empty and still clears it", async () => {
     const corrupt = deps({ "cue.write-queue": "{ not json" });
-    const result = await migrateLegacyCapacitorData(corrupt);
+    const result = await migrateLegacyData(corrupt);
 
     expect(result.adoptedOps).toBe(0);
     expect(corrupt.bulk.values.size).toBe(0);
@@ -153,15 +149,15 @@ describe("the Capacitor migration", () => {
     const mine = { ...OP, id: "op-native" };
     await both.bulk.write("cue.write-queue", JSON.stringify([mine]));
 
-    await migrateLegacyCapacitorData(both);
+    await migrateLegacyData(both);
 
     expect(JSON.parse(both.bulk.values.get("cue.write-queue") ?? "null")).toEqual([OP, mine]);
   });
 
   it("is a no-op on the second launch", async () => {
     const upgrade = deps({ "cue.trakt.token": JSON.stringify(TOKEN) });
-    await migrateLegacyCapacitorData({ ...upgrade, legacy: upgrade.legacy });
-    const second = await migrateLegacyCapacitorData(upgrade);
+    await migrateLegacyData({ ...upgrade, legacy: upgrade.legacy });
+    const second = await migrateLegacyData(upgrade);
 
     expect(second).toEqual({ adoptedToken: false, adoptedOps: 0 });
     expect(await upgrade.tokenStore.read()).toEqual(TOKEN);
@@ -172,7 +168,7 @@ describe("the Capacitor migration", () => {
       "cue.trakt.token": JSON.stringify(TOKEN),
       "cue.last-activities": JSON.stringify({ all: "2026-08-01T00:00:00.000Z" }),
     });
-    await migrateLegacyCapacitorData(upgrade);
+    await migrateLegacyData(upgrade);
 
     expect(upgrade.bulk.values.has("cue.last-activities")).toBe(false);
   });
