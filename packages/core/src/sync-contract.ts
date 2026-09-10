@@ -1,11 +1,11 @@
 /**
  * What the app says while sync is not clean, in one place.
  *
- * Both targets render the same states from the same inputs: the ambient strip a
+ * Every screen renders the same states from the same inputs: the ambient strip a
  * screen puts under its header, the body copy a screen with nothing cached
  * shows instead of content, the grammar of a queue mark control, and the timing
  * that moves between them. It is pure, so a screen cannot invent its own
- * message and the two apps cannot drift apart on what a rate limit is called.
+ * message and screens cannot drift apart on what a rate limit is called.
  *
  * The rules it encodes:
  *   - A rate limit is not an outage. It says so, says when it retries, and
@@ -74,9 +74,8 @@ export function shouldRetryRead(failureCount: number, error: unknown): boolean {
 }
 
 /**
- * Every kind the strip can carry. An array rather than a bare union so a target
- * can enumerate them: the web stylesheet is checked against this, which is what
- * a renamed kind used to slip past silently.
+ * Every kind the strip can carry. An array rather than a bare union lets the UI
+ * enumerate the complete state vocabulary.
  */
 export const SYNC_BANNER_KINDS = [
   "offline",

@@ -33,13 +33,13 @@ import { useOptimisticWrite } from "./useOptimisticWrite";
 import { useResumeOnMark } from "./useResumeOnMark";
 import { forgetSeasonMark, getSeasonMarkDelta, rememberSeasonMark } from "./useSeasonReversal";
 
-export interface MarkContextTarget {
+interface MarkContextTarget {
   readonly showId: number;
   readonly ids: ShowIds;
   readonly includeSpecials: boolean;
 }
 
-export interface EpisodeBound {
+interface EpisodeBound {
   readonly season: number;
   readonly number: number;
 }
@@ -131,7 +131,7 @@ function toSeasonTrees(seasons: readonly SeasonView[]): SeasonTree[] {
   }));
 }
 
-export function invertOp(op: QueuedOp, newId: () => string): QueuedOp {
+function invertOp(op: QueuedOp, newId: () => string): QueuedOp {
   return {
     ...op,
     id: newId(),

@@ -19,7 +19,6 @@ const files = execFileSync(
     "-z",
     "--",
     "packages/core/src",
-    "packages/web/src",
     "packages/native/src",
     "packages/native/app",
     "packages/native/modules",

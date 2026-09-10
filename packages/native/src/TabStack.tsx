@@ -34,8 +34,8 @@ export function TabStack({ root, title }: TabStackProps): ReactElement {
       <Stack.Screen name="movie/[movieId]" options={{ title: "Movie" }} />
       {/* The episode is a child of the show route so a cold deep link paints the
           show underneath and dismissing is one pop. UIKit owns the detents, the
-          grabber and the physics; the numbers are the web app's own 65 and 92
-          per cent. */}
+          grabber and the physics; the two heights keep compact and expanded
+          reading positions. */}
       <Stack.Screen
         name="show/[showId]/episode/[season]/[episode]"
         options={{

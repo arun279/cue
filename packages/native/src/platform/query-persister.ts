@@ -7,8 +7,8 @@ export const queryClient = createQueryClient();
 export const { shouldDehydrateQuery } = createQueryCachePolicy(queryClient);
 
 /**
- * The same persister the web build uses, over the bulk store instead of
- * idb-keyval. Its `storage` argument wants `getItem`, `setItem` and `removeItem`
+ * The query persister runs over the Expo bulk store. Its `storage` argument
+ * wants `getItem`, `setItem` and `removeItem`
  * returning a value or a promise, which is exactly what `expo-sqlite/kv-store`
  * is.
  */

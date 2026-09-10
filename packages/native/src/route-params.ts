@@ -5,9 +5,8 @@
  * accepting is a positive integer; anything else is a link that goes nowhere and
  * must not become a request for `/shows/NaN`.
  *
- * The query-string half of the same rule lives in `@cue/core/url/search-params`
- * and is shared with the web app. This half is not: expo-router is the only
- * router that puts ids in the path.
+ * Query string parsing lives in `@cue/core/url/search-params`; expo-router path
+ * ids are handled here.
  */
 export function parseId(raw: string | undefined): number | null {
   const value = Number(raw);

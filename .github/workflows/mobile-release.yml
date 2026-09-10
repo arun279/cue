@@ -22,9 +22,7 @@ on:
       ".github/**",
       ".maestro/**",
       "LICENSE",
-      "packages/*/e2e/**",
       "packages/*/test/**",
-      "packages/*/playwright.config.ts",
       "packages/*/vitest.config.ts",
       "packages/*/jest.config.js",
       "packages/*/tsconfig.test.json",
@@ -64,7 +62,7 @@ on:
       "scripts/verify-android-launch.sh",
       "scripts/verify-ios-privacy.sh",
       "scripts/write-buster.mjs",
-      "tsconfig.depcruise.json",
+      "test/**",
       ".gitignore",
     ]
   workflow_dispatch:
@@ -187,7 +185,7 @@ jobs:
           # Job names that exist in ci.yml or codeql.yml. Never list one that does not:
           # a check that can never report turns the wait below into a guaranteed
           # timeout on every release.
-          REQUIRED: '["check","render-performance","audit","actionlint","standardrb","native-android","native-ios","e2e","codeql (javascript-typescript)","codeql (actions)"]'
+          REQUIRED: '["check","render-performance","audit","actionlint","standardrb","native-android","native-ios","codeql (javascript-typescript)","codeql (actions)"]'
           # GitHub Actions, so no other check provider can satisfy a required name.
           APP_ID: "15368"
           DEADLINE_MINUTES: "45"
@@ -297,9 +295,9 @@ jobs:
         env:
           APP_VERSION: ${{ needs.config.outputs.app_version }}
           BUILD_NUMBER: ${{ needs.config.outputs.build_number }}
-          EXPO_PUBLIC_TRAKT_CLIENT_ID: ${{ vars.VITE_TRAKT_CLIENT_ID }}
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ${{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}
         run: |
-          [ -n "$EXPO_PUBLIC_TRAKT_CLIENT_ID" ] || { echo "VITE_TRAKT_CLIENT_ID is not set"; exit 1; }
+          [ -n "$EXPO_PUBLIC_TRAKT_CLIENT_ID" ] || { echo "EXPO_PUBLIC_TRAKT_CLIENT_ID is not set"; exit 1; }
           pnpm --filter @cue/native exec expo prebuild --platform android --clean
       - name: Download bundletool
         env:
@@ -318,7 +316,7 @@ jobs:
         env:
           BUILD_NUMBER: ${{ needs.config.outputs.build_number }}
           APP_VERSION: ${{ needs.config.outputs.app_version }}
-          EXPO_PUBLIC_TRAKT_CLIENT_ID: ${{ vars.VITE_TRAKT_CLIENT_ID }}
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ${{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
           ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/upload.keystore
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -351,9 +349,9 @@ jobs:
           APP_VERSION: ${{ needs.config.outputs.app_version }}
           BUILD_NUMBER: ${{ needs.config.outputs.build_number }}
           CONFIGURATION: Release
-          EXPO_PUBLIC_TRAKT_CLIENT_ID: ${{ vars.VITE_TRAKT_CLIENT_ID }}
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ${{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}
         run: |
-          [ -n "$EXPO_PUBLIC_TRAKT_CLIENT_ID" ] || { echo "VITE_TRAKT_CLIENT_ID is not set"; exit 1; }
+          [ -n "$EXPO_PUBLIC_TRAKT_CLIENT_ID" ] || { echo "EXPO_PUBLIC_TRAKT_CLIENT_ID is not set"; exit 1; }
           pnpm --filter @cue/native exec expo prebuild --platform ios --clean
       - name: Import signing certificate
         uses: apple-actions/import-codesign-certs@5142e029c445c10ffc7149d172e540235a065466 # v7.0.0
@@ -369,7 +367,7 @@ jobs:
         env:
           BUILD_NUMBER: ${{ needs.config.outputs.build_number }}
           APP_VERSION: ${{ needs.config.outputs.app_version }}
-          EXPO_PUBLIC_TRAKT_CLIENT_ID: ${{ vars.VITE_TRAKT_CLIENT_ID }}
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ${{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           APP_STORE_CONNECT_KEY: ${{ secrets.APP_STORE_CONNECT_KEY }}

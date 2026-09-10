@@ -13,7 +13,7 @@ output="$output_dir/$(basename "$2")"
 
 # A merge base that predates these packages builds none of the measured
 # bundles, and size-limit would report every one of them as zero bytes.
-if [ ! -f "$tree/packages/web/package.json" ] || [ ! -f "$tree/packages/native/package.json" ]; then
+if [ ! -f "$tree/packages/native/package.json" ]; then
   echo null > "$output"
   exit 0
 fi
@@ -24,7 +24,6 @@ export TMPDIR="$tree/node_modules/.tmp"
 (
   cd "$tree"
   pnpm install --frozen-lockfile
-  pnpm --filter @cue/web build
   EXPO_PUBLIC_TRAKT_CLIENT_ID=ci pnpm --filter @cue/native exec expo export \
     --platform ios --platform android --output-dir dist
 )

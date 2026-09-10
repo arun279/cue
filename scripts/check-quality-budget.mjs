@@ -6,7 +6,6 @@ import { fileURLToPath } from "node:url";
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const productPaths = [
   "packages/core/src",
-  "packages/web/src",
   "packages/native/src",
   "packages/native/app",
   "packages/native/modules",

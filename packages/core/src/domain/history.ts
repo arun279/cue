@@ -33,7 +33,7 @@ export interface HistoryEntry {
  * timestamps are a best-effort stamp, not real per-episode watch times, so the UI
  * says "Logged together" and hides the (synthetic) per-play clock.
  */
-export interface HistoryGroup {
+interface HistoryGroup {
   readonly key: string;
   readonly entries: readonly HistoryEntry[];
   readonly loggedTogether: boolean;

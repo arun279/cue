@@ -13,7 +13,7 @@ import { useLibrarySnapshot } from "./useLibrarySnapshot";
  * lapsed cut is Up Next's drawer, not a Library pile), `not-started` reads as
  * Watchlist, `abandoned` as Stopped.
  */
-export type LibraryChipKey = "watching" | "watchlist" | "stopped" | "finished";
+type LibraryChipKey = "watching" | "watchlist" | "stopped" | "finished";
 
 export type LibraryChips = Readonly<Record<LibraryChipKey, readonly LibraryEntry[]>>;
 

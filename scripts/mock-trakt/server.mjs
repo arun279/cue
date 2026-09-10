@@ -1,9 +1,6 @@
 /**
- * A local fake Trakt: `pnpm mock:trakt`, then build or serve the app with
- * `--mode mock` (`.env.mock` points `VITE_TRAKT_API_BASE` here). It exists so the
- * built app, in a browser or in the iOS simulator, can run against a signed-in
- * account with no Trakt credentials and no network, where Playwright route
- * mocking is not available.
+ * A local fake Trakt for the core harness and native simulator flows. It lets
+ * the app run against a signed-in account with no Trakt credentials or network.
  *
  * Dependency-free Node: `node:http` and the seed module, nothing else.
  *
@@ -423,6 +420,12 @@ function resolve(library, method, url, origin, body) {
   return notFound("no route");
 }
 
+function finishFault(request, fault, result) {
+  if (fault?.dropAfter !== true) return result;
+  request.socket.destroy();
+  return null;
+}
+
 /**
  * A mock instance: `listen()` resolves with the URL it bound, and `library` is
  * the live account state, so a caller can assert a write landed.
@@ -474,7 +477,11 @@ export function createMockTrakt({
       if (log) process.stdout.write(`mock-trakt fault ${method} ${url.pathname}\n`);
       if (!(await stall(fault, request, hold))) return null;
     }
-    return control ?? faultResponse(fault ?? {}) ?? resolve(library, method, url, origin, body);
+    return finishFault(
+      request,
+      fault,
+      control ?? faultResponse(fault ?? {}) ?? resolve(library, method, url, origin, body),
+    );
   };
 
   const server = createServer((request, response) => {

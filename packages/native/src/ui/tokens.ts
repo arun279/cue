@@ -135,8 +135,7 @@ export const REFLOW_FONT_SCALE = 1.6;
  */
 export const SCRIM_FONT_SCALE = 1.3;
 
-/** How far a queue row travels before its swipe is armed, the same commit
- * distance the web app locks. */
+/** How far a queue row travels before its swipe is armed. */
 export const SWIPE_COMMIT = 96;
 
 /** Poster widths on the strict 2:3 scale, so a poster is `width` by `width * 1.5`. */

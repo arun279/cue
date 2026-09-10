@@ -20,14 +20,6 @@ export const USER_STATE_STALE_TIME = Number.POSITIVE_INFINITY;
 export const CONTENT_STALE_TIME_MS = 60 * 60 * 1000;
 
 /**
- * Search browse rails, trending / popular / related, are editorial lists that shift
- * slowly. A 5-minute horizon keeps them warm across a session so returning to a
- * browse surface (Search, the movie home, a detail's related rail) doesn't refetch
- * on every revisit.
- */
-export const BROWSE_STALE_TIME_MS = 5 * 60 * 1000;
-
-/**
  * The status fields a persisted-SWR read hook forwards to its screen. The read
  * hooks wired for the sync strip share this mapper rather than each inlining the
  * identical `query → status` spread: the duplication gate (jscpd, 0% threshold)

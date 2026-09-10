@@ -1,9 +1,9 @@
-import { type QueryClient, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { queryKeys } from "../data/query-keys";
 import type { MovieEntry } from "../data/trakt/movie-library";
 import { byTitle } from "../domain/library-buckets";
-import { type MovieLibraryData, useRuntime } from "../runtime/runtime";
+import { useRuntime } from "../runtime/runtime";
 import { type QueryStatus, queryStatus, USER_STATE_STALE_TIME } from "./query-freshness";
 
 /** Honest movie taxonomy (Rams #6): a film is watched or not: no episode
@@ -26,23 +26,6 @@ export interface MovieLibraryView extends QueryStatus {
   readonly trackedCount: number;
   entryFor(movieId: number): MovieEntry | undefined;
   refetch(): void;
-}
-
-/**
- * Insert-or-replace a movie entry in the persisted `movieLibrary` cache. Shared
- * by the mark-watched and watchlist toggles so an optimistic flip on a movie
- * that isn't in the library yet (never watched, not watchlisted) materializes it
- * instead of being dropped, and an existing entry is updated in place.
- */
-export function writeMovieEntry(client: QueryClient, entry: MovieEntry): void {
-  client.setQueryData<MovieLibraryData>(queryKeys.movieLibrary(), (old) => {
-    if (old === undefined) return old;
-    const exists = old.entries.some((e) => e.movieId === entry.movieId);
-    const entries = exists
-      ? old.entries.map((e) => (e.movieId === entry.movieId ? entry : e))
-      : [...old.entries, entry];
-    return { ...old, entries };
-  });
 }
 
 function byWatchedAt(a: MovieEntry, b: MovieEntry): number {
