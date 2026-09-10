@@ -410,6 +410,65 @@ jobs:
           unzip universal.apks universal.apk -d extracted
           ../../../scripts/verify-apk.sh \
             extracted/universal.apk 42 9.9.9 expo
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cue-native-android-release-apk
+          path: packages/native/android/extracted/universal.apk
+          retention-days: 1
+  android-e2e:
+    needs: native-android
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        with:
+          name: cue-native-android-release-apk
+          path: ${{ runner.temp }}/cue-native-android
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Launch the release APK
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_7_pro
+          script: |
+            set -euo pipefail
+            apk="$RUNNER_TEMP/cue-native-android/universal.apk"
+            logcat="$RUNNER_TEMP/android-logcat.txt"
+
+            adb install "$apk"
+            adb shell am force-stop app.cuetracker
+            adb logcat -c
+            launch_status=0
+            adb shell am start -W -n app.cuetracker/.MainActivity || launch_status=$?
+            sleep 10
+            adb logcat -d -v threadtime > "$logcat"
+
+            if [ "$launch_status" -ne 0 ]; then
+              echo "Activity launch failed with status $launch_status" >&2
+              exit "$launch_status"
+            fi
+            if grep -Eq 'FATAL EXCEPTION|AndroidRuntime.*Process: app\.cuetracker|Process: app\.cuetracker' "$logcat"; then
+              grep -n -C 20 -E 'FATAL EXCEPTION|AndroidRuntime|Process: app\.cuetracker' "$logcat" >&2
+              exit 1
+            fi
+            pid=$(adb shell pidof app.cuetracker | tr -d '\r')
+            if [ -z "$pid" ]; then
+              echo "app.cuetracker is not running after launch" >&2
+              exit 1
+            fi
+            echo "app.cuetracker is alive as PID $pid"
+            echo "Upgrade scenario skipped: mobile-release run 33952387629 retained no APK artifact, and CI has no release signing secrets with which to rebuild the same-signature Capacitor APK."
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ always() }}
+        with:
+          name: android-e2e-logcat
+          path: ${{ runner.temp }}/android-logcat.txt
+          retention-days: 7
   e2e:
     needs: check
     runs-on: ubuntu-latest
