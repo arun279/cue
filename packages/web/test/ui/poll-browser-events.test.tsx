@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 /**
  * The web adapters wired into the poll, driven by real browser events.
  *
@@ -18,7 +17,7 @@ import { webNetwork } from "@platform/network";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mountAsync } from "./_mount";
+import { mountAsync } from "../../../core/test/ui/_mount";
 
 function Probe(): null {
   useActivitiesPoll();

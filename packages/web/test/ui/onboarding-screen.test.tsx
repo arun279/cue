@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 /**
  * Mount-level smoke for the onboarding screen over a fake auth store: the two
  * connect paths stay wired to the store actions they always used, the Trakt

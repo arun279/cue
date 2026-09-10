@@ -3,13 +3,8 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
-    "types": ["vite/client", "node", "vitest/globals"],
-    "paths": {
-      "@ui/*": ["../web/src/ui/*"],
-      "@app/*": ["../web/src/app/*"],
-      "@platform/*": ["../web/src/platform/*"]
-    }
+    "types": ["node", "vitest/globals"]
   },
-  "include": ["src", "test", "../web/src"],
+  "include": ["src", "test"],
   "exclude": ["node_modules", "coverage"]
 }

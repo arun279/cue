@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 import { queryKeys } from "@cue/core/data/query-keys";
 import { type CueRuntime, RuntimeProvider } from "@cue/core/runtime/runtime";
 import { dismissSnack, useSnackbar } from "@cue/core/stores/snackbar-store";
@@ -6,7 +5,7 @@ import { QueryClient, QueryClientProvider, QueryObserver } from "@tanstack/react
 import { useSyncStatus } from "@ui/screens/settings/useSyncStatus";
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mountAsync } from "./_mount";
+import { mountAsync } from "../../../core/test/ui/_mount";
 
 const NOW = 1_750_000_000_000;
 const HOUR = 60 * 60_000;

@@ -130,8 +130,8 @@ module.exports = {
       name: "core-imports-no-app",
       severity: "error",
       comment:
-        "Shared product code imports neither app. Dependencies flow into the core and never back out, or the claim that both targets run the same code is only a claim.",
-      from: { path: "^packages/core/src/" },
+        "The shared package imports neither app. Dependencies flow into the core and never back out, or the claim that both targets run the same code is only a claim.",
+      from: { path: "^packages/core/" },
       to: { path: "^packages/(web|native)/" },
     },
     {

@@ -23,9 +23,7 @@ import { describeKeyValueStore } from "../../../core/test/support/kv-contract";
 const nativeBacking = vi.hoisted(() => new Map<string, string>());
 
 vi.mock("@capacitor/preferences", async () => {
-  const { createPreferencesMock } = await import(
-    "../../../core/test/support/capacitor-preferences-mock"
-  );
+  const { createPreferencesMock } = await import("../support/capacitor-preferences-mock");
   return createPreferencesMock(nativeBacking);
 });
 

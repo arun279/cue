@@ -20,7 +20,6 @@
     "react": "^19.2.7"
   },
   "devDependencies": {
-    "@capacitor/preferences": "8.0.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@types/node": "^22.12.0",
     "@types/react": "^19.2.17",

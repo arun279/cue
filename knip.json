@@ -9,11 +9,6 @@
     },
     "packages/core": {
       "project": ["src/**/*.ts", "test/**/*.{ts,tsx}"],
-      "paths": {
-        "@ui/*": ["../web/src/ui/*"],
-        "@app/*": ["../web/src/app/*"],
-        "@platform/*": ["../web/src/platform/*"]
-      },
       "includeEntryExports": true
     },
     "packages/web": {

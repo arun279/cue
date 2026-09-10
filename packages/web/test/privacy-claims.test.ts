@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 import { TRAKT_API_BASE } from "@cue/core/data/trakt/client";
 import type { Token } from "@cue/core/domain/model/token";
 import { REMINDER_WINDOW_DAYS } from "@cue/core/domain/reminders";
@@ -12,8 +11,8 @@ import servedPolicy from "../../../docs/index.html?raw";
 import infoPlistSource from "../../../ios/App/App/Info.plist?raw";
 import policy from "../../../PRIVACY.md?raw";
 import readme from "../../../README.md?raw";
-import runtimeSource from "../src/app/create-runtime.ts?raw";
-import storageKeysSource from "../src/ports/storage-keys.ts?raw";
+import runtimeSource from "../../core/src/app/create-runtime.ts?raw";
+import storageKeysSource from "../../core/src/ports/storage-keys.ts?raw";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

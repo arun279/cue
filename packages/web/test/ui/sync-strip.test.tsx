@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 /**
  * The strip renders the contract and decides nothing. What it has to prove here
  * is the wiring the contract cannot: the durable queue depth (a mark deferred
@@ -17,7 +16,7 @@ import { SYNC_BANNER_KINDS } from "@cue/core/sync-contract";
 import { SyncStrip } from "@ui/app-shell/SyncStrip";
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mount } from "./_mount";
+import { mount } from "../../../core/test/ui/_mount";
 
 let queueDepth = 0;
 const runtime = { pendingWrites: () => queueDepth } as unknown as CueRuntime;
@@ -154,7 +153,7 @@ describe("SyncStrip", () => {
 describe("the strip's stylesheet", () => {
   it("styles no sync-strip state the contract does not publish", () => {
     const css = readFileSync(
-      path.resolve(import.meta.dirname, "../../../web/src/ui/styles/layout.css"),
+      path.resolve(import.meta.dirname, "../../src/ui/styles/layout.css"),
       "utf8",
     );
     const styled = [...css.matchAll(/\.sync-strip\[data-state="([^"]+)"\]/g)].map(
