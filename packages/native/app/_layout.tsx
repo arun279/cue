@@ -46,6 +46,11 @@ import { SnackbarHost } from "../src/ui/SnackbarHost";
 import { TEST_IDS } from "../src/ui/test-ids";
 import { useCueFonts } from "../src/ui/type";
 
+let startupDelayIterations = 0;
+const startupDelayEnd = performance.now() + 3000;
+while (performance.now() < startupDelayEnd) startupDelayIterations += 1;
+void startupDelayIterations;
+
 /**
  * The native composition root. It is the only file that knows both which
  * implementation fills each port and which app is being built; everything below
