@@ -88,6 +88,18 @@ const today = (): string => new Date().toISOString().slice(0, 10);
 const resetTo = async (seed: string): Promise<Response> =>
   fetch(`${baseUrl}/__reset?seed=${seed}`, { method: "POST" });
 
+it("provides a mixed season and consecutive aired episodes for detail interactions", async () => {
+  const progress = ok(await getShowProgress(client(), 8803));
+  expect(progress.next_episode).toMatchObject({ season: 2, number: 3, ids: { trakt: 880308 } });
+  expect(progress.seasons?.find((season) => season.number === 2)).toMatchObject({
+    aired: 4,
+    completed: 2,
+  });
+  const episode = ok(await getEpisode(client(), 8803, 2, 4));
+  expect(episode.images?.screenshot?.length).toBeGreaterThan(0);
+  expect(Date.parse(episode.first_aired ?? "")).toBeLessThan(mock.library.now);
+});
+
 const armFault = async (profile: string): Promise<Response> =>
   fetch(`${baseUrl}/__fault?${profile}`, { method: "POST" });
 

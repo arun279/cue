@@ -10,6 +10,7 @@ import {
   getPopularMovies,
   getPopularShows,
   getRelatedMovies,
+  getRelatedShows,
   getShow,
   getShowProgress,
   getShowSeasons,
@@ -47,6 +48,18 @@ const showObj = {
   ids: { trakt: 1, tmdb: 95396 },
 };
 const movieObj = { title: "Dune", year: 2021, ids: { trakt: 5, tmdb: 438631 } };
+
+it("limits related shows to six and requests inline artwork", async () => {
+  server.use(
+    http.get(`${TRAKT_API_BASE}/shows/1/related`, ({ request }) => {
+      const url = new URL(request.url);
+      expect(url.searchParams.get("limit")).toBe("6");
+      expect(url.searchParams.get("extended")).toContain("images");
+      return HttpResponse.json([showObj]);
+    }),
+  );
+  expect(await getRelatedShows(client, 1)).toMatchObject({ ok: true, data: [showObj] });
+});
 const episodeObj = {
   season: 1,
   number: 3,

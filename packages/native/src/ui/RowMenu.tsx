@@ -1,4 +1,4 @@
-import { MenuView } from "@expo/ui/community/menu";
+import { type MenuAction, MenuView } from "@expo/ui/community/menu";
 import type { ReactElement } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import Svg, { Circle } from "react-native-svg";
@@ -16,6 +16,8 @@ interface RowMenuItem {
    * an `enabled` parameter for exactly this. */
   readonly available?: boolean;
   readonly onPress: () => void;
+  readonly destructive?: boolean;
+  readonly image?: MenuAction["image"];
 }
 
 export interface RowMenuProps {
@@ -23,6 +25,7 @@ export interface RowMenuProps {
   readonly title: string;
   readonly items: readonly RowMenuItem[];
   readonly testID?: string;
+  readonly children?: ReactElement;
 }
 
 /**
@@ -33,7 +36,7 @@ export interface RowMenuProps {
  * Next at all, which is a WCAG 2.5.1 gap, and because a context menu's items
  * have to be reachable from the main interface too.
  */
-export function RowMenu({ title, items, testID }: RowMenuProps): ReactElement {
+export function RowMenu({ title, items, testID, children }: RowMenuProps): ReactElement {
   const colors = useColors();
   const byId = new Map(items.map((item) => [item.id, item.onPress]));
   const unavailable = Platform.OS === "ios" ? "hidden" : "disabled";
@@ -42,31 +45,40 @@ export function RowMenu({ title, items, testID }: RowMenuProps): ReactElement {
     <MenuView
       title={title}
       testID={testID}
-      actions={items.map((item) => ({
-        id: item.id,
-        title: item.label,
-        attributes: item.available === false ? { [unavailable]: true } : undefined,
-      }))}
+      shouldOpenOnLongPress={children !== undefined}
+      actions={[...items]
+        .sort((a, b) => Number(a.destructive === true) - Number(b.destructive === true))
+        .map((item) => ({
+          id: item.id,
+          title: item.label,
+          image: item.image,
+          attributes: {
+            ...(item.available === false ? { [unavailable]: true } : {}),
+            ...(Platform.OS === "ios" && item.destructive ? { destructive: true } : {}),
+          },
+        }))}
       onPressAction={({ nativeEvent }) => byId.get(nativeEvent.event)?.()}
     >
-      <View
-        accessible
-        accessibilityRole="button"
-        accessibilityLabel={`More actions for ${title}`}
-        style={styles.trigger}
-      >
-        <Svg width={GLYPH} height={GLYPH} viewBox="0 0 24 24">
-          {[5, 12, 19].map((offset) => (
-            <Circle
-              key={offset}
-              cx={Platform.OS === "ios" ? offset : 12}
-              cy={Platform.OS === "ios" ? 12 : offset}
-              r={DOT_R}
-              fill={colors.muted}
-            />
-          ))}
-        </Svg>
-      </View>
+      {children ?? (
+        <View
+          accessible
+          accessibilityRole="button"
+          accessibilityLabel={`More actions for ${title}`}
+          style={styles.trigger}
+        >
+          <Svg width={GLYPH} height={GLYPH} viewBox="0 0 24 24">
+            {[5, 12, 19].map((offset) => (
+              <Circle
+                key={offset}
+                cx={Platform.OS === "ios" ? offset : 12}
+                cy={Platform.OS === "ios" ? 12 : offset}
+                r={DOT_R}
+                fill={colors.muted}
+              />
+            ))}
+          </Svg>
+        </View>
+      )}
     </MenuView>
   );
 }

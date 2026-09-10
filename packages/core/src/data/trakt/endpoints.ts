@@ -220,6 +220,17 @@ export async function getRelatedMovies(
   );
 }
 
+export async function getRelatedShows(
+  client: TraktClient,
+  showId: number | string,
+  limit = 6,
+): Promise<TraktResult<ShowSummary[]>> {
+  return parse(
+    await client.get(`/shows/${showId}/related`, { extended: ART, limit }),
+    popularShowsSchema,
+  );
+}
+
 /** The signed-in user's lifetime watch stats: watch-time minutes + distinct counts. */
 export async function getUserStats(client: TraktClient): Promise<TraktResult<UserStats>> {
   return parse(await client.get("/users/me/stats"), userStatsSchema);

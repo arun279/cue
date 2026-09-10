@@ -25,6 +25,13 @@ export const showInfoQuery = (runtime: CueRuntime, showId: number) =>
     staleTime: CONTENT_STALE_TIME_MS,
   });
 
+export const showRelatedQuery = (runtime: CueRuntime, showId: number) =>
+  queryOptions({
+    queryKey: queryKeys.showRelated(showId),
+    queryFn: () => runtime.loadShowRelated(showId),
+    staleTime: CONTENT_STALE_TIME_MS,
+  });
+
 export const showProgressQuery = (runtime: CueRuntime, showId: number) =>
   queryOptions({
     queryKey: queryKeys.showProgress(showId),
@@ -49,4 +56,17 @@ export const episodeQuery = (
     queryKey: queryKeys.episode(showId, season, episode),
     queryFn: () => runtime.loadEpisode(showId, season, episode),
     staleTime: CONTENT_STALE_TIME_MS,
+  });
+
+export const episodePlaysQuery = (
+  runtime: CueRuntime,
+  showId: number,
+  season: number,
+  number: number,
+  episodeId: number,
+) =>
+  queryOptions({
+    queryKey: [...queryKeys.episode(showId, season, number), "plays"],
+    queryFn: () => runtime.loadEpisodePlays(episodeId),
+    staleTime: USER_STATE_STALE_TIME,
   });

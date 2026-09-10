@@ -60,11 +60,26 @@ export const DEFAULT_SNACK_TIMEOUT_MS = UNDO_WINDOW_MS;
 // Monotonic across dismissals: ownership checks (`seq === owned`) must never
 // see a reused number after the slot cycles through null.
 let nextSeq = 1;
+let shownAt = 0;
+let timer: ReturnType<typeof setTimeout> | undefined;
+
+export function setSnackbarTimeout(timeout: number): void {
+  if (useSnackbar.getState().snack === null) return;
+  clearTimeout(timer);
+  timer = setTimeout(dismissSnack, Math.max(0, shownAt + timeout - Date.now()));
+}
 
 export const useSnackbar = create<SnackbarState>((set) => ({
   snack: null,
-  show: (input) => set({ snack: { ...input, seq: nextSeq++ } }),
-  dismiss: () => set({ snack: null }),
+  show: (input) => {
+    shownAt = Date.now();
+    set({ snack: { ...input, seq: nextSeq++ } });
+    setSnackbarTimeout(input.timeoutMs ?? DEFAULT_SNACK_TIMEOUT_MS);
+  },
+  dismiss: () => {
+    clearTimeout(timer);
+    set({ snack: null });
+  },
 }));
 
 export function showSnack(input: SnackInput): void {

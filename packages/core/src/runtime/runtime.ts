@@ -84,6 +84,7 @@ export interface CueRuntime {
    * detail hero reuses whatever the card already cached.
    */
   loadShowInfo(showId: number): Promise<ShowInfo>;
+  loadShowRelated(showId: number): Promise<readonly SearchHit[]>;
   /** The Library movie collection: watched movies + watchlist movies as poster shelves. */
   loadMovieLibrary(): Promise<MovieLibraryData>;
   /** Movie detail hero from `/movies/:id?extended=full,images` (title, year, overview, art). */
