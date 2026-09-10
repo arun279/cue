@@ -14,7 +14,7 @@ const CODEQL_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/codeql.yml
 const DEPENDENCY_CRUISER_CONFIG = path.join(REPOSITORY_ROOT, ".dependency-cruiser.cjs");
 const MOBILE_RELEASE_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/mobile-release.yml");
 const FASTLANE_LANE = "$" + "{{ needs.config.outputs.fastlane_lane }}";
-const TRAKT_CLIENT_ID_VARIABLE = "$" + "{{ vars.VITE_TRAKT_CLIENT_ID }}";
+const TRAKT_CLIENT_ID_VARIABLE = "$" + "{{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}";
 // `footprint` skips itself on forks, and the gate reads a skip as a failure.
 // `native-e2e` is exempt on purpose while it earns a green history on a
 // simulator; promoting it is a one-line change here and in REQUIRED.
