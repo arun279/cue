@@ -13,6 +13,8 @@ const CI_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/ci.yml");
 const CODEQL_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/codeql.yml");
 const DEPENDENCY_CRUISER_CONFIG = path.join(REPOSITORY_ROOT, ".dependency-cruiser.cjs");
 const MOBILE_RELEASE_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/mobile-release.yml");
+const FASTLANE_LANE = "$" + "{{ needs.config.outputs.fastlane_lane }}";
+const TRAKT_CLIENT_ID_VARIABLE = "$" + "{{ vars.VITE_TRAKT_CLIENT_ID }}";
 // `footprint` skips itself on forks, and the gate reads a skip as a failure.
 // `native-e2e` is exempt on purpose while it earns a green history on a
 // simulator; promoting it is a one-line change here and in REQUIRED.
@@ -349,15 +351,10 @@ describe("native bundle environment", () => {
     [
       MOBILE_RELEASE_WORKFLOW,
       "android",
-      "Fastlane android ${{ needs.config.outputs.fastlane_lane }}",
-      "${{ vars.VITE_TRAKT_CLIENT_ID }}",
+      `Fastlane android ${FASTLANE_LANE}`,
+      TRAKT_CLIENT_ID_VARIABLE,
     ],
-    [
-      MOBILE_RELEASE_WORKFLOW,
-      "ios",
-      "Fastlane ios ${{ needs.config.outputs.fastlane_lane }}",
-      "${{ vars.VITE_TRAKT_CLIENT_ID }}",
-    ],
+    [MOBILE_RELEASE_WORKFLOW, "ios", `Fastlane ios ${FASTLANE_LANE}`, TRAKT_CLIENT_ID_VARIABLE],
   ])("embeds the Trakt client id in %s's %s bundle", (workflow, job, step, value) => {
     expect(readNamedStep(workflow, job, step)).toContain(
       `          EXPO_PUBLIC_TRAKT_CLIENT_ID: ${value}`,
