@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readFileSync, unlinkSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, unlinkSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -15,7 +15,7 @@ const files = execFileSync("git", ["ls-files", "-z", "--", ...productPaths], {
   encoding: "utf8",
 })
   .split("\0")
-  .filter((file) => /\.tsx?$/.test(file));
+  .filter((file) => /\.tsx?$/.test(file) && existsSync(path.join(root, file)));
 const suppression = /biome-ignore lint\/complexity\/noExcessiveCognitiveComplexity/g;
 const suppressions = files.reduce(
   (total, file) =>
@@ -40,7 +40,7 @@ const owned = [
   [
     "the read-failure mapper",
     /readFailureOf\(/,
-    ["packages/core/src/sync-contract.ts", "packages/core/src/hooks/query-freshness.ts"],
+    ["packages/core/src/sync-contract.ts", "packages/core/src/queries/freshness.ts"],
   ],
 ];
 const nativeSuppressions = files

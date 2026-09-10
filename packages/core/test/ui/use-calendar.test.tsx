@@ -1,18 +1,22 @@
 // @vitest-environment jsdom
 /**
- * The calendar cache-key unification: every `useCalendar` consumer keys the
+ * The calendar cache-key unification: every calendar consumer keys the
  * SAME full-window query (one GET serves home's 72h "On the way" slice and the
  * 28-day Calendar screen), and narrower callers get a client-side day slice.
  */
-import type { CalendarEntry } from "@cue/core/domain/calendar";
 import {
+  buildCalendarDays,
   CALENDAR_WINDOW_DAYS,
+  type CalendarEntry,
   recentCalendarStart,
   sliceCalendarDays,
-  useCalendar,
-} from "@cue/core/hooks/useCalendar";
-import { type CueRuntime, RuntimeProvider } from "@cue/core/runtime/runtime";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+} from "@cue/core/domain/calendar";
+import { dayKeyOf } from "@cue/core/domain/day";
+import { DAY_MS, localTimeZone } from "@cue/core/domain/time";
+import { useCoarseClock } from "@cue/core/hooks/useCoarseClock";
+import { calendarQuery } from "@cue/core/queries/calendar";
+import { type CueRuntime, RuntimeProvider, useRuntime } from "@cue/core/runtime/runtime";
+import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { act, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -42,8 +46,15 @@ function Probe({
   readonly windowDays: number;
   readonly onDays: (count: number) => void;
 }): null {
-  const view = useCalendar(windowDays);
-  onDays(view.days.length);
+  const runtime = useRuntime();
+  const now = useCoarseClock(DAY_MS);
+  const timeZone = localTimeZone();
+  const startDate = dayKeyOf(timeZone, now);
+  const query = useQuery({
+    ...calendarQuery(runtime, startDate),
+    select: (data) => buildCalendarDays(data, now, timeZone, startDate, windowDays),
+  });
+  onDays(query.data?.length ?? 0);
   return null;
 }
 
@@ -62,7 +73,7 @@ async function mount(node: ReactElement): Promise<void> {
   await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
 }
 
-describe("useCalendar", () => {
+describe("calendarQuery consumers", () => {
   it("keys one full-window query for every caller and slices narrower views", async () => {
     const loadCalendar = vi.fn((_start: string, _days: number) =>
       Promise.resolve({ entries: entriesAt(1, 10), hiddenShowIds: [] }),

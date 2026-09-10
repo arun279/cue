@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -26,7 +26,7 @@ const files = execFileSync(
   { cwd: tree, encoding: "utf8" },
 )
   .split("\0")
-  .filter((file) => /\.tsx?$/.test(file));
+  .filter((file) => /\.tsx?$/.test(file) && existsSync(path.join(tree, file)));
 
 // A merge base that predates these packages has nothing to measure. Saying so
 // keeps the zero-functions guard below meaning "Biome produced nothing".

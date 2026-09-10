@@ -1,8 +1,14 @@
-import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo } from "react";
+import { buildCalendarDays } from "../domain/calendar";
+import { dayKeyOf } from "../domain/day";
 import { planReminders, REMINDER_WINDOW_DAYS } from "../domain/reminders";
+import { DAY_MS, localTimeZone } from "../domain/time";
 import { useReminders } from "../ports/reminders";
 import { usePrefs } from "../prefs/prefs-store";
-import { useCalendar } from "./useCalendar";
+import { calendarQuery } from "../queries/calendar";
+import { useRuntime } from "../runtime/runtime";
+import { useCoarseClock } from "./useCoarseClock";
 
 /**
  * Keeps the OS holding exactly the reminders the current calendar implies.
@@ -17,7 +23,19 @@ import { useCalendar } from "./useCalendar";
 export function useEpisodeReminders(): void {
   const reminders = useReminders();
   const enabled = usePrefs((state) => state.remindersEnabled);
-  const { days, hasData } = useCalendar(REMINDER_WINDOW_DAYS, enabled);
+  const runtime = useRuntime();
+  const now = useCoarseClock(DAY_MS);
+  const timeZone = localTimeZone();
+  const startDate = dayKeyOf(timeZone, now);
+  const query = useQuery({ ...calendarQuery(runtime, startDate), enabled });
+  const days = useMemo(
+    () =>
+      query.data === undefined
+        ? []
+        : buildCalendarDays(query.data, now, timeZone, startDate, REMINDER_WINDOW_DAYS),
+    [query.data, now, timeZone, startDate],
+  );
+  const hasData = query.data !== undefined;
 
   useEffect(() => {
     if (!enabled) return;

@@ -24,10 +24,42 @@ export default defineConfig({
         "packages/core/src/prefs/**": { lines: 90, functions: 90, statements: 90, branches: 80 },
         "packages/core/src/url/**": { lines: 90, functions: 90, statements: 90, branches: 80 },
         "packages/core/src/stores/**": { lines: 90, functions: 90, statements: 90, branches: 80 },
-        // A ratchet, not a target: the hook layer has never been inside a
-        // coverage number, so this is what it measured on the commit that
-        // moved it. It may go up and never down.
-        "packages/core/src/hooks/**": { lines: 54, functions: 52, statements: 53, branches: 42 },
+        "packages/core/src/auth/**": {
+          lines: 50.58,
+          functions: 52.63,
+          statements: 47.95,
+          branches: 45.45,
+        },
+        "packages/core/src/hooks/**": {
+          lines: 72.89,
+          functions: 66.89,
+          statements: 70.86,
+          branches: 56.61,
+        },
+        "packages/core/src/migration/**": {
+          lines: 97.5,
+          functions: 100,
+          statements: 95.34,
+          branches: 88.88,
+        },
+        "packages/core/src/ports/**": {
+          lines: 86.84,
+          functions: 93.1,
+          statements: 87.5,
+          branches: 100,
+        },
+        "packages/core/src/queries/**": {
+          lines: 43.47,
+          functions: 31.57,
+          statements: 44.06,
+          branches: 45.45,
+        },
+        "packages/core/src/runtime/**": {
+          lines: 100,
+          functions: 100,
+          statements: 95.65,
+          branches: 80,
+        },
       },
     },
   },

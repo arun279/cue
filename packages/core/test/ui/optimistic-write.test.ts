@@ -1,5 +1,5 @@
 import type { QueuedOp } from "@cue/core/domain/write-queue/types";
-import { applyOptimisticWrite } from "@cue/core/hooks/useOptimisticWrite";
+import { applyOptimisticWrite } from "@cue/core/hooks/optimistic-write";
 import type { SubmitOutcome } from "@cue/core/runtime/runtime";
 import { describe, expect, it, vi } from "vitest";
 

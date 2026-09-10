@@ -120,6 +120,7 @@ export interface HarnessProps {
   readonly haptics: Haptics;
   readonly preferences?: PreferenceStorage;
   readonly network?: Network;
+  seed?(client: QueryClient): void;
   readonly children: ReactNode;
 }
 
@@ -130,17 +131,19 @@ export function Harness({
   haptics,
   preferences = memoryPreferences(),
   network,
+  seed,
   children,
 }: HarnessProps): ReactElement {
   // One client per mount, and no garbage collection timer: TanStack's own
   // testing guide sets `gcTime` to Infinity under jest, because a five minute
   // collection timer per query outlives the run and forces a worker exit.
-  const [client] = useState(
-    () =>
-      new QueryClient({
-        defaultOptions: { queries: { retry: false, gcTime: Number.POSITIVE_INFINITY } },
-      }),
-  );
+  const [client] = useState(() => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: Number.POSITIVE_INFINITY } },
+    });
+    seed?.(client);
+    return client;
+  });
   const tree = (
     <QueryClientProvider client={client}>
       <RuntimeProvider value={runtime}>

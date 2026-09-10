@@ -16,15 +16,14 @@ import type { EpisodeView, SeasonView, ShowProgress } from "@cue/core/data/trakt
 import type { EpisodePlay } from "@cue/core/domain/reversal";
 import type { QueuedOp } from "@cue/core/domain/write-queue/types";
 import { type MarkSeasonController, useMarkSeason } from "@cue/core/hooks/useMarkSeason";
-import { useMarkSnacks } from "@cue/core/hooks/useMarkSnacks";
 import { type MarkWatched, useMarkWatched } from "@cue/core/hooks/useMarkWatched";
+import { type CueRuntime, RuntimeProvider, type UpNextData } from "@cue/core/runtime/runtime";
+import { resetMarkStore } from "@cue/core/stores/mark-store";
 import {
   forgetSeasonMark,
   getSeasonMarkDelta,
   rememberSeasonMark,
-} from "@cue/core/hooks/useSeasonReversal";
-import { type CueRuntime, RuntimeProvider, type UpNextData } from "@cue/core/runtime/runtime";
-import { resetMarkStore } from "@cue/core/stores/mark-store";
+} from "@cue/core/stores/season-reversal";
 import { dismissSnack, useSnackbar } from "@cue/core/stores/snackbar-store";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act } from "react";
@@ -136,7 +135,6 @@ interface Api {
 function Probe({ slot }: { slot: Api[] }) {
   const mark = useMarkWatched();
   const season = useMarkSeason();
-  useMarkSnacks(season);
   slot[0] = { mark, season };
   return null;
 }

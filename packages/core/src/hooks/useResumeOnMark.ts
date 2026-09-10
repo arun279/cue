@@ -4,7 +4,7 @@ import type { ShowIds } from "../domain/model/ids";
 import { buildHideShowOp, buildUnhideShowOp } from "../domain/write-queue/ops";
 import { type SubmitOutcome, useRuntime } from "../runtime/runtime";
 import { isLibraryHidden, patchLibraryHidden } from "./library-cache";
-import { useTrackedSubmit } from "./useOptimisticWrite";
+import { useTrackedSubmit } from "./useTrackedSubmit";
 
 export interface ResumeOnMark {
   /** Whether marking this show right now WOULD auto-resume it: i.e. it is currently

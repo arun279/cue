@@ -1,9 +1,9 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { readsPausedUntil, subscribeReadPause } from "../data/trakt/read-budget";
+import type { QueryStatus } from "../queries/freshness";
 import { useOptionalRuntime } from "../runtime/runtime";
 import { useSyncActivity } from "../stores/sync-activity-store";
 import { PENDING_GRACE_MS, PENDING_THRESHOLD, type SyncBanner, syncBanner } from "../sync-contract";
-import type { QueryStatus } from "./query-freshness";
 import { useIsOffline } from "./useIsOffline";
 
 /**

@@ -1,14 +1,17 @@
-import { queryOptions, type UseQueryResult, useQueries, useQuery } from "@tanstack/react-query";
+import { type UseQueryResult, useQueries, useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
-import { queryKeys } from "../data/query-keys";
-import type { LibraryEntry } from "../data/trakt/library";
 import { firstUnwatchedAired, type SeasonView, toEpisodeRef } from "../data/trakt/show-detail";
+import { recentCalendarStart, selectVisibleEntries } from "../domain/calendar";
+import { dayKeyOf } from "../domain/day";
 import { needsNextEpisode, reconcileRecentlyAired } from "../domain/recently-aired";
+import { DAY_MS, localTimeZone } from "../domain/time";
 import { usePrefs } from "../prefs/prefs-store";
 import { thresholdMsFromDays } from "../prefs/threshold";
-import { type CueRuntime, type UpNextData, useRuntime } from "../runtime/runtime";
-import { CONTENT_STALE_TIME_MS, USER_STATE_STALE_TIME } from "./query-freshness";
-import { useRecentlyAired } from "./useCalendar";
+import { recentlyAiredQuery } from "../queries/calendar";
+import { libraryQuery } from "../queries/library";
+import { showSeasonsQuery } from "../queries/shows";
+import { type UpNextData, useRuntime } from "../runtime/runtime";
+import { useCoarseClock } from "./useCoarseClock";
 
 export interface LibrarySnapshot {
   readonly query: UseQueryResult<UpNextData>;
@@ -16,13 +19,6 @@ export interface LibrarySnapshot {
   /** The live staleness threshold (from usePrefs) the Watching/lapsed split reads. */
   readonly thresholdMs: number;
 }
-
-const libraryQuery = (runtime: CueRuntime) =>
-  queryOptions({
-    queryKey: queryKeys.library(),
-    queryFn: () => runtime.loadUpNext(),
-    staleTime: USER_STATE_STALE_TIME,
-  });
 
 function combineSeasonTrees(
   results: readonly UseQueryResult<readonly SeasonView[]>[],
@@ -44,7 +40,13 @@ export function useLibrarySnapshot(enabled = true): LibrarySnapshot {
     enabled,
   });
   const thresholdDays = usePrefs((s) => s.thresholdDays);
-  const recent = useRecentlyAired(enabled);
+  const now = useCoarseClock(DAY_MS);
+  const recentStart = recentCalendarStart(dayKeyOf(localTimeZone(), now));
+  const recentQuery = useQuery({ ...recentlyAiredQuery(runtime, recentStart), enabled });
+  const recent = useMemo(
+    () => (recentQuery.data === undefined ? undefined : selectVisibleEntries(recentQuery.data)),
+    [recentQuery.data],
+  );
   const reconciled = useMemo(() => {
     const now = Date.now();
     if (query.data === undefined || recent === undefined) return { now, data: query.data };
@@ -66,12 +68,7 @@ export function useLibrarySnapshot(enabled = true): LibrarySnapshot {
     );
   }, [query.data, reconciled]);
   const trees = useQueries({
-    queries: unresolved.map((showId) => ({
-      queryKey: queryKeys.showSeasons(showId),
-      queryFn: () => runtime.loadShowSeasons(showId),
-      staleTime: CONTENT_STALE_TIME_MS,
-      enabled,
-    })),
+    queries: unresolved.map((showId) => ({ ...showSeasonsQuery(runtime, showId), enabled })),
     combine: combineSeasonTrees,
   });
   const data = useMemo(() => {
@@ -96,10 +93,4 @@ export function useLibrarySnapshot(enabled = true): LibrarySnapshot {
     };
   }, [reconciled, trees, unresolved]);
   return { query, data, thresholdMs: thresholdMsFromDays(thresholdDays) };
-}
-
-/** The entry comes off the reconciled snapshot because `select` cannot see calendar or season queries. */
-export function useLibraryEntry(showId: number): LibraryEntry | undefined {
-  const { data } = useLibrarySnapshot();
-  return useMemo(() => data?.entries.find((entry) => entry.showId === showId), [data, showId]);
 }

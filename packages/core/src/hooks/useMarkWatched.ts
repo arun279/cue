@@ -36,7 +36,7 @@ import {
   patchShowSeasons,
   refreshShowProgress,
 } from "./library-cache";
-import { findMarkPlay } from "./resolveUnmark";
+import { findMarkPlay } from "./resolve-unmark";
 import { useOptimisticWrite } from "./useOptimisticWrite";
 
 export interface MarkWatched {
@@ -98,10 +98,6 @@ export function useMarkWatched(): MarkWatched {
   const queryClient = useQueryClient();
   const runtime = useRuntime();
   const haptics = useHaptics();
-  // Reactive view of the shared mark records: `justMarkedAt` re-renders every
-  // consumer, whichever surface opened the window.
-  const records = useMarkStore((s) => s.records);
-
   // Abort any in-flight library refetch before an optimistic patch, so a
   // response already on the wire can't land after the patch and flicker the
   // entry back to its pre-patch server state.
@@ -415,6 +411,6 @@ export function useMarkWatched(): MarkWatched {
     mark,
     reverse,
     reArm: useCallback((showId: number) => void useMarkStore.getState().close(showId), []),
-    justMarkedAt: (showId) => records.get(showId)?.at ?? null,
+    justMarkedAt: (showId) => useMarkStore.getState().records.get(showId)?.at ?? null,
   };
 }

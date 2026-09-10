@@ -4,7 +4,6 @@ import { toMs } from "@cue/core/domain/time";
 import { episodesLeft, watchedPercent } from "@cue/core/format";
 import { useMarkControl } from "@cue/core/hooks/useMarkControl";
 import type { MarkWatched } from "@cue/core/hooks/useMarkWatched";
-import type { UpNextCard } from "@cue/core/hooks/useUpNext";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import type { ReactElement } from "react";
@@ -28,6 +27,7 @@ import {
   useColors,
 } from "../../ui/tokens";
 import { CueText } from "../../ui/type";
+import type { UpNextCard } from "./model";
 
 const AIRED_LAST_NIGHT_MS = 24 * 60 * 60 * 1000;
 
