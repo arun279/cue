@@ -1,0 +1,266 @@
+import {
+  TRAKT_API_BASE,
+  TRAKT_REQUEST_TIMEOUT_MS,
+  TraktClient,
+  type TraktFailure,
+  unwrapRead,
+} from "@cue/core/data/trakt/client";
+import { HttpResponse, http } from "msw";
+import { describe, expect, it, vi } from "vitest";
+import { mswServer } from "./_msw";
+
+const server = mswServer();
+
+function client(token: string | null = null): TraktClient {
+  return new TraktClient({ clientId: "cid-123", getToken: () => token });
+}
+
+async function headersFor(path: string, trakt = client()): Promise<Headers> {
+  const captured = new Headers();
+  server.use(
+    http.get(`${TRAKT_API_BASE}${path}`, ({ request }) => {
+      for (const [name, value] of request.headers) captured.set(name, value);
+      return HttpResponse.json({});
+    }),
+  );
+  await trakt.get(path);
+  return captured;
+}
+
+describe("TraktClient headers + extended", () => {
+  it("coalesces identical GETs only while the first is in flight", async () => {
+    let requests = 0;
+    let release: (() => void) | undefined;
+    server.use(
+      http.get(`${TRAKT_API_BASE}/sync/watched/shows`, async () => {
+        requests += 1;
+        await new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        return HttpResponse.json([]);
+      }),
+    );
+
+    const trakt = client();
+    const first = trakt.get("/sync/watched/shows");
+    const second = trakt.get("/sync/watched/shows");
+    await vi.waitFor(() => expect(requests).toBe(1));
+    release?.();
+    await Promise.all([first, second]);
+
+    const third = trakt.get("/sync/watched/shows");
+    await vi.waitFor(() => expect(requests).toBe(2));
+    release?.();
+    await third;
+  });
+
+  it("sets the required Trakt headers and omits Authorization when no token", async () => {
+    let captured: Headers | undefined;
+    server.use(
+      http.get(`${TRAKT_API_BASE}/sync/watched/shows`, ({ request }) => {
+        captured = request.headers;
+        return HttpResponse.json([]);
+      }),
+    );
+    await client().get("/sync/watched/shows");
+    expect(captured?.get("trakt-api-key")).toBe("cid-123");
+    expect(captured?.get("trakt-api-version")).toBe("2");
+    expect(captured?.get("content-type")).toBe("application/json");
+    expect(captured?.get("authorization")).toBeNull();
+  });
+
+  it("adds a bearer Authorization header when a token is present", async () => {
+    expect((await headersFor("/users/me", client("tok-abc"))).get("authorization")).toBe(
+      "Bearer tok-abc",
+    );
+  });
+
+  it("sends an injected User-Agent", async () => {
+    const trakt = new TraktClient({ clientId: "cid-123", userAgent: "Cue/1.0.0" });
+    expect((await headersFor("/users/me", trakt)).get("user-agent")).toBe("Cue/1.0.0");
+  });
+
+  it("builds the comma-combined extended query param", async () => {
+    let url: string | undefined;
+    server.use(
+      http.get(`${TRAKT_API_BASE}/shows/1/seasons`, ({ request }) => {
+        url = request.url;
+        return HttpResponse.json([]);
+      }),
+    );
+    await client().get("/shows/1/seasons", { extended: ["full", "images"] });
+    expect(new URL(url ?? "").searchParams.get("extended")).toBe("full,images");
+  });
+});
+
+describe("TraktClient base URL", () => {
+  it("sends requests to an injected baseUrl, trailing slash trimmed", async () => {
+    let url: string | undefined;
+    server.use(
+      http.get("http://127.0.0.1:8787/sync/watched/shows", ({ request }) => {
+        url = request.url;
+        return HttpResponse.json([]);
+      }),
+    );
+    const mocked = new TraktClient({ clientId: "cid-123", baseUrl: "http://127.0.0.1:8787/" });
+    expect((await mocked.get("/sync/watched/shows")).ok).toBe(true);
+    expect(url).toBe("http://127.0.0.1:8787/sync/watched/shows");
+  });
+});
+
+describe("TraktClient pagination", () => {
+  const pageHeaders = (page: number, pageCount: number): Record<string, string> => ({
+    "X-Pagination-Page": String(page),
+    "X-Pagination-Limit": "10",
+    "X-Pagination-Page-Count": String(pageCount),
+    "X-Pagination-Item-Count": "25",
+  });
+
+  it("reads the X-Pagination-* headers into the result", async () => {
+    server.use(
+      http.get(`${TRAKT_API_BASE}/sync/history`, () =>
+        HttpResponse.json([{ id: 1 }], { headers: pageHeaders(1, 3) }),
+      ),
+    );
+    const result = await client().get("/sync/history");
+    expect(result.ok && result.pagination).toEqual({ page: 1, pageCount: 3 });
+  });
+
+  it("walks every page via getAllPages and flattens the arrays", async () => {
+    server.use(
+      http.get(`${TRAKT_API_BASE}/sync/history`, ({ request }) => {
+        const page = Number(new URL(request.url).searchParams.get("page"));
+        return HttpResponse.json([{ id: page }], { headers: pageHeaders(page, 3) });
+      }),
+    );
+    const result = await client().getAllPages("/sync/history");
+    expect(result.ok && result.data).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }]);
+  });
+
+  it("walks to an empty page when pagination headers are absent", async () => {
+    const rows = Array.from({ length: 250 }, (_, id) => ({ id }));
+    server.use(
+      http.get(`${TRAKT_API_BASE}/sync/watched/shows`, ({ request }) => {
+        const page = Number(new URL(request.url).searchParams.get("page"));
+        return HttpResponse.json(rows.slice((page - 1) * 100, page * 100));
+      }),
+    );
+    const result = await client().getAllPages("/sync/watched/shows");
+    expect(result.ok && result.data).toEqual(rows);
+    expect(result.ok && result.pagination).toBeNull();
+  });
+});
+
+describe("TraktClient error mapping", () => {
+  const path = "/sync/watched/shows";
+  const respond = (status: number, headers: Record<string, string> = {}): void => {
+    server.use(
+      http.get(`${TRAKT_API_BASE}${path}`, () => new HttpResponse(null, { status, headers })),
+    );
+  };
+
+  it("maps 401 to unauthorized", async () => {
+    respond(401);
+    expect(await client().get(path)).toEqual({ ok: false, error: { kind: "unauthorized" } });
+  });
+
+  it("maps 404 to not-found", async () => {
+    respond(404);
+    expect(await client().get(path)).toEqual({ ok: false, error: { kind: "not-found" } });
+  });
+
+  it.each<{ status: number; kind: TraktFailure["kind"] }>([
+    { status: 420, kind: "account-limit" },
+    { status: 423, kind: "account-locked" },
+    { status: 426, kind: "vip-required" },
+  ])("maps permanent status $status to $kind", async ({ status, kind }) => {
+    respond(status);
+    expect(await client().get(path)).toEqual({ ok: false, error: { kind } });
+  });
+
+  it("maps 429 and reads Retry-After seconds", async () => {
+    respond(429, { "Retry-After": "3" });
+    const result = await client().get(path);
+    expect(result).toEqual({ ok: false, error: { kind: "rate-limited", retryAfterMs: 3500 } });
+  });
+
+  it("honors a long read Retry-After with a positive margin", async () => {
+    respond(429, { "Retry-After": "120" });
+    const result = await client().get(path);
+    expect(result).toEqual({
+      ok: false,
+      error: { kind: "rate-limited", retryAfterMs: 120_500 },
+    });
+  });
+
+  it("maps 500 to server with the status", async () => {
+    respond(503);
+    expect(await client().get(path)).toEqual({ ok: false, error: { kind: "server", status: 503 } });
+  });
+
+  it("maps an unexpected 4xx to server carrying its status", async () => {
+    respond(418);
+    expect(await client().get(path)).toEqual({ ok: false, error: { kind: "server", status: 418 } });
+  });
+
+  it("maps a fetch reject (no response) to network", async () => {
+    server.use(http.get(`${TRAKT_API_BASE}${path}`, () => HttpResponse.error()));
+    expect(await client().get(path)).toEqual({ ok: false, error: { kind: "network" } });
+  });
+
+  it("distinguishes an unreadable Trakt response from server and network failures", async () => {
+    server.use(http.get(`${TRAKT_API_BASE}${path}`, () => HttpResponse.error()));
+    const browserClient = new TraktClient({ clientId: "cid-123", browser: true });
+    expect(await browserClient.get(path)).toEqual({
+      ok: false,
+      error: { kind: "unreadable-response" },
+    });
+  });
+
+  it("keeps browser failures against other origins classified as network", async () => {
+    const browserClient = new TraktClient({
+      clientId: "cid-123",
+      browser: true,
+      baseUrl: "https://example.test",
+      fetch: () => Promise.reject(new Error("offline")),
+    });
+    expect(await browserClient.get(path)).toEqual({ ok: false, error: { kind: "network" } });
+  });
+
+  it("rejects a held read as a typed network failure after the request timeout", async () => {
+    vi.useFakeTimers();
+    const held = new TraktClient({
+      clientId: "cid-123",
+      fetch: (_input, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+        }),
+    });
+    const read = held.get(path).then((result) => unwrapRead(result, "held read"));
+    const rejection = expect(read).rejects.toMatchObject({ failure: { kind: "network" } });
+
+    await vi.advanceTimersByTimeAsync(TRAKT_REQUEST_TIMEOUT_MS);
+    await rejection;
+    vi.useRealTimers();
+  }, 1000);
+
+  // The browser reclassification exists for a response the browser refused to
+  // show; a socket this client gave up on itself is the connection failing, and
+  // saying otherwise would tell a user on a dead network that Trakt is at fault.
+  it("keeps a timed-out browser request against Trakt a network failure", async () => {
+    vi.useFakeTimers();
+    const held = new TraktClient({
+      clientId: "cid-123",
+      browser: true,
+      fetch: (_input, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+        }),
+    });
+    const read = held.get(path);
+
+    await vi.advanceTimersByTimeAsync(TRAKT_REQUEST_TIMEOUT_MS);
+    expect(await read).toEqual({ ok: false, error: { kind: "network" } });
+    vi.useRealTimers();
+  }, 1000);
+});

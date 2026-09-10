@@ -3,9 +3,8 @@
  *
  * One seeded library, held in memory and moved by the write endpoints, so a mark
  * made in the app shows up on the next progress read. Every show is a flat list
- * of episodes in watch order plus a linear `completed` counter: the same model
- * the hermetic Playwright fixtures use, because it keeps the watched breakdown,
- * the progress tree, the history rows and the writes all derivable from one
+ * of episodes in watch order plus a linear `completed` counter, which keeps the
+ * watched breakdown, progress tree, history rows, and writes derivable from one
  * number a write can move.
  *
  * The shapes are Trakt's, not the app's: `/sync/watched/shows` carries no images
@@ -267,6 +266,10 @@ export function createLibrary(now = Date.now()) {
       watchedAt: spec.lastWatchedDaysAgo === null ? null : now - spec.lastWatchedDaysAgo * DAY,
     })),
     user: { username: "cue-demo", name: "Cue Demo", slug: "cue-demo" },
+    /** Second plays, by episode and by movie trakt id: a seed profile's only
+     * way to say an item was watched twice. */
+    rewatchedEpisodes: new Map(),
+    rewatchedMovies: new Map(),
     activities: {
       episodes: now - DAY,
       shows: now - DAY,
@@ -274,6 +277,48 @@ export function createLibrary(now = Date.now()) {
       watchlist: now - 3 * DAY,
     },
   };
+}
+
+const seedProfiles = {
+  default: () => {},
+  "empty-library": (library) => {
+    library.shows = [];
+    library.movies = [];
+  },
+  "watchlist-only": (library) => {
+    library.shows = library.shows.filter((show) => show.inWatchlist);
+    library.movies = library.movies.filter((movie) => movie.inWatchlist);
+  },
+  "only-stopped": (library) => {
+    const stopped = library.shows.find((show) => show.trakt === 8805);
+    stopped.hidden = true;
+    stopped.inWatchlist = false;
+    library.shows = [stopped];
+    library.movies = [];
+  },
+  "zeroed-stats": (library) => {
+    for (const show of library.shows) {
+      show.completed = 0;
+      show.lastWatchedAt = null;
+      show.watchedAt.clear();
+    }
+    for (const movie of library.movies) movie.watchedAt = null;
+  },
+  "rewatched-episode": (library) => {
+    library.rewatchedEpisodes.set(library.shows[0].episodes[0].traktId, library.now - DAY / 2);
+  },
+  "rewatched-movie": (library) => {
+    library.rewatchedMovies.set(library.movies[0].trakt, library.now - DAY / 2);
+  },
+};
+
+export const SEED_PROFILE_NAMES = Object.keys(seedProfiles);
+
+/** The seeded account under one of the profiles named above. */
+export function createSeedLibrary(profile = "default", now = Date.now()) {
+  const library = createLibrary(now);
+  seedProfiles[profile](library);
+  return library;
 }
 
 const airedEpisodes = (show, now) => show.episodes.filter((ep) => ep.firstAired <= now);
@@ -362,11 +407,16 @@ function movieRef(movie, origin, extended) {
 }
 
 /** The watched-episode breakdown: watched episodes only, grouped by season. */
-function watchedSeasons(show) {
+function watchedSeasons(show, library) {
   const bySeason = new Map();
   show.episodes.slice(0, show.completed).forEach((ep, index) => {
     const episodes = bySeason.get(ep.season) ?? [];
-    episodes.push({ number: ep.number, plays: 1, last_watched_at: iso(watchedAtOf(show, index)) });
+    const rewatchedAt = library.rewatchedEpisodes.get(ep.traktId);
+    episodes.push({
+      number: ep.number,
+      plays: rewatchedAt === undefined ? 1 : 2,
+      last_watched_at: iso(rewatchedAt ?? watchedAtOf(show, index)),
+    });
     bySeason.set(ep.season, episodes);
   });
   return [...bySeason].map(([number, episodes]) => ({ number, episodes }));
@@ -393,19 +443,22 @@ export function watchedShowsBody(library, extended) {
         aired_episodes: airedEpisodes(show, library.now).length,
         ...(levels.has("full") ? { status: show.status, network: show.network } : {}),
       },
-      ...(levels.has("progress") ? { seasons: watchedSeasons(show) } : {}),
+      ...(levels.has("progress") ? { seasons: watchedSeasons(show, library) } : {}),
     }));
 }
 
 export function watchedMoviesBody(library, origin, extended) {
   return library.movies
     .filter((movie) => movie.watchedAt !== null)
-    .map((movie) => ({
-      plays: 1,
-      last_watched_at: iso(movie.watchedAt),
-      last_updated_at: iso(movie.watchedAt),
-      movie: movieRef(movie, origin, extended),
-    }));
+    .map((movie) => {
+      const rewatchedAt = library.rewatchedMovies.get(movie.trakt);
+      return {
+        plays: rewatchedAt === undefined ? 1 : 2,
+        last_watched_at: iso(rewatchedAt ?? movie.watchedAt),
+        last_updated_at: iso(rewatchedAt ?? movie.watchedAt),
+        movie: movieRef(movie, origin, extended),
+      };
+    });
 }
 
 /**
@@ -509,7 +562,7 @@ export function calendarBody(library, origin, extended, startMs, days) {
  * agree: `item trakt * 10 + play number` is reversible, which is what lets a
  * `{ ids }` removal move the same linear counter a mark moves.
  */
-const playId = (traktId) => traktId * 10 + 1;
+const playId = (traktId, play = 1) => traktId * 10 + play;
 const playItem = (id) => Math.floor(id / 10);
 
 /** `/users/me/history`: one row per play, newest first. */
@@ -526,6 +579,17 @@ export function historyRows(library, origin, extended, section) {
           episode: episodeRef(ep, origin, extended),
           show: showRef(show, origin, extended),
         });
+        const rewatchedAt = library.rewatchedEpisodes.get(ep.traktId);
+        if (rewatchedAt !== undefined) {
+          rows.push({
+            id: playId(ep.traktId, 2),
+            watched_at: iso(rewatchedAt),
+            action: "scrobble",
+            type: "episode",
+            episode: episodeRef(ep, origin, extended),
+            show: showRef(show, origin, extended),
+          });
+        }
       });
     }
   }
@@ -539,6 +603,16 @@ export function historyRows(library, origin, extended, section) {
         type: "movie",
         movie: movieRef(movie, origin, extended),
       });
+      const rewatchedAt = library.rewatchedMovies.get(movie.trakt);
+      if (rewatchedAt !== undefined) {
+        rows.push({
+          id: playId(movie.trakt, 2),
+          watched_at: iso(rewatchedAt),
+          action: "scrobble",
+          type: "movie",
+          movie: movieRef(movie, origin, extended),
+        });
+      }
     }
   }
   return rows.sort((a, b) => b.watched_at.localeCompare(a.watched_at));
@@ -674,6 +748,7 @@ function targetedEpisodes(show, body) {
  * have comes back in `not_found`: a write that matched nothing must not read as
  * a success the account never took.
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Applies episode, bulk show, movie, and play-id history bodies for both additions and removals.
 export function applyHistoryWrite(library, body, remove) {
   const stamped = Date.parse(
     (body.episodes ?? [])[0]?.watched_at ??

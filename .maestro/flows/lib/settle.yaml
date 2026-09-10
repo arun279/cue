@@ -1,0 +1,4 @@
+appId: app.cuetracker
+---
+- assertVisible:
+    id: "app-idle"

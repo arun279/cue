@@ -1,6 +1,19 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "project": ["src/**/*.{ts,tsx}"],
-  "ignoreDependencies": ["tailwindcss"],
-  "ignoreBinaries": ["defaults"]
+  "workspaces": {
+    ".": {
+      "entry": ["scripts/*.mjs", "scripts/mock-trakt/*.mjs", "test/vitest.config.ts"],
+      "project": ["scripts/**/*.mjs", "test/**/*.ts"],
+      "ignoreDependencies": ["expo-atlas"]
+    },
+    "packages/core": {
+      "project": ["src/**/*.ts", "test/**/*.{ts,tsx}"],
+      "includeEntryExports": true
+    },
+    "packages/native": {
+      "entry": ["plugins/*.js"],
+      "project": ["app/**/*.{ts,tsx}", "src/**/*.{ts,tsx}", "modules/**/*.ts", "plugins/*.js"],
+      "babel": ["babel.config.js"]
+    }
+  }
 }

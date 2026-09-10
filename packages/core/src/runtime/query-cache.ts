@@ -1,0 +1,105 @@
+import { QueryClient as Client, type Query, type QueryClient } from "@tanstack/react-query";
+import { queryKeys } from "../data/query-keys";
+import { backoffMs } from "../domain/write-queue/classify";
+import { shouldRetryRead } from "../sync-contract";
+import { PERSISTED_CACHE } from "./persist-buster";
+
+export const PERSIST_BUSTER = PERSISTED_CACHE.buster;
+
+/**
+ * Query-key heads whose data earns its place in the restored blob: everything a
+ * home, Library, Diary or Profile screen paints from before the network answers,
+ * and no more. `library`, `movie-library`, `watchlist`, `users` and `history` are
+ * `staleTime: Infinity` user state that only the last-activities reconciler ever
+ * refreshes, so dropping them from the blob strips those screens on a cold or
+ * offline boot with nothing to restore them. `calendar` carries a finite horizon
+ * but is what "On the way" paints, so it is persisted for the same reason.
+ *
+ * Left out: `search` and `discover` (unbounded key spaces nobody boots into), and
+ * the per-show/per-movie detail trees, whose count grows with every title ever
+ * opened and which cost a single GET to re-read on demand. A LIBRARY show's
+ * `show/info` is the one exception: it is what a restored row paints its poster
+ * from, and re-reading it costs a GET per card on screen.
+ */
+const PERSISTED_KEY_HEADS: ReadonlySet<unknown> = new Set([
+  "library",
+  "movie-library",
+  "watchlist",
+  "users",
+  "history",
+  "calendar",
+]);
+
+/**
+ * `maxAge` governs how long a restored cache may be replayed, NOT freshness.
+ * Freshness is owned by the last-activities reconciler, so an age cap here would
+ * boot an offline user to an empty screen: the exact failure to avoid. Left
+ * effectively unbounded; `buster` is the only invalidator. `gcTime` matches so
+ * restored queries are never collected before they can paint.
+ */
+export const PERSIST_MAX_AGE = Number.POSITIVE_INFINITY;
+
+/** The client every target builds, differing only in where its cache is persisted. */
+export function createQueryClient(): QueryClient {
+  return new Client({
+    defaultOptions: {
+      queries: {
+        gcTime: PERSIST_MAX_AGE,
+        // Per-query freshness is explicit: user-state reads (library, movie library,
+        // stats, watchlist) set `staleTime: Infinity` and revalidate ONLY
+        // through the last-activities reconciler; content reads (show detail,
+        // calendar) set a finite content window. The 0 default only covers ephemeral
+        // reads (search) that are keyed per query and fine to refetch on mount.
+        staleTime: 0,
+        // Focus/reconnect no longer trigger a blanket per-screen re-fetch: a single
+        // visibility-gated `/sync/last_activities` poll is the one freshness
+        // check on regaining visibility, so navigation costs zero Trakt data calls.
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+        // A transport blip or a 5xx is not a load failure yet, so a read that
+        // hits one retries itself before any screen is told, which is what stops
+        // it from painting a "can't reach Trakt" strip over data that is on the
+        // screen and fine. It backs off on the same ladder the write queue uses,
+        // so both sides of the app behave identically. A rate limit is NOT
+        // retried here: the read pool owns that one, on Trakt's own
+        // `Retry-After`, and two ladders over one 429 triple the reads.
+        retry: shouldRetryRead,
+        retryDelay: backoffMs,
+      },
+    },
+  });
+}
+
+/**
+ * What a given client persists. A factory rather than a free function because
+ * the membership test reads the client's own library entry, and the client is
+ * constructed per app: a module-level singleton to close over would not exist
+ * here.
+ */
+export function createQueryCachePolicy(queryClient: QueryClient): {
+  shouldDehydrateQuery(query: Query): boolean;
+} {
+  /**
+   * Does the restored library hold a card for this show? Show detail and the
+   * per-card art read share one `showInfo` entry, so anything opened from Search,
+   * Calendar or the Diary writes one too. Those have no card to paint on a cold
+   * boot, and with `gcTime` and `PERSIST_MAX_AGE` both unbounded they would
+   * accumulate in the blob for the life of the install. Gating on library
+   * membership is what keeps the persisted set bounded by the library.
+   */
+  const paintsALibraryCard = (showId: unknown): boolean => {
+    const library = queryClient.getQueryData<{
+      readonly entries: readonly { readonly showId: number }[];
+    }>(queryKeys.library());
+    return library?.entries.some((entry) => entry.showId === showId) ?? false;
+  };
+
+  return {
+    shouldDehydrateQuery(query) {
+      if (query.state.status !== "success") return false;
+      const [head, section, showId] = query.queryKey;
+      if (head === "show") return section === "info" && paintsALibraryCard(showId);
+      return PERSISTED_KEY_HEADS.has(head);
+    },
+  };
+}

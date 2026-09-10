@@ -1,0 +1,359 @@
+import type { LibraryEntry } from "@cue/core/data/trakt/library";
+import { buildCalendarDays } from "@cue/core/domain/calendar";
+import { dayKeyOf } from "@cue/core/domain/day";
+import { buildOnTheWay } from "@cue/core/domain/on-the-way";
+import { sortLapsed, sortQueue } from "@cue/core/domain/queue-order";
+import { DAY_MS, localTimeZone } from "@cue/core/domain/time";
+import {
+  groupUpNext,
+  type UpNextEmptyKind,
+  type UpNextItem,
+  upNextEmptyKind,
+} from "@cue/core/domain/up-next";
+import { useCoarseClock } from "@cue/core/hooks/useCoarseClock";
+import { useHideShow } from "@cue/core/hooks/useHideShow";
+import { useLibrarySnapshot } from "@cue/core/hooks/useLibrarySnapshot";
+import { type MarkWatched, useMarkWatched } from "@cue/core/hooks/useMarkWatched";
+import { useSyncBanner } from "@cue/core/hooks/useSyncBanner";
+import { usePrefs } from "@cue/core/prefs/prefs-store";
+import { calendarQuery } from "@cue/core/queries/calendar";
+import { type QueryStatus, queryStatus } from "@cue/core/queries/freshness";
+import { useRuntime } from "@cue/core/runtime/runtime";
+import { useQuery } from "@tanstack/react-query";
+import { Stack, useRouter } from "expo-router";
+import { type ReactElement, useMemo, useState } from "react";
+import { FlatList, RefreshControl, StyleSheet, View } from "react-native";
+import Animated, { LinearTransition } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { usePullToRefresh } from "../../../src/hooks/usePullToRefresh";
+import { LapsedDrawer } from "../../../src/screens/up-next/LapsedDrawer";
+import { MarqueeCard } from "../../../src/screens/up-next/MarqueeCard";
+import type { UpNextCard } from "../../../src/screens/up-next/model";
+import { OnTheWay } from "../../../src/screens/up-next/OnTheWay";
+import { QueueRow } from "../../../src/screens/up-next/QueueRow";
+import {
+  initialTutorialDismissed,
+  persistTutorialDismissed,
+  TutorialCaption,
+} from "../../../src/screens/up-next/TutorialCaption";
+import { UpNextBarItems } from "../../../src/screens/up-next/UpNextBarItems";
+import {
+  TvShowsOff,
+  UpNextEmpty,
+  UpNextError,
+  UpNextSkeleton,
+} from "../../../src/screens/up-next/UpNextStates";
+import { useStableQueueOrder } from "../../../src/screens/up-next/useStableQueueOrder";
+import { Chevron } from "../../../src/ui/Chevron";
+import { Row, Separator } from "../../../src/ui/Row";
+import { SyncStrip } from "../../../src/ui/SyncStrip";
+import { TEST_IDS } from "../../../src/ui/test-ids";
+import {
+  ROW_MIN_HEIGHT,
+  ROW_TEXT_INSET,
+  SPACE,
+  tabBarClearance,
+  useColors,
+} from "../../../src/ui/tokens";
+import { CueText } from "../../../src/ui/type";
+
+export { QueueRow };
+
+/** "On the way" is a summary, and the Calendar tab is the whole of it. */
+const ON_THE_WAY_ROWS = 3;
+/** The card renders only when the queue holds this many shows, and it consumes
+ * the head of the queue rather than sitting on top of it. */
+const MARQUEE_MIN_QUEUE = 3;
+const HOUR_MS = DAY_MS / 24;
+
+interface UpNextView extends QueryStatus {
+  readonly queue: readonly UpNextCard[];
+  readonly lapsedCards: readonly UpNextCard[];
+  readonly watchlistEntries: readonly LibraryEntry[];
+  readonly totalCount: number;
+  readonly trackedCount: number;
+  readonly startedCount: number;
+  readonly unresolvedCount: number;
+  refetch(): void;
+}
+
+function cardsFor(
+  items: readonly UpNextItem[],
+  entries: ReadonlyMap<number, LibraryEntry>,
+): UpNextCard[] {
+  return items.flatMap((item) => {
+    const entry = entries.get(item.showId);
+    return entry === undefined ? [] : [{ item, entry }];
+  });
+}
+
+function useUpNextView(enabled: boolean): UpNextView {
+  const { query, data, thresholdMs } = useLibrarySnapshot(enabled);
+  const order = usePrefs((state) => state.nextEpisodeOrder);
+  const lapsedOrder = usePrefs((state) => state.lapsedOrder);
+  const entries = data?.entries ?? [];
+  const byId = useMemo(() => new Map(entries.map((entry) => [entry.showId, entry])), [entries]);
+  const partition = useMemo(
+    () => groupUpNext(entries, Date.now(), thresholdMs),
+    [entries, thresholdMs],
+  );
+  const sortedQueue = useMemo(() => sortQueue(partition.queue, order), [partition.queue, order]);
+  const pendingShowIds = useMemo(
+    () => new Set(entries.filter((entry) => entry.pendingAdvance).map((entry) => entry.showId)),
+    [entries],
+  );
+  const stableQueue = useStableQueueOrder(sortedQueue, pendingShowIds);
+  const queue = useMemo(() => cardsFor(stableQueue, byId), [stableQueue, byId]);
+  const lapsedCards = useMemo(
+    () => cardsFor(sortLapsed(partition.lapsed, lapsedOrder), byId),
+    [partition.lapsed, lapsedOrder, byId],
+  );
+  const tracked = entries.filter((entry) => !entry.hidden);
+  return {
+    queue,
+    lapsedCards,
+    watchlistEntries: entries.filter((entry) => entry.inWatchlist && !entry.hidden),
+    totalCount: entries.length,
+    trackedCount: tracked.length,
+    startedCount: tracked.filter((entry) => entry.completed > 0).length,
+    unresolvedCount: tracked.filter(
+      (entry) => entry.nextEpisode === null && entry.completed < entry.aired,
+    ).length,
+    ...queryStatus(query, data !== undefined),
+    refetch: () => void query.refetch(),
+  };
+}
+
+/**
+ * Up Next is the home screen: what to watch next, and one tap to record it.
+ *
+ * Four sections in one scroll. The marquee promotes the head of the queue and is
+ * the only thing on the screen that says an episode is new; the queue is the
+ * list; the collapsed drawer holds what has gone idle; "On the way" answers what
+ * is coming. The strip is the first thing in the scroll content and scrolls away
+ * with it, because an ambient message that has already been read must not spend
+ * 32 pt of every screen repeating itself.
+ *
+ * A mark leaves the queue and the list closes over it. That departure, plus the
+ * snackbar's Undo, is what carries closure now that the old "Previously" strip
+ * is gone; the History footer is where the whole log lives.
+ */
+export default function UpNext(): ReactElement {
+  const runtime = useRuntime();
+  const showsEnabled = usePrefs((state) => state.showsEnabled);
+  const view = useUpNextView(showsEnabled);
+  const banner = useSyncBanner(view);
+  const stop = useHideShow();
+  const calendarClock = useCoarseClock(DAY_MS);
+  const timeZone = localTimeZone();
+  const calendarStart = dayKeyOf(timeZone, calendarClock);
+  const calendar = useQuery({ ...calendarQuery(runtime, calendarStart), enabled: showsEnabled });
+  const calendarDays = useMemo(
+    () =>
+      calendar.data === undefined
+        ? []
+        : buildCalendarDays(calendar.data, calendarClock, timeZone, calendarStart, 7),
+    [calendar.data, calendarClock, timeZone, calendarStart],
+  );
+  const onTheWayClock = useCoarseClock(HOUR_MS);
+  const onTheWayDays = useMemo(
+    () => buildOnTheWay(calendarDays, onTheWayClock, ON_THE_WAY_ROWS),
+    [calendarDays, onTheWayClock],
+  );
+  const mark = useTutorialGate(useMarkWatched());
+  const refresh = usePullToRefresh();
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
+
+  const marquee = view.queue.length >= MARQUEE_MIN_QUEUE ? view.queue[0] : undefined;
+  const rows = marquee === undefined ? view.queue : view.queue.slice(1);
+  const branch = branchOf(view, showsEnabled);
+
+  return (
+    <View testID={TEST_IDS.screenUpNext} style={[styles.screen, { backgroundColor: colors.bg }]}>
+      <Stack.Screen
+        options={{
+          title: "Up Next",
+          headerLargeTitle: true,
+          headerRight: () => <UpNextBarItems onSync={refresh.sync} />,
+        }}
+      />
+      <FlatList
+        testID={TEST_IDS.upNextList}
+        contentInsetAdjustmentBehavior="automatic"
+        contentContainerStyle={{ paddingBottom: tabBarClearance(insets.bottom) + SPACE.s4 }}
+        data={rows}
+        extraData={mark.tutorialVisible}
+        keyExtractor={(card) => String(card.entry.showId)}
+        ItemSeparatorComponent={() => <Separator inset={ROW_TEXT_INSET} />}
+        refreshControl={
+          <RefreshControl
+            testID={TEST_IDS.refreshIndicator}
+            refreshing={refresh.refreshing}
+            onRefresh={refresh.pull}
+            tintColor={colors.muted}
+          />
+        }
+        renderItem={({ item, index }) => (
+          <Animated.View layout={LinearTransition}>
+            <QueueRow
+              card={item}
+              mark={mark.controller}
+              onStop={() => stop.stopWatching(item.entry)}
+            />
+            {index === 0 && mark.tutorialVisible ? <TutorialCaption /> : null}
+          </Animated.View>
+        )}
+        ListHeaderComponent={
+          <View style={styles.lead}>
+            {banner === null ? null : <SyncStrip banner={banner} onRetry={view.refetch} />}
+            <Lead
+              branch={branch}
+              view={view}
+              marquee={marquee}
+              mark={mark.controller}
+              onStop={(card) => stop.stopWatching(card.entry)}
+              airingSoon={onTheWayDays.length > 0}
+            />
+          </View>
+        }
+        ListFooterComponent={
+          SECTIONED.includes(branch) ? (
+            <>
+              <LapsedDrawer
+                cards={view.lapsedCards}
+                mark={mark.controller}
+                onStop={(card) => stop.stopWatching(card.entry)}
+              />
+              <OnTheWay days={onTheWayDays} />
+              <HistoryFooter />
+            </>
+          ) : null
+        }
+      />
+    </View>
+  );
+}
+
+/**
+ * Which screen this is, decided once and read by both halves of it. The drawer,
+ * "On the way" and the History footer belong to the queue and to nothing else:
+ * an error with no cache owes the reader a way back, not a list of sections
+ * standing over an empty screen.
+ */
+type Branch = "tv-off" | "loading" | "error" | "queue" | UpNextEmptyKind;
+
+/**
+ * The branches that carry the drawer, "On the way" and the History footer under
+ * them. A queue has all three; a reader whose queue cannot resolve still needs
+ * to know when something is coming and where the log is. Every other branch is
+ * one block of type on an otherwise empty screen.
+ */
+const SECTIONED: readonly Branch[] = ["queue", "unresolved", "caught-up"];
+
+function branchOf(view: UpNextView, showsEnabled: boolean): Branch {
+  if (!showsEnabled) return "tv-off";
+  if (view.isLoading) return "loading";
+  if (view.isError && !view.hasData) return "error";
+  return upNextEmptyKind({ ...view, queued: view.queue.length }) ?? "queue";
+}
+
+/**
+ * What stands above the queue. Exactly one of these renders, and the populated
+ * branch renders the card and lets the list draw the rest.
+ */
+function Lead({
+  branch,
+  view,
+  marquee,
+  mark,
+  onStop,
+  airingSoon,
+}: {
+  readonly branch: Branch;
+  readonly view: UpNextView;
+  readonly marquee: UpNextCard | undefined;
+  readonly mark: MarkWatched;
+  readonly onStop: (card: UpNextCard) => void;
+  readonly airingSoon: boolean;
+}): ReactElement | null {
+  if (branch === "tv-off") return <TvShowsOff />;
+  if (branch === "loading") return <UpNextSkeleton />;
+  if (branch === "error") {
+    return <UpNextError failure={view.failure} onRetry={view.refetch} />;
+  }
+  if (branch !== "queue") {
+    return <UpNextEmpty kind={branch} watchlist={view.watchlistEntries} airingSoon={airingSoon} />;
+  }
+  if (marquee === undefined) return null;
+  // Mid-advance past the last aired episode there is no episode to headline, so
+  // the lead show keeps its place as a row until the confirming read either
+  // names the next one or drops it.
+  return marquee.item.episode === null ? (
+    <QueueRow card={marquee} mark={mark} onStop={() => onStop(marquee)} />
+  ) : (
+    <MarqueeCard card={marquee} episode={marquee.item.episode} mark={mark} />
+  );
+}
+
+/**
+ * Where "Previously" was: one row, at the target floor, opening the whole log.
+ * It costs 44 pt once instead of ten rows plus their day headers, and it makes
+ * History one tap from the home screen rather than two, which keeps the path
+ * recognizable rather than recalled.
+ */
+function HistoryFooter(): ReactElement {
+  const router = useRouter();
+  const colors = useColors();
+
+  return (
+    <View style={styles.footer}>
+      <Separator />
+      <View style={styles.footerRow}>
+        <Row
+          label="History"
+          minHeight={ROW_MIN_HEIGHT.footer}
+          onPress={() => router.push("/history")}
+          testID={TEST_IDS.linkHistory}
+          trailing={<Chevron direction="forward" />}
+        >
+          <CueText variant="rowTitle" style={{ color: colors.fg }}>
+            History
+          </CueText>
+        </Row>
+      </View>
+    </View>
+  );
+}
+
+/**
+ * The first-ever mark kills the tutorial line, whichever row fires it, so the
+ * caption is a property of the mark controller rather than of any one row.
+ */
+function useTutorialGate(controller: MarkWatched): {
+  readonly controller: MarkWatched;
+  readonly tutorialVisible: boolean;
+} {
+  const [dismissed, setDismissed] = useState(initialTutorialDismissed);
+
+  return {
+    tutorialVisible: !dismissed,
+    controller: {
+      ...controller,
+      mark: (entry) => {
+        if (!dismissed) {
+          persistTutorialDismissed();
+          setDismissed(true);
+        }
+        return controller.mark(entry);
+      },
+    },
+  };
+}
+
+const styles = StyleSheet.create({
+  screen: { flex: 1 },
+  lead: { paddingHorizontal: SPACE.s4, paddingBottom: SPACE.s2 },
+  footer: { paddingTop: SPACE.s4 },
+  footerRow: { paddingHorizontal: SPACE.s4, paddingVertical: SPACE.s1 },
+});

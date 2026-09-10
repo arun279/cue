@@ -8,11 +8,22 @@ dev-dist/
 *.ipa
 *.tsbuildinfo
 
-# Capacitor native projects are committed. Their nested ios/.gitignore and
-# android/.gitignore exclude build outputs (Pods, .gradle, build/, DerivedData)
-# and the web assets copied from dist/ by `cap sync`; signing material stays out
-# via the patterns below.
 .wrangler/
+
+# The Expo app is generated, not committed: `expo prebuild` clears and
+# regenerates both native directories, so a hand edit has to live in a config
+# plugin whether or not the output is tracked, and tracking it only creates a
+# second copy that can disagree with the plugin. The typed-route declarations are
+# generated as well, and the native typecheck regenerates them before it
+# compiles, so a clean checkout compiles the program the author sees.
+# packages/native/.gitignore is expo-cli's own and covers expo-env.d.ts; it is
+# tracked because the CLI rewrites it on every `expo customize`.
+packages/native/ios/
+packages/native/android/
+packages/native/.expo/
+# The local Expo module is source; what Gradle leaves beside it is not.
+packages/native/modules/*/android/build/
+packages/native/modules/*/android/.cxx/
 
 # Env: the real .env (your Trakt app's PUBLIC client id) is local-only.
 # Committed: .env.example (placeholders), .env.test (CI/e2e dummy id) and
@@ -32,20 +43,20 @@ dev-dist/
 *.mobileprovision
 *.secret
 secrets/
-# Android signing passwords injected into Gradle at build time (never commit)
-android/keystore.properties
-
 # Testing
 coverage/
-playwright-report/
 test-results/
+# The equivalence lane's recording: one run's artifact, captured fresh on each
+# side of a comparison rather than carried in the tree to go stale.
+journal/
 .dprint-cache
+.pnpm-store/
+packages/native/.reassure/*
+!packages/native/.reassure/baseline.perf
 
 # Local design-review output (screenshots + notes). Never push.
 design-review/
 
-# Playwright MCP scratch output (console logs + snapshots) from local UI runs.
-.playwright-mcp/
 
 # Editor / OS
 .DS_Store

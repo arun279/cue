@@ -1,0 +1,9 @@
+packages:
+  - packages/*
+
+# Expo supports isolated installs from SDK 54 but warns that some React Native
+# libraries fail to build or resolve under them, and names this as the remedy.
+# The native package is not here yet; the linker is set now so the tree the web
+# app is verified against is the tree the native package will join.
+# https://docs.expo.dev/guides/monorepos/
+nodeLinker: hoisted

@@ -1,12 +1,11 @@
 name: Mobile release
 
-# Ships the Capacitor app from the same web bundle the site uses.
-#   push to main       -> TestFlight + Firebase App Distribution (testers)
-#   push a v* tag      -> App Store release (auto-release after approval)
-#   manual dispatch    -> tester builds, or an iOS App Store release
+# Ships the Expo native app.
+#   push to main       -> tester builds
+#   push a v* tag      -> App Store release
+#   manual dispatch    -> tester builds or an App Store release
 # Dispatch is also how a release/* branch ships. main keeps releasing on push,
-# and a branch such as release/capacitor stays buildable on demand without ever
-# merging back, so an older code line can be rebuilt and shipped forward. ci.yml
+# and a release branch stays buildable on demand without merging back. ci.yml
 # runs on release/* pushes too, so the gate below has checks to read there.
 # CI (ci.yml) is the quality gate, enforced twice: branch protection keeps red
 # commits off main, and the gate job below re-checks the exact commit this run
@@ -21,10 +20,18 @@ on:
       "docs/**",
       "*.md",
       ".github/**",
+      ".maestro/**",
       "LICENSE",
-      "e2e/**",
-      "test/**",
-      "playwright.config.ts",
+      "packages/*/test/**",
+      "packages/*/vitest.config.ts",
+      "packages/*/jest.config.js",
+      "packages/*/tsconfig.test.json",
+      "packages/*/__tests__/**",
+      "packages/*/.reassure/**",
+      "packages/*/.gitignore",
+      "packages/*/.env.example",
+      "packages/*/.env.test",
+      "packages/*/.env.mock",
       "vitest.config.ts",
       "lefthook.yml",
       "cspell.json",
@@ -33,13 +40,33 @@ on:
       "knip.json",
       ".jscpd.json",
       ".dependency-cruiser.cjs",
+      ".size-limit.json",
+      ".startup-time-limit.json",
+      ".native-assets.json",
+      "scripts/assert-file-size.mjs",
+      "scripts/bundletool-size.mjs",
+      "scripts/check-quality-budget.mjs",
+      "scripts/check-render-counts.mjs",
+      "scripts/check-size.mjs",
+      "scripts/check-native-assets.mjs",
+      "scripts/check-size-ratchet.mjs",
+      "scripts/check-startup-ratchet.mjs",
+      "scripts/check-size-delta.mjs",
+      "scripts/summarize-atlas.mjs",
+      "scripts/summarize-startup-timing.mjs",
+      "scripts/check-type-suppressions.mjs",
+      "scripts/complexity/**",
       "scripts/diff-footprint.sh",
+      "scripts/measure-*.mjs",
+      "scripts/measure-sizes.sh",
+      "scripts/measure-play-size.sh",
       "scripts/mock-trakt/**",
-      ".env.example",
-      ".env.test",
-      ".env.mock",
+      "scripts/quality-budget.json",
+      "scripts/verify-android-launch.sh",
+      "scripts/verify-ios-privacy.sh",
+      "scripts/write-buster.mjs",
+      "test/**",
       ".gitignore",
-      "assets/**",
     ]
   workflow_dispatch:
     inputs:
@@ -75,9 +102,12 @@ jobs:
       build_ios: ${{ steps.resolve.outputs.build_ios }}
       build_android: ${{ steps.resolve.outputs.build_android }}
       lane: ${{ steps.resolve.outputs.lane }}
+      fastlane_lane: ${{ steps.resolve.outputs.fastlane_lane }}
       app_version: ${{ steps.resolve.outputs.app_version }}
       build_number: ${{ steps.resolve.outputs.build_number }}
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-node-pnpm
       - id: resolve
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -91,7 +121,7 @@ jobs:
         run: |
           platform="both"
           lane="beta"
-          app_version=""
+          app_version=$(pnpm --filter @cue/native exec expo config --type public --json | jq -r '.version')
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             platform="$INPUT_PLATFORM"
             lane="$INPUT_LANE"
@@ -122,7 +152,7 @@ jobs:
           # repository rather than per branch, so main and every release/* branch
           # draw from one increasing sequence and a build cut from a release
           # branch always outranks what testers already have. Android refuses to
-          # install a lower versionCode, and Apple has no revert, so both lines
+          # install a lower versionCode, and Apple has no revert, so both stores
           # depend on that. Renaming or recreating this file restarts the count
           # and breaks it.
           build_number=$((RUN_NUMBER * 100 + RUN_ATTEMPT))
@@ -130,6 +160,7 @@ jobs:
             echo "build_ios=$build_ios"
             echo "build_android=$build_android"
             echo "lane=$lane"
+            echo "fastlane_lane=$lane"
             echo "app_version=$app_version"
             echo "build_number=$build_number"
           } >> "$GITHUB_OUTPUT"
@@ -142,7 +173,9 @@ jobs:
     # ruleset's contexts rather than a read of it: a gate that asks the thing it
     # guards whether that thing is happy is not a gate. Keep the two in step.
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    # Raised with the two native jobs: they generate both projects from scratch
+    # and then compile them, so the gate now waits on a slower set than it did.
+    timeout-minutes: 50
     permissions:
       actions: read
       checks: read
@@ -152,21 +185,19 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           SHA: ${{ github.sha }}
-          # Job names that exist in ci.yml today. Never list one that does not:
+          # Job names that exist in ci.yml or codeql.yml. Never list one that does not:
           # a check that can never report turns the wait below into a guaranteed
           # timeout on every release.
-          REQUIRED: '["check","audit","actionlint","standardrb","android","ios","e2e"]'
+          REQUIRED: '["check","render-performance","audit","actionlint","standardrb","native-android","native-ios","codeql (javascript-typescript)","codeql (actions)"]'
           # GitHub Actions, so no other check provider can satisfy a required name.
           APP_ID: "15368"
-          DEADLINE_MINUTES: "30"
+          DEADLINE_MINUTES: "45"
           POLL_SECONDS: "20"
         run: |
           set -euo pipefail
 
-          # ci.yml and this workflow both have jobs named "android" and "ios".
-          # Filtering positively to ci.yml's own check suite instead of negatively
-          # excluding this run's suite keeps tag pushes and workflow_dispatch runs
-          # from mistaking a stale mobile-release check for CI's.
+          # Filter positively to ci.yml's own check suite so tag pushes and
+          # workflow_dispatch runs cannot satisfy the gate with release checks.
           deadline=$(( $(date +%s) + DEADLINE_MINUTES * 60 ))
           ci_run_errors=0
           check_runs_errors=0
@@ -204,10 +235,12 @@ jobs:
               check_runs_errors=0
 
               status=$(jq -c --argjson app "$APP_ID" --argjson suite "$ci_run" --argjson required "$REQUIRED" '
-                  [ .[].check_runs[] | select(.app.id == $app and .check_suite.id == $suite) ] as $runs
+                  [ .[].check_runs[] | select(.app.id == $app) ] as $all_runs
                   | [ $required[]
                       | . as $name
-                      | ([ $runs[] | select(.name == $name) ] | sort_by(.started_at) | last) as $latest
+                      | ([ $all_runs[]
+                           | select(.name == $name and (($name | startswith("codeql (")) or .check_suite.id == $suite))
+                         ] | sort_by(.started_at) | last) as $latest
                       | if $latest == null then { name: $name, state: "missing", verdict: "pending" }
                         elif $latest.status != "completed" then { name: $name, state: $latest.status, verdict: "pending" }
                         elif $latest.conclusion == "success" then { name: $name, state: "success", verdict: "ok" }
@@ -261,44 +294,43 @@ jobs:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
           [ -n "$ANDROID_KEYSTORE_BASE64" ] || { echo "ANDROID_KEYSTORE_BASE64 is not set"; exit 1; }
-      - name: Build web bundle
+      - name: Generate the Expo Android project
         env:
-          VITE_TRAKT_CLIENT_ID: ${{ vars.VITE_TRAKT_CLIENT_ID }}
+          APP_VERSION: ${{ needs.config.outputs.app_version }}
+          BUILD_NUMBER: ${{ needs.config.outputs.build_number }}
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ${{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}
         run: |
-          [ -n "$VITE_TRAKT_CLIENT_ID" ] || { echo "VITE_TRAKT_CLIENT_ID is not set"; exit 1; }
-          pnpm build
-      - run: pnpm exec cap sync android
+          [ -n "$EXPO_PUBLIC_TRAKT_CLIENT_ID" ] || { echo "EXPO_PUBLIC_TRAKT_CLIENT_ID is not set"; exit 1; }
+          pnpm --filter @cue/native exec expo prebuild --platform android --clean
+      - name: Download bundletool
+        env:
+          BUNDLETOOL_VERSION: "1.18.3"
+          BUNDLETOOL_SHA256: "a099cfa1543f55593bc2ed16a70a7c67fe54b1747bb7301f37fdfd6d91028e29"
+        run: |
+          curl --fail --location --retry 3 \
+            --output "$RUNNER_TEMP/bundletool.jar" \
+            "https://github.com/google/bundletool/releases/download/$BUNDLETOOL_VERSION/bundletool-all-$BUNDLETOOL_VERSION.jar"
+          echo "$BUNDLETOOL_SHA256  $RUNNER_TEMP/bundletool.jar" | sha256sum --check
       - name: Write signing material
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/upload.keystore"
-      - name: Fastlane android ${{ needs.config.outputs.lane }}
+      - name: Fastlane android ${{ needs.config.outputs.fastlane_lane }}
         env:
           BUILD_NUMBER: ${{ needs.config.outputs.build_number }}
           APP_VERSION: ${{ needs.config.outputs.app_version }}
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ${{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
           ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/upload.keystore
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: bundle exec fastlane android ${{ needs.config.outputs.lane }}
+          BUNDLETOOL_PATH: ${{ runner.temp }}/bundletool.jar
+        run: bundle exec fastlane android ${{ needs.config.outputs.fastlane_lane }}
 
   ios:
     needs: [config, gate]
     if: needs.config.outputs.build_ios == 'true' && (needs.config.outputs.lane == 'release' || github.ref_type == 'branch')
-    # TODO(ios-uiscene-pin): Starting with iOS 27, UIKit kills apps that have
-    # not adopted the UIScene life cycle. Capacitor has not shipped scene
-    # support; ionic-team/capacitor#7961 is open and targeted for 8.5. Remove
-    # this pin when #7961 lands with CAPSceneDelegateProxy, or when this repo
-    # lands its UIScene shim from fix/ios-uiscene-lifecycle. GitHub moved
-    # macos-latest from macOS 15 to macOS 26 between 2026-06-15 and mid-July
-    # 2026, so runs-on: macos-26 below is a no-op today. The xcode-select step
-    # is not: it explicitly pins the toolchain regardless of whichever Xcode
-    # version the image ships as default. Together they prevent the next image
-    # migration from silently advancing the SDK further. When the runner image
-    # prunes Xcode 26.6, the explicit
-    # xcode-select path fails loudly instead of falling through to the next
-    # Xcode. Adopt UIScene then; do not bump the pinned path.
     runs-on: macos-26
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -315,13 +347,15 @@ jobs:
         run: |
           [ -n "$BUILD_CERTIFICATE_BASE64" ] || { echo "BUILD_CERTIFICATE_BASE64 is not set"; exit 1; }
           [ -n "$BUILD_PROVISION_PROFILE_BASE64" ] || { echo "BUILD_PROVISION_PROFILE_BASE64 is not set"; exit 1; }
-      - name: Build web bundle
+      - name: Generate the Expo iOS project
         env:
-          VITE_TRAKT_CLIENT_ID: ${{ vars.VITE_TRAKT_CLIENT_ID }}
+          APP_VERSION: ${{ needs.config.outputs.app_version }}
+          BUILD_NUMBER: ${{ needs.config.outputs.build_number }}
+          CONFIGURATION: Release
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ${{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}
         run: |
-          [ -n "$VITE_TRAKT_CLIENT_ID" ] || { echo "VITE_TRAKT_CLIENT_ID is not set"; exit 1; }
-          pnpm build
-      - run: pnpm exec cap sync ios
+          [ -n "$EXPO_PUBLIC_TRAKT_CLIENT_ID" ] || { echo "EXPO_PUBLIC_TRAKT_CLIENT_ID is not set"; exit 1; }
+          pnpm --filter @cue/native exec expo prebuild --platform ios --clean
       - name: Import signing certificate
         uses: apple-actions/import-codesign-certs@5142e029c445c10ffc7149d172e540235a065466 # v7.0.0
         with:
@@ -332,14 +366,17 @@ jobs:
         env:
           BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
         run: echo "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode > "$RUNNER_TEMP/build.mobileprovision"
-      - name: Fastlane ios ${{ needs.config.outputs.lane }}
+      - name: Fastlane ios ${{ needs.config.outputs.fastlane_lane }}
         env:
           BUILD_NUMBER: ${{ needs.config.outputs.build_number }}
           APP_VERSION: ${{ needs.config.outputs.app_version }}
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ${{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           APP_STORE_CONNECT_KEY: ${{ secrets.APP_STORE_CONNECT_KEY }}
           IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
           IOS_PROVISIONING_PROFILE_NAME: ${{ secrets.IOS_PROVISIONING_PROFILE_NAME }}
           PROVISIONING_PROFILE_PATH: ${{ runner.temp }}/build.mobileprovision
-        run: bundle exec fastlane ios ${{ needs.config.outputs.lane }}
+          # App Store Connect flags variants above the 200 MB over-the-air limit.
+          IPA_SIZE_LIMIT_BYTES: "200000000"
+        run: bundle exec fastlane ios ${{ needs.config.outputs.fastlane_lane }}

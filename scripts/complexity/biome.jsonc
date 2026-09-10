@@ -1,0 +1,14 @@
+{
+  "root": false,
+  "extends": ["../../biome.jsonc"],
+  "linter": {
+    "rules": {
+      "complexity": {
+        "noExcessiveCognitiveComplexity": {
+          "level": "error",
+          "options": { "maxAllowedComplexity": 1 }
+        }
+      }
+    }
+  }
+}

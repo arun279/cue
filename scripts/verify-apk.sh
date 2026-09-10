@@ -1,33 +1,32 @@
 #!/usr/bin/env bash
 # Usage: verify-apk.sh <apk> <expected-version-code> <expected-version-name>
 #
-# What the packaged APK actually says about itself: the version testers see, and
-# every permission the phone will show them. AGP's output-metadata.json and the
-# merged-manifest report are the build's own account of what it configured, so
-# they agree with a build that resolved either one wrong; the APK is what gets
-# installed.
+# What the packaged APK actually says about itself: the version testers see,
+# every permission the phone will show them, and the two backup properties
+# PRIVACY.md, docs/index.html and README.md all promise. AGP's
+# output-metadata.json and the merged-manifest report are the build's own account
+# of what it configured, so they agree with a build that resolved any of it
+# wrong; the APK is what gets installed.
 #
 # The permission set is a merge result, not a repo file: any dependency's
 # manifest can add to it, and a `tools:node="remove"` can silently stop applying.
-# PRIVACY.md's claim is about the merged set, so the merged set is pinned here,
-# exactly, and a new one fails the build rather than shipping unannounced.
+# So the merged set is pinned here, exactly, and a new one fails the build rather
+# than shipping unannounced.
 set -euo pipefail
 
 apk=$1
 expected_code=$2
 expected_name=$3
-
-# Every permission Cue's own manifest declares or accepts from a plugin.
-#   INTERNET                                 Trakt, declared by hand
-#   POST_NOTIFICATIONS                       episode reminders (API 33+ runtime ask)
-#   RECEIVE_BOOT_COMPLETED, WAKE_LOCK        the notification plugin's alarm receiver
-#   DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION AGP's own, injected for targetSdk >= 33
-# SCHEDULE_EXACT_ALARM is absent deliberately: android/app/src/main/AndroidManifest.xml
-# removes it, and its absence here is what proves the removal still applies.
-expected_permissions="android.permission.INTERNET
-android.permission.POST_NOTIFICATIONS
-android.permission.RECEIVE_BOOT_COMPLETED
-android.permission.WAKE_LOCK
+# The Expo line's set, measured from its generated release manifest. The two
+# network-state permissions come from expo-network, which fills the connectivity
+# port through getNetworkStateAsync. The Expo template's four optional
+# permissions and expo-secure-store's biometric pair are dropped in
+# app.config.ts.
+# SYSTEM_ALERT_WINDOW is re-declared by the debug flavour for the development
+# menu, so a debug APK of this line carries it and a release APK does not.
+expected_permissions="android.permission.ACCESS_NETWORK_STATE
+android.permission.ACCESS_WIFI_STATE
+android.permission.INTERNET
 app.cuetracker.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
 
 sdk=${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}
@@ -60,4 +59,55 @@ if [ "$permissions" != "$(sort <<<"$expected_permissions")" ]; then
   exit 1
 fi
 
-echo "verify-apk: $apk is $name ($code), asking for $(wc -l <<<"$permissions" | tr -d ' ') permissions."
+manifest=$("$aapt2" dump xmltree --file AndroidManifest.xml "$apk")
+
+if ! grep -q 'android:allowBackup([^)]*)=false' <<<"$manifest"; then
+  echo "verify-apk: $apk does not set android:allowBackup=false, so Google Drive backup and adb backup are on." >&2
+  exit 1
+fi
+
+# Presence of the attribute says nothing about the file it points at, so the
+# rules are read out of the APK too. AGP shortens resource file paths in a
+# release build, which is why the id is resolved through the resource table
+# rather than guessed from the source file name.
+rules_id=$(sed -n 's/.*android:dataExtractionRules([^)]*)=@\(0x[0-9a-f]*\).*/\1/p' <<<"$manifest")
+if [ -z "$rules_id" ]; then
+  echo "verify-apk: $apk names no dataExtractionRules, so device-to-device transfer copies everything." >&2
+  exit 1
+fi
+
+rules_path=$("$aapt2" dump resources "$apk" |
+  grep -A1 "resource $rules_id " |
+  sed -n 's/.*(file) \(res\/[^ ]*\) type=XML.*/\1/p' |
+  head -n 1)
+if [ -z "$rules_path" ]; then
+  echo "verify-apk: $apk names dataExtractionRules $rules_id, which resolves to no XML file." >&2
+  exit 1
+fi
+
+rules=$("$aapt2" dump xmltree --file "$rules_path" "$apk")
+
+if grep -q '^ *E: include' <<<"$rules"; then
+  echo "verify-apk: $rules_path carries an <include>, which turns its section back into an allowlist." >&2
+  exit 1
+fi
+
+# Every storage domain the platform can name, excluded whole from both channels.
+# Counted rather than pattern-matched per section, because a rule that excludes
+# nine domains from one channel and eight from the other is exactly the shape
+# this is here to catch.
+for domain in root file database sharedpref external device_root device_file device_database device_sharedpref; do
+  excluded=$(grep -c "A: domain=\"$domain\"" <<<"$rules" || true)
+  if [ "$excluded" != "2" ]; then
+    echo "verify-apk: $rules_path excludes domain '$domain' from $excluded of the two backup channels, expected both." >&2
+    exit 1
+  fi
+done
+
+whole=$(grep -c 'A: path="\."' <<<"$rules" || true)
+if [ "$whole" != "18" ]; then
+  echo "verify-apk: $rules_path has $whole whole-domain exclusions, expected 18 (nine domains, two channels)." >&2
+  exit 1
+fi
+
+echo "verify-apk: $apk is $name ($code), asking for $(wc -l <<<"$permissions" | tr -d ' ') permissions, with backup off and every storage domain excluded from both channels."
