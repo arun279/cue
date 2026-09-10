@@ -21,7 +21,9 @@ const RE_DOES_NOT_SHIP_DIRECTORY =
   "^(docs|test|\\.github|\\.maestro|scripts/(complexity|mock-trakt)|packages/[^/]+/(test|__tests__))(/|$)";
 const RE_DOES_NOT_SHIP_MARKDOWN = "^[^/]*\\.md$";
 const RE_DOES_NOT_SHIP_FILE =
-  "^(LICENSE|vitest\\.config\\.ts|lefthook\\.yml|cspell\\.json|dprint\\.json|biome\\.jsonc|knip\\.json|\\.jscpd\\.json|\\.dependency-cruiser\\.cjs|\\.gitignore|\\.size-limit\\.json|\\.native-assets\\.json|scripts/(assert-file-size|bundletool-size|check-native-assets|check-quality-budget|check-render-counts|check-size|check-size-delta|check-size-ratchet|check-type-suppressions|measure-comments|measure-complexity|summarize-atlas)\\.mjs|scripts/(diff-footprint|measure-play-size|measure-sizes|verify-ios-privacy)\\.sh|scripts/(quality-budget\\.json|write-buster\\.mjs)|packages/[^/]+/(vitest\\.config\\.ts|jest\\.config\\.js|tsconfig\\.test\\.json|\\.reassure/.+|\\.gitignore|\\.env\\.(example|test|mock)))$";
+  "^(LICENSE|vitest\\.config\\.ts|lefthook\\.yml|cspell\\.json|dprint\\.json|biome\\.jsonc|knip\\.json|\\.jscpd\\.json|\\.dependency-cruiser\\.cjs|\\.gitignore|\\.size-limit\\.json|\\.native-assets\\.json|scripts/(assert-file-size|bundletool-size|check-native-assets|check-quality-budget|check-render-counts|check-size|check-size-delta|check-size-ratchet|check-type-suppressions|measure-comments|measure-complexity|summarize-atlas)\\.mjs|scripts/(diff-footprint|measure-play-size|measure-sizes|verify-android-launch|verify-ios-privacy)\\.sh|scripts/(quality-budget\\.json|write-buster\\.mjs)|tsconfig\\.depcruise\\.json|packages/[^/]+/(vitest\\.config\\.ts|jest\\.config\\.js|tsconfig\\.test\\.json|\\.reassure/.+|\\.gitignore|\\.env\\.(example|test|mock)))$";
+
+const { join } = require("node:path");
 
 /** @type {import("dependency-cruiser").IConfiguration} */
 module.exports = {

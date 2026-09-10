@@ -13,10 +13,12 @@ const CI_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/ci.yml");
 const CODEQL_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/codeql.yml");
 const DEPENDENCY_CRUISER_CONFIG = path.join(REPOSITORY_ROOT, ".dependency-cruiser.cjs");
 const MOBILE_RELEASE_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/mobile-release.yml");
+const FASTLANE_LANE = "$" + "{{ needs.config.outputs.fastlane_lane }}";
+const TRAKT_CLIENT_ID_VARIABLE = "$" + "{{ vars.VITE_TRAKT_CLIENT_ID }}";
 // `footprint` skips itself on forks, and the gate reads a skip as a failure.
 // `native-e2e` is exempt on purpose while it earns a green history on a
 // simulator; promoting it is a one-line change here and in REQUIRED.
-const NOT_REQUIRED = ["footprint", "native-e2e"];
+const NOT_REQUIRED = ["android-e2e", "footprint", "native-e2e"];
 
 // Markdown inside a shipping tree stays in SHIPS. The existing "when in doubt,
 // SHIPS" rule applies to every shipping tree.
@@ -90,6 +92,7 @@ const DOES_NOT_SHIP = [
   "scripts/measure-sizes.sh",
   "scripts/measure-play-size.sh",
   "scripts/mock-trakt/**",
+  "scripts/verify-android-launch.sh",
   "scripts/verify-ios-privacy.sh",
   "scripts/write-buster.mjs",
   "test/**",
@@ -180,6 +183,19 @@ const readWorkflowJobs = (workflowPath: string): CiJob[] => {
 };
 
 const readCiJobs = (): CiJob[] => readWorkflowJobs(CI_WORKFLOW);
+
+const readNamedStep = (workflowPath: string, jobName: string, stepName: string): string => {
+  const job = readWorkflowJobs(workflowPath).find(({ name }) => name === jobName);
+  if (job === undefined) throw new Error(`expected ${jobName} job`);
+
+  const marker = `      - name: ${stepName}`;
+  const start = job.body.indexOf(marker);
+  if (start === -1) throw new Error(`expected ${jobName} step ${stepName}`);
+
+  const remainder = job.body.slice(start + marker.length);
+  const nextStep = /^ {6}- /m.exec(remainder);
+  return remainder.slice(0, nextStep?.index ?? remainder.length);
+};
 
 const readArchitectureDoesNotShipMatchers = (): RegExp[] => {
   const config = readFileSync(DEPENDENCY_CRUISER_CONFIG, "utf8");
@@ -319,6 +335,23 @@ describe("the iOS toolchain pin", () => {
     expect(release).toHaveLength(1);
     expect(ci.length).toBeGreaterThan(0);
     expect([...new Set(ci)]).toEqual(release);
+  });
+});
+
+describe("native bundle environment", () => {
+  it.each([
+    [CI_WORKFLOW, "native-android", "Build and check release artifacts", "ci"],
+    [
+      MOBILE_RELEASE_WORKFLOW,
+      "android",
+      `Fastlane android ${FASTLANE_LANE}`,
+      TRAKT_CLIENT_ID_VARIABLE,
+    ],
+    [MOBILE_RELEASE_WORKFLOW, "ios", `Fastlane ios ${FASTLANE_LANE}`, TRAKT_CLIENT_ID_VARIABLE],
+  ])("embeds the Trakt client id in %s's %s bundle", (workflow, job, step, value) => {
+    expect(readNamedStep(workflow, job, step)).toContain(
+      `          EXPO_PUBLIC_TRAKT_CLIENT_ID: ${value}`,
+    );
   });
 });
 
