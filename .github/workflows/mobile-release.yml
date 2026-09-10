@@ -61,6 +61,7 @@ on:
       "scripts/measure-play-size.sh",
       "scripts/mock-trakt/**",
       "scripts/quality-budget.json",
+      "scripts/verify-android-launch.sh",
       "scripts/verify-ios-privacy.sh",
       "scripts/write-buster.mjs",
       "tsconfig.depcruise.json",
@@ -317,6 +318,7 @@ jobs:
         env:
           BUILD_NUMBER: ${{ needs.config.outputs.build_number }}
           APP_VERSION: ${{ needs.config.outputs.app_version }}
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ${{ vars.VITE_TRAKT_CLIENT_ID }}
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
           ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/upload.keystore
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -367,6 +369,7 @@ jobs:
         env:
           BUILD_NUMBER: ${{ needs.config.outputs.build_number }}
           APP_VERSION: ${{ needs.config.outputs.app_version }}
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ${{ vars.VITE_TRAKT_CLIENT_ID }}
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           APP_STORE_CONNECT_KEY: ${{ secrets.APP_STORE_CONNECT_KEY }}

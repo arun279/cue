@@ -342,6 +342,7 @@ jobs:
       - name: Build and check release artifacts
         working-directory: packages/native/android
         env:
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
           PLAY_SIZE_MEASUREMENT_BYTES: "16920872"
           PLAY_SIZE_MEASURED_ON: "2026-09-09"
           PLAY_SIZE_LIMIT_BYTES: "20000000"
@@ -362,10 +363,52 @@ jobs:
             all-size.csv "$PLAY_SIZE_LIMIT_BYTES" "Play download maximum across all configurations"
 
           java -jar bundletool.jar build-apks \
-            --bundle="$aab" --output=universal.apks --mode=universal
+            --bundle="$aab" --output=universal.apks --mode=universal \
+            --ks=app/debug.keystore --ks-pass=pass:android \
+            --ks-key-alias=androiddebugkey --key-pass=pass:android
           unzip universal.apks universal.apk -d extracted
+          apksigner=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner -print | sort -V | tail -n 1)
+          test -n "$apksigner"
+          "$apksigner" verify extracted/universal.apk
           ../../../scripts/verify-apk.sh \
             extracted/universal.apk 42 9.9.9
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cue-native-android-release-apk
+          path: packages/native/android/extracted/universal.apk
+          retention-days: 1
+  android-e2e:
+    needs: native-android
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        with:
+          name: cue-native-android-release-apk
+          path: ${{ runner.temp }}/cue-native-android
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Launch the release APK
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_7_pro
+          script: bash scripts/verify-android-launch.sh "$RUNNER_TEMP/cue-native-android/universal.apk" "$RUNNER_TEMP/android-logcat.txt"
+      - name: Report skipped upgrade scenario
+        if: ${{ always() }}
+        run: echo "Upgrade scenario skipped because mobile-release run 33952387629 retained no APK artifact and CI has no release signing secrets with which to rebuild the same-signature Capacitor APK."
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ always() }}
+        with:
+          name: android-e2e-logcat
+          path: ${{ runner.temp }}/android-logcat.txt
+          if-no-files-found: error
+          retention-days: 7
   e2e:
     needs: check
     runs-on: ubuntu-latest
