@@ -82,6 +82,7 @@ const DOES_NOT_SHIP = [
   "scripts/check-size-ratchet.mjs",
   "scripts/check-size-delta.mjs",
   "scripts/summarize-atlas.mjs",
+  "scripts/summarize-startup-timing.mjs",
   "scripts/check-quality-budget.mjs",
   "scripts/check-render-counts.mjs",
   "scripts/check-type-suppressions.mjs",

@@ -51,6 +51,7 @@ on:
       "scripts/check-size-ratchet.mjs",
       "scripts/check-size-delta.mjs",
       "scripts/summarize-atlas.mjs",
+      "scripts/summarize-startup-timing.mjs",
       "scripts/check-type-suppressions.mjs",
       "scripts/complexity/**",
       "scripts/diff-footprint.sh",
