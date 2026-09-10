@@ -37,31 +37,16 @@ android.permission.RECEIVE_BOOT_COMPLETED
 android.permission.WAKE_LOCK
 app.cuetracker.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
 
-# The Expo line's set, measured off its first release prebuild rather than
-# assumed. All five above survive for the same reasons, and two are new:
-#   ACCESS_NETWORK_STATE  firebase-messaging, which expo-notifications depends on
-#                         whether or not an app uses push. Cue never asks for a
-#                         push token, so nothing in that library runs; the
-#                         permission is normal-level and auto-granted, and
-#                         blocking it would make the FCM code path throw if it
-#                         ever did run. Recorded rather than removed.
-#   ACCESS_WIFI_STATE     expo-network, which fills the connectivity port. This
-#                         one the app does use, through getNetworkStateAsync, so
-#                         it is kept rather than blocked: the library reads the
-#                         Wi-Fi state to answer, and a blocked permission it
-#                         actually holds is a crash rather than a smaller set.
-# Twenty-four other permissions arrive from the same dependency tree and are
-# dropped in app.config.ts, which explains each one: the Expo template's four
-# optional ones, expo-secure-store's biometric pair, and expo-notifications'
-# push receive, install-referrer binding and per-OEM launcher badge set.
+# The Expo line's set, measured from its generated release manifest. The two
+# network-state permissions come from expo-network, which fills the connectivity
+# port through getNetworkStateAsync. The Expo template's four optional
+# permissions and expo-secure-store's biometric pair are dropped in
+# app.config.ts.
 # SYSTEM_ALERT_WINDOW is re-declared by the debug flavour for the development
 # menu, so a debug APK of this line carries it and a release APK does not.
 expo_permissions="android.permission.ACCESS_NETWORK_STATE
 android.permission.ACCESS_WIFI_STATE
 android.permission.INTERNET
-android.permission.POST_NOTIFICATIONS
-android.permission.RECEIVE_BOOT_COMPLETED
-android.permission.WAKE_LOCK
 app.cuetracker.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
 
 case "$line" in

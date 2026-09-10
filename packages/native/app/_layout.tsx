@@ -5,7 +5,6 @@ import { AppVersionProvider } from "@cue/core/ports/app-version";
 import { AppVisibilityProvider } from "@cue/core/ports/app-visibility";
 import { HapticsProvider } from "@cue/core/ports/haptics";
 import { NetworkProvider } from "@cue/core/ports/network";
-import { RemindersProvider } from "@cue/core/ports/reminders";
 import { createTokenStore } from "@cue/core/ports/token-store";
 import { createPrefsStore, PrefsProvider } from "@cue/core/prefs/prefs-store";
 import { PERSIST_BUSTER, PERSIST_MAX_AGE } from "@cue/core/runtime/query-cache";
@@ -31,7 +30,6 @@ import {
   queryPersister,
   shouldDehydrateQuery,
 } from "../src/platform/query-persister";
-import { createNativeReminders } from "../src/platform/reminders";
 import { useScreenReader } from "../src/platform/screen-reader";
 import {
   bulkStore,
@@ -63,7 +61,6 @@ void SplashScreen.preventAutoHideAsync().catch(() => {});
 const prefsStore = createPrefsStore(preferenceStorage);
 const tokenStore = createTokenStore(secureStore);
 const haptics = createNativeHaptics(() => prefsStore.getState().hapticsEnabled);
-const reminders = createNativeReminders();
 const network = createNativeNetwork();
 
 /** What a launch says when the stores it depends on did not come up. The session
@@ -205,19 +202,17 @@ export default function RootLayout(): ReactElement {
             <AppVisibilityProvider value={nativeAppVisibility}>
               <NetworkProvider value={network}>
                 <HapticsProvider value={haptics}>
-                  <RemindersProvider value={reminders}>
-                    <AppVersionProvider value={nativeAppVersion}>
-                      <AuthStoreProvider value={authStore}>
-                        {/* Declarative, and "auto" follows the system appearance the
-                        app config already declares. The theme store drives it
-                        once that store has a port of its own. */}
-                        <StatusBar style="auto" />
-                        <ThemeProvider value={navigationTheme}>
-                          <Gate />
-                        </ThemeProvider>
-                      </AuthStoreProvider>
-                    </AppVersionProvider>
-                  </RemindersProvider>
+                  <AppVersionProvider value={nativeAppVersion}>
+                    <AuthStoreProvider value={authStore}>
+                      {/* Declarative, and "auto" follows the system appearance the
+                      app config already declares. The theme store drives it
+                      once that store has a port of its own. */}
+                      <StatusBar style="auto" />
+                      <ThemeProvider value={navigationTheme}>
+                        <Gate />
+                      </ThemeProvider>
+                    </AuthStoreProvider>
+                  </AppVersionProvider>
                 </HapticsProvider>
               </NetworkProvider>
             </AppVisibilityProvider>

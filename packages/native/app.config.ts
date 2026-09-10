@@ -6,7 +6,7 @@ import type { ExpoConfig } from "expo/config";
  * set that survives, out of the built APK, so a new arrival fails a build rather
  * than shipping unannounced.
  *
- * Three groups, and each is a decision rather than tidiness:
+ * Two groups, and each is a decision rather than tidiness:
  *
  * - **Expo's prebuild template**, whose own comment calls these optional.
  *   Haptics go through `performHapticFeedback`, which Android documents as not
@@ -16,11 +16,6 @@ import type { ExpoConfig } from "expo/config";
  * - **The biometric pair**, from expo-secure-store's optional authenticated
  *   reads. Cue never passes `requireAuthentication`, which is also why the Face
  *   ID usage description is turned off below.
- * - **Push and badges**, from expo-notifications: the FCM receive permission,
- *   the Play install-referrer binding, and ShortcutBadger's per-OEM launcher
- *   set. Cue schedules local notifications only and sets no badge count, so a TV
- *   tracker asking eight launcher vendors for shortcut access is exactly the
- *   kind of thing the permission gate exists to stop.
  */
 const BLOCKED_PERMISSIONS = [
   "android.permission.SYSTEM_ALERT_WINDOW",
@@ -29,24 +24,6 @@ const BLOCKED_PERMISSIONS = [
   "android.permission.WRITE_EXTERNAL_STORAGE",
   "android.permission.USE_BIOMETRIC",
   "android.permission.USE_FINGERPRINT",
-  "android.permission.READ_APP_BADGE",
-  "com.google.android.c2dm.permission.RECEIVE",
-  "com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE",
-  "com.sec.android.provider.badge.permission.READ",
-  "com.sec.android.provider.badge.permission.WRITE",
-  "com.htc.launcher.permission.READ_SETTINGS",
-  "com.htc.launcher.permission.UPDATE_SHORTCUT",
-  "com.sonyericsson.home.permission.BROADCAST_BADGE",
-  "com.sonymobile.home.permission.PROVIDER_INSERT_BADGE",
-  "com.anddoes.launcher.permission.UPDATE_COUNT",
-  "com.majeur.launcher.permission.UPDATE_BADGE",
-  "com.huawei.android.launcher.permission.CHANGE_BADGE",
-  "com.huawei.android.launcher.permission.READ_SETTINGS",
-  "com.huawei.android.launcher.permission.WRITE_SETTINGS",
-  "com.oppo.launcher.permission.READ_SETTINGS",
-  "com.oppo.launcher.permission.WRITE_SETTINGS",
-  "me.everything.badger.permission.BADGE_COUNT_READ",
-  "me.everything.badger.permission.BADGE_COUNT_WRITE",
 ];
 
 /**
@@ -68,16 +45,6 @@ const BLOCKED_PERMISSIONS = [
  */
 export function nativeAppConfig(env: Readonly<Record<string, string | undefined>>): ExpoConfig {
   const buildNumber = env["BUILD_NUMBER"] ?? "1";
-
-  /**
-   * Xcode's own name for the build configuration, which the release lane sets
-   * and `verify-ios-privacy.sh` is told so the two cannot drift.
-   * expo-notifications writes `aps-environment` from this; Apple resolves the
-   * value that ships from the provisioning profile at signing time, so what is
-   * generated here is the project's claim about which APNs environment it
-   * targets.
-   */
-  const apsEnvironment = env["CONFIGURATION"] === "Release" ? "production" : "development";
 
   /**
    * The fake Trakt's origin, and the one reason this app would ever load plain
@@ -157,7 +124,6 @@ export function nativeAppConfig(env: Readonly<Record<string, string | undefined>
       "expo-sqlite",
       "expo-status-bar",
       "expo-splash-screen",
-      ["expo-notifications", { mode: apsEnvironment }],
       "./plugins/with-android-build-memory",
       "./plugins/with-android-tab-icons",
       "./plugins/with-android-privacy",
