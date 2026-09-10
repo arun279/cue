@@ -144,52 +144,8 @@ jobs:
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
         run: node scripts/check-size-delta.mjs base-metrics.json head-metrics.json "$PR_BODY"
-  android:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
-        with:
-          distribution: temurin
-          java-version: "21"
-          cache: gradle
-      - uses: ./.github/actions/setup-node-pnpm
-      - run: pnpm build
-      - run: pnpm exec cap sync android
-      # The version properties must reach the APK, otherwise every release ships
-      # as the placeholder 1.0 (1) and testers stop getting updates. The same
-      # read pins the merged permission set, which no repo file can be checked
-      # for: any dependency's manifest can add to it.
-      - name: Build the debug APK and check what it declares
-        working-directory: android
-        run: |
-          ./gradlew assembleDebug -PcueVersionCode=42 -PcueVersionName=9.9.9
-          ../scripts/verify-apk.sh app/build/outputs/apk/debug/app-debug.apk 42 9.9.9
-  ios:
-    # The runner and the Xcode path are mobile-release.yml's pin, deliberately
-    # repeated: this job exists to compile what that one archives, so the two
-    # have to stay on one toolchain. Read the reasoning there before changing
-    # either.
-    runs-on: macos-26
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_26.6.app
-      - uses: ./.github/actions/setup-node-pnpm
-      - run: pnpm build
-      - run: pnpm exec cap sync ios
-      # The App target's own Swift and the hand-edited pbxproj are compiled
-      # nowhere else until `fastlane ios beta` tries a Release archive, which is
-      # a release-day discovery. A simulator destination asks for no signing
-      # material, so this runs on a fork's pull request too.
-      - name: Build the app for the simulator
-        run: |
-          xcodebuild -project ios/App/App.xcodeproj -scheme App \
-            -configuration Release -destination 'generic/platform=iOS Simulator' \
-            CODE_SIGNING_ALLOWED=NO build
   native-ios:
-    # The same runner and Xcode pin as the Capacitor iOS job, deliberately: the
-    # two lines have to stay on one toolchain until one of them stops shipping.
+    # The runner and Xcode path match the release workflow.
     runs-on: macos-26
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -409,7 +365,7 @@ jobs:
             --bundle="$aab" --output=universal.apks --mode=universal
           unzip universal.apks universal.apk -d extracted
           ../../../scripts/verify-apk.sh \
-            extracted/universal.apk 42 9.9.9 expo
+            extracted/universal.apk 42 9.9.9
   e2e:
     needs: check
     runs-on: ubuntu-latest

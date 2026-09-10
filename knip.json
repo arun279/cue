@@ -5,7 +5,7 @@
     ".": {
       "entry": ["scripts/*.mjs", "scripts/mock-trakt/*.mjs"],
       "project": ["scripts/**/*.mjs"],
-      "ignoreDependencies": ["@capacitor/android", "@capacitor/ios", "expo-atlas"]
+      "ignoreDependencies": ["expo-atlas"]
     },
     "packages/core": {
       "project": ["src/**/*.ts", "test/**/*.{ts,tsx}"],

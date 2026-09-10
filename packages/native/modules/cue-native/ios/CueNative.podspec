@@ -2,7 +2,7 @@ Pod::Spec.new do |s|
   s.name           = 'CueNative'
   s.version        = '1.0.0'
   s.summary        = "Cue's native seams"
-  s.description    = 'The seven-verb haptic vocabulary and the Capacitor preference reader the first-launch migration needs.'
+  s.description    = 'The seven-verb haptic vocabulary and legacy preference reader.'
   s.author         = 'Cue'
   s.homepage       = 'https://github.com/arun279/cue'
   s.platforms      = {

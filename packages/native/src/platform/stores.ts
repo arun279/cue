@@ -9,7 +9,7 @@ import Storage from "expo-sqlite/kv-store";
  * `WHEN_UNLOCKED_THIS_DEVICE_ONLY` maps to
  * `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`, which is what closes the iOS
  * half of the standing storage caveat: the item never enters an iCloud or
- * iTunes backup, where Capacitor Preferences (UserDefaults) always did. Keys are
+ * iTunes backup. Keys are
  * restricted to alphanumerics, `.`, `-` and `_`, so the app's dotted names pass
  * through unchanged.
  *

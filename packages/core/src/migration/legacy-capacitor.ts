@@ -98,9 +98,7 @@ export interface LegacyMigrationResult {
  * the first poll establishes one without invalidating anything, and the query
  * cache is unreadable from here anyway, so there is nothing stale to protect.
  */
-export async function migrateLegacyCapacitorData(
-  deps: LegacyMigrationDeps,
-): Promise<LegacyMigrationResult> {
+export async function migrateLegacyData(deps: LegacyMigrationDeps): Promise<LegacyMigrationResult> {
   const rawToken = await deps.legacy.read(TOKEN_KEY);
   let adoptedToken = false;
   if (rawToken !== null) {

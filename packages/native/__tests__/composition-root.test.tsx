@@ -99,7 +99,7 @@ afterEach(() => {
  * The composition root, rendered.
  *
  * What it has to get right is an ordering nothing else can check: the reinstall
- * purge and the Capacitor migration both change what the token store contains,
+ * purge and the legacy migration both change what the token store contains,
  * and the auth store reads that store the instant it is built. Build it too
  * early and a reinstalling user is signed in with a Keychain item their install
  * never wrote, or an upgrading user is dropped onto a sign-in screen with a
@@ -124,7 +124,7 @@ describe("the native composition root", () => {
     expect(screen.queryByTestId("router-stack")).toBeNull();
   });
 
-  it("boots straight into the app when the Capacitor build left a token", async () => {
+  it("boots straight into the app when the legacy store holds a token", async () => {
     legacyBacking.set("cue.trakt.token", TOKEN);
 
     await render(<RootLayout />);

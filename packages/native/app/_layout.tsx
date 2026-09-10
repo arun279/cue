@@ -23,7 +23,7 @@ import { nativeCrypto } from "../src/crypto";
 import { nativeAppVersion } from "../src/platform/app-version";
 import { nativeAppVisibility } from "../src/platform/app-visibility";
 import { createNativeHaptics } from "../src/platform/haptics";
-import { legacyCapacitorStore } from "../src/platform/legacy-store";
+import { legacyStore } from "../src/platform/legacy-store";
 import { createNativeNetwork } from "../src/platform/network";
 import {
   clearPersistedCaches,
@@ -89,7 +89,7 @@ function useNativeSession(): AuthStore | null {
     void bootNativeStores({
       secure: secureStore,
       bulk: bulkStore,
-      legacy: legacyCapacitorStore,
+      legacy: legacyStore,
       preferences: preferenceStorage,
       newInstallId: nativeCrypto.newId,
       digest: nativeCrypto.digest,
