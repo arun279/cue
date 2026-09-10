@@ -9,6 +9,7 @@ appId: app.cuetracker
     element:
       id: "episode-row-880308"
     direction: DOWN
+    centerElement: true
 - tapOn:
     id: "episode-row-880308"
 - assertVisible:
@@ -17,6 +18,7 @@ appId: app.cuetracker
     element:
       id: "episode-mark-row"
     direction: DOWN
+    centerElement: true
 - tapOn: "Mark S2 E3 watched"
 - assertVisible:
     id: "snackbar"
@@ -31,6 +33,7 @@ appId: app.cuetracker
     element:
       id: "episode-pager-next"
     direction: DOWN
+    centerElement: true
 - tapOn:
     id: "episode-pager-next"
 - assertVisible:

@@ -11,6 +11,7 @@ appId: app.cuetracker
     element:
       id: "episode-row-8803-2-3-check"
     direction: DOWN
+    centerElement: true
 - assertVisible:
     id: "episode-row-8803-2-1-checked"
 - tapOn:
