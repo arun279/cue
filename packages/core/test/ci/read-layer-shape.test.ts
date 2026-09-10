@@ -66,4 +66,18 @@ describe("the core read layer", () => {
       );
     }
   });
+
+  it("keeps a coverage floor for every included source directory", async () => {
+    const directories = (await readdir(src, { withFileTypes: true }))
+      .filter((entry) => entry.isDirectory() && entry.name !== "app")
+      .map((entry) => entry.name)
+      .sort();
+    const config = await readFile(resolve(src, "../../../vitest.config.ts"), "utf8");
+    const thresholds = config.slice(config.indexOf("thresholds:"));
+    const governed = [...thresholds.matchAll(/packages\/core\/src\/([^/]+)\/\*\*/g)]
+      .map((match) => match[1])
+      .sort();
+
+    expect(governed).toEqual(directories);
+  });
 });

@@ -2,7 +2,6 @@
 import type { LibraryEntry } from "@cue/core/data/trakt/library";
 import type { EpisodeView, SeasonView } from "@cue/core/data/trakt/show-detail";
 import type { CalendarEntry } from "@cue/core/domain/calendar";
-import { useLibraryEntry } from "@cue/core/hooks/useLibraryEntry";
 import { type LibrarySnapshot, useLibrarySnapshot } from "@cue/core/hooks/useLibrarySnapshot";
 import { type CueRuntime, RuntimeProvider } from "@cue/core/runtime/runtime";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -82,8 +81,9 @@ function Probe({
   readonly onSnapshot: (value: LibrarySnapshot) => void;
   readonly onEntry: (value: LibraryEntry | undefined) => void;
 }): null {
-  onSnapshot(useLibrarySnapshot());
-  onEntry(useLibraryEntry(1));
+  const snapshot = useLibrarySnapshot();
+  onSnapshot(snapshot);
+  onEntry(snapshot.data?.entries.find((entry) => entry.showId === 1));
   return null;
 }
 
