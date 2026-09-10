@@ -10,7 +10,11 @@ const client = new QueryClient({
   defaultOptions: { queries: { retry: false, gcTime: 0 } },
 });
 
-afterEach(() => client.clear());
+afterEach(() => {
+  client.clear();
+  jest.restoreAllMocks();
+  Reflect.deleteProperty(performance, "rnStartupTiming");
+});
 
 function mount(children: ReactNode) {
   return render(<QueryClientProvider client={client}>{children}</QueryClientProvider>);
@@ -65,4 +69,31 @@ it("is absent while a write is only queued, with nothing in flight behind it", a
   await mount(withRuntime(2));
 
   expect(screen.queryByTestId(TEST_IDS.appIdle)).toBeNull();
+});
+
+it("exposes startup timing without drawing text", async () => {
+  jest.spyOn(performance, "now").mockReturnValue(725);
+  Object.defineProperty(performance, "rnStartupTiming", {
+    configurable: true,
+    value: { startTime: 100 },
+  });
+
+  await mount(<AppIdle />);
+
+  expect(screen.getByTestId(TEST_IDS.startupTiming)).toHaveProp(
+    "accessibilityLabel",
+    "Startup timing: 625.0 ms",
+  );
+  expect(screen.getByTestId(TEST_IDS.startupTiming).props["children"]).toBeUndefined();
+});
+
+it("names the performance.now fallback", async () => {
+  jest.spyOn(performance, "now").mockReturnValue(725);
+
+  await mount(<AppIdle />);
+
+  expect(screen.getByTestId(TEST_IDS.startupTiming)).toHaveProp(
+    "accessibilityLabel",
+    "Startup timing: 0.0 ms (performance.now fallback)",
+  );
 });

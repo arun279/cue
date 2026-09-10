@@ -1,0 +1,10 @@
+appId: app.cuetracker
+---
+- runFlow: lib/connect.yaml
+- launchApp
+- assertVisible:
+    id: "app-idle"
+- copyTextFrom:
+    id: "startup-timing"
+- evalScript: ${output.startupTiming = maestro.copiedText}
+- evalScript: ${console.log('CUE_STARTUP_TIMING=' + output.startupTiming)}
