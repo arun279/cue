@@ -1,13 +1,17 @@
 import { type UseQueryResult, useQueries, useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { firstUnwatchedAired, type SeasonView, toEpisodeRef } from "../data/trakt/show-detail";
+import { recentCalendarStart, selectVisibleEntries } from "../domain/calendar";
+import { dayKeyOf } from "../domain/day";
 import { needsNextEpisode, reconcileRecentlyAired } from "../domain/recently-aired";
+import { DAY_MS, localTimeZone } from "../domain/time";
 import { usePrefs } from "../prefs/prefs-store";
 import { thresholdMsFromDays } from "../prefs/threshold";
+import { recentlyAiredQuery } from "../queries/calendar";
 import { libraryQuery } from "../queries/library";
 import { showSeasonsQuery } from "../queries/shows";
 import { type UpNextData, useRuntime } from "../runtime/runtime";
-import { useRecentlyAired } from "./useRecentlyAired";
+import { useCoarseClock } from "./useCoarseClock";
 
 export interface LibrarySnapshot {
   readonly query: UseQueryResult<UpNextData>;
@@ -36,7 +40,13 @@ export function useLibrarySnapshot(enabled = true): LibrarySnapshot {
     enabled,
   });
   const thresholdDays = usePrefs((s) => s.thresholdDays);
-  const recent = useRecentlyAired(enabled);
+  const now = useCoarseClock(DAY_MS);
+  const recentStart = recentCalendarStart(dayKeyOf(localTimeZone(), now));
+  const recentQuery = useQuery({ ...recentlyAiredQuery(runtime, recentStart), enabled });
+  const recent = useMemo(
+    () => (recentQuery.data === undefined ? undefined : selectVisibleEntries(recentQuery.data)),
+    [recentQuery.data],
+  );
   const reconciled = useMemo(() => {
     const now = Date.now();
     if (query.data === undefined || recent === undefined) return { now, data: query.data };

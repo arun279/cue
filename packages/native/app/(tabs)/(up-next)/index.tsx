@@ -1,21 +1,25 @@
 import type { LibraryEntry } from "@cue/core/data/trakt/library";
+import { buildCalendarDays } from "@cue/core/domain/calendar";
+import { dayKeyOf } from "@cue/core/domain/day";
 import { buildOnTheWay } from "@cue/core/domain/on-the-way";
 import { sortLapsed, sortQueue } from "@cue/core/domain/queue-order";
-import { DAY_MS } from "@cue/core/domain/time";
+import { DAY_MS, localTimeZone } from "@cue/core/domain/time";
 import {
   groupUpNext,
   type UpNextEmptyKind,
   type UpNextItem,
   upNextEmptyKind,
 } from "@cue/core/domain/up-next";
-import { useCalendar } from "@cue/core/hooks/useCalendar";
 import { useCoarseClock } from "@cue/core/hooks/useCoarseClock";
 import { useHideShow } from "@cue/core/hooks/useHideShow";
 import { useLibrarySnapshot } from "@cue/core/hooks/useLibrarySnapshot";
 import { type MarkWatched, useMarkWatched } from "@cue/core/hooks/useMarkWatched";
 import { useSyncBanner } from "@cue/core/hooks/useSyncBanner";
 import { usePrefs } from "@cue/core/prefs/prefs-store";
+import { calendarQuery } from "@cue/core/queries/calendar";
 import { type QueryStatus, queryStatus } from "@cue/core/queries/freshness";
+import { useRuntime } from "@cue/core/runtime/runtime";
+import { useQuery } from "@tanstack/react-query";
 import { Stack, useRouter } from "expo-router";
 import { type ReactElement, useMemo, useState } from "react";
 import { FlatList, RefreshControl, StyleSheet, View } from "react-native";
@@ -135,15 +139,26 @@ function useUpNextView(enabled: boolean): UpNextView {
  * is gone; the History footer is where the whole log lives.
  */
 export default function UpNext(): ReactElement {
+  const runtime = useRuntime();
   const showsEnabled = usePrefs((state) => state.showsEnabled);
   const view = useUpNextView(showsEnabled);
   const banner = useSyncBanner(view);
   const stop = useHideShow();
-  const calendar = useCalendar(undefined, showsEnabled);
+  const calendarClock = useCoarseClock(DAY_MS);
+  const timeZone = localTimeZone();
+  const calendarStart = dayKeyOf(timeZone, calendarClock);
+  const calendar = useQuery({ ...calendarQuery(runtime, calendarStart), enabled: showsEnabled });
+  const calendarDays = useMemo(
+    () =>
+      calendar.data === undefined
+        ? []
+        : buildCalendarDays(calendar.data, calendarClock, timeZone, calendarStart, 7),
+    [calendar.data, calendarClock, timeZone, calendarStart],
+  );
   const onTheWayClock = useCoarseClock(HOUR_MS);
   const onTheWayDays = useMemo(
-    () => buildOnTheWay(calendar.days, onTheWayClock, ON_THE_WAY_ROWS),
-    [calendar.days, onTheWayClock],
+    () => buildOnTheWay(calendarDays, onTheWayClock, ON_THE_WAY_ROWS),
+    [calendarDays, onTheWayClock],
   );
   const mark = useTutorialGate(useMarkWatched());
   const refresh = usePullToRefresh();
