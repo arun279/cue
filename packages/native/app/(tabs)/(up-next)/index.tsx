@@ -1,20 +1,30 @@
-import { type UpNextEmptyKind, upNextEmptyKind } from "@cue/core/domain/up-next";
-import { stopWatching } from "@cue/core/hooks/stop-watching";
+import type { LibraryEntry } from "@cue/core/data/trakt/library";
+import { buildOnTheWay } from "@cue/core/domain/on-the-way";
+import { sortLapsed, sortQueue } from "@cue/core/domain/queue-order";
+import { DAY_MS } from "@cue/core/domain/time";
+import {
+  groupUpNext,
+  type UpNextEmptyKind,
+  type UpNextItem,
+  upNextEmptyKind,
+} from "@cue/core/domain/up-next";
+import { useCalendar } from "@cue/core/hooks/useCalendar";
+import { useCoarseClock } from "@cue/core/hooks/useCoarseClock";
 import { useHideShow } from "@cue/core/hooks/useHideShow";
+import { useLibrarySnapshot } from "@cue/core/hooks/useLibrarySnapshot";
 import { type MarkWatched, useMarkWatched } from "@cue/core/hooks/useMarkWatched";
-import { useOnTheWay } from "@cue/core/hooks/useOnTheWay";
-import { useStopSnacks } from "@cue/core/hooks/useStopSnacks";
 import { useSyncBanner } from "@cue/core/hooks/useSyncBanner";
-import { type UpNextCard, type UpNextView, useUpNext } from "@cue/core/hooks/useUpNext";
 import { usePrefs } from "@cue/core/prefs/prefs-store";
+import { type QueryStatus, queryStatus } from "@cue/core/queries/freshness";
 import { Stack, useRouter } from "expo-router";
-import { type ReactElement, useState } from "react";
+import { type ReactElement, useMemo, useState } from "react";
 import { FlatList, RefreshControl, StyleSheet, View } from "react-native";
 import Animated, { LinearTransition } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePullToRefresh } from "../../../src/hooks/usePullToRefresh";
 import { LapsedDrawer } from "../../../src/screens/up-next/LapsedDrawer";
 import { MarqueeCard } from "../../../src/screens/up-next/MarqueeCard";
+import type { UpNextCard } from "../../../src/screens/up-next/model";
 import { OnTheWay } from "../../../src/screens/up-next/OnTheWay";
 import { QueueRow } from "../../../src/screens/up-next/QueueRow";
 import {
@@ -29,6 +39,7 @@ import {
   UpNextError,
   UpNextSkeleton,
 } from "../../../src/screens/up-next/UpNextStates";
+import { useStableQueueOrder } from "../../../src/screens/up-next/useStableQueueOrder";
 import { Chevron } from "../../../src/ui/Chevron";
 import { Row, Separator } from "../../../src/ui/Row";
 import { SyncStrip } from "../../../src/ui/SyncStrip";
@@ -49,6 +60,65 @@ const ON_THE_WAY_ROWS = 3;
 /** The card renders only when the queue holds this many shows, and it consumes
  * the head of the queue rather than sitting on top of it. */
 const MARQUEE_MIN_QUEUE = 3;
+const HOUR_MS = DAY_MS / 24;
+
+interface UpNextView extends QueryStatus {
+  readonly queue: readonly UpNextCard[];
+  readonly lapsedCards: readonly UpNextCard[];
+  readonly watchlistEntries: readonly LibraryEntry[];
+  readonly totalCount: number;
+  readonly trackedCount: number;
+  readonly startedCount: number;
+  readonly unresolvedCount: number;
+  refetch(): void;
+}
+
+function cardsFor(
+  items: readonly UpNextItem[],
+  entries: ReadonlyMap<number, LibraryEntry>,
+): UpNextCard[] {
+  return items.flatMap((item) => {
+    const entry = entries.get(item.showId);
+    return entry === undefined ? [] : [{ item, entry }];
+  });
+}
+
+function useUpNextView(enabled: boolean): UpNextView {
+  const { query, data, thresholdMs } = useLibrarySnapshot(enabled);
+  const order = usePrefs((state) => state.nextEpisodeOrder);
+  const lapsedOrder = usePrefs((state) => state.lapsedOrder);
+  const entries = data?.entries ?? [];
+  const byId = useMemo(() => new Map(entries.map((entry) => [entry.showId, entry])), [entries]);
+  const partition = useMemo(
+    () => groupUpNext(entries, Date.now(), thresholdMs),
+    [entries, thresholdMs],
+  );
+  const sortedQueue = useMemo(() => sortQueue(partition.queue, order), [partition.queue, order]);
+  const pendingShowIds = useMemo(
+    () => new Set(entries.filter((entry) => entry.pendingAdvance).map((entry) => entry.showId)),
+    [entries],
+  );
+  const stableQueue = useStableQueueOrder(sortedQueue, pendingShowIds);
+  const queue = useMemo(() => cardsFor(stableQueue, byId), [stableQueue, byId]);
+  const lapsedCards = useMemo(
+    () => cardsFor(sortLapsed(partition.lapsed, lapsedOrder), byId),
+    [partition.lapsed, lapsedOrder, byId],
+  );
+  const tracked = entries.filter((entry) => !entry.hidden);
+  return {
+    queue,
+    lapsedCards,
+    watchlistEntries: entries.filter((entry) => entry.inWatchlist && !entry.hidden),
+    totalCount: entries.length,
+    trackedCount: tracked.length,
+    startedCount: tracked.filter((entry) => entry.completed > 0).length,
+    unresolvedCount: tracked.filter(
+      (entry) => entry.nextEpisode === null && entry.completed < entry.aired,
+    ).length,
+    ...queryStatus(query, data !== undefined),
+    refetch: () => void query.refetch(),
+  };
+}
 
 /**
  * Up Next is the home screen: what to watch next, and one tap to record it.
@@ -66,16 +136,19 @@ const MARQUEE_MIN_QUEUE = 3;
  */
 export default function UpNext(): ReactElement {
   const showsEnabled = usePrefs((state) => state.showsEnabled);
-  const view = useUpNext(showsEnabled);
+  const view = useUpNextView(showsEnabled);
   const banner = useSyncBanner(view);
   const stop = useHideShow();
-  const onTheWayDays = useOnTheWay(ON_THE_WAY_ROWS, showsEnabled);
+  const calendar = useCalendar(undefined, showsEnabled);
+  const onTheWayClock = useCoarseClock(HOUR_MS);
+  const onTheWayDays = useMemo(
+    () => buildOnTheWay(calendar.days, onTheWayClock, ON_THE_WAY_ROWS),
+    [calendar.days, onTheWayClock],
+  );
   const mark = useTutorialGate(useMarkWatched());
   const refresh = usePullToRefresh();
   const colors = useColors();
   const insets = useSafeAreaInsets();
-
-  useStopSnacks(stop);
 
   const marquee = view.queue.length >= MARQUEE_MIN_QUEUE ? view.queue[0] : undefined;
   const rows = marquee === undefined ? view.queue : view.queue.slice(1);
@@ -111,7 +184,7 @@ export default function UpNext(): ReactElement {
             <QueueRow
               card={item}
               mark={mark.controller}
-              onStop={() => stopWatching(stop, item.entry)}
+              onStop={() => stop.stopWatching(item.entry)}
             />
             {index === 0 && mark.tutorialVisible ? <TutorialCaption /> : null}
           </Animated.View>
@@ -124,7 +197,7 @@ export default function UpNext(): ReactElement {
               view={view}
               marquee={marquee}
               mark={mark.controller}
-              onStop={(card) => stopWatching(stop, card.entry)}
+              onStop={(card) => stop.stopWatching(card.entry)}
               airingSoon={onTheWayDays.length > 0}
             />
           </View>
@@ -135,7 +208,7 @@ export default function UpNext(): ReactElement {
               <LapsedDrawer
                 cards={view.lapsedCards}
                 mark={mark.controller}
-                onStop={(card) => stopWatching(stop, card.entry)}
+                onStop={(card) => stop.stopWatching(card.entry)}
               />
               <OnTheWay days={onTheWayDays} />
               <HistoryFooter />

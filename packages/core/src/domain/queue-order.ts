@@ -1,6 +1,11 @@
-import { toMs } from "../domain/time";
-import type { UpNextItem } from "../domain/up-next";
-import type { LapsedOrder, NextEpisodeOrder } from "../prefs/tracking";
+import { toMs } from "./time";
+import type { UpNextItem } from "./up-next";
+
+export const NEXT_EPISODE_ORDER_OPTIONS = ["oldest-unwatched", "after-last-watched"] as const;
+export type NextEpisodeOrder = (typeof NEXT_EPISODE_ORDER_OPTIONS)[number];
+
+export const LAPSED_ORDER_OPTIONS = ["recently-watched", "longest-idle"] as const;
+export type LapsedOrder = (typeof LAPSED_ORDER_OPTIONS)[number];
 
 function airMs(item: UpNextItem): number {
   // A provisional post-mark projection has no air date. Treating it as OLDEST

@@ -1,9 +1,20 @@
+import { recentCalendarStart } from "@cue/core/domain/calendar";
+import { dayKeyOf } from "@cue/core/domain/day";
+import { localTimeZone } from "@cue/core/domain/time";
+import { useMarkWatched } from "@cue/core/hooks/useMarkWatched";
+import { calendarQuery, recentlyAiredQuery } from "@cue/core/queries/calendar";
+import { libraryQuery } from "@cue/core/queries/library";
+import { showInfoQuery } from "@cue/core/queries/shows";
+import type { CueRuntime } from "@cue/core/runtime/runtime";
+import type { QueryClient } from "@tanstack/react-query";
 import { fireEvent } from "@testing-library/react-native";
-import { useState } from "react";
+import { type ReactElement, type ReactNode, useState } from "react";
 import { configure, measureRenders } from "reassure";
+import { QueueRow } from "../src/screens/up-next/QueueRow";
 import { CheckControl } from "../src/ui/CheckControl";
 import { TEST_IDS } from "../src/ui/test-ids";
-import { cardOf, entry, viewOf } from "./support/perf-up-next";
+import { cardOf, entry } from "./support/perf-up-next";
+import { fakeRuntime, Harness, resetSharedStores, spyHaptics } from "./support/up-next";
 
 configure({ testingLibrary: "react-native" });
 jest.setTimeout(15_000);
@@ -12,52 +23,56 @@ jest.mock("expo-router", () => {
   const { Text } = require("react-native");
   return { Link: Text, Stack: { Screen: () => null }, useRouter: () => ({ push: jest.fn() }) };
 });
-const mockMark = {
-  mark: jest.fn(),
-  reverse: jest.fn(),
-  reArm: jest.fn(),
-  justMarkedAt: () => null,
-};
-jest.mock("@cue/core/hooks/useMarkWatched", () => ({
-  useMarkWatched: () => mockMark,
-}));
-jest.mock("@cue/core/hooks/useMarkControl", () => ({
-  useMarkControl: () => {
-    const { useState } = require("react");
-    const [state, setState] = useState("unwatched");
-    return {
-      state,
-      pending: false,
-      label: "Mark Harbor Lights S3 E6 watched",
-      onPress: () => setState("watched"),
-    };
-  },
-}));
-jest.mock("@cue/core/hooks/useSyncBanner", () => ({ useSyncBanner: () => null }));
-jest.mock("@cue/core/hooks/useUpNext", () => ({ useUpNext: () => mockView }));
-jest.mock("@cue/core/hooks/useHideShow", () => ({ useHideShow: () => ({}) }));
-jest.mock("@cue/core/hooks/stop-watching", () => ({ stopWatching: jest.fn() }));
-jest.mock("@cue/core/hooks/useOnTheWay", () => ({ useOnTheWay: () => [] }));
-jest.mock("@cue/core/hooks/useStopSnacks", () => ({ useStopSnacks: jest.fn() }));
-jest.mock("@cue/core/prefs/prefs-store", () => ({
-  usePrefs: (select: (state: { showsEnabled: boolean }) => unknown) =>
-    select({ showsEnabled: true }),
-}));
+jest.mock("@expo/ui/community/menu", () => require("./support/native-ui").menuModule());
+jest.mock("react-native-gesture-handler/ReanimatedSwipeable", () =>
+  require("./support/native-ui").swipeableModule(),
+);
 jest.mock("../src/hooks/usePullToRefresh", () => ({
   usePullToRefresh: () => ({ pull: jest.fn(), refreshing: false, sync: jest.fn() }),
 }));
-jest.mock("../src/hooks/useShowArt", () => ({ useShowArt: () => ({ posters: [] }) }));
 jest.mock("../src/platform/stores", () => ({
   preferenceStorage: { getItem: () => null, setItem: jest.fn(), clearNamespace: jest.fn() },
 }));
 jest.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ bottom: 0 }) }));
 
-const card = cardOf(false);
-const mockView = viewOf();
+const runtime = fakeRuntime({ entries: [entry], submit: () => Promise.resolve("deferred") });
+const haptics = spyHaptics();
 
-const { default: UpNext, QueueRow } = require("../app/(tabs)/(up-next)");
+function seed(client: QueryClient, cue: CueRuntime): void {
+  resetSharedStores();
+  const today = dayKeyOf(localTimeZone(), Date.now());
+  const emptyCalendar = { entries: [], hiddenShowIds: [] };
+  client.setQueryData(libraryQuery(cue).queryKey, { entries: [entry] });
+  client.setQueryData(calendarQuery(cue, today).queryKey, emptyCalendar);
+  client.setQueryData(recentlyAiredQuery(cue, recentCalendarStart(today)).queryKey, emptyCalendar);
+  client.setQueryData(showInfoQuery(cue, entry.showId).queryKey, {
+    ids: { trakt: entry.showId },
+    title: entry.title,
+    year: null,
+    status: entry.status,
+    network: null,
+    genres: [],
+    runtime: null,
+    overview: null,
+    posters: [],
+    backdrops: [],
+  });
+}
 
-function InteractiveCheckControl() {
+function PerfHarness({ children }: { readonly children: ReactNode }): ReactElement {
+  return (
+    <Harness runtime={runtime} haptics={haptics} seed={(client) => seed(client, runtime)}>
+      {children}
+    </Harness>
+  );
+}
+
+function MeasuredQueueRow(): ReactElement {
+  const mark = useMarkWatched();
+  return <QueueRow card={cardOf(false)} mark={mark} onStop={jest.fn()} />;
+}
+
+function InteractiveCheckControl(): ReactElement {
   const [checked, setChecked] = useState(false);
   return (
     <CheckControl
@@ -69,11 +84,18 @@ function InteractiveCheckControl() {
   );
 }
 
+const { default: UpNext } = require("../app/(tabs)/(up-next)");
+
 test("queue row", async () => {
-  await measureRenders(<QueueRow card={card} mark={mockMark} onStop={jest.fn()} />, {
-    scenario: async (screen) =>
-      fireEvent.press(screen.getByTestId(TEST_IDS.queueRowMark(entry.showId))),
-  });
+  await measureRenders(
+    <PerfHarness>
+      <MeasuredQueueRow />
+    </PerfHarness>,
+    {
+      scenario: async (screen) =>
+        fireEvent.press(screen.getByTestId(TEST_IDS.queueRowMark(entry.showId))),
+    },
+  );
 });
 
 test("check control", async () => {
@@ -84,8 +106,13 @@ test("check control", async () => {
 });
 
 test("Up Next screen", async () => {
-  await measureRenders(<UpNext />, {
-    scenario: async (screen) =>
-      fireEvent.press(screen.getByTestId(TEST_IDS.queueRowMark(entry.showId))),
-  });
+  await measureRenders(
+    <PerfHarness>
+      <UpNext />
+    </PerfHarness>,
+    {
+      scenario: async (screen) =>
+        fireEvent.press(screen.getByTestId(TEST_IDS.queueRowMark(entry.showId))),
+    },
+  );
 });

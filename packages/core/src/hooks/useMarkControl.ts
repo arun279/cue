@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { LibraryEntry } from "../data/trakt/library";
 import { epCode } from "../domain/model/library";
+import { useMarkStore } from "../stores/mark-store";
 import {
   type MarkControlView,
   markControlTickMs,
@@ -26,7 +27,7 @@ export interface MarkControl extends MarkControlView {
  * names it, and marking a guessed coordinate is forbidden.
  */
 export function useMarkControl(entry: LibraryEntry, mark: MarkWatched): MarkControl {
-  const markedAt = mark.justMarkedAt(entry.showId);
+  const markedAt = useMarkStore((state) => state.records.get(entry.showId)?.at ?? null);
   const { pendingAdvance, showId } = entry;
   const { reArm } = mark;
   const [, setTick] = useState(0);

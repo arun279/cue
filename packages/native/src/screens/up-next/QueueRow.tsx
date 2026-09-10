@@ -3,7 +3,6 @@ import { epCode } from "@cue/core/domain/model/library";
 import { episodesLeft, lastWatchedPhrase, watchedPercent } from "@cue/core/format";
 import { useMarkControl } from "@cue/core/hooks/useMarkControl";
 import type { MarkWatched } from "@cue/core/hooks/useMarkWatched";
-import type { UpNextCard } from "@cue/core/hooks/useUpNext";
 import { useRouter } from "expo-router";
 import type { ReactElement } from "react";
 import { StyleSheet, View } from "react-native";
@@ -17,6 +16,7 @@ import { SwipeRow } from "../../ui/SwipeRow";
 import { TEST_IDS } from "../../ui/test-ids";
 import { CHECK_SIZE, POSTER_WIDTH, RAIL, ROW_MIN_HEIGHT, SPACE, useColors } from "../../ui/tokens";
 import { CueText } from "../../ui/type";
+import type { UpNextCard } from "./model";
 
 const STOP_LABEL = "Stop show";
 

@@ -1,32 +1,23 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import { queryKeys } from "../data/query-keys";
+import type { LibraryEntry } from "../data/trakt/library";
 import type { ShowIds } from "../domain/model/ids";
 import { buildHideShowOp, buildUnhideShowOp } from "../domain/write-queue/ops";
 import { useRuntime } from "../runtime/runtime";
+import { showFailure, showUndoable } from "../stores/snackbar-store";
 import { patchLibraryHidden } from "./library-cache";
 import { useOptimisticWrite } from "./useOptimisticWrite";
 
 /** Which direction the last action moved the show: drives the Undo copy + inverse. */
 type HideKind = "hide" | "unhide";
 
-interface HideUndo {
-  readonly showId: number;
-  readonly ids: ShowIds;
-  readonly title: string;
-  readonly kind: HideKind;
-}
-
 export interface HideController {
   /** Abandon a show: write it to Trakt's hidden set (drops it from Up Next + calendar). */
   hide(showId: number, ids: ShowIds, title: string): Promise<void>;
   /** Un-abandon a show: remove it from the hidden set so its progress re-places it. */
   unhide(showId: number, ids: ShowIds, title: string): Promise<void>;
-  undo(): Promise<void>;
-  dismissUndo(): void;
-  clearError(): void;
-  readonly undoable: { readonly title: string; readonly kind: HideKind } | null;
-  readonly error: string | null;
+  stopWatching(entry: LibraryEntry): void;
 }
 
 /**
@@ -41,8 +32,6 @@ export function useHideShow(): HideController {
   const runtime = useRuntime();
   const submit = useOptimisticWrite();
   const queryClient = useQueryClient();
-  const [undoState, setUndoState] = useState<HideUndo | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   const patchHidden = useCallback(
     (showId: number, hidden: boolean) => patchLibraryHidden(queryClient, showId, hidden),
@@ -60,7 +49,7 @@ export function useHideShow(): HideController {
     [queryClient],
   );
 
-  const setHidden = useCallback(
+  const writeHidden = useCallback(
     async (showId: number, ids: ShowIds, title: string, kind: HideKind) => {
       const hidden = kind === "hide";
       patchHidden(showId, hidden);
@@ -75,12 +64,24 @@ export function useHideShow(): HideController {
         revalidate: () => revalidate(showId),
       });
       if (outcome === "failed") {
-        setError(`Couldn't ${hidden ? "stop watching" : "resume"} ${title}. Please try again.`);
-        return;
+        showFailure(
+          `Couldn't ${hidden ? "stop watching" : "resume"} ${title}. Please try again.`,
+          () => {},
+        );
       }
-      setUndoState({ showId, ids, title, kind });
+      return outcome;
     },
     [patchHidden, revalidate, runtime, submit],
+  );
+
+  const setHidden = useCallback(
+    async (showId: number, ids: ShowIds, title: string, kind: HideKind) => {
+      if ((await writeHidden(showId, ids, title, kind)) === "failed") return;
+      showUndoable(`${title} ${kind === "hide" ? "stopped" : "resumed"}`, () => {
+        void writeHidden(showId, ids, title, kind === "hide" ? "unhide" : "hide");
+      });
+    },
+    [writeHidden],
   );
 
   const hide = useCallback(
@@ -91,41 +92,19 @@ export function useHideShow(): HideController {
     (showId: number, ids: ShowIds, title: string) => setHidden(showId, ids, title, "unhide"),
     [setHidden],
   );
-
-  const undo = useCallback(async () => {
-    const pending = undoState;
-    if (pending === null) return;
-    setUndoState(null);
-    // Undoing a hide un-hides; undoing an un-hide re-hides.
-    const restoreHidden = pending.kind === "unhide";
-    patchHidden(pending.showId, restoreHidden);
-    const build = restoreHidden ? buildHideShowOp : buildUnhideShowOp;
-    const op = build({
-      opId: runtime.newId(),
-      ids: pending.ids,
-      inversePatch: { kind: "hidden", showId: pending.showId },
-    });
-    // `patchHidden` above is the forward (undone) state, not a rollback: so a hard
-    // failure of the inverse write must flip it back to the post-action state, else
-    // the row is stranded undone while Trakt never changed. Revalidate only once it lands.
-    const outcome = await submit([op], {
-      rollback: () => patchHidden(pending.showId, !restoreHidden),
-      revalidate: () => revalidate(pending.showId),
-    });
-    if (outcome === "failed") {
-      setError(
-        `Couldn't ${restoreHidden ? "stop watching" : "resume"} ${pending.title}. Please try again.`,
-      );
-    }
-  }, [undoState, patchHidden, revalidate, runtime, submit]);
+  const stopWatching = useCallback(
+    (entry: LibraryEntry) =>
+      void hide(
+        entry.showId,
+        { trakt: entry.showId, tmdb: entry.tmdbId ?? undefined },
+        entry.title,
+      ),
+    [hide],
+  );
 
   return {
     hide,
     unhide,
-    undo,
-    dismissUndo: () => setUndoState(null),
-    clearError: () => setError(null),
-    undoable: undoState === null ? null : { title: undoState.title, kind: undoState.kind },
-    error,
+    stopWatching,
   };
 }

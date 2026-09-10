@@ -1,5 +1,4 @@
 import type { MarkWatched } from "@cue/core/hooks/useMarkWatched";
-import type { UpNextCard } from "@cue/core/hooks/useUpNext";
 import { type ReactElement, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import Animated, { LinearTransition } from "react-native-reanimated";
@@ -9,6 +8,7 @@ import { Separator } from "../../ui/Row";
 import { TEST_IDS } from "../../ui/test-ids";
 import { ROW_TEXT_INSET, SPACE, useColors } from "../../ui/tokens";
 import { CueText } from "../../ui/type";
+import type { UpNextCard } from "./model";
 import { QueueRow } from "./QueueRow";
 
 const TRIGGER_HEIGHT = 52;
