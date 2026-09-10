@@ -1,6 +1,9 @@
-import { useSearch } from "@cue/core/hooks/useSearch";
+import { useSearchInput } from "@cue/core/hooks/useSearchInput";
+import { searchQuery } from "@cue/core/queries/discover";
+import { useRuntime } from "@cue/core/runtime/runtime";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "expo-router";
-import type { ReactElement } from "react";
+import { type ReactElement, useEffect } from "react";
 import { FlatList, Text, TextInput, View } from "react-native";
 import { TEST_IDS } from "../../../src/ui/test-ids";
 
@@ -11,7 +14,16 @@ import { TEST_IDS } from "../../../src/ui/test-ids";
  * than with the wiring.
  */
 export default function Search(): ReactElement {
-  const search = useSearch();
+  const runtime = useRuntime();
+  const search = useSearchInput();
+  const query = useQuery({
+    ...searchQuery(runtime, search.query),
+    enabled: search.query.length > 0,
+  });
+
+  useEffect(() => {
+    if (query.isSuccess) search.remember(search.query);
+  }, [query.isSuccess, search.query, search.remember]);
 
   return (
     <View testID={TEST_IDS.screenSearch}>
@@ -26,7 +38,7 @@ export default function Search(): ReactElement {
       />
       <FlatList
         testID={TEST_IDS.searchResults}
-        data={search.hits}
+        data={query.data ?? []}
         keyExtractor={(hit) => hit.key}
         renderItem={({ item }) => (
           <Link
