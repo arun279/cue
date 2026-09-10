@@ -22,20 +22,6 @@ jest.mock(
   "react-native-safe-area-context",
   () => require("react-native-safe-area-context/jest/mock").default,
 );
-// Imported for its side effects by the reminders adapter, and on Android its
-// push-registration module throws under this runner. The seam it fills is not
-// what this file is about.
-jest.mock("expo-notifications", () => ({
-  AndroidImportance: { DEFAULT: 3 },
-  SchedulableTriggerInputTypes: { DATE: "date" },
-  setNotificationChannelAsync: () => Promise.resolve(null),
-  requestPermissionsAsync: () => Promise.resolve({ granted: false }),
-  getPermissionsAsync: () => Promise.resolve({ granted: false }),
-  getAllScheduledNotificationsAsync: () => Promise.resolve([]),
-  scheduleNotificationAsync: () => Promise.resolve(""),
-  cancelScheduledNotificationAsync: () => Promise.resolve(),
-  cancelAllScheduledNotificationsAsync: () => Promise.resolve(),
-}));
 jest.mock("expo-splash-screen", () => ({
   preventAutoHideAsync: () => Promise.resolve(true),
   hideAsync: jest.fn(() => Promise.resolve(true)),
