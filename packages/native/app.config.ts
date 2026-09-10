@@ -6,7 +6,7 @@ import type { ExpoConfig } from "expo/config";
  * set that survives, out of the built APK, so a new arrival fails a build rather
  * than shipping unannounced.
  *
- * Two groups, and each is a decision rather than tidiness:
+ * Three groups, and each is a decision rather than tidiness:
  *
  * - **Expo's prebuild template**, whose own comment calls these optional.
  *   Haptics go through `performHapticFeedback`, which Android documents as not
@@ -16,6 +16,9 @@ import type { ExpoConfig } from "expo/config";
  * - **The biometric pair**, from expo-secure-store's optional authenticated
  *   reads. Cue never passes `requireAuthentication`, which is also why the Face
  *   ID usage description is turned off below.
+ * - **The Play install-referrer binding**, from expo-application's transitive
+ *   install-referrer library. Cue reads its version fields and never asks for
+ *   install referrer data.
  */
 const BLOCKED_PERMISSIONS = [
   "android.permission.SYSTEM_ALERT_WINDOW",
@@ -24,6 +27,7 @@ const BLOCKED_PERMISSIONS = [
   "android.permission.WRITE_EXTERNAL_STORAGE",
   "android.permission.USE_BIOMETRIC",
   "android.permission.USE_FINGERPRINT",
+  "com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE",
 ];
 
 /**
