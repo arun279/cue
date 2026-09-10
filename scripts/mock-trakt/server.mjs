@@ -255,6 +255,7 @@ const ROUTES = [
 
   // ---- Shows
   ["GET", /^\/shows\/(?:trending|popular)$/, () => json([])],
+  ["GET", /^\/shows\/[^/]+\/related$/, () => json([])],
   [
     "GET",
     /^\/shows\/(?<id>[^/]+)\/progress\/watched$/,

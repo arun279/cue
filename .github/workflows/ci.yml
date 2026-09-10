@@ -291,11 +291,14 @@ jobs:
             sleep 1
           done
           exit 1
-      - name: Run the launch flow
+      - name: Run the native flows
         env:
           DEVICE_ID: ${{ steps.simulator.outputs.device_id }}
         run: |
-          maestro --device "$DEVICE_ID" test .maestro/flows/launch.yaml \
+          maestro --device "$DEVICE_ID" test \
+            .maestro/flows/launch.yaml \
+            .maestro/flows/show-detail-bulk-mark.yaml \
+            .maestro/flows/episode-sheet.yaml \
             --format JUNIT \
             --output "$RUNNER_TEMP/maestro-results.xml" \
             --debug-output "$RUNNER_TEMP/maestro-debug" \

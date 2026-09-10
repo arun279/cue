@@ -98,6 +98,12 @@
       "platforms": ["android"]
     },
     {
+      "path": "assets/4c0aa01751c342f1b1cae752c7253c70",
+      "type": "xml",
+      "bytes": 379,
+      "platforms": ["android"]
+    },
+    {
       "path": "assets/51b6ad87261f18b6433ec52871ddfabc",
       "type": "ttf",
       "bytes": 342408,

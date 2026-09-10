@@ -20,6 +20,7 @@ import {
   getPopularMovies,
   getPopularShows,
   getRelatedMovies,
+  getRelatedShows,
   getShow,
   getShowProgress,
   getShowSeasons,
@@ -233,6 +234,10 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
 
     async loadShowInfo(showId) {
       return assembleShowInfo(unwrapRead(await getShow(client, showId), "show"));
+    },
+
+    async loadShowRelated(showId) {
+      return assembleShowHits(unwrapRead(await getRelatedShows(client, showId), "related shows"));
     },
 
     async loadMovieLibrary(): Promise<MovieLibraryData> {

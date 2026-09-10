@@ -36,6 +36,7 @@ export const queryKeys = {
    * on screen, so the cold-sync read never fans `/shows/:id` out across the whole
    * library and opening that card's show does not pay for the same URL twice. */
   showInfo: (showId: number) => ["show", "info", showId] as const,
+  showRelated: (showId: number) => ["show", "related", showId] as const,
   /** The viewer's progress through one show (`/shows/:id/progress/watched`),
    * separate from {@link showInfo} because it is user state a mark invalidates. */
   showProgress: (showId: number) => ["show", "progress", showId] as const,

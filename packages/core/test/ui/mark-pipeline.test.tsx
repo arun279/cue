@@ -172,6 +172,36 @@ function seededClient(entries: readonly LibraryEntry[], seasons?: readonly Seaso
 }
 
 const flush = () => act(async () => new Promise((r) => setTimeout(r, 0)));
+
+it("advances a show opened without an aggregate cache and reverses it", async () => {
+  const fake = fakeRuntime({});
+  const qc = new QueryClient();
+  const [a] = mountSurfaces(fake.runtime, qc);
+  const entry = libraryEntry();
+  await act(async () => a[0]?.mark.mark(entry));
+  expect(entryOf(qc, SHOW)).toMatchObject({ completed: entry.completed + 1, pendingAdvance: true });
+  stubLandedPlay(fake);
+  await act(async () => a[0]?.mark.reverse(SHOW));
+  expect(entryOf(qc, SHOW)).toEqual(entry);
+});
+
+it("silently resumes a stopped show after a continue mark and re-stops on Undo", async () => {
+  const fake = fakeRuntime({});
+  const entry = { ...libraryEntry(), hidden: true };
+  const qc = seededClient([entry]);
+  const [a] = mountSurfaces(fake.runtime, qc);
+  await act(async () => a[0]?.mark.mark(entry));
+  expect(entryOf(qc, SHOW)?.hidden).toBe(false);
+  stubLandedPlay(fake);
+  await act(async () => a[0]?.mark.reverse(SHOW));
+  expect(entryOf(qc, SHOW)?.hidden).toBe(true);
+  expect(fake.submitted.map((op) => op.request.path)).toEqual([
+    "/sync/history",
+    "/users/hidden/progress_watched/remove",
+    "/sync/history/remove",
+    "/users/hidden/progress_watched",
+  ]);
+});
 const TARGET = { showId: SHOW, ids: { trakt: SHOW }, includeSpecials: false };
 
 const entryOf = (qc: QueryClient, showId: number) =>

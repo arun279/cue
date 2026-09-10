@@ -1,0 +1,50 @@
+appId: app.cuetracker
+---
+- runScript: lib/reset-fake.js
+- assertTrue: ${output.fakeReset}
+- runFlow: lib/connect.yaml
+- tapOn:
+    id: "queue-row-8803"
+- scrollUntilVisible:
+    element:
+      id: "episode-row-880308"
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: "episode-row-880308"
+- assertVisible:
+    id: "episode-sheet"
+- scrollUntilVisible:
+    element:
+      id: "episode-mark-row"
+    direction: DOWN
+    centerElement: true
+- tapOn: "Mark S2 E3 watched"
+- assertVisible:
+    id: "snackbar"
+- assertVisible:
+    id: "episode-sheet"
+- runFlow: lib/settle.yaml
+- tapOn:
+    id: "snackbar-undo"
+- runFlow: lib/settle.yaml
+- assertVisible: "Not watched yet"
+- scrollUntilVisible:
+    element:
+      id: "episode-pager-next"
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: "episode-pager-next"
+- assertVisible:
+    id: "episode-still-blur"
+- tapOn:
+    id: "episode-still-reveal"
+- assertNotVisible:
+    id: "episode-still-blur"
+- tapOn:
+    id: "episode-sheet-close"
+- assertVisible:
+    id: "screen-show-detail"
+- assertNotVisible:
+    id: "episode-sheet"
