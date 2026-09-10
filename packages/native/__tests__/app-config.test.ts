@@ -11,6 +11,7 @@ describe("the native app config", () => {
   const config = nativeAppConfig({});
 
   it("is the same app on both stores", () => {
+    expect(config.version).toBe("2.0.0");
     expect(config.ios?.bundleIdentifier).toBe("app.cuetracker");
     expect(config.android?.package).toBe("app.cuetracker");
   });
