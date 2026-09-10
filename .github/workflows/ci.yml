@@ -436,9 +436,11 @@ jobs:
           arch: x86_64
           profile: pixel_7_pro
           script: |
-            set -euo pipefail
+            set -eu
             apk="$RUNNER_TEMP/cue-native-android/universal.apk"
             logcat="$RUNNER_TEMP/android-logcat.txt"
+            : > "$logcat"
+            trap 'adb logcat -d -v threadtime > "$logcat"' EXIT
 
             adb install "$apk"
             adb shell am force-stop app.cuetracker
@@ -468,6 +470,7 @@ jobs:
         with:
           name: android-e2e-logcat
           path: ${{ runner.temp }}/android-logcat.txt
+          if-no-files-found: error
           retention-days: 7
   e2e:
     needs: check
