@@ -22,9 +22,10 @@ describe("fast pull request validation", () => {
     expect(android).toContain("needs: fingerprint");
     expect(android).toContain("if: steps.native-cache.outputs.hit != 'true'");
     expect(android).toContain("if: steps.native-cache.outputs.hit == 'true'");
-    expect(android).toContain("--build-cache --configuration-cache bundleRelease");
+    expect(android.match(/--build-cache --configuration-cache/g)).toHaveLength(2);
+    expect(android.match(/--configuration-cache-problems=warn/g)).toHaveLength(2);
     expect(android).toContain("-PreactNativeArchitectures=arm64-v8a,x86_64");
-    expect(android).toContain("--build-cache --configuration-cache assembleRelease");
+    expect(android).toContain("configuration-cache-problems=warn assembleRelease");
     expect(android).not.toContain("bundleRelease assembleRelease");
     expect(android).toContain("lib/x86_64/lib" + "react" + "native\\.so");
   });
