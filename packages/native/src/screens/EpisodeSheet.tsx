@@ -7,7 +7,7 @@ import { episodePlaysQuery, episodeQuery, showSeasonsQuery } from "@cue/core/que
 import { useRuntime } from "@cue/core/runtime/runtime";
 import { useQuery } from "@tanstack/react-query";
 import type { ReactElement } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { TEST_IDS } from "../ui/test-ids";
 import { RADIUS, SPACE, useColors } from "../ui/tokens";
@@ -57,7 +57,7 @@ function LoadedEpisode({ detail }: { readonly detail: EpisodeDetail }): ReactEle
   const hidden = usePrefs((state) => state.hideStillsUntilWatched);
   const navigation = seasons.data === undefined ? detail : episodeNavigation(seasons.data, detail);
   return (
-    <ScrollView testID={TEST_IDS.screenEpisode} contentContainerStyle={styles.content}>
+    <View testID={TEST_IDS.screenEpisode} style={styles.content}>
       {detail.aired && (
         <View style={styles.toolbar}>
           <EpisodeMenu detail={detail} plays={plays} mark={mark} confirm={confirmation.present} />
@@ -84,7 +84,7 @@ function LoadedEpisode({ detail }: { readonly detail: EpisodeDetail }): ReactEle
         }
       />
       <EpisodePager showId={detail.showId} prev={navigation.prev} next={navigation.next} />
-    </ScrollView>
+    </View>
   );
 }
 
@@ -138,7 +138,7 @@ export function EpisodeBody({
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  content: { padding: SPACE.s4, paddingBottom: SPACE.s7 },
+  content: { flex: 1, padding: SPACE.s4 },
   body: { gap: SPACE.s3 },
   toolbar: { alignItems: "flex-end" },
   countdown: {

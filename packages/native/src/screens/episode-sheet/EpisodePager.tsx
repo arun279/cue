@@ -59,6 +59,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     gap: SPACE.s2,
+    marginTop: "auto",
     paddingTop: SPACE.s4,
   },
   button: {

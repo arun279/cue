@@ -42,12 +42,7 @@ export function TabStack({ root, title }: TabStackProps): ReactElement {
       {/* The episode is a child of the show route so a cold deep link paints the
           show underneath and dismissing is one pop. UIKit owns the detents, the
           grabber and the physics; the two heights keep compact and expanded
-          reading positions.
-
-          The header is off because the sheet's own vocabulary is the grabber:
-          a shown header makes react-native-screens nest a second stack inside
-          the sheet, and a nested stack in a formSheet lays its content out at
-          zero height, so the sheet presents empty. */}
+          reading positions, and the grabber is the sheet's only chrome. */}
       <Stack.Screen
         name="show/[showId]/episode/[season]/[episode]"
         options={{
@@ -57,6 +52,7 @@ export function TabStack({ root, title }: TabStackProps): ReactElement {
           sheetInitialDetentIndex: 0,
           sheetGrabberVisible: true,
           sheetCornerRadius: RADIUS.sheet,
+          contentStyle: { backgroundColor: colors.bg },
         }}
       />
     </Stack>
