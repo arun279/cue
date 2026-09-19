@@ -28,9 +28,8 @@ appId: app.cuetracker
 - waitForAnimationToEnd:
     timeout: 1000
 - takeScreenshot: episode-sheet-marked
-- runFlow: lib/settle.yaml
 - tapOn:
-    id: "snackbar-undo"
+    id: "episode-mark-control"
 - runFlow: lib/settle.yaml
 - assertVisible: "Not watched yet"
 - tapOn:

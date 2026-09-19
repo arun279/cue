@@ -59,6 +59,11 @@ appId: app.cuetracker
     visible:
       id: "screen-show-detail"
     timeout: 30000
+- back
+- extendedWaitUntil:
+    visible:
+      id: "screen-up-next"
+    timeout: 30000
 - tapOn: "Library"
 - extendedWaitUntil:
     visible:
@@ -83,7 +88,6 @@ appId: app.cuetracker
 - waitForAnimationToEnd:
     timeout: 1000
 - takeScreenshot: search-empty
-- tapOn: "Up Next"
 - tapOn: "Up Next"
 - extendedWaitUntil:
     visible:

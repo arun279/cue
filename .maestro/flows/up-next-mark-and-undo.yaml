@@ -6,19 +6,6 @@ appId: app.cuetracker
 - waitForAnimationToEnd:
     timeout: 1000
 - takeScreenshot: up-next-queue-rest
-- tapOn:
-    id: "queue-row-[0-9]+-mark"
-    index: 0
-- assertVisible:
-    id: "snackbar-undo"
-- waitForAnimationToEnd:
-    timeout: 1000
-- takeScreenshot: up-next-mark-snackbar
-- tapOn:
-    id: "snackbar-undo"
-- assertVisible:
-    id: "queue-row-[0-9]+-mark"
-    index: 0
 - repeat:
     times: 5
     commands:
@@ -40,3 +27,11 @@ appId: app.cuetracker
 - waitForAnimationToEnd:
     timeout: 1000
 - takeScreenshot: up-next-mark-restored
+- tapOn:
+    id: "queue-row-[0-9]+-mark"
+    index: 0
+- assertVisible:
+    id: "snackbar-undo"
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: up-next-mark-snackbar
