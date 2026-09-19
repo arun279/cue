@@ -14,7 +14,7 @@ import { PALETTE, SPACE, useColors, useStacked } from "../../ui/tokens";
 import { CueText } from "../../ui/type";
 import type { ChipKey } from "./model";
 
-const DISC = { inset: 6, radius: 6 };
+const PLATE = { inset: 6, radius: 6 };
 const TITLE_LINES = 2;
 
 /** What the tile says it is, which the overlays never say on their own. */
@@ -26,7 +26,7 @@ const STATUS_WORD: Readonly<Record<ChipKey, string>> = {
   watched: "watched",
 };
 
-interface TileProps {
+export interface TileProps {
   readonly title: string;
   readonly posters: readonly string[] | null;
   readonly width: number;
@@ -36,6 +36,10 @@ interface TileProps {
    * are absent on the chips whose grid is already one status throughout. */
   readonly percent: number | null;
   readonly left: number;
+  /** The release year Search's browse grids carry, on the corner the count
+   * leaves free: a catalog tile is identified by its year, a tracked one by how
+   * much of it is left. */
+  readonly year?: string;
   onPress(): void;
 }
 
@@ -48,7 +52,7 @@ interface TileProps {
  * the plate and becomes a caption line under the title, which is where the
  * tile's composed label already puts it.
  */
-function Tile({
+export function Tile({
   title,
   posters,
   width,
@@ -56,6 +60,7 @@ function Tile({
   testID,
   percent,
   left,
+  year,
   onPress,
 }: TileProps): ReactElement {
   const colors = useColors();
@@ -79,12 +84,19 @@ function Tile({
           </View>
         )}
         {counted && !stacked ? (
-          <View style={[styles.disc, { backgroundColor: colors.scrim }]}>
-            <CueText variant="micro" tabularNums style={styles.discText}>
+          <View style={[styles.plate, styles.disc, { backgroundColor: colors.scrim }]}>
+            <CueText variant="micro" tabularNums style={styles.plateText}>
               {left}
             </CueText>
           </View>
         ) : null}
+        {year === undefined ? null : (
+          <View style={[styles.plate, styles.year, { backgroundColor: colors.scrim }]}>
+            <CueText variant="micro" tabularNums style={styles.plateText}>
+              {year}
+            </CueText>
+          </View>
+        )}
       </View>
       <CueText variant="caption" numberOfLines={TITLE_LINES} style={{ color: colors.fg }}>
         {title}
@@ -193,15 +205,16 @@ const styles = StyleSheet.create({
     right: SPACE.s2,
     bottom: SPACE.s2,
   },
-  disc: {
+  plate: {
     position: "absolute",
-    top: DISC.inset,
-    right: DISC.inset,
+    top: PLATE.inset,
     minWidth: SPACE.s5,
     paddingHorizontal: SPACE.s1,
     paddingVertical: 2,
     alignItems: "center",
-    borderRadius: DISC.radius,
+    borderRadius: PLATE.radius,
   },
-  discText: { color: PALETTE.onImage.dark },
+  disc: { right: PLATE.inset },
+  year: { left: PLATE.inset },
+  plateText: { color: PALETTE.onImage.dark },
 });
