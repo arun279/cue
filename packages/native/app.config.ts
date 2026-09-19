@@ -67,6 +67,7 @@ export function nativeAppConfig(env: Readonly<Record<string, string | undefined>
     slug: "cue",
     scheme: "cue",
     version: env["APP_VERSION"] ?? "2.0.0",
+    icon: "./assets/icon.png",
     // The shipping app allows portrait and both landscapes on iPhone and all
     // four on iPad; "default" preserves that instead of narrowing it.
     orientation: "default",
@@ -101,6 +102,10 @@ export function nativeAppConfig(env: Readonly<Record<string, string | undefined>
       versionCode: Number(buildNumber),
       predictiveBackGestureEnabled: true,
       blockedPermissions: BLOCKED_PERMISSIONS,
+      adaptiveIcon: {
+        foregroundImage: "./assets/icon-foreground.png",
+        backgroundColor: "#0e0c0a",
+      },
     },
     plugins: [
       "expo-router",
@@ -125,10 +130,22 @@ export function nativeAppConfig(env: Readonly<Record<string, string | undefined>
       ["expo-secure-store", { configureAndroidBackup: false, faceIDPermission: false }],
       "expo-sqlite",
       "expo-status-bar",
-      "expo-splash-screen",
+      [
+        "expo-splash-screen",
+        {
+          image: "./assets/splash.png",
+          imageWidth: 256,
+          resizeMode: "contain",
+          backgroundColor: "#0e0c0a",
+          dark: {
+            image: "./assets/splash.png",
+            backgroundColor: "#0e0c0a",
+          },
+        },
+      ],
       "./plugins/with-android-build-memory",
       "./plugins/with-android-tab-icons",
-      "./plugins/with-android-privacy",
+      ["./plugins/with-android-privacy", { apiBase: mockTrakt }],
       "./plugins/with-ios-scene-lifecycle",
     ],
     // No OTA updates: the app ships through the stores, and an updates client

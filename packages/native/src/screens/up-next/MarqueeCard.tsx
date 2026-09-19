@@ -6,7 +6,7 @@ import { useMarkControl } from "@cue/core/hooks/useMarkControl";
 import type { MarkWatched } from "@cue/core/hooks/useMarkWatched";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import type { ReactElement } from "react";
+import { type ReactElement, useState } from "react";
 import { Image, Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import { useShowArt } from "../../hooks/useShowArt";
 import { CheckControl } from "../../ui/CheckControl";
@@ -65,6 +65,7 @@ export function MarqueeCard({ card, episode, mark }: MarqueeCardProps): ReactEle
   const colors = useColors();
   const control = useMarkControl(entry, mark);
   const art = useShowArt(entry.showId);
+  const [failedBackdrop, setFailedBackdrop] = useState<string | null>(null);
   const { fontScale } = useWindowDimensions();
   const stacked = fontScale >= REFLOW_FONT_SCALE;
 
@@ -73,7 +74,7 @@ export function MarqueeCard({ card, episode, mark }: MarqueeCardProps): ReactEle
   const backdrop = fontScale < SCRIM_FONT_SCALE ? resolveBackdrop(art.backdrops) : null;
   const airedMs = toMs(episode.firstAired);
   const now = Date.now();
-  const scrim = backdrop !== null;
+  const scrim = backdrop !== null && backdrop !== failedBackdrop;
   const code = epCode(episode.season, episode.number);
   const left = episodesLeft(entry.aired, entry.completed);
   const note = left > 0 ? `${left} left` : null;
@@ -94,7 +95,7 @@ export function MarqueeCard({ card, episode, mark }: MarqueeCardProps): ReactEle
       style={[
         styles.card,
         scrim
-          ? { backgroundColor: plate(entry.title) }
+          ? { backgroundColor: plate(entry.title), borderWidth: 0 }
           : {
               // #ffffff on the #fbfaf7 page is 1.04:1, so the plain surface is
               // an edge away from not being a card at all.
@@ -106,7 +107,12 @@ export function MarqueeCard({ card, episode, mark }: MarqueeCardProps): ReactEle
     >
       {scrim ? (
         <>
-          <Image source={{ uri: backdrop }} style={StyleSheet.absoluteFill} />
+          <Image
+            testID={TEST_IDS.marqueeBackdrop}
+            source={{ uri: backdrop }}
+            onError={() => setFailedBackdrop(backdrop)}
+            style={StyleSheet.absoluteFill}
+          />
           <LinearGradient
             colors={SCRIM_ACROSS}
             start={{ x: 0, y: 0 }}

@@ -32,6 +32,6 @@ it("summarizes in-app and runner startup timings", () => {
       },
     ),
   ).toContain(
-    "| In-app idle | 625.4 ms | rnStartupTiming |\n| Runner launch and idle assertion | 625 ms | Maestro commands |",
+    "| Median in-app idle | 625.4 ms | rnStartupTiming |\n| Final runner launch and idle assertion | 625 ms | Maestro commands |",
   );
 });

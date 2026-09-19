@@ -6,6 +6,7 @@ import { getShowProgress, getUserSettings } from "@cue/core/data/trakt/endpoints
 import {
   readsPausedUntil,
   resetReadPause,
+  subscribeReadPause,
   withReadRateRetry,
 } from "@cue/core/data/trakt/read-budget";
 import type { Token } from "@cue/core/domain/model/token";
@@ -38,6 +39,7 @@ afterAll(async () => {
 });
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   vi.useRealTimers();
   resetReadPause();
   await fetch(`${baseUrl}/__reset`, { method: "POST" });
@@ -45,13 +47,52 @@ afterEach(async () => {
 
 const entries = (): JournalEntry[] => readJournal(journalFile) as JournalEntry[];
 const since = (start: number): JournalEntry[] => entries().slice(start);
+const DIAGNOSTIC_TIMEOUT_MS = 30_000;
+const harnessIt = (name: string, test: () => Promise<void>): void => {
+  it(name, test, DIAGNOSTIC_TIMEOUT_MS);
+};
 
-async function waitFor(predicate: () => boolean): Promise<void> {
-  for (let attempt = 0; attempt < 1000; attempt += 1) {
-    if (predicate()) return;
-    await new Promise<void>((resolve) => setImmediate(resolve));
-  }
-  throw new Error("network harness condition did not settle");
+function nextReadPause(): Promise<void> {
+  return new Promise((resolve) => {
+    const unsubscribe = subscribeReadPause(() => {
+      unsubscribe();
+      resolve();
+    });
+  });
+}
+
+function queryFailure(
+  queryClient: ReturnType<typeof createQueryClient>,
+  queryKey: readonly unknown[],
+  count: number,
+): Promise<void> {
+  if (queryClient.getQueryState(queryKey)?.fetchFailureCount === count) return Promise.resolve();
+  return new Promise((resolve) => {
+    const unsubscribe = queryClient.getQueryCache().subscribe(() => {
+      if (queryClient.getQueryState(queryKey)?.fetchFailureCount !== count) return;
+      unsubscribe();
+      resolve();
+    });
+  });
+}
+
+function observeRetryTimers(): (delay: number) => Promise<void> {
+  const scheduled = new Map<number, Array<() => void>>();
+  const fakeSetTimeout = globalThis.setTimeout;
+  vi.spyOn(globalThis, "setTimeout").mockImplementation((callback, delay, ...args) => {
+    const timer = fakeSetTimeout(callback, delay, ...args);
+    if (typeof callback !== "function" || callback.name !== "" || typeof delay !== "number") {
+      return timer;
+    }
+    scheduled.get(delay)?.shift()?.();
+    return timer;
+  });
+  return (delay) =>
+    new Promise((resolve) => {
+      const resolvers = scheduled.get(delay) ?? [];
+      resolvers.push(resolve);
+      scheduled.set(delay, resolvers);
+    });
 }
 
 const arm = async (rule: Record<string, unknown>): Promise<void> => {
@@ -180,7 +221,7 @@ describe("request budgets", () => {
 });
 
 describe("read failures", () => {
-  it("honors a capped Retry-After and holds other reads behind the pause", async () => {
+  harnessIt("honors a capped Retry-After and holds other reads behind the pause", async () => {
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
     vi.setSystemTime(new Date("2026-09-10T12:00:00.000Z"));
     await arm({
@@ -191,20 +232,22 @@ describe("read failures", () => {
       count: 1,
     });
     const start = entries().length;
+    const paused = nextReadPause();
     const read = withReadRateRetry(() => getShowProgress(authorizedClient(), 8801));
-    await waitFor(() => readsPausedUntil() > Date.now());
+    await paused;
     expect(readsPausedUntil() - Date.now()).toBe(300_500);
 
     const sibling = withReadRateRetry(() => getUserSettings(authorizedClient()));
     await vi.advanceTimersByTimeAsync(300_499);
     expect(since(start)).toHaveLength(1);
     await vi.advanceTimersByTimeAsync(1);
-    await waitFor(() => since(start).length === 3);
-    expect((await read).ok).toBe(true);
-    expect((await sibling).ok).toBe(true);
+    const [result, siblingResult] = await Promise.all([read, sibling]);
+    expect(result.ok).toBe(true);
+    expect(siblingResult.ok).toBe(true);
+    expect(since(start)).toHaveLength(3);
   });
 
-  it("retries two server failures on the query ladder", async () => {
+  harnessIt("retries two server failures on the query ladder", async () => {
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
     vi.setSystemTime(new Date("2026-09-10T12:00:00.000Z"));
     await arm({
@@ -216,21 +259,21 @@ describe("read failures", () => {
     const cue = await runtime();
     const queryClient = createQueryClient();
     const start = entries().length;
+    const queryKey = queryKeys.calendar("2026-09-10", 28);
     const read = queryClient.fetchQuery({
-      queryKey: queryKeys.calendar("2026-09-10", 28),
+      queryKey,
       queryFn: () => cue.loadCalendar("2026-09-10", 28),
     });
-    await waitFor(() => since(start).some((entry) => entry.path.startsWith("/calendars/")));
+    await queryFailure(queryClient, queryKey, 1);
+    const secondFailure = queryFailure(queryClient, queryKey, 2);
     await vi.advanceTimersByTimeAsync(2200);
-    await waitFor(
-      () => since(start).filter((entry) => entry.path.startsWith("/calendars/")).length === 2,
-    );
+    await secondFailure;
     await vi.advanceTimersByTimeAsync(4400);
     await expect(read).resolves.toMatchObject({ entries: expect.any(Array) });
     expect(since(start).filter((entry) => entry.path.startsWith("/calendars/"))).toHaveLength(3);
   });
 
-  it("ends a manual refresh with the shared rate-limit pause still published", async () => {
+  harnessIt("ends a manual refresh with the shared rate-limit pause still published", async () => {
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
     vi.setSystemTime(new Date("2026-09-10T12:00:00.000Z"));
     await arm({
@@ -242,13 +285,16 @@ describe("read failures", () => {
     });
     const cue = await runtime();
     const start = entries().length;
+    let paused = nextReadPause();
     const poll = cue.pollActivities();
     for (let attempt = 1; attempt < 4; attempt += 1) {
-      await waitFor(() => since(start).length === attempt);
+      await paused;
+      expect(since(start)).toHaveLength(attempt);
+      paused = nextReadPause();
       await vi.advanceTimersByTimeAsync(500);
     }
-    await waitFor(() => since(start).length === 4);
     await expect(poll).resolves.toBeNull();
+    expect(since(start)).toHaveLength(4);
     expect(readsPausedUntil()).toBeGreaterThan(Date.now());
   });
 
@@ -338,40 +384,47 @@ describe("write faults", () => {
       inversePatch: { showId: 8801, preCompleted: 20 },
     });
 
-  it("retries a rate-limited write after Retry-After", async () => {
+  harnessIt("retries a rate-limited write after Retry-After", async () => {
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
     vi.setSystemTime(new Date("2026-09-10T12:00:00.000Z"));
+    const timerScheduled = observeRetryTimers();
     await arm({ match: "writes", path: "^/sync/history$", status: 429, retryAfter: 3, count: 1 });
     const cue = await runtime();
     const start = entries().length;
+    const retryScheduled = timerScheduled(3000);
     const submitted = cue.submit(mark());
-    await waitFor(() => since(start).length === 1);
+    await retryScheduled;
     await vi.advanceTimersByTimeAsync(3000);
     await expect(submitted).resolves.toBe("done");
     expect(since(start).filter((entry) => entry.path === "/sync/history")).toHaveLength(2);
   });
 
-  it("retries server failures on the bounded write ladder", async () => {
+  harnessIt("retries server failures on the bounded write ladder", async () => {
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
     vi.setSystemTime(new Date("2026-09-10T12:00:00.000Z"));
+    const timerScheduled = observeRetryTimers();
     await arm({ match: "writes", path: "^/sync/history$", status: 503, count: 2 });
     const cue = await runtime();
     const start = entries().length;
+    let retryScheduled = timerScheduled(1100);
     const submitted = cue.submit(mark());
-    await waitFor(() => since(start).length === 1);
+    await retryScheduled;
+    retryScheduled = timerScheduled(2200);
     await vi.advanceTimersByTimeAsync(1100);
-    await waitFor(() => since(start).length === 2);
+    await retryScheduled;
     await vi.advanceTimersByTimeAsync(2200);
     await expect(submitted).resolves.toBe("done");
     expect(since(start).filter((entry) => entry.path === "/sync/history")).toHaveLength(3);
   });
 
-  it("keeps a held write pending until the fault is released", async () => {
+  harnessIt("keeps a held write pending until the fault is released", async () => {
     await arm({ match: "writes", path: "^/sync/history$", hold: true, count: 1 });
     const cue = await runtime();
-    const start = entries().length;
+    const received = mock.nextRequest(
+      (entry) => entry.method === "POST" && entry.path === "/sync/history",
+    );
     const submitted = cue.submit(mark());
-    await waitFor(() => since(start).length === 1);
+    await received;
     expect(cue.inFlightOpId()).toBe("fault-mark");
     expect(cue.pendingWrites()).toBe(1);
     await fetch(`${baseUrl}/__fault`, { method: "DELETE" });

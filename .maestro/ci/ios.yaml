@@ -1,0 +1,6 @@
+appId: app.cuetracker
+---
+- runFlow: ../flows/launch.yaml
+- runFlow: ../flows/startup.yaml
+- runFlow: ../flows/show-detail-bulk-mark.yaml
+- runFlow: ../flows/episode-sheet.yaml

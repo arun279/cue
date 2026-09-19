@@ -86,9 +86,8 @@ describe("Expo Atlas attribution", () => {
 
     expect(packageJson.devDependencies["expo-atlas"]).toBe("0.4.3");
     expect(knip.workspaces["."].ignoreDependencies).toContain("expo-atlas");
-    expect(workflow).toContain(
-      'EXPO_ATLAS=true scripts/measure-sizes.sh "$PWD" "$PWD/head-sizes.json"',
-    );
+    expect(workflow).toMatch(/- run: pnpm check\s+env:\s+EXPO_ATLAS: "true"/);
+    expect(workflow).toContain('scripts/measure-sizes.sh "$PWD/head-sizes.json"');
     expect(workflow).toContain(
       "node scripts/summarize-atlas.mjs packages/native/.expo/atlas.jsonl >> footprint.md",
     );

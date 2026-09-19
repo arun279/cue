@@ -237,27 +237,24 @@ describe("the seeded account parses through the app's own contracts", () => {
     expect(poster.source).toBe("trakt");
     const response = await fetch(poster.source === "trakt" ? poster.url : "");
     expect(response.status).toBe(200);
-    expect(response.headers.get("content-type")).toContain("image/svg+xml");
+    expect(response.headers.get("content-type")).toContain("image/png");
   });
 });
 
 describe("the placeholder images survive what they are asked to draw", () => {
-  it("escapes a title before it becomes SVG text", async () => {
+  it.each([
+    ["poster", 400, 600],
+    ["avatar", 240, 240],
+    ["fanart", 640, 360],
+    ["toString", 640, 360],
+  ])("serves PNG dimensions for %s", async (slot, width, height) => {
     const show = firstSeededShow();
-    show.title = "<Bob & Carol>";
-    const svg = await (await fetch(`${baseUrl}/images/shows/${show.trakt}/poster.svg`)).text();
-
-    expect(svg).toContain(">&lt;&amp;</text>");
-    const parsed = new DOMParser().parseFromString(svg, "image/svg+xml");
-    expect(parsed.documentElement.nodeName).toBe("svg");
-    expect(parsed.querySelector("text")?.textContent).toBe("<&");
-  });
-
-  it("serves a slot the aspect table does not name, prototype keys included", async () => {
-    const show = firstSeededShow();
-    for (const slot of ["fanart", "toString"]) {
-      expect((await fetch(`${baseUrl}/images/shows/${show.trakt}/${slot}.svg`)).status).toBe(200);
-    }
+    const response = await fetch(`${baseUrl}/images/shows/${show.trakt}/${slot}.png`);
+    expect(response.status).toBe(200);
+    const png = Buffer.from(await response.arrayBuffer());
+    expect(png.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
+    expect(png.readUInt32BE(16)).toBe(width);
+    expect(png.readUInt32BE(20)).toBe(height);
   });
 });
 

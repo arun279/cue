@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import path from "node:path";
 import { nativeAppConfig } from "../app.config";
 
 /**
@@ -20,6 +22,18 @@ describe("the native app config", () => {
     expect(config.orientation).toBe("default");
     expect(config.ios?.supportsTablet).toBe(true);
     expect(config.userInterfaceStyle).toBe("automatic");
+  });
+
+  it("uses committed launcher artwork", () => {
+    expect(config.icon).toBe("./assets/icon.png");
+    expect(config.android?.adaptiveIcon).toEqual({
+      foregroundImage: "./assets/icon-foreground.png",
+      backgroundColor: "#0e0c0a",
+    });
+    for (const asset of [config.icon, config.android?.adaptiveIcon?.foregroundImage]) {
+      expect(asset).toBeDefined();
+      expect(existsSync(path.resolve(__dirname, "..", asset ?? ""))).toBe(true);
+    }
   });
 
   it("takes the version and the build number from the environment", () => {
