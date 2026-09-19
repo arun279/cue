@@ -15,3 +15,4 @@ appId: app.cuetracker
 - assertTrue:
     condition: ${output.appIdleMedian <= parseFloat(APP_IDLE_CEILING_MS)}
     label: "${'Five-launch returning-user app-idle median ' + output.appIdleMedian + ' ms is at or below ' + APP_IDLE_CEILING_MS + ' ms'}"
+- takeScreenshot: up-next-returning-user

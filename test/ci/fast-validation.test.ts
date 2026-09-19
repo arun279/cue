@@ -64,15 +64,35 @@ describe("fast pull request validation", () => {
   });
 
   it("runs the app-idle measurement after flows that relaunch the app", () => {
-    const ios = readFileSync(repositoryPath(".maestro/ci/ios.yaml"), "utf8");
+    const suite = readFileSync(repositoryPath(".maestro/ci/app.yaml"), "utf8");
 
-    expect(ios.trimEnd()).toMatch(/returning-user-app-idle\.yaml$/);
+    expect(suite.trimEnd()).toMatch(/returning-user-app-idle\.yaml$/);
+  });
+
+  it("runs one shared Maestro suite on iOS and Android", () => {
+    const ios = job("native-ios");
+    const android = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
+
+    expect(ios).toContain("test .maestro/ci/app.yaml");
+    expect(android).toContain("test .maestro/ci/app.yaml");
   });
 
   it("uses a fixed Maestro driver port outside Android's ephemeral range", () => {
     const verification = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
 
-    expect(verification.match(/--driver-host-port 7001/g)).toHaveLength(2);
+    expect(verification.match(/--driver-host-port 7001/g)).toHaveLength(1);
+  });
+
+  it("publishes both screenshot artifacts with contact sheets for 14 days", () => {
+    const ios = job("native-ios");
+    const android = job("android-e2e");
+
+    expect(ios).toContain("name: ui-screenshots-ios");
+    expect(ios).toContain("create-ui-contact-sheet.sh");
+    expect(android).toContain("name: ui-screenshots-android");
+    expect(android).toContain("create-ui-contact-sheet.sh");
+    expect(ios.match(/retention-days: 14/g)).toHaveLength(1);
+    expect(android.match(/retention-days: 14/g)).toHaveLength(1);
   });
 
   it("measures render performance base then head on one runner", () => {

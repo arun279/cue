@@ -1,4 +1,8 @@
 appId: app.cuetracker
 ---
-- runFlow: lib/connect.yaml
+- runFlow:
+    file: lib/connect.yaml
+    env:
+      CAPTURE_AUTH: "true"
 - runFlow: lib/settle.yaml
+- takeScreenshot: up-next-populated

@@ -16,11 +16,13 @@ appId: app.cuetracker
     id: "episode-sheet"
 - assertVisible:
     id: "episode-mark-row"
+- takeScreenshot: episode-sheet-rest
 - tapOn: "Mark S2 E3 watched"
 - assertVisible:
     id: "snackbar"
 - assertVisible:
     id: "episode-sheet"
+- takeScreenshot: episode-sheet-marked
 - runFlow: lib/settle.yaml
 - tapOn:
     id: "snackbar-undo"
@@ -30,16 +32,27 @@ appId: app.cuetracker
     id: "episode-pager-next"
 - assertVisible:
     id: "episode-still-blur"
+- takeScreenshot: episode-sheet-spoiler
 - tapOn:
     id: "episode-still-reveal"
 - assertNotVisible:
     id: "episode-still-blur"
-# The sheet has no close button: it is dismissed the way UIKit dismisses one.
-- swipe:
-    start: "50%,55%"
-    end: "50%,98%"
-    duration: 300
+- takeScreenshot: episode-sheet-revealed
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - swipe:
+          start: "50%,55%"
+          end: "50%,98%"
+          duration: 300
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - pressKey: back
 - assertVisible:
     id: "screen-show-detail"
 - assertNotVisible:
     id: "episode-sheet"
+- takeScreenshot: show-detail-after-episode

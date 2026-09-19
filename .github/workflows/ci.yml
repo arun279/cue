@@ -385,18 +385,33 @@ jobs:
             sleep 1
           done
           exit 1
-      - name: Run returning-user and response flows
+      - name: Run the shared flows in light and dark
         env:
           DEVICE_ID: ${{ steps.simulator.outputs.device_id }}
           # https://web.dev/articles/rail
           APP_IDLE_CEILING_MS: "1000"
         run: |
-          maestro --device "$DEVICE_ID" test .maestro/ci/ios.yaml \
-            --env APP_IDLE_CEILING_MS="$APP_IDLE_CEILING_MS" \
-            --format JUNIT \
-            --output "$RUNNER_TEMP/maestro-results.xml" \
-            --debug-output "$RUNNER_TEMP/maestro-debug" \
-            --test-output-dir "$RUNNER_TEMP/maestro-tests"
+          result=0
+          xcrun simctl ui "$DEVICE_ID" content_size medium
+          for appearance in light dark; do
+            xcrun simctl ui "$DEVICE_ID" appearance "$appearance"
+            if ! maestro --device "$DEVICE_ID" test .maestro/ci/app.yaml \
+              --env APP_IDLE_CEILING_MS="$APP_IDLE_CEILING_MS" \
+              --format JUNIT \
+              --output "$RUNNER_TEMP/maestro-results-$appearance.xml" \
+              --debug-output "$RUNNER_TEMP/maestro-debug/$appearance" \
+              --test-output-dir "$RUNNER_TEMP/screenshots/ios/$appearance"; then
+              result=1
+            fi
+          done
+          exit "$result"
+      - name: Create iOS contact sheets
+        if: ${{ !cancelled() }}
+        run: |
+          for appearance in light dark; do
+            scripts/create-ui-contact-sheet.sh \
+              "$RUNNER_TEMP/screenshots/ios/$appearance" ios "$appearance"
+          done
       - name: Gate and summarize behavior timing
         if: ${{ !cancelled() }}
         env:
@@ -406,21 +421,27 @@ jobs:
           FEEDBACK_CEILING_MS: "100"
         run: |
           node scripts/summarize-app-idle.mjs \
-            "$RUNNER_TEMP/maestro-tests" \
+            "$RUNNER_TEMP/screenshots/ios/light" \
             "$APP_IDLE_CEILING_MS" \
             >> "$GITHUB_STEP_SUMMARY"
           node scripts/check-response-timing.mjs \
-            "$RUNNER_TEMP/maestro-tests" \
+            "$RUNNER_TEMP/screenshots/ios/light" \
             "$FEEDBACK_CEILING_MS" \
             >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ !cancelled() }}
+        with:
+          name: ui-screenshots-ios
+          path: ${{ runner.temp }}/screenshots/ios
+          if-no-files-found: error
+          retention-days: 14
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ !cancelled() }}
         with:
           name: native-e2e
           path: |
             ${{ runner.temp }}/maestro-debug/
-            ${{ runner.temp }}/maestro-tests/
-            ${{ runner.temp }}/maestro-results.xml
+            ${{ runner.temp }}/maestro-results-*.xml
             ${{ runner.temp }}/mock-trakt.log
           retention-days: 7
   native-e2e:
@@ -543,7 +564,7 @@ jobs:
           path: ${{ runner.temp }}/head-android-sizes.json
           retention-days: 30
   android-e2e:
-    timeout-minutes: 8
+    timeout-minutes: 14
     needs: [fingerprint, native-android]
     runs-on: ubuntu-latest
     env:
@@ -582,7 +603,21 @@ jobs:
           api-level: 35
           arch: x86_64
           profile: pixel_7_pro
-          script: bash scripts/verify-android-ui.sh "$RUNNER_TEMP/cue-native-android/universal.apk" "$RUNNER_TEMP/android-ui"
+          script: bash scripts/verify-android-ui.sh "$RUNNER_TEMP/cue-native-android/universal.apk" "$RUNNER_TEMP/android-ui" "$RUNNER_TEMP/screenshots/android"
+      - name: Create Android contact sheets
+        if: ${{ !cancelled() }}
+        run: |
+          for appearance in light dark; do
+            scripts/create-ui-contact-sheet.sh \
+              "$RUNNER_TEMP/screenshots/android/$appearance" android "$appearance"
+          done
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ !cancelled() }}
+        with:
+          name: ui-screenshots-android
+          path: ${{ runner.temp }}/screenshots/android
+          if-no-files-found: error
+          retention-days: 14
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ always() }}
         with:

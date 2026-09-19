@@ -1,0 +1,25 @@
+appId: app.cuetracker
+---
+- runScript: lib/reset-fake.js
+- assertTrue: ${output.fakeReset}
+- runFlow: lib/connect.yaml
+- assertVisible: "Up Next"
+- assertVisible: "Library"
+- assertVisible: "Calendar"
+- assertVisible: "Search"
+- tapOn: "Library"
+- assertVisible:
+    id: "screen-library"
+- takeScreenshot: library-tab-rest
+- tapOn: "Calendar"
+- assertVisible:
+    id: "screen-calendar"
+- takeScreenshot: calendar-empty
+- tapOn: "Search"
+- assertVisible:
+    id: "screen-search"
+- takeScreenshot: search-empty
+- tapOn: "Up Next"
+- assertVisible:
+    id: "screen-up-next"
+- takeScreenshot: up-next-tab-rest
