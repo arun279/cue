@@ -1,5 +1,5 @@
-import { execFileSync } from "node:child_process";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { gitEnv } from "../support/git-env";
@@ -8,7 +8,7 @@ import { tempDirectory } from "../support/temp-directory";
 
 const SCRIPT = repositoryPath("scripts/diff-footprint.sh");
 
-const write = (repository: string, file: string, contents: string | Uint8Array): void => {
+const write = (repository: string, file: string, contents: string): void => {
   const target = path.join(repository, file);
   mkdirSync(path.dirname(target), { recursive: true });
   writeFileSync(target, contents);
@@ -18,166 +18,93 @@ const git = (repository: string, ...args: string[]): void => {
   execFileSync("git", args, { cwd: repository, stdio: "ignore", env: gitEnv() });
 };
 
-const newRepository = (): string => {
+const repositoryWithGrowth = (): string => {
   const repository = tempDirectory("cue-diff-footprint-");
   git(repository, "init", "--quiet");
   git(repository, "config", "user.name", "Cue Tests");
   git(repository, "config", "user.email", "cue-tests@example.invalid");
+  write(repository, "packages/core/src/removed.ts", "const removed = true;\n");
+  write(repository, "packages/core/test/removed.ts", "removed\n");
+  git(repository, "add", ".");
+  git(repository, "commit", "--quiet", "-m", "base");
+  write(repository, "packages/core/src/removed.ts", "const kept = true;\n// reason\n");
+  write(repository, "packages/native/app/route.tsx", "export const route = true;\n");
+  write(repository, "packages/native/modules/module.ts", "export const module = true;\n");
+  write(repository, "packages/native/__tests__/added.ts", "one\ntwo\n");
+  git(repository, "add", "-A");
+  git(repository, "commit", "--quiet", "-m", "head");
   return repository;
 };
 
-const sizes = (ios: number, android: number) => [
-  { name: "expo iOS bundle", size: ios, sizeLimit: 4_450_000 },
-  { name: "expo Android bundle", size: android, sizeLimit: 4_830_000 },
-  {
-    name: "Firebase tester APK file",
-    size: 34_000_000,
-    sizeLimit: 40_000_000,
-    configuration: "arm64-v8a, all densities",
-  },
-  {
-    name: "Play download estimate",
-    size: 17_000_000,
-    sizeLimit: 20_000_000,
-    configuration: "XXXHDPI arm64-v8a, English, Android 15",
-  },
-  {
-    name: "iOS Release simulator app files",
-    size: 52_000_000,
-    sizeLimit: null,
-    configuration: "generic iOS Simulator",
-  },
-];
-
-const HEAD_METRICS = {
-  sizes: sizes(4_001_000, 4_200_000),
-  complexity: { functions: 496, max: 71, over15: 21, sum: 2484, mean: 5.01 },
-  comments: {
-    packages: {
-      core: { code: 3000, comments: 1200, blank: 100, density: 28.57 },
-      native: { code: 3000, comments: 800, blank: 200, density: 21.05 },
-    },
-    total: { code: 6000, comments: 2000, blank: 300, density: 25 },
-  },
-};
-
-const BASE_METRICS = {
-  sizes: sizes(4_000_000, 4_200_000),
-  complexity: { functions: 480, max: 60, over15: 18, sum: 2400, mean: 5 },
-  comments: {
-    packages: {
-      core: { code: 3000, comments: 1100, blank: 100, density: 26.83 },
-      native: { code: 3000, comments: 750, blank: 200, density: 20 },
-    },
-    total: { code: 6000, comments: 1850, blank: 300, density: 23.57 },
-  },
-};
-
-const runWithMetrics = (base: unknown): string => {
-  const repository = newRepository();
-  write(repository, "packages/native/src/only.ts", "const only = true;\n");
-  git(repository, "add", ".");
-  git(repository, "commit", "--quiet", "-m", "base");
-  git(repository, "commit", "--quiet", "--allow-empty", "-m", "head");
-  write(repository, "base-metrics.json", JSON.stringify(base));
-  write(repository, "head-metrics.json", JSON.stringify(HEAD_METRICS));
-
-  return execFileSync(SCRIPT, ["HEAD~1", "base-metrics.json", "head-metrics.json"], {
-    cwd: repository,
-    encoding: "utf8",
-    env: gitEnv(),
-  });
-};
+const rationale = "Product-Growth: New route and module.\nComment-Load: Required context.";
 
 describe("diff footprint", () => {
-  it("reports area totals and product line types from the same uncompressed diff", () => {
-    const repository = newRepository();
-
-    write(repository, "packages/core/src/removed.ts", "const removed = true;\n// removed\n\n");
-    write(repository, "packages/core/test/moved.ts", "one\ntwo\n");
-    write(repository, "packages/native/e2e/removed.ts", "removed\n");
-    write(repository, "docs/removed.md", "removed\n");
-    write(repository, "assets/image.bin", new Uint8Array([0, 1, 2]));
-    git(repository, "add", ".");
-    git(repository, "commit", "--quiet", "-m", "base");
-
-    git(repository, "mv", "packages/core/test/moved.ts", "packages/core/src/moved.ts");
-    rmSync(path.join(repository, "packages/core/src/removed.ts"));
-    rmSync(path.join(repository, "packages/native/e2e/removed.ts"));
-    rmSync(path.join(repository, "docs/removed.md"));
-    write(repository, "packages/core/src/added.ts", "const added = true;\n /* added */\n \n");
-    write(repository, "packages/core/test/added.ts", "added\n");
-    write(repository, "packages/native/e2e/added.ts", "one\ntwo\n");
-    write(repository, "docs/added.md", "one\ntwo\nthree\n");
-    write(repository, "assets/image.bin", new Uint8Array([0, 3, 4]));
-    git(repository, "add", "-A");
-    git(repository, "commit", "--quiet", "-m", "change");
-
+  it("shows the three requested growth signals", () => {
+    const repository = repositoryWithGrowth();
     const output = execFileSync(SCRIPT, ["HEAD~1"], {
       cwd: repository,
       encoding: "utf8",
-      env: gitEnv(),
+      env: { ...gitEnv(), PR_BODY: rationale },
     });
 
     expect(output.split("\n")[0]).toBe("<!-- diff-footprint -->");
-    expect(output).toContain("| product (packages/*/src/) | 5 | 3 | +2 |");
-    expect(output).toContain("| tests (packages/*/test/) | 1 | 2 | -1 |");
-    expect(output).toContain("| e2e (packages/*/e2e/) | 2 | 1 | +1 |");
-    expect(output).toContain("| other | 3 | 1 | +2 |");
-    expect(output).toContain("| total | 11 | 7 | +4 |");
     expect(output).toContain(
-      "Product lines: code +3 / -1 (net +2), comments +1 / -1, blank +1 / -1",
+      "| Product code lines in core/src, native/src, native/app, and native/modules | +2 |",
     );
+    expect(output).toContain("| Test lines in test, __tests__, and e2e paths | +2 |");
+    expect(output).toContain("| Product comment lines identified by a comment prefix | +1 |");
+    expect(output).not.toContain("other");
+    expect(output).not.toContain("blank");
   });
 
-  it("reports every metric as a base-to-head delta", () => {
-    const output = runWithMetrics(BASE_METRICS);
+  it.each([
+    ["Product-Growth: ", "Product code grew"],
+    ["Product-Growth: New route.\nComment-Load: ", "Product comments grew"],
+  ])("requires a non-empty growth rationale", (body, error) => {
+    const result = spawnSync(SCRIPT, ["HEAD~1"], {
+      cwd: repositoryWithGrowth(),
+      encoding: "utf8",
+      env: { ...gitEnv(), PR_BODY: body },
+    });
 
-    expect(output).toContain(
-      "| Expo iOS JavaScript bundle, raw file | 4.00 MB | 4.00 MB | +1.0 kB | 4450 kB |",
-    );
-    expect(output).toContain(
-      "| Expo Android JavaScript bundle, raw file | 4.20 MB | 4.20 MB | 0 B | 4830 kB |",
-    );
-    expect(output).toContain(
-      "| Firebase tester APK file | 34.00 MB (arm64-v8a, all densities) | 34.00 MB (arm64-v8a, all densities) | 0 B | 40000 kB |",
-    );
-    expect(output).toContain(
-      "| Play download estimate | 17.00 MB (XXXHDPI arm64-v8a, English, Android 15) | 17.00 MB (XXXHDPI arm64-v8a, English, Android 15) | 0 B | 20000 kB |",
-    );
-    expect(output).toContain(
-      "| iOS Release simulator .app file bytes | 52.00 MB (generic iOS Simulator) | 52.00 MB (generic iOS Simulator) | 0 B | 64 kB delta |",
-    );
-    expect(output).toContain("| functions over cognitive complexity 15 | 18 | 21 | +3 |");
-    expect(output).toContain("| worst cognitive complexity | 60 | 71 | +11 |");
-    expect(output).toContain(
-      "| mean cognitive complexity (functions scoring 2 or more) | 5.00 | 5.01 | +0.01 |",
-    );
-    expect(output).toContain("| product comment density | 23.57 percent | 25.00 percent | +1.43 |");
-    expect(output).toContain("| core comment density | 26.83 percent | 28.57 percent | +1.74 |");
-    expect(output).toContain("| native comment density | 20.00 percent | 21.05 percent | +1.05 |");
-    expect(output).not.toContain("n/a");
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(error);
   });
 
-  it("reads a base it could not measure as unavailable instead of as zero", () => {
-    const output = runWithMetrics({ sizes: null, complexity: null, comments: null });
+  it("shows the four delivered artifact measurements", () => {
+    const repository = repositoryWithGrowth();
+    const sizes = [
+      { name: "expo iOS bundle", size: 4_000_000 },
+      { name: "expo Android bundle", size: 4_200_000 },
+      { name: "Firebase tester APK file", size: 34_000_000 },
+      { name: "Play download estimate", size: 17_000_000 },
+    ];
+    write(repository, "base.json", JSON.stringify({ sizes }));
+    write(
+      repository,
+      "head.json",
+      JSON.stringify({
+        sizes: sizes.map((entry, index) => ({
+          ...entry,
+          size: entry.size + (index === 0 ? 1_000 : 0),
+        })),
+      }),
+    );
+
+    const output = execFileSync(SCRIPT, ["HEAD~1", "base.json", "head.json"], {
+      cwd: repository,
+      encoding: "utf8",
+      env: { ...gitEnv(), PR_BODY: rationale },
+    });
 
     expect(output).toContain(
-      "| Expo iOS JavaScript bundle, raw file | n/a | 4.00 MB | n/a | 4450 kB |",
+      "| Expo iOS JavaScript bundle, raw file | 4.00 MB | 4.00 MB | +1.0 kB |",
     );
-    expect(output).toContain("| functions over cognitive complexity 15 | n/a | 21 | n/a |");
-    expect(output).toContain("| product comment density | n/a | 25.00 percent | n/a |");
     expect(output).toContain(
-      "The merge base does not contain the measured packages, so its columns read n/a.",
+      "| Firebase tester APK, arm64-v8a and all densities | 34.00 MB | 34.00 MB | 0 B |",
     );
-  });
-
-  it("reports an unavailable base iOS measurement as n/a", () => {
-    const base = structuredClone(BASE_METRICS);
-    base.sizes = base.sizes.filter(({ name }) => name !== "iOS Release simulator app files");
-
-    expect(runWithMetrics(base)).toContain(
-      "| iOS Release simulator .app file bytes | n/a | 52.00 MB (generic iOS Simulator) | n/a | 64 kB delta |",
-    );
+    expect(output).not.toContain("simulator");
+    expect(output).not.toContain("complexity");
+    expect(output).not.toContain("density");
   });
 });

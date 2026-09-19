@@ -13,6 +13,8 @@ finish() {
 }
 trap finish EXIT
 
+adb shell settings put global hide_error_dialogs 1
+
 capture() {
   adb exec-out screencap -p > "$output/$1.png"
   adb shell uiautomator dump /sdcard/cue-ui.xml > "$output/$1-dump.log"
@@ -57,9 +59,11 @@ for theme in light dark; do
         exit 1
       }
     done
-    if [ "$index" -ne 0 ]; then
-      grep -Fq "${labels[$index]} is coming soon." "$output/$name.xml"
-    fi
+    case "${names[$index]}" in
+      up-next) ;;
+      library) grep -Fq "screen-library" "$output/$name.xml" ;;
+      *) grep -Fq "${labels[$index]} is coming soon." "$output/$name.xml" ;;
+    esac
   done
 done
 
@@ -74,3 +78,7 @@ for icon in up_next library calendar search; do
     exit 1
   }
 done
+
+adb shell dumpsys activity exit-info app.cuetracker > "$output/exit-info.txt"
+adb logcat -d -v threadtime > "$output/logcat.txt"
+bash scripts/assert-no-anr.sh "$output/exit-info.txt" "$output/logcat.txt"

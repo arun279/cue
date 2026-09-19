@@ -19,10 +19,7 @@ for (const [name, expected] of baseline) {
     continue;
   }
 
-  const durationChange = ((measured.meanDuration / expected.meanDuration - 1) * 100).toFixed(1);
-  process.stdout.write(
-    `${name}: renders ${expected.meanCount} -> ${measured.meanCount}; duration ${expected.meanDuration.toFixed(3)} ms -> ${measured.meanDuration.toFixed(3)} ms (${durationChange}%)\n`,
-  );
+  process.stdout.write(`${name}: renders ${expected.meanCount} -> ${measured.meanCount}\n`);
   if (measured.meanCount !== expected.meanCount) {
     process.stderr.write(
       `Render count difference exceeded the allowed deviation of 0: ${name} (${expected.meanCount} -> ${measured.meanCount})\n`,

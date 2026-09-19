@@ -1,161 +1,98 @@
 #!/usr/bin/env bash
-# Usage: diff-footprint.sh <base-ref> [base-metrics.json] [head-metrics.json]
-#
-# Reports the changed-line footprint against a pull request's merge base.
 set -euo pipefail
 
-usage() {
+if [ "$#" -ne 1 ] && [ "$#" -ne 3 ]; then
   echo "Usage: scripts/diff-footprint.sh <base-ref> [base-metrics.json] [head-metrics.json]" >&2
   exit 1
-}
+fi
 
-[ "$#" -eq 1 ] || [ "$#" -eq 3 ] || usage
-base_ref=$1
-base_metrics=${2:-}
-head_metrics=${3:-}
-base_commit=$(git rev-parse --verify --end-of-options "${base_ref}^{commit}" 2>/dev/null) || usage
+base=$(git rev-parse --verify --end-of-options "$1^{commit}")
+product_paths=(
+  ':(glob)packages/core/src/**'
+  ':(glob)packages/native/src/**'
+  ':(glob)packages/native/app/**'
+  ':(glob)packages/native/modules/**'
+)
+read -r product_added product_removed comment_added comment_removed < <(
+  git diff --no-renames --unified=0 --no-color "$base"...HEAD -- "${product_paths[@]}" | awk '
+    function count(line, direction) {
+      sub(/^[[:space:]]+/, "", line)
+      if (line == "") return
+      if (line ~ /^(\/\/|\/\*|\*)/) comments[direction]++
+      else product[direction]++
+    }
+    /^diff --git / { in_hunk = 0; next }
+    /^@@/ { in_hunk = 1; next }
+    in_hunk && /^\+/ { count(substr($0, 2), "added"); next }
+    in_hunk && /^-/ { count(substr($0, 2), "removed") }
+    END {
+      printf "%d %d %d %d\n", product["added"], product["removed"], comments["added"], comments["removed"]
+    }
+  '
+)
+read -r test_added test_removed < <(
+  git diff --no-renames --numstat "$base"...HEAD -- \
+    ':(glob)packages/*/test/**' \
+    ':(glob)packages/*/__tests__/**' \
+    ':(glob)packages/*/e2e/**' | awk '
+      { added += $1 == "-" ? 0 : $1; removed += $2 == "-" ? 0 : $2 }
+      END { printf "%d %d\n", added, removed }
+    '
+)
 
-git diff --no-renames --numstat "$base_commit"...HEAD | awk '
-  BEGIN { FS = "\t" }
-  function area(path) {
-    if (path ~ /^packages\/[^\/]+\/src\//) return "product"
-    if (path ~ /^packages\/[^\/]+\/(test|__tests__)\//) return "tests"
-    if (path ~ /^packages\/[^\/]+\/e2e\//) return "e2e"
-    return "other"
-  }
-  {
-    added = $1 == "-" ? 0 : $1
-    removed = $2 == "-" ? 0 : $2
-    bucket = area($3)
-    adds[bucket] += added
-    removes[bucket] += removed
-    total_added += added
-    total_removed += removed
-  }
-  function row(label, bucket, added, removed) {
-    added = adds[bucket] + 0
-    removed = removes[bucket] + 0
-    printf "| %s | %d | %d | %+d |\n", label, added, removed, added - removed
-  }
-  END {
-    print "<!-- diff-footprint -->"
-    print "### Diff footprint"
-    print ""
-    print "| area | added | removed | net |"
-    print "| --- | ---: | ---: | ---: |"
-    row("product (packages/*/src/)", "product")
-    row("tests (packages/*/test/)", "tests")
-    row("e2e (packages/*/e2e/)", "e2e")
-    row("other", "other")
-    printf "| total | %d | %d | %+d |\n", total_added, total_removed, total_added - total_removed
-    print ""
-  }
-'
+product_net=$((product_added - product_removed))
+test_net=$((test_added - test_removed))
+comment_net=$((comment_added - comment_removed))
+cat <<EOF
+<!-- diff-footprint -->
+### Pull request footprint
 
-git diff --no-renames --unified=0 --no-color "$base_commit"...HEAD -- ':(glob)packages/*/src/**' | awk '
-  function classify(line, direction) {
-    sub(/^[[:space:]]+/, "", line)
-    if (line == "") kind = "blank"
-    else if (line ~ /^(\/\/|\/\*|\*)/) kind = "comments"
-    else kind = "code"
-    counts[kind, direction]++
-  }
-  /^diff --git / { in_hunk = 0; next }
-  /^@@/ { in_hunk = 1; next }
-  in_hunk && /^\+/ { classify(substr($0, 2), "added"); next }
-  in_hunk && /^-/ { classify(substr($0, 2), "removed") }
-  END {
-    net = counts["code", "added"] - counts["code", "removed"]
-    printf "Product lines: code +%d / -%d (net %+d), comments +%d / -%d, blank +%d / -%d\n", \
-      counts["code", "added"], counts["code", "removed"], net, \
-      counts["comments", "added"], counts["comments", "removed"], \
-      counts["blank", "added"], counts["blank", "removed"]
-    print "Line types are split by line prefix after leading whitespace."
-  }
-'
+| measurement | base to head |
+| --- | ---: |
+| Product code lines in core/src, native/src, native/app, and native/modules | $(printf '%+d' "$product_net") |
+| Test lines in test, __tests__, and e2e paths | $(printf '%+d' "$test_net") |
+| Product comment lines identified by a comment prefix | $(printf '%+d' "$comment_net") |
+EOF
 
-if [ -r "$base_metrics" ] && [ -r "$head_metrics" ]; then
-  node --input-type=module - "$base_metrics" "$head_metrics" <<'NODE'
+if [ "$#" -eq 3 ]; then
+  node --input-type=module - "$2" "$3" <<'NODE'
 import { readFileSync } from "node:fs";
 
 const [basePath, headPath] = process.argv.slice(2);
 const base = JSON.parse(readFileSync(basePath, "utf8"));
 const head = JSON.parse(readFileSync(headPath, "utf8"));
 const byName = (entries) => Object.fromEntries(entries.map((entry) => [entry.name, entry]));
-const baseSizes = base.sizes === null ? null : byName(base.sizes);
-const headSizes = byName(head.sizes);
-
+const before = byName(base.sizes ?? []);
+const after = byName(head.sizes);
 const bytes = (value) =>
   value >= 1_000_000 ? `${(value / 1_000_000).toFixed(2)} MB` : `${(value / 1000).toFixed(1)} kB`;
-const deltaBytes = (value) => {
-  if (value === 0) return "0 B";
-  const sign = value > 0 ? "+" : "-";
-  const magnitude = Math.abs(value);
-  return magnitude < 1000
-    ? `${sign}${magnitude} B`
-    : magnitude < 1_000_000
-      ? `${sign}${(magnitude / 1000).toFixed(1)} kB`
-      : `${sign}${(magnitude / 1_000_000).toFixed(2)} MB`;
-};
-const signed = (value, digits = 0) =>
-  value === 0 ? (digits === 0 ? "0" : value.toFixed(digits)) : `${value > 0 ? "+" : ""}${value.toFixed(digits)}`;
-const sizeRows = [
+const delta = (value) => (value === 0 ? "0 B" : `${value > 0 ? "+" : ""}${bytes(value)}`);
+const rows = [
   ["Expo iOS JavaScript bundle, raw file", "expo iOS bundle"],
   ["Expo Android JavaScript bundle, raw file", "expo Android bundle"],
-  ["Firebase tester APK file", "Firebase tester APK file"],
-  ["Play download estimate", "Play download estimate"],
-  ["iOS Release simulator .app file bytes", "iOS Release simulator app files"],
+  ["Firebase tester APK, arm64-v8a and all densities", "Firebase tester APK file"],
+  ["Play download estimate, XXXHDPI arm64-v8a English Android 15", "Play download estimate"],
 ];
 
-process.stdout.write("\n### Size measurements\n\n");
-process.stdout.write("| measurement | base | head | delta | limit |\n");
-process.stdout.write("| --- | ---: | ---: | ---: | ---: |\n");
-for (const [label, name] of sizeRows) {
-  const before = baseSizes?.[name];
-  const after = headSizes[name];
-  const describe = (entry) =>
-    entry.configuration === undefined ? bytes(entry.size) : `${bytes(entry.size)} (${entry.configuration})`;
-  const baseCell = before === undefined ? "n/a" : describe(before);
-  const deltaCell = before === undefined ? "n/a" : deltaBytes(after.size - before.size);
-  const limitCell = after.sizeLimit === null ? "64 kB delta" : `${after.sizeLimit / 1000} kB`;
-  process.stdout.write(
-    `| ${label} | ${baseCell} | ${describe(after)} | ${deltaCell} | ${limitCell} |\n`,
-  );
-}
-
-const complexityRows = [
-  ["functions over cognitive complexity 15", base.complexity?.over15, head.complexity.over15, 0],
-  ["worst cognitive complexity", base.complexity?.max, head.complexity.max, 0],
-  [
-    "mean cognitive complexity (functions scoring 2 or more)",
-    base.complexity?.mean,
-    head.complexity.mean,
-    2,
-  ],
-  ["product comment density", base.comments?.total.density, head.comments.total.density, 2],
-  ...["core", "native"].map((name) => [
-    `${name} comment density`,
-    base.comments?.packages[name].density,
-    head.comments.packages[name].density,
-    2,
-  ]),
-];
-process.stdout.write("\n### Complexity and comments\n\n");
-process.stdout.write("| metric | base | head | delta |\n");
+process.stdout.write("\n### User-delivered artifact sizes\n\n");
+process.stdout.write("| measurement | base | head | delta |\n");
 process.stdout.write("| --- | ---: | ---: | ---: |\n");
-for (const [label, before, after, digits] of complexityRows) {
-  const suffix = label.endsWith("comment density") ? " percent" : "";
-  const baseCell = before === undefined ? "n/a" : `${before.toFixed(digits)}${suffix}`;
-  const deltaCell = before === undefined ? "n/a" : signed(after - before, digits);
-  process.stdout.write(
-    `| ${label} | ${baseCell} | ${after.toFixed(digits)}${suffix} | ${deltaCell} |\n`,
-  );
-}
-
-if (base.sizes === null || base.complexity === null || base.comments === null) {
-  process.stdout.write(
-    "\nThe merge base does not contain the measured packages, so its columns read n/a.\n",
-  );
+for (const [label, name] of rows) {
+  const baseEntry = before[name];
+  const headEntry = after[name];
+  if (headEntry === undefined) throw new Error(`${name}: missing head measurement`);
+  const baseCell = baseEntry === undefined ? "missing" : bytes(baseEntry.size);
+  const deltaCell = baseEntry === undefined ? "missing" : delta(headEntry.size - baseEntry.size);
+  process.stdout.write(`| ${label} | ${baseCell} | ${bytes(headEntry.size)} | ${deltaCell} |\n`);
 }
 NODE
+fi
+
+if [ "$product_net" -gt 0 ] && ! grep -Eq '^Product-Growth: .+' <<<"${PR_BODY:-}"; then
+  echo 'Product code grew. Add "Product-Growth: <rationale>" to the PR body.' >&2
+  exit 1
+fi
+if [ "$comment_net" -gt 0 ] && ! grep -Eq '^Comment-Load: .+' <<<"${PR_BODY:-}"; then
+  echo 'Product comments grew. Add "Comment-Load: <rationale>" to the PR body.' >&2
+  exit 1
 fi
