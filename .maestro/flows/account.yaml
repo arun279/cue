@@ -1,0 +1,107 @@
+appId: app.cuetracker
+---
+- runScript: lib/reset-fake.js
+- assertTrue: ${output.fakeReset}
+- runFlow: lib/connect.yaml
+- tapOn:
+    id: "avatar-link"
+- assertVisible:
+    id: "screen-profile"
+- assertVisible:
+    id: "profile-identity"
+- assertVisible: "Cue Demo"
+- assertVisible:
+    id: "profile-stat-shows"
+- waitForAnimationToEnd
+- takeScreenshot: account-profile
+- tapOn:
+    id: "profile-to-settings"
+- assertVisible:
+    id: "screen-settings"
+- scrollUntilVisible:
+    element:
+      id: "switch-movies"
+- tapOn:
+    id: "switch-movies"
+- tapOn: "Profile"
+- tapOn:
+    id: "close-account"
+- assertVisible:
+    id: "screen-up-next"
+- tapOn: "Library"
+- assertVisible:
+    id: "screen-library"
+- assertNotVisible:
+    id: "library-segment-movies"
+- tapOn:
+    id: "avatar-link"
+- tapOn:
+    id: "profile-to-settings"
+- scrollUntilVisible:
+    element:
+      id: "switch-movies"
+- tapOn:
+    id: "switch-movies"
+- scrollUntilVisible:
+    element:
+      id: "settings-version"
+- assertVisible:
+    text: "[0-9]+\\.[0-9]+\\.[0-9]+ \\([0-9]+\\)"
+- assertVisible:
+    id: "settings-powered-by"
+- assertVisible:
+    id: "settings-attribution"
+- waitForAnimationToEnd
+- takeScreenshot: account-settings-about
+- scrollUntilVisible:
+    element:
+      id: "settings-delete"
+- assertVisible: "Manage Trakt account"
+- assertVisible: "Delete your Trakt account"
+- tapOn:
+    id: "sign-out"
+- assertVisible: "Sign out of Cue?"
+- assertVisible: "Your Trakt history stays on Trakt."
+- tapOn: "Cancel"
+- assertVisible:
+    id: "screen-settings"
+- tapOn: "Profile"
+- tapOn:
+    id: "close-account"
+- assertVisible:
+    id: "library-segment-movies"
+- tapOn: "Up Next"
+- runScript: lib/hold-account-write.js
+- assertTrue: ${output.writeHeld}
+- tapOn:
+    id: "queue-row-[0-9]+-mark"
+    index: 0
+- tapOn:
+    id: "avatar-link"
+- tapOn:
+    id: "profile-to-settings"
+- scrollUntilVisible:
+    element:
+      id: "sign-out"
+- tapOn:
+    id: "sign-out"
+- tapOn:
+    text: "Sign out"
+- extendedWaitUntil:
+    visible:
+      id: "sign-out-error"
+    timeout: 120000
+- assertVisible: "Some changes haven't synced yet. Reconnect to the internet, then try signing out again."
+- assertVisible:
+    id: "screen-settings"
+- waitForAnimationToEnd
+- takeScreenshot: account-sign-out-refused
+- runScript: lib/release-account-write.js
+- assertTrue: ${output.writeReleased}
+- tapOn:
+    id: "sign-out"
+- tapOn: "Sign out"
+- extendedWaitUntil:
+    visible:
+      id: "screen-onboarding"
+    timeout: 30000

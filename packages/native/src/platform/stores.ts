@@ -1,5 +1,6 @@
 import type { KeyValueStore } from "@cue/core/ports/kv";
 import type { PreferenceStorage } from "@cue/core/ports/preference-storage";
+import { createPrefsStore, type PrefsStore } from "@cue/core/prefs/prefs-store";
 import * as SecureStore from "expo-secure-store";
 import Storage from "expo-sqlite/kv-store";
 
@@ -75,6 +76,7 @@ export const preferenceStorage: PreferenceStorage = {
 
 /** What sign-out drops: this device's preferences, and nothing account-agnostic
  * that lives beside them. */
-export const clearLocalPreferences = (): void => {
+export const clearLocalPreferences = (store: PrefsStore): void => {
   preferenceStorage.clearNamespace("cue.");
+  store.setState(createPrefsStore(preferenceStorage).getState());
 };

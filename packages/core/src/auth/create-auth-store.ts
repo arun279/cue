@@ -1,5 +1,5 @@
 import { createStore } from "zustand/vanilla";
-import { PendingWritesError, sessionTeardown } from "../app/session";
+import { sessionTeardown } from "../app/session";
 import {
   buildAuthorizeUrl,
   type DeviceTokenResult,
@@ -185,11 +185,7 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
 
       async disconnect() {
         activeAttempt += 1;
-        try {
-          await sessionTeardown.run();
-        } catch (error) {
-          if (error instanceof PendingWritesError) throw error;
-        }
+        await sessionTeardown.run();
         const token = await deps.tokenStore.read();
         if (token !== null) await revokeToken(config, token.access_token).catch(() => undefined);
         await deps.tokenStore.clear();

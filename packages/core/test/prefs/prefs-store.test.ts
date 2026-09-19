@@ -14,6 +14,7 @@ describe("createPrefsStore defaults", () => {
     expect(state.hideStillsUntilWatched).toBe(true);
     expect(state.nextEpisodeOrder).toBe("oldest-unwatched");
     expect(state.lapsedOrder).toBe("recently-watched");
+    expect(state.theme).toBe("system");
   });
 
   it("reads a stored choice back and coerces a malformed one", () => {
