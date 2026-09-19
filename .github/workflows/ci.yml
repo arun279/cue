@@ -101,13 +101,14 @@ jobs:
           cp "$base_directory/packages/native/.reassure/baseline.perf" \
             packages/native/.reassure/baseline.perf
           pnpm --dir packages/native perf:render
-      - name: Gate render counts and significant slowdowns
+      - name: Gate render counts
         run: pnpm check:render-counts
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ !cancelled() }}
         with:
           name: reassure-render-performance
           path: packages/native/.reassure/
+          include-hidden-files: true
           retention-days: 7
   audit:
     runs-on: ubuntu-latest

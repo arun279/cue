@@ -73,7 +73,8 @@ describe("fast pull request validation", () => {
       /git worktree add[\s\S]*perf:render --baseline --compare=false[\s\S]*perf:render\n/,
     );
     expect(render).toContain("packages/native/.reassure/baseline.perf");
-    expect(render).toContain("Gate render counts and significant slowdowns");
+    expect(render).toContain("Gate render counts");
+    expect(render).toContain("include-hidden-files: true");
   });
 
   it("asserts zero Android ANRs after exercising the release app", () => {

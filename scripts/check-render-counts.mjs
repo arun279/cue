@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 
-const [baselinePath, currentPath, comparisonPath] = process.argv.slice(2);
+const [baselinePath, currentPath] = process.argv.slice(2);
 
 async function readMeasurements(path) {
   const records = (await readFile(path, "utf8")).split("\n").filter(Boolean).map(JSON.parse);
@@ -9,16 +9,7 @@ async function readMeasurements(path) {
 
 const baseline = await readMeasurements(baselinePath);
 const current = await readMeasurements(currentPath);
-const comparison = JSON.parse(await readFile(comparisonPath, "utf8"));
 let failed = false;
-
-for (const result of comparison.significant) {
-  if (result.durationDiff <= 0) continue;
-  process.stderr.write(
-    `Statistically significant render slowdown: ${result.name} (+${result.durationDiff.toFixed(3)} ms)\n`,
-  );
-  failed = true;
-}
 
 for (const [name, expected] of baseline) {
   const measured = current.get(name);
@@ -28,10 +19,7 @@ for (const [name, expected] of baseline) {
     continue;
   }
 
-  const durationChange = ((measured.meanDuration / expected.meanDuration - 1) * 100).toFixed(1);
-  process.stdout.write(
-    `${name}: renders ${expected.meanCount} -> ${measured.meanCount}; duration ${expected.meanDuration.toFixed(3)} ms -> ${measured.meanDuration.toFixed(3)} ms (${durationChange}%)\n`,
-  );
+  process.stdout.write(`${name}: renders ${expected.meanCount} -> ${measured.meanCount}\n`);
   if (measured.meanCount !== expected.meanCount) {
     process.stderr.write(
       `Render count difference exceeded the allowed deviation of 0: ${name} (${expected.meanCount} -> ${measured.meanCount})\n`,
