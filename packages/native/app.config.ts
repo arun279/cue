@@ -65,6 +65,7 @@ export function nativeAppConfig(env: Readonly<Record<string, string | undefined>
   return {
     name: "Cue",
     slug: "cue",
+    owner: "arunkris",
     scheme: "cue",
     version: env["APP_VERSION"] ?? "2.0.0",
     icon: "./assets/icon.png",
@@ -148,10 +149,14 @@ export function nativeAppConfig(env: Readonly<Record<string, string | undefined>
       ["./plugins/with-android-privacy", { apiBase: mockTrakt }],
       "./plugins/with-ios-scene-lifecycle",
     ],
-    // No OTA updates: the app ships through the stores, and an updates client
-    // that is enabled by default is a runtime and a permission surface for a
-    // service this app does not use.
-    updates: { enabled: false },
+    runtimeVersion: { policy: "fingerprint" },
+    updates: {
+      url: "https://u.expo.dev/2f8d848b-c45a-4883-a077-0e1a03455af9",
+      checkAutomatically: "ON_LOAD",
+      fallbackToCacheTimeout: 0,
+      requestHeaders: { "expo-channel-name": env["EAS_UPDATE_CHANNEL"] ?? "preview" },
+    },
+    extra: { eas: { projectId: "2f8d848b-c45a-4883-a077-0e1a03455af9" } },
     experiments: { typedRoutes: true },
   };
 }

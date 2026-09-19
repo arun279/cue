@@ -61,7 +61,15 @@ Core tests use Vitest with coverage thresholds of 90/90/90/80 for the domain, da
 
 ## Releasing
 
-`.github/workflows/mobile-release.yml` builds and ships the app. A push to `main` goes to testers, a `v*` tag submits to the App Store, and a manual dispatch can run either lane. Each release waits for the required CI checks on the exact commit being shipped.
+`.github/workflows/mobile-release.yml` builds and ships the app. A `v*` tag submits to the App Store, and a manual dispatch can run either the tester or store lane. Each release waits for the required CI checks on the exact commit being shipped.
+
+## Shipping JavaScript updates
+
+EAS Update can replace JavaScript and bundled assets. It cannot change native modules, permissions, app configuration, or other native code. The fingerprint runtime policy only offers an update to compatible installed builds, so any native change requires a new tester or store build.
+
+To publish, open GitHub Actions, choose **Publish update**, select **Run workflow**, choose the exact ref and the `preview` or `production` channel, write a required message, and run it. Nothing publishes on a push, pull request, merge, or schedule. A downloaded update applies on the next cold start.
+
+To recover from a bad update, run `eas update:republish` to make a known good update current again, or `eas update:rollback` to select a previous or embedded update. Test rollback compatibility with any persisted state the bad update may have changed.
 
 ## Attribution
 
