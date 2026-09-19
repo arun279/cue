@@ -19,7 +19,7 @@ capture() {
   adb exec-out cat /sdcard/cue-ui.xml > "$output/$1.xml"
 }
 
-pnpm mock:trakt > "$output/mock-trakt.log" 2>&1 &
+node scripts/mock-trakt/server.mjs > "$output/mock-trakt.log" 2>&1 &
 mock_pid=$!
 ready=0
 for _ in {1..30}; do
