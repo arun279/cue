@@ -167,12 +167,6 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
   gate:
-    # Second layer of the CI gate. Branch protection is the first and keeps red
-    # commits off main; this job re-checks the exact commit about to ship, so a
-    # bypassed, misconfigured or later-edited ruleset cannot quietly release an
-    # unverified build. The required names below are a deliberate copy of the
-    # ruleset's contexts rather than a read of it: a gate that asks the thing it
-    # guards whether that thing is happy is not a gate. Keep the two in step.
     runs-on: ubuntu-latest
     # Raised with the two native jobs: they generate both projects from scratch
     # and then compile them, so the gate now waits on a slower set than it did.
