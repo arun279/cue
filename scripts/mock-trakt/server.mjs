@@ -11,7 +11,9 @@
  * ever quotes the request.
  */
 
+import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
+import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createFaults, FAULT_PROFILE_NAMES, faultResponse, faultsFromEnv } from "./faults.mjs";
 import { createJournal } from "./journal.mjs";
@@ -85,54 +87,18 @@ const findShow = (library, id) =>
 const findMovie = (library, id) =>
   library.movies.find((movie) => movie.trakt === Number(id) || movie.slug === id);
 
-const ASPECTS = new Map([
-  ["poster", [400, 600]],
-  ["avatar", [240, 240]],
-]);
+const PLACEHOLDERS = new Map(
+  ["poster", "avatar", "fanart"].map((slot) => [
+    slot,
+    readFileSync(join(import.meta.dirname, `${slot}.png`)),
+  ]),
+);
 
-const XML_ESCAPES = { "&": "&amp;", "<": "&lt;", ">": "&gt;" };
-
-const xmlText = (value) => value.replace(/[&<>]/g, (char) => XML_ESCAPES[char]);
-
-/** Initials, so a poster in a screenshot is identifiable rather than a grey box. */
-function imageLabel(library, kind, id) {
-  if (kind === "episodes") {
-    const show = library.shows.find((item) => item.episodes.some((ep) => ep.traktId === id));
-    const episode = show?.episodes.find((ep) => ep.traktId === id);
-    return episode === undefined ? "?" : `S${episode.season}E${episode.number}`;
-  }
-  const title =
-    kind === "movies"
-      ? findMovie(library, String(id))?.title
-      : findShow(library, String(id))?.title;
-  if (title === undefined) return kind === "users" ? "CD" : "?";
-  return title
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((word) => word[0].toUpperCase())
-    .join("");
-}
-
-/**
- * A generated placeholder for every image the seed points at. Trakt serves
- * host-relative image paths; these are absolute on the mock's own origin because
- * the app upgrades a scheme-less URL to https (`src/data/image-source.ts`), which
- * a local plain-HTTP mock could never answer.
- */
-function placeholderImage(library, kind, id, slot) {
-  const [width, height] = ASPECTS.get(slot) ?? [640, 360];
-  const hue = Math.round((id * 37) % 360);
-  const label = imageLabel(library, kind, id);
+function placeholderImage(slot) {
   return {
     status: 200,
-    headers: { "content-type": "image/svg+xml; charset=utf-8", "cache-control": "no-store" },
-    body: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">
-<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
-<stop offset="0" stop-color="hsl(${hue} 45% 32%)"/><stop offset="1" stop-color="hsl(${(hue + 40) % 360} 40% 14%)"/>
-</linearGradient></defs>
-<rect width="${width}" height="${height}" fill="url(#g)"/>
-<text x="50%" y="50%" fill="hsl(${hue} 60% 88%)" font-family="Helvetica, Arial, sans-serif" font-size="${Math.round(height / 4)}" font-weight="600" text-anchor="middle" dominant-baseline="central">${xmlText(label)}</text>
-</svg>`,
+    headers: { "content-type": "image/png", "cache-control": "no-store" },
+    body: PLACEHOLDERS.get(slot) ?? PLACEHOLDERS.get("fanart"),
   };
 }
 
@@ -144,8 +110,8 @@ function placeholderImage(library, kind, id, slot) {
 const ROUTES = [
   [
     "GET",
-    /^\/images\/(?<kind>[^/]+)\/(?<id>\d+)\/(?<slot>[^/.]+)\.svg$/,
-    (ctx) => placeholderImage(ctx.library, ctx.params.kind, Number(ctx.params.id), ctx.params.slot),
+    /^\/images\/(?<kind>[^/]+)\/(?<id>\d+)\/(?<slot>[^/.]+)\.png$/,
+    (ctx) => placeholderImage(ctx.params.slot),
   ],
 
   // ---- OAuth. Every grant resolves immediately: there is nobody to approve it.

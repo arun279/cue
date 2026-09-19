@@ -29,6 +29,14 @@ module.exports = function withAndroidTabIcons(config) {
       for (const [name, pathData] of Object.entries(icons)) {
         writeFileSync(join(directory, `${name}.xml`), drawable(pathData));
       }
+      const raw = join(mod.modRequest.platformProjectRoot, "app/src/main/res/raw");
+      mkdirSync(raw, { recursive: true });
+      writeFileSync(
+        join(raw, "cue_tab_icons_keep.xml"),
+        `<resources xmlns:tools="http://schemas.android.com/tools" tools:keep="${Object.keys(icons)
+          .map((name) => `@drawable/${name}`)
+          .join(",")}" />\n`,
+      );
       return mod;
     },
   ]);

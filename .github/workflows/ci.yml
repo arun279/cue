@@ -417,6 +417,7 @@ jobs:
       - run: pnpm --filter @cue/native exec expo prebuild --platform android --clean
         env:
           EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
+          EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
           APP_VERSION: 9.9.9
           BUILD_NUMBER: "42"
       - name: Download bundletool
@@ -437,6 +438,7 @@ jobs:
         working-directory: packages/native/android
         env:
           EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
+          EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
           PLAY_SIZE_MEASUREMENT_BYTES: "16920872"
           PLAY_SIZE_MEASURED_ON: "2026-09-09"
           PLAY_SIZE_LIMIT_BYTES: "20000000"
@@ -489,10 +491,27 @@ jobs:
           path: packages/native/android/extracted/universal.apk
           retention-days: 1
   android-e2e:
+    timeout-minutes: 8
     needs: native-android
     runs-on: ubuntu-latest
+    env:
+      MAESTRO_CLI_NO_ANALYTICS: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-node-pnpm
+      - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Install Maestro 2.10.0
+        run: |
+          curl -fsSL \
+            https://github.com/mobile-dev-inc/Maestro/releases/download/cli-2.10.0/maestro.zip \
+            -o "$RUNNER_TEMP/maestro.zip"
+          echo "29b675e10cc12080e445e9bfb2e2b4e4dfb9c0f2e30d5884120d258b5e1cd991  $RUNNER_TEMP/maestro.zip" \
+            | sha256sum --check
+          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
       - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
           name: cue-native-android-emulator-apk
@@ -503,17 +522,17 @@ jobs:
             | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      - name: Launch the release APK
+      - name: Inspect the release UI
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: 35
           arch: x86_64
           profile: pixel_7_pro
-          script: bash scripts/verify-android-launch.sh "$RUNNER_TEMP/cue-native-android/universal.apk" "$RUNNER_TEMP/android-logcat.txt"
+          script: bash scripts/verify-android-ui.sh "$RUNNER_TEMP/cue-native-android/universal.apk" "$RUNNER_TEMP/android-ui"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ always() }}
         with:
-          name: android-e2e-logcat
-          path: ${{ runner.temp }}/android-logcat.txt
+          name: android-e2e
+          path: ${{ runner.temp }}/android-ui
           if-no-files-found: error
           retention-days: 7

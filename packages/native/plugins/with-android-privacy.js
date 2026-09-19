@@ -53,13 +53,29 @@ const RULES = `<?xml version="1.0" encoding="utf-8"?>
  * directly, which is what Expo's own `withSecureStore` does. `verify-apk.sh`
  * asserts the result out of the built APK rather than trusting this plugin.
  */
-module.exports = function withAndroidPrivacy(config) {
+module.exports = function withAndroidPrivacy(config, { apiBase } = {}) {
+  const origin = URL.parse(apiBase ?? "");
+  const allowLoopback =
+    origin?.protocol === "http:" &&
+    (origin.hostname === "127.0.0.1" || origin.hostname === "localhost");
   const withRules = withDangerousMod(config, [
     "android",
     (cfg) => {
       const file = join(cfg.modRequest.platformProjectRoot, RULES_PATH);
       mkdirSync(dirname(file), { recursive: true });
       writeFileSync(file, RULES, "utf8");
+      if (allowLoopback) {
+        writeFileSync(
+          join(dirname(file), "cue_network_security.xml"),
+          `<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">${origin.hostname}</domain>
+    </domain-config>
+</network-security-config>
+`,
+        );
+      }
       return cfg;
     },
   ]);
@@ -71,6 +87,9 @@ module.exports = function withAndroidPrivacy(config) {
     }
     application.$["android:allowBackup"] = "false";
     application.$["android:dataExtractionRules"] = `@xml/${RULES_RESOURCE}`;
+    if (allowLoopback) {
+      application.$["android:networkSecurityConfig"] = "@xml/cue_network_security";
+    }
     return cfg;
   });
 };

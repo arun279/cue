@@ -332,7 +332,7 @@ function watchedAtOf(show, index) {
 }
 
 const imageSet = (origin, kind, id, slots) =>
-  Object.fromEntries(slots.map((slot) => [slot, [`${origin}/images/${kind}/${id}/${slot}.svg`]]));
+  Object.fromEntries(slots.map((slot) => [slot, [`${origin}/images/${kind}/${id}/${slot}.png`]]));
 
 const showIds = (show) => ({
   trakt: show.trakt,
@@ -667,7 +667,7 @@ export function userSettingsBody(library, origin) {
       name: library.user.name,
       vip: false,
       ids: { slug: library.user.slug },
-      images: { avatar: { full: `${origin}/images/users/1/avatar.svg` } },
+      images: { avatar: { full: `${origin}/images/users/1/avatar.png` } },
     },
     account: { timezone: "America/New_York", date_format: "mdy", time_24hr: false },
   };

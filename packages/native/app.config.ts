@@ -145,7 +145,7 @@ export function nativeAppConfig(env: Readonly<Record<string, string | undefined>
       ],
       "./plugins/with-android-build-memory",
       "./plugins/with-android-tab-icons",
-      "./plugins/with-android-privacy",
+      ["./plugins/with-android-privacy", { apiBase: mockTrakt }],
       "./plugins/with-ios-scene-lifecycle",
     ],
     // No OTA updates: the app ships through the stores, and an updates client
