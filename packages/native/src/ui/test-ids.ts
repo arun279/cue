@@ -20,6 +20,7 @@ export const TEST_IDS = {
   upNextTvOff: "up-next-tv-off",
   watchlistTile: "watchlist-tile",
   marqueeCard: "marquee-card",
+  marqueeBackdrop: "marquee-backdrop",
   marqueeMark: "marquee-mark",
   queueRow: (traktId: number) => `queue-row-${traktId}`,
   queueRowMark: (traktId: number) => `queue-row-${traktId}-mark`,
