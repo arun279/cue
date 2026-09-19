@@ -411,6 +411,7 @@ jobs:
       - name: Create iOS contact sheets
         if: ${{ !cancelled() }}
         run: |
+          brew install imagemagick
           for appearance in light dark; do
             scripts/create-ui-contact-sheet.sh \
               "$RUNNER_TEMP/screenshots/ios/$appearance" ios "$appearance"
@@ -610,6 +611,8 @@ jobs:
       - name: Create Android contact sheets
         if: ${{ !cancelled() }}
         run: |
+          sudo apt-get update -qq
+          sudo apt-get install --no-install-recommends -y imagemagick
           for appearance in light dark; do
             scripts/create-ui-contact-sheet.sh \
               "$RUNNER_TEMP/screenshots/android/$appearance" android "$appearance"

@@ -111,6 +111,7 @@ export const TEST_IDS = {
   confirmSheetPrimary: "confirm-sheet-primary",
   episodeSheet: "episode-sheet",
   episodeMarkRow: "episode-mark-row",
+  episodeMarkControl: "episode-mark-control",
   episodePagerNext: "episode-pager-next",
   episodeStillBlur: "episode-still-blur",
   episodeStillReveal: "episode-still-reveal",

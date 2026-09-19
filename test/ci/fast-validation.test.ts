@@ -93,9 +93,11 @@ describe("fast pull request validation", () => {
     expect(ios).toContain("name: ui-screenshots-ios");
     expect(ios).toContain('--test-output-dir "$RUNNER_TEMP/screenshots/ios/$appearance"');
     expect(ios).toContain("create-ui-contact-sheet.sh");
+    expect(ios).toContain("brew install imagemagick");
     expect(android).toContain("name: ui-screenshots-android");
     expect(verification).toContain('--test-output-dir "$screenshots/$appearance"');
     expect(android).toContain("create-ui-contact-sheet.sh");
+    expect(android).toContain("apt-get install --no-install-recommends -y imagemagick");
     expect(ios.match(/retention-days: 14/g)).toHaveLength(1);
     expect(android.match(/retention-days: 14/g)).toHaveLength(1);
   });

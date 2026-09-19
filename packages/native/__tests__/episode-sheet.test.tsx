@@ -90,6 +90,9 @@ it("marks from the sheet and exposes the same reversible snackbar", async () => 
       <EpisodeSheet showId={8803} season={2} episode={3} />
     </DetailHarness>,
   );
+  expect(screen.getByTestId(TEST_IDS.episodeMarkControl)).toHaveAccessibleName(
+    "Mark S2 E3 watched",
+  );
   await fireEvent.press(within(screen.getByTestId(TEST_IDS.episodeMarkRow)).getByRole("switch"));
   expect(screen.getByTestId(TEST_IDS.snackbarUndo)).toBeOnTheScreen();
   expect(within(screen.getByTestId(TEST_IDS.episodeMarkRow)).getByRole("switch")).toBeChecked();

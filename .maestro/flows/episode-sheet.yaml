@@ -17,7 +17,8 @@ appId: app.cuetracker
 - assertVisible:
     id: "episode-mark-row"
 - takeScreenshot: episode-sheet-rest
-- tapOn: "Mark S2 E3 watched"
+- tapOn:
+    id: "episode-mark-control"
 - assertVisible:
     id: "snackbar"
 - assertVisible:
