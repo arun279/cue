@@ -9,7 +9,7 @@ appId: app.cuetracker
     id: "screen-show-detail"
 - scrollUntilVisible:
     element:
-      id: "season-check-2"
+      id: "episode-row-8803-2-3-check"
     direction: DOWN
     centerElement: true
 - assertVisible:
