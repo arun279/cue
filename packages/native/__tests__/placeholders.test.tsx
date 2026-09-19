@@ -5,13 +5,16 @@ import Library from "../app/(tabs)/(library)/library";
 import Search from "../app/(tabs)/(search)/search";
 import { useColors } from "../src/ui/tokens";
 
-afterEach(() => jest.restoreAllMocks());
+afterEach(() => {
+  jest.restoreAllMocks();
+  jest.mocked(Native.useColorScheme).mockReturnValue("light");
+});
 
 it.each([
   "light",
   "dark",
 ] as const)("makes unfinished screens legible in %s without loading data", async (scheme) => {
-  jest.spyOn(Native, "useColorScheme").mockReturnValue(scheme);
+  jest.mocked(Native.useColorScheme).mockReturnValue(scheme);
   const { result } = await renderHook(() => useColors());
   for (const [title, Screen] of [
     ["Library", Library],
