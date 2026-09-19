@@ -1,7 +1,7 @@
 import type { HistoryEntry } from "@cue/core/domain/history";
 import { useRouter } from "expo-router";
 import type { ReactElement } from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, useWindowDimensions, View } from "react-native";
 import { Badge } from "../../ui/Badge";
 import { CheckControl } from "../../ui/CheckControl";
 import { Poster } from "../../ui/Poster";
@@ -34,6 +34,7 @@ export function HistoryRow({
     { id: "open", label: entry.type === "movie" ? "Go to movie" : "Go to episode", onPress: open },
     { id: "remove", label: "Remove this play", destructive: true, onPress: remove },
   ];
+  const { fontScale } = useWindowDimensions();
   const time = new Date(entry.watchedAt).toLocaleTimeString(undefined, {
     hour: "numeric",
     minute: "2-digit",
@@ -47,7 +48,11 @@ export function HistoryRow({
         onPress={open}
         leading={
           <View style={styles.leading}>
-            <CueText variant="caption" tabularNums style={[styles.time, { color: colors.muted }]}>
+            <CueText
+              variant="caption"
+              tabularNums
+              style={[{ width: 62 * fontScale }, { color: colors.muted }]}
+            >
               {time}
             </CueText>
             <Poster title={entry.title} posters={entry.posters} width={SPACE.s6} />
@@ -80,5 +85,4 @@ export function HistoryRow({
 
 const styles = StyleSheet.create({
   leading: { flexDirection: "row", alignItems: "center", gap: SPACE.s3 },
-  time: { width: 62 },
 });
