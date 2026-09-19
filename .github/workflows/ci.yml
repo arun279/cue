@@ -357,16 +357,13 @@ jobs:
           name: cue-native-ios-${{ needs.fingerprint.outputs.ios }}
           path: ${{ runner.temp }}/native-ios-app/Cue.app.tgz
           retention-days: 30
-  ios-e2e:
+  native-e2e:
+    timeout-minutes: 14
     permissions:
       actions: read
       contents: read
     needs: [fingerprint, native-ios]
     runs-on: macos-26
-    strategy:
-      fail-fast: false
-      matrix:
-        appearance: [light, dark]
     env:
       MAESTRO_CLI_NO_ANALYTICS: "1"
       MAESTRO_DRIVER_STARTUP_TIMEOUT: "300000"
@@ -382,13 +379,6 @@ jobs:
           test -n "$device_id"
           xcrun simctl boot "$device_id"
           echo "device_id=$device_id" >> "$GITHUB_OUTPUT"
-      - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
-        with:
-          distribution: temurin
-          java-version: "21"
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version-file: .nvmrc
       - name: Install Maestro 2.10.0
         run: |
           curl -fsSL \
@@ -419,32 +409,27 @@ jobs:
             sleep 1
           done
           exit 1
-      - name: Run the shared ${{ matrix.appearance }} flow
+      - name: Run the shared light flow
         env:
           DEVICE_ID: ${{ steps.simulator.outputs.device_id }}
           APP_IDLE_CEILING_MS: "1000"
         run: |
-          appearance=${{ matrix.appearance }}
-          mkdir -p "$RUNNER_TEMP/screenshots/ios/$appearance"
+          mkdir -p "$RUNNER_TEMP/screenshots/ios/light"
           xcrun simctl ui "$DEVICE_ID" content_size medium
-          xcrun simctl ui "$DEVICE_ID" appearance "$appearance"
-          suite=.maestro/ci/app.yaml
-          if [ "$appearance" = dark ]; then suite=.maestro/ci/screenshots.yaml; fi
-          maestro --device "$DEVICE_ID" test "$suite" \
+          xcrun simctl ui "$DEVICE_ID" appearance light
+          maestro --device "$DEVICE_ID" test .maestro/ci/app.yaml \
             --env APP_IDLE_CEILING_MS="$APP_IDLE_CEILING_MS" \
             --format JUNIT \
-            --output "$RUNNER_TEMP/maestro-results-$appearance.xml" \
-            --debug-output "$RUNNER_TEMP/maestro-debug/$appearance" \
-            --test-output-dir "$RUNNER_TEMP/screenshots/ios/$appearance"
+            --output "$RUNNER_TEMP/maestro-results-light.xml" \
+            --debug-output "$RUNNER_TEMP/maestro-debug/light" \
+            --test-output-dir "$RUNNER_TEMP/screenshots/ios/light"
       - name: Create iOS contact sheet
         if: ${{ !cancelled() }}
         run: |
           brew install imagemagick
-          appearance=${{ matrix.appearance }}
-          scripts/create-ui-contact-sheet.sh \
-            "$RUNNER_TEMP/screenshots/ios/$appearance" ios "$appearance"
+          scripts/create-ui-contact-sheet.sh "$RUNNER_TEMP/screenshots/ios/light" ios light
       - name: Gate and summarize behavior timing
-        if: ${{ !cancelled() && matrix.appearance == 'light' }}
+        if: ${{ !cancelled() }}
         env:
           APP_IDLE_CEILING_MS: "1000"
           FEEDBACK_CEILING_MS: "100"
@@ -460,24 +445,104 @@ jobs:
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ !cancelled() }}
         with:
-          name: ui-screenshots-ios-${{ matrix.appearance }}
-          path: ${{ runner.temp }}/screenshots/ios/${{ matrix.appearance }}
+          name: ui-screenshots-ios-light
+          path: ${{ runner.temp }}/screenshots/ios/light
           if-no-files-found: error
           retention-days: 14
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ !cancelled() }}
         with:
-          name: native-e2e-ios-${{ matrix.appearance }}
+          name: native-e2e-ios-light
           path: |
             ${{ runner.temp }}/maestro-debug/
             ${{ runner.temp }}/maestro-results-*.xml
             ${{ runner.temp }}/mock-trakt.log
           retention-days: 7
-  native-e2e:
-    needs: ios-e2e
-    runs-on: ubuntu-latest
+  ui-screenshots-ios-dark:
+    timeout-minutes: 14
+    permissions:
+      actions: read
+      contents: read
+    needs: [fingerprint, native-ios]
+    runs-on: macos-26
+    env:
+      MAESTRO_CLI_NO_ANALYTICS: "1"
+      MAESTRO_DRIVER_STARTUP_TIMEOUT: "300000"
     steps:
-      - run: echo "Native E2E completed in both iOS jobs."
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.6.app
+      - id: simulator
+        name: Start an available iPhone simulator
+        run: |
+          device_id=$(xcrun simctl list devices available -j | \
+            jq -r '[.devices[] | .[] | select(.name | startswith("iPhone"))][0].udid')
+          test -n "$device_id"
+          xcrun simctl boot "$device_id"
+          echo "device_id=$device_id" >> "$GITHUB_OUTPUT"
+      - name: Install Maestro 2.10.0
+        run: |
+          curl -fsSL \
+            https://github.com/mobile-dev-inc/Maestro/releases/download/cli-2.10.0/maestro.zip \
+            -o "$RUNNER_TEMP/maestro.zip"
+          echo "29b675e10cc12080e445e9bfb2e2b4e4dfb9c0f2e30d5884120d258b5e1cd991  $RUNNER_TEMP/maestro.zip" \
+            | shasum -a 256 -c -
+          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
+      - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        with:
+          name: cue-native-ios-${{ needs.fingerprint.outputs.ios }}
+          path: ${{ runner.temp }}/native-ios-app
+      - name: Install the app
+        env:
+          DEVICE_ID: ${{ steps.simulator.outputs.device_id }}
+        run: |
+          tar -xzf "$RUNNER_TEMP/native-ios-app/Cue.app.tgz" -C "$RUNNER_TEMP/native-ios-app"
+          xcrun simctl bootstatus "$DEVICE_ID" -b
+          xcrun simctl install "$DEVICE_ID" "$RUNNER_TEMP/native-ios-app/Cue.app"
+      - name: Start the fake Trakt
+        run: |
+          node scripts/mock-trakt/server.mjs > "$RUNNER_TEMP/mock-trakt.log" 2>&1 &
+          for _ in {1..30}; do
+            if curl -fsS http://127.0.0.1:8787/users/settings > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          exit 1
+      - name: Run the shared dark traversal
+        env:
+          DEVICE_ID: ${{ steps.simulator.outputs.device_id }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/screenshots/ios/dark"
+          xcrun simctl ui "$DEVICE_ID" content_size medium
+          xcrun simctl ui "$DEVICE_ID" appearance dark
+          maestro --device "$DEVICE_ID" test .maestro/ci/screenshots.yaml \
+            --format JUNIT \
+            --output "$RUNNER_TEMP/maestro-results-dark.xml" \
+            --debug-output "$RUNNER_TEMP/maestro-debug/dark" \
+            --test-output-dir "$RUNNER_TEMP/screenshots/ios/dark"
+      - name: Create iOS contact sheet
+        if: ${{ !cancelled() }}
+        run: |
+          brew install imagemagick
+          scripts/create-ui-contact-sheet.sh "$RUNNER_TEMP/screenshots/ios/dark" ios dark
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ !cancelled() }}
+        with:
+          name: ui-screenshots-ios-dark
+          path: ${{ runner.temp }}/screenshots/ios/dark
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ !cancelled() }}
+        with:
+          name: native-e2e-ios-dark
+          path: |
+            ${{ runner.temp }}/maestro-debug/
+            ${{ runner.temp }}/maestro-results-*.xml
+            ${{ runner.temp }}/mock-trakt.log
+          retention-days: 7
   native-android:
     permissions:
       actions: read
@@ -596,10 +661,6 @@ jobs:
     timeout-minutes: 14
     needs: [fingerprint, native-android]
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        appearance: [light, dark]
     env:
       MAESTRO_CLI_NO_ANALYTICS: "1"
     steps:
@@ -636,26 +697,85 @@ jobs:
           api-level: 35
           arch: x86_64
           profile: pixel_7_pro
-          script: bash scripts/verify-android-ui.sh "$RUNNER_TEMP/cue-native-android/universal.apk" "$RUNNER_TEMP/android-ui" "$RUNNER_TEMP/screenshots/android" "${{ matrix.appearance }}"
+          script: bash scripts/verify-android-ui.sh "$RUNNER_TEMP/cue-native-android/universal.apk" "$RUNNER_TEMP/android-ui" "$RUNNER_TEMP/screenshots/android" light
       - name: Create Android contact sheet
         if: ${{ !cancelled() }}
         run: |
           sudo apt-get update -qq
           sudo apt-get install --no-install-recommends -y imagemagick
-          appearance=${{ matrix.appearance }}
-          scripts/create-ui-contact-sheet.sh \
-            "$RUNNER_TEMP/screenshots/android/$appearance" android "$appearance"
+          scripts/create-ui-contact-sheet.sh "$RUNNER_TEMP/screenshots/android/light" android light
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ !cancelled() }}
         with:
-          name: ui-screenshots-android-${{ matrix.appearance }}
-          path: ${{ runner.temp }}/screenshots/android/${{ matrix.appearance }}
+          name: ui-screenshots-android-light
+          path: ${{ runner.temp }}/screenshots/android/light
           if-no-files-found: error
           retention-days: 14
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ always() }}
         with:
-          name: android-e2e-${{ matrix.appearance }}
+          name: android-e2e-light
+          path: ${{ runner.temp }}/android-ui
+          if-no-files-found: error
+          retention-days: 7
+  ui-screenshots-android-dark:
+    timeout-minutes: 14
+    needs: [fingerprint, native-android]
+    runs-on: ubuntu-latest
+    env:
+      MAESTRO_CLI_NO_ANALYTICS: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+      - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Install Maestro 2.10.0
+        run: |
+          curl -fsSL \
+            https://github.com/mobile-dev-inc/Maestro/releases/download/cli-2.10.0/maestro.zip \
+            -o "$RUNNER_TEMP/maestro.zip"
+          echo "29b675e10cc12080e445e9bfb2e2b4e4dfb9c0f2e30d5884120d258b5e1cd991  $RUNNER_TEMP/maestro.zip" \
+            | sha256sum --check
+          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
+      - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        with:
+          name: cue-native-android-${{ needs.fingerprint.outputs.android }}
+          path: ${{ runner.temp }}/cue-native-android
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Inspect the release UI
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_7_pro
+          script: bash scripts/verify-android-ui.sh "$RUNNER_TEMP/cue-native-android/universal.apk" "$RUNNER_TEMP/android-ui" "$RUNNER_TEMP/screenshots/android" dark
+      - name: Create Android contact sheet
+        if: ${{ !cancelled() }}
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install --no-install-recommends -y imagemagick
+          scripts/create-ui-contact-sheet.sh "$RUNNER_TEMP/screenshots/android/dark" android dark
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ !cancelled() }}
+        with:
+          name: ui-screenshots-android-dark
+          path: ${{ runner.temp }}/screenshots/android/dark
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ always() }}
+        with:
+          name: android-e2e-dark
           path: ${{ runner.temp }}/android-ui
           if-no-files-found: error
           retention-days: 7

@@ -14,9 +14,7 @@ const MOBILE_RELEASE_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/mo
 const FASTLANE_LANE = "$" + "{{ needs.config.outputs.fastlane_lane }}";
 const TRAKT_CLIENT_ID_VARIABLE = "$" + "{{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}";
 // `footprint` skips itself on forks, and the gate reads a skip as a failure.
-// Device checks are exempt while they establish a green history. Promoting one
-// is a one-line change here and in REQUIRED.
-const NOT_REQUIRED = ["android-e2e", "fingerprint", "footprint", "ios-e2e", "native-e2e"];
+const NOT_REQUIRED = ["fingerprint", "footprint"];
 
 const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((entry) => typeof entry === "string");

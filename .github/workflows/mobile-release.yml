@@ -141,7 +141,7 @@ jobs:
           # Job names that exist in ci.yml or codeql.yml. Never list one that does not:
           # a check that can never report turns the wait below into a guaranteed
           # timeout on every release.
-          REQUIRED: '["check","render-performance","audit","actionlint","standardrb","native-android","native-ios","codeql (javascript-typescript)","codeql (actions)"]'
+          REQUIRED: '["check","render-performance","audit","actionlint","standardrb","native-android","native-ios","native-e2e","android-e2e","ui-screenshots-ios-dark","ui-screenshots-android-dark","codeql (javascript-typescript)","codeql (actions)"]'
           # GitHub Actions, so no other check provider can satisfy a required name.
           APP_ID: "15368"
           DEADLINE_MINUTES: "45"

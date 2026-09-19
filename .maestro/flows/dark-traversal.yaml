@@ -59,7 +59,18 @@ appId: app.cuetracker
     visible:
       id: "screen-show-detail"
     timeout: 30000
-- back
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          text: "Up Next"
+          index: 0
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - tapOn: "Navigate up"
 - extendedWaitUntil:
     visible:
       id: "screen-up-next"

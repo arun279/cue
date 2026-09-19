@@ -65,6 +65,9 @@ const haptics = createNativeHaptics(() => prefsStore.getState().hapticsEnabled);
 const network = createNativeNetwork();
 const EXPANDED_SHEET_FONT_SCALE = 1.3;
 
+export const episodeSheetDetents = (platform: typeof Platform.OS): [number, ...number[]] =>
+  platform === "android" ? [0.92] : [0.65, 0.92];
+
 /** What a launch says when the stores it depends on did not come up. The session
  * still starts on whatever the token store answers, because a boot that cannot
  * finish is not a reason to draw nothing; the message rides the auth store, so
@@ -168,8 +171,9 @@ function RoutedApp(): ReactElement {
           options={{
             presentation: "formSheet",
             headerShown: false,
-            sheetAllowedDetents: [0.65, 0.92],
-            sheetInitialDetentIndex: fontScale >= EXPANDED_SHEET_FONT_SCALE ? 1 : 0,
+            sheetAllowedDetents: episodeSheetDetents(Platform.OS),
+            sheetInitialDetentIndex:
+              Platform.OS === "ios" && fontScale >= EXPANDED_SHEET_FONT_SCALE ? 1 : 0,
             sheetGrabberVisible: true,
             sheetCornerRadius: RADIUS.sheet,
             contentStyle: { backgroundColor: colors.bg },

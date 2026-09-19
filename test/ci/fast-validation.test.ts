@@ -76,17 +76,27 @@ describe("fast pull request validation", () => {
   });
 
   it("runs one shared Maestro suite on iOS and Android", () => {
-    const ios = job("ios-e2e");
+    const ios = job("native-e2e");
     const androidJob = job("android-e2e");
     const android = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
 
-    expect(ios).toContain("appearance: [light, dark]");
-    expect(androidJob).toContain("appearance: [light, dark]");
-    expect(ios).toContain("suite=.maestro/ci/app.yaml");
+    expect(ios).toContain("test .maestro/ci/app.yaml");
     expect(android).toContain("suite=.maestro/ci/app.yaml");
-    expect(ios).toContain("suite=.maestro/ci/screenshots.yaml");
-    expect(android).toContain("suite=.maestro/ci/screenshots.yaml");
-    expect(androidJob).toContain('"$' + '{{ matrix.appearance }}"');
+    expect(androidJob).toContain('"$RUNNER_TEMP/screenshots/android" light');
+  });
+
+  it("runs required dark screenshot traversals on independent cached-app jobs", () => {
+    const ios = job("ui-screenshots-ios-dark");
+    const android = job("ui-screenshots-android-dark");
+
+    expect(ios).toContain("needs: [fingerprint, native-ios]");
+    expect(ios).toContain("cue-native-ios-$" + "{{ needs.fingerprint.outputs.ios }}");
+    expect(ios).toContain("test .maestro/ci/screenshots.yaml");
+    expect(ios).not.toContain("continue-on-error");
+    expect(android).toContain("needs: [fingerprint, native-android]");
+    expect(android).toContain("cue-native-android-$" + "{{ needs.fingerprint.outputs.android }}");
+    expect(android).toContain('"$RUNNER_TEMP/screenshots/android" dark');
+    expect(android).not.toContain("continue-on-error");
   });
 
   it("uses a fixed Maestro driver port outside Android's ephemeral range", () => {
@@ -96,23 +106,34 @@ describe("fast pull request validation", () => {
   });
 
   it("publishes both screenshot artifacts with contact sheets for 14 days", () => {
-    const ios = job("ios-e2e");
+    const ios = job("native-e2e");
+    const iosDark = job("ui-screenshots-ios-dark");
     const android = job("android-e2e");
+    const androidDark = job("ui-screenshots-android-dark");
     const verification = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
     const fetch = readFileSync(repositoryPath("scripts/fetch-ui-screenshots.sh"), "utf8");
 
     expect(ios).toContain("name: ui-screenshots-ios");
-    expect(ios).toContain("ui-screenshots-ios-$" + "{{ matrix.appearance }}");
-    expect(ios).toContain('--test-output-dir "$RUNNER_TEMP/screenshots/ios/$appearance"');
+    expect(ios).toContain("name: ui-screenshots-ios-light");
+    expect(iosDark).toContain("name: ui-screenshots-ios-dark");
+    expect(ios).toContain('--test-output-dir "$RUNNER_TEMP/screenshots/ios/light"');
+    expect(iosDark).toContain('--test-output-dir "$RUNNER_TEMP/screenshots/ios/dark"');
     expect(ios).toContain("create-ui-contact-sheet.sh");
+    expect(iosDark).toContain("create-ui-contact-sheet.sh");
     expect(ios).toContain("brew install imagemagick");
+    expect(iosDark).toContain("brew install imagemagick");
     expect(android).toContain("name: ui-screenshots-android");
-    expect(android).toContain("ui-screenshots-android-$" + "{{ matrix.appearance }}");
+    expect(android).toContain("name: ui-screenshots-android-light");
+    expect(androidDark).toContain("name: ui-screenshots-android-dark");
     expect(verification).toContain('--test-output-dir "$screenshots/$appearance"');
     expect(android).toContain("create-ui-contact-sheet.sh");
+    expect(androidDark).toContain("create-ui-contact-sheet.sh");
     expect(android).toContain("apt-get install --no-install-recommends -y imagemagick");
+    expect(androidDark).toContain("apt-get install --no-install-recommends -y imagemagick");
     expect(ios.match(/retention-days: 14/g)).toHaveLength(1);
+    expect(iosDark.match(/retention-days: 14/g)).toHaveLength(1);
     expect(android.match(/retention-days: 14/g)).toHaveLength(1);
+    expect(androidDark.match(/retention-days: 14/g)).toHaveLength(1);
     expect(fetch).toContain("for platform in ios android");
     expect(fetch).toContain("for appearance in light dark");
   });
