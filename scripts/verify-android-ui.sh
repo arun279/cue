@@ -33,7 +33,7 @@ test "$ready" -eq 1
 
 adb reverse tcp:8787 tcp:8787
 bash scripts/verify-android-launch.sh "$apk" "$output/logcat.txt"
-maestro test .maestro/flows/launch.yaml --debug-output "$output/maestro-connect"
+maestro test .maestro/flows/lib/connect.yaml --debug-output "$output/maestro-connect"
 
 labels=("Up Next" "Library" "Calendar" "Search")
 names=(up-next library calendar search)
