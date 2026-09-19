@@ -85,6 +85,7 @@ export function HistoryScreen(): ReactElement {
             />
           ),
           headerSearchBarOptions: {
+            placement: "stacked",
             placeholder: "Filter by title",
             hideWhenScrolling: false,
             hideNavigationBar: false,
@@ -150,6 +151,7 @@ export function HistoryScreen(): ReactElement {
                 ] as const
               ).map(([type, label, testID]) => (
                 <HistoryChoice
+                  compact
                   key={label}
                   label={label}
                   selected={(search.type ?? "") === type}
@@ -158,6 +160,7 @@ export function HistoryScreen(): ReactElement {
                 />
               ))}
               <HistoryChoice
+                compact
                 label={jumpLabel(search.year, search.month)}
                 testID={TEST_IDS.historyJump}
                 onPress={() =>

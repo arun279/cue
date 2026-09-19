@@ -28,7 +28,7 @@ appId: app.cuetracker
 - inputText: "zzzznomatch"
 - assertVisible: "No titles match."
 - eraseText
-- hideKeyboard
+- tapOn: "(?i)close|cancel"
 - assertVisible:
     id: "history-row-0"
 - tapOn:
