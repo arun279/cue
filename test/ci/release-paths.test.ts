@@ -1,7 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import picomatch from "picomatch";
 import { describe, expect, it } from "vitest";
 import { gitEnv } from "../support/git-env";
 
@@ -11,7 +10,6 @@ const REPOSITORY_ROOT = execFileSync("git", ["rev-parse", "--show-toplevel"], {
 }).trim();
 const CI_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/ci.yml");
 const CODEQL_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/codeql.yml");
-const DEPENDENCY_CRUISER_CONFIG = path.join(REPOSITORY_ROOT, ".dependency-cruiser.cjs");
 const MOBILE_RELEASE_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/mobile-release.yml");
 const FASTLANE_LANE = "$" + "{{ needs.config.outputs.fastlane_lane }}";
 const TRAKT_CLIENT_ID_VARIABLE = "$" + "{{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}";
@@ -20,138 +18,8 @@ const TRAKT_CLIENT_ID_VARIABLE = "$" + "{{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}";
 // simulator; promoting it is a one-line change here and in REQUIRED.
 const NOT_REQUIRED = ["android-e2e", "footprint", "native-e2e"];
 
-// Markdown inside a shipping tree stays in SHIPS. The existing "when in doubt,
-// SHIPS" rule applies to every shipping tree.
-const SHIPS = [
-  "packages/*/src/**",
-  "packages/*/package.json",
-  "packages/*/tsconfig.json",
-  // The Expo app. `app/**` is its route tree, `modules/**` is native source that
-  // is compiled into the binary, `plugins/**` writes the generated projects, and
-  // the app config is the whole native identity. The two bundler configs decide
-  // what the shipped JavaScript is, so they ship too.
-  "packages/*/app/**",
-  "packages/*/app.config.ts",
-  "packages/*/modules/**",
-  "packages/*/plugins/**",
-  "packages/*/babel.config.js",
-  "packages/*/metro.config.js",
-  "package.json",
-  "pnpm-lock.yaml",
-  "pnpm-workspace.yaml",
-  "fastlane/**",
-  "Gemfile",
-  "Gemfile.lock",
-  ".nvmrc",
-  ".ruby-version",
-  "scripts/verify-apk.sh",
-  "tsconfig.json",
-  "tsconfig.base.json",
-] as const;
-
-const DOES_NOT_SHIP = [
-  "docs/**",
-  "*.md",
-  ".github/**",
-  ".maestro/**",
-  "LICENSE",
-  "packages/*/test/**",
-  "packages/*/vitest.config.ts",
-  "packages/*/jest.config.js",
-  "packages/*/tsconfig.test.json",
-  "packages/*/__tests__/**",
-  "packages/*/.reassure/**",
-  "packages/*/.gitignore",
-  "packages/*/.env.example",
-  "packages/*/.env.test",
-  "packages/*/.env.mock",
-  "vitest.config.ts",
-  "lefthook.yml",
-  "cspell.json",
-  "dprint.json",
-  "biome.jsonc",
-  "knip.json",
-  ".jscpd.json",
-  ".dependency-cruiser.cjs",
-  ".size-limit.json",
-  ".startup-time-limit.json",
-  ".native-assets.json",
-  "scripts/assert-file-size.mjs",
-  "scripts/bundletool-size.mjs",
-  "scripts/check-size.mjs",
-  "scripts/check-native-assets.mjs",
-  "scripts/check-size-ratchet.mjs",
-  "scripts/check-startup-ratchet.mjs",
-  "scripts/check-size-delta.mjs",
-  "scripts/summarize-atlas.mjs",
-  "scripts/summarize-startup-timing.mjs",
-  "scripts/check-quality-budget.mjs",
-  "scripts/check-render-counts.mjs",
-  "scripts/check-type-suppressions.mjs",
-  "scripts/quality-budget.json",
-  "scripts/complexity/**",
-  "scripts/diff-footprint.sh",
-  "scripts/measure-*.mjs",
-  "scripts/measure-sizes.sh",
-  "scripts/measure-play-size.sh",
-  "scripts/mock-trakt/**",
-  "scripts/verify-android-launch.sh",
-  "scripts/verify-ios-privacy.sh",
-  "scripts/write-buster.mjs",
-  "test/**",
-  ".gitignore",
-] as const;
-
-// Picomatch uses { dot: true }; GitHub path filters differ around ** and leading slashes, so this guard does not claim exact parity.
-const MATCH_OPTIONS = { dot: true };
-
-type PatternMatcher = {
-  pattern: string;
-  matches: (file: string) => boolean;
-};
-
-const compilePatterns = (patterns: readonly string[]): PatternMatcher[] =>
-  patterns.map((pattern) => ({
-    pattern,
-    matches: picomatch(pattern, MATCH_OPTIONS),
-  }));
-
-const SHIP_MATCHERS = compilePatterns(SHIPS);
-const DOES_NOT_SHIP_MATCHERS = compilePatterns(DOES_NOT_SHIP);
-
-const trackedFiles = execFileSync("git", ["ls-files", "-z"], {
-  cwd: REPOSITORY_ROOT,
-  encoding: "utf8",
-  env: gitEnv(),
-})
-  .split("\0")
-  .filter(Boolean);
-
-const matchingPatterns = (file: string, matchers: PatternMatcher[]): string[] =>
-  matchers.filter(({ matches }) => matches(file)).map(({ pattern }) => pattern);
-
 const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((entry) => typeof entry === "string");
-
-const readPathsIgnore = (): string[] => {
-  const workflow = readFileSync(MOBILE_RELEASE_WORKFLOW, "utf8");
-
-  // This intentionally parses only paths-ignore's JSON-compatible bracket array
-  // (dprint may fold it onto one line or wrap it, trailing comma included), not
-  // general YAML.
-  const matches = [...workflow.matchAll(/ {4}paths-ignore:\s*(\[[^\]]*\])/g)];
-  const raw = matches.length === 1 ? matches[0]?.[1] : undefined;
-  const encoded = raw?.replace(/,(\s*])/g, "$1");
-  if (encoded === undefined) {
-    throw new Error(`expected one inline paths-ignore array, found ${matches.length}`);
-  }
-
-  const parsed: unknown = JSON.parse(encoded);
-  if (!isStringArray(parsed)) {
-    throw new Error("paths-ignore must be an array of strings");
-  }
-  return parsed;
-};
 
 const getJobsBlock = (workflowPath: string): string => {
   const workflow = readFileSync(workflowPath, "utf8");
@@ -200,21 +68,6 @@ const readNamedStep = (workflowPath: string, jobName: string, stepName: string):
   return remainder.slice(0, nextStep?.index ?? remainder.length);
 };
 
-const readArchitectureDoesNotShipMatchers = (): RegExp[] => {
-  const config = readFileSync(DEPENDENCY_CRUISER_CONFIG, "utf8");
-  return ["RE_DOES_NOT_SHIP_DIRECTORY", "RE_DOES_NOT_SHIP_MARKDOWN", "RE_DOES_NOT_SHIP_FILE"].map(
-    (name) => {
-      const match = new RegExp(`const ${name} =\\s*("(?:[^"\\\\]|\\\\.)*");`).exec(config);
-      const encoded = match?.[1];
-      if (encoded === undefined) throw new Error(`expected one ${name} string`);
-
-      const pattern: unknown = JSON.parse(encoded);
-      if (typeof pattern !== "string") throw new Error(`${name} must be a string`);
-      return new RegExp(pattern);
-    },
-  );
-};
-
 const readCodeqlContexts = (): string[] => {
   const jobs = readWorkflowJobs(CODEQL_WORKFLOW);
   const codeql = jobs.find((job) => job.name === "codeql");
@@ -257,67 +110,15 @@ const readRequiredChecks = (): string[] => {
   return parsed;
 };
 
-describe("mobile release path partition", () => {
-  it("uses only path pattern syntax shared with GitHub Actions", () => {
-    for (const pattern of [...SHIPS, ...DOES_NOT_SHIP]) {
-      const character = [...pattern].find((candidate) => "?[]!+@(){}".includes(candidate));
-      expect(
-        character,
-        `Unsafe path pattern "${pattern}": character "${character}" differs between picomatch and GitHub Actions`,
-      ).toBeUndefined();
-    }
-  });
+describe("mobile release triggers", () => {
+  it("releases automatically only from strict version tags", () => {
+    const workflow = readFileSync(MOBILE_RELEASE_WORKFLOW, "utf8");
+    const push = /^ {2}push:\r?\n((?: {4}.*\r?\n)*)/m.exec(workflow)?.[1];
 
-  it("classifies every tracked file", () => {
-    const unmatched = trackedFiles.filter(
-      (file) =>
-        matchingPatterns(file, SHIP_MATCHERS).length === 0 &&
-        matchingPatterns(file, DOES_NOT_SHIP_MATCHERS).length === 0,
-    );
-
-    expect(
-      unmatched,
-      `Unclassified tracked files (add each to SHIPS unless you can show it does not enter the shipped bundle, then update mobile-release.yml's paths-ignore to match):\n${unmatched.join("\n")}`,
-    ).toEqual([]);
-  });
-
-  it("does not classify any tracked file both ways", () => {
-    const overlaps = trackedFiles.flatMap((file) => {
-      const ships = matchingPatterns(file, SHIP_MATCHERS);
-      const doesNotShip = matchingPatterns(file, DOES_NOT_SHIP_MATCHERS);
-      return ships.length > 0 && doesNotShip.length > 0 ? [{ file, ships, doesNotShip }] : [];
-    });
-    const details = overlaps
-      .map(
-        ({ file, ships, doesNotShip }) =>
-          `${file}\n  SHIPS: ${ships.join(", ")}\n  DOES_NOT_SHIP: ${doesNotShip.join(", ")}`,
-      )
-      .join("\n");
-
-    expect(overlaps, `Tracked files matching both partitions:\n${details}`).toEqual([]);
-  });
-
-  it("keeps paths-ignore aligned with non-shipping paths", () => {
-    expect([...readPathsIgnore()].sort()).toEqual([...DOES_NOT_SHIP].sort());
-  });
-
-  it("keeps architecture non-shipping paths aligned", () => {
-    const architectureMatchers = readArchitectureDoesNotShipMatchers();
-    const mismatches = trackedFiles.flatMap((file) => {
-      const release = matchingPatterns(file, DOES_NOT_SHIP_MATCHERS).length > 0;
-      const architecture = architectureMatchers.some((matcher) => matcher.test(file));
-      return release === architecture ? [] : [{ file, release, architecture }];
-    });
-
-    expect(
-      mismatches,
-      `Paths classified differently by DOES_NOT_SHIP and dependency-cruiser:\n${mismatches
-        .map(
-          ({ file, release, architecture }) =>
-            `${file}: DOES_NOT_SHIP=${release}, dependency-cruiser=${architecture}`,
-        )
-        .join("\n")}`,
-    ).toEqual([]);
+    expect(push).toBeDefined();
+    expect(push).not.toMatch(/^ {4}branches:/m);
+    expect(push).not.toMatch(/^ {4}paths-ignore:/m);
+    expect(push).toContain('    tags: ["v*.*.*"]');
   });
 });
 

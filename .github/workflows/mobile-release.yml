@@ -1,12 +1,9 @@
 name: Mobile release
 
 # Ships the Expo native app.
-#   push to main       -> tester builds
-#   push a v* tag      -> App Store release
+#   push a vX.Y.Z tag  -> App Store release
 #   manual dispatch    -> tester builds or an App Store release
-# Dispatch is also how a release/* branch ships. main keeps releasing on push,
-# and a release branch stays buildable on demand without merging back. ci.yml
-# runs on release/* pushes too, so the gate below has checks to read there.
+# Dispatch is also how a branch ships a tester build without creating a tag.
 # CI (ci.yml) is the quality gate, enforced twice: branch protection keeps red
 # commits off main, and the gate job below re-checks the exact commit this run
 # would ship.
@@ -14,60 +11,7 @@ name: Mobile release
 
 on:
   push:
-    branches: [main]
-    tags: ["v*"]
-    paths-ignore: [
-      "docs/**",
-      "*.md",
-      ".github/**",
-      ".maestro/**",
-      "LICENSE",
-      "packages/*/test/**",
-      "packages/*/vitest.config.ts",
-      "packages/*/jest.config.js",
-      "packages/*/tsconfig.test.json",
-      "packages/*/__tests__/**",
-      "packages/*/.reassure/**",
-      "packages/*/.gitignore",
-      "packages/*/.env.example",
-      "packages/*/.env.test",
-      "packages/*/.env.mock",
-      "vitest.config.ts",
-      "lefthook.yml",
-      "cspell.json",
-      "dprint.json",
-      "biome.jsonc",
-      "knip.json",
-      ".jscpd.json",
-      ".dependency-cruiser.cjs",
-      ".size-limit.json",
-      ".startup-time-limit.json",
-      ".native-assets.json",
-      "scripts/assert-file-size.mjs",
-      "scripts/bundletool-size.mjs",
-      "scripts/check-quality-budget.mjs",
-      "scripts/check-render-counts.mjs",
-      "scripts/check-size.mjs",
-      "scripts/check-native-assets.mjs",
-      "scripts/check-size-ratchet.mjs",
-      "scripts/check-startup-ratchet.mjs",
-      "scripts/check-size-delta.mjs",
-      "scripts/summarize-atlas.mjs",
-      "scripts/summarize-startup-timing.mjs",
-      "scripts/check-type-suppressions.mjs",
-      "scripts/complexity/**",
-      "scripts/diff-footprint.sh",
-      "scripts/measure-*.mjs",
-      "scripts/measure-sizes.sh",
-      "scripts/measure-play-size.sh",
-      "scripts/mock-trakt/**",
-      "scripts/quality-budget.json",
-      "scripts/verify-android-launch.sh",
-      "scripts/verify-ios-privacy.sh",
-      "scripts/write-buster.mjs",
-      "test/**",
-      ".gitignore",
-    ]
+    tags: ["v*.*.*"]
   workflow_dispatch:
     inputs:
       platform:
@@ -121,7 +65,8 @@ jobs:
         run: |
           platform="both"
           lane="beta"
-          app_version=$(pnpm --filter @cue/native exec expo config --type public --json | jq -r '.version')
+          embedded_version=$(pnpm --filter @cue/native exec expo config --type public --json | jq -r '.version')
+          app_version="$embedded_version"
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             platform="$INPUT_PLATFORM"
             lane="$INPUT_LANE"
@@ -129,8 +74,16 @@ jobs:
               app_version="$INPUT_VERSION"
             fi
           elif [ "$REF_TYPE" = "tag" ]; then
+            if ! [[ "$REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "Release tag must match vX.Y.Z (for example, v1.2.3)." >&2
+              exit 1
+            fi
             lane="release"
             app_version="${REF_NAME#v}"
+            if [ "$app_version" != "$embedded_version" ]; then
+              echo "Release tag $REF_NAME does not match embedded version $embedded_version." >&2
+              exit 1
+            fi
           fi
           if [ "$lane" = "release" ] && ! [[ "$app_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "Release version must match x.y.z (for example, 1.2.3)." >&2
