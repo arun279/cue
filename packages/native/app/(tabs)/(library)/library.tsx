@@ -127,6 +127,9 @@ export default function Library(): ReactElement {
       <FlatList
         testID={TEST_IDS.libraryGrid}
         contentInsetAdjustmentBehavior="automatic"
+        // The filter leaves a keyboard over the grid, and by default the first
+        // tap under one only dismisses it: Clear filter would need two.
+        keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ paddingBottom: tabBarClearance(insets.bottom) + SPACE.s4 }}
         data={items}
         extraData={onScreen}
