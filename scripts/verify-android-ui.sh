@@ -81,7 +81,7 @@ cat "$output/coverage.txt" >> "$GITHUB_STEP_SUMMARY"
 aapt2=$(find "$ANDROID_HOME/build-tools" -type f -name aapt2 -print | sort -V | tail -n 1)
 "$aapt2" dump resources "$apk" > "$output/resources.txt"
 for icon in up_next library calendar search; do
-  grep -A 1 -F ":drawable/cue_tab_$icon" "$output/resources.txt" | grep -q '(file)' || {
+  grep -A 1 -F "drawable/cue_tab_$icon" "$output/resources.txt" | grep -q '(file)' || {
     echo "Missing packaged tab drawable: cue_tab_$icon" >&2
     exit 1
   }
