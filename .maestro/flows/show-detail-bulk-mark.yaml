@@ -7,20 +7,10 @@ appId: app.cuetracker
     id: "queue-row-8803"
 - assertVisible:
     id: "screen-show-detail"
-- scrollUntilVisible:
-    element:
-      id: "episode-row-8803-2-3-check"
-    direction: DOWN
-    centerElement: true
-- swipe:
-    start: "50%, 40%"
-    end: "50%, 65%"
-    duration: 300
 - assertVisible:
     id: "episode-row-8803-2-1-checked"
 - tapOn:
     id: "season-check-2"
-    retryTapIfNoChange: true
 - assertVisible: "2 of 4 episodes are unwatched."
 - tapOn: "Mark 2 remaining"
 - assertVisible:
