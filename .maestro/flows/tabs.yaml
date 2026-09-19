@@ -7,29 +7,25 @@ appId: app.cuetracker
 - assertVisible: "Library"
 - assertVisible: "Calendar"
 - assertVisible: "Search"
-- tapOn:
-    id: "tab-library"
+- tapOn: "Library"
 - assertVisible:
     id: "screen-library"
 - waitForAnimationToEnd:
     timeout: 1000
 - takeScreenshot: library-tab-rest
-- tapOn:
-    id: "tab-calendar"
+- tapOn: "Calendar"
 - assertVisible:
     id: "screen-calendar"
 - waitForAnimationToEnd:
     timeout: 1000
 - takeScreenshot: calendar-rest
-- tapOn:
-    id: "tab-search"
+- tapOn: "Search"
 - assertVisible:
     id: "screen-search"
 - waitForAnimationToEnd:
     timeout: 1000
 - takeScreenshot: search-empty
-- tapOn:
-    id: "tab-up-next"
+- tapOn: "Up Next"
 - assertVisible:
     id: "screen-up-next"
 - waitForAnimationToEnd:

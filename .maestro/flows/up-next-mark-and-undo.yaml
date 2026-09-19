@@ -20,7 +20,7 @@ appId: app.cuetracker
     id: "queue-row-[0-9]+-mark"
     index: 0
 - repeat:
-    times: 4
+    times: 5
     commands:
       - tapOn:
           id: "queue-row-[0-9]+-mark"

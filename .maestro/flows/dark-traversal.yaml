@@ -59,8 +59,7 @@ appId: app.cuetracker
     visible:
       id: "screen-show-detail"
     timeout: 30000
-- tapOn:
-    id: "tab-library"
+- tapOn: "Library"
 - extendedWaitUntil:
     visible:
       id: "screen-library"
@@ -68,8 +67,7 @@ appId: app.cuetracker
 - waitForAnimationToEnd:
     timeout: 1000
 - takeScreenshot: library-shows
-- tapOn:
-    id: "tab-calendar"
+- tapOn: "Calendar"
 - extendedWaitUntil:
     visible:
       id: "screen-calendar"
@@ -77,8 +75,7 @@ appId: app.cuetracker
 - waitForAnimationToEnd:
     timeout: 1000
 - takeScreenshot: calendar-rest
-- tapOn:
-    id: "tab-search"
+- tapOn: "Search"
 - extendedWaitUntil:
     visible:
       id: "screen-search"
@@ -86,8 +83,8 @@ appId: app.cuetracker
 - waitForAnimationToEnd:
     timeout: 1000
 - takeScreenshot: search-empty
-- tapOn:
-    id: "tab-up-next"
+- tapOn: "Up Next"
+- tapOn: "Up Next"
 - extendedWaitUntil:
     visible:
       id: "screen-up-next"

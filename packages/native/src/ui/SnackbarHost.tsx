@@ -115,6 +115,7 @@ function Snackbar({
         stacked && styles.stacked,
         { backgroundColor: colors.overlay },
         !contained && { bottom },
+        contained && { marginBottom: insets.bottom + SPACE.s2 },
       ]}
     >
       <CueText
@@ -167,7 +168,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   floating: { position: "absolute", left: SPACE.s3, right: SPACE.s3 },
-  contained: { marginHorizontal: SPACE.s3, marginVertical: SPACE.s2 },
+  contained: { marginHorizontal: SPACE.s3, marginTop: SPACE.s2 },
   stacked: { flexDirection: "column", alignItems: "stretch", gap: SPACE.s2 },
   message: { minWidth: 0 },
   messageInline: { flex: 1 },
