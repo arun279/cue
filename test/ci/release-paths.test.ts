@@ -142,6 +142,20 @@ describe("the iOS toolchain pin", () => {
     expect(ci.length).toBeGreaterThan(0);
     expect([...new Set(ci)]).toEqual(release);
   });
+
+  it("builds only the pull request head simulator app", () => {
+    const nativeIos = readWorkflowJobs(CI_WORKFLOW).find(({ name }) => name === "native-ios");
+
+    expect(nativeIos).toBeDefined();
+    expect(nativeIos?.body.match(/xcodebuild/g)).toHaveLength(1);
+    expect(nativeIos?.body).not.toContain("Measure the merge-base simulator app");
+    expect(nativeIos?.body).toContain(
+      "key: native-ios-size-$" + "{{ github.event.pull_request.base.sha }}",
+    );
+    expect(nativeIos?.body).toContain(
+      "key: native-ios-size-$" + "{{ github.event.pull_request.head.sha }}",
+    );
+  });
 });
 
 describe("native bundle environment", () => {

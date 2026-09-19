@@ -115,9 +115,11 @@ jobs:
           jq -s '.[0] + .[1]' head-sizes.json \
             "$RUNNER_TEMP/native-ios-sizes/head-ios-sizes.json" > all-head-sizes.json
           mv all-head-sizes.json head-sizes.json
-          jq -s '.[0] + .[1]' base-sizes.json \
-            "$RUNNER_TEMP/native-ios-sizes/base-ios-sizes.json" > all-base-sizes.json
-          mv all-base-sizes.json base-sizes.json
+          if [ -f "$RUNNER_TEMP/native-ios-sizes/base-ios-sizes.json" ]; then
+            jq -s '.[0] + .[1]' base-sizes.json \
+              "$RUNNER_TEMP/native-ios-sizes/base-ios-sizes.json" > all-base-sizes.json
+            mv all-base-sizes.json base-sizes.json
+          fi
 
           jq -n --slurpfile sizes head-sizes.json \
             --slurpfile complexity head-complexity.json \
@@ -158,14 +160,53 @@ jobs:
         run: node scripts/check-size-delta.mjs base-metrics.json head-metrics.json "$PR_BODY"
   native-ios:
     # The runner and Xcode path match the release workflow.
+    permissions:
+      actions: read
+      contents: read
     runs-on: macos-26
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_26.6.app
       - uses: ./.github/actions/setup-node-pnpm
+      - name: Restore the base iOS measurement
+        id: base-ios-cache
+        if: github.event_name == 'pull_request'
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ runner.temp }}/head-ios-sizes.json
+          key: native-ios-size-${{ github.event.pull_request.base.sha }}
+      - name: Resolve the base iOS measurement
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          source=n/a
+          if [ -f "$RUNNER_TEMP/head-ios-sizes.json" ]; then
+            source="cache keyed by $BASE_SHA"
+          else
+            run_id=$(gh api "repos/${{ github.repository }}/actions/workflows/ci.yml/runs" \
+              --method GET -f branch="$BASE_REF" -f status=success -f per_page=20 \
+              --jq "first(.workflow_runs[] | select(.head_sha == \"$BASE_SHA\")) | .id // empty")
+            if [ -n "$run_id" ]; then
+              artifact_id=$(gh api "repos/${{ github.repository }}/actions/runs/$run_id/artifacts" \
+                --jq 'first(.artifacts[] | select(.name == "cue-native-ios-sizes" and (.expired | not))) | .id // empty')
+              if [ -n "$artifact_id" ]; then
+                gh api "repos/${{ github.repository }}/actions/artifacts/$artifact_id/zip" \
+                  > "$RUNNER_TEMP/base-ios-sizes.zip"
+                unzip -p "$RUNNER_TEMP/base-ios-sizes.zip" head-ios-sizes.json \
+                  > "$RUNNER_TEMP/head-ios-sizes.json"
+                source="artifact from successful run $run_id at $BASE_SHA"
+              fi
+            fi
+          fi
+          if [ -f "$RUNNER_TEMP/head-ios-sizes.json" ]; then
+            cp "$RUNNER_TEMP/head-ios-sizes.json" "$RUNNER_TEMP/base-ios-sizes.json"
+            rm "$RUNNER_TEMP/head-ios-sizes.json"
+          fi
+          echo "Base iOS measurement: $source" | tee -a "$GITHUB_STEP_SUMMARY"
       # The native projects are generated, so the first thing this job proves is
       # that they generate: a config plugin that no longer matches the template
       # fails here rather than on somebody's machine. Generated twice on purpose:
@@ -244,35 +285,12 @@ jobs:
             '[{name: "iOS Release simulator app files", size: $size, sizeLimit: null, configuration: "generic iOS Simulator"}]' \
             > "$RUNNER_TEMP/head-ios-sizes.json"
           tar -czf "$RUNNER_TEMP/Cue.app.tgz" -C "$products" "${app##*/}"
-      - name: Measure the merge-base simulator app
+      - name: Cache the head iOS measurement
         if: github.event_name == 'pull_request'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          base=$(git merge-base "origin/$BASE_REF" HEAD)
-          base_tree="$RUNNER_TEMP/native-ios-base"
-          git worktree add "$base_tree" "$base"
-          cd "$base_tree"
-          mkdir -p node_modules/.cache/tmp
-          export TMPDIR="$base_tree/node_modules/.cache/tmp"
-          pnpm install --frozen-lockfile
-          EXPO_PUBLIC_TRAKT_CLIENT_ID=ci \
-            EXPO_PUBLIC_TRAKT_API_BASE=http://127.0.0.1:8787 \
-            CONFIGURATION=Release \
-            pnpm --filter @cue/native exec expo prebuild --platform ios --clean
-          cd packages/native/ios
-          EXPO_PUBLIC_TRAKT_CLIENT_ID=ci \
-            EXPO_PUBLIC_TRAKT_API_BASE=http://127.0.0.1:8787 \
-            xcodebuild -workspace Cue.xcworkspace -scheme Cue \
-              -configuration Release -destination 'generic/platform=iOS Simulator' \
-              -derivedDataPath "$RUNNER_TEMP/native-ios-base-derived-data" \
-              build
-          app="$RUNNER_TEMP/native-ios-base-derived-data/Build/Products/Release-iphonesimulator/Cue.app"
-          app_size=$(find "$app" -type f -exec stat -f '%z' {} + | \
-            awk '{ total += $1 } END { print total + 0 }')
-          jq -n --argjson size "$app_size" \
-            '[{name: "iOS Release simulator app files", size: $size, sizeLimit: null, configuration: "generic iOS Simulator"}]' \
-            > "$RUNNER_TEMP/base-ios-sizes.json"
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ runner.temp }}/head-ios-sizes.json
+          key: native-ios-size-${{ github.event.pull_request.head.sha }}
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: github.event_name == 'pull_request'
         with:

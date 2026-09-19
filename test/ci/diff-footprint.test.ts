@@ -171,4 +171,13 @@ describe("diff footprint", () => {
       "The merge base does not contain the measured packages, so its columns read n/a.",
     );
   });
+
+  it("reports an unavailable base iOS measurement as n/a", () => {
+    const base = structuredClone(BASE_METRICS);
+    base.sizes = base.sizes.filter(({ name }) => name !== "iOS Release simulator app files");
+
+    expect(runWithMetrics(base)).toContain(
+      "| iOS Release simulator .app file bytes | n/a | 52.00 MB (generic iOS Simulator) | n/a | 64 kB delta |",
+    );
+  });
 });

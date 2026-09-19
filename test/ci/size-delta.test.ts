@@ -69,11 +69,30 @@ describe("size delta gate", () => {
     expect(run(64_001, "The binary size: it grew.\nbinary-size: shrug\n").status).toBe(1);
   });
 
-  it("fails when an artifact is missing from either side", () => {
-    const result = run(0, "", MEASURED.slice(0, -1));
+  it("reports an unavailable base iOS measurement as n/a instead of failing", () => {
+    const directory = tempDirectory("cue-size-delta-");
+    writeFileSync(
+      path.join(directory, "base.json"),
+      JSON.stringify({ sizes: MEASURED.slice(0, -1).map((name) => ({ name, size: 1_000_000 })) }),
+    );
+    writeFileSync(
+      path.join(directory, "head.json"),
+      JSON.stringify({ sizes: MEASURED.map((name) => ({ name, size: 1_000_000 })) }),
+    );
+
+    const result = spawnSync(process.execPath, [SCRIPT, "base.json", "head.json"], {
+      cwd: directory,
+      encoding: "utf8",
+    });
+
+    expect(result.status).toBe(0);
+  });
+
+  it("fails when a required artifact is missing from either side", () => {
+    const result = run(0, "", MEASURED.slice(0, -2));
 
     expect(result.status).toBe(1);
-    expect(result.stderr).toContain("iOS Release simulator app files: not measured on both sides");
+    expect(result.stderr).toContain("Play download estimate: not measured on both sides");
   });
 
   it("does not gate a merge base without the packages", () => {
