@@ -18,7 +18,7 @@ import { CueText } from "../../ui/type";
 import { labelOf, MEDIUM, routeOf } from "./model";
 
 /** How long the filled confirmation holds before settling into "In library". */
-export const ADDED_FLASH_MS = 600;
+const ADDED_FLASH_MS = 600;
 
 /** The pill's ink, with `hitSlop` making up the rest of the tap target. */
 const PILL = { height: 32, stroke: 1 } as const;
