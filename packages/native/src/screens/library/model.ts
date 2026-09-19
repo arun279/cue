@@ -10,7 +10,7 @@ import { useEffect, useState } from "react";
 import { TEST_IDS } from "../../ui/test-ids";
 
 export type Segment = "shows" | "movies";
-export type ShowChip = "watching" | "watchlist" | "stopped" | "finished";
+type ShowChip = "watching" | "watchlist" | "stopped" | "finished";
 export type MovieChip = "watchlist" | "watched";
 export type ChipKey = ShowChip | MovieChip;
 
@@ -107,10 +107,6 @@ export function movieChips(entries: readonly MovieEntry[], sort: MovieSort): Lib
 
 const toShowItem = (entry: LibraryEntry): LibraryItem => ({ kind: "show", entry });
 
-export function titleOf(item: LibraryItem): string {
-  return item.entry.title;
-}
-
 export function keyOf(item: LibraryItem): string {
   return item.kind === "show" ? `show-${item.entry.showId}` : `movie-${item.entry.movieId}`;
 }
@@ -135,5 +131,5 @@ export function useDebounced<T>(value: T, delayMs: number): T {
 export function matching(items: readonly LibraryItem[], query: string): readonly LibraryItem[] {
   const needle = query.trim().toLowerCase();
   if (needle === "") return items;
-  return items.filter((item) => titleOf(item).toLowerCase().includes(needle));
+  return items.filter((item) => item.entry.title.toLowerCase().includes(needle));
 }

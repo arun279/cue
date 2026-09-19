@@ -121,31 +121,32 @@ export function LibraryToolbar<T extends string>({
           })}
         </View>
       ) : null}
-      <View style={styles.spacer} />
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Filter by title"
-        testID={TEST_IDS.libraryFilterToggle}
-        onPress={onFilterToggle}
-        style={styles.tool}
-      >
-        <Glyph path="M11 4a7 7 0 1 1 0 14 7 7 0 0 1 0-14M16 16l4 4" color={colors.accentInk} />
-      </Pressable>
-      <RowMenu
-        title="Sort"
-        testID={TEST_IDS.librarySort}
-        openOnLongPress={false}
-        items={sorts.map((option) => ({
-          id: option.testID,
-          label: option.label,
-          selected: option.id === sort,
-          onPress: () => onSort(option.id),
-        }))}
-      >
-        <View accessible accessibilityRole="button" accessibilityLabel="Sort" style={styles.tool}>
-          <Glyph path="M7 5v14M4 16l3 3 3-3M17 19V5M14 8l3-3 3 3" color={colors.accentInk} />
-        </View>
-      </RowMenu>
+      <View style={styles.tools}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Filter by title"
+          testID={TEST_IDS.libraryFilterToggle}
+          onPress={onFilterToggle}
+          style={styles.tool}
+        >
+          <Glyph path="M11 4a7 7 0 1 1 0 14 7 7 0 0 1 0-14M16 16l4 4" color={colors.accentInk} />
+        </Pressable>
+        <RowMenu
+          title="Sort"
+          testID={TEST_IDS.librarySort}
+          openOnLongPress={false}
+          items={sorts.map((option) => ({
+            id: option.testID,
+            label: option.label,
+            selected: option.id === sort,
+            onPress: () => onSort(option.id),
+          }))}
+        >
+          <View accessible accessibilityRole="button" accessibilityLabel="Sort" style={styles.tool}>
+            <Glyph path="M7 5v14M4 16l3 3 3-3M17 19V5M14 8l3-3 3 3" color={colors.accentInk} />
+          </View>
+        </RowMenu>
+      </View>
     </View>
   );
 }
@@ -175,6 +176,7 @@ const styles = StyleSheet.create({
   toolbar: {
     flexDirection: "row",
     alignItems: "center",
+    flexWrap: "wrap",
     gap: SPACE.s2,
     paddingHorizontal: SPACE.s4,
     paddingBottom: SPACE.s2,
@@ -195,7 +197,10 @@ const styles = StyleSheet.create({
     borderWidth: HAIRLINE,
     borderColor: "transparent",
   },
-  spacer: { flex: 1 },
+  // Wrapping rather than a fixed row: the segment labels are type, so at the
+  // largest sizes the two tools take a line of their own instead of leaving the
+  // screen.
+  tools: { flexDirection: "row", gap: SPACE.s2, marginLeft: "auto" },
   tool: {
     width: TARGET_MIN,
     height: TARGET_MIN,
