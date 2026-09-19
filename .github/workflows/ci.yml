@@ -76,18 +76,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
       - uses: ./.github/actions/setup-node-pnpm
-      - name: Measure render performance
+      - name: Measure base and head consecutively
         env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           EXPO_PUBLIC_TRAKT_CLIENT_ID: test-client
-        run: pnpm --dir packages/native perf:render --compare=false
-      - name: Gate render counts and report duration
+        run: |
+          if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            BASE_SHA=$(git rev-parse HEAD^)
+          fi
+          base_directory="$RUNNER_TEMP/render-base"
+          git worktree add --detach "$base_directory" "$BASE_SHA"
+          pnpm --dir "$base_directory" install --frozen-lockfile
+          (cd "$base_directory" && pnpm --dir packages/native perf:render --baseline --compare=false)
+          cp "$base_directory/packages/native/.reassure/baseline.perf" \
+            packages/native/.reassure/baseline.perf
+          pnpm --dir packages/native perf:render
+      - name: Gate render counts and significant slowdowns
         run: pnpm check:render-counts
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ !cancelled() }}
         with:
           name: reassure-render-performance
-          path: packages/native/.reassure/current.perf
+          path: packages/native/.reassure/
           retention-days: 7
   audit:
     runs-on: ubuntu-latest

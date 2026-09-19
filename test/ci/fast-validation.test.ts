@@ -56,4 +56,21 @@ describe("fast pull request validation", () => {
 
     expect(verification.match(/--driver-host-port 7001/g)).toHaveLength(2);
   });
+
+  it("measures render performance base then head on one runner", () => {
+    const render = job("render-performance");
+
+    expect(render).toMatch(
+      /git worktree add[\s\S]*perf:render --baseline --compare=false[\s\S]*perf:render\n/,
+    );
+    expect(render).toContain("packages/native/.reassure/baseline.perf");
+    expect(render).toContain("Gate render counts and significant slowdowns");
+  });
+
+  it("asserts zero Android ANRs after exercising the release app", () => {
+    const verification = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
+
+    expect(verification).toContain("dumpsys activity exit-info app.cuetracker");
+    expect(verification).toContain("scripts/assert-no-anr.sh");
+  });
 });

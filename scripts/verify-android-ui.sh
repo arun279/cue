@@ -74,3 +74,7 @@ for icon in up_next library calendar search; do
     exit 1
   }
 done
+
+adb shell dumpsys activity exit-info app.cuetracker > "$output/exit-info.txt"
+adb logcat -d -v threadtime > "$output/logcat.txt"
+bash scripts/assert-no-anr.sh "$output/exit-info.txt" "$output/logcat.txt"
