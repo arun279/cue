@@ -22,7 +22,7 @@ export function ConfirmationSheet({
     { label: "Cancel", run: onDismiss },
   ];
   return (
-    <Host>
+    <Host style={styles.host} pointerEvents="none">
       <ModalBottomSheet onDismissRequest={onDismiss} skipPartiallyExpanded>
         <RNHostView matchContents>
           <View testID={TEST_IDS.confirmSheet} style={styles.content}>
@@ -56,6 +56,7 @@ export function ConfirmationSheet({
 }
 
 const styles = StyleSheet.create({
+  host: { position: "absolute" },
   content: { paddingHorizontal: SPACE.s5, gap: SPACE.s2 },
   action: { minHeight: 56, justifyContent: "center" },
 });

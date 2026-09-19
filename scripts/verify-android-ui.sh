@@ -44,7 +44,6 @@ for appearance in light dark; do
   suite=.maestro/ci/app.yaml
   if [ "$appearance" = dark ]; then suite=.maestro/ci/screenshots.yaml; fi
   if ! maestro test "$suite" --driver-host-port 7001 \
-    --env APP_IDLE_CEILING_MS=6000 \
     --format JUNIT \
     --output "$output/maestro-results-$appearance.xml" \
     --debug-output "$output/maestro-$appearance" \

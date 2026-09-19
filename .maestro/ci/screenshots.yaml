@@ -2,9 +2,4 @@ appId: app.cuetracker
 env:
   CAPTURE_AUTH: "false"
 ---
-- runFlow: ../flows/launch.yaml
-- runFlow: ../flows/up-next-mark-and-undo.yaml
-- runFlow: ../flows/show-detail-bulk-mark.yaml
-- runFlow: ../flows/episode-sheet.yaml
-- runFlow: ../flows/library.yaml
-- runFlow: ../flows/tabs.yaml
+- runFlow: ../flows/dark-traversal.yaml

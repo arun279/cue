@@ -8,4 +8,7 @@ env:
 - runFlow: ../flows/episode-sheet.yaml
 - runFlow: ../flows/library.yaml
 - runFlow: ../flows/tabs.yaml
-- runFlow: ../flows/returning-user-app-idle.yaml
+- runFlow:
+    file: ../flows/returning-user-app-idle.yaml
+    when:
+      platform: iOS

@@ -13,6 +13,7 @@ appId: app.cuetracker
     when:
       true: ${CAPTURE_AUTH == "true"}
     commands:
+      - waitForAnimationToEnd
       - takeScreenshot: onboarding-ready
 - tapOn:
     id: "button-connect"
@@ -27,6 +28,7 @@ appId: app.cuetracker
     when:
       true: ${CAPTURE_AUTH == "true"}
     commands:
+      - waitForAnimationToEnd
       - takeScreenshot: connect-code-ready
 - runScript: approve-device.js
 - assertTrue: ${output.deviceApproved}

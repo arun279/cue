@@ -2,10 +2,10 @@ import { usePrefs } from "@cue/core/prefs/prefs-store";
 import { Redirect, useLocalSearchParams } from "expo-router";
 import type { ReactElement } from "react";
 import { StyleSheet, View } from "react-native";
-import { parseId, parseSeason } from "../../../../../../../src/route-params";
-import { EpisodeSheet } from "../../../../../../../src/screens/EpisodeSheet";
-import { AppIdle } from "../../../../../../../src/ui/AppIdle";
-import { SnackbarHost } from "../../../../../../../src/ui/SnackbarHost";
+import { parseId, parseSeason } from "../../../../../src/route-params";
+import { EpisodeSheet } from "../../../../../src/screens/EpisodeSheet";
+import { AppIdle } from "../../../../../src/ui/AppIdle";
+import { SnackbarHost } from "../../../../../src/ui/SnackbarHost";
 
 export default function EpisodeRoute(): ReactElement {
   const enabled = usePrefs((state) => state.showsEnabled);

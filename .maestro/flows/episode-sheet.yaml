@@ -16,6 +16,7 @@ appId: app.cuetracker
     id: "episode-sheet"
 - assertVisible:
     id: "episode-mark-row"
+- waitForAnimationToEnd
 - takeScreenshot: episode-sheet-rest
 - tapOn:
     id: "episode-mark-control"
@@ -23,6 +24,7 @@ appId: app.cuetracker
     id: "snackbar"
 - assertVisible:
     id: "episode-sheet"
+- waitForAnimationToEnd
 - takeScreenshot: episode-sheet-marked
 - runFlow: lib/settle.yaml
 - tapOn:
@@ -33,11 +35,13 @@ appId: app.cuetracker
     id: "episode-pager-next"
 - assertVisible:
     id: "episode-still-blur"
+- waitForAnimationToEnd
 - takeScreenshot: episode-sheet-spoiler
 - tapOn:
     id: "episode-still-reveal"
 - assertNotVisible:
     id: "episode-still-blur"
+- waitForAnimationToEnd
 - takeScreenshot: episode-sheet-revealed
 - runFlow:
     when:
@@ -56,4 +60,5 @@ appId: app.cuetracker
     id: "screen-show-detail"
 - assertNotVisible:
     id: "episode-sheet"
+- waitForAnimationToEnd
 - takeScreenshot: show-detail-after-episode

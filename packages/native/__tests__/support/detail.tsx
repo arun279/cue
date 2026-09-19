@@ -7,7 +7,7 @@ import {
   showSeasonsQuery,
 } from "@cue/core/queries/shows";
 import type { QueryClient } from "@tanstack/react-query";
-import type { ReactElement, ReactNode } from "react";
+import type { ComponentProps, ReactElement, ReactNode } from "react";
 import type { ShowHeader } from "../../src/screens/show-detail/useShowDetail";
 import { agesAgo, fakeRuntime, Harness, spyHaptics } from "./up-next";
 
@@ -105,5 +105,13 @@ export function imageModule() {
 
 export function composeModule() {
   const { View } = require("react-native");
-  return { Host: View, ModalBottomSheet: View, RNHostView: View };
+  return {
+    Host: ({ children, pointerEvents, ...props }: ComponentProps<typeof View>) => (
+      <View testID="compose-host" accessibilityHint={pointerEvents} {...props}>
+        {children}
+      </View>
+    ),
+    ModalBottomSheet: View,
+    RNHostView: View,
+  };
 }
