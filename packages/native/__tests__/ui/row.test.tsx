@@ -1,17 +1,12 @@
 import { render, screen, userEvent } from "@testing-library/react-native";
-import { useWindowDimensions, View } from "react-native";
+import { View } from "react-native";
 import { CheckControl } from "../../src/ui/CheckControl";
 import { Row, Separator } from "../../src/ui/Row";
 import { ROW_MIN_HEIGHT } from "../../src/ui/tokens";
 import { CueText } from "../../src/ui/type";
+import { atFontScale } from "../support/font-scale";
 
 jest.mock("react-native/Libraries/Utilities/useWindowDimensions");
-
-const dimensions = jest.mocked(useWindowDimensions);
-
-function atFontScale(fontScale: number): void {
-  dimensions.mockReturnValue({ width: 402, height: 874, scale: 3, fontScale });
-}
 
 beforeEach(() => atFontScale(1));
 

@@ -141,6 +141,8 @@ export const SWIPE_COMMIT = 96;
 /** Poster widths on the strict 2:3 scale, so a poster is `width` by `width * 1.5`. */
 export const POSTER_WIDTH = { row: 48, onTheWay: 40, marquee: 64 } as const;
 
+export const EPISODE_NUMBER_WIDTH = 20;
+
 /** The progress rail: 4 pt tall, never scaled, and the row's only at-a-glance
  * indication of how far through a show the reader is. */
 export const RAIL = { height: 4, row: 64, marquee: 120 } as const;

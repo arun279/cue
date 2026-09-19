@@ -6,6 +6,9 @@ import { CueText } from "./type";
 
 const POSTER_RATIO = 3 / 2;
 
+export const MONOGRAM_SIZE = 0.25;
+const MONOGRAM_LEADING = 1.25;
+
 export interface PosterProps {
   readonly title: string;
   readonly posters?: readonly string[] | null;
@@ -35,7 +38,19 @@ export function Poster({ title, posters, width }: PosterProps): ReactElement {
         { width, height: width * POSTER_RATIO, backgroundColor: plate(title) },
       ]}
     >
-      <CueText variant="caption" weight="bold" style={styles.initials}>
+      <CueText
+        variant="caption"
+        weight="bold"
+        allowFontScaling={false}
+        numberOfLines={1}
+        style={[
+          styles.initials,
+          {
+            fontSize: width * MONOGRAM_SIZE,
+            lineHeight: width * MONOGRAM_SIZE * MONOGRAM_LEADING,
+          },
+        ]}
+      >
         {initialsOf(title)}
       </CueText>
       {url === null ? null : (
