@@ -6,13 +6,6 @@ import { CueText } from "./type";
 
 const POSTER_RATIO = 3 / 2;
 
-/**
- * The monogram is artwork like the plate under it, so it is drawn from the
- * plate's own width rather than from the type scale: a plate is the same size
- * at every content size, and letters that grow when it cannot run off its
- * edges. A quarter of the width leaves the plate's edges clear on both axes at
- * the two letters `initialsOf` returns at most.
- */
 export const MONOGRAM_SIZE = 0.25;
 const MONOGRAM_LEADING = 1.25;
 

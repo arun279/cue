@@ -141,13 +141,6 @@ export const SWIPE_COMMIT = 96;
 /** Poster widths on the strict 2:3 scale, so a poster is `width` by `width * 1.5`. */
 export const POSTER_WIDTH = { row: 48, onTheWay: 40, marquee: 64 } as const;
 
-/**
- * The episode number column, at the text scale of 1: wide enough for two
- * `micro` digits, because a season past nine has them and a column that takes
- * the width of its own digits starts every title at a different x.
- *
- * It holds type rather than artwork, so a row multiplies it by the text scale.
- */
 export const EPISODE_NUMBER_WIDTH = 20;
 
 /** The progress rail: 4 pt tall, never scaled, and the row's only at-a-glance

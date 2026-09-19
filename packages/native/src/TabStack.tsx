@@ -45,11 +45,6 @@ export function TabStack({ root, title }: TabStackProps): ReactElement {
   } as const;
   return (
     <Stack>
-      {/* Posters and grid artwork scroll under a tab root's bar, so its scrolled
-          appearance is the page color rather than the platform's material,
-          which would leave a row legible through the collapsed title. The large
-          title's own appearance takes the same color, so the bar still reads as
-          part of the page at the scroll edge. */}
       <Stack.Screen
         name={root}
         options={{
