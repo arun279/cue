@@ -1,5 +1,6 @@
 import { Stack } from "expo-router";
 import type { ReactElement } from "react";
+import { opaqueHeaderOptions } from "./ui/navigation-theme";
 import { useColors } from "./ui/tokens";
 
 export interface TabStackProps {
@@ -39,9 +40,8 @@ export function TabStack({ root, title }: TabStackProps): ReactElement {
       <Stack.Screen
         name={root}
         options={{
+          ...opaqueHeaderOptions(colors.bg),
           title,
-          headerStyle: { backgroundColor: colors.bg },
-          headerLargeStyle: { backgroundColor: colors.bg },
         }}
       />
       <Stack.Screen name="show/[showId]" options={{ ...detail, title: "Show" }} />

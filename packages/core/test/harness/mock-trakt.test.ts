@@ -253,8 +253,12 @@ describe("the seeded account parses through the app's own contracts", () => {
 
   it("serves history one page at a time, with the pagination headers the client walks", async () => {
     const first = await getHistory(client(), "all", 1);
-    expect(ok(first).length).toBe(30);
+    const rows = ok(first);
+    expect(rows.length).toBe(30);
     expect(first.ok && first.pagination?.pageCount).toBeGreaterThan(1);
+    const repeated = rows.filter((row) => row.episode?.ids.trakt === 880608);
+    expect(repeated).toHaveLength(2);
+    expect(new Set(repeated.map((row) => row.watched_at.slice(0, 10))).size).toBe(1);
     expect(ok(await getHistory(client(), "movies", 1)).every((row) => row.type === "movie")).toBe(
       true,
     );
@@ -283,6 +287,19 @@ describe("the seeded account parses through the app's own contracts", () => {
       "The Harbor Master",
       "Harbor Sound",
     ]);
+  });
+
+  it("applies the history month window before pagination", async () => {
+    const first = ok(await getHistory(client(), "all", 1))[0];
+    expect(first).toBeDefined();
+    const start = first?.watched_at ?? "";
+    const query = new URLSearchParams({ start_at: start, end_at: start });
+    const response = await fetch(`${baseUrl}/users/me/history?${query}`);
+    const rows = await response.json();
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.every((row: { watched_at: string }) => row.watched_at === start)).toBe(true);
+    const empty = await fetch(`${baseUrl}/users/me/history?start_at=2000-01-01&end_at=2000-02-01`);
+    expect(await empty.json()).toEqual([]);
   });
 
   it("answers a path it does not model with 404 rather than an empty success", async () => {

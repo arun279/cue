@@ -14,7 +14,7 @@ import { useOptimisticWrite } from "./useOptimisticWrite";
 
 export interface RemovePlayController {
   readonly removedIds: ReadonlySet<number>;
-  removePlay(entry: HistoryEntry): Promise<void>;
+  removePlay(entry: HistoryEntry, remaining?: number): Promise<void>;
 }
 
 const withoutId = (set: ReadonlySet<number>, id: number): Set<number> => {
@@ -59,7 +59,7 @@ export function useRemovePlay(): RemovePlayController {
   );
 
   const removePlay = useCallback(
-    async (entry: HistoryEntry) => {
+    async (entry: HistoryEntry, remaining = 0) => {
       setRemovedIds((previous) => new Set(previous).add(entry.historyId));
       const op = buildRemoveHistoryPlayOp({
         opId: runtime.newId(),
@@ -76,7 +76,9 @@ export function useRemovePlay(): RemovePlayController {
       });
       removeOutcomes.current.set(entry.historyId, settled);
       pending.current = entry;
-      showUndoable("Removed play", () => undoAction.current());
+      showUndoable(remaining > 0 ? `Removed 1 play · ${remaining} remain` : "Removed play", () =>
+        undoAction.current(),
+      );
       if ((await settled) === "failed") {
         if (pending.current?.historyId === entry.historyId) pending.current = null;
         showError("Couldn't remove that play. Please try again.");

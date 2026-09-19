@@ -7,3 +7,4 @@ env:
 - runFlow: ../flows/show-detail-bulk-mark.yaml
 - runFlow: ../flows/movie-detail.yaml
 - runFlow: ../flows/episode-sheet.yaml
+- runFlow: ../flows/history.yaml
