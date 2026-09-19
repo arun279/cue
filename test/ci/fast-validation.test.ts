@@ -91,10 +91,10 @@ describe("fast pull request validation", () => {
     const verification = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
 
     expect(ios).toContain("name: ui-screenshots-ios");
-    expect(ios).toContain('--env SCREENSHOT_DIR="$RUNNER_TEMP/screenshots/ios/$appearance"');
+    expect(ios).toContain('--test-output-dir "$RUNNER_TEMP/screenshots/ios/$appearance"');
     expect(ios).toContain("create-ui-contact-sheet.sh");
     expect(android).toContain("name: ui-screenshots-android");
-    expect(verification).toContain('--env SCREENSHOT_DIR="$screenshots/$appearance"');
+    expect(verification).toContain('--test-output-dir "$screenshots/$appearance"');
     expect(android).toContain("create-ui-contact-sheet.sh");
     expect(ios.match(/retention-days: 14/g)).toHaveLength(1);
     expect(android.match(/retention-days: 14/g)).toHaveLength(1);
@@ -115,7 +115,7 @@ describe("fast pull request validation", () => {
         .flatMap((file) =>
           [
             ...readFileSync(repositoryPath(`.maestro/flows/${file}`), "utf8").matchAll(
-              /takeScreenshot: "\$\{SCREENSHOT_DIR\}\/([^"\n]+)"/g,
+              /takeScreenshot: ([^\n]+)/g,
             ),
           ].flatMap((match) => (match[1] === undefined ? [] : [match[1]])),
         )

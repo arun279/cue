@@ -16,13 +16,13 @@ appId: app.cuetracker
     id: "episode-sheet"
 - assertVisible:
     id: "episode-mark-row"
-- takeScreenshot: "${SCREENSHOT_DIR}/episode-sheet-rest"
+- takeScreenshot: episode-sheet-rest
 - tapOn: "Mark S2 E3 watched"
 - assertVisible:
     id: "snackbar"
 - assertVisible:
     id: "episode-sheet"
-- takeScreenshot: "${SCREENSHOT_DIR}/episode-sheet-marked"
+- takeScreenshot: episode-sheet-marked
 - runFlow: lib/settle.yaml
 - tapOn:
     id: "snackbar-undo"
@@ -32,12 +32,12 @@ appId: app.cuetracker
     id: "episode-pager-next"
 - assertVisible:
     id: "episode-still-blur"
-- takeScreenshot: "${SCREENSHOT_DIR}/episode-sheet-spoiler"
+- takeScreenshot: episode-sheet-spoiler
 - tapOn:
     id: "episode-still-reveal"
 - assertNotVisible:
     id: "episode-still-blur"
-- takeScreenshot: "${SCREENSHOT_DIR}/episode-sheet-revealed"
+- takeScreenshot: episode-sheet-revealed
 - runFlow:
     when:
       platform: iOS
@@ -55,4 +55,4 @@ appId: app.cuetracker
     id: "screen-show-detail"
 - assertNotVisible:
     id: "episode-sheet"
-- takeScreenshot: "${SCREENSHOT_DIR}/show-detail-after-episode"
+- takeScreenshot: show-detail-after-episode

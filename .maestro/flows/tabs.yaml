@@ -10,17 +10,17 @@ appId: app.cuetracker
 - tapOn: "Library"
 - assertVisible:
     id: "screen-library"
-- takeScreenshot: "${SCREENSHOT_DIR}/library-tab-rest"
+- takeScreenshot: library-tab-rest
 - tapOn: "Calendar"
 - assertVisible:
     id: "screen-calendar"
-- takeScreenshot: "${SCREENSHOT_DIR}/calendar-empty"
+- takeScreenshot: calendar-empty
 - tapOn: "Search"
 - assertVisible:
     id: "screen-search"
-- takeScreenshot: "${SCREENSHOT_DIR}/search-empty"
+- takeScreenshot: search-empty
 - tapOn: "Up Next"
 - assertVisible:
     id: "screen-up-next"
-- takeScreenshot: "${SCREENSHOT_DIR}/up-next-tab-rest"
-- takeScreenshot: "${SCREENSHOT_DIR}/up-next-returning-user"
+- takeScreenshot: up-next-tab-rest
+- takeScreenshot: up-next-returning-user

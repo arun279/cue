@@ -400,11 +400,10 @@ jobs:
             if [ "$appearance" = dark ]; then suite=.maestro/ci/screenshots.yaml; fi
             if ! maestro --device "$DEVICE_ID" test "$suite" \
               --env APP_IDLE_CEILING_MS="$APP_IDLE_CEILING_MS" \
-              --env SCREENSHOT_DIR="$RUNNER_TEMP/screenshots/ios/$appearance" \
               --format JUNIT \
               --output "$RUNNER_TEMP/maestro-results-$appearance.xml" \
               --debug-output "$RUNNER_TEMP/maestro-debug/$appearance" \
-              --test-output-dir "$RUNNER_TEMP/maestro-tests/ios/$appearance"; then
+              --test-output-dir "$RUNNER_TEMP/screenshots/ios/$appearance"; then
               result=1
             fi
           done
@@ -425,11 +424,11 @@ jobs:
           FEEDBACK_CEILING_MS: "100"
         run: |
           node scripts/summarize-app-idle.mjs \
-            "$RUNNER_TEMP/maestro-tests/ios/light" \
+            "$RUNNER_TEMP/screenshots/ios/light" \
             "$APP_IDLE_CEILING_MS" \
             >> "$GITHUB_STEP_SUMMARY"
           node scripts/check-response-timing.mjs \
-            "$RUNNER_TEMP/maestro-tests/ios/light" \
+            "$RUNNER_TEMP/screenshots/ios/light" \
             "$FEEDBACK_CEILING_MS" \
             >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

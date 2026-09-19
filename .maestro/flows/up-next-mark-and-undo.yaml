@@ -3,13 +3,13 @@ appId: app.cuetracker
 - runFlow: lib/connect.yaml
 - assertVisible:
     id: "up-next-list"
-- takeScreenshot: "${SCREENSHOT_DIR}/up-next-queue-rest"
+- takeScreenshot: up-next-queue-rest
 - tapOn:
     id: "queue-row-[0-9]+-mark"
     index: 0
 - assertVisible:
     id: "snackbar-undo"
-- takeScreenshot: "${SCREENSHOT_DIR}/up-next-mark-snackbar"
+- takeScreenshot: up-next-mark-snackbar
 - tapOn:
     id: "snackbar-undo"
 - assertVisible:
@@ -33,4 +33,4 @@ appId: app.cuetracker
 - evalScript: "${output.markResponseMs = parseFloat(maestro.copiedText.match(/mark ([0-9.]+) ms/)[1])}"
 - evalScript: "${output.undoResponseMs = parseFloat(maestro.copiedText.match(/undo ([0-9.]+) ms/)[1])}"
 - evalScript: "${console.log('CUE_RESPONSE_TIMING=mark ' + output.markResponseMs + ' ms, undo ' + output.undoResponseMs + ' ms')}"
-- takeScreenshot: "${SCREENSHOT_DIR}/up-next-mark-restored"
+- takeScreenshot: up-next-mark-restored
