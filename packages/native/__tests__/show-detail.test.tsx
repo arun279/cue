@@ -6,7 +6,8 @@ import { ContinueBar } from "../src/screens/show-detail/ContinueBar";
 import { ConfirmationSheet } from "../src/ui/ConfirmationSheet.android";
 import { TEST_IDS } from "../src/ui/test-ids";
 import { useConfirmation } from "../src/ui/useConfirmation";
-import { DetailHarness } from "./support/detail";
+import { DetailHarness, detailRuntime } from "./support/detail";
+import { router } from "./support/native-ui";
 import { entry, resetSharedStores } from "./support/up-next";
 
 jest.mock("expo-router", () => require("./support/native-ui").expoRouterModule());
@@ -73,6 +74,35 @@ it("keeps the seasons accordion in descending order with Specials last", async (
   expect(screen.queryByTestId(TEST_IDS.episodeChecked(8803, 0, 1))).toBeNull();
   await fireEvent.press(screen.getByTestId(TEST_IDS.seasonTrigger(2)));
   expect(screen.queryByTestId(TEST_IDS.episodeChecked(8803, 2, 1))).toBeNull();
+});
+
+it("caps related shows at six and opens the selected show", async () => {
+  const runtime = {
+    ...detailRuntime,
+    loadShowRelated: jest.fn(async () =>
+      Array.from({ length: 7 }, (_, index) => ({
+        key: String(index),
+        type: "show" as const,
+        traktId: index + 9000,
+        title: `Related ${index}`,
+        year: 2024,
+        posters: [],
+        tmdbId: null,
+        ids: { trakt: index + 9000 },
+      })),
+    ),
+  };
+  await render(
+    <DetailHarness runtime={runtime}>
+      <ShowDetail showId={8803} />
+    </DetailHarness>,
+  );
+  await screen.findByText("More like this");
+  expect(screen.getAllByRole("button", { name: /^Related / })).toHaveLength(6);
+  expect(screen.getByTestId(TEST_IDS.showCard(9005))).toBeOnTheScreen();
+  expect(screen.queryByTestId(TEST_IDS.showCard(9006))).toBeNull();
+  await fireEvent.press(screen.getByRole("button", { name: "Related 5" }));
+  expect(router.push).toHaveBeenCalledWith("/show/9005");
 });
 
 describe("platform confirmations", () => {

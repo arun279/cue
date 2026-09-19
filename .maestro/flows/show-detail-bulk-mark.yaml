@@ -30,3 +30,12 @@ appId: app.cuetracker
     id: "episode-row-8803-2-3-check"
 - assertVisible:
     id: "episode-row-8803-2-1-checked"
+- scrollUntilVisible:
+    element:
+      text: "More like this"
+    direction: DOWN
+    centerElement: true
+- assertVisible:
+    id: "show-card-8801"
+- assertNotVisible:
+    id: "show-card-8808"

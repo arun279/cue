@@ -29,6 +29,15 @@ appId: app.cuetracker
 - assertVisible: "Open on Trakt"
 - tapOn: "Add to Watchlist"
 - assertVisible: "The Lantern Keeper added to Watchlist"
+- scrollUntilVisible:
+    element:
+      text: "More like this"
+    direction: DOWN
+    centerElement: true
+- assertVisible:
+    id: "movie-card-5502"
+- assertNotVisible:
+    id: "movie-card-5508"
 - tapOn:
     text: "Library"
     index: 0

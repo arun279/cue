@@ -6,6 +6,7 @@ import { useRouter } from "expo-router";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 import { Poster } from "../../ui/Poster";
+import { TEST_IDS } from "../../ui/test-ids";
 import { SPACE, useColors } from "../../ui/tokens";
 import { CueText } from "../../ui/type";
 
@@ -32,6 +33,11 @@ export function RelatedTitles({
         {titles.slice(0, 6).map((show) => (
           <Pressable
             key={show.key}
+            testID={
+              show.type === "movie"
+                ? TEST_IDS.movieCard(show.traktId)
+                : TEST_IDS.showCard(show.traktId)
+            }
             accessibilityRole="button"
             accessibilityLabel={show.title}
             style={{ width: 104, gap: SPACE.s2 }}

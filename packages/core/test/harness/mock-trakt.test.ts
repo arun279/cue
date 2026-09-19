@@ -19,6 +19,8 @@ import {
   getMyShowsCalendar,
   getPopularMovies,
   getPopularShows,
+  getRelatedMovies,
+  getRelatedShows,
   getShow,
   getShowProgress,
   getShowSeasons,
@@ -118,6 +120,12 @@ function firstSeededShow(): (typeof mock.library.shows)[number] {
   return show;
 }
 
+function firstSeededMovie(): (typeof mock.library.movies)[number] {
+  const movie = mock.library.movies[0];
+  if (movie === undefined) throw new Error("the mock seeds no movies");
+  return movie;
+}
+
 /**
  * The post-mark projection against the catalogue it will be applied to: every
  * coordinate `advancePastNext` invents for a seeded show has to be an episode
@@ -189,6 +197,11 @@ describe("the seeded account parses through the app's own contracts", () => {
     for (const show of mock.library.shows) {
       const detail = ok(await getShow(client(), show.trakt));
       expect(detail.title).toBe(show.title);
+      expect(
+        ok(await getRelatedShows(client(), show.trakt, 12)).every(
+          (related) => related.ids.trakt !== show.trakt,
+        ),
+      ).toBe(true);
       const progress = ok(await getShowProgress(client(), show.trakt));
       expect(progress.aired).toBeGreaterThan(0);
       const seasons = ok(await getShowSeasons(client(), show.trakt));
@@ -200,8 +213,35 @@ describe("the seeded account parses through the app's own contracts", () => {
 
   it("serves every seeded movie's detail read", async () => {
     for (const movie of mock.library.movies) {
-      expect(ok(await getMovie(client(), movie.trakt)).title).toBe(movie.title);
+      const detail = ok(await getMovie(client(), movie.trakt));
+      expect(detail.title).toBe(movie.title);
+      expect(detail.images?.poster).toHaveLength(1);
+      expect(detail.images?.fanart).toHaveLength(1);
+      expect(
+        ok(await getRelatedMovies(client(), movie.trakt)).every(
+          (related) => related.ids.trakt !== movie.trakt,
+        ),
+      ).toBe(true);
     }
+  });
+
+  it("serves large, small and empty related fixtures within the requested limit", async () => {
+    const movies = ok(await getRelatedMovies(client(), 5501, 12));
+    expect(movies).toHaveLength(7);
+    expect(movies[0]).toMatchObject({
+      images: { poster: [expect.any(String)], fanart: [expect.any(String)] },
+    });
+    expect(ok(await getRelatedMovies(client(), 5501, 6))).toHaveLength(6);
+    expect(ok(await getRelatedMovies(client(), 5502, 12))).toHaveLength(2);
+    expect(ok(await getRelatedMovies(client(), 5503, 12))).toEqual([]);
+    const shows = ok(await getRelatedShows(client(), 8803, 12));
+    expect(shows).toHaveLength(7);
+    expect(shows[0]).toMatchObject({
+      status: expect.any(String),
+      images: { poster: [expect.any(String)] },
+    });
+    expect(ok(await getRelatedShows(client(), 8803, 6))).toHaveLength(6);
+    expect(ok(await getRelatedShows(client(), 8807, 12))).toEqual([]);
   });
 
   it("serves a calendar window with the upcoming airings the seed promises", async () => {
@@ -236,6 +276,13 @@ describe("the seeded account parses through the app's own contracts", () => {
     const poster = resolvePoster({ title: detail.title, traktPosters: detail.images?.poster });
     expect(poster.source).toBe("trakt");
     const response = await fetch(poster.source === "trakt" ? poster.url : "");
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("image/png");
+  });
+
+  it("serves the movie backdrop advertised by its detail read", async () => {
+    const detail = ok(await getMovie(client(), firstSeededMovie().trakt));
+    const response = await fetch(detail.images?.fanart?.[0] ?? "");
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toContain("image/png");
   });
@@ -301,7 +348,9 @@ describe("seed profiles", () => {
     expect(mock.library.shows.map((show) => show.trakt)).toEqual([
       8801, 8802, 8803, 8804, 8805, 8806, 8807, 8808,
     ]);
-    expect(mock.library.movies.map((movie) => movie.trakt)).toEqual([5501, 5502, 5503]);
+    expect(mock.library.movies.map((movie) => movie.trakt)).toEqual([
+      5501, 5502, 5503, 5504, 5505, 5506, 5507, 5508,
+    ]);
   });
 
   it("serves an empty library", async () => {
