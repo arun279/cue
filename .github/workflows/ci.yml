@@ -343,6 +343,7 @@ jobs:
       - run: pnpm --filter @cue/native exec expo prebuild --platform android --clean
         env:
           EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
+          EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
           APP_VERSION: 9.9.9
           BUILD_NUMBER: "42"
       - name: Download bundletool
@@ -363,6 +364,7 @@ jobs:
         working-directory: packages/native/android
         env:
           EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
+          EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
           PLAY_SIZE_MEASUREMENT_BYTES: "16920872"
           PLAY_SIZE_MEASURED_ON: "2026-09-09"
           PLAY_SIZE_LIMIT_BYTES: "20000000"
@@ -398,6 +400,7 @@ jobs:
           path: packages/native/android/extracted/universal.apk
           retention-days: 1
   android-e2e:
+    timeout-minutes: 8
     needs: native-android
     runs-on: ubuntu-latest
     env:
