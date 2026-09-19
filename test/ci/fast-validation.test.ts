@@ -36,14 +36,52 @@ describe("fast pull request validation", () => {
     expect(footprint).not.toMatch(/expo (?:export|prebuild)/);
     expect(footprint).not.toContain("grad" + "lew");
     expect(footprint).not.toMatch(/(?:xcodebuild|measure-play-size)/);
-    expect(footprint).toContain("cue-native-ios-sizes");
+    expect(footprint).not.toContain("cue-native-ios-sizes");
     expect(footprint).toContain("cue-native-android-sizes");
     expect(footprint).toContain("cue-js-bundles");
+    expect(footprint).toMatch(
+      /name: Upload Expo Atlas[\s\S]*name: expo-atlas[\s\S]*path: packages\/native\/\.expo\/atlas\.jsonl/,
+    );
+    expect(footprint).not.toContain("summarize-atlas");
+    expect(workflow).toContain("branches: [main, feat/expo-native");
+    expect(footprint).toContain(
+      "name: cue-footprint-$" + "{{ github.event.pull_request.head.sha || github.sha }}",
+    );
+    expect(footprint).toContain("Measured merge base $BASE_SHA from CI run $run_id artifacts");
+    expect(footprint).toContain("Missing merge-base measurements and successful CI artifacts");
+    expect(footprint).toContain('startswith("cue-native-android-")');
+    expect(footprint).toContain('java -jar "$RUNNER_TEMP/bundletool.jar" get-size total');
+  });
+
+  it("gates changed core lines from the generated LCOV file", () => {
+    const check = job("check");
+
+    expect(check).toContain('check-changed-coverage.mjs "origin/$BASE_REF" coverage/lcov.info');
+    expect(check).toContain("PR_BODY: $" + "{{ github.event.pull_request.body }}");
   });
 
   it("uses a fixed Maestro driver port outside Android's ephemeral range", () => {
     const verification = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
 
     expect(verification.match(/--driver-host-port 7001/g)).toHaveLength(2);
+  });
+
+  it("measures render performance base then head on one runner", () => {
+    const render = job("render-performance");
+
+    expect(render).toMatch(
+      /git worktree add[\s\S]*perf:render --baseline --compare=false[\s\S]*perf:render\n/,
+    );
+    expect(render).toContain("packages/native/.reassure/baseline.perf");
+    expect(render).toContain("Gate render counts");
+    expect(render).toContain("include-hidden-files: true");
+  });
+
+  it("asserts zero Android ANRs after exercising the release app", () => {
+    const verification = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
+
+    expect(verification).toContain("settings put global hide_error_dialogs 1");
+    expect(verification).toContain("dumpsys activity exit-info app.cuetracker");
+    expect(verification).toContain("scripts/assert-no-anr.sh");
   });
 });

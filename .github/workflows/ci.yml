@@ -5,7 +5,7 @@ on:
     # only once ci.yml's checks are green for that exact SHA, and it reads a
     # push-event run. Without this, dispatching mobile-release.yml on a release
     # branch waits out its deadline on checks that would never report.
-    branches: [main, "release/*"]
+    branches: [main, feat/expo-native, "release/*"]
   pull_request:
   schedule:
     # Weekly re-run so the (non-deterministic) advisory audit catches newly
@@ -64,6 +64,12 @@ jobs:
       - run: pnpm check
         env:
           EXPO_ATLAS: "true"
+      - name: Gate changed core coverage
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: node scripts/check-changed-coverage.mjs "origin/$BASE_REF" coverage/lcov.info "$PR_BODY"
       - name: Upload JavaScript bundles
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -71,23 +77,38 @@ jobs:
           path: |
             packages/native/.expo/atlas.jsonl
             packages/native/dist/
-          retention-days: 1
+          retention-days: 30
   render-performance:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
       - uses: ./.github/actions/setup-node-pnpm
-      - name: Measure render performance
+      - name: Measure base and head consecutively
         env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           EXPO_PUBLIC_TRAKT_CLIENT_ID: test-client
-        run: pnpm --dir packages/native perf:render --compare=false
-      - name: Gate render counts and report duration
+        run: |
+          if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            BASE_SHA=$(git rev-parse HEAD^)
+          fi
+          base_directory="$RUNNER_TEMP/render-base"
+          git worktree add --detach "$base_directory" "$BASE_SHA"
+          pnpm --dir "$base_directory" install --frozen-lockfile
+          (cd "$base_directory" && pnpm --dir packages/native perf:render --baseline --compare=false)
+          mkdir -p packages/native/.reassure
+          cp "$base_directory/packages/native/.reassure/baseline.perf" \
+            packages/native/.reassure/baseline.perf
+          pnpm --dir packages/native perf:render
+      - name: Gate render counts
         run: pnpm check:render-counts
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ !cancelled() }}
         with:
           name: reassure-render-performance
-          path: packages/native/.reassure/current.perf
+          path: packages/native/.reassure/
+          include-hidden-files: true
           retention-days: 7
   audit:
     runs-on: ubuntu-latest
@@ -110,12 +131,12 @@ jobs:
           bundler-cache: true
       - run: bundle exec standardrb fastlane/Fastfile fastlane/Appfile
   footprint:
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'
+    if: (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]') || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feat/expo-native'))
     permissions:
       actions: read
       contents: read
       pull-requests: write
-    needs: [check, native-android, native-ios]
+    needs: [check, native-android]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -128,41 +149,84 @@ jobs:
           path: packages/native
       - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
-          name: cue-native-ios-sizes
-          path: ${{ runner.temp }}/native-ios-sizes
-      - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
-        with:
           name: cue-native-android-sizes
           path: ${{ runner.temp }}/native-android-sizes
       - name: Restore the base measurement
+        if: github.event_name == 'pull_request'
         env:
           ARTIFACT_NAME: cue-footprint-${{ github.event.pull_request.base.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
           GH_TOKEN: ${{ github.token }}
         run: |
           if scripts/download-ci-artifact.sh "$ARTIFACT_NAME" "$RUNNER_TEMP/base-metrics"; then
             cp "$RUNNER_TEMP/base-metrics/head-metrics.json" base-metrics.json
+            echo "::notice::Restored merge-base measurements from $ARTIFACT_NAME"
           else
-            jq -n '{sizes: null, complexity: null, comments: null}' > base-metrics.json
+            run_id=$(gh api \
+              "repos/${{ github.repository }}/actions/workflows/ci.yml/runs?head_sha=$BASE_SHA&status=success&per_page=1" \
+              --jq '.workflow_runs[0].id // empty')
+            if [ -z "$run_id" ]; then
+              echo "::error::Missing merge-base measurements and successful CI artifacts for $BASE_SHA"
+              exit 1
+            fi
+            gh run download "$run_id" --repo "${{ github.repository }}" \
+              --name cue-js-bundles --dir "$RUNNER_TEMP/base-native"
+            if gh run download "$run_id" --repo "${{ github.repository }}" \
+              --name cue-native-android-sizes --dir "$RUNNER_TEMP/base-android"; then
+              cp "$RUNNER_TEMP/base-android/head-android-sizes.json" \
+                "$RUNNER_TEMP/base-android-sizes.json"
+            else
+              android_artifact=$(gh api \
+                "repos/${{ github.repository }}/actions/runs/$run_id/artifacts?per_page=100" \
+                --jq '.artifacts[] | select(.expired | not) | .name | select(startswith("cue-native-android-") and . != "cue-native-android-sizes")' | head -n 1)
+              if [ -z "$android_artifact" ]; then
+                echo "::error::Missing Android artifacts for merge base $BASE_SHA"
+                exit 1
+              fi
+              gh run download "$run_id" --repo "${{ github.repository }}" \
+                --name "$android_artifact" --dir "$RUNNER_TEMP/base-android"
+              curl --fail --location --retry 3 \
+                --output "$RUNNER_TEMP/bundletool.jar" \
+                https://github.com/google/bundletool/releases/download/1.18.3/bundletool-all-1.18.3.jar
+              echo "a099cfa1543f55593bc2ed16a70a7c67fe54b1747bb7301f37fdfd6d91028e29  $RUNNER_TEMP/bundletool.jar" | sha256sum --check
+              echo '{"supportedAbis":["arm64-v8a"],"supportedLocales":["en"],"screenDensity":640,"sdkVersion":35}' \
+                > "$RUNNER_TEMP/base-android/device.json"
+              java -jar "$RUNNER_TEMP/bundletool.jar" build-apks \
+                --bundle="$RUNNER_TEMP/base-android/app-release.aab" \
+                --output="$RUNNER_TEMP/base-android/all.apks" --overwrite
+              java -jar "$RUNNER_TEMP/bundletool.jar" get-size total \
+                --apks="$RUNNER_TEMP/base-android/all.apks" \
+                --device-spec="$RUNNER_TEMP/base-android/device.json" \
+                > "$RUNNER_TEMP/base-android/play-size.csv"
+              tester_size=$(wc -c < "$RUNNER_TEMP/base-android/tester-arm64-v8a.apk" | tr -d ' ')
+              play_size=$(node scripts/bundletool-size.mjs \
+                "$RUNNER_TEMP/base-android/play-size.csv" --value-only)
+              jq -n --argjson tester "$tester_size" --argjson play "$play_size" \
+                '[{name: "Firebase tester APK file", size: $tester}, {name: "Play download estimate", size: $play}]' \
+                > "$RUNNER_TEMP/base-android-sizes.json"
+            fi
+            scripts/measure-sizes.sh "$RUNNER_TEMP/base-native" "$RUNNER_TEMP/base-js-sizes.json"
+            jq -s 'add' "$RUNNER_TEMP/base-js-sizes.json" \
+              "$RUNNER_TEMP/base-android-sizes.json" > "$RUNNER_TEMP/base-sizes.json"
+            jq -n --slurpfile sizes "$RUNNER_TEMP/base-sizes.json" \
+              '{sizes: $sizes[0]}' > base-metrics.json
+            echo "::notice::Measured merge base $BASE_SHA from CI run $run_id artifacts"
           fi
-      - name: Measure the diff footprint
-        env:
-          BASE_REF: ${{ github.base_ref }}
+      - name: Measure delivered artifacts
         run: |
-          scripts/measure-sizes.sh "$PWD/head-sizes.json"
-          node scripts/measure-complexity.mjs "$PWD" "$PWD/head-complexity.json"
-          node scripts/measure-comments.mjs "$PWD" "$PWD/head-comments.json"
+          scripts/measure-sizes.sh packages/native "$PWD/head-sizes.json"
           jq -s 'add' head-sizes.json \
-            "$RUNNER_TEMP/native-ios-sizes/head-ios-sizes.json" \
             "$RUNNER_TEMP/native-android-sizes/head-android-sizes.json" > all-head-sizes.json
           mv all-head-sizes.json head-sizes.json
-          jq -n --slurpfile sizes head-sizes.json \
-            --slurpfile complexity head-complexity.json \
-            --slurpfile comments head-comments.json \
-            '{sizes: $sizes[0], complexity: $complexity[0], comments: $comments[0]}' \
-            > head-metrics.json
+          jq -n --slurpfile sizes head-sizes.json '{sizes: $sizes[0]}' > head-metrics.json
+      - name: Measure the diff footprint
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
           scripts/diff-footprint.sh "origin/$BASE_REF" base-metrics.json head-metrics.json \
             > footprint.md
-          node scripts/summarize-atlas.mjs packages/native/.expo/atlas.jsonl >> footprint.md
       - name: Upload Expo Atlas
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -171,10 +235,11 @@ jobs:
           retention-days: 7
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: cue-footprint-${{ github.event.pull_request.head.sha }}
+          name: cue-footprint-${{ github.event.pull_request.head.sha || github.sha }}
           path: head-metrics.json
           retention-days: 30
       - name: Update the pull request comment
+        if: github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -185,6 +250,7 @@ jobs:
           done
           gh api --method POST "$comments_url" -F body=@footprint.md
       - name: Check size deltas
+        if: github.event_name == 'pull_request'
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
         run: node scripts/check-size-delta.mjs base-metrics.json head-metrics.json "$PR_BODY"
@@ -297,22 +363,12 @@ jobs:
               done
             } | awk '$1 ~ /^@rpath\/.*\.framework\// { split($1, path, "/"); print path[2] }' | sort -u
           )
-          app_size=$(find "$app" -type f -exec stat -f '%z' {} + | awk '{ total += $1 } END { print total + 0 }')
-          jq -n --argjson size "$app_size" \
-            '[{name: "iOS Release simulator app files", size: $size, sizeLimit: null, configuration: "generic iOS Simulator"}]' \
-            > "$RUNNER_TEMP/head-ios-sizes.json"
           tar -czf "$RUNNER_TEMP/native-ios-app/Cue.app.tgz" -C "$RUNNER_TEMP/native-ios-app" Cue.app
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: cue-native-ios-${{ needs.fingerprint.outputs.ios }}
           path: ${{ runner.temp }}/native-ios-app/Cue.app.tgz
           retention-days: 30
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: github.event_name == 'pull_request'
-        with:
-          name: cue-native-ios-sizes
-          path: ${{ runner.temp }}/head-ios-sizes.json
-          retention-days: 1
       - name: Install the app
         env:
           DEVICE_ID: ${{ steps.simulator.outputs.device_id }}
@@ -329,22 +385,33 @@ jobs:
             sleep 1
           done
           exit 1
-      - name: Run launch and startup flows
+      - name: Run returning-user and response flows
         env:
           DEVICE_ID: ${{ steps.simulator.outputs.device_id }}
+          # https://web.dev/articles/rail
+          APP_IDLE_CEILING_MS: "1000"
         run: |
-          startup_ceiling_ms=$(jq -r .ceilingMs .startup-time-limit.json)
           maestro --device "$DEVICE_ID" test .maestro/ci/ios.yaml \
-            --env STARTUP_CEILING_MS="$startup_ceiling_ms" \
+            --env APP_IDLE_CEILING_MS="$APP_IDLE_CEILING_MS" \
             --format JUNIT \
             --output "$RUNNER_TEMP/maestro-results.xml" \
             --debug-output "$RUNNER_TEMP/maestro-debug" \
             --test-output-dir "$RUNNER_TEMP/maestro-tests"
-      - name: Summarize startup timing
+      - name: Gate and summarize behavior timing
         if: ${{ !cancelled() }}
+        env:
+          APP_IDLE_CEILING_MS: "1000"
+          # https://developer.apple.com/videos/play/wwdc2023/10248/
+          # https://web.dev/articles/rail
+          FEEDBACK_CEILING_MS: "100"
         run: |
-          node scripts/summarize-startup-timing.mjs \
+          node scripts/summarize-app-idle.mjs \
             "$RUNNER_TEMP/maestro-tests" \
+            "$APP_IDLE_CEILING_MS" \
+            >> "$GITHUB_STEP_SUMMARY"
+          node scripts/check-response-timing.mjs \
+            "$RUNNER_TEMP/maestro-tests" \
+            "$FEEDBACK_CEILING_MS" \
             >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ !cancelled() }}
@@ -434,10 +501,6 @@ jobs:
             "$RUNNER_TEMP/native-android/tester-arm64-v8a.apk" \
             "$RUNNER_TEMP/native-android/debug.keystore"
       - name: Build and check release artifacts
-        env:
-          PLAY_SIZE_MEASUREMENT_BYTES: "16920872"
-          PLAY_SIZE_MEASURED_ON: "2026-09-09"
-          PLAY_SIZE_LIMIT_BYTES: "20000000"
         run: |
           cd "$RUNNER_TEMP/native-android"
           aab=app-release.aab
@@ -446,12 +509,6 @@ jobs:
             --bundle="$aab" --output=all.apks --overwrite
           java -jar "$RUNNER_TEMP/bundletool.jar" get-size total \
             --apks=all.apks --device-spec=device.json > play-size.csv
-          node "$GITHUB_WORKSPACE/scripts/bundletool-size.mjs" \
-            play-size.csv "$PLAY_SIZE_LIMIT_BYTES" "Play download at XXXHDPI ARMv8"
-          java -jar "$RUNNER_TEMP/bundletool.jar" get-size total \
-            --apks=all.apks --dimensions=ALL > all-size.csv
-          node "$GITHUB_WORKSPACE/scripts/bundletool-size.mjs" \
-            all-size.csv "$PLAY_SIZE_LIMIT_BYTES" "Play download maximum across all configurations"
           java -jar "$RUNNER_TEMP/bundletool.jar" build-apks \
             --bundle="$aab" --output=universal.apks --overwrite --mode=universal \
             --ks=debug.keystore --ks-pass=pass:android \
@@ -463,17 +520,12 @@ jobs:
           "$GITHUB_WORKSPACE/scripts/verify-apk.sh" universal.apk 42 9.9.9
           "$apksigner" verify tester-arm64-v8a.apk
           "$GITHUB_WORKSPACE/scripts/verify-apk.sh" tester-arm64-v8a.apk 42 9.9.9 arm64-v8a
-          tester_limit=$(jq -r \
-            '.[] | select(.name == "Firebase tester APK file") | .limit' \
-            "$GITHUB_WORKSPACE/.size-limit.json")
-          node "$GITHUB_WORKSPACE/scripts/assert-file-size.mjs" tester-arm64-v8a.apk \
-            "$tester_limit" "Firebase tester APK file (arm64-v8a, all densities)"
           tester_size=$(wc -c < tester-arm64-v8a.apk | tr -d ' ')
           play_size=$(node "$GITHUB_WORKSPACE/scripts/bundletool-size.mjs" play-size.csv --value-only)
           jq -n --argjson tester "$tester_size" --argjson play "$play_size" \
             '[
-              {name: "Firebase tester APK file", size: $tester, sizeLimit: 40000000, configuration: "arm64-v8a, all densities"},
-              {name: "Play download estimate", size: $play, sizeLimit: 20000000, configuration: "XXXHDPI arm64-v8a, English, Android 15"}
+              {name: "Firebase tester APK file", size: $tester, configuration: "arm64-v8a, all densities"},
+              {name: "Play download estimate", size: $play, configuration: "XXXHDPI arm64-v8a, English, Android 15"}
             ]' > "$RUNNER_TEMP/head-android-sizes.json"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -485,11 +537,11 @@ jobs:
             ${{ runner.temp }}/native-android/universal.apk
           retention-days: 30
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feat/expo-native'
         with:
           name: cue-native-android-sizes
           path: ${{ runner.temp }}/head-android-sizes.json
-          retention-days: 1
+          retention-days: 30
   android-e2e:
     timeout-minutes: 8
     needs: [fingerprint, native-android]

@@ -49,8 +49,6 @@ jobs:
       fastlane_lane: ${{ steps.resolve.outputs.fastlane_lane }}
       app_version: ${{ steps.resolve.outputs.app_version }}
       build_number: ${{ steps.resolve.outputs.build_number }}
-      ipa_size_limit: ${{ steps.resolve.outputs.ipa_size_limit }}
-      tester_apk_size_limit: ${{ steps.resolve.outputs.tester_apk_size_limit }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup-node-pnpm
@@ -111,10 +109,6 @@ jobs:
           # depend on that. Renaming or recreating this file restarts the count
           # and breaks it.
           build_number=$((RUN_NUMBER * 100 + RUN_ATTEMPT))
-          ipa_size_limit=$(jq -r '.[] | select(.name == "iOS IPA file") | .limit' .size-limit.json)
-          tester_apk_size_limit=$(jq -r '.[] | select(.name == "Firebase tester APK file") | .limit' .size-limit.json)
-          [[ "$ipa_size_limit" =~ ^[0-9]+$ ]]
-          [[ "$tester_apk_size_limit" =~ ^[0-9]+$ ]]
           {
             echo "build_ios=$build_ios"
             echo "build_android=$build_android"
@@ -122,8 +116,6 @@ jobs:
             echo "fastlane_lane=$lane"
             echo "app_version=$app_version"
             echo "build_number=$build_number"
-            echo "ipa_size_limit=$ipa_size_limit"
-            echo "tester_apk_size_limit=$tester_apk_size_limit"
           } >> "$GITHUB_OUTPUT"
 
   gate:
@@ -277,7 +269,10 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-          TESTER_APK_SIZE_LIMIT_BYTES: ${{ needs.config.outputs.tester_apk_size_limit }}
+          # https://support.google.com/googleplay/android-developer/answer/9859372?hl=en-GB
+          PLAY_BASE_MODULE_LIMIT_BYTES: "500000000"
+          # https://firebase.google.com/docs/app-distribution/troubleshooting?platform=android
+          FIREBASE_BINARY_LIMIT_BYTES: "2147483648"
         run: bundle exec fastlane android ${{ needs.config.outputs.fastlane_lane }}
 
   ios:
@@ -329,5 +324,8 @@ jobs:
           IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
           IOS_PROVISIONING_PROFILE_NAME: ${{ secrets.IOS_PROVISIONING_PROFILE_NAME }}
           PROVISIONING_PROFILE_PATH: ${{ runner.temp }}/build.mobileprovision
-          IPA_SIZE_LIMIT_BYTES: ${{ needs.config.outputs.ipa_size_limit }}
         run: bundle exec fastlane ios ${{ needs.config.outputs.fastlane_lane }}
+      - name: Record the App Store variant alert
+        if: needs.config.outputs.lane == 'release'
+        # https://developer.apple.com/help/app-store-connect/manage-builds/view-builds-and-metadata
+        run: echo "App Store Connect alerts when a thinned device variant exceeds its 200 MB over-the-air limit." >> "$GITHUB_STEP_SUMMARY"

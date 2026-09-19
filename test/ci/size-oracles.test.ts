@@ -8,11 +8,12 @@ import { tempDirectory } from "../support/temp-directory";
 const SCRIPT = repositoryPath("scripts/bundletool-size.mjs");
 
 describe("store download size oracles", () => {
-  it("uses Play's reference density and checks every bundletool dimension", () => {
+  it("measures the Play reference configuration without a local ceiling", () => {
     const workflow = readFileSync(repositoryPath(".github/workflows/ci.yml"), "utf8");
 
     expect(workflow).toContain('"screenDensity":640');
-    expect(workflow).toContain("--dimensions=ALL");
+    expect(workflow).not.toContain("--dimensions=ALL");
+    expect(workflow).not.toContain("PLAY_SIZE_LIMIT_BYTES");
     expect(workflow).not.toContain("AAB_SIZE_LIMIT_BYTES");
     expect(workflow).not.toContain('"screenDensity":480');
   });

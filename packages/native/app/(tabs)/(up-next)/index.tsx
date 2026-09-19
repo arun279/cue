@@ -21,7 +21,7 @@ import { type QueryStatus, queryStatus } from "@cue/core/queries/freshness";
 import { useRuntime } from "@cue/core/runtime/runtime";
 import { useQuery } from "@tanstack/react-query";
 import { Stack, useRouter } from "expo-router";
-import { type ReactElement, useMemo, useState } from "react";
+import { type ReactElement, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { FlatList, RefreshControl, StyleSheet, View } from "react-native";
 import Animated, { LinearTransition } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -44,7 +44,9 @@ import {
 } from "../../../src/screens/up-next/UpNextStates";
 import { useStableQueueOrder } from "../../../src/screens/up-next/useStableQueueOrder";
 import { Chevron } from "../../../src/ui/Chevron";
+import { Marker } from "../../../src/ui/Marker";
 import { Row, Separator } from "../../../src/ui/Row";
+import { commitResponseTiming, useResponseTiming } from "../../../src/ui/response-timing";
 import { SyncStrip } from "../../../src/ui/SyncStrip";
 import { TvShowsOff } from "../../../src/ui/TvShowsOff";
 import { TEST_IDS } from "../../../src/ui/test-ids";
@@ -164,6 +166,14 @@ export default function UpNext(): ReactElement {
   const refresh = usePullToRefresh();
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const responseTiming = useResponseTiming();
+  const timedQueue = useRef(view.queue);
+
+  useLayoutEffect(() => {
+    if (timedQueue.current === view.queue) return;
+    timedQueue.current = view.queue;
+    commitResponseTiming();
+  }, [view.queue]);
 
   const marquee = view.queue.length >= MARQUEE_MIN_QUEUE ? view.queue[0] : undefined;
   const rows = marquee === undefined ? view.queue : view.queue.slice(1);
@@ -178,6 +188,9 @@ export default function UpNext(): ReactElement {
           headerRight: () => <UpNextBarItems onSync={refresh.sync} />,
         }}
       />
+      {responseTiming === null ? null : (
+        <Marker accessibilityLabel={responseTiming} testID={TEST_IDS.responseTiming} />
+      )}
       <FlatList
         testID={TEST_IDS.upNextList}
         contentInsetAdjustmentBehavior="automatic"
