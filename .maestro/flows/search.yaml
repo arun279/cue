@@ -33,6 +33,13 @@ appId: app.cuetracker
       text: "Trending shows"
     direction: UP
     timeout: 20000
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - tapOn:
+          text: "Search"
+          index: 1
 - tapOn: "Shows and movies.*"
 - inputText: "harbor"
 - extendedWaitUntil:

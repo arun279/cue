@@ -201,7 +201,13 @@ describe("mobile release gate required checks", () => {
       ...readCiJobs()
         .filter((job) => requiredChecks.has(job.name))
         .flatMap((job) =>
-          job.body.split(/\r?\n/).filter((line) => /^ {4}(?:name|strategy|if):/.test(line)),
+          job.body
+            .split(/\r?\n/)
+            .filter(
+              (line) =>
+                /^ {4}(?:name|strategy|if):/.test(line) &&
+                (job.name !== "native-e2e" || line !== "    if: $" + "{{ always() }}"),
+            ),
         ),
       ...readWorkflowJobs(CODEQL_WORKFLOW).flatMap((job) =>
         job.body.split(/\r?\n/).filter((line) => /^ {4}if:/.test(line)),
@@ -210,7 +216,7 @@ describe("mobile release gate required checks", () => {
 
     expect(
       unsupportedOverrides,
-      "An unsupported job-level name or strategy means the check-run name no longer matches the release gate, while a job-level if can give it a skipped conclusion, which the gate treats as a failure. Update the context derivation and polling logic in mobile-release.yml before adding the override.",
+      "An unsupported job-level name or strategy means the check-run name no longer matches the release gate, while a job-level condition can skip a required check. Model any override before adding it.",
     ).toEqual([]);
   });
 });

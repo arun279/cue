@@ -120,6 +120,16 @@ describe("fast pull request validation", () => {
     expect(verification.match(/--driver-host-port 7001/g)).toHaveLength(1);
   });
 
+  it("fails the aggregate unless every iOS light shard succeeds", () => {
+    const aggregate = job("native-e2e");
+
+    expect(aggregate).toContain("needs: native-e2e-ios-light");
+    expect(aggregate).toContain("if: $" + "{{ always() }}");
+    expect(aggregate).toContain(
+      "run: test '$" + "{{ needs.native-e2e-ios-light.result }}' = success",
+    );
+  });
+
   it("publishes both screenshot artifacts with contact sheets for 14 days", () => {
     const ios = job("native-e2e-ios-light");
     const iosContact = job("native-e2e");
@@ -130,7 +140,6 @@ describe("fast pull request validation", () => {
     const fetch = readFileSync(repositoryPath("scripts/fetch-ui-screenshots.sh"), "utf8");
 
     expect(ios).toContain("name: ui-screenshots-ios-light-$" + "{{ matrix.suite }}");
-    expect(iosContact).toContain("needs: native-e2e-ios-light");
     expect(iosContact).toContain("pattern: ui-screenshots-ios-light-*");
     expect(iosContact).toContain("name: ui-screenshots-ios-light");
     expect(iosDark).toContain("name: ui-screenshots-ios-dark");
