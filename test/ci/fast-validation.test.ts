@@ -39,6 +39,10 @@ describe("fast pull request validation", () => {
     expect(footprint).toContain("cue-native-ios-sizes");
     expect(footprint).toContain("cue-native-android-sizes");
     expect(footprint).toContain("cue-js-bundles");
+    expect(footprint).toMatch(
+      /name: Upload Expo Atlas[\s\S]*name: expo-atlas[\s\S]*path: packages\/native\/\.expo\/atlas\.jsonl/,
+    );
+    expect(footprint).not.toContain("summarize-atlas");
   });
 
   it("uses a fixed Maestro driver port outside Android's ephemeral range", () => {

@@ -147,22 +147,16 @@ jobs:
       - name: Measure the diff footprint
         env:
           BASE_REF: ${{ github.base_ref }}
+          PR_BODY: ${{ github.event.pull_request.body }}
         run: |
           scripts/measure-sizes.sh "$PWD/head-sizes.json"
-          node scripts/measure-complexity.mjs "$PWD" "$PWD/head-complexity.json"
-          node scripts/measure-comments.mjs "$PWD" "$PWD/head-comments.json"
           jq -s 'add' head-sizes.json \
             "$RUNNER_TEMP/native-ios-sizes/head-ios-sizes.json" \
             "$RUNNER_TEMP/native-android-sizes/head-android-sizes.json" > all-head-sizes.json
           mv all-head-sizes.json head-sizes.json
-          jq -n --slurpfile sizes head-sizes.json \
-            --slurpfile complexity head-complexity.json \
-            --slurpfile comments head-comments.json \
-            '{sizes: $sizes[0], complexity: $complexity[0], comments: $comments[0]}' \
-            > head-metrics.json
+          jq -n --slurpfile sizes head-sizes.json '{sizes: $sizes[0]}' > head-metrics.json
           scripts/diff-footprint.sh "origin/$BASE_REF" base-metrics.json head-metrics.json \
             > footprint.md
-          node scripts/summarize-atlas.mjs packages/native/.expo/atlas.jsonl >> footprint.md
       - name: Upload Expo Atlas
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
