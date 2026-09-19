@@ -19,12 +19,11 @@ import { useEffect, useState } from "react";
  *
  * `VirtualizedList` keeps ten screens of rows mounted either side, so a row
  * scrolled past is still a row read. The settle window is sufficient for a one
- * column queue, where
- * mounted and looked at are within a screen of each other. A grid is the case
- * where it does not, and the screen that has one drives this off the list's own
- * report of what is on screen instead.
+ * column queue, where mounted and looked at are within a screen of each other.
+ * A grid is the case where it is not, so `onScreen` lets that screen drive the
+ * read off the list's own report of what is visible.
  */
-export function useShowArt(showId: number): ShowArt {
+export function useShowArt(showId: number, onScreen = true): ShowArt {
   const runtime = useRuntime();
   const [settled, setSettled] = useState<number | null>(null);
 
@@ -36,7 +35,7 @@ export function useShowArt(showId: number): ShowArt {
   return (
     useQuery({
       ...showInfoQuery(runtime, showId),
-      enabled: settled === showId,
+      enabled: onScreen && settled === showId,
       select: selectArt,
     }).data ?? EMPTY_SHOW_ART
   );

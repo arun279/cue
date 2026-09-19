@@ -20,8 +20,8 @@ import { RefreshControl, SectionList, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePullToRefresh } from "../../../src/hooks/usePullToRefresh";
 import { AGENDA_TEXT_INSET, AgendaSkeleton, DayHeader } from "../../../src/screens/calendar/Agenda";
-import { UpNextBarItems } from "../../../src/screens/up-next/UpNextBarItems";
 import { AiringRow } from "../../../src/ui/AiringRow";
+import { BarItems } from "../../../src/ui/BarItems";
 import { Button } from "../../../src/ui/Button";
 import { EmptyState } from "../../../src/ui/EmptyState";
 import { Separator } from "../../../src/ui/Row";
@@ -90,7 +90,7 @@ export default function Calendar(): ReactElement {
         options={{
           title: "Calendar",
           headerLargeTitle: true,
-          headerRight: () => <UpNextBarItems onSync={refresh.sync} />,
+          headerRight: () => <BarItems onSync={refresh.sync} />,
         }}
       />
       <SectionList<CalendarRow, DaySection>

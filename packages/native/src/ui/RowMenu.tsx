@@ -18,6 +18,8 @@ interface RowMenuItem {
   readonly onPress: () => void;
   readonly destructive?: boolean;
   readonly image?: MenuAction["image"];
+  /** Draws the platform's own checkmark, which is how a menu states a choice. */
+  readonly selected?: boolean;
 }
 
 export interface RowMenuProps {
@@ -25,7 +27,9 @@ export interface RowMenuProps {
   readonly title: string;
   readonly items: readonly RowMenuItem[];
   readonly testID?: string;
+  /** A trigger of the caller's own, long pressed unless it says otherwise. */
   readonly children?: ReactElement;
+  readonly openOnLongPress?: boolean;
 }
 
 /**
@@ -36,7 +40,13 @@ export interface RowMenuProps {
  * Next at all, which is a WCAG 2.5.1 gap, and because a context menu's items
  * have to be reachable from the main interface too.
  */
-export function RowMenu({ title, items, testID, children }: RowMenuProps): ReactElement {
+export function RowMenu({
+  title,
+  items,
+  testID,
+  children,
+  openOnLongPress,
+}: RowMenuProps): ReactElement {
   const colors = useColors();
   const byId = new Map(items.map((item) => [item.id, item.onPress]));
   const unavailable = Platform.OS === "ios" ? "hidden" : "disabled";
@@ -45,13 +55,14 @@ export function RowMenu({ title, items, testID, children }: RowMenuProps): React
     <MenuView
       title={title}
       testID={testID}
-      shouldOpenOnLongPress={children !== undefined}
+      shouldOpenOnLongPress={openOnLongPress ?? children !== undefined}
       actions={[...items]
         .sort((a, b) => Number(a.destructive === true) - Number(b.destructive === true))
         .map((item) => ({
           id: item.id,
           title: item.label,
           image: item.image,
+          state: item.selected === undefined ? undefined : item.selected ? "on" : "off",
           attributes: {
             ...(item.available === false ? { [unavailable]: true } : {}),
             ...(Platform.OS === "ios" && item.destructive ? { destructive: true } : {}),

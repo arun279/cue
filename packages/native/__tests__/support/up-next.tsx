@@ -1,4 +1,5 @@
 import type { LibraryEntry } from "@cue/core/data/trakt/library";
+import type { MovieEntry } from "@cue/core/data/trakt/movie-library";
 import type { CalendarEntry } from "@cue/core/domain/calendar";
 import { type Haptics, HapticsProvider } from "@cue/core/ports/haptics";
 import { type Network, NetworkProvider } from "@cue/core/ports/network";
@@ -60,6 +61,7 @@ export function airing(overrides: Partial<CalendarEntry> = {}): CalendarEntry {
 
 export interface RuntimeFixture {
   readonly entries?: readonly LibraryEntry[];
+  readonly movies?: readonly MovieEntry[];
   readonly calendar?: readonly CalendarEntry[];
   readonly submit?: CueRuntime["submit"];
 }
@@ -70,10 +72,16 @@ export interface RuntimeFixture {
  * root's contract with twenty-five methods, and a screen test that had to fill
  * all of them would be a test of the fixture.
  */
-export function fakeRuntime({ entries = [], calendar = [], submit }: RuntimeFixture): CueRuntime {
+export function fakeRuntime({
+  entries = [],
+  movies = [],
+  calendar = [],
+  submit,
+}: RuntimeFixture): CueRuntime {
   return {
     newId: () => "test-op-id",
     loadUpNext: () => Promise.resolve({ entries: [...entries], isPartial: false }),
+    loadMovieLibrary: () => Promise.resolve({ entries: [...movies] }),
     loadCalendar: () => Promise.resolve({ entries: calendar, hiddenShowIds: [] }),
     loadShowSeasons: () => Promise.resolve([]),
     loadShowInfo: () => Promise.resolve({ posters: [], backdrops: [] }),

@@ -36,13 +36,13 @@ import {
   persistTutorialDismissed,
   TutorialCaption,
 } from "../../../src/screens/up-next/TutorialCaption";
-import { UpNextBarItems } from "../../../src/screens/up-next/UpNextBarItems";
 import {
   UpNextEmpty,
   UpNextError,
   UpNextSkeleton,
 } from "../../../src/screens/up-next/UpNextStates";
 import { useStableQueueOrder } from "../../../src/screens/up-next/useStableQueueOrder";
+import { BarItems } from "../../../src/ui/BarItems";
 import { Chevron } from "../../../src/ui/Chevron";
 import { Marker } from "../../../src/ui/Marker";
 import { Row, Separator } from "../../../src/ui/Row";
@@ -185,7 +185,7 @@ export default function UpNext(): ReactElement {
         options={{
           title: "Up Next",
           headerLargeTitle: true,
-          headerRight: () => <UpNextBarItems onSync={refresh.sync} />,
+          headerRight: () => <BarItems onSync={refresh.sync} />,
         }}
       />
       {responseTiming === null ? null : (
