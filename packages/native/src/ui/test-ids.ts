@@ -76,8 +76,20 @@ export const TEST_IDS = {
   screenCalendar: "screen-calendar",
   showDetailSkeleton: "show-detail-skeleton",
   screenShowDetail: "screen-show-detail",
-  showProgress: "show-progress",
   seasonList: "season-list",
   seasonRow: (season: number) => `season-row-${season}`,
+  seasonTrigger: (season: number) => `season-trigger-${season}`,
+  seasonCheck: (season: number) => `season-check-${season}`,
+  episodeChecked: (show: number, season: number, episode: number) =>
+    `episode-row-${show}-${season}-${episode}-checked`,
+  episodeCheck: (show: number, season: number, episode: number) =>
+    `episode-row-${show}-${season}-${episode}-check`,
+  confirmSheet: "confirm-sheet",
+  confirmSheetPrimary: "confirm-sheet-primary",
+  episodeSheet: "episode-sheet",
+  episodeMarkRow: "episode-mark-row",
+  episodePagerNext: "episode-pager-next",
+  episodeStillBlur: "episode-still-blur",
+  episodeStillReveal: "episode-still-reveal",
   episodeRow: (traktId: number) => `episode-row-${traktId}`,
 } as const;

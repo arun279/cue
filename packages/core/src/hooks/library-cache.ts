@@ -6,6 +6,14 @@ import type { LibraryEntry } from "../data/trakt/library";
 import { type SeasonView, type ShowProgress, toEpisodeRef } from "../data/trakt/show-detail";
 import type { UpNextData } from "../runtime/runtime";
 
+export function ensureLibraryEntry(qc: QueryClient, entry: LibraryEntry): void {
+  qc.setQueryData<UpNextData>(queryKeys.library(), (old) =>
+    old?.entries.some((item) => item.showId === entry.showId)
+      ? old
+      : { ...old, entries: [...(old?.entries ?? []), entry] },
+  );
+}
+
 /**
  * Optimistically replace one library entry in the shared SWR cache, holding the
  * find-by-showId + map + spread scaffolding in one place. Every optimistic library

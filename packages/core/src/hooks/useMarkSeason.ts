@@ -77,6 +77,10 @@ interface UndoState {
   readonly ops: readonly QueuedOp[];
   readonly resumed: boolean;
   readonly reversibleSeason: number | null;
+  readonly markedEpisode?: {
+    readonly episode: MarkableEpisode;
+    readonly watchedAt: string;
+  };
 }
 
 export interface MarkSeasonController {
@@ -500,11 +504,15 @@ export function useMarkSeason(): MarkSeasonController {
 
   const setEpisodeWatched = useCallback(
     (
-      target: MarkContextTarget,
+      target: Pick<MarkContextTarget, "showId">,
       episode: MarkableEpisode,
       watched: boolean,
       watchedAt: string | null,
     ) => {
+      void queryClient.cancelQueries({ queryKey: queryKeys.showSeasons(target.showId) });
+      void queryClient.cancelQueries({
+        queryKey: queryKeys.episode(target.showId, episode.season, episode.number),
+      });
       patchShowSeasons(
         queryClient,
         target.showId,
@@ -656,6 +664,7 @@ export function useMarkSeason(): MarkSeasonController {
             ops,
             resumed: resume.willResume(target.showId),
             reversibleSeason: null,
+            markedEpisode: { episode, watchedAt },
           });
         }
         // A watch on a Stopped show un-stops it (onKept), which lands before the
@@ -773,16 +782,29 @@ export function useMarkSeason(): MarkSeasonController {
     if (pending.reversibleSeason !== null) {
       forgetSeasonMark(pending.showId, pending.reversibleSeason);
     }
+    if (pending.markedEpisode !== undefined) {
+      setEpisodeWatched(pending, pending.markedEpisode.episode, false, null);
+    }
     const outcome = await submit(
       pending.ops.map((op) => invertOp(op, runtime.newId)),
       {
-        rollback: () => {},
+        rollback: () => {
+          if (pending.markedEpisode !== undefined) {
+            setEpisodeWatched(
+              pending,
+              pending.markedEpisode.episode,
+              true,
+              pending.markedEpisode.watchedAt,
+            );
+          }
+        },
         onKept: pending.resumed ? () => resume.reStop(pending.showId, pending.ids) : undefined,
-        revalidate: () => revalidate(pending.showId, "all"),
+        revalidate: () =>
+          revalidate(pending.showId, pending.markedEpisode === undefined ? "all" : undefined),
       },
     );
     if (outcome === "failed") showError("Couldn't undo that. Please try again.");
-  }, [putUndo, revalidate, submit, resume, runtime.newId]);
+  }, [putUndo, revalidate, setEpisodeWatched, submit, resume, runtime.newId]);
 
   undoActionRef.current = () => void undo();
 

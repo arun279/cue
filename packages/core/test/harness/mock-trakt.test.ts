@@ -88,6 +88,18 @@ const today = (): string => new Date().toISOString().slice(0, 10);
 const resetTo = async (seed: string): Promise<Response> =>
   fetch(`${baseUrl}/__reset?seed=${seed}`, { method: "POST" });
 
+it("provides a mixed season and consecutive aired episodes for detail interactions", async () => {
+  const progress = ok(await getShowProgress(client(), 8803));
+  expect(progress.next_episode).toMatchObject({ season: 2, number: 3, ids: { trakt: 880308 } });
+  expect(progress.seasons?.find((season) => season.number === 2)).toMatchObject({
+    aired: 4,
+    completed: 2,
+  });
+  const episode = ok(await getEpisode(client(), 8803, 2, 4));
+  expect(episode.images?.screenshot?.length).toBeGreaterThan(0);
+  expect(Date.parse(episode.first_aired ?? "")).toBeLessThan(mock.library.now);
+});
+
 const armFault = async (profile: string): Promise<Response> =>
   fetch(`${baseUrl}/__fault?${profile}`, { method: "POST" });
 
@@ -524,11 +536,14 @@ describe("writes move the account the next read sees", () => {
 });
 
 describe("the OAuth surface both flows need", () => {
-  it("issues a device code and resolves the very first poll", async () => {
+  it("holds a device grant pending until it is approved, and drops it on reset", async () => {
     const code = await requestDeviceCode(oauth(), "challenge");
     expect(code.userCode).toBe("CUE-MOCK");
-    const result = await pollDeviceToken(oauth(), code.deviceCode, "verifier");
-    expect(result.status).toBe("success");
+    expect((await pollDeviceToken(oauth(), code.deviceCode, "verifier")).status).toBe("pending");
+    await fetch(`${baseUrl}/__approve`, { method: "POST" });
+    expect((await pollDeviceToken(oauth(), code.deviceCode, "verifier")).status).toBe("success");
+    await fetch(`${baseUrl}/__reset`, { method: "POST" });
+    expect((await pollDeviceToken(oauth(), code.deviceCode, "verifier")).status).toBe("pending");
   });
 
   it("exchanges an authorization code, refreshes it, and revokes it", async () => {

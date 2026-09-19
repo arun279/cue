@@ -31,6 +31,7 @@ import {
 } from "../stores/write-locks";
 import { appendToBatch } from "../sync-contract";
 import {
+  ensureLibraryEntry,
   patchEpisodeDetail,
   patchLibraryEntry,
   patchShowSeasons,
@@ -38,6 +39,7 @@ import {
 } from "./library-cache";
 import { findMarkPlay } from "./resolve-unmark";
 import { useOptimisticWrite } from "./useOptimisticWrite";
+import { useResumeOnMark } from "./useResumeOnMark";
 
 export interface MarkWatched {
   /** Optimistically mark `entry`'s next episode; the op submits at t=0. */
@@ -98,6 +100,7 @@ export function useMarkWatched(): MarkWatched {
   const queryClient = useQueryClient();
   const runtime = useRuntime();
   const haptics = useHaptics();
+  const resume = useResumeOnMark();
   // Abort any in-flight library refetch before an optimistic patch, so a
   // response already on the wire can't land after the patch and flicker the
   // entry back to its pre-patch server state.
@@ -182,6 +185,9 @@ export function useMarkWatched(): MarkWatched {
   const runReversal = useCallback(
     async (record: MarkRecord): Promise<SubmitOutcome | null> => {
       const effects = {
+        onKept: record.beforeMark.hidden
+          ? () => resume.reStop(record.showId, { trakt: record.showId })
+          : undefined,
         // A hard failure means Trakt still holds the play: re-advance to the
         // marked state; a deferred removal keeps the undone state (revalidating
         // before it lands would refetch pre-undo server state).
@@ -236,7 +242,7 @@ export function useMarkWatched(): MarkWatched {
         effects,
       );
     },
-    [runtime, submit, reapplyMark, revalidate, haptics],
+    [runtime, submit, reapplyMark, revalidate, haptics, resume],
   );
 
   const submitReversal = useCallback(
@@ -331,6 +337,7 @@ export function useMarkWatched(): MarkWatched {
       // Optimistic first: the row advances (and the show's own season tree +
       // episode detail tick) before we ever touch the network, and the snackbar
       // + reverse window mount synchronously with it.
+      ensureLibraryEntry(queryClient, entry);
       patch(entry.showId, (e) => advancePastNext(e, watchedAt));
       patchProgress(
         entry.showId,
@@ -356,6 +363,7 @@ export function useMarkWatched(): MarkWatched {
       try {
         outcome = await submit([op], {
           rollback: () => restorePreMark(record),
+          onKept: () => resume.resumeIfStopped(entry.showId, { trakt: entry.showId }),
           revalidate: () => {
             if (isReversalRequested(opId)) return;
             revalidate(entry.showId, { season: episode.season, number: episode.number });
@@ -384,7 +392,18 @@ export function useMarkWatched(): MarkWatched {
         });
       }
     },
-    [runtime, patch, patchProgress, presentBatch, restorePreMark, revalidate, submit, haptics],
+    [
+      runtime,
+      patch,
+      patchProgress,
+      presentBatch,
+      restorePreMark,
+      revalidate,
+      submit,
+      haptics,
+      queryClient,
+      resume,
+    ],
   );
 
   const reverse = useCallback(

@@ -60,6 +60,13 @@ const json = (data, headers = {}) => ({
   body: JSON.stringify(data),
 });
 
+/** Trakt's answer to a device-token poll nobody has approved yet. */
+const pending = () => ({
+  status: 400,
+  headers: { "content-type": "application/json; charset=utf-8" },
+  body: JSON.stringify({ error: "authorization_pending" }),
+});
+
 const notFound = (message) => ({
   status: 404,
   headers: { "content-type": "application/json; charset=utf-8" },
@@ -114,7 +121,9 @@ const ROUTES = [
     (ctx) => placeholderImage(ctx.params.slot),
   ],
 
-  // ---- OAuth. Every grant resolves immediately: there is nobody to approve it.
+  // ---- OAuth. A device grant waits for `/__approve` the way the real one waits
+  // for a person at the activation page, so the code stays on screen until the
+  // caller says it was entered.
   [
     "POST",
     /^\/oauth\/device\/code$/,
@@ -127,7 +136,7 @@ const ROUTES = [
         interval: 1,
       }),
   ],
-  ["POST", /^\/oauth\/device\/token$/, () => json(token())],
+  ["POST", /^\/oauth\/device\/token$/, (ctx) => (ctx.device.approved ? json(token()) : pending())],
   ["POST", /^\/oauth\/token$/, () => json(token())],
   ["POST", /^\/oauth\/revoke$/, () => json({})],
   // The web PKCE flow's authorize page, reduced to the redirect it ends in: the
@@ -221,6 +230,7 @@ const ROUTES = [
 
   // ---- Shows
   ["GET", /^\/shows\/(?:trending|popular)$/, () => json([])],
+  ["GET", /^\/shows\/[^/]+\/related$/, () => json([])],
   [
     "GET",
     /^\/shows\/(?<id>[^/]+)\/progress\/watched$/,
@@ -356,12 +366,25 @@ function faultRoute(faults, method, url, body, releaseHeld) {
 }
 
 /**
+ * POST approves the pending device grant, standing in for the person who opens
+ * the activation page and types the code. Until it is called the token poll
+ * answers `authorization_pending`, which is what keeps the code on screen for
+ * as long as a caller needs it there.
+ */
+function approveRoute(device, method) {
+  if (method !== "POST") return notFound("no control route");
+  device.approved = true;
+  return json({ approved: true });
+}
+
+/**
  * The harness control plane, on the mock's own origin under a `__` prefix that
  * no Trakt path can collide with.
  */
-function controlRoute(faults, reset, releaseHeld, method, url, body) {
+function controlRoute(faults, device, reset, releaseHeld, method, url, body) {
   if (url.pathname === "/__reset") return resetRoute(reset, releaseHeld, method, url);
   if (url.pathname === "/__fault") return faultRoute(faults, method, url, body, releaseHeld);
+  if (url.pathname === "/__approve") return approveRoute(device, method);
   return null;
 }
 
@@ -376,12 +399,12 @@ async function readBody(request) {
   }
 }
 
-function resolve(library, method, url, origin, body) {
+function resolve(library, device, method, url, origin, body) {
   for (const [routeMethod, pattern, handler] of ROUTES) {
     if (routeMethod !== method) continue;
     const match = pattern.exec(url.pathname);
     if (match === null) continue;
-    return handler({ library, url, origin, body, params: match.groups ?? {} });
+    return handler({ library, device, url, origin, body, params: match.groups ?? {} });
   }
   return notFound("no route");
 }
@@ -405,6 +428,7 @@ export function createMockTrakt({
   onRequest = (_entry) => {},
 } = {}) {
   let library = createSeedLibrary();
+  const device = { approved: false };
   const journal = createJournal(journalFile);
   const faults = createFaults(faultSpec);
   const held = new Set();
@@ -429,9 +453,11 @@ export function createMockTrakt({
     }
     const control = controlRoute(
       faults,
+      device,
       (seed) => {
         if (!SEED_PROFILE_NAMES.includes(seed)) return false;
         library = createSeedLibrary(seed);
+        device.approved = false;
         faults.clear();
         return true;
       },
@@ -448,7 +474,7 @@ export function createMockTrakt({
     return finishFault(
       request,
       fault,
-      control ?? faultResponse(fault ?? {}) ?? resolve(library, method, url, origin, body),
+      control ?? faultResponse(fault ?? {}) ?? resolve(library, device, method, url, origin, body),
     );
   };
 
