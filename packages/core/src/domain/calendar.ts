@@ -1,6 +1,6 @@
 import { dayLabeler } from "./day";
 import type { EpisodeIds } from "./model/ids";
-import { DAY_MS, toMs } from "./time";
+import { DAY_MS, localTimeZone, toMs } from "./time";
 
 export const CALENDAR_WINDOW_DAYS = 28;
 export const RECENT_CALENDAR_WINDOW_DAYS = 33;
@@ -64,6 +64,45 @@ export function buildCalendarDays(
     windowDays,
     CALENDAR_WINDOW_DAYS,
   );
+}
+
+export interface AiringGrammar {
+  /** The countdown chip. */
+  readonly chip: string | null;
+  /** The line under the episode, where the screen draws one. */
+  readonly line: string | null;
+  /** The whole of it in words, which is what the row's label says: the chip is
+   * never read aloud, so nothing may live there alone. */
+  readonly spoken: string;
+}
+
+let timeFmt: Intl.DateTimeFormat | null = null;
+
+/**
+ * What a row says about when it airs, shared by the Calendar and by "On the
+ * way" so one scope of the read cannot say it differently from the other.
+ *
+ * The chip is the hour today, `Nd` on a later day, and nothing once the episode
+ * has aired, because a past air time is not a countdown. The line then carries
+ * what the chip does not: today it is the network alone rather than the hour
+ * stated twice, later it is both, and once aired it says so.
+ */
+export function airingGrammar(row: CalendarRow, offset: number): AiringGrammar {
+  timeFmt ??= new Intl.DateTimeFormat("en-US", {
+    timeZone: localTimeZone(),
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  const time = timeFmt.format(toMs(row.firstAired) ?? 0);
+  const spoken = [row.aired ? `Aired ${time}` : time, row.network].filter(Boolean).join(" · ");
+  if (row.aired) return { chip: null, line: spoken, spoken };
+  // Today's hour rides in the chip, so the line keeps the network rather than
+  // stating the time twice.
+  return {
+    chip: offset > 0 ? `${offset}d` : time,
+    line: offset > 0 ? spoken : row.network,
+    spoken,
+  };
 }
 
 export function recentCalendarStart(dayKey: string): string {

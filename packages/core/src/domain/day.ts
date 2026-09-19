@@ -28,6 +28,11 @@ function shiftDayKey(key: string, deltaDays: number): string {
   return new Date(Date.parse(key) + deltaDays * DAY_MS).toISOString().slice(0, 10);
 }
 
+/** `"YYYY-MM-DD"` → whole-day distance, as pure UTC date arithmetic. */
+export function dayOffset(fromKey: string, toKey: string): number {
+  return Math.round((Date.parse(toKey) - Date.parse(fromKey)) / DAY_MS);
+}
+
 /** The local-day key ("YYYY-MM-DD") an instant falls on, without a labeler. */
 export function dayKeyOf(timeZone: string, ms: number): string {
   const cached = dayKeyFormatters.get(timeZone);
