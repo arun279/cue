@@ -53,12 +53,14 @@ if [ "$tree" != "$head_root" ]; then
 fi
 node --input-type=module -e '
   import { readFileSync, writeFileSync } from "node:fs";
-  const file = process.argv[1];
-  const pkg = JSON.parse(readFileSync(file, "utf8"));
+  const [packageFile, configFile] = process.argv.slice(1);
+  const pkg = JSON.parse(readFileSync(packageFile, "utf8"));
   pkg.devDependencies ??= {};
   pkg.devDependencies["@size-limit/file"] ??= "*";
-  writeFileSync(file, `${JSON.stringify(pkg, null, 2)}\n`);
-' "$tree/package.json"
+  writeFileSync(packageFile, `${JSON.stringify(pkg, null, 2)}\n`);
+  const config = JSON.parse(readFileSync(configFile, "utf8"));
+  writeFileSync(configFile, `${JSON.stringify(config.filter(({ path }) => path !== undefined), null, 2)}\n`);
+' "$tree/package.json" "$tree/.size-limit.json"
 
 (
   cd "$tree"
