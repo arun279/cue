@@ -32,7 +32,7 @@ module.exports = function withAndroidTabIcons(config) {
       const raw = join(mod.modRequest.platformProjectRoot, "app/src/main/res/raw");
       mkdirSync(raw, { recursive: true });
       writeFileSync(
-        join(raw, "app.cuetracker.tabs.keep.xml"),
+        join(raw, "cue_tab_icons_keep.xml"),
         `<resources xmlns:tools="http://schemas.android.com/tools" tools:keep="${Object.keys(icons)
           .map((name) => `@drawable/${name}`)
           .join(",")}" />\n`,
