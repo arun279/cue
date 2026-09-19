@@ -63,6 +63,7 @@ on:
       "scripts/mock-trakt/**",
       "scripts/quality-budget.json",
       "scripts/verify-android-launch.sh",
+      "scripts/verify-android-ui.sh",
       "scripts/verify-ios-privacy.sh",
       "scripts/write-buster.mjs",
       "test/**",

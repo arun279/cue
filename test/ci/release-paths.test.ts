@@ -96,6 +96,7 @@ const DOES_NOT_SHIP = [
   "scripts/measure-play-size.sh",
   "scripts/mock-trakt/**",
   "scripts/verify-android-launch.sh",
+  "scripts/verify-android-ui.sh",
   "scripts/verify-ios-privacy.sh",
   "scripts/write-buster.mjs",
   "test/**",
