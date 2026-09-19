@@ -36,13 +36,19 @@ describe("fast pull request validation", () => {
     expect(footprint).not.toMatch(/expo (?:export|prebuild)/);
     expect(footprint).not.toContain("grad" + "lew");
     expect(footprint).not.toMatch(/(?:xcodebuild|measure-play-size)/);
-    expect(footprint).toContain("cue-native-ios-sizes");
+    expect(footprint).not.toContain("cue-native-ios-sizes");
     expect(footprint).toContain("cue-native-android-sizes");
     expect(footprint).toContain("cue-js-bundles");
     expect(footprint).toMatch(
       /name: Upload Expo Atlas[\s\S]*name: expo-atlas[\s\S]*path: packages\/native\/\.expo\/atlas\.jsonl/,
     );
     expect(footprint).not.toContain("summarize-atlas");
+    expect(workflow).toContain("branches: [main, feat/expo-native");
+    expect(footprint).toContain(
+      "name: cue-footprint-$" + "{{ github.event.pull_request.head.sha || github.sha }}",
+    );
+    expect(footprint).toContain("Measured merge base $BASE_SHA from CI run $run_id artifacts");
+    expect(footprint).toContain("Missing merge-base measurements and successful CI artifacts");
   });
 
   it("uses a fixed Maestro driver port outside Android's ephemeral range", () => {

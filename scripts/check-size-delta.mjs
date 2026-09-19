@@ -8,11 +8,9 @@ if (basePath === undefined || headPath === undefined) {
 const base = JSON.parse(readFileSync(basePath, "utf8"));
 const head = JSON.parse(readFileSync(headPath, "utf8"));
 if (base.sizes === null) {
-  process.stdout.write("size delta gate: n/a because the merge base has no measured packages\n");
-  process.exit(0);
+  throw new Error("size delta gate: merge-base measurements are missing");
 }
 
-const threshold = 64_000;
 const measured = [
   "expo iOS bundle",
   "expo Android bundle",
@@ -22,18 +20,15 @@ const measured = [
 const byName = (entries) => Object.fromEntries(entries.map((entry) => [entry.name, entry.size]));
 const before = byName(base.sizes);
 const after = byName(head.sizes);
-if (before["iOS Release simulator app files"] !== undefined) {
-  measured.push("iOS Release simulator app files");
-}
 const growth = measured.map((name) => {
   const delta = after[name] - before[name];
   if (!Number.isFinite(delta)) throw new Error(`${name}: not measured on both sides`);
   return { name, delta };
 });
-const exceeded = growth.filter(({ delta }) => delta > threshold);
+const exceeded = growth.filter(({ delta }) => delta > 0);
 
 if (exceeded.length === 0) {
-  process.stdout.write(`size delta gate: all user artifacts grew by at most ${threshold} bytes\n`);
+  process.stdout.write("size delta gate: no user artifact grew\n");
   process.exit(0);
 }
 
@@ -44,6 +39,4 @@ if (marker !== undefined) {
 }
 
 const details = exceeded.map(({ name, delta }) => `${name} grew by ${delta} bytes`).join("; ");
-throw new Error(
-  `${details}; limit ${threshold} bytes. Add "Binary-Size: <rationale>" to the PR body.`,
-);
+throw new Error(`${details}. Add "Binary-Size: <rationale>" to the PR body.`);
