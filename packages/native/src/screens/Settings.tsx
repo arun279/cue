@@ -133,6 +133,23 @@ export default function Settings(): ReactElement {
         </Note>
       </Section>
       <DataSection />
+      <Section title="Account">
+        <ExternalLink
+          title="Manage Trakt account"
+          url="https://app.trakt.tv/settings"
+          testID={TEST_IDS.settingsTrakt}
+        />
+        <SignOut />
+        <Note>
+          Only Trakt can delete your Trakt account. This opens Trakt in your browser to do it. Cue
+          has no account of its own to delete.
+        </Note>
+        <ExternalLink
+          title="Delete your Trakt account"
+          url="https://app.trakt.tv/settings/advanced"
+          testID={TEST_IDS.settingsDelete}
+        />
+      </Section>
       <Section title="About">
         <SettingRow
           title="Version"
@@ -156,23 +173,6 @@ export default function Settings(): ReactElement {
         <View testID={TEST_IDS.settingsAttribution}>
           <Note>Cue uses the Trakt API but is not created, endorsed, or sponsored by Trakt.</Note>
         </View>
-      </Section>
-      <Section title="Account">
-        <ExternalLink
-          title="Manage Trakt account"
-          url="https://app.trakt.tv/settings"
-          testID={TEST_IDS.settingsTrakt}
-        />
-        <SignOut />
-        <Note>
-          Only Trakt can delete your Trakt account. This opens Trakt in your browser to do it. Cue
-          has no account of its own to delete.
-        </Note>
-        <ExternalLink
-          title="Delete your Trakt account"
-          url="https://app.trakt.tv/settings/advanced"
-          testID={TEST_IDS.settingsDelete}
-        />
       </Section>
     </AccountScreen>
   );

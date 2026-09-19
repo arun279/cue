@@ -44,6 +44,11 @@ appId: app.cuetracker
     id: "switch-movies"
 - scrollUntilVisible:
     element:
+      id: "settings-delete"
+- assertVisible: "Manage Trakt account"
+- assertVisible: "Delete your Trakt account"
+- scrollUntilVisible:
+    element:
       id: "settings-version"
 - assertVisible:
     text: "[0-9]+\\.[0-9]+\\.[0-9]+ \\([0-9]+\\)"
@@ -55,9 +60,7 @@ appId: app.cuetracker
 - takeScreenshot: account-settings-about
 - scrollUntilVisible:
     element:
-      id: "settings-delete"
-- assertVisible: "Manage Trakt account"
-- assertVisible: "Delete your Trakt account"
+      id: "sign-out"
 - tapOn:
     id: "sign-out"
 - assertVisible: "Sign out of Cue?"
@@ -71,8 +74,8 @@ appId: app.cuetracker
 - assertVisible:
     id: "library-segment-movies"
 - tapOn: "Up Next"
-- runScript: lib/hold-account-write.js
-- assertTrue: ${output.writeHeld}
+- runScript: lib/drop-account-writes.js
+- assertTrue: ${output.writesDropped}
 - tapOn:
     id: "queue-row-[0-9]+-mark"
     index: 0
@@ -85,23 +88,42 @@ appId: app.cuetracker
       id: "sign-out"
 - tapOn:
     id: "sign-out"
+# The confirm is a platform alert. Its title and its button both carry the words
+# of the danger row behind it, which stays in the hierarchy under the alert, so
+# the confirm is named by the button it sits beside; and the alert has to be on
+# screen before the tap is aimed rather than racing the row.
+- extendedWaitUntil:
+    visible: "Sign out of Cue?"
+    timeout: 30000
 - tapOn:
-    text: "Sign out"
+    text: "^Sign out$"
+    rightOf:
+      text: "^Cancel$"
 - extendedWaitUntil:
     visible:
       id: "sign-out-error"
-    timeout: 120000
+    timeout: 60000
 - assertVisible: "Some changes haven't synced yet. Reconnect to the internet, then try signing out again."
 - assertVisible:
     id: "screen-settings"
 - waitForAnimationToEnd
 - takeScreenshot: account-sign-out-refused
-- runScript: lib/release-account-write.js
-- assertTrue: ${output.writeReleased}
+# Writes reach Trakt again and revoking the token does not. Revoke is
+# best-effort, so the sign-out still finishes and the app lands on onboarding.
+- runScript: lib/refuse-revoke.js
+- assertTrue: ${output.revokeRefused}
 - tapOn:
     id: "sign-out"
-- tapOn: "Sign out"
+- extendedWaitUntil:
+    visible: "Sign out of Cue?"
+    timeout: 30000
+- tapOn:
+    text: "^Sign out$"
+    rightOf:
+      text: "^Cancel$"
 - extendedWaitUntil:
     visible:
       id: "screen-onboarding"
-    timeout: 30000
+    timeout: 60000
+- runScript: lib/clear-faults.js
+- assertTrue: ${output.faultsCleared}

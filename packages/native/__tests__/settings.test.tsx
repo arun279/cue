@@ -73,6 +73,18 @@ it("starts with accessible controls and the strong defaults", async () => {
   expect(screen.queryByText("Notifications")).toBeNull();
 });
 
+it("lists the sections in the order of the screen", async () => {
+  await accountFixture().paint(<Settings />);
+  expect(screen.getAllByRole("header").flatMap((heading) => heading.children)).toEqual([
+    "Appearance",
+    "Tracking",
+    "Content",
+    "Data",
+    "Account",
+    "About",
+  ]);
+});
+
 it("persists each toggle and immediately removes the disabled medium from Library", async () => {
   const fixture = accountFixture();
   await fixture.paint(

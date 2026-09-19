@@ -7,5 +7,7 @@ appId: app.cuetracker
 - runFlow: ../flows/calendar.yaml
 - runFlow: ../flows/library.yaml
 - runFlow: ../flows/search.yaml
-- runFlow: ../flows/account.yaml
 - runFlow: ../flows/returning-user-app-idle.yaml
+# Last, because it ends on onboarding and the app-idle measurement above needs
+# the signed-in session the flows before it leave behind.
+- runFlow: ../flows/account.yaml
