@@ -7,7 +7,7 @@ if [ "$#" -ne 1 ]; then
 fi
 
 output=$(cd "$(dirname "$1")" && pwd)/$(basename "$1")
-config=$(mktemp "$TMPDIR/size-limit.XXXXXX.json")
+config=$(mktemp "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/size-limit.XXXXXX")
 jq --arg root "$PWD/" \
   'map(select(.path) | .path |= if type == "array" then map($root + .) else $root + . end)' \
   .size-limit.json > "$config"

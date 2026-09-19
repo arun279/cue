@@ -22,6 +22,12 @@ describe("fast pull request validation", () => {
     expect(android).toContain("needs: fingerprint");
     expect(android).toContain("if: steps.native-cache.outputs.hit != 'true'");
     expect(android).toContain("if: steps.native-cache.outputs.hit == 'true'");
+    expect(android).toContain("./grad" + "lew bundleRelease\n");
+    expect(android).toContain(
+      "./grad" + "lew assembleRelease -PreactNativeArchitectures=arm64-v8a",
+    );
+    expect(android).not.toContain("bundleRelease assembleRelease");
+    expect(android).toContain("lib/x86_64/lib" + "react" + "native\\.so");
   });
 
   it("keeps every build command out of footprint", () => {

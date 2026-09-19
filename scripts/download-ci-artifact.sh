@@ -3,8 +3,15 @@ set -euo pipefail
 
 name=$1
 destination=$2
+producer=${3:-}
 while IFS=$'\t' read -r artifact_id run_id; do
-  if [ "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" --jq .conclusion)" = success ]; then
+  run_conclusion=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id" --jq .conclusion)
+  job_conclusion=""
+  if [ -n "$producer" ]; then
+    job_conclusion=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs?per_page=100" \
+      --jq ".jobs[] | select(.name == \"$producer\") | .conclusion")
+  fi
+  if [ "$run_conclusion" = success ] || [ "$job_conclusion" = success ]; then
     mkdir -p "$destination"
     gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact_id/zip" > "$RUNNER_TEMP/artifact.zip"
     unzip -q "$RUNNER_TEMP/artifact.zip" -d "$destination"

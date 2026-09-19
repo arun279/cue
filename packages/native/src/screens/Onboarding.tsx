@@ -80,7 +80,7 @@ export function Onboarding(): ReactElement {
         Cue
       </CueText>
       <CueText variant="rowTitle" weight="regular" style={{ color: colors.ink2 }}>
-        Your Up Next queue, from your Trakt account.
+        Your Up Next queue from your Trakt account.
       </CueText>
       {errorMessage === null ? null : (
         <CueText variant="meta" accessibilityRole="alert" style={{ color: colors.danger }}>

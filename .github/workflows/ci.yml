@@ -193,18 +193,42 @@ jobs:
       contents: read
     needs: fingerprint
     runs-on: macos-26
+    env:
+      MAESTRO_CLI_NO_ANALYTICS: "1"
+      MAESTRO_DRIVER_STARTUP_TIMEOUT: "300000"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_26.6.app
+      - id: simulator
+        name: Start an available iPhone simulator
+        run: |
+          device_id=$(xcrun simctl list devices available -j | \
+            jq -r '[.devices[] | .[] | select(.name | startswith("iPhone"))][0].udid')
+          test -n "$device_id"
+          xcrun simctl boot "$device_id"
+          echo "device_id=$device_id" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
+        with:
+          distribution: temurin
+          java-version: "21"
       - uses: ./.github/actions/setup-node-pnpm
+      - name: Install Maestro 2.10.0
+        run: |
+          curl -fsSL \
+            https://github.com/mobile-dev-inc/Maestro/releases/download/cli-2.10.0/maestro.zip \
+            -o "$RUNNER_TEMP/maestro.zip"
+          echo "29b675e10cc12080e445e9bfb2e2b4e4dfb9c0f2e30d5884120d258b5e1cd991  $RUNNER_TEMP/maestro.zip" \
+            | shasum -a 256 -c -
+          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
       - id: native-cache
         name: Restore the fingerprinted simulator app
         env:
           ARTIFACT_NAME: cue-native-ios-${{ needs.fingerprint.outputs.ios }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          if scripts/download-ci-artifact.sh "$ARTIFACT_NAME" "$RUNNER_TEMP/native-ios-app"; then
+          if scripts/download-ci-artifact.sh "$ARTIFACT_NAME" "$RUNNER_TEMP/native-ios-app" native-ios; then
             echo "hit=true" >> "$GITHUB_OUTPUT"
             tar -xzf "$RUNNER_TEMP/native-ios-app/Cue.app.tgz" -C "$RUNNER_TEMP/native-ios-app"
           else
@@ -288,59 +312,12 @@ jobs:
           name: cue-native-ios-sizes
           path: ${{ runner.temp }}/head-ios-sizes.json
           retention-days: 1
-  native-e2e:
-    needs: [fingerprint, native-ios]
-    runs-on: macos-26
-    env:
-      # Job-wide, so it is set before the version check too: a first maestro run
-      # otherwise prints an analytics notice on stdout ahead of its answer.
-      MAESTRO_CLI_NO_ANALYTICS: "1"
-      # Maestro installs and launches its own XCUITest runner before the first
-      # command and waits 120s for it by default. On a cold runner that took
-      # 124s, so the flow never started. Five minutes, because a runner that is
-      # slower still should say what the flow did rather than that it was slow.
-      MAESTRO_DRIVER_STARTUP_TIMEOUT: "300000"
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_26.6.app
-      - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
-        with:
-          distribution: temurin
-          java-version: "21"
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version-file: .nvmrc
-      - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
-        with:
-          name: cue-native-ios-${{ needs.fingerprint.outputs.ios }}
-          path: ${{ runner.temp }}/native-app
-      # Pinned by digest as well as by version, the way every action here is
-      # pinned by commit: a release asset can be replaced in place.
-      - name: Install Maestro 2.10.0
-        run: |
-          curl -fsSL \
-            https://github.com/mobile-dev-inc/Maestro/releases/download/cli-2.10.0/maestro.zip \
-            -o "$RUNNER_TEMP/maestro.zip"
-          echo "29b675e10cc12080e445e9bfb2e2b4e4dfb9c0f2e30d5884120d258b5e1cd991  $RUNNER_TEMP/maestro.zip" \
-            | shasum -a 256 -c -
-          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP"
-          echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
-      - id: simulator
-        name: Boot an available iPhone simulator
-        run: |
-          device_id=$(xcrun simctl list devices available -j | \
-            jq -r '[.devices[] | .[] | select(.name | startswith("iPhone"))][0].udid')
-          test -n "$device_id"
-          xcrun simctl boot "$device_id"
-          xcrun simctl bootstatus "$device_id" -b
-          echo "device_id=$device_id" >> "$GITHUB_OUTPUT"
       - name: Install the app
         env:
           DEVICE_ID: ${{ steps.simulator.outputs.device_id }}
         run: |
-          tar -xzf "$RUNNER_TEMP/native-app/Cue.app.tgz" -C "$RUNNER_TEMP/native-app"
-          xcrun simctl install "$DEVICE_ID" "$RUNNER_TEMP/native-app/Cue.app"
+          xcrun simctl bootstatus "$DEVICE_ID" -b
+          xcrun simctl install "$DEVICE_ID" "$RUNNER_TEMP/native-ios-app/Cue.app"
       - name: Start the fake Trakt
         run: |
           node scripts/mock-trakt/server.mjs > "$RUNNER_TEMP/mock-trakt.log" 2>&1 &
@@ -378,6 +355,11 @@ jobs:
             ${{ runner.temp }}/maestro-results.xml
             ${{ runner.temp }}/mock-trakt.log
           retention-days: 7
+  native-e2e:
+    needs: native-ios
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Native E2E completed in native-ios."
   native-android:
     permissions:
       actions: read
@@ -399,7 +381,9 @@ jobs:
           ARTIFACT_NAME: cue-native-android-${{ needs.fingerprint.outputs.android }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          if scripts/download-ci-artifact.sh "$ARTIFACT_NAME" "$RUNNER_TEMP/native-android"; then
+          if scripts/download-ci-artifact.sh "$ARTIFACT_NAME" "$RUNNER_TEMP/native-android" native-android && \
+            unzip -Z1 "$RUNNER_TEMP/native-android/universal.apk" | \
+              grep -q '^lib/x86_64/libreactnative\.so$'; then
             echo "hit=true" >> "$GITHUB_OUTPUT"
           else
             echo "hit=false" >> "$GITHUB_OUTPUT"
@@ -427,7 +411,8 @@ jobs:
           EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
           EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
         run: |
-          ./gradlew bundleRelease assembleRelease -PreactNativeArchitectures=arm64-v8a
+          ./gradlew bundleRelease
+          ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a
           mkdir -p "$RUNNER_TEMP/native-android"
           cp app/build/outputs/bundle/release/app-release.aab "$RUNNER_TEMP/native-android/"
           cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/native-android/tester-arm64-v8a.apk"
