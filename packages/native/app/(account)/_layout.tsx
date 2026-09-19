@@ -3,7 +3,7 @@ import type { ReactElement } from "react";
 import { Button, StyleSheet, View } from "react-native";
 import { SnackbarHost } from "../../src/ui/SnackbarHost";
 import { TEST_IDS } from "../../src/ui/test-ids";
-import { RADIUS, useColors } from "../../src/ui/tokens";
+import { useColors } from "../../src/ui/tokens";
 
 /**
  * Profile, Settings and History as one full-screen modal stack over the tabs.
@@ -43,17 +43,6 @@ export default function AccountLayout(): ReactElement {
         />
         <Stack.Screen name="settings" options={{ title: "Settings" }} />
         <Stack.Screen name="history" options={{ title: "History" }} />
-        <Stack.Screen
-          name="history-month"
-          options={{
-            presentation: "formSheet",
-            headerShown: false,
-            sheetAllowedDetents: "fitToContents",
-            sheetGrabberVisible: true,
-            sheetCornerRadius: RADIUS.sheet,
-            contentStyle: { backgroundColor: colors.bg },
-          }}
-        />
         <Stack.Screen name="movie/[movieId]" options={{ title: "Movie" }} />
         <Stack.Screen
           name="show/[showId]/episode/[season]/[episode]"

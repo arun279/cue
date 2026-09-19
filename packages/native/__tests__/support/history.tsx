@@ -3,7 +3,7 @@ import type { ReactElement } from "react";
 import { TextInput } from "react-native";
 import { expoRouterModule, router } from "./native-ui";
 
-export const historyRouter = { ...router, setParams: jest.fn(), dismissTo: jest.fn() };
+export const historyRouter = { ...router, setParams: jest.fn() };
 export const historyParams: { current: Record<string, string> } = { current: {} };
 
 export function historyRouterModule() {

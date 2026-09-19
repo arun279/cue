@@ -31,6 +31,7 @@ export const PALETTE = {
   danger: { light: "#b4231b", dark: "#f0857a" },
   // Theme-invariant: text over artwork always sits on a dark scrim.
   scrim: { light: "rgba(10,8,6,0.86)", dark: "rgba(10,8,6,0.86)" },
+  dim: { light: "rgba(10,8,6,0.32)", dark: "rgba(0,0,0,0.5)" },
   onImage: { light: "#ffffff", dark: "#ffffff" },
   onImage2: { light: "#d9cfc0", dark: "#d9cfc0" },
   /**

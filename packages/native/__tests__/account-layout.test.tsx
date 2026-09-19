@@ -33,7 +33,6 @@ const routes = {
   "(account)/profile": (): ReactElement => <View testID="screen-profile" />,
   "(account)/settings": (): ReactElement => <View testID="screen-settings" />,
   "(account)/history": (): ReactElement => <View testID="screen-history" />,
-  "(account)/history-month": (): ReactElement => <View />,
   "(account)/movie/[movieId]": (): ReactElement => <View />,
   "(account)/show/[showId]/episode/[season]/[episode]": (): ReactElement => <View />,
 };
