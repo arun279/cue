@@ -75,6 +75,14 @@ describe("fast pull request validation", () => {
     expect(verification.match(/--driver-host-port 7001/g)).toHaveLength(2);
   });
 
+  it("checks implemented Android tabs by screen id", () => {
+    const verification = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
+
+    expect(verification).toContain('library) grep -Fq "screen-library"');
+    expect(verification).toContain('calendar) grep -Fq "screen-calendar"');
+    expect(verification).toContain('*) grep -Fq "$' + '{labels[$index]} is coming soon."');
+  });
+
   it("measures render performance base then head on one runner", () => {
     const render = job("render-performance");
 
