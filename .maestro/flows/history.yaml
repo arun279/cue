@@ -1,5 +1,7 @@
 appId: app.cuetracker
 ---
+- runScript: lib/reset-fake.js
+- assertTrue: ${output.fakeReset}
 - runFlow: lib/connect.yaml
 - tapOn:
     id: "avatar-link"
