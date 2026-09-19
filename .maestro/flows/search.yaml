@@ -1,0 +1,80 @@
+# Search end to end: browse, a query, the add, a clear, a miss, and a detail.
+#
+# The field is the platform's own and carries no accessibility id, so the flow
+# reaches it by the placeholder the screen sets, which is also the assertion that
+# the placeholder is the one a reader with both media on should see.
+#
+# The add is the point of the screen: the pill settles into "In library" on a
+# title this account does not track, and the tracked title beside it never offers
+# an add at all.
+appId: app.cuetracker
+---
+- runScript: lib/reset-fake.js
+- assertTrue: ${output.fakeReset}
+- runFlow: lib/connect.yaml
+- tapOn: "Search"
+- assertVisible:
+    id: "screen-search"
+- assertVisible:
+    id: "search-browse"
+- assertVisible: "Trending shows"
+- assertVisible:
+    id: "show-card-8801"
+# One grid per enabled medium, the movies one below the fold on a phone.
+- scrollUntilVisible:
+    element:
+      id: "movie-card-5501"
+    direction: DOWN
+    timeout: 20000
+- assertVisible: "Popular movies"
+
+- tapOn: "Shows and movies.*"
+- inputText: "harbor"
+- extendedWaitUntil:
+    visible:
+      id: "search-result-8901"
+    timeout: 10000
+# The tracked title in the same results offers no add at all, only a statement.
+- assertVisible:
+    id: "search-result-8801-in-library"
+- assertNotVisible:
+    id: "search-result-8801-watchlist"
+
+- tapOn:
+    id: "search-result-8901-watchlist"
+# The filled confirmation holds for 600 ms, which is shorter than one hierarchy
+# read, so the flow asserts what the pill settles into and leaves the duration to
+# the unit that can stop the clock.
+- extendedWaitUntil:
+    visible:
+      id: "search-result-8901-in-library"
+    timeout: 5000
+- assertVisible:
+    id: "search-result-8901"
+- assertNotVisible:
+    id: "search-result-8901-watchlist"
+
+- eraseText
+# The term the reader rested on, and only that one: the prefixes erasing passes
+# through never stand long enough to be remembered.
+- assertVisible:
+    id: "search-recent-row"
+- assertVisible: "Search harbor again"
+
+- inputText: "zeppelin"
+- extendedWaitUntil:
+    visible:
+      id: "search-no-results"
+    timeout: 10000
+- assertVisible: "Check spelling or try the year."
+
+- eraseText
+- inputText: "harbor lights"
+- extendedWaitUntil:
+    visible:
+      id: "search-result-8801"
+    timeout: 10000
+- tapOn:
+    id: "search-result-8801"
+- assertVisible:
+    id: "screen-show-detail"

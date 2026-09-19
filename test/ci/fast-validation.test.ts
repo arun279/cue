@@ -79,10 +79,12 @@ describe("fast pull request validation", () => {
     const ios = job("native-e2e");
     const androidJob = job("android-e2e");
     const android = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
+    const suite = readFileSync(repositoryPath(".maestro/ci/app.yaml"), "utf8");
 
     expect(ios).toContain("test .maestro/ci/app.yaml");
     expect(android).toContain("suite=.maestro/ci/app.yaml");
     expect(androidJob).toContain('"$RUNNER_TEMP/screenshots/android" light');
+    expect(suite).toContain("- runFlow: ../flows/search.yaml");
   });
 
   it("runs required dark screenshot traversals on independent cached-app jobs", () => {
@@ -97,6 +99,12 @@ describe("fast pull request validation", () => {
     expect(android).toContain("cue-native-android-$" + "{{ needs.fingerprint.outputs.android }}");
     expect(android).toContain('"$RUNNER_TEMP/screenshots/android" dark');
     expect(android).not.toContain("continue-on-error");
+  });
+
+  it("waits for app idle before checking the connected loading state", () => {
+    const connect = readFileSync(repositoryPath(".maestro/flows/lib/connect.yaml"), "utf8");
+
+    expect(connect).toMatch(/screen-up-next[\s\S]*app-idle[\s\S]*up-next-skeleton/);
   });
 
   it("uses a fixed Maestro driver port outside Android's ephemeral range", () => {

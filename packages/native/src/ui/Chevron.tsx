@@ -9,13 +9,13 @@ const PATH = {
   down: "M6 9.5 12 15.5 18 9.5",
   forward: "M9.5 6 15.5 12 9.5 18",
   back: "M14.5 6 8.5 12 14.5 18",
+  recall: "M17.5 17.5 7 7M7 13.5V7h6.5",
 } as const;
 
 export interface ChevronProps {
   readonly direction: keyof typeof PATH;
 }
 
-/** The disclosure mark, in the one shape and weight the app draws it. */
 export function Chevron({ direction }: ChevronProps): ReactElement {
   const colors = useColors();
 

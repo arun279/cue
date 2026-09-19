@@ -29,6 +29,7 @@ import {
   getWatchedMovies,
   getWatchedShows,
   getWatchlist,
+  searchTrakt,
 } from "@cue/core/data/trakt/endpoints";
 import { advancePastNext, type LibraryEntry } from "@cue/core/data/trakt/library";
 import { loadUpNextEntries } from "@cue/core/data/trakt/read-budget";
@@ -219,15 +220,33 @@ describe("the seeded account parses through the app's own contracts", () => {
     );
   });
 
-  it("serves the browse rails as the empty lists a demo account has", async () => {
-    expect(ok(await getTrendingShows(client()))).toEqual([]);
-    expect(ok(await getPopularShows(client()))).toEqual([]);
-    expect(ok(await getTrendingMovies(client()))).toEqual([]);
-    expect(ok(await getPopularMovies(client()))).toEqual([]);
+  it("serves the browse rails from the account's own titles, ranked and bare", async () => {
+    expect(ok(await getTrendingShows(client())).map((row) => row.show.title)).toContain(
+      "Harbor Lights",
+    );
+    expect(ok(await getPopularShows(client())).map((show) => show.title)).toContain(
+      "Harbor Lights",
+    );
+    expect(ok(await getTrendingMovies(client())).map((row) => row.movie.title)).toContain(
+      "The Lantern Keeper",
+    );
+    expect(ok(await getPopularMovies(client())).map((movie) => movie.title)).toContain(
+      "The Lantern Keeper",
+    );
+  });
+
+  it("searches its own titles and the catalog-only ones together", async () => {
+    const hits = ok(await searchTrakt(client(), "harbor"));
+
+    expect(hits.map((hit) => hit.show?.title ?? hit.movie?.title)).toEqual([
+      "Harbor Lights",
+      "The Harbor Master",
+      "Harbor Sound",
+    ]);
   });
 
   it("answers a path it does not model with 404 rather than an empty success", async () => {
-    const result = await client().get("/search/show", { query: { query: "harbor" } });
+    const result = await client().get("/shows/8801/people");
     expect(result.ok ? null : result.error).toEqual({ kind: "not-found" });
   });
 
