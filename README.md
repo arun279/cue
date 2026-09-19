@@ -102,15 +102,17 @@ Episode reminders are local notifications and nothing else: one digest each morn
 
 ### Releasing
 
-`.github/workflows/mobile-release.yml` builds and ships the app: a push to `main` goes to testers (TestFlight and Firebase App Distribution), a `v*` tag submits to the App Store, and a manual dispatch does either on whichever ref it runs against. Every trigger waits on a gate job that re-checks each required CI job for that exact commit, so an unverified commit cannot ship.
+`.github/workflows/mobile-release.yml` builds and ships the app only after a deliberate release event. Every run waits on a gate job that re-checks each required CI job for that exact commit, so an unverified commit cannot ship.
 
-A `release/*` branch is the on-demand lane: CI runs on those branches too, so a build can be cut from one without merging it to `main`.
+For a tester build, open **Actions**, select **Mobile release**, choose **Run workflow**, select the ref and platform, leave the lane on **beta**, and run it. CI runs on `main` and `release/*` pushes, so the selected commit must be the tip of one of those branches with green CI checks.
+
+For an iOS App Store release, tag the green commit on `main` with its exact three-part version and push the tag. Pre-release tags do not ship.
 
 ```sh
-git branch release/capacitor <sha>
-git push origin release/capacitor
-gh workflow run mobile-release.yml --ref release/capacitor
+git tag vX.Y.Z && git push origin vX.Y.Z
 ```
+
+The tag supplies the app's embedded marketing version. A manual **release** lane remains available for a `release/*` branch and requires the explicit version input.
 
 Build numbers come from that workflow's run counter, which every branch shares and which only increases. That is what makes going back possible: Android refuses a lower `versionCode` and Apple cannot revert an App Store version, so the way back is to dispatch the older ref and let it ship as a new, higher build.
 
