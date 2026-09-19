@@ -72,7 +72,6 @@ export const TEST_IDS = {
   movieDetailSkeleton: "movie-detail-skeleton",
   screenMovieDetail: "screen-movie-detail",
   movieMark: "movie-mark",
-  movieMenu: "movie-menu",
   screenLibrary: "screen-library",
   libraryGrid: "library-grid",
   librarySegmentShows: "library-segment-shows",

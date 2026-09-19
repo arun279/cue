@@ -24,13 +24,14 @@ appId: app.cuetracker
     id: "snackbar-undo"
 - runFlow: lib/settle.yaml
 - assertVisible: "Not watched yet"
-- tapOn:
-    id: "movie-menu"
+- tapOn: "More actions for The Lantern Keeper"
 - assertVisible: "Add to Watchlist"
 - assertVisible: "Open on Trakt"
 - tapOn: "Add to Watchlist"
 - assertVisible: "The Lantern Keeper added to Watchlist"
-- tapOn: "Library"
+- tapOn:
+    text: "Library"
+    index: 0
 - assertVisible:
     id: "screen-library"
 - assertVisible:

@@ -82,7 +82,6 @@ function LoadedMovie({ header }: { readonly header: MovieHeader }): ReactElement
           headerRight: () => (
             <RowMenu
               title={header.title}
-              testID={TEST_IDS.movieMenu}
               items={[
                 {
                   id: "watchlist",
