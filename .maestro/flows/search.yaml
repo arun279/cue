@@ -39,7 +39,8 @@ appId: app.cuetracker
     commands:
       - tapOn:
           text: "Search"
-          id: ".*search_button"
+          rightOf: "Search"
+          above: "Trending shows"
 - tapOn: "Shows and movies.*"
 - inputText: "harbor"
 - extendedWaitUntil:
