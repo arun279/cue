@@ -56,17 +56,14 @@ appId: app.cuetracker
       platform: iOS
     commands:
       - swipe:
-          start: "50%,55%"
+          start: "50%,10%"
           end: "50%,98%"
-          duration: 300
+          duration: 500
 - runFlow:
     when:
       platform: Android
     commands:
-      - swipe:
-          start: "50%,10%"
-          end: "50%,98%"
-          duration: 500
+      - back
 - extendedWaitUntil:
     visible:
       id: "screen-show-detail"

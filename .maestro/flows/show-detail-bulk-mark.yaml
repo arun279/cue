@@ -24,7 +24,9 @@ appId: app.cuetracker
 - waitForAnimationToEnd:
     timeout: 1000
 - takeScreenshot: show-detail-season-confirm
-- tapOn: "Mark 2 remaining"
+- tapOn:
+    text: "Mark 2 remaining"
+    waitToSettleTimeoutMs: 100
 - assertVisible:
     id: "snackbar"
 - runFlow: lib/settle.yaml
