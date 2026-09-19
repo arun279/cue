@@ -88,6 +88,22 @@ function hidden(action: { attributes?: object }): boolean {
   return attributes?.hidden === true || attributes?.disabled === true;
 }
 
+/** The three platform edges every perf harness stubs the same way: the pull
+ * gesture, the preference backing store, and the window insets. */
+export function pullToRefreshModule() {
+  return { usePullToRefresh: () => ({ pull: jest.fn(), refreshing: false, sync: jest.fn() }) };
+}
+
+export function preferenceStorageModule() {
+  return {
+    preferenceStorage: { getItem: () => null, setItem: jest.fn(), clearNamespace: jest.fn() },
+  };
+}
+
+export function safeAreaModule() {
+  return { useSafeAreaInsets: () => ({ bottom: 0 }) };
+}
+
 interface SwipeableProps {
   readonly testID?: string;
   readonly leftThreshold?: number;

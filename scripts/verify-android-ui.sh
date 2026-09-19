@@ -59,9 +59,11 @@ for theme in light dark; do
         exit 1
       }
     done
-    if [ "$index" -ne 0 ]; then
-      grep -Fq "${labels[$index]} is coming soon." "$output/$name.xml"
-    fi
+    case "${names[$index]}" in
+      up-next) ;;
+      library) grep -Fq "screen-library" "$output/$name.xml" ;;
+      *) grep -Fq "${labels[$index]} is coming soon." "$output/$name.xml" ;;
+    esac
   done
 done
 

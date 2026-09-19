@@ -1,0 +1,57 @@
+# The Library screen end to end: both media, a chip, the filter, sort, and the
+# tile that opens a show.
+#
+# The medium, the chip and the order are three separate choices over one grid,
+# and each one has to survive the others. Filtering to nothing is the state that
+# proves the grid is reading the settled query rather than every keystroke.
+appId: app.cuetracker
+---
+- runScript: lib/reset-fake.js
+- assertTrue: ${output.fakeReset}
+- runFlow: lib/connect.yaml
+- tapOn: "Library"
+- assertVisible:
+    id: "screen-library"
+- assertVisible:
+    id: "show-card-8801"
+
+- tapOn:
+    id: "library-segment-movies"
+- assertVisible:
+    id: "movie-card-5503"
+- tapOn:
+    id: "library-chip-watched"
+- assertVisible:
+    id: "movie-card-5501"
+
+- tapOn:
+    id: "library-segment-shows"
+- assertVisible:
+    id: "show-card-8801"
+- tapOn:
+    id: "library-chip-stopped"
+- assertVisible:
+    id: "library-empty"
+- tapOn:
+    id: "library-chip-watching"
+
+- tapOn:
+    id: "library-filter-toggle"
+- inputText: "zzz"
+- assertVisible:
+    id: "library-no-match"
+- tapOn:
+    id: "library-filter-clear"
+- assertVisible:
+    id: "show-card-8801"
+
+- tapOn:
+    id: "library-sort"
+- tapOn: "A-Z"
+- assertVisible:
+    id: "show-card-8801"
+
+- tapOn:
+    id: "show-card-8801"
+- assertVisible:
+    id: "screen-show-detail"

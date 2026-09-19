@@ -1,7 +1,6 @@
 import { render, renderHook, screen } from "@testing-library/react-native";
 import * as Native from "react-native";
 import Calendar from "../app/(tabs)/(calendar)/calendar";
-import Library from "../app/(tabs)/(library)/library";
 import Search from "../app/(tabs)/(search)/search";
 import { useColors } from "../src/ui/tokens";
 
@@ -17,7 +16,6 @@ it.each([
   jest.mocked(Native.useColorScheme).mockReturnValue(scheme);
   const { result } = await renderHook(() => useColors());
   for (const [title, Screen] of [
-    ["Library", Library],
     ["Calendar", Calendar],
     ["Search", Search],
   ] as const) {

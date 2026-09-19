@@ -2,18 +2,18 @@ import { useRouter } from "expo-router";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import Svg, { Circle, Path } from "react-native-svg";
-import { TEST_IDS } from "../../ui/test-ids";
-import { RADIUS, SPACE, TARGET_MIN, useColors } from "../../ui/tokens";
+import { TEST_IDS } from "./test-ids";
+import { RADIUS, SPACE, TARGET_MIN, useColors } from "./tokens";
 
 const GLYPH = 22;
 const AVATAR = 32;
 
-export interface UpNextBarItemsProps {
+export interface BarItemsProps {
   onSync(): void;
 }
 
 /**
- * The tab root's trailing bar items: "Sync now", and the avatar the account area
+ * Every tab root's trailing bar items: "Sync now", and the avatar the account area
  * sits behind.
  *
  * "Sync now" is load bearing rather than a convenience. It is the single-pointer,
@@ -22,7 +22,7 @@ export interface UpNextBarItemsProps {
  * four steps away in Settings satisfied the criterion and was not defensible
  * beside a Stop that is co-located on its own row.
  */
-export function UpNextBarItems({ onSync }: UpNextBarItemsProps): ReactElement {
+export function BarItems({ onSync }: BarItemsProps): ReactElement {
   const router = useRouter();
   const colors = useColors();
 
