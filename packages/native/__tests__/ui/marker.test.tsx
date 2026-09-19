@@ -17,3 +17,10 @@ it("draws a frame a hierarchy dump can find", async () => {
   expect(frame?.width).toBeGreaterThan(0);
   expect(frame?.height).toBeGreaterThan(0);
 });
+
+it("carries accessibility-only text", async () => {
+  await render(<Marker accessibilityLabel="Startup timing: 625.0 ms" testID="a-gate" />);
+
+  expect(screen.getByTestId("a-gate")).toHaveProp("accessibilityLabel", "Startup timing: 625.0 ms");
+  expect(screen.getByTestId("a-gate").props["children"]).toBeUndefined();
+});

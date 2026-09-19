@@ -9,8 +9,22 @@ import { StyleSheet, View } from "react-native";
  * that is holding. A point is the smallest frame a hierarchy dump can find, and
  * it is what makes every wait in this app answerable from outside it.
  */
-export function Marker({ testID }: { readonly testID: string }): ReactElement {
-  return <View testID={testID} pointerEvents="none" style={styles.marker} />;
+export function Marker({
+  accessibilityLabel,
+  testID,
+}: {
+  readonly accessibilityLabel?: string;
+  readonly testID: string;
+}): ReactElement {
+  return (
+    <View
+      accessible={accessibilityLabel === undefined ? undefined : true}
+      accessibilityLabel={accessibilityLabel}
+      testID={testID}
+      pointerEvents="none"
+      style={styles.marker}
+    />
+  );
 }
 
 const styles = StyleSheet.create({
