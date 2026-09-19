@@ -61,5 +61,8 @@ pre-push:
           fi
         fi
     check:
-      priority: 2
+      priority: 3
       run: pnpm check
+    node-version:
+      priority: 2
+      run: node scripts/check-node-version.mjs

@@ -18,7 +18,7 @@ const TESTER_APK_SIZE_LIMIT = "$" + "{{ needs.config.outputs.tester_apk_size_lim
 // `footprint` skips itself on forks, and the gate reads a skip as a failure.
 // `native-e2e` is exempt on purpose while it earns a green history on a
 // simulator; promoting it is a one-line change here and in REQUIRED.
-const NOT_REQUIRED = ["android-e2e", "footprint", "native-e2e"];
+const NOT_REQUIRED = ["android-e2e", "fingerprint", "footprint", "native-e2e"];
 
 const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((entry) => typeof entry === "string");
@@ -150,17 +150,14 @@ describe("the iOS toolchain pin", () => {
     expect(nativeIos?.body.match(/xcodebuild/g)).toHaveLength(1);
     expect(nativeIos?.body).not.toContain("Measure the merge-base simulator app");
     expect(nativeIos?.body).toContain(
-      "key: native-ios-size-$" + "{{ github.event.pull_request.base.sha }}",
-    );
-    expect(nativeIos?.body).toContain(
-      "key: native-ios-size-$" + "{{ github.event.pull_request.head.sha }}",
+      "name: cue-native-ios-$" + "{{ needs.fingerprint.outputs.ios }}",
     );
   });
 });
 
 describe("native bundle environment", () => {
   it.each([
-    [CI_WORKFLOW, "native-android", "Build and check release artifacts", "ci"],
+    [CI_WORKFLOW, "native-android", "Build release artifacts", "ci"],
     [
       MOBILE_RELEASE_WORKFLOW,
       "android",

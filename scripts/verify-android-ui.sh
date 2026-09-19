@@ -19,7 +19,7 @@ capture() {
   adb exec-out cat /sdcard/cue-ui.xml > "$output/$1.xml"
 }
 
-pnpm mock:trakt > "$output/mock-trakt.log" 2>&1 &
+node scripts/mock-trakt/server.mjs > "$output/mock-trakt.log" 2>&1 &
 mock_pid=$!
 ready=0
 for _ in {1..30}; do
@@ -33,7 +33,8 @@ test "$ready" -eq 1
 
 adb reverse tcp:8787 tcp:8787
 bash scripts/verify-android-launch.sh "$apk" "$output/logcat.txt"
-maestro test .maestro/flows/lib/connect.yaml --debug-output "$output/maestro-connect"
+maestro test .maestro/flows/lib/connect.yaml --driver-host-port 7001 \
+  --debug-output "$output/maestro-connect"
 
 labels=("Up Next" "Library" "Calendar" "Search")
 names=(up-next library calendar search)
@@ -46,7 +47,8 @@ for theme in light dark; do
   sleep 3
   for index in "${!labels[@]}"; do
     name="${names[$index]}-$theme"
-    maestro test .maestro/flows/android-tab.yaml --env TAB_LABEL="${labels[$index]}" \
+    maestro test .maestro/flows/android-tab.yaml --driver-host-port 7001 \
+      --env TAB_LABEL="${labels[$index]}" \
       --debug-output "$output/maestro-$name"
     capture "$name"
     for label in "${labels[@]}"; do

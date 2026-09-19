@@ -30,6 +30,30 @@ concurrency:
   group: ci-${{ github.event_name }}-${{ github.ref }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: true
 jobs:
+  fingerprint:
+    permissions:
+      actions: read
+      contents: read
+    runs-on: ubuntu-latest
+    outputs:
+      android: ${{ steps.native.outputs.android }}
+      ios: ${{ steps.native.outputs.ios }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-node-pnpm
+      - id: native
+        name: Compute native fingerprints
+        env:
+          ANDROID_ARCHITECTURES: arm64-v8a,x86_64
+          APP_VERSION: 9.9.9
+          BUILD_NUMBER: "42"
+          CONFIGURATION: Release
+          EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
+          XCODE_PATH: /Applications/Xcode_26.6.app
+        run: |
+          echo "android=$(node scripts/native-fingerprint.mjs android)" >> "$GITHUB_OUTPUT"
+          echo "ios=$(node scripts/native-fingerprint.mjs ios)" >> "$GITHUB_OUTPUT"
   check:
     runs-on: ubuntu-latest
     steps:
@@ -38,6 +62,16 @@ jobs:
           fetch-depth: 0
       - uses: ./.github/actions/setup-node-pnpm
       - run: pnpm check
+        env:
+          EXPO_ATLAS: "true"
+      - name: Upload JavaScript bundles
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cue-js-bundles
+          path: |
+            packages/native/.expo/atlas.jsonl
+            packages/native/dist/
+          retention-days: 1
   render-performance:
     runs-on: ubuntu-latest
     steps:
@@ -76,61 +110,56 @@ jobs:
           bundler-cache: true
       - run: bundle exec standardrb fastlane/Fastfile fastlane/Appfile
   footprint:
-    # Fork and Dependabot runs receive a read-only token.
-    # Skip them because that token cannot post comments.
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'
     permissions:
+      actions: read
       contents: read
       pull-requests: write
-    needs: native-ios
+    needs: [check, native-android, native-ios]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
-        with:
-          distribution: temurin
-          java-version: "21"
-          cache: gradle
       - uses: ./.github/actions/setup-node-pnpm
+      - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        with:
+          name: cue-js-bundles
+          path: packages/native
       - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
           name: cue-native-ios-sizes
           path: ${{ runner.temp }}/native-ios-sizes
+      - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        with:
+          name: cue-native-android-sizes
+          path: ${{ runner.temp }}/native-android-sizes
+      - name: Restore the base measurement
+        env:
+          ARTIFACT_NAME: cue-footprint-${{ github.event.pull_request.base.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if scripts/download-ci-artifact.sh "$ARTIFACT_NAME" "$RUNNER_TEMP/base-metrics"; then
+            cp "$RUNNER_TEMP/base-metrics/head-metrics.json" base-metrics.json
+          else
+            jq -n '{sizes: null, complexity: null, comments: null}' > base-metrics.json
+          fi
       - name: Measure the diff footprint
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          base=$(git merge-base "origin/$BASE_REF" HEAD)
-          git worktree add ../base "$base"
-
-          EXPO_ATLAS=true scripts/measure-sizes.sh "$PWD" "$PWD/head-sizes.json"
+          scripts/measure-sizes.sh "$PWD/head-sizes.json"
           node scripts/measure-complexity.mjs "$PWD" "$PWD/head-complexity.json"
           node scripts/measure-comments.mjs "$PWD" "$PWD/head-comments.json"
-          scripts/measure-sizes.sh ../base "$PWD/base-sizes.json"
-          node scripts/measure-complexity.mjs ../base "$PWD/base-complexity.json"
-          node scripts/measure-comments.mjs ../base "$PWD/base-comments.json"
-
-          jq -s '.[0] + .[1]' head-sizes.json \
-            "$RUNNER_TEMP/native-ios-sizes/head-ios-sizes.json" > all-head-sizes.json
+          jq -s 'add' head-sizes.json \
+            "$RUNNER_TEMP/native-ios-sizes/head-ios-sizes.json" \
+            "$RUNNER_TEMP/native-android-sizes/head-android-sizes.json" > all-head-sizes.json
           mv all-head-sizes.json head-sizes.json
-          if [ -f "$RUNNER_TEMP/native-ios-sizes/base-ios-sizes.json" ]; then
-            jq -s '.[0] + .[1]' base-sizes.json \
-              "$RUNNER_TEMP/native-ios-sizes/base-ios-sizes.json" > all-base-sizes.json
-            mv all-base-sizes.json base-sizes.json
-          fi
-
           jq -n --slurpfile sizes head-sizes.json \
             --slurpfile complexity head-complexity.json \
             --slurpfile comments head-comments.json \
             '{sizes: $sizes[0], complexity: $complexity[0], comments: $comments[0]}' \
             > head-metrics.json
-          jq -n --slurpfile sizes base-sizes.json \
-            --slurpfile complexity base-complexity.json \
-            --slurpfile comments base-comments.json \
-            '{sizes: $sizes[0], complexity: $complexity[0], comments: $comments[0]}' \
-            > base-metrics.json
           scripts/diff-footprint.sh "origin/$BASE_REF" base-metrics.json head-metrics.json \
             > footprint.md
           node scripts/summarize-atlas.mjs packages/native/.expo/atlas.jsonl >> footprint.md
@@ -140,16 +169,17 @@ jobs:
           name: expo-atlas
           path: packages/native/.expo/atlas.jsonl
           retention-days: 7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cue-footprint-${{ github.event.pull_request.head.sha }}
+          path: head-metrics.json
+          retention-days: 30
       - name: Update the pull request comment
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           comments_url="repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments"
           comment_ids=$(gh api --paginate "$comments_url" --jq '.[] | select(.body | startswith("<!-- diff-footprint -->")) | .id')
-          # Recreate rather than edit: GitHub keeps a comment's displayed
-          # timestamp at creation time forever, so an edited comment reads as
-          # stale no matter how fresh its body is. Deleting and reposting keeps
-          # one comment whose timestamp is always the run that produced it.
           for comment_id in $comment_ids; do
             gh api --method DELETE "repos/${{ github.repository }}/issues/comments/$comment_id"
           done
@@ -159,108 +189,98 @@ jobs:
           PR_BODY: ${{ github.event.pull_request.body }}
         run: node scripts/check-size-delta.mjs base-metrics.json head-metrics.json "$PR_BODY"
   native-ios:
-    # The runner and Xcode path match the release workflow.
     permissions:
       actions: read
       contents: read
+    needs: fingerprint
     runs-on: macos-26
+    env:
+      MAESTRO_CLI_NO_ANALYTICS: "1"
+      MAESTRO_DRIVER_STARTUP_TIMEOUT: "300000"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_26.6.app
-      - uses: ./.github/actions/setup-node-pnpm
-      - name: Restore the base iOS measurement
-        id: base-ios-cache
-        if: github.event_name == 'pull_request'
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      - id: simulator
+        name: Start an available iPhone simulator
+        run: |
+          device_id=$(xcrun simctl list devices available -j | \
+            jq -r '[.devices[] | .[] | select(.name | startswith("iPhone"))][0].udid')
+          test -n "$device_id"
+          xcrun simctl boot "$device_id"
+          echo "device_id=$device_id" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
         with:
-          path: ${{ runner.temp }}/head-ios-sizes.json
-          key: native-ios-size-${{ github.event.pull_request.base.sha }}
-      - name: Resolve the base iOS measurement
-        if: github.event_name == 'pull_request'
+          distribution: temurin
+          java-version: "21"
+      - uses: ./.github/actions/setup-node-pnpm
+      - name: Install Maestro 2.10.0
+        run: |
+          curl -fsSL \
+            https://github.com/mobile-dev-inc/Maestro/releases/download/cli-2.10.0/maestro.zip \
+            -o "$RUNNER_TEMP/maestro.zip"
+          echo "29b675e10cc12080e445e9bfb2e2b4e4dfb9c0f2e30d5884120d258b5e1cd991  $RUNNER_TEMP/maestro.zip" \
+            | shasum -a 256 -c -
+          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
+      - id: native-cache
+        name: Restore the fingerprinted simulator app
         env:
-          BASE_REF: ${{ github.base_ref }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          ARTIFACT_NAME: cue-native-ios-${{ needs.fingerprint.outputs.ios }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          source=n/a
-          if [ -f "$RUNNER_TEMP/head-ios-sizes.json" ]; then
-            source="cache keyed by $BASE_SHA"
+          if scripts/download-ci-artifact.sh "$ARTIFACT_NAME" "$RUNNER_TEMP/native-ios-app" native-ios; then
+            echo "hit=true" >> "$GITHUB_OUTPUT"
+            tar -xzf "$RUNNER_TEMP/native-ios-app/Cue.app.tgz" -C "$RUNNER_TEMP/native-ios-app"
           else
-            run_id=$(gh api "repos/${{ github.repository }}/actions/workflows/ci.yml/runs" \
-              --method GET -f branch="$BASE_REF" -f status=success -f per_page=20 \
-              --jq "first(.workflow_runs[] | select(.head_sha == \"$BASE_SHA\")) | .id // empty")
-            if [ -n "$run_id" ]; then
-              artifact_id=$(gh api "repos/${{ github.repository }}/actions/runs/$run_id/artifacts" \
-                --jq 'first(.artifacts[] | select(.name == "cue-native-ios-sizes" and (.expired | not))) | .id // empty')
-              if [ -n "$artifact_id" ]; then
-                gh api "repos/${{ github.repository }}/actions/artifacts/$artifact_id/zip" \
-                  > "$RUNNER_TEMP/base-ios-sizes.zip"
-                unzip -p "$RUNNER_TEMP/base-ios-sizes.zip" head-ios-sizes.json \
-                  > "$RUNNER_TEMP/head-ios-sizes.json"
-                source="artifact from successful run $run_id at $BASE_SHA"
-              fi
-            fi
+            echo "hit=false" >> "$GITHUB_OUTPUT"
           fi
-          if [ -f "$RUNNER_TEMP/head-ios-sizes.json" ]; then
-            cp "$RUNNER_TEMP/head-ios-sizes.json" "$RUNNER_TEMP/base-ios-sizes.json"
-            rm "$RUNNER_TEMP/head-ios-sizes.json"
-          fi
-          echo "Base iOS measurement: $source" | tee -a "$GITHUB_STEP_SUMMARY"
-      # The native projects are generated, so the first thing this job proves is
-      # that they generate: a config plugin that no longer matches the template
-      # fails here rather than on somebody's machine. Generated twice on purpose:
-      # the app the flows drive is pointed at the fake Trakt and carries the one
-      # transport exception that needs, and this pass is the shape without it,
-      # the only place anything asserts that such a build carries no exception.
-      # `--no-install` because nothing compiles this pass.
-      - run: pnpm --filter @cue/native exec expo prebuild --platform ios --clean --no-install
+      - if: steps.native-cache.outputs.hit != 'true'
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/Library/Caches/CocoaPods
+            ${{ runner.temp }}/native-ios-derived-data
+          key: ios-build-${{ runner.os }}-xcode-26.6-${{ hashFiles('pnpm-lock.yaml') }}
+      - if: steps.native-cache.outputs.hit != 'true'
+        run: pnpm --filter @cue/native exec expo prebuild --platform ios --clean --no-install
         env:
-          EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
           CONFIGURATION: Release
-      - name: Check the generated iOS privacy configuration
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
+      - if: steps.native-cache.outputs.hit != 'true'
+        name: Check the generated iOS privacy configuration
         run: scripts/verify-ios-privacy.sh packages/native/ios/Cue/Info.plist packages/native/ios/Cue/Cue.entitlements Release
-      - run: pnpm --filter @cue/native exec expo prebuild --platform ios --clean
+      - if: steps.native-cache.outputs.hit != 'true'
+        run: pnpm --filter @cue/native exec expo prebuild --platform ios --clean
         env:
-          EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
-          EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
           CONFIGURATION: Release
-      - name: Check the harness transport exception
+          EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
+      - if: steps.native-cache.outputs.hit != 'true'
+        name: Check the harness transport exception
         run: scripts/verify-ios-privacy.sh packages/native/ios/Cue/Info.plist packages/native/ios/Cue/Cue.entitlements Release 127.0.0.1
-      # Release, and not because of what it optimizes: an Expo bundle built for
-      # development throws on its first frame when it is embedded in the app
-      # instead of served by Metro, so a Debug binary cannot be launched by a
-      # flow at all. Release also bundles JavaScript without being asked.
-      #
-      # Signed, because this binary is run rather than only compiled. Signing a
-      # simulator build needs no team and no profile: Xcode writes a simulated
-      # entitlements file naming an application-identifier and links it into the
-      # binary. Without it iOS answers every Keychain call with
-      # errSecMissingEntitlement, so the app can neither read a session nor store
-      # the one the flow signs in with, and it stays on its loading gate.
-      - name: Build the app for the simulator
+      - if: steps.native-cache.outputs.hit != 'true'
+        name: Build the app for the simulator
         working-directory: packages/native/ios
         env:
-          EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
           EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
         run: |
           xcodebuild -workspace Cue.xcworkspace -scheme Cue \
             -configuration Release -destination 'generic/platform=iOS Simulator' \
-            -derivedDataPath "$RUNNER_TEMP/native-ios-derived-data" \
-            build
-      # Three facts about the artifact that nothing in the sources states, all
-      # decided by the build and invisible until the app is running. An
-      # artifact whose bundle lost the origin would point a flow at somebody's
-      # real Trakt account; an artifact whose binary lost the entitlements
-      # section has no Keychain, so it can neither restore a session nor keep
-      # one. The entitlements are linked into the executable rather than added to
-      # the signature, which is why this reads the binary and not `codesign -d`.
-      # Every dynamic framework named by the app or an embedded framework must
-      # also be in the bundle, or dyld kills the app before its first frame.
-      - name: Package the simulator app
+            -derivedDataPath "$RUNNER_TEMP/native-ios-derived-data" build
+          mkdir -p "$RUNNER_TEMP/native-ios-app"
+          ditto "$RUNNER_TEMP/native-ios-derived-data/Build/Products/Release-iphonesimulator/Cue.app" \
+            "$RUNNER_TEMP/native-ios-app/Cue.app"
+      - if: steps.native-cache.outputs.hit == 'true'
+        name: Embed current JavaScript and assets
+        env:
+          EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
+        run: scripts/reembed-ios.sh "$RUNNER_TEMP/native-ios-app/Cue.app"
+      - name: Validate and package the simulator app
         run: |
-          products="$RUNNER_TEMP/native-ios-derived-data/Build/Products/Release-iphonesimulator"
-          app="$products/Cue.app"
+          app="$RUNNER_TEMP/native-ios-app/Cue.app"
           LC_ALL=C grep -aq 'http://127.0.0.1:8787' "$app/main.jsbundle"
           LC_ALL=C grep -aq 'application-identifier' "$app/Cue"
           while IFS= read -r framework; do
@@ -275,89 +295,33 @@ jobs:
                 executable=${bundle##*/}
                 otool -L "$bundle/${executable%.framework}"
               done
-            } |
-              awk '$1 ~ /^@rpath\/.*\.framework\// { split($1, path, "/"); print path[2] }' |
-              sort -u
+            } | awk '$1 ~ /^@rpath\/.*\.framework\// { split($1, path, "/"); print path[2] }' | sort -u
           )
-          app_size=$(find "$app" -type f -exec stat -f '%z' {} + | \
-            awk '{ total += $1 } END { print total + 0 }')
+          app_size=$(find "$app" -type f -exec stat -f '%z' {} + | awk '{ total += $1 } END { print total + 0 }')
           jq -n --argjson size "$app_size" \
             '[{name: "iOS Release simulator app files", size: $size, sizeLimit: null, configuration: "generic iOS Simulator"}]' \
             > "$RUNNER_TEMP/head-ios-sizes.json"
-          tar -czf "$RUNNER_TEMP/Cue.app.tgz" -C "$products" "${app##*/}"
-      - name: Cache the head iOS measurement
-        if: github.event_name == 'pull_request'
-        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+          tar -czf "$RUNNER_TEMP/native-ios-app/Cue.app.tgz" -C "$RUNNER_TEMP/native-ios-app" Cue.app
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          path: ${{ runner.temp }}/head-ios-sizes.json
-          key: native-ios-size-${{ github.event.pull_request.head.sha }}
+          name: cue-native-ios-${{ needs.fingerprint.outputs.ios }}
+          path: ${{ runner.temp }}/native-ios-app/Cue.app.tgz
+          retention-days: 30
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: github.event_name == 'pull_request'
         with:
           name: cue-native-ios-sizes
-          path: |
-            ${{ runner.temp }}/head-ios-sizes.json
-            ${{ runner.temp }}/base-ios-sizes.json
+          path: ${{ runner.temp }}/head-ios-sizes.json
           retention-days: 1
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: cue-native-ios-simulator-app
-          path: ${{ runner.temp }}/Cue.app.tgz
-          retention-days: 1
-  native-e2e:
-    needs: native-ios
-    runs-on: macos-26
-    env:
-      # Job-wide, so it is set before the version check too: a first maestro run
-      # otherwise prints an analytics notice on stdout ahead of its answer.
-      MAESTRO_CLI_NO_ANALYTICS: "1"
-      # Maestro installs and launches its own XCUITest runner before the first
-      # command and waits 120s for it by default. On a cold runner that took
-      # 124s, so the flow never started. Five minutes, because a runner that is
-      # slower still should say what the flow did rather than that it was slow.
-      MAESTRO_DRIVER_STARTUP_TIMEOUT: "300000"
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_26.6.app
-      - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
-        with:
-          distribution: temurin
-          java-version: "21"
-      - uses: ./.github/actions/setup-node-pnpm
-      - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
-        with:
-          name: cue-native-ios-simulator-app
-          path: ${{ runner.temp }}/native-app
-      # Pinned by digest as well as by version, the way every action here is
-      # pinned by commit: a release asset can be replaced in place.
-      - name: Install Maestro 2.10.0
-        run: |
-          curl -fsSL \
-            https://github.com/mobile-dev-inc/Maestro/releases/download/cli-2.10.0/maestro.zip \
-            -o "$RUNNER_TEMP/maestro.zip"
-          echo "29b675e10cc12080e445e9bfb2e2b4e4dfb9c0f2e30d5884120d258b5e1cd991  $RUNNER_TEMP/maestro.zip" \
-            | shasum -a 256 -c -
-          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP"
-          echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
-      - id: simulator
-        name: Boot an available iPhone simulator
-        run: |
-          device_id=$(xcrun simctl list devices available -j | \
-            jq -r '[.devices[] | .[] | select(.name | startswith("iPhone"))][0].udid')
-          test -n "$device_id"
-          xcrun simctl boot "$device_id"
-          xcrun simctl bootstatus "$device_id" -b
-          echo "device_id=$device_id" >> "$GITHUB_OUTPUT"
       - name: Install the app
         env:
           DEVICE_ID: ${{ steps.simulator.outputs.device_id }}
         run: |
-          tar -xzf "$RUNNER_TEMP/native-app/Cue.app.tgz" -C "$RUNNER_TEMP/native-app"
-          xcrun simctl install "$DEVICE_ID" "$RUNNER_TEMP/native-app/Cue.app"
+          xcrun simctl bootstatus "$DEVICE_ID" -b
+          xcrun simctl install "$DEVICE_ID" "$RUNNER_TEMP/native-ios-app/Cue.app"
       - name: Start the fake Trakt
         run: |
-          pnpm mock:trakt > "$RUNNER_TEMP/mock-trakt.log" 2>&1 &
+          node scripts/mock-trakt/server.mjs > "$RUNNER_TEMP/mock-trakt.log" 2>&1 &
           for _ in {1..30}; do
             if curl -fsS http://127.0.0.1:8787/users/settings > /dev/null; then
               exit 0
@@ -365,31 +329,22 @@ jobs:
             sleep 1
           done
           exit 1
-      - name: Run the launch flow
-        env:
-          DEVICE_ID: ${{ steps.simulator.outputs.device_id }}
-        run: |
-          maestro --device "$DEVICE_ID" test .maestro/flows/launch.yaml \
-            --format JUNIT \
-            --output "$RUNNER_TEMP/maestro-results.xml" \
-            --debug-output "$RUNNER_TEMP/maestro-debug" \
-            --test-output-dir "$RUNNER_TEMP/maestro-tests"
-      - name: Measure returning-user startup
+      - name: Run launch and startup flows
         env:
           DEVICE_ID: ${{ steps.simulator.outputs.device_id }}
         run: |
           startup_ceiling_ms=$(jq -r .ceilingMs .startup-time-limit.json)
-          maestro --device "$DEVICE_ID" test .maestro/flows/startup.yaml \
+          maestro --device "$DEVICE_ID" test .maestro/ci/ios.yaml \
             --env STARTUP_CEILING_MS="$startup_ceiling_ms" \
             --format JUNIT \
-            --output "$RUNNER_TEMP/maestro-startup-results.xml" \
-            --debug-output "$RUNNER_TEMP/maestro-startup-debug" \
-            --test-output-dir "$RUNNER_TEMP/maestro-startup-tests"
+            --output "$RUNNER_TEMP/maestro-results.xml" \
+            --debug-output "$RUNNER_TEMP/maestro-debug" \
+            --test-output-dir "$RUNNER_TEMP/maestro-tests"
       - name: Summarize startup timing
         if: ${{ !cancelled() }}
         run: |
           node scripts/summarize-startup-timing.mjs \
-            "$RUNNER_TEMP/maestro-startup-tests" \
+            "$RUNNER_TEMP/maestro-tests" \
             >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ !cancelled() }}
@@ -399,106 +354,153 @@ jobs:
             ${{ runner.temp }}/maestro-debug/
             ${{ runner.temp }}/maestro-tests/
             ${{ runner.temp }}/maestro-results.xml
-            ${{ runner.temp }}/maestro-startup-debug/
-            ${{ runner.temp }}/maestro-startup-tests/
-            ${{ runner.temp }}/maestro-startup-results.xml
             ${{ runner.temp }}/mock-trakt.log
           retention-days: 7
+  native-e2e:
+    needs: native-ios
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Native E2E completed in native-ios."
   native-android:
+    permissions:
+      actions: read
+      contents: read
+    needs: fingerprint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-node-pnpm
+      - id: native-cache
+        name: Restore the fingerprinted Android artifacts
+        env:
+          ARTIFACT_NAME: cue-native-android-${{ needs.fingerprint.outputs.android }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if scripts/download-ci-artifact.sh "$ARTIFACT_NAME" "$RUNNER_TEMP/native-android" native-android && \
+            unzip -Z1 "$RUNNER_TEMP/native-android/universal.apk" | \
+              grep -q '^lib/x86_64/libreactnative\.so$'; then
+            echo "hit=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "hit=false" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.native-cache.outputs.hit != 'true'
+        run: pnpm --filter @cue/native exec expo prebuild --platform android --clean
+        env:
+          APP_VERSION: 9.9.9
+          BUILD_NUMBER: "42"
+          EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
       - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
         with:
           distribution: temurin
           java-version: "21"
           cache: gradle
-      - uses: ./.github/actions/setup-node-pnpm
-      - run: pnpm --filter @cue/native exec expo prebuild --platform android --clean
-        env:
-          EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
-          EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
-          APP_VERSION: 9.9.9
-          BUILD_NUMBER: "42"
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            packages/native/android/gradle/wrapper/gradle-wrapper.properties
+            packages/native/android/**/*.gradle*
       - name: Download bundletool
-        working-directory: packages/native/android
         env:
           BUNDLETOOL_VERSION: "1.18.3"
           BUNDLETOOL_SHA256: "a099cfa1543f55593bc2ed16a70a7c67fe54b1747bb7301f37fdfd6d91028e29"
         run: |
           curl --fail --location --retry 3 \
-            --output bundletool.jar \
+            --output "$RUNNER_TEMP/bundletool.jar" \
             "https://github.com/google/bundletool/releases/download/$BUNDLETOOL_VERSION/bundletool-all-$BUNDLETOOL_VERSION.jar"
-          echo "$BUNDLETOOL_SHA256  bundletool.jar" | sha256sum --check
-      # A release variant, because the permission set and the two backup
-      # properties are what testers install, and the debug flavour adds
-      # SYSTEM_ALERT_WINDOW for the development menu. Expo's template signs
-      # release with the debug keystore, so this needs no secret.
-      - name: Build and check release artifacts
+          echo "$BUNDLETOOL_SHA256  $RUNNER_TEMP/bundletool.jar" | sha256sum --check
+      - name: Build release artifacts
+        if: steps.native-cache.outputs.hit != 'true'
         working-directory: packages/native/android
         env:
-          EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
           EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
+        run: |
+          ./gradlew --build-cache --configuration-cache --configuration-cache-problems=warn bundleRelease \
+            -PreactNativeArchitectures=arm64-v8a,x86_64
+          ./gradlew --build-cache --configuration-cache --configuration-cache-problems=warn assembleRelease \
+            -PreactNativeArchitectures=arm64-v8a
+          mkdir -p "$RUNNER_TEMP/native-android"
+          cp app/build/outputs/bundle/release/app-release.aab "$RUNNER_TEMP/native-android/"
+          cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/native-android/tester-arm64-v8a.apk"
+          cp app/debug.keystore "$RUNNER_TEMP/native-android/"
+      - if: steps.native-cache.outputs.hit == 'true'
+        name: Embed current Android JavaScript
+        env:
+          EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
+        run: |
+          scripts/reembed-android.sh \
+            "$RUNNER_TEMP/native-android/app-release.aab" \
+            "$RUNNER_TEMP/native-android/tester-arm64-v8a.apk" \
+            "$RUNNER_TEMP/native-android/debug.keystore"
+      - name: Build and check release artifacts
+        env:
           PLAY_SIZE_MEASUREMENT_BYTES: "16920872"
           PLAY_SIZE_MEASURED_ON: "2026-09-09"
           PLAY_SIZE_LIMIT_BYTES: "20000000"
         run: |
-          ./gradlew bundleRelease
-          aab=app/build/outputs/bundle/release/app-release.aab
-
+          cd "$RUNNER_TEMP/native-android"
+          aab=app-release.aab
           echo '{"supportedAbis":["arm64-v8a"],"supportedLocales":["en"],"screenDensity":640,"sdkVersion":35}' > device.json
-          java -jar bundletool.jar build-apks \
-            --bundle="$aab" --output=all.apks
-          java -jar bundletool.jar get-size total \
+          java -jar "$RUNNER_TEMP/bundletool.jar" build-apks \
+            --bundle="$aab" --output=all.apks --overwrite
+          java -jar "$RUNNER_TEMP/bundletool.jar" get-size total \
             --apks=all.apks --device-spec=device.json > play-size.csv
-          node ../../../scripts/bundletool-size.mjs \
+          node "$GITHUB_WORKSPACE/scripts/bundletool-size.mjs" \
             play-size.csv "$PLAY_SIZE_LIMIT_BYTES" "Play download at XXXHDPI ARMv8"
-          java -jar bundletool.jar get-size total \
+          java -jar "$RUNNER_TEMP/bundletool.jar" get-size total \
             --apks=all.apks --dimensions=ALL > all-size.csv
-          node ../../../scripts/bundletool-size.mjs \
+          node "$GITHUB_WORKSPACE/scripts/bundletool-size.mjs" \
             all-size.csv "$PLAY_SIZE_LIMIT_BYTES" "Play download maximum across all configurations"
-
-          java -jar bundletool.jar build-apks \
-            --bundle="$aab" --output=universal.apks --mode=universal \
-            --ks=app/debug.keystore --ks-pass=pass:android \
+          java -jar "$RUNNER_TEMP/bundletool.jar" build-apks \
+            --bundle="$aab" --output=universal.apks --overwrite --mode=universal \
+            --ks=debug.keystore --ks-pass=pass:android \
             --ks-key-alias=androiddebugkey --key-pass=pass:android
-          unzip universal.apks universal.apk -d extracted
+          unzip -qo universal.apks universal.apk
           apksigner=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner -print | sort -V | tail -n 1)
           test -n "$apksigner"
-          "$apksigner" verify extracted/universal.apk
-          ../../../scripts/verify-apk.sh \
-            extracted/universal.apk 42 9.9.9
-
-          ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a
-          cp app/build/outputs/apk/release/app-release.apk extracted/tester-arm64-v8a.apk
-          "$apksigner" verify extracted/tester-arm64-v8a.apk
-          ../../../scripts/verify-apk.sh \
-            extracted/tester-arm64-v8a.apk 42 9.9.9 arm64-v8a
+          "$apksigner" verify universal.apk
+          "$GITHUB_WORKSPACE/scripts/verify-apk.sh" universal.apk 42 9.9.9
+          "$apksigner" verify tester-arm64-v8a.apk
+          "$GITHUB_WORKSPACE/scripts/verify-apk.sh" tester-arm64-v8a.apk 42 9.9.9 arm64-v8a
           tester_limit=$(jq -r \
             '.[] | select(.name == "Firebase tester APK file") | .limit' \
-            ../../../.size-limit.json)
-          node ../../../scripts/assert-file-size.mjs \
-            extracted/tester-arm64-v8a.apk "$tester_limit" \
-            "Firebase tester APK file (arm64-v8a, all densities)"
+            "$GITHUB_WORKSPACE/.size-limit.json")
+          node "$GITHUB_WORKSPACE/scripts/assert-file-size.mjs" tester-arm64-v8a.apk \
+            "$tester_limit" "Firebase tester APK file (arm64-v8a, all densities)"
+          tester_size=$(wc -c < tester-arm64-v8a.apk | tr -d ' ')
+          play_size=$(node "$GITHUB_WORKSPACE/scripts/bundletool-size.mjs" play-size.csv --value-only)
+          jq -n --argjson tester "$tester_size" --argjson play "$play_size" \
+            '[
+              {name: "Firebase tester APK file", size: $tester, sizeLimit: 40000000, configuration: "arm64-v8a, all densities"},
+              {name: "Play download estimate", size: $play, sizeLimit: 20000000, configuration: "XXXHDPI arm64-v8a, English, Android 15"}
+            ]' > "$RUNNER_TEMP/head-android-sizes.json"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: cue-native-android-tester-apk
-          path: packages/native/android/extracted/tester-arm64-v8a.apk
-          retention-days: 1
+          name: cue-native-android-${{ needs.fingerprint.outputs.android }}
+          path: |
+            ${{ runner.temp }}/native-android/app-release.aab
+            ${{ runner.temp }}/native-android/debug.keystore
+            ${{ runner.temp }}/native-android/tester-arm64-v8a.apk
+            ${{ runner.temp }}/native-android/universal.apk
+          retention-days: 30
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: github.event_name == 'pull_request'
         with:
-          name: cue-native-android-emulator-apk
-          path: packages/native/android/extracted/universal.apk
+          name: cue-native-android-sizes
+          path: ${{ runner.temp }}/head-android-sizes.json
           retention-days: 1
   android-e2e:
     timeout-minutes: 8
-    needs: native-android
+    needs: [fingerprint, native-android]
     runs-on: ubuntu-latest
     env:
       MAESTRO_CLI_NO_ANALYTICS: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: ./.github/actions/setup-node-pnpm
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
       - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c
         with:
           distribution: temurin
@@ -514,7 +516,7 @@ jobs:
           echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
       - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
-          name: cue-native-android-emulator-apk
+          name: cue-native-android-${{ needs.fingerprint.outputs.android }}
           path: ${{ runner.temp }}/cue-native-android
       - name: Enable KVM
         run: |
