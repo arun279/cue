@@ -63,6 +63,12 @@ describe("fast pull request validation", () => {
     expect(check).toContain("PR_BODY: $" + "{{ github.event.pull_request.body }}");
   });
 
+  it("runs the app-idle measurement after flows that relaunch the app", () => {
+    const ios = readFileSync(repositoryPath(".maestro/ci/ios.yaml"), "utf8");
+
+    expect(ios.trimEnd()).toMatch(/returning-user-app-idle\.yaml$/);
+  });
+
   it("uses a fixed Maestro driver port outside Android's ephemeral range", () => {
     const verification = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
 
