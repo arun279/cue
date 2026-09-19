@@ -58,7 +58,7 @@ describe("Android harness cleartext isolation", () => {
       expect(readFileSync(resource, "utf8")).toBe(`<network-security-config>
     <base-config cleartextTrafficPermitted="false" />
     <domain-config cleartextTrafficPermitted="true">
-        <domain>${host}</domain>
+        <domain includeSubdomains="false">${host}</domain>
     </domain-config>
 </network-security-config>
 `);

@@ -70,7 +70,7 @@ module.exports = function withAndroidPrivacy(config, { apiBase } = {}) {
           `<network-security-config>
     <base-config cleartextTrafficPermitted="false" />
     <domain-config cleartextTrafficPermitted="true">
-        <domain>${origin.hostname}</domain>
+        <domain includeSubdomains="false">${origin.hostname}</domain>
     </domain-config>
 </network-security-config>
 `,
