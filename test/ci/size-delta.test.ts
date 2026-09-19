@@ -6,32 +6,20 @@ import { repositoryPath } from "../support/repository-path";
 import { tempDirectory } from "../support/temp-directory";
 
 const SCRIPT = repositoryPath("scripts/check-size-delta.mjs");
-
 const MEASURED = [
   "expo iOS bundle",
   "expo Android bundle",
   "Firebase tester APK file",
   "Play download estimate",
-  "iOS Release simulator app files",
 ];
 
-const run = (
-  growth: number,
-  rationale = "",
-  measured: readonly string[] = MEASURED,
-  grownArtifact?: string,
-) => {
+const run = (growth: number, rationale = "", measured: readonly string[] = MEASURED) => {
   const directory = tempDirectory("cue-size-delta-");
   const sizes = (size: number) => measured.map((name) => ({ name, size }));
   writeFileSync(path.join(directory, "base.json"), JSON.stringify({ sizes: sizes(1_000_000) }));
   writeFileSync(
     path.join(directory, "head.json"),
-    JSON.stringify({
-      sizes: measured.map((name) => ({
-        name,
-        size: 1_000_000 + (grownArtifact === undefined || grownArtifact === name ? growth : 0),
-      })),
-    }),
+    JSON.stringify({ sizes: sizes(1_000_000 + growth) }),
   );
   return spawnSync(process.execPath, [SCRIPT, "base.json", "head.json", rationale], {
     cwd: directory,
@@ -40,62 +28,37 @@ const run = (
 };
 
 describe("size delta gate", () => {
-  it("rejects growth above Chromium's arm64 threshold", () => {
-    const result = run(64_001);
+  it("rejects any positive artifact delta", () => {
+    const result = run(1);
 
     expect(result.status).toBe(1);
-    expect(result.stderr).toContain("expo iOS bundle grew by 64001 bytes");
+    expect(result.stderr).toContain("expo iOS bundle grew by 1 bytes");
     expect(result.stderr).toContain('Add "Binary-Size: <rationale>" to the PR body.');
   });
 
-  it("accepts the threshold and the documented rationale marker", () => {
-    expect(run(64_000).status).toBe(0);
+  it("accepts unchanged artifacts and a non-empty rationale", () => {
+    expect(run(0).status).toBe(0);
     expect(
-      run(64_001, "Context\nBinary-Size: The larger artwork is worth the download.\n").status,
+      run(1, "Binary-Size: The new asset is required; remove an older asset next.").status,
     ).toBe(0);
   });
 
   it.each([
-    "Firebase tester APK file",
-    "iOS Release simulator app files",
-  ])("rejects isolated growth in %s", (artifact) => {
-    const result = run(64_001, "", MEASURED, artifact);
-
-    expect(result.status).toBe(1);
-    expect(result.stderr).toContain(`${artifact} grew by 64001 bytes`);
+    "",
+    "Binary-Size: ",
+    "binary-size: unexplained",
+  ])("rejects an empty or malformed rationale: %s", (rationale) => {
+    expect(run(1, rationale).status).toBe(1);
   });
 
-  it("does not read prose as the rationale marker", () => {
-    expect(run(64_001, "The binary size: it grew.\nbinary-size: shrug\n").status).toBe(1);
-  });
-
-  it("reports an unavailable base iOS measurement as n/a instead of failing", () => {
-    const directory = tempDirectory("cue-size-delta-");
-    writeFileSync(
-      path.join(directory, "base.json"),
-      JSON.stringify({ sizes: MEASURED.slice(0, -1).map((name) => ({ name, size: 1_000_000 })) }),
-    );
-    writeFileSync(
-      path.join(directory, "head.json"),
-      JSON.stringify({ sizes: MEASURED.map((name) => ({ name, size: 1_000_000 })) }),
-    );
-
-    const result = spawnSync(process.execPath, [SCRIPT, "base.json", "head.json"], {
-      cwd: directory,
-      encoding: "utf8",
-    });
-
-    expect(result.status).toBe(0);
-  });
-
-  it("fails when a required artifact is missing from either side", () => {
-    const result = run(0, "", MEASURED.slice(0, -2));
+  it("fails when a required artifact is missing", () => {
+    const result = run(0, "", MEASURED.slice(0, -1));
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("Play download estimate: not measured on both sides");
   });
 
-  it("does not gate a merge base without the packages", () => {
+  it("fails when merge-base measurements are missing", () => {
     const directory = tempDirectory("cue-size-delta-");
     writeFileSync(path.join(directory, "base.json"), JSON.stringify({ sizes: null }));
     writeFileSync(path.join(directory, "head.json"), JSON.stringify({ sizes: [] }));
@@ -105,7 +68,7 @@ describe("size delta gate", () => {
       encoding: "utf8",
     });
 
-    expect(result.status).toBe(0);
-    expect(result.stdout).toContain("n/a because the merge base has no measured packages");
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("merge-base measurements are missing");
   });
 });

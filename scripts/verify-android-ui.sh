@@ -13,6 +13,8 @@ finish() {
 }
 trap finish EXIT
 
+adb shell settings put global hide_error_dialogs 1
+
 capture() {
   adb exec-out screencap -p > "$output/$1.png"
   adb shell uiautomator dump /sdcard/cue-ui.xml > "$output/$1-dump.log"
@@ -74,3 +76,7 @@ for icon in up_next library calendar search; do
     exit 1
   }
 done
+
+adb shell dumpsys activity exit-info app.cuetracker > "$output/exit-info.txt"
+adb logcat -d -v threadtime > "$output/logcat.txt"
+bash scripts/assert-no-anr.sh "$output/exit-info.txt" "$output/logcat.txt"

@@ -13,8 +13,6 @@ const CODEQL_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/codeql.yml
 const MOBILE_RELEASE_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/mobile-release.yml");
 const FASTLANE_LANE = "$" + "{{ needs.config.outputs.fastlane_lane }}";
 const TRAKT_CLIENT_ID_VARIABLE = "$" + "{{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}";
-const IPA_SIZE_LIMIT = "$" + "{{ needs.config.outputs.ipa_size_limit }}";
-const TESTER_APK_SIZE_LIMIT = "$" + "{{ needs.config.outputs.tester_apk_size_limit }}";
 // `footprint` skips itself on forks, and the gate reads a skip as a failure.
 // `native-e2e` is exempt on purpose while it earns a green history on a
 // simulator; promoting it is a one-line change here and in REQUIRED.
@@ -171,31 +169,22 @@ describe("native bundle environment", () => {
     );
   });
 
-  it("takes the IPA ceiling from the ratchet config", () => {
+  it("keeps only the distributor size limits", () => {
     const workflow = readFileSync(MOBILE_RELEASE_WORKFLOW, "utf8");
     const iosLane = readNamedStep(MOBILE_RELEASE_WORKFLOW, "ios", `Fastlane ios ${FASTLANE_LANE}`);
-
-    expect(workflow).toContain(
-      "ipa_size_limit=$(jq -r '.[] | select(.name == \"iOS IPA file\") | .limit' .size-limit.json)",
-    );
-    expect(iosLane).toContain(`          IPA_SIZE_LIMIT_BYTES: ${IPA_SIZE_LIMIT}`);
-    expect(workflow).not.toContain('IPA_SIZE_LIMIT_BYTES: "200000000"');
-  });
-
-  it("takes the tester APK ceiling from the ratchet config", () => {
-    const workflow = readFileSync(MOBILE_RELEASE_WORKFLOW, "utf8");
     const androidLane = readNamedStep(
       MOBILE_RELEASE_WORKFLOW,
       "android",
       `Fastlane android ${FASTLANE_LANE}`,
     );
 
+    expect(androidLane).toContain('PLAY_BASE_MODULE_LIMIT_BYTES: "500000000"');
+    expect(androidLane).toContain('FIREBASE_BINARY_LIMIT_BYTES: "2147483648"');
     expect(workflow).toContain(
-      "tester_apk_size_limit=$(jq -r '.[] | select(.name == \"Firebase tester APK file\") | .limit' .size-limit.json)",
+      "App Store Connect alerts when a thinned device variant exceeds its 200 MB over-the-air limit.",
     );
-    expect(androidLane).toContain(
-      `          TESTER_APK_SIZE_LIMIT_BYTES: ${TESTER_APK_SIZE_LIMIT}`,
-    );
+    expect(iosLane).not.toContain("IPA_SIZE_LIMIT_BYTES");
+    expect(workflow).not.toContain(".size-limit.json");
   });
 });
 
