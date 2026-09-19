@@ -56,7 +56,7 @@ const LATER = airing({
   season: 1,
   number: 5,
   episodeTitle: "Vent Line",
-  network: "Northcoast",
+  network: "Meridian",
   firstAired: "2026-08-25T03:00:00.000Z",
   ids: { trakt: 88_505 },
 });
@@ -69,7 +69,12 @@ interface Options {
   readonly loading?: boolean;
 }
 
-async function paint({ calendar = [], preferences, runtime, loading }: Options = {}): Promise<void> {
+async function paint({
+  calendar = [],
+  preferences,
+  runtime,
+  loading,
+}: Options = {}): Promise<void> {
   await render(
     <Harness
       runtime={runtime ?? fakeRuntime({ calendar })}
@@ -117,7 +122,7 @@ describe("Calendar", () => {
     expect(within(rowOf(88_608)).getByText("Halyard")).toBeOnTheScreen();
     // Later: the chip counts the days and the line carries both.
     expect(chip("3d")).toBeOnTheScreen();
-    expect(within(rowOf(88_505)).getByText("8:00 PM · Northcoast")).toBeOnTheScreen();
+    expect(within(rowOf(88_505)).getByText("8:00 PM · Meridian")).toBeOnTheScreen();
     // Already aired: no countdown at all, and the line says so.
     expect(within(rowOf(88_304)).getByText("Aired 7:00 PM · Meridian")).toBeOnTheScreen();
     expect(chip("7:00 PM")).toBeNull();

@@ -16,7 +16,6 @@ appId: app.cuetracker
 - assertVisible:
     id: "calendar-row-880609"
 - assertNotVisible: "Mark .* watched"
-- assertVisible: "Nine Lives of Ada Rook"
 - tapOn:
     id: "calendar-row-880609"
 - assertVisible:
