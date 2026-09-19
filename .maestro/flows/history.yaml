@@ -14,6 +14,8 @@ appId: app.cuetracker
 - evalScript: ${output.historyDay = maestro.copiedText}
 - assertVisible:
     id: "history-row-0"
+- assertVisible:
+    id: "history-row-0-badge"
 - tapOn:
     id: "history-row-0-check"
 - assertVisible:

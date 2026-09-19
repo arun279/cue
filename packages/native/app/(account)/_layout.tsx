@@ -1,6 +1,7 @@
 import { Stack, useRouter } from "expo-router";
 import type { ReactElement } from "react";
 import { Button, StyleSheet, View } from "react-native";
+import { opaqueHeaderOptions } from "../../src/ui/navigation-theme";
 import { SnackbarHost } from "../../src/ui/SnackbarHost";
 import { TEST_IDS } from "../../src/ui/test-ids";
 import { useColors } from "../../src/ui/tokens";
@@ -27,7 +28,7 @@ export default function AccountLayout(): ReactElement {
 
   return (
     <View style={styles.root}>
-      <Stack>
+      <Stack screenOptions={opaqueHeaderOptions(colors.bg)}>
         <Stack.Screen
           name="profile"
           options={{

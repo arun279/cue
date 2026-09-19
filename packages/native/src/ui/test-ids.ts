@@ -52,6 +52,7 @@ export const TEST_IDS = {
   historyList: "history-list",
   historyDay: (index: number) => `history-day-header-${index}`,
   historyRow: (index: number) => `history-row-${index}`,
+  historyBadge: (index: number) => `history-row-${index}-badge`,
   historyCheck: (index: number) => `history-row-${index}-check`,
   historyMenu: (index: number) => `history-row-${index}-menu`,
   historyFilterAll: "history-filter-all",

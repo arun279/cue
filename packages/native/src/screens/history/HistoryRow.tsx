@@ -60,7 +60,7 @@ export function HistoryRow({
         }
         trailing={
           <>
-            {plays > 1 ? <Badge label={`×${plays}`} /> : null}
+            {plays > 1 ? <Badge label={`×${plays}`} testID={TEST_IDS.historyBadge(index)} /> : null}
             <CheckControl
               checked
               size={TARGET_MIN}

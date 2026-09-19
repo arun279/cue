@@ -304,7 +304,9 @@ export function createLibrary(now = Date.now()) {
 }
 
 const seedProfiles = {
-  default: () => {},
+  default: (library) => {
+    library.rewatchedEpisodes.set(880608, library.now - DAY);
+  },
   "empty-library": (library) => {
     library.shows = [];
     library.movies = [];

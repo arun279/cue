@@ -213,8 +213,12 @@ describe("the seeded account parses through the app's own contracts", () => {
 
   it("serves history one page at a time, with the pagination headers the client walks", async () => {
     const first = await getHistory(client(), "all", 1);
-    expect(ok(first).length).toBe(30);
+    const rows = ok(first);
+    expect(rows.length).toBe(30);
     expect(first.ok && first.pagination?.pageCount).toBeGreaterThan(1);
+    const repeated = rows.filter((row) => row.episode?.ids.trakt === 880608);
+    expect(repeated).toHaveLength(2);
+    expect(new Set(repeated.map((row) => row.watched_at.slice(0, 10))).size).toBe(1);
     expect(ok(await getHistory(client(), "movies", 1)).every((row) => row.type === "movie")).toBe(
       true,
     );
