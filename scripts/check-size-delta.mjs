@@ -13,7 +13,13 @@ if (base.sizes === null) {
 }
 
 const threshold = 64_000;
-const measured = ["expo iOS bundle", "expo Android bundle", "Play download estimate"];
+const measured = [
+  "expo iOS bundle",
+  "expo Android bundle",
+  "Firebase tester APK file",
+  "Play download estimate",
+  "iOS Release simulator app files",
+];
 const byName = (entries) => Object.fromEntries(entries.map((entry) => [entry.name, entry.size]));
 const before = byName(base.sizes);
 const after = byName(head.sizes);

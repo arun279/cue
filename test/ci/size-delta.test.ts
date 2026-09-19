@@ -7,15 +7,31 @@ import { tempDirectory } from "../support/temp-directory";
 
 const SCRIPT = repositoryPath("scripts/check-size-delta.mjs");
 
-const MEASURED = ["expo iOS bundle", "expo Android bundle", "Play download estimate"];
+const MEASURED = [
+  "expo iOS bundle",
+  "expo Android bundle",
+  "Firebase tester APK file",
+  "Play download estimate",
+  "iOS Release simulator app files",
+];
 
-const run = (growth: number, rationale = "", measured: readonly string[] = MEASURED) => {
+const run = (
+  growth: number,
+  rationale = "",
+  measured: readonly string[] = MEASURED,
+  grownArtifact?: string,
+) => {
   const directory = tempDirectory("cue-size-delta-");
   const sizes = (size: number) => measured.map((name) => ({ name, size }));
   writeFileSync(path.join(directory, "base.json"), JSON.stringify({ sizes: sizes(1_000_000) }));
   writeFileSync(
     path.join(directory, "head.json"),
-    JSON.stringify({ sizes: sizes(1_000_000 + growth) }),
+    JSON.stringify({
+      sizes: measured.map((name) => ({
+        name,
+        size: 1_000_000 + (grownArtifact === undefined || grownArtifact === name ? growth : 0),
+      })),
+    }),
   );
   return spawnSync(process.execPath, [SCRIPT, "base.json", "head.json", rationale], {
     cwd: directory,
@@ -39,15 +55,25 @@ describe("size delta gate", () => {
     ).toBe(0);
   });
 
+  it.each([
+    "Firebase tester APK file",
+    "iOS Release simulator app files",
+  ])("rejects isolated growth in %s", (artifact) => {
+    const result = run(64_001, "", MEASURED, artifact);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`${artifact} grew by 64001 bytes`);
+  });
+
   it("does not read prose as the rationale marker", () => {
     expect(run(64_001, "The binary size: it grew.\nbinary-size: shrug\n").status).toBe(1);
   });
 
   it("fails when an artifact is missing from either side", () => {
-    const result = run(0, "", MEASURED.slice(0, 2));
+    const result = run(0, "", MEASURED.slice(0, -1));
 
     expect(result.status).toBe(1);
-    expect(result.stderr).toContain("Play download estimate: not measured on both sides");
+    expect(result.stderr).toContain("iOS Release simulator app files: not measured on both sides");
   });
 
   it("does not gate a merge base without the packages", () => {

@@ -167,6 +167,13 @@ def build_android_apk
     app_version,
     "arm64-v8a"
   )
+  sh(
+    "node",
+    File.join(REPO_ROOT, ASSERT_FILE_SIZE),
+    File.join(REPO_ROOT, EXPO_ANDROID_APK),
+    ENV.fetch("TESTER_APK_SIZE_LIMIT_BYTES"),
+    "Firebase tester APK file (arm64-v8a, all densities)"
+  )
 end
 
 def ensure_firebase_build_number_available

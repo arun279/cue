@@ -27,6 +27,7 @@ const baseline = (file) => {
 };
 
 const parseBytes = (value) => {
+  if (Number.isSafeInteger(value) && value > 0) return value;
   const match = /^(\d+(?:\.\d+)?) (B|kB|MB)$/.exec(value);
   if (match === null) throw new Error(`invalid size limit: ${value}`);
   return Number(match[1]) * { B: 1, kB: 1000, MB: 1_000_000 }[match[2]];
@@ -76,5 +77,5 @@ if (previousPlayLimits.length > 0 && playLimit > Math.max(...previousPlayLimits)
 }
 
 process.stdout.write(
-  `size budget ratchet: ${config.length} bundles and Play download cannot increase\n`,
+  `size budget ratchet: ${config.length} ceilings and Play download cannot increase\n`,
 );
