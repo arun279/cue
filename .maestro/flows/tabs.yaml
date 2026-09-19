@@ -16,7 +16,7 @@ appId: app.cuetracker
 - assertVisible:
     id: "screen-calendar"
 - waitForAnimationToEnd
-- takeScreenshot: calendar-empty
+- takeScreenshot: calendar-rest
 - tapOn: "Search"
 - assertVisible:
     id: "screen-search"

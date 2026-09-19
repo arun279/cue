@@ -76,13 +76,17 @@ describe("fast pull request validation", () => {
   });
 
   it("runs one shared Maestro suite on iOS and Android", () => {
-    const ios = job("native-ios");
+    const ios = job("ios-e2e");
+    const androidJob = job("android-e2e");
     const android = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
 
+    expect(ios).toContain("appearance: [light, dark]");
+    expect(androidJob).toContain("appearance: [light, dark]");
     expect(ios).toContain("suite=.maestro/ci/app.yaml");
     expect(android).toContain("suite=.maestro/ci/app.yaml");
     expect(ios).toContain("suite=.maestro/ci/screenshots.yaml");
     expect(android).toContain("suite=.maestro/ci/screenshots.yaml");
+    expect(androidJob).toContain('"$' + '{{ matrix.appearance }}"');
   });
 
   it("uses a fixed Maestro driver port outside Android's ephemeral range", () => {
@@ -92,20 +96,25 @@ describe("fast pull request validation", () => {
   });
 
   it("publishes both screenshot artifacts with contact sheets for 14 days", () => {
-    const ios = job("native-ios");
+    const ios = job("ios-e2e");
     const android = job("android-e2e");
     const verification = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
+    const fetch = readFileSync(repositoryPath("scripts/fetch-ui-screenshots.sh"), "utf8");
 
     expect(ios).toContain("name: ui-screenshots-ios");
+    expect(ios).toContain("ui-screenshots-ios-$" + "{{ matrix.appearance }}");
     expect(ios).toContain('--test-output-dir "$RUNNER_TEMP/screenshots/ios/$appearance"');
     expect(ios).toContain("create-ui-contact-sheet.sh");
     expect(ios).toContain("brew install imagemagick");
     expect(android).toContain("name: ui-screenshots-android");
+    expect(android).toContain("ui-screenshots-android-$" + "{{ matrix.appearance }}");
     expect(verification).toContain('--test-output-dir "$screenshots/$appearance"');
     expect(android).toContain("create-ui-contact-sheet.sh");
     expect(android).toContain("apt-get install --no-install-recommends -y imagemagick");
     expect(ios.match(/retention-days: 14/g)).toHaveLength(1);
     expect(android.match(/retention-days: 14/g)).toHaveLength(1);
+    expect(fetch).toContain("for platform in ios android");
+    expect(fetch).toContain("for appearance in light dark");
   });
 
   it("settles animations before every shared screenshot", () => {

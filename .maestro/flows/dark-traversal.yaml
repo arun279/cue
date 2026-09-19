@@ -76,7 +76,7 @@ appId: app.cuetracker
       id: "screen-calendar"
     timeout: 30000
 - waitForAnimationToEnd
-- takeScreenshot: calendar-empty
+- takeScreenshot: calendar-rest
 - tapOn: "Search"
 - extendedWaitUntil:
     visible:
