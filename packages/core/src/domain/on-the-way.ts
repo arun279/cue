@@ -1,5 +1,5 @@
 import type { CalendarDay, CalendarRow } from "./calendar";
-import { dayKeyOf } from "./day";
+import { dayKeyOf, dayOffset } from "./day";
 import { DAY_MS, localTimeZone } from "./time";
 
 const SCOPE_MS = 3 * DAY_MS;
@@ -16,11 +16,6 @@ const weekdayFmt = new Intl.DateTimeFormat("en-US", {
   timeZone: localTimeZone(),
   weekday: "long",
 });
-
-/** "YYYY-MM-DD" → whole-day distance, as pure UTC date arithmetic. */
-function dayOffset(fromKey: string, toKey: string): number {
-  return Math.round((Date.parse(toKey) - Date.parse(fromKey)) / DAY_MS);
-}
 
 /**
  * The home slice of the calendar read: not-yet-aired episodes within the next

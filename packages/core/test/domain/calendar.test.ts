@@ -1,4 +1,9 @@
-import { type CalendarEntry, groupCalendar } from "@cue/core/domain/calendar";
+import {
+  airingGrammar,
+  type CalendarEntry,
+  type CalendarRow,
+  groupCalendar,
+} from "@cue/core/domain/calendar";
 import { describe, expect, it } from "vitest";
 
 /** Fixed instant: 2026-07-05T16:00Z = 12:00 in America/New_York (EDT, UTC-4). */
@@ -22,6 +27,14 @@ function entry(
 }
 
 const NO_HIDDEN = new Set<number>();
+
+function row(overrides: Partial<CalendarRow> = {}): CalendarRow {
+  return {
+    ...entry({ showId: 1, firstAired: "2026-07-05T18:00:00.000Z" }),
+    aired: false,
+    ...overrides,
+  };
+}
 
 describe("groupCalendar", () => {
   it("groups by the local calendar day and labels Today / Tomorrow / date", () => {
@@ -101,5 +114,31 @@ describe("groupCalendar", () => {
 
   it("returns no days for an empty feed", () => {
     expect(groupCalendar([], { now: NOW, timeZone: NY, hiddenShowIds: NO_HIDDEN })).toEqual([]);
+  });
+});
+
+describe("airingGrammar", () => {
+  it("puts today's time in the chip and keeps the network in the line", () => {
+    const grammar = airingGrammar(row({ network: "HBO" }), 0);
+
+    expect(grammar.chip).toMatch(/\d/);
+    expect(grammar.line).toBe("HBO");
+    expect(grammar.spoken).toBe(`${grammar.chip} · HBO`);
+  });
+
+  it("puts a later-day countdown in the chip and keeps time in the line", () => {
+    const grammar = airingGrammar(row({ network: null }), 2);
+
+    expect(grammar.chip).toBe("2d");
+    expect(grammar.line).toBe(grammar.spoken);
+    expect(grammar.spoken).toMatch(/\d/);
+  });
+
+  it("describes aired episodes without a countdown", () => {
+    const grammar = airingGrammar(row({ aired: true, firstAired: "invalid" }), 0);
+
+    expect(grammar.chip).toBeNull();
+    expect(grammar.line).toBe(grammar.spoken);
+    expect(grammar.spoken).toMatch(/^Aired /);
   });
 });
