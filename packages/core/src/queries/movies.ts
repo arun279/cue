@@ -9,3 +9,10 @@ export const movieHeaderQuery = (runtime: CueRuntime, movieId: number) =>
     queryFn: () => runtime.loadMovieHeader(movieId),
     staleTime: CONTENT_STALE_TIME_MS,
   });
+
+export const movieRelatedQuery = (runtime: CueRuntime, movieId: number) =>
+  queryOptions({
+    queryKey: queryKeys.movieRelated(movieId),
+    queryFn: () => runtime.loadMovieRelated(movieId),
+    staleTime: CONTENT_STALE_TIME_MS,
+  });

@@ -243,7 +243,79 @@ const MOVIES = [
     lastWatchedDaysAgo: null,
     inWatchlist: true,
   },
+  {
+    trakt: 5504,
+    tmdb: 95504,
+    slug: "low-water-mark",
+    title: "Low Water Mark",
+    year: 2020,
+    released: "2020-03-20",
+    runtime: 101,
+    genres: ["drama", "mystery"],
+    overview: "A surveyor finds a drowned village returning one foundation at a time.",
+    lastWatchedDaysAgo: null,
+  },
+  {
+    trakt: 5505,
+    tmdb: 95505,
+    slug: "the-cold-account",
+    title: "The Cold Account",
+    year: 2018,
+    released: "2018-12-07",
+    runtime: 112,
+    genres: ["thriller"],
+    overview: "A forensic accountant follows a missing payment into a town cut off by snow.",
+    lastWatchedDaysAgo: null,
+  },
+  {
+    trakt: 5506,
+    tmdb: 95506,
+    slug: "signal-shore",
+    title: "Signal Shore",
+    year: 2023,
+    released: "2023-06-16",
+    runtime: 99,
+    genres: ["science fiction", "drama"],
+    overview: "A coastal listening post records tomorrow's weather in voices from the past.",
+    lastWatchedDaysAgo: null,
+  },
+  {
+    trakt: 5507,
+    tmdb: 95507,
+    slug: "mercy-point",
+    title: "Mercy Point",
+    year: 2017,
+    released: "2017-10-13",
+    runtime: 107,
+    genres: ["drama"],
+    overview: "Two lighthouse crews trade places and inherit each other's unfinished promises.",
+    lastWatchedDaysAgo: null,
+  },
+  {
+    trakt: 5508,
+    tmdb: 95508,
+    slug: "black-ice-tally",
+    title: "Black Ice Tally",
+    year: 2022,
+    released: "2022-01-28",
+    runtime: 115,
+    genres: ["crime", "thriller"],
+    overview: "A clerk counting winter road closures discovers one journey with no traveler.",
+    lastWatchedDaysAgo: null,
+  },
 ];
+
+const RELATED_SHOWS = new Map([
+  [8803, [8801, 8802, 8804, 8805, 8806, 8807, 8808]],
+  [8801, [8803, 8808, 8802]],
+  [8807, []],
+]);
+
+const RELATED_MOVIES = new Map([
+  [5501, [5502, 5503, 5504, 5505, 5506, 5507, 5508]],
+  [5502, [5501, 5505]],
+  [5503, []],
+]);
 
 /**
  * Titles Trakt's catalog carries and this account does not. Search is the one
@@ -425,9 +497,23 @@ function movieRef(movie, origin, extended) {
         }
       : {}),
     ...(levels.has("images")
-      ? { images: imageSet(origin, "movies", movie.trakt, ["poster"]) }
+      ? { images: imageSet(origin, "movies", movie.trakt, ["poster", "fanart"]) }
       : {}),
   };
+}
+
+export function relatedShowsBody(show, library, origin, extended) {
+  return (RELATED_SHOWS.get(show.trakt) ?? []).flatMap((id) => {
+    const related = library.shows.find((candidate) => candidate.trakt === id);
+    return related === undefined ? [] : [showRef(related, origin, extended)];
+  });
+}
+
+export function relatedMoviesBody(movie, library, origin, extended) {
+  return (RELATED_MOVIES.get(movie.trakt) ?? []).flatMap((id) => {
+    const related = library.movies.find((candidate) => candidate.trakt === id);
+    return related === undefined ? [] : [movieRef(related, origin, extended)];
+  });
 }
 
 /** The watched-episode breakdown: watched episodes only, grouped by season. */
