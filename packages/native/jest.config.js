@@ -25,7 +25,10 @@ const project = {
   // The gesture root installs a native binding on mount; without its own setup
   // every screen that renders under one fails before it draws anything.
   setupFiles: [require.resolve("react-native-gesture-handler/jestSetup")],
-  setupFilesAfterEnv: ["<rootDir>/__tests__/support/reanimated.ts"],
+  setupFilesAfterEnv: [
+    "<rootDir>/__tests__/support/reanimated.ts",
+    "<rootDir>/__tests__/support/transient-state.ts",
+  ],
   // Worklets is a native library and its `.native` entry points reach a binding
   // this runner has no host for. Its own resolver picks the web implementation
   // instead, which is the shape a JS-only test can actually run.

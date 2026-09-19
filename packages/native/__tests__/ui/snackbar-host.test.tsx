@@ -86,6 +86,32 @@ function Hosts({ sheetOpen }: { readonly sheetOpen: boolean }): ReactElement {
   );
 }
 
+it("keeps the presentation above a root host that mounts later", async () => {
+  await render(
+    <View>
+      <View testID="sheet-host">
+        <SnackbarHost placement="presentation" />
+      </View>
+      <View testID="root-host">
+        <SnackbarHost placement="root" />
+      </View>
+    </View>,
+  );
+  await act(async () => showSnack({ message: MESSAGE }));
+  expect(screen.getAllByTestId("snackbar")).toHaveLength(1);
+  expect(screen.getByTestId("sheet-host")).toContainElement(screen.getByTestId("snackbar"));
+});
+
+it("expires while every host is unmounted", async () => {
+  jest.useFakeTimers();
+  const { unmount } = await render(<SnackbarHost placement="presentation" />);
+  await act(async () => showSnack({ message: MESSAGE, timeoutMs: 5000 }));
+  await unmount();
+  await act(async () => jest.advanceTimersByTime(5000));
+  await render(<SnackbarHost placement="root" />);
+  expect(screen.queryByTestId("snackbar")).toBeNull();
+});
+
 function undo() {
   return { label: "Undo", testId: "snackbar-undo", onPress: jest.fn() };
 }

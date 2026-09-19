@@ -17,7 +17,12 @@ import type { EpisodePlay } from "@cue/core/domain/reversal";
 import type { QueuedOp } from "@cue/core/domain/write-queue/types";
 import { type MarkSeasonController, useMarkSeason } from "@cue/core/hooks/useMarkSeason";
 import { type MarkWatched, useMarkWatched } from "@cue/core/hooks/useMarkWatched";
-import { type CueRuntime, RuntimeProvider, type UpNextData } from "@cue/core/runtime/runtime";
+import {
+  type CueRuntime,
+  RuntimeProvider,
+  type UpNextData,
+  useRuntime,
+} from "@cue/core/runtime/runtime";
 import { resetMarkStore } from "@cue/core/stores/mark-store";
 import {
   forgetSeasonMark,
@@ -25,7 +30,7 @@ import {
   rememberSeasonMark,
 } from "@cue/core/stores/season-reversal";
 import { dismissSnack, useSnackbar } from "@cue/core/stores/snackbar-store";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { act } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mount } from "./_mount";
@@ -59,6 +64,25 @@ function seasonView(episodes: readonly EpisodeView[]): SeasonView {
   };
 }
 
+function episodeDetail(episode: EpisodeView): EpisodeDetail {
+  return {
+    showId: SHOW,
+    season: episode.season,
+    number: episode.number,
+    title: episode.title,
+    overview: null,
+    firstAired: episode.firstAired,
+    runtime: null,
+    ids: episode.ids,
+    stills: episode.stills,
+    aired: episode.aired,
+    watched: episode.watched,
+    watchedAt: episode.watchedAt,
+    prev: null,
+    next: null,
+  };
+}
+
 function libraryEntry(showId = SHOW): LibraryEntry {
   return {
     showId,
@@ -88,6 +112,7 @@ interface FakeRuntime {
   readonly submitted: QueuedOp[];
   /** The simulated durable queue `pendingOps()` reads. */
   readonly queued: QueuedOp[];
+  readonly loadEpisode: ReturnType<typeof vi.fn>;
   readonly loadEpisodePlays: ReturnType<typeof vi.fn>;
   readonly loadShowPlays: ReturnType<typeof vi.fn>;
 }
@@ -97,11 +122,15 @@ function fakeRuntime(opts: {
   submit?(op: QueuedOp): Promise<"done" | "failed" | "deferred">;
   plays?: readonly EpisodePlay[] | Error;
   showPlays?: readonly EpisodePlay[] | Error;
-  progress?: ShowProgress;
+  progress?: ShowProgress | Promise<ShowProgress>;
+  episode?: EpisodeDetail | Promise<EpisodeDetail>;
   inFlightOpId?(): string | null;
 }): FakeRuntime {
   const submitted: QueuedOp[] = [];
   const queued: QueuedOp[] = [];
+  const loadEpisode = vi.fn(() =>
+    opts.episode === undefined ? new Promise(() => {}) : Promise.resolve(opts.episode),
+  );
   const loadEpisodePlays = vi.fn((_id: number) => {
     const plays = opts.plays ?? [];
     return plays instanceof Error ? Promise.reject(plays) : Promise.resolve(plays);
@@ -120,22 +149,30 @@ function fakeRuntime(opts: {
     inFlightOpId: opts.inFlightOpId ?? (() => null),
     loadEpisodePlays,
     loadShowPlays,
+    loadEpisode,
     loadShowProgress: vi.fn(() =>
       opts.progress === undefined ? new Promise(() => {}) : Promise.resolve(opts.progress),
     ),
   } as unknown as CueRuntime;
-  return { runtime, submitted, queued, loadEpisodePlays, loadShowPlays };
+  return { runtime, submitted, queued, loadEpisode, loadEpisodePlays, loadShowPlays };
 }
 
 interface Api {
   mark: MarkWatched;
   season: MarkSeasonController;
+  markControlChecked: boolean;
 }
 
 function Probe({ slot }: { slot: Api[] }) {
+  const runtime = useRuntime();
   const mark = useMarkWatched();
   const season = useMarkSeason();
-  slot[0] = { mark, season };
+  const detail = useQuery({
+    queryKey: queryKeys.episode(SHOW, 1, 2),
+    queryFn: () => runtime.loadEpisode(SHOW, 1, 2),
+    staleTime: Number.POSITIVE_INFINITY,
+  }).data;
+  slot[0] = { mark, season, markControlChecked: detail?.watched ?? false };
   return null;
 }
 
@@ -161,10 +198,10 @@ function seededClient(entries: readonly LibraryEntry[], seasons?: readonly Seaso
     qc.setQueryData<readonly SeasonView[]>(queryKeys.showSeasons(SHOW), seasons);
     for (const s of seasons) {
       for (const e of s.episodes) {
-        qc.setQueryData<EpisodeDetail>(queryKeys.episode(SHOW, s.number, e.number), {
-          watched: e.watched,
-          watchedAt: e.watchedAt,
-        } as EpisodeDetail);
+        qc.setQueryData<EpisodeDetail>(
+          queryKeys.episode(SHOW, s.number, e.number),
+          episodeDetail(e),
+        );
       }
     }
   }
@@ -172,6 +209,36 @@ function seededClient(entries: readonly LibraryEntry[], seasons?: readonly Seaso
 }
 
 const flush = () => act(async () => new Promise((r) => setTimeout(r, 0)));
+
+it("advances a show opened without an aggregate cache and reverses it", async () => {
+  const fake = fakeRuntime({});
+  const qc = new QueryClient();
+  const [a] = mountSurfaces(fake.runtime, qc);
+  const entry = libraryEntry();
+  await act(async () => a[0]?.mark.mark(entry));
+  expect(entryOf(qc, SHOW)).toMatchObject({ completed: entry.completed + 1, pendingAdvance: true });
+  stubLandedPlay(fake);
+  await act(async () => a[0]?.mark.reverse(SHOW));
+  expect(entryOf(qc, SHOW)).toEqual(entry);
+});
+
+it("silently resumes a stopped show after a continue mark and re-stops on Undo", async () => {
+  const fake = fakeRuntime({});
+  const entry = { ...libraryEntry(), hidden: true };
+  const qc = seededClient([entry]);
+  const [a] = mountSurfaces(fake.runtime, qc);
+  await act(async () => a[0]?.mark.mark(entry));
+  expect(entryOf(qc, SHOW)?.hidden).toBe(false);
+  stubLandedPlay(fake);
+  await act(async () => a[0]?.mark.reverse(SHOW));
+  expect(entryOf(qc, SHOW)?.hidden).toBe(true);
+  expect(fake.submitted.map((op) => op.request.path)).toEqual([
+    "/sync/history",
+    "/users/hidden/progress_watched/remove",
+    "/sync/history/remove",
+    "/users/hidden/progress_watched",
+  ]);
+});
 const TARGET = { showId: SHOW, ids: { trakt: SHOW }, includeSpecials: false };
 
 const entryOf = (qc: QueryClient, showId: number) =>
@@ -324,6 +391,34 @@ describe("F3a: a queue mark ticks the show-detail caches in the same frame", () 
     expect(entryOf(qc, SHOW)).toStrictEqual(entry); // beforeMark restored verbatim
     expect(seasonEp(qc, 2)?.watched).toBe(false);
     expect(qc.getQueryData<EpisodeDetail>(queryKeys.episode(SHOW, 1, 2))?.watched).toBe(false);
+  });
+
+  it("keeps episode detail unwatched while Undo revalidates a lagging snapshot", async () => {
+    let resolveEpisode!: (detail: EpisodeDetail) => void;
+    const episode = new Promise<EpisodeDetail>((resolve) => {
+      resolveEpisode = resolve;
+    });
+    const fake = fakeRuntime({ episode });
+    const { qc, a } = mountSeasonSurfaces(fake);
+    const detail = () => qc.getQueryData<EpisodeDetail>(queryKeys.episode(SHOW, 1, 2));
+
+    await act(async () =>
+      a[0]?.season.toggleEpisode(TARGET, episodeView(2), { undoLabel: "S1 E2 marked" }),
+    );
+    await flush();
+    expect(detail()?.watched).toBe(true);
+    expect(a[0]?.markControlChecked).toBe(true);
+
+    await act(async () => a[0]?.season.undo());
+    await flush();
+    expect(fake.loadEpisode).toHaveBeenCalled();
+    expect(detail()?.watched).toBe(false);
+    expect(a[0]?.markControlChecked).toBe(false);
+
+    resolveEpisode(episodeDetail(episodeView(2, true)));
+    await flush();
+    expect(detail()?.watched).toBe(false);
+    expect(a[0]?.markControlChecked).toBe(false);
   });
 });
 

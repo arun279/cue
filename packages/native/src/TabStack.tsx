@@ -1,5 +1,14 @@
 import { Stack } from "expo-router";
 import type { ReactElement } from "react";
+import { useWindowDimensions } from "react-native";
+import { RADIUS, useColors } from "./ui/tokens";
+
+/**
+ * Above this text scale the episode sheet's own copy fills the compact detent,
+ * so it opens expanded rather than opening on a mark row the reader has to drag
+ * the sheet up to reach.
+ */
+const EXPANDED_SHEET_FONT_SCALE = 1.3;
 
 export interface TabStackProps {
   /** The tab's own root route, declared first so it is the stack's initial one. */
@@ -27,24 +36,32 @@ export interface TabStackProps {
  * and the shared routes after it.
  */
 export function TabStack({ root, title }: TabStackProps): ReactElement {
+  const colors = useColors();
+  const { fontScale } = useWindowDimensions();
+  const detail = {
+    headerStyle: { backgroundColor: colors.bg },
+    headerTintColor: colors.accentInk,
+    headerTitleStyle: { color: colors.fg },
+  } as const;
   return (
     <Stack>
       <Stack.Screen name={root} options={{ title }} />
-      <Stack.Screen name="show/[showId]" options={{ title: "Show" }} />
-      <Stack.Screen name="movie/[movieId]" options={{ title: "Movie" }} />
+      <Stack.Screen name="show/[showId]" options={{ ...detail, title: "Show" }} />
+      <Stack.Screen name="movie/[movieId]" options={{ ...detail, title: "Movie" }} />
       {/* The episode is a child of the show route so a cold deep link paints the
           show underneath and dismissing is one pop. UIKit owns the detents, the
           grabber and the physics; the two heights keep compact and expanded
-          reading positions. */}
+          reading positions, and the grabber is the sheet's only chrome. */}
       <Stack.Screen
         name="show/[showId]/episode/[season]/[episode]"
         options={{
           presentation: "formSheet",
+          headerShown: false,
           sheetAllowedDetents: [0.65, 0.92],
-          sheetInitialDetentIndex: 0,
+          sheetInitialDetentIndex: fontScale >= EXPANDED_SHEET_FONT_SCALE ? 1 : 0,
           sheetGrabberVisible: true,
-          sheetCornerRadius: 20,
-          title: "Episode",
+          sheetCornerRadius: RADIUS.sheet,
+          contentStyle: { backgroundColor: colors.bg },
         }}
       />
     </Stack>

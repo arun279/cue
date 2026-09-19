@@ -8,6 +8,7 @@ const PATH = {
   up: "M6 14.5 12 8.5 18 14.5",
   down: "M6 9.5 12 15.5 18 9.5",
   forward: "M9.5 6 15.5 12 9.5 18",
+  back: "M14.5 6 8.5 12 14.5 18",
 } as const;
 
 export interface ChevronProps {

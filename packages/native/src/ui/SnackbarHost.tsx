@@ -1,7 +1,7 @@
 import {
   DEFAULT_SNACK_TIMEOUT_MS,
-  dismissSnack,
   type Snack,
+  setSnackbarTimeout,
   snackText,
   useSnackbar,
 } from "@cue/core/stores/snackbar-store";
@@ -32,10 +32,10 @@ export type SnackbarPlacement = "root" | "presentation";
  */
 const SCREEN_READER_TIMEOUT_MS = 15_000;
 
-let mounted: readonly string[] = [];
+let mounted: readonly { readonly id: string; readonly placement: SnackbarPlacement }[] = [];
 const listeners = new Set<() => void>();
 
-function setMounted(next: readonly string[]): void {
+function setMounted(next: typeof mounted): void {
   mounted = next;
   for (const listener of listeners) listener();
 }
@@ -48,20 +48,19 @@ function subscribe(listener: () => void): () => void {
 }
 
 function topHost(): string | null {
-  return mounted.at(-1) ?? null;
+  return (
+    (mounted.findLast((host) => host.placement === "presentation") ?? mounted.at(-1))?.id ?? null
+  );
 }
 
-function useIsTopHost(): boolean {
+function useIsTopHost(placement: SnackbarPlacement): boolean {
   const id = useId();
   useEffect(() => {
-    setMounted([...mounted, id]);
-    return () => setMounted(mounted.filter((other) => other !== id));
-  }, [id]);
+    setMounted([...mounted, { id, placement }]);
+    return () => setMounted(mounted.filter((other) => other.id !== id));
+  }, [id, placement]);
   return useSyncExternalStore(subscribe, topHost) === id;
 }
-
-// Re-hosting preserves the deadline; a new snack or timeout resets it.
-let deadline: { readonly seq: number; readonly timeout: number; readonly at: number } | null = null;
 
 export function SnackbarHost({
   placement,
@@ -69,7 +68,7 @@ export function SnackbarHost({
   readonly placement: SnackbarPlacement;
 }): ReactElement | null {
   const snack = useSnackbar((state) => state.snack);
-  const isTopHost = useIsTopHost();
+  const isTopHost = useIsTopHost(placement);
 
   if (snack === null || !isTopHost) return null;
   return <Snackbar snack={snack} placement={placement} />;
@@ -91,11 +90,7 @@ function Snackbar({
     const timeout = screenReader
       ? SCREEN_READER_TIMEOUT_MS
       : (snack.timeoutMs ?? DEFAULT_SNACK_TIMEOUT_MS);
-    if (deadline?.seq !== snack.seq || deadline.timeout !== timeout) {
-      deadline = { seq: snack.seq, timeout, at: Date.now() + timeout };
-    }
-    const timer = setTimeout(dismissSnack, Math.max(0, deadline.at - Date.now()));
-    return () => clearTimeout(timer);
+    setSnackbarTimeout(timeout);
   }, [snack, screenReader]);
 
   const stacked = useStacked();
