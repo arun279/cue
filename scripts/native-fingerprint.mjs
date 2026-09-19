@@ -10,7 +10,13 @@ if (platform !== "ios" && platform !== "android") {
 const names =
   platform === "ios"
     ? ["CONFIGURATION", "EXPO_PUBLIC_TRAKT_API_BASE", "EXPO_PUBLIC_TRAKT_CLIENT_ID", "XCODE_PATH"]
-    : ["APP_VERSION", "BUILD_NUMBER", "EXPO_PUBLIC_TRAKT_API_BASE", "EXPO_PUBLIC_TRAKT_CLIENT_ID"];
+    : [
+        "ANDROID_ARCHITECTURES",
+        "APP_VERSION",
+        "BUILD_NUMBER",
+        "EXPO_PUBLIC_TRAKT_API_BASE",
+        "EXPO_PUBLIC_TRAKT_CLIENT_ID",
+      ];
 const buildEnvironment = Object.fromEntries(names.map((name) => [name, process.env[name] ?? ""]));
 const project = path.join(path.dirname(fileURLToPath(import.meta.url)), "../packages/native");
 const hash = await createProjectHashAsync(project, {

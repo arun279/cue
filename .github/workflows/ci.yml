@@ -44,6 +44,7 @@ jobs:
       - id: native
         name: Compute native fingerprints
         env:
+          ANDROID_ARCHITECTURES: arm64-v8a,x86_64
           APP_VERSION: 9.9.9
           BUILD_NUMBER: "42"
           CONFIGURATION: Release
@@ -368,12 +369,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
-        with:
-          distribution: temurin
-          java-version: "21"
-          cache: gradle
-          cache-dependency-path: pnpm-lock.yaml
       - uses: ./.github/actions/setup-node-pnpm
       - id: native-cache
         name: Restore the fingerprinted Android artifacts
@@ -395,6 +390,15 @@ jobs:
           BUILD_NUMBER: "42"
           EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
           EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
+      - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            packages/native/android/gradle/wrapper/gradle-wrapper.properties
+            packages/native/android/**/*.gradle*
       - name: Download bundletool
         env:
           BUNDLETOOL_VERSION: "1.18.3"
@@ -411,8 +415,10 @@ jobs:
           EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
           EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
         run: |
-          ./gradlew bundleRelease
-          ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a
+          ./gradlew --build-cache --configuration-cache bundleRelease \
+            -PreactNativeArchitectures=arm64-v8a,x86_64
+          ./gradlew --build-cache --configuration-cache assembleRelease \
+            -PreactNativeArchitectures=arm64-v8a
           mkdir -p "$RUNNER_TEMP/native-android"
           cp app/build/outputs/bundle/release/app-release.aab "$RUNNER_TEMP/native-android/"
           cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/native-android/tester-arm64-v8a.apk"
