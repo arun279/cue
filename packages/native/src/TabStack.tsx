@@ -1,6 +1,14 @@
 import { Stack } from "expo-router";
 import type { ReactElement } from "react";
+import { useWindowDimensions } from "react-native";
 import { RADIUS, useColors } from "./ui/tokens";
+
+/**
+ * Above this text scale the episode sheet's own copy fills the compact detent,
+ * so it opens expanded rather than opening on a mark row the reader has to drag
+ * the sheet up to reach.
+ */
+const EXPANDED_SHEET_FONT_SCALE = 1.3;
 
 export interface TabStackProps {
   /** The tab's own root route, declared first so it is the stack's initial one. */
@@ -29,6 +37,7 @@ export interface TabStackProps {
  */
 export function TabStack({ root, title }: TabStackProps): ReactElement {
   const colors = useColors();
+  const { fontScale } = useWindowDimensions();
   const detail = {
     headerStyle: { backgroundColor: colors.bg },
     headerTintColor: colors.accentInk,
@@ -49,7 +58,7 @@ export function TabStack({ root, title }: TabStackProps): ReactElement {
           presentation: "formSheet",
           headerShown: false,
           sheetAllowedDetents: [0.65, 0.92],
-          sheetInitialDetentIndex: 0,
+          sheetInitialDetentIndex: fontScale >= EXPANDED_SHEET_FONT_SCALE ? 1 : 0,
           sheetGrabberVisible: true,
           sheetCornerRadius: RADIUS.sheet,
           contentStyle: { backgroundColor: colors.bg },

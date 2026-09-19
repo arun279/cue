@@ -8,7 +8,6 @@ import { useRuntime } from "@cue/core/runtime/runtime";
 import { useQuery } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 import { StyleSheet, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { TEST_IDS } from "../ui/test-ids";
 import { RADIUS, SPACE, useColors } from "../ui/tokens";
 import { CueText } from "../ui/type";
@@ -102,9 +101,8 @@ export function EpisodeBody({
   readonly renderCheck?: (check: ReactElement) => ReactElement;
 }): ReactElement {
   const colors = useColors();
-  const insets = useSafeAreaInsets();
   return (
-    <View style={[styles.body, { paddingBottom: insets.bottom + SPACE.s2 }]}>
+    <View style={styles.body}>
       {detail.aired ? (
         <EpisodeStill
           key={detail.ids.trakt}
@@ -139,7 +137,9 @@ export function EpisodeBody({
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   content: { flex: 1, padding: SPACE.s4 },
-  body: { gap: SPACE.s3 },
+  // The sheet does not scroll, so the body owns the height between the toolbar
+  // and the pager and the still gives back whatever the text needs.
+  body: { flex: 1, gap: SPACE.s3 },
   toolbar: { alignItems: "flex-end" },
   countdown: {
     minHeight: 214,

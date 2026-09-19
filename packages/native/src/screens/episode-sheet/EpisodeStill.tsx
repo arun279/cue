@@ -1,13 +1,22 @@
 import { resolveStill } from "@cue/core/data/image-source";
 import { Image } from "expo-image";
 import { type ReactElement, useState } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, useWindowDimensions, View, type ViewStyle } from "react-native";
 import { TEST_IDS } from "../../ui/test-ids";
 import { RADIUS, SPACE, useColors } from "../../ui/tokens";
 import { CueText } from "../../ui/type";
 
 const revealedStills = new Set<number>();
 const SPOILER_BLUR_RADIUS = 24;
+/** Below this the crop stops reading as a frame of the episode. */
+const STILL_MIN_HEIGHT = 96;
+
+/**
+ * 16:9 when the sheet has the room for it, and the one thing that gives room
+ * back when the sheet does not: the sheet cannot scroll, so a still at its full
+ * height would push the mark row and the pager past the compact detent's edge.
+ */
+const widescreen = (height: number): ViewStyle => ({ flexBasis: height, maxHeight: height });
 
 export function EpisodeStill({
   episodeId,
@@ -19,13 +28,14 @@ export function EpisodeStill({
   readonly guarded: boolean;
 }): ReactElement | null {
   const colors = useColors();
+  const { width } = useWindowDimensions();
   const [revealed, setRevealed] = useState(() => revealedStills.has(episodeId));
   const [failed, setFailed] = useState(false);
   const source = resolveStill(stills);
   if (source === null || failed) return null;
   const hidden = guarded && !revealed;
   return (
-    <View style={styles.still}>
+    <View style={[styles.still, widescreen((width - SPACE.s4 * 2) * (9 / 16))]}>
       <Image
         testID={hidden ? TEST_IDS.episodeStillBlur : undefined}
         source={source}
@@ -57,7 +67,14 @@ export function EpisodeStill({
 }
 
 const styles = StyleSheet.create({
-  still: { aspectRatio: 16 / 9, width: "100%", borderRadius: RADIUS.poster, overflow: "hidden" },
+  still: {
+    flexGrow: 1,
+    flexShrink: 1,
+    minHeight: STILL_MIN_HEIGHT,
+    width: "100%",
+    borderRadius: RADIUS.poster,
+    overflow: "hidden",
+  },
   reveal: { flex: 1, justifyContent: "center", alignItems: "center" },
   chip: { borderRadius: RADIUS.pill, padding: SPACE.s4 },
 });
