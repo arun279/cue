@@ -1,0 +1,39 @@
+appId: app.cuetracker
+---
+- runScript: lib/reset-fake.js
+- assertTrue: ${output.fakeReset}
+- runFlow: lib/connect.yaml
+- tapOn: "Library"
+- tapOn:
+    id: "library-segment-movies"
+- tapOn:
+    id: "library-chip-watched"
+- tapOn:
+    id: "movie-card-5501"
+- assertVisible:
+    id: "screen-movie-detail"
+- tapOn:
+    id: "movie-mark"
+- assertVisible: "Removed play"
+- runFlow: lib/settle.yaml
+- assertVisible: "Not watched yet"
+- tapOn:
+    id: "movie-mark"
+- assertVisible: "The Lantern Keeper marked watched"
+- tapOn:
+    id: "snackbar-undo"
+- runFlow: lib/settle.yaml
+- assertVisible: "Not watched yet"
+- tapOn:
+    id: "movie-menu"
+- assertVisible: "Add to Watchlist"
+- assertVisible: "Open on Trakt"
+- tapOn: "Add to Watchlist"
+- assertVisible: "The Lantern Keeper added to Watchlist"
+- tapOn: "Library"
+- assertVisible:
+    id: "screen-library"
+- assertVisible:
+    id: "library-chip-watched"
+- assertNotVisible:
+    id: "library-chip-watching"
