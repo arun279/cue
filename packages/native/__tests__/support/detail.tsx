@@ -6,6 +6,7 @@ import {
   showProgressQuery,
   showSeasonsQuery,
 } from "@cue/core/queries/shows";
+import type { CueRuntime } from "@cue/core/runtime/runtime";
 import type { QueryClient } from "@tanstack/react-query";
 import type { ComponentProps, ReactElement, ReactNode } from "react";
 import type { ShowHeader } from "../../src/screens/show-detail/useShowDetail";
@@ -90,7 +91,7 @@ export function DetailHarness({
   runtime = detailRuntime,
 }: {
   readonly children: ReactNode;
-  readonly runtime?: typeof detailRuntime;
+  readonly runtime?: CueRuntime;
 }): ReactElement {
   return (
     <Harness runtime={runtime} haptics={haptics} seed={seedDetail}>

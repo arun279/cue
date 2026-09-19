@@ -1,6 +1,6 @@
 import { resolveBackdrop } from "@cue/core/data/image-source";
 import { Image } from "expo-image";
-import { type ReactElement, useState } from "react";
+import { type ReactElement, type ReactNode, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import { SPACE, useColors } from "../../ui/tokens";
 import { CueText } from "../../ui/type";
@@ -8,6 +8,30 @@ import { Overview } from "./Overview";
 import type { ShowHeader } from "./useShowDetail";
 
 export function ShowHero({ header }: { readonly header: ShowHeader }): ReactElement {
+  return (
+    <DetailHero
+      header={header}
+      facts={[
+        header.year,
+        header.status,
+        header.network,
+        header.runtime === null ? null : `${header.runtime} min`,
+      ]}
+    >
+      <Overview text={header.overview} />
+    </DetailHero>
+  );
+}
+
+export function DetailHero({
+  header,
+  facts,
+  children,
+}: {
+  readonly header: { readonly title: string; readonly backdrops: readonly string[] };
+  readonly facts: readonly (string | number | null)[];
+  readonly children?: ReactNode;
+}): ReactElement {
   const colors = useColors();
   const [failed, setFailed] = useState(false);
   const backdrop = resolveBackdrop(header.backdrops);
@@ -26,16 +50,9 @@ export function ShowHero({ header }: { readonly header: ShowHeader }): ReactElem
           {header.title}
         </CueText>
         <CueText variant="meta" style={{ color: colors.ink2 }}>
-          {[
-            header.year,
-            header.status,
-            header.network,
-            header.runtime === null ? null : `${header.runtime} min`,
-          ]
-            .filter(Boolean)
-            .join(" · ")}
+          {facts.filter(Boolean).join(" · ")}
         </CueText>
-        <Overview text={header.overview} />
+        {children}
       </View>
     </View>
   );

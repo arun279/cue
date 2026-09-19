@@ -87,7 +87,7 @@ export const TEST_IDS = {
   episodeWatched: "episode-watched",
   movieDetailSkeleton: "movie-detail-skeleton",
   screenMovieDetail: "screen-movie-detail",
-  movieYear: "movie-year",
+  movieMark: "movie-mark",
   screenLibrary: "screen-library",
   libraryGrid: "library-grid",
   librarySegmentShows: "library-segment-shows",

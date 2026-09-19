@@ -37,9 +37,13 @@ export function EpisodeMarkRow({
   return (
     <View
       testID={TEST_IDS.episodeMarkRow}
-      style={[styles.row, stacked && styles.stacked, { backgroundColor: colors.elevated }]}
+      style={[
+        detailMarkStyles.row,
+        stacked && detailMarkStyles.stacked,
+        { backgroundColor: colors.elevated },
+      ]}
     >
-      <View style={styles.copy}>
+      <View style={detailMarkStyles.copy}>
         <CueText testID={TEST_IDS.episodeWatched} variant="rowTitle" style={{ color: colors.fg }}>
           {episodeStatus(detail.watched, detail.watchedAt, plays)}
         </CueText>
@@ -51,7 +55,10 @@ export function EpisodeMarkRow({
         {plays > 1 && (
           <CueText
             variant="micro"
-            style={[styles.badge, { color: colors.ink2, backgroundColor: colors.surface }]}
+            style={[
+              detailMarkStyles.badge,
+              { color: colors.ink2, backgroundColor: colors.surface },
+            ]}
           >
             {plays} plays
           </CueText>
@@ -62,7 +69,7 @@ export function EpisodeMarkRow({
   );
 }
 
-const styles = StyleSheet.create({
+export const detailMarkStyles = StyleSheet.create({
   row: {
     flexDirection: "row",
     alignItems: "center",

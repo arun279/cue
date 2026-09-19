@@ -31,6 +31,8 @@ import {
   lastActivitiesBody,
   movieDetailBody,
   progressBody,
+  relatedMoviesBody,
+  relatedShowsBody,
   SEED_PROFILE_NAMES,
   searchBody,
   seasonsBody,
@@ -250,7 +252,15 @@ const ROUTES = [
 
   // ---- Shows
   ["GET", /^\/shows\/(?<rank>trending|popular)$/, (ctx) => json(browse(ctx, "shows"))],
-  ["GET", /^\/shows\/[^/]+\/related$/, () => json([])],
+  [
+    "GET",
+    /^\/shows\/(?<id>[^/]+)\/related$/,
+    (ctx) => {
+      const show = findShow(ctx.library, ctx.params.id);
+      if (show === undefined) return notFound("no seeded show");
+      return page(relatedShowsBody(show, ctx.library, ctx.origin, extendedOf(ctx.url)), ctx.url, 6);
+    },
+  ],
   [
     "GET",
     /^\/shows\/(?<id>[^/]+)\/progress\/watched$/,
@@ -293,6 +303,19 @@ const ROUTES = [
 
   // ---- Movies
   ["GET", /^\/movies\/(?<rank>trending|popular)$/, (ctx) => json(browse(ctx, "movies"))],
+  [
+    "GET",
+    /^\/movies\/(?<id>[^/]+)\/related$/,
+    (ctx) => {
+      const movie = findMovie(ctx.library, ctx.params.id);
+      if (movie === undefined) return notFound("no seeded movie");
+      return page(
+        relatedMoviesBody(movie, ctx.library, ctx.origin, extendedOf(ctx.url)),
+        ctx.url,
+        12,
+      );
+    },
+  ],
   [
     "GET",
     /^\/movies\/(?<id>[^/]+)$/,

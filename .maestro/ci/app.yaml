@@ -8,6 +8,7 @@ env:
 - runFlow: ../flows/episode-sheet.yaml
 - runFlow: ../flows/calendar.yaml
 - runFlow: ../flows/library.yaml
+- runFlow: ../flows/movie-detail.yaml
 - runFlow: ../flows/search.yaml
 - runFlow: ../flows/tabs.yaml
 - runFlow:
