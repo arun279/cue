@@ -1,5 +1,6 @@
 import { NativeTabs } from "expo-router/unstable-native-tabs";
 import type { ReactElement } from "react";
+import { useColors } from "../../src/ui/tokens";
 
 /**
  * Four tabs, fixed, never pruned, on four distinct paths.
@@ -24,8 +25,15 @@ import type { ReactElement } from "react";
  * misbehaves the fallback is a plain trigger and nothing else changes.
  */
 export default function TabsLayout(): ReactElement {
+  const colors = useColors();
   return (
-    <NativeTabs>
+    <NativeTabs
+      labelVisibilityMode="labeled"
+      backgroundColor={colors.surface}
+      iconColor={{ default: colors.muted, selected: colors.accentInk }}
+      labelStyle={{ default: { color: colors.muted }, selected: { color: colors.accentInk } }}
+      indicatorColor={colors.elevated}
+    >
       <NativeTabs.Trigger name="(up-next)">
         <NativeTabs.Trigger.Icon sf="play.square.stack" drawable="cue_tab_up_next" />
         <NativeTabs.Trigger.Label>Up Next</NativeTabs.Trigger.Label>
