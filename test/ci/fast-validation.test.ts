@@ -47,6 +47,9 @@ describe("fast pull request validation", () => {
     expect(footprint).toContain(
       "name: cue-footprint-$" + "{{ github.event.pull_request.head.sha || github.sha }}",
     );
+    expect(footprint).toContain(
+      'download-ci-artifact.sh "$ARTIFACT_NAME" "$RUNNER_TEMP/base-metrics" footprint',
+    );
     expect(footprint).toContain("Measured merge base $BASE_SHA from CI run $run_id artifacts");
     expect(footprint).toContain("Missing merge-base measurements and successful CI artifacts");
     expect(footprint).toContain('startswith("cue-native-android-")');
@@ -58,6 +61,12 @@ describe("fast pull request validation", () => {
 
     expect(check).toContain('check-changed-coverage.mjs "origin/$BASE_REF" coverage/lcov.info');
     expect(check).toContain("PR_BODY: $" + "{{ github.event.pull_request.body }}");
+  });
+
+  it("runs the app-idle measurement after flows that relaunch the app", () => {
+    const ios = readFileSync(repositoryPath(".maestro/ci/ios.yaml"), "utf8");
+
+    expect(ios.trimEnd()).toMatch(/returning-user-app-idle\.yaml$/);
   });
 
   it("uses a fixed Maestro driver port outside Android's ephemeral range", () => {
