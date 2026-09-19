@@ -1,0 +1,4 @@
+appId: app.cuetracker
+---
+- tapOn: ${TAB_LABEL}
+- assertVisible: ${TAB_LABEL}
