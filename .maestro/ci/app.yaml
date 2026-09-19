@@ -6,6 +6,7 @@ env:
 - runFlow: ../flows/up-next-mark-and-undo.yaml
 - runFlow: ../flows/show-detail-bulk-mark.yaml
 - runFlow: ../flows/episode-sheet.yaml
+- runFlow: ../flows/calendar.yaml
 - runFlow: ../flows/library.yaml
 - runFlow: ../flows/tabs.yaml
 - runFlow:

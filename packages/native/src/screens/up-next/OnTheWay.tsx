@@ -1,23 +1,14 @@
-import type { CalendarRow } from "@cue/core/domain/calendar";
-import { epCode } from "@cue/core/domain/model/library";
+import { airingGrammar } from "@cue/core/domain/calendar";
 import type { OnTheWayDay } from "@cue/core/domain/on-the-way";
-import { localTimeZone } from "@cue/core/domain/time";
 import { useRouter } from "expo-router";
 import { Fragment, type ReactElement } from "react";
 import { StyleSheet, View } from "react-native";
-import { Badge } from "../../ui/Badge";
-import { Poster } from "../../ui/Poster";
-import { Row, Separator } from "../../ui/Row";
+import { AiringRow } from "../../ui/AiringRow";
+import { Separator } from "../../ui/Row";
 import { SectionHeader } from "../../ui/SectionHeader";
 import { TEST_IDS } from "../../ui/test-ids";
-import { POSTER_WIDTH, ROW_MIN_HEIGHT, ROW_TEXT_INSET, SPACE, useColors } from "../../ui/tokens";
+import { ROW_MIN_HEIGHT, ROW_TEXT_INSET, SPACE, useColors } from "../../ui/tokens";
 import { CueText } from "../../ui/type";
-
-const timeFmt = new Intl.DateTimeFormat("en-US", {
-  timeZone: localTimeZone(),
-  hour: "numeric",
-  minute: "2-digit",
-});
 
 export interface OnTheWayProps {
   readonly days: readonly OnTheWayDay[];
@@ -56,52 +47,26 @@ export function OnTheWay({ days }: OnTheWayProps): ReactElement | null {
           >
             {day.label}
           </CueText>
-          {day.rows.map((row, index) => (
-            <Fragment key={row.ids.trakt}>
-              {index === 0 ? null : <Separator inset={ROW_TEXT_INSET} />}
-              <AiringRow row={row} offset={day.offset} />
-            </Fragment>
-          ))}
+          {day.rows.map((row, index) => {
+            // A summary draws the countdown and leaves the calendar's third
+            // line to the calendar.
+            const { chip, spoken } = airingGrammar(row, day.offset);
+            return (
+              <Fragment key={row.ids.trakt}>
+                {index === 0 ? null : <Separator inset={ROW_TEXT_INSET} />}
+                <View style={styles.row}>
+                  <AiringRow
+                    row={row}
+                    chip={chip}
+                    spoken={spoken}
+                    minHeight={ROW_MIN_HEIGHT.onTheWay}
+                  />
+                </View>
+              </Fragment>
+            );
+          })}
         </Fragment>
       ))}
-    </View>
-  );
-}
-
-function AiringRow({
-  row,
-  offset,
-}: {
-  readonly row: CalendarRow;
-  readonly offset: number;
-}): ReactElement {
-  const router = useRouter();
-  const colors = useColors();
-  const code = epCode(row.season, row.number);
-  const time = timeFmt.format(Date.parse(row.firstAired));
-  // Today's rows say the hour; a later day says how far off it is, which is the
-  // same grammar the calendar row uses.
-  const when = offset > 0 ? `${offset}d` : time;
-
-  return (
-    <View style={styles.row}>
-      <Row
-        label={[row.showTitle, code, row.episodeTitle, time].filter(Boolean).join(", ")}
-        minHeight={ROW_MIN_HEIGHT.onTheWay}
-        onPress={() => router.push(`/show/${row.showId}`)}
-        leading={
-          <Poster title={row.showTitle} posters={row.posters} width={POSTER_WIDTH.onTheWay} />
-        }
-        trailing={<Badge label={when} />}
-      >
-        <CueText variant="rowTitleSecondary" style={{ color: colors.fg }}>
-          {row.showTitle}
-        </CueText>
-        <CueText variant="meta" style={{ color: colors.ink2 }}>
-          {code}
-          {row.episodeTitle === null ? "" : ` · ${row.episodeTitle}`}
-        </CueText>
-      </Row>
     </View>
   );
 }
