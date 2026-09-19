@@ -169,7 +169,16 @@ const ROUTES = [
     /^\/users\/me\/history(?:\/(?<section>episodes|movies))?$/,
     (ctx) =>
       page(
-        historyRows(ctx.library, ctx.origin, extendedOf(ctx.url), ctx.params.section ?? "all"),
+        historyRows(
+          ctx.library,
+          ctx.origin,
+          extendedOf(ctx.url),
+          ctx.params.section ?? "all",
+        ).filter(
+          (row) =>
+            row.watched_at >= (ctx.url.searchParams.get("start_at") ?? "") &&
+            row.watched_at <= (ctx.url.searchParams.get("end_at") ?? "9999"),
+        ),
         ctx.url,
         10,
       ),

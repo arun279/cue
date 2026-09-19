@@ -1,8 +1,10 @@
 import { Stack, useRouter } from "expo-router";
 import type { ReactElement } from "react";
 import { Button, StyleSheet, View } from "react-native";
+import { opaqueHeaderOptions } from "../../src/ui/navigation-theme";
 import { SnackbarHost } from "../../src/ui/SnackbarHost";
 import { TEST_IDS } from "../../src/ui/test-ids";
+import { useColors } from "../../src/ui/tokens";
 
 /**
  * Profile, Settings and History as one full-screen modal stack over the tabs.
@@ -22,10 +24,11 @@ export const unstable_settings = { initialRouteName: "profile" };
 
 export default function AccountLayout(): ReactElement {
   const router = useRouter();
+  const colors = useColors();
 
   return (
     <View style={styles.root}>
-      <Stack>
+      <Stack screenOptions={opaqueHeaderOptions(colors.bg)}>
         <Stack.Screen
           name="profile"
           options={{
@@ -41,6 +44,17 @@ export default function AccountLayout(): ReactElement {
         />
         <Stack.Screen name="settings" options={{ title: "Settings" }} />
         <Stack.Screen name="history" options={{ title: "History" }} />
+        <Stack.Screen name="movie/[movieId]" options={{ title: "Movie" }} />
+        <Stack.Screen
+          name="show/[showId]/episode/[season]/[episode]"
+          options={{
+            presentation: "formSheet",
+            headerShown: false,
+            sheetAllowedDetents: [0.65, 0.92],
+            sheetGrabberVisible: true,
+            contentStyle: { backgroundColor: colors.bg },
+          }}
+        />
       </Stack>
       <SnackbarHost placement="presentation" />
     </View>

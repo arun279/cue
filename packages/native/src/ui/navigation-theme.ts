@@ -1,6 +1,11 @@
 import { DarkTheme, DefaultTheme, type Theme } from "expo-router";
-import { useColorScheme } from "react-native";
+import { type ColorValue, useColorScheme } from "react-native";
 import { PALETTE } from "./tokens";
+
+export const opaqueHeaderOptions = (backgroundColor: ColorValue) => ({
+  headerStyle: { backgroundColor },
+  headerLargeStyle: { backgroundColor },
+});
 
 /**
  * The theme the navigators draw their own chrome from: the bar's fill, the

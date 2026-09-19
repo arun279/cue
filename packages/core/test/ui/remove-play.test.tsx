@@ -52,6 +52,17 @@ function setup(): { readonly slot: RemovePlayController[]; readonly submitted: Q
 beforeEach(dismissSnack);
 
 describe("useRemovePlay", () => {
+  it("states the loaded remainder and keeps successful undo silent", async () => {
+    const { slot } = setup();
+    await act(async () => slot[0]?.removePlay(entry, 2));
+    expect(useSnackbar.getState().snack?.message).toBe("Removed 1 play · 2 remain");
+    await act(async () => {
+      useSnackbar.getState().snack?.actions?.[0]?.onPress();
+      await Promise.resolve();
+    });
+    expect(useSnackbar.getState().snack).toBeNull();
+  });
+
   it("hides one exact play and restores it through the snackbar action", async () => {
     const { slot, submitted } = setup();
 

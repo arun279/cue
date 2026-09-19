@@ -9,6 +9,12 @@ async function readMeasurements(path) {
 
 const baseline = await readMeasurements(baselinePath);
 const current = await readMeasurements(currentPath);
+const introduced = JSON.parse(
+  await readFile(new URL("./render-count-baselines.json", import.meta.url), "utf8"),
+);
+for (const [name, meanCount] of Object.entries(introduced)) {
+  if (!baseline.has(name)) baseline.set(name, { meanCount });
+}
 let failed = false;
 
 for (const [name, expected] of baseline) {
