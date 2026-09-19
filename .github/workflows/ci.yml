@@ -375,12 +375,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_26.6.app
+      - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        with:
+          name: cue-native-ios-${{ needs.fingerprint.outputs.ios }}
+          path: ${{ runner.temp }}/native-ios-app
       - id: ui-setup
         name: Prepare the simulator and cached app
-        env:
-          GH_TOKEN: ${{ github.token }}
-          IOS_FINGERPRINT: ${{ needs.fingerprint.outputs.ios }}
-        run: scripts/prepare-ios-ui.sh "$IOS_FINGERPRINT"
+        run: scripts/prepare-ios-ui.sh "$RUNNER_TEMP/native-ios-app"
       - name: Run the shared light flow
         env:
           DEVICE_ID: ${{ steps.ui-setup.outputs.device_id }}
@@ -468,12 +469,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_26.6.app
+      - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        with:
+          name: cue-native-ios-${{ needs.fingerprint.outputs.ios }}
+          path: ${{ runner.temp }}/native-ios-app
       - id: ui-setup
         name: Prepare the simulator and cached app
-        env:
-          GH_TOKEN: ${{ github.token }}
-          IOS_FINGERPRINT: ${{ needs.fingerprint.outputs.ios }}
-        run: scripts/prepare-ios-ui.sh "$IOS_FINGERPRINT"
+        run: scripts/prepare-ios-ui.sh "$RUNNER_TEMP/native-ios-app"
       - name: Run the shared dark traversal
         env:
           DEVICE_ID: ${{ steps.ui-setup.outputs.device_id }}

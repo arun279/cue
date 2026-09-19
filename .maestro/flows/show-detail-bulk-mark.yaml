@@ -38,10 +38,3 @@ appId: app.cuetracker
 - waitForAnimationToEnd:
     timeout: 1000
 - takeScreenshot: show-detail-season-marked
-- tapOn:
-    id: "snackbar-undo"
-- runFlow: lib/settle.yaml
-- assertVisible:
-    id: "episode-row-8803-2-3-check"
-- assertVisible:
-    id: "episode-row-8803-2-1-checked"

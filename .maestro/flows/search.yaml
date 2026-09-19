@@ -28,18 +28,12 @@ appId: app.cuetracker
     timeout: 20000
 - assertVisible: "Popular movies"
 
-- runFlow:
-    when:
-      platform: iOS
-    commands:
-      - tapOn: "Shows and movies.*"
-- runFlow:
-    when:
-      platform: Android
-    commands:
-      - tapOn:
-          text: "Search"
-          index: 1
+- scrollUntilVisible:
+    element:
+      text: "Trending shows"
+    direction: UP
+    timeout: 20000
+- tapOn: "Shows and movies.*"
 - inputText: "harbor"
 - extendedWaitUntil:
     visible:
