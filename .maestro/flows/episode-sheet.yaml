@@ -42,8 +42,18 @@ appId: app.cuetracker
     id: "episode-still-reveal"
 - assertNotVisible:
     id: "episode-still-blur"
-- tapOn:
-    id: "episode-sheet-close"
+# The sheet has no close button by design, so it is dismissed the way UIKit
+# dismisses one: back to the top of the body, then a drag past the smallest
+# detent.
+- scrollUntilVisible:
+    element:
+      id: "episode-code"
+    direction: UP
+    centerElement: true
+- swipe:
+    start: "50%,30%"
+    end: "50%,95%"
+    duration: 400
 - assertVisible:
     id: "screen-show-detail"
 - assertNotVisible:

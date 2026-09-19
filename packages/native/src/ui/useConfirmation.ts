@@ -10,6 +10,14 @@ export interface Confirmation {
   readonly onSecondary?: () => void;
 }
 
+/**
+ * A confirm with no third choice. Every platform draws one as an alert, so a
+ * surface that only ever raises these needs no {@link ConfirmationSheet} host
+ * mounted beside it; the episode sheet is the one that relies on that, because
+ * a bottom sheet over a form sheet is the presentation it must not make.
+ */
+export type Alertable = Omit<Confirmation, "secondary" | "onSecondary">;
+
 export function useConfirmation() {
   const [pending, setPending] = useState<Confirmation | null>(null);
   return {

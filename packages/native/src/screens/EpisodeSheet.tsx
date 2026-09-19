@@ -6,11 +6,9 @@ import { usePrefs } from "@cue/core/prefs/prefs-store";
 import { episodePlaysQuery, episodeQuery, showSeasonsQuery } from "@cue/core/queries/shows";
 import { useRuntime } from "@cue/core/runtime/runtime";
 import { useQuery } from "@tanstack/react-query";
-import { Stack, useRouter } from "expo-router";
 import type { ReactElement } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Button } from "../ui/Button";
 import { TEST_IDS } from "../ui/test-ids";
 import { RADIUS, SPACE, useColors } from "../ui/tokens";
 import { CueText } from "../ui/type";
@@ -19,7 +17,7 @@ import { EpisodeMarkRow } from "./episode-sheet/EpisodeMarkRow";
 import { EpisodeMenu } from "./episode-sheet/EpisodeMenu";
 import { EpisodePager } from "./episode-sheet/EpisodePager";
 import { EpisodeStill } from "./episode-sheet/EpisodeStill";
-import { DetailError, DetailSkeleton, ShowDisabled } from "./show-detail/DetailStates";
+import { DetailError, DetailSkeleton } from "./show-detail/DetailStates";
 import { Overview } from "./show-detail/Overview";
 import { useDetailMark } from "./show-detail/useDetailMark";
 
@@ -30,25 +28,9 @@ export interface EpisodeSheetProps {
 }
 
 export function EpisodeSheet(props: EpisodeSheetProps): ReactElement {
-  const enabled = usePrefs((state) => state.showsEnabled);
-  const router = useRouter();
-  const code = epCode(props.season, props.episode);
   return (
     <View testID={TEST_IDS.episodeSheet} style={styles.screen}>
-      <Stack.Screen
-        options={{
-          title: code,
-          headerRight: () => (
-            <Button
-              testID={TEST_IDS.episodeSheetClose}
-              label="Close"
-              variant="link"
-              onPress={() => router.back()}
-            />
-          ),
-        }}
-      />
-      {enabled ? <EpisodeContent key={`${props.showId}:${code}`} {...props} /> : <ShowDisabled />}
+      <EpisodeContent key={`${props.showId}:${epCode(props.season, props.episode)}`} {...props} />
     </View>
   );
 }
