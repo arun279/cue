@@ -115,6 +115,7 @@ describe("fast pull request validation", () => {
       "up-next-mark-and-undo.yaml",
       "show-detail-bulk-mark.yaml",
       "episode-sheet.yaml",
+      "calendar.yaml",
       "library.yaml",
       "tabs.yaml",
       "dark-traversal.yaml",
@@ -139,12 +140,11 @@ describe("fast pull request validation", () => {
     expect(traversal.match(/takeScreenshot:/g)?.length).toBe(9);
   });
 
-  it("checks implemented Android tabs by screen id", () => {
+  it("asserts all four Android tabs from the final UI tree", () => {
     const verification = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
 
-    expect(verification).toContain('library) grep -Fq "screen-library"');
-    expect(verification).toContain('calendar) grep -Fq "screen-calendar"');
-    expect(verification).toContain('*) grep -Fq "$' + '{labels[$index]} is coming soon."');
+    expect(verification).toContain('for label in "Up Next" "Library" "Calendar" "Search"');
+    expect(verification).toContain('grep -Fq "text="$label"" "$output/tabs.xml"');
   });
 
   it("measures render performance base then head on one runner", () => {
