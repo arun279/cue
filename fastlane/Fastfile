@@ -1,5 +1,4 @@
 require "tmpdir"
-require "tempfile"
 
 # Cue release automation.
 #
@@ -21,9 +20,7 @@ EXPO_IOS_PROJECT = "packages/native/ios/Cue.xcodeproj".freeze
 EXPO_IOS_WORKSPACE = "packages/native/ios/Cue.xcworkspace".freeze
 EXPO_IOS_SCHEME = "Cue".freeze
 EXPO_ANDROID_DIR = "packages/native/android".freeze
-EXPO_ANDROID_AAB = "packages/native/android/app/build/outputs/bundle/release/app-release.aab".freeze
-EXPO_ANDROID_APKS = "packages/native/android/app/build/outputs/bundle/release/app-release.apks".freeze
-EXPO_ANDROID_APK = "packages/native/android/app/build/outputs/bundle/release/universal.apk".freeze
+EXPO_ANDROID_APK = "packages/native/android/app/build/outputs/apk/release/app-release.apk".freeze
 FIREBASE_ANDROID_APP = "1:768077963989:android:2f55dce37b989717ca785c".freeze
 VERIFY_APK = "scripts/verify-apk.sh".freeze
 ASSERT_FILE_SIZE = "scripts/assert-file-size.mjs".freeze
@@ -145,40 +142,30 @@ def build_android_apk
     task: "bundle",
     build_type: "Release"
   )
-  Tempfile.create("cue-keystore-password") do |keystore_password|
-    Tempfile.create("cue-key-password") do |key_password|
-      keystore_password.write(ENV.fetch("ANDROID_KEYSTORE_PASSWORD"))
-      keystore_password.flush
-      key_password.write(ENV.fetch("ANDROID_KEY_PASSWORD"))
-      key_password.flush
-      sh(
-        "java",
-        "-jar",
-        ENV.fetch("BUNDLETOOL_PATH"),
-        "build-apks",
-        "--bundle=#{File.join(REPO_ROOT, EXPO_ANDROID_AAB)}",
-        "--output=#{File.join(REPO_ROOT, EXPO_ANDROID_APKS)}",
-        "--mode=universal",
-        "--ks=#{ENV.fetch("ANDROID_KEYSTORE_PATH")}",
-        "--ks-pass=file:#{keystore_password.path}",
-        "--ks-key-alias=#{ENV.fetch("ANDROID_KEY_ALIAS")}",
-        "--key-pass=file:#{key_password.path}"
-      )
-    end
-  end
+  gradle(
+    project_dir: EXPO_ANDROID_DIR,
+    task: "assemble",
+    build_type: "Release",
+    properties: {"reactNativeArchitectures" => "arm64-v8a"}
+  )
+  apksigner = Dir.glob(File.join(ENV.fetch("ANDROID_HOME"), "build-tools", "*", "apksigner"))
+    .max_by { |path| Gem::Version.new(File.basename(File.dirname(path))) }
+  UI.user_error!("Android SDK contains no apksigner") if apksigner.nil?
   sh(
-    "unzip",
-    "-o",
-    File.join(REPO_ROOT, EXPO_ANDROID_APKS),
-    "universal.apk",
-    "-d",
-    File.dirname(File.join(REPO_ROOT, EXPO_ANDROID_APK))
+    apksigner,
+    "sign",
+    "--ks=#{ENV.fetch("ANDROID_KEYSTORE_PATH")}",
+    "--ks-pass=env:ANDROID_KEYSTORE_PASSWORD",
+    "--ks-key-alias=#{ENV.fetch("ANDROID_KEY_ALIAS")}",
+    "--key-pass=env:ANDROID_KEY_PASSWORD",
+    File.join(REPO_ROOT, EXPO_ANDROID_APK)
   )
   sh(
     File.join(REPO_ROOT, VERIFY_APK),
     File.join(REPO_ROOT, EXPO_ANDROID_APK),
     build_number.to_s,
-    app_version
+    app_version,
+    "arm64-v8a"
   )
 end
 
