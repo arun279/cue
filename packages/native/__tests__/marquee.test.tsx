@@ -4,7 +4,7 @@ import * as Native from "react-native";
 import { useShowArt } from "../src/hooks/useShowArt";
 import { MarqueeCard } from "../src/screens/up-next/MarqueeCard";
 import { TEST_IDS } from "../src/ui/test-ids";
-import { useColors } from "../src/ui/tokens";
+import { HAIRLINE, useColors } from "../src/ui/tokens";
 import { entry } from "./support/up-next";
 
 jest.mock("expo-router", () => require("./support/native-ui").expoRouterModule());
@@ -60,12 +60,13 @@ it.each([
   const { result } = await renderHook(() => useColors());
   const view = await render(<MarqueeCard card={card} episode={episode} mark={mark} />);
   expect(screen.getByText(show.title)).toHaveStyle({ color: result.current.fg });
+  expect(screen.getByTestId(TEST_IDS.marqueeCard)).toHaveStyle({ borderWidth: HAIRLINE });
   jest.mocked(useShowArt).mockReturnValue({ posters: [], backdrops: [backdrop] });
   await view.rerender(<MarqueeCard card={card} episode={episode} mark={mark} />);
   expect(screen.getByTestId(TEST_IDS.marqueeBackdrop)).toHaveProp("source", {
     uri: `https://${backdrop}`,
   });
-  expect(screen.getByTestId(TEST_IDS.marqueeCard)).not.toHaveStyle({ overflow: "hidden" });
+  expect(screen.getByTestId(TEST_IDS.marqueeCard)).toHaveStyle({ borderWidth: 0 });
   expect(screen.getByText(show.title)).toHaveStyle({ color: "#ffffff" });
   expect(screen.getByText("S3 E5 · Salt Air")).toBeOnTheScreen();
   expect(screen.getByText("3 left")).toBeOnTheScreen();
@@ -75,6 +76,7 @@ it.each([
   });
   expect(screen.queryByTestId(TEST_IDS.marqueeBackdrop)).toBeNull();
   expect(screen.getByText(show.title)).toHaveStyle({ color: result.current.fg });
+  expect(screen.getByTestId(TEST_IDS.marqueeCard)).toHaveStyle({ borderWidth: HAIRLINE });
   expect(screen.getByText("Continue")).toHaveStyle({ color: result.current.accentInk });
   await fireEvent.press(screen.getByTestId(TEST_IDS.marqueeMark));
   expect(mark.mark).toHaveBeenCalledWith(show);

@@ -95,7 +95,7 @@ export function MarqueeCard({ card, episode, mark }: MarqueeCardProps): ReactEle
       style={[
         styles.card,
         scrim
-          ? { backgroundColor: plate(entry.title) }
+          ? { backgroundColor: plate(entry.title), borderWidth: 0 }
           : {
               // #ffffff on the #fbfaf7 page is 1.04:1, so the plain surface is
               // an edge away from not being a card at all.
@@ -111,15 +111,19 @@ export function MarqueeCard({ card, episode, mark }: MarqueeCardProps): ReactEle
             testID={TEST_IDS.marqueeBackdrop}
             source={{ uri: backdrop }}
             onError={() => setFailedBackdrop(backdrop)}
-            style={styles.artwork}
+            style={StyleSheet.absoluteFill}
           />
           <LinearGradient
             colors={SCRIM_ACROSS}
             start={{ x: 0, y: 0 }}
             end={{ x: 0.4, y: 0 }}
-            style={styles.artwork}
+            style={StyleSheet.absoluteFill}
           />
-          <LinearGradient colors={SCRIM_DOWN} locations={[0, 0.45, 1]} style={styles.artwork} />
+          <LinearGradient
+            colors={SCRIM_DOWN}
+            locations={[0, 0.45, 1]}
+            style={StyleSheet.absoluteFill}
+          />
         </>
       ) : null}
       <Pressable
@@ -180,8 +184,8 @@ const styles = StyleSheet.create({
     minHeight: ROW_MIN_HEIGHT.marquee,
     marginBottom: SPACE.s3,
     borderRadius: RADIUS.card,
+    overflow: "hidden",
   },
-  artwork: { ...StyleSheet.absoluteFill, borderRadius: RADIUS.card },
   body: {
     flex: 1,
     minWidth: 0,
