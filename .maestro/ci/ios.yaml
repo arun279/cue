@@ -6,4 +6,5 @@ appId: app.cuetracker
 - runFlow: ../flows/episode-sheet.yaml
 - runFlow: ../flows/calendar.yaml
 - runFlow: ../flows/library.yaml
+- runFlow: ../flows/search.yaml
 - runFlow: ../flows/returning-user-app-idle.yaml
