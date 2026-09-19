@@ -8,7 +8,8 @@
 appId: app.cuetracker
 ---
 - runFlow: lib/connect.yaml
-- tapOn: "Calendar"
+- tapOn:
+    id: "tab-calendar"
 - assertVisible:
     id: "screen-calendar"
 - assertVisible:

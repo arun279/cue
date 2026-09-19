@@ -1,7 +1,7 @@
 import { usePrefs } from "@cue/core/prefs/prefs-store";
 import { Redirect, useLocalSearchParams } from "expo-router";
 import type { ReactElement } from "react";
-import { StyleSheet, View } from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
 import { parseId, parseSeason } from "../../../../../src/route-params";
 import { EpisodeSheet } from "../../../../../src/screens/EpisodeSheet";
 import { AppIdle } from "../../../../../src/ui/AppIdle";
@@ -20,7 +20,7 @@ export default function EpisodeRoute(): ReactElement {
   return (
     <View style={styles.route}>
       <EpisodeSheet showId={showId} season={season} episode={episode} />
-      <SnackbarHost placement="presentation" />
+      {Platform.OS === "ios" ? <SnackbarHost placement="presentation" /> : null}
       <AppIdle />
     </View>
   );

@@ -13,7 +13,7 @@ import { Stack, ThemeProvider } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { type ReactElement, useEffect, useState } from "react";
-import { StyleSheet, useWindowDimensions, View } from "react-native";
+import { Platform, StyleSheet, useWindowDimensions, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { initialWindowMetrics, SafeAreaProvider } from "react-native-safe-area-context";
 import { bootNativeStores } from "../src/boot";
@@ -173,6 +173,10 @@ function RoutedApp(): ReactElement {
             sheetGrabberVisible: true,
             sheetCornerRadius: RADIUS.sheet,
             contentStyle: { backgroundColor: colors.bg },
+            unstable_sheetFooter:
+              Platform.OS === "android"
+                ? () => <SnackbarHost placement="presentation" contained />
+                : undefined,
           }}
         />
         {/* Presented from the root, over the tab bar, so it always dismisses

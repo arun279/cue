@@ -1,5 +1,6 @@
 import { NativeTabs } from "expo-router/unstable-native-tabs";
 import type { ReactElement } from "react";
+import { TEST_IDS } from "../../src/ui/test-ids";
 import { useColors } from "../../src/ui/tokens";
 
 /**
@@ -34,19 +35,19 @@ export default function TabsLayout(): ReactElement {
       labelStyle={{ default: { color: colors.muted }, selected: { color: colors.accentInk } }}
       indicatorColor={colors.elevated}
     >
-      <NativeTabs.Trigger name="(up-next)">
+      <NativeTabs.Trigger name="(up-next)" testID={TEST_IDS.tabUpNext}>
         <NativeTabs.Trigger.Icon sf="play.square.stack" drawable="cue_tab_up_next" />
         <NativeTabs.Trigger.Label>Up Next</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="(library)">
+      <NativeTabs.Trigger name="(library)" testID={TEST_IDS.tabLibrary}>
         <NativeTabs.Trigger.Icon sf="square.grid.2x2" drawable="cue_tab_library" />
         <NativeTabs.Trigger.Label>Library</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="(calendar)">
+      <NativeTabs.Trigger name="(calendar)" testID={TEST_IDS.tabCalendar}>
         <NativeTabs.Trigger.Icon sf="calendar" drawable="cue_tab_calendar" />
         <NativeTabs.Trigger.Label>Calendar</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="(search)" role="search">
+      <NativeTabs.Trigger name="(search)" role="search" testID={TEST_IDS.tabSearch}>
         <NativeTabs.Trigger.Icon sf="magnifyingglass" drawable="cue_tab_search" />
         <NativeTabs.Trigger.Label>Search</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>

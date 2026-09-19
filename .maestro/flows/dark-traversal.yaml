@@ -7,7 +7,8 @@ appId: app.cuetracker
     visible:
       id: "screen-onboarding"
     timeout: 30000
-- waitForAnimationToEnd
+- waitForAnimationToEnd:
+    timeout: 1000
 - takeScreenshot: onboarding-ready
 - tapOn:
     id: "button-connect"
@@ -16,14 +17,16 @@ appId: app.cuetracker
     visible:
       id: "device-code-value"
     timeout: 30000
-- waitForAnimationToEnd
+- waitForAnimationToEnd:
+    timeout: 1000
 - takeScreenshot: connect-code-ready
 - runScript: lib/approve-device.js
 - extendedWaitUntil:
     visible:
       id: "screen-up-next"
     timeout: 30000
-- waitForAnimationToEnd
+- waitForAnimationToEnd:
+    timeout: 1000
 - takeScreenshot: up-next-populated
 - tapOn:
     id: "queue-row-8803"
@@ -31,7 +34,8 @@ appId: app.cuetracker
     visible:
       id: "screen-show-detail"
     timeout: 30000
-- waitForAnimationToEnd
+- waitForAnimationToEnd:
+    timeout: 1000
 - takeScreenshot: show-detail-rest
 - scrollUntilVisible:
     element:
@@ -44,50 +48,50 @@ appId: app.cuetracker
     visible:
       id: "episode-sheet"
     timeout: 30000
-- waitForAnimationToEnd
+- waitForAnimationToEnd:
+    timeout: 1000
 - takeScreenshot: episode-sheet-rest
-- runFlow:
-    when:
-      platform: iOS
-    commands:
-      - swipe:
-          start: "50%,55%"
-          end: "50%,98%"
-          duration: 300
-- runFlow:
-    when:
-      platform: Android
-    commands:
-      - pressKey: back
+- swipe:
+    start: "50%,55%"
+    end: "50%,98%"
+    duration: 300
 - extendedWaitUntil:
     visible:
       id: "screen-show-detail"
     timeout: 30000
-- tapOn: "Library"
+- tapOn:
+    id: "tab-library"
 - extendedWaitUntil:
     visible:
       id: "screen-library"
     timeout: 30000
-- waitForAnimationToEnd
+- waitForAnimationToEnd:
+    timeout: 1000
 - takeScreenshot: library-shows
-- tapOn: "Calendar"
+- tapOn:
+    id: "tab-calendar"
 - extendedWaitUntil:
     visible:
       id: "screen-calendar"
     timeout: 30000
-- waitForAnimationToEnd
+- waitForAnimationToEnd:
+    timeout: 1000
 - takeScreenshot: calendar-rest
-- tapOn: "Search"
+- tapOn:
+    id: "tab-search"
 - extendedWaitUntil:
     visible:
       id: "screen-search"
     timeout: 30000
-- waitForAnimationToEnd
+- waitForAnimationToEnd:
+    timeout: 1000
 - takeScreenshot: search-empty
-- tapOn: "Up Next"
+- tapOn:
+    id: "tab-up-next"
 - extendedWaitUntil:
     visible:
       id: "screen-up-next"
     timeout: 30000
-- waitForAnimationToEnd
+- waitForAnimationToEnd:
+    timeout: 1000
 - takeScreenshot: up-next-tab-rest

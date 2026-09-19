@@ -133,7 +133,10 @@ describe("fast pull request validation", () => {
       const lines = readFileSync(repositoryPath(`.maestro/flows/${flow}`), "utf8").split("\n");
       for (const [index, line] of lines.entries()) {
         if (line.includes("takeScreenshot:")) {
-          expect(lines[index - 1]?.trim()).toBe("- waitForAnimationToEnd");
+          expect(lines.slice(index - 2, index).map((entry) => entry.trim())).toEqual([
+            "- waitForAnimationToEnd:",
+            "timeout: 1000",
+          ]);
         }
       }
     }

@@ -34,6 +34,13 @@ it("runs an action from its own tap", async () => {
   expect(action.onPress).toHaveBeenCalledTimes(1);
 });
 
+it("lays out in a native sheet footer", async () => {
+  await render(<SnackbarHost placement="presentation" contained />);
+  await act(async () => showSnack({ message: MESSAGE }));
+
+  expect(screen.getByTestId("snackbar")).not.toHaveStyle({ position: "absolute" });
+});
+
 it("draws in the topmost presentation only, and hands back when it closes", async () => {
   const { rerender } = await render(<Hosts sheetOpen={false} />);
   await act(async () => showSnack({ message: MESSAGE }));

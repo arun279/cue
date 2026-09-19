@@ -23,7 +23,6 @@ import { useQuery } from "@tanstack/react-query";
 import { Stack, useRouter } from "expo-router";
 import { type ReactElement, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { FlatList, RefreshControl, StyleSheet, View } from "react-native";
-import Animated, { LinearTransition } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePullToRefresh } from "../../../src/hooks/usePullToRefresh";
 import { LapsedDrawer } from "../../../src/screens/up-next/LapsedDrawer";
@@ -208,14 +207,14 @@ export default function UpNext(): ReactElement {
           />
         }
         renderItem={({ item, index }) => (
-          <Animated.View layout={LinearTransition}>
+          <View>
             <QueueRow
               card={item}
               mark={mark.controller}
               onStop={() => stop.stopWatching(item.entry)}
             />
             {index === 0 && mark.tutorialVisible ? <TutorialCaption /> : null}
-          </Animated.View>
+          </View>
         )}
         ListHeaderComponent={
           <View style={styles.lead}>

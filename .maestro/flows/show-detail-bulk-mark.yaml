@@ -7,7 +7,8 @@ appId: app.cuetracker
     id: "queue-row-8803"
 - assertVisible:
     id: "screen-show-detail"
-- waitForAnimationToEnd
+- waitForAnimationToEnd:
+    timeout: 1000
 - takeScreenshot: show-detail-rest
 - scrollUntilVisible:
     element:
@@ -25,7 +26,8 @@ appId: app.cuetracker
     commands:
       - assertVisible:
           id: "confirm-sheet"
-- waitForAnimationToEnd
+- waitForAnimationToEnd:
+    timeout: 1000
 - takeScreenshot: show-detail-season-confirm
 - tapOn: "Mark 2 remaining"
 - assertVisible:
@@ -33,7 +35,8 @@ appId: app.cuetracker
 - runFlow: lib/settle.yaml
 - assertVisible:
     id: "episode-row-8803-2-3-checked"
-- waitForAnimationToEnd
+- waitForAnimationToEnd:
+    timeout: 1000
 - takeScreenshot: show-detail-season-marked
 - tapOn:
     id: "snackbar-undo"

@@ -9,12 +9,14 @@ appId: app.cuetracker
 - runScript: lib/reset-fake.js
 - assertTrue: ${output.fakeReset}
 - runFlow: lib/connect.yaml
-- tapOn: "Library"
+- tapOn:
+    id: "tab-library"
 - assertVisible:
     id: "screen-library"
 - assertVisible:
     id: "show-card-8801"
-- waitForAnimationToEnd
+- waitForAnimationToEnd:
+    timeout: 1000
 - takeScreenshot: library-shows
 
 - tapOn:
@@ -25,7 +27,8 @@ appId: app.cuetracker
     id: "library-chip-watched"
 - assertVisible:
     id: "movie-card-5501"
-- waitForAnimationToEnd
+- waitForAnimationToEnd:
+    timeout: 1000
 - takeScreenshot: library-movies-watched
 
 - tapOn:
@@ -36,7 +39,8 @@ appId: app.cuetracker
     id: "library-chip-stopped"
 - assertVisible:
     id: "library-empty"
-- waitForAnimationToEnd
+- waitForAnimationToEnd:
+    timeout: 1000
 - takeScreenshot: library-empty-stopped
 - tapOn:
     id: "library-chip-watching"
@@ -46,7 +50,8 @@ appId: app.cuetracker
 - inputText: "zzz"
 - assertVisible:
     id: "library-no-match"
-- waitForAnimationToEnd
+- waitForAnimationToEnd:
+    timeout: 1000
 - takeScreenshot: library-no-match
 - tapOn:
     id: "library-filter-clear"
@@ -55,7 +60,8 @@ appId: app.cuetracker
 
 - tapOn:
     id: "library-sort"
-- waitForAnimationToEnd
+- waitForAnimationToEnd:
+    timeout: 1000
 - takeScreenshot: library-sort-menu
 - tapOn: "A-Z"
 - assertVisible:
@@ -65,5 +71,6 @@ appId: app.cuetracker
     id: "show-card-8801"
 - assertVisible:
     id: "screen-show-detail"
-- waitForAnimationToEnd
+- waitForAnimationToEnd:
+    timeout: 1000
 - takeScreenshot: show-detail-from-library
