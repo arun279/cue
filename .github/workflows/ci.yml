@@ -64,6 +64,12 @@ jobs:
       - run: pnpm check
         env:
           EXPO_ATLAS: "true"
+      - name: Gate changed core coverage
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: node scripts/check-changed-coverage.mjs "origin/$BASE_REF" coverage/lcov.info "$PR_BODY"
       - name: Upload JavaScript bundles
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

@@ -51,6 +51,13 @@ describe("fast pull request validation", () => {
     expect(footprint).toContain("Missing merge-base measurements and successful CI artifacts");
   });
 
+  it("gates changed core lines from the generated LCOV file", () => {
+    const check = job("check");
+
+    expect(check).toContain('check-changed-coverage.mjs "origin/$BASE_REF" coverage/lcov.info');
+    expect(check).toContain("PR_BODY: $" + "{{ github.event.pull_request.body }}");
+  });
+
   it("uses a fixed Maestro driver port outside Android's ephemeral range", () => {
     const verification = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
 
