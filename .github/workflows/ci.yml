@@ -357,13 +357,17 @@ jobs:
           name: cue-native-ios-${{ needs.fingerprint.outputs.ios }}
           path: ${{ runner.temp }}/native-ios-app/Cue.app.tgz
           retention-days: 30
-  native-e2e:
+  native-e2e-ios-light:
     timeout-minutes: 14
     permissions:
       actions: read
       contents: read
     needs: [fingerprint, native-ios]
     runs-on: macos-26
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [detail, discovery]
     env:
       MAESTRO_CLI_NO_ANALYTICS: "1"
       MAESTRO_DRIVER_STARTUP_TIMEOUT: "300000"
@@ -382,50 +386,74 @@ jobs:
           DEVICE_ID: ${{ steps.ui-setup.outputs.device_id }}
           APP_IDLE_CEILING_MS: "1000"
         run: |
-          mkdir -p "$RUNNER_TEMP/screenshots/ios/light"
+          output="$RUNNER_TEMP/screenshots/ios/light/${{ matrix.suite }}"
+          mkdir -p "$output"
           xcrun simctl ui "$DEVICE_ID" content_size medium
           xcrun simctl ui "$DEVICE_ID" appearance light
-          maestro --device "$DEVICE_ID" test .maestro/ci/app.yaml \
+          maestro --device "$DEVICE_ID" test ".maestro/ci/app-${{ matrix.suite }}.yaml" \
             --env APP_IDLE_CEILING_MS="$APP_IDLE_CEILING_MS" \
             --format JUNIT \
-            --output "$RUNNER_TEMP/maestro-results-light.xml" \
-            --debug-output "$RUNNER_TEMP/maestro-debug/light" \
-            --test-output-dir "$RUNNER_TEMP/screenshots/ios/light"
-      - name: Create iOS contact sheet
-        if: ${{ !cancelled() }}
-        run: |
-          brew install imagemagick
-          scripts/create-ui-contact-sheet.sh "$RUNNER_TEMP/screenshots/ios/light" ios light
-      - name: Gate and summarize behavior timing
-        if: ${{ !cancelled() }}
+            --output "$RUNNER_TEMP/maestro-results-${{ matrix.suite }}.xml" \
+            --debug-output "$RUNNER_TEMP/maestro-debug/${{ matrix.suite }}" \
+            --test-output-dir "$output"
+      - name: Gate and summarize response timing
+        if: ${{ !cancelled() && matrix.suite == 'detail' }}
         env:
-          APP_IDLE_CEILING_MS: "1000"
           FEEDBACK_CEILING_MS: "100"
         run: |
-          node scripts/summarize-app-idle.mjs \
-            "$RUNNER_TEMP/screenshots/ios/light" \
-            "$APP_IDLE_CEILING_MS" \
-            >> "$GITHUB_STEP_SUMMARY"
           node scripts/check-response-timing.mjs \
-            "$RUNNER_TEMP/screenshots/ios/light" \
+            "$RUNNER_TEMP/screenshots/ios/light/detail" \
             "$FEEDBACK_CEILING_MS" \
+            >> "$GITHUB_STEP_SUMMARY"
+      - name: Gate and summarize app idle
+        if: ${{ !cancelled() && matrix.suite == 'discovery' }}
+        env:
+          APP_IDLE_CEILING_MS: "1000"
+        run: |
+          node scripts/summarize-app-idle.mjs \
+            "$RUNNER_TEMP/screenshots/ios/light/discovery" \
+            "$APP_IDLE_CEILING_MS" \
             >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ !cancelled() }}
         with:
-          name: ui-screenshots-ios-light
-          path: ${{ runner.temp }}/screenshots/ios/light
+          name: ui-screenshots-ios-light-${{ matrix.suite }}
+          path: ${{ runner.temp }}/screenshots/ios/light/${{ matrix.suite }}
           if-no-files-found: error
           retention-days: 14
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ !cancelled() }}
         with:
-          name: native-e2e-ios-light
+          name: native-e2e-ios-light-${{ matrix.suite }}
           path: |
             ${{ runner.temp }}/maestro-debug/
             ${{ runner.temp }}/maestro-results-*.xml
             ${{ runner.temp }}/mock-trakt.log
           retention-days: 7
+  native-e2e:
+    permissions:
+      actions: read
+      contents: read
+    needs: native-e2e-ios-light
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        with:
+          pattern: ui-screenshots-ios-light-*
+          path: ${{ runner.temp }}/screenshots/ios/light
+          merge-multiple: true
+      - name: Create iOS contact sheet
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install --no-install-recommends -y imagemagick
+          scripts/create-ui-contact-sheet.sh "$RUNNER_TEMP/screenshots/ios/light" ios light
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ui-screenshots-ios-light
+          path: ${{ runner.temp }}/screenshots/ios/light
+          if-no-files-found: error
+          retention-days: 14
   ui-screenshots-ios-dark:
     timeout-minutes: 14
     permissions:

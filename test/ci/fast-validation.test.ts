@@ -5,7 +5,7 @@ import { repositoryPath } from "../support/repository-path";
 const workflow = readFileSync(repositoryPath(".github/workflows/ci.yml"), "utf8");
 const job = (name: string) =>
   workflow.match(
-    new RegExp(`^  ${name}:\\n([\\s\\S]*?)(?=^  [a-z][a-z-]*:|(?![\\s\\S]))`, "m"),
+    new RegExp(`^  ${name}:\\n([\\s\\S]*?)(?=^  [a-z][a-z0-9-]*:|(?![\\s\\S]))`, "m"),
   )?.[1] ?? "";
 
 describe("fast pull request validation", () => {
@@ -65,7 +65,7 @@ describe("fast pull request validation", () => {
   });
 
   it("runs the app-idle measurement after flows that relaunch the app", () => {
-    const suite = readFileSync(repositoryPath(".maestro/ci/app.yaml"), "utf8");
+    const suite = readFileSync(repositoryPath(".maestro/ci/app-discovery.yaml"), "utf8");
     const android = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
 
     expect(suite).toMatch(
@@ -75,16 +75,22 @@ describe("fast pull request validation", () => {
     expect(android).not.toContain("6000");
   });
 
-  it("runs one shared Maestro suite on iOS and Android", () => {
-    const ios = job("native-e2e");
+  it("runs every shared Maestro flow on iOS and Android", () => {
+    const ios = job("native-e2e-ios-light");
     const androidJob = job("android-e2e");
     const android = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
     const suite = readFileSync(repositoryPath(".maestro/ci/app.yaml"), "utf8");
+    const iosSuites = ["detail", "discovery"]
+      .map((name) => readFileSync(repositoryPath(`.maestro/ci/app-${name}.yaml`), "utf8"))
+      .join("\n");
 
-    expect(ios).toContain("test .maestro/ci/app.yaml");
+    expect(ios).toContain("suite: [detail, discovery]");
+    expect(ios).toContain('test ".maestro/ci/app-$' + '{{ matrix.suite }}.yaml"');
     expect(android).toContain("suite=.maestro/ci/app.yaml");
     expect(androidJob).toContain('"$RUNNER_TEMP/screenshots/android" light');
-    expect(suite).toContain("- runFlow: ../flows/search.yaml");
+    for (const flow of suite.match(/\.\.\/flows\/[\w-]+\.yaml/g) ?? []) {
+      expect(iosSuites).toContain(flow);
+    }
   });
 
   it("runs required dark screenshot traversals on independent cached-app jobs", () => {
@@ -116,21 +122,24 @@ describe("fast pull request validation", () => {
   });
 
   it("publishes both screenshot artifacts with contact sheets for 14 days", () => {
-    const ios = job("native-e2e");
+    const ios = job("native-e2e-ios-light");
+    const iosContact = job("native-e2e");
     const iosDark = job("ui-screenshots-ios-dark");
     const android = job("android-e2e");
     const androidDark = job("ui-screenshots-android-dark");
     const verification = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
     const fetch = readFileSync(repositoryPath("scripts/fetch-ui-screenshots.sh"), "utf8");
 
-    expect(ios).toContain("name: ui-screenshots-ios");
-    expect(ios).toContain("name: ui-screenshots-ios-light");
+    expect(ios).toContain("name: ui-screenshots-ios-light-$" + "{{ matrix.suite }}");
+    expect(iosContact).toContain("needs: native-e2e-ios-light");
+    expect(iosContact).toContain("pattern: ui-screenshots-ios-light-*");
+    expect(iosContact).toContain("name: ui-screenshots-ios-light");
     expect(iosDark).toContain("name: ui-screenshots-ios-dark");
-    expect(ios).toContain('--test-output-dir "$RUNNER_TEMP/screenshots/ios/light"');
+    expect(ios).toContain('--test-output-dir "$output"');
     expect(iosDark).toContain('--test-output-dir "$RUNNER_TEMP/screenshots/ios/dark"');
-    expect(ios).toContain("create-ui-contact-sheet.sh");
+    expect(iosContact).toContain("create-ui-contact-sheet.sh");
     expect(iosDark).toContain("create-ui-contact-sheet.sh");
-    expect(ios).toContain("brew install imagemagick");
+    expect(iosContact).toContain("apt-get install --no-install-recommends -y imagemagick");
     expect(iosDark).toContain("brew install imagemagick");
     expect(android).toContain("name: ui-screenshots-android");
     expect(android).toContain("name: ui-screenshots-android-light");
@@ -141,6 +150,7 @@ describe("fast pull request validation", () => {
     expect(android).toContain("apt-get install --no-install-recommends -y imagemagick");
     expect(androidDark).toContain("apt-get install --no-install-recommends -y imagemagick");
     expect(ios.match(/retention-days: 14/g)).toHaveLength(1);
+    expect(iosContact.match(/retention-days: 14/g)).toHaveLength(1);
     expect(iosDark.match(/retention-days: 14/g)).toHaveLength(1);
     expect(android.match(/retention-days: 14/g)).toHaveLength(1);
     expect(androidDark.match(/retention-days: 14/g)).toHaveLength(1);

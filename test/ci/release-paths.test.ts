@@ -14,7 +14,8 @@ const MOBILE_RELEASE_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/mo
 const FASTLANE_LANE = "$" + "{{ needs.config.outputs.fastlane_lane }}";
 const TRAKT_CLIENT_ID_VARIABLE = "$" + "{{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}";
 // `footprint` skips itself on forks, and the gate reads a skip as a failure.
-const NOT_REQUIRED = ["fingerprint", "footprint"];
+// The iOS light matrix reports through the required `native-e2e` aggregate.
+const NOT_REQUIRED = ["fingerprint", "footprint", "native-e2e-ios-light"];
 
 const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((entry) => typeof entry === "string");
