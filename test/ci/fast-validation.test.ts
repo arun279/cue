@@ -144,7 +144,7 @@ describe("fast pull request validation", () => {
     const verification = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
 
     expect(verification).toContain('for label in "Up Next" "Library" "Calendar" "Search"');
-    expect(verification).toContain('grep -Fq "text="$label"" "$output/tabs.xml"');
+    expect(verification).toContain(String.raw`grep -Fq "text=\"$label\"" "$output/tabs.xml"`);
   });
 
   it("measures render performance base then head on one runner", () => {
