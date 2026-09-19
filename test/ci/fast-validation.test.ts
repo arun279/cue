@@ -70,6 +70,12 @@ describe("fast pull request validation", () => {
     expect(ios.trimEnd()).toMatch(/returning-user-app-idle\.yaml$/);
   });
 
+  it("waits for app idle before checking the connected loading state", () => {
+    const connect = readFileSync(repositoryPath(".maestro/flows/lib/connect.yaml"), "utf8");
+
+    expect(connect).toMatch(/screen-up-next[\s\S]*app-idle[\s\S]*up-next-skeleton/);
+  });
+
   it("uses a fixed Maestro driver port outside Android's ephemeral range", () => {
     const verification = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
 
@@ -81,7 +87,7 @@ describe("fast pull request validation", () => {
 
     expect(verification).toContain('library) grep -Fq "screen-library"');
     expect(verification).toContain('calendar) grep -Fq "screen-calendar"');
-    expect(verification).toContain('*) grep -Fq "$' + '{labels[$index]} is coming soon."');
+    expect(verification).toContain('search) grep -Fq "screen-search"');
   });
 
   it("measures render performance base then head on one runner", () => {
