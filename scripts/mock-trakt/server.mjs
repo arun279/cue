@@ -402,6 +402,7 @@ export function createMockTrakt({
   log = true,
   journalFile = process.env["MOCK_TRAKT_JOURNAL"],
   faults: faultSpec = faultsFromEnv(process.env["MOCK_TRAKT_FAULTS"]),
+  onRequest = (_entry) => {},
 } = {}) {
   let library = createSeedLibrary();
   const journal = createJournal(journalFile);
@@ -424,6 +425,7 @@ export function createMockTrakt({
     // compared against another app's.
     if (!url.pathname.startsWith("/__")) {
       journal.record(method, url.pathname, url.search, body);
+      onRequest({ method, path: url.pathname, search: url.search, body });
     }
     const control = controlRoute(
       faults,
