@@ -1,6 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 const DEBOUNCE_MS = 300;
+
+const DWELL_MS = 1500;
+
 const RECENT_LIMIT = 5;
 
 export interface SearchInput {
@@ -9,7 +12,6 @@ export interface SearchInput {
   readonly query: string;
   readonly settling: boolean;
   readonly recent: readonly string[];
-  remember(query: string): void;
 }
 
 export function useSearchInput(): SearchInput {
@@ -23,12 +25,17 @@ export function useSearchInput(): SearchInput {
     return () => clearTimeout(timer);
   }, [trimmed]);
 
-  const remember = useCallback((value: string) => {
-    if (value.length === 0) return;
-    setRecent((previous) =>
-      [value, ...previous.filter((query) => query !== value)].slice(0, RECENT_LIMIT),
+  useEffect(() => {
+    if (query.length === 0) return;
+    const timer = setTimeout(
+      () =>
+        setRecent((previous) =>
+          [query, ...previous.filter((term) => term !== query)].slice(0, RECENT_LIMIT),
+        ),
+      DWELL_MS,
     );
-  }, []);
+    return () => clearTimeout(timer);
+  }, [query]);
 
   return {
     input,
@@ -36,6 +43,5 @@ export function useSearchInput(): SearchInput {
     query,
     settling: trimmed.length > 0 && query !== trimmed,
     recent,
-    remember,
   };
 }

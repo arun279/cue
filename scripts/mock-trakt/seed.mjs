@@ -317,6 +317,30 @@ const RELATED_MOVIES = new Map([
   [5503, []],
 ]);
 
+/**
+ * Titles Trakt's catalog carries and this account does not. Search is the one
+ * screen whose results come from the catalog rather than from Cue's own data, so
+ * a fixture where every hit is already tracked cannot exercise the add at all.
+ */
+const CATALOG = [
+  {
+    type: "show",
+    trakt: 8901,
+    tmdb: 98901,
+    slug: "the-harbor-master",
+    title: "The Harbor Master",
+    year: 2011,
+  },
+  {
+    type: "movie",
+    trakt: 5601,
+    tmdb: 95601,
+    slug: "harbor-sound",
+    title: "Harbor Sound",
+    year: 2015,
+  },
+];
+
 const iso = (ms) => new Date(ms).toISOString();
 
 /** The mutable account every route reads and the write routes move. */
@@ -607,6 +631,48 @@ export function showDetailBody(show, origin, extended) {
 }
 
 export const movieDetailBody = movieRef;
+
+function catalogRef(item, origin, extended) {
+  const show = item.type === "show";
+  return {
+    title: item.title,
+    year: item.year,
+    ids: show ? showIds(item) : movieIds(item),
+    ...(levelsOf(extended).has("images")
+      ? { images: imageSet(origin, show ? "shows" : "movies", item.trakt, ["poster"]) }
+      : {}),
+  };
+}
+
+/** `/search/show,movie`: this account's titles and the catalog-only ones
+ * together, matched on title, because a search that can only return what is
+ * already tracked is not a search. */
+export function searchBody(library, origin, extended, query) {
+  const needle = query.trim().toLowerCase();
+  const rows = [
+    ...library.shows.map((show) => ({ type: "show", body: showRef(show, origin, extended) })),
+    ...library.movies.map((movie) => ({ type: "movie", body: movieRef(movie, origin, extended) })),
+    ...CATALOG.map((item) => ({ type: item.type, body: catalogRef(item, origin, extended) })),
+  ];
+  return rows
+    .filter((row) => needle !== "" && row.body.title.toLowerCase().includes(needle))
+    .map((row, index) => ({ type: row.type, score: rows.length - index, [row.type]: row.body }));
+}
+
+/** `/{shows|movies}/{trending|popular}`: the fixture's own titles, so every
+ * browse tile opens a screen this account can read. Trending wraps each row in a
+ * watcher count; popular is a bare list. */
+export function browseBody(library, origin, extended, kind, ranked) {
+  const movies = kind === "movies";
+  const refs = (movies ? library.movies : library.shows).map((item) =>
+    movies ? movieRef(item, origin, extended) : showRef(item, origin, extended),
+  );
+  if (!ranked) return refs;
+  return refs.map((ref, index) => ({
+    watchers: 900 - index * 60,
+    [movies ? "movie" : "show"]: ref,
+  }));
+}
 
 export function seasonsBody(show, origin, extended) {
   const levels = levelsOf(extended);

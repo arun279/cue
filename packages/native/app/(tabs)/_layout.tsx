@@ -18,11 +18,6 @@ import { useColors } from "../../src/ui/tokens";
  * alphabetically first group becomes the landing screen and nothing changes it.
  * A path per tab works around that and is better anyway, because every tab is
  * then deep-linkable.
- *
- * `role="search"` is what makes the last tab the platform's search destination:
- * the dedicated search tab on iOS 26 and later, the trailing item of the
- * Material navigation bar on Android. Two open issues touch it, so if it
- * misbehaves the fallback is a plain trigger and nothing else changes.
  */
 export default function TabsLayout(): ReactElement {
   const colors = useColors();
@@ -46,7 +41,7 @@ export default function TabsLayout(): ReactElement {
         <NativeTabs.Trigger.Icon sf="calendar" drawable="cue_tab_calendar" />
         <NativeTabs.Trigger.Label>Calendar</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="(search)" role="search">
+      <NativeTabs.Trigger name="(search)">
         <NativeTabs.Trigger.Icon sf="magnifyingglass" drawable="cue_tab_search" />
         <NativeTabs.Trigger.Label>Search</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>

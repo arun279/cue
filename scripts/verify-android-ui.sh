@@ -63,7 +63,7 @@ for theme in light dark; do
       up-next) ;;
       library) grep -Fq "screen-library" "$output/$name.xml" ;;
       calendar) grep -Fq "screen-calendar" "$output/$name.xml" ;;
-      *) grep -Fq "${labels[$index]} is coming soon." "$output/$name.xml" ;;
+      search) grep -Fq "screen-search" "$output/$name.xml" ;;
     esac
   done
 done

@@ -1,5 +1,5 @@
 import type { ReactElement } from "react";
-import { StyleSheet, View } from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
 
 /**
  * A point that draws nothing and carries an id.
@@ -28,5 +28,10 @@ export function Marker({
 }
 
 const styles = StyleSheet.create({
-  marker: { position: "absolute", left: 0, bottom: 0, width: 1, height: 1 },
+  marker: {
+    position: "absolute",
+    ...(Platform.OS === "android" ? { left: "50%", top: "50%" } : { left: 0, bottom: 0 }),
+    width: 1,
+    height: 1,
+  },
 });

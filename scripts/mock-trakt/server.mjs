@@ -21,6 +21,7 @@ import {
   applyHiddenWrite,
   applyHistoryWrite,
   applyWatchlistWrite,
+  browseBody,
   calendarBody,
   createSeedLibrary,
   episodeDetailBody,
@@ -33,6 +34,7 @@ import {
   relatedMoviesBody,
   relatedShowsBody,
   SEED_PROFILE_NAMES,
+  searchBody,
   seasonsBody,
   showDetailBody,
   userSettingsBody,
@@ -110,6 +112,9 @@ function placeholderImage(slot) {
     body: PLACEHOLDERS.get(slot) ?? PLACEHOLDERS.get("fanart"),
   };
 }
+
+const browse = (ctx, kind) =>
+  browseBody(ctx.library, ctx.origin, extendedOf(ctx.url), kind, ctx.params.rank === "trending");
 
 /**
  * The surface the app reads, matched in order, so the fixed paths
@@ -230,8 +235,23 @@ const ROUTES = [
     (ctx) => json(applyWatchlistWrite(ctx.library, ctx.body, true)),
   ],
 
+  // ---- Search and browse
+  [
+    "GET",
+    /^\/search\/[^/]+$/,
+    (ctx) =>
+      json(
+        searchBody(
+          ctx.library,
+          ctx.origin,
+          extendedOf(ctx.url),
+          ctx.url.searchParams.get("query") ?? "",
+        ),
+      ),
+  ],
+
   // ---- Shows
-  ["GET", /^\/shows\/(?:trending|popular)$/, () => json([])],
+  ["GET", /^\/shows\/(?<rank>trending|popular)$/, (ctx) => json(browse(ctx, "shows"))],
   [
     "GET",
     /^\/shows\/(?<id>[^/]+)\/related$/,
@@ -282,7 +302,7 @@ const ROUTES = [
   ],
 
   // ---- Movies
-  ["GET", /^\/movies\/(?:trending|popular)$/, () => json([])],
+  ["GET", /^\/movies\/(?<rank>trending|popular)$/, (ctx) => json(browse(ctx, "movies"))],
   [
     "GET",
     /^\/movies\/(?<id>[^/]+)\/related$/,

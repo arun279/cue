@@ -2,14 +2,8 @@ import { TraktReadError } from "@cue/core/data/trakt/client";
 import type { LibraryEntry } from "@cue/core/data/trakt/library";
 import type { MovieEntry } from "@cue/core/data/trakt/movie-library";
 import { act, render, screen, userEvent, waitFor } from "@testing-library/react-native";
+import "./support/screen-mocks";
 import { agesAgo, entry, fakeRuntime, Harness, spyHaptics } from "./support/up-next";
-
-jest.mock("expo-router", () => require("./support/native-ui").expoRouterModule());
-jest.mock("@expo/ui/community/menu", () => require("./support/native-ui").menuModule());
-jest.mock(
-  "react-native-safe-area-context",
-  () => require("react-native-safe-area-context/jest/mock").default,
-);
 
 const Library = (
   require("../app/(tabs)/(library)/library") as typeof import("../app/(tabs)/(library)/library")
