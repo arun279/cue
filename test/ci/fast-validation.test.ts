@@ -60,7 +60,8 @@ describe("fast pull request validation", () => {
     const check = job("check");
 
     expect(check).toContain('check-changed-coverage.mjs "origin/$BASE_REF" coverage/lcov.info');
-    expect(check).toContain("PR_BODY: $" + "{{ github.event.pull_request.body }}");
+    expect(check).toContain('PR_BODY=$(gh pr view "$PR_NUMBER" --json body --jq .body)');
+    expect(check).not.toContain("github.event.pull_request.body");
   });
 
   it("runs the app-idle measurement after flows that relaunch the app", () => {

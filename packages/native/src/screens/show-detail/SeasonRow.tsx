@@ -3,14 +3,14 @@ import { detailDate } from "@cue/core/domain/episode-detail";
 import { epCode } from "@cue/core/domain/model/library";
 import { watchedPercent } from "@cue/core/format";
 import type { ReactElement } from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, useWindowDimensions, View } from "react-native";
 import Animated, { LinearTransition, ReduceMotion } from "react-native-reanimated";
 import { CheckControl } from "../../ui/CheckControl";
 import { Chevron } from "../../ui/Chevron";
 import { ProgressBar } from "../../ui/ProgressBar";
 import { Row, Separator } from "../../ui/Row";
 import { TEST_IDS } from "../../ui/test-ids";
-import { RAIL, SPACE, useColors } from "../../ui/tokens";
+import { EPISODE_NUMBER_WIDTH, RAIL, SPACE, useColors } from "../../ui/tokens";
 import { CueText } from "../../ui/type";
 
 export interface SeasonRowProps {
@@ -96,6 +96,7 @@ function EpisodeRow({
   readonly onMark: () => void;
 }): ReactElement {
   const colors = useColors();
+  const { fontScale } = useWindowDimensions();
   const code = epCode(episode.season, episode.number);
   return (
     <View>
@@ -105,7 +106,14 @@ function EpisodeRow({
         minHeight={48}
         onPress={onOpen}
         leading={
-          <CueText variant="micro" style={{ color: colors.muted }}>
+          <CueText
+            variant="micro"
+            tabularNums
+            style={[
+              styles.number,
+              { color: colors.muted, width: EPISODE_NUMBER_WIDTH * fontScale },
+            ]}
+          >
             {episode.number}
           </CueText>
         }
@@ -142,4 +150,5 @@ function EpisodeRow({
 const styles = StyleSheet.create({
   heading: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: SPACE.s2 },
   title: { flexGrow: 1 },
+  number: { textAlign: "right" },
 });
