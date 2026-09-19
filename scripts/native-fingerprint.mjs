@@ -9,11 +9,18 @@ if (platform !== "ios" && platform !== "android") {
 
 const names =
   platform === "ios"
-    ? ["CONFIGURATION", "EXPO_PUBLIC_TRAKT_API_BASE", "EXPO_PUBLIC_TRAKT_CLIENT_ID", "XCODE_PATH"]
+    ? [
+        "CONFIGURATION",
+        "EAS_UPDATE_CHANNEL",
+        "EXPO_PUBLIC_TRAKT_API_BASE",
+        "EXPO_PUBLIC_TRAKT_CLIENT_ID",
+        "XCODE_PATH",
+      ]
     : [
         "ANDROID_ARCHITECTURES",
         "APP_VERSION",
         "BUILD_NUMBER",
+        "EAS_UPDATE_CHANNEL",
         "EXPO_PUBLIC_TRAKT_API_BASE",
         "EXPO_PUBLIC_TRAKT_CLIENT_ID",
       ];

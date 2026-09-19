@@ -48,6 +48,7 @@ jobs:
           APP_VERSION: 9.9.9
           BUILD_NUMBER: "42"
           CONFIGURATION: Release
+          EAS_UPDATE_CHANNEL: preview
           EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
           EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
           XCODE_PATH: /Applications/Xcode_26.6.app
