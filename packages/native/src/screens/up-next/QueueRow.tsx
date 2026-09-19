@@ -4,7 +4,7 @@ import { episodesLeft, lastWatchedPhrase, watchedPercent } from "@cue/core/forma
 import { useMarkControl } from "@cue/core/hooks/useMarkControl";
 import type { MarkWatched } from "@cue/core/hooks/useMarkWatched";
 import { useRouter } from "expo-router";
-import { type ReactElement, useLayoutEffect, useRef } from "react";
+import type { ReactElement } from "react";
 import { StyleSheet, View } from "react-native";
 import { useShowArt } from "../../hooks/useShowArt";
 import { CheckControl } from "../../ui/CheckControl";
@@ -12,7 +12,7 @@ import { Poster } from "../../ui/Poster";
 import { Row } from "../../ui/Row";
 import { RowFooter } from "../../ui/RowFooter";
 import { RowMenu } from "../../ui/RowMenu";
-import { beginResponseTiming, commitResponseTiming } from "../../ui/response-timing";
+import { beginResponseTiming } from "../../ui/response-timing";
 import { SwipeRow } from "../../ui/SwipeRow";
 import { TEST_IDS } from "../../ui/test-ids";
 import { CHECK_SIZE, POSTER_WIDTH, RAIL, ROW_MIN_HEIGHT, SPACE, useColors } from "../../ui/tokens";
@@ -45,18 +45,7 @@ export function QueueRow({ card, mark, onStop, variant = "queue" }: QueueRowProp
   const router = useRouter();
   const colors = useColors();
   const control = useMarkControl(entry, mark);
-  const previousState = useRef(control.state);
   const art = useShowArt(entry.showId);
-
-  useLayoutEffect(() => {
-    if (previousState.current === "unwatched" && control.state === "just-marked") {
-      commitResponseTiming("mark");
-    }
-    if (previousState.current === "just-marked" && control.state === "unwatched") {
-      commitResponseTiming("undo");
-    }
-    previousState.current = control.state;
-  }, [control.state]);
 
   // Null mid-advance, when the projection has run past the last aired episode
   // and the confirming read has yet to name the next one. The row keeps its

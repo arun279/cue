@@ -19,8 +19,9 @@ export function beginResponseTiming(action: Action): void {
   performance.mark(markName(action, "start"));
 }
 
-export function commitResponseTiming(action: Action): void {
-  if (pending !== action || typeof performance.measure !== "function") return;
+export function commitResponseTiming(): void {
+  const action = pending;
+  if (action === null || typeof performance.measure !== "function") return;
   const start = markName(action, "start");
   const visible = markName(action, "visible");
   performance.mark(visible);

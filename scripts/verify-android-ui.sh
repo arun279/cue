@@ -13,6 +13,8 @@ finish() {
 }
 trap finish EXIT
 
+adb shell settings put global hide_error_dialogs 1
+
 capture() {
   adb exec-out screencap -p > "$output/$1.png"
   adb shell uiautomator dump /sdcard/cue-ui.xml > "$output/$1-dump.log"

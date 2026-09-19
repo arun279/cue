@@ -49,6 +49,8 @@ describe("fast pull request validation", () => {
     );
     expect(footprint).toContain("Measured merge base $BASE_SHA from CI run $run_id artifacts");
     expect(footprint).toContain("Missing merge-base measurements and successful CI artifacts");
+    expect(footprint).toContain('startswith("cue-native-android-")');
+    expect(footprint).toContain('java -jar "$RUNNER_TEMP/bundletool.jar" get-size total');
   });
 
   it("gates changed core lines from the generated LCOV file", () => {
@@ -77,6 +79,7 @@ describe("fast pull request validation", () => {
   it("asserts zero Android ANRs after exercising the release app", () => {
     const verification = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
 
+    expect(verification).toContain("settings put global hide_error_dialogs 1");
     expect(verification).toContain("dumpsys activity exit-info app.cuetracker");
     expect(verification).toContain("scripts/assert-no-anr.sh");
   });

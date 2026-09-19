@@ -45,9 +45,9 @@ it("exposes five-sample mark and undo medians", async () => {
   await act(async () => {
     for (let sample = 0; sample < 5; sample += 1) {
       beginResponseTiming("mark");
-      commitResponseTiming("mark");
+      commitResponseTiming();
       beginResponseTiming("undo");
-      commitResponseTiming("undo");
+      commitResponseTiming();
     }
   });
 
