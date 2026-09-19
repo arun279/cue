@@ -1,0 +1,43 @@
+appId: app.cuetracker
+---
+- runFlow: lib/connect.yaml
+- tapOn:
+    id: "avatar-link"
+- tapOn:
+    id: "profile-to-history"
+- assertVisible:
+    id: "screen-history"
+- assertVisible:
+    id: "history-day-header-0"
+- copyTextFrom:
+    id: "history-day-header-0"
+- evalScript: ${output.historyDay = maestro.copiedText}
+- assertVisible:
+    id: "history-row-0"
+- tapOn:
+    id: "history-row-0-check"
+- assertVisible:
+    id: "snackbar"
+- tapOn:
+    id: "snackbar-undo"
+- assertVisible:
+    text: ${output.historyDay}
+- assertVisible:
+    id: "history-row-0"
+- tapOn: "Filter by title"
+- inputText: "zzzznomatch"
+- assertVisible: "No titles match."
+- eraseText
+- hideKeyboard
+- assertVisible:
+    id: "history-row-0"
+- tapOn:
+    id: "history-jump"
+- assertVisible:
+    id: "history-jump-sheet"
+- tapOn:
+    id: "history-jump-month-8"
+- assertVisible:
+    id: "screen-history"
+- waitForAnimationToEnd
+- takeScreenshot: history-month

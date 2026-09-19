@@ -226,6 +226,19 @@ describe("the seeded account parses through the app's own contracts", () => {
     expect(ok(await getPopularMovies(client()))).toEqual([]);
   });
 
+  it("applies the history month window before pagination", async () => {
+    const first = ok(await getHistory(client(), "all", 1))[0];
+    expect(first).toBeDefined();
+    const start = first?.watched_at ?? "";
+    const query = new URLSearchParams({ start_at: start, end_at: start });
+    const response = await fetch(`${baseUrl}/users/me/history?${query}`);
+    const rows = await response.json();
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.every((row: { watched_at: string }) => row.watched_at === start)).toBe(true);
+    const empty = await fetch(`${baseUrl}/users/me/history?start_at=2000-01-01&end_at=2000-02-01`);
+    expect(await empty.json()).toEqual([]);
+  });
+
   it("answers a path it does not model with 404 rather than an empty success", async () => {
     const result = await client().get("/search/show", { query: { query: "harbor" } });
     expect(result.ok ? null : result.error).toEqual({ kind: "not-found" });
