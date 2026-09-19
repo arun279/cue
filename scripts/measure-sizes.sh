@@ -24,7 +24,8 @@ export TMPDIR="$tree/node_modules/.tmp"
 (
   cd "$tree"
   pnpm install --frozen-lockfile
-  EXPO_PUBLIC_TRAKT_CLIENT_ID=ci pnpm --filter @cue/native exec expo export \
+  cd packages/native
+  EXPO_PUBLIC_TRAKT_CLIENT_ID=ci pnpm exec expo export \
     --platform ios --platform android --output-dir dist
 )
 
