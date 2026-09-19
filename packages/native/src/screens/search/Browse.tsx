@@ -28,11 +28,6 @@ export interface BrowseProps {
   onRetry(): void;
 }
 
-/**
- * The screen before anything has been typed, which Apple's standard search tab
- * style asks to be worth looking at on its own: what this reader looked for in
- * this session, then a sample of what each enabled medium is showing now.
- */
 export function Browse({
   status,
   grids,
@@ -102,7 +97,6 @@ function Grids({
   );
 }
 
-/** A recent term, which puts itself back in the field rather than navigating. */
 function RecentTerm({
   term,
   onRecall,
@@ -129,11 +123,6 @@ function RecentTerm({
   );
 }
 
-/**
- * A browse cell, which is the Library tile with a release year where a tracked
- * show carries its remaining count. It offers no add control by design: posters
- * are content, and adding happens on the result rows and the detail screens.
- */
 function BrowseTile({
   hit,
   width,

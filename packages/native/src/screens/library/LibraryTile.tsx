@@ -36,9 +36,6 @@ export interface TileProps {
    * are absent on the chips whose grid is already one status throughout. */
   readonly percent: number | null;
   readonly left: number;
-  /** The release year Search's browse grids carry, on the corner the count
-   * leaves free: a catalog tile is identified by its year, a tracked one by how
-   * much of it is left. */
   readonly year?: string;
   onPress(): void;
 }

@@ -13,13 +13,11 @@ import { noResultsBody } from "./model";
 const SKELETON_ROWS = Array.from({ length: 6 }, (_, index) => index);
 const BAR = { title: "55%", meta: 48, height: 12 } as const;
 
-/** Which of the four non-result screens a settled query is looking at. */
 export type SearchPhase = "searching" | "error" | "empty" | "offline";
 
 export interface SearchStateProps {
   readonly phase: SearchPhase;
   readonly query: string;
-  /** Hits the reader's media settings kept off this screen. */
   readonly hidden: number;
   readonly moviesEnabled: boolean;
   readonly failure: QueryStatus["failure"];
@@ -50,8 +48,6 @@ export function SearchState({
   );
 }
 
-/** Six rows the shape the results will be. No spinner and no announcement: the
- * plates carry the wait visually, and a screen reader is told when it fails. */
 function SearchSkeleton(): ReactElement {
   return (
     <View testID={TEST_IDS.searchSkeleton} style={styles.skeleton}>
@@ -72,11 +68,6 @@ function SearchSkeleton(): ReactElement {
   );
 }
 
-/**
- * Announced assertively, and it is the only thing this screen announces: the
- * "Searching…" live region is deleted, so a failure a reader cannot see is the
- * one event that would otherwise pass in silence.
- */
 function SearchError({
   failure,
   onRetry,

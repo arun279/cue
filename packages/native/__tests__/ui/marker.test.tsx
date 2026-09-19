@@ -16,6 +16,8 @@ it("draws a frame a hierarchy dump can find", async () => {
   const frame = StyleSheet.flatten<ViewStyle>(screen.getByTestId("a-gate").props["style"]);
   expect(frame?.width).toBeGreaterThan(0);
   expect(frame?.height).toBeGreaterThan(0);
+  expect(frame?.left).toBe("50%");
+  expect(frame?.top).toBe("50%");
 });
 
 it("carries accessibility-only text", async () => {

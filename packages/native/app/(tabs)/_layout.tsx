@@ -18,15 +18,6 @@ import { useColors } from "../../src/ui/tokens";
  * alphabetically first group becomes the landing screen and nothing changes it.
  * A path per tab works around that and is better anyway, because every tab is
  * then deep-linkable.
- *
- * The last tab is a **plain trigger**, not `role="search"`. The role is what
- * declares a platform search destination, and on iOS 26 it does something
- * costly: the tab bar collapses into its own search field and the screen's
- * `UISearchController` is never presented, so Search loses its field and gains
- * an inert pill that neither takes a tap nor carries the placeholder. Apple's
- * standard tab style, which is the one Cue adopts, wants a landing page with the
- * field at the top of it, and the plain trigger is what delivers that today.
- * Nothing else about the tab changes: same position, same icon, same label.
  */
 export default function TabsLayout(): ReactElement {
   const colors = useColors();

@@ -25,17 +25,6 @@ import { ROW_TEXT_INSET, SPACE, tabBarClearance, useColors } from "../../../src/
 
 const COLUMNS = 3;
 
-/**
- * Find something not yet tracked, and add it.
- *
- * The field is the platform's own, a `UISearchController` on iOS and the
- * Material search bar on Android, and it is deliberately never auto-focused so
- * the keyboard never opens uninvited. Idle is not a prompt: it is what this
- * reader looked for in this session over a sample of each enabled medium, which
- * is the structure Apple's standard search tab style asks for. There is no pull
- * to refresh, because Search has no cached staleness to resolve, and therefore
- * no "Sync now" item either.
- */
 export default function Search(): ReactElement {
   const showsEnabled = usePrefs((state) => state.showsEnabled);
   const moviesEnabled = usePrefs((state) => state.moviesEnabled);
@@ -95,9 +84,6 @@ export default function Search(): ReactElement {
             hideWhenScrolling: false,
             autoCapitalize: "none",
             onChangeText: (event) => setInput(event.nativeEvent.text),
-            // iOS draws its own field fill and placeholder and only wants the
-            // caret and Cancel tinted; Material's search bar is a Cue surface
-            // and takes the whole palette.
             ...(Platform.OS === "android"
               ? {
                   barTintColor: colors.elevated,
@@ -149,12 +135,6 @@ export default function Search(): ReactElement {
   );
 }
 
-/**
- * Which non-result screen a typed query is on, or `null` when the read has
- * settled and the results themselves are the answer. Offline comes first
- * because Search is the one surface that genuinely needs a network: every other
- * screen paints from the persisted cache before it asks for anything.
- */
 function phaseOf(offline: boolean, settling: boolean, status: QueryStatus): SearchPhase | null {
   if (offline) return "offline";
   if (status.isError) return "error";

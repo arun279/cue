@@ -16,11 +16,6 @@ export interface ChevronProps {
   readonly direction: keyof typeof PATH;
 }
 
-/**
- * The disclosure mark, in the one shape and weight the app draws it, plus the
- * arrow a recent search term carries: the tap fills the field again rather than
- * navigating anywhere, and the two marks point that difference out.
- */
 export function Chevron({ direction }: ChevronProps): ReactElement {
   const colors = useColors();
 

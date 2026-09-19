@@ -17,25 +17,17 @@ import {
 import { CueText } from "../../ui/type";
 import { labelOf, MEDIUM, routeOf } from "./model";
 
-/** How long the filled confirmation holds before settling into "In library". */
 const ADDED_FLASH_MS = 600;
 
-/** The pill's ink, with `hitSlop` making up the rest of the tap target. */
 const PILL = { height: 32, stroke: 1 } as const;
 const SLOP = (TARGET_MIN - PILL.height) / 2;
 
 export interface ResultRowProps {
   readonly hit: SearchHit;
-  /** Already in the reader's library, optimistically or from Trakt. */
   readonly added: boolean;
   onAdd(hit: SearchHit): void;
 }
 
-/**
- * One search result: poster, title with its medium beside it, release year
- * under that, and the app's one optimistic control at the trailing edge. The
- * body is the link into detail, so no control ever covers poster art.
- */
 export function ResultRow({ hit, added, onAdd }: ResultRowProps): ReactElement {
   const router = useRouter();
   const colors = useColors();
@@ -80,13 +72,6 @@ export function ResultRow({ hit, added, onAdd }: ResultRowProps): ReactElement {
   );
 }
 
-/**
- * Three faces and one control. The offer is outlined rather than filled, so the
- * 600 ms confirmation is the one moment amber fills anything on this screen;
- * what it settles into is a statement, not an offer, because Trakt has no single
- * operation that would take an add back and a control that cannot act is worse
- * than no control at all.
- */
 function AddPill({
   hit,
   added,

@@ -1,18 +1,7 @@
 import { useEffect, useState } from "react";
 
-/**
- * Settle delay before a query fires. 300ms sits below the ~1s that reads as
- * sluggish yet above a fast typist's ~100-150ms inter-keystroke gap, so a
- * mid-word burst collapses to exactly one request.
- */
 const DEBOUNCE_MS = 300;
 
-/**
- * How long a settled query has to stand before it counts as a search this reader
- * made. Every keystroke settles, including the ones passed through while
- * deleting a word, and remembering those fills Recent with "h", "ha", "har"
- * rather than with anything worth running again.
- */
 const DWELL_MS = 1500;
 
 const RECENT_LIMIT = 5;
