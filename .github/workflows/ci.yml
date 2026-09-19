@@ -158,7 +158,7 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          if scripts/download-ci-artifact.sh "$ARTIFACT_NAME" "$RUNNER_TEMP/base-metrics"; then
+          if scripts/download-ci-artifact.sh "$ARTIFACT_NAME" "$RUNNER_TEMP/base-metrics" footprint; then
             cp "$RUNNER_TEMP/base-metrics/head-metrics.json" base-metrics.json
             echo "::notice::Restored merge-base measurements from $ARTIFACT_NAME"
           else
