@@ -22,24 +22,26 @@ appId: app.cuetracker
 - assertVisible:
     id: "show-card-8801"
 
-- tapOn: "Shows and movies"
+- tapOn: "Shows and movies.*"
 - inputText: "harbor"
 - extendedWaitUntil:
     visible:
       id: "search-result-8901"
     timeout: 10000
+# The tracked title in the same results offers no add at all, only a statement.
 - assertVisible:
-    id: "search-in-library"
+    id: "search-result-8801-in-library"
 - assertNotVisible:
     id: "search-result-8801-watchlist"
 
 - tapOn:
     id: "search-result-8901-watchlist"
-- assertVisible:
-    id: "search-added"
+# The filled confirmation holds for 600 ms, which is shorter than one hierarchy
+# read, so the flow asserts what the pill settles into and leaves the duration to
+# the unit that can stop the clock.
 - extendedWaitUntil:
-    notVisible:
-      id: "search-added"
+    visible:
+      id: "search-result-8901-in-library"
     timeout: 5000
 - assertVisible:
     id: "search-result-8901"
@@ -47,9 +49,11 @@ appId: app.cuetracker
     id: "search-result-8901-watchlist"
 
 - eraseText
+# The term the reader rested on, and only that one: the prefixes erasing passes
+# through never stand long enough to be remembered.
 - assertVisible:
     id: "search-recent-row"
-- assertVisible: "harbor"
+- assertVisible: "Search harbor again"
 
 - inputText: "zeppelin"
 - extendedWaitUntil:

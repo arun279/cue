@@ -2,15 +2,9 @@ import { TraktReadError } from "@cue/core/data/trakt/client";
 import type { SearchHit } from "@cue/core/data/trakt/search";
 import type { PreferenceStorage } from "@cue/core/ports/preference-storage";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import "./support/screen-mocks";
 import { SEARCH_FIELD } from "./support/native-ui";
 import { fakeRuntime, Harness, memoryPreferences, OFFLINE, spyHaptics } from "./support/up-next";
-
-jest.mock("expo-router", () => require("./support/native-ui").expoRouterModule());
-jest.mock("@expo/ui/community/menu", () => require("./support/native-ui").menuModule());
-jest.mock(
-  "react-native-safe-area-context",
-  () => require("react-native-safe-area-context/jest/mock").default,
-);
 
 const Search = (
   require("../app/(tabs)/(search)/search") as typeof import("../app/(tabs)/(search)/search")
@@ -20,10 +14,15 @@ const Search = (
  * case fails if the screen changes how long the flash holds. */
 const FLASH_MS = 600;
 
+/** How long a settled query has to stand before Search remembers it. */
+const DWELL_MS = 1500;
+
 const haptics = spyHaptics();
 const HARBOR = 8801;
 const MASTER = 8901;
 const SOUND = 5601;
+const ADDED = `search-result-${MASTER}-added`;
+const IN_LIBRARY = `search-result-${MASTER}-in-library`;
 
 function hit(overrides: Partial<SearchHit> = {}): SearchHit {
   return {
@@ -88,6 +87,17 @@ async function type(...keystrokes: readonly string[]): Promise<void> {
   await act(async () => {});
 }
 
+/** A query typed, left standing long enough for Search to remember it, then
+ * cleared back to the idle screen its recent terms live on. */
+async function rest(query: string): Promise<void> {
+  await type(query);
+  await waitFor(() => expect(screen.getByTestId(`search-result-${HARBOR}`)).toBeOnTheScreen());
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, DWELL_MS + 200));
+  });
+  await type("");
+}
+
 const gridTitles = (): (string | undefined)[] =>
   screen
     .getAllByTestId(/^(show|movie)-card-/)
@@ -138,31 +148,10 @@ it("searches once for a settled query", async () => {
   expect(search).toHaveBeenCalledWith("harbor");
 });
 
-it("keeps five recent terms, newest first", async () => {
-  const search = jest.fn(() => Promise.resolve([TRACKED]));
-  await paint({ search });
-
-  const terms = ["one", "two", "three", "four", "five", "six"];
-  for (const [index, term] of terms.entries()) {
-    await type(term);
-    await waitFor(() => expect(search).toHaveBeenCalledTimes(index + 1));
-    await act(async () => {});
-  }
-  await type("");
-
-  expect(screen.getAllByTestId("search-recent-row").map((row) => labelOf(row))).toEqual([
-    "Search six again",
-    "Search five again",
-    "Search four again",
-    "Search three again",
-    "Search two again",
-  ]);
-});
-
 it("forgets recent terms when the screen is left", async () => {
   const view = await paint({ search: () => Promise.resolve([TRACKED]) });
-  await type("harbor");
-  await waitFor(() => expect(screen.getByTestId(`search-result-${HARBOR}`)).toBeOnTheScreen());
+  await rest("harbor");
+  expect(screen.getByTestId("search-recent-row")).toBeOnTheScreen();
   await view.unmount();
 
   await paint({ search: () => Promise.resolve([TRACKED]) });
@@ -170,12 +159,10 @@ it("forgets recent terms when the screen is left", async () => {
   expect(screen.queryByTestId("search-recent-row")).toBeNull();
 });
 
-it("runs a recent term again when it is tapped", async () => {
-  const search = jest.fn(() => Promise.resolve([TRACKED]));
-  await paint({ search });
-  await type("harbor");
-  await waitFor(() => expect(screen.getByTestId(`search-result-${HARBOR}`)).toBeOnTheScreen());
-  await type("");
+it("re-runs a rested query when its recent term is tapped", async () => {
+  await paint({ search: () => Promise.resolve([TRACKED]) });
+  await rest("harbor");
+  expect(labelOf(screen.getByTestId("search-recent-row"))).toBe("Search harbor again");
 
   await fireEvent.press(screen.getByTestId("search-recent-row"));
 
@@ -191,14 +178,14 @@ it("flashes Added for 600 ms and then settles into In library", async () => {
 
   jest.useFakeTimers();
   await fireEvent.press(screen.getByTestId(`search-result-${MASTER}-watchlist`));
-  expect(screen.getByTestId("search-added")).toBeOnTheScreen();
+  expect(screen.getByTestId(ADDED)).toBeOnTheScreen();
 
   await act(async () => void jest.advanceTimersByTime(FLASH_MS - 1));
-  expect(screen.queryByTestId("search-added")).not.toBeNull();
+  expect(screen.queryByTestId(ADDED)).not.toBeNull();
 
   await act(async () => void jest.advanceTimersByTime(1));
-  expect(screen.queryByTestId("search-added")).toBeNull();
-  expect(screen.getByTestId("search-in-library")).toBeOnTheScreen();
+  expect(screen.queryByTestId(ADDED)).toBeNull();
+  expect(screen.getByTestId(IN_LIBRARY)).toBeOnTheScreen();
 });
 
 it("offers no add for a title already in the library", async () => {

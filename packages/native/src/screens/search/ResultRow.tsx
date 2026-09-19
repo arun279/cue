@@ -103,7 +103,7 @@ function AddPill({
   if (flashing) {
     return (
       <View
-        testID={TEST_IDS.searchAdded}
+        testID={TEST_IDS.searchResultAdded(hit.traktId)}
         style={[
           styles.pill,
           { backgroundColor: colors.accent, borderColor: colors.accentFillStroke },
@@ -117,7 +117,11 @@ function AddPill({
   }
   if (added) {
     return (
-      <CueText testID={TEST_IDS.searchInLibrary} variant="caption" style={{ color: colors.muted }}>
+      <CueText
+        testID={TEST_IDS.searchResultInLibrary(hit.traktId)}
+        variant="caption"
+        style={{ color: colors.muted }}
+      >
         In library
       </CueText>
     );

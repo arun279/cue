@@ -41,7 +41,7 @@ export default function Search(): ReactElement {
   const showsEnabled = usePrefs((state) => state.showsEnabled);
   const moviesEnabled = usePrefs((state) => state.moviesEnabled);
   const field = useRef<SearchBarCommands>(null);
-  const { input, setInput, query, settling, recent, remember } = useSearchInput();
+  const { input, setInput, query, settling, recent } = useSearchInput();
 
   const runtime = useRuntime();
   const results = useQuery({ ...searchQuery(runtime, query), enabled: query.length > 0 });
@@ -61,10 +61,6 @@ export default function Search(): ReactElement {
 
   const querying = input.trim().length > 0;
   const phase = phaseOf({ offline, settling, query: results });
-
-  useEffect(() => {
-    if (results.isSuccess) remember(query);
-  }, [results.isSuccess, query, remember]);
 
   const { addError, clearAddError } = watchlist;
   useEffect(() => {

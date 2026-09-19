@@ -19,10 +19,14 @@ import { useColors } from "../../src/ui/tokens";
  * A path per tab works around that and is better anyway, because every tab is
  * then deep-linkable.
  *
- * `role="search"` is what makes the last tab the platform's search destination:
- * the dedicated search tab on iOS 26 and later, the trailing item of the
- * Material navigation bar on Android. Two open issues touch it, so if it
- * misbehaves the fallback is a plain trigger and nothing else changes.
+ * The last tab is a **plain trigger**, not `role="search"`. The role is what
+ * declares a platform search destination, and on iOS 26 it does something
+ * costly: the tab bar collapses into its own search field and the screen's
+ * `UISearchController` is never presented, so Search loses its field and gains
+ * an inert pill that neither takes a tap nor carries the placeholder. Apple's
+ * standard tab style, which is the one Cue adopts, wants a landing page with the
+ * field at the top of it, and the plain trigger is what delivers that today.
+ * Nothing else about the tab changes: same position, same icon, same label.
  */
 export default function TabsLayout(): ReactElement {
   const colors = useColors();
@@ -46,7 +50,7 @@ export default function TabsLayout(): ReactElement {
         <NativeTabs.Trigger.Icon sf="calendar" drawable="cue_tab_calendar" />
         <NativeTabs.Trigger.Label>Calendar</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="(search)" role="search">
+      <NativeTabs.Trigger name="(search)">
         <NativeTabs.Trigger.Icon sf="magnifyingglass" drawable="cue_tab_search" />
         <NativeTabs.Trigger.Label>Search</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
