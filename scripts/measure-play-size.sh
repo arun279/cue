@@ -42,5 +42,41 @@ echo "a099cfa1543f55593bc2ed16a70a7c67fe54b1747bb7301f37fdfd6d91028e29  $bundlet
     "Play download at XXXHDPI ARMv8" >&2
   node "$head_root/scripts/bundletool-size.mjs" all-size.csv --report \
     "Play download maximum across all configurations" >&2
-  node "$head_root/scripts/bundletool-size.mjs" play-size.csv --value-only
+  play_size=$(node "$head_root/scripts/bundletool-size.mjs" play-size.csv --value-only)
+
+  if grep -q -- '--mode=universal' "$tree/fastlane/Fastfile"; then
+    java -jar "$bundletool" build-apks \
+      --bundle="$aab" --output=tester.apks --mode=universal --overwrite >&2
+    unzip -q tester.apks universal.apk -d tester
+    tester_apk=tester/universal.apk
+    tester_configuration="universal, all ABIs and densities"
+  else
+    ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a >&2
+    tester_apk=app/build/outputs/apk/release/app-release.apk
+    tester_configuration="arm64-v8a, all densities"
+  fi
+  tester_size=$(wc -c < "$tester_apk" | tr -d ' ')
+  node --input-type=module - "$tree/.size-limit.json" "$tester_size" "$tester_configuration" "$play_size" <<'NODE'
+import { readFileSync } from "node:fs";
+
+const [configPath, testerSize, testerConfiguration, playSize] = process.argv.slice(2);
+const config = JSON.parse(readFileSync(configPath, "utf8"));
+const testerLimit = config.find(({ name }) => name === "Firebase tester APK file")?.limit ?? 0;
+process.stdout.write(
+  `${JSON.stringify([
+    {
+      name: "Firebase tester APK file",
+      size: Number(testerSize),
+      sizeLimit: testerLimit,
+      configuration: testerConfiguration,
+    },
+    {
+      name: "Play download estimate",
+      size: Number(playSize),
+      sizeLimit: 20_000_000,
+      configuration: "XXXHDPI arm64-v8a, English, Android 15",
+    },
+  ])}\n`,
+);
+NODE
 )

@@ -1,12 +1,9 @@
 name: Mobile release
 
 # Ships the Expo native app.
-#   push to main       -> tester builds
-#   push a v* tag      -> App Store release
+#   push a vX.Y.Z tag  -> App Store release
 #   manual dispatch    -> tester builds or an App Store release
-# Dispatch is also how a release/* branch ships. main keeps releasing on push,
-# and a release branch stays buildable on demand without merging back. ci.yml
-# runs on release/* pushes too, so the gate below has checks to read there.
+# Dispatch is also how a branch ships a tester build without creating a tag.
 # CI (ci.yml) is the quality gate, enforced twice: branch protection keeps red
 # commits off main, and the gate job below re-checks the exact commit this run
 # would ship.
@@ -14,60 +11,7 @@ name: Mobile release
 
 on:
   push:
-    branches: [main]
-    tags: ["v*"]
-    paths-ignore: [
-      "docs/**",
-      "*.md",
-      ".github/**",
-      ".maestro/**",
-      "LICENSE",
-      "packages/*/test/**",
-      "packages/*/vitest.config.ts",
-      "packages/*/jest.config.js",
-      "packages/*/tsconfig.test.json",
-      "packages/*/__tests__/**",
-      "packages/*/.reassure/**",
-      "packages/*/.gitignore",
-      "packages/*/.env.example",
-      "packages/*/.env.test",
-      "packages/*/.env.mock",
-      "vitest.config.ts",
-      "lefthook.yml",
-      "cspell.json",
-      "dprint.json",
-      "biome.jsonc",
-      "knip.json",
-      ".jscpd.json",
-      ".dependency-cruiser.cjs",
-      ".size-limit.json",
-      ".startup-time-limit.json",
-      ".native-assets.json",
-      "scripts/assert-file-size.mjs",
-      "scripts/bundletool-size.mjs",
-      "scripts/check-quality-budget.mjs",
-      "scripts/check-render-counts.mjs",
-      "scripts/check-size.mjs",
-      "scripts/check-native-assets.mjs",
-      "scripts/check-size-ratchet.mjs",
-      "scripts/check-startup-ratchet.mjs",
-      "scripts/check-size-delta.mjs",
-      "scripts/summarize-atlas.mjs",
-      "scripts/summarize-startup-timing.mjs",
-      "scripts/check-type-suppressions.mjs",
-      "scripts/complexity/**",
-      "scripts/diff-footprint.sh",
-      "scripts/measure-*.mjs",
-      "scripts/measure-sizes.sh",
-      "scripts/measure-play-size.sh",
-      "scripts/mock-trakt/**",
-      "scripts/quality-budget.json",
-      "scripts/verify-android-launch.sh",
-      "scripts/verify-ios-privacy.sh",
-      "scripts/write-buster.mjs",
-      "test/**",
-      ".gitignore",
-    ]
+    tags: ["v*.*.*"]
   workflow_dispatch:
     inputs:
       platform:
@@ -105,6 +49,8 @@ jobs:
       fastlane_lane: ${{ steps.resolve.outputs.fastlane_lane }}
       app_version: ${{ steps.resolve.outputs.app_version }}
       build_number: ${{ steps.resolve.outputs.build_number }}
+      ipa_size_limit: ${{ steps.resolve.outputs.ipa_size_limit }}
+      tester_apk_size_limit: ${{ steps.resolve.outputs.tester_apk_size_limit }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup-node-pnpm
@@ -121,7 +67,8 @@ jobs:
         run: |
           platform="both"
           lane="beta"
-          app_version=$(pnpm --filter @cue/native exec expo config --type public --json | jq -r '.version')
+          embedded_version=$(pnpm --filter @cue/native exec expo config --type public --json | jq -r '.version')
+          app_version="$embedded_version"
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             platform="$INPUT_PLATFORM"
             lane="$INPUT_LANE"
@@ -129,8 +76,16 @@ jobs:
               app_version="$INPUT_VERSION"
             fi
           elif [ "$REF_TYPE" = "tag" ]; then
+            if ! [[ "$REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "Release tag must match vX.Y.Z (for example, v1.2.3)." >&2
+              exit 1
+            fi
             lane="release"
             app_version="${REF_NAME#v}"
+            if [ "$app_version" != "$embedded_version" ]; then
+              echo "Release tag $REF_NAME does not match embedded version $embedded_version." >&2
+              exit 1
+            fi
           fi
           if [ "$lane" = "release" ] && ! [[ "$app_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "Release version must match x.y.z (for example, 1.2.3)." >&2
@@ -156,6 +111,10 @@ jobs:
           # depend on that. Renaming or recreating this file restarts the count
           # and breaks it.
           build_number=$((RUN_NUMBER * 100 + RUN_ATTEMPT))
+          ipa_size_limit=$(jq -r '.[] | select(.name == "iOS IPA file") | .limit' .size-limit.json)
+          tester_apk_size_limit=$(jq -r '.[] | select(.name == "Firebase tester APK file") | .limit' .size-limit.json)
+          [[ "$ipa_size_limit" =~ ^[0-9]+$ ]]
+          [[ "$tester_apk_size_limit" =~ ^[0-9]+$ ]]
           {
             echo "build_ios=$build_ios"
             echo "build_android=$build_android"
@@ -163,6 +122,8 @@ jobs:
             echo "fastlane_lane=$lane"
             echo "app_version=$app_version"
             echo "build_number=$build_number"
+            echo "ipa_size_limit=$ipa_size_limit"
+            echo "tester_apk_size_limit=$tester_apk_size_limit"
           } >> "$GITHUB_OUTPUT"
 
   gate:
@@ -302,15 +263,6 @@ jobs:
         run: |
           [ -n "$EXPO_PUBLIC_TRAKT_CLIENT_ID" ] || { echo "EXPO_PUBLIC_TRAKT_CLIENT_ID is not set"; exit 1; }
           pnpm --filter @cue/native exec expo prebuild --platform android --clean
-      - name: Download bundletool
-        env:
-          BUNDLETOOL_VERSION: "1.18.3"
-          BUNDLETOOL_SHA256: "a099cfa1543f55593bc2ed16a70a7c67fe54b1747bb7301f37fdfd6d91028e29"
-        run: |
-          curl --fail --location --retry 3 \
-            --output "$RUNNER_TEMP/bundletool.jar" \
-            "https://github.com/google/bundletool/releases/download/$BUNDLETOOL_VERSION/bundletool-all-$BUNDLETOOL_VERSION.jar"
-          echo "$BUNDLETOOL_SHA256  $RUNNER_TEMP/bundletool.jar" | sha256sum --check
       - name: Write signing material
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -325,7 +277,7 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-          BUNDLETOOL_PATH: ${{ runner.temp }}/bundletool.jar
+          TESTER_APK_SIZE_LIMIT_BYTES: ${{ needs.config.outputs.tester_apk_size_limit }}
         run: bundle exec fastlane android ${{ needs.config.outputs.fastlane_lane }}
 
   ios:
@@ -377,6 +329,5 @@ jobs:
           IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
           IOS_PROVISIONING_PROFILE_NAME: ${{ secrets.IOS_PROVISIONING_PROFILE_NAME }}
           PROVISIONING_PROFILE_PATH: ${{ runner.temp }}/build.mobileprovision
-          # App Store Connect flags variants above the 200 MB over-the-air limit.
-          IPA_SIZE_LIMIT_BYTES: "200000000"
+          IPA_SIZE_LIMIT_BYTES: ${{ needs.config.outputs.ipa_size_limit }}
         run: bundle exec fastlane ios ${{ needs.config.outputs.fastlane_lane }}

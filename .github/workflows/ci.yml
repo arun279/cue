@@ -82,6 +82,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+    needs: native-ios
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -93,6 +94,10 @@ jobs:
           java-version: "21"
           cache: gradle
       - uses: ./.github/actions/setup-node-pnpm
+      - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        with:
+          name: cue-native-ios-sizes
+          path: ${{ runner.temp }}/native-ios-sizes
       - name: Measure the diff footprint
         env:
           BASE_REF: ${{ github.base_ref }}
@@ -106,6 +111,15 @@ jobs:
           scripts/measure-sizes.sh ../base "$PWD/base-sizes.json"
           node scripts/measure-complexity.mjs ../base "$PWD/base-complexity.json"
           node scripts/measure-comments.mjs ../base "$PWD/base-comments.json"
+
+          jq -s '.[0] + .[1]' head-sizes.json \
+            "$RUNNER_TEMP/native-ios-sizes/head-ios-sizes.json" > all-head-sizes.json
+          mv all-head-sizes.json head-sizes.json
+          if [ -f "$RUNNER_TEMP/native-ios-sizes/base-ios-sizes.json" ]; then
+            jq -s '.[0] + .[1]' base-sizes.json \
+              "$RUNNER_TEMP/native-ios-sizes/base-ios-sizes.json" > all-base-sizes.json
+            mv all-base-sizes.json base-sizes.json
+          fi
 
           jq -n --slurpfile sizes head-sizes.json \
             --slurpfile complexity head-complexity.json \
@@ -146,12 +160,53 @@ jobs:
         run: node scripts/check-size-delta.mjs base-metrics.json head-metrics.json "$PR_BODY"
   native-ios:
     # The runner and Xcode path match the release workflow.
+    permissions:
+      actions: read
+      contents: read
     runs-on: macos-26
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_26.6.app
       - uses: ./.github/actions/setup-node-pnpm
+      - name: Restore the base iOS measurement
+        id: base-ios-cache
+        if: github.event_name == 'pull_request'
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ runner.temp }}/head-ios-sizes.json
+          key: native-ios-size-${{ github.event.pull_request.base.sha }}
+      - name: Resolve the base iOS measurement
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          source=n/a
+          if [ -f "$RUNNER_TEMP/head-ios-sizes.json" ]; then
+            source="cache keyed by $BASE_SHA"
+          else
+            run_id=$(gh api "repos/${{ github.repository }}/actions/workflows/ci.yml/runs" \
+              --method GET -f branch="$BASE_REF" -f status=success -f per_page=20 \
+              --jq "first(.workflow_runs[] | select(.head_sha == \"$BASE_SHA\")) | .id // empty")
+            if [ -n "$run_id" ]; then
+              artifact_id=$(gh api "repos/${{ github.repository }}/actions/runs/$run_id/artifacts" \
+                --jq 'first(.artifacts[] | select(.name == "cue-native-ios-sizes" and (.expired | not))) | .id // empty')
+              if [ -n "$artifact_id" ]; then
+                gh api "repos/${{ github.repository }}/actions/artifacts/$artifact_id/zip" \
+                  > "$RUNNER_TEMP/base-ios-sizes.zip"
+                unzip -p "$RUNNER_TEMP/base-ios-sizes.zip" head-ios-sizes.json \
+                  > "$RUNNER_TEMP/head-ios-sizes.json"
+                source="artifact from successful run $run_id at $BASE_SHA"
+              fi
+            fi
+          fi
+          if [ -f "$RUNNER_TEMP/head-ios-sizes.json" ]; then
+            cp "$RUNNER_TEMP/head-ios-sizes.json" "$RUNNER_TEMP/base-ios-sizes.json"
+            rm "$RUNNER_TEMP/head-ios-sizes.json"
+          fi
+          echo "Base iOS measurement: $source" | tee -a "$GITHUB_STEP_SUMMARY"
       # The native projects are generated, so the first thing this job proves is
       # that they generate: a config plugin that no longer matches the template
       # fails here rather than on somebody's machine. Generated twice on purpose:
@@ -224,7 +279,26 @@ jobs:
               awk '$1 ~ /^@rpath\/.*\.framework\// { split($1, path, "/"); print path[2] }' |
               sort -u
           )
+          app_size=$(find "$app" -type f -exec stat -f '%z' {} + | \
+            awk '{ total += $1 } END { print total + 0 }')
+          jq -n --argjson size "$app_size" \
+            '[{name: "iOS Release simulator app files", size: $size, sizeLimit: null, configuration: "generic iOS Simulator"}]' \
+            > "$RUNNER_TEMP/head-ios-sizes.json"
           tar -czf "$RUNNER_TEMP/Cue.app.tgz" -C "$products" "${app##*/}"
+      - name: Cache the head iOS measurement
+        if: github.event_name == 'pull_request'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ runner.temp }}/head-ios-sizes.json
+          key: native-ios-size-${{ github.event.pull_request.head.sha }}
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: github.event_name == 'pull_request'
+        with:
+          name: cue-native-ios-sizes
+          path: |
+            ${{ runner.temp }}/head-ios-sizes.json
+            ${{ runner.temp }}/base-ios-sizes.json
+          retention-days: 1
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: cue-native-ios-simulator-app
@@ -392,9 +466,26 @@ jobs:
           "$apksigner" verify extracted/universal.apk
           ../../../scripts/verify-apk.sh \
             extracted/universal.apk 42 9.9.9
+
+          ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a
+          cp app/build/outputs/apk/release/app-release.apk extracted/tester-arm64-v8a.apk
+          "$apksigner" verify extracted/tester-arm64-v8a.apk
+          ../../../scripts/verify-apk.sh \
+            extracted/tester-arm64-v8a.apk 42 9.9.9 arm64-v8a
+          tester_limit=$(jq -r \
+            '.[] | select(.name == "Firebase tester APK file") | .limit' \
+            ../../../.size-limit.json)
+          node ../../../scripts/assert-file-size.mjs \
+            extracted/tester-arm64-v8a.apk "$tester_limit" \
+            "Firebase tester APK file (arm64-v8a, all densities)"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: cue-native-android-release-apk
+          name: cue-native-android-tester-apk
+          path: packages/native/android/extracted/tester-arm64-v8a.apk
+          retention-days: 1
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cue-native-android-emulator-apk
           path: packages/native/android/extracted/universal.apk
           retention-days: 1
   android-e2e:
@@ -404,7 +495,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
-          name: cue-native-android-release-apk
+          name: cue-native-android-emulator-apk
           path: ${{ runner.temp }}/cue-native-android
       - name: Enable KVM
         run: |

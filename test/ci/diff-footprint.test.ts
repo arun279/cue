@@ -29,7 +29,24 @@ const newRepository = (): string => {
 const sizes = (ios: number, android: number) => [
   { name: "expo iOS bundle", size: ios, sizeLimit: 4_450_000 },
   { name: "expo Android bundle", size: android, sizeLimit: 4_830_000 },
-  { name: "Play download estimate", size: 17_000_000, sizeLimit: 20_000_000 },
+  {
+    name: "Firebase tester APK file",
+    size: 34_000_000,
+    sizeLimit: 40_000_000,
+    configuration: "arm64-v8a, all densities",
+  },
+  {
+    name: "Play download estimate",
+    size: 17_000_000,
+    sizeLimit: 20_000_000,
+    configuration: "XXXHDPI arm64-v8a, English, Android 15",
+  },
+  {
+    name: "iOS Release simulator app files",
+    size: 52_000_000,
+    sizeLimit: null,
+    configuration: "generic iOS Simulator",
+  },
 ];
 
 const HEAD_METRICS = {
@@ -116,10 +133,20 @@ describe("diff footprint", () => {
   it("reports every metric as a base-to-head delta", () => {
     const output = runWithMetrics(BASE_METRICS);
 
-    expect(output).toContain("| expo ios bundle (raw) | 4.00 MB | 4.00 MB | +1.0 kB | 4450 kB |");
-    expect(output).toContain("| expo android bundle (raw) | 4.20 MB | 4.20 MB | 0 B | 4830 kB |");
     expect(output).toContain(
-      "| play download (xxxhdpi arm64) | 17.00 MB | 17.00 MB | 0 B | 20000 kB |",
+      "| Expo iOS JavaScript bundle, raw file | 4.00 MB | 4.00 MB | +1.0 kB | 4450 kB |",
+    );
+    expect(output).toContain(
+      "| Expo Android JavaScript bundle, raw file | 4.20 MB | 4.20 MB | 0 B | 4830 kB |",
+    );
+    expect(output).toContain(
+      "| Firebase tester APK file | 34.00 MB (arm64-v8a, all densities) | 34.00 MB (arm64-v8a, all densities) | 0 B | 40000 kB |",
+    );
+    expect(output).toContain(
+      "| Play download estimate | 17.00 MB (XXXHDPI arm64-v8a, English, Android 15) | 17.00 MB (XXXHDPI arm64-v8a, English, Android 15) | 0 B | 20000 kB |",
+    );
+    expect(output).toContain(
+      "| iOS Release simulator .app file bytes | 52.00 MB (generic iOS Simulator) | 52.00 MB (generic iOS Simulator) | 0 B | 64 kB delta |",
     );
     expect(output).toContain("| functions over cognitive complexity 15 | 18 | 21 | +3 |");
     expect(output).toContain("| worst cognitive complexity | 60 | 71 | +11 |");
@@ -135,11 +162,22 @@ describe("diff footprint", () => {
   it("reads a base it could not measure as unavailable instead of as zero", () => {
     const output = runWithMetrics({ sizes: null, complexity: null, comments: null });
 
-    expect(output).toContain("| expo ios bundle (raw) | n/a | 4.00 MB | n/a | 4450 kB |");
+    expect(output).toContain(
+      "| Expo iOS JavaScript bundle, raw file | n/a | 4.00 MB | n/a | 4450 kB |",
+    );
     expect(output).toContain("| functions over cognitive complexity 15 | n/a | 21 | n/a |");
     expect(output).toContain("| product comment density | n/a | 25.00 percent | n/a |");
     expect(output).toContain(
       "The merge base does not contain the measured packages, so its columns read n/a.",
+    );
+  });
+
+  it("reports an unavailable base iOS measurement as n/a", () => {
+    const base = structuredClone(BASE_METRICS);
+    base.sizes = base.sizes.filter(({ name }) => name !== "iOS Release simulator app files");
+
+    expect(runWithMetrics(base)).toContain(
+      "| iOS Release simulator .app file bytes | n/a | 52.00 MB (generic iOS Simulator) | n/a | 64 kB delta |",
     );
   });
 });

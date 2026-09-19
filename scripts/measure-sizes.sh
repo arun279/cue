@@ -24,7 +24,8 @@ export TMPDIR="$tree/node_modules/.tmp"
 (
   cd "$tree"
   pnpm install --frozen-lockfile
-  EXPO_PUBLIC_TRAKT_CLIENT_ID=ci pnpm --filter @cue/native exec expo export \
+  cd packages/native
+  EXPO_PUBLIC_TRAKT_CLIENT_ID=ci pnpm exec expo export \
     --platform ios --platform android --output-dir dist
 )
 
@@ -52,26 +53,24 @@ if [ "$tree" != "$head_root" ]; then
 fi
 node --input-type=module -e '
   import { readFileSync, writeFileSync } from "node:fs";
-  const file = process.argv[1];
-  const pkg = JSON.parse(readFileSync(file, "utf8"));
+  const [packageFile, configFile] = process.argv.slice(1);
+  const pkg = JSON.parse(readFileSync(packageFile, "utf8"));
   pkg.devDependencies ??= {};
   pkg.devDependencies["@size-limit/file"] ??= "*";
-  writeFileSync(file, `${JSON.stringify(pkg, null, 2)}\n`);
-' "$tree/package.json"
+  writeFileSync(packageFile, `${JSON.stringify(pkg, null, 2)}\n`);
+  const config = JSON.parse(readFileSync(configFile, "utf8"));
+  writeFileSync(configFile, `${JSON.stringify(config.filter(({ path }) => path !== undefined), null, 2)}\n`);
+' "$tree/package.json" "$tree/.size-limit.json"
 
 (
   cd "$tree"
   "$head_root/node_modules/.bin/size-limit" --json > "$state/sizes.json"
 )
-play_size=$("$head_root/scripts/measure-play-size.sh" "$tree")
+"$head_root/scripts/measure-play-size.sh" "$tree" > "$state/native-sizes.json"
 node --input-type=module -e '
   import { readFileSync, writeFileSync } from "node:fs";
-  const [input, output, playSize] = process.argv.slice(1);
+  const [input, nativeInput, output] = process.argv.slice(1);
   const sizes = JSON.parse(readFileSync(input, "utf8"));
-  sizes.push({
-    name: "Play download estimate",
-    size: Number(playSize),
-    sizeLimit: 20_000_000,
-  });
+  sizes.push(...JSON.parse(readFileSync(nativeInput, "utf8")));
   writeFileSync(output, `${JSON.stringify(sizes, null, 2)}\n`);
-' "$state/sizes.json" "$output" "$play_size"
+' "$state/sizes.json" "$state/native-sizes.json" "$output"

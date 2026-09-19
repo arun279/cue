@@ -28,6 +28,18 @@ const setup = (): string => {
         limit: "100 kB",
         message: "Measured 90000 bytes on 2026-09-09. Reduction target 72000 bytes.",
       },
+      {
+        name: "iOS IPA file",
+        limit: 100,
+        message:
+          "Measured 90 bytes on 2026-09-09. Run https://example.invalid/run. Reduction target 72 bytes.",
+      },
+      {
+        name: "Firebase tester APK file",
+        limit: 200,
+        message:
+          "Measured 180 bytes on 2026-09-09. Run https://example.invalid/run. Reduction target 144 bytes.",
+      },
     ]),
   );
   writePlayLimit(repository, 100);
@@ -74,6 +86,23 @@ describe("size budget ratchet", () => {
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("Play download: limit 101 bytes exceeds previous 100 bytes");
+  });
+
+  it.each([
+    ["iOS IPA file", 1, 101, 100],
+    ["Firebase tester APK file", 2, 201, 200],
+  ])("rejects a raised numeric limit for %s", (name, index, raised, previous) => {
+    const repository = setup();
+    const config = JSON.parse(readFileSync(path.join(repository, ".size-limit.json"), "utf8"));
+    config[index].limit = raised;
+    writeFileSync(path.join(repository, ".size-limit.json"), JSON.stringify(config));
+
+    const result = runRatchet(repository);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      `${name}: limit ${raised} bytes exceeds previous ${previous} bytes`,
+    );
   });
 
   it("accepts a ceiling already established by either merge parent", () => {

@@ -1,5 +1,25 @@
 {
-  "measuredOn": "2026-09-09",
+  "measuredOn": "2026-09-18",
+  "sourceAssets": [
+    {
+      "path": "packages/native/assets/icon.png",
+      "type": "png",
+      "bytes": 41463,
+      "platforms": ["ios", "android"]
+    },
+    {
+      "path": "packages/native/assets/icon-foreground.png",
+      "type": "png",
+      "bytes": 24430,
+      "platforms": ["android"]
+    },
+    {
+      "path": "packages/native/assets/splash.png",
+      "type": "png",
+      "bytes": 24430,
+      "platforms": ["ios", "android"]
+    }
+  ],
   "assets": [
     {
       "path": "assets/017bc6ba3fc25503e5eb5e53826d48a8",

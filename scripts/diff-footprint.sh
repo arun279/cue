@@ -100,21 +100,26 @@ const deltaBytes = (value) => {
 const signed = (value, digits = 0) =>
   value === 0 ? (digits === 0 ? "0" : value.toFixed(digits)) : `${value > 0 ? "+" : ""}${value.toFixed(digits)}`;
 const sizeRows = [
-  ["expo ios bundle (raw)", "expo iOS bundle"],
-  ["expo android bundle (raw)", "expo Android bundle"],
-  ["play download (xxxhdpi arm64)", "Play download estimate"],
+  ["Expo iOS JavaScript bundle, raw file", "expo iOS bundle"],
+  ["Expo Android JavaScript bundle, raw file", "expo Android bundle"],
+  ["Firebase tester APK file", "Firebase tester APK file"],
+  ["Play download estimate", "Play download estimate"],
+  ["iOS Release simulator .app file bytes", "iOS Release simulator app files"],
 ];
 
-process.stdout.write("\n### Bundle size\n\n");
-process.stdout.write("| bundle | base | head | delta | limit |\n");
+process.stdout.write("\n### Size measurements\n\n");
+process.stdout.write("| measurement | base | head | delta | limit |\n");
 process.stdout.write("| --- | ---: | ---: | ---: | ---: |\n");
 for (const [label, name] of sizeRows) {
   const before = baseSizes?.[name];
   const after = headSizes[name];
-  const baseCell = before === undefined ? "n/a" : bytes(before.size);
+  const describe = (entry) =>
+    entry.configuration === undefined ? bytes(entry.size) : `${bytes(entry.size)} (${entry.configuration})`;
+  const baseCell = before === undefined ? "n/a" : describe(before);
   const deltaCell = before === undefined ? "n/a" : deltaBytes(after.size - before.size);
+  const limitCell = after.sizeLimit === null ? "64 kB delta" : `${after.sizeLimit / 1000} kB`;
   process.stdout.write(
-    `| ${label} | ${baseCell} | ${bytes(after.size)} | ${deltaCell} | ${after.sizeLimit / 1000} kB |\n`,
+    `| ${label} | ${baseCell} | ${describe(after)} | ${deltaCell} | ${limitCell} |\n`,
   );
 }
 

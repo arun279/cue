@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: verify-apk.sh <apk> <expected-version-code> <expected-version-name>
+# Usage: verify-apk.sh <apk> <expected-version-code> <expected-version-name> [expected-abi]
 #
 # What the packaged APK actually says about itself: the version testers see,
 # every permission the phone will show them, and the two backup properties
@@ -17,6 +17,7 @@ set -euo pipefail
 apk=$1
 expected_code=$2
 expected_name=$3
+expected_abi=${4:-}
 # The Expo line's set, measured from its generated release manifest. The two
 # network-state permissions come from expo-network, which fills the connectivity
 # port through getNetworkStateAsync. The Expo template's four optional
@@ -45,6 +46,14 @@ name=$(attribute versionName)
 if [ "$code" != "$expected_code" ] || [ "$name" != "$expected_name" ]; then
   echo "verify-apk: $apk is $name ($code), expected $expected_name ($expected_code)." >&2
   exit 1
+fi
+
+if [ -n "$expected_abi" ]; then
+  abis=$(unzip -Z1 "$apk" | sed -n 's#^lib/\([^/]*\)/.*\.so$#\1#p' | sort -u)
+  if [ "$abis" != "$expected_abi" ]; then
+    echo "verify-apk: $apk contains ABIs '$abis', expected only '$expected_abi'." >&2
+    exit 1
+  fi
 fi
 
 # `uses-permission-sdk-23:` and a maxSdkVersion suffix are the same request in a

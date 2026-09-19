@@ -17,12 +17,6 @@ const RE_DOM_ONLY = [
   "(^|/)node_modules/@tanstack/react-virtual/",
   "(^|/)node_modules/lucide-react/",
 ];
-const RE_DOES_NOT_SHIP_DIRECTORY =
-  "^(docs|test|\\.github|\\.maestro|scripts/(complexity|mock-trakt)|packages/[^/]+/(test|__tests__))(/|$)";
-const RE_DOES_NOT_SHIP_MARKDOWN = "^[^/]*\\.md$";
-const RE_DOES_NOT_SHIP_FILE =
-  "^(LICENSE|vitest\\.config\\.ts|lefthook\\.yml|cspell\\.json|dprint\\.json|biome\\.jsonc|knip\\.json|\\.jscpd\\.json|\\.dependency-cruiser\\.cjs|\\.gitignore|\\.size-limit\\.json|\\.startup-time-limit\\.json|\\.native-assets\\.json|scripts/(assert-file-size|bundletool-size|check-native-assets|check-quality-budget|check-render-counts|check-size|check-size-delta|check-size-ratchet|check-startup-ratchet|check-type-suppressions|measure-comments|measure-complexity|summarize-atlas|summarize-startup-timing)\\.mjs|scripts/(diff-footprint|measure-play-size|measure-sizes|verify-android-launch|verify-ios-privacy)\\.sh|scripts/(quality-budget\\.json|write-buster\\.mjs)|packages/[^/]+/(vitest\\.config\\.ts|jest\\.config\\.js|tsconfig\\.test\\.json|\\.reassure/.+|\\.gitignore|\\.env\\.(example|test|mock)))$";
-
 /** @type {import("dependency-cruiser").IConfiguration} */
 module.exports = {
   forbidden: [
@@ -32,21 +26,6 @@ module.exports = {
       comment: "Circular dependencies are disallowed.",
       from: {},
       to: { circular: true },
-    },
-    // These patterns mirror DOES_NOT_SHIP in test/ci/release-paths.test.ts.
-    // Changes to that list require matching updates here.
-    // Known gap: the from anchor covers only the first edge out of a package's
-    // source tree. It does not cover a transitive hop through a non-source root
-    // file that imports a non-shipping path.
-    {
-      name: "src-no-non-shipping-imports",
-      severity: "error",
-      comment:
-        "Importing a non-shipping path into src can put it in the production bundle while mobile release paths-ignore still skips changes to it.",
-      from: { path: "^packages/[^/]+/src/" },
-      to: {
-        path: [RE_DOES_NOT_SHIP_DIRECTORY, RE_DOES_NOT_SHIP_MARKDOWN, RE_DOES_NOT_SHIP_FILE],
-      },
     },
     {
       name: "packages-declare-their-imports",

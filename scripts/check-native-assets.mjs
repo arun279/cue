@@ -6,8 +6,16 @@ const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const [exportArgument = "packages/native/dist", manifestArgument = ".native-assets.json"] =
   process.argv.slice(2);
 const exportDirectory = path.resolve(root, exportArgument);
-const manifest = JSON.parse(readFileSync(path.resolve(root, manifestArgument), "utf8"));
+const manifestPath = path.resolve(root, manifestArgument);
+const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
 const metadata = JSON.parse(readFileSync(path.join(exportDirectory, "metadata.json"), "utf8"));
+for (const asset of manifest.sourceAssets ?? []) {
+  const file = path.resolve(path.dirname(manifestPath), asset.path);
+  const extension = path.extname(file).slice(1);
+  if (extension !== asset.type || statSync(file).size !== asset.bytes) {
+    throw new Error(`native source asset changed: ${asset.path}`);
+  }
+}
 const actualByPath = new Map();
 for (const [platform, { assets }] of Object.entries(metadata.fileMetadata)) {
   for (const { path: assetPath, ext } of assets) {
@@ -41,4 +49,7 @@ for (const asset of manifest.assets) {
 }
 
 const total = [...actualByPath.values()].reduce((sum, asset) => sum + asset.bytes, 0);
-process.stdout.write(`native assets: ${actualByPath.size} files, ${total} bytes\n`);
+const sourceTotal = (manifest.sourceAssets ?? []).reduce((sum, asset) => sum + asset.bytes, 0);
+process.stdout.write(
+  `native assets: ${actualByPath.size} exported files (${total} bytes), ${manifest.sourceAssets?.length ?? 0} source files (${sourceTotal} bytes)\n`,
+);

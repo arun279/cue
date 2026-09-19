@@ -13,10 +13,18 @@ if (base.sizes === null) {
 }
 
 const threshold = 64_000;
-const measured = ["expo iOS bundle", "expo Android bundle", "Play download estimate"];
+const measured = [
+  "expo iOS bundle",
+  "expo Android bundle",
+  "Firebase tester APK file",
+  "Play download estimate",
+];
 const byName = (entries) => Object.fromEntries(entries.map((entry) => [entry.name, entry.size]));
 const before = byName(base.sizes);
 const after = byName(head.sizes);
+if (before["iOS Release simulator app files"] !== undefined) {
+  measured.push("iOS Release simulator app files");
+}
 const growth = measured.map((name) => {
   const delta = after[name] - before[name];
   if (!Number.isFinite(delta)) throw new Error(`${name}: not measured on both sides`);
