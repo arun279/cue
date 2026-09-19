@@ -12,6 +12,7 @@ const setup = () => {
   const exported = path.join(directory, "dist");
   mkdirSync(path.join(exported, "assets"), { recursive: true });
   writeFileSync(path.join(exported, "assets/known"), "known");
+  writeFileSync(path.join(directory, "icon.png"), "icon");
   writeFileSync(
     path.join(exported, "metadata.json"),
     JSON.stringify({
@@ -23,6 +24,7 @@ const setup = () => {
     manifest,
     JSON.stringify({
       measuredOn: "2026-09-09",
+      sourceAssets: [{ path: "icon.png", type: "png", bytes: 4, platforms: ["ios"] }],
       assets: [{ path: "assets/known", type: "png", bytes: 5, platforms: ["ios"] }],
     }),
   );
@@ -72,6 +74,15 @@ describe("native export assets", () => {
     const result = spawnSync(process.execPath, [SCRIPT, exported, manifest], { encoding: "utf8" });
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("unlisted native asset: assets/arrival (3 bytes)");
+  });
+
+  it("rejects a changed native source asset", () => {
+    const { directory, exported, manifest } = setup();
+    writeFileSync(path.join(directory, "icon.png"), "changed");
+
+    const result = spawnSync(process.execPath, [SCRIPT, exported, manifest], { encoding: "utf8" });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("native source asset changed: icon.png");
   });
 
   it("rejects a listed asset that left the export", () => {
