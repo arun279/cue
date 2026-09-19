@@ -1,17 +1,12 @@
 import type { OnTheWayDay } from "@cue/core/domain/on-the-way";
 import { render, screen } from "@testing-library/react-native";
-import { StyleSheet, useWindowDimensions, type ViewStyle } from "react-native";
+import { StyleSheet, type ViewStyle } from "react-native";
 import { OnTheWay } from "../src/screens/up-next/OnTheWay";
 import { ROW_MIN_HEIGHT } from "../src/ui/tokens";
+import { atFontScale } from "./support/font-scale";
 
 jest.mock("expo-router", () => require("./support/native-ui").expoRouterModule());
 jest.mock("react-native/Libraries/Utilities/useWindowDimensions");
-
-const dimensions = jest.mocked(useWindowDimensions);
-
-function atFontScale(fontScale: number): void {
-  dimensions.mockReturnValue({ width: 402, height: 874, scale: 3, fontScale });
-}
 
 beforeEach(() => atFontScale(1));
 

@@ -1,16 +1,11 @@
 import type { EpisodeView, SeasonView } from "@cue/core/data/trakt/show-detail";
 import { render, screen } from "@testing-library/react-native";
-import { StyleSheet, type TextStyle, useWindowDimensions } from "react-native";
+import { StyleSheet, type TextStyle } from "react-native";
 import { SeasonRow } from "../src/screens/show-detail/SeasonRow";
 import { EPISODE_NUMBER_WIDTH } from "../src/ui/tokens";
+import { atFontScale } from "./support/font-scale";
 
 jest.mock("react-native/Libraries/Utilities/useWindowDimensions");
-
-const dimensions = jest.mocked(useWindowDimensions);
-
-function atFontScale(fontScale: number): void {
-  dimensions.mockReturnValue({ width: 402, height: 874, scale: 3, fontScale });
-}
 
 beforeEach(() => atFontScale(1));
 
