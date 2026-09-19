@@ -18,7 +18,7 @@ const TRAKT_CLIENT_ID_VARIABLE = "$" + "{{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}";
 // `footprint` skips itself on forks, and the gate reads a skip as a failure.
 // `native-e2e` is exempt on purpose while it earns a green history on a
 // simulator; promoting it is a one-line change here and in REQUIRED.
-const NOT_REQUIRED = ["android-e2e", "footprint", "native-e2e"];
+const NOT_REQUIRED = ["footprint", "native-e2e"];
 
 // Markdown inside a shipping tree stays in SHIPS. The existing "when in doubt,
 // SHIPS" rule applies to every shipping tree.
