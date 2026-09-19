@@ -5,4 +5,4 @@ appId: app.cuetracker
     env:
       CAPTURE_AUTH: "true"
 - runFlow: lib/settle.yaml
-- takeScreenshot: up-next-populated
+- takeScreenshot: "${SCREENSHOT_DIR}/up-next-populated"

@@ -28,5 +28,5 @@ export function Marker({
 }
 
 const styles = StyleSheet.create({
-  marker: { position: "absolute", left: 0, bottom: 0, width: 1, height: 1 },
+  marker: { position: "absolute", left: 0, top: "50%", width: 1, height: 1 },
 });

@@ -1,6 +1,4 @@
 appId: app.cuetracker
-env:
-  CAPTURE_AUTH: "false"
 ---
 - launchApp:
     clearState: true
@@ -15,7 +13,7 @@ env:
     when:
       true: ${CAPTURE_AUTH == "true"}
     commands:
-      - takeScreenshot: onboarding-ready
+      - takeScreenshot: "${SCREENSHOT_DIR}/onboarding-ready"
 - tapOn:
     id: "button-connect"
     waitToSettleTimeoutMs: 100
@@ -29,7 +27,7 @@ env:
     when:
       true: ${CAPTURE_AUTH == "true"}
     commands:
-      - takeScreenshot: connect-code-ready
+      - takeScreenshot: "${SCREENSHOT_DIR}/connect-code-ready"
 - runScript: approve-device.js
 - assertTrue: ${output.deviceApproved}
 - extendedWaitUntil:

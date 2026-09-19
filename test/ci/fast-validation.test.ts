@@ -73,8 +73,10 @@ describe("fast pull request validation", () => {
     const ios = job("native-ios");
     const android = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
 
-    expect(ios).toContain("test .maestro/ci/app.yaml");
-    expect(android).toContain("test .maestro/ci/app.yaml");
+    expect(ios).toContain("suite=.maestro/ci/app.yaml");
+    expect(android).toContain("suite=.maestro/ci/app.yaml");
+    expect(ios).toContain("suite=.maestro/ci/screenshots.yaml");
+    expect(android).toContain("suite=.maestro/ci/screenshots.yaml");
   });
 
   it("uses a fixed Maestro driver port outside Android's ephemeral range", () => {
@@ -86,13 +88,45 @@ describe("fast pull request validation", () => {
   it("publishes both screenshot artifacts with contact sheets for 14 days", () => {
     const ios = job("native-ios");
     const android = job("android-e2e");
+    const verification = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
 
     expect(ios).toContain("name: ui-screenshots-ios");
+    expect(ios).toContain('--env SCREENSHOT_DIR="$RUNNER_TEMP/screenshots/ios/$appearance"');
     expect(ios).toContain("create-ui-contact-sheet.sh");
     expect(android).toContain("name: ui-screenshots-android");
+    expect(verification).toContain('--env SCREENSHOT_DIR="$screenshots/$appearance"');
     expect(android).toContain("create-ui-contact-sheet.sh");
     expect(ios.match(/retention-days: 14/g)).toHaveLength(1);
     expect(android.match(/retention-days: 14/g)).toHaveLength(1);
+  });
+
+  it("captures the same named states in the full and reduced suites", () => {
+    const screenshotFlows = [
+      "lib/connect.yaml",
+      "launch.yaml",
+      "up-next-mark-and-undo.yaml",
+      "show-detail-bulk-mark.yaml",
+      "episode-sheet.yaml",
+      "library.yaml",
+      "tabs.yaml",
+    ];
+    const names = (files: readonly string[]) =>
+      files
+        .flatMap((file) =>
+          [
+            ...readFileSync(repositoryPath(`.maestro/flows/${file}`), "utf8").matchAll(
+              /takeScreenshot: "\$\{SCREENSHOT_DIR\}\/([^"\n]+)"/g,
+            ),
+          ].flatMap((match) => (match[1] === undefined ? [] : [match[1]])),
+        )
+        .sort();
+    const reducedSuite = readFileSync(repositoryPath(".maestro/ci/screenshots.yaml"), "utf8");
+    const reducedFlows = [...reducedSuite.matchAll(/runFlow: \.\.\/flows\/([^\n]+)/g)].flatMap(
+      (match) => (match[1] === undefined ? [] : [match[1]]),
+    );
+
+    expect(reducedFlows).toEqual(screenshotFlows.slice(1));
+    expect(names(["lib/connect.yaml", ...reducedFlows])).toEqual(names(screenshotFlows));
   });
 
   it("measures render performance base then head on one runner", () => {

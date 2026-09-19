@@ -41,12 +41,15 @@ for appearance in light dark; do
   adb shell cmd uimode night "$night"
   adb shell am force-stop app.cuetracker
   adb shell am start -W -n app.cuetracker/.MainActivity
-  if ! maestro test .maestro/ci/app.yaml --driver-host-port 7001 \
-    --env APP_IDLE_CEILING_MS=1000 \
+  suite=.maestro/ci/app.yaml
+  if [ "$appearance" = dark ]; then suite=.maestro/ci/screenshots.yaml; fi
+  if ! maestro test "$suite" --driver-host-port 7001 \
+    --env APP_IDLE_CEILING_MS=6000 \
+    --env SCREENSHOT_DIR="$screenshots/$appearance" \
     --format JUNIT \
     --output "$output/maestro-results-$appearance.xml" \
     --debug-output "$output/maestro-$appearance" \
-    --test-output-dir "$screenshots/$appearance"; then
+    --test-output-dir "$output/maestro-tests-$appearance"; then
     result=1
   fi
 done
