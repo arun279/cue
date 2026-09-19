@@ -51,10 +51,22 @@ appId: app.cuetracker
 - waitForAnimationToEnd:
     timeout: 1000
 - takeScreenshot: episode-sheet-rest
-- swipe:
-    start: "50%,55%"
-    end: "50%,98%"
-    duration: 300
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - swipe:
+          start: "50%,55%"
+          end: "50%,98%"
+          duration: 300
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - swipe:
+          start: "50%,10%"
+          end: "50%,98%"
+          duration: 500
 - extendedWaitUntil:
     visible:
       id: "screen-show-detail"
@@ -70,7 +82,7 @@ appId: app.cuetracker
     when:
       platform: Android
     commands:
-      - tapOn: "Navigate up"
+      - launchApp
 - extendedWaitUntil:
     visible:
       id: "screen-up-next"

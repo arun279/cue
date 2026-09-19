@@ -90,9 +90,11 @@ describe("fast pull request validation", () => {
   it("runs required dark screenshot traversals on independent cached-app jobs", () => {
     const ios = job("ui-screenshots-ios-dark");
     const android = job("ui-screenshots-android-dark");
+    const iosSetup = readFileSync(repositoryPath("scripts/prepare-ios-ui.sh"), "utf8");
 
     expect(ios).toContain("needs: [fingerprint, native-ios]");
-    expect(ios).toContain("cue-native-ios-$" + "{{ needs.fingerprint.outputs.ios }}");
+    expect(ios).toContain("IOS_FINGERPRINT: $" + "{{ needs.fingerprint.outputs.ios }}");
+    expect(iosSetup).toContain('--name "cue-native-ios-$fingerprint"');
     expect(ios).toContain("test .maestro/ci/screenshots.yaml");
     expect(ios).not.toContain("continue-on-error");
     expect(android).toContain("needs: [fingerprint, native-android]");

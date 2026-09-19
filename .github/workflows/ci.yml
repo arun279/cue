@@ -371,47 +371,15 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_26.6.app
-      - id: simulator
-        name: Start an available iPhone simulator
-        run: |
-          device_id=$(xcrun simctl list devices available -j | \
-            jq -r '[.devices[] | .[] | select(.name | startswith("iPhone"))][0].udid')
-          test -n "$device_id"
-          xcrun simctl boot "$device_id"
-          echo "device_id=$device_id" >> "$GITHUB_OUTPUT"
-      - name: Install Maestro 2.10.0
-        run: |
-          curl -fsSL \
-            https://github.com/mobile-dev-inc/Maestro/releases/download/cli-2.10.0/maestro.zip \
-            -o "$RUNNER_TEMP/maestro.zip"
-          echo "29b675e10cc12080e445e9bfb2e2b4e4dfb9c0f2e30d5884120d258b5e1cd991  $RUNNER_TEMP/maestro.zip" \
-            | shasum -a 256 -c -
-          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP"
-          echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
-      - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
-        with:
-          name: cue-native-ios-${{ needs.fingerprint.outputs.ios }}
-          path: ${{ runner.temp }}/native-ios-app
-      - name: Install the app
+      - id: ui-setup
+        name: Prepare the simulator and cached app
         env:
-          DEVICE_ID: ${{ steps.simulator.outputs.device_id }}
-        run: |
-          tar -xzf "$RUNNER_TEMP/native-ios-app/Cue.app.tgz" -C "$RUNNER_TEMP/native-ios-app"
-          xcrun simctl bootstatus "$DEVICE_ID" -b
-          xcrun simctl install "$DEVICE_ID" "$RUNNER_TEMP/native-ios-app/Cue.app"
-      - name: Start the fake Trakt
-        run: |
-          node scripts/mock-trakt/server.mjs > "$RUNNER_TEMP/mock-trakt.log" 2>&1 &
-          for _ in {1..30}; do
-            if curl -fsS http://127.0.0.1:8787/users/settings > /dev/null; then
-              exit 0
-            fi
-            sleep 1
-          done
-          exit 1
+          GH_TOKEN: ${{ github.token }}
+          IOS_FINGERPRINT: ${{ needs.fingerprint.outputs.ios }}
+        run: scripts/prepare-ios-ui.sh "$IOS_FINGERPRINT"
       - name: Run the shared light flow
         env:
-          DEVICE_ID: ${{ steps.simulator.outputs.device_id }}
+          DEVICE_ID: ${{ steps.ui-setup.outputs.device_id }}
           APP_IDLE_CEILING_MS: "1000"
         run: |
           mkdir -p "$RUNNER_TEMP/screenshots/ios/light"
@@ -472,47 +440,15 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_26.6.app
-      - id: simulator
-        name: Start an available iPhone simulator
-        run: |
-          device_id=$(xcrun simctl list devices available -j | \
-            jq -r '[.devices[] | .[] | select(.name | startswith("iPhone"))][0].udid')
-          test -n "$device_id"
-          xcrun simctl boot "$device_id"
-          echo "device_id=$device_id" >> "$GITHUB_OUTPUT"
-      - name: Install Maestro 2.10.0
-        run: |
-          curl -fsSL \
-            https://github.com/mobile-dev-inc/Maestro/releases/download/cli-2.10.0/maestro.zip \
-            -o "$RUNNER_TEMP/maestro.zip"
-          echo "29b675e10cc12080e445e9bfb2e2b4e4dfb9c0f2e30d5884120d258b5e1cd991  $RUNNER_TEMP/maestro.zip" \
-            | shasum -a 256 -c -
-          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP"
-          echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
-      - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
-        with:
-          name: cue-native-ios-${{ needs.fingerprint.outputs.ios }}
-          path: ${{ runner.temp }}/native-ios-app
-      - name: Install the app
+      - id: ui-setup
+        name: Prepare the simulator and cached app
         env:
-          DEVICE_ID: ${{ steps.simulator.outputs.device_id }}
-        run: |
-          tar -xzf "$RUNNER_TEMP/native-ios-app/Cue.app.tgz" -C "$RUNNER_TEMP/native-ios-app"
-          xcrun simctl bootstatus "$DEVICE_ID" -b
-          xcrun simctl install "$DEVICE_ID" "$RUNNER_TEMP/native-ios-app/Cue.app"
-      - name: Start the fake Trakt
-        run: |
-          node scripts/mock-trakt/server.mjs > "$RUNNER_TEMP/mock-trakt.log" 2>&1 &
-          for _ in {1..30}; do
-            if curl -fsS http://127.0.0.1:8787/users/settings > /dev/null; then
-              exit 0
-            fi
-            sleep 1
-          done
-          exit 1
+          GH_TOKEN: ${{ github.token }}
+          IOS_FINGERPRINT: ${{ needs.fingerprint.outputs.ios }}
+        run: scripts/prepare-ios-ui.sh "$IOS_FINGERPRINT"
       - name: Run the shared dark traversal
         env:
-          DEVICE_ID: ${{ steps.simulator.outputs.device_id }}
+          DEVICE_ID: ${{ steps.ui-setup.outputs.device_id }}
         run: |
           mkdir -p "$RUNNER_TEMP/screenshots/ios/dark"
           xcrun simctl ui "$DEVICE_ID" content_size medium
