@@ -1,26 +1,30 @@
 import { type ReactElement, useState } from "react";
-import { View } from "react-native";
-import { Button } from "../../ui/Button";
 import { useColors } from "../../ui/tokens";
 import { CueText } from "../../ui/type";
+
+/** Where a long overview folds: about three lines of the role at the default
+ * content size. */
+const FOLD = 240;
 
 export function Overview({ text }: { readonly text: string | null }): ReactElement | null {
   const [expanded, setExpanded] = useState(false);
   const colors = useColors();
   if (text === null) return null;
-  const long = text.length > 240;
+  const long = text.length > FOLD;
   return (
-    <View>
-      <CueText variant="rowTitleSecondary" style={{ color: colors.ink2 }}>
-        {long && !expanded ? `${text.slice(0, 240).trimEnd()}…` : text}
-      </CueText>
+    <CueText variant="rowTitleSecondary" style={{ color: colors.ink2 }}>
+      {long && !expanded ? `${text.slice(0, FOLD).trimEnd()}… ` : `${text} `}
       {long && (
-        <Button
-          label={expanded ? "Less" : "More"}
-          variant="link"
+        <CueText
+          variant="rowTitleSecondary"
+          weight="semibold"
+          accessibilityRole="button"
+          style={{ color: colors.accentInk }}
           onPress={() => setExpanded(!expanded)}
-        />
+        >
+          {expanded ? "Less" : "More"}
+        </CueText>
       )}
-    </View>
+    </CueText>
   );
 }

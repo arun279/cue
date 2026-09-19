@@ -31,15 +31,6 @@ export function ShowDetail({ showId }: { readonly showId: number }): ReactElemen
       testID={TEST_IDS.screenShowDetail}
       style={[styles.screen, { backgroundColor: colors.bg }]}
     >
-      <Stack.Screen
-        options={{
-          headerLargeTitle: false,
-          headerTransparent: false,
-          headerStyle: { backgroundColor: colors.bg },
-          headerTintColor: colors.accentInk,
-          headerTitleStyle: { color: colors.fg },
-        }}
-      />
       {enabled ? <ShowContent showId={showId} /> : <ShowDisabled />}
     </View>
   );
@@ -97,11 +88,6 @@ function ShowContent({ showId }: { readonly showId: number }): ReactElement {
           <ContinueBar entry={entry} mark={nextMark} />
         </View>
         <View testID={TEST_IDS.seasonList} style={styles.seasons}>
-          <CueText
-            variant="caption"
-            testID={TEST_IDS.showProgress}
-            style={{ color: colors.muted }}
-          >{`${data.completed} of ${data.aired} watched`}</CueText>
           <SeasonsStatus
             loading={seasons.isLoading}
             failed={seasons.isError}

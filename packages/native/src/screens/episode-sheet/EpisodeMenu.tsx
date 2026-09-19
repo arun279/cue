@@ -2,7 +2,7 @@ import type { EpisodeDetail } from "@cue/core/data/trakt/episode-detail";
 import { epCode } from "@cue/core/domain/model/library";
 import type { ReactElement } from "react";
 import { RowMenu } from "../../ui/RowMenu";
-import type { Alertable } from "../../ui/useConfirmation";
+import type { AlertConfirmation } from "../../ui/useConfirmation";
 import type { useDetailMark } from "../show-detail/useDetailMark";
 
 export function EpisodeMenu({
@@ -15,7 +15,7 @@ export function EpisodeMenu({
   readonly detail: EpisodeDetail;
   readonly plays: number;
   readonly mark: ReturnType<typeof useDetailMark>;
-  readonly confirm: (value: Alertable) => void;
+  readonly confirm: (value: AlertConfirmation) => void;
   readonly children?: ReactElement;
 }): ReactElement {
   const code = epCode(detail.season, detail.number);

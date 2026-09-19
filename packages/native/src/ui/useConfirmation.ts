@@ -16,7 +16,7 @@ export interface Confirmation {
  * mounted beside it; the episode sheet is the one that relies on that, because
  * a bottom sheet over a form sheet is the presentation it must not make.
  */
-export type Alertable = Omit<Confirmation, "secondary" | "onSecondary">;
+export type AlertConfirmation = Omit<Confirmation, "secondary" | "onSecondary">;
 
 export function useConfirmation() {
   const [pending, setPending] = useState<Confirmation | null>(null);

@@ -48,15 +48,11 @@ export function ShowAbout({ header }: { readonly header: ShowHeader }): ReactEle
       <CueText variant="meta" accessibilityRole="header" style={{ color: colors.muted }}>
         About
       </CueText>
-      <CueText variant="meta" style={{ color: colors.ink2 }}>
-        {[
-          header.network,
-          header.runtime === null ? null : `${header.runtime} min`,
-          ...header.genres,
-        ]
-          .filter(Boolean)
-          .join(" · ")}
-      </CueText>
+      {header.genres.length > 0 && (
+        <CueText variant="meta" style={{ color: colors.ink2 }}>
+          {header.genres.join(" · ")}
+        </CueText>
+      )}
       <CueText variant="meta" style={{ color: colors.muted }}>
         You've watched {header.completed} of {header.aired}
         {header.runtime === null
