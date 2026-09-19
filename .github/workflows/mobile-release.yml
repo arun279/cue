@@ -1,13 +1,12 @@
 name: Mobile release
 
 # Ships the Capacitor app from the same web bundle the site uses.
-#   push to main       -> TestFlight + Firebase App Distribution (testers)
-#   push a v* tag      -> App Store release (auto-release after approval)
+#   push a vX.Y.Z tag  -> App Store release (auto-release after approval)
 #   manual dispatch    -> tester builds, or an iOS App Store release
-# Dispatch is also how a release/* branch ships. main keeps releasing on push,
-# and a branch such as release/capacitor stays buildable on demand without ever
-# merging back, so an older code line can be rebuilt and shipped forward. ci.yml
-# runs on release/* pushes too, so the gate below has checks to read there.
+# Dispatch is also how a release/* branch ships. A branch such as
+# release/capacitor stays buildable on demand without ever merging back, so an
+# older code line can be rebuilt and shipped forward. ci.yml runs on release/*
+# pushes too, so the gate below has checks to read there.
 # CI (ci.yml) is the quality gate, enforced twice: branch protection keeps red
 # commits off main, and the gate job below re-checks the exact commit this run
 # would ship.
@@ -15,32 +14,7 @@ name: Mobile release
 
 on:
   push:
-    branches: [main]
-    tags: ["v*"]
-    paths-ignore: [
-      "docs/**",
-      "*.md",
-      ".github/**",
-      "LICENSE",
-      "e2e/**",
-      "test/**",
-      "playwright.config.ts",
-      "vitest.config.ts",
-      "lefthook.yml",
-      "cspell.json",
-      "dprint.json",
-      "biome.jsonc",
-      "knip.json",
-      ".jscpd.json",
-      ".dependency-cruiser.cjs",
-      "scripts/diff-footprint.sh",
-      "scripts/mock-trakt/**",
-      ".env.example",
-      ".env.test",
-      ".env.mock",
-      ".gitignore",
-      "assets/**",
-    ]
+    tags: ["v*.*.*"]
   workflow_dispatch:
     inputs:
       platform:
@@ -101,6 +75,10 @@ jobs:
           elif [ "$REF_TYPE" = "tag" ]; then
             lane="release"
             app_version="${REF_NAME#v}"
+            if [ "$REF_NAME" != "v$app_version" ] || ! [[ "$app_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "Release tag must match vX.Y.Z and equal v plus the embedded app version." >&2
+              exit 1
+            fi
           fi
           if [ "$lane" = "release" ] && ! [[ "$app_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "Release version must match x.y.z (for example, 1.2.3)." >&2
