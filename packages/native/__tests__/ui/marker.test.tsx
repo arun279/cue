@@ -19,8 +19,11 @@ it("draws a frame a hierarchy dump can find", async () => {
 });
 
 it("carries accessibility-only text", async () => {
-  await render(<Marker accessibilityLabel="Startup timing: 625.0 ms" testID="a-gate" />);
+  await render(<Marker accessibilityLabel="Returning-user app idle: 625.0 ms" testID="a-gate" />);
 
-  expect(screen.getByTestId("a-gate")).toHaveProp("accessibilityLabel", "Startup timing: 625.0 ms");
+  expect(screen.getByTestId("a-gate")).toHaveProp(
+    "accessibilityLabel",
+    "Returning-user app idle: 625.0 ms",
+  );
   expect(screen.getByTestId("a-gate").props["children"]).toBeUndefined();
 });

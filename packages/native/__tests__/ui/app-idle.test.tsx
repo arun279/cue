@@ -71,7 +71,7 @@ it("is absent while a write is only queued, with nothing in flight behind it", a
   expect(screen.queryByTestId(TEST_IDS.appIdle)).toBeNull();
 });
 
-it("exposes startup timing without drawing text", async () => {
+it("exposes returning-user app-idle timing without drawing text", async () => {
   jest.spyOn(performance, "now").mockReturnValue(725);
   Object.defineProperty(performance, "rnStartupTiming", {
     configurable: true,
@@ -80,11 +80,11 @@ it("exposes startup timing without drawing text", async () => {
 
   await mount(<AppIdle />);
 
-  expect(screen.getByTestId(TEST_IDS.startupTiming)).toHaveProp(
+  expect(screen.getByTestId(TEST_IDS.appIdleTiming)).toHaveProp(
     "accessibilityLabel",
-    "Startup timing: 625.0 ms",
+    "Returning-user app idle: 625.0 ms",
   );
-  expect(screen.getByTestId(TEST_IDS.startupTiming).props["children"]).toBeUndefined();
+  expect(screen.getByTestId(TEST_IDS.appIdleTiming).props["children"]).toBeUndefined();
 });
 
 it("names the performance.now fallback", async () => {
@@ -92,8 +92,8 @@ it("names the performance.now fallback", async () => {
 
   await mount(<AppIdle />);
 
-  expect(screen.getByTestId(TEST_IDS.startupTiming)).toHaveProp(
+  expect(screen.getByTestId(TEST_IDS.appIdleTiming)).toHaveProp(
     "accessibilityLabel",
-    "Startup timing: 0.0 ms (performance.now fallback)",
+    "Returning-user app idle: 0.0 ms (performance.now fallback)",
   );
 });

@@ -1,4 +1,5 @@
 appId: app.cuetracker
 ---
 - runFlow: ../flows/launch.yaml
-- runFlow: ../flows/startup.yaml
+- runFlow: ../flows/returning-user-app-idle.yaml
+- runFlow: ../flows/up-next-mark-and-undo.yaml

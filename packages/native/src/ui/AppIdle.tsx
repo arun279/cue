@@ -12,10 +12,10 @@ import { TEST_IDS } from "./test-ids";
  */
 const QUEUE_SAMPLE_MS = 1000;
 
-function startupTiming(): string {
+function appIdleTiming(): string {
   const now = performance.now();
   const startTime = performance.rnStartupTiming?.startTime;
-  return `Startup timing: ${(now - (startTime ?? now)).toFixed(1)} ms${startTime == null ? " (performance.now fallback)" : ""}`;
+  return `Returning-user app idle: ${(now - (startTime ?? now)).toFixed(1)} ms${startTime == null ? " (performance.now fallback)" : ""}`;
 }
 
 /** Pending durable writes count as busy even when no flush is in flight. */
@@ -34,11 +34,11 @@ export function AppIdle(): ReactElement | null {
   }, [hasDurable]);
 
   if (fetching > 0 || inFlight > 0 || hasDurable) return null;
-  timing.current ??= startupTiming();
+  timing.current ??= appIdleTiming();
   return (
     <>
       <Marker testID={TEST_IDS.appIdle} />
-      <Marker accessibilityLabel={timing.current} testID={TEST_IDS.startupTiming} />
+      <Marker accessibilityLabel={timing.current} testID={TEST_IDS.appIdleTiming} />
     </>
   );
 }

@@ -4,7 +4,7 @@ import { episodesLeft, lastWatchedPhrase, watchedPercent } from "@cue/core/forma
 import { useMarkControl } from "@cue/core/hooks/useMarkControl";
 import type { MarkWatched } from "@cue/core/hooks/useMarkWatched";
 import { useRouter } from "expo-router";
-import type { ReactElement } from "react";
+import { type ReactElement, useLayoutEffect, useRef } from "react";
 import { StyleSheet, View } from "react-native";
 import { useShowArt } from "../../hooks/useShowArt";
 import { CheckControl } from "../../ui/CheckControl";
@@ -12,6 +12,7 @@ import { Poster } from "../../ui/Poster";
 import { Row } from "../../ui/Row";
 import { RowFooter } from "../../ui/RowFooter";
 import { RowMenu } from "../../ui/RowMenu";
+import { beginResponseTiming, commitResponseTiming } from "../../ui/response-timing";
 import { SwipeRow } from "../../ui/SwipeRow";
 import { TEST_IDS } from "../../ui/test-ids";
 import { CHECK_SIZE, POSTER_WIDTH, RAIL, ROW_MIN_HEIGHT, SPACE, useColors } from "../../ui/tokens";
@@ -44,7 +45,18 @@ export function QueueRow({ card, mark, onStop, variant = "queue" }: QueueRowProp
   const router = useRouter();
   const colors = useColors();
   const control = useMarkControl(entry, mark);
+  const previousState = useRef(control.state);
   const art = useShowArt(entry.showId);
+
+  useLayoutEffect(() => {
+    if (previousState.current === "unwatched" && control.state === "just-marked") {
+      commitResponseTiming("mark");
+    }
+    if (previousState.current === "just-marked" && control.state === "unwatched") {
+      commitResponseTiming("undo");
+    }
+    previousState.current = control.state;
+  }, [control.state]);
 
   // Null mid-advance, when the projection has run past the last aired episode
   // and the confirming read has yet to name the next one. The row keeps its
@@ -60,13 +72,17 @@ export function QueueRow({ card, mark, onStop, variant = "queue" }: QueueRowProp
 
   const markable = control.state === "unwatched";
   const markLabel = code === null ? `Mark ${entry.title} watched` : `Mark ${code} watched`;
+  const onMark = (): void => {
+    beginResponseTiming("mark");
+    control.onPress();
+  };
 
   return (
     <SwipeRow
       testID={
         variant === "lapsed" ? TEST_IDS.lapsedRow(entry.showId) : TEST_IDS.queueRow(entry.showId)
       }
-      onMark={markable ? control.onPress : undefined}
+      onMark={markable ? onMark : undefined}
       onStop={onStop}
     >
       <View style={[styles.surface, { backgroundColor: colors.bg }]}>
@@ -75,7 +91,7 @@ export function QueueRow({ card, mark, onStop, variant = "queue" }: QueueRowProp
           minHeight={ROW_MIN_HEIGHT.queue}
           onPress={open}
           actions={[
-            ...(markable ? [{ name: "mark", label: markLabel, onPress: control.onPress }] : []),
+            ...(markable ? [{ name: "mark", label: markLabel, onPress: onMark }] : []),
             { name: "stop", label: STOP_LABEL, onPress: onStop },
           ]}
           leading={<Poster title={entry.title} posters={art.posters} width={POSTER_WIDTH.row} />}
@@ -101,7 +117,7 @@ export function QueueRow({ card, mark, onStop, variant = "queue" }: QueueRowProp
                 pending={control.pending}
                 label={control.label}
                 size={CHECK_SIZE.row}
-                onPress={control.onPress}
+                onPress={markable ? onMark : control.onPress}
                 testID={
                   variant === "lapsed"
                     ? TEST_IDS.lapsedRowMark(entry.showId)

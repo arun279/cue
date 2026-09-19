@@ -1,6 +1,7 @@
 export const TEST_IDS = {
   appIdle: "app-idle",
-  startupTiming: "startup-timing",
+  appIdleTiming: "app-idle-timing",
+  responseTiming: "response-timing",
   bootHold: "boot-hold",
   authLoading: "auth-loading",
   closeAccount: "close-account",
