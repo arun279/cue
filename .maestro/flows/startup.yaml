@@ -5,9 +5,22 @@ appId: app.cuetracker
     id: "app-idle"
 - copyTextFrom:
     id: "startup-timing"
-- evalScript: "${output.startupTiming = maestro.copiedText}"
-- evalScript: "${output.startupTimingMs = parseFloat(output.startupTiming.replace('Startup timing: ', ''))}"
-- evalScript: "${console.log('CUE_STARTUP_TIMING=' + output.startupTiming)}"
+- evalScript: "${output.startupSample1 = parseFloat(maestro.copiedText.replace('Startup timing: ', ''))}"
+- launchApp
+- assertVisible:
+    id: "app-idle"
+- copyTextFrom:
+    id: "startup-timing"
+- evalScript: "${output.startupSample2 = parseFloat(maestro.copiedText.replace('Startup timing: ', ''))}"
+- launchApp
+- assertVisible:
+    id: "app-idle"
+- copyTextFrom:
+    id: "startup-timing"
+- evalScript: "${output.startupSample3 = parseFloat(maestro.copiedText.replace('Startup timing: ', ''))}"
+- evalScript: "${output.startupTimingMs = output.startupSample1 + output.startupSample2 + output.startupSample3 - Math.min(output.startupSample1, output.startupSample2, output.startupSample3) - Math.max(output.startupSample1, output.startupSample2, output.startupSample3)}"
+- evalScript: "${console.log('CUE_STARTUP_TIMING=Startup timing: ' + output.startupTimingMs.toFixed(1) + ' ms')}"
+- evalScript: "${console.log('CUE_STARTUP_SAMPLES=' + output.startupSample1 + ',' + output.startupSample2 + ',' + output.startupSample3)}"
 - assertTrue:
     condition: ${output.startupTimingMs <= parseFloat(STARTUP_CEILING_MS)}
-    label: "${'Startup timing ' + output.startupTimingMs + ' ms is at or below ' + STARTUP_CEILING_MS + ' ms'}"
+    label: "${'Median startup timing ' + output.startupTimingMs + ' ms is at or below ' + STARTUP_CEILING_MS + ' ms'}"

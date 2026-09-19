@@ -38,5 +38,5 @@ const duration = [entries[launch], entries[idle]].reduce((sum, entry) => {
 const source = match[2] === undefined ? "rnStartupTiming" : "performance.now fallback";
 
 process.stdout.write(
-  `| Startup measurement | Time | Source |\n| --- | ---: | --- |\n| In-app idle | ${match[1]} ms | ${source} |\n| Runner launch and idle assertion | ${duration} ms | Maestro commands |\n`,
+  `| Startup measurement | Time | Source |\n| --- | ---: | --- |\n| Median in-app idle | ${match[1]} ms | ${source} |\n| Final runner launch and idle assertion | ${duration} ms | Maestro commands |\n`,
 );
