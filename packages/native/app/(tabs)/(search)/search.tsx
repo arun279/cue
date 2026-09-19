@@ -6,10 +6,9 @@ import { useSearchInput } from "@cue/core/hooks/useSearchInput";
 import { useWatchlistAdd } from "@cue/core/hooks/useWatchlistAdd";
 import { usePrefs } from "@cue/core/prefs/prefs-store";
 import { browseQuery, searchQuery } from "@cue/core/queries/discover";
-import { queryStatus } from "@cue/core/queries/freshness";
+import { type QueryStatus, queryStatus } from "@cue/core/queries/freshness";
 import { useRuntime } from "@cue/core/runtime/runtime";
 import { showFailure, showUndoable } from "@cue/core/stores/snackbar-store";
-import { readFailureOf } from "@cue/core/sync-contract";
 import { useQuery } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import { type ReactElement, useEffect, useMemo, useRef } from "react";
@@ -59,8 +58,9 @@ export default function Search(): ReactElement {
     [browse.data, showsEnabled, moviesEnabled],
   );
 
+  const status = queryStatus(results, results.data !== undefined);
   const querying = input.trim().length > 0;
-  const phase = phaseOf({ offline, settling, query: results });
+  const phase = phaseOf(offline, settling, status);
 
   const { addError, clearAddError } = watchlist;
   useEffect(() => {
@@ -129,7 +129,7 @@ export default function Search(): ReactElement {
                 query={query}
                 hidden={phase === null ? hits.length : 0}
                 moviesEnabled={moviesEnabled}
-                failure={readFailureOf(results.error)}
+                failure={status.failure}
                 onRetry={() => void results.refetch()}
               />
             ) : (
@@ -155,18 +155,10 @@ export default function Search(): ReactElement {
  * because Search is the one surface that genuinely needs a network: every other
  * screen paints from the persisted cache before it asks for anything.
  */
-function phaseOf({
-  offline,
-  settling,
-  query,
-}: {
-  readonly offline: boolean;
-  readonly settling: boolean;
-  readonly query: { readonly isError: boolean; readonly data: unknown };
-}): SearchPhase | null {
+function phaseOf(offline: boolean, settling: boolean, status: QueryStatus): SearchPhase | null {
   if (offline) return "offline";
-  if (query.isError) return "error";
-  if (settling || query.data === undefined) return "searching";
+  if (status.isError) return "error";
+  if (settling || !status.hasData) return "searching";
   return null;
 }
 
