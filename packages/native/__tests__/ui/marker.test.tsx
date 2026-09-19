@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react-native";
-import { StyleSheet, type ViewStyle } from "react-native";
+import { Platform, StyleSheet, type ViewStyle } from "react-native";
 import { Marker } from "../../src/ui/Marker";
 
 /**
@@ -16,6 +16,9 @@ it("draws a frame a hierarchy dump can find", async () => {
   const frame = StyleSheet.flatten<ViewStyle>(screen.getByTestId("a-gate").props["style"]);
   expect(frame?.width).toBeGreaterThan(0);
   expect(frame?.height).toBeGreaterThan(0);
+  expect(frame?.left).toBe(Platform.OS === "android" ? "50%" : 0);
+  expect(frame?.top).toBe(Platform.OS === "android" ? "50%" : undefined);
+  expect(frame?.bottom).toBe(Platform.OS === "android" ? undefined : 0);
 });
 
 it("carries accessibility-only text", async () => {

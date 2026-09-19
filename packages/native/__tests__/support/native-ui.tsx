@@ -15,10 +15,37 @@ export const router = { push: jest.fn(), back: jest.fn(), replace: jest.fn() };
  * way a finger does and watch what the reveal makes of it. */
 export const drag: { translation: { value: number } | null } = { translation: null };
 
+interface ScreenProps {
+  readonly options?: {
+    readonly headerSearchBarOptions?: {
+      readonly placeholder?: string;
+      onChangeText?(event: { nativeEvent: { text: string } }): void;
+    };
+  };
+}
+
+/** The testID the search field stand-in answers to. The app declares none: the
+ * platform's own field takes no `testID`, which is why the flows reach it by its
+ * placeholder and why a screen test needs a stand-in at all. */
+export const SEARCH_FIELD = "search-field";
+
 export function expoRouterModule() {
-  const { Text } = require("react-native") as typeof import("react-native");
+  const { createElement } = require("react") as typeof import("react");
+  const { Text, TextInput } = require("react-native") as typeof import("react-native");
   const Stack = (): null => null;
-  Stack.Screen = (): null => null;
+  // `headerSearchBarOptions` is a UISearchController on iOS and the Material
+  // search bar on Android, neither of which this runner has. The stand-in is a
+  // plain field carrying the same placeholder and the same change callback, so a
+  // test types what a finger types and nothing else about the screen is stubbed.
+  Stack.Screen = ({ options }: ScreenProps): ReactElement | null => {
+    const bar = options?.headerSearchBarOptions;
+    if (bar === undefined) return null;
+    return createElement(TextInput, {
+      testID: SEARCH_FIELD,
+      placeholder: bar.placeholder,
+      onChangeText: (text: string) => bar.onChangeText?.({ nativeEvent: { text } }),
+    });
+  };
   // The two library themes are data the app reads and reshapes, so the mock
   // carries the shape rather than a stand-in: a theme missing its colors is a
   // crash at the root rather than a wrong color.

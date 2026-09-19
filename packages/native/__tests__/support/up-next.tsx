@@ -5,7 +5,7 @@ import { type Haptics, HapticsProvider } from "@cue/core/ports/haptics";
 import { type Network, NetworkProvider } from "@cue/core/ports/network";
 import type { PreferenceStorage } from "@cue/core/ports/preference-storage";
 import { createPrefsStore, PrefsProvider } from "@cue/core/prefs/prefs-store";
-import { type CueRuntime, RuntimeProvider } from "@cue/core/runtime/runtime";
+import { type BrowseData, type CueRuntime, RuntimeProvider } from "@cue/core/runtime/runtime";
 import { resetMarkStore } from "@cue/core/stores/mark-store";
 import { dismissSnack } from "@cue/core/stores/snackbar-store";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -64,7 +64,16 @@ export interface RuntimeFixture {
   readonly movies?: readonly MovieEntry[];
   readonly calendar?: readonly CalendarEntry[];
   readonly submit?: CueRuntime["submit"];
+  readonly search?: CueRuntime["search"];
+  readonly browse?: Partial<BrowseData>;
 }
+
+const NO_BROWSE: BrowseData = {
+  trending: [],
+  popular: [],
+  trendingMovies: [],
+  popularMovies: [],
+};
 
 /**
  * The slice of the runtime the home screen actually reaches. Cast once, here,
@@ -77,11 +86,16 @@ export function fakeRuntime({
   movies = [],
   calendar = [],
   submit,
+  search,
+  browse,
 }: RuntimeFixture): CueRuntime {
   return {
     newId: () => "test-op-id",
     loadUpNext: () => Promise.resolve({ entries: [...entries], isPartial: false }),
     loadMovieLibrary: () => Promise.resolve({ entries: [...movies] }),
+    loadWatchlistIds: () => Promise.resolve([]),
+    search: search ?? (() => Promise.resolve([])),
+    loadBrowse: () => Promise.resolve({ ...NO_BROWSE, ...browse }),
     loadCalendar: () => Promise.resolve({ entries: calendar, hiddenShowIds: [] }),
     loadShowSeasons: () => Promise.resolve([]),
     loadShowInfo: () => Promise.resolve({ posters: [], backdrops: [] }),
