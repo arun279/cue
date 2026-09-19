@@ -76,26 +76,6 @@ export function UpNextError({
   );
 }
 
-/**
- * The media-visibility branch, which is not one of the five: it is decided by a
- * Settings switch rather than by what the library holds, and it issues no show
- * reads at all. The copy is new, written in the grammar of the movie notice it
- * mirrors, so the two media stay symmetric.
- */
-export function TvShowsOff(): ReactElement {
-  const router = useRouter();
-
-  return (
-    <EmptyState
-      testID={TEST_IDS.upNextTvOff}
-      headline="TV shows are turned off."
-      body="Turn TV shows back on in Settings to see your queue."
-    >
-      <Button label="Open Settings" variant="link" onPress={() => router.push("/settings")} />
-    </EmptyState>
-  );
-}
-
 interface EmptyCopy {
   readonly testID: string;
   readonly headline: string;

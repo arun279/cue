@@ -38,7 +38,6 @@ import {
 } from "../../../src/screens/up-next/TutorialCaption";
 import { UpNextBarItems } from "../../../src/screens/up-next/UpNextBarItems";
 import {
-  TvShowsOff,
   UpNextEmpty,
   UpNextError,
   UpNextSkeleton,
@@ -47,6 +46,7 @@ import { useStableQueueOrder } from "../../../src/screens/up-next/useStableQueue
 import { Chevron } from "../../../src/ui/Chevron";
 import { Row, Separator } from "../../../src/ui/Row";
 import { SyncStrip } from "../../../src/ui/SyncStrip";
+import { TvShowsOff } from "../../../src/ui/TvShowsOff";
 import { TEST_IDS } from "../../../src/ui/test-ids";
 import {
   ROW_MIN_HEIGHT,
@@ -277,7 +277,14 @@ function Lead({
   readonly onStop: (card: UpNextCard) => void;
   readonly airingSoon: boolean;
 }): ReactElement | null {
-  if (branch === "tv-off") return <TvShowsOff />;
+  if (branch === "tv-off") {
+    return (
+      <TvShowsOff
+        body="Turn TV shows back on in Settings to see your queue."
+        testID={TEST_IDS.upNextTvOff}
+      />
+    );
+  }
   if (branch === "loading") return <UpNextSkeleton />;
   if (branch === "error") {
     return <UpNextError failure={view.failure} onRetry={view.refetch} />;
