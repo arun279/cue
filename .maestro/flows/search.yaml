@@ -18,9 +18,15 @@ appId: app.cuetracker
 - assertVisible:
     id: "search-browse"
 - assertVisible: "Trending shows"
-- assertVisible: "Popular movies"
 - assertVisible:
     id: "show-card-8801"
+# One grid per enabled medium, the movies one below the fold on a phone.
+- scrollUntilVisible:
+    element:
+      id: "movie-card-5501"
+    direction: DOWN
+    timeout: 20000
+- assertVisible: "Popular movies"
 
 - tapOn: "Shows and movies.*"
 - inputText: "harbor"
