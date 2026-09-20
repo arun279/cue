@@ -51,19 +51,8 @@ appId: app.cuetracker
 - waitForAnimationToEnd:
     timeout: 1000
 - takeScreenshot: episode-sheet-rest
-- runFlow:
-    when:
-      platform: iOS
-    commands:
-      - swipe:
-          start: "50%,10%"
-          end: "50%,98%"
-          duration: 500
-- runFlow:
-    when:
-      platform: Android
-    commands:
-      - back
+- tapOn:
+    id: "episode-close"
 - extendedWaitUntil:
     visible:
       id: "screen-show-detail"

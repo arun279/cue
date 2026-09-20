@@ -102,6 +102,8 @@ it("marks from the sheet and exposes the same reversible snackbar", async () => 
       within(screen.getByTestId(TEST_IDS.episodeMarkRow)).getByRole("switch"),
     ).not.toBeChecked(),
   );
+  await fireEvent.press(screen.getByTestId(TEST_IDS.episodeClose));
+  expect(router.dismiss).toHaveBeenCalledWith();
 });
 
 it("replaces the episode route and names an exhausted direction", async () => {

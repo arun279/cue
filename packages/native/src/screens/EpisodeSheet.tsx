@@ -6,8 +6,10 @@ import { usePrefs } from "@cue/core/prefs/prefs-store";
 import { episodePlaysQuery, episodeQuery, showSeasonsQuery } from "@cue/core/queries/shows";
 import { useRuntime } from "@cue/core/runtime/runtime";
 import { useQuery } from "@tanstack/react-query";
+import { useRouter } from "expo-router";
 import type { ReactElement } from "react";
 import { StyleSheet, View } from "react-native";
+import { Button } from "../ui/Button";
 import { TEST_IDS } from "../ui/test-ids";
 import { RADIUS, SPACE, useColors } from "../ui/tokens";
 import { CueText } from "../ui/type";
@@ -44,6 +46,7 @@ function EpisodeContent({ showId, season, episode }: EpisodeSheetProps): ReactEl
 }
 
 function LoadedEpisode({ detail }: { readonly detail: EpisodeDetail }): ReactElement {
+  const router = useRouter();
   const runtime = useRuntime();
   const seasons = useQuery(showSeasonsQuery(runtime, detail.showId));
   const playsQuery = useQuery({
@@ -57,11 +60,17 @@ function LoadedEpisode({ detail }: { readonly detail: EpisodeDetail }): ReactEle
   const navigation = seasons.data === undefined ? detail : episodeNavigation(seasons.data, detail);
   return (
     <View testID={TEST_IDS.screenEpisode} style={styles.content}>
-      {detail.aired && (
-        <View style={styles.toolbar}>
+      <View style={styles.toolbar}>
+        <Button
+          label="Close"
+          variant="link"
+          testID={TEST_IDS.episodeClose}
+          onPress={() => router.dismiss()}
+        />
+        {detail.aired && (
           <EpisodeMenu detail={detail} plays={plays} mark={mark} confirm={confirmation.present} />
-        </View>
-      )}
+        )}
+      </View>
       <EpisodeBody
         detail={detail}
         guarded={hidden && !detail.watched}
@@ -140,7 +149,7 @@ const styles = StyleSheet.create({
   // The sheet does not scroll, so the body owns the height between the toolbar
   // and the pager and the still gives back whatever the text needs.
   body: { flex: 1, gap: SPACE.s3 },
-  toolbar: { alignItems: "flex-end" },
+  toolbar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   countdown: {
     minHeight: 214,
     borderRadius: RADIUS.poster,
