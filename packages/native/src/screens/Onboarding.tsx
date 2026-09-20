@@ -102,6 +102,7 @@ function DeviceCode({
       </CueText>
       <Pressable
         accessibilityRole="button"
+        testID={TEST_IDS.deviceCodeValue}
         accessibilityLabel={`Copy code ${userCode}`}
         accessibilityHint={copied ? "Copied" : "Tap to copy"}
         onPress={copy}
@@ -113,12 +114,7 @@ function DeviceCode({
           },
         ]}
       >
-        <CueText
-          variant="statHero"
-          tabularNums
-          testID={TEST_IDS.deviceCodeValue}
-          style={{ color: colors.fg }}
-        >
+        <CueText variant="statHero" tabularNums style={{ color: colors.fg }}>
           {userCode}
         </CueText>
         <CueText variant="meta" accessibilityLiveRegion="polite" style={{ color: colors.muted }}>

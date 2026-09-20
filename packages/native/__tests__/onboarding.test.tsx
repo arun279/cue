@@ -1,7 +1,7 @@
 import { createAuthStore } from "@cue/core/auth/create-auth-store";
 import { type AuthState, AuthStoreProvider } from "@cue/core/auth/store";
 import { HapticsProvider } from "@cue/core/ports/haptics";
-import { act, fireEvent, render, screen } from "@testing-library/react-native";
+import { act, fireEvent, render, screen, within } from "@testing-library/react-native";
 import { AccessibilityInfo, Clipboard, Linking, Platform } from "react-native";
 import "./support/screen-mocks";
 import { Onboarding } from "../src/screens/Onboarding";
@@ -85,7 +85,7 @@ it("opens the supplied activation URL and returns to idle when cancelled", async
   await paint({ connectStatus: "connecting", deviceCode });
 
   expect(screen.getByRole("header", { name: "Enter this code on Trakt" })).toBeOnTheScreen();
-  expect(screen.getByTestId("device-code-value")).toHaveTextContent("AB12CD34");
+  expect(within(screen.getByTestId("device-code-value")).getByText("AB12CD34")).toBeOnTheScreen();
   const waiting = screen.getByText("Waiting for you to approve in Trakt…");
   if (Platform.OS === "android") {
     expect(waiting).toHaveProp("accessibilityLiveRegion", "polite");
