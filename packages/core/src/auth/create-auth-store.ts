@@ -147,6 +147,7 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
           set({
             connectStatus: "error",
             errorMessage: "Couldn't reach Trakt. Check your connection and try again.",
+            deviceCode: null,
           });
         }
       },

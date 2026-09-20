@@ -1,103 +1,167 @@
 import { useAuth } from "@cue/core/auth/store";
-import type { ReactElement } from "react";
-import { Linking, Pressable, StyleSheet } from "react-native";
+import { useHaptics } from "@cue/core/ports/haptics";
+import { type ReactElement, useEffect, useRef, useState } from "react";
+import { Clipboard, Image, Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "../ui/Button";
+import { useLiveRegion } from "../ui/live-region";
 import { TEST_IDS } from "../ui/test-ids";
-import { SPACE, TARGET_MIN, useColors } from "../ui/tokens";
+import { HAIRLINE, RADIUS, SPACE, TARGET_MIN, useColors } from "../ui/tokens";
 import { CueText } from "../ui/type";
 
-/**
- * The device-code sign-in, on the type roles and the page fill the rest of the
- * app draws with. It is still a placeholder: the brand mark, the code card and
- * its copy target, and the footer saying where the data lives all belong to the
- * screen this becomes.
- *
- * The activation URL is rendered beside the code, which the spike did not do.
- * `verificationUrl` is already computed by the auth store and was thrown away;
- * a device flow that shows a code with no destination is not usable against
- * real Trakt.
- */
 export function Onboarding(): ReactElement {
   const colors = useColors();
   const status = useAuth((s) => s.connectStatus);
   const deviceCode = useAuth((s) => s.deviceCode);
   const errorMessage = useAuth((s) => s.errorMessage);
   const connect = useAuth((s) => s.connectWithDeviceCode);
-  const cancel = useAuth((s) => s.cancelConnect);
-
-  if (deviceCode !== null) {
-    return (
-      <SafeAreaView
-        testID={TEST_IDS.screenDeviceCode}
-        style={[styles.page, { backgroundColor: colors.bg }]}
-      >
-        <CueText variant="detailTitle" accessibilityRole="header" style={{ color: colors.fg }}>
-          Connect to Trakt
-        </CueText>
-        <CueText variant="rowTitleSecondary" style={{ color: colors.ink2 }}>
-          Open this page and enter the code:
-        </CueText>
-        <Pressable
-          accessibilityRole="link"
-          testID={TEST_IDS.deviceCodeUrl}
-          style={styles.target}
-          onPress={() => void Linking.openURL(deviceCode.verificationUrl)}
-        >
-          <CueText variant="rowTitleSecondary" style={{ color: colors.accentInk }}>
-            {deviceCode.verificationUrl}
-          </CueText>
-        </Pressable>
-        <CueText
-          variant="detailTitle"
-          tabularNums
-          testID={TEST_IDS.deviceCodeValue}
-          accessibilityLabel={`Your code is ${deviceCode.userCode}`}
-          style={{ color: colors.fg }}
-        >
-          {deviceCode.userCode}
-        </CueText>
-        <Pressable
-          accessibilityRole="button"
-          testID={TEST_IDS.deviceCodeCancel}
-          style={styles.target}
-          onPress={cancel}
-        >
-          <CueText variant="meta" style={{ color: colors.muted }}>
-            Cancel
-          </CueText>
-        </Pressable>
-      </SafeAreaView>
-    );
-  }
+  const errorLive = useLiveRegion(errorMessage, "assertive");
 
   return (
     <SafeAreaView
-      testID={TEST_IDS.screenOnboarding}
+      testID={deviceCode === null ? TEST_IDS.screenOnboarding : TEST_IDS.screenDeviceCode}
       style={[styles.page, { backgroundColor: colors.bg }]}
     >
-      <CueText variant="statHero" accessibilityRole="header" style={{ color: colors.fg }}>
-        Cue
-      </CueText>
-      <CueText variant="rowTitle" weight="regular" style={{ color: colors.ink2 }}>
-        Your Up Next queue, from your Trakt account.
-      </CueText>
-      {errorMessage === null ? null : (
-        <CueText variant="meta" accessibilityRole="alert" style={{ color: colors.danger }}>
-          {errorMessage}
-        </CueText>
-      )}
-      <Button
-        label={status === "connecting" ? "Connecting…" : "Connect to Trakt"}
-        testID={TEST_IDS.buttonConnect}
-        disabled={status === "connecting"}
-        onPress={() => void connect()}
-      />
+      <ScrollView contentContainerStyle={styles.scroll}>
+        <View style={styles.content}>
+          {deviceCode === null ? (
+            <>
+              <Image
+                source={require("../../assets/icon.png")}
+                accessible={false}
+                style={styles.mark}
+              />
+              <CueText variant="statHero" accessibilityRole="header" style={{ color: colors.fg }}>
+                Cue
+              </CueText>
+              <CueText variant="rowTitle" weight="regular" style={{ color: colors.ink2 }}>
+                Your shows. One tap ahead.
+              </CueText>
+              <View style={styles.action}>
+                {errorMessage === null ? null : (
+                  <CueText
+                    variant="meta"
+                    accessibilityRole="alert"
+                    {...errorLive}
+                    style={{ color: colors.danger }}
+                  >
+                    {errorMessage}
+                  </CueText>
+                )}
+                <Button
+                  label={status === "connecting" ? "Connecting…" : "Connect Trakt"}
+                  testID={TEST_IDS.buttonConnect}
+                  disabled={status === "connecting"}
+                  onPress={() => void connect()}
+                />
+              </View>
+            </>
+          ) : (
+            <DeviceCode key={deviceCode.userCode} {...deviceCode} />
+          )}
+        </View>
+        {deviceCode === null ? (
+          <CueText variant="meta" style={{ color: colors.muted }}>
+            Powered by Trakt. Your data lives in your Trakt account.
+          </CueText>
+        ) : null}
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
+function DeviceCode({
+  userCode,
+  verificationUrl,
+}: {
+  readonly userCode: string;
+  readonly verificationUrl: string;
+}): ReactElement {
+  const colors = useColors();
+  const haptics = useHaptics();
+  const cancel = useAuth((s) => s.cancelConnect);
+  const [copied, setCopied] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const waiting = "Waiting for you to approve in Trakt…";
+  const waitingLive = useLiveRegion(waiting, "polite");
+
+  useEffect(() => () => clearTimeout(timer.current), []);
+
+  const copy = () => {
+    Clipboard.setString(userCode);
+    haptics.selection();
+    setCopied(true);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <>
+      <CueText variant="detailTitle" accessibilityRole="header" style={{ color: colors.fg }}>
+        Enter this code on Trakt
+      </CueText>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Copy code ${userCode}`}
+        accessibilityHint={copied ? "Copied" : "Tap to copy"}
+        onPress={copy}
+        style={({ pressed }) => [
+          styles.code,
+          {
+            backgroundColor: pressed ? colors.elevated : colors.surface,
+            borderColor: colors.border,
+          },
+        ]}
+      >
+        <CueText
+          variant="statHero"
+          tabularNums
+          testID={TEST_IDS.deviceCodeValue}
+          style={{ color: colors.fg }}
+        >
+          {userCode}
+        </CueText>
+        <CueText variant="meta" accessibilityLiveRegion="polite" style={{ color: colors.muted }}>
+          {copied ? "Copied" : "Tap to copy"}
+        </CueText>
+      </Pressable>
+      <Pressable
+        accessibilityRole="link"
+        testID={TEST_IDS.deviceCodeUrl}
+        style={styles.target}
+        onPress={() => void Linking.openURL(verificationUrl)}
+      >
+        <CueText variant="rowTitleSecondary" style={{ color: colors.ink2 }}>
+          Enter it at{" "}
+          <CueText
+            variant="rowTitleSecondary"
+            style={{ color: colors.accentInk, textDecorationLine: "underline" }}
+          >
+            trakt.tv/activate
+          </CueText>
+        </CueText>
+      </Pressable>
+      <CueText variant="meta" {...waitingLive} style={{ color: colors.muted }}>
+        {waiting}
+      </CueText>
+      <Button label="Cancel" variant="link" testID={TEST_IDS.deviceCodeCancel} onPress={cancel} />
+    </>
+  );
+}
+
 const styles = StyleSheet.create({
-  page: { flex: 1, justifyContent: "center", paddingHorizontal: SPACE.s5, gap: SPACE.s3 },
-  target: { justifyContent: "center", minHeight: TARGET_MIN },
+  page: { flex: 1 },
+  scroll: { flexGrow: 1, paddingHorizontal: SPACE.s5, paddingVertical: SPACE.s4 },
+  content: { flexGrow: 1, justifyContent: "center", gap: SPACE.s3, paddingVertical: SPACE.s7 },
+  mark: { width: SPACE.s8, height: SPACE.s8, borderRadius: RADIUS.card },
+  action: { gap: SPACE.s3, paddingTop: SPACE.s5 },
+  code: {
+    minHeight: TARGET_MIN,
+    minWidth: TARGET_MIN,
+    padding: SPACE.s5,
+    gap: SPACE.s2,
+    borderWidth: HAIRLINE,
+    borderRadius: RADIUS.card,
+  },
+  target: { justifyContent: "center", minHeight: TARGET_MIN, minWidth: TARGET_MIN },
 });

@@ -175,6 +175,24 @@ describe("device authorization polling", () => {
     });
   });
 
+  it("clears the displayed code when polling throws so connection can be retried", async () => {
+    vi.mocked(pollDeviceToken).mockRejectedValueOnce(new Error("network unavailable"));
+    const store = createAuthStore(authDeps(createTokenStore(memoryKeyValueStore())));
+
+    const connecting = store.getState().connectWithDeviceCode();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(store.getState().deviceCode?.userCode).toBe("ABCD");
+    await vi.advanceTimersByTimeAsync(1_000);
+    await connecting;
+
+    expect(store.getState()).toMatchObject({
+      phase: "onboarding",
+      connectStatus: "error",
+      deviceCode: null,
+      errorMessage: "Couldn't reach Trakt. Check your connection and try again.",
+    });
+  });
+
   const terminalCases = [
     ["denied", "You declined the request in Trakt. Try again when you're ready."],
     ["expired", "That code expired before it was approved. Start again to get a new one."],
