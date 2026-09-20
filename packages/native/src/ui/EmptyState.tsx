@@ -42,7 +42,7 @@ export function EmptyState({
           {body}
         </CueText>
       )}
-      {children}
+      {centered ? <View style={styles.action}>{children}</View> : children}
     </View>
   );
 }
@@ -57,4 +57,5 @@ const styles = StyleSheet.create({
   },
   centered: { alignItems: "center" },
   centeredText: { textAlign: "center" },
+  action: { alignSelf: "stretch", flexDirection: "row", justifyContent: "center" },
 });

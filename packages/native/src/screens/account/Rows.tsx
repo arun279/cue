@@ -192,6 +192,6 @@ const styles = StyleSheet.create({
     minHeight: ROW_MIN_HEIGHT.settings,
     flexDirection: "row",
     alignItems: "center",
-    maxWidth: 190,
+    maxWidth: 210,
   },
 });

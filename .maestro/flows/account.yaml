@@ -127,3 +127,6 @@ appId: app.cuetracker
     timeout: 60000
 - runScript: lib/clear-faults.js
 - assertTrue: ${output.faultsCleared}
+# Sign back in, because the flow ends on onboarding and the app-idle
+# measurement after it has to start from a returning user.
+- runFlow: lib/connect.yaml
