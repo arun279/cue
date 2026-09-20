@@ -1,3 +1,4 @@
+import { createPrefsStore } from "@cue/core/prefs/prefs-store";
 import { describeKeyValueStore } from "../../core/test/support/kv-contract";
 import { bulkBacking, secureBacking } from "./support/native-stores";
 
@@ -57,9 +58,12 @@ describe("what sign-out's preference clear can reach", () => {
     await bulkStore.write("cue.install-id", "an-install");
     preferenceStorage.setItem("cue.theme", "dark");
 
-    clearLocalPreferences();
+    const prefs = createPrefsStore(preferenceStorage);
+    prefs.getState().setMoviesEnabled(false);
+    clearLocalPreferences(prefs);
 
     expect(preferenceStorage.getItem("cue.theme")).toBeNull();
+    expect(prefs.getState()).toMatchObject({ theme: "system", moviesEnabled: true });
     expect(await bulkStore.read("cue.write-queue")).toBe('[{"id":"op-1"}]');
     expect(await bulkStore.read("cue.install-id")).toBe("an-install");
   });

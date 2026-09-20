@@ -8,6 +8,7 @@ import {
   type MediaVisibility,
   persistMediaVisibility,
 } from "./media-visibility";
+import { choicePref } from "./pref-storage";
 import { thresholdPref } from "./threshold";
 import {
   hideStillsPref,
@@ -17,7 +18,11 @@ import {
   nextEpisodeOrderPref,
 } from "./tracking";
 
+export type Theme = "system" | "dark" | "light";
+
 interface PrefsState {
+  theme: Theme;
+  setTheme: (theme: Theme) => void;
   /** Days of inactivity before a show falls from Watching to Not-watched-in-a-while. */
   thresholdDays: number;
   setThresholdDays: (days: number) => void;
@@ -61,6 +66,7 @@ export type PrefsStore = StoreApi<PrefsState>;
  * inject.
  */
 export function createPrefsStore(storage: PreferenceStorage): PrefsStore {
+  const theme = choicePref<Theme>(storage, "cue.theme", ["system", "dark", "light"], "system");
   const haptics = hapticsPref(storage);
   const reminders = remindersPref(storage);
   const hideStills = hideStillsPref(storage);
@@ -78,6 +84,11 @@ export function createPrefsStore(storage: PreferenceStorage): PrefsStore {
       set(next);
     };
     return {
+      theme: theme.initial(),
+      setTheme: (value) => {
+        theme.persist(value);
+        set({ theme: value });
+      },
       thresholdDays: threshold.initial(),
       setThresholdDays: (thresholdDays) => {
         threshold.persist(thresholdDays);
