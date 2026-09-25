@@ -130,17 +130,20 @@ describe("fast pull request validation", () => {
     expect(connect).toMatch(/screen-up-next[\s\S]*app-idle[\s\S]*up-next-skeleton/);
   });
 
-  it("keeps Maestro debug output visible to uploads that also run after a timeout", () => {
+  it("uploads Maestro's hidden debug folder even after a timeout, leaving screenshots in place", () => {
     const verification = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
-    const invocations = [workflow, verification].flatMap(
-      (source) => source.match(/--debug-output .*\n.*/g) ?? [],
-    );
-    const uploads = [...workflow.matchAll(/if: (.+)\n\s+with:\n\s+name: (?:native|android)-e2e-/g)];
+    const sources = [workflow, verification];
+    const uploads = [
+      ...workflow.matchAll(/if: (.+)\n\s+with:\n\s+name: (?:native|android)-e2e-.*\n\s+(.+)/g),
+    ];
 
-    expect(invocations).toHaveLength(3);
-    for (const invocation of invocations) expect(invocation).toContain("--flatten-debug-output");
+    expect(sources.flatMap((source) => source.match(/--debug-output /g) ?? [])).toHaveLength(3);
+    for (const source of sources) expect(source).not.toContain("--flatten-debug-output");
     expect(uploads).toHaveLength(4);
-    for (const [, condition] of uploads) expect(condition).toBe("$" + "{{ always() }}");
+    for (const [, condition, option] of uploads) {
+      expect(condition).toBe("$" + "{{ always() }}");
+      expect(option).toBe("include-hidden-files: true");
+    }
   });
 
   it("uses a fixed Maestro driver port outside Android's ephemeral range", () => {

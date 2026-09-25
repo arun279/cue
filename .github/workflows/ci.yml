@@ -409,7 +409,6 @@ jobs:
             --format JUNIT \
             --output "$RUNNER_TEMP/maestro-results-${{ matrix.suite }}.xml" \
             --debug-output "$RUNNER_TEMP/maestro-debug/${{ matrix.suite }}" \
-            --flatten-debug-output \
             --test-output-dir "$output"
       - name: Gate and summarize response timing
         if: ${{ !cancelled() && matrix.suite == 'detail' }}
@@ -440,6 +439,7 @@ jobs:
         if: ${{ always() }}
         with:
           name: native-e2e-ios-light-${{ matrix.suite }}
+          include-hidden-files: true
           path: |
             ${{ runner.temp }}/maestro-debug/
             ${{ runner.temp }}/maestro-results-*.xml
@@ -503,7 +503,6 @@ jobs:
             --format JUNIT \
             --output "$RUNNER_TEMP/maestro-results-dark.xml" \
             --debug-output "$RUNNER_TEMP/maestro-debug/dark" \
-            --flatten-debug-output \
             --test-output-dir "$RUNNER_TEMP/screenshots/ios/dark"
       - name: Create iOS contact sheet
         if: ${{ !cancelled() }}
@@ -521,6 +520,7 @@ jobs:
         if: ${{ always() }}
         with:
           name: native-e2e-ios-dark
+          include-hidden-files: true
           path: |
             ${{ runner.temp }}/maestro-debug/
             ${{ runner.temp }}/maestro-results-*.xml
@@ -698,6 +698,7 @@ jobs:
         if: ${{ always() }}
         with:
           name: android-e2e-light
+          include-hidden-files: true
           path: ${{ runner.temp }}/android-ui
           if-no-files-found: error
           retention-days: 7
@@ -759,6 +760,7 @@ jobs:
         if: ${{ always() }}
         with:
           name: android-e2e-dark
+          include-hidden-files: true
           path: ${{ runner.temp }}/android-ui
           if-no-files-found: error
           retention-days: 7
