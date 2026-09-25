@@ -95,7 +95,7 @@ function alertBody(first: CalendarRow, rest: readonly CalendarRow[]): string {
     return `${[epCode(first.season, first.number), first.episodeTitle].filter(Boolean).join(" ")} is out.`;
   }
   const numbers = [first, ...rest].map((row) => row.number).sort((a, b) => a - b);
-  const low = numbers[0] ?? first.number;
+  const low = Math.min(...numbers);
   const run =
     rest.every((row) => row.season === first.season) &&
     numbers.every((number, index) => number === low + index);
@@ -105,20 +105,20 @@ function alertBody(first: CalendarRow, rest: readonly CalendarRow[]): string {
 }
 
 function alertsFor(dayKey: string, rows: readonly CalendarRow[]): PlannedReminder[] {
-  const byShow = new Map<number, CalendarRow[]>();
-  for (const row of rows) byShow.set(row.showId, [...(byShow.get(row.showId) ?? []), row]);
-  return [...byShow.values()].flatMap(([first, ...rest]) =>
-    first === undefined
-      ? []
-      : [
-          reminder(
-            `${first.showId}@${dayKey}`,
-            Date.parse(first.firstAired),
-            first.showTitle,
-            alertBody(first, rest),
-            first.showId,
-          ),
-        ],
+  const byShow = new Map<number, [CalendarRow, ...CalendarRow[]]>();
+  for (const row of rows) {
+    const run = byShow.get(row.showId);
+    if (run === undefined) byShow.set(row.showId, [row]);
+    else run.push(row);
+  }
+  return [...byShow.values()].map(([first, ...rest]) =>
+    reminder(
+      `${first.showId}@${dayKey}`,
+      Date.parse(first.firstAired),
+      first.showTitle,
+      alertBody(first, rest),
+      first.showId,
+    ),
   );
 }
 
