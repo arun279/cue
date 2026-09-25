@@ -4,7 +4,9 @@ set -euo pipefail
 aab=$1
 apk=$2
 keystore=$3
-work=$(mktemp -d "$RUNNER_TEMP/android-bundle.XXXXXX")
+: "${EXPO_PUBLIC_TRAKT_CLIENT_ID:?the app throws at startup without a Trakt client id}"
+: "${EXPO_PUBLIC_TRAKT_API_BASE:?the harness app must be pointed at the fake Trakt origin}"
+work=$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/android-bundle.XXXXXX")
 mkdir -p "$work/aab/base/assets" "$work/apk/assets"
 (
   cd packages/native
