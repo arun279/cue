@@ -91,6 +91,22 @@ export default function Settings(): ReactElement {
   };
   return (
     <AccountScreen testID={TEST_IDS.screenSettings}>
+      <Section title="Notifications">
+        <Toggle
+          title="New episodes"
+          hint="An alert for each show you are watching when a new episode is out, scheduled on the phone itself. Cue plans four weeks ahead each time you open it."
+          value={prefs.remindersEnabled}
+          onChange={(enabled) => void setReminders(enabled)}
+        />
+        {prefs.remindersEnabled ? (
+          <Toggle
+            title="Daily summary instead"
+            hint="One notification each morning naming what airs that day. No alert when an episode is out."
+            value={prefs.dailySummary}
+            onChange={prefs.setDailySummary}
+          />
+        ) : null}
+      </Section>
       <Section title="Appearance">
         <SettingRow title="Theme" trailing={<ThemeControl />} />
         <Toggle
@@ -130,15 +146,6 @@ export default function Settings(): ReactElement {
           options={THRESHOLDS}
           onChange={prefs.setThresholdDays}
           testID={TEST_IDS.settingsThreshold}
-        />
-      </Section>
-      <Section title="Reminders">
-        <Toggle
-          title="Episode reminders"
-          hint="One notification each morning naming what airs that day, scheduled on the phone itself. Reminders are planned four weeks ahead each time you open Cue."
-          testID={TEST_IDS.settingsReminders}
-          value={prefs.remindersEnabled}
-          onChange={(enabled) => void setReminders(enabled)}
         />
       </Section>
       <Section title="Content">

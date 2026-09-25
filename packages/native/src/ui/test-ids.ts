@@ -118,7 +118,6 @@ export const TEST_IDS = {
   runtimeLoading: "runtime-loading",
   screenSettings: "screen-settings",
   settingsHaptics: "settings-haptics",
-  settingsReminders: "settings-reminders",
   settingsVersion: "settings-version",
   settingsDisconnect: "sign-out",
   episodeSkeleton: "episode-skeleton",

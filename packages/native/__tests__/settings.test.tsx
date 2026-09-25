@@ -60,7 +60,7 @@ function remindersAnswering(granted: Promise<boolean>): Reminders {
   };
 }
 
-it("turns reminders on only once the OS allows notifications, and off without asking", async () => {
+it("turns alerts on only once the OS allows notifications, and off without asking", async () => {
   let allow: (granted: boolean) => void = () => {};
   const reminders = remindersAnswering(new Promise((resolve) => (allow = resolve)));
   const fixture = accountFixture();
@@ -69,7 +69,7 @@ it("turns reminders on only once the OS allows notifications, and off without as
       <Settings />
     </RemindersProvider>,
   );
-  const toggle = () => screen.getByRole("switch", { name: "Episode reminders" });
+  const toggle = () => screen.getByRole("switch", { name: "New episodes" });
 
   await fireEvent(toggle(), "valueChange", true);
   expect(reminders.requestPermission).toHaveBeenCalledTimes(1);
@@ -84,7 +84,7 @@ it("turns reminders on only once the OS allows notifications, and off without as
   expect(reminders.requestPermission).toHaveBeenCalledTimes(1);
 });
 
-it("leaves reminders off and says where to change it when the OS refuses", async () => {
+it("leaves alerts off and says where to change it when the OS refuses", async () => {
   const fixture = accountFixture();
   await fixture.paint(
     <RemindersProvider value={remindersAnswering(Promise.resolve(false))}>
@@ -92,9 +92,9 @@ it("leaves reminders off and says where to change it when the OS refuses", async
     </RemindersProvider>,
   );
 
-  await fireEvent(screen.getByRole("switch", { name: "Episode reminders" }), "valueChange", true);
+  await fireEvent(screen.getByRole("switch", { name: "New episodes" }), "valueChange", true);
 
-  expect(screen.getByRole("switch", { name: "Episode reminders" })).not.toBeChecked();
+  expect(screen.getByRole("switch", { name: "New episodes" })).not.toBeChecked();
   expect(createPrefsStore(fixture.storage).getState().remindersEnabled).toBe(false);
   expect(
     screen.getByText("Notifications are off for Cue. Turn them on in your phone's settings."),
@@ -103,6 +103,26 @@ it("leaves reminders off and says where to change it when the OS refuses", async
   const openSettings = jest.spyOn(Linking, "openSettings").mockResolvedValue();
   await userEvent.press(screen.getByRole("button", { name: "Open settings" }));
   expect(openSettings).toHaveBeenCalledTimes(1);
+});
+
+it("offers the daily summary only while alerts are on", async () => {
+  const fixture = accountFixture();
+  await fixture.paint(<Settings />);
+  const summary = () => screen.queryByRole("switch", { name: "Daily summary instead" });
+  expect(summary()).toBeNull();
+
+  await fireEvent(screen.getByRole("switch", { name: "New episodes" }), "valueChange", true);
+  expect(summary()).not.toBeChecked();
+
+  await fireEvent(
+    screen.getByRole("switch", { name: "Daily summary instead" }),
+    "valueChange",
+    true,
+  );
+  expect(createPrefsStore(fixture.storage).getState().dailySummary).toBe(true);
+
+  await fireEvent(screen.getByRole("switch", { name: "New episodes" }), "valueChange", false);
+  expect(summary()).toBeNull();
 });
 
 const Library = (
@@ -124,15 +144,15 @@ it("starts with accessible controls and the strong defaults", async () => {
   expect(
     screen.getByRole("button", { name: "Haven't watched in a while after, 3 weeks" }),
   ).toBeVisible();
-  expect(screen.getByRole("switch", { name: "Episode reminders" })).not.toBeChecked();
+  expect(screen.getByRole("switch", { name: "New episodes" })).not.toBeChecked();
 });
 
 it("lists the sections in the order of the screen", async () => {
   await accountFixture().paint(<Settings />);
   expect(screen.getAllByRole("header").flatMap((heading) => heading.children)).toEqual([
+    "Notifications",
     "Appearance",
     "Tracking",
-    "Reminders",
     "Content",
     "Data",
     "Account",
