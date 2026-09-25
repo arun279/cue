@@ -135,6 +135,7 @@ describe("device authorization polling", () => {
       userCode: "ABCD",
       verificationUrl: "https://trakt.test/activate",
       intervalMs: 1_000,
+      expiresInMs: 3_000,
     });
   });
 
@@ -172,6 +173,44 @@ describe("device authorization polling", () => {
       connectStatus: "success",
       errorMessage: null,
       deviceCode: null,
+    });
+  });
+
+  it("keeps the code and keeps polling when a poll throws", async () => {
+    vi.mocked(pollDeviceToken)
+      .mockRejectedValueOnce(new Error("network unavailable"))
+      .mockResolvedValue({ status: "pending" });
+    const store = createAuthStore(authDeps(createTokenStore(memoryKeyValueStore())));
+
+    const connecting = store.getState().connectWithDeviceCode();
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(store.getState()).toMatchObject({
+      connectStatus: "connecting",
+      deviceCode: { userCode: "ABCD" },
+      errorMessage: null,
+    });
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(pollDeviceToken).toHaveBeenCalledTimes(2);
+    store.getState().cancelConnect();
+    await vi.advanceTimersByTimeAsync(1_000);
+    await connecting;
+  });
+
+  it("clears the displayed code once polls fail until it expires so connection can be retried", async () => {
+    vi.mocked(pollDeviceToken).mockRejectedValue(new Error("network unavailable"));
+    const store = createAuthStore(authDeps(createTokenStore(memoryKeyValueStore())));
+
+    const connecting = store.getState().connectWithDeviceCode();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(store.getState().deviceCode?.userCode).toBe("ABCD");
+    await vi.advanceTimersByTimeAsync(3_000);
+    await connecting;
+
+    expect(store.getState()).toMatchObject({
+      phase: "onboarding",
+      connectStatus: "error",
+      deviceCode: null,
+      errorMessage: "That code expired before it was approved. Start again to get a new one.",
     });
   });
 
