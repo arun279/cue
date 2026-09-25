@@ -33,7 +33,9 @@ export function historyRouterModule() {
   };
 }
 
-export function historyEntry(overrides: Partial<HistoryEntry> = {}): HistoryEntry {
+export function historyEntry(
+  overrides: Partial<Omit<HistoryEntry, "type" | "season" | "number">> = {},
+): HistoryEntry {
   return {
     historyId: 3,
     watchedAt: "2026-08-21T20:00:00.000Z",

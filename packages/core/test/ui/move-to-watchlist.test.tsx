@@ -74,3 +74,14 @@ it("keeps a deferred move and ignores started or already listed shows", async ()
   await move();
   expect(client.getQueryData<UpNextData>(queryKeys.library())?.entries[0]?.inWatchlist).toBe(true);
 });
+
+it("leaves a show that was never stopped alone on Undo", async () => {
+  const { entry, submit, move, client } = await setup("done");
+  await move();
+  await act(async () => useSnackbar.getState().snack?.actions?.[0]?.onPress());
+  expect(submit.mock.calls.map(([op]) => op.request.path)).toEqual([
+    "/sync/watchlist",
+    "/sync/watchlist/remove",
+  ]);
+  expect(client.getQueryData<UpNextData>(queryKeys.library())?.entries).toEqual([entry]);
+});

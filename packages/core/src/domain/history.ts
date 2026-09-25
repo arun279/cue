@@ -8,22 +8,25 @@ import { toMs } from "./time";
  * removed WITHOUT touching the item's other plays/rewatches. `ids` is the item's
  * own id block, kept for the best-effort restore (re-adding the play by item).
  */
-export interface HistoryEntry {
+interface Play {
   readonly historyId: number;
   readonly watchedAt: string;
-  readonly type: "episode" | "movie";
   /** The show (episode) or movie trakt id: the poster subject + detail link. */
   readonly mediaId: number;
   readonly ids: EpisodeIds | MovieIds;
   readonly title: string;
   /** Movie release year; null for episodes. */
   readonly year: number | null;
-  readonly season: number | null;
-  readonly number: number | null;
   readonly episodeTitle: string | null;
   readonly posters: readonly string[];
   readonly tmdbId: number | null;
 }
+
+export type HistoryEntry = Play &
+  (
+    | { readonly type: "episode"; readonly season: number; readonly number: number }
+    | { readonly type: "movie"; readonly season: null; readonly number: null }
+  );
 
 /**
  * A run of history rows collapsed under one card. A lone play (or movie) is a

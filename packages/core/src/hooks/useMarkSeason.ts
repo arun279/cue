@@ -54,7 +54,7 @@ interface MarkableEpisode {
   readonly number: number;
   readonly ids: EpisodeIds;
   readonly watched: boolean;
-  readonly watchedAt?: string | null;
+  readonly watchedAt: string | null;
 }
 
 interface ToggleEpisodeOptions {
@@ -451,7 +451,6 @@ export function useMarkSeason(): MarkSeasonController {
           new Date().toISOString(),
           () => runtime.newId(),
         );
-        if (ops.length === 0) return;
         const before = queryClient.getQueryData<readonly SeasonView[]>(
           queryKeys.showSeasons(target.showId),
         );
@@ -536,7 +535,7 @@ export function useMarkSeason(): MarkSeasonController {
           }),
         ],
         {
-          rollback: () => setEpisodeWatched(target, episode, true, episode.watchedAt ?? null),
+          rollback: () => setEpisodeWatched(target, episode, true, episode.watchedAt),
           revalidate: () => revalidate(target.showId, episode),
         },
       );
@@ -587,7 +586,7 @@ export function useMarkSeason(): MarkSeasonController {
             target,
             episode,
             true,
-            rewatch ? resolution.latest.watchedAt : (episode.watchedAt ?? null),
+            rewatch ? resolution.latest.watchedAt : episode.watchedAt,
           ),
         revalidate: () => revalidate(target.showId, episode),
       });
@@ -605,7 +604,7 @@ export function useMarkSeason(): MarkSeasonController {
       const resolution = await resolveEpisodeUnmark(runtime, episode.ids.trakt);
       if (resolution.kind === "error") {
         if (!knownRewatch) {
-          setEpisodeWatched(target, episode, true, episode.watchedAt ?? null);
+          setEpisodeWatched(target, episode, true, episode.watchedAt);
         }
         showError("Couldn't reach your history to unmark this. Please try again.");
         return;
@@ -645,7 +644,7 @@ export function useMarkSeason(): MarkSeasonController {
       const watchedAt = new Date().toISOString();
       const opId = runtime.newId();
       const lockKey = pendingMarkLock(itemKey);
-      if (!claimWriteLock(lockKey, opId)) return;
+      claimWriteLock(lockKey, opId);
       try {
         const ops = [
           buildMarkEpisodeOp({
@@ -737,7 +736,8 @@ export function useMarkSeason(): MarkSeasonController {
           .filter((play) => play.episodeTrakt === episode.ids.trakt)
           .sort((a, b) => Date.parse(b.watchedAt) - Date.parse(a.watchedAt));
         const bound: EpisodeBound = { season: episode.season, number: episode.number };
-        if (own.length === 0) {
+        const [latest] = own;
+        if (latest === undefined) {
           revalidate(target.showId, bound);
           return;
         }
@@ -750,7 +750,6 @@ export function useMarkSeason(): MarkSeasonController {
           restore: own.map((play) => ({ trakt: play.episodeTrakt, watchedAt: play.watchedAt })),
         });
         const ops = [op];
-        const latest = own[0];
         putUndo({
           showId: target.showId,
           ids: target.ids,
@@ -762,7 +761,7 @@ export function useMarkSeason(): MarkSeasonController {
         const outcome = await submit(ops, {
           rollback: () => {
             patchShowSeasons(queryClient, target.showId, matchEpisode, true);
-            patchEpisodeDetail(queryClient, target.showId, bound, true, latest?.watchedAt ?? null);
+            patchEpisodeDetail(queryClient, target.showId, bound, true, latest.watchedAt);
           },
           revalidate: () => revalidate(target.showId, bound),
         });
