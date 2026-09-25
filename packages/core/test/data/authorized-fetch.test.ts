@@ -124,7 +124,7 @@ describe("createAuthorizedFetch: reactive 401 refresh + retry", () => {
       .mockResolvedValueOnce(new Response("[]", { status: 200 }));
     const { authorized } = build({ inner });
 
-    const res = await authorized.fetch("https://api.trakt.tv/sync/x", { method: "GET" });
+    const res = await authorized.fetch("https://api.trakt.tv/sync/x");
 
     expect(refresh.calls()).toBe(1);
     expect(inner).toHaveBeenCalledTimes(2);
