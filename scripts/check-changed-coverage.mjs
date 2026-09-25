@@ -6,16 +6,22 @@ if (base === undefined || lcovPath === undefined) {
   throw new Error("usage: check-changed-coverage.mjs <base> <lcov> [PR body]");
 }
 
+const scope = JSON.parse(readFileSync(new URL("./core-coverage-scope.json", import.meta.url)));
+const pathspecs = [
+  ...scope.include.map((pattern) => `:(glob)${pattern}`),
+  ...scope.exclude.map((pattern) => `:(glob,exclude)${pattern}`),
+];
+
 const changed = new Map();
 let file;
 for (const line of execFileSync(
   "git",
-  ["diff", "--unified=0", "--no-color", `${base}...HEAD`, "--", "packages/core/src"],
+  ["diff", "--unified=0", "--no-color", `${base}...HEAD`, "--", ...pathspecs],
   { encoding: "utf8" },
 ).split("\n")) {
   if (line.startsWith("+++ b/")) {
     file = line.slice(6);
-    if (/\.tsx?$/.test(file) && !file.endsWith(".d.ts")) changed.set(file, new Set());
+    if (/\.tsx?$/.test(file)) changed.set(file, new Set());
     else file = undefined;
     continue;
   }
