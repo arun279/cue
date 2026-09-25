@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, TextInput, View } from "react-native";
 import { GLYPH, Glyph } from "../../ui/Glyph";
 import { TEST_IDS } from "../../ui/test-ids";
 import { SPACE, TARGET_MIN, useColors } from "../../ui/tokens";
+import { roleStyle } from "../../ui/type";
 
 /** Material 3's search bar: 56 dp tall, a 28 dp corner, and a 24 dp leading icon. */
 const HEIGHT = 56;
@@ -35,7 +36,7 @@ export function SearchField({ value, placeholder, onChangeText }: SearchFieldPro
         autoCorrect={false}
         returnKeyType="search"
         cursorColor={colors.accentInk}
-        style={[styles.input, { color: colors.fg }]}
+        style={[roleStyle("rowTitle", "regular"), styles.input, { color: colors.fg }]}
       />
       {value.length === 0 ? null : (
         <Pressable
@@ -62,7 +63,7 @@ const styles = StyleSheet.create({
     marginVertical: SPACE.s2,
     gap: SPACE.s4,
   },
-  input: { flex: 1, height: HEIGHT, fontSize: 16, fontFamily: "Inter_400Regular" },
+  input: { flex: 1, height: HEIGHT },
   clear: {
     width: TARGET_MIN,
     height: TARGET_MIN,

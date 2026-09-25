@@ -152,6 +152,17 @@ it("keeps one search field on the page, and Android's clears back to browse", as
   expect(screen.getByTestId("search-browse")).toBeOnTheScreen();
 });
 
+it("offers Android's clear only over typed text, on a 48 dp target", async () => {
+  if (Platform.OS !== "android") return;
+  await paint();
+  const clear = () => screen.queryByRole("button", { name: "Clear search" });
+  expect(clear()).toBeNull();
+
+  await type("harbor");
+
+  expect(clear()).toHaveStyle({ width: 48, height: 48 });
+});
+
 it("searches once for a settled query", async () => {
   const search = jest.fn(() => Promise.resolve([TRACKED]));
   await paint({ search });
