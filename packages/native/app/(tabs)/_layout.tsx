@@ -25,25 +25,39 @@ export default function TabsLayout(): ReactElement {
   return (
     <NativeTabs
       labelVisibilityMode="labeled"
-      // iOS draws the bar in Liquid Glass, which a custom fill would cover.
-      backgroundColor={Platform.OS === "android" ? colors.surface : undefined}
-      iconColor={{ default: colors.muted, selected: colors.accentInk }}
-      labelStyle={{ default: { color: colors.muted }, selected: { color: colors.accentInk } }}
-      indicatorColor={colors.elevated}
+      {...(Platform.OS === "ios"
+        ? // Liquid Glass flips light and dark with the content under it, so the
+          // tint is the accent's dynamic pair and the rest is the system's.
+          { tintColor: colors.accentInk }
+        : {
+            backgroundColor: colors.surface,
+            iconColor: { default: colors.muted, selected: colors.accentInk },
+            labelStyle: {
+              default: { color: colors.muted },
+              selected: { color: colors.accentInk },
+            },
+            indicatorColor: colors.elevated,
+          })}
     >
       <NativeTabs.Trigger name="(up-next)">
-        <NativeTabs.Trigger.Icon sf="play.square.stack" drawable="cue_tab_up_next" />
+        <NativeTabs.Trigger.Icon
+          sf={{ default: "play.square.stack", selected: "play.square.stack.fill" }}
+          drawable="cue_tab_up_next"
+        />
         <NativeTabs.Trigger.Label>Up Next</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="(library)">
-        <NativeTabs.Trigger.Icon sf="square.grid.2x2" drawable="cue_tab_library" />
+        <NativeTabs.Trigger.Icon
+          sf={{ default: "square.grid.2x2", selected: "square.grid.2x2.fill" }}
+          drawable="cue_tab_library"
+        />
         <NativeTabs.Trigger.Label>Library</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="(calendar)">
         <NativeTabs.Trigger.Icon sf="calendar" drawable="cue_tab_calendar" />
         <NativeTabs.Trigger.Label>Calendar</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="(search)">
+      <NativeTabs.Trigger name="(search)" role="search">
         <NativeTabs.Trigger.Icon sf="magnifyingglass" drawable="cue_tab_search" />
         <NativeTabs.Trigger.Label>Search</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
