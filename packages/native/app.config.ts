@@ -125,7 +125,6 @@ export function nativeAppConfig(env: Readonly<Record<string, string | undefined>
     android: {
       package: "app.cuetracker",
       versionCode: Number(buildNumber),
-      predictiveBackGestureEnabled: true,
       blockedPermissions: BLOCKED_PERMISSIONS,
       adaptiveIcon: {
         foregroundImage: "./assets/icon-foreground.png",
