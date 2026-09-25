@@ -1,4 +1,4 @@
-import type { CalendarDay } from "./calendar";
+import { CALENDAR_WINDOW_DAYS, type CalendarDay } from "./calendar";
 import { epCode } from "./model/library";
 import { DAY_MS } from "./time";
 
@@ -11,14 +11,14 @@ import { DAY_MS } from "./time";
 export const REMINDER_HOUR = 9;
 
 /**
- * How far ahead the schedule reaches. One digest per day means the pending count
- * can never pass this, which keeps it an order of magnitude under the 64 pending
- * notifications iOS keeps (it silently discards the rest, with no error and no
- * callback), and inside Android's App Standby restricted bucket, where an app
- * gets one alarm a day. A fortnight is also about as far as a TV calendar is
- * worth trusting: schedules move.
+ * How far ahead the schedule reaches: the window the calendar read already
+ * covers, so the plan costs no request. The OS holds dated notifications, not a
+ * subscription, so this is also how long the digests keep arriving after Cue was
+ * last opened. One digest per day keeps the pending count under the soonest 64
+ * iOS keeps, and inside Android's App Standby restricted bucket, where an app
+ * gets one alarm a day.
  */
-export const REMINDER_WINDOW_DAYS = 14;
+export const REMINDER_WINDOW_DAYS = CALENDAR_WINDOW_DAYS;
 
 /** Shows the body names before it counts the rest. */
 const NAMED_SHOWS = 2;

@@ -4,6 +4,7 @@ import { buildCalendarDays } from "../domain/calendar";
 import { dayKeyOf } from "../domain/day";
 import { planReminders, REMINDER_WINDOW_DAYS } from "../domain/reminders";
 import { DAY_MS, localTimeZone } from "../domain/time";
+import { useAppVisibility } from "../ports/app-visibility";
 import { useReminders } from "../ports/reminders";
 import { usePrefs } from "../prefs/prefs-store";
 import { calendarQuery } from "../queries/calendar";
@@ -13,15 +14,17 @@ import { useCoarseClock } from "./useCoarseClock";
 /**
  * Keeps the OS holding exactly the reminders the current calendar implies.
  * Mounted once under the session runtime, so it re-plans whenever the shared
- * calendar window refetches or the local day flips, and it re-plans from scratch
- * every time: the plan is a pure function of the calendar, and the diff against
- * what is pending makes running it again free.
+ * calendar window refetches, the local day flips or the app comes to the
+ * foreground, and it re-plans from scratch every time: the plan is a pure
+ * function of the calendar, and the diff against what is pending makes running
+ * it again free. A notification tap opens the app, so it re-plans too.
  *
  * The calendar read is the one the Up Next and Calendar screens already share,
  * so turning reminders on costs no extra Trakt call.
  */
 export function useEpisodeReminders(): void {
   const reminders = useReminders();
+  const visibility = useAppVisibility();
   const enabled = usePrefs((state) => state.remindersEnabled);
   const runtime = useRuntime();
   const now = useCoarseClock(DAY_MS);
@@ -47,8 +50,12 @@ export function useEpisodeReminders(): void {
     // The wall clock, not the render clock: that one is stamped per local day,
     // so an afternoon re-plan would still read this morning's digest as ahead
     // and hand the OS a past date, which it delivers immediately.
-    void reminders.reconcile(planReminders(days, { now: Date.now() }));
-  }, [reminders, enabled, hasData, days]);
+    const reconcile = () => void reminders.reconcile(planReminders(days, { now: Date.now() }));
+    reconcile();
+    return visibility.subscribe(() => {
+      if (visibility.isVisible()) reconcile();
+    });
+  }, [reminders, visibility, enabled, hasData, days]);
 
   useEffect(() => {
     if (!enabled) return;

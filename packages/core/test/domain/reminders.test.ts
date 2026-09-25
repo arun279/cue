@@ -4,11 +4,8 @@ import {
   type PlannedReminder,
   planReminders,
   REMINDER_HOUR,
-  REMINDER_WINDOW_DAYS,
 } from "@cue/core/domain/reminders";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** A local-day key, built from the device clock the planner also fires on. */
 function keyOf(date: Date): string {
@@ -105,19 +102,14 @@ describe("planReminders", () => {
     expect(plan).toHaveLength(1);
   });
 
-  it("stops at the window, so the pending set can never approach the iOS limit", () => {
+  it("plans one digest for each of the four weeks ahead and stops there", () => {
     const now = midnight();
-    // A full 28-day calendar with something airing every single day.
-    const days = Array.from({ length: 28 }, (_, offset) =>
+    const days = Array.from({ length: 35 }, (_, offset) =>
       day(now, offset, [row(`Show ${offset}`, 1, 1)]),
     );
     const plan = planReminders(days, { now });
-    expect(plan.length).toBeLessThanOrEqual(REMINDER_WINDOW_DAYS);
-    expect(plan.length).toBeGreaterThan(0);
-    for (const reminder of plan) {
-      expect(reminder.atMs).toBeGreaterThan(now);
-      expect(reminder.atMs).toBeLessThanOrEqual(now + REMINDER_WINDOW_DAYS * DAY_MS);
-    }
+    expect(plan).toHaveLength(28);
+    expect(plan.at(-1)?.body).toBe("Show 27 S1 E1");
   });
 
   it("honours a caller's narrower window, measured from now", () => {

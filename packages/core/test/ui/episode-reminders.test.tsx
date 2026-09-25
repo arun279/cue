@@ -6,6 +6,7 @@
  */
 import type { CalendarEntry } from "@cue/core/domain/calendar";
 import { useEpisodeReminders } from "@cue/core/hooks/useEpisodeReminders";
+import { type AppVisibility, AppVisibilityProvider } from "@cue/core/ports/app-visibility";
 import type { PreferenceStorage } from "@cue/core/ports/preference-storage";
 import { type Reminders, RemindersProvider } from "@cue/core/ports/reminders";
 import { createPrefsStore, PrefsProvider } from "@cue/core/prefs/prefs-store";
@@ -58,11 +59,30 @@ function memoryStorage(): PreferenceStorage {
   };
 }
 
+/** The app's foreground state, flipped by the test the way the OS flips it. */
+function foreground(): AppVisibility & { set: (visible: boolean) => void } {
+  let visible = true;
+  const listeners = new Set<() => void>();
+  return {
+    isVisible: () => visible,
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    set: (next) => {
+      visible = next;
+      for (const listener of listeners) listener();
+    },
+  };
+}
+
 let root: Root | null = null;
+let app = foreground();
 let queryClient: QueryClient | null = null;
 let prefs = createPrefsStore(memoryStorage());
 
 beforeEach(() => {
+  app = foreground();
   prefs = createPrefsStore(memoryStorage());
   prefs.setState({ remindersEnabled: true });
 });
@@ -82,9 +102,11 @@ async function mountHook(loadCalendar: CueRuntime["loadCalendar"]): Promise<Remi
     <QueryClientProvider client={queryClient}>
       <PrefsProvider value={prefs}>
         <RuntimeProvider value={{ loadCalendar } as unknown as CueRuntime}>
-          <RemindersProvider value={reminders}>
-            <Probe />
-          </RemindersProvider>
+          <AppVisibilityProvider value={app}>
+            <RemindersProvider value={reminders}>
+              <Probe />
+            </RemindersProvider>
+          </AppVisibilityProvider>
         </RuntimeProvider>
       </PrefsProvider>
     </QueryClientProvider>
@@ -148,6 +170,33 @@ describe("useEpisodeReminders", () => {
     const latest = plans(reminders).at(-1) ?? [];
     expect(latest).toHaveLength(1);
     for (const reminder of latest) expect(reminder.atMs).toBeGreaterThan(Date.now());
+  });
+
+  it("re-plans each time the app comes back to the foreground, and not on the way out", async () => {
+    // The OS holds dated one-shots and nothing renews them but the app, so every
+    // return to the foreground is the chance to reach four weeks past today.
+    const reminders = await mountHook(() =>
+      Promise.resolve({ entries: [airingAt(Date.now() + DAY_MS)], hiddenShowIds: [] }),
+    );
+    expect(reminders.reconcile).toHaveBeenCalledTimes(1);
+
+    act(() => app.set(false));
+    expect(reminders.reconcile).toHaveBeenCalledTimes(1);
+
+    act(() => app.set(true));
+    expect(reminders.reconcile).toHaveBeenCalledTimes(2);
+    expect(plans(reminders)[1]).toEqual(plans(reminders)[0]);
+  });
+
+  it("does not re-plan on a foreground while the switch is off", async () => {
+    prefs.setState({ remindersEnabled: false });
+    const reminders = await mountHook(() =>
+      Promise.resolve({ entries: [airingAt(Date.now() + DAY_MS)], hiddenShowIds: [] }),
+    );
+
+    act(() => app.set(true));
+
+    expect(reminders.reconcile).not.toHaveBeenCalled();
   });
 
   it("empties the schedule when the switch goes off, and when the shell unmounts", async () => {
