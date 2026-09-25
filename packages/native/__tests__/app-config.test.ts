@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { AndroidConfig } from "expo/config-plugins";
 import { nativeAppConfig } from "../app.config";
 
 /**
@@ -54,6 +55,10 @@ describe("the native app config", () => {
         ios: { usePrecompiledModules: false },
       },
     ]);
+  });
+
+  it("routes system back through React Native on Android 13 to 15", () => {
+    expect(AndroidConfig.PredictiveBackGesture.getPredictiveBackGestureValue(config)).toBe("false");
   });
 
   it("carries no transport-security exception unless the harness asks for one", () => {
