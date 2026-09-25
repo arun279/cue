@@ -55,7 +55,7 @@ export function useRuntimeBoot(deps: RuntimeBootDeps): RuntimeBootState {
     void (async () => {
       try {
         const token = await tokenStore.read();
-        if (token === null) return;
+        if (token === null) throw new Error("No stored token to boot with");
         const built = await createCueRuntime({
           newId,
           token,
