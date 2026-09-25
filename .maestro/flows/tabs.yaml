@@ -31,6 +31,3 @@ appId: app.cuetracker
 - waitForAnimationToEnd:
     timeout: 1000
 - takeScreenshot: up-next-tab-rest
-- waitForAnimationToEnd:
-    timeout: 1000
-- takeScreenshot: up-next-returning-user

@@ -11,9 +11,7 @@ maestro_zip="$RUNNER_TEMP/maestro.zip"
 node scripts/mock-trakt/server.mjs > "$RUNNER_TEMP/mock-trakt.log" 2>&1 &
 curl -fsSL \
   https://github.com/mobile-dev-inc/Maestro/releases/download/cli-2.10.0/maestro.zip \
-  -o "$maestro_zip" &
-maestro_pid=$!
-wait "$maestro_pid"
+  -o "$maestro_zip"
 
 echo "29b675e10cc12080e445e9bfb2e2b4e4dfb9c0f2e30d5884120d258b5e1cd991  $maestro_zip" \
   | shasum -a 256 -c -
