@@ -4,7 +4,9 @@
  * to move, and when it must be left alone. Cancelling is destructive and
  * silent, so the states that must NOT cancel matter more than the ones that do.
  */
+import type { LibraryEntry } from "@cue/core/data/trakt/library";
 import type { CalendarEntry } from "@cue/core/domain/calendar";
+import type { PlannedReminder } from "@cue/core/domain/reminders";
 import { useEpisodeReminders } from "@cue/core/hooks/useEpisodeReminders";
 import { type AppVisibility, AppVisibilityProvider } from "@cue/core/ports/app-visibility";
 import type { PreferenceStorage } from "@cue/core/ports/preference-storage";
@@ -35,14 +37,49 @@ const airingAt = (ms: number, overrides: Partial<CalendarEntry> = {}): CalendarE
   ...overrides,
 });
 
+/** A show the user is caught up on, which is what makes its next airing an alert. */
+const watching = (overrides: Partial<LibraryEntry> = {}): LibraryEntry => ({
+  showId: 8803,
+  title: "Midnight Cartography",
+  status: "returning series",
+  hidden: false,
+  inWatchlist: false,
+  lastWatchedAt: new Date(Date.now() - DAY_MS).toISOString(),
+  aired: 14,
+  completed: 14,
+  nextEpisode: null,
+  lastAired: { season: 2, number: 4 },
+  pendingAdvance: false,
+  tmdbId: null,
+  ...overrides,
+});
+
+/** Idle past the threshold, so it sits in the lapsed drawer. */
+const lapsed = (): LibraryEntry =>
+  watching({
+    completed: 12,
+    lastWatchedAt: new Date(Date.now() - 140 * DAY_MS).toISOString(),
+    nextEpisode: {
+      season: 2,
+      number: 3,
+      title: "Half Measures",
+      firstAired: new Date(Date.now() - 120 * DAY_MS).toISOString(),
+      still: null,
+      ids: { trakt: 880303 },
+    },
+  });
+
 const remindersPort = (): Reminders => ({
   requestPermission: vi.fn(() => Promise.resolve(true)),
   reconcile: vi.fn(() => Promise.resolve()),
   cancelAll: vi.fn(() => Promise.resolve()),
 });
 
-const plans = (reminders: Reminders): readonly { atMs: number }[][] =>
+const plans = (reminders: Reminders): readonly PlannedReminder[][] =>
   vi.mocked(reminders.reconcile).mock.calls.map(([planned]) => [...planned]);
+
+const bodies = (reminders: Reminders): readonly string[] =>
+  (plans(reminders).at(-1) ?? []).map(({ title, body }) => `${title}: ${body}`);
 
 function Probe(): null {
   useEpisodeReminders();
@@ -95,13 +132,23 @@ afterEach(() => {
 });
 
 /** Mount the hook, then let react-query notify its subscribers (a macrotask). */
-async function mountHook(loadCalendar: CueRuntime["loadCalendar"]): Promise<Reminders> {
+async function mountHook(
+  loadCalendar: CueRuntime["loadCalendar"],
+  shows: readonly LibraryEntry[] = [watching()],
+): Promise<Reminders> {
   const reminders = remindersPort();
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const node: ReactElement = (
     <QueryClientProvider client={queryClient}>
       <PrefsProvider value={prefs}>
-        <RuntimeProvider value={{ loadCalendar } as unknown as CueRuntime}>
+        <RuntimeProvider
+          value={
+            {
+              loadCalendar,
+              loadUpNext: () => Promise.resolve({ entries: shows }),
+            } as unknown as CueRuntime
+          }
+        >
           <AppVisibilityProvider value={app}>
             <RemindersProvider value={reminders}>
               <Probe />
@@ -123,36 +170,60 @@ const settle = (): Promise<void> =>
 describe("useEpisodeReminders", () => {
   it("moves nothing while the calendar has not answered", async () => {
     // A cold or offline start: the query is in flight, so the plan is unknown.
-    // Reconciling against it would cancel every pending digest.
+    // Reconciling against it would cancel every pending alert.
     const reminders = await mountHook(() => new Promise(() => {}));
 
     expect(reminders.reconcile).not.toHaveBeenCalled();
     expect(reminders.cancelAll).not.toHaveBeenCalled();
   });
 
-  it("reconciles the digest the loaded calendar implies", async () => {
+  it("reconciles an alert for the next airing of a show being watched", async () => {
     const reminders = await mountHook(() =>
       Promise.resolve({ entries: [airingAt(Date.now() + DAY_MS)], hiddenShowIds: [] }),
     );
 
     expect(reminders.reconcile).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(reminders.reconcile).mock.calls[0]?.[0]).toMatchObject([
-      { title: "Airing today", body: "Midnight Cartography S2 E5" },
-    ]);
+    expect(bodies(reminders)).toEqual(["Midnight Cartography: S2 E5 Low Tide is out."]);
   });
 
-  it("never re-plans a digest whose hour has passed since the calendar loaded", async () => {
+  it("alerts for nothing in the lapsed drawer, and nothing muted, until either changes", async () => {
+    const airing = () =>
+      Promise.resolve({ entries: [airingAt(Date.now() + DAY_MS)], hiddenShowIds: [] });
+    const idle = await mountHook(airing, [lapsed()]);
+    expect(bodies(idle)).toEqual([]);
+
+    act(() => root?.unmount());
+    prefs.getState().setShowMuted(8803, true);
+    const muted = await mountHook(airing);
+    expect(bodies(muted)).toEqual([]);
+
+    await act(async () => prefs.getState().setShowMuted(8803, false));
+    expect(bodies(muted)).toEqual(["Midnight Cartography: S2 E5 Low Tide is out."]);
+  });
+
+  it("swaps the alerts for the morning summary in one reconcile", async () => {
+    const reminders = await mountHook(() =>
+      Promise.resolve({ entries: [airingAt(Date.now() + DAY_MS)], hiddenShowIds: [] }),
+    );
+
+    await act(async () => prefs.getState().setDailySummary(true));
+
+    expect(reminders.reconcile).toHaveBeenCalledTimes(2);
+    expect(bodies(reminders)).toEqual(["Airing today: Midnight Cartography S2 E5"]);
+  });
+
+  it("never re-plans a summary whose hour has passed since the calendar loaded", async () => {
     // The render clock is stamped per local day, so a session opened before the
-    // digest fires still reads that hour as ahead at teatime. Scheduling it
+    // summary fires still reads that hour as ahead at teatime. Scheduling it
     // again hands the OS a past date, which it delivers at once: the morning's
-    // digest arrives a second time, out of nowhere.
+    // summary arrives a second time, out of nowhere.
+    prefs.setState({ dailySummary: true });
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(Date.parse("2026-03-10T08:00:00"));
     const airsTonight = airingAt(Date.parse("2026-03-10T20:00:00"));
     const announced = airingAt(Date.parse("2026-03-11T20:00:00"), {
-      showId: 4110,
-      showTitle: "Tin Harbour",
-      ids: { trakt: 411001 },
+      number: 6,
+      ids: { trakt: 880306 },
     });
     let entries = [airsTonight];
     const reminders = await mountHook(() =>

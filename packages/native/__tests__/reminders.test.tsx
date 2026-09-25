@@ -2,7 +2,7 @@ import type { PlannedReminder } from "@cue/core/domain/reminders";
 import { act, renderHook } from "@testing-library/react-native";
 import * as Notifications from "expo-notifications";
 import { router } from "expo-router";
-import { createNativeReminders, useCalendarOnReminderTap } from "../src/platform/reminders";
+import { createNativeReminders, useOpenTappedReminder } from "../src/platform/reminders";
 
 type Request = Notifications.NotificationRequestInput;
 
@@ -47,10 +47,11 @@ const START = Date.parse("2026-10-01T09:00:00");
 function digest(day: number, body: string): PlannedReminder {
   const atMs = START + day * DAY_MS;
   return {
-    id: 20_000 + day,
+    id: `day-${day}`,
     atMs,
     title: "Airing today",
     body,
+    showId: null,
     fingerprint: `${atMs}|Airing today|${body}`,
   };
 }
@@ -84,10 +85,10 @@ describe("the native reminders adapter", () => {
     ];
     await reminders.reconcile(plan);
 
-    expect(scheduledIds().sort()).toEqual(["20001", "20003"]);
-    expect([...mockOs.pending.keys()].sort()).toEqual(["20000", "20001", "20003"]);
+    expect(scheduledIds().sort()).toEqual(["day-1", "day-3"]);
+    expect([...mockOs.pending.keys()].sort()).toEqual(["day-0", "day-1", "day-3"]);
     for (const reminder of plan) {
-      const held = mockOs.pending.get(String(reminder.id));
+      const held = mockOs.pending.get(reminder.id);
       expect(held?.content).toMatchObject({ title: reminder.title, body: reminder.body });
       expect(held?.trigger).toMatchObject({ date: reminder.atMs });
     }
@@ -137,17 +138,30 @@ describe("the native reminders adapter", () => {
     await expect(reminders.reconcile([digest(0, "Harbor Lights S1 E1")])).resolves.toBeUndefined();
     await expect(reminders.cancelAll()).resolves.toBeUndefined();
     await reminders.reconcile([digest(0, "Harbor Lights S1 E1")]);
-    expect([...mockOs.pending.keys()]).toEqual(["20000"]);
+    expect([...mockOs.pending.keys()]).toEqual(["day-0"]);
   });
 
-  it("opens the Calendar from a tapped digest, once", async () => {
-    mockOs.lastResponse = { notification: { request: { identifier: "20000" } } };
-    const { rerender } = await renderHook(() => useCalendarOnReminderTap());
-    expect(router.navigate).toHaveBeenCalledWith("/calendar");
-    expect(Notifications.clearLastNotificationResponse).toHaveBeenCalledTimes(1);
+  it("opens the show from a tapped alert and the Calendar from a tapped summary, once each", async () => {
+    const reminders = createNativeReminders();
+    await reminders.reconcile([
+      { ...digest(0, "S3 E6 The Long Dark is out."), id: "alert", showId: 8801 },
+      { ...digest(1, "Harbor Lights S3 E7"), id: "summary" },
+    ]);
+    const tap = (id: string) => ({
+      notification: { request: { identifier: id, content: mockOs.pending.get(id)?.content } },
+    });
+
+    mockOs.lastResponse = tap("alert");
+    const { rerender } = await renderHook(() => useOpenTappedReminder());
+    expect(router.navigate).toHaveBeenLastCalledWith("/show/8801");
+
+    mockOs.lastResponse = tap("summary");
+    await act(async () => rerender({}));
+    expect(router.navigate).toHaveBeenLastCalledWith("/calendar");
 
     mockOs.lastResponse = null;
     await act(async () => rerender({}));
-    expect(router.navigate).toHaveBeenCalledTimes(1);
+    expect(router.navigate).toHaveBeenCalledTimes(2);
+    expect(Notifications.clearLastNotificationResponse).toHaveBeenCalledTimes(2);
   });
 });

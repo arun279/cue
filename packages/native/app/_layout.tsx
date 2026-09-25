@@ -32,7 +32,7 @@ import {
   queryPersister,
   shouldDehydrateQuery,
 } from "../src/platform/query-persister";
-import { createNativeReminders, useCalendarOnReminderTap } from "../src/platform/reminders";
+import { createNativeReminders, useOpenTappedReminder } from "../src/platform/reminders";
 import { useScreenReader } from "../src/platform/screen-reader";
 import {
   bulkStore,
@@ -160,7 +160,7 @@ function Gate(): ReactElement {
 function RoutedApp(): ReactElement {
   useActivitiesPoll();
   useEpisodeReminders();
-  useCalendarOnReminderTap();
+  useOpenTappedReminder();
 
   return (
     <View style={styles.root}>

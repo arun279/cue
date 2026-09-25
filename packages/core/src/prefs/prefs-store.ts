@@ -2,7 +2,7 @@ import { createContext, useContext } from "react";
 import { type StoreApi, useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
 import type { PreferenceStorage } from "../ports/preference-storage";
-import { hapticsPref, remindersPref } from "./device-prefs";
+import { dailySummaryPref, hapticsPref, mutedShowsPref, remindersPref } from "./device-prefs";
 import {
   initialMediaVisibility,
   type MediaVisibility,
@@ -36,10 +36,16 @@ interface PrefsState {
    * read by the injected haptics seam at fire time. Silent no-op on web regardless. */
   hapticsEnabled: boolean;
   setHapticsEnabled: (enabled: boolean) => void;
-  /** The daily "airing today" digest: OFF by default, flipped on only after the
-   * OS notification permission is granted in context. */
+  /** New-episode alerts: OFF by default, flipped on only after the OS
+   * notification permission is granted in context. */
   remindersEnabled: boolean;
   setRemindersEnabled: (enabled: boolean) => void;
+  /** One morning summary per day in place of the per-show alerts. */
+  dailySummary: boolean;
+  setDailySummary: (enabled: boolean) => void;
+  /** Shows whose alerts are muted on this device; no Trakt backing. */
+  mutedShowIds: readonly number[];
+  setShowMuted: (showId: number, muted: boolean) => void;
   /** Spoiler guard: blur unwatched episode stills until revealed. Default ON. */
   hideStillsUntilWatched: boolean;
   setHideStillsUntilWatched: (enabled: boolean) => void;
@@ -69,6 +75,8 @@ export function createPrefsStore(storage: PreferenceStorage): PrefsStore {
   const theme = choicePref<Theme>(storage, "cue.theme", ["system", "dark", "light"], "system");
   const haptics = hapticsPref(storage);
   const reminders = remindersPref(storage);
+  const dailySummary = dailySummaryPref(storage);
+  const mutedShows = mutedShowsPref(storage);
   const hideStills = hideStillsPref(storage);
   const nextEpisodeOrder = nextEpisodeOrderPref(storage);
   const lapsedOrder = lapsedOrderPref(storage);
@@ -109,6 +117,18 @@ export function createPrefsStore(storage: PreferenceStorage): PrefsStore {
       setRemindersEnabled: (remindersEnabled) => {
         reminders.persist(remindersEnabled);
         set({ remindersEnabled });
+      },
+      dailySummary: dailySummary.initial(),
+      setDailySummary: (enabled) => {
+        dailySummary.persist(enabled);
+        set({ dailySummary: enabled });
+      },
+      mutedShowIds: mutedShows.initial(),
+      setShowMuted: (showId, muted) => {
+        const others = get().mutedShowIds.filter((id) => id !== showId);
+        const mutedShowIds = muted ? [...others, showId] : others;
+        mutedShows.persist(mutedShowIds);
+        set({ mutedShowIds });
       },
       hideStillsUntilWatched: hideStills.initial(),
       setHideStillsUntilWatched: (hideStillsUntilWatched) => {

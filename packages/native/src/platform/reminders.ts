@@ -11,28 +11,27 @@ import { useEffect } from "react";
 /**
  * Android 8 and later drop a notification posted without a channel, and a
  * channel's importance is fixed for every install once created. Default
- * importance makes a sound without a heads-up banner; iOS ignores the call.
+ * importance makes a sound without a heads-up banner; iOS ignores the call. The
+ * name is the Settings row's, so the system category and the switch that fills
+ * it read the same.
  */
-const CHANNEL_ID = "airing-today";
+const CHANNEL_ID = "new-episodes";
 
 const ensureChannel = (): Promise<unknown> =>
   Notifications.setNotificationChannelAsync(CHANNEL_ID, {
-    name: "Airing today",
+    name: "New episodes",
     importance: Notifications.AndroidImportance.DEFAULT,
   });
 
 function toPending({ identifier, content }: Notifications.NotificationRequest): PendingReminder {
   const fingerprint = content.data?.["fingerprint"];
-  return {
-    id: Number(identifier),
-    fingerprint: typeof fingerprint === "string" ? fingerprint : null,
-  };
+  return { id: identifier, fingerprint: typeof fingerprint === "string" ? fingerprint : null };
 }
 
 /**
  * Checked rather than requested, so the prompt only ever comes from the Settings
  * switch, and a later revoke in system settings simply stops the scheduling.
- * The identifier is the planner's day id, so a replan addresses the notification
+ * The identifier is the planner's id, so a replan addresses the notification
  * the last one scheduled.
  */
 async function apply(planned: readonly PlannedReminder[]): Promise<void> {
@@ -40,15 +39,15 @@ async function apply(planned: readonly PlannedReminder[]): Promise<void> {
   await ensureChannel();
   const pending = await Notifications.getAllScheduledNotificationsAsync();
   const { cancel, schedule } = diffReminders(planned, pending.map(toPending));
-  await Promise.all(cancel.map((id) => Notifications.cancelScheduledNotificationAsync(String(id))));
+  await Promise.all(cancel.map((id) => Notifications.cancelScheduledNotificationAsync(id)));
   await Promise.all(
     schedule.map((reminder) =>
       Notifications.scheduleNotificationAsync({
-        identifier: String(reminder.id),
+        identifier: reminder.id,
         content: {
           title: reminder.title,
           body: reminder.body,
-          data: { fingerprint: reminder.fingerprint },
+          data: { fingerprint: reminder.fingerprint, showId: reminder.showId },
           interruptionLevel: "active",
         },
         trigger: {
@@ -91,13 +90,15 @@ export function createNativeReminders(): Reminders {
   };
 }
 
-/** Every notification Cue schedules is a day's digest, and a day lives on the
- * Calendar. Cleared once handled, so a later mount does not open it again. */
-export function useCalendarOnReminderTap(): void {
+/** A tap opens what the notification named: an alert its show, the summary the
+ * Calendar, where a day lives. Cleared once handled, so a later mount does not
+ * open it again. */
+export function useOpenTappedReminder(): void {
   const response = Notifications.useLastNotificationResponse();
   useEffect(() => {
     if (!response) return;
     Notifications.clearLastNotificationResponse();
-    router.navigate("/calendar");
+    const showId = response.notification.request.content.data?.["showId"];
+    router.navigate(typeof showId === "number" ? `/show/${showId}` : "/calendar");
   }, [response]);
 }
