@@ -89,11 +89,16 @@ appId: app.cuetracker
     id: "avatar-link"
 - tapOn:
     id: "profile-to-settings"
+# Centred, so the error that lands above the row cannot push it under the
+# navigation bar; and a tap that reaches the list before it has come to rest
+# only stops the scroll, so an unanswered tap is tried again.
 - scrollUntilVisible:
     element:
       id: "sign-out"
+    centerElement: true
 - tapOn:
     id: "sign-out"
+    retryTapIfNoChange: true
 # The confirm is a platform alert. Its title and its button both carry the words
 # of the danger row behind it, which stays in the hierarchy under the alert, so
 # the confirm is named by the button it sits beside; and the alert has to be on
