@@ -15,7 +15,11 @@ const FASTLANE_LANE = "$" + "{{ needs.config.outputs.fastlane_lane }}";
 const TRAKT_CLIENT_ID_VARIABLE = "$" + "{{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}";
 // `footprint` skips itself on forks, and the gate reads a skip as a failure.
 // The iOS light matrix reports through the required `native-e2e` aggregate.
-const NOT_REQUIRED = ["fingerprint", "footprint", "native-e2e-ios-light"];
+// Contact sheets are for reading screens, not a check.
+const NOT_REQUIRED = ["fingerprint", "footprint", "native-e2e-ios-light", "ui-contact-sheets"];
+// The gate reads the push run, where the iOS flow lane always runs.
+const IOS_LANE =
+  "    if: github.event_name != 'pull_request' || needs.native-ios.outputs.hit != 'true'";
 
 const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((entry) => typeof entry === "string");
@@ -206,7 +210,8 @@ describe("mobile release gate required checks", () => {
             .filter(
               (line) =>
                 /^ {4}(?:name|strategy|if):/.test(line) &&
-                (job.name !== "native-e2e" || line !== "    if: $" + "{{ always() }}"),
+                (job.name !== "native-e2e" || line !== "    if: $" + "{{ always() }}") &&
+                (job.name !== "ui-screenshots-ios-dark" || line !== IOS_LANE),
             ),
         ),
       ...readWorkflowJobs(CODEQL_WORKFLOW).flatMap((job) =>

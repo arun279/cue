@@ -12,10 +12,4 @@ else
 fi
 
 test -n "$run_id"
-mkdir -p "$destination"
-for platform in ios android; do
-  for appearance in light dark; do
-    gh run download "$run_id" --name "ui-screenshots-$platform-$appearance" \
-      --dir "$destination/screenshots/$platform/$appearance"
-  done
-done
+gh run download "$run_id" --pattern 'ui-*' --dir "$destination"

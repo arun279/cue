@@ -96,11 +96,11 @@ describe("fast pull request validation", () => {
     const androidJob = job("android-e2e");
     const android = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
     const suite = readFileSync(repositoryPath(".maestro/ci/app.yaml"), "utf8");
-    const iosSuites = ["detail", "discovery"]
+    const iosSuites = ["detail", "activity", "discovery"]
       .map((name) => readFileSync(repositoryPath(`.maestro/ci/app-${name}.yaml`), "utf8"))
       .join("\n");
 
-    expect(ios).toContain("suite: [detail, discovery]");
+    expect(ios).toContain("suite: [detail, activity, discovery]");
     expect(ios).toContain('test ".maestro/ci/app-$' + '{{ matrix.suite }}.yaml"');
     expect(android).toContain("suite=.maestro/ci/app.yaml");
     expect(androidJob).toContain('"$RUNNER_TEMP/screenshots/android" light');
@@ -152,50 +152,95 @@ describe("fast pull request validation", () => {
     expect(verification.match(/--driver-host-port 7001/g)).toHaveLength(1);
   });
 
-  it("fails the aggregate unless every iOS light shard succeeds", () => {
+  it("fails the aggregate unless every iOS light shard succeeds or a pull request skipped them", () => {
     const aggregate = job("native-e2e");
 
-    expect(aggregate).toContain("needs: native-e2e-ios-light");
+    expect(aggregate).toContain("needs: [native-ios, native-e2e-ios-light]");
     expect(aggregate).toContain("if: $" + "{{ always() }}");
+    expect(aggregate).toContain('test "$SHARDS" = success || {');
     expect(aggregate).toContain(
-      "run: test '$" + "{{ needs.native-e2e-ios-light.result }}' = success",
+      'test "$EVENT" = pull_request && test "$BUILD" = success &&\n' +
+        '              test "$HIT" = true && test "$SHARDS" = skipped',
     );
   });
 
-  it("publishes both screenshot artifacts with contact sheets for 14 days", () => {
+  it("publishes every screenshot artifact and one contact sheet job for 14 days", () => {
     const ios = job("native-e2e-ios-light");
-    const iosContact = job("native-e2e");
     const iosDark = job("ui-screenshots-ios-dark");
     const android = job("android-e2e");
     const androidDark = job("ui-screenshots-android-dark");
+    const sheets = job("ui-contact-sheets");
     const verification = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
     const fetch = readFileSync(repositoryPath("scripts/fetch-ui-screenshots.sh"), "utf8");
 
     expect(ios).toContain("name: ui-screenshots-ios-light-$" + "{{ matrix.suite }}");
-    expect(iosContact).toContain("pattern: ui-screenshots-ios-light-*");
-    expect(iosContact).toContain("name: ui-screenshots-ios-light");
     expect(iosDark).toContain("name: ui-screenshots-ios-dark");
-    expect(ios).toContain('--test-output-dir "$output"');
-    expect(iosDark).toContain('--test-output-dir "$RUNNER_TEMP/screenshots/ios/dark"');
-    expect(iosContact).toContain("create-ui-contact-sheet.sh");
-    expect(iosDark).toContain("create-ui-contact-sheet.sh");
-    expect(iosContact).toContain("apt-get install --no-install-recommends -y imagemagick");
-    expect(iosDark).toContain("brew install imagemagick");
-    expect(android).toContain("name: ui-screenshots-android");
     expect(android).toContain("name: ui-screenshots-android-light");
     expect(androidDark).toContain("name: ui-screenshots-android-dark");
+    expect(ios).toContain('--test-output-dir "$output"');
+    expect(iosDark).toContain('--test-output-dir "$RUNNER_TEMP/screenshots/ios/dark"');
     expect(verification).toContain('--test-output-dir "$screenshots/$appearance"');
-    expect(android).toContain("create-ui-contact-sheet.sh");
-    expect(androidDark).toContain("create-ui-contact-sheet.sh");
-    expect(android).toContain("apt-get install --no-install-recommends -y imagemagick");
-    expect(androidDark).toContain("apt-get install --no-install-recommends -y imagemagick");
-    expect(ios.match(/retention-days: 14/g)).toHaveLength(1);
-    expect(iosContact.match(/retention-days: 14/g)).toHaveLength(1);
-    expect(iosDark.match(/retention-days: 14/g)).toHaveLength(1);
-    expect(android.match(/retention-days: 14/g)).toHaveLength(1);
-    expect(androidDark.match(/retention-days: 14/g)).toHaveLength(1);
-    expect(fetch).toContain("for platform in ios android");
-    expect(fetch).toContain("for appearance in light dark");
+    expect(workflow.match(/create-ui-contact-sheet\.sh/g)).toHaveLength(1);
+    expect(sheets.match(/^ {6}- ([a-z0-9-]+)$/gm)?.map((line) => line.trim().slice(2))).toEqual([
+      "native-ios",
+      "native-e2e-ios-light",
+      "ui-screenshots-ios-dark",
+      "android-e2e",
+      "ui-screenshots-android-dark",
+    ]);
+    expect(sheets).toContain("pattern: ui-screenshots-*");
+    expect(sheets).toContain("for platform in ios android");
+    expect(sheets).toContain("for appearance in light dark");
+    expect(sheets).toContain('"$RUNNER_TEMP/screenshots/ui-screenshots-$platform-$appearance"*');
+    expect(sheets).toContain("name: ui-contact-sheets");
+    for (const producer of [ios, iosDark, android, androidDark, sheets]) {
+      expect(producer.match(/retention-days: 14/g)).toHaveLength(1);
+    }
+    expect(fetch).toContain("--pattern 'ui-*'");
+  });
+
+  it("runs the Android lane on every pull request and the iOS flow lane on pushes, nightly, and iOS fingerprint changes", () => {
+    const iosLane =
+      "if: github.event_name != 'pull_request' || needs.native-ios.outputs.hit != 'true'";
+    const jobs = [...workflow.matchAll(/^ {2}([a-z][a-z0-9-]*):$/gm)].map(([, name]) => name ?? "");
+    const gated = jobs.filter((name) => job(name).includes(iosLane));
+
+    expect(workflow).toMatch(/^ {2}pull_request:$/m);
+    expect(workflow).toContain('- cron: "0 6 * * *"');
+    expect(job("native-ios")).toContain("hit: $" + "{{ steps.native-cache.outputs.hit }}");
+    expect(gated.sort()).toEqual(
+      ["native-e2e-ios-light", "ui-contact-sheets", "ui-screenshots-ios-dark"].sort(),
+    );
+    for (const name of [
+      "native-ios",
+      "native-android",
+      "android-e2e",
+      "ui-screenshots-android-dark",
+    ]) {
+      expect(job(name)).not.toMatch(/^ {4}if:/m);
+    }
+  });
+
+  it("bounds every native job by its measured duration plus headroom", () => {
+    const timeouts = Object.fromEntries(
+      [
+        "native-ios",
+        "native-e2e-ios-light",
+        "ui-screenshots-ios-dark",
+        "android-e2e",
+        "ui-screenshots-android-dark",
+        "ui-contact-sheets",
+      ].map((name) => [name, Number(job(name).match(/^ {4}timeout-minutes: (\d+)$/m)?.[1])]),
+    );
+
+    expect(timeouts).toEqual({
+      "native-ios": 75,
+      "native-e2e-ios-light": 24,
+      "ui-screenshots-ios-dark": 16,
+      "android-e2e": 14,
+      "ui-screenshots-android-dark": 5,
+      "ui-contact-sheets": 3,
+    });
   });
 
   it("settles animations before every shared screenshot", () => {
