@@ -7,3 +7,8 @@ packages:
 # app is verified against is the tree the native package will join.
 # https://docs.expo.dev/guides/monorepos/
 nodeLinker: hoisted
+
+# `pnpm run` and `pnpm exec` refuse to run when a package.json changed since
+# the last install, so the native fingerprint never hashes those stale modules.
+# https://pnpm.io/settings#verifydepsbeforerun
+verifyDepsBeforeRun: error
