@@ -11,6 +11,8 @@ describe("createPrefsStore defaults", () => {
     expect(state.moviesEnabled).toBe(true);
     expect(state.hapticsEnabled).toBe(true);
     expect(state.remindersEnabled).toBe(false);
+    expect(state.dailySummary).toBe(false);
+    expect(state.mutedShowIds).toEqual([]);
     expect(state.hideStillsUntilWatched).toBe(true);
     expect(state.nextEpisodeOrder).toBe("oldest-unwatched");
     expect(state.lapsedOrder).toBe("recently-watched");
@@ -79,6 +81,10 @@ describe("persistence", () => {
     const first = createPrefsStore(storage).getState();
     first.setHapticsEnabled(false);
     first.setRemindersEnabled(true);
+    first.setDailySummary(true);
+    first.setShowMuted(8801, true);
+    first.setShowMuted(8802, true);
+    first.setShowMuted(8801, false);
     first.setHideStillsUntilWatched(false);
     first.setNextEpisodeOrder("after-last-watched");
     first.setLapsedOrder("longest-idle");
@@ -87,6 +93,8 @@ describe("persistence", () => {
     expect(createPrefsStore(storage).getState()).toMatchObject({
       hapticsEnabled: false,
       remindersEnabled: true,
+      dailySummary: true,
+      mutedShowIds: [8802],
       hideStillsUntilWatched: false,
       nextEpisodeOrder: "after-last-watched",
       lapsedOrder: "longest-idle",

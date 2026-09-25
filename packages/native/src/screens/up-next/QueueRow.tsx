@@ -1,6 +1,7 @@
 import { quickMarkable } from "@cue/core/data/trakt/library";
 import { epCode } from "@cue/core/domain/model/library";
 import { episodesLeft, lastWatchedPhrase, watchedPercent } from "@cue/core/format";
+import { useAlertsMute } from "@cue/core/hooks/useAlertsMute";
 import { useMarkControl } from "@cue/core/hooks/useMarkControl";
 import type { MarkWatched } from "@cue/core/hooks/useMarkWatched";
 import { useRouter } from "expo-router";
@@ -46,6 +47,7 @@ export function QueueRow({ card, mark, onStop, variant = "queue" }: QueueRowProp
   const colors = useColors();
   const control = useMarkControl(entry, mark);
   const art = useShowArt(entry.showId);
+  const alerts = useAlertsMute(entry.showId, entry.title);
 
   // Null mid-advance, when the projection has run past the last aired episode
   // and the confirming read has yet to name the next one. The row keeps its
@@ -98,6 +100,16 @@ export function QueueRow({ card, mark, onStop, variant = "queue" }: QueueRowProp
                   },
                   { id: TEST_IDS.quickActionStop, label: STOP_LABEL, onPress: onStop },
                   { id: TEST_IDS.quickActionDetails, label: "Show details", onPress: open },
+                  // A lapsed show schedules nothing, so there is nothing to mute.
+                  ...(variant === "queue"
+                    ? [
+                        {
+                          id: TEST_IDS.quickActionMute,
+                          label: alerts.label,
+                          onPress: alerts.toggle,
+                        },
+                      ]
+                    : []),
                 ]}
               />
               <CheckControl

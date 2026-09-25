@@ -22,6 +22,9 @@ jest.mock(
   "react-native-safe-area-context",
   () => require("react-native-safe-area-context/jest/mock").default,
 );
+// Its native module has no host under this runner: Android fails at import and
+// iOS reports a tap that never happened.
+jest.mock("expo-notifications", () => ({ useLastNotificationResponse: () => null }));
 jest.mock("expo-splash-screen", () => ({
   preventAutoHideAsync: () => Promise.resolve(true),
   hideAsync: jest.fn(() => Promise.resolve(true)),

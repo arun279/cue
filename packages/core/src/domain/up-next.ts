@@ -34,10 +34,9 @@ function hasSomethingToWatch(show: LibraryShow, status: WatchStatus, now: number
 
 function classifyUpNextShow(
   show: LibraryShow,
+  status: WatchStatus,
   now: number,
-  thresholdMs: number,
 ): UpNextGroup | null {
-  const status = computeWatchStatus(show, now, thresholdMs);
   if (NOTHING_TO_QUEUE.has(status)) return null;
   if (show.pendingAdvance) return "queue";
   if (!hasSomethingToWatch(show, status, now)) return null;
@@ -78,10 +77,35 @@ export function groupUpNext(
 ): UpNextGroups {
   const groups: UpNextGroups = { queue: [], lapsed: [] };
   for (const show of shows) {
-    const group = classifyUpNextShow(show, now, thresholdMs);
+    const group = classifyUpNextShow(show, computeWatchStatus(show, now, thresholdMs), now);
     if (group !== null) groups[group].push(toUpNextItem(show));
   }
   return groups;
+}
+
+/**
+ * The shows Up Next treats as actively watched: the queue, and the watched shows
+ * whose next episode or new season is still on the way. The lapsed drawer is out
+ * on its own definition, and stopped, unwatched and finished shows never enter,
+ * so a show rejoins the moment the user watches it again.
+ */
+export function activeShowIds(
+  shows: readonly LibraryShow[],
+  now: number,
+  thresholdMs: number,
+): ReadonlySet<number> {
+  const ids = new Set<number>();
+  for (const show of shows) {
+    const status = computeWatchStatus(show, now, thresholdMs);
+    if (
+      status === "watching" ||
+      status === "caught-up" ||
+      classifyUpNextShow(show, status, now) === "queue"
+    ) {
+      ids.add(show.showId);
+    }
+  }
+  return ids;
 }
 
 /** Which of the five honest empty screens Up Next owes a library with no queue. */

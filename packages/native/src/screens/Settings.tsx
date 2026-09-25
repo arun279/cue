@@ -1,3 +1,4 @@
+import { useTurnOnAlerts } from "@cue/core/hooks/useTurnOnAlerts";
 import { useAppVersion } from "@cue/core/ports/app-version";
 import { usePrefs } from "@cue/core/prefs/prefs-store";
 import { THRESHOLD_OPTIONS } from "@cue/core/prefs/threshold";
@@ -12,6 +13,7 @@ import { DataSection } from "./account/DataSection";
 import { AccountScreen, Note, Picker, Section, SettingRow, Toggle } from "./account/Rows";
 import { SignOut } from "./account/SignOut";
 import { ThemeControl } from "./account/ThemeControl";
+import { ALERTS_HINT } from "./calendar/AlertsCard";
 
 const NEXT = [
   { value: "oldest-unwatched", label: "Oldest unwatched" },
@@ -69,8 +71,25 @@ export default function Settings(): ReactElement {
   const prefs = usePrefs((state) => state);
   const colors = useColors();
   const version = useAppVersion();
+  const turnOnAlerts = useTurnOnAlerts();
   return (
     <AccountScreen testID={TEST_IDS.screenSettings}>
+      <Section title="Notifications">
+        <Toggle
+          title="New episodes"
+          hint={ALERTS_HINT}
+          value={prefs.remindersEnabled}
+          onChange={(enabled) => (enabled ? void turnOnAlerts() : prefs.setRemindersEnabled(false))}
+        />
+        {prefs.remindersEnabled ? (
+          <Toggle
+            title="Daily summary instead"
+            hint="One notification each morning naming what airs that day. No alert when an episode is out."
+            value={prefs.dailySummary}
+            onChange={prefs.setDailySummary}
+          />
+        ) : null}
+      </Section>
       <Section title="Appearance">
         <SettingRow title="Theme" trailing={<ThemeControl />} />
         <Toggle
