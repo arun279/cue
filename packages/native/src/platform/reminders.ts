@@ -79,7 +79,9 @@ export function createNativeReminders(): Reminders {
   return {
     requestPermission: () =>
       ensureChannel()
-        .then(() => Notifications.requestPermissionsAsync())
+        .then(() =>
+          Notifications.requestPermissionsAsync({ ios: { allowAlert: true, allowSound: true } }),
+        )
         .then(
           ({ granted }) => granted,
           () => false,

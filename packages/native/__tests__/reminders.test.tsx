@@ -115,11 +115,15 @@ describe("the native reminders adapter", () => {
     expect(mockOs.pending.size).toBe(0);
   });
 
-  it("answers the permission request with the OS's decision", async () => {
+  it("asks for alerts and sound, never a badge, and answers with the OS's decision", async () => {
     const reminders = createNativeReminders();
     await expect(reminders.requestPermission()).resolves.toBe(true);
     mockOs.granted = false;
     await expect(reminders.requestPermission()).resolves.toBe(false);
+    expect(jest.mocked(Notifications.requestPermissionsAsync).mock.calls[0]?.[0]?.ios).toEqual({
+      allowAlert: true,
+      allowSound: true,
+    });
   });
 
   it("resolves every call when the OS rejects, refusing the permission", async () => {

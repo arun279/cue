@@ -2,10 +2,10 @@ import { useAppVersion } from "@cue/core/ports/app-version";
 import { useReminders } from "@cue/core/ports/reminders";
 import { usePrefs } from "@cue/core/prefs/prefs-store";
 import { THRESHOLD_OPTIONS } from "@cue/core/prefs/threshold";
-import { showSnack } from "@cue/core/stores/snackbar-store";
+import { dismissSnack, showSnack } from "@cue/core/stores/snackbar-store";
 import { openBrowserAsync } from "expo-web-browser";
 import type { ReactElement } from "react";
-import { Image, Pressable, View } from "react-native";
+import { Image, Linking, Pressable, View } from "react-native";
 import { TEST_IDS } from "../ui/test-ids";
 import { SPACE, TARGET_MIN, useColors } from "../ui/tokens";
 import { CueText } from "../ui/type";
@@ -75,6 +75,15 @@ export default function Settings(): ReactElement {
     if (enabled && !(await reminders.requestPermission())) {
       showSnack({
         message: "Notifications are off for Cue. Turn them on in your phone's settings.",
+        actions: [
+          {
+            label: "Open settings",
+            onPress: () => {
+              dismissSnack();
+              void Linking.openSettings();
+            },
+          },
+        ],
       });
       return;
     }
