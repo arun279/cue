@@ -2,7 +2,13 @@ import { createContext, useContext } from "react";
 import { type StoreApi, useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
 import type { PreferenceStorage } from "../ports/preference-storage";
-import { dailySummaryPref, hapticsPref, mutedShowsPref, remindersPref } from "./device-prefs";
+import {
+  alertsCardAnsweredPref,
+  dailySummaryPref,
+  hapticsPref,
+  mutedShowsPref,
+  remindersPref,
+} from "./device-prefs";
 import {
   initialMediaVisibility,
   type MediaVisibility,
@@ -40,6 +46,9 @@ interface PrefsState {
    * notification permission is granted in context. */
   remindersEnabled: boolean;
   setRemindersEnabled: (enabled: boolean) => void;
+  /** The Calendar's alerts card, answered either way, which retires it for good. */
+  alertsCardAnswered: boolean;
+  answerAlertsCard: () => void;
   /** One morning summary per day in place of the per-show alerts. */
   dailySummary: boolean;
   setDailySummary: (enabled: boolean) => void;
@@ -75,6 +84,7 @@ export function createPrefsStore(storage: PreferenceStorage): PrefsStore {
   const theme = choicePref<Theme>(storage, "cue.theme", ["system", "dark", "light"], "system");
   const haptics = hapticsPref(storage);
   const reminders = remindersPref(storage);
+  const alertsCard = alertsCardAnsweredPref(storage);
   const dailySummary = dailySummaryPref(storage);
   const mutedShows = mutedShowsPref(storage);
   const hideStills = hideStillsPref(storage);
@@ -117,6 +127,11 @@ export function createPrefsStore(storage: PreferenceStorage): PrefsStore {
       setRemindersEnabled: (remindersEnabled) => {
         reminders.persist(remindersEnabled);
         set({ remindersEnabled });
+      },
+      alertsCardAnswered: alertsCard.initial(),
+      answerAlertsCard: () => {
+        alertsCard.persist(true);
+        set({ alertsCardAnswered: true });
       },
       dailySummary: dailySummary.initial(),
       setDailySummary: (enabled) => {

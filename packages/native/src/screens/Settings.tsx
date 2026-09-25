@@ -1,5 +1,5 @@
+import { useTurnOnAlerts } from "@cue/core/hooks/useTurnOnAlerts";
 import { useAppVersion } from "@cue/core/ports/app-version";
-import { useReminders } from "@cue/core/ports/reminders";
 import { usePrefs } from "@cue/core/prefs/prefs-store";
 import { THRESHOLD_OPTIONS } from "@cue/core/prefs/threshold";
 import { showSnack } from "@cue/core/stores/snackbar-store";
@@ -70,16 +70,7 @@ export default function Settings(): ReactElement {
   const prefs = usePrefs((state) => state);
   const colors = useColors();
   const version = useAppVersion();
-  const reminders = useReminders();
-  const setReminders = async (enabled: boolean): Promise<void> => {
-    if (enabled && !(await reminders.requestPermission())) {
-      showSnack({
-        message: "Notifications are off for Cue. Turn them on in your phone's settings.",
-      });
-      return;
-    }
-    prefs.setRemindersEnabled(enabled);
-  };
+  const turnOnAlerts = useTurnOnAlerts();
   return (
     <AccountScreen testID={TEST_IDS.screenSettings}>
       <Section title="Notifications">
@@ -87,7 +78,7 @@ export default function Settings(): ReactElement {
           title="New episodes"
           hint="An alert for each show you are watching when a new episode is out, scheduled on the phone itself. Cue plans four weeks ahead each time you open it."
           value={prefs.remindersEnabled}
-          onChange={(enabled) => void setReminders(enabled)}
+          onChange={(enabled) => (enabled ? void turnOnAlerts() : prefs.setRemindersEnabled(false))}
         />
         {prefs.remindersEnabled ? (
           <Toggle

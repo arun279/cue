@@ -6,6 +6,7 @@ import {
 } from "@cue/core/domain/calendar";
 import { dayKeyOf, dayOffset } from "@cue/core/domain/day";
 import { DAY_MS, localTimeZone } from "@cue/core/domain/time";
+import { useAlertsCard } from "@cue/core/hooks/useAlertsCard";
 import { useCoarseClock } from "@cue/core/hooks/useCoarseClock";
 import { useSyncBanner } from "@cue/core/hooks/useSyncBanner";
 import { usePrefs } from "@cue/core/prefs/prefs-store";
@@ -20,6 +21,7 @@ import { RefreshControl, SectionList, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePullToRefresh } from "../../../src/hooks/usePullToRefresh";
 import { AGENDA_TEXT_INSET, AgendaSkeleton, DayHeader } from "../../../src/screens/calendar/Agenda";
+import { AlertsCard } from "../../../src/screens/calendar/AlertsCard";
 import { AiringRow } from "../../../src/ui/AiringRow";
 import { BarItems } from "../../../src/ui/BarItems";
 import { Button } from "../../../src/ui/Button";
@@ -43,10 +45,10 @@ type Branch = "tv-off" | "loading" | "error" | "empty" | "agenda";
  * The Calendar: what is airing, and when, for the next four weeks.
  *
  * One read, day-grouped in the viewer's own timezone, under pinned day bands.
- * Nothing here is markable and there is no reminder bell: an aired unwatched
+ * Nothing here is markable and no row has a reminder bell: an aired unwatched
  * episode is already in the queue, so a second place to act would be a second
  * answer to the same question. Tapping a row opens the show, which with pull to
- * refresh is the entire interaction set.
+ * refresh and the alerts card's two actions is the entire interaction set.
  *
  * The clock is day-coarse, so the groups, their labels and the countdowns
  * re-anchor when the local day turns over under a screen left open overnight.
@@ -76,6 +78,7 @@ export default function Calendar(): ReactElement {
   const refresh = usePullToRefresh();
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const alertsCard = useAlertsCard();
 
   const branch = branchOf(
     showsEnabled,
@@ -134,6 +137,7 @@ export default function Calendar(): ReactElement {
               <SyncStrip banner={banner} onRetry={() => void query.refetch()} />
             )}
             <Lead branch={branch} failure={status.failure} onRetry={() => void query.refetch()} />
+            {branch === "agenda" && alertsCard !== null ? <AlertsCard card={alertsCard} /> : null}
           </View>
         }
       />

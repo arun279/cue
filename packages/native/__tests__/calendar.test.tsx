@@ -1,9 +1,18 @@
 import type { CalendarEntry } from "@cue/core/domain/calendar";
 import { DAY_MS } from "@cue/core/domain/time";
 import type { PreferenceStorage } from "@cue/core/ports/preference-storage";
+import { type Reminders, RemindersProvider } from "@cue/core/ports/reminders";
+import { createPrefsStore } from "@cue/core/prefs/prefs-store";
 import { act, render, screen, userEvent, waitFor, within } from "@testing-library/react-native";
 import { router } from "./support/native-ui";
-import { airing, fakeRuntime, Harness, memoryPreferences, spyHaptics } from "./support/up-next";
+import {
+  airing,
+  fakeRuntime,
+  Harness,
+  memoryPreferences,
+  resetSharedStores,
+  spyHaptics,
+} from "./support/up-next";
 
 jest.mock("expo-router", () => require("./support/native-ui").expoRouterModule());
 jest.mock(
@@ -67,6 +76,7 @@ interface Options {
   readonly runtime?: ReturnType<typeof fakeRuntime>;
   /** A read that never settles, so the screen stays on its plates. */
   readonly loading?: boolean;
+  readonly reminders?: Reminders;
 }
 
 async function paint({
@@ -74,6 +84,7 @@ async function paint({
   preferences,
   runtime,
   loading,
+  reminders = os(),
 }: Options = {}): Promise<void> {
   await render(
     <Harness
@@ -81,7 +92,9 @@ async function paint({
       haptics={haptics}
       preferences={preferences}
     >
-      <Calendar />
+      <RemindersProvider value={reminders}>
+        <Calendar />
+      </RemindersProvider>
     </Harness>,
   );
   if (loading) return;
@@ -91,6 +104,7 @@ async function paint({
 const rowOf = (traktId: number) => screen.getByTestId(`calendar-row-${traktId}`);
 
 beforeEach(() => {
+  resetSharedStores();
   jest.clearAllMocks();
   jest.useFakeTimers();
   jest.setSystemTime(NOW);
@@ -187,6 +201,75 @@ describe("Calendar", () => {
     expect(screen.queryByTestId("calendar-list")).toBeOnTheScreen();
   });
 });
+
+describe("the alerts card", () => {
+  const REFUSAL = "Notifications are off for Cue. Turn them on in your phone's settings.";
+  const card = () => screen.queryByRole("header", { name: "Alerts for new episodes" });
+  const press = (name: string) =>
+    userEvent
+      .setup({ advanceTimers: jest.advanceTimersByTime })
+      .press(screen.getByRole("button", { name }));
+
+  it("makes its case above the agenda while alerts are off and the OS would still ask", async () => {
+    await paint({ calendar: [TONIGHT] });
+
+    expect(card()).toBeOnTheScreen();
+    expect(
+      screen.getByText(
+        "An alert for each show you are watching when a new episode is out, scheduled on this phone. Cue plans four weeks ahead each time you open it.",
+      ),
+    ).toBeOnTheScreen();
+    expect(screen.getByRole("button", { name: "Not now" })).toBeOnTheScreen();
+    expect(screen.getByRole("button", { name: "Turn on alerts" })).toBeOnTheScreen();
+  });
+
+  it.each([
+    ["alerts are on", os(), { "cue.reminders-enabled": "1" }],
+    ["the OS has refused them", os({ refused: true }), {}],
+  ])("stays away while %s", async (_, reminders, seed) => {
+    const preferences = memoryPreferences();
+    for (const [key, value] of Object.entries(seed)) preferences.setItem(key, value);
+    await paint({ calendar: [TONIGHT], preferences, reminders });
+
+    expect(rowOf(88_608)).toBeOnTheScreen();
+    expect(card()).toBeNull();
+  });
+
+  it("goes for good on Not now, and the OS is never asked", async () => {
+    const preferences = memoryPreferences();
+    const reminders = os();
+    await paint({ calendar: [TONIGHT], preferences, reminders });
+
+    await press("Not now");
+    expect(card()).toBeNull();
+
+    await screen.unmount();
+    await paint({ calendar: [TONIGHT], preferences, reminders });
+    expect(rowOf(88_608)).toBeOnTheScreen();
+    expect(card()).toBeNull();
+    expect(reminders.requestPermission).not.toHaveBeenCalled();
+  });
+
+  it("goes and says where to change it once the OS refuses", async () => {
+    const preferences = memoryPreferences();
+    await paint({ calendar: [TONIGHT], preferences, reminders: os({ granted: false }) });
+
+    await press("Turn on alerts");
+
+    expect(card()).toBeNull();
+    expect(screen.getByText(REFUSAL)).toBeVisible();
+    expect(createPrefsStore(preferences).getState().remindersEnabled).toBe(false);
+  });
+});
+
+function os({ refused = false, granted = true } = {}): Reminders {
+  return {
+    requestPermission: jest.fn(() => Promise.resolve(granted)),
+    permissionRefused: () => Promise.resolve(refused),
+    reconcile: () => Promise.resolve(),
+    cancelAll: () => Promise.resolve(),
+  };
+}
 
 function showsTurnedOff(): PreferenceStorage {
   const preferences = memoryPreferences();

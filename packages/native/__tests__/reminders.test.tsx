@@ -9,6 +9,7 @@ type Request = Notifications.NotificationRequestInput;
 /** The OS's pending store and its permission answer, as far as the adapter can see them. */
 const mockOs = {
   granted: true,
+  canAskAgain: true,
   pending: new Map<string, Request>(),
   lastResponse: null as object | null,
 };
@@ -17,7 +18,9 @@ jest.mock("expo-notifications", () => ({
   AndroidImportance: { DEFAULT: 3 },
   SchedulableTriggerInputTypes: { DATE: "date" },
   setNotificationChannelAsync: jest.fn(() => Promise.resolve(null)),
-  getPermissionsAsync: jest.fn(() => Promise.resolve({ granted: mockOs.granted })),
+  getPermissionsAsync: jest.fn(() =>
+    Promise.resolve({ granted: mockOs.granted, canAskAgain: mockOs.canAskAgain }),
+  ),
   requestPermissionsAsync: jest.fn(() => Promise.resolve({ granted: mockOs.granted })),
   getAllScheduledNotificationsAsync: jest.fn(() =>
     Promise.resolve(
@@ -64,6 +67,7 @@ const scheduledIds = (): string[] =>
 beforeEach(() => {
   jest.clearAllMocks();
   mockOs.granted = true;
+  mockOs.canAskAgain = true;
   mockOs.pending.clear();
   mockOs.lastResponse = null;
 });
@@ -125,6 +129,18 @@ describe("the native reminders adapter", () => {
       allowAlert: true,
       allowSound: true,
     });
+  });
+
+  it("reads the permission as refused once the OS will no longer ask, or cannot say", async () => {
+    const reminders = createNativeReminders();
+    await expect(reminders.permissionRefused()).resolves.toBe(false);
+    mockOs.canAskAgain = false;
+    await expect(reminders.permissionRefused()).resolves.toBe(true);
+    mockOs.canAskAgain = true;
+    jest
+      .mocked(Notifications.getPermissionsAsync)
+      .mockImplementationOnce(() => Promise.reject(new Error("unavailable")));
+    await expect(reminders.permissionRefused()).resolves.toBe(true);
   });
 
   it("resolves every call when the OS rejects, refusing the permission", async () => {

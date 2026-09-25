@@ -55,6 +55,7 @@ const watching = (): LibraryEntry => ({
 
 const remindersPort = (): Reminders => ({
   requestPermission: vi.fn(() => Promise.resolve(true)),
+  permissionRefused: vi.fn(() => Promise.resolve(false)),
   reconcile: vi.fn(() => Promise.resolve()),
   cancelAll: vi.fn(() => Promise.resolve()),
 });

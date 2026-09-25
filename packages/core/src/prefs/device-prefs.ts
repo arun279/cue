@@ -10,8 +10,9 @@ import { booleanPref, type Pref } from "./pref-storage";
  *
  * New-episode alerts default OFF: they cost a notification permission, and both
  * platforms say to ask for one in context, from a deliberate opt-in, rather
- * than at launch. The Settings row is that opt-in. The daily summary that
- * replaces them is OFF too, and the muted shows start empty.
+ * than at launch. The Settings row and the Calendar card are that opt-in, and
+ * the card, once answered, stays answered. The daily summary that replaces them
+ * is OFF too, and the muted shows start empty.
  */
 export const hapticsPref = (storage: PreferenceStorage): Pref<boolean> =>
   booleanPref(storage, "cue.haptics-enabled", true);
@@ -21,6 +22,9 @@ export const remindersPref = (storage: PreferenceStorage): Pref<boolean> =>
 
 export const dailySummaryPref = (storage: PreferenceStorage): Pref<boolean> =>
   booleanPref(storage, "cue.daily-summary", false);
+
+export const alertsCardAnsweredPref = (storage: PreferenceStorage): Pref<boolean> =>
+  booleanPref(storage, "cue.alerts-card-answered", false);
 
 const MUTED_SHOWS_KEY = "cue.muted-shows";
 

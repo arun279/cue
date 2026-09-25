@@ -14,7 +14,7 @@ import { EpisodeStill } from "../src/screens/episode-sheet/EpisodeStill";
 import Settings from "../src/screens/Settings";
 import { TEST_IDS } from "../src/ui/test-ids";
 import { accountFixture } from "./support/account";
-import { agesAgo, entry } from "./support/up-next";
+import { agesAgo, airing, entry } from "./support/up-next";
 
 jest.mock("expo-web-browser", () => ({ openBrowserAsync: jest.fn() }));
 jest.mock("../modules/cue-native/src", () => ({ CueHaptics: { success: jest.fn() } }));
@@ -55,6 +55,7 @@ it("applies haptics and spoiler preferences to their consumers without a reload"
 function remindersAnswering(granted: Promise<boolean>): Reminders {
   return {
     requestPermission: jest.fn(() => granted),
+    permissionRefused: () => Promise.resolve(false),
     reconcile: () => Promise.resolve(),
     cancelAll: () => Promise.resolve(),
   };
@@ -101,6 +102,26 @@ it("leaves alerts off and says where to change it when the OS refuses", async ()
   ).toBeVisible();
 });
 
+it("turns New episodes on from the Calendar's card once the OS allows them", async () => {
+  const fixture = accountFixture({
+    loadCalendar: () => Promise.resolve({ entries: [airing()], hiddenShowIds: [] }),
+  });
+  await fixture.paint(
+    <RemindersProvider value={remindersAnswering(Promise.resolve(true))}>
+      <Calendar />
+      <Settings />
+    </RemindersProvider>,
+  );
+  const card = () => screen.queryByRole("header", { name: "Alerts for new episodes" });
+  expect(await screen.findByRole("header", { name: "Alerts for new episodes" })).toBeVisible();
+  expect(screen.getByRole("switch", { name: "New episodes" })).not.toBeChecked();
+
+  await userEvent.press(screen.getByRole("button", { name: "Turn on alerts" }));
+
+  expect(screen.getByRole("switch", { name: "New episodes" })).toBeChecked();
+  expect(card()).toBeNull();
+});
+
 it("offers the daily summary only while alerts are on", async () => {
   const fixture = accountFixture();
   await fixture.paint(<Settings />);
@@ -121,6 +142,9 @@ it("offers the daily summary only while alerts are on", async () => {
   expect(summary()).toBeNull();
 });
 
+const Calendar = (
+  require("../app/(tabs)/(calendar)/calendar") as typeof import("../app/(tabs)/(calendar)/calendar")
+).default;
 const Library = (
   require("../app/(tabs)/(library)/library") as typeof import("../app/(tabs)/(library)/library")
 ).default;

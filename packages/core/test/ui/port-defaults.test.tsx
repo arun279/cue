@@ -45,9 +45,10 @@ describe("a tree with no composition root above it", () => {
     for (const verb of Object.values(haptics)) expect(() => verb()).not.toThrow();
   });
 
-  it("grants the reminder permission and schedules nothing", async () => {
+  it("grants the reminder permission, has never refused it, and schedules nothing", async () => {
     const reminders = readPort(useReminders);
     await expect(reminders.requestPermission()).resolves.toBe(true);
+    await expect(reminders.permissionRefused()).resolves.toBe(false);
     await expect(reminders.reconcile([])).resolves.toBeUndefined();
     await expect(reminders.cancelAll()).resolves.toBeUndefined();
   });

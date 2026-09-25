@@ -29,8 +29,8 @@ function toPending({ identifier, content }: Notifications.NotificationRequest): 
 }
 
 /**
- * Checked rather than requested, so the prompt only ever comes from the Settings
- * switch, and a later revoke in system settings simply stops the scheduling.
+ * Checked rather than requested, so the prompt only ever comes from an opt-in,
+ * and a later revoke in system settings simply stops the scheduling.
  * The identifier is the planner's id, so a replan addresses the notification
  * the last one scheduled.
  */
@@ -85,6 +85,11 @@ export function createNativeReminders(): Reminders {
           ({ granted }) => granted,
           () => false,
         ),
+    permissionRefused: () =>
+      Notifications.getPermissionsAsync().then(
+        ({ canAskAgain }) => !canAskAgain,
+        () => true,
+      ),
     reconcile: (planned) => serially(() => apply(planned)),
     cancelAll: () => serially(() => Notifications.cancelAllScheduledNotificationsAsync()),
   };
