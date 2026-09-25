@@ -1,5 +1,5 @@
 import { epCode } from "@cue/core/domain/model/library";
-import { episodesLeft, lastWatchedPhrase, middleTruncate } from "@cue/core/format";
+import { episodesLeft, lastWatchedPhrase, middleTruncate, watchedPercent } from "@cue/core/format";
 import { describe, expect, it } from "vitest";
 
 describe("epCode", () => {
@@ -16,6 +16,17 @@ describe("episodesLeft", () => {
 
   it("never goes negative when completed overshoots aired", () => {
     expect(episodesLeft(5, 6)).toBe(0);
+  });
+});
+
+describe("watchedPercent", () => {
+  it("rounds to a whole percent, clamped to the bar", () => {
+    expect(watchedPercent(1, 3)).toBe(33);
+    expect(watchedPercent(6, 5)).toBe(100);
+  });
+
+  it("is empty for a show with nothing aired yet", () => {
+    expect(watchedPercent(0, 0)).toBe(0);
   });
 });
 

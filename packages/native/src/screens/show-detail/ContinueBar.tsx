@@ -31,9 +31,9 @@ export function ContinueBar({
           <CueText variant="rowTitle" style={{ color: colors.fg }}>
             {kind === "finished" ? "Ended. You finished it." : "All caught up"}
           </CueText>
-          {kind === "returning" && entry.nextEpisode !== null && (
+          {kind === "returning" && entry.nextEpisode?.firstAired != null && (
             <CueText variant="caption" style={{ color: colors.muted }}>
-              {returnsLine(entry.nextEpisode, Date.now())}
+              {returnsLine(entry.nextEpisode.season, entry.nextEpisode.firstAired, Date.now())}
             </CueText>
           )}
         </>

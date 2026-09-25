@@ -40,8 +40,10 @@ describe("show position", () => {
     expect(continueKind({ ...progress, status: "ended" }, now)).toBe("finished");
     expect(continueKind({ ...progress, nextEpisode: null }, now)).toBe("caught-up");
     expect(continueKind({ ...progress, status: "ended", pendingAdvance: true }, now)).toBe("next");
-    expect(returnsLine(next, now)).toBe("S3 returns in 87 days");
-    expect(returnsLine(next, Date.parse(next.firstAired))).toBe("S3 returns today");
+    const returns = (at: number) => returnsLine(next.season, next.firstAired, at);
+    expect(returns(now)).toBe("S3 returns in 87 days");
+    expect(returns(Date.parse(next.firstAired) - 86_400_000)).toBe("S3 returns in 1 day");
+    expect(returns(Date.parse(next.firstAired))).toBe("S3 returns today");
   });
 
   it("puts recent seasons first, Specials last, and opens the queued season", () => {
@@ -75,6 +77,9 @@ describe("show position", () => {
       next: seasons[2]?.episodes[0],
     });
     expect(episodeNavigation(seasons, { season: 0, number: 1 }).next).toBeNull();
+    const pilot = { season: 1, number: 1 };
+    const second = { season: 1, number: 2 };
+    expect(episodeNavigation([{ episodes: [second, pilot] }], pilot).next).toBe(second);
     expect(episodeNavigation(seasons, { season: 9, number: 1 })).toEqual({
       prev: null,
       next: null,

@@ -33,14 +33,19 @@ describe("buildOnTheWay", () => {
     const days = [day("2026-07-14", "Tue, Jul 14", [row("2026-07-15T00:00:00Z")])];
     const built = buildOnTheWay(days, now, MAX_ROWS);
     expect(built).toHaveLength(1);
-    expect(built[0]?.offset).toBe(2);
+    expect(built[0]).toMatchObject({ offset: 2, label: "Tuesday" });
   });
 
-  it("labels today's group Tonight at offset 0", () => {
-    const days = [day("2026-07-12", "Today", [row("2026-07-13T00:00:00Z")])];
+  it("labels today's group Tonight at offset 0 and the next day's Tomorrow", () => {
+    const days = [
+      day("2026-07-12", "Today", [row("2026-07-13T00:00:00Z")]),
+      day("2026-07-13", "Tomorrow", [row("2026-07-14T00:00:00Z")]),
+    ];
     const built = buildOnTheWay(days, now, MAX_ROWS);
-    expect(built[0]?.label).toBe("Tonight");
-    expect(built[0]?.offset).toBe(0);
+    expect(built.map(({ label, offset }) => ({ label, offset }))).toEqual([
+      { label: "Tonight", offset: 0 },
+      { label: "Tomorrow", offset: 1 },
+    ]);
   });
 
   it("drops rows beyond the 72-hour scope", () => {

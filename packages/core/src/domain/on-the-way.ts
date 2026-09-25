@@ -54,7 +54,7 @@ export function buildOnTheWay(
         ? "Tonight"
         : day.label === "Tomorrow"
           ? "Tomorrow"
-          : weekdayFmt.format(Date.parse(kept[0]?.firstAired ?? day.dayKey));
+          : weekdayFmt.format(Date.parse(`${day.dayKey}T12:00`));
     out.push({ key: day.dayKey, label, offset, rows: kept });
   }
   return out;

@@ -68,9 +68,9 @@ export function continueKind(
   return firstAired !== null && firstAired > now ? "returning" : "caught-up";
 }
 
-export function returnsLine(episode: EpisodeRef, now: number): string {
-  const days = Math.max(0, Math.ceil(((toMs(episode.firstAired) ?? now) - now) / DAY_MS));
-  return `S${episode.season} returns ${days === 0 ? "today" : `in ${days} ${days === 1 ? "day" : "days"}`}`;
+export function returnsLine(season: number, firstAired: string, now: number): string {
+  const days = Math.max(0, Math.ceil((Date.parse(firstAired) - now) / DAY_MS));
+  return `S${season} returns ${days === 0 ? "today" : `in ${days} ${days === 1 ? "day" : "days"}`}`;
 }
 
 export interface SeasonConfirmation {

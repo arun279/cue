@@ -118,9 +118,7 @@ export class WriteQueue {
   private async drain(): Promise<FlushResult> {
     const completed: QueuedOp[] = [];
     const failed: OpFailure[] = [];
-    while (this.pending.length > 0) {
-      const op = this.pending[0];
-      if (op === undefined) break;
+    for (let op = this.pending[0]; op !== undefined; op = this.pending[0]) {
       this.inFlight = op;
       const outcome = await this.deliver(op);
       this.inFlight = null;
