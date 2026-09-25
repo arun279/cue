@@ -6,6 +6,7 @@ import AccountLayout from "../app/(account)/_layout";
 interface HeaderOptions {
   readonly headerStyle?: { readonly backgroundColor?: unknown };
   readonly headerTransparent?: boolean;
+  readonly headerShadowVisible?: boolean;
 }
 
 let mockStackOptions: HeaderOptions | undefined;
@@ -27,7 +28,7 @@ jest.mock("expo-router", () => {
   return { Stack, useRouter: () => ({ dismissAll: jest.fn() }) };
 });
 
-it("leaves every iOS account bar to the system and fills Android's with the page", async () => {
+it("leaves every iOS account bar to the system and draws Android's flat in the page color", async () => {
   await render(<AccountLayout />);
 
   if (Platform.OS === "ios") {
@@ -35,6 +36,7 @@ it("leaves every iOS account bar to the system and fills Android's with the page
     expect(mockStackOptions?.headerTransparent).toBe(true);
   } else {
     expect(mockStackOptions?.headerStyle?.backgroundColor).toBeDefined();
+    expect(mockStackOptions?.headerShadowVisible).toBe(false);
     expect(mockStackOptions?.headerTransparent).toBe(false);
   }
 });

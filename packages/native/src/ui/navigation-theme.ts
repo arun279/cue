@@ -3,13 +3,14 @@ import { type ColorValue, Platform, useColorScheme } from "react-native";
 import { PALETTE } from "./tokens";
 
 /**
- * A stack bar's own fill, which only Android draws. On iOS a custom background
- * overlays Liquid Glass and the scroll edge effect, so the bar is left to the
- * system and a large-title or floating bar needs its screen's scroll view to
- * adjust its content inset automatically.
+ * A stack bar's own fill, which only Android draws: the page's color, flat at
+ * rest, the way a Material 3 top app bar sits before content scrolls under it.
+ * On iOS a custom background overlays Liquid Glass and the scroll edge effect,
+ * so the bar is left to the system and a large-title or floating bar needs its
+ * screen's scroll view to adjust its content inset automatically.
  */
 export const barOptions = (backgroundColor: ColorValue) =>
-  Platform.OS === "android" ? { headerStyle: { backgroundColor } } : {};
+  Platform.OS === "android" ? { headerStyle: { backgroundColor }, headerShadowVisible: false } : {};
 
 /**
  * The theme the navigators draw their own chrome from: the bar's fill, the
