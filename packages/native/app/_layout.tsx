@@ -1,10 +1,12 @@
 import { createAuthStore } from "@cue/core/auth/create-auth-store";
 import { type AuthStore, AuthStoreProvider, useAuth } from "@cue/core/auth/store";
 import { useActivitiesPoll } from "@cue/core/hooks/useActivitiesPoll";
+import { useEpisodeReminders } from "@cue/core/hooks/useEpisodeReminders";
 import { AppVersionProvider } from "@cue/core/ports/app-version";
 import { AppVisibilityProvider } from "@cue/core/ports/app-visibility";
 import { HapticsProvider } from "@cue/core/ports/haptics";
 import { NetworkProvider } from "@cue/core/ports/network";
+import { RemindersProvider } from "@cue/core/ports/reminders";
 import { createTokenStore } from "@cue/core/ports/token-store";
 import { createPrefsStore, PrefsProvider } from "@cue/core/prefs/prefs-store";
 import { PERSIST_BUSTER, PERSIST_MAX_AGE } from "@cue/core/runtime/query-cache";
@@ -30,6 +32,7 @@ import {
   queryPersister,
   shouldDehydrateQuery,
 } from "../src/platform/query-persister";
+import { createNativeReminders, useCalendarOnReminderTap } from "../src/platform/reminders";
 import { useScreenReader } from "../src/platform/screen-reader";
 import {
   bulkStore,
@@ -63,6 +66,7 @@ const prefsStore = createPrefsStore(preferenceStorage);
 const tokenStore = createTokenStore(secureStore);
 const haptics = createNativeHaptics(() => prefsStore.getState().hapticsEnabled);
 const network = createNativeNetwork();
+const reminders = createNativeReminders();
 
 /** What a launch says when the stores it depends on did not come up. The session
  * still starts on whatever the token store answers, because a boot that cannot
@@ -155,6 +159,8 @@ function Gate(): ReactElement {
 
 function RoutedApp(): ReactElement {
   useActivitiesPoll();
+  useEpisodeReminders();
+  useCalendarOnReminderTap();
 
   return (
     <View style={styles.root}>
@@ -204,14 +210,16 @@ export default function RootLayout(): ReactElement {
             <AppVisibilityProvider value={nativeAppVisibility}>
               <NetworkProvider value={network}>
                 <HapticsProvider value={haptics}>
-                  <AppVersionProvider value={nativeAppVersion}>
-                    <AuthStoreProvider value={authStore}>
-                      <StatusBar style="auto" />
-                      <ThemeProvider value={navigationTheme}>
-                        <Gate />
-                      </ThemeProvider>
-                    </AuthStoreProvider>
-                  </AppVersionProvider>
+                  <RemindersProvider value={reminders}>
+                    <AppVersionProvider value={nativeAppVersion}>
+                      <AuthStoreProvider value={authStore}>
+                        <StatusBar style="auto" />
+                        <ThemeProvider value={navigationTheme}>
+                          <Gate />
+                        </ThemeProvider>
+                      </AuthStoreProvider>
+                    </AppVersionProvider>
+                  </RemindersProvider>
                 </HapticsProvider>
               </NetworkProvider>
             </AppVisibilityProvider>
