@@ -46,6 +46,8 @@ appId: app.cuetracker
 
 - tapOn:
     id: "library-filter-toggle"
+- tapOn:
+    id: "library-filter-field"
 - inputText: "zzz"
 - assertVisible:
     id: "library-no-match"

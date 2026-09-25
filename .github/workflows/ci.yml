@@ -100,13 +100,15 @@ jobs:
           if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
             BASE_SHA=$(git rev-parse HEAD^)
           fi
-          base_directory="$RUNNER_TEMP/render-base"
-          git worktree add --detach "$base_directory" "$BASE_SHA"
-          pnpm --dir "$base_directory" install --frozen-lockfile
-          (cd "$base_directory" && pnpm --dir packages/native perf:render --baseline --compare=false)
-          mkdir -p packages/native/.reassure
-          cp "$base_directory/packages/native/.reassure/baseline.perf" \
-            packages/native/.reassure/baseline.perf
+          if git show "$BASE_SHA:packages/native/package.json" 2>/dev/null | grep -q '"perf:render"'; then
+            base_directory="$RUNNER_TEMP/render-base"
+            git worktree add --detach "$base_directory" "$BASE_SHA"
+            pnpm --dir "$base_directory" install --frozen-lockfile
+            (cd "$base_directory" && pnpm --dir packages/native perf:render --baseline --compare=false)
+            mkdir -p packages/native/.reassure
+            cp "$base_directory/packages/native/.reassure/baseline.perf" \
+              packages/native/.reassure/baseline.perf
+          fi
           pnpm --dir packages/native perf:render
       - name: Gate render counts
         run: pnpm check:render-counts

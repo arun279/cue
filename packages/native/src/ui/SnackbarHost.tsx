@@ -8,6 +8,7 @@ import {
 import { type ReactElement, useEffect, useId, useSyncExternalStore } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { TRAKT_BASE_OVERRIDE } from "../config";
 import { useScreenReader } from "../platform/screen-reader";
 import { useLiveRegion } from "./live-region";
 import { beginResponseTiming } from "./response-timing";
@@ -30,8 +31,12 @@ export type SnackbarPlacement = "root" | "presentation";
  * platform does this through `AccessibilityManager.getRecommendedTimeoutMillis`,
  * which React Native does not expose and which returns the original timeout
  * unless the user has set the accessibility timeout, so this is Cue's own rule.
+ *
+ * A build pointed at the fake Trakt holds it as long. Maestro settles for up to
+ * three seconds after every iOS tap, so on a slow simulator the tap on Undo can
+ * land after the default window has closed.
  */
-const SCREEN_READER_TIMEOUT_MS = 15_000;
+const LONG_TIMEOUT_MS = 15_000;
 
 let mounted: readonly { readonly id: string; readonly placement: SnackbarPlacement }[] = [];
 const listeners = new Set<() => void>();
@@ -88,15 +93,12 @@ function Snackbar({
 }): ReactElement {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const screenReader = useScreenReader();
+  const holdLong = useScreenReader() || TRAKT_BASE_OVERRIDE !== undefined;
   const liveRegion = useLiveRegion(snackText(snack.message), "polite");
 
   useEffect(() => {
-    const timeout = screenReader
-      ? SCREEN_READER_TIMEOUT_MS
-      : (snack.timeoutMs ?? DEFAULT_SNACK_TIMEOUT_MS);
-    setSnackbarTimeout(timeout);
-  }, [snack, screenReader]);
+    setSnackbarTimeout(holdLong ? LONG_TIMEOUT_MS : (snack.timeoutMs ?? DEFAULT_SNACK_TIMEOUT_MS));
+  }, [snack, holdLong]);
 
   const stacked = useStacked();
   // A root-placed snackbar clears the floating tab bar rather than only the

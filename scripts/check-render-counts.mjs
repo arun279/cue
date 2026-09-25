@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 
 const [baselinePath, currentPath] = process.argv.slice(2);
@@ -7,7 +8,7 @@ async function readMeasurements(path) {
   return new Map(records.slice(1).map((record) => [record.name, record]));
 }
 
-const baseline = await readMeasurements(baselinePath);
+const baseline = existsSync(baselinePath) ? await readMeasurements(baselinePath) : new Map();
 const current = await readMeasurements(currentPath);
 const introduced = JSON.parse(
   await readFile(new URL("./render-count-baselines.json", import.meta.url), "utf8"),
