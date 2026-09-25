@@ -1,4 +1,5 @@
 import { defineConfig } from "vitest/config";
+import coverageScope from "./scripts/core-coverage-scope.json" with { type: "json" };
 
 export default defineConfig({
   test: {
@@ -9,8 +10,7 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["lcov"],
-      include: ["packages/core/src/**"],
-      exclude: ["**/*.d.ts", "packages/core/src/app/**"],
+      ...coverageScope,
     },
   },
 });
