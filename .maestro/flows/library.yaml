@@ -14,6 +14,8 @@ appId: app.cuetracker
     id: "screen-library"
 - assertVisible:
     id: "show-card-8801"
+- waitForAnimationToEnd
+- takeScreenshot: library-header
 
 - tapOn:
     id: "library-segment-movies"

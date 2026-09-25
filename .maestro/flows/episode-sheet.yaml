@@ -16,6 +16,8 @@ appId: app.cuetracker
     id: "episode-sheet"
 - assertVisible:
     id: "episode-mark-row"
+- waitForAnimationToEnd
+- takeScreenshot: episode-sheet-open
 - tapOn: "Mark S2 E3 watched"
 - assertVisible:
     id: "snackbar"

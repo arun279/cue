@@ -18,6 +18,11 @@ appId: app.cuetracker
     id: "profile-to-settings"
 - assertVisible:
     id: "screen-settings"
+- waitForAnimationToEnd
+- takeScreenshot: settings-pushed
+# Dark for one pass over a tab root, then back to the system's own.
+- tapOn:
+    id: "theme-dark"
 - scrollUntilVisible:
     element:
       id: "switch-movies"
@@ -28,6 +33,8 @@ appId: app.cuetracker
     id: "close-account"
 - assertVisible:
     id: "screen-up-next"
+- waitForAnimationToEnd
+- takeScreenshot: up-next-dark
 - tapOn: "Library"
 - assertVisible:
     id: "screen-library"
@@ -37,6 +44,8 @@ appId: app.cuetracker
     id: "avatar-link"
 - tapOn:
     id: "profile-to-settings"
+- tapOn:
+    id: "theme-system"
 - scrollUntilVisible:
     element:
       id: "switch-movies"
