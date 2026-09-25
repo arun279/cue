@@ -1,6 +1,7 @@
 import { Stack, useRouter } from "expo-router";
 import type { ReactElement } from "react";
-import { Button, Platform, StyleSheet, View } from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
+import { Button } from "../../src/ui/Button";
 import { barOptions } from "../../src/ui/navigation-theme";
 import { SnackbarHost } from "../../src/ui/SnackbarHost";
 import { TEST_IDS } from "../../src/ui/test-ids";
@@ -37,8 +38,9 @@ export default function AccountLayout(): ReactElement {
             title: "Profile",
             headerRight: () => (
               <Button
+                label="Done"
+                variant="link"
                 testID={TEST_IDS.closeAccount}
-                title="Done"
                 onPress={() => router.dismissAll()}
               />
             ),

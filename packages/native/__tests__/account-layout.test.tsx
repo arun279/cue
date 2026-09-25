@@ -1,9 +1,10 @@
 import { dismissSnack, showSnack } from "@cue/core/stores/snackbar-store";
 import { router, Stack } from "expo-router";
-import { act, fireEvent, renderRouter, screen } from "expo-router/testing-library";
+import { act, fireEvent, renderRouter, screen, within } from "expo-router/testing-library";
 import type { ReactElement } from "react";
-import { View } from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
 import * as accountLayout from "../app/(account)/_layout";
+import { PALETTE } from "../src/ui/tokens";
 
 jest.mock(
   "react-native-safe-area-context",
@@ -37,6 +38,11 @@ const routes = {
   "(account)/show/[showId]/episode/[season]/[episode]": (): ReactElement => <View />,
 };
 
+/** The accent ink as each platform hands it over: a dynamic pair on iOS, the
+ * light value on Android, whose renderer runs in the light scheme. */
+const accentInk = () =>
+  Platform.OS === "ios" ? { dynamic: PALETTE.accentInk } : PALETTE.accentInk.light;
+
 const openAccount = async (): Promise<void> => {
   await renderRouter(routes, { initialUrl: "/" });
   await act(() => router.push("/profile"));
@@ -46,11 +52,14 @@ const openAccount = async (): Promise<void> => {
 describe("the account stack", () => {
   beforeEach(() => dismissSnack());
 
-  it("dismisses the modal back to where the user was", async () => {
+  it("dismisses the modal back to where the user was from an accent Done", async () => {
     await openAccount();
 
-    // Case-insensitive: React Native renders an Android button title in capitals.
-    await fireEvent.press(screen.getByRole("button", { name: /^done$/i }));
+    const done = screen.getByRole("button", { name: "Done" });
+    expect(StyleSheet.flatten(within(done).getByText("Done").props["style"]).color).toEqual(
+      accentInk(),
+    );
+    await fireEvent.press(done);
 
     expect(screen.queryByTestId("screen-profile")).toBeNull();
     expect(screen.getByTestId("screen-tabs")).toBeOnTheScreen();
