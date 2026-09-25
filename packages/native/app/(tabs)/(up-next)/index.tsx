@@ -179,8 +179,14 @@ export default function UpNext(): ReactElement {
   const rows = marquee === undefined ? view.queue : view.queue.slice(1);
   const branch = branchOf(view, showsEnabled);
 
+  // Unflattened, so UIKit finds the list first under the screen and collapses
+  // the large title as it scrolls.
   return (
-    <View testID={TEST_IDS.screenUpNext} style={[styles.screen, { backgroundColor: colors.bg }]}>
+    <View
+      collapsable={false}
+      testID={TEST_IDS.screenUpNext}
+      style={[styles.screen, { backgroundColor: colors.bg }]}
+    >
       <Stack.Screen
         options={{
           title: "Up Next",

@@ -115,8 +115,14 @@ export default function Library(): ReactElement {
     onFilterToggle: () => (filtering ? clearFilter() : setFiltering(true)),
   };
 
+  // Unflattened, so UIKit finds the list first under the screen and collapses
+  // the large title as it scrolls.
   return (
-    <View testID={TEST_IDS.screenLibrary} style={[styles.screen, { backgroundColor: colors.bg }]}>
+    <View
+      collapsable={false}
+      testID={TEST_IDS.screenLibrary}
+      style={[styles.screen, { backgroundColor: colors.bg }]}
+    >
       <Stack.Screen
         options={{
           title: "Library",
