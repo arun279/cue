@@ -631,6 +631,13 @@ describe("the OAuth surface both flows need", () => {
     expect((await pollDeviceToken(oauth(), code.deviceCode, "verifier")).status).toBe("pending");
   });
 
+  it("starts every new device code pending, even after an earlier grant was approved", async () => {
+    await requestDeviceCode(oauth(), "challenge");
+    await fetch(`${baseUrl}/__approve`, { method: "POST" });
+    const code = await requestDeviceCode(oauth(), "challenge");
+    expect((await pollDeviceToken(oauth(), code.deviceCode, "verifier")).status).toBe("pending");
+  });
+
   it("exchanges an authorization code, refreshes it, and revokes it", async () => {
     const token = await exchangeCodeForToken(oauth(), "mock-auth-code", "verifier");
     expect(token.access_token).toBe("mock-access-token");
