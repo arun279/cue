@@ -9,14 +9,6 @@ import { DAY_MS } from "./time";
 export const SUMMARY_HOUR = 9;
 
 /**
- * How far ahead the plan reaches: the window the calendar read already covers,
- * so planning costs no request. The OS holds dated notifications, not a
- * subscription, so this is also how long alerts keep arriving after Cue was last
- * opened.
- */
-export const REMINDER_WINDOW_DAYS = CALENDAR_WINDOW_DAYS;
-
-/**
  * iOS keeps the soonest-firing 64 pending notifications and silently discards
  * the rest, so the plan is cut to the same 64. Every foreground replans, which
  * reaches the dropped tail long before it would have fired.
@@ -142,7 +134,7 @@ export function planReminders(
   days: readonly CalendarDay[],
   { now, showIds, summary }: PlanOptions,
 ): readonly PlannedReminder[] {
-  const horizon = now + REMINDER_WINDOW_DAYS * DAY_MS;
+  const horizon = now + CALENDAR_WINDOW_DAYS * DAY_MS;
   return days
     .flatMap(({ dayKey, rows }) => {
       const wanted = rows.filter((row) => showIds.has(row.showId));

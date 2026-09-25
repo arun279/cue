@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo } from "react";
-import { buildCalendarDays } from "../domain/calendar";
+import { buildCalendarDays, CALENDAR_WINDOW_DAYS } from "../domain/calendar";
 import { dayKeyOf } from "../domain/day";
-import { planReminders, REMINDER_WINDOW_DAYS } from "../domain/reminders";
+import { planReminders } from "../domain/reminders";
 import { DAY_MS, localTimeZone } from "../domain/time";
 import { activeShowIds } from "../domain/up-next";
 import { useAppVisibility } from "../ports/app-visibility";
@@ -41,7 +41,7 @@ export function useEpisodeReminders(): void {
     () =>
       calendar.data === undefined
         ? undefined
-        : buildCalendarDays(calendar.data, now, timeZone, startDate, REMINDER_WINDOW_DAYS),
+        : buildCalendarDays(calendar.data, now, timeZone, startDate, CALENDAR_WINDOW_DAYS),
     [calendar.data, now, timeZone, startDate],
   );
   const shows = library.data?.entries;
