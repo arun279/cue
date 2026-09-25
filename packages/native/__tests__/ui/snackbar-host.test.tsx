@@ -4,6 +4,13 @@ import type { ReactElement } from "react";
 import { AccessibilityInfo, View } from "react-native";
 import { SnackbarHost } from "../../src/ui/SnackbarHost";
 
+let mockTraktBase: string | undefined;
+jest.mock("../../src/config", () => ({
+  get TRAKT_BASE_OVERRIDE() {
+    return mockTraktBase;
+  },
+}));
+
 jest.mock(
   "react-native-safe-area-context",
   () => require("react-native-safe-area-context/jest/mock").default,
@@ -11,7 +18,10 @@ jest.mock(
 
 const MESSAGE = "Harbor Lights S3 E5 marked";
 
-beforeEach(() => dismissSnack());
+beforeEach(() => {
+  mockTraktBase = undefined;
+  dismissSnack();
+});
 afterEach(() => jest.useRealTimers());
 
 it("draws the message and every action as a target of its own", async () => {
@@ -119,6 +129,23 @@ function undo() {
 function backfill() {
   return { label: "+2 earlier", testId: "snackbar-backfill", onPress: jest.fn() };
 }
+
+it("keeps the undo window by default and fifteen seconds in a build on the fake Trakt", async () => {
+  jest.useFakeTimers();
+  await render(<SnackbarHost placement="root" />);
+  await act(async () => showSnack({ message: MESSAGE }));
+  await act(async () => jest.advanceTimersByTime(4999));
+  expect(screen.getByTestId("snackbar")).toBeOnTheScreen();
+  await act(async () => jest.advanceTimersByTime(1));
+  expect(screen.queryByTestId("snackbar")).toBeNull();
+
+  mockTraktBase = "http://127.0.0.1:8787";
+  await act(async () => showSnack({ message: MESSAGE }));
+  await act(async () => jest.advanceTimersByTime(14_999));
+  expect(screen.getByTestId("snackbar")).toBeOnTheScreen();
+  await act(async () => jest.advanceTimersByTime(1));
+  expect(screen.queryByTestId("snackbar")).toBeNull();
+});
 
 it("keeps a message for fifteen seconds when the screen reader query resolves true", async () => {
   jest.useFakeTimers();
