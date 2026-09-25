@@ -2,6 +2,7 @@ import { createStore } from "zustand/vanilla";
 import { sessionTeardown } from "../app/session";
 import {
   buildAuthorizeUrl,
+  type DeviceCode,
   type DeviceTokenResult,
   exchangeCodeForToken,
   type OAuthConfig,
@@ -87,27 +88,26 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
     }
 
     async function pollAttempt(
-      deviceCode: string,
-      verifier: string,
+      poll: () => Promise<DeviceTokenResult>,
       attempt: number,
       interval: number,
     ): Promise<"cancelled" | "pending" | "slow-down" | "done"> {
       await sleep(interval);
       if (activeAttempt !== attempt) return "cancelled";
-      const result = await pollDeviceToken(config, deviceCode, verifier);
+      const result = await poll();
       if (activeAttempt !== attempt) return "cancelled";
       return applyDevicePoll(result);
     }
 
-    async function pollLoop(
-      deviceCode: string,
-      intervalMs: number,
-      verifier: string,
-      attempt: number,
-    ): Promise<void> {
-      let interval = intervalMs;
+    async function pollLoop(code: DeviceCode, verifier: string, attempt: number): Promise<void> {
+      const expiresAt = Date.now() + code.expiresInMs;
+      const poll = () =>
+        pollDeviceToken(config, code.deviceCode, verifier).catch(
+          (): DeviceTokenResult => ({ status: Date.now() < expiresAt ? "pending" : "expired" }),
+        );
+      let interval = code.intervalMs;
       while (activeAttempt === attempt) {
-        const outcome = await pollAttempt(deviceCode, verifier, attempt, interval);
+        const outcome = await pollAttempt(poll, attempt, interval);
         if (outcome === "slow-down") {
           interval += 1000;
           continue;
@@ -141,7 +141,7 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
           const code = await requestDeviceCode(config, challenge);
           if (activeAttempt !== attempt) return;
           set({ deviceCode: { userCode: code.userCode, verificationUrl: code.verificationUrl } });
-          await pollLoop(code.deviceCode, code.intervalMs, verifier, attempt);
+          await pollLoop(code, verifier, attempt);
         } catch {
           if (activeAttempt !== attempt) return;
           set({

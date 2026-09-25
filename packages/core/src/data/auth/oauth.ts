@@ -35,6 +35,7 @@ export interface DeviceCode {
   readonly userCode: string;
   readonly verificationUrl: string;
   readonly intervalMs: number;
+  readonly expiresInMs: number;
 }
 
 /** Terminal + transient outcomes of one device-token poll. */
@@ -210,6 +211,7 @@ export async function requestDeviceCode(
     userCode: parsed.user_code,
     verificationUrl: parsed.verification_url,
     intervalMs: parsed.interval * 1000,
+    expiresInMs: parsed.expires_in * 1000,
   };
 }
 

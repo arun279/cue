@@ -172,6 +172,7 @@ describe("requestDeviceCode", () => {
       userCode: "ABCD1234",
       verificationUrl: "https://trakt.tv/activate",
       intervalMs: 5000,
+      expiresInMs: 600_000,
     });
     expect(body).toMatchObject({
       client_id: "cid",
