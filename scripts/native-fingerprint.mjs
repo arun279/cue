@@ -1,10 +1,10 @@
-import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createProjectHashAsync } from "@expo/fingerprint";
 
-const platform = process.argv[2];
+const [platform, project = fileURLToPath(new URL("../packages/native", import.meta.url))] =
+  process.argv.slice(2);
 if (platform !== "ios" && platform !== "android") {
-  throw new Error("usage: native-fingerprint.mjs <ios|android>");
+  throw new Error("usage: native-fingerprint.mjs <ios|android> [project]");
 }
 
 const names =
@@ -24,8 +24,11 @@ const names =
         "EXPO_PUBLIC_TRAKT_API_BASE",
         "EXPO_PUBLIC_TRAKT_CLIENT_ID",
       ];
-const buildEnvironment = Object.fromEntries(names.map((name) => [name, process.env[name] ?? ""]));
-const project = path.join(path.dirname(fileURLToPath(import.meta.url)), "../packages/native");
+const missing = names.filter((name) => process.env[name] === undefined);
+if (missing.length > 0) {
+  throw new Error(`native-fingerprint.mjs needs the build environment: ${missing.join(", ")}`);
+}
+const buildEnvironment = Object.fromEntries(names.map((name) => [name, process.env[name]]));
 const hash = await createProjectHashAsync(project, {
   extraSources: [
     {

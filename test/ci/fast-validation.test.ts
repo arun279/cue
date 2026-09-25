@@ -14,8 +14,8 @@ describe("fast pull request validation", () => {
     const ios = job("native-ios");
     const android = job("native-android");
 
-    expect(fingerprint).toContain("node scripts/native-fingerprint.mjs ios");
-    expect(fingerprint).toContain("node scripts/native-fingerprint.mjs android");
+    expect(fingerprint).toContain("pnpm exec node scripts/native-fingerprint.mjs ios");
+    expect(fingerprint).toContain("pnpm exec node scripts/native-fingerprint.mjs android");
     expect(ios).toContain("needs: fingerprint");
     expect(ios).toContain("if: steps.native-cache.outputs.hit != 'true'");
     expect(ios).toContain("if: steps.native-cache.outputs.hit == 'true'");
@@ -54,6 +54,22 @@ describe("fast pull request validation", () => {
     expect(footprint).toContain("Missing merge-base measurements and successful CI artifacts");
     expect(footprint).toContain('startswith("cue-native-android-")');
     expect(footprint).toContain('java -jar "$RUNNER_TEMP/bundletool.jar" get-size total');
+  });
+
+  it("reports the footprint whenever its inputs were published", () => {
+    const check = job("check");
+    const footprint = job("footprint");
+    const condition = footprint.match(/^ {4}if: >-\n((?: {6}.*\n)+)/m)?.[1] ?? "";
+
+    expect(footprint).toContain("needs: [check, native-android]");
+    expect(condition).toMatch(/^ {6}!cancelled\(\) && /);
+    expect(condition).not.toMatch(/always\(\)|needs\.check\.result/);
+    expect(condition).toContain("needs.check.outputs.js-bundles != ''");
+    expect(condition).toContain("needs.native-android.result == 'success'");
+    expect(check).toContain("js-bundles: $" + "{{ steps.js-bundles.outputs.artifact-id }}");
+    expect(check).toMatch(
+      /- run: pnpm check\n(?: {8}.*\n)*? {6}- name: Upload JavaScript bundles\n {8}id: js-bundles\n/,
+    );
   });
 
   it("gates changed core lines from the generated LCOV file", () => {
