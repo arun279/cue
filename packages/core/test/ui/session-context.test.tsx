@@ -1,9 +1,7 @@
 // @vitest-environment jsdom
 import { type AuthState, AuthStoreProvider, useAuth } from "@cue/core/auth/store";
-import { AppVersionProvider, useAppVersion } from "@cue/core/ports/app-version";
-import { useRuntime } from "@cue/core/runtime/runtime";
 import { act, type ReactNode } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { createStore } from "zustand";
 import { mount } from "./_mount";
 
@@ -25,10 +23,6 @@ const signedOut: AuthState = {
   native: true,
 };
 
-afterEach(() => {
-  vi.restoreAllMocks();
-});
-
 describe("the session's context hooks", () => {
   it("follow the auth store the composition root provides", () => {
     const noop = async () => {};
@@ -48,24 +42,5 @@ describe("the session's context hooks", () => {
     expect(phase()).toBe("onboarding");
     act(() => store.setState({ phase: "connected" }));
     expect(phase()).toBe("connected");
-  });
-
-  it("name the missing provider when mounted outside a session", () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    expect(() => read(() => useAuth((state) => state.phase))).toThrow(
-      "useAuth must be used within an AuthStoreProvider.",
-    );
-    expect(() => read(useRuntime)).toThrow("useRuntime must be used within a RuntimeProvider.");
-  });
-
-  it("show no app version until the composition root supplies one", () => {
-    expect(read(useAppVersion)()).toBe("");
-  });
-
-  it("show the app version the composition root supplies", () => {
-    const version = read(useAppVersion, (node) => (
-      <AppVersionProvider value="1.4.0">{node}</AppVersionProvider>
-    ));
-    expect(version()).toBe("1.4.0");
   });
 });

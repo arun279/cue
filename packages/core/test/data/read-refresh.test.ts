@@ -1,10 +1,3 @@
-/**
- * A read only refreshes when something invalidates the exact key it caches
- * under. The keys a local mark or an activities diff invalidates live in one
- * module and the reads that cache under them in another, so this checks each
- * read against the invalidation that is meant to reach it, through the loader
- * the runtime serves it from.
- */
 import { invalidationKeys, showProgressKeys } from "@cue/core/data/query-invalidation";
 import type { InvalidationTarget } from "@cue/core/domain/sync-activities";
 import { historyQuery } from "@cue/core/queries/history";

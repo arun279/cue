@@ -1,6 +1,6 @@
 import type { LibraryEntry } from "@cue/core/data/trakt/library";
 import { epCode } from "@cue/core/domain/model/library";
-import { continueKind, episodeCount, returnsLine } from "@cue/core/domain/show-detail";
+import { continuePosition, episodeCount, returnsLine } from "@cue/core/domain/show-detail";
 import { watchedPercent } from "@cue/core/format";
 import { useMarkControl } from "@cue/core/hooks/useMarkControl";
 import type { MarkWatched } from "@cue/core/hooks/useMarkWatched";
@@ -21,19 +21,19 @@ export function ContinueBar({
   readonly mark: MarkWatched;
 }): ReactElement {
   const colors = useColors();
-  const kind = continueKind(entry, Date.now());
+  const position = continuePosition(entry, Date.now());
   return (
     <View style={[styles.bar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-      {kind === "next" ? (
+      {position.kind === "next" ? (
         <NextEpisode entry={entry} mark={mark} />
       ) : (
         <>
           <CueText variant="rowTitle" style={{ color: colors.fg }}>
-            {kind === "finished" ? "Ended. You finished it." : "All caught up"}
+            {position.kind === "finished" ? "Ended. You finished it." : "All caught up"}
           </CueText>
-          {kind === "returning" && entry.nextEpisode?.firstAired != null && (
+          {position.kind === "returning" && (
             <CueText variant="caption" style={{ color: colors.muted }}>
-              {returnsLine(entry.nextEpisode.season, entry.nextEpisode.firstAired, Date.now())}
+              {returnsLine(position)}
             </CueText>
           )}
         </>

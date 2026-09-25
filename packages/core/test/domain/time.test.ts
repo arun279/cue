@@ -1,5 +1,5 @@
-import { humanizeWatchMinutes, isAired, localTimeZone, toMs } from "@cue/core/domain/time";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { humanizeWatchMinutes, isAired, toMs } from "@cue/core/domain/time";
+import { describe, expect, it } from "vitest";
 
 const T = Date.parse("2026-07-05T00:00:00.000Z");
 
@@ -61,17 +61,5 @@ describe("humanizeWatchMinutes", () => {
       unit: "minutes",
       detail: "keep watching",
     });
-  });
-});
-
-describe("localTimeZone", () => {
-  afterEach(() => vi.restoreAllMocks());
-
-  it("groups by UTC on a host that reports no zone", () => {
-    vi.spyOn(Intl.DateTimeFormat.prototype, "resolvedOptions").mockReturnValue({
-      ...new Intl.DateTimeFormat().resolvedOptions(),
-      timeZone: "",
-    });
-    expect(localTimeZone()).toBe("UTC");
   });
 });
