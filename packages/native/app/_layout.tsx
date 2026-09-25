@@ -13,7 +13,7 @@ import { Stack, ThemeProvider } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { type ReactElement, useEffect, useState } from "react";
-import { Platform, StyleSheet, useWindowDimensions, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { initialWindowMetrics, SafeAreaProvider } from "react-native-safe-area-context";
 import { bootNativeStores } from "../src/boot";
@@ -46,7 +46,6 @@ import { useNavigationTheme } from "../src/ui/navigation-theme";
 import { useResponseTiming } from "../src/ui/response-timing";
 import { SnackbarHost } from "../src/ui/SnackbarHost";
 import { TEST_IDS } from "../src/ui/test-ids";
-import { RADIUS, useColors } from "../src/ui/tokens";
 import { useCueFonts } from "../src/ui/type";
 
 /**
@@ -65,10 +64,6 @@ const prefsStore = createPrefsStore(preferenceStorage);
 const tokenStore = createTokenStore(secureStore);
 const haptics = createNativeHaptics(() => prefsStore.getState().hapticsEnabled);
 const network = createNativeNetwork();
-const EXPANDED_SHEET_FONT_SCALE = 1.3;
-
-export const episodeSheetDetents = (platform: typeof Platform.OS): [number, ...number[]] =>
-  platform === "android" ? [0.92] : [0.65, 0.92];
 
 /** What a launch says when the stores it depends on did not come up. The session
  * still starts on whatever the token store answers, because a boot that cannot
@@ -161,31 +156,12 @@ function Gate(): ReactElement {
 
 function RoutedApp(): ReactElement {
   useActivitiesPoll();
-  const colors = useColors();
-  const { fontScale } = useWindowDimensions();
   const responseTiming = useResponseTiming();
 
   return (
     <View style={styles.root}>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen
-          name="show/[showId]/episode/[season]/[episode]"
-          options={{
-            presentation: "formSheet",
-            headerShown: false,
-            sheetAllowedDetents: episodeSheetDetents(Platform.OS),
-            sheetInitialDetentIndex:
-              Platform.OS === "ios" && fontScale >= EXPANDED_SHEET_FONT_SCALE ? 1 : 0,
-            sheetGrabberVisible: true,
-            sheetCornerRadius: RADIUS.sheet,
-            contentStyle: { backgroundColor: colors.bg },
-            unstable_sheetFooter:
-              Platform.OS === "android"
-                ? () => <SnackbarHost placement="presentation" contained />
-                : undefined,
-          }}
-        />
         {/* Presented from the root, over the tab bar, so it always dismisses
             back to exactly where the user was rather than into whichever tab
             happened to be selected. */}

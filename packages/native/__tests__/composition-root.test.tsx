@@ -75,10 +75,7 @@ const TOKEN = JSON.stringify({
 
 // Required rather than imported: the module reads its stores at import time, so
 // it has to be loaded after the mocks above are in place.
-const { default: RootLayout, episodeSheetDetents } = require("../app/_layout") as {
-  default: () => React.JSX.Element;
-  episodeSheetDetents: (platform: "ios" | "android") => number[];
-};
+const RootLayout = require("../app/_layout").default as () => React.JSX.Element;
 
 afterEach(() => {
   jest.restoreAllMocks();
@@ -167,11 +164,6 @@ describe("the native composition root", () => {
     expect(screen.queryByTestId("auth-loading")).toBeNull();
     expect(screen.getByRole("alert")).toBeOnTheScreen();
   });
-});
-
-it("keeps both iOS episode detents and gives Android enough height for every control", () => {
-  expect(episodeSheetDetents("ios")).toEqual([0.65, 0.92]);
-  expect(episodeSheetDetents("android")).toEqual([0.92]);
 });
 
 /**
