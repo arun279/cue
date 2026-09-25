@@ -1,6 +1,7 @@
 import { PendingWritesError } from "@cue/core/app/session";
 import { sortLapsed, sortQueue } from "@cue/core/domain/queue-order";
 import { computeWatchStatus } from "@cue/core/domain/watch-status";
+import { type Reminders, RemindersProvider } from "@cue/core/ports/reminders";
 import { createPrefsStore, usePrefs } from "@cue/core/prefs/prefs-store";
 import { thresholdMsFromDays } from "@cue/core/prefs/threshold";
 import { act, fireEvent, screen, userEvent } from "@testing-library/react-native";
@@ -13,7 +14,7 @@ import { EpisodeStill } from "../src/screens/episode-sheet/EpisodeStill";
 import Settings from "../src/screens/Settings";
 import { TEST_IDS } from "../src/ui/test-ids";
 import { accountFixture } from "./support/account";
-import { agesAgo, entry } from "./support/up-next";
+import { agesAgo, airing, entry } from "./support/up-next";
 
 jest.mock("expo-web-browser", () => ({ openBrowserAsync: jest.fn() }));
 jest.mock("../modules/cue-native/src", () => ({ CueHaptics: { success: jest.fn() } }));
@@ -51,6 +52,99 @@ it("applies haptics and spoiler preferences to their consumers without a reload"
   expect(screen.queryByRole("button", { name: "Reveal episode still" })).toBeNull();
 });
 
+function remindersAnswering(granted: Promise<boolean>): Reminders {
+  return {
+    requestPermission: jest.fn(() => granted),
+    permissionRefused: () => Promise.resolve(false),
+    reconcile: () => Promise.resolve(),
+    cancelAll: () => Promise.resolve(),
+  };
+}
+
+it("turns alerts on only once the OS allows notifications, and off without asking", async () => {
+  let allow: (granted: boolean) => void = () => {};
+  const reminders = remindersAnswering(new Promise((resolve) => (allow = resolve)));
+  const fixture = accountFixture();
+  await fixture.paint(
+    <RemindersProvider value={reminders}>
+      <Settings />
+    </RemindersProvider>,
+  );
+  const toggle = () => screen.getByRole("switch", { name: "New episodes" });
+
+  await fireEvent(toggle(), "valueChange", true);
+  expect(reminders.requestPermission).toHaveBeenCalledTimes(1);
+  expect(toggle()).not.toBeChecked();
+
+  await act(async () => allow(true));
+  expect(toggle()).toBeChecked();
+  expect(createPrefsStore(fixture.storage).getState().remindersEnabled).toBe(true);
+
+  await fireEvent(toggle(), "valueChange", false);
+  expect(toggle()).not.toBeChecked();
+  expect(reminders.requestPermission).toHaveBeenCalledTimes(1);
+});
+
+it("leaves alerts off and says where to change it when the OS refuses", async () => {
+  const fixture = accountFixture();
+  await fixture.paint(
+    <RemindersProvider value={remindersAnswering(Promise.resolve(false))}>
+      <Settings />
+    </RemindersProvider>,
+  );
+
+  await fireEvent(screen.getByRole("switch", { name: "New episodes" }), "valueChange", true);
+
+  expect(screen.getByRole("switch", { name: "New episodes" })).not.toBeChecked();
+  expect(createPrefsStore(fixture.storage).getState().remindersEnabled).toBe(false);
+  expect(
+    screen.getByText("Notifications are off for Cue. Turn them on in your phone's settings."),
+  ).toBeVisible();
+});
+
+it("turns New episodes on from the Calendar's card once the OS allows them", async () => {
+  const fixture = accountFixture({
+    loadCalendar: () => Promise.resolve({ entries: [airing()], hiddenShowIds: [] }),
+  });
+  await fixture.paint(
+    <RemindersProvider value={remindersAnswering(Promise.resolve(true))}>
+      <Calendar />
+      <Settings />
+    </RemindersProvider>,
+  );
+  const card = () => screen.queryByRole("header", { name: "Alerts for new episodes" });
+  expect(await screen.findByRole("header", { name: "Alerts for new episodes" })).toBeVisible();
+  expect(screen.getByRole("switch", { name: "New episodes" })).not.toBeChecked();
+
+  await userEvent.press(screen.getByRole("button", { name: "Turn on alerts" }));
+
+  expect(screen.getByRole("switch", { name: "New episodes" })).toBeChecked();
+  expect(card()).toBeNull();
+});
+
+it("offers the daily summary only while alerts are on", async () => {
+  const fixture = accountFixture();
+  await fixture.paint(<Settings />);
+  const summary = () => screen.queryByRole("switch", { name: "Daily summary instead" });
+  expect(summary()).toBeNull();
+
+  await fireEvent(screen.getByRole("switch", { name: "New episodes" }), "valueChange", true);
+  expect(summary()).not.toBeChecked();
+
+  await fireEvent(
+    screen.getByRole("switch", { name: "Daily summary instead" }),
+    "valueChange",
+    true,
+  );
+  expect(createPrefsStore(fixture.storage).getState().dailySummary).toBe(true);
+
+  await fireEvent(screen.getByRole("switch", { name: "New episodes" }), "valueChange", false);
+  expect(summary()).toBeNull();
+});
+
+const Calendar = (
+  require("../app/(tabs)/(calendar)/calendar") as typeof import("../app/(tabs)/(calendar)/calendar")
+).default;
 const Library = (
   require("../app/(tabs)/(library)/library") as typeof import("../app/(tabs)/(library)/library")
 ).default;
@@ -70,12 +164,13 @@ it("starts with accessible controls and the strong defaults", async () => {
   expect(
     screen.getByRole("button", { name: "Haven't watched in a while after, 3 weeks" }),
   ).toBeVisible();
-  expect(screen.queryByText("Notifications")).toBeNull();
+  expect(screen.getByRole("switch", { name: "New episodes" })).not.toBeChecked();
 });
 
 it("lists the sections in the order of the screen", async () => {
   await accountFixture().paint(<Settings />);
   expect(screen.getAllByRole("header").flatMap((heading) => heading.children)).toEqual([
+    "Notifications",
     "Appearance",
     "Tracking",
     "Content",

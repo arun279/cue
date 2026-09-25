@@ -98,11 +98,12 @@ export function buildBulkMarkOps(
 }
 
 function chunkInversePatch(target: BulkMarkTarget, seasons: readonly SeasonBody[]): unknown {
-  if (target.inversePatchForChunk === undefined) return target.inversePatch ?? null;
-  const firstSeason = seasons[0];
-  const firstEpisode = firstSeason?.episodes[0];
-  if (firstSeason === undefined || firstEpisode === undefined) return target.inversePatch ?? null;
-  return target.inversePatchForChunk({ season: firstSeason.number, number: firstEpisode.number });
+  const [probe] = seasons.flatMap((season) =>
+    season.episodes.map((episode) => ({ season: season.number, number: episode.number })),
+  );
+  return target.inversePatchForChunk === undefined || probe === undefined
+    ? (target.inversePatch ?? null)
+    : target.inversePatchForChunk(probe);
 }
 
 function planSeasons(target: BulkMarkTarget, now: number): PlannedSeason[] {
@@ -117,23 +118,15 @@ function planSeasons(target: BulkMarkTarget, now: number): PlannedSeason[] {
         // (an unaired episode has no play and must never be marked).
         !ep.watched &&
         isAired(ep.firstAired, now) &&
-        withinBound(ep.number, season.number, target.upTo),
+        (target.upTo === undefined ||
+          season.number < target.upTo.season ||
+          ep.number <= target.upTo.number),
     );
     if (delta.length === 0) continue;
     const episodeNumbers = delta.map((ep) => ep.number).sort((a, b) => a - b);
     out.push({ number: season.number, episodeNumbers });
   }
   return out;
-}
-
-function withinBound(
-  episodeNumber: number,
-  seasonNumber: number,
-  upTo: BulkMarkTarget["upTo"],
-): boolean {
-  if (upTo === undefined || seasonNumber < upTo.season) return true;
-  if (seasonNumber > upTo.season) return false;
-  return episodeNumber <= upTo.number;
 }
 
 /**

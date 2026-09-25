@@ -101,8 +101,11 @@ describe("the Capacitor migration", () => {
     expect(upgrade.preferences.getItem("cue.tutorial-mark-dismissed")).toBe("1");
   });
 
-  it("ignores a token the schema rejects rather than adopting half of one", async () => {
-    const corrupt = deps({ "cue.trakt.token": JSON.stringify({ access_token: "only" }) });
+  it.each([
+    JSON.stringify({ access_token: "only" }),
+    "{ not json",
+  ])("ignores a token the schema rejects rather than adopting half of one: %s", async (raw) => {
+    const corrupt = deps({ "cue.trakt.token": raw });
     const result = await migrateLegacyData(corrupt);
 
     expect(result.adoptedToken).toBe(false);
@@ -135,8 +138,11 @@ describe("the Capacitor migration", () => {
     ]);
   });
 
-  it("treats a corrupt op log as empty and still clears it", async () => {
-    const corrupt = deps({ "cue.write-queue": "{ not json" });
+  it.each([
+    "{ not json",
+    "{}",
+  ])("treats a corrupt op log as empty and still clears it: %s", async (raw) => {
+    const corrupt = deps({ "cue.write-queue": raw });
     const result = await migrateLegacyData(corrupt);
 
     expect(result.adoptedOps).toBe(0);
@@ -152,6 +158,18 @@ describe("the Capacitor migration", () => {
     await migrateLegacyData(both);
 
     expect(JSON.parse(both.bulk.values.get("cue.write-queue") ?? "null")).toEqual([OP, mine]);
+  });
+
+  it.each([
+    "{ not json",
+    "{}",
+  ])("replaces a corrupt op log this install holds with the migrated ops: %s", async (raw) => {
+    const both = deps({ "cue.write-queue": JSON.stringify([OP]) });
+    await both.bulk.write("cue.write-queue", raw);
+
+    await migrateLegacyData(both);
+
+    expect(JSON.parse(both.bulk.values.get("cue.write-queue") ?? "null")).toEqual([OP]);
   });
 
   it("is a no-op on the second launch", async () => {

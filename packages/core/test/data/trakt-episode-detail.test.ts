@@ -121,6 +121,13 @@ describe("assembleEpisodeDetail", () => {
     expect(special.next).toBeNull();
   });
 
+  it("reads an episode Trakt has not dated yet as unaired", () => {
+    const { first_aired: _, ...undated } = episode;
+    const detail = assembleEpisodeDetail(1, undated, progress, NOW);
+    expect(detail.firstAired).toBeNull();
+    expect(detail.aired).toBe(false);
+  });
+
   it("tolerates progress with no seasons array", () => {
     const detail = assembleEpisodeDetail(
       1,

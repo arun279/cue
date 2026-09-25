@@ -50,9 +50,11 @@ export function earlierUnwatchedCount(
     );
 }
 
-export type ContinueKind = "next" | "returning" | "finished" | "caught-up";
+export type ContinuePosition =
+  | { readonly kind: "next" | "finished" | "caught-up" }
+  | { readonly kind: "returning"; readonly season: number; readonly days: number };
 
-export function continueKind(
+export function continuePosition(
   entry: {
     readonly pendingAdvance: boolean;
     readonly nextEpisode: EpisodeRef | null;
@@ -61,17 +63,18 @@ export function continueKind(
     readonly status: string;
   },
   now: number,
-): ContinueKind {
-  if (entry.pendingAdvance || entry.completed < entry.aired) return "next";
-  if (isTerminalStatus(entry.status)) return "finished";
-  const firstAired = toMs(entry.nextEpisode?.firstAired ?? null);
-  return firstAired !== null && firstAired > now ? "returning" : "caught-up";
+): ContinuePosition {
+  if (entry.pendingAdvance || entry.completed < entry.aired) return { kind: "next" };
+  if (isTerminalStatus(entry.status)) return { kind: "finished" };
+  const next = entry.nextEpisode;
+  const firstAired = toMs(next?.firstAired ?? null);
+  return next !== null && firstAired !== null && firstAired > now
+    ? { kind: "returning", season: next.season, days: Math.ceil((firstAired - now) / DAY_MS) }
+    : { kind: "caught-up" };
 }
 
-export function returnsLine(episode: EpisodeRef, now: number): string {
-  const days = Math.max(0, Math.ceil(((toMs(episode.firstAired) ?? now) - now) / DAY_MS));
-  return `S${episode.season} returns ${days === 0 ? "today" : `in ${days} ${days === 1 ? "day" : "days"}`}`;
-}
+export const returnsLine = ({ season, days }: { readonly season: number; readonly days: number }) =>
+  `S${season} returns in ${days} ${days === 1 ? "day" : "days"}`;
 
 export interface SeasonConfirmation {
   readonly kind: "mark" | "remaining" | "unmark";

@@ -20,14 +20,17 @@ expected_name=$3
 expected_abi=${4:-}
 # The Expo line's set, measured from its generated release manifest. The two
 # network-state permissions come from expo-network, which fills the connectivity
-# port through getNetworkStateAsync. The Expo template's four optional
-# permissions and expo-secure-store's biometric pair are dropped in
-# app.config.ts.
+# port through getNetworkStateAsync. POST_NOTIFICATIONS and
+# RECEIVE_BOOT_COMPLETED come from expo-notifications, for new-episode alerts.
+# The Expo template's four optional permissions, expo-secure-store's biometric
+# pair, and expo-notifications' push and badge set are dropped in app.config.ts.
 # SYSTEM_ALERT_WINDOW is re-declared by the debug flavour for the development
 # menu, so a debug APK of this line carries it and a release APK does not.
 expected_permissions="android.permission.ACCESS_NETWORK_STATE
 android.permission.ACCESS_WIFI_STATE
 android.permission.INTERNET
+android.permission.POST_NOTIFICATIONS
+android.permission.RECEIVE_BOOT_COMPLETED
 app.cuetracker.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
 
 sdk=${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}

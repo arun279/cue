@@ -48,7 +48,10 @@ async function connectedSession() {
 }
 
 describe("sign-out teardown", () => {
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.clearAllMocks();
+  });
 
   it.each([
     new PendingWritesError(),
@@ -68,6 +71,16 @@ describe("sign-out teardown", () => {
     });
     vi.mocked(revokeToken).mockRejectedValue(new Error("offline"));
     await store.getState().disconnect();
+    expect(await tokens.read()).toBeNull();
+    expect(store.getState().phase).toBe("onboarding");
+  });
+
+  it("ends a dead session without revoking, even when teardown refuses", async () => {
+    const { tokens, store } = await connectedSession();
+    const run = vi.spyOn(sessionTeardown, "run").mockRejectedValue(new PendingWritesError());
+    await store.getState().endSession();
+    expect(run).toHaveBeenCalledWith({ force: true });
+    expect(revokeToken).not.toHaveBeenCalled();
     expect(await tokens.read()).toBeNull();
     expect(store.getState().phase).toBe("onboarding");
   });
@@ -194,6 +207,53 @@ describe("device authorization polling", () => {
     store.getState().cancelConnect();
     await vi.advanceTimersByTimeAsync(1_000);
     await connecting;
+  });
+
+  it("says Trakt is unreachable when no device code can be requested", async () => {
+    vi.mocked(requestDeviceCode).mockRejectedValue(new Error("network unavailable"));
+    const store = createAuthStore(authDeps(createTokenStore(memoryKeyValueStore())));
+
+    await store.getState().connectWithDeviceCode();
+
+    expect(store.getState()).toMatchObject({
+      connectStatus: "error",
+      deviceCode: null,
+      errorMessage: "Couldn't reach Trakt. Check your connection and try again.",
+    });
+  });
+
+  it("stays on the connect screen when a cancelled attempt's request settles", async () => {
+    let settle: (outcome: "code" | "failure") => void = () => {};
+    vi.mocked(requestDeviceCode).mockImplementation(
+      () =>
+        new Promise((resolve, reject) => {
+          settle = (outcome) =>
+            outcome === "failure"
+              ? reject(new Error("network unavailable"))
+              : resolve({
+                  deviceCode: "device-code",
+                  userCode: "ABCD",
+                  verificationUrl: "https://trakt.test/activate",
+                  intervalMs: 1_000,
+                  expiresInMs: 3_000,
+                });
+        }),
+    );
+    const store = createAuthStore(authDeps(createTokenStore(memoryKeyValueStore())));
+
+    for (const outcome of ["code", "failure"] as const) {
+      const connecting = store.getState().connectWithDeviceCode();
+      await vi.advanceTimersByTimeAsync(0);
+      store.getState().cancelConnect();
+      settle(outcome);
+      await connecting;
+      expect(store.getState()).toMatchObject({
+        connectStatus: "idle",
+        deviceCode: null,
+        errorMessage: null,
+      });
+    }
+    expect(pollDeviceToken).not.toHaveBeenCalled();
   });
 
   it("clears the displayed code once polls fail until it expires so connection can be retried", async () => {

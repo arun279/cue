@@ -6,7 +6,7 @@ import type { ExpoConfig } from "expo/config";
  * set that survives, out of the built APK, so a new arrival fails a build rather
  * than shipping unannounced.
  *
- * Three groups, and each is a decision rather than tidiness:
+ * Four groups, and each is a decision rather than tidiness:
  *
  * - **Expo's prebuild template**, whose own comment calls these optional.
  *   Haptics go through `performHapticFeedback`, which Android documents as not
@@ -19,6 +19,12 @@ import type { ExpoConfig } from "expo/config";
  * - **The Play install-referrer binding**, from expo-application's transitive
  *   install-referrer library. Cue reads its version fields and never asks for
  *   install referrer data.
+ * - **Push and badges**, from expo-notifications' Firebase messaging and
+ *   ShortcutBadger: the FCM receive permission and its wake lock, and the per-OEM
+ *   launcher badge set. Cue schedules local notifications only and sets no badge
+ *   count. What survives is POST_NOTIFICATIONS, which Android 13 and later
+ *   requires to show any notification, and RECEIVE_BOOT_COMPLETED, which is how
+ *   the scheduled alerts come back after a reboot.
  */
 const BLOCKED_PERMISSIONS = [
   "android.permission.SYSTEM_ALERT_WINDOW",
@@ -28,6 +34,24 @@ const BLOCKED_PERMISSIONS = [
   "android.permission.USE_BIOMETRIC",
   "android.permission.USE_FINGERPRINT",
   "com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE",
+  "android.permission.WAKE_LOCK",
+  "com.google.android.c2dm.permission.RECEIVE",
+  "android.permission.READ_APP_BADGE",
+  "com.sec.android.provider.badge.permission.READ",
+  "com.sec.android.provider.badge.permission.WRITE",
+  "com.htc.launcher.permission.READ_SETTINGS",
+  "com.htc.launcher.permission.UPDATE_SHORTCUT",
+  "com.sonyericsson.home.permission.BROADCAST_BADGE",
+  "com.sonymobile.home.permission.PROVIDER_INSERT_BADGE",
+  "com.anddoes.launcher.permission.UPDATE_COUNT",
+  "com.majeur.launcher.permission.UPDATE_BADGE",
+  "com.huawei.android.launcher.permission.CHANGE_BADGE",
+  "com.huawei.android.launcher.permission.READ_SETTINGS",
+  "com.huawei.android.launcher.permission.WRITE_SETTINGS",
+  "com.oppo.launcher.permission.READ_SETTINGS",
+  "com.oppo.launcher.permission.WRITE_SETTINGS",
+  "me.everything.badger.permission.BADGE_COUNT_READ",
+  "me.everything.badger.permission.BADGE_COUNT_WRITE",
 ];
 
 /**
@@ -147,6 +171,7 @@ export function nativeAppConfig(env: Readonly<Record<string, string | undefined>
       "./plugins/with-android-tab-icons",
       ["./plugins/with-android-privacy", { apiBase: mockTrakt }],
       "./plugins/with-ios-scene-lifecycle",
+      "./plugins/with-ios-local-notifications",
     ],
     runtimeVersion: { policy: "fingerprint" },
     updates: {

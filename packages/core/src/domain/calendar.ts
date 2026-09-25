@@ -140,24 +140,22 @@ export function groupCalendar(
     label: "Tomorrow",
   });
 
-  const byDay = new Map<string, CalendarRow[]>();
+  const byDay = new Map<string, { readonly sample: number; readonly rows: CalendarRow[] }>();
   for (const entry of entries) {
     if (hiddenShowIds.has(entry.showId)) continue;
     const ms = toMs(entry.firstAired);
     if (ms === null) continue;
     const key = dayKeyOf(ms);
-    const list = byDay.get(key) ?? [];
-    list.push({ ...entry, aired: ms <= now });
-    byDay.set(key, list);
+    const day = byDay.get(key) ?? { sample: ms, rows: [] };
+    day.rows.push({ ...entry, aired: ms <= now });
+    byDay.set(key, day);
   }
 
-  return [...byDay.entries()]
-    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-    .map(([dayKey, rows]) => {
-      const ordered = [...rows].sort(
-        (a, b) => (toMs(a.firstAired) ?? 0) - (toMs(b.firstAired) ?? 0),
-      );
-      const sample = toMs(ordered[0]?.firstAired) ?? now;
-      return { dayKey, label: labelFor(dayKey, sample), rows: ordered };
-    });
+  return [...byDay]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([dayKey, { sample, rows }]) => ({
+      dayKey,
+      label: labelFor(dayKey, sample),
+      rows: rows.sort((a, b) => Date.parse(a.firstAired) - Date.parse(b.firstAired)),
+    }));
 }

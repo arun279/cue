@@ -79,6 +79,13 @@ function ok<T>(result: TraktResult<T>): T {
   return result.data;
 }
 
+/** Send a write the way the write queue does, failing loudly on a non-2xx. */
+async function write(path: string, body: unknown): Promise<unknown> {
+  const response = await client().send("POST", path, { body });
+  if (response.status >= 300) throw new Error(`write failed: ${response.status}`);
+  return response.data;
+}
+
 const oauth = (): OAuthConfig => ({
   clientId: "mock-client",
   redirectUri: "http://127.0.0.1:4173/auth/callback",
@@ -544,7 +551,7 @@ describe("writes move the account the next read sees", () => {
     const body = {
       episodes: [{ ids: { trakt: next.ids.trakt }, watched_at: new Date().toISOString() }],
     };
-    expect(ok(await client().post("/sync/history", body))).toMatchObject({
+    expect(await write("/sync/history", body)).toMatchObject({
       added: { episodes: 1 },
     });
 
@@ -552,7 +559,7 @@ describe("writes move the account the next read sees", () => {
     expect(after.completed).toBe(before.completed + 1);
     expect(after.next_episode?.ids.trakt).not.toBe(next.ids.trakt);
 
-    ok(await client().post("/sync/history/remove", { episodes: body.episodes }));
+    await write("/sync/history/remove", { episodes: body.episodes });
     expect(ok(await getShowProgress(client(), show.trakt)).completed).toBe(before.completed);
   });
 
@@ -568,23 +575,19 @@ describe("writes move the account the next read sees", () => {
     if (newest === undefined || episode === undefined) {
       throw new Error("the seeded show must have an episode play to remove");
     }
-    ok(await client().post("/sync/history/remove", { ids: [newest.id] }));
+    await write("/sync/history/remove", { ids: [newest.id] });
     expect(ok(await getShowProgress(client(), show.trakt)).completed).toBe(before.completed - 1);
 
-    ok(
-      await client().post("/sync/history", {
-        episodes: [{ ids: { trakt: episode.ids.trakt }, watched_at: newest.watched_at }],
-      }),
-    );
+    await write("/sync/history", {
+      episodes: [{ ids: { trakt: episode.ids.trakt }, watched_at: newest.watched_at }],
+    });
     expect(ok(await getShowProgress(client(), show.trakt)).completed).toBe(before.completed);
   });
 
   it("reports a write that matched nothing rather than answering a silent success", async () => {
-    const response = ok(
-      await client().post("/sync/history", {
-        episodes: [{ ids: { trakt: 1 }, watched_at: new Date().toISOString() }],
-      }),
-    );
+    const response = await write("/sync/history", {
+      episodes: [{ ids: { trakt: 1 }, watched_at: new Date().toISOString() }],
+    });
     expect(response).toMatchObject({
       added: { episodes: 0 },
       not_found: { episodes: [{ ids: { trakt: 1 } }] },
@@ -595,12 +598,12 @@ describe("writes move the account the next read sees", () => {
     const show = firstSeededShow();
     const body = { shows: [{ ids: { trakt: show.trakt } }] };
 
-    expect(ok(await client().post("/users/hidden/progress_watched", body))).toMatchObject({
+    expect(await write("/users/hidden/progress_watched", body)).toMatchObject({
       added: { shows: 1 },
     });
     expect(ok(await getHidden(client())).map((row) => row.show?.ids.trakt)).toEqual([show.trakt]);
 
-    ok(await client().post("/users/hidden/progress_watched/remove", body));
+    await write("/users/hidden/progress_watched/remove", body);
     expect(ok(await getHidden(client()))).toEqual([]);
   });
 
@@ -612,10 +615,10 @@ describe("writes move the account the next read sees", () => {
     const before = await listed();
     expect(before).not.toContain(show.trakt);
 
-    expect(ok(await client().post("/sync/watchlist", body))).toMatchObject({ added: { shows: 1 } });
+    expect(await write("/sync/watchlist", body)).toMatchObject({ added: { shows: 1 } });
     expect(await listed()).toContain(show.trakt);
 
-    ok(await client().post("/sync/watchlist/remove", body));
+    await write("/sync/watchlist/remove", body);
     expect(await listed()).toEqual(before);
   });
 });

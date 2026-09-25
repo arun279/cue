@@ -67,6 +67,7 @@ export const TEST_IDS = {
   quickActionMark: "quick-action-mark",
   quickActionStop: "quick-action-stop",
   quickActionDetails: "quick-action-details",
+  quickActionMute: "quick-action-mute",
   syncNow: "sync-now",
   avatarLink: "avatar-link",
   linkHistory: "link-history",

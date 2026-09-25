@@ -45,6 +45,16 @@ describe("sortQueue", () => {
     expect(sorted[0]?.showId).toBe(4);
   });
 
+  it("breaks a tie on either signal with the other", () => {
+    const aired = "2026-03-01T00:00:00Z";
+    const watched = "2026-07-01T00:00:00Z";
+    const sameAirDate = [item(1, aired, "2026-06-01T00:00:00Z"), item(2, aired, watched)];
+    const sameWatch = [item(3, "2026-05-01T00:00:00Z", watched), item(4, aired, watched)];
+    expect(sortQueue(sameAirDate, "oldest-unwatched").map((i) => i.showId)).toEqual([2, 1]);
+    expect(sortQueue(sameWatch, "after-last-watched").map((i) => i.showId)).toEqual([4, 3]);
+    expect(sortLapsed(sameWatch, "longest-idle").map((i) => i.showId)).toEqual([4, 3]);
+  });
+
   it("never mutates its input", () => {
     const input = [newest, oldest];
     sortQueue(input, "oldest-unwatched");

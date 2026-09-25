@@ -1,4 +1,4 @@
-import { groupUpNext } from "@cue/core/domain/up-next";
+import { activeShowIds, groupUpNext } from "@cue/core/domain/up-next";
 import { describe, expect, it } from "vitest";
 import { DAY, iso, makeEpisode, makeShow, NOW, THRESHOLD } from "./_helpers";
 
@@ -104,5 +104,24 @@ describe("groupUpNext partitioning", () => {
     ];
     expect(group(shows).queue.map((item) => [item.showId, item.episode])).toEqual([[1, null]]);
     expect(group(shows).lapsed).toEqual([]);
+  });
+});
+
+describe("activeShowIds", () => {
+  it("is the queue and the watched shows with something on the way, never the drawer", () => {
+    const shows = [
+      makeShow({ showId: 1, nextEpisode: airedRecent }),
+      makeShow({
+        showId: 2,
+        completed: 10,
+        nextEpisode: null,
+        lastWatchedAt: iso(NOW - 400 * DAY),
+      }),
+      makeShow({ showId: 3, nextEpisode: airedOld, lastWatchedAt: iso(NOW - 30 * DAY) }),
+      makeShow({ showId: 4, hidden: true }),
+      makeShow({ showId: 5, completed: 0 }),
+      makeShow({ showId: 6, completed: 10, status: "ended", nextEpisode: null }),
+    ];
+    expect([...activeShowIds(shows, NOW, THRESHOLD)]).toEqual([1, 2]);
   });
 });

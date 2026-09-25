@@ -116,10 +116,12 @@ describe("assembleMovieLibrary", () => {
     };
     const entries = assembleMovieLibrary({
       watchedMovies: [noYear],
-      watchlistMovies: [{ type: "movie" }],
+      watchlistMovies: [
+        { type: "movie" },
+        { type: "movie", movie: { title: "Soon", ids: { trakt: 4 } } },
+      ],
     });
-    expect(entries).toHaveLength(1);
-    expect(entries[0]?.year).toBeNull();
+    expect(entries.map((entry) => entry.year)).toEqual([null, null]);
     expect(entries[0]?.watchedAt).toBeNull();
   });
 });

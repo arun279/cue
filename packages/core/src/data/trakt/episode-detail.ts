@@ -1,4 +1,5 @@
 import type { EpisodeIds } from "../../domain/model/ids";
+import { episodeNavigation } from "../../domain/show-detail";
 import { isAired } from "../../domain/time";
 import type { EpisodeData, Progress } from "./schemas";
 import { toEpisodeIds } from "./show-detail";
@@ -60,20 +61,7 @@ function navigation(
     episodes.map(({ season, number }) => [key(season, number), { season, number }]),
   );
   ordering.set(key(target.season, target.number), target);
-
-  // Mirrors the season shelf order (assembleSeasons): Specials page AFTER the
-  // numbered run, so `prev` from S1 E1 is a bound rather than a jump into them.
-  const ordered = [...ordering.values()].sort(
-    (a, b) =>
-      Number(a.season === 0) - Number(b.season === 0) || a.season - b.season || a.number - b.number,
-  );
-  const index = ordered.findIndex(
-    (episode) => episode.season === target.season && episode.number === target.number,
-  );
-  return {
-    prev: index > 0 ? (ordered[index - 1] ?? null) : null,
-    next: index >= 0 && index < ordered.length - 1 ? (ordered[index + 1] ?? null) : null,
-  };
+  return episodeNavigation([{ episodes: [...ordering.values()] }], target);
 }
 
 export function assembleEpisodeDetail(
@@ -88,6 +76,7 @@ export function assembleEpisodeDetail(
     (item) => item.season === target.season && item.number === target.number,
   );
   const stills = episode.images?.screenshot ?? episode.images?.thumb ?? [];
+  const firstAired = episode.first_aired ?? null;
 
   return {
     showId,
@@ -95,11 +84,11 @@ export function assembleEpisodeDetail(
     number: episode.number,
     title: episode.title ?? null,
     overview: episode.overview ?? null,
-    firstAired: episode.first_aired ?? null,
+    firstAired,
     runtime: episode.runtime ?? null,
     ids: toEpisodeIds(episode.ids),
     stills,
-    aired: isAired(episode.first_aired ?? null, now),
+    aired: isAired(firstAired, now),
     watched: watchedEpisode?.watched ?? false,
     watchedAt: watchedEpisode?.watchedAt ?? null,
     ...navigation(progressEpisodes, target),

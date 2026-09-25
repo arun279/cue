@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { airsLine, episodeStatus, sheetMetaLine } from "../../src/domain/episode-detail";
 import {
-  continueKind,
+  continuePosition,
   defaultSeason,
   earlierUnwatchedCount,
   episodeNavigation,
@@ -35,13 +35,18 @@ const season = (number: number) => ({
 
 describe("show position", () => {
   it("distinguishes backlog, returning, finished and caught up without calling a projection finished", () => {
-    expect(continueKind({ ...progress, completed: 24 }, now)).toBe("next");
-    expect(continueKind(progress, now)).toBe("returning");
-    expect(continueKind({ ...progress, status: "ended" }, now)).toBe("finished");
-    expect(continueKind({ ...progress, nextEpisode: null }, now)).toBe("caught-up");
-    expect(continueKind({ ...progress, status: "ended", pendingAdvance: true }, now)).toBe("next");
-    expect(returnsLine(next, now)).toBe("S3 returns in 87 days");
-    expect(returnsLine(next, Date.parse(next.firstAired))).toBe("S3 returns today");
+    expect(continuePosition({ ...progress, completed: 24 }, now).kind).toBe("next");
+    expect(continuePosition(progress, now)).toEqual({ kind: "returning", season: 3, days: 87 });
+    expect(continuePosition({ ...progress, status: "ended" }, now).kind).toBe("finished");
+    expect(continuePosition({ ...progress, nextEpisode: null }, now).kind).toBe("caught-up");
+    expect(continuePosition({ ...progress, status: "ended", pendingAdvance: true }, now).kind).toBe(
+      "next",
+    );
+    const at = (ms: number) => continuePosition(progress, ms);
+    expect(at(Date.parse(next.firstAired) - 86_400_000)).toMatchObject({ days: 1 });
+    expect(at(Date.parse(next.firstAired)).kind).toBe("caught-up");
+    expect(returnsLine({ season: 3, days: 87 })).toBe("S3 returns in 87 days");
+    expect(returnsLine({ season: 3, days: 1 })).toBe("S3 returns in 1 day");
   });
 
   it("puts recent seasons first, Specials last, and opens the queued season", () => {
@@ -75,6 +80,9 @@ describe("show position", () => {
       next: seasons[2]?.episodes[0],
     });
     expect(episodeNavigation(seasons, { season: 0, number: 1 }).next).toBeNull();
+    const pilot = { season: 1, number: 1 };
+    const second = { season: 1, number: 2 };
+    expect(episodeNavigation([{ episodes: [second, pilot] }], pilot).next).toBe(second);
     expect(episodeNavigation(seasons, { season: 9, number: 1 })).toEqual({
       prev: null,
       next: null,

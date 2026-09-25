@@ -44,15 +44,11 @@ export function useRemovePlay(): RemovePlayController {
         void queryClient.invalidateQueries({ queryKey: queryKeys.movieLibrary() });
         return;
       }
-      const episode =
-        entry.season !== null && entry.number !== null
-          ? { season: entry.season, number: entry.number }
-          : undefined;
       refreshShowProgress(
         queryClient,
         entry.mediaId,
         () => runtime.loadShowProgress(entry.mediaId),
-        episode,
+        { season: entry.season, number: entry.number },
       );
     },
     [queryClient, runtime],

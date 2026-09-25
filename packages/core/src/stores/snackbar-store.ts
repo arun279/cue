@@ -41,7 +41,8 @@ export interface Snack extends SnackInput {
 
 interface SnackbarState {
   readonly snack: Snack | null;
-  show(input: SnackInput): void;
+  /** Returns the shown snack's `seq`. */
+  show(input: SnackInput): number;
   dismiss(): void;
 }
 
@@ -64,7 +65,6 @@ let shownAt = 0;
 let timer: ReturnType<typeof setTimeout> | undefined;
 
 export function setSnackbarTimeout(timeout: number): void {
-  if (useSnackbar.getState().snack === null) return;
   clearTimeout(timer);
   timer = setTimeout(dismissSnack, Math.max(0, shownAt + timeout - Date.now()));
 }
@@ -72,9 +72,11 @@ export function setSnackbarTimeout(timeout: number): void {
 export const useSnackbar = create<SnackbarState>((set) => ({
   snack: null,
   show: (input) => {
+    const seq = nextSeq++;
     shownAt = Date.now();
-    set({ snack: { ...input, seq: nextSeq++ } });
+    set({ snack: { ...input, seq } });
     setSnackbarTimeout(input.timeoutMs ?? DEFAULT_SNACK_TIMEOUT_MS);
+    return seq;
   },
   dismiss: () => {
     clearTimeout(timer);
@@ -82,8 +84,8 @@ export const useSnackbar = create<SnackbarState>((set) => ({
   },
 }));
 
-export function showSnack(input: SnackInput): void {
-  useSnackbar.getState().show(input);
+export function showSnack(input: SnackInput): number {
+  return useSnackbar.getState().show(input);
 }
 
 export function dismissSnack(): void {
