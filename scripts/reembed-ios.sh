@@ -2,7 +2,9 @@
 set -euo pipefail
 
 app=$1
-work=$(mktemp -d "$RUNNER_TEMP/ios-bundle.XXXXXX")
+: "${EXPO_PUBLIC_TRAKT_CLIENT_ID:?the app throws at startup without a Trakt client id}"
+: "${EXPO_PUBLIC_TRAKT_API_BASE:?the harness app must be pointed at the fake Trakt origin}"
+work=$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/ios-bundle.XXXXXX")
 entitlements="$work/entitlements.plist"
 mkdir -p "$work/assets"
 (

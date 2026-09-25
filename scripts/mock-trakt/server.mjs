@@ -128,20 +128,22 @@ const ROUTES = [
     (ctx) => placeholderImage(ctx.params.slot),
   ],
 
-  // ---- OAuth. A device grant waits for `/__approve` the way the real one waits
-  // for a person at the activation page, so the code stays on screen until the
-  // caller says it was entered.
+  // ---- OAuth. Each device code starts a new grant that waits for `/__approve`
+  // the way the real one waits for a person at the activation page, so the code
+  // stays on screen until the caller says it was entered.
   [
     "POST",
     /^\/oauth\/device\/code$/,
-    (ctx) =>
-      json({
+    (ctx) => {
+      ctx.device.approved = false;
+      return json({
         device_code: "mock-device-code",
         user_code: "CUE-MOCK",
         verification_url: `${ctx.origin}/activate`,
         expires_in: 600,
         interval: 1,
-      }),
+      });
+    },
   ],
   ["POST", /^\/oauth\/device\/token$/, (ctx) => (ctx.device.approved ? json(token()) : pending())],
   ["POST", /^\/oauth\/token$/, () => json(token())],
