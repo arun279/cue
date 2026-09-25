@@ -1,13 +1,19 @@
-import { render } from "@testing-library/react-native";
+import { render, screen } from "@testing-library/react-native";
 import type { ReactElement, ReactNode } from "react";
-import { Platform } from "react-native";
+import { Platform, Text } from "react-native";
 import AccountLayout from "../app/(account)/_layout";
+import { AccountScreen } from "../src/screens/account/Rows";
 
 interface HeaderOptions {
-  readonly headerStyle?: { readonly backgroundColor?: unknown };
+  readonly headerStyle?: unknown;
   readonly headerTransparent?: boolean;
   readonly headerShadowVisible?: boolean;
 }
+
+jest.mock(
+  "react-native-safe-area-context",
+  () => require("react-native-safe-area-context/jest/mock").default,
+);
 
 let mockStackOptions: HeaderOptions | undefined;
 
@@ -28,15 +34,28 @@ jest.mock("expo-router", () => {
   return { Stack, useRouter: () => ({ dismissAll: jest.fn() }) };
 });
 
-it("leaves every iOS account bar to the system and draws Android's flat in the page color", async () => {
+it("leaves every iOS account bar to the system and draws Android's flat", async () => {
   await render(<AccountLayout />);
 
+  expect(mockStackOptions?.headerStyle).toBeUndefined();
+  expect(mockStackOptions?.headerShadowVisible).toBe(Platform.OS === "ios" ? undefined : false);
+});
+
+it("insets account content by the bar floating over it on iOS, and lays Android's bar out above it", async () => {
+  await render(<AccountLayout />);
+  await render(
+    <AccountScreen testID="account-content">
+      <Text>row</Text>
+    </AccountScreen>,
+  );
+
   if (Platform.OS === "ios") {
-    expect(mockStackOptions?.headerStyle).toBeUndefined();
     expect(mockStackOptions?.headerTransparent).toBe(true);
+    expect(screen.getByTestId("account-content")).toHaveProp(
+      "contentInsetAdjustmentBehavior",
+      "automatic",
+    );
   } else {
-    expect(mockStackOptions?.headerStyle?.backgroundColor).toBeDefined();
-    expect(mockStackOptions?.headerShadowVisible).toBe(false);
     expect(mockStackOptions?.headerTransparent).toBe(false);
   }
 });

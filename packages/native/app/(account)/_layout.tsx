@@ -5,7 +5,6 @@ import { Button } from "../../src/ui/Button";
 import { barOptions, useEpisodeSheetOptions } from "../../src/ui/navigation-theme";
 import { SnackbarHost } from "../../src/ui/SnackbarHost";
 import { TEST_IDS } from "../../src/ui/test-ids";
-import { useColors } from "../../src/ui/tokens";
 
 /**
  * Profile, Settings and History as one full-screen modal stack over the tabs.
@@ -25,14 +24,13 @@ export const unstable_settings = { initialRouteName: "profile" };
 
 export default function AccountLayout(): ReactElement {
   const router = useRouter();
-  const colors = useColors();
   const sheet = useEpisodeSheetOptions();
 
   return (
     <View style={styles.root}>
       {/* Every account screen scrolls, so on iOS its bar floats over the
           content and the scroll view insets itself below it. */}
-      <Stack screenOptions={{ ...barOptions(colors.bg), headerTransparent: Platform.OS === "ios" }}>
+      <Stack screenOptions={{ ...barOptions, headerTransparent: Platform.OS === "ios" }}>
         <Stack.Screen
           name="profile"
           options={{

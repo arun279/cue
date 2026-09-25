@@ -32,19 +32,12 @@ export function TabStack({ root, title }: TabStackProps): ReactElement {
   const colors = useColors();
   const sheet = useEpisodeSheetOptions();
   const detail = {
-    ...barOptions(colors.bg),
     headerTintColor: colors.accentInk,
     headerTitleStyle: { color: colors.fg },
   } as const;
   return (
-    <Stack>
-      <Stack.Screen
-        name={root}
-        options={{
-          ...barOptions(colors.bg),
-          title,
-        }}
-      />
+    <Stack screenOptions={barOptions}>
+      <Stack.Screen name={root} options={{ title }} />
       <Stack.Screen name="show/[showId]" options={{ ...detail, title: "Show" }} />
       <Stack.Screen name="movie/[movieId]" options={{ ...detail, title: "Movie" }} />
       {/* The episode is a child of the show route so a cold deep link paints the
