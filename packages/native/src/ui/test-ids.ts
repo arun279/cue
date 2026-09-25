@@ -148,7 +148,6 @@ export const TEST_IDS = {
   confirmSheet: "confirm-sheet",
   confirmSheetPrimary: "confirm-sheet-primary",
   episodeSheet: "episode-sheet",
-  episodeClose: "episode-close",
   episodeMarkRow: "episode-mark-row",
   episodeMarkControl: "episode-mark-control",
   episodePagerNext: "episode-pager-next",

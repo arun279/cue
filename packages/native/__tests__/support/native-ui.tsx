@@ -9,12 +9,7 @@
 
 import type { ReactElement, ReactNode } from "react";
 
-export const router = {
-  push: jest.fn(),
-  back: jest.fn(),
-  dismiss: jest.fn(),
-  replace: jest.fn(),
-};
+export const router = { push: jest.fn(), back: jest.fn(), replace: jest.fn() };
 
 /** The drag the last-rendered swipeable reports, so a test can move a row the
  * way a finger does and watch what the reveal makes of it. */

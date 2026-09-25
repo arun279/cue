@@ -41,7 +41,11 @@ appId: app.cuetracker
           text: "Search"
           rightOf: "Search"
           above: "Trending shows"
-- tapOn: "Shows and movies.*"
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: "Shows and movies.*"
 - inputText: "harbor"
 - extendedWaitUntil:
     visible:
