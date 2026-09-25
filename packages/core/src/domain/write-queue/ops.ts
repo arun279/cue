@@ -166,7 +166,7 @@ export function buildRemovePlaysOp(params: RemovePlaysParams): QueuedOp {
       episodes: params.restore.map((r) => ({ ids: { trakt: r.trakt }, watched_at: r.watchedAt })),
     }),
     inversePatch: null,
-    watchedAt: params.restore[0]?.watchedAt ?? null,
+    watchedAt: null,
     fromState: "present",
     toState: "absent",
     reconcileKeys: ["progress/watched", "watched/shows"],

@@ -53,16 +53,14 @@ export async function resolveEpisodeUnmark(
   } catch {
     return { kind: "error" };
   }
-  const plan = planEpisodeUnmark(plays, episodeTrakt);
-  if (plan.keptRewatch.length > 0) {
-    const ordered = plays.filter((play) => play.episodeTrakt === episodeTrakt).sort(newestFirst);
-    const [latest, previous] = ordered;
-    if (latest !== undefined && previous !== undefined) {
-      return { kind: "rewatch", count: ordered.length, latest, previous };
-    }
+  const [latest, previous, ...older] = plays
+    .filter((play) => play.episodeTrakt === episodeTrakt)
+    .sort(newestFirst);
+  if (latest !== undefined && previous !== undefined) {
+    return { kind: "rewatch", count: older.length + 2, latest, previous };
   }
-  if (plan.removeIds.length === 0) return { kind: "none" };
-  return { kind: "remove", plan };
+  const plan = planEpisodeUnmark(plays, episodeTrakt);
+  return plan.removeIds.length === 0 ? { kind: "none" } : { kind: "remove", plan };
 }
 
 /**

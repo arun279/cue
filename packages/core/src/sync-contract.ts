@@ -122,9 +122,7 @@ function unreachableMessage(failure: TraktFailure): string {
 }
 
 function rateLimitMessage(resumeAt: number, now: number): string {
-  const seconds = Math.ceil((resumeAt - now) / 1000);
-  const when = seconds > 0 ? `Retrying in ${seconds}s.` : "Retrying now.";
-  return `Trakt is limiting requests. ${when}`;
+  return `Trakt is limiting requests. Retrying in ${Math.ceil((resumeAt - now) / 1000)}s.`;
 }
 
 /**

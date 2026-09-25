@@ -29,6 +29,15 @@ describe("diffActivities", () => {
     expect(diffActivities(stored, fresh)).toEqual([]);
   });
 
+  it("counts any change to a stamp it cannot read as advanced", () => {
+    const stored: LastActivities = { episodes: { watched_at: "garbled" } };
+    expect(diffActivities(stored, { episodes: { watched_at: T0 } })).toEqual([
+      "watched/shows",
+      "progress/watched",
+    ]);
+    expect(diffActivities(stored, stored)).toEqual([]);
+  });
+
   it("ignores unmapped fields (collected/commented/rated/seasons/lists/account)", () => {
     const stored: LastActivities = {
       episodes: { collected_at: T0, commented_at: T0, rated_at: T0 },

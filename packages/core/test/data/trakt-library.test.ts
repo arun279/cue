@@ -5,6 +5,7 @@ import {
   type LibraryEntry,
   type LibraryInput,
   markLanded,
+  quickMarkable,
   showIdSet,
   watchedEpisodeCount,
 } from "@cue/core/data/trakt/library";
@@ -285,6 +286,25 @@ describe("assembleLibrary", () => {
     expect(Object.keys(entries[0] ?? {}).sort()).toEqual(Object.keys(baseEntry).sort());
   });
 
+  it("reads what a sparse Trakt row leaves out as unknown", () => {
+    const { last_watched_at: _, ...neverStamped } = watchedShow({ trakt: 21 });
+    const undated = { season: 1, number: 4, ids: { trakt: 4004 } };
+    const entries = assembleLibrary({
+      watchedShows: [neverStamped],
+      progress: new Map([[21, progress({ next: undated })]]),
+      hiddenShowIds: new Set(),
+      watchlistShows: [
+        { type: "show", show: { title: "Bare", ids: { trakt: 22 } } },
+        { type: "movie" },
+      ],
+    });
+    expect(entries).toMatchObject([
+      { showId: 21, lastWatchedAt: null, nextEpisode: { firstAired: null } },
+      { showId: 22, status: "", tmdbId: null },
+    ]);
+    expect(entries).toHaveLength(2);
+  });
+
   it("does not duplicate a watchlisted show that is also watched", () => {
     const entries = assembleLibrary({
       watchedShows: [watchedShow({ trakt: 4, title: "Both" })],
@@ -405,6 +425,20 @@ describe("advancePastNext", () => {
       lastAired: { season: 2, number: 10 },
     };
     expect(advancePastNext(entry, "2026-07-05T12:00:00.000Z").nextEpisode).toBeNull();
+  });
+});
+
+describe("quickMarkable", () => {
+  const aired = Date.parse("2026-06-02T00:00:00.000Z");
+
+  it("offers the accelerator only for a known next episode that has aired", () => {
+    expect(quickMarkable(baseEntry, aired)).toBe(true);
+    expect(quickMarkable(baseEntry, Date.parse("2026-05-31T00:00:00.000Z"))).toBe(false);
+    expect(quickMarkable({ ...baseEntry, nextEpisode: null }, aired)).toBe(false);
+  });
+
+  it("holds it back while a mark's projected episode is still pending", () => {
+    expect(quickMarkable({ ...baseEntry, pendingAdvance: true }, aired)).toBe(false);
   });
 });
 

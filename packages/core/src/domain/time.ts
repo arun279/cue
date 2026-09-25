@@ -13,10 +13,9 @@ export function toMs(iso: string | null | undefined): number | null {
  * history alike. Reading it from the runtime rather than hardcoding a fixed zone
  * means a day-boundary label ("Today" / "Yesterday") reflects where the user
  * actually is, so it never mislabels a late-evening watch as the wrong day.
- * Falls back to UTC on the rare host that reports no zone.
  */
 export function localTimeZone(): string {
-  return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  return Intl.DateTimeFormat().resolvedOptions().timeZone;
 }
 
 /** A watch-time figure split for the Profile theatre: a dominant `value`+`unit`

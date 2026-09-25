@@ -59,9 +59,6 @@ export function useActivitiesPoll(): void {
     };
 
     const poll = (): void => void runPoll();
-    const onVisible = (): void => {
-      if (visibility.isVisible()) poll();
-    };
     // Reconnect always attempts to land deferred writes, even from a hidden
     // tab; the poll itself (and so the reconcile) stays visibility-gated.
     const onNetwork = (): void => {
@@ -71,7 +68,7 @@ export function useActivitiesPoll(): void {
     };
 
     poll();
-    const unsubscribeVisibility = visibility.subscribe(onVisible);
+    const unsubscribeVisibility = visibility.subscribe(poll);
     const unsubscribeNetwork = network.subscribe(onNetwork);
     const interval = setInterval(poll, POLL_INTERVAL_MS);
 

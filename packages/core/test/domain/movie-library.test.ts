@@ -62,4 +62,25 @@ describe("groupMovieLibrary", () => {
     expect(segments[0]?.entries.map((entry) => entry.movieId)).toEqual([2, 1]);
     expect(segments[1]?.entries.map((entry) => entry.movieId)).toEqual([4, 3]);
   });
+
+  it("ranks unknown dates and years last and breaks ties by title", () => {
+    const order = (sort: "recently-watched" | "release-year") =>
+      groupMovieLibrary(
+        [
+          movie({ movieId: 1, title: "Zeta", watched: true, watchedAt: "2026-01-01", year: 2020 }),
+          movie({ movieId: 2, title: "Undated", watched: true, year: null }),
+          movie({ movieId: 3, title: "Alpha", watched: true, watchedAt: "2026-01-01", year: 2020 }),
+          movie({ movieId: 4, title: "Zeta", inWatchlist: true, listedAt: "2026-01-01" }),
+          movie({ movieId: 5, title: "Unlisted", inWatchlist: true }),
+          movie({ movieId: 6, title: "Alpha", inWatchlist: true, listedAt: "2026-01-01" }),
+        ],
+        sort,
+      ).map((segment) => segment.entries.map((entry) => entry.movieId));
+
+    expect(order("recently-watched")).toEqual([
+      [6, 4, 5],
+      [3, 1, 2],
+    ]);
+    expect(order("release-year")[1]).toEqual([3, 1, 2]);
+  });
 });

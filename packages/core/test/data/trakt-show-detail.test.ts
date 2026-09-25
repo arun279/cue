@@ -146,6 +146,15 @@ describe("assembleShowProgress", () => {
     });
   });
 
+  it("reads an untitled, undated next episode as not yet aired", () => {
+    const announced = { ...progress, next_episode: { season: 2, number: 1, ids: { trakt: 50 } } };
+    expect(assembleShowProgress(announced, NOW).nextEpisode).toMatchObject({
+      title: null,
+      firstAired: null,
+      aired: false,
+    });
+  });
+
   it("nulls the callout when caught up", () => {
     const caughtUp = assembleShowProgress({ aired: 0, completed: 0, next_episode: null }, NOW);
     expect(caughtUp.nextEpisode).toBeNull();
@@ -219,6 +228,16 @@ describe("assembleSeasons", () => {
       [3, false],
     ]);
     expect(firstUnwatchedAired(views)?.season).toBe(3);
+  });
+
+  it("reads an episode Trakt has not dated yet as unaired", () => {
+    const [season] = assembleSeasons(
+      [{ number: 2, episodes: [{ season: 2, number: 1, ids: { trakt: 50 } }] }],
+      progress,
+      NOW,
+    );
+    expect(season?.episodes[0]).toMatchObject({ firstAired: null, aired: false });
+    expect(season?.airedCount).toBe(0);
   });
 
   it("tolerates a season with no episodes array", () => {
