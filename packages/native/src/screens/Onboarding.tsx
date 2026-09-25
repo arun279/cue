@@ -1,13 +1,18 @@
 import { useAuth } from "@cue/core/auth/store";
 import { useHaptics } from "@cue/core/ports/haptics";
+import { setStringAsync } from "expo-clipboard";
+import { openBrowserAsync } from "expo-web-browser";
 import { type ReactElement, useEffect, useRef, useState } from "react";
-import { Clipboard, Image, Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "../ui/Button";
+import { CueMark } from "../ui/CueMark";
 import { useLiveRegion } from "../ui/live-region";
 import { TEST_IDS } from "../ui/test-ids";
 import { HAIRLINE, RADIUS, SPACE, TARGET_MIN, useColors } from "../ui/tokens";
 import { CueText } from "../ui/type";
+
+const WAITING = "Waiting for you to approve in Trakt…";
 
 export function Onboarding(): ReactElement {
   const colors = useColors();
@@ -26,11 +31,7 @@ export function Onboarding(): ReactElement {
         <View style={styles.content}>
           {deviceCode === null ? (
             <>
-              <Image
-                source={require("../../assets/icon.png")}
-                accessible={false}
-                style={styles.mark}
-              />
+              <CueMark />
               <CueText variant="statHero" accessibilityRole="header" style={{ color: colors.fg }}>
                 Cue
               </CueText>
@@ -57,7 +58,7 @@ export function Onboarding(): ReactElement {
               </View>
             </>
           ) : (
-            <DeviceCode key={deviceCode.userCode} {...deviceCode} />
+            <DeviceCode {...deviceCode} />
           )}
         </View>
         {deviceCode === null ? (
@@ -82,13 +83,13 @@ function DeviceCode({
   const cancel = useAuth((s) => s.cancelConnect);
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const waiting = "Waiting for you to approve in Trakt…";
-  const waitingLive = useLiveRegion(waiting, "polite");
+  const waitingLive = useLiveRegion(WAITING, "polite");
+  const copiedLive = useLiveRegion(copied ? "Copied" : null, "polite");
 
   useEffect(() => () => clearTimeout(timer.current), []);
 
   const copy = () => {
-    Clipboard.setString(userCode);
+    void setStringAsync(userCode);
     haptics.selection();
     setCopied(true);
     clearTimeout(timer.current);
@@ -104,7 +105,6 @@ function DeviceCode({
         accessibilityRole="button"
         testID={TEST_IDS.deviceCodeValue}
         accessibilityLabel={`Copy code ${userCode}`}
-        accessibilityHint={copied ? "Copied" : "Tap to copy"}
         onPress={copy}
         style={({ pressed }) => [
           styles.code,
@@ -114,10 +114,16 @@ function DeviceCode({
           },
         ]}
       >
-        <CueText variant="statHero" tabularNums style={{ color: colors.fg }}>
+        <CueText
+          variant="statHero"
+          tabularNums
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          style={{ color: colors.fg }}
+        >
           {userCode}
         </CueText>
-        <CueText variant="meta" accessibilityLiveRegion="polite" style={{ color: colors.muted }}>
+        <CueText variant="meta" {...copiedLive} style={{ color: colors.muted }}>
           {copied ? "Copied" : "Tap to copy"}
         </CueText>
       </Pressable>
@@ -125,7 +131,7 @@ function DeviceCode({
         accessibilityRole="link"
         testID={TEST_IDS.deviceCodeUrl}
         style={styles.target}
-        onPress={() => void Linking.openURL(verificationUrl)}
+        onPress={() => void openBrowserAsync(verificationUrl)}
       >
         <CueText variant="rowTitleSecondary" style={{ color: colors.ink2 }}>
           Enter it at{" "}
@@ -133,12 +139,12 @@ function DeviceCode({
             variant="rowTitleSecondary"
             style={{ color: colors.accentInk, textDecorationLine: "underline" }}
           >
-            trakt.tv/activate
+            {verificationUrl.replace(/^https?:\/\//, "")}
           </CueText>
         </CueText>
       </Pressable>
       <CueText variant="meta" {...waitingLive} style={{ color: colors.muted }}>
-        {waiting}
+        {WAITING}
       </CueText>
       <Button label="Cancel" variant="link" testID={TEST_IDS.deviceCodeCancel} onPress={cancel} />
     </>
@@ -149,7 +155,6 @@ const styles = StyleSheet.create({
   page: { flex: 1 },
   scroll: { flexGrow: 1, paddingHorizontal: SPACE.s5, paddingVertical: SPACE.s4 },
   content: { flexGrow: 1, justifyContent: "center", gap: SPACE.s3, paddingVertical: SPACE.s7 },
-  mark: { width: SPACE.s8, height: SPACE.s8, borderRadius: RADIUS.card },
   action: { gap: SPACE.s3, paddingTop: SPACE.s5 },
   code: {
     minHeight: TARGET_MIN,

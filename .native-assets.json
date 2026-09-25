@@ -172,12 +172,6 @@
       "platforms": ["android"]
     },
     {
-      "path": "assets/994145ee6ceddd6117377b27595f27ab",
-      "type": "png",
-      "bytes": 41463,
-      "platforms": ["ios", "android"]
-    },
-    {
       "path": "assets/9b5cb09b4e669ed0f28f3b3f2871a0a5",
       "type": "xml",
       "bytes": 312,
