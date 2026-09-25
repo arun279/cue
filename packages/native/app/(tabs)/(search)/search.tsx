@@ -73,8 +73,14 @@ export default function Search(): ReactElement {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
 
+  // Unflattened, so UIKit finds the list first under the screen and collapses
+  // the large title as it scrolls.
   return (
-    <View testID={TEST_IDS.screenSearch} style={[styles.screen, { backgroundColor: colors.bg }]}>
+    <View
+      collapsable={false}
+      testID={TEST_IDS.screenSearch}
+      style={[styles.screen, { backgroundColor: colors.bg }]}
+    >
       <Stack.Screen
         options={{
           title: "Search",
@@ -84,7 +90,6 @@ export default function Search(): ReactElement {
                 headerSearchBarOptions: {
                   ref: field,
                   placeholder,
-                  placement: "stacked",
                   hideWhenScrolling: false,
                   autoCapitalize: "none",
                   tintColor: colors.accentInk,
