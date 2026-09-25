@@ -1,10 +1,11 @@
 import { render } from "@testing-library/react-native";
 import type { ReactElement, ReactNode } from "react";
+import { Platform } from "react-native";
 import AccountLayout from "../app/(account)/_layout";
 
 interface HeaderOptions {
   readonly headerStyle?: { readonly backgroundColor?: unknown };
-  readonly headerLargeStyle?: { readonly backgroundColor?: unknown };
+  readonly headerTransparent?: boolean;
 }
 
 let mockStackOptions: HeaderOptions | undefined;
@@ -26,11 +27,14 @@ jest.mock("expo-router", () => {
   return { Stack, useRouter: () => ({ dismissAll: jest.fn() }) };
 });
 
-it("gives every account screen an opaque header in both appearances", async () => {
+it("leaves every iOS account bar to the system and fills Android's with the page", async () => {
   await render(<AccountLayout />);
 
-  expect(mockStackOptions?.headerStyle?.backgroundColor).toBeDefined();
-  expect(mockStackOptions?.headerLargeStyle?.backgroundColor).toEqual(
-    mockStackOptions?.headerStyle?.backgroundColor,
-  );
+  if (Platform.OS === "ios") {
+    expect(mockStackOptions?.headerStyle).toBeUndefined();
+    expect(mockStackOptions?.headerTransparent).toBe(true);
+  } else {
+    expect(mockStackOptions?.headerStyle?.backgroundColor).toBeDefined();
+    expect(mockStackOptions?.headerTransparent).toBe(false);
+  }
 });

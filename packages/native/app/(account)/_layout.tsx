@@ -1,7 +1,7 @@
 import { Stack, useRouter } from "expo-router";
 import type { ReactElement } from "react";
-import { Button, StyleSheet, View } from "react-native";
-import { opaqueHeaderOptions } from "../../src/ui/navigation-theme";
+import { Button, Platform, StyleSheet, View } from "react-native";
+import { barOptions } from "../../src/ui/navigation-theme";
 import { SnackbarHost } from "../../src/ui/SnackbarHost";
 import { TEST_IDS } from "../../src/ui/test-ids";
 import { useColors } from "../../src/ui/tokens";
@@ -28,7 +28,9 @@ export default function AccountLayout(): ReactElement {
 
   return (
     <View style={styles.root}>
-      <Stack screenOptions={opaqueHeaderOptions(colors.bg)}>
+      {/* Every account screen scrolls, so on iOS its bar floats over the
+          content and the scroll view insets itself below it. */}
+      <Stack screenOptions={{ ...barOptions(colors.bg), headerTransparent: Platform.OS === "ios" }}>
         <Stack.Screen
           name="profile"
           options={{
@@ -44,7 +46,12 @@ export default function AccountLayout(): ReactElement {
         />
         <Stack.Screen name="settings" options={{ title: "Settings" }} />
         <Stack.Screen name="history" options={{ title: "History" }} />
-        <Stack.Screen name="movie/[movieId]" options={{ title: "Movie" }} />
+        {/* Movie detail's states are not all scroll views, so its bar stays in
+            the layout rather than floating over artwork. */}
+        <Stack.Screen
+          name="movie/[movieId]"
+          options={{ title: "Movie", headerTransparent: false }}
+        />
         <Stack.Screen
           name="show/[showId]/episode/[season]/[episode]"
           options={{

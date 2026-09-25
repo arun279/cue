@@ -1,7 +1,7 @@
 import { Stack } from "expo-router";
 import type { ReactElement } from "react";
 import { useWindowDimensions } from "react-native";
-import { opaqueHeaderOptions } from "./ui/navigation-theme";
+import { barOptions } from "./ui/navigation-theme";
 import { RADIUS, useColors } from "./ui/tokens";
 
 /**
@@ -40,7 +40,7 @@ export function TabStack({ root, title }: TabStackProps): ReactElement {
   const colors = useColors();
   const { fontScale } = useWindowDimensions();
   const detail = {
-    headerStyle: { backgroundColor: colors.bg },
+    ...barOptions(colors.bg),
     headerTintColor: colors.accentInk,
     headerTitleStyle: { color: colors.fg },
   } as const;
@@ -49,7 +49,7 @@ export function TabStack({ root, title }: TabStackProps): ReactElement {
       <Stack.Screen
         name={root}
         options={{
-          ...opaqueHeaderOptions(colors.bg),
+          ...barOptions(colors.bg),
           title,
         }}
       />

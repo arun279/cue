@@ -1,5 +1,6 @@
 import { NativeTabs } from "expo-router/unstable-native-tabs";
 import type { ReactElement } from "react";
+import { Platform } from "react-native";
 import { useColors } from "../../src/ui/tokens";
 
 /**
@@ -24,7 +25,8 @@ export default function TabsLayout(): ReactElement {
   return (
     <NativeTabs
       labelVisibilityMode="labeled"
-      backgroundColor={colors.surface}
+      // iOS draws the bar in Liquid Glass, which a custom fill would cover.
+      backgroundColor={Platform.OS === "android" ? colors.surface : undefined}
       iconColor={{ default: colors.muted, selected: colors.accentInk }}
       labelStyle={{ default: { color: colors.muted }, selected: { color: colors.accentInk } }}
       indicatorColor={colors.elevated}

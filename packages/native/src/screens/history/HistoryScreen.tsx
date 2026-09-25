@@ -75,7 +75,6 @@ export function HistoryScreen(): ReactElement {
         options={{
           title: "History",
           headerLargeTitle: false,
-          headerStyle: { backgroundColor: colors.bg },
           headerTintColor: colors.accentInk,
           headerTitleStyle: { color: colors.fg },
           headerRight: () => (
