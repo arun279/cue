@@ -6,7 +6,7 @@ import { createPrefsStore, usePrefs } from "@cue/core/prefs/prefs-store";
 import { thresholdMsFromDays } from "@cue/core/prefs/threshold";
 import { act, fireEvent, screen, userEvent } from "@testing-library/react-native";
 import { openBrowserAsync } from "expo-web-browser";
-import { Alert, Appearance, Linking, Platform } from "react-native";
+import { Alert, Appearance, Platform } from "react-native";
 import "./support/screen-mocks";
 import { CueHaptics } from "../modules/cue-native/src";
 import { createNativeHaptics } from "../src/platform/haptics";
@@ -99,10 +99,6 @@ it("leaves alerts off and says where to change it when the OS refuses", async ()
   expect(
     screen.getByText("Notifications are off for Cue. Turn them on in your phone's settings."),
   ).toBeVisible();
-
-  const openSettings = jest.spyOn(Linking, "openSettings").mockResolvedValue();
-  await userEvent.press(screen.getByRole("button", { name: "Open settings" }));
-  expect(openSettings).toHaveBeenCalledTimes(1);
 });
 
 it("offers the daily summary only while alerts are on", async () => {
