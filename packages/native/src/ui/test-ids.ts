@@ -94,6 +94,7 @@ export const TEST_IDS = {
   historyEmpty: "history-empty",
   screenSearch: "screen-search",
   searchBrowse: "search-browse",
+  searchField: "search-field",
   searchRecentRow: "search-recent-row",
   browseGrid: "browse-grid",
   browseSkeleton: "browse-skeleton",

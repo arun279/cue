@@ -2,6 +2,7 @@ import { TraktReadError } from "@cue/core/data/trakt/client";
 import type { SearchHit } from "@cue/core/data/trakt/search";
 import type { PreferenceStorage } from "@cue/core/ports/preference-storage";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import { Platform } from "react-native";
 import "./support/screen-mocks";
 import { SEARCH_FIELD } from "./support/native-ui";
 import { fakeRuntime, Harness, memoryPreferences, OFFLINE, spyHaptics } from "./support/up-next";
@@ -135,6 +136,20 @@ it("drops the grid of a medium the reader has turned off", async () => {
 
   expect(screen.getAllByTestId("browse-grid")).toHaveLength(1);
   expect(screen.queryByText("Popular movies")).toBeNull();
+});
+
+it("keeps one search field on the page, and Android's clears back to browse", async () => {
+  await paint({ search: () => Promise.resolve([TRACKED]), browse: { trending: [TRACKED] } });
+  expect(screen.getAllByTestId(SEARCH_FIELD)).toHaveLength(1);
+
+  await type("harbor");
+  await waitFor(() => expect(screen.getByTestId(`search-result-${HARBOR}`)).toBeOnTheScreen());
+  if (Platform.OS !== "android") return;
+
+  await fireEvent.press(screen.getByRole("button", { name: "Clear search" }));
+
+  expect(screen.getByTestId(SEARCH_FIELD)).toHaveDisplayValue("");
+  expect(screen.getByTestId("search-browse")).toBeOnTheScreen();
 });
 
 it("searches once for a settled query", async () => {

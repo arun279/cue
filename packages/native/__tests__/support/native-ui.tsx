@@ -8,6 +8,7 @@
  */
 
 import type { ReactElement, ReactNode } from "react";
+import { TEST_IDS } from "../../src/ui/test-ids";
 
 export const router = {
   push: jest.fn(),
@@ -29,19 +30,20 @@ interface ScreenProps {
   };
 }
 
-/** The testID the search field stand-in answers to. The app declares none: the
- * platform's own field takes no `testID`, which is why the flows reach it by its
- * placeholder and why a screen test needs a stand-in at all. */
-export const SEARCH_FIELD = "search-field";
+/** The testID both search fields answer to: Android's, which the screen draws
+ * itself, and the stand-in below for iOS's header field, which takes no
+ * `testID` of its own. That is why the iOS flows reach it by its placeholder
+ * and why a screen test needs a stand-in at all. */
+export const SEARCH_FIELD = TEST_IDS.searchField;
 
 export function expoRouterModule() {
   const { createElement } = require("react") as typeof import("react");
   const { Text, TextInput } = require("react-native") as typeof import("react-native");
   const Stack = (): null => null;
-  // `headerSearchBarOptions` is a UISearchController on iOS and the Material
-  // search bar on Android, neither of which this runner has. The stand-in is a
-  // plain field carrying the same placeholder and the same change callback, so a
-  // test types what a finger types and nothing else about the screen is stubbed.
+  // `headerSearchBarOptions` is a UISearchController, which this runner does not
+  // have. The stand-in is a plain field carrying the same placeholder and the
+  // same change callback, so a test types what a finger types and nothing else
+  // about the screen is stubbed.
   Stack.Screen = ({ options }: ScreenProps): ReactElement | null => {
     const bar = options?.headerSearchBarOptions;
     if (bar === undefined) return null;

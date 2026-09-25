@@ -1,8 +1,10 @@
 # Search end to end: browse, a query, the add, a clear, a miss, and a detail.
 #
-# The field is the platform's own and carries no accessibility id, so the flow
-# reaches it by the placeholder the screen sets, which is also the assertion that
-# the placeholder is the one a reader with both media on should see.
+# On iOS the field is the platform's own and carries no accessibility id, so the
+# flow reaches it by the placeholder the screen sets, which is also the assertion
+# that the placeholder is the one a reader with both media on should see. On
+# Android the screen draws its own field, always on the page, and the flow
+# asserts it is there before typing into it.
 #
 # The add is the point of the screen: the pill settles into "In library" on a
 # title this account does not track, and the tracked title beside it never offers
@@ -28,7 +30,19 @@ appId: app.cuetracker
     timeout: 20000
 - assertVisible: "Popular movies"
 
-- tapOn: "Shows and movies.*"
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - assertVisible:
+          id: "search-field"
+      - tapOn:
+          id: "search-field"
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: "Shows and movies.*"
 - inputText: "harbor"
 - extendedWaitUntil:
     visible:
