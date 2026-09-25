@@ -7,3 +7,9 @@ packages:
 # app is verified against is the tree the native package will join.
 # https://docs.expo.dev/guides/monorepos/
 nodeLinker: hoisted
+
+# The native fingerprint hashes the installed native modules, so a tree
+# installed from another lockfile yields a fingerprint no CI run produced.
+# Every `pnpm run` and `pnpm exec` refuses such a tree instead.
+# https://pnpm.io/settings#verifydepsbeforerun
+verifyDepsBeforeRun: error
