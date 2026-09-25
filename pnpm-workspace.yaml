@@ -8,8 +8,7 @@ packages:
 # https://docs.expo.dev/guides/monorepos/
 nodeLinker: hoisted
 
-# The native fingerprint hashes the installed native modules, so a tree
-# installed from another lockfile yields a fingerprint no CI run produced.
-# Every `pnpm run` and `pnpm exec` refuses such a tree instead.
+# `pnpm run` and `pnpm exec` refuse to run when a package.json changed since
+# the last install, so the native fingerprint never hashes those stale modules.
 # https://pnpm.io/settings#verifydepsbeforerun
 verifyDepsBeforeRun: error
