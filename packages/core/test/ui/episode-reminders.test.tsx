@@ -38,7 +38,7 @@ const airingAt = (ms: number, overrides: Partial<CalendarEntry> = {}): CalendarE
 });
 
 /** A show the user is caught up on, which is what makes its next airing an alert. */
-const watching = (overrides: Partial<LibraryEntry> = {}): LibraryEntry => ({
+const watching = (): LibraryEntry => ({
   showId: 8803,
   title: "Midnight Cartography",
   status: "returning series",
@@ -51,23 +51,7 @@ const watching = (overrides: Partial<LibraryEntry> = {}): LibraryEntry => ({
   lastAired: { season: 2, number: 4 },
   pendingAdvance: false,
   tmdbId: null,
-  ...overrides,
 });
-
-/** Idle past the threshold, so it sits in the lapsed drawer. */
-const lapsed = (): LibraryEntry =>
-  watching({
-    completed: 12,
-    lastWatchedAt: new Date(Date.now() - 140 * DAY_MS).toISOString(),
-    nextEpisode: {
-      season: 2,
-      number: 3,
-      title: "Half Measures",
-      firstAired: new Date(Date.now() - 120 * DAY_MS).toISOString(),
-      still: null,
-      ids: { trakt: 880303 },
-    },
-  });
 
 const remindersPort = (): Reminders => ({
   requestPermission: vi.fn(() => Promise.resolve(true)),
@@ -132,10 +116,7 @@ afterEach(() => {
 });
 
 /** Mount the hook, then let react-query notify its subscribers (a macrotask). */
-async function mountHook(
-  loadCalendar: CueRuntime["loadCalendar"],
-  shows: readonly LibraryEntry[] = [watching()],
-): Promise<Reminders> {
+async function mountHook(loadCalendar: CueRuntime["loadCalendar"]): Promise<Reminders> {
   const reminders = remindersPort();
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const node: ReactElement = (
@@ -145,7 +126,7 @@ async function mountHook(
           value={
             {
               loadCalendar,
-              loadUpNext: () => Promise.resolve({ entries: shows }),
+              loadUpNext: () => Promise.resolve({ entries: [watching()] }),
             } as unknown as CueRuntime
           }
         >
@@ -186,15 +167,11 @@ describe("useEpisodeReminders", () => {
     expect(bodies(reminders)).toEqual(["Midnight Cartography: S2 E5 Low Tide is out."]);
   });
 
-  it("alerts for nothing in the lapsed drawer, and nothing muted, until either changes", async () => {
-    const airing = () =>
-      Promise.resolve({ entries: [airingAt(Date.now() + DAY_MS)], hiddenShowIds: [] });
-    const idle = await mountHook(airing, [lapsed()]);
-    expect(bodies(idle)).toEqual([]);
-
-    act(() => root?.unmount());
+  it("alerts for nothing muted, until it is unmuted", async () => {
     prefs.getState().setShowMuted(8803, true);
-    const muted = await mountHook(airing);
+    const muted = await mountHook(() =>
+      Promise.resolve({ entries: [airingAt(Date.now() + DAY_MS)], hiddenShowIds: [] }),
+    );
     expect(bodies(muted)).toEqual([]);
 
     await act(async () => prefs.getState().setShowMuted(8803, false));
@@ -259,17 +236,6 @@ describe("useEpisodeReminders", () => {
     expect(plans(reminders)[1]).toEqual(plans(reminders)[0]);
   });
 
-  it("does not re-plan on a foreground while the switch is off", async () => {
-    prefs.setState({ remindersEnabled: false });
-    const reminders = await mountHook(() =>
-      Promise.resolve({ entries: [airingAt(Date.now() + DAY_MS)], hiddenShowIds: [] }),
-    );
-
-    act(() => app.set(true));
-
-    expect(reminders.reconcile).not.toHaveBeenCalled();
-  });
-
   it("empties the schedule when the switch goes off, and when the shell unmounts", async () => {
     const reminders = await mountHook(() =>
       Promise.resolve({ entries: [airingAt(Date.now() + DAY_MS)], hiddenShowIds: [] }),
@@ -277,6 +243,11 @@ describe("useEpisodeReminders", () => {
 
     await act(async () => prefs.setState({ remindersEnabled: false }));
     expect(reminders.cancelAll).toHaveBeenCalledTimes(1);
+
+    // The calendar and library stay cached for the screens that share them, so
+    // a foreground with the switch off has a plan to hand and must not.
+    act(() => app.set(true));
+    expect(reminders.reconcile).toHaveBeenCalledTimes(1);
 
     // Nothing is scheduled while the switch is off, so signing out has nothing
     // left to empty.

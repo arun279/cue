@@ -44,7 +44,7 @@ jest.mock("expo-router", () => ({ router: { navigate: jest.fn() } }));
 const DAY_MS = 86_400_000;
 const START = Date.parse("2026-10-01T09:00:00");
 
-function digest(day: number, body: string): PlannedReminder {
+function summary(day: number, body: string): PlannedReminder {
   const atMs = START + day * DAY_MS;
   return {
     id: `day-${day}`,
@@ -72,16 +72,16 @@ describe("the native reminders adapter", () => {
   it("leaves the OS holding exactly the plan, scheduling only what changed", async () => {
     const reminders = createNativeReminders();
     await reminders.reconcile([
-      digest(0, "Harbor Lights S1 E1"),
-      digest(1, "Salt Air S2 E4"),
-      digest(2, "Tin Harbour S1 E3"),
+      summary(0, "Harbor Lights S1 E1"),
+      summary(1, "Salt Air S2 E4"),
+      summary(2, "Tin Harbour S1 E3"),
     ]);
     jest.clearAllMocks();
 
     const plan = [
-      digest(0, "Harbor Lights S1 E1"),
-      digest(1, "Salt Air and Tin Harbour"),
-      digest(3, "Harbor Lights S1 E2"),
+      summary(0, "Harbor Lights S1 E1"),
+      summary(1, "Salt Air and Tin Harbour"),
+      summary(3, "Harbor Lights S1 E2"),
     ];
     await reminders.reconcile(plan);
 
@@ -96,7 +96,7 @@ describe("the native reminders adapter", () => {
 
   it("schedules nothing and never prompts when notifications are not allowed", async () => {
     mockOs.granted = false;
-    await createNativeReminders().reconcile([digest(0, "Harbor Lights S1 E1")]);
+    await createNativeReminders().reconcile([summary(0, "Harbor Lights S1 E1")]);
 
     expect(mockOs.pending.size).toBe(0);
     expect(Notifications.requestPermissionsAsync).not.toHaveBeenCalled();
@@ -104,11 +104,11 @@ describe("the native reminders adapter", () => {
 
   it("empties the OS schedule, even when asked while a reconcile is still in flight", async () => {
     const reminders = createNativeReminders();
-    await reminders.reconcile([digest(0, "Harbor Lights S1 E1")]);
+    await reminders.reconcile([summary(0, "Harbor Lights S1 E1")]);
 
     const inFlight = reminders.reconcile([
-      digest(1, "Salt Air S2 E4"),
-      digest(2, "Tin Harbour S1 E3"),
+      summary(1, "Salt Air S2 E4"),
+      summary(2, "Tin Harbour S1 E3"),
     ]);
     await reminders.cancelAll();
     await inFlight;
@@ -135,17 +135,17 @@ describe("the native reminders adapter", () => {
     const reminders = createNativeReminders();
 
     await expect(reminders.requestPermission()).resolves.toBe(false);
-    await expect(reminders.reconcile([digest(0, "Harbor Lights S1 E1")])).resolves.toBeUndefined();
+    await expect(reminders.reconcile([summary(0, "Harbor Lights S1 E1")])).resolves.toBeUndefined();
     await expect(reminders.cancelAll()).resolves.toBeUndefined();
-    await reminders.reconcile([digest(0, "Harbor Lights S1 E1")]);
+    await reminders.reconcile([summary(0, "Harbor Lights S1 E1")]);
     expect([...mockOs.pending.keys()]).toEqual(["day-0"]);
   });
 
   it("opens the show from a tapped alert and the Calendar from a tapped summary, once each", async () => {
     const reminders = createNativeReminders();
     await reminders.reconcile([
-      { ...digest(0, "S3 E6 The Long Dark is out."), id: "alert", showId: 8801 },
-      { ...digest(1, "Harbor Lights S3 E7"), id: "summary" },
+      { ...summary(0, "S3 E6 The Long Dark is out."), id: "alert", showId: 8801 },
+      { ...summary(1, "Harbor Lights S3 E7"), id: "summary" },
     ]);
     const tap = (id: string) => ({
       notification: { request: { identifier: id, content: mockOs.pending.get(id)?.content } },

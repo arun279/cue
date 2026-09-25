@@ -13,18 +13,7 @@ import { useRuntime } from "../runtime/runtime";
 import { useCoarseClock } from "./useCoarseClock";
 import { useLibrarySnapshot } from "./useLibrarySnapshot";
 
-/**
- * Keeps the OS holding exactly the notifications the current calendar and Up
- * Next imply. Mounted once under the session runtime, so it re-plans whenever
- * the shared calendar or library refetches, a preference moves, the local day
- * flips or the app comes to the foreground, and it re-plans from scratch every
- * time: the plan is a pure function of those reads, and the diff against what
- * is pending makes running it again free. A notification tap opens the app, so
- * it re-plans too.
- *
- * Both reads are the ones the Up Next and Calendar screens already share, so
- * turning alerts on costs no extra Trakt call.
- */
+/** Keeps the OS holding exactly the notifications the current calendar and Up Next imply. */
 export function useEpisodeReminders(): void {
   const reminders = useReminders();
   const visibility = useAppVisibility();
