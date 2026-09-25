@@ -35,7 +35,9 @@ appId: app.cuetracker
       platform: Android
     commands:
       - tapOn:
-          id: "search_button"
+          text: "Search"
+          rightOf:
+            id: "sync-now"
 - runFlow:
     when:
       platform: iOS
@@ -48,8 +50,7 @@ appId: app.cuetracker
     when:
       platform: Android
     commands:
-      - tapOn:
-          id: "search_close_btn"
+      - tapOn: "Clear query"
 - runFlow:
     when:
       platform: iOS
