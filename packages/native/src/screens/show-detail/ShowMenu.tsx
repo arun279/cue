@@ -1,6 +1,7 @@
 import type { LibraryEntry } from "@cue/core/data/trakt/library";
 import type { SeasonView } from "@cue/core/data/trakt/show-detail";
 import { earlierUnwatchedCount, episodeCount } from "@cue/core/domain/show-detail";
+import { useAlertsMute } from "@cue/core/hooks/useAlertsMute";
 import { useHideShow } from "@cue/core/hooks/useHideShow";
 import { useMoveToWatchlist } from "@cue/core/hooks/useMoveToWatchlist";
 import { showSnack } from "@cue/core/stores/snackbar-store";
@@ -27,6 +28,7 @@ export function ShowMenu({
 }): ReactElement {
   const hide = useHideShow();
   const moveToWatchlist = useMoveToWatchlist();
+  const alerts = useAlertsMute(entry.showId, header.title);
   const remaining = earlierUnwatchedCount(seasons, {
     season: Number.MAX_SAFE_INTEGER,
     number: Number.MAX_SAFE_INTEGER,
@@ -75,6 +77,7 @@ export function ShowMenu({
             ).catch(() => showSnack({ message: "Couldn't open Trakt. Please try again." }));
           },
         },
+        { id: "mute-alerts", label: alerts.label, onPress: alerts.toggle },
         {
           id: "stop",
           label: "Stop watching",

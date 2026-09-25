@@ -331,6 +331,35 @@ describe("Up Next's row menu", () => {
     await waitFor(() => expect(screen.getByTestId("snackbar-undo")).toBeOnTheScreen());
   });
 
+  it("mutes a show's episode alerts, says so, and takes it back on Undo", async () => {
+    const user = userEvent.setup();
+    await paint();
+    const mute = () => within(row(CARTOGRAPHY)).getByTestId("quick-action-mute");
+    expect(mute()).toHaveAccessibleName("Mute episode alerts");
+
+    await user.press(mute());
+
+    expect(screen.getByTestId("snackbar-message")).toHaveTextContent(
+      "Episode alerts muted for Midnight Cartography.",
+    );
+    expect(mute()).toHaveAccessibleName("Unmute episode alerts");
+
+    await user.press(screen.getByTestId("snackbar-undo"));
+
+    expect(mute()).toHaveAccessibleName("Mute episode alerts");
+  });
+
+  it("offers no mute in the lapsed drawer, where nothing is scheduled", async () => {
+    const user = userEvent.setup();
+    await paint({ entries: [...queueOf(), lapsed()] });
+
+    await user.press(screen.getByTestId("lapsed-drawer-toggle"));
+
+    expect(
+      within(screen.getByTestId(`lapsed-row-${GLASSHOUSE}`)).queryByTestId("quick-action-mute"),
+    ).toBeNull();
+  });
+
   it("withholds the quick mark while the next episode is a guess", async () => {
     // pendingAdvance: the projection has not been confirmed by a read, and
     // marking a guessed coordinate would write a play for an episode that may
