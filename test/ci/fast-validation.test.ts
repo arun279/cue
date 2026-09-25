@@ -238,7 +238,7 @@ describe("fast pull request validation", () => {
 
     expect(timeouts).toEqual({
       "native-ios": 75,
-      "native-e2e-ios-light": 24,
+      "native-e2e-ios-light": 22,
       "ui-screenshots-ios-dark": 16,
       "android-e2e": 14,
       "ui-screenshots-android-dark": 5,

@@ -396,9 +396,7 @@ jobs:
           path: ${{ runner.temp }}/native-ios-app/Cue.app.tgz
           retention-days: 30
   native-e2e-ios-light:
-    # Simulator preparation and driver startup measured up to 9 minutes, and
-    # each shard carries 7 to 8 minutes of flows.
-    timeout-minutes: 24
+    timeout-minutes: 22
     permissions:
       actions: read
       contents: read
@@ -426,6 +424,7 @@ jobs:
       - name: Run the shared light flow
         env:
           DEVICE_ID: ${{ steps.ui-setup.outputs.device_id }}
+          # https://web.dev/articles/rail
           APP_IDLE_CEILING_MS: "1000"
         run: |
           output="$RUNNER_TEMP/screenshots/ios/light/${{ matrix.suite }}"
@@ -441,6 +440,8 @@ jobs:
       - name: Gate and summarize response timing
         if: ${{ !cancelled() && matrix.suite == 'activity' }}
         env:
+          # https://developer.apple.com/videos/play/wwdc2023/10248/
+          # https://web.dev/articles/rail
           FEEDBACK_CEILING_MS: "100"
         run: |
           node scripts/check-response-timing.mjs \
@@ -656,8 +657,8 @@ jobs:
           path: ${{ runner.temp }}/head-android-sizes.json
           retention-days: 30
   android-e2e:
-    # The emulator and the full flow suite come to about 9 minutes, estimated
-    # from the per-flow times of the flows that have run on Android and iOS.
+    # The emulator and the full flow suite measured 11.3 minutes; the timeout
+    # is that plus about 25 percent.
     timeout-minutes: 14
     needs: [fingerprint, native-android]
     runs-on: ubuntu-latest
@@ -668,7 +669,7 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
-      - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c
+      - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
         with:
           distribution: temurin
           java-version: "21"
@@ -725,7 +726,7 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .nvmrc
-      - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c
+      - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
         with:
           distribution: temurin
           java-version: "21"
