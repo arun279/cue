@@ -1,4 +1,5 @@
 import { useAppVersion } from "@cue/core/ports/app-version";
+import { useReminders } from "@cue/core/ports/reminders";
 import { usePrefs } from "@cue/core/prefs/prefs-store";
 import { THRESHOLD_OPTIONS } from "@cue/core/prefs/threshold";
 import { showSnack } from "@cue/core/stores/snackbar-store";
@@ -69,6 +70,16 @@ export default function Settings(): ReactElement {
   const prefs = usePrefs((state) => state);
   const colors = useColors();
   const version = useAppVersion();
+  const reminders = useReminders();
+  const setReminders = async (enabled: boolean): Promise<void> => {
+    if (enabled && !(await reminders.requestPermission())) {
+      showSnack({
+        message: "Notifications are off for Cue. Turn them on in your phone's settings.",
+      });
+      return;
+    }
+    prefs.setRemindersEnabled(enabled);
+  };
   return (
     <AccountScreen testID={TEST_IDS.screenSettings}>
       <Section title="Appearance">
@@ -110,6 +121,15 @@ export default function Settings(): ReactElement {
           options={THRESHOLDS}
           onChange={prefs.setThresholdDays}
           testID={TEST_IDS.settingsThreshold}
+        />
+      </Section>
+      <Section title="Reminders">
+        <Toggle
+          title="Episode reminders"
+          hint="One notification each morning naming what airs that day, scheduled on the phone itself. Reminders are planned four weeks ahead each time you open Cue."
+          testID={TEST_IDS.settingsReminders}
+          value={prefs.remindersEnabled}
+          onChange={(enabled) => void setReminders(enabled)}
         />
       </Section>
       <Section title="Content">

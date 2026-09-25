@@ -1,6 +1,7 @@
 import { PendingWritesError } from "@cue/core/app/session";
 import { sortLapsed, sortQueue } from "@cue/core/domain/queue-order";
 import { computeWatchStatus } from "@cue/core/domain/watch-status";
+import { type Reminders, RemindersProvider } from "@cue/core/ports/reminders";
 import { createPrefsStore, usePrefs } from "@cue/core/prefs/prefs-store";
 import { thresholdMsFromDays } from "@cue/core/prefs/threshold";
 import { act, fireEvent, screen, userEvent } from "@testing-library/react-native";
@@ -51,6 +52,55 @@ it("applies haptics and spoiler preferences to their consumers without a reload"
   expect(screen.queryByRole("button", { name: "Reveal episode still" })).toBeNull();
 });
 
+function remindersAnswering(granted: Promise<boolean>): Reminders {
+  return {
+    requestPermission: jest.fn(() => granted),
+    reconcile: () => Promise.resolve(),
+    cancelAll: () => Promise.resolve(),
+  };
+}
+
+it("turns reminders on only once the OS allows notifications, and off without asking", async () => {
+  let allow: (granted: boolean) => void = () => {};
+  const reminders = remindersAnswering(new Promise((resolve) => (allow = resolve)));
+  const fixture = accountFixture();
+  await fixture.paint(
+    <RemindersProvider value={reminders}>
+      <Settings />
+    </RemindersProvider>,
+  );
+  const toggle = () => screen.getByRole("switch", { name: "Episode reminders" });
+
+  await fireEvent(toggle(), "valueChange", true);
+  expect(reminders.requestPermission).toHaveBeenCalledTimes(1);
+  expect(toggle()).not.toBeChecked();
+
+  await act(async () => allow(true));
+  expect(toggle()).toBeChecked();
+  expect(createPrefsStore(fixture.storage).getState().remindersEnabled).toBe(true);
+
+  await fireEvent(toggle(), "valueChange", false);
+  expect(toggle()).not.toBeChecked();
+  expect(reminders.requestPermission).toHaveBeenCalledTimes(1);
+});
+
+it("leaves reminders off and says where to change it when the OS refuses", async () => {
+  const fixture = accountFixture();
+  await fixture.paint(
+    <RemindersProvider value={remindersAnswering(Promise.resolve(false))}>
+      <Settings />
+    </RemindersProvider>,
+  );
+
+  await fireEvent(screen.getByRole("switch", { name: "Episode reminders" }), "valueChange", true);
+
+  expect(screen.getByRole("switch", { name: "Episode reminders" })).not.toBeChecked();
+  expect(createPrefsStore(fixture.storage).getState().remindersEnabled).toBe(false);
+  expect(
+    screen.getByText("Notifications are off for Cue. Turn them on in your phone's settings."),
+  ).toBeVisible();
+});
+
 const Library = (
   require("../app/(tabs)/(library)/library") as typeof import("../app/(tabs)/(library)/library")
 ).default;
@@ -70,7 +120,7 @@ it("starts with accessible controls and the strong defaults", async () => {
   expect(
     screen.getByRole("button", { name: "Haven't watched in a while after, 3 weeks" }),
   ).toBeVisible();
-  expect(screen.queryByText("Notifications")).toBeNull();
+  expect(screen.getByRole("switch", { name: "Episode reminders" })).not.toBeChecked();
 });
 
 it("lists the sections in the order of the screen", async () => {
@@ -78,6 +128,7 @@ it("lists the sections in the order of the screen", async () => {
   expect(screen.getAllByRole("header").flatMap((heading) => heading.children)).toEqual([
     "Appearance",
     "Tracking",
+    "Reminders",
     "Content",
     "Data",
     "Account",
