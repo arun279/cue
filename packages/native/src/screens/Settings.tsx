@@ -13,6 +13,7 @@ import { DataSection } from "./account/DataSection";
 import { AccountScreen, Note, Picker, Section, SettingRow, Toggle } from "./account/Rows";
 import { SignOut } from "./account/SignOut";
 import { ThemeControl } from "./account/ThemeControl";
+import { ALERTS_HINT } from "./calendar/AlertsCard";
 
 const NEXT = [
   { value: "oldest-unwatched", label: "Oldest unwatched" },
@@ -76,7 +77,7 @@ export default function Settings(): ReactElement {
       <Section title="Notifications">
         <Toggle
           title="New episodes"
-          hint="An alert for each show you are watching when a new episode is out, scheduled on the phone itself. Cue plans four weeks ahead each time you open it."
+          hint={ALERTS_HINT}
           value={prefs.remindersEnabled}
           onChange={(enabled) => (enabled ? void turnOnAlerts() : prefs.setRemindersEnabled(false))}
         />

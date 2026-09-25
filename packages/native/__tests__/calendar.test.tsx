@@ -216,7 +216,7 @@ describe("the alerts card", () => {
     expect(card()).toBeOnTheScreen();
     expect(
       screen.getByText(
-        "An alert for each show you are watching when a new episode is out, scheduled on this phone. Cue plans four weeks ahead each time you open it.",
+        "Alerts for new episodes of shows you watch. Cue plans them four weeks ahead each time you open it.",
       ),
     ).toBeOnTheScreen();
     expect(screen.getByRole("button", { name: "Not now" })).toBeOnTheScreen();

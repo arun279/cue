@@ -8,6 +8,9 @@ import { CueText } from "../../ui/type";
 
 const GLYPH = 22;
 
+export const ALERTS_HINT =
+  "Alerts for new episodes of shows you watch. Cue plans them four weeks ahead each time you open it.";
+
 /** Makes the case for alerts before the OS asks, once, above the first day group. */
 export function AlertsCard({ card }: { readonly card: Card }): ReactElement {
   const colors = useColors();
@@ -35,8 +38,7 @@ export function AlertsCard({ card }: { readonly card: Card }): ReactElement {
         </CueText>
       </View>
       <CueText variant="rowTitleSecondary" style={{ color: colors.ink2 }}>
-        An alert for each show you are watching when a new episode is out, scheduled on this phone.
-        Cue plans four weeks ahead each time you open it.
+        {ALERTS_HINT}
       </CueText>
       <View style={styles.actions}>
         <Button label="Not now" variant="link" onPress={card.dismiss} />
