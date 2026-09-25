@@ -152,16 +152,15 @@ describe("fast pull request validation", () => {
     expect(verification.match(/--driver-host-port 7001/g)).toHaveLength(1);
   });
 
-  it("fails the aggregate unless every iOS light shard succeeds or a pull request skipped them", () => {
+  it("fails the aggregate whenever the rollup script fails", () => {
     const aggregate = job("native-e2e");
 
-    expect(aggregate).toContain("needs: [native-ios, native-e2e-ios-light]");
+    expect(aggregate).toContain("needs: [fingerprint, native-ios, native-e2e-ios-light]");
     expect(aggregate).toContain("if: $" + "{{ always() }}");
-    expect(aggregate).toContain('test "$SHARDS" = success || {');
-    expect(aggregate).toContain(
-      'test "$EVENT" = pull_request && test "$BUILD" = success &&\n' +
-        '              test "$HIT" = true && test "$SHARDS" = skipped',
-    );
+    expect(aggregate).toContain("OWED: $" + "{{ needs.fingerprint.outputs.ios-owed }}");
+    expect(aggregate).toMatch(/^ {8}run: node scripts\/native-e2e-rollup\.mjs$/m);
+    expect(aggregate).not.toContain("continue-on-error");
+    expect(aggregate).not.toMatch(/\|\|\s*true\s*$/m);
   });
 
   it("publishes every screenshot artifact and one contact sheet job for 14 days", () => {
@@ -182,6 +181,7 @@ describe("fast pull request validation", () => {
     expect(verification).toContain('--test-output-dir "$screenshots/$appearance"');
     expect(workflow.match(/create-ui-contact-sheet\.sh/g)).toHaveLength(1);
     expect(sheets.match(/^ {6}- ([a-z0-9-]+)$/gm)?.map((line) => line.trim().slice(2))).toEqual([
+      "fingerprint",
       "native-ios",
       "native-e2e-ios-light",
       "ui-screenshots-ios-dark",
@@ -199,15 +199,18 @@ describe("fast pull request validation", () => {
     expect(fetch).toContain("--pattern 'ui-*'");
   });
 
-  it("runs the Android lane on every pull request and the iOS flow lane on pushes, nightly, and iOS fingerprint changes", () => {
+  it("runs the Android lane on every pull request and the iOS flow lane on pushes, nightly, iOS fingerprint changes, and owed lanes", () => {
     const iosLane =
-      "if: github.event_name != 'pull_request' || needs.native-ios.outputs.hit != 'true'";
+      "if: github.event_name != 'pull_request' || needs.native-ios.outputs.hit != 'true' || " +
+      "needs.fingerprint.outputs.ios-owed == 'true'";
     const jobs = [...workflow.matchAll(/^ {2}([a-z][a-z0-9-]*):$/gm)].map(([, name]) => name ?? "");
     const gated = jobs.filter((name) => job(name).includes(iosLane));
 
     expect(workflow).toMatch(/^ {2}pull_request:$/m);
     expect(workflow).toContain('- cron: "0 6 * * *"');
     expect(job("native-ios")).toContain("hit: $" + "{{ steps.native-cache.outputs.hit }}");
+    expect(job("fingerprint")).toContain("ios-owed: $" + "{{ steps.ios-owed.outputs.owed }}");
+    expect(job("fingerprint")).toContain("actions/workflows/ci.yml/runs?branch=$BRANCH");
     expect(gated.sort()).toEqual(
       ["native-e2e-ios-light", "ui-contact-sheets", "ui-screenshots-ios-dark"].sort(),
     );

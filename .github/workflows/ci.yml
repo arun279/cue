@@ -39,6 +39,7 @@ jobs:
     outputs:
       android: ${{ steps.native.outputs.android }}
       ios: ${{ steps.native.outputs.ios }}
+      ios-owed: ${{ steps.ios-owed.outputs.owed }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup-node-pnpm
@@ -58,6 +59,25 @@ jobs:
           ios=$(pnpm exec node scripts/native-fingerprint.mjs ios)
           echo "android=$android" >> "$GITHUB_OUTPUT"
           echo "ios=$ios" >> "$GITHUB_OUTPUT"
+      - id: ios-owed
+        name: Owe the iOS lane unless its last run on this branch passed
+        if: github.event_name == 'pull_request'
+        env:
+          BRANCH: ${{ github.head_ref }}
+          GH_TOKEN: ${{ github.token }}
+          LANE: >-
+            [.jobs[] | select(.name | test("^(native-e2e-ios-light|ui-screenshots-ios-dark|ui-contact-sheets)"))]
+            | if all(.conclusion == "skipped") then "skipped" else any(.conclusion != "success") end
+        run: |
+          owed=true
+          while read -r run; do
+            state=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run/jobs?per_page=100" --jq "$LANE")
+            if [ "$state" != skipped ]; then
+              owed=$state
+              break
+            fi
+          done < <(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=$BRANCH&status=completed&per_page=50" --jq '.workflow_runs[].id')
+          echo "owed=$owed" >> "$GITHUB_OUTPUT"
   check:
     permissions:
       contents: read
@@ -383,7 +403,7 @@ jobs:
       actions: read
       contents: read
     needs: [fingerprint, native-ios]
-    if: github.event_name != 'pull_request' || needs.native-ios.outputs.hit != 'true'
+    if: github.event_name != 'pull_request' || needs.native-ios.outputs.hit != 'true' || needs.fingerprint.outputs.ios-owed == 'true'
     runs-on: macos-26
     strategy:
       fail-fast: false
@@ -454,21 +474,21 @@ jobs:
             ${{ runner.temp }}/mock-trakt.log
           retention-days: 7
   native-e2e:
-    permissions: {}
-    needs: [native-ios, native-e2e-ios-light]
+    permissions:
+      contents: read
+    needs: [fingerprint, native-ios, native-e2e-ios-light]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
-      - env:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Require passing iOS light shards unless a cached pull request skipped them
+        env:
           EVENT: ${{ github.event_name }}
           BUILD: ${{ needs.native-ios.result }}
           HIT: ${{ needs.native-ios.outputs.hit }}
+          OWED: ${{ needs.fingerprint.outputs.ios-owed }}
           SHARDS: ${{ needs.native-e2e-ios-light.result }}
-        run: |
-          test "$SHARDS" = success || {
-            test "$EVENT" = pull_request && test "$BUILD" = success &&
-              test "$HIT" = true && test "$SHARDS" = skipped
-          }
+        run: node scripts/native-e2e-rollup.mjs
   ui-screenshots-ios-dark:
     # Measured 8 to 12 minutes.
     timeout-minutes: 16
@@ -476,7 +496,7 @@ jobs:
       actions: read
       contents: read
     needs: [fingerprint, native-ios]
-    if: github.event_name != 'pull_request' || needs.native-ios.outputs.hit != 'true'
+    if: github.event_name != 'pull_request' || needs.native-ios.outputs.hit != 'true' || needs.fingerprint.outputs.ios-owed == 'true'
     runs-on: macos-26
     env:
       MAESTRO_CLI_NO_ANALYTICS: "1"
@@ -758,12 +778,13 @@ jobs:
       actions: read
       contents: read
     needs:
+      - fingerprint
       - native-ios
       - native-e2e-ios-light
       - ui-screenshots-ios-dark
       - android-e2e
       - ui-screenshots-android-dark
-    if: github.event_name != 'pull_request' || needs.native-ios.outputs.hit != 'true'
+    if: github.event_name != 'pull_request' || needs.native-ios.outputs.hit != 'true' || needs.fingerprint.outputs.ios-owed == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

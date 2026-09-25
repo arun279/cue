@@ -19,7 +19,8 @@ const TRAKT_CLIENT_ID_VARIABLE = "$" + "{{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}";
 const NOT_REQUIRED = ["fingerprint", "footprint", "native-e2e-ios-light", "ui-contact-sheets"];
 // The gate reads the push run, where the iOS flow lane always runs.
 const IOS_LANE =
-  "    if: github.event_name != 'pull_request' || needs.native-ios.outputs.hit != 'true'";
+  "    if: github.event_name != 'pull_request' || needs.native-ios.outputs.hit != 'true' || " +
+  "needs.fingerprint.outputs.ios-owed == 'true'";
 
 const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((entry) => typeof entry === "string");
