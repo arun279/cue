@@ -49,6 +49,7 @@ if ! maestro test "$suite" --driver-host-port 7001 \
   --format JUNIT \
   --output "$output/maestro-results-$appearance.xml" \
   --debug-output "$output/maestro-$appearance" \
+  --flatten-debug-output \
   --test-output-dir "$screenshots/$appearance"; then
   result=1
 fi

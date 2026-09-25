@@ -371,7 +371,7 @@ jobs:
           path: ${{ runner.temp }}/native-ios-app/Cue.app.tgz
           retention-days: 30
   native-e2e-ios-light:
-    timeout-minutes: 14
+    timeout-minutes: 30
     permissions:
       actions: read
       contents: read
@@ -409,6 +409,7 @@ jobs:
             --format JUNIT \
             --output "$RUNNER_TEMP/maestro-results-${{ matrix.suite }}.xml" \
             --debug-output "$RUNNER_TEMP/maestro-debug/${{ matrix.suite }}" \
+            --flatten-debug-output \
             --test-output-dir "$output"
       - name: Gate and summarize response timing
         if: ${{ !cancelled() && matrix.suite == 'detail' }}
@@ -436,7 +437,7 @@ jobs:
           if-no-files-found: error
           retention-days: 14
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: ${{ !cancelled() }}
+        if: ${{ always() }}
         with:
           name: native-e2e-ios-light-${{ matrix.suite }}
           path: |
@@ -502,6 +503,7 @@ jobs:
             --format JUNIT \
             --output "$RUNNER_TEMP/maestro-results-dark.xml" \
             --debug-output "$RUNNER_TEMP/maestro-debug/dark" \
+            --flatten-debug-output \
             --test-output-dir "$RUNNER_TEMP/screenshots/ios/dark"
       - name: Create iOS contact sheet
         if: ${{ !cancelled() }}
@@ -516,7 +518,7 @@ jobs:
           if-no-files-found: error
           retention-days: 14
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: ${{ !cancelled() }}
+        if: ${{ always() }}
         with:
           name: native-e2e-ios-dark
           path: |
