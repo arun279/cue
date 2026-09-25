@@ -1,5 +1,5 @@
 {
-  "measuredOn": "2026-09-18",
+  "measuredOn": "2026-09-19",
   "sourceAssets": [
     {
       "path": "packages/native/assets/icon.png",
@@ -199,6 +199,12 @@
       "path": "assets/aff2c65b39a296d4f7e96d0f58169170",
       "type": "png",
       "bytes": 334,
+      "platforms": ["ios", "android"]
+    },
+    {
+      "path": "assets/b4452960c82a0221dc724692fe968ef5",
+      "type": "png",
+      "bytes": 2911,
       "platforms": ["ios", "android"]
     },
     {

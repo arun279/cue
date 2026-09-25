@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { PendingWritesError, sessionTeardown } from "../../src/app/session";
 import { type AuthDeps, createAuthStore } from "../../src/auth/create-auth-store";
-import { pollDeviceToken, requestDeviceCode } from "../../src/data/auth/oauth";
+import { pollDeviceToken, requestDeviceCode, revokeToken } from "../../src/data/auth/oauth";
 import { createPkcePair } from "../../src/data/auth/pkce";
 import { createTokenStore, type TokenStore } from "../../src/ports/token-store";
 import { memoryKeyValueStore } from "../support/stores";
@@ -31,6 +32,46 @@ function authDeps(tokenStore: TokenStore): AuthDeps {
     traktBaseUrl: undefined,
   };
 }
+
+async function connectedSession() {
+  const token = {
+    access_token: "access",
+    refresh_token: "refresh",
+    created_at: 1_700_000_000,
+    expires_in: 604_800,
+  };
+  const tokens = createTokenStore(memoryKeyValueStore());
+  await tokens.write(token);
+  const store = createAuthStore(authDeps(tokens));
+  await vi.waitFor(() => expect(store.getState().phase).toBe("connected"));
+  return { token, tokens, store };
+}
+
+describe("sign-out teardown", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it.each([
+    new PendingWritesError(),
+    new Error("cache unavailable"),
+  ])("preserves the session when teardown rejects with %s", async (failure) => {
+    const { token, tokens, store } = await connectedSession();
+    vi.spyOn(sessionTeardown, "run").mockRejectedValue(failure);
+    await expect(store.getState().disconnect()).rejects.toBe(failure);
+    expect(store.getState().phase).toBe("connected");
+    expect(await tokens.read()).toEqual(token);
+  });
+
+  it("clears the token only after teardown succeeds, even if revocation fails", async () => {
+    const { token, tokens, store } = await connectedSession();
+    vi.spyOn(sessionTeardown, "run").mockImplementation(async () => {
+      expect(await tokens.read()).toEqual(token);
+    });
+    vi.mocked(revokeToken).mockRejectedValue(new Error("offline"));
+    await store.getState().disconnect();
+    expect(await tokens.read()).toBeNull();
+    expect(store.getState().phase).toBe("onboarding");
+  });
+});
 
 /**
  * The boot read, and the three answers a token store can give.

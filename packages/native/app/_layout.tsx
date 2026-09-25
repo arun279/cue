@@ -37,6 +37,7 @@ import {
   preferenceStorage,
   secureStore,
 } from "../src/platform/stores";
+import { useAppearance } from "../src/screens/account/ThemeControl";
 import { Onboarding } from "../src/screens/Onboarding";
 import { RuntimeBoot } from "../src/screens/RuntimeBoot";
 import { AppIdle } from "../src/ui/AppIdle";
@@ -139,7 +140,7 @@ const runtimeDeps = {
   browser: false,
   userAgent: `Cue/${nativeAppVersion}`,
   clearPersistedCaches,
-  clearLocalPreferences,
+  clearLocalPreferences: () => clearLocalPreferences(prefsStore),
 };
 
 /** Until a token is stored the app is onboarding; once connected it is the
@@ -204,6 +205,7 @@ export default function RootLayout(): ReactElement {
   const authStore = useNativeSession();
   const fontsSettled = useCueFonts();
   const navigationTheme = useNavigationTheme();
+  useAppearance(prefsStore);
 
   useEffect(() => {
     if (authStore !== null && fontsSettled) void SplashScreen.hideAsync().catch(() => {});
@@ -233,9 +235,6 @@ export default function RootLayout(): ReactElement {
                 <HapticsProvider value={haptics}>
                   <AppVersionProvider value={nativeAppVersion}>
                     <AuthStoreProvider value={authStore}>
-                      {/* Declarative, and "auto" follows the system appearance the
-                      app config already declares. The theme store drives it
-                      once that store has a port of its own. */}
                       <StatusBar style="auto" />
                       <ThemeProvider value={navigationTheme}>
                         <Gate />
