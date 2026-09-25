@@ -21,7 +21,7 @@ export const REMINDER_WINDOW_DAYS = CALENDAR_WINDOW_DAYS;
  * the rest, so the plan is cut to the same 64. Every foreground replans, which
  * reaches the dropped tail long before it would have fired.
  */
-export const PENDING_LIMIT = 64;
+const PENDING_LIMIT = 64;
 
 /** Shows the summary names before it counts the rest. */
 const NAMED_SHOWS = 2;
