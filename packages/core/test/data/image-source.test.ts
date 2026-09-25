@@ -1,4 +1,4 @@
-import { resolvePoster } from "@cue/core/data/image-source";
+import { artHue, resolveBackdrop, resolvePoster } from "@cue/core/data/image-source";
 import { describe, expect, it } from "vitest";
 
 describe("resolvePoster (Trakt inline → placeholder)", () => {
@@ -29,5 +29,31 @@ describe("resolvePoster (Trakt inline → placeholder)", () => {
   it("produces a single initial for one-word titles and ? for blank", () => {
     expect(resolvePoster({ title: "Severance" })).toEqual({ source: "placeholder", initials: "S" });
     expect(resolvePoster({ title: "   " })).toEqual({ source: "placeholder", initials: "?" });
+  });
+});
+
+describe("resolveBackdrop", () => {
+  it("takes the first non-empty fanart as https, and nothing without one", () => {
+    expect(resolveBackdrop(["", "media.trakt.tv/f.webp"])).toBe("https://media.trakt.tv/f.webp");
+    expect(resolveBackdrop([""])).toBeNull();
+    expect(resolveBackdrop(undefined)).toBeNull();
+  });
+});
+
+describe("artHue", () => {
+  const titles = [
+    "Severance",
+    "Dune",
+    "Breaking Bad",
+    "The Bear",
+    "Shogun",
+    "Fargo",
+    "Slow Horses",
+  ];
+
+  it("gives each title its own hue on the color wheel", () => {
+    const hues = titles.map(artHue);
+    expect(hues.every((hue) => Number.isInteger(hue) && hue >= 0 && hue < 360)).toBe(true);
+    expect(new Set(hues).size).toBe(titles.length);
   });
 });

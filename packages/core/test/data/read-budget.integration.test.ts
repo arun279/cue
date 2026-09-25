@@ -354,6 +354,26 @@ describe("cold-sync GET budget", () => {
     expect(progressGets).toBe(READ_CONCURRENCY);
   });
 
+  it("fails the whole snapshot on a progress body that breaks the contract", async () => {
+    installColdSync(3);
+    server.use(
+      http.get(`${TRAKT_API_BASE}/shows/:id/progress/watched`, () => HttpResponse.json({})),
+    );
+    await expect(loadUpNextEntries(client)).rejects.toThrow();
+  });
+
+  it("ranks a show Trakt never stamped as watched last for the progress budget", async () => {
+    const { last_watched_at: _, ...unstamped } = watchedShow(0) as Record<string, unknown>;
+    const shows = [
+      unstamped,
+      ...Array.from({ length: WATCHED_PROGRESS_BUDGET }, (_, i) => watchedShow(i + 1)),
+    ];
+    const counts = installColdSync(shows.length, 0, 0, shows);
+    const entries = await loadUpNextEntries(client);
+    expect(counts.progress).toBe(WATCHED_PROGRESS_BUDGET);
+    expect(entries.find((entry) => entry.showId === 1)?.nextEpisode).toBeNull();
+  });
+
   it("caps concurrent reads across independent callers, not per fan-out", async () => {
     // The lazy per-card art reads a scrolling list issues are 300 separate calls,
     // not one fan-out. A cap owned by the fan-out leaves their sum unbounded, which

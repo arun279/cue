@@ -16,17 +16,10 @@ export interface PkcePair {
 const BASE64URL = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 
 function base64UrlEncode(bytes: Uint8Array): string {
-  let encoded = "";
-  for (let index = 0; index < bytes.length; index += 3) {
-    const first = bytes[index] ?? 0;
-    const second = bytes[index + 1];
-    const third = bytes[index + 2];
-    encoded += BASE64URL[first >> 2];
-    encoded += BASE64URL[((first & 3) << 4) | ((second ?? 0) >> 4)];
-    if (second !== undefined) encoded += BASE64URL[((second & 15) << 2) | ((third ?? 0) >> 6)];
-    if (third !== undefined) encoded += BASE64URL[third & 63];
-  }
-  return encoded;
+  const bits = Array.from(bytes, (byte) => byte.toString(2).padStart(8, "0")).join("");
+  return bits.replace(/.{1,6}/g, (sextet) =>
+    BASE64URL.charAt(Number.parseInt(sextet.padEnd(6, "0"), 2)),
+  );
 }
 
 /** 32 random bytes → a 43-char base64url verifier (within RFC 7636's 43-128 range). */

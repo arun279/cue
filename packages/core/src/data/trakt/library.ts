@@ -91,10 +91,8 @@ function toWatchlistEntry(show: SchemaShow, hidden: boolean): LibraryEntry {
 
 export function assembleLibrary(input: LibraryInput): LibraryEntry[] {
   const watchlistById = new Map<number, SchemaShow>();
-  for (const item of input.watchlistShows) {
-    if (item.show !== undefined && !watchlistById.has(item.show.ids.trakt)) {
-      watchlistById.set(item.show.ids.trakt, item.show);
-    }
+  for (const { show } of input.watchlistShows) {
+    if (show !== undefined) watchlistById.set(show.ids.trakt, show);
   }
 
   const watchedIds = new Set(input.watchedShows.map(({ show }) => show.ids.trakt));
@@ -143,16 +141,14 @@ export function watchedEpisodeCount(watched: WatchedShow): number {
 }
 
 function lastAiredKey(progress: Progress | undefined, watched: WatchedShow): EpisodeKey | null {
-  let last: EpisodeKey | null = null;
-  const seasons = progress === undefined ? watched.seasons : progress.seasons;
-  for (const season of seasons ?? []) {
-    if (progress === undefined && season.number === 0) continue;
-    for (const episode of season.episodes) {
-      const key = { season: season.number, number: episode.number };
-      if (last === null || compareEpisodeKeys(key, last) > 0) last = key;
-    }
-  }
-  return last;
+  const seasons =
+    progress === undefined
+      ? watched.seasons?.filter((season) => season.number !== 0)
+      : progress.seasons;
+  const keys = (seasons ?? []).flatMap((season) =>
+    season.episodes.map((episode) => ({ season: season.number, number: episode.number })),
+  );
+  return keys.sort(compareEpisodeKeys).at(-1) ?? null;
 }
 
 export function showIdSet(items: readonly (HiddenItem | WatchlistItem)[]): Set<number> {

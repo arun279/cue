@@ -59,6 +59,22 @@ describe("assembleHistoryEntries", () => {
     expect(entry?.ids.trakt).toBe(7);
   });
 
+  it("keeps a sparse play Trakt sent without art, year, episode title or TMDB id", () => {
+    const sparse: HistoryItem[] = [
+      {
+        ...episodeItem,
+        episode: { season: 1, number: 5, ids: { trakt: 55 } },
+        show: { title: "The Bear", ids: { trakt: 9 } },
+      },
+      { ...movieItem, movie: { title: "Dune", ids: { trakt: 7 } } },
+    ];
+    const blanks = { posters: [], tmdbId: null, year: null };
+    expect(assembleHistoryEntries(sparse)).toMatchObject([
+      { ...blanks, episodeTitle: null },
+      blanks,
+    ]);
+  });
+
   it("drops rows whose declared type is missing its item (malformed / unsupported season play)", () => {
     const entries = assembleHistoryEntries([
       episodeItem,

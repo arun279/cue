@@ -75,6 +75,23 @@ describe("withReadRateRetry", () => {
     await Promise.all([far, near]);
   });
 
+  it("holds reads back for a second when a 429 names no Retry-After", async () => {
+    vi.useFakeTimers();
+    const startedAt = Date.now();
+    const read = vi
+      .fn<() => Promise<TraktResult<number>>>()
+      .mockResolvedValueOnce(rateLimited(null))
+      .mockResolvedValue({ ok: true, data: 1, pagination: null });
+    const settled = withReadRateRetry(read);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(readsPausedUntil()).toBe(startedAt + 1000);
+
+    await vi.advanceTimersByTimeAsync(999);
+    expect(read).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect((await settled).ok).toBe(true);
+  });
+
   it("opens no pause at all for a read that works", async () => {
     const result = await withReadRateRetry(() =>
       Promise.resolve({ ok: true, data: 1, pagination: null } as TraktResult<number>),
