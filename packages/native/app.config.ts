@@ -24,7 +24,7 @@ import type { ExpoConfig } from "expo/config";
  *   launcher badge set. Cue schedules local notifications only and sets no badge
  *   count. What survives is POST_NOTIFICATIONS, which Android 13 and later
  *   requires to show any notification, and RECEIVE_BOOT_COMPLETED, which is how
- *   the scheduled digests come back after a reboot.
+ *   the scheduled alerts come back after a reboot.
  */
 const BLOCKED_PERMISSIONS = [
   "android.permission.SYSTEM_ALERT_WINDOW",

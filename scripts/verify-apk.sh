@@ -21,7 +21,7 @@ expected_abi=${4:-}
 # The Expo line's set, measured from its generated release manifest. The two
 # network-state permissions come from expo-network, which fills the connectivity
 # port through getNetworkStateAsync. POST_NOTIFICATIONS and
-# RECEIVE_BOOT_COMPLETED come from expo-notifications, for the episode reminders.
+# RECEIVE_BOOT_COMPLETED come from expo-notifications, for new-episode alerts.
 # The Expo template's four optional permissions, expo-secure-store's biometric
 # pair, and expo-notifications' push and badge set are dropped in app.config.ts.
 # SYSTEM_ALERT_WINDOW is re-declared by the debug flavour for the development
