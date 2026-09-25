@@ -37,6 +37,7 @@ import {
 } from "../../../src/screens/library/model";
 import { BarItems } from "../../../src/ui/BarItems";
 import { SyncStrip } from "../../../src/ui/SyncStrip";
+import { TabRoot } from "../../../src/ui/TabRoot";
 import { TEST_IDS } from "../../../src/ui/test-ids";
 import { SPACE, tabBarClearance, useColors } from "../../../src/ui/tokens";
 
@@ -115,14 +116,8 @@ export default function Library(): ReactElement {
     onFilterToggle: () => (filtering ? clearFilter() : setFiltering(true)),
   };
 
-  // Unflattened, so UIKit finds the list first under the screen and collapses
-  // the large title as it scrolls.
   return (
-    <View
-      collapsable={false}
-      testID={TEST_IDS.screenLibrary}
-      style={[styles.screen, { backgroundColor: colors.bg }]}
-    >
+    <TabRoot testID={TEST_IDS.screenLibrary}>
       <Stack.Screen
         options={{
           title: "Library",
@@ -193,7 +188,7 @@ export default function Library(): ReactElement {
           </View>
         }
       />
-    </View>
+    </TabRoot>
   );
 }
 
@@ -216,7 +211,6 @@ function Tile({
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1 },
   lead: { paddingBottom: SPACE.s3, gap: SPACE.s2 },
   row: { gap: SPACE.s3, paddingHorizontal: SPACE.s4, paddingBottom: SPACE.s3 },
   empty: { paddingHorizontal: SPACE.s4 },

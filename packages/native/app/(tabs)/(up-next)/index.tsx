@@ -48,6 +48,7 @@ import { Marker } from "../../../src/ui/Marker";
 import { Row, Separator } from "../../../src/ui/Row";
 import { commitResponseTiming, useResponseTiming } from "../../../src/ui/response-timing";
 import { SyncStrip } from "../../../src/ui/SyncStrip";
+import { TabRoot } from "../../../src/ui/TabRoot";
 import { TvShowsOff } from "../../../src/ui/TvShowsOff";
 import { TEST_IDS } from "../../../src/ui/test-ids";
 import {
@@ -179,14 +180,8 @@ export default function UpNext(): ReactElement {
   const rows = marquee === undefined ? view.queue : view.queue.slice(1);
   const branch = branchOf(view, showsEnabled);
 
-  // Unflattened, so UIKit finds the list first under the screen and collapses
-  // the large title as it scrolls.
   return (
-    <View
-      collapsable={false}
-      testID={TEST_IDS.screenUpNext}
-      style={[styles.screen, { backgroundColor: colors.bg }]}
-    >
+    <TabRoot testID={TEST_IDS.screenUpNext}>
       <Stack.Screen
         options={{
           title: "Up Next",
@@ -250,7 +245,7 @@ export default function UpNext(): ReactElement {
           ) : null
         }
       />
-    </View>
+    </TabRoot>
   );
 }
 
@@ -378,7 +373,6 @@ function useTutorialGate(controller: MarkWatched): {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1 },
   lead: { paddingHorizontal: SPACE.s4, paddingBottom: SPACE.s2 },
   footer: { paddingTop: SPACE.s4 },
   footerRow: { paddingHorizontal: SPACE.s4, paddingVertical: SPACE.s1 },

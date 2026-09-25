@@ -36,6 +36,12 @@ beforeEach(() => {
   historyParams.current = {};
 });
 
+test("keeps its root unflattened under the floating bar, so UIKit finds the list first", async () => {
+  await paint();
+
+  expect(await screen.findByTestId("screen-history")).toHaveProp("collapsable", false);
+});
+
 test("collapses one item per local day, counts plays and removes newest first", async () => {
   const submit = jest.fn<ReturnType<CueRuntime["submit"]>, Parameters<CueRuntime["submit"]>>(() =>
     Promise.resolve("deferred"),

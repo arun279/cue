@@ -21,6 +21,7 @@ import { ResultRow } from "../../../src/screens/search/ResultRow";
 import { SearchField } from "../../../src/screens/search/SearchField";
 import { type SearchPhase, SearchState } from "../../../src/screens/search/SearchStates";
 import { Separator } from "../../../src/ui/Row";
+import { TabRoot } from "../../../src/ui/TabRoot";
 import { TEST_IDS } from "../../../src/ui/test-ids";
 import { ROW_TEXT_INSET, SPACE, tabBarClearance, useColors } from "../../../src/ui/tokens";
 
@@ -73,14 +74,8 @@ export default function Search(): ReactElement {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
 
-  // Unflattened, so UIKit finds the list first under the screen and collapses
-  // the large title as it scrolls.
   return (
-    <View
-      collapsable={false}
-      testID={TEST_IDS.screenSearch}
-      style={[styles.screen, { backgroundColor: colors.bg }]}
-    >
+    <TabRoot testID={TEST_IDS.screenSearch}>
       <Stack.Screen
         options={{
           title: "Search",
@@ -138,7 +133,7 @@ export default function Search(): ReactElement {
           </View>
         }
       />
-    </View>
+    </TabRoot>
   );
 }
 
@@ -150,6 +145,5 @@ function phaseOf(offline: boolean, settling: boolean, status: QueryStatus): Sear
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1 },
   body: { paddingHorizontal: SPACE.s4 },
 });
