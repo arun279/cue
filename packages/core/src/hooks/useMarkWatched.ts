@@ -290,11 +290,12 @@ export function useMarkWatched(): MarkWatched {
       current.length === 1
         ? { subject: middleTruncate(head.title), predicate: ` ${head.code} marked` }
         : `${current.length} episodes marked`;
-    showSnack({
-      message,
-      actions: [{ label: "Undo", testId: "snackbar-undo", onPress: () => void undoBatch() }],
-    });
-    setOwnedSnackSeq(useSnackbar.getState().snack?.seq ?? 0);
+    setOwnedSnackSeq(
+      showSnack({
+        message,
+        actions: [{ label: "Undo", testId: "snackbar-undo", onPress: () => void undoBatch() }],
+      }),
+    );
   }, [undoBatch]);
 
   const mark = useCallback(
@@ -315,10 +316,7 @@ export function useMarkWatched(): MarkWatched {
         return;
       }
       const pendingLock = pendingMarkLock(itemKey);
-      if (!claimWriteLock(pendingLock, opId)) {
-        releaseWriteLock(showLock, opId);
-        return;
-      }
+      claimWriteLock(pendingLock, opId);
       const watchedAt = new Date().toISOString();
       const record: MarkRecord = {
         opId,

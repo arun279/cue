@@ -149,6 +149,37 @@ describe("TraktClient pagination", () => {
     expect(result.ok && result.data).toEqual(rows);
     expect(result.ok && result.pagination).toBeNull();
   });
+
+  it("fails the whole walk when a later page fails", async () => {
+    server.use(
+      http.get(`${TRAKT_API_BASE}/sync/history`, ({ request }) =>
+        new URL(request.url).searchParams.get("page") === "1"
+          ? HttpResponse.json([{ id: 1 }], { headers: pageHeaders(1, 2) })
+          : new HttpResponse(null, { status: 503 }),
+      ),
+    );
+    expect(await client().getAllPages("/sync/history")).toEqual({
+      ok: false,
+      error: { kind: "server", status: 503 },
+    });
+  });
+
+  it("ignores a garbled page count and stops at a page that is not a list", async () => {
+    server.use(
+      http.get(`${TRAKT_API_BASE}/sync/history`, ({ request }) =>
+        new URL(request.url).searchParams.get("page") === "1"
+          ? HttpResponse.json([{ id: 1 }], {
+              headers: { "X-Pagination-Page": "1", "X-Pagination-Page-Count": "many" },
+            })
+          : HttpResponse.json({ error: "no such page" }),
+      ),
+    );
+    expect(await client().getAllPages("/sync/history")).toEqual({
+      ok: true,
+      data: [{ id: 1 }],
+      pagination: null,
+    });
+  });
 });
 
 describe("TraktClient error mapping", () => {

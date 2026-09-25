@@ -78,11 +78,11 @@ function Row({ qc, slot }: { qc: QueryClient; slot: Slot[] }) {
   return null;
 }
 
-function mountRow(runtime: CueRuntime): { slot: Slot[]; qc: QueryClient } {
+function mountRow(runtime: CueRuntime, seeded = entry()): { slot: Slot[]; qc: QueryClient } {
   // The app's own client, so an hours-long case measures the fix rather than
   // the default 5-minute gcTime collecting the seeded library out from under it.
   const qc = createQueryClient();
-  qc.setQueryData<UpNextData>(queryKeys.library(), { entries: [entry()] });
+  qc.setQueryData<UpNextData>(queryKeys.library(), { entries: [seeded] });
   const slot: Slot[] = [];
   mount(
     <QueryClientProvider client={qc}>
@@ -160,5 +160,22 @@ describe("the queue mark control", () => {
 
     expect(slot[0]?.state).toBe("unwatched");
     expect(slot[0]?.label).toBe("Mark Harbor Lights S3 E5 watched");
+  });
+
+  it("marks once when a double tap lands before the row re-renders", () => {
+    const { slot, qc } = mountRow(heldRuntime());
+    act(() => {
+      slot[0]?.press();
+      slot[0]?.press();
+    });
+    expect(currentEntry(qc)?.completed).toBe(5);
+  });
+
+  it("writes nothing for a row whose next episode is not known yet", () => {
+    const unknownNext = entry({ nextEpisode: null });
+    const { slot, qc } = mountRow(heldRuntime(), unknownNext);
+    act(() => slot[0]?.press());
+    expect(currentEntry(qc)).toStrictEqual(unknownNext);
+    expect(slot[0]?.state).toBe("unwatched");
   });
 });

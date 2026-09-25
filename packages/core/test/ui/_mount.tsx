@@ -41,3 +41,9 @@ export async function mountAsync(node: ReactNode): Promise<void> {
   await act(async () => r.render(node));
   await act(async () => {});
 }
+
+/** Tear the mounted tree down mid-test, as a session ending would. */
+export function unmount(): void {
+  act(() => root?.unmount());
+  root = null;
+}

@@ -14,11 +14,11 @@ import { createQueryCachePolicy } from "../../src/runtime/query-cache";
 const LIBRARY_SHOW = 1;
 const UNSEEN_SHOW = 2;
 
-function policyOver(entries: readonly { readonly showId: number }[]): {
+function policyOver(entries?: readonly { readonly showId: number }[]): {
   persists(key: readonly unknown[], status?: "success" | "error"): boolean;
 } {
   const queryClient = new QueryClient();
-  queryClient.setQueryData(queryKeys.library(), { entries });
+  if (entries !== undefined) queryClient.setQueryData(queryKeys.library(), { entries });
   const { shouldDehydrateQuery } = createQueryCachePolicy(queryClient);
   return {
     persists(key, status = "success") {
@@ -62,6 +62,7 @@ describe("what a cold boot restores", () => {
     const empty = policyOver([]);
     expect(empty.persists(queryKeys.showInfo(LIBRARY_SHOW))).toBe(false);
     expect(empty.persists(queryKeys.library())).toBe(true);
+    expect(policyOver().persists(queryKeys.showInfo(LIBRARY_SHOW))).toBe(false);
   });
 
   it("never restores a query that failed", () => {

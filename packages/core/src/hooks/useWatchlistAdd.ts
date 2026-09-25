@@ -21,15 +21,6 @@ export interface WatchlistAddView {
   clearAddError(): void;
 }
 
-/** Which watchlist sections a surface seeds membership from. A movie-only rail
- * (Movie detail "More like this", the movie browse rails) passes `{ movies: true }`
- * so it never spends a `/sync/watchlist/shows` read it can never use: the
- * gated-by-medium rate budget. Mixed Search results leave both on by default. */
-interface WatchlistSections {
-  readonly shows?: boolean;
-  readonly movies?: boolean;
-}
-
 function sectionOf(type: "show" | "movie"): "shows" | "movies" {
   return type === "movie" ? "movies" : "shows";
 }
@@ -49,12 +40,9 @@ function addKey(hit: SearchHit): string {
  * reads as "in library" rather than offering a second add. The add is
  * optimistic through the durable queue, revalidating the section only once the
  * write lands (a still-deferred add keeps the optimistic "Added" without a
- * refetch that would read pre-add state). `sections` scopes which membership
- * reads fire, so a movie-only rail never pulls the show watchlist.
+ * refetch that would read pre-add state).
  */
-export function useWatchlistAdd(
-  sections: WatchlistSections = { shows: true, movies: true },
-): WatchlistAddView {
+export function useWatchlistAdd(): WatchlistAddView {
   const runtime = useRuntime();
   const queryClient = useQueryClient();
   const submit = useOptimisticWrite();
@@ -68,13 +56,8 @@ export function useWatchlistAdd(
     [submit],
   );
 
-  const showsEnabled = sections.shows ?? false;
-  const moviesEnabled = sections.movies ?? false;
   const [watchlistShows, watchlistMovies] = useQueries({
-    queries: [
-      { ...watchlistQuery(runtime, "shows"), enabled: showsEnabled },
-      { ...watchlistQuery(runtime, "movies"), enabled: moviesEnabled },
-    ],
+    queries: [watchlistQuery(runtime, "shows"), watchlistQuery(runtime, "movies")],
   });
   const listedShows = watchlistShows.data;
   const listedMovies = watchlistMovies.data;

@@ -1,4 +1,4 @@
-import { parseReadRetryAfterMs, parseRetryAfterMs } from "../../domain/write-queue/classify";
+import { parseReadRetryAfterMs } from "../../domain/write-queue/classify";
 
 export const TRAKT_API_BASE = "https://api.trakt.tv";
 export const TRAKT_REQUEST_TIMEOUT_MS = 15_000;
@@ -154,33 +154,23 @@ export class TraktClient {
     const key = buildPath(path, options);
     const existing = this.inFlightGets.get(key);
     if (existing !== undefined) return existing;
-    const request = this.request("GET", path, options);
+    const request = this.read(path, options);
     this.inFlightGets.set(key, request);
-    request.finally(() => {
-      if (this.inFlightGets.get(key) === request) this.inFlightGets.delete(key);
-    });
+    request.finally(() => this.inFlightGets.delete(key));
     return request;
   }
 
-  async post(path: string, body: unknown): Promise<TraktResult<unknown>> {
-    return this.request("POST", path, { body });
-  }
-
-  private async request(
-    method: HttpMethod,
-    path: string,
-    options: RequestOptions,
-  ): Promise<TraktResult<unknown>> {
+  private async read(path: string, options: RequestOptions): Promise<TraktResult<unknown>> {
     let raw: RawResponse;
     try {
-      raw = await this.send(method, path, options);
+      raw = await this.send("GET", path, options);
     } catch (cause) {
       return { ok: false, error: this.rejectionFailure(cause) };
     }
     if (raw.status >= 200 && raw.status < 300) {
       return { ok: true, data: raw.data, pagination: readPagination(raw.headers) };
     }
-    return { ok: false, error: mapFailure(raw, method) };
+    return { ok: false, error: mapFailure(raw) };
   }
 
   /**
@@ -207,20 +197,14 @@ export class TraktClient {
   }
 }
 
-function mapFailure(raw: RawResponse, method: HttpMethod): TraktFailure {
+function mapFailure(raw: RawResponse): TraktFailure {
   if (raw.status === 401) return { kind: "unauthorized" };
   if (raw.status === 404) return { kind: "not-found" };
   if (raw.status === 420) return { kind: "account-limit" };
   if (raw.status === 423) return { kind: "account-locked" };
   if (raw.status === 426) return { kind: "vip-required" };
   if (raw.status === 429) {
-    return {
-      kind: "rate-limited",
-      retryAfterMs:
-        method === "GET"
-          ? parseReadRetryAfterMs(raw.headers, Date.now())
-          : parseRetryAfterMs(raw.headers, Date.now()),
-    };
+    return { kind: "rate-limited", retryAfterMs: parseReadRetryAfterMs(raw.headers, Date.now()) };
   }
   return { kind: "server", status: raw.status };
 }

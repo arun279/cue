@@ -168,6 +168,9 @@ describe("readFailureBody", () => {
     expect(readFailureBody({ kind: "unreadable-response" })).toBe(
       "Trakt is having trouble. Try again in a moment.",
     );
+    expect(readFailureBody({ kind: "server", status: 503 })).toBe(
+      "Trakt is having trouble. Try again in a moment.",
+    );
   });
 
   it("names permanent account failures", () => {
@@ -176,6 +179,17 @@ describe("readFailureBody", () => {
     );
     expect(readFailureBody({ kind: "account-locked" })).toBe("Your Trakt account is locked.");
     expect(readFailureBody({ kind: "vip-required" })).toBe("This requires Trakt VIP.");
+  });
+
+  it("asks for a reconnect when the session is gone", () => {
+    expect(readFailureBody({ kind: "unauthorized" })).toBe(
+      "Your Trakt session needs to reconnect.",
+    );
+  });
+
+  it("blames nobody's connection for a missing item or a body that broke the contract", () => {
+    expect(readFailureBody({ kind: "not-found" })).toBe("Try again in a moment.");
+    expect(readFailureBody(null)).toBe("Try again in a moment.");
   });
 });
 

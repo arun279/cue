@@ -158,7 +158,7 @@ export function assembleShowProgress(progress: Progress, now: number): ShowProgr
             stills: stillsOf(next),
             watched: false,
             watchedAt: null,
-            aired: isAired(next.first_aired ?? null, now),
+            aired: isAired(next.first_aired, now),
           },
   };
 }
@@ -207,7 +207,7 @@ export function assembleSeasons(
             stills: stillsOf(episode),
             watched: progressEp?.completed ?? false,
             watchedAt: progressEp?.lastWatchedAt ?? null,
-            aired: isAired(episode.first_aired ?? null, now),
+            aired: isAired(episode.first_aired, now),
           };
         });
       return {

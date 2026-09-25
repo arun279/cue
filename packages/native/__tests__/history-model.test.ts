@@ -16,12 +16,12 @@ test("local days retain separate rewatches and insert year boundaries", () => {
 });
 
 test("different episodes stay separate and mixed day totals count plays", () => {
-  const episode = historyEntry({
-    type: "episode",
+  const episode = {
+    ...historyEntry({ episodeTitle: "Night Signal" }),
+    type: "episode" as const,
     season: 1,
     number: 2,
-    episodeTitle: "Night Signal",
-  });
+  };
   const days = groupHistory(
     [
       episode,

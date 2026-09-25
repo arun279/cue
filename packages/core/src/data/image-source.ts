@@ -49,7 +49,7 @@ export function initialsOf(title: string): string {
   if (words.length === 0) return "?";
   return words
     .slice(0, 2)
-    .map((word) => word[0]?.toUpperCase() ?? "")
+    .map((word) => word.charAt(0).toUpperCase())
     .join("");
 }
 

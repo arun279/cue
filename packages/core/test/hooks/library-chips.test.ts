@@ -52,6 +52,18 @@ describe("chipBuckets", () => {
     expect(chips.watching.map((e) => e.showId)).toEqual([1, 2, 3]);
   });
 
+  it("ranks an unknown last watch as the oldest", () => {
+    const stoppedAt = (showId: number, lastWatchedAt: string | null) =>
+      entry({ showId, hidden: true, lastWatchedAt });
+    const chips = chipBuckets(
+      [stoppedAt(1, iso(NOW - 5 * DAY)), stoppedAt(2, null), stoppedAt(3, iso(NOW - DAY))],
+      NOW,
+      THRESHOLD,
+      "recently-watched",
+    );
+    expect(chips.stopped.map((e) => e.showId)).toEqual([3, 1, 2]);
+  });
+
   it("sorts alphabetically case-insensitively", () => {
     const chips = chipBuckets(
       [entry({ showId: 1, title: "beta" }), entry({ showId: 2, title: "Alpha" })],
@@ -66,13 +78,16 @@ describe("chipBuckets", () => {
     const chips = chipBuckets(
       [
         entry({ showId: 1, aired: 10, completed: 2 }),
+        entry({ showId: 3, aired: 0, completed: 0, hidden: true }),
         entry({ showId: 2, aired: 10, completed: 9 }),
+        entry({ showId: 4, aired: 10, completed: 5, hidden: true }),
       ],
       NOW,
       THRESHOLD,
       "progress",
     );
     expect(chips.watching.map((e) => e.showId)).toEqual([2, 1]);
+    expect(chips.stopped.map((e) => e.showId)).toEqual([4, 3]);
   });
 
   it("returns empty chips for an empty library", () => {

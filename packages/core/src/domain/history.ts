@@ -8,22 +8,25 @@ import { toMs } from "./time";
  * removed WITHOUT touching the item's other plays/rewatches. `ids` is the item's
  * own id block, kept for the best-effort restore (re-adding the play by item).
  */
-export interface HistoryEntry {
+interface Play {
   readonly historyId: number;
   readonly watchedAt: string;
-  readonly type: "episode" | "movie";
   /** The show (episode) or movie trakt id: the poster subject + detail link. */
   readonly mediaId: number;
   readonly ids: EpisodeIds | MovieIds;
   readonly title: string;
   /** Movie release year; null for episodes. */
   readonly year: number | null;
-  readonly season: number | null;
-  readonly number: number | null;
   readonly episodeTitle: string | null;
   readonly posters: readonly string[];
   readonly tmdbId: number | null;
 }
+
+export type HistoryEntry = Play &
+  (
+    | { readonly type: "episode"; readonly season: number; readonly number: number }
+    | { readonly type: "movie"; readonly season: null; readonly number: null }
+  );
 
 /**
  * A run of history rows collapsed under one card. A lone play (or movie) is a
@@ -107,7 +110,6 @@ function groupDay(entries: readonly HistoryEntry[]): HistoryGroup[] {
   const groups: HistoryGroup[] = [];
   let run: HistoryEntry[] = [];
   const flush = (): void => {
-    if (run.length === 0) return;
     const head = run[0] as HistoryEntry;
     const minutes = new Set(run.map((e) => minuteOf(Date.parse(e.watchedAt))));
     groups.push({
@@ -143,24 +145,21 @@ export function groupHistory(
     label: "Yesterday",
   });
 
-  const byDay = new Map<string, HistoryEntry[]>();
+  const byDay = new Map<string, { readonly sample: number; readonly rows: HistoryEntry[] }>();
   for (const entry of entries) {
     const ms = toMs(entry.watchedAt);
     if (ms === null) continue;
     const key = dayKeyOf(ms);
-    const list = byDay.get(key) ?? [];
-    list.push(entry);
-    byDay.set(key, list);
+    const day = byDay.get(key) ?? { sample: ms, rows: [] };
+    day.rows.push(entry);
+    byDay.set(key, day);
   }
 
-  return [...byDay.entries()]
-    .sort(([a], [b]) => (a < b ? 1 : a > b ? -1 : 0))
-    .map(([dayKey, rows]) => {
-      const ordered = [...rows].sort((a, b) => (toMs(b.watchedAt) ?? 0) - (toMs(a.watchedAt) ?? 0));
-      return {
-        dayKey,
-        label: labelFor(dayKey, toMs(ordered[0]?.watchedAt ?? null) ?? now),
-        groups: groupDay(ordered),
-      };
-    });
+  return [...byDay]
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([dayKey, { sample, rows }]) => ({
+      dayKey,
+      label: labelFor(dayKey, sample),
+      groups: groupDay(rows.sort((a, b) => Date.parse(b.watchedAt) - Date.parse(a.watchedAt))),
+    }));
 }
