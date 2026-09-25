@@ -2,7 +2,7 @@ import { Stack, useRouter } from "expo-router";
 import type { ReactElement } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { Button } from "../../src/ui/Button";
-import { barOptions } from "../../src/ui/navigation-theme";
+import { barOptions, useEpisodeSheetOptions } from "../../src/ui/navigation-theme";
 import { SnackbarHost } from "../../src/ui/SnackbarHost";
 import { TEST_IDS } from "../../src/ui/test-ids";
 import { useColors } from "../../src/ui/tokens";
@@ -26,6 +26,7 @@ export const unstable_settings = { initialRouteName: "profile" };
 export default function AccountLayout(): ReactElement {
   const router = useRouter();
   const colors = useColors();
+  const sheet = useEpisodeSheetOptions();
 
   return (
     <View style={styles.root}>
@@ -54,16 +55,7 @@ export default function AccountLayout(): ReactElement {
           name="movie/[movieId]"
           options={{ title: "Movie", headerTransparent: false }}
         />
-        <Stack.Screen
-          name="show/[showId]/episode/[season]/[episode]"
-          options={{
-            presentation: "formSheet",
-            headerShown: false,
-            sheetAllowedDetents: [0.65, 0.92],
-            sheetGrabberVisible: true,
-            contentStyle: { backgroundColor: colors.bg },
-          }}
-        />
+        <Stack.Screen name="show/[showId]/episode/[season]/[episode]" options={sheet} />
       </Stack>
       <SnackbarHost placement="presentation" />
     </View>

@@ -1,6 +1,37 @@
-import { DarkTheme, DefaultTheme, type Theme } from "expo-router";
-import { type ColorValue, Platform, useColorScheme } from "react-native";
-import { PALETTE } from "./tokens";
+import {
+  DarkTheme,
+  DefaultTheme,
+  type NativeStackNavigationOptions,
+  type Theme,
+} from "expo-router";
+import { type ColorValue, Platform, useColorScheme, useWindowDimensions } from "react-native";
+import { PALETTE, RADIUS, useColors } from "./tokens";
+
+/**
+ * Above this text scale the episode sheet's own copy fills the compact detent,
+ * so it opens expanded rather than opening on a mark row the reader has to drag
+ * the sheet up to reach.
+ */
+const EXPANDED_SHEET_FONT_SCALE = 1.3;
+
+/**
+ * The episode sheet as every stack that hosts it presents it. UIKit owns the
+ * detents, the grabber and the physics; the two heights keep compact and
+ * expanded reading positions, and the grabber is the sheet's only chrome.
+ */
+export function useEpisodeSheetOptions(): NativeStackNavigationOptions {
+  const colors = useColors();
+  const { fontScale } = useWindowDimensions();
+  return {
+    presentation: "formSheet",
+    headerShown: false,
+    sheetAllowedDetents: [0.65, 0.92],
+    sheetInitialDetentIndex: fontScale >= EXPANDED_SHEET_FONT_SCALE ? 1 : 0,
+    sheetGrabberVisible: true,
+    sheetCornerRadius: RADIUS.sheet,
+    contentStyle: { backgroundColor: colors.bg },
+  };
+}
 
 /**
  * A stack bar's own fill, which only Android draws: the page's color, flat at
