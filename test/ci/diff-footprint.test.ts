@@ -1,18 +1,14 @@
-import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { execFileSync, spawnSync } from "node:child_process";
+import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { gitEnv } from "../support/git-env";
+import { repositoryPath } from "../support/repository-path";
+import { tempDirectory } from "../support/temp-directory";
 
-const REPOSITORY_ROOT = execFileSync("git", ["rev-parse", "--show-toplevel"], {
-  encoding: "utf8",
-  env: gitEnv(),
-}).trim();
-const SCRIPT = path.join(REPOSITORY_ROOT, "scripts/diff-footprint.sh");
-const repositories: string[] = [];
+const SCRIPT = repositoryPath("scripts/diff-footprint.sh");
 
-const write = (repository: string, file: string, contents: string | Uint8Array): void => {
+const write = (repository: string, file: string, contents: string): void => {
   const target = path.join(repository, file);
   mkdirSync(path.dirname(target), { recursive: true });
   writeFileSync(target, contents);
@@ -22,54 +18,93 @@ const git = (repository: string, ...args: string[]): void => {
   execFileSync("git", args, { cwd: repository, stdio: "ignore", env: gitEnv() });
 };
 
-afterEach(() => {
-  for (const repository of repositories.splice(0)) {
-    rmSync(repository, { recursive: true, force: true });
-  }
-});
+const repositoryWithGrowth = (): string => {
+  const repository = tempDirectory("cue-diff-footprint-");
+  git(repository, "init", "--quiet");
+  git(repository, "config", "user.name", "Cue Tests");
+  git(repository, "config", "user.email", "cue-tests@example.invalid");
+  write(repository, "packages/core/src/removed.ts", "const removed = true;\n");
+  write(repository, "packages/core/test/removed.ts", "removed\n");
+  git(repository, "add", ".");
+  git(repository, "commit", "--quiet", "-m", "base");
+  write(repository, "packages/core/src/removed.ts", "const kept = true;\n// reason\n");
+  write(repository, "packages/native/app/route.tsx", "export const route = true;\n");
+  write(repository, "packages/native/modules/module.ts", "export const module = true;\n");
+  write(repository, "packages/native/__tests__/added.ts", "one\ntwo\n");
+  git(repository, "add", "-A");
+  git(repository, "commit", "--quiet", "-m", "head");
+  return repository;
+};
+
+const rationale = "Product-Growth: New route and module.\nComment-Load: Required context.";
 
 describe("diff footprint", () => {
-  it("reports area totals and product line types from the same uncompressed diff", () => {
-    const repository = mkdtempSync(path.join(tmpdir(), "cue-diff-footprint-"));
-    repositories.push(repository);
-    git(repository, "init", "--quiet");
-    git(repository, "config", "user.name", "Cue Tests");
-    git(repository, "config", "user.email", "cue-tests@example.invalid");
-
-    write(repository, "src/removed.ts", "const removed = true;\n// removed\n\n");
-    write(repository, "test/moved.ts", "one\ntwo\n");
-    write(repository, "e2e/removed.ts", "removed\n");
-    write(repository, "docs/removed.md", "removed\n");
-    write(repository, "assets/image.bin", new Uint8Array([0, 1, 2]));
-    git(repository, "add", ".");
-    git(repository, "commit", "--quiet", "-m", "base");
-
-    git(repository, "mv", "test/moved.ts", "src/moved.ts");
-    rmSync(path.join(repository, "src/removed.ts"));
-    rmSync(path.join(repository, "e2e/removed.ts"));
-    rmSync(path.join(repository, "docs/removed.md"));
-    write(repository, "src/added.ts", "const added = true;\n /* added */\n \n");
-    write(repository, "test/added.ts", "added\n");
-    write(repository, "e2e/added.ts", "one\ntwo\n");
-    write(repository, "docs/added.md", "one\ntwo\nthree\n");
-    write(repository, "assets/image.bin", new Uint8Array([0, 3, 4]));
-    git(repository, "add", "-A");
-    git(repository, "commit", "--quiet", "-m", "change");
-
+  it("shows the three requested growth signals", () => {
+    const repository = repositoryWithGrowth();
     const output = execFileSync(SCRIPT, ["HEAD~1"], {
       cwd: repository,
       encoding: "utf8",
-      env: gitEnv(),
+      env: { ...gitEnv(), PR_BODY: rationale },
     });
 
     expect(output.split("\n")[0]).toBe("<!-- diff-footprint -->");
-    expect(output).toContain("| product (src/) | 5 | 3 | +2 |");
-    expect(output).toContain("| tests (test/) | 1 | 2 | -1 |");
-    expect(output).toContain("| e2e (e2e/) | 2 | 1 | +1 |");
-    expect(output).toContain("| other | 3 | 1 | +2 |");
-    expect(output).toContain("| total | 11 | 7 | +4 |");
     expect(output).toContain(
-      "Product lines: code +3 / -1 (net +2), comments +1 / -1, blank +1 / -1",
+      "| Product code lines in core/src, native/src, native/app, and native/modules | +2 |",
     );
+    expect(output).toContain("| Test lines in test, __tests__, and e2e paths | +2 |");
+    expect(output).toContain("| Product comment lines identified by a comment prefix | +1 |");
+    expect(output).not.toContain("other");
+    expect(output).not.toContain("blank");
+  });
+
+  it.each([
+    ["Product-Growth: ", "Product code grew"],
+    ["Product-Growth: New route.\nComment-Load: ", "Product comments grew"],
+  ])("requires a non-empty growth rationale", (body, error) => {
+    const result = spawnSync(SCRIPT, ["HEAD~1"], {
+      cwd: repositoryWithGrowth(),
+      encoding: "utf8",
+      env: { ...gitEnv(), PR_BODY: body },
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(error);
+  });
+
+  it("shows the four delivered artifact measurements", () => {
+    const repository = repositoryWithGrowth();
+    const sizes = [
+      { name: "expo iOS bundle", size: 4_000_000 },
+      { name: "expo Android bundle", size: 4_200_000 },
+      { name: "Firebase tester APK file", size: 34_000_000 },
+      { name: "Play download estimate", size: 17_000_000 },
+    ];
+    write(repository, "base.json", JSON.stringify({ sizes }));
+    write(
+      repository,
+      "head.json",
+      JSON.stringify({
+        sizes: sizes.map((entry, index) => ({
+          ...entry,
+          size: entry.size + (index === 0 ? 1_000 : 0),
+        })),
+      }),
+    );
+
+    const output = execFileSync(SCRIPT, ["HEAD~1", "base.json", "head.json"], {
+      cwd: repository,
+      encoding: "utf8",
+      env: { ...gitEnv(), PR_BODY: rationale },
+    });
+
+    expect(output).toContain(
+      "| Expo iOS JavaScript bundle, raw file | 4.00 MB | 4.00 MB | +1.0 kB |",
+    );
+    expect(output).toContain(
+      "| Firebase tester APK, arm64-v8a and all densities | 34.00 MB | 34.00 MB | 0 B |",
+    );
+    expect(output).not.toContain("simulator");
+    expect(output).not.toContain("complexity");
+    expect(output).not.toContain("density");
   });
 });

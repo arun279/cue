@@ -1,0 +1,117 @@
+appId: app.cuetracker
+---
+- launchApp:
+    clearState: true
+    clearKeychain: true
+- extendedWaitUntil:
+    visible:
+      id: "screen-onboarding"
+    timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: onboarding-ready
+- tapOn:
+    id: "button-connect"
+    waitToSettleTimeoutMs: 100
+- extendedWaitUntil:
+    visible:
+      id: "device-code-value"
+    timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: connect-code-ready
+- runScript: lib/approve-device.js
+- extendedWaitUntil:
+    visible:
+      id: "screen-up-next"
+    timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: up-next-populated
+- tapOn:
+    id: "queue-row-8803"
+- extendedWaitUntil:
+    visible:
+      id: "screen-show-detail"
+    timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: show-detail-rest
+- scrollUntilVisible:
+    element:
+      id: "episode-row-880308"
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: "episode-row-880308"
+- extendedWaitUntil:
+    visible:
+      id: "episode-sheet"
+    timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: episode-sheet-rest
+- runFlow: lib/dismiss-episode-sheet.yaml
+- extendedWaitUntil:
+    visible:
+      id: "screen-show-detail"
+    timeout: 30000
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          text: "Up Next"
+          index: 0
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - launchApp
+- extendedWaitUntil:
+    visible:
+      id: "screen-up-next"
+    timeout: 30000
+- tapOn: "Library"
+- extendedWaitUntil:
+    visible:
+      id: "screen-library"
+    timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: library-shows
+- tapOn: "Calendar"
+- extendedWaitUntil:
+    visible:
+      id: "screen-calendar"
+    timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: calendar-rest
+- tapOn: "Search"
+- extendedWaitUntil:
+    visible:
+      id: "screen-search"
+    timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: search-empty
+# On iOS the selected search tab folds the other tabs into one button named for
+# the tab it returns to, so the way back to Up Next goes through Calendar.
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: "Calendar"
+      - extendedWaitUntil:
+          visible:
+            id: "screen-calendar"
+          timeout: 30000
+- tapOn: "Up Next"
+- extendedWaitUntil:
+    visible:
+      id: "screen-up-next"
+    timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: up-next-tab-rest

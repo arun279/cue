@@ -5,12 +5,13 @@ on:
     # only once ci.yml's checks are green for that exact SHA, and it reads a
     # push-event run. Without this, dispatching mobile-release.yml on a release
     # branch waits out its deadline on checks that would never report.
-    branches: [main, "release/*"]
+    branches: [main, feat/expo-native, "release/*"]
   pull_request:
   schedule:
-    # Weekly re-run so the (non-deterministic) advisory audit catches newly
-    # disclosed CVEs against the pinned lockfile without gating everyday commits.
-    - cron: "0 6 * * 1"
+    # Nightly run: the (non-deterministic) advisory audit catches newly disclosed
+    # CVEs against the pinned lockfile, and the iOS flow lane, which pull
+    # requests run only when their iOS fingerprint changes, covers main.
+    - cron: "0 6 * * *"
 permissions:
   contents: read
 # github.ref is refs/heads/main for every push, so consecutive main pushes
@@ -20,7 +21,7 @@ permissions:
 # SHA, so only runs of the identical commit collide. Every Dependabot commit now
 # runs full CI instead of coalescing a burst. The repository is public, so
 # Actions minutes are free and that cost is acceptable.
-# The event name is also part of the group: the weekly schedule run and a push
+# The event name is also part of the group: the nightly schedule run and a push
 # landing on the same commit both resolve to the same SHA, and without the
 # event name the schedule run would cancel a same-commit push run in progress.
 # The ref is in the group for the same reason: a release branch cut from a main
@@ -30,12 +31,120 @@ concurrency:
   group: ci-${{ github.event_name }}-${{ github.ref }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: true
 jobs:
-  check:
+  fingerprint:
+    permissions:
+      actions: read
+      contents: read
     runs-on: ubuntu-latest
+    outputs:
+      android: ${{ steps.native.outputs.android }}
+      ios: ${{ steps.native.outputs.ios }}
+      ios-owed: ${{ steps.ios-owed.outputs.owed }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup-node-pnpm
+      - id: native
+        name: Compute native fingerprints
+        env:
+          ANDROID_ARCHITECTURES: arm64-v8a,x86_64
+          APP_VERSION: 9.9.9
+          BUILD_NUMBER: "42"
+          CONFIGURATION: Release
+          EAS_UPDATE_CHANNEL: preview
+          EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
+          XCODE_PATH: /Applications/Xcode_26.6.app
+        run: |
+          android=$(pnpm exec node scripts/native-fingerprint.mjs android)
+          ios=$(pnpm exec node scripts/native-fingerprint.mjs ios)
+          echo "android=$android" >> "$GITHUB_OUTPUT"
+          echo "ios=$ios" >> "$GITHUB_OUTPUT"
+      - id: ios-owed
+        name: Owe the iOS lane unless its last run on this branch passed
+        if: github.event_name == 'pull_request'
+        env:
+          BRANCH: ${{ github.head_ref }}
+          GH_TOKEN: ${{ github.token }}
+          LANE: >-
+            [.jobs[] | select(.name | test("^(native-e2e-ios-light|ui-screenshots-ios-dark|ui-contact-sheets)"))]
+            | if all(.conclusion == "skipped") then "skipped" else any(.conclusion != "success") end
+        run: |
+          owed=true
+          while read -r run; do
+            state=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run/jobs?per_page=100" --jq "$LANE")
+            if [ "$state" != skipped ]; then
+              owed=$state
+              break
+            fi
+          done < <(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=$BRANCH&status=completed&per_page=50" --jq '.workflow_runs[].id')
+          echo "owed=$owed" >> "$GITHUB_OUTPUT"
+  check:
+    permissions:
+      contents: read
+      pull-requests: read
+    runs-on: ubuntu-latest
+    outputs:
+      js-bundles: ${{ steps.js-bundles.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-node-pnpm
       - run: pnpm check
+        env:
+          EXPO_ATLAS: "true"
+      - name: Upload JavaScript bundles
+        id: js-bundles
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cue-js-bundles
+          path: |
+            packages/native/.expo/atlas.jsonl
+            packages/native/dist/
+          retention-days: 30
+      - name: Gate changed core coverage
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          PR_BODY=$(gh pr view "$PR_NUMBER" --json body --jq .body)
+          node scripts/check-changed-coverage.mjs "origin/$BASE_REF" coverage/lcov.info "$PR_BODY"
+  render-performance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-node-pnpm
+      - name: Measure base and head consecutively
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: test-client
+        run: |
+          if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            BASE_SHA=$(git rev-parse HEAD^)
+          fi
+          if git show "$BASE_SHA:packages/native/package.json" 2>/dev/null | grep -q '"perf:render"'; then
+            base_directory="$RUNNER_TEMP/render-base"
+            git worktree add --detach "$base_directory" "$BASE_SHA"
+            pnpm --dir "$base_directory" install --frozen-lockfile
+            (cd "$base_directory" && pnpm --dir packages/native perf:render --baseline --compare=false)
+            mkdir -p packages/native/.reassure
+            cp "$base_directory/packages/native/.reassure/baseline.perf" \
+              packages/native/.reassure/baseline.perf
+          fi
+          pnpm --dir packages/native perf:render
+      - name: Gate render counts
+        run: pnpm check:render-counts
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ !cancelled() }}
+        with:
+          name: reassure-render-performance
+          path: packages/native/.reassure/
+          include-hidden-files: true
+          retention-days: 7
   audit:
     runs-on: ubuntu-latest
     steps:
@@ -57,87 +166,648 @@ jobs:
           bundler-cache: true
       - run: bundle exec standardrb fastlane/Fastfile fastlane/Appfile
   footprint:
-    # Fork and Dependabot runs receive a read-only token.
-    # Skip them because that token cannot post comments.
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'
+    # The footprint needs only the published bundles and Android sizes, so a
+    # later gate failing in check must not suppress the pull request comment.
+    if: >-
+      !cancelled() && needs.check.outputs.js-bundles != '' && needs.native-android.result == 'success' &&
+      ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]') ||
+      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feat/expo-native')))
     permissions:
+      actions: read
       contents: read
       pull-requests: write
+    needs: [check, native-android]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+      - uses: ./.github/actions/setup-node-pnpm
+      - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        with:
+          name: cue-js-bundles
+          path: packages/native
+      - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        with:
+          name: cue-native-android-sizes
+          path: ${{ runner.temp }}/native-android-sizes
+      - name: Restore the base measurement
+        if: github.event_name == 'pull_request'
+        env:
+          ARTIFACT_NAME: cue-footprint-${{ github.event.pull_request.base.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if scripts/download-ci-artifact.sh "$ARTIFACT_NAME" "$RUNNER_TEMP/base-metrics" footprint; then
+            cp "$RUNNER_TEMP/base-metrics/head-metrics.json" base-metrics.json
+            echo "::notice::Restored merge-base measurements from $ARTIFACT_NAME"
+          else
+            run_id=$(gh api \
+              "repos/${{ github.repository }}/actions/workflows/ci.yml/runs?head_sha=$BASE_SHA&status=success&per_page=1" \
+              --jq '.workflow_runs[0].id // empty')
+            if [ -z "$run_id" ]; then
+              echo "::error::Missing merge-base measurements and successful CI artifacts for $BASE_SHA"
+              exit 1
+            fi
+            gh run download "$run_id" --repo "${{ github.repository }}" \
+              --name cue-js-bundles --dir "$RUNNER_TEMP/base-native"
+            if gh run download "$run_id" --repo "${{ github.repository }}" \
+              --name cue-native-android-sizes --dir "$RUNNER_TEMP/base-android"; then
+              cp "$RUNNER_TEMP/base-android/head-android-sizes.json" \
+                "$RUNNER_TEMP/base-android-sizes.json"
+            else
+              android_artifact=$(gh api \
+                "repos/${{ github.repository }}/actions/runs/$run_id/artifacts?per_page=100" \
+                --jq '.artifacts[] | select(.expired | not) | .name | select(startswith("cue-native-android-") and . != "cue-native-android-sizes")' | head -n 1)
+              if [ -z "$android_artifact" ]; then
+                echo "::error::Missing Android artifacts for merge base $BASE_SHA"
+                exit 1
+              fi
+              gh run download "$run_id" --repo "${{ github.repository }}" \
+                --name "$android_artifact" --dir "$RUNNER_TEMP/base-android"
+              curl --fail --location --retry 3 \
+                --output "$RUNNER_TEMP/bundletool.jar" \
+                https://github.com/google/bundletool/releases/download/1.18.3/bundletool-all-1.18.3.jar
+              echo "a099cfa1543f55593bc2ed16a70a7c67fe54b1747bb7301f37fdfd6d91028e29  $RUNNER_TEMP/bundletool.jar" | sha256sum --check
+              echo '{"supportedAbis":["arm64-v8a"],"supportedLocales":["en"],"screenDensity":640,"sdkVersion":35}' \
+                > "$RUNNER_TEMP/base-android/device.json"
+              java -jar "$RUNNER_TEMP/bundletool.jar" build-apks \
+                --bundle="$RUNNER_TEMP/base-android/app-release.aab" \
+                --output="$RUNNER_TEMP/base-android/all.apks" --overwrite
+              java -jar "$RUNNER_TEMP/bundletool.jar" get-size total \
+                --apks="$RUNNER_TEMP/base-android/all.apks" \
+                --device-spec="$RUNNER_TEMP/base-android/device.json" \
+                > "$RUNNER_TEMP/base-android/play-size.csv"
+              tester_size=$(wc -c < "$RUNNER_TEMP/base-android/tester-arm64-v8a.apk" | tr -d ' ')
+              play_size=$(node scripts/bundletool-size.mjs \
+                "$RUNNER_TEMP/base-android/play-size.csv" --value-only)
+              jq -n --argjson tester "$tester_size" --argjson play "$play_size" \
+                '[{name: "Firebase tester APK file", size: $tester}, {name: "Play download estimate", size: $play}]' \
+                > "$RUNNER_TEMP/base-android-sizes.json"
+            fi
+            scripts/measure-sizes.sh "$RUNNER_TEMP/base-native" "$RUNNER_TEMP/base-js-sizes.json"
+            jq -s 'add' "$RUNNER_TEMP/base-js-sizes.json" \
+              "$RUNNER_TEMP/base-android-sizes.json" > "$RUNNER_TEMP/base-sizes.json"
+            jq -n --slurpfile sizes "$RUNNER_TEMP/base-sizes.json" \
+              '{sizes: $sizes[0]}' > base-metrics.json
+            echo "::notice::Measured merge base $BASE_SHA from CI run $run_id artifacts"
+          fi
+      - name: Measure delivered artifacts
+        run: |
+          scripts/measure-sizes.sh packages/native "$PWD/head-sizes.json"
+          jq -s 'add' head-sizes.json \
+            "$RUNNER_TEMP/native-android-sizes/head-android-sizes.json" > all-head-sizes.json
+          mv all-head-sizes.json head-sizes.json
+          jq -n --slurpfile sizes head-sizes.json '{sizes: $sizes[0]}' > head-metrics.json
       - name: Measure the diff footprint
-        run: scripts/diff-footprint.sh "origin/${{ github.base_ref }}" > footprint.md
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          PR_BODY=$(gh pr view "$PR_NUMBER" --json body --jq .body)
+          export PR_BODY
+          scripts/diff-footprint.sh "origin/$BASE_REF" base-metrics.json head-metrics.json \
+            > footprint.md
+      - name: Upload Expo Atlas
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: expo-atlas
+          path: packages/native/.expo/atlas.jsonl
+          retention-days: 7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cue-footprint-${{ github.event.pull_request.head.sha || github.sha }}
+          path: head-metrics.json
+          retention-days: 30
       - name: Update the pull request comment
+        if: github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           comments_url="repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments"
           comment_ids=$(gh api --paginate "$comments_url" --jq '.[] | select(.body | startswith("<!-- diff-footprint -->")) | .id')
-          # Recreate rather than edit: GitHub keeps a comment's displayed
-          # timestamp at creation time forever, so an edited comment reads as
-          # stale no matter how fresh its body is. Deleting and reposting keeps
-          # one comment whose timestamp is always the run that produced it.
           for comment_id in $comment_ids; do
             gh api --method DELETE "repos/${{ github.repository }}/issues/comments/$comment_id"
           done
           gh api --method POST "$comments_url" -F body=@footprint.md
-  android:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
-        with:
-          distribution: temurin
-          java-version: "21"
-          cache: gradle
-      - uses: ./.github/actions/setup-node-pnpm
-      - run: pnpm build
-      - run: pnpm exec cap sync android
-      # The version properties must reach the APK, otherwise every release ships
-      # as the placeholder 1.0 (1) and testers stop getting updates. The same
-      # read pins the merged permission set, which no repo file can be checked
-      # for: any dependency's manifest can add to it.
-      - name: Build the debug APK and check what it declares
-        working-directory: android
+      - name: Check size deltas
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          ./gradlew assembleDebug -PcueVersionCode=42 -PcueVersionName=9.9.9
-          ../scripts/verify-apk.sh app/build/outputs/apk/debug/app-debug.apk 42 9.9.9
-  ios:
-    # The runner and the Xcode path are mobile-release.yml's pin, deliberately
-    # repeated: this job exists to compile what that one archives, so the two
-    # have to stay on one toolchain. Read the reasoning there before changing
-    # either.
+          PR_BODY=$(gh pr view "$PR_NUMBER" --json body --jq .body)
+          node scripts/check-size-delta.mjs base-metrics.json head-metrics.json "$PR_BODY"
+  native-ios:
+    # A cold build measured up to 58 minutes; a cached one about 2.
+    timeout-minutes: 75
+    permissions:
+      actions: read
+      contents: read
+    needs: fingerprint
     runs-on: macos-26
+    outputs:
+      hit: ${{ steps.native-cache.outputs.hit }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_26.6.app
       - uses: ./.github/actions/setup-node-pnpm
-      - run: pnpm build
-      - run: pnpm exec cap sync ios
-      # The App target's own Swift and the hand-edited pbxproj are compiled
-      # nowhere else until `fastlane ios beta` tries a Release archive, which is
-      # a release-day discovery. A simulator destination asks for no signing
-      # material, so this runs on a fork's pull request too.
-      - name: Build the app for the simulator
+      - id: native-cache
+        name: Restore the fingerprinted simulator app
+        env:
+          ARTIFACT_NAME: cue-native-ios-${{ needs.fingerprint.outputs.ios }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          xcodebuild -project ios/App/App.xcodeproj -scheme App \
+          if scripts/download-ci-artifact.sh "$ARTIFACT_NAME" "$RUNNER_TEMP/native-ios-app" native-ios; then
+            echo "hit=true" >> "$GITHUB_OUTPUT"
+            tar -xzf "$RUNNER_TEMP/native-ios-app/Cue.app.tgz" -C "$RUNNER_TEMP/native-ios-app"
+          else
+            echo "hit=false" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.native-cache.outputs.hit != 'true'
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/Library/Caches/CocoaPods
+            ${{ runner.temp }}/native-ios-derived-data
+          key: ios-build-${{ runner.os }}-xcode-26.6-${{ hashFiles('pnpm-lock.yaml') }}
+      - if: steps.native-cache.outputs.hit != 'true'
+        run: pnpm --filter @cue/native exec expo prebuild --platform ios --clean --no-install
+        env:
+          CONFIGURATION: Release
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
+      - if: steps.native-cache.outputs.hit != 'true'
+        name: Check the generated iOS privacy configuration
+        run: scripts/verify-ios-privacy.sh packages/native/ios/Cue/Info.plist packages/native/ios/Cue/Cue.entitlements Release
+      - if: steps.native-cache.outputs.hit != 'true'
+        run: pnpm --filter @cue/native exec expo prebuild --platform ios --clean
+        env:
+          CONFIGURATION: Release
+          EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
+      - if: steps.native-cache.outputs.hit != 'true'
+        name: Check the harness transport exception
+        run: scripts/verify-ios-privacy.sh packages/native/ios/Cue/Info.plist packages/native/ios/Cue/Cue.entitlements Release 127.0.0.1
+      - if: steps.native-cache.outputs.hit != 'true'
+        name: Build the app for the simulator
+        working-directory: packages/native/ios
+        env:
+          EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
+        run: |
+          xcodebuild -workspace Cue.xcworkspace -scheme Cue \
             -configuration Release -destination 'generic/platform=iOS Simulator' \
-            CODE_SIGNING_ALLOWED=NO build
-  e2e:
-    needs: check
+            -derivedDataPath "$RUNNER_TEMP/native-ios-derived-data" build
+          mkdir -p "$RUNNER_TEMP/native-ios-app"
+          ditto "$RUNNER_TEMP/native-ios-derived-data/Build/Products/Release-iphonesimulator/Cue.app" \
+            "$RUNNER_TEMP/native-ios-app/Cue.app"
+      - if: steps.native-cache.outputs.hit == 'true'
+        name: Embed current JavaScript and assets
+        env:
+          EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
+        run: scripts/reembed-ios.sh "$RUNNER_TEMP/native-ios-app/Cue.app"
+      - name: Validate and package the simulator app
+        run: |
+          app="$RUNNER_TEMP/native-ios-app/Cue.app"
+          LC_ALL=C grep -aq 'http://127.0.0.1:8787' "$app/main.jsbundle"
+          LC_ALL=C grep -aq 'application-identifier' "$app/Cue"
+          while IFS= read -r framework; do
+            test -d "$app/Frameworks/$framework" || {
+              echo "Missing embedded framework: $framework" >&2
+              exit 1
+            }
+          done < <(
+            {
+              otool -L "$app/Cue"
+              for bundle in "$app"/Frameworks/*.framework; do
+                executable=${bundle##*/}
+                otool -L "$bundle/${executable%.framework}"
+              done
+            } | awk '$1 ~ /^@rpath\/.*\.framework\// { split($1, path, "/"); print path[2] }' | sort -u
+          )
+          tar -czf "$RUNNER_TEMP/native-ios-app/Cue.app.tgz" -C "$RUNNER_TEMP/native-ios-app" Cue.app
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cue-native-ios-${{ needs.fingerprint.outputs.ios }}
+          path: ${{ runner.temp }}/native-ios-app/Cue.app.tgz
+          retention-days: 30
+  native-e2e-ios-light:
+    timeout-minutes: 22
+    permissions:
+      actions: read
+      contents: read
+    needs: [fingerprint, native-ios]
+    if: github.event_name != 'pull_request' || needs.native-ios.outputs.hit != 'true' || needs.fingerprint.outputs.ios-owed == 'true'
+    runs-on: macos-26
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [detail, activity, discovery]
+    env:
+      MAESTRO_CLI_NO_ANALYTICS: "1"
+      MAESTRO_DRIVER_STARTUP_TIMEOUT: "300000"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.6.app
+      - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        with:
+          name: cue-native-ios-${{ needs.fingerprint.outputs.ios }}
+          path: ${{ runner.temp }}/native-ios-app
+      - id: ui-setup
+        name: Prepare the simulator and cached app
+        run: scripts/prepare-ios-ui.sh "$RUNNER_TEMP/native-ios-app"
+      - name: Run the shared light flow
+        env:
+          DEVICE_ID: ${{ steps.ui-setup.outputs.device_id }}
+          # https://web.dev/articles/rail
+          APP_IDLE_CEILING_MS: "1000"
+        run: |
+          output="$RUNNER_TEMP/screenshots/ios/light/${{ matrix.suite }}"
+          mkdir -p "$output"
+          xcrun simctl ui "$DEVICE_ID" content_size medium
+          xcrun simctl ui "$DEVICE_ID" appearance light
+          scripts/maestro-ios-test.sh "$RUNNER_TEMP/maestro-debug/${{ matrix.suite }}" \
+            ".maestro/ci/app-${{ matrix.suite }}.yaml" \
+            --env APP_IDLE_CEILING_MS="$APP_IDLE_CEILING_MS" \
+            --format JUNIT \
+            --output "$RUNNER_TEMP/maestro-results-${{ matrix.suite }}.xml" \
+            --test-output-dir "$output"
+      - name: Gate and summarize response timing
+        if: ${{ !cancelled() && matrix.suite == 'activity' }}
+        env:
+          # https://developer.apple.com/videos/play/wwdc2023/10248/
+          # https://web.dev/articles/rail
+          FEEDBACK_CEILING_MS: "100"
+        run: |
+          node scripts/check-response-timing.mjs \
+            "$RUNNER_TEMP/screenshots/ios/light/activity" \
+            "$FEEDBACK_CEILING_MS" \
+            >> "$GITHUB_STEP_SUMMARY"
+      - name: Gate and summarize app idle
+        if: ${{ !cancelled() && matrix.suite == 'discovery' }}
+        env:
+          APP_IDLE_CEILING_MS: "1000"
+        run: |
+          node scripts/summarize-app-idle.mjs \
+            "$RUNNER_TEMP/screenshots/ios/light/discovery" \
+            "$APP_IDLE_CEILING_MS" \
+            >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ !cancelled() }}
+        with:
+          name: ui-screenshots-ios-light-${{ matrix.suite }}
+          path: ${{ runner.temp }}/screenshots/ios/light/${{ matrix.suite }}
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ always() }}
+        with:
+          name: native-e2e-ios-light-${{ matrix.suite }}
+          include-hidden-files: true
+          path: |
+            ${{ runner.temp }}/maestro-debug/
+            ${{ runner.temp }}/maestro-results-*.xml
+            ${{ runner.temp }}/mock-trakt.log
+          retention-days: 7
+  native-e2e:
+    permissions:
+      contents: read
+    needs: [fingerprint, native-ios, native-e2e-ios-light]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Require passing iOS light shards unless a cached pull request skipped them
+        env:
+          EVENT: ${{ github.event_name }}
+          BUILD: ${{ needs.native-ios.result }}
+          HIT: ${{ needs.native-ios.outputs.hit }}
+          OWED: ${{ needs.fingerprint.outputs.ios-owed }}
+          SHARDS: ${{ needs.native-e2e-ios-light.result }}
+        run: node scripts/native-e2e-rollup.mjs
+  ui-screenshots-ios-dark:
+    # Measured 8 to 12 minutes.
+    timeout-minutes: 16
+    permissions:
+      actions: read
+      contents: read
+    needs: [fingerprint, native-ios]
+    if: github.event_name != 'pull_request' || needs.native-ios.outputs.hit != 'true' || needs.fingerprint.outputs.ios-owed == 'true'
+    runs-on: macos-26
+    env:
+      MAESTRO_CLI_NO_ANALYTICS: "1"
+      MAESTRO_DRIVER_STARTUP_TIMEOUT: "300000"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.6.app
+      - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        with:
+          name: cue-native-ios-${{ needs.fingerprint.outputs.ios }}
+          path: ${{ runner.temp }}/native-ios-app
+      - id: ui-setup
+        name: Prepare the simulator and cached app
+        run: scripts/prepare-ios-ui.sh "$RUNNER_TEMP/native-ios-app"
+      - name: Run the shared dark traversal
+        env:
+          DEVICE_ID: ${{ steps.ui-setup.outputs.device_id }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/screenshots/ios/dark"
+          xcrun simctl ui "$DEVICE_ID" content_size medium
+          xcrun simctl ui "$DEVICE_ID" appearance dark
+          scripts/maestro-ios-test.sh "$RUNNER_TEMP/maestro-debug/dark" \
+            .maestro/ci/screenshots.yaml \
+            --format JUNIT \
+            --output "$RUNNER_TEMP/maestro-results-dark.xml" \
+            --test-output-dir "$RUNNER_TEMP/screenshots/ios/dark"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ !cancelled() }}
+        with:
+          name: ui-screenshots-ios-dark
+          path: ${{ runner.temp }}/screenshots/ios/dark
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ always() }}
+        with:
+          name: native-e2e-ios-dark
+          include-hidden-files: true
+          path: |
+            ${{ runner.temp }}/maestro-debug/
+            ${{ runner.temp }}/maestro-results-*.xml
+            ${{ runner.temp }}/mock-trakt.log
+          retention-days: 7
+  native-android:
+    permissions:
+      actions: read
+      contents: read
+    needs: fingerprint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup-node-pnpm
-      - run: pnpm exec playwright install --with-deps chromium webkit
-      - run: pnpm e2e
+      - id: native-cache
+        name: Restore the fingerprinted Android artifacts
+        env:
+          ARTIFACT_NAME: cue-native-android-${{ needs.fingerprint.outputs.android }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if scripts/download-ci-artifact.sh "$ARTIFACT_NAME" "$RUNNER_TEMP/native-android" native-android && \
+            unzip -Z1 "$RUNNER_TEMP/native-android/universal.apk" | \
+              grep -q '^lib/x86_64/libreactnative\.so$'; then
+            echo "hit=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "hit=false" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.native-cache.outputs.hit != 'true'
+        run: pnpm --filter @cue/native exec expo prebuild --platform android --clean
+        env:
+          APP_VERSION: 9.9.9
+          BUILD_NUMBER: "42"
+          EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
+      - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            packages/native/android/gradle/wrapper/gradle-wrapper.properties
+            packages/native/android/**/*.gradle*
+      - name: Download bundletool
+        env:
+          BUNDLETOOL_VERSION: "1.18.3"
+          BUNDLETOOL_SHA256: "a099cfa1543f55593bc2ed16a70a7c67fe54b1747bb7301f37fdfd6d91028e29"
+        run: |
+          curl --fail --location --retry 3 \
+            --output "$RUNNER_TEMP/bundletool.jar" \
+            "https://github.com/google/bundletool/releases/download/$BUNDLETOOL_VERSION/bundletool-all-$BUNDLETOOL_VERSION.jar"
+          echo "$BUNDLETOOL_SHA256  $RUNNER_TEMP/bundletool.jar" | sha256sum --check
+      - name: Build release artifacts
+        if: steps.native-cache.outputs.hit != 'true'
+        working-directory: packages/native/android
+        env:
+          EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
+        run: |
+          ./gradlew --build-cache --configuration-cache --configuration-cache-problems=warn bundleRelease \
+            -PreactNativeArchitectures=arm64-v8a,x86_64
+          ./gradlew --build-cache --configuration-cache --configuration-cache-problems=warn assembleRelease \
+            -PreactNativeArchitectures=arm64-v8a
+          mkdir -p "$RUNNER_TEMP/native-android"
+          cp app/build/outputs/bundle/release/app-release.aab "$RUNNER_TEMP/native-android/"
+          cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/native-android/tester-arm64-v8a.apk"
+          cp app/debug.keystore "$RUNNER_TEMP/native-android/"
+      - if: steps.native-cache.outputs.hit == 'true'
+        name: Embed current Android JavaScript
+        env:
+          EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
+        run: |
+          scripts/reembed-android.sh \
+            "$RUNNER_TEMP/native-android/app-release.aab" \
+            "$RUNNER_TEMP/native-android/tester-arm64-v8a.apk" \
+            "$RUNNER_TEMP/native-android/debug.keystore"
+      - name: Build and check release artifacts
+        run: |
+          cd "$RUNNER_TEMP/native-android"
+          aab=app-release.aab
+          echo '{"supportedAbis":["arm64-v8a"],"supportedLocales":["en"],"screenDensity":640,"sdkVersion":35}' > device.json
+          java -jar "$RUNNER_TEMP/bundletool.jar" build-apks \
+            --bundle="$aab" --output=all.apks --overwrite
+          java -jar "$RUNNER_TEMP/bundletool.jar" get-size total \
+            --apks=all.apks --device-spec=device.json > play-size.csv
+          java -jar "$RUNNER_TEMP/bundletool.jar" build-apks \
+            --bundle="$aab" --output=universal.apks --overwrite --mode=universal \
+            --ks=debug.keystore --ks-pass=pass:android \
+            --ks-key-alias=androiddebugkey --key-pass=pass:android
+          unzip -qo universal.apks universal.apk
+          apksigner=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner -print | sort -V | tail -n 1)
+          test -n "$apksigner"
+          "$apksigner" verify universal.apk
+          "$GITHUB_WORKSPACE/scripts/verify-apk.sh" universal.apk 42 9.9.9
+          "$apksigner" verify tester-arm64-v8a.apk
+          "$GITHUB_WORKSPACE/scripts/verify-apk.sh" tester-arm64-v8a.apk 42 9.9.9 arm64-v8a
+          tester_size=$(wc -c < tester-arm64-v8a.apk | tr -d ' ')
+          play_size=$(node "$GITHUB_WORKSPACE/scripts/bundletool-size.mjs" play-size.csv --value-only)
+          jq -n --argjson tester "$tester_size" --argjson play "$play_size" \
+            '[
+              {name: "Firebase tester APK file", size: $tester, configuration: "arm64-v8a, all densities"},
+              {name: "Play download estimate", size: $play, configuration: "XXXHDPI arm64-v8a, English, Android 15"}
+            ]' > "$RUNNER_TEMP/head-android-sizes.json"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cue-native-android-${{ needs.fingerprint.outputs.android }}
+          path: |
+            ${{ runner.temp }}/native-android/app-release.aab
+            ${{ runner.temp }}/native-android/debug.keystore
+            ${{ runner.temp }}/native-android/tester-arm64-v8a.apk
+            ${{ runner.temp }}/native-android/universal.apk
+          retention-days: 30
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feat/expo-native'
+        with:
+          name: cue-native-android-sizes
+          path: ${{ runner.temp }}/head-android-sizes.json
+          retention-days: 30
+  android-e2e:
+    # The emulator and the full flow suite measured 11.3 minutes; the timeout
+    # is that plus about 25 percent.
+    timeout-minutes: 14
+    needs: [fingerprint, native-android]
+    runs-on: ubuntu-latest
+    env:
+      MAESTRO_CLI_NO_ANALYTICS: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+      - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Install Maestro 2.10.0
+        run: |
+          curl -fsSL \
+            https://github.com/mobile-dev-inc/Maestro/releases/download/cli-2.10.0/maestro.zip \
+            -o "$RUNNER_TEMP/maestro.zip"
+          echo "29b675e10cc12080e445e9bfb2e2b4e4dfb9c0f2e30d5884120d258b5e1cd991  $RUNNER_TEMP/maestro.zip" \
+            | sha256sum --check
+          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
+      - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        with:
+          name: cue-native-android-${{ needs.fingerprint.outputs.android }}
+          path: ${{ runner.temp }}/cue-native-android
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Inspect the release UI
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_7_pro
+          script: bash scripts/verify-android-ui.sh "$RUNNER_TEMP/cue-native-android/universal.apk" "$RUNNER_TEMP/android-ui" "$RUNNER_TEMP/screenshots/android" light
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ !cancelled() }}
         with:
-          name: playwright-report
-          path: playwright-report/
+          name: ui-screenshots-android-light
+          path: ${{ runner.temp }}/screenshots/android/light
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ always() }}
+        with:
+          name: android-e2e-light
+          include-hidden-files: true
+          path: ${{ runner.temp }}/android-ui
+          if-no-files-found: error
           retention-days: 7
+  ui-screenshots-android-dark:
+    # Measured 3 to 5 minutes.
+    timeout-minutes: 7
+    needs: [fingerprint, native-android]
+    runs-on: ubuntu-latest
+    env:
+      MAESTRO_CLI_NO_ANALYTICS: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+      - uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Install Maestro 2.10.0
+        run: |
+          curl -fsSL \
+            https://github.com/mobile-dev-inc/Maestro/releases/download/cli-2.10.0/maestro.zip \
+            -o "$RUNNER_TEMP/maestro.zip"
+          echo "29b675e10cc12080e445e9bfb2e2b4e4dfb9c0f2e30d5884120d258b5e1cd991  $RUNNER_TEMP/maestro.zip" \
+            | sha256sum --check
+          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
+      - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        with:
+          name: cue-native-android-${{ needs.fingerprint.outputs.android }}
+          path: ${{ runner.temp }}/cue-native-android
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Inspect the release UI
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_7_pro
+          script: bash scripts/verify-android-ui.sh "$RUNNER_TEMP/cue-native-android/universal.apk" "$RUNNER_TEMP/android-ui" "$RUNNER_TEMP/screenshots/android" dark
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ !cancelled() }}
+        with:
+          name: ui-screenshots-android-dark
+          path: ${{ runner.temp }}/screenshots/android/dark
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ always() }}
+        with:
+          name: android-e2e-dark
+          include-hidden-files: true
+          path: ${{ runner.temp }}/android-ui
+          if-no-files-found: error
+          retention-days: 7
+  ui-contact-sheets:
+    # A single-sheet step measured 11 to 13 seconds, most of it the ImageMagick
+    # install, so four sheets and one download come to about a minute.
+    timeout-minutes: 3
+    permissions:
+      actions: read
+      contents: read
+    needs:
+      - fingerprint
+      - native-ios
+      - native-e2e-ios-light
+      - ui-screenshots-ios-dark
+      - android-e2e
+      - ui-screenshots-android-dark
+    if: github.event_name != 'pull_request' || needs.native-ios.outputs.hit != 'true' || needs.fingerprint.outputs.ios-owed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        with:
+          pattern: ui-screenshots-*
+          path: ${{ runner.temp }}/screenshots
+      - name: Create a contact sheet per platform and appearance
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install --no-install-recommends -y imagemagick
+          mkdir -p "$RUNNER_TEMP/contact-sheets"
+          for platform in ios android; do
+            for appearance in light dark; do
+              scripts/create-ui-contact-sheet.sh \
+                "$RUNNER_TEMP/contact-sheets/contact-$platform-$appearance.png" \
+                "$RUNNER_TEMP/screenshots/ui-screenshots-$platform-$appearance"*
+            done
+          done
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ui-contact-sheets
+          path: ${{ runner.temp }}/contact-sheets
+          if-no-files-found: error
+          retention-days: 14

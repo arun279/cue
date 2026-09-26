@@ -1,0 +1,14 @@
+packages:
+  - packages/*
+
+# Expo supports isolated installs from SDK 54 but warns that some React Native
+# libraries fail to build or resolve under them, and names this as the remedy.
+# The native package is not here yet; the linker is set now so the tree the web
+# app is verified against is the tree the native package will join.
+# https://docs.expo.dev/guides/monorepos/
+nodeLinker: hoisted
+
+# `pnpm run` and `pnpm exec` refuse to run when a package.json changed since
+# the last install, so the native fingerprint never hashes those stale modules.
+# https://pnpm.io/settings#verifydepsbeforerun
+verifyDepsBeforeRun: error

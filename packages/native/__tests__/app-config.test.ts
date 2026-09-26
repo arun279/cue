@@ -1,0 +1,75 @@
+import { existsSync } from "node:fs";
+import path from "node:path";
+import { AndroidConfig } from "expo/config-plugins";
+import { nativeAppConfig } from "../app.config";
+
+/**
+ * The app config is the whole native identity under CNG, and four of the facts
+ * in it are release blockers: a different bundle id is a different app on Play
+ * rather than an upgrade, and a pinned orientation, a tablet opt-out or a
+ * hard-coded color scheme each silently narrow what the shipping app already
+ * does. None of them is visible until a build is in somebody's hands.
+ */
+describe("the native app config", () => {
+  const config = nativeAppConfig({});
+
+  it("is the same app on both stores", () => {
+    expect(config.version).toBe("2.0.0");
+    expect(config.ios?.bundleIdentifier).toBe("app.cuetracker");
+    expect(config.android?.package).toBe("app.cuetracker");
+  });
+
+  it("keeps the orientations, the tablet support and the system color scheme the shipping app has", () => {
+    expect(config.orientation).toBe("default");
+    expect(config.ios?.supportsTablet).toBe(true);
+    expect(config.userInterfaceStyle).toBe("automatic");
+  });
+
+  it("uses committed launcher artwork", () => {
+    expect(config.icon).toBe("./assets/icon.png");
+    expect(config.android?.adaptiveIcon).toEqual({
+      foregroundImage: "./assets/icon-foreground.png",
+      backgroundColor: "#0e0c0a",
+    });
+    for (const asset of [config.icon, config.android?.adaptiveIcon?.foregroundImage]) {
+      expect(asset).toBeDefined();
+      expect(existsSync(path.resolve(__dirname, "..", asset ?? ""))).toBe(true);
+    }
+  });
+
+  it("takes the version and the build number from the environment", () => {
+    const released = nativeAppConfig({ APP_VERSION: "2.1.0", BUILD_NUMBER: "4207" });
+    expect(released.version).toBe("2.1.0");
+    expect(released.ios?.buildNumber).toBe("4207");
+    expect(released.android?.versionCode).toBe(4207);
+  });
+
+  it("configures native release builds", () => {
+    expect(config.plugins).toContainEqual([
+      "expo-build-properties",
+      {
+        android: {
+          enableMinifyInReleaseBuilds: true,
+          enableShrinkResourcesInReleaseBuilds: true,
+        },
+        ios: { usePrecompiledModules: false },
+      },
+    ]);
+  });
+
+  it("routes system back through React Native on Android 13 to 15", () => {
+    expect(AndroidConfig.PredictiveBackGesture.getPredictiveBackGestureValue(config)).toBe("false");
+  });
+
+  it("carries no transport-security exception unless the harness asks for one", () => {
+    expect(config.ios?.infoPlist).toBeUndefined();
+    expect(nativeAppConfig({ EXPO_PUBLIC_TRAKT_API_BASE: "" }).ios?.infoPlist).toBeUndefined();
+
+    const harness = nativeAppConfig({ EXPO_PUBLIC_TRAKT_API_BASE: "http://127.0.0.1:8787" });
+    expect(harness.ios?.infoPlist?.["NSAppTransportSecurity"]).toEqual({
+      NSAllowsArbitraryLoads: false,
+      NSAllowsLocalNetworking: true,
+      NSExceptionDomains: { "127.0.0.1": { NSExceptionAllowsInsecureHTTPLoads: true } },
+    });
+  });
+});

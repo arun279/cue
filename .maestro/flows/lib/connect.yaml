@@ -1,0 +1,46 @@
+appId: app.cuetracker
+---
+- launchApp:
+    clearState: true
+    clearKeychain: true
+# Onboarding paints once the auth store has read the keychain, which a cold
+# launch does not finish inside the default assertion window.
+- extendedWaitUntil:
+    visible:
+      id: "screen-onboarding"
+    timeout: 30000
+- runFlow:
+    when:
+      true: ${CAPTURE_AUTH == "true"}
+    commands:
+      - waitForAnimationToEnd:
+          timeout: 1000
+      - takeScreenshot: onboarding-ready
+- tapOn:
+    id: "button-connect"
+    waitToSettleTimeoutMs: 100
+# The fake keeps the grant pending until the next step approves it, so the code
+# screen waits here instead of passing by between two hierarchy reads.
+- extendedWaitUntil:
+    visible:
+      id: "device-code-value"
+    timeout: 30000
+- runFlow:
+    when:
+      true: ${CAPTURE_AUTH == "true"}
+    commands:
+      - waitForAnimationToEnd:
+          timeout: 1000
+      - takeScreenshot: connect-code-ready
+- runScript: approve-device.js
+- assertTrue: ${output.deviceApproved}
+- extendedWaitUntil:
+    visible:
+      id: "screen-up-next"
+    timeout: 30000
+- extendedWaitUntil:
+    visible:
+      id: "app-idle"
+    timeout: 48300
+- assertNotVisible:
+    id: "up-next-skeleton"
