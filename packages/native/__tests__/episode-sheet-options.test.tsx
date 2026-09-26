@@ -1,5 +1,6 @@
 import { render } from "@testing-library/react-native";
 import type { ReactElement, ReactNode } from "react";
+import { Platform } from "react-native";
 import AccountLayout from "../app/(account)/_layout";
 import { TabStack } from "../src/TabStack";
 import { RADIUS } from "../src/ui/tokens";
@@ -49,7 +50,7 @@ it.each([
 ])("opens the episode sheet the same way from every stack at text scale %s", async (scale, detent) => {
   const [tab, account] = await sheetsAt(scale);
 
-  expect(tab?.sheetInitialDetentIndex).toBe(detent);
+  expect(tab?.sheetInitialDetentIndex).toBe(Platform.OS === "ios" ? detent : 0);
   expect(tab?.sheetCornerRadius).toBe(RADIUS.sheet);
   expect(account).toEqual(tab);
 });

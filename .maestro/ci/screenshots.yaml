@@ -1,0 +1,5 @@
+appId: app.cuetracker
+env:
+  CAPTURE_AUTH: "false"
+---
+- runFlow: ../flows/dark-traversal.yaml

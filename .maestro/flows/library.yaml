@@ -14,7 +14,11 @@ appId: app.cuetracker
     id: "screen-library"
 - assertVisible:
     id: "show-card-8801"
-- waitForAnimationToEnd
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: library-shows
+- waitForAnimationToEnd:
+    timeout: 1000
 - takeScreenshot: library-header
 
 - tapOn:
@@ -25,6 +29,9 @@ appId: app.cuetracker
     id: "library-chip-watched"
 - assertVisible:
     id: "movie-card-5501"
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: library-movies-watched
 
 - tapOn:
     id: "library-segment-shows"
@@ -34,6 +41,9 @@ appId: app.cuetracker
     id: "library-chip-stopped"
 - assertVisible:
     id: "library-empty"
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: library-empty-stopped
 - tapOn:
     id: "library-chip-watching"
 
@@ -44,6 +54,9 @@ appId: app.cuetracker
 - inputText: "zzz"
 - assertVisible:
     id: "library-no-match"
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: library-no-match
 - tapOn:
     id: "library-filter-clear"
 - assertVisible:
@@ -51,6 +64,9 @@ appId: app.cuetracker
 
 - tapOn:
     id: "library-sort"
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: library-sort-menu
 - tapOn: "A-Z"
 - assertVisible:
     id: "show-card-8801"
@@ -59,3 +75,6 @@ appId: app.cuetracker
     id: "show-card-8801"
 - assertVisible:
     id: "screen-show-detail"
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: show-detail-from-library

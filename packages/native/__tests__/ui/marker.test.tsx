@@ -17,8 +17,8 @@ it("draws a frame a hierarchy dump can find", async () => {
   expect(frame?.width).toBeGreaterThan(0);
   expect(frame?.height).toBeGreaterThan(0);
   expect(frame?.left).toBe(Platform.OS === "android" ? "50%" : 0);
-  expect(frame?.top).toBe(Platform.OS === "android" ? "50%" : undefined);
-  expect(frame?.bottom).toBe(Platform.OS === "android" ? undefined : 0);
+  expect(frame?.top).toBe("50%");
+  expect(frame?.bottom).toBeUndefined();
 });
 
 it("carries accessibility-only text", async () => {

@@ -1,6 +1,13 @@
 appId: app.cuetracker
 ---
-- runFlow: lib/connect.yaml
+- runFlow:
+    file: lib/connect.yaml
+    env:
+      CAPTURE_AUTH: "true"
 - runFlow: lib/settle.yaml
-- waitForAnimationToEnd
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: up-next-populated
+- waitForAnimationToEnd:
+    timeout: 1000
 - takeScreenshot: up-next-root

@@ -12,13 +12,15 @@ appId: app.cuetracker
 - assertVisible: "Cue Demo"
 - assertVisible:
     id: "profile-stat-shows"
-- waitForAnimationToEnd
+- waitForAnimationToEnd:
+    timeout: 1000
 - takeScreenshot: account-profile
 - tapOn:
     id: "profile-to-settings"
 - assertVisible:
     id: "screen-settings"
-- waitForAnimationToEnd
+- waitForAnimationToEnd:
+    timeout: 1000
 - takeScreenshot: settings-pushed
 # Dark for one pass over a tab root, then back to the system's own.
 - tapOn:
@@ -28,12 +30,16 @@ appId: app.cuetracker
       id: "switch-movies"
 - tapOn:
     id: "switch-movies"
-- tapOn: "Profile"
+- runFlow:
+    file: lib/back.yaml
+    env:
+      BACK_TITLE: "Profile"
 - tapOn:
     id: "close-account"
 - assertVisible:
     id: "screen-up-next"
-- waitForAnimationToEnd
+- waitForAnimationToEnd:
+    timeout: 1000
 - takeScreenshot: up-next-dark
 - tapOn: "Library"
 - assertVisible:
@@ -65,7 +71,8 @@ appId: app.cuetracker
     id: "settings-powered-by"
 - assertVisible:
     id: "settings-attribution"
-- waitForAnimationToEnd
+- waitForAnimationToEnd:
+    timeout: 1000
 - takeScreenshot: account-settings-about
 - scrollUntilVisible:
     element:
@@ -77,7 +84,10 @@ appId: app.cuetracker
 - tapOn: "Cancel"
 - assertVisible:
     id: "screen-settings"
-- tapOn: "Profile"
+- runFlow:
+    file: lib/back.yaml
+    env:
+      BACK_TITLE: "Profile"
 - tapOn:
     id: "close-account"
 - assertVisible:
@@ -92,11 +102,16 @@ appId: app.cuetracker
     id: "avatar-link"
 - tapOn:
     id: "profile-to-settings"
+# Centred, so the error that lands above the row cannot push it under the
+# navigation bar; and a tap that reaches the list before it has come to rest
+# only stops the scroll, so an unanswered tap is tried again.
 - scrollUntilVisible:
     element:
       id: "sign-out"
+    centerElement: true
 - tapOn:
     id: "sign-out"
+    retryTapIfNoChange: true
 # The confirm is a platform alert. Its title and its button both carry the words
 # of the danger row behind it, which stays in the hierarchy under the alert, so
 # the confirm is named by the button it sits beside; and the alert has to be on
@@ -115,7 +130,8 @@ appId: app.cuetracker
 - assertVisible: "Some changes haven't synced yet. Reconnect to the internet, then try signing out again."
 - assertVisible:
     id: "screen-settings"
-- waitForAnimationToEnd
+- waitForAnimationToEnd:
+    timeout: 1000
 - takeScreenshot: account-sign-out-refused
 # Writes reach Trakt again and revoking the token does not. Revoke is
 # best-effort, so the sign-out still finishes and the app lands on onboarding.

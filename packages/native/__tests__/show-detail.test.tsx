@@ -155,6 +155,8 @@ describe("platform confirmations", () => {
         onDismiss={result.current.dismiss}
       />,
     );
+    expect(screen.getByTestId("compose-host")).toHaveStyle({ position: "absolute" });
+    expect(screen.getByTestId("compose-host")).toHaveProp("accessibilityHint", "none");
     expect(screen.getByTestId(TEST_IDS.confirmSheet)).toBeOnTheScreen();
     await fireEvent.press(screen.getByTestId(TEST_IDS.confirmSheetPrimary));
     expect(onPrimary).toHaveBeenCalledTimes(1);

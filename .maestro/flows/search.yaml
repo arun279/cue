@@ -30,6 +30,11 @@ appId: app.cuetracker
     timeout: 20000
 - assertVisible: "Popular movies"
 
+- scrollUntilVisible:
+    element:
+      text: "Trending shows"
+    direction: UP
+    timeout: 20000
 - runFlow:
     when:
       platform: Android

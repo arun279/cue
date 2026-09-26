@@ -30,7 +30,8 @@ export function Marker({
 const styles = StyleSheet.create({
   marker: {
     position: "absolute",
-    ...(Platform.OS === "android" ? { left: "50%", top: "50%" } : { left: 0, bottom: 0 }),
+    left: Platform.OS === "android" ? "50%" : 0,
+    top: "50%",
     width: 1,
     height: 1,
   },

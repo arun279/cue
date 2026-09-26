@@ -5,9 +5,13 @@ import {
   type Theme,
 } from "expo-router";
 import { Platform, useColorScheme, useWindowDimensions } from "react-native";
+import { SnackbarHost } from "./SnackbarHost";
 import { PALETTE, RADIUS, useColors } from "./tokens";
 
 const EXPANDED_SHEET_FONT_SCALE = 1.3;
+
+const episodeSheetFooter =
+  Platform.OS === "android" ? () => <SnackbarHost placement="presentation" contained /> : undefined;
 
 export function useEpisodeSheetOptions(): NativeStackNavigationOptions {
   const colors = useColors();
@@ -15,11 +19,13 @@ export function useEpisodeSheetOptions(): NativeStackNavigationOptions {
   return {
     presentation: "formSheet",
     headerShown: false,
-    sheetAllowedDetents: [0.65, 0.92],
-    sheetInitialDetentIndex: fontScale >= EXPANDED_SHEET_FONT_SCALE ? 1 : 0,
+    sheetAllowedDetents: Platform.OS === "android" ? [0.92] : [0.65, 0.92],
+    sheetInitialDetentIndex:
+      Platform.OS === "ios" && fontScale >= EXPANDED_SHEET_FONT_SCALE ? 1 : 0,
     sheetGrabberVisible: true,
     sheetCornerRadius: RADIUS.sheet,
     contentStyle: { backgroundColor: colors.bg },
+    unstable_sheetFooter: episodeSheetFooter,
   };
 }
 
