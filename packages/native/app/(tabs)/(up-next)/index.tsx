@@ -23,7 +23,6 @@ import { useQuery } from "@tanstack/react-query";
 import { Stack, useRouter } from "expo-router";
 import { type ReactElement, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { FlatList, RefreshControl, StyleSheet, View } from "react-native";
-import Animated, { LinearTransition } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePullToRefresh } from "../../../src/hooks/usePullToRefresh";
 import { LapsedDrawer } from "../../../src/screens/up-next/LapsedDrawer";
@@ -44,9 +43,8 @@ import {
 import { useStableQueueOrder } from "../../../src/screens/up-next/useStableQueueOrder";
 import { BarItems } from "../../../src/ui/BarItems";
 import { Chevron } from "../../../src/ui/Chevron";
-import { Marker } from "../../../src/ui/Marker";
 import { Row, Separator } from "../../../src/ui/Row";
-import { commitResponseTiming, useResponseTiming } from "../../../src/ui/response-timing";
+import { commitResponseTiming } from "../../../src/ui/response-timing";
 import { SyncStrip } from "../../../src/ui/SyncStrip";
 import { TvShowsOff } from "../../../src/ui/TvShowsOff";
 import { TEST_IDS } from "../../../src/ui/test-ids";
@@ -166,7 +164,6 @@ export default function UpNext(): ReactElement {
   const refresh = usePullToRefresh();
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const responseTiming = useResponseTiming();
   const timedQueue = useRef(view.queue);
 
   useLayoutEffect(() => {
@@ -188,9 +185,6 @@ export default function UpNext(): ReactElement {
           headerRight: () => <BarItems onSync={refresh.sync} />,
         }}
       />
-      {responseTiming === null ? null : (
-        <Marker accessibilityLabel={responseTiming} testID={TEST_IDS.responseTiming} />
-      )}
       <FlatList
         testID={TEST_IDS.upNextList}
         contentInsetAdjustmentBehavior="automatic"
@@ -208,14 +202,14 @@ export default function UpNext(): ReactElement {
           />
         }
         renderItem={({ item, index }) => (
-          <Animated.View layout={LinearTransition}>
+          <View>
             <QueueRow
               card={item}
               mark={mark.controller}
               onStop={() => stop.stopWatching(item.entry)}
             />
             {index === 0 && mark.tutorialVisible ? <TutorialCaption /> : null}
-          </Animated.View>
+          </View>
         )}
         ListHeaderComponent={
           <View style={styles.lead}>

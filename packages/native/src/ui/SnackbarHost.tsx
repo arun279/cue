@@ -70,22 +70,26 @@ function useIsTopHost(placement: SnackbarPlacement): boolean {
 
 export function SnackbarHost({
   placement,
+  contained = false,
 }: {
   readonly placement: SnackbarPlacement;
+  readonly contained?: boolean;
 }): ReactElement | null {
   const snack = useSnackbar((state) => state.snack);
   const isTopHost = useIsTopHost(placement);
 
   if (snack === null || !isTopHost) return null;
-  return <Snackbar snack={snack} placement={placement} />;
+  return <Snackbar snack={snack} placement={placement} contained={contained} />;
 }
 
 function Snackbar({
   snack,
   placement,
+  contained,
 }: {
   readonly snack: Snack;
   readonly placement: SnackbarPlacement;
+  readonly contained: boolean;
 }): ReactElement {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -107,9 +111,13 @@ function Snackbar({
       {...liveRegion}
       style={[
         styles.snackbar,
+        !contained && styles.floating,
+        contained && styles.contained,
         FLOAT_SHADOW,
         stacked && styles.stacked,
-        { backgroundColor: colors.overlay, bottom },
+        { backgroundColor: colors.overlay },
+        !contained && { bottom },
+        contained && { marginBottom: insets.bottom + SPACE.s2 },
       ]}
     >
       <CueText
@@ -153,9 +161,6 @@ function Snackbar({
 
 const styles = StyleSheet.create({
   snackbar: {
-    position: "absolute",
-    left: SPACE.s3,
-    right: SPACE.s3,
     flexDirection: "row",
     alignItems: "center",
     gap: SPACE.s2,
@@ -164,6 +169,8 @@ const styles = StyleSheet.create({
     paddingVertical: SPACE.s1 + 2,
     borderRadius: 14,
   },
+  floating: { position: "absolute", left: SPACE.s3, right: SPACE.s3 },
+  contained: { marginHorizontal: SPACE.s3, marginTop: SPACE.s2 },
   stacked: { flexDirection: "column", alignItems: "stretch", gap: SPACE.s2 },
   message: { minWidth: 0 },
   messageInline: { flex: 1 },

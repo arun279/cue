@@ -7,17 +7,34 @@ appId: app.cuetracker
     id: "queue-row-8803"
 - assertVisible:
     id: "screen-show-detail"
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: show-detail-rest
 - assertVisible:
     id: "episode-row-8803-2-1-checked"
 - tapOn:
     id: "season-check-2"
 - assertVisible: "2 of 4 episodes are unwatched."
-- tapOn: "Mark 2 remaining"
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - assertVisible:
+          id: "confirm-sheet"
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: show-detail-season-confirm
+- tapOn:
+    text: "Mark 2 remaining"
+    waitToSettleTimeoutMs: 100
 - assertVisible:
     id: "snackbar"
 - runFlow: lib/settle.yaml
 - assertVisible:
     id: "episode-row-8803-2-3-checked"
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: show-detail-season-marked
 - tapOn:
     id: "snackbar-undo"
 - runFlow: lib/settle.yaml

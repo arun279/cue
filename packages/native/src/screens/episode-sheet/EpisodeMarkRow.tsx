@@ -25,6 +25,7 @@ export function EpisodeMarkRow({
     <CheckControl
       checked={detail.watched}
       size={CHECK_SIZE.marquee}
+      testID={TEST_IDS.episodeMarkControl}
       label={
         detail.watched
           ? "Watched. Tap to remove."

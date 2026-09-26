@@ -46,6 +46,7 @@ import { RuntimeBoot } from "../src/screens/RuntimeBoot";
 import { AppIdle } from "../src/ui/AppIdle";
 import { Marker } from "../src/ui/Marker";
 import { useNavigationTheme } from "../src/ui/navigation-theme";
+import { useResponseTiming } from "../src/ui/response-timing";
 import { SnackbarHost } from "../src/ui/SnackbarHost";
 import { TEST_IDS } from "../src/ui/test-ids";
 import { useCueFonts } from "../src/ui/type";
@@ -161,6 +162,7 @@ function RoutedApp(): ReactElement {
   useActivitiesPoll();
   useEpisodeReminders();
   useOpenTappedReminder();
+  const responseTiming = useResponseTiming();
 
   return (
     <View style={styles.root}>
@@ -172,6 +174,9 @@ function RoutedApp(): ReactElement {
         <Stack.Screen name="(account)" options={{ presentation: "fullScreenModal" }} />
       </Stack>
       <SnackbarHost placement="root" />
+      {responseTiming === null ? null : (
+        <Marker accessibilityLabel={responseTiming} testID={TEST_IDS.responseTiming} />
+      )}
       <AppIdle />
     </View>
   );

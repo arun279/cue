@@ -59,6 +59,8 @@ Dependencies flow from the Expo app into the core. Dependency-cruiser enforces t
 
 Core tests use Vitest with coverage thresholds of 90/90/90/80 for the domain, data, preferences, URL, and stores layers, plus a ratchet for hooks and a global floor. Repository-level workflow and size checks live in `test/ci`. The Expo app uses jest-expo for both platform presets and Maestro for simulator flows.
 
+Every pull request builds both apps and runs the full Maestro suite and the dark screenshot traversal on an Android emulator. The iOS build reuses the app cached for its native fingerprint. The iOS flows, split across three simulator shards, the iOS dark traversal and the contact sheets for both platforms run on every push to `main`, `feat/expo-native` and release branches, nightly, and on pull requests that change the iOS fingerprint. Run `scripts/fetch-ui-screenshots.sh <pr-number-or-run-id> <dir>` to download a run's screenshots and contact sheets. Attach the four contact sheets with `gh pr comment <pr-number> --attach <files>` so reviewers can inspect every screen without a device.
+
 ## Releasing
 
 `.github/workflows/mobile-release.yml` builds and ships the app. A `v*` tag submits to the App Store, and a manual dispatch can run either the tester or store lane. Each release waits for the required CI checks on the exact commit being shipped.

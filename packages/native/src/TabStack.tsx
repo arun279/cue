@@ -1,7 +1,8 @@
 import { Stack } from "expo-router";
 import type { ReactElement } from "react";
-import { useWindowDimensions } from "react-native";
+import { Platform, useWindowDimensions } from "react-native";
 import { opaqueHeaderOptions } from "./ui/navigation-theme";
+import { SnackbarHost } from "./ui/SnackbarHost";
 import { RADIUS, useColors } from "./ui/tokens";
 
 /**
@@ -64,11 +65,16 @@ export function TabStack({ root, title }: TabStackProps): ReactElement {
         options={{
           presentation: "formSheet",
           headerShown: false,
-          sheetAllowedDetents: [0.65, 0.92],
-          sheetInitialDetentIndex: fontScale >= EXPANDED_SHEET_FONT_SCALE ? 1 : 0,
+          sheetAllowedDetents: Platform.OS === "android" ? [0.92] : [0.65, 0.92],
+          sheetInitialDetentIndex:
+            Platform.OS === "ios" && fontScale >= EXPANDED_SHEET_FONT_SCALE ? 1 : 0,
           sheetGrabberVisible: true,
           sheetCornerRadius: RADIUS.sheet,
           contentStyle: { backgroundColor: colors.bg },
+          unstable_sheetFooter:
+            Platform.OS === "android"
+              ? () => <SnackbarHost placement="presentation" contained />
+              : undefined,
         }}
       />
     </Stack>

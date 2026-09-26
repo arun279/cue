@@ -29,11 +29,33 @@ appId: app.cuetracker
     text: ${output.historyDay}
 - assertVisible:
     id: "history-row-0"
-- tapOn: "Filter by title"
+# Android collapses the header search field into a toolbar icon.
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - tapOn:
+          text: "Search"
+          rightOf:
+            id: "sync-now"
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: "Filter by title"
 - inputText: "zzzznomatch"
 - assertVisible: "No titles match."
 - eraseText
-- tapOn: "(?i)close|cancel"
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - tapOn: "Clear query"
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: "(?i)close|cancel"
 - assertVisible:
     id: "history-row-0"
 - tapOn:

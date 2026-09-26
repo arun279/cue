@@ -1,7 +1,6 @@
 import type { MarkWatched } from "@cue/core/hooks/useMarkWatched";
 import { type ReactElement, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
-import Animated, { LinearTransition } from "react-native-reanimated";
 import { Badge } from "../../ui/Badge";
 import { Chevron } from "../../ui/Chevron";
 import { Separator } from "../../ui/Row";
@@ -36,7 +35,7 @@ export function LapsedDrawer({ cards, mark, onStop }: LapsedDrawerProps): ReactE
   if (cards.length === 0) return null;
 
   return (
-    <Animated.View layout={LinearTransition} style={styles.drawer}>
+    <View style={styles.drawer}>
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ expanded }}
@@ -59,7 +58,7 @@ export function LapsedDrawer({ cards, mark, onStop }: LapsedDrawerProps): ReactE
             </View>
           ))
         : null}
-    </Animated.View>
+    </View>
   );
 }
 

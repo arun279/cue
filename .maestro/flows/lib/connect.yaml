@@ -9,7 +9,13 @@ appId: app.cuetracker
     visible:
       id: "screen-onboarding"
     timeout: 30000
-- takeScreenshot: onboarding-idle
+- runFlow:
+    when:
+      true: ${CAPTURE_AUTH == "true"}
+    commands:
+      - waitForAnimationToEnd:
+          timeout: 1000
+      - takeScreenshot: onboarding-ready
 - tapOn:
     id: "button-connect"
     waitToSettleTimeoutMs: 100
@@ -19,7 +25,13 @@ appId: app.cuetracker
     visible:
       id: "device-code-value"
     timeout: 30000
-- takeScreenshot: onboarding-device-code
+- runFlow:
+    when:
+      true: ${CAPTURE_AUTH == "true"}
+    commands:
+      - waitForAnimationToEnd:
+          timeout: 1000
+      - takeScreenshot: connect-code-ready
 - runScript: approve-device.js
 - assertTrue: ${output.deviceApproved}
 - extendedWaitUntil:

@@ -14,9 +14,13 @@ const MOBILE_RELEASE_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/mo
 const FASTLANE_LANE = "$" + "{{ needs.config.outputs.fastlane_lane }}";
 const TRAKT_CLIENT_ID_VARIABLE = "$" + "{{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}";
 // `footprint` skips itself on forks, and the gate reads a skip as a failure.
-// `native-e2e` is exempt on purpose while it earns a green history on a
-// simulator; promoting it is a one-line change here and in REQUIRED.
-const NOT_REQUIRED = ["android-e2e", "fingerprint", "footprint", "native-e2e"];
+// The iOS light matrix reports through the required `native-e2e` aggregate.
+// Contact sheets are for reading screens, not a check.
+const NOT_REQUIRED = ["fingerprint", "footprint", "native-e2e-ios-light", "ui-contact-sheets"];
+// The gate reads the push run, where the iOS flow lane always runs.
+const IOS_LANE =
+  "    if: github.event_name != 'pull_request' || needs.native-ios.outputs.hit != 'true' || " +
+  "needs.fingerprint.outputs.ios-owed == 'true'";
 
 const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((entry) => typeof entry === "string");
@@ -202,7 +206,14 @@ describe("mobile release gate required checks", () => {
       ...readCiJobs()
         .filter((job) => requiredChecks.has(job.name))
         .flatMap((job) =>
-          job.body.split(/\r?\n/).filter((line) => /^ {4}(?:name|strategy|if):/.test(line)),
+          job.body
+            .split(/\r?\n/)
+            .filter(
+              (line) =>
+                /^ {4}(?:name|strategy|if):/.test(line) &&
+                (job.name !== "native-e2e" || line !== "    if: $" + "{{ always() }}") &&
+                (job.name !== "ui-screenshots-ios-dark" || line !== IOS_LANE),
+            ),
         ),
       ...readWorkflowJobs(CODEQL_WORKFLOW).flatMap((job) =>
         job.body.split(/\r?\n/).filter((line) => /^ {4}if:/.test(line)),
@@ -211,7 +222,7 @@ describe("mobile release gate required checks", () => {
 
     expect(
       unsupportedOverrides,
-      "An unsupported job-level name or strategy means the check-run name no longer matches the release gate, while a job-level if can give it a skipped conclusion, which the gate treats as a failure. Update the context derivation and polling logic in mobile-release.yml before adding the override.",
+      "An unsupported job-level name or strategy means the check-run name no longer matches the release gate, while a job-level condition can skip a required check. Model any override before adding it.",
     ).toEqual([]);
   });
 });

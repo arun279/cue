@@ -38,9 +38,18 @@ appId: app.cuetracker
     id: "movie-card-5502"
 - assertNotVisible:
     id: "movie-card-5508"
-- tapOn:
-    text: "Library"
-    index: 0
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          text: "Library"
+          index: 0
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - back
 - assertVisible:
     id: "screen-library"
 - assertVisible:

@@ -2,6 +2,7 @@ import { dismissSnack, showSnack, useSnackbar } from "@cue/core/stores/snackbar-
 import { act, render, screen, userEvent } from "@testing-library/react-native";
 import type { ReactElement } from "react";
 import { AccessibilityInfo, View } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { SnackbarHost } from "../../src/ui/SnackbarHost";
 
 let mockTraktBase: string | undefined;
@@ -42,6 +43,23 @@ it("runs an action from its own tap", async () => {
   await user.press(screen.getByTestId("snackbar-undo"));
 
   expect(action.onPress).toHaveBeenCalledTimes(1);
+});
+
+it("lays out in a native sheet footer", async () => {
+  await render(
+    <SafeAreaProvider
+      initialMetrics={{
+        frame: { x: 0, y: 0, width: 320, height: 640 },
+        insets: { top: 0, right: 0, bottom: 24, left: 0 },
+      }}
+    >
+      <SnackbarHost placement="presentation" contained />
+    </SafeAreaProvider>,
+  );
+  await act(async () => showSnack({ message: MESSAGE }));
+
+  expect(screen.getByTestId("snackbar")).not.toHaveStyle({ position: "absolute" });
+  expect(screen.getByTestId("snackbar")).toHaveStyle({ marginBottom: 32 });
 });
 
 it("draws in the topmost presentation only, and hands back when it closes", async () => {

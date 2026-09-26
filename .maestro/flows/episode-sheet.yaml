@@ -16,30 +16,53 @@ appId: app.cuetracker
     id: "episode-sheet"
 - assertVisible:
     id: "episode-mark-row"
-- tapOn: "Mark S2 E3 watched"
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: episode-sheet-rest
+- tapOn:
+    id: "episode-mark-control"
 - assertVisible:
     id: "snackbar"
 - assertVisible:
     id: "episode-sheet"
-- runFlow: lib/settle.yaml
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: episode-sheet-marked
 - tapOn:
-    id: "snackbar-undo"
+    id: "episode-mark-control"
 - runFlow: lib/settle.yaml
 - assertVisible: "Not watched yet"
 - tapOn:
     id: "episode-pager-next"
 - assertVisible:
     id: "episode-still-blur"
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: episode-sheet-spoiler
 - tapOn:
     id: "episode-still-reveal"
 - assertNotVisible:
     id: "episode-still-blur"
-# The sheet has no close button: it is dismissed the way UIKit dismisses one.
-- swipe:
-    start: "50%,55%"
-    end: "50%,98%"
-    duration: 300
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: episode-sheet-revealed
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - swipe:
+          start: "50%,55%"
+          end: "50%,98%"
+          duration: 300
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - back
 - assertVisible:
     id: "screen-show-detail"
 - assertNotVisible:
     id: "episode-sheet"
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: show-detail-after-episode
