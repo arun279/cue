@@ -241,7 +241,7 @@ describe("fast pull request validation", () => {
       "native-e2e-ios-light": 22,
       "ui-screenshots-ios-dark": 16,
       "android-e2e": 14,
-      "ui-screenshots-android-dark": 5,
+      "ui-screenshots-android-dark": 7,
       "ui-contact-sheets": 3,
     });
   });

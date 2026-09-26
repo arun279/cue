@@ -715,8 +715,8 @@ jobs:
           if-no-files-found: error
           retention-days: 7
   ui-screenshots-android-dark:
-    # Measured 3 to 3.6 minutes.
-    timeout-minutes: 5
+    # Measured 3 to 5 minutes.
+    timeout-minutes: 7
     needs: [fingerprint, native-android]
     runs-on: ubuntu-latest
     env:
