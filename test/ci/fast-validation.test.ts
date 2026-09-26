@@ -107,7 +107,7 @@ describe("fast pull request validation", () => {
       .join("\n");
 
     expect(ios).toContain("suite: [detail, activity, discovery]");
-    expect(ios).toContain('test ".maestro/ci/app-$' + '{{ matrix.suite }}.yaml"');
+    expect(ios).toContain('".maestro/ci/app-$' + '{{ matrix.suite }}.yaml"');
     expect(android).toContain("suite=.maestro/ci/app.yaml");
     expect(androidJob).toContain('"$RUNNER_TEMP/screenshots/android" light');
     for (const flow of suite.match(/\.\.\/flows\/[\w-]+\.yaml/g) ?? []) {
@@ -122,7 +122,7 @@ describe("fast pull request validation", () => {
     expect(ios).toContain("needs: [fingerprint, native-ios]");
     expect(ios).toContain("actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3");
     expect(ios).toContain("name: cue-native-ios-$" + "{{ needs.fingerprint.outputs.ios }}");
-    expect(ios).toContain("test .maestro/ci/screenshots.yaml");
+    expect(ios).toContain(" .maestro/ci/screenshots.yaml \\\n");
     expect(ios).not.toContain("continue-on-error");
     expect(android).toContain("needs: [fingerprint, native-android]");
     expect(android).toContain("cue-native-android-$" + "{{ needs.fingerprint.outputs.android }}");
@@ -150,7 +150,8 @@ describe("fast pull request validation", () => {
 
   it("uploads Maestro's hidden debug folder even after a timeout, leaving screenshots in place", () => {
     const verification = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
-    const sources = [workflow, verification];
+    const iosRun = readFileSync(repositoryPath("scripts/maestro-ios-test.sh"), "utf8");
+    const sources = [workflow, verification, iosRun];
     const uploads = [
       ...workflow.matchAll(/if: (.+)\n\s+with:\n\s+name: (?:native|android)-e2e-.*\n\s+(.+)/g),
     ];

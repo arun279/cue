@@ -20,6 +20,15 @@ echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
 tar -xzf "$app_dir/Cue.app.tgz" -C "$app_dir"
 xcrun simctl bootstatus "$device_id" -b
 xcrun simctl install "$device_id" "$app_dir/Cue.app"
+xcrun simctl launch --terminate-running-process "$device_id" app.cuetracker
+for _ in {1..30}; do
+  if xcrun simctl spawn "$device_id" launchctl list | \
+    awk '$1 ~ /^[0-9]+$/ && $3 ~ /(^|:)app\.cuetracker(\[|$)/ { found = 1 } END { exit !found }'; then
+    break
+  fi
+  sleep 1
+done
+xcrun simctl terminate "$device_id" app.cuetracker
 
 for _ in {1..30}; do
   if curl -fsS http://127.0.0.1:8787/users/settings > /dev/null; then

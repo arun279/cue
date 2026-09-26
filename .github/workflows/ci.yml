@@ -431,11 +431,11 @@ jobs:
           mkdir -p "$output"
           xcrun simctl ui "$DEVICE_ID" content_size medium
           xcrun simctl ui "$DEVICE_ID" appearance light
-          maestro --device "$DEVICE_ID" test ".maestro/ci/app-${{ matrix.suite }}.yaml" \
+          scripts/maestro-ios-test.sh "$RUNNER_TEMP/maestro-debug/${{ matrix.suite }}" \
+            ".maestro/ci/app-${{ matrix.suite }}.yaml" \
             --env APP_IDLE_CEILING_MS="$APP_IDLE_CEILING_MS" \
             --format JUNIT \
             --output "$RUNNER_TEMP/maestro-results-${{ matrix.suite }}.xml" \
-            --debug-output "$RUNNER_TEMP/maestro-debug/${{ matrix.suite }}" \
             --test-output-dir "$output"
       - name: Gate and summarize response timing
         if: ${{ !cancelled() && matrix.suite == 'activity' }}
@@ -520,10 +520,10 @@ jobs:
           mkdir -p "$RUNNER_TEMP/screenshots/ios/dark"
           xcrun simctl ui "$DEVICE_ID" content_size medium
           xcrun simctl ui "$DEVICE_ID" appearance dark
-          maestro --device "$DEVICE_ID" test .maestro/ci/screenshots.yaml \
+          scripts/maestro-ios-test.sh "$RUNNER_TEMP/maestro-debug/dark" \
+            .maestro/ci/screenshots.yaml \
             --format JUNIT \
             --output "$RUNNER_TEMP/maestro-results-dark.xml" \
-            --debug-output "$RUNNER_TEMP/maestro-debug/dark" \
             --test-output-dir "$RUNNER_TEMP/screenshots/ios/dark"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ !cancelled() }}
