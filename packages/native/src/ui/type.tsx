@@ -163,7 +163,6 @@ const EYEBROW = byRole<TextStyle>((spec) => ({
 
 const TABULAR: TextStyle = { fontVariant: ["tabular-nums"] };
 
-/** A role's text style, for text a `CueText` does not draw, such as a field's input. */
 export function roleStyle(variant: TypeRole, weight?: TypeWeight): StyleProp<TextStyle> {
   return [BASE[variant], weight === undefined ? null : faceStyle(ROLES[variant].face, weight)];
 }

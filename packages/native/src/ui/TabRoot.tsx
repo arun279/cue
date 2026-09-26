@@ -2,10 +2,6 @@ import type { ReactElement, ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
 import { useColors } from "./tokens";
 
-/**
- * The root view of a screen whose bar collapses a large title or floats over its
- * list. It stays unflattened so UIKit finds the list first under the screen.
- */
 export function TabRoot({
   testID,
   children,
@@ -14,6 +10,7 @@ export function TabRoot({
   readonly children: ReactNode;
 }): ReactElement {
   const colors = useColors();
+  // react-native-screens finds the scroll view through the first child view, and React Native flattens a background-only view.
   return (
     <View collapsable={false} testID={testID} style={[styles.root, { backgroundColor: colors.bg }]}>
       {children}

@@ -5,9 +5,8 @@ import { TEST_IDS } from "../../ui/test-ids";
 import { SPACE, TARGET_MIN, useColors } from "../../ui/tokens";
 import { roleStyle } from "../../ui/type";
 
-/** Material 3's search bar: 56 dp tall, a 28 dp corner, and a 24 dp leading icon. */
-const HEIGHT = 56;
-const ICON = 24;
+const BAR_HEIGHT = 56;
+const ICON_SIZE = 24;
 
 export interface SearchFieldProps {
   readonly value: string;
@@ -15,16 +14,11 @@ export interface SearchFieldProps {
   onChangeText(text: string): void;
 }
 
-/**
- * Android's search, owned by the screen and always on it rather than behind a
- * header action: the Material 3 search bar on the surface container, which is
- * what Search is on Android when searching is the point of the page.
- */
 export function SearchField({ value, placeholder, onChangeText }: SearchFieldProps): ReactElement {
   const colors = useColors();
   return (
     <View style={[styles.bar, { backgroundColor: colors.elevated }]}>
-      <Glyph path={GLYPH.search} color={colors.ink2} size={ICON} />
+      <Glyph path={GLYPH.search} color={colors.ink2} size={ICON_SIZE} />
       <TextInput
         testID={TEST_IDS.searchField}
         accessibilityLabel={placeholder}
@@ -45,7 +39,7 @@ export function SearchField({ value, placeholder, onChangeText }: SearchFieldPro
           onPress={() => onChangeText("")}
           style={styles.clear}
         >
-          <Glyph path={GLYPH.close} color={colors.ink2} size={ICON} />
+          <Glyph path={GLYPH.close} color={colors.ink2} size={ICON_SIZE} />
         </Pressable>
       )}
     </View>
@@ -56,14 +50,14 @@ const styles = StyleSheet.create({
   bar: {
     flexDirection: "row",
     alignItems: "center",
-    height: HEIGHT,
-    borderRadius: HEIGHT / 2,
+    height: BAR_HEIGHT,
+    borderRadius: BAR_HEIGHT / 2,
     paddingLeft: SPACE.s4,
     marginHorizontal: SPACE.s4,
     marginVertical: SPACE.s2,
     gap: SPACE.s4,
   },
-  input: { flex: 1, height: HEIGHT },
+  input: { flex: 1, height: BAR_HEIGHT },
   clear: {
     width: TARGET_MIN,
     height: TARGET_MIN,

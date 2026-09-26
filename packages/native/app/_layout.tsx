@@ -55,13 +55,6 @@ import { useCueFonts } from "../src/ui/type";
  * The native composition root. It is the only file that knows both which
  * implementation fills each port and which app is being built; everything below
  * it is `@cue/core`, unchanged, and the screens.
- *
- * Held from the first frame until the first real surface can draw: the boot
- * below can change what the token store contains, painting onboarding before
- * that resolves would show a signed-in user a sign-in screen, and a signed-in
- * launch goes on holding until its runtime is built. A rejection is swallowed:
- * the splash module throws when there is no splash to hold, which is not a
- * reason to fail a launch.
  */
 void SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -148,8 +141,6 @@ const runtimeDeps = {
  * routed shell wrapped in the authenticated runtime. */
 function Gate(): ReactElement {
   const phase = useAuth((s) => s.phase);
-  // A connected launch keeps the splash until its runtime is up; `RuntimeBoot`
-  // lets it go.
   useSplashRelease(phase === "onboarding");
 
   if (phase === "connected") {

@@ -26,9 +26,7 @@ export default function TabsLayout(): ReactElement {
     <NativeTabs
       labelVisibilityMode="labeled"
       {...(Platform.OS === "ios"
-        ? // Liquid Glass flips light and dark with the content under it, so the
-          // tint is the accent's dynamic pair and the rest is the system's.
-          { tintColor: colors.accentInk }
+        ? { tintColor: colors.accentInk }
         : {
             backgroundColor: colors.surface,
             iconColor: { default: colors.muted, selected: colors.accentInk },

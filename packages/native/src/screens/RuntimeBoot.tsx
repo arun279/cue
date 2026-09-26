@@ -18,15 +18,6 @@ export interface RuntimeBootProps {
   readonly children: ReactNode;
 }
 
-/**
- * The native app's three boot surfaces over the shared boot effect: the splash
- * held while the runtime builds, a retryable failure, and the runtime handed to
- * the tree through context.
- *
- * The effect itself, which reads the token, restores and replays the durable
- * write queue and registers the teardown, is `@cue/core/app/boot`. A failed
- * startup reconcile has to reach a visible retry rather than a held splash.
- */
 export function RuntimeBoot({ deps, children }: RuntimeBootProps): ReactElement {
   // A dead refresh token routes through the auth store's teardown to onboarding.
   const endSession = useAuth((s) => s.endSession);
