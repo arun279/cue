@@ -1,7 +1,10 @@
+import { execFileSync } from "node:child_process";
+import { readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { expect, it } from "vitest";
 import { repositoryPath } from "../support/repository-path";
+import { tempDirectory } from "../support/temp-directory";
 
 const native = repositoryPath("packages/native");
 const require = createRequire(import.meta.url);
@@ -25,4 +28,17 @@ it("compiles the same bundle to the same number of bytes every time", async () =
     sizes.add(hbc.length);
   }
   expect(sizes.size).toBe(1);
+});
+
+const compileInFreshDirectory = () => {
+  const directory = tempDirectory("hermes-");
+  const bundle = path.join(directory, "index.android.bundle");
+  const output = path.join(directory, "index.android.hbc");
+  writeFileSync(bundle, "print(1);");
+  execFileSync(repositoryPath("scripts/compile-hermes.sh"), [bundle, output]);
+  return readFileSync(output);
+};
+
+it("compiles a re-embedded bundle to the same bytes whatever directory holds it", () => {
+  expect(compileInFreshDirectory()).toEqual(compileInFreshDirectory());
 });
