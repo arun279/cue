@@ -14,8 +14,7 @@ mkdir -p "$work/aab/base/assets" "$work/apk/assets"
     --entry-file ../../node_modules/expo-router/entry.js \
     --bundle-output "$work/index.android.bundle" --assets-dest "$work/assets"
 )
-node_modules/hermes-compiler/hermesc/linux64-bin/hermesc \
-  -emit-binary -O -w -out "$work/index.android.hbc" "$work/index.android.bundle"
+scripts/compile-hermes.sh "$work/index.android.bundle" "$work/index.android.hbc"
 cp "$work/index.android.hbc" "$work/aab/base/assets/index.android.bundle"
 cp "$work/index.android.hbc" "$work/apk/assets/index.android.bundle"
 zip -q -d "$aab" 'META-INF/*' base/assets/index.android.bundle || true
