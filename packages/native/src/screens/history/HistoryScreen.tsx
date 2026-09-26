@@ -23,6 +23,7 @@ import { Button } from "../../ui/Button";
 import { EmptyState } from "../../ui/EmptyState";
 import { Separator } from "../../ui/Row";
 import { SyncStrip } from "../../ui/SyncStrip";
+import { TabRoot } from "../../ui/TabRoot";
 import { TEST_IDS } from "../../ui/test-ids";
 import { SPACE, useColors } from "../../ui/tokens";
 import { CueText } from "../../ui/type";
@@ -70,12 +71,11 @@ export function HistoryScreen(): ReactElement {
     );
 
   return (
-    <View testID={TEST_IDS.screenHistory} style={[styles.screen, { backgroundColor: colors.bg }]}>
+    <TabRoot testID={TEST_IDS.screenHistory}>
       <Stack.Screen
         options={{
           title: "History",
           headerLargeTitle: false,
-          headerStyle: { backgroundColor: colors.bg },
           headerTintColor: colors.accentInk,
           headerTitleStyle: { color: colors.fg },
           headerRight: () => (
@@ -219,7 +219,7 @@ export function HistoryScreen(): ReactElement {
           }}
         />
       )}
-    </View>
+    </TabRoot>
   );
 }
 
@@ -273,7 +273,6 @@ function HistoryEmpty({
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1 },
   lead: { paddingHorizontal: SPACE.s4, gap: SPACE.s2 },
   row: { paddingHorizontal: SPACE.s4 },
   band: {

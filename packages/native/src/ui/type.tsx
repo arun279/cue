@@ -5,7 +5,7 @@ import { Inter_700Bold } from "@expo-google-fonts/inter/700Bold";
 import { SpaceGrotesk_700Bold } from "@expo-google-fonts/space-grotesk/700Bold";
 import { useFonts } from "expo-font";
 import type { ReactElement } from "react";
-import { Platform, Text, type TextProps, type TextStyle } from "react-native";
+import { Platform, type StyleProp, Text, type TextProps, type TextStyle } from "react-native";
 
 /**
  * The eleven type roles, and the two faces that draw them.
@@ -163,6 +163,10 @@ const EYEBROW = byRole<TextStyle>((spec) => ({
 
 const TABULAR: TextStyle = { fontVariant: ["tabular-nums"] };
 
+export function roleStyle(variant: TypeRole, weight?: TypeWeight): StyleProp<TextStyle> {
+  return [BASE[variant], weight === undefined ? null : faceStyle(ROLES[variant].face, weight)];
+}
+
 export interface CueTextProps extends TextProps {
   /** One of the eleven roles. Spelled `variant` because `role` is the ARIA prop. */
   readonly variant: TypeRole;
@@ -185,8 +189,7 @@ export function CueText({
     <Text
       dynamicTypeRamp={RAMP[variant]}
       style={[
-        BASE[variant],
-        weight === undefined ? null : faceStyle(ROLES[variant].face, weight),
+        roleStyle(variant, weight),
         eyebrow ? EYEBROW[variant] : null,
         tabularNums ? TABULAR : null,
         style,

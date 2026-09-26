@@ -12,6 +12,9 @@ appId: app.cuetracker
 - takeScreenshot: show-detail-rest
 - assertVisible:
     id: "episode-row-8803-2-1-checked"
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: show-detail-loaded
 - tapOn:
     id: "season-check-2"
 - assertVisible: "2 of 4 episodes are unwatched."

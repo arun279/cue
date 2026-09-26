@@ -8,3 +8,6 @@ appId: app.cuetracker
 - waitForAnimationToEnd:
     timeout: 1000
 - takeScreenshot: up-next-populated
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: up-next-root

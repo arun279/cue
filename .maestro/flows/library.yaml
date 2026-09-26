@@ -17,6 +17,9 @@ appId: app.cuetracker
 - waitForAnimationToEnd:
     timeout: 1000
 - takeScreenshot: library-shows
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: library-header
 
 - tapOn:
     id: "library-segment-movies"

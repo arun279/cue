@@ -18,8 +18,10 @@ import type { SearchBarCommands } from "react-native-screens";
 import { Browse } from "../../../src/screens/search/Browse";
 import { browseGrids, placeholderFor } from "../../../src/screens/search/model";
 import { ResultRow } from "../../../src/screens/search/ResultRow";
+import { SearchField } from "../../../src/screens/search/SearchField";
 import { type SearchPhase, SearchState } from "../../../src/screens/search/SearchStates";
 import { Separator } from "../../../src/ui/Row";
+import { TabRoot } from "../../../src/ui/TabRoot";
 import { TEST_IDS } from "../../../src/ui/test-ids";
 import { ROW_TEXT_INSET, SPACE, tabBarClearance, useColors } from "../../../src/ui/tokens";
 
@@ -67,34 +69,34 @@ export default function Search(): ReactElement {
     setInput(term);
   };
 
+  const placeholder = placeholderFor(showsEnabled, moviesEnabled);
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
 
   return (
-    <View testID={TEST_IDS.screenSearch} style={[styles.screen, { backgroundColor: colors.bg }]}>
+    <TabRoot testID={TEST_IDS.screenSearch}>
       <Stack.Screen
         options={{
           title: "Search",
           headerLargeTitle: true,
-          headerSearchBarOptions: {
-            ref: field,
-            placeholder: placeholderFor(showsEnabled, moviesEnabled),
-            placement: "stacked",
-            hideWhenScrolling: false,
-            autoCapitalize: "none",
-            onChangeText: (event) => setInput(event.nativeEvent.text),
-            ...(Platform.OS === "android"
-              ? {
-                  barTintColor: colors.elevated,
-                  textColor: colors.fg,
-                  hintTextColor: colors.muted,
-                  headerIconColor: colors.muted,
-                }
-              : { tintColor: colors.accentInk }),
-          },
+          ...(Platform.OS === "ios"
+            ? {
+                headerSearchBarOptions: {
+                  ref: field,
+                  placeholder,
+                  hideWhenScrolling: false,
+                  autoCapitalize: "none",
+                  tintColor: colors.accentInk,
+                  onChangeText: (event) => setInput(event.nativeEvent.text),
+                },
+              }
+            : null),
         }}
       />
+      {Platform.OS === "android" ? (
+        <SearchField value={input} placeholder={placeholder} onChangeText={setInput} />
+      ) : null}
       <FlatList
         testID={TEST_IDS.searchResults}
         contentInsetAdjustmentBehavior="automatic"
@@ -131,7 +133,7 @@ export default function Search(): ReactElement {
           </View>
         }
       />
-    </View>
+    </TabRoot>
   );
 }
 
@@ -143,6 +145,5 @@ function phaseOf(offline: boolean, settling: boolean, status: QueryStatus): Sear
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1 },
   body: { paddingHorizontal: SPACE.s4 },
 });

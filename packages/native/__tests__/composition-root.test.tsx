@@ -1,7 +1,7 @@
 import { useActivitiesPoll } from "@cue/core/hooks/useActivitiesPoll";
 import { act, render, screen } from "@testing-library/react-native";
 import { useFonts } from "expo-font";
-import { hideAsync } from "expo-splash-screen";
+import { hide } from "expo-splash-screen";
 import { bootNativeStores } from "../src/boot";
 import {
   bulkBacking,
@@ -27,7 +27,7 @@ jest.mock(
 jest.mock("expo-notifications", () => ({ useLastNotificationResponse: () => null }));
 jest.mock("expo-splash-screen", () => ({
   preventAutoHideAsync: () => Promise.resolve(true),
-  hideAsync: jest.fn(() => Promise.resolve(true)),
+  hide: jest.fn(),
 }));
 jest.mock("expo-font", () => ({ useFonts: jest.fn(() => [true, null]) }));
 jest.mock("../src/boot", () => ({
@@ -96,7 +96,7 @@ afterEach(() => {
  */
 describe("the native composition root", () => {
   beforeEach(() => {
-    jest.mocked(hideAsync).mockClear();
+    jest.mocked(hide).mockClear();
     jest.mocked(useFonts).mockReturnValue([true, null]);
     bulkBacking.values.clear();
     secureBacking.clear();
@@ -180,7 +180,7 @@ const renderWithPendingStores = async () => {
   const { rerender } = await render(<RootLayout />);
 
   expect(screen.getByTestId("boot-hold")).toBeOnTheScreen();
-  expect(hideAsync).not.toHaveBeenCalled();
+  expect(hide).not.toHaveBeenCalled();
 
   return {
     rerender,
@@ -195,27 +195,27 @@ it.each([
   null,
   new Error("Font unavailable"),
 ])("holds the splash until pending fonts settle with error %s", async (error) => {
-  jest.mocked(hideAsync).mockClear();
+  jest.mocked(hide).mockClear();
   jest.mocked(useFonts).mockReturnValue([false, null]);
   const { rerender, settleStores } = await renderWithPendingStores();
 
   await settleStores();
   expect(screen.getByTestId("boot-hold")).toBeOnTheScreen();
-  expect(hideAsync).not.toHaveBeenCalled();
+  expect(hide).not.toHaveBeenCalled();
 
   jest.mocked(useFonts).mockReturnValue([error === null, error]);
   await rerender(<RootLayout />);
 
   expect(screen.queryByTestId("boot-hold")).toBeNull();
-  expect(hideAsync).toHaveBeenCalledTimes(1);
+  expect(hide).toHaveBeenCalledTimes(1);
 });
 
 it("holds the splash while stores are pending even if fonts have loaded", async () => {
-  jest.mocked(hideAsync).mockClear();
+  jest.mocked(hide).mockClear();
   jest.mocked(useFonts).mockReturnValue([true, null]);
   const { settleStores } = await renderWithPendingStores();
 
   await settleStores();
   expect(screen.queryByTestId("boot-hold")).toBeNull();
-  expect(hideAsync).toHaveBeenCalledTimes(1);
+  expect(hide).toHaveBeenCalledTimes(1);
 });

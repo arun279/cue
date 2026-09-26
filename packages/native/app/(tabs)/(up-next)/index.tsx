@@ -46,6 +46,7 @@ import { Chevron } from "../../../src/ui/Chevron";
 import { Row, Separator } from "../../../src/ui/Row";
 import { commitResponseTiming } from "../../../src/ui/response-timing";
 import { SyncStrip } from "../../../src/ui/SyncStrip";
+import { TabRoot } from "../../../src/ui/TabRoot";
 import { TvShowsOff } from "../../../src/ui/TvShowsOff";
 import { TEST_IDS } from "../../../src/ui/test-ids";
 import {
@@ -177,7 +178,7 @@ export default function UpNext(): ReactElement {
   const branch = branchOf(view, showsEnabled);
 
   return (
-    <View testID={TEST_IDS.screenUpNext} style={[styles.screen, { backgroundColor: colors.bg }]}>
+    <TabRoot testID={TEST_IDS.screenUpNext}>
       <Stack.Screen
         options={{
           title: "Up Next",
@@ -238,7 +239,7 @@ export default function UpNext(): ReactElement {
           ) : null
         }
       />
-    </View>
+    </TabRoot>
   );
 }
 
@@ -366,7 +367,6 @@ function useTutorialGate(controller: MarkWatched): {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1 },
   lead: { paddingHorizontal: SPACE.s4, paddingBottom: SPACE.s2 },
   footer: { paddingTop: SPACE.s4 },
   footerRow: { paddingHorizontal: SPACE.s4, paddingVertical: SPACE.s1 },

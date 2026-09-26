@@ -1,14 +1,13 @@
 import { useHaptics } from "@cue/core/ports/haptics";
 import type { ReactElement } from "react";
-import { type ColorValue, Pressable, StyleSheet, TextInput, View } from "react-native";
-import Svg, { Path } from "react-native-svg";
+import { Pressable, StyleSheet, TextInput, View } from "react-native";
+import { GLYPH, Glyph } from "../../ui/Glyph";
 import { RowMenu } from "../../ui/RowMenu";
 import { TEST_IDS } from "../../ui/test-ids";
 import { HAIRLINE, RADIUS, SPACE, TARGET_MIN, useColors } from "../../ui/tokens";
 import { CueText } from "../../ui/type";
 import type { Segment, SortOption } from "./model";
 
-const GLYPH = 22;
 const SEGMENTS: readonly { key: Segment; label: string; testID: string }[] = [
   { key: "shows", label: "Shows", testID: TEST_IDS.librarySegmentShows },
   { key: "movies", label: "Movies", testID: TEST_IDS.librarySegmentMovies },
@@ -80,7 +79,7 @@ export function LibraryToolbar<T extends string>({
           onPress={onFilterToggle}
           style={styles.tool}
         >
-          <Glyph path="M6 6l12 12M18 6L6 18" color={colors.accentInk} />
+          <Glyph path={GLYPH.close} color={colors.accentInk} />
         </Pressable>
       </View>
     );
@@ -129,7 +128,7 @@ export function LibraryToolbar<T extends string>({
           onPress={onFilterToggle}
           style={styles.tool}
         >
-          <Glyph path="M11 4a7 7 0 1 1 0 14 7 7 0 0 1 0-14M16 16l4 4" color={colors.accentInk} />
+          <Glyph path={GLYPH.search} color={colors.accentInk} />
         </Pressable>
         <RowMenu
           title="Sort"
@@ -148,27 +147,6 @@ export function LibraryToolbar<T extends string>({
         </RowMenu>
       </View>
     </View>
-  );
-}
-
-function Glyph({
-  path,
-  color,
-}: {
-  readonly path: string;
-  readonly color: ColorValue;
-}): ReactElement {
-  return (
-    <Svg width={GLYPH} height={GLYPH} viewBox="0 0 24 24">
-      <Path
-        d={path}
-        fill="none"
-        stroke={color}
-        strokeWidth={2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </Svg>
   );
 }
 

@@ -12,12 +12,19 @@ appId: app.cuetracker
 - assertVisible: "Cue Demo"
 - assertVisible:
     id: "profile-stat-shows"
-- waitForAnimationToEnd
+- waitForAnimationToEnd:
+    timeout: 1000
 - takeScreenshot: account-profile
 - tapOn:
     id: "profile-to-settings"
 - assertVisible:
     id: "screen-settings"
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: settings-pushed
+# Dark for one pass over a tab root, then back to the system's own.
+- tapOn:
+    id: "theme-dark"
 - scrollUntilVisible:
     element:
       id: "switch-movies"
@@ -31,6 +38,9 @@ appId: app.cuetracker
     id: "close-account"
 - assertVisible:
     id: "screen-up-next"
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: up-next-dark
 - tapOn: "Library"
 - assertVisible:
     id: "screen-library"
@@ -40,6 +50,8 @@ appId: app.cuetracker
     id: "avatar-link"
 - tapOn:
     id: "profile-to-settings"
+- tapOn:
+    id: "theme-system"
 - scrollUntilVisible:
     element:
       id: "switch-movies"
@@ -59,7 +71,8 @@ appId: app.cuetracker
     id: "settings-powered-by"
 - assertVisible:
     id: "settings-attribution"
-- waitForAnimationToEnd
+- waitForAnimationToEnd:
+    timeout: 1000
 - takeScreenshot: account-settings-about
 - scrollUntilVisible:
     element:
@@ -117,7 +130,8 @@ appId: app.cuetracker
 - assertVisible: "Some changes haven't synced yet. Reconnect to the internet, then try signing out again."
 - assertVisible:
     id: "screen-settings"
-- waitForAnimationToEnd
+- waitForAnimationToEnd:
+    timeout: 1000
 - takeScreenshot: account-sign-out-refused
 # Writes reach Trakt again and revoking the token does not. Revoke is
 # best-effort, so the sign-out still finishes and the app lands on onboarding.

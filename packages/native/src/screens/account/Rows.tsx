@@ -19,6 +19,7 @@ export function AccountScreen({
   return (
     <ScrollView
       testID={testID}
+      contentInsetAdjustmentBehavior="automatic"
       style={{ backgroundColor: colors.bg }}
       contentContainerStyle={{
         padding: SPACE.s4,

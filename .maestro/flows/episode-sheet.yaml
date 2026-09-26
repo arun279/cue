@@ -19,6 +19,9 @@ appId: app.cuetracker
 - waitForAnimationToEnd:
     timeout: 1000
 - takeScreenshot: episode-sheet-rest
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: episode-sheet-open
 - tapOn:
     id: "episode-mark-control"
 - assertVisible:
