@@ -1,5 +1,11 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import {
+  TRAKT_REQUEST_TIMEOUT_MS,
+  TraktReadError,
+} from "../../packages/core/src/data/trakt/client";
+import { backoffMs } from "../../packages/core/src/domain/write-queue/classify";
+import { shouldRetryRead } from "../../packages/core/src/sync-contract";
 import { repositoryPath } from "../support/repository-path";
 
 const workflow = readFileSync(repositoryPath(".github/workflows/ci.yml"), "utf8");
@@ -128,6 +134,18 @@ describe("fast pull request validation", () => {
     const connect = readFileSync(repositoryPath(".maestro/flows/lib/connect.yaml"), "utf8");
 
     expect(connect).toMatch(/screen-up-next[\s\S]*app-idle[\s\S]*up-next-skeleton/);
+  });
+
+  it("waits for app idle after sign-in as long as a read keeps retrying before it fails", () => {
+    const connect = readFileSync(repositoryPath(".maestro/flows/lib/connect.yaml"), "utf8");
+    const timedOut = new TraktReadError({ kind: "network" }, "sync");
+    let retries = 0;
+    let backoff = 0;
+    while (shouldRetryRead(retries, timedOut)) backoff += backoffMs(retries++);
+
+    expect(Number(connect.match(/id: "app-idle"\n {4}timeout: (\d+)/)?.[1])).toBe(
+      TRAKT_REQUEST_TIMEOUT_MS * (retries + 1) + backoff,
+    );
   });
 
   it("uploads Maestro's hidden debug folder even after a timeout, leaving screenshots in place", () => {
