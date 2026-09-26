@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { gitEnv } from "../support/git-env";
+import { type CiJob, readWorkflowJobs } from "../support/workflow-jobs";
 
 const REPOSITORY_ROOT = execFileSync("git", ["rev-parse", "--show-toplevel"], {
   encoding: "utf8",
@@ -24,38 +25,6 @@ const IOS_LANE =
 
 const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((entry) => typeof entry === "string");
-
-const getJobsBlock = (workflowPath: string): string => {
-  const workflow = readFileSync(workflowPath, "utf8");
-
-  // This intentionally parses only the top-level jobs block and its
-  // two-space-indented job IDs, not general YAML.
-  const matches = [
-    ...workflow.matchAll(/^jobs:[ \t]*\r?\n([\s\S]*?)(?=^[^ \t\r\n#][^:\r\n]*:|(?![\s\S]))/gm),
-  ];
-  const jobsBlock = matches.length === 1 ? matches[0]?.[1] : undefined;
-  if (jobsBlock === undefined) {
-    throw new Error(`expected one jobs block, found ${matches.length}`);
-  }
-  return jobsBlock;
-};
-
-type CiJob = {
-  name: string;
-  body: string;
-};
-
-const readWorkflowJobs = (workflowPath: string): CiJob[] => {
-  const jobsBlock = getJobsBlock(workflowPath);
-  const headers = [...jobsBlock.matchAll(/^ {2}([A-Za-z_][A-Za-z0-9_-]*):[ \t]*(?:#.*)?\r?$/gm)];
-  return headers.map((header, index) => ({
-    name: header[1] as string,
-    body: jobsBlock.slice(
-      (header.index ?? 0) + header[0].length,
-      headers[index + 1]?.index ?? jobsBlock.length,
-    ),
-  }));
-};
 
 const readCiJobs = (): CiJob[] => readWorkflowJobs(CI_WORKFLOW);
 
