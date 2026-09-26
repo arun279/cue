@@ -108,6 +108,17 @@ appId: app.cuetracker
 - waitForAnimationToEnd:
     timeout: 1000
 - takeScreenshot: search-empty
+# On iOS the selected search tab folds the other tabs into one button named for
+# the tab it returns to, so the way back to Up Next goes through Calendar.
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: "Calendar"
+      - extendedWaitUntil:
+          visible:
+            id: "screen-calendar"
+          timeout: 30000
 - tapOn: "Up Next"
 - extendedWaitUntil:
     visible:
