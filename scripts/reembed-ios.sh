@@ -13,8 +13,7 @@ mkdir -p "$work/assets"
     --entry-file ../../node_modules/expo-router/entry.js \
     --bundle-output "$work/main.jsbundle" --assets-dest "$work/assets"
 )
-node_modules/hermes-compiler/hermesc/osx-bin/hermesc \
-  -emit-binary -O -w -out "$work/main.hbc" "$work/main.jsbundle"
+scripts/compile-hermes.sh "$work/main.jsbundle" "$work/main.hbc"
 cp "$work/main.hbc" "$app/main.jsbundle"
 rsync -a --delete "$work/assets/assets/" "$app/assets/"
 codesign -d --entitlements :- "$app" > "$entitlements"

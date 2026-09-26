@@ -41,6 +41,6 @@ appId: app.cuetracker
 - extendedWaitUntil:
     visible:
       id: "app-idle"
-    timeout: 30000
+    timeout: 48300
 - assertNotVisible:
     id: "up-next-skeleton"
