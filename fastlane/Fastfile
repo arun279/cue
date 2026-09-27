@@ -106,7 +106,7 @@ platform :ios do
     ensure_testflight_build_number_available(key)
     upload_to_testflight(
       api_key: key,
-      skip_waiting_for_build_processing: true,
+      skip_waiting_for_build_processing: false,
       distribute_external: false
     )
   end
