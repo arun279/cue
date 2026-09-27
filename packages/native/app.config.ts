@@ -103,6 +103,10 @@ export function nativeAppConfig(env: Readonly<Record<string, string | undefined>
       bundleIdentifier: "app.cuetracker",
       supportsTablet: true,
       buildNumber,
+      // Cue encrypts only through the system's HTTPS and Keychain, which Apple
+      // exempts. Left undeclared, App Store Connect holds every build at Missing
+      // Compliance and TestFlight testers never see it.
+      config: { usesNonExemptEncryption: false },
       ...(mockTraktHost === null
         ? {}
         : {

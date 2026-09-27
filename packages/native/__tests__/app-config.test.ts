@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { AndroidConfig } from "expo/config-plugins";
+import { AndroidConfig, IOSConfig } from "expo/config-plugins";
 import { nativeAppConfig } from "../app.config";
 
 /**
@@ -59,6 +59,17 @@ describe("the native app config", () => {
 
   it("routes system back through React Native on Android 13 to 15", () => {
     expect(AndroidConfig.PredictiveBackGesture.getPredictiveBackGestureValue(config)).toBe("false");
+  });
+
+  it("declares exempt encryption in every generated Info.plist", () => {
+    const harness = nativeAppConfig({ EXPO_PUBLIC_TRAKT_API_BASE: "http://127.0.0.1:8787" });
+    for (const built of [config, harness]) {
+      const infoPlist = IOSConfig.UsesNonExemptEncryption.setUsesNonExemptEncryption(
+        built,
+        built.ios?.infoPlist ?? {},
+      );
+      expect(infoPlist["ITSAppUsesNonExemptEncryption"]).toBe(false);
+    }
   });
 
   it("carries no transport-security exception unless the harness asks for one", () => {
