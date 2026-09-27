@@ -12,6 +12,7 @@ const REPOSITORY_ROOT = execFileSync("git", ["rev-parse", "--show-toplevel"], {
 const CI_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/ci.yml");
 const CODEQL_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/codeql.yml");
 const MOBILE_RELEASE_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/mobile-release.yml");
+const FASTFILE = path.join(REPOSITORY_ROOT, "fastlane/Fastfile");
 const FASTLANE_LANE = "$" + "{{ needs.config.outputs.fastlane_lane }}";
 const TRAKT_CLIENT_ID_VARIABLE = "$" + "{{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}";
 // `footprint` skips itself on forks, and the gate reads a skip as a failure.
@@ -92,6 +93,18 @@ describe("mobile release triggers", () => {
     expect(push).not.toMatch(/^ {4}branches:/m);
     expect(push).not.toMatch(/^ {4}paths-ignore:/m);
     expect(push).toContain('    tags: ["v*.*.*"]');
+  });
+});
+
+describe("the TestFlight lane", () => {
+  it("finishes only once App Store Connect has processed the build", () => {
+    const fastfile = readFileSync(FASTFILE, "utf8");
+    const ios = fastfile.slice(fastfile.indexOf("platform :ios do"));
+    const lane = /^ {2}lane :beta do\r?\n([\s\S]*?)^ {2}end$/m.exec(ios)?.[1];
+
+    expect(lane).toContain("upload_to_testflight(");
+    expect(lane).toContain("skip_waiting_for_build_processing: false");
+    expect(lane).toContain("distribute_external: false");
   });
 });
 
