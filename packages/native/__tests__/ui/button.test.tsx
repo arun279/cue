@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react-native";
+import { fireEvent, render, screen } from "@testing-library/react-native";
 import { Platform } from "react-native";
 import { Button } from "../../src/ui/Button";
 
@@ -13,8 +13,11 @@ it("keeps a bar item's label to the bar and offers it in the Large Content Viewe
   );
 });
 
-it("lets a button in the content grow with the text", async () => {
-  await render(<Button label="Retry" onPress={jest.fn()} />);
+it("lets a button in the content grow with the text and still take the press", async () => {
+  const onPress = jest.fn();
+  await render(<Button label="Retry" onPress={onPress} />);
+  await fireEvent.press(screen.getByRole("button", { name: "Retry" }));
+  expect(onPress).toHaveBeenCalledTimes(1);
 
   expect(screen.getByText("Retry")).not.toHaveProp("maxFontSizeMultiplier");
   expect(screen.getByRole("button", { name: "Retry" })).not.toHaveProp(

@@ -13,12 +13,6 @@ import { CueText } from "./type";
 const INITIALS_SIZE = 0.4;
 const GLYPH_SIZE = 0.6;
 
-/**
- * The signed-in account's face: the Trakt photo over the same monogram plate a
- * poster without artwork draws, so an account with no photo, or one that fails
- * to load, reads as the person's initials. Before the profile has loaded there
- * is no name to draw, so the plate holds a person glyph.
- */
 export function Avatar({ size }: { readonly size: number }): ReactElement {
   const profile = useQuery(userProfileQuery(useRuntime())).data;
   const [failed, setFailed] = useState<string | null>(null);

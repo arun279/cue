@@ -22,11 +22,6 @@ import { SignOut } from "./account/SignOut";
 
 const AVATAR = 48;
 
-/**
- * The narrowest a stat tile can be at the default text size and still set
- * "Episodes", its longest label, on one line. It grows with the text, so the
- * grid drops to fewer columns before a label would have to break mid-word.
- */
 const TILE_BASIS = 96;
 
 function Identity(): ReactElement {

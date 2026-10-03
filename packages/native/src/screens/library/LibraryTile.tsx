@@ -18,19 +18,12 @@ const PLATE = { inset: 6, radius: 6 };
 const TITLE_LINES = 2;
 const MAX_COLUMNS = 3;
 
-/**
- * The narrowest a tile can be and still set a long title word on one line:
- * "Extraordinary" is 6.3 em, 76 pt at the caption size. It grows with the text,
- * so the grid drops to two columns and then one before a title has to break
- * inside a word.
- */
-const TITLE_WORD_WIDTH = 76;
+const LONG_TITLE_WORD_WIDTH = 76;
 
-/** How many poster tiles share a row, and how wide each is, at the reader's text size. */
 export function usePosterGrid(): { readonly columns: number; readonly width: number } {
   const { width, fontScale } = useWindowDimensions();
   const row = width - 2 * SPACE.s4;
-  const fit = Math.floor((row + SPACE.s3) / (TITLE_WORD_WIDTH * fontScale + SPACE.s3));
+  const fit = Math.floor((row + SPACE.s3) / (LONG_TITLE_WORD_WIDTH * fontScale + SPACE.s3));
   const columns = Math.min(MAX_COLUMNS, Math.max(1, fit));
   return { columns, width: Math.floor((row - (columns - 1) * SPACE.s3) / columns) };
 }

@@ -15,15 +15,10 @@ export interface ButtonProps {
    * absence: it keeps its place and says what it is waiting on. */
   readonly disabled?: boolean;
   readonly testID?: string;
-  /** A navigation bar item, which on iOS stops growing at the bar's height, as
-   * UIKit's own do, and shows its label in the Large Content Viewer on a long press. */
   readonly bar?: boolean;
 }
 
-/**
- * The height iOS 26 gives an item inside a navigation bar's 44 pt glass platter,
- * which insets it by 4 pt on each side. Android's 64 dp bar has no platter.
- */
+// iOS 26 insets a navigation bar item 4 pt inside the bar's 44 pt glass platter.
 const BAR_ITEM_HEIGHT = 36;
 const BAR_TEXT_SCALE =
   Platform.OS === "ios" ? BAR_ITEM_HEIGHT / lineHeightOf("rowTitle") : undefined;
