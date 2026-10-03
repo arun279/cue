@@ -8,19 +8,12 @@ import { useRuntime } from "@cue/core/runtime/runtime";
 import { useQuery } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import { type ReactElement, useMemo, useRef, useState } from "react";
-import {
-  FlatList,
-  RefreshControl,
-  StyleSheet,
-  useWindowDimensions,
-  View,
-  type ViewToken,
-} from "react-native";
+import { FlatList, RefreshControl, StyleSheet, View, type ViewToken } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePullToRefresh } from "../../../src/hooks/usePullToRefresh";
 import { ChipRail } from "../../../src/screens/library/ChipRail";
 import { LibraryState } from "../../../src/screens/library/LibraryStates";
-import { MovieTile, ShowTile } from "../../../src/screens/library/LibraryTile";
+import { MovieTile, ShowTile, usePosterGrid } from "../../../src/screens/library/LibraryTile";
 import { LibraryToolbar } from "../../../src/screens/library/LibraryToolbar";
 import {
   type ChipKey,
@@ -40,8 +33,6 @@ import { SyncStrip } from "../../../src/ui/SyncStrip";
 import { TabRoot } from "../../../src/ui/TabRoot";
 import { TEST_IDS } from "../../../src/ui/test-ids";
 import { SPACE, tabBarClearance, useColors } from "../../../src/ui/tokens";
-
-const COLUMNS = 3;
 
 /**
  * Everything already tracked, by medium and by status.
@@ -93,8 +84,7 @@ export default function Library(): ReactElement {
   const refresh = usePullToRefresh();
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
-  const tileWidth = Math.floor((width - 2 * SPACE.s4 - (COLUMNS - 1) * SPACE.s3) / COLUMNS);
+  const { columns, width: tileWidth } = usePosterGrid();
 
   const [onScreen, setOnScreen] = useState<ReadonlySet<string>>(() => new Set());
   const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) =>
@@ -134,8 +124,9 @@ export default function Library(): ReactElement {
         contentContainerStyle={{ paddingBottom: tabBarClearance(insets.bottom) + SPACE.s4 }}
         data={items}
         extraData={onScreen}
-        numColumns={COLUMNS}
-        columnWrapperStyle={styles.row}
+        key={columns}
+        numColumns={columns}
+        columnWrapperStyle={columns > 1 ? styles.row : undefined}
         keyExtractor={keyOf}
         onViewableItemsChanged={onViewableItemsChanged.current}
         refreshControl={
@@ -146,9 +137,12 @@ export default function Library(): ReactElement {
             tintColor={colors.muted}
           />
         }
-        renderItem={({ item }) => (
-          <Tile item={item} chip={chip} width={tileWidth} onScreen={onScreen.has(keyOf(item))} />
-        )}
+        renderItem={({ item }) => {
+          const tile = (
+            <Tile item={item} chip={chip} width={tileWidth} onScreen={onScreen.has(keyOf(item))} />
+          );
+          return columns > 1 ? tile : <View style={styles.row}>{tile}</View>;
+        }}
         ListHeaderComponent={
           <View style={styles.lead}>
             {banner === null ? null : <SyncStrip banner={banner} onRetry={retry} />}

@@ -524,7 +524,7 @@ jobs:
             --format JUNIT \
             --output "$RUNNER_TEMP/maestro-results-dark.xml" \
             --test-output-dir "$RUNNER_TEMP/screenshots/ios/dark"
-      - name: Capture Profile and Search at XXXL and AX5
+      - name: Capture Library, Profile and Search at XXXL and AX5
         env:
           DEVICE_ID: ${{ steps.ui-setup.outputs.device_id }}
         run: |
