@@ -1,7 +1,6 @@
 export const TEST_IDS = {
   signOutError: "sign-out-error",
   profileIdentity: "profile-identity",
-  profileAvatar: "profile-avatar",
   profileStatShows: "profile-stat-shows",
   profileStatMovies: "profile-stat-movies",
   profileWatchTime: "profile-watch-time",
@@ -70,6 +69,7 @@ export const TEST_IDS = {
   quickActionMute: "quick-action-mute",
   syncNow: "sync-now",
   avatarLink: "avatar-link",
+  avatarPhoto: "avatar-photo",
   linkHistory: "link-history",
   snackbar: "snackbar",
   snackbarMessage: "snackbar-message",

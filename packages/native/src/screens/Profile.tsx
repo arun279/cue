@@ -7,41 +7,34 @@ import { useRuntime } from "@cue/core/runtime/runtime";
 import { readFailureBody } from "@cue/core/sync-contract";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
-import { type ReactElement, useState } from "react";
-import { Image, StyleSheet, View } from "react-native";
-import Svg, { Circle, Path } from "react-native-svg";
+import type { ReactElement } from "react";
+import { StyleSheet, useWindowDimensions, View } from "react-native";
+import { Avatar } from "../ui/Avatar";
 import { Button } from "../ui/Button";
 import { Chevron } from "../ui/Chevron";
 import { EmptyState } from "../ui/EmptyState";
 import { Skeleton } from "../ui/Skeleton";
 import { TEST_IDS } from "../ui/test-ids";
-import { HAIRLINE, RADIUS, SPACE, useColors, useStacked } from "../ui/tokens";
+import { HAIRLINE, RADIUS, SPACE, useColors } from "../ui/tokens";
 import { CueText } from "../ui/type";
 import { AccountScreen, SettingRow } from "./account/Rows";
 import { SignOut } from "./account/SignOut";
 
+const AVATAR = 48;
+
+/**
+ * The narrowest a stat tile can be at the default text size and still set
+ * "Episodes", its longest label, on one line. It grows with the text, so the
+ * grid drops to fewer columns before a label would have to break mid-word.
+ */
+const TILE_BASIS = 96;
+
 function Identity(): ReactElement {
   const profile = useQuery(userProfileQuery(useRuntime())).data;
-  const [failedAvatar, setFailedAvatar] = useState<string | null>(null);
   const colors = useColors();
-  const avatar = profile?.avatar;
   return (
     <View testID={TEST_IDS.profileIdentity} style={styles.identity}>
-      {avatar && avatar !== failedAvatar ? (
-        <Image
-          testID={TEST_IDS.profileAvatar}
-          source={{ uri: avatar }}
-          style={styles.avatar}
-          onError={() => setFailedAvatar(avatar)}
-        />
-      ) : (
-        <View style={[styles.avatar, { backgroundColor: colors.elevated }]}>
-          <Svg width={28} height={28} viewBox="0 0 24 24">
-            <Circle cx="12" cy="8" r="4" fill={colors.muted} />
-            <Path d="M5 21a7 7 0 0 1 14 0" fill={colors.muted} />
-          </Svg>
-        </View>
-      )}
+      <Avatar size={AVATAR} />
       <View style={styles.name}>
         <CueText variant="identity" style={{ color: colors.fg }}>
           {profile?.displayName ?? "Trakt account"}
@@ -58,7 +51,7 @@ function Stats({ stats }: { readonly stats: UserStats }): ReactElement {
   const shows = usePrefs((state) => state.showsEnabled);
   const movies = usePrefs((state) => state.moviesEnabled);
   const colors = useColors();
-  const stacked = useStacked();
+  const { fontScale } = useWindowDimensions();
   const router = useRouter();
   const minutes = (shows ? stats.episodes.minutes : 0) + (movies ? stats.movies.minutes : 0);
   const counts = [
@@ -104,14 +97,14 @@ function Stats({ stats }: { readonly stats: UserStats }): ReactElement {
           {time.detail}
         </CueText>
       </View>
-      <View style={[styles.tiles, stacked && styles.stacked]}>
+      <View style={styles.tiles}>
         {counts.map((tile) => (
           <View
             key={tile.label}
             testID={tile.id}
             accessible
             accessibilityLabel={`${tile.count} ${tile.label.toLowerCase()} watched`}
-            style={[...card, styles.tile]}
+            style={[...card, styles.tile, { flexBasis: TILE_BASIS * fontScale }]}
           >
             <CueText variant="sectionHeading" tabularNums style={{ color: colors.fg }}>
               {tile.count}
@@ -176,17 +169,9 @@ export default function Profile(): ReactElement {
 
 const styles = StyleSheet.create({
   identity: { flexDirection: "row", alignItems: "center", gap: SPACE.s3 },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: RADIUS.pill,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   name: { flex: 1, gap: SPACE.s1 },
   stats: { gap: SPACE.s2 },
   card: { padding: SPACE.s4, borderRadius: RADIUS.card, borderWidth: HAIRLINE, gap: SPACE.s1 },
-  tiles: { flexDirection: "row", gap: SPACE.s2 },
-  stacked: { flexDirection: "column" },
-  tile: { flex: 1 },
+  tiles: { flexDirection: "row", flexWrap: "wrap", gap: SPACE.s2 },
+  tile: { flexGrow: 1 },
 });
