@@ -12,3 +12,13 @@ nodeLinker: hoisted
 # the last install, so the native fingerprint never hashes those stale modules.
 # https://pnpm.io/settings#verifydepsbeforerun
 verifyDepsBeforeRun: error
+
+# No release fixes these advisories yet. Each entry names the package it is
+# filed against: scripts/check-shipped-modules.mjs fails if that package enters
+# a shipped bundle, and scripts/check-stale-audit-ignores.mjs fails once the
+# advisory stops applying.
+# https://pnpm.io/10.x/cli/audit#auditconfigignoreghsas
+auditConfig:
+  ignoreGhsas:
+    - GHSA-86w9-cpqp-85rv # node-forge: `expo run:ios` reads local signing certificates with it
+    - GHSA-vfj7-8cjw-p6xm # braces: Metro's file map matches watch globs with it
