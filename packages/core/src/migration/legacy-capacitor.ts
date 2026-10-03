@@ -10,9 +10,6 @@ import { OP_LOG_KEY, TOKEN_KEY } from "../ports/storage-keys";
 import type { TokenStore } from "../ports/token-store";
 
 const ADOPTED_TOKEN_KEY = "cue.legacy-token-adopted";
-/** The one preference worth seeding: without it an established user is offered
- * the first-mark tutorial again, which is the only loss that reads as a bug
- * rather than as a reset. */
 const TUTORIAL_KEY = "cue.tutorial-mark-dismissed";
 
 const requestSchema = z.object({
@@ -21,20 +18,6 @@ const requestSchema = z.object({
   body: z.unknown(),
 });
 
-/**
- * The op-log the Capacitor build persisted, validated on the way in.
- *
- * The live op-log store validates nothing beyond `Array.isArray`, which is
- * right for a value this app wrote itself an instant ago and wrong for one
- * another build wrote at an unknown version: a malformed op replayed is a play
- * sent to Trakt that the user never made, and a dropped op is a play that does
- * not reach it. Between those two, dropping is the one that is visible.
- *
- * The parser is here rather than in `domain/write-queue/` because the shape
- * witness is taken over that tree, and this file states no persisted shape of
- * its own: it re-states one, and `parseOpLog`'s return type is what keeps the
- * two from drifting.
- */
 const queuedOpSchema = z.object({
   id: z.string(),
   itemKey: z.string(),
@@ -66,38 +49,16 @@ function parseOpLog(raw: string): QueuedOp[] {
 export interface LegacyMigrationDeps {
   readonly digest: CryptoPort["digest"];
   readonly legacy: LegacyStore;
-  /** The secure store the token lands in. */
   readonly tokenStore: TokenStore;
-  /** The bulk store the op log lands in. */
   readonly bulk: KeyValueStore;
   readonly preferences: PreferenceStorage;
 }
 
 export interface LegacyMigrationResult {
-  /** A legacy token was present and is now the session's. */
   readonly adoptedToken: boolean;
-  /** How many ops were carried across. */
   readonly adoptedOps: number;
 }
 
-/**
- * Take what the Capacitor build left behind, on every boot.
- *
- * Not "migrate once when the secure store is empty". While a Capacitor build is
- * still a shippable rollback target, both apps can write a token, and the only
- * rule that matches what a user who rolled back, signed in again and rolled
- * forward expects is to adopt each distinct legacy token once. Its digest is
- * recorded in the bulk store, while the token itself is left where it is for
- * the rollback target. Both are removed with that target at cut-over.
- *
- * The op log is the opposite case and is removed on read: it is the one store
- * whose loss is silent data loss, an op in it is a play the user marked that
- * has not reached Trakt, and a replayed op-log is a duplicate play.
- *
- * The last-activities baseline is deliberately not migrated. With no baseline
- * the first poll establishes one without invalidating anything, and the query
- * cache is unreadable from here anyway, so there is nothing stale to protect.
- */
 export async function migrateLegacyData(deps: LegacyMigrationDeps): Promise<LegacyMigrationResult> {
   const rawToken = await deps.legacy.read(TOKEN_KEY);
   let adoptedToken = false;
@@ -109,8 +70,6 @@ export async function migrateLegacyData(deps: LegacyMigrationDeps): Promise<Lega
         await deps.tokenStore.write(token.data);
         await deps.bulk.write(ADOPTED_TOKEN_KEY, digest);
         adoptedToken = true;
-        // An install that has a token is an install that has been used, so the
-        // one-time caption has been seen whether or not its own key survived.
         deps.preferences.setItem(TUTORIAL_KEY, "1");
       }
     }
@@ -124,8 +83,6 @@ export async function migrateLegacyData(deps: LegacyMigrationDeps): Promise<Lega
       const opLog = createJsonStore<QueuedOp[]>(deps.bulk, OP_LOG_KEY, (value) =>
         Array.isArray(value) ? (value as QueuedOp[]) : [],
       );
-      // Ahead of anything this install queued: the legacy ops are older, and
-      // the queue replays in order.
       await opLog.write([...migrated, ...((await opLog.read()) ?? [])]);
       adoptedOps = migrated.length;
     }

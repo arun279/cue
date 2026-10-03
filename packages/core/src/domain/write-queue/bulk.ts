@@ -2,7 +2,7 @@ import type { ShowIds } from "../model/ids";
 import { isAired } from "../time";
 import type { QueuedOp } from "./types";
 
-// Trakt caps list and batch sizes at 100 items.
+// Trakt paginates at most 100 items per page.
 export const MAX_EPISODES_PER_CHUNK = 100;
 
 const HISTORY = "/sync/history";

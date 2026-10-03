@@ -1,10 +1,4 @@
-/**
- * The two screens whose state lives in route parameters, parsed once and shared.
- * A parameter arrives as untrusted text from a deep link, so each parser drops anything it does not know
- * rather than carrying it into a query key.
- */
-
-/** Library: which medium the segment shows. Absent means Shows. */
+// Route parameters are untrusted deep-link text, so each parser drops anything it does not know.
 export interface LibrarySearch {
   readonly type?: "movies";
 }
@@ -13,7 +7,6 @@ export function parseLibrarySearch(search: Record<string, unknown>): LibrarySear
   return search["type"] === "movies" ? { type: "movies" } : {};
 }
 
-/** Diary: which medium, and the month it is scrolled to. */
 export interface HistorySearch {
   readonly type?: "tv" | "movies";
   readonly year?: number;
@@ -26,7 +19,6 @@ export function parseHistorySearch(search: Record<string, unknown>): HistorySear
   const year = Number(search["year"]);
   if (Number.isInteger(year) && year >= 1970 && year <= 2100) out.year = year;
   const month = Number(search["month"]);
-  // A month without a year is not a position, so it is dropped with it.
   if (out.year !== undefined && Number.isInteger(month) && month >= 1 && month <= 12) {
     out.month = month;
   }
