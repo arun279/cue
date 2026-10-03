@@ -12,7 +12,7 @@ appId: app.cuetracker
       id: "profile-stat-shows"
 - waitForAnimationToEnd:
     timeout: 1000
-- takeScreenshot: profile-ax5
+- takeScreenshot: profile-${SIZE}
 - tapOn:
     id: "close-account"
 - tapOn: "Search"
@@ -22,4 +22,4 @@ appId: app.cuetracker
     timeout: 30000
 - waitForAnimationToEnd:
     timeout: 1000
-- takeScreenshot: search-ax5
+- takeScreenshot: search-${SIZE}
