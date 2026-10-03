@@ -8,7 +8,6 @@ export interface AlertsCard {
   turnOn(): Promise<void>;
 }
 
-/** The Calendar's alerts card while alerts are off, it is unanswered and the OS would still ask. */
 export function useAlertsCard(): AlertsCard | null {
   const reminders = useReminders();
   const enabled = usePrefs((state) => state.remindersEnabled);
