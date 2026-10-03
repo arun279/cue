@@ -167,6 +167,10 @@ export function roleStyle(variant: TypeRole, weight?: TypeWeight): StyleProp<Tex
   return [BASE[variant], weight === undefined ? null : faceStyle(ROLES[variant].face, weight)];
 }
 
+export function lineHeightOf(variant: TypeRole): number {
+  return ROLES[variant].lineHeight;
+}
+
 export interface CueTextProps extends TextProps {
   /** One of the eleven roles. Spelled `variant` because `role` is the ARIA prop. */
   readonly variant: TypeRole;

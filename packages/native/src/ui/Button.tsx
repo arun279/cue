@@ -1,7 +1,7 @@
 import type { ReactElement } from "react";
-import { Pressable, StyleSheet } from "react-native";
+import { Platform, Pressable, StyleSheet } from "react-native";
 import { HAIRLINE, RADIUS, SPACE, TARGET_MIN, useColors } from "./tokens";
-import { CueText } from "./type";
+import { CueText, lineHeightOf } from "./type";
 
 export interface ButtonProps {
   readonly label: string;
@@ -15,7 +15,18 @@ export interface ButtonProps {
    * absence: it keeps its place and says what it is waiting on. */
   readonly disabled?: boolean;
   readonly testID?: string;
+  /** A navigation bar item, which on iOS stops growing at the bar's height, as
+   * UIKit's own do, and shows its label in the Large Content Viewer on a long press. */
+  readonly bar?: boolean;
 }
+
+/**
+ * The height iOS 26 gives an item inside a navigation bar's 44 pt glass platter,
+ * which insets it by 4 pt on each side. Android's 64 dp bar has no platter.
+ */
+const BAR_ITEM_HEIGHT = 36;
+const BAR_TEXT_SCALE =
+  Platform.OS === "ios" ? BAR_ITEM_HEIGHT / lineHeightOf("rowTitle") : undefined;
 
 /**
  * Every amber fill carries a `--color-accent-ink` stroke, because on the light
@@ -30,6 +41,7 @@ export function Button({
   onPress,
   disabled = false,
   testID,
+  bar = false,
 }: ButtonProps): ReactElement {
   const colors = useColors();
   const primary = variant === "primary";
@@ -39,6 +51,8 @@ export function Button({
     <Pressable
       accessibilityRole="button"
       testID={testID}
+      accessibilityShowsLargeContentViewer={bar}
+      accessibilityLargeContentTitle={bar ? label : undefined}
       disabled={disabled}
       onPress={onPress}
       style={[
@@ -52,6 +66,7 @@ export function Button({
       <CueText
         variant="rowTitle"
         weight="semibold"
+        maxFontSizeMultiplier={bar ? BAR_TEXT_SCALE : undefined}
         style={{
           color: primary ? colors.accentFg : variant === "ghost" ? colors.fg : colors.accentInk,
         }}

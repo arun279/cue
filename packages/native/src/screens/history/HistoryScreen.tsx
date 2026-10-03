@@ -82,6 +82,7 @@ export function HistoryScreen(): ReactElement {
             <Button
               label="Sync now"
               variant="link"
+              bar
               testID={TEST_IDS.syncNow}
               onPress={refresh.sync}
             />
