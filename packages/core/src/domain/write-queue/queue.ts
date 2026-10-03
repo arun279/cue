@@ -2,22 +2,12 @@ import { classifyStatus, computePacingDelay } from "./classify";
 import { coalesce } from "./coalesce";
 import type { DispatchResult, QueuedOp, RequestDescriptor } from "./types";
 
-/**
- * Bound on spaced retries within one flush before an op is set aside. Five
- * attempts (~covering a multi-second transient-error window at ≥1s pacing) is
- * long enough to ride out a blip yet short enough that a flush never spins
- * forever. Only a definite non-retryable 4xx rolls back; a still-retryable
- * (429/5xx/network) op that outlasts the budget is *deferred*: kept durable at
- * the head for the next flush: never dropped, so a persistent outage or rate
- * limit can't silently lose the user's action.
- */
-const MAX_ATTEMPTS = 5;
+const MAX_ATTEMPTS_PER_FLUSH = 5;
 
 export interface WriteQueueDeps {
   readonly dispatch: (req: RequestDescriptor) => Promise<DispatchResult>;
   readonly sleep: (ms: number) => Promise<void>;
   readonly now: () => number;
-  /** Re-read the affected keys; resolve `true` iff Trakt already reflects the op. */
   readonly reconcile: (op: QueuedOp) => Promise<boolean>;
 }
 
@@ -33,19 +23,11 @@ export interface FlushResult {
 
 type Outcome = "done" | "failed" | "defer";
 
-/**
- * Durable FIFO write queue. Paces dispatches ≥1s apart, classifies
- * failures (429/5xx safe-retry honoring `Retry-After`; NetworkError =
- * reconcile-before-retry, never a blind re-POST), coalesces redundant ops, and
- * carries a serializable pending log so it survives persist → reload.
- */
 export class WriteQueue {
   private pending: QueuedOp[];
   private lastDispatchAt: number | null = null;
   private readonly deps: WriteQueueDeps;
-  /** The op currently being delivered (still the durable head of `pending`). */
   private inFlight: QueuedOp | null = null;
-  /** In-progress flush, so concurrent `flush()` calls share one drain pass. */
   private flushing: Promise<FlushResult> | null = null;
 
   constructor(deps: WriteQueueDeps, initial: readonly QueuedOp[] = []) {
@@ -57,24 +39,14 @@ export class WriteQueue {
     return this.pending.length;
   }
 
-  /** Id of the op currently being delivered (still the durable head of the
-   * pending log), or null: an in-flight op can be neither coalesce-cancelled
-   * nor treated as landed, so reversal routing must see it distinctly. */
   get inFlightId(): string | null {
     return this.inFlight?.id ?? null;
   }
 
-  /** Serializable copy of the pending log for persistence. */
   snapshot(): QueuedOp[] {
     return this.pending.map((op) => structuredCopy(op));
   }
 
-  /**
-   * Coalesce against the *undelivered* tail only. An op already in flight is
-   * skipped: its request may still land, so an opposite toggle must enqueue a
-   * compensating op behind it: never cancel the in-flight write and lose the
-   * user's final intent.
-   */
   enqueue(op: QueuedOp): void {
     const head = this.pending[0];
     if (this.inFlight !== null && head === this.inFlight) {
@@ -84,13 +56,6 @@ export class WriteQueue {
     this.pending = coalesce(this.pending, op);
   }
 
-  /**
-   * Startup pass (before any replay): retire ops that already landed on Trakt
-   * pre-crash so a resume never re-applies them (the double-count guard). A
-   * reconcile read that fails (offline / 5xx) can't determine landing, so the op
-   * is *kept* durable for a later flush: mirroring `deliver`'s reconcile-throw →
-   * defer. Startup must never throw: a boot that can't reach Trakt still mounts.
-   */
   async startupReconcile(): Promise<void> {
     const kept: QueuedOp[] = [];
     for (const op of this.pending) {
@@ -98,14 +63,13 @@ export class WriteQueue {
       try {
         applied = await this.deps.reconcile(op);
       } catch {
-        applied = false; // undetermined → keep durable, retry on the next flush
+        applied = false;
       }
       if (!applied) kept.push(op);
     }
     this.pending = kept;
   }
 
-  /** Single-flight: concurrent callers share the running drain, never double-dispatch the head. */
   flush(): Promise<FlushResult> {
     if (this.flushing !== null) return this.flushing;
     const run = this.drain().finally(() => {
@@ -122,7 +86,7 @@ export class WriteQueue {
       this.inFlight = op;
       const outcome = await this.deliver(op);
       this.inFlight = null;
-      if (outcome === "defer") break; // keep op at head; retry on next flush
+      if (outcome === "defer") break;
       this.pending.shift();
       if (outcome === "done") completed.push(op);
       else failed.push({ op, inversePatch: op.inversePatch });
@@ -131,7 +95,7 @@ export class WriteQueue {
   }
 
   private async deliver(op: QueuedOp): Promise<Outcome> {
-    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
+    for (let attempt = 0; attempt < MAX_ATTEMPTS_PER_FLUSH; attempt += 1) {
       await this.pace();
       let result: DispatchResult;
       try {
@@ -141,18 +105,18 @@ export class WriteQueue {
         try {
           applied = await this.deps.reconcile(op);
         } catch {
-          return "defer"; // can't determine → keep durable for the next flush
+          return "defer";
         }
         if (applied) return "done";
-        continue; // reconciled (never a blind re-POST); retry within budget
+        continue;
       }
       const classification = classifyStatus(result, attempt, this.deps.now());
       if (classification.kind === "ok") return "done";
       if (classification.kind === "failed") return "failed";
-      if (attempt + 1 >= MAX_ATTEMPTS) break; // budget spent; don't sleep only to defer
+      if (attempt + 1 >= MAX_ATTEMPTS_PER_FLUSH) break;
       await this.deps.sleep(classification.delayMs);
     }
-    return "defer"; // still-retryable after the budget → durable, never dropped
+    return "defer";
   }
 
   private async pace(): Promise<void> {

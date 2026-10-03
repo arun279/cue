@@ -1,12 +1,6 @@
-/**
- * Local-day grouping primitives shared by the Calendar (upcoming days) and the
- * Diary (watch-history days) so both bucket and shift days the same way: the one
- * source of truth for "which local day does this instant fall on".
- */
-
 import { DAY_MS } from "./time";
 
-/** `ms → "YYYY-MM-DD"` in `timeZone` (en-CA renders the ISO date order). */
+// en-CA formats dates as YYYY-MM-DD.
 function dayKeyFormatter(timeZone: string): (ms: number) => string {
   const fmt = new Intl.DateTimeFormat("en-CA", {
     timeZone,
@@ -19,21 +13,14 @@ function dayKeyFormatter(timeZone: string): (ms: number) => string {
 
 const dayKeyFormatters = new Map<string, (ms: number) => string>();
 
-/**
- * The day-key `deltaDays` away from `key`. A date-only key parses as UTC
- * midnight, so this is whole-day arithmetic that never crosses a wall-clock
- * offset the way a local `Date` would.
- */
 function shiftDayKey(key: string, deltaDays: number): string {
   return new Date(Date.parse(key) + deltaDays * DAY_MS).toISOString().slice(0, 10);
 }
 
-/** `"YYYY-MM-DD"` → whole-day distance, as pure UTC date arithmetic. */
 export function dayOffset(fromKey: string, toKey: string): number {
   return Math.round((Date.parse(toKey) - Date.parse(fromKey)) / DAY_MS);
 }
 
-/** The local-day key ("YYYY-MM-DD") an instant falls on, without a labeler. */
 export function dayKeyOf(timeZone: string, ms: number): string {
   const cached = dayKeyFormatters.get(timeZone);
   if (cached !== undefined) return cached(ms);
@@ -42,22 +29,11 @@ export function dayKeyOf(timeZone: string, ms: number): string {
   return formatter(ms);
 }
 
-/** Buckets days by local key and labels them "Today" / an adjacent word / "Mon, Jan 5". */
 interface DayLabeler {
-  /** `ms → "YYYY-MM-DD"` local-day key: the bucket handle. */
   readonly keyOf: (ms: number) => string;
-  /** A day's human label; `sampleMs` is any instant within the day, for the date fallback. */
   readonly label: (dayKey: string, sampleMs: number) => string;
 }
 
-/**
- * The shared local-day bucketer + labeler for the Calendar (upcoming) and the
- * Diary (watch history): one `Intl` key formatter, one "Mon, Jan 5" date
- * formatter, and the Today / adjacent-word / date resolution, built once. Only the
- * single neighboring day that earns a relative word differs: the Calendar looks
- * forward (`{ delta: 1, label: "Tomorrow" }`), the Diary looks back
- * (`{ delta: -1, label: "Yesterday" }`).
- */
 export function dayLabeler(
   timeZone: string,
   now: number,

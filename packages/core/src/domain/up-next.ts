@@ -17,15 +17,8 @@ export interface UpNextGroups {
 
 type UpNextGroup = keyof UpNextGroups;
 
-/** The states with nothing to queue: hidden, never started, or a finished run. */
 const NOTHING_TO_QUEUE: ReadonlySet<WatchStatus> = new Set(["abandoned", "not-started", "ended"]);
 
-/**
- * Whether a show nobody has just marked belongs on tonight's list. The air test
- * is explicit rather than inferred from the status: a show past the progress
- * budget is in-progress on its bulk counts alone, and an unaired (or
- * unknown-date) next episode is never something to queue tonight.
- */
 function hasSomethingToWatch(show: LibraryShow, status: WatchStatus, now: number): boolean {
   if (status !== "watching" && status !== "lapsed") return false;
   const airedMs = show.nextEpisode === null ? null : toMs(show.nextEpisode.firstAired);
@@ -53,23 +46,6 @@ function toUpNextItem(show: LibraryShow): UpNextItem {
   };
 }
 
-/**
- * Partition in-progress shows for Up Next on verifiable facts only: no taste,
- * popularity, or "for you" ranking. Shows in a state with no next to queue
- * (`abandoned`/`not-started`/`ended`) are excluded, even for a just-marked show,
- * so an advancing row can never resurrect one into Up Next. A `watching` show
- * queues, a `lapsed` one (idle past `thresholdMs` since it last had something to
- * watch) lands in the drawer.
- *
- * A just-marked show stays in the queue, visible and locked, until the
- * authoritative refetch lands: its next is either a client projection (air date
- * unknown) or, past the aired run, not knowable at all, and either way the row
- * belongs where the reader left it rather than vanishing under the finger that
- * marked it.
- *
- * Both groups come unordered; the presentation layer sorts each by its own user
- * preference.
- */
 export function groupUpNext(
   shows: readonly LibraryShow[],
   now: number,
@@ -83,12 +59,6 @@ export function groupUpNext(
   return groups;
 }
 
-/**
- * The shows Up Next treats as actively watched: the queue, and the watched shows
- * whose next episode or new season is still on the way. The lapsed drawer is out
- * on its own definition, and stopped, unwatched and finished shows never enter,
- * so a show rejoins the moment the user watches it again.
- */
 export function activeShowIds(
   shows: readonly LibraryShow[],
   now: number,
@@ -108,7 +78,6 @@ export function activeShowIds(
   return ids;
 }
 
-/** Which of the five honest empty screens Up Next owes a library with no queue. */
 export type UpNextEmptyKind =
   | "nothing-tracked"
   | "only-stopped"
@@ -118,27 +87,13 @@ export type UpNextEmptyKind =
 
 export interface UpNextComposition {
   readonly queued: number;
-  /** Every tracked show, hidden included: 0 only when the library is truly empty. */
   readonly totalCount: number;
-  /** Non-hidden tracked shows: 0 distinguishes an only-Stopped library from a real one. */
   readonly trackedCount: number;
-  /** Non-hidden shows with at least one watched episode: 0 means nothing has been started. */
   readonly startedCount: number;
-  /** Non-hidden shows with episodes left whose next episode is not known. */
   readonly unresolvedCount: number;
-  /** Whether the library read has landed; before it has, no empty state is honest. */
   readonly hasData: boolean;
 }
 
-/**
- * The empty branch this library composition earns, or null when a card renders.
- *
- * Decided from real composition rather than from an empty array, so the home
- * screen never tells a user the opposite of their state: a library of only
- * stopped shows must not read "nothing queued", a watchlist-only library must
- * not read "all caught up", and shows with episodes left whose next episode is
- * still unknown must not be counted as caught up either.
- */
 export function upNextEmptyKind(view: UpNextComposition): UpNextEmptyKind | null {
   if (!view.hasData || view.queued > 0) return null;
   if (view.totalCount === 0) return "nothing-tracked";
