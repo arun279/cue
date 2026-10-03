@@ -4,13 +4,6 @@ import { toMovieIds } from "./movie-library";
 import type { HistoryItem } from "./schemas";
 import { toEpisodeIds } from "./show-detail";
 
-/**
- * Flatten `/users/me/history` rows into domain `HistoryEntry[]`. An
- * episode play carries its show for the title/poster and the episode for the
- * SxEy code; a movie play carries the movie. Rows whose declared type is missing
- * its item (a malformed row, or a `season` play the Diary doesn't surface) are
- * dropped rather than rendered blank.
- */
 export function assembleHistoryEntries(items: readonly HistoryItem[]): HistoryEntry[] {
   const entries: HistoryEntry[] = [];
   for (const item of items) {
@@ -49,12 +42,6 @@ export function assembleHistoryEntries(items: readonly HistoryItem[]): HistoryEn
   return entries;
 }
 
-/**
- * Flatten scoped-history rows (`/sync/history/{shows|episodes}/:id`) into
- * `EpisodePlay[]` for the durable per-play unmark. Only episode plays
- * carry a season/number, so movie rows (and malformed rows) are dropped: the
- * planners only ever reason about episode plays.
- */
 export function assembleEpisodePlays(items: readonly HistoryItem[]): EpisodePlay[] {
   const plays: EpisodePlay[] = [];
   for (const item of items) {
@@ -70,12 +57,6 @@ export function assembleEpisodePlays(items: readonly HistoryItem[]): EpisodePlay
   return plays;
 }
 
-/**
- * Flatten a movie's scoped-history rows (`/sync/history/movies/:id`) into
- * `MoviePlay[]` for the durable per-play unmark. Only movie plays are
- * kept (malformed rows dropped); each carries just the per-play history id + its
- * `watched_at`, which is all a per-play removal and its restore need.
- */
 export function assembleMoviePlays(items: readonly HistoryItem[]): MoviePlay[] {
   const plays: MoviePlay[] = [];
   for (const item of items) {

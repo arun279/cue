@@ -6,31 +6,22 @@ const TRAKT_API_VERSION = "2";
 
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
-/** `extended` richness levels, comma-combined into the query. */
 type Extended = "min" | "full" | "images" | "episodes" | "progress";
 
 export interface TraktClientConfig {
   readonly clientId: string;
   readonly browser?: boolean;
   readonly userAgent?: string;
-  /** Bearer token for authed calls; absent → the header is omitted. */
   readonly getToken?: () => string | null;
   readonly fetch?: FetchLike;
   readonly baseUrl?: string;
 }
 
-/** Parsed `X-Pagination-*` headers; `null` when the endpoint sends none. */
 interface Pagination {
   readonly page: number;
   readonly pageCount: number;
 }
 
-/**
- * The typed transport failures. A `network` reject is the ambiguous class
- * the write queue reconciles before retry; any non-2xx we do not model
- * specifically (an unexpected 4xx) surfaces as `server` carrying its status, so
- * the union stays closed and every failure is readable.
- */
 export type TraktFailure =
   | { readonly kind: "unauthorized" }
   | { readonly kind: "not-found" }
@@ -46,12 +37,6 @@ export type TraktResult<T> =
   | { readonly ok: true; readonly data: T; readonly pagination: Pagination | null }
   | { readonly ok: false; readonly error: TraktFailure };
 
-/**
- * A read that failed, carrying WHY. Every read the runtime exposes throws this
- * rather than a bare Error, because the screen above it has to tell a rate
- * limit from an outage: they take different copy, different retry policy and,
- * for one of them, no Retry button at all.
- */
 export class TraktReadError extends Error {
   readonly failure: TraktFailure;
 
@@ -62,13 +47,11 @@ export class TraktReadError extends Error {
   }
 }
 
-/** The read's data, or the typed failure. The one place a read becomes a throw. */
 export function unwrapRead<T>(result: TraktResult<T>, what: string): T {
   if (result.ok) return result.data;
   throw new TraktReadError(result.error, what);
 }
 
-/** Raw response the write-queue transport needs; a fetch reject throws (network). */
 export interface RawResponse {
   readonly status: number;
   readonly headers: Readonly<Record<string, string>>;
@@ -85,12 +68,6 @@ export interface RequestOptions {
 
 export type HttpMethod = "GET" | "POST";
 
-/**
- * Typed Trakt fetch. Sets the required headers, builds the `extended`
- * param, exposes pagination, and maps status → a closed `TraktResult` union.
- * Never throws across the boundary except when a body is unparseable JSON: the
- * schema layer (`endpoints.ts`) turns a wrong-shape body into a throw via zod.
- */
 export class TraktClient {
   private readonly clientId: string;
   private readonly getToken: () => string | null;
@@ -109,7 +86,6 @@ export class TraktClient {
     this.userAgent = config.userAgent;
   }
 
-  /** Low-level send used by the write-queue transport: raw response, throws on network reject. */
   async send(method: HttpMethod, path: string, options: RequestOptions = {}): Promise<RawResponse> {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -135,14 +111,7 @@ export class TraktClient {
     }
   }
 
-  /**
-   * What a rejected fetch means. In a browser talking to Trakt itself it means
-   * the response was there and the browser refused to show it: Cloudflare answers
-   * a 429 or a 403 in front of the API with no `Access-Control-Allow-Origin`, so
-   * naming the user's connection would be a lie over a working one. Everywhere
-   * else, and for the timeout this client raises itself, the transport really did
-   * fail, which is what `network` says.
-   */
+  // In a browser, Cloudflare's 429 and 403 responses in front of Trakt carry no CORS headers, so fetch rejects.
   private rejectionFailure(cause: unknown): TraktFailure {
     const aborted = cause instanceof Error && cause.name === "AbortError";
     return !aborted && this.browser && this.baseUrl === TRAKT_API_BASE
@@ -173,14 +142,7 @@ export class TraktClient {
     return { ok: false, error: mapFailure(raw) };
   }
 
-  /**
-   * Walk every page of a list endpoint via `X-Pagination-Page-Count`, flattening
-   * into one array: the initial library snapshot helper. The page count comes from
-   * the response headers rather than the requested `limit`, because Trakt may apply
-   * a smaller one than asked for, and an empty page ends the walk early in case the
-   * count itself is wrong. Endpoints without pagination headers walk until an
-   * empty page.
-   */
+  // Trakt may apply a smaller page limit than requested.
   async getAllPages(path: string, options: RequestOptions = {}): Promise<TraktResult<unknown[]>> {
     const first = await this.get(path, { ...options, page: 1 });
     if (!first.ok) return first;

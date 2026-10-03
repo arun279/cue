@@ -1,9 +1,7 @@
 import type { MovieIds, ShowIds } from "../../domain/model/ids";
 import type { MovieSummary, SearchResult, ShowSummary } from "./schemas";
 
-/** A show/movie search hit, flattened for the result row + inline watchlist add. */
 export interface SearchHit {
-  /** `${type}:${trakt}`: stable React key + dedupe handle. */
   readonly key: string;
   readonly type: "show" | "movie";
   readonly traktId: number;
@@ -39,11 +37,6 @@ function buildHit(media: SchemaMedia, type: "show" | "movie"): SearchHit {
   };
 }
 
-/**
- * Map Trakt `/search/show,movie` rows to `SearchHit[]`. A row is
- * kept only when its declared `type` has the matching populated body, so a
- * malformed row (a declared type with no body) is dropped, not shown blank.
- */
 export function assembleSearchHits(results: readonly SearchResult[]): SearchHit[] {
   const hits: SearchHit[] = [];
   for (const result of results) {
@@ -55,24 +48,15 @@ export function assembleSearchHits(results: readonly SearchResult[]): SearchHit[
   return hits;
 }
 
-/** Map a bare show list (`/shows/trending`, `/shows/popular`) to the same poster-tile hits. */
 export function assembleShowHits(shows: readonly ShowSummary[]): SearchHit[] {
   return shows.map((show) => buildHit(show, "show"));
 }
 
-/** Map a bare movie list (`/movies/trending`, `/movies/popular`, `/movies/:id/related`)
- * to movie-typed poster hits: the same `SearchHit` the browse tile routes to
- * `/movie/:id` and adds to the watchlist inline. */
 export function assembleMovieHits(movies: readonly MovieSummary[]): SearchHit[] {
   return movies.map((movie) => buildHit(movie, "movie"));
 }
 
-/**
- * Relevance bucket for a hit against the query: exact title < prefix < substring
- * < no title match. Trakt's `/search` also matches aliases, overviews, and
- * people, so a raw score order buries the obvious title hit (e.g. "severance"
- * returning unrelated rows first); ranking by this bucket floats it up.
- */
+// Trakt's /search also matches aliases, overviews and people.
 function relevance(title: string, query: string): number {
   const t = title.trim().toLowerCase();
   const q = query.trim().toLowerCase();
@@ -82,11 +66,6 @@ function relevance(title: string, query: string): number {
   return 3;
 }
 
-/**
- * Re-rank assembled hits so exact/near-exact title matches lead.
- * A stable sort on the relevance bucket keeps Trakt's own score order within a
- * bucket, so the fix elevates the obvious hit without shuffling the long tail.
- */
 export function rankSearchHits(hits: readonly SearchHit[], query: string): SearchHit[] {
   return hits
     .map((hit, index) => ({ hit, index, rank: relevance(hit.title, query) }))

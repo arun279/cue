@@ -10,15 +10,6 @@ import { resolveStill } from "../image-source";
 import type { HiddenItem, Progress, WatchedShow, WatchlistItem } from "./schemas";
 import { toEpisodeIds } from "./show-detail";
 
-/**
- * A `LibraryShow` (what the selectors read) plus the one thing the Up Next card
- * needs and the pure domain type omits: the show's TMDB id, an alternate
- * `/sync/*` write identifier for hide/watchlist.
- *
- * Art is deliberately absent. `/sync/watched/shows` carries no `images` block,
- * so a poster here could only ever be null; every card reads its own from the
- * deferred `/shows/:id` query instead (`useShowArt`).
- */
 export interface LibraryEntry extends LibraryShow {
   readonly tmdbId: number | null;
 }
@@ -111,23 +102,7 @@ export function assembleLibrary(input: LibraryInput): LibraryEntry[] {
   return [...watchedEntries, ...watchlistEntries];
 }
 
-/**
- * Watched-episode count from the bulk `/sync/watched/shows` breakdown, paired with
- * the row's `aired_episodes` to give every show its real progress without a second
- * GET, so a per-show progress read buys only the next episode's identity. The
- * breakdown lists each watched episode once (rewatches carry `plays`, not
- * duplicate rows), so this counts distinct episodes.
- *
- * Two cuts make it agree with `/progress/watched`:
- *   • Specials (season 0) are excluded, because `aired_episodes` is the season sum
- *     EXCLUDING season 0. Counting them would read a show with watched specials as
- *     past its own aired count and silently drop it from the queue.
- *   • Plays before a "restart show" `reset_at` are excluded, which is the only
- *     thing the progress read would have done differently, so a reset show is
- *     resolved here rather than by spending a GET. An episode with no stamp on a
- *     reset show counts as pre-reset: understating `completed` leaves the show in
- *     the queue, which is the harmless direction.
- */
+// Trakt's aired_episodes excludes specials (season 0).
 export function watchedEpisodeCount(watched: WatchedShow): number {
   const resetAt = toMs(watched.reset_at);
   let count = 0;
@@ -160,24 +135,6 @@ export function showIdSet(items: readonly (HiddenItem | WatchlistItem)[]): Set<n
   return ids;
 }
 
-/**
- * Optimistically advance an entry one episode past its current next (the
- * mark-watched hot path): bump `completed`, freeze `lastWatchedAt`, and project
- * the following episode (`number + 1`, title + air date unknown until refetch).
- * The projection carries `firstAired: null`: inheriting the just-watched
- * episode's air date would fabricate a season-finale phantom (S0xE(last+1)) with
- * a real recent date and cling it to the lead slot.
- *
- * It is projected ONLY inside the season the snapshot's own `lastAired` frontier
- * ends in, and only below that frontier's number. A client cannot infer where a
- * season boundary falls or what comes after the aired run, so past either one
- * there is no coordinate to carry and the row advances with none. Which episode
- * is really next is then Trakt's answer alone.
- *
- * `pendingAdvance` marks the row provisional, which is what keeps it in the queue
- * mid-binge until the authoritative progress refetch lands, and `ids.trakt: 0`
- * says the coordinate is a guess rather than an episode anything may be read for.
- */
 export function advancePastNext(entry: LibraryEntry, watchedAt: string): LibraryEntry {
   const current = entry.nextEpisode;
   const nextEpisode: EpisodeRef | null =
@@ -230,13 +187,6 @@ export function additiveLanded(
   });
 }
 
-/**
- * Whether a surface may offer to mark this show's next episode right now. The
- * accelerator rides the exact queue pipeline, so it only offers itself when the
- * next episode is known and has aired, never a guessed coordinate: a mark
- * against a post-mark projection would write a play for an episode that may not
- * exist yet.
- */
 export function quickMarkable(entry: LibraryEntry, now: number): boolean {
   return (
     !entry.pendingAdvance &&
