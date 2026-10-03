@@ -7,17 +7,8 @@ import {
 import type { PreferenceStorage } from "../ports/preference-storage";
 import { booleanPref, choicePref, type Pref } from "./pref-storage";
 
-/** Which episode order the Up Next queue presents: the show whose oldest
- * unwatched episode has waited longest first (default), or the user's own
- * last-watched recency. Device-local, never Trakt-synced. */
-
-/** Which order the lapsed drawer presents: recently watched first (default), or longest idle. */
 export type { LapsedOrder, NextEpisodeOrder };
 
-/**
- * The spoiler guard for episode stills: ON by default, because an unwatched
- * episode's still is a spoiler until it is revealed.
- */
 export const hideStillsPref = (storage: PreferenceStorage): Pref<boolean> =>
   booleanPref(storage, "cue.hide-stills-until-watched", true);
 
