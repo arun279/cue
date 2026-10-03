@@ -525,6 +525,17 @@ jobs:
             --format JUNIT \
             --output "$RUNNER_TEMP/maestro-results-dark.xml" \
             --test-output-dir "$RUNNER_TEMP/screenshots/ios/dark"
+      - name: Capture Profile and Search at the largest text size
+        env:
+          DEVICE_ID: ${{ steps.ui-setup.outputs.device_id }}
+        run: |
+          xcrun simctl ui "$DEVICE_ID" content_size accessibility-extra-extra-extra-large
+          scripts/maestro-ios-test.sh "$RUNNER_TEMP/maestro-debug/large-text" \
+            .maestro/ci/large-text.yaml \
+            --format JUNIT \
+            --output "$RUNNER_TEMP/maestro-results-large-text.xml" \
+            --test-output-dir "$RUNNER_TEMP/screenshots/ios/dark"
+          xcrun simctl ui "$DEVICE_ID" content_size medium
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ !cancelled() }}
         with:

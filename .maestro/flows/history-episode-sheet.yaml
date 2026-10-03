@@ -1,0 +1,25 @@
+# The episode sheet presented over the account modal has to be in the
+# accessibility tree, which is the tree Maestro reads, so VoiceOver can reach it.
+appId: app.cuetracker
+---
+- runScript: lib/reset-fake.js
+- assertTrue: ${output.fakeReset}
+- runFlow: lib/connect.yaml
+- tapOn:
+    id: "avatar-link"
+- tapOn:
+    id: "profile-to-history"
+- tapOn:
+    id: "history-filter-shows"
+- tapOn:
+    id: "history-row-0"
+- assertVisible:
+    id: "episode-sheet"
+- assertVisible:
+    id: "episode-mark-control"
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: history-episode-sheet
+- runFlow: lib/dismiss-episode-sheet.yaml
+- assertVisible:
+    id: "screen-history"
