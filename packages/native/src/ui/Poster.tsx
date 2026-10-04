@@ -12,18 +12,9 @@ export const MONOGRAM_LEADING = 1.25;
 export interface PosterProps {
   readonly title: string;
   readonly posters?: readonly string[] | null;
-  /** A step on the 2:3 scale from `POSTER_WIDTH`; the height follows. */
   readonly width: number;
 }
 
-/**
- * Artwork, which is not type: a poster is the same size at every content size.
- *
- * The designed no-artwork block is always the backing layer, so a title with no
- * Trakt poster reads as deliberately art-less rather than as a broken image, and
- * a URL that fails to load degrades back to it silently. The plate's tint is
- * derived from the title, so the same show is the same color in both apps.
- */
 export function Poster({ title, posters, width }: PosterProps): ReactElement {
   const [broken, setBroken] = useState(false);
   const resolved = resolvePoster({ title, traktPosters: posters });
@@ -65,8 +56,6 @@ export function Poster({ title, posters, width }: PosterProps): ReactElement {
   );
 }
 
-/** Theme invariant, like every other on-image token: a plate is always dark and
- * always carries light ink. */
 export function plate(seed: string): string {
   return `hsl(${artHue(seed)} 40% 20%)`;
 }

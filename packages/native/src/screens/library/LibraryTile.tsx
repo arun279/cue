@@ -28,7 +28,6 @@ export function usePosterGrid(): { readonly columns: number; readonly width: num
   return { columns, width: Math.floor((row - (columns - 1) * SPACE.s3) / columns) };
 }
 
-/** What the tile says it is, which the overlays never say on their own. */
 const STATUS_WORD: Readonly<Record<ChipKey, string>> = {
   watching: "watching",
   watchlist: "on your watchlist",
@@ -43,23 +42,12 @@ export interface TileProps {
   readonly width: number;
   readonly label: string;
   readonly testID: string;
-  /** The Watching overlay: a rail and a number, never a color on its own. Both
-   * are absent on the chips whose grid is already one status throughout. */
   readonly percent: number | null;
   readonly left: number;
   readonly year?: string;
   onPress(): void;
 }
 
-/**
- * One cell of the poster grid: artwork at 2:3, the title under it, and on the
- * Watching chip how far through the show the reader is.
- *
- * The count sits in a disc over the poster until the type outgrows it. Artwork
- * does not scale with Dynamic Type, so past the reflow scale the number leaves
- * the plate and becomes a caption line under the title, which is where the
- * tile's composed label already puts it.
- */
 export function Tile({
   title,
   posters,
@@ -122,16 +110,9 @@ export interface ShowTileProps {
   readonly entry: LibraryEntry;
   readonly chip: ChipKey;
   readonly width: number;
-  /** Artwork is read for the tiles the list reports on screen, not for every
-   * tile it keeps mounted either side of them. */
   readonly onScreen: boolean;
 }
 
-/**
- * A show tile, with the platform's preview and context menu on long press. The
- * cell itself is the link, so the menu carries no overflow control of its own
- * and every action on it also exists on the show screen.
- */
 export function ShowTile({ entry, chip, width, onScreen }: ShowTileProps): ReactElement {
   const router = useRouter();
   const hide = useHideShow();

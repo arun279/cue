@@ -34,15 +34,6 @@ import { TabRoot } from "../../../src/ui/TabRoot";
 import { TEST_IDS } from "../../../src/ui/test-ids";
 import { SPACE, tabBarClearance, useColors } from "../../../src/ui/tokens";
 
-/**
- * Everything already tracked, by medium and by status.
- *
- * The segmented control picks the medium, the chip rail picks the slice, and the
- * grid is the answer. Each segment remembers its own chip and its own order, so
- * moving between shows and movies returns to where the reader left rather than
- * resetting to a default they did not choose. Sort options are medium honest: a
- * film has no progress to sort by.
- */
 export default function Library(): ReactElement {
   const showsEnabled = usePrefs((state) => state.showsEnabled);
   const moviesEnabled = usePrefs((state) => state.moviesEnabled);
@@ -118,8 +109,6 @@ export default function Library(): ReactElement {
       <FlatList
         testID={TEST_IDS.libraryGrid}
         contentInsetAdjustmentBehavior="automatic"
-        // The filter leaves a keyboard over the grid, and by default the first
-        // tap under one only dismisses it: Clear filter would need two.
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ paddingBottom: tabBarClearance(insets.bottom) + SPACE.s4 }}
         data={items}

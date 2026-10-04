@@ -13,16 +13,7 @@ export interface BarItemsProps {
   onSync(): void;
 }
 
-/**
- * Every tab root's trailing bar items: "Sync now", and the avatar the account area
- * sits behind.
- *
- * "Sync now" is load bearing rather than a convenience. It is the single-pointer,
- * non-path alternative to the pull gesture that WCAG 2.5.1 and 2.5.7 require, and
- * it runs exactly the same pass the pull does. Answering the pull with a control
- * four steps away in Settings satisfied the criterion and was not defensible
- * beside a Stop that is co-located on its own row.
- */
+// "Sync now" is the single-pointer alternative to pull to refresh that WCAG 2.5.1 and 2.5.7 require.
 export function BarItems({ onSync }: BarItemsProps): ReactElement {
   const router = useRouter();
   const colors = useColors();
@@ -61,7 +52,6 @@ export function BarItems({ onSync }: BarItemsProps): ReactElement {
 }
 
 const styles = StyleSheet.create({
-  // The SPACE rule: two adjacent targets, 8 pt apart, and the gap never shrinks.
   items: { flexDirection: "row", alignItems: "center", gap: SPACE.s2 },
   target: {
     width: TARGET_MIN,
