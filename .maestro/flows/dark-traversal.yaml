@@ -46,7 +46,8 @@ appId: app.cuetracker
     when:
       platform: Android
     commands:
-      - launchApp
+      - launchApp:
+          permissions: {}
 - extendedWaitUntil:
     visible:
       id: "screen-up-next"

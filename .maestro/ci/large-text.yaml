@@ -1,6 +1,7 @@
 appId: app.cuetracker
 ---
-- launchApp
+- launchApp:
+    permissions: {}
 - extendedWaitUntil:
     visible:
       id: "screen-up-next"
