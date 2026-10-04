@@ -2,6 +2,7 @@ import { parseHistorySearch } from "@cue/core/url/search-params";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { type ReactElement, useState } from "react";
 import { ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "../../ui/Button";
 import { TEST_IDS } from "../../ui/test-ids";
 import { SPACE, useColors } from "../../ui/tokens";
@@ -17,7 +18,8 @@ export function MonthJump(): ReactElement {
   const years = Array.from({ length: currentYear - 2010 + 1 }, (_, i) => currentYear - i);
   if (scope.year !== undefined && !years.includes(scope.year)) years.push(scope.year);
   const colors = useColors();
-  const { fontScale, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const { fontScale } = useWindowDimensions();
   const cell = { width: `${100 / (fontScale > 1.3 ? 3 : 6)}%` } as const;
   const pick = (pickedYear?: number, month?: number) =>
     router.dismissTo({
@@ -25,7 +27,7 @@ export function MonthJump(): ReactElement {
       params: { type: scope.type, year: pickedYear, month },
     });
   return (
-    <View testID={TEST_IDS.historyJumpSheet} style={[styles.sheet, { maxHeight: height * 0.8 }]}>
+    <View testID={TEST_IDS.historyJumpSheet} style={styles.sheet}>
       <CueText
         variant="sectionHeading"
         accessibilityRole="header"
@@ -33,7 +35,10 @@ export function MonthJump(): ReactElement {
       >
         Jump to
       </CueText>
-      <ScrollView style={styles.body} contentContainerStyle={styles.list}>
+      <ScrollView
+        style={styles.body}
+        contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + SPACE.s2 }]}
+      >
         <Button
           label="Recent"
           variant="link"
@@ -84,10 +89,10 @@ export function MonthJump(): ReactElement {
 }
 
 const styles = StyleSheet.create({
-  sheet: { paddingHorizontal: SPACE.s4, paddingTop: SPACE.s4 },
+  sheet: { flex: 1, paddingHorizontal: SPACE.s4, paddingTop: SPACE.s4 },
   head: { paddingBottom: SPACE.s2 },
-  body: { flexShrink: 1 },
-  list: { gap: SPACE.s2, paddingBottom: SPACE.s4 },
+  body: { flex: 1 },
+  list: { gap: SPACE.s2 },
   grid: { flexDirection: "row", flexWrap: "wrap", rowGap: SPACE.s2 },
   cell: { paddingHorizontal: SPACE.s1 },
 });

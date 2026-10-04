@@ -16,16 +16,6 @@ appId: app.cuetracker
 - waitForAnimationToEnd:
     timeout: 1000
 - takeScreenshot: library-${SIZE}
-- tapOn:
-    id: "avatar-link"
-- scrollUntilVisible:
-    element:
-      id: "profile-stat-shows"
-- waitForAnimationToEnd:
-    timeout: 1000
-- takeScreenshot: profile-${SIZE}
-- tapOn:
-    id: "close-account"
 - tapOn: "Search"
 - extendedWaitUntil:
     visible:
@@ -34,8 +24,15 @@ appId: app.cuetracker
 - waitForAnimationToEnd:
     timeout: 1000
 - takeScreenshot: search-${SIZE}
+- tapOn: "Library"
 - tapOn:
     id: "avatar-link"
+- scrollUntilVisible:
+    element:
+      id: "profile-stat-shows"
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: profile-${SIZE}
 - scrollUntilVisible:
     element:
       id: "profile-to-history"
