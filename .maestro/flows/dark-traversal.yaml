@@ -75,8 +75,7 @@ appId: app.cuetracker
     file: lib/back.yaml
     env:
       BACK_TITLE: "Profile"
-- tapOn:
-    id: "close-account"
+- runFlow: lib/leave-profile.yaml
 - extendedWaitUntil:
     visible:
       id: "screen-library"
