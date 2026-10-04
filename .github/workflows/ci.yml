@@ -118,12 +118,11 @@ jobs:
       - uses: ./.github/actions/setup-node-pnpm
       - name: Measure base and head consecutively
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          EVENT_NAME: ${{ github.event_name }}
+          PUSH_BEFORE: ${{ github.event.before }}
           EXPO_PUBLIC_TRAKT_CLIENT_ID: test-client
         run: |
-          if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" = "0000000000000000000000000000000000000000" ]; then
-            BASE_SHA=$(git rev-parse HEAD^)
-          fi
+          BASE_SHA=$(scripts/measured-base.sh "$EVENT_NAME" "$PUSH_BEFORE")
           if git show "$BASE_SHA:packages/native/package.json" 2>/dev/null | grep -q '"perf:render"'; then
             base_directory="$RUNNER_TEMP/render-base"
             git worktree add --detach "$base_directory" "$BASE_SHA"
@@ -193,9 +192,10 @@ jobs:
       - name: Restore the base measurement
         if: github.event_name == 'pull_request'
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
           GH_TOKEN: ${{ github.token }}
-        run: scripts/restore-base-metrics.sh "$BASE_SHA"
+        run: |
+          BASE_SHA=$(scripts/measured-base.sh pull_request)
+          scripts/restore-base-metrics.sh "$BASE_SHA"
       - name: Measure delivered artifacts
         run: |
           scripts/measure-sizes.sh packages/native "$PWD/head-sizes.json"
