@@ -1,6 +1,7 @@
 appId: app.cuetracker
 ---
 - launchApp:
+    permissions: {}
     arguments:
       UIPreferredContentSizeCategoryName: ${CONTENT_SIZE}
 - extendedWaitUntil:

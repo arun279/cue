@@ -1,6 +1,6 @@
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet } from "react-native";
-import { HAIRLINE, RADIUS, SPACE, TARGET_MIN, useColors } from "../../ui/tokens";
+import { HAIRLINE, RADIUS, SELECTABLE, SPACE, TARGET_MIN, useColors } from "../../ui/tokens";
 import { CueText } from "../../ui/type";
 
 export function HistoryChoice({
@@ -17,6 +17,7 @@ export function HistoryChoice({
   onPress(): void;
 }): ReactElement {
   const colors = useColors();
+  const look = selected ? SELECTABLE.historyChoice.selected : SELECTABLE.historyChoice.unselected;
   return (
     <Pressable
       accessibilityRole="button"
@@ -28,16 +29,12 @@ export function HistoryChoice({
         styles.choice,
         compact && { minHeight: 34, borderRadius: RADIUS.pill },
         {
-          backgroundColor: selected ? colors.accent : colors.elevated,
-          borderColor: selected ? colors.accentFillStroke : colors.border,
+          backgroundColor: colors[look.fill],
+          borderColor: colors[look.stroke],
         },
       ]}
     >
-      <CueText
-        variant="meta"
-        weight="semibold"
-        style={{ color: selected ? colors.accentFg : colors.ink2 }}
-      >
+      <CueText variant="meta" weight="semibold" style={{ color: colors[look.label] }}>
         {label}
       </CueText>
     </Pressable>

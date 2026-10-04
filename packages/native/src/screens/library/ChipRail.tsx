@@ -1,7 +1,7 @@
 import { useHaptics } from "@cue/core/ports/haptics";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet } from "react-native";
-import { HAIRLINE, RADIUS, SPACE, useColors } from "../../ui/tokens";
+import { HAIRLINE, RADIUS, SELECTABLE, SPACE, useColors } from "../../ui/tokens";
 import { CueText } from "../../ui/type";
 import type { Chip, ChipKey } from "./model";
 
@@ -26,6 +26,7 @@ export function ChipRail({ chips, selected, onSelect }: ChipRailProps): ReactEle
     >
       {chips.map((chip) => {
         const on = chip.key === selected;
+        const look = on ? SELECTABLE.libraryChip.selected : SELECTABLE.libraryChip.unselected;
         return (
           <Pressable
             key={chip.testID}
@@ -41,22 +42,15 @@ export function ChipRail({ chips, selected, onSelect }: ChipRailProps): ReactEle
             style={[
               styles.chip,
               {
-                backgroundColor: on ? colors.accent : colors.elevated,
-                borderColor: on ? colors.accentFillStroke : colors.border,
+                backgroundColor: colors[look.fill],
+                borderColor: colors[look.stroke],
               },
             ]}
           >
-            <CueText
-              variant="rowTitleSecondary"
-              style={{ color: on ? colors.accentFg : colors.fg }}
-            >
+            <CueText variant="rowTitleSecondary" style={{ color: colors[look.label] }}>
               {chip.label}
             </CueText>
-            <CueText
-              variant="micro"
-              tabularNums
-              style={{ color: on ? colors.accentFg : colors.muted }}
-            >
+            <CueText variant="micro" tabularNums style={{ color: colors[look.detail] }}>
               {chip.count}
             </CueText>
           </Pressable>

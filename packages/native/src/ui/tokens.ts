@@ -42,6 +42,50 @@ type Pair = (typeof PALETTE)[keyof typeof PALETTE];
 type ColorToken = keyof typeof PALETTE;
 export type Colors = Readonly<Record<ColorToken, ColorValue>>;
 
+export interface Appearance {
+  readonly fill?: ColorToken;
+  readonly stroke?: ColorToken;
+  readonly label?: ColorToken;
+  readonly detail?: ColorToken;
+  readonly glyph?: ColorToken;
+}
+
+export interface Selectable {
+  readonly backdrop: ColorToken;
+  readonly labelOnBackdrop?: boolean;
+  readonly selected: Appearance;
+  readonly unselected: Appearance;
+}
+
+export const SELECTABLE = {
+  segment: {
+    backdrop: "bg",
+    selected: { fill: "accent", stroke: "accentFillStroke", label: "accentFg" },
+    unselected: { fill: "elevated", label: "ink2" },
+  },
+  libraryChip: {
+    backdrop: "bg",
+    selected: { fill: "accent", stroke: "accentFillStroke", label: "accentFg", detail: "accentFg" },
+    unselected: { fill: "elevated", stroke: "border", label: "fg", detail: "muted" },
+  },
+  historyChoice: {
+    backdrop: "bg",
+    selected: { fill: "accent", stroke: "accentFillStroke", label: "accentFg" },
+    unselected: { fill: "elevated", stroke: "border", label: "ink2" },
+  },
+  androidTab: {
+    backdrop: "surface",
+    labelOnBackdrop: true,
+    selected: { fill: "accentInk", label: "accentInk", glyph: "surface" },
+    unselected: { label: "muted", glyph: "muted" },
+  },
+  check: {
+    backdrop: "bg",
+    selected: { fill: "watched", glyph: "watchedFg" },
+    unselected: { glyph: "muted" },
+  },
+} as const satisfies Record<string, Selectable>;
+
 function mapPalette(pick: (pair: Pair) => ColorValue): Colors {
   return Object.fromEntries(
     Object.entries(PALETTE).map(([token, pair]) => [token, pick(pair)]),

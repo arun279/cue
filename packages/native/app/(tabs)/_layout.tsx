@@ -1,7 +1,9 @@
 import { NativeTabs } from "expo-router/unstable-native-tabs";
 import type { ReactElement } from "react";
 import { Platform } from "react-native";
-import { useColors } from "../../src/ui/tokens";
+import { SELECTABLE, useColors } from "../../src/ui/tokens";
+
+const { backdrop, selected, unselected } = SELECTABLE.androidTab;
 
 // One path per tab: NativeTabsNavigator does not forward initialRouteName, so groups sharing / land on the alphabetically first.
 export default function TabsLayout(): ReactElement {
@@ -12,13 +14,13 @@ export default function TabsLayout(): ReactElement {
       {...(Platform.OS === "ios"
         ? { tintColor: colors.accentInk }
         : {
-            backgroundColor: colors.surface,
-            iconColor: { default: colors.muted, selected: colors.accentInk },
+            backgroundColor: colors[backdrop],
+            iconColor: { default: colors[unselected.glyph], selected: colors[selected.glyph] },
             labelStyle: {
-              default: { color: colors.muted },
-              selected: { color: colors.accentInk },
+              default: { color: colors[unselected.label] },
+              selected: { color: colors[selected.label] },
             },
-            indicatorColor: colors.elevated,
+            indicatorColor: colors[selected.fill],
           })}
     >
       <NativeTabs.Trigger name="(up-next)">

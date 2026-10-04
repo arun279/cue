@@ -1,26 +1,9 @@
 import { queryKeys } from "@cue/core/data/query-keys";
-import SegmentedControl from "@expo/ui/community/segmented-control";
-import { act, render, screen, userEvent } from "@testing-library/react-native";
+import { act, screen, userEvent } from "@testing-library/react-native";
 import "./support/screen-mocks";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { DataSection, syncedPhrase } from "../src/screens/account/DataSection";
 import { accountFixture } from "./support/account";
-
-jest.mock("expo", () => {
-  const expo = jest.requireActual("expo");
-  return {
-    ...expo,
-    requireNativeModule: (name: string) =>
-      name === "ExpoUI" ? { getMaterialColors: () => ({}) } : expo.requireNativeModule(name),
-  };
-});
-
-it("records the platform segmented control's missing accessible choices", async () => {
-  await render(<SegmentedControl values={["System", "Dark", "Light"]} selectedIndex={0} />);
-  expect(screen.queryAllByRole("radio")).toHaveLength(0);
-  expect(screen.queryAllByRole("button")).toHaveLength(0);
-  expect(screen.queryAllByRole("tab")).toHaveLength(0);
-});
 
 it.each([
   [0, "Not synced yet"],

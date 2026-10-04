@@ -1,0 +1,14 @@
+{
+  "cli": {
+    "appVersionSource": "local"
+  },
+  "build": {
+    "preview": {
+      "distribution": "internal",
+      "channel": "preview",
+      "environment": "preview",
+      "node": "22.12.0",
+      "pnpm": "10.33.0"
+    }
+  }
+}

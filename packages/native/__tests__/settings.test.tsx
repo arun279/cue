@@ -157,7 +157,7 @@ it("starts with accessible controls and the strong defaults", async () => {
   for (const name of ["Haptics", "Hide episode stills until watched", "TV shows", "Movies"]) {
     expect(screen.getByRole("switch", { name })).toBeChecked();
   }
-  expect(screen.getByRole("radio", { name: "System theme" })).toBeChecked();
+  expect(screen.getByRole("tab", { name: "System" })).toBeSelected();
   expect(
     screen.getByRole("button", { name: "Next episode order, Oldest unwatched" }),
   ).toBeVisible();
@@ -216,8 +216,8 @@ it("changes theme through the platform appearance and persists the selection", a
   await fixture.paint(<Settings />);
   expect(setColorScheme).toHaveBeenLastCalledWith("unspecified");
   for (const theme of ["Dark", "Light", "System"]) {
-    await userEvent.press(screen.getByRole("radio", { name: `${theme} theme` }));
-    expect(screen.getByRole("radio", { name: `${theme} theme` })).toBeChecked();
+    await userEvent.press(screen.getByRole("tab", { name: theme }));
+    expect(screen.getByRole("tab", { name: theme })).toBeSelected();
     expect(setColorScheme).toHaveBeenLastCalledWith(
       theme === "System" ? "unspecified" : theme.toLowerCase(),
     );

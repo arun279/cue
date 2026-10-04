@@ -4,7 +4,8 @@ appId: app.cuetracker
 - repeat:
     times: 5
     commands:
-      - launchApp
+      - launchApp:
+          permissions: {}
       - assertVisible:
           id: "app-idle"
       - copyTextFrom:
