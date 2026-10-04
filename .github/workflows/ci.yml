@@ -389,6 +389,7 @@ jobs:
         env:
           # https://developer.apple.com/videos/play/wwdc2023/10248/
           # https://web.dev/articles/rail
+          # https://web.dev/articles/defining-core-web-vitals-thresholds
           FEEDBACK_CEILING_MS: "100"
         run: |
           node scripts/check-response-timing.mjs \

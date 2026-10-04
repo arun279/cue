@@ -1,4 +1,6 @@
 appId: app.cuetracker
+env:
+  RESPONSE_SAMPLES: ${RESPONSE_SAMPLES || "15"}
 ---
 - runFlow: lib/connect.yaml
 - assertVisible:
