@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-quer
 import { act, render, screen, waitFor } from "@testing-library/react-native";
 import type { ReactElement, ReactNode } from "react";
 import { AppIdle } from "../../src/ui/AppIdle";
-import { TEST_IDS } from "../../src/ui/test-ids";
+import { HARNESS_IDS } from "../../src/ui/harness-ids";
 
 const client = new QueryClient({
   defaultOptions: { queries: { retry: false, gcTime: 0 } },
@@ -51,31 +51,31 @@ it("is absent while a read is in flight and present once it settles", async () =
       <AppIdle />
     </>,
   );
-  expect(screen.queryByTestId(TEST_IDS.appIdle)).toBeNull();
+  expect(screen.queryByTestId(HARNESS_IDS.appIdle)).toBeNull();
 
   await act(async () => settle("Salt Air"));
 
-  await waitFor(() => expect(screen.getByTestId(TEST_IDS.appIdle)).toBeOnTheScreen());
+  await waitFor(() => expect(screen.getByTestId(HARNESS_IDS.appIdle)).toBeOnTheScreen());
 });
 
 it("is absent while a write is in flight", async () => {
   await mount(withRuntime(0));
-  expect(screen.getByTestId(TEST_IDS.appIdle)).toBeOnTheScreen();
+  expect(screen.getByTestId(HARNESS_IDS.appIdle)).toBeOnTheScreen();
 
   await act(async () => useSyncActivity.getState().begin());
-  expect(screen.queryByTestId(TEST_IDS.appIdle)).toBeNull();
+  expect(screen.queryByTestId(HARNESS_IDS.appIdle)).toBeNull();
 
   await act(async () => useSyncActivity.getState().end());
-  expect(screen.getByTestId(TEST_IDS.appIdle)).toBeOnTheScreen();
+  expect(screen.getByTestId(HARNESS_IDS.appIdle)).toBeOnTheScreen();
 });
 
 it("keeps the readiness marker absent until the session's activities poll has run", async () => {
   useSyncActivity.setState({ checked: false });
   await mount(<AppIdle />);
-  expect(screen.queryByTestId(TEST_IDS.appIdle)).toBeNull();
+  expect(screen.queryByTestId(HARNESS_IDS.appIdle)).toBeNull();
 
   await act(async () => useSyncActivity.getState().setChecked(true));
-  expect(screen.getByTestId(TEST_IDS.appIdle)).toBeOnTheScreen();
+  expect(screen.getByTestId(HARNESS_IDS.appIdle)).toBeOnTheScreen();
 });
 
 it("times the moment the app is usable, not the activities poll that follows", async () => {
@@ -90,7 +90,7 @@ it("times the moment the app is usable, not the activities poll that follows", a
   now.mockReturnValue(2400);
   await act(async () => useSyncActivity.getState().setChecked(true));
 
-  expect(screen.getByTestId(TEST_IDS.appIdleTiming)).toHaveProp(
+  expect(screen.getByTestId(HARNESS_IDS.appIdleTiming)).toHaveProp(
     "accessibilityLabel",
     "Returning-user app idle: 625.0 ms",
   );
@@ -99,7 +99,7 @@ it("times the moment the app is usable, not the activities poll that follows", a
 it("is absent while a write is only queued, with nothing in flight behind it", async () => {
   await mount(withRuntime(2));
 
-  expect(screen.queryByTestId(TEST_IDS.appIdle)).toBeNull();
+  expect(screen.queryByTestId(HARNESS_IDS.appIdle)).toBeNull();
 });
 
 it("exposes returning-user app-idle timing without drawing text", async () => {
@@ -111,11 +111,11 @@ it("exposes returning-user app-idle timing without drawing text", async () => {
 
   await mount(<AppIdle />);
 
-  expect(screen.getByTestId(TEST_IDS.appIdleTiming)).toHaveProp(
+  expect(screen.getByTestId(HARNESS_IDS.appIdleTiming)).toHaveProp(
     "accessibilityLabel",
     "Returning-user app idle: 625.0 ms",
   );
-  expect(screen.getByTestId(TEST_IDS.appIdleTiming).props["children"]).toBeUndefined();
+  expect(screen.getByTestId(HARNESS_IDS.appIdleTiming).props["children"]).toBeUndefined();
 });
 
 it("names the performance.now fallback", async () => {
@@ -123,7 +123,7 @@ it("names the performance.now fallback", async () => {
 
   await mount(<AppIdle />);
 
-  expect(screen.getByTestId(TEST_IDS.appIdleTiming)).toHaveProp(
+  expect(screen.getByTestId(HARNESS_IDS.appIdleTiming)).toHaveProp(
     "accessibilityLabel",
     "Returning-user app idle: 0.0 ms (performance.now fallback)",
   );

@@ -25,9 +25,6 @@ export const TEST_IDS = {
   themeDark: "theme-dark",
   themeLight: "theme-light",
 
-  appIdle: "app-idle",
-  appIdleTiming: "app-idle-timing",
-  responseTiming: "response-timing",
   bootHold: "boot-hold",
   authLoading: "auth-loading",
   closeAccount: "close-account",

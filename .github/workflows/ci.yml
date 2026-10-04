@@ -300,6 +300,7 @@ jobs:
         working-directory: packages/native/ios
         env:
           EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
+          EXPO_PUBLIC_UI_HARNESS: "1"
           EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
         run: |
           xcodebuild -workspace Cue.xcworkspace -scheme Cue \
@@ -312,6 +313,7 @@ jobs:
         name: Embed current JavaScript and assets
         env:
           EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
+          EXPO_PUBLIC_UI_HARNESS: "1"
           EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
         run: scripts/reembed-ios.sh "$RUNNER_TEMP/native-ios-app/Cue.app"
       - name: Validate and package the simulator app
@@ -553,6 +555,7 @@ jobs:
         working-directory: packages/native/android
         env:
           EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
+          EXPO_PUBLIC_UI_HARNESS: "1"
           EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
         run: |
           ./gradlew --build-cache --configuration-cache --configuration-cache-problems=warn bundleRelease \
@@ -567,6 +570,7 @@ jobs:
         name: Embed current Android JavaScript
         env:
           EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
+          EXPO_PUBLIC_UI_HARNESS: "1"
           EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
         run: |
           scripts/reembed-android.sh \

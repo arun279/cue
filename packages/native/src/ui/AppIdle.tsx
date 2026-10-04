@@ -2,8 +2,8 @@ import { useOptionalRuntime } from "@cue/core/runtime/runtime";
 import { useSyncActivity } from "@cue/core/stores/sync-activity-store";
 import { useIsFetching } from "@tanstack/react-query";
 import { type ReactElement, useEffect, useRef, useState } from "react";
+import { HARNESS_IDS } from "./harness-ids";
 import { Marker } from "./Marker";
-import { TEST_IDS } from "./test-ids";
 
 const QUEUE_SAMPLE_MS = 1000;
 
@@ -33,8 +33,8 @@ export function AppIdle(): ReactElement | null {
   if (!usable || !checked) return null;
   return (
     <>
-      <Marker testID={TEST_IDS.appIdle} />
-      <Marker accessibilityLabel={timing.current} testID={TEST_IDS.appIdleTiming} />
+      <Marker testID={HARNESS_IDS.appIdle} />
+      <Marker accessibilityLabel={timing.current} testID={HARNESS_IDS.appIdleTiming} />
     </>
   );
 }

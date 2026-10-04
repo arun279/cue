@@ -21,7 +21,7 @@ import { type QueryStatus, queryStatus } from "@cue/core/queries/freshness";
 import { useRuntime } from "@cue/core/runtime/runtime";
 import { useQuery } from "@tanstack/react-query";
 import { Stack, useRouter } from "expo-router";
-import { type ReactElement, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { type ReactElement, useMemo, useState } from "react";
 import { FlatList, RefreshControl, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePullToRefresh } from "../../../src/hooks/usePullToRefresh";
@@ -43,8 +43,8 @@ import {
 import { useStableQueueOrder } from "../../../src/screens/up-next/useStableQueueOrder";
 import { BarItems } from "../../../src/ui/BarItems";
 import { Chevron } from "../../../src/ui/Chevron";
+import { useQueueResponseTiming } from "../../../src/ui/harness";
 import { Row, Separator } from "../../../src/ui/Row";
-import { commitResponseTiming } from "../../../src/ui/response-timing";
 import { SyncStrip } from "../../../src/ui/SyncStrip";
 import { TabRoot } from "../../../src/ui/TabRoot";
 import { TvShowsOff } from "../../../src/ui/TvShowsOff";
@@ -148,13 +148,7 @@ export default function UpNext(): ReactElement {
   const refresh = usePullToRefresh();
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const timedQueue = useRef(view.queue);
-
-  useLayoutEffect(() => {
-    if (timedQueue.current === view.queue) return;
-    timedQueue.current = view.queue;
-    commitResponseTiming();
-  }, [view.queue]);
+  useQueueResponseTiming(view.queue);
 
   const marquee = view.queue.length >= MARQUEE_MIN_QUEUE ? view.queue[0] : undefined;
   const rows = marquee === undefined ? view.queue : view.queue.slice(1);

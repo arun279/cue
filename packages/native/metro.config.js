@@ -1,3 +1,4 @@
+const path = require("node:path");
 const { getDefaultConfig } = require("expo/metro-config");
 
 // Drops expo-symbols and its 963 kB Material Symbols font, which only NativeTabs `md` icons use.
@@ -15,5 +16,17 @@ config.serializer.createModuleIdFactory = () => {
     return byPlatform.get(platform)(path, context);
   };
 };
+
+if (process.env.EXPO_PUBLIC_UI_HARNESS !== "1") {
+  const harness = path.join(__dirname, "src/ui/harness.tsx");
+  const store = path.join(__dirname, "src/ui/harness.store.ts");
+  const { resolveRequest } = config.resolver;
+  config.resolver.resolveRequest = (context, moduleName, platform) => {
+    const resolution = (resolveRequest ?? context.resolveRequest)(context, moduleName, platform);
+    return resolution.type === "sourceFile" && resolution.filePath === harness
+      ? { type: "sourceFile", filePath: store }
+      : resolution;
+  };
+}
 
 module.exports = config;

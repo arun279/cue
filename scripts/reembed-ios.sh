@@ -4,6 +4,7 @@ set -euo pipefail
 app=$1
 : "${EXPO_PUBLIC_TRAKT_CLIENT_ID:?the app throws at startup without a Trakt client id}"
 : "${EXPO_PUBLIC_TRAKT_API_BASE:?the harness app must be pointed at the fake Trakt origin}"
+: "${EXPO_PUBLIC_UI_HARNESS:?the harness app must carry the Maestro readiness and timing markers}"
 work=$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/ios-bundle.XXXXXX")
 entitlements="$work/entitlements.plist"
 mkdir -p "$work/assets"

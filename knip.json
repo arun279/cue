@@ -11,7 +11,7 @@
       "includeEntryExports": true
     },
     "packages/native": {
-      "entry": ["plugins/*.js"],
+      "entry": ["plugins/*.js", "src/ui/harness.store.ts"],
       "project": ["app/**/*.{ts,tsx}", "src/**/*.{ts,tsx}", "modules/**/*.ts", "plugins/*.js"],
       "babel": ["babel.config.js"]
     }
