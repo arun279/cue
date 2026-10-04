@@ -64,8 +64,6 @@ export function chipBuckets<T extends LibraryShow>(
   return lists;
 }
 
-/** Case-insensitive title order: the shared alphabetical comparator for both the
- * show-library buckets and the movie-library sorts. */
 function byTitle<T extends { title: string }>(a: T, b: T): number {
   return a.title.localeCompare(b.title, undefined, { sensitivity: "base" });
 }

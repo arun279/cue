@@ -6,12 +6,6 @@ import { useSyncActivity } from "../stores/sync-activity-store";
 import { PENDING_GRACE_MS, PENDING_THRESHOLD, type SyncBanner, syncBanner } from "../sync-contract";
 import { useIsOffline } from "./useIsOffline";
 
-/**
- * Coarse re-sample while something is outstanding. Neither the durable op-log
- * nor the shared rate-limit deadline has a transition to re-render on: a
- * background flush drains the log with nothing in flight, and a countdown is
- * just the clock moving. Only runs while there is something to count.
- */
 const SAMPLE_MS = 1000;
 
 function useClock(active: boolean): number {
@@ -24,7 +18,6 @@ function useClock(active: boolean): number {
   return Date.now();
 }
 
-/** True once the backlog has stood past the grace window; false the moment it drains. */
 function usePendingLate(backedUp: boolean): boolean {
   const [late, setLate] = useState(false);
   useEffect(() => {
@@ -38,14 +31,6 @@ function usePendingLate(backedUp: boolean): boolean {
   return late && backedUp;
 }
 
-/**
- * The one ambient sync signal, assembled for whichever screen asks: its own
- * change-driven read, this device's connectivity, the shared read pause and the
- * durable write backlog, folded by the contract into at most one line. Pending
- * is the HIGHER of the in-flight flush count and the durable queue depth: a mark
- * deferred offline sits in the op-log with nothing in flight, and it is still
- * pending.
- */
 export function useSyncBanner(status: QueryStatus): SyncBanner | null {
   const runtime = useOptionalRuntime();
   const offline = useIsOffline();

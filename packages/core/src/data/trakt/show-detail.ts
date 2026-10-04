@@ -4,44 +4,33 @@ import { isAired } from "../../domain/time";
 import { resolveStill } from "../image-source";
 import type { EpisodeData, Progress, SeasonData, ShowDetailData } from "./schemas";
 
-/** Trakt inline still candidates, screenshot preferred over the lower-res thumb. */
 function stillsOf(episode: EpisodeData): readonly string[] {
   return episode.images?.screenshot ?? episode.images?.thumb ?? [];
 }
 
-/** One episode row on the Show detail season tree, with its derived watched + aired flags. */
 export interface EpisodeView {
   readonly season: number;
   readonly number: number;
   readonly title: string | null;
   readonly firstAired: string | null;
   readonly ids: EpisodeIds;
-  /** Trakt inline still candidates (screenshot → thumb) for the season shelf thumbnail. */
   readonly stills: readonly string[];
   readonly watched: boolean;
-  /** When this episode was last played (progress `last_watched_at`); null if unwatched.
-   * Surfaced inline on the season shelf so a returning viewer sees WHEN, not just that. */
   readonly watchedAt: string | null;
   readonly aired: boolean;
 }
 
-/** A season and its episodes, plus the counts the per-season progress ring reads. */
 export interface SeasonView {
   readonly number: number;
   readonly title: string | null;
   readonly isSpecial: boolean;
-  /**
-   * Hidden on Trakt. The progress read excludes hidden seasons from its breakdown and stats, so a
-   * numbered season the tree lists below the breakdown's last season, which the breakdown omits,
-   * is one the user hid; seasons past that frontier are simply newer than the snapshot.
-   */
+  // Trakt's progress read omits hidden seasons from its breakdown.
   readonly isHidden: boolean;
   readonly episodes: readonly EpisodeView[];
   readonly airedCount: number;
   readonly completedCount: number;
 }
 
-/** The first aired, unwatched, regular episode of the tree. */
 export function firstUnwatchedAired(seasons: readonly SeasonView[]): EpisodeView | null {
   for (const season of seasons) {
     if (season.isSpecial || season.isHidden) continue;
@@ -62,12 +51,6 @@ export function toEpisodeRef(episode: EpisodeView): EpisodeRef {
   };
 }
 
-/**
- * Everything `/shows/:id?extended=full,images` says about a show: content, not
- * user state. Cached once per show and shared by BOTH readers of that URL, the
- * deferred per-card art read and the Show detail hero, so opening a show whose
- * card already resolved costs only its progress GET.
- */
 export interface ShowInfo {
   readonly ids: ShowIds;
   readonly title: string;
@@ -81,7 +64,6 @@ export interface ShowInfo {
   readonly backdrops: readonly string[];
 }
 
-/** The user's progress through one show, from `/shows/:id/progress/watched`. */
 export interface ShowProgress {
   readonly aired: number;
   readonly completed: number;
@@ -113,7 +95,6 @@ function toShowIds(ids: ShowDetailData["ids"]): ShowIds {
   };
 }
 
-/** Project the extended show payload onto the shared per-show content entity. */
 export function assembleShowInfo(show: ShowDetailData): ShowInfo {
   return {
     ids: toShowIds(show.ids),
@@ -129,11 +110,6 @@ export function assembleShowInfo(show: ShowDetailData): ShowInfo {
   };
 }
 
-/**
- * Project `/shows/:id/progress/watched` onto the hero's progress half. The
- * next-episode callout carries its own aired flag so the UI can label "next up"
- * vs "airs on".
- */
 export function assembleShowProgress(progress: Progress, now: number): ShowProgress {
   const next = progress.next_episode;
   return {
@@ -163,20 +139,11 @@ export function assembleShowProgress(progress: Progress, now: number): ShowProgr
   };
 }
 
-/**
- * Merge the seasons tree (`/shows/:id/seasons?extended=episodes`) with the
- * per-episode watched flags from `progress/watched`, deriving each episode's
- * aired flag against `now`. Numbered seasons sort ascending with Specials
- * (season 0) after them. The run of the show reads first, the extras trail;
- * the safety-critical bulk-mark builder consumes the same episode `firstAired`
- * to keep unaired episodes out of every write.
- */
 export function assembleSeasons(
   seasons: readonly SeasonData[],
   progress: Progress,
   now: number,
 ): SeasonView[] {
-  // See `SeasonView.isHidden` for how omitted seasons below this frontier are classified.
   const progressSeasonNumbers = new Set(
     (progress.seasons ?? []).filter((season) => season.number !== 0).map((season) => season.number),
   );

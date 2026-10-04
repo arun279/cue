@@ -9,13 +9,8 @@ import { type MovieLibraryData, type UpNextData, useRuntime } from "../runtime/r
 import { useOptimisticWrite } from "./useOptimisticWrite";
 
 export interface WatchlistAddView {
-  /** True once this hit is in the user's library in any sense: optimistically
-   * added here, already on the watchlist, or already tracked/watched. */
   isAdded(hit: SearchHit): boolean;
-  /** Optimistically add a hit to its section's watchlist through the durable queue. */
   add(hit: SearchHit): Promise<void>;
-  /** The inverse of {@link add}, for the snackbar Undo: optimistically drops the
-   * hit from its section's watchlist (coalescing against a still-queued add). */
   remove(hit: SearchHit): Promise<void>;
   readonly addError: string | null;
   clearAddError(): void;
@@ -25,23 +20,11 @@ function sectionOf(type: "show" | "movie"): "shows" | "movies" {
   return type === "movie" ? "movies" : "shows";
 }
 
-/** Trakt ids are namespaced per media type, so `show:123` and `movie:123` must not collide. */
+// Trakt ids are namespaced per media type.
 function addKey(hit: SearchHit): string {
   return `${hit.type}:${hit.traktId}`;
 }
 
-/**
- * The inline "add to watchlist" surface shared by every poster rail: Search
- * search results, the trending/popular browse rails, and the Movie-detail "More
- * like this" rail. Membership is seeded from the shared watchlist caches so an
- * already-listed hit shows as added and a remount doesn't forget a just-added
- * item, and additionally peeked (never fetched: `enabled: false`) from the
- * persisted library caches so a show you're watching or a movie you've seen
- * reads as "in library" rather than offering a second add. The add is
- * optimistic through the durable queue, revalidating the section only once the
- * write lands (a still-deferred add keeps the optimistic "Added" without a
- * refetch that would read pre-add state).
- */
 export function useWatchlistAdd(): WatchlistAddView {
   const runtime = useRuntime();
   const queryClient = useQueryClient();
@@ -62,9 +45,6 @@ export function useWatchlistAdd(): WatchlistAddView {
   const listedShows = watchlistShows.data;
   const listedMovies = watchlistMovies.data;
 
-  // Library membership is a cache PEEK, never a fetch: these disabled queries
-  // subscribe to whatever the home/library screens already loaded (persisted
-  // across boots), so "In library" costs this surface zero requests.
   const libraryEntries = useQuery({ ...libraryQuery(runtime), enabled: false }).data?.entries;
   const movieEntries = useQuery({ ...movieLibraryQuery(runtime), enabled: false }).data?.entries;
 
@@ -83,8 +63,6 @@ export function useWatchlistAdd(): WatchlistAddView {
     [added, isListed],
   );
 
-  // A settled membership write refreshes the section's watchlist read AND the
-  // library aggregate that derives its "To watch" shelf from membership.
   const revalidateMembership = useCallback(
     (section: "shows" | "movies") => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.watchlist(section) });
@@ -121,10 +99,6 @@ export function useWatchlistAdd(): WatchlistAddView {
     async (hit: SearchHit) => {
       const key = addKey(hit);
       const section = sectionOf(hit.type);
-      // Forward (undone) state first: forget the optimistic add and drop cached
-      // membership so the control returns to its add affordance immediately.
-      // Cancel any in-flight membership read so a settling response can't
-      // re-materialize the id over the optimistic drop.
       setAdded((prev) => {
         const next = new Set(prev);
         next.delete(key);
@@ -157,8 +131,6 @@ export function useWatchlistAdd(): WatchlistAddView {
       const op = buildRemoveWatchlistOp({ opId: runtime.newId(), section, ids: hit.ids });
       await run(
         op,
-        // Trakt still lists it: restore the added state rather than stranding
-        // the row unlisted while the server never changed.
         () => {
           setAdded((prev) => new Set(prev).add(key));
           queryClient.setQueryData(watchlistKey, beforeWatchlist);

@@ -2,12 +2,10 @@ import { usePrefs } from "../prefs/prefs-store";
 import { showUndoable } from "../stores/snackbar-store";
 
 export interface AlertsMute {
-  /** The menu item's label, which is also the only place the state shows. */
   readonly label: string;
   toggle(): void;
 }
 
-/** One show's new-episode alerts, muted and unmuted on this device alone. */
 export function useAlertsMute(showId: number, title: string): AlertsMute {
   const muted = usePrefs((state) => state.mutedShowIds.includes(showId));
   const setShowMuted = usePrefs((state) => state.setShowMuted);

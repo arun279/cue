@@ -1,11 +1,6 @@
 import { z } from "zod";
 
-/**
- * The OAuth token as Trakt returns it. `created_at`/`expires_in` are unix
- * seconds; expiry math lives in `auth/token.ts`. The schema is the single
- * source of truth: the token store validates persisted JSON against it and the
- * OAuth client parses network responses with it.
- */
+// Trakt sends created_at and expires_in as unix seconds.
 export const tokenSchema = z.object({
   access_token: z.string(),
   refresh_token: z.string(),

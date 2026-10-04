@@ -2,43 +2,26 @@ import { CALENDAR_WINDOW_DAYS, type CalendarDay, type CalendarRow } from "./cale
 import { epCode } from "./model/library";
 import { DAY_MS } from "./time";
 
-/**
- * The local hour the daily summary fires. Morning, because the point is to plan
- * the evening, not to interrupt it.
- */
 export const SUMMARY_HOUR = 9;
 
-/**
- * iOS keeps the soonest-firing 64 pending notifications and silently discards
- * the rest, so the plan is cut to the same 64. Every foreground replans, which
- * reaches the dropped tail long before it would have fired.
- */
+// iOS keeps only the soonest 64 pending local notifications and discards the rest.
 const PENDING_LIMIT = 64;
 
-/** Shows the summary names before it counts the rest. */
-const NAMED_SHOWS = 2;
+const SUMMARY_NAMED_SHOW_LIMIT = 2;
 
 const SUMMARY_TITLE = "Airing today";
 
-/** One scheduled notification: what fires, when, and everything about it that can move. */
 export interface PlannedReminder {
-  /** The show and local day for an alert, the day alone for a summary: stable
-   * across replans, and never shared between the two modes. */
   readonly id: string;
   readonly atMs: number;
   readonly title: string;
   readonly body: string;
-  /** The show a tap opens; null for the summary, which names a day. */
   readonly showId: number | null;
-  /** Content + time, folded into one value the diff can compare against what the
-   * OS is already holding, so a replan reschedules only what actually moved. */
   readonly fingerprint: string;
 }
 
-/** A notification the OS is already holding, as the diff needs to see it. */
 export interface PendingReminder {
   readonly id: string;
-  /** `null` for anything scheduled without one, which reads as changed. */
   readonly fingerprint: string | null;
 }
 
@@ -49,9 +32,7 @@ export interface ReminderDiff {
 
 export interface PlanOptions {
   readonly now: number;
-  /** The shows that may notify: the Up Next set, less the muted. */
   readonly showIds: ReadonlySet<number>;
-  /** One morning summary per day instead of an alert per show per air day. */
   readonly summary: boolean;
 }
 
@@ -65,13 +46,7 @@ function reminder(
   return { id, atMs, title, body, showId, fingerprint: `${atMs}|${title}|${body}` };
 }
 
-/**
- * The instant `SUMMARY_HOUR` falls on that day, on the device's own clock: a
- * date-time with no offset designator is local time by the language's own rule,
- * which resolves the DST offset for that date rather than assuming today's. The
- * day keys come from the calendar grouped in the device's timezone, so the two
- * agree by construction.
- */
+// An ISO date-time without an offset parses as local time, using that date's DST offset.
 function summaryAt(dayKey: string): number {
   return Date.parse(`${dayKey}T${String(SUMMARY_HOUR).padStart(2, "0")}:00:00`);
 }
@@ -82,14 +57,11 @@ function summaryBody(rows: readonly CalendarRow[]): string {
     return `${only.showTitle} ${epCode(only.season, only.number)}`;
   }
   const shows = [...new Set(rows.map((row) => row.showTitle))];
-  if (shows.length <= NAMED_SHOWS) return shows.join(" and ");
-  return `${shows.slice(0, NAMED_SHOWS).join(", ")} and ${shows.length - NAMED_SHOWS} more`;
+  if (shows.length <= SUMMARY_NAMED_SHOW_LIMIT) return shows.join(" and ");
+  return `${shows.slice(0, SUMMARY_NAMED_SHOW_LIMIT).join(", ")} and ${shows.length - SUMMARY_NAMED_SHOW_LIMIT} more`;
 }
 
-/**
- * One show's episodes on one day. It says "is out" and never "now", because
- * Android delivers inside the hour after the trigger rather than at it.
- */
+// Android delivers inexact alarms up to an hour after the trigger.
 function alertBody(first: CalendarRow, rest: readonly CalendarRow[]): string {
   if (rest.length === 0) {
     return `${[epCode(first.season, first.number), first.episodeTitle].filter(Boolean).join(" ")} is out.`;
@@ -122,14 +94,6 @@ function alertsFor(dayKey: string, rows: readonly CalendarRow[]): PlannedReminde
   );
 }
 
-/**
- * The notification set for a calendar window. By default one alert per show per
- * air day, fired when the day's first episode airs, so a season dropped at once
- * is one alert naming the run rather than a trickle the OS would throttle. With
- * `summary`, one "Airing today" notification each morning instead. Either way
- * only `showIds` count, only what still lies ahead inside the window is
- * planned, and only the soonest `PENDING_LIMIT` of it.
- */
 export function planReminders(
   days: readonly CalendarDay[],
   { now, showIds, summary }: PlanOptions,
@@ -148,14 +112,6 @@ export function planReminders(
     .slice(0, PENDING_LIMIT);
 }
 
-/**
- * What to change to make the OS hold exactly `planned`. Anything pending that
- * the plan no longer wants, or wants differently, is cancelled; everything the
- * plan wants that is not already pending unchanged is scheduled. Reminders are
- * the only notifications Cue schedules, so a pending id the plan does not name
- * has passed, emptied, been muted or belongs to the other mode, and cancelling
- * it is right.
- */
 export function diffReminders(
   planned: readonly PlannedReminder[],
   pending: readonly PendingReminder[],

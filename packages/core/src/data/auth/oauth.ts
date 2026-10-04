@@ -3,14 +3,6 @@ import { type Token, tokenSchema } from "../../domain/model/token";
 import { parseRetryAfterMs } from "../../domain/write-queue/classify";
 import type { FetchLike } from "../trakt/client";
 
-/**
- * Client-side OAuth PKCE against Trakt. Cue is a public
- * client: it holds no client secret and instead proves possession of a
- * per-attempt `code_verifier` (see `pkce.ts`). The user-facing
- * `authorize`/`activate` pages live on `trakt.tv`; the token/device/revoke
- * endpoints on `api.trakt.tv`. Trakt allows CORS on `/oauth/token`, so the
- * code→token exchange runs directly in the browser: no backend.
- */
 const TRAKT_SITE_BASE = "https://trakt.tv";
 export const TRAKT_API_BASE = "https://api.trakt.tv";
 
@@ -38,7 +30,6 @@ export interface DeviceCode {
   readonly expiresInMs: number;
 }
 
-/** Terminal + transient outcomes of one device-token poll. */
 export type DeviceTokenResult =
   | { readonly status: "success"; readonly token: Token }
   | { readonly status: "pending" }
@@ -78,11 +69,6 @@ async function postJson(
   return { status: response.status, data, headers: response.headers };
 }
 
-/**
- * The full-page redirect target that starts the web auth-code flow. Carries the
- * S256 `code_challenge` so the later token exchange can prove possession of the
- * matching verifier: the PKCE substitute for a client secret.
- */
 export function buildAuthorizeUrl(
   config: OAuthConfig,
   state: string,
@@ -101,10 +87,6 @@ export function buildAuthorizeUrl(
   return `${siteBase(config)}/oauth/authorize?${params}`;
 }
 
-/**
- * Exchange the returned `code` for a token, proving the PKCE `code_verifier`;
- * throws on a non-2xx or malformed body.
- */
 export async function exchangeCodeForToken(
   config: OAuthConfig,
   code: string,
@@ -121,16 +103,9 @@ export async function exchangeCodeForToken(
   return tokenSchema.parse(data);
 }
 
-/**
- * A rejected `/oauth/token` refresh, carrying the HTTP `status` (0 = network
- * reject), the OAuth `error` `code` from the body, and any `Retry-After`. The transport reads these to tell a dead refresh token (`invalid_grant` → end the
- * session) from a transient rate-limit/5xx or a config/request bug (back off,
- * keep the session): see `authorized-fetch.ts`.
- */
 export class TokenRefreshError extends Error {
   readonly status: number;
   readonly retryAfterMs: number | null;
-  /** The OAuth `error` code from the body (e.g. `invalid_grant`), or null. */
   readonly code: string | null;
 
   constructor(status: number, retryAfterMs: number | null, code: string | null) {
@@ -142,7 +117,6 @@ export class TokenRefreshError extends Error {
   }
 }
 
-/** Rotate a token via its `refresh_token`; the refresher calls this. */
 export async function refreshAccessToken(
   config: OAuthConfig,
   refreshToken: string,
@@ -160,7 +134,6 @@ export async function refreshAccessToken(
   return tokenSchema.parse(data);
 }
 
-/** The `error` field of an OAuth error body (e.g. `invalid_grant`), if present. */
 function oauthErrorCode(data: unknown): string | null {
   if (data === null || typeof data !== "object" || !("error" in data)) return null;
   const code = (data as { error: unknown }).error;
@@ -175,12 +148,7 @@ function headerRecord(headers: Headers): Record<string, string> {
   return record;
 }
 
-/**
- * Revoke the access token on sign-out; best-effort, resolves regardless of body.
- * Trakt documents `client_secret` as required for this endpoint
- * (https://docs.trakt.tv/reference/postoauthrevoke); Cue is a public PKCE client with no
- * secret to send, so the call is unverifiable by construction.
- */
+// Trakt documents client_secret as required here (https://docs.trakt.tv/reference/postoauthrevoke); a PKCE client has none to send.
 export async function revokeToken(config: OAuthConfig, accessToken: string): Promise<void> {
   await postJson(config, "/oauth/revoke", {
     token: accessToken,
@@ -188,12 +156,6 @@ export async function revokeToken(config: OAuthConfig, accessToken: string): Pro
   });
 }
 
-/**
- * Start the device-code flow: returns the code to display + the poll interval.
- * Carries the S256 `code_challenge` so the later `pollDeviceToken` verifier is
- * bound to this request: the PKCE substitute for the client secret the device
- * flow would otherwise need.
- */
 export async function requestDeviceCode(
   config: OAuthConfig,
   codeChallenge: string,
@@ -215,11 +177,6 @@ export async function requestDeviceCode(
   };
 }
 
-/**
- * One device-token poll. 200 = authorized; 400 = still pending; 429 = slow
- * down; 418 = denied; 410 = expired; anything else is a hard error. The loop +
- * timing lives in the UI controller (gated by the hermetic e2e suite).
- */
 export async function pollDeviceToken(
   config: OAuthConfig,
   deviceCode: string,

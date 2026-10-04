@@ -37,7 +37,8 @@ describe("fast pull request validation", () => {
   });
 
   it("keeps every build command out of footprint", () => {
-    const footprint = job("footprint");
+    const footprint =
+      job("footprint") + readFileSync(repositoryPath("scripts/restore-base-metrics.sh"), "utf8");
 
     expect(footprint).not.toMatch(/expo (?:export|prebuild)/);
     expect(footprint).not.toContain("grad" + "lew");
@@ -53,6 +54,7 @@ describe("fast pull request validation", () => {
     expect(footprint).toContain(
       "name: cue-footprint-$" + "{{ github.event.pull_request.head.sha || github.sha }}",
     );
+    expect(footprint).toContain('run: scripts/restore-base-metrics.sh "$BASE_SHA"');
     expect(footprint).toContain(
       'download-ci-artifact.sh "$ARTIFACT_NAME" "$RUNNER_TEMP/base-metrics" footprint',
     );
