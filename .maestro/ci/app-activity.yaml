@@ -4,6 +4,5 @@ env:
   RESPONSE_SAMPLES: ${RESPONSE_SAMPLES || "15"}
 ---
 - runFlow: ../flows/up-next-mark-and-undo.yaml
-- runFlow: ../flows/swipe-mark-and-stop.yaml
 - runFlow: ../flows/history.yaml
 - runFlow: ../flows/account.yaml

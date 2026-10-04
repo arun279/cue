@@ -154,8 +154,12 @@ describe("fast pull request validation", () => {
     expect(ios).toContain('".maestro/ci/app-$' + '{{ matrix.suite }}.yaml"');
     expect(android).toContain("suite=.maestro/ci/app.yaml");
     expect(androidJob).toContain('"$RUNNER_TEMP/screenshots/android" light');
+    const androidOnly = [
+      ...suite.matchAll(/file: (\.\.\/flows\/[\w-]+\.yaml)\n {4}when:\n {6}platform: Android\n/g),
+    ].map(([, flow]) => flow);
+    expect(androidOnly).toEqual(["../flows/swipe-mark-and-stop.yaml"]);
     for (const flow of suite.match(/\.\.\/flows\/[\w-]+\.yaml/g) ?? []) {
-      expect(iosSuites).toContain(flow);
+      if (!androidOnly.includes(flow)) expect(iosSuites).toContain(flow);
     }
   });
 

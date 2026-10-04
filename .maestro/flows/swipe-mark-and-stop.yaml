@@ -3,8 +3,7 @@
 # The short case is the one a native gesture implementation is most likely to
 # break, and it is the only assertion here coupled to screen geometry: Maestro
 # cannot combine a direction with explicit coordinates, so a partial drag has to
-# name them. The full swipes drag for 1.5 s: the default 0.4 s drag from the
-# row's centre opened the row on Android but not on the iOS simulator.
+# name them.
 appId: app.cuetracker
 ---
 - runFlow: lib/relaunch.yaml
@@ -13,7 +12,6 @@ appId: app.cuetracker
       id: "queue-row-[0-9]+"
       index: 0
     direction: RIGHT
-    duration: 1500
 - assertVisible:
     id: "snackbar"
 - tapOn:
@@ -29,7 +27,6 @@ appId: app.cuetracker
       id: "queue-row-[0-9]+"
       index: 0
     direction: LEFT
-    duration: 1500
 - assertVisible:
     id: "snackbar"
 - tapOn:
