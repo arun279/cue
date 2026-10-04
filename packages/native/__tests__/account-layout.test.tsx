@@ -1,9 +1,12 @@
 import { dismissSnack, showSnack } from "@cue/core/stores/snackbar-store";
-import { router, Stack } from "expo-router";
+import { parseHistorySearch } from "@cue/core/url/search-params";
+import { router, Stack, useLocalSearchParams } from "expo-router";
 import { act, fireEvent, renderRouter, screen, within } from "expo-router/testing-library";
 import type { ReactElement } from "react";
-import { Platform, StyleSheet, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
 import * as accountLayout from "../app/(account)/_layout";
+import MonthJumpRoute from "../app/(account)/history-jump";
+import { MONTHS } from "../src/screens/history/model";
 import { PALETTE } from "../src/ui/tokens";
 
 jest.mock(
@@ -21,7 +24,17 @@ jest.mock(
  * `useRouter` would only assert that a method with that name was called, which
  * passes just as happily for one that dismisses nothing. The snackbar host is
  * the account group's own, so it only draws once the group is presented.
+ * History is a stand-in that shows the scope it was handed, so the month jump
+ * is read the way the real screen reads it.
  */
+function HistoryScope(): ReactElement {
+  return (
+    <Text testID="screen-history">
+      {JSON.stringify(parseHistorySearch(useLocalSearchParams()))}
+    </Text>
+  );
+}
+
 const routes = {
   _layout: (): ReactElement => (
     <Stack screenOptions={{ headerShown: false }}>
@@ -33,7 +46,8 @@ const routes = {
   "(account)/_layout": accountLayout,
   "(account)/profile": (): ReactElement => <View testID="screen-profile" />,
   "(account)/settings": (): ReactElement => <View testID="screen-settings" />,
-  "(account)/history": (): ReactElement => <View testID="screen-history" />,
+  "(account)/history": HistoryScope,
+  "(account)/history-jump": MonthJumpRoute,
   "(account)/movie/[movieId]": (): ReactElement => <View />,
   "(account)/show/[showId]/episode/[season]/[episode]": (): ReactElement => <View />,
 };
@@ -71,5 +85,41 @@ describe("the account stack", () => {
     await act(async () => showSnack({ message: "Removed 1 play, 2 remain" }));
 
     expect(screen.getByTestId("snackbar-message")).toHaveTextContent("Removed 1 play, 2 remain");
+  });
+});
+
+describe("the month jump sheet", () => {
+  async function openJump(): Promise<void> {
+    await openAccount();
+    await act(() => router.push("/history?type=movies&year=2025&month=3"));
+    await act(() =>
+      router.push({ pathname: "/history-jump", params: { type: "movies", year: 2025, month: 3 } }),
+    );
+  }
+
+  it("marks the month History is showing", async () => {
+    await openJump();
+
+    expect(screen.getByTestId("history-jump-month-3")).toBeSelected();
+    expect(screen.getByTestId("history-jump-year-2025")).toBeSelected();
+    for (const month of MONTHS)
+      expect(screen.getByRole("button", { name: month })).toBeOnTheScreen();
+  });
+
+  it.each([
+    ["history-jump-month-8", { type: "movies", year: 2024, month: 8 }],
+    ["history-jump-all", { type: "movies", year: 2024 }],
+    ["history-jump-recent", { type: "movies" }],
+  ])("hands %s back to the History below it and keeps the medium", async (testID, expected) => {
+    await openJump();
+
+    await fireEvent.press(screen.getByTestId("history-jump-year-2024"));
+    await fireEvent.press(screen.getByTestId(testID));
+
+    expect(screen.queryByTestId("history-jump-sheet")).toBeNull();
+    expect(screen.getByTestId("screen-history")).toHaveTextContent(JSON.stringify(expected));
+    await act(() => router.back());
+    expect(screen.queryByTestId("screen-history")).toBeNull();
+    expect(screen.getByTestId("screen-profile")).toBeOnTheScreen();
   });
 });

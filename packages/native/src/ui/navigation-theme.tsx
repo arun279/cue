@@ -13,19 +13,32 @@ const EXPANDED_SHEET_FONT_SCALE = 1.3;
 const episodeSheetFooter =
   Platform.OS === "android" ? () => <SnackbarHost placement="presentation" contained /> : undefined;
 
+const sheetOptions = {
+  presentation: "formSheet",
+  headerShown: false,
+  sheetGrabberVisible: true,
+  sheetCornerRadius: RADIUS.sheet,
+} as const satisfies NativeStackNavigationOptions;
+
 export function useEpisodeSheetOptions(): NativeStackNavigationOptions {
   const colors = useColors();
   const { fontScale } = useWindowDimensions();
   return {
-    presentation: "formSheet",
-    headerShown: false,
+    ...sheetOptions,
     sheetAllowedDetents: Platform.OS === "android" ? [0.92] : [0.65, 0.92],
     sheetInitialDetentIndex:
       Platform.OS === "ios" && fontScale >= EXPANDED_SHEET_FONT_SCALE ? 1 : 0,
-    sheetGrabberVisible: true,
-    sheetCornerRadius: RADIUS.sheet,
     contentStyle: { backgroundColor: colors.bg },
     unstable_sheetFooter: episodeSheetFooter,
+  };
+}
+
+export function useMonthJumpSheetOptions(): NativeStackNavigationOptions {
+  const colors = useColors();
+  return {
+    ...sheetOptions,
+    sheetAllowedDetents: "fitToContents",
+    contentStyle: { backgroundColor: colors.overlay },
   };
 }
 

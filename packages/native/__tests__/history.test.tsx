@@ -1,7 +1,6 @@
 import type { CueRuntime, SubmitOutcome } from "@cue/core/runtime/runtime";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 import { HistoryScreen } from "../src/screens/history/HistoryScreen";
-import { MONTHS } from "../src/screens/history/model";
 import { HISTORY, historyEntry, historyParams, historyRouter } from "./support/history";
 import { fakeRuntime, Harness, spyHaptics } from "./support/up-next";
 
@@ -116,22 +115,14 @@ test("filters loaded titles without hiding the load-more control", async () => {
   expect(screen.getByTestId("history-row-0")).toBeOnTheScreen();
 });
 
-test("month jump shows both grids together and leaves the medium alone", async () => {
+test("opens the month jump on the scope History is showing", async () => {
   historyParams.current = { type: "movies", year: "2025", month: "3" };
   await paint();
   await fireEvent.press(screen.getByTestId("history-jump"));
-  expect(screen.getByTestId("history-jump-month-3")).toBeOnTheScreen();
-  await fireEvent.press(screen.getByTestId("history-jump-year-2024"));
-  await fireEvent.press(screen.getByTestId("history-jump-month-8"));
-  expect(historyRouter.setParams).toHaveBeenCalledWith({ year: "2024", month: "8" });
-  expect(screen.queryByTestId("history-jump-sheet")).toBeNull();
-});
-
-test("offers every month as a named button", async () => {
-  historyParams.current = { year: "2025" };
-  await paint();
-  await fireEvent.press(screen.getByTestId("history-jump"));
-  for (const month of MONTHS) expect(screen.getByRole("button", { name: month })).toBeOnTheScreen();
+  expect(historyRouter.push).toHaveBeenCalledWith({
+    pathname: "/history-jump",
+    params: { type: "movies", year: 2025, month: 3 },
+  });
 });
 
 test("offers recovery from an initial error", async () => {

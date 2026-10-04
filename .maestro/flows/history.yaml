@@ -60,8 +60,36 @@ appId: app.cuetracker
     id: "history-jump"
 - assertVisible:
     id: "history-jump-sheet"
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: history-jump
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - swipe:
+          from:
+            text: "Jump to"
+          direction: DOWN
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - back
+- extendedWaitUntil:
+    notVisible:
+      id: "history-jump-sheet"
+    timeout: 10000
+- assertVisible:
+    id: "screen-history"
+- tapOn:
+    id: "history-jump"
 - tapOn:
     id: "history-jump-month-8"
+- extendedWaitUntil:
+    notVisible:
+      id: "history-jump-sheet"
+    timeout: 10000
 - assertVisible:
     id: "screen-history"
 - waitForAnimationToEnd

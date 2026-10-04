@@ -34,3 +34,20 @@ appId: app.cuetracker
 - waitForAnimationToEnd:
     timeout: 1000
 - takeScreenshot: search-${SIZE}
+- tapOn:
+    id: "avatar-link"
+- scrollUntilVisible:
+    element:
+      id: "profile-to-history"
+- tapOn:
+    id: "profile-to-history"
+- scrollUntilVisible:
+    element:
+      id: "history-jump"
+- tapOn:
+    id: "history-jump"
+- assertVisible:
+    id: "history-jump-sheet"
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: history-jump-${SIZE}

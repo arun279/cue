@@ -2,7 +2,11 @@ import { Stack, useRouter } from "expo-router";
 import type { ReactElement } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { Button } from "../../src/ui/Button";
-import { barOptions, useEpisodeSheetOptions } from "../../src/ui/navigation-theme";
+import {
+  barOptions,
+  useEpisodeSheetOptions,
+  useMonthJumpSheetOptions,
+} from "../../src/ui/navigation-theme";
 import { SnackbarHost } from "../../src/ui/SnackbarHost";
 import { TEST_IDS } from "../../src/ui/test-ids";
 
@@ -11,6 +15,7 @@ export const unstable_settings = { initialRouteName: "profile" };
 export default function AccountLayout(): ReactElement {
   const router = useRouter();
   const sheet = useEpisodeSheetOptions();
+  const monthJump = useMonthJumpSheetOptions();
 
   return (
     <View style={styles.root}>
@@ -32,6 +37,7 @@ export default function AccountLayout(): ReactElement {
         />
         <Stack.Screen name="settings" options={{ title: "Settings" }} />
         <Stack.Screen name="history" options={{ title: "History" }} />
+        <Stack.Screen name="history-jump" options={monthJump} />
         <Stack.Screen
           name="movie/[movieId]"
           options={{ title: "Movie", headerTransparent: false }}
