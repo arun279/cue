@@ -81,9 +81,9 @@ export default function Calendar(): ReactElement {
         options={{
           title: "Calendar",
           headerLargeTitle: true,
-          headerRight: () => <BarItems onSync={refresh.sync} />,
         }}
       />
+      <BarItems onSync={refresh.sync} />
       <SectionList<CalendarRow, DaySection>
         testID={TEST_IDS.calendarList}
         contentInsetAdjustmentBehavior="automatic"

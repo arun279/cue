@@ -1,13 +1,12 @@
 import { dismissSnack, showSnack } from "@cue/core/stores/snackbar-store";
 import { parseHistorySearch } from "@cue/core/url/search-params";
 import { router, Stack, useLocalSearchParams } from "expo-router";
-import { act, fireEvent, renderRouter, screen, within } from "expo-router/testing-library";
+import { act, fireEvent, renderRouter, screen } from "expo-router/testing-library";
 import type { ReactElement } from "react";
-import { Platform, StyleSheet, Text, View } from "react-native";
+import { Platform, Text, View } from "react-native";
 import * as accountLayout from "../app/(account)/_layout";
 import MonthJumpRoute from "../app/(account)/history-jump";
 import { MONTHS } from "../src/screens/history/model";
-import { PALETTE } from "../src/ui/tokens";
 
 jest.mock(
   "react-native-safe-area-context",
@@ -52,10 +51,32 @@ const routes = {
   "(account)/show/[showId]/episode/[season]/[episode]": (): ReactElement => <View />,
 };
 
-/** The accent ink as each platform hands it over: a dynamic pair on iOS, the
- * light value on Android, whose renderer runs in the light scheme. */
-const accentInk = () =>
-  Platform.OS === "ios" ? { dynamic: PALETTE.accentInk } : PALETTE.accentInk.light;
+/** Leaves Profile the way each platform's header offers: the UIKit Done item
+ * the iOS header is handed, or on Android the up button, which react-native-screens
+ * reports on the screen presenting a nested stack whose root it sits on. */
+async function leaveProfile(): Promise<void> {
+  if (Platform.OS === "android") {
+    const presenting = screen.container.queryAll(
+      (node) =>
+        node.type === "RNSScreen" &&
+        node.queryAll((child) => child.props["testID"] === "screen-profile").length > 0,
+    )[0];
+    expect(presenting).toBeDefined();
+    if (presenting !== undefined) await fireEvent(presenting, "headerBackButtonClicked");
+    return;
+  }
+  const header = screen.container.queryAll(
+    (node) => node.type === "RNSScreenStackHeaderConfig" && node.props["title"] === "Profile",
+  )[0];
+  const items = header?.props["headerRightBarButtonItems"];
+  expect(items).toEqual([
+    expect.objectContaining({ type: "button", title: "Done", variant: "done" }),
+  ]);
+  if (header === undefined) return;
+  await fireEvent(header, "pressHeaderBarButtonItem", {
+    nativeEvent: { buttonId: items[0].buttonId },
+  });
+}
 
 const openAccount = async (): Promise<void> => {
   await renderRouter(routes, { initialUrl: "/" });
@@ -66,14 +87,10 @@ const openAccount = async (): Promise<void> => {
 describe("the account stack", () => {
   beforeEach(() => dismissSnack());
 
-  it("dismisses the modal back to where the user was from an accent Done", async () => {
+  it("dismisses the modal back to where the user was from the platform's own header control", async () => {
     await openAccount();
 
-    const done = screen.getByRole("button", { name: "Done" });
-    expect(StyleSheet.flatten(within(done).getByText("Done").props["style"]).color).toEqual(
-      accentInk(),
-    );
-    await fireEvent.press(done);
+    await leaveProfile();
 
     expect(screen.queryByTestId("screen-profile")).toBeNull();
     expect(screen.getByTestId("screen-tabs")).toBeOnTheScreen();

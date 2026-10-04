@@ -31,6 +31,7 @@ jest.mock("expo-router", () => {
     return createElement(MockView, null, children);
   };
   Stack.Screen = (): null => null;
+  Stack.Toolbar = require("./support/native-ui").toolbarModule();
   return { Stack, useRouter: () => ({ dismissAll: jest.fn() }) };
 });
 

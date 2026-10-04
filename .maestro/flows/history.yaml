@@ -61,7 +61,7 @@ appId: app.cuetracker
       - tapOn:
           text: "Search"
           rightOf:
-            id: "sync-now"
+            text: "Sync now"
 - runFlow:
     when:
       platform: iOS
