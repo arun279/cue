@@ -6,18 +6,11 @@ export const queryClient = createQueryClient();
 
 export const { shouldDehydrateQuery } = createQueryCachePolicy(queryClient);
 
-/**
- * The query persister runs over the Expo bulk store. Its `storage` argument
- * wants `getItem`, `setItem` and `removeItem`
- * returning a value or a promise, which is exactly what `expo-sqlite/kv-store`
- * is.
- */
 export const queryPersister = createAsyncStoragePersister({
   key: "cue.query-cache",
   storage: Storage,
 });
 
-/** The one teardown dependency the runtime takes, in place of both objects. */
 export const clearPersistedCaches = async (): Promise<void> => {
   queryClient.clear();
   await queryPersister.removeClient();
