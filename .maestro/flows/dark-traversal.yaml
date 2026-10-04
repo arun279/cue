@@ -1,30 +1,9 @@
 appId: app.cuetracker
 ---
-- launchApp:
-    clearState: true
-    clearKeychain: true
-- extendedWaitUntil:
-    visible:
-      id: "screen-onboarding"
-    timeout: 30000
-- waitForAnimationToEnd:
-    timeout: 1000
-- takeScreenshot: onboarding-ready
-- tapOn:
-    id: "button-connect"
-    waitToSettleTimeoutMs: 100
-- extendedWaitUntil:
-    visible:
-      id: "device-code-value"
-    timeout: 30000
-- waitForAnimationToEnd:
-    timeout: 1000
-- takeScreenshot: connect-code-ready
-- runScript: lib/approve-device.js
-- extendedWaitUntil:
-    visible:
-      id: "screen-up-next"
-    timeout: 30000
+- runFlow:
+    file: lib/connect.yaml
+    env:
+      CAPTURE_AUTH: "true"
 - waitForAnimationToEnd:
     timeout: 1000
 - takeScreenshot: up-next-populated
