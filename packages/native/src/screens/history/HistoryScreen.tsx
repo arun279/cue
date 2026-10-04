@@ -31,7 +31,6 @@ import { CueText } from "../../ui/type";
 import { AgendaSkeleton } from "../calendar/Agenda";
 import { HistoryChoice } from "./HistoryChoice";
 import { HistoryRow } from "./HistoryRow";
-import { MonthJump } from "./MonthJump";
 import { historySections, itemKey, jumpLabel } from "./model";
 
 export function HistoryScreen(): ReactElement {
@@ -39,7 +38,6 @@ export function HistoryScreen(): ReactElement {
   const router = useRouter();
   const search = parseHistorySearch(useLocalSearchParams());
   const [title, setTitle] = useState("");
-  const [jumping, setJumping] = useState(false);
   const clock = useCoarseClock(DAY_MS);
   const range = search.year === undefined ? undefined : historyRange(search.year, search.month);
   const query = useInfiniteQuery(
@@ -159,7 +157,7 @@ export function HistoryScreen(): ReactElement {
                 compact
                 label={jumpLabel(search.year, search.month)}
                 testID={TEST_IDS.historyJump}
-                onPress={() => setJumping(true)}
+                onPress={() => router.push({ pathname: "/history-jump", params: { ...search } })}
               />
             </View>
           </View>
@@ -200,19 +198,6 @@ export function HistoryScreen(): ReactElement {
           </View>
         }
       />
-      {jumping && (
-        <MonthJump
-          scope={search}
-          onClose={() => setJumping(false)}
-          onPick={(year, month) => {
-            setJumping(false);
-            router.setParams({
-              year: year === undefined ? "" : String(year),
-              month: month === undefined ? "" : String(month),
-            });
-          }}
-        />
-      )}
     </TabRoot>
   );
 }

@@ -27,6 +27,32 @@ appId: app.cuetracker
     text: ${output.historyDay}
 - assertVisible:
     id: "history-row-0"
+- tapOn:
+    id: "history-jump"
+- assertVisible:
+    id: "history-jump-sheet"
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: history-jump
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - swipe:
+          start: "50%,30%"
+          end: "50%,98%"
+          duration: 300
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - back
+- extendedWaitUntil:
+    notVisible:
+      id: "history-jump-sheet"
+    timeout: 10000
+- assertVisible:
+    id: "screen-history"
 # Android collapses the header search field into a toolbar icon.
 - runFlow:
     when:
@@ -58,10 +84,12 @@ appId: app.cuetracker
     id: "history-row-0"
 - tapOn:
     id: "history-jump"
-- assertVisible:
-    id: "history-jump-sheet"
 - tapOn:
     id: "history-jump-month-8"
+- extendedWaitUntil:
+    notVisible:
+      id: "history-jump-sheet"
+    timeout: 10000
 - assertVisible:
     id: "screen-history"
 - waitForAnimationToEnd

@@ -29,7 +29,6 @@ export const PALETTE = {
   ok: { light: "#1f7a54", dark: "#5fbe97" },
   danger: { light: "#b4231b", dark: "#f0857a" },
   scrim: { light: "rgba(10,8,6,0.86)", dark: "rgba(10,8,6,0.86)" },
-  dim: { light: "rgba(10,8,6,0.32)", dark: "rgba(0,0,0,0.5)" },
   onImage: { light: "#ffffff", dark: "#ffffff" },
   onImage2: { light: "#d9cfc0", dark: "#d9cfc0" },
   // Light amber is 1.97:1 on the page, under the 3:1 WCAG 1.4.11 requires; dark amber is 10.98:1.
