@@ -10,6 +10,7 @@ import { resetMarkStore } from "@cue/core/stores/mark-store";
 import { dismissSnack } from "@cue/core/stores/snackbar-store";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { type ReactElement, type ReactNode, useState } from "react";
+import { deliverQueryUpdatesInMicrotasks } from "../../src/platform/query-notifications";
 import { SnackbarHost } from "../../src/ui/SnackbarHost";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -161,6 +162,7 @@ export function Harness({
   // testing guide sets `gcTime` to Infinity under jest, because a five minute
   // collection timer per query outlives the run and forces a worker exit.
   const [client] = useState(() => {
+    deliverQueryUpdatesInMicrotasks();
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false, gcTime: Number.POSITIVE_INFINITY } },
     });
