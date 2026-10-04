@@ -1,0 +1,10 @@
+# The signed-in session survives a relaunch; the account and the cache do not.
+# The reset moves every last_activities stamp forward, so the app's first poll
+# refetches what it restored, and app idle waits for that poll.
+appId: app.cuetracker
+---
+- runScript: reset-fake.js
+- assertTrue: ${output.fakeReset}
+- launchApp:
+    stopApp: true
+- runFlow: ready.yaml

@@ -1,0 +1,51 @@
+import { readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
+import { describe, expect, it } from "vitest";
+import { repositoryPath } from "../support/repository-path";
+
+const FLOWS = repositoryPath(".maestro/flows");
+const SUITES = repositoryPath(".maestro/ci");
+
+// A reinstall, a keychain reset and a sign-in cost a flow 30 to 45 s on a
+// macOS runner before its first assertion; a relaunch keeps the session.
+const FULL_RESET = new Set([
+  // Sign in from a fresh install.
+  "launch.yaml",
+  "dark-traversal.yaml",
+  // Open a shard, so nothing has signed in before them.
+  "calendar.yaml",
+  "up-next-mark-and-undo.yaml",
+  // Run on their own, outside every suite.
+  "pull-to-refresh.yaml",
+  "swipe-mark-and-stop.yaml",
+  "up-next-lapsed-drawer.yaml",
+]);
+
+const yamlIn = (directory: string): string[] =>
+  readdirSync(directory).filter((name) => name.endsWith(".yaml"));
+
+const references = (file: string): string[] =>
+  [...readFileSync(file, "utf8").matchAll(/^\s*-?\s*(?:runFlow|file): ([\w./-]+\.yaml)$/gm)].map(
+    ([, reference = ""]) => path.resolve(path.dirname(file), reference),
+  );
+
+const resets = (file: string): boolean =>
+  /^\s+clear(?:State|Keychain): true$/m.test(readFileSync(file, "utf8")) ||
+  references(file).some(resets);
+
+describe("Maestro app resets", () => {
+  it("reinstalls and signs in only in the flows that need a fresh install", () => {
+    const resetting = yamlIn(FLOWS).filter((name) => resets(path.join(FLOWS, name)));
+
+    expect(new Set(resetting)).toEqual(FULL_RESET);
+  });
+
+  it("opens every suite with a flow that signs in from a fresh install", () => {
+    const openers = yamlIn(SUITES).flatMap((suite) => {
+      const [first] = references(path.join(SUITES, suite));
+      return first === undefined ? [] : [[suite, path.basename(first)]];
+    });
+
+    expect(openers.filter(([, flow = ""]) => !FULL_RESET.has(flow))).toEqual([]);
+  });
+});

@@ -510,7 +510,12 @@ export function createMockTrakt({
       device,
       (seed) => {
         if (!SEED_PROFILE_NAMES.includes(seed)) return false;
+        const replaced = library.activities;
         library = createSeedLibrary(seed);
+        // The app refetches only what last_activities moved forward, so a reset
+        // moves every section past anything the replaced account reported.
+        const at = Math.max(Date.now(), ...Object.values(replaced).map((stamp) => stamp + 1));
+        for (const section of Object.keys(library.activities)) library.activities[section] = at;
         device.approved = false;
         faults.clear();
         return true;

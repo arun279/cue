@@ -10,6 +10,10 @@ const client = new QueryClient({
   defaultOptions: { queries: { retry: false, gcTime: 0 } },
 });
 
+beforeEach(() => {
+  useSyncActivity.setState({ checked: true });
+});
+
 afterEach(() => {
   client.clear();
   jest.restoreAllMocks();
@@ -62,6 +66,15 @@ it("is absent while a write is in flight", async () => {
   expect(screen.queryByTestId(TEST_IDS.appIdle)).toBeNull();
 
   await act(async () => useSyncActivity.getState().end());
+  expect(screen.getByTestId(TEST_IDS.appIdle)).toBeOnTheScreen();
+});
+
+it("is absent until the session's activities poll has run", async () => {
+  useSyncActivity.setState({ checked: false });
+  await mount(<AppIdle />);
+  expect(screen.queryByTestId(TEST_IDS.appIdle)).toBeNull();
+
+  await act(async () => useSyncActivity.getState().setChecked(true));
   expect(screen.getByTestId(TEST_IDS.appIdle)).toBeOnTheScreen();
 });
 
