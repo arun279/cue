@@ -226,6 +226,7 @@ describe("fast pull request validation", () => {
     expect(aggregate).toContain("needs: [fingerprint, native-ios, native-e2e-ios-light]");
     expect(aggregate).toContain("if: $" + "{{ always() }}");
     expect(aggregate).toContain("OWED: $" + "{{ needs.fingerprint.outputs.ios-owed }}");
+    expect(aggregate).toContain("DEVICES: $" + "{{ needs.fingerprint.outputs.devices }}");
     expect(aggregate).toContain("USER_FACING: $" + "{{ needs.fingerprint.outputs.user-facing }}");
     expect(aggregate).toMatch(/^ {8}run: node scripts\/native-e2e-rollup\.mjs$/m);
     expect(aggregate).not.toContain("continue-on-error");
@@ -253,6 +254,29 @@ describe("fast pull request validation", () => {
     expect(fetch).toContain("--pattern 'ui-*'");
   });
 
+  it("runs only the fast checks and the Android build on draft pull requests", () => {
+    const deviceJobs = ["native-ios", "android-e2e", "ui-screenshots-android-dark"];
+    const jobs = [...workflow.matchAll(/^ {2}([a-z][a-z0-9-]*):$/gm)].map(([, name]) => name ?? "");
+    const gated = jobs.filter((name) =>
+      job(name).includes("needs.fingerprint.outputs.devices == 'true'"),
+    );
+
+    expect(workflow).toContain(
+      "pull_request:\n    types: [opened, synchronize, reopened, ready_for_review]\n",
+    );
+    expect(job("fingerprint")).toContain(
+      "devices: $" +
+        "{{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}",
+    );
+    for (const name of deviceJobs) {
+      expect(job(name)).toMatch(/^ {4}if: needs\.fingerprint\.outputs\.devices == 'true'$/m);
+    }
+    expect(gated.sort()).toEqual([...deviceJobs, "pr-media"].sort());
+    for (const name of ["check", "native-android", "footprint", "audit", "actionlint"]) {
+      expect(job(name)).not.toContain("devices");
+    }
+  });
+
   it("runs the iOS flow lane on pushes, nightly, iOS fingerprint changes, owed lanes, and user-facing pull requests", () => {
     const iosLane =
       "if: github.event_name != 'pull_request' || needs.native-ios.outputs.hit != 'true' || " +
@@ -268,14 +292,7 @@ describe("fast pull request validation", () => {
     );
     expect(job("fingerprint")).toContain("actions/workflows/ci.yml/runs?branch=$BRANCH");
     expect(gated.sort()).toEqual(["native-e2e-ios-light", "ui-screenshots-ios-dark"].sort());
-    for (const name of [
-      "native-ios",
-      "native-android",
-      "android-e2e",
-      "ui-screenshots-android-dark",
-    ]) {
-      expect(job(name)).not.toMatch(/^ {4}if:/m);
-    }
+    expect(job("native-android")).not.toMatch(/^ {4}if:/m);
   });
 
   it("bounds every native job by its measured duration plus headroom", () => {

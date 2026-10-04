@@ -6,7 +6,10 @@ on:
     # push-event run. Without this, dispatching mobile-release.yml on a release
     # branch waits out its deadline on checks that would never report.
     branches: [main, feat/expo-native, "release/*"]
+  # Draft pull requests run only the fast checks and the Android build; the
+  # device lanes run once the pull request is ready for review.
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   schedule:
     # Nightly run: the (non-deterministic) advisory audit catches newly disclosed
     # CVEs against the pinned lockfile, and the iOS flow lane, which pull
@@ -39,6 +42,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       android: ${{ steps.native.outputs.android }}
+      devices: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
       ios: ${{ steps.native.outputs.ios }}
       ios-owed: ${{ steps.ios-owed.outputs.owed }}
       user-facing: ${{ steps.changes.outputs.user-facing }}
@@ -265,6 +269,7 @@ jobs:
       actions: read
       contents: read
     needs: fingerprint
+    if: needs.fingerprint.outputs.devices == 'true'
     runs-on: macos-26
     outputs:
       hit: ${{ steps.native-cache.outputs.hit }}
@@ -451,6 +456,7 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           BUILD: ${{ needs.native-ios.result }}
+          DEVICES: ${{ needs.fingerprint.outputs.devices }}
           HIT: ${{ needs.native-ios.outputs.hit }}
           OWED: ${{ needs.fingerprint.outputs.ios-owed }}
           SHARDS: ${{ needs.native-e2e-ios-light.result }}
@@ -629,6 +635,7 @@ jobs:
     # is that plus about 25 percent.
     timeout-minutes: 14
     needs: [fingerprint, native-android]
+    if: needs.fingerprint.outputs.devices == 'true'
     runs-on: ubuntu-latest
     env:
       MAESTRO_CLI_NO_ANALYTICS: "1"
@@ -686,6 +693,7 @@ jobs:
     # Measured 3 to 5 minutes.
     timeout-minutes: 7
     needs: [fingerprint, native-android]
+    if: needs.fingerprint.outputs.devices == 'true'
     runs-on: ubuntu-latest
     env:
       MAESTRO_CLI_NO_ANALYTICS: "1"
@@ -742,7 +750,8 @@ jobs:
   pr-media:
     timeout-minutes: 5
     if: >-
-      !cancelled() && github.event_name == 'pull_request' && needs.fingerprint.outputs.user-facing == 'true' &&
+      !cancelled() && github.event_name == 'pull_request' && needs.fingerprint.outputs.devices == 'true' &&
+      needs.fingerprint.outputs.user-facing == 'true' &&
       github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'
     permissions:
       actions: read

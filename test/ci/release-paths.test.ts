@@ -23,6 +23,9 @@ const NOT_REQUIRED = ["fingerprint", "footprint", "native-e2e-ios-light", "pr-me
 const IOS_LANE =
   "    if: github.event_name != 'pull_request' || needs.native-ios.outputs.hit != 'true' || " +
   "needs.fingerprint.outputs.ios-owed == 'true' || needs.fingerprint.outputs.user-facing == 'true'";
+// True on every push run, which is the run the release gate reads.
+const DEVICES = "github.event_name != 'pull_request' || !github.event.pull_request.draft";
+const DEVICE_LANE = "    if: needs.fingerprint.outputs.devices == 'true'";
 
 const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((entry) => typeof entry === "string");
@@ -184,6 +187,9 @@ describe("mobile release gate required checks", () => {
 
   it("uses only modeled workflow check-run names", () => {
     const requiredChecks = new Set(readRequiredChecks());
+    const fingerprint = readCiJobs().find((job) => job.name === "fingerprint");
+
+    expect(fingerprint?.body).toContain(`      devices: $` + `{{ ${DEVICES} }}\n`);
     const unsupportedOverrides = [
       ...readCiJobs()
         .filter((job) => requiredChecks.has(job.name))
@@ -194,7 +200,8 @@ describe("mobile release gate required checks", () => {
               (line) =>
                 /^ {4}(?:name|strategy|if):/.test(line) &&
                 (job.name !== "native-e2e" || line !== "    if: $" + "{{ always() }}") &&
-                (job.name !== "ui-screenshots-ios-dark" || line !== IOS_LANE),
+                (job.name !== "ui-screenshots-ios-dark" || line !== IOS_LANE) &&
+                line !== DEVICE_LANE,
             ),
         ),
       ...readWorkflowJobs(CODEQL_WORKFLOW).flatMap((job) =>
