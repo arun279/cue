@@ -7,42 +7,40 @@ if [ "$#" -ne 1 ] && [ "$#" -ne 3 ]; then
 fi
 
 base=$(git rev-parse --verify --end-of-options "$1^{commit}")
-product_paths=(
-  ':(glob)packages/core/src/**'
-  ':(glob)packages/native/src/**'
-  ':(glob)packages/native/app/**'
-  ':(glob)packages/native/modules/**'
-)
-read -r product_added product_removed comment_added comment_removed < <(
-  git diff --no-renames --unified=0 --no-color "$base"...HEAD -- "${product_paths[@]}" | awk '
-    function count(line, direction) {
+
+net_lines() {
+  git diff --no-renames --unified=0 --no-color "$base"...HEAD -- "$@" | awk '
+    function count(line, sign) {
       sub(/^[[:space:]]+/, "", line)
       if (line == "") return
-      if (line ~ /^(\/\/|\/\*|\*)/) comments[direction]++
-      else product[direction]++
+      lines += sign
+      if (line ~ /^(\/\/|\/\*|\*)/) comments += sign
     }
     /^diff --git / { in_hunk = 0; next }
     /^@@/ { in_hunk = 1; next }
-    in_hunk && /^\+/ { count(substr($0, 2), "added"); next }
-    in_hunk && /^-/ { count(substr($0, 2), "removed") }
-    END {
-      printf "%d %d %d %d\n", product["added"], product["removed"], comments["added"], comments["removed"]
-    }
+    in_hunk && /^\+/ { count(substr($0, 2), 1); next }
+    in_hunk && /^-/ { count(substr($0, 2), -1) }
+    END { printf "%d %d\n", lines, comments }
   '
-)
-read -r test_added test_removed < <(
-  git diff --no-renames --numstat "$base"...HEAD -- \
-    ':(glob)packages/*/test/**' \
-    ':(glob)packages/*/__tests__/**' \
-    ':(glob)packages/*/e2e/**' | awk '
-      { added += $1 == "-" ? 0 : $1; removed += $2 == "-" ? 0 : $2 }
-      END { printf "%d %d\n", added, removed }
-    '
-)
+}
 
-product_net=$((product_added - product_removed))
-test_net=$((test_added - test_removed))
-comment_net=$((comment_added - comment_removed))
+read -r product_lines comment_net < <(net_lines \
+  ':(glob)packages/core/src/**' \
+  ':(glob)packages/native/src/**' \
+  ':(glob)packages/native/app/**' \
+  ':(glob)packages/native/modules/**')
+read -r test_net _ < <(net_lines \
+  ':(glob)test/**' \
+  ':(glob)packages/*/test/**' \
+  ':(glob)packages/*/__tests__/**' \
+  ':(glob)packages/*/e2e/**' \
+  ':(glob).maestro/**')
+read -r tooling_net _ < <(net_lines \
+  ':(glob).github/**' \
+  ':(glob)scripts/**' \
+  ':(glob)fastlane/**')
+product_net=$((product_lines - comment_net))
+
 cat <<EOF
 <!-- diff-footprint -->
 ### Pull request footprint
@@ -50,7 +48,8 @@ cat <<EOF
 | measurement | base to head |
 | --- | ---: |
 | Product code lines in core/src, native/src, native/app, and native/modules | $(printf '%+d' "$product_net") |
-| Test lines in test, __tests__, and e2e paths | $(printf '%+d' "$test_net") |
+| Test lines in test, \`packages/*/{test,__tests__,e2e}\`, and .maestro | $(printf '%+d' "$test_net") |
+| CI and tooling lines in .github, scripts, and fastlane | $(printf '%+d' "$tooling_net") |
 | Product comment lines identified by a comment prefix | $(printf '%+d' "$comment_net") |
 EOF
 
