@@ -17,14 +17,8 @@ const FASTLANE_LANE = "$" + "{{ needs.config.outputs.fastlane_lane }}";
 const TRAKT_CLIENT_ID_VARIABLE = "$" + "{{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}";
 // `footprint` skips itself on forks, and the gate reads a skip as a failure.
 // The iOS light matrix reports through the required `native-e2e` aggregate.
-// Contact sheets and the pull request media comment are for reading screens, not a check.
-const NOT_REQUIRED = [
-  "fingerprint",
-  "footprint",
-  "native-e2e-ios-light",
-  "pr-media",
-  "ui-contact-sheets",
-];
+// Pull request media is for reading screens, not a check.
+const NOT_REQUIRED = ["fingerprint", "footprint", "native-e2e-ios-light", "pr-media"];
 // The gate reads the push run, where the iOS flow lane always runs.
 const IOS_LANE =
   "    if: github.event_name != 'pull_request' || needs.native-ios.outputs.hit != 'true' || " +

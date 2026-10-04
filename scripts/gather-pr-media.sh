@@ -1,67 +1,67 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-usage='Usage: scripts/gather-pr-media.sh <pr-number> <run-id> <out-dir>'
-pr=${1:?$usage}
-run=${2:?$usage}
-out=${3:?$usage}
-repo=${GITHUB_REPOSITORY:-$(gh repo view --json nameWithOwner --jq .nameWithOwner)}
+usage='Usage: scripts/gather-pr-media.sh <run-id> <base-sha> <head-sha> <out-dir>'
+run=${1:?$usage}
+base_sha=${2:?$usage}
+head_sha=${3:?$usage}
+out=${4:?$usage}
+repo=$GITHUB_REPOSITORY
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
-t=$'\t'
-lower() { tr '[:upper:]' '[:lower:]' <<< "$1"; }
+lanes=(
+  "ui-screenshots-ios-light-detail:native-e2e-ios-light (detail)"
+  "ui-screenshots-ios-light-activity:native-e2e-ios-light (activity)"
+  "ui-screenshots-ios-light-discovery:native-e2e-ios-light (discovery)"
+  "ui-screenshots-ios-dark:ui-screenshots-ios-dark"
+  "ui-screenshots-android-light:android-e2e"
+  "ui-screenshots-android-dark:ui-screenshots-android-dark"
+)
 
-captures=()
-for platform in iOS Android; do
-  for appearance in light dark; do
-    captures+=("contact-$(lower "$platform")-$appearance${t}Every screen${t}default text${t}$platform${t}$appearance")
-  done
-done
-for size in "xxxl:XXXL text" "ax5:largest text (AX5)"; do
-  for page in Library Profile Search; do
-    captures+=("$(lower "$page")-${size%%:*}${t}$page${t}${size#*:}${t}iOS${t}dark")
-  done
-done
-
-collect() {
-  mkdir -p "$work/$1" "$out"
-  for artifact in $(gh api "repos/$repo/actions/runs/$1/artifacts?per_page=100" \
-    --jq '.artifacts[] | select(.expired | not) | select(.name == "ui-contact-sheets" or .name == "ui-screenshots-ios-dark") | .id'); do
-    gh api "repos/$repo/actions/artifacts/$artifact/zip" > "$work/artifact.zip"
-    unzip -qo "$work/artifact.zip" -d "$work/$1"
-  done
-  found=1
-  for capture in "${captures[@]}"; do
-    file=$(find "$work/$1" -name "${capture%%"$t"*}.png" -print -quit)
-    if [ -n "$file" ]; then
-      cp "$file" "$out/"
-      found=0
-    fi
-  done
-  return "$found"
+ended() {
+  case $1 in
+    failure) echo failed ;;
+    cancelled | skipped) echo "was $1" ;;
+    in_progress | queued | waiting) echo "is still ${1/_/ }" ;;
+    "") echo "did not run" ;;
+    *) echo "ended $1" ;;
+  esac
 }
 
-run_link() { echo "[run $1](https://github.com/$repo/actions/runs/$1)"; }
-
-source="$(run_link "$run") on this commit"
-if ! collect "$run"; then
-  base=$(gh pr view "$pr" -R "$repo" --json baseRefName --jq .baseRefName)
-  source="nothing captured by $(run_link "$run") on this commit or on \`$base\`"
-  for base_run in $(gh api "repos/$repo/actions/workflows/ci.yml/runs?branch=$base&event=push&status=completed&per_page=20" --jq '.workflow_runs[].id'); do
-    if collect "$base_run"; then
-      base_sha=$(gh api "repos/$repo/actions/runs/$base_run" --jq .head_sha)
-      source="the newest captures from \`$base\` at ${base_sha:0:7}, $(run_link "$base_run"), which do not include this pull request's changes"
-      break
+collect() {
+  local side=$1 run=$2
+  local link="[run $run](https://github.com/$repo/actions/runs/$run)" jobs artifacts
+  jobs=$(gh api --paginate "repos/$repo/actions/runs/$run/jobs?per_page=100" \
+    --jq '.jobs[] | [.name, .conclusion // .status] | @tsv')
+  artifacts=$(gh api --paginate "repos/$repo/actions/runs/$run/artifacts?per_page=100" \
+    --jq '.artifacts[] | [.name, .id, .expired] | @tsv')
+  for lane in "${lanes[@]}"; do
+    local artifact=${lane%%:*} job=${lane#*:} state id expired note=""
+    state=$(awk -F '\t' -v job="$job" '$1 == job { print $2 }' <<< "$jobs")
+    read -r id expired <<< "$(awk -F '\t' -v name="$artifact" '$1 == name { print $2, $3 }' <<< "$artifacts")"
+    if [ "$expired" = true ]; then
+      note="are missing because they expired from $link"
+    elif [ -z "$id" ]; then
+      note="are missing because the $job job $(ended "$state") in $link"
+    else
+      gh api "repos/$repo/actions/artifacts/$id/zip" > "$work/artifact.zip"
+      mkdir -p "$work/$side"
+      unzip -q "$work/artifact.zip" -d "$work/$side/$artifact"
+      [ "$state" = success ] || note="may be incomplete because the $job job $(ended "$state") in $link"
     fi
+    printf '%s\t%s\t%s\n' "$side" "$artifact" "$note" >> "$work/lanes.tsv"
+  done
+}
+
+collect after "$run"
+base_run=$(gh api "repos/$repo/actions/workflows/ci.yml/runs?head_sha=$base_sha&event=push&per_page=1" \
+  --jq '.workflow_runs[0].id // empty')
+if [ -n "$base_run" ]; then
+  collect before "$base_run"
+else
+  for lane in "${lanes[@]}"; do
+    printf 'before\t%s\tare missing because no push run of CI exists for base %s\n' \
+      "${lane%%:*}" "${base_sha:0:7}" >> "$work/lanes.tsv"
   done
 fi
-
-{
-  printf 'file\tscreen\tstate\tplatform\tappearance\tsource\n'
-  for capture in "${captures[@]}"; do
-    name=${capture%%"$t"*}
-    file=-
-    if [ -f "$out/$name.png" ]; then file=$name.png; fi
-    printf '%s\t%s\t%s\n' "$file" "${capture#*"$t"}" "$source"
-  done
-} > "$out/captions.tsv"
+node "$(dirname "$0")/compare-screenshots.mjs" "$work" "$out" "$base_sha" "$head_sha"

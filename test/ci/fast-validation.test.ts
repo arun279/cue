@@ -227,12 +227,11 @@ describe("fast pull request validation", () => {
     expect(aggregate).not.toMatch(/\|\|\s*true\s*$/m);
   });
 
-  it("publishes every screenshot artifact and one contact sheet job for 14 days", () => {
+  it("publishes every screenshot artifact for 14 days", () => {
     const ios = job("native-e2e-ios-light");
     const iosDark = job("ui-screenshots-ios-dark");
     const android = job("android-e2e");
     const androidDark = job("ui-screenshots-android-dark");
-    const sheets = job("ui-contact-sheets");
     const verification = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
     const fetch = readFileSync(repositoryPath("scripts/fetch-ui-screenshots.sh"), "utf8");
 
@@ -243,21 +242,7 @@ describe("fast pull request validation", () => {
     expect(ios).toContain('--test-output-dir "$output"');
     expect(iosDark).toContain('--test-output-dir "$RUNNER_TEMP/screenshots/ios/dark"');
     expect(verification).toContain('--test-output-dir "$screenshots/$appearance"');
-    expect(workflow.match(/create-ui-contact-sheet\.sh/g)).toHaveLength(1);
-    expect(sheets.match(/^ {6}- ([a-z0-9-]+)$/gm)?.map((line) => line.trim().slice(2))).toEqual([
-      "fingerprint",
-      "native-ios",
-      "native-e2e-ios-light",
-      "ui-screenshots-ios-dark",
-      "android-e2e",
-      "ui-screenshots-android-dark",
-    ]);
-    expect(sheets).toContain("pattern: ui-screenshots-*");
-    expect(sheets).toContain("for platform in ios android");
-    expect(sheets).toContain("for appearance in light dark");
-    expect(sheets).toContain('"$RUNNER_TEMP/screenshots/ui-screenshots-$platform-$appearance"*');
-    expect(sheets).toContain("name: ui-contact-sheets");
-    for (const producer of [ios, iosDark, android, androidDark, sheets]) {
+    for (const producer of [ios, iosDark, android, androidDark]) {
       expect(producer.match(/retention-days: 14/g)).toHaveLength(1);
     }
     expect(fetch).toContain("--pattern 'ui-*'");
@@ -275,9 +260,7 @@ describe("fast pull request validation", () => {
     expect(job("native-ios")).toContain("hit: $" + "{{ steps.native-cache.outputs.hit }}");
     expect(job("fingerprint")).toContain("ios-owed: $" + "{{ steps.ios-owed.outputs.owed }}");
     expect(job("fingerprint")).toContain("actions/workflows/ci.yml/runs?branch=$BRANCH");
-    expect(gated.sort()).toEqual(
-      ["native-e2e-ios-light", "ui-contact-sheets", "ui-screenshots-ios-dark"].sort(),
-    );
+    expect(gated.sort()).toEqual(["native-e2e-ios-light", "ui-screenshots-ios-dark"].sort());
     for (const name of [
       "native-ios",
       "native-android",
@@ -296,7 +279,6 @@ describe("fast pull request validation", () => {
         "ui-screenshots-ios-dark",
         "android-e2e",
         "ui-screenshots-android-dark",
-        "ui-contact-sheets",
       ].map((name) => [name, Number(job(name).match(/^ {4}timeout-minutes: (\d+)$/m)?.[1])]),
     );
 
@@ -306,7 +288,6 @@ describe("fast pull request validation", () => {
       "ui-screenshots-ios-dark": 16,
       "android-e2e": 14,
       "ui-screenshots-android-dark": 7,
-      "ui-contact-sheets": 3,
     });
   });
 
@@ -345,7 +326,7 @@ describe("fast pull request validation", () => {
     expect(traversal).toMatch(/file: lib\/connect\.yaml\n\s+env:\n\s+CAPTURE_AUTH: "true"/);
     expect(traversal).not.toMatch(/^\s*- assert/m);
     expect(traversal).not.toMatch(/id: ".*(?:mark|check)/);
-    expect(`${signIn}${traversal}`.match(/takeScreenshot:/g)?.length).toBe(10);
+    expect(`${signIn}${traversal}`.match(/takeScreenshot:/g)?.length).toBe(11);
   });
 
   it("asserts all four Android tabs from the final UI tree", () => {
