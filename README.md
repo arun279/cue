@@ -44,7 +44,7 @@ pnpm mock:trakt
 
 The core harness boots the server in process and drives `@cue/core` through its real client, read pool, query cache, runtime, and write queue. This keeps request budgets, retry timing, refresh behavior, request shapes, and post-write scoped reads independent of any rendered screen. Maestro flows drive the Expo app against the same fake service.
 
-Set `EXPO_PUBLIC_TRAKT_API_BASE=http://127.0.0.1:8787` for a simulator build that should use the fake service. The Expo configuration adds a local transport exception only for that build. Release builds carry no exception.
+Set `EXPO_PUBLIC_TRAKT_API_BASE=http://127.0.0.1:8787` for a simulator build that should use the fake service. The Expo configuration adds a local transport exception only for that build. Release builds carry no exception. Set `EXPO_PUBLIC_UI_HARNESS=1` as well for a build that Maestro drives: it bundles the readiness and timing markers the flows read. Without it, Metro resolves `src/ui/harness.tsx` to an empty stand-in, and `pnpm check:size:native` and the update workflow fail if a harness module reaches an exported bundle.
 
 ## Architecture
 

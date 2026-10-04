@@ -25,7 +25,7 @@
     "check:dup": "jscpd",
     "check:core-portable": "vitest run --project core test/ci/core-portable.test.ts",
     "check:render-counts": "node scripts/check-render-counts.mjs packages/native/.reassure/baseline.perf packages/native/.reassure/current.perf",
-    "check:size:native": "EXPO_ATLAS=true pnpm --filter @cue/native exec expo export --platform ios --platform android --output-dir dist && node scripts/check-native-assets.mjs && node scripts/check-shipped-modules.mjs",
+    "check:size:native": "EXPO_ATLAS=true pnpm --filter @cue/native exec expo export --platform ios --platform android --output-dir dist && node scripts/check-native-assets.mjs && node scripts/check-shipped-modules.mjs && node scripts/check-store-bundle.mjs",
     "check:quality-budget": "node scripts/check-quality-budget.mjs",
     "check:type-suppressions": "node scripts/check-type-suppressions.mjs",
     "check:node": "node scripts/check-node-version.mjs",

@@ -3,6 +3,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseAllDocuments } from "yaml";
+import { HARNESS_IDS } from "../src/ui/harness-ids";
 import { TEST_IDS } from "../src/ui/test-ids";
 import { nativeSourceFiles } from "./support/native-sources";
 
@@ -19,7 +20,10 @@ const DIGITS = "[0-9]+";
 const PROBE_IDS = [1, 2, 3];
 
 function declaredPatterns(): RegExp[] {
-  const declared: readonly (string | ((...ids: number[]) => string))[] = Object.values(TEST_IDS);
+  const declared: readonly (string | ((...ids: number[]) => string))[] = [
+    ...Object.values(TEST_IDS),
+    ...Object.values(HARNESS_IDS),
+  ];
   return declared.map(
     (value) =>
       new RegExp(
