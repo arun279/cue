@@ -58,7 +58,17 @@ const lanes = readFileSync(path.join(work, "lanes.tsv"), "utf8")
 const lane = (side, artifact) =>
   lanes.find((entry) => entry.side === side && entry.artifact === artifact);
 
-const read = (file) => PNG.sync.read(readFileSync(file));
+const unreadable = [];
+const read = (file, entry, name) => {
+  try {
+    return PNG.sync.read(readFileSync(file));
+  } catch {
+    unreadable.push(
+      `- The ${entry.side} capture of ${caption(entry, name)} could not be read as a PNG.`,
+    );
+    return undefined;
+  }
+};
 
 const changedPixels = (before, after, platform) => {
   const { width, height } = after;
@@ -154,20 +164,22 @@ for (const after of lanes.filter(({ side }) => side === "after")) {
   for (const [name, file] of [...after.captures].sort(([a], [b]) => a.localeCompare(b))) {
     const baseFile = before.captures.get(name);
     if (baseFile === undefined && before.note !== "") continue;
-    const head = read(file);
-    const base = baseFile === undefined ? undefined : read(baseFile);
+    const head = read(file, after, name);
+    const base = baseFile === undefined ? undefined : read(baseFile, before, name);
+    if (head === undefined || (baseFile !== undefined && base === undefined)) continue;
     const diff = base === undefined ? undefined : changedPixels(base, head, after.platform);
     if (base !== undefined) compared++;
     if (base !== undefined && diff === undefined) continue;
     const { screen, size } = describe(name);
-    const pair = size === undefined ? undefined : after.captures.get(screen);
+    const pairFile = size === undefined ? undefined : after.captures.get(screen);
+    const pair = pairFile === undefined ? undefined : read(pairFile, after, screen);
     const panels = [
       ...(base === undefined ? [] : [base]),
       diff === undefined ? head : tint(head, diff),
     ];
     const labels = base === undefined ? ["after"] : ["before", "after"];
     if (size !== undefined) {
-      panels.unshift(...(pair === undefined ? [] : [read(pair)]));
+      panels.unshift(...(pair === undefined ? [] : [pair]));
       labels.unshift(...(pair === undefined ? [] : ["default text after"]));
     }
     const image = `${after.platform}-${after.appearance}-${name}.png`.toLowerCase();
@@ -188,12 +200,15 @@ for (const after of lanes.filter(({ side }) => side === "after")) {
 
 const screens = (count) => `${count} screen${count === 1 ? "" : "s"}`;
 const range = `base \`${baseSha.slice(0, 7)}\` and head \`${headSha.slice(0, 7)}\``;
-const missing = lanes
-  .filter(({ note }) => note !== "")
-  .map(
-    (entry) =>
-      `- ${entry.side === "before" ? "Before" : "After"} captures for ${entry.platform} ${entry.appearance}${entry.suite ? ` (${entry.suite} flows)` : ""} ${entry.note}.`,
-  );
+const missing = [
+  ...lanes
+    .filter(({ note }) => note !== "")
+    .map(
+      (entry) =>
+        `- ${entry.side === "before" ? "Before" : "After"} captures for ${entry.platform} ${entry.appearance}${entry.suite ? ` (${entry.suite} flows)` : ""} ${entry.note}.`,
+    ),
+  ...unreadable,
+];
 const sections = ["<!-- media-review -->"];
 if (changes.length === 0 && removed.length === 0) {
   sections.push(

@@ -50,7 +50,7 @@ case $url in
 esac | jq -r "$filter"
 `;
 
-type Capture = { clock?: number; content?: number; scroll?: number };
+type Capture = { clock?: number; content?: number; scroll?: number; empty?: boolean };
 type Lane = { conclusion?: string; captures?: Record<string, Capture> | null };
 type Run = Record<string, Lane>;
 
@@ -80,14 +80,18 @@ const COLORS = [
 const screenshot = (
   file: string,
   width: number,
-  { clock = 0, content = 0, scroll = 0 }: Capture,
+  { clock = 0, content = 0, scroll = 0, empty = false }: Capture,
 ) => {
+  mkdirSync(path.dirname(file), { recursive: true });
+  if (empty) {
+    writeFileSync(file, "");
+    return;
+  }
   const png = new PNG({ width, height: 240 });
   fill(png, [0, 0, width, 240], [250, 250, 245]);
   fill(png, [100, 60, 300, 110], clock ? [0, 0, 0] : [128, 128, 128]);
   fill(png, CONTENT, COLORS[content] ?? []);
   if (scroll) fill(png, [width - 12, 170, width - 4, 240], [120, 120, 120]);
-  mkdirSync(path.dirname(file), { recursive: true });
   writeFileSync(file, PNG.sync.write(png));
 };
 
@@ -326,6 +330,18 @@ describe("gather-pr-media.sh", { timeout: 30_000 }, () => {
       "- Before captures for iOS light (detail flows) are missing because no push run of CI exists for base bbbbbbb.",
     );
     expect(review.match(/^- Before captures/gm)).toHaveLength(6);
+  });
+
+  it("names a capture it cannot read instead of failing", () => {
+    const { review, images } = gather(
+      dark({ "onboarding-ready": { empty: true }, "library-shows": {} }),
+      dark({ "onboarding-ready": {}, "library-shows": { content: 1 } }),
+    );
+
+    expect(images).toEqual(["ios-dark-library-shows.png"]);
+    expect(review).toContain(
+      "- The before capture of Onboarding ready, iOS, dark, default text could not be read as a PNG.",
+    );
   });
 
   it("shows a new screen as after only", () => {
