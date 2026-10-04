@@ -1,3 +1,4 @@
+const { realpathSync } = require("node:fs");
 const path = require("node:path");
 const { getDefaultConfig } = require("expo/metro-config");
 
@@ -18,12 +19,14 @@ config.serializer.createModuleIdFactory = () => {
 };
 
 if (process.env.EXPO_PUBLIC_UI_HARNESS !== "1") {
-  const harness = path.join(__dirname, "src/ui/harness.tsx");
+  const harness = realpathSync(path.join(__dirname, "src/ui/harness.tsx"));
   const store = path.join(__dirname, "src/ui/harness.store.ts");
   const { resolveRequest } = config.resolver;
   config.resolver.resolveRequest = (context, moduleName, platform) => {
     const resolution = (resolveRequest ?? context.resolveRequest)(context, moduleName, platform);
-    return resolution.type === "sourceFile" && resolution.filePath === harness
+    return resolution.type === "sourceFile" &&
+      path.basename(resolution.filePath) === "harness.tsx" &&
+      realpathSync(resolution.filePath) === harness
       ? { type: "sourceFile", filePath: store }
       : resolution;
   };

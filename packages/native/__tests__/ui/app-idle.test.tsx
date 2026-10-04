@@ -3,7 +3,7 @@ import { useSyncActivity } from "@cue/core/stores/sync-activity-store";
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { act, render, screen, waitFor } from "@testing-library/react-native";
 import type { ReactElement, ReactNode } from "react";
-import { AppIdle } from "../../src/ui/AppIdle";
+import { AppIdle, resetAppIdleStamp, useAppIdleStamp } from "../../src/ui/AppIdle";
 import { HARNESS_IDS } from "../../src/ui/harness-ids";
 
 const client = new QueryClient({
@@ -12,6 +12,7 @@ const client = new QueryClient({
 
 beforeEach(() => {
   useSyncActivity.setState({ checked: true });
+  resetAppIdleStamp();
 });
 
 afterEach(() => {
@@ -31,6 +32,18 @@ function withRuntime(pending: number): ReactElement {
       <AppIdle />
     </RuntimeProvider>
   );
+}
+
+function Stamp({ hasData }: { readonly hasData: boolean }): null {
+  useAppIdleStamp(hasData);
+  return null;
+}
+
+function startedAt(startTime: number) {
+  Object.defineProperty(performance, "rnStartupTiming", {
+    configurable: true,
+    value: { startTime },
+  });
 }
 
 function Reader({ read }: { readonly read: () => Promise<string> }): null {
@@ -78,14 +91,42 @@ it("keeps the readiness marker absent until the session's activities poll has ru
   expect(screen.getByTestId(HARNESS_IDS.appIdle)).toBeOnTheScreen();
 });
 
-it("times the moment the app is usable, not the activities poll that follows", async () => {
+it("stamps the first render that has data, not an earlier one with data pending", async () => {
+  const now = jest.spyOn(performance, "now").mockReturnValue(725);
+  startedAt(100);
+  const screenTree = (hasData: boolean) => (
+    <>
+      <Stamp hasData={hasData} />
+      <AppIdle />
+    </>
+  );
+  const { rerender } = await mount(screenTree(false));
+  expect(screen.getByTestId(HARNESS_IDS.appIdle)).toBeOnTheScreen();
+  expect(screen.queryByTestId(HARNESS_IDS.appIdleTiming)).toBeNull();
+
+  now.mockReturnValue(900);
+  await rerender(<QueryClientProvider client={client}>{screenTree(true)}</QueryClientProvider>);
+  now.mockReturnValue(2400);
+  await rerender(<QueryClientProvider client={client}>{screenTree(false)}</QueryClientProvider>);
+  await rerender(<QueryClientProvider client={client}>{screenTree(true)}</QueryClientProvider>);
+
+  expect(screen.getByTestId(HARNESS_IDS.appIdleTiming)).toHaveProp(
+    "accessibilityLabel",
+    "Returning-user app idle: 800.0 ms",
+  );
+});
+
+it("keeps the stamp from before the first activities poll lands", async () => {
   useSyncActivity.setState({ checked: false });
   const now = jest.spyOn(performance, "now").mockReturnValue(725);
-  Object.defineProperty(performance, "rnStartupTiming", {
-    configurable: true,
-    value: { startTime: 100 },
-  });
-  await mount(<AppIdle />);
+  startedAt(100);
+  await mount(
+    <>
+      <Stamp hasData />
+      <AppIdle />
+    </>,
+  );
+  expect(screen.queryByTestId(HARNESS_IDS.appIdle)).toBeNull();
 
   now.mockReturnValue(2400);
   await act(async () => useSyncActivity.getState().setChecked(true));
@@ -104,12 +145,14 @@ it("is absent while a write is only queued, with nothing in flight behind it", a
 
 it("exposes returning-user app-idle timing without drawing text", async () => {
   jest.spyOn(performance, "now").mockReturnValue(725);
-  Object.defineProperty(performance, "rnStartupTiming", {
-    configurable: true,
-    value: { startTime: 100 },
-  });
+  startedAt(100);
 
-  await mount(<AppIdle />);
+  await mount(
+    <>
+      <Stamp hasData />
+      <AppIdle />
+    </>,
+  );
 
   expect(screen.getByTestId(HARNESS_IDS.appIdleTiming)).toHaveProp(
     "accessibilityLabel",
@@ -121,7 +164,12 @@ it("exposes returning-user app-idle timing without drawing text", async () => {
 it("names the performance.now fallback", async () => {
   jest.spyOn(performance, "now").mockReturnValue(725);
 
-  await mount(<AppIdle />);
+  await mount(
+    <>
+      <Stamp hasData />
+      <AppIdle />
+    </>,
+  );
 
   expect(screen.getByTestId(HARNESS_IDS.appIdleTiming)).toHaveProp(
     "accessibilityLabel",

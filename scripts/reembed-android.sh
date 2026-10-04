@@ -6,7 +6,7 @@ apk=$2
 keystore=$3
 : "${EXPO_PUBLIC_TRAKT_CLIENT_ID:?the app throws at startup without a Trakt client id}"
 : "${EXPO_PUBLIC_TRAKT_API_BASE:?the harness app must be pointed at the fake Trakt origin}"
-: "${EXPO_PUBLIC_UI_HARNESS:?the harness app must carry the Maestro readiness and timing markers}"
+[ "${EXPO_PUBLIC_UI_HARNESS:-}" = 1 ] || { echo "EXPO_PUBLIC_UI_HARNESS must be 1: the harness app carries the Maestro readiness and timing markers" >&2; exit 1; }
 work=$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/android-bundle.XXXXXX")
 mkdir -p "$work/aab/base/assets" "$work/apk/assets"
 (

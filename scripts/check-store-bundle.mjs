@@ -1,27 +1,24 @@
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import path from "node:path";
+import { readFileSync } from "node:fs";
 
-const HARNESS_MARKERS = [
-  "app-idle",
-  "response-timing",
-  "Returning-user app idle",
-  "Response timing",
+const HARNESS = [
+  "packages/native/src/ui/harness.tsx",
+  "packages/native/src/ui/harness-ids.ts",
+  "packages/native/src/ui/AppIdle.tsx",
+  "packages/native/src/ui/response-timing.ts",
 ];
 
-const files = (entry) =>
-  statSync(entry).isDirectory()
-    ? readdirSync(entry).flatMap((child) => files(path.join(entry, child)))
-    : [entry];
-const bundles = files(process.argv[2] ?? "packages/native/dist").filter((file) =>
-  /\.(?:hbc|js)$/.test(file),
-);
-if (bundles.length === 0) throw new Error("no exported bundles to check");
-const leaks = bundles.flatMap((file) => {
-  const bytes = readFileSync(file, "latin1");
-  return HARNESS_MARKERS.filter((marker) => bytes.includes(marker)).map(
-    (marker) => `${file}: ${marker}`,
-  );
+const [, ...bundles] = readFileSync(process.argv[2] ?? "packages/native/.expo/atlas.jsonl", "utf8")
+  .trim()
+  .split("\n");
+if (bundles.length === 0) throw new Error("the atlas holds no bundles");
+const leaks = bundles.flatMap((line) => {
+  const [platform, ...fields] = JSON.parse(line);
+  return fields
+    .filter(Array.isArray)
+    .flat()
+    .filter(({ relativePath }) => HARNESS.includes(relativePath))
+    .map(({ relativePath }) => `${platform}: ${relativePath}`);
 });
 if (leaks.length > 0)
-  throw new Error(`UI harness code ships in store bundles:\n${leaks.join("\n")}`);
-process.stdout.write(`no UI harness code in ${bundles.length} store bundles\n`);
+  throw new Error(`UI harness modules ship in store bundles: ${leaks.join(", ")}`);
+process.stdout.write(`no UI harness modules in ${bundles.length} store bundles\n`);

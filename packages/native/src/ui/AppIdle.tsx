@@ -1,11 +1,20 @@
 import { useOptionalRuntime } from "@cue/core/runtime/runtime";
 import { useSyncActivity } from "@cue/core/stores/sync-activity-store";
 import { useIsFetching } from "@tanstack/react-query";
-import { type ReactElement, useEffect, useRef, useState } from "react";
+import {
+  type ReactElement,
+  useEffect,
+  useLayoutEffect,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { HARNESS_IDS } from "./harness-ids";
 import { Marker } from "./Marker";
 
 const QUEUE_SAMPLE_MS = 1000;
+
+const listeners = new Set<() => void>();
+let stamp: string | null = null;
 
 function appIdleTiming(): string {
   const now = performance.now();
@@ -13,12 +22,31 @@ function appIdleTiming(): string {
   return `Returning-user app idle: ${(now - (startTime ?? now)).toFixed(1)} ms${startTime == null ? " (performance.now fallback)" : ""}`;
 }
 
+export function useAppIdleStamp(hasData: boolean): void {
+  useLayoutEffect(() => {
+    if (!hasData || stamp !== null) return;
+    stamp = appIdleTiming();
+    for (const listener of listeners) listener();
+  }, [hasData]);
+}
+
+export function resetAppIdleStamp(): void {
+  stamp = null;
+}
+
+function subscribe(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
 export function AppIdle(): ReactElement | null {
   const fetching = useIsFetching();
   const inFlight = useSyncActivity((state) => state.pending);
   const checked = useSyncActivity((state) => state.checked);
   const durable = useOptionalRuntime()?.pendingWrites() ?? 0;
-  const timing = useRef<string>(undefined);
+  const timing = useSyncExternalStore(subscribe, () => stamp);
 
   const [, setSample] = useState(0);
   const hasDurable = durable > 0;
@@ -28,13 +56,13 @@ export function AppIdle(): ReactElement | null {
     return () => clearInterval(timer);
   }, [hasDurable]);
 
-  const usable = fetching === 0 && inFlight === 0 && !hasDurable;
-  if (usable) timing.current ??= appIdleTiming();
-  if (!usable || !checked) return null;
+  if (!checked || fetching > 0 || inFlight > 0 || hasDurable) return null;
   return (
     <>
       <Marker testID={HARNESS_IDS.appIdle} />
-      <Marker accessibilityLabel={timing.current} testID={HARNESS_IDS.appIdleTiming} />
+      {timing === null ? null : (
+        <Marker accessibilityLabel={timing} testID={HARNESS_IDS.appIdleTiming} />
+      )}
     </>
   );
 }

@@ -3,7 +3,7 @@ import { HARNESS_IDS } from "./harness-ids";
 import { Marker } from "./Marker";
 import { commitResponseTiming, useResponseTiming } from "./response-timing";
 
-export { AppIdle } from "./AppIdle";
+export { AppIdle, useAppIdleStamp } from "./AppIdle";
 export { beginResponseTiming } from "./response-timing";
 
 export function ResponseTimingMarker(): ReactElement | null {
