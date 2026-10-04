@@ -76,7 +76,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: SPACE.s3,
-    marginStart: -SPACE.s2,
+    marginHorizontal: -SPACE.s2,
     paddingHorizontal: SPACE.s2,
   },
   bodyTop: { alignItems: "flex-start", paddingVertical: SPACE.s2 },
