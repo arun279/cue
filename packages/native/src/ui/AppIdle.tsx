@@ -28,8 +28,9 @@ export function AppIdle(): ReactElement | null {
     return () => clearInterval(timer);
   }, [hasDurable]);
 
-  if (!checked || fetching > 0 || inFlight > 0 || hasDurable) return null;
-  timing.current ??= appIdleTiming();
+  const usable = fetching === 0 && inFlight === 0 && !hasDurable;
+  if (usable) timing.current ??= appIdleTiming();
+  if (!usable || !checked) return null;
   return (
     <>
       <Marker testID={TEST_IDS.appIdle} />

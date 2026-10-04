@@ -69,13 +69,31 @@ it("is absent while a write is in flight", async () => {
   expect(screen.getByTestId(TEST_IDS.appIdle)).toBeOnTheScreen();
 });
 
-it("is absent until the session's activities poll has run", async () => {
+it("keeps the readiness marker absent until the session's activities poll has run", async () => {
   useSyncActivity.setState({ checked: false });
   await mount(<AppIdle />);
   expect(screen.queryByTestId(TEST_IDS.appIdle)).toBeNull();
 
   await act(async () => useSyncActivity.getState().setChecked(true));
   expect(screen.getByTestId(TEST_IDS.appIdle)).toBeOnTheScreen();
+});
+
+it("times the moment the app is usable, not the activities poll that follows", async () => {
+  useSyncActivity.setState({ checked: false });
+  const now = jest.spyOn(performance, "now").mockReturnValue(725);
+  Object.defineProperty(performance, "rnStartupTiming", {
+    configurable: true,
+    value: { startTime: 100 },
+  });
+  await mount(<AppIdle />);
+
+  now.mockReturnValue(2400);
+  await act(async () => useSyncActivity.getState().setChecked(true));
+
+  expect(screen.getByTestId(TEST_IDS.appIdleTiming)).toHaveProp(
+    "accessibilityLabel",
+    "Returning-user app idle: 625.0 ms",
+  );
 });
 
 it("is absent while a write is only queued, with nothing in flight behind it", async () => {
