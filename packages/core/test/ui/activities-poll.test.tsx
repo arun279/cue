@@ -218,6 +218,24 @@ describe("useActivitiesPoll reconcile", () => {
     expect(commit).toHaveBeenCalledOnce();
   });
 
+  it("never advances the baseline or checks a session torn down mid-poll", async () => {
+    const commit = vi.fn(() => Promise.resolve());
+    let answer: ((reconcile: ActivitiesReconcile) => void) | undefined;
+    const runtime = {
+      pendingWrites: () => 0,
+      flushWrites: vi.fn(),
+      pollActivities: () =>
+        new Promise<ActivitiesReconcile>((resolve) => {
+          answer = resolve;
+        }),
+    } as unknown as CueRuntime;
+    await mountPoll(runtime);
+    unmount();
+    await act(async () => answer?.({ keys: [], commit }));
+    expect(commit).not.toHaveBeenCalled();
+    expect(useSyncActivity.getState().checked).toBe(false);
+  });
+
   it("never advances the baseline for a session torn down mid-refresh", async () => {
     const commit = vi.fn(() => Promise.resolve());
     let finishRefetch: (() => void) | undefined;
