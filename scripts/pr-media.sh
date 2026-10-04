@@ -42,11 +42,11 @@ head_sha=$(gh api "repos/$repo/actions/runs/$run" --jq .head_sha)
 note="Captured by $(run_link "$run") on this commit."
 if ! collect "$run"; then
   base=$(gh pr view "$pr" -R "$repo" --json baseRefName --jq .baseRefName)
-  note="No new captures: $(run_link "$run") captured no screenshots for this commit, and none exist on \`$base\` either."
+  note="No new captures: $(run_link "$run") produced no contact sheets or large-text captures for this commit, and none exist on \`$base\` either."
   for base_run in $(gh api "repos/$repo/actions/workflows/ci.yml/runs?branch=$base&event=push&status=completed&per_page=20" --jq '.workflow_runs[].id'); do
     if collect "$base_run"; then
       base_sha=$(gh api "repos/$repo/actions/runs/$base_run" --jq .head_sha)
-      note="No new captures: $(run_link "$run") captured no screenshots for this commit. These are the newest from \`$base\` at ${base_sha:0:7}, $(run_link "$base_run"), and do not include this pull request's changes."
+      note="No new captures: $(run_link "$run") produced no contact sheets or large-text captures for this commit. These are the newest from \`$base\` at ${base_sha:0:7}, $(run_link "$base_run"), and do not include this pull request's changes."
       break
     fi
   done
