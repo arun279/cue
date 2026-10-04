@@ -70,7 +70,14 @@ export function Separator({ inset = 0 }: SeparatorProps): ReactElement {
 const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", gap: SPACE.s2 },
   rowStacked: { flexDirection: "column", alignItems: "stretch" },
-  body: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: SPACE.s3 },
+  body: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: SPACE.s3,
+    paddingEnd: SPACE.s2,
+  },
   bodyTop: { alignItems: "flex-start", paddingVertical: SPACE.s2 },
   stack: { flex: 1, minWidth: 0, gap: 2 },
   trailing: {

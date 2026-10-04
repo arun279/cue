@@ -63,6 +63,19 @@ describe("native fingerprint", { timeout: 30_000 }, () => {
     );
   });
 
+  it("rebuilds Android, and only Android, when a bundled image changes", () => {
+    const root = project();
+    const before = {
+      ios: fingerprint("ios", root).stdout,
+      android: fingerprint("android", root).stdout,
+    };
+    mkdirSync(path.join(root, "src/ui"), { recursive: true });
+    writeFileSync(path.join(root, "src/ui/refresh.xml"), "<vector />\n");
+
+    expect(fingerprint("ios", root).stdout).toBe(before.ios);
+    expect(fingerprint("android", root).stdout).not.toBe(before.android);
+  });
+
   it("refuses to hash an unstated build environment", () => {
     const result = fingerprint("ios", project(), { XCODE_PATH: undefined });
 

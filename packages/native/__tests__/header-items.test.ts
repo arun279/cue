@@ -18,6 +18,8 @@ const CUSTOM_HEADER_CONTENT =
 const ALLOWED: Readonly<Record<string, string>> = {
   "src/ui/BarItems.tsx <Stack.Toolbar.View":
     "The avatar is the account's photo or its monogram, a picture no bar item image can draw.",
+  'src/ui/BarItems.tsx <Stack.Toolbar placement="right" asChild':
+    "Android's Compose header sizes itself before a hosted React view measures, so the avatar clips off screen; the tab roots' Android bar keeps React content.",
   "src/screens/MovieDetail.tsx headerRight:":
     "An icon-only overflow menu drawn by the platform menu; it carries no text label.",
   "src/screens/ShowDetail.tsx headerRight:":
@@ -36,7 +38,7 @@ function customHeaderContent(): string[] {
     .flatMap(sourceFiles)
     .flatMap((file) =>
       [...readFileSync(file, "utf8").matchAll(CUSTOM_HEADER_CONTENT)].map(
-        (match) => `${relative(root, file)} ${match[0].replace(/\s+/g, "")}`,
+        (match) => `${relative(root, file)} ${match[0].replace(/\s+/g, " ")}`,
       ),
     );
 }
