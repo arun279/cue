@@ -77,6 +77,7 @@
       }
     }
   ],
+  "plugins": ["./biome/effect-query-writes.grit"],
   "linter": {
     "enabled": true,
     "domains": {

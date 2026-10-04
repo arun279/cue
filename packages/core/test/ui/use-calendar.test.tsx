@@ -68,7 +68,7 @@ afterEach(() => {
 async function mount(node: ReactElement): Promise<void> {
   root = createRoot(document.createElement("div"));
   // Two passes: mount, then let the query resolve and notify its subscribers
-  // (react-query's notifyManager batches on a macrotask, not a microtask).
+  // (core leaves react-query's default scheduler in place, which batches on a macrotask).
   await act(async () => root?.render(node));
   await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
 }
