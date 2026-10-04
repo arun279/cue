@@ -1,11 +1,9 @@
-import { createQueryCachePolicy, createQueryClient } from "@cue/core/runtime/query-cache";
+import { createQueryCachePolicy } from "@cue/core/runtime/query-cache";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import Storage from "expo-sqlite/kv-store";
-import { deliverQueryUpdatesInMicrotasks } from "./query-notifications";
+import { createAppQueryClient } from "./query-client";
 
-deliverQueryUpdatesInMicrotasks();
-
-export const queryClient = createQueryClient();
+export const queryClient = createAppQueryClient();
 
 export const { shouldDehydrateQuery } = createQueryCachePolicy(queryClient);
 

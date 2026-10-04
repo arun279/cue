@@ -1,0 +1,17 @@
+language js
+
+or {
+  `useEffect($callback, $...)`,
+  `useLayoutEffect($callback, $...)`
+} where {
+  $callback <: contains or {
+    `$client.setQueryData($...)`,
+    `$client.setQueriesData($...)`,
+    `$client.invalidateQueries($...)`
+  },
+  register_diagnostic(
+    span=$callback,
+    message="Query updates are delivered in a microtask, so an effect that writes the query cache can re-run itself without yielding. Write from the event handler or mutation instead.",
+    severity="error"
+  )
+}
