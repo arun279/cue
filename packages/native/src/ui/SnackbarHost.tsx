@@ -18,7 +18,6 @@ import { CueText } from "./type";
 
 export type SnackbarPlacement = "root" | "presentation";
 
-// React Native does not expose Android's AccessibilityManager.getRecommendedTimeoutMillis.
 const LONG_TIMEOUT_MS = 15_000;
 
 let mounted: readonly { readonly id: string; readonly placement: SnackbarPlacement }[] = [];

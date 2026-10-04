@@ -4,7 +4,7 @@ import { createPrefsStore, type PrefsStore } from "@cue/core/prefs/prefs-store";
 import * as SecureStore from "expo-secure-store";
 import Storage from "expo-sqlite/kv-store";
 
-// WHEN_UNLOCKED_THIS_DEVICE_ONLY keeps the item out of iCloud and iTunes backups.
+// WHEN_UNLOCKED_THIS_DEVICE_ONLY items never migrate to a new device through a backup.
 const SECURE: SecureStore.SecureStoreOptions = {
   keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
 };
