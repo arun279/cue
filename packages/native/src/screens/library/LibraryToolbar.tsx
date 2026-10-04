@@ -16,7 +16,6 @@ const SEGMENT_HEIGHT = 32;
 const SEGMENT_SLOP = { top: 6, bottom: 6, left: 0, right: 0 };
 
 export interface LibraryToolbarProps<T extends string> {
-  /** The control appears only when both media are on; one medium is not a choice. */
   readonly bothMedia: boolean;
   readonly segment: Segment;
   onSegment(segment: Segment): void;
@@ -29,19 +28,7 @@ export interface LibraryToolbarProps<T extends string> {
   onSort(sort: T): void;
 }
 
-/**
- * What the grid is showing and how it is ordered: the segmented control, the
- * filter, and sort.
- *
- * The segment control is Cue-drawn rather than the platform's: `@expo/ui`'s
- * segmented control contributes no accessibility element at all, which leaves
- * the medium switch unreachable by VoiceOver and by any test. Two targets that
- * set a value, with no path that clears it, hold the same always-one-selected
- * invariant. Sort is the platform's
- * own pull-down menu, which draws its own checkmark beside the chosen order.
- * Revealing the filter replaces the row, because a field and the control it
- * came from competing for the same 44 pt is what the reveal exists to avoid.
- */
+// The segments are drawn here because @expo/ui's segmented control contributes no accessibility element.
 export function LibraryToolbar<T extends string>({
   bothMedia,
   segment,
@@ -175,9 +162,6 @@ const styles = StyleSheet.create({
     borderWidth: HAIRLINE,
     borderColor: "transparent",
   },
-  // Wrapping rather than a fixed row: the segment labels are type, so at the
-  // largest sizes the two tools take a line of their own instead of leaving the
-  // screen.
   tools: { flexDirection: "row", gap: SPACE.s2, marginLeft: "auto" },
   tool: {
     width: TARGET_MIN,

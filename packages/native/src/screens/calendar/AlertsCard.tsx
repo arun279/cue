@@ -11,7 +11,6 @@ const GLYPH = 22;
 export const ALERTS_HINT =
   "Alerts for new episodes of shows you watch. Cue plans them four weeks ahead each time you open it.";
 
-/** Makes the case for alerts before the OS asks, once, above the first day group. */
 export function AlertsCard({ card }: { readonly card: Card }): ReactElement {
   const colors = useColors();
 

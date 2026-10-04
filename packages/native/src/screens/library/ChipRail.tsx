@@ -5,8 +5,6 @@ import { HAIRLINE, RADIUS, SPACE, useColors } from "../../ui/tokens";
 import { CueText } from "../../ui/type";
 import type { Chip, ChipKey } from "./model";
 
-/** The platform's own chip metric, with the target carried to 44 by hitSlop
- * rather than by inflating the ink. */
 const CHIP_HEIGHT = 34;
 const CHIP_SLOP = { top: 5, bottom: 5, left: 0, right: 0 };
 
@@ -16,14 +14,6 @@ export interface ChipRailProps {
   onSelect(key: ChipKey): void;
 }
 
-/**
- * The status rail: which slice of the library the grid is showing, and how many
- * titles each slice holds.
- *
- * The selected chip carries a stroke as well as its fill. This is the one place
- * in the app where a selected state sits beside its unselected siblings, and an
- * amber fill alone reads 1.83:1 against the chip next to it.
- */
 export function ChipRail({ chips, selected, onSelect }: ChipRailProps): ReactElement {
   const colors = useColors();
   const haptics = useHaptics();

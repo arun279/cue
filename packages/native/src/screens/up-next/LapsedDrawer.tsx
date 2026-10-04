@@ -18,16 +18,6 @@ export interface LapsedDrawerProps {
   onStop(card: UpNextCard): void;
 }
 
-/**
- * "Haven't watched lately": the collapsed disclosure under the queue for
- * in-progress but idle shows.
- *
- * A pruning prompt, never a wall of shame. A show that has sat idle past the
- * threshold moves out of the queue and into here, where the reader either
- * catches up in place, which re-files it into the queue, or stops it. A decided
- * show leaves on its own, so there is no per-session dismissal to lose on
- * reload, and the drawer does not render at all when it holds nothing.
- */
 export function LapsedDrawer({ cards, mark, onStop }: LapsedDrawerProps): ReactElement | null {
   const colors = useColors();
   const [expanded, setExpanded] = useState(false);

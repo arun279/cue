@@ -31,34 +31,15 @@ import type { UpNextCard } from "./model";
 
 const AIRED_LAST_NIGHT_MS = 24 * 60 * 60 * 1000;
 
-/** Two gradients, because one flat scrim over a backdrop is either too weak for
- * the text or too strong for the artwork: a bottom-up ramp for the text stack
- * and a leading-edge wash so the eyebrow has something to sit on. */
 const SCRIM_DOWN = ["rgba(10,8,6,0)", "rgba(10,8,6,0.35)", "rgba(10,8,6,0.86)"] as const;
 const SCRIM_ACROSS = ["rgba(10,8,6,0.4)", "rgba(10,8,6,0)"] as const;
 
 export interface MarqueeCardProps {
   readonly card: UpNextCard;
-  /** Passed rather than read off the card, because a card with no episode to
-   * headline is not drawn at all: the screen keeps that show as a queue row. */
   readonly episode: EpisodeRef;
   readonly mark: MarkWatched;
 }
 
-/**
- * The one card on the home screen: the head of the queue over its SHOW backdrop,
- * never the episode still, because stills are spoilers.
- *
- * It earns its place on the eyebrow. Nothing else on this screen says an episode
- * is new, and the queue row below carries poster, title, code, progress and
- * count without ever mentioning recency. It is also the largest target for the
- * app's most repeated action.
- *
- * Above the scrim threshold it stops being a scrim card and becomes a plain
- * surface with the poster inline, which is the shape it already renders for a
- * show with no backdrop: text over artwork is the composition that fails first
- * at the largest text sizes, so the card changes shape rather than clipping.
- */
 export function MarqueeCard({ card, episode, mark }: MarqueeCardProps): ReactElement {
   const { entry } = card;
   const router = useRouter();
@@ -69,8 +50,6 @@ export function MarqueeCard({ card, episode, mark }: MarqueeCardProps): ReactEle
   const { fontScale } = useWindowDimensions();
   const stacked = fontScale >= REFLOW_FONT_SCALE;
 
-  // Null above the threshold, which is what turns the card into its plain
-  // surface composition: the same shape it draws for a show with no backdrop.
   const backdrop = fontScale < SCRIM_FONT_SCALE ? resolveBackdrop(art.backdrops) : null;
   const airedMs = toMs(episode.firstAired);
   const now = Date.now();
@@ -84,9 +63,6 @@ export function MarqueeCard({ card, episode, mark }: MarqueeCardProps): ReactEle
       : "Continue";
   const onImage = scrim ? PALETTE.onImage.dark : colors.fg;
   const onImageQuiet = scrim ? PALETTE.onImage2.dark : colors.ink2;
-  // The eyebrow reads over the scrim's own wash on artwork and takes the accent
-  // ink on the plain surface, where amber at 1.97:1 would carry the one line
-  // that says an episode is new.
   const eyebrowInk = scrim ? PALETTE.onImage2.dark : colors.accentInk;
 
   return (
@@ -97,8 +73,6 @@ export function MarqueeCard({ card, episode, mark }: MarqueeCardProps): ReactEle
         scrim
           ? { backgroundColor: plate(entry.title), borderWidth: 0 }
           : {
-              // #ffffff on the #fbfaf7 page is 1.04:1, so the plain surface is
-              // an edge away from not being a card at all.
               backgroundColor: colors.surface,
               borderWidth: HAIRLINE,
               borderColor: colors.border,
@@ -174,12 +148,9 @@ export function MarqueeCard({ card, episode, mark }: MarqueeCardProps): ReactEle
 }
 
 const styles = StyleSheet.create({
-  // minHeight and no height: above the threshold the card simply grows with its
-  // text, like every row on the screen.
   card: {
     flexDirection: "row",
     alignItems: "stretch",
-    // The SPACE rule: the body and the check are separate targets.
     gap: SPACE.s2,
     minHeight: ROW_MIN_HEIGHT.marquee,
     marginBottom: SPACE.s3,
@@ -193,14 +164,9 @@ const styles = StyleSheet.create({
     gap: SPACE.s3,
     padding: SPACE.s3,
   },
-  // Over artwork the stack sits on the scrim's strongest end; on the plain
-  // surface it starts at the top, beside a poster that no longer has a card the
-  // height of its own artwork to sit in the middle of.
   bodyBottom: { alignItems: "flex-end" },
   bodyTop: { alignItems: "flex-start" },
   stack: { flex: 1, minWidth: 0, gap: 2 },
-  // Centred beside a card the height of its artwork, and pulled to the top once
-  // the text has grown the card past it, so the reach stays short either way.
   checkCentre: { alignSelf: "center", paddingRight: SPACE.s3 },
   checkTop: { alignSelf: "flex-start", paddingRight: SPACE.s3, paddingTop: SPACE.s3 },
 });
