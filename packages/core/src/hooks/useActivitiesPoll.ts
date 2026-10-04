@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { useAppVisibility } from "../ports/app-visibility";
 import { useNetwork } from "../ports/network";
 import { useOptionalRuntime } from "../runtime/runtime";
+import { useSyncActivity } from "../stores/sync-activity-store";
 import { applyReconcile } from "./apply-reconcile";
 
 const POLL_INTERVAL_MS = 60_000;
@@ -21,14 +22,19 @@ export function useActivitiesPoll(): void {
     const flushPending = async (): Promise<number> =>
       runtime.pendingWrites() > 0 ? runtime.flushWrites() : 0;
 
+    const reconcileActivities = async (): Promise<void> => {
+      const reconcile = await runtime.pollActivities();
+      if (cancelled) return;
+      if (reconcile !== null) await applyReconcile(queryClient, reconcile, () => cancelled);
+      if (!cancelled) useSyncActivity.getState().setChecked(true);
+    };
+
     const runPoll = async (): Promise<void> => {
       if (running || !visibility.isVisible()) return;
       running = true;
       try {
         if ((await flushPending()) > 0 || cancelled) return;
-        const reconcile = await runtime.pollActivities();
-        if (cancelled || reconcile === null) return;
-        await applyReconcile(queryClient, reconcile, () => cancelled);
+        await reconcileActivities();
       } finally {
         running = false;
       }
@@ -48,6 +54,7 @@ export function useActivitiesPoll(): void {
 
     return () => {
       cancelled = true;
+      useSyncActivity.getState().setChecked(false);
       unsubscribeVisibility();
       unsubscribeNetwork();
       clearInterval(interval);

@@ -11,9 +11,7 @@
 # an add at all.
 appId: app.cuetracker
 ---
-- runScript: lib/reset-fake.js
-- assertTrue: ${output.fakeReset}
-- runFlow: lib/connect.yaml
+- runFlow: lib/relaunch.yaml
 - tapOn: "Search"
 - assertVisible:
     id: "screen-search"

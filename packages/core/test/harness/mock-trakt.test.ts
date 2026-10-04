@@ -35,6 +35,7 @@ import {
 } from "@cue/core/data/trakt/endpoints";
 import { advancePastNext, type LibraryEntry } from "@cue/core/data/trakt/library";
 import { loadUpNextEntries } from "@cue/core/data/trakt/read-budget";
+import { diffActivities } from "@cue/core/domain/sync-activities";
 import { groupUpNext } from "@cue/core/domain/up-next";
 import { DEFAULT_STALENESS_THRESHOLD_MS } from "@cue/core/domain/watch-status";
 import { buildMarkEpisodeOp } from "@cue/core/domain/write-queue/ops";
@@ -394,6 +395,19 @@ describe("seed profiles", () => {
     expect(mock.library.movies.map((movie) => movie.trakt)).toEqual([
       5501, 5502, 5503, 5504, 5505, 5506, 5507, 5508,
     ]);
+  });
+
+  it("moves every activity the app diffs past the replaced account's, even a write's", async () => {
+    await write("/sync/history", {
+      episodes: [{ ids: { trakt: 880308 }, watched_at: new Date().toISOString() }],
+    });
+    const before = ok(await getLastActivities(client()));
+    await resetTo("default");
+    const after = ok(await getLastActivities(client()));
+
+    expect(new Set(diffActivities(before, after))).toEqual(
+      new Set(diffActivities(undefined, before)),
+    );
   });
 
   it("serves an empty library", async () => {

@@ -15,6 +15,7 @@ import {
   type CueRuntime,
   RuntimeProvider,
 } from "@cue/core/runtime/runtime";
+import { useSyncActivity } from "@cue/core/stores/sync-activity-store";
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { act, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -92,6 +93,16 @@ describe("useActivitiesPoll write-queue gating", () => {
     await mountPoll(stub.runtime);
     expect(stub.flushWrites).toHaveBeenCalledTimes(1);
     expect(stub.pollActivities).not.toHaveBeenCalled();
+    expect(useSyncActivity.getState().checked).toBe(false);
+  });
+
+  it("marks the session checked once a poll has run, and unchecked when the session ends", async () => {
+    const stub = stubRuntime(0);
+    await mountPoll(stub.runtime);
+    expect(useSyncActivity.getState().checked).toBe(true);
+
+    unmount();
+    expect(useSyncActivity.getState().checked).toBe(false);
   });
 
   it("flushes on reconnect even while hidden, without polling", async () => {
@@ -205,6 +216,24 @@ describe("useActivitiesPoll reconcile", () => {
     const commit = vi.fn(() => Promise.resolve());
     await mountPoll(reconcileRuntime({ keys: [], commit }));
     expect(commit).toHaveBeenCalledOnce();
+  });
+
+  it("never advances the baseline or checks a session torn down mid-poll", async () => {
+    const commit = vi.fn(() => Promise.resolve());
+    let answer: ((reconcile: ActivitiesReconcile) => void) | undefined;
+    const runtime = {
+      pendingWrites: () => 0,
+      flushWrites: vi.fn(),
+      pollActivities: () =>
+        new Promise<ActivitiesReconcile>((resolve) => {
+          answer = resolve;
+        }),
+    } as unknown as CueRuntime;
+    await mountPoll(runtime);
+    unmount();
+    await act(async () => answer?.({ keys: [], commit }));
+    expect(commit).not.toHaveBeenCalled();
+    expect(useSyncActivity.getState().checked).toBe(false);
   });
 
   it("never advances the baseline for a session torn down mid-refresh", async () => {

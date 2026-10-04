@@ -133,19 +133,19 @@ describe("fast pull request validation", () => {
   });
 
   it("waits for app idle before checking the connected loading state", () => {
-    const connect = readFileSync(repositoryPath(".maestro/flows/lib/connect.yaml"), "utf8");
+    const ready = readFileSync(repositoryPath(".maestro/flows/lib/ready.yaml"), "utf8");
 
-    expect(connect).toMatch(/screen-up-next[\s\S]*app-idle[\s\S]*up-next-skeleton/);
+    expect(ready).toMatch(/screen-up-next[\s\S]*app-idle[\s\S]*up-next-skeleton/);
   });
 
-  it("waits for app idle after sign-in as long as a read keeps retrying before it fails", () => {
-    const connect = readFileSync(repositoryPath(".maestro/flows/lib/connect.yaml"), "utf8");
+  it("waits for app idle as long as a read keeps retrying before it fails", () => {
+    const ready = readFileSync(repositoryPath(".maestro/flows/lib/ready.yaml"), "utf8");
     const timedOut = new TraktReadError({ kind: "network" }, "sync");
     let retries = 0;
     let backoff = 0;
     while (shouldRetryRead(retries, timedOut)) backoff += backoffMs(retries++);
 
-    expect(Number(connect.match(/id: "app-idle"\n {4}timeout: (\d+)/)?.[1])).toBe(
+    expect(Number(ready.match(/id: "app-idle"\n {4}timeout: (\d+)/)?.[1])).toBe(
       TRAKT_REQUEST_TIMEOUT_MS * (retries + 1) + backoff,
     );
   });
@@ -269,7 +269,7 @@ describe("fast pull request validation", () => {
 
   it("settles animations before every shared screenshot", () => {
     const flows = [
-      "lib/connect.yaml",
+      "lib/sign-in.yaml",
       "launch.yaml",
       "up-next-mark-and-undo.yaml",
       "show-detail-bulk-mark.yaml",
@@ -295,13 +295,13 @@ describe("fast pull request validation", () => {
   it("keeps the dark pass to a shared visit and screenshot traversal", () => {
     const suite = readFileSync(repositoryPath(".maestro/ci/screenshots.yaml"), "utf8");
     const traversal = readFileSync(repositoryPath(".maestro/flows/dark-traversal.yaml"), "utf8");
-    const connect = readFileSync(repositoryPath(".maestro/flows/lib/connect.yaml"), "utf8");
+    const signIn = readFileSync(repositoryPath(".maestro/flows/lib/sign-in.yaml"), "utf8");
 
     expect(suite).toContain("runFlow: ../flows/dark-traversal.yaml");
     expect(traversal).toMatch(/file: lib\/connect\.yaml\n\s+env:\n\s+CAPTURE_AUTH: "true"/);
     expect(traversal).not.toMatch(/^\s*- assert/m);
     expect(traversal).not.toMatch(/id: ".*(?:mark|check)/);
-    expect(`${connect}${traversal}`.match(/takeScreenshot:/g)?.length).toBe(9);
+    expect(`${signIn}${traversal}`.match(/takeScreenshot:/g)?.length).toBe(9);
   });
 
   it("asserts all four Android tabs from the final UI tree", () => {

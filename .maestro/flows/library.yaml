@@ -6,9 +6,7 @@
 # proves the grid is reading the settled query rather than every keystroke.
 appId: app.cuetracker
 ---
-- runScript: lib/reset-fake.js
-- assertTrue: ${output.fakeReset}
-- runFlow: lib/connect.yaml
+- runFlow: lib/relaunch.yaml
 - tapOn: "Library"
 - assertVisible:
     id: "screen-library"
