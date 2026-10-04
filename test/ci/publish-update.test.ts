@@ -1,4 +1,7 @@
+import { execFile } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { nativeAppConfig } from "../../packages/native/app.config";
 import { repositoryPath } from "../support/repository-path";
@@ -11,6 +14,20 @@ const releaseWorkflow = readFileSync(
   repositoryPath(".github/workflows/mobile-release.yml"),
   "utf8",
 );
+
+const native = repositoryPath("packages/native");
+const expoUpdatesCli = createRequire(`${native}/package.json`).resolve("expo-updates/bin/cli.js");
+
+const execFileAsync = promisify(execFile);
+
+const runtimeVersion = async (platform: string, release: Record<string, string | undefined>) => {
+  const { stdout } = await execFileAsync(
+    process.execPath,
+    [expoUpdatesCli, "runtimeversion:resolve", "--platform", platform],
+    { cwd: native, env: { ...process.env, EAS_UPDATE_CHANNEL: "preview", ...release } },
+  );
+  return (JSON.parse(stdout) as { runtimeVersion: string }).runtimeVersion;
+};
 
 const publicEnvironmentNames = (workflow: string): string[] =>
   [
@@ -53,6 +70,19 @@ describe("JavaScript update publishing", () => {
     expect(preview.updates?.fallbackToCacheTimeout).toBe(0);
     expect(preview.updates?.requestHeaders).toEqual({ "expo-channel-name": "preview" });
     expect(production.updates?.requestHeaders).toEqual({ "expo-channel-name": "production" });
+  });
+
+  it("gives store builds the runtime that updates are published against", {
+    timeout: 30_000,
+  }, async () => {
+    const runtimes = (release: Record<string, string | undefined>) =>
+      Promise.all(["ios", "android"].map((platform) => runtimeVersion(platform, release)));
+    const [published, store] = await Promise.all([
+      runtimes({ APP_VERSION: undefined, BUILD_NUMBER: undefined }),
+      runtimes({ APP_VERSION: "2.1.0", BUILD_NUMBER: "420701" }),
+    ]);
+
+    expect(store).toEqual(published);
   });
 
   it("keeps analytics packages out of the native app", () => {
