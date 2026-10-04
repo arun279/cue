@@ -50,7 +50,7 @@ import { useNavigationTheme } from "../src/ui/navigation-theme";
 import { useResponseTiming } from "../src/ui/response-timing";
 import { SnackbarHost } from "../src/ui/SnackbarHost";
 import { TEST_IDS } from "../src/ui/test-ids";
-import { useCueFonts } from "../src/ui/type";
+import { useFontsSettled } from "../src/ui/type";
 
 void SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -154,7 +154,7 @@ function RoutedApp(): ReactElement {
 export default function RootLayout(): ReactElement {
   useScreenReader();
   const authStore = useNativeSession();
-  const fontsSettled = useCueFonts();
+  const fontsSettled = useFontsSettled();
   const navigationTheme = useNavigationTheme();
   useAppearance(prefsStore);
 
