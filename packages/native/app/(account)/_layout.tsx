@@ -39,6 +39,7 @@ export default function AccountLayout(): ReactElement {
               <Button
                 label="Done"
                 variant="link"
+                bar
                 testID={TEST_IDS.closeAccount}
                 onPress={() => router.dismissAll()}
               />

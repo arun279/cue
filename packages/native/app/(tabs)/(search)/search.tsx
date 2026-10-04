@@ -12,9 +12,10 @@ import { showFailure, showUndoable } from "@cue/core/stores/snackbar-store";
 import { useQuery } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import { type ReactElement, useEffect, useMemo, useRef } from "react";
-import { FlatList, Platform, StyleSheet, useWindowDimensions, View } from "react-native";
+import { FlatList, Platform, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { SearchBarCommands } from "react-native-screens";
+import { usePosterGrid } from "../../../src/screens/library/LibraryTile";
 import { Browse } from "../../../src/screens/search/Browse";
 import { browseGrids, placeholderFor } from "../../../src/screens/search/model";
 import { ResultRow } from "../../../src/screens/search/ResultRow";
@@ -24,8 +25,6 @@ import { Separator } from "../../../src/ui/Row";
 import { TabRoot } from "../../../src/ui/TabRoot";
 import { TEST_IDS } from "../../../src/ui/test-ids";
 import { ROW_TEXT_INSET, SPACE, tabBarClearance, useColors } from "../../../src/ui/tokens";
-
-const COLUMNS = 3;
 
 export default function Search(): ReactElement {
   const showsEnabled = usePrefs((state) => state.showsEnabled);
@@ -72,7 +71,7 @@ export default function Search(): ReactElement {
   const placeholder = placeholderFor(showsEnabled, moviesEnabled);
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const tileWidth = usePosterGrid().width;
 
   return (
     <TabRoot testID={TEST_IDS.screenSearch}>
@@ -125,7 +124,7 @@ export default function Search(): ReactElement {
                 status={queryStatus(browse, browse.data !== undefined)}
                 grids={grids}
                 recent={recent}
-                width={Math.floor((width - 2 * SPACE.s4 - (COLUMNS - 1) * SPACE.s3) / COLUMNS)}
+                width={tileWidth}
                 onRecall={recall}
                 onRetry={() => void browse.refetch()}
               />

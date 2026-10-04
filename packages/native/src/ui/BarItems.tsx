@@ -1,9 +1,10 @@
 import { useRouter } from "expo-router";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
-import Svg, { Circle, Path } from "react-native-svg";
+import Svg, { Path } from "react-native-svg";
+import { Avatar } from "./Avatar";
 import { TEST_IDS } from "./test-ids";
-import { RADIUS, SPACE, TARGET_MIN, useColors } from "./tokens";
+import { SPACE, TARGET_MIN, useColors } from "./tokens";
 
 const GLYPH = 22;
 const AVATAR = 32;
@@ -53,18 +54,7 @@ export function BarItems({ onSync }: BarItemsProps): ReactElement {
         onPress={() => router.push("/profile")}
         style={styles.target}
       >
-        <View style={[styles.avatar, { backgroundColor: colors.elevated }]}>
-          <Svg width={GLYPH} height={GLYPH} viewBox="0 0 24 24">
-            <Circle cx="12" cy="9" r="3.4" fill={colors.muted} />
-            <Path
-              d="M5.5 19.5a6.5 6.5 0 0 1 13 0"
-              fill="none"
-              stroke={colors.muted}
-              strokeWidth={2}
-              strokeLinecap="round"
-            />
-          </Svg>
-        </View>
+        <Avatar size={AVATAR} />
       </Pressable>
     </View>
   );
@@ -78,13 +68,5 @@ const styles = StyleSheet.create({
     height: TARGET_MIN,
     alignItems: "center",
     justifyContent: "center",
-  },
-  avatar: {
-    width: AVATAR,
-    height: AVATAR,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: RADIUS.pill,
-    overflow: "hidden",
   },
 });

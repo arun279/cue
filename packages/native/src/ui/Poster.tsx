@@ -7,7 +7,7 @@ import { CueText } from "./type";
 const POSTER_RATIO = 3 / 2;
 
 export const MONOGRAM_SIZE = 0.25;
-const MONOGRAM_LEADING = 1.25;
+export const MONOGRAM_LEADING = 1.25;
 
 export interface PosterProps {
   readonly title: string;
