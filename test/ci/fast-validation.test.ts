@@ -1,8 +1,12 @@
-import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { DEFAULT_TRAKT_POLICY } from "../../packages/core/src/data/trakt/policy";
 import { backoffMs } from "../../packages/core/src/domain/write-queue/classify";
+import { gitEnv } from "../support/git-env";
 import { repositoryPath } from "../support/repository-path";
+import { tempDirectory } from "../support/temp-directory";
 
 const workflow = readFileSync(repositoryPath(".github/workflows/ci.yml"), "utf8");
 const job = (name: string) =>
@@ -10,7 +14,49 @@ const job = (name: string) =>
     new RegExp(`^  ${name}:\\n([\\s\\S]*?)(?=^  [a-z][a-z0-9-]*:|(?![\\s\\S]))`, "m"),
   )?.[1] ?? "";
 
+const git = (repository: string, ...args: string[]): string =>
+  execFileSync("git", args, { cwd: repository, encoding: "utf8", env: gitEnv() }).trim();
+
+const commit = (repository: string, file: string): string => {
+  writeFileSync(path.join(repository, file), file);
+  git(repository, "add", file);
+  git(repository, "commit", "--quiet", "-m", file);
+  return git(repository, "rev-parse", "HEAD");
+};
+
+const measuredBase = (repository: string, ...args: string[]): string =>
+  execFileSync(repositoryPath("scripts/measured-base.sh"), args, {
+    cwd: repository,
+    encoding: "utf8",
+    env: gitEnv(),
+  }).trim();
+
 describe("fast pull request validation", () => {
+  it("measures a pull request against the base its merge commit was built on", () => {
+    const repository = tempDirectory("cue-measured-base-");
+    git(repository, "init", "--quiet", "--initial-branch=main");
+    git(repository, "config", "user.name", "Cue Tests");
+    git(repository, "config", "user.email", "cue-tests@example.invalid");
+    const opened = commit(repository, "opened");
+    git(repository, "switch", "--quiet", "-c", "topic");
+    commit(repository, "topic");
+    git(repository, "switch", "--quiet", "main");
+    const moved = commit(repository, "moved");
+    git(repository, "switch", "--quiet", "--detach", "main");
+    git(repository, "merge", "--quiet", "--no-ff", "-m", "Merge topic into main", "topic");
+
+    expect(moved).not.toBe(opened);
+    expect(measuredBase(repository, "pull_request", opened)).toBe(moved);
+    expect(measuredBase(repository, "push", opened)).toBe(opened);
+    expect(measuredBase(repository, "push", "0".repeat(40))).toBe(moved);
+    expect(measuredBase(repository, "schedule")).toBe(moved);
+    expect(workflow).not.toContain("pull_request.base.sha");
+    expect(job("render-performance")).toContain(
+      'BASE_SHA=$(scripts/measured-base.sh "$EVENT_NAME" "$PUSH_BEFORE")',
+    );
+    expect(job("footprint")).toContain("BASE_SHA=$(scripts/measured-base.sh pull_request)");
+  });
+
   it("gates each native build on its platform fingerprint", () => {
     const fingerprint = job("fingerprint");
     const ios = job("native-ios");
@@ -50,7 +96,7 @@ describe("fast pull request validation", () => {
     expect(footprint).toContain(
       "name: cue-footprint-$" + "{{ github.event.pull_request.head.sha || github.sha }}",
     );
-    expect(footprint).toContain('run: scripts/restore-base-metrics.sh "$BASE_SHA"');
+    expect(footprint).toContain('scripts/restore-base-metrics.sh "$BASE_SHA"');
     expect(footprint).toContain(
       'download-ci-artifact.sh "$ARTIFACT_NAME" "$RUNNER_TEMP/base-metrics" footprint',
     );
