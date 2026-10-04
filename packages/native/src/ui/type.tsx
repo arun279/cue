@@ -7,26 +7,6 @@ import { useFonts } from "expo-font";
 import type { ReactElement } from "react";
 import { Platform, type StyleProp, Text, type TextProps, type TextStyle } from "react-native";
 
-/**
- * The eleven type roles, and the two faces that draw them.
- *
- * A role fixes a size, a line height and a tracking; weight is a separate axis,
- * because the design draws the same role at two weights (a queue row title is
- * emphasized, the History footer beside it is not) and a weight change is not a
- * size change. Nothing here is capped: `maxFontSizeMultiplier` is absent on
- * purpose, and the two roles the system draws are the tab-root large title and
- * the pushed inline title, which belong to the navigation stack rather than to
- * this module.
- *
- * On iOS `dynamicTypeRamp` binds each role to a `UIFontTextStyle`, so a custom
- * face still scales through `UIFontMetrics`; React Native scales the absolute
- * line height by the same multiplier. On Android every size is `sp`, which is
- * what puts it on Android 14's non-linear curve, and no spacing value anywhere
- * is in `sp`.
- *
- * The faces use `@expo-google-fonts`, which provides the TTF or OTF assets a
- * native text engine needs.
- */
 export type TypeRole =
   | "screenTitle"
   | "screenTitlePushed"
@@ -42,12 +22,6 @@ export type TypeRole =
 
 type TypeWeight = "regular" | "medium" | "semibold" | "bold";
 
-/**
- * `ui` is Inter, `display` is Space Grotesk, and `system` is the platform's own
- * face, which two roles take because a custom face inside a system bar competes
- * with the bar's metrics. Space Grotesk ships one weight here, so a display role
- * ignores the weight axis.
- */
 type Face = "ui" | "display" | "system";
 
 interface RoleSpec {
@@ -58,6 +32,7 @@ interface RoleSpec {
   readonly face: Face;
 }
 
+// dynamicTypeRamp is what scales a custom face through UIFontMetrics on iOS.
 const RAMP: Readonly<Record<TypeRole, NonNullable<TextProps["dynamicTypeRamp"]>>> = {
   screenTitle: "largeTitle",
   screenTitlePushed: "headline",
@@ -154,7 +129,6 @@ const BASE = byRole((spec) => ({
   ...faceStyle(spec.face, spec.weight),
 }));
 
-/** React Native takes tracking in points, so the ratio is applied to each role's size. */
 const EYEBROW_TRACKING_EM = Platform.OS === "ios" ? 0.06 : 0.08;
 const EYEBROW = byRole<TextStyle>((spec) => ({
   textTransform: "uppercase",
@@ -172,12 +146,9 @@ export function lineHeightOf(variant: TypeRole): number {
 }
 
 export interface CueTextProps extends TextProps {
-  /** One of the eleven roles. Spelled `variant` because `role` is the ARIA prop. */
   readonly variant: TypeRole;
-  /** Overrides the role's own weight, which is the design's emphasis axis. */
   readonly weight?: TypeWeight;
   readonly eyebrow?: boolean;
-  /** For counts, times and episode codes, so digits do not shift as they change. */
   readonly tabularNums?: boolean;
 }
 
@@ -203,12 +174,7 @@ export function CueText({
   );
 }
 
-/**
- * True once the five faces are in, or once loading them has failed. A face that
- * will not load falls back to the platform's own, which is a worse-looking app
- * and not a reason to hold a blank screen forever.
- */
-export function useCueFonts(): boolean {
+export function useFontsSettled(): boolean {
   const [loaded, error] = useFonts({
     Inter_400Regular,
     Inter_500Medium,

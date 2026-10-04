@@ -1,11 +1,6 @@
 const { withEntitlementsPlist } = require("expo/config-plugins");
 
-/**
- * Expo applies expo-notifications' config plugin whenever the package is
- * installed, and that plugin writes `aps-environment` unconditionally. Local
- * notifications need no entitlement, and Cue's provisioning profile carries no
- * push capability, so a build signed with the key would fail.
- */
+// expo-notifications' plugin always writes aps-environment, which a profile without push cannot sign.
 module.exports = (config) =>
   withEntitlementsPlist(config, (entitlements) => {
     delete entitlements.modResults["aps-environment"];

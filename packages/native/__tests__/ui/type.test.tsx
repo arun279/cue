@@ -16,7 +16,7 @@ const ROLES: readonly TypeRole[] = [
   "micro",
 ];
 
-/** The five faces `useCueFonts` loads, and the only ones a role may name. */
+/** The five faces `useFontsSettled` loads, and the only ones a role may name. */
 const LOADED = [
   "Inter_400Regular",
   "Inter_500Medium",
