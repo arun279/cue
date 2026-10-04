@@ -19,6 +19,8 @@ export const TEST_IDS = {
   settingsDelete: "settings-delete",
   settingsAttribution: "settings-attribution",
   settingsPoweredBy: "settings-powered-by",
+  settingsDiagnostics: "settings-diagnostics",
+  settingsDiagnosticsCopy: "settings-diagnostics-copy",
   themeSystem: "theme-system",
   themeDark: "theme-dark",
   themeLight: "theme-light",

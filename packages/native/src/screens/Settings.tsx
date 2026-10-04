@@ -10,6 +10,7 @@ import { TEST_IDS } from "../ui/test-ids";
 import { SPACE, TARGET_MIN, useColors } from "../ui/tokens";
 import { CueText } from "../ui/type";
 import { DataSection } from "./account/DataSection";
+import { Diagnostics } from "./account/Diagnostics";
 import { AccountScreen, Note, Picker, Section, SettingRow, Toggle } from "./account/Rows";
 import { SignOut } from "./account/SignOut";
 import { ThemeControl } from "./account/ThemeControl";
@@ -183,6 +184,7 @@ export default function Settings(): ReactElement {
             </CueText>
           }
         />
+        <Diagnostics />
         <ExternalLink
           title="Powered by Trakt"
           url="https://trakt.tv"

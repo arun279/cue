@@ -59,9 +59,14 @@ function clampWaitMs(ms: number, maxMs: number): number {
   return Math.min(maxMs, Math.max(0, ms));
 }
 
-export function backoffMs(attempt: number): number {
-  const exp = BACKOFF_BASE_MS * 2 ** Math.max(0, attempt);
-  return Math.min(BACKOFF_MAX_MS, exp);
+export function backoffMs(
+  attempt: number,
+  { base, max }: { readonly base: number; readonly max: number } = {
+    base: BACKOFF_BASE_MS,
+    max: BACKOFF_MAX_MS,
+  },
+): number {
+  return Math.min(max, base * 2 ** Math.max(0, attempt));
 }
 
 export function computePacingDelay(now: number, lastDispatchAt: number | null): number {

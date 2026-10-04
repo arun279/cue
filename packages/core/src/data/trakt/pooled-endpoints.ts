@@ -5,7 +5,7 @@ import { withReadRateRetry } from "./read-budget";
 function pool<Args extends unknown[], T>(
   fn: (client: TraktClient, ...rest: Args) => Promise<TraktResult<T>>,
 ): (client: TraktClient, ...rest: Args) => Promise<TraktResult<T>> {
-  return (client, ...rest) => withReadRateRetry(() => fn(client, ...rest));
+  return (client, ...rest) => withReadRateRetry(() => fn(client, ...rest), client.policy);
 }
 
 export const getHidden = pool(raw.getHidden);

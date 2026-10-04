@@ -1,7 +1,8 @@
 import { invalidationKeys } from "../data/query-invalidation";
 import { createAuthorizedFetch } from "../data/trakt/authorized-fetch";
 import { assembleCalendarEntries } from "../data/trakt/calendar";
-import { TraktClient, unwrapRead } from "../data/trakt/client";
+import { type ReadReporter, TraktClient, unwrapRead } from "../data/trakt/client";
+import { parseIncidents, type ReadIncident, recordIncident } from "../data/trakt/diagnostics";
 import { assembleEpisodeDetail } from "../data/trakt/episode-detail";
 import {
   assembleEpisodePlays,
@@ -10,6 +11,7 @@ import {
 } from "../data/trakt/history";
 import { additiveLanded, markLanded, showIdSet } from "../data/trakt/library";
 import { assembleMovieHeader, assembleMovieLibrary } from "../data/trakt/movie-library";
+import type { TraktPolicy } from "../data/trakt/policy";
 import {
   getEpisode,
   getHidden,
@@ -50,7 +52,7 @@ import { WriteQueue } from "../domain/write-queue/queue";
 import type { QueuedOp } from "../domain/write-queue/types";
 import { createJsonStore } from "../ports/json-store";
 import type { KeyValueStore } from "../ports/kv";
-import { OP_LOG_KEY } from "../ports/storage-keys";
+import { INCIDENTS_KEY, OP_LOG_KEY } from "../ports/storage-keys";
 import type { TokenStore } from "../ports/token-store";
 import type {
   ActivitiesReconcile,
@@ -62,6 +64,7 @@ import type {
   SubmitOutcome,
   UpNextData,
 } from "../runtime/runtime";
+import { useReadIncidents } from "../stores/read-incidents-store";
 import { PendingWritesError, type TeardownOptions } from "./session";
 
 const ACTIVITIES_KEY = "cue.last-activities";
@@ -88,6 +91,7 @@ export interface RuntimeDeps {
   readonly apiBaseUrl?: string | undefined;
   readonly browser: boolean;
   readonly userAgent?: string;
+  readonly policy?: TraktPolicy;
   readonly endSession: () => Promise<void>;
   readonly clearPersistedCaches: () => Promise<void>;
   readonly clearLocalPreferences: () => void;
@@ -173,6 +177,19 @@ function createReconcile(client: TraktClient): (op: QueuedOp) => Promise<boolean
 }
 
 export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
+  const incidentStore = createJsonStore<readonly ReadIncident[]>(
+    deps.kv,
+    INCIDENTS_KEY,
+    parseIncidents,
+  );
+  useReadIncidents.setState({ incidents: (await incidentStore.read()) ?? [] });
+  const report: ReadReporter = (endpoint, problem) => {
+    const { incidents } = useReadIncidents.getState();
+    const next = recordIncident(incidents, endpoint, problem, Date.now());
+    useReadIncidents.setState({ incidents: next });
+    void incidentStore.write(next);
+  };
+
   const authorized = createAuthorizedFetch({
     inner: (input, init) => globalThis.fetch(input, init),
     token: deps.token,
@@ -191,6 +208,8 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     baseUrl: deps.apiBaseUrl,
     browser: deps.browser,
     userAgent: deps.userAgent,
+    policy: deps.policy,
+    report,
   });
 
   const opLogStore = createJsonStore<QueuedOp[]>(deps.kv, OP_LOG_KEY, (value) =>
@@ -416,6 +435,8 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
         if (options.force !== true && queue.size > 0) throw new PendingWritesError();
         await opLogStore.clear();
         await activitiesStore.clear();
+        await incidentStore.clear();
+        useReadIncidents.setState({ incidents: [] });
         await deps.clearPersistedCaches();
         deps.clearLocalPreferences();
       } finally {

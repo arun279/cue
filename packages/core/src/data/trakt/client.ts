@@ -1,7 +1,8 @@
 import { parseReadRetryAfterMs } from "../../domain/write-queue/classify";
+import type { DecodeIssue } from "./decode";
+import { DEFAULT_TRAKT_POLICY, type TimeoutClass, type TraktPolicy } from "./policy";
 
 export const TRAKT_API_BASE = "https://api.trakt.tv";
-export const TRAKT_REQUEST_TIMEOUT_MS = 15_000;
 const TRAKT_API_VERSION = "2";
 
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
@@ -15,6 +16,8 @@ export interface TraktClientConfig {
   readonly getToken?: () => string | null;
   readonly fetch?: FetchLike;
   readonly baseUrl?: string;
+  readonly policy?: TraktPolicy;
+  readonly report?: ReadReporter;
 }
 
 interface Pagination {
@@ -30,8 +33,17 @@ export type TraktFailure =
   | { readonly kind: "vip-required" }
   | { readonly kind: "rate-limited"; readonly retryAfterMs: number | null }
   | { readonly kind: "unreadable-response" }
+  | { readonly kind: "unexpected-shape"; readonly issues: readonly DecodeIssue[] }
+  | { readonly kind: "no-content" }
   | { readonly kind: "server"; readonly status: number }
+  | { readonly kind: "timeout" }
   | { readonly kind: "network" };
+
+export type ReadProblem =
+  | TraktFailure
+  | { readonly kind: "skipped-fields"; readonly issues: readonly DecodeIssue[] };
+
+export type ReadReporter = (endpoint: string, problem: ReadProblem) => void;
 
 export type TraktResult<T> =
   | { readonly ok: true; readonly data: T; readonly pagination: Pagination | null }
@@ -41,7 +53,8 @@ export class TraktReadError extends Error {
   readonly failure: TraktFailure;
 
   constructor(failure: TraktFailure, what: string) {
-    super(`Failed to load ${what} (${failure.kind})`);
+    const detail = failure.kind === "unexpected-shape" ? ` at ${failure.issues[0]?.path}` : "";
+    super(`Failed to load ${what} (${failure.kind}${detail})`);
     this.name = "TraktReadError";
     this.failure = failure;
   }
@@ -64,11 +77,14 @@ export interface RequestOptions {
   readonly body?: unknown;
   readonly page?: number;
   readonly limit?: number;
+  readonly timeout?: TimeoutClass;
 }
 
 export type HttpMethod = "GET" | "POST";
 
 export class TraktClient {
+  readonly policy: TraktPolicy;
+  readonly report: ReadReporter;
   private readonly clientId: string;
   private readonly getToken: () => string | null;
   private readonly fetchFn: FetchLike;
@@ -84,6 +100,8 @@ export class TraktClient {
     this.baseUrl = (config.baseUrl ?? TRAKT_API_BASE).replace(/\/+$/, "");
     this.browser = config.browser ?? false;
     this.userAgent = config.userAgent;
+    this.policy = config.policy ?? DEFAULT_TRAKT_POLICY;
+    this.report = config.report ?? (() => undefined);
   }
 
   async send(method: HttpMethod, path: string, options: RequestOptions = {}): Promise<RawResponse> {
@@ -96,7 +114,9 @@ export class TraktClient {
     const token = this.getToken();
     if (token !== null && token.length > 0) headers["Authorization"] = `Bearer ${token}`;
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), TRAKT_REQUEST_TIMEOUT_MS);
+    const timeoutMs =
+      this.policy.timeoutMs[options.timeout ?? (method === "GET" ? "read" : "write")];
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     const init: RequestInit = { method, headers, signal: controller.signal };
     if (options.body !== undefined) init.body = JSON.stringify(options.body);
     try {
@@ -113,8 +133,8 @@ export class TraktClient {
 
   // In a browser, Cloudflare's 429 and 403 responses in front of Trakt carry no CORS headers, so fetch rejects.
   private rejectionFailure(cause: unknown): TraktFailure {
-    const aborted = cause instanceof Error && cause.name === "AbortError";
-    return !aborted && this.browser && this.baseUrl === TRAKT_API_BASE
+    if (cause instanceof Error && cause.name === "AbortError") return { kind: "timeout" };
+    return this.browser && this.baseUrl === TRAKT_API_BASE
       ? { kind: "unreadable-response" }
       : { kind: "network" };
   }
@@ -136,6 +156,7 @@ export class TraktClient {
     } catch (cause) {
       return { ok: false, error: this.rejectionFailure(cause) };
     }
+    if (raw.status === 204) return { ok: false, error: { kind: "no-content" } };
     if (raw.status >= 200 && raw.status < 300) {
       return { ok: true, data: raw.data, pagination: readPagination(raw.headers) };
     }
@@ -144,12 +165,15 @@ export class TraktClient {
 
   // Trakt may apply a smaller page limit than requested.
   async getAllPages(path: string, options: RequestOptions = {}): Promise<TraktResult<unknown[]>> {
-    const first = await this.get(path, { ...options, page: 1 });
-    if (!first.ok) return first;
+    const paged: RequestOptions = { timeout: "list", ...options };
+    const first = await this.get(path, { ...paged, page: 1 });
+    if (!first.ok) {
+      return first.error.kind === "no-content" ? { ok: true, data: [], pagination: null } : first;
+    }
     const acc = asArray(first.data);
     const pageCount = first.pagination?.pageCount;
     for (let page = 2; pageCount === undefined || page <= pageCount; page += 1) {
-      const next = await this.get(path, { ...options, page });
+      const next = await this.get(path, { ...paged, page });
       if (!next.ok) return next;
       const rows = asArray(next.data);
       if (rows.length === 0) break;

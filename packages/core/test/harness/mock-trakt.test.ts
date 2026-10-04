@@ -199,7 +199,7 @@ describe("the seeded account parses through the app's own contracts", () => {
 
   it("serves the account identity reads", async () => {
     expect(ok(await getUserSettings(client())).user.username).toBe("cue-demo");
-    expect(ok(await getUserStats(client())).episodes.watched).toBeGreaterThan(0);
+    expect(ok(await getUserStats(client())).episodes?.watched).toBeGreaterThan(0);
   });
 
   it("serves every seeded show's detail, progress, seasons and episode reads", async () => {

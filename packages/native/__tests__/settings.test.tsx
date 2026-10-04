@@ -4,7 +4,9 @@ import { computeWatchStatus } from "@cue/core/domain/watch-status";
 import { type Reminders, RemindersProvider } from "@cue/core/ports/reminders";
 import { createPrefsStore, usePrefs } from "@cue/core/prefs/prefs-store";
 import { thresholdMsFromDays } from "@cue/core/prefs/threshold";
+import { useReadIncidents } from "@cue/core/stores/read-incidents-store";
 import { act, fireEvent, screen, userEvent } from "@testing-library/react-native";
+import { setStringAsync } from "expo-clipboard";
 import { openBrowserAsync } from "expo-web-browser";
 import { Alert, Appearance, Platform } from "react-native";
 import "./support/screen-mocks";
@@ -17,6 +19,7 @@ import { accountFixture } from "./support/account";
 import { agesAgo, airing, entry } from "./support/up-next";
 
 jest.mock("expo-web-browser", () => ({ openBrowserAsync: jest.fn() }));
+jest.mock("expo-clipboard", () => ({ setStringAsync: jest.fn(async () => true) }));
 jest.mock("../modules/cue-native/src", () => ({ CueHaptics: { success: jest.fn() } }));
 
 afterEach(() => jest.restoreAllMocks());
@@ -339,4 +342,26 @@ it("shows the injected store version and hands account management to Trakt", asy
     await userEvent.press(screen.getByRole("link", { name }));
     expect(openBrowserAsync).toHaveBeenLastCalledWith(url);
   }
+});
+
+it("lists the last Trakt failure per endpoint under About and copies them as a report", async () => {
+  const at = Date.UTC(2026, 9, 3, 22, 14);
+  useReadIncidents.setState({
+    incidents: [
+      { endpoint: "/users/me/stats", kind: "no-content", detail: "", at },
+      { endpoint: "/sync/watched/shows", kind: "server", detail: "HTTP 503", at: at - 60_000 },
+    ],
+  });
+  await accountFixture().paint(<Settings />);
+  expect(screen.getByText(/^Empty reply · \/users\/me\/stats · /)).toBeVisible();
+  expect(screen.getByText(/^Server error · \/sync\/watched\/shows · .* · HTTP 503$/)).toBeVisible();
+
+  await userEvent.press(screen.getByTestId(TEST_IDS.settingsDiagnosticsCopy));
+  const report = jest.mocked(setStringAsync).mock.calls[0]?.[0];
+  expect(report?.split("\n").slice(1)).toEqual([
+    "2026-10-03T22:14:00.000Z  /users/me/stats  no-content",
+    "2026-10-03T22:13:00.000Z  /sync/watched/shows  server  HTTP 503",
+  ]);
+  expect(await screen.findByText("Report copied.")).toBeVisible();
+  act(() => useReadIncidents.setState({ incidents: [] }));
 });

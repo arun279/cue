@@ -3,6 +3,7 @@ import type { HistoryRange } from "../../domain/history";
 import type { EpisodeIds, MovieIds, ShowIds } from "../../domain/model/ids";
 import type { LastActivities } from "../../domain/sync-activities";
 import type { RequestOptions, TraktClient, TraktResult } from "./client";
+import { decode } from "./decode";
 import {
   type CalendarItem,
   calendarSchema,
@@ -20,7 +21,6 @@ import {
   popularMoviesSchema,
   popularShowsSchema,
   progressSchema,
-  relatedMoviesSchema,
   type SearchResult,
   type SeasonData,
   type ShowDetailData,
@@ -49,183 +49,226 @@ const IMAGES: readonly ["images"] = ["images"];
 // Only extended=progress returns the per-season watched breakdown, and only full returns status.
 const WATCHED_SHOWS_EXTENDED: readonly ["full", "progress"] = ["full", "progress"];
 
-const LIST_PAGE_LIMIT = 100;
-
-function parse<T>(result: TraktResult<unknown>, schema: z.ZodType<T>): TraktResult<T> {
-  if (!result.ok) return result;
-  return { ok: true, data: schema.parse(result.data), pagination: result.pagination };
+function decodeRead<T>(
+  client: TraktClient,
+  endpoint: string,
+  result: TraktResult<unknown>,
+  schema: z.ZodType<T>,
+): TraktResult<T> {
+  if (!result.ok) {
+    client.report(endpoint, result.error);
+    return result;
+  }
+  const decoded = decode(schema, result.data);
+  if (!decoded.ok) {
+    const error = { kind: "unexpected-shape", issues: decoded.issues } as const;
+    client.report(endpoint, error);
+    return { ok: false, error };
+  }
+  if (decoded.skipped.length > 0) {
+    client.report(endpoint, { kind: "skipped-fields", issues: decoded.skipped });
+  }
+  return { ok: true, data: decoded.data, pagination: result.pagination };
 }
 
-export async function getWatchedShows(client: TraktClient): Promise<TraktResult<WatchedShow[]>> {
-  return parse(
-    await client.getAllPages("/sync/watched/shows", {
-      extended: WATCHED_SHOWS_EXTENDED,
-      limit: LIST_PAGE_LIMIT,
-    }),
-    watchedShowsSchema,
+async function readOne<T>(
+  client: TraktClient,
+  endpoint: string,
+  schema: z.ZodType<T>,
+  path: string = endpoint,
+  options: RequestOptions = {},
+): Promise<TraktResult<T>> {
+  return decodeRead(client, endpoint, await client.get(path, options), schema);
+}
+
+async function readAll<T>(
+  client: TraktClient,
+  endpoint: string,
+  schema: z.ZodType<T>,
+  path: string = endpoint,
+  options: RequestOptions = {},
+): Promise<TraktResult<T>> {
+  const limit = client.policy.pageSize.list;
+  return decodeRead(
+    client,
+    endpoint,
+    await client.getAllPages(path, { limit, ...options }),
+    schema,
   );
 }
 
-export async function getWatchedMovies(client: TraktClient): Promise<TraktResult<WatchedMovie[]>> {
-  return parse(
-    await client.getAllPages("/sync/watched/movies", {
-      extended: IMAGES,
-      limit: LIST_PAGE_LIMIT,
-    }),
-    watchedMoviesSchema,
-  );
+export function getWatchedShows(client: TraktClient): Promise<TraktResult<WatchedShow[]>> {
+  return readAll(client, "/sync/watched/shows", watchedShowsSchema, undefined, {
+    extended: WATCHED_SHOWS_EXTENDED,
+  });
 }
 
-export async function getShowProgress(
+export function getWatchedMovies(client: TraktClient): Promise<TraktResult<WatchedMovie[]>> {
+  return readAll(client, "/sync/watched/movies", watchedMoviesSchema, undefined, {
+    extended: IMAGES,
+  });
+}
+
+export function getShowProgress(
   client: TraktClient,
   showId: number | string,
   includeSpecials = false,
 ): Promise<TraktResult<Progress>> {
   const specials = includeSpecials ? "true" : "false";
-  const options: RequestOptions = {
-    extended: ART,
-    query: { hidden: "false", specials, count_specials: specials },
-  };
-  return parse(await client.get(`/shows/${showId}/progress/watched`, options), progressSchema);
+  return readOne(
+    client,
+    "/shows/:id/progress/watched",
+    progressSchema,
+    `/shows/${showId}/progress/watched`,
+    { extended: ART, query: { hidden: "false", specials, count_specials: specials } },
+  );
 }
 
-export async function getShow(
+export function getShow(
   client: TraktClient,
   showId: number | string,
 ): Promise<TraktResult<ShowDetailData>> {
-  return parse(await client.get(`/shows/${showId}`, { extended: ART }), showDetailSchema);
+  return readOne(client, "/shows/:id", showDetailSchema, `/shows/${showId}`, { extended: ART });
 }
 
-export async function getMovie(
+export function getMovie(
   client: TraktClient,
   movieId: number | string,
 ): Promise<TraktResult<MovieDetailData>> {
-  return parse(await client.get(`/movies/${movieId}`, { extended: ART }), movieDetailSchema);
+  return readOne(client, "/movies/:id", movieDetailSchema, `/movies/${movieId}`, {
+    extended: ART,
+  });
 }
 
-export async function getShowSeasons(
+export function getShowSeasons(
   client: TraktClient,
   showId: number | string,
 ): Promise<TraktResult<SeasonData[]>> {
-  const options: RequestOptions = { extended: ["episodes", "full", "images"] };
-  return parse(await client.get(`/shows/${showId}/seasons`, options), seasonsSchema);
+  return readOne(client, "/shows/:id/seasons", seasonsSchema, `/shows/${showId}/seasons`, {
+    extended: ["episodes", "full", "images"],
+  });
 }
 
-export async function getEpisode(
+export function getEpisode(
   client: TraktClient,
   showId: number | string,
   season: number,
   episode: number,
 ): Promise<TraktResult<EpisodeData>> {
   const path = `/shows/${showId}/seasons/${season}/episodes/${episode}`;
-  return parse(await client.get(path, { extended: ART }), episodeSchema);
+  return readOne(client, "/shows/:id/seasons/:season/episodes/:episode", episodeSchema, path, {
+    extended: ART,
+  });
 }
 
-export async function getWatchlist(
+export function getWatchlist(
   client: TraktClient,
   type: "shows" | "movies",
 ): Promise<TraktResult<WatchlistItem[]>> {
-  return parse(
-    await client.getAllPages(`/sync/watchlist/${type}`, { extended: ART, limit: LIST_PAGE_LIMIT }),
-    watchlistSchema,
-  );
+  const path = `/sync/watchlist/${type}`;
+  return readAll(client, path, watchlistSchema, path, { extended: ART });
 }
 
-export async function getMyShowsCalendar(
+export function getMyShowsCalendar(
   client: TraktClient,
   startDate: string,
   days: number,
 ): Promise<TraktResult<CalendarItem[]>> {
   const path = `/calendars/my/shows/${startDate}/${days}`;
-  return parse(await client.get(path, { extended: ART }), calendarSchema);
+  return readOne(client, "/calendars/my/shows/:start/:days", calendarSchema, path, {
+    extended: ART,
+  });
 }
 
-export async function searchTrakt(
+export function searchTrakt(
   client: TraktClient,
   query: string,
   types: readonly ("show" | "movie")[] = ["show", "movie"],
 ): Promise<TraktResult<SearchResult[]>> {
-  const path = `/search/${types.join(",")}`;
-  return parse(await client.get(path, { query: { query }, extended: ART }), searchSchema);
+  return readOne(client, "/search/:types", searchSchema, `/search/${types.join(",")}`, {
+    query: { query },
+    extended: ART,
+  });
 }
 
-export async function getTrendingShows(
+export function getTrendingShows(
   client: TraktClient,
   limit = 24,
 ): Promise<TraktResult<TrendingShow[]>> {
-  return parse(await client.get("/shows/trending", { extended: ART, limit }), trendingShowsSchema);
+  return readOne(client, "/shows/trending", trendingShowsSchema, undefined, {
+    extended: ART,
+    limit,
+  });
 }
 
-export async function getPopularShows(
+export function getPopularShows(
   client: TraktClient,
   limit = 24,
 ): Promise<TraktResult<ShowSummary[]>> {
-  return parse(await client.get("/shows/popular", { extended: ART, limit }), popularShowsSchema);
+  return readOne(client, "/shows/popular", popularShowsSchema, undefined, { extended: ART, limit });
 }
 
-export async function getTrendingMovies(
+export function getTrendingMovies(
   client: TraktClient,
   limit = 24,
 ): Promise<TraktResult<TrendingMovie[]>> {
-  return parse(
-    await client.get("/movies/trending", { extended: ART, limit }),
-    trendingMoviesSchema,
-  );
+  return readOne(client, "/movies/trending", trendingMoviesSchema, undefined, {
+    extended: ART,
+    limit,
+  });
 }
 
-export async function getPopularMovies(
+export function getPopularMovies(
   client: TraktClient,
   limit = 24,
 ): Promise<TraktResult<MovieSummary[]>> {
-  return parse(await client.get("/movies/popular", { extended: ART, limit }), popularMoviesSchema);
+  return readOne(client, "/movies/popular", popularMoviesSchema, undefined, {
+    extended: ART,
+    limit,
+  });
 }
 
-export async function getRelatedMovies(
+export function getRelatedMovies(
   client: TraktClient,
   movieId: number | string,
   limit = 12,
 ): Promise<TraktResult<MovieSummary[]>> {
-  return parse(
-    await client.get(`/movies/${movieId}/related`, { extended: ART, limit }),
-    relatedMoviesSchema,
-  );
+  return readOne(client, "/movies/:id/related", popularMoviesSchema, `/movies/${movieId}/related`, {
+    extended: ART,
+    limit,
+  });
 }
 
-export async function getRelatedShows(
+export function getRelatedShows(
   client: TraktClient,
   showId: number | string,
   limit = 6,
 ): Promise<TraktResult<ShowSummary[]>> {
-  return parse(
-    await client.get(`/shows/${showId}/related`, { extended: ART, limit }),
-    popularShowsSchema,
-  );
+  return readOne(client, "/shows/:id/related", popularShowsSchema, `/shows/${showId}/related`, {
+    extended: ART,
+    limit,
+  });
 }
 
-export async function getUserStats(client: TraktClient): Promise<TraktResult<UserStats>> {
-  return parse(await client.get("/users/me/stats"), userStatsSchema);
+export function getUserStats(client: TraktClient): Promise<TraktResult<UserStats>> {
+  return readOne(client, "/users/me/stats", userStatsSchema);
 }
 
-export async function getUserSettings(client: TraktClient): Promise<TraktResult<UserSettings>> {
-  return parse(await client.get("/users/settings"), userSettingsSchema);
+export function getUserSettings(client: TraktClient): Promise<TraktResult<UserSettings>> {
+  return readOne(client, "/users/settings", userSettingsSchema);
 }
 
-export async function getHidden(client: TraktClient): Promise<TraktResult<HiddenItem[]>> {
-  return parse(
-    await client.getAllPages("/users/hidden/progress_watched", { limit: LIST_PAGE_LIMIT }),
-    hiddenSchema,
-  );
+export function getHidden(client: TraktClient): Promise<TraktResult<HiddenItem[]>> {
+  return readAll(client, "/users/hidden/progress_watched", hiddenSchema);
 }
 
-export async function getLastActivities(client: TraktClient): Promise<TraktResult<LastActivities>> {
-  return parse(await client.get("/sync/last_activities"), lastActivitiesSchema);
+export function getLastActivities(client: TraktClient): Promise<TraktResult<LastActivities>> {
+  return readOne(client, "/sync/last_activities", lastActivitiesSchema);
 }
 
 type HistorySection = "all" | "episodes" | "movies";
 
-const HISTORY_PAGE_LIMIT = 30;
-
-export async function getHistory(
+export function getHistory(
   client: TraktClient,
   section: HistorySection,
   page: number,
@@ -233,23 +276,24 @@ export async function getHistory(
 ): Promise<TraktResult<HistoryItem[]>> {
   const path = section === "all" ? "/users/me/history" : `/users/me/history/${section}`;
   const query = range === undefined ? undefined : { start_at: range.startAt, end_at: range.endAt };
-  return parse(
-    await client.get(path, { extended: ART, page, limit: HISTORY_PAGE_LIMIT, query }),
-    historySchema,
-  );
+  const limit = client.policy.pageSize.history;
+  return readOne(client, path, historySchema, path, { extended: ART, page, limit, query });
 }
 
-export async function getItemPlays(
+export function getItemPlays(
   client: TraktClient,
   kind: "shows" | "episodes" | "movies",
   id: number | string,
 ): Promise<TraktResult<HistoryItem[]>> {
-  return parse(
-    await client.getAllPages(`/sync/history/${kind}/${id}`, {
-      extended: ["full"],
-      limit: HISTORY_PAGE_LIMIT,
-    }),
+  return readAll(
+    client,
+    `/sync/history/${kind}/:id`,
     historySchema,
+    `/sync/history/${kind}/${id}`,
+    {
+      extended: ["full"],
+      limit: client.policy.pageSize.history,
+    },
   );
 }
 

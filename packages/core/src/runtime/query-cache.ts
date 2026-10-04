@@ -1,5 +1,6 @@
 import { QueryClient as Client, type Query, type QueryClient } from "@tanstack/react-query";
 import { queryKeys } from "../data/query-keys";
+import { DEFAULT_TRAKT_POLICY, type TraktPolicy } from "../data/trakt/policy";
 import { backoffMs } from "../domain/write-queue/classify";
 import { shouldRetryRead } from "../sync-contract";
 import { PERSISTED_CACHE } from "./persist-buster";
@@ -17,7 +18,7 @@ const PERSISTED_KEY_HEADS: ReadonlySet<unknown> = new Set([
 
 export const PERSIST_MAX_AGE = Number.POSITIVE_INFINITY;
 
-export function createQueryClient(): QueryClient {
+export function createQueryClient(policy: TraktPolicy = DEFAULT_TRAKT_POLICY): QueryClient {
   return new Client({
     defaultOptions: {
       queries: {
@@ -25,8 +26,8 @@ export function createQueryClient(): QueryClient {
         staleTime: 0,
         refetchOnWindowFocus: false,
         refetchOnReconnect: false,
-        retry: shouldRetryRead,
-        retryDelay: backoffMs,
+        retry: (failureCount, error) => shouldRetryRead(failureCount, error, policy.readAttempts),
+        retryDelay: (attempt) => backoffMs(attempt, policy.retryDelayMs),
       },
     },
   });

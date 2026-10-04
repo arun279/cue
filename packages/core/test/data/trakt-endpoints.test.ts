@@ -96,7 +96,10 @@ describe("Trakt read endpoints zod-parse well-formed fixtures", () => {
     getJson("/sync/watched/shows", [
       { last_watched_at: "2026-07-01T00:00:00.000Z", show: showObj, seasons: [] },
     ]);
-    await expect(getWatchedShows(client)).rejects.toThrow();
+    expect(await getWatchedShows(client)).toMatchObject({
+      ok: false,
+      error: { kind: "unexpected-shape", issues: [{ path: "0.show.aired_episodes" }] },
+    });
   });
 
   it("parses watched movies", async () => {
@@ -271,10 +274,10 @@ describe("Trakt read endpoints zod-parse well-formed fixtures", () => {
       network: { friends: 1 },
     });
     const result = await getUserStats(client);
-    expect(result.ok && result.data.episodes.watched).toBe(534);
-    expect(result.ok && result.data.episodes.minutes).toBe(17_330);
-    expect(result.ok && result.data.movies.watched).toBe(114);
-    expect(result.ok && result.data.shows.watched).toBe(40);
+    expect(result.ok && result.data.episodes?.watched).toBe(534);
+    expect(result.ok && result.data.episodes?.minutes).toBe(17_330);
+    expect(result.ok && result.data.movies?.watched).toBe(114);
+    expect(result.ok && result.data.shows?.watched).toBe(40);
     // Stripped extras must not survive the parse.
     expect(result.ok && "network" in result.data).toBe(false);
   });
@@ -353,40 +356,42 @@ describe("watched endpoints send the honest post-#775 payload params", () => {
   });
 });
 
-describe("malformed bodies throw a zod error", () => {
-  it("throws when a watched show is missing its ids", async () => {
+const unexpectedShape = (...paths: string[]) => ({
+  ok: false,
+  error: { kind: "unexpected-shape", issues: paths.map((path) => ({ path })) },
+});
+
+describe("a body missing an essential field fails as an unexpected shape", () => {
+  it("fails when every watched show is missing its ids", async () => {
     getJson("/sync/watched/shows", [{ show: { title: "No Ids" } }]);
-    await expect(getWatchedShows(client)).rejects.toThrow();
+    expect(await getWatchedShows(client)).toMatchObject(
+      unexpectedShape("0.show.ids", "0.show.aired_episodes"),
+    );
   });
 
-  it("throws when a movie payload is missing its title", async () => {
+  it("fails when a movie payload is missing its title", async () => {
     getJson("/movies/5", { year: 2021, ids: { trakt: 5 } });
-    await expect(getMovie(client, 5)).rejects.toThrow();
+    expect(await getMovie(client, 5)).toMatchObject(unexpectedShape("title"));
   });
 
-  it("throws when progress omits required counts", async () => {
+  it("fails when progress omits required counts", async () => {
     getJson("/shows/1/progress/watched", { next_episode: null });
-    await expect(getShowProgress(client, 1)).rejects.toThrow();
+    expect(await getShowProgress(client, 1)).toMatchObject(unexpectedShape("aired", "completed"));
   });
 
-  it("throws when user stats omit a required section", async () => {
-    getJson("/users/me/stats", { movies: { watched: 1, minutes: 90 }, shows: { watched: 1 } });
-    await expect(getUserStats(client)).rejects.toThrow();
-  });
-
-  it("throws when user settings omit the username", async () => {
+  it("fails when user settings omit the username", async () => {
     getJson("/users/settings", { user: { name: "No Handle" } });
-    await expect(getUserSettings(client)).rejects.toThrow();
+    expect(await getUserSettings(client)).toMatchObject(unexpectedShape("user.username"));
   });
 
-  it("throws when the body is not JSON (null)", async () => {
+  it("fails at the root when the body is not JSON", async () => {
     server.use(
       http.get(
         `${TRAKT_API_BASE}/sync/last_activities`,
         () => new HttpResponse("not json", { headers: { "content-type": "text/plain" } }),
       ),
     );
-    await expect(getLastActivities(client)).rejects.toThrow();
+    expect(await getLastActivities(client)).toMatchObject(unexpectedShape("(root)"));
   });
 
   it("passes transport failures through without parsing", async () => {
@@ -480,7 +485,7 @@ describe("getHistory (the Diary feed)", () => {
 
   it("throws on a malformed history row (missing the play id)", async () => {
     getJson("/users/me/history", [{ watched_at: "x", type: "movie" }]);
-    await expect(getHistory(client, "all", 1)).rejects.toThrow();
+    expect(await getHistory(client, "all", 1)).toMatchObject(unexpectedShape("0.id"));
   });
 });
 

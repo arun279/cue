@@ -1,3 +1,4 @@
+import type { TraktFailure } from "@cue/core/data/trakt/client";
 import type { UserStats } from "@cue/core/data/trakt/schemas";
 import { humanizeWatchMinutes } from "@cue/core/domain/time";
 import { usePrefs } from "@cue/core/prefs/prefs-store";
@@ -8,7 +9,13 @@ import { readFailureBody } from "@cue/core/sync-contract";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import type { ReactElement } from "react";
-import { StyleSheet, useWindowDimensions, View } from "react-native";
+import {
+  type StyleProp,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+  type ViewStyle,
+} from "react-native";
 import { Avatar } from "../ui/Avatar";
 import { Button } from "../ui/Button";
 import { Chevron } from "../ui/Chevron";
@@ -48,23 +55,26 @@ function Stats({ stats }: { readonly stats: UserStats }): ReactElement {
   const colors = useColors();
   const { fontScale } = useWindowDimensions();
   const router = useRouter();
-  const minutes = (shows ? stats.episodes.minutes : 0) + (movies ? stats.movies.minutes : 0);
+  const parts = [
+    shows ? stats.episodes?.minutes : undefined,
+    movies ? stats.movies?.minutes : undefined,
+  ];
+  const known = parts.filter((part) => part !== undefined);
   const counts = [
     {
       label: "Episodes",
-      count: stats.episodes.watched,
+      count: stats.episodes?.watched,
       enabled: shows,
       id: TEST_IDS.profileEpisodeCount,
     },
     {
       label: "Movies",
-      count: stats.movies.watched,
+      count: stats.movies?.watched,
       enabled: movies,
       id: TEST_IDS.profileStatMovies,
     },
-    { label: "Shows", count: stats.shows.watched, enabled: shows, id: TEST_IDS.profileStatShows },
-  ].filter((tile) => tile.enabled);
-  const time = humanizeWatchMinutes(minutes);
+    { label: "Shows", count: stats.shows?.watched, enabled: shows, id: TEST_IDS.profileStatShows },
+  ].filter((tile) => tile.enabled && tile.count !== undefined);
   const card = [styles.card, { backgroundColor: colors.surface, borderColor: colors.border }];
   if (counts.every((tile) => tile.count === 0))
     return (
@@ -78,20 +88,9 @@ function Stats({ stats }: { readonly stats: UserStats }): ReactElement {
     );
   return (
     <View style={styles.stats}>
-      <View testID={TEST_IDS.profileWatchTime} style={card}>
-        <CueText variant="micro" eyebrow style={{ color: colors.muted }}>
-          Total watch time
-        </CueText>
-        <CueText variant="identity" style={{ color: colors.fg }}>
-          <CueText variant="statHero" tabularNums style={{ color: colors.accentInk }}>
-            {time.value}
-          </CueText>{" "}
-          {time.unit}
-        </CueText>
-        <CueText variant="meta" style={{ color: colors.muted }}>
-          {time.detail}
-        </CueText>
-      </View>
+      {known.length > 0 ? (
+        <WatchTime minutes={known.reduce((total, part) => total + part, 0)} style={card} />
+      ) : null}
       <View style={styles.tiles}>
         {counts.map((tile) => (
           <View
@@ -114,6 +113,39 @@ function Stats({ stats }: { readonly stats: UserStats }): ReactElement {
   );
 }
 
+function WatchTime({
+  minutes,
+  style,
+}: {
+  readonly minutes: number;
+  readonly style: StyleProp<ViewStyle>;
+}): ReactElement {
+  const colors = useColors();
+  const time = humanizeWatchMinutes(minutes);
+  return (
+    <View testID={TEST_IDS.profileWatchTime} style={style}>
+      <CueText variant="micro" eyebrow style={{ color: colors.muted }}>
+        Total watch time
+      </CueText>
+      <CueText variant="identity" style={{ color: colors.fg }}>
+        <CueText variant="statHero" tabularNums style={{ color: colors.accentInk }}>
+          {time.value}
+        </CueText>{" "}
+        {time.unit}
+      </CueText>
+      <CueText variant="meta" style={{ color: colors.muted }}>
+        {time.detail}
+      </CueText>
+    </View>
+  );
+}
+
+function statsFailureBody(failure: TraktFailure | null): string {
+  return failure?.kind === "no-content"
+    ? "Trakt now shares stats only with VIP accounts."
+    : readFailureBody(failure);
+}
+
 export default function Profile(): ReactElement {
   const stats = useQuery(userStatsQuery(useRuntime()));
   const router = useRouter();
@@ -127,7 +159,7 @@ export default function Profile(): ReactElement {
           centered
           testID={TEST_IDS.profileError}
           headline="Couldn't load your stats"
-          body={readFailureBody(queryStatus(stats, false).failure)}
+          body={statsFailureBody(queryStatus(stats, false).failure)}
         >
           <Button label="Try again" onPress={() => void stats.refetch()} />
         </EmptyState>

@@ -1,3 +1,4 @@
+import { type TraktFailure, TraktReadError } from "@cue/core/data/trakt/client";
 import { act, fireEvent, screen, userEvent } from "@testing-library/react-native";
 import { StyleSheet } from "react-native";
 import "./support/screen-mocks";
@@ -111,4 +112,34 @@ it("offers discovery when the enabled media has no watch history", async () => {
   expect(await screen.findByText("Nothing tallied yet.")).toBeVisible();
   await userEvent.press(screen.getByRole("button", { name: "Find something to watch" }));
   expect(router.dismissTo).toHaveBeenCalledWith("/search");
+});
+
+it("draws the stats Trakt sent and leaves out the ones it skipped", async () => {
+  await accountFixture({
+    loadStats: () =>
+      Promise.resolve({
+        episodes: { watched: 81, minutes: 4698 },
+        movies: { watched: 2 },
+        shows: {},
+      }),
+  }).paint(<Profile />);
+  expect(await screen.findByLabelText("81 episodes watched")).toBeVisible();
+  expect(screen.getByLabelText("2 movies watched")).toBeVisible();
+  expect(screen.queryByTestId(TEST_IDS.profileStatShows)).toBeNull();
+  expect(screen.getByText("6 hr 18 min")).toBeVisible();
+});
+
+it.each<[TraktFailure, string]>([
+  [{ kind: "no-content" }, "Trakt now shares stats only with VIP accounts."],
+  [
+    { kind: "unexpected-shape", issues: [{ path: "(root)", message: "expected object" }] },
+    "Trakt sent data in a shape this version doesn't read.",
+  ],
+  [{ kind: "timeout" }, "Trakt didn't answer in time."],
+])("names the failure kind under the stats error (%o)", async (failure, body) => {
+  await accountFixture({
+    loadStats: () => Promise.reject(new TraktReadError(failure, "user stats")),
+  }).paint(<Profile />);
+  expect(await screen.findByText("Couldn't load your stats")).toBeVisible();
+  expect(screen.getByText(body)).toBeVisible();
 });
