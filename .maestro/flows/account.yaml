@@ -65,7 +65,7 @@ appId: app.cuetracker
     id: "settings-powered-by"
 - assertVisible:
     id: "settings-attribution"
-- waitForAnimationToEnd
+- runFlow: lib/scroll-to-end.yaml
 - takeScreenshot: account-settings-about
 - scrollUntilVisible:
     element:

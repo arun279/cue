@@ -46,8 +46,9 @@ appId: app.cuetracker
 - tapOn:
     id: "library-filter-field"
 - inputText: "zzz"
-- assertVisible:
-    id: "library-no-match"
+- extendedWaitUntil:
+    visible: 'No shows match "zzz".'
+    timeout: 10000
 - pressKey: Enter
 - waitForAnimationToEnd
 - takeScreenshot: library-no-match

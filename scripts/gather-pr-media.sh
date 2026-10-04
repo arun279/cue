@@ -34,7 +34,7 @@ collect() {
   jobs=$(gh api --paginate "repos/$repo/actions/runs/$run/jobs?per_page=100" \
     --jq '.jobs[] | [.name, .conclusion // .status] | @tsv')
   artifacts=$(gh api --paginate "repos/$repo/actions/runs/$run/artifacts?per_page=100" \
-    --jq '.artifacts[] | [.name, .id, .expired] | @tsv')
+    --jq '.artifacts[] | [.name, .id, .expired, .created_at] | @tsv')
   for lane in "${lanes[@]}"; do
     local artifact=${lane%%:*} job=${lane#*:} state id expired note=""
     state=$(awk -F '\t' -v job="$job" -v matrix="${job% (*}" '
@@ -42,7 +42,11 @@ collect() {
       $1 == matrix { collapsed = $2 }
       END { print (exact != "" ? exact : collapsed) }
     ' <<< "$jobs")
-    read -r id expired <<< "$(awk -F '\t' -v name="$artifact" '$1 == name { print $2, $3 }' <<< "$artifacts")"
+    # A retried job uploads its artifacts again under the same name.
+    read -r id expired <<< "$(awk -F '\t' -v name="$artifact" '
+      $1 == name && $4 > newest { newest = $4; row = $2 " " $3 }
+      END { print row }
+    ' <<< "$artifacts")"
     if [ "$expired" = true ]; then
       note="are missing because they expired from $link"
     elif [ -z "$id" ]; then

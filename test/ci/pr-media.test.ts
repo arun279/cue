@@ -51,7 +51,11 @@ esac | jq -r "$filter"
 `;
 
 type Capture = { clock?: number; content?: number; scroll?: number; empty?: boolean };
-type Lane = { conclusion?: string; captures?: Record<string, Capture> | null };
+type Lane = {
+  conclusion?: string;
+  captures?: Record<string, Capture> | null;
+  stale?: Record<string, Capture>;
+};
 type Run = Record<string, Lane>;
 
 const LANES: Record<string, string> = {
@@ -124,24 +128,27 @@ const sandbox = () => {
 };
 
 const record = (root: string, state: string, id: number, lanes: Run) => {
-  const artifacts = [];
+  const artifacts: { name: string; id: number; expired: boolean; created_at: string }[] = [];
   for (const [index, [artifact, jobName]] of Object.entries(LANES).entries()) {
     const lane = { conclusion: "success", captures: {}, ...lanes[artifact] };
     if (lane.captures === null) continue;
-    const artifactId = id * 100 + index;
     const width = artifact.includes("android") ? 1440 : 1206;
-    for (const [name, capture] of Object.entries(lane.captures)) {
-      screenshot(
-        path.join(root, `${artifactId}`, "run", "takeScreenshot", `${name}.png`),
-        width,
-        capture,
-      );
-    }
-    screenshot(path.join(root, `${artifactId}`, "screenshots", `${jobName}.png`), width, {});
-    spawnSync("zip", ["-qr", path.join(state, `${artifactId}.zip`), "."], {
-      cwd: path.join(root, `${artifactId}`),
-    });
-    artifacts.push({ name: artifact, id: artifactId, expired: false });
+    const upload = (artifactId: number, captures: Record<string, Capture>, createdAt: string) => {
+      for (const [name, capture] of Object.entries(captures)) {
+        screenshot(
+          path.join(root, `${artifactId}`, "run", "takeScreenshot", `${name}.png`),
+          width,
+          capture,
+        );
+      }
+      screenshot(path.join(root, `${artifactId}`, "screenshots", `${jobName}.png`), width, {});
+      spawnSync("zip", ["-qr", path.join(state, `${artifactId}.zip`), "."], {
+        cwd: path.join(root, `${artifactId}`),
+      });
+      artifacts.push({ name: artifact, id: artifactId, expired: false, created_at: createdAt });
+    };
+    if (lane.stale) upload(id * 100 + index + 50, lane.stale, "2026-10-04T00:00:00Z");
+    upload(id * 100 + index, lane.captures, "2026-10-04T01:00:00Z");
   }
   writeFileSync(path.join(state, `artifacts-${id}.json`), JSON.stringify({ artifacts }));
   writeFileSync(
@@ -330,6 +337,18 @@ describe("gather-pr-media.sh", { timeout: 30_000 }, () => {
       "- Before captures for iOS light (detail flows) are missing because no push run of CI exists for base bbbbbbb.",
     );
     expect(review.match(/^- Before captures/gm)).toHaveLength(6);
+  });
+
+  it("reads the newest artifact when a retried job uploaded the same name twice", () => {
+    const { review, images } = gather(dark({ "library-shows": {} }), {
+      "ui-screenshots-ios-dark": {
+        captures: { "library-shows": {} },
+        stale: { "library-shows": { content: 1 } },
+      },
+    });
+
+    expect(images).toEqual([]);
+    expect(review).toContain("No screen changed between base `bbbbbbb` and head `abcdef1`");
   });
 
   it("names a capture it cannot read instead of failing", () => {
