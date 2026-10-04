@@ -21,7 +21,8 @@ appId: app.cuetracker
     timeout: 1000
 - takeScreenshot: settings-pushed
 # Dark for one pass over a tab root, then back to the system's own.
-- tapOn: "Dark"
+- tapOn:
+    id: "theme-dark"
 - scrollUntilVisible:
     element:
       id: "switch-movies"
@@ -41,12 +42,14 @@ appId: app.cuetracker
 - tapOn: "Library"
 - assertVisible:
     id: "screen-library"
-- assertNotVisible: "Movies"
+- assertNotVisible:
+    id: "library-segment-movies"
 - tapOn:
     id: "avatar-link"
 - tapOn:
     id: "profile-to-settings"
-- tapOn: "System"
+- tapOn:
+    id: "theme-system"
 - scrollUntilVisible:
     element:
       id: "switch-movies"
@@ -85,7 +88,8 @@ appId: app.cuetracker
       BACK_TITLE: "Profile"
 - tapOn:
     id: "close-account"
-- assertVisible: "Movies"
+- assertVisible:
+    id: "library-segment-movies"
 - tapOn: "Up Next"
 - runScript: lib/drop-account-writes.js
 - assertTrue: ${output.writesDropped}

@@ -154,7 +154,7 @@ it("starts with accessible controls and the strong defaults", async () => {
   for (const name of ["Haptics", "Hide episode stills until watched", "TV shows", "Movies"]) {
     expect(screen.getByRole("switch", { name })).toBeChecked();
   }
-  expect(screen.getByRole("button", { name: "System" })).toBeSelected();
+  expect(screen.getByRole("tab", { name: "System" })).toBeSelected();
   expect(
     screen.getByRole("button", { name: "Next episode order, Oldest unwatched" }),
   ).toBeVisible();
@@ -188,9 +188,9 @@ it("persists each toggle and immediately removes the disabled medium from Librar
       <Library />
     </>,
   );
-  expect(screen.getByRole("button", { name: "Movies" })).toBeVisible();
+  expect(screen.getByRole("tab", { name: "Movies" })).toBeVisible();
   await fireEvent(screen.getByRole("switch", { name: "Movies" }), "valueChange", false);
-  expect(screen.queryByRole("button", { name: "Movies" })).toBeNull();
+  expect(screen.queryByRole("tab", { name: "Movies" })).toBeNull();
   expect(screen.getByRole("switch", { name: "TV shows" })).toBeDisabled();
   await fireEvent(screen.getByRole("switch", { name: "TV shows" }), "valueChange", false);
   expect(fixture.prefs.getState().showsEnabled).toBe(true);
@@ -213,8 +213,8 @@ it("changes theme through the platform appearance and persists the selection", a
   await fixture.paint(<Settings />);
   expect(setColorScheme).toHaveBeenLastCalledWith("unspecified");
   for (const theme of ["Dark", "Light", "System"]) {
-    await userEvent.press(screen.getByRole("button", { name: theme }));
-    expect(screen.getByRole("button", { name: theme })).toBeSelected();
+    await userEvent.press(screen.getByRole("tab", { name: theme }));
+    expect(screen.getByRole("tab", { name: theme })).toBeSelected();
     expect(setColorScheme).toHaveBeenLastCalledWith(
       theme === "System" ? "unspecified" : theme.toLowerCase(),
     );

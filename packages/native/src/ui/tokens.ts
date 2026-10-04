@@ -58,6 +58,11 @@ export interface Selectable {
 }
 
 export const SELECTABLE = {
+  segment: {
+    backdrop: "bg",
+    selected: { fill: "accent", stroke: "accentFillStroke", label: "accentFg" },
+    unselected: { fill: "elevated", label: "ink2" },
+  },
   libraryChip: {
     backdrop: "bg",
     selected: { fill: "accent", stroke: "accentFillStroke", label: "accentFg", detail: "accentFg" },

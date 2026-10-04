@@ -1,16 +1,15 @@
-import { useHaptics } from "@cue/core/ports/haptics";
-import SegmentedControl from "@expo/ui/community/segmented-control";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, TextInput, View } from "react-native";
 import { GLYPH, Glyph } from "../../ui/Glyph";
 import { RowMenu } from "../../ui/RowMenu";
+import { SegmentedControl, type SegmentOption } from "../../ui/SegmentedControl";
 import { TEST_IDS } from "../../ui/test-ids";
 import { HAIRLINE, RADIUS, SPACE, TARGET_MIN, useColors } from "../../ui/tokens";
 import type { Segment, SortOption } from "./model";
 
-const SEGMENTS: readonly { key: Segment; label: string }[] = [
-  { key: "shows", label: "Shows" },
-  { key: "movies", label: "Movies" },
+const SEGMENTS: readonly SegmentOption<Segment>[] = [
+  { value: "shows", label: "Shows", testID: TEST_IDS.librarySegmentShows },
+  { value: "movies", label: "Movies", testID: TEST_IDS.librarySegmentMovies },
 ];
 
 export interface LibraryToolbarProps<T extends string> {
@@ -39,7 +38,6 @@ export function LibraryToolbar<T extends string>({
   onSort,
 }: LibraryToolbarProps<T>): ReactElement {
   const colors = useColors();
-  const haptics = useHaptics();
 
   if (filtering) {
     return (
@@ -73,13 +71,9 @@ export function LibraryToolbar<T extends string>({
     <View style={styles.toolbar}>
       {bothMedia ? (
         <SegmentedControl
-          values={SEGMENTS.map((option) => option.label)}
-          selectedIndex={SEGMENTS.findIndex((option) => option.key === segment)}
-          onChange={({ nativeEvent }) => {
-            haptics.selection();
-            const option = SEGMENTS[nativeEvent.selectedSegmentIndex];
-            if (option) onSegment(option.key);
-          }}
+          segments={SEGMENTS}
+          value={segment}
+          onChange={onSegment}
           style={styles.segments}
         />
       ) : null}

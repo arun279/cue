@@ -2,7 +2,8 @@ appId: app.cuetracker
 ---
 - runFlow: lib/relaunch.yaml
 - tapOn: "Library"
-- tapOn: "Movies"
+- tapOn:
+    id: "library-segment-movies"
 - tapOn:
     id: "library-chip-watched"
 - tapOn:

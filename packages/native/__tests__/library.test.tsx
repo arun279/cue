@@ -136,15 +136,15 @@ it("remembers a chip per segment", async () => {
   await paint();
   await userEvent.press(screen.getByTestId("library-chip-stopped"));
 
-  await userEvent.press(screen.getByRole("button", { name: "Movies" }));
+  await userEvent.press(screen.getByTestId("library-segment-movies"));
   expect(titles()).toEqual(["Salt and Static"]);
   await userEvent.press(screen.getByTestId("library-chip-watched"));
   expect(titles()).toEqual(["The Lantern Keeper"]);
 
-  await userEvent.press(screen.getByRole("button", { name: "Shows" }));
+  await userEvent.press(screen.getByTestId("library-segment-shows"));
   expect(titles()).toEqual(["Glasshouse"]);
 
-  await userEvent.press(screen.getByRole("button", { name: "Movies" }));
+  await userEvent.press(screen.getByTestId("library-segment-movies"));
   expect(titles()).toEqual(["The Lantern Keeper"]);
 });
 
@@ -160,7 +160,7 @@ it("offers the medium's own sort options", async () => {
   await paint();
   expect(screen.queryByTestId("sort-progress")).not.toBeNull();
 
-  await userEvent.press(screen.getByRole("button", { name: "Movies" }));
+  await userEvent.press(screen.getByTestId("library-segment-movies"));
 
   expect(screen.queryByTestId("sort-progress")).toBeNull();
   expect(screen.getByText("Recently added")).toBeTruthy();
@@ -208,7 +208,7 @@ it("offers Search from an empty Watching chip", async () => {
 it("names the two movie chips", async () => {
   await paint();
 
-  await userEvent.press(screen.getByRole("button", { name: "Movies" }));
+  await userEvent.press(screen.getByTestId("library-segment-movies"));
 
   expect(labelOf(screen.getByTestId("library-chip-watchlist"))).toBe("Watchlist, 1");
   expect(labelOf(screen.getByTestId("library-chip-watched"))).toBe("Watched, 1");

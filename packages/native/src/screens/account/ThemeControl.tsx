@@ -1,13 +1,13 @@
-import { useHaptics } from "@cue/core/ports/haptics";
 import { type PrefsStore, type Theme, usePrefs } from "@cue/core/prefs/prefs-store";
-import SegmentedControl from "@expo/ui/community/segmented-control";
 import { type ReactElement, useLayoutEffect, useSyncExternalStore } from "react";
 import { Appearance } from "react-native";
+import { SegmentedControl, type SegmentOption } from "../../ui/SegmentedControl";
+import { TEST_IDS } from "../../ui/test-ids";
 
-const OPTIONS: readonly { value: Theme; label: string }[] = [
-  { value: "system", label: "System" },
-  { value: "dark", label: "Dark" },
-  { value: "light", label: "Light" },
+const OPTIONS: readonly SegmentOption<Theme>[] = [
+  { value: "system", label: "System", testID: TEST_IDS.themeSystem },
+  { value: "dark", label: "Dark", testID: TEST_IDS.themeDark },
+  { value: "light", label: "Light", testID: TEST_IDS.themeLight },
 ];
 
 export function useAppearance(store: PrefsStore): void {
@@ -21,16 +21,5 @@ export function useAppearance(store: PrefsStore): void {
 export function ThemeControl(): ReactElement {
   const theme = usePrefs((state) => state.theme);
   const setTheme = usePrefs((state) => state.setTheme);
-  const haptics = useHaptics();
-  return (
-    <SegmentedControl
-      values={OPTIONS.map((option) => option.label)}
-      selectedIndex={OPTIONS.findIndex((option) => option.value === theme)}
-      onChange={({ nativeEvent }) => {
-        haptics.selection();
-        const option = OPTIONS[nativeEvent.selectedSegmentIndex];
-        if (option) setTheme(option.value);
-      }}
-    />
-  );
+  return <SegmentedControl segments={OPTIONS} value={theme} onChange={setTheme} />;
 }
