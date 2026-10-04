@@ -60,6 +60,20 @@ describe("JavaScript update publishing", () => {
     );
   });
 
+  it("publishes exactly the export that passed the store-bundle gate", () => {
+    const exported = publishWorkflow.indexOf('eas env:exec "$CHANNEL" --non-interactive');
+    const gated = publishWorkflow.indexOf("run: node scripts/check-store-bundle.mjs");
+    const published = publishWorkflow.indexOf("eas update ");
+
+    expect(publishWorkflow).toContain("EXPO_ATLAS=true npx expo export --output-dir dist");
+    expect([exported, gated, published].every((index) => index >= 0)).toBe(true);
+    expect(exported < gated && gated < published).toBe(true);
+    expect(publishWorkflow.slice(published)).toMatch(
+      /--environment "\$CHANNEL" --skip-bundler --input-dir dist\n/,
+    );
+    expect(publishWorkflow.match(/eas update /g)).toHaveLength(1);
+  });
+
   it("binds builds to the fingerprint runtime and an update channel", () => {
     const preview = nativeAppConfig({});
     const production = nativeAppConfig({ EAS_UPDATE_CHANNEL: "production" });

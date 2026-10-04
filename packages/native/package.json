@@ -10,7 +10,8 @@
     "perf:render": "TEST_RUNNER_PATH=../../node_modules/.bin/jest TEST_RUNNER_ARGS='--config jest.config.js --selectProjects ios --runInBand --testMatch \"**/*.perf-test.[jt]s?(x)\"' reassure",
     "perf:stability": "TEST_RUNNER_PATH=../../node_modules/.bin/jest TEST_RUNNER_ARGS='--config jest.config.js --selectProjects ios --runInBand --testMatch \"**/*.perf-test.[jt]s?(x)\"' reassure check-stability",
     "typecheck": "expo customize tsconfig.json && tsc --noEmit",
-    "test": "EXPO_PUBLIC_TRAKT_CLIENT_ID=test-client jest"
+    "test": "EXPO_PUBLIC_TRAKT_CLIENT_ID=test-client jest",
+    "eas-build-post-install": ": \"${EXPO_PUBLIC_TRAKT_CLIENT_ID:?the app throws at startup without a Trakt client id}\""
   },
   "dependencies": {
     "@cue/core": "workspace:*",

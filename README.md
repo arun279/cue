@@ -44,7 +44,7 @@ pnpm mock:trakt
 
 The core harness boots the server in process and drives `@cue/core` through its real client, read pool, query cache, runtime, and write queue. This keeps request budgets, retry timing, refresh behavior, request shapes, and post-write scoped reads independent of any rendered screen. Maestro flows drive the Expo app against the same fake service.
 
-Set `EXPO_PUBLIC_TRAKT_API_BASE=http://127.0.0.1:8787` for a simulator build that should use the fake service. The Expo configuration adds a local transport exception only for that build. Release builds carry no exception.
+Set `EXPO_PUBLIC_TRAKT_API_BASE=http://127.0.0.1:8787` for a simulator build that should use the fake service. The Expo configuration adds a local transport exception only for that build. Release builds carry no exception. Set `EXPO_PUBLIC_UI_HARNESS=1` as well for a build that Maestro drives: it bundles the readiness and timing markers the flows read. Without it, Metro resolves `src/ui/harness.tsx` to an empty stand-in, and `pnpm check:size:native` and the update workflow fail if a harness module reaches an exported bundle.
 
 ## Architecture
 
@@ -59,11 +59,38 @@ Dependencies flow from the Expo app into the core. Dependency-cruiser enforces t
 
 Core tests use Vitest with coverage thresholds of 90/90/90/80 for the domain, data, preferences, URL, and stores layers, plus a ratchet for hooks and a global floor. Repository-level workflow and size checks live in `test/ci`. The Expo app uses jest-expo for both platform presets and Maestro for simulator flows.
 
-Every pull request builds both apps and runs the full Maestro suite and the dark screenshot traversal on an Android emulator. The iOS build reuses the app cached for its native fingerprint. The iOS flows, split across three simulator shards, the iOS dark traversal and the contact sheets for both platforms run on every push to `main`, `feat/expo-native` and release branches, nightly, and on pull requests that change the iOS fingerprint. Run `scripts/fetch-ui-screenshots.sh <pr-number-or-run-id> <dir>` to download a run's screenshots and contact sheets. Attach the four contact sheets with `gh pr comment <pr-number> --attach <files>` so reviewers can inspect every screen without a device.
+Every pull request builds both apps and runs the full Maestro suite and the dark screenshot traversal on an Android emulator. The iOS build reuses the app cached for its native fingerprint. The iOS flows, split across three simulator shards, the iOS dark traversal and the contact sheets for both platforms run on every push to `main`, `feat/expo-native` and release branches, nightly, and on pull requests that change the iOS fingerprint. Run `scripts/fetch-ui-screenshots.sh <pr-number-or-run-id> <dir>` to download a run's screenshots and contact sheets. For pull requests that change `packages/native/src`, `packages/native/app`, `packages/core/src` or `.maestro`, the `pr-media` job gathers the four contact sheets and the large-text captures into one `pr-media-<sha>` artifact with a `captions.tsv` naming the screen, state, platform and appearance of each image. When a push skips the iOS lane, the artifact holds the newest captures from the base branch and says so. Before merging, run `scripts/attach-pr-media.sh <pr-number>`: it downloads that artifact for the head commit, replaces the pull request's media comment with the images attached through `gh pr comment --attach`, and prints the local path of each image to open. CI cannot post the comment itself because `gh` uploads attachments only with a user token.
 
 ## Releasing
 
 `.github/workflows/mobile-release.yml` builds and ships the app. A `v*` tag submits to the App Store, and a manual dispatch can run either the tester or store lane. Each release waits for the required CI checks on the exact commit being shipped.
+
+## Installing on your own devices
+
+The `preview` profile in `packages/native/eas.json` builds with EAS internal distribution: an ad hoc signed IPA for registered iPhones and an APK for Android, both on the `preview` update channel. EAS CLI evaluates the app config and its plugins and computes the runtime fingerprint from the local `node_modules`, so install the workspace on Node 22.12.0 first and sign in. Run the EAS commands from `packages/native`.
+
+```sh
+pnpm install
+npx eas-cli@latest login
+```
+
+Once, store the Trakt client id in the EAS `preview` environment and register each iPhone:
+
+```sh
+npx eas-cli@latest env:set --name EXPO_PUBLIC_TRAKT_CLIENT_ID --value <client id> --environment preview --visibility plaintext
+npx eas-cli@latest device:create
+```
+
+Then build:
+
+```sh
+npx eas-cli@latest build --platform ios --profile preview
+npx eas-cli@latest build --platform android --profile preview
+```
+
+The first build on each platform asks to set up EAS managed signing: an Apple sign in for the ad hoc provisioning profile, and a new Android keystore. When the first iOS build asks `Generate a new Apple Distribution Certificate?`, answer no and give it the `.p12` file and password behind the release workflow's `BUILD_CERTIFICATE_BASE64`, or add that certificate beforehand with `npx eas-cli@latest credentials --platform ios`. Never revoke a certificate when EAS offers to: the release workflow signs with it. An iPhone registered later needs a new build. Open the install link from the finished build on the phone. On iOS, turn on Developer Mode under Settings > Privacy & Security when asked. The APK is signed with a different key than the Firebase tester build, so uninstall that first.
+
+These builds keep build number 1 and never reach App Store Connect or Firebase, so they never use a number the release workflow needs. Updates published to the `preview` channel reach them. A build stops before compiling when the environment has no client id.
 
 ## Shipping JavaScript updates
 
