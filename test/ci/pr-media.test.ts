@@ -142,10 +142,10 @@ const record = (root: string, state: string, id: number, lanes: Run) => {
   writeFileSync(
     path.join(state, `jobs-${id}.json`),
     JSON.stringify({
-      jobs: Object.entries(LANES).map(([artifact, name]) => ({
-        name,
-        conclusion: lanes[artifact]?.conclusion ?? "success",
-      })),
+      jobs: Object.entries(LANES).map(([artifact, name]) => {
+        const conclusion = lanes[artifact]?.conclusion ?? "success";
+        return { name: conclusion === "skipped" ? name.replace(/ \(.+\)$/, "") : name, conclusion };
+      }),
     }),
   );
 };
@@ -300,6 +300,17 @@ describe("gather-pr-media.sh", { timeout: 30_000 }, () => {
     );
     expect(review).toContain(
       "- Before captures for Android dark are missing because the ui-screenshots-android-dark job was skipped in [run 2](https://github.com/o/r/actions/runs/2).",
+    );
+  });
+
+  it("names a skipped matrix lane, which GitHub reports without its suite", () => {
+    const { review } = gather(
+      {},
+      { "ui-screenshots-ios-light-detail": { conclusion: "skipped", captures: null } },
+    );
+
+    expect(review).toContain(
+      "- After captures for iOS light (detail flows) are missing because the native-e2e-ios-light (detail) job was skipped in [run 1](https://github.com/o/r/actions/runs/1).",
     );
   });
 

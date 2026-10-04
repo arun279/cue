@@ -37,7 +37,11 @@ collect() {
     --jq '.artifacts[] | [.name, .id, .expired] | @tsv')
   for lane in "${lanes[@]}"; do
     local artifact=${lane%%:*} job=${lane#*:} state id expired note=""
-    state=$(awk -F '\t' -v job="$job" '$1 == job { print $2 }' <<< "$jobs")
+    state=$(awk -F '\t' -v job="$job" -v matrix="${job% (*}" '
+      $1 == job { exact = $2 }
+      $1 == matrix { collapsed = $2 }
+      END { print (exact != "" ? exact : collapsed) }
+    ' <<< "$jobs")
     read -r id expired <<< "$(awk -F '\t' -v name="$artifact" '$1 == name { print $2, $3 }' <<< "$artifacts")"
     if [ "$expired" = true ]; then
       note="are missing because they expired from $link"
