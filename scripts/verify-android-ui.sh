@@ -62,6 +62,8 @@ if [ "$appearance" = light ]; then
       exit 1
     }
   done
+  density=$(adb shell wm density | sed -n 's/^Physical density: //p' | tr -d '\r')
+  node scripts/check-label-fit.mjs "$output/tabs.xml" 8 4 "$density" >> "$GITHUB_STEP_SUMMARY"
   echo 'Ran the shared light suite; all four tab labels are present.' > "$output/coverage.txt"
 else
   echo 'Ran the shared dark visit and screenshot traversal.' > "$output/coverage.txt"

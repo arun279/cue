@@ -141,10 +141,6 @@ export function roleStyle(variant: TypeRole, weight?: TypeWeight): StyleProp<Tex
   return [BASE[variant], weight === undefined ? null : faceStyle(ROLES[variant].face, weight)];
 }
 
-export function lineHeightOf(variant: TypeRole): number {
-  return ROLES[variant].lineHeight;
-}
-
 export interface CueTextProps extends TextProps {
   readonly variant: TypeRole;
   readonly weight?: TypeWeight;

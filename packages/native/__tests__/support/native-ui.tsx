@@ -1,6 +1,6 @@
 /**
- * Stand-ins for the three platform edges a screen test cannot drive: the router,
- * the platform menu, and the swipeable's own pan gesture.
+ * Stand-ins for the platform edges a screen test cannot drive: the router and
+ * its native bar items, the platform menu, and the swipeable's own pan gesture.
  *
  * Each one keeps the library's documented contract and nothing more, so a test
  * over them is a test of Cue's wiring rather than of the library. The libraries
@@ -36,10 +36,36 @@ interface ScreenProps {
  * and why a screen test needs a stand-in at all. */
 export const SEARCH_FIELD = TEST_IDS.searchField;
 
+interface ToolbarButtonProps {
+  readonly accessibilityLabel?: string;
+  readonly children?: string;
+  onPress?(): void;
+}
+
+/** The header's native bar items as plain buttons, named the way the system
+ * names them: by the accessibility label, or by the title when there is none.
+ * The toolbar records each declaration, because every one the real router sees
+ * becomes a native header update. */
+export function toolbarModule() {
+  const { createElement } = require("react") as typeof import("react");
+  const { Pressable, Text } = require("react-native") as typeof import("react-native");
+  const layout = ({ children }: { readonly children?: ReactNode }) => children;
+  return Object.assign(jest.fn(layout), {
+    Button: ({ accessibilityLabel, children, onPress }: ToolbarButtonProps) =>
+      createElement(
+        Pressable,
+        { accessibilityRole: "button", accessibilityLabel, onPress },
+        children === undefined ? null : createElement(Text, null, children),
+      ),
+    View: layout,
+  });
+}
+
 export function expoRouterModule() {
   const { createElement } = require("react") as typeof import("react");
   const { Text, TextInput } = require("react-native") as typeof import("react-native");
   const Stack = (): null => null;
+  Stack.Toolbar = toolbarModule();
   // `headerSearchBarOptions` is a UISearchController, which this runner does not
   // have. The stand-in is a plain field carrying the same placeholder and the
   // same change callback, so a test types what a finger types and nothing else

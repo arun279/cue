@@ -11,7 +11,7 @@ export interface PullToRefresh {
 
 export function usePullToRefresh(): PullToRefresh {
   const haptics = useHaptics();
-  const syncNow = useSyncNow();
+  const { run } = useSyncNow();
   const [pulling, setPulling] = useState(false);
 
   const pull = useCallback(() => {
@@ -20,8 +20,9 @@ export function usePullToRefresh(): PullToRefresh {
       return;
     }
     setPulling(true);
-    void syncNow.run().finally(() => setPulling(false));
-  }, [haptics, syncNow]);
+    void run().finally(() => setPulling(false));
+  }, [haptics, run]);
+  const sync = useCallback(() => void run(), [run]);
 
-  return { refreshing: pulling, pull, sync: () => void syncNow.run() };
+  return { refreshing: pulling, pull, sync };
 }

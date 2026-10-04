@@ -1,13 +1,14 @@
 import type { HistoryEntry } from "@cue/core/domain/history";
 import type { ReactElement } from "react";
 import { TextInput } from "react-native";
-import { expoRouterModule, router } from "./native-ui";
+import { expoRouterModule, router, toolbarModule } from "./native-ui";
 
 export const historyRouter = { ...router, setParams: jest.fn() };
 export const historyParams: { current: Record<string, string> } = { current: {} };
 
 export function historyRouterModule() {
   const Stack = (): null => null;
+  Stack.Toolbar = toolbarModule();
   Stack.Screen = ({
     options,
   }: {

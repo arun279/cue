@@ -103,9 +103,9 @@ export default function Library(): ReactElement {
         options={{
           title: "Library",
           headerLargeTitle: true,
-          headerRight: () => <BarItems onSync={refresh.sync} />,
         }}
       />
+      <BarItems onSync={refresh.sync} />
       <FlatList
         testID={TEST_IDS.libraryGrid}
         contentInsetAdjustmentBehavior="automatic"
