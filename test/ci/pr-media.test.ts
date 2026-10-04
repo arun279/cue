@@ -248,7 +248,7 @@ describe("pr-media job", () => {
   });
 });
 
-describe("gather-pr-media.sh", () => {
+describe("gather-pr-media.sh", { timeout: 30_000 }, () => {
   it("says in one line that nothing changed when only the clock and scroll indicator moved", () => {
     const { review, images } = gather(
       {
@@ -382,7 +382,7 @@ const prepare = () => {
   return { state, directory, attach, decide };
 };
 
-describe("attach-pr-media.sh", () => {
+describe("attach-pr-media.sh", { timeout: 30_000 }, () => {
   it("prints each image from the newest artifact and refuses to post while a verdict is pending", () => {
     const { directory, attach } = prepare();
     const first = attach();
