@@ -7,7 +7,7 @@ appId: app.cuetracker
     timeout: 1000
 - takeScreenshot: up-next-queue-rest
 - repeat:
-    times: 5
+    times: ${RESPONSE_SAMPLES}
     commands:
       - tapOn:
           id: "queue-row-[0-9]+-mark"
@@ -21,9 +21,7 @@ appId: app.cuetracker
           index: 0
 - copyTextFrom:
     id: "response-timing"
-- evalScript: "${output.markResponseMs = parseFloat(maestro.copiedText.match(/mark ([0-9.]+) ms/)[1])}"
-- evalScript: "${output.undoResponseMs = parseFloat(maestro.copiedText.match(/undo ([0-9.]+) ms/)[1])}"
-- evalScript: "${console.log('CUE_RESPONSE_TIMING=mark ' + output.markResponseMs + ' ms, undo ' + output.undoResponseMs + ' ms')}"
+- evalScript: "${console.log('CUE_RESPONSE_SAMPLES=' + maestro.copiedText)}"
 - waitForAnimationToEnd:
     timeout: 1000
 - takeScreenshot: up-next-mark-restored

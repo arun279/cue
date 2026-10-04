@@ -1,6 +1,7 @@
 appId: app.cuetracker
 env:
   CAPTURE_AUTH: "false"
+  RESPONSE_SAMPLES: "5"
 ---
 - runFlow: ../flows/launch.yaml
 - runFlow: ../flows/up-next-mark-and-undo.yaml
