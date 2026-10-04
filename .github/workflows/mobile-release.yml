@@ -49,7 +49,6 @@ jobs:
       fastlane_lane: ${{ steps.resolve.outputs.fastlane_lane }}
       app_version: ${{ steps.resolve.outputs.app_version }}
       build_number: ${{ steps.resolve.outputs.build_number }}
-      update_channel: ${{ steps.resolve.outputs.update_channel }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup-node-pnpm
@@ -96,14 +95,11 @@ jobs:
             *) build_ios=true; build_android=true ;;
           esac
           if [ "$lane" = "release" ]; then
-            update_channel="production"
             if [ "$platform" = "android" ]; then
               echo "Android has no production lane; choose the beta lane for Firebase App Distribution." >&2
               exit 1
             fi
             build_android=false
-          else
-            update_channel="preview"
           fi
           # github.run_number counts runs of this workflow file across the whole
           # repository rather than per branch, so main and every release/* branch
@@ -120,14 +116,13 @@ jobs:
             echo "fastlane_lane=$lane"
             echo "app_version=$app_version"
             echo "build_number=$build_number"
-            echo "update_channel=$update_channel"
           } >> "$GITHUB_OUTPUT"
 
   gate:
     # Second layer of the CI gate. Branch protection is the first and keeps red
     # commits off main; this job re-checks the exact commit about to ship, so a
     # bypassed, misconfigured or later-edited ruleset cannot quietly release an
-    # unverified build. The required names below are a deliberate copy of the
+    # unverified build. .github/required-checks.json is a deliberate copy of the
     # ruleset's contexts rather than a read of it: a gate that asks the thing it
     # guards whether that thing is happy is not a gate. Keep the two in step.
     runs-on: ubuntu-latest
@@ -145,10 +140,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           SHA: ${{ github.sha }}
-          # Job names that exist in ci.yml or codeql.yml. Never list one that does not:
-          # a check that can never report turns the wait below into a guaranteed
-          # timeout on every release.
-          REQUIRED: '["check","render-performance","audit","actionlint","standardrb","native-android","native-ios","native-e2e","android-e2e","ui-screenshots-ios-dark","ui-screenshots-android-dark","codeql (javascript-typescript)","codeql (actions)"]'
           # GitHub Actions, so no other check provider can satisfy a required name.
           APP_ID: "15368"
           DEADLINE_MINUTES: "45"
@@ -179,7 +170,6 @@ jobs:
         env:
           APP_VERSION: ${{ needs.config.outputs.app_version }}
           BUILD_NUMBER: ${{ needs.config.outputs.build_number }}
-          EAS_UPDATE_CHANNEL: ${{ needs.config.outputs.update_channel }}
           EXPO_PUBLIC_TRAKT_CLIENT_ID: ${{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}
         run: |
           [ -n "$EXPO_PUBLIC_TRAKT_CLIENT_ID" ] || { echo "EXPO_PUBLIC_TRAKT_CLIENT_ID is not set"; exit 1; }
@@ -192,7 +182,6 @@ jobs:
         env:
           BUILD_NUMBER: ${{ needs.config.outputs.build_number }}
           APP_VERSION: ${{ needs.config.outputs.app_version }}
-          EAS_UPDATE_CHANNEL: ${{ needs.config.outputs.update_channel }}
           EXPO_PUBLIC_TRAKT_CLIENT_ID: ${{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
           ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/upload.keystore
@@ -229,7 +218,6 @@ jobs:
           APP_VERSION: ${{ needs.config.outputs.app_version }}
           BUILD_NUMBER: ${{ needs.config.outputs.build_number }}
           CONFIGURATION: Release
-          EAS_UPDATE_CHANNEL: ${{ needs.config.outputs.update_channel }}
           EXPO_PUBLIC_TRAKT_CLIENT_ID: ${{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}
         run: |
           [ -n "$EXPO_PUBLIC_TRAKT_CLIENT_ID" ] || { echo "EXPO_PUBLIC_TRAKT_CLIENT_ID is not set"; exit 1; }
@@ -248,7 +236,6 @@ jobs:
         env:
           BUILD_NUMBER: ${{ needs.config.outputs.build_number }}
           APP_VERSION: ${{ needs.config.outputs.app_version }}
-          EAS_UPDATE_CHANNEL: ${{ needs.config.outputs.update_channel }}
           EXPO_PUBLIC_TRAKT_CLIENT_ID: ${{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}

@@ -1,0 +1,15 @@
+[
+  "check",
+  "render-performance",
+  "audit",
+  "actionlint",
+  "standardrb",
+  "native-android",
+  "native-ios",
+  "native-e2e",
+  "android-e2e",
+  "ui-screenshots-ios-dark",
+  "ui-screenshots-android-dark",
+  "codeql (javascript-typescript)",
+  "codeql (actions)"
+]

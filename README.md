@@ -63,7 +63,7 @@ Every pull request builds both apps and runs the full Maestro suite and the dark
 
 ## Releasing
 
-`.github/workflows/mobile-release.yml` builds and ships the app. A `v*` tag submits to the App Store, and a manual dispatch can run either the tester or store lane. Each release waits for the required CI checks on the exact commit being shipped.
+`.github/workflows/mobile-release.yml` builds and ships the app. A `v*` tag submits to the App Store, and a manual dispatch can run either the tester or store lane. Each release and each published update waits for the CI checks in `.github/required-checks.json` on the exact commit being shipped.
 
 ## Installing on your own devices
 
@@ -94,7 +94,7 @@ These builds keep build number 1 and never reach App Store Connect or Firebase, 
 
 ## Shipping JavaScript updates
 
-EAS Update can replace JavaScript and bundled assets. It cannot change native modules, permissions, app configuration, or other native code. The fingerprint runtime policy only offers an update to compatible installed builds, so any native change requires a new tester or store build. App version and build numbers stay out of the fingerprint, so a release's numbering never changes which updates it receives.
+EAS Update can replace JavaScript and bundled assets. It cannot change native modules, permissions, app configuration, or other native code. The fingerprint runtime policy only offers an update to compatible installed builds, so any native change requires a new tester or store build. App version and build numbers stay out of the fingerprint, so a release's numbering never changes which updates it receives. The build profile in `packages/native/eas.json` sets a build's update channel, and the app config carries none, so builds of one commit share a runtime whichever channel they listen on.
 
 To publish, open GitHub Actions, choose **Publish update**, select **Run workflow**, choose the exact ref and the `preview` or `production` channel, write a required message, and run it. Nothing publishes on a push, pull request, merge, or schedule. A downloaded update applies on the next cold start.
 
