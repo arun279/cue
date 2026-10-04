@@ -1,6 +1,7 @@
 import { Stack, useRouter } from "expo-router";
 import type { ReactElement } from "react";
 import { Platform, StyleSheet, View } from "react-native";
+import { BarIcon, CLOSE } from "../../src/ui/BarItems";
 import { barOptions, useEpisodeSheetOptions } from "../../src/ui/navigation-theme";
 import { SnackbarHost } from "../../src/ui/SnackbarHost";
 import { useColors } from "../../src/ui/tokens";
@@ -16,18 +17,23 @@ export default function AccountLayout(): ReactElement {
     <View style={styles.root}>
       <Stack screenOptions={{ ...barOptions, headerTransparent: Platform.OS === "ios" }}>
         <Stack.Screen name="profile" options={{ title: "Profile" }}>
-          <Stack.Toolbar placement="right">
-            <Stack.Toolbar.Button
-              variant="done"
-              icon={Platform.OS === "android" ? require("../../src/ui/close.xml") : undefined}
-              accessibilityLabel="Done"
-              tintColor={colors.accent}
-              style={{ color: colors.accentFg }}
-              onPress={() => router.dismissAll()}
-            >
-              Done
-            </Stack.Toolbar.Button>
-          </Stack.Toolbar>
+          {Platform.OS === "android" ? (
+            <Stack.Toolbar placement="right" asChild>
+              <BarIcon label="Done" path={CLOSE} onPress={() => router.dismissAll()} />
+            </Stack.Toolbar>
+          ) : (
+            <Stack.Toolbar placement="right">
+              <Stack.Toolbar.Button
+                variant="done"
+                accessibilityLabel="Done"
+                tintColor={colors.accent}
+                style={{ color: colors.accentFg }}
+                onPress={() => router.dismissAll()}
+              >
+                Done
+              </Stack.Toolbar.Button>
+            </Stack.Toolbar>
+          )}
         </Stack.Screen>
         <Stack.Screen name="settings" options={{ title: "Settings" }} />
         <Stack.Screen name="history" options={{ title: "History" }} />

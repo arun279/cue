@@ -58,28 +58,6 @@ export function toolbarModule() {
   return Toolbar;
 }
 
-/** The Compose nodes a header action is drawn with on Android. The action button
- * is named the way TalkBack names it, by its icon's content description; the
- * layout nodes render their children and the transitions are inert. */
-export function composeModule() {
-  const { createElement } = require("react") as typeof import("react");
-  const { Pressable, Text } = require("react-native") as typeof import("react-native");
-  const layout = ({ children }: { readonly children?: ReactNode }) => children;
-  const transition = { plus: () => transition };
-  const transitions = { scaleIn: () => transition, expandIn: () => transition };
-  return {
-    Host: layout,
-    Row: layout,
-    AnimatedVisibility: layout,
-    EnterTransition: transitions,
-    ExitTransition: { scaleOut: () => transition, shrinkOut: () => transition },
-    IconButton: ({ onClick, children }: { onClick(): void; readonly children: ReactNode }) =>
-      createElement(Pressable, { accessibilityRole: "button", onPress: onClick }, children),
-    Icon: ({ contentDescription }: { readonly contentDescription?: string }) =>
-      createElement(Text, null, contentDescription),
-  };
-}
-
 export function expoRouterModule() {
   const { createElement } = require("react") as typeof import("react");
   const { Text, TextInput } = require("react-native") as typeof import("react-native");

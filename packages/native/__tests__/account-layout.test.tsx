@@ -9,7 +9,6 @@ jest.mock(
   "react-native-safe-area-context",
   () => require("react-native-safe-area-context/jest/mock").default,
 );
-jest.mock("@expo/ui/jetpack-compose", () => require("./support/native-ui").composeModule());
 
 /**
  * The account modal over the tabs, presented the way the composition root
@@ -39,7 +38,7 @@ const routes = {
 };
 
 /** Presses Done where each platform's header takes it: the UIKit bar button item
- * the iOS header is handed, or the Material action button on Android. */
+ * the iOS header is handed, or the icon button the Android header is handed. */
 async function pressDone(): Promise<void> {
   if (Platform.OS === "android") {
     await fireEvent.press(screen.getByRole("button", { name: "Done" }));
