@@ -52,11 +52,6 @@ import { SnackbarHost } from "../src/ui/SnackbarHost";
 import { TEST_IDS } from "../src/ui/test-ids";
 import { useCueFonts } from "../src/ui/type";
 
-/**
- * The native composition root. It is the only file that knows both which
- * implementation fills each port and which app is being built; everything below
- * it is `@cue/core`, unchanged, and the screens.
- */
 void SplashScreen.preventAutoHideAsync().catch(() => {});
 
 const prefsStore = createPrefsStore(preferenceStorage);
@@ -65,21 +60,8 @@ const haptics = createNativeHaptics(() => prefsStore.getState().hapticsEnabled);
 const network = createNativeNetwork();
 const reminders = createNativeReminders();
 
-/** What a launch says when the stores it depends on did not come up. The session
- * still starts on whatever the token store answers, because a boot that cannot
- * finish is not a reason to draw nothing; the message rides the auth store, so
- * the sign-in screen's alert is where it lands. */
 const BOOT_FAILED_MESSAGE = "Cue could not open its storage. Some of your data may be missing.";
 
-/**
- * The purge, the migration, and only then the auth store.
- *
- * The order is the point: `createAuthStore` reads the persisted token the
- * instant it is built, so building it before the migration has adopted a legacy
- * token would drop an upgrading user onto onboarding, and building it before the
- * reinstall purge would sign a reinstalling user in with a Keychain item their
- * new install never wrote.
- */
 function useNativeSession(): AuthStore | null {
   const [authStore, setAuthStore] = useState<AuthStore | null>(null);
 
@@ -104,9 +86,6 @@ function useNativeSession(): AuthStore | null {
           tokenStore,
           clientId: TRAKT_CLIENT_ID,
           redirectUri: NATIVE_REDIRECT_URI,
-          // A device has no page navigation, so the two members that exist for
-          // one are stated rather than inherited: nothing redirects, and there
-          // is no handoff to stash across a navigation that never happens.
           redirect: () => {},
           redirectHandoff: { read: () => null, write: () => {}, clear: () => {} },
           native: true,
@@ -123,8 +102,6 @@ function useNativeSession(): AuthStore | null {
   return authStore;
 }
 
-/** Everything the runtime takes that this build decides, assembled once: the
- * boot component then knows only how to draw its three states. */
 const runtimeDeps = {
   newId: nativeCrypto.newId,
   tokenStore,
@@ -138,8 +115,6 @@ const runtimeDeps = {
   clearLocalPreferences: () => clearLocalPreferences(prefsStore),
 };
 
-/** Until a token is stored the app is onboarding; once connected it is the
- * routed shell wrapped in the authenticated runtime. */
 function Gate(): ReactElement {
   const phase = useAuth((s) => s.phase);
   useSplashRelease(phase === "onboarding");
@@ -165,9 +140,6 @@ function RoutedApp(): ReactElement {
     <View style={styles.root}>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
-        {/* Presented from the root, over the tab bar, so it always dismisses
-            back to exactly where the user was rather than into whichever tab
-            happened to be selected. */}
         <Stack.Screen name="(account)" options={{ presentation: "fullScreenModal" }} />
       </Stack>
       <SnackbarHost placement="root" />
@@ -189,11 +161,7 @@ export default function RootLayout(): ReactElement {
   if (authStore === null || !fontsSettled) return <Marker testID={TEST_IDS.bootHold} />;
 
   return (
-    // The entry point for every gesture in the app, which only recognizes
-    // gestures mounted under it, so it goes as close to the root as it can.
     <GestureHandlerRootView style={styles.root}>
-      {/* The metrics the native side already knows, so the first frame is the
-          app rather than nothing. */}
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>
         <PersistQueryClientProvider
           client={queryClient}

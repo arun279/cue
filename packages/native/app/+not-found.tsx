@@ -3,7 +3,6 @@ import type { ReactElement } from "react";
 import { Text, View } from "react-native";
 import { TEST_IDS } from "../src/ui/test-ids";
 
-/** Where a deep link nothing matches lands, with a way back into the app. */
 export default function NotFound(): ReactElement {
   return (
     <>
