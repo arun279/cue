@@ -65,6 +65,28 @@ Every pull request builds both apps and runs the full Maestro suite and the dark
 
 `.github/workflows/mobile-release.yml` builds and ships the app. A `v*` tag submits to the App Store, and a manual dispatch can run either the tester or store lane. Each release waits for the required CI checks on the exact commit being shipped.
 
+## Installing on your own devices
+
+The `preview` profile in `packages/native/eas.json` builds with EAS internal distribution: an ad hoc signed IPA for registered iPhones and an APK for Android, both on the `preview` update channel. Run the commands from `packages/native`.
+
+Once, store the Trakt client id in the EAS `preview` environment and register each iPhone:
+
+```sh
+npx eas-cli@latest env:set --name EXPO_PUBLIC_TRAKT_CLIENT_ID --value <client id> --environment preview --visibility plaintext
+npx eas-cli@latest device:create
+```
+
+Then build:
+
+```sh
+npx eas-cli@latest build --platform ios --profile preview
+npx eas-cli@latest build --platform android --profile preview
+```
+
+The first build on each platform asks to set up EAS managed signing: an Apple sign in for the ad hoc provisioning profile, and a new Android keystore. An iPhone registered later needs a new build. Open the install link from the finished build on the phone. On iOS, turn on Developer Mode under Settings > Privacy & Security when asked. The APK is signed with a different key than the Firebase tester build, so uninstall that first.
+
+These builds keep build number 1 and never reach App Store Connect or Firebase, so they never use a number the release workflow needs. A build stops before compiling when the environment has no client id.
+
 ## Shipping JavaScript updates
 
 EAS Update can replace JavaScript and bundled assets. It cannot change native modules, permissions, app configuration, or other native code. The fingerprint runtime policy only offers an update to compatible installed builds, so any native change requires a new tester or store build.
