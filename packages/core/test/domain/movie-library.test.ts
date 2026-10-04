@@ -13,6 +13,7 @@ const movie = (overrides: Partial<MovieEntry>): MovieEntry => ({
   listedAt: null,
   posters: [],
   tmdbId: null,
+  runtime: null,
   ...overrides,
 });
 

@@ -1,10 +1,10 @@
 import {
   TRAKT_API_BASE,
-  TRAKT_REQUEST_TIMEOUT_MS,
   TraktClient,
   type TraktFailure,
   unwrapRead,
 } from "@cue/core/data/trakt/client";
+import { DEFAULT_TRAKT_POLICY } from "@cue/core/data/trakt/policy";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it, vi } from "vitest";
 import { mswServer } from "./_msw";
@@ -182,6 +182,19 @@ describe("TraktClient pagination", () => {
   });
 });
 
+const timeoutMs = { read: 40, list: 90, write: 60 };
+
+function heldOnPolicy(): TraktClient {
+  return new TraktClient({
+    clientId: "cid-123",
+    policy: { ...DEFAULT_TRAKT_POLICY, timeoutMs },
+    fetch: (_input, init) =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+      }),
+  });
+}
+
 describe("TraktClient error mapping", () => {
   const path = "/sync/watched/shows";
   const respond = (status: number, headers: Record<string, string> = {}): void => {
@@ -258,7 +271,7 @@ describe("TraktClient error mapping", () => {
     expect(await browserClient.get(path)).toEqual({ ok: false, error: { kind: "network" } });
   });
 
-  it("rejects a held read as a typed network failure after the request timeout", async () => {
+  it("rejects a held read as a typed timeout after the request timeout", async () => {
     vi.useFakeTimers();
     const held = new TraktClient({
       clientId: "cid-123",
@@ -268,17 +281,14 @@ describe("TraktClient error mapping", () => {
         }),
     });
     const read = held.get(path).then((result) => unwrapRead(result, "held read"));
-    const rejection = expect(read).rejects.toMatchObject({ failure: { kind: "network" } });
+    const rejection = expect(read).rejects.toMatchObject({ failure: { kind: "timeout" } });
 
-    await vi.advanceTimersByTimeAsync(TRAKT_REQUEST_TIMEOUT_MS);
+    await vi.advanceTimersByTimeAsync(DEFAULT_TRAKT_POLICY.timeoutMs.read);
     await rejection;
     vi.useRealTimers();
   }, 1000);
 
-  // The browser reclassification exists for a response the browser refused to
-  // show; a socket this client gave up on itself is the connection failing, and
-  // saying otherwise would tell a user on a dead network that Trakt is at fault.
-  it("keeps a timed-out browser request against Trakt a network failure", async () => {
+  it("keeps a timed-out browser request against Trakt a timeout", async () => {
     vi.useFakeTimers();
     const held = new TraktClient({
       clientId: "cid-123",
@@ -290,8 +300,41 @@ describe("TraktClient error mapping", () => {
     });
     const read = held.get(path);
 
-    await vi.advanceTimersByTimeAsync(TRAKT_REQUEST_TIMEOUT_MS);
-    expect(await read).toEqual({ ok: false, error: { kind: "network" } });
+    await vi.advanceTimersByTimeAsync(DEFAULT_TRAKT_POLICY.timeoutMs.read);
+    expect(await read).toEqual({ ok: false, error: { kind: "timeout" } });
+    vi.useRealTimers();
+  }, 1000);
+
+  it("times out each request class on the injected policy", async () => {
+    vi.useFakeTimers();
+    const held = heldOnPolicy();
+    const settled = new Set<string>();
+    const read = held.get(path).then((result) => settled.add("read") && result);
+    const list = held.getAllPages(path).then((result) => settled.add("list") && result);
+
+    await vi.advanceTimersByTimeAsync(timeoutMs.read - 1);
+    expect(settled.size).toBe(0);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(await read).toEqual({ ok: false, error: { kind: "timeout" } });
+    expect(settled.has("list")).toBe(false);
+    await vi.advanceTimersByTimeAsync(timeoutMs.list - timeoutMs.read);
+    expect(await list).toEqual({ ok: false, error: { kind: "timeout" } });
+    vi.useRealTimers();
+  }, 1000);
+
+  it("times out a write on the injected policy's write class", async () => {
+    vi.useFakeTimers();
+    const held = heldOnPolicy();
+    let settled = false;
+    const write = held.send("POST", "/sync/history", { body: {} }).catch((error: unknown) => {
+      settled = true;
+      return error;
+    });
+
+    await vi.advanceTimersByTimeAsync(timeoutMs.write - 1);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(await write).toMatchObject({ name: "AbortError" });
     vi.useRealTimers();
   }, 1000);
 });

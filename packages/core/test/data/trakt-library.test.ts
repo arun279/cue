@@ -35,6 +35,7 @@ function watchedShow(overrides: {
   status?: string;
   lastWatchedAt?: string | null;
   tmdb?: number;
+  runtime?: number;
   /** The row's `aired_episodes`: aired-to-date, the bulk `aired` every entry carries. */
   airedEpisodes?: number;
   /** Watched-episode counts per season number (the bulk `/sync/watched/shows` breakdown). */
@@ -47,6 +48,7 @@ function watchedShow(overrides: {
       status: overrides.status ?? "returning series",
       aired_episodes: overrides.airedEpisodes ?? 0,
       ids: { trakt: overrides.trakt, tmdb: overrides.tmdb },
+      runtime: overrides.runtime,
     },
     ...(overrides.seasons === undefined
       ? {}
@@ -102,10 +104,28 @@ const baseEntry: LibraryEntry = {
   },
   lastAired: { season: 1, number: 10 },
   tmdbId: null,
+  runtime: null,
   pendingAdvance: false,
 };
 
 describe("assembleLibrary", () => {
+  it("carries each watched show's runtime and leaves a watchlist-only show's unknown", () => {
+    const entries = assembleLibrary({
+      watchedShows: [
+        watchedShow({ trakt: 1, runtime: 42, seasons: { 1: 2 } }),
+        watchedShow({ trakt: 2 }),
+      ],
+      progress: new Map(),
+      hiddenShowIds: new Set(),
+      watchlistShows: [{ type: "show", show: { title: "Later", ids: { trakt: 3 } } }],
+    });
+    expect(entries.map((entry) => [entry.showId, entry.runtime])).toEqual([
+      [1, 42],
+      [2, null],
+      [3, null],
+    ]);
+  });
+
   it("merges watched + progress + hidden + watchlist into entries", () => {
     const input: LibraryInput = {
       watchedShows: [watchedShow({ trakt: 1, title: "A", tmdb: 55 }), watchedShow({ trakt: 2 })],
@@ -177,6 +197,7 @@ describe("assembleLibrary", () => {
       completed: 14,
       nextEpisode: null,
       tmdbId: null,
+      runtime: null,
       status: "returning series",
       lastAired: { season: 2, number: 6 },
     });

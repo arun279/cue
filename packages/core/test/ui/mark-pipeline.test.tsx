@@ -103,6 +103,7 @@ function libraryEntry(showId = SHOW): LibraryEntry {
     },
     lastAired: null,
     tmdbId: null,
+    runtime: null,
     pendingAdvance: false,
   };
 }

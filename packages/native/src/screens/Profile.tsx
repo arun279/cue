@@ -1,14 +1,21 @@
-import type { UserStats } from "@cue/core/data/trakt/schemas";
+import { type WatchTotals, watchTotals } from "@cue/core/data/trakt/watch-totals";
 import { humanizeWatchMinutes } from "@cue/core/domain/time";
 import { usePrefs } from "@cue/core/prefs/prefs-store";
-import { queryStatus } from "@cue/core/queries/freshness";
-import { userProfileQuery, userStatsQuery } from "@cue/core/queries/user";
+import { combineStatus } from "@cue/core/queries/freshness";
+import { libraryQuery, movieLibraryQuery } from "@cue/core/queries/library";
+import { userProfileQuery } from "@cue/core/queries/user";
 import { useRuntime } from "@cue/core/runtime/runtime";
 import { readFailureBody } from "@cue/core/sync-contract";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import type { ReactElement } from "react";
-import { StyleSheet, useWindowDimensions, View } from "react-native";
+import {
+  type StyleProp,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+  type ViewStyle,
+} from "react-native";
 import { Avatar } from "../ui/Avatar";
 import { Button } from "../ui/Button";
 import { Chevron } from "../ui/Chevron";
@@ -42,29 +49,17 @@ function Identity(): ReactElement {
   );
 }
 
-function Stats({ stats }: { readonly stats: UserStats }): ReactElement {
+function Stats({ totals }: { readonly totals: WatchTotals }): ReactElement {
   const shows = usePrefs((state) => state.showsEnabled);
   const movies = usePrefs((state) => state.moviesEnabled);
   const colors = useColors();
   const { fontScale } = useWindowDimensions();
   const router = useRouter();
-  const minutes = (shows ? stats.episodes.minutes : 0) + (movies ? stats.movies.minutes : 0);
   const counts = [
-    {
-      label: "Episodes",
-      count: stats.episodes.watched,
-      enabled: shows,
-      id: TEST_IDS.profileEpisodeCount,
-    },
-    {
-      label: "Movies",
-      count: stats.movies.watched,
-      enabled: movies,
-      id: TEST_IDS.profileStatMovies,
-    },
-    { label: "Shows", count: stats.shows.watched, enabled: shows, id: TEST_IDS.profileStatShows },
+    { label: "Episodes", count: totals.episodes, enabled: shows, id: TEST_IDS.profileEpisodeCount },
+    { label: "Movies", count: totals.movies, enabled: movies, id: TEST_IDS.profileStatMovies },
+    { label: "Shows", count: totals.shows, enabled: shows, id: TEST_IDS.profileStatShows },
   ].filter((tile) => tile.enabled);
-  const time = humanizeWatchMinutes(minutes);
   const card = [styles.card, { backgroundColor: colors.surface, borderColor: colors.border }];
   if (counts.every((tile) => tile.count === 0))
     return (
@@ -78,20 +73,7 @@ function Stats({ stats }: { readonly stats: UserStats }): ReactElement {
     );
   return (
     <View style={styles.stats}>
-      <View testID={TEST_IDS.profileWatchTime} style={card}>
-        <CueText variant="micro" eyebrow style={{ color: colors.muted }}>
-          Total watch time
-        </CueText>
-        <CueText variant="identity" style={{ color: colors.fg }}>
-          <CueText variant="statHero" tabularNums style={{ color: colors.accentInk }}>
-            {time.value}
-          </CueText>{" "}
-          {time.unit}
-        </CueText>
-        <CueText variant="meta" style={{ color: colors.muted }}>
-          {time.detail}
-        </CueText>
-      </View>
+      {totals.minutes === null ? null : <WatchTime minutes={totals.minutes} style={card} />}
       <View style={styles.tiles}>
         {counts.map((tile) => (
           <View
@@ -114,22 +96,71 @@ function Stats({ stats }: { readonly stats: UserStats }): ReactElement {
   );
 }
 
+function WatchTime({
+  minutes,
+  style,
+}: {
+  readonly minutes: number;
+  readonly style: StyleProp<ViewStyle>;
+}): ReactElement {
+  const colors = useColors();
+  const time = humanizeWatchMinutes(minutes);
+  return (
+    <View testID={TEST_IDS.profileWatchTime} style={style}>
+      <CueText variant="micro" eyebrow style={{ color: colors.muted }}>
+        Total watch time
+      </CueText>
+      <CueText variant="identity" style={{ color: colors.fg }}>
+        <CueText variant="statHero" tabularNums style={{ color: colors.accentInk }}>
+          {time.value}
+        </CueText>{" "}
+        {time.unit}
+      </CueText>
+      <CueText variant="meta" style={{ color: colors.muted }}>
+        {time.detail}
+      </CueText>
+    </View>
+  );
+}
+
+function useWatchTotals() {
+  const runtime = useRuntime();
+  const showsEnabled = usePrefs((state) => state.showsEnabled);
+  const moviesEnabled = usePrefs((state) => state.moviesEnabled);
+  const shows = useQuery({ ...libraryQuery(runtime), enabled: showsEnabled });
+  const movies = useQuery({ ...movieLibraryQuery(runtime), enabled: moviesEnabled });
+  const needed = [...(showsEnabled ? [shows] : []), ...(moviesEnabled ? [movies] : [])];
+  const ready = needed.every((query) => query.data !== undefined);
+  return {
+    totals: ready
+      ? watchTotals(
+          (showsEnabled && shows.data?.entries) || [],
+          (moviesEnabled && movies.data?.entries) || [],
+        )
+      : null,
+    status: combineStatus(needed, ready),
+    retry: () => {
+      for (const query of needed) if (query.isError) void query.refetch();
+    },
+  };
+}
+
 export default function Profile(): ReactElement {
-  const stats = useQuery(userStatsQuery(useRuntime()));
+  const { totals, status, retry } = useWatchTotals();
   const router = useRouter();
   return (
     <AccountScreen testID={TEST_IDS.screenProfile}>
       <Identity />
-      {stats.data ? (
-        <Stats stats={stats.data} />
-      ) : stats.isError ? (
+      {totals ? (
+        <Stats totals={totals} />
+      ) : status.isError ? (
         <EmptyState
           centered
           testID={TEST_IDS.profileError}
-          headline="Couldn't load your stats"
-          body={readFailureBody(queryStatus(stats, false).failure)}
+          headline="Couldn't load your library"
+          body={readFailureBody(status.failure)}
         >
-          <Button label="Try again" onPress={() => void stats.refetch()} />
+          <Button label="Try again" onPress={retry} />
         </EmptyState>
       ) : (
         <View

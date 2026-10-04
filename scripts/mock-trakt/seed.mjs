@@ -535,9 +535,9 @@ function watchedSeasons(show, library) {
 }
 
 /**
- * `/sync/watched/shows`: shows with at least one play, `aired_episodes` always,
- * `status` only under `extended=full`, the watched breakdown only under
- * `extended=progress`, and no images at any level.
+ * `/sync/watched/shows`: shows with at least one play, `aired_episodes` and
+ * `runtime` always, `status` only under `extended=full`, the watched breakdown
+ * only under `extended=progress`, and no images at any level.
  */
 export function watchedShowsBody(library, extended) {
   const levels = levelsOf(extended);
@@ -553,6 +553,7 @@ export function watchedShowsBody(library, extended) {
         year: show.year,
         ids: showIds(show),
         aired_episodes: airedEpisodes(show, library.now).length,
+        runtime: show.runtime,
         ...(levels.has("full") ? { status: show.status, network: show.network } : {}),
       },
       ...(levels.has("progress") ? { seasons: watchedSeasons(show, library) } : {}),
@@ -568,7 +569,7 @@ export function watchedMoviesBody(library, origin, extended) {
         plays: rewatchedAt === undefined ? 1 : 2,
         last_watched_at: iso(rewatchedAt ?? movie.watchedAt),
         last_updated_at: iso(rewatchedAt ?? movie.watchedAt),
-        movie: movieRef(movie, origin, extended),
+        movie: { ...movieRef(movie, origin, extended), runtime: movie.runtime },
       };
     });
 }
@@ -824,21 +825,6 @@ export function userSettingsBody(library, origin) {
       images: { avatar: { full: `${origin}/images/users/1/avatar.png` } },
     },
     account: { timezone: "America/New_York", date_format: "mdy", time_24hr: false },
-  };
-}
-
-export function userStatsBody(library) {
-  const watchedMovies = library.movies.filter((movie) => movie.watchedAt !== null);
-  return {
-    movies: {
-      watched: watchedMovies.length,
-      minutes: watchedMovies.reduce((total, movie) => total + movie.runtime, 0),
-    },
-    episodes: {
-      watched: library.shows.reduce((total, show) => total + show.completed, 0),
-      minutes: library.shows.reduce((total, show) => total + show.completed * show.runtime, 0),
-    },
-    shows: { watched: library.shows.filter((show) => show.completed > 0).length },
   };
 }
 

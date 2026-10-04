@@ -9,7 +9,6 @@ describe("queryKeys factory", () => {
     expect(queryKeys.search("dune", "show,movie")).toEqual(["search", "show,movie", "dune"]);
     expect(queryKeys.browse()).toEqual(["discover", "shows-movies"]);
     expect(queryKeys.lastActivities()).toEqual(["sync", "last_activities"]);
-    expect(queryKeys.userStats()).toEqual(["users", "me", "stats"]);
     expect(queryKeys.userSettings()).toEqual(["users", "settings"]);
     expect(queryKeys.library()).toEqual(["library"]);
     expect(queryKeys.movieLibrary()).toEqual(["movie-library"]);

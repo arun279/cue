@@ -27,7 +27,6 @@ import {
   getTrendingMovies,
   getTrendingShows,
   getUserSettings,
-  getUserStats,
   getWatchedMovies,
   getWatchedShows,
   getWatchlist,
@@ -165,6 +164,7 @@ describe("the post-mark projection over the seeded catalogue", () => {
           },
           lastAired: last === undefined ? null : { season: last.season, number: last.number },
           tmdbId: show.tmdb,
+          runtime: show.runtime,
           pendingAdvance: false,
         };
         const projected = advancePastNext(
@@ -199,7 +199,13 @@ describe("the seeded account parses through the app's own contracts", () => {
 
   it("serves the account identity reads", async () => {
     expect(ok(await getUserSettings(client())).user.username).toBe("cue-demo");
-    expect(ok(await getUserStats(client())).episodes.watched).toBeGreaterThan(0);
+  });
+
+  it("carries runtimes on the watched reads Profile totals", async () => {
+    const shows = ok(await getWatchedShows(client()));
+    const movies = ok(await getWatchedMovies(client()));
+    expect(shows.every((row) => (row.show.runtime ?? 0) > 0)).toBe(true);
+    expect(movies.every((row) => (row.movie.runtime ?? 0) > 0)).toBe(true);
   });
 
   it("serves every seeded show's detail, progress, seasons and episode reads", async () => {
@@ -437,13 +443,10 @@ describe("seed profiles", () => {
     expect(ok(await getWatchlist(client(), "shows"))).toEqual([]);
   });
 
-  it("serves a profile with zero stats", async () => {
+  it("serves a profile with nothing watched", async () => {
     await resetTo("zeroed-stats");
-    expect(ok(await getUserStats(client()))).toEqual({
-      movies: { watched: 0, minutes: 0 },
-      episodes: { watched: 0, minutes: 0 },
-      shows: { watched: 0 },
-    });
+    expect(ok(await getWatchedShows(client()))).toEqual([]);
+    expect(ok(await getWatchedMovies(client()))).toEqual([]);
   });
 
   it("serves an episode with two plays", async () => {

@@ -25,6 +25,7 @@ function entry(overrides: Partial<LibraryEntry> = {}): LibraryEntry {
     nextEpisode: null,
     lastAired: { season: 1, number: 2 },
     tmdbId: null,
+    runtime: null,
     pendingAdvance: false,
     ...overrides,
   };

@@ -4,16 +4,15 @@ import {
   TraktReadError,
   type TraktResult,
 } from "@cue/core/data/trakt/client";
-import {
-  loadUpNextEntries,
-  READ_CONCURRENCY,
-  WATCHED_PROGRESS_BUDGET,
-  withReadRateRetry,
-} from "@cue/core/data/trakt/read-budget";
+import { DEFAULT_TRAKT_POLICY } from "@cue/core/data/trakt/policy";
+import { loadUpNextEntries, withReadRateRetry } from "@cue/core/data/trakt/read-budget";
 import { delay, HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 import { mswServer } from "./_msw";
 import { buildRuntime } from "./_runtime";
+
+const { readConcurrency: READ_CONCURRENCY, progressBudget: WATCHED_PROGRESS_BUDGET } =
+  DEFAULT_TRAKT_POLICY;
 
 const server = mswServer();
 const client = new TraktClient({ clientId: "cid" });

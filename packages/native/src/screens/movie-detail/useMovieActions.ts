@@ -60,12 +60,7 @@ export function useMovieActions(header: MovieHeader) {
     });
   };
   const revalidate = () => {
-    for (const queryKey of [
-      key,
-      queryKeys.watchlist("movies"),
-      queryKeys.historyPrefix(),
-      queryKeys.userStats(),
-    ])
+    for (const queryKey of [key, queryKeys.watchlist("movies"), queryKeys.historyPrefix()])
       void client.invalidateQueries({ queryKey });
   };
   const guard = async (action: () => Promise<void>) => {

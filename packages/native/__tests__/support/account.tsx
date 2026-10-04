@@ -1,18 +1,40 @@
 import { createAuthStore } from "@cue/core/auth/create-auth-store";
 import { AuthStoreProvider } from "@cue/core/auth/store";
+import type { MovieEntry } from "@cue/core/data/trakt/movie-library";
 import { AppVersionProvider } from "@cue/core/ports/app-version";
 import { createPrefsStore, PrefsProvider } from "@cue/core/prefs/prefs-store";
 import type { CueRuntime } from "@cue/core/runtime/runtime";
 import { render } from "@testing-library/react-native";
 import type { ReactNode } from "react";
 import { useAppearance } from "../../src/screens/account/ThemeControl";
-import { fakeRuntime, Harness, memoryPreferences, spyHaptics } from "./up-next";
+import { entry, fakeRuntime, Harness, memoryPreferences, spyHaptics } from "./up-next";
 
-export const STATS = {
-  episodes: { watched: 81, minutes: 4698 },
-  movies: { watched: 1, minutes: 105 },
-  shows: { watched: 7 },
-};
+export const LIBRARY = [
+  entry({ showId: 1, completed: 54, runtime: 60 }),
+  ...[5, 5, 5, 4, 4, 4].map((completed, index) =>
+    entry({ showId: 2 + index, completed, runtime: 54 }),
+  ),
+  entry({ showId: 9, completed: 0, runtime: 45, inWatchlist: true }),
+];
+
+export function movie(overrides: Partial<MovieEntry> = {}): MovieEntry {
+  return {
+    movieId: 501,
+    ids: { trakt: 501 },
+    title: "Low Tide",
+    year: 2024,
+    watched: true,
+    watchedAt: "2026-09-01T20:00:00.000Z",
+    inWatchlist: false,
+    listedAt: null,
+    posters: [],
+    tmdbId: null,
+    runtime: 105,
+    ...overrides,
+  };
+}
+
+export const MOVIES = [movie(), movie({ movieId: 502, watched: false, inWatchlist: true })];
 
 export function accountFixture(overrides: Partial<CueRuntime> = {}) {
   const storage = memoryPreferences();
@@ -35,7 +57,8 @@ export function accountFixture(overrides: Partial<CueRuntime> = {}) {
   auth.setState({ disconnect });
   const runtime = {
     ...fakeRuntime({}),
-    loadStats: () => Promise.resolve(STATS),
+    loadUpNext: () => Promise.resolve({ entries: LIBRARY }),
+    loadMovieLibrary: () => Promise.resolve({ entries: MOVIES }),
     loadUserProfile: () =>
       Promise.resolve({
         displayName: "Jo Taylor",

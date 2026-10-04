@@ -66,6 +66,7 @@ function entryFor(
     inWatchlist: cached?.inWatchlist ?? false,
     lastWatchedAt: cached?.lastWatchedAt ?? null,
     tmdbId: header.ids.tmdb ?? null,
+    runtime: cached?.runtime ?? null,
     pendingAdvance: false,
   };
 }

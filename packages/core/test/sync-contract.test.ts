@@ -84,6 +84,11 @@ describe("syncBanner", () => {
     });
   });
 
+  it("says Trakt didn't answer in time for a timeout", () => {
+    const banner = syncBanner({ ...healthy, failure: { kind: "timeout" } });
+    expect(banner?.message).toBe("Trakt didn't answer in time. Showing your cached data.");
+  });
+
   it("distinguishes Trakt having trouble from Trakt being unreachable", () => {
     const banner = syncBanner({ ...healthy, failure: { kind: "server", status: 503 } });
     expect(banner?.message).toBe("Trakt is having trouble. Showing your cached data.");
@@ -154,6 +159,17 @@ describe("syncBanner", () => {
 });
 
 describe("readFailureBody", () => {
+  it.each([
+    [{ kind: "timeout" } as const, "Trakt didn't answer in time."],
+    [
+      { kind: "unexpected-shape", issues: [{ path: "aired", message: "x" }] } as const,
+      "Trakt sent data in a shape this version doesn't read.",
+    ],
+    [{ kind: "no-content" } as const, "Trakt sent an empty reply."],
+  ])("names the %o failure", (failure, body) => {
+    expect(readFailureBody(failure)).toBe(body);
+  });
+
   it("does not blame the connection for a rate limit", () => {
     expect(readFailureBody({ kind: "rate-limited", retryAfterMs: null })).toBe(
       "Trakt is limiting requests. Cue will try again shortly.",
@@ -195,26 +211,31 @@ describe("readFailureBody", () => {
 
 describe("read retry policy", () => {
   it("retries a 5xx and a transport failure, and stops at the budget", () => {
-    expect(shouldRetryRead(0, readError({ kind: "server", status: 500 }))).toBe(true);
-    expect(shouldRetryRead(0, readError({ kind: "network" }))).toBe(true);
-    expect(shouldRetryRead(0, readError({ kind: "unreadable-response" }))).toBe(true);
-    expect(shouldRetryRead(2, readError({ kind: "network" }))).toBe(false);
+    expect(shouldRetryRead(0, readError({ kind: "server", status: 500 }), 3)).toBe(true);
+    expect(shouldRetryRead(0, readError({ kind: "network" }), 3)).toBe(true);
+    expect(shouldRetryRead(0, readError({ kind: "timeout" }), 3)).toBe(true);
+    expect(shouldRetryRead(0, readError({ kind: "unreadable-response" }), 3)).toBe(true);
+    expect(shouldRetryRead(2, readError({ kind: "network" }), 3)).toBe(false);
   });
 
   it("leaves a rate limit to the read pool, which is already retrying it", () => {
     // Two ladders over one 429 multiply an aggregate read into the very window
     // that asked for less traffic. The pool honours Retry-After and holds every
     // other read behind the same pause, so it owns this one alone.
-    expect(shouldRetryRead(0, readError({ kind: "rate-limited", retryAfterMs: 7000 }))).toBe(false);
-    expect(shouldRetryRead(0, readError({ kind: "rate-limited", retryAfterMs: null }))).toBe(false);
+    expect(shouldRetryRead(0, readError({ kind: "rate-limited", retryAfterMs: 7000 }), 3)).toBe(
+      false,
+    );
+    expect(shouldRetryRead(0, readError({ kind: "rate-limited", retryAfterMs: null }), 3)).toBe(
+      false,
+    );
   });
 
   it("never retries a failure that will not heal, nor a non-read throw", () => {
-    expect(shouldRetryRead(0, readError({ kind: "unauthorized" }))).toBe(false);
-    expect(shouldRetryRead(0, readError({ kind: "not-found" }))).toBe(false);
-    expect(shouldRetryRead(0, readError({ kind: "server", status: 422 }))).toBe(false);
-    expect(shouldRetryRead(0, readError({ kind: "server", status: 400 }))).toBe(false);
-    expect(shouldRetryRead(0, new Error("bad shape"))).toBe(false);
+    expect(shouldRetryRead(0, readError({ kind: "unauthorized" }), 3)).toBe(false);
+    expect(shouldRetryRead(0, readError({ kind: "not-found" }), 3)).toBe(false);
+    expect(shouldRetryRead(0, readError({ kind: "server", status: 422 }), 3)).toBe(false);
+    expect(shouldRetryRead(0, readError({ kind: "server", status: 400 }), 3)).toBe(false);
+    expect(shouldRetryRead(0, new Error("bad shape"), 3)).toBe(false);
   });
 });
 

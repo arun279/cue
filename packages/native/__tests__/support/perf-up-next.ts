@@ -30,6 +30,7 @@ export const entry: LibraryEntry = {
   nextEpisode: episode,
   lastAired: null,
   tmdbId: null,
+  runtime: null,
   pendingAdvance: false,
 };
 

@@ -2,12 +2,8 @@ import { toMs } from "../../domain/time";
 import { type TraktClient, TraktReadError, type TraktResult, unwrapRead } from "./client";
 import { getHidden, getShowProgress, getWatchedShows, getWatchlist } from "./endpoints";
 import { assembleLibrary, type LibraryEntry, showIdSet, watchedEpisodeCount } from "./library";
+import { DEFAULT_TRAKT_POLICY, type TraktPolicy } from "./policy";
 import type { Progress, WatchedShow } from "./schemas";
-
-export const READ_CONCURRENCY = 6;
-
-export const MAX_READ_RATE_RETRIES = 3;
-const DEFAULT_RATE_BACKOFF_MS = 1000;
 
 // Trakt's rate limits apply per window, and its 429 guidance is to pause all requests for Retry-After.
 let resumeReadsAt = 0;
@@ -35,16 +31,13 @@ export function resetReadPause(): void {
   pauseListeners.clear();
 }
 
-// Trakt allows 1000 authed GETs per 5 minutes.
-export const WATCHED_PROGRESS_BUDGET = 60;
-
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 const waitingForSlot: (() => void)[] = [];
 let readsInFlight = 0;
 
-async function acquireReadSlot(): Promise<void> {
-  if (readsInFlight < READ_CONCURRENCY) {
+async function acquireReadSlot(concurrency: number): Promise<void> {
+  if (readsInFlight < concurrency) {
     readsInFlight += 1;
     return;
   }
@@ -59,16 +52,18 @@ function releaseReadSlot(): void {
 
 export async function withReadRateRetry<T>(
   read: () => Promise<TraktResult<T>>,
+  policy: TraktPolicy = DEFAULT_TRAKT_POLICY,
 ): Promise<TraktResult<T>> {
-  await acquireReadSlot();
+  const { retries, fallbackPauseMs } = policy.rateLimit;
+  await acquireReadSlot(policy.readConcurrency);
   try {
     for (let attempt = 0; ; attempt += 1) {
       const pause = resumeReadsAt - Date.now();
       if (pause > 0) await sleep(pause);
       const result = await read();
       if (result.ok || result.error.kind !== "rate-limited") return result;
-      pauseReadsUntil(Date.now() + (result.error.retryAfterMs ?? DEFAULT_RATE_BACKOFF_MS));
-      if (attempt >= MAX_READ_RATE_RETRIES) return result;
+      pauseReadsUntil(Date.now() + (result.error.retryAfterMs ?? fallbackPauseMs));
+      if (attempt >= retries) return result;
     }
   } finally {
     releaseReadSlot();
@@ -93,7 +88,7 @@ async function readProgressHead(
             failure = new TraktReadError(attempt.error, "show progress");
           }
           return attempt;
-        });
+        }, client.policy);
         return [id, unwrapRead(read, "show progress")] as const;
       } catch (error) {
         if (error !== ABANDONED) failure ??= error;
@@ -111,19 +106,19 @@ function byLastWatchedDesc(a: WatchedShow, b: WatchedShow): number {
 
 export async function loadUpNextEntries(client: TraktClient): Promise<LibraryEntry[]> {
   const watched = unwrapRead(
-    await withReadRateRetry(() => getWatchedShows(client)),
+    await withReadRateRetry(() => getWatchedShows(client), client.policy),
     "watched shows",
   );
 
   const head = watched
     .filter((show) => watchedEpisodeCount(show) !== show.show.aired_episodes)
     .sort(byLastWatchedDesc)
-    .slice(0, WATCHED_PROGRESS_BUDGET);
+    .slice(0, client.policy.progressBudget);
   const progress = await readProgressHead(client, head);
 
   const [hidden, watchlist] = await Promise.all([
-    withReadRateRetry(() => getHidden(client)),
-    withReadRateRetry(() => getWatchlist(client, "shows")),
+    withReadRateRetry(() => getHidden(client), client.policy),
+    withReadRateRetry(() => getWatchlist(client, "shows"), client.policy),
   ]);
   return assembleLibrary({
     watchedShows: watched,

@@ -3,7 +3,6 @@ import type { InvalidationKey } from "../data/query-invalidation";
 import type { EpisodeDetail } from "../data/trakt/episode-detail";
 import type { LibraryEntry } from "../data/trakt/library";
 import type { MovieEntry, MovieHeader } from "../data/trakt/movie-library";
-import type { UserStats } from "../data/trakt/schemas";
 import type { SearchHit } from "../data/trakt/search";
 import type { SeasonView, ShowInfo, ShowProgress } from "../data/trakt/show-detail";
 import type { UserProfile } from "../data/trakt/user-profile";
@@ -70,7 +69,6 @@ export interface CueRuntime {
   loadMoviePlays(movieId: number): Promise<readonly MoviePlay[]>;
   search(query: string): Promise<readonly SearchHit[]>;
   loadBrowse(): Promise<BrowseData>;
-  loadStats(): Promise<UserStats>;
   loadUserProfile(): Promise<UserProfile>;
   submit(op: QueuedOp): Promise<SubmitOutcome>;
   pendingWrites(): number;

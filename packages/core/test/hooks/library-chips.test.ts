@@ -7,6 +7,7 @@ function entry(overrides: Partial<LibraryEntry> = {}): LibraryEntry {
   return {
     ...makeShow(),
     tmdbId: null,
+    runtime: null,
     pendingAdvance: false,
     ...overrides,
   };

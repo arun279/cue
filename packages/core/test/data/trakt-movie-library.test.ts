@@ -13,6 +13,7 @@ function watchedMovie(overrides: {
   lastWatchedAt?: string | null;
   posters?: string[];
   tmdb?: number;
+  runtime?: number;
 }): WatchedMovie {
   return {
     last_watched_at: overrides.lastWatchedAt ?? "2026-07-01T00:00:00.000Z",
@@ -21,6 +22,7 @@ function watchedMovie(overrides: {
       year: overrides.year ?? 2021,
       ids: { trakt: overrides.trakt, tmdb: overrides.tmdb },
       images: overrides.posters ? { poster: overrides.posters } : undefined,
+      runtime: overrides.runtime,
     },
   };
 }
@@ -43,6 +45,17 @@ function watchlistMovie(overrides: {
 }
 
 describe("assembleMovieLibrary", () => {
+  it("carries a watched movie's runtime for Profile's watch time", () => {
+    const entries = assembleMovieLibrary({
+      watchedMovies: [watchedMovie({ trakt: 1, runtime: 118 }), watchedMovie({ trakt: 2 })],
+      watchlistMovies: [],
+    });
+    expect(entries.map((entry) => [entry.movieId, entry.runtime])).toEqual([
+      [1, 118],
+      [2, null],
+    ]);
+  });
+
   it("maps a watched movie, carrying its poster, tmdb id and last-watched date", () => {
     const input: MovieLibraryInput = {
       watchedMovies: [

@@ -4,7 +4,7 @@ import { historyQuery } from "@cue/core/queries/history";
 import { movieLibraryQuery } from "@cue/core/queries/library";
 import { movieHeaderQuery } from "@cue/core/queries/movies";
 import { episodeQuery, showInfoQuery, showProgressQuery } from "@cue/core/queries/shows";
-import { userProfileQuery, userStatsQuery } from "@cue/core/queries/user";
+import { userProfileQuery } from "@cue/core/queries/user";
 import type { CueRuntime } from "@cue/core/runtime/runtime";
 import { InfiniteQueryObserver, QueryClient, QueryObserver } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
@@ -23,7 +23,6 @@ const EVERY_TARGET: readonly InvalidationTarget[] = [
 ];
 
 const loaders = {
-  loadStats: vi.fn(() => Promise.resolve({})),
   loadUserProfile: vi.fn(() => Promise.resolve({})),
   loadMovieLibrary: vi.fn(() => Promise.resolve({ entries: [] })),
   loadShowInfo: vi.fn(() => Promise.resolve({})),
@@ -52,13 +51,6 @@ async function observe(watch: (queryClient: QueryClient) => Watched): Promise<Qu
 
 describe("each read refreshes on the invalidation meant for it", () => {
   it.each([
-    [
-      "profile stats",
-      (qc: QueryClient) => new QueryObserver(qc, userStatsQuery(runtime)),
-      loaders.loadStats,
-      [],
-      ["watched/shows"],
-    ],
     [
       "movie library",
       (qc: QueryClient) => new QueryObserver(qc, movieLibraryQuery(runtime)),

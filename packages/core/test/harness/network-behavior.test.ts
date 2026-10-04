@@ -345,12 +345,12 @@ describe("token refresh", () => {
     await arm({ match: "reads", status: 401, count: 2 });
     const client = authorizedClient();
     const start = entries().length;
-    const [settings, stats] = await Promise.all([
+    const [settings, activities] = await Promise.all([
       client.get("/users/settings"),
-      client.get("/users/me/stats"),
+      client.get("/sync/last_activities"),
     ]);
     expect(settings.ok).toBe(true);
-    expect(stats.ok).toBe(true);
+    expect(activities.ok).toBe(true);
     expect(since(start).filter((entry) => entry.path === "/oauth/token")).toHaveLength(1);
   });
 

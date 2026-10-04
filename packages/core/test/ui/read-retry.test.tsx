@@ -8,11 +8,8 @@
  */
 
 import { TraktReadError, type TraktResult, unwrapRead } from "@cue/core/data/trakt/client";
-import {
-  MAX_READ_RATE_RETRIES,
-  resetReadPause,
-  withReadRateRetry,
-} from "@cue/core/data/trakt/read-budget";
+import { DEFAULT_TRAKT_POLICY } from "@cue/core/data/trakt/policy";
+import { resetReadPause, withReadRateRetry } from "@cue/core/data/trakt/read-budget";
 import { backoffMs } from "@cue/core/domain/write-queue/classify";
 import { queryStatus } from "@cue/core/queries/freshness";
 import { createQueryClient } from "@cue/core/runtime/query-cache";
@@ -171,7 +168,7 @@ describe("a sustained rate limit", () => {
       await vi.advanceTimersByTimeAsync(120_000);
     });
 
-    expect(requests).toBe(MAX_READ_RATE_RETRIES + 1);
+    expect(requests).toBe(DEFAULT_TRAKT_POLICY.rateLimit.retries + 1);
     expect(last(seen).failure).toEqual({ kind: "rate-limited", retryAfterMs: 1000 });
     expect(last(seen).retrying).toBe(false);
   });

@@ -6,10 +6,9 @@ export const PENDING_GRACE_MS = 5000;
 
 export const PENDING_THRESHOLD = 3;
 
-const MAX_READ_ATTEMPTS = 3;
-
 function healsOnRetry(failure: TraktFailure): boolean {
-  if (failure.kind === "network" || failure.kind === "unreadable-response") return true;
+  if (failure.kind === "network" || failure.kind === "timeout") return true;
+  if (failure.kind === "unreadable-response") return true;
   return failure.kind === "server" && failure.status >= 500;
 }
 
@@ -18,9 +17,9 @@ export function readFailureOf(error: unknown): TraktFailure | null {
 }
 
 // TanStack Query's retry receives the failure count before this failure.
-export function shouldRetryRead(failureCount: number, error: unknown): boolean {
+export function shouldRetryRead(failureCount: number, error: unknown, attempts: number): boolean {
   const failure = readFailureOf(error);
-  return failure !== null && healsOnRetry(failure) && failureCount + 1 < MAX_READ_ATTEMPTS;
+  return failure !== null && healsOnRetry(failure) && failureCount + 1 < attempts;
 }
 
 export const SYNC_BANNER_KINDS = [
@@ -52,6 +51,7 @@ export interface SyncBannerInput {
 
 function unreachableMessage(failure: TraktFailure): string {
   if (failure.kind === "network") return "Can't reach Trakt. Showing your cached data.";
+  if (failure.kind === "timeout") return "Trakt didn't answer in time. Showing your cached data.";
   if (failure.kind === "server" || failure.kind === "unreadable-response") {
     return "Trakt is having trouble. Showing your cached data.";
   }
@@ -99,6 +99,12 @@ export function readFailureBody(failure: TraktFailure | null): string {
       return "Trakt is limiting requests. Cue will try again shortly.";
     case "network":
       return "Check your connection and try again.";
+    case "timeout":
+      return "Trakt didn't answer in time.";
+    case "unexpected-shape":
+      return "Trakt sent data in a shape this version doesn't read.";
+    case "no-content":
+      return "Trakt sent an empty reply.";
     case "server":
     case "unreadable-response":
       return "Trakt is having trouble. Try again in a moment.";

@@ -1,199 +1,205 @@
 import { z } from "zod";
+import { list, nonEssential, num } from "./decode";
 
+const str = z.string();
 const idsSchema = z.object({
-  trakt: z.number(),
-  slug: z.string().optional(),
-  imdb: z.string().nullish(),
-  tmdb: z.number().nullish(),
-  tvdb: z.number().nullish(),
+  trakt: num,
+  slug: nonEssential(str),
+  imdb: nonEssential(str.nullable()),
+  tmdb: nonEssential(num.nullable()),
+  tvdb: nonEssential(num.nullable()),
 });
 
-const imageListSchema = z.array(z.string());
-const imagesSchema = z
-  .object({
-    poster: imageListSchema.optional(),
-    fanart: imageListSchema.optional(),
-    thumb: imageListSchema.optional(),
-    screenshot: imageListSchema.optional(),
-  })
-  .optional();
+const imageListSchema = nonEssential(z.array(str));
+const imagesSchema = nonEssential(
+  z.object({
+    poster: imageListSchema,
+    fanart: imageListSchema,
+    thumb: imageListSchema,
+    screenshot: imageListSchema,
+  }),
+);
 
 const showSchema = z.object({
-  title: z.string(),
-  year: z.number().nullish(),
-  status: z.string().optional(),
+  title: str,
+  year: nonEssential(num.nullable()),
+  status: nonEssential(str),
   ids: idsSchema,
   images: imagesSchema,
 });
 
 const movieSchema = z.object({
-  title: z.string(),
-  year: z.number().nullish(),
+  title: str,
+  year: nonEssential(num.nullable()),
   ids: idsSchema,
   images: imagesSchema,
 });
 
 export const episodeSchema = z.object({
-  season: z.number(),
-  number: z.number(),
-  title: z.string().nullish(),
-  overview: z.string().nullish(),
-  runtime: z.number().nullish(),
-  first_aired: z.string().nullish(),
+  season: num,
+  number: num,
+  title: nonEssential(str.nullable()),
+  overview: nonEssential(str.nullable()),
+  runtime: nonEssential(num.nullable()),
+  first_aired: nonEssential(str.nullable()),
   ids: idsSchema,
   images: imagesSchema,
 });
 
 const watchedShowSchema = z.object({
-  last_watched_at: z.string().nullish(),
-  plays: z.number().optional(),
+  last_watched_at: nonEssential(str.nullable()),
+  plays: nonEssential(num),
   // After a Trakt "restart show", /progress/watched counts only plays after reset_at; the breakdown still lists all.
-  reset_at: z.string().nullish(),
-  show: showSchema.extend({ aired_episodes: z.number() }),
-  seasons: z
-    .array(
+  reset_at: nonEssential(str.nullable()),
+  show: showSchema.extend({ aired_episodes: num, runtime: nonEssential(num.nullable()) }),
+  seasons: nonEssential(
+    z.array(
       z.object({
-        number: z.number(),
-        episodes: z.array(z.object({ number: z.number(), last_watched_at: z.string().nullish() })),
+        number: num,
+        episodes: z.array(z.object({ number: num, last_watched_at: nonEssential(str.nullable()) })),
       }),
-    )
-    .optional(),
+    ),
+  ),
 });
-export const watchedShowsSchema = z.array(watchedShowSchema);
+export const watchedShowsSchema = list(watchedShowSchema);
 
 const watchedMovieSchema = z.object({
-  last_watched_at: z.string().nullish(),
-  plays: z.number().optional(),
-  movie: movieSchema,
+  last_watched_at: nonEssential(str.nullable()),
+  plays: nonEssential(num),
+  movie: movieSchema.extend({ runtime: nonEssential(num.nullable()) }),
 });
-export const watchedMoviesSchema = z.array(watchedMovieSchema);
+export const watchedMoviesSchema = list(watchedMovieSchema);
 
 export const progressSchema = z.object({
-  aired: z.number(),
-  completed: z.number(),
-  last_episode: episodeSchema.nullish(),
+  aired: num,
+  completed: num,
+  last_episode: nonEssential(episodeSchema.nullable()),
   next_episode: episodeSchema.nullable(),
-  seasons: z
-    .array(
+  seasons: nonEssential(
+    z.array(
       z.object({
-        number: z.number(),
-        aired: z.number(),
-        completed: z.number(),
+        number: num,
+        aired: num,
+        completed: num,
         episodes: z.array(
           z.object({
-            number: z.number(),
+            number: num,
             completed: z.boolean(),
-            last_watched_at: z.string().nullish(),
+            last_watched_at: nonEssential(str.nullable()),
           }),
         ),
       }),
-    )
-    .optional(),
+    ),
+  ),
 });
 
 export const movieDetailSchema = z.object({
-  title: z.string(),
-  year: z.number().nullish(),
-  overview: z.string().nullish(),
-  runtime: z.number().nullish(),
-  released: z.string().nullish(),
-  genres: z.array(z.string()).nullish(),
+  title: str,
+  year: nonEssential(num.nullable()),
+  overview: nonEssential(str.nullable()),
+  runtime: nonEssential(num.nullable()),
+  released: nonEssential(str.nullable()),
+  genres: nonEssential(z.array(str).nullable()),
   ids: idsSchema,
   images: imagesSchema,
 });
 
 export const showDetailSchema = z.object({
-  title: z.string(),
-  year: z.number().nullish(),
-  status: z.string().optional(),
-  overview: z.string().nullish(),
-  network: z.string().nullish(),
-  runtime: z.number().nullish(),
-  genres: z.array(z.string()).nullish(),
-  first_aired: z.string().nullish(),
+  title: str,
+  year: nonEssential(num.nullable()),
+  status: nonEssential(str),
+  overview: nonEssential(str.nullable()),
+  network: nonEssential(str.nullable()),
+  runtime: nonEssential(num.nullable()),
+  genres: nonEssential(z.array(str).nullable()),
+  first_aired: nonEssential(str.nullable()),
   ids: idsSchema,
   images: imagesSchema,
 });
 
-export const seasonsSchema = z.array(
+export const seasonsSchema = list(
   z.object({
-    number: z.number(),
-    title: z.string().nullish(),
-    episodes: z.array(episodeSchema).optional(),
+    number: num,
+    title: nonEssential(str.nullable()),
+    episodes: nonEssential(list(episodeSchema)),
   }),
 );
 
-export const watchlistSchema = z.array(
+export const watchlistSchema = list(
   z.object({
-    rank: z.number().optional(),
-    listed_at: z.string().optional(),
-    type: z.string(),
-    show: showSchema.optional(),
-    movie: movieSchema.optional(),
+    rank: nonEssential(num),
+    listed_at: nonEssential(str),
+    type: str,
+    show: nonEssential(showSchema),
+    movie: nonEssential(movieSchema),
   }),
 );
 
-const calendarShowSchema = showSchema.extend({ network: z.string().nullish() });
-export const calendarSchema = z.array(
-  z.object({ first_aired: z.string(), episode: episodeSchema, show: calendarShowSchema }),
+const calendarShowSchema = showSchema.extend({ network: nonEssential(str.nullable()) });
+export const calendarSchema = list(
+  z.object({ first_aired: str, episode: episodeSchema, show: calendarShowSchema }),
 );
 
 const historyItemSchema = z.object({
-  id: z.number(),
-  watched_at: z.string(),
-  type: z.string(),
-  episode: episodeSchema.optional(),
-  show: showSchema.optional(),
-  movie: movieSchema.optional(),
+  id: num,
+  watched_at: str,
+  type: str,
+  episode: nonEssential(episodeSchema),
+  show: nonEssential(showSchema),
+  movie: nonEssential(movieSchema),
 });
-export const historySchema = z.array(historyItemSchema);
+export const historySchema = list(historyItemSchema);
 
-export const searchSchema = z.array(
+export const searchSchema = list(
   z.object({
-    type: z.string(),
-    score: z.number().nullish(),
-    show: showSchema.optional(),
-    movie: movieSchema.optional(),
+    type: str,
+    score: nonEssential(num.nullable()),
+    show: nonEssential(showSchema),
+    movie: nonEssential(movieSchema),
   }),
 );
 
-export const trendingShowsSchema = z.array(
-  z.object({ watchers: z.number().nullish(), show: showSchema }),
+export const trendingShowsSchema = list(
+  z.object({ watchers: nonEssential(num.nullable()), show: showSchema }),
 );
-export const popularShowsSchema = z.array(showSchema);
+export const popularShowsSchema = list(showSchema);
 
-export const trendingMoviesSchema = z.array(
-  z.object({ watchers: z.number().nullish(), movie: movieSchema }),
+export const trendingMoviesSchema = list(
+  z.object({ watchers: nonEssential(num.nullable()), movie: movieSchema }),
 );
-export const popularMoviesSchema = z.array(movieSchema);
-export const relatedMoviesSchema = z.array(movieSchema);
+export const popularMoviesSchema = list(movieSchema);
 
-export const hiddenSchema = z.array(
+export const hiddenSchema = list(
   z.object({
-    hidden_at: z.string().optional(),
-    type: z.string(),
-    show: showSchema.optional(),
-    movie: movieSchema.optional(),
+    hidden_at: nonEssential(str),
+    type: str,
+    show: nonEssential(showSchema),
+    movie: nonEssential(movieSchema),
   }),
 );
-
-export const userStatsSchema = z.object({
-  movies: z.object({ watched: z.number(), minutes: z.number() }),
-  episodes: z.object({ watched: z.number(), minutes: z.number() }),
-  shows: z.object({ watched: z.number() }),
-});
 
 export const userSettingsSchema = z.object({
   user: z.object({
-    username: z.string(),
-    name: z.string().nullish(),
-    images: z.object({ avatar: z.object({ full: z.string().nullish() }).nullish() }).nullish(),
+    username: str,
+    name: nonEssential(str.nullable()),
+    images: nonEssential(
+      z
+        .object({
+          avatar: nonEssential(z.object({ full: nonEssential(str.nullable()) }).nullable()),
+        })
+        .nullable(),
+    ),
   }),
 });
 
-const stampsSchema = z.record(z.string(), z.string()).optional();
+function keepStamps(stamps: Record<string, unknown>): Record<string, string> {
+  const kept: Record<string, string> = {};
+  for (const [field, at] of Object.entries(stamps)) if (typeof at === "string") kept[field] = at;
+  return kept;
+}
+const stampsSchema = nonEssential(z.record(str, z.unknown()).transform(keepStamps));
 export const lastActivitiesSchema = z.object({
-  all: z.string().optional(),
+  all: nonEssential(str),
   episodes: stampsSchema,
   shows: stampsSchema,
   movies: stampsSchema,
@@ -220,5 +226,4 @@ export type MovieSummary = z.infer<typeof movieSchema>;
 export type TrendingShow = z.infer<typeof trendingShowsSchema>[number];
 export type TrendingMovie = z.infer<typeof trendingMoviesSchema>[number];
 export type HiddenItem = z.infer<typeof hiddenSchema>[number];
-export type UserStats = z.infer<typeof userStatsSchema>;
 export type UserSettings = z.infer<typeof userSettingsSchema>;
