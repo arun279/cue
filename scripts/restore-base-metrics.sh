@@ -22,13 +22,26 @@ if "$scripts"/download-ci-artifact.sh "$ARTIFACT_NAME" "$RUNNER_TEMP/base-metric
   cp "$RUNNER_TEMP/base-metrics/head-metrics.json" base-metrics.json
   echo "::notice::Restored merge-base measurements from $ARTIFACT_NAME"
 else
-  run_id=$(gh api \
-    "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$BASE_SHA&status=success&per_page=1" \
-    --jq '.workflow_runs[0].id // empty')
-  if [ -z "$run_id" ]; then
+  missing() {
     echo "::error::Missing merge-base measurements and successful CI artifacts for $BASE_SHA"
     exit 1
-  fi
+  }
+  run_id=$(gh api \
+    "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$BASE_SHA&event=push&per_page=1" \
+    --jq '.workflow_runs[0].id // empty')
+  [ -n "$run_id" ] || missing
+  # A fingerprint miss measured 35 s of fingerprint plus 1340 s of native-android,
+  # the slowest producer; 30 polls a minute apart is that plus about 25 percent.
+  for poll in $(seq 30); do
+    producers=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs?per_page=100" \
+      --jq '[.jobs[] | select(.name == "check" or .name == "native-android") | .conclusion] |
+        if any(. != null and . != "success") then "failed"
+        elif map(select(. == "success")) | length == 2 then "ready"
+        else "waiting" end')
+    [ "$producers" = ready ] && break
+    [ "$producers" = waiting ] && [ "$poll" -lt 30 ] || missing
+    sleep 60
+  done
   gh run download "$run_id" --repo "$GITHUB_REPOSITORY" \
     --name cue-js-bundles --dir "$RUNNER_TEMP/base-native"
   if gh run download "$run_id" --repo "$GITHUB_REPOSITORY" \
