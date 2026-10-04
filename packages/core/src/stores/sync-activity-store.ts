@@ -2,7 +2,6 @@ import { create } from "zustand";
 
 interface SyncActivityState {
   readonly pending: number;
-  /** Whether this session's activities poll has run, so app idle never precedes the freshness check. */
   readonly checked: boolean;
   begin(): void;
   end(): void;
