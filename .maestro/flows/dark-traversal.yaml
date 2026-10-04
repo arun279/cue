@@ -62,6 +62,12 @@ appId: app.cuetracker
 - takeScreenshot: library-shows
 - tapOn:
     id: "avatar-link"
+- scrollUntilVisible:
+    element:
+      id: "profile-stat-shows"
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: profile-rest
 - tapOn:
     id: "profile-to-settings"
 - extendedWaitUntil:

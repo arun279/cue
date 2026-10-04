@@ -15,7 +15,7 @@ appId: app.cuetracker
     timeout: 30000
 - waitForAnimationToEnd:
     timeout: 1000
-- takeScreenshot: library-${SIZE}
+- takeScreenshot: library-shows-${SIZE}
 - tapOn:
     id: "avatar-link"
 - scrollUntilVisible:
@@ -23,7 +23,7 @@ appId: app.cuetracker
       id: "profile-stat-shows"
 - waitForAnimationToEnd:
     timeout: 1000
-- takeScreenshot: profile-${SIZE}
+- takeScreenshot: profile-rest-${SIZE}
 - runFlow: lib/leave-profile.yaml
 - tapOn: "Search"
 - extendedWaitUntil:
@@ -32,4 +32,4 @@ appId: app.cuetracker
     timeout: 30000
 - waitForAnimationToEnd:
     timeout: 1000
-- takeScreenshot: search-${SIZE}
+- takeScreenshot: search-empty-${SIZE}
