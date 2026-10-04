@@ -37,8 +37,7 @@ read -r test_net _ < <(net_lines \
   ':(glob).maestro/**')
 read -r tooling_net _ < <(net_lines \
   ':(glob).github/**' \
-  ':(glob)scripts/**' \
-  ':(glob)fastlane/**')
+  ':(glob)scripts/**')
 product_net=$((product_lines - comment_net))
 
 cat <<EOF
@@ -49,7 +48,7 @@ cat <<EOF
 | --- | ---: |
 | Product code lines in core/src, native/src, native/app, and native/modules | $(printf '%+d' "$product_net") |
 | Test lines in test, \`packages/*/{test,__tests__,e2e}\`, and .maestro | $(printf '%+d' "$test_net") |
-| CI and tooling lines in .github, scripts, and fastlane | $(printf '%+d' "$tooling_net") |
+| CI and tooling lines in .github and scripts | $(printf '%+d' "$tooling_net") |
 | Product comment lines identified by a comment prefix | $(printf '%+d' "$comment_net") |
 EOF
 

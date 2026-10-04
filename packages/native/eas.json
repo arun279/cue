@@ -1,14 +1,29 @@
 {
   "cli": {
-    "appVersionSource": "local"
+    "appVersionSource": "remote"
   },
   "build": {
-    "preview": {
-      "distribution": "internal",
-      "channel": "preview",
-      "environment": "preview",
+    "production": {
+      "distribution": "store",
+      "channel": "production",
+      "environment": "production",
+      "credentialsSource": "local",
+      "autoIncrement": true,
       "node": "22.12.0",
-      "pnpm": "10.33.0"
+      "pnpm": "10.33.0",
+      "android": {
+        "gradleCommand": ":app:assembleRelease -PreactNativeArchitectures=arm64-v8a"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "ascAppId": "6794691416",
+        "ascApiKeyPath": "$ASC_API_KEY_PATH",
+        "ascApiKeyId": "$APP_STORE_CONNECT_KEY_ID",
+        "ascApiKeyIssuerId": "$APP_STORE_CONNECT_ISSUER_ID"
+      }
     }
   }
 }

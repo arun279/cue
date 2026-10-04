@@ -3,25 +3,29 @@ name: Publish update
 on:
   workflow_dispatch:
     inputs:
-      channel:
-        description: Update channel
+      action:
+        description: "publish = this ref to preview, promote = latest preview update to production"
         type: choice
-        options: [preview, production]
-        default: preview
+        options: [publish, promote]
+        default: publish
       message:
         description: Update message
         type: string
         required: true
 
 concurrency:
-  group: publish-update-${{ inputs.channel }}
+  group: publish-update
   cancel-in-progress: false
 
 permissions:
   contents: read
 
+env:
+  EXPO_NO_TELEMETRY: "1"
+
 jobs:
   gate:
+    if: inputs.action == 'publish'
     runs-on: ubuntu-latest
     timeout-minutes: 50
     permissions:
@@ -43,14 +47,12 @@ jobs:
   publish:
     needs: gate
     runs-on: ubuntu-latest
-    env:
-      EXPO_NO_TELEMETRY: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup-node-pnpm
       - uses: expo/expo-github-action@c7b66a9c327a43a8fa7c0158e7f30d6040d2481e # v8
         with:
-          eas-version: latest
+          eas-version: 24.10.0
           token: ${{ secrets.EXPO_TOKEN }}
       - name: Verify Expo project access
         working-directory: packages/native
@@ -60,23 +62,39 @@ jobs:
             echo "::error::Expo account $account cannot access @arunkris/cue. Create the robot under arunkris or transfer the project to the robot's account."
             exit 1
           fi
-      - name: Export the update with the channel's environment
+      - name: Export the update with the production builds' environment
         working-directory: packages/native
         env:
-          CHANNEL: ${{ inputs.channel }}
           EXPO_PUBLIC_TRAKT_CLIENT_ID: ${{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}
         run: |
           [ -n "$EXPO_PUBLIC_TRAKT_CLIENT_ID" ] || { echo "EXPO_PUBLIC_TRAKT_CLIENT_ID is not set"; exit 1; }
-          eas env:exec "$CHANNEL" --non-interactive \
+          eas env:exec production --non-interactive \
             "EXPO_NO_DOTENV=1 EXPO_ATLAS=true npx expo export --output-dir dist --dump-sourcemap --dump-assetmap --platform ios --platform android --clear"
       - name: Keep the UI harness out of the update
         run: node scripts/check-store-bundle.mjs
       - name: Publish the exported update
         working-directory: packages/native
         env:
-          CHANNEL: ${{ inputs.channel }}
           EXPO_PUBLIC_TRAKT_CLIENT_ID: ${{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}
           MESSAGE: ${{ inputs.message }}
         run: >-
-          eas update --channel "$CHANNEL" --message "$MESSAGE" --non-interactive
-          --environment "$CHANNEL" --skip-bundler --input-dir dist
+          eas update --channel preview --message "$MESSAGE" --non-interactive
+          --environment production --skip-bundler --input-dir dist
+
+  promote:
+    if: inputs.action == 'promote'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-node-pnpm
+      - uses: expo/expo-github-action@c7b66a9c327a43a8fa7c0158e7f30d6040d2481e # v8
+        with:
+          eas-version: 24.10.0
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Copy the latest preview update to production
+        working-directory: packages/native
+        env:
+          MESSAGE: ${{ inputs.message }}
+        run: >-
+          eas update:republish --channel preview --destination-channel production
+          --message "$MESSAGE" --non-interactive

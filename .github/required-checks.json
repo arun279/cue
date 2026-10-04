@@ -3,7 +3,6 @@
   "render-performance",
   "audit",
   "actionlint",
-  "standardrb",
   "native-android",
   "native-ios",
   "native-e2e",

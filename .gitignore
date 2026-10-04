@@ -64,7 +64,4 @@ design-review/
 # Logs
 *.log
 
-# fastlane output
-/fastlane/report.xml
-/fastlane/Preview.html
-/fastlane/test_output/
+/packages/native/credentials.json

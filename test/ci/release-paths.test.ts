@@ -13,8 +13,6 @@ const CI_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/ci.yml");
 const CODEQL_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/codeql.yml");
 const MOBILE_RELEASE_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/mobile-release.yml");
 const REQUIRED_CHECKS = path.join(REPOSITORY_ROOT, ".github/required-checks.json");
-const FASTFILE = path.join(REPOSITORY_ROOT, "fastlane/Fastfile");
-const FASTLANE_LANE = "$" + "{{ needs.config.outputs.fastlane_lane }}";
 const TRAKT_CLIENT_ID_VARIABLE = "$" + "{{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}";
 // `footprint` skips itself on forks, and the gate reads a skip as a failure.
 // The iOS light matrix reports through the required `native-e2e` aggregate.
@@ -79,26 +77,12 @@ const readRequiredChecks = (): string[] => {
 };
 
 describe("mobile release triggers", () => {
-  it("releases automatically only from strict version tags", () => {
+  it("ships only when someone dispatches it", () => {
     const workflow = readFileSync(MOBILE_RELEASE_WORKFLOW, "utf8");
-    const push = /^ {2}push:\r?\n((?: {4}.*\r?\n)*)/m.exec(workflow)?.[1];
+    const triggers = workflow.slice(workflow.indexOf("on:"), workflow.indexOf("concurrency:"));
 
-    expect(push).toBeDefined();
-    expect(push).not.toMatch(/^ {4}branches:/m);
-    expect(push).not.toMatch(/^ {4}paths-ignore:/m);
-    expect(push).toContain('    tags: ["v*.*.*"]');
-  });
-});
-
-describe("the TestFlight lane", () => {
-  it("finishes only once App Store Connect has processed the build", () => {
-    const fastfile = readFileSync(FASTFILE, "utf8");
-    const ios = fastfile.slice(fastfile.indexOf("platform :ios do"));
-    const lane = /^ {2}lane :beta do\r?\n([\s\S]*?)^ {2}end$/m.exec(ios)?.[1];
-
-    expect(lane).toContain("upload_to_testflight(");
-    expect(lane).toContain("skip_waiting_for_build_processing: false");
-    expect(lane).toContain("distribute_external: false");
+    expect(triggers).toContain("workflow_dispatch:");
+    expect(triggers).not.toMatch(/^ {2}(?:push|pull_request|schedule):/m);
   });
 });
 
@@ -136,13 +120,8 @@ describe("the iOS toolchain pin", () => {
 describe("native bundle environment", () => {
   it.each([
     [CI_WORKFLOW, "native-android", "Build release artifacts", "ci"],
-    [
-      MOBILE_RELEASE_WORKFLOW,
-      "android",
-      `Fastlane android ${FASTLANE_LANE}`,
-      TRAKT_CLIENT_ID_VARIABLE,
-    ],
-    [MOBILE_RELEASE_WORKFLOW, "ios", `Fastlane ios ${FASTLANE_LANE}`, TRAKT_CLIENT_ID_VARIABLE],
+    [MOBILE_RELEASE_WORKFLOW, "android", "Build", TRAKT_CLIENT_ID_VARIABLE],
+    [MOBILE_RELEASE_WORKFLOW, "ios", "Build", TRAKT_CLIENT_ID_VARIABLE],
   ])("embeds the Trakt client id in %s's %s bundle", (workflow, job, step, value) => {
     expect(readNamedStep(workflow, job, step)).toContain(
       `          EXPO_PUBLIC_TRAKT_CLIENT_ID: ${value}`,
@@ -151,19 +130,14 @@ describe("native bundle environment", () => {
 
   it("keeps only the distributor size limits", () => {
     const workflow = readFileSync(MOBILE_RELEASE_WORKFLOW, "utf8");
-    const iosLane = readNamedStep(MOBILE_RELEASE_WORKFLOW, "ios", `Fastlane ios ${FASTLANE_LANE}`);
-    const androidLane = readNamedStep(
-      MOBILE_RELEASE_WORKFLOW,
-      "android",
-      `Fastlane android ${FASTLANE_LANE}`,
-    );
 
-    expect(androidLane).toContain('PLAY_BASE_MODULE_LIMIT_BYTES: "500000000"');
-    expect(androidLane).toContain('FIREBASE_BINARY_LIMIT_BYTES: "2147483648"');
+    expect(readNamedStep(MOBILE_RELEASE_WORKFLOW, "android", "Check the APK")).toContain(
+      'FIREBASE_BINARY_LIMIT_BYTES: "2147483648"',
+    );
     expect(workflow).toContain(
       "App Store Connect alerts when a thinned device variant exceeds its 200 MB over-the-air limit.",
     );
-    expect(iosLane).not.toContain("IPA_SIZE_LIMIT_BYTES");
+    expect(workflow).not.toContain("IPA_SIZE_LIMIT_BYTES");
     expect(workflow).not.toContain(".size-limit.json");
   });
 });

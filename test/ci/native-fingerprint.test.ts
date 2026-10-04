@@ -12,7 +12,6 @@ const BUILD_ENVIRONMENT = {
   APP_VERSION: "9.9.9",
   BUILD_NUMBER: "42",
   CONFIGURATION: "Release",
-  EAS_UPDATE_CHANNEL: "preview",
   EXPO_PUBLIC_TRAKT_API_BASE: "http://127.0.0.1:8787",
   EXPO_PUBLIC_TRAKT_CLIENT_ID: "ci",
   XCODE_PATH: "/Applications/Xcode_26.6.app",
@@ -50,8 +49,8 @@ describe("native fingerprint", { timeout: 30_000 }, () => {
   it("hashes a fixed tree to the value recorded on macOS, wherever it is checked out", () => {
     const root = project();
 
-    expect(fingerprint("ios", root).stdout).toBe("400dbfe0f3d03956a196b8b1e2b1ec18254a84c5");
-    expect(fingerprint("android", root).stdout).toBe("26a7b20fe1ded776354bc0f209947a3509f12ba6");
+    expect(fingerprint("ios", root).stdout).toBe("b94019081d7bbbf471768a2375c99bf75977a06a");
+    expect(fingerprint("android", root).stdout).toBe("cbf0e2c0e54c524c4cfdfa038651bd325b8cbab0");
   });
 
   it("does not depend on the working or temporary directory", () => {
