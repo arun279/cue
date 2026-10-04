@@ -4,6 +4,7 @@ import type { PreferenceStorage } from "@cue/core/ports/preference-storage";
 import { UNDO_WINDOW_MS } from "@cue/core/sync-contract";
 import {
   act,
+  fireEvent,
   render,
   renderHook,
   screen,
@@ -240,6 +241,21 @@ describe("Up Next's mark control", () => {
 
     await waitFor(() => expect(check(CARTOGRAPHY)).toHaveAccessibleName("Watched. Tap to remove."));
     expect(screen.getByTestId("snackbar-undo")).toBeOnTheScreen();
+  });
+
+  it("shows a mark and its undo in the queue without waiting on a timer", async () => {
+    await paint();
+    const unwatched = "Midnight Cartography, S2 E3, Half Measures, 2 left";
+    jest.useFakeTimers({ doNotFake: ["queueMicrotask", "nextTick", "setImmediate"] });
+    try {
+      await act(async () => fireEvent.press(check(CARTOGRAPHY)));
+      expect(screen.queryByLabelText(unwatched)).toBeNull();
+
+      await act(async () => fireEvent.press(screen.getByTestId("snackbar-undo")));
+      expect(screen.getByLabelText(unwatched)).toBeOnTheScreen();
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it("marks from a swipe released past the threshold, through the same pipeline", async () => {

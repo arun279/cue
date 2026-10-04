@@ -34,8 +34,9 @@ afterEach(() => {
   }
 });
 
-it("exposes five-sample mark and undo medians", async () => {
-  const durations = [9, 20, 5, 14, 7, 18, 6, 16, 8, 12];
+it("exposes the latest fifteen mark and undo samples", async () => {
+  const taps = Array.from({ length: 16 }, (_, tap) => tap);
+  const durations = taps.flatMap((tap) => [tap + 0.5, tap + 100]);
   Object.defineProperty(performance, "measure", {
     configurable: true,
     value: jest.fn(() => ({ duration: durations.shift() }) as PerformanceMeasure),
@@ -43,7 +44,7 @@ it("exposes five-sample mark and undo medians", async () => {
   await render(<Probe />);
 
   await act(async () => {
-    for (let sample = 0; sample < 5; sample += 1) {
+    for (const _ of taps) {
       beginResponseTiming("mark");
       commitResponseTiming();
       beginResponseTiming("undo");
@@ -51,7 +52,8 @@ it("exposes five-sample mark and undo medians", async () => {
     }
   });
 
+  const kept = taps.slice(1);
   expect(screen.getByTestId("timing")).toHaveTextContent(
-    "Response timing: mark 7.0 ms, undo 16.0 ms",
+    `Response timing: mark ${kept.map((tap) => `${tap}.5`).join(",")}; undo ${kept.map((tap) => `${tap + 100}.0`).join(",")}`,
   );
 });

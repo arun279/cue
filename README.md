@@ -94,7 +94,7 @@ These builds keep build number 1 and never reach App Store Connect or Firebase, 
 
 ## Shipping JavaScript updates
 
-EAS Update can replace JavaScript and bundled assets. It cannot change native modules, permissions, app configuration, or other native code. The fingerprint runtime policy only offers an update to installed builds with the same runtime, so any native change requires a new build. The release workflow puts each build's own build number into its runtime, so today updates reach only the EAS `preview` builds, not tester or store builds.
+EAS Update can replace JavaScript and bundled assets. It cannot change native modules, permissions, app configuration, or other native code. The fingerprint runtime policy only offers an update to compatible installed builds, so any native change requires a new tester or store build. App version and build numbers stay out of the fingerprint, so a release's numbering never changes which updates it receives.
 
 To publish, open GitHub Actions, choose **Publish update**, select **Run workflow**, choose the exact ref and the `preview` or `production` channel, write a required message, and run it. Nothing publishes on a push, pull request, merge, or schedule. A downloaded update applies on the next cold start.
 

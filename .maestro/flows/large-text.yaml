@@ -2,6 +2,8 @@ appId: app.cuetracker
 ---
 - launchApp:
     permissions: {}
+    arguments:
+      UIPreferredContentSizeCategoryName: ${CONTENT_SIZE}
 - extendedWaitUntil:
     visible:
       id: "screen-up-next"
