@@ -51,7 +51,7 @@ const watchedShowSchema = z.object({
   plays: nonEssential(num),
   // After a Trakt "restart show", /progress/watched counts only plays after reset_at; the breakdown still lists all.
   reset_at: nonEssential(str.nullable()),
-  show: showSchema.extend({ aired_episodes: num }),
+  show: showSchema.extend({ aired_episodes: num, runtime: nonEssential(num.nullable()) }),
   seasons: nonEssential(
     z.array(
       z.object({
@@ -66,7 +66,7 @@ export const watchedShowsSchema = list(watchedShowSchema);
 const watchedMovieSchema = z.object({
   last_watched_at: nonEssential(str.nullable()),
   plays: nonEssential(num),
-  movie: movieSchema,
+  movie: movieSchema.extend({ runtime: nonEssential(num.nullable()) }),
 });
 export const watchedMoviesSchema = list(watchedMovieSchema);
 
@@ -178,12 +178,6 @@ export const hiddenSchema = list(
   }),
 );
 
-export const userStatsSchema = z.object({
-  movies: nonEssential(z.object({ watched: nonEssential(num), minutes: nonEssential(num) })),
-  episodes: nonEssential(z.object({ watched: nonEssential(num), minutes: nonEssential(num) })),
-  shows: nonEssential(z.object({ watched: nonEssential(num) })),
-});
-
 export const userSettingsSchema = z.object({
   user: z.object({
     username: str,
@@ -232,5 +226,4 @@ export type MovieSummary = z.infer<typeof movieSchema>;
 export type TrendingShow = z.infer<typeof trendingShowsSchema>[number];
 export type TrendingMovie = z.infer<typeof trendingMoviesSchema>[number];
 export type HiddenItem = z.infer<typeof hiddenSchema>[number];
-export type UserStats = z.infer<typeof userStatsSchema>;
 export type UserSettings = z.infer<typeof userSettingsSchema>;

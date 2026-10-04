@@ -37,7 +37,6 @@ describe("what a cold boot restores", () => {
     expect(policy.persists(queryKeys.movieLibrary())).toBe(true);
     expect(policy.persists(queryKeys.watchlist("shows"))).toBe(true);
     expect(policy.persists(queryKeys.history("all"))).toBe(true);
-    expect(policy.persists(queryKeys.userStats())).toBe(true);
     expect(policy.persists(queryKeys.calendar("2026-01-01", 7))).toBe(true);
   });
 

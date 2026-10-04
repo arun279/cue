@@ -12,6 +12,7 @@ import { toEpisodeIds } from "./show-detail";
 
 export interface LibraryEntry extends LibraryShow {
   readonly tmdbId: number | null;
+  readonly runtime: number | null;
 }
 
 export interface MarkContext {
@@ -59,6 +60,7 @@ function toWatchedEntry(
     nextEpisode: progress?.next_episode == null ? null : toEpisodeRef(progress.next_episode),
     lastAired: lastAiredKey(progress, watched),
     tmdbId: show.ids.tmdb ?? null,
+    runtime: show.runtime ?? null,
     pendingAdvance: false,
   };
 }
@@ -76,6 +78,7 @@ function toWatchlistEntry(show: SchemaShow, hidden: boolean): LibraryEntry {
     nextEpisode: null,
     lastAired: null,
     tmdbId: show.ids.tmdb ?? null,
+    runtime: null,
     pendingAdvance: false,
   };
 }

@@ -38,7 +38,6 @@ import {
   seasonsBody,
   showDetailBody,
   userSettingsBody,
-  userStatsBody,
   watchedMoviesBody,
   watchedShowsBody,
   watchlistBody,
@@ -165,7 +164,6 @@ const ROUTES = [
 
   // ---- Account
   ["GET", /^\/users\/settings$/, (ctx) => json(userSettingsBody(ctx.library, ctx.origin))],
-  ["GET", /^\/users\/me\/stats$/, (ctx) => json(userStatsBody(ctx.library))],
   [
     "GET",
     /^\/users\/me\/history(?:\/(?<section>episodes|movies))?$/,

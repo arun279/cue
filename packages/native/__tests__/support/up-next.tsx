@@ -38,6 +38,7 @@ export function entry(overrides: Partial<LibraryEntry> = {}): LibraryEntry {
     },
     lastAired: { season: 3, number: 5 },
     tmdbId: null,
+    runtime: null,
     pendingAdvance: false,
     ...overrides,
   };

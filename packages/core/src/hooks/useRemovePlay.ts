@@ -39,7 +39,6 @@ export function useRemovePlay(): RemovePlayController {
   const revalidate = useCallback(
     (entry: HistoryEntry) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.historyPrefix() });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.userStats() });
       if (entry.type === "movie") {
         void queryClient.invalidateQueries({ queryKey: queryKeys.movieLibrary() });
         return;

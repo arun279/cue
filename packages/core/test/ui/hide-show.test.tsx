@@ -19,6 +19,7 @@ import { mount } from "./_mount";
 const entry: LibraryEntry = {
   ...makeShow({ showId: 7, title: "Severance" }),
   tmdbId: null,
+  runtime: null,
   pendingAdvance: false,
 };
 

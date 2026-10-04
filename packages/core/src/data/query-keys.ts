@@ -5,7 +5,6 @@ export const queryKeys = {
   search: (query: string, types: string) => ["search", types, query] as const,
   browse: () => ["discover", "shows-movies"] as const,
   lastActivities: () => ["sync", "last_activities"] as const,
-  userStats: () => ["users", "me", "stats"] as const,
   userSettings: () => ["users", "settings"] as const,
   history: (type: "all" | "tv" | "movies", scope = "recent") => ["history", type, scope] as const,
   historyPrefix: () => ["history"] as const,

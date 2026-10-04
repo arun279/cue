@@ -12,6 +12,7 @@ export interface MovieEntry {
   readonly listedAt: string | null;
   readonly posters: readonly string[];
   readonly tmdbId: number | null;
+  readonly runtime: number | null;
 }
 
 export interface MovieHeader {
@@ -70,6 +71,7 @@ function toWatchedMovieEntry(
     listedAt: watchlist?.listedAt ?? null,
     posters: movie.images?.poster ?? [],
     tmdbId: movie.ids.tmdb ?? null,
+    runtime: movie.runtime ?? null,
   };
 }
 
@@ -85,6 +87,7 @@ function toWatchlistMovieEntry({ movie, listedAt }: WatchlistMovie): MovieEntry 
     listedAt,
     posters: movie.images?.poster ?? [],
     tmdbId: movie.ids.tmdb ?? null,
+    runtime: null,
   };
 }
 

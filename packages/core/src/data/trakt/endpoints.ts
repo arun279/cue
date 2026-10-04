@@ -33,9 +33,7 @@ import {
   trendingMoviesSchema,
   trendingShowsSchema,
   type UserSettings,
-  type UserStats,
   userSettingsSchema,
-  userStatsSchema,
   type WatchedMovie,
   type WatchedShow,
   type WatchlistItem,
@@ -248,10 +246,6 @@ export function getRelatedShows(
     extended: ART,
     limit,
   });
-}
-
-export function getUserStats(client: TraktClient): Promise<TraktResult<UserStats>> {
-  return readOne(client, "/users/me/stats", userStatsSchema);
 }
 
 export function getUserSettings(client: TraktClient): Promise<TraktResult<UserSettings>> {

@@ -17,7 +17,6 @@ import {
   getTrendingMovies,
   getTrendingShows,
   getUserSettings,
-  getUserStats,
   getWatchedMovies,
   getWatchedShows,
   getWatchlist,
@@ -263,23 +262,6 @@ describe("Trakt read endpoints zod-parse well-formed fixtures", () => {
     ]);
     const result = await getHidden(client);
     expect(result.ok && result.data[0]?.show?.ids.trakt).toBe(1);
-  });
-
-  it("parses user stats, stripping the sections Profile ignores", async () => {
-    getJson("/users/me/stats", {
-      movies: { plays: 200, watched: 114, minutes: 15_650, collected: 933 },
-      shows: { watched: 40, collected: 46 },
-      seasons: { ratings: 2 },
-      episodes: { plays: 552, watched: 534, minutes: 17_330 },
-      network: { friends: 1 },
-    });
-    const result = await getUserStats(client);
-    expect(result.ok && result.data.episodes?.watched).toBe(534);
-    expect(result.ok && result.data.episodes?.minutes).toBe(17_330);
-    expect(result.ok && result.data.movies?.watched).toBe(114);
-    expect(result.ok && result.data.shows?.watched).toBe(40);
-    // Stripped extras must not survive the parse.
-    expect(result.ok && "network" in result.data).toBe(false);
   });
 
   it("parses user settings, stripping everything but the identity block", async () => {

@@ -52,18 +52,16 @@ describe("showProgressKeys: the keys a local mark on show X must refresh", () =>
 });
 
 describe("invalidationKeys maps last_activities targets to cached query keys", () => {
-  it("routes an episode watch to the library + user stats + the Diary", () => {
+  it("routes an episode watch to the library + the Diary", () => {
     expect(invalidationKeys(["watched/shows", "progress/watched"])).toEqual([
       queryKeys.library(),
-      queryKeys.userStats(),
       queryKeys.historyPrefix(),
     ]);
   });
 
-  it("routes a movie watch to the movie library + user stats + the Diary", () => {
+  it("routes a movie watch to the movie library + the Diary", () => {
     expect(invalidationKeys(["watched/movies", "movie-progress"])).toEqual([
       queryKeys.movieLibrary(),
-      queryKeys.userStats(),
       queryKeys.historyPrefix(),
     ]);
   });
@@ -111,9 +109,11 @@ describe("invalidationKeys maps last_activities targets to cached query keys", (
       "recompute:buckets",
     ]);
     const library = keys.filter((k) => JSON.stringify(k) === JSON.stringify(queryKeys.library()));
-    const stats = keys.filter((k) => JSON.stringify(k) === JSON.stringify(queryKeys.userStats()));
+    const diary = keys.filter(
+      (k) => JSON.stringify(k) === JSON.stringify(queryKeys.historyPrefix()),
+    );
     expect(library).toHaveLength(1);
-    expect(stats).toHaveLength(1);
+    expect(diary).toHaveLength(1);
   });
 
   it("returns nothing for an empty diff", () => {

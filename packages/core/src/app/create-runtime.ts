@@ -29,14 +29,12 @@ import {
   getTrendingMovies,
   getTrendingShows,
   getUserSettings,
-  getUserStats,
   getWatchedMovies,
   getWatchlist,
   searchTrakt,
 } from "../data/trakt/pooled-endpoints";
 import { loadUpNextEntries } from "../data/trakt/read-budget";
 import { createLastActivitiesRepository } from "../data/trakt/repositories";
-import type { UserStats } from "../data/trakt/schemas";
 import {
   assembleMovieHits,
   assembleSearchHits,
@@ -371,10 +369,6 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
         ),
         popularMovies: assembleMovieHits(unwrapRead(popularMovies, "popular movies")),
       };
-    },
-
-    async loadStats(): Promise<UserStats> {
-      return unwrapRead(await getUserStats(client), "user stats");
     },
 
     async loadUserProfile(): Promise<UserProfile> {

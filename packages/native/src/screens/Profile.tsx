@@ -1,9 +1,9 @@
-import type { TraktFailure } from "@cue/core/data/trakt/client";
-import type { UserStats } from "@cue/core/data/trakt/schemas";
+import { type WatchTotals, watchTotals } from "@cue/core/data/trakt/watch-totals";
 import { humanizeWatchMinutes } from "@cue/core/domain/time";
 import { usePrefs } from "@cue/core/prefs/prefs-store";
-import { queryStatus } from "@cue/core/queries/freshness";
-import { userProfileQuery, userStatsQuery } from "@cue/core/queries/user";
+import { combineStatus } from "@cue/core/queries/freshness";
+import { libraryQuery, movieLibraryQuery } from "@cue/core/queries/library";
+import { userProfileQuery } from "@cue/core/queries/user";
 import { useRuntime } from "@cue/core/runtime/runtime";
 import { readFailureBody } from "@cue/core/sync-contract";
 import { useQuery } from "@tanstack/react-query";
@@ -49,32 +49,17 @@ function Identity(): ReactElement {
   );
 }
 
-function Stats({ stats }: { readonly stats: UserStats }): ReactElement {
+function Stats({ totals }: { readonly totals: WatchTotals }): ReactElement {
   const shows = usePrefs((state) => state.showsEnabled);
   const movies = usePrefs((state) => state.moviesEnabled);
   const colors = useColors();
   const { fontScale } = useWindowDimensions();
   const router = useRouter();
-  const parts = [
-    shows ? stats.episodes?.minutes : undefined,
-    movies ? stats.movies?.minutes : undefined,
-  ];
-  const known = parts.filter((part) => part !== undefined);
   const counts = [
-    {
-      label: "Episodes",
-      count: stats.episodes?.watched,
-      enabled: shows,
-      id: TEST_IDS.profileEpisodeCount,
-    },
-    {
-      label: "Movies",
-      count: stats.movies?.watched,
-      enabled: movies,
-      id: TEST_IDS.profileStatMovies,
-    },
-    { label: "Shows", count: stats.shows?.watched, enabled: shows, id: TEST_IDS.profileStatShows },
-  ].filter((tile) => tile.enabled && tile.count !== undefined);
+    { label: "Episodes", count: totals.episodes, enabled: shows, id: TEST_IDS.profileEpisodeCount },
+    { label: "Movies", count: totals.movies, enabled: movies, id: TEST_IDS.profileStatMovies },
+    { label: "Shows", count: totals.shows, enabled: shows, id: TEST_IDS.profileStatShows },
+  ].filter((tile) => tile.enabled);
   const card = [styles.card, { backgroundColor: colors.surface, borderColor: colors.border }];
   if (counts.every((tile) => tile.count === 0))
     return (
@@ -88,9 +73,7 @@ function Stats({ stats }: { readonly stats: UserStats }): ReactElement {
     );
   return (
     <View style={styles.stats}>
-      {known.length > 0 ? (
-        <WatchTime minutes={known.reduce((total, part) => total + part, 0)} style={card} />
-      ) : null}
+      {totals.minutes === null ? null : <WatchTime minutes={totals.minutes} style={card} />}
       <View style={styles.tiles}>
         {counts.map((tile) => (
           <View
@@ -140,28 +123,44 @@ function WatchTime({
   );
 }
 
-function statsFailureBody(failure: TraktFailure | null): string {
-  return failure?.kind === "no-content"
-    ? "Trakt now shares stats only with VIP accounts."
-    : readFailureBody(failure);
+function useWatchTotals() {
+  const runtime = useRuntime();
+  const showsEnabled = usePrefs((state) => state.showsEnabled);
+  const moviesEnabled = usePrefs((state) => state.moviesEnabled);
+  const shows = useQuery({ ...libraryQuery(runtime), enabled: showsEnabled });
+  const movies = useQuery({ ...movieLibraryQuery(runtime), enabled: moviesEnabled });
+  const needed = [...(showsEnabled ? [shows] : []), ...(moviesEnabled ? [movies] : [])];
+  const ready = needed.every((query) => query.data !== undefined);
+  return {
+    totals: ready
+      ? watchTotals(
+          (showsEnabled && shows.data?.entries) || [],
+          (moviesEnabled && movies.data?.entries) || [],
+        )
+      : null,
+    status: combineStatus(needed, ready),
+    retry: () => {
+      for (const query of needed) if (query.isError) void query.refetch();
+    },
+  };
 }
 
 export default function Profile(): ReactElement {
-  const stats = useQuery(userStatsQuery(useRuntime()));
+  const { totals, status, retry } = useWatchTotals();
   const router = useRouter();
   return (
     <AccountScreen testID={TEST_IDS.screenProfile}>
       <Identity />
-      {stats.data ? (
-        <Stats stats={stats.data} />
-      ) : stats.isError ? (
+      {totals ? (
+        <Stats totals={totals} />
+      ) : status.isError ? (
         <EmptyState
           centered
           testID={TEST_IDS.profileError}
-          headline="Couldn't load your stats"
-          body={statsFailureBody(queryStatus(stats, false).failure)}
+          headline="Couldn't load your library"
+          body={readFailureBody(status.failure)}
         >
-          <Button label="Try again" onPress={() => void stats.refetch()} />
+          <Button label="Try again" onPress={retry} />
         </EmptyState>
       ) : (
         <View

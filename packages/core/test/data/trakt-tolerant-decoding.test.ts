@@ -1,6 +1,6 @@
 import { type ReadProblem, TRAKT_API_BASE, TraktClient } from "@cue/core/data/trakt/client";
 import { incidentReport, parseIncidents, recordIncident } from "@cue/core/data/trakt/diagnostics";
-import { getUserStats, getWatchedShows } from "@cue/core/data/trakt/endpoints";
+import { getUserSettings, getWatchedMovies, getWatchedShows } from "@cue/core/data/trakt/endpoints";
 import { INCIDENTS_KEY } from "@cue/core/ports/storage-keys";
 import { useReadIncidents } from "@cue/core/stores/read-incidents-store";
 import { HttpResponse, http } from "msw";
@@ -10,32 +10,28 @@ import { buildRuntime, memoryKv } from "./_runtime";
 
 const server = mswServer();
 
-const STATS_PATH = `${TRAKT_API_BASE}/users/me/stats`;
+const MOVIES_PATH = `${TRAKT_API_BASE}/sync/watched/movies`;
+const SETTINGS_PATH = `${TRAKT_API_BASE}/users/settings`;
+const PAGE = { "X-Pagination-Page": "1", "X-Pagination-Page-Count": "1" };
 
-const documentedStats = {
-  movies: { plays: 155, watched: 114, minutes: 15650, collected: 933, ratings: 256, comments: 28 },
-  shows: { watched: 16, collected: 7, ratings: 63, comments: 20 },
-  seasons: { ratings: 6, comments: 1 },
-  episodes: { plays: 552, watched: 534, minutes: 17330, collected: 117, ratings: 64, comments: 14 },
-  network: { friends: 1, followers: 4, following: 11 },
-  ratings: { total: 9, distribution: { "1": 0, "5": 4, "10": 2 } },
-};
+const watchedMovie = (trakt: number, movie: Record<string, unknown> = {}) => ({
+  plays: 1,
+  last_watched_at: "2026-07-01T00:00:00.000Z",
+  last_updated_at: "2026-07-01T00:00:00.000Z",
+  movie: { title: `Movie ${trakt}`, year: 2020, ids: { trakt, slug: `movie-${trakt}` }, ...movie },
+});
 
-const largeAccountStats = {
-  movies: { plays: 4662, watched: 3143, minutes: 467614, collected: 6, ratings: 2892, comments: 0 },
-  shows: { watched: 552, collected: 86, ratings: 525, comments: 0 },
-  seasons: { ratings: 108, comments: 0 },
-  episodes: { plays: 35908, watched: 26825, minutes: 1185294, collected: 1346, ratings: 18465 },
-  network: { friends: 42, followers: 142, following: 48 },
-  ratings: { total: 21990, distribution: { "7": 10628, "8": 7334 } },
-};
+const documentedMovies = [watchedMovie(1, { runtime: 104, overview: "x", genres: ["drama"] })];
 
-const driftedStats = {
-  movies: { watched: 3143 },
-  shows: { watched: null },
-  episodes: { watched: "26825", minutes: 1185294 },
-  vip_stats: { year: 2026 },
-};
+const largeAccountMovies = Array.from({ length: 250 }, (_, index) =>
+  watchedMovie(index + 1, { runtime: 90 + (index % 60) }),
+);
+
+const driftedMovies = [
+  watchedMovie(1, { runtime: "118", tagline: "new key" }),
+  watchedMovie(2, { year: null }),
+  watchedMovie(3, { runtime: "about two hours" }),
+];
 
 function recordingClient(): { client: TraktClient; problems: [string, ReadProblem][] } {
   const problems: [string, ReadProblem][] = [];
@@ -46,74 +42,67 @@ function recordingClient(): { client: TraktClient; problems: [string, ReadProble
   return { client, problems };
 }
 
-function serveStats(body: Parameters<typeof HttpResponse.json>[0]): void {
-  server.use(http.get(STATS_PATH, () => HttpResponse.json(body)));
+function serveMovies(body: Parameters<typeof HttpResponse.json>[0]): void {
+  server.use(http.get(MOVIES_PATH, () => HttpResponse.json(body, { headers: PAGE })));
 }
 
-describe("user stats decode tolerantly", () => {
+const runtimes = (result: Awaited<ReturnType<typeof getWatchedMovies>>) =>
+  result.ok ? result.data.map((row) => [row.movie.ids.trakt, row.movie.runtime]) : null;
+
+describe("watched movies, the source of Profile's movie totals, decode tolerantly", () => {
   it("reads the documented shape without recording anything", async () => {
-    serveStats(documentedStats);
+    serveMovies(documentedMovies);
     const { client, problems } = recordingClient();
-    expect(await getUserStats(client)).toEqual({
-      ok: true,
-      data: {
-        movies: { watched: 114, minutes: 15650 },
-        episodes: { watched: 534, minutes: 17330 },
-        shows: { watched: 16 },
-      },
-      pagination: null,
-    });
+    expect(runtimes(await getWatchedMovies(client))).toEqual([[1, 104]]);
     expect(problems).toEqual([]);
   });
 
-  it("reads a large account's counts and minutes intact", async () => {
-    serveStats(largeAccountStats);
+  it("reads a large account's full page intact", async () => {
+    serveMovies(largeAccountMovies);
     const { client, problems } = recordingClient();
-    const result = await getUserStats(client);
-    expect(result.ok && result.data).toEqual({
-      movies: { watched: 3143, minutes: 467614 },
-      episodes: { watched: 26825, minutes: 1185294 },
-      shows: { watched: 552 },
-    });
+    const result = await getWatchedMovies(client);
+    expect(result.ok && result.data).toHaveLength(250);
+    expect(runtimes(result)?.[249]).toEqual([250, 99]);
     expect(problems).toEqual([]);
   });
 
   it("keeps what it can read from a drifted shape and records the field it skipped", async () => {
-    serveStats(driftedStats);
+    serveMovies(driftedMovies);
     const { client, problems } = recordingClient();
-    const result = await getUserStats(client);
-    expect(result.ok && result.data).toEqual({
-      movies: { watched: 3143 },
-      episodes: { watched: 26825, minutes: 1185294 },
-      shows: { watched: undefined },
-    });
+    const result = await getWatchedMovies(client);
+    expect(runtimes(result)).toEqual([
+      [1, 118],
+      [2, undefined],
+      [3, undefined],
+    ]);
+    expect(result.ok && result.data[1]?.movie.year).toBeNull();
     expect(problems).toEqual([
       [
-        "/users/me/stats",
+        "/sync/watched/movies",
         {
           kind: "skipped-fields",
-          issues: [{ path: "shows.watched", message: expect.stringContaining("number") }],
+          issues: [{ path: "2.movie.runtime", message: expect.stringContaining("number") }],
         },
       ],
     ]);
   });
 
-  it("names Trakt's empty 204 reply instead of a shape failure", async () => {
-    server.use(http.get(STATS_PATH, () => new HttpResponse(null, { status: 204 })));
+  it("names an empty 204 reply instead of a shape failure", async () => {
+    server.use(http.get(SETTINGS_PATH, () => new HttpResponse(null, { status: 204 })));
     const { client, problems } = recordingClient();
-    expect(await getUserStats(client)).toEqual({ ok: false, error: { kind: "no-content" } });
-    expect(problems).toEqual([["/users/me/stats", { kind: "no-content" }]]);
+    expect(await getUserSettings(client)).toEqual({ ok: false, error: { kind: "no-content" } });
+    expect(problems).toEqual([["/users/settings", { kind: "no-content" }]]);
   });
 
   it("fails clearly and records the path when an essential field is gone", async () => {
-    serveStats(["not", "an", "object"]);
+    server.use(http.get(SETTINGS_PATH, () => HttpResponse.json(["not", "an", "object"])));
     const { client, problems } = recordingClient();
-    const result = await getUserStats(client);
+    const result = await getUserSettings(client);
     expect(result).toMatchObject({
       ok: false,
       error: { kind: "unexpected-shape", issues: [{ path: "(root)" }] },
     });
-    expect(problems).toEqual([["/users/me/stats", !result.ok && result.error]]);
+    expect(problems).toEqual([["/users/settings", !result.ok && result.error]]);
   });
 });
 
@@ -155,11 +144,11 @@ describe("list decoders drop a malformed row instead of the whole list", () => {
 
 describe("read incidents", () => {
   it("keeps the latest problem per endpoint, newest first", () => {
-    const first = recordIncident([], "/users/me/stats", { kind: "timeout" }, 1);
+    const first = recordIncident([], "/users/settings", { kind: "timeout" }, 1);
     const second = recordIncident(first, "/sync/watched/shows", { kind: "network" }, 2);
-    const third = recordIncident(second, "/users/me/stats", { kind: "server", status: 503 }, 3);
+    const third = recordIncident(second, "/users/settings", { kind: "server", status: 503 }, 3);
     expect(third).toEqual([
-      { endpoint: "/users/me/stats", kind: "server", detail: "HTTP 503", at: 3 },
+      { endpoint: "/users/settings", kind: "server", detail: "HTTP 503", at: 3 },
       { endpoint: "/sync/watched/shows", kind: "network", detail: "", at: 2 },
     ]);
   });
@@ -167,32 +156,34 @@ describe("read incidents", () => {
   it("writes a plain-text report of endpoint, kind and detail only", () => {
     const incidents = recordIncident(
       [],
-      "/users/me/stats",
+      "/users/settings",
       { kind: "unexpected-shape", issues: [{ path: "episodes.minutes", message: "bad" }] },
       Date.UTC(2026, 9, 3, 22, 14),
     );
     expect(incidentReport(incidents, "1.4.0 (2101)")).toBe(
       [
         "Cue 1.4.0 (2101) Trakt diagnostics",
-        "2026-10-03T22:14:00.000Z  /users/me/stats  unexpected-shape  episodes.minutes: bad",
+        "2026-10-03T22:14:00.000Z  /users/settings  unexpected-shape  episodes.minutes: bad",
       ].join("\n"),
     );
   });
 
   it("reads back only well-formed persisted incidents", () => {
-    const stored = [{ endpoint: "/users/me/stats", kind: "no-content", detail: "", at: 5 }];
+    const stored = [{ endpoint: "/users/settings", kind: "no-content", detail: "", at: 5 }];
     expect(parseIncidents(stored)).toEqual(stored);
     expect(parseIncidents([{ ...stored[0], kind: "made-up" }])).toEqual([]);
   });
 
   it("records a failed read in memory and in the persisted store, and hydrates it", async () => {
-    server.use(http.get(STATS_PATH, () => new HttpResponse(null, { status: 204 })));
+    server.use(http.get(SETTINGS_PATH, () => new HttpResponse(null, { status: 204 })));
     const kv = memoryKv();
     const runtime = await buildRuntime({ kv });
-    await expect(runtime.loadStats()).rejects.toMatchObject({ failure: { kind: "no-content" } });
+    await expect(runtime.loadUserProfile()).rejects.toMatchObject({
+      failure: { kind: "no-content" },
+    });
 
     const recorded = useReadIncidents.getState().incidents;
-    expect(recorded).toMatchObject([{ endpoint: "/users/me/stats", kind: "no-content" }]);
+    expect(recorded).toMatchObject([{ endpoint: "/users/settings", kind: "no-content" }]);
     expect(parseIncidents(JSON.parse(kv.values.get(INCIDENTS_KEY) ?? "null"))).toEqual(recorded);
 
     useReadIncidents.setState({ incidents: [] });

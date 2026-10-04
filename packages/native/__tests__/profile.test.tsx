@@ -6,9 +6,10 @@ import Profile from "../src/screens/Profile";
 import { BarItems } from "../src/ui/BarItems";
 import { TEST_IDS } from "../src/ui/test-ids";
 import { SPACE } from "../src/ui/tokens";
-import { accountFixture, STATS } from "./support/account";
+import { accountFixture, LIBRARY, movie } from "./support/account";
 import { atFontScale } from "./support/font-scale";
 import { router } from "./support/native-ui";
+import { entry } from "./support/up-next";
 
 jest.mock("react-native/Libraries/Utilities/useWindowDimensions");
 
@@ -82,7 +83,7 @@ it.each([
 
 it("keeps identity and navigation usable while stats load", async () => {
   await accountFixture({
-    loadStats: () => new Promise(() => {}),
+    loadUpNext: () => new Promise(() => {}),
     loadUserProfile: () => new Promise(() => {}),
   }).paint(<Profile />);
   expect(screen.getByLabelText("Loading stats")).toBeVisible();
@@ -90,13 +91,16 @@ it("keeps identity and navigation usable while stats load", async () => {
   expect(screen.getByRole("button", { name: "Settings" })).toBeVisible();
 });
 
-it("recovers stats independently of a failed profile request", async () => {
-  const loadStats = jest.fn().mockRejectedValueOnce(new Error("offline")).mockResolvedValue(STATS);
+it("recovers stats with the library, independently of a failed profile request", async () => {
+  const loadUpNext = jest
+    .fn()
+    .mockRejectedValueOnce(new Error("offline"))
+    .mockResolvedValue({ entries: LIBRARY });
   await accountFixture({
-    loadStats,
+    loadUpNext,
     loadUserProfile: () => Promise.reject(new Error("offline")),
   }).paint(<Profile />);
-  expect(await screen.findByText("Couldn't load your stats")).toBeVisible();
+  expect(await screen.findByText("Couldn't load your library")).toBeVisible();
   expect(screen.getByText("Connected")).toBeVisible();
   await userEvent.press(screen.getByRole("button", { name: "Try again" }));
   expect(await screen.findByLabelText("7 shows watched")).toBeVisible();
@@ -104,8 +108,7 @@ it("recovers stats independently of a failed profile request", async () => {
 
 it("offers discovery when the enabled media has no watch history", async () => {
   const fixture = accountFixture({
-    loadStats: () =>
-      Promise.resolve({ ...STATS, episodes: { watched: 0, minutes: 0 }, shows: { watched: 0 } }),
+    loadUpNext: () => Promise.resolve({ entries: [entry({ completed: 0, inWatchlist: true })] }),
   });
   fixture.prefs.getState().setMoviesEnabled(false);
   await fixture.paint(<Profile />);
@@ -114,32 +117,41 @@ it("offers discovery when the enabled media has no watch history", async () => {
   expect(router.dismissTo).toHaveBeenCalledWith("/search");
 });
 
-it("draws the stats Trakt sent and leaves out the ones it skipped", async () => {
+it("sums the runtimes it knows into watch time and leaves out the ones it doesn't", async () => {
   await accountFixture({
-    loadStats: () =>
+    loadUpNext: () =>
       Promise.resolve({
-        episodes: { watched: 81, minutes: 4698 },
-        movies: { watched: 2 },
-        shows: {},
+        entries: [
+          entry({ showId: 1, completed: 60, runtime: 60 }),
+          entry({ showId: 2, completed: 9 }),
+        ],
       }),
+    loadMovieLibrary: () => Promise.resolve({ entries: [movie({ runtime: null })] }),
   }).paint(<Profile />);
-  expect(await screen.findByLabelText("81 episodes watched")).toBeVisible();
-  expect(screen.getByLabelText("2 movies watched")).toBeVisible();
-  expect(screen.queryByTestId(TEST_IDS.profileStatShows)).toBeNull();
-  expect(screen.getByText("6 hr 18 min")).toBeVisible();
+  expect(await screen.findByLabelText("69 episodes watched")).toBeVisible();
+  expect(screen.getByLabelText("1 movies watched")).toBeVisible();
+  expect(screen.getByText("12 hr 0 min")).toBeVisible();
+});
+
+it("drops the watch time card when no watched item carries a runtime", async () => {
+  await accountFixture({
+    loadUpNext: () => Promise.resolve({ entries: [entry({ completed: 9 })] }),
+    loadMovieLibrary: () => Promise.resolve({ entries: [movie({ runtime: null })] }),
+  }).paint(<Profile />);
+  expect(await screen.findByLabelText("9 episodes watched")).toBeVisible();
+  expect(screen.queryByTestId(TEST_IDS.profileWatchTime)).toBeNull();
 });
 
 it.each<[TraktFailure, string]>([
-  [{ kind: "no-content" }, "Trakt now shares stats only with VIP accounts."],
   [
     { kind: "unexpected-shape", issues: [{ path: "(root)", message: "expected object" }] },
     "Trakt sent data in a shape this version doesn't read.",
   ],
   [{ kind: "timeout" }, "Trakt didn't answer in time."],
-])("names the failure kind under the stats error (%o)", async (failure, body) => {
+])("names the library's failure kind under the stats error (%o)", async (failure, body) => {
   await accountFixture({
-    loadStats: () => Promise.reject(new TraktReadError(failure, "user stats")),
+    loadMovieLibrary: () => Promise.reject(new TraktReadError(failure, "watched movies")),
   }).paint(<Profile />);
-  expect(await screen.findByText("Couldn't load your stats")).toBeVisible();
+  expect(await screen.findByText("Couldn't load your library")).toBeVisible();
   expect(screen.getByText(body)).toBeVisible();
 });

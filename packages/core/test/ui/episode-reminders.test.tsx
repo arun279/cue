@@ -51,6 +51,7 @@ const watching = (): LibraryEntry => ({
   lastAired: { season: 2, number: 4 },
   pendingAdvance: false,
   tmdbId: null,
+  runtime: null,
 });
 
 const remindersPort = (): Reminders => ({

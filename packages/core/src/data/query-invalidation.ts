@@ -8,10 +8,10 @@ function keysForTarget(target: InvalidationTarget): readonly InvalidationKey[] {
   switch (target) {
     case "watched/shows":
     case "progress/watched":
-      return [queryKeys.library(), queryKeys.userStats(), queryKeys.historyPrefix()];
+      return [queryKeys.library(), queryKeys.historyPrefix()];
     case "watched/movies":
     case "movie-progress":
-      return [queryKeys.movieLibrary(), queryKeys.userStats(), queryKeys.historyPrefix()];
+      return [queryKeys.movieLibrary(), queryKeys.historyPrefix()];
     case "watchlist/shows":
       return [queryKeys.library(), queryKeys.watchlist("shows")];
     case "watchlist/movies":

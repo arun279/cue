@@ -22,7 +22,11 @@ async function setup(outcome: SubmitOutcome, hidden = false) {
   const runtime = await buildRuntime();
   const submit = vi.spyOn(runtime, "submit").mockResolvedValue(outcome);
   const client = new QueryClient();
-  const entry: LibraryEntry = { ...makeShow({ completed: 0, hidden }), tmdbId: null };
+  const entry: LibraryEntry = {
+    ...makeShow({ completed: 0, hidden }),
+    tmdbId: null,
+    runtime: null,
+  };
   client.setQueryData<UpNextData>(queryKeys.library(), { entries: [entry] });
   const slot: ReturnType<typeof useMoveToWatchlist>[] = [];
   await mountAsync(

@@ -25,7 +25,6 @@ export const getTrendingMovies = pool(raw.getTrendingMovies);
 export const getPopularMovies = pool(raw.getPopularMovies);
 export const getRelatedMovies = pool(raw.getRelatedMovies);
 export const getRelatedShows = pool(raw.getRelatedShows);
-export const getUserStats = pool(raw.getUserStats);
 export const getUserSettings = pool(raw.getUserSettings);
 export const getHistory = pool(raw.getHistory);
 export const getLastActivities = pool(raw.getLastActivities);
