@@ -1,0 +1,56 @@
+appId: app.cuetracker
+---
+- runScript: lib/reset-fake.js
+- assertTrue: ${output.fakeReset}
+- runFlow: lib/connect.yaml
+- tapOn:
+    id: "queue-row-8803"
+- assertVisible:
+    id: "screen-show-detail"
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: show-detail-rest
+- assertVisible:
+    id: "episode-row-8803-2-1-checked"
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: show-detail-loaded
+- tapOn:
+    id: "season-check-2"
+- assertVisible: "2 of 4 episodes are unwatched."
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - assertVisible:
+          id: "confirm-sheet"
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: show-detail-season-confirm
+- tapOn:
+    text: "Mark 2 remaining"
+    waitToSettleTimeoutMs: 100
+- assertVisible:
+    id: "snackbar"
+- runFlow: lib/settle.yaml
+- assertVisible:
+    id: "episode-row-8803-2-3-checked"
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: show-detail-season-marked
+- tapOn:
+    id: "snackbar-undo"
+- runFlow: lib/settle.yaml
+- assertVisible:
+    id: "episode-row-8803-2-3-check"
+- assertVisible:
+    id: "episode-row-8803-2-1-checked"
+- scrollUntilVisible:
+    element:
+      text: "More like this"
+    direction: DOWN
+    centerElement: true
+- assertVisible:
+    id: "show-card-8801"
+- assertNotVisible:
+    id: "show-card-8808"

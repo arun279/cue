@@ -1,0 +1,17 @@
+appId: app.cuetracker
+---
+- evalScript: "${output.appIdleSamples = []}"
+- repeat:
+    times: 5
+    commands:
+      - launchApp
+      - assertVisible:
+          id: "app-idle"
+      - copyTextFrom:
+          id: "app-idle-timing"
+      - evalScript: "${output.appIdleSamples.push(parseFloat(maestro.copiedText.replace('Returning-user app idle: ', '')))}"
+- evalScript: "${output.appIdleMedian = [...output.appIdleSamples].sort((a, b) => a - b)[2]}"
+- evalScript: "${console.log('CUE_APP_IDLE_SAMPLES=' + output.appIdleSamples.join(','))}"
+- assertTrue:
+    condition: ${output.appIdleMedian <= parseFloat(APP_IDLE_CEILING_MS)}
+    label: "${'Five-launch returning-user app-idle median ' + output.appIdleMedian + ' ms is at or below ' + APP_IDLE_CEILING_MS + ' ms'}"

@@ -1,0 +1,33 @@
+appId: app.cuetracker
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: "screen-up-next"
+    timeout: 30000
+- tapOn: "Library"
+- extendedWaitUntil:
+    visible:
+      id: "screen-library"
+    timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: library-${SIZE}
+- tapOn:
+    id: "avatar-link"
+- scrollUntilVisible:
+    element:
+      id: "profile-stat-shows"
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: profile-${SIZE}
+- tapOn:
+    id: "close-account"
+- tapOn: "Search"
+- extendedWaitUntil:
+    visible:
+      id: "screen-search"
+    timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: search-${SIZE}

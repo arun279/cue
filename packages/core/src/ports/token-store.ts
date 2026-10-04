@@ -1,0 +1,10 @@
+import { type Token, tokenSchema } from "../domain/model/token";
+import { createJsonStore, type JsonStore } from "./json-store";
+import type { KeyValueStore } from "./kv";
+import { TOKEN_KEY } from "./storage-keys";
+
+export type TokenStore = JsonStore<Token>;
+
+export function createTokenStore(kv: KeyValueStore): TokenStore {
+  return createJsonStore<Token>(kv, TOKEN_KEY, (value) => tokenSchema.parse(value));
+}

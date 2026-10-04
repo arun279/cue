@@ -1,0 +1,73 @@
+name: Publish update
+
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: Update channel
+        type: choice
+        options: [preview, production]
+        default: preview
+      message:
+        description: Update message
+        type: string
+        required: true
+
+concurrency:
+  group: publish-update-${{ inputs.channel }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    permissions:
+      actions: read
+      checks: read
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Require green CI for the published commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          REQUIRED: '["check","render-performance","audit","actionlint","standardrb","native-android","native-ios","codeql (javascript-typescript)","codeql (actions)"]'
+          APP_ID: "15368"
+          DEADLINE_MINUTES: "45"
+          POLL_SECONDS: "20"
+        run: scripts/require-green-ci.sh
+
+  publish:
+    needs: gate
+    runs-on: ubuntu-latest
+    env:
+      EXPO_NO_TELEMETRY: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-node-pnpm
+      - uses: expo/expo-github-action@c7b66a9c327a43a8fa7c0158e7f30d6040d2481e # v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Verify Expo project access
+        working-directory: packages/native
+        run: |
+          account=$(eas whoami | sed -n '1p')
+          if ! eas project:info >/dev/null 2>&1; then
+            echo "::error::Expo account $account cannot access @arunkris/cue. Create the robot under arunkris or transfer the project to the robot's account."
+            exit 1
+          fi
+      - name: Publish JavaScript update
+        working-directory: packages/native
+        env:
+          CHANNEL: ${{ inputs.channel }}
+          EAS_UPDATE_CHANNEL: ${{ inputs.channel }}
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ${{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}
+          MESSAGE: ${{ inputs.message }}
+        run: |
+          [ -n "$EXPO_PUBLIC_TRAKT_CLIENT_ID" ] || { echo "EXPO_PUBLIC_TRAKT_CLIENT_ID is not set"; exit 1; }
+          eas update --channel "$CHANNEL" --message "$MESSAGE" --non-interactive --environment "$CHANNEL"

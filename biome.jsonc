@@ -20,7 +20,6 @@
       "!**/dist",
       "!**/dev-dist",
       "!**/coverage",
-      "!**/playwright-report",
       "!**/test-results",
       "!ios",
       "!android"
@@ -39,6 +38,45 @@
       "trailingCommas": "all"
     }
   },
+  "overrides": [
+    {
+      // The core compiles with lib ES2023 and no "dom", which rejects window,
+      // document and indexedDB outright. Two families survive that: the Node
+      // globals @types/node has to declare for fetch, Response and the timers
+      // the core does use, and the storage globals Node 22 added. Neither
+      // exists on a React Native engine, and neither is an import, so no
+      // dependency rule can see them.
+      "includes": ["packages/core/src/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedGlobals": {
+              "level": "error",
+              "options": {
+                "deniedGlobals": {
+                  "process": "Not on a React Native engine. Take the value as an injected dependency.",
+                  "Buffer": "Not on a React Native engine. Use Uint8Array or TextEncoder.",
+                  "__dirname": "Not on a React Native engine.",
+                  "__filename": "Not on a React Native engine.",
+                  "require": "The core is ESM only.",
+                  "localStorage": "Not on a React Native engine. Take a storage port instead.",
+                  "sessionStorage": "Not on a React Native engine. Take a storage port instead.",
+                  "navigator": "Not on a React Native engine. Take a Network or AppVisibility port instead.",
+                  "crypto": "Not on every React Native engine. Take the injected crypto port instead.",
+                  "btoa": "Not on every React Native engine. Encode bytes without browser globals.",
+                  "atob": "Not on every React Native engine. Decode bytes without browser globals.",
+                  "URLSearchParams": "Not on every React Native engine. Encode query values without browser globals.",
+                  "TextDecoder": "Not spec-compliant on native. Decode bytes through a portable implementation.",
+                  "TextDecoderStream": "Not spec-compliant on native. Decode bytes through a portable implementation.",
+                  "TextEncoderStream": "Not available on every native engine. Encode bytes with TextEncoder."
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
   "linter": {
     "enabled": true,
     "domains": {
@@ -50,6 +88,10 @@
         "noConsole": { "level": "error", "options": { "allow": ["error", "warn"] } }
       },
       "complexity": {
+        "noExcessiveCognitiveComplexity": {
+          "level": "error",
+          "options": { "maxAllowedComplexity": 15 }
+        },
         // tsconfig `noPropertyAccessFromIndexSignature` forces bracket access on
         // index-signature types like `import.meta.env` / `process.env`; leaving
         // `useLiteralKeys` on would rewrite `env["X"]` back to `env.X`, which TS rejects.

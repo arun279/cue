@@ -1,0 +1,23 @@
+# The four-week agenda, and the rule the screen is built on.
+#
+# The fixture has nothing airing today, so the pinned band this asserts is the
+# first day that does; the day the reader is standing in is proved in the jest
+# suite, which owns the clock. What only a device can prove is here: a real
+# SectionList under a real nav bar, a row that is one target and carries no mark
+# control beside it, and the show it opens.
+appId: app.cuetracker
+---
+- runFlow: lib/connect.yaml
+- tapOn: "Calendar"
+- assertVisible:
+    id: "screen-calendar"
+- assertVisible:
+    id: "calendar-day-header"
+- assertVisible:
+    id: "calendar-row-880609"
+- assertNotVisible: "Mark .* watched"
+- tapOn:
+    id: "calendar-row-880609"
+- assertVisible:
+    id: "screen-show-detail"
+- runFlow: lib/settle.yaml

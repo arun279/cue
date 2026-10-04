@@ -1,0 +1,34 @@
+# The two swipes, and the short one that commits nothing.
+#
+# The short case is the one a native gesture implementation is most likely to
+# break, and it is the only assertion here coupled to screen geometry: Maestro
+# cannot combine a direction with explicit coordinates, so a partial drag has to
+# name them.
+appId: app.cuetracker
+---
+- runFlow: lib/connect.yaml
+- swipe:
+    from:
+      id: "queue-row-[0-9]+"
+      index: 0
+    direction: RIGHT
+- assertVisible:
+    id: "snackbar"
+- tapOn:
+    id: "snackbar-undo"
+- runFlow: lib/settle.yaml
+- swipe:
+    start: "10%, 46%"
+    end: "22%, 46%"
+- assertNotVisible:
+    id: "snackbar"
+- swipe:
+    from:
+      id: "queue-row-[0-9]+"
+      index: 0
+    direction: LEFT
+- assertVisible:
+    id: "snackbar"
+- tapOn:
+    id: "snackbar-undo"
+- runFlow: lib/settle.yaml

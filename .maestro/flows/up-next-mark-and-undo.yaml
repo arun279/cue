@@ -1,0 +1,37 @@
+appId: app.cuetracker
+---
+- runFlow: lib/connect.yaml
+- assertVisible:
+    id: "up-next-list"
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: up-next-queue-rest
+- repeat:
+    times: 5
+    commands:
+      - tapOn:
+          id: "queue-row-[0-9]+-mark"
+          index: 0
+      - assertVisible:
+          id: "snackbar-undo"
+      - tapOn:
+          id: "snackbar-undo"
+      - assertVisible:
+          id: "queue-row-[0-9]+-mark"
+          index: 0
+- copyTextFrom:
+    id: "response-timing"
+- evalScript: "${output.markResponseMs = parseFloat(maestro.copiedText.match(/mark ([0-9.]+) ms/)[1])}"
+- evalScript: "${output.undoResponseMs = parseFloat(maestro.copiedText.match(/undo ([0-9.]+) ms/)[1])}"
+- evalScript: "${console.log('CUE_RESPONSE_TIMING=mark ' + output.markResponseMs + ' ms, undo ' + output.undoResponseMs + ' ms')}"
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: up-next-mark-restored
+- tapOn:
+    id: "queue-row-[0-9]+-mark"
+    index: 0
+- assertVisible:
+    id: "snackbar-undo"
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: up-next-mark-snackbar

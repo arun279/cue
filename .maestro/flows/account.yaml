@@ -1,0 +1,157 @@
+appId: app.cuetracker
+---
+- runScript: lib/reset-fake.js
+- assertTrue: ${output.fakeReset}
+- runFlow: lib/connect.yaml
+- tapOn:
+    id: "avatar-link"
+- assertVisible:
+    id: "screen-profile"
+- assertVisible:
+    id: "profile-identity"
+- assertVisible: "Cue Demo"
+- assertVisible:
+    id: "profile-stat-shows"
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: account-profile
+- tapOn:
+    id: "profile-to-settings"
+- assertVisible:
+    id: "screen-settings"
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: settings-pushed
+# Dark for one pass over a tab root, then back to the system's own.
+- tapOn:
+    id: "theme-dark"
+- scrollUntilVisible:
+    element:
+      id: "switch-movies"
+- tapOn:
+    id: "switch-movies"
+- runFlow:
+    file: lib/back.yaml
+    env:
+      BACK_TITLE: "Profile"
+- tapOn:
+    id: "close-account"
+- assertVisible:
+    id: "screen-up-next"
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: up-next-dark
+- tapOn: "Library"
+- assertVisible:
+    id: "screen-library"
+- assertNotVisible:
+    id: "library-segment-movies"
+- tapOn:
+    id: "avatar-link"
+- tapOn:
+    id: "profile-to-settings"
+- tapOn:
+    id: "theme-system"
+- scrollUntilVisible:
+    element:
+      id: "switch-movies"
+- tapOn:
+    id: "switch-movies"
+- scrollUntilVisible:
+    element:
+      id: "settings-delete"
+- assertVisible: "Manage Trakt account"
+- assertVisible: "Delete your Trakt account"
+- scrollUntilVisible:
+    element:
+      id: "settings-attribution"
+- assertVisible:
+    text: "[0-9]+\\.[0-9]+\\.[0-9]+ \\([0-9]+\\)"
+- assertVisible:
+    id: "settings-powered-by"
+- assertVisible:
+    id: "settings-attribution"
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: account-settings-about
+- scrollUntilVisible:
+    element:
+      id: "sign-out"
+- tapOn:
+    id: "sign-out"
+- assertVisible: "Sign out of Cue?"
+- assertVisible: "Your Trakt history stays on Trakt."
+- tapOn: "Cancel"
+- assertVisible:
+    id: "screen-settings"
+- runFlow:
+    file: lib/back.yaml
+    env:
+      BACK_TITLE: "Profile"
+- tapOn:
+    id: "close-account"
+- assertVisible:
+    id: "library-segment-movies"
+- tapOn: "Up Next"
+- runScript: lib/drop-account-writes.js
+- assertTrue: ${output.writesDropped}
+- tapOn:
+    id: "queue-row-[0-9]+-mark"
+    index: 0
+- tapOn:
+    id: "avatar-link"
+- tapOn:
+    id: "profile-to-settings"
+# Centred, so the error that lands above the row cannot push it under the
+# navigation bar; and a tap that reaches the list before it has come to rest
+# only stops the scroll, so an unanswered tap is tried again.
+- scrollUntilVisible:
+    element:
+      id: "sign-out"
+    centerElement: true
+- tapOn:
+    id: "sign-out"
+    retryTapIfNoChange: true
+# The confirm is a platform alert. Its title and its button both carry the words
+# of the danger row behind it, which stays in the hierarchy under the alert, so
+# the confirm is named by the button it sits beside; and the alert has to be on
+# screen before the tap is aimed rather than racing the row.
+- extendedWaitUntil:
+    visible: "Sign out of Cue?"
+    timeout: 30000
+- tapOn:
+    text: "^Sign out$"
+    rightOf:
+      text: "^Cancel$"
+- extendedWaitUntil:
+    visible:
+      id: "sign-out-error"
+    timeout: 60000
+- assertVisible: "Some changes haven't synced yet. Reconnect to the internet, then try signing out again."
+- assertVisible:
+    id: "screen-settings"
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: account-sign-out-refused
+# Writes reach Trakt again and revoking the token does not. Revoke is
+# best-effort, so the sign-out still finishes and the app lands on onboarding.
+- runScript: lib/refuse-revoke.js
+- assertTrue: ${output.revokeRefused}
+- tapOn:
+    id: "sign-out"
+- extendedWaitUntil:
+    visible: "Sign out of Cue?"
+    timeout: 30000
+- tapOn:
+    text: "^Sign out$"
+    rightOf:
+      text: "^Cancel$"
+- extendedWaitUntil:
+    visible:
+      id: "screen-onboarding"
+    timeout: 60000
+- runScript: lib/clear-faults.js
+- assertTrue: ${output.faultsCleared}
+# Sign back in, because the flow ends on onboarding and the app-idle
+# measurement after it has to start from a returning user.
+- runFlow: lib/connect.yaml
