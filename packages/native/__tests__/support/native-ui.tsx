@@ -43,19 +43,22 @@ interface ToolbarButtonProps {
 }
 
 /** The header's native bar items as plain buttons, named the way the system
- * names them: by the accessibility label, or by the title when there is none. */
+ * names them: by the accessibility label, or by the title when there is none.
+ * The toolbar records each declaration, because every one the real router sees
+ * becomes a native header update. */
 export function toolbarModule() {
   const { createElement } = require("react") as typeof import("react");
   const { Pressable, Text } = require("react-native") as typeof import("react-native");
-  const Toolbar = ({ children }: { readonly children?: ReactNode }) => children;
-  Toolbar.Button = ({ accessibilityLabel, children, onPress }: ToolbarButtonProps) =>
-    createElement(
-      Pressable,
-      { accessibilityRole: "button", accessibilityLabel, onPress },
-      children === undefined ? null : createElement(Text, null, children),
-    );
-  Toolbar.View = Toolbar;
-  return Toolbar;
+  const layout = ({ children }: { readonly children?: ReactNode }) => children;
+  return Object.assign(jest.fn(layout), {
+    Button: ({ accessibilityLabel, children, onPress }: ToolbarButtonProps) =>
+      createElement(
+        Pressable,
+        { accessibilityRole: "button", accessibilityLabel, onPress },
+        children === undefined ? null : createElement(Text, null, children),
+      ),
+    View: layout,
+  });
 }
 
 export function expoRouterModule() {

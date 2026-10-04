@@ -243,6 +243,21 @@ describe("Up Next's mark control", () => {
     expect(screen.getByTestId("snackbar-undo")).toBeOnTheScreen();
   });
 
+  it("leaves the header's bar items declared once while a mark re-renders the screen", async () => {
+    const user = userEvent.setup();
+    await paint();
+    const { Stack } = jest.requireMock<typeof import("expo-router")>("expo-router");
+    const toolbar = jest.mocked(Stack.Toolbar);
+    toolbar.mockClear();
+
+    await user.press(check(CARTOGRAPHY));
+    await waitFor(() => expect(check(CARTOGRAPHY)).toHaveAccessibleName("Watched. Tap to remove."));
+    await user.press(screen.getByTestId("snackbar-undo"));
+    await waitFor(() => expect(screen.queryByTestId("snackbar-undo")).toBeNull());
+
+    expect(toolbar).not.toHaveBeenCalled();
+  });
+
   it("shows a mark and its undo in the queue without waiting on a timer", async () => {
     await paint();
     const unwatched = "Midnight Cartography, S2 E3, Half Measures, 2 left";

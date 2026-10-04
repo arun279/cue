@@ -1,5 +1,5 @@
 import { Stack, useRouter } from "expo-router";
-import type { ReactElement } from "react";
+import { memo, type ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, View } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import { Avatar } from "./Avatar";
@@ -17,7 +17,10 @@ export interface BarItemsProps {
 }
 
 // "Sync now" is the single-pointer alternative to pull to refresh that WCAG 2.5.1 and 2.5.7 require.
-export function BarItems({ onSync, avatar = true }: BarItemsProps): ReactElement {
+export const BarItems = memo(function BarItems({
+  onSync,
+  avatar = true,
+}: BarItemsProps): ReactElement {
   if (Platform.OS === "android")
     return (
       <Stack.Toolbar placement="right" asChild>
@@ -38,7 +41,7 @@ export function BarItems({ onSync, avatar = true }: BarItemsProps): ReactElement
       )}
     </Stack.Toolbar>
   );
-}
+});
 
 interface BarIconProps {
   readonly label: string;
