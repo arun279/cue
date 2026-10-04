@@ -303,6 +303,14 @@ describe("Trakt read endpoints zod-parse well-formed fixtures", () => {
     const result = await getLastActivities(client);
     expect(result.ok && result.data.episodes?.["watched_at"]).toBe("2026-07-01T00:00:00.000Z");
   });
+
+  it("keeps the readable last_activities stamps and drops a null one", async () => {
+    getJson("/sync/last_activities", {
+      episodes: { watched_at: "2026-07-01T00:00:00.000Z", pending_at: null },
+    });
+    const result = await getLastActivities(client);
+    expect(result.ok && result.data.episodes).toEqual({ watched_at: "2026-07-01T00:00:00.000Z" });
+  });
 });
 
 describe("watched endpoints send the honest post-#775 payload params", () => {

@@ -82,6 +82,11 @@ export interface RequestOptions {
 
 export type HttpMethod = "GET" | "POST";
 
+const DEFAULT_TIMEOUT_CLASS: Readonly<Record<HttpMethod, TimeoutClass>> = {
+  GET: "read",
+  POST: "write",
+};
+
 export class TraktClient {
   readonly policy: TraktPolicy;
   readonly report: ReadReporter;
@@ -114,9 +119,8 @@ export class TraktClient {
     const token = this.getToken();
     if (token !== null && token.length > 0) headers["Authorization"] = `Bearer ${token}`;
     const controller = new AbortController();
-    const timeoutMs =
-      this.policy.timeoutMs[options.timeout ?? (method === "GET" ? "read" : "write")];
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    const timeoutClass = options.timeout ?? DEFAULT_TIMEOUT_CLASS[method];
+    const timeout = setTimeout(() => controller.abort(), this.policy.timeoutMs[timeoutClass]);
     const init: RequestInit = { method, headers, signal: controller.signal };
     if (options.body !== undefined) init.body = JSON.stringify(options.body);
     try {
@@ -167,9 +171,7 @@ export class TraktClient {
   async getAllPages(path: string, options: RequestOptions = {}): Promise<TraktResult<unknown[]>> {
     const paged: RequestOptions = { timeout: "list", ...options };
     const first = await this.get(path, { ...paged, page: 1 });
-    if (!first.ok) {
-      return first.error.kind === "no-content" ? { ok: true, data: [], pagination: null } : first;
-    }
+    if (!first.ok) return first;
     const acc = asArray(first.data);
     const pageCount = first.pagination?.pageCount;
     for (let page = 2; pageCount === undefined || page <= pageCount; page += 1) {

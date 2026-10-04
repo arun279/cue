@@ -84,6 +84,11 @@ describe("syncBanner", () => {
     });
   });
 
+  it("says Trakt didn't answer in time for a timeout", () => {
+    const banner = syncBanner({ ...healthy, failure: { kind: "timeout" } });
+    expect(banner?.message).toBe("Trakt didn't answer in time. Showing your cached data.");
+  });
+
   it("distinguishes Trakt having trouble from Trakt being unreachable", () => {
     const banner = syncBanner({ ...healthy, failure: { kind: "server", status: 503 } });
     expect(banner?.message).toBe("Trakt is having trouble. Showing your cached data.");
@@ -154,6 +159,17 @@ describe("syncBanner", () => {
 });
 
 describe("readFailureBody", () => {
+  it.each([
+    [{ kind: "timeout" } as const, "Trakt didn't answer in time."],
+    [
+      { kind: "unexpected-shape", issues: [{ path: "aired", message: "x" }] } as const,
+      "Trakt sent data in a shape this version doesn't read.",
+    ],
+    [{ kind: "no-content" } as const, "Trakt sent an empty reply."],
+  ])("names the %o failure", (failure, body) => {
+    expect(readFailureBody(failure)).toBe(body);
+  });
+
   it("does not blame the connection for a rate limit", () => {
     expect(readFailureBody({ kind: "rate-limited", retryAfterMs: null })).toBe(
       "Trakt is limiting requests. Cue will try again shortly.",

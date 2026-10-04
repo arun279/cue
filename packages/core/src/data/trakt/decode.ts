@@ -76,12 +76,15 @@ export function decode<T>(schema: z.ZodType<T>, input: unknown): Decoded<T> {
   degraded = 0;
   const tolerant = schema.safeParse(input);
   if (!tolerant.success) return { ok: false, issues: tolerant.error.issues.map(toIssue) };
-  if (degraded === 0) return { ok: true, data: tolerant.data, skipped: [] };
+  const strict = degraded === 0 ? tolerant : reportingParse(schema, input);
+  const skipped = strict.success ? [] : strict.error.issues.map(toIssue);
+  return { ok: true, data: tolerant.data, skipped };
+}
+
+function reportingParse<T>(schema: z.ZodType<T>, input: unknown) {
   reporting = true;
   try {
-    const strict = schema.safeParse(input);
-    const skipped = strict.success ? [] : strict.error.issues.map(toIssue);
-    return { ok: true, data: tolerant.data, skipped };
+    return schema.safeParse(input);
   } finally {
     reporting = false;
   }

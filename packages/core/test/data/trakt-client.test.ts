@@ -316,4 +316,28 @@ describe("TraktClient error mapping", () => {
     expect(await list).toEqual({ ok: false, error: { kind: "timeout" } });
     vi.useRealTimers();
   }, 1000);
+
+  it("times out a write on the injected policy's write class", async () => {
+    vi.useFakeTimers();
+    const timeoutMs = { read: 40, list: 90, write: 60 };
+    const held = new TraktClient({
+      clientId: "cid-123",
+      policy: { ...DEFAULT_TRAKT_POLICY, timeoutMs },
+      fetch: (_input, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+        }),
+    });
+    let settled = false;
+    const write = held.send("POST", "/sync/history", { body: {} }).catch((error: unknown) => {
+      settled = true;
+      return error;
+    });
+
+    await vi.advanceTimersByTimeAsync(timeoutMs.write - 1);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(await write).toMatchObject({ name: "AbortError" });
+    vi.useRealTimers();
+  }, 1000);
 });

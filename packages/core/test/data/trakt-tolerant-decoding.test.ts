@@ -168,6 +168,19 @@ describe("read incidents", () => {
     );
   });
 
+  it("details a rate limit by its Retry-After when Trakt sends one", () => {
+    const limited = recordIncident([], "/a", { kind: "rate-limited", retryAfterMs: 2000 }, 1);
+    const unbounded = recordIncident([], "/b", { kind: "rate-limited", retryAfterMs: null }, 1);
+    expect(limited[0]?.detail).toBe("retry after 2000 ms");
+    expect(unbounded[0]?.detail).toBe("");
+  });
+
+  it("says so when there is nothing to report", () => {
+    expect(incidentReport([], "1.4.0 (2101)")).toBe(
+      "Cue 1.4.0 (2101) Trakt diagnostics\nNo errors",
+    );
+  });
+
   it("reads back only well-formed persisted incidents", () => {
     const stored = [{ endpoint: "/users/settings", kind: "no-content", detail: "", at: 5 }];
     expect(parseIncidents(stored)).toEqual(stored);

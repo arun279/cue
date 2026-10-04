@@ -1,9 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { TraktReadError } from "../../packages/core/src/data/trakt/client";
 import { DEFAULT_TRAKT_POLICY } from "../../packages/core/src/data/trakt/policy";
 import { backoffMs } from "../../packages/core/src/domain/write-queue/classify";
-import { shouldRetryRead } from "../../packages/core/src/sync-contract";
 import { repositoryPath } from "../support/repository-path";
 
 const workflow = readFileSync(repositoryPath(".github/workflows/ci.yml"), "utf8");
@@ -139,15 +137,13 @@ describe("fast pull request validation", () => {
   it("waits for app idle as long as a read keeps retrying before it fails", () => {
     const ready = readFileSync(repositoryPath(".maestro/flows/lib/ready.yaml"), "utf8");
     const { readAttempts, retryDelayMs, timeoutMs } = DEFAULT_TRAKT_POLICY;
-    const timedOut = new TraktReadError({ kind: "timeout" }, "sync");
-    let retries = 0;
     let backoff = 0;
-    while (shouldRetryRead(retries, timedOut, readAttempts)) {
-      backoff += backoffMs(retries++, retryDelayMs);
+    for (let retry = 0; retry < readAttempts - 1; retry += 1) {
+      backoff += backoffMs(retry, retryDelayMs);
     }
 
     expect(Number(ready.match(/id: "app-idle"\n {4}timeout: (\d+)/)?.[1])).toBe(
-      timeoutMs.read * (retries + 1) + backoff,
+      timeoutMs.read * readAttempts + backoff,
     );
   });
 
