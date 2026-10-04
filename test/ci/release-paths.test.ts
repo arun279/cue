@@ -86,6 +86,31 @@ describe("mobile release triggers", () => {
   });
 });
 
+describe("mobile release audiences", () => {
+  const steps = (job: string) =>
+    (readWorkflowJobs(MOBILE_RELEASE_WORKFLOW).find(({ name }) => name === job)?.body ?? "")
+      .split(/^ {6}- /m)
+      .slice(1);
+
+  it("adds a new iOS build to the external TestFlight group only for friends", () => {
+    const external = steps("ios").filter((step) => step.includes("testflight.mjs friends"));
+
+    expect(external).toHaveLength(1);
+    expect(external[0]).toContain("        if: inputs.audience == 'friends'\n");
+  });
+
+  it("gives a new Android build to the Firebase friends group only for friends", () => {
+    const friends = steps("android").flatMap((step) =>
+      step.split("\n").filter((line) => line.includes("friends") && !line.includes("promote_")),
+    );
+
+    expect(friends).toEqual([
+      "          FIREBASE_GROUPS: $" +
+        "{{ inputs.audience == 'friends' && 'owner,friends' || 'owner' }}",
+    ]);
+  });
+});
+
 describe("the iOS toolchain pin", () => {
   const selectedXcode = (workflow: string): string[] =>
     [...readFileSync(workflow, "utf8").matchAll(/xcode-select -s (\S+)/g)].flatMap(

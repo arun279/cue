@@ -35,9 +35,9 @@ const production = (
   }
 ).build.production;
 const publishedChannel = /eas update --channel (\S+)/.exec(publishWorkflow)?.[1];
-const promotion = /eas update:republish --channel (\S+) --destination-channel (\S+)/.exec(
+const promotedTo = /eas update:republish --group "\$GROUP" --destination-channel (\S+)/.exec(
   publishWorkflow,
-);
+)?.[1];
 
 const publicEnvironmentNames = (workflow: string): string[] =>
   [
@@ -88,10 +88,11 @@ describe("JavaScript update publishing", () => {
     expect(publishWorkflow.match(/eas update /g)).toHaveLength(1);
   });
 
-  it("promotes the channel it publishes to onto the channel store builds listen on", () => {
+  it("promotes a chosen update group from the channel it publishes to onto the channel store builds listen on", () => {
     expect(publishedChannel).toBeDefined();
     expect(publishedChannel).not.toBe(production.channel);
-    expect(promotion?.slice(1)).toEqual([publishedChannel, production.channel]);
+    expect(publishWorkflow).toContain(`[ "$branch" = ${publishedChannel} ]`);
+    expect(promotedTo).toBe(production.channel);
   });
 
   it("binds builds to the fingerprint runtime and leaves the channel to the build profile", () => {

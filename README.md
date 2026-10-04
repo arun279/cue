@@ -67,9 +67,11 @@ Every pull request builds both apps and runs the full Maestro suite and the dark
 
 - **owner** uploads iOS to TestFlight with `eas submit`, where the internal testers get it, and Android to the Firebase App Distribution group `owner`, which the workflow creates if it is missing.
 - **friends** does the same, then adds the iOS build to the app's one external TestFlight group, submitting it for beta review when Apple asks for one, and gives the Android release to the Firebase group `friends` as well.
-- **promote** with a build number gives a build the owner already has to friends, without building again.
+- **promote_ios** and **promote_android** take a build number for that platform and give a build the owner already has to friends, without building again.
 
-Every build listens on the `production` update channel. EAS numbers builds from one remote counter per platform, started above the last build numbered before EAS took over, so releases run one at a time. Both platforms sign with the Android keystore and Apple distribution certificate held in repository secrets, so every build installs over the last. To publish on the App Store, submit a TestFlight build for review in App Store Connect.
+Every build listens on the `production` update channel, and the workflow checks the channel and runtime written into the finished APK and IPA before uploading. EAS numbers builds from one remote counter per platform, seeded above the last build numbered before EAS took over, so releases run one at a time. Before building, the workflow fails if the next number would not be above the highest build already on TestFlight or Firebase; `eas build:version:set` moves the counter. Both platforms sign with the Android keystore and Apple distribution certificate held in repository secrets, so every build installs over the last. To publish on the App Store, submit a TestFlight build for review in App Store Connect.
+
+Local EAS builds ignore the `node` and `pnpm` versions in `eas.json`. The workflow installs Node from `.nvmrc` and pnpm from `packageManager`, while iOS builds use the fastlane, CocoaPods and Xcode tools preinstalled on the `macos-26` runner image, with Xcode selected explicitly.
 
 ## Shipping JavaScript updates
 
@@ -78,9 +80,9 @@ EAS Update can replace JavaScript and bundled assets. It cannot change native mo
 Open GitHub Actions, choose **Publish update**, select **Run workflow**, and pick an action:
 
 - **publish** exports the chosen ref with the EAS `production` environment and publishes it to the `preview` channel.
-- **promote** copies the latest `preview` update to `production` unchanged.
+- **promote** copies one `preview` update group to `production` unchanged. Give it the group the owner tested; `eas update:list --branch preview --json` lists the groups with their messages and commits.
 
-Only installs switched to preview receive `preview` updates. To switch one, long press the version number in Settings and turn on preview updates; Cue restarts on the preview channel and shows `preview` after the version. Nothing publishes on a push, pull request, merge, or schedule. A downloaded update applies on the next cold start.
+Only installs switched to preview receive `preview` updates. To switch one, long press the version number in Settings and turn on preview updates; Cue restarts on the preview channel and shows `preview` after the version. Switching back to production is safe for stored data: settings are plain keys that every version reads with defaults, and the cached Trakt data is dropped and fetched again whenever its shape version (the persisted cache buster) differs from the running bundle's. Nothing publishes on a push, pull request, merge, or schedule. A downloaded update applies on the next cold start.
 
 To recover from a bad update, run `eas update:republish` to make a known good update current again, or `eas update:rollback` to select a previous or embedded update. Test rollback compatibility with any persisted state the bad update may have changed.
 

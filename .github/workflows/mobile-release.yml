@@ -17,8 +17,13 @@ on:
         description: What changed, shown to testers
         type: string
         required: true
-      promote:
-        description: Build number to give friends instead of building this ref
+      promote_ios:
+        description: iOS build number to give friends instead of building this ref
+        type: string
+        required: false
+        default: ""
+      promote_android:
+        description: Android build number to give friends instead of building this ref
         type: string
         required: false
         default: ""
@@ -47,7 +52,7 @@ jobs:
     # guards whether that thing is happy is not a gate. Keep the two in step.
     # A dispatch on a commit CI never ran on, which is any ref outside main,
     # feat/expo-native and release/*, finds no checks and times out.
-    if: inputs.promote == ''
+    if: inputs.promote_ios == '' && inputs.promote_android == ''
     runs-on: ubuntu-latest
     timeout-minutes: 50
     permissions:
@@ -95,6 +100,15 @@ jobs:
             --arg certificate "$RUNNER_TEMP/distribution.p12" --arg password "$P12_PASSWORD" \
             '{ios: {provisioningProfilePath: $profile, distributionCertificate: {path: $certificate, password: $password}}}' \
             > credentials.json
+      - name: Number the build above everything on TestFlight
+        working-directory: packages/native
+        env:
+          APP_STORE_CONNECT_KEY: ${{ secrets.APP_STORE_CONNECT_KEY }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          shipped=$(node ../../scripts/testflight.mjs latest-build)
+          ../../scripts/require-next-build.sh ios "$shipped" TestFlight
       - name: Build
         working-directory: packages/native
         env:
@@ -104,8 +118,11 @@ jobs:
           eas build --local --non-interactive --platform ios --profile production --output "$RUNNER_TEMP/Cue.ipa"
       - name: Check the IPA
         id: ipa
+        working-directory: packages/native
         run: |
-          scripts/check-update-channel.sh "$RUNNER_TEMP/Cue.ipa" production
+          eas env:exec production --non-interactive \
+            "pnpm exec expo-updates runtimeversion:resolve --platform ios > $RUNNER_TEMP/runtime.json"
+          ../../scripts/check-update-config.sh "$RUNNER_TEMP/Cue.ipa" production "$(jq -r .runtimeVersion "$RUNNER_TEMP/runtime.json")"
           unzip -p "$RUNNER_TEMP/Cue.ipa" 'Payload/*.app/Info.plist' > "$RUNNER_TEMP/Info.plist"
           echo "build=$(plutil -extract CFBundleVersion raw "$RUNNER_TEMP/Info.plist")" >> "$GITHUB_OUTPUT"
       - name: Upload to TestFlight
@@ -125,13 +142,13 @@ jobs:
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           BUILD: ${{ steps.ipa.outputs.build }}
-        run: node scripts/testflight-friends.mjs "$BUILD"
+        run: node scripts/testflight.mjs friends "$BUILD"
       - name: Record the build
         env:
           BUILD: ${{ steps.ipa.outputs.build }}
         # https://developer.apple.com/help/app-store-connect/manage-builds/view-builds-and-metadata
         run: |
-          echo "iOS build $BUILD is on TestFlight. To give it to friends later, dispatch again with promote $BUILD." >> "$GITHUB_STEP_SUMMARY"
+          echo "iOS build $BUILD is on TestFlight. To give it to friends later, dispatch again with promote_ios $BUILD." >> "$GITHUB_STEP_SUMMARY"
           echo "App Store Connect alerts when a thinned device variant exceeds its 200 MB over-the-air limit." >> "$GITHUB_STEP_SUMMARY"
 
   android:
@@ -162,6 +179,17 @@ jobs:
             --arg alias "$ANDROID_KEY_ALIAS" --arg keyPassword "$ANDROID_KEY_PASSWORD" \
             '{android: {keystore: {keystorePath: $keystore, keystorePassword: $storePassword, keyAlias: $alias, keyPassword: $keyPassword}}}' \
             > credentials.json
+      - name: Write Firebase credentials
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          echo "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/firebase.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase.json" >> "$GITHUB_ENV"
+      - name: Number the build above everything on Firebase
+        working-directory: packages/native
+        run: |
+          shipped=$(../../scripts/firebase-distribution.sh latest-build)
+          ../../scripts/require-next-build.sh android "$shipped" Firebase
       - name: Build
         working-directory: packages/native
         env:
@@ -179,15 +207,11 @@ jobs:
           build=$(eas build:version:get --non-interactive --json --platform android --profile production | jq -r .versionCode)
           version=$(pnpm exec expo config --type public --json | jq -r .version)
           ../../scripts/verify-apk.sh "$RUNNER_TEMP/Cue.apk" "$build" "$version" arm64-v8a
-          ../../scripts/check-update-channel.sh "$RUNNER_TEMP/Cue.apk" production
+          eas env:exec production --non-interactive \
+            "pnpm exec expo-updates runtimeversion:resolve --platform android > $RUNNER_TEMP/runtime.json"
+          ../../scripts/check-update-config.sh "$RUNNER_TEMP/Cue.apk" production "$(jq -r .runtimeVersion "$RUNNER_TEMP/runtime.json")"
           node ../../scripts/assert-file-size.mjs "$RUNNER_TEMP/Cue.apk" "$FIREBASE_BINARY_LIMIT_BYTES" "Firebase tester APK"
           echo "build=$build" >> "$GITHUB_OUTPUT"
-      - name: Write Firebase credentials
-        env:
-          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
-        run: |
-          echo "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/firebase.json"
-          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase.json" >> "$GITHUB_ENV"
       - name: Keep the owner in the Firebase owner group
         env:
           FIREBASE_OWNER_TESTER: ${{ secrets.FIREBASE_OWNER_TESTER }}
@@ -204,27 +228,27 @@ jobs:
       - name: Record the build
         env:
           BUILD: ${{ steps.apk.outputs.build }}
-        run: echo "Android build $BUILD is on Firebase. To give it to friends later, dispatch again with promote $BUILD." >> "$GITHUB_STEP_SUMMARY"
+        run: echo "Android build $BUILD is on Firebase. To give it to friends later, dispatch again with promote_android $BUILD." >> "$GITHUB_STEP_SUMMARY"
 
   promote:
-    if: inputs.promote != ''
+    if: inputs.promote_ios != '' || inputs.promote_android != ''
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Give the TestFlight build to friends
-        if: inputs.platform != 'android'
+        if: inputs.promote_ios != ''
         env:
           APP_STORE_CONNECT_KEY: ${{ secrets.APP_STORE_CONNECT_KEY }}
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-          BUILD: ${{ inputs.promote }}
-        run: node scripts/testflight-friends.mjs "$BUILD"
+          BUILD: ${{ inputs.promote_ios }}
+        run: node scripts/testflight.mjs friends "$BUILD"
       - name: Give the Firebase release to friends
-        if: inputs.platform != 'ios'
+        if: inputs.promote_android != ''
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase.json
-          BUILD: ${{ inputs.promote }}
+          BUILD: ${{ inputs.promote_android }}
         run: |
           echo "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$GOOGLE_APPLICATION_CREDENTIALS"
           scripts/firebase-distribution.sh promote "$BUILD"

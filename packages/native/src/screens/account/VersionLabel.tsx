@@ -20,8 +20,8 @@ function confirmSwitch(preview: boolean): void {
   Alert.alert(
     "Preview updates",
     preview
-      ? "Get updates before friends do, to try them first. Cue restarts to switch."
-      : "This install gets preview updates. Go back to the updates friends get? Cue restarts to switch.",
+      ? "Get new updates early. They are less tested. Cue restarts to switch."
+      : "This install gets preview updates. Go back to regular updates? Cue restarts to switch.",
     [
       { text: "Cancel", style: "cancel" },
       {
@@ -33,8 +33,8 @@ function confirmSwitch(preview: boolean): void {
   );
 }
 
-// A long press on the version is the owner's way onto the preview channel. Builds
-// without a channel, such as development and test builds, have nothing to switch.
+// A long press on the version switches to the preview channel. Builds without a
+// channel, such as development and test builds, have nothing to switch.
 export function VersionLabel(): ReactElement {
   const colors = useColors();
   const version = useAppVersion();

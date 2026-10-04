@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: "publish = this ref to preview, promote = latest preview update to production"
+        description: "publish = this ref to preview, promote = the update group below to production"
         type: choice
         options: [publish, promote]
         default: publish
@@ -12,6 +12,11 @@ on:
         description: Update message
         type: string
         required: true
+      group:
+        description: "Update group ID to promote (eas update:list --branch preview --json lists them)"
+        type: string
+        required: false
+        default: ""
 
 concurrency:
   group: publish-update
@@ -91,10 +96,19 @@ jobs:
         with:
           eas-version: 24.10.0
           token: ${{ secrets.EXPO_TOKEN }}
-      - name: Copy the latest preview update to production
+      - name: Require the group to be a preview update
         working-directory: packages/native
         env:
+          GROUP: ${{ inputs.group }}
+        run: |
+          [ -n "$GROUP" ] || { echo "::error::promote needs the ID of the update group to copy. List them with eas update:list --branch preview --json."; exit 1; }
+          branch=$(eas update:view "$GROUP" --json | jq -r '[.[].branch] | unique | join(", ")')
+          [ "$branch" = preview ] || { echo "::error::Update group $GROUP is on branch '$branch', not preview."; exit 1; }
+      - name: Copy the update group to production
+        working-directory: packages/native
+        env:
+          GROUP: ${{ inputs.group }}
           MESSAGE: ${{ inputs.message }}
         run: >-
-          eas update:republish --channel preview --destination-channel production
+          eas update:republish --group "$GROUP" --destination-channel production
           --message "$MESSAGE" --non-interactive
