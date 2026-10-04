@@ -120,6 +120,6 @@ it("readies the simulator before every iOS Maestro run", () => {
     const prepare = body.indexOf("scripts/prepare-ios-ui.sh");
     expect(prepare).toBeGreaterThan(-1);
     expect(body.indexOf("scripts/maestro-ios-test.sh")).toBeGreaterThan(prepare);
-    expect(body).not.toMatch(/^\s*maestro\s(?!--device "\$DEVICE_ID" hierarchy \\$)/m);
+    expect(body).not.toMatch(/^\s*maestro\s/m);
   }
 });

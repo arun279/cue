@@ -6,14 +6,6 @@ appId: app.cuetracker
     visible:
       id: "screen-up-next"
     timeout: 30000
-- tapOn: "Search"
-- extendedWaitUntil:
-    visible:
-      id: "screen-search"
-    timeout: 30000
-- waitForAnimationToEnd:
-    timeout: 1000
-- takeScreenshot: search-${SIZE}
 - tapOn: "Library"
 - extendedWaitUntil:
     visible:
@@ -30,3 +22,12 @@ appId: app.cuetracker
 - waitForAnimationToEnd:
     timeout: 1000
 - takeScreenshot: profile-${SIZE}
+- tapOn: "Done"
+- tapOn: "Search"
+- extendedWaitUntil:
+    visible:
+      id: "screen-search"
+    timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: search-${SIZE}

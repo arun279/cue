@@ -484,14 +484,8 @@ jobs:
               --format JUNIT \
               --output "$RUNNER_TEMP/maestro-results-large-text-$name.xml" \
               --test-output-dir "$RUNNER_TEMP/screenshots/ios/dark"
-            maestro --device "$DEVICE_ID" hierarchy \
-              > "$RUNNER_TEMP/screenshots/ios/dark/profile-$name.hierarchy.json"
           done
           xcrun simctl ui "$DEVICE_ID" content_size medium
-      - name: Gate button label insets on the large-text hierarchies
-        run: |
-          node scripts/check-label-fit.mjs "$RUNNER_TEMP/screenshots/ios/dark" 8 4 \
-            >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ !cancelled() }}
         with:

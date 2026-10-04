@@ -5,30 +5,32 @@ import { expect, it } from "vitest";
 import { repositoryPath } from "../support/repository-path";
 import { tempDirectory } from "../support/temp-directory";
 
-const node = (bounds: string, extra: object = {}, children: object[] = []) => ({
-  attributes: { bounds, ...extra },
-  children,
-});
+const BUTTON = "[300,60][390,104]";
 
-const button = (label: string) => node("[300,60][390,104]", {}, [node(label, { text: "Done" })]);
+const screen = (label: string, button = 'class="android.view.ViewGroup" clickable="true"') =>
+  `<?xml version='1.0' encoding='UTF-8' standalone='yes' ?><hierarchy rotation="0">
+<node index="0" text="" class="android.widget.FrameLayout" clickable="false" bounds="[0,0][402,874]">
+<node index="0" text="" ${button} bounds="${BUTTON}">
+<node index="0" text="Done" class="android.widget.TextView" clickable="false" bounds="${label}" />
+</node>
+<node index="1" text="Up Next" class="android.widget.TextView" clickable="false" bounds="[16,120][200,160]" />
+</node>
+</hierarchy>`;
 
-const run = (root?: object) => {
-  const artifacts = tempDirectory("cue-label-fit-");
-  if (root !== undefined)
-    writeFileSync(path.join(artifacts, "screen.hierarchy.json"), JSON.stringify(root));
+const run = (xml: string, density = "160") => {
+  const file = path.join(tempDirectory("cue-label-fit-"), "screen.xml");
+  writeFileSync(file, xml);
   return spawnSync(
     process.execPath,
-    [repositoryPath("scripts/check-label-fit.mjs"), artifacts, "8", "4"],
+    [repositoryPath("scripts/check-label-fit.mjs"), file, "8", "4", density],
     { encoding: "utf8" },
   );
 };
 
-it("accepts a label inset 8 across and 4 down inside its button", () => {
-  const result = run(
-    node("[0,0][402,874]", {}, [{ ...button("[308,64][382,100]"), clickable: true }]),
-  );
+it("accepts a label inset 8 dp across and 4 dp down inside its button", () => {
+  const result = run(screen("[308,64][382,100]"));
   expect(result.status).toBe(0);
-  expect(result.stdout).toContain("| screen.hierarchy.json | 1 | 1 | 0 |");
+  expect(result.stdout).toContain("Measured 1 labelled buttons; 0 crowd their edge.");
 });
 
 it.each([
@@ -37,30 +39,29 @@ it.each([
   ["top", "[308,63][382,100]"],
   ["bottom", "[308,64][382,101]"],
 ])("fails a label that crowds its button's %s edge", (_edge, label) => {
-  const result = run(node("[0,0][402,874]", {}, [{ ...button(label), clickable: true }]));
+  const result = run(screen(label));
   expect(result.status).toBe(1);
-  expect(result.stderr).toContain(`"Done" ${label} in [300,60][390,104]`);
+  expect(result.stderr).toContain(`"Done" ${label} in ${BUTTON}`);
 });
 
-it("reads an Android button by its class", () => {
-  const result = run({
-    ...button("[300,60][390,104]"),
-    attributes: { bounds: "[300,60][390,104]", class: "android.widget.Button" },
-  });
-  expect(result.status).toBe(1);
-  expect(result.stdout).toContain("| screen.hierarchy.json | 1 | 1 | 1 |");
+it("measures insets in density-independent pixels", () => {
+  expect(run(screen("[308,64][382,100]"), "320").status).toBe(1);
+  expect(run(screen("[301,61][389,103]"), "1").status).toBe(0);
+  expect(run(screen("[308,64][382,100]"), "").stderr).toContain("density must be a positive dpi");
 });
 
-it("counts a button that exposes no label frame without measuring it", () => {
+it("reads a button by its class when the node is not clickable", () => {
   const result = run(
-    node("[0,0][402,874]", {}, [{ ...node("[300,60][390,104]"), clickable: true }]),
+    screen("[302,64][382,100]", 'class="android.widget.Button" clickable="false"'),
   );
-  expect(result.status).toBe(0);
-  expect(result.stdout).toContain("| screen.hierarchy.json | 1 | 0 | 0 |");
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain(`"Done" [302,64][382,100] in ${BUTTON}`);
 });
 
-it("fails when there is no hierarchy to read", () => {
-  const result = run();
+it("fails a screen where no labelled button could be measured", () => {
+  const result = run(
+    screen("[308,64][382,100]", 'class="android.view.ViewGroup" clickable="false"'),
+  );
   expect(result.status).toBe(1);
-  expect(result.stderr).toContain("no view hierarchies under");
+  expect(result.stderr).toContain("no labelled button to measure");
 });
