@@ -9,25 +9,14 @@ import { showFailure, showUndoable } from "../stores/snackbar-store";
 import { patchLibraryHidden } from "./library-cache";
 import { useOptimisticWrite } from "./useOptimisticWrite";
 
-/** Which direction the last action moved the show: drives the Undo copy + inverse. */
 type HideKind = "hide" | "unhide";
 
 export interface HideController {
-  /** Abandon a show: write it to Trakt's hidden set (drops it from Up Next + calendar). */
   hide(showId: number, ids: ShowIds, title: string): Promise<void>;
-  /** Un-abandon a show: remove it from the hidden set so its progress re-places it. */
   unhide(showId: number, ids: ShowIds, title: string): Promise<void>;
   stopWatching(entry: LibraryEntry): void;
 }
 
-/**
- * Abandon / un-abandon a show: the hidden set is Cue's client-side exclusion
- * source, written via Trakt's `/users/hidden/progress_watched` (+ `/remove`), so an
- * abandon drops the show from Up Next, the calendar, and the active piles into the
- * Abandoned pile, and an un-abandon returns it to whichever pile its progress
- * implies. Both are optimistic (the library cache flips `hidden` immediately) with
- * a symmetric Undo that submits the inverse op.
- */
 export function useHideShow(): HideController {
   const runtime = useRuntime();
   const submit = useOptimisticWrite();
@@ -42,8 +31,6 @@ export function useHideShow(): HideController {
     (showId: number) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.library() });
       void queryClient.invalidateQueries({ queryKey: queryKeys.showProgress(showId) });
-      // The hidden set also filters the calendar; drop any cached window so a
-      // hidden show can't linger in Calendar.
       void queryClient.invalidateQueries({ queryKey: queryKeys.calendarPrefix() });
     },
     [queryClient],

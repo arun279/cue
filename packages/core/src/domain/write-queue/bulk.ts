@@ -2,13 +2,7 @@ import type { ShowIds } from "../model/ids";
 import { isAired } from "../time";
 import type { QueuedOp } from "./types";
 
-/**
- * Episodes represented per `/sync/history` chunk. 100 mirrors Trakt's pervasive
- * 100-item limit (the pagination max, and the reference client's ≤100-shows
- * batch): the platform-consistent unit that keeps each body small, not a round
- * guess. A single long-running show can exceed this on its own, so we chunk by
- * represented episode count: the reference's per-show batching is not enough.
- */
+// Trakt paginates at most 100 items per page.
 export const MAX_EPISODES_PER_CHUNK = 100;
 
 const HISTORY = "/sync/history";
@@ -17,13 +11,10 @@ const HISTORY_REMOVE = "/sync/history/remove";
 export interface EpisodeAir {
   readonly number: number;
   readonly firstAired: string | null;
-  /** Whether this episode already carries a play at mark time: the pivot the
-   * delta planner scopes on so a mark touches only previously-unwatched episodes. */
   readonly watched: boolean;
 }
 
 export interface SeasonTree {
-  /** 0 = specials, emitted only when `includeSpecials` is set. */
   readonly number: number;
   readonly episodes: readonly EpisodeAir[];
 }
@@ -32,15 +23,9 @@ export interface BulkMarkTarget {
   readonly showIds: ShowIds;
   readonly seasons: readonly SeasonTree[];
   readonly includeSpecials: boolean;
-  /** "Mark up to here": bound the subtree at (season, number) inclusive. */
   readonly upTo?: { readonly season: number; readonly number: number };
-  /** Opaque reconcile anchor stamped on every chunk so a lost response is retired, not re-POSTed. */
   readonly inversePatch?: unknown;
-  /** Build a reconcile anchor from the first represented episode in each chunk. */
   readonly inversePatchForChunk?: (probe: { season: number; number: number }) => unknown;
-  /** A deliberate rewatch pass: uniquify each chunk's itemKey by its op id so a
-   * pending mark of the same subtree can never coalesce-swallow it (additive
-   * intent is never redundant, unlike an identical re-mark toggle). */
   readonly additive?: boolean;
 }
 
@@ -51,20 +36,6 @@ interface PlannedSeason {
   readonly episodeNumbers: readonly number[];
 }
 
-/**
- * delta subtree builder. Emits one durable `/sync/history` op per
- * ≤`MAX_EPISODES_PER_CHUNK` chunk, each enumerating ONLY the aired, in-bound,
- * currently-UNWATCHED episodes: the true delta this mark creates. The inverse
- * `/sync/history/remove` is scoped to that same delta, so the mark's point-of-action
- * Undo removes exactly the plays this mark added and can NEVER touch history that
- * predates it: because every delta episode had no prior play, the mark-then-Undo
- * round trip always returns to the precise pre-mark state (a partially-watched
- * season un-does back to its original count, never to zero). Marking only-unwatched
- * episodes likewise avoids duplicate plays on a re-mark. A whole-season token is
- * never emitted: it would mark (and, inverted, remove) every episode of the season,
- * both bugs the delta scoping prevents. Specials (season 0) are skipped unless opted
- * in; unaired episodes are never marked.
- */
 export function buildBulkMarkOps(
   target: BulkMarkTarget,
   now: number,
@@ -114,8 +85,6 @@ function planSeasons(target: BulkMarkTarget, now: number): PlannedSeason[] {
     if (target.upTo !== undefined && season.number > target.upTo.season) continue;
     const delta = season.episodes.filter(
       (ep) =>
-        // Only previously-unwatched, aired, in-bound episodes: the true mark delta
-        // (an unaired episode has no play and must never be marked).
         !ep.watched &&
         isAired(ep.firstAired, now) &&
         (target.upTo === undefined ||
@@ -129,12 +98,6 @@ function planSeasons(target: BulkMarkTarget, now: number): PlannedSeason[] {
   return out;
 }
 
-/**
- * Pack planned seasons into chunks of ≤`MAX_EPISODES_PER_CHUNK` enumerated
- * episodes, splitting a single season that alone exceeds the cap across chunks so
- * "chunk by episode count" holds even for one long season and no POST ever
- * represents more than the cap.
- */
 function chunkSeasons(planned: readonly PlannedSeason[]): SeasonBody[][] {
   const chunks: SeasonBody[][] = [];
   let current: SeasonBody[] = [];
@@ -160,12 +123,6 @@ function chunkSeasons(planned: readonly PlannedSeason[]): SeasonBody[][] {
   return chunks;
 }
 
-/**
- * Content hash of a chunk's subtree so two *different* bulk marks on one show
- * never collide on `itemKey` (which would coalesce and drop the later mark),
- * while an identical re-mark stays idempotent. Bodies are built in a canonical
- * order (sorted seasons + episode numbers), so JSON is stable.
- */
 function hashSeasons(seasons: readonly SeasonBody[]): string {
   const json = JSON.stringify(seasons);
   let h = 5381;

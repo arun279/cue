@@ -1,15 +1,8 @@
 import type { DispatchResult } from "./types";
 
-/** Trakt writes are capped at 1/sec; 100ms keeps dispatches off the boundary. */
+// Trakt rate-limits writes to one per second.
 export const MIN_WRITE_INTERVAL_MS = 1100;
 
-/**
- * Backoff floor = the write pacing interval (a shorter wait is pointless: the
- * pacer already enforces its floor); ceiling bounds BOTH the self-computed exponential
- * backoff AND an honored `Retry-After` (see `parseRetryAfterMs`), so a healed
- * server is retried promptly rather than after a runaway wait: whether that wait
- * is one Cue computed or one the server dictated.
- */
 const BACKOFF_BASE_MS = MIN_WRITE_INTERVAL_MS;
 const BACKOFF_MAX_MS = 30_000;
 const READ_RETRY_AFTER_MAX_MS = 300_000;
@@ -20,12 +13,6 @@ export type Classification =
   | { readonly kind: "retry"; readonly delayMs: number }
   | { readonly kind: "failed" };
 
-/**
- * Classify a completed dispatch (a *rejected* dispatch is a NetworkError, the
- * ambiguous class handled by the queue's reconcile path: not here):
- * 2xx = ok; 429/5xx = safe-retry (honor `Retry-After`, else backoff); any other
- * 4xx = a definite failure the request did not apply, so roll back.
- */
 export function classifyStatus(
   result: DispatchResult,
   attempt: number,
@@ -40,10 +27,6 @@ export function classifyStatus(
   return { kind: "failed" };
 }
 
-/**
- * A write `Retry-After` as ms, accepting delta seconds or an HTTP date and
- * clamping it to the write queue's bounded backoff ceiling.
- */
 export function parseRetryAfterMs(
   headers: Readonly<Record<string, string>>,
   now: number,
@@ -81,7 +64,6 @@ export function backoffMs(attempt: number): number {
   return Math.min(BACKOFF_MAX_MS, exp);
 }
 
-/** Ms to wait before the next dispatch to keep dispatches at least 1.1s apart. */
 export function computePacingDelay(now: number, lastDispatchAt: number | null): number {
   if (lastDispatchAt === null) return 0;
   return Math.max(0, MIN_WRITE_INTERVAL_MS - (now - lastDispatchAt));

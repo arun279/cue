@@ -48,11 +48,6 @@ function flattenProgress(progress: Progress): ProgressEpisode[] {
   return episodes;
 }
 
-/**
- * TODO(episode-nav): `progress.seasons` only spans aired episodes, so prev/next
- * cannot reach an unaired episode that is not the target. Derive the ordering
- * from the full `/shows/:id/seasons` list and keep watched state from progress.
- */
 function navigation(
   episodes: readonly ProgressEpisode[],
   target: EpisodeNav,

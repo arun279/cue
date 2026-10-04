@@ -24,7 +24,6 @@ export interface AuthDeps {
   readonly redirectUri: string;
   readonly redirect: (url: string) => void;
   readonly redirectHandoff: RedirectHandoff;
-  /** Native clients cannot return through a browser redirect. */
   readonly native: boolean;
   readonly traktBaseUrl: string | undefined;
 }
@@ -41,9 +40,6 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
     siteBaseUrl: deps.traktBaseUrl,
   };
 
-  // Monotonic attempt id: every connect, cancel and disconnect bumps it, so a
-  // poll sleeping from an earlier attempt can tell it no longer owns the flow
-  // and bail before it polls again or persists a stale token.
   let activeAttempt = 0;
 
   const store = createStore<AuthState & AuthActions>((set) => {
@@ -155,8 +151,7 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
       async completeRedirect(code, state) {
         set({ connectStatus: "connecting", errorMessage: null });
         const stashed = deps.redirectHandoff.read();
-        // Validate before consuming: a stray or tampered callback must not wipe
-        // the verifier of an attempt still in progress.
+        // A stray or tampered callback must not consume the verifier of an attempt in progress.
         if (state === null || stashed === null || state !== stashed.state) {
           set({
             connectStatus: "error",

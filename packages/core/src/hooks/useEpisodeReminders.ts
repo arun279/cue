@@ -13,7 +13,6 @@ import { useRuntime } from "../runtime/runtime";
 import { useCoarseClock } from "./useCoarseClock";
 import { useLibrarySnapshot } from "./useLibrarySnapshot";
 
-/** Keeps the OS holding exactly the notifications the current calendar and Up Next imply. */
 export function useEpisodeReminders(): void {
   const reminders = useReminders();
   const visibility = useAppVisibility();
@@ -37,15 +36,9 @@ export function useEpisodeReminders(): void {
   const { thresholdMs } = library;
 
   useEffect(() => {
-    // An unanswered read is not an empty one. Planning before both land, or
-    // while they keep failing offline, would cancel every pending alert and put
-    // nothing back. A calendar that loaded empty is an answer, and cancelling
-    // then is correct.
     if (!enabled || days === undefined || shows === undefined) return;
     const reconcile = (): void => {
-      // The wall clock, not the render clock: that one is stamped per local
-      // day, so an afternoon re-plan would still read this morning's summary as
-      // ahead and hand the OS a past date, which it delivers immediately.
+      // The OS delivers a notification scheduled in the past immediately.
       const at = Date.now();
       const audible = shows.filter((show) => !muted.includes(show.showId));
       const showIds = activeShowIds(audible, at, thresholdMs);
@@ -59,9 +52,6 @@ export function useEpisodeReminders(): void {
 
   useEffect(() => {
     if (!enabled) return;
-    // Both ways out of a scheduled state land here: the switch going off, and
-    // the shell unmounting when the session ends, since a former account's
-    // airings must not keep firing.
     return () => void reminders.cancelAll();
   }, [reminders, enabled]);
 }

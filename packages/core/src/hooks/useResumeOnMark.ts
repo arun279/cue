@@ -7,27 +7,11 @@ import { isLibraryHidden, patchLibraryHidden } from "./library-cache";
 import { useTrackedSubmit } from "./useTrackedSubmit";
 
 export interface ResumeOnMark {
-  /** Whether marking this show right now WOULD auto-resume it: i.e. it is currently
-   * Stopped. Read synchronously at mark time so a mark's Undo can decide to re-stop
-   * from the mark-time state, without waiting for the (paced) resume write to settle. */
   willResume(showId: number): boolean;
-  /** If the show is Stopped (hidden), auto-resume it and resolve to how the unhide
-   * write settled (so the caller can hold off revalidate until it lands); `null`
-   * when the show wasn't stopped and no write was made. */
   resumeIfStopped(showId: number, ids: ShowIds): Promise<SubmitOutcome | null>;
-  /** Re-stop a show that a mark auto-resumed: invoked by that mark's Undo; resolves
-   * to how the re-hide write settled. */
   reStop(showId: number, ids: ShowIds): Promise<SubmitOutcome>;
 }
 
-/**
- * Marking an episode of a Stopped show auto-resumes it:
- * state is derived from progress, so recording a watch must also clear the one
- * manual `hidden` flag: otherwise the show stays filed under Stopped despite new
- * progress. Silent (no snackbar); the show simply returns to Up Next and the
- * detail action flips back to "Stop watching". Undo of that mark re-stops the show
- * only when the mark actually resumed it.
- */
 export function useResumeOnMark(): ResumeOnMark {
   const runtime = useRuntime();
   const submit = useTrackedSubmit();

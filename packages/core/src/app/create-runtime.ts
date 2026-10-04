@@ -82,12 +82,9 @@ export interface RuntimeDeps {
   readonly token: Token;
   readonly kv: KeyValueStore;
   readonly tokenStore: TokenStore;
-  /** `${origin}/auth/callback` on the web, the registered scheme on a device:
-   * the PKCE refresh grant echoes it back, so it travels on every refresh and
-   * not only on first sign-in. */
+  // Trakt's refresh grant requires the redirect_uri, so it travels on every refresh.
   readonly redirectUri: string;
   readonly clientId: string;
-  /** The fake Trakt's origin under `--mode mock`, undefined in every real build. */
   readonly apiBaseUrl?: string | undefined;
   readonly browser: boolean;
   readonly userAgent?: string;
@@ -221,9 +218,6 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
   await persistLog();
   void queue.flush().then(persistLog);
 
-  // Re-entry guard for teardown: a dead-token flush inside `endLocalSession` can
-  // 401 → refresh → `endSession` → back into teardown; short-circuit the nested
-  // call so it can never await its own in-flight flush (a deadlock).
   let tearingDown = false;
 
   return {
@@ -419,18 +413,10 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       try {
         await queue.flush().catch(() => undefined);
         await persistLog();
-        // A disconnect that could not drain the queue must neither drop the
-        // op-log, which loses the user's writes, nor carry it across sign-out,
-        // where it would replay under the next account. The dead-token path
-        // forces past this: those writes can never be sent, and clearing is what
-        // prevents the cross-account replay.
         if (options.force !== true && queue.size > 0) throw new PendingWritesError();
         await opLogStore.clear();
         await activitiesStore.clear();
         await deps.clearPersistedCaches();
-        // Preferences go last because they are device-local rather than
-        // account-scoped: a storage that refuses this clear leaves a theme
-        // behind rather than the op log that would replay under the next account.
         deps.clearLocalPreferences();
       } finally {
         tearingDown = false;

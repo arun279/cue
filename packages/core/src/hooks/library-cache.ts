@@ -14,12 +14,6 @@ export function ensureLibraryEntry(qc: QueryClient, entry: LibraryEntry): void {
   );
 }
 
-/**
- * Optimistically replace one library entry in the shared SWR cache, holding the
- * find-by-showId + map + spread scaffolding in one place. Every optimistic library
- * flip (hidden, watchlist membership, mark-advance) runs through this rather than
- * re-inlining the same `entries.map(e => e.showId === id ? … : e)` block.
- */
 export function patchLibraryEntry(
   qc: QueryClient,
   showId: number,
@@ -32,11 +26,6 @@ export function patchLibraryEntry(
   );
 }
 
-/**
- * Fold an authoritative `/shows/:id/progress/watched` read into the show's own
- * library entry, leaving every other field the aggregate assembled (title,
- * hidden and watchlist membership) untouched.
- */
 function patchLibraryProgress(qc: QueryClient, showId: number, progress: ShowProgress): void {
   patchLibraryEntry(qc, showId, (entry) => ({
     ...entry,
@@ -51,16 +40,6 @@ function patchLibraryProgress(qc: QueryClient, showId: number, progress: ShowPro
   }));
 }
 
-/**
- * Reconcile one show after a local watched-progress write, whichever surface
- * issued it. The show's own detail reads are invalidated so they refetch on next
- * visit, and its single library entry is replaced from the scoped progress read:
- * that endpoint's per-user snapshot is the one the write just invalidated on
- * Trakt, and it is the only one a write on this show can have changed, so the Up
- * Next aggregate is never rebuilt for it. A read that fails leaves
- * `pendingAdvance` standing and the row advancing, which is the honest state
- * until a later read names the next episode.
- */
 export function refreshShowProgress(
   qc: QueryClient,
   showId: number,
@@ -74,18 +53,15 @@ export function refreshShowProgress(
     .catch(() => {});
 }
 
-/** Optimistically flip a library entry's `hidden` (Stopped) flag in the shared SWR cache. */
 export function patchLibraryHidden(qc: QueryClient, showId: number, hidden: boolean): void {
   patchLibraryEntry(qc, showId, (e) => ({ ...e, hidden }));
 }
 
-/** Whether the show currently sits in the hidden (Stopped) set, per the library cache. */
 export function isLibraryHidden(qc: QueryClient, showId: number): boolean {
   const entries = qc.getQueryData<UpNextData>(queryKeys.library())?.entries;
   return entries?.find((e) => e.showId === showId)?.hidden ?? false;
 }
 
-/** Predicate over (season, episode, aired) selecting the episodes a patch flips. */
 export type EpisodeMatch = (season: number, number: number, aired: boolean) => boolean;
 
 function patchEpisodes(
@@ -107,13 +83,6 @@ function patchEpisodes(
   });
 }
 
-/**
- * Optimistically flip matching episodes in a show's cached season tree (the
- * show-detail accordion), recounting each touched season's completed count, so a
- * mark made on ANY surface ticks the season rows in the same frame. Shared by
- * the season controller and the queue-mark pipeline: the seasons cache lagging
- * behind a queue mark is a visible unwatched row, i.e. a double-mark invitation.
- */
 export function patchShowSeasons(
   qc: QueryClient,
   showId: number,
@@ -125,8 +94,6 @@ export function patchShowSeasons(
   );
 }
 
-/** Optimistically flip one episode's own detail read (the sheet renders from
- * it), so a per-episode action ticks the sheet and the season list together. */
 export function patchEpisodeDetail(
   qc: QueryClient,
   showId: number,
