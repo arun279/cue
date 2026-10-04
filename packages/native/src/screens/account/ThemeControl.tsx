@@ -1,15 +1,13 @@
 import { useHaptics } from "@cue/core/ports/haptics";
 import { type PrefsStore, type Theme, usePrefs } from "@cue/core/prefs/prefs-store";
+import SegmentedControl from "@expo/ui/community/segmented-control";
 import { type ReactElement, useLayoutEffect, useSyncExternalStore } from "react";
-import { Appearance, Pressable, View } from "react-native";
-import { TEST_IDS } from "../../ui/test-ids";
-import { HAIRLINE, RADIUS, SPACE, TARGET_MIN, useColors } from "../../ui/tokens";
-import { CueText } from "../../ui/type";
+import { Appearance } from "react-native";
 
-const OPTIONS: readonly { value: Theme; label: string; testID: string }[] = [
-  { value: "system", label: "System", testID: TEST_IDS.themeSystem },
-  { value: "dark", label: "Dark", testID: TEST_IDS.themeDark },
-  { value: "light", label: "Light", testID: TEST_IDS.themeLight },
+const OPTIONS: readonly { value: Theme; label: string }[] = [
+  { value: "system", label: "System" },
+  { value: "dark", label: "Dark" },
+  { value: "light", label: "Light" },
 ];
 
 export function useAppearance(store: PrefsStore): void {
@@ -23,43 +21,16 @@ export function useAppearance(store: PrefsStore): void {
 export function ThemeControl(): ReactElement {
   const theme = usePrefs((state) => state.theme);
   const setTheme = usePrefs((state) => state.setTheme);
-  const colors = useColors();
   const haptics = useHaptics();
   return (
-    <View
-      style={{
-        flexDirection: "row",
-        flexWrap: "wrap",
-        backgroundColor: colors.elevated,
-        borderRadius: RADIUS.control,
+    <SegmentedControl
+      values={OPTIONS.map((option) => option.label)}
+      selectedIndex={OPTIONS.findIndex((option) => option.value === theme)}
+      onChange={({ nativeEvent }) => {
+        haptics.selection();
+        const option = OPTIONS[nativeEvent.selectedSegmentIndex];
+        if (option) setTheme(option.value);
       }}
-    >
-      {OPTIONS.map((option) => (
-        <Pressable
-          key={option.value}
-          testID={option.testID}
-          accessibilityRole="radio"
-          accessibilityLabel={`${option.label} theme`}
-          accessibilityState={{ checked: theme === option.value }}
-          onPress={() => {
-            haptics.selection();
-            setTheme(option.value);
-          }}
-          style={{
-            minHeight: TARGET_MIN,
-            paddingHorizontal: SPACE.s2,
-            justifyContent: "center",
-            borderRadius: RADIUS.control,
-            borderWidth: HAIRLINE,
-            borderColor: theme === option.value ? colors.muted : "transparent",
-            backgroundColor: theme === option.value ? colors.overlay : "transparent",
-          }}
-        >
-          <CueText variant="meta" style={{ color: colors.fg }}>
-            {option.label}
-          </CueText>
-        </Pressable>
-      ))}
-    </View>
+    />
   );
 }

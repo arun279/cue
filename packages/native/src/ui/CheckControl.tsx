@@ -8,7 +8,9 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import Svg, { Path } from "react-native-svg";
-import { CHECK_SIZE, RADIUS, SPACE, useColors } from "./tokens";
+import { CHECK_SIZE, RADIUS, SELECTABLE, SPACE, useColors } from "./tokens";
+
+const { selected: ON, unselected: OFF } = SELECTABLE.check;
 
 const RING_WIDTH = 2;
 const GLYPH_RATIO = 0.52;
@@ -63,7 +65,7 @@ export function CheckControl({
   const tick = useAnimatedProps(() => ({ strokeDashoffset: drawn.value }));
   const rest = useAnimatedProps(() => ({ opacity: resting.value }));
   const disc = size - SPACE.s2;
-  const restInk = onImage ? colors.onImage : colors.muted;
+  const restInk = onImage ? colors.onImage : colors[OFF.glyph];
 
   return (
     <View style={styles.control}>
@@ -86,8 +88,8 @@ export function CheckControl({
         <View
           style={[
             styles.disc,
-            { width: disc, height: disc, borderColor: checked ? colors.watched : restInk },
-            checked && { backgroundColor: colors.watched },
+            { width: disc, height: disc, borderColor: checked ? colors[ON.fill] : restInk },
+            checked && { backgroundColor: colors[ON.fill] },
           ]}
         >
           <Svg width={disc * GLYPH_RATIO} height={disc * GLYPH_RATIO} viewBox="0 0 24 24">
@@ -105,7 +107,7 @@ export function CheckControl({
               animatedProps={tick}
               d={GLYPH}
               fill="none"
-              stroke={colors.watchedFg}
+              stroke={colors[ON.glyph]}
               strokeDasharray={GLYPH_LENGTH}
               strokeWidth={3}
               strokeLinecap="round"

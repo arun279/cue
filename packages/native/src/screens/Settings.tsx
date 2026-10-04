@@ -6,6 +6,7 @@ import { showSnack } from "@cue/core/stores/snackbar-store";
 import { openBrowserAsync } from "expo-web-browser";
 import type { ReactElement } from "react";
 import { Image, Pressable, View } from "react-native";
+import { Separator } from "../ui/Row";
 import { TEST_IDS } from "../ui/test-ids";
 import { SPACE, TARGET_MIN, useColors } from "../ui/tokens";
 import { CueText } from "../ui/type";
@@ -91,7 +92,13 @@ export default function Settings(): ReactElement {
         ) : null}
       </Section>
       <Section title="Appearance">
-        <SettingRow title="Theme" trailing={<ThemeControl />} />
+        <View style={{ gap: SPACE.s2, paddingVertical: SPACE.s3 }}>
+          <CueText variant="rowTitle" weight="regular" style={{ color: colors.fg }}>
+            Theme
+          </CueText>
+          <ThemeControl />
+        </View>
+        <Separator />
         <Toggle
           title="Haptics"
           hint="A short buzz when you mark something watched or take it back."

@@ -1,6 +1,6 @@
 /**
- * Stand-ins for the three platform edges a screen test cannot drive: the router,
- * the platform menu, and the swipeable's own pan gesture.
+ * Stand-ins for the platform edges a screen test cannot drive: the router, the
+ * platform menu, the segmented control, and the swipeable's own pan gesture.
  *
  * Each one keeps the library's documented contract and nothing more, so a test
  * over them is a test of Cue's wiring rather than of the library. The libraries
@@ -115,6 +115,41 @@ export function menuModule() {
   }
 
   return { MenuView };
+}
+
+interface SegmentedControlProps {
+  readonly values: readonly string[];
+  readonly selectedIndex: number;
+  onChange(event: { nativeEvent: { selectedSegmentIndex: number; value: string } }): void;
+}
+
+/** One selectable target per segment, named by its label as VoiceOver and
+ * TalkBack name the platform's segments. */
+export function segmentedControlModule() {
+  const { createElement } = require("react") as typeof import("react");
+  const { Pressable, Text, View } = require("react-native") as typeof import("react-native");
+
+  function SegmentedControl(props: SegmentedControlProps): ReactElement {
+    return createElement(
+      View,
+      null,
+      ...props.values.map((value, index) =>
+        createElement(
+          Pressable,
+          {
+            key: value,
+            accessibilityRole: "button",
+            accessibilityLabel: value,
+            accessibilityState: { selected: index === props.selectedIndex },
+            onPress: () => props.onChange({ nativeEvent: { selectedSegmentIndex: index, value } }),
+          },
+          createElement(Text, null, value),
+        ),
+      ),
+    );
+  }
+
+  return { __esModule: true, default: SegmentedControl };
 }
 
 function hidden(action: { attributes?: object }): boolean {

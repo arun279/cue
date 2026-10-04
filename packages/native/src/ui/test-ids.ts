@@ -19,9 +19,6 @@ export const TEST_IDS = {
   settingsDelete: "settings-delete",
   settingsAttribution: "settings-attribution",
   settingsPoweredBy: "settings-powered-by",
-  themeSystem: "theme-system",
-  themeDark: "theme-dark",
-  themeLight: "theme-light",
 
   appIdle: "app-idle",
   appIdleTiming: "app-idle-timing",
@@ -130,8 +127,6 @@ export const TEST_IDS = {
   movieMark: "movie-mark",
   screenLibrary: "screen-library",
   libraryGrid: "library-grid",
-  librarySegmentShows: "library-segment-shows",
-  librarySegmentMovies: "library-segment-movies",
   libraryChipWatching: "library-chip-watching",
   libraryChipWatchlist: "library-chip-watchlist",
   libraryChipStopped: "library-chip-stopped",
