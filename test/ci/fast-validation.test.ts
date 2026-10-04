@@ -321,6 +321,7 @@ describe("fast pull request validation", () => {
       "library.yaml",
       "tabs.yaml",
       "dark-traversal.yaml",
+      "large-text.yaml",
     ];
     for (const flow of flows) {
       const lines = readFileSync(repositoryPath(`.maestro/flows/${flow}`), "utf8").split("\n");

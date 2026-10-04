@@ -3,3 +3,17 @@ env:
   CAPTURE_AUTH: "false"
 ---
 - runFlow: ../flows/dark-traversal.yaml
+- runFlow:
+    file: ../flows/large-text.yaml
+    when:
+      platform: iOS
+    env:
+      SIZE: xxxl
+      CONTENT_SIZE: UICTContentSizeCategoryXXXL
+- runFlow:
+    file: ../flows/large-text.yaml
+    when:
+      platform: iOS
+    env:
+      SIZE: ax5
+      CONTENT_SIZE: UICTContentSizeCategoryAccessibilityXXXL
