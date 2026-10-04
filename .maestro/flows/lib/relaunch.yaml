@@ -7,4 +7,5 @@ appId: app.cuetracker
 - assertTrue: ${output.fakeReset}
 - launchApp:
     stopApp: true
+    permissions: {}
 - runFlow: ready.yaml

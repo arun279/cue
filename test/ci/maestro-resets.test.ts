@@ -5,6 +5,7 @@ import { repositoryPath } from "../support/repository-path";
 
 const FLOWS = repositoryPath(".maestro/flows");
 const SUITES = repositoryPath(".maestro/ci");
+const MAESTRO = repositoryPath(".maestro");
 
 // A reinstall, a keychain reset and a sign-in cost a flow 30 to 45 s on a
 // macOS runner before its first assertion; a relaunch keeps the session.
@@ -33,6 +34,16 @@ const resets = (file: string): boolean =>
   /^\s+clear(?:State|Keychain): true$/m.test(readFileSync(file, "utf8")) ||
   references(file).some(resets);
 
+// Without a permissions map, launchApp pulls the APK and runs pm grant per permission, which
+// has stalled a relaunch of the running app for six minutes on the Android emulator.
+const sweepsPermissions = (launch: string): boolean =>
+  !/^\s+(?:clearState: true|permissions: \{\})$/m.test(launch);
+
+const launches = (file: string): string[] =>
+  [...readFileSync(file, "utf8").matchAll(/^( *)- launchApp\b.*\n(?:\1 {4}.*\n)*/gm)].map(
+    ([launch]) => launch,
+  );
+
 describe("Maestro app resets", () => {
   it("reinstalls and signs in only in the flows that need a fresh install", () => {
     const resetting = yamlIn(FLOWS).filter((name) => resets(path.join(FLOWS, name)));
@@ -47,5 +58,13 @@ describe("Maestro app resets", () => {
     });
 
     expect(openers.filter(([, flow = ""]) => !FULL_RESET.has(flow))).toEqual([]);
+  });
+
+  it("leaves permissions alone in every launch that keeps the install", () => {
+    const sweeping = readdirSync(MAESTRO, { recursive: true, encoding: "utf8" })
+      .filter((name) => name.endsWith(".yaml"))
+      .filter((name) => launches(path.join(MAESTRO, name)).some(sweepsPermissions));
+
+    expect(sweeping).toEqual([]);
   });
 });
