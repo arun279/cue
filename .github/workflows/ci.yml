@@ -770,3 +770,26 @@ jobs:
           path: ${{ runner.temp }}/contact-sheets
           if-no-files-found: error
           retention-days: 14
+  pr-media:
+    timeout-minutes: 5
+    if: >-
+      !cancelled() && github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: write
+    needs: [ui-contact-sheets, ui-screenshots-ios-dark]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Post the screenshots for user-facing changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          USER_FACING: ^(packages/native/(src|app)|packages/core/src|\.maestro)/|^scripts/(pr-media|create-ui-contact-sheet)\.sh$
+        run: |
+          files=$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files" --jq '.[].filename')
+          if grep -qE "$USER_FACING" <<< "$files"; then
+            scripts/pr-media.sh "$PR_NUMBER" "$GITHUB_RUN_ID"
+          fi
