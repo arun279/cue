@@ -24,7 +24,7 @@ appId: app.cuetracker
 - waitForAnimationToEnd:
     timeout: 1000
 - takeScreenshot: profile-${SIZE}
-- tapOn: "Done"
+- runFlow: lib/leave-profile.yaml
 - tapOn: "Search"
 - extendedWaitUntil:
     visible:
