@@ -13,7 +13,6 @@ import { CHECK_SIZE, RADIUS, SPACE, useColors } from "./tokens";
 const RING_WIDTH = 2;
 const GLYPH_RATIO = 0.52;
 const GLYPH = "M4 12.5 9.5 18 20 6.5";
-/** Comfortably over the path's own length, so a full offset hides all of it. */
 const GLYPH_LENGTH = 24;
 const DRAW_IN_MS = 160;
 const DRAW_IN_DELAY_MS = 60;
@@ -25,41 +24,15 @@ const AnimatedPath = Animated.createAnimatedComponent(Path);
 
 export interface CheckControlProps {
   readonly checked: boolean;
-  /** What the control does, not what it is: assistive technology reads the state
-   * from `accessibilityState` and must not hear it twice. */
   readonly label: string;
   readonly onPress: () => void;
-  /**
-   * Checked and inert. The row has advanced onto a next episode that is still a
-   * client projection, and marking a guessed coordinate is forbidden, so an
-   * honestly unavailable target beats one that answers nothing.
-   */
   readonly disabled?: boolean;
-  /** The mark is past its undo window and has yet to reach Trakt: the quiet dot
-   * beside the check, never a second green. */
   readonly pending?: boolean;
-  /** The target's own size. A queue row's check is 48 and the marquee's is 56. */
   readonly size?: number;
-  /** Over artwork the rest ring is `--color-on-image` at full strength. No alpha
-   * variant of it exists and none is invented. */
   readonly onImage?: boolean;
-  /** The resting glyph takes this with a `-rest` suffix: it is decorative, so it
-   * carries no role a query could otherwise reach it by. */
   readonly testID?: string;
 }
 
-/**
- * The retired border-strong ring read 1.75:1 on light and 1.88:1 on dark.
- * Muted clears 3:1 on every surface the check can sit on.
- *
- * The ring always carries a glyph, a check waiting to happen rather than an
- * empty circle, which is what says the control marks rather than selects. The
- * committed tick is a second layer that draws itself as the resting one fades,
- * because this is the feedback for the most repeated action in the product and
- * it is what makes a mark feel committed rather than merely recorded. Under
- * Reduce Motion both layers change without drawing: the state change is not
- * motion.
- */
 export function CheckControl({
   checked,
   label,

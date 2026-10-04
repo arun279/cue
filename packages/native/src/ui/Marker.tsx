@@ -1,14 +1,7 @@
 import type { ReactElement } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 
-/**
- * A point that draws nothing and carries an id.
- *
- * A zero-sized view has no bounds, so no accessibility hierarchy ever lists it:
- * a launch that stops on one shows an empty tree instead of naming the thing
- * that is holding. A point is the smallest frame a hierarchy dump can find, and
- * it is what makes every wait in this app answerable from outside it.
- */
+// A zero-sized view has no bounds, so no accessibility hierarchy lists it.
 export function Marker({
   accessibilityLabel,
   testID,

@@ -10,12 +10,6 @@ import Svg, { Path, Rect } from "react-native-svg";
 import { SPACE, SWIPE_COMMIT, useColors } from "./tokens";
 import { CueText } from "./type";
 
-/**
- * How far the reveal's fill runs past its own strip. The strip is the commit
- * distance wide, because that is where the row rests once it opens, but the drag
- * overshoots past it, and without the bleed the overshoot draws a gap between
- * the fill and the row traveling over it.
- */
 const REVEAL_BLEED = 240;
 const GLYPH_REST = 20;
 const GLYPH_ARMED = 24;
@@ -23,33 +17,19 @@ const GLYPH_ARMED = 24;
 type Side = "mark" | "stop";
 
 export interface SwipeRowProps {
-  /** Commit a right swipe. Omit to disable the direction, which is what an
-   * already-marked row does: there is nothing left to mark. */
   readonly onMark?: () => void;
   readonly onStop: () => void;
   readonly testID?: string;
   readonly children: ReactNode;
 }
 
-/**
- * The swipe accelerator on a queue row: right marks, left stops, each committing
- * through the same handler its visible tap target uses, so the gesture is never
- * the only path (WCAG 2.5.1) and the wrapper itself carries no semantics.
- *
- * The threshold is visual first. `prepare()` warms the feedback engine when the
- * drag starts, but the arming still has to be legible before it is felt, so the
- * reveal changes fill, glyph and label off the drag's own translation rather
- * than announcing the threshold by haptic alone.
- */
 export function SwipeRow({ onMark, onStop, testID, children }: SwipeRowProps): ReactElement {
   const haptics = useHaptics();
   const row = useRef<SwipeableMethods>(null);
 
   const commit = (direction: SwipeDirection): void => {
     row.current?.close();
-    // The library names the direction the finger traveled: dragging right opens
-    // the LEFT panel and reports RIGHT. Reading that inversion the other way
-    // stops a show the reader meant to mark.
+    // The library reports the finger's direction: a right drag opens the LEFT panel and reports RIGHT.
     if (direction === SwipeDirection.RIGHT) onMark?.();
     else onStop();
   };
@@ -78,12 +58,6 @@ export function SwipeRow({ onMark, onStop, testID, children }: SwipeRowProps): R
   );
 }
 
-/**
- * The revealed strip, running full bleed to the screen edge with its glyph and
- * label centred in it. Crossing the threshold is a handful of discrete events in
- * a whole gesture rather than a per-frame animation, so it lands on the JS
- * thread beside the haptic it has to stay in step with.
- */
 function Reveal({
   side,
   translation,
@@ -107,19 +81,13 @@ function Reveal({
   );
 
   useAnimatedReaction(
-    // Each reveal watches its own direction. Reading the magnitude instead would
-    // arm both of them on one drag and tick twice.
     () => (mark ? translation.value >= SWIPE_COMMIT : translation.value <= -SWIPE_COMMIT),
     (past, previous) => {
-      // No previous reading means the row is at rest, so the first look at an
-      // unarmed row is not a crossing and must not tick.
       if (past === (previous ?? false)) return;
       runOnJS(cross)(past);
     },
   );
 
-  // Stop takes no danger tint: it is deliberate, it is reversible from the
-  // snackbar, and its words carry the consequence, which is WCAG 1.4.1.
   const ink = armed ? (mark ? colors.watchedFg : colors.fg) : colors.muted;
   const size = armed ? GLYPH_ARMED : GLYPH_REST;
 

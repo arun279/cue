@@ -16,26 +16,9 @@ import { TEST_IDS } from "./test-ids";
 import { FLOAT_SHADOW, SPACE, TARGET_MIN, tabBarClearance, useColors, useStacked } from "./tokens";
 import { CueText } from "./type";
 
-/**
- * Where a host draws. `root` is the tab shell, whose snackbar has to clear the
- * floating tab bar as well as the bottom inset; `presentation` is anything
- * presented over it, which on iOS is a separate view controller a root-level
- * snackbar cannot draw into. The episode sheet is the first of those and the
- * account modal is the second.
- */
 export type SnackbarPlacement = "root" | "presentation";
 
-/**
- * A screen reader has to finish reading the message and its actions before the
- * countdown is any use, so the window widens while one is on. Android's own
- * platform does this through `AccessibilityManager.getRecommendedTimeoutMillis`,
- * which React Native does not expose and which returns the original timeout
- * unless the user has set the accessibility timeout, so this is Cue's own rule.
- *
- * A build pointed at the fake Trakt holds it as long. Maestro settles for up to
- * three seconds after every iOS tap, so on a slow simulator the tap on Undo can
- * land after the default window has closed.
- */
+// React Native does not expose Android's AccessibilityManager.getRecommendedTimeoutMillis.
 const LONG_TIMEOUT_MS = 15_000;
 
 let mounted: readonly { readonly id: string; readonly placement: SnackbarPlacement }[] = [];
@@ -101,8 +84,6 @@ function Snackbar({
   }, [snack, holdLong]);
 
   const stacked = useStacked();
-  // A root-placed snackbar clears the floating tab bar rather than only the
-  // inset, so at a sheet's own bottom edge it lands in the same visual place.
   const bottom = (placement === "root" ? tabBarClearance(insets.bottom) : insets.bottom) + SPACE.s2;
 
   return (
