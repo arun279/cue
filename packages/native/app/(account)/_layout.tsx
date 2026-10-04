@@ -1,7 +1,6 @@
 import { Stack, useRouter } from "expo-router";
 import type { ReactElement } from "react";
 import { Platform, StyleSheet, View } from "react-native";
-import { BarIcon, CLOSE } from "../../src/ui/BarItems";
 import { barOptions, useEpisodeSheetOptions } from "../../src/ui/navigation-theme";
 import { SnackbarHost } from "../../src/ui/SnackbarHost";
 import { useColors } from "../../src/ui/tokens";
@@ -17,11 +16,7 @@ export default function AccountLayout(): ReactElement {
     <View style={styles.root}>
       <Stack screenOptions={{ ...barOptions, headerTransparent: Platform.OS === "ios" }}>
         <Stack.Screen name="profile" options={{ title: "Profile" }}>
-          {Platform.OS === "android" ? (
-            <Stack.Toolbar placement="right" asChild>
-              <BarIcon label="Done" path={CLOSE} onPress={() => router.dismissAll()} />
-            </Stack.Toolbar>
-          ) : (
+          {Platform.OS === "ios" && (
             <Stack.Toolbar placement="right">
               <Stack.Toolbar.Button
                 variant="done"

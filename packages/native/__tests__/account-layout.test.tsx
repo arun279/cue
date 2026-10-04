@@ -37,11 +37,18 @@ const routes = {
   "(account)/show/[showId]/episode/[season]/[episode]": (): ReactElement => <View />,
 };
 
-/** Presses Done where each platform's header takes it: the UIKit bar button item
- * the iOS header is handed, or the icon button the Android header is handed. */
-async function pressDone(): Promise<void> {
+/** Leaves Profile the way each platform's header offers: the UIKit Done item
+ * the iOS header is handed, or on Android the up button, which react-native-screens
+ * reports on the screen presenting a nested stack whose root it sits on. */
+async function leaveProfile(): Promise<void> {
   if (Platform.OS === "android") {
-    await fireEvent.press(screen.getByRole("button", { name: "Done" }));
+    const presenting = screen.container.queryAll(
+      (node) =>
+        node.type === "RNSScreen" &&
+        node.queryAll((child) => child.props["testID"] === "screen-profile").length > 0,
+    )[0];
+    expect(presenting).toBeDefined();
+    if (presenting !== undefined) await fireEvent(presenting, "headerBackButtonClicked");
     return;
   }
   const header = screen.container.queryAll(
@@ -66,10 +73,10 @@ const openAccount = async (): Promise<void> => {
 describe("the account stack", () => {
   beforeEach(() => dismissSnack());
 
-  it("dismisses the modal back to where the user was from the system Done item", async () => {
+  it("dismisses the modal back to where the user was from the platform's own header control", async () => {
     await openAccount();
 
-    await pressDone();
+    await leaveProfile();
 
     expect(screen.queryByTestId("screen-profile")).toBeNull();
     expect(screen.getByTestId("screen-tabs")).toBeOnTheScreen();
