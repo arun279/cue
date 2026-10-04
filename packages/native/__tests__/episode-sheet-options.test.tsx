@@ -54,14 +54,3 @@ it.each([
   expect(tab?.sheetCornerRadius).toBe(RADIUS.sheet);
   expect(account).toEqual(tab);
 });
-
-it.each([
-  [1, 0],
-  [1.3, 1],
-])("opens the month jump at its taller detent from text scale 1.3, here %s", async (scale, detent) => {
-  atFontScale(scale);
-  mockScreens.clear();
-  await render(<AccountLayout />);
-
-  expect(mockScreens.get("history-jump")?.sheetInitialDetentIndex).toBe(detent);
-});

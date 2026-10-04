@@ -39,7 +39,7 @@ appId: app.cuetracker
       platform: iOS
     commands:
       - swipe:
-          start: "50%,38%"
+          start: "50%,30%"
           end: "50%,98%"
           duration: 300
 - runFlow:

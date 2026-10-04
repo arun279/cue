@@ -35,11 +35,9 @@ export function useEpisodeSheetOptions(): NativeStackNavigationOptions {
 
 export function useMonthJumpSheetOptions(): NativeStackNavigationOptions {
   const colors = useColors();
-  const { fontScale } = useWindowDimensions();
   return {
     ...sheetOptions,
-    sheetAllowedDetents: [0.65, 0.92],
-    sheetInitialDetentIndex: fontScale >= EXPANDED_SHEET_FONT_SCALE ? 1 : 0,
+    sheetAllowedDetents: [0.92],
     contentStyle: { backgroundColor: colors.overlay },
   };
 }
