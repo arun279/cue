@@ -38,9 +38,10 @@ appId: app.cuetracker
       id: "profile-to-history"
 - tapOn:
     id: "profile-to-history"
-- scrollUntilVisible:
-    element:
+- extendedWaitUntil:
+    visible:
       id: "history-jump"
+    timeout: 10000
 - tapOn:
     id: "history-jump"
 - assertVisible:
