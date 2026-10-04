@@ -182,6 +182,19 @@ describe("TraktClient pagination", () => {
   });
 });
 
+const timeoutMs = { read: 40, list: 90, write: 60 };
+
+function heldOnPolicy(): TraktClient {
+  return new TraktClient({
+    clientId: "cid-123",
+    policy: { ...DEFAULT_TRAKT_POLICY, timeoutMs },
+    fetch: (_input, init) =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+      }),
+  });
+}
+
 describe("TraktClient error mapping", () => {
   const path = "/sync/watched/shows";
   const respond = (status: number, headers: Record<string, string> = {}): void => {
@@ -294,15 +307,7 @@ describe("TraktClient error mapping", () => {
 
   it("times out each request class on the injected policy", async () => {
     vi.useFakeTimers();
-    const timeoutMs = { read: 40, list: 90, write: 60 };
-    const held = new TraktClient({
-      clientId: "cid-123",
-      policy: { ...DEFAULT_TRAKT_POLICY, timeoutMs },
-      fetch: (_input, init) =>
-        new Promise((_resolve, reject) => {
-          init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
-        }),
-    });
+    const held = heldOnPolicy();
     const settled = new Set<string>();
     const read = held.get(path).then((result) => settled.add("read") && result);
     const list = held.getAllPages(path).then((result) => settled.add("list") && result);
@@ -319,15 +324,7 @@ describe("TraktClient error mapping", () => {
 
   it("times out a write on the injected policy's write class", async () => {
     vi.useFakeTimers();
-    const timeoutMs = { read: 40, list: 90, write: 60 };
-    const held = new TraktClient({
-      clientId: "cid-123",
-      policy: { ...DEFAULT_TRAKT_POLICY, timeoutMs },
-      fetch: (_input, init) =>
-        new Promise((_resolve, reject) => {
-          init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
-        }),
-    });
+    const held = heldOnPolicy();
     let settled = false;
     const write = held.send("POST", "/sync/history", { body: {} }).catch((error: unknown) => {
       settled = true;
