@@ -1,19 +1,16 @@
-import { useHaptics } from "@cue/core/ports/haptics";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, TextInput, View } from "react-native";
 import { GLYPH, Glyph } from "../../ui/Glyph";
 import { RowMenu } from "../../ui/RowMenu";
+import { SegmentedControl, type SegmentOption } from "../../ui/SegmentedControl";
 import { TEST_IDS } from "../../ui/test-ids";
 import { HAIRLINE, RADIUS, SPACE, TARGET_MIN, useColors } from "../../ui/tokens";
-import { CueText } from "../../ui/type";
 import type { Segment, SortOption } from "./model";
 
-const SEGMENTS: readonly { key: Segment; label: string; testID: string }[] = [
-  { key: "shows", label: "Shows", testID: TEST_IDS.librarySegmentShows },
-  { key: "movies", label: "Movies", testID: TEST_IDS.librarySegmentMovies },
+const SEGMENTS: readonly SegmentOption<Segment>[] = [
+  { value: "shows", label: "Shows", testID: TEST_IDS.librarySegmentShows },
+  { value: "movies", label: "Movies", testID: TEST_IDS.librarySegmentMovies },
 ];
-const SEGMENT_HEIGHT = 32;
-const SEGMENT_SLOP = { top: 6, bottom: 6, left: 0, right: 0 };
 
 export interface LibraryToolbarProps<T extends string> {
   readonly bothMedia: boolean;
@@ -28,7 +25,6 @@ export interface LibraryToolbarProps<T extends string> {
   onSort(sort: T): void;
 }
 
-// The segments are drawn here because @expo/ui's segmented control contributes no accessibility element.
 export function LibraryToolbar<T extends string>({
   bothMedia,
   segment,
@@ -42,7 +38,6 @@ export function LibraryToolbar<T extends string>({
   onSort,
 }: LibraryToolbarProps<T>): ReactElement {
   const colors = useColors();
-  const haptics = useHaptics();
 
   if (filtering) {
     return (
@@ -75,37 +70,12 @@ export function LibraryToolbar<T extends string>({
   return (
     <View style={styles.toolbar}>
       {bothMedia ? (
-        <View style={[styles.track, { backgroundColor: colors.elevated }]}>
-          {SEGMENTS.map((option) => {
-            const on = option.key === segment;
-            return (
-              <Pressable
-                key={option.key}
-                accessibilityRole="tab"
-                accessibilityState={{ selected: on }}
-                accessibilityLabel={option.label}
-                testID={option.testID}
-                hitSlop={SEGMENT_SLOP}
-                onPress={() => {
-                  haptics.selection();
-                  onSegment(option.key);
-                }}
-                style={[
-                  styles.segment,
-                  on && { backgroundColor: colors.overlay, borderColor: colors.border },
-                ]}
-              >
-                <CueText
-                  variant="rowTitleSecondary"
-                  weight={on ? "semibold" : "medium"}
-                  style={{ color: on ? colors.fg : colors.ink2 }}
-                >
-                  {option.label}
-                </CueText>
-              </Pressable>
-            );
-          })}
-        </View>
+        <SegmentedControl
+          segments={SEGMENTS}
+          value={segment}
+          onChange={onSegment}
+          style={styles.segments}
+        />
       ) : null}
       <View style={styles.tools}>
         <Pressable
@@ -146,22 +116,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACE.s4,
     paddingBottom: SPACE.s2,
   },
-  track: {
-    flexDirection: "row",
-    gap: SPACE.s1,
-    padding: 2,
-    borderRadius: RADIUS.control,
-  },
-  segment: {
-    minHeight: SEGMENT_HEIGHT,
-    minWidth: 84,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: SPACE.s3,
-    borderRadius: RADIUS.control - 2,
-    borderWidth: HAIRLINE,
-    borderColor: "transparent",
-  },
+  segments: { flexGrow: 1, flexBasis: 176 },
   tools: { flexDirection: "row", gap: SPACE.s2, marginLeft: "auto" },
   tool: {
     width: TARGET_MIN,

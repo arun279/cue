@@ -59,6 +59,27 @@ appId: app.cuetracker
 - waitForAnimationToEnd:
     timeout: 1000
 - takeScreenshot: library-shows
+- tapOn:
+    id: "avatar-link"
+- tapOn:
+    id: "profile-to-settings"
+- extendedWaitUntil:
+    visible:
+      id: "screen-settings"
+    timeout: 30000
+- waitForAnimationToEnd:
+    timeout: 1000
+- takeScreenshot: settings-rest
+- runFlow:
+    file: lib/back.yaml
+    env:
+      BACK_TITLE: "Profile"
+- tapOn:
+    id: "close-account"
+- extendedWaitUntil:
+    visible:
+      id: "screen-library"
+    timeout: 30000
 - tapOn: "Calendar"
 - extendedWaitUntil:
     visible:
