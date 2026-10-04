@@ -27,72 +27,59 @@ export function MonthJump(): ReactElement {
       params: { type: scope.type, year: pickedYear, month },
     });
   return (
-    <View testID={TEST_IDS.historyJumpSheet} style={styles.sheet}>
-      <CueText
-        variant="sectionHeading"
-        accessibilityRole="header"
-        style={[styles.head, { color: colors.fg }]}
-      >
+    <ScrollView
+      testID={TEST_IDS.historyJumpSheet}
+      contentContainerStyle={[styles.sheet, { paddingBottom: insets.bottom + SPACE.s2 }]}
+    >
+      <CueText variant="sectionHeading" accessibilityRole="header" style={{ color: colors.fg }}>
         Jump to
       </CueText>
-      <ScrollView
-        style={styles.body}
-        contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + SPACE.s2 }]}
-      >
-        <Button
-          label="Recent"
-          variant="link"
-          testID={TEST_IDS.historyJumpRecent}
-          onPress={() => pick()}
-        />
-        <CueText variant="meta" eyebrow style={{ color: colors.muted }}>
-          Year
-        </CueText>
-        <View style={styles.grid}>
-          {years.map((value) => (
-            <View key={value} style={[styles.cell, cell]}>
-              <HistoryChoice
-                label={String(value)}
-                selected={value === year}
-                testID={TEST_IDS.historyJumpYear(value)}
-                onPress={() => setYear(value)}
-              />
-            </View>
-          ))}
-        </View>
-        <CueText
-          variant="meta"
-          eyebrow
-          style={{ color: colors.muted }}
-        >{`Month of ${year}`}</CueText>
-        <Button
-          label={`All of ${year}`}
-          variant="link"
-          testID={TEST_IDS.historyJumpAll}
-          onPress={() => pick(year)}
-        />
-        <View style={styles.grid}>
-          {MONTHS.map((label, i) => (
-            <View key={label} style={[styles.cell, cell]}>
-              <HistoryChoice
-                label={label}
-                selected={scope.year === year && scope.month === i + 1}
-                testID={TEST_IDS.historyJumpMonth(i + 1)}
-                onPress={() => pick(year, i + 1)}
-              />
-            </View>
-          ))}
-        </View>
-      </ScrollView>
-    </View>
+      <Button
+        label="Recent"
+        variant="link"
+        testID={TEST_IDS.historyJumpRecent}
+        onPress={() => pick()}
+      />
+      <CueText variant="meta" eyebrow style={{ color: colors.muted }}>
+        Year
+      </CueText>
+      <View style={styles.grid}>
+        {years.map((value) => (
+          <View key={value} style={[styles.cell, cell]}>
+            <HistoryChoice
+              label={String(value)}
+              selected={value === year}
+              testID={TEST_IDS.historyJumpYear(value)}
+              onPress={() => setYear(value)}
+            />
+          </View>
+        ))}
+      </View>
+      <CueText variant="meta" eyebrow style={{ color: colors.muted }}>{`Month of ${year}`}</CueText>
+      <Button
+        label={`All of ${year}`}
+        variant="link"
+        testID={TEST_IDS.historyJumpAll}
+        onPress={() => pick(year)}
+      />
+      <View style={styles.grid}>
+        {MONTHS.map((label, i) => (
+          <View key={label} style={[styles.cell, cell]}>
+            <HistoryChoice
+              label={label}
+              selected={scope.year === year && scope.month === i + 1}
+              testID={TEST_IDS.historyJumpMonth(i + 1)}
+              onPress={() => pick(year, i + 1)}
+            />
+          </View>
+        ))}
+      </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  sheet: { flex: 1, paddingHorizontal: SPACE.s4, paddingTop: SPACE.s4 },
-  head: { paddingBottom: SPACE.s2 },
-  body: { flex: 1 },
-  list: { gap: SPACE.s2 },
+  sheet: { gap: SPACE.s2, paddingHorizontal: SPACE.s4, paddingTop: SPACE.s4 },
   grid: { flexDirection: "row", flexWrap: "wrap", rowGap: SPACE.s2 },
   cell: { paddingHorizontal: SPACE.s1 },
 });
