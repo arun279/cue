@@ -8,13 +8,7 @@ import * as Notifications from "expo-notifications";
 import { router } from "expo-router";
 import { useEffect } from "react";
 
-/**
- * Android 8 and later drop a notification posted without a channel, and a
- * channel's importance is fixed for every install once created. Default
- * importance makes a sound without a heads-up banner; iOS ignores the call. The
- * name is the Settings row's, so the system category and the switch that fills
- * it read the same.
- */
+// Android 8 and later drop a notification posted without a channel, and a channel's importance is fixed once created.
 const CHANNEL_ID = "new-episodes";
 
 const ensureChannel = (): Promise<unknown> =>
@@ -28,12 +22,6 @@ function toPending({ identifier, content }: Notifications.NotificationRequest): 
   return { id: identifier, fingerprint: typeof fingerprint === "string" ? fingerprint : null };
 }
 
-/**
- * Checked rather than requested, so the prompt only ever comes from an opt-in,
- * and a later revoke in system settings simply stops the scheduling.
- * The identifier is the planner's id, so a replan addresses the notification
- * the last one scheduled.
- */
 async function apply(planned: readonly PlannedReminder[]): Promise<void> {
   if (!(await Notifications.getPermissionsAsync()).granted) return;
   await ensureChannel();
@@ -60,11 +48,6 @@ async function apply(planned: readonly PlannedReminder[]): Promise<void> {
   );
 }
 
-/**
- * Reconciles and cancels run one at a time, so a switch turned off while a
- * reconcile is still reading the OS cannot be followed by that reconcile's
- * schedule landing.
- */
 export function createNativeReminders(): Reminders {
   let queue = Promise.resolve();
   const serially = (task: () => Promise<unknown>): Promise<void> => {
@@ -95,9 +78,6 @@ export function createNativeReminders(): Reminders {
   };
 }
 
-/** A tap opens what the notification named: an alert its show, the summary the
- * Calendar, where a day lives. Cleared once handled, so a later mount does not
- * open it again. */
 export function useOpenTappedReminder(): void {
   const response = Notifications.useLastNotificationResponse();
   useEffect(() => {

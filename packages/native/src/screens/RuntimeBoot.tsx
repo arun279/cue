@@ -12,14 +12,11 @@ import { TEST_IDS } from "../ui/test-ids";
 import { SPACE, useColors } from "../ui/tokens";
 
 export interface RuntimeBootProps {
-  /** Everything the runtime needs except the token, which boot reads for itself,
-   * and the dead-token exit, which belongs to the auth store and is read here. */
   readonly deps: Omit<RuntimeBootDeps, "endSession">;
   readonly children: ReactNode;
 }
 
 export function RuntimeBoot({ deps, children }: RuntimeBootProps): ReactElement {
-  // A dead refresh token routes through the auth store's teardown to onboarding.
   const endSession = useAuth((s) => s.endSession);
   const { runtime, failed, retry } = useRuntimeBoot({ ...deps, endSession });
   useSplashRelease(runtime !== null || failed);

@@ -15,36 +15,22 @@ const GLYPH = 20;
 interface RowMenuItem {
   readonly id: string;
   readonly label: string;
-  /** Unavailable items are hidden on iOS and disabled on Android, because the
-   * platforms answer this in opposite directions: an iOS context menu "displays
-   * only the actions that are relevant", and Compose's `DropdownMenuItem` takes
-   * an `enabled` parameter for exactly this. */
+  // iOS context menus hide unavailable actions; Compose's DropdownMenuItem disables them.
   readonly available?: boolean;
   readonly onPress: () => void;
   readonly destructive?: boolean;
   readonly image?: MenuAction["image"];
-  /** Draws the platform's own checkmark, which is how a menu states a choice. */
   readonly selected?: boolean;
 }
 
 export interface RowMenuProps {
-  /** The subject, which the menu titles itself with and the trigger is named for. */
   readonly title: string;
   readonly items: readonly RowMenuItem[];
   readonly testID?: string;
-  /** A trigger of the caller's own, long pressed unless it says otherwise. */
   readonly children?: ReactElement;
   readonly openOnLongPress?: boolean;
 }
 
-/**
- * The quick actions for one row, in the platform's own menu: a SwiftUI menu on
- * iOS and a Compose `DropdownMenu` on Android.
- *
- * It exists because the plain queue row had no non-gesture path to Stop from Up
- * Next at all, which is a WCAG 2.5.1 gap, and because a context menu's items
- * have to be reachable from the main interface too.
- */
 export function RowMenu({
   title,
   items,

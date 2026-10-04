@@ -2,8 +2,6 @@ import { type ReactElement, useState } from "react";
 import { useColors } from "../../ui/tokens";
 import { CueText } from "../../ui/type";
 
-/** Where a long overview folds: about three lines of the role at the default
- * content size. */
 const FOLD = 240;
 
 export function Overview({ text }: { readonly text: string | null }): ReactElement | null {

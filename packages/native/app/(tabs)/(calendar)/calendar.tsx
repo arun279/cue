@@ -35,25 +35,12 @@ import { ROW_MIN_HEIGHT, SPACE, tabBarClearance, useColors } from "../../../src/
 
 interface DaySection {
   readonly label: string;
-  /** Whole local days from today, which is what the countdown chip counts. */
   readonly offset: number;
   readonly data: readonly CalendarRow[];
 }
 
 type Branch = "tv-off" | "loading" | "error" | "empty" | "agenda";
 
-/**
- * The Calendar: what is airing, and when, for the next four weeks.
- *
- * One read, day-grouped in the viewer's own timezone, under pinned day bands.
- * Nothing here is markable and no row has a reminder bell: an aired unwatched
- * episode is already in the queue, so a second place to act would be a second
- * answer to the same question. Tapping a row opens the show, which with pull to
- * refresh and the alerts card's two actions is the entire interaction set.
- *
- * The clock is day-coarse, so the groups, their labels and the countdowns
- * re-anchor when the local day turns over under a screen left open overnight.
- */
 export default function Calendar(): ReactElement {
   const runtime = useRuntime();
   const showsEnabled = usePrefs((state) => state.showsEnabled);
@@ -121,8 +108,6 @@ export default function Calendar(): ReactElement {
         )}
         renderItem={({ item, index, section }) => (
           <View style={styles.row}>
-            {/* Inside a day group only: a hairline across a day boundary would
-                argue with the band that separates the groups. */}
             {index === 0 ? null : <Separator inset={AGENDA_TEXT_INSET - SPACE.s4} />}
             <AiringRow
               row={item}
@@ -153,7 +138,6 @@ function branchOf(showsEnabled: boolean, loading: boolean, failed: boolean, days
   return days === 0 ? "empty" : "agenda";
 }
 
-/** What stands above the agenda. Exactly one of these renders. */
 function Lead({
   branch,
   failure,

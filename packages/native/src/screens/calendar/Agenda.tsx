@@ -9,7 +9,6 @@ const SKELETON_ROWS = 4;
 const BAR = { title: "55%", meta: "35%" } as const;
 const BAR_HEIGHT = 12;
 
-/** Where a calendar row's text starts, and so how far its separator is inset. */
 export const AGENDA_TEXT_INSET = SPACE.s4 + POSTER_WIDTH.onTheWay + SPACE.s3;
 
 export interface DayHeaderProps {
@@ -18,13 +17,6 @@ export interface DayHeaderProps {
   readonly today: boolean;
 }
 
-/**
- * The pinned day band. Its `--color-bg` fill is load bearing rather than
- * decoration: it is the opaque surface that sits under the nav bar at every
- * scroll offset, and the only reason this screen may let the bar use the
- * platform's translucent material. It must not become a tinted or translucent
- * band.
- */
 export function DayHeader({ label, count, today }: DayHeaderProps): ReactElement {
   const colors = useColors();
 
@@ -46,7 +38,6 @@ export function DayHeader({ label, count, today }: DayHeaderProps): ReactElement
   );
 }
 
-/** One day bar and its rows, standing where the agenda will stand. */
 export function AgendaSkeleton(): ReactElement {
   return (
     <View testID={TEST_IDS.calendarSkeleton} style={styles.skeleton}>

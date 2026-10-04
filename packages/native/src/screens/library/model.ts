@@ -27,8 +27,6 @@ export interface Chip {
 
 export interface LibraryView {
   readonly chips: readonly Chip[];
-  /** Partial because a segment holds only its own chips, and the screen reads
-   * whichever one the rail has selected. */
   readonly items: Readonly<Partial<Record<ChipKey, readonly LibraryItem[]>>>;
 }
 
@@ -38,7 +36,6 @@ export interface SortOption<T> {
   readonly testID: string;
 }
 
-/** The rail's order, which is the order the web app reads in. */
 const SHOW_CHIPS: readonly { key: ShowChip; label: string; testID: string }[] = [
   { key: "watching", label: "Watching", testID: TEST_IDS.libraryChipWatching },
   { key: "watchlist", label: "Watchlist", testID: TEST_IDS.libraryChipWatchlist },
@@ -57,10 +54,6 @@ export const SHOW_SORTS: readonly SortOption<LibrarySort>[] = [
   { id: "progress", label: "Progress", testID: TEST_IDS.sortProgress },
 ];
 
-/**
- * Medium-honest: a film has no progress, and the recency a watchlist is ordered
- * by is when it was added rather than when it was watched.
- */
 export function movieSorts(chip: MovieChip): readonly SortOption<MovieSort>[] {
   return [
     {
@@ -111,10 +104,6 @@ export function keyOf(item: LibraryItem): string {
   return item.kind === "show" ? `show-${item.entry.showId}` : `movie-${item.entry.movieId}`;
 }
 
-/**
- * The filter runs on the settled query rather than the keystroke, so a grid of
- * artwork is laid out once per pause instead of once per letter.
- */
 export const FILTER_DEBOUNCE_MS = 300;
 
 export function useDebounced<T>(value: T, delayMs: number): T {

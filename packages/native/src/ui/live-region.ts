@@ -10,10 +10,6 @@ const ANDROID: Readonly<Record<Politeness, LiveRegionProps>> = {
 };
 const NONE: LiveRegionProps = {};
 
-/**
- * iOS needs an imperative announcement; Android has accessibilityLiveRegion.
- * Spread the result onto the view that holds the message.
- */
 export function useLiveRegion(message: string | null, politeness: Politeness): LiveRegionProps {
   useEffect(() => {
     if (message === null || Platform.OS !== "ios") return;

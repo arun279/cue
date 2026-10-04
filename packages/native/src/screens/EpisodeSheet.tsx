@@ -137,8 +137,6 @@ export function EpisodeBody({
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   content: { flex: 1, padding: SPACE.s4 },
-  // The sheet does not scroll, so the body owns the height between the toolbar
-  // and the pager and the still gives back whatever the text needs.
   body: { flex: 1, gap: SPACE.s3 },
   toolbar: { alignItems: "flex-end" },
   countdown: {

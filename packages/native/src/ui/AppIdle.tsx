@@ -5,11 +5,6 @@ import { type ReactElement, useEffect, useRef, useState } from "react";
 import { Marker } from "./Marker";
 import { TEST_IDS } from "./test-ids";
 
-/**
- * Re-sample cadence while the durable queue holds ops: the op-log has no
- * subscription surface, and a background flush drains it without any in-flight
- * transition to re-render on.
- */
 const QUEUE_SAMPLE_MS = 1000;
 
 function appIdleTiming(): string {
@@ -18,7 +13,6 @@ function appIdleTiming(): string {
   return `Returning-user app idle: ${(now - (startTime ?? now)).toFixed(1)} ms${startTime == null ? " (performance.now fallback)" : ""}`;
 }
 
-/** Pending durable writes count as busy even when no flush is in flight. */
 export function AppIdle(): ReactElement | null {
   const fetching = useIsFetching();
   const inFlight = useSyncActivity((state) => state.pending);

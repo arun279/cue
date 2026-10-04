@@ -8,14 +8,6 @@ export interface BadgeProps {
   readonly testID?: string;
 }
 
-/**
- * A count or a countdown beside the thing it counts: the lapsed drawer's number
- * of shows, and the "On the way" row's air time or day distance.
- *
- * Never a target and never the only place its information appears, so it stays
- * out of the accessibility tree and its number rides in the composed label of
- * whatever it sits on.
- */
 export function Badge({ label, testID }: BadgeProps): ReactElement {
   const colors = useColors();
 

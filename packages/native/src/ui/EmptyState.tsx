@@ -6,13 +6,8 @@ import { CueText } from "./type";
 export interface EmptyStateProps {
   readonly headline: string;
   readonly body?: string;
-  /**
-   * A failure is centered and a genuine empty state is left-aligned. That
-   * difference is the whole of what keeps emptiness from reading as failure.
-   */
   readonly centered?: boolean;
   readonly testID?: string;
-  /** The action, where there is one. An empty screen is an invitation to act. */
   readonly children?: ReactNode;
 }
 

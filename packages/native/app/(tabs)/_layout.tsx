@@ -3,23 +3,7 @@ import type { ReactElement } from "react";
 import { Platform } from "react-native";
 import { useColors } from "../../src/ui/tokens";
 
-/**
- * Four tabs, fixed, never pruned, on four distinct paths.
- *
- * **Fixed**, because media visibility is a reversible preference two screens
- * away in Settings, and a navigation structure that changes item count when a
- * switch flips is the least predictable thing a shell can do. Apple's tab-bar
- * guidance names the case directly ("Don't disable or hide tab bar buttons, even
- * when their content is unavailable ... If a section is empty, explain why") and
- * Material's navigation bar says destinations do not change. So a movies-only
- * user keeps four tabs, and the two with nothing in them say why.
- *
- * **Distinct paths**, because `NativeTabsNavigator` calls `useNavigationBuilder`
- * without forwarding `initialRouteName`: with four groups all serving `/` the
- * alphabetically first group becomes the landing screen and nothing changes it.
- * A path per tab works around that and is better anyway, because every tab is
- * then deep-linkable.
- */
+// One path per tab: NativeTabsNavigator does not forward initialRouteName, so groups sharing / land on the alphabetically first.
 export default function TabsLayout(): ReactElement {
   const colors = useColors();
   return (

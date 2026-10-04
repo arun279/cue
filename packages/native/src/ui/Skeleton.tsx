@@ -16,20 +16,9 @@ const DIM_OPACITY = 0.45;
 export interface SkeletonProps {
   readonly width: DimensionValue;
   readonly height: number;
-  /** The component's own radius on a plate, and the pill radius on a bar. */
   readonly radius?: number;
 }
 
-/**
- * One plate of the loading vocabulary: a fill in `--color-elevated` standing
- * exactly where its content will stand, so the screen tells the truth about its
- * own shape before it knows the words and nothing jumps when it resolves.
- *
- * Hidden from assistive technology, because a screen reader hears the loading
- * status rather than a list of empty rows. Frozen at rest under Reduce Motion:
- * a pulse settled at its dim end would read as disabled content rather than as
- * no content.
- */
 export function Skeleton({ width, height, radius = RADIUS.pill }: SkeletonProps): ReactElement {
   const colors = useColors();
   const reduced = useReducedMotion();

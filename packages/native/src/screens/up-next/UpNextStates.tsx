@@ -20,12 +20,6 @@ const BAR_HEIGHT = 12;
 const WATCHLIST_TILES = 3;
 const TILE_WIDTH = 96;
 
-/**
- * The state a first run actually starts in. Each plate stands where its content
- * will stand and is the size that content will be, so the screen tells the truth
- * about its own shape before it knows the words and nothing jumps when it
- * resolves. There is no spinner anywhere: Cue has one loading vocabulary.
- */
 export function UpNextSkeleton(): ReactElement {
   return (
     <View testID={TEST_IDS.upNextSkeleton}>
@@ -52,11 +46,6 @@ export function UpNextSkeleton(): ReactElement {
 
 const SKELETON_SLOTS = Array.from({ length: SKELETON_ROWS }, (_, index) => index);
 
-/**
- * The screen with nothing cached to fall back on. Centred, which is the only
- * non-color signal separating "this went wrong" from "there is nothing here":
- * an empty state aligns to the leading edge and never looks like this.
- */
 export function UpNextError({
   failure,
   onRetry,
@@ -82,7 +71,6 @@ interface EmptyCopy {
   readonly body?: string;
 }
 
-/** Verbatim from the shipped screens. */
 const EMPTY: Readonly<Record<UpNextEmptyKind, EmptyCopy>> = {
   "nothing-tracked": {
     testID: TEST_IDS.upNextEmptyNothingQueued,
@@ -112,24 +100,13 @@ const LIBRARY_BRANCHES: readonly UpNextEmptyKind[] = ["only-stopped", "unresolve
 
 export interface UpNextEmptyProps {
   readonly kind: UpNextEmptyKind;
-  /** Things the reader already said they wanted: the one place an empty screen
-   * has something better to offer than a search field. */
   readonly watchlist: readonly LibraryEntry[];
-  /** Whether "On the way" has anything to say below this. It is what answers
-   * "so when do I get something?", and it is why the caught-up line needs no
-   * second sentence when something is coming. */
   readonly airingSoon: boolean;
 }
 
-/**
- * The five branches, each aligned to the leading edge, because genuine emptiness
- * reads as success rather than as failure and must not be drawn like an error.
- */
 export function UpNextEmpty({ kind, watchlist, airingSoon }: UpNextEmptyProps): ReactElement {
   const router = useRouter();
   const copy = EMPTY[kind];
-  // The caught-up sentence is only true when nothing is coming. With something
-  // on the way the section below is the answer and a second line is noise.
   const body =
     kind === "caught-up" && !airingSoon ? "Nothing airing in the next few days." : copy.body;
 

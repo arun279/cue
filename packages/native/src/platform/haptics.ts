@@ -1,17 +1,7 @@
 import type { Haptics } from "@cue/core/ports/haptics";
 import { CueHaptics } from "../../modules/cue-native/src";
 
-/**
- * `expo-haptics` is not a dependency of this app and cannot be: it exposes no
- * `prepare()`, so every generator is cold on first fire and a swipe threshold
- * tick lands late enough to read as unrelated to the gesture; and its Android
- * side funnels everything into a raw `Vibrator` waveform, which is what
- * Android's own haptics guidance tells you not to use for touch feedback.
- *
- * The Settings toggle is read at fire time so disabling haptics takes effect on the next tap
- * instead of the next launch. Both platforms honour their own system haptics
- * setting underneath, and nothing here second-guesses that.
- */
+// Not expo-haptics: it exposes no prepare(), so its first fire is cold.
 export function createNativeHaptics(isEnabled: () => boolean): Haptics {
   const fire =
     (verb: () => void): (() => void) =>

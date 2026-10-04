@@ -10,22 +10,13 @@ import { CueText } from "./type";
 
 export interface AiringRowProps {
   readonly row: CalendarRow;
-  /** The countdown: a time today, `Nd` for a later day, nothing once aired. */
   readonly chip: string | null;
-  /** The third line, where the screen draws one: the air time and the network. */
   readonly line?: string | null;
-  /** What the row says about its air time, which the chip alone cannot carry. */
   readonly spoken: string;
   readonly minHeight: number;
   readonly testID?: string;
 }
 
-/**
- * One scheduled episode, shared by "On the way" and the Calendar so the two
- * scopes of the same read cannot drift apart on what a row is. It carries no
- * check: an episode that has not aired cannot be marked, and one that has is
- * already in the queue, which is the one home for that action.
- */
 export function AiringRow({
   row,
   chip,

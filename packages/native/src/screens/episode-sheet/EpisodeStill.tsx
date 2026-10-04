@@ -8,14 +8,8 @@ import { CueText } from "../../ui/type";
 
 const revealedStills = new Set<number>();
 const SPOILER_BLUR_RADIUS = 24;
-/** Below this the crop stops reading as a frame of the episode. */
 const STILL_MIN_HEIGHT = 96;
 
-/**
- * 16:9 when the sheet has the room for it, and the one thing that gives room
- * back when the sheet does not: the sheet cannot scroll, so a still at its full
- * height would push the mark row and the pager past the compact detent's edge.
- */
 const widescreen = (height: number): ViewStyle => ({ flexBasis: height, maxHeight: height });
 
 export function EpisodeStill({

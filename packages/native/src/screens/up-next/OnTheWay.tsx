@@ -14,14 +14,6 @@ export interface OnTheWayProps {
   readonly days: readonly OnTheWayDay[];
 }
 
-/**
- * "On the way": the next 72 hours of scheduled episodes, three rows at most,
- * with no checks because there is nothing to mark yet.
- *
- * It is the same data as the Calendar tab at a different scope, which is summary
- * and detail rather than a second home for an action, and the "Calendar" link in
- * its header is the disclosure to the full 28 days. Omitted entirely when empty.
- */
 export function OnTheWay({ days }: OnTheWayProps): ReactElement | null {
   const router = useRouter();
   const colors = useColors();
@@ -48,8 +40,6 @@ export function OnTheWay({ days }: OnTheWayProps): ReactElement | null {
             {day.label}
           </CueText>
           {day.rows.map((row, index) => {
-            // A summary draws the countdown and leaves the calendar's third
-            // line to the calendar.
             const { chip, spoken } = airingGrammar(row, day.offset);
             return (
               <Fragment key={row.ids.trakt}>

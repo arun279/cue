@@ -60,10 +60,7 @@ import { CueText } from "../../../src/ui/type";
 
 export { QueueRow };
 
-/** "On the way" is a summary, and the Calendar tab is the whole of it. */
 const ON_THE_WAY_ROWS = 3;
-/** The card renders only when the queue holds this many shows, and it consumes
- * the head of the queue rather than sitting on top of it. */
 const MARQUEE_MIN_QUEUE = 3;
 const HOUR_MS = DAY_MS / 24;
 
@@ -125,20 +122,6 @@ function useUpNextView(enabled: boolean): UpNextView {
   };
 }
 
-/**
- * Up Next is the home screen: what to watch next, and one tap to record it.
- *
- * Four sections in one scroll. The marquee promotes the head of the queue and is
- * the only thing on the screen that says an episode is new; the queue is the
- * list; the collapsed drawer holds what has gone idle; "On the way" answers what
- * is coming. The strip is the first thing in the scroll content and scrolls away
- * with it, because an ambient message that has already been read must not spend
- * 32 pt of every screen repeating itself.
- *
- * A mark leaves the queue and the list closes over it. That departure, plus the
- * snackbar's Undo, is what carries closure now that the old "Previously" strip
- * is gone; the History footer is where the whole log lives.
- */
 export default function UpNext(): ReactElement {
   const runtime = useRuntime();
   const showsEnabled = usePrefs((state) => state.showsEnabled);
@@ -243,20 +226,8 @@ export default function UpNext(): ReactElement {
   );
 }
 
-/**
- * Which screen this is, decided once and read by both halves of it. The drawer,
- * "On the way" and the History footer belong to the queue and to nothing else:
- * an error with no cache owes the reader a way back, not a list of sections
- * standing over an empty screen.
- */
 type Branch = "tv-off" | "loading" | "error" | "queue" | UpNextEmptyKind;
 
-/**
- * The branches that carry the drawer, "On the way" and the History footer under
- * them. A queue has all three; a reader whose queue cannot resolve still needs
- * to know when something is coming and where the log is. Every other branch is
- * one block of type on an otherwise empty screen.
- */
 const SECTIONED: readonly Branch[] = ["queue", "unresolved", "caught-up"];
 
 function branchOf(view: UpNextView, showsEnabled: boolean): Branch {
@@ -266,10 +237,6 @@ function branchOf(view: UpNextView, showsEnabled: boolean): Branch {
   return upNextEmptyKind({ ...view, queued: view.queue.length }) ?? "queue";
 }
 
-/**
- * What stands above the queue. Exactly one of these renders, and the populated
- * branch renders the card and lets the list draw the rest.
- */
 function Lead({
   branch,
   view,
@@ -301,9 +268,6 @@ function Lead({
     return <UpNextEmpty kind={branch} watchlist={view.watchlistEntries} airingSoon={airingSoon} />;
   }
   if (marquee === undefined) return null;
-  // Mid-advance past the last aired episode there is no episode to headline, so
-  // the lead show keeps its place as a row until the confirming read either
-  // names the next one or drops it.
   return marquee.item.episode === null ? (
     <QueueRow card={marquee} mark={mark} onStop={() => onStop(marquee)} />
   ) : (
@@ -311,12 +275,6 @@ function Lead({
   );
 }
 
-/**
- * Where "Previously" was: one row, at the target floor, opening the whole log.
- * It costs 44 pt once instead of ten rows plus their day headers, and it makes
- * History one tap from the home screen rather than two, which keeps the path
- * recognizable rather than recalled.
- */
 function HistoryFooter(): ReactElement {
   const router = useRouter();
   const colors = useColors();
@@ -341,10 +299,6 @@ function HistoryFooter(): ReactElement {
   );
 }
 
-/**
- * The first-ever mark kills the tutorial line, whichever row fires it, so the
- * caption is a property of the mark controller rather than of any one row.
- */
 function useTutorialGate(controller: MarkWatched): {
   readonly controller: MarkWatched;
   readonly tutorialVisible: boolean;

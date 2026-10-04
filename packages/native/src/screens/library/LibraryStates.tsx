@@ -13,10 +13,6 @@ import type { ChipKey, Segment } from "./model";
 const SKELETON_TILES = [0, 1, 2, 3, 4, 5, 6, 7, 8];
 const POSTER_RATIO = 3 / 2;
 
-/**
- * The grid with no tiles in it, which is four different screens: not yet, gone
- * wrong, genuinely empty, and filtered down to nothing.
- */
 export function LibraryState({
   status,
   segment,
@@ -42,7 +38,6 @@ export function LibraryState({
   return <LibraryNoMatch segment={segment} query={query} onClear={onClear} />;
 }
 
-/** The grid before it knows its titles: the shape the content will take. */
 function LibrarySkeleton({ width }: { readonly width: number }): ReactElement {
   return (
     <View testID={TEST_IDS.librarySkeleton} style={styles.skeleton}>
@@ -74,10 +69,6 @@ function LibraryError({
   );
 }
 
-/**
- * Six slots holding five sentences: a show watchlist and a movie
- * watchlist promise the same thing, so they say it in the same words and the copy is a property of the chip alone.
- */
 const EMPTY: Readonly<Record<ChipKey, readonly [string, string?]>> = {
   watching: ["Shows you're watching land here.", "Find one in Search."],
   watchlist: ["Things you want to watch land here.", "Add them from Search."],

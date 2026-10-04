@@ -26,21 +26,9 @@ export interface QueueRowProps {
   readonly card: UpNextCard;
   readonly mark: MarkWatched;
   onStop(): void;
-  /** The lapsed variant draws the idle stretch where the queue draws its count,
-   * which is the reason the row is in the drawer at all. */
   readonly variant?: "queue" | "lapsed";
 }
 
-/**
- * One queue-anatomy row: a 48 pt poster, the show, a quiet episode line, and a
- * footer holding the progress rail beside its count, with the check trailing.
- * Swipe right marks through the identical pipeline the check uses; swipe left
- * stops the show, and the overflow beside the check is the tap path to both.
- *
- * Exactly two accessibility elements plus the overflow: the body carries one
- * composed label in visual reading order, and the check is a sibling switch
- * rather than a control nested inside a button.
- */
 export function QueueRow({ card, mark, onStop, variant = "queue" }: QueueRowProps): ReactElement {
   const { entry, item } = card;
   const router = useRouter();
@@ -49,15 +37,10 @@ export function QueueRow({ card, mark, onStop, variant = "queue" }: QueueRowProp
   const art = useShowArt(entry.showId);
   const alerts = useAlertsMute(entry.showId, entry.title);
 
-  // Null mid-advance, when the projection has run past the last aired episode
-  // and the confirming read has yet to name the next one. The row keeps its
-  // place and drops the line it cannot fill.
   const episode = item.episode;
   const code = episode === null ? null : epCode(episode.season, episode.number);
   const left = episodesLeft(entry.aired, entry.completed);
   const idle = variant === "lapsed" ? lastWatchedPhrase(entry.lastWatchedAt, Date.now()) : null;
-  // Never "0 left": a projection that has run past a show's last aired episode
-  // has nothing to count, and claiming zero is a number the app cannot stand by.
   const note = idle !== null ? `last watched ${idle}` : left > 0 ? `${left} left` : null;
   const open = (): void => router.push(`/show/${entry.showId}`);
 
@@ -100,7 +83,6 @@ export function QueueRow({ card, mark, onStop, variant = "queue" }: QueueRowProp
                   },
                   { id: TEST_IDS.quickActionStop, label: STOP_LABEL, onPress: onStop },
                   { id: TEST_IDS.quickActionDetails, label: "Show details", onPress: open },
-                  // A lapsed show schedules nothing, so there is nothing to mute.
                   ...(variant === "queue"
                     ? [
                         {
@@ -150,6 +132,5 @@ export function QueueRow({ card, mark, onStop, variant = "queue" }: QueueRowProp
 }
 
 const styles = StyleSheet.create({
-  // Opaque, so the swipe reveal stays behind the row it is revealed by.
   surface: { paddingHorizontal: SPACE.s4, paddingVertical: SPACE.s2 },
 });

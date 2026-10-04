@@ -11,7 +11,6 @@ interface SectionHeaderAction {
 
 export interface SectionHeaderProps {
   readonly label: string;
-  /** The trailing link, such as Up Next's "Calendar" beside "On the way". */
   readonly action?: SectionHeaderAction;
   readonly testID?: string;
 }
@@ -59,8 +58,6 @@ const styles = StyleSheet.create({
     gap: SPACE.s2,
     minHeight: TARGET_MIN,
   },
-  // The ink stays where it is and the target reaches the floor around it, with
-  // the negative margin keeping the label optically aligned with the rows below.
   action: {
     minHeight: TARGET_MIN,
     justifyContent: "center",

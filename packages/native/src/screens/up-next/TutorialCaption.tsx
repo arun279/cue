@@ -8,19 +8,10 @@ import { CueText } from "../../ui/type";
 
 const dismissed = booleanPref(preferenceStorage, "cue.tutorial-mark-dismissed", false);
 
-/** True once the one-time caption has been dismissed, by the first-ever mark. */
 export const initialTutorialDismissed = dismissed.initial;
 
 export const persistTutorialDismissed = (): void => dismissed.persist(true);
 
-/**
- * The entire tutorial: one quiet first-session line under the first queue row's
- * check, aligned to the control it is about. It dies permanently on the first
- * mark from any row, and there is no dismiss control, because a control would be
- * a second thing to learn. It teaches the app's one core action in its
- * gesture-free form, which is the form every reader can reach; the two swipes
- * are accelerators and are never taught by a caption.
- */
 export function TutorialCaption(): ReactElement {
   const colors = useColors();
 
