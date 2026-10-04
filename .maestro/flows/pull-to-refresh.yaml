@@ -11,8 +11,7 @@ appId: app.cuetracker
     end: "50%, 85%"
     duration: 600
 - runFlow: lib/settle.yaml
-- tapOn:
-    id: "sync-now"
+- tapOn: "Sync now"
 - runFlow: lib/settle.yaml
 - assertVisible:
     id: "up-next-list"

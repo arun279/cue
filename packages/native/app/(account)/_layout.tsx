@@ -1,35 +1,34 @@
 import { Stack, useRouter } from "expo-router";
 import type { ReactElement } from "react";
 import { Platform, StyleSheet, View } from "react-native";
-import { Button } from "../../src/ui/Button";
 import { barOptions, useEpisodeSheetOptions } from "../../src/ui/navigation-theme";
 import { SnackbarHost } from "../../src/ui/SnackbarHost";
-import { TEST_IDS } from "../../src/ui/test-ids";
+import { useColors } from "../../src/ui/tokens";
 
 export const unstable_settings = { initialRouteName: "profile" };
 
 export default function AccountLayout(): ReactElement {
   const router = useRouter();
   const sheet = useEpisodeSheetOptions();
+  const colors = useColors();
 
   return (
     <View style={styles.root}>
       <Stack screenOptions={{ ...barOptions, headerTransparent: Platform.OS === "ios" }}>
-        <Stack.Screen
-          name="profile"
-          options={{
-            title: "Profile",
-            headerRight: () => (
-              <Button
-                label="Done"
-                variant="link"
-                bar
-                testID={TEST_IDS.closeAccount}
-                onPress={() => router.dismissAll()}
-              />
-            ),
-          }}
-        />
+        <Stack.Screen name="profile" options={{ title: "Profile" }}>
+          <Stack.Toolbar placement="right">
+            <Stack.Toolbar.Button
+              variant="done"
+              icon={Platform.OS === "android" ? require("../../src/ui/close.xml") : undefined}
+              accessibilityLabel="Done"
+              tintColor={colors.accent}
+              style={{ color: colors.accentFg }}
+              onPress={() => router.dismissAll()}
+            >
+              Done
+            </Stack.Toolbar.Button>
+          </Stack.Toolbar>
+        </Stack.Screen>
         <Stack.Screen name="settings" options={{ title: "Settings" }} />
         <Stack.Screen name="history" options={{ title: "History" }} />
         <Stack.Screen

@@ -27,7 +27,6 @@ export const TEST_IDS = {
 
   bootHold: "boot-hold",
   authLoading: "auth-loading",
-  closeAccount: "close-account",
   screenNotFound: "screen-not-found",
   notFoundHome: "not-found-home",
   screenOnboarding: "screen-onboarding",
@@ -66,7 +65,6 @@ export const TEST_IDS = {
   quickActionStop: "quick-action-stop",
   quickActionDetails: "quick-action-details",
   quickActionMute: "quick-action-mute",
-  syncNow: "sync-now",
   avatarLink: "avatar-link",
   avatarPhoto: "avatar-photo",
   linkHistory: "link-history",

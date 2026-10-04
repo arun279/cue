@@ -1,6 +1,6 @@
 /**
- * Stand-ins for the three platform edges a screen test cannot drive: the router,
- * the platform menu, and the swipeable's own pan gesture.
+ * Stand-ins for the platform edges a screen test cannot drive: the router and
+ * its native bar items, the platform menu, and the swipeable's own pan gesture.
  *
  * Each one keeps the library's documented contract and nothing more, so a test
  * over them is a test of Cue's wiring rather than of the library. The libraries
@@ -36,10 +36,55 @@ interface ScreenProps {
  * and why a screen test needs a stand-in at all. */
 export const SEARCH_FIELD = TEST_IDS.searchField;
 
+interface ToolbarButtonProps {
+  readonly accessibilityLabel?: string;
+  readonly children?: string;
+  onPress?(): void;
+}
+
+/** The header's native bar items as plain buttons, named the way the system
+ * names them: by the accessibility label, or by the title when there is none. */
+export function toolbarModule() {
+  const { createElement } = require("react") as typeof import("react");
+  const { Pressable, Text } = require("react-native") as typeof import("react-native");
+  const Toolbar = ({ children }: { readonly children?: ReactNode }) => children;
+  Toolbar.Button = ({ accessibilityLabel, children, onPress }: ToolbarButtonProps) =>
+    createElement(
+      Pressable,
+      { accessibilityRole: "button", accessibilityLabel, onPress },
+      children === undefined ? null : createElement(Text, null, children),
+    );
+  Toolbar.View = Toolbar;
+  return Toolbar;
+}
+
+/** The Compose nodes a header action is drawn with on Android. The action button
+ * is named the way TalkBack names it, by its icon's content description; the
+ * layout nodes render their children and the transitions are inert. */
+export function composeModule() {
+  const { createElement } = require("react") as typeof import("react");
+  const { Pressable, Text } = require("react-native") as typeof import("react-native");
+  const layout = ({ children }: { readonly children?: ReactNode }) => children;
+  const transition = { plus: () => transition };
+  const transitions = { scaleIn: () => transition, expandIn: () => transition };
+  return {
+    Host: layout,
+    Row: layout,
+    AnimatedVisibility: layout,
+    EnterTransition: transitions,
+    ExitTransition: { scaleOut: () => transition, shrinkOut: () => transition },
+    IconButton: ({ onClick, children }: { onClick(): void; readonly children: ReactNode }) =>
+      createElement(Pressable, { accessibilityRole: "button", onPress: onClick }, children),
+    Icon: ({ contentDescription }: { readonly contentDescription?: string }) =>
+      createElement(Text, null, contentDescription),
+  };
+}
+
 export function expoRouterModule() {
   const { createElement } = require("react") as typeof import("react");
   const { Text, TextInput } = require("react-native") as typeof import("react-native");
   const Stack = (): null => null;
+  Stack.Toolbar = toolbarModule();
   // `headerSearchBarOptions` is a UISearchController, which this runner does not
   // have. The stand-in is a plain field carrying the same placeholder and the
   // same change callback, so a test types what a finger types and nothing else

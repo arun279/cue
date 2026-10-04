@@ -161,9 +161,9 @@ export default function UpNext(): ReactElement {
         options={{
           title: "Up Next",
           headerLargeTitle: true,
-          headerRight: () => <BarItems onSync={refresh.sync} />,
         }}
       />
+      <BarItems onSync={refresh.sync} />
       <FlatList
         testID={TEST_IDS.upNextList}
         contentInsetAdjustmentBehavior="automatic"

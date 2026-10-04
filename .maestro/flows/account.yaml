@@ -32,8 +32,7 @@ appId: app.cuetracker
     file: lib/back.yaml
     env:
       BACK_TITLE: "Profile"
-- tapOn:
-    id: "close-account"
+- tapOn: "Done"
 - assertVisible:
     id: "screen-up-next"
 - waitForAnimationToEnd:
@@ -86,8 +85,7 @@ appId: app.cuetracker
     file: lib/back.yaml
     env:
       BACK_TITLE: "Profile"
-- tapOn:
-    id: "close-account"
+- tapOn: "Done"
 - assertVisible:
     id: "library-segment-movies"
 - tapOn: "Up Next"
