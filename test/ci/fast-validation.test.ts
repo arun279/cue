@@ -295,11 +295,13 @@ describe("fast pull request validation", () => {
   it("keeps the dark pass to a shared visit and screenshot traversal", () => {
     const suite = readFileSync(repositoryPath(".maestro/ci/screenshots.yaml"), "utf8");
     const traversal = readFileSync(repositoryPath(".maestro/flows/dark-traversal.yaml"), "utf8");
+    const connect = readFileSync(repositoryPath(".maestro/flows/lib/connect.yaml"), "utf8");
 
     expect(suite).toContain("runFlow: ../flows/dark-traversal.yaml");
+    expect(traversal).toMatch(/file: lib\/connect\.yaml\n\s+env:\n\s+CAPTURE_AUTH: "true"/);
     expect(traversal).not.toMatch(/^\s*- assert/m);
     expect(traversal).not.toMatch(/id: ".*(?:mark|check)/);
-    expect(traversal.match(/takeScreenshot:/g)?.length).toBe(9);
+    expect(`${connect}${traversal}`.match(/takeScreenshot:/g)?.length).toBe(9);
   });
 
   it("asserts all four Android tabs from the final UI tree", () => {
