@@ -5,6 +5,9 @@ env:
 ---
 - runFlow: ../flows/launch.yaml
 - runFlow: ../flows/up-next-mark-and-undo.yaml
+- runFlow: ../flows/swipe-mark-and-stop.yaml
+- runFlow: ../flows/up-next-lapsed-drawer.yaml
+- runFlow: ../flows/pull-to-refresh.yaml
 - runFlow: ../flows/show-detail-bulk-mark.yaml
 - runFlow: ../flows/search.yaml
 - runFlow: ../flows/episode-sheet.yaml

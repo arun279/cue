@@ -35,11 +35,13 @@ jobs:
     permissions:
       actions: read
       contents: read
+      pull-requests: read
     runs-on: ubuntu-latest
     outputs:
       android: ${{ steps.native.outputs.android }}
       ios: ${{ steps.native.outputs.ios }}
       ios-owed: ${{ steps.ios-owed.outputs.owed }}
+      user-facing: ${{ steps.changes.outputs.user-facing }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup-node-pnpm
@@ -78,6 +80,18 @@ jobs:
             fi
           done < <(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=$BRANCH&status=completed&per_page=50" --jq '.workflow_runs[].id')
           echo "owed=$owed" >> "$GITHUB_OUTPUT"
+      - id: changes
+        name: Check for user-facing changes
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          USER_FACING: ^(packages/native/(src|app)|packages/core/src|\.maestro|scripts/mock-trakt)/|^scripts/(gather-pr-media\.sh|compare-screenshots\.mjs|attach-pr-media\.sh)$
+        run: |
+          files=$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files" --jq '.[].filename')
+          if grep -qE "$USER_FACING" <<< "$files"; then
+            echo "user-facing=true" >> "$GITHUB_OUTPUT"
+          fi
   check:
     permissions:
       contents: read
@@ -347,7 +361,7 @@ jobs:
       actions: read
       contents: read
     needs: [fingerprint, native-ios]
-    if: github.event_name != 'pull_request' || needs.native-ios.outputs.hit != 'true' || needs.fingerprint.outputs.ios-owed == 'true'
+    if: github.event_name != 'pull_request' || needs.native-ios.outputs.hit != 'true' || needs.fingerprint.outputs.ios-owed == 'true' || needs.fingerprint.outputs.user-facing == 'true'
     runs-on: macos-26
     strategy:
       fail-fast: false
@@ -433,13 +447,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Require passing iOS light shards unless a cached pull request skipped them
+      - name: Require passing iOS light shards unless the pull request skipped them
         env:
           EVENT: ${{ github.event_name }}
           BUILD: ${{ needs.native-ios.result }}
           HIT: ${{ needs.native-ios.outputs.hit }}
           OWED: ${{ needs.fingerprint.outputs.ios-owed }}
           SHARDS: ${{ needs.native-e2e-ios-light.result }}
+          USER_FACING: ${{ needs.fingerprint.outputs.user-facing }}
         run: node scripts/native-e2e-rollup.mjs
   ui-screenshots-ios-dark:
     # Measured 8 to 12 minutes.
@@ -448,7 +463,7 @@ jobs:
       actions: read
       contents: read
     needs: [fingerprint, native-ios]
-    if: github.event_name != 'pull_request' || needs.native-ios.outputs.hit != 'true' || needs.fingerprint.outputs.ios-owed == 'true'
+    if: github.event_name != 'pull_request' || needs.native-ios.outputs.hit != 'true' || needs.fingerprint.outputs.ios-owed == 'true' || needs.fingerprint.outputs.user-facing == 'true'
     runs-on: macos-26
     env:
       MAESTRO_CLI_NO_ANALYTICS: "1"
@@ -727,13 +742,13 @@ jobs:
   pr-media:
     timeout-minutes: 5
     if: >-
-      !cancelled() && github.event_name == 'pull_request' &&
+      !cancelled() && github.event_name == 'pull_request' && needs.fingerprint.outputs.user-facing == 'true' &&
       github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'
     permissions:
       actions: read
       contents: read
-      pull-requests: read
     needs:
+      - fingerprint
       - native-e2e-ios-light
       - ui-screenshots-ios-dark
       - android-e2e
@@ -743,21 +758,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 2
-      - name: Check for user-facing changes
-        id: changes
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          USER_FACING: ^(packages/native/(src|app)|packages/core/src|\.maestro)/|^scripts/(gather-pr-media\.sh|compare-screenshots\.mjs|attach-pr-media\.sh)$
-        run: |
-          files=$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files" --jq '.[].filename')
-          if grep -qE "$USER_FACING" <<< "$files"; then
-            echo "user-facing=true" >> "$GITHUB_OUTPUT"
-          fi
-      - if: steps.changes.outputs.user-facing
-        uses: ./.github/actions/setup-node-pnpm
-      - if: steps.changes.outputs.user-facing
-        name: Compare base and head screenshots
+      - uses: ./.github/actions/setup-node-pnpm
+      - name: Compare base and head screenshots
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -765,8 +767,7 @@ jobs:
           scripts/gather-pr-media.sh "$GITHUB_RUN_ID" "$(scripts/measured-base.sh pull_request)" \
             "$HEAD_SHA" "$RUNNER_TEMP/pr-media"
           cat "$RUNNER_TEMP/pr-media/review.md" >> "$GITHUB_STEP_SUMMARY"
-      - if: steps.changes.outputs.user-facing
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: pr-media-${{ github.event.pull_request.head.sha }}
           path: ${{ runner.temp }}/pr-media

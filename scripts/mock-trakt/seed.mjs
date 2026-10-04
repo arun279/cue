@@ -16,6 +16,14 @@
 const DAY = 86_400_000;
 const WEEK = 7 * DAY;
 
+/**
+ * Seeded times hang off the start of the current UTC day rather than the
+ * current instant, so a time of day on screen reads the same in every run that
+ * day. No seeded episode airs less than a day after that start, so none moves
+ * from upcoming to aired while the day goes on.
+ */
+const startOfToday = () => Math.floor(Date.now() / DAY) * DAY;
+
 const EPISODE_TITLES = [
   "Low Tide",
   "Signal Fire",
@@ -344,7 +352,7 @@ const CATALOG = [
 const iso = (ms) => new Date(ms).toISOString();
 
 /** The mutable account every route reads and the write routes move. */
-export function createLibrary(now = Date.now()) {
+export function createLibrary(now = startOfToday()) {
   return {
     now,
     shows: SHOWS.map((spec) => ({
@@ -413,7 +421,7 @@ const seedProfiles = {
 export const SEED_PROFILE_NAMES = Object.keys(seedProfiles);
 
 /** The seeded account under one of the profiles named above. */
-export function createSeedLibrary(profile = "default", now = Date.now()) {
+export function createSeedLibrary(profile = "default", now = startOfToday()) {
   const library = createLibrary(now);
   seedProfiles[profile](library);
   return library;

@@ -22,7 +22,7 @@ const NOT_REQUIRED = ["fingerprint", "footprint", "native-e2e-ios-light", "pr-me
 // The gate reads the push run, where the iOS flow lane always runs.
 const IOS_LANE =
   "    if: github.event_name != 'pull_request' || needs.native-ios.outputs.hit != 'true' || " +
-  "needs.fingerprint.outputs.ios-owed == 'true'";
+  "needs.fingerprint.outputs.ios-owed == 'true' || needs.fingerprint.outputs.user-facing == 'true'";
 
 const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((entry) => typeof entry === "string");

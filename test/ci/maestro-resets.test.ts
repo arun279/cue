@@ -16,10 +16,6 @@ const FULL_RESET = new Set([
   // Open a shard, so nothing has signed in before them.
   "calendar.yaml",
   "up-next-mark-and-undo.yaml",
-  // Run on their own, outside every suite.
-  "pull-to-refresh.yaml",
-  "swipe-mark-and-stop.yaml",
-  "up-next-lapsed-drawer.yaml",
 ]);
 
 const yamlIn = (directory: string): string[] =>
@@ -58,6 +54,16 @@ describe("Maestro app resets", () => {
     });
 
     expect(openers.filter(([, flow = ""]) => !FULL_RESET.has(flow))).toEqual([]);
+  });
+
+  it("runs every flow from a suite", () => {
+    const run = new Set(
+      yamlIn(SUITES).flatMap((suite) =>
+        references(path.join(SUITES, suite)).map((flow) => path.basename(flow)),
+      ),
+    );
+
+    expect(yamlIn(FLOWS).filter((flow) => !run.has(flow))).toEqual([]);
   });
 
   it("leaves permissions alone in every launch that keeps the install", () => {

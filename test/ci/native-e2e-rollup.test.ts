@@ -13,6 +13,11 @@ it.each([
     1,
     { ...cachedPullRequest, OWED: "true", SHARDS: "skipped" },
   ],
+  [
+    "fails shards skipped on a user-facing pull request",
+    1,
+    { ...cachedPullRequest, USER_FACING: "true", SHARDS: "skipped" },
+  ],
   ["fails shards skipped on a push", 1, { ...push, SHARDS: "skipped" }],
   ["fails shards failure", 1, { ...cachedPullRequest, SHARDS: "failure" }],
 ])("%s with exit status %i", (_name, status, env) => {

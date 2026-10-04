@@ -5,8 +5,7 @@ env:
 - runFlow: lib/connect.yaml
 - assertVisible:
     id: "up-next-list"
-- waitForAnimationToEnd:
-    timeout: 1000
+- waitForAnimationToEnd
 - takeScreenshot: up-next-queue-rest
 - repeat:
     times: ${RESPONSE_SAMPLES}
@@ -24,14 +23,12 @@ env:
 - copyTextFrom:
     id: "response-timing"
 - evalScript: "${console.log('CUE_RESPONSE_SAMPLES=' + maestro.copiedText)}"
-- waitForAnimationToEnd:
-    timeout: 1000
+- waitForAnimationToEnd
 - takeScreenshot: up-next-mark-restored
 - tapOn:
     id: "queue-row-[0-9]+-mark"
     index: 0
 - assertVisible:
     id: "snackbar-undo"
-- waitForAnimationToEnd:
-    timeout: 1000
+- waitForAnimationToEnd
 - takeScreenshot: up-next-mark-snackbar

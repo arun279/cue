@@ -222,6 +222,7 @@ describe("fast pull request validation", () => {
     expect(aggregate).toContain("needs: [fingerprint, native-ios, native-e2e-ios-light]");
     expect(aggregate).toContain("if: $" + "{{ always() }}");
     expect(aggregate).toContain("OWED: $" + "{{ needs.fingerprint.outputs.ios-owed }}");
+    expect(aggregate).toContain("USER_FACING: $" + "{{ needs.fingerprint.outputs.user-facing }}");
     expect(aggregate).toMatch(/^ {8}run: node scripts\/native-e2e-rollup\.mjs$/m);
     expect(aggregate).not.toContain("continue-on-error");
     expect(aggregate).not.toMatch(/\|\|\s*true\s*$/m);
@@ -248,17 +249,19 @@ describe("fast pull request validation", () => {
     expect(fetch).toContain("--pattern 'ui-*'");
   });
 
-  it("runs the Android lane on every pull request and the iOS flow lane on pushes, nightly, iOS fingerprint changes, and owed lanes", () => {
+  it("runs the iOS flow lane on pushes, nightly, iOS fingerprint changes, owed lanes, and user-facing pull requests", () => {
     const iosLane =
       "if: github.event_name != 'pull_request' || needs.native-ios.outputs.hit != 'true' || " +
-      "needs.fingerprint.outputs.ios-owed == 'true'";
+      "needs.fingerprint.outputs.ios-owed == 'true' || needs.fingerprint.outputs.user-facing == 'true'\n";
     const jobs = [...workflow.matchAll(/^ {2}([a-z][a-z0-9-]*):$/gm)].map(([, name]) => name ?? "");
     const gated = jobs.filter((name) => job(name).includes(iosLane));
 
-    expect(workflow).toMatch(/^ {2}pull_request:$/m);
     expect(workflow).toContain('- cron: "0 6 * * *"');
     expect(job("native-ios")).toContain("hit: $" + "{{ steps.native-cache.outputs.hit }}");
     expect(job("fingerprint")).toContain("ios-owed: $" + "{{ steps.ios-owed.outputs.owed }}");
+    expect(job("fingerprint")).toContain(
+      "user-facing: $" + "{{ steps.changes.outputs.user-facing }}",
+    );
     expect(job("fingerprint")).toContain("actions/workflows/ci.yml/runs?branch=$BRANCH");
     expect(gated.sort()).toEqual(["native-e2e-ios-light", "ui-screenshots-ios-dark"].sort());
     for (const name of [
@@ -294,6 +297,8 @@ describe("fast pull request validation", () => {
   it("settles animations before every shared screenshot", () => {
     const flows = [
       "lib/sign-in.yaml",
+      "account.yaml",
+      "history.yaml",
       "launch.yaml",
       "up-next-mark-and-undo.yaml",
       "show-detail-bulk-mark.yaml",
@@ -308,10 +313,9 @@ describe("fast pull request validation", () => {
       const lines = readFileSync(repositoryPath(`.maestro/flows/${flow}`), "utf8").split("\n");
       for (const [index, line] of lines.entries()) {
         if (line.includes("takeScreenshot:")) {
-          expect(lines.slice(index - 2, index).map((entry) => entry.trim())).toEqual([
-            "- waitForAnimationToEnd:",
-            "timeout: 1000",
-          ]);
+          expect(["- waitForAnimationToEnd", "- runFlow: lib/scroll-to-end.yaml"]).toContain(
+            lines[index - 1]?.trim(),
+          );
         }
       }
     }

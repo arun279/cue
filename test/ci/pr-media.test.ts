@@ -16,7 +16,8 @@ import { readWorkflowJobs } from "../support/workflow-jobs";
 
 const jobs = readWorkflowJobs(repositoryPath(".github/workflows/ci.yml"));
 const job = jobs.find(({ name }) => name === "pr-media");
-const userFacing = new RegExp(job?.body.match(/^ {10}USER_FACING: (.+)$/m)?.[1] ?? "(?!)");
+const fingerprint = jobs.find(({ name }) => name === "fingerprint");
+const userFacing = new RegExp(fingerprint?.body.match(/^ {10}USER_FACING: (.+)$/m)?.[1] ?? "(?!)");
 
 const HEAD = "abcdef1234567890";
 const BASE = "bbbbbbb123456789";
@@ -178,12 +179,14 @@ const dark = (captures: Record<string, Capture>, conclusion = "success"): Run =>
 describe("pr-media job", () => {
   it("waits for every screenshot job, still runs when they are skipped, and uploads instead of posting", () => {
     expect(job?.body.match(/^ {6}- ([a-z0-9-]+)$/gm)?.map((line) => line.trim().slice(2))).toEqual([
+      "fingerprint",
       "native-e2e-ios-light",
       "ui-screenshots-ios-dark",
       "android-e2e",
       "ui-screenshots-android-dark",
     ]);
     expect(job?.body).toContain("!cancelled() && github.event_name == 'pull_request'");
+    expect(job?.body).toContain("needs.fingerprint.outputs.user-facing == 'true'");
     expect(job?.body).toContain("fetch-depth: 2");
     expect(job?.body).toContain(
       'scripts/gather-pr-media.sh "$GITHUB_RUN_ID" "$(scripts/measured-base.sh pull_request)"',
@@ -230,6 +233,7 @@ describe("pr-media job", () => {
     "packages/native/app/(tabs)/index.tsx",
     "packages/core/src/sync-contract.ts",
     ".maestro/flows/large-text.yaml",
+    "scripts/mock-trakt/seed.mjs",
     "scripts/gather-pr-media.sh",
     "scripts/compare-screenshots.mjs",
     "scripts/attach-pr-media.sh",

@@ -10,15 +10,13 @@ appId: app.cuetracker
 - assertVisible: "Cue Demo"
 - assertVisible:
     id: "profile-stat-shows"
-- waitForAnimationToEnd:
-    timeout: 1000
+- waitForAnimationToEnd
 - takeScreenshot: account-profile
 - tapOn:
     id: "profile-to-settings"
 - assertVisible:
     id: "screen-settings"
-- waitForAnimationToEnd:
-    timeout: 1000
+- waitForAnimationToEnd
 - takeScreenshot: settings-pushed
 # Dark for one pass over a tab root, then back to the system's own.
 - tapOn:
@@ -35,8 +33,7 @@ appId: app.cuetracker
 - runFlow: lib/leave-profile.yaml
 - assertVisible:
     id: "screen-up-next"
-- waitForAnimationToEnd:
-    timeout: 1000
+- waitForAnimationToEnd
 - takeScreenshot: up-next-dark
 - tapOn: "Library"
 - assertVisible:
@@ -68,8 +65,7 @@ appId: app.cuetracker
     id: "settings-powered-by"
 - assertVisible:
     id: "settings-attribution"
-- waitForAnimationToEnd:
-    timeout: 1000
+- waitForAnimationToEnd
 - takeScreenshot: account-settings-about
 - scrollUntilVisible:
     element:
@@ -126,13 +122,17 @@ appId: app.cuetracker
 - assertVisible: "Some changes haven't synced yet. Reconnect to the internet, then try signing out again."
 - assertVisible:
     id: "screen-settings"
-- waitForAnimationToEnd:
-    timeout: 1000
+- runFlow: lib/scroll-to-end.yaml
 - takeScreenshot: account-sign-out-refused
 # Writes reach Trakt again and revoking the token does not. Revoke is
 # best-effort, so the sign-out still finishes and the app lands on onboarding.
 - runScript: lib/refuse-revoke.js
 - assertTrue: ${output.revokeRefused}
+- scrollUntilVisible:
+    element:
+      id: "sign-out"
+    direction: UP
+    centerElement: true
 - tapOn:
     id: "sign-out"
 - extendedWaitUntil:

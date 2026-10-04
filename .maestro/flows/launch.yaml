@@ -5,9 +5,7 @@ appId: app.cuetracker
     env:
       CAPTURE_AUTH: "true"
 - runFlow: lib/settle.yaml
-- waitForAnimationToEnd:
-    timeout: 1000
+- waitForAnimationToEnd
 - takeScreenshot: up-next-populated
-- waitForAnimationToEnd:
-    timeout: 1000
+- waitForAnimationToEnd
 - takeScreenshot: up-next-root
