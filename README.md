@@ -67,7 +67,12 @@ Every pull request builds both apps and runs the full Maestro suite and the dark
 
 ## Installing on your own devices
 
-The `preview` profile in `packages/native/eas.json` builds with EAS internal distribution: an ad hoc signed IPA for registered iPhones and an APK for Android, both on the `preview` update channel. Run the commands from `packages/native`.
+The `preview` profile in `packages/native/eas.json` builds with EAS internal distribution: an ad hoc signed IPA for registered iPhones and an APK for Android, both on the `preview` update channel. EAS CLI evaluates the app config and its plugins and computes the runtime fingerprint from the local `node_modules`, so install the workspace on Node 22.12.0 first and sign in. Run the EAS commands from `packages/native`.
+
+```sh
+pnpm install
+npx eas-cli@latest login
+```
 
 Once, store the Trakt client id in the EAS `preview` environment and register each iPhone:
 
@@ -83,13 +88,13 @@ npx eas-cli@latest build --platform ios --profile preview
 npx eas-cli@latest build --platform android --profile preview
 ```
 
-The first build on each platform asks to set up EAS managed signing: an Apple sign in for the ad hoc provisioning profile, and a new Android keystore. An iPhone registered later needs a new build. Open the install link from the finished build on the phone. On iOS, turn on Developer Mode under Settings > Privacy & Security when asked. The APK is signed with a different key than the Firebase tester build, so uninstall that first.
+The first build on each platform asks to set up EAS managed signing: an Apple sign in for the ad hoc provisioning profile, and a new Android keystore. When the first iOS build asks `Generate a new Apple Distribution Certificate?`, answer no and give it the `.p12` file and password behind the release workflow's `BUILD_CERTIFICATE_BASE64`, or add that certificate beforehand with `npx eas-cli@latest credentials --platform ios`. Never revoke a certificate when EAS offers to: the release workflow signs with it. An iPhone registered later needs a new build. Open the install link from the finished build on the phone. On iOS, turn on Developer Mode under Settings > Privacy & Security when asked. The APK is signed with a different key than the Firebase tester build, so uninstall that first.
 
-These builds keep build number 1 and never reach App Store Connect or Firebase, so they never use a number the release workflow needs. A build stops before compiling when the environment has no client id.
+These builds keep build number 1 and never reach App Store Connect or Firebase, so they never use a number the release workflow needs. Updates published to the `preview` channel reach them. A build stops before compiling when the environment has no client id.
 
 ## Shipping JavaScript updates
 
-EAS Update can replace JavaScript and bundled assets. It cannot change native modules, permissions, app configuration, or other native code. The fingerprint runtime policy only offers an update to compatible installed builds, so any native change requires a new tester or store build.
+EAS Update can replace JavaScript and bundled assets. It cannot change native modules, permissions, app configuration, or other native code. The fingerprint runtime policy only offers an update to installed builds with the same runtime, so any native change requires a new build. The release workflow puts each build's own build number into its runtime, so today updates reach only the EAS `preview` builds, not tester or store builds.
 
 To publish, open GitHub Actions, choose **Publish update**, select **Run workflow**, choose the exact ref and the `preview` or `production` channel, write a required message, and run it. Nothing publishes on a push, pull request, merge, or schedule. A downloaded update applies on the next cold start.
 

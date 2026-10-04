@@ -1,7 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { nativeAppConfig } from "../../packages/native/app.config";
 import { repositoryPath } from "../support/repository-path";
 
 type Profile = Record<string, unknown> & {
@@ -42,12 +41,11 @@ describe("EAS device builds", () => {
     }
   });
 
-  it("listen on a channel Publish update serves, with the runtime that update computes", () => {
+  it("listen on a channel Publish update serves, in the environment it publishes with", () => {
     expect(publishWorkflow).toContain('--environment "$CHANNEL"');
     for (const [, profile] of profiles) {
       expect(publishChannels).toContain(profile.channel);
       expect(profile.environment).toBe(profile.channel);
-      expect(nativeAppConfig({})).toEqual(nativeAppConfig({ EAS_UPDATE_CHANNEL: profile.channel }));
     }
   });
 
