@@ -43,13 +43,14 @@ const lanes = readFileSync(path.join(work, "lanes.tsv"), "utf8")
   .replace(/\n$/, "")
   .split("\n")
   .map((row) => {
-    const [side, artifact, note] = row.split("\t");
+    const [side, artifact, note, day] = row.split("\t");
     const [, platform, appearance, suite] =
       /^ui-screenshots-(ios|android)-(light|dark)(?:-(.+))?$/.exec(artifact) ?? [];
     return {
       side,
       artifact,
       note,
+      day,
       platform: PLATFORMS[platform],
       appearance,
       suite,
@@ -210,7 +211,23 @@ const missing = [
     ),
   ...unreadable,
 ];
-const sections = ["<!-- media-review -->"];
+const days = (side) =>
+  [
+    ...new Set(
+      lanes.filter((entry) => entry.side === side && entry.captures.size > 0).map(({ day }) => day),
+    ),
+  ]
+    .sort()
+    .join(" and ");
+const [baseDays, headDays] = [days("before"), days("after")];
+const sections = [
+  "<!-- media-review -->",
+  ...(baseDays && headDays && baseDays !== headDays
+    ? [
+        `Base captures are from ${baseDays} and head captures from ${headDays} (UTC). The fake Trakt server dates its seeded account from the start of the UTC day it runs on, so a screen that differs only in its dates has not changed.`,
+      ]
+    : []),
+];
 if (changes.length === 0 && removed.length === 0) {
   sections.push(
     missing.length === 0

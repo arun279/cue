@@ -36,15 +36,15 @@ collect() {
   artifacts=$(gh api --paginate "repos/$repo/actions/runs/$run/artifacts?per_page=100" \
     --jq '.artifacts[] | [.name, .id, .expired, .created_at] | @tsv')
   for lane in "${lanes[@]}"; do
-    local artifact=${lane%%:*} job=${lane#*:} state id expired note=""
+    local artifact=${lane%%:*} job=${lane#*:} state id expired created note=""
     state=$(awk -F '\t' -v job="$job" -v matrix="${job% (*}" '
       $1 == job { exact = $2 }
       $1 == matrix { collapsed = $2 }
       END { print (exact != "" ? exact : collapsed) }
     ' <<< "$jobs")
     # A retried job uploads its artifacts again under the same name.
-    read -r id expired <<< "$(awk -F '\t' -v name="$artifact" '
-      $1 == name && $4 > newest { newest = $4; row = $2 " " $3 }
+    read -r id expired created <<< "$(awk -F '\t' -v name="$artifact" '
+      $1 == name && $4 > newest { newest = $4; row = $2 " " $3 " " $4 }
       END { print row }
     ' <<< "$artifacts")"
     if [ "$expired" = true ]; then
@@ -57,7 +57,7 @@ collect() {
       unzip -q "$work/artifact.zip" -d "$work/$side/$artifact"
       [ "$state" = success ] || note="may be incomplete because the $job job $(ended "$state") in $link"
     fi
-    printf '%s\t%s\t%s\n' "$side" "$artifact" "$note" >> "$work/lanes.tsv"
+    printf '%s\t%s\t%s\t%s\n' "$side" "$artifact" "$note" "${created:0:10}" >> "$work/lanes.tsv"
   done
 }
 

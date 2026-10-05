@@ -127,7 +127,7 @@ const sandbox = () => {
   return { root, state, run };
 };
 
-const record = (root: string, state: string, id: number, lanes: Run) => {
+const record = (root: string, state: string, id: number, lanes: Run, day: string) => {
   const artifacts: { name: string; id: number; expired: boolean; created_at: string }[] = [];
   for (const [index, [artifact, jobName]] of Object.entries(LANES).entries()) {
     const lane = { conclusion: "success", captures: {}, ...lanes[artifact] };
@@ -147,8 +147,8 @@ const record = (root: string, state: string, id: number, lanes: Run) => {
       });
       artifacts.push({ name: artifact, id: artifactId, expired: false, created_at: createdAt });
     };
-    if (lane.stale) upload(id * 100 + index + 50, lane.stale, "2026-10-04T00:00:00Z");
-    upload(id * 100 + index, lane.captures, "2026-10-04T01:00:00Z");
+    if (lane.stale) upload(id * 100 + index + 50, lane.stale, `${day}T00:00:00Z`);
+    upload(id * 100 + index, lane.captures, `${day}T01:00:00Z`);
   }
   writeFileSync(path.join(state, `artifacts-${id}.json`), JSON.stringify({ artifacts }));
   writeFileSync(
@@ -162,10 +162,10 @@ const record = (root: string, state: string, id: number, lanes: Run) => {
   );
 };
 
-const gather = (before: Run | undefined, after: Run) => {
+const gather = (before: Run | undefined, after: Run, baseDay = "2026-10-04") => {
   const { root, state, run } = sandbox();
-  record(root, state, 1, after);
-  if (before) record(root, state, 2, before);
+  record(root, state, 1, after, "2026-10-04");
+  if (before) record(root, state, 2, before, baseDay);
   writeFileSync(
     path.join(state, "runs.json"),
     JSON.stringify({ workflow_runs: before ? [{ id: 2 }] : [] }),
@@ -279,6 +279,18 @@ describe("gather-pr-media.sh", { timeout: 30_000 }, () => {
     expect(images).toEqual([]);
     expect(review).toBe(
       "<!-- media-review -->\n\nNo screen changed between base `bbbbbbb` and head `abcdef1`; 2 screens compared.\n",
+    );
+  });
+
+  it("says when base and head captures come from different UTC days", () => {
+    const { review } = gather(
+      dark({ "history-recent": { content: 0 } }),
+      dark({ "history-recent": { content: 1 } }),
+      "2026-10-02",
+    );
+
+    expect(review).toContain(
+      "<!-- media-review -->\n\nBase captures are from 2026-10-02 and head captures from 2026-10-04 (UTC). The fake Trakt server dates its seeded account from the start of the UTC day it runs on, so a screen that differs only in its dates has not changed.\n\nBefore is base `bbbbbbb`",
     );
   });
 
