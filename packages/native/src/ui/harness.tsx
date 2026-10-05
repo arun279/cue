@@ -6,6 +6,8 @@ import { commitResponseTiming, useResponseTiming } from "./response-timing";
 export { AppIdle, useAppIdleStamp } from "./AppIdle";
 export { beginResponseTiming } from "./response-timing";
 
+export const HIDE_CARET: boolean = true;
+
 export function ResponseTimingMarker(): ReactElement | null {
   const label = useResponseTiming();
   return label === null ? null : (
