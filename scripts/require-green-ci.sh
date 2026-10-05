@@ -5,10 +5,11 @@ set -euo pipefail
 : "${GH_TOKEN:?GH_TOKEN is required}"
 : "${REPO:?REPO is required}"
 : "${SHA:?SHA is required}"
-: "${REQUIRED:?REQUIRED is required}"
 : "${APP_ID:?APP_ID is required}"
 : "${DEADLINE_MINUTES:?DEADLINE_MINUTES is required}"
 : "${POLL_SECONDS:?POLL_SECONDS is required}"
+
+REQUIRED=$(jq -c . "$(dirname "$0")/../.github/required-checks.json")
 
 deadline=$(( $(date +%s) + DEADLINE_MINUTES * 60 ))
 ci_run_errors=0

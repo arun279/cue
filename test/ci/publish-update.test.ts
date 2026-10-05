@@ -24,10 +24,12 @@ const runtimeVersion = async (platform: string, release: Record<string, string |
   const { stdout } = await execFileAsync(
     process.execPath,
     [expoUpdatesCli, "runtimeversion:resolve", "--platform", platform],
-    { cwd: native, env: { ...process.env, EAS_UPDATE_CHANNEL: "preview", ...release } },
+    { cwd: native, env: { ...process.env, ...release } },
   );
   return (JSON.parse(stdout) as { runtimeVersion: string }).runtimeVersion;
 };
+
+const publishChannels = /^\s+options: \[(.+)\]$/m.exec(publishWorkflow)?.[1]?.split(", ") ?? [];
 
 const publicEnvironmentNames = (workflow: string): string[] =>
   [
@@ -52,6 +54,8 @@ describe("JavaScript update publishing", () => {
     expect(publishWorkflow).toMatch(/SHA: \$\{\{ github\.sha \}\}/);
     expect(publishWorkflow).toContain("run: scripts/require-green-ci.sh");
     expect(releaseWorkflow).toContain("run: scripts/require-green-ci.sh");
+    expect(publishWorkflow).not.toContain("REQUIRED:");
+    expect(releaseWorkflow).not.toContain("REQUIRED:");
   });
 
   it("uses the release bundle's public environment", () => {
@@ -74,29 +78,37 @@ describe("JavaScript update publishing", () => {
     expect(publishWorkflow.match(/eas update /g)).toHaveLength(1);
   });
 
-  it("binds builds to the fingerprint runtime and an update channel", () => {
-    const preview = nativeAppConfig({});
-    const production = nativeAppConfig({ EAS_UPDATE_CHANNEL: "production" });
+  it("binds builds to the fingerprint runtime and leaves the channel to the build profile", () => {
+    const config = nativeAppConfig({});
 
-    expect(preview.runtimeVersion).toEqual({ policy: "fingerprint" });
-    expect(preview.updates?.url).toMatch(/^https:\/\/u\.expo\.dev\/[0-9a-f-]+$/);
-    expect(preview.updates?.checkAutomatically).toBe("ON_LOAD");
-    expect(preview.updates?.fallbackToCacheTimeout).toBe(0);
-    expect(preview.updates?.requestHeaders).toEqual({ "expo-channel-name": "preview" });
-    expect(production.updates?.requestHeaders).toEqual({ "expo-channel-name": "production" });
+    expect(config.runtimeVersion).toEqual({ policy: "fingerprint" });
+    expect(config.updates?.url).toMatch(/^https:\/\/u\.expo\.dev\/[0-9a-f-]+$/);
+    expect(config.updates?.checkAutomatically).toBe("ON_LOAD");
+    expect(config.updates?.fallbackToCacheTimeout).toBe(0);
+    expect(config.updates).not.toHaveProperty("requestHeaders");
   });
 
-  it("gives store builds the runtime that updates are published against", {
+  it("gives every channel's store builds the runtime that updates are published against", {
     timeout: 30_000,
   }, async () => {
     const runtimes = (release: Record<string, string | undefined>) =>
       Promise.all(["ios", "android"].map((platform) => runtimeVersion(platform, release)));
-    const [published, store] = await Promise.all([
+    const [published, ...builds] = await Promise.all([
       runtimes({ APP_VERSION: undefined, BUILD_NUMBER: undefined }),
-      runtimes({ APP_VERSION: "2.1.0", BUILD_NUMBER: "420701" }),
+      ...publishChannels.map((channel) =>
+        runtimes({
+          APP_VERSION: "2.1.0",
+          BUILD_NUMBER: "420701",
+          EAS_BUILD_PROFILE: channel,
+          EAS_UPDATE_CHANNEL: channel,
+        }),
+      ),
     ]);
 
-    expect(store).toEqual(published);
+    expect(publishChannels).toEqual(["preview", "production"]);
+    for (const build of builds) {
+      expect(build).toEqual(published);
+    }
   });
 
   it("keeps analytics packages out of the native app", () => {

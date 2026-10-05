@@ -125,7 +125,6 @@ export function nativeAppConfig(env: Readonly<Record<string, string | undefined>
       url: "https://u.expo.dev/2f8d848b-c45a-4883-a077-0e1a03455af9",
       checkAutomatically: "ON_LOAD",
       fallbackToCacheTimeout: 0,
-      requestHeaders: { "expo-channel-name": env["EAS_UPDATE_CHANNEL"] ?? "preview" },
     },
     extra: { eas: { projectId: "2f8d848b-c45a-4883-a077-0e1a03455af9" } },
     experiments: { typedRoutes: true },

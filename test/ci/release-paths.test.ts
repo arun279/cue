@@ -12,6 +12,7 @@ const REPOSITORY_ROOT = execFileSync("git", ["rev-parse", "--show-toplevel"], {
 const CI_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/ci.yml");
 const CODEQL_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/codeql.yml");
 const MOBILE_RELEASE_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/mobile-release.yml");
+const REQUIRED_CHECKS = path.join(REPOSITORY_ROOT, ".github/required-checks.json");
 const FASTFILE = path.join(REPOSITORY_ROOT, "fastlane/Fastfile");
 const FASTLANE_LANE = "$" + "{{ needs.config.outputs.fastlane_lane }}";
 const TRAKT_CLIENT_ID_VARIABLE = "$" + "{{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}";
@@ -73,16 +74,9 @@ const readCodeqlContexts = (): string[] => {
 };
 
 const readRequiredChecks = (): string[] => {
-  const workflow = readFileSync(MOBILE_RELEASE_WORKFLOW, "utf8");
-  const matches = [...workflow.matchAll(/^ {10}REQUIRED:[ \t]*'(\[[^\]]*\])'[ \t]*$/gm)];
-  const raw = matches.length === 1 ? matches[0]?.[1] : undefined;
-  if (raw === undefined) {
-    throw new Error(`expected one REQUIRED JSON array, found ${matches.length}`);
-  }
-
-  const parsed: unknown = JSON.parse(raw);
+  const parsed: unknown = JSON.parse(readFileSync(REQUIRED_CHECKS, "utf8"));
   if (!isStringArray(parsed)) {
-    throw new Error("REQUIRED must be an array of strings");
+    throw new Error("required-checks.json must be an array of strings");
   }
   return parsed;
 };
@@ -178,7 +172,7 @@ describe("native bundle environment", () => {
 });
 
 describe("mobile release gate required checks", () => {
-  it("keeps REQUIRED aligned with CI jobs except explicit exemptions", () => {
+  it("keeps the required checks aligned with CI jobs except explicit exemptions", () => {
     const requiredJobs = readCiJobs().filter((job) => !NOT_REQUIRED.includes(job.name));
     expect([...readRequiredChecks()].sort()).toEqual(
       [...requiredJobs.map((job) => job.name), ...readCodeqlContexts()].sort(),
