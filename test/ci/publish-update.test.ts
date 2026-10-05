@@ -29,7 +29,15 @@ const runtimeVersion = async (platform: string, release: Record<string, string |
   return (JSON.parse(stdout) as { runtimeVersion: string }).runtimeVersion;
 };
 
-const publishChannels = /^\s+options: \[(.+)\]$/m.exec(publishWorkflow)?.[1]?.split(", ") ?? [];
+const production = (
+  JSON.parse(readFileSync(repositoryPath("packages/native/eas.json"), "utf8")) as {
+    build: { production: { channel: string; environment: string } };
+  }
+).build.production;
+const publishedChannel = /eas update --channel (\S+)/.exec(publishWorkflow)?.[1];
+const promotedTo = /eas update:republish --group "\$GROUP" --destination-channel (\S+)/.exec(
+  publishWorkflow,
+)?.[1];
 
 const publicEnvironmentNames = (workflow: string): string[] =>
   [
@@ -65,17 +73,26 @@ describe("JavaScript update publishing", () => {
   });
 
   it("publishes exactly the export that passed the store-bundle gate", () => {
-    const exported = publishWorkflow.indexOf('eas env:exec "$CHANNEL" --non-interactive');
+    const exported = publishWorkflow.indexOf(
+      `eas env:exec ${production.environment} --non-interactive`,
+    );
     const gated = publishWorkflow.indexOf("run: node scripts/check-store-bundle.mjs");
     const published = publishWorkflow.indexOf("eas update ");
 
     expect(publishWorkflow).toContain("EXPO_ATLAS=true npx expo export --output-dir dist");
     expect([exported, gated, published].every((index) => index >= 0)).toBe(true);
     expect(exported < gated && gated < published).toBe(true);
-    expect(publishWorkflow.slice(published)).toMatch(
-      /--environment "\$CHANNEL" --skip-bundler --input-dir dist\n/,
+    expect(publishWorkflow.slice(published)).toContain(
+      `--environment ${production.environment} --skip-bundler --input-dir dist\n`,
     );
     expect(publishWorkflow.match(/eas update /g)).toHaveLength(1);
+  });
+
+  it("promotes a chosen update group from the channel it publishes to onto the channel store builds listen on", () => {
+    expect(publishedChannel).toBeDefined();
+    expect(publishedChannel).not.toBe(production.channel);
+    expect(publishWorkflow).toContain(`[ "$branch" = ${publishedChannel} ]`);
+    expect(promotedTo).toBe(production.channel);
   });
 
   it("binds builds to the fingerprint runtime and leaves the channel to the build profile", () => {
@@ -95,7 +112,7 @@ describe("JavaScript update publishing", () => {
       Promise.all(["ios", "android"].map((platform) => runtimeVersion(platform, release)));
     const [published, ...builds] = await Promise.all([
       runtimes({ APP_VERSION: undefined, BUILD_NUMBER: undefined }),
-      ...publishChannels.map((channel) =>
+      ...[publishedChannel, production.channel].map((channel) =>
         runtimes({
           APP_VERSION: "2.1.0",
           BUILD_NUMBER: "420701",
@@ -105,7 +122,6 @@ describe("JavaScript update publishing", () => {
       ),
     ]);
 
-    expect(publishChannels).toEqual(["preview", "production"]);
     for (const build of builds) {
       expect(build).toEqual(published);
     }

@@ -1,5 +1,4 @@
 import { useTurnOnAlerts } from "@cue/core/hooks/useTurnOnAlerts";
-import { useAppVersion } from "@cue/core/ports/app-version";
 import { usePrefs } from "@cue/core/prefs/prefs-store";
 import { THRESHOLD_OPTIONS } from "@cue/core/prefs/threshold";
 import { showSnack } from "@cue/core/stores/snackbar-store";
@@ -15,6 +14,7 @@ import { Diagnostics } from "./account/Diagnostics";
 import { AccountScreen, Note, Picker, Section, SettingRow, Toggle } from "./account/Rows";
 import { SignOut } from "./account/SignOut";
 import { ThemeControl } from "./account/ThemeControl";
+import { VersionLabel } from "./account/VersionLabel";
 import { ALERTS_HINT } from "./calendar/AlertsCard";
 
 const NEXT = [
@@ -72,7 +72,6 @@ function ExternalLink({
 export default function Settings(): ReactElement {
   const prefs = usePrefs((state) => state);
   const colors = useColors();
-  const version = useAppVersion();
   const turnOnAlerts = useTurnOnAlerts();
   return (
     <AccountScreen testID={TEST_IDS.screenSettings}>
@@ -178,19 +177,7 @@ export default function Settings(): ReactElement {
         />
       </Section>
       <Section title="About">
-        <SettingRow
-          title="Version"
-          trailing={
-            <CueText
-              testID={TEST_IDS.settingsVersion}
-              variant="rowTitle"
-              weight="regular"
-              style={{ color: colors.muted }}
-            >
-              {version}
-            </CueText>
-          }
-        />
+        <SettingRow title="Version" trailing={<VersionLabel />} />
         <Diagnostics />
         <ExternalLink
           title="Powered by Trakt"

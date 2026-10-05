@@ -53,7 +53,7 @@ const repositoryWithGrowth = (): string =>
       "test/ci/added.test.ts": "one\n\ntwo\nthree\n",
       ".maestro/flows/added.yaml": "- launchApp\n",
       ".github/workflows/ci.yml": "on: push\n# reason\n",
-      "fastlane/Fastfile": "lane :beta\n",
+      "scripts/added.sh": "echo added\n",
       "scripts/removed.sh": null,
       "docs/added.md": "uncounted\n",
     },
@@ -77,7 +77,7 @@ describe("diff footprint", () => {
     expect(output).toContain(
       "| Test lines in test, `packages/*/{test,__tests__,e2e}`, and .maestro | +6 |",
     );
-    expect(output).toContain("| CI and tooling lines in .github, scripts, and fastlane | +2 |");
+    expect(output).toContain("| CI and tooling lines in .github and scripts | +2 |");
     expect(output).toContain("| Product comment lines identified by a comment prefix | +1 |");
     expect(output).not.toContain("other");
     expect(output).not.toContain("blank");

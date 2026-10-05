@@ -7,6 +7,8 @@ type Profile = Record<string, unknown> & {
   distribution?: string;
   channel?: string;
   environment?: string;
+  autoIncrement?: boolean;
+  credentialsSource?: string;
   node?: string;
   pnpm?: string;
 };
@@ -14,7 +16,11 @@ type Profile = Record<string, unknown> & {
 const read = (file: string): string => readFileSync(repositoryPath(file), "utf8");
 
 const easJson = read("packages/native/eas.json");
-const profiles = Object.entries((JSON.parse(easJson) as { build: Record<string, Profile> }).build);
+const eas = JSON.parse(easJson) as {
+  cli: { appVersionSource?: string };
+  build: Record<string, Profile>;
+};
+const profiles = Object.entries(eas.build);
 const rootManifest = JSON.parse(read("package.json")) as {
   packageManager: string;
   engines: { node: string };
@@ -23,7 +29,8 @@ const postInstall = (
   JSON.parse(read("packages/native/package.json")) as { scripts: Record<string, string> }
 ).scripts["eas-build-post-install"];
 const publishWorkflow = read(".github/workflows/publish-update.yml");
-const publishChannels = /^\s+options: \[(.+)\]$/m.exec(publishWorkflow)?.[1]?.split(", ") ?? [];
+const releaseWorkflow = read(".github/workflows/mobile-release.yml");
+const promotedChannel = /--destination-channel (\S+)/.exec(publishWorkflow)?.[1];
 
 const runPostInstall = (clientId: string | undefined) =>
   spawnSync("sh", ["-c", postInstall ?? ""], {
@@ -34,18 +41,28 @@ const runPostInstall = (clientId: string | undefined) =>
   }).status;
 
 describe("EAS device builds", () => {
-  it("only distribute internally, so no build enters a store's build number sequence", () => {
-    expect(profiles.length).toBeGreaterThan(0);
-    for (const [, profile] of profiles) {
-      expect(profile.distribution).toBe("internal");
+  it("are the store builds the release workflow ships, numbered by EAS's remote counter", () => {
+    expect(profiles.map(([name]) => name)).toEqual(["production"]);
+    expect(eas.cli.appVersionSource).toBe("remote");
+    for (const [name, profile] of profiles) {
+      expect(profile.distribution).toBe("store");
+      expect(profile.autoIncrement).toBe(true);
+      expect(releaseWorkflow).toContain(`--profile ${name}`);
     }
   });
 
-  it("listen on a channel Publish update serves, in the environment it publishes with", () => {
-    expect(publishWorkflow).toContain('--environment "$CHANNEL"');
+  it("sign with the credentials the release workflow writes from repository secrets", () => {
     for (const [, profile] of profiles) {
-      expect(publishChannels).toContain(profile.channel);
-      expect(profile.environment).toBe(profile.channel);
+      expect(profile.credentialsSource).toBe("local");
+    }
+    expect(releaseWorkflow.match(/> credentials\.json$/gm)).toHaveLength(2);
+    expect(read(".gitignore")).toMatch(/^\/packages\/native\/credentials\.json$/m);
+  });
+
+  it("listen on the channel updates are promoted to, in the environment updates are exported with", () => {
+    for (const [, profile] of profiles) {
+      expect(profile.channel).toBe(promotedChannel);
+      expect(publishWorkflow).toContain(`eas env:exec ${profile.environment} `);
     }
   });
 

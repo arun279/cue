@@ -63,40 +63,26 @@ While a pull request is a draft, CI runs only the fast checks: lint, formatting,
 
 ## Releasing
 
-`.github/workflows/mobile-release.yml` builds and ships the app. A `v*` tag submits to the App Store, and a manual dispatch can run either the tester or store lane. Each release and each published update waits for the CI checks in `.github/required-checks.json` on the exact commit being shipped.
+`.github/workflows/mobile-release.yml` builds the app with `eas build --local` on GitHub-hosted runners, using the `production` profile in `packages/native/eas.json`. It runs only when dispatched, and each build waits for the CI checks in `.github/required-checks.json` on the exact commit being shipped.
 
-## Installing on your own devices
+- **owner** uploads iOS to TestFlight with `eas submit`, where the internal testers get it, and Android to the Firebase App Distribution group `owner`, which the workflow creates if it is missing.
+- **friends** does the same, then adds the iOS build to the app's one external TestFlight group, submitting it for beta review when Apple asks for one, and gives the Android release to the Firebase group `friends` as well.
+- **promote_ios** and **promote_android** take a build number for that platform and give a build the owner already has to friends, without building again.
 
-The `preview` profile in `packages/native/eas.json` builds with EAS internal distribution: an ad hoc signed IPA for registered iPhones and an APK for Android, both on the `preview` update channel. EAS CLI evaluates the app config and its plugins and computes the runtime fingerprint from the local `node_modules`, so install the workspace on Node 22.12.0 first and sign in. Run the EAS commands from `packages/native`.
+Every build listens on the `production` update channel, and the workflow checks the channel and runtime written into the finished APK and IPA before uploading. EAS numbers builds from one remote counter per platform, seeded above the last build numbered before EAS took over, so releases run one at a time. Before building, the workflow fails if the next number would not be above the highest build already on TestFlight or Firebase; `eas build:version:set` moves the counter. Both platforms sign with the Android keystore and Apple distribution certificate held in repository secrets, so every build installs over the last. To publish on the App Store, submit a TestFlight build for review in App Store Connect.
 
-```sh
-pnpm install
-npx eas-cli@latest login
-```
-
-Once, store the Trakt client id in the EAS `preview` environment and register each iPhone:
-
-```sh
-npx eas-cli@latest env:set --name EXPO_PUBLIC_TRAKT_CLIENT_ID --value <client id> --environment preview --visibility plaintext
-npx eas-cli@latest device:create
-```
-
-Then build:
-
-```sh
-npx eas-cli@latest build --platform ios --profile preview
-npx eas-cli@latest build --platform android --profile preview
-```
-
-The first build on each platform asks to set up EAS managed signing: an Apple sign in for the ad hoc provisioning profile, and a new Android keystore. When the first iOS build asks `Generate a new Apple Distribution Certificate?`, answer no and give it the `.p12` file and password behind the release workflow's `BUILD_CERTIFICATE_BASE64`, or add that certificate beforehand with `npx eas-cli@latest credentials --platform ios`. Never revoke a certificate when EAS offers to: the release workflow signs with it. An iPhone registered later needs a new build. Open the install link from the finished build on the phone. On iOS, turn on Developer Mode under Settings > Privacy & Security when asked. The APK is signed with a different key than the Firebase tester build, so uninstall that first.
-
-These builds keep build number 1 and never reach App Store Connect or Firebase, so they never use a number the release workflow needs. Updates published to the `preview` channel reach them. A build stops before compiling when the environment has no client id.
+Local EAS builds ignore the `node` and `pnpm` versions in `eas.json`. The workflow installs Node from `.nvmrc` and pnpm from `packageManager`, while iOS builds use the fastlane, CocoaPods and Xcode tools preinstalled on the `macos-26` runner image, with Xcode selected explicitly.
 
 ## Shipping JavaScript updates
 
-EAS Update can replace JavaScript and bundled assets. It cannot change native modules, permissions, app configuration, or other native code. The fingerprint runtime policy only offers an update to compatible installed builds, so any native change requires a new tester or store build. App version and build numbers stay out of the fingerprint, so a release's numbering never changes which updates it receives. The build profile in `packages/native/eas.json` sets a build's update channel, and the app config carries none, so builds of one commit share a runtime whichever channel they listen on.
+EAS Update can replace JavaScript and bundled assets. It cannot change native modules, permissions, app configuration, or other native code. The fingerprint runtime policy only offers an update to compatible installed builds, so any native change requires a new build. App version and build numbers stay out of the fingerprint, so a release's numbering never changes which updates it receives. The build profile in `packages/native/eas.json` sets a build's update channel, and the app config carries none, so builds of one commit share a runtime whichever channel they listen on.
 
-To publish, open GitHub Actions, choose **Publish update**, select **Run workflow**, choose the exact ref and the `preview` or `production` channel, write a required message, and run it. Nothing publishes on a push, pull request, merge, or schedule. A downloaded update applies on the next cold start.
+Open GitHub Actions, choose **Publish update**, select **Run workflow**, and pick an action:
+
+- **publish** exports the chosen ref with the EAS `production` environment and publishes it to the `preview` channel.
+- **promote** copies one `preview` update group to `production` unchanged. Give it the group the owner tested; `eas update:list --branch preview --json` lists the groups with their messages and commits.
+
+Only installs switched to preview receive `preview` updates. To switch one, long press the version number in Settings and turn on preview updates; Cue restarts on the preview channel and shows `preview` after the version. Switching back to production is safe for stored data: settings are plain keys that every version reads with defaults, and the cached Trakt data is dropped and fetched again whenever its shape version (the persisted cache buster) differs from the running bundle's. Nothing publishes on a push, pull request, merge, or schedule. A downloaded update applies on the next cold start.
 
 To recover from a bad update, run `eas update:republish` to make a known good update current again, or `eas update:rollback` to select a previous or embedded update. Test rollback compatibility with any persisted state the bad update may have changed.
 
