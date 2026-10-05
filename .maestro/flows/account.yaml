@@ -69,9 +69,9 @@ appId: app.cuetracker
 - takeScreenshot: account-settings-about
 - scrollUntilVisible:
     element:
-      id: "sign-out"
+      id: "settings-sign-out"
 - tapOn:
-    id: "sign-out"
+    id: "settings-sign-out"
 - assertVisible: "Sign out of Cue?"
 - assertVisible: "Your Trakt history stays on Trakt."
 - tapOn: "Cancel"
@@ -99,10 +99,10 @@ appId: app.cuetracker
 # only stops the scroll, so an unanswered tap is tried again.
 - scrollUntilVisible:
     element:
-      id: "sign-out"
+      id: "settings-sign-out"
     centerElement: true
 - tapOn:
-    id: "sign-out"
+    id: "settings-sign-out"
     retryTapIfNoChange: true
 # The confirm is a platform alert. Its title and its button both carry the words
 # of the danger row behind it, which stays in the hierarchy under the alert, so
@@ -130,11 +130,11 @@ appId: app.cuetracker
 - assertTrue: ${output.revokeRefused}
 - scrollUntilVisible:
     element:
-      id: "sign-out"
+      id: "settings-sign-out"
     direction: UP
     centerElement: true
 - tapOn:
-    id: "sign-out"
+    id: "settings-sign-out"
 - extendedWaitUntil:
     visible: "Sign out of Cue?"
     timeout: 30000

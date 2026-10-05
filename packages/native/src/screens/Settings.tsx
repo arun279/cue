@@ -166,7 +166,7 @@ export default function Settings(): ReactElement {
           url="https://app.trakt.tv/settings"
           testID={TEST_IDS.settingsTrakt}
         />
-        <SignOut />
+        <SignOut testID={TEST_IDS.settingsSignOut} />
         <Note>
           Only Trakt can delete your Trakt account. This opens Trakt in your browser to do it. Cue
           has no account of its own to delete.
