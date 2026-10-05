@@ -37,6 +37,10 @@ const latch = (call: string) =>
   `[ERROR] xcuitest.XCTestDriverClient.transportCall: Transport unreachable while processing ${call}, latching`;
 
 const FIRST_LAUNCH_EXIT = [...SETUP, latch("setPermissions")];
+const statusCheck = (result: string) =>
+  `[ INFO] xcuitest.installer.LocalXCTestInstaller.xcTestDriverStatusCheck: [${result}] Perform XCUITest driver status check on device`;
+const NEVER_STARTED = [statusCheck("Start"), statusCheck("Failed"), statusCheck("Failed")];
+const SYNTAX_ERROR = ["[ERROR] maestro.cli.App: Invalid flow file"];
 const MID_FLOW_EXIT = [
   ...SETUP,
   finish(LAUNCH),
@@ -101,7 +105,19 @@ describe("iOS Maestro driver retry", () => {
     ).toEqual({ status: 1, attempts: 2 });
   });
 
+  it("restarts the driver once when it never answers before the first flow command", () => {
+    expect(run({ log: NEVER_STARTED, status: 1 }, { log: PASSED, status: 0 })).toEqual({
+      status: 0,
+      attempts: 2,
+    });
+    expect(run({ log: NEVER_STARTED, status: 1 }, { log: NEVER_STARTED, status: 1 })).toEqual({
+      status: 1,
+      attempts: 2,
+    });
+  });
+
   it("never retries a failure without the driver exit or past the first launch", () => {
+    expect(run({ log: SYNTAX_ERROR, status: 1 })).toEqual({ status: 1, attempts: 1 });
     expect(run({ log: LAUNCH_FAILURE, status: 1 })).toEqual({ status: 1, attempts: 1 });
     expect(run({ log: MID_FLOW_EXIT, status: 1 })).toEqual({ status: 1, attempts: 1 });
     expect(run({ log: ASSERTION_FAILURE, status: 1 })).toEqual({ status: 1, attempts: 1 });

@@ -4,9 +4,19 @@ set -euo pipefail
 debug_output=$1
 shift
 
+latest_log() {
+  find "$debug_output" -name maestro.log | sort | tail -n 1
+}
+
+driver_never_started() {
+  local log
+  log=$(latest_log)
+  grep -qs 'xcTestDriverStatusCheck: \[Failed\]' "$log" && ! grep -qs 'onCommandStart: ' "$log"
+}
+
 driver_exited_during_first_launch() {
   local log
-  log=$(find "$debug_output" -name maestro.log | sort | tail -n 1)
+  log=$(latest_log)
   grep -qs 'Transport unreachable while processing' "$log" &&
     awk '
       /onCommandStart: / && !/onCommandStart: (Define variables|Apply configuration|Run )/ {
@@ -18,6 +28,6 @@ driver_exited_during_first_launch() {
 if maestro --device "$DEVICE_ID" test --debug-output "$debug_output" "$@"; then
   exit 0
 fi
-driver_exited_during_first_launch || exit 1
-echo "::warning::The Maestro XCUITest driver exited during the first launch; restarting it once"
+driver_never_started || driver_exited_during_first_launch || exit 1
+echo "::warning::The Maestro XCUITest driver failed before the first flow command finished; restarting it once"
 exec maestro --device "$DEVICE_ID" test --debug-output "$debug_output" "$@"

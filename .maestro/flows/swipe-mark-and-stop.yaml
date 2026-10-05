@@ -6,7 +6,7 @@
 # name them.
 appId: app.cuetracker
 ---
-- runFlow: lib/connect.yaml
+- runFlow: lib/relaunch.yaml
 - swipe:
     from:
       id: "queue-row-[0-9]+"

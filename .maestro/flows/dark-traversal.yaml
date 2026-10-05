@@ -4,8 +4,7 @@ appId: app.cuetracker
     file: lib/connect.yaml
     env:
       CAPTURE_AUTH: "true"
-- waitForAnimationToEnd:
-    timeout: 1000
+- waitForAnimationToEnd
 - takeScreenshot: up-next-populated
 - tapOn:
     id: "queue-row-8803"
@@ -13,22 +12,14 @@ appId: app.cuetracker
     visible:
       id: "screen-show-detail"
     timeout: 30000
-- waitForAnimationToEnd:
-    timeout: 1000
+- waitForAnimationToEnd
 - takeScreenshot: show-detail-rest
-- scrollUntilVisible:
-    element:
-      id: "episode-row-880308"
-    direction: DOWN
-    centerElement: true
-- tapOn:
-    id: "episode-row-880308"
+- tapOn: "S2 E3 · Half Measures.*"
 - extendedWaitUntil:
     visible:
       id: "episode-sheet"
     timeout: 30000
-- waitForAnimationToEnd:
-    timeout: 1000
+- waitForAnimationToEnd
 - takeScreenshot: episode-sheet-rest
 - runFlow: lib/dismiss-episode-sheet.yaml
 - extendedWaitUntil:
@@ -57,16 +48,11 @@ appId: app.cuetracker
     visible:
       id: "screen-library"
     timeout: 30000
-- waitForAnimationToEnd:
-    timeout: 1000
+- waitForAnimationToEnd
 - takeScreenshot: library-shows
 - tapOn:
     id: "avatar-link"
-- scrollUntilVisible:
-    element:
-      id: "profile-stat-shows"
-- waitForAnimationToEnd:
-    timeout: 1000
+- runFlow: lib/scroll-to-end.yaml
 - takeScreenshot: profile-rest
 - tapOn:
     id: "profile-to-settings"
@@ -74,8 +60,7 @@ appId: app.cuetracker
     visible:
       id: "screen-settings"
     timeout: 30000
-- waitForAnimationToEnd:
-    timeout: 1000
+- waitForAnimationToEnd
 - takeScreenshot: settings-rest
 - runFlow:
     file: lib/back.yaml
@@ -91,16 +76,14 @@ appId: app.cuetracker
     visible:
       id: "screen-calendar"
     timeout: 30000
-- waitForAnimationToEnd:
-    timeout: 1000
+- waitForAnimationToEnd
 - takeScreenshot: calendar-rest
 - tapOn: "Search"
 - extendedWaitUntil:
     visible:
       id: "screen-search"
     timeout: 30000
-- waitForAnimationToEnd:
-    timeout: 1000
+- waitForAnimationToEnd
 - takeScreenshot: search-empty
 # On iOS the selected search tab folds the other tabs into one button named for
 # the tab it returns to, so the way back to Up Next goes through Calendar.
@@ -118,6 +101,5 @@ appId: app.cuetracker
     visible:
       id: "screen-up-next"
     timeout: 30000
-- waitForAnimationToEnd:
-    timeout: 1000
+- waitForAnimationToEnd
 - takeScreenshot: up-next-tab-rest

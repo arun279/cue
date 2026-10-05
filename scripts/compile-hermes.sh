@@ -9,4 +9,4 @@ case $(uname -s) in
 esac
 hermesc="$(cd "$(dirname "$0")/.." && pwd)/node_modules/hermes-compiler/hermesc/$platform/hermesc"
 cd "$(dirname "$bundle")"
-"$hermesc" -emit-binary -O -w -out "$output" "$(basename "$bundle")"
+"$hermesc" -emit-binary -O -output-source-map -w -out "$output" "$(basename "$bundle")"

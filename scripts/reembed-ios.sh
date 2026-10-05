@@ -10,7 +10,7 @@ entitlements="$work/entitlements.plist"
 mkdir -p "$work/assets"
 (
   cd packages/native
-  npx expo export:embed --platform ios --dev false \
+  npx expo export:embed --platform ios --dev false --minify false \
     --entry-file ../../node_modules/expo-router/entry.js \
     --bundle-output "$work/main.jsbundle" --assets-dest "$work/assets"
 )
