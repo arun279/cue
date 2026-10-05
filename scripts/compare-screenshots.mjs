@@ -8,10 +8,11 @@ if (headSha === undefined) {
   throw new Error("usage: compare-screenshots.mjs <work-dir> <out-dir> <base-sha> <head-sha>");
 }
 
-// iPhone 17 Pro: the 54 pt status bar at 3x. Pixel 7 Pro: the first app row
-// starts at 158 px, and the 4 dp scroll indicator fades on its own clock.
+// iPhone 17 Pro: the 54 pt status bar at 3x, and a scroll indicator that ends
+// 18 px in. Pixel 7 Pro: the first app row starts at 158 px, and the 4 dp
+// scroll indicator. Both indicators fade on their own clocks.
 const MASKS = {
-  "iOS 1206": { top: 162, right: 0 },
+  "iOS 1206": { top: 162, right: 18 },
   "Android 1440": { top: 158, right: 14 },
 };
 // GitHub renders review bodies 814 px wide, so two 800 px panels show each
@@ -218,7 +219,7 @@ if (changes.length === 0 && removed.length === 0) {
   );
 } else {
   sections.push(
-    `Before is base \`${baseSha.slice(0, 7)}\`, after is head \`${headSha.slice(0, 7)}\`; ${screens(compared)} compared. Changed pixels are tinted magenta in the after panel; the status bar and the Android scroll indicator are not compared.`,
+    `Before is base \`${baseSha.slice(0, 7)}\`, after is head \`${headSha.slice(0, 7)}\`; ${screens(compared)} compared. Changed pixels are tinted magenta in the after panel; the status bar and the scroll indicators are not compared.`,
   );
   for (const change of changes) {
     sections.push(

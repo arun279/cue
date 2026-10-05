@@ -271,7 +271,7 @@ describe("gather-pr-media.sh", { timeout: 30_000 }, () => {
         "ui-screenshots-android-light": { captures: { "up-next": {} } },
       },
       {
-        ...dark({ "library-shows": { clock: 1 } }),
+        ...dark({ "library-shows": { clock: 1, scroll: 1 } }),
         "ui-screenshots-android-light": { captures: { "up-next": { clock: 1, scroll: 1 } } },
       },
     );

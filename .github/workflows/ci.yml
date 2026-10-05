@@ -463,8 +463,8 @@ jobs:
           USER_FACING: ${{ needs.fingerprint.outputs.user-facing }}
         run: node scripts/native-e2e-rollup.mjs
   ui-screenshots-ios-dark:
-    # Measured 8 to 12 minutes.
-    timeout-minutes: 16
+    # Measured 10 to 16 minutes, including a 4 minute simulator setup.
+    timeout-minutes: 20
     permissions:
       actions: read
       contents: read
