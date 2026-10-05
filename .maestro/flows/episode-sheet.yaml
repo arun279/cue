@@ -3,31 +3,23 @@ appId: app.cuetracker
 - runFlow: lib/relaunch.yaml
 - tapOn:
     id: "queue-row-8803"
-- scrollUntilVisible:
-    element:
-      id: "episode-row-880308"
-    direction: DOWN
-    centerElement: true
-- tapOn:
-    id: "episode-row-880308"
+- tapOn: "S2 E3 · Half Measures.*"
 - assertVisible:
     id: "episode-sheet"
 - assertVisible:
     id: "episode-mark-row"
-- waitForAnimationToEnd:
-    timeout: 1000
+- waitForAnimationToEnd
 - takeScreenshot: episode-sheet-rest
-- waitForAnimationToEnd:
-    timeout: 1000
+- waitForAnimationToEnd
 - takeScreenshot: episode-sheet-open
 - tapOn:
     id: "episode-mark-control"
 - assertVisible:
     id: "snackbar"
+- runFlow: lib/settle.yaml
 - assertVisible:
     id: "episode-sheet"
-- waitForAnimationToEnd:
-    timeout: 1000
+- waitForAnimationToEnd
 - takeScreenshot: episode-sheet-marked
 - tapOn:
     id: "episode-mark-control"
@@ -37,19 +29,26 @@ appId: app.cuetracker
     id: "episode-pager-next"
 - assertVisible:
     id: "episode-still-blur"
-- waitForAnimationToEnd:
-    timeout: 1000
+- waitForAnimationToEnd
 - takeScreenshot: episode-sheet-spoiler
 - tapOn:
     id: "episode-still-reveal"
 - assertNotVisible:
     id: "episode-still-blur"
-- waitForAnimationToEnd:
-    timeout: 1000
+- waitForAnimationToEnd
 - takeScreenshot: episode-sheet-revealed
 - runFlow: lib/dismiss-episode-sheet.yaml
 - assertVisible:
     id: "screen-show-detail"
-- waitForAnimationToEnd:
-    timeout: 1000
+- waitForAnimationToEnd
 - takeScreenshot: show-detail-after-episode
+- scrollUntilVisible:
+    element:
+      id: "episode-row-880308"
+    direction: DOWN
+    centerElement: true
+- tapOn:
+    id: "episode-row-880308"
+- assertVisible:
+    id: "episode-sheet"
+- runFlow: lib/dismiss-episode-sheet.yaml

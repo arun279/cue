@@ -8,10 +8,11 @@ if (headSha === undefined) {
   throw new Error("usage: compare-screenshots.mjs <work-dir> <out-dir> <base-sha> <head-sha>");
 }
 
-// iPhone 17 Pro: the 54 pt status bar at 3x. Pixel 7 Pro: the first app row
-// starts at 158 px, and the 4 dp scroll indicator fades on its own clock.
+// iPhone 17 Pro: the 54 pt status bar at 3x, and a scroll indicator that ends
+// 18 px in. Pixel 7 Pro: the first app row starts at 158 px, and the 4 dp
+// scroll indicator. Both indicators fade on their own clocks.
 const MASKS = {
-  "iOS 1206": { top: 162, right: 0 },
+  "iOS 1206": { top: 162, right: 18 },
   "Android 1440": { top: 158, right: 14 },
 };
 // GitHub renders review bodies 814 px wide, so two 800 px panels show each
@@ -42,13 +43,14 @@ const lanes = readFileSync(path.join(work, "lanes.tsv"), "utf8")
   .replace(/\n$/, "")
   .split("\n")
   .map((row) => {
-    const [side, artifact, note] = row.split("\t");
+    const [side, artifact, note, day] = row.split("\t");
     const [, platform, appearance, suite] =
       /^ui-screenshots-(ios|android)-(light|dark)(?:-(.+))?$/.exec(artifact) ?? [];
     return {
       side,
       artifact,
       note,
+      day,
       platform: PLATFORMS[platform],
       appearance,
       suite,
@@ -58,7 +60,17 @@ const lanes = readFileSync(path.join(work, "lanes.tsv"), "utf8")
 const lane = (side, artifact) =>
   lanes.find((entry) => entry.side === side && entry.artifact === artifact);
 
-const read = (file) => PNG.sync.read(readFileSync(file));
+const unreadable = [];
+const read = (file, entry, name) => {
+  try {
+    return PNG.sync.read(readFileSync(file));
+  } catch {
+    unreadable.push(
+      `- The ${entry.side} capture of ${caption(entry, name)} could not be read as a PNG.`,
+    );
+    return undefined;
+  }
+};
 
 const changedPixels = (before, after, platform) => {
   const { width, height } = after;
@@ -154,20 +166,22 @@ for (const after of lanes.filter(({ side }) => side === "after")) {
   for (const [name, file] of [...after.captures].sort(([a], [b]) => a.localeCompare(b))) {
     const baseFile = before.captures.get(name);
     if (baseFile === undefined && before.note !== "") continue;
-    const head = read(file);
-    const base = baseFile === undefined ? undefined : read(baseFile);
+    const head = read(file, after, name);
+    const base = baseFile === undefined ? undefined : read(baseFile, before, name);
+    if (head === undefined || (baseFile !== undefined && base === undefined)) continue;
     const diff = base === undefined ? undefined : changedPixels(base, head, after.platform);
     if (base !== undefined) compared++;
     if (base !== undefined && diff === undefined) continue;
     const { screen, size } = describe(name);
-    const pair = size === undefined ? undefined : after.captures.get(screen);
+    const pairFile = size === undefined ? undefined : after.captures.get(screen);
+    const pair = pairFile === undefined ? undefined : read(pairFile, after, screen);
     const panels = [
       ...(base === undefined ? [] : [base]),
       diff === undefined ? head : tint(head, diff),
     ];
     const labels = base === undefined ? ["after"] : ["before", "after"];
     if (size !== undefined) {
-      panels.unshift(...(pair === undefined ? [] : [read(pair)]));
+      panels.unshift(...(pair === undefined ? [] : [pair]));
       labels.unshift(...(pair === undefined ? [] : ["default text after"]));
     }
     const image = `${after.platform}-${after.appearance}-${name}.png`.toLowerCase();
@@ -188,13 +202,32 @@ for (const after of lanes.filter(({ side }) => side === "after")) {
 
 const screens = (count) => `${count} screen${count === 1 ? "" : "s"}`;
 const range = `base \`${baseSha.slice(0, 7)}\` and head \`${headSha.slice(0, 7)}\``;
-const missing = lanes
-  .filter(({ note }) => note !== "")
-  .map(
-    (entry) =>
-      `- ${entry.side === "before" ? "Before" : "After"} captures for ${entry.platform} ${entry.appearance}${entry.suite ? ` (${entry.suite} flows)` : ""} ${entry.note}.`,
-  );
-const sections = ["<!-- media-review -->"];
+const missing = [
+  ...lanes
+    .filter(({ note }) => note !== "")
+    .map(
+      (entry) =>
+        `- ${entry.side === "before" ? "Before" : "After"} captures for ${entry.platform} ${entry.appearance}${entry.suite ? ` (${entry.suite} flows)` : ""} ${entry.note}.`,
+    ),
+  ...unreadable,
+];
+const days = (side) =>
+  [
+    ...new Set(
+      lanes.filter((entry) => entry.side === side && entry.captures.size > 0).map(({ day }) => day),
+    ),
+  ]
+    .sort()
+    .join(" and ");
+const [baseDays, headDays] = [days("before"), days("after")];
+const sections = [
+  "<!-- media-review -->",
+  ...(baseDays && headDays && baseDays !== headDays
+    ? [
+        `Base captures are from ${baseDays} and head captures from ${headDays} (UTC). The fake Trakt server dates its seeded account from the start of the UTC day it runs on, so a screen that differs only in its dates has not changed.`,
+      ]
+    : []),
+];
 if (changes.length === 0 && removed.length === 0) {
   sections.push(
     missing.length === 0
@@ -203,7 +236,7 @@ if (changes.length === 0 && removed.length === 0) {
   );
 } else {
   sections.push(
-    `Before is base \`${baseSha.slice(0, 7)}\`, after is head \`${headSha.slice(0, 7)}\`; ${screens(compared)} compared. Changed pixels are tinted magenta in the after panel; the status bar and the Android scroll indicator are not compared.`,
+    `Before is base \`${baseSha.slice(0, 7)}\`, after is head \`${headSha.slice(0, 7)}\`; ${screens(compared)} compared. Changed pixels are tinted magenta in the after panel; the status bar and the scroll indicators are not compared.`,
   );
   for (const change of changes) {
     sections.push(

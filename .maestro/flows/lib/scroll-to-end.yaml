@@ -1,0 +1,7 @@
+appId: app.cuetracker
+---
+- repeat:
+    times: 3
+    commands:
+      - scroll
+- waitForAnimationToEnd

@@ -19,6 +19,11 @@ unzip -q "$maestro_zip" -d "$RUNNER_TEMP"
 echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
 tar -xzf "$app_dir/Cue.app.tgz" -C "$app_dir"
 xcrun simctl bootstatus "$device_id" -b
+xcrun simctl spawn "$device_id" defaults write com.apple.keyboard.preferences \
+  DidShowContinuousPathIntroduction -bool true
+# The Android lanes run with animations off; Reduce Motion is the iOS match, so
+# no capture lands mid-animation on a slow runner.
+xcrun simctl spawn "$device_id" defaults write com.apple.Accessibility ReduceMotionEnabled -bool true
 xcrun simctl install "$device_id" "$app_dir/Cue.app"
 xcrun simctl launch --terminate-running-process "$device_id" app.cuetracker
 for _ in {1..30}; do

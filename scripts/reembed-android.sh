@@ -11,7 +11,7 @@ work=$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/android-bundle.XXXXXX")
 mkdir -p "$work/aab/base/assets" "$work/apk/assets"
 (
   cd packages/native
-  npx expo export:embed --platform android --dev false \
+  npx expo export:embed --platform android --dev false --minify false \
     --entry-file ../../node_modules/expo-router/entry.js \
     --bundle-output "$work/index.android.bundle" --assets-dest "$work/assets"
 )

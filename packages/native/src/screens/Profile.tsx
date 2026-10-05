@@ -187,7 +187,7 @@ export default function Profile(): ReactElement {
           onPress={() => router.push("/settings")}
           trailing={<Chevron direction="forward" />}
         />
-        <SignOut />
+        <SignOut testID={TEST_IDS.profileSignOut} />
       </View>
     </AccountScreen>
   );

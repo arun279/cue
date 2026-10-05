@@ -13,16 +13,11 @@ appId: app.cuetracker
     visible:
       id: "screen-library"
     timeout: 30000
-- waitForAnimationToEnd:
-    timeout: 1000
+- waitForAnimationToEnd
 - takeScreenshot: library-shows-${SIZE}
 - tapOn:
     id: "avatar-link"
-- scrollUntilVisible:
-    element:
-      id: "profile-stat-shows"
-- waitForAnimationToEnd:
-    timeout: 1000
+- runFlow: lib/scroll-to-end.yaml
 - takeScreenshot: profile-rest-${SIZE}
 - runFlow: lib/leave-profile.yaml
 - tapOn: "Search"
@@ -30,6 +25,5 @@ appId: app.cuetracker
     visible:
       id: "screen-search"
     timeout: 30000
-- waitForAnimationToEnd:
-    timeout: 1000
+- waitForAnimationToEnd
 - takeScreenshot: search-empty-${SIZE}

@@ -5,6 +5,13 @@ env:
 ---
 - runFlow: ../flows/launch.yaml
 - runFlow: ../flows/up-next-mark-and-undo.yaml
+# XCTest's synthesized drag does not open a swipeable row on the iOS simulator.
+- runFlow:
+    file: ../flows/swipe-mark-and-stop.yaml
+    when:
+      platform: Android
+- runFlow: ../flows/up-next-lapsed-drawer.yaml
+- runFlow: ../flows/pull-to-refresh.yaml
 - runFlow: ../flows/show-detail-bulk-mark.yaml
 - runFlow: ../flows/search.yaml
 - runFlow: ../flows/episode-sheet.yaml

@@ -7,7 +7,7 @@
 # row id to assert on while it is the card.
 appId: app.cuetracker
 ---
-- runFlow: lib/connect.yaml
+- runFlow: lib/relaunch.yaml
 - scrollUntilVisible:
     element:
       id: "lapsed-drawer-toggle"

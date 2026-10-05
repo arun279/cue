@@ -16,7 +16,8 @@ import { readWorkflowJobs } from "../support/workflow-jobs";
 
 const jobs = readWorkflowJobs(repositoryPath(".github/workflows/ci.yml"));
 const job = jobs.find(({ name }) => name === "pr-media");
-const userFacing = new RegExp(job?.body.match(/^ {10}USER_FACING: (.+)$/m)?.[1] ?? "(?!)");
+const fingerprint = jobs.find(({ name }) => name === "fingerprint");
+const userFacing = new RegExp(fingerprint?.body.match(/^ {10}USER_FACING: (.+)$/m)?.[1] ?? "(?!)");
 
 const HEAD = "abcdef1234567890";
 const BASE = "bbbbbbb123456789";
@@ -49,8 +50,12 @@ case $url in
 esac | jq -r "$filter"
 `;
 
-type Capture = { clock?: number; content?: number; scroll?: number };
-type Lane = { conclusion?: string; captures?: Record<string, Capture> | null };
+type Capture = { clock?: number; content?: number; scroll?: number; empty?: boolean };
+type Lane = {
+  conclusion?: string;
+  captures?: Record<string, Capture> | null;
+  stale?: Record<string, Capture>;
+};
 type Run = Record<string, Lane>;
 
 const LANES: Record<string, string> = {
@@ -79,14 +84,18 @@ const COLORS = [
 const screenshot = (
   file: string,
   width: number,
-  { clock = 0, content = 0, scroll = 0 }: Capture,
+  { clock = 0, content = 0, scroll = 0, empty = false }: Capture,
 ) => {
+  mkdirSync(path.dirname(file), { recursive: true });
+  if (empty) {
+    writeFileSync(file, "");
+    return;
+  }
   const png = new PNG({ width, height: 240 });
   fill(png, [0, 0, width, 240], [250, 250, 245]);
   fill(png, [100, 60, 300, 110], clock ? [0, 0, 0] : [128, 128, 128]);
   fill(png, CONTENT, COLORS[content] ?? []);
   if (scroll) fill(png, [width - 12, 170, width - 4, 240], [120, 120, 120]);
-  mkdirSync(path.dirname(file), { recursive: true });
   writeFileSync(file, PNG.sync.write(png));
 };
 
@@ -118,25 +127,28 @@ const sandbox = () => {
   return { root, state, run };
 };
 
-const record = (root: string, state: string, id: number, lanes: Run) => {
-  const artifacts = [];
+const record = (root: string, state: string, id: number, lanes: Run, day: string) => {
+  const artifacts: { name: string; id: number; expired: boolean; created_at: string }[] = [];
   for (const [index, [artifact, jobName]] of Object.entries(LANES).entries()) {
     const lane = { conclusion: "success", captures: {}, ...lanes[artifact] };
     if (lane.captures === null) continue;
-    const artifactId = id * 100 + index;
     const width = artifact.includes("android") ? 1440 : 1206;
-    for (const [name, capture] of Object.entries(lane.captures)) {
-      screenshot(
-        path.join(root, `${artifactId}`, "run", "takeScreenshot", `${name}.png`),
-        width,
-        capture,
-      );
-    }
-    screenshot(path.join(root, `${artifactId}`, "screenshots", `${jobName}.png`), width, {});
-    spawnSync("zip", ["-qr", path.join(state, `${artifactId}.zip`), "."], {
-      cwd: path.join(root, `${artifactId}`),
-    });
-    artifacts.push({ name: artifact, id: artifactId, expired: false });
+    const upload = (artifactId: number, captures: Record<string, Capture>, createdAt: string) => {
+      for (const [name, capture] of Object.entries(captures)) {
+        screenshot(
+          path.join(root, `${artifactId}`, "run", "takeScreenshot", `${name}.png`),
+          width,
+          capture,
+        );
+      }
+      screenshot(path.join(root, `${artifactId}`, "screenshots", `${jobName}.png`), width, {});
+      spawnSync("zip", ["-qr", path.join(state, `${artifactId}.zip`), "."], {
+        cwd: path.join(root, `${artifactId}`),
+      });
+      artifacts.push({ name: artifact, id: artifactId, expired: false, created_at: createdAt });
+    };
+    if (lane.stale) upload(id * 100 + index + 50, lane.stale, `${day}T00:00:00Z`);
+    upload(id * 100 + index, lane.captures, `${day}T01:00:00Z`);
   }
   writeFileSync(path.join(state, `artifacts-${id}.json`), JSON.stringify({ artifacts }));
   writeFileSync(
@@ -150,10 +162,10 @@ const record = (root: string, state: string, id: number, lanes: Run) => {
   );
 };
 
-const gather = (before: Run | undefined, after: Run) => {
+const gather = (before: Run | undefined, after: Run, baseDay = "2026-10-04") => {
   const { root, state, run } = sandbox();
-  record(root, state, 1, after);
-  if (before) record(root, state, 2, before);
+  record(root, state, 1, after, "2026-10-04");
+  if (before) record(root, state, 2, before, baseDay);
   writeFileSync(
     path.join(state, "runs.json"),
     JSON.stringify({ workflow_runs: before ? [{ id: 2 }] : [] }),
@@ -178,12 +190,14 @@ const dark = (captures: Record<string, Capture>, conclusion = "success"): Run =>
 describe("pr-media job", () => {
   it("waits for every screenshot job, still runs when they are skipped, and uploads instead of posting", () => {
     expect(job?.body.match(/^ {6}- ([a-z0-9-]+)$/gm)?.map((line) => line.trim().slice(2))).toEqual([
+      "fingerprint",
       "native-e2e-ios-light",
       "ui-screenshots-ios-dark",
       "android-e2e",
       "ui-screenshots-android-dark",
     ]);
     expect(job?.body).toContain("!cancelled() && github.event_name == 'pull_request'");
+    expect(job?.body).toContain("needs.fingerprint.outputs.user-facing == 'true'");
     expect(job?.body).toContain("fetch-depth: 2");
     expect(job?.body).toContain(
       'scripts/gather-pr-media.sh "$GITHUB_RUN_ID" "$(scripts/measured-base.sh pull_request)"',
@@ -230,6 +244,7 @@ describe("pr-media job", () => {
     "packages/native/app/(tabs)/index.tsx",
     "packages/core/src/sync-contract.ts",
     ".maestro/flows/large-text.yaml",
+    "scripts/mock-trakt/seed.mjs",
     "scripts/gather-pr-media.sh",
     "scripts/compare-screenshots.mjs",
     "scripts/attach-pr-media.sh",
@@ -256,7 +271,7 @@ describe("gather-pr-media.sh", { timeout: 30_000 }, () => {
         "ui-screenshots-android-light": { captures: { "up-next": {} } },
       },
       {
-        ...dark({ "library-shows": { clock: 1 } }),
+        ...dark({ "library-shows": { clock: 1, scroll: 1 } }),
         "ui-screenshots-android-light": { captures: { "up-next": { clock: 1, scroll: 1 } } },
       },
     );
@@ -264,6 +279,18 @@ describe("gather-pr-media.sh", { timeout: 30_000 }, () => {
     expect(images).toEqual([]);
     expect(review).toBe(
       "<!-- media-review -->\n\nNo screen changed between base `bbbbbbb` and head `abcdef1`; 2 screens compared.\n",
+    );
+  });
+
+  it("says when base and head captures come from different UTC days", () => {
+    const { review } = gather(
+      dark({ "history-recent": { content: 0 } }),
+      dark({ "history-recent": { content: 1 } }),
+      "2026-10-02",
+    );
+
+    expect(review).toContain(
+      "<!-- media-review -->\n\nBase captures are from 2026-10-02 and head captures from 2026-10-04 (UTC). The fake Trakt server dates its seeded account from the start of the UTC day it runs on, so a screen that differs only in its dates has not changed.\n\nBefore is base `bbbbbbb`",
     );
   });
 
@@ -322,6 +349,30 @@ describe("gather-pr-media.sh", { timeout: 30_000 }, () => {
       "- Before captures for iOS light (detail flows) are missing because no push run of CI exists for base bbbbbbb.",
     );
     expect(review.match(/^- Before captures/gm)).toHaveLength(6);
+  });
+
+  it("reads the newest artifact when a retried job uploaded the same name twice", () => {
+    const { review, images } = gather(dark({ "library-shows": {} }), {
+      "ui-screenshots-ios-dark": {
+        captures: { "library-shows": {} },
+        stale: { "library-shows": { content: 1 } },
+      },
+    });
+
+    expect(images).toEqual([]);
+    expect(review).toContain("No screen changed between base `bbbbbbb` and head `abcdef1`");
+  });
+
+  it("names a capture it cannot read instead of failing", () => {
+    const { review, images } = gather(
+      dark({ "onboarding-ready": { empty: true }, "library-shows": {} }),
+      dark({ "onboarding-ready": {}, "library-shows": { content: 1 } }),
+    );
+
+    expect(images).toEqual(["ios-dark-library-shows.png"]);
+    expect(review).toContain(
+      "- The before capture of Onboarding ready, iOS, dark, default text could not be read as a PNG.",
+    );
   });
 
   it("shows a new screen as after only", () => {

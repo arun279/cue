@@ -4,8 +4,7 @@
 # alternative the pull gesture owes, and it runs the identical pass.
 appId: app.cuetracker
 ---
-- runFlow: lib/connect.yaml
-- runFlow: lib/settle.yaml
+- runFlow: lib/relaunch.yaml
 - swipe:
     start: "50%, 25%"
     end: "50%, 85%"

@@ -3,6 +3,7 @@ env:
   CAPTURE_AUTH: "false"
 ---
 - runFlow: ../flows/calendar.yaml
+- runFlow: ../flows/pull-to-refresh.yaml
 - runFlow: ../flows/library.yaml
 - runFlow: ../flows/search.yaml
 - runFlow: ../flows/tabs.yaml
