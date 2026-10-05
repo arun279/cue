@@ -1,9 +1,10 @@
 appId: app.cuetracker
 ---
+# A relaunch on the macOS runner measured up to 37 s before Up Next showed.
 - extendedWaitUntil:
     visible:
       id: "screen-up-next"
-    timeout: 30000
+    timeout: 60000
 - extendedWaitUntil:
     visible:
       id: "app-idle"

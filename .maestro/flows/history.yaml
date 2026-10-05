@@ -31,8 +31,7 @@ appId: app.cuetracker
     id: "history-jump"
 - assertVisible:
     id: "history-jump-sheet"
-- waitForAnimationToEnd:
-    timeout: 1000
+- waitForAnimationToEnd
 - takeScreenshot: history-jump
 - runFlow:
     when:

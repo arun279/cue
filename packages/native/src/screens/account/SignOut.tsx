@@ -7,7 +7,11 @@ import { TEST_IDS } from "../../ui/test-ids";
 import { ROW_MIN_HEIGHT, useColors } from "../../ui/tokens";
 import { CueText } from "../../ui/type";
 
-export function SignOut(): ReactElement {
+export interface SignOutProps {
+  readonly testID: string;
+}
+
+export function SignOut({ testID }: SignOutProps): ReactElement {
   const disconnect = useAuth((state) => state.disconnect);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +46,7 @@ export function SignOut(): ReactElement {
         </CueText>
       ) : null}
       <Pressable
-        testID={TEST_IDS.settingsDisconnect}
+        testID={testID}
         accessibilityRole="button"
         accessibilityLabel={label}
         accessibilityState={{ disabled: busy, busy }}

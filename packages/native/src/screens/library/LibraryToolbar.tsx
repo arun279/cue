@@ -1,6 +1,7 @@
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, TextInput, View } from "react-native";
 import { GLYPH, Glyph } from "../../ui/Glyph";
+import { HIDE_CARET } from "../../ui/harness";
 import { RowMenu } from "../../ui/RowMenu";
 import { SegmentedControl, type SegmentOption } from "../../ui/SegmentedControl";
 import { TEST_IDS } from "../../ui/test-ids";
@@ -44,6 +45,7 @@ export function LibraryToolbar<T extends string>({
       <View style={styles.toolbar}>
         <TextInput
           autoFocus
+          caretHidden={HIDE_CARET}
           testID={TEST_IDS.libraryFilterField}
           accessibilityLabel="Filter by title"
           placeholder="Filter by title"

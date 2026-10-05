@@ -8,20 +8,17 @@ appId: app.cuetracker
 - tapOn: "Library"
 - assertVisible:
     id: "screen-library"
-- waitForAnimationToEnd:
-    timeout: 1000
+- waitForAnimationToEnd
 - takeScreenshot: library-tab-rest
 - tapOn: "Calendar"
 - assertVisible:
     id: "screen-calendar"
-- waitForAnimationToEnd:
-    timeout: 1000
+- waitForAnimationToEnd
 - takeScreenshot: calendar-rest
 - tapOn: "Search"
 - assertVisible:
     id: "screen-search"
-- waitForAnimationToEnd:
-    timeout: 1000
+- waitForAnimationToEnd
 - takeScreenshot: search-empty
 # On iOS the selected search tab folds the other tabs into one button named for
 # the tab it returns to, so the way back to Up Next goes through Calendar.
@@ -35,6 +32,5 @@ appId: app.cuetracker
 - tapOn: "Up Next"
 - assertVisible:
     id: "screen-up-next"
-- waitForAnimationToEnd:
-    timeout: 1000
+- waitForAnimationToEnd
 - takeScreenshot: up-next-tab-rest
