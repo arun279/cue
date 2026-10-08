@@ -8,6 +8,13 @@ packages:
 # https://docs.expo.dev/guides/monorepos/
 nodeLinker: hoisted
 
+# @react-native-masked-view/masked-view rewrites its own AndroidManifest.xml
+# during every Android build. Hard-linked to the store, as pnpm installs on Linux
+# by default, that write reaches every other install and changes its runtime
+# fingerprint. Cloning or copying gives each install its own files.
+# https://pnpm.io/10.x/settings#packageimportmethod
+packageImportMethod: clone-or-copy
+
 # `pnpm run` and `pnpm exec` refuse to run when a package.json changed since
 # the last install, so the native fingerprint never hashes those stale modules.
 # https://pnpm.io/settings#verifydepsbeforerun
