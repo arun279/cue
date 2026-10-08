@@ -1,11 +1,13 @@
 appId: app.cuetracker
 ---
 # Onboarding paints once the auth store has read the keychain, which a cold
-# launch does not finish inside the default assertion window.
+# launch does not finish inside the default assertion window. Across 204 fresh
+# installs in iOS CI runs from 2026-10-03 to 2026-10-08 the median was 7 s and
+# the slowest took up to 52 s.
 - extendedWaitUntil:
     visible:
       id: "screen-onboarding"
-    timeout: 30000
+    timeout: 90000
 - runFlow:
     when:
       true: ${CAPTURE_AUTH == "true"}
