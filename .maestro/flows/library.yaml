@@ -45,7 +45,18 @@ appId: app.cuetracker
     id: "library-filter-toggle"
 - tapOn:
     id: "library-filter-field"
-- inputText: "zzz"
+# One letter at a time, each after the screen settles: on a slow iOS simulator,
+# letters typed in one burst after the first had emptied the grid never reached
+# the field.
+- inputText: "z"
+- extendedWaitUntil:
+    visible: 'No shows match "z".'
+    timeout: 10000
+- inputText: "z"
+- extendedWaitUntil:
+    visible: 'No shows match "zz".'
+    timeout: 10000
+- inputText: "z"
 - extendedWaitUntil:
     visible: 'No shows match "zzz".'
     timeout: 10000
