@@ -183,6 +183,14 @@ it("filters on the settled query and clears back to the grid", async () => {
   await waitFor(() => expect(titles()).toEqual(["Harbor Lights", "Coastal Static"]));
 });
 
+it("leaves the filter text to the native field, so a slow render cannot overwrite keystrokes", async () => {
+  await paint();
+  await userEvent.press(screen.getByTestId("library-filter-toggle"));
+  await userEvent.type(screen.getByTestId("library-filter-field"), "coast");
+
+  expect(screen.getByTestId("library-filter-field")).not.toHaveProp("value");
+});
+
 it("says what each empty chip is for", async () => {
   await paint({ entries: [entry()] });
 
