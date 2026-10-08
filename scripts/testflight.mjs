@@ -3,9 +3,9 @@ import { readFileSync } from "node:fs";
 import { setTimeout as sleep } from "node:timers/promises";
 
 const USAGE =
-  "usage: APP_STORE_CONNECT_KEY=<base64 .p8> APP_STORE_CONNECT_KEY_ID=<id> APP_STORE_CONNECT_ISSUER_ID=<id> testflight.mjs latest-build | friends <build-number>";
+  "usage: APP_STORE_CONNECT_KEY=<base64 .p8> APP_STORE_CONNECT_KEY_ID=<id> APP_STORE_CONNECT_ISSUER_ID=<id> testflight.mjs latest-build | friends <build-number> | NOTES=<text> notes <build-number>";
 const [command, buildNumber] = process.argv.slice(2);
-const { APP_STORE_CONNECT_KEY, APP_STORE_CONNECT_KEY_ID, APP_STORE_CONNECT_ISSUER_ID } =
+const { APP_STORE_CONNECT_KEY, APP_STORE_CONNECT_KEY_ID, APP_STORE_CONNECT_ISSUER_ID, NOTES } =
   process.env;
 if (!APP_STORE_CONNECT_KEY || !APP_STORE_CONNECT_KEY_ID) throw new Error(USAGE);
 
@@ -16,6 +16,7 @@ const appId = eas.submit.production.ios.ascAppId;
 const key = createPrivateKey(Buffer.from(APP_STORE_CONNECT_KEY, "base64"));
 const DEADLINE_MS = 60 * 60 * 1000;
 const POLL_MS = 30_000;
+const LOCALE = "en-US";
 
 // https://developer.apple.com/documentation/appstoreconnectapi/externalbetastate
 const SETTLED = new Set([
@@ -45,11 +46,11 @@ const token = () => {
   return `${header}.${claims}.${signature.toString("base64url")}`;
 };
 
-const api = async (path, body) => {
+const api = async (path, data, method = data === undefined ? "GET" : "POST") => {
   const response = await fetch(`https://api.appstoreconnect.apple.com/v1/${path}`, {
-    method: body === undefined ? "GET" : "POST",
+    method,
     headers: { authorization: `Bearer ${token()}`, "content-type": "application/json" },
-    body: body === undefined ? undefined : JSON.stringify({ data: body }),
+    body: data === undefined ? undefined : JSON.stringify({ data }),
   });
   if (!response.ok) throw new Error(`${path}: ${response.status} ${await response.text()}`);
   return response.status === 204 ? null : (await response.json()).data;
@@ -70,10 +71,9 @@ const until = async (deadline, describe, attempt) => {
   return until(deadline, describe, attempt);
 };
 
-const friends = async () => {
-  const deadline = Date.now() + DEADLINE_MS;
+const processedBuild = (deadline) => {
   let processing = "missing";
-  const build = await until(
+  return until(
     deadline,
     () => `never finished processing (${processing})`,
     async () => {
@@ -86,6 +86,32 @@ const friends = async () => {
       return undefined;
     },
   );
+};
+
+// https://developer.apple.com/documentation/appstoreconnectapi/beta-build-localizations
+const notes = async () => {
+  const build = await processedBuild(Date.now() + DEADLINE_MS);
+  const localizations = await api(`builds/${build.id}/betaBuildLocalizations`);
+  const existing = localizations.find(({ attributes }) => attributes.locale === LOCALE);
+  if (existing === undefined) {
+    await api("betaBuildLocalizations", {
+      type: "betaBuildLocalizations",
+      attributes: { locale: LOCALE, whatsNew: NOTES },
+      relationships: { build: { data: { type: "builds", id: build.id } } },
+    });
+  } else {
+    await api(
+      `betaBuildLocalizations/${existing.id}`,
+      { type: "betaBuildLocalizations", id: existing.id, attributes: { whatsNew: NOTES } },
+      "PATCH",
+    );
+  }
+  process.stdout.write(`Build ${buildNumber} tells testers what changed.\n`);
+};
+
+const friends = async () => {
+  const deadline = Date.now() + DEADLINE_MS;
+  const build = await processedBuild(deadline);
 
   const groups = await api(`betaGroups?filter[app]=${appId}&filter[isInternalGroup]=false`);
   if (groups.length !== 1) {
@@ -128,6 +154,8 @@ if (command === "latest-build") {
   process.stdout.write(`${await latestBuild()}\n`);
 } else if (command === "friends" && buildNumber !== undefined) {
   await friends();
+} else if (command === "notes" && buildNumber !== undefined && NOTES) {
+  await notes();
 } else {
   throw new Error(USAGE);
 }
