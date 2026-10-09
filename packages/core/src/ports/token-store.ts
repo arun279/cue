@@ -7,9 +7,6 @@ export type TokenStore = JsonStore<Token>;
 
 const SAVE_RETRY_MS = 5_000;
 
-// The Keychain can take over a minute to answer, so the session reads its token from
-// memory and saves run one at a time behind it, each retried until it lands or a
-// newer save replaces it. A write's promise settles with its own save.
 export function createTokenStore(kv: KeyValueStore, retryMs = SAVE_RETRY_MS): TokenStore {
   const stored = createJsonStore<Token>(kv, TOKEN_KEY, (value) => tokenSchema.parse(value));
   let session: Promise<Token | null> | undefined;
