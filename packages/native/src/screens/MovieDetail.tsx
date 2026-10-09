@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "../ui/Button";
 import { CheckControl } from "../ui/CheckControl";
 import { EmptyState } from "../ui/EmptyState";
-import { RowMenu } from "../ui/RowMenu";
+import { HeaderMenu } from "../ui/RowMenu";
 import { TEST_IDS } from "../ui/test-ids";
 import { CHECK_SIZE, SPACE, tabBarClearance, useColors, useStacked } from "../ui/tokens";
 import { CueText } from "../ui/type";
@@ -76,35 +76,27 @@ function LoadedMovie({ header }: { readonly header: MovieHeader }): ReactElement
   const stacked = useStacked();
   return (
     <>
-      <Stack.Screen
-        options={{
-          title: header.title,
-          headerRight: () => (
-            <RowMenu
-              title={header.title}
-              items={[
-                {
-                  id: "watchlist",
-                  label: actions.entry.inWatchlist ? "Remove from Watchlist" : "Add to Watchlist",
-                  onPress: actions.toggleWatchlist,
-                },
-                {
-                  id: "trakt",
-                  label: "Open on Trakt",
-                  image:
-                    Platform.OS === "ios"
-                      ? "arrow.up.right.square"
-                      : require("../ui/open-in-new.xml"),
-                  onPress: () => {
-                    void WebBrowser.openBrowserAsync(
-                      `https://trakt.tv/movies/${header.ids.slug ?? header.ids.trakt}`,
-                    ).catch(() => showSnack({ message: "Couldn't open Trakt. Please try again." }));
-                  },
-                },
-              ]}
-            />
-          ),
-        }}
+      <Stack.Screen options={{ title: header.title }} />
+      <HeaderMenu
+        title={header.title}
+        items={[
+          {
+            id: "watchlist",
+            label: actions.entry.inWatchlist ? "Remove from Watchlist" : "Add to Watchlist",
+            onPress: actions.toggleWatchlist,
+          },
+          {
+            id: "trakt",
+            label: "Open on Trakt",
+            image:
+              Platform.OS === "ios" ? "arrow.up.right.square" : require("../ui/open-in-new.xml"),
+            onPress: () => {
+              void WebBrowser.openBrowserAsync(
+                `https://trakt.tv/movies/${header.ids.slug ?? header.ids.trakt}`,
+              ).catch(() => showSnack({ message: "Couldn't open Trakt. Please try again." }));
+            },
+          },
+        ]}
       />
       <ScrollView
         contentContainerStyle={{ paddingBottom: tabBarClearance(insets.bottom) + SPACE.s4 }}

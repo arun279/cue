@@ -8,7 +8,7 @@ import { showSnack } from "@cue/core/stores/snackbar-store";
 import * as WebBrowser from "expo-web-browser";
 import type { ReactElement } from "react";
 import { Platform } from "react-native";
-import { RowMenu } from "../../ui/RowMenu";
+import { HeaderMenu } from "../../ui/RowMenu";
 import type { Confirmation } from "../../ui/useConfirmation";
 import type { useDetailMark } from "./useDetailMark";
 import type { ShowHeader } from "./useShowDetail";
@@ -34,7 +34,7 @@ export function ShowMenu({
     number: Number.MAX_SAFE_INTEGER,
   });
   return (
-    <RowMenu
+    <HeaderMenu
       title={header.title}
       items={[
         {

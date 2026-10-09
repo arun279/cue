@@ -208,6 +208,12 @@
       "platforms": ["ios", "android"]
     },
     {
+      "path": "assets/b4f4db5a7cc1b70bdf6752069080d0b9",
+      "type": "xml",
+      "bytes": 459,
+      "platforms": ["android"]
+    },
+    {
       "path": "assets/c3273c9e5321f20d1e42c2efae2578c4",
       "type": "png",
       "bytes": 728,
@@ -217,6 +223,12 @@
       "path": "assets/c79c3606a1cf168006ad3979763c7e0c",
       "type": "png",
       "bytes": 134,
+      "platforms": ["android"]
+    },
+    {
+      "path": "assets/cf29543a7ad58b69d46d93846b3c5c97",
+      "type": "xml",
+      "bytes": 425,
       "platforms": ["android"]
     },
     {

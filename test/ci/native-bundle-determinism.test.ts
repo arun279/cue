@@ -21,7 +21,9 @@ it("numbers each platform's modules as if it were bundled alone", () => {
 });
 
 it("compiles the same bundle to the same number of bytes every time", async () => {
-  const { buildHermesBundleAsync } = require("@expo/metro-config/build/serializer/exportHermes");
+  const { buildHermesBundleAsync } = createRequire(
+    require.resolve("expo/package.json", { paths: [native] }),
+  )("@expo/metro-config/build/serializer/exportHermes");
   const sizes = new Set();
   for (let run = 0; run < 20; run += 1) {
     const { hbc } = await buildHermesBundleAsync({ projectRoot: native, code: "print(1);" });

@@ -42,6 +42,13 @@ interface ToolbarButtonProps {
   onPress?(): void;
 }
 
+interface ToolbarMenuActionProps {
+  readonly children: string;
+  readonly hidden?: boolean;
+  readonly disabled?: boolean;
+  onPress(): void;
+}
+
 /** The header's native bar items as plain buttons, named the way the system
  * names them: by the accessibility label, or by the title when there is none.
  * The toolbar records each declaration, because every one the real router sees
@@ -58,6 +65,15 @@ export function toolbarModule() {
         children === undefined ? null : createElement(Text, null, children),
       ),
     View: layout,
+    Menu: layout,
+    MenuAction: ({ children, hidden, disabled, onPress }: ToolbarMenuActionProps) =>
+      hidden === true
+        ? null
+        : createElement(
+            Pressable,
+            { accessibilityRole: "button", accessibilityState: { disabled }, onPress },
+            createElement(Text, null, children),
+          ),
   });
 }
 
