@@ -113,6 +113,26 @@ describe("the native composition root", () => {
     expect(screen.queryByTestId("router-stack")).toBeNull();
   });
 
+  it("shows sign-in on a fresh install while the Keychain is still deleting the old token", async () => {
+    secureBacking.set("cue.trakt.token", TOKEN);
+    jest.spyOn(secureStoreModule, "deleteItemAsync").mockReturnValue(new Promise(() => {}));
+
+    await render(<RootLayout />);
+
+    expect(await screen.findByTestId("screen-onboarding")).toBeOnTheScreen();
+  });
+
+  it("reads the Keychain once on a returning launch", async () => {
+    bulkBacking.values.set("cue.install-id", "an-earlier-install");
+    secureBacking.set("cue.trakt.token", TOKEN);
+    const read = jest.spyOn(secureStoreModule, "getItemAsync");
+
+    await render(<RootLayout />);
+
+    expect(await screen.findByTestId("router-stack")).toBeOnTheScreen();
+    expect(read).toHaveBeenCalledTimes(1);
+  });
+
   it("boots straight into the app when the legacy store holds a token", async () => {
     legacyBacking.set("cue.trakt.token", TOKEN);
 
@@ -157,6 +177,7 @@ describe("the native composition root", () => {
   });
 
   it("reaches a screen and says so when the Keychain refuses the token read", async () => {
+    bulkBacking.values.set("cue.install-id", "an-earlier-install");
     jest
       .spyOn(secureStoreModule, "getItemAsync")
       .mockRejectedValue(new Error("errSecMissingEntitlement"));

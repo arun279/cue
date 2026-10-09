@@ -103,6 +103,19 @@ describe("createAuthorizedFetch: proactive refresh", () => {
     expect(res.status).toBe(200);
   });
 
+  it("sends the rotated bearer while the rotated token is still being saved", async () => {
+    stubRefresh(okRefresh);
+    const { authorized, inner } = build({
+      token: expiredToken(),
+      persist: () => new Promise(() => {}),
+    });
+
+    const res = await authorized.fetch("https://api.trakt.tv/sync/x");
+
+    expect(bearerAt(inner, 0)).toBe("Bearer at-new");
+    expect(res.status).toBe(200);
+  });
+
   it("does not refresh a live token", async () => {
     const refresh = stubRefresh(okRefresh);
     const { authorized, persist, inner } = build();

@@ -52,8 +52,8 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
       });
     };
 
-    async function persistToken(token: Token): Promise<void> {
-      await deps.tokenStore.write(token);
+    function connect(token: Token): void {
+      void deps.tokenStore.write(token);
       set({
         phase: "connected",
         connectStatus: "success",
@@ -62,12 +62,10 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
       });
     }
 
-    async function applyDevicePoll(
-      result: DeviceTokenResult,
-    ): Promise<"pending" | "slow-down" | "done"> {
+    function applyDevicePoll(result: DeviceTokenResult): "pending" | "slow-down" | "done" {
       if (result.status === "pending" || result.status === "slow-down") return result.status;
       if (result.status === "success") {
-        await persistToken(result.token);
+        connect(result.token);
         return "done";
       }
       const messages = {
@@ -170,7 +168,7 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
         }
         try {
           const token = await exchangeCodeForToken(config, code, verifier);
-          await persistToken(token);
+          connect(token);
         } catch {
           set({
             connectStatus: "error",
@@ -184,14 +182,14 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
         await sessionTeardown.run();
         const token = await deps.tokenStore.read();
         if (token !== null) await revokeToken(config, token.access_token).catch(() => undefined);
-        await deps.tokenStore.clear();
+        void deps.tokenStore.clear();
         toOnboarding();
       },
 
       async endSession() {
         activeAttempt += 1;
         await sessionTeardown.run({ force: true }).catch(() => undefined);
-        await deps.tokenStore.clear();
+        void deps.tokenStore.clear();
         toOnboarding();
       },
 

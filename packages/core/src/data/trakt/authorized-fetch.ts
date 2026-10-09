@@ -9,7 +9,7 @@ export interface AuthorizedFetchDeps {
   readonly inner: FetchLike;
   readonly token: Token;
   readonly config: OAuthConfig;
-  readonly persist: (token: Token) => Promise<void>;
+  readonly persist: (token: Token) => void;
   readonly endSession: () => Promise<void>;
   readonly now?: () => number;
   readonly throttleMs?: number;
@@ -30,8 +30,8 @@ export function createAuthorizedFetch(deps: AuthorizedFetchDeps): AuthorizedFetc
 
   const refresher = new TokenRefresher(async (refreshToken) => {
     const next = await refreshAccessToken(deps.config, refreshToken);
-    await deps.persist(next);
     current = next;
+    deps.persist(next);
     return next;
   });
 

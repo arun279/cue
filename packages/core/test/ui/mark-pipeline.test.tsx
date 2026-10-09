@@ -15,9 +15,11 @@ import type { LibraryEntry } from "@cue/core/data/trakt/library";
 import type { EpisodeView, SeasonView, ShowProgress } from "@cue/core/data/trakt/show-detail";
 import type { EpisodePlay } from "@cue/core/domain/reversal";
 import type { QueuedOp } from "@cue/core/domain/write-queue/types";
+import { useActivitiesPoll } from "@cue/core/hooks/useActivitiesPoll";
 import { type MarkSeasonController, useMarkSeason } from "@cue/core/hooks/useMarkSeason";
 import { type MarkWatched, useMarkWatched } from "@cue/core/hooks/useMarkWatched";
 import {
+  type ActivitiesReconcile,
   type CueRuntime,
   RuntimeProvider,
   type UpNextData,
@@ -1191,5 +1193,55 @@ describe("episode controls", () => {
       void a[0]?.season.addEpisodePlay(TARGET, episodeView(2, true));
     });
     expect(fake.submitted).toHaveLength(1);
+  });
+});
+
+describe("an activities refetch between a mark and its confirmation", () => {
+  function Session({ slot }: { slot: Api[] }) {
+    const runtime = useRuntime();
+    useActivitiesPoll();
+    useQuery({ queryKey: queryKeys.library(), queryFn: () => runtime.loadUpNext() });
+    return <Probe slot={slot} />;
+  }
+
+  it("keeps the mark's Undo on screen while the refetch repaints the queue", async () => {
+    const entry = libraryEntry();
+    let land: (outcome: "done") => void = () => {};
+    let answerPoll: (reconcile: ActivitiesReconcile) => void = () => {};
+    const fake = fakeRuntime({
+      submit: () =>
+        new Promise((resolve) => {
+          land = resolve;
+        }),
+    });
+    Object.assign(fake.runtime, {
+      pendingWrites: () => 0,
+      pollActivities: () =>
+        new Promise((resolve) => {
+          answerPoll = resolve;
+        }),
+      loadUpNext: () => Promise.resolve({ entries: [entry] }),
+    });
+    const qc = seededClient([entry]);
+    const slot: Api[] = [];
+    mount(
+      <QueryClientProvider client={qc}>
+        <RuntimeProvider value={fake.runtime}>
+          <Session slot={slot} />
+        </RuntimeProvider>
+      </QueryClientProvider>,
+    );
+    await flush();
+
+    act(() => void slot[0]?.mark.mark(entry));
+    const undo = useSnackbar.getState().snack;
+    expect(undo?.actions?.map((action) => action.label)).toEqual(["Undo"]);
+
+    await act(async () => answerPoll({ keys: [queryKeys.library()], commit: async () => {} }));
+    await vi.waitFor(() => expect(entryOf(qc, SHOW)).toEqual(entry));
+    expect(useSnackbar.getState().snack).toBe(undo);
+
+    await act(async () => land("done"));
+    expect(useSnackbar.getState().snack).toBe(undo);
   });
 });

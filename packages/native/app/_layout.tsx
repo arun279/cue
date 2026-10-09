@@ -43,8 +43,8 @@ import {
 } from "../src/platform/stores";
 import { useAppearance } from "../src/screens/account/ThemeControl";
 import { Onboarding } from "../src/screens/Onboarding";
-import { RuntimeBoot } from "../src/screens/RuntimeBoot";
-import { AppIdle, ResponseTimingMarker } from "../src/ui/harness";
+import { RuntimeBoot, type RuntimeBootProps } from "../src/screens/RuntimeBoot";
+import { AppIdle, ResponseTimingMarker, SnackbarTrace } from "../src/ui/harness";
 import { Marker } from "../src/ui/Marker";
 import { useNavigationTheme } from "../src/ui/navigation-theme";
 import { SnackbarHost } from "../src/ui/SnackbarHost";
@@ -54,20 +54,37 @@ import { useFontsSettled } from "../src/ui/type";
 void SplashScreen.preventAutoHideAsync().catch(() => {});
 
 const prefsStore = createPrefsStore(preferenceStorage);
-const tokenStore = createTokenStore(secureStore);
 const haptics = createNativeHaptics(() => prefsStore.getState().hapticsEnabled);
 const network = createNativeNetwork();
 const reminders = createNativeReminders();
 
 const BOOT_FAILED_MESSAGE = "Cue could not open its storage. Some of your data may be missing.";
 
-function useNativeSession(): AuthStore | null {
-  const [authStore, setAuthStore] = useState<AuthStore | null>(null);
+const sessionDeps = {
+  newId: nativeCrypto.newId,
+  kv: bulkStore,
+  redirectUri: NATIVE_REDIRECT_URI,
+  clientId: TRAKT_CLIENT_ID,
+  apiBaseUrl: TRAKT_BASE_OVERRIDE,
+  browser: false,
+  userAgent: `Cue/${nativeAppVersion}`,
+  clearPersistedCaches,
+  clearLocalPreferences: () => clearLocalPreferences(prefsStore),
+};
+
+interface NativeSession {
+  readonly authStore: AuthStore;
+  readonly runtimeDeps: RuntimeBootProps["deps"];
+}
+
+function useNativeSession(): NativeSession | null {
+  const [session, setSession] = useState<NativeSession | null>(null);
 
   useEffect(() => {
     let alive = true;
+    const tokenStore = createTokenStore(secureStore);
     void bootNativeStores({
-      secure: secureStore,
+      tokenStore,
       bulk: bulkStore,
       legacy: legacyStore,
       preferences: preferenceStorage,
@@ -91,30 +108,17 @@ function useNativeSession(): AuthStore | null {
           traktBaseUrl: TRAKT_BASE_OVERRIDE,
         });
         if (bootFailure !== null) store.setState({ errorMessage: bootFailure });
-        setAuthStore(store);
+        setSession({ authStore: store, runtimeDeps: { ...sessionDeps, tokenStore } });
       });
     return () => {
       alive = false;
     };
   }, []);
 
-  return authStore;
+  return session;
 }
 
-const runtimeDeps = {
-  newId: nativeCrypto.newId,
-  tokenStore,
-  kv: bulkStore,
-  redirectUri: NATIVE_REDIRECT_URI,
-  clientId: TRAKT_CLIENT_ID,
-  apiBaseUrl: TRAKT_BASE_OVERRIDE,
-  browser: false,
-  userAgent: `Cue/${nativeAppVersion}`,
-  clearPersistedCaches,
-  clearLocalPreferences: () => clearLocalPreferences(prefsStore),
-};
-
-function Gate(): ReactElement {
+function Gate({ runtimeDeps }: Pick<NativeSession, "runtimeDeps">): ReactElement {
   const phase = useAuth((s) => s.phase);
   useSplashRelease(phase === "onboarding");
 
@@ -142,6 +146,7 @@ function RoutedApp(): ReactElement {
       </Stack>
       <SnackbarHost placement="root" />
       <ResponseTimingMarker />
+      <SnackbarTrace />
       <AppIdle />
     </View>
   );
@@ -149,12 +154,12 @@ function RoutedApp(): ReactElement {
 
 export default function RootLayout(): ReactElement {
   useScreenReader();
-  const authStore = useNativeSession();
+  const session = useNativeSession();
   const fontsSettled = useFontsSettled();
   const navigationTheme = useNavigationTheme();
   useAppearance(prefsStore);
 
-  if (authStore === null || !fontsSettled) return <Marker testID={TEST_IDS.bootHold} />;
+  if (session === null || !fontsSettled) return <Marker testID={TEST_IDS.bootHold} />;
 
   return (
     <GestureHandlerRootView style={styles.root}>
@@ -174,10 +179,10 @@ export default function RootLayout(): ReactElement {
                 <HapticsProvider value={haptics}>
                   <RemindersProvider value={reminders}>
                     <AppVersionProvider value={nativeAppVersion}>
-                      <AuthStoreProvider value={authStore}>
+                      <AuthStoreProvider value={session.authStore}>
                         <StatusBar style="auto" />
                         <ThemeProvider value={navigationTheme}>
-                          <Gate />
+                          <Gate runtimeDeps={session.runtimeDeps} />
                         </ThemeProvider>
                       </AuthStoreProvider>
                     </AppVersionProvider>
