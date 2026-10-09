@@ -5,7 +5,7 @@ import {
   MenuView,
 } from "@expo/ui/community/menu";
 import { Stack } from "expo-router";
-import { type ReactElement, useRef } from "react";
+import { type ReactElement, useRef, useState } from "react";
 import { Platform, Pressable, StyleSheet, View } from "react-native";
 import Svg, { Circle } from "react-native-svg";
 import { TARGET_MIN, useColors } from "./tokens";
@@ -86,17 +86,14 @@ export function RowMenu({
   const onPressAction: NonNullable<MenuComponentProps["onPressAction"]> = ({ nativeEvent }) =>
     byId.get(nativeEvent.event)?.();
 
-  if (Platform.OS === "android" && children !== undefined && openOnLongPress !== false)
+  if (children !== undefined && openOnLongPress !== false) {
+    const LongPressMenu = Platform.OS === "android" ? AndroidLongPressMenu : IosLongPressMenu;
     return (
-      <AndroidLongPressMenu
-        title={title}
-        testID={testID}
-        actions={actions}
-        onPressAction={onPressAction}
-      >
+      <LongPressMenu title={title} testID={testID} actions={actions} onPressAction={onPressAction}>
         {children}
-      </AndroidLongPressMenu>
+      </LongPressMenu>
     );
+  }
 
   return (
     <MenuView
@@ -130,15 +127,31 @@ export function RowMenu({
   );
 }
 
+type LongPressMenuProps = Pick<
+  MenuComponentProps,
+  "title" | "testID" | "actions" | "onPressAction"
+> & {
+  readonly children: ReactElement;
+};
+
+function IosLongPressMenu({ children, ...menu }: LongPressMenuProps): ReactElement {
+  const [width, setWidth] = useState<number>();
+  return (
+    <View onLayout={({ nativeEvent }) => setWidth(nativeEvent.layout.width)}>
+      <MenuView {...menu} shouldOpenOnLongPress>
+        <View style={{ width }}>{children}</View>
+      </MenuView>
+    </View>
+  );
+}
+
 function AndroidLongPressMenu({
   title,
   testID,
   actions,
   onPressAction,
   children,
-}: Pick<MenuComponentProps, "title" | "testID" | "actions" | "onPressAction"> & {
-  readonly children: ReactElement;
-}): ReactElement {
+}: LongPressMenuProps): ReactElement {
   const menu = useRef<MenuComponentRef>(null);
   return (
     <View>
