@@ -109,6 +109,7 @@ export default function Library(): ReactElement {
             obscureBackground: false,
             autoCapitalize: "none",
             onChangeText: (event) => setFilter(event.nativeEvent.text),
+            onSearchButtonPress: () => field.current?.blur(),
             onCancelButtonPress: () => setFilter(""),
             onClose: () => setFilter(""),
           },
