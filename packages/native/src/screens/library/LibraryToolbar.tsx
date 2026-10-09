@@ -50,7 +50,7 @@ export function LibraryToolbar<T extends string>({
           accessibilityLabel="Filter by title"
           placeholder="Filter by title"
           placeholderTextColor={colors.muted}
-          value={filter}
+          defaultValue={filter}
           onChangeText={onFilter}
           returnKeyType="search"
           autoCorrect={false}

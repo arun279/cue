@@ -77,6 +77,15 @@ describe("EAS CLI commands in the release automation", () => {
     expect(new Set(pins)).toEqual(new Set([manifest.devDependencies["eas-cli"]]));
   });
 
+  it("never send TestFlight notes through EAS Submit, which accepts them only on the Enterprise plan", () => {
+    const submits = commands.filter(([command]) => command === "submit");
+
+    expect(submits.length).toBeGreaterThan(0);
+    for (const args of submits) {
+      expect(args.join(" ")).not.toMatch(/--what-to-test|changelog/);
+    }
+  });
+
   it("pass every flag check the CLI makes before it asks for an account", {
     timeout: 120_000,
   }, async () => {

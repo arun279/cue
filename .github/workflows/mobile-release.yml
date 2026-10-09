@@ -131,10 +131,17 @@ jobs:
           ASC_API_KEY_PATH: ${{ runner.temp }}/app-store-connect.p8
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-          NOTES: ${{ inputs.notes }}
         run: >-
           eas submit --non-interactive --platform ios --profile production
-          --path "$RUNNER_TEMP/Cue.ipa" --what-to-test "$NOTES"
+          --path "$RUNNER_TEMP/Cue.ipa"
+      - name: Tell testers what changed
+        env:
+          APP_STORE_CONNECT_KEY: ${{ secrets.APP_STORE_CONNECT_KEY }}
+          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          BUILD: ${{ steps.ipa.outputs.build }}
+          NOTES: ${{ inputs.notes }}
+        run: node scripts/testflight.mjs notes "$BUILD"
       - name: Give the build to friends
         if: inputs.audience == 'friends'
         env:
