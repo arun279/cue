@@ -403,11 +403,14 @@ jobs:
           # https://web.dev/articles/rail
           # https://web.dev/articles/defining-core-web-vitals-thresholds
           FEEDBACK_CEILING_MS: "100"
+          # https://github.com/GoogleChrome/lighthouse/blob/main/docs/throttling.md
+          REFERENCE_READ_MS: "300"
         run: |
           node scripts/check-response-timing.mjs \
             "$RUNNER_TEMP/screenshots/ios/light/activity" \
             "$FEEDBACK_CEILING_MS" \
             "$RESPONSE_SAMPLES" \
+            "$REFERENCE_READ_MS" \
             >> "$GITHUB_STEP_SUMMARY"
       - name: Gate and summarize app idle
         if: ${{ !cancelled() && matrix.suite == 'discovery' }}
