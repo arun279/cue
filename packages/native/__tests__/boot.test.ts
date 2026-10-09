@@ -19,8 +19,10 @@ function deps(options: {
   bulk?: Record<string, string>;
   legacy?: Record<string, string>;
 }) {
+  const secure = memoryKeyValueStore(options.secure);
   return {
-    secure: memoryKeyValueStore(options.secure),
+    secure,
+    tokenStore: createTokenStore(secure),
     bulk: memoryKeyValueStore(options.bulk),
     legacy: memoryKeyValueStore(options.legacy) as LegacyStore & MemoryKeyValueStore,
     preferences: memoryPreferenceStorage(),
@@ -46,6 +48,28 @@ describe("the native boot", () => {
 
     expect(result.purged).toBe(true);
     expect(await createTokenStore(reinstall.secure).read()).toBeNull();
+    expect(reinstall.bulk.values.get("cue.install-id")).toBe("an-install");
+  });
+
+  it("finishes a fresh install's boot without waiting on the Keychain, and marks it only once the purge lands", async () => {
+    // Marked early, a launch killed before the delete lands would find the old token
+    // on its next start and sign the new install in with it.
+    const reinstall = deps({ secure: { "cue.trakt.token": JSON.stringify(TOKEN) } });
+    let finishDelete = () => {};
+    const tokenStore = createTokenStore({
+      ...reinstall.secure,
+      remove: (key) =>
+        new Promise((resolve) => {
+          finishDelete = () => resolve(reinstall.secure.remove(key));
+        }),
+    });
+
+    await bootNativeStores({ ...reinstall, tokenStore });
+
+    expect(await tokenStore.read()).toBeNull();
+    expect(reinstall.bulk.values.has("cue.install-id")).toBe(false);
+    finishDelete();
+    await new Promise(setImmediate);
     expect(reinstall.bulk.values.get("cue.install-id")).toBe("an-install");
   });
 
@@ -81,7 +105,7 @@ describe("the native boot", () => {
   it("stays signed out after relaunching with an adopted legacy token", async () => {
     const upgrade = deps({ legacy: { "cue.trakt.token": JSON.stringify(TOKEN) } });
     await bootNativeStores(upgrade);
-    await createTokenStore(upgrade.secure).clear();
+    await upgrade.tokenStore.clear();
 
     const result = await bootNativeStores(upgrade);
 

@@ -189,6 +189,28 @@ describe("device authorization polling", () => {
     });
   });
 
+  it("connects as soon as Trakt approves, while the Keychain is still saving the token", async () => {
+    const token = {
+      access_token: "access",
+      refresh_token: "refresh",
+      created_at: 1_700_000_000,
+      expires_in: 604_800,
+    };
+    const tokens = createTokenStore({
+      ...memoryKeyValueStore(),
+      write: () => new Promise(() => {}),
+    });
+    vi.mocked(pollDeviceToken).mockResolvedValue({ status: "success", token });
+    const store = createAuthStore(authDeps(tokens));
+
+    const connecting = store.getState().connectWithDeviceCode();
+    await vi.advanceTimersByTimeAsync(1_000);
+    await connecting;
+
+    expect(store.getState().phase).toBe("connected");
+    expect(await tokens.read()).toEqual(token);
+  });
+
   it("keeps the code and keeps polling when a poll throws", async () => {
     vi.mocked(pollDeviceToken)
       .mockRejectedValueOnce(new Error("network unavailable"))

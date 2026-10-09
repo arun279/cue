@@ -196,7 +196,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       redirectUri: deps.redirectUri,
       apiBaseUrl: deps.apiBaseUrl,
     },
-    persist: (token) => deps.tokenStore.write(token),
+    persist: (token) => void deps.tokenStore.write(token),
     endSession: deps.endSession,
   });
   const client = new TraktClient({
