@@ -8,13 +8,7 @@ import { movieEntry, movieHeader, movieRuntime, pendingMovieRuntime } from "./su
 import { router } from "./support/native-ui";
 import { Harness, memoryPreferences, resetSharedStores, spyHaptics } from "./support/up-next";
 
-jest.mock("expo-router", () => {
-  const module = require("./support/native-ui").expoRouterModule();
-  module.Stack.Screen = ({ options }: { options: { headerRight?: () => unknown } }) =>
-    options.headerRight?.() ?? null;
-  return module;
-});
-jest.mock("@expo/ui/community/menu", () => require("./support/native-ui").menuModule());
+jest.mock("expo-router", () => require("./support/native-ui").expoRouterModule());
 jest.mock("expo-image", () => require("./support/detail").imageModule());
 jest.mock("expo-web-browser", () => ({ openBrowserAsync: jest.fn(async () => ({})) }));
 jest.mock(

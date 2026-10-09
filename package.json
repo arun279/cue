@@ -38,8 +38,8 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.2",
-    "@expo/fingerprint": "0.20.9",
-    "@expo/metro-config": "57.0.9",
+    "@expo/fingerprint": "0.20.13",
+    "@expo/metro-config": "57.0.13",
     "@types/node": "^22.12.0",
     "@types/pngjs": "^6.0.5",
     "@vitest/coverage-v8": "^4.1.9",
@@ -71,7 +71,7 @@
       "source-map-js@>=1.0.0 <1.2.2": "^1.2.2"
     },
     "patchedDependencies": {
-      "@expo/metro-config@57.0.9": "patches/@expo__metro-config@57.0.9.patch"
+      "@expo/metro-config@57.0.13": "patches/@expo__metro-config@57.0.13.patch"
     }
   }
 }

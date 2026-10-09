@@ -65,19 +65,13 @@ function ShowContent({ showId }: { readonly showId: number }): ReactElement {
   };
   return (
     <>
-      <Stack.Screen
-        options={{
-          title: data.title,
-          headerRight: () => (
-            <ShowMenu
-              header={data}
-              entry={entry}
-              seasons={seasons.data ?? []}
-              mark={mark}
-              confirm={confirmation.present}
-            />
-          ),
-        }}
+      <Stack.Screen options={{ title: data.title }} />
+      <ShowMenu
+        header={data}
+        entry={entry}
+        seasons={seasons.data ?? []}
+        mark={mark}
+        confirm={confirmation.present}
       />
       <ScrollView
         stickyHeaderIndices={[1]}

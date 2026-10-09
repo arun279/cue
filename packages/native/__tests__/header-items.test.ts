@@ -18,12 +18,6 @@ const CUSTOM_HEADER_CONTENT =
 const ALLOWED: Readonly<Record<string, string>> = {
   "src/ui/BarItems.tsx <Stack.Toolbar.View":
     "The avatar is the account's photo or its monogram, a picture no bar item image can draw.",
-  'src/ui/BarItems.tsx <Stack.Toolbar placement="right" asChild':
-    "expo-router hosts Android bar items in a Compose view that the native header lays out at zero width, so Android's bar keeps icon-only React content.",
-  "src/screens/MovieDetail.tsx headerRight:":
-    "An icon-only overflow menu drawn by the platform menu; it carries no text label.",
-  "src/screens/ShowDetail.tsx headerRight:":
-    "An icon-only overflow menu drawn by the platform menu; it carries no text label.",
 };
 
 function sourceFiles(directory: string): string[] {
