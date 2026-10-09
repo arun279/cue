@@ -1,0 +1,6 @@
+appId: app.cuetracker
+---
+- launchApp:
+    clearState: true
+    clearKeychain: true
+- runFlow: sign-in.yaml

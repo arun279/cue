@@ -1,0 +1,34 @@
+appId: app.cuetracker
+---
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - swipe:
+          start: "50%,41%"
+          end: "50%,98%"
+          duration: 300
+      - extendedWaitUntil:
+          notVisible:
+            id: "episode-sheet"
+          timeout: 5000
+          optional: true
+- runFlow:
+    when:
+      platform: iOS
+      visible:
+        id: "episode-sheet"
+    commands:
+      - swipe:
+          start: "50%,41%"
+          end: "50%,98%"
+          duration: 300
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - back
+- extendedWaitUntil:
+    notVisible:
+      id: "episode-sheet"
+    timeout: 10000

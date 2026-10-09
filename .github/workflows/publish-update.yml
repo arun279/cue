@@ -1,0 +1,114 @@
+name: Publish update
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "publish = this ref to preview, promote = the update group below to production"
+        type: choice
+        options: [publish, promote]
+        default: publish
+      message:
+        description: Update message
+        type: string
+        required: true
+      group:
+        description: "Update group ID to promote (eas update:list --branch preview --json lists them)"
+        type: string
+        required: false
+        default: ""
+
+concurrency:
+  group: publish-update
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  EXPO_NO_TELEMETRY: "1"
+
+jobs:
+  gate:
+    if: inputs.action == 'publish'
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    permissions:
+      actions: read
+      checks: read
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Require green CI for the published commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          APP_ID: "15368"
+          DEADLINE_MINUTES: "45"
+          POLL_SECONDS: "20"
+        run: scripts/require-green-ci.sh
+
+  publish:
+    needs: gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-node-pnpm
+      - uses: expo/expo-github-action@c7b66a9c327a43a8fa7c0158e7f30d6040d2481e # v8
+        with:
+          eas-version: 24.10.0
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Verify Expo project access
+        working-directory: packages/native
+        run: |
+          account=$(eas whoami | sed -n '1p')
+          if ! eas project:info >/dev/null 2>&1; then
+            echo "::error::Expo account $account cannot access @arunkris/cue. Create the robot under arunkris or transfer the project to the robot's account."
+            exit 1
+          fi
+      - name: Export the update with the production builds' environment
+        working-directory: packages/native
+        env:
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ${{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}
+        run: |
+          [ -n "$EXPO_PUBLIC_TRAKT_CLIENT_ID" ] || { echo "EXPO_PUBLIC_TRAKT_CLIENT_ID is not set"; exit 1; }
+          eas env:exec production --non-interactive \
+            "EXPO_NO_DOTENV=1 EXPO_ATLAS=true npx expo export --output-dir dist --dump-sourcemap --dump-assetmap --platform ios --platform android --clear"
+      - name: Keep the UI harness out of the update
+        run: node scripts/check-store-bundle.mjs
+      - name: Publish the exported update
+        working-directory: packages/native
+        env:
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ${{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}
+          MESSAGE: ${{ inputs.message }}
+        run: >-
+          eas update --channel preview --message "$MESSAGE" --non-interactive
+          --environment production --skip-bundler --input-dir dist
+
+  promote:
+    if: inputs.action == 'promote'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-node-pnpm
+      - uses: expo/expo-github-action@c7b66a9c327a43a8fa7c0158e7f30d6040d2481e # v8
+        with:
+          eas-version: 24.10.0
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Require the group to be a preview update
+        working-directory: packages/native
+        env:
+          GROUP: ${{ inputs.group }}
+        run: |
+          [ -n "$GROUP" ] || { echo "::error::promote needs the ID of the update group to copy. List them with eas update:list --branch preview --json."; exit 1; }
+          branch=$(eas update:view "$GROUP" --json | jq -r '[.[].branch] | unique | join(", ")')
+          [ "$branch" = preview ] || { echo "::error::Update group $GROUP is on branch '$branch', not preview."; exit 1; }
+      - name: Copy the update group to production
+        working-directory: packages/native
+        env:
+          GROUP: ${{ inputs.group }}
+          MESSAGE: ${{ inputs.message }}
+        run: >-
+          eas update:republish --group "$GROUP" --destination-channel production
+          --message "$MESSAGE" --non-interactive

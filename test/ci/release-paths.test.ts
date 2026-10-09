@@ -3,96 +3,114 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { gitEnv } from "../support/git-env";
+import { type CiJob, readWorkflowJobs } from "../support/workflow-jobs";
 
 const REPOSITORY_ROOT = execFileSync("git", ["rev-parse", "--show-toplevel"], {
   encoding: "utf8",
   env: gitEnv(),
 }).trim();
 const CI_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/ci.yml");
+const CODEQL_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/codeql.yml");
 const MOBILE_RELEASE_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/mobile-release.yml");
-const NOT_REQUIRED = ["footprint"];
+const REQUIRED_CHECKS = path.join(REPOSITORY_ROOT, ".github/required-checks.json");
+const TRAKT_CLIENT_ID_VARIABLE = "$" + "{{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}";
+// `footprint` skips itself on forks, and the gate reads a skip as a failure.
+// The iOS light matrix reports through the required `native-e2e` aggregate.
+// Pull request media is for reading screens, not a check.
+const NOT_REQUIRED = ["fingerprint", "footprint", "native-e2e-ios-light", "pr-media"];
+// The gate reads the push run, where the iOS flow lane always runs.
+const IOS_LANE =
+  "    if: github.event_name != 'pull_request' || needs.native-ios.outputs.hit != 'true' || " +
+  "needs.fingerprint.outputs.ios-owed == 'true' || needs.fingerprint.outputs.user-facing == 'true'";
+// True on every push run, which is the run the release gate reads.
+const DEVICES = "github.event_name != 'pull_request' || !github.event.pull_request.draft";
+const DEVICE_LANE = "    if: needs.fingerprint.outputs.devices == 'true'";
 
 const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((entry) => typeof entry === "string");
 
-const readPushTags = (): string[] => {
-  const workflow = readFileSync(MOBILE_RELEASE_WORKFLOW, "utf8");
-  const matches = [...workflow.matchAll(/^ {4}tags:\s*(\[[^\]]*\])$/gm)];
-  const raw = matches.length === 1 ? matches[0]?.[1] : undefined;
-  if (raw === undefined) {
-    throw new Error(`expected one inline push tags array, found ${matches.length}`);
-  }
+const readCiJobs = (): CiJob[] => readWorkflowJobs(CI_WORKFLOW);
 
-  const parsed: unknown = JSON.parse(raw);
-  if (!isStringArray(parsed)) {
-    throw new Error("push tags must be an array of strings");
-  }
-  return parsed;
+const readNamedStep = (workflowPath: string, jobName: string, stepName: string): string => {
+  const job = readWorkflowJobs(workflowPath).find(({ name }) => name === jobName);
+  if (job === undefined) throw new Error(`expected ${jobName} job`);
+
+  const marker = `      - name: ${stepName}`;
+  const start = job.body.indexOf(marker);
+  if (start === -1) throw new Error(`expected ${jobName} step ${stepName}`);
+
+  const remainder = job.body.slice(start + marker.length);
+  const nextStep = /^ {6}- /m.exec(remainder);
+  return remainder.slice(0, nextStep?.index ?? remainder.length);
 };
 
-const readPushBlock = (): string => {
-  const workflow = readFileSync(MOBILE_RELEASE_WORKFLOW, "utf8");
-  const matches = [
-    ...workflow.matchAll(/^ {2}push:[ \t]*\r?\n([\s\S]*?)(?=^ {2}[A-Za-z_][A-Za-z0-9_-]*:)/gm),
-  ];
-  const pushBlock = matches.length === 1 ? matches[0]?.[1] : undefined;
-  if (pushBlock === undefined) {
-    throw new Error(`expected one push trigger, found ${matches.length}`);
+const readCodeqlContexts = (): string[] => {
+  const jobs = readWorkflowJobs(CODEQL_WORKFLOW);
+  const codeql = jobs.find((job) => job.name === "codeql");
+  if (codeql === undefined) throw new Error("expected a codeql job");
+
+  const nameMatches = [...codeql.body.matchAll(/^ {4}name:[ \t]*(.+?)[ \t]*$/gm)];
+  const name = nameMatches.length === 1 ? nameMatches[0]?.[1] : undefined;
+  const languageExpression = /\$\{\{\s*matrix\.language\s*\}\}/;
+  if (name === undefined || !languageExpression.test(name)) {
+    throw new Error(
+      `expected one CodeQL job name containing the language matrix, found ${nameMatches.length}`,
+    );
   }
-  return pushBlock;
-};
 
-const getJobsBlock = (): string => {
-  const workflow = readFileSync(CI_WORKFLOW, "utf8");
-
-  // This intentionally parses only the top-level jobs block and its
-  // two-space-indented job IDs, not general YAML.
-  const matches = [
-    ...workflow.matchAll(/^jobs:[ \t]*\r?\n([\s\S]*?)(?=^[^ \t\r\n#][^:\r\n]*:|(?![\s\S]))/gm),
-  ];
-  const jobsBlock = matches.length === 1 ? matches[0]?.[1] : undefined;
-  if (jobsBlock === undefined) {
-    throw new Error(`expected one jobs block, found ${matches.length}`);
+  const languageMatches = [...codeql.body.matchAll(/^ {8}language:[ \t]*\[([^\]]*)\][ \t]*$/gm)];
+  const languageList = languageMatches.length === 1 ? languageMatches[0]?.[1] : undefined;
+  if (languageList === undefined) {
+    throw new Error(`expected one inline CodeQL language matrix, found ${languageMatches.length}`);
   }
-  return jobsBlock;
-};
 
-type CiJob = {
-  name: string;
-  body: string;
-};
-
-const readCiJobs = (): CiJob[] => {
-  const jobsBlock = getJobsBlock();
-  const headers = [...jobsBlock.matchAll(/^ {2}([A-Za-z_][A-Za-z0-9_-]*):[ \t]*(?:#.*)?\r?$/gm)];
-  return headers.map((header, index) => ({
-    name: header[1] as string,
-    body: jobsBlock.slice(
-      (header.index ?? 0) + header[0].length,
-      headers[index + 1]?.index ?? jobsBlock.length,
-    ),
-  }));
+  return languageList
+    .split(",")
+    .map((language) =>
+      name.replace(languageExpression, language.trim().replace(/^(["'])(.*)\1$/, "$2")),
+    );
 };
 
 const readRequiredChecks = (): string[] => {
-  const workflow = readFileSync(MOBILE_RELEASE_WORKFLOW, "utf8");
-  const matches = [...workflow.matchAll(/^ {10}REQUIRED:[ \t]*'(\[[^\]]*\])'[ \t]*$/gm)];
-  const raw = matches.length === 1 ? matches[0]?.[1] : undefined;
-  if (raw === undefined) {
-    throw new Error(`expected one REQUIRED JSON array, found ${matches.length}`);
-  }
-
-  const parsed: unknown = JSON.parse(raw);
+  const parsed: unknown = JSON.parse(readFileSync(REQUIRED_CHECKS, "utf8"));
   if (!isStringArray(parsed)) {
-    throw new Error("REQUIRED must be an array of strings");
+    throw new Error("required-checks.json must be an array of strings");
   }
   return parsed;
 };
 
-describe("mobile release push trigger", () => {
-  it("runs only for three-part version tags", () => {
-    expect(readPushBlock()).not.toMatch(/^ {4}(?:branches|paths-ignore):/m);
-    expect(readPushTags()).toEqual(["v*.*.*"]);
+describe("mobile release triggers", () => {
+  it("ships only when someone dispatches it", () => {
+    const workflow = readFileSync(MOBILE_RELEASE_WORKFLOW, "utf8");
+    const triggers = workflow.slice(workflow.indexOf("on:"), workflow.indexOf("concurrency:"));
+
+    expect(triggers).toContain("workflow_dispatch:");
+    expect(triggers).not.toMatch(/^ {2}(?:push|pull_request|schedule):/m);
+  });
+});
+
+describe("mobile release audiences", () => {
+  const steps = (job: string) =>
+    (readWorkflowJobs(MOBILE_RELEASE_WORKFLOW).find(({ name }) => name === job)?.body ?? "")
+      .split(/^ {6}- /m)
+      .slice(1);
+
+  it("adds a new iOS build to the external TestFlight group only for friends", () => {
+    const external = steps("ios").filter((step) => step.includes("testflight.mjs friends"));
+
+    expect(external).toHaveLength(1);
+    expect(external[0]).toContain("        if: inputs.audience == 'friends'\n");
+  });
+
+  it("gives a new Android build to the Firebase friends group only for friends", () => {
+    const friends = steps("android").flatMap((step) =>
+      step.split("\n").filter((line) => line.includes("friends") && !line.includes("promote_")),
+    );
+
+    expect(friends).toEqual([
+      "          FIREBASE_GROUPS: $" +
+        "{{ inputs.audience == 'friends' && 'owner,friends' || 'owner' }}",
+    ]);
   });
 });
 
@@ -102,34 +120,91 @@ describe("the iOS toolchain pin", () => {
       (match) => match[1] ?? [],
     );
 
-  it("is the same Xcode in the CI build and the release archive", () => {
-    // ci.yml's ios job exists to compile what mobile-release.yml archives. Two
-    // toolchains would make it a green check for a build nobody ships, and the
-    // pin is deliberate: the runner image's default Xcode moves on its own.
+  it("is the same Xcode in every CI build and in the release archive", () => {
+    // ci.yml's iOS jobs exist to compile what mobile-release.yml archives. A
+    // second toolchain would make one of them a green check for a build nobody
+    // ships, and the pin is deliberate: the runner image's default Xcode moves
+    // on its own.
     const release = selectedXcode(MOBILE_RELEASE_WORKFLOW);
+    const ci = selectedXcode(CI_WORKFLOW);
 
     expect(release).toHaveLength(1);
-    expect(selectedXcode(CI_WORKFLOW)).toEqual(release);
+    expect(ci.length).toBeGreaterThan(0);
+    expect([...new Set(ci)]).toEqual(release);
+  });
+
+  it("builds only the pull request head simulator app", () => {
+    const nativeIos = readWorkflowJobs(CI_WORKFLOW).find(({ name }) => name === "native-ios");
+
+    expect(nativeIos).toBeDefined();
+    expect(nativeIos?.body.match(/xcodebuild/g)).toHaveLength(1);
+    expect(nativeIos?.body).not.toContain("Measure the merge-base simulator app");
+    expect(nativeIos?.body).toContain(
+      "name: cue-native-ios-$" + "{{ needs.fingerprint.outputs.ios }}",
+    );
+  });
+});
+
+describe("native bundle environment", () => {
+  it.each([
+    [CI_WORKFLOW, "native-android", "Build release artifacts", "ci"],
+    [MOBILE_RELEASE_WORKFLOW, "android", "Build", TRAKT_CLIENT_ID_VARIABLE],
+    [MOBILE_RELEASE_WORKFLOW, "ios", "Build", TRAKT_CLIENT_ID_VARIABLE],
+  ])("embeds the Trakt client id in %s's %s bundle", (workflow, job, step, value) => {
+    expect(readNamedStep(workflow, job, step)).toContain(
+      `          EXPO_PUBLIC_TRAKT_CLIENT_ID: ${value}`,
+    );
+  });
+
+  it("keeps only the distributor size limits", () => {
+    const workflow = readFileSync(MOBILE_RELEASE_WORKFLOW, "utf8");
+
+    expect(readNamedStep(MOBILE_RELEASE_WORKFLOW, "android", "Check the APK")).toContain(
+      'FIREBASE_BINARY_LIMIT_BYTES: "2147483648"',
+    );
+    expect(workflow).toContain(
+      "App Store Connect alerts when a thinned device variant exceeds its 200 MB over-the-air limit.",
+    );
+    expect(workflow).not.toContain("IPA_SIZE_LIMIT_BYTES");
+    expect(workflow).not.toContain(".size-limit.json");
   });
 });
 
 describe("mobile release gate required checks", () => {
-  it("keeps REQUIRED aligned with CI jobs except explicit exemptions", () => {
+  it("keeps the required checks aligned with CI jobs except explicit exemptions", () => {
     const requiredJobs = readCiJobs().filter((job) => !NOT_REQUIRED.includes(job.name));
-    expect([...readRequiredChecks()].sort()).toEqual(requiredJobs.map((job) => job.name).sort());
+    expect([...readRequiredChecks()].sort()).toEqual(
+      [...requiredJobs.map((job) => job.name), ...readCodeqlContexts()].sort(),
+    );
   });
 
-  it("uses CI job IDs as check-run names", () => {
+  it("uses only modeled workflow check-run names", () => {
     const requiredChecks = new Set(readRequiredChecks());
-    const unsupportedOverrides = readCiJobs()
-      .filter((job) => requiredChecks.has(job.name))
-      .flatMap((job) =>
-        job.body.split(/\r?\n/).filter((line) => /^ {4}(?:name|strategy|if):/.test(line)),
-      );
+    const fingerprint = readCiJobs().find((job) => job.name === "fingerprint");
+
+    expect(fingerprint?.body).toContain(`      devices: $` + `{{ ${DEVICES} }}\n`);
+    const unsupportedOverrides = [
+      ...readCiJobs()
+        .filter((job) => requiredChecks.has(job.name))
+        .flatMap((job) =>
+          job.body
+            .split(/\r?\n/)
+            .filter(
+              (line) =>
+                /^ {4}(?:name|strategy|if):/.test(line) &&
+                (job.name !== "native-e2e" || line !== "    if: $" + "{{ always() }}") &&
+                (job.name !== "ui-screenshots-ios-dark" || line !== IOS_LANE) &&
+                line !== DEVICE_LANE,
+            ),
+        ),
+      ...readWorkflowJobs(CODEQL_WORKFLOW).flatMap((job) =>
+        job.body.split(/\r?\n/).filter((line) => /^ {4}if:/.test(line)),
+      ),
+    ];
 
     expect(
       unsupportedOverrides,
-      "A job-level name or strategy (matrix) override means the check-run name no longer equals the job ID, while a job-level if can give it a skipped conclusion, which the release gate treats as a failure. Update the gate's REQUIRED list and the polling logic in mobile-release.yml to handle real check-run names or skipped conclusions before adding the override.",
+      "An unsupported job-level name or strategy means the check-run name no longer matches the release gate, while a job-level condition can skip a required check. Model any override before adding it.",
     ).toEqual([]);
   });
 });

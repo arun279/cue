@@ -1,0 +1,22 @@
+export const queryKeys = {
+  watchlist: (type: "shows" | "movies") => ["watchlist", type] as const,
+  calendar: (startDate: string, days: number) => ["calendar", "my-shows", startDate, days] as const,
+  calendarPrefix: () => ["calendar", "my-shows"] as const,
+  search: (query: string, types: string) => ["search", types, query] as const,
+  browse: () => ["discover", "shows-movies"] as const,
+  lastActivities: () => ["sync", "last_activities"] as const,
+  userSettings: () => ["users", "settings"] as const,
+  history: (type: "all" | "tv" | "movies", scope = "recent") => ["history", type, scope] as const,
+  historyPrefix: () => ["history"] as const,
+  library: () => ["library"] as const,
+  movieLibrary: () => ["movie-library"] as const,
+  movieHeader: (movieId: number) => ["movie", "header", movieId] as const,
+  movieRelated: (movieId: number) => ["movie", "related", movieId] as const,
+  showInfo: (showId: number) => ["show", "info", showId] as const,
+  showRelated: (showId: number) => ["show", "related", showId] as const,
+  showProgress: (showId: number) => ["show", "progress", showId] as const,
+  showSeasons: (showId: number) => ["show", "seasons", showId] as const,
+  episode: (showId: number, season: number, number: number) =>
+    ["show", "episode", showId, season, number] as const,
+  episodePrefix: (showId: number) => ["show", "episode", showId] as const,
+} as const;

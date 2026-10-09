@@ -1,0 +1,36 @@
+appId: app.cuetracker
+env:
+  RESPONSE_SAMPLES: ${RESPONSE_SAMPLES || "15"}
+---
+- runFlow: lib/connect.yaml
+- assertVisible:
+    id: "up-next-list"
+- waitForAnimationToEnd
+- takeScreenshot: up-next-queue-rest
+- evalScript: ${output.responseTaps = 0}
+- repeat:
+    times: ${RESPONSE_SAMPLES}
+    commands:
+      - tapOn:
+          id: "queue-row-[0-9]+-mark"
+          index: 0
+      - assertVisible:
+          id: "snackbar-undo"
+      - tapOn:
+          id: "snackbar-undo"
+      - evalScript: "${output.responseSamples = '([0-9.]+,){' + output.responseTaps++ + '}[0-9.]+'}"
+      - assertVisible:
+          id: "response-timing"
+          text: "Response timing: mark ${output.responseSamples}; undo ${output.responseSamples}"
+- copyTextFrom:
+    id: "response-timing"
+- evalScript: "${console.log('CUE_RESPONSE_SAMPLES=' + maestro.copiedText)}"
+- waitForAnimationToEnd
+- takeScreenshot: up-next-mark-restored
+- tapOn:
+    id: "queue-row-[0-9]+-mark"
+    index: 0
+- assertVisible:
+    id: "snackbar-undo"
+- waitForAnimationToEnd
+- takeScreenshot: up-next-mark-snackbar

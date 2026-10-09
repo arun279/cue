@@ -1,0 +1,14 @@
+appId: app.cuetracker
+---
+# Across 379 relaunches in iOS CI runs from 2026-10-03 to 2026-10-08 Up Next
+# showed after a median of 8 s, and the slowest took up to 79 s.
+- extendedWaitUntil:
+    visible:
+      id: "screen-up-next"
+    timeout: 120000
+- extendedWaitUntil:
+    visible:
+      id: "app-idle"
+    timeout: 48300
+- assertNotVisible:
+    id: "up-next-skeleton"

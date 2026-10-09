@@ -1,0 +1,12 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["CueHapticsModule", "CueLegacyPreferencesModule"]
+  },
+  "android": {
+    "modules": [
+      "app.cuetracker.cuenative.CueHapticsModule",
+      "app.cuetracker.cuenative.CueLegacyPreferencesModule"
+    ]
+  }
+}

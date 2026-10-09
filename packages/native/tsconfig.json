@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  // Expo's base first for the React Native program (the `react-native` export
+  // condition, the JSX transform, the lib set), then the workspace's own strict
+  // options on top, so the native package compiles under the same strictness as
+  // the other two rather than under whatever Expo happens to default to.
+  //
+  // No `paths`. `expo prebuild` rewrites this file, and a path alias declared
+  // here is what it would silently discard; the core is reached by package name
+  // through `@cue/core`'s export map instead.
+  "extends": ["expo/tsconfig.base", "../../tsconfig.base.json"],
+  "compilerOptions": {
+    "types": ["node", "jest"]
+  },
+  // `expo-env.d.ts` and `.expo/types` are both generated and both gitignored, so
+  // `pnpm --filter @cue/native typecheck` regenerates them before it compiles.
+  // Without that the typed-route unions exist on the machine that last ran the
+  // dev server and nowhere else, and the program CI compiles is weaker than the
+  // one the author sees.
+  "include": [
+    "app",
+    "src",
+    "modules",
+    "__tests__",
+    "app.config.ts",
+    "expo-env.d.ts",
+    ".expo/types/**/*.ts"
+  ],
+  "exclude": ["node_modules", "android", "ios"]
+}

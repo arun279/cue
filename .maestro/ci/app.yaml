@@ -1,0 +1,27 @@
+appId: app.cuetracker
+env:
+  CAPTURE_AUTH: "false"
+  RESPONSE_SAMPLES: "5"
+---
+- runFlow: ../flows/launch.yaml
+- runFlow: ../flows/up-next-mark-and-undo.yaml
+# XCTest's synthesized drag does not open a swipeable row on the iOS simulator.
+- runFlow:
+    file: ../flows/swipe-mark-and-stop.yaml
+    when:
+      platform: Android
+- runFlow: ../flows/up-next-lapsed-drawer.yaml
+- runFlow: ../flows/pull-to-refresh.yaml
+- runFlow: ../flows/show-detail-bulk-mark.yaml
+- runFlow: ../flows/search.yaml
+- runFlow: ../flows/episode-sheet.yaml
+- runFlow: ../flows/calendar.yaml
+- runFlow: ../flows/history.yaml
+- runFlow: ../flows/library.yaml
+- runFlow: ../flows/movie-detail.yaml
+- runFlow: ../flows/tabs.yaml
+- runFlow: ../flows/account.yaml
+- runFlow:
+    file: ../flows/returning-user-app-idle.yaml
+    when:
+      platform: iOS

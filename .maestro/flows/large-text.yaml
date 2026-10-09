@@ -1,0 +1,29 @@
+appId: app.cuetracker
+---
+- launchApp:
+    permissions: {}
+    arguments:
+      UIPreferredContentSizeCategoryName: ${CONTENT_SIZE}
+- extendedWaitUntil:
+    visible:
+      id: "screen-up-next"
+    timeout: 30000
+- tapOn: "Library"
+- extendedWaitUntil:
+    visible:
+      id: "screen-library"
+    timeout: 30000
+- waitForAnimationToEnd
+- takeScreenshot: library-shows-${SIZE}
+- tapOn:
+    id: "avatar-link"
+- runFlow: lib/scroll-to-end.yaml
+- takeScreenshot: profile-rest-${SIZE}
+- runFlow: lib/leave-profile.yaml
+- tapOn: "Search"
+- extendedWaitUntil:
+    visible:
+      id: "screen-search"
+    timeout: 30000
+- waitForAnimationToEnd
+- takeScreenshot: search-empty-${SIZE}

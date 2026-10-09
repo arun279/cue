@@ -1,0 +1,97 @@
+appId: app.cuetracker
+---
+- runFlow: lib/relaunch.yaml
+- tapOn:
+    id: "avatar-link"
+- tapOn:
+    id: "profile-to-history"
+- assertVisible:
+    id: "screen-history"
+- assertVisible:
+    id: "history-day-header-0"
+- copyTextFrom:
+    id: "history-day-header-0"
+- evalScript: ${output.historyDay = maestro.copiedText}
+- assertVisible:
+    id: "history-row-0"
+- assertVisible:
+    id: "history-row-0"
+    text: ".*, 2 plays"
+- assertVisible:
+    id: "history-row-0-check"
+- tapOn:
+    id: "history-row-0-check"
+- assertVisible:
+    id: "snackbar"
+- tapOn:
+    id: "snackbar-undo"
+- assertVisible:
+    text: ${output.historyDay}
+- assertVisible:
+    id: "history-row-0"
+- tapOn:
+    id: "history-jump"
+- assertVisible:
+    id: "history-jump-sheet"
+- waitForAnimationToEnd
+- takeScreenshot: history-jump
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - swipe:
+          start: "50%,30%"
+          end: "50%,98%"
+          duration: 300
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - back
+- extendedWaitUntil:
+    notVisible:
+      id: "history-jump-sheet"
+    timeout: 10000
+- assertVisible:
+    id: "screen-history"
+# Android collapses the header search field into a toolbar icon.
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - tapOn:
+          text: "Search"
+          rightOf:
+            text: "Sync now"
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: "Filter by title"
+- inputText: "zzzznomatch"
+- assertVisible: "No titles match."
+- eraseText
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - tapOn: "Clear query"
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: "(?i)close|cancel"
+- assertVisible:
+    id: "history-row-0"
+- tapOn:
+    id: "history-jump"
+- tapOn:
+    id: "history-jump-month-8"
+- extendedWaitUntil:
+    notVisible:
+      id: "history-jump-sheet"
+    timeout: 10000
+- assertVisible:
+    id: "screen-history"
+- waitForAnimationToEnd
+- takeScreenshot: history-month

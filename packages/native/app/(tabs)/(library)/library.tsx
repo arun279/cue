@@ -1,0 +1,200 @@
+import type { LibrarySort, MovieSort } from "@cue/core/domain/library-buckets";
+import { useLibrarySnapshot } from "@cue/core/hooks/useLibrarySnapshot";
+import { useSyncBanner } from "@cue/core/hooks/useSyncBanner";
+import { usePrefs } from "@cue/core/prefs/prefs-store";
+import { queryStatus } from "@cue/core/queries/freshness";
+import { movieLibraryQuery } from "@cue/core/queries/library";
+import { useRuntime } from "@cue/core/runtime/runtime";
+import { useQuery } from "@tanstack/react-query";
+import { Stack } from "expo-router";
+import { type ReactElement, useMemo, useRef, useState } from "react";
+import { FlatList, RefreshControl, StyleSheet, View, type ViewToken } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { usePullToRefresh } from "../../../src/hooks/usePullToRefresh";
+import { ChipRail } from "../../../src/screens/library/ChipRail";
+import { LibraryState } from "../../../src/screens/library/LibraryStates";
+import { MovieTile, ShowTile, usePosterGrid } from "../../../src/screens/library/LibraryTile";
+import { LibraryToolbar } from "../../../src/screens/library/LibraryToolbar";
+import {
+  type ChipKey,
+  FILTER_DEBOUNCE_MS,
+  keyOf,
+  type LibraryItem,
+  matching,
+  movieChips,
+  movieSorts,
+  type Segment,
+  SHOW_SORTS,
+  showChips,
+  useDebounced,
+} from "../../../src/screens/library/model";
+import { BarItems } from "../../../src/ui/BarItems";
+import { SyncStrip } from "../../../src/ui/SyncStrip";
+import { TabRoot } from "../../../src/ui/TabRoot";
+import { TEST_IDS } from "../../../src/ui/test-ids";
+import { SPACE, tabBarClearance, useColors } from "../../../src/ui/tokens";
+
+export default function Library(): ReactElement {
+  const showsEnabled = usePrefs((state) => state.showsEnabled);
+  const moviesEnabled = usePrefs((state) => state.moviesEnabled);
+  const [segment, setSegment] = useState<Segment>(showsEnabled ? "shows" : "movies");
+  const [chips, setChips] = useState<Record<Segment, ChipKey>>({
+    shows: "watching",
+    movies: "watchlist",
+  });
+  const [showSort, setShowSort] = useState<LibrarySort>("recently-watched");
+  const [movieSort, setMovieSort] = useState<MovieSort>("recently-watched");
+  const [filtering, setFiltering] = useState(false);
+  const [filter, setFilter] = useState("");
+  const query = useDebounced(filter, FILTER_DEBOUNCE_MS);
+
+  const runtime = useRuntime();
+  const snapshot = useLibrarySnapshot(showsEnabled);
+  const movies = useQuery({
+    ...movieLibraryQuery(runtime),
+    enabled: moviesEnabled && segment === "movies",
+  });
+  const shows = segment === "shows";
+  const chip = chips[segment];
+
+  const showView = useMemo(
+    () => showChips(snapshot.data?.entries ?? [], Date.now(), snapshot.thresholdMs, showSort),
+    [snapshot.data, snapshot.thresholdMs, showSort],
+  );
+  const movieView = useMemo(
+    () => movieChips(movies.data?.entries ?? [], movieSort),
+    [movies.data, movieSort],
+  );
+  const view = shows ? showView : movieView;
+  const items = useMemo(() => matching(view.items[chip] ?? [], query), [view, chip, query]);
+
+  const status = shows
+    ? queryStatus(snapshot.query, snapshot.data !== undefined)
+    : queryStatus(movies, movies.data !== undefined);
+  const banner = useSyncBanner(status);
+  const refresh = usePullToRefresh();
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
+  const { columns, width: tileWidth } = usePosterGrid();
+
+  const [onScreen, setOnScreen] = useState<ReadonlySet<string>>(() => new Set());
+  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) =>
+    setOnScreen(new Set(viewableItems.map((token) => String(token.key)))),
+  );
+
+  const clearFilter = (): void => {
+    setFilter("");
+    setFiltering(false);
+  };
+  const retry = (): void => void (shows ? snapshot.query.refetch() : movies.refetch());
+  const toolbar = {
+    bothMedia: showsEnabled && moviesEnabled,
+    segment,
+    onSegment: setSegment,
+    filter,
+    filtering,
+    onFilter: setFilter,
+    onFilterToggle: () => (filtering ? clearFilter() : setFiltering(true)),
+  };
+
+  return (
+    <TabRoot testID={TEST_IDS.screenLibrary}>
+      <Stack.Screen
+        options={{
+          title: "Library",
+          headerLargeTitle: true,
+        }}
+      />
+      <BarItems onSync={refresh.sync} />
+      <FlatList
+        testID={TEST_IDS.libraryGrid}
+        contentInsetAdjustmentBehavior="automatic"
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ paddingBottom: tabBarClearance(insets.bottom) + SPACE.s4 }}
+        data={items}
+        extraData={onScreen}
+        key={columns}
+        numColumns={columns}
+        columnWrapperStyle={columns > 1 ? styles.row : undefined}
+        keyExtractor={keyOf}
+        onViewableItemsChanged={onViewableItemsChanged.current}
+        refreshControl={
+          <RefreshControl
+            testID={TEST_IDS.refreshIndicator}
+            refreshing={refresh.refreshing}
+            onRefresh={refresh.pull}
+            tintColor={colors.muted}
+          />
+        }
+        renderItem={({ item }) => {
+          const tile = (
+            <Tile item={item} chip={chip} width={tileWidth} onScreen={onScreen.has(keyOf(item))} />
+          );
+          return columns > 1 ? tile : <View style={styles.row}>{tile}</View>;
+        }}
+        ListHeaderComponent={
+          <View style={styles.lead}>
+            {banner === null ? null : <SyncStrip banner={banner} onRetry={retry} />}
+            {shows ? (
+              <LibraryToolbar<LibrarySort>
+                {...toolbar}
+                sorts={SHOW_SORTS}
+                sort={showSort}
+                onSort={setShowSort}
+              />
+            ) : (
+              <LibraryToolbar<MovieSort>
+                {...toolbar}
+                sorts={movieSorts(chip === "watched" ? "watched" : "watchlist")}
+                sort={movieSort}
+                onSort={setMovieSort}
+              />
+            )}
+            <ChipRail
+              chips={view.chips}
+              selected={chip}
+              onSelect={(key) => setChips({ ...chips, [segment]: key })}
+            />
+          </View>
+        }
+        ListEmptyComponent={
+          <View style={styles.empty}>
+            <LibraryState
+              status={status}
+              segment={segment}
+              chip={chip}
+              query={query.trim()}
+              width={tileWidth}
+              onRetry={retry}
+              onClear={clearFilter}
+            />
+          </View>
+        }
+      />
+    </TabRoot>
+  );
+}
+
+function Tile({
+  item,
+  chip,
+  width,
+  onScreen,
+}: {
+  readonly item: LibraryItem;
+  readonly chip: ChipKey;
+  readonly width: number;
+  readonly onScreen: boolean;
+}): ReactElement {
+  return item.kind === "show" ? (
+    <ShowTile entry={item.entry} chip={chip} width={width} onScreen={onScreen} />
+  ) : (
+    <MovieTile entry={item.entry} chip={chip} width={width} />
+  );
+}
+
+const styles = StyleSheet.create({
+  lead: { paddingBottom: SPACE.s3, gap: SPACE.s2 },
+  row: { gap: SPACE.s3, paddingHorizontal: SPACE.s4, paddingBottom: SPACE.s3 },
+  empty: { paddingHorizontal: SPACE.s4 },
+});
