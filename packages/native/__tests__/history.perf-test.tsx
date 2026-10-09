@@ -13,7 +13,9 @@ const entry = historyEntry();
 
 function RewatchedRow(): ReactElement {
   const [plays, setPlays] = useState(3);
-  return <HistoryRow entry={entry} plays={plays} index={0} onRemove={() => setPlays(2)} />;
+  return (
+    <HistoryRow entry={entry} plays={plays} index={0} width={370} onRemove={() => setPlays(2)} />
+  );
 }
 
 test("history row removes one play", async () => {

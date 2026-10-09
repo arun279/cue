@@ -17,6 +17,8 @@ appId: app.cuetracker
 - assertVisible:
     id: "history-row-0"
     text: ".*, 2 plays"
+- assertVisible:
+    id: "history-row-0-check"
 - tapOn:
     id: "history-row-0-check"
 - assertVisible:

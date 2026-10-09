@@ -30,6 +30,7 @@ export interface RowMenuProps {
   readonly testID?: string;
   readonly children?: ReactElement;
   readonly openOnLongPress?: boolean;
+  readonly contentWidth?: number;
 }
 
 const UNAVAILABLE = Platform.OS === "ios" ? "hidden" : "disabled";
@@ -68,6 +69,7 @@ export function RowMenu({
   testID,
   children,
   openOnLongPress,
+  contentWidth,
 }: RowMenuProps): ReactElement {
   const colors = useColors();
   const byId = new Map(items.map((item) => [item.id, item.onPress]));
@@ -98,6 +100,14 @@ export function RowMenu({
       </AndroidLongPressMenu>
     );
 
+  // iOS hosts the content in SwiftUI and sizes it only from its own min and max widths (expo/expo#50216).
+  const content =
+    children !== undefined && contentWidth !== undefined ? (
+      <View style={{ minWidth: contentWidth, maxWidth: contentWidth }}>{children}</View>
+    ) : (
+      children
+    );
+
   return (
     <MenuView
       title={title}
@@ -106,7 +116,7 @@ export function RowMenu({
       actions={actions}
       onPressAction={onPressAction}
     >
-      {children ?? (
+      {content ?? (
         <View
           accessible
           accessibilityRole="button"

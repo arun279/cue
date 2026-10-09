@@ -16,9 +16,11 @@ export function HistoryRow({
   entry,
   plays,
   index,
+  width,
   onRemove,
 }: HistoryRowModel & {
   readonly index: number;
+  readonly width: number;
   onRemove(entry: HistoryEntry): void;
 }): ReactElement {
   const colors = useColors();
@@ -40,7 +42,7 @@ export function HistoryRow({
     minute: "2-digit",
   });
   return (
-    <RowMenu title={entry.title} items={items}>
+    <RowMenu title={entry.title} items={items} contentWidth={width}>
       <Row
         testID={TEST_IDS.historyRow(index)}
         label={`${entry.title}, ${entryDetail(entry)}, ${time}, ${plays} ${plays === 1 ? "play" : "plays"}`}

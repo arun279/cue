@@ -16,7 +16,7 @@ import { type HistorySearch, parseHistorySearch } from "@cue/core/url/search-par
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { type ReactElement, useMemo, useState } from "react";
-import { RefreshControl, SectionList, StyleSheet, View } from "react-native";
+import { RefreshControl, SectionList, StyleSheet, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePullToRefresh } from "../../hooks/usePullToRefresh";
 import { BarItems } from "../../ui/BarItems";
@@ -32,6 +32,8 @@ import { AgendaSkeleton } from "../calendar/Agenda";
 import { HistoryChoice } from "./HistoryChoice";
 import { HistoryRow } from "./HistoryRow";
 import { historySections, itemKey, jumpLabel } from "./model";
+
+const ROW_INSET = SPACE.s4;
 
 export function HistoryScreen(): ReactElement {
   const runtime = useRuntime();
@@ -60,6 +62,7 @@ export function HistoryScreen(): ReactElement {
   const refresh = usePullToRefresh();
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const rowWidth = useWindowDimensions().width - 2 * ROW_INSET;
   const next = () => {
     if (query.hasNextPage && !query.isFetching) void query.fetchNextPage();
   };
@@ -130,7 +133,7 @@ export function HistoryScreen(): ReactElement {
         renderItem={({ item, index }) => (
           <View style={styles.row}>
             {index === 0 ? null : <Separator inset={62 + SPACE.s3 + SPACE.s6 + SPACE.s3} />}
-            <HistoryRow {...item} onRemove={remove} />
+            <HistoryRow {...item} width={rowWidth} onRemove={remove} />
           </View>
         )}
         ListHeaderComponent={
@@ -253,7 +256,7 @@ function HistoryEmpty({
 
 const styles = StyleSheet.create({
   lead: { paddingHorizontal: SPACE.s4, gap: SPACE.s2 },
-  row: { paddingHorizontal: SPACE.s4 },
+  row: { paddingHorizontal: ROW_INSET },
   band: {
     paddingHorizontal: SPACE.s4,
     paddingTop: SPACE.s4,
