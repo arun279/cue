@@ -10,6 +10,7 @@ import { Stack } from "expo-router";
 import { type ReactElement, useMemo, useRef, useState } from "react";
 import { FlatList, RefreshControl, StyleSheet, View, type ViewToken } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import type { SearchBarCommands } from "react-native-screens";
 import { usePullToRefresh } from "../../../src/hooks/usePullToRefresh";
 import { ChipRail } from "../../../src/screens/library/ChipRail";
 import { LibraryState } from "../../../src/screens/library/LibraryStates";
@@ -44,8 +45,8 @@ export default function Library(): ReactElement {
   });
   const [showSort, setShowSort] = useState<LibrarySort>("recently-watched");
   const [movieSort, setMovieSort] = useState<MovieSort>("recently-watched");
-  const [filtering, setFiltering] = useState(false);
   const [filter, setFilter] = useState("");
+  const field = useRef<SearchBarCommands>(null);
   const query = useDebounced(filter, FILTER_DEBOUNCE_MS);
 
   const runtime = useRuntime();
@@ -83,18 +84,14 @@ export default function Library(): ReactElement {
   );
 
   const clearFilter = (): void => {
+    field.current?.cancelSearch();
     setFilter("");
-    setFiltering(false);
   };
   const retry = (): void => void (shows ? snapshot.query.refetch() : movies.refetch());
   const toolbar = {
     bothMedia: showsEnabled && moviesEnabled,
     segment,
     onSegment: setSegment,
-    filter,
-    filtering,
-    onFilter: setFilter,
-    onFilterToggle: () => (filtering ? clearFilter() : setFiltering(true)),
   };
 
   return (
@@ -103,6 +100,18 @@ export default function Library(): ReactElement {
         options={{
           title: "Library",
           headerLargeTitle: true,
+          headerSearchBarOptions: {
+            ref: field,
+            placement: "stacked",
+            placeholder: "Filter by title",
+            hideWhenScrolling: false,
+            hideNavigationBar: false,
+            obscureBackground: false,
+            autoCapitalize: "none",
+            onChangeText: (event) => setFilter(event.nativeEvent.text),
+            onCancelButtonPress: () => setFilter(""),
+            onClose: () => setFilter(""),
+          },
         }}
       />
       <BarItems onSync={refresh.sync} />

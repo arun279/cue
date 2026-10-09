@@ -23,6 +23,7 @@ import { BarItems } from "../../ui/BarItems";
 import { Button } from "../../ui/Button";
 import { EmptyState } from "../../ui/EmptyState";
 import { Separator } from "../../ui/Row";
+import { SegmentedControl, type SegmentOption } from "../../ui/SegmentedControl";
 import { SyncStrip } from "../../ui/SyncStrip";
 import { TabRoot } from "../../ui/TabRoot";
 import { TEST_IDS } from "../../ui/test-ids";
@@ -34,6 +35,11 @@ import { HistoryRow } from "./HistoryRow";
 import { historySections, itemKey, jumpLabel } from "./model";
 
 const ROW_INSET = SPACE.s4;
+const HISTORY_TYPES: readonly SegmentOption<"" | "tv" | "movies">[] = [
+  { value: "", label: "All", testID: TEST_IDS.historyFilterAll },
+  { value: "tv", label: "Shows", testID: TEST_IDS.historyFilterShows },
+  { value: "movies", label: "Movies", testID: TEST_IDS.historyFilterMovies },
+];
 
 export function HistoryScreen(): ReactElement {
   const runtime = useRuntime();
@@ -140,22 +146,12 @@ export function HistoryScreen(): ReactElement {
           <View style={styles.lead}>
             {banner && <SyncStrip banner={banner} onRetry={() => void query.refetch()} />}
             <View style={styles.choices}>
-              {(
-                [
-                  ["", "All", TEST_IDS.historyFilterAll],
-                  ["tv", "Shows", TEST_IDS.historyFilterShows],
-                  ["movies", "Movies", TEST_IDS.historyFilterMovies],
-                ] as const
-              ).map(([type, label, testID]) => (
-                <HistoryChoice
-                  compact
-                  key={label}
-                  label={label}
-                  selected={(search.type ?? "") === type}
-                  testID={testID}
-                  onPress={() => router.setParams({ type })}
-                />
-              ))}
+              <SegmentedControl
+                segments={HISTORY_TYPES}
+                value={search.type ?? ""}
+                onChange={(type) => router.setParams({ type })}
+                style={styles.types}
+              />
               <HistoryChoice
                 compact
                 label={jumpLabel(search.year, search.month)}
@@ -263,5 +259,12 @@ const styles = StyleSheet.create({
     paddingBottom: SPACE.s2,
     gap: SPACE.s3,
   },
-  choices: { flexDirection: "row", flexWrap: "wrap", gap: SPACE.s2, paddingVertical: SPACE.s2 },
+  choices: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: SPACE.s2,
+    paddingVertical: SPACE.s2,
+  },
+  types: { flexGrow: 1, flexBasis: 240 },
 });
