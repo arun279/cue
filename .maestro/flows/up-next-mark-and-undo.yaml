@@ -7,6 +7,7 @@ env:
     id: "up-next-list"
 - waitForAnimationToEnd
 - takeScreenshot: up-next-queue-rest
+- evalScript: ${output.responseTaps = 0}
 - repeat:
     times: ${RESPONSE_SAMPLES}
     commands:
@@ -17,9 +18,10 @@ env:
           id: "snackbar-undo"
       - tapOn:
           id: "snackbar-undo"
+      - evalScript: "${output.responseSamples = '([0-9.]+,){' + output.responseTaps++ + '}[0-9.]+'}"
       - assertVisible:
-          id: "queue-row-[0-9]+-mark"
-          index: 0
+          id: "response-timing"
+          text: "Response timing: mark ${output.responseSamples}; undo ${output.responseSamples}"
 - copyTextFrom:
     id: "response-timing"
 - evalScript: "${console.log('CUE_RESPONSE_SAMPLES=' + maestro.copiedText)}"
