@@ -2,7 +2,12 @@ import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PendingWritesError, sessionTeardown } from "../../src/app/session";
 import { type AuthDeps, createAuthStore } from "../../src/auth/create-auth-store";
-import { pollDeviceToken, requestDeviceCode, revokeToken } from "../../src/data/auth/oauth";
+import {
+  exchangeCodeForToken,
+  pollDeviceToken,
+  requestDeviceCode,
+  revokeToken,
+} from "../../src/data/auth/oauth";
 import { createPkcePair } from "../../src/data/auth/pkce";
 import { createTokenStore, type TokenStore } from "../../src/ports/token-store";
 import { memoryKeyValueStore } from "../support/stores";
@@ -313,5 +318,35 @@ describe("device authorization polling", () => {
     await connecting;
 
     expect(store.getState()).toMatchObject({ connectStatus: "error", errorMessage });
+  });
+});
+
+describe("redirect sign-in", () => {
+  it("connects as soon as Trakt returns the token, while the Keychain is still saving it", async () => {
+    const token = {
+      access_token: "access",
+      refresh_token: "refresh",
+      created_at: 1_700_000_000,
+      expires_in: 604_800,
+    };
+    vi.mocked(exchangeCodeForToken).mockResolvedValue(token);
+    const tokens = createTokenStore({
+      ...memoryKeyValueStore(),
+      write: () => new Promise(() => {}),
+    });
+    const store = createAuthStore({
+      ...authDeps(tokens),
+      redirectHandoff: {
+        read: () => ({ state: "auth-state", verifier: "verifier" }),
+        write: () => {},
+        clear: () => {},
+      },
+    });
+    await vi.waitFor(() => expect(store.getState().phase).toBe("onboarding"));
+
+    await store.getState().completeRedirect("code", "auth-state");
+
+    expect(store.getState().phase).toBe("connected");
+    expect(await tokens.read()).toEqual(token);
   });
 });

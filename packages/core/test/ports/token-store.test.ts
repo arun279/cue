@@ -77,6 +77,25 @@ describe("the token store", () => {
     expect(read).toHaveBeenCalledTimes(2);
   });
 
+  it("keeps a token saved while a read was pending when that read is refused", async () => {
+    let refuse: (error: Error) => void = () => {};
+    const read = vi.fn<KeyValueStore["read"]>(
+      () =>
+        new Promise((_resolve, reject) => {
+          refuse = reject;
+        }),
+    );
+    const tokens = createTokenStore({ ...slowKeychain().kv, read });
+
+    const pending = tokens.read();
+    void tokens.write(TOKEN);
+    refuse(new Error("errSecInteractionNotAllowed"));
+    await expect(pending).rejects.toThrow("errSecInteractionNotAllowed");
+
+    expect(await tokens.read()).toEqual(TOKEN);
+    expect(read).toHaveBeenCalledTimes(1);
+  });
+
   it("saves a sign-in made during a slow delete after the delete, so the token survives", async () => {
     vi.useFakeTimers();
     const keychain = slowKeychain(JSON.stringify(TOKEN));
