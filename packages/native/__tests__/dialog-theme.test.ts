@@ -36,6 +36,7 @@ it("gives AppTheme a Material 3 alert dialog theme and a title in Cue's text col
     AndroidConfig.Styles.getStylesGroupAsObject(styles, { name: "Theme.Cue.AlertDialog" }),
   ).toMatchObject({
     colorPrimary: "@color/cue_dialog_primary",
+    colorOnContainer: "@color/cue_dialog_primary",
     "android:windowBackground": "@drawable/cue_dialog_background",
   });
   expect(

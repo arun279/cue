@@ -23,6 +23,9 @@ const DIALOG_COLORS = {
 
 const DIALOG_ITEMS = {
   colorPrimary: "@color/cue_dialog_primary",
+  // Material 3 text buttons read their label color from colorOnContainer; unset, it draws as magenta.
+  colorOnContainer: "@color/cue_dialog_primary",
+  colorContainer: "@android:color/transparent",
   colorSurface: "@color/cue_dialog_surface",
   colorOnSurface: "@color/cue_dialog_on_surface",
   "android:textColorPrimary": "@color/cue_dialog_on_surface",
