@@ -135,8 +135,6 @@ export const TEST_IDS = {
   libraryChipStopped: "library-chip-stopped",
   libraryChipFinished: "library-chip-finished",
   libraryChipWatched: "library-chip-watched",
-  libraryFilterToggle: "library-filter-toggle",
-  libraryFilterField: "library-filter-field",
   libraryFilterClear: "library-filter-clear",
   librarySort: "library-sort",
   sortRecentlyWatched: "sort-recently-watched",
@@ -170,8 +168,6 @@ export const TEST_IDS = {
     `episode-row-${show}-${season}-${episode}-checked`,
   episodeCheck: (show: number, season: number, episode: number) =>
     `episode-row-${show}-${season}-${episode}-check`,
-  confirmSheet: "confirm-sheet",
-  confirmSheetPrimary: "confirm-sheet-primary",
   episodeSheet: "episode-sheet",
   episodeMarkRow: "episode-mark-row",
   episodeMarkControl: "episode-mark-control",

@@ -8,8 +8,8 @@ import { showSnack } from "@cue/core/stores/snackbar-store";
 import * as WebBrowser from "expo-web-browser";
 import type { ReactElement } from "react";
 import { Platform } from "react-native";
+import { confirm } from "../../ui/confirm";
 import { HeaderMenu } from "../../ui/RowMenu";
-import type { Confirmation } from "../../ui/useConfirmation";
 import type { useDetailMark } from "./useDetailMark";
 import type { ShowHeader } from "./useShowDetail";
 
@@ -18,13 +18,11 @@ export function ShowMenu({
   entry,
   seasons,
   mark,
-  confirm,
 }: {
   readonly header: ShowHeader;
   readonly entry: LibraryEntry;
   readonly seasons: readonly SeasonView[];
   readonly mark: ReturnType<typeof useDetailMark>;
-  readonly confirm: (value: Confirmation) => void;
 }): ReactElement {
   const hide = useHideShow();
   const moveToWatchlist = useMoveToWatchlist();

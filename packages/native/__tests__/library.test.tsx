@@ -167,28 +167,21 @@ it("offers the medium's own sort options", async () => {
   expect(screen.getByText("Recently added")).toBeTruthy();
 });
 
-it("filters on the settled query and clears back to the grid", async () => {
+it("filters on the settled query and clears the header field back to the grid", async () => {
   await paint();
-  await userEvent.press(screen.getByTestId("library-filter-toggle"));
+  const field = screen.getByPlaceholderText("Filter by title");
 
-  await userEvent.type(screen.getByTestId("library-filter-field"), "coast");
+  await userEvent.type(field, "coast");
   await waitFor(() => expect(titles()).toEqual(["Coastal Static"]));
 
-  await userEvent.clear(screen.getByTestId("library-filter-field"));
-  await userEvent.type(screen.getByTestId("library-filter-field"), "wire");
+  await userEvent.clear(field);
+  await userEvent.type(field, "wire");
   await waitFor(() => expect(screen.queryByTestId("library-no-match")).not.toBeNull());
   expect(screen.getByText('No shows match "wire".')).toBeTruthy();
 
   await userEvent.press(screen.getByTestId("library-filter-clear"));
   await waitFor(() => expect(titles()).toEqual(["Harbor Lights", "Coastal Static"]));
-});
-
-it("leaves the filter text to the native field, so a slow render cannot overwrite keystrokes", async () => {
-  await paint();
-  await userEvent.press(screen.getByTestId("library-filter-toggle"));
-  await userEvent.type(screen.getByTestId("library-filter-field"), "coast");
-
-  expect(screen.getByTestId("library-filter-field")).not.toHaveProp("value");
+  expect(field).toHaveDisplayValue("");
 });
 
 it("says what each empty chip is for", async () => {

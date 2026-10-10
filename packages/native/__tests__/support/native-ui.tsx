@@ -7,7 +7,8 @@
  * themselves are proved on a simulator, where there is a layout and a finger.
  */
 
-import type { ReactElement, ReactNode } from "react";
+import type { ReactElement, ReactNode, Ref } from "react";
+import type { SearchBarCommands } from "react-native-screens";
 import { TEST_IDS } from "../../src/ui/test-ids";
 
 export const router = {
@@ -21,19 +22,20 @@ export const router = {
  * way a finger does and watch what the reveal makes of it. */
 export const drag: { translation: { value: number } | null } = { translation: null };
 
-interface ScreenProps {
-  readonly options?: {
-    readonly headerSearchBarOptions?: {
-      readonly placeholder?: string;
-      onChangeText?(event: { nativeEvent: { text: string } }): void;
-    };
-  };
+interface SearchBarOptions {
+  readonly ref?: Ref<Partial<SearchBarCommands>>;
+  readonly placeholder?: string;
+  onChangeText?(event: { nativeEvent: { text: string } }): void;
 }
 
-/** The testID both search fields answer to: Android's, which the screen draws
- * itself, and the stand-in below for iOS's header field, which takes no
- * `testID` of its own. That is why the iOS flows reach it by its placeholder
- * and why a screen test needs a stand-in at all. */
+interface ScreenProps {
+  readonly options?: { readonly headerSearchBarOptions?: SearchBarOptions };
+}
+
+/** The testID both search fields answer to: Android Search's, which the screen
+ * draws itself, and the stand-in below for the header search bar, which takes
+ * no `testID` of its own. That is why the flows reach the header field by its
+ * placeholder and why a screen test needs a stand-in at all. */
 export const SEARCH_FIELD = TEST_IDS.searchField;
 
 interface ToolbarButtonProps {
@@ -77,23 +79,40 @@ export function toolbarModule() {
   });
 }
 
+function SearchBarStandIn({ ref, placeholder, onChangeText }: SearchBarOptions): ReactElement {
+  const { createElement, useImperativeHandle, useState } =
+    require("react") as typeof import("react");
+  const { TextInput } = require("react-native") as typeof import("react-native");
+  const [text, setText] = useState("");
+  useImperativeHandle(ref, () => ({
+    setText,
+    clearText: () => setText(""),
+    cancelSearch: () => setText(""),
+  }));
+  return createElement(TextInput, {
+    testID: SEARCH_FIELD,
+    placeholder,
+    value: text,
+    onChangeText: (next: string) => {
+      setText(next);
+      onChangeText?.({ nativeEvent: { text: next } });
+    },
+  });
+}
+
 export function expoRouterModule() {
   const { createElement } = require("react") as typeof import("react");
-  const { Text, TextInput } = require("react-native") as typeof import("react-native");
+  const { Text } = require("react-native") as typeof import("react-native");
   const Stack = (): null => null;
   Stack.Toolbar = toolbarModule();
-  // `headerSearchBarOptions` is a UISearchController, which this runner does not
-  // have. The stand-in is a plain field carrying the same placeholder and the
-  // same change callback, so a test types what a finger types and nothing else
-  // about the screen is stubbed.
+  // `headerSearchBarOptions` is a UISearchController on iOS and a toolbar search
+  // view on Android, neither of which this runner has. The stand-in is a plain
+  // field carrying the same placeholder, the same change callback and the
+  // commands its ref answers to, so a test types what a finger types and nothing
+  // else about the screen is stubbed.
   Stack.Screen = ({ options }: ScreenProps): ReactElement | null => {
     const bar = options?.headerSearchBarOptions;
-    if (bar === undefined) return null;
-    return createElement(TextInput, {
-      testID: SEARCH_FIELD,
-      placeholder: bar.placeholder,
-      onChangeText: (text: string) => bar.onChangeText?.({ nativeEvent: { text } }),
-    });
+    return bar === undefined ? null : createElement(SearchBarStandIn, bar);
   };
   // The two library themes are data the app reads and reshapes, so the mock
   // carries the shape rather than a stand-in: a theme missing its colors is a
