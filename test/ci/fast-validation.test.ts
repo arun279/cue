@@ -350,8 +350,11 @@ describe("fast pull request validation", () => {
     expect(suite).toContain("runFlow: ../flows/dark-traversal.yaml");
     expect(traversal).toMatch(/file: lib\/connect\.yaml\n\s+env:\n\s+CAPTURE_AUTH: "true"/);
     expect(traversal).not.toMatch(/^\s*- assert/m);
-    expect(traversal).not.toMatch(/id: ".*(?:mark|check)/);
-    expect(`${signIn}${traversal}`.match(/takeScreenshot:/g)?.length).toBe(11);
+    expect(traversal).not.toMatch(/id: "(?!season-check-).*(?:mark|check)/);
+    expect(traversal.match(/id: "season-check-/g)?.length).toBe(
+      traversal.match(/tapOn: "\(\?i\)cancel"/g)?.length,
+    );
+    expect(`${signIn}${traversal}`.match(/takeScreenshot:/g)?.length).toBe(12);
   });
 
   it("asserts all four Android tabs from the final UI tree", () => {
