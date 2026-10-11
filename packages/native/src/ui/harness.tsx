@@ -2,10 +2,12 @@ import { type ReactElement, useLayoutEffect, useRef } from "react";
 import { Platform } from "react-native";
 import { HARNESS_IDS } from "./harness-ids";
 import { Marker } from "./Marker";
+import { usePressTrace } from "./press-trace";
 import { commitResponseTiming, useResponseTiming } from "./response-timing";
 import { useSnackbarTrace } from "./snackbar-trace";
 
 export { AppIdle, useAppIdleStamp } from "./AppIdle";
+export { tracePress } from "./press-trace";
 export { beginResponseTiming } from "./response-timing";
 
 export const HIDE_CARET = Platform.OS === "android";
@@ -21,6 +23,13 @@ export function SnackbarTrace(): ReactElement | null {
   const label = useSnackbarTrace();
   return label === null ? null : (
     <Marker accessibilityLabel={label} testID={HARNESS_IDS.snackbarTrace} />
+  );
+}
+
+export function PressTrace(): ReactElement | null {
+  const label = usePressTrace();
+  return label === null ? null : (
+    <Marker accessibilityLabel={label} testID={HARNESS_IDS.pressTrace} />
   );
 }
 

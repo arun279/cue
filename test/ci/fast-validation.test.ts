@@ -199,8 +199,7 @@ describe("fast pull request validation", () => {
 
   it("uploads Maestro's hidden debug folder even after a timeout, leaving screenshots in place", () => {
     const verification = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
-    const iosRun = readFileSync(repositoryPath("scripts/maestro-ios-test.sh"), "utf8");
-    const sources = [workflow, verification, iosRun];
+    const sources = [workflow, verification];
     const uploads = [
       ...workflow.matchAll(/if: (.+)\n\s+with:\n\s+name: (?:native|android)-e2e-.*\n\s+(.+)/g),
     ];

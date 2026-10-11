@@ -7,6 +7,7 @@ import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "../ui/Button";
 import { CueMark } from "../ui/CueMark";
+import { PressTrace, tracePress } from "../ui/harness";
 import { useLiveRegion } from "../ui/live-region";
 import { TEST_IDS } from "../ui/test-ids";
 import { HAIRLINE, RADIUS, SPACE, TARGET_MIN, useColors } from "../ui/tokens";
@@ -27,7 +28,13 @@ export function Onboarding(): ReactElement {
       testID={deviceCode === null ? TEST_IDS.screenOnboarding : TEST_IDS.screenDeviceCode}
       style={[styles.page, { backgroundColor: colors.bg }]}
     >
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        onTouchStart={(event) => tracePress("touch start", event)}
+        onTouchEnd={(event) => tracePress("touch end", event)}
+        onTouchCancel={(event) => tracePress("touch cancel", event)}
+        onScrollBeginDrag={() => tracePress("drag")}
+      >
         <View style={styles.content}>
           {deviceCode === null ? (
             <>
@@ -53,7 +60,12 @@ export function Onboarding(): ReactElement {
                   label={status === "connecting" ? "Connecting…" : "Connect Trakt"}
                   testID={TEST_IDS.buttonConnect}
                   disabled={status === "connecting"}
-                  onPress={() => void connect()}
+                  onPressIn={(event) => tracePress("press in", event)}
+                  onPressOut={(event) => tracePress("press out", event)}
+                  onPress={() => {
+                    tracePress("press");
+                    void connect();
+                  }}
                 />
               </View>
             </>
@@ -67,6 +79,7 @@ export function Onboarding(): ReactElement {
           </CueText>
         ) : null}
       </ScrollView>
+      <PressTrace />
     </SafeAreaView>
   );
 }

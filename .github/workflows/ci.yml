@@ -389,7 +389,7 @@ jobs:
           mkdir -p "$output"
           xcrun simctl ui "$DEVICE_ID" content_size medium
           xcrun simctl ui "$DEVICE_ID" appearance light
-          scripts/maestro-ios-test.sh "$RUNNER_TEMP/maestro-debug/${{ matrix.suite }}" \
+          maestro --device "$DEVICE_ID" test --debug-output "$RUNNER_TEMP/maestro-debug/${{ matrix.suite }}" \
             ".maestro/ci/app-${{ matrix.suite }}.yaml" \
             --env APP_IDLE_CEILING_MS="$APP_IDLE_CEILING_MS" \
             --env RESPONSE_SAMPLES="$RESPONSE_SAMPLES" \
@@ -486,7 +486,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/screenshots/ios/dark"
           xcrun simctl ui "$DEVICE_ID" content_size medium
           xcrun simctl ui "$DEVICE_ID" appearance dark
-          scripts/maestro-ios-test.sh "$RUNNER_TEMP/maestro-debug/dark" \
+          maestro --device "$DEVICE_ID" test --debug-output "$RUNNER_TEMP/maestro-debug/dark" \
             .maestro/ci/screenshots.yaml \
             --format JUNIT \
             --output "$RUNNER_TEMP/maestro-results-dark.xml" \
