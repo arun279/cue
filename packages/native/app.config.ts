@@ -119,6 +119,7 @@ export function nativeAppConfig(env: Readonly<Record<string, string | undefined>
       ],
       "./plugins/with-android-build-memory",
       "./plugins/with-android-tab-icons",
+      "./plugins/with-android-dialog-theme",
       ["./plugins/with-android-privacy", { apiBase: mockTrakt }],
       "./plugins/with-ios-scene-lifecycle",
       "./plugins/with-ios-local-notifications",

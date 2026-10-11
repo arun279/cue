@@ -7,13 +7,12 @@ import { type ReactElement, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "../ui/Button";
-import { ConfirmationSheet } from "../ui/ConfirmationSheet";
+import { confirm } from "../ui/confirm";
 import { EmptyState } from "../ui/EmptyState";
 import { Skeleton } from "../ui/Skeleton";
 import { TEST_IDS } from "../ui/test-ids";
 import { SPACE, tabBarClearance, useColors } from "../ui/tokens";
 import { CueText } from "../ui/type";
-import { useConfirmation } from "../ui/useConfirmation";
 import { ContinueBar } from "./show-detail/ContinueBar";
 import { DetailError, DetailSkeleton, ShowDisabled } from "./show-detail/DetailStates";
 import { RelatedShows } from "./show-detail/RelatedShows";
@@ -43,7 +42,6 @@ function ShowContent({ showId }: { readonly showId: number }): ReactElement {
   const insets = useSafeAreaInsets();
   const mark = useDetailMark(showId, seasons.data ?? []);
   const nextMark = useMarkWatched();
-  const confirmation = useConfirmation();
   const [expanded, setExpanded] = useState<ReadonlySet<number> | null>(null);
   if (header.isError && header.data === undefined)
     return <DetailError subject="this show" onRetry={header.refetch} />;
@@ -54,7 +52,7 @@ function ShowContent({ showId }: { readonly showId: number }): ReactElement {
   const open = expanded ?? new Set(initial === null ? [] : [initial]);
   const confirmSeason = (season: SeasonView): void => {
     const copy = seasonConfirmation(season);
-    confirmation.present({
+    confirm({
       ...copy,
       onPrimary: () =>
         void (copy.kind === "unmark"
@@ -66,13 +64,7 @@ function ShowContent({ showId }: { readonly showId: number }): ReactElement {
   return (
     <>
       <Stack.Screen options={{ title: data.title }} />
-      <ShowMenu
-        header={data}
-        entry={entry}
-        seasons={seasons.data ?? []}
-        mark={mark}
-        confirm={confirmation.present}
-      />
+      <ShowMenu header={data} entry={entry} seasons={seasons.data ?? []} mark={mark} />
       <ScrollView
         stickyHeaderIndices={[1]}
         contentContainerStyle={{ paddingBottom: tabBarClearance(insets.bottom) + SPACE.s4 }}
@@ -113,7 +105,6 @@ function ShowContent({ showId }: { readonly showId: number }): ReactElement {
         <RelatedShows showId={showId} />
         <ShowAbout header={data} />
       </ScrollView>
-      <ConfirmationSheet confirmation={confirmation.pending} onDismiss={confirmation.dismiss} />
     </>
   );
 }

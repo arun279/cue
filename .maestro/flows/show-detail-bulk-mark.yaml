@@ -14,16 +14,10 @@ appId: app.cuetracker
 - tapOn:
     id: "season-check-2"
 - assertVisible: "2 of 4 episodes are unwatched."
-- runFlow:
-    when:
-      platform: Android
-    commands:
-      - assertVisible:
-          id: "confirm-sheet"
 - waitForAnimationToEnd
 - takeScreenshot: show-detail-season-confirm
 - tapOn:
-    text: "Mark 2 remaining"
+    text: "(?i)Mark 2 remaining"
     waitToSettleTimeoutMs: 100
 - assertVisible:
     id: "snackbar"

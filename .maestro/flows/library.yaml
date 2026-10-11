@@ -41,10 +41,21 @@ appId: app.cuetracker
 - tapOn:
     id: "library-chip-watching"
 
-- tapOn:
-    id: "library-filter-toggle"
-- tapOn:
-    id: "library-filter-field"
+# Android collapses the header search field into a toolbar icon; the tab bar's
+# own Search sits below the grid.
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - tapOn:
+          text: "Search"
+          above:
+            id: "library-grid"
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: "Filter by title"
 # One letter at a time, each after the screen settles: on a slow iOS simulator,
 # letters typed in one burst after the first had emptied the grid never reached
 # the field.

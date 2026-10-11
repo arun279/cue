@@ -20,6 +20,13 @@ appId: app.cuetracker
 - runFlow: lib/scroll-to-end.yaml
 - takeScreenshot: profile-rest-${SIZE}
 - runFlow: lib/leave-profile.yaml
+# Library's header search field carries a "Search" glyph of its own, so the
+# Search tab is reached from Calendar, where the tab bar's is the only one.
+- tapOn: "Calendar"
+- extendedWaitUntil:
+    visible:
+      id: "screen-calendar"
+    timeout: 30000
 - tapOn: "Search"
 - extendedWaitUntil:
     visible:

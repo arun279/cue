@@ -11,7 +11,6 @@ import { StyleSheet, View } from "react-native";
 import { TEST_IDS } from "../ui/test-ids";
 import { RADIUS, SPACE, useColors } from "../ui/tokens";
 import { CueText } from "../ui/type";
-import { useConfirmation } from "../ui/useConfirmation";
 import { EpisodeMarkRow } from "./episode-sheet/EpisodeMarkRow";
 import { EpisodeMenu } from "./episode-sheet/EpisodeMenu";
 import { EpisodePager } from "./episode-sheet/EpisodePager";
@@ -52,14 +51,13 @@ function LoadedEpisode({ detail }: { readonly detail: EpisodeDetail }): ReactEle
   });
   const plays = detail.watched ? Math.max(1, playsQuery.data?.length ?? 1) : 0;
   const mark = useDetailMark(detail.showId, seasons.data ?? []);
-  const confirmation = useConfirmation();
   const hidden = usePrefs((state) => state.hideStillsUntilWatched);
   const navigation = seasons.data === undefined ? detail : episodeNavigation(seasons.data, detail);
   return (
     <View testID={TEST_IDS.screenEpisode} style={styles.content}>
       {detail.aired && (
         <View style={styles.toolbar}>
-          <EpisodeMenu detail={detail} plays={plays} mark={mark} confirm={confirmation.present} />
+          <EpisodeMenu detail={detail} plays={plays} mark={mark} />
         </View>
       )}
       <EpisodeBody
@@ -70,12 +68,7 @@ function LoadedEpisode({ detail }: { readonly detail: EpisodeDetail }): ReactEle
         renderCheck={
           detail.watched
             ? (check) => (
-                <EpisodeMenu
-                  detail={detail}
-                  plays={plays}
-                  mark={mark}
-                  confirm={confirmation.present}
-                >
+                <EpisodeMenu detail={detail} plays={plays} mark={mark}>
                   {check}
                 </EpisodeMenu>
               )
