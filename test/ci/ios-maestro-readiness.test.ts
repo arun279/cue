@@ -2,7 +2,7 @@ import { expect, it } from "vitest";
 import { repositoryPath } from "../support/repository-path";
 import { readWorkflowJobs } from "../support/workflow-jobs";
 
-it("readies the simulator, then runs Maestro once, in every iOS lane", () => {
+it("readies the simulator in its final appearance, then runs Maestro once, in every iOS lane", () => {
   const lanes = readWorkflowJobs(repositoryPath(".github/workflows/ci.yml")).filter(
     ({ body }) => body.includes("runs-on: macos") && /maestro/i.test(body),
   );
@@ -10,8 +10,12 @@ it("readies the simulator, then runs Maestro once, in every iOS lane", () => {
     "native-e2e-ios-light",
     "ui-screenshots-ios-dark",
   ]);
-  for (const { body } of lanes) {
+  for (const { name, body } of lanes) {
     const prepare = body.indexOf("scripts/prepare-ios-ui.sh");
+    expect(body).toContain(
+      `scripts/prepare-ios-ui.sh "$RUNNER_TEMP/native-ios-app" ${name.includes("dark") ? "dark" : "light"}\n`,
+    );
+    expect(body).not.toContain("simctl ui");
     const runs = [...body.matchAll(/^\s*maestro\s.*$/gm)];
     expect(prepare).toBeGreaterThan(-1);
     expect(runs.map(([run]) => run.trim())).toEqual([

@@ -378,7 +378,7 @@ jobs:
           path: ${{ runner.temp }}/native-ios-app
       - id: ui-setup
         name: Prepare the simulator and cached app
-        run: scripts/prepare-ios-ui.sh "$RUNNER_TEMP/native-ios-app"
+        run: scripts/prepare-ios-ui.sh "$RUNNER_TEMP/native-ios-app" light
       - name: Run the shared light flow
         env:
           DEVICE_ID: ${{ steps.ui-setup.outputs.device_id }}
@@ -387,8 +387,6 @@ jobs:
         run: |
           output="$RUNNER_TEMP/screenshots/ios/light/${{ matrix.suite }}"
           mkdir -p "$output"
-          xcrun simctl ui "$DEVICE_ID" content_size medium
-          xcrun simctl ui "$DEVICE_ID" appearance light
           maestro --device "$DEVICE_ID" test --debug-output "$RUNNER_TEMP/maestro-debug/${{ matrix.suite }}" \
             ".maestro/ci/app-${{ matrix.suite }}.yaml" \
             --env APP_IDLE_CEILING_MS="$APP_IDLE_CEILING_MS" \
@@ -478,14 +476,12 @@ jobs:
           path: ${{ runner.temp }}/native-ios-app
       - id: ui-setup
         name: Prepare the simulator and cached app
-        run: scripts/prepare-ios-ui.sh "$RUNNER_TEMP/native-ios-app"
+        run: scripts/prepare-ios-ui.sh "$RUNNER_TEMP/native-ios-app" dark
       - name: Run the shared dark traversal and large-text captures
         env:
           DEVICE_ID: ${{ steps.ui-setup.outputs.device_id }}
         run: |
           mkdir -p "$RUNNER_TEMP/screenshots/ios/dark"
-          xcrun simctl ui "$DEVICE_ID" content_size medium
-          xcrun simctl ui "$DEVICE_ID" appearance dark
           maestro --device "$DEVICE_ID" test --debug-output "$RUNNER_TEMP/maestro-debug/dark" \
             .maestro/ci/screenshots.yaml \
             --format JUNIT \
