@@ -59,7 +59,8 @@ const repositoryWithGrowth = (): string =>
     },
   );
 
-const rationale = "Product-Growth: New route and module.\nComment-Load: Required context.";
+const rationale =
+  "Product-Growth: New route and module.\nComment-Load: Required context.\nBinary-Size: Required asset.";
 
 describe("diff footprint", () => {
   it("shows product, test, tooling and comment growth", () => {
@@ -119,6 +120,38 @@ describe("diff footprint", () => {
     expect(result.stdout).toContain(
       "| Product comment lines identified by a comment prefix | +0 |",
     );
+  });
+
+  it.each([
+    ["", ["Product-Growth", "Comment-Load", "Binary-Size"], 1],
+    ["Product-Growth: Required feature.", ["Comment-Load", "Binary-Size"], 1],
+    ["Comment-Load: Required context.", ["Product-Growth", "Binary-Size"], 1],
+    ["Binary-Size: Required asset.", ["Product-Growth", "Comment-Load"], 1],
+    [rationale, [], 0],
+  ])("reports every missing note together for body %s", (body, missing, status) => {
+    const repository = repositoryWithGrowth();
+    const sizes = (size: number) => ({
+      sizes: [
+        "expo iOS bundle",
+        "expo Android bundle",
+        "Firebase tester APK file",
+        "Play download estimate",
+      ].map((name) => ({ name, size })),
+    });
+    write(repository, "base.json", JSON.stringify(sizes(1000)));
+    write(repository, "head.json", JSON.stringify(sizes(1001)));
+    const result = spawnSync(SCRIPT, ["HEAD~1", "base.json", "head.json"], {
+      cwd: repository,
+      encoding: "utf8",
+      env: { ...gitEnv(), PR_BODY: body },
+    });
+
+    expect(result.status).toBe(status);
+    for (const marker of ["Product-Growth", "Comment-Load", "Binary-Size"]) {
+      expect(result.stderr.includes(`Add "${marker}: <rationale>" to the PR body.`)).toBe(
+        missing.includes(marker),
+      );
+    }
   });
 
   it("shows the four delivered artifact measurements", () => {

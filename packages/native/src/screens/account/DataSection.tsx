@@ -3,6 +3,7 @@ import { useRuntime } from "@cue/core/runtime/runtime";
 import { useQueryClient } from "@tanstack/react-query";
 import { type ReactElement, useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { Button } from "../../ui/Button";
+import { relativeTimeNow } from "../../ui/harness";
 import { TEST_IDS } from "../../ui/test-ids";
 import { useColors } from "../../ui/tokens";
 import { CueText } from "../../ui/type";
@@ -25,7 +26,7 @@ export function DataSection(): ReactElement {
   const cache = useQueryClient().getQueryCache();
   const sync = useSyncNow();
   const colors = useColors();
-  const [now, setNow] = useState(Date.now);
+  const [now, setNow] = useState(relativeTimeNow);
   const subscribe = useCallback((notify: () => void) => cache.subscribe(notify), [cache]);
   const syncedAt = useSyncExternalStore(subscribe, () =>
     Math.max(
@@ -41,7 +42,7 @@ export function DataSection(): ReactElement {
     ),
   );
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 30_000);
+    const timer = setInterval(() => setNow(relativeTimeNow()), 30_000);
     return () => clearInterval(timer);
   }, []);
   return (

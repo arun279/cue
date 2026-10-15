@@ -1,4 +1,10 @@
-import { type NativeStackNavigationProp, useNavigation } from "expo-router";
+import { dismissSnack, useSnackbar } from "@cue/core/stores/snackbar-store";
+import {
+  type NativeStackNavigationProp,
+  useNavigation,
+  useNavigationContainerRef,
+} from "expo-router";
+import type { NavigationContainerRef, ParamListBase } from "expo-router/react-navigation";
 import { type ReactElement, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Platform, type ScrollViewProps, View, type ViewProps } from "react-native";
 import { HARNESS_IDS } from "./harness-ids";
@@ -8,6 +14,27 @@ import { useSnackbarTrace } from "./snackbar-trace";
 
 export { AppIdle, trackSync } from "./AppIdle";
 export { tracePress } from "./press-trace";
+
+const launchedAt = Date.now();
+
+export const relativeTimeNow = (): number => launchedAt;
+
+export function SnackbarRouteDismissal(): null {
+  const navigation: NavigationContainerRef<ParamListBase> = useNavigationContainerRef();
+  useEffect(() => {
+    let previous = navigation.getCurrentRoute()?.key;
+    return navigation.addListener("state", () => {
+      const current = navigation.getCurrentRoute()?.key;
+      if (
+        previous !== current &&
+        useSnackbar.getState().snack?.actions?.some((action) => action.testId === "snackbar-undo")
+      )
+        dismissSnack();
+      previous = current;
+    });
+  }, [navigation]);
+  return null;
+}
 
 export const HIDE_CARET = Platform.OS === "android";
 

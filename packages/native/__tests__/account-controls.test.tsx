@@ -3,7 +3,14 @@ import { act, screen, userEvent } from "@testing-library/react-native";
 import "./support/screen-mocks";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { DataSection, syncedPhrase } from "../src/screens/account/DataSection";
+import * as harness from "../src/ui/harness";
+import { relativeTimeNow } from "../src/ui/harness.store";
 import { accountFixture } from "./support/account";
+
+afterEach(() => {
+  jest.restoreAllMocks();
+  jest.useRealTimers();
+});
 
 it.each([
   [0, "Not synced yet"],
@@ -18,6 +25,7 @@ it.each([
 });
 
 it("ticks every 30 seconds and excludes editorial reads from account freshness", async () => {
+  jest.spyOn(harness, "relativeTimeNow").mockImplementation(relativeTimeNow);
   jest.useFakeTimers();
   const client = new QueryClient();
   const fixture = accountFixture({ pendingWrites: () => 3 });
@@ -34,7 +42,29 @@ it("ticks every 30 seconds and excludes editorial reads from account freshness",
   await act(() => jest.advanceTimersByTime(60_000));
   expect(screen.getByText("Last synced 1 min ago · 3 pending")).toBeVisible();
   await act(() => client.clear());
-  jest.useRealTimers();
+});
+
+it("keeps harness sync freshness unchanged after delays, refetches and remounts", async () => {
+  jest.useFakeTimers();
+  const client = new QueryClient();
+  const fixture = accountFixture();
+  const paint = () =>
+    fixture.paint(
+      <QueryClientProvider client={client}>
+        <DataSection />
+      </QueryClientProvider>,
+    );
+  await act(() => client.setQueryData(queryKeys.library(), {}));
+  const view = await paint();
+  expect(screen.getByText("Last synced just now · 0 pending")).toBeVisible();
+  await act(() => jest.advanceTimersByTime(120_000));
+  expect(screen.getByText("Last synced just now · 0 pending")).toBeVisible();
+  await act(() => client.setQueryData(queryKeys.library(), {}));
+  await view.unmount();
+  await act(() => jest.advanceTimersByTime(120_000));
+  await paint();
+  expect(screen.getByText("Last synced just now · 0 pending")).toBeVisible();
+  await act(() => client.clear());
 });
 
 it("disables manual sync until the shared pass settles", async () => {

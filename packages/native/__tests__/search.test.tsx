@@ -93,9 +93,7 @@ async function type(...keystrokes: readonly string[]): Promise<void> {
 async function rest(query: string): Promise<void> {
   await type(query);
   await waitFor(() => expect(screen.getByTestId(`search-result-${HARBOR}`)).toBeOnTheScreen());
-  await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, DWELL_MS + 200));
-  });
+  await act(() => jest.advanceTimersByTimeAsync(DWELL_MS + 200));
   await type("");
 }
 
@@ -104,9 +102,8 @@ const gridTitles = (): (string | undefined)[] =>
     .getAllByTestId(/^(show|movie)-card-/)
     .map((tile) => String(tile.props["accessibilityLabel"]));
 
+beforeEach(() => jest.useFakeTimers());
 afterEach(() => {
-  // A case that fails mid-flash would otherwise leave fake timers installed and
-  // every case after it stuck on a skeleton.
   jest.useRealTimers();
   jest.clearAllMocks();
 });
@@ -202,7 +199,6 @@ it("flashes Added for 600 ms and then settles into In library", async () => {
     expect(screen.getByTestId(`search-result-${MASTER}-watchlist`)).toBeOnTheScreen(),
   );
 
-  jest.useFakeTimers();
   await fireEvent.press(screen.getByTestId(`search-result-${MASTER}-watchlist`));
   expect(screen.getByTestId(ADDED)).toBeOnTheScreen();
 

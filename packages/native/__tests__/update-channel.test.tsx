@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react-native";
 import { Alert } from "react-native";
 import "./support/screen-mocks";
 import Settings from "../src/screens/Settings";
@@ -27,16 +27,22 @@ jest.mock("expo-updates", () => ({
 }));
 
 beforeEach(() => {
+  jest.spyOn(console, "error");
   mockBuild.channel = "production";
   mockBuild.calls = [];
   mockBuild.offline = false;
 });
-afterEach(() => jest.restoreAllMocks());
+afterEach(() => {
+  expect(
+    jest.mocked(console.error).mock.calls.filter((args) => /act\(/.test(args.join(" "))),
+  ).toEqual([]);
+  jest.restoreAllMocks();
+});
 
 const longPressVersion = () => fireEvent(screen.getByTestId(TEST_IDS.settingsVersion), "longPress");
 
 const confirm = async (alert: jest.SpyInstance) => {
-  alert.mock.calls.at(-1)?.[2]?.[1]?.onPress?.();
+  await act(async () => alert.mock.calls.at(-1)?.[2]?.[1]?.onPress?.());
   await waitFor(() =>
     expect(mockBuild.calls.at(-1)?.[0]).toBe(mockBuild.offline ? "check" : "reload"),
   );
@@ -47,7 +53,7 @@ it("moves a production install to the preview channel, then fetches and restarts
   await accountFixture().paint(<Settings />);
   expect(screen.getByTestId(TEST_IDS.settingsVersion)).toHaveTextContent("1.2.3 (45)");
 
-  longPressVersion();
+  await longPressVersion();
   expect(alert.mock.calls.at(-1)?.[0]).toBe("Preview updates");
   expect(alert.mock.calls.at(-1)?.[2]?.[1]?.text).toBe("Turn on");
   await confirm(alert);
@@ -66,7 +72,7 @@ it("shows a preview install as such and returns it to the build's own channel", 
   await accountFixture().paint(<Settings />);
   expect(screen.getByTestId(TEST_IDS.settingsVersion)).toHaveTextContent("1.2.3 (45) · preview");
 
-  longPressVersion();
+  await longPressVersion();
   expect(alert.mock.calls.at(-1)?.[2]?.[1]?.text).toBe("Turn off");
   await confirm(alert);
 
@@ -79,7 +85,7 @@ it("offers nothing on a build that carries no channel", async () => {
   const alert = jest.spyOn(Alert, "alert");
   await accountFixture().paint(<Settings />);
 
-  longPressVersion();
+  await longPressVersion();
 
   expect(alert).not.toHaveBeenCalled();
 });
@@ -89,7 +95,7 @@ it("keeps the switch for the next start when the update server is out of reach",
   const alert = jest.spyOn(Alert, "alert");
   await accountFixture().paint(<Settings />);
 
-  longPressVersion();
+  await longPressVersion();
   await confirm(alert);
 
   expect(mockBuild.calls).toEqual([["override", { "expo-channel-name": "preview" }], ["check"]]);
