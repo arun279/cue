@@ -5,11 +5,19 @@
 appId: app.cuetracker
 ---
 - runFlow: lib/relaunch.yaml
+- runFlow:
+    file: lib/prepare-operation.yaml
+    env:
+      OPERATION: sync
 - swipe:
     start: "50%, 25%"
     end: "50%, 85%"
     duration: 600
 - runFlow: lib/settle.yaml
+- runFlow:
+    file: lib/prepare-operation.yaml
+    env:
+      OPERATION: sync
 - tapOn: "Sync now"
 - runFlow: lib/settle.yaml
 - assertVisible:

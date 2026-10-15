@@ -2,6 +2,7 @@ import type { ReactElement, ReactNode } from "react";
 import { ScrollView, StyleSheet, Switch, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Chevron } from "../../ui/Chevron";
+import { useScrollAcknowledgment } from "../../ui/harness";
 import { Row, Separator } from "../../ui/Row";
 import { RowMenu } from "../../ui/RowMenu";
 import { ROW_MIN_HEIGHT, SPACE, useColors } from "../../ui/tokens";
@@ -16,19 +17,24 @@ export function AccountScreen({
 }): ReactElement {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const scroll = useScrollAcknowledgment();
   return (
-    <ScrollView
-      testID={testID}
-      contentInsetAdjustmentBehavior="automatic"
-      style={{ backgroundColor: colors.bg }}
-      contentContainerStyle={{
-        padding: SPACE.s4,
-        paddingBottom: insets.bottom + SPACE.s5,
-        gap: SPACE.s5,
-      }}
-    >
-      {children}
-    </ScrollView>
+    <View style={{ flex: 1 }}>
+      <ScrollView
+        {...scroll.handlers}
+        testID={testID}
+        contentInsetAdjustmentBehavior="automatic"
+        style={{ backgroundColor: colors.bg }}
+        contentContainerStyle={{
+          padding: SPACE.s4,
+          paddingBottom: insets.bottom + SPACE.s5,
+          gap: SPACE.s5,
+        }}
+      >
+        {children}
+      </ScrollView>
+      {scroll.marker}
+    </View>
   );
 }
 

@@ -7,7 +7,7 @@ import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "../ui/Button";
 import { CueMark } from "../ui/CueMark";
-import { PressTrace, tracePress } from "../ui/harness";
+import { PressTrace, tracePress, useOnboardingAcknowledgment } from "../ui/harness";
 import { useLiveRegion } from "../ui/live-region";
 import { TEST_IDS } from "../ui/test-ids";
 import { HAIRLINE, RADIUS, SPACE, TARGET_MIN, useColors } from "../ui/tokens";
@@ -22,10 +22,12 @@ export function Onboarding(): ReactElement {
   const errorMessage = useAuth((s) => s.errorMessage);
   const connect = useAuth((s) => s.connectWithDeviceCode);
   const errorLive = useLiveRegion(errorMessage, "assertive");
+  const acknowledgment = useOnboardingAcknowledgment();
 
   return (
     <SafeAreaView
       testID={deviceCode === null ? TEST_IDS.screenOnboarding : TEST_IDS.screenDeviceCode}
+      onLayout={acknowledgment.onLayout}
       style={[styles.page, { backgroundColor: colors.bg }]}
     >
       <ScrollView
@@ -80,6 +82,7 @@ export function Onboarding(): ReactElement {
         ) : null}
       </ScrollView>
       <PressTrace />
+      {acknowledgment.marker}
     </SafeAreaView>
   );
 }

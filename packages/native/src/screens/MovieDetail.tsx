@@ -118,6 +118,11 @@ function LoadedMovie({ header }: { readonly header: MovieHeader }): ReactElement
             ]}
           >
             <View style={detailMarkStyles.copy}>
+              {actions.entry.inWatchlist && (
+                <CueText variant="meta" style={{ color: colors.ink2 }}>
+                  In Watchlist
+                </CueText>
+              )}
               <CueText variant="rowTitle" style={{ color: colors.fg }}>
                 {episodeStatus(actions.entry.watched, actions.entry.watchedAt, 1)}
               </CueText>

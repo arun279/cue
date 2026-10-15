@@ -2,8 +2,6 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { DEFAULT_TRAKT_POLICY } from "../../packages/core/src/data/trakt/policy";
-import { backoffMs } from "../../packages/core/src/domain/write-queue/classify";
 import { gitEnv } from "../support/git-env";
 import { repositoryPath } from "../support/repository-path";
 import { tempDirectory } from "../support/temp-directory";
@@ -192,23 +190,10 @@ describe("fast pull request validation", () => {
     expect(android).not.toContain("continue-on-error");
   });
 
-  it("waits for app idle before checking the connected loading state", () => {
+  it("waits for persistent readiness before checking the connected loading state", () => {
     const ready = readFileSync(repositoryPath(".maestro/flows/lib/ready.yaml"), "utf8");
 
-    expect(ready).toMatch(/screen-up-next[\s\S]*app-idle[\s\S]*up-next-skeleton/);
-  });
-
-  it("waits for app idle as long as a read keeps retrying before it fails", () => {
-    const ready = readFileSync(repositoryPath(".maestro/flows/lib/ready.yaml"), "utf8");
-    const { readAttempts, retryDelayMs, timeoutMs } = DEFAULT_TRAKT_POLICY;
-    let backoff = 0;
-    for (let retry = 0; retry < readAttempts - 1; retry += 1) {
-      backoff += backoffMs(retry, retryDelayMs);
-    }
-
-    expect(Number(ready.match(/id: "app-idle"\n {4}timeout: (\d+)/)?.[1])).toBe(
-      timeoutMs.read * readAttempts + backoff,
-    );
+    expect(ready).toMatch(/screen-up-next[\s\S]*app-ready[\s\S]*up-next-skeleton/);
   });
 
   it("uploads Maestro's hidden debug folder even after a timeout, leaving screenshots in place", () => {

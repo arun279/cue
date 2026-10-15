@@ -14,6 +14,13 @@ jest.mock("expo-web-browser", () => ({ openBrowserAsync: jest.fn(async () => ({}
 
 const haptics = spyHaptics();
 const deviceCode = { userCode: "AB12CD34", verificationUrl: "https://trakt.test/activate" };
+const originalRequestIdleCallback = global.requestIdleCallback;
+const originalCancelIdleCallback = global.cancelIdleCallback;
+
+beforeEach(() => {
+  global.requestIdleCallback = jest.fn(() => 1);
+  global.cancelIdleCallback = jest.fn();
+});
 
 async function paint(state: Partial<AuthState> = {}) {
   const store = createAuthStore({
@@ -48,6 +55,41 @@ async function paint(state: Partial<AuthState> = {}) {
 afterEach(() => {
   jest.useRealTimers();
   jest.clearAllMocks();
+  global.requestIdleCallback = originalRequestIdleCallback;
+  global.cancelIdleCallback = originalCancelIdleCallback;
+});
+
+it("acknowledges onboarding only after layout and idle, and retains readiness", async () => {
+  jest.useFakeTimers();
+  const store = await paint();
+  expect(screen.queryByTestId(HARNESS_IDS.onboardingReady)).toBeNull();
+  expect(requestIdleCallback).not.toHaveBeenCalled();
+  await act(() => jest.advanceTimersByTime(60_000));
+  expect(screen.queryByTestId(HARNESS_IDS.onboardingReady)).toBeNull();
+
+  await fireEvent(screen.getByTestId("screen-onboarding"), "layout");
+  expect(screen.queryByTestId(HARNESS_IDS.onboardingReady)).toBeNull();
+  const idle = jest.mocked(requestIdleCallback).mock.calls[0]?.[0];
+  expect(idle).toBeDefined();
+  await act(() => idle?.({ didTimeout: false, timeRemaining: () => 10 }));
+  expect(screen.getByTestId(HARNESS_IDS.onboardingReady)).toBeOnTheScreen();
+
+  await fireEvent(screen.getByTestId("screen-onboarding"), "layout");
+  await act(() => store.setState({ connectStatus: "connecting", deviceCode }));
+  await act(() => jest.advanceTimersByTime(60_000));
+  expect(screen.getByTestId(HARNESS_IDS.onboardingReady)).toBeOnTheScreen();
+  expect(requestIdleCallback).toHaveBeenCalledTimes(1);
+
+  await screen.unmount();
+  await paint();
+  expect(screen.queryByTestId(HARNESS_IDS.onboardingReady)).toBeNull();
+});
+
+it("cancels pending onboarding readiness when the screen unmounts", async () => {
+  await paint();
+  await fireEvent(screen.getByTestId("screen-onboarding"), "layout");
+  await screen.unmount();
+  expect(cancelIdleCallback).toHaveBeenCalledWith(1);
 });
 
 it("offers one connect action and disables it while connecting", async () => {
@@ -117,6 +159,7 @@ it("traces each stage of a Connect press for the test harness", async () => {
   const page = screen.getByText("Your shows. One tap ahead.");
   const touch = () => ({ nativeEvent: { timestamp: Date.now() } });
 
+  expect(screen.getByTestId(HARNESS_IDS.pressTrace)).toHaveAccessibleName("shown");
   await act(() => jest.advanceTimersByTime(22_000));
   await fireEvent(page, "touchStart", touch());
   await user.press(connect);
@@ -128,6 +171,10 @@ it("traces each stage of a Connect press for the test harness", async () => {
     "shown; touch start +22000 ms native +0 ms; press in +22000 ms native +0 ms; " +
       "press out +22130 ms native +130 ms; press +22130 ms; touch end +22130 ms native +130 ms",
   );
+
+  await act(() => store.setState({ deviceCode }));
+  expect(screen.getByTestId("device-code-value")).toBeOnTheScreen();
+  expect(screen.getByTestId(HARNESS_IDS.pressTrace)).toHaveAccessibleName(/press \+22130 ms/);
 
   await screen.unmount();
   await paint();

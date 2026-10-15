@@ -19,12 +19,22 @@ appId: app.cuetracker
     text: ".*, 2 plays"
 - assertVisible:
     id: "history-row-0-check"
+- runFlow:
+    file: lib/prepare-operation.yaml
+    env:
+      OPERATION: write
 - tapOn:
     id: "history-row-0-check"
+- runFlow: lib/settle.yaml
 - assertVisible:
-    id: "snackbar"
+    id: "snackbar-undo"
+- runFlow:
+    file: lib/prepare-operation.yaml
+    env:
+      OPERATION: write
 - tapOn:
     id: "snackbar-undo"
+- runFlow: lib/settle.yaml
 - assertVisible:
     text: ${output.historyDay}
 - assertVisible:

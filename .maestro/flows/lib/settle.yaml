@@ -1,4 +1,7 @@
 appId: app.cuetracker
 ---
-- assertVisible:
-    id: "app-idle"
+- extendedWaitUntil:
+    visible:
+      id: "operation-completed"
+      text: ${".*; " + output.operation + " done;.*"}
+    timeout: 48300

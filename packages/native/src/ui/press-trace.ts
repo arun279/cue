@@ -5,7 +5,7 @@ interface Timed {
 }
 
 const listeners = new Set<() => void>();
-let trace: string | null = null;
+let trace = "shown";
 let shownAt = 0;
 let firstTouchAt: number | null = null;
 
@@ -23,7 +23,7 @@ export function tracePress(event: string, timed?: Timed): void {
   publish(`${trace}; ${entry}`);
 }
 
-export function usePressTrace(): string | null {
+export function usePressTrace(): string {
   useEffect(() => {
     shownAt = performance.now();
     firstTouchAt = null;

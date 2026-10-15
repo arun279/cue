@@ -5,6 +5,7 @@ import AccountLayout from "../app/(account)/_layout";
 import { TabStack } from "../src/TabStack";
 import { RADIUS } from "../src/ui/tokens";
 import { atFontScale } from "./support/font-scale";
+import { QueryProvider } from "./support/query-provider";
 
 const EPISODE = "show/[showId]/episode/[season]/[episode]";
 
@@ -39,7 +40,7 @@ async function sheetsAt(fontScale: number): Promise<SheetOptions[]> {
   const sheets: SheetOptions[] = [];
   for (const host of hosts) {
     mockScreens.clear();
-    await render(host);
+    await render(host, { wrapper: QueryProvider });
     sheets.push(mockScreens.get(EPISODE) ?? {});
   }
   return sheets;

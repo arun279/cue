@@ -1,0 +1,5 @@
+appId: app.cuetracker
+---
+- copyTextFrom:
+    id: "operation-started"
+- evalScript: ${output.operation = OPERATION + " " + (Number(maestro.copiedText.match(new RegExp(OPERATION + " ([0-9]+)"))[1]) + 1)}
