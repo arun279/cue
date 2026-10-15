@@ -370,14 +370,19 @@ it("waits for scroll completion before every sign-out tap", () => {
   ).not.toContain('- tapOn:\n    id: "settings-sign-out"');
 });
 
-it("dismisses the episode sheet with one accessible input and one result assertion", () => {
+it("waits for presentation, dismisses once per platform, and checks the sheet is gone once", () => {
   const source = readFileSync(join(flowsDirectory, "lib/dismiss-episode-sheet.yaml"), "utf8");
-  expect([...source.matchAll(/^- ([A-Za-z]+):/gm)].map((match) => match[1])).toEqual([
-    "tapOn",
-    "extendedWaitUntil",
+  expect(parseAllDocuments(source)[1]?.toJS()).toEqual([
+    { extendedWaitUntil: { visible: { id: HARNESS_IDS.sheetPresented }, timeout: 10000 } },
+    { runFlow: { when: { platform: "Android" }, commands: ["back"] } },
+    {
+      runFlow: {
+        when: { platform: "iOS" },
+        commands: [{ swipe: { from: { id: HARNESS_IDS.sheetPresented }, direction: "DOWN" } }],
+      },
+    },
+    { extendedWaitUntil: { notVisible: { id: TEST_IDS.episodeSheet }, timeout: 10000 } },
   ]);
-  expect(source).toContain('id: "episode-close"');
-  expect(source).toContain('notVisible:\n      id: "episode-sheet"');
 });
 
 it("types the Library filter in one input and observes durable Watchlist membership", () => {

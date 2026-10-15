@@ -1,5 +1,4 @@
 export const TEST_IDS = {
-  episodeClose: "episode-close",
   signOutError: "sign-out-error",
   profileIdentity: "profile-identity",
   profileStatShows: "profile-stat-shows",

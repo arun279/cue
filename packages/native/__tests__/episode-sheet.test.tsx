@@ -111,13 +111,3 @@ it("replaces the episode route and names an exhausted direction", async () => {
   expect(router.replace).toHaveBeenCalledWith("/show/8803/episode/2/4");
   expect(router.push).not.toHaveBeenCalled();
 });
-
-it("dismisses an episode with one accessible Close press", async () => {
-  await render(
-    <DetailHarness runtime={detailRuntime}>
-      <EpisodeSheet showId={8803} season={2} episode={3} />
-    </DetailHarness>,
-  );
-  await fireEvent.press(screen.getByRole("button", { name: "Done" }));
-  expect(router.back).toHaveBeenCalledTimes(1);
-});

@@ -1,5 +1,6 @@
-import { type ReactElement, useRef, useState } from "react";
-import { Platform, type ScrollViewProps } from "react-native";
+import { type NativeStackNavigationProp, useNavigation } from "expo-router";
+import { type ReactElement, useLayoutEffect, useRef, useState } from "react";
+import { Platform, type ScrollViewProps, View } from "react-native";
 import { HARNESS_IDS } from "./harness-ids";
 import { Marker } from "./Marker";
 import { usePressTrace } from "./press-trace";
@@ -9,6 +10,25 @@ export { AppIdle, trackSync } from "./AppIdle";
 export { tracePress } from "./press-trace";
 
 export const HIDE_CARET = Platform.OS === "android";
+
+export function SheetPresented(): ReactElement | null {
+  const navigation = useNavigation<NativeStackNavigationProp<Record<string, undefined>>>();
+  const [presented, setPresented] = useState(false);
+  useLayoutEffect(
+    () =>
+      navigation.addListener("transitionEnd", ({ data }) => {
+        if (!data.closing) setPresented(true);
+      }),
+    [navigation],
+  );
+  return presented ? (
+    <View
+      testID={HARNESS_IDS.sheetPresented}
+      pointerEvents="none"
+      style={{ position: "absolute", top: 8, left: "50%", width: 1, height: 1 }}
+    />
+  ) : null;
+}
 
 export function useScrollAcknowledgment(): {
   handlers: ScrollViewProps;

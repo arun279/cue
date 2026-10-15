@@ -7,6 +7,7 @@ import { Platform, Text, View } from "react-native";
 import * as accountLayout from "../app/(account)/_layout";
 import MonthJumpRoute from "../app/(account)/history-jump";
 import { MONTHS } from "../src/screens/history/model";
+import { QueryProvider } from "./support/query-provider";
 
 jest.mock(
   "react-native-safe-area-context",
@@ -79,7 +80,7 @@ async function leaveProfile(): Promise<void> {
 }
 
 const openAccount = async (): Promise<void> => {
-  await renderRouter(routes, { initialUrl: "/" });
+  await renderRouter(routes, { initialUrl: "/", wrapper: QueryProvider });
   await act(() => router.push("/profile"));
   expect(screen.getByTestId("screen-profile")).toBeOnTheScreen();
 };
