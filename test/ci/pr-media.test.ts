@@ -217,7 +217,7 @@ describe("pr-media job", () => {
       const [, id, suite] = /^([a-z0-9-]+)(?: \((.+)\))?$/.exec(name) ?? [];
       const producer = jobs.find((entry) => entry.name === id)?.body ?? "";
       const upload = suite ? artifact.replace(suite, "$" + "{{ matrix.suite }}") : artifact;
-      expect(producer).toContain(`name: ${upload}\n`);
+      expect(producer).toContain(`name: ${upload}\${{ inputs.copy }}\n`);
       if (suite) expect(producer).toMatch(new RegExp(`suite: \\[.*\\b${suite}\\b.*\\]`));
     }
   });

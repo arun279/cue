@@ -192,6 +192,8 @@ describe("mobile release gate required checks", () => {
             .filter(
               (line) =>
                 /^ {4}(?:name|strategy|if):/.test(line) &&
+                (!["check", "render-performance", "audit", "actionlint"].includes(job.name) ||
+                  line !== "    if: $" + "{{ !inputs.copy }}") &&
                 (job.name !== "native-e2e" || line !== "    if: $" + "{{ always() }}") &&
                 (job.name !== "ui-screenshots-ios-dark" || line !== IOS_LANE) &&
                 line !== DEVICE_LANE,
