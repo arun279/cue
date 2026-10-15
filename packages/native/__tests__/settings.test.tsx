@@ -363,5 +363,5 @@ it("lists the last Trakt failure per endpoint under About and copies them as a r
     "2026-10-03T22:13:00.000Z  /sync/watched/shows  server  HTTP 503",
   ]);
   expect(await screen.findByText("Report copied.")).toBeVisible();
-  act(() => useReadIncidents.setState({ incidents: [] }));
+  await act(() => useReadIncidents.setState({ incidents: [] }));
 });

@@ -45,7 +45,7 @@ export function setSnackbarTimeout(timeout: number): void {
   clearTimeout(timer);
   if (
     !AUTO_DISMISS_UNDO &&
-    useSnackbar.getState().snack?.actions?.some((action) => action.label === "Undo")
+    useSnackbar.getState().snack?.actions?.some((action) => action.testId === "snackbar-undo")
   )
     return;
   timer = setTimeout(dismissSnack, Math.max(0, shownAt + timeout - Date.now()));

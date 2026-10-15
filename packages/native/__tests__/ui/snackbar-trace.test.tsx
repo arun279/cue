@@ -10,6 +10,11 @@ jest.mock("../../src/platform/query-persister", () => ({
   queryClient: new (require("@tanstack/react-query").QueryClient)(),
 }));
 
+afterEach(() => {
+  queryClient.clear();
+  jest.restoreAllMocks();
+});
+
 function Probe(): ReactElement {
   return <Text testID="trace">{useSnackbarTrace()}</Text>;
 }
