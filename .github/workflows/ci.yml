@@ -10,7 +10,7 @@ on:
     # release/* branches run CI on push because the release gate ships a commit
     # only once ci.yml's checks are green for that exact SHA, and it reads a
     # push-event run. Without this, dispatching mobile-release.yml on a release
-    # branch waits out its deadline on checks that would never report.
+    # branch cannot supply a completed run for that commit.
     branches: [main, feat/expo-native, "release/*"]
   # Draft pull requests run only the fast checks and the Android build; the
   # device lanes run once the pull request is ready for review.
@@ -393,7 +393,7 @@ jobs:
         run: |
           output="$RUNNER_TEMP/screenshots/ios/light/${{ matrix.suite }}"
           mkdir -p "$output"
-          maestro --device "$DEVICE_ID" test --debug-output "$RUNNER_TEMP/maestro-debug/${{ matrix.suite }}" \
+          bash scripts/maestro-test.sh --device "$DEVICE_ID" test --debug-output "$RUNNER_TEMP/maestro-debug/${{ matrix.suite }}" \
             ".maestro/ci/app-${{ matrix.suite }}.yaml" \
             --format JUNIT \
             --output "$RUNNER_TEMP/maestro-results-${{ matrix.suite }}.xml" \
@@ -461,7 +461,7 @@ jobs:
           DEVICE_ID: ${{ steps.ui-setup.outputs.device_id }}
         run: |
           mkdir -p "$RUNNER_TEMP/screenshots/ios/dark"
-          maestro --device "$DEVICE_ID" test --debug-output "$RUNNER_TEMP/maestro-debug/dark" \
+          bash scripts/maestro-test.sh --device "$DEVICE_ID" test --debug-output "$RUNNER_TEMP/maestro-debug/dark" \
             .maestro/ci/screenshots.yaml \
             --format JUNIT \
             --output "$RUNNER_TEMP/maestro-results-dark.xml" \
@@ -526,7 +526,7 @@ jobs:
           BUNDLETOOL_VERSION: "1.18.3"
           BUNDLETOOL_SHA256: "a099cfa1543f55593bc2ed16a70a7c67fe54b1747bb7301f37fdfd6d91028e29"
         run: |
-          curl --fail --location --retry 3 \
+          curl --fail --location \
             --output "$RUNNER_TEMP/bundletool.jar" \
             "https://github.com/google/bundletool/releases/download/$BUNDLETOOL_VERSION/bundletool-all-$BUNDLETOOL_VERSION.jar"
           echo "$BUNDLETOOL_SHA256  $RUNNER_TEMP/bundletool.jar" | sha256sum --check

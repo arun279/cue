@@ -64,6 +64,11 @@ describe("JavaScript update publishing", () => {
     expect(releaseWorkflow).toContain("run: scripts/require-green-ci.sh");
     expect(publishWorkflow).not.toContain("REQUIRED:");
     expect(releaseWorkflow).not.toContain("REQUIRED:");
+    for (const workflow of [publishWorkflow, releaseWorkflow]) {
+      expect(workflow).toContain("CI_RUN_ID: $" + "{{ inputs.ci_run_id }}");
+      expect(workflow).toContain("CODEQL_RUN_ID: $" + "{{ inputs.codeql_run_id }}");
+      expect(workflow).not.toContain("POLL_SECONDS");
+    }
   });
 
   it("uses the release bundle's public environment", () => {

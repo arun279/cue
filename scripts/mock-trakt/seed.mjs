@@ -16,13 +16,7 @@
 const DAY = 86_400_000;
 const WEEK = 7 * DAY;
 
-/**
- * Seeded times hang off the start of the current UTC day rather than the
- * current instant, so a time of day on screen reads the same in every run that
- * day. No seeded episode airs less than a day after that start, so none moves
- * from upcoming to aired while the day goes on.
- */
-const startOfToday = () => Math.floor(Date.now() / DAY) * DAY;
+export const FIXTURE_NOW = Date.parse("2026-10-15T00:00:00.000Z");
 
 const EPISODE_TITLES = [
   "Low Tide",
@@ -48,9 +42,8 @@ const EPISODE_OVERVIEWS = [
 ];
 
 /**
- * Air dates run forward from `startDaysAgo` on a weekly cadence, so the seed
- * stays plausible whenever it boots: recent episodes are recent, and the shows
- * that should have something on the way still do.
+ * Air dates run forward from `startDaysAgo` on a weekly cadence relative to
+ * the injected clock.
  */
 function buildEpisodes(spec, now) {
   const episodes = [];
@@ -352,9 +345,10 @@ const CATALOG = [
 const iso = (ms) => new Date(ms).toISOString();
 
 /** The mutable account every route reads and the write routes move. */
-export function createLibrary(now = startOfToday()) {
+export function createLibrary(now = FIXTURE_NOW, clock = () => now) {
   return {
     now,
+    clock,
     shows: SHOWS.map((spec) => ({
       ...spec,
       hidden: false,
@@ -421,8 +415,8 @@ const seedProfiles = {
 export const SEED_PROFILE_NAMES = Object.keys(seedProfiles);
 
 /** The seeded account under one of the profiles named above. */
-export function createSeedLibrary(profile = "default", now = startOfToday()) {
-  const library = createLibrary(now);
+export function createSeedLibrary(profile = "default", now = FIXTURE_NOW, clock = () => now) {
+  const library = createLibrary(now, clock);
   seedProfiles[profile](library);
   return library;
 }
@@ -888,6 +882,9 @@ function targetedEpisodes(show, body) {
   });
 }
 
+const activityTime = (library) =>
+  Math.max(library.clock(), ...Object.values(library.activities).map((stamp) => stamp + 1));
+
 /**
  * Apply a `/sync/history` write (or its removal) to the linear counters, so the
  * next progress read reflects what the app just did. Bodies arrive as
@@ -904,7 +901,7 @@ export function applyHistoryWrite(library, body, remove) {
       (body.movies ?? [])[0]?.watched_at ??
       "",
   );
-  const stamp = Number.isNaN(stamped) ? Date.now() : stamped;
+  const stamp = Number.isNaN(stamped) ? activityTime(library) : stamped;
   const applied = { episodes: 0, movies: 0 };
 
   for (const show of library.shows) {
@@ -913,7 +910,7 @@ export function applyHistoryWrite(library, body, remove) {
     applied.episodes += indices.length;
     // Trakt stamps the write, not the play: marking something as watched last
     // Tuesday moves the account's activity to now.
-    library.activities.episodes = Date.now();
+    library.activities.episodes = activityTime(library);
     if (remove) {
       show.completed = Math.min(show.completed, Math.min(...indices));
       for (const index of indices) show.watchedAt.delete(show.episodes[index].traktId);
@@ -930,7 +927,7 @@ export function applyHistoryWrite(library, body, remove) {
     if (!byItem && !(body.ids ?? []).includes(playId(movie.trakt))) continue;
     applied.movies += 1;
     movie.watchedAt = remove ? null : stamp;
-    library.activities.movies = Date.now();
+    library.activities.movies = activityTime(library);
   }
 
   const counts = remove ? { deleted: applied } : { added: applied };
@@ -954,7 +951,7 @@ export function applyHistoryWrite(library, body, remove) {
 export function applyHiddenWrite(library, body, remove) {
   const { matched, missing } = matchSection(body.shows, (ids) => showById(library, ids));
   for (const show of matched) show.hidden = !remove;
-  if (matched.length > 0) library.activities.shows = Date.now();
+  if (matched.length > 0) library.activities.shows = activityTime(library);
   const counts = { shows: matched.length };
   return {
     ...(remove ? { deleted: counts } : { added: counts }),
@@ -972,7 +969,7 @@ export function applyWatchlistWrite(library, body, remove) {
   const movies = matchSection(body.movies, (ids) => movieById(library, ids));
   for (const item of [...shows.matched, ...movies.matched]) item.inWatchlist = !remove;
   const counts = { shows: shows.matched.length, movies: movies.matched.length };
-  if (counts.shows + counts.movies > 0) library.activities.watchlist = Date.now();
+  if (counts.shows + counts.movies > 0) library.activities.watchlist = activityTime(library);
   return {
     ...(remove ? { deleted: counts } : { added: counts }),
     not_found: { movies: movies.missing, shows: shows.missing, seasons: [], episodes: [] },

@@ -95,13 +95,11 @@ describe("fast pull request validation", () => {
       "name: cue-footprint-$" + "{{ github.event.pull_request.head.sha || github.sha }}",
     );
     expect(footprint).toContain('scripts/restore-base-metrics.sh "$BASE_SHA"');
+    expect(footprint).toContain('--name "$ARTIFACT_NAME" --dir "$RUNNER_TEMP/base-metrics"');
     expect(footprint).toContain(
-      'download-ci-artifact.sh "$ARTIFACT_NAME" "$RUNNER_TEMP/base-metrics" footprint',
+      "Restored merge-base measurements from $ARTIFACT_NAME in run $run_id",
     );
-    expect(footprint).toContain("Measured merge base $BASE_SHA from CI run $run_id artifacts");
-    expect(footprint).toContain("Missing merge-base measurements and successful CI artifacts");
-    expect(footprint).toContain('startswith("cue-native-android-")');
-    expect(footprint).toContain('java -jar "$RUNNER_TEMP/bundletool.jar" get-size total');
+    expect(footprint).toContain("Missing merge-base measurements for");
   });
 
   it("reports the footprint whenever its inputs were published", () => {

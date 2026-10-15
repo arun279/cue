@@ -25,6 +25,7 @@ import {
   calendarBody,
   createSeedLibrary,
   episodeDetailBody,
+  FIXTURE_NOW,
   hiddenBody,
   historyRows,
   itemPlaysBody,
@@ -48,12 +49,12 @@ const TOKEN_TTL_SECONDS = 90 * 24 * 60 * 60;
 const AUTH_CODE = "mock-auth-code";
 
 /** Every OAuth grant resolves to this one session; the mock authorizes anybody. */
-const token = () => ({
+const token = (clock) => ({
   access_token: "mock-access-token",
   refresh_token: "mock-refresh-token",
   token_type: "bearer",
   scope: "public",
-  created_at: Math.floor(Date.now() / 1000),
+  created_at: Math.floor(clock() / 1000),
   expires_in: TOKEN_TTL_SECONDS,
 });
 
@@ -144,8 +145,12 @@ const ROUTES = [
       });
     },
   ],
-  ["POST", /^\/oauth\/device\/token$/, (ctx) => (ctx.device.approved ? json(token()) : pending())],
-  ["POST", /^\/oauth\/token$/, () => json(token())],
+  [
+    "POST",
+    /^\/oauth\/device\/token$/,
+    (ctx) => (ctx.device.approved ? json(token(ctx.library.clock)) : pending()),
+  ],
+  ["POST", /^\/oauth\/token$/, (ctx) => json(token(ctx.library.clock))],
   ["POST", /^\/oauth\/revoke$/, () => json({})],
   // The web PKCE flow's authorize page, reduced to the redirect it ends in: the
   // caller's `state` comes back untouched, so the app's nonce check is real.
@@ -365,8 +370,6 @@ const CORS = {
   "access-control-max-age": "600",
 };
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
 /**
  * A fault's effect on the connection itself, before any response is composed.
  * False when the fault ends the request without one.
@@ -377,7 +380,6 @@ async function stall(fault, request, hold) {
     return false;
   }
   if (fault.hold === true) await hold();
-  if (fault.delayMs !== undefined) await sleep(fault.delayMs);
   return true;
 }
 
@@ -405,7 +407,13 @@ function resetRoute(reset, releaseHeld, method, url) {
 function faultRoute(faults, method, url, body, releaseHeld) {
   if (method === "POST") {
     const profile = FAULT_PROFILE_NAMES.find((name) => url.searchParams.has(name));
-    if (profile === undefined) return json({ armed: faults.arm(body) });
+    if (profile === undefined) {
+      try {
+        return json({ armed: faults.arm(body) });
+      } catch (error) {
+        return { ...json({ error: error.message }), status: 400 };
+      }
+    }
     return json({ armed: faults.armProfile(profile), profile, opLog: faults.opLog() });
   }
   if (method === "DELETE") {
@@ -473,13 +481,14 @@ function finishFault(request, fault, result) {
  */
 export function createMockTrakt({
   port = DEFAULT_PORT,
+  clock = () => FIXTURE_NOW,
   host = "127.0.0.1",
   log = true,
   journalFile = process.env["MOCK_TRAKT_JOURNAL"],
   faults: faultSpec = faultsFromEnv(process.env["MOCK_TRAKT_FAULTS"]),
   onRequest = (_entry) => {},
 } = {}) {
-  let library = createSeedLibrary();
+  let library = createSeedLibrary("default", clock(), clock);
   const device = { approved: false };
   const journal = createJournal(journalFile);
   const faults = createFaults(faultSpec);
@@ -509,10 +518,10 @@ export function createMockTrakt({
       (seed) => {
         if (!SEED_PROFILE_NAMES.includes(seed)) return false;
         const replaced = library.activities;
-        library = createSeedLibrary(seed);
+        library = createSeedLibrary(seed, clock(), clock);
         // The app refetches only what last_activities moved forward, so a reset
         // moves every section past anything the replaced account reported.
-        const at = Math.max(Date.now(), ...Object.values(replaced).map((stamp) => stamp + 1));
+        const at = Math.max(clock(), ...Object.values(replaced).map((stamp) => stamp + 1));
         for (const section of Object.keys(library.activities)) library.activities[section] = at;
         device.approved = false;
         faults.clear();
@@ -562,6 +571,9 @@ export function createMockTrakt({
     get library() {
       return library;
     },
+    get heldRequests() {
+      return held.size;
+    },
     faults,
     listen: () =>
       new Promise((resolve) => {
@@ -580,5 +592,6 @@ export function createMockTrakt({
 }
 
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  await createMockTrakt().listen();
+  const url = await createMockTrakt().listen();
+  process.send?.({ ready: url });
 }

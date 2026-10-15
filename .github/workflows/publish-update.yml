@@ -3,6 +3,14 @@ name: Publish update
 on:
   workflow_dispatch:
     inputs:
+      ci_run_id:
+        description: Completed CI push run ID for this exact commit
+        type: string
+        required: false
+      codeql_run_id:
+        description: Completed CodeQL push run ID for this exact commit
+        type: string
+        required: false
       action:
         description: "publish = this ref to preview, promote = the update group below to production"
         type: choice
@@ -44,9 +52,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           SHA: ${{ github.sha }}
-          APP_ID: "15368"
-          DEADLINE_MINUTES: "45"
-          POLL_SECONDS: "20"
+          CI_RUN_ID: ${{ inputs.ci_run_id }}
+          CODEQL_RUN_ID: ${{ inputs.codeql_run_id }}
         run: scripts/require-green-ci.sh
 
   publish:

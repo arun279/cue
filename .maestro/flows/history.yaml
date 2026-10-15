@@ -41,6 +41,10 @@ appId: app.cuetracker
     id: "history-row-0"
 - tapOn:
     id: "history-jump"
+- extendedWaitUntil:
+    visible:
+      id: "sheet-presented"
+    timeout: 10000
 - assertVisible:
     id: "history-jump-sheet"
 - waitForAnimationToEnd
@@ -95,6 +99,10 @@ appId: app.cuetracker
     id: "history-row-0"
 - tapOn:
     id: "history-jump"
+- extendedWaitUntil:
+    visible:
+      id: "sheet-presented"
+    timeout: 10000
 - tapOn:
     id: "history-jump-month-8"
 - extendedWaitUntil:

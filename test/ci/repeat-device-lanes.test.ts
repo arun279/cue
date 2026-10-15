@@ -7,7 +7,7 @@ const ci = readFileSync(repositoryPath(".github/workflows/ci.yml"), "utf8");
 const repeat = readFileSync(repositoryPath(".github/workflows/repeat-device-lanes.yml"), "utf8");
 const jobs = readWorkflowJobs(repositoryPath(".github/workflows/ci.yml"));
 const deviceJobs = jobs.filter(({ body }) =>
-  /maestro --device|script: bash scripts\/verify-android-ui\.sh/.test(body),
+  /scripts\/maestro-test\.sh --device|script: bash scripts\/verify-android-ui\.sh/.test(body),
 );
 const suffix = "$" + "{{ inputs.copy }}";
 

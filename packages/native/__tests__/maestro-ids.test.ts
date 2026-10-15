@@ -400,6 +400,29 @@ it("waits for presentation, dismisses once per platform, and checks the sheet is
   ]);
 });
 
+function expectMonthJumpReadiness(value: unknown): void {
+  if (Array.isArray(value)) {
+    value.forEach((command, index) => {
+      if (command?.tapOn?.id === TEST_IDS.historyJump) {
+        expect(value[index + 1]).toEqual({
+          extendedWaitUntil: { visible: { id: HARNESS_IDS.sheetPresented }, timeout: 10000 },
+        });
+      }
+      expectMonthJumpReadiness(command);
+    });
+  } else if (value !== null && typeof value === "object") {
+    Object.values(value).forEach(expectMonthJumpReadiness);
+  }
+}
+
+it.each(
+  yamlFiles(flowsDirectory),
+)("waits for presentation after every month-jump opening in %s", (file) => {
+  for (const document of parseAllDocuments(readFileSync(file, "utf8"))) {
+    expectMonthJumpReadiness(document.toJS());
+  }
+});
+
 it("types the Library filter in one input and observes durable Watchlist membership", () => {
   const library = readFileSync(join(flowsDirectory, "library.yaml"), "utf8");
   const movie = readFileSync(join(flowsDirectory, "movie-detail.yaml"), "utf8");
