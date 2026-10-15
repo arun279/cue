@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { expect, it } from "vitest";
 import { gitEnv } from "../support/git-env";
 import { REPOSITORY_ROOT, repositoryPath } from "../support/repository-path";
@@ -18,7 +18,7 @@ it("ships no request to Trakt's user stats endpoint", () => {
     },
   )
     .split("\n")
-    .filter((file) => /\.(ts|tsx)$/.test(file));
+    .filter((file) => /\.(ts|tsx)$/.test(file) && existsSync(repositoryPath(file)));
   expect(files.length).toBeGreaterThan(100);
   const callers = files.filter((file) =>
     /\/users\/[^"'`]*\/stats\b/.test(readFileSync(repositoryPath(file), "utf8")),

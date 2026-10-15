@@ -2,6 +2,7 @@
 set -euo pipefail
 
 app_dir=$1
+appearance=$2
 device_id=$(xcrun simctl list devices available -j | \
   jq -r '[.devices[] | .[] | select(.name | startswith("iPhone"))][0].udid')
 test -n "$device_id"
@@ -19,6 +20,8 @@ unzip -q "$maestro_zip" -d "$RUNNER_TEMP"
 echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
 tar -xzf "$app_dir/Cue.app.tgz" -C "$app_dir"
 xcrun simctl bootstatus "$device_id" -b
+xcrun simctl ui "$device_id" content_size medium
+xcrun simctl ui "$device_id" appearance "$appearance"
 xcrun simctl spawn "$device_id" defaults write com.apple.keyboard.preferences \
   DidShowContinuousPathIntroduction -bool true
 # The Android lanes run with animations off; Reduce Motion is the iOS match, so

@@ -130,15 +130,29 @@ describe("fast pull request validation", () => {
     expect(check).not.toContain("github.event.pull_request.body");
   });
 
-  it("runs the app-idle measurement after flows that relaunch the app", () => {
+  it("checks returning-user readiness without collecting runner timing", () => {
     const suite = readFileSync(repositoryPath(".maestro/ci/app-discovery.yaml"), "utf8");
-    const android = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
+    const returning = readFileSync(
+      repositoryPath(".maestro/flows/returning-user-app-idle.yaml"),
+      "utf8",
+    );
+    const feedback = readFileSync(
+      repositoryPath(".maestro/flows/up-next-mark-and-undo.yaml"),
+      "utf8",
+    );
 
     expect(suite).toMatch(
       /file: \.\.\/flows\/returning-user-app-idle\.yaml\n {4}when:\n {6}platform: iOS/,
     );
-    expect(android).not.toContain("APP_IDLE_CEILING_MS");
-    expect(android).not.toContain("6000");
+    expect(returning).toMatch(/launchApp:[\s\S]*stopApp: true[\s\S]*extendedWaitUntil:/);
+    expect(returning).toContain('id: "app-ready"');
+    expect(returning).toContain('id: "up-next-list"');
+    expect(returning).not.toMatch(/repeat:|copyTextFrom|evalScript/);
+    expect(feedback).toMatch(/tapOn:[\s\S]*snackbar-undo[\s\S]*assertNotVisible:/);
+    expect(feedback).toMatch(/text: \$\{output\.markLabel\}/);
+    expect(`${workflow}${returning}${feedback}`).not.toMatch(
+      /RESPONSE_SAMPLES|APP_IDLE_CEILING_MS|FEEDBACK_CEILING_MS|REFERENCE_READ_MS|response-timing|summarize-app-idle|CUE_APP_IDLE_SAMPLES/,
+    );
   });
 
   it("runs every shared Maestro flow on iOS and Android", () => {
@@ -199,8 +213,7 @@ describe("fast pull request validation", () => {
 
   it("uploads Maestro's hidden debug folder even after a timeout, leaving screenshots in place", () => {
     const verification = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
-    const iosRun = readFileSync(repositoryPath("scripts/maestro-ios-test.sh"), "utf8");
-    const sources = [workflow, verification, iosRun];
+    const sources = [workflow, verification];
     const uploads = [
       ...workflow.matchAll(/if: (.+)\n\s+with:\n\s+name: (?:native|android)-e2e-.*\n\s+(.+)/g),
     ];

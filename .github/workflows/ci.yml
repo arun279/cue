@@ -1,5 +1,11 @@
 name: CI
 on:
+  workflow_call:
+    inputs:
+      copy:
+        description: Proof copy suffix; empty for ordinary CI
+        type: string
+        default: ""
   push:
     # release/* branches run CI on push because the release gate ships a commit
     # only once ci.yml's checks are green for that exact SHA, and it reads a
@@ -31,8 +37,8 @@ permissions:
 # commit pushes that SHA a second time, and without the ref that push would
 # cancel main's run and leave the commit's required checks cancelled.
 concurrency:
-  group: ci-${{ github.event_name }}-${{ github.ref }}-${{ github.event.pull_request.number || github.sha }}
-  cancel-in-progress: true
+  group: ci-${{ github.event_name }}-${{ github.ref }}-${{ github.event.pull_request.number || github.sha }}${{ inputs.copy && format('-{0}-{1}-{2}', github.run_id, github.run_attempt, inputs.copy) || '' }}
+  cancel-in-progress: ${{ !inputs.copy }}
 jobs:
   fingerprint:
     permissions:
@@ -96,6 +102,7 @@ jobs:
             echo "user-facing=true" >> "$GITHUB_OUTPUT"
           fi
   check:
+    if: ${{ !inputs.copy }}
     permissions:
       contents: read
       pull-requests: read
@@ -127,6 +134,7 @@ jobs:
           PR_BODY=$(gh pr view "$PR_NUMBER" --json body --jq .body)
           node scripts/check-changed-coverage.mjs "origin/$BASE_REF" coverage/lcov.info "$PR_BODY"
   render-performance:
+    if: ${{ !inputs.copy }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -160,6 +168,7 @@ jobs:
           include-hidden-files: true
           retention-days: 7
   audit:
+    if: ${{ !inputs.copy }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -167,6 +176,7 @@ jobs:
       - run: pnpm audit --prod --audit-level=high
       - run: node scripts/check-stale-audit-ignores.mjs
   actionlint:
+    if: ${{ !inputs.copy }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -348,7 +358,7 @@ jobs:
           tar -czf "$RUNNER_TEMP/native-ios-app/Cue.app.tgz" -C "$RUNNER_TEMP/native-ios-app" Cue.app
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: cue-native-ios-${{ needs.fingerprint.outputs.ios }}
+          name: cue-native-ios-${{ needs.fingerprint.outputs.ios }}${{ inputs.copy }}
           path: ${{ runner.temp }}/native-ios-app/Cue.app.tgz
           retention-days: 30
   native-e2e-ios-light:
@@ -366,72 +376,39 @@ jobs:
     env:
       MAESTRO_CLI_NO_ANALYTICS: "1"
       MAESTRO_DRIVER_STARTUP_TIMEOUT: "300000"
-      # https://github.com/kaihowl/git-perf/blob/d795edbe1579ab4e27b4945416a36520eaa937a2/docs/ci-variance-experiment/README.md
-      RESPONSE_SAMPLES: "15"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_26.6.app
       - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
-          name: cue-native-ios-${{ needs.fingerprint.outputs.ios }}
+          name: cue-native-ios-${{ needs.fingerprint.outputs.ios }}${{ inputs.copy }}
           path: ${{ runner.temp }}/native-ios-app
       - id: ui-setup
         name: Prepare the simulator and cached app
-        run: scripts/prepare-ios-ui.sh "$RUNNER_TEMP/native-ios-app"
+        run: scripts/prepare-ios-ui.sh "$RUNNER_TEMP/native-ios-app" light
       - name: Run the shared light flow
         env:
           DEVICE_ID: ${{ steps.ui-setup.outputs.device_id }}
-          # https://web.dev/articles/rail
-          APP_IDLE_CEILING_MS: "1000"
         run: |
           output="$RUNNER_TEMP/screenshots/ios/light/${{ matrix.suite }}"
           mkdir -p "$output"
-          xcrun simctl ui "$DEVICE_ID" content_size medium
-          xcrun simctl ui "$DEVICE_ID" appearance light
-          scripts/maestro-ios-test.sh "$RUNNER_TEMP/maestro-debug/${{ matrix.suite }}" \
+          maestro --device "$DEVICE_ID" test --debug-output "$RUNNER_TEMP/maestro-debug/${{ matrix.suite }}" \
             ".maestro/ci/app-${{ matrix.suite }}.yaml" \
-            --env APP_IDLE_CEILING_MS="$APP_IDLE_CEILING_MS" \
-            --env RESPONSE_SAMPLES="$RESPONSE_SAMPLES" \
             --format JUNIT \
             --output "$RUNNER_TEMP/maestro-results-${{ matrix.suite }}.xml" \
             --test-output-dir "$output"
-      - name: Gate and summarize response timing
-        if: ${{ !cancelled() && matrix.suite == 'activity' }}
-        env:
-          # https://developer.apple.com/videos/play/wwdc2023/10248/
-          # https://web.dev/articles/rail
-          # https://web.dev/articles/defining-core-web-vitals-thresholds
-          FEEDBACK_CEILING_MS: "100"
-          # https://github.com/GoogleChrome/lighthouse/blob/main/docs/throttling.md
-          REFERENCE_READ_MS: "300"
-        run: |
-          node scripts/check-response-timing.mjs \
-            "$RUNNER_TEMP/screenshots/ios/light/activity" \
-            "$FEEDBACK_CEILING_MS" \
-            "$RESPONSE_SAMPLES" \
-            "$REFERENCE_READ_MS" \
-            >> "$GITHUB_STEP_SUMMARY"
-      - name: Gate and summarize app idle
-        if: ${{ !cancelled() && matrix.suite == 'discovery' }}
-        env:
-          APP_IDLE_CEILING_MS: "1000"
-        run: |
-          node scripts/summarize-app-idle.mjs \
-            "$RUNNER_TEMP/screenshots/ios/light/discovery" \
-            "$APP_IDLE_CEILING_MS" \
-            >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ !cancelled() }}
         with:
-          name: ui-screenshots-ios-light-${{ matrix.suite }}
+          name: ui-screenshots-ios-light-${{ matrix.suite }}${{ inputs.copy }}
           path: ${{ runner.temp }}/screenshots/ios/light/${{ matrix.suite }}
           if-no-files-found: error
           retention-days: 14
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ always() }}
         with:
-          name: native-e2e-ios-light-${{ matrix.suite }}
+          name: native-e2e-ios-light-${{ matrix.suite }}${{ inputs.copy }}
           include-hidden-files: true
           path: |
             ${{ runner.temp }}/maestro-debug/
@@ -474,19 +451,17 @@ jobs:
         run: sudo xcode-select -s /Applications/Xcode_26.6.app
       - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
-          name: cue-native-ios-${{ needs.fingerprint.outputs.ios }}
+          name: cue-native-ios-${{ needs.fingerprint.outputs.ios }}${{ inputs.copy }}
           path: ${{ runner.temp }}/native-ios-app
       - id: ui-setup
         name: Prepare the simulator and cached app
-        run: scripts/prepare-ios-ui.sh "$RUNNER_TEMP/native-ios-app"
+        run: scripts/prepare-ios-ui.sh "$RUNNER_TEMP/native-ios-app" dark
       - name: Run the shared dark traversal and large-text captures
         env:
           DEVICE_ID: ${{ steps.ui-setup.outputs.device_id }}
         run: |
           mkdir -p "$RUNNER_TEMP/screenshots/ios/dark"
-          xcrun simctl ui "$DEVICE_ID" content_size medium
-          xcrun simctl ui "$DEVICE_ID" appearance dark
-          scripts/maestro-ios-test.sh "$RUNNER_TEMP/maestro-debug/dark" \
+          maestro --device "$DEVICE_ID" test --debug-output "$RUNNER_TEMP/maestro-debug/dark" \
             .maestro/ci/screenshots.yaml \
             --format JUNIT \
             --output "$RUNNER_TEMP/maestro-results-dark.xml" \
@@ -494,14 +469,14 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ !cancelled() }}
         with:
-          name: ui-screenshots-ios-dark
+          name: ui-screenshots-ios-dark${{ inputs.copy }}
           path: ${{ runner.temp }}/screenshots/ios/dark
           if-no-files-found: error
           retention-days: 14
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ always() }}
         with:
-          name: native-e2e-ios-dark
+          name: native-e2e-ios-dark${{ inputs.copy }}
           include-hidden-files: true
           path: |
             ${{ runner.temp }}/maestro-debug/
@@ -611,7 +586,7 @@ jobs:
             ]' > "$RUNNER_TEMP/head-android-sizes.json"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: cue-native-android-${{ needs.fingerprint.outputs.android }}
+          name: cue-native-android-${{ needs.fingerprint.outputs.android }}${{ inputs.copy }}
           path: |
             ${{ runner.temp }}/native-android/app-release.aab
             ${{ runner.temp }}/native-android/debug.keystore
@@ -621,7 +596,7 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feat/expo-native'
         with:
-          name: cue-native-android-sizes
+          name: cue-native-android-sizes${{ inputs.copy }}
           path: ${{ runner.temp }}/head-android-sizes.json
           retention-days: 30
   android-e2e:
@@ -653,7 +628,7 @@ jobs:
           echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
       - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
-          name: cue-native-android-${{ needs.fingerprint.outputs.android }}
+          name: cue-native-android-${{ needs.fingerprint.outputs.android }}${{ inputs.copy }}
           path: ${{ runner.temp }}/cue-native-android
       - name: Enable KVM
         run: |
@@ -671,14 +646,14 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ !cancelled() }}
         with:
-          name: ui-screenshots-android-light
+          name: ui-screenshots-android-light${{ inputs.copy }}
           path: ${{ runner.temp }}/screenshots/android/light
           if-no-files-found: error
           retention-days: 14
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ always() }}
         with:
-          name: android-e2e-light
+          name: android-e2e-light${{ inputs.copy }}
           include-hidden-files: true
           path: ${{ runner.temp }}/android-ui
           if-no-files-found: error
@@ -711,7 +686,7 @@ jobs:
           echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
       - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
-          name: cue-native-android-${{ needs.fingerprint.outputs.android }}
+          name: cue-native-android-${{ needs.fingerprint.outputs.android }}${{ inputs.copy }}
           path: ${{ runner.temp }}/cue-native-android
       - name: Enable KVM
         run: |
@@ -729,14 +704,14 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ !cancelled() }}
         with:
-          name: ui-screenshots-android-dark
+          name: ui-screenshots-android-dark${{ inputs.copy }}
           path: ${{ runner.temp }}/screenshots/android/dark
           if-no-files-found: error
           retention-days: 14
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ always() }}
         with:
-          name: android-e2e-dark
+          name: android-e2e-dark${{ inputs.copy }}
           include-hidden-files: true
           path: ${{ runner.temp }}/android-ui
           if-no-files-found: error

@@ -1,6 +1,6 @@
 export const HARNESS_IDS = {
   appIdle: "app-idle",
-  appIdleTiming: "app-idle-timing",
-  responseTiming: "response-timing",
+  appReady: "app-ready",
+  pressTrace: "press-trace",
   snackbarTrace: "snackbar-trace",
 } as const;

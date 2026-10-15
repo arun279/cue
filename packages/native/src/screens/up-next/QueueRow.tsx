@@ -9,7 +9,6 @@ import type { ReactElement } from "react";
 import { StyleSheet, View } from "react-native";
 import { useShowArt } from "../../hooks/useShowArt";
 import { CheckControl } from "../../ui/CheckControl";
-import { beginResponseTiming } from "../../ui/harness";
 import { Poster } from "../../ui/Poster";
 import { Row } from "../../ui/Row";
 import { RowFooter } from "../../ui/RowFooter";
@@ -46,17 +45,13 @@ export function QueueRow({ card, mark, onStop, variant = "queue" }: QueueRowProp
 
   const markable = control.state === "unwatched";
   const markLabel = code === null ? `Mark ${entry.title} watched` : `Mark ${code} watched`;
-  const onMark = (): void => {
-    beginResponseTiming("mark");
-    control.onPress();
-  };
 
   return (
     <SwipeRow
       testID={
         variant === "lapsed" ? TEST_IDS.lapsedRow(entry.showId) : TEST_IDS.queueRow(entry.showId)
       }
-      onMark={markable ? onMark : undefined}
+      onMark={markable ? control.onPress : undefined}
       onStop={onStop}
     >
       <View style={[styles.surface, { backgroundColor: colors.bg }]}>
@@ -65,7 +60,7 @@ export function QueueRow({ card, mark, onStop, variant = "queue" }: QueueRowProp
           minHeight={ROW_MIN_HEIGHT.queue}
           onPress={open}
           actions={[
-            ...(markable ? [{ name: "mark", label: markLabel, onPress: onMark }] : []),
+            ...(markable ? [{ name: "mark", label: markLabel, onPress: control.onPress }] : []),
             { name: "stop", label: STOP_LABEL, onPress: onStop },
           ]}
           leading={<Poster title={entry.title} posters={art.posters} width={POSTER_WIDTH.row} />}
@@ -100,7 +95,7 @@ export function QueueRow({ card, mark, onStop, variant = "queue" }: QueueRowProp
                 pending={control.pending}
                 label={control.label}
                 size={CHECK_SIZE.row}
-                onPress={markable ? onMark : control.onPress}
+                onPress={control.onPress}
                 testID={
                   variant === "lapsed"
                     ? TEST_IDS.lapsedRowMark(entry.showId)

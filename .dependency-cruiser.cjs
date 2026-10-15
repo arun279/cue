@@ -121,15 +121,8 @@ module.exports = {
         ],
       },
       to: {
-        path: "^packages/native/src/ui/(AppIdle\\.tsx|response-timing\\.ts|harness-ids\\.ts)$",
+        path: "^packages/native/src/ui/(AppIdle\\.tsx|harness-ids\\.ts)$",
       },
-    },
-    {
-      name: "ui-harness-ids-only",
-      severity: "error",
-      comment: "AppIdle may reach the harness ids and nothing else in the harness.",
-      from: { path: "^packages/native/src/ui/AppIdle\\.tsx$" },
-      to: { path: "^packages/native/src/ui/response-timing\\.ts$" },
     },
     {
       name: "native-owns-expo",

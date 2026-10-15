@@ -10,7 +10,6 @@ import { Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { TRAKT_BASE_OVERRIDE } from "../config";
 import { useScreenReader } from "../platform/screen-reader";
-import { beginResponseTiming } from "./harness";
 import { useLiveRegion } from "./live-region";
 import { TEST_IDS } from "./test-ids";
 import { FLOAT_SHADOW, SPACE, TARGET_MIN, tabBarClearance, useColors, useStacked } from "./tokens";
@@ -123,10 +122,7 @@ function Snackbar({
             accessibilityRole="button"
             accessibilityLabel={action.label}
             testID={action.label === "Undo" ? TEST_IDS.snackbarUndo : action.testId}
-            onPress={() => {
-              if (action.label === "Undo") beginResponseTiming("undo");
-              action.onPress();
-            }}
+            onPress={action.onPress}
             style={styles.action}
           >
             <CueText variant="rowTitle" weight="semibold" style={{ color: colors.accentInk }}>
