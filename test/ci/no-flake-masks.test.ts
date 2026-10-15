@@ -4,13 +4,6 @@ import { expect, it } from "vitest";
 import { repositoryPath } from "../support/repository-path";
 
 const allowlist: string[] = [];
-// Temporary until the companion change removes account.yaml's repeated tap and
-// lib/dismiss-episode-sheet.yaml's optional dismissal assertion.
-const temporary = [
-  ".maestro/flows/account.yaml:retryTapIfNoChange",
-  ".maestro/flows/lib/dismiss-episode-sheet.yaml:optional assertion",
-];
-
 const masks = (source: string): string[] => {
   const text = source.replace(/^\s*#.*$/gm, "");
   const found = [
@@ -44,7 +37,7 @@ it("keeps workflows, scripts and flows free of flake masks", () => {
       }),
   );
   expect(allowlist).toEqual([]);
-  expect(violations.sort()).toEqual([...temporary].sort());
+  expect(violations).toEqual([]);
 });
 
 it.each([
