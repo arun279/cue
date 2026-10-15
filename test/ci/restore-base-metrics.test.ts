@@ -222,3 +222,10 @@ describe("restoring the merge-base measurement", () => {
     expect(result.status).toBe(1);
   });
 });
+
+it("waits for the base commit's CI run to finish instead of failing while it is still running", () => {
+  const script = readFileSync(SCRIPT, "utf8");
+  const wait = script.indexOf('gh run watch "$run_id"');
+  expect(wait).toBeGreaterThan(-1);
+  expect(wait).toBeLessThan(script.indexOf('.status == "completed"'));
+});

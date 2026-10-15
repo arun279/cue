@@ -28,6 +28,7 @@ if [ -z "$run_id" ]; then
   run_id=$(jq -r '[.[].workflow_runs[]] | if length == 1 then .[0].id else empty end' <<<"$runs")
 fi
 [ -n "$run_id" ] || missing "provide BASE_CI_RUN_ID to identify one base run"
+gh run watch "$run_id" --repo "$GITHUB_REPOSITORY" --interval 60 > /dev/null || true
 run=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id")
 jq -e --arg sha "$BASE_SHA" '.head_sha == $sha and .path == ".github/workflows/ci.yml" and .event == "push" and .status == "completed"' <<<"$run" > /dev/null ||
   missing "run $run_id is not a completed push CI run for the base commit"
