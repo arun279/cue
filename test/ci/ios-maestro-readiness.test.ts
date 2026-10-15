@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { expect, it } from "vitest";
 import { repositoryPath } from "../support/repository-path";
 import { readWorkflowJobs } from "../support/workflow-jobs";
@@ -23,4 +24,11 @@ it("readies the simulator in its final appearance, then runs Maestro once, in ev
     ]);
     expect(runs[0]?.index).toBeGreaterThan(prepare);
   }
+});
+
+it("starts the fake Trakt server before booting the simulator, while the runner is idle", () => {
+  const script = readFileSync(repositoryPath("scripts/prepare-ios-ui.sh"), "utf8");
+  const server = script.indexOf("scripts/start-ready-process.mjs scripts/mock-trakt/server.mjs");
+  expect(server).toBeGreaterThan(-1);
+  expect(server).toBeLessThan(script.indexOf("simctl boot"));
 });

@@ -3,13 +3,13 @@ set -euo pipefail
 
 app_dir=$1
 appearance=$2
+node scripts/start-ready-process.mjs scripts/mock-trakt/server.mjs "$RUNNER_TEMP/mock-trakt.log"
 device_id=$(xcrun simctl list devices available -j | \
   jq -r '[.devices[] | .[] | select(.name | startswith("iPhone"))][0].udid')
 test -n "$device_id"
 xcrun simctl boot "$device_id"
 
 maestro_zip="$RUNNER_TEMP/maestro.zip"
-node scripts/start-ready-process.mjs scripts/mock-trakt/server.mjs "$RUNNER_TEMP/mock-trakt.log"
 curl -fsSL \
   https://github.com/mobile-dev-inc/Maestro/releases/download/cli-2.10.0/maestro.zip \
   -o "$maestro_zip"
