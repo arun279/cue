@@ -17,6 +17,7 @@ afterEach(() => {
 it.each([
   { actions: undefined },
   { actions: [{ label: "Dismiss", onPress: () => {} }] },
+  { actions: [{ label: "Undo", onPress: () => {} }] },
 ])("cancels the previous timer when persistent Undo replaces a message with actions $actions", ({
   actions,
 }) => {

@@ -11,6 +11,20 @@ import { nativeSourceFiles } from "./support/native-sources";
 const flowsDirectory = join(__dirname, "../../../.maestro/flows");
 const appDirectory = join(__dirname, "../app");
 
+it("keeps Undo only in flows that tap it", () => {
+  for (const file of yamlFiles(flowsDirectory)) {
+    const [, commands] = parseAllDocuments(readFileSync(file, "utf8")).map((document) =>
+      document.toJS(),
+    );
+    const tapsUndo = commands.some(
+      (command: { tapOn?: { id?: string } }) => command.tapOn?.id === "snackbar-undo",
+    );
+    expect(
+      commands.some((command: { openLink?: string }) => command.openLink === "cue://?keepUndo=1"),
+    ).toBe(tapsUndo);
+  }
+});
+
 /**
  * The wildcard a flow uses where a list gives one element per entity. Maestro
  * matches `id` as a regular expression, so `queue-row-[0-9]+` selects the row
