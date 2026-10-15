@@ -53,3 +53,11 @@ it.each([
 ])("detects a flake mask: %s", (source) => {
   expect(masks(source).length).toBeGreaterThan(0);
 });
+
+it("accepts command-completion readiness probes with a single watchdog and no delay", () => {
+  const source = readFileSync(repositoryPath("scripts/wait-ios-ready.mjs"), "utf8");
+  expect(masks(source)).toEqual([]);
+  expect(source.match(/setTimeout\(/g)).toHaveLength(1);
+  expect(source).toMatch(/while \(consecutive < 3\) \{[\s\S]*await new Promise/);
+  expect(source).not.toMatch(/setInterval|sleep|node:timers/);
+});
