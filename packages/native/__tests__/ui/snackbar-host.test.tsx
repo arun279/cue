@@ -1,3 +1,4 @@
+import * as snackbarPolicy from "@cue/core/stores/snackbar-policy";
 import {
   dismissSnack,
   showSnack,
@@ -9,6 +10,7 @@ import type { ReactElement } from "react";
 import { AccessibilityInfo, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { SnackbarHost } from "../../src/ui/SnackbarHost";
+import { AUTO_DISMISS_UNDO } from "../../src/ui/snackbar-policy.harness";
 
 let mockTraktBase: string | undefined;
 jest.mock("../../src/config", () => ({
@@ -185,6 +187,35 @@ it("keeps a message for fifteen seconds when the screen reader query resolves tr
   await rerender(<Hosts sheetOpen />);
   await act(async () => jest.advanceTimersByTime(9999));
   expect(screen.queryByTestId("snackbar")).toBeOnTheScreen();
+  await act(async () => jest.advanceTimersByTime(1));
+  expect(screen.queryByTestId("snackbar")).toBeNull();
+});
+
+it("keeps harness Undo until it is acted on, even if rendering or the runner stalls", async () => {
+  jest.useFakeTimers();
+  jest.replaceProperty(snackbarPolicy, "AUTO_DISMISS_UNDO", AUTO_DISMISS_UNDO);
+  mockTraktBase = "http://127.0.0.1:8787";
+  const onUndo = jest.fn();
+  const user = userEvent.setup();
+  await act(async () => showUndoable(MESSAGE, onUndo));
+  await act(async () => jest.runOnlyPendingTimers());
+  expect(useSnackbar.getState().snack).not.toBeNull();
+
+  await render(<SnackbarHost placement="root" />);
+  await act(async () => jest.runOnlyPendingTimers());
+  expect(screen.getByTestId("snackbar-undo")).toBeOnTheScreen();
+  await user.press(screen.getByTestId("snackbar-undo"));
+  expect(onUndo).toHaveBeenCalledTimes(1);
+  expect(screen.queryByTestId("snackbar")).toBeNull();
+});
+
+it("still expires harness messages that do not offer Undo", async () => {
+  jest.useFakeTimers();
+  jest.replaceProperty(snackbarPolicy, "AUTO_DISMISS_UNDO", AUTO_DISMISS_UNDO);
+  await render(<SnackbarHost placement="root" />);
+  await act(async () => showSnack({ message: MESSAGE }));
+  await act(async () => jest.advanceTimersByTime(4999));
+  expect(screen.getByTestId("snackbar")).toBeOnTheScreen();
   await act(async () => jest.advanceTimersByTime(1));
   expect(screen.queryByTestId("snackbar")).toBeNull();
 });

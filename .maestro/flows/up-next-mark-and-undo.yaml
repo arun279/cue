@@ -1,8 +1,6 @@
 appId: app.cuetracker
 ---
 - runFlow: lib/connect.yaml
-- openLink: cue://?keepUndo=1
-- runFlow: lib/ready.yaml
 - assertVisible:
     id: "up-next-list"
 - waitForAnimationToEnd

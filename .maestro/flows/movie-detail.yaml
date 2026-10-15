@@ -1,8 +1,6 @@
 appId: app.cuetracker
 ---
 - runFlow: lib/relaunch.yaml
-- openLink: cue://?keepUndo=1
-- runFlow: lib/ready.yaml
 - tapOn: "Library"
 - tapOn:
     id: "library-segment-movies"
