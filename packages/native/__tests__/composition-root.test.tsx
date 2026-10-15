@@ -1,14 +1,24 @@
+import * as runtimeBoot from "@cue/core/app/boot";
+import { queryKeys } from "@cue/core/data/query-keys";
 import { useActivitiesPoll } from "@cue/core/hooks/useActivitiesPoll";
+import { PERSIST_BUSTER } from "@cue/core/runtime/query-cache";
+import { dehydrate } from "@tanstack/react-query";
 import { act, render, screen } from "@testing-library/react-native";
 import { useFonts } from "expo-font";
+import { Stack } from "expo-router";
 import { hide } from "expo-splash-screen";
+import { Profiler } from "react";
 import { bootNativeStores } from "../src/boot";
+import { nativeAppVisibility } from "../src/platform/app-visibility";
+import { queryClient, shouldDehydrateQuery } from "../src/platform/query-persister";
 import {
   bulkBacking,
   legacyBacking,
   secureBacking,
   secureStoreModule,
 } from "./support/native-stores";
+import { seedCalendars } from "./support/perf-up-next";
+import { entry, fakeRuntime } from "./support/up-next";
 
 // Every jest factory below is hoisted above the imports, so each one reaches its
 // fake through `require` rather than through a binding that does not exist yet.
@@ -35,6 +45,10 @@ jest.mock("../src/boot", () => ({
   bootNativeStores: jest.fn(jest.requireActual("../src/boot").bootNativeStores),
 }));
 jest.mock("@cue/core/hooks/useActivitiesPoll", () => ({ useActivitiesPoll: jest.fn() }));
+jest.mock("@expo/ui/community/menu", () => require("./support/native-ui").menuModule());
+jest.mock("react-native-gesture-handler/ReanimatedSwipeable", () =>
+  require("./support/native-ui").swipeableModule(),
+);
 jest.mock("expo-application", () => ({
   nativeApplicationVersion: "1.2.3",
   nativeBuildVersion: "45",
@@ -49,17 +63,17 @@ jest.mock("expo-crypto", () => ({
   getRandomValues: (array: Uint8Array) => array,
   randomUUID: () => "an-install",
 }));
-// The navigator stands in for the whole route tree: what this file is about is
-// which of the two branches the gate takes, not what the router then draws. The
-// two library themes come through unchanged, because the root reshapes them into
-// the app's own and a theme with no colors is a crash rather than a wrong color.
 jest.mock("expo-router", () => {
   const { createElement } = require("react");
   const { Text } = require("react-native");
   const { DarkTheme, DefaultTheme } = jest.requireActual("expo-router");
-  const Stack = () => createElement(Text, { testID: "router-stack" }, "routed");
-  Stack.Screen = () => null;
+  const native = require("./support/native-ui").expoRouterModule();
+  const Stack = Object.assign(
+    jest.fn(() => createElement(Text, { testID: "router-stack" }, "routed")),
+    { Screen: () => null, Toolbar: native.Stack.Toolbar },
+  );
   return {
+    ...native,
     Stack,
     Link: Text,
     Redirect: () => null,
@@ -81,6 +95,9 @@ const TOKEN = JSON.stringify({
 const RootLayout = require("../app/_layout").default as () => React.JSX.Element;
 
 afterEach(() => {
+  queryClient.clear();
+  jest.mocked(useActivitiesPoll).mockReset();
+  jest.useRealTimers();
   jest.restoreAllMocks();
 });
 
@@ -131,6 +148,57 @@ describe("the native composition root", () => {
 
     expect(await screen.findByTestId("router-stack")).toBeOnTheScreen();
     expect(read).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders the persisted queue before any network response or timer", async () => {
+    jest.useFakeTimers({
+      now: new Date("2026-10-14T12:00:00Z"),
+      doNotFake: ["queueMicrotask", "nextTick", "setImmediate"],
+    });
+    jest.spyOn(nativeAppVisibility, "isVisible").mockReturnValue(true);
+    bulkBacking.values.set("cue.install-id", "an-earlier-install");
+    secureBacking.set(
+      "cue.trakt.token",
+      JSON.stringify({ ...JSON.parse(TOKEN), created_at: Math.floor(Date.now() / 1000) }),
+    );
+    const cached = entry();
+    queryClient.setQueryData(queryKeys.library(), { entries: [cached], isPartial: false });
+    seedCalendars(queryClient, fakeRuntime({}));
+    bulkBacking.values.set(
+      "cue.query-cache",
+      JSON.stringify({
+        timestamp: Date.now(),
+        buster: PERSIST_BUSTER,
+        clientState: dehydrate(queryClient, { shouldDehydrateQuery }),
+      }),
+    );
+    queryClient.clear();
+    const fetch = jest.spyOn(globalThis, "fetch").mockReturnValue(new Promise(() => {}));
+    const bootRenders = jest.spyOn(runtimeBoot, "useRuntimeBoot");
+    jest
+      .mocked(useActivitiesPoll)
+      .mockImplementation(
+        jest.requireActual("@cue/core/hooks/useActivitiesPoll").useActivitiesPoll,
+      );
+    jest.mocked(Stack).mockImplementationOnce(require("../app/(tabs)/(up-next)").default);
+    const commits = jest.fn();
+
+    const view = await render(
+      <Profiler id="startup" onRender={commits}>
+        <RootLayout />
+      </Profiler>,
+    );
+
+    expect(screen.getByLabelText("Harbor Lights, S3 E5, Salt Air, 3 left")).toBeOnTheScreen();
+    expect(screen.queryByTestId("up-next-skeleton")).toBeNull();
+    expect(hide).toHaveBeenCalledTimes(1);
+    expect(fetch.mock.calls.map(([url]) => new URL(String(url)).pathname).sort()).toEqual([
+      "/sync/last_activities",
+      "/users/settings",
+    ]);
+    expect(commits).toHaveBeenCalledTimes(4);
+    expect(bootRenders).toHaveBeenCalledTimes(2);
+    await view.unmount();
   });
 
   it("boots straight into the app when the legacy store holds a token", async () => {

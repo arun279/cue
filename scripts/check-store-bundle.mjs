@@ -5,8 +5,8 @@ const HARNESS = [
   "packages/native/src/ui/harness-ids.ts",
   "packages/native/src/ui/AppIdle.tsx",
   "packages/native/src/ui/press-trace.ts",
-  "packages/native/src/ui/response-timing.ts",
   "packages/native/src/ui/snackbar-trace.ts",
+  "packages/native/src/ui/snackbar-policy.harness.ts",
 ];
 
 const [, ...bundles] = readFileSync(process.argv[2] ?? "packages/native/.expo/atlas.jsonl", "utf8")

@@ -18,18 +18,22 @@ config.serializer.createModuleIdFactory = () => {
   };
 };
 
-if (process.env.EXPO_PUBLIC_UI_HARNESS !== "1") {
-  const harness = realpathSync(path.join(__dirname, "src/ui/harness.tsx"));
-  const store = path.join(__dirname, "src/ui/harness.store.ts");
-  const { resolveRequest } = config.resolver;
-  config.resolver.resolveRequest = (context, moduleName, platform) => {
-    const resolution = (resolveRequest ?? context.resolveRequest)(context, moduleName, platform);
-    return resolution.type === "sourceFile" &&
-      path.basename(resolution.filePath) === "harness.tsx" &&
-      realpathSync(resolution.filePath) === harness
-      ? { type: "sourceFile", filePath: store }
-      : resolution;
-  };
-}
+const harness = process.env.EXPO_PUBLIC_UI_HARNESS === "1";
+const replaced = realpathSync(
+  path.join(__dirname, harness ? "../core/src/stores/snackbar-policy.ts" : "src/ui/harness.tsx"),
+);
+const replacement = path.join(
+  __dirname,
+  harness ? "src/ui/snackbar-policy.harness.ts" : "src/ui/harness.store.ts",
+);
+const { resolveRequest } = config.resolver;
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  const resolution = (resolveRequest ?? context.resolveRequest)(context, moduleName, platform);
+  return resolution.type === "sourceFile" &&
+    path.basename(resolution.filePath) === path.basename(replaced) &&
+    realpathSync(resolution.filePath) === replaced
+    ? { type: "sourceFile", filePath: replacement }
+    : resolution;
+};
 
 module.exports = config;

@@ -44,7 +44,7 @@ import {
 import { useAppearance } from "../src/screens/account/ThemeControl";
 import { Onboarding } from "../src/screens/Onboarding";
 import { RuntimeBoot, type RuntimeBootProps } from "../src/screens/RuntimeBoot";
-import { AppIdle, ResponseTimingMarker, SnackbarTrace } from "../src/ui/harness";
+import { AppIdle, SnackbarTrace } from "../src/ui/harness";
 import { Marker } from "../src/ui/Marker";
 import { useNavigationTheme } from "../src/ui/navigation-theme";
 import { SnackbarHost } from "../src/ui/SnackbarHost";
@@ -145,7 +145,6 @@ function RoutedApp(): ReactElement {
         <Stack.Screen name="(account)" options={{ presentation: "fullScreenModal" }} />
       </Stack>
       <SnackbarHost placement="root" />
-      <ResponseTimingMarker />
       <SnackbarTrace />
       <AppIdle />
     </View>

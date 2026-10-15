@@ -1,9 +1,16 @@
-import { dismissSnack, showSnack, useSnackbar } from "@cue/core/stores/snackbar-store";
+import * as snackbarPolicy from "@cue/core/stores/snackbar-policy";
+import {
+  dismissSnack,
+  showSnack,
+  showUndoable,
+  useSnackbar,
+} from "@cue/core/stores/snackbar-store";
 import { act, render, screen, userEvent } from "@testing-library/react-native";
 import type { ReactElement } from "react";
 import { AccessibilityInfo, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { SnackbarHost } from "../../src/ui/SnackbarHost";
+import { AUTO_DISMISS_UNDO } from "../../src/ui/snackbar-policy.harness";
 
 let mockTraktBase: string | undefined;
 jest.mock("../../src/config", () => ({
@@ -20,10 +27,14 @@ jest.mock(
 const MESSAGE = "Harbor Lights S3 E5 marked";
 
 beforeEach(() => {
+  jest.spyOn(AccessibilityInfo, "isScreenReaderEnabled").mockResolvedValue(false);
   mockTraktBase = undefined;
   dismissSnack();
 });
-afterEach(() => jest.useRealTimers());
+afterEach(() => {
+  jest.restoreAllMocks();
+  jest.useRealTimers();
+});
 
 it("draws the message and every action as a target of its own", async () => {
   await render(<SnackbarHost placement="root" />);
@@ -151,14 +162,14 @@ function backfill() {
 it("keeps the undo window by default and fifteen seconds in a build on the fake Trakt", async () => {
   jest.useFakeTimers();
   await render(<SnackbarHost placement="root" />);
-  await act(async () => showSnack({ message: MESSAGE }));
+  await act(async () => showUndoable(MESSAGE, jest.fn()));
   await act(async () => jest.advanceTimersByTime(4999));
   expect(screen.getByTestId("snackbar")).toBeOnTheScreen();
   await act(async () => jest.advanceTimersByTime(1));
   expect(screen.queryByTestId("snackbar")).toBeNull();
 
   mockTraktBase = "http://127.0.0.1:8787";
-  await act(async () => showSnack({ message: MESSAGE }));
+  await act(async () => showUndoable(MESSAGE, jest.fn()));
   await act(async () => jest.advanceTimersByTime(14_999));
   expect(screen.getByTestId("snackbar")).toBeOnTheScreen();
   await act(async () => jest.advanceTimersByTime(1));
@@ -167,8 +178,8 @@ it("keeps the undo window by default and fifteen seconds in a build on the fake 
 
 it("keeps a message for fifteen seconds when the screen reader query resolves true", async () => {
   jest.useFakeTimers();
-  const query = jest.spyOn(AccessibilityInfo, "isScreenReaderEnabled").mockResolvedValue(true);
-  await act(async () => showSnack({ message: MESSAGE }));
+  jest.spyOn(AccessibilityInfo, "isScreenReaderEnabled").mockResolvedValue(true);
+  await act(async () => showUndoable(MESSAGE, jest.fn()));
   const { rerender } = await render(<Hosts sheetOpen={false} />);
 
   await act(async () => jest.advanceTimersByTime(5000));
@@ -178,5 +189,33 @@ it("keeps a message for fifteen seconds when the screen reader query resolves tr
   expect(screen.queryByTestId("snackbar")).toBeOnTheScreen();
   await act(async () => jest.advanceTimersByTime(1));
   expect(screen.queryByTestId("snackbar")).toBeNull();
-  query.mockRestore();
+});
+
+it("keeps harness Undo until it is acted on, even if rendering or the runner stalls", async () => {
+  jest.useFakeTimers();
+  jest.replaceProperty(snackbarPolicy, "AUTO_DISMISS_UNDO", AUTO_DISMISS_UNDO);
+  mockTraktBase = "http://127.0.0.1:8787";
+  const onUndo = jest.fn();
+  const user = userEvent.setup();
+  await act(async () => showUndoable(MESSAGE, onUndo));
+  await act(async () => jest.runOnlyPendingTimers());
+  expect(useSnackbar.getState().snack).not.toBeNull();
+
+  await render(<SnackbarHost placement="root" />);
+  await act(async () => jest.runOnlyPendingTimers());
+  expect(screen.getByTestId("snackbar-undo")).toBeOnTheScreen();
+  await user.press(screen.getByTestId("snackbar-undo"));
+  expect(onUndo).toHaveBeenCalledTimes(1);
+  expect(screen.queryByTestId("snackbar")).toBeNull();
+});
+
+it("still expires harness messages that do not offer Undo", async () => {
+  jest.useFakeTimers();
+  jest.replaceProperty(snackbarPolicy, "AUTO_DISMISS_UNDO", AUTO_DISMISS_UNDO);
+  await render(<SnackbarHost placement="root" />);
+  await act(async () => showSnack({ message: MESSAGE }));
+  await act(async () => jest.advanceTimersByTime(4999));
+  expect(screen.getByTestId("snackbar")).toBeOnTheScreen();
+  await act(async () => jest.advanceTimersByTime(1));
+  expect(screen.queryByTestId("snackbar")).toBeNull();
 });
