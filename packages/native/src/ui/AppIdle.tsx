@@ -1,10 +1,7 @@
-import { applyOptimisticWrite } from "@cue/core/hooks/optimistic-write";
-import type { SubmitOptimistic } from "@cue/core/hooks/useOptimisticWrite";
-import { useTrackedSubmit } from "@cue/core/hooks/useTrackedSubmit";
 import { type SubmitOutcome, useOptionalRuntime } from "@cue/core/runtime/runtime";
 import { useSyncActivity } from "@cue/core/stores/sync-activity-store";
 import { useIsFetching, useQueryClient } from "@tanstack/react-query";
-import { type ReactElement, useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { type ReactElement, useEffect, useState, useSyncExternalStore } from "react";
 import { HARNESS_IDS } from "./harness-ids";
 import { Marker } from "./Marker";
 
@@ -17,7 +14,11 @@ export function createAcknowledgments() {
     snapshot = next;
     for (const listener of listeners) listener();
   };
+  const complete = (kind: Operation, id: number, outcome: SubmitOutcome): void => {
+    publish({ ...snapshot, completed: `${snapshot.completed} ${kind} ${id} ${outcome};` });
+  };
   return {
+    complete,
     getSnapshot: () => snapshot,
     subscribe: (listener: () => void) => {
       listeners.add(listener);
@@ -33,7 +34,7 @@ export function createAcknowledgments() {
         outcome = await run();
         return outcome;
       } finally {
-        publish({ ...snapshot, completed: `${snapshot.completed} ${kind} ${id} ${outcome};` });
+        complete(kind, id, outcome);
       }
     },
   };
@@ -41,38 +42,43 @@ export function createAcknowledgments() {
 
 const operations = createAcknowledgments();
 
-export function useOptimisticWrite(): SubmitOptimistic {
-  const submit = useTrackedSubmit();
-  const client = useQueryClient();
-  return useCallback(
-    (ops, effects) =>
-      operations.run("write", async () => {
-        const outcome = await applyOptimisticWrite(submit, ops, effects);
-        const reads = await Promise.allSettled(
-          client
-            .getQueryCache()
-            .getAll()
-            .filter((query) => query.state.fetchStatus !== "idle")
-            .map((query) => query.promise),
-        );
-        return reads.some((read) => read.status === "rejected") ? "failed" : outcome;
-      }),
-    [submit, client],
-  );
-}
-
 export async function trackSync(run: () => Promise<boolean>): Promise<boolean> {
   return (await operations.run("sync", async () => ((await run()) ? "done" : "failed"))) === "done";
 }
 
 export function AppIdle(): ReactElement | null {
+  const client = useQueryClient();
   const fetching = useIsFetching();
+  const startedWrites = useSyncActivity((state) => state.startedWrites);
+  const completedWrites = useSyncActivity((state) => state.completedWrites);
   const inFlight = useSyncActivity((state) => state.pending);
   const checked = useSyncActivity((state) => state.checked);
   const durable = useOptionalRuntime()?.pendingWrites() ?? 0;
   const [ready, setReady] = useState(false);
   const idle = checked && fetching === 0 && inFlight === 0 && durable === 0;
   const snapshot = useSyncExternalStore(operations.subscribe, operations.getSnapshot);
+
+  useEffect(
+    () =>
+      useSyncActivity.subscribe((state, previous) => {
+        const write = state.lastWrite;
+        if (write === null || write === previous.lastWrite) return;
+        void Promise.allSettled(
+          client
+            .getQueryCache()
+            .getAll()
+            .filter((query) => query.state.fetchStatus !== "idle")
+            .map((query) => query.promise),
+        ).then((reads) => {
+          operations.complete(
+            "write",
+            write.id,
+            reads.some((read) => read.status === "rejected") ? "failed" : write.outcome,
+          );
+        });
+      }),
+    [client],
+  );
 
   useEffect(() => {
     if (idle) setReady(true);
@@ -83,7 +89,7 @@ export function AppIdle(): ReactElement | null {
       {ready ? <Marker testID={HARNESS_IDS.appReady} /> : null}
       <Marker
         testID={HARNESS_IDS.operationStarted}
-        accessibilityLabel={`write ${snapshot.write}; sync ${snapshot.sync}`}
+        accessibilityLabel={`write ${startedWrites}; sync ${snapshot.sync}; completed writes ${completedWrites}`}
       />
       <Marker testID={HARNESS_IDS.operationCompleted} accessibilityLabel={snapshot.completed} />
     </>

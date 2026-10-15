@@ -21,21 +21,19 @@ config.serializer.createModuleIdFactory = () => {
 const harness = process.env.EXPO_PUBLIC_UI_HARNESS === "1";
 const replacements = new Map(
   (harness
-    ? [
-        ["../core/src/stores/snackbar-policy.ts", "src/ui/snackbar-policy.harness.ts"],
-        ["../core/src/hooks/useOptimisticWrite.ts", "src/ui/AppIdle.tsx"],
-      ]
+    ? [["../core/src/stores/snackbar-policy.ts", "src/ui/snackbar-policy.harness.ts"]]
     : [["src/ui/harness.tsx", "src/ui/harness.store.ts"]]
   ).map(([source, target]) => [
     realpathSync(path.join(__dirname, source)),
     path.join(__dirname, target),
   ]),
 );
+const replacementNames = new Set([...replacements.keys()].map((source) => path.basename(source)));
 const { resolveRequest } = config.resolver;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   const resolution = (resolveRequest ?? context.resolveRequest)(context, moduleName, platform);
   const replacement =
-    resolution.type === "sourceFile"
+    resolution.type === "sourceFile" && replacementNames.has(path.basename(resolution.filePath))
       ? replacements.get(realpathSync(resolution.filePath))
       : undefined;
   return replacement === undefined ? resolution : { type: "sourceFile", filePath: replacement };
