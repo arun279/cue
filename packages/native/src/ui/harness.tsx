@@ -1,6 +1,6 @@
 import { type NativeStackNavigationProp, useNavigation } from "expo-router";
-import { type ReactElement, useLayoutEffect, useRef, useState } from "react";
-import { Platform, type ScrollViewProps, View } from "react-native";
+import { type ReactElement, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { Platform, type ScrollViewProps, View, type ViewProps } from "react-native";
 import { HARNESS_IDS } from "./harness-ids";
 import { Marker } from "./Marker";
 import { usePressTrace } from "./press-trace";
@@ -10,6 +10,23 @@ export { AppIdle, trackSync } from "./AppIdle";
 export { tracePress } from "./press-trace";
 
 export const HIDE_CARET = Platform.OS === "android";
+
+export function useOnboardingAcknowledgment(): {
+  onLayout: ViewProps["onLayout"];
+  marker: ReactElement | null;
+} {
+  const [laidOut, setLaidOut] = useState(false);
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    if (!laidOut) return;
+    const idle = requestIdleCallback(() => setReady(true));
+    return () => cancelIdleCallback(idle);
+  }, [laidOut]);
+  return {
+    onLayout: () => setLaidOut(true),
+    marker: ready ? <Marker testID={HARNESS_IDS.onboardingReady} /> : null,
+  };
+}
 
 export function SheetPresented(): ReactElement | null {
   const navigation = useNavigation<NativeStackNavigationProp<Record<string, undefined>>>();
@@ -76,7 +93,5 @@ export function SnackbarTrace(): ReactElement | null {
 
 export function PressTrace(): ReactElement | null {
   const label = usePressTrace();
-  return label === null ? null : (
-    <Marker accessibilityLabel={label} testID={HARNESS_IDS.pressTrace} />
-  );
+  return <Marker accessibilityLabel={label} testID={HARNESS_IDS.pressTrace} />;
 }

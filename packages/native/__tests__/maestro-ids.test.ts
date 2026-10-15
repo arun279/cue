@@ -370,6 +370,21 @@ it("waits for scroll completion before every sign-out tap", () => {
   ).not.toContain('- tapOn:\n    id: "settings-sign-out"');
 });
 
+it("waits for onboarding readiness, taps once with default settling, and logs the press trace", () => {
+  const source = readFileSync(join(flowsDirectory, "lib/sign-in.yaml"), "utf8");
+  const commands = parseAllDocuments(source)[1]?.toJS();
+  expect(commands[0]).toEqual({
+    extendedWaitUntil: { visible: { id: HARNESS_IDS.onboardingReady }, timeout: 90000 },
+  });
+  expect(commands.slice(2, 6)).toEqual([
+    { tapOn: { id: TEST_IDS.buttonConnect } },
+    { copyTextFrom: { id: HARNESS_IDS.pressTrace } },
+    { evalScript: `\${console.log('CUE_PRESS_TRACE=' + maestro.copiedText)}` },
+    { extendedWaitUntil: { visible: { id: TEST_IDS.deviceCodeValue }, timeout: 30000 } },
+  ]);
+  expect(commands.filter((command: object) => "tapOn" in command)).toHaveLength(1);
+});
+
 it("waits for presentation, dismisses once per platform, and checks the sheet is gone once", () => {
   const source = readFileSync(join(flowsDirectory, "lib/dismiss-episode-sheet.yaml"), "utf8");
   expect(parseAllDocuments(source)[1]?.toJS()).toEqual([
