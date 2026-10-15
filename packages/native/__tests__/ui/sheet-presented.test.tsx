@@ -1,9 +1,10 @@
 import { router, Stack } from "expo-router";
 import { act, fireEvent, renderRouter, screen } from "expo-router/testing-library";
 import { Platform, View } from "react-native";
+import MonthJumpRoute from "../../app/(account)/history-jump";
 import EpisodeRoute from "../../app/(tabs)/(up-next,library,calendar,search)/show/[showId]/episode/[season]/[episode]";
 import { HARNESS_IDS } from "../../src/ui/harness-ids";
-import { useEpisodeSheetOptions } from "../../src/ui/navigation-theme";
+import { useEpisodeSheetOptions, useMonthJumpSheetOptions } from "../../src/ui/navigation-theme";
 import { TEST_IDS } from "../../src/ui/test-ids";
 import { QueryProvider } from "../support/query-provider";
 
@@ -20,13 +21,20 @@ jest.mock(
 
 afterEach(() => jest.useRealTimers());
 
-it("acknowledges only a completed presentation, retains it, and starts fresh on reopening", async () => {
+it.each([
+  { href: "/show/8803/episode/2/3", sheetId: TEST_IDS.episodeSheet },
+  { href: "/history-jump", sheetId: TEST_IDS.historyJumpSheet },
+] as const)("$href acknowledges only a completed presentation, retains it, and starts fresh on reopening", async ({
+  href,
+  sheetId,
+}) => {
   jest.useFakeTimers();
   await renderRouter(
     {
       _layout: () => (
         <Stack>
           <Stack.Screen name="index" />
+          <Stack.Screen name="history-jump" options={useMonthJumpSheetOptions()} />
           <Stack.Screen
             name="show/[showId]/episode/[season]/[episode]"
             options={useEpisodeSheetOptions()}
@@ -34,18 +42,19 @@ it("acknowledges only a completed presentation, retains it, and starts fresh on 
         </Stack>
       ),
       index: () => <View />,
+      "history-jump": MonthJumpRoute,
       "show/[showId]/episode/[season]/[episode]": EpisodeRoute,
     },
     { initialUrl: "/", wrapper: QueryProvider },
   );
-  await act(() => router.push("/show/8803/episode/2/3"));
+  await act(() => router.push(href));
   const nativeSheet = screen.container.queryAll(
     (node) =>
       node.type === (Platform.OS === "ios" ? "RNSModalScreen" : "RNSScreen") &&
-      node.queryAll((child) => child.props["testID"] === TEST_IDS.episodeSheet).length > 0,
+      node.queryAll((child) => child.props["testID"] === sheetId).length > 0,
   )[0];
   expect(nativeSheet).toBeDefined();
-  if (nativeSheet === undefined) throw new Error("Missing native episode sheet");
+  if (nativeSheet === undefined) throw new Error("Missing native sheet");
   expect(screen.queryByTestId(HARNESS_IDS.sheetPresented)).toBeNull();
   await fireEvent(nativeSheet, "willAppear");
   await act(async () => jest.advanceTimersByTime(60_000));
@@ -60,7 +69,7 @@ it("acknowledges only a completed presentation, retains it, and starts fresh on 
   expect(screen.getByTestId(HARNESS_IDS.sheetPresented)).toBeOnTheScreen();
   await act(() => router.back());
   expect(screen.queryByTestId(HARNESS_IDS.sheetPresented)).toBeNull();
-  await act(() => router.push("/show/8803/episode/2/3"));
-  expect(screen.getByTestId(TEST_IDS.episodeSheet)).toBeOnTheScreen();
+  await act(() => router.push(href));
+  expect(screen.getByTestId(sheetId)).toBeOnTheScreen();
   expect(screen.queryByTestId(HARNESS_IDS.sheetPresented)).toBeNull();
 });
