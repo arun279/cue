@@ -117,7 +117,7 @@ jobs:
       - run: pnpm check
       - name: Upload JavaScript bundles
         id: js-bundles
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: cue-js-bundles
           path: |
@@ -160,7 +160,7 @@ jobs:
           pnpm --dir packages/native perf:render
       - name: Gate render counts
         run: pnpm check:render-counts
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ !cancelled() }}
         with:
           name: reassure-render-performance
@@ -234,12 +234,12 @@ jobs:
           scripts/diff-footprint.sh "origin/$BASE_REF" base-metrics.json head-metrics.json \
             > footprint.md
       - name: Upload Expo Atlas
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: expo-atlas
           path: packages/native/.expo/atlas.jsonl
           retention-days: 7
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: cue-footprint-${{ github.event.pull_request.head.sha || github.sha }}
           path: head-metrics.json
@@ -356,7 +356,7 @@ jobs:
             } | awk '$1 ~ /^@rpath\/.*\.framework\// { split($1, path, "/"); print path[2] }' | sort -u
           )
           tar -czf "$RUNNER_TEMP/native-ios-app/Cue.app.tgz" -C "$RUNNER_TEMP/native-ios-app" Cue.app
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: cue-native-ios-${{ needs.fingerprint.outputs.ios }}${{ inputs.copy }}
           path: ${{ runner.temp }}/native-ios-app/Cue.app.tgz
@@ -398,14 +398,14 @@ jobs:
             --format JUNIT \
             --output "$RUNNER_TEMP/maestro-results-${{ matrix.suite }}.xml" \
             --test-output-dir "$output"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ !cancelled() }}
         with:
           name: ui-screenshots-ios-light-${{ matrix.suite }}${{ inputs.copy }}
           path: ${{ runner.temp }}/screenshots/ios/light/${{ matrix.suite }}
           if-no-files-found: error
           retention-days: 14
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ always() }}
         with:
           name: native-e2e-ios-light-${{ matrix.suite }}${{ inputs.copy }}
@@ -466,14 +466,14 @@ jobs:
             --format JUNIT \
             --output "$RUNNER_TEMP/maestro-results-dark.xml" \
             --test-output-dir "$RUNNER_TEMP/screenshots/ios/dark"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ !cancelled() }}
         with:
           name: ui-screenshots-ios-dark${{ inputs.copy }}
           path: ${{ runner.temp }}/screenshots/ios/dark
           if-no-files-found: error
           retention-days: 14
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ always() }}
         with:
           name: native-e2e-ios-dark${{ inputs.copy }}
@@ -584,7 +584,7 @@ jobs:
               {name: "Firebase tester APK file", size: $tester, configuration: "arm64-v8a, all densities"},
               {name: "Play download estimate", size: $play, configuration: "XXXHDPI arm64-v8a, English, Android 15"}
             ]' > "$RUNNER_TEMP/head-android-sizes.json"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: cue-native-android-${{ needs.fingerprint.outputs.android }}${{ inputs.copy }}
           path: |
@@ -593,7 +593,7 @@ jobs:
             ${{ runner.temp }}/native-android/tester-arm64-v8a.apk
             ${{ runner.temp }}/native-android/universal.apk
           retention-days: 30
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feat/expo-native'
         with:
           name: cue-native-android-sizes${{ inputs.copy }}
@@ -610,7 +610,7 @@ jobs:
       MAESTRO_CLI_NO_ANALYTICS: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
@@ -643,14 +643,14 @@ jobs:
           arch: x86_64
           profile: pixel_7_pro
           script: bash scripts/verify-android-ui.sh "$RUNNER_TEMP/cue-native-android/universal.apk" "$RUNNER_TEMP/android-ui" "$RUNNER_TEMP/screenshots/android" light
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ !cancelled() }}
         with:
           name: ui-screenshots-android-light${{ inputs.copy }}
           path: ${{ runner.temp }}/screenshots/android/light
           if-no-files-found: error
           retention-days: 14
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ always() }}
         with:
           name: android-e2e-light${{ inputs.copy }}
@@ -668,7 +668,7 @@ jobs:
       MAESTRO_CLI_NO_ANALYTICS: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
@@ -701,14 +701,14 @@ jobs:
           arch: x86_64
           profile: pixel_7_pro
           script: bash scripts/verify-android-ui.sh "$RUNNER_TEMP/cue-native-android/universal.apk" "$RUNNER_TEMP/android-ui" "$RUNNER_TEMP/screenshots/android" dark
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ !cancelled() }}
         with:
           name: ui-screenshots-android-dark${{ inputs.copy }}
           path: ${{ runner.temp }}/screenshots/android/dark
           if-no-files-found: error
           retention-days: 14
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ always() }}
         with:
           name: android-e2e-dark${{ inputs.copy }}
@@ -745,7 +745,7 @@ jobs:
           scripts/gather-pr-media.sh "$GITHUB_RUN_ID" "$(scripts/measured-base.sh pull_request)" \
             "$HEAD_SHA" "$RUNNER_TEMP/pr-media"
           cat "$RUNNER_TEMP/pr-media/review.md" >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: pr-media-${{ github.event.pull_request.head.sha }}
           path: ${{ runner.temp }}/pr-media
