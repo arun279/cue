@@ -9,7 +9,7 @@ test -n "$device_id"
 xcrun simctl boot "$device_id"
 
 maestro_zip="$RUNNER_TEMP/maestro.zip"
-node scripts/mock-trakt/server.mjs > "$RUNNER_TEMP/mock-trakt.log" 2>&1 &
+node scripts/start-ready-process.mjs scripts/mock-trakt/server.mjs "$RUNNER_TEMP/mock-trakt.log"
 curl -fsSL \
   https://github.com/mobile-dev-inc/Maestro/releases/download/cli-2.10.0/maestro.zip \
   -o "$maestro_zip"
@@ -29,20 +29,5 @@ xcrun simctl spawn "$device_id" defaults write com.apple.keyboard.preferences \
 xcrun simctl spawn "$device_id" defaults write com.apple.Accessibility ReduceMotionEnabled -bool true
 xcrun simctl install "$device_id" "$app_dir/Cue.app"
 xcrun simctl launch --terminate-running-process "$device_id" app.cuetracker
-for _ in {1..30}; do
-  if xcrun simctl spawn "$device_id" launchctl list | \
-    awk '$1 ~ /^[0-9]+$/ && $3 ~ /(^|:)app\.cuetracker(\[|$)/ { found = 1 } END { exit !found }'; then
-    break
-  fi
-  sleep 1
-done
 xcrun simctl terminate "$device_id" app.cuetracker
-
-for _ in {1..30}; do
-  if curl -fsS http://127.0.0.1:8787/users/settings > /dev/null; then
-    echo "device_id=$device_id" >> "$GITHUB_OUTPUT"
-    exit 0
-  fi
-  sleep 1
-done
-exit 1
+echo "device_id=$device_id" >> "$GITHUB_OUTPUT"

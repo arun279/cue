@@ -3,6 +3,14 @@ name: Mobile release
 on:
   workflow_dispatch:
     inputs:
+      ci_run_id:
+        description: Completed CI push run ID for this exact commit
+        type: string
+        required: false
+      codeql_run_id:
+        description: Completed CodeQL push run ID for this exact commit
+        type: string
+        required: false
       platform:
         description: Platform(s)
         type: choice
@@ -50,8 +58,7 @@ jobs:
     # unverified build. .github/required-checks.json is a deliberate copy of the
     # ruleset's contexts rather than a read of it: a gate that asks the thing it
     # guards whether that thing is happy is not a gate. Keep the two in step.
-    # A dispatch on a commit CI never ran on, which is any ref outside main,
-    # feat/expo-native and release/*, finds no checks and times out.
+    # Dispatch identifies completed CI and CodeQL push runs for this commit.
     if: inputs.promote_ios == '' && inputs.promote_android == ''
     runs-on: ubuntu-latest
     timeout-minutes: 50
@@ -66,10 +73,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           SHA: ${{ github.sha }}
-          # GitHub Actions, so no other check provider can satisfy a required name.
-          APP_ID: "15368"
-          DEADLINE_MINUTES: "45"
-          POLL_SECONDS: "20"
+          CI_RUN_ID: ${{ inputs.ci_run_id }}
+          CODEQL_RUN_ID: ${{ inputs.codeql_run_id }}
         run: scripts/require-green-ci.sh
 
   ios:

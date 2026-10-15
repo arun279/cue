@@ -15,22 +15,29 @@ adb install "$apk"
 adb shell am force-stop app.cuetracker
 adb logcat -c
 launch_status=0
-adb shell am start -W -n app.cuetracker/.MainActivity || launch_status=$?
-sleep 10
+timeout 120 adb shell am start -W -n app.cuetracker/.MainActivity > "$logcat.launch" 2>&1 || launch_status=$?
+cat "$logcat.launch"
 capture_logcat
 
 if [ "$launch_status" -ne 0 ]; then
   echo "Activity launch failed with status $launch_status" >&2
+  cat "$logcat" >&2
   exit "$launch_status"
+fi
+if ! grep -q '^Status: ok' "$logcat.launch"; then
+  echo "Activity did not acknowledge readiness" >&2
+  cat "$logcat" >&2
+  exit 1
 fi
 if grep -Eq 'FATAL EXCEPTION|AndroidRuntime.*Process: app\.cuetracker|Process: app\.cuetracker' "$logcat"; then
   grep -n -C 20 -E 'FATAL EXCEPTION|AndroidRuntime|Process: app\.cuetracker' "$logcat" >&2
   exit 1
 fi
 
-pid=$(adb shell pidof app.cuetracker | tr -d '\r')
+pid=$(adb shell pidof app.cuetracker | tr -d '\r' || true)
 if [ -z "$pid" ]; then
   echo "app.cuetracker is not running after launch" >&2
+  cat "$logcat" >&2
   exit 1
 fi
 echo "app.cuetracker is alive as PID $pid"

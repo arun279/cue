@@ -16,10 +16,10 @@ it("readies the simulator in its final appearance, then runs Maestro once, in ev
       `scripts/prepare-ios-ui.sh "$RUNNER_TEMP/native-ios-app" ${name.includes("dark") ? "dark" : "light"}\n`,
     );
     expect(body).not.toContain("simctl ui");
-    const runs = [...body.matchAll(/^\s*maestro\s.*$/gm)];
+    const runs = [...body.matchAll(/^\s*bash scripts\/maestro-test\.sh\s.*$/gm)];
     expect(prepare).toBeGreaterThan(-1);
     expect(runs.map(([run]) => run.trim())).toEqual([
-      expect.stringMatching(/^maestro --device "\$DEVICE_ID" test /),
+      expect.stringMatching(/^bash scripts\/maestro-test\.sh --device "\$DEVICE_ID" test /),
     ]);
     expect(runs[0]?.index).toBeGreaterThan(prepare);
   }

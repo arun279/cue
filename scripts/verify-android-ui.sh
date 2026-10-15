@@ -22,17 +22,7 @@ adb shell settings put system font_scale 1.0
 adb shell wm size reset
 adb shell wm density reset
 
-node scripts/mock-trakt/server.mjs > "$output/mock-trakt.log" 2>&1 &
-mock_pid=$!
-ready=0
-for _ in {1..30}; do
-  if curl -fsS http://127.0.0.1:8787/users/settings > /dev/null; then
-    ready=1
-    break
-  fi
-  sleep 1
-done
-test "$ready" -eq 1
+mock_pid=$(node scripts/start-ready-process.mjs scripts/mock-trakt/server.mjs "$output/mock-trakt.log")
 
 adb reverse tcp:8787 tcp:8787
 bash scripts/verify-android-launch.sh "$apk" "$output/logcat.txt"
@@ -45,7 +35,7 @@ adb shell am start -W -n app.cuetracker/.MainActivity
 adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS
 suite=.maestro/ci/app.yaml
 if [ "$appearance" = dark ]; then suite=.maestro/ci/screenshots.yaml; fi
-if ! maestro test "$suite" --driver-host-port 7001 \
+if ! bash scripts/maestro-test.sh test "$suite" --driver-host-port 7001 \
   --format JUNIT \
   --output "$output/maestro-results-$appearance.xml" \
   --debug-output "$output/maestro-$appearance" \

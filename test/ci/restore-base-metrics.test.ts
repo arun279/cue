@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { gitEnv } from "../support/git-env";
@@ -28,14 +28,18 @@ const baseCommit = (files: Record<string, string>): string => {
   return repository;
 };
 
-type Job = { name: string; conclusion: string | null };
+type Job = { name: string; status: string; conclusion: string | null };
 
 type BaseRun = {
   run: { event: string; status: string; conclusion: string | null };
-  polls: Job[][];
+  jobs: Job[];
+  artifact?: boolean;
+  runs?: number[];
+  head?: string;
+  workflow?: string;
 };
 
-const STUB_GH = String.raw`#!/bin/sh
+const STUB_GH = `#!/bin/sh
 if [ "$1" = run ]; then
   [ -d "$FIXTURES/artifacts/$7" ] || exit 1
   mkdir -p "$9" && cp -R "$FIXTURES/artifacts/$7/." "$9"
@@ -46,56 +50,50 @@ for arg; do
   case $arg in repos/*) url=$arg ;; esac
   prev=$arg
 done
-query() { printf '%s\n' "$url" | sed -n "s/.*[?&]$1=\([^&]*\).*/\1/p"; }
 case $url in
-  */workflows/ci.yml/runs*)
-    jq --arg status "$(query status)" --arg event "$(query event)" \
-      '.workflow_runs |= map(select(($status == "" or .status == $status or .conclusion == $status) and ($event == "" or .event == $event)))' \
-      "$FIXTURES/runs.json" ;;
-  */jobs*)
-    echo poll >> "$FIXTURES/polls"
-    poll=$(grep -c . "$FIXTURES/polls")
-    [ -f "$FIXTURES/jobs-$poll.json" ] || poll=$(ls "$FIXTURES" | grep -c '^jobs-')
-    cat "$FIXTURES/jobs-$poll.json" ;;
+  */workflows/ci.yml/runs*) cat "$FIXTURES/runs.json" ;;
+  */jobs*) cat "$FIXTURES/jobs.json" ;;
+  */actions/runs/7) cat "$FIXTURES/run.json" ;;
   *) echo '{"artifacts": []}' ;;
-esac | jq -r "$filter"
+esac | if [ -n "$filter" ]; then jq -r "$filter"; else cat; fi
 `;
 
-const ciFixtures = (base?: BaseRun): string => {
+const ciFixtures = (sha: string, base?: BaseRun): string => {
   const ci = tempDirectory("cue-restore-ci-");
   writeFile(
     path.join(ci, "runs.json"),
-    JSON.stringify({ workflow_runs: base ? [{ id: 7, ...base.run }] : [] }),
-  );
-  for (const [index, jobs] of (base?.polls ?? [[]]).entries()) {
-    writeFile(path.join(ci, `jobs-${index + 1}.json`), JSON.stringify({ jobs }));
-  }
-  writeFile(
-    path.join(ci, "artifacts/cue-js-bundles/dist/_expo/static/js/ios/entry-a.hbc"),
-    "ios-bundle",
-  );
-  writeFile(
-    path.join(ci, "artifacts/cue-js-bundles/dist/_expo/static/js/android/entry-b.hbc"),
-    "apk",
-  );
-  writeFile(
-    path.join(ci, "artifacts/cue-native-android-sizes/head-android-sizes.json"),
     JSON.stringify([
-      { name: "Firebase tester APK file", size: 300 },
-      { name: "Play download estimate", size: 200 },
+      { workflow_runs: base ? (base.runs ?? [7]).map((id) => ({ id, ...base.run })) : [] },
     ]),
   );
+  writeFile(
+    path.join(ci, "run.json"),
+    JSON.stringify({
+      id: 7,
+      head_sha: base?.head ?? sha,
+      path: base?.workflow ?? ".github/workflows/ci.yml",
+      ...base?.run,
+    }),
+  );
+  writeFile(path.join(ci, "jobs.json"), JSON.stringify([{ jobs: base?.jobs ?? [] }]));
+  if (base?.artifact !== false) {
+    writeFile(
+      path.join(ci, `artifacts/cue-footprint-${sha}/head-metrics.json`),
+      JSON.stringify(MEASURED_BASE),
+    );
+  }
   return ci;
 };
 
 const restore = (repository: string, base?: BaseRun) => {
   const bin = tempDirectory("cue-restore-bin-");
-  const ci = ciFixtures(base);
+  const sha = git(repository, "rev-parse", "HEAD");
+  const ci = ciFixtures(sha, base);
   writeFileSync(path.join(bin, "gh"), STUB_GH, { mode: 0o755 });
-  writeFileSync(path.join(bin, "sleep"), `#!/bin/sh\necho "$1" >> "$FIXTURES/sleeps"\n`, {
+  writeFileSync(path.join(bin, "sleep"), `#!/bin/sh\nexit 99\n`, {
     mode: 0o755,
   });
-  const result = spawnSync(SCRIPT, [git(repository, "rev-parse", "HEAD")], {
+  return spawnSync(SCRIPT, [sha], {
     cwd: repository,
     encoding: "utf8",
     env: {
@@ -106,11 +104,6 @@ const restore = (repository: string, base?: BaseRun) => {
       RUNNER_TEMP: tempDirectory("cue-restore-runner-"),
     },
   });
-  const lines = (file: string) =>
-    existsSync(path.join(ci, file))
-      ? readFileSync(path.join(ci, file), "utf8").trim().split("\n")
-      : [];
-  return { ...result, polls: lines("polls").length, sleeps: lines("sleeps") };
 };
 
 const baseMetrics = (repository: string): unknown =>
@@ -125,9 +118,13 @@ const MEASURED_BASE = {
   ],
 };
 
-const job = (name: string, conclusion: string | null): Job => ({ name, conclusion });
+const job = (name: string, conclusion: string | null): Job => ({
+  name,
+  status: conclusion === null ? "in_progress" : "completed",
+  conclusion,
+});
 
-const producersDone = [job("check", "success"), job("native-android", "success")];
+const producersDone = [job("footprint", "success")];
 
 const nativeApp = () => baseCommit({ "packages/native/package.json": "{}\n" });
 
@@ -157,46 +154,71 @@ describe("restoring the merge-base measurement", () => {
     const repository = nativeApp();
     const result = restore(repository, {
       run: { event: "push", status: "completed", conclusion: "failure" },
-      polls: [[...producersDone, job("native-ios", "failure")]],
+      jobs: [...producersDone, job("native-ios", "failure")],
     });
 
     expect(result.status).toBe(0);
     expect(baseMetrics(repository)).toEqual(MEASURED_BASE);
-    expect(result.sleeps).toEqual([]);
   });
 
-  it("waits a minute between polls for a base run still producing its artifacts", () => {
-    const repository = nativeApp();
-    const result = restore(repository, {
-      run: { event: "push", status: "in_progress", conclusion: null },
-      polls: [[job("check", "success"), job("native-android", null)], producersDone],
-    });
-
-    expect(result.status).toBe(0);
-    expect(baseMetrics(repository)).toEqual(MEASURED_BASE);
-    expect(result.sleeps).toEqual(["60"]);
-  });
-
-  it("gives up after 30 polls when the producing jobs never finish", () => {
+  it("rejects an incomplete base run even when its producer jobs passed", () => {
     const result = restore(nativeApp(), {
       run: { event: "push", status: "in_progress", conclusion: null },
-      polls: [[job("check", null)]],
+      jobs: producersDone,
     });
-
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("::error::Missing merge-base measurements");
-    expect(result.polls).toBe(30);
-    expect(result.sleeps).toEqual(Array(29).fill("60"));
+    expect(result.stdout).toContain("not a completed push CI run");
   });
 
-  it("fails at once when a producing job failed on the base", () => {
+  it.each([
+    "failure",
+    "cancelled",
+    null,
+  ])("rejects an unsuccessful producing job: %s", (conclusion) => {
     const result = restore(nativeApp(), {
-      run: { event: "push", status: "in_progress", conclusion: null },
-      polls: [[job("check", "success"), job("native-android", "failure")]],
+      run: { event: "push", status: "completed", conclusion: "failure" },
+      jobs: [job("footprint", conclusion)],
     });
-
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("::error::Missing merge-base measurements");
-    expect(result.polls).toBe(1);
+    expect(result.stdout).toContain("missing or unsuccessful footprint jobs");
+  });
+
+  it.each([
+    { head: "wrong" },
+    { workflow: ".github/workflows/other.yml" },
+  ])("rejects a run belonging elsewhere: %j", (identity) => {
+    const result = restore(nativeApp(), {
+      run: { event: "push", status: "completed", conclusion: "success" },
+      jobs: producersDone,
+      ...identity,
+    });
+    expect(result.status).toBe(1);
+  });
+  it("fails when the completed base run did not publish its measurement", () => {
+    const result = restore(nativeApp(), {
+      run: { event: "push", status: "completed", conclusion: "success" },
+      jobs: producersDone,
+      artifact: false,
+    });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("has no cue-footprint-");
+  });
+
+  it("does not choose the latest of multiple base runs", () => {
+    const result = restore(nativeApp(), {
+      run: { event: "push", status: "completed", conclusion: "success" },
+      jobs: producersDone,
+      runs: [7, 8],
+    });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("provide BASE_CI_RUN_ID");
+  });
+
+  it("rejects an earlier failed footprint attempt even after a successful rerun", () => {
+    const result = restore(nativeApp(), {
+      run: { event: "push", status: "completed", conclusion: "success" },
+      jobs: [job("footprint", "failure"), ...producersDone],
+    });
+    expect(result.status).toBe(1);
   });
 });

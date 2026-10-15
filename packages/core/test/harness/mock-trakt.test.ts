@@ -93,7 +93,7 @@ const oauth = (): OAuthConfig => ({
   siteBaseUrl: baseUrl,
 });
 
-const today = (): string => new Date().toISOString().slice(0, 10);
+const today = (): string => new Date(mock.library.now).toISOString().slice(0, 10);
 
 const resetTo = async (seed: string): Promise<Response> =>
   fetch(`${baseUrl}/__reset?seed=${seed}`, { method: "POST" });
@@ -261,8 +261,13 @@ describe("the seeded account parses through the app's own contracts", () => {
 
   it("serves a calendar window with the upcoming airings the seed promises", async () => {
     const upcoming = ok(await getMyShowsCalendar(client(), today(), 28));
-    expect(upcoming.length).toBeGreaterThan(0);
-    expect(upcoming.every((item) => Date.parse(item.first_aired) >= Date.now())).toBe(true);
+    expect(upcoming).toContainEqual(
+      expect.objectContaining({
+        first_aired: "2026-10-20T00:00:00.000Z",
+        episode: expect.objectContaining({ ids: expect.objectContaining({ trakt: 880609 }) }),
+      }),
+    );
+    expect(upcoming.every((item) => Date.parse(item.first_aired) >= mock.library.now)).toBe(true);
   });
 
   it("serves history one page at a time, with the pagination headers the client walks", async () => {
@@ -384,7 +389,7 @@ describe("a request the mock cannot answer", () => {
 describe("the seeded account fills the surfaces the harness exists to demo", () => {
   it("produces both an Up Next queue and a lapsed drawer", async () => {
     const entries = await loadUpNextEntries(client());
-    const groups = groupUpNext(entries, Date.now(), DEFAULT_STALENESS_THRESHOLD_MS);
+    const groups = groupUpNext(entries, mock.library.now, DEFAULT_STALENESS_THRESHOLD_MS);
     expect(groups.queue.length).toBeGreaterThan(1);
     expect(groups.lapsed.length).toBeGreaterThan(0);
     expect(entries.some((entry) => entry.inWatchlist && entry.completed === 0)).toBe(true);
@@ -405,7 +410,7 @@ describe("seed profiles", () => {
 
   it("moves every activity the app diffs past the replaced account's, even a write's", async () => {
     await write("/sync/history", {
-      episodes: [{ ids: { trakt: 880308 }, watched_at: new Date().toISOString() }],
+      episodes: [{ ids: { trakt: 880308 }, watched_at: new Date(mock.library.now).toISOString() }],
     });
     const before = ok(await getLastActivities(client()));
     await resetTo("default");
@@ -566,7 +571,9 @@ describe("writes move the account the next read sees", () => {
     if (next === null) throw new Error("the seeded show must have a next episode to mark");
 
     const body = {
-      episodes: [{ ids: { trakt: next.ids.trakt }, watched_at: new Date().toISOString() }],
+      episodes: [
+        { ids: { trakt: next.ids.trakt }, watched_at: new Date(mock.library.now).toISOString() },
+      ],
     };
     expect(await write("/sync/history", body)).toMatchObject({
       added: { episodes: 1 },
@@ -603,7 +610,7 @@ describe("writes move the account the next read sees", () => {
 
   it("reports a write that matched nothing rather than answering a silent success", async () => {
     const response = await write("/sync/history", {
-      episodes: [{ ids: { trakt: 1 }, watched_at: new Date().toISOString() }],
+      episodes: [{ ids: { trakt: 1 }, watched_at: new Date(mock.library.now).toISOString() }],
     });
     expect(response).toMatchObject({
       added: { episodes: 0 },
