@@ -148,7 +148,6 @@ it.each([
 
 it.each([
   `[Done] Perform XCUITest driver status check on test-device\n${refused}`,
-  "[Failed] Perform XCUITest driver status check on test-device, exception: java.net.SocketTimeoutException: timeout",
   "XCTestDriver request failed. Status code: 500, path: http://127.0.0.1:49889/deviceInfo, body: unknown",
   "iOS driver not ready in time, consider increasing timeout by configuring MAESTRO_DRIVER_STARTUP_TIMEOUT env variable",
 ])("fails fast on terminal driver status: %s", (log) => {
@@ -160,7 +159,7 @@ it.each([
 
 it("allows initial connection refusals and unrelated HTTP errors", () => {
   const result = runDriver(
-    `${refused}\nRequest for http://127.0.0.1:49889/viewHierarchy failed, code: 500\nGot device info: DeviceInfo(platform=IOS)\n`,
+    `${refused}\n[Failed] Perform XCUITest driver status check on test-device, exception: java.net.SocketTimeoutException: timeout\nRequest for http://127.0.0.1:49889/viewHierarchy failed, code: 500\nGot device info: DeviceInfo(platform=IOS)\n`,
     "stdout",
     false,
   );

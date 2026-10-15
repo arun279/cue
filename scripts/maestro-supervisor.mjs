@@ -33,11 +33,7 @@ function inspect(source, text) {
     const statusFailure = /\[Failed\] Perform XCUITest driver status check/.test(line);
     if (
       deviceInfoFailure ||
-      (statusFailure &&
-        (driverAnswered ||
-          /exception: java\.(?:net\.SocketTimeoutException|net\.SocketException|io\.IOException)\b/.test(
-            line,
-          ))) ||
+      (statusFailure && driverAnswered) ||
       /iOS driver not ready in time/.test(line)
     ) {
       failed = true;
