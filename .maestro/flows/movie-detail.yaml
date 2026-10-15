@@ -46,6 +46,7 @@ appId: app.cuetracker
 - tapOn: "Add to Watchlist"
 - runFlow: lib/settle.yaml
 - assertVisible: "In Watchlist"
+- takeScreenshot: movie-detail-in-watchlist
 - scrollUntilVisible:
     element:
       text: "More like this"
