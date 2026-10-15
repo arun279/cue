@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { expect, it } from "vitest";
 import { repositoryPath } from "../support/repository-path";
@@ -48,11 +48,11 @@ it.each([0, 17])("preserves Maestro exit %s and reports the failed command once"
       },
     },
   );
-  expect(result.status).toBe(status);
+  expect(result.status, result.stderr).toBe(status);
   expect(readFileSync(path.join(directory, "runs"), "utf8")).toBe("run\n");
   if (status === 0) expect(result.stderr).toBe("");
   else {
-    expect(result.stdout).toContain("Command: maestro test .maestro/ci/app.yaml");
+    expect(result.stdout).toContain("Command: maestro --verbose test .maestro/ci/app.yaml");
     expect(result.stderr).toContain(`Failing flow: ${flow}`);
     expect(result.stderr).toContain(
       'Command: {"assertConditionCommand":{"visible":"screen-search"}}',
@@ -74,4 +74,105 @@ it("prints the startup reason when command metadata is incomplete", () => {
   expect(result.status).toBe(0);
   expect(result.stderr).toContain("Driver failed: connection closed");
   expect(result.stderr).toContain("Failure screenshot: not produced by Maestro");
+});
+
+const driverDeath = readFileSync(repositoryPath("test/ci/fixtures/ios-driver-death.txt"), "utf8");
+const refused =
+  "[Failed] Perform XCUITest driver status check on test-device, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:49889";
+
+function runDriver(log: string, destination: string, hang = true) {
+  const directory = tempDirectory("cue-driver-death-");
+  writeFileSync(
+    path.join(directory, "maestro"),
+    `#!${process.execPath}
+const fs = require('node:fs');
+fs.appendFileSync(process.env.RUNS, 'run\\n');
+const log = process.env.DRIVER_LOG;
+const midpoint = Math.floor(log.length / 2);
+if (!process.argv.includes('--verbose')) process.exit(23);
+const write = process.env.DESTINATION === 'log'
+  ? (text) => { fs.appendFileSync(process.env.LOG_FILE, text); process.stdout.write(text); }
+  : (text) => process[process.env.DESTINATION].write(text);
+if (process.env.HANG === 'true') {
+  require('node:child_process').spawn(process.execPath, ['-e', 'setTimeout(() => {}, 3000)'], {stdio: 'inherit'});
+  setTimeout(() => {}, 3000);
+}
+fs.mkdirSync(require('node:path').dirname(process.env.LOG_FILE), {recursive: true});
+write(log.slice(0, midpoint));
+setImmediate(() => write(log.slice(midpoint)));
+`,
+    { mode: 0o755 },
+  );
+  const started = performance.now();
+  const result = spawnSync(
+    "bash",
+    [
+      repositoryPath("scripts/maestro-test.sh"),
+      "test",
+      "flow.yaml",
+      "--debug-output",
+      path.join(directory, "debug"),
+    ],
+    {
+      encoding: "utf8",
+      timeout: 5_000,
+      env: {
+        ...process.env,
+        PATH: `${directory}:${process.env["PATH"]}`,
+        DRIVER_LOG: log,
+        DESTINATION: destination,
+        HANG: String(hang),
+        LOG_FILE: path.join(directory, "debug", "session", "maestro.log"),
+        RUNS: path.join(directory, "runs"),
+      },
+    },
+  );
+  expect(result.error).toBeUndefined();
+  expect(existsSync(path.join(directory, "runs")), result.stderr).toBe(true);
+  expect(readFileSync(path.join(directory, "runs"), "utf8")).toBe("run\n");
+  return { ...result, elapsed: performance.now() - started };
+}
+
+it.each([
+  "stdout",
+  "stderr",
+  "log",
+])("kills a hung Maestro process group on deviceInfo 500 from %s, including split writes", (destination) => {
+  const result = runDriver(driverDeath, destination);
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain("XCTest driver died during startup");
+  expect(result.stderr).toContain("Timed out while evaluating UI query on SpringBoard");
+  expect(result.stderr).toContain("/deviceInfo failed, code: 500");
+  expect(result.elapsed).toBeLessThan(2_000);
+});
+
+it.each([
+  `[Done] Perform XCUITest driver status check on test-device\n${refused}`,
+  "[Failed] Perform XCUITest driver status check on test-device, exception: java.net.SocketTimeoutException: timeout",
+  "XCTestDriver request failed. Status code: 500, path: http://127.0.0.1:49889/deviceInfo, body: unknown",
+  "iOS driver not ready in time, consider increasing timeout by configuring MAESTRO_DRIVER_STARTUP_TIMEOUT env variable",
+])("fails fast on terminal driver status: %s", (log) => {
+  const result = runDriver(log, "log");
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain("XCTest driver died during startup");
+  expect(result.elapsed).toBeLessThan(2_000);
+});
+
+it("allows initial connection refusals and unrelated HTTP errors", () => {
+  const result = runDriver(
+    `${refused}\nRequest for http://127.0.0.1:49889/viewHierarchy failed, code: 500\nGot device info: DeviceInfo(platform=IOS)\n`,
+    "stdout",
+    false,
+  );
+  expect(result.status).toBe(0);
+  expect(result.stderr).not.toContain("XCTest driver died during startup");
+});
+
+it("does not mistake an incomplete initial status line for driver death", () => {
+  const result = runDriver(
+    "[Failed] Perform XCUITest driver status check on test-device",
+    "stdout",
+    false,
+  );
+  expect(result.status).toBe(0);
 });

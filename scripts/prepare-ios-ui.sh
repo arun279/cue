@@ -3,11 +3,7 @@ set -euo pipefail
 
 app_dir=$1
 appearance=$2
-node scripts/start-ready-process.mjs scripts/mock-trakt/server.mjs "$RUNNER_TEMP/mock-trakt.log"
-device_id=$(xcrun simctl list devices available -j | \
-  jq -r '[.devices[] | .[] | select(.name | startswith("iPhone"))][0].udid')
-test -n "$device_id"
-xcrun simctl boot "$device_id"
+device_id=${DEVICE_ID:?The simulator must be booted before preparation}
 
 maestro_zip="$RUNNER_TEMP/maestro.zip"
 curl -fsSL \
@@ -30,4 +26,4 @@ xcrun simctl spawn "$device_id" defaults write com.apple.Accessibility ReduceMot
 xcrun simctl install "$device_id" "$app_dir/Cue.app"
 xcrun simctl launch --terminate-running-process "$device_id" app.cuetracker
 xcrun simctl terminate "$device_id" app.cuetracker
-echo "device_id=$device_id" >> "$GITHUB_OUTPUT"
+node scripts/wait-ios-ready.mjs "$device_id"
