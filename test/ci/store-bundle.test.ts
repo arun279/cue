@@ -20,6 +20,13 @@ it.each(["0", "1"])("resolves snackbar policy and UI harness for harness=%s", (h
   const { resolver } = require(metroConfig);
   for (const { source, replacement } of [
     {
+      source: "packages/core/src/hooks/useOptimisticWrite.ts",
+      replacement:
+        harness === "1"
+          ? "packages/native/src/ui/AppIdle.tsx"
+          : "packages/core/src/hooks/useOptimisticWrite.ts",
+    },
+    {
       source: "packages/core/src/stores/snackbar-policy.ts",
       replacement:
         harness === "1"

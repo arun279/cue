@@ -19,21 +19,26 @@ config.serializer.createModuleIdFactory = () => {
 };
 
 const harness = process.env.EXPO_PUBLIC_UI_HARNESS === "1";
-const replaced = realpathSync(
-  path.join(__dirname, harness ? "../core/src/stores/snackbar-policy.ts" : "src/ui/harness.tsx"),
-);
-const replacement = path.join(
-  __dirname,
-  harness ? "src/ui/snackbar-policy.harness.ts" : "src/ui/harness.store.ts",
+const replacements = new Map(
+  (harness
+    ? [
+        ["../core/src/stores/snackbar-policy.ts", "src/ui/snackbar-policy.harness.ts"],
+        ["../core/src/hooks/useOptimisticWrite.ts", "src/ui/AppIdle.tsx"],
+      ]
+    : [["src/ui/harness.tsx", "src/ui/harness.store.ts"]]
+  ).map(([source, target]) => [
+    realpathSync(path.join(__dirname, source)),
+    path.join(__dirname, target),
+  ]),
 );
 const { resolveRequest } = config.resolver;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   const resolution = (resolveRequest ?? context.resolveRequest)(context, moduleName, platform);
-  return resolution.type === "sourceFile" &&
-    path.basename(resolution.filePath) === path.basename(replaced) &&
-    realpathSync(resolution.filePath) === replaced
-    ? { type: "sourceFile", filePath: replacement }
-    : resolution;
+  const replacement =
+    resolution.type === "sourceFile"
+      ? replacements.get(realpathSync(resolution.filePath))
+      : undefined;
+  return replacement === undefined ? resolution : { type: "sourceFile", filePath: replacement };
 };
 
 module.exports = config;

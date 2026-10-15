@@ -8,7 +8,6 @@ import {
 import { type ReactElement, useEffect, useId, useSyncExternalStore } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { TRAKT_BASE_OVERRIDE } from "../config";
 import { useScreenReader } from "../platform/screen-reader";
 import { useLiveRegion } from "./live-region";
 import { TEST_IDS } from "./test-ids";
@@ -74,7 +73,7 @@ function Snackbar({
 }): ReactElement {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const holdLong = useScreenReader() || TRAKT_BASE_OVERRIDE !== undefined;
+  const holdLong = useScreenReader();
   const liveRegion = useLiveRegion(snackText(snack.message), "polite");
 
   useEffect(() => {

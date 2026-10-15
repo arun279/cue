@@ -7,13 +7,22 @@
 appId: app.cuetracker
 ---
 - runFlow: lib/relaunch.yaml
+- runFlow:
+    file: lib/prepare-operation.yaml
+    env:
+      OPERATION: write
 - swipe:
     from:
       id: "queue-row-[0-9]+"
       index: 0
     direction: RIGHT
+- runFlow: lib/settle.yaml
 - assertVisible:
-    id: "snackbar"
+    id: "snackbar-undo"
+- runFlow:
+    file: lib/prepare-operation.yaml
+    env:
+      OPERATION: write
 - tapOn:
     id: "snackbar-undo"
 - runFlow: lib/settle.yaml
@@ -22,13 +31,22 @@ appId: app.cuetracker
     end: "22%, 46%"
 - assertNotVisible:
     id: "snackbar"
+- runFlow:
+    file: lib/prepare-operation.yaml
+    env:
+      OPERATION: write
 - swipe:
     from:
       id: "queue-row-[0-9]+"
       index: 0
     direction: LEFT
+- runFlow: lib/settle.yaml
 - assertVisible:
-    id: "snackbar"
+    id: "snackbar-undo"
+- runFlow:
+    file: lib/prepare-operation.yaml
+    env:
+      OPERATION: write
 - tapOn:
     id: "snackbar-undo"
 - runFlow: lib/settle.yaml

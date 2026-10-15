@@ -6,8 +6,10 @@ import { usePrefs } from "@cue/core/prefs/prefs-store";
 import { episodePlaysQuery, episodeQuery, showSeasonsQuery } from "@cue/core/queries/shows";
 import { useRuntime } from "@cue/core/runtime/runtime";
 import { useQuery } from "@tanstack/react-query";
+import { useRouter } from "expo-router";
 import type { ReactElement } from "react";
 import { StyleSheet, View } from "react-native";
+import { Button } from "../ui/Button";
 import { TEST_IDS } from "../ui/test-ids";
 import { RADIUS, SPACE, useColors } from "../ui/tokens";
 import { CueText } from "../ui/type";
@@ -26,8 +28,17 @@ export interface EpisodeSheetProps {
 }
 
 export function EpisodeSheet(props: EpisodeSheetProps): ReactElement {
+  const router = useRouter();
   return (
     <View testID={TEST_IDS.episodeSheet} style={styles.screen}>
+      <View style={styles.close}>
+        <Button
+          label="Done"
+          variant="link"
+          testID={TEST_IDS.episodeClose}
+          onPress={() => router.back()}
+        />
+      </View>
       <EpisodeContent key={`${props.showId}:${epCode(props.season, props.episode)}`} {...props} />
     </View>
   );
@@ -129,6 +140,7 @@ export function EpisodeBody({
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  close: { alignItems: "flex-end", paddingHorizontal: SPACE.s4 },
   content: { flex: 1, padding: SPACE.s4 },
   body: { flex: 1, gap: SPACE.s3 },
   toolbar: { alignItems: "flex-end" },

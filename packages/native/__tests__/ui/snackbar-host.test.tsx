@@ -159,18 +159,20 @@ function backfill() {
   return { label: "+2 earlier", testId: "snackbar-backfill", onPress: jest.fn() };
 }
 
-it("keeps the undo window by default and fifteen seconds in a build on the fake Trakt", async () => {
+it.each([
+  undefined,
+  "http://127.0.0.1:8787",
+])("renders a non-Undo message and expires at the normal deadline with API %s", async (base) => {
   jest.useFakeTimers();
+  mockTraktBase = base;
   await render(<SnackbarHost placement="root" />);
-  await act(async () => showUndoable(MESSAGE, jest.fn()));
+  await act(async () =>
+    showSnack({ message: { subject: "The Lantern Keeper", predicate: " added to Watchlist" } }),
+  );
+  expect(screen.getByTestId("snackbar-message")).toHaveTextContent(
+    "The Lantern Keeper added to Watchlist",
+  );
   await act(async () => jest.advanceTimersByTime(4999));
-  expect(screen.getByTestId("snackbar")).toBeOnTheScreen();
-  await act(async () => jest.advanceTimersByTime(1));
-  expect(screen.queryByTestId("snackbar")).toBeNull();
-
-  mockTraktBase = "http://127.0.0.1:8787";
-  await act(async () => showUndoable(MESSAGE, jest.fn()));
-  await act(async () => jest.advanceTimersByTime(14_999));
   expect(screen.getByTestId("snackbar")).toBeOnTheScreen();
   await act(async () => jest.advanceTimersByTime(1));
   expect(screen.queryByTestId("snackbar")).toBeNull();

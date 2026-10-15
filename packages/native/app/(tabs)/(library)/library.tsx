@@ -6,7 +6,7 @@ import { queryStatus } from "@cue/core/queries/freshness";
 import { movieLibraryQuery } from "@cue/core/queries/library";
 import { useRuntime } from "@cue/core/runtime/runtime";
 import { useQuery } from "@tanstack/react-query";
-import { Stack } from "expo-router";
+import { type NativeStackNavigationOptions, Stack } from "expo-router";
 import { type ReactElement, useMemo, useRef, useState } from "react";
 import { FlatList, RefreshControl, StyleSheet, View, type ViewToken } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -47,6 +47,26 @@ export default function Library(): ReactElement {
   const [movieSort, setMovieSort] = useState<MovieSort>("recently-watched");
   const [filter, setFilter] = useState("");
   const field = useRef<SearchBarCommands>(null);
+  const screenOptions = useMemo<NativeStackNavigationOptions>(
+    () => ({
+      title: "Library",
+      headerLargeTitle: true,
+      headerSearchBarOptions: {
+        ref: field,
+        placement: "stacked",
+        placeholder: "Filter by title",
+        hideWhenScrolling: false,
+        hideNavigationBar: false,
+        obscureBackground: false,
+        autoCapitalize: "none",
+        onChangeText: (event) => setFilter(event.nativeEvent.text),
+        onSearchButtonPress: () => field.current?.blur(),
+        onCancelButtonPress: () => setFilter(""),
+        onClose: () => setFilter(""),
+      },
+    }),
+    [],
+  );
   const query = useDebounced(filter, FILTER_DEBOUNCE_MS);
 
   const runtime = useRuntime();
@@ -96,25 +116,7 @@ export default function Library(): ReactElement {
 
   return (
     <TabRoot testID={TEST_IDS.screenLibrary}>
-      <Stack.Screen
-        options={{
-          title: "Library",
-          headerLargeTitle: true,
-          headerSearchBarOptions: {
-            ref: field,
-            placement: "stacked",
-            placeholder: "Filter by title",
-            hideWhenScrolling: false,
-            hideNavigationBar: false,
-            obscureBackground: false,
-            autoCapitalize: "none",
-            onChangeText: (event) => setFilter(event.nativeEvent.text),
-            onSearchButtonPress: () => field.current?.blur(),
-            onCancelButtonPress: () => setFilter(""),
-            onClose: () => setFilter(""),
-          },
-        }}
-      />
+      <Stack.Screen options={screenOptions} />
       <BarItems onSync={refresh.sync} />
       <FlatList
         testID={TEST_IDS.libraryGrid}

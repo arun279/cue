@@ -87,6 +87,7 @@ it.each([false, true])("toggles watchlist membership from %s with Undo", async (
   expect(
     await screen.findByText(inWatchlist ? "Add to Watchlist" : "Remove from Watchlist"),
   ).toBeOnTheScreen();
+  expect(screen.queryByText("In Watchlist") !== null).toBe(!inWatchlist);
   expect(runtime.submit.mock.calls[0]?.[0].request.path).toBe(
     inWatchlist ? "/sync/watchlist/remove" : "/sync/watchlist",
   );
@@ -95,6 +96,7 @@ it.each([false, true])("toggles watchlist membership from %s with Undo", async (
     await screen.findByText(inWatchlist ? "Remove from Watchlist" : "Add to Watchlist"),
   ).toBeOnTheScreen();
   expect(screen.getByTestId(TEST_IDS.movieMark)).toBeChecked();
+  expect(screen.queryByText("In Watchlist") !== null).toBe(inWatchlist);
 });
 
 it("opens Trakt in the browser", async () => {

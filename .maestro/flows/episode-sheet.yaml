@@ -12,6 +12,10 @@ appId: app.cuetracker
 - takeScreenshot: episode-sheet-rest
 - waitForAnimationToEnd
 - takeScreenshot: episode-sheet-open
+- runFlow:
+    file: lib/prepare-operation.yaml
+    env:
+      OPERATION: write
 - tapOn:
     id: "episode-mark-control"
 - assertVisible:
@@ -21,6 +25,10 @@ appId: app.cuetracker
     id: "episode-sheet"
 - waitForAnimationToEnd
 - takeScreenshot: episode-sheet-marked
+- runFlow:
+    file: lib/prepare-operation.yaml
+    env:
+      OPERATION: write
 - tapOn:
     id: "episode-mark-control"
 - runFlow: lib/settle.yaml

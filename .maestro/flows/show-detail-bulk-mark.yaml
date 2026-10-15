@@ -11,6 +11,10 @@ appId: app.cuetracker
     id: "episode-row-8803-2-1-checked"
 - waitForAnimationToEnd
 - takeScreenshot: show-detail-loaded
+- runFlow:
+    file: lib/prepare-operation.yaml
+    env:
+      OPERATION: write
 - tapOn:
     id: "season-check-2"
 - assertVisible: "2 of 4 episodes are unwatched."
@@ -18,7 +22,6 @@ appId: app.cuetracker
 - takeScreenshot: show-detail-season-confirm
 - tapOn:
     text: "(?i)Mark 2 remaining"
-    waitToSettleTimeoutMs: 100
 - assertVisible:
     id: "snackbar"
 - runFlow: lib/settle.yaml
@@ -26,6 +29,10 @@ appId: app.cuetracker
     id: "episode-row-8803-2-3-checked"
 - waitForAnimationToEnd
 - takeScreenshot: show-detail-season-marked
+- runFlow:
+    file: lib/prepare-operation.yaml
+    env:
+      OPERATION: write
 - tapOn:
     id: "snackbar-undo"
 - runFlow: lib/settle.yaml

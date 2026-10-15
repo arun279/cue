@@ -5,3 +5,8 @@ export const AppIdle: typeof Harness.AppIdle = () => null;
 export const SnackbarTrace: typeof Harness.SnackbarTrace = () => null;
 export const PressTrace: typeof Harness.PressTrace = () => null;
 export const tracePress: typeof Harness.tracePress = () => {};
+export const trackSync: typeof Harness.trackSync = (run) => run();
+export const useScrollAcknowledgment: typeof Harness.useScrollAcknowledgment = () => ({
+  handlers: {},
+  marker: null,
+});

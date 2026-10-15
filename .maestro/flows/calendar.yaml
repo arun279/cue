@@ -20,4 +20,3 @@ appId: app.cuetracker
     id: "calendar-row-880609"
 - assertVisible:
     id: "screen-show-detail"
-- runFlow: lib/settle.yaml

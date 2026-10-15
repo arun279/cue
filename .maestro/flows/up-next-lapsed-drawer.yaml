@@ -16,6 +16,10 @@ appId: app.cuetracker
     id: "lapsed-drawer-toggle"
 - assertVisible:
     id: "lapsed-row-8805"
+- runFlow:
+    file: lib/prepare-operation.yaml
+    env:
+      OPERATION: write
 - tapOn:
     id: "lapsed-row-8805-mark"
 - assertVisible:

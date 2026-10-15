@@ -327,3 +327,89 @@ it("gives every control an id no other screen in its hierarchy carries", () => {
   );
   expect(shared).toEqual([]);
 });
+
+function flakeMasks(value: unknown): string[] {
+  if (Array.isArray(value)) return value.flatMap(flakeMasks);
+  if (value === null || typeof value !== "object") return [];
+  return Object.entries(value).flatMap(([key, child]) => {
+    if (
+      key === "retryTapIfNoChange" ||
+      (key === "optional" && child === true) ||
+      (key === "id" && child === "app-idle")
+    )
+      return [key];
+    return flakeMasks(child);
+  });
+}
+
+it("requires one input and persistent acknowledgments in every device flow", () => {
+  expect(
+    yamlFiles(flowsDirectory).flatMap((file) =>
+      parseAllDocuments(readFileSync(file, "utf8")).flatMap((document) =>
+        flakeMasks(document.toJS()).map((mask) => `${relative(flowsDirectory, file)}: ${mask}`),
+      ),
+    ),
+  ).toEqual([]);
+});
+
+it.each([
+  { tapOn: { id: "settings-sign-out", retryTapIfNoChange: true } },
+  { extendedWaitUntil: { notVisible: { id: "episode-sheet" }, optional: true } },
+  { runFlow: { commands: [{ assertVisible: { id: "app-idle" } }] } },
+])("rejects a nested flake mask: %j", (flow) => {
+  expect(flakeMasks(flow)).toHaveLength(1);
+});
+
+it("waits for scroll completion before every sign-out tap", () => {
+  const account = readFileSync(join(flowsDirectory, "account.yaml"), "utf8");
+  expect(
+    account.replaceAll(
+      '- runFlow: lib/settle-scroll.yaml\n- tapOn:\n    id: "settings-sign-out"',
+      "",
+    ),
+  ).not.toContain('- tapOn:\n    id: "settings-sign-out"');
+});
+
+it("dismisses the episode sheet with one accessible input and one result assertion", () => {
+  const source = readFileSync(join(flowsDirectory, "lib/dismiss-episode-sheet.yaml"), "utf8");
+  expect([...source.matchAll(/^- ([A-Za-z]+):/gm)].map((match) => match[1])).toEqual([
+    "tapOn",
+    "extendedWaitUntil",
+  ]);
+  expect(source).toContain('id: "episode-close"');
+  expect(source).toContain('notVisible:\n      id: "episode-sheet"');
+});
+
+it("types the Library filter in one input and observes durable Watchlist membership", () => {
+  const library = readFileSync(join(flowsDirectory, "library.yaml"), "utf8");
+  const movie = readFileSync(join(flowsDirectory, "movie-detail.yaml"), "utf8");
+  expect([...library.matchAll(/^- inputText: (.*)$/gm)].map((match) => match[1])).toEqual([
+    '"zzz"',
+  ]);
+  expect(movie).toContain('- assertVisible: "In Watchlist"');
+  expect(movie).not.toContain('- assertVisible: "The Lantern Keeper added to Watchlist"');
+});
+
+function hasUnpairedOperation(source: string): boolean {
+  let phase: "none" | "prepared" | "input" = "none";
+  for (const command of source.split(/\n(?=- )/)) {
+    if (command.includes("file: lib/prepare-operation.yaml")) {
+      if (phase !== "none") return true;
+      phase = "prepared";
+    } else if (command.startsWith("- runFlow: lib/settle.yaml")) {
+      if (phase !== "input") return true;
+      phase = "none";
+    } else if (phase !== "none" && /^- (tapOn|swipe):/.test(command)) {
+      phase = "input";
+    }
+  }
+  return phase !== "none";
+}
+
+it("pairs every operation wait with a fresh capture and an input in the same flow", () => {
+  expect(
+    yamlFiles(flowsDirectory)
+      .filter((file) => hasUnpairedOperation(readFileSync(file, "utf8")))
+      .map((file) => relative(flowsDirectory, file)),
+  ).toEqual([]);
+});
