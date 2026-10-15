@@ -238,3 +238,31 @@ it("offers Retry when the library cannot be read", async () => {
   expect(screen.getByText("Couldn't load your library")).toBeTruthy();
   expect(screen.getByTestId("library-error-retry")).toBeTruthy();
 });
+
+it("preserves burst input while results change without reinstalling the native search header", async () => {
+  jest.useFakeTimers();
+  const declarations = jest.spyOn(
+    jest.requireMock<typeof import("expo-router")>("expo-router").Stack,
+    "Screen",
+  );
+  try {
+    await paint();
+    expect(declarations).toHaveBeenCalled();
+    const options = declarations.mock.calls[0]?.[0].options;
+    const field = screen.getByPlaceholderText("Filter by title");
+    await userEvent.setup({ delay: 400 }).type(field, "zzz");
+    await act(async () => jest.advanceTimersByTime(300));
+    expect(field).toHaveDisplayValue("zzz");
+    expect(screen.getByText('No shows match "zzz".')).toBeOnTheScreen();
+    expect(screen.queryAllByTestId(/^show-card-/)).toHaveLength(0);
+    expect(declarations.mock.calls.length).toBeGreaterThan(1);
+    for (const [props] of declarations.mock.calls) expect(props.options).toBe(options);
+    await userEvent.press(screen.getByTestId("library-filter-clear"));
+    await act(async () => jest.advanceTimersByTime(300));
+    expect(field).toHaveDisplayValue("");
+    expect(titles()).toEqual(["Harbor Lights", "Coastal Static"]);
+  } finally {
+    declarations.mockRestore();
+    jest.useRealTimers();
+  }
+});

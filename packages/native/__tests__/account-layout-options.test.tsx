@@ -3,6 +3,7 @@ import type { ReactElement, ReactNode } from "react";
 import { Platform, Text } from "react-native";
 import AccountLayout from "../app/(account)/_layout";
 import { AccountScreen } from "../src/screens/account/Rows";
+import { QueryProvider } from "./support/query-provider";
 
 interface HeaderOptions {
   readonly headerStyle?: unknown;
@@ -36,14 +37,14 @@ jest.mock("expo-router", () => {
 });
 
 it("leaves every iOS account bar to the system and draws Android's flat", async () => {
-  await render(<AccountLayout />);
+  await render(<AccountLayout />, { wrapper: QueryProvider });
 
   expect(mockStackOptions?.headerStyle).toBeUndefined();
   expect(mockStackOptions?.headerShadowVisible).toBe(Platform.OS === "ios" ? undefined : false);
 });
 
 it("insets account content by the bar floating over it on iOS, and lays Android's bar out above it", async () => {
-  await render(<AccountLayout />);
+  await render(<AccountLayout />, { wrapper: QueryProvider });
   await render(
     <AccountScreen testID="account-content">
       <Text>row</Text>

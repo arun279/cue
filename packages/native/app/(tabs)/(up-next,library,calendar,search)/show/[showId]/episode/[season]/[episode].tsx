@@ -4,7 +4,7 @@ import type { ReactElement } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { parseId, parseSeason } from "../../../../../../../src/route-params";
 import { EpisodeSheet } from "../../../../../../../src/screens/EpisodeSheet";
-import { AppIdle } from "../../../../../../../src/ui/harness";
+import { AppIdle, SheetPresented } from "../../../../../../../src/ui/harness";
 import { SnackbarHost } from "../../../../../../../src/ui/SnackbarHost";
 
 export default function EpisodeRoute(): ReactElement {
@@ -22,6 +22,7 @@ export default function EpisodeRoute(): ReactElement {
       <EpisodeSheet showId={showId} season={season} episode={episode} />
       {Platform.OS === "ios" ? <SnackbarHost placement="presentation" /> : null}
       <AppIdle />
+      <SheetPresented />
     </View>
   );
 }

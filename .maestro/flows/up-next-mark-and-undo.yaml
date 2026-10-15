@@ -9,13 +9,23 @@ appId: app.cuetracker
     id: "queue-row-[0-9]+-mark"
     index: 0
 - evalScript: ${output.markLabel = maestro.copiedText}
+- runFlow:
+    file: lib/prepare-operation.yaml
+    env:
+      OPERATION: write
 - tapOn:
     id: "queue-row-[0-9]+-mark"
     index: 0
+- runFlow: lib/settle.yaml
 - assertVisible:
     id: "snackbar-undo"
+- runFlow:
+    file: lib/prepare-operation.yaml
+    env:
+      OPERATION: write
 - tapOn:
     id: "snackbar-undo"
+- runFlow: lib/settle.yaml
 - assertNotVisible:
     id: "snackbar-undo"
 - assertVisible:
@@ -23,9 +33,14 @@ appId: app.cuetracker
     text: ${output.markLabel}
 - waitForAnimationToEnd
 - takeScreenshot: up-next-mark-restored
+- runFlow:
+    file: lib/prepare-operation.yaml
+    env:
+      OPERATION: write
 - tapOn:
     id: "queue-row-[0-9]+-mark"
     index: 0
+- runFlow: lib/settle.yaml
 - assertVisible:
     id: "snackbar-undo"
 - waitForAnimationToEnd
