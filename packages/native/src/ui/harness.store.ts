@@ -1,5 +1,7 @@
 import type * as Harness from "./harness";
 
+export const relativeTimeNow: typeof Harness.relativeTimeNow = () => Date.now();
+export const SnackbarRouteDismissal: typeof Harness.SnackbarRouteDismissal = () => null;
 export const HIDE_CARET: typeof Harness.HIDE_CARET = false;
 export const useOnboardingAcknowledgment: typeof Harness.useOnboardingAcknowledgment = () => ({
   onLayout: undefined,

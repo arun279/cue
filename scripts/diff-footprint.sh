@@ -86,11 +86,16 @@ for (const [label, name] of rows) {
 NODE
 fi
 
+status=0
 if [ "$product_net" -gt 0 ] && ! grep -Eq '^Product-Growth: .+' <<<"${PR_BODY:-}"; then
   echo 'Product code grew. Add "Product-Growth: <rationale>" to the PR body.' >&2
-  exit 1
+  status=1
 fi
 if [ "$comment_net" -gt 0 ] && ! grep -Eq '^Comment-Load: .+' <<<"${PR_BODY:-}"; then
   echo 'Product comments grew. Add "Comment-Load: <rationale>" to the PR body.' >&2
-  exit 1
+  status=1
 fi
+if [ "$#" -eq 3 ]; then
+  node "$(dirname "$0")/check-size-delta.mjs" "$2" "$3" "${PR_BODY:-}" >&2 || status=1
+fi
+exit "$status"

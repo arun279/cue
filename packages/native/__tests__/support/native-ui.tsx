@@ -133,6 +133,10 @@ export function expoRouterModule() {
     Stack,
     Link: Text,
     useRouter: () => router,
+    useNavigationContainerRef: () => ({
+      getCurrentRoute: () => ({ key: "index" }),
+      addListener: () => () => {},
+    }),
     DarkTheme: theme(true),
     DefaultTheme: theme(false),
     ThemeProvider: ({ children }: { readonly children: ReactNode }) => children,

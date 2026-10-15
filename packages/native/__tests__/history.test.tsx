@@ -31,9 +31,12 @@ async function paint(value = runtime()): Promise<void> {
 }
 
 beforeEach(() => {
+  jest.useFakeTimers();
   jest.clearAllMocks();
   historyParams.current = {};
 });
+
+afterEach(() => jest.useRealTimers());
 
 test("keeps its root unflattened under the floating bar, so UIKit finds the list first", async () => {
   await paint();

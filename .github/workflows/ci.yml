@@ -255,14 +255,6 @@ jobs:
             gh api --method DELETE "repos/${{ github.repository }}/issues/comments/$comment_id"
           done
           gh api --method POST "$comments_url" -F body=@footprint.md
-      - name: Check size deltas
-        if: github.event_name == 'pull_request'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          PR_BODY=$(gh pr view "$PR_NUMBER" --json body --jq .body)
-          node scripts/check-size-delta.mjs base-metrics.json head-metrics.json "$PR_BODY"
   native-ios:
     # A cold build measured up to 58 minutes; a cached one about 2.
     timeout-minutes: 75
