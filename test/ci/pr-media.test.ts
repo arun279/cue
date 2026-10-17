@@ -57,6 +57,7 @@ type Capture = {
   scroll?: number;
   empty?: boolean;
   rows?: number[];
+  patch?: { top: number; rgb: number[] };
 };
 type Lane = {
   conclusion?: string;
@@ -93,7 +94,7 @@ const COLORS = [
 const screenshot = (
   file: string,
   width: number,
-  { clock = 0, content = 0, shift = 0, scroll = 0, empty = false, rows }: Capture,
+  { clock = 0, content = 0, shift = 0, scroll = 0, empty = false, rows, patch }: Capture,
 ) => {
   mkdirSync(path.dirname(file), { recursive: true });
   if (empty) {
@@ -111,6 +112,7 @@ const screenshot = (
   );
   if (scroll) fill(png, [width - 12, 170, width - 4, 240], [120, 120, 120]);
   for (const row of rows ?? []) fill(png, [0, row, width, row + 1], [60, 60, 60]);
+  if (patch) fill(png, [400, patch.top, 420, patch.top + 30], patch.rgb);
   writeFileSync(file, PNG.sync.write(png));
 };
 
@@ -396,6 +398,29 @@ describe("gather-pr-media.sh", { timeout: 30_000 }, () => {
     );
 
     expect(images).toHaveLength(1);
+  });
+
+  const GLASS = [39, 35, 32];
+  it.each([
+    ["is ignored in the iOS tab bar's glass", "ui-screenshots-ios-dark", 2400, [71, 62, 51], 0],
+    ["still counts above the iOS tab bar", "ui-screenshots-ios-dark", 2300, [71, 62, 51], 1],
+    ["still counts on Android", "ui-screenshots-android-dark", 2400, [71, 62, 51], 1],
+    [
+      "leaves a changed iOS tab icon or label flagged",
+      "ui-screenshots-ios-dark",
+      2400,
+      [235, 235, 235],
+      1,
+    ],
+  ])("translucency difference %s", (_, artifact, top, rgb, changed) => {
+    const { images } = gather(
+      {
+        [artifact]: { captures: { "up-next-populated": { rows: [], patch: { top, rgb: GLASS } } } },
+      },
+      { [artifact]: { captures: { "up-next-populated": { rows: [], patch: { top, rgb } } } } },
+    );
+
+    expect(images).toHaveLength(changed);
   });
 
   it("shows clean before and after columns with moved content highlighted only in the changes column", () => {
