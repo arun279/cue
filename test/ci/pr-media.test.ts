@@ -276,6 +276,8 @@ describe("pr-media job", () => {
     "scripts/compile-hermes.sh",
     "scripts/prepare-ios-ui.sh",
     "scripts/wait-ios-ready.mjs",
+    "scripts/wait-ios-accessibility.mjs",
+    "scripts/enable-ios-accessibility.sh",
     "scripts/maestro-test.sh",
     "scripts/maestro-supervisor.mjs",
     "scripts/maestro-failure.mjs",
