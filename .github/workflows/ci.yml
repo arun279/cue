@@ -95,7 +95,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          USER_FACING: ^(packages/native/(src|app)|packages/core/src|\.maestro|scripts/mock-trakt)/|^scripts/(gather-pr-media\.sh|compare-screenshots\.mjs|attach-pr-media\.sh)$
+          USER_FACING: ^(packages/native/(src|app|assets)|packages/core/src|patches|\.maestro|scripts/mock-trakt)/|^(packages/native/(entry\.ts|babel\.config\.js|metro\.config\.js)|pnpm-lock\.yaml|\.github/workflows/ci\.yml)$|^scripts/(gather-pr-media\.sh|compare-screenshots\.mjs|attach-pr-media\.sh|start-ready-process\.mjs|download-ci-artifact\.sh|reembed-ios\.sh|compile-hermes\.sh|prepare-ios-ui\.sh|wait-ios-ready\.mjs|maestro-(test\.sh|supervisor\.mjs|failure\.mjs))$
         run: |
           files=$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files" --jq '.[].filename')
           if grep -qE "$USER_FACING" <<< "$files"; then

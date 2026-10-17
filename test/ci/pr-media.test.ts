@@ -261,6 +261,22 @@ describe("pr-media job", () => {
     "scripts/gather-pr-media.sh",
     "scripts/compare-screenshots.mjs",
     "scripts/attach-pr-media.sh",
+    "packages/native/entry.ts",
+    "packages/native/babel.config.js",
+    "packages/native/metro.config.js",
+    "packages/native/assets/splash.png",
+    "patches/@expo__metro-config@57.0.13.patch",
+    "pnpm-lock.yaml",
+    ".github/workflows/ci.yml",
+    "scripts/start-ready-process.mjs",
+    "scripts/download-ci-artifact.sh",
+    "scripts/reembed-ios.sh",
+    "scripts/compile-hermes.sh",
+    "scripts/prepare-ios-ui.sh",
+    "scripts/wait-ios-ready.mjs",
+    "scripts/maestro-test.sh",
+    "scripts/maestro-supervisor.mjs",
+    "scripts/maestro-failure.mjs",
   ])("gathers media when %s changes", (file) => {
     expect(userFacing.test(file)).toBe(true);
   });
@@ -271,6 +287,12 @@ describe("pr-media job", () => {
     "packages/core/test/sync.test.ts",
     "test/ci/pr-media.test.ts",
     "README.md",
+    "packages/native/entry.test.ts",
+    "packages/native/assets.json",
+    "pnpm-lock.yaml.orig",
+    ".github/workflows/codeql.yml",
+    "scripts/maestro-test.sh.bak",
+    "scripts/native-e2e-rollup.mjs",
   ])("gathers nothing when only %s changes", (file) => {
     expect(userFacing.test(file)).toBe(false);
   });
