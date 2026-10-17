@@ -193,7 +193,7 @@ describe("fast pull request validation", () => {
   it.each([
     "android-e2e",
     "ui-screenshots-android-dark",
-  ])("%s boots a fresh emulator and checks its display before capturing", (name) => {
+  ])("%s boots a fresh emulator and pins its display before capturing", (name) => {
     const emulators = job(name)
       .split(/^ {6}- /m)
       .filter((step) => step.includes("reactivecircus/android-emulator-runner@"));
@@ -206,7 +206,7 @@ describe("fast pull request validation", () => {
     );
     expect(emulators[0]).not.toContain("force-avd-creation");
     expect(verification).toMatch(
-      /wm density reset\nbash scripts\/assert-android-display\.sh "\$output\/window-displays\.txt"\n\nmock_pid=/,
+      /wm density reset\nbash scripts\/pin-android-display\.sh "\$output\/window-displays\.txt"\n\nmock_pid=/,
     );
   });
 
