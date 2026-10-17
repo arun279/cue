@@ -223,6 +223,7 @@ jobs:
           mv all-head-sizes.json head-sizes.json
           jq -n --slurpfile sizes head-sizes.json '{sizes: $sizes[0]}' > head-metrics.json
       - name: Measure the diff footprint
+        id: diff
         if: github.event_name == 'pull_request'
         env:
           BASE_REF: ${{ github.base_ref }}
@@ -231,8 +232,10 @@ jobs:
         run: |
           PR_BODY=$(gh pr view "$PR_NUMBER" --json body --jq .body)
           export PR_BODY
+          status=0
           scripts/diff-footprint.sh "origin/$BASE_REF" base-metrics.json head-metrics.json \
-            > footprint.md
+            > footprint.md 2> footprint-gates.txt || status=$?
+          echo "status=$status" >> "$GITHUB_OUTPUT"
       - name: Upload Expo Atlas
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -255,6 +258,11 @@ jobs:
             gh api --method DELETE "repos/${{ github.repository }}/issues/comments/$comment_id"
           done
           gh api --method POST "$comments_url" -F body=@footprint.md
+      - name: Enforce the footprint gates
+        if: steps.diff.outputs.status != '' && steps.diff.outputs.status != '0'
+        run: |
+          cat footprint-gates.txt >&2
+          exit 1
   native-ios:
     # A cold build measured up to 58 minutes; a cached one about 2.
     timeout-minutes: 75

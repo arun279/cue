@@ -118,6 +118,26 @@ describe("fast pull request validation", () => {
     );
   });
 
+  it("posts the footprint comment before failing on a tripped gate", () => {
+    const steps = job("footprint").split(/^ {6}- /m);
+    const index = (name: string) => steps.findIndex((step) => step.startsWith(`name: ${name}\n`));
+    const measure = index("Measure the diff footprint");
+    const comment = index("Update the pull request comment");
+    const enforce = index("Enforce the footprint gates");
+
+    expect(steps[measure]).toContain("        id: diff\n");
+    expect(steps[measure]).toMatch(
+      /scripts\/diff-footprint\.sh .*\\\n +> footprint\.md 2> footprint-gates\.txt \|\| status=\$\?\n +echo "status=\$status" >> "\$GITHUB_OUTPUT"\n/,
+    );
+    expect(measure).toBeGreaterThan(0);
+    expect(comment).toBeGreaterThan(measure);
+    expect(enforce).toBe(steps.length - 1);
+    expect(steps[enforce]).toContain(
+      "        if: steps.diff.outputs.status != '' && steps.diff.outputs.status != '0'\n",
+    );
+    expect(steps[enforce]).toContain("cat footprint-gates.txt >&2\n          exit 1\n");
+  });
+
   it("gates changed core lines from the generated LCOV file", () => {
     const check = job("check");
 
