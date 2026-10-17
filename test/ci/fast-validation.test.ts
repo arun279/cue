@@ -138,6 +138,16 @@ describe("fast pull request validation", () => {
     expect(steps[enforce]).toContain("cat footprint-gates.txt >&2\n          exit 1\n");
   });
 
+  it("gates the audit only through the dependency-change script", () => {
+    const audit = job("audit");
+
+    expect(audit).toContain("fetch-depth: 0\n");
+    expect(audit).toContain("EVENT_NAME: $" + "{{ github.event_name }}");
+    expect(audit).toContain("PUSH_BEFORE: $" + "{{ github.event.before }}");
+    expect(audit).toContain('run: scripts/audit-dependencies.sh "$EVENT_NAME" "$PUSH_BEFORE"\n');
+    expect(audit).not.toMatch(/pnpm audit|check-stale-audit-ignores/);
+  });
+
   it("gates changed core lines from the generated LCOV file", () => {
     const check = job("check");
 

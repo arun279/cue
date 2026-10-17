@@ -17,9 +17,10 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
   schedule:
-    # Nightly run: the (non-deterministic) advisory audit catches newly disclosed
-    # CVEs against the pinned lockfile, and the iOS flow lane, which pull
-    # requests run only when their iOS fingerprint changes, covers main.
+    # Nightly run: the audit, which gates pull requests and pushes only when
+    # they change dependencies, catches newly disclosed CVEs against the pinned
+    # lockfile, and the iOS flow lane, which pull requests run only when their
+    # iOS fingerprint changes, covers main.
     - cron: "0 6 * * *"
 permissions:
   contents: read
@@ -172,9 +173,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
       - uses: ./.github/actions/setup-node-pnpm
-      - run: pnpm audit --prod --audit-level=high
-      - run: node scripts/check-stale-audit-ignores.mjs
+      - name: Audit production dependencies, gating only dependency changes
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: scripts/audit-dependencies.sh "$EVENT_NAME" "$PUSH_BEFORE"
   actionlint:
     if: ${{ !inputs.copy }}
     runs-on: ubuntu-latest
