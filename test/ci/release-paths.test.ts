@@ -171,6 +171,16 @@ describe("native bundle environment", () => {
 });
 
 describe("mobile release gate required checks", () => {
+  it("has a CodeQL push run for every commit CI tests on push", () => {
+    const branches = (workflow: string) =>
+      readFileSync(workflow, "utf8").match(
+        /^ {2}push:\n(?: {4}#.*\n)* {4}branches: (\[.*\])$/m,
+      )?.[1];
+
+    expect(branches(CI_WORKFLOW)).toBeDefined();
+    expect(branches(CODEQL_WORKFLOW)).toBe(branches(CI_WORKFLOW));
+  });
+
   it("keeps the required checks aligned with CI jobs except explicit exemptions", () => {
     const requiredJobs = readCiJobs().filter((job) => !NOT_REQUIRED.includes(job.name));
     expect([...readRequiredChecks()].sort()).toEqual(

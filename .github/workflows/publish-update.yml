@@ -6,11 +6,11 @@ on:
       ci_run_id:
         description: Completed CI push run ID for this exact commit
         type: string
-        required: false
+        required: true
       codeql_run_id:
         description: Completed CodeQL push run ID for this exact commit
         type: string
-        required: false
+        required: true
       action:
         description: "publish = this ref to preview, promote = the update group below to production"
         type: choice
@@ -40,7 +40,7 @@ jobs:
   gate:
     if: inputs.action == 'publish'
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 5
     permissions:
       actions: read
       checks: read

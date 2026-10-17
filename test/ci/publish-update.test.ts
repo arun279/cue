@@ -73,7 +73,31 @@ describe("JavaScript update publishing", () => {
       expect(workflow).toContain("CI_RUN_ID: $" + "{{ inputs.ci_run_id }}");
       expect(workflow).toContain("CODEQL_RUN_ID: $" + "{{ inputs.codeql_run_id }}");
       expect(workflow).not.toContain("POLL_SECONDS");
+      for (const input of ["ci_run_id", "codeql_run_id"]) {
+        expect(workflow).toMatch(
+          new RegExp(`^ {6}${input}:\n(?: {8}.*\n)*? {8}required: true\n`, "m"),
+        );
+      }
+      expect(workflow).toMatch(/^ {2}gate:\n(?: {4}.*\n)*? {4}timeout-minutes: 5\n/m);
     }
+  });
+
+  it.each([
+    "ios",
+    "android",
+  ])("checks the %s store bundle for the UI harness before building", (leg) => {
+    const steps = releaseWorkflow.slice(releaseWorkflow.indexOf(`\n  ${leg}:\n`)).split(/^ {6}- /m);
+    const check = steps.findIndex((step) => step.includes("check-store-bundle.mjs"));
+    const build = steps.findIndex((step) => step.includes("eas build --local"));
+
+    expect(check).toBeGreaterThan(0);
+    expect(check).toBeLessThan(build);
+    expect(steps[check]).toContain(`eas env:exec ${production.environment} --non-interactive`);
+    expect(steps[check]).toMatch(
+      new RegExp(
+        `EXPO_ATLAS=true npx expo export .*--platform ${leg} .*\\n {10}node \\.\\./\\.\\./scripts/check-store-bundle\\.mjs \\.expo/atlas\\.jsonl\\n`,
+      ),
+    );
   });
 
   it("uses the release bundle's public environment", () => {
