@@ -6,7 +6,7 @@ import {
   useSnackbar,
 } from "@cue/core/stores/snackbar-store";
 import { type ReactElement, useEffect, useId, useSyncExternalStore } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { Platform, Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useScreenReader } from "../platform/screen-reader";
 import { useLiveRegion } from "./live-region";
@@ -14,7 +14,7 @@ import { TEST_IDS } from "./test-ids";
 import { FLOAT_SHADOW, SPACE, TARGET_MIN, tabBarClearance, useColors, useStacked } from "./tokens";
 import { CueText } from "./type";
 
-export type SnackbarPlacement = "root" | "presentation";
+export type SnackbarPlacement = "root" | "presentation" | "sheet";
 
 const LONG_TIMEOUT_MS = 15_000;
 
@@ -34,9 +34,7 @@ function subscribe(listener: () => void): () => void {
 }
 
 function topHost(): string | null {
-  return (
-    (mounted.findLast((host) => host.placement === "presentation") ?? mounted.at(-1))?.id ?? null
-  );
+  return (mounted.findLast((host) => host.placement !== "root") ?? mounted.at(-1))?.id ?? null;
 }
 
 function useIsTopHost(placement: SnackbarPlacement): boolean {
@@ -77,7 +75,7 @@ function Snackbar({
   }, [snack, holdLong]);
 
   const stacked = useStacked();
-  const bottom = (placement === "root" ? tabBarClearance(insets.bottom) : insets.bottom) + SPACE.s2;
+  const bottom = edgeClearance(placement, insets.bottom) + SPACE.s2;
 
   return (
     <View
@@ -124,6 +122,11 @@ function Snackbar({
       </View>
     </View>
   );
+}
+
+function edgeClearance(placement: SnackbarPlacement, insetBottom: number): number {
+  if (placement === "root") return tabBarClearance(insetBottom);
+  return placement === "sheet" && Platform.OS === "android" ? 0 : insetBottom;
 }
 
 const styles = StyleSheet.create({

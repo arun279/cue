@@ -47,8 +47,8 @@ it.each(mounts)("uses the overlay host directly inside the presenting view in $f
   expect(placement?.name?.getText()).toBe("placement");
   const value = placement && ts.isJsxAttribute(placement) && placement.initializer;
   const name = value && ts.isStringLiteral(value) ? value.text : undefined;
-  expect(["root", "presentation"]).toContain(name);
-  if (name !== "root" && name !== "presentation") return;
+  expect(["root", "presentation", "sheet"]).toContain(name);
+  if (name !== "root" && name !== "presentation" && name !== "sheet") return;
 
   await render(<SnackbarHost placement={name} />);
   await act(() => showSnack({ message: "Removed play" }));

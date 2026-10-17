@@ -7,11 +7,11 @@ import {
 } from "@cue/core/stores/snackbar-store";
 import { act, render, screen, userEvent } from "@testing-library/react-native";
 import type { ReactElement } from "react";
-import { AccessibilityInfo, View } from "react-native";
+import { AccessibilityInfo, Platform, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { SnackbarHost } from "../../src/ui/SnackbarHost";
 import { AUTO_DISMISS_UNDO } from "../../src/ui/snackbar-policy.harness";
-import { SPACE, tabBarClearance } from "../../src/ui/tokens";
+import { SPACE } from "../../src/ui/tokens";
 
 let mockTraktBase: string | undefined;
 jest.mock("../../src/config", () => ({
@@ -57,7 +57,11 @@ it("runs an action from its own tap", async () => {
   expect(action.onPress).toHaveBeenCalledTimes(1);
 });
 
-it.each(["root", "presentation"] as const)("floats above the %s safe area", async (placement) => {
+it.each([
+  ["root", { ios: 104, android: 112 }],
+  ["presentation", { ios: 32, android: 32 }],
+  ["sheet", { ios: 32, android: 8 }],
+] as const)("floats the %s snackbar at its bottom edge", async (placement, bottom) => {
   await render(
     <SafeAreaProvider
       initialMetrics={{
@@ -74,7 +78,7 @@ it.each(["root", "presentation"] as const)("floats above the %s safe area", asyn
     position: "absolute",
     left: SPACE.s3,
     right: SPACE.s3,
-    bottom: (placement === "root" ? tabBarClearance(24) : 24) + SPACE.s2,
+    bottom: Platform.select(bottom),
   });
 });
 
@@ -130,11 +134,14 @@ function Hosts({ sheetOpen }: { readonly sheetOpen: boolean }): ReactElement {
   );
 }
 
-it("keeps the presentation above a root host that mounts later", async () => {
+it.each([
+  "presentation",
+  "sheet",
+] as const)("keeps the %s above a root host that mounts later", async (placement) => {
   await render(
     <View>
       <View testID="sheet-host">
-        <SnackbarHost placement="presentation" />
+        <SnackbarHost placement={placement} />
       </View>
       <View testID="root-host">
         <SnackbarHost placement="root" />

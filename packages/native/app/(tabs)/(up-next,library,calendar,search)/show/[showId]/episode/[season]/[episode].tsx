@@ -20,7 +20,7 @@ export default function EpisodeRoute(): ReactElement {
   return (
     <View style={styles.route}>
       <EpisodeSheet showId={showId} season={season} episode={episode} />
-      <SnackbarHost placement="presentation" />
+      <SnackbarHost placement="sheet" />
       <AppIdle />
       <SheetPresented />
     </View>

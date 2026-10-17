@@ -1,11 +1,12 @@
 import "./support/detail-mocks";
 import { dismissSnack, showSnack } from "@cue/core/stores/snackbar-store";
-import { act, fireEvent, render, screen } from "@testing-library/react-native";
-import { StyleSheet } from "react-native";
+import { act, render, screen } from "@testing-library/react-native";
+import type { ReactElement } from "react";
+import { Platform, StyleSheet } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import AccountLayout from "../app/(account)/_layout";
 import EpisodeRoute from "../app/(tabs)/(up-next,library,calendar,search)/show/[showId]/episode/[season]/[episode]";
 import { TEST_IDS } from "../src/ui/test-ids";
-import { SPACE, tabBarClearance } from "../src/ui/tokens";
 import { accountFixture } from "./support/account";
 import { DetailHarness } from "./support/detail";
 
@@ -37,34 +38,52 @@ function contentLayout(testID: string) {
   };
 }
 
-it.each([
-  ["episode sheet", TEST_IDS.episodeSheet],
-  ["account modal", TEST_IDS.screenProfile],
-])("keeps the %s content layout unchanged while feedback appears and disappears", async (name, id) => {
-  if (name === "episode sheet") {
-    await render(<EpisodeRoute />, { wrapper: DetailHarness });
-    await screen.findByTestId(TEST_IDS.episodePagerNext);
-    await fireEvent(screen.getByTestId(id), "layout", {
-      nativeEvent: { layout: { width: 390, height: 600, x: 0, y: 0 } },
-    });
-  } else {
-    await accountFixture().paint(<AccountLayout />);
-    await screen.findByText("Jo Taylor");
-    await screen.findByTestId(TEST_IDS.profileEpisodeCount);
-  }
-  expect(screen.queryByTestId(TEST_IDS.snackbar)).toBeNull();
-  expect(screen.getByTestId(id)).toHaveProp(
-    "contentContainerStyle",
-    expect.objectContaining({ paddingBottom: tabBarClearance(0) + SPACE.s4 }),
+function NavigationBarInset({ children }: { readonly children: ReactElement }): ReactElement {
+  return (
+    <SafeAreaProvider
+      initialMetrics={{
+        frame: { x: 0, y: 0, width: 412, height: 915 },
+        insets: { top: 0, right: 0, bottom: 48, left: 0 },
+      }}
+    >
+      {children}
+    </SafeAreaProvider>
   );
+}
+
+it.each([
+  ["episode sheet", TEST_IDS.episodeSheet, TEST_IDS.episodePagerNext, { ios: 56, android: 8 }],
+  ["account modal", TEST_IDS.screenProfile, TEST_IDS.profileEpisodeCount, { ios: 56, android: 56 }],
+])("keeps the %s content layout unchanged while feedback appears and disappears", async (name, id, last, bottom) => {
+  if (name === "episode sheet") {
+    await render(
+      <NavigationBarInset>
+        <EpisodeRoute />
+      </NavigationBarInset>,
+      { wrapper: DetailHarness },
+    );
+  } else {
+    await accountFixture().paint(
+      <NavigationBarInset>
+        <AccountLayout />
+      </NavigationBarInset>,
+    );
+    await screen.findByText("Jo Taylor");
+  }
+  await screen.findByTestId(last);
+  expect(screen.queryByTestId(TEST_IDS.snackbar)).toBeNull();
   const before = contentLayout(id);
+  expect(before.nodes.map((node) => node.testID)).toContain(last);
 
   await act(() =>
     showSnack({ message: "Removed play", actions: [{ label: "Undo", onPress: jest.fn() }] }),
   );
 
   expect(screen.getAllByTestId(TEST_IDS.snackbar)).toHaveLength(1);
-  expect(screen.getByTestId(TEST_IDS.snackbar)).toHaveStyle({ position: "absolute", bottom: 8 });
+  expect(screen.getByTestId(TEST_IDS.snackbar)).toHaveStyle({
+    position: "absolute",
+    bottom: Platform.select(bottom),
+  });
   const content = screen.getByTestId(id);
   expect(content.parent?.parent).toContainElement(screen.getByTestId(TEST_IDS.snackbar));
   expect(contentLayout(id)).toEqual(before);

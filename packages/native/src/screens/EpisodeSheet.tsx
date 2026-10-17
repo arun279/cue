@@ -6,11 +6,10 @@ import { usePrefs } from "@cue/core/prefs/prefs-store";
 import { episodePlaysQuery, episodeQuery, showSeasonsQuery } from "@cue/core/queries/shows";
 import { useRuntime } from "@cue/core/runtime/runtime";
 import { useQuery } from "@tanstack/react-query";
-import { type ReactElement, useState } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import type { ReactElement } from "react";
+import { StyleSheet, View } from "react-native";
 import { TEST_IDS } from "../ui/test-ids";
-import { RADIUS, SPACE, tabBarClearance, useColors } from "../ui/tokens";
+import { RADIUS, SPACE, useColors } from "../ui/tokens";
 import { CueText } from "../ui/type";
 import { EpisodeMarkRow } from "./episode-sheet/EpisodeMarkRow";
 import { EpisodeMenu } from "./episode-sheet/EpisodeMenu";
@@ -27,19 +26,10 @@ export interface EpisodeSheetProps {
 }
 
 export function EpisodeSheet(props: EpisodeSheetProps): ReactElement {
-  const [height, setHeight] = useState(0);
-  const insets = useSafeAreaInsets();
   return (
-    <ScrollView
-      testID={TEST_IDS.episodeSheet}
-      style={styles.screen}
-      onLayout={({ nativeEvent }) => setHeight(nativeEvent.layout.height)}
-      contentContainerStyle={{ paddingBottom: tabBarClearance(insets.bottom) + SPACE.s4 }}
-    >
-      <View style={{ minHeight: height }}>
-        <EpisodeContent key={`${props.showId}:${epCode(props.season, props.episode)}`} {...props} />
-      </View>
-    </ScrollView>
+    <View testID={TEST_IDS.episodeSheet} style={styles.screen}>
+      <EpisodeContent key={`${props.showId}:${epCode(props.season, props.episode)}`} {...props} />
+    </View>
   );
 }
 
