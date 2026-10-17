@@ -1,0 +1,12 @@
+appId: app.cuetracker
+---
+- extendedWaitUntil:
+    visible:
+      id: "screen-up-next"
+    timeout: 120000
+- extendedWaitUntil:
+    visible:
+      id: "app-ready"
+    timeout: 48300
+- assertNotVisible:
+    id: "up-next-skeleton"

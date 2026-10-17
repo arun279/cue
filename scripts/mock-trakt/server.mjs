@@ -1,36 +1,44 @@
 /**
- * A local fake Trakt: `pnpm mock:trakt`, then build or serve the app with
- * `--mode mock` (`.env.mock` points `VITE_TRAKT_API_BASE` here). It exists so the
- * built app, in a browser or in the iOS simulator, can run against a signed-in
- * account with no Trakt credentials and no network, where Playwright route
- * mocking is not available.
+ * A local fake Trakt for the core harness and native simulator flows. It lets
+ * the app run against a signed-in account with no Trakt credentials or network.
  *
  * Dependency-free Node: `node:http` and the seed module, nothing else.
  *
  * Only the endpoints the app actually calls are modelled. Anything else answers
  * 404 with a logged line, never a silent empty success: a path with no route has
  * to be visible as a hole rather than look like an account with nothing in it.
+ * The log line is where a caller reads back what it asked for; no response body
+ * ever quotes the request.
  */
 
+import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
+import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { createFaults, FAULT_PROFILE_NAMES, faultResponse, faultsFromEnv } from "./faults.mjs";
+import { createJournal } from "./journal.mjs";
 import {
   applyHiddenWrite,
   applyHistoryWrite,
   applyWatchlistWrite,
+  browseBody,
   calendarBody,
-  createLibrary,
+  createSeedLibrary,
   episodeDetailBody,
+  FIXTURE_NOW,
   hiddenBody,
   historyRows,
   itemPlaysBody,
   lastActivitiesBody,
   movieDetailBody,
   progressBody,
+  relatedMoviesBody,
+  relatedShowsBody,
+  SEED_PROFILE_NAMES,
+  searchBody,
   seasonsBody,
   showDetailBody,
   userSettingsBody,
-  userStatsBody,
   watchedMoviesBody,
   watchedShowsBody,
   watchlistBody,
@@ -41,12 +49,12 @@ const TOKEN_TTL_SECONDS = 90 * 24 * 60 * 60;
 const AUTH_CODE = "mock-auth-code";
 
 /** Every OAuth grant resolves to this one session; the mock authorizes anybody. */
-const token = () => ({
+const token = (clock) => ({
   access_token: "mock-access-token",
   refresh_token: "mock-refresh-token",
   token_type: "bearer",
   scope: "public",
-  created_at: Math.floor(Date.now() / 1000),
+  created_at: Math.floor(clock() / 1000),
   expires_in: TOKEN_TTL_SECONDS,
 });
 
@@ -54,6 +62,13 @@ const json = (data, headers = {}) => ({
   status: 200,
   headers: { "content-type": "application/json; charset=utf-8", ...headers },
   body: JSON.stringify(data),
+});
+
+/** Trakt's answer to a device-token poll nobody has approved yet. */
+const pending = () => ({
+  status: 400,
+  headers: { "content-type": "application/json; charset=utf-8" },
+  body: JSON.stringify({ error: "authorization_pending" }),
 });
 
 const notFound = (message) => ({
@@ -83,49 +98,23 @@ const findShow = (library, id) =>
 const findMovie = (library, id) =>
   library.movies.find((movie) => movie.trakt === Number(id) || movie.slug === id);
 
-const ASPECTS = { poster: [400, 600], avatar: [240, 240] };
+const PLACEHOLDERS = new Map(
+  ["poster", "avatar", "fanart"].map((slot) => [
+    slot,
+    readFileSync(join(import.meta.dirname, `${slot}.png`)),
+  ]),
+);
 
-/** Initials, so a poster in a screenshot is identifiable rather than a grey box. */
-function imageLabel(library, kind, id) {
-  if (kind === "episodes") {
-    const show = library.shows.find((item) => item.episodes.some((ep) => ep.traktId === id));
-    const episode = show?.episodes.find((ep) => ep.traktId === id);
-    return episode === undefined ? "?" : `S${episode.season}E${episode.number}`;
-  }
-  const title =
-    kind === "movies"
-      ? findMovie(library, String(id))?.title
-      : findShow(library, String(id))?.title;
-  if (title === undefined) return kind === "users" ? "CD" : "?";
-  return title
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((word) => word[0].toUpperCase())
-    .join("");
-}
-
-/**
- * A generated placeholder for every image the seed points at. Trakt serves
- * host-relative image paths; these are absolute on the mock's own origin because
- * the app upgrades a scheme-less URL to https (`src/data/image-source.ts`), which
- * a local plain-HTTP mock could never answer.
- */
-function placeholderImage(library, kind, id, slot) {
-  const [width, height] = ASPECTS[slot] ?? [640, 360];
-  const hue = (id * 37) % 360;
-  const label = imageLabel(library, kind, id);
+function placeholderImage(slot) {
   return {
     status: 200,
-    headers: { "content-type": "image/svg+xml; charset=utf-8", "cache-control": "no-store" },
-    body: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">
-<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
-<stop offset="0" stop-color="hsl(${hue} 45% 32%)"/><stop offset="1" stop-color="hsl(${(hue + 40) % 360} 40% 14%)"/>
-</linearGradient></defs>
-<rect width="${width}" height="${height}" fill="url(#g)"/>
-<text x="50%" y="50%" fill="hsl(${hue} 60% 88%)" font-family="Helvetica, Arial, sans-serif" font-size="${Math.round(height / 4)}" font-weight="600" text-anchor="middle" dominant-baseline="central">${label}</text>
-</svg>`,
+    headers: { "content-type": "image/png", "cache-control": "no-store" },
+    body: PLACEHOLDERS.get(slot) ?? PLACEHOLDERS.get("fanart"),
   };
 }
+
+const browse = (ctx, kind) =>
+  browseBody(ctx.library, ctx.origin, extendedOf(ctx.url), kind, ctx.params.rank === "trending");
 
 /**
  * The surface the app reads, matched in order, so the fixed paths
@@ -135,25 +124,33 @@ function placeholderImage(library, kind, id, slot) {
 const ROUTES = [
   [
     "GET",
-    /^\/images\/(?<kind>[^/]+)\/(?<id>\d+)\/(?<slot>[^/.]+)\.svg$/,
-    (ctx) => placeholderImage(ctx.library, ctx.params.kind, Number(ctx.params.id), ctx.params.slot),
+    /^\/images\/(?<kind>[^/]+)\/(?<id>\d+)\/(?<slot>[^/.]+)\.png$/,
+    (ctx) => placeholderImage(ctx.params.slot),
   ],
 
-  // ---- OAuth. Every grant resolves immediately: there is nobody to approve it.
+  // ---- OAuth. Each device code starts a new grant that waits for `/__approve`
+  // the way the real one waits for a person at the activation page, so the code
+  // stays on screen until the caller says it was entered.
   [
     "POST",
     /^\/oauth\/device\/code$/,
-    (ctx) =>
-      json({
+    (ctx) => {
+      ctx.device.approved = false;
+      return json({
         device_code: "mock-device-code",
         user_code: "CUE-MOCK",
         verification_url: `${ctx.origin}/activate`,
         expires_in: 600,
         interval: 1,
-      }),
+      });
+    },
   ],
-  ["POST", /^\/oauth\/device\/token$/, () => json(token())],
-  ["POST", /^\/oauth\/token$/, () => json(token())],
+  [
+    "POST",
+    /^\/oauth\/device\/token$/,
+    (ctx) => (ctx.device.approved ? json(token(ctx.library.clock)) : pending()),
+  ],
+  ["POST", /^\/oauth\/token$/, (ctx) => json(token(ctx.library.clock))],
   ["POST", /^\/oauth\/revoke$/, () => json({})],
   // The web PKCE flow's authorize page, reduced to the redirect it ends in: the
   // caller's `state` comes back untouched, so the app's nonce check is real.
@@ -172,13 +169,21 @@ const ROUTES = [
 
   // ---- Account
   ["GET", /^\/users\/settings$/, (ctx) => json(userSettingsBody(ctx.library, ctx.origin))],
-  ["GET", /^\/users\/me\/stats$/, (ctx) => json(userStatsBody(ctx.library))],
   [
     "GET",
     /^\/users\/me\/history(?:\/(?<section>episodes|movies))?$/,
     (ctx) =>
       page(
-        historyRows(ctx.library, ctx.origin, extendedOf(ctx.url), ctx.params.section ?? "all"),
+        historyRows(
+          ctx.library,
+          ctx.origin,
+          extendedOf(ctx.url),
+          ctx.params.section ?? "all",
+        ).filter(
+          (row) =>
+            row.watched_at >= (ctx.url.searchParams.get("start_at") ?? "") &&
+            row.watched_at <= (ctx.url.searchParams.get("end_at") ?? "9999"),
+        ),
         ctx.url,
         10,
       ),
@@ -227,7 +232,7 @@ const ROUTES = [
     (ctx) => {
       const { kind, id } = ctx.params;
       const rows = itemPlaysBody(ctx.library, ctx.origin, extendedOf(ctx.url), kind, id);
-      if (rows === null) return notFound(`no seeded ${kind} ${id}`);
+      if (rows === null) return notFound("no seeded item");
       return page(rows, ctx.url, 10);
     },
   ],
@@ -244,14 +249,38 @@ const ROUTES = [
     (ctx) => json(applyWatchlistWrite(ctx.library, ctx.body, true)),
   ],
 
+  // ---- Search and browse
+  [
+    "GET",
+    /^\/search\/[^/]+$/,
+    (ctx) =>
+      json(
+        searchBody(
+          ctx.library,
+          ctx.origin,
+          extendedOf(ctx.url),
+          ctx.url.searchParams.get("query") ?? "",
+        ),
+      ),
+  ],
+
   // ---- Shows
-  ["GET", /^\/shows\/(?:trending|popular)$/, () => json([])],
+  ["GET", /^\/shows\/(?<rank>trending|popular)$/, (ctx) => json(browse(ctx, "shows"))],
+  [
+    "GET",
+    /^\/shows\/(?<id>[^/]+)\/related$/,
+    (ctx) => {
+      const show = findShow(ctx.library, ctx.params.id);
+      if (show === undefined) return notFound("no seeded show");
+      return page(relatedShowsBody(show, ctx.library, ctx.origin, extendedOf(ctx.url)), ctx.url, 6);
+    },
+  ],
   [
     "GET",
     /^\/shows\/(?<id>[^/]+)\/progress\/watched$/,
     (ctx) => {
       const show = findShow(ctx.library, ctx.params.id);
-      if (show === undefined) return notFound(`no seeded show ${ctx.params.id}`);
+      if (show === undefined) return notFound("no seeded show");
       return json(progressBody(show, ctx.library, ctx.origin, extendedOf(ctx.url)));
     },
   ],
@@ -263,7 +292,7 @@ const ROUTES = [
       const episode = show?.episodes.find(
         (ep) => ep.season === Number(ctx.params.season) && ep.number === Number(ctx.params.number),
       );
-      if (episode === undefined) return notFound(`no seeded episode ${ctx.url.pathname}`);
+      if (episode === undefined) return notFound("no seeded episode");
       return json(episodeDetailBody(episode, ctx.origin, extendedOf(ctx.url)));
     },
   ],
@@ -272,7 +301,7 @@ const ROUTES = [
     /^\/shows\/(?<id>[^/]+)\/seasons$/,
     (ctx) => {
       const show = findShow(ctx.library, ctx.params.id);
-      if (show === undefined) return notFound(`no seeded show ${ctx.params.id}`);
+      if (show === undefined) return notFound("no seeded show");
       return json(seasonsBody(show, ctx.origin, extendedOf(ctx.url)));
     },
   ],
@@ -281,19 +310,32 @@ const ROUTES = [
     /^\/shows\/(?<id>[^/]+)$/,
     (ctx) => {
       const show = findShow(ctx.library, ctx.params.id);
-      if (show === undefined) return notFound(`no seeded show ${ctx.params.id}`);
+      if (show === undefined) return notFound("no seeded show");
       return json(showDetailBody(show, ctx.origin, extendedOf(ctx.url)));
     },
   ],
 
   // ---- Movies
-  ["GET", /^\/movies\/(?:trending|popular)$/, () => json([])],
+  ["GET", /^\/movies\/(?<rank>trending|popular)$/, (ctx) => json(browse(ctx, "movies"))],
+  [
+    "GET",
+    /^\/movies\/(?<id>[^/]+)\/related$/,
+    (ctx) => {
+      const movie = findMovie(ctx.library, ctx.params.id);
+      if (movie === undefined) return notFound("no seeded movie");
+      return page(
+        relatedMoviesBody(movie, ctx.library, ctx.origin, extendedOf(ctx.url)),
+        ctx.url,
+        12,
+      );
+    },
+  ],
   [
     "GET",
     /^\/movies\/(?<id>[^/]+)$/,
     (ctx) => {
       const movie = findMovie(ctx.library, ctx.params.id);
-      if (movie === undefined) return notFound(`no seeded movie ${ctx.params.id}`);
+      if (movie === undefined) return notFound("no seeded movie");
       return json(movieDetailBody(movie, ctx.origin, extendedOf(ctx.url)));
     },
   ],
@@ -317,10 +359,94 @@ const ROUTES = [
 
 const CORS = {
   "access-control-allow-origin": "*",
-  "access-control-allow-methods": "GET, POST, OPTIONS",
+  "access-control-allow-methods": "GET, POST, DELETE, OPTIONS",
   "access-control-allow-headers": "authorization, content-type, trakt-api-key, trakt-api-version",
+  // The app reads pagination off the headers and its backoff off `Retry-After`.
+  // Neither is CORS-safelisted, so without this the browser hands the app a
+  // response with those headers stripped and the mock silently stops modelling
+  // the thing under test.
+  "access-control-expose-headers":
+    "retry-after, x-pagination-page, x-pagination-limit, x-pagination-page-count, x-pagination-item-count",
   "access-control-max-age": "600",
 };
+
+/**
+ * A fault's effect on the connection itself, before any response is composed.
+ * False when the fault ends the request without one.
+ */
+async function stall(fault, request, hold) {
+  if (fault.drop === true) {
+    request.socket.destroy();
+    return false;
+  }
+  if (fault.hold === true) await hold();
+  return true;
+}
+
+/**
+ * POST puts the account back to a seed, for a flow whose assertions are about
+ * what is IN the account rather than about the order the flows ran in. `?seed=`
+ * names one of the profiles in `seed.mjs`; without it the account goes back to
+ * the default eight shows and three movies. It is the one control that returns
+ * the whole mock to a known state, so it disarms any faults with it and lets go
+ * of anything a hold fault left waiting.
+ */
+function resetRoute(reset, releaseHeld, method, url) {
+  if (method !== "POST") return notFound("no control route");
+  const seed = url.searchParams.get("seed") ?? "default";
+  if (!reset(seed)) return notFound("no seed profile");
+  releaseHeld();
+  return json({ reset: true });
+}
+
+/**
+ * POST arms a rule (or `{ rules: [...] }`), or the named profile a `?<name>`
+ * query flag selects, and answers with the durable op-log that profile seeds.
+ * GET reports what is armed, DELETE clears.
+ */
+function faultRoute(faults, method, url, body, releaseHeld) {
+  if (method === "POST") {
+    const profile = FAULT_PROFILE_NAMES.find((name) => url.searchParams.has(name));
+    if (profile === undefined) {
+      try {
+        return json({ armed: faults.arm(body) });
+      } catch (error) {
+        return { ...json({ error: error.message }), status: 400 };
+      }
+    }
+    return json({ armed: faults.armProfile(profile), profile, opLog: faults.opLog() });
+  }
+  if (method === "DELETE") {
+    faults.clear();
+    releaseHeld();
+    return json({ armed: 0 });
+  }
+  if (method === "GET") return json({ rules: faults.describe(), opLog: faults.opLog() });
+  return notFound("no control route");
+}
+
+/**
+ * POST approves the pending device grant, standing in for the person who opens
+ * the activation page and types the code. Until it is called the token poll
+ * answers `authorization_pending`, which is what keeps the code on screen for
+ * as long as a caller needs it there.
+ */
+function approveRoute(device, method) {
+  if (method !== "POST") return notFound("no control route");
+  device.approved = true;
+  return json({ approved: true });
+}
+
+/**
+ * The harness control plane, on the mock's own origin under a `__` prefix that
+ * no Trakt path can collide with.
+ */
+function controlRoute(faults, device, reset, releaseHeld, method, url, body) {
+  if (url.pathname === "/__reset") return resetRoute(reset, releaseHeld, method, url);
+  if (url.pathname === "/__fault") return faultRoute(faults, method, url, body, releaseHeld);
+  if (url.pathname === "/__approve") return approveRoute(device, method);
+  return null;
+}
 
 async function readBody(request) {
   const chunks = [];
@@ -333,31 +459,103 @@ async function readBody(request) {
   }
 }
 
-function resolve(library, method, url, origin, body) {
+function resolve(library, device, method, url, origin, body) {
   for (const [routeMethod, pattern, handler] of ROUTES) {
     if (routeMethod !== method) continue;
     const match = pattern.exec(url.pathname);
     if (match === null) continue;
-    return handler({ library, url, origin, body, params: match.groups ?? {} });
+    return handler({ library, device, url, origin, body, params: match.groups ?? {} });
   }
-  return notFound(`no route for ${method} ${url.pathname}`);
+  return notFound("no route");
+}
+
+function finishFault(request, fault, result) {
+  if (fault?.dropAfter !== true) return result;
+  request.socket.destroy();
+  return null;
 }
 
 /**
  * A mock instance: `listen()` resolves with the URL it bound, and `library` is
  * the live account state, so a caller can assert a write landed.
  */
-export function createMockTrakt({ port = DEFAULT_PORT, host = "127.0.0.1", log = true } = {}) {
-  const library = createLibrary();
+export function createMockTrakt({
+  port = DEFAULT_PORT,
+  clock = () => FIXTURE_NOW,
+  host = "127.0.0.1",
+  log = true,
+  journalFile = process.env["MOCK_TRAKT_JOURNAL"],
+  faults: faultSpec = faultsFromEnv(process.env["MOCK_TRAKT_FAULTS"]),
+  onRequest = (_entry) => {},
+} = {}) {
+  let library = createSeedLibrary("default", clock(), clock);
+  const device = { approved: false };
+  const journal = createJournal(journalFile);
+  const faults = createFaults(faultSpec);
+  const held = new Set();
+  const hold = () => new Promise((resolve) => held.add(resolve));
+  const releaseHeld = () => {
+    const releases = [...held];
+    held.clear();
+    for (const release of releases) release();
+  };
+
+  /** The response to send, or null when a fault ended the request without one. */
+  const answer = async (request, method, url, origin) => {
+    const body = await readBody(request);
+    // Journalled before the route runs, so a request with no route is still
+    // in the record: a hole has to be visible on both sides of a comparison.
+    // The `__` control plane is the harness talking to the mock, not the app
+    // talking to Trakt, so it stays out of a recording that exists to be
+    // compared against another app's.
+    if (!url.pathname.startsWith("/__")) {
+      journal.record(method, url.pathname, url.search, body);
+      onRequest({ method, path: url.pathname, search: url.search, body });
+    }
+    const control = controlRoute(
+      faults,
+      device,
+      (seed) => {
+        if (!SEED_PROFILE_NAMES.includes(seed)) return false;
+        const replaced = library.activities;
+        library = createSeedLibrary(seed, clock(), clock);
+        // The app refetches only what last_activities moved forward, so a reset
+        // moves every section past anything the replaced account reported.
+        const at = Math.max(clock(), ...Object.values(replaced).map((stamp) => stamp + 1));
+        for (const section of Object.keys(library.activities)) library.activities[section] = at;
+        device.approved = false;
+        faults.clear();
+        return true;
+      },
+      releaseHeld,
+      method,
+      url,
+      body,
+    );
+    const fault = control === null ? faults.next(method, url) : null;
+    if (fault !== null) {
+      if (log) process.stdout.write(`mock-trakt fault ${method} ${url.pathname}\n`);
+      if (!(await stall(fault, request, hold))) return null;
+    }
+    return finishFault(
+      request,
+      fault,
+      control ?? faultResponse(fault ?? {}) ?? resolve(library, device, method, url, origin, body),
+    );
+  };
+
   const server = createServer((request, response) => {
     void (async () => {
       const origin = `http://${request.headers.host ?? `${host}:${port}`}`;
       const url = new URL(request.url ?? "/", origin);
       const method = request.method ?? "GET";
-      const result =
-        method === "OPTIONS"
-          ? { status: 204, headers: {}, body: "" }
-          : resolve(library, method, url, origin, await readBody(request));
+      if (method === "OPTIONS") {
+        response.writeHead(204, CORS);
+        response.end("");
+        return;
+      }
+      const result = await answer(request, method, url, origin);
+      if (result === null) return;
       if (log) {
         process.stdout.write(
           `mock-trakt ${method} ${url.pathname}${url.search} ${result.status}\n`,
@@ -369,7 +567,14 @@ export function createMockTrakt({ port = DEFAULT_PORT, host = "127.0.0.1", log =
   });
 
   return {
-    library,
+    // A getter, because `/__reset` replaces the account wholesale.
+    get library() {
+      return library;
+    },
+    get heldRequests() {
+      return held.size;
+    },
+    faults,
     listen: () =>
       new Promise((resolve) => {
         server.listen(port, host, () => {
@@ -379,10 +584,14 @@ export function createMockTrakt({ port = DEFAULT_PORT, host = "127.0.0.1", log =
           resolve(url);
         });
       }),
-    close: () => new Promise((resolve) => server.close(() => resolve())),
+    close: () => {
+      releaseHeld();
+      return new Promise((resolve) => server.close(() => resolve()));
+    },
   };
 }
 
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  await createMockTrakt().listen();
+  const url = await createMockTrakt().listen();
+  process.send?.({ ready: url });
 }

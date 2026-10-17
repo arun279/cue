@@ -1,0 +1,15 @@
+appId: app.cuetracker
+---
+- launchApp:
+    stopApp: true
+    permissions: {}
+- extendedWaitUntil:
+    visible:
+      id: "app-ready"
+    timeout: 120000
+- assertVisible:
+    id: "up-next-list"
+- assertVisible:
+    id: "queue-row-[0-9]+"
+- assertNotVisible:
+    id: "up-next-skeleton"

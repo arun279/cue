@@ -1,0 +1,51 @@
+appId: app.cuetracker
+---
+- runFlow: lib/relaunch.yaml
+- tapOn:
+    id: "queue-row-8803"
+- assertVisible:
+    id: "screen-show-detail"
+- waitForAnimationToEnd
+- takeScreenshot: show-detail-rest
+- assertVisible:
+    id: "episode-row-8803-2-1-checked"
+- waitForAnimationToEnd
+- takeScreenshot: show-detail-loaded
+- runFlow:
+    file: lib/prepare-operation.yaml
+    env:
+      OPERATION: write
+- tapOn:
+    id: "season-check-2"
+- assertVisible: "2 of 4 episodes are unwatched."
+- waitForAnimationToEnd
+- takeScreenshot: show-detail-season-confirm
+- tapOn:
+    text: "(?i)Mark 2 remaining"
+- assertVisible:
+    id: "snackbar"
+- runFlow: lib/settle.yaml
+- assertVisible:
+    id: "episode-row-8803-2-3-checked"
+- waitForAnimationToEnd
+- takeScreenshot: show-detail-season-marked
+- runFlow:
+    file: lib/prepare-operation.yaml
+    env:
+      OPERATION: write
+- tapOn:
+    id: "snackbar-undo"
+- runFlow: lib/settle.yaml
+- assertVisible:
+    id: "episode-row-8803-2-3-check"
+- assertVisible:
+    id: "episode-row-8803-2-1-checked"
+- scrollUntilVisible:
+    element:
+      text: "More like this"
+    direction: DOWN
+    centerElement: true
+- assertVisible:
+    id: "show-card-8801"
+- assertNotVisible:
+    id: "show-card-8808"

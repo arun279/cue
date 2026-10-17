@@ -1,0 +1,7 @@
+appId: app.cuetracker
+---
+- extendedWaitUntil:
+    visible:
+      id: "operation-completed"
+      text: ${".*; " + output.operation + " done;.*"}
+    timeout: 48300

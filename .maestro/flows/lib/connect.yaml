@@ -1,0 +1,18 @@
+appId: app.cuetracker
+---
+# Every iOS suite opens here, on the install its lane has just made and launched
+# once, so iOS skips clearState. Its reinstall made SpringBoard reload every
+# widget while Maestro read SpringBoard's status bar, and a read stalled past
+# XCTest's query timeout ends the Maestro driver.
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - launchApp
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - launchApp:
+          clearState: true
+- runFlow: sign-in.yaml

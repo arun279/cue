@@ -1,0 +1,24 @@
+# The gesture, and the tap that has to do the same thing.
+#
+# "Sync now" is not a convenience: it is the single pointer, non path based
+# alternative the pull gesture owes, and it runs the identical pass.
+appId: app.cuetracker
+---
+- runFlow: lib/relaunch.yaml
+- runFlow:
+    file: lib/prepare-operation.yaml
+    env:
+      OPERATION: sync
+- swipe:
+    start: "50%, 25%"
+    end: "50%, 85%"
+    duration: 600
+- runFlow: lib/settle.yaml
+- runFlow:
+    file: lib/prepare-operation.yaml
+    env:
+      OPERATION: sync
+- tapOn: "Sync now"
+- runFlow: lib/settle.yaml
+- assertVisible:
+    id: "up-next-list"

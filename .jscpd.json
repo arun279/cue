@@ -1,6 +1,6 @@
 {
-  "path": ["src", "test"],
-  "pattern": "**/*.{ts,tsx}",
+  "path": ["packages"],
+  "pattern": "*/{src,test,app,__tests__,modules}/**/*.{ts,tsx}",
   "minLines": 8,
   "threshold": 0
 }

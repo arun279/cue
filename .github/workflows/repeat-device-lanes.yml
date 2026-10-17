@@ -1,0 +1,40 @@
+name: Repeat device lanes
+on:
+  push:
+    branches: ["proof/**"]
+permissions:
+  actions: read
+  contents: read
+  pull-requests: write
+jobs:
+  devices:
+    strategy:
+      fail-fast: false
+      matrix:
+        copy: [1, 2, 3]
+    uses: ./.github/workflows/ci.yml
+    with:
+      copy: -copy-${{ matrix.copy }}
+  summary:
+    if: ${{ always() }}
+    needs: devices
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Summarize every copy
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT/jobs?per_page=100" \
+            --jq '.jobs[] | select(.name | startswith("devices (")) | "| \(.name) | \(.conclusion // .status) |"' \
+            > "$RUNNER_TEMP/device-results.md"
+          {
+            echo "Commit: $GITHUB_SHA"
+            echo
+            echo '| Copy / lane | Result |'
+            echo '| --- | --- |'
+            sort "$RUNNER_TEMP/device-results.md"
+          } >> "$GITHUB_STEP_SUMMARY"
+          test '${{ needs.devices.result }}' = success

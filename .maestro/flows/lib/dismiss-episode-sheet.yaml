@@ -1,0 +1,23 @@
+appId: app.cuetracker
+---
+- extendedWaitUntil:
+    visible:
+      id: "sheet-presented"
+    timeout: 10000
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - back
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - swipe:
+          from:
+            id: "sheet-presented"
+          direction: DOWN
+- extendedWaitUntil:
+    notVisible:
+      id: "episode-sheet"
+    timeout: 10000

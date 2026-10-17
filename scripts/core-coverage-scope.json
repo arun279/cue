@@ -1,0 +1,4 @@
+{
+  "include": ["packages/core/src/**"],
+  "exclude": ["**/*.d.ts", "packages/core/src/app/**"]
+}
