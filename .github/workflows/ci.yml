@@ -422,7 +422,7 @@ jobs:
         if: ${{ !cancelled() }}
         with:
           name: ui-screenshots-ios-light-${{ matrix.suite }}${{ inputs.copy }}
-          path: ${{ runner.temp }}/screenshots/ios/light/${{ matrix.suite }}
+          path: ${{ runner.temp }}/screenshots/ios/light/${{ matrix.suite }}/**/takeScreenshot/*.png
           if-no-files-found: error
           compression-level: 0
           retention-days: 14
@@ -435,6 +435,8 @@ jobs:
             ${{ runner.temp }}/maestro-debug/
             ${{ runner.temp }}/maestro-results-*.xml
             ${{ runner.temp }}/mock-trakt.log
+            ${{ runner.temp }}/screenshots/
+            !${{ runner.temp }}/screenshots/**/takeScreenshot/*.png
           retention-days: 7
   native-e2e:
     permissions:
@@ -503,7 +505,7 @@ jobs:
         if: ${{ !cancelled() }}
         with:
           name: ui-screenshots-ios-dark${{ inputs.copy }}
-          path: ${{ runner.temp }}/screenshots/ios/dark
+          path: ${{ runner.temp }}/screenshots/ios/dark/**/takeScreenshot/*.png
           if-no-files-found: error
           compression-level: 0
           retention-days: 14
@@ -516,6 +518,8 @@ jobs:
             ${{ runner.temp }}/maestro-debug/
             ${{ runner.temp }}/maestro-results-*.xml
             ${{ runner.temp }}/mock-trakt.log
+            ${{ runner.temp }}/screenshots/
+            !${{ runner.temp }}/screenshots/**/takeScreenshot/*.png
           retention-days: 7
   native-android:
     permissions:
@@ -684,7 +688,7 @@ jobs:
         if: ${{ !cancelled() }}
         with:
           name: ui-screenshots-android-light${{ inputs.copy }}
-          path: ${{ runner.temp }}/screenshots/android/light
+          path: ${{ runner.temp }}/screenshots/android/light/**/takeScreenshot/*.png
           if-no-files-found: error
           compression-level: 0
           retention-days: 14
@@ -693,7 +697,10 @@ jobs:
         with:
           name: android-e2e-light${{ inputs.copy }}
           include-hidden-files: true
-          path: ${{ runner.temp }}/android-ui
+          path: |
+            ${{ runner.temp }}/android-ui
+            ${{ runner.temp }}/screenshots/
+            !${{ runner.temp }}/screenshots/**/takeScreenshot/*.png
           if-no-files-found: error
           retention-days: 7
   ui-screenshots-android-dark:
@@ -744,7 +751,7 @@ jobs:
         if: ${{ !cancelled() }}
         with:
           name: ui-screenshots-android-dark${{ inputs.copy }}
-          path: ${{ runner.temp }}/screenshots/android/dark
+          path: ${{ runner.temp }}/screenshots/android/dark/**/takeScreenshot/*.png
           if-no-files-found: error
           compression-level: 0
           retention-days: 14
@@ -753,7 +760,10 @@ jobs:
         with:
           name: android-e2e-dark${{ inputs.copy }}
           include-hidden-files: true
-          path: ${{ runner.temp }}/android-ui
+          path: |
+            ${{ runner.temp }}/android-ui
+            ${{ runner.temp }}/screenshots/
+            !${{ runner.temp }}/screenshots/**/takeScreenshot/*.png
           if-no-files-found: error
           retention-days: 7
   pr-media:

@@ -302,6 +302,15 @@ describe("fast pull request validation", () => {
         .split(/^ {6}- /m)
         .find((step) => step.includes("name: ui-screenshots-"));
       expect(screenshot).toContain("compression-level: 0\n");
+      expect(screenshot).toMatch(
+        /^ {10}path: \$\{\{ runner\.temp \}\}\/screenshots\/.+\/\*\*\/takeScreenshot\/\*\.png\n/m,
+      );
+      const debug = producer
+        .split(/^ {6}- /m)
+        .find((step) => /name: (?:native|android)-e2e-/.test(step));
+      expect(debug).toMatch(
+        /^ {12}\$\{\{ runner\.temp \}\}\/screenshots\/\n {12}!\$\{\{ runner\.temp \}\}\/screenshots\/\*\*\/takeScreenshot\/\*\.png\n/m,
+      );
     }
     expect(fetch).toContain("--pattern 'ui-*'");
   });
