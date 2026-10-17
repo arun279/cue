@@ -386,6 +386,11 @@ jobs:
         with:
           name: cue-native-ios-${{ needs.fingerprint.outputs.ios }}${{ inputs.copy }}
           path: ${{ runner.temp }}/native-ios-app
+      - name: Cache Maestro CLI
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ runner.temp }}/maestro
+          key: maestro-${{ runner.os }}-${{ runner.arch }}-2.10.0-29b675e10cc12080e445e9bfb2e2b4e4dfb9c0f2e30d5884120d258b5e1cd991
       - name: Prepare the simulator and cached app
         run: scripts/prepare-ios-ui.sh "$RUNNER_TEMP/native-ios-app" light
       - name: Run the shared light flow
@@ -403,6 +408,7 @@ jobs:
           name: ui-screenshots-ios-light-${{ matrix.suite }}${{ inputs.copy }}
           path: ${{ runner.temp }}/screenshots/ios/light/${{ matrix.suite }}
           if-no-files-found: error
+          compression-level: 0
           retention-days: 14
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ always() }}
@@ -462,6 +468,11 @@ jobs:
         with:
           name: cue-native-ios-${{ needs.fingerprint.outputs.ios }}${{ inputs.copy }}
           path: ${{ runner.temp }}/native-ios-app
+      - name: Cache Maestro CLI
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ runner.temp }}/maestro
+          key: maestro-${{ runner.os }}-${{ runner.arch }}-2.10.0-29b675e10cc12080e445e9bfb2e2b4e4dfb9c0f2e30d5884120d258b5e1cd991
       - name: Prepare the simulator and cached app
         run: scripts/prepare-ios-ui.sh "$RUNNER_TEMP/native-ios-app" dark
       - name: Run the shared dark traversal and large-text captures
@@ -478,6 +489,7 @@ jobs:
           name: ui-screenshots-ios-dark${{ inputs.copy }}
           path: ${{ runner.temp }}/screenshots/ios/dark
           if-no-files-found: error
+          compression-level: 0
           retention-days: 14
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ always() }}
@@ -683,6 +695,7 @@ jobs:
           name: ui-screenshots-android-light${{ inputs.copy }}
           path: ${{ runner.temp }}/screenshots/android/light
           if-no-files-found: error
+          compression-level: 0
           retention-days: 14
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ always() }}
@@ -769,6 +782,7 @@ jobs:
           name: ui-screenshots-android-dark${{ inputs.copy }}
           path: ${{ runner.temp }}/screenshots/android/dark
           if-no-files-found: error
+          compression-level: 0
           retention-days: 14
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ always() }}

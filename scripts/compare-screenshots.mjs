@@ -57,6 +57,13 @@ const lanes = readFileSync(path.join(work, "lanes.tsv"), "utf8")
   });
 const lane = (side, artifact) =>
   lanes.find((entry) => entry.side === side && entry.artifact === artifact);
+const peers = (side, lane) =>
+  lanes.filter(
+    (entry) =>
+      entry.side === side &&
+      entry.platform === lane.platform &&
+      entry.appearance === lane.appearance,
+  );
 
 const unreadable = [];
 const read = (file, entry, name) => {
@@ -162,10 +169,13 @@ const changes = [];
 const removed = [];
 let compared = 0;
 for (const after of lanes.filter(({ side }) => side === "after")) {
-  const before = lane("before", after.artifact);
   for (const [name, file] of [...after.captures].sort(([a], [b]) => a.localeCompare(b))) {
+    const before =
+      peers("before", after).find((entry) => entry.captures.has(name)) ??
+      lane("before", after.artifact);
     const baseFile = before.captures.get(name);
-    if (baseFile === undefined && before.note !== "") continue;
+    if (baseFile === undefined && peers("before", after).some((entry) => entry.note !== ""))
+      continue;
     const head = read(file, after, name);
     const base = baseFile === undefined ? undefined : read(baseFile, before, name);
     if (head === undefined || (baseFile !== undefined && base === undefined)) continue;
@@ -195,9 +205,11 @@ for (const after of lanes.filter(({ side }) => side === "after")) {
       unpaired: size !== undefined && pair === undefined,
     });
   }
-  if (after.note !== "") continue;
-  for (const name of before.captures.keys()) {
-    if (!after.captures.has(name)) removed.push(caption(after, name));
+  if (peers("after", after).some((entry) => entry.note !== "")) continue;
+  for (const name of lane("before", after.artifact).captures.keys()) {
+    if (!peers("after", after).some((entry) => entry.captures.has(name))) {
+      removed.push(caption(after, name));
+    }
   }
 }
 

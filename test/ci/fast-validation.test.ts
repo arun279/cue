@@ -168,9 +168,11 @@ describe("fast pull request validation", () => {
       ...suite.matchAll(/file: (\.\.\/flows\/[\w-]+\.yaml)\n {4}when:\n {6}platform: Android\n/g),
     ].map(([, flow]) => flow);
     expect(androidOnly).toEqual(["../flows/swipe-mark-and-stop.yaml"]);
-    for (const flow of suite.match(/\.\.\/flows\/[\w-]+\.yaml/g) ?? []) {
-      if (!androidOnly.includes(flow)) expect(iosSuites).toContain(flow);
-    }
+    expect((iosSuites.match(/\.\.\/flows\/[\w-]+\.yaml/g) ?? []).sort()).toEqual(
+      (suite.match(/\.\.\/flows\/[\w-]+\.yaml/g) ?? [])
+        .filter((flow) => !androidOnly.includes(flow))
+        .sort(),
+    );
   });
 
   it("runs required dark screenshot traversals on independent cached-app jobs", () => {
@@ -293,6 +295,10 @@ describe("fast pull request validation", () => {
     expect(verification).toContain('--test-output-dir "$screenshots/$appearance"');
     for (const producer of [ios, iosDark, android, androidDark]) {
       expect(producer.match(/retention-days: 14/g)).toHaveLength(1);
+      const screenshot = producer
+        .split(/^ {6}- /m)
+        .find((step) => step.includes("name: ui-screenshots-"));
+      expect(screenshot).toContain("compression-level: 0\n");
     }
     expect(fetch).toContain("--pattern 'ui-*'");
   });

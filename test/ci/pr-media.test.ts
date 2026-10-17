@@ -274,6 +274,58 @@ describe("pr-media job", () => {
 });
 
 describe("gather-pr-media.sh", { timeout: 30_000 }, () => {
+  it.each([0, 1])("compares a capture moved between light shards with content %s", (content) => {
+    const { review, images } = gather(
+      { "ui-screenshots-ios-light-detail": { captures: { "show-detail-rest": {} } } },
+      { "ui-screenshots-ios-light-activity": { captures: { "show-detail-rest": { content } } } },
+    );
+
+    expect(review).toContain("1 screen compared.");
+    expect(review).not.toMatch(/New:|Removed screens:/);
+    expect(images).toEqual(content === 0 ? [] : ["ios-light-show-detail-rest.png"]);
+    if (content === 1) {
+      expect(review).toContain("**Changed: Show detail rest, iOS, light, default text.");
+      expect(review).toContain("Left to right: before, after, changes.");
+    }
+  });
+
+  it.each([
+    "ui-screenshots-ios-dark",
+    "ui-screenshots-android-light",
+  ])("keeps captures from %s separate when light shards move", (artifact) => {
+    const { review } = gather(
+      { [artifact]: { captures: { "show-detail-rest": {} } } },
+      { "ui-screenshots-ios-light-activity": { captures: { "show-detail-rest": {} } } },
+    );
+    expect(review).toContain("0 screens compared.");
+    expect(review).toContain("**New: Show detail rest, iOS, light, default text.");
+
+    const removed = gather(
+      { "ui-screenshots-ios-light-detail": { captures: { "show-detail-rest": {} } } },
+      { [artifact]: { captures: { "show-detail-rest": {} } } },
+    );
+    expect(removed.review).toContain(
+      "Removed screens:\n\n- Show detail rest, iOS, light, default text",
+    );
+  });
+
+  it("reports incomplete sibling shards without calling moved captures new or removed", () => {
+    const missingBase = gather(
+      { "ui-screenshots-ios-light-detail": { conclusion: "skipped", captures: null } },
+      { "ui-screenshots-ios-light-activity": { captures: { "show-detail-rest": {} } } },
+    );
+    expect(missingBase.images).toEqual([]);
+    expect(missingBase.review).toContain("Not compared:");
+    expect(missingBase.review).not.toContain("New:");
+
+    const missingHead = gather(
+      { "ui-screenshots-ios-light-detail": { captures: { "show-detail-rest": {} } } },
+      { "ui-screenshots-ios-light-activity": { conclusion: "failure", captures: null } },
+    );
+    expect(missingHead.review).toContain("Not compared:");
+    expect(missingHead.review).not.toContain("Removed screens:");
+  });
+
   it("says in one line that nothing changed when only the clock and scroll indicator moved", () => {
     const { review, images } = gather(
       {
