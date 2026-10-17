@@ -70,7 +70,9 @@ const LANES: Record<string, string> = {
   "ui-screenshots-ios-light-activity": "native-e2e-ios-light (activity)",
   "ui-screenshots-ios-light-discovery": "native-e2e-ios-light (discovery)",
   "ui-screenshots-ios-dark": "ui-screenshots-ios-dark",
-  "ui-screenshots-android-light": "android-e2e",
+  "ui-screenshots-android-light-detail": "android-e2e-light (detail)",
+  "ui-screenshots-android-light-activity": "android-e2e-light (activity)",
+  "ui-screenshots-android-light-discovery": "android-e2e-light (discovery)",
   "ui-screenshots-android-dark": "ui-screenshots-android-dark",
 };
 
@@ -206,7 +208,7 @@ describe("pr-media job", () => {
       "fingerprint",
       "native-e2e-ios-light",
       "ui-screenshots-ios-dark",
-      "android-e2e",
+      "android-e2e-light",
       "ui-screenshots-android-dark",
     ]);
     expect(job?.body).toContain("!cancelled() && github.event_name == 'pull_request'");
@@ -316,7 +318,7 @@ describe("gather-pr-media.sh", { timeout: 30_000 }, () => {
 
   it.each([
     "ui-screenshots-ios-dark",
-    "ui-screenshots-android-light",
+    "ui-screenshots-android-light-activity",
   ])("keeps captures from %s separate when light shards move", (artifact) => {
     const { review } = gather(
       { [artifact]: { captures: { "show-detail-rest": {} } } },
@@ -355,11 +357,13 @@ describe("gather-pr-media.sh", { timeout: 30_000 }, () => {
     const { review, images } = gather(
       {
         ...dark({ "library-shows": {} }),
-        "ui-screenshots-android-light": { captures: { "up-next": {} } },
+        "ui-screenshots-android-light-activity": { captures: { "up-next": {} } },
       },
       {
         ...dark({ "library-shows": { clock: 1, scroll: 1 } }),
-        "ui-screenshots-android-light": { captures: { "up-next": { clock: 1, scroll: 1 } } },
+        "ui-screenshots-android-light-activity": {
+          captures: { "up-next": { clock: 1, scroll: 1 } },
+        },
       },
     );
 
@@ -458,7 +462,7 @@ describe("gather-pr-media.sh", { timeout: 30_000 }, () => {
     expect(review).toContain(
       "- Before captures for iOS light (detail flows) are missing because no push run of CI exists for base bbbbbbb.",
     );
-    expect(review.match(/^- Before captures/gm)).toHaveLength(6);
+    expect(review.match(/^- Before captures/gm)).toHaveLength(8);
   });
 
   it("reads the newest artifact when a retried job uploaded the same name twice", () => {

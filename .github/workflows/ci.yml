@@ -48,7 +48,6 @@ jobs:
       pull-requests: read
     runs-on: ubuntu-latest
     outputs:
-      android: ${{ steps.native.outputs.android }}
       devices: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
       ios: ${{ steps.native.outputs.ios }}
       ios-owed: ${{ steps.ios-owed.outputs.owed }}
@@ -57,20 +56,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup-node-pnpm
       - id: native
-        name: Compute native fingerprints
+        name: Compute the iOS native fingerprint
         env:
-          ANDROID_ARCHITECTURES: arm64-v8a,x86_64
-          APP_VERSION: 9.9.9
-          BUILD_NUMBER: "42"
           CONFIGURATION: Release
           EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
           EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
           XCODE_PATH: /Applications/Xcode_26.6.app
-        run: |
-          android=$(pnpm exec node scripts/native-fingerprint.mjs android)
-          ios=$(pnpm exec node scripts/native-fingerprint.mjs ios)
-          echo "android=$android" >> "$GITHUB_OUTPUT"
-          echo "ios=$ios" >> "$GITHUB_OUTPUT"
+        run: echo "ios=$(pnpm exec node scripts/native-fingerprint.mjs ios)" >> "$GITHUB_OUTPUT"
       - id: ios-owed
         name: Owe the iOS lane unless its last run on this branch passed
         if: github.event_name == 'pull_request'
@@ -525,15 +517,25 @@ jobs:
     permissions:
       actions: read
       contents: read
-    needs: fingerprint
     runs-on: ubuntu-latest
+    outputs:
+      fingerprint: ${{ steps.fingerprint.outputs.android }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup-node-pnpm
+      - id: fingerprint
+        name: Compute the Android native fingerprint
+        env:
+          ANDROID_ARCHITECTURES: arm64-v8a,x86_64
+          APP_VERSION: 9.9.9
+          BUILD_NUMBER: "42"
+          EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
+        run: echo "android=$(pnpm exec node scripts/native-fingerprint.mjs android)" >> "$GITHUB_OUTPUT"
       - id: native-cache
         name: Restore the fingerprinted Android artifacts
         env:
-          ARTIFACT_NAME: cue-native-android-${{ needs.fingerprint.outputs.android }}
+          ARTIFACT_NAME: cue-native-android-${{ steps.fingerprint.outputs.android }}
           GH_TOKEN: ${{ github.token }}
         run: |
           if scripts/download-ci-artifact.sh "$ARTIFACT_NAME" "$RUNNER_TEMP/native-android" native-android && \
@@ -626,7 +628,7 @@ jobs:
             ]' > "$RUNNER_TEMP/head-android-sizes.json"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: cue-native-android-${{ needs.fingerprint.outputs.android }}${{ inputs.copy }}
+          name: cue-native-android-${{ steps.fingerprint.outputs.android }}${{ inputs.copy }}
           path: |
             ${{ runner.temp }}/native-android/app-release.aab
             ${{ runner.temp }}/native-android/debug.keystore
@@ -639,13 +641,17 @@ jobs:
           name: cue-native-android-sizes${{ inputs.copy }}
           path: ${{ runner.temp }}/head-android-sizes.json
           retention-days: 30
-  android-e2e:
-    # The emulator and the full flow suite measured 11.3 minutes; the timeout
-    # is that plus about 25 percent.
+  android-e2e-light:
+    # The emulator and all three suites measured 11.3 minutes on one runner;
+    # the timeout is that plus about 25 percent until a shard is measured.
     timeout-minutes: 14
     needs: [fingerprint, native-android]
     if: needs.fingerprint.outputs.devices == 'true'
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [detail, activity, discovery]
     env:
       MAESTRO_CLI_NO_ANALYTICS: "1"
     steps:
@@ -668,7 +674,7 @@ jobs:
           echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
       - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
-          name: cue-native-android-${{ needs.fingerprint.outputs.android }}${{ inputs.copy }}
+          name: cue-native-android-${{ needs.native-android.outputs.fingerprint }}${{ inputs.copy }}
           path: ${{ runner.temp }}/cue-native-android
       - name: Enable KVM
         run: |
@@ -683,11 +689,11 @@ jobs:
           arch: x86_64
           profile: pixel_7_pro
           emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
-          script: bash scripts/verify-android-ui.sh "$RUNNER_TEMP/cue-native-android/universal.apk" "$RUNNER_TEMP/android-ui" "$RUNNER_TEMP/screenshots/android" light
+          script: bash scripts/verify-android-ui.sh "$RUNNER_TEMP/cue-native-android/universal.apk" "$RUNNER_TEMP/android-ui" "$RUNNER_TEMP/screenshots/android" light ${{ matrix.suite }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ !cancelled() }}
         with:
-          name: ui-screenshots-android-light${{ inputs.copy }}
+          name: ui-screenshots-android-light-${{ matrix.suite }}${{ inputs.copy }}
           path: ${{ runner.temp }}/screenshots/android/light/**/takeScreenshot/*.png
           if-no-files-found: error
           compression-level: 0
@@ -695,7 +701,7 @@ jobs:
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ always() }}
         with:
-          name: android-e2e-light${{ inputs.copy }}
+          name: android-e2e-light-${{ matrix.suite }}${{ inputs.copy }}
           include-hidden-files: true
           path: |
             ${{ runner.temp }}/android-ui
@@ -703,6 +709,16 @@ jobs:
             !${{ runner.temp }}/screenshots/**/takeScreenshot/*.png
           if-no-files-found: error
           retention-days: 7
+  android-e2e:
+    needs: [fingerprint, android-e2e-light]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require passing Android light shards unless device lanes were skipped
+        env:
+          DEVICES: ${{ needs.fingerprint.outputs.devices }}
+          SHARDS: ${{ needs.android-e2e-light.result }}
+        run: test "$SHARDS" = success || { test "$DEVICES" = false && test "$SHARDS" = skipped; }
   ui-screenshots-android-dark:
     # Measured 3 to 5 minutes.
     timeout-minutes: 7
@@ -731,7 +747,7 @@ jobs:
           echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
       - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
-          name: cue-native-android-${{ needs.fingerprint.outputs.android }}${{ inputs.copy }}
+          name: cue-native-android-${{ needs.native-android.outputs.fingerprint }}${{ inputs.copy }}
           path: ${{ runner.temp }}/cue-native-android
       - name: Enable KVM
         run: |
@@ -779,7 +795,7 @@ jobs:
       - fingerprint
       - native-e2e-ios-light
       - ui-screenshots-ios-dark
-      - android-e2e
+      - android-e2e-light
       - ui-screenshots-android-dark
     runs-on: ubuntu-latest
     steps:

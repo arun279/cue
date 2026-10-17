@@ -15,9 +15,15 @@ const MOBILE_RELEASE_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/mo
 const REQUIRED_CHECKS = path.join(REPOSITORY_ROOT, ".github/required-checks.json");
 const TRAKT_CLIENT_ID_VARIABLE = "$" + "{{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}";
 // `footprint` skips itself on forks, and the gate reads a skip as a failure.
-// The iOS light matrix reports through the required `native-e2e` aggregate.
+// The light matrices report through the required `native-e2e` and `android-e2e` aggregates.
 // Pull request media is for reading screens, not a check.
-const NOT_REQUIRED = ["fingerprint", "footprint", "native-e2e-ios-light", "pr-media"];
+const NOT_REQUIRED = [
+  "fingerprint",
+  "footprint",
+  "native-e2e-ios-light",
+  "android-e2e-light",
+  "pr-media",
+];
 // The gate reads the push run, where the iOS flow lane always runs.
 const IOS_LANE =
   "    if: github.event_name != 'pull_request' || needs.native-ios.outputs.hit != 'true' || " +
@@ -204,7 +210,8 @@ describe("mobile release gate required checks", () => {
                 /^ {4}(?:name|strategy|if):/.test(line) &&
                 (!["check", "render-performance", "audit", "actionlint"].includes(job.name) ||
                   line !== "    if: $" + "{{ !inputs.copy }}") &&
-                (job.name !== "native-e2e" || line !== "    if: $" + "{{ always() }}") &&
+                (!["native-e2e", "android-e2e"].includes(job.name) ||
+                  line !== "    if: $" + "{{ always() }}") &&
                 (job.name !== "ui-screenshots-ios-dark" || line !== IOS_LANE) &&
                 line !== DEVICE_LANE,
             ),

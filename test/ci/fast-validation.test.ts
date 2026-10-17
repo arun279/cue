@@ -1,5 +1,5 @@
-import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { gitEnv } from "../support/git-env";
@@ -61,11 +61,18 @@ describe("fast pull request validation", () => {
     const android = job("native-android");
 
     expect(fingerprint).toContain("pnpm exec node scripts/native-fingerprint.mjs ios");
-    expect(fingerprint).toContain("pnpm exec node scripts/native-fingerprint.mjs android");
+    expect(fingerprint).not.toContain("native-fingerprint.mjs android");
     expect(ios).toContain("needs: fingerprint");
     expect(ios).toContain("if: steps.native-cache.outputs.hit != 'true'");
     expect(ios).toContain("if: steps.native-cache.outputs.hit == 'true'");
-    expect(android).toContain("needs: fingerprint");
+    expect(android).not.toMatch(/^ {4}needs:/m);
+    expect(android).toContain(
+      'run: echo "android=$(pnpm exec node scripts/native-fingerprint.mjs android)" >> "$GITHUB_OUTPUT"',
+    );
+    expect(android).toContain("fingerprint: $" + "{{ steps.fingerprint.outputs.android }}");
+    expect(android).toContain(
+      "ARTIFACT_NAME: cue-native-android-$" + "{{ steps.fingerprint.outputs.android }}",
+    );
     expect(android).toContain("if: steps.native-cache.outputs.hit != 'true'");
     expect(android).toContain("if: steps.native-cache.outputs.hit == 'true'");
     expect(android.match(/--build-cache --configuration-cache/g)).toHaveLength(2);
@@ -183,26 +190,60 @@ describe("fast pull request validation", () => {
 
   it("runs every shared Maestro flow on iOS and Android", () => {
     const ios = job("native-e2e-ios-light");
-    const androidJob = job("android-e2e");
-    const android = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
-    const suite = readFileSync(repositoryPath(".maestro/ci/app.yaml"), "utf8");
-    const iosSuites = ["detail", "activity", "discovery"]
-      .map((name) => readFileSync(repositoryPath(`.maestro/ci/app-${name}.yaml`), "utf8"))
-      .join("\n");
+    const android = job("android-e2e-light");
+    const verification = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
+    const suites = ["detail", "activity", "discovery"];
+    const flows = suites.flatMap((name) => [
+      ...readFileSync(repositoryPath(`.maestro/ci/app-${name}.yaml`), "utf8").matchAll(
+        /file: (\.\.\/flows\/[\w-]+\.yaml)\n {4}when:\n {6}platform: (\w+)\n/g,
+      ),
+    ]);
 
-    expect(ios).toContain("suite: [detail, activity, discovery]");
+    for (const lane of [ios, android]) {
+      expect(lane).toContain(`suite: [${suites.join(", ")}]`);
+    }
     expect(ios).toContain('".maestro/ci/app-$' + '{{ matrix.suite }}.yaml"');
-    expect(android).toContain("suite=.maestro/ci/app.yaml");
-    expect(androidJob).toContain('"$RUNNER_TEMP/screenshots/android" light');
-    const androidOnly = [
-      ...suite.matchAll(/file: (\.\.\/flows\/[\w-]+\.yaml)\n {4}when:\n {6}platform: Android\n/g),
-    ].map(([, flow]) => flow);
-    expect(androidOnly).toEqual(["../flows/swipe-mark-and-stop.yaml"]);
-    expect((iosSuites.match(/\.\.\/flows\/[\w-]+\.yaml/g) ?? []).sort()).toEqual(
-      (suite.match(/\.\.\/flows\/[\w-]+\.yaml/g) ?? [])
-        .filter((flow) => !androidOnly.includes(flow))
-        .sort(),
+    expect(android).toContain(
+      '"$RUNNER_TEMP/screenshots/android" light $' + "{{ matrix.suite }}\n",
     );
+    expect(verification).toContain("suite=$" + "{5:-}\n");
+    expect(verification).toContain("flow=.maestro/ci/app-$suite.yaml\n");
+    expect(readdirSync(repositoryPath(".maestro/ci")).sort()).toEqual(
+      [...suites.map((name) => `app-${name}.yaml`), "screenshots.yaml"].sort(),
+    );
+    expect(flows.map(([, flow, platform]) => `${platform} ${flow}`).sort()).toEqual([
+      "Android ../flows/swipe-mark-and-stop.yaml",
+      "iOS ../flows/returning-user-app-idle.yaml",
+    ]);
+  });
+
+  it("checks the Android tab bar after the suite that ends on it", () => {
+    const verification = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
+    const activity = readFileSync(repositoryPath(".maestro/ci/app-activity.yaml"), "utf8");
+
+    expect(activity.trimEnd().split("\n").at(-1)).toBe("- runFlow: ../flows/account.yaml");
+    expect(verification).toMatch(
+      /^if \[ "\$suite" = activity \]; then\n {2}adb shell \w+ dump[\s\S]*check-label-fit\.mjs[\s\S]*cue_tab_\$icon[\s\S]*\nelif /m,
+    );
+  });
+
+  it("passes the Android aggregate only when every light shard passed or device lanes were skipped", () => {
+    const aggregate = job("android-e2e");
+    const rollup = aggregate.match(/^ {8}run: (.+)$/m)?.[1] ?? "exit 0";
+    const status = (DEVICES: string, SHARDS: string) =>
+      spawnSync("bash", ["-c", rollup], { env: { DEVICES, SHARDS } }).status;
+
+    expect(aggregate).toContain("needs: [fingerprint, android-e2e-light]");
+    expect(aggregate).toContain("if: $" + "{{ always() }}");
+    expect(aggregate).toContain("DEVICES: $" + "{{ needs.fingerprint.outputs.devices }}");
+    expect(aggregate).toContain("SHARDS: $" + "{{ needs.android-e2e-light.result }}");
+    expect(status("true", "success")).toBe(0);
+    expect(status("false", "skipped")).toBe(0);
+    expect(status("true", "skipped")).toBe(1);
+    expect(status("", "skipped")).toBe(1);
+    expect(status("true", "failure")).toBe(1);
+    expect(status("false", "failure")).toBe(1);
+    expect(status("true", "cancelled")).toBe(1);
   });
 
   it("runs required dark screenshot traversals on independent cached-app jobs", () => {
@@ -215,13 +256,15 @@ describe("fast pull request validation", () => {
     expect(ios).toContain(" .maestro/ci/screenshots.yaml \\\n");
     expect(ios).not.toContain("continue-on-error");
     expect(android).toContain("needs: [fingerprint, native-android]");
-    expect(android).toContain("cue-native-android-$" + "{{ needs.fingerprint.outputs.android }}");
+    expect(android).toContain(
+      "cue-native-android-$" + "{{ needs.native-android.outputs.fingerprint }}",
+    );
     expect(android).toContain('"$RUNNER_TEMP/screenshots/android" dark');
     expect(android).not.toContain("continue-on-error");
   });
 
   it.each([
-    "android-e2e",
+    "android-e2e-light",
     "ui-screenshots-android-dark",
   ])("%s boots a fresh emulator and pins its display before capturing", (name) => {
     const emulators = job(name)
@@ -284,14 +327,14 @@ describe("fast pull request validation", () => {
   it("publishes every screenshot artifact for 14 days", () => {
     const ios = job("native-e2e-ios-light");
     const iosDark = job("ui-screenshots-ios-dark");
-    const android = job("android-e2e");
+    const android = job("android-e2e-light");
     const androidDark = job("ui-screenshots-android-dark");
     const verification = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
     const fetch = readFileSync(repositoryPath("scripts/fetch-ui-screenshots.sh"), "utf8");
 
     expect(ios).toContain("name: ui-screenshots-ios-light-$" + "{{ matrix.suite }}");
     expect(iosDark).toContain("name: ui-screenshots-ios-dark");
-    expect(android).toContain("name: ui-screenshots-android-light");
+    expect(android).toContain("name: ui-screenshots-android-light-$" + "{{ matrix.suite }}");
     expect(androidDark).toContain("name: ui-screenshots-android-dark");
     expect(ios).toContain('--test-output-dir "$output"');
     expect(iosDark).toContain('--test-output-dir "$RUNNER_TEMP/screenshots/ios/dark"');
@@ -316,7 +359,7 @@ describe("fast pull request validation", () => {
   });
 
   it("runs only the fast checks and the Android build on draft pull requests", () => {
-    const deviceJobs = ["native-ios", "android-e2e", "ui-screenshots-android-dark"];
+    const deviceJobs = ["native-ios", "android-e2e-light", "ui-screenshots-android-dark"];
     const jobs = [...workflow.matchAll(/^ {2}([a-z][a-z0-9-]*):$/gm)].map(([, name]) => name ?? "");
     const gated = jobs.filter((name) =>
       job(name).includes("needs.fingerprint.outputs.devices == 'true'"),
@@ -362,7 +405,7 @@ describe("fast pull request validation", () => {
         "native-ios",
         "native-e2e-ios-light",
         "ui-screenshots-ios-dark",
-        "android-e2e",
+        "android-e2e-light",
         "ui-screenshots-android-dark",
       ].map((name) => [name, Number(job(name).match(/^ {4}timeout-minutes: (\d+)$/m)?.[1])]),
     );
@@ -371,7 +414,7 @@ describe("fast pull request validation", () => {
       "native-ios": 75,
       "native-e2e-ios-light": 22,
       "ui-screenshots-ios-dark": 20,
-      "android-e2e": 14,
+      "android-e2e-light": 14,
       "ui-screenshots-android-dark": 7,
     });
   });
