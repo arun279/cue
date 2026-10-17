@@ -124,9 +124,11 @@ function Snackbar({
   );
 }
 
+const SHEET_PAGER_CLEARANCE = SPACE.s4 + TARGET_MIN;
+
 function edgeClearance(placement: SnackbarPlacement, insetBottom: number): number {
   if (placement === "root") return tabBarClearance(insetBottom);
-  return placement === "sheet" && Platform.OS === "android" ? 0 : insetBottom;
+  return placement === "sheet" && Platform.OS === "android" ? SHEET_PAGER_CLEARANCE : insetBottom;
 }
 
 const styles = StyleSheet.create({

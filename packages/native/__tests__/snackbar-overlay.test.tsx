@@ -7,6 +7,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import AccountLayout from "../app/(account)/_layout";
 import EpisodeRoute from "../app/(tabs)/(up-next,library,calendar,search)/show/[showId]/episode/[season]/[episode]";
 import { TEST_IDS } from "../src/ui/test-ids";
+import { SPACE, TARGET_MIN } from "../src/ui/tokens";
 import { accountFixture } from "./support/account";
 import { DetailHarness } from "./support/detail";
 
@@ -52,7 +53,7 @@ function NavigationBarInset({ children }: { readonly children: ReactElement }): 
 }
 
 it.each([
-  ["episode sheet", TEST_IDS.episodeSheet, TEST_IDS.episodePagerNext, { ios: 56, android: 8 }],
+  ["episode sheet", TEST_IDS.episodeSheet, TEST_IDS.episodePagerNext, { ios: 56, android: 72 }],
   ["account modal", TEST_IDS.screenProfile, TEST_IDS.profileEpisodeCount, { ios: 56, android: 56 }],
 ])("keeps the %s content layout unchanged while feedback appears and disappears", async (name, id, last, bottom) => {
   if (name === "episode sheet") {
@@ -92,4 +93,17 @@ it.each([
 
   expect(screen.queryByTestId(TEST_IDS.snackbar)).toBeNull();
   expect(contentLayout(id)).toEqual(before);
+});
+
+it("lifts the Android sheet snackbar above the episode pager", async () => {
+  jest.replaceProperty(Platform, "OS", "android");
+  await render(<EpisodeRoute />, { wrapper: DetailHarness });
+  await screen.findByTestId(TEST_IDS.episodePagerNext);
+  await act(() => showSnack({ message: "Removed play" }));
+
+  expect(screen.getByTestId(TEST_IDS.screenEpisode)).toHaveStyle({ padding: SPACE.s4 });
+  expect(screen.getByTestId(TEST_IDS.episodePagerNext)).toHaveStyle({ minHeight: TARGET_MIN });
+  expect(screen.getByTestId(TEST_IDS.snackbar)).toHaveStyle({
+    bottom: SPACE.s4 + TARGET_MIN + SPACE.s2,
+  });
 });
