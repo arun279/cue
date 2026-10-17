@@ -135,7 +135,7 @@ function preparation(cached: boolean) {
   for (const command of ["curl", "shasum", "unzip", "tar", "xcrun", "node"]) {
     writeFileSync(
       path.join(bin, command),
-      `#!/bin/sh\nprintf "%s\\n" "${command} $*" >> "$PROBE_CALLS"\ncase "${command} $*" in "$FAIL_COMMAND "*) exit 17 ;; esac\n`,
+      `#!/bin/sh\n${command === "shasum" ? "cat > /dev/null\n" : ""}printf "%s\\n" "${command} $*" >> "$PROBE_CALLS"\ncase "${command} $*" in "$FAIL_COMMAND "*) exit 17 ;; esac\n`,
       { mode: 0o755 },
     );
   }
