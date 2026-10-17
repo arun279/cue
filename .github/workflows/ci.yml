@@ -50,6 +50,7 @@ jobs:
     outputs:
       devices: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft && steps.head-tree.outputs.pushed != 'true' }}
       ios: ${{ steps.native.outputs.ios }}
+      ios-cached: ${{ steps.ios-cache.outputs.hit }}
       ios-owed: ${{ steps.ios-owed.outputs.owed }}
       user-facing: ${{ steps.changes.outputs.user-facing }}
     steps:
@@ -76,6 +77,16 @@ jobs:
           EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
           XCODE_PATH: /Applications/Xcode_26.6.app
         run: echo "ios=$(pnpm exec node scripts/native-fingerprint.mjs ios)" >> "$GITHUB_OUTPUT"
+      - id: ios-cache
+        name: Look for the fingerprinted simulator app
+        if: github.event_name == 'pull_request'
+        env:
+          ARTIFACT_NAME: cue-native-ios-${{ steps.native.outputs.ios }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if scripts/download-ci-artifact.sh "$ARTIFACT_NAME" "$RUNNER_TEMP/native-ios-app" native-ios; then
+            echo "hit=true" >> "$GITHUB_OUTPUT"
+          fi
       - id: ios-owed
         name: Owe the iOS lane unless its last run on this branch passed
         if: github.event_name == 'pull_request'
@@ -281,10 +292,8 @@ jobs:
       actions: read
       contents: read
     needs: fingerprint
-    if: needs.fingerprint.outputs.devices == 'true'
+    if: needs.fingerprint.outputs.devices == 'true' && needs.fingerprint.outputs.ios-cached != 'true'
     runs-on: macos-26
-    outputs:
-      hit: ${{ steps.native-cache.outputs.hit }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Select Xcode
@@ -380,7 +389,11 @@ jobs:
       actions: read
       contents: read
     needs: [fingerprint, native-ios]
-    if: github.event_name != 'pull_request' || needs.native-ios.outputs.hit != 'true' || needs.fingerprint.outputs.ios-owed == 'true' || needs.fingerprint.outputs.user-facing == 'true'
+    if: >-
+      !cancelled() && needs.fingerprint.outputs.devices == 'true' &&
+      (needs.native-ios.result == 'success' || needs.native-ios.result == 'skipped') &&
+      (github.event_name != 'pull_request' || needs.fingerprint.outputs.ios-cached != 'true' ||
+      needs.fingerprint.outputs.ios-owed == 'true' || needs.fingerprint.outputs.user-facing == 'true')
     runs-on: macos-26
     strategy:
       fail-fast: false
@@ -398,18 +411,37 @@ jobs:
             jq -er '[.devices[] | .[] | select(.name | startswith("iPhone"))][0].udid // empty')
           xcrun simctl boot "$device_id"
           echo "DEVICE_ID=$device_id" >> "$GITHUB_ENV"
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      - if: needs.native-ios.result == 'success'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
-      - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+      - if: needs.native-ios.result == 'success'
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
           name: cue-native-ios-${{ needs.fingerprint.outputs.ios }}${{ inputs.copy }}
           path: ${{ runner.temp }}/native-ios-app
+      - if: needs.native-ios.result == 'skipped'
+        uses: ./.github/actions/setup-node-pnpm
       - name: Cache Maestro CLI
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ runner.temp }}/maestro
           key: maestro-${{ runner.os }}-${{ runner.arch }}-2.10.0-29b675e10cc12080e445e9bfb2e2b4e4dfb9c0f2e30d5884120d258b5e1cd991
+      - if: needs.native-ios.result == 'skipped'
+        name: Embed current JavaScript into the cached simulator app
+        env:
+          ARTIFACT_NAME: cue-native-ios-${{ needs.fingerprint.outputs.ios }}
+          GH_TOKEN: ${{ github.token }}
+          EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
+          EXPO_PUBLIC_UI_HARNESS: "1"
+          EXPO_PUBLIC_CLOCK_START: "2026-10-15T00:00:00.000Z"
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
+        run: |
+          scripts/download-ci-artifact.sh "$ARTIFACT_NAME" "$RUNNER_TEMP/cached-ios-app" native-ios
+          tar -xzf "$RUNNER_TEMP/cached-ios-app/Cue.app.tgz" -C "$RUNNER_TEMP/cached-ios-app"
+          scripts/reembed-ios.sh "$RUNNER_TEMP/cached-ios-app/Cue.app"
+          mkdir -p "$RUNNER_TEMP/native-ios-app"
+          tar -czf "$RUNNER_TEMP/native-ios-app/Cue.app.tgz" -C "$RUNNER_TEMP/cached-ios-app" Cue.app
       - name: Start the fake Trakt server
         run: node scripts/start-ready-process.mjs scripts/mock-trakt/server.mjs "$RUNNER_TEMP/mock-trakt.log"
       - name: Prepare the simulator and cached app
@@ -446,7 +478,7 @@ jobs:
   native-e2e:
     permissions:
       contents: read
-    needs: [fingerprint, native-ios, native-e2e-ios-light]
+    needs: [fingerprint, native-e2e-ios-light]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
@@ -454,9 +486,8 @@ jobs:
       - name: Require passing iOS light shards unless the pull request skipped them
         env:
           EVENT: ${{ github.event_name }}
-          BUILD: ${{ needs.native-ios.result }}
           DEVICES: ${{ needs.fingerprint.outputs.devices }}
-          HIT: ${{ needs.native-ios.outputs.hit }}
+          HIT: ${{ needs.fingerprint.outputs.ios-cached }}
           OWED: ${{ needs.fingerprint.outputs.ios-owed }}
           SHARDS: ${{ needs.native-e2e-ios-light.result }}
           USER_FACING: ${{ needs.fingerprint.outputs.user-facing }}
@@ -468,7 +499,11 @@ jobs:
       actions: read
       contents: read
     needs: [fingerprint, native-ios]
-    if: github.event_name != 'pull_request' || needs.native-ios.outputs.hit != 'true' || needs.fingerprint.outputs.ios-owed == 'true' || needs.fingerprint.outputs.user-facing == 'true'
+    if: >-
+      !cancelled() && needs.fingerprint.outputs.devices == 'true' &&
+      (needs.native-ios.result == 'success' || needs.native-ios.result == 'skipped') &&
+      (github.event_name != 'pull_request' || needs.fingerprint.outputs.ios-cached != 'true' ||
+      needs.fingerprint.outputs.ios-owed == 'true' || needs.fingerprint.outputs.user-facing == 'true')
     runs-on: macos-26
     env:
       MAESTRO_CLI_NO_ANALYTICS: "1"
@@ -482,18 +517,37 @@ jobs:
             jq -er '[.devices[] | .[] | select(.name | startswith("iPhone"))][0].udid // empty')
           xcrun simctl boot "$device_id"
           echo "DEVICE_ID=$device_id" >> "$GITHUB_ENV"
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      - if: needs.native-ios.result == 'success'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
-      - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+      - if: needs.native-ios.result == 'success'
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
           name: cue-native-ios-${{ needs.fingerprint.outputs.ios }}${{ inputs.copy }}
           path: ${{ runner.temp }}/native-ios-app
+      - if: needs.native-ios.result == 'skipped'
+        uses: ./.github/actions/setup-node-pnpm
       - name: Cache Maestro CLI
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ runner.temp }}/maestro
           key: maestro-${{ runner.os }}-${{ runner.arch }}-2.10.0-29b675e10cc12080e445e9bfb2e2b4e4dfb9c0f2e30d5884120d258b5e1cd991
+      - if: needs.native-ios.result == 'skipped'
+        name: Embed current JavaScript into the cached simulator app
+        env:
+          ARTIFACT_NAME: cue-native-ios-${{ needs.fingerprint.outputs.ios }}
+          GH_TOKEN: ${{ github.token }}
+          EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
+          EXPO_PUBLIC_UI_HARNESS: "1"
+          EXPO_PUBLIC_CLOCK_START: "2026-10-15T00:00:00.000Z"
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
+        run: |
+          scripts/download-ci-artifact.sh "$ARTIFACT_NAME" "$RUNNER_TEMP/cached-ios-app" native-ios
+          tar -xzf "$RUNNER_TEMP/cached-ios-app/Cue.app.tgz" -C "$RUNNER_TEMP/cached-ios-app"
+          scripts/reembed-ios.sh "$RUNNER_TEMP/cached-ios-app/Cue.app"
+          mkdir -p "$RUNNER_TEMP/native-ios-app"
+          tar -czf "$RUNNER_TEMP/native-ios-app/Cue.app.tgz" -C "$RUNNER_TEMP/cached-ios-app" Cue.app
       - name: Start the fake Trakt server
         run: node scripts/start-ready-process.mjs scripts/mock-trakt/server.mjs "$RUNNER_TEMP/mock-trakt.log"
       - name: Prepare the simulator and cached app

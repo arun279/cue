@@ -25,14 +25,21 @@ const NOT_REQUIRED = [
   "pr-media",
 ];
 // The gate reads the push run, where the iOS flow lane always runs.
-const IOS_LANE =
-  "    if: github.event_name != 'pull_request' || needs.native-ios.outputs.hit != 'true' || " +
-  "needs.fingerprint.outputs.ios-owed == 'true' || needs.fingerprint.outputs.user-facing == 'true'";
+const IOS_LANE = [
+  "    if: >-",
+  "      !cancelled() && needs.fingerprint.outputs.devices == 'true' &&",
+  "      (needs.native-ios.result == 'success' || needs.native-ios.result == 'skipped') &&",
+  "      (github.event_name != 'pull_request' || needs.fingerprint.outputs.ios-cached != 'true' ||",
+  "      needs.fingerprint.outputs.ios-owed == 'true' || needs.fingerprint.outputs.user-facing == 'true')",
+].join("\n");
 // True on every push run, which is the run the release gate reads.
 const DEVICES =
   "github.event_name != 'pull_request' || !github.event.pull_request.draft && " +
   "steps.head-tree.outputs.pushed != 'true'";
 const DEVICE_LANE = "    if: needs.fingerprint.outputs.devices == 'true'";
+// The cache check runs only on pull requests, so every push run builds or re-embeds.
+const NATIVE_IOS =
+  "    if: needs.fingerprint.outputs.devices == 'true' && needs.fingerprint.outputs.ios-cached != 'true'";
 
 const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((entry) => typeof entry === "string");
@@ -201,6 +208,9 @@ describe("mobile release gate required checks", () => {
     const fingerprint = readCiJobs().find((job) => job.name === "fingerprint");
 
     expect(fingerprint?.body).toContain(`      devices: $` + `{{ ${DEVICES} }}\n`);
+    expect(readCiJobs().find((job) => job.name === "ui-screenshots-ios-dark")?.body).toContain(
+      `${IOS_LANE}\n`,
+    );
     const unsupportedOverrides = [
       ...readCiJobs()
         .filter((job) => requiredChecks.has(job.name))
@@ -214,7 +224,8 @@ describe("mobile release gate required checks", () => {
                   line !== "    if: $" + "{{ !inputs.copy }}") &&
                 (!["native-e2e", "android-e2e"].includes(job.name) ||
                   line !== "    if: $" + "{{ always() }}") &&
-                (job.name !== "ui-screenshots-ios-dark" || line !== IOS_LANE) &&
+                (job.name !== "ui-screenshots-ios-dark" || line !== IOS_LANE.split("\n")[0]) &&
+                (job.name !== "native-ios" || line !== NATIVE_IOS) &&
                 line !== DEVICE_LANE,
             ),
         ),

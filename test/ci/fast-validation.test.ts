@@ -314,7 +314,8 @@ describe("fast pull request validation", () => {
   it("fails the aggregate whenever the rollup script fails", () => {
     const aggregate = job("native-e2e");
 
-    expect(aggregate).toContain("needs: [fingerprint, native-ios, native-e2e-ios-light]");
+    expect(aggregate).toContain("needs: [fingerprint, native-e2e-ios-light]");
+    expect(aggregate).toContain("HIT: $" + "{{ needs.fingerprint.outputs.ios-cached }}");
     expect(aggregate).toContain("if: $" + "{{ always() }}");
     expect(aggregate).toContain("OWED: $" + "{{ needs.fingerprint.outputs.ios-owed }}");
     expect(aggregate).toContain("DEVICES: $" + "{{ needs.fingerprint.outputs.devices }}");
@@ -359,7 +360,8 @@ describe("fast pull request validation", () => {
   });
 
   it("runs only the fast checks and the Android build on draft pull requests", () => {
-    const deviceJobs = ["native-ios", "android-e2e-light", "ui-screenshots-android-dark"];
+    const deviceJobs = ["android-e2e-light", "ui-screenshots-android-dark"];
+    const iosJobs = ["native-ios", "native-e2e-ios-light", "ui-screenshots-ios-dark"];
     const jobs = [...workflow.matchAll(/^ {2}([a-z][a-z0-9-]*):$/gm)].map(([, name]) => name ?? "");
     const gated = jobs.filter((name) =>
       job(name).includes("needs.fingerprint.outputs.devices == 'true'"),
@@ -376,7 +378,10 @@ describe("fast pull request validation", () => {
     for (const name of deviceJobs) {
       expect(job(name)).toMatch(/^ {4}if: needs\.fingerprint\.outputs\.devices == 'true'$/m);
     }
-    expect(gated.sort()).toEqual([...deviceJobs, "pr-media"].sort());
+    expect(job("native-ios")).toMatch(
+      /^ {4}if: needs\.fingerprint\.outputs\.devices == 'true' && needs\.fingerprint\.outputs\.ios-cached != 'true'$/m,
+    );
+    expect(gated.sort()).toEqual([...deviceJobs, ...iosJobs, "pr-media"].sort());
     for (const name of ["check", "native-android", "footprint", "audit", "actionlint"]) {
       expect(job(name)).not.toContain("devices");
     }
@@ -434,14 +439,27 @@ describe("fast pull request validation", () => {
   });
 
   it("runs the iOS flow lane on pushes, nightly, iOS fingerprint changes, owed lanes, and user-facing pull requests", () => {
-    const iosLane =
-      "if: github.event_name != 'pull_request' || needs.native-ios.outputs.hit != 'true' || " +
-      "needs.fingerprint.outputs.ios-owed == 'true' || needs.fingerprint.outputs.user-facing == 'true'\n";
+    const iosLane = [
+      "    if: >-",
+      "      !cancelled() && needs.fingerprint.outputs.devices == 'true' &&",
+      "      (needs.native-ios.result == 'success' || needs.native-ios.result == 'skipped') &&",
+      "      (github.event_name != 'pull_request' || needs.fingerprint.outputs.ios-cached != 'true' ||",
+      "      needs.fingerprint.outputs.ios-owed == 'true' || needs.fingerprint.outputs.user-facing == 'true')\n",
+    ].join("\n");
     const jobs = [...workflow.matchAll(/^ {2}([a-z][a-z0-9-]*):$/gm)].map(([, name]) => name ?? "");
     const gated = jobs.filter((name) => job(name).includes(iosLane));
+    const cache = job("fingerprint")
+      .split(/^ {6}- /m)
+      .find((step) => step.startsWith("id: ios-cache\n"));
 
     expect(workflow).toContain('- cron: "0 6 * * *"');
-    expect(job("native-ios")).toContain("hit: $" + "{{ steps.native-cache.outputs.hit }}");
+    expect(job("native-ios")).not.toContain("outputs:");
+    expect(job("fingerprint")).toContain("ios-cached: $" + "{{ steps.ios-cache.outputs.hit }}");
+    expect(cache).toContain("        if: github.event_name == 'pull_request'\n");
+    expect(cache).toContain("ARTIFACT_NAME: cue-native-ios-$" + "{{ steps.native.outputs.ios }}\n");
+    expect(cache).toContain(
+      'if scripts/download-ci-artifact.sh "$ARTIFACT_NAME" "$RUNNER_TEMP/native-ios-app" native-ios; then\n            echo "hit=true" >> "$GITHUB_OUTPUT"\n',
+    );
     expect(job("fingerprint")).toContain("ios-owed: $" + "{{ steps.ios-owed.outputs.owed }}");
     expect(job("fingerprint")).toContain(
       "user-facing: $" + "{{ steps.changes.outputs.user-facing }}",
@@ -449,6 +467,40 @@ describe("fast pull request validation", () => {
     expect(job("fingerprint")).toContain("actions/workflows/ci.yml/runs?branch=$BRANCH");
     expect(gated.sort()).toEqual(["native-e2e-ios-light", "ui-screenshots-ios-dark"].sort());
     expect(job("native-android")).not.toMatch(/^ {4}if:/m);
+  });
+
+  it.each([
+    "native-e2e-ios-light",
+    "ui-screenshots-ios-dark",
+  ])("%s takes the app from native-ios or re-embeds the cached one itself", (name) => {
+    const steps = job(name).split(/^ {6}- /m);
+    const built = "        if: needs.native-ios.result == 'success'\n";
+    const cached = "        if: needs.native-ios.result == 'skipped'\n";
+    const embed =
+      steps.find((step) =>
+        step.startsWith("if: needs.native-ios.result == 'skipped'\n        name: Embed"),
+      ) ?? "";
+    const index = (text: string) => steps.findIndex((step) => step.includes(text));
+
+    expect(steps.find((step) => step.includes("uses: actions/setup-node@"))).toContain(
+      built.trim(),
+    );
+    expect(steps.find((step) => step.includes("uses: actions/download-artifact@"))).toContain(
+      built.trim(),
+    );
+    expect(
+      steps.find((step) => step.includes("uses: ./.github/actions/setup-node-pnpm")),
+    ).toContain(cached.trim());
+    expect(embed).toContain(
+      "ARTIFACT_NAME: cue-native-ios-$" + "{{ needs.fingerprint.outputs.ios }}\n",
+    );
+    expect(embed).toMatch(
+      /scripts\/download-ci-artifact\.sh "\$ARTIFACT_NAME" "\$RUNNER_TEMP\/cached-ios-app" native-ios\n +tar -xzf "\$RUNNER_TEMP\/cached-ios-app\/Cue\.app\.tgz" -C "\$RUNNER_TEMP\/cached-ios-app"\n +scripts\/reembed-ios\.sh "\$RUNNER_TEMP\/cached-ios-app\/Cue\.app"\n +mkdir -p "\$RUNNER_TEMP\/native-ios-app"\n +tar -czf "\$RUNNER_TEMP\/native-ios-app\/Cue\.app\.tgz" -C "\$RUNNER_TEMP\/cached-ios-app" Cue\.app\n/,
+    );
+    expect(embed).toContain('EXPO_PUBLIC_UI_HARNESS: "1"\n');
+    expect(index("setup-node-pnpm")).toBeLessThan(index("name: Embed"));
+    expect(index("name: Embed")).toBeLessThan(index("scripts/prepare-ios-ui.sh"));
+    expect(index("name: Boot the simulator")).toBeLessThan(index("setup-node-pnpm"));
   });
 
   it("bounds every native job by its measured duration plus headroom", () => {
