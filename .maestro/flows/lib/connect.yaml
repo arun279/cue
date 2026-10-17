@@ -8,7 +8,9 @@ appId: app.cuetracker
     when:
       platform: iOS
     commands:
-      - launchApp
+      - launchApp:
+          permissions:
+            notifications: allow
 - runFlow:
     when:
       platform: Android
