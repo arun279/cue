@@ -50,7 +50,13 @@ case $url in
 esac | jq -r "$filter"
 `;
 
-type Capture = { clock?: number; content?: number; scroll?: number; empty?: boolean };
+type Capture = {
+  clock?: number;
+  content?: number;
+  shift?: number;
+  scroll?: number;
+  empty?: boolean;
+};
 type Lane = {
   conclusion?: string;
   captures?: Record<string, Capture> | null;
@@ -84,7 +90,7 @@ const COLORS = [
 const screenshot = (
   file: string,
   width: number,
-  { clock = 0, content = 0, scroll = 0, empty = false }: Capture,
+  { clock = 0, content = 0, shift = 0, scroll = 0, empty = false }: Capture,
 ) => {
   mkdirSync(path.dirname(file), { recursive: true });
   if (empty) {
@@ -94,7 +100,11 @@ const screenshot = (
   const png = new PNG({ width, height: 240 });
   fill(png, [0, 0, width, 240], [250, 250, 245]);
   fill(png, [100, 60, 300, 110], clock ? [0, 0, 0] : [128, 128, 128]);
-  fill(png, CONTENT, COLORS[content] ?? []);
+  fill(
+    png,
+    CONTENT.map((value, index) => value + (index % 2 === 0 ? shift : 0)),
+    COLORS[content] ?? [],
+  );
   if (scroll) fill(png, [width - 12, 170, width - 4, 240], [120, 120, 120]);
   writeFileSync(file, PNG.sync.write(png));
 };
@@ -162,10 +172,10 @@ const record = (root: string, state: string, id: number, lanes: Run, day: string
   );
 };
 
-const gather = (before: Run | undefined, after: Run, baseDay = "2026-10-04") => {
+const gather = (before: Run | undefined, after: Run) => {
   const { root, state, run } = sandbox();
   record(root, state, 1, after, "2026-10-04");
-  if (before) record(root, state, 2, before, baseDay);
+  if (before) record(root, state, 2, before, "2026-10-04");
   writeFileSync(
     path.join(state, "runs.json"),
     JSON.stringify({ workflow_runs: before ? [{ id: 2 }] : [] }),
@@ -264,6 +274,58 @@ describe("pr-media job", () => {
 });
 
 describe("gather-pr-media.sh", { timeout: 30_000 }, () => {
+  it.each([0, 1])("compares a capture moved between light shards with content %s", (content) => {
+    const { review, images } = gather(
+      { "ui-screenshots-ios-light-detail": { captures: { "show-detail-rest": {} } } },
+      { "ui-screenshots-ios-light-activity": { captures: { "show-detail-rest": { content } } } },
+    );
+
+    expect(review).toContain("1 screen compared.");
+    expect(review).not.toMatch(/New:|Removed screens:/);
+    expect(images).toEqual(content === 0 ? [] : ["ios-light-show-detail-rest.png"]);
+    if (content === 1) {
+      expect(review).toContain("**Changed: Show detail rest, iOS, light, default text.");
+      expect(review).toContain("Left to right: before, after, changes.");
+    }
+  });
+
+  it.each([
+    "ui-screenshots-ios-dark",
+    "ui-screenshots-android-light",
+  ])("keeps captures from %s separate when light shards move", (artifact) => {
+    const { review } = gather(
+      { [artifact]: { captures: { "show-detail-rest": {} } } },
+      { "ui-screenshots-ios-light-activity": { captures: { "show-detail-rest": {} } } },
+    );
+    expect(review).toContain("0 screens compared.");
+    expect(review).toContain("**New: Show detail rest, iOS, light, default text.");
+
+    const removed = gather(
+      { "ui-screenshots-ios-light-detail": { captures: { "show-detail-rest": {} } } },
+      { [artifact]: { captures: { "show-detail-rest": {} } } },
+    );
+    expect(removed.review).toContain(
+      "Removed screens:\n\n- Show detail rest, iOS, light, default text",
+    );
+  });
+
+  it("reports incomplete sibling shards without calling moved captures new or removed", () => {
+    const missingBase = gather(
+      { "ui-screenshots-ios-light-detail": { conclusion: "skipped", captures: null } },
+      { "ui-screenshots-ios-light-activity": { captures: { "show-detail-rest": {} } } },
+    );
+    expect(missingBase.images).toEqual([]);
+    expect(missingBase.review).toContain("Not compared:");
+    expect(missingBase.review).not.toContain("New:");
+
+    const missingHead = gather(
+      { "ui-screenshots-ios-light-detail": { captures: { "show-detail-rest": {} } } },
+      { "ui-screenshots-ios-light-activity": { conclusion: "failure", captures: null } },
+    );
+    expect(missingHead.review).toContain("Not compared:");
+    expect(missingHead.review).not.toContain("Removed screens:");
+  });
+
   it("says in one line that nothing changed when only the clock and scroll indicator moved", () => {
     const { review, images } = gather(
       {
@@ -282,33 +344,33 @@ describe("gather-pr-media.sh", { timeout: 30_000 }, () => {
     );
   });
 
-  it("says when base and head captures come from different UTC days", () => {
-    const { review } = gather(
-      dark({ "history-recent": { content: 0 } }),
-      dark({ "history-recent": { content: 1 } }),
-      "2026-10-02",
-    );
-
-    expect(review).toContain(
-      "<!-- media-review -->\n\nBase captures are from 2026-10-02 and head captures from 2026-10-04 (UTC). The fake Trakt server dates its seeded account from the start of the UTC day it runs on, so a screen that differs only in its dates has not changed.\n\nBefore is base `bbbbbbb`",
-    );
-  });
-
-  it("puts a changed screen before and after in one image with the change tinted and a verdict to fill", () => {
+  it("shows clean before and after columns with moved content highlighted only in the changes column", () => {
     const { out, review, images } = gather(
       dark({ "library-shows": { content: 0 } }),
-      dark({ "library-shows": { content: 1 } }),
+      dark({ "library-shows": { content: 1, shift: 500, clock: 1 } }),
     );
 
     expect(images).toEqual(["ios-dark-library-shows.png"]);
     const image = PNG.sync.read(readFileSync(path.join(out, images[0] ?? "")));
-    expect([image.width, image.height]).toEqual([1624, 159]);
-    expect(pixel(path.join(out, images[0] ?? ""), 200, 133)).toEqual(COLORS[0]);
-    expect(pixel(path.join(out, images[0] ?? ""), 824 + 200, 133)).toEqual([237, 20, 147]);
+    expect([image.width, image.height]).toEqual([2448, 159]);
+    const file = path.join(out, images[0] ?? "");
+    expect(pixel(file, 200, 133)).toEqual(COLORS[0]);
+    expect(pixel(file, 500, 133)).toEqual([250, 250, 245]);
+    expect(pixel(file, 824 + 200, 133)).toEqual([250, 250, 245]);
+    expect(pixel(file, 824 + 500, 133)).toEqual(COLORS[1]);
+    expect(pixel(file, 1648 + 200, 133)).toEqual([255, 0, 255]);
+    expect(pixel(file, 1648 + 500, 133)).toEqual([255, 0, 255]);
+    expect(pixel(file, 1648 + 50, 133)).toEqual([125, 125, 122]);
+    expect(pixel(file, 100, 50)).toEqual([128, 128, 128]);
+    expect(pixel(file, 824 + 100, 50)).toEqual([0, 0, 0]);
+    expect(pixel(file, 1648 + 100, 50)).toEqual([0, 0, 0]);
     expect(review).toContain(
-      "**Changed: Library shows, iOS, dark, default text.** Left to right: before, after.\n\n" +
+      "**Changed: Library shows, iOS, dark, default text.** Left to right: before, after, changes.\n\n" +
         "![Library shows, iOS, dark, default text](ios-dark-library-shows.png)\n\n" +
         "Verdict: VERDICT_PENDING",
+    );
+    expect(review).toContain(
+      "The changes panel dims the after screen and marks changed pixels in magenta",
     );
     expect(review).not.toContain("Not compared");
   });
@@ -406,9 +468,14 @@ describe("gather-pr-media.sh", { timeout: 30_000 }, () => {
     );
 
     expect(images).toEqual(["ios-dark-library-shows-xxxl.png"]);
-    expect(PNG.sync.read(readFileSync(path.join(out, images[0] ?? ""))).width).toBe(2448);
+    const file = path.join(out, images[0] ?? "");
+    expect(PNG.sync.read(readFileSync(file)).width).toBe(3272);
+    expect(pixel(file, 200, 133)).toEqual(COLORS[0]);
+    expect(pixel(file, 824 + 200, 133)).toEqual(COLORS[0]);
+    expect(pixel(file, 1648 + 200, 133)).toEqual(COLORS[1]);
+    expect(pixel(file, 2472 + 200, 133)).toEqual([255, 0, 255]);
     expect(review).toContain(
-      "**Changed: Library shows, iOS, dark, XXXL text.** Left to right: default text after, before, after.",
+      "**Changed: Library shows, iOS, dark, XXXL text.** Left to right: default text after, before, after, changes.",
     );
   });
 });

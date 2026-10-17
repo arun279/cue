@@ -168,9 +168,11 @@ describe("fast pull request validation", () => {
       ...suite.matchAll(/file: (\.\.\/flows\/[\w-]+\.yaml)\n {4}when:\n {6}platform: Android\n/g),
     ].map(([, flow]) => flow);
     expect(androidOnly).toEqual(["../flows/swipe-mark-and-stop.yaml"]);
-    for (const flow of suite.match(/\.\.\/flows\/[\w-]+\.yaml/g) ?? []) {
-      if (!androidOnly.includes(flow)) expect(iosSuites).toContain(flow);
-    }
+    expect((iosSuites.match(/\.\.\/flows\/[\w-]+\.yaml/g) ?? []).sort()).toEqual(
+      (suite.match(/\.\.\/flows\/[\w-]+\.yaml/g) ?? [])
+        .filter((flow) => !androidOnly.includes(flow))
+        .sort(),
+    );
   });
 
   it("runs required dark screenshot traversals on independent cached-app jobs", () => {
@@ -186,6 +188,53 @@ describe("fast pull request validation", () => {
     expect(android).toContain("cue-native-android-$" + "{{ needs.fingerprint.outputs.android }}");
     expect(android).toContain('"$RUNNER_TEMP/screenshots/android" dark');
     expect(android).not.toContain("continue-on-error");
+  });
+
+  it.each([
+    "android-e2e",
+    "ui-screenshots-android-dark",
+  ])("%s caches the system image and reuses a clean AVD snapshot", (name) => {
+    const steps = job(name).split(/^ {6}- /m);
+    const cache = steps.find((step) => step.includes("id: avd-cache")) ?? "";
+    const emulators = steps.filter((step) =>
+      step.includes("reactivecircus/android-emulator-runner@"),
+    );
+    const [snapshot = "", inspect = ""] = emulators;
+
+    expect(job(name)).toContain('run: echo "root=$ANDROID_HOME" >> "$GITHUB_OUTPUT"');
+    expect(cache).toContain("actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0");
+    expect(cache).toContain(
+      "$" + "{{ steps.android-sdk.outputs.root }}/system-images/android-35/default/x86_64",
+    );
+    expect(cache).toContain("~/.android/avd/*");
+    expect(cache).toContain("~/.android/adb*");
+    expect(cache).toContain(
+      "key: android-avd-$" + "{{ runner.os }}-35-default-x86_64-pixel_7_pro-v1",
+    );
+    expect(cache).not.toContain("restore-keys:");
+    expect(emulators).toHaveLength(2);
+    expect(steps.indexOf(cache)).toBeLessThan(steps.indexOf(snapshot));
+    for (const emulator of emulators) {
+      expect(emulator).toContain(
+        "reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0",
+      );
+      expect(emulator).toContain(
+        "api-level: 35\n          target: default\n          arch: x86_64\n          profile: pixel_7_pro",
+      );
+      expect(emulator).toContain("force-avd-creation: false");
+    }
+    expect(snapshot).toContain("if: steps.avd-cache.outputs.cache-hit != 'true'");
+    expect(snapshot).toContain("disable-animations: false");
+    expect(snapshot).toContain(
+      "emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none",
+    );
+    expect(snapshot).toContain('script: echo "Created clean AVD snapshot."');
+    expect(snapshot).not.toContain("-no-snapshot");
+    expect(inspect).not.toContain("if:");
+    expect(inspect).toContain("emulator-options: -no-snapshot-save -no-window");
+    expect(inspect).not.toMatch(/-no-snapshot(?:\s|$)|-wipe-data/);
+    expect(inspect).toContain("disable-animations: true");
+    expect(inspect).toContain("script: bash scripts/verify-android-ui.sh");
   });
 
   it("waits for persistent readiness before checking the connected loading state", () => {
@@ -246,6 +295,10 @@ describe("fast pull request validation", () => {
     expect(verification).toContain('--test-output-dir "$screenshots/$appearance"');
     for (const producer of [ios, iosDark, android, androidDark]) {
       expect(producer.match(/retention-days: 14/g)).toHaveLength(1);
+      const screenshot = producer
+        .split(/^ {6}- /m)
+        .find((step) => step.includes("name: ui-screenshots-"));
+      expect(screenshot).toContain("compression-level: 0\n");
     }
     expect(fetch).toContain("--pattern 'ui-*'");
   });

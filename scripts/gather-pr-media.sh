@@ -57,7 +57,7 @@ collect() {
       unzip -q "$work/artifact.zip" -d "$work/$side/$artifact"
       [ "$state" = success ] || note="may be incomplete because the $job job $(ended "$state") in $link"
     fi
-    printf '%s\t%s\t%s\t%s\n' "$side" "$artifact" "$note" "${created:0:10}" >> "$work/lanes.tsv"
+    printf '%s\t%s\t%s\n' "$side" "$artifact" "$note" >> "$work/lanes.tsv"
   done
 }
 

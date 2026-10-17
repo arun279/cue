@@ -1,8 +1,10 @@
 import { EventEmitter, once } from "node:events";
+import { readFileSync } from "node:fs";
 import { afterEach, expect, it, vi } from "vitest";
 import { createFaults } from "../../scripts/mock-trakt/faults.mjs";
-import { createSeedLibrary } from "../../scripts/mock-trakt/seed.mjs";
+import { createSeedLibrary, FIXTURE_NOW } from "../../scripts/mock-trakt/seed.mjs";
 import { createMockTrakt } from "../../scripts/mock-trakt/server.mjs";
+import { repositoryPath } from "../support/repository-path";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -13,6 +15,22 @@ it("seeds the same absolute dates regardless of the host clock", () => {
   const second = createSeedLibrary();
   expect(first.now).toBe(Date.parse("2026-10-15T00:00:00.000Z"));
   expect(second.shows).toEqual(first.shows);
+});
+
+it("starts every harness app's clock at the instant the mock serves", () => {
+  const harnessEnvs = [
+    ...readFileSync(repositoryPath(".github/workflows/ci.yml"), "utf8").matchAll(
+      /^( +)env:\n((?:\1 {2}.*\n)+)/gm,
+    ),
+  ]
+    .map(([, , block = ""]) => block)
+    .filter((block) => block.includes('EXPO_PUBLIC_UI_HARNESS: "1"'));
+  expect(harnessEnvs.length).toBeGreaterThan(0);
+  expect(
+    harnessEnvs.map((block) =>
+      Date.parse(block.match(/EXPO_PUBLIC_CLOCK_START: "([^"]*)"/)?.[1] ?? ""),
+    ),
+  ).toEqual(harnessEnvs.map(() => FIXTURE_NOW));
 });
 
 it("expires faults by matching request count or explicit release", () => {
