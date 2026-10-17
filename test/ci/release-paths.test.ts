@@ -29,7 +29,9 @@ const IOS_LANE =
   "    if: github.event_name != 'pull_request' || needs.native-ios.outputs.hit != 'true' || " +
   "needs.fingerprint.outputs.ios-owed == 'true' || needs.fingerprint.outputs.user-facing == 'true'";
 // True on every push run, which is the run the release gate reads.
-const DEVICES = "github.event_name != 'pull_request' || !github.event.pull_request.draft";
+const DEVICES =
+  "github.event_name != 'pull_request' || !github.event.pull_request.draft && " +
+  "steps.head-tree.outputs.pushed != 'true'";
 const DEVICE_LANE = "    if: needs.fingerprint.outputs.devices == 'true'";
 
 const isStringArray = (value: unknown): value is string[] =>

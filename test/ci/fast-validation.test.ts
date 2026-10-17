@@ -370,7 +370,8 @@ describe("fast pull request validation", () => {
     );
     expect(job("fingerprint")).toContain(
       "devices: $" +
-        "{{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}",
+        "{{ github.event_name != 'pull_request' || !github.event.pull_request.draft && " +
+        "steps.head-tree.outputs.pushed != 'true' }}\n",
     );
     for (const name of deviceJobs) {
       expect(job(name)).toMatch(/^ {4}if: needs\.fingerprint\.outputs\.devices == 'true'$/m);
@@ -379,6 +380,57 @@ describe("fast pull request validation", () => {
     for (const name of ["check", "native-android", "footprint", "audit", "actionlint"]) {
       expect(job(name)).not.toContain("devices");
     }
+  });
+
+  it("leaves device lanes to the push run only for a pushed branch whose merge tree is its head tree", () => {
+    const step =
+      job("fingerprint")
+        .split(/^ {6}- /m)
+        .find((entry) => entry.startsWith("id: head-tree\n")) ?? "";
+    const pushBranches = workflow.match(/^ {2}push:\n(?: {4}#.*\n)* {4}branches: \[(.*)\]$/m)?.[1];
+    const condition = step.match(/ {8}if: >-\n((?: {10}.*\n)+)/)?.[1]?.replace(/\s+/g, " ") ?? "";
+    const script = step.match(/ {8}run: \|\n((?: {10}.*\n)+)/)?.[1]?.replace(/^ {10}/gm, "") ?? "";
+    const repository = tempDirectory("cue-head-tree-");
+    const bin = tempDirectory("cue-head-tree-bin-");
+    git(repository, "init", "--quiet", "--initial-branch=main");
+    git(repository, "config", "user.name", "Cue Tests");
+    git(repository, "config", "user.email", "cue-tests@example.invalid");
+    commit(repository, "base");
+    git(repository, "switch", "--quiet", "-c", "topic");
+    const head = commit(repository, "topic");
+    writeFileSync(path.join(bin, "gh"), `#!/bin/sh\ngit rev-parse "${head}^{tree}"\n`, {
+      mode: 0o755,
+    });
+    const pushed = () => {
+      const output = path.join(repository, "..", `${path.basename(repository)}-output`);
+      writeFileSync(output, "");
+      execFileSync("bash", ["-e", "-c", script], {
+        cwd: repository,
+        env: { ...gitEnv(), PATH: `${bin}:${process.env["PATH"]}`, GITHUB_OUTPUT: output },
+      });
+      return readFileSync(output, "utf8");
+    };
+    const mergeOnto = (base: string) => {
+      git(repository, "switch", "--quiet", "--detach", base);
+      git(repository, "merge", "--quiet", "--no-ff", "-m", "merge", "topic");
+    };
+
+    expect(pushBranches?.split(", ").map((branch) => branch.replace(/"/g, ""))).toEqual([
+      "main",
+      "feat/expo-native",
+      "release/*",
+    ]);
+    expect(condition).toContain(
+      "github.event.pull_request.head.repo.full_name == github.repository && " +
+        "(github.head_ref == 'main' || github.head_ref == 'feat/expo-native' || " +
+        "startsWith(github.head_ref, 'release/'))",
+    );
+    mergeOnto("main");
+    expect(pushed()).toBe("pushed=true\n");
+    git(repository, "switch", "--quiet", "main");
+    commit(repository, "moved");
+    mergeOnto("main");
+    expect(pushed()).toBe("");
   });
 
   it("runs the iOS flow lane on pushes, nightly, iOS fingerprint changes, owed lanes, and user-facing pull requests", () => {

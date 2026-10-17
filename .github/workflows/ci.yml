@@ -48,12 +48,25 @@ jobs:
       pull-requests: read
     runs-on: ubuntu-latest
     outputs:
-      devices: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
+      devices: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft && steps.head-tree.outputs.pushed != 'true' }}
       ios: ${{ steps.native.outputs.ios }}
       ios-owed: ${{ steps.ios-owed.outputs.owed }}
       user-facing: ${{ steps.changes.outputs.user-facing }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: head-tree
+        name: Leave device lanes to the push run when the merge tests the pushed head tree
+        if: >-
+          github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository &&
+          (github.head_ref == 'main' || github.head_ref == 'feat/expo-native' || startsWith(github.head_ref, 'release/'))
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          head_tree=$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$HEAD_SHA" --jq .tree.sha)
+          if [ "$(git rev-parse 'HEAD^{tree}')" = "$head_tree" ]; then
+            echo "pushed=true" >> "$GITHUB_OUTPUT"
+          fi
       - uses: ./.github/actions/setup-node-pnpm
       - id: native
         name: Compute the iOS native fingerprint
