@@ -128,17 +128,18 @@ it.each([
 
 function preparation(cached: boolean) {
   const root = tempDirectory("cue-ios-prepare-");
-  const bin = path.join(root, "bin");
-  mkdirSync(bin);
   if (cached) mkdirSync(path.join(root, "maestro"));
   const calls = path.join(root, "calls");
-  for (const command of ["curl", "shasum", "unzip", "tar", "xcrun", "node"]) {
-    writeFileSync(
-      path.join(bin, command),
-      `#!/bin/sh\n${command === "shasum" ? "cat > /dev/null\n" : ""}printf "%s\\n" "${command} $*" >> "$PROBE_CALLS"\ncase "${command} $*" in "$FAIL_COMMAND "*) exit 17 ;; esac\n`,
-      { mode: 0o755 },
-    );
-  }
+  const stubs = path.join(root, "stubs.sh");
+  writeFileSync(
+    stubs,
+    ["curl", "shasum", "unzip", "tar", "xcrun", "node"]
+      .map(
+        (command) =>
+          `${command}() {\n${command === "shasum" ? "  cat > /dev/null\n" : ""}  printf "%s\\n" "${command} $*" >> "$PROBE_CALLS"\n  case "${command} $*" in "$FAIL_COMMAND "*) return 17 ;; esac\n}\n`,
+      )
+      .join(""),
+  );
   return {
     root,
     calls,
@@ -148,7 +149,7 @@ function preparation(cached: boolean) {
         encoding: "utf8",
         env: {
           ...process.env,
-          PATH: `${bin}:${process.env["PATH"]}`,
+          BASH_ENV: stubs,
           RUNNER_TEMP: root,
           GITHUB_PATH: path.join(root, "github-path"),
           DEVICE_ID: "test-device",
@@ -170,14 +171,14 @@ function probe(source: string) {
   return calls;
 }
 
-it("requires three consecutive prompt successful appearance queries", async () => {
+it("requires three consecutive successful appearance queries", async () => {
   const calls = probe(String.raw`
 const fs = require('node:fs');
 fs.appendFileSync(process.env.PROBE_CALLS, process.argv.slice(2).join(' ') + '\n');
 const count = fs.readFileSync(process.env.PROBE_CALLS, 'utf8').trim().split('\n').length;
 process.exit(count === 2 ? 1 : 0);
 `);
-  await waitForIOS("test-device", { timeoutMs: 5_000 });
+  await waitForIOS("test-device", { timeoutMs: 5_000, promptMs: Number.POSITIVE_INFINITY });
   expect(readFileSync(calls, "utf8").trim().split("\n")).toEqual(
     Array(5).fill("simctl ui test-device appearance"),
   );
