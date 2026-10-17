@@ -56,6 +56,7 @@ type Capture = {
   shift?: number;
   scroll?: number;
   empty?: boolean;
+  rows?: number[];
 };
 type Lane = {
   conclusion?: string;
@@ -90,15 +91,16 @@ const COLORS = [
 const screenshot = (
   file: string,
   width: number,
-  { clock = 0, content = 0, shift = 0, scroll = 0, empty = false }: Capture,
+  { clock = 0, content = 0, shift = 0, scroll = 0, empty = false, rows }: Capture,
 ) => {
   mkdirSync(path.dirname(file), { recursive: true });
   if (empty) {
     writeFileSync(file, "");
     return;
   }
-  const png = new PNG({ width, height: 240 });
-  fill(png, [0, 0, width, 240], [250, 250, 245]);
+  const height = rows === undefined ? 240 : 2622;
+  const png = new PNG({ width, height });
+  fill(png, [0, 0, width, height], [250, 250, 245]);
   fill(png, [100, 60, 300, 110], clock ? [0, 0, 0] : [128, 128, 128]);
   fill(
     png,
@@ -106,6 +108,7 @@ const screenshot = (
     COLORS[content] ?? [],
   );
   if (scroll) fill(png, [width - 12, 170, width - 4, 240], [120, 120, 120]);
+  for (const row of rows ?? []) fill(png, [0, row, width, row + 1], [60, 60, 60]);
   writeFileSync(file, PNG.sync.write(png));
 };
 
@@ -342,6 +345,29 @@ describe("gather-pr-media.sh", { timeout: 30_000 }, () => {
     expect(review).toBe(
       "<!-- media-review -->\n\nNo screen changed between base `bbbbbbb` and head `abcdef1`; 2 screens compared.\n",
     );
+  });
+
+  it("ignores the top edge of the iOS tab bar's glass", () => {
+    const { review, images } = gather(
+      dark({ "up-next-queue-rest": { rows: [] } }),
+      dark({ "up-next-queue-rest": { rows: [2373, 2384] } }),
+    );
+
+    expect(images).toEqual([]);
+    expect(review).toContain("No screen changed");
+  });
+
+  it.each([
+    ["the content above the iOS tab bar", "ui-screenshots-ios-dark", 2372],
+    ["the iOS tab items", "ui-screenshots-ios-dark", 2385],
+    ["Android at the same rows", "ui-screenshots-android-dark", 2373],
+  ])("still compares %s", (_, artifact, row) => {
+    const { images } = gather(
+      { [artifact]: { captures: { "up-next-queue-rest": { rows: [] } } } },
+      { [artifact]: { captures: { "up-next-queue-rest": { rows: [row] } } } },
+    );
+
+    expect(images).toHaveLength(1);
   });
 
   it("shows clean before and after columns with moved content highlighted only in the changes column", () => {
