@@ -15,8 +15,6 @@ const MASKS = {
   "iOS 1206": { top: 162, right: 18 },
   "Android 1440": { top: 158, right: 14 },
 };
-// GitHub renders review bodies 814 px wide, so two 800 px panels show each
-// phone at about its own point width with 2x pixels for sharp text.
 const PANEL_WIDTH = 800;
 const GAP = 24;
 const TINT = [255, 0, 255];
@@ -43,14 +41,13 @@ const lanes = readFileSync(path.join(work, "lanes.tsv"), "utf8")
   .replace(/\n$/, "")
   .split("\n")
   .map((row) => {
-    const [side, artifact, note, day] = row.split("\t");
+    const [side, artifact, note] = row.split("\t");
     const [, platform, appearance, suite] =
       /^ui-screenshots-(ios|android)-(light|dark)(?:-(.+))?$/.exec(artifact) ?? [];
     return {
       side,
       artifact,
       note,
-      day,
       platform: PLATFORMS[platform],
       appearance,
       suite,
@@ -59,6 +56,13 @@ const lanes = readFileSync(path.join(work, "lanes.tsv"), "utf8")
   });
 const lane = (side, artifact) =>
   lanes.find((entry) => entry.side === side && entry.artifact === artifact);
+const peers = (side, lane) =>
+  lanes.filter(
+    (entry) =>
+      entry.side === side &&
+      entry.platform === lane.platform &&
+      entry.appearance === lane.appearance,
+  );
 
 const unreadable = [];
 const read = (file, entry, name) => {
@@ -93,11 +97,13 @@ const changedPixels = (before, after, platform) => {
 };
 
 const tint = (image, diff) => {
+  const data = Buffer.from(image.data);
   for (let i = 3; i < diff.length; i += 4) {
-    if (diff[i] === 0) continue;
-    for (let c = 0; c < 3; c++) image.data[i - 3 + c] = (image.data[i - 3 + c] + TINT[c]) >> 1;
+    for (let c = 0; c < 3; c++) {
+      data[i - 3 + c] = diff[i] === 0 ? data[i - 3 + c] >> 1 : TINT[c];
+    }
   }
-  return image;
+  return { width: image.width, height: image.height, data };
 };
 
 const average = (image, [x0, x1], [y0, y1]) => {
@@ -162,10 +168,13 @@ const changes = [];
 const removed = [];
 let compared = 0;
 for (const after of lanes.filter(({ side }) => side === "after")) {
-  const before = lane("before", after.artifact);
   for (const [name, file] of [...after.captures].sort(([a], [b]) => a.localeCompare(b))) {
+    const before =
+      peers("before", after).find((entry) => entry.captures.has(name)) ??
+      lane("before", after.artifact);
     const baseFile = before.captures.get(name);
-    if (baseFile === undefined && before.note !== "") continue;
+    if (baseFile === undefined && peers("before", after).some((entry) => entry.note !== ""))
+      continue;
     const head = read(file, after, name);
     const base = baseFile === undefined ? undefined : read(baseFile, before, name);
     if (head === undefined || (baseFile !== undefined && base === undefined)) continue;
@@ -177,9 +186,10 @@ for (const after of lanes.filter(({ side }) => side === "after")) {
     const pair = pairFile === undefined ? undefined : read(pairFile, after, screen);
     const panels = [
       ...(base === undefined ? [] : [base]),
-      diff === undefined ? head : tint(head, diff),
+      head,
+      ...(diff === undefined ? [] : [tint(head, diff)]),
     ];
-    const labels = base === undefined ? ["after"] : ["before", "after"];
+    const labels = base === undefined ? ["after"] : ["before", "after", "changes"];
     if (size !== undefined) {
       panels.unshift(...(pair === undefined ? [] : [pair]));
       labels.unshift(...(pair === undefined ? [] : ["default text after"]));
@@ -194,9 +204,11 @@ for (const after of lanes.filter(({ side }) => side === "after")) {
       unpaired: size !== undefined && pair === undefined,
     });
   }
-  if (after.note !== "") continue;
-  for (const name of before.captures.keys()) {
-    if (!after.captures.has(name)) removed.push(caption(after, name));
+  if (peers("after", after).some((entry) => entry.note !== "")) continue;
+  for (const name of lane("before", after.artifact).captures.keys()) {
+    if (!peers("after", after).some((entry) => entry.captures.has(name))) {
+      removed.push(caption(after, name));
+    }
   }
 }
 
@@ -211,23 +223,7 @@ const missing = [
     ),
   ...unreadable,
 ];
-const days = (side) =>
-  [
-    ...new Set(
-      lanes.filter((entry) => entry.side === side && entry.captures.size > 0).map(({ day }) => day),
-    ),
-  ]
-    .sort()
-    .join(" and ");
-const [baseDays, headDays] = [days("before"), days("after")];
-const sections = [
-  "<!-- media-review -->",
-  ...(baseDays && headDays && baseDays !== headDays
-    ? [
-        `Base captures are from ${baseDays} and head captures from ${headDays} (UTC). The fake Trakt server dates its seeded account from the start of the UTC day it runs on, so a screen that differs only in its dates has not changed.`,
-      ]
-    : []),
-];
+const sections = ["<!-- media-review -->"];
 if (changes.length === 0 && removed.length === 0) {
   sections.push(
     missing.length === 0
@@ -236,7 +232,7 @@ if (changes.length === 0 && removed.length === 0) {
   );
 } else {
   sections.push(
-    `Before is base \`${baseSha.slice(0, 7)}\`, after is head \`${headSha.slice(0, 7)}\`; ${screens(compared)} compared. Changed pixels are tinted magenta in the after panel; the status bar and the scroll indicators are not compared.`,
+    `Before is base \`${baseSha.slice(0, 7)}\`, after is head \`${headSha.slice(0, 7)}\`; ${screens(compared)} compared. The changes panel dims the after screen and marks changed pixels in magenta; the status bar and the scroll indicators are not compared.`,
   );
   for (const change of changes) {
     sections.push(

@@ -1,4 +1,5 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import { waitForIOS } from "../../scripts/wait-ios-ready.mjs";
@@ -38,6 +39,24 @@ it("readies the simulator in its final appearance, then runs Maestro once, in ev
       expect(boot).toBeLessThan(steps.indexOf(operation));
     }
     expect(steps).toContain('echo "DEVICE_ID=$device_id" >> "$GITHUB_ENV"');
+    const cache = steps
+      .split(/^ {6}- /m)
+      .find((step) => step.startsWith("name: Cache Maestro CLI"));
+    const script = readFileSync(repositoryPath("scripts/prepare-ios-ui.sh"), "utf8");
+    const version = script.match(/releases\/download\/cli-([\d.]+)\//)?.[1];
+    const checksum = script.match(/echo "([a-f0-9]{64}) /)?.[1];
+    expect(version).toBeDefined();
+    expect(checksum).toBeDefined();
+    expect(cache).toContain("actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0");
+    expect(cache).toContain("path: $" + "{{ runner.temp }}/maestro\n");
+    expect(cache).toContain(
+      `key: maestro-\${{ runner.os }}-\${{ runner.arch }}-${version}-${checksum}\n`,
+    );
+    expect(cache).not.toContain("restore-keys:");
+    expect(steps.indexOf("name: Cache Maestro CLI")).toBeGreaterThan(boot);
+    expect(steps.indexOf("name: Cache Maestro CLI")).toBeLessThan(
+      steps.indexOf("scripts/prepare-ios-ui.sh"),
+    );
     const runs = [...body.matchAll(/^\s*bash scripts\/maestro-test\.sh\s.*$/gm)];
     expect(prepare).toBeGreaterThan(-1);
     expect(runs.map(([run]) => run.trim())).toEqual([
@@ -55,9 +74,10 @@ it("uses the early-booted device and settles after installation and launch", () 
   expect(script).toContain("https://github.com/mobile-dev-inc/Maestro/releases/download/");
   const sequence = [
     "curl -fsSL",
+    'tar -xzf "$app_dir/Cue.app.tgz"',
+    'xcrun simctl install "$device_id"',
     'xcrun simctl bootstatus "$device_id" -b',
     'xcrun simctl ui "$device_id" appearance "$appearance"',
-    'xcrun simctl install "$device_id"',
     'xcrun simctl launch --terminate-running-process "$device_id"',
     'xcrun simctl terminate "$device_id"',
     'node scripts/wait-ios-ready.mjs "$device_id"',
@@ -65,6 +85,79 @@ it("uses the early-booted device and settles after installation and launch", () 
   expect(sequence.every((index) => index !== -1)).toBe(true);
   expect(sequence).toEqual([...sequence].sort((a, b) => a - b));
 });
+
+it.each([false, true])("prepares the app with a Maestro cache hit of %s", (cached) => {
+  const directory = preparation(cached);
+  const result = directory.run();
+  expect(result.status, result.stderr).toBe(0);
+  const calls = readFileSync(directory.calls, "utf8").trim().split("\n");
+  expect(calls.map((call) => call.split(" ")[0])).toEqual([
+    ...(cached ? [] : ["curl", "shasum", "unzip"]),
+    "tar",
+    "xcrun",
+    "xcrun",
+    "xcrun",
+    "xcrun",
+    "xcrun",
+    "xcrun",
+    "xcrun",
+    "xcrun",
+    "node",
+  ]);
+  expect(readFileSync(path.join(directory.root, "github-path"), "utf8")).toBe(
+    `${directory.root}/maestro/bin\n`,
+  );
+  expect(calls.at(-1)).toBe("node scripts/wait-ios-ready.mjs test-device");
+});
+
+it.each([
+  "curl",
+  "shasum",
+  "unzip",
+  "tar",
+  "xcrun simctl install",
+  "xcrun simctl bootstatus",
+])("stops preparation when %s fails", (command) => {
+  const directory = preparation(false);
+  const result = directory.run(command);
+  expect(result.status, result.stderr).toBe(17);
+  const calls = readFileSync(directory.calls, "utf8").trim().split("\n");
+  expect(calls.at(-1)?.startsWith(`${command} `)).toBe(true);
+  expect(calls.some((call) => call.startsWith("node "))).toBe(false);
+});
+
+function preparation(cached: boolean) {
+  const root = tempDirectory("cue-ios-prepare-");
+  const bin = path.join(root, "bin");
+  mkdirSync(bin);
+  if (cached) mkdirSync(path.join(root, "maestro"));
+  const calls = path.join(root, "calls");
+  for (const command of ["curl", "shasum", "unzip", "tar", "xcrun", "node"]) {
+    writeFileSync(
+      path.join(bin, command),
+      `#!/bin/sh\nprintf "%s\\n" "${command} $*" >> "$PROBE_CALLS"\ncase "${command} $*" in "$FAIL_COMMAND "*) exit 17 ;; esac\n`,
+      { mode: 0o755 },
+    );
+  }
+  return {
+    root,
+    calls,
+    run: (failure = "") =>
+      spawnSync("bash", [repositoryPath("scripts/prepare-ios-ui.sh"), root, "light"], {
+        cwd: repositoryPath(""),
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          PATH: `${bin}:${process.env["PATH"]}`,
+          RUNNER_TEMP: root,
+          GITHUB_PATH: path.join(root, "github-path"),
+          DEVICE_ID: "test-device",
+          PROBE_CALLS: calls,
+          FAIL_COMMAND: failure,
+        },
+      }),
+  };
+}
 
 afterEach(() => vi.unstubAllEnvs());
 

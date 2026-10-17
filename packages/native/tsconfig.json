@@ -18,6 +18,7 @@
   // dev server and nowhere else, and the program CI compiles is weaker than the
   // one the author sees.
   "include": [
+    "entry.ts",
     "app",
     "src",
     "modules",
