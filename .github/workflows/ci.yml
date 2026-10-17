@@ -386,8 +386,6 @@ jobs:
       MAESTRO_DRIVER_STARTUP_TIMEOUT: "300000"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Start the fake Trakt server
-        run: node scripts/start-ready-process.mjs scripts/mock-trakt/server.mjs "$RUNNER_TEMP/mock-trakt.log"
       - name: Boot the simulator
         run: |
           sudo xcode-select -s /Applications/Xcode_26.6.app
@@ -407,6 +405,8 @@ jobs:
         with:
           path: ${{ runner.temp }}/maestro
           key: maestro-${{ runner.os }}-${{ runner.arch }}-2.10.0-29b675e10cc12080e445e9bfb2e2b4e4dfb9c0f2e30d5884120d258b5e1cd991
+      - name: Start the fake Trakt server
+        run: node scripts/start-ready-process.mjs scripts/mock-trakt/server.mjs "$RUNNER_TEMP/mock-trakt.log"
       - name: Prepare the simulator and cached app
         run: scripts/prepare-ios-ui.sh "$RUNNER_TEMP/native-ios-app" light
       - name: Run the shared light flow
@@ -468,8 +468,6 @@ jobs:
       MAESTRO_DRIVER_STARTUP_TIMEOUT: "300000"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Start the fake Trakt server
-        run: node scripts/start-ready-process.mjs scripts/mock-trakt/server.mjs "$RUNNER_TEMP/mock-trakt.log"
       - name: Boot the simulator
         run: |
           sudo xcode-select -s /Applications/Xcode_26.6.app
@@ -489,6 +487,8 @@ jobs:
         with:
           path: ${{ runner.temp }}/maestro
           key: maestro-${{ runner.os }}-${{ runner.arch }}-2.10.0-29b675e10cc12080e445e9bfb2e2b4e4dfb9c0f2e30d5884120d258b5e1cd991
+      - name: Start the fake Trakt server
+        run: node scripts/start-ready-process.mjs scripts/mock-trakt/server.mjs "$RUNNER_TEMP/mock-trakt.log"
       - name: Prepare the simulator and cached app
         run: scripts/prepare-ios-ui.sh "$RUNNER_TEMP/native-ios-app" dark
       - name: Run the shared dark traversal and large-text captures

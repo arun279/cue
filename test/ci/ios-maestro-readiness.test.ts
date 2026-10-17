@@ -26,18 +26,18 @@ it("readies the simulator in its final appearance, then runs Maestro once, in ev
     const server = steps.indexOf(
       'node scripts/start-ready-process.mjs scripts/mock-trakt/server.mjs "$RUNNER_TEMP/mock-trakt.log"',
     );
-    expect(server).toBeGreaterThan(steps.indexOf("actions/checkout@"));
-    expect(server).toBeLessThan(steps.indexOf("sudo xcode-select"));
     const boot = steps.indexOf('xcrun simctl boot "$device_id"');
-    expect(server).toBeLessThan(boot);
     expect(boot).toBeGreaterThan(steps.indexOf("sudo xcode-select"));
+    expect(steps.indexOf("sudo xcode-select")).toBeGreaterThan(steps.indexOf("actions/checkout@"));
     for (const operation of [
       "actions/setup-node@",
       "actions/download-artifact@",
-      "scripts/prepare-ios-ui.sh",
+      "name: Cache Maestro CLI",
     ]) {
       expect(boot).toBeLessThan(steps.indexOf(operation));
+      expect(server).toBeGreaterThan(steps.indexOf(operation));
     }
+    expect(server).toBeLessThan(steps.indexOf("scripts/prepare-ios-ui.sh"));
     expect(steps).toContain('echo "DEVICE_ID=$device_id" >> "$GITHUB_ENV"');
     const cache = steps
       .split(/^ {6}- /m)
