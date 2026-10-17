@@ -15,8 +15,6 @@ const MASKS = {
   "iOS 1206": { top: 162, right: 18 },
   "Android 1440": { top: 158, right: 14 },
 };
-// GitHub renders review bodies 814 px wide, so two 800 px panels show each
-// phone at about its own point width with 2x pixels for sharp text.
 const PANEL_WIDTH = 800;
 const GAP = 24;
 const TINT = [255, 0, 255];
@@ -93,11 +91,13 @@ const changedPixels = (before, after, platform) => {
 };
 
 const tint = (image, diff) => {
+  const data = Buffer.from(image.data);
   for (let i = 3; i < diff.length; i += 4) {
-    if (diff[i] === 0) continue;
-    for (let c = 0; c < 3; c++) image.data[i - 3 + c] = (image.data[i - 3 + c] + TINT[c]) >> 1;
+    for (let c = 0; c < 3; c++) {
+      data[i - 3 + c] = diff[i] === 0 ? data[i - 3 + c] >> 1 : TINT[c];
+    }
   }
-  return image;
+  return { width: image.width, height: image.height, data };
 };
 
 const average = (image, [x0, x1], [y0, y1]) => {
@@ -177,9 +177,10 @@ for (const after of lanes.filter(({ side }) => side === "after")) {
     const pair = pairFile === undefined ? undefined : read(pairFile, after, screen);
     const panels = [
       ...(base === undefined ? [] : [base]),
-      diff === undefined ? head : tint(head, diff),
+      head,
+      ...(diff === undefined ? [] : [tint(head, diff)]),
     ];
-    const labels = base === undefined ? ["after"] : ["before", "after"];
+    const labels = base === undefined ? ["after"] : ["before", "after", "changes"];
     if (size !== undefined) {
       panels.unshift(...(pair === undefined ? [] : [pair]));
       labels.unshift(...(pair === undefined ? [] : ["default text after"]));
@@ -236,7 +237,7 @@ if (changes.length === 0 && removed.length === 0) {
   );
 } else {
   sections.push(
-    `Before is base \`${baseSha.slice(0, 7)}\`, after is head \`${headSha.slice(0, 7)}\`; ${screens(compared)} compared. Changed pixels are tinted magenta in the after panel; the status bar and the scroll indicators are not compared.`,
+    `Before is base \`${baseSha.slice(0, 7)}\`, after is head \`${headSha.slice(0, 7)}\`; ${screens(compared)} compared. The changes panel dims the after screen and marks changed pixels in magenta; the status bar and the scroll indicators are not compared.`,
   );
   for (const change of changes) {
     sections.push(
