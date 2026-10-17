@@ -1,8 +1,8 @@
-import { execFile } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { promisify } from "node:util";
-import { describe, expect, it } from "vitest";
+import { normalizeOptionsAsync } from "@expo/fingerprint/build/Options";
+import { getExpoConfigSourcesAsync } from "@expo/fingerprint/build/sourcer/Expo";
+import { describe, expect, it, vi } from "vitest";
 import { nativeAppConfig } from "../../packages/native/app.config";
 import { repositoryPath } from "../support/repository-path";
 
@@ -16,17 +16,22 @@ const releaseWorkflow = readFileSync(
 );
 
 const native = repositoryPath("packages/native");
-const expoUpdatesCli = createRequire(`${native}/package.json`).resolve("expo-updates/bin/cli.js");
+const { getConfig } = createRequire(`${native}/package.json`)("expo/config");
 
-const execFileAsync = promisify(execFile);
-
-const runtimeVersion = async (platform: string, release: Record<string, string | undefined>) => {
-  const { stdout } = await execFileAsync(
-    process.execPath,
-    [expoUpdatesCli, "runtimeversion:resolve", "--platform", platform],
-    { cwd: native, env: { ...process.env, ...release } },
+const releaseConfigSources = async (release: Record<string, string | undefined>) => {
+  for (const [name, value] of Object.entries(release)) vi.stubEnv(name, value);
+  const config = getConfig(native, { skipSDKVersionRequirement: true });
+  vi.unstubAllEnvs();
+  return Promise.all(
+    (["ios", "android"] as const).map(async (platform) =>
+      getExpoConfigSourcesAsync(
+        native,
+        config,
+        [],
+        await normalizeOptionsAsync(native, { platforms: [platform] }),
+      ),
+    ),
   );
-  return (JSON.parse(stdout) as { runtimeVersion: string }).runtimeVersion;
 };
 
 const production = (
@@ -110,25 +115,21 @@ describe("JavaScript update publishing", () => {
     expect(config.updates).not.toHaveProperty("requestHeaders");
   });
 
-  it("gives every channel's store builds the runtime that updates are published against", {
-    timeout: 30_000,
-  }, async () => {
-    const runtimes = (release: Record<string, string | undefined>) =>
-      Promise.all(["ios", "android"].map((platform) => runtimeVersion(platform, release)));
-    const [published, ...builds] = await Promise.all([
-      runtimes({ APP_VERSION: undefined, BUILD_NUMBER: undefined }),
-      ...[publishedChannel, production.channel].map((channel) =>
-        runtimes({
+  it("gives every channel's store builds the runtime that updates are published against", async () => {
+    const published = await releaseConfigSources({
+      APP_VERSION: undefined,
+      BUILD_NUMBER: undefined,
+    });
+
+    for (const channel of [publishedChannel, production.channel]) {
+      expect(
+        await releaseConfigSources({
           APP_VERSION: "2.1.0",
           BUILD_NUMBER: "420701",
           EAS_BUILD_PROFILE: channel,
           EAS_UPDATE_CHANNEL: channel,
         }),
-      ),
-    ]);
-
-    for (const build of builds) {
-      expect(build).toEqual(published);
+      ).toEqual(published);
     }
   });
 
