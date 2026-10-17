@@ -477,8 +477,13 @@ jobs:
           retention-days: 7
   native-e2e:
     permissions:
+      actions: read
       contents: read
-    needs: [fingerprint, native-e2e-ios-light]
+    needs:
+      - fingerprint
+      - native-ios
+      - native-e2e-ios-light
+      - ui-screenshots-ios-dark
     if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
@@ -492,6 +497,10 @@ jobs:
           SHARDS: ${{ needs.native-e2e-ios-light.result }}
           USER_FACING: ${{ needs.fingerprint.outputs.user-facing }}
         run: node scripts/native-e2e-rollup.mjs
+      - name: Refuse iOS device jobs that passed only on a rerun
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/require-first-attempt-pass.sh native-ios native-e2e-ios-light ui-screenshots-ios-dark
   ui-screenshots-ios-dark:
     # Measured 10 to 16 minutes, including a 4 minute simulator setup.
     timeout-minutes: 20
@@ -777,15 +786,23 @@ jobs:
           if-no-files-found: error
           retention-days: 7
   android-e2e:
-    needs: [fingerprint, android-e2e-light]
+    permissions:
+      actions: read
+      contents: read
+    needs: [fingerprint, android-e2e-light, ui-screenshots-android-dark]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Require passing Android light shards unless device lanes were skipped
         env:
           DEVICES: ${{ needs.fingerprint.outputs.devices }}
           SHARDS: ${{ needs.android-e2e-light.result }}
         run: test "$SHARDS" = success || { test "$DEVICES" = false && test "$SHARDS" = skipped; }
+      - name: Refuse Android device jobs that passed only on a rerun
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/require-first-attempt-pass.sh native-android android-e2e-light ui-screenshots-android-dark
   ui-screenshots-android-dark:
     # Measured 3 to 5 minutes.
     timeout-minutes: 7

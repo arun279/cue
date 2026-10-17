@@ -233,7 +233,9 @@ describe("fast pull request validation", () => {
     const status = (DEVICES: string, SHARDS: string) =>
       spawnSync("bash", ["-c", rollup], { env: { DEVICES, SHARDS } }).status;
 
-    expect(aggregate).toContain("needs: [fingerprint, android-e2e-light]");
+    expect(aggregate).toContain(
+      "needs: [fingerprint, android-e2e-light, ui-screenshots-android-dark]",
+    );
     expect(aggregate).toContain("if: $" + "{{ always() }}");
     expect(aggregate).toContain("DEVICES: $" + "{{ needs.fingerprint.outputs.devices }}");
     expect(aggregate).toContain("SHARDS: $" + "{{ needs.android-e2e-light.result }}");
@@ -314,7 +316,9 @@ describe("fast pull request validation", () => {
   it("fails the aggregate whenever the rollup script fails", () => {
     const aggregate = job("native-e2e");
 
-    expect(aggregate).toContain("needs: [fingerprint, native-e2e-ios-light]");
+    expect(aggregate).toContain(
+      "    needs:\n      - fingerprint\n      - native-ios\n      - native-e2e-ios-light\n      - ui-screenshots-ios-dark\n",
+    );
     expect(aggregate).toContain("HIT: $" + "{{ needs.fingerprint.outputs.ios-cached }}");
     expect(aggregate).toContain("if: $" + "{{ always() }}");
     expect(aggregate).toContain("OWED: $" + "{{ needs.fingerprint.outputs.ios-owed }}");
@@ -323,6 +327,25 @@ describe("fast pull request validation", () => {
     expect(aggregate).toMatch(/^ {8}run: node scripts\/native-e2e-rollup\.mjs$/m);
     expect(aggregate).not.toContain("continue-on-error");
     expect(aggregate).not.toMatch(/\|\|\s*true\s*$/m);
+  });
+
+  it.each([
+    ["native-e2e", "native-ios", "native-e2e-ios-light", "ui-screenshots-ios-dark"],
+    ["android-e2e", "native-android", "android-e2e-light", "ui-screenshots-android-dark"],
+  ])("%s depends on and refuses reruns of every device job it vouches for", (aggregate, ...lanes) => {
+    const body = job(aggregate);
+    const refusal = body.match(/^ {8}run: scripts\/require-first-attempt-pass\.sh (.+)$/m)?.[1];
+    const needsOf = (name: string): string[] => {
+      const [, inline, block] =
+        job(name).match(/^ {4}needs:(?: \[?([^\]\n]*)\]?|\n((?: {6}- .*\n)+))/m) ?? [];
+      return inline?.split(", ") ?? block?.match(/[\w-]+$/gm) ?? [];
+    };
+    const upstream = (name: string): string[] => [name, ...needsOf(name).flatMap(upstream)];
+
+    expect(refusal?.split(" ")).toEqual(lanes);
+    expect(body).toContain("      actions: read\n");
+    expect(body).toContain("GH_TOKEN: $" + "{{ github.token }}");
+    for (const lane of lanes) expect(needsOf(aggregate).flatMap(upstream)).toContain(lane);
   });
 
   it("publishes every screenshot artifact for 14 days", () => {
