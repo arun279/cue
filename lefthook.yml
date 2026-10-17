@@ -63,6 +63,3 @@ pre-push:
     check:
       priority: 3
       run: pnpm check
-    node-version:
-      priority: 2
-      run: node scripts/check-node-version.mjs
