@@ -5,13 +5,9 @@ import {
   type Theme,
 } from "expo-router";
 import { Platform, useColorScheme, useWindowDimensions } from "react-native";
-import { SnackbarHost } from "./SnackbarHost";
 import { PALETTE, RADIUS, useColors } from "./tokens";
 
 const EXPANDED_SHEET_FONT_SCALE = 1.3;
-
-const episodeSheetFooter =
-  Platform.OS === "android" ? () => <SnackbarHost placement="presentation" contained /> : undefined;
 
 const sheetOptions = {
   presentation: "formSheet",
@@ -29,7 +25,6 @@ export function useEpisodeSheetOptions(): NativeStackNavigationOptions {
     sheetInitialDetentIndex:
       Platform.OS === "ios" && fontScale >= EXPANDED_SHEET_FONT_SCALE ? 1 : 0,
     contentStyle: { backgroundColor: colors.bg },
-    unstable_sheetFooter: episodeSheetFooter,
   };
 }
 

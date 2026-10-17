@@ -7,10 +7,11 @@ import {
 } from "@cue/core/stores/snackbar-store";
 import { act, render, screen, userEvent } from "@testing-library/react-native";
 import type { ReactElement } from "react";
-import { AccessibilityInfo, View } from "react-native";
+import { AccessibilityInfo, Platform, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { SnackbarHost } from "../../src/ui/SnackbarHost";
 import { AUTO_DISMISS_UNDO } from "../../src/ui/snackbar-policy.harness";
+import { SPACE } from "../../src/ui/tokens";
 
 let mockTraktBase: string | undefined;
 jest.mock("../../src/config", () => ({
@@ -56,7 +57,11 @@ it("runs an action from its own tap", async () => {
   expect(action.onPress).toHaveBeenCalledTimes(1);
 });
 
-it("lays out in a native sheet footer", async () => {
+it.each([
+  ["root", { ios: 104, android: 112 }],
+  ["presentation", { ios: 32, android: 32 }],
+  ["sheet", { ios: 32, android: 8 }],
+] as const)("floats the %s snackbar at its bottom edge", async (placement, bottom) => {
   await render(
     <SafeAreaProvider
       initialMetrics={{
@@ -64,13 +69,17 @@ it("lays out in a native sheet footer", async () => {
         insets: { top: 0, right: 0, bottom: 24, left: 0 },
       }}
     >
-      <SnackbarHost placement="presentation" contained />
+      <SnackbarHost placement={placement} />
     </SafeAreaProvider>,
   );
   await act(async () => showSnack({ message: MESSAGE }));
 
-  expect(screen.getByTestId("snackbar")).not.toHaveStyle({ position: "absolute" });
-  expect(screen.getByTestId("snackbar")).toHaveStyle({ marginBottom: 32 });
+  expect(screen.getByTestId("snackbar")).toHaveStyle({
+    position: "absolute",
+    left: SPACE.s3,
+    right: SPACE.s3,
+    bottom: Platform.select(bottom),
+  });
 });
 
 it("draws in the topmost presentation only, and hands back when it closes", async () => {
@@ -125,11 +134,14 @@ function Hosts({ sheetOpen }: { readonly sheetOpen: boolean }): ReactElement {
   );
 }
 
-it("keeps the presentation above a root host that mounts later", async () => {
+it.each([
+  "presentation",
+  "sheet",
+] as const)("keeps the %s above a root host that mounts later", async (placement) => {
   await render(
     <View>
       <View testID="sheet-host">
-        <SnackbarHost placement="presentation" />
+        <SnackbarHost placement={placement} />
       </View>
       <View testID="root-host">
         <SnackbarHost placement="root" />
