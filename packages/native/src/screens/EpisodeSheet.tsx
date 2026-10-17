@@ -130,7 +130,7 @@ export function EpisodeBody({
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   content: { flex: 1, padding: SPACE.s4 },
-  body: { flex: 1, gap: SPACE.s3 },
+  body: { flexShrink: 1, gap: SPACE.s3 },
   toolbar: { alignItems: "flex-end" },
   countdown: {
     minHeight: 214,
