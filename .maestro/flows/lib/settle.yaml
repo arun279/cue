@@ -1,5 +1,13 @@
 appId: app.cuetracker
 ---
+# The iOS simulator can drop a synthesized touch, so a lost input fails here in
+# seconds instead of at the completion timeout.
+- extendedWaitUntil:
+    visible:
+      id: "operation-started"
+      text: ${"(.*; )?" + output.operation + ";.*"}
+    timeout: 10000
+    label: '${"Tap or swipe not delivered: " + output.operation + " never started"}'
 - extendedWaitUntil:
     visible:
       id: "operation-completed"

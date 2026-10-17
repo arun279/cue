@@ -9,10 +9,12 @@ if (headSha === undefined) {
 }
 
 // iPhone 17 Pro: the 54 pt status bar at 3x, and a scroll indicator that ends
-// 18 px in. Pixel 7 Pro: the first app row starts at 158 px, and the 4 dp
-// scroll indicator. Both indicators fade on their own clocks.
+// 18 px in. Its floating tab bar's glass starts at 791 pt and its tab items at
+// 795 pt; the glass edge between them refracts the content behind it a little
+// differently in each capture. Pixel 7 Pro: the first app row starts at
+// 158 px, and the 4 dp scroll indicator. Both indicators fade on their own clocks.
 const MASKS = {
-  "iOS 1206": { top: 162, right: 18 },
+  "iOS 1206": { top: 162, right: 18, glassEdge: [2373, 2385] },
   "Android 1440": { top: 158, right: 14 },
 };
 const PANEL_WIDTH = 800;
@@ -85,9 +87,11 @@ const changedPixels = (before, after, platform) => {
     throw new Error(`no status bar mask for ${platform} ${width} px captures`);
   const masked = Buffer.from(after.data);
   before.data.copy(masked, 0, 0, mask.top * width * 4);
+  const [edgeTop, edgeBottom] = mask.glassEdge ?? [0, 0];
   for (let y = mask.top; y < height; y++) {
     const end = (y + 1) * width * 4;
-    before.data.copy(masked, end - mask.right * 4, end - mask.right * 4, end);
+    const start = y >= edgeTop && y < edgeBottom ? end - width * 4 : end - mask.right * 4;
+    before.data.copy(masked, start, start, end);
   }
   const count = pixelmatch(before.data, masked, diff, width, height, {
     threshold: 0.1,
@@ -232,7 +236,7 @@ if (changes.length === 0 && removed.length === 0) {
   );
 } else {
   sections.push(
-    `Before is base \`${baseSha.slice(0, 7)}\`, after is head \`${headSha.slice(0, 7)}\`; ${screens(compared)} compared. The changes panel dims the after screen and marks changed pixels in magenta; the status bar and the scroll indicators are not compared.`,
+    `Before is base \`${baseSha.slice(0, 7)}\`, after is head \`${headSha.slice(0, 7)}\`; ${screens(compared)} compared. The changes panel dims the after screen and marks changed pixels in magenta; the status bar, the scroll indicators and the top edge of the iOS tab bar's glass are not compared.`,
   );
   for (const change of changes) {
     sections.push(
