@@ -658,40 +658,13 @@ jobs:
             | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      - name: Locate Android SDK
-        id: android-sdk
-        run: echo "root=$ANDROID_HOME" >> "$GITHUB_OUTPUT"
-      - name: Cache Android system image and AVD
-        id: avd-cache
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-        with:
-          path: |
-            ${{ steps.android-sdk.outputs.root }}/system-images/android-35/default/x86_64
-            ~/.android/avd/*
-            ~/.android/adb*
-          key: android-avd-${{ runner.os }}-35-default-x86_64-pixel_7_pro-v1
-      - name: Create AVD snapshot
-        if: steps.avd-cache.outputs.cache-hit != 'true'
-        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
-        with:
-          api-level: 35
-          target: default
-          arch: x86_64
-          profile: pixel_7_pro
-          force-avd-creation: false
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          disable-animations: false
-          script: echo "Created clean AVD snapshot."
       - name: Inspect the release UI
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: 35
-          target: default
           arch: x86_64
           profile: pixel_7_pro
-          force-avd-creation: false
-          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          disable-animations: true
+          emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           script: bash scripts/verify-android-ui.sh "$RUNNER_TEMP/cue-native-android/universal.apk" "$RUNNER_TEMP/android-ui" "$RUNNER_TEMP/screenshots/android" light
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ !cancelled() }}
@@ -745,40 +718,13 @@ jobs:
             | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      - name: Locate Android SDK
-        id: android-sdk
-        run: echo "root=$ANDROID_HOME" >> "$GITHUB_OUTPUT"
-      - name: Cache Android system image and AVD
-        id: avd-cache
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-        with:
-          path: |
-            ${{ steps.android-sdk.outputs.root }}/system-images/android-35/default/x86_64
-            ~/.android/avd/*
-            ~/.android/adb*
-          key: android-avd-${{ runner.os }}-35-default-x86_64-pixel_7_pro-v1
-      - name: Create AVD snapshot
-        if: steps.avd-cache.outputs.cache-hit != 'true'
-        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
-        with:
-          api-level: 35
-          target: default
-          arch: x86_64
-          profile: pixel_7_pro
-          force-avd-creation: false
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          disable-animations: false
-          script: echo "Created clean AVD snapshot."
       - name: Inspect the release UI
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: 35
-          target: default
           arch: x86_64
           profile: pixel_7_pro
-          force-avd-creation: false
-          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          disable-animations: true
+          emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           script: bash scripts/verify-android-ui.sh "$RUNNER_TEMP/cue-native-android/universal.apk" "$RUNNER_TEMP/android-ui" "$RUNNER_TEMP/screenshots/android" dark
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ !cancelled() }}

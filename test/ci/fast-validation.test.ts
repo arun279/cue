@@ -193,48 +193,21 @@ describe("fast pull request validation", () => {
   it.each([
     "android-e2e",
     "ui-screenshots-android-dark",
-  ])("%s caches the system image and reuses a clean AVD snapshot", (name) => {
-    const steps = job(name).split(/^ {6}- /m);
-    const cache = steps.find((step) => step.includes("id: avd-cache")) ?? "";
-    const emulators = steps.filter((step) =>
-      step.includes("reactivecircus/android-emulator-runner@"),
-    );
-    const [snapshot = "", inspect = ""] = emulators;
+  ])("%s boots a fresh emulator and checks its display before capturing", (name) => {
+    const emulators = job(name)
+      .split(/^ {6}- /m)
+      .filter((step) => step.includes("reactivecircus/android-emulator-runner@"));
+    const verification = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
 
-    expect(job(name)).toContain('run: echo "root=$ANDROID_HOME" >> "$GITHUB_OUTPUT"');
-    expect(cache).toContain("actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0");
-    expect(cache).toContain(
-      "$" + "{{ steps.android-sdk.outputs.root }}/system-images/android-35/default/x86_64",
+    expect(job(name)).not.toContain("actions/cache@");
+    expect(emulators).toHaveLength(1);
+    expect(emulators[0]).toContain(
+      "emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim\n",
     );
-    expect(cache).toContain("~/.android/avd/*");
-    expect(cache).toContain("~/.android/adb*");
-    expect(cache).toContain(
-      "key: android-avd-$" + "{{ runner.os }}-35-default-x86_64-pixel_7_pro-v1",
+    expect(emulators[0]).not.toContain("force-avd-creation");
+    expect(verification).toMatch(
+      /wm density reset\nbash scripts\/assert-android-display\.sh "\$output\/window-displays\.txt"\n\nmock_pid=/,
     );
-    expect(cache).not.toContain("restore-keys:");
-    expect(emulators).toHaveLength(2);
-    expect(steps.indexOf(cache)).toBeLessThan(steps.indexOf(snapshot));
-    for (const emulator of emulators) {
-      expect(emulator).toContain(
-        "reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0",
-      );
-      expect(emulator).toContain(
-        "api-level: 35\n          target: default\n          arch: x86_64\n          profile: pixel_7_pro",
-      );
-      expect(emulator).toContain("force-avd-creation: false");
-    }
-    expect(snapshot).toContain("if: steps.avd-cache.outputs.cache-hit != 'true'");
-    expect(snapshot).toContain("disable-animations: false");
-    expect(snapshot).toContain(
-      "emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none",
-    );
-    expect(snapshot).toContain('script: echo "Created clean AVD snapshot."');
-    expect(snapshot).not.toContain("-no-snapshot");
-    expect(inspect).not.toContain("if:");
-    expect(inspect).toContain("emulator-options: -no-snapshot-save -no-window");
-    expect(inspect).not.toMatch(/-no-snapshot(?:\s|$)|-wipe-data/);
-    expect(inspect).toContain("disable-animations: true");
-    expect(inspect).toContain("script: bash scripts/verify-android-ui.sh");
   });
 
   it("waits for persistent readiness before checking the connected loading state", () => {
