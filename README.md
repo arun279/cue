@@ -36,7 +36,7 @@ Git hooks are installed by `pnpm install`. Pre-commit runs the fast formatting, 
 
 ## Local fake Trakt
 
-`scripts/mock-trakt` is a dependency-free server for deterministic sync tests and native simulator flows. It serves seeded accounts, records request journals, and exposes controlled rate-limit, server failure, token refresh, delayed response, held connection, and dropped connection modes. Seeded dates count from the start of the current UTC day, so screens that show a time of day look the same in every run on that day.
+`scripts/mock-trakt` is a dependency-free server for deterministic sync tests and native simulator flows. It serves seeded accounts, records request journals, and exposes controlled rate-limit, server failure, token refresh, delayed response, held connection, and dropped connection modes. Seeded dates count from a fixed instant, `FIXTURE_NOW` in `scripts/mock-trakt/seed.mjs`, so the fake account is the same on every day it runs.
 
 ```sh
 pnpm mock:trakt
@@ -44,7 +44,7 @@ pnpm mock:trakt
 
 The core harness boots the server in process and drives `@cue/core` through its real client, read pool, query cache, runtime, and write queue. This keeps request budgets, retry timing, refresh behavior, request shapes, and post-write scoped reads independent of any rendered screen. Maestro flows drive the Expo app against the same fake service.
 
-Set `EXPO_PUBLIC_TRAKT_API_BASE=http://127.0.0.1:8787` for a simulator build that should use the fake service. The Expo configuration adds a local transport exception only for that build. Release builds carry no exception. Set `EXPO_PUBLIC_UI_HARNESS=1` as well for a build that Maestro drives: it bundles the readiness and timing markers the flows read. Without it, Metro resolves `src/ui/harness.tsx` to an empty stand-in, and `pnpm check:size:native` and the update workflow fail if a harness module reaches an exported bundle.
+Set `EXPO_PUBLIC_TRAKT_API_BASE=http://127.0.0.1:8787` for a simulator build that should use the fake service. The Expo configuration adds a local transport exception only for that build. Release builds carry no exception. Set `EXPO_PUBLIC_UI_HARNESS=1` as well for a build that Maestro drives: it bundles the readiness and timing markers the flows read. Without it, Metro resolves `src/ui/harness.tsx` to an empty stand-in, and `pnpm check:size:native` and the update workflow fail if a harness module reaches an exported bundle. Set `EXPO_PUBLIC_CLOCK_START` to the instant of `FIXTURE_NOW` too: the app's clock then starts there at launch and runs on, so the app and the fake agree on which episodes have aired. A test fails if CI's value and `FIXTURE_NOW` differ. Store builds leave it unset, and Metro leaves the clock out of their bundles. Metro's transform cache does not key on `EXPO_PUBLIC_` values, so pass `--clear` when one machine switches between a harness and a store bundle.
 
 ## Architecture
 

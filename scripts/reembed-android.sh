@@ -6,13 +6,14 @@ apk=$2
 keystore=$3
 : "${EXPO_PUBLIC_TRAKT_CLIENT_ID:?the app throws at startup without a Trakt client id}"
 : "${EXPO_PUBLIC_TRAKT_API_BASE:?the harness app must be pointed at the fake Trakt origin}"
+: "${EXPO_PUBLIC_CLOCK_START:?the harness app must share the fake Trakt clock}"
 [ "${EXPO_PUBLIC_UI_HARNESS:-}" = 1 ] || { echo "EXPO_PUBLIC_UI_HARNESS must be 1: the harness app carries the Maestro readiness and timing markers" >&2; exit 1; }
 work=$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/android-bundle.XXXXXX")
 mkdir -p "$work/aab/base/assets" "$work/apk/assets"
 (
   cd packages/native
   npx expo export:embed --platform android --dev false --minify false \
-    --entry-file ../../node_modules/expo-router/entry.js \
+    --entry-file entry.ts \
     --bundle-output "$work/index.android.bundle" --assets-dest "$work/assets"
 )
 scripts/compile-hermes.sh "$work/index.android.bundle" "$work/index.android.hbc"

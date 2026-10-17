@@ -2,7 +2,7 @@
   "name": "@cue/native",
   "version": "0.0.0",
   "private": true,
-  "main": "expo-router/entry",
+  "main": "entry.ts",
   "description": "Cue's native app: the Expo / React Native client over @cue/core.",
   "scripts": {
     "start": "expo start",
