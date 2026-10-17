@@ -5,7 +5,7 @@ import { Chevron } from "../../ui/Chevron";
 import { useScrollAcknowledgment } from "../../ui/harness";
 import { Row, Separator } from "../../ui/Row";
 import { RowMenu } from "../../ui/RowMenu";
-import { ROW_MIN_HEIGHT, SPACE, useColors } from "../../ui/tokens";
+import { ROW_MIN_HEIGHT, SPACE, tabBarClearance, useColors } from "../../ui/tokens";
 import { CueText } from "../../ui/type";
 
 export function AccountScreen({
@@ -27,7 +27,7 @@ export function AccountScreen({
         style={{ backgroundColor: colors.bg }}
         contentContainerStyle={{
           padding: SPACE.s4,
-          paddingBottom: insets.bottom + SPACE.s5,
+          paddingBottom: tabBarClearance(insets.bottom) + SPACE.s4,
           gap: SPACE.s5,
         }}
       >

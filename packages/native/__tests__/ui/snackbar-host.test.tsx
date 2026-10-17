@@ -11,6 +11,7 @@ import { AccessibilityInfo, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { SnackbarHost } from "../../src/ui/SnackbarHost";
 import { AUTO_DISMISS_UNDO } from "../../src/ui/snackbar-policy.harness";
+import { SPACE, tabBarClearance } from "../../src/ui/tokens";
 
 let mockTraktBase: string | undefined;
 jest.mock("../../src/config", () => ({
@@ -56,7 +57,7 @@ it("runs an action from its own tap", async () => {
   expect(action.onPress).toHaveBeenCalledTimes(1);
 });
 
-it("lays out in a native sheet footer", async () => {
+it.each(["root", "presentation"] as const)("floats above the %s safe area", async (placement) => {
   await render(
     <SafeAreaProvider
       initialMetrics={{
@@ -64,13 +65,17 @@ it("lays out in a native sheet footer", async () => {
         insets: { top: 0, right: 0, bottom: 24, left: 0 },
       }}
     >
-      <SnackbarHost placement="presentation" contained />
+      <SnackbarHost placement={placement} />
     </SafeAreaProvider>,
   );
   await act(async () => showSnack({ message: MESSAGE }));
 
-  expect(screen.getByTestId("snackbar")).not.toHaveStyle({ position: "absolute" });
-  expect(screen.getByTestId("snackbar")).toHaveStyle({ marginBottom: 32 });
+  expect(screen.getByTestId("snackbar")).toHaveStyle({
+    position: "absolute",
+    left: SPACE.s3,
+    right: SPACE.s3,
+    bottom: (placement === "root" ? tabBarClearance(24) : 24) + SPACE.s2,
+  });
 });
 
 it("draws in the topmost presentation only, and hands back when it closes", async () => {
