@@ -1,3 +1,4 @@
+import "./support/detail-mocks";
 import { dismissSnack, showSnack } from "@cue/core/stores/snackbar-store";
 import { act, fireEvent, render, screen } from "@testing-library/react-native";
 import { StyleSheet } from "react-native";
@@ -21,12 +22,6 @@ jest.mock("expo-router", () => {
     useNavigation: () => ({ addListener: () => () => {} }),
   };
 });
-jest.mock("@expo/ui/community/menu", () => require("./support/native-ui").menuModule());
-jest.mock("expo-image", () => require("./support/detail").imageModule());
-jest.mock(
-  "react-native-safe-area-context",
-  () => require("react-native-safe-area-context/jest/mock").default,
-);
 
 function contentLayout(testID: string) {
   const content = screen.getByTestId(testID);
