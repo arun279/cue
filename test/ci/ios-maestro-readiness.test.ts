@@ -7,9 +7,9 @@ import { repositoryPath } from "../support/repository-path";
 import { tempDirectory } from "../support/temp-directory";
 import { readWorkflowJobs } from "../support/workflow-jobs";
 
-it("readies the simulator in its final appearance, then runs Maestro once, in every iOS lane", () => {
+it("readies the simulator in its final appearance, starts the runner, then runs Maestro once, in every iOS lane", () => {
   const lanes = readWorkflowJobs(repositoryPath(".github/workflows/ci.yml")).filter(
-    ({ body }) => body.includes("runs-on: macos") && /maestro/i.test(body),
+    ({ body }) => body.includes("runs-on: macos") && body.includes("scripts/maestro-test.sh"),
   );
   expect(lanes.map(({ name }) => name)).toEqual([
     "native-e2e-ios-light",
@@ -34,6 +34,7 @@ it("readies the simulator in its final appearance, then runs Maestro once, in ev
       "name: Unpack the simulator app",
       "name: Embed the harness JavaScript",
       "name: Cache Maestro CLI",
+      "name: Unpack the Maestro runner",
     ]) {
       expect(boot).toBeLessThan(steps.indexOf(operation));
       expect(server).toBeGreaterThan(steps.indexOf(operation));
@@ -64,7 +65,34 @@ it("readies the simulator in its final appearance, then runs Maestro once, in ev
       expect.stringMatching(/^bash scripts\/maestro-test\.sh --device "\$DEVICE_ID" test /),
     ]);
     expect(runs[0]?.index).toBeGreaterThan(prepare);
+    const runner = body.indexOf(
+      'node scripts/start-ready-process.mjs scripts/maestro-runner.mjs "$RUNNER_TEMP/maestro-runner.log" 300000\n',
+    );
+    expect(runner).toBeGreaterThan(prepare);
+    expect(runs[0]?.index).toBeGreaterThan(runner);
+    expect(runs[0]?.[0]).toContain(' test --driver-host-port "$MAESTRO_RUNNER_PORT" ');
+    expect(body).toContain('      USE_XCODE_TEST_RUNNER: "1"\n');
+    expect(body).not.toContain("MAESTRO_DRIVER_STARTUP_TIMEOUT");
+    expect(body).toContain("$" + "{{ runner.temp }}/maestro-runner.log\n");
   }
+});
+
+it("freezes backboardd under the started runner before the dark flow and checks its taps after", () => {
+  const dark =
+    readWorkflowJobs(repositoryPath(".github/workflows/ci.yml")).find(
+      ({ name }) => name === "ui-screenshots-ios-dark",
+    )?.body ?? "";
+  const order = [
+    "scripts/maestro-runner.mjs",
+    'scripts/check-runner-survives-freeze.sh "$RUNNER_TEMP/maestro-runner.log"\n',
+    'echo "FLOW_STARTED=$(date \'+%Y-%m-%d %H:%M:%S\')" >> "$GITHUB_ENV"\n',
+    "bash scripts/maestro-test.sh",
+    'node scripts/check-tap-lead-in.mjs "$DEVICE_ID" "$FLOW_STARTED" "$RUNNER_TEMP/tap-evidence.ndjson"\n',
+  ].map((text) => dark.indexOf(text));
+
+  expect(order.every((index) => index !== -1)).toBe(true);
+  expect(order).toEqual([...order].sort((a, b) => a - b));
+  expect(dark).toContain("$" + "{{ runner.temp }}/tap-evidence.ndjson\n");
 });
 
 it("uses the early-booted device and settles after installation and launch", () => {

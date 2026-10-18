@@ -53,6 +53,7 @@ describe("device proof copies", () => {
         "fingerprint",
         "native-ios",
         "native-android",
+        "maestro-runner",
         ...deviceJobs.map((job) => job.name),
       ].includes(name),
     );

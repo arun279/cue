@@ -295,7 +295,7 @@ describe("fast pull request validation", () => {
     const ios = job("ui-screenshots-ios-dark");
     const android = job("ui-screenshots-android-dark");
 
-    expect(ios).toContain("needs: [fingerprint, native-ios]");
+    expect(ios).toContain("needs: [fingerprint, native-ios, maestro-runner]");
     expect(ios).toContain("actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3");
     expect(ios).toContain("name: cue-native-ios-$" + "{{ needs.fingerprint.outputs.ios }}");
     expect(ios).toContain(" .maestro/ci/screenshots.yaml \\\n");
@@ -350,10 +350,14 @@ describe("fast pull request validation", () => {
     }
   });
 
-  it("uses a fixed Maestro driver port outside Android's ephemeral range", () => {
+  it("uses a fixed Maestro driver port outside both platforms' ephemeral ranges", () => {
     const verification = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
 
     expect(verification.match(/--driver-host-port 7001/g)).toHaveLength(1);
+    for (const name of IOS_LANES) {
+      expect(job(name)).toContain('      MAESTRO_RUNNER_PORT: "7001"\n');
+      expect(job(name).match(/--driver-host-port "\$MAESTRO_RUNNER_PORT"/g)).toHaveLength(1);
+    }
   });
 
   it("fails the aggregate whenever the rollup script fails", () => {
@@ -451,6 +455,10 @@ describe("fast pull request validation", () => {
     for (const name of ["check", "native-android", "footprint", "audit", "actionlint"]) {
       expect(job(name)).not.toContain("devices");
     }
+    expect(job("maestro-runner")).toMatch(
+      /^ {4}if: github\.event_name != 'pull_request' \|\| !github\.event\.pull_request\.draft$/m,
+    );
+    expect(job("maestro-runner")).not.toMatch(/^ {4}needs:/m);
   });
 
   it("leaves device lanes to the push run only for a pushed branch whose merge tree is its head tree", () => {
@@ -572,7 +580,12 @@ describe("fast pull request validation", () => {
     const embed = lane[index("name: Embed the harness JavaScript")] ?? "";
 
     expect(job(name)).not.toMatch(/setup-node|pnpm|npx|tar -czf/);
-    expect(downloads.map((step) => step.slice(0, step.indexOf("\n") + 1))).toEqual([built, cached]);
+    expect(downloads.map((step) => step.slice(0, step.indexOf("\n") + 1))).toEqual([
+      built,
+      cached,
+      expect.stringMatching(/^uses: actions\/download-artifact@/),
+    ]);
+    expect(downloads[2]).toContain("name: maestro-runner$" + "{{ inputs.copy }}\n");
     expect(downloads[0]).toContain(
       "name: cue-native-ios-$" + "{{ needs.fingerprint.outputs.ios }}$" + "{{ inputs.copy }}\n",
     );
@@ -626,9 +639,12 @@ describe("fast pull request validation", () => {
     expect(
       [...reached].map((file) => path.relative(repositoryPath("scripts"), file)).sort(),
     ).toEqual([
+      "check-runner-survives-freeze.sh",
+      "check-tap-lead-in.mjs",
       "download-ci-artifact.sh",
       "enable-ios-accessibility.sh",
       "maestro-failure.mjs",
+      "maestro-runner.mjs",
       "maestro-supervisor.mjs",
       "maestro-test.sh",
       "mock-trakt/faults.mjs",
@@ -657,7 +673,7 @@ describe("fast pull request validation", () => {
     expect(timeouts).toEqual({
       "native-ios": 75,
       "native-e2e-ios-light": 22,
-      "ui-screenshots-ios-dark": 20,
+      "ui-screenshots-ios-dark": 23,
       "android-e2e-light": 14,
       "ui-screenshots-android-dark": 7,
     });
