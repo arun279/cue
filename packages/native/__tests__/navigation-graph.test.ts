@@ -193,53 +193,26 @@ const parentOf = (navigator: Navigator): Navigator | undefined =>
   navigator.dir === "" ? undefined : navigatorOf(navigator.dir.split("/").slice(0, -1).join("/"));
 const isRoot = (route: Route): boolean => route.navigator.root === nameIn(route);
 
-function functionReturns(node: ts.Node): ts.Expression[] {
-  const body =
-    ts.isVariableDeclaration(node) && node.initializer !== undefined ? node.initializer : node;
-  if (ts.isArrowFunction(body) && !ts.isBlock(body.body)) return [body.body];
-  if (ts.isArrowFunction(body) || ts.isFunctionDeclaration(body))
-    return descendants(body).flatMap((child) =>
+/** A function or constant by name among the modules a file reaches. */
+function declarationIn(file: string, name: string): ts.Node | undefined {
+  return closureOf(file)
+    .flatMap((reached) => descendants(sourceOf(reached)))
+    .find(
+      (node) =>
+        (ts.isFunctionDeclaration(node) || ts.isVariableDeclaration(node)) &&
+        node.name?.getText() === name,
+    );
+}
+
+function returnedBy(node: ts.Node): ts.Expression[] {
+  const value = ts.isVariableDeclaration(node) ? node.initializer : node;
+  if (value === undefined) return [];
+  if (ts.isArrowFunction(value) && !ts.isBlock(value.body)) return [value.body];
+  if (ts.isArrowFunction(value) || ts.isFunctionDeclaration(value))
+    return descendants(value).flatMap((child) =>
       ts.isReturnStatement(child) && child.expression ? [child.expression] : [],
     );
-  return ts.isVariableDeclaration(node) && node.initializer ? [node.initializer] : [];
-}
-
-function localDeclaration(statement: ts.Statement, name: string): ts.Node | undefined {
-  if (ts.isFunctionDeclaration(statement))
-    return statement.name?.text === name ? statement : undefined;
-  return ts.isVariableStatement(statement)
-    ? statement.declarationList.declarations.find(
-        (declaration) => declaration.name.getText() === name,
-      )
-    : undefined;
-}
-
-function importedDeclaration(
-  file: string,
-  statement: ts.Statement,
-  name: string,
-): [string, ts.Node] | undefined {
-  if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier))
-    return undefined;
-  const bindings = statement.importClause?.namedBindings;
-  const imported =
-    bindings && ts.isNamedImports(bindings)
-      ? bindings.elements.find((element) => element.name.text === name)
-      : undefined;
-  const [target] = imported ? resolveImport(file, statement.moduleSpecifier.text) : [];
-  return imported && target
-    ? declarationOf(target, (imported.propertyName ?? imported.name).text)
-    : undefined;
-}
-
-function declarationOf(file: string, name: string): [string, ts.Node] | undefined {
-  for (const statement of sourceOf(file).statements) {
-    const local = localDeclaration(statement, name);
-    if (local) return [file, local];
-    const imported = importedDeclaration(file, statement, name);
-    if (imported) return imported;
-  }
-  return undefined;
+  return ts.isExpression(value) ? [value] : [];
 }
 
 function pathnameOf(expression: ts.ObjectLiteralExpression): ts.Expression | undefined {
@@ -268,10 +241,12 @@ function pathsIn(file: string, expression: ts.Expression): string[] | undefined 
     return pathname && pathsIn(file, pathname);
   }
   const callee = ts.isCallExpression(expression) ? expression.expression : expression;
-  const declared = ts.isIdentifier(callee) ? declarationOf(file, callee.text) : undefined;
+  const declared = ts.isIdentifier(callee) ? declarationIn(file, callee.text) : undefined;
   return (
     declared &&
-    allOrNothing(functionReturns(declared[1]).map((value) => pathsIn(declared[0], value)))
+    allOrNothing(
+      returnedBy(declared).map((value) => pathsIn(declared.getSourceFile().fileName, value)),
+    )
   );
 }
 
@@ -394,10 +369,14 @@ function backReturns({ from, to, call }: Edge): boolean {
   return around || (isRoot(to) && (parent?.tabs === true || presentedModally(target)));
 }
 
-it("resolves every navigation target from source", () => {
-  expect(calls.filter(({ call }) => call.paths === undefined).map(({ call }) => call.at)).toEqual(
-    [],
+it("resolves every navigation target from source to a route", () => {
+  const unresolved = calls.filter(
+    ({ call }) =>
+      call.paths === undefined ||
+      call.paths.some((path) => !routes.some((route) => matches(path, route))),
   );
+
+  expect(unresolved.map(({ call }) => call.at)).toEqual([]);
   expect(edges.length).toBeGreaterThan(0);
 });
 
