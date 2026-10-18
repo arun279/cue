@@ -267,6 +267,7 @@ describe("pr-media job", () => {
     ".github/workflows/ci.yml",
     "scripts/start-ready-process.mjs",
     "scripts/download-ci-artifact.sh",
+    "scripts/bundle-ios.sh",
     "scripts/reembed-ios.sh",
     "scripts/compile-hermes.sh",
     "scripts/prepare-ios-ui.sh",
@@ -276,6 +277,11 @@ describe("pr-media job", () => {
     "scripts/maestro-test.sh",
     "scripts/maestro-supervisor.mjs",
     "scripts/maestro-failure.mjs",
+    "scripts/maestro-runner.mjs",
+    "scripts/build-maestro-runner.sh",
+    "scripts/check-runner-survives-freeze.sh",
+    "scripts/check-tap-lead-in.mjs",
+    "patches/maestro-runner/0001-keep-serving-after-xctest-issues.patch",
   ])("gathers media when %s changes", (file) => {
     expect(userFacing.test(file)).toBe(true);
   });

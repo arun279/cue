@@ -46,6 +46,39 @@ const IOS_ONLY = /^( *)- runFlow:\n\1 {4}when:\n\1 {6}platform: iOS\n(?:\1 {4}.*
 const signsIn = (file: string): boolean =>
   references(file).some((flow) => flow === CONNECT || signsIn(flow));
 
+// Up Next shows a caption until the first mark made on that screen, and the
+// dismissal persists on the install until a sign-in clears it, which only a
+// suite's first flow does. Each capture of Up Next pins whether it shows.
+const CAPTION_SHOWN = {
+  "account.yaml": false,
+  "dark-traversal.yaml": true,
+  "launch.yaml": true,
+  "tabs.yaml": true,
+  "up-next-mark-and-undo.yaml": true,
+};
+const DISMISSES_CAPTION = /id: "(?:queue|lapsed)-row-[^"]*-mark"|from:\n\s+id: "queue-row-/;
+
+const captionShown = (): Map<string, boolean | "per platform"> => {
+  const shown = new Map<string, boolean | "per platform">();
+  for (const suite of yamlIn(SUITES).map((name) => path.join(SUITES, name))) {
+    const conditional = new Set(
+      [...readFileSync(suite, "utf8").matchAll(/file: ([\w./-]+)\n {4}when:\n/g)].map(
+        ([, flow = ""]) => path.resolve(SUITES, flow),
+      ),
+    );
+    let anywhere = false;
+    let everywhere = false;
+    for (const flow of references(suite)) {
+      shown.set(path.basename(flow), everywhere ? false : !anywhere || "per platform");
+      if (DISMISSES_CAPTION.test(readFileSync(flow, "utf8"))) {
+        anywhere = true;
+        everywhere ||= !conditional.has(flow);
+      }
+    }
+  }
+  return shown;
+};
+
 const MATRIX_SUITE = "$" + "{{ matrix.suite }}";
 
 const iosSuites = (): string[] =>
@@ -113,5 +146,13 @@ describe("Maestro app resets", () => {
     expect(suites.length).toBeGreaterThan(0);
     expect(suites.every((suite) => signsIn(suite))).toBe(true);
     expect(late).toEqual([]);
+  });
+
+  it("keeps every Up Next capture in the caption state it was taken in", () => {
+    const shown = captionShown();
+
+    expect(
+      Object.fromEntries(Object.keys(CAPTION_SHOWN).map((flow) => [flow, shown.get(flow)])),
+    ).toEqual(CAPTION_SHOWN);
   });
 });

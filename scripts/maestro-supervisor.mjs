@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 const args = process.argv.slice(2);
 const history = [];
 const tails = new Map();
-let driverAnswered = false;
+let driverAnswered = Boolean(process.env.USE_XCODE_TEST_RUNNER);
 let failed = false;
 let child;
 

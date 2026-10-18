@@ -76,11 +76,32 @@ it("prints the startup reason when command metadata is incomplete", () => {
   expect(result.stderr).toContain("Failure screenshot: not produced by Maestro");
 });
 
+it("names touches the simulator dropped before their digitizer was ready", () => {
+  const directory = tempDirectory("cue-maestro-dropped-");
+  const logs = path.join(directory, "flow", "logs");
+  const dropped =
+    "2026-10-18 03:41:52.549933+0000  localhost backboardd[4380]: [com.apple.BackBoard:TouchEvents] ignoring digitizer event for display <main> from unsupported service";
+  mkdirSync(logs, { recursive: true });
+  writeFileSync(
+    path.join(logs, "device-simulator.log"),
+    `03:41:46 backboardd: Service added: transport:Recap\n${dropped}\n03:41:54 backboardd: Service removed\n`,
+  );
+  const result = spawnSync(
+    process.execPath,
+    [repositoryPath("scripts/maestro-failure.mjs"), "--test-output-dir", directory],
+    { encoding: "utf8" },
+  );
+  expect(result.status).toBe(0);
+  expect(result.stderr.split("\n").filter((line) => line.startsWith("Dropped touch:"))).toEqual([
+    `Dropped touch: ${dropped}`,
+  ]);
+});
+
 const driverDeath = readFileSync(repositoryPath("test/ci/fixtures/ios-driver-death.txt"), "utf8");
 const refused =
   "[Failed] Perform XCUITest driver status check on test-device, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:49889";
 
-function runDriver(log: string, destination: string, hang = true) {
+function runDriver(log: string, destination: string, hang = true, runner = "") {
   const directory = tempDirectory("cue-driver-death-");
   writeFileSync(
     path.join(directory, "maestro"),
@@ -124,6 +145,7 @@ setImmediate(() => write(log.slice(midpoint)));
         HANG: String(hang),
         LOG_FILE: path.join(directory, "debug", "session", "maestro.log"),
         RUNS: path.join(directory, "runs"),
+        USE_XCODE_TEST_RUNNER: runner,
       },
     },
   );
@@ -152,6 +174,13 @@ it.each([
   "iOS driver not ready in time, consider increasing timeout by configuring MAESTRO_DRIVER_STARTUP_TIMEOUT env variable",
 ])("fails fast on terminal driver status: %s", (log) => {
   const result = runDriver(log, "log");
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain("XCTest driver died during startup");
+  expect(result.elapsed).toBeLessThan(2_000);
+});
+
+it("fails fast on the first refused status check of a runner started before Maestro", () => {
+  const result = runDriver(`${refused}\n`, "stdout", true, "1");
   expect(result.status).toBe(1);
   expect(result.stderr).toContain("XCTest driver died during startup");
   expect(result.elapsed).toBeLessThan(2_000);

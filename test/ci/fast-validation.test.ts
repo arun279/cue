@@ -12,6 +12,11 @@ const job = (name: string) =>
     new RegExp(`^  ${name}:\\n([\\s\\S]*?)(?=^  [a-z][a-z0-9-]*:|(?![\\s\\S]))`, "m"),
   )?.[1] ?? "";
 
+const steps = (name: string) => job(name).split(/^ {6}- /m);
+const envOf = (step: string) => step.match(/^ {8}env:\n((?: {10}.*\n)+)/m)?.[1];
+const IOS_LANES = ["native-e2e-ios-light", "ui-screenshots-ios-dark"];
+const HARNESS_BUNDLE = "ios-harness-bundle$" + "{{ inputs.copy }}";
+
 const git = (repository: string, ...args: string[]): string =>
   execFileSync("git", args, { cwd: repository, encoding: "utf8", env: gitEnv() }).trim();
 
@@ -52,7 +57,9 @@ describe("fast pull request validation", () => {
     expect(job("render-performance")).toContain(
       'BASE_SHA=$(scripts/measured-base.sh "$EVENT_NAME" "$PUSH_BEFORE")',
     );
-    expect(job("footprint")).toContain("BASE_SHA=$(scripts/measured-base.sh pull_request)");
+    expect(job("footprint-base")).toContain(
+      'scripts/measure-base.sh "$(scripts/measured-base.sh pull_request)"',
+    );
   });
 
   it("gates each native build on its platform fingerprint", () => {
@@ -75,19 +82,22 @@ describe("fast pull request validation", () => {
     );
     expect(android).toContain("if: steps.native-cache.outputs.hit != 'true'");
     expect(android).toContain("if: steps.native-cache.outputs.hit == 'true'");
-    expect(android.match(/--build-cache --configuration-cache/g)).toHaveLength(2);
-    expect(android.match(/--configuration-cache-problems=warn/g)).toHaveLength(2);
-    expect(android).toContain("-PreactNativeArchitectures=arm64-v8a,x86_64");
-    expect(android).toContain("configuration-cache-problems=warn assembleRelease");
-    expect(android).not.toContain("bundleRelease assembleRelease");
+    const build = readFileSync(repositoryPath("scripts/build-android-release.sh"), "utf8");
+    expect(android).toContain(
+      'run: scripts/build-android-release.sh "$RUNNER_TEMP/native-android"\n',
+    );
+    expect(build.match(/--build-cache --configuration-cache/g)).toHaveLength(2);
+    expect(build.match(/--configuration-cache-problems=warn/g)).toHaveLength(2);
+    expect(build).toContain("-PreactNativeArchitectures=arm64-v8a,x86_64");
+    expect(build).toContain("configuration-cache-problems=warn assembleRelease");
+    expect(build).not.toContain("bundleRelease assembleRelease");
     expect(android).toContain("lib/x86_64/lib" + "react" + "native\\.so");
   });
 
   it("keeps every build command out of footprint", () => {
-    const footprint =
-      job("footprint") + readFileSync(repositoryPath("scripts/restore-base-metrics.sh"), "utf8");
+    const footprint = job("footprint");
 
-    expect(footprint).not.toMatch(/expo (?:export|prebuild)/);
+    expect(footprint).not.toMatch(/expo (?:export|prebuild)|measure-base/);
     expect(footprint).not.toContain("grad" + "lew");
     expect(footprint).not.toMatch(/(?:xcodebuild|measure-play-size)/);
     expect(footprint).not.toContain("cue-native-ios-sizes");
@@ -97,16 +107,48 @@ describe("fast pull request validation", () => {
       /name: Upload Expo Atlas[\s\S]*name: expo-atlas[\s\S]*path: packages\/native\/\.expo\/atlas\.jsonl/,
     );
     expect(footprint).not.toContain("summarize-atlas");
-    expect(workflow).toContain("branches: [main, feat/expo-native");
-    expect(footprint).toContain(
-      "name: cue-footprint-$" + "{{ github.event.pull_request.head.sha || github.sha }}",
+    expect(footprint).toContain("with:\n          name: cue-footprint-base\n");
+    expect(job("footprint-base")).toContain("name: cue-footprint-base\n");
+    expect(workflow).not.toMatch(/cue-footprint-\$|restore-base-metrics/);
+  });
+
+  it("measures the merge base with the build environment native-android measures the head with", () => {
+    const base = steps("footprint-base").find((step) =>
+      step.startsWith("name: Measure the merge base\n"),
     );
-    expect(footprint).toContain('scripts/restore-base-metrics.sh "$BASE_SHA"');
-    expect(footprint).toContain('--name "$ARTIFACT_NAME" --dir "$RUNNER_TEMP/base-metrics"');
-    expect(footprint).toContain(
-      "Restored merge-base measurements from $ARTIFACT_NAME in run $run_id",
+    const native = steps("native-android");
+    const environment = (step = "") =>
+      Object.fromEntries(
+        (envOf(step) ?? "")
+          .trim()
+          .split(/\n\s*/)
+          .map((line) => line.split(": ")),
+      );
+    const fingerprint = native.find((step) => step.includes("native-fingerprint.mjs android"));
+    const embed = native.find((step) => step.includes("scripts/reembed-android.sh"));
+    const measure = readFileSync(repositoryPath("scripts/measure-base.sh"), "utf8");
+
+    expect(environment(base)).toEqual({
+      ...environment(fingerprint),
+      ...environment(embed),
+      GH_TOKEN: "$" + "{{ github.token }}",
+      HEAD_FINGERPRINT: "$" + "{{ needs.native-android.outputs.fingerprint }}",
+    });
+    expect(job("footprint-base")).toContain(
+      "name: cue-native-android-$" + "{{ needs.native-android.outputs.fingerprint }}\n",
     );
-    expect(footprint).toContain("Missing merge-base measurements for");
+    for (const script of ["build-android-release.sh", "measure-android-sizes.sh"]) {
+      expect(job("native-android")).toContain(`scripts/${script}`);
+      expect(measure).toContain(`"$scripts/${script}"`);
+    }
+    expect(measure).toContain('"$scripts/reembed-android.sh"');
+    expect(measure).toContain('"$scripts/measure-sizes.sh"');
+    expect(readFileSync(repositoryPath("package.json"), "utf8")).toContain(
+      '"check:size:native": "EXPO_ATLAS=true pnpm --filter @cue/native exec expo export --platform ios --platform android --output-dir dist &&',
+    );
+    expect(measure).toContain(
+      "EXPO_ATLAS=true pnpm --filter @cue/native exec expo export --platform ios --platform android --output-dir dist\n",
+    );
   });
 
   it("reports the footprint whenever its inputs were published", () => {
@@ -114,7 +156,8 @@ describe("fast pull request validation", () => {
     const footprint = job("footprint");
     const condition = footprint.match(/^ {4}if: >-\n((?: {6}.*\n)+)/m)?.[1] ?? "";
 
-    expect(footprint).toContain("needs: [check, native-android]");
+    expect(footprint).toContain("needs: [check, native-android, footprint-base]");
+    expect(condition).toContain("needs.footprint-base.result == 'success'");
     expect(condition).toMatch(/^ {6}!cancelled\(\) && /);
     expect(condition).not.toMatch(/always\(\)|needs\.check\.result/);
     expect(condition).toContain("needs.check.outputs.js-bundles != ''");
@@ -252,7 +295,7 @@ describe("fast pull request validation", () => {
     const ios = job("ui-screenshots-ios-dark");
     const android = job("ui-screenshots-android-dark");
 
-    expect(ios).toContain("needs: [fingerprint, native-ios]");
+    expect(ios).toContain("needs: [fingerprint, native-ios, maestro-runner]");
     expect(ios).toContain("actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3");
     expect(ios).toContain("name: cue-native-ios-$" + "{{ needs.fingerprint.outputs.ios }}");
     expect(ios).toContain(" .maestro/ci/screenshots.yaml \\\n");
@@ -307,10 +350,14 @@ describe("fast pull request validation", () => {
     }
   });
 
-  it("uses a fixed Maestro driver port outside Android's ephemeral range", () => {
+  it("uses a fixed Maestro driver port outside both platforms' ephemeral ranges", () => {
     const verification = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
 
     expect(verification.match(/--driver-host-port 7001/g)).toHaveLength(1);
+    for (const name of IOS_LANES) {
+      expect(job(name)).toContain('      MAESTRO_RUNNER_PORT: "7001"\n');
+      expect(job(name).match(/--driver-host-port "\$MAESTRO_RUNNER_PORT"/g)).toHaveLength(1);
+    }
   });
 
   it("fails the aggregate whenever the rollup script fails", () => {
@@ -408,6 +455,10 @@ describe("fast pull request validation", () => {
     for (const name of ["check", "native-android", "footprint", "audit", "actionlint"]) {
       expect(job(name)).not.toContain("devices");
     }
+    expect(job("maestro-runner")).toMatch(
+      /^ {4}if: github\.event_name != 'pull_request' \|\| !github\.event\.pull_request\.draft$/m,
+    );
+    expect(job("maestro-runner")).not.toMatch(/^ {4}needs:/m);
   });
 
   it("leaves device lanes to the push run only for a pushed branch whose merge tree is its head tree", () => {
@@ -492,38 +543,120 @@ describe("fast pull request validation", () => {
     expect(job("native-android")).not.toMatch(/^ {4}if:/m);
   });
 
-  it.each([
-    "native-e2e-ios-light",
-    "ui-screenshots-ios-dark",
-  ])("%s takes the app from native-ios or re-embeds the cached one itself", (name) => {
-    const steps = job(name).split(/^ {6}- /m);
-    const built = "        if: needs.native-ios.result == 'success'\n";
-    const cached = "        if: needs.native-ios.result == 'skipped'\n";
-    const embed =
-      steps.find((step) =>
-        step.startsWith("if: needs.native-ios.result == 'skipped'\n        name: Embed"),
-      ) ?? "";
-    const index = (text: string) => steps.findIndex((step) => step.includes(text));
+  it("bundles the cached app's JavaScript once, with the env the simulator build embeds", () => {
+    const fingerprint = steps("fingerprint");
+    const bundle = fingerprint.find((step) => step.includes("scripts/bundle-ios.sh")) ?? "";
+    const upload = fingerprint.find((step) => step.includes("actions/upload-artifact@")) ?? "";
+    const native = steps("native-ios");
+    const build = native.find((step) => step.includes("name: Build the app for the simulator"));
+    const embed = native.find((step) => step.includes("scripts/reembed-ios.sh")) ?? "";
+    const hit = "if: steps.ios-cache.outputs.hit == 'true'\n";
 
-    expect(steps.find((step) => step.includes("uses: actions/setup-node@"))).toContain(
-      built.trim(),
+    expect(bundle.startsWith(hit)).toBe(true);
+    expect(upload.startsWith(hit)).toBe(true);
+    expect(fingerprint.indexOf(bundle)).toBeGreaterThan(
+      fingerprint.findIndex((step) => step.startsWith("id: ios-cache\n")),
     );
-    expect(steps.find((step) => step.includes("uses: actions/download-artifact@"))).toContain(
-      built.trim(),
+    expect(envOf(build ?? "")).toContain("EXPO_PUBLIC_UI_HARNESS");
+    expect(envOf(bundle)).toBe(envOf(build ?? ""));
+    expect(envOf(embed)).toBe(envOf(build ?? ""));
+    expect(bundle).toContain('run: scripts/bundle-ios.sh "$RUNNER_TEMP/ios-bundle"\n');
+    expect(embed).toContain(
+      'scripts/bundle-ios.sh "$RUNNER_TEMP/ios-bundle"\n' +
+        '          scripts/reembed-ios.sh "$RUNNER_TEMP/native-ios-app/Cue.app" "$RUNNER_TEMP/ios-bundle"\n',
     );
-    expect(
-      steps.find((step) => step.includes("uses: ./.github/actions/setup-node-pnpm")),
-    ).toContain(cached.trim());
+    expect(upload).toContain(`name: ${HARNESS_BUNDLE}\n`);
+    expect(upload).toContain("path: $" + "{{ runner.temp }}/ios-bundle\n");
+  });
+
+  it.each(
+    IOS_LANES,
+  )("%s installs the app native-ios built, or the cached app with the bundle from fingerprint", (name) => {
+    const lane = steps(name);
+    const built = "if: needs.native-ios.result == 'success'\n";
+    const cached = "if: needs.native-ios.result == 'skipped'\n";
+    const index = (text: string) => lane.findIndex((step) => step.includes(text));
+    const downloads = lane.filter((step) => step.includes("uses: actions/download-artifact@"));
+    const embed = lane[index("name: Embed the harness JavaScript")] ?? "";
+
+    expect(job(name)).not.toMatch(/setup-node|pnpm|npx|tar -czf/);
+    expect(downloads.map((step) => step.slice(0, step.indexOf("\n") + 1))).toEqual([
+      built,
+      cached,
+      expect.stringMatching(/^uses: actions\/download-artifact@/),
+    ]);
+    expect(downloads[2]).toContain("name: maestro-runner$" + "{{ inputs.copy }}\n");
+    expect(downloads[0]).toContain(
+      "name: cue-native-ios-$" + "{{ needs.fingerprint.outputs.ios }}$" + "{{ inputs.copy }}\n",
+    );
+    expect(downloads[1]).toContain(`name: ${HARNESS_BUNDLE}\n`);
+    expect(downloads[1]).toContain("path: $" + "{{ runner.temp }}/ios-bundle\n");
+    expect(lane[index("name: Unpack the simulator app")]).toBe(
+      `${built}        name: Unpack the simulator app\n` +
+        '        run: tar -xzf "$RUNNER_TEMP/native-ios-app/Cue.app.tgz" -C "$RUNNER_TEMP/native-ios-app"\n',
+    );
+    expect(embed.startsWith(cached)).toBe(true);
     expect(embed).toContain(
       "ARTIFACT_NAME: cue-native-ios-$" + "{{ needs.fingerprint.outputs.ios }}\n",
     );
     expect(embed).toMatch(
-      /scripts\/download-ci-artifact\.sh "\$ARTIFACT_NAME" "\$RUNNER_TEMP\/cached-ios-app" native-ios\n +tar -xzf "\$RUNNER_TEMP\/cached-ios-app\/Cue\.app\.tgz" -C "\$RUNNER_TEMP\/cached-ios-app"\n +scripts\/reembed-ios\.sh "\$RUNNER_TEMP\/cached-ios-app\/Cue\.app"\n +mkdir -p "\$RUNNER_TEMP\/native-ios-app"\n +tar -czf "\$RUNNER_TEMP\/native-ios-app\/Cue\.app\.tgz" -C "\$RUNNER_TEMP\/cached-ios-app" Cue\.app\n/,
+      /scripts\/download-ci-artifact\.sh "\$ARTIFACT_NAME" "\$RUNNER_TEMP\/native-ios-app" native-ios\n +tar -xzf "\$RUNNER_TEMP\/native-ios-app\/Cue\.app\.tgz" -C "\$RUNNER_TEMP\/native-ios-app"\n +scripts\/reembed-ios\.sh "\$RUNNER_TEMP\/native-ios-app\/Cue\.app" "\$RUNNER_TEMP\/ios-bundle"\n +LC_ALL=C grep -aq 'http:\/\/127\.0\.0\.1:8787' "\$RUNNER_TEMP\/native-ios-app\/Cue\.app\/main\.jsbundle"\n/,
     );
-    expect(embed).toContain('EXPO_PUBLIC_UI_HARNESS: "1"\n');
-    expect(index("setup-node-pnpm")).toBeLessThan(index("name: Embed"));
+    expect(index("name: Boot the simulator")).toBeLessThan(index("actions/download-artifact@"));
+    expect(lane.indexOf(downloads[1] ?? "")).toBeLessThan(index("name: Embed"));
+    expect(index("name: Unpack")).toBeLessThan(index("scripts/prepare-ios-ui.sh"));
     expect(index("name: Embed")).toBeLessThan(index("scripts/prepare-ios-ui.sh"));
-    expect(index("name: Boot the simulator")).toBeLessThan(index("setup-node-pnpm"));
+  });
+
+  it("runs the iOS lanes on the runner's own Node, with Node built-ins only", () => {
+    const scriptsIn = (source: string, pattern: RegExp) =>
+      [...source.matchAll(pattern)].map(([, script = ""]) => repositoryPath(`scripts/${script}`));
+    const dependencies = (file: string): string[] => {
+      const source = readFileSync(file, "utf8");
+      if (file.endsWith(".sh")) {
+        expect(source, file).not.toMatch(/\b(?:pnpm|npx|npm)\b/);
+        return scriptsIn(source, /(?:\$\(dirname "\$0"\)\/|\bscripts\/)([\w/-]+\.(?:sh|mjs))/g);
+      }
+      const specifiers = [
+        ...source.matchAll(/(?:\bfrom\s*|\bimport\s*\(?\s*|\brequire\s*\(\s*)"([^"]+)"/g),
+      ].map(([, specifier = ""]) => specifier);
+      const relative = specifiers.filter((specifier) => specifier.startsWith("."));
+      for (const specifier of specifiers) {
+        if (!relative.includes(specifier)) expect(specifier, file).toMatch(/^node:/);
+      }
+      return relative.map((specifier) => path.resolve(path.dirname(file), specifier));
+    };
+    const reached = new Set<string>();
+    const visit = (file: string): void => {
+      if (reached.has(file)) return;
+      reached.add(file);
+      dependencies(file).forEach(visit);
+    };
+    for (const name of IOS_LANES) {
+      scriptsIn(job(name), /\bscripts\/([\w/-]+\.(?:sh|mjs))/g).forEach(visit);
+    }
+
+    expect(
+      [...reached].map((file) => path.relative(repositoryPath("scripts"), file)).sort(),
+    ).toEqual([
+      "check-runner-survives-freeze.sh",
+      "check-tap-lead-in.mjs",
+      "download-ci-artifact.sh",
+      "enable-ios-accessibility.sh",
+      "maestro-failure.mjs",
+      "maestro-runner.mjs",
+      "maestro-supervisor.mjs",
+      "maestro-test.sh",
+      "mock-trakt/faults.mjs",
+      "mock-trakt/journal.mjs",
+      "mock-trakt/seed.mjs",
+      "mock-trakt/server.mjs",
+      "prepare-ios-ui.sh",
+      "reembed-ios.sh",
+      "start-ready-process.mjs",
+      "wait-ios-accessibility.mjs",
+      "wait-ios-ready.mjs",
+    ]);
   });
 
   it("bounds every native job by its measured duration plus headroom", () => {
@@ -540,7 +673,7 @@ describe("fast pull request validation", () => {
     expect(timeouts).toEqual({
       "native-ios": 75,
       "native-e2e-ios-light": 22,
-      "ui-screenshots-ios-dark": 20,
+      "ui-screenshots-ios-dark": 23,
       "android-e2e-light": 14,
       "ui-screenshots-android-dark": 7,
     });
@@ -571,6 +704,30 @@ describe("fast pull request validation", () => {
         }
       }
     }
+  });
+
+  it("waits for the iOS search field to stop editing before a capture that follows typing", () => {
+    const endsEditing = /^ +notVisible: "\(\?i\)(?:close\|cancel|delete)"$/;
+    const flows = readdirSync(repositoryPath(".maestro/flows")).filter((name) =>
+      name.endsWith(".yaml"),
+    );
+    const unsettled = flows.flatMap((flow) => {
+      let editing = false;
+      return readFileSync(repositoryPath(`.maestro/flows/${flow}`), "utf8")
+        .split("\n")
+        .flatMap((line) => {
+          if (line.includes("- inputText:")) editing = true;
+          if (endsEditing.test(line) || /lib\/relaunch\.yaml|- launchApp/.test(line))
+            editing = false;
+          return editing && line.includes("takeScreenshot:") ? [`${flow}: ${line.trim()}`] : [];
+        });
+    });
+    const library = readFileSync(repositoryPath(".maestro/flows/library.yaml"), "utf8");
+
+    expect(unsettled).toEqual([]);
+    expect(library).toMatch(
+      /- assertVisible: "\(\?i\)delete"\n- pressKey: Enter\n[\s\S]*?notVisible: "\(\?i\)delete"\n[\s\S]*?- takeScreenshot: library-no-match\n/,
+    );
   });
 
   it("keeps the dark pass to a shared visit and screenshot traversal", () => {

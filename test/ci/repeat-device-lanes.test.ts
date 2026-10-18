@@ -49,7 +49,13 @@ describe("device proof copies", () => {
 
   it("isolates every device artifact and downloads the matching copy's build", () => {
     const producers = jobs.filter(({ name }) =>
-      ["native-ios", "native-android", ...deviceJobs.map((job) => job.name)].includes(name),
+      [
+        "fingerprint",
+        "native-ios",
+        "native-android",
+        "maestro-runner",
+        ...deviceJobs.map((job) => job.name),
+      ].includes(name),
     );
     const uploads = producers.flatMap(({ body }) =>
       [...body.matchAll(/uses: actions\/upload-artifact@[^\n]+\n[\s\S]*?\n {10}name: (.+)/g)].map(
@@ -74,7 +80,7 @@ describe("device proof copies", () => {
       const downloads = [
         ...body.matchAll(/uses: actions\/download-artifact@[^\n]+\n\s+with:\n\s+name: (.+)/g),
       ];
-      expect(downloads).toHaveLength(1);
+      expect(downloads.length).toBeGreaterThan(0);
       for (const [, name] of downloads) expect(uploads).toContain(name);
     }
   });

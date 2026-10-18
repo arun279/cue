@@ -34,6 +34,12 @@ for (const file of [...files].sort()) {
     if (screenshots.length === 0) console.error("Failure screenshot: not produced by Maestro");
   }
 }
+for (const file of files) {
+  if (basename(file) !== "device-simulator.log") continue;
+  for (const [line] of readFileSync(file, "utf8").matchAll(/^.*ignoring digitizer event.*$/gm)) {
+    console.error(`Dropped touch: ${line}`);
+  }
+}
 if (failures === 0) {
   console.error("Maestro failed before recording a failed command. Diagnostic files:");
   for (const file of files) {

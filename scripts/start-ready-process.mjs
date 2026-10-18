@@ -32,5 +32,6 @@ export function startReadyProcess(module, log, timeoutMs = 30_000) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  process.stdout.write(`${await startReadyProcess(process.argv[2], process.argv[3])}\n`);
+  const [module, log, timeoutMs] = process.argv.slice(2);
+  process.stdout.write(`${await startReadyProcess(module, log, timeoutMs && Number(timeoutMs))}\n`);
 }
