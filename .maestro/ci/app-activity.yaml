@@ -8,6 +8,5 @@ env:
     file: ../flows/swipe-mark-and-stop.yaml
     when:
       platform: Android
-- runFlow: ../flows/history.yaml
 - runFlow: ../flows/show-detail-bulk-mark.yaml
 - runFlow: ../flows/account.yaml

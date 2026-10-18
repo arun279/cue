@@ -6,6 +6,7 @@ env:
 - runFlow: ../flows/pull-to-refresh.yaml
 - runFlow: ../flows/library.yaml
 - runFlow: ../flows/search.yaml
+- runFlow: ../flows/episode-sheet.yaml
 - runFlow: ../flows/tabs.yaml
 - runFlow:
     file: ../flows/returning-user-app-idle.yaml
