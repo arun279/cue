@@ -76,6 +76,27 @@ it("prints the startup reason when command metadata is incomplete", () => {
   expect(result.stderr).toContain("Failure screenshot: not produced by Maestro");
 });
 
+it("names touches the simulator dropped before their digitizer was ready", () => {
+  const directory = tempDirectory("cue-maestro-dropped-");
+  const logs = path.join(directory, "flow", "logs");
+  const dropped =
+    "2026-10-18 03:41:52.549933+0000  localhost backboardd[4380]: [com.apple.BackBoard:TouchEvents] ignoring digitizer event for display <main> from unsupported service";
+  mkdirSync(logs, { recursive: true });
+  writeFileSync(
+    path.join(logs, "device-simulator.log"),
+    `03:41:46 backboardd: Service added: transport:Recap\n${dropped}\n03:41:54 backboardd: Service removed\n`,
+  );
+  const result = spawnSync(
+    process.execPath,
+    [repositoryPath("scripts/maestro-failure.mjs"), "--test-output-dir", directory],
+    { encoding: "utf8" },
+  );
+  expect(result.status).toBe(0);
+  expect(result.stderr.split("\n").filter((line) => line.startsWith("Dropped touch:"))).toEqual([
+    `Dropped touch: ${dropped}`,
+  ]);
+});
+
 const driverDeath = readFileSync(repositoryPath("test/ci/fixtures/ios-driver-death.txt"), "utf8");
 const refused =
   "[Failed] Perform XCUITest driver status check on test-device, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:49889";

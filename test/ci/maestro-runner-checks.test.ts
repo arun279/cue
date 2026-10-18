@@ -103,7 +103,9 @@ describe("check-tap-lead-in.mjs", () => {
   const entry = (time: string, eventMessage: string) =>
     JSON.stringify({ timestamp: `2026-10-17 21:46:${time}-0700`, eventMessage });
   const ATTACH =
-    "Service added: <IOHIDServiceClient 0x1 id:4294968795 primaryUsagePage:0xd transport:Recap>";
+    "digitizer attached (sender 101EE52000000) service:<BKIOHIDService: 0x1; serviceStatus: matched; IOHIDService: IOHIDService name: id:0x101ee52000000 primaryUsagePage:0xd transport:Recap>";
+  const ADDED =
+    "Service added: IOHIDService name: id:0x101ee52000000 primaryUsagePage:0xd primaryUsage:0x4 transport:Recap";
 
   it("measures each tap from its request to the next digitizer attach", () => {
     const delays = tapAttachDelays(
@@ -113,6 +115,7 @@ describe("check-tap-lead-in.mjs", () => {
         entry("01.020500", ATTACH),
         entry("01.130000", "Tapping took 0.13"),
         entry("02.000000", "Tapping 50.5, 60.0"),
+        entry("02.005000", ADDED),
         entry("02.080000", ATTACH),
         entry("03.000000", "Tapping 10.0, 10.0"),
         '{"count":7,"finished":1}',
@@ -166,7 +169,7 @@ describe("check-tap-lead-in.mjs", () => {
     expect(result.stdout).toBe(`Tapping 1.0, 2.0: digitizer attached after ${delay} ms\n`);
     expect(readFileSync(output, "utf8")).toBe(`${log}\n`);
     expect(readFileSync(path.join(root, "args"), "utf8")).toContain(
-      "simctl spawn test-device log show --style ndjson --info --start 2026-10-17 21:40:00 --predicate",
+      'simctl spawn test-device log show --style ndjson --info --debug --start 2026-10-17 21:40:00 --predicate eventMessage BEGINSWITH "Tapping " OR eventMessage BEGINSWITH "digitizer attached"',
     );
   });
 });

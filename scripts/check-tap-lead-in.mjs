@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 const TAP = /^Tapping [\d.]+, [\d.]+$/;
-const ATTACH = /Service added.*transport:Recap/;
+const ATTACH = /digitizer attached.*transport:Recap/;
 
 const time = (timestamp) =>
   Date.parse(timestamp.replace(/^(\S+) (\S{12})\d*([+-]\d\d)(\d\d)$/, "$1T$2$3:$4"));
@@ -38,9 +38,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const ndjson = execFileSync(
     "xcrun",
     [
-      ...["simctl", "spawn", device, "log", "show", "--style", "ndjson", "--info"],
+      ...["simctl", "spawn", device, "log", "show", "--style", "ndjson", "--info", "--debug"],
       ...["--start", start, "--predicate"],
-      'eventMessage BEGINSWITH "Tapping " OR eventMessage CONTAINS "transport:Recap"',
+      'eventMessage BEGINSWITH "Tapping " OR eventMessage BEGINSWITH "digitizer attached"',
     ],
     { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
   );
