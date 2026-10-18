@@ -45,7 +45,6 @@ export function LibraryToolbar<T extends string>({
         <RowMenu
           title="Sort"
           testID={TEST_IDS.librarySort}
-          openOnLongPress={false}
           items={sorts.map((option) => ({
             id: option.testID,
             label: option.label,

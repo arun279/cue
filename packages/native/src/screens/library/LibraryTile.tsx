@@ -145,18 +145,20 @@ export function ShowTile({ entry, chip, width, onScreen }: ShowTileProps): React
             },
       ]}
     >
-      <Tile
-        title={entry.title}
-        posters={art.posters}
-        width={width}
-        testID={TEST_IDS.showCard(entry.showId)}
-        label={[entry.title, STATUS_WORD[chip], left > 0 ? `${left} episodes left` : null]
-          .filter(Boolean)
-          .join(", ")}
-        percent={chip === "watching" ? watchedPercent(entry.completed, entry.aired) : null}
-        left={chip === "watching" ? left : 0}
-        onPress={open}
-      />
+      {() => (
+        <Tile
+          title={entry.title}
+          posters={art.posters}
+          width={width}
+          testID={TEST_IDS.showCard(entry.showId)}
+          label={[entry.title, STATUS_WORD[chip], left > 0 ? `${left} episodes left` : null]
+            .filter(Boolean)
+            .join(", ")}
+          percent={chip === "watching" ? watchedPercent(entry.completed, entry.aired) : null}
+          left={chip === "watching" ? left : 0}
+          onPress={open}
+        />
+      )}
     </RowMenu>
   );
 }

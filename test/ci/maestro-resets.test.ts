@@ -56,7 +56,7 @@ const CAPTION_SHOWN = {
   "tabs.yaml": true,
   "up-next-mark-and-undo.yaml": true,
 };
-const DISMISSES_CAPTION = /id: "(?:queue|lapsed)-row-[^"]*-mark"|from:\n\s+id: "queue-row-/;
+const DISMISSES_CAPTION = /from:\n\s+id: "(?:queue|lapsed)-row-/;
 
 const captionShown = (): Map<string, boolean | "per platform"> => {
   const shown = new Map<string, boolean | "per platform">();

@@ -15,6 +15,18 @@ import { SnackbarHost } from "../../src/ui/SnackbarHost";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/** A runtime call that holds until the test releases it. */
+export function held<T>(): { readonly call: jest.Mock<Promise<T>, []>; release(value: T): void } {
+  let resolve: (value: T) => void = () => {};
+  const call = jest.fn(
+    () =>
+      new Promise<T>((settle) => {
+        resolve = settle;
+      }),
+  );
+  return { call, release: (value) => resolve(value) };
+}
+
 export function agesAgo(days: number): string {
   return new Date(Date.now() - days * DAY_MS).toISOString();
 }

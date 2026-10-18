@@ -5,7 +5,7 @@ import type { ReactElement } from "react";
 import { StyleSheet, View } from "react-native";
 import { CheckControl } from "../../ui/CheckControl";
 import { TEST_IDS } from "../../ui/test-ids";
-import { CHECK_SIZE, RADIUS, SPACE, useColors, useStacked } from "../../ui/tokens";
+import { RADIUS, SPACE, useColors, useStacked } from "../../ui/tokens";
 import { CueText } from "../../ui/type";
 
 export function EpisodeMarkRow({
@@ -24,7 +24,6 @@ export function EpisodeMarkRow({
   const check = (
     <CheckControl
       checked={detail.watched}
-      size={CHECK_SIZE.marquee}
       testID={TEST_IDS.episodeMarkControl}
       label={
         detail.watched

@@ -92,9 +92,23 @@ appId: app.cuetracker
 - tapOn: "Up Next"
 - runScript: lib/drop-account-writes.js
 - assertTrue: ${output.writesDropped}
-- tapOn:
-    id: "queue-row-[0-9]+-mark"
-    index: 0
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - swipe:
+          from:
+            id: "queue-row-[0-9]+"
+            index: 0
+          direction: RIGHT
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - longPressOn:
+          id: "queue-row-[0-9]+-body"
+          index: 0
+      - tapOn: "Mark .* watched"
 - tapOn:
     id: "avatar-link"
 - tapOn:

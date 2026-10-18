@@ -165,7 +165,6 @@ export function Picker<T extends string | number>({
         <RowMenu
           title={title}
           testID={testID}
-          openOnLongPress={false}
           items={options.map((option) => ({
             id: String(option.value),
             label: option.label,

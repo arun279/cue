@@ -27,8 +27,9 @@ export function DataSection(): ReactElement {
   const sync = useSyncNow();
   const colors = useColors();
   const [now, setNow] = useState(relativeTimeNow);
+  const [confirmedAt, setConfirmedAt] = useState(0);
   const subscribe = useCallback((notify: () => void) => cache.subscribe(notify), [cache]);
-  const syncedAt = useSyncExternalStore(subscribe, () =>
+  const refreshedAt = useSyncExternalStore(subscribe, () =>
     Math.max(
       0,
       ...cache
@@ -48,14 +49,18 @@ export function DataSection(): ReactElement {
   return (
     <Section title="Data">
       <CueText testID={TEST_IDS.settingsSyncStatus} variant="meta" style={{ color: colors.muted }}>
-        {syncedPhrase(syncedAt, now)} · {runtime.pendingWrites()} pending
+        {syncedPhrase(Math.max(refreshedAt, confirmedAt), now)} · {runtime.pendingWrites()} pending
       </CueText>
       <Button
         label={sync.syncing ? "Syncing…" : "Sync now"}
         variant="link"
-        disabled={sync.syncing}
+        busy={sync.syncing}
         testID={TEST_IDS.settingsSync}
-        onPress={() => void sync.run()}
+        onPress={() =>
+          void sync.run().then((synced) => {
+            if (synced) setConfirmedAt(relativeTimeNow());
+          })
+        }
       />
     </Section>
   );

@@ -1,10 +1,8 @@
 # "Haven't watched lately", and catching a show up in place.
 #
-# The drawer is a pruning prompt rather than a wall of shame: a show marked from
+# The section is a pruning prompt rather than a wall of shame: a show marked from
 # inside it re-files itself into the queue, which is what the last two
-# assertions are about. Re-filing puts it at the head, so it takes the card and
-# pushes what the card held down into the first row; the show itself carries no
-# row id to assert on while it is the card.
+# assertions are about.
 appId: app.cuetracker
 ---
 - runFlow: lib/relaunch.yaml
@@ -20,8 +18,21 @@ appId: app.cuetracker
     file: lib/prepare-operation.yaml
     env:
       OPERATION: write
-- tapOn:
-    id: "lapsed-row-8805-mark"
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - swipe:
+          from:
+            id: "lapsed-row-8805"
+          direction: RIGHT
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - longPressOn:
+          id: "lapsed-row-8805-body"
+      - tapOn: "Mark .* watched"
 - assertVisible:
     id: "snackbar"
 - runFlow: lib/settle.yaml
@@ -29,5 +40,5 @@ appId: app.cuetracker
     id: "lapsed-row-8805"
 - scrollUntilVisible:
     element:
-      id: "queue-row-8801"
+      id: "queue-row-8805"
     direction: UP

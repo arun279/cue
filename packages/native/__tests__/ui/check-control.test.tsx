@@ -1,6 +1,7 @@
 import { fireEvent, render, renderHook, screen, userEvent } from "@testing-library/react-native";
+import { Platform, processColor } from "react-native";
 import { CheckControl } from "../../src/ui/CheckControl";
-import { CHECK_SIZE, useColors } from "../../src/ui/tokens";
+import { useColors } from "../../src/ui/tokens";
 
 it("is a switch that carries its state, and says what it does rather than what it is", async () => {
   await render(<CheckControl checked={false} label="Mark Salt Air watched" onPress={jest.fn()} />);
@@ -16,22 +17,18 @@ it("reports itself checked once it is", async () => {
   expect(screen.getByRole("switch", { checked: true })).toBeOnTheScreen();
 });
 
-it("draws a target at the floor, and the marquee's larger one when asked", async () => {
-  await render(
-    <>
-      <CheckControl checked={false} label="Row" onPress={jest.fn()} testID="row-check" />
-      <CheckControl
-        checked={false}
-        label="Marquee"
-        onPress={jest.fn()}
-        size={CHECK_SIZE.marquee}
-        testID="marquee-check"
-      />
-    </>,
-  );
+it("is the platform glyph inside the platform target", async () => {
+  await render(<CheckControl checked={false} label="Row" onPress={jest.fn()} testID="check" />);
 
-  expect(screen.getByTestId("row-check")).toHaveStyle({ width: 48, height: 48 });
-  expect(screen.getByTestId("marquee-check")).toHaveStyle({ width: 56, height: 56 });
+  const target = Platform.OS === "ios" ? 44 : 48;
+  expect(screen.getByTestId("check")).toHaveStyle({ width: target, height: target });
+  const icon = screen.getByTestId("check-icon");
+  if (Platform.OS === "ios") {
+    expect(icon).toHaveProp("source", [{ uri: "sf:/circle" }]);
+    expect(icon).toHaveStyle({ width: 22, height: 22 });
+  } else {
+    expect(icon).toHaveProp("width", 24);
+  }
 });
 
 it("toggles from its own tap", async () => {
@@ -46,28 +43,22 @@ it("toggles from its own tap", async () => {
   expect(onPress).toHaveBeenCalledTimes(1);
 });
 
-it("keeps a check waiting to happen inside the resting ring, in the ink its surface takes", async () => {
-  await render(
-    <>
-      <CheckControl checked={false} label="On the page" onPress={jest.fn()} testID="page" />
-      <CheckControl checked={false} onImage label="Over art" onPress={jest.fn()} testID="art" />
-    </>,
-  );
-
-  // Drawn rather than dashed: the resting glyph says the control marks rather
-  // than selects, and only the committed one draws itself in.
-  const resting = screen.getByTestId("page-rest");
-  expect(resting).not.toHaveProp("strokeDasharray");
-  expect(screen.getByTestId("art-rest").props["stroke"]).not.toEqual(resting.props["stroke"]);
-});
-
-it("merges the checked ring into its fill", async () => {
+it("fills the checked glyph in the watched color", async () => {
   const { result } = await renderHook(() => useColors());
-  await render(<CheckControl checked label="Mark Salt Air watched" onPress={jest.fn()} />);
-  expect(screen.getByRole("switch").children[0]).toHaveStyle({
-    backgroundColor: result.current.watched,
-    borderColor: result.current.watched,
-  });
+  await render(<CheckControl checked label="Watched." onPress={jest.fn()} testID="check" />);
+
+  const icon = screen.getByTestId("check-icon");
+  if (Platform.OS === "ios") {
+    expect(icon).toHaveProp("source", [{ uri: "sf:/checkmark.circle.fill" }]);
+    expect(icon).toHaveProp("tintColor", processColor(result.current.watched));
+  } else {
+    const glyph = icon.children[0];
+    const path = typeof glyph === "string" ? undefined : glyph?.children[0];
+    expect(typeof path === "string" ? undefined : path?.props["fill"]).toEqual({
+      type: 0,
+      payload: processColor(result.current.watched),
+    });
+  }
 });
 
 it("is checked and inert while its next episode is still a guess, with a quiet dot beside it", async () => {

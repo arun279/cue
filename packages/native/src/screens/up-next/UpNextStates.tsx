@@ -23,7 +23,6 @@ const TILE_WIDTH = 96;
 export function UpNextSkeleton(): ReactElement {
   return (
     <View testID={TEST_IDS.upNextSkeleton}>
-      <Skeleton width="100%" height={ROW_MIN_HEIGHT.marquee} radius={RADIUS.card} />
       <View style={styles.skeletonRows}>
         {SKELETON_SLOTS.map((slot) => (
           <View key={slot} style={styles.skeletonRow}>
@@ -157,7 +156,7 @@ function WatchlistTiles({ entries }: { readonly entries: readonly LibraryEntry[]
 }
 
 const styles = StyleSheet.create({
-  skeletonRows: { paddingTop: SPACE.s3, gap: SPACE.s3 },
+  skeletonRows: { gap: SPACE.s3 },
   skeletonRow: { flexDirection: "row", gap: SPACE.s3 },
   skeletonStack: { flex: 1, gap: SPACE.s2, paddingTop: SPACE.s1 },
   tiles: { paddingTop: SPACE.s4, gap: SPACE.s2 },

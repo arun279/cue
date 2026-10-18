@@ -42,7 +42,7 @@ export function EpisodeMenu({
         },
       ]}
     >
-      {children}
+      {children === undefined ? undefined : () => children}
     </RowMenu>
   );
 }

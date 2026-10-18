@@ -5,6 +5,7 @@ import { showSnack } from "@cue/core/stores/snackbar-store";
 import { openBrowserAsync } from "expo-web-browser";
 import type { ReactElement } from "react";
 import { Image, Pressable, View } from "react-native";
+import { PlatformIcon } from "../ui/PlatformIcon";
 import { Separator } from "../ui/Row";
 import { TEST_IDS } from "../ui/test-ids";
 import { SPACE, TARGET_MIN, useColors } from "../ui/tokens";
@@ -62,9 +63,7 @@ function ExternalLink({
       <CueText variant="rowTitle" weight="regular" style={{ flex: 1, color: colors.fg }}>
         {title}
       </CueText>
-      <CueText variant="rowTitle" style={{ color: colors.muted }}>
-        ↗
-      </CueText>
+      <PlatformIcon name="external" color={colors.muted} />
     </Pressable>
   );
 }
