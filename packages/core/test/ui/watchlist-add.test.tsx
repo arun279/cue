@@ -176,3 +176,16 @@ it("offers the add until membership has loaded", async () => {
   expect(slot[0]?.isAdded(hit)).toBe(false);
   expect(slot[0]?.isAdded(movie)).toBe(false);
 });
+
+it("counts a movie in the movie library as added, but not a show with the same id", async () => {
+  const client = new QueryClient();
+  client.setQueryData(queryKeys.watchlist("shows"), []);
+  client.setQueryData(queryKeys.watchlist("movies"), []);
+  const seen = { movieId: movie.traktId } as MovieLibraryData["entries"][number];
+  client.setQueryData<MovieLibraryData>(queryKeys.movieLibrary(), { entries: [seen] });
+  const slot: WatchlistAddView[] = [];
+  await mountProbe(client, membershipRuntime("done"), slot);
+
+  expect(slot[0]?.isAdded(movie)).toBe(true);
+  expect(slot[0]?.isAdded(hit)).toBe(false);
+});
