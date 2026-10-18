@@ -30,7 +30,7 @@ Set `EXPO_PUBLIC_TRAKT_CLIENT_ID` to the public client id of a Trakt API app. Th
 pnpm --filter @cue/native prebuild
 ```
 
-`pnpm check` is the deterministic repository gate. It runs Biome, oxlint, dprint, cspell, TypeScript, dependency-cruiser, knip, jscpd, quality and suppression ratchets, native size and asset checks, Vitest with coverage, and the iOS and Android jest-expo projects. In CI, the footprint job also fails a pull request that grows the JavaScript bundles, the tester APK or the Play download estimate unless its body gives a `Binary-Size:` rationale.
+`pnpm check` is the deterministic repository gate. It runs Biome, oxlint, dprint, cspell, TypeScript, dependency-cruiser, knip, jscpd, quality and suppression ratchets, native size and asset checks, Vitest with coverage, and the iOS and Android jest-expo projects. In CI, the footprint job also fails a pull request that grows the JavaScript bundles, the tester APK or the Play download estimate unless its body gives a `Binary-Size:` rationale. The `footprint-base` job measures the merge base in the same run, so the comparison never waits on the base commit's own run.
 
 Git hooks are installed by `pnpm install`. Pre-commit runs the fast lint, formatting, spelling, type, and portability gates. Pre-push runs `pnpm check`.
 

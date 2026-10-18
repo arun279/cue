@@ -57,7 +57,9 @@ describe("fast pull request validation", () => {
     expect(job("render-performance")).toContain(
       'BASE_SHA=$(scripts/measured-base.sh "$EVENT_NAME" "$PUSH_BEFORE")',
     );
-    expect(job("footprint")).toContain("BASE_SHA=$(scripts/measured-base.sh pull_request)");
+    expect(job("footprint-base")).toContain(
+      'scripts/measure-base.sh "$(scripts/measured-base.sh pull_request)"',
+    );
   });
 
   it("gates each native build on its platform fingerprint", () => {
@@ -80,19 +82,22 @@ describe("fast pull request validation", () => {
     );
     expect(android).toContain("if: steps.native-cache.outputs.hit != 'true'");
     expect(android).toContain("if: steps.native-cache.outputs.hit == 'true'");
-    expect(android.match(/--build-cache --configuration-cache/g)).toHaveLength(2);
-    expect(android.match(/--configuration-cache-problems=warn/g)).toHaveLength(2);
-    expect(android).toContain("-PreactNativeArchitectures=arm64-v8a,x86_64");
-    expect(android).toContain("configuration-cache-problems=warn assembleRelease");
-    expect(android).not.toContain("bundleRelease assembleRelease");
+    const build = readFileSync(repositoryPath("scripts/build-android-release.sh"), "utf8");
+    expect(android).toContain(
+      'run: scripts/build-android-release.sh "$RUNNER_TEMP/native-android"\n',
+    );
+    expect(build.match(/--build-cache --configuration-cache/g)).toHaveLength(2);
+    expect(build.match(/--configuration-cache-problems=warn/g)).toHaveLength(2);
+    expect(build).toContain("-PreactNativeArchitectures=arm64-v8a,x86_64");
+    expect(build).toContain("configuration-cache-problems=warn assembleRelease");
+    expect(build).not.toContain("bundleRelease assembleRelease");
     expect(android).toContain("lib/x86_64/lib" + "react" + "native\\.so");
   });
 
   it("keeps every build command out of footprint", () => {
-    const footprint =
-      job("footprint") + readFileSync(repositoryPath("scripts/restore-base-metrics.sh"), "utf8");
+    const footprint = job("footprint");
 
-    expect(footprint).not.toMatch(/expo (?:export|prebuild)/);
+    expect(footprint).not.toMatch(/expo (?:export|prebuild)|measure-base/);
     expect(footprint).not.toContain("grad" + "lew");
     expect(footprint).not.toMatch(/(?:xcodebuild|measure-play-size)/);
     expect(footprint).not.toContain("cue-native-ios-sizes");
@@ -102,16 +107,48 @@ describe("fast pull request validation", () => {
       /name: Upload Expo Atlas[\s\S]*name: expo-atlas[\s\S]*path: packages\/native\/\.expo\/atlas\.jsonl/,
     );
     expect(footprint).not.toContain("summarize-atlas");
-    expect(workflow).toContain("branches: [main, feat/expo-native");
-    expect(footprint).toContain(
-      "name: cue-footprint-$" + "{{ github.event.pull_request.head.sha || github.sha }}",
+    expect(footprint).toContain("with:\n          name: cue-footprint-base\n");
+    expect(job("footprint-base")).toContain("name: cue-footprint-base\n");
+    expect(workflow).not.toMatch(/cue-footprint-\$|restore-base-metrics/);
+  });
+
+  it("measures the merge base with the build environment native-android measures the head with", () => {
+    const base = steps("footprint-base").find((step) =>
+      step.startsWith("name: Measure the merge base\n"),
     );
-    expect(footprint).toContain('scripts/restore-base-metrics.sh "$BASE_SHA"');
-    expect(footprint).toContain('--name "$ARTIFACT_NAME" --dir "$RUNNER_TEMP/base-metrics"');
-    expect(footprint).toContain(
-      "Restored merge-base measurements from $ARTIFACT_NAME in run $run_id",
+    const native = steps("native-android");
+    const environment = (step = "") =>
+      Object.fromEntries(
+        (envOf(step) ?? "")
+          .trim()
+          .split(/\n\s*/)
+          .map((line) => line.split(": ")),
+      );
+    const fingerprint = native.find((step) => step.includes("native-fingerprint.mjs android"));
+    const embed = native.find((step) => step.includes("scripts/reembed-android.sh"));
+    const measure = readFileSync(repositoryPath("scripts/measure-base.sh"), "utf8");
+
+    expect(environment(base)).toEqual({
+      ...environment(fingerprint),
+      ...environment(embed),
+      GH_TOKEN: "$" + "{{ github.token }}",
+      HEAD_FINGERPRINT: "$" + "{{ needs.native-android.outputs.fingerprint }}",
+    });
+    expect(job("footprint-base")).toContain(
+      "name: cue-native-android-$" + "{{ needs.native-android.outputs.fingerprint }}\n",
     );
-    expect(footprint).toContain("Missing merge-base measurements for");
+    for (const script of ["build-android-release.sh", "measure-android-sizes.sh"]) {
+      expect(job("native-android")).toContain(`scripts/${script}`);
+      expect(measure).toContain(`"$scripts/${script}"`);
+    }
+    expect(measure).toContain('"$scripts/reembed-android.sh"');
+    expect(measure).toContain('"$scripts/measure-sizes.sh"');
+    expect(readFileSync(repositoryPath("package.json"), "utf8")).toContain(
+      '"check:size:native": "EXPO_ATLAS=true pnpm --filter @cue/native exec expo export --platform ios --platform android --output-dir dist &&',
+    );
+    expect(measure).toContain(
+      "EXPO_ATLAS=true pnpm --filter @cue/native exec expo export --platform ios --platform android --output-dir dist\n",
+    );
   });
 
   it("reports the footprint whenever its inputs were published", () => {
@@ -119,7 +156,8 @@ describe("fast pull request validation", () => {
     const footprint = job("footprint");
     const condition = footprint.match(/^ {4}if: >-\n((?: {6}.*\n)+)/m)?.[1] ?? "";
 
-    expect(footprint).toContain("needs: [check, native-android]");
+    expect(footprint).toContain("needs: [check, native-android, footprint-base]");
+    expect(condition).toContain("needs.footprint-base.result == 'success'");
     expect(condition).toMatch(/^ {6}!cancelled\(\) && /);
     expect(condition).not.toMatch(/always\(\)|needs\.check\.result/);
     expect(condition).toContain("needs.check.outputs.js-bundles != ''");

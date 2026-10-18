@@ -220,32 +220,6 @@ describe("diff footprint", () => {
     );
   });
 
-  it("explains an unavailable base and still fails the size gate, even with a rationale", () => {
-    const repository = repositoryWithGrowth();
-    const note =
-      "Base measurements are unavailable: the footprint job of base run 7 had not finished.";
-    const sizes = SIZE_NAMES.map((name) => ({ name, size: 1000 }));
-    write(repository, "base.json", JSON.stringify({ sizes: null, unavailable: note }));
-    write(
-      repository,
-      "head.json",
-      JSON.stringify({ sizes, complexity: { cyclomatic: 10, cognitive: 15 } }),
-    );
-
-    const result = spawnSync(SCRIPT, ["HEAD~1", "base.json", "head.json"], {
-      cwd: repository,
-      encoding: "utf8",
-      env: { ...gitEnv(), PR_BODY: rationale },
-    });
-
-    expect(result.status).toBe(1);
-    expect(result.stdout).toContain(
-      "| Expo iOS JavaScript bundle, raw file | missing | 1.0 kB | missing |",
-    );
-    expect(result.stdout).toContain(`\n${note}\n`);
-    expect(result.stderr).toContain("merge-base measurements are missing");
-  });
-
   it("fails without a head complexity measurement", () => {
     const repository = repositoryWithGrowth();
     const sizes = SIZE_NAMES.map((name) => ({ name, size: 1000 }));

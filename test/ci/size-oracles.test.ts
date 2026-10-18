@@ -9,7 +9,9 @@ const SCRIPT = repositoryPath("scripts/bundletool-size.mjs");
 
 describe("store download size oracles", () => {
   it("measures the Play reference configuration without a local ceiling", () => {
-    const workflow = readFileSync(repositoryPath(".github/workflows/ci.yml"), "utf8");
+    const workflow =
+      readFileSync(repositoryPath(".github/workflows/ci.yml"), "utf8") +
+      readFileSync(repositoryPath("scripts/measure-android-sizes.sh"), "utf8");
 
     expect(workflow).toContain('"screenDensity":640');
     expect(workflow).not.toContain("--dimensions=ALL");

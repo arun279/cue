@@ -16,9 +16,11 @@ const REQUIRED_CHECKS = path.join(REPOSITORY_ROOT, ".github/required-checks.json
 const TRAKT_CLIENT_ID_VARIABLE = "$" + "{{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}";
 // `footprint` skips itself on forks, and the gate reads a skip as a failure.
 // The light matrices report through the required `native-e2e` and `android-e2e` aggregates.
-// Pull request media is for reading screens, not a check.
+// Pull request media is for reading screens, not a check. The merge-base
+// measurement runs only on pull requests and reports through `footprint`.
 const NOT_REQUIRED = [
   "fingerprint",
+  "footprint-base",
   "footprint",
   "native-e2e-ios-light",
   "android-e2e-light",
