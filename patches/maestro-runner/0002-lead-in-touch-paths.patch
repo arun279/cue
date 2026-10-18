@@ -1,0 +1,29 @@
+diff --git a/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/XCTest/EventRecord.swift b/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/XCTest/EventRecord.swift
+index b743739..e89d1d1 100644
+--- a/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/XCTest/EventRecord.swift
++++ b/maestro-ios-xctest-runner/maestro-driver-iosUITests/Routes/XCTest/EventRecord.swift
+@@ -5,6 +5,7 @@ import UIKit
+ final class EventRecord: NSObject {
+     let eventRecord: NSObject
+     static let defaultTapDuration = 0.1
++    static let touchLeadIn = 0.05
+ 
+     enum Style: String {
+         case singeFinger = "Single-Finger Touch Action"
+@@ -22,14 +23,14 @@ final class EventRecord: NSObject {
+     }
+ 
+     func addPointerTouchEvent(at point: CGPoint, touchUpAfter: TimeInterval?) -> Self {
+-        var path = PointerEventPath.pathForTouch(at: point)
++        var path = PointerEventPath.pathForTouch(at: point, offset: Self.touchLeadIn)
+         path.offset += touchUpAfter ?? Self.defaultTapDuration
+         path.liftUp()
+         return add(path)
+     }
+ 
+     func addSwipeEvent(start: CGPoint, end: CGPoint, duration: TimeInterval) -> Self {
+-        var path = PointerEventPath.pathForTouch(at: start)
++        var path = PointerEventPath.pathForTouch(at: start, offset: Self.touchLeadIn)
+         path.offset += Self.defaultTapDuration
+         path.moveTo(point: end)
+         path.offset += duration
