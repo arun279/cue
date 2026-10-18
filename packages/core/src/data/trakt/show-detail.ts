@@ -4,8 +4,15 @@ import { isAired } from "../../domain/time";
 import { resolveStill } from "../image-source";
 import type { EpisodeData, Progress, SeasonData, ShowDetailData } from "./schemas";
 
-function stillsOf(episode: EpisodeData): readonly string[] {
+export function stillsOf(episode: EpisodeData): readonly string[] {
   return episode.images?.screenshot ?? episode.images?.thumb ?? [];
+}
+
+export function artOf(images: ShowDetailData["images"]): {
+  readonly posters: readonly string[];
+  readonly backdrops: readonly string[];
+} {
+  return { posters: images?.poster ?? [], backdrops: images?.fanart ?? [] };
 }
 
 export interface EpisodeView {
@@ -105,8 +112,7 @@ export function assembleShowInfo(show: ShowDetailData): ShowInfo {
     genres: show.genres ?? [],
     runtime: show.runtime ?? null,
     overview: show.overview ?? null,
-    posters: show.images?.poster ?? [],
-    backdrops: show.images?.fanart ?? [],
+    ...artOf(show.images),
   };
 }
 

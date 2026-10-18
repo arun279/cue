@@ -44,12 +44,15 @@ export function useShowDetail(showId: number) {
   return { header, seasons, entry };
 }
 
+const UNCACHED = { hidden: false, inWatchlist: false, lastWatchedAt: null, runtime: null };
+
 function entryFor(
   header: ShowHeader,
   cached: LibraryEntry | undefined,
   seasons: readonly SeasonView[],
 ): LibraryEntry {
   if (cached?.pendingAdvance) return cached;
+  const { hidden, inWatchlist, lastWatchedAt, runtime } = cached ?? UNCACHED;
   const next =
     header.completed < header.aired && !header.nextEpisode?.aired
       ? firstUnwatchedAired(seasons)
@@ -62,11 +65,11 @@ function entryFor(
     completed: header.completed,
     lastAired: header.lastAired,
     nextEpisode: next === null ? null : toEpisodeRef(next),
-    hidden: cached?.hidden ?? false,
-    inWatchlist: cached?.inWatchlist ?? false,
-    lastWatchedAt: cached?.lastWatchedAt ?? null,
+    hidden,
+    inWatchlist,
+    lastWatchedAt,
     tmdbId: header.ids.tmdb ?? null,
-    runtime: cached?.runtime ?? null,
+    runtime,
     pendingAdvance: false,
   };
 }

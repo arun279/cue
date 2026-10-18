@@ -85,35 +85,27 @@ const fill = (png: PNG, [x0, y0, x1, y1]: number[], rgb: number[]) => {
   }
 };
 
-const CONTENT = [100, 170, 500, 230];
+const [LEFT, TOP, RIGHT, BOTTOM] = [100, 170, 500, 230];
 const COLORS = [
   [40, 40, 220],
   [220, 40, 40],
 ];
 
-const screenshot = (
-  file: string,
-  width: number,
-  { clock = 0, content = 0, shift = 0, scroll = 0, empty = false, rows, patch }: Capture,
-) => {
+const screenshot = (file: string, width: number, capture: Capture) => {
   mkdirSync(path.dirname(file), { recursive: true });
-  if (empty) {
-    writeFileSync(file, "");
-    return;
-  }
+  writeFileSync(file, capture.empty ? "" : PNG.sync.write(draw(width, capture)));
+};
+
+const draw = (width: number, { clock, content = 0, shift = 0, scroll, rows, patch }: Capture) => {
   const height = rows === undefined ? 240 : 2622;
   const png = new PNG({ width, height });
   fill(png, [0, 0, width, height], [250, 250, 245]);
   fill(png, [100, 60, 300, 110], clock ? [0, 0, 0] : [128, 128, 128]);
-  fill(
-    png,
-    CONTENT.map((value, index) => value + (index % 2 === 0 ? shift : 0)),
-    COLORS[content] ?? [],
-  );
+  fill(png, [LEFT + shift, TOP, RIGHT + shift, BOTTOM], COLORS[content] ?? []);
   if (scroll) fill(png, [width - 12, 170, width - 4, 240], [120, 120, 120]);
   for (const row of rows ?? []) fill(png, [0, row, width, row + 1], [60, 60, 60]);
   if (patch) fill(png, [400, patch.top, 420, patch.top + 30], patch.rgb);
-  writeFileSync(file, PNG.sync.write(png));
+  return png;
 };
 
 const pixel = (file: string, x: number, y: number) => {
@@ -206,23 +198,24 @@ const dark = (captures: Record<string, Capture>, conclusion = "success"): Run =>
 
 describe("pr-media job", () => {
   it("waits for every screenshot job, still runs when they are skipped, and uploads instead of posting", () => {
-    expect(job?.body.match(/^ {6}- ([a-z0-9-]+)$/gm)?.map((line) => line.trim().slice(2))).toEqual([
+    const body = job?.body ?? "";
+    expect(body.match(/^ {6}- ([a-z0-9-]+)$/gm)?.map((line) => line.trim().slice(2))).toEqual([
       "fingerprint",
       "native-e2e-ios-light",
       "ui-screenshots-ios-dark",
       "android-e2e-light",
       "ui-screenshots-android-dark",
     ]);
-    expect(job?.body).toContain("!cancelled() && github.event_name == 'pull_request'");
-    expect(job?.body).toContain("needs.fingerprint.outputs.user-facing == 'true'");
-    expect(job?.body).toContain("fetch-depth: 2");
-    expect(job?.body).toContain(
+    expect(body).toContain("!cancelled() && github.event_name == 'pull_request'");
+    expect(body).toContain("needs.fingerprint.outputs.user-facing == 'true'");
+    expect(body).toContain("fetch-depth: 2");
+    expect(body).toContain(
       'scripts/gather-pr-media.sh "$GITHUB_RUN_ID" "$(scripts/measured-base.sh pull_request)"',
     );
-    expect(job?.body).toContain("name: pr-media-$" + "{{ github.event.pull_request.head.sha }}");
-    expect(job?.body).toContain("path: $" + "{{ runner.temp }}/pr-media");
-    expect(job?.body).not.toContain("pr comment");
-    expect(job?.body).not.toContain("pull-requests: write");
+    expect(body).toContain("name: pr-media-$" + "{{ github.event.pull_request.head.sha }}");
+    expect(body).toContain("path: $" + "{{ runner.temp }}/pr-media");
+    expect(body).not.toContain("pr comment");
+    expect(body).not.toContain("pull-requests: write");
   });
 
   it("reads each screenshot artifact from the job that uploads it", () => {

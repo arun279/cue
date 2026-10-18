@@ -4,28 +4,25 @@ import { queryKeys } from "./query-keys";
 
 export type InvalidationKey = readonly unknown[];
 
-function keysForTarget(target: InvalidationTarget): readonly InvalidationKey[] {
-  switch (target) {
-    case "watched/shows":
-    case "progress/watched":
-      return [queryKeys.library(), queryKeys.historyPrefix()];
-    case "watched/movies":
-    case "movie-progress":
-      return [queryKeys.movieLibrary(), queryKeys.historyPrefix()];
-    case "watchlist/shows":
-      return [queryKeys.library(), queryKeys.watchlist("shows")];
-    case "watchlist/movies":
-      return [queryKeys.movieLibrary(), queryKeys.watchlist("movies")];
-    case "hidden/progress_watched":
-    case "recompute:buckets":
-    case "recompute:to-watch":
-      return [queryKeys.library()];
-    case "recompute:following":
-      return [queryKeys.library(), queryKeys.movieLibrary()];
-    default:
-      return [];
-  }
-}
+const library = queryKeys.library();
+const movieLibrary = queryKeys.movieLibrary();
+const history = queryKeys.historyPrefix();
+const TARGET_KEYS: Readonly<Record<InvalidationTarget, readonly InvalidationKey[]>> = {
+  "watched/shows": [library, history],
+  "progress/watched": [library, history],
+  "watched/movies": [movieLibrary, history],
+  "movie-progress": [movieLibrary, history],
+  "watchlist/shows": [library, queryKeys.watchlist("shows")],
+  "watchlist/movies": [movieLibrary, queryKeys.watchlist("movies")],
+  "watchlist/episodes": [],
+  "hidden/progress_watched": [library],
+  "hidden/movies": [],
+  "favorites/shows": [],
+  "favorites/movies": [],
+  "recompute:buckets": [library],
+  "recompute:to-watch": [library],
+  "recompute:following": [library, movieLibrary],
+};
 
 export function showProgressKeys(
   showId: number,
@@ -51,7 +48,7 @@ export function invalidateShowProgress(
 export function invalidationKeys(targets: readonly InvalidationTarget[]): InvalidationKey[] {
   const seen = new Map<string, InvalidationKey>();
   for (const target of targets) {
-    for (const key of keysForTarget(target)) {
+    for (const key of TARGET_KEYS[target]) {
       seen.set(JSON.stringify(key), key);
     }
   }

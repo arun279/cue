@@ -84,6 +84,31 @@ describe("diff footprint", () => {
     expect(output).not.toContain("blank");
   });
 
+  it("reports the most complex product function at base and head", () => {
+    const repository = commits(
+      {
+        "packages/core/src/branch.ts": "export const branch = (a: number) => (a > 0 ? 1 : 0);\n",
+        "test/ci/nested.test.ts":
+          "export const ignored = (a: number) => (a > 0 ? (a > 1 ? 2 : 1) : 0);\n",
+      },
+      {
+        "packages/native/src/nested.ts":
+          "export function nested(a: number, b: number): number {\n  if (a > 0) {\n    if (b > 0) return 1;\n  }\n  return 0;\n}\n",
+      },
+    );
+
+    const output = execFileSync(SCRIPT, ["HEAD~1"], {
+      cwd: repository,
+      encoding: "utf8",
+      env: { ...gitEnv(), PR_BODY: rationale },
+    });
+
+    expect(output).toContain("| Cyclomatic complexity, oxlint `complexity` | 2 | 3 |");
+    expect(output).toContain(
+      "| Cognitive complexity, Biome `noExcessiveCognitiveComplexity` | 0 | 3 |",
+    );
+  });
+
   it.each([
     ["Product-Growth: ", "Product code grew"],
     ["Product-Growth: New route.\nComment-Load: ", "Product comments grew"],
@@ -187,7 +212,6 @@ describe("diff footprint", () => {
       "| Firebase tester APK, arm64-v8a and all densities | 34.00 MB | 34.00 MB | 0 B |",
     );
     expect(output).not.toContain("simulator");
-    expect(output).not.toContain("complexity");
     expect(output).not.toContain("density");
   });
 });

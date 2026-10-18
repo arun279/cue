@@ -27,3 +27,12 @@ export function watchedPercent(completed: number, aired: number): number {
 export function episodesLeft(aired: number, completed: number): number {
   return Math.max(0, aired - completed);
 }
+
+export function leftNote(aired: number, completed: number): string | null {
+  const left = episodesLeft(aired, completed);
+  return left > 0 ? `${left} left` : null;
+}
+
+export function withEpisodeTitle(code: string, title: string | null): string {
+  return title === null ? code : `${code} · ${title}`;
+}

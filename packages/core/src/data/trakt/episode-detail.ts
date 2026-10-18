@@ -2,7 +2,7 @@ import type { EpisodeIds } from "../../domain/model/ids";
 import { episodeNavigation } from "../../domain/show-detail";
 import { isAired } from "../../domain/time";
 import type { EpisodeData, Progress } from "./schemas";
-import { toEpisodeIds } from "./show-detail";
+import { stillsOf, toEpisodeIds } from "./show-detail";
 
 interface EpisodeNav {
   readonly season: number;
@@ -67,10 +67,6 @@ export function assembleEpisodeDetail(
 ): EpisodeDetail {
   const target = { season: episode.season, number: episode.number };
   const progressEpisodes = flattenProgress(progress);
-  const watchedEpisode = progressEpisodes.find(
-    (item) => item.season === target.season && item.number === target.number,
-  );
-  const stills = episode.images?.screenshot ?? episode.images?.thumb ?? [];
   const firstAired = episode.first_aired ?? null;
 
   return {
@@ -82,10 +78,19 @@ export function assembleEpisodeDetail(
     firstAired,
     runtime: episode.runtime ?? null,
     ids: toEpisodeIds(episode.ids),
-    stills,
+    stills: stillsOf(episode),
     aired: isAired(firstAired, now),
-    watched: watchedEpisode?.watched ?? false,
-    watchedAt: watchedEpisode?.watchedAt ?? null,
+    ...watchState(progressEpisodes, target),
     ...navigation(progressEpisodes, target),
   };
+}
+
+function watchState(
+  episodes: readonly ProgressEpisode[],
+  target: EpisodeNav,
+): Pick<EpisodeDetail, "watched" | "watchedAt"> {
+  const watched = episodes.find(
+    (item) => item.season === target.season && item.number === target.number,
+  );
+  return { watched: watched?.watched ?? false, watchedAt: watched?.watchedAt ?? null };
 }

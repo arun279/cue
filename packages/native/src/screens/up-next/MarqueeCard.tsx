@@ -1,7 +1,7 @@
 import { resolveBackdrop } from "@cue/core/data/image-source";
 import { type EpisodeRef, epCode } from "@cue/core/domain/model/library";
 import { toMs } from "@cue/core/domain/time";
-import { episodesLeft, watchedPercent } from "@cue/core/format";
+import { leftNote, watchedPercent, withEpisodeTitle } from "@cue/core/format";
 import { useMarkControl } from "@cue/core/hooks/useMarkControl";
 import type { MarkWatched } from "@cue/core/hooks/useMarkWatched";
 import { LinearGradient } from "expo-linear-gradient";
@@ -40,6 +40,11 @@ export interface MarqueeCardProps {
   readonly mark: MarkWatched;
 }
 
+function airedLastNight(firstAired: string | null, now: number): boolean {
+  const airedMs = toMs(firstAired);
+  return airedMs !== null && airedMs <= now && now - airedMs <= AIRED_LAST_NIGHT_MS;
+}
+
 export function MarqueeCard({ card, episode, mark }: MarqueeCardProps): ReactElement {
   const { entry } = card;
   const router = useRouter();
@@ -51,34 +56,32 @@ export function MarqueeCard({ card, episode, mark }: MarqueeCardProps): ReactEle
   const stacked = fontScale >= REFLOW_FONT_SCALE;
 
   const backdrop = fontScale < SCRIM_FONT_SCALE ? resolveBackdrop(art.backdrops) : null;
-  const airedMs = toMs(episode.firstAired);
-  const now = Date.now();
   const scrim = backdrop !== null && backdrop !== failedBackdrop;
   const code = epCode(episode.season, episode.number);
-  const left = episodesLeft(entry.aired, entry.completed);
-  const note = left > 0 ? `${left} left` : null;
-  const eyebrow =
-    airedMs !== null && airedMs <= now && now - airedMs <= AIRED_LAST_NIGHT_MS
-      ? "Aired last night"
-      : "Continue";
-  const onImage = scrim ? PALETTE.onImage.dark : colors.fg;
-  const onImageQuiet = scrim ? PALETTE.onImage2.dark : colors.ink2;
-  const eyebrowInk = scrim ? PALETTE.onImage2.dark : colors.accentInk;
+  const note = leftNote(entry.aired, entry.completed);
+  const eyebrow = airedLastNight(episode.firstAired, Date.now()) ? "Aired last night" : "Continue";
+  const look = scrim
+    ? {
+        card: { backgroundColor: plate(entry.title), borderWidth: 0 },
+        body: styles.bodyBottom,
+        ink: PALETTE.onImage.dark,
+        quiet: PALETTE.onImage2.dark,
+        eyebrow: PALETTE.onImage2.dark,
+      }
+    : {
+        card: {
+          backgroundColor: colors.surface,
+          borderWidth: HAIRLINE,
+          borderColor: colors.border,
+        },
+        body: styles.bodyTop,
+        ink: colors.fg,
+        quiet: colors.ink2,
+        eyebrow: colors.accentInk,
+      };
 
   return (
-    <View
-      testID={TEST_IDS.marqueeCard}
-      style={[
-        styles.card,
-        scrim
-          ? { backgroundColor: plate(entry.title), borderWidth: 0 }
-          : {
-              backgroundColor: colors.surface,
-              borderWidth: HAIRLINE,
-              borderColor: colors.border,
-            },
-      ]}
-    >
+    <View testID={TEST_IDS.marqueeCard} style={[styles.card, look.card]}>
       {scrim ? (
         <>
           <Image
@@ -107,27 +110,26 @@ export function MarqueeCard({ card, episode, mark }: MarqueeCardProps): ReactEle
           .filter(Boolean)
           .join(", ")}
         onPress={() => router.push(`/show/${entry.showId}`)}
-        style={[styles.body, scrim ? styles.bodyBottom : styles.bodyTop]}
+        style={[styles.body, look.body]}
       >
         {scrim ? null : (
           <Poster title={entry.title} posters={art.posters} width={POSTER_WIDTH.marquee} />
         )}
         <View style={styles.stack}>
-          <CueText variant="micro" weight="bold" eyebrow style={{ color: eyebrowInk }}>
+          <CueText variant="micro" weight="bold" eyebrow style={{ color: look.eyebrow }}>
             {eyebrow}
           </CueText>
-          <CueText variant="rowTitle" style={{ color: onImage }}>
+          <CueText variant="rowTitle" style={{ color: look.ink }}>
             {entry.title}
           </CueText>
-          <CueText variant="meta" style={{ color: onImageQuiet }}>
-            {code}
-            {episode.title === null ? "" : ` · ${episode.title}`}
+          <CueText variant="meta" style={{ color: look.quiet }}>
+            {withEpisodeTitle(code, episode.title)}
           </CueText>
           <RowFooter
             percent={watchedPercent(entry.completed, entry.aired)}
             note={note}
             rail={RAIL.marquee}
-            color={onImage}
+            color={look.ink}
           />
         </View>
       </Pressable>

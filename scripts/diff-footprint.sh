@@ -40,6 +40,14 @@ read -r tooling_net _ < <(net_lines \
   ':(glob)scripts/**')
 product_net=$((product_lines - comment_net))
 
+base_tree=$(mktemp -d)
+trap 'rm -rf "$base_tree"' EXIT
+git archive "$base" | tar -x -C "$base_tree"
+base_complexity=$(node "$(dirname "$0")/measure-complexity.mjs" "$base_tree")
+head_complexity=$(node "$(dirname "$0")/measure-complexity.mjs" .)
+read -r base_cyclomatic base_cognitive <<<"$base_complexity"
+read -r head_cyclomatic head_cognitive <<<"$head_complexity"
+
 cat <<EOF
 <!-- diff-footprint -->
 ### Pull request footprint
@@ -50,6 +58,13 @@ cat <<EOF
 | Test lines in test, \`packages/*/{test,__tests__,e2e}\`, and .maestro | $(printf '%+d' "$test_net") |
 | CI and tooling lines in .github and scripts | $(printf '%+d' "$tooling_net") |
 | Product comment lines identified by a comment prefix | $(printf '%+d' "$comment_net") |
+
+### Most complex product function
+
+| measurement | base | head |
+| --- | ---: | ---: |
+| Cyclomatic complexity, oxlint \`complexity\` | $base_cyclomatic | $head_cyclomatic |
+| Cognitive complexity, Biome \`noExcessiveCognitiveComplexity\` | $base_cognitive | $head_cognitive |
 EOF
 
 if [ "$#" -eq 3 ]; then
