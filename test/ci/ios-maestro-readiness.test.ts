@@ -104,11 +104,12 @@ it("uses the early-booted device and settles after installation and launch", () 
   const sequence = [
     "curl -fsSL",
     'xcrun simctl install "$device_id" "$app"',
-    'xcrun simctl bootstatus "$device_id" -b',
+    'xcrun simctl bootstatus "$device_id" -b\nscripts/disable-ios-daemons.sh "$device_id" --booted\n',
     'xcrun simctl ui "$device_id" appearance "$appearance"',
     'xcrun simctl launch --terminate-running-process "$device_id"',
     'xcrun simctl terminate "$device_id"',
     'node scripts/wait-ios-ready.mjs "$device_id"',
+    'scripts/snapshot-host-resources.sh "$RUNNER_TEMP/host-resources-prepared.txt"',
   ].map((command) => script.indexOf(command));
   expect(sequence.every((index) => index !== -1)).toBe(true);
   expect(sequence).toEqual([...sequence].sort((a, b) => a - b));
@@ -129,13 +130,25 @@ it.each([false, true])("prepares the app with a Maestro cache hit of %s", (cache
     "xcrun",
     "xcrun",
     "xcrun",
+    "xcrun",
+    "xcrun",
     "node",
+    "sysctl",
+    "vm_stat",
+    "ps",
   ]);
   expect(readFileSync(path.join(directory.root, "github-path"), "utf8")).toBe(
     `${directory.root}/maestro/bin\n`,
   );
   expect(calls).toContain(`xcrun simctl install test-device ${directory.root}/Cue.app`);
-  expect(calls.at(-1)).toBe("node scripts/wait-ios-ready.mjs test-device");
+  const booted = calls.indexOf("xcrun simctl bootstatus test-device -b");
+  expect(calls.slice(booted + 1, booted + 3)).toEqual(
+    Array(2).fill("xcrun simctl spawn test-device launchctl list"),
+  );
+  expect(calls).toContain("node scripts/wait-ios-ready.mjs test-device");
+  expect(
+    readFileSync(path.join(directory.root, "host-resources-prepared.txt"), "utf8").split("\n"),
+  ).toEqual(["sysctl vm.swapusage", "vm_stat ", "ps -axo pid,ppid,time,rss,comm", ""]);
 });
 
 it.each([
@@ -144,6 +157,7 @@ it.each([
   "unzip",
   "xcrun simctl install",
   "xcrun simctl bootstatus",
+  "xcrun simctl spawn",
 ])("stops preparation when %s fails", (command) => {
   const directory = preparation(false);
   const result = directory.run(command);
@@ -160,10 +174,10 @@ function preparation(cached: boolean) {
   const stubs = path.join(root, "stubs.sh");
   writeFileSync(
     stubs,
-    ["curl", "shasum", "unzip", "xcrun", "node"]
+    ["curl", "shasum", "unzip", "xcrun", "node", "sysctl", "vm_stat", "ps"]
       .map(
         (command) =>
-          `${command}() {\n${command === "shasum" ? "  cat > /dev/null\n" : ""}  printf "%s\\n" "${command} $*" >> "$PROBE_CALLS"\n  case "${command} $*" in "$FAIL_COMMAND "*) return 17 ;; esac\n}\n`,
+          `${command}() {\n${command === "shasum" ? "  cat > /dev/null\n" : ""}  printf "%s\\n" "${command} $*" >> "$PROBE_CALLS"\n  ${["sysctl", "vm_stat", "ps"].includes(command) ? `echo "${command} $*"\n  ` : ""}case "${command} $*" in "$FAIL_COMMAND "*) return 17 ;; esac\n}\n`,
       )
       .join(""),
   );

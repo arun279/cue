@@ -13,6 +13,10 @@ appId: app.cuetracker
     visible:
       id: "screen-library"
     timeout: 30000
+- extendedWaitUntil:
+    visible:
+      id: "avatar-link"
+    timeout: 30000
 - waitForAnimationToEnd
 - takeScreenshot: library-shows-${SIZE}
 - tapOn:

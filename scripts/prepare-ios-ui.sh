@@ -18,6 +18,7 @@ fi
 echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
 xcrun simctl install "$device_id" "$app"
 xcrun simctl bootstatus "$device_id" -b
+scripts/disable-ios-daemons.sh "$device_id" --booted
 xcrun simctl ui "$device_id" content_size medium
 xcrun simctl ui "$device_id" appearance "$appearance"
 xcrun simctl spawn "$device_id" defaults write com.apple.keyboard.preferences \
@@ -28,3 +29,4 @@ xcrun simctl spawn "$device_id" defaults write com.apple.Accessibility ReduceMot
 xcrun simctl launch --terminate-running-process "$device_id" app.cuetracker
 xcrun simctl terminate "$device_id" app.cuetracker
 node scripts/wait-ios-ready.mjs "$device_id"
+scripts/snapshot-host-resources.sh "$RUNNER_TEMP/host-resources-prepared.txt"

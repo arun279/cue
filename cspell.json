@@ -8,10 +8,12 @@
     "affordances",
     "airdates",
     "anddoes",
+    "apsd",
     "arunkris",
     "backboardd",
     "BEGINSWITH",
     "BKIOHID",
+    "bootout",
     "Biome",
     "bootstatus",
     "Braciole",
@@ -20,6 +22,7 @@
     "browsable",
     "bundletool",
     "checkin",
+    "chronod",
     "codeql",
     "contenteditable",
     "cspell",
@@ -143,7 +146,8 @@
     "xxxhdpi",
     "Zod",
     "Zustand",
-    "Привет"
+    "Привет",
+    "swapusage"
   ],
   "ignorePaths": [
     "node_modules/**",

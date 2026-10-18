@@ -281,6 +281,8 @@ describe("pr-media job", () => {
     "scripts/build-maestro-runner.sh",
     "scripts/check-runner-survives-freeze.sh",
     "scripts/check-tap-lead-in.mjs",
+    "scripts/disable-ios-daemons.sh",
+    "scripts/snapshot-host-resources.sh",
     "patches/maestro-runner/0001-keep-serving-after-xctest-issues.patch",
   ])("gathers media when %s changes", (file) => {
     expect(userFacing.test(file)).toBe(true);

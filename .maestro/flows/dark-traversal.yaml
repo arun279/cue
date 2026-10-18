@@ -12,6 +12,9 @@ appId: app.cuetracker
     visible:
       id: "screen-show-detail"
     timeout: 30000
+- extendedWaitUntil:
+    visible: "More actions for Midnight Cartography"
+    timeout: 30000
 - waitForAnimationToEnd
 - takeScreenshot: show-detail-rest
 # The season's confirmation is captured and cancelled, so nothing is marked.
@@ -60,6 +63,10 @@ appId: app.cuetracker
     visible:
       id: "screen-library"
     timeout: 30000
+- extendedWaitUntil:
+    visible:
+      id: "avatar-link"
+    timeout: 30000
 - waitForAnimationToEnd
 - takeScreenshot: library-shows
 - tapOn:
@@ -88,6 +95,10 @@ appId: app.cuetracker
     visible:
       id: "screen-calendar"
     timeout: 30000
+- extendedWaitUntil:
+    visible:
+      id: "avatar-link"
+    timeout: 30000
 - waitForAnimationToEnd
 - takeScreenshot: calendar-rest
 - tapOn: "Search"
@@ -112,6 +123,10 @@ appId: app.cuetracker
 - extendedWaitUntil:
     visible:
       id: "screen-up-next"
+    timeout: 30000
+- extendedWaitUntil:
+    visible:
+      id: "avatar-link"
     timeout: 30000
 - waitForAnimationToEnd
 - takeScreenshot: up-next-tab-rest
