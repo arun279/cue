@@ -27,8 +27,6 @@ export const TEST_IDS = {
 
   bootHold: "boot-hold",
   authLoading: "auth-loading",
-  screenNotFound: "screen-not-found",
-  notFoundHome: "not-found-home",
   screenOnboarding: "screen-onboarding",
   buttonConnect: "button-connect",
   screenDeviceCode: "screen-device-code",
@@ -169,6 +167,7 @@ export const TEST_IDS = {
   episodeCheck: (show: number, season: number, episode: number) =>
     `episode-row-${show}-${season}-${episode}-check`,
   episodeSheet: "episode-sheet",
+  sheetClose: "sheet-close",
   episodeMarkRow: "episode-mark-row",
   episodeMarkControl: "episode-mark-control",
   episodePagerNext: "episode-pager-next",

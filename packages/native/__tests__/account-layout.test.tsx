@@ -5,18 +5,23 @@ import { act, fireEvent, renderRouter, screen } from "expo-router/testing-librar
 import type { ReactElement } from "react";
 import { Platform, Text, View } from "react-native";
 import * as accountLayout from "../app/(account)/_layout";
-import MonthJumpRoute from "../app/(account)/history-jump";
+import MonthJumpRoute from "../app/(tabs)/(up-next,library,calendar,search)/history-jump";
 import { MONTHS } from "../src/screens/history/model";
+import { TabStack } from "../src/TabStack";
 import { QueryProvider } from "./support/query-provider";
 
+jest.mock("@expo/ui/swift-ui", () => require("./support/native-ui").swiftUiModule());
+jest.mock("@expo/ui/jetpack-compose", () => require("./support/native-ui").composeModule());
 jest.mock(
   "react-native-safe-area-context",
   () => require("react-native-safe-area-context/jest/mock").default,
 );
 
 /**
- * The account modal over the tabs, presented the way the composition root
- * presents it.
+ * The account modal over two tab stacks, presented the way the composition root
+ * presents it, with History, the month jump and Settings registered in both the
+ * tab stacks and the account stack as the app registers them. A plain stack
+ * stands in for the native tabs, which this runner cannot draw.
  *
  * A real router rather than a mocked one, for both cases. `dismissAll()`
  * dispatches `POP_TO_TOP`, which the account stack declines because Profile is
@@ -35,21 +40,35 @@ function HistoryScope(): ReactElement {
   );
 }
 
+const Blank = (): ReactElement => <View />;
+const Settings = (): ReactElement => <View testID="screen-settings" />;
+
 const routes = {
   _layout: (): ReactElement => (
     <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="index" />
+      <Stack.Screen name="(tabs)" />
       <Stack.Screen name="(account)" options={{ presentation: "fullScreenModal" }} />
     </Stack>
   ),
-  index: (): ReactElement => <View testID="screen-tabs" />,
+  "(tabs)/_layout": (): ReactElement => <Stack screenOptions={{ headerShown: false }} />,
+  "(tabs)/(up-next)/_layout": (): ReactElement => <TabStack root="index" title="Up Next" />,
+  "(tabs)/(up-next)/index": (): ReactElement => <View testID="screen-up-next" />,
+  "(tabs)/(library)/_layout": (): ReactElement => <TabStack root="library" title="Library" />,
+  "(tabs)/(library)/library": (): ReactElement => <View testID="screen-library" />,
+  "(tabs)/(up-next,library)/history": HistoryScope,
+  "(tabs)/(up-next,library)/history-jump": MonthJumpRoute,
+  "(tabs)/(up-next,library)/settings": Settings,
+  "(tabs)/(up-next,library)/show/[showId]": Blank,
+  "(tabs)/(up-next,library)/movie/[movieId]": Blank,
+  "(tabs)/(up-next,library)/show/[showId]/episode/[season]/[episode]": Blank,
   "(account)/_layout": accountLayout,
   "(account)/profile": (): ReactElement => <View testID="screen-profile" />,
-  "(account)/settings": (): ReactElement => <View testID="screen-settings" />,
+  "(account)/settings": Settings,
   "(account)/history": HistoryScope,
   "(account)/history-jump": MonthJumpRoute,
-  "(account)/movie/[movieId]": (): ReactElement => <View />,
-  "(account)/show/[showId]/episode/[season]/[episode]": (): ReactElement => <View />,
+  "(account)/show/[showId]": Blank,
+  "(account)/movie/[movieId]": Blank,
+  "(account)/show/[showId]/episode/[season]/[episode]": Blank,
 };
 
 /** Leaves Profile the way each platform's header offers: the UIKit Done item
@@ -94,7 +113,7 @@ describe("the account stack", () => {
     await leaveProfile();
 
     expect(screen.queryByTestId("screen-profile")).toBeNull();
-    expect(screen.getByTestId("screen-tabs")).toBeOnTheScreen();
+    expect(screen.getByTestId("screen-up-next")).toBeOnTheScreen();
   });
 
   it("draws snackbar feedback inside the modal", async () => {
@@ -139,5 +158,55 @@ describe("the month jump sheet", () => {
     await act(() => router.back());
     expect(screen.queryByTestId("screen-history")).toBeNull();
     expect(screen.getByTestId("screen-profile")).toBeOnTheScreen();
+  });
+});
+
+/** The router's own record of where it is: render's result is a promise, and
+ * expo-router hangs its location readers on the object it returned. */
+async function renderAt(initialUrl: string): Promise<() => string[]> {
+  const view = renderRouter(routes, { initialUrl, wrapper: QueryProvider });
+  await view;
+  return () => view.getSegments();
+}
+
+describe("a tab stack", () => {
+  it.each([
+    ["/", "(up-next)", "screen-up-next"],
+    ["/library", "(library)", "screen-library"],
+  ])("pushes History and Settings onto the tab at %s, and back returns to that tab", async (initialUrl, tab, origin) => {
+    const segments = await renderAt(initialUrl);
+
+    for (const pathname of ["/history", "/settings"] as const) {
+      await act(() => router.push(pathname));
+      expect(segments()).toEqual(["(tabs)", tab, pathname.slice(1)]);
+      await act(() => router.back());
+      expect(screen.getByTestId(origin)).toBeOnTheScreen();
+    }
+  });
+
+  it("hands the month jump back to the History in the tab it came from", async () => {
+    const segments = await renderAt("/");
+    await act(() => router.push("/history?type=movies"));
+    await act(() => router.push({ pathname: "/history-jump", params: { type: "movies" } }));
+
+    await fireEvent.press(screen.getByTestId("history-jump-month-8"));
+
+    expect(segments()).toEqual(["(tabs)", "(up-next)", "history"]);
+    expect(screen.getByTestId("screen-history")).toHaveTextContent(
+      JSON.stringify({ type: "movies", year: new Date().getFullYear(), month: 8 }),
+    );
+    await act(() => router.back());
+    expect(screen.getByTestId("screen-up-next")).toBeOnTheScreen();
+  });
+
+  it("closes the month jump from its close button", async () => {
+    const segments = await renderAt("/");
+    await act(() => router.push("/history"));
+    await act(() => router.push("/history-jump"));
+
+    await fireEvent.press(screen.getByRole("button", { name: "Close" }));
+
+    expect(screen.queryByTestId("history-jump-sheet")).toBeNull();
+    expect(segments()).toEqual(["(tabs)", "(up-next)", "history"]);
   });
 });

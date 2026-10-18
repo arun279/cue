@@ -306,7 +306,7 @@ function shareHierarchy(a: Screen, b: Screen): boolean {
 }
 
 // History draws the bar items with `avatar={false}`, a prop value the source graph does not follow.
-const HIDDEN = new Set(["avatarLink in (account)/history.tsx"]);
+const HIDDEN = new Set(["avatarLink in (tabs)/(up-next,library,calendar,search)/history.tsx"]);
 
 it("gives every control an id no other screen in its hierarchy carries", () => {
   const all = screens();
@@ -322,9 +322,10 @@ it("gives every control an id no other screen in its hierarchy carries", () => {
       ),
   );
 
-  expect(all.find((screen) => screen.route === "(account)/settings.tsx")?.ids).toContain(
-    "settingsShows",
-  );
+  expect(
+    all.find((screen) => screen.route === "(tabs)/(up-next,library,calendar,search)/settings.tsx")
+      ?.ids,
+  ).toContain("settingsShows");
   expect(shared).toEqual([]);
 });
 

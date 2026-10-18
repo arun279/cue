@@ -53,6 +53,8 @@ import { useFontsSettled } from "../src/ui/type";
 
 void SplashScreen.preventAutoHideAsync().catch(() => {});
 
+export const unstable_settings = { initialRouteName: "(tabs)" };
+
 const prefsStore = createPrefsStore(preferenceStorage);
 const haptics = createNativeHaptics(() => prefsStore.getState().hapticsEnabled);
 const network = createNativeNetwork();
@@ -143,6 +145,7 @@ function RoutedApp(): ReactElement {
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="(account)" options={{ presentation: "fullScreenModal" }} />
+        <Stack.Screen name="+not-found" options={{ headerShown: true }} />
       </Stack>
       <SnackbarHost placement="root" />
       <SnackbarRouteDismissal />

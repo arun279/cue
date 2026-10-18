@@ -12,28 +12,13 @@ export function EpisodeMarkRow({
   detail,
   plays,
   onMark,
-  renderCheck,
 }: {
   readonly detail: EpisodeDetail;
   readonly plays: number;
   readonly onMark: () => void;
-  readonly renderCheck?: (check: ReactElement) => ReactElement;
 }): ReactElement {
   const colors = useColors();
   const stacked = useStacked();
-  const check = (
-    <CheckControl
-      checked={detail.watched}
-      size={CHECK_SIZE.marquee}
-      testID={TEST_IDS.episodeMarkControl}
-      label={
-        detail.watched
-          ? "Watched. Tap to remove."
-          : `Mark ${epCode(detail.season, detail.number)} watched`
-      }
-      onPress={onMark}
-    />
-  );
   return (
     <View
       testID={TEST_IDS.episodeMarkRow}
@@ -64,7 +49,17 @@ export function EpisodeMarkRow({
           </CueText>
         )}
       </View>
-      {renderCheck ? renderCheck(check) : check}
+      <CheckControl
+        checked={detail.watched}
+        size={CHECK_SIZE.marquee}
+        testID={TEST_IDS.episodeMarkControl}
+        label={
+          detail.watched
+            ? "Watched. Tap to remove."
+            : `Mark ${epCode(detail.season, detail.number)} watched`
+        }
+        onPress={onMark}
+      />
     </View>
   );
 }

@@ -1,1 +1,1 @@
-export { HistoryScreen as default } from "../../src/screens/history/HistoryScreen";
+export { default } from "../(tabs)/(up-next,library,calendar,search)/history";

@@ -116,3 +116,12 @@ appId: app.cuetracker
     id: "screen-history"
 - waitForAnimationToEnd
 - takeScreenshot: history-month
+- runFlow:
+    file: lib/back.yaml
+    env:
+      BACK_TITLE: "Profile"
+- assertVisible:
+    id: "screen-profile"
+- runFlow: lib/leave-profile.yaml
+- assertVisible:
+    id: "screen-up-next"

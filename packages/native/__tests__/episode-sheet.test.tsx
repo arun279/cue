@@ -1,5 +1,5 @@
 import "./support/detail-mocks";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react-native";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react-native";
 import { EpisodeBody, EpisodeSheet } from "../src/screens/EpisodeSheet";
 import { EpisodePager } from "../src/screens/episode-sheet/EpisodePager";
 import { EpisodeStill } from "../src/screens/episode-sheet/EpisodeStill";
@@ -105,4 +105,26 @@ it("replaces the episode route and names an exhausted direction", async () => {
   await fireEvent.press(screen.getByTestId(TEST_IDS.episodePagerNext));
   expect(router.replace).toHaveBeenCalledWith("/show/8803/episode/2/4");
   expect(router.push).not.toHaveBeenCalled();
+});
+
+it("offers one menu for a watched episode and closes from its close button while loading and loaded", async () => {
+  let resolve: (value: typeof detail) => void = () => {};
+  const runtime = {
+    ...detailRuntime,
+    loadEpisode: jest.fn(() => new Promise<typeof detail>((settle) => (resolve = settle))),
+  };
+  await render(
+    <DetailHarness runtime={runtime}>
+      <EpisodeSheet showId={8803} season={2} episode={3} />
+    </DetailHarness>,
+  );
+  await fireEvent.press(screen.getByRole("button", { name: "Close" }));
+  expect(router.back).toHaveBeenCalledTimes(1);
+
+  await act(async () => resolve({ ...detail, watched: true, watchedAt: "2026-10-01T20:00:00Z" }));
+
+  expect(await screen.findByTestId(TEST_IDS.episodeMarkRow)).toBeOnTheScreen();
+  expect(screen.getAllByLabelText("Add another play")).toHaveLength(1);
+  await fireEvent.press(screen.getByRole("button", { name: "Close" }));
+  expect(router.back).toHaveBeenCalledTimes(2);
 });

@@ -9,12 +9,10 @@ export function EpisodeMenu({
   detail,
   plays,
   mark,
-  children,
 }: {
   readonly detail: EpisodeDetail;
   readonly plays: number;
   readonly mark: ReturnType<typeof useDetailMark>;
-  readonly children?: ReactElement;
 }): ReactElement {
   const code = epCode(detail.season, detail.number);
   return (
@@ -41,8 +39,6 @@ export function EpisodeMenu({
             }),
         },
       ]}
-    >
-      {children}
-    </RowMenu>
+    />
   );
 }

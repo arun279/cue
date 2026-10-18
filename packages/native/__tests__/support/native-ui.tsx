@@ -1,6 +1,7 @@
 /**
  * Stand-ins for the platform edges a screen test cannot drive: the router and
- * its native bar items, the platform menu, and the swipeable's own pan gesture.
+ * its native bar items, the platform menu, the SwiftUI and Compose controls, and
+ * the swipeable's own pan gesture.
  *
  * Each one keeps the library's documented contract and nothing more, so a test
  * over them is a test of Cue's wiring rather than of the library. The libraries
@@ -185,6 +186,34 @@ export function menuModule() {
 function hidden(action: { attributes?: object }): boolean {
   const attributes = action.attributes as { hidden?: boolean; disabled?: boolean } | undefined;
   return attributes?.hidden === true || attributes?.disabled === true;
+}
+
+/** A SwiftUI button as the button a reader reaches: named by its label. */
+export function swiftUiModule() {
+  const { createElement } = require("react") as typeof import("react");
+  const { Pressable, Text } = require("react-native") as typeof import("react-native");
+  return {
+    Host: ({ children }: { readonly children: ReactNode }) => children,
+    Button: ({ label, onPress }: { readonly label: string; onPress(): void }) =>
+      createElement(
+        Pressable,
+        { accessibilityRole: "button", onPress },
+        createElement(Text, null, label),
+      ),
+  };
+}
+
+/** A Compose icon button as the button a reader reaches: named by its icon's content description. */
+export function composeModule() {
+  const { createElement } = require("react") as typeof import("react");
+  const { Pressable, Text } = require("react-native") as typeof import("react-native");
+  return {
+    Host: ({ children }: { readonly children: ReactNode }) => children,
+    IconButton: ({ children, onClick }: { readonly children: ReactNode; onClick(): void }) =>
+      createElement(Pressable, { accessibilityRole: "button", onPress: onClick }, children),
+    Icon: ({ contentDescription }: { readonly contentDescription: string }) =>
+      createElement(Text, null, contentDescription),
+  };
 }
 
 /** The three platform edges every perf harness stubs the same way: the pull

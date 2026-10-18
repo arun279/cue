@@ -1,0 +1,102 @@
+# Every connector into History, Settings and the month jump from outside
+# Profile: enter it, leave by the platform back (the iOS back button, Android
+# system back) or by the sheet's close button, and land where it started.
+appId: app.cuetracker
+---
+- runFlow: lib/relaunch.yaml
+- scrollUntilVisible:
+    element:
+      id: "link-history"
+- tapOn:
+    id: "link-history"
+- assertVisible:
+    id: "screen-history"
+- waitForAnimationToEnd
+- takeScreenshot: history-from-up-next
+- tapOn:
+    id: "history-jump"
+- extendedWaitUntil:
+    visible:
+      id: "sheet-presented"
+    timeout: 10000
+- tapOn:
+    id: "sheet-close"
+- extendedWaitUntil:
+    notVisible:
+      id: "history-jump-sheet"
+    timeout: 10000
+- assertVisible:
+    id: "screen-history"
+- runFlow:
+    file: lib/back.yaml
+    env:
+      BACK_TITLE: "Up Next"
+- assertVisible:
+    id: "screen-up-next"
+- assertNotVisible:
+    id: "screen-history"
+# TV shows off: Up Next links to Settings in its own stack.
+- tapOn:
+    id: "avatar-link"
+- tapOn:
+    id: "profile-to-settings"
+- scrollUntilVisible:
+    element:
+      id: "switch-shows"
+- tapOn:
+    id: "switch-shows"
+- runFlow:
+    file: lib/back.yaml
+    env:
+      BACK_TITLE: "Profile"
+- runFlow: lib/leave-profile.yaml
+- assertVisible:
+    id: "up-next-tv-off"
+- tapOn: "Open Settings"
+- assertVisible:
+    id: "screen-settings"
+- scrollUntilVisible:
+    element:
+      id: "switch-shows"
+- tapOn:
+    id: "switch-shows"
+- runFlow:
+    file: lib/back.yaml
+    env:
+      BACK_TITLE: "Up Next"
+- assertVisible:
+    id: "screen-up-next"
+- assertNotVisible:
+    id: "up-next-tv-off"
+# A movie watched twice: unmarking it offers History, pushed over the movie.
+- runScript: lib/reset-fake-rewatched-movie.js
+- assertTrue: ${output.fakeReset}
+- launchApp:
+    stopApp: true
+    permissions: {}
+- runFlow: lib/ready.yaml
+- tapOn: "Library"
+- tapOn:
+    id: "library-segment-movies"
+- tapOn:
+    id: "library-chip-watched"
+- tapOn:
+    id: "movie-card-5501"
+- assertVisible:
+    id: "screen-movie-detail"
+- tapOn:
+    id: "movie-mark"
+- extendedWaitUntil:
+    visible: "Open history"
+    timeout: 10000
+- tapOn: "Open history"
+- assertVisible:
+    id: "screen-history"
+- runFlow:
+    file: lib/back.yaml
+    env:
+      BACK_TITLE: "The Lantern Keeper|Back"
+- assertVisible:
+    id: "screen-movie-detail"
+- assertNotVisible:
+    id: "screen-history"
