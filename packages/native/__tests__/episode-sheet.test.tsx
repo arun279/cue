@@ -1,3 +1,4 @@
+import "./support/detail-mocks";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react-native";
 import { EpisodeBody, EpisodeSheet } from "../src/screens/EpisodeSheet";
 import { EpisodePager } from "../src/screens/episode-sheet/EpisodePager";
@@ -8,12 +9,6 @@ import { router } from "./support/native-ui";
 import { resetSharedStores } from "./support/up-next";
 
 jest.mock("expo-router", () => require("./support/native-ui").expoRouterModule());
-jest.mock("@expo/ui/community/menu", () => require("./support/native-ui").menuModule());
-jest.mock("expo-image", () => require("./support/detail").imageModule());
-jest.mock(
-  "react-native-safe-area-context",
-  () => require("react-native-safe-area-context/jest/mock").default,
-);
 
 beforeEach(() => {
   resetSharedStores();
