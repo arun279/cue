@@ -52,7 +52,7 @@ const highest = (command, args, pattern) => {
 };
 
 try {
-  const scores =
+  const [cyclomatic, cognitive] =
     sources.length === 0
       ? [0, 0]
       : [
@@ -67,7 +67,7 @@ try {
             /Excessive complexity of (\d+) detected/g,
           ),
         ];
-  process.stdout.write(`${scores.join(" ")}\n`);
+  process.stdout.write(`${JSON.stringify({ cyclomatic, cognitive })}\n`);
 } finally {
   rmSync(config, { recursive: true });
 }

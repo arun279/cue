@@ -40,14 +40,6 @@ read -r tooling_net _ < <(net_lines \
   ':(glob)scripts/**')
 product_net=$((product_lines - comment_net))
 
-base_tree=$(mktemp -d)
-trap 'rm -rf "$base_tree"' EXIT
-git archive "$base" | tar -x -C "$base_tree"
-base_complexity=$(node "$(dirname "$0")/measure-complexity.mjs" "$base_tree")
-head_complexity=$(node "$(dirname "$0")/measure-complexity.mjs" .)
-read -r base_cyclomatic base_cognitive <<<"$base_complexity"
-read -r head_cyclomatic head_cognitive <<<"$head_complexity"
-
 cat <<EOF
 <!-- diff-footprint -->
 ### Pull request footprint
@@ -58,13 +50,6 @@ cat <<EOF
 | Test lines in test, \`packages/*/{test,__tests__,e2e}\`, and .maestro | $(printf '%+d' "$test_net") |
 | CI and tooling lines in .github and scripts | $(printf '%+d' "$tooling_net") |
 | Product comment lines identified by a comment prefix | $(printf '%+d' "$comment_net") |
-
-### Most complex product function
-
-| measurement | base | head |
-| --- | ---: | ---: |
-| Cyclomatic complexity, oxlint \`complexity\` | $base_cyclomatic | $head_cyclomatic |
-| Cognitive complexity, Biome \`noExcessiveCognitiveComplexity\` | $base_cognitive | $head_cognitive |
 EOF
 
 if [ "$#" -eq 3 ]; then
@@ -97,6 +82,18 @@ for (const [label, name] of rows) {
   const baseCell = baseEntry === undefined ? "missing" : bytes(baseEntry.size);
   const deltaCell = baseEntry === undefined ? "missing" : delta(headEntry.size - baseEntry.size);
   process.stdout.write(`| ${label} | ${baseCell} | ${bytes(headEntry.size)} | ${deltaCell} |\n`);
+}
+
+process.stdout.write("\n### Most complex product function\n\n");
+process.stdout.write("| measurement | base | head |\n");
+process.stdout.write("| --- | ---: | ---: |\n");
+for (const [label, name] of [
+  ["Cyclomatic complexity, oxlint `complexity`", "cyclomatic"],
+  ["Cognitive complexity, Biome `noExcessiveCognitiveComplexity`", "cognitive"],
+]) {
+  const score = head.complexity?.[name];
+  if (score === undefined) throw new Error(`${name} complexity: missing head measurement`);
+  process.stdout.write(`| ${label} | ${base.complexity?.[name] ?? "missing"} | ${score} |\n`);
 }
 NODE
 fi

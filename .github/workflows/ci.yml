@@ -243,7 +243,9 @@ jobs:
           jq -s 'add' head-sizes.json \
             "$RUNNER_TEMP/native-android-sizes/head-android-sizes.json" > all-head-sizes.json
           mv all-head-sizes.json head-sizes.json
-          jq -n --slurpfile sizes head-sizes.json '{sizes: $sizes[0]}' > head-metrics.json
+          node scripts/measure-complexity.mjs . > head-complexity.json
+          jq -n --slurpfile sizes head-sizes.json --slurpfile complexity head-complexity.json \
+            '{sizes: $sizes[0], complexity: $complexity[0]}' > head-metrics.json
       - name: Measure the diff footprint
         id: diff
         if: github.event_name == 'pull_request'

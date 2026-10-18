@@ -7,6 +7,12 @@ import { repositoryPath } from "../support/repository-path";
 import { tempDirectory } from "../support/temp-directory";
 
 const SCRIPT = repositoryPath("scripts/diff-footprint.sh");
+const SIZE_NAMES = [
+  "expo iOS bundle",
+  "expo Android bundle",
+  "Firebase tester APK file",
+  "Play download estimate",
+];
 
 const write = (repository: string, file: string, contents: string): void => {
   const target = path.join(repository, file);
@@ -84,31 +90,6 @@ describe("diff footprint", () => {
     expect(output).not.toContain("blank");
   });
 
-  it("reports the most complex product function at base and head", () => {
-    const repository = commits(
-      {
-        "packages/core/src/branch.ts": "export const branch = (a: number) => (a > 0 ? 1 : 0);\n",
-        "test/ci/nested.test.ts":
-          "export const ignored = (a: number) => (a > 0 ? (a > 1 ? 2 : 1) : 0);\n",
-      },
-      {
-        "packages/native/src/nested.ts":
-          "export function nested(a: number, b: number): number {\n  if (a > 0) {\n    if (b > 0) return 1;\n  }\n  return 0;\n}\n",
-      },
-    );
-
-    const output = execFileSync(SCRIPT, ["HEAD~1"], {
-      cwd: repository,
-      encoding: "utf8",
-      env: { ...gitEnv(), PR_BODY: rationale },
-    });
-
-    expect(output).toContain("| Cyclomatic complexity, oxlint `complexity` | 2 | 3 |");
-    expect(output).toContain(
-      "| Cognitive complexity, Biome `noExcessiveCognitiveComplexity` | 0 | 3 |",
-    );
-  });
-
   it.each([
     ["Product-Growth: ", "Product code grew"],
     ["Product-Growth: New route.\nComment-Load: ", "Product comments grew"],
@@ -156,12 +137,8 @@ describe("diff footprint", () => {
   ])("reports every missing note together for body %s", (body, missing, status) => {
     const repository = repositoryWithGrowth();
     const sizes = (size: number) => ({
-      sizes: [
-        "expo iOS bundle",
-        "expo Android bundle",
-        "Firebase tester APK file",
-        "Play download estimate",
-      ].map((name) => ({ name, size })),
+      sizes: SIZE_NAMES.map((name) => ({ name, size })),
+      complexity: { cyclomatic: 10, cognitive: 15 },
     });
     write(repository, "base.json", JSON.stringify(sizes(1000)));
     write(repository, "head.json", JSON.stringify(sizes(1001)));
@@ -196,6 +173,7 @@ describe("diff footprint", () => {
           ...entry,
           size: entry.size + (index === 0 ? 1_000 : 0),
         })),
+        complexity: { cyclomatic: 10, cognitive: 15 },
       }),
     );
 
@@ -213,5 +191,48 @@ describe("diff footprint", () => {
     );
     expect(output).not.toContain("simulator");
     expect(output).not.toContain("density");
+  });
+
+  it.each([
+    [{ cyclomatic: 16, cognitive: 14 }, "16", "14"],
+    [undefined, "missing", "missing"],
+  ])("shows the most complex product function from base %j and head", (base, cyclomatic, cognitive) => {
+    const repository = repositoryWithGrowth();
+    const sizes = SIZE_NAMES.map((name) => ({ name, size: 1000 }));
+    write(repository, "base.json", JSON.stringify({ sizes, complexity: base }));
+    write(
+      repository,
+      "head.json",
+      JSON.stringify({ sizes, complexity: { cyclomatic: 10, cognitive: 15 } }),
+    );
+
+    const output = execFileSync(SCRIPT, ["HEAD~1", "base.json", "head.json"], {
+      cwd: repository,
+      encoding: "utf8",
+      env: { ...gitEnv(), PR_BODY: rationale },
+    });
+
+    expect(output).toContain(
+      `| Cyclomatic complexity, oxlint \`complexity\` | ${cyclomatic} | 10 |`,
+    );
+    expect(output).toContain(
+      `| Cognitive complexity, Biome \`noExcessiveCognitiveComplexity\` | ${cognitive} | 15 |`,
+    );
+  });
+
+  it("fails without a head complexity measurement", () => {
+    const repository = repositoryWithGrowth();
+    const sizes = SIZE_NAMES.map((name) => ({ name, size: 1000 }));
+    write(repository, "base.json", JSON.stringify({ sizes }));
+    write(repository, "head.json", JSON.stringify({ sizes }));
+
+    const result = spawnSync(SCRIPT, ["HEAD~1", "base.json", "head.json"], {
+      cwd: repository,
+      encoding: "utf8",
+      env: { ...gitEnv(), PR_BODY: rationale },
+    });
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("cyclomatic complexity: missing head measurement");
   });
 });
