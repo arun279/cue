@@ -28,14 +28,21 @@ if [ -z "$run_id" ]; then
   run_id=$(jq -r '[.[].workflow_runs[]] | if length == 1 then .[0].id else empty end' <<<"$runs")
 fi
 [ -n "$run_id" ] || missing "provide BASE_CI_RUN_ID to identify one base run"
-gh run watch "$run_id" --repo "$GITHUB_REPOSITORY" --interval 60 > /dev/null || true
 run=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id")
-jq -e --arg sha "$BASE_SHA" '.head_sha == $sha and .path == ".github/workflows/ci.yml" and .event == "push" and .status == "completed"' <<<"$run" > /dev/null ||
-  missing "run $run_id is not a completed push CI run for the base commit"
+jq -e --arg sha "$BASE_SHA" '.head_sha == $sha and .path == ".github/workflows/ci.yml" and .event == "push"' <<<"$run" > /dev/null ||
+  missing "run $run_id is not a push CI run for the base commit"
 jobs=$(gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs?filter=all&per_page=100")
-jq -e '[.[].jobs[] | select(.name == "footprint")] |
-  length > 0 and all(.status == "completed" and .conclusion == "success")' <<<"$jobs" > /dev/null ||
-  missing "run $run_id has missing or unsuccessful footprint jobs"
+footprint=$(jq -r '[.[].jobs[] | select(.name == "footprint")] |
+  if length > 0 and all(.status == "completed" and .conclusion == "success") then "measured"
+  elif any(.status == "completed" and .conclusion != "success") then "failed"
+  else "pending" end' <<<"$jobs")
+if [ "$footprint" = pending ] && [ "$(jq -r .status <<<"$run")" != completed ]; then
+  note="Base measurements are unavailable: the footprint job of base run $run_id had not finished when this job read it, so the size gate cannot pass. Run this job again once that footprint job has finished."
+  jq -n --arg note "$note" '{sizes: null, unavailable: $note}' > base-metrics.json
+  echo "::warning::$note"
+  exit 0
+fi
+[ "$footprint" = measured ] || missing "run $run_id has missing or unsuccessful footprint jobs"
 gh run download "$run_id" --repo "$GITHUB_REPOSITORY" \
   --name "$ARTIFACT_NAME" --dir "$RUNNER_TEMP/base-metrics" ||
   missing "run $run_id has no $ARTIFACT_NAME artifact"

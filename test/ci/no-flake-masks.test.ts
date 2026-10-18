@@ -21,6 +21,7 @@ const masks = (source: string): string[] => {
     [/\bretryTapIfNoChange["']?\s*:/, "retryTapIfNoChange"],
     [/\boptional["']?\s*:\s*true\b/, "optional assertion"],
     [/(?:^|[;&|]|\bdo\s)\s*(?:\w+=\S+\s+)*sleep\s/m, "shell sleep"],
+    [/\bgh\s+run\s+watch\b/, "run watch"],
     [/\brepeat:[\s\S]*\brunFlow:/, "flow rerun"],
     [/\bcontinue-on-error\s*:(?!\s*false\b)/, "continue-on-error"],
   ]);

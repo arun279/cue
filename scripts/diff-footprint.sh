@@ -84,6 +84,8 @@ for (const [label, name] of rows) {
   process.stdout.write(`| ${label} | ${baseCell} | ${bytes(headEntry.size)} | ${deltaCell} |\n`);
 }
 
+if (base.unavailable !== undefined) process.stdout.write(`\n${base.unavailable}\n`);
+
 process.stdout.write("\n### Most complex product function\n\n");
 process.stdout.write("| measurement | base | head |\n");
 process.stdout.write("| --- | ---: | ---: |\n");

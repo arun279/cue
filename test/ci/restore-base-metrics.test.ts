@@ -164,13 +164,43 @@ describe("restoring the merge-base measurement", () => {
     expect(baseMetrics(repository)).toEqual(MEASURED_BASE);
   });
 
-  it("rejects an incomplete base run even when its producer jobs passed", () => {
-    const result = restore(nativeApp(), {
+  it("restores the base as soon as its footprint job passed, while the rest of its run goes on", () => {
+    const repository = nativeApp();
+    const result = restore(repository, {
       run: { event: "push", status: "in_progress", conclusion: null },
-      jobs: producersDone,
+      jobs: [...producersDone, job("native-ios", null)],
     });
+
+    expect(result.status).toBe(0);
+    expect(baseMetrics(repository)).toEqual(MEASURED_BASE);
+  });
+
+  it.each([
+    [[job("footprint", null)]],
+    [[]],
+  ])("reports the base unavailable at once while its footprint job has not finished: %j", (jobs) => {
+    const repository = nativeApp();
+    const result = restore(repository, {
+      run: { event: "push", status: "in_progress", conclusion: null },
+      jobs,
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("::warning::Base measurements are unavailable");
+    expect(baseMetrics(repository)).toEqual({
+      sizes: null,
+      unavailable: expect.stringContaining("footprint job of base run 7 had not finished"),
+    });
+  });
+
+  it("fails when the base run finished without a footprint job", () => {
+    const result = restore(nativeApp(), {
+      run: { event: "push", status: "completed", conclusion: "success" },
+      jobs: [job("native-ios", "success")],
+    });
+
     expect(result.status).toBe(1);
-    expect(result.stdout).toContain("not a completed push CI run");
+    expect(result.stdout).toContain("missing or unsuccessful footprint jobs");
   });
 
   it.each([
@@ -224,11 +254,4 @@ describe("restoring the merge-base measurement", () => {
     });
     expect(result.status).toBe(1);
   });
-});
-
-it("waits for the base commit's CI run to finish instead of failing while it is still running", () => {
-  const script = readFileSync(SCRIPT, "utf8");
-  const wait = script.indexOf('gh run watch "$run_id"');
-  expect(wait).toBeGreaterThan(-1);
-  expect(wait).toBeLessThan(script.indexOf('.status == "completed"'));
 });
