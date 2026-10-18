@@ -641,6 +641,7 @@ describe("fast pull request validation", () => {
     ).toEqual([
       "check-runner-survives-freeze.sh",
       "check-tap-lead-in.mjs",
+      "disable-ios-daemons.sh",
       "download-ci-artifact.sh",
       "enable-ios-accessibility.sh",
       "maestro-failure.mjs",
@@ -653,6 +654,7 @@ describe("fast pull request validation", () => {
       "mock-trakt/server.mjs",
       "prepare-ios-ui.sh",
       "reembed-ios.sh",
+      "snapshot-host-resources.sh",
       "start-ready-process.mjs",
       "wait-ios-accessibility.mjs",
       "wait-ios-ready.mjs",

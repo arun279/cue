@@ -72,7 +72,10 @@ it("waits for accessibility after the appearance probe, before Maestro starts", 
   expect(ready).toMatch(
     /\n {2}await waitForIOS\(process\.argv\[2\]\);\n {2}await waitForAccessibility\(process\.argv\[2\]\);\n/,
   );
-  expect(prepare.trimEnd().split("\n").at(-1)).toBe('node scripts/wait-ios-ready.mjs "$device_id"');
+  expect(prepare.trimEnd().split("\n").slice(-2)).toEqual([
+    'node scripts/wait-ios-ready.mjs "$device_id"',
+    'scripts/snapshot-host-resources.sh "$RUNNER_TEMP/host-resources-prepared.txt"',
+  ]);
 });
 
 it.each([
@@ -118,7 +121,7 @@ it("turns on simulator accessibility before every iOS lane boots its simulator",
   ]);
   for (const { body } of lanes) {
     expect(body).toContain(
-      `[0] | "\\(.udid) \\(.dataPath)"')\n          scripts/enable-ios-accessibility.sh "$data"\n          xcrun simctl boot "$device_id"\n`,
+      `[0] | "\\(.udid) \\(.dataPath)"')\n          scripts/enable-ios-accessibility.sh "$data"\n          scripts/disable-ios-daemons.sh "$device_id"\n          xcrun simctl boot "$device_id"\n`,
     );
   }
 });
