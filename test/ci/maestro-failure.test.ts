@@ -80,7 +80,7 @@ const driverDeath = readFileSync(repositoryPath("test/ci/fixtures/ios-driver-dea
 const refused =
   "[Failed] Perform XCUITest driver status check on test-device, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:49889";
 
-function runDriver(log: string, destination: string, hang = true) {
+function runDriver(log: string, destination: string, hang = true, runner = "") {
   const directory = tempDirectory("cue-driver-death-");
   writeFileSync(
     path.join(directory, "maestro"),
@@ -124,6 +124,7 @@ setImmediate(() => write(log.slice(midpoint)));
         HANG: String(hang),
         LOG_FILE: path.join(directory, "debug", "session", "maestro.log"),
         RUNS: path.join(directory, "runs"),
+        USE_XCODE_TEST_RUNNER: runner,
       },
     },
   );
@@ -152,6 +153,13 @@ it.each([
   "iOS driver not ready in time, consider increasing timeout by configuring MAESTRO_DRIVER_STARTUP_TIMEOUT env variable",
 ])("fails fast on terminal driver status: %s", (log) => {
   const result = runDriver(log, "log");
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain("XCTest driver died during startup");
+  expect(result.elapsed).toBeLessThan(2_000);
+});
+
+it("fails fast on the first refused status check of a runner started before Maestro", () => {
+  const result = runDriver(`${refused}\n`, "stdout", true, "1");
   expect(result.status).toBe(1);
   expect(result.stderr).toContain("XCTest driver died during startup");
   expect(result.elapsed).toBeLessThan(2_000);

@@ -75,3 +75,14 @@ esac
   if (logcat !== "") expect(result.stderr).toContain(logcat);
   if (launch !== "Status: ok") expect(result.stderr).toContain("did not acknowledge readiness");
 });
+
+it("takes the readiness watchdog bound from the command line", () => {
+  const { module, log } = fixture('process.on("message", () => {});');
+  const result = spawnSync(
+    process.execPath,
+    [repositoryPath("scripts/start-ready-process.mjs"), module, log, "10"],
+    { encoding: "utf8" },
+  );
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain("Readiness watchdog expired");
+});
