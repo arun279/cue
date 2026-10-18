@@ -1,5 +1,5 @@
-import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { gitEnv } from "../support/git-env";
@@ -61,11 +61,18 @@ describe("fast pull request validation", () => {
     const android = job("native-android");
 
     expect(fingerprint).toContain("pnpm exec node scripts/native-fingerprint.mjs ios");
-    expect(fingerprint).toContain("pnpm exec node scripts/native-fingerprint.mjs android");
+    expect(fingerprint).not.toContain("native-fingerprint.mjs android");
     expect(ios).toContain("needs: fingerprint");
     expect(ios).toContain("if: steps.native-cache.outputs.hit != 'true'");
     expect(ios).toContain("if: steps.native-cache.outputs.hit == 'true'");
-    expect(android).toContain("needs: fingerprint");
+    expect(android).not.toMatch(/^ {4}needs:/m);
+    expect(android).toContain(
+      'run: echo "android=$(pnpm exec node scripts/native-fingerprint.mjs android)" >> "$GITHUB_OUTPUT"',
+    );
+    expect(android).toContain("fingerprint: $" + "{{ steps.fingerprint.outputs.android }}");
+    expect(android).toContain(
+      "ARTIFACT_NAME: cue-native-android-$" + "{{ steps.fingerprint.outputs.android }}",
+    );
     expect(android).toContain("if: steps.native-cache.outputs.hit != 'true'");
     expect(android).toContain("if: steps.native-cache.outputs.hit == 'true'");
     expect(android.match(/--build-cache --configuration-cache/g)).toHaveLength(2);
@@ -118,6 +125,36 @@ describe("fast pull request validation", () => {
     );
   });
 
+  it("posts the footprint comment before failing on a tripped gate", () => {
+    const steps = job("footprint").split(/^ {6}- /m);
+    const index = (name: string) => steps.findIndex((step) => step.startsWith(`name: ${name}\n`));
+    const measure = index("Measure the diff footprint");
+    const comment = index("Update the pull request comment");
+    const enforce = index("Enforce the footprint gates");
+
+    expect(steps[measure]).toContain("        id: diff\n");
+    expect(steps[measure]).toMatch(
+      /scripts\/diff-footprint\.sh .*\\\n +> footprint\.md 2> footprint-gates\.txt \|\| status=\$\?\n +echo "status=\$status" >> "\$GITHUB_OUTPUT"\n/,
+    );
+    expect(measure).toBeGreaterThan(0);
+    expect(comment).toBeGreaterThan(measure);
+    expect(enforce).toBe(steps.length - 1);
+    expect(steps[enforce]).toContain(
+      "        if: steps.diff.outputs.status != '' && steps.diff.outputs.status != '0'\n",
+    );
+    expect(steps[enforce]).toContain("cat footprint-gates.txt >&2\n          exit 1\n");
+  });
+
+  it("gates the audit only through the dependency-change script", () => {
+    const audit = job("audit");
+
+    expect(audit).toContain("fetch-depth: 0\n");
+    expect(audit).toContain("EVENT_NAME: $" + "{{ github.event_name }}");
+    expect(audit).toContain("PUSH_BEFORE: $" + "{{ github.event.before }}");
+    expect(audit).toContain('run: scripts/audit-dependencies.sh "$EVENT_NAME" "$PUSH_BEFORE"\n');
+    expect(audit).not.toMatch(/pnpm audit|check-stale-audit-ignores/);
+  });
+
   it("gates changed core lines from the generated LCOV file", () => {
     const check = job("check");
 
@@ -153,26 +190,62 @@ describe("fast pull request validation", () => {
 
   it("runs every shared Maestro flow on iOS and Android", () => {
     const ios = job("native-e2e-ios-light");
-    const androidJob = job("android-e2e");
-    const android = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
-    const suite = readFileSync(repositoryPath(".maestro/ci/app.yaml"), "utf8");
-    const iosSuites = ["detail", "activity", "discovery"]
-      .map((name) => readFileSync(repositoryPath(`.maestro/ci/app-${name}.yaml`), "utf8"))
-      .join("\n");
+    const android = job("android-e2e-light");
+    const verification = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
+    const suites = ["detail", "activity", "discovery"];
+    const flows = suites.flatMap((name) => [
+      ...readFileSync(repositoryPath(`.maestro/ci/app-${name}.yaml`), "utf8").matchAll(
+        /file: (\.\.\/flows\/[\w-]+\.yaml)\n {4}when:\n {6}platform: (\w+)\n/g,
+      ),
+    ]);
 
-    expect(ios).toContain("suite: [detail, activity, discovery]");
+    for (const lane of [ios, android]) {
+      expect(lane).toContain(`suite: [${suites.join(", ")}]`);
+    }
     expect(ios).toContain('".maestro/ci/app-$' + '{{ matrix.suite }}.yaml"');
-    expect(android).toContain("suite=.maestro/ci/app.yaml");
-    expect(androidJob).toContain('"$RUNNER_TEMP/screenshots/android" light');
-    const androidOnly = [
-      ...suite.matchAll(/file: (\.\.\/flows\/[\w-]+\.yaml)\n {4}when:\n {6}platform: Android\n/g),
-    ].map(([, flow]) => flow);
-    expect(androidOnly).toEqual(["../flows/swipe-mark-and-stop.yaml"]);
-    expect((iosSuites.match(/\.\.\/flows\/[\w-]+\.yaml/g) ?? []).sort()).toEqual(
-      (suite.match(/\.\.\/flows\/[\w-]+\.yaml/g) ?? [])
-        .filter((flow) => !androidOnly.includes(flow))
-        .sort(),
+    expect(android).toContain(
+      '"$RUNNER_TEMP/screenshots/android" light $' + "{{ matrix.suite }}\n",
     );
+    expect(verification).toContain("suite=$" + "{5:-}\n");
+    expect(verification).toContain("flow=.maestro/ci/app-$suite.yaml\n");
+    expect(readdirSync(repositoryPath(".maestro/ci")).sort()).toEqual(
+      [...suites.map((name) => `app-${name}.yaml`), "screenshots.yaml"].sort(),
+    );
+    expect(flows.map(([, flow, platform]) => `${platform} ${flow}`).sort()).toEqual([
+      "Android ../flows/swipe-mark-and-stop.yaml",
+      "iOS ../flows/returning-user-app-idle.yaml",
+    ]);
+  });
+
+  it("checks the Android tab bar after the suite that ends on it", () => {
+    const verification = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
+    const activity = readFileSync(repositoryPath(".maestro/ci/app-activity.yaml"), "utf8");
+
+    expect(activity.trimEnd().split("\n").at(-1)).toBe("- runFlow: ../flows/account.yaml");
+    expect(verification).toMatch(
+      /^if \[ "\$suite" = activity \]; then\n {2}adb shell \w+ dump[\s\S]*check-label-fit\.mjs[\s\S]*cue_tab_\$icon[\s\S]*\nelif /m,
+    );
+  });
+
+  it("passes the Android aggregate only when every light shard passed or device lanes were skipped", () => {
+    const aggregate = job("android-e2e");
+    const rollup = aggregate.match(/^ {8}run: (.+)$/m)?.[1] ?? "exit 0";
+    const status = (DEVICES: string, SHARDS: string) =>
+      spawnSync("bash", ["-c", rollup], { env: { DEVICES, SHARDS } }).status;
+
+    expect(aggregate).toContain(
+      "needs: [fingerprint, android-e2e-light, ui-screenshots-android-dark]",
+    );
+    expect(aggregate).toContain("if: $" + "{{ always() }}");
+    expect(aggregate).toContain("DEVICES: $" + "{{ needs.fingerprint.outputs.devices }}");
+    expect(aggregate).toContain("SHARDS: $" + "{{ needs.android-e2e-light.result }}");
+    expect(status("true", "success")).toBe(0);
+    expect(status("false", "skipped")).toBe(0);
+    expect(status("true", "skipped")).toBe(1);
+    expect(status("", "skipped")).toBe(1);
+    expect(status("true", "failure")).toBe(1);
+    expect(status("false", "failure")).toBe(1);
+    expect(status("true", "cancelled")).toBe(1);
   });
 
   it("runs required dark screenshot traversals on independent cached-app jobs", () => {
@@ -185,56 +258,31 @@ describe("fast pull request validation", () => {
     expect(ios).toContain(" .maestro/ci/screenshots.yaml \\\n");
     expect(ios).not.toContain("continue-on-error");
     expect(android).toContain("needs: [fingerprint, native-android]");
-    expect(android).toContain("cue-native-android-$" + "{{ needs.fingerprint.outputs.android }}");
+    expect(android).toContain(
+      "cue-native-android-$" + "{{ needs.native-android.outputs.fingerprint }}",
+    );
     expect(android).toContain('"$RUNNER_TEMP/screenshots/android" dark');
     expect(android).not.toContain("continue-on-error");
   });
 
   it.each([
-    "android-e2e",
+    "android-e2e-light",
     "ui-screenshots-android-dark",
-  ])("%s caches the system image and reuses a clean AVD snapshot", (name) => {
-    const steps = job(name).split(/^ {6}- /m);
-    const cache = steps.find((step) => step.includes("id: avd-cache")) ?? "";
-    const emulators = steps.filter((step) =>
-      step.includes("reactivecircus/android-emulator-runner@"),
-    );
-    const [snapshot = "", inspect = ""] = emulators;
+  ])("%s boots a fresh emulator and pins its display before capturing", (name) => {
+    const emulators = job(name)
+      .split(/^ {6}- /m)
+      .filter((step) => step.includes("reactivecircus/android-emulator-runner@"));
+    const verification = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
 
-    expect(job(name)).toContain('run: echo "root=$ANDROID_HOME" >> "$GITHUB_OUTPUT"');
-    expect(cache).toContain("actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0");
-    expect(cache).toContain(
-      "$" + "{{ steps.android-sdk.outputs.root }}/system-images/android-35/default/x86_64",
+    expect(job(name)).not.toContain("actions/cache@");
+    expect(emulators).toHaveLength(1);
+    expect(emulators[0]).toContain(
+      "emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim\n",
     );
-    expect(cache).toContain("~/.android/avd/*");
-    expect(cache).toContain("~/.android/adb*");
-    expect(cache).toContain(
-      "key: android-avd-$" + "{{ runner.os }}-35-default-x86_64-pixel_7_pro-v1",
+    expect(emulators[0]).not.toContain("force-avd-creation");
+    expect(verification).toMatch(
+      /wm density reset\nbash scripts\/pin-android-display\.sh "\$output\/window-displays\.txt"\n\nmock_pid=/,
     );
-    expect(cache).not.toContain("restore-keys:");
-    expect(emulators).toHaveLength(2);
-    expect(steps.indexOf(cache)).toBeLessThan(steps.indexOf(snapshot));
-    for (const emulator of emulators) {
-      expect(emulator).toContain(
-        "reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0",
-      );
-      expect(emulator).toContain(
-        "api-level: 35\n          target: default\n          arch: x86_64\n          profile: pixel_7_pro",
-      );
-      expect(emulator).toContain("force-avd-creation: false");
-    }
-    expect(snapshot).toContain("if: steps.avd-cache.outputs.cache-hit != 'true'");
-    expect(snapshot).toContain("disable-animations: false");
-    expect(snapshot).toContain(
-      "emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none",
-    );
-    expect(snapshot).toContain('script: echo "Created clean AVD snapshot."');
-    expect(snapshot).not.toContain("-no-snapshot");
-    expect(inspect).not.toContain("if:");
-    expect(inspect).toContain("emulator-options: -no-snapshot-save -no-window");
-    expect(inspect).not.toMatch(/-no-snapshot(?:\s|$)|-wipe-data/);
-    expect(inspect).toContain("disable-animations: true");
-    expect(inspect).toContain("script: bash scripts/verify-android-ui.sh");
   });
 
   it("waits for persistent readiness before checking the connected loading state", () => {
@@ -268,7 +316,10 @@ describe("fast pull request validation", () => {
   it("fails the aggregate whenever the rollup script fails", () => {
     const aggregate = job("native-e2e");
 
-    expect(aggregate).toContain("needs: [fingerprint, native-ios, native-e2e-ios-light]");
+    expect(aggregate).toContain(
+      "    needs:\n      - fingerprint\n      - native-ios\n      - native-e2e-ios-light\n      - ui-screenshots-ios-dark\n",
+    );
+    expect(aggregate).toContain("HIT: $" + "{{ needs.fingerprint.outputs.ios-cached }}");
     expect(aggregate).toContain("if: $" + "{{ always() }}");
     expect(aggregate).toContain("OWED: $" + "{{ needs.fingerprint.outputs.ios-owed }}");
     expect(aggregate).toContain("DEVICES: $" + "{{ needs.fingerprint.outputs.devices }}");
@@ -278,17 +329,36 @@ describe("fast pull request validation", () => {
     expect(aggregate).not.toMatch(/\|\|\s*true\s*$/m);
   });
 
+  it.each([
+    ["native-e2e", "native-ios", "native-e2e-ios-light", "ui-screenshots-ios-dark"],
+    ["android-e2e", "native-android", "android-e2e-light", "ui-screenshots-android-dark"],
+  ])("%s depends on and refuses reruns of every device job it vouches for", (aggregate, ...lanes) => {
+    const body = job(aggregate);
+    const refusal = body.match(/^ {8}run: scripts\/require-first-attempt-pass\.sh (.+)$/m)?.[1];
+    const needsOf = (name: string): string[] => {
+      const [, inline, block] =
+        job(name).match(/^ {4}needs:(?: \[?([^\]\n]*)\]?|\n((?: {6}- .*\n)+))/m) ?? [];
+      return inline?.split(", ") ?? block?.match(/[\w-]+$/gm) ?? [];
+    };
+    const upstream = (name: string): string[] => [name, ...needsOf(name).flatMap(upstream)];
+
+    expect(refusal?.split(" ")).toEqual(lanes);
+    expect(body).toContain("      actions: read\n");
+    expect(body).toContain("GH_TOKEN: $" + "{{ github.token }}");
+    for (const lane of lanes) expect(needsOf(aggregate).flatMap(upstream)).toContain(lane);
+  });
+
   it("publishes every screenshot artifact for 14 days", () => {
     const ios = job("native-e2e-ios-light");
     const iosDark = job("ui-screenshots-ios-dark");
-    const android = job("android-e2e");
+    const android = job("android-e2e-light");
     const androidDark = job("ui-screenshots-android-dark");
     const verification = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
     const fetch = readFileSync(repositoryPath("scripts/fetch-ui-screenshots.sh"), "utf8");
 
     expect(ios).toContain("name: ui-screenshots-ios-light-$" + "{{ matrix.suite }}");
     expect(iosDark).toContain("name: ui-screenshots-ios-dark");
-    expect(android).toContain("name: ui-screenshots-android-light");
+    expect(android).toContain("name: ui-screenshots-android-light-$" + "{{ matrix.suite }}");
     expect(androidDark).toContain("name: ui-screenshots-android-dark");
     expect(ios).toContain('--test-output-dir "$output"');
     expect(iosDark).toContain('--test-output-dir "$RUNNER_TEMP/screenshots/ios/dark"');
@@ -299,12 +369,22 @@ describe("fast pull request validation", () => {
         .split(/^ {6}- /m)
         .find((step) => step.includes("name: ui-screenshots-"));
       expect(screenshot).toContain("compression-level: 0\n");
+      expect(screenshot).toMatch(
+        /^ {10}path: \$\{\{ runner\.temp \}\}\/screenshots\/.+\/\*\*\/takeScreenshot\/\*\.png\n/m,
+      );
+      const debug = producer
+        .split(/^ {6}- /m)
+        .find((step) => /name: (?:native|android)-e2e-/.test(step));
+      expect(debug).toMatch(
+        /^ {12}\$\{\{ runner\.temp \}\}\/screenshots\/\n {12}!\$\{\{ runner\.temp \}\}\/screenshots\/\*\*\/takeScreenshot\/\*\.png\n/m,
+      );
     }
     expect(fetch).toContain("--pattern 'ui-*'");
   });
 
   it("runs only the fast checks and the Android build on draft pull requests", () => {
-    const deviceJobs = ["native-ios", "android-e2e", "ui-screenshots-android-dark"];
+    const deviceJobs = ["android-e2e-light", "ui-screenshots-android-dark"];
+    const iosJobs = ["native-ios", "native-e2e-ios-light", "ui-screenshots-ios-dark"];
     const jobs = [...workflow.matchAll(/^ {2}([a-z][a-z0-9-]*):$/gm)].map(([, name]) => name ?? "");
     const gated = jobs.filter((name) =>
       job(name).includes("needs.fingerprint.outputs.devices == 'true'"),
@@ -315,26 +395,94 @@ describe("fast pull request validation", () => {
     );
     expect(job("fingerprint")).toContain(
       "devices: $" +
-        "{{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}",
+        "{{ github.event_name != 'pull_request' || !github.event.pull_request.draft && " +
+        "steps.head-tree.outputs.pushed != 'true' }}\n",
     );
     for (const name of deviceJobs) {
       expect(job(name)).toMatch(/^ {4}if: needs\.fingerprint\.outputs\.devices == 'true'$/m);
     }
-    expect(gated.sort()).toEqual([...deviceJobs, "pr-media"].sort());
+    expect(job("native-ios")).toMatch(
+      /^ {4}if: needs\.fingerprint\.outputs\.devices == 'true' && needs\.fingerprint\.outputs\.ios-cached != 'true'$/m,
+    );
+    expect(gated.sort()).toEqual([...deviceJobs, ...iosJobs, "pr-media"].sort());
     for (const name of ["check", "native-android", "footprint", "audit", "actionlint"]) {
       expect(job(name)).not.toContain("devices");
     }
   });
 
+  it("leaves device lanes to the push run only for a pushed branch whose merge tree is its head tree", () => {
+    const step =
+      job("fingerprint")
+        .split(/^ {6}- /m)
+        .find((entry) => entry.startsWith("id: head-tree\n")) ?? "";
+    const pushBranches = workflow.match(/^ {2}push:\n(?: {4}#.*\n)* {4}branches: \[(.*)\]$/m)?.[1];
+    const condition = step.match(/ {8}if: >-\n((?: {10}.*\n)+)/)?.[1]?.replace(/\s+/g, " ") ?? "";
+    const script = step.match(/ {8}run: \|\n((?: {10}.*\n)+)/)?.[1]?.replace(/^ {10}/gm, "") ?? "";
+    const repository = tempDirectory("cue-head-tree-");
+    const bin = tempDirectory("cue-head-tree-bin-");
+    git(repository, "init", "--quiet", "--initial-branch=main");
+    git(repository, "config", "user.name", "Cue Tests");
+    git(repository, "config", "user.email", "cue-tests@example.invalid");
+    commit(repository, "base");
+    git(repository, "switch", "--quiet", "-c", "topic");
+    const head = commit(repository, "topic");
+    writeFileSync(path.join(bin, "gh"), `#!/bin/sh\ngit rev-parse "${head}^{tree}"\n`, {
+      mode: 0o755,
+    });
+    const pushed = () => {
+      const output = path.join(repository, "..", `${path.basename(repository)}-output`);
+      writeFileSync(output, "");
+      execFileSync("bash", ["-e", "-c", script], {
+        cwd: repository,
+        env: { ...gitEnv(), PATH: `${bin}:${process.env["PATH"]}`, GITHUB_OUTPUT: output },
+      });
+      return readFileSync(output, "utf8");
+    };
+    const mergeOnto = (base: string) => {
+      git(repository, "switch", "--quiet", "--detach", base);
+      git(repository, "merge", "--quiet", "--no-ff", "-m", "merge", "topic");
+    };
+
+    expect(pushBranches?.split(", ").map((branch) => branch.replace(/"/g, ""))).toEqual([
+      "main",
+      "feat/expo-native",
+      "release/*",
+    ]);
+    expect(condition).toContain(
+      "github.event.pull_request.head.repo.full_name == github.repository && " +
+        "(github.head_ref == 'main' || github.head_ref == 'feat/expo-native' || " +
+        "startsWith(github.head_ref, 'release/'))",
+    );
+    mergeOnto("main");
+    expect(pushed()).toBe("pushed=true\n");
+    git(repository, "switch", "--quiet", "main");
+    commit(repository, "moved");
+    mergeOnto("main");
+    expect(pushed()).toBe("");
+  });
+
   it("runs the iOS flow lane on pushes, nightly, iOS fingerprint changes, owed lanes, and user-facing pull requests", () => {
-    const iosLane =
-      "if: github.event_name != 'pull_request' || needs.native-ios.outputs.hit != 'true' || " +
-      "needs.fingerprint.outputs.ios-owed == 'true' || needs.fingerprint.outputs.user-facing == 'true'\n";
+    const iosLane = [
+      "    if: >-",
+      "      !cancelled() && needs.fingerprint.outputs.devices == 'true' &&",
+      "      (needs.native-ios.result == 'success' || needs.native-ios.result == 'skipped') &&",
+      "      (github.event_name != 'pull_request' || needs.fingerprint.outputs.ios-cached != 'true' ||",
+      "      needs.fingerprint.outputs.ios-owed == 'true' || needs.fingerprint.outputs.user-facing == 'true')\n",
+    ].join("\n");
     const jobs = [...workflow.matchAll(/^ {2}([a-z][a-z0-9-]*):$/gm)].map(([, name]) => name ?? "");
     const gated = jobs.filter((name) => job(name).includes(iosLane));
+    const cache = job("fingerprint")
+      .split(/^ {6}- /m)
+      .find((step) => step.startsWith("id: ios-cache\n"));
 
     expect(workflow).toContain('- cron: "0 6 * * *"');
-    expect(job("native-ios")).toContain("hit: $" + "{{ steps.native-cache.outputs.hit }}");
+    expect(job("native-ios")).not.toContain("outputs:");
+    expect(job("fingerprint")).toContain("ios-cached: $" + "{{ steps.ios-cache.outputs.hit }}");
+    expect(cache).toContain("        if: github.event_name == 'pull_request'\n");
+    expect(cache).toContain("ARTIFACT_NAME: cue-native-ios-$" + "{{ steps.native.outputs.ios }}\n");
+    expect(cache).toContain(
+      'if scripts/download-ci-artifact.sh "$ARTIFACT_NAME" "$RUNNER_TEMP/native-ios-app" native-ios; then\n            echo "hit=true" >> "$GITHUB_OUTPUT"\n',
+    );
     expect(job("fingerprint")).toContain("ios-owed: $" + "{{ steps.ios-owed.outputs.owed }}");
     expect(job("fingerprint")).toContain(
       "user-facing: $" + "{{ steps.changes.outputs.user-facing }}",
@@ -344,13 +492,47 @@ describe("fast pull request validation", () => {
     expect(job("native-android")).not.toMatch(/^ {4}if:/m);
   });
 
+  it.each([
+    "native-e2e-ios-light",
+    "ui-screenshots-ios-dark",
+  ])("%s takes the app from native-ios or re-embeds the cached one itself", (name) => {
+    const steps = job(name).split(/^ {6}- /m);
+    const built = "        if: needs.native-ios.result == 'success'\n";
+    const cached = "        if: needs.native-ios.result == 'skipped'\n";
+    const embed =
+      steps.find((step) =>
+        step.startsWith("if: needs.native-ios.result == 'skipped'\n        name: Embed"),
+      ) ?? "";
+    const index = (text: string) => steps.findIndex((step) => step.includes(text));
+
+    expect(steps.find((step) => step.includes("uses: actions/setup-node@"))).toContain(
+      built.trim(),
+    );
+    expect(steps.find((step) => step.includes("uses: actions/download-artifact@"))).toContain(
+      built.trim(),
+    );
+    expect(
+      steps.find((step) => step.includes("uses: ./.github/actions/setup-node-pnpm")),
+    ).toContain(cached.trim());
+    expect(embed).toContain(
+      "ARTIFACT_NAME: cue-native-ios-$" + "{{ needs.fingerprint.outputs.ios }}\n",
+    );
+    expect(embed).toMatch(
+      /scripts\/download-ci-artifact\.sh "\$ARTIFACT_NAME" "\$RUNNER_TEMP\/cached-ios-app" native-ios\n +tar -xzf "\$RUNNER_TEMP\/cached-ios-app\/Cue\.app\.tgz" -C "\$RUNNER_TEMP\/cached-ios-app"\n +scripts\/reembed-ios\.sh "\$RUNNER_TEMP\/cached-ios-app\/Cue\.app"\n +mkdir -p "\$RUNNER_TEMP\/native-ios-app"\n +tar -czf "\$RUNNER_TEMP\/native-ios-app\/Cue\.app\.tgz" -C "\$RUNNER_TEMP\/cached-ios-app" Cue\.app\n/,
+    );
+    expect(embed).toContain('EXPO_PUBLIC_UI_HARNESS: "1"\n');
+    expect(index("setup-node-pnpm")).toBeLessThan(index("name: Embed"));
+    expect(index("name: Embed")).toBeLessThan(index("scripts/prepare-ios-ui.sh"));
+    expect(index("name: Boot the simulator")).toBeLessThan(index("setup-node-pnpm"));
+  });
+
   it("bounds every native job by its measured duration plus headroom", () => {
     const timeouts = Object.fromEntries(
       [
         "native-ios",
         "native-e2e-ios-light",
         "ui-screenshots-ios-dark",
-        "android-e2e",
+        "android-e2e-light",
         "ui-screenshots-android-dark",
       ].map((name) => [name, Number(job(name).match(/^ {4}timeout-minutes: (\d+)$/m)?.[1])]),
     );
@@ -359,7 +541,7 @@ describe("fast pull request validation", () => {
       "native-ios": 75,
       "native-e2e-ios-light": 22,
       "ui-screenshots-ios-dark": 20,
-      "android-e2e": 14,
+      "android-e2e-light": 14,
       "ui-screenshots-android-dark": 7,
     });
   });

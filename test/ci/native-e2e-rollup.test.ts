@@ -2,15 +2,9 @@ import { spawnSync } from "node:child_process";
 import { expect, it } from "vitest";
 import { repositoryPath } from "../support/repository-path";
 
-const cachedPullRequest = {
-  EVENT: "pull_request",
-  DEVICES: "true",
-  BUILD: "success",
-  HIT: "true",
-  OWED: "false",
-};
-const draft = { EVENT: "pull_request", DEVICES: "false", BUILD: "skipped", HIT: "", OWED: "true" };
-const push = { EVENT: "push", DEVICES: "true", BUILD: "success", HIT: "true", OWED: "" };
+const cachedPullRequest = { EVENT: "pull_request", DEVICES: "true", HIT: "true", OWED: "false" };
+const draft = { EVENT: "pull_request", DEVICES: "false", HIT: "", OWED: "true" };
+const push = { EVENT: "push", DEVICES: "true", HIT: "", OWED: "" };
 
 it.each([
   ["passes shards success", 0, { ...push, SHARDS: "success" }],
@@ -28,6 +22,11 @@ it.each([
     { ...cachedPullRequest, USER_FACING: "true", SHARDS: "skipped" },
   ],
   ["fails shards skipped on a push", 1, { ...push, SHARDS: "skipped" }],
+  [
+    "fails shards skipped on a pull request without a cached app",
+    1,
+    { ...cachedPullRequest, HIT: "", SHARDS: "skipped" },
+  ],
   ["fails shards failure", 1, { ...cachedPullRequest, SHARDS: "failure" }],
 ])("%s with exit status %i", (_name, status, env) => {
   expect(

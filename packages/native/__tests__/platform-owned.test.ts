@@ -174,22 +174,25 @@ function literal(value: ts.JsxAttribute | undefined): string | undefined {
 
 function drawsSelection(node: JsxTag): boolean {
   const role = literal(attribute(node, "accessibilityRole")) ?? literal(attribute(node, "role"));
-  const state = attribute(node, "accessibilityState")?.initializer;
-  const stateObject =
-    state !== undefined && ts.isJsxExpression(state) && state.expression !== undefined
-      ? state.expression
-      : undefined;
   return (
     (role !== undefined && SELECTION_ROLES.has(role)) ||
     attribute(node, "aria-selected") !== undefined ||
     attribute(node, "aria-checked") !== undefined ||
-    (stateObject !== undefined &&
-      ts.isObjectLiteralExpression(stateObject) &&
-      stateObject.properties.some(
-        (property) =>
-          (ts.isPropertyAssignment(property) || ts.isShorthandPropertyAssignment(property)) &&
-          SELECTION_STATES.has(property.name.getText()),
-      ))
+    statesSelection(node)
+  );
+}
+
+function statesSelection(node: JsxTag): boolean {
+  const state = attribute(node, "accessibilityState")?.initializer;
+  const object = state !== undefined && ts.isJsxExpression(state) ? state.expression : undefined;
+  return (
+    object !== undefined &&
+    ts.isObjectLiteralExpression(object) &&
+    object.properties.some(
+      (property) =>
+        (ts.isPropertyAssignment(property) || ts.isShorthandPropertyAssignment(property)) &&
+        SELECTION_STATES.has(property.name.getText()),
+    )
   );
 }
 

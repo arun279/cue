@@ -58,25 +58,28 @@ case $url in
 esac | if [ -n "$filter" ]; then jq -r "$filter"; else cat; fi
 `;
 
+const NO_BASE: Partial<BaseRun> = {};
+
 const ciFixtures = (sha: string, base?: BaseRun): string => {
   const ci = tempDirectory("cue-restore-ci-");
+  const {
+    run,
+    jobs = [],
+    artifact = true,
+    runs = [7],
+    head = sha,
+    workflow = ".github/workflows/ci.yml",
+  } = base ?? NO_BASE;
   writeFile(
     path.join(ci, "runs.json"),
-    JSON.stringify([
-      { workflow_runs: base ? (base.runs ?? [7]).map((id) => ({ id, ...base.run })) : [] },
-    ]),
+    JSON.stringify([{ workflow_runs: run ? runs.map((id) => ({ id, ...run })) : [] }]),
   );
   writeFile(
     path.join(ci, "run.json"),
-    JSON.stringify({
-      id: 7,
-      head_sha: base?.head ?? sha,
-      path: base?.workflow ?? ".github/workflows/ci.yml",
-      ...base?.run,
-    }),
+    JSON.stringify({ id: 7, head_sha: head, path: workflow, ...run }),
   );
-  writeFile(path.join(ci, "jobs.json"), JSON.stringify([{ jobs: base?.jobs ?? [] }]));
-  if (base?.artifact !== false) {
+  writeFile(path.join(ci, "jobs.json"), JSON.stringify([{ jobs }]));
+  if (artifact) {
     writeFile(
       path.join(ci, `artifacts/cue-footprint-${sha}/head-metrics.json`),
       JSON.stringify(MEASURED_BASE),

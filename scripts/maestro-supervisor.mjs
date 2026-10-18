@@ -16,6 +16,17 @@ function killGroup() {
   }
 }
 
+function driverDied(line) {
+  return (
+    /Request for http:\/\/(?:127\.0\.0\.1|localhost):\d+\/deviceInfo failed, code: 500\b/.test(
+      line,
+    ) ||
+    /XCTestDriver request failed\. Status code: 500, path: .*\bdeviceInfo\b/.test(line) ||
+    (driverAnswered && /\[Failed\] Perform XCUITest driver status check/.test(line)) ||
+    /iOS driver not ready in time/.test(line)
+  );
+}
+
 function inspect(source, text) {
   const lines = `${tails.get(source) ?? ""}${text}`.split(/\r?\n/);
   tails.set(source, lines.pop().slice(-16_384));
@@ -26,16 +37,7 @@ function inspect(source, text) {
     if (/\[Done\] Perform XCUITest driver status check|Got device info:/.test(line)) {
       driverAnswered = true;
     }
-    const deviceInfoFailure =
-      /Request for http:\/\/(?:127\.0\.0\.1|localhost):\d+\/deviceInfo failed, code: 500\b/.test(
-        line,
-      ) || /XCTestDriver request failed\. Status code: 500, path: .*\bdeviceInfo\b/.test(line);
-    const statusFailure = /\[Failed\] Perform XCUITest driver status check/.test(line);
-    if (
-      deviceInfoFailure ||
-      (statusFailure && driverAnswered) ||
-      /iOS driver not ready in time/.test(line)
-    ) {
+    if (driverDied(line)) {
       failed = true;
       console.error(`XCTest driver died during startup\n${history.join("\n")}`);
       killGroup();

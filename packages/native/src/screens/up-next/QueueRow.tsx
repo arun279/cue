@@ -1,6 +1,6 @@
 import { quickMarkable } from "@cue/core/data/trakt/library";
-import { epCode } from "@cue/core/domain/model/library";
-import { episodesLeft, lastWatchedPhrase, watchedPercent } from "@cue/core/format";
+import { type EpisodeRef, epCode } from "@cue/core/domain/model/library";
+import { lastWatchedPhrase, leftNote, watchedPercent, withEpisodeTitle } from "@cue/core/format";
 import { useAlertsMute } from "@cue/core/hooks/useAlertsMute";
 import { useMarkControl } from "@cue/core/hooks/useMarkControl";
 import type { MarkWatched } from "@cue/core/hooks/useMarkWatched";
@@ -20,12 +20,22 @@ import { CueText } from "../../ui/type";
 import type { UpNextCard } from "./model";
 
 const STOP_LABEL = "Stop show";
+const ROW_IDS = {
+  queue: { row: TEST_IDS.queueRow, mark: TEST_IDS.queueRowMark },
+  lapsed: { row: TEST_IDS.lapsedRow, mark: TEST_IDS.lapsedRowMark },
+};
 
 export interface QueueRowProps {
   readonly card: UpNextCard;
   readonly mark: MarkWatched;
   onStop(): void;
   readonly variant?: "queue" | "lapsed";
+}
+
+function episodeText(episode: EpisodeRef | null) {
+  if (episode === null) return { code: null, title: null, meta: null };
+  const code = epCode(episode.season, episode.number);
+  return { code, title: episode.title, meta: withEpisodeTitle(code, episode.title) };
 }
 
 export function QueueRow({ card, mark, onStop, variant = "queue" }: QueueRowProps): ReactElement {
@@ -36,11 +46,9 @@ export function QueueRow({ card, mark, onStop, variant = "queue" }: QueueRowProp
   const art = useShowArt(entry.showId);
   const alerts = useAlertsMute(entry.showId, entry.title);
 
-  const episode = item.episode;
-  const code = episode === null ? null : epCode(episode.season, episode.number);
-  const left = episodesLeft(entry.aired, entry.completed);
+  const { code, title, meta } = episodeText(item.episode);
   const idle = variant === "lapsed" ? lastWatchedPhrase(entry.lastWatchedAt, Date.now()) : null;
-  const note = idle !== null ? `last watched ${idle}` : left > 0 ? `${left} left` : null;
+  const note = idle !== null ? `last watched ${idle}` : leftNote(entry.aired, entry.completed);
   const open = (): void => router.push(`/show/${entry.showId}`);
 
   const markable = control.state === "unwatched";
@@ -48,15 +56,13 @@ export function QueueRow({ card, mark, onStop, variant = "queue" }: QueueRowProp
 
   return (
     <SwipeRow
-      testID={
-        variant === "lapsed" ? TEST_IDS.lapsedRow(entry.showId) : TEST_IDS.queueRow(entry.showId)
-      }
+      testID={ROW_IDS[variant].row(entry.showId)}
       onMark={markable ? control.onPress : undefined}
       onStop={onStop}
     >
       <View style={[styles.surface, { backgroundColor: colors.bg }]}>
         <Row
-          label={[entry.title, code, episode?.title, note].filter(Boolean).join(", ")}
+          label={[entry.title, code, title, note].filter(Boolean).join(", ")}
           minHeight={ROW_MIN_HEIGHT.queue}
           onPress={open}
           actions={[
@@ -96,11 +102,7 @@ export function QueueRow({ card, mark, onStop, variant = "queue" }: QueueRowProp
                 label={control.label}
                 size={CHECK_SIZE.row}
                 onPress={control.onPress}
-                testID={
-                  variant === "lapsed"
-                    ? TEST_IDS.lapsedRowMark(entry.showId)
-                    : TEST_IDS.queueRowMark(entry.showId)
-                }
+                testID={ROW_IDS[variant].mark(entry.showId)}
               />
             </>
           }
@@ -108,10 +110,9 @@ export function QueueRow({ card, mark, onStop, variant = "queue" }: QueueRowProp
           <CueText variant="rowTitle" style={{ color: colors.fg }}>
             {entry.title}
           </CueText>
-          {episode === null ? null : (
+          {meta === null ? null : (
             <CueText variant="meta" style={{ color: colors.ink2 }}>
-              {code}
-              {episode.title === null ? "" : ` · ${episode.title}`}
+              {meta}
             </CueText>
           )}
           <RowFooter

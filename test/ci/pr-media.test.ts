@@ -56,6 +56,8 @@ type Capture = {
   shift?: number;
   scroll?: number;
   empty?: boolean;
+  rows?: number[];
+  patch?: { top: number; rgb: number[] };
 };
 type Lane = {
   conclusion?: string;
@@ -69,7 +71,9 @@ const LANES: Record<string, string> = {
   "ui-screenshots-ios-light-activity": "native-e2e-ios-light (activity)",
   "ui-screenshots-ios-light-discovery": "native-e2e-ios-light (discovery)",
   "ui-screenshots-ios-dark": "ui-screenshots-ios-dark",
-  "ui-screenshots-android-light": "android-e2e",
+  "ui-screenshots-android-light-detail": "android-e2e-light (detail)",
+  "ui-screenshots-android-light-activity": "android-e2e-light (activity)",
+  "ui-screenshots-android-light-discovery": "android-e2e-light (discovery)",
   "ui-screenshots-android-dark": "ui-screenshots-android-dark",
 };
 
@@ -81,32 +85,27 @@ const fill = (png: PNG, [x0, y0, x1, y1]: number[], rgb: number[]) => {
   }
 };
 
-const CONTENT = [100, 170, 500, 230];
+const [LEFT, TOP, RIGHT, BOTTOM] = [100, 170, 500, 230];
 const COLORS = [
   [40, 40, 220],
   [220, 40, 40],
 ];
 
-const screenshot = (
-  file: string,
-  width: number,
-  { clock = 0, content = 0, shift = 0, scroll = 0, empty = false }: Capture,
-) => {
+const screenshot = (file: string, width: number, capture: Capture) => {
   mkdirSync(path.dirname(file), { recursive: true });
-  if (empty) {
-    writeFileSync(file, "");
-    return;
-  }
-  const png = new PNG({ width, height: 240 });
-  fill(png, [0, 0, width, 240], [250, 250, 245]);
+  writeFileSync(file, capture.empty ? "" : PNG.sync.write(draw(width, capture)));
+};
+
+const draw = (width: number, { clock, content = 0, shift = 0, scroll, rows, patch }: Capture) => {
+  const height = rows === undefined ? 240 : 2622;
+  const png = new PNG({ width, height });
+  fill(png, [0, 0, width, height], [250, 250, 245]);
   fill(png, [100, 60, 300, 110], clock ? [0, 0, 0] : [128, 128, 128]);
-  fill(
-    png,
-    CONTENT.map((value, index) => value + (index % 2 === 0 ? shift : 0)),
-    COLORS[content] ?? [],
-  );
+  fill(png, [LEFT + shift, TOP, RIGHT + shift, BOTTOM], COLORS[content] ?? []);
   if (scroll) fill(png, [width - 12, 170, width - 4, 240], [120, 120, 120]);
-  writeFileSync(file, PNG.sync.write(png));
+  for (const row of rows ?? []) fill(png, [0, row, width, row + 1], [60, 60, 60]);
+  if (patch) fill(png, [400, patch.top, 420, patch.top + 30], patch.rgb);
+  return png;
 };
 
 const pixel = (file: string, x: number, y: number) => {
@@ -199,23 +198,24 @@ const dark = (captures: Record<string, Capture>, conclusion = "success"): Run =>
 
 describe("pr-media job", () => {
   it("waits for every screenshot job, still runs when they are skipped, and uploads instead of posting", () => {
-    expect(job?.body.match(/^ {6}- ([a-z0-9-]+)$/gm)?.map((line) => line.trim().slice(2))).toEqual([
+    const body = job?.body ?? "";
+    expect(body.match(/^ {6}- ([a-z0-9-]+)$/gm)?.map((line) => line.trim().slice(2))).toEqual([
       "fingerprint",
       "native-e2e-ios-light",
       "ui-screenshots-ios-dark",
-      "android-e2e",
+      "android-e2e-light",
       "ui-screenshots-android-dark",
     ]);
-    expect(job?.body).toContain("!cancelled() && github.event_name == 'pull_request'");
-    expect(job?.body).toContain("needs.fingerprint.outputs.user-facing == 'true'");
-    expect(job?.body).toContain("fetch-depth: 2");
-    expect(job?.body).toContain(
+    expect(body).toContain("!cancelled() && github.event_name == 'pull_request'");
+    expect(body).toContain("needs.fingerprint.outputs.user-facing == 'true'");
+    expect(body).toContain("fetch-depth: 2");
+    expect(body).toContain(
       'scripts/gather-pr-media.sh "$GITHUB_RUN_ID" "$(scripts/measured-base.sh pull_request)"',
     );
-    expect(job?.body).toContain("name: pr-media-$" + "{{ github.event.pull_request.head.sha }}");
-    expect(job?.body).toContain("path: $" + "{{ runner.temp }}/pr-media");
-    expect(job?.body).not.toContain("pr comment");
-    expect(job?.body).not.toContain("pull-requests: write");
+    expect(body).toContain("name: pr-media-$" + "{{ github.event.pull_request.head.sha }}");
+    expect(body).toContain("path: $" + "{{ runner.temp }}/pr-media");
+    expect(body).not.toContain("pr comment");
+    expect(body).not.toContain("pull-requests: write");
   });
 
   it("reads each screenshot artifact from the job that uploads it", () => {
@@ -258,6 +258,24 @@ describe("pr-media job", () => {
     "scripts/gather-pr-media.sh",
     "scripts/compare-screenshots.mjs",
     "scripts/attach-pr-media.sh",
+    "packages/native/entry.ts",
+    "packages/native/babel.config.js",
+    "packages/native/metro.config.js",
+    "packages/native/assets/splash.png",
+    "patches/@expo__metro-config@57.0.13.patch",
+    "pnpm-lock.yaml",
+    ".github/workflows/ci.yml",
+    "scripts/start-ready-process.mjs",
+    "scripts/download-ci-artifact.sh",
+    "scripts/reembed-ios.sh",
+    "scripts/compile-hermes.sh",
+    "scripts/prepare-ios-ui.sh",
+    "scripts/wait-ios-ready.mjs",
+    "scripts/wait-ios-accessibility.mjs",
+    "scripts/enable-ios-accessibility.sh",
+    "scripts/maestro-test.sh",
+    "scripts/maestro-supervisor.mjs",
+    "scripts/maestro-failure.mjs",
   ])("gathers media when %s changes", (file) => {
     expect(userFacing.test(file)).toBe(true);
   });
@@ -268,6 +286,12 @@ describe("pr-media job", () => {
     "packages/core/test/sync.test.ts",
     "test/ci/pr-media.test.ts",
     "README.md",
+    "packages/native/entry.test.ts",
+    "packages/native/assets.json",
+    "pnpm-lock.yaml.orig",
+    ".github/workflows/codeql.yml",
+    "scripts/maestro-test.sh.bak",
+    "scripts/native-e2e-rollup.mjs",
   ])("gathers nothing when only %s changes", (file) => {
     expect(userFacing.test(file)).toBe(false);
   });
@@ -291,7 +315,7 @@ describe("gather-pr-media.sh", { timeout: 30_000 }, () => {
 
   it.each([
     "ui-screenshots-ios-dark",
-    "ui-screenshots-android-light",
+    "ui-screenshots-android-light-activity",
   ])("keeps captures from %s separate when light shards move", (artifact) => {
     const { review } = gather(
       { [artifact]: { captures: { "show-detail-rest": {} } } },
@@ -330,11 +354,13 @@ describe("gather-pr-media.sh", { timeout: 30_000 }, () => {
     const { review, images } = gather(
       {
         ...dark({ "library-shows": {} }),
-        "ui-screenshots-android-light": { captures: { "up-next": {} } },
+        "ui-screenshots-android-light-activity": { captures: { "up-next": {} } },
       },
       {
         ...dark({ "library-shows": { clock: 1, scroll: 1 } }),
-        "ui-screenshots-android-light": { captures: { "up-next": { clock: 1, scroll: 1 } } },
+        "ui-screenshots-android-light-activity": {
+          captures: { "up-next": { clock: 1, scroll: 1 } },
+        },
       },
     );
 
@@ -342,6 +368,52 @@ describe("gather-pr-media.sh", { timeout: 30_000 }, () => {
     expect(review).toBe(
       "<!-- media-review -->\n\nNo screen changed between base `bbbbbbb` and head `abcdef1`; 2 screens compared.\n",
     );
+  });
+
+  it("ignores the top edge of the iOS tab bar's glass", () => {
+    const { review, images } = gather(
+      dark({ "up-next-queue-rest": { rows: [] } }),
+      dark({ "up-next-queue-rest": { rows: [2373, 2384] } }),
+    );
+
+    expect(images).toEqual([]);
+    expect(review).toContain("No screen changed");
+  });
+
+  it.each([
+    ["the content above the iOS tab bar", "ui-screenshots-ios-dark", 2372],
+    ["the iOS tab items", "ui-screenshots-ios-dark", 2385],
+    ["Android at the same rows", "ui-screenshots-android-dark", 2373],
+  ])("still compares %s", (_, artifact, row) => {
+    const { images } = gather(
+      { [artifact]: { captures: { "up-next-queue-rest": { rows: [] } } } },
+      { [artifact]: { captures: { "up-next-queue-rest": { rows: [row] } } } },
+    );
+
+    expect(images).toHaveLength(1);
+  });
+
+  const GLASS = [39, 35, 32];
+  it.each([
+    ["is ignored in the iOS tab bar's glass", "ui-screenshots-ios-dark", 2400, [71, 62, 51], 0],
+    ["still counts above the iOS tab bar", "ui-screenshots-ios-dark", 2300, [71, 62, 51], 1],
+    ["still counts on Android", "ui-screenshots-android-dark", 2400, [71, 62, 51], 1],
+    [
+      "leaves a changed iOS tab icon or label flagged",
+      "ui-screenshots-ios-dark",
+      2400,
+      [235, 235, 235],
+      1,
+    ],
+  ])("translucency difference %s", (_, artifact, top, rgb, changed) => {
+    const { images } = gather(
+      {
+        [artifact]: { captures: { "up-next-populated": { rows: [], patch: { top, rgb: GLASS } } } },
+      },
+      { [artifact]: { captures: { "up-next-populated": { rows: [], patch: { top, rgb } } } } },
+    );
+
+    expect(images).toHaveLength(changed);
   });
 
   it("shows clean before and after columns with moved content highlighted only in the changes column", () => {
@@ -410,7 +482,7 @@ describe("gather-pr-media.sh", { timeout: 30_000 }, () => {
     expect(review).toContain(
       "- Before captures for iOS light (detail flows) are missing because no push run of CI exists for base bbbbbbb.",
     );
-    expect(review.match(/^- Before captures/gm)).toHaveLength(6);
+    expect(review.match(/^- Before captures/gm)).toHaveLength(8);
   });
 
   it("reads the newest artifact when a retried job uploaded the same name twice", () => {

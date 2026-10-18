@@ -14,7 +14,9 @@ lanes=(
   "ui-screenshots-ios-light-activity:native-e2e-ios-light (activity)"
   "ui-screenshots-ios-light-discovery:native-e2e-ios-light (discovery)"
   "ui-screenshots-ios-dark:ui-screenshots-ios-dark"
-  "ui-screenshots-android-light:android-e2e"
+  "ui-screenshots-android-light-detail:android-e2e-light (detail)"
+  "ui-screenshots-android-light-activity:android-e2e-light (activity)"
+  "ui-screenshots-android-light-discovery:android-e2e-light (discovery)"
   "ui-screenshots-android-dark:ui-screenshots-android-dark"
 )
 

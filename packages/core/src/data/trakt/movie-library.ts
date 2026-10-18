@@ -1,5 +1,6 @@
 import type { MovieIds } from "../../domain/model/ids";
 import type { MovieDetailData, WatchedMovie, WatchlistItem } from "./schemas";
+import { artOf } from "./show-detail";
 
 export interface MovieEntry {
   readonly movieId: number;
@@ -123,8 +124,7 @@ export function assembleMovieHeader(movie: MovieDetailData): MovieHeader {
     runtime: movie.runtime ?? null,
     released: movie.released ?? null,
     genres: movie.genres ?? [],
-    posters: movie.images?.poster ?? [],
-    backdrops: movie.images?.fanart ?? [],
+    ...artOf(movie.images),
     tmdbId: movie.ids.tmdb ?? null,
   };
 }

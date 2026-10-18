@@ -34,7 +34,7 @@ describe("device proof copies", () => {
     expect(deviceJobs.map(({ name }) => name)).toEqual([
       "native-e2e-ios-light",
       "ui-screenshots-ios-dark",
-      "android-e2e",
+      "android-e2e-light",
       "ui-screenshots-android-dark",
     ]);
     for (const { body } of deviceJobs) {
@@ -53,7 +53,11 @@ describe("device proof copies", () => {
     );
     const uploads = producers.flatMap(({ body }) =>
       [...body.matchAll(/uses: actions\/upload-artifact@[^\n]+\n[\s\S]*?\n {10}name: (.+)/g)].map(
-        ([, name = ""]) => name,
+        ([, name = ""]) =>
+          name.replace(
+            "steps.fingerprint.outputs.android",
+            "needs.native-android.outputs.fingerprint",
+          ),
       ),
     );
     expect(uploads.length).toBeGreaterThan(0);

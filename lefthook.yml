@@ -22,6 +22,9 @@ pre-commit:
       glob: "*.{ts,tsx,js,jsx,mjs,cjs,json,jsonc}"
       run: pnpm biome check --staged --no-errors-on-unmatched --write {staged_files}
       stage_fixed: true
+    oxlint:
+      glob: "*.{ts,tsx,js,jsx,mjs,cjs}"
+      run: pnpm exec oxlint {staged_files}
     dprint:
       glob: "*.{md,yml,yaml}"
       # --allow-no-files mirrors biome's --no-errors-on-unmatched above: when the
@@ -63,6 +66,3 @@ pre-push:
     check:
       priority: 3
       run: pnpm check
-    node-version:
-      priority: 2
-      run: node scripts/check-node-version.mjs

@@ -83,6 +83,18 @@ for (const [label, name] of rows) {
   const deltaCell = baseEntry === undefined ? "missing" : delta(headEntry.size - baseEntry.size);
   process.stdout.write(`| ${label} | ${baseCell} | ${bytes(headEntry.size)} | ${deltaCell} |\n`);
 }
+
+process.stdout.write("\n### Most complex product function\n\n");
+process.stdout.write("| measurement | base | head |\n");
+process.stdout.write("| --- | ---: | ---: |\n");
+for (const [label, name] of [
+  ["Cyclomatic complexity, oxlint `complexity`", "cyclomatic"],
+  ["Cognitive complexity, Biome `noExcessiveCognitiveComplexity`", "cognitive"],
+]) {
+  const score = head.complexity?.[name];
+  if (score === undefined) throw new Error(`${name} complexity: missing head measurement`);
+  process.stdout.write(`| ${label} | ${base.complexity?.[name] ?? "missing"} | ${score} |\n`);
+}
 NODE
 fi
 

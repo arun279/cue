@@ -3,6 +3,11 @@ env:
   CAPTURE_AUTH: "false"
 ---
 - runFlow: ../flows/up-next-mark-and-undo.yaml
+# XCTest's synthesized drag does not open a swipeable row on the iOS simulator.
+- runFlow:
+    file: ../flows/swipe-mark-and-stop.yaml
+    when:
+      platform: Android
 - runFlow: ../flows/history.yaml
 - runFlow: ../flows/show-detail-bulk-mark.yaml
 - runFlow: ../flows/account.yaml
