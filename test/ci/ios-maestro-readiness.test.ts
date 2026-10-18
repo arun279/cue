@@ -18,7 +18,7 @@ it("readies the simulator in its final appearance, then runs Maestro once, in ev
   for (const { name, body } of lanes) {
     const prepare = body.indexOf("scripts/prepare-ios-ui.sh");
     expect(body).toContain(
-      `scripts/prepare-ios-ui.sh "$RUNNER_TEMP/native-ios-app" ${name.includes("dark") ? "dark" : "light"}\n`,
+      `scripts/prepare-ios-ui.sh "$RUNNER_TEMP/native-ios-app/Cue.app" ${name.includes("dark") ? "dark" : "light"}\n`,
     );
     expect(body).not.toContain("simctl ui");
     const steps = body.slice(body.indexOf("    steps:"));
@@ -30,8 +30,9 @@ it("readies the simulator in its final appearance, then runs Maestro once, in ev
     expect(boot).toBeGreaterThan(steps.indexOf("sudo xcode-select"));
     expect(steps.indexOf("sudo xcode-select")).toBeGreaterThan(steps.indexOf("actions/checkout@"));
     for (const operation of [
-      "actions/setup-node@",
       "actions/download-artifact@",
+      "name: Unpack the simulator app",
+      "name: Embed the harness JavaScript",
       "name: Cache Maestro CLI",
     ]) {
       expect(boot).toBeLessThan(steps.indexOf(operation));
@@ -74,8 +75,7 @@ it("uses the early-booted device and settles after installation and launch", () 
   expect(script).toContain("https://github.com/mobile-dev-inc/Maestro/releases/download/");
   const sequence = [
     "curl -fsSL",
-    'tar -xzf "$app_dir/Cue.app.tgz"',
-    'xcrun simctl install "$device_id"',
+    'xcrun simctl install "$device_id" "$app"',
     'xcrun simctl bootstatus "$device_id" -b',
     'xcrun simctl ui "$device_id" appearance "$appearance"',
     'xcrun simctl launch --terminate-running-process "$device_id"',
@@ -93,7 +93,6 @@ it.each([false, true])("prepares the app with a Maestro cache hit of %s", (cache
   const calls = readFileSync(directory.calls, "utf8").trim().split("\n");
   expect(calls.map((call) => call.split(" ")[0])).toEqual([
     ...(cached ? [] : ["curl", "shasum", "unzip"]),
-    "tar",
     "xcrun",
     "xcrun",
     "xcrun",
@@ -107,6 +106,7 @@ it.each([false, true])("prepares the app with a Maestro cache hit of %s", (cache
   expect(readFileSync(path.join(directory.root, "github-path"), "utf8")).toBe(
     `${directory.root}/maestro/bin\n`,
   );
+  expect(calls).toContain(`xcrun simctl install test-device ${directory.root}/Cue.app`);
   expect(calls.at(-1)).toBe("node scripts/wait-ios-ready.mjs test-device");
 });
 
@@ -114,7 +114,6 @@ it.each([
   "curl",
   "shasum",
   "unzip",
-  "tar",
   "xcrun simctl install",
   "xcrun simctl bootstatus",
 ])("stops preparation when %s fails", (command) => {
@@ -133,7 +132,7 @@ function preparation(cached: boolean) {
   const stubs = path.join(root, "stubs.sh");
   writeFileSync(
     stubs,
-    ["curl", "shasum", "unzip", "tar", "xcrun", "node"]
+    ["curl", "shasum", "unzip", "xcrun", "node"]
       .map(
         (command) =>
           `${command}() {\n${command === "shasum" ? "  cat > /dev/null\n" : ""}  printf "%s\\n" "${command} $*" >> "$PROBE_CALLS"\n  case "${command} $*" in "$FAIL_COMMAND "*) return 17 ;; esac\n}\n`,
@@ -144,7 +143,7 @@ function preparation(cached: boolean) {
     root,
     calls,
     run: (failure = "") =>
-      spawnSync("bash", [repositoryPath("scripts/prepare-ios-ui.sh"), root, "light"], {
+      spawnSync("bash", [repositoryPath("scripts/prepare-ios-ui.sh"), `${root}/Cue.app`, "light"], {
         cwd: repositoryPath(""),
         encoding: "utf8",
         env: {

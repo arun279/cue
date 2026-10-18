@@ -43,6 +43,7 @@
     "indexeddb",
     "jank",
     "Jetpack",
+    "jsbundle",
     "jscpd",
     "jsdom",
     "keyval",

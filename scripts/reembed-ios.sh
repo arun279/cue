@@ -2,21 +2,9 @@
 set -euo pipefail
 
 app=$1
-: "${EXPO_PUBLIC_TRAKT_CLIENT_ID:?the app throws at startup without a Trakt client id}"
-: "${EXPO_PUBLIC_TRAKT_API_BASE:?the harness app must be pointed at the fake Trakt origin}"
-: "${EXPO_PUBLIC_CLOCK_START:?the harness app must share the fake Trakt clock}"
-[ "${EXPO_PUBLIC_UI_HARNESS:-}" = 1 ] || { echo "EXPO_PUBLIC_UI_HARNESS must be 1: the harness app carries the Maestro readiness and timing markers" >&2; exit 1; }
-work=$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/ios-bundle.XXXXXX")
-entitlements="$work/entitlements.plist"
-mkdir -p "$work/assets"
-(
-  cd packages/native
-  npx expo export:embed --platform ios --dev false --minify false \
-    --entry-file entry.ts \
-    --bundle-output "$work/main.jsbundle" --assets-dest "$work/assets"
-)
-scripts/compile-hermes.sh "$work/main.jsbundle" "$work/main.hbc"
-cp "$work/main.hbc" "$app/main.jsbundle"
-rsync -a --delete "$work/assets/assets/" "$app/assets/"
+bundle=$2
+entitlements=$(mktemp "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/entitlements.XXXXXX")
+cp "$bundle/main.hbc" "$app/main.jsbundle"
+rsync -a --delete "$bundle/assets/" "$app/assets/"
 codesign -d --entitlements :- "$app" > "$entitlements"
 codesign -f -s - --entitlements "$entitlements" "$app"

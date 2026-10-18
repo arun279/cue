@@ -12,6 +12,11 @@ const job = (name: string) =>
     new RegExp(`^  ${name}:\\n([\\s\\S]*?)(?=^  [a-z][a-z0-9-]*:|(?![\\s\\S]))`, "m"),
   )?.[1] ?? "";
 
+const steps = (name: string) => job(name).split(/^ {6}- /m);
+const envOf = (step: string) => step.match(/^ {8}env:\n((?: {10}.*\n)+)/m)?.[1];
+const IOS_LANES = ["native-e2e-ios-light", "ui-screenshots-ios-dark"];
+const HARNESS_BUNDLE = "ios-harness-bundle$" + "{{ inputs.copy }}";
+
 const git = (repository: string, ...args: string[]): string =>
   execFileSync("git", args, { cwd: repository, encoding: "utf8", env: gitEnv() }).trim();
 
@@ -492,38 +497,112 @@ describe("fast pull request validation", () => {
     expect(job("native-android")).not.toMatch(/^ {4}if:/m);
   });
 
-  it.each([
-    "native-e2e-ios-light",
-    "ui-screenshots-ios-dark",
-  ])("%s takes the app from native-ios or re-embeds the cached one itself", (name) => {
-    const steps = job(name).split(/^ {6}- /m);
-    const built = "        if: needs.native-ios.result == 'success'\n";
-    const cached = "        if: needs.native-ios.result == 'skipped'\n";
-    const embed =
-      steps.find((step) =>
-        step.startsWith("if: needs.native-ios.result == 'skipped'\n        name: Embed"),
-      ) ?? "";
-    const index = (text: string) => steps.findIndex((step) => step.includes(text));
+  it("bundles the cached app's JavaScript once, with the env the simulator build embeds", () => {
+    const fingerprint = steps("fingerprint");
+    const bundle = fingerprint.find((step) => step.includes("scripts/bundle-ios.sh")) ?? "";
+    const upload = fingerprint.find((step) => step.includes("actions/upload-artifact@")) ?? "";
+    const native = steps("native-ios");
+    const build = native.find((step) => step.includes("name: Build the app for the simulator"));
+    const embed = native.find((step) => step.includes("scripts/reembed-ios.sh")) ?? "";
+    const hit = "if: steps.ios-cache.outputs.hit == 'true'\n";
 
-    expect(steps.find((step) => step.includes("uses: actions/setup-node@"))).toContain(
-      built.trim(),
+    expect(bundle.startsWith(hit)).toBe(true);
+    expect(upload.startsWith(hit)).toBe(true);
+    expect(fingerprint.indexOf(bundle)).toBeGreaterThan(
+      fingerprint.findIndex((step) => step.startsWith("id: ios-cache\n")),
     );
-    expect(steps.find((step) => step.includes("uses: actions/download-artifact@"))).toContain(
-      built.trim(),
+    expect(envOf(build ?? "")).toContain("EXPO_PUBLIC_UI_HARNESS");
+    expect(envOf(bundle)).toBe(envOf(build ?? ""));
+    expect(envOf(embed)).toBe(envOf(build ?? ""));
+    expect(bundle).toContain('run: scripts/bundle-ios.sh "$RUNNER_TEMP/ios-bundle"\n');
+    expect(embed).toContain(
+      'scripts/bundle-ios.sh "$RUNNER_TEMP/ios-bundle"\n' +
+        '          scripts/reembed-ios.sh "$RUNNER_TEMP/native-ios-app/Cue.app" "$RUNNER_TEMP/ios-bundle"\n',
     );
-    expect(
-      steps.find((step) => step.includes("uses: ./.github/actions/setup-node-pnpm")),
-    ).toContain(cached.trim());
+    expect(upload).toContain(`name: ${HARNESS_BUNDLE}\n`);
+    expect(upload).toContain("path: $" + "{{ runner.temp }}/ios-bundle\n");
+  });
+
+  it.each(
+    IOS_LANES,
+  )("%s installs the app native-ios built, or the cached app with the bundle from fingerprint", (name) => {
+    const lane = steps(name);
+    const built = "if: needs.native-ios.result == 'success'\n";
+    const cached = "if: needs.native-ios.result == 'skipped'\n";
+    const index = (text: string) => lane.findIndex((step) => step.includes(text));
+    const downloads = lane.filter((step) => step.includes("uses: actions/download-artifact@"));
+    const embed = lane[index("name: Embed the harness JavaScript")] ?? "";
+
+    expect(job(name)).not.toMatch(/setup-node|pnpm|npx|tar -czf/);
+    expect(downloads.map((step) => step.slice(0, step.indexOf("\n") + 1))).toEqual([built, cached]);
+    expect(downloads[0]).toContain(
+      "name: cue-native-ios-$" + "{{ needs.fingerprint.outputs.ios }}$" + "{{ inputs.copy }}\n",
+    );
+    expect(downloads[1]).toContain(`name: ${HARNESS_BUNDLE}\n`);
+    expect(downloads[1]).toContain("path: $" + "{{ runner.temp }}/ios-bundle\n");
+    expect(lane[index("name: Unpack the simulator app")]).toBe(
+      `${built}        name: Unpack the simulator app\n` +
+        '        run: tar -xzf "$RUNNER_TEMP/native-ios-app/Cue.app.tgz" -C "$RUNNER_TEMP/native-ios-app"\n',
+    );
+    expect(embed.startsWith(cached)).toBe(true);
     expect(embed).toContain(
       "ARTIFACT_NAME: cue-native-ios-$" + "{{ needs.fingerprint.outputs.ios }}\n",
     );
     expect(embed).toMatch(
-      /scripts\/download-ci-artifact\.sh "\$ARTIFACT_NAME" "\$RUNNER_TEMP\/cached-ios-app" native-ios\n +tar -xzf "\$RUNNER_TEMP\/cached-ios-app\/Cue\.app\.tgz" -C "\$RUNNER_TEMP\/cached-ios-app"\n +scripts\/reembed-ios\.sh "\$RUNNER_TEMP\/cached-ios-app\/Cue\.app"\n +mkdir -p "\$RUNNER_TEMP\/native-ios-app"\n +tar -czf "\$RUNNER_TEMP\/native-ios-app\/Cue\.app\.tgz" -C "\$RUNNER_TEMP\/cached-ios-app" Cue\.app\n/,
+      /scripts\/download-ci-artifact\.sh "\$ARTIFACT_NAME" "\$RUNNER_TEMP\/native-ios-app" native-ios\n +tar -xzf "\$RUNNER_TEMP\/native-ios-app\/Cue\.app\.tgz" -C "\$RUNNER_TEMP\/native-ios-app"\n +scripts\/reembed-ios\.sh "\$RUNNER_TEMP\/native-ios-app\/Cue\.app" "\$RUNNER_TEMP\/ios-bundle"\n +LC_ALL=C grep -aq 'http:\/\/127\.0\.0\.1:8787' "\$RUNNER_TEMP\/native-ios-app\/Cue\.app\/main\.jsbundle"\n/,
     );
-    expect(embed).toContain('EXPO_PUBLIC_UI_HARNESS: "1"\n');
-    expect(index("setup-node-pnpm")).toBeLessThan(index("name: Embed"));
+    expect(index("name: Boot the simulator")).toBeLessThan(index("actions/download-artifact@"));
+    expect(lane.indexOf(downloads[1] ?? "")).toBeLessThan(index("name: Embed"));
+    expect(index("name: Unpack")).toBeLessThan(index("scripts/prepare-ios-ui.sh"));
     expect(index("name: Embed")).toBeLessThan(index("scripts/prepare-ios-ui.sh"));
-    expect(index("name: Boot the simulator")).toBeLessThan(index("setup-node-pnpm"));
+  });
+
+  it("runs the iOS lanes on the runner's own Node, with Node built-ins only", () => {
+    const scriptsIn = (source: string, pattern: RegExp) =>
+      [...source.matchAll(pattern)].map(([, script = ""]) => repositoryPath(`scripts/${script}`));
+    const dependencies = (file: string): string[] => {
+      const source = readFileSync(file, "utf8");
+      if (file.endsWith(".sh")) {
+        expect(source, file).not.toMatch(/\b(?:pnpm|npx|npm)\b/);
+        return scriptsIn(source, /(?:\$\(dirname "\$0"\)\/|\bscripts\/)([\w/-]+\.(?:sh|mjs))/g);
+      }
+      const specifiers = [
+        ...source.matchAll(/(?:\bfrom\s*|\bimport\s*\(?\s*|\brequire\s*\(\s*)"([^"]+)"/g),
+      ].map(([, specifier = ""]) => specifier);
+      const relative = specifiers.filter((specifier) => specifier.startsWith("."));
+      for (const specifier of specifiers) {
+        if (!relative.includes(specifier)) expect(specifier, file).toMatch(/^node:/);
+      }
+      return relative.map((specifier) => path.resolve(path.dirname(file), specifier));
+    };
+    const reached = new Set<string>();
+    const visit = (file: string): void => {
+      if (reached.has(file)) return;
+      reached.add(file);
+      dependencies(file).forEach(visit);
+    };
+    for (const name of IOS_LANES) {
+      scriptsIn(job(name), /\bscripts\/([\w/-]+\.(?:sh|mjs))/g).forEach(visit);
+    }
+
+    expect(
+      [...reached].map((file) => path.relative(repositoryPath("scripts"), file)).sort(),
+    ).toEqual([
+      "download-ci-artifact.sh",
+      "enable-ios-accessibility.sh",
+      "maestro-failure.mjs",
+      "maestro-supervisor.mjs",
+      "maestro-test.sh",
+      "mock-trakt/faults.mjs",
+      "mock-trakt/journal.mjs",
+      "mock-trakt/seed.mjs",
+      "mock-trakt/server.mjs",
+      "prepare-ios-ui.sh",
+      "reembed-ios.sh",
+      "start-ready-process.mjs",
+      "wait-ios-accessibility.mjs",
+      "wait-ios-ready.mjs",
+    ]);
   });
 
   it("bounds every native job by its measured duration plus headroom", () => {

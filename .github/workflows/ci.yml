@@ -112,12 +112,27 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          USER_FACING: ^(packages/native/(src|app|assets)|packages/core/src|patches|\.maestro|scripts/mock-trakt)/|^(packages/native/(entry\.ts|babel\.config\.js|metro\.config\.js)|pnpm-lock\.yaml|\.github/workflows/ci\.yml)$|^scripts/(gather-pr-media\.sh|compare-screenshots\.mjs|attach-pr-media\.sh|start-ready-process\.mjs|download-ci-artifact\.sh|reembed-ios\.sh|compile-hermes\.sh|prepare-ios-ui\.sh|enable-ios-accessibility\.sh|wait-ios-(ready|accessibility)\.mjs|maestro-(test\.sh|supervisor\.mjs|failure\.mjs))$
+          USER_FACING: ^(packages/native/(src|app|assets)|packages/core/src|patches|\.maestro|scripts/mock-trakt)/|^(packages/native/(entry\.ts|babel\.config\.js|metro\.config\.js)|pnpm-lock\.yaml|\.github/workflows/ci\.yml)$|^scripts/(gather-pr-media\.sh|compare-screenshots\.mjs|attach-pr-media\.sh|start-ready-process\.mjs|download-ci-artifact\.sh|bundle-ios\.sh|reembed-ios\.sh|compile-hermes\.sh|prepare-ios-ui\.sh|enable-ios-accessibility\.sh|wait-ios-(ready|accessibility)\.mjs|maestro-(test\.sh|supervisor\.mjs|failure\.mjs))$
         run: |
           files=$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files" --jq '.[].filename')
           if grep -qE "$USER_FACING" <<< "$files"; then
             echo "user-facing=true" >> "$GITHUB_OUTPUT"
           fi
+      - if: steps.ios-cache.outputs.hit == 'true'
+        name: Bundle the harness JavaScript for the cached simulator app
+        env:
+          EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
+          EXPO_PUBLIC_UI_HARNESS: "1"
+          EXPO_PUBLIC_CLOCK_START: "2026-10-15T00:00:00.000Z"
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
+        run: scripts/bundle-ios.sh "$RUNNER_TEMP/ios-bundle"
+      - if: steps.ios-cache.outputs.hit == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ios-harness-bundle${{ inputs.copy }}
+          path: ${{ runner.temp }}/ios-bundle
+          if-no-files-found: error
+          retention-days: 1
   check:
     if: ${{ !inputs.copy }}
     permissions:
@@ -359,7 +374,9 @@ jobs:
           EXPO_PUBLIC_UI_HARNESS: "1"
           EXPO_PUBLIC_CLOCK_START: "2026-10-15T00:00:00.000Z"
           EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
-        run: scripts/reembed-ios.sh "$RUNNER_TEMP/native-ios-app/Cue.app"
+        run: |
+          scripts/bundle-ios.sh "$RUNNER_TEMP/ios-bundle"
+          scripts/reembed-ios.sh "$RUNNER_TEMP/native-ios-app/Cue.app" "$RUNNER_TEMP/ios-bundle"
       - name: Validate and package the simulator app
         run: |
           app="$RUNNER_TEMP/native-ios-app/Cue.app"
@@ -415,40 +432,37 @@ jobs:
           xcrun simctl boot "$device_id"
           echo "DEVICE_ID=$device_id" >> "$GITHUB_ENV"
       - if: needs.native-ios.result == 'success'
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: .nvmrc
-      - if: needs.native-ios.result == 'success'
         uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
           name: cue-native-ios-${{ needs.fingerprint.outputs.ios }}${{ inputs.copy }}
           path: ${{ runner.temp }}/native-ios-app
+      - if: needs.native-ios.result == 'success'
+        name: Unpack the simulator app
+        run: tar -xzf "$RUNNER_TEMP/native-ios-app/Cue.app.tgz" -C "$RUNNER_TEMP/native-ios-app"
       - if: needs.native-ios.result == 'skipped'
-        uses: ./.github/actions/setup-node-pnpm
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        with:
+          name: ios-harness-bundle${{ inputs.copy }}
+          path: ${{ runner.temp }}/ios-bundle
       - name: Cache Maestro CLI
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ runner.temp }}/maestro
           key: maestro-${{ runner.os }}-${{ runner.arch }}-2.10.0-29b675e10cc12080e445e9bfb2e2b4e4dfb9c0f2e30d5884120d258b5e1cd991
       - if: needs.native-ios.result == 'skipped'
-        name: Embed current JavaScript into the cached simulator app
+        name: Embed the harness JavaScript into the cached simulator app
         env:
           ARTIFACT_NAME: cue-native-ios-${{ needs.fingerprint.outputs.ios }}
           GH_TOKEN: ${{ github.token }}
-          EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
-          EXPO_PUBLIC_UI_HARNESS: "1"
-          EXPO_PUBLIC_CLOCK_START: "2026-10-15T00:00:00.000Z"
-          EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
         run: |
-          scripts/download-ci-artifact.sh "$ARTIFACT_NAME" "$RUNNER_TEMP/cached-ios-app" native-ios
-          tar -xzf "$RUNNER_TEMP/cached-ios-app/Cue.app.tgz" -C "$RUNNER_TEMP/cached-ios-app"
-          scripts/reembed-ios.sh "$RUNNER_TEMP/cached-ios-app/Cue.app"
-          mkdir -p "$RUNNER_TEMP/native-ios-app"
-          tar -czf "$RUNNER_TEMP/native-ios-app/Cue.app.tgz" -C "$RUNNER_TEMP/cached-ios-app" Cue.app
+          scripts/download-ci-artifact.sh "$ARTIFACT_NAME" "$RUNNER_TEMP/native-ios-app" native-ios
+          tar -xzf "$RUNNER_TEMP/native-ios-app/Cue.app.tgz" -C "$RUNNER_TEMP/native-ios-app"
+          scripts/reembed-ios.sh "$RUNNER_TEMP/native-ios-app/Cue.app" "$RUNNER_TEMP/ios-bundle"
+          LC_ALL=C grep -aq 'http://127.0.0.1:8787' "$RUNNER_TEMP/native-ios-app/Cue.app/main.jsbundle"
       - name: Start the fake Trakt server
         run: node scripts/start-ready-process.mjs scripts/mock-trakt/server.mjs "$RUNNER_TEMP/mock-trakt.log"
-      - name: Prepare the simulator and cached app
-        run: scripts/prepare-ios-ui.sh "$RUNNER_TEMP/native-ios-app" light
+      - name: Prepare the simulator and app
+        run: scripts/prepare-ios-ui.sh "$RUNNER_TEMP/native-ios-app/Cue.app" light
       - name: Run the shared light flow
         run: |
           output="$RUNNER_TEMP/screenshots/ios/light/${{ matrix.suite }}"
@@ -531,40 +545,37 @@ jobs:
           xcrun simctl boot "$device_id"
           echo "DEVICE_ID=$device_id" >> "$GITHUB_ENV"
       - if: needs.native-ios.result == 'success'
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: .nvmrc
-      - if: needs.native-ios.result == 'success'
         uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
           name: cue-native-ios-${{ needs.fingerprint.outputs.ios }}${{ inputs.copy }}
           path: ${{ runner.temp }}/native-ios-app
+      - if: needs.native-ios.result == 'success'
+        name: Unpack the simulator app
+        run: tar -xzf "$RUNNER_TEMP/native-ios-app/Cue.app.tgz" -C "$RUNNER_TEMP/native-ios-app"
       - if: needs.native-ios.result == 'skipped'
-        uses: ./.github/actions/setup-node-pnpm
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        with:
+          name: ios-harness-bundle${{ inputs.copy }}
+          path: ${{ runner.temp }}/ios-bundle
       - name: Cache Maestro CLI
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ runner.temp }}/maestro
           key: maestro-${{ runner.os }}-${{ runner.arch }}-2.10.0-29b675e10cc12080e445e9bfb2e2b4e4dfb9c0f2e30d5884120d258b5e1cd991
       - if: needs.native-ios.result == 'skipped'
-        name: Embed current JavaScript into the cached simulator app
+        name: Embed the harness JavaScript into the cached simulator app
         env:
           ARTIFACT_NAME: cue-native-ios-${{ needs.fingerprint.outputs.ios }}
           GH_TOKEN: ${{ github.token }}
-          EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
-          EXPO_PUBLIC_UI_HARNESS: "1"
-          EXPO_PUBLIC_CLOCK_START: "2026-10-15T00:00:00.000Z"
-          EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
         run: |
-          scripts/download-ci-artifact.sh "$ARTIFACT_NAME" "$RUNNER_TEMP/cached-ios-app" native-ios
-          tar -xzf "$RUNNER_TEMP/cached-ios-app/Cue.app.tgz" -C "$RUNNER_TEMP/cached-ios-app"
-          scripts/reembed-ios.sh "$RUNNER_TEMP/cached-ios-app/Cue.app"
-          mkdir -p "$RUNNER_TEMP/native-ios-app"
-          tar -czf "$RUNNER_TEMP/native-ios-app/Cue.app.tgz" -C "$RUNNER_TEMP/cached-ios-app" Cue.app
+          scripts/download-ci-artifact.sh "$ARTIFACT_NAME" "$RUNNER_TEMP/native-ios-app" native-ios
+          tar -xzf "$RUNNER_TEMP/native-ios-app/Cue.app.tgz" -C "$RUNNER_TEMP/native-ios-app"
+          scripts/reembed-ios.sh "$RUNNER_TEMP/native-ios-app/Cue.app" "$RUNNER_TEMP/ios-bundle"
+          LC_ALL=C grep -aq 'http://127.0.0.1:8787' "$RUNNER_TEMP/native-ios-app/Cue.app/main.jsbundle"
       - name: Start the fake Trakt server
         run: node scripts/start-ready-process.mjs scripts/mock-trakt/server.mjs "$RUNNER_TEMP/mock-trakt.log"
-      - name: Prepare the simulator and cached app
-        run: scripts/prepare-ios-ui.sh "$RUNNER_TEMP/native-ios-app" dark
+      - name: Prepare the simulator and app
+        run: scripts/prepare-ios-ui.sh "$RUNNER_TEMP/native-ios-app/Cue.app" dark
       - name: Run the shared dark traversal and large-text captures
         run: |
           mkdir -p "$RUNNER_TEMP/screenshots/ios/dark"

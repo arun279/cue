@@ -267,6 +267,7 @@ describe("pr-media job", () => {
     ".github/workflows/ci.yml",
     "scripts/start-ready-process.mjs",
     "scripts/download-ci-artifact.sh",
+    "scripts/bundle-ios.sh",
     "scripts/reembed-ios.sh",
     "scripts/compile-hermes.sh",
     "scripts/prepare-ios-ui.sh",

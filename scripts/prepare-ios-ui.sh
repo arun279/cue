@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-app_dir=$1
+app=$1
 appearance=$2
 device_id=${DEVICE_ID:?The simulator must be booted before preparation}
 
@@ -16,8 +16,7 @@ if [ ! -d "$RUNNER_TEMP/maestro" ]; then
   unzip -q "$maestro_zip" -d "$RUNNER_TEMP"
 fi
 echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
-tar -xzf "$app_dir/Cue.app.tgz" -C "$app_dir"
-xcrun simctl install "$device_id" "$app_dir/Cue.app"
+xcrun simctl install "$device_id" "$app"
 xcrun simctl bootstatus "$device_id" -b
 xcrun simctl ui "$device_id" content_size medium
 xcrun simctl ui "$device_id" appearance "$appearance"
