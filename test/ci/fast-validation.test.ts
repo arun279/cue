@@ -652,6 +652,30 @@ describe("fast pull request validation", () => {
     }
   });
 
+  it("waits for the iOS search field to stop editing before a capture that follows typing", () => {
+    const endsEditing = /^ +notVisible: "(?:Clear text|\(\?i\)close\|cancel)"$/;
+    const flows = readdirSync(repositoryPath(".maestro/flows")).filter((name) =>
+      name.endsWith(".yaml"),
+    );
+    const unsettled = flows.flatMap((flow) => {
+      let editing = false;
+      return readFileSync(repositoryPath(`.maestro/flows/${flow}`), "utf8")
+        .split("\n")
+        .flatMap((line) => {
+          if (line.includes("- inputText:")) editing = true;
+          if (endsEditing.test(line) || /lib\/relaunch\.yaml|- launchApp/.test(line))
+            editing = false;
+          return editing && line.includes("takeScreenshot:") ? [`${flow}: ${line.trim()}`] : [];
+        });
+    });
+    const library = readFileSync(repositoryPath(".maestro/flows/library.yaml"), "utf8");
+
+    expect(unsettled).toEqual([]);
+    expect(library).toMatch(
+      /- assertVisible: "Clear text"\n- pressKey: Enter\n[\s\S]*?notVisible: "Clear text"\n[\s\S]*?- takeScreenshot: library-no-match\n/,
+    );
+  });
+
   it("keeps the dark pass to a shared visit and screenshot traversal", () => {
     const suite = readFileSync(repositoryPath(".maestro/ci/screenshots.yaml"), "utf8");
     const traversal = readFileSync(repositoryPath(".maestro/flows/dark-traversal.yaml"), "utf8");

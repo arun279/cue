@@ -95,6 +95,9 @@ appId: app.cuetracker
       platform: iOS
     commands:
       - tapOn: "(?i)close|cancel"
+      - extendedWaitUntil:
+          notVisible: "(?i)close|cancel"
+          timeout: 10000
 - assertVisible:
     id: "history-row-0"
 - tapOn:

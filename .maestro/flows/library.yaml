@@ -60,7 +60,21 @@ appId: app.cuetracker
 - extendedWaitUntil:
     visible: 'No shows match "zzz".'
     timeout: 10000
+# Search ends editing, and UISearchBar shows its clear button only while editing.
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - assertVisible: "Clear text"
 - pressKey: Enter
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - extendedWaitUntil:
+          notVisible: "Clear text"
+          timeout: 10000
+- assertVisible: 'No shows match "zzz".'
 - waitForAnimationToEnd
 - takeScreenshot: library-no-match
 - tapOn:
