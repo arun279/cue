@@ -1,0 +1,10 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  // Biome owns every other lint rule; it has no cyclomatic complexity rule.
+  "categories": { "correctness": "off" },
+  "rules": {
+    // McCabe's limit of 10, as recommended by NIST SP 500-235 (Watson and
+    // McCabe, 1996), section 2.5.
+    "complexity": ["error", { "max": 10 }]
+  }
+}

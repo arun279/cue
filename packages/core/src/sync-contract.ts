@@ -93,32 +93,25 @@ export function syncBanner(input: SyncBannerInput): SyncBanner | null {
   return null;
 }
 
+const TRY_AGAIN = "Try again in a moment.";
+const TROUBLE = "Trakt is having trouble. Try again in a moment.";
+const READ_FAILURE_BODY: Readonly<Record<TraktFailure["kind"], string>> = {
+  "rate-limited": "Trakt is limiting requests. Cue will try again shortly.",
+  network: "Check your connection and try again.",
+  timeout: "Trakt didn't answer in time.",
+  "unexpected-shape": "Trakt sent data in a shape this version doesn't read.",
+  "no-content": "Trakt sent an empty reply.",
+  server: TROUBLE,
+  "unreadable-response": TROUBLE,
+  unauthorized: "Your Trakt session needs to reconnect.",
+  "account-limit": "Your Trakt account has reached its limit.",
+  "account-locked": "Your Trakt account is locked.",
+  "vip-required": "This requires Trakt VIP.",
+  "not-found": TRY_AGAIN,
+};
+
 export function readFailureBody(failure: TraktFailure | null): string {
-  switch (failure?.kind) {
-    case "rate-limited":
-      return "Trakt is limiting requests. Cue will try again shortly.";
-    case "network":
-      return "Check your connection and try again.";
-    case "timeout":
-      return "Trakt didn't answer in time.";
-    case "unexpected-shape":
-      return "Trakt sent data in a shape this version doesn't read.";
-    case "no-content":
-      return "Trakt sent an empty reply.";
-    case "server":
-    case "unreadable-response":
-      return "Trakt is having trouble. Try again in a moment.";
-    case "unauthorized":
-      return "Your Trakt session needs to reconnect.";
-    case "account-limit":
-      return "Your Trakt account has reached its limit.";
-    case "account-locked":
-      return "Your Trakt account is locked.";
-    case "vip-required":
-      return "This requires Trakt VIP.";
-    default:
-      return "Try again in a moment.";
-  }
+  return failure === null ? TRY_AGAIN : READ_FAILURE_BODY[failure.kind];
 }
 
 type MarkControlState = "unwatched" | "just-marked" | "advancing";

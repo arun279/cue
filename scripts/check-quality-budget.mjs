@@ -16,7 +16,8 @@ const files = execFileSync("git", ["ls-files", "-z", "--", ...productPaths], {
 })
   .split("\0")
   .filter((file) => /\.tsx?$/.test(file) && existsSync(path.join(root, file)));
-const suppression = /biome-ignore lint\/complexity\/noExcessiveCognitiveComplexity/g;
+const suppression =
+  /biome-ignore lint\/complexity\/noExcessiveCognitiveComplexity|\b(?:eslint|oxlint)-disable/g;
 const suppressions = files.reduce(
   (total, file) =>
     total + [...readFileSync(path.join(root, file), "utf8").matchAll(suppression)].length,
@@ -41,9 +42,9 @@ const owned = [
   ],
 ];
 const budget = JSON.parse(readFileSync(path.join(root, "scripts/quality-budget.json"), "utf8"));
-if (suppressions !== budget.cognitiveComplexitySuppressions) {
+if (suppressions !== budget.complexitySuppressions) {
   throw new Error(
-    `cognitive complexity suppressions: ${suppressions}, budget ${budget.cognitiveComplexitySuppressions}`,
+    `complexity suppressions: ${suppressions}, budget ${budget.complexitySuppressions}`,
   );
 }
 for (const [label, pattern, owners] of owned) {
@@ -56,4 +57,4 @@ for (const [label, pattern, owners] of owned) {
     );
   }
 }
-process.stdout.write(`quality budget: ${suppressions} cognitive complexity suppressions\n`);
+process.stdout.write(`quality budget: ${suppressions} complexity suppressions\n`);

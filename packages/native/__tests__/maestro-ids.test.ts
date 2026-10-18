@@ -370,19 +370,42 @@ it("waits for scroll completion before every sign-out tap", () => {
   ).not.toContain('- tapOn:\n    id: "settings-sign-out"');
 });
 
-it("waits for onboarding readiness, taps once with default settling, and logs the press trace", () => {
+it("waits for onboarding readiness, taps once with default settling, logs the press trace, and fails fast on a lost press", () => {
   const source = readFileSync(join(flowsDirectory, "lib/sign-in.yaml"), "utf8");
   const commands = parseAllDocuments(source)[1]?.toJS();
   expect(commands[0]).toEqual({
     extendedWaitUntil: { visible: { id: HARNESS_IDS.onboardingReady }, timeout: 90000 },
   });
-  expect(commands.slice(2, 6)).toEqual([
+  expect(commands.slice(2, 7)).toEqual([
     { tapOn: { id: TEST_IDS.buttonConnect } },
     { copyTextFrom: { id: HARNESS_IDS.pressTrace } },
     { evalScript: `\${console.log('CUE_PRESS_TRACE=' + maestro.copiedText)}` },
+    {
+      extendedWaitUntil: {
+        visible: { id: HARNESS_IDS.pressTrace, text: ".*; press [+].*" },
+        timeout: 10000,
+        label: "Tap not delivered: Connect Trakt never pressed",
+      },
+    },
     { extendedWaitUntil: { visible: { id: TEST_IDS.deviceCodeValue }, timeout: 30000 } },
   ]);
   expect(commands.filter((command: object) => "tapOn" in command)).toHaveLength(1);
+});
+
+it("fails within seconds when the input before an operation wait never started it", () => {
+  const source = readFileSync(join(flowsDirectory, "lib/settle.yaml"), "utf8");
+  const commands = parseAllDocuments(source)[1]?.toJS();
+  expect(commands[0]).toEqual({
+    extendedWaitUntil: {
+      visible: {
+        id: HARNESS_IDS.operationStarted,
+        text: `\${"(.*; )?" + output.operation + ";.*"}`,
+      },
+      timeout: 10000,
+      label: `\${"Tap or swipe not delivered: " + output.operation + " never started"}`,
+    },
+  });
+  expect(commands[1].extendedWaitUntil.visible.id).toBe(HARNESS_IDS.operationCompleted);
 });
 
 it("waits for presentation, dismisses once per platform, and checks the sheet is gone once", () => {

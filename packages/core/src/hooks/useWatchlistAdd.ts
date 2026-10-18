@@ -1,5 +1,5 @@
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { queryKeys } from "../data/query-keys";
 import type { SearchHit } from "../data/trakt/search";
 import { buildAddWatchlistOp, buildRemoveWatchlistOp } from "../domain/write-queue/ops";
@@ -48,14 +48,22 @@ export function useWatchlistAdd(): WatchlistAddView {
   const libraryEntries = useQuery({ ...libraryQuery(runtime), enabled: false }).data?.entries;
   const movieEntries = useQuery({ ...movieLibraryQuery(runtime), enabled: false }).data?.entries;
 
-  const isListed = useCallback(
-    (hit: SearchHit) =>
-      hit.type === "movie"
-        ? (listedMovies?.includes(hit.traktId) ?? false) ||
-          (movieEntries?.some((entry) => entry.movieId === hit.traktId) ?? false)
-        : (listedShows?.includes(hit.traktId) ?? false) ||
-          (libraryEntries?.some((entry) => entry.showId === hit.traktId) ?? false),
+  const listedIds = useMemo(
+    () => ({
+      movie: new Set([
+        ...(listedMovies ?? []),
+        ...(movieEntries ?? []).map(({ movieId }) => movieId),
+      ]),
+      show: new Set([
+        ...(listedShows ?? []),
+        ...(libraryEntries ?? []).map(({ showId }) => showId),
+      ]),
+    }),
     [listedShows, listedMovies, libraryEntries, movieEntries],
+  );
+  const isListed = useCallback(
+    (hit: SearchHit) => listedIds[hit.type].has(hit.traktId),
+    [listedIds],
   );
 
   const isAdded = useCallback(

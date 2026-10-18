@@ -32,10 +32,11 @@ const resets = (file: string): boolean =>
   /^\s+clear(?:State|Keychain): true$/m.test(readFileSync(file, "utf8")) ||
   references(file).some(resets);
 
-// Without a permissions map, launchApp pulls the APK and runs pm grant per permission, which
-// has stalled a relaunch of the running app for six minutes on the Android emulator.
+// Without a permissions map, launchApp grants every permission Maestro knows. On the Android
+// emulator that pulls the APK and runs pm grant per permission, which has stalled a relaunch for
+// six minutes; on iOS the XCTest driver has died inside that sweep.
 const sweepsPermissions = (launch: string): boolean =>
-  !/^\s+(?:clearState: true|permissions: \{\})$/m.test(launch);
+  !/^\s+(?:clearState: true|permissions:)/m.test(launch) || /\ball:/.test(launch);
 
 const launches = (source: string): string[] =>
   [...source.matchAll(/^( *)- launchApp\b.*\n(?:\1 {4}.*\n)*/gm)].map(([launch]) => launch);
@@ -86,13 +87,11 @@ describe("Maestro app resets", () => {
     expect(yamlIn(FLOWS).filter((flow) => !run.has(flow))).toEqual([]);
   });
 
-  it("leaves permissions alone in every launch that keeps the install", () => {
+  it("names the permissions of every launch that keeps the install", () => {
     const sweeping = readdirSync(MAESTRO, { recursive: true, encoding: "utf8" })
       .filter((name) => name.endsWith(".yaml"))
       .filter((name) =>
-        launches(readFileSync(path.join(MAESTRO, name), "utf8").replace(IOS_ONLY, "")).some(
-          sweepsPermissions,
-        ),
+        launches(readFileSync(path.join(MAESTRO, name), "utf8")).some(sweepsPermissions),
       );
 
     expect(sweeping).toEqual([]);

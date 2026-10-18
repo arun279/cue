@@ -40,7 +40,8 @@ function ShowContent({ showId }: { readonly showId: number }): ReactElement {
   const router = useRouter();
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const mark = useDetailMark(showId, seasons.data ?? []);
+  const seasonList = seasons.data ?? [];
+  const mark = useDetailMark(showId, seasonList);
   const nextMark = useMarkWatched();
   const [expanded, setExpanded] = useState<ReadonlySet<number> | null>(null);
   if (header.isError && header.data === undefined)
@@ -48,7 +49,7 @@ function ShowContent({ showId }: { readonly showId: number }): ReactElement {
   if (header.data === undefined || entry === undefined)
     return <DetailSkeleton testID={TEST_IDS.showDetailSkeleton} />;
   const data = header.data;
-  const initial = defaultSeason(seasons.data ?? [], data.nextEpisode);
+  const initial = defaultSeason(seasonList, data.nextEpisode);
   const open = expanded ?? new Set(initial === null ? [] : [initial]);
   const confirmSeason = (season: SeasonView): void => {
     const copy = seasonConfirmation(season);
@@ -64,7 +65,7 @@ function ShowContent({ showId }: { readonly showId: number }): ReactElement {
   return (
     <>
       <Stack.Screen options={{ title: data.title }} />
-      <ShowMenu header={data} entry={entry} seasons={seasons.data ?? []} mark={mark} />
+      <ShowMenu header={data} entry={entry} seasons={seasonList} mark={mark} />
       <ScrollView
         stickyHeaderIndices={[1]}
         contentContainerStyle={{ paddingBottom: tabBarClearance(insets.bottom) + SPACE.s4 }}
@@ -80,7 +81,7 @@ function ShowContent({ showId }: { readonly showId: number }): ReactElement {
             empty={seasons.data?.length === 0}
             retry={() => void seasons.refetch()}
           />
-          {orderSeasons(seasons.data ?? []).map((season) => (
+          {orderSeasons(seasonList).map((season) => (
             <SeasonRow
               key={season.number}
               showId={showId}

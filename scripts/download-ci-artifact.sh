@@ -19,6 +19,7 @@ while IFS=$'\t' read -r artifact_id run_id; do
   fi
 done < <(
   gh api --paginate "repos/$GITHUB_REPOSITORY/actions/artifacts?name=$name&per_page=100" \
-    --jq '.artifacts[] | select(.expired | not) | [.id, .workflow_run.id] | @tsv'
+    --jq '.artifacts[] | select((.expired | not) and .workflow_run.head_repository_id == .workflow_run.repository_id)
+      | [.id, .workflow_run.id] | @tsv'
 )
 exit 1

@@ -82,11 +82,19 @@ describe("Trakt read endpoints zod-parse well-formed fixtures", () => {
         seasons: [{ number: 1, episodes: [{ number: 1 }, { number: 2 }] }],
       },
     ]);
-    const result = await getWatchedShows(client);
-    expect(result.ok && result.data[0]?.show.title).toBe("Severance");
-    expect(result.ok && result.data[0]?.show.aired_episodes).toBe(19);
-    expect(result.ok && result.data[0]?.seasons?.[0]?.episodes).toHaveLength(2);
-    expect(result.ok && result.data[0]?.show.images?.poster).toEqual(["media.trakt.tv/p.webp"]);
+    expect(await getWatchedShows(client)).toMatchObject({
+      ok: true,
+      data: [
+        {
+          show: {
+            title: "Severance",
+            aired_episodes: 19,
+            images: { poster: ["media.trakt.tv/p.webp"] },
+          },
+          seasons: [{ episodes: [{ number: 1 }, { number: 2 }] }],
+        },
+      ],
+    });
   });
 
   it("rejects a watched-shows row with no aired_episodes rather than reading it as caught-up", async () => {

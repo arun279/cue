@@ -23,6 +23,8 @@ const FADE_MS = 140;
 const PENDING_DOT = 6;
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
+const drawnAt = (checked: boolean): number => (checked ? 0 : GLYPH_LENGTH);
+const restingAt = (checked: boolean): number => (checked ? 0 : 1);
 
 export interface CheckControlProps {
   readonly checked: boolean;
@@ -47,19 +49,19 @@ export function CheckControl({
 }: CheckControlProps): ReactElement {
   const colors = useColors();
   const reduced = useReducedMotion();
-  const drawn = useSharedValue(checked ? 0 : GLYPH_LENGTH);
-  const resting = useSharedValue(checked ? 0 : 1);
+  const drawn = useSharedValue(drawnAt(checked));
+  const resting = useSharedValue(restingAt(checked));
 
   useEffect(() => {
     if (reduced) {
-      drawn.value = checked ? 0 : GLYPH_LENGTH;
-      resting.value = checked ? 0 : 1;
+      drawn.value = drawnAt(checked);
+      resting.value = restingAt(checked);
       return;
     }
     drawn.value = checked
       ? withDelay(DRAW_IN_DELAY_MS, withTiming(0, { duration: DRAW_IN_MS }))
       : withTiming(GLYPH_LENGTH, { duration: DRAW_OUT_MS });
-    resting.value = withTiming(checked ? 0 : 1, { duration: FADE_MS });
+    resting.value = withTiming(restingAt(checked), { duration: FADE_MS });
   }, [checked, reduced, drawn, resting]);
 
   const tick = useAnimatedProps(() => ({ strokeDashoffset: drawn.value }));
@@ -88,8 +90,10 @@ export function CheckControl({
         <View
           style={[
             styles.disc,
-            { width: disc, height: disc, borderColor: checked ? colors[ON.fill] : restInk },
-            checked && { backgroundColor: colors[ON.fill] },
+            { width: disc, height: disc },
+            checked
+              ? { borderColor: colors[ON.fill], backgroundColor: colors[ON.fill] }
+              : { borderColor: restInk },
           ]}
         >
           <Svg width={disc * GLYPH_RATIO} height={disc * GLYPH_RATIO} viewBox="0 0 24 24">

@@ -23,15 +23,19 @@ export function computeWatchStatus(
   thresholdMs: number,
 ): WatchStatus {
   if (show.hidden) return "abandoned";
-  const { aired, completed, nextEpisode, status } = show;
-  if (completed <= 0) return "not-started";
-  if (isTerminalStatus(status) && completed >= aired) return "ended";
-  const nextAiredMs = nextEpisode === null ? null : toMs(nextEpisode.firstAired);
-  const hasAiredNext = nextAiredMs !== null && nextAiredMs <= now;
-  if (!hasAiredNext && completed >= aired) return "caught-up";
+  if (show.completed <= 0) return "not-started";
+  const caughtUp = show.completed >= show.aired;
+  if (caughtUp && isTerminalStatus(show.status)) return "ended";
+  const nextAiredMs = airedBy(show.nextEpisode, now);
+  if (caughtUp && nextAiredMs === null) return "caught-up";
   const idleSince = Math.max(
     toMs(show.lastWatchedAt) ?? Number.NEGATIVE_INFINITY,
-    hasAiredNext ? nextAiredMs : Number.NEGATIVE_INFINITY,
+    nextAiredMs ?? Number.NEGATIVE_INFINITY,
   );
   return now - idleSince <= thresholdMs ? "watching" : "lapsed";
+}
+
+function airedBy(episode: LibraryShow["nextEpisode"], now: number): number | null {
+  const airedMs = episode === null ? null : toMs(episode.firstAired);
+  return airedMs !== null && airedMs <= now ? airedMs : null;
 }

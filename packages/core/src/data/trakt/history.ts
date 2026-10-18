@@ -5,41 +5,51 @@ import type { HistoryItem } from "./schemas";
 import { toEpisodeIds } from "./show-detail";
 
 export function assembleHistoryEntries(items: readonly HistoryItem[]): HistoryEntry[] {
-  const entries: HistoryEntry[] = [];
-  for (const item of items) {
+  return items.flatMap((item) => {
     if (item.type === "episode" && item.episode !== undefined && item.show !== undefined) {
-      entries.push({
-        historyId: item.id,
-        watchedAt: item.watched_at,
-        type: "episode",
-        mediaId: item.show.ids.trakt,
-        ids: toEpisodeIds(item.episode.ids),
-        title: item.show.title,
-        year: null,
-        season: item.episode.season,
-        number: item.episode.number,
-        episodeTitle: item.episode.title ?? null,
-        posters: item.show.images?.poster ?? [],
-        tmdbId: item.show.ids.tmdb ?? null,
-      });
-    } else if (item.type === "movie" && item.movie !== undefined) {
-      entries.push({
-        historyId: item.id,
-        watchedAt: item.watched_at,
-        type: "movie",
-        mediaId: item.movie.ids.trakt,
-        ids: toMovieIds(item.movie.ids),
-        title: item.movie.title,
-        year: item.movie.year ?? null,
-        season: null,
-        number: null,
-        episodeTitle: null,
-        posters: item.movie.images?.poster ?? [],
-        tmdbId: item.movie.ids.tmdb ?? null,
-      });
+      return [episodeEntry(item, item.show, item.episode)];
     }
-  }
-  return entries;
+    if (item.type === "movie" && item.movie !== undefined) return [movieEntry(item, item.movie)];
+    return [];
+  });
+}
+
+function episodeEntry(
+  item: HistoryItem,
+  show: NonNullable<HistoryItem["show"]>,
+  episode: NonNullable<HistoryItem["episode"]>,
+): HistoryEntry {
+  return {
+    historyId: item.id,
+    watchedAt: item.watched_at,
+    type: "episode",
+    mediaId: show.ids.trakt,
+    ids: toEpisodeIds(episode.ids),
+    title: show.title,
+    year: null,
+    season: episode.season,
+    number: episode.number,
+    episodeTitle: episode.title ?? null,
+    posters: show.images?.poster ?? [],
+    tmdbId: show.ids.tmdb ?? null,
+  };
+}
+
+function movieEntry(item: HistoryItem, movie: NonNullable<HistoryItem["movie"]>): HistoryEntry {
+  return {
+    historyId: item.id,
+    watchedAt: item.watched_at,
+    type: "movie",
+    mediaId: movie.ids.trakt,
+    ids: toMovieIds(movie.ids),
+    title: movie.title,
+    year: movie.year ?? null,
+    season: null,
+    number: null,
+    episodeTitle: null,
+    posters: movie.images?.poster ?? [],
+    tmdbId: movie.ids.tmdb ?? null,
+  };
 }
 
 export function assembleEpisodePlays(items: readonly HistoryItem[]): EpisodePlay[] {

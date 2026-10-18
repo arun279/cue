@@ -17,9 +17,10 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
   schedule:
-    # Nightly run: the (non-deterministic) advisory audit catches newly disclosed
-    # CVEs against the pinned lockfile, and the iOS flow lane, which pull
-    # requests run only when their iOS fingerprint changes, covers main.
+    # Nightly run: the audit, which gates pull requests and pushes only when
+    # they change dependencies, catches newly disclosed CVEs against the pinned
+    # lockfile, and the iOS flow lane, which pull requests run only when their
+    # iOS fingerprint changes, covers main.
     - cron: "0 6 * * *"
 permissions:
   contents: read
@@ -47,29 +48,45 @@ jobs:
       pull-requests: read
     runs-on: ubuntu-latest
     outputs:
-      android: ${{ steps.native.outputs.android }}
-      devices: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
+      devices: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft && steps.head-tree.outputs.pushed != 'true' }}
       ios: ${{ steps.native.outputs.ios }}
+      ios-cached: ${{ steps.ios-cache.outputs.hit }}
       ios-owed: ${{ steps.ios-owed.outputs.owed }}
       user-facing: ${{ steps.changes.outputs.user-facing }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: head-tree
+        name: Leave device lanes to the push run when the merge tests the pushed head tree
+        if: >-
+          github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository &&
+          (github.head_ref == 'main' || github.head_ref == 'feat/expo-native' || startsWith(github.head_ref, 'release/'))
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          head_tree=$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$HEAD_SHA" --jq .tree.sha)
+          if [ "$(git rev-parse 'HEAD^{tree}')" = "$head_tree" ]; then
+            echo "pushed=true" >> "$GITHUB_OUTPUT"
+          fi
       - uses: ./.github/actions/setup-node-pnpm
       - id: native
-        name: Compute native fingerprints
+        name: Compute the iOS native fingerprint
         env:
-          ANDROID_ARCHITECTURES: arm64-v8a,x86_64
-          APP_VERSION: 9.9.9
-          BUILD_NUMBER: "42"
           CONFIGURATION: Release
           EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
           EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
           XCODE_PATH: /Applications/Xcode_26.6.app
+        run: echo "ios=$(pnpm exec node scripts/native-fingerprint.mjs ios)" >> "$GITHUB_OUTPUT"
+      - id: ios-cache
+        name: Look for the fingerprinted simulator app
+        if: github.event_name == 'pull_request'
+        env:
+          ARTIFACT_NAME: cue-native-ios-${{ steps.native.outputs.ios }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          android=$(pnpm exec node scripts/native-fingerprint.mjs android)
-          ios=$(pnpm exec node scripts/native-fingerprint.mjs ios)
-          echo "android=$android" >> "$GITHUB_OUTPUT"
-          echo "ios=$ios" >> "$GITHUB_OUTPUT"
+          if scripts/download-ci-artifact.sh "$ARTIFACT_NAME" "$RUNNER_TEMP/native-ios-app" native-ios; then
+            echo "hit=true" >> "$GITHUB_OUTPUT"
+          fi
       - id: ios-owed
         name: Owe the iOS lane unless its last run on this branch passed
         if: github.event_name == 'pull_request'
@@ -95,7 +112,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          USER_FACING: ^(packages/native/(src|app)|packages/core/src|\.maestro|scripts/mock-trakt)/|^scripts/(gather-pr-media\.sh|compare-screenshots\.mjs|attach-pr-media\.sh)$
+          USER_FACING: ^(packages/native/(src|app|assets)|packages/core/src|patches|\.maestro|scripts/mock-trakt)/|^(packages/native/(entry\.ts|babel\.config\.js|metro\.config\.js)|pnpm-lock\.yaml|\.github/workflows/ci\.yml)$|^scripts/(gather-pr-media\.sh|compare-screenshots\.mjs|attach-pr-media\.sh|start-ready-process\.mjs|download-ci-artifact\.sh|reembed-ios\.sh|compile-hermes\.sh|prepare-ios-ui\.sh|enable-ios-accessibility\.sh|wait-ios-(ready|accessibility)\.mjs|maestro-(test\.sh|supervisor\.mjs|failure\.mjs))$
         run: |
           files=$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files" --jq '.[].filename')
           if grep -qE "$USER_FACING" <<< "$files"; then
@@ -172,9 +189,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
       - uses: ./.github/actions/setup-node-pnpm
-      - run: pnpm audit --prod --audit-level=high
-      - run: node scripts/check-stale-audit-ignores.mjs
+      - name: Audit production dependencies, gating only dependency changes
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PUSH_BEFORE: ${{ github.event.before }}
+        run: scripts/audit-dependencies.sh "$EVENT_NAME" "$PUSH_BEFORE"
   actionlint:
     if: ${{ !inputs.copy }}
     runs-on: ubuntu-latest
@@ -221,8 +243,11 @@ jobs:
           jq -s 'add' head-sizes.json \
             "$RUNNER_TEMP/native-android-sizes/head-android-sizes.json" > all-head-sizes.json
           mv all-head-sizes.json head-sizes.json
-          jq -n --slurpfile sizes head-sizes.json '{sizes: $sizes[0]}' > head-metrics.json
+          node scripts/measure-complexity.mjs . > head-complexity.json
+          jq -n --slurpfile sizes head-sizes.json --slurpfile complexity head-complexity.json \
+            '{sizes: $sizes[0], complexity: $complexity[0]}' > head-metrics.json
       - name: Measure the diff footprint
+        id: diff
         if: github.event_name == 'pull_request'
         env:
           BASE_REF: ${{ github.base_ref }}
@@ -231,8 +256,10 @@ jobs:
         run: |
           PR_BODY=$(gh pr view "$PR_NUMBER" --json body --jq .body)
           export PR_BODY
+          status=0
           scripts/diff-footprint.sh "origin/$BASE_REF" base-metrics.json head-metrics.json \
-            > footprint.md
+            > footprint.md 2> footprint-gates.txt || status=$?
+          echo "status=$status" >> "$GITHUB_OUTPUT"
       - name: Upload Expo Atlas
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -255,6 +282,11 @@ jobs:
             gh api --method DELETE "repos/${{ github.repository }}/issues/comments/$comment_id"
           done
           gh api --method POST "$comments_url" -F body=@footprint.md
+      - name: Enforce the footprint gates
+        if: steps.diff.outputs.status != '' && steps.diff.outputs.status != '0'
+        run: |
+          cat footprint-gates.txt >&2
+          exit 1
   native-ios:
     # A cold build measured up to 58 minutes; a cached one about 2.
     timeout-minutes: 75
@@ -262,10 +294,8 @@ jobs:
       actions: read
       contents: read
     needs: fingerprint
-    if: needs.fingerprint.outputs.devices == 'true'
+    if: needs.fingerprint.outputs.devices == 'true' && needs.fingerprint.outputs.ios-cached != 'true'
     runs-on: macos-26
-    outputs:
-      hit: ${{ steps.native-cache.outputs.hit }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Select Xcode
@@ -361,7 +391,11 @@ jobs:
       actions: read
       contents: read
     needs: [fingerprint, native-ios]
-    if: github.event_name != 'pull_request' || needs.native-ios.outputs.hit != 'true' || needs.fingerprint.outputs.ios-owed == 'true' || needs.fingerprint.outputs.user-facing == 'true'
+    if: >-
+      !cancelled() && needs.fingerprint.outputs.devices == 'true' &&
+      (needs.native-ios.result == 'success' || needs.native-ios.result == 'skipped') &&
+      (github.event_name != 'pull_request' || needs.fingerprint.outputs.ios-cached != 'true' ||
+      needs.fingerprint.outputs.ios-owed == 'true' || needs.fingerprint.outputs.user-facing == 'true')
     runs-on: macos-26
     strategy:
       fail-fast: false
@@ -372,27 +406,47 @@ jobs:
       MAESTRO_DRIVER_STARTUP_TIMEOUT: "300000"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Start the fake Trakt server
-        run: node scripts/start-ready-process.mjs scripts/mock-trakt/server.mjs "$RUNNER_TEMP/mock-trakt.log"
       - name: Boot the simulator
         run: |
           sudo xcode-select -s /Applications/Xcode_26.6.app
-          device_id=$(xcrun simctl list devices available -j | \
-            jq -er '[.devices[] | .[] | select(.name | startswith("iPhone"))][0].udid // empty')
+          read -r device_id data < <(xcrun simctl list devices available -j | \
+            jq -er '[.devices[] | .[] | select(.name | startswith("iPhone"))][0] | "\(.udid) \(.dataPath)"')
+          scripts/enable-ios-accessibility.sh "$data"
           xcrun simctl boot "$device_id"
           echo "DEVICE_ID=$device_id" >> "$GITHUB_ENV"
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      - if: needs.native-ios.result == 'success'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
-      - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+      - if: needs.native-ios.result == 'success'
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
           name: cue-native-ios-${{ needs.fingerprint.outputs.ios }}${{ inputs.copy }}
           path: ${{ runner.temp }}/native-ios-app
+      - if: needs.native-ios.result == 'skipped'
+        uses: ./.github/actions/setup-node-pnpm
       - name: Cache Maestro CLI
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ runner.temp }}/maestro
           key: maestro-${{ runner.os }}-${{ runner.arch }}-2.10.0-29b675e10cc12080e445e9bfb2e2b4e4dfb9c0f2e30d5884120d258b5e1cd991
+      - if: needs.native-ios.result == 'skipped'
+        name: Embed current JavaScript into the cached simulator app
+        env:
+          ARTIFACT_NAME: cue-native-ios-${{ needs.fingerprint.outputs.ios }}
+          GH_TOKEN: ${{ github.token }}
+          EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
+          EXPO_PUBLIC_UI_HARNESS: "1"
+          EXPO_PUBLIC_CLOCK_START: "2026-10-15T00:00:00.000Z"
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
+        run: |
+          scripts/download-ci-artifact.sh "$ARTIFACT_NAME" "$RUNNER_TEMP/cached-ios-app" native-ios
+          tar -xzf "$RUNNER_TEMP/cached-ios-app/Cue.app.tgz" -C "$RUNNER_TEMP/cached-ios-app"
+          scripts/reembed-ios.sh "$RUNNER_TEMP/cached-ios-app/Cue.app"
+          mkdir -p "$RUNNER_TEMP/native-ios-app"
+          tar -czf "$RUNNER_TEMP/native-ios-app/Cue.app.tgz" -C "$RUNNER_TEMP/cached-ios-app" Cue.app
+      - name: Start the fake Trakt server
+        run: node scripts/start-ready-process.mjs scripts/mock-trakt/server.mjs "$RUNNER_TEMP/mock-trakt.log"
       - name: Prepare the simulator and cached app
         run: scripts/prepare-ios-ui.sh "$RUNNER_TEMP/native-ios-app" light
       - name: Run the shared light flow
@@ -408,7 +462,7 @@ jobs:
         if: ${{ !cancelled() }}
         with:
           name: ui-screenshots-ios-light-${{ matrix.suite }}${{ inputs.copy }}
-          path: ${{ runner.temp }}/screenshots/ios/light/${{ matrix.suite }}
+          path: ${{ runner.temp }}/screenshots/ios/light/${{ matrix.suite }}/**/takeScreenshot/*.png
           if-no-files-found: error
           compression-level: 0
           retention-days: 14
@@ -421,11 +475,18 @@ jobs:
             ${{ runner.temp }}/maestro-debug/
             ${{ runner.temp }}/maestro-results-*.xml
             ${{ runner.temp }}/mock-trakt.log
+            ${{ runner.temp }}/screenshots/
+            !${{ runner.temp }}/screenshots/**/takeScreenshot/*.png
           retention-days: 7
   native-e2e:
     permissions:
+      actions: read
       contents: read
-    needs: [fingerprint, native-ios, native-e2e-ios-light]
+    needs:
+      - fingerprint
+      - native-ios
+      - native-e2e-ios-light
+      - ui-screenshots-ios-dark
     if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
@@ -433,13 +494,16 @@ jobs:
       - name: Require passing iOS light shards unless the pull request skipped them
         env:
           EVENT: ${{ github.event_name }}
-          BUILD: ${{ needs.native-ios.result }}
           DEVICES: ${{ needs.fingerprint.outputs.devices }}
-          HIT: ${{ needs.native-ios.outputs.hit }}
+          HIT: ${{ needs.fingerprint.outputs.ios-cached }}
           OWED: ${{ needs.fingerprint.outputs.ios-owed }}
           SHARDS: ${{ needs.native-e2e-ios-light.result }}
           USER_FACING: ${{ needs.fingerprint.outputs.user-facing }}
         run: node scripts/native-e2e-rollup.mjs
+      - name: Refuse iOS device jobs that passed only on a rerun
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/require-first-attempt-pass.sh native-ios native-e2e-ios-light ui-screenshots-ios-dark
   ui-screenshots-ios-dark:
     # Measured 10 to 16 minutes, including a 4 minute simulator setup.
     timeout-minutes: 20
@@ -447,34 +511,58 @@ jobs:
       actions: read
       contents: read
     needs: [fingerprint, native-ios]
-    if: github.event_name != 'pull_request' || needs.native-ios.outputs.hit != 'true' || needs.fingerprint.outputs.ios-owed == 'true' || needs.fingerprint.outputs.user-facing == 'true'
+    if: >-
+      !cancelled() && needs.fingerprint.outputs.devices == 'true' &&
+      (needs.native-ios.result == 'success' || needs.native-ios.result == 'skipped') &&
+      (github.event_name != 'pull_request' || needs.fingerprint.outputs.ios-cached != 'true' ||
+      needs.fingerprint.outputs.ios-owed == 'true' || needs.fingerprint.outputs.user-facing == 'true')
     runs-on: macos-26
     env:
       MAESTRO_CLI_NO_ANALYTICS: "1"
       MAESTRO_DRIVER_STARTUP_TIMEOUT: "300000"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Start the fake Trakt server
-        run: node scripts/start-ready-process.mjs scripts/mock-trakt/server.mjs "$RUNNER_TEMP/mock-trakt.log"
       - name: Boot the simulator
         run: |
           sudo xcode-select -s /Applications/Xcode_26.6.app
-          device_id=$(xcrun simctl list devices available -j | \
-            jq -er '[.devices[] | .[] | select(.name | startswith("iPhone"))][0].udid // empty')
+          read -r device_id data < <(xcrun simctl list devices available -j | \
+            jq -er '[.devices[] | .[] | select(.name | startswith("iPhone"))][0] | "\(.udid) \(.dataPath)"')
+          scripts/enable-ios-accessibility.sh "$data"
           xcrun simctl boot "$device_id"
           echo "DEVICE_ID=$device_id" >> "$GITHUB_ENV"
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      - if: needs.native-ios.result == 'success'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
-      - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+      - if: needs.native-ios.result == 'success'
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
           name: cue-native-ios-${{ needs.fingerprint.outputs.ios }}${{ inputs.copy }}
           path: ${{ runner.temp }}/native-ios-app
+      - if: needs.native-ios.result == 'skipped'
+        uses: ./.github/actions/setup-node-pnpm
       - name: Cache Maestro CLI
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ runner.temp }}/maestro
           key: maestro-${{ runner.os }}-${{ runner.arch }}-2.10.0-29b675e10cc12080e445e9bfb2e2b4e4dfb9c0f2e30d5884120d258b5e1cd991
+      - if: needs.native-ios.result == 'skipped'
+        name: Embed current JavaScript into the cached simulator app
+        env:
+          ARTIFACT_NAME: cue-native-ios-${{ needs.fingerprint.outputs.ios }}
+          GH_TOKEN: ${{ github.token }}
+          EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
+          EXPO_PUBLIC_UI_HARNESS: "1"
+          EXPO_PUBLIC_CLOCK_START: "2026-10-15T00:00:00.000Z"
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
+        run: |
+          scripts/download-ci-artifact.sh "$ARTIFACT_NAME" "$RUNNER_TEMP/cached-ios-app" native-ios
+          tar -xzf "$RUNNER_TEMP/cached-ios-app/Cue.app.tgz" -C "$RUNNER_TEMP/cached-ios-app"
+          scripts/reembed-ios.sh "$RUNNER_TEMP/cached-ios-app/Cue.app"
+          mkdir -p "$RUNNER_TEMP/native-ios-app"
+          tar -czf "$RUNNER_TEMP/native-ios-app/Cue.app.tgz" -C "$RUNNER_TEMP/cached-ios-app" Cue.app
+      - name: Start the fake Trakt server
+        run: node scripts/start-ready-process.mjs scripts/mock-trakt/server.mjs "$RUNNER_TEMP/mock-trakt.log"
       - name: Prepare the simulator and cached app
         run: scripts/prepare-ios-ui.sh "$RUNNER_TEMP/native-ios-app" dark
       - name: Run the shared dark traversal and large-text captures
@@ -489,7 +577,7 @@ jobs:
         if: ${{ !cancelled() }}
         with:
           name: ui-screenshots-ios-dark${{ inputs.copy }}
-          path: ${{ runner.temp }}/screenshots/ios/dark
+          path: ${{ runner.temp }}/screenshots/ios/dark/**/takeScreenshot/*.png
           if-no-files-found: error
           compression-level: 0
           retention-days: 14
@@ -502,20 +590,32 @@ jobs:
             ${{ runner.temp }}/maestro-debug/
             ${{ runner.temp }}/maestro-results-*.xml
             ${{ runner.temp }}/mock-trakt.log
+            ${{ runner.temp }}/screenshots/
+            !${{ runner.temp }}/screenshots/**/takeScreenshot/*.png
           retention-days: 7
   native-android:
     permissions:
       actions: read
       contents: read
-    needs: fingerprint
     runs-on: ubuntu-latest
+    outputs:
+      fingerprint: ${{ steps.fingerprint.outputs.android }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup-node-pnpm
+      - id: fingerprint
+        name: Compute the Android native fingerprint
+        env:
+          ANDROID_ARCHITECTURES: arm64-v8a,x86_64
+          APP_VERSION: 9.9.9
+          BUILD_NUMBER: "42"
+          EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
+        run: echo "android=$(pnpm exec node scripts/native-fingerprint.mjs android)" >> "$GITHUB_OUTPUT"
       - id: native-cache
         name: Restore the fingerprinted Android artifacts
         env:
-          ARTIFACT_NAME: cue-native-android-${{ needs.fingerprint.outputs.android }}
+          ARTIFACT_NAME: cue-native-android-${{ steps.fingerprint.outputs.android }}
           GH_TOKEN: ${{ github.token }}
         run: |
           if scripts/download-ci-artifact.sh "$ARTIFACT_NAME" "$RUNNER_TEMP/native-android" native-android && \
@@ -608,7 +708,7 @@ jobs:
             ]' > "$RUNNER_TEMP/head-android-sizes.json"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: cue-native-android-${{ needs.fingerprint.outputs.android }}${{ inputs.copy }}
+          name: cue-native-android-${{ steps.fingerprint.outputs.android }}${{ inputs.copy }}
           path: |
             ${{ runner.temp }}/native-android/app-release.aab
             ${{ runner.temp }}/native-android/debug.keystore
@@ -621,13 +721,17 @@ jobs:
           name: cue-native-android-sizes${{ inputs.copy }}
           path: ${{ runner.temp }}/head-android-sizes.json
           retention-days: 30
-  android-e2e:
-    # The emulator and the full flow suite measured 11.3 minutes; the timeout
-    # is that plus about 25 percent.
+  android-e2e-light:
+    # The emulator and all three suites measured 11.3 minutes on one runner;
+    # the timeout is that plus about 25 percent until a shard is measured.
     timeout-minutes: 14
     needs: [fingerprint, native-android]
     if: needs.fingerprint.outputs.devices == 'true'
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [detail, activity, discovery]
     env:
       MAESTRO_CLI_NO_ANALYTICS: "1"
     steps:
@@ -650,7 +754,7 @@ jobs:
           echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
       - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
-          name: cue-native-android-${{ needs.fingerprint.outputs.android }}${{ inputs.copy }}
+          name: cue-native-android-${{ needs.native-android.outputs.fingerprint }}${{ inputs.copy }}
           path: ${{ runner.temp }}/cue-native-android
       - name: Enable KVM
         run: |
@@ -665,23 +769,44 @@ jobs:
           arch: x86_64
           profile: pixel_7_pro
           emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
-          script: bash scripts/verify-android-ui.sh "$RUNNER_TEMP/cue-native-android/universal.apk" "$RUNNER_TEMP/android-ui" "$RUNNER_TEMP/screenshots/android" light
+          script: bash scripts/verify-android-ui.sh "$RUNNER_TEMP/cue-native-android/universal.apk" "$RUNNER_TEMP/android-ui" "$RUNNER_TEMP/screenshots/android" light ${{ matrix.suite }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ !cancelled() }}
         with:
-          name: ui-screenshots-android-light${{ inputs.copy }}
-          path: ${{ runner.temp }}/screenshots/android/light
+          name: ui-screenshots-android-light-${{ matrix.suite }}${{ inputs.copy }}
+          path: ${{ runner.temp }}/screenshots/android/light/**/takeScreenshot/*.png
           if-no-files-found: error
           compression-level: 0
           retention-days: 14
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ always() }}
         with:
-          name: android-e2e-light${{ inputs.copy }}
+          name: android-e2e-light-${{ matrix.suite }}${{ inputs.copy }}
           include-hidden-files: true
-          path: ${{ runner.temp }}/android-ui
+          path: |
+            ${{ runner.temp }}/android-ui
+            ${{ runner.temp }}/screenshots/
+            !${{ runner.temp }}/screenshots/**/takeScreenshot/*.png
           if-no-files-found: error
           retention-days: 7
+  android-e2e:
+    permissions:
+      actions: read
+      contents: read
+    needs: [fingerprint, android-e2e-light, ui-screenshots-android-dark]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Require passing Android light shards unless device lanes were skipped
+        env:
+          DEVICES: ${{ needs.fingerprint.outputs.devices }}
+          SHARDS: ${{ needs.android-e2e-light.result }}
+        run: test "$SHARDS" = success || { test "$DEVICES" = false && test "$SHARDS" = skipped; }
+      - name: Refuse Android device jobs that passed only on a rerun
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/require-first-attempt-pass.sh native-android android-e2e-light ui-screenshots-android-dark
   ui-screenshots-android-dark:
     # Measured 3 to 5 minutes.
     timeout-minutes: 7
@@ -710,7 +835,7 @@ jobs:
           echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
       - uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
-          name: cue-native-android-${{ needs.fingerprint.outputs.android }}${{ inputs.copy }}
+          name: cue-native-android-${{ needs.native-android.outputs.fingerprint }}${{ inputs.copy }}
           path: ${{ runner.temp }}/cue-native-android
       - name: Enable KVM
         run: |
@@ -730,7 +855,7 @@ jobs:
         if: ${{ !cancelled() }}
         with:
           name: ui-screenshots-android-dark${{ inputs.copy }}
-          path: ${{ runner.temp }}/screenshots/android/dark
+          path: ${{ runner.temp }}/screenshots/android/dark/**/takeScreenshot/*.png
           if-no-files-found: error
           compression-level: 0
           retention-days: 14
@@ -739,7 +864,10 @@ jobs:
         with:
           name: android-e2e-dark${{ inputs.copy }}
           include-hidden-files: true
-          path: ${{ runner.temp }}/android-ui
+          path: |
+            ${{ runner.temp }}/android-ui
+            ${{ runner.temp }}/screenshots/
+            !${{ runner.temp }}/screenshots/**/takeScreenshot/*.png
           if-no-files-found: error
           retention-days: 7
   pr-media:
@@ -755,7 +883,7 @@ jobs:
       - fingerprint
       - native-e2e-ios-light
       - ui-screenshots-ios-dark
-      - android-e2e
+      - android-e2e-light
       - ui-screenshots-android-dark
     runs-on: ubuntu-latest
     steps:

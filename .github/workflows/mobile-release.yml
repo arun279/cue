@@ -6,11 +6,11 @@ on:
       ci_run_id:
         description: Completed CI push run ID for this exact commit
         type: string
-        required: false
+        required: true
       codeql_run_id:
         description: Completed CodeQL push run ID for this exact commit
         type: string
-        required: false
+        required: true
       platform:
         description: Platform(s)
         type: choice
@@ -61,7 +61,7 @@ jobs:
     # Dispatch identifies completed CI and CodeQL push runs for this commit.
     if: inputs.promote_ios == '' && inputs.promote_android == ''
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 5
     permissions:
       actions: read
       checks: read
@@ -114,12 +114,20 @@ jobs:
         run: |
           shipped=$(node ../../scripts/testflight.mjs latest-build)
           ../../scripts/require-next-build.sh ios "$shipped" TestFlight
-      - name: Build
+      - name: Keep the UI harness out of the store bundle
         working-directory: packages/native
         env:
           EXPO_PUBLIC_TRAKT_CLIENT_ID: ${{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}
         run: |
           [ -n "$EXPO_PUBLIC_TRAKT_CLIENT_ID" ] || { echo "EXPO_PUBLIC_TRAKT_CLIENT_ID is not set"; exit 1; }
+          eas env:exec production --non-interactive \
+            "EXPO_NO_DOTENV=1 EXPO_ATLAS=true npx expo export --output-dir $RUNNER_TEMP/store-export --platform ios --clear"
+          node ../../scripts/check-store-bundle.mjs .expo/atlas.jsonl
+      - name: Build
+        working-directory: packages/native
+        env:
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ${{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}
+        run: |
           eas build --local --non-interactive --platform ios --profile production --output "$RUNNER_TEMP/Cue.ipa"
       - name: Check the IPA
         id: ipa
@@ -202,12 +210,20 @@ jobs:
         run: |
           shipped=$(../../scripts/firebase-distribution.sh latest-build)
           ../../scripts/require-next-build.sh android "$shipped" Firebase
-      - name: Build
+      - name: Keep the UI harness out of the store bundle
         working-directory: packages/native
         env:
           EXPO_PUBLIC_TRAKT_CLIENT_ID: ${{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}
         run: |
           [ -n "$EXPO_PUBLIC_TRAKT_CLIENT_ID" ] || { echo "EXPO_PUBLIC_TRAKT_CLIENT_ID is not set"; exit 1; }
+          eas env:exec production --non-interactive \
+            "EXPO_NO_DOTENV=1 EXPO_ATLAS=true npx expo export --output-dir $RUNNER_TEMP/store-export --platform android --clear"
+          node ../../scripts/check-store-bundle.mjs .expo/atlas.jsonl
+      - name: Build
+        working-directory: packages/native
+        env:
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: ${{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}
+        run: |
           eas build --local --non-interactive --platform android --profile production --output "$RUNNER_TEMP/Cue.apk"
       - name: Check the APK
         id: apk

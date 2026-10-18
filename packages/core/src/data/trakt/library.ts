@@ -55,13 +55,29 @@ function toWatchedEntry(
     hidden,
     inWatchlist,
     lastWatchedAt: watched.last_watched_at ?? null,
-    aired: progress?.aired ?? show.aired_episodes,
-    completed: progress?.completed ?? watchedEpisodeCount(watched),
-    nextEpisode: progress?.next_episode == null ? null : toEpisodeRef(progress.next_episode),
+    ...progressOf(watched, progress),
     lastAired: lastAiredKey(progress, watched),
     tmdbId: show.ids.tmdb ?? null,
     runtime: show.runtime ?? null,
     pendingAdvance: false,
+  };
+}
+
+function progressOf(
+  watched: WatchedShow,
+  progress: Progress | undefined,
+): Pick<LibraryEntry, "aired" | "completed" | "nextEpisode"> {
+  if (progress === undefined) {
+    return {
+      aired: watched.show.aired_episodes,
+      completed: watchedEpisodeCount(watched),
+      nextEpisode: null,
+    };
+  }
+  return {
+    aired: progress.aired,
+    completed: progress.completed,
+    nextEpisode: progress.next_episode == null ? null : toEpisodeRef(progress.next_episode),
   };
 }
 

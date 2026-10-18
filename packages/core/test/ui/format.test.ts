@@ -1,5 +1,12 @@
 import { epCode } from "@cue/core/domain/model/library";
-import { episodesLeft, lastWatchedPhrase, middleTruncate, watchedPercent } from "@cue/core/format";
+import {
+  episodesLeft,
+  lastWatchedPhrase,
+  leftNote,
+  middleTruncate,
+  watchedPercent,
+  withEpisodeTitle,
+} from "@cue/core/format";
 import { describe, expect, it } from "vitest";
 
 describe("epCode", () => {
@@ -16,6 +23,20 @@ describe("episodesLeft", () => {
 
   it("never goes negative when completed overshoots aired", () => {
     expect(episodesLeft(5, 6)).toBe(0);
+  });
+});
+
+describe("leftNote", () => {
+  it("counts the episodes left, and says nothing once caught up", () => {
+    expect(leftNote(10, 7)).toBe("3 left");
+    expect(leftNote(5, 6)).toBeNull();
+  });
+});
+
+describe("withEpisodeTitle", () => {
+  it("joins the episode title to its code when there is one", () => {
+    expect(withEpisodeTitle("S2 E10", "Salt Air")).toBe("S2 E10 · Salt Air");
+    expect(withEpisodeTitle("S2 E10", null)).toBe("S2 E10");
   });
 });
 

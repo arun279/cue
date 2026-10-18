@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { pathToFileURL } from "node:url";
+import { waitForAccessibility } from "./wait-ios-accessibility.mjs";
 
 export async function waitForIOS(device, { timeoutMs = 120_000, promptMs = 2_000 } = {}) {
   let child;
@@ -32,4 +33,5 @@ export async function waitForIOS(device, { timeoutMs = 120_000, promptMs = 2_000
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   await waitForIOS(process.argv[2]);
+  await waitForAccessibility(process.argv[2]);
 }
