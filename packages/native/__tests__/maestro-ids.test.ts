@@ -446,6 +446,43 @@ it.each(
   }
 });
 
+const SHEETS: readonly string[] = [TEST_IDS.episodeSheet, TEST_IDS.historyJumpSheet];
+const FROM_PRESENTED_MARKER = [
+  { swipe: { from: { id: HARNESS_IDS.sheetPresented }, direction: "DOWN" } },
+];
+
+function iosSheetDismissals(value: unknown): unknown[] {
+  if (Array.isArray(value)) {
+    return value.flatMap((command, index) => {
+      const presented = value
+        .slice(0, index)
+        .findLastIndex(
+          (earlier) => earlier?.extendedWaitUntil?.visible?.id === HARNESS_IDS.sheetPresented,
+        );
+      const gesture = SHEETS.includes(command?.extendedWaitUntil?.notVisible?.id)
+        ? value
+            .slice(presented + 1, index)
+            .find((earlier) => earlier?.runFlow?.when?.platform === "iOS")
+        : undefined;
+      return [...(gesture ? [gesture.runFlow.commands] : []), ...iosSheetDismissals(command)];
+    });
+  }
+  return value !== null && typeof value === "object"
+    ? Object.values(value).flatMap(iosSheetDismissals)
+    : [];
+}
+
+it("dismisses every sheet on iOS by dragging from its presented marker, above the content", () => {
+  const dismissals = yamlFiles(flowsDirectory).flatMap((file) =>
+    parseAllDocuments(readFileSync(file, "utf8")).flatMap((document) =>
+      iosSheetDismissals(document.toJS()),
+    ),
+  );
+
+  expect(dismissals.length).toBeGreaterThanOrEqual(2);
+  for (const dismissal of dismissals) expect(dismissal).toEqual(FROM_PRESENTED_MARKER);
+});
+
 it("types the Library filter in one input and observes durable Watchlist membership", () => {
   const library = readFileSync(join(flowsDirectory, "library.yaml"), "utf8");
   const movie = readFileSync(join(flowsDirectory, "movie-detail.yaml"), "utf8");
