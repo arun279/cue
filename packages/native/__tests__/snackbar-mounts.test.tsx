@@ -3,7 +3,7 @@ import { relative } from "node:path";
 import { showSnack } from "@cue/core/stores/snackbar-store";
 import { act, render, screen } from "@testing-library/react-native";
 import ts from "typescript";
-import { SnackbarHost } from "../src/ui/SnackbarHost";
+import { SnackbarHost, type SnackbarPlacement } from "../src/ui/SnackbarHost";
 import { nativeSourceFiles } from "./support/native-sources";
 
 jest.mock(
@@ -38,19 +38,27 @@ const mounts = nativeSourceFiles().flatMap((file) => {
 
 it("finds the production snackbar mounts", () => expect(mounts.length).toBeGreaterThan(0));
 
+const placements: readonly SnackbarPlacement[] = ["root", "presentation", "sheet"];
+
+function placementOf(attribute: ts.JsxAttributeLike | undefined): SnackbarPlacement | undefined {
+  if (attribute === undefined || !ts.isJsxAttribute(attribute)) return undefined;
+  if (attribute.name.getText() !== "placement") return undefined;
+  const value = attribute.initializer;
+  return value && ts.isStringLiteral(value)
+    ? placements.find((placement) => placement === value.text)
+    : undefined;
+}
+
 it.each(mounts)("uses the overlay host directly inside the presenting view in $file", async ({
   node,
 }) => {
   expect(ts.isJsxElement(node.parent) && node.parent.openingElement.tagName.getText()).toBe("View");
   expect(node.attributes.properties).toHaveLength(1);
-  const placement = node.attributes.properties[0];
-  expect(placement?.name?.getText()).toBe("placement");
-  const value = placement && ts.isJsxAttribute(placement) && placement.initializer;
-  const name = value && ts.isStringLiteral(value) ? value.text : undefined;
-  expect(["root", "presentation", "sheet"]).toContain(name);
-  if (name !== "root" && name !== "presentation" && name !== "sheet") return;
+  const placement = placementOf(node.attributes.properties[0]);
+  expect(placement).toBeDefined();
+  if (placement === undefined) return;
 
-  await render(<SnackbarHost placement={name} />);
+  await render(<SnackbarHost placement={placement} />);
   await act(() => showSnack({ message: "Removed play" }));
 
   expect(screen.getByTestId("snackbar")).toHaveStyle({ position: "absolute" });
