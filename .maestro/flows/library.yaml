@@ -60,19 +60,20 @@ appId: app.cuetracker
 - extendedWaitUntil:
     visible: 'No shows match "zzz".'
     timeout: 10000
-# Search ends editing, and UISearchBar shows its clear button only while editing.
+# Search ends editing and dismisses the keyboard, shown by its delete key
+# going. The search bar keeps its clear button after search.
 - runFlow:
     when:
       platform: iOS
     commands:
-      - assertVisible: "Clear text"
+      - assertVisible: "(?i)delete"
 - pressKey: Enter
 - runFlow:
     when:
       platform: iOS
     commands:
       - extendedWaitUntil:
-          notVisible: "Clear text"
+          notVisible: "(?i)delete"
           timeout: 10000
 - assertVisible: 'No shows match "zzz".'
 - waitForAnimationToEnd

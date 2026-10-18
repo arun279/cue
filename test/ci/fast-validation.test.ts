@@ -707,7 +707,7 @@ describe("fast pull request validation", () => {
   });
 
   it("waits for the iOS search field to stop editing before a capture that follows typing", () => {
-    const endsEditing = /^ +notVisible: "(?:Clear text|\(\?i\)close\|cancel)"$/;
+    const endsEditing = /^ +notVisible: "\(\?i\)(?:close\|cancel|delete)"$/;
     const flows = readdirSync(repositoryPath(".maestro/flows")).filter((name) =>
       name.endsWith(".yaml"),
     );
@@ -726,7 +726,7 @@ describe("fast pull request validation", () => {
 
     expect(unsettled).toEqual([]);
     expect(library).toMatch(
-      /- assertVisible: "Clear text"\n- pressKey: Enter\n[\s\S]*?notVisible: "Clear text"\n[\s\S]*?- takeScreenshot: library-no-match\n/,
+      /- assertVisible: "\(\?i\)delete"\n- pressKey: Enter\n[\s\S]*?notVisible: "\(\?i\)delete"\n[\s\S]*?- takeScreenshot: library-no-match\n/,
     );
   });
 
