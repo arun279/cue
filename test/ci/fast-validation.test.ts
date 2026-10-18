@@ -17,6 +17,31 @@ const envOf = (step: string) => step.match(/^ {8}env:\n((?: {10}.*\n)+)/m)?.[1];
 const IOS_LANES = ["native-e2e-ios-light", "ui-screenshots-ios-dark"];
 const HARNESS_BUNDLE = "ios-harness-bundle$" + "{{ inputs.copy }}";
 
+type HeaderReady = { avatar: boolean; menu: boolean };
+const HEADER_KINDS: [RegExp, keyof HeaderReady][] = [
+  [/^(?:up-next|library|calendar)-/, "avatar"],
+  [/^(?:show-detail|episode-sheet|movie-detail)-/, "menu"],
+];
+const HEADER_WAITS = {
+  avatar: /^ *(?:- assertVisible:|visible:)\n +id: "avatar-link"$/,
+  menu: /\n *(?:- (?:assertVisible|tapOn)|visible): "More actions for [^"*]+"$/,
+};
+const LANDS_ON_UP_NEXT =
+  /lib\/(?:relaunch|connect|sign-in|ready)\.yaml|^ *(?:file|- runFlow): (?:relaunch|connect|sign-in|ready)\.yaml$/m;
+
+function headerReady(ready: HeaderReady, lines: string, landed: boolean): HeaderReady {
+  const line = lines.slice(lines.indexOf("\n") + 1);
+  const entered = LANDS_ON_UP_NEXT.test(line)
+    ? { avatar: landed, menu: false }
+    : /id: "screen-[a-z-]+"|- launchApp\b/.test(line)
+      ? { avatar: false, menu: false }
+      : ready;
+  return {
+    avatar: entered.avatar || HEADER_WAITS.avatar.test(lines),
+    menu: entered.menu || HEADER_WAITS.menu.test(lines),
+  };
+}
+
 const git = (repository: string, ...args: string[]): string =>
   execFileSync("git", args, { cwd: repository, encoding: "utf8", env: gitEnv() }).trim();
 
@@ -706,6 +731,31 @@ describe("fast pull request validation", () => {
         }
       }
     }
+  });
+
+  it("waits for the header's avatar or more-actions menu before capturing a screen with it", () => {
+    const landed = readFileSync(repositoryPath(".maestro/flows/lib/ready.yaml"), "utf8")
+      .split("\n")
+      .some((line, index, lines) => HEADER_WAITS.avatar.test(`${lines[index - 1]}\n${line}`));
+    const early = readdirSync(repositoryPath(".maestro/flows"), {
+      recursive: true,
+      encoding: "utf8",
+    })
+      .filter((name) => name.endsWith(".yaml"))
+      .flatMap((flow) => {
+        let ready: HeaderReady = { avatar: false, menu: false };
+        return readFileSync(repositoryPath(`.maestro/flows/${flow}`), "utf8")
+          .split("\n")
+          .flatMap((line, index, lines) => {
+            ready = headerReady(ready, `${lines[index - 1]}\n${line}`, landed);
+            const name = line.match(/- takeScreenshot: (\S+)/)?.[1] ?? "";
+            const kind = HEADER_KINDS.find(([prefix]) => prefix.test(name))?.[1];
+            return kind && !ready[kind] ? [`${flow}: ${name}`] : [];
+          });
+      });
+
+    expect(landed).toBe(true);
+    expect(early).toEqual([]);
   });
 
   it("waits for the iOS search field to stop editing before a capture that follows typing", () => {

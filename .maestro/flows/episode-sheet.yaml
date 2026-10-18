@@ -3,6 +3,9 @@ appId: app.cuetracker
 - runFlow: lib/relaunch.yaml
 - tapOn:
     id: "queue-row-8803"
+- extendedWaitUntil:
+    visible: "More actions for Midnight Cartography"
+    timeout: 30000
 - tapOn: "S2 E3 · Half Measures.*"
 - assertVisible:
     id: "episode-sheet"
@@ -48,6 +51,7 @@ appId: app.cuetracker
 - runFlow: lib/dismiss-episode-sheet.yaml
 - assertVisible:
     id: "screen-show-detail"
+- assertVisible: "More actions for Midnight Cartography"
 - waitForAnimationToEnd
 - takeScreenshot: show-detail-after-episode
 - scrollUntilVisible:

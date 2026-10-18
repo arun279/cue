@@ -10,3 +10,8 @@ appId: app.cuetracker
     timeout: 48300
 - assertNotVisible:
     id: "up-next-skeleton"
+# The header's avatar mounts after the screen; captures of Up Next include it.
+- extendedWaitUntil:
+    visible:
+      id: "avatar-link"
+    timeout: 30000

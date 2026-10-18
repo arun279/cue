@@ -10,6 +10,10 @@ appId: app.cuetracker
 - tapOn: "Library"
 - assertVisible:
     id: "screen-library"
+- extendedWaitUntil:
+    visible:
+      id: "avatar-link"
+    timeout: 30000
 - assertVisible:
     id: "show-card-8801"
 - waitForAnimationToEnd
@@ -98,5 +102,8 @@ appId: app.cuetracker
     id: "show-card-8801"
 - assertVisible:
     id: "screen-show-detail"
+- extendedWaitUntil:
+    visible: "More actions for Harbor Lights"
+    timeout: 30000
 - waitForAnimationToEnd
 - takeScreenshot: show-detail-from-library
