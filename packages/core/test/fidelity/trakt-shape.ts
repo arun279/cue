@@ -1,5 +1,7 @@
 import { decode } from "@cue/core/data/trakt/decode";
+import { afterAll, beforeAll } from "vitest";
 import type { z } from "zod";
+import { createMockTrakt } from "../../../../scripts/mock-trakt/server.mjs";
 import realShapes from "./trakt-real-shapes.json";
 
 export interface PathShape {
@@ -170,4 +172,17 @@ export function pathsTheAppReads(schema: z.ZodType | undefined, shape: EndpointS
   };
   visit(decoded.data, "");
   return into;
+}
+
+/** The mock Trakt server for one test file: its base URL once it is listening. */
+export function mockTraktBase(): () => string {
+  const mock = createMockTrakt({ port: 0, log: false });
+  let base = "";
+  beforeAll(async () => {
+    base = await mock.listen();
+  });
+  afterAll(async () => {
+    await mock.close();
+  });
+  return () => base;
 }

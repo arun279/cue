@@ -528,6 +528,8 @@ export function createLibrary(now = FIXTURE_NOW, clock = () => now) {
     shows: [...SHOWS, ...SHELF_SHOWS].map((spec) => libraryShow(spec, now)),
     movies: [...MOVIES, ...SHELF_MOVIES].map((spec) => libraryMovie(spec, now)),
     user: { username: "cue-demo", name: "Cue Demo", slug: "cue-demo" },
+    /** Shows the account dropped, in the order it dropped them. */
+    dropped: [],
     /** Second plays, by episode and by movie trakt id: a seed profile's only
      * way to say an item was watched twice. */
     rewatchedEpisodes: new Map(),
@@ -540,6 +542,7 @@ export function createLibrary(now = FIXTURE_NOW, clock = () => now) {
       shows: now - DAY,
       movies: now - 2 * DAY,
       watchlist: now - 3 * DAY,
+      dropped: now - 30 * DAY,
       untracked: now - 30 * DAY,
     },
   };
@@ -1022,15 +1025,41 @@ export function hiddenBody(library, origin) {
  * account's writes move carry its activity stamps; the rest share one stamp
  * that only a reset moves.
  */
+export function droppedBody(library, origin) {
+  return library.dropped.map(({ show, at }) => ({
+    hidden_at: iso(at),
+    type: "show",
+    show: showRef(show, origin, "full"),
+  }));
+}
+
+/**
+ * `POST /users/hidden/dropped` and its `/remove`. Trakt counts every show it
+ * matched as added again, even one already dropped, and leaves the calendar as it
+ * was.
+ */
+export function applyDroppedWrite(library, body, remove) {
+  const { matched, missing } = matchSection(body.shows, (ids) => showById(library, ids));
+  const at = activityTime(library);
+  library.dropped = library.dropped.filter(({ show }) => !matched.includes(show));
+  if (!remove) library.dropped.push(...matched.map((show) => ({ show, at })));
+  if (matched.length > 0) library.activities.dropped = at;
+  const counts = { shows: matched.length };
+  return {
+    ...(remove ? { deleted: counts } : { added: counts }),
+    not_found: { movies: [], shows: missing, seasons: [] },
+  };
+}
+
 export function lastActivitiesBody(library) {
-  const { episodes, shows, movies, watchlist, untracked } = library.activities;
+  const { episodes, shows, movies, watchlist, dropped, untracked } = library.activities;
   const still = iso(untracked);
   const stamps = (keys, moving = {}) =>
     Object.fromEntries(
       keys.map((key) => [key, moving[key] === undefined ? still : iso(moving[key])]),
     );
   return {
-    all: iso(Math.max(episodes, shows, movies, watchlist)),
+    all: iso(Math.max(episodes, shows, movies, watchlist, dropped)),
     movies: stamps(
       [
         "watched_at",
@@ -1043,11 +1072,11 @@ export function lastActivitiesBody(library) {
         "paused_at",
         "hidden_at",
       ],
-      { watched_at: movies, collected_at: movies, watchlisted_at: watchlist },
+      { watched_at: movies, watchlisted_at: watchlist },
     ),
     episodes: stamps(
       ["watched_at", "collected_at", "rated_at", "watchlisted_at", "commented_at", "paused_at"],
-      { watched_at: episodes, collected_at: episodes },
+      { watched_at: episodes },
     ),
     shows: stamps(
       [
@@ -1059,7 +1088,7 @@ export function lastActivitiesBody(library) {
         "hidden_at",
         "dropped_at",
       ],
-      { hidden_at: shows, watchlisted_at: watchlist },
+      { hidden_at: shows, dropped_at: library.activities.dropped, watchlisted_at: watchlist },
     ),
     seasons: stamps(["rated_at", "watchlisted_at", "commented_at", "hidden_at"]),
     comments: stamps(["liked_at", "blocked_at", "reacted_at"]),
@@ -1211,8 +1240,17 @@ function writeStamp(library, body) {
   return toMinute(Number.isNaN(stamped) ? activityTime(library) : stamped);
 }
 
+/** Stamps every watched episode with the date it reads now, so a later write cannot move an earlier play. */
+function settlePlays(show) {
+  for (let index = 0; index < show.completed; index += 1) {
+    const traktId = show.episodes[index].traktId;
+    if (!show.watchedAt.has(traktId)) show.watchedAt.set(traktId, watchedAtOf(show, index));
+  }
+}
+
 /** A play for a watched episode is a second play, or with Multiple Plays off replaces the first. */
 function addEpisodePlays(library, show, indices, stamp, counts) {
+  settlePlays(show);
   for (const index of indices) {
     const ep = show.episodes[index];
     if (index < show.completed && library.multiplePlays) {
@@ -1230,6 +1268,7 @@ function addEpisodePlays(library, show, indices, stamp, counts) {
 
 /** Removing a second play by its row id leaves the first; anything else unwinds the counter. */
 function removeEpisodePlays(library, show, indices, body) {
+  settlePlays(show);
   const secondPlays = new Set((body.ids ?? []).filter((id) => id % 10 === 2).map(playItem));
   const firstPlays = indices.filter((index) => {
     const traktId = show.episodes[index].traktId;

@@ -1,10 +1,10 @@
 import * as S from "@cue/core/data/trakt/schemas";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import type { z } from "zod";
 import { FIXTURE_NOW } from "../../../../scripts/mock-trakt/seed.mjs";
-import { createMockTrakt } from "../../../../scripts/mock-trakt/server.mjs";
 import {
   type EndpointShape,
+  mockTraktBase,
   type Observed,
   observe,
   type PathShape,
@@ -262,22 +262,16 @@ const READS: readonly string[] = [
   `/users/me/history?${AF}&page=2&limit=30`,
 ];
 
-const mock = createMockTrakt({ port: 0, log: false });
-let base = "";
-
-beforeAll(async () => {
-  base = await mock.listen();
-});
-
-afterAll(async () => {
-  await mock.close();
-});
+const baseUrl = mockTraktBase();
 
 const headers = { authorization: "Bearer mock-access-token", "trakt-api-version": "2" };
 
 const titleOf = async (path: string): Promise<string> =>
-  ((await (await fetch(`${base}${path}?extended=full`, { headers })).json()) as { title: string })
-    .title;
+  (
+    (await (await fetch(`${baseUrl()}${path}?extended=full`, { headers })).json()) as {
+      title: string;
+    }
+  ).title;
 
 /** The scale account's thinly catalogued show (9007), one without artwork (9004), and the announced shelf titles. */
 async function seedReads(seed: string): Promise<readonly string[]> {
@@ -298,10 +292,10 @@ async function seedReads(seed: string): Promise<readonly string[]> {
 }
 
 async function answersFor(seed: string): Promise<Map<string, Answer[]>> {
-  await fetch(`${base}/__reset?seed=${seed}`, { method: "POST" });
+  await fetch(`${baseUrl()}/__reset?seed=${seed}`, { method: "POST" });
   const byEndpoint = new Map<string, Answer[]>();
   for (const path of await seedReads(seed)) {
-    const response = await fetch(`${base}${path}`, { headers });
+    const response = await fetch(`${baseUrl()}${path}`, { headers });
     if (response.status === 404) continue;
     const endpoint = templateOf("GET", path.split("?")[0] ?? path);
     const list = byEndpoint.get(endpoint) ?? [];

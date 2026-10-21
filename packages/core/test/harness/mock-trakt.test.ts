@@ -523,6 +523,10 @@ describe("fault profiles", () => {
     const limited = await fetch(`${baseUrl}/shows/8802/progress/watched`);
     expect(limited.status).toBe(429);
     expect(limited.headers.get("retry-after")).toBe("1");
+    expect(JSON.parse(limited.headers.get("x-ratelimit") ?? "{}")).toMatchObject({
+      name: "AUTHED_API_GET_LIMIT",
+      remaining: 0,
+    });
     await fetch(`${baseUrl}/__reset`, { method: "POST" });
     expect((await fetch(`${baseUrl}/shows/8802/progress/watched`)).status).toBe(200);
   });

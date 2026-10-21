@@ -18,6 +18,7 @@ import { pathToFileURL } from "node:url";
 import { createFaults, FAULT_PROFILE_NAMES, faultResponse, faultsFromEnv } from "./faults.mjs";
 import { createJournal } from "./journal.mjs";
 import {
+  applyDroppedWrite,
   applyHiddenWrite,
   applyHistoryWrite,
   applyWatchlistWrite,
@@ -26,6 +27,7 @@ import {
   collectionMoviesBody,
   collectionShowsBody,
   createSeedLibrary,
+  droppedBody,
   episodeDetailBody,
   FIXTURE_NOW,
   hiddenBody,
@@ -82,9 +84,9 @@ const notFound = (message) => ({
   body: JSON.stringify({ error: message }),
 });
 
-/** Trakt's `X-Pagination-*` headers, which the client walks list endpoints by. */
-function page(rows, url, defaultLimit) {
-  const limit = Number(url.searchParams.get("limit") ?? defaultLimit);
+/** Trakt's `X-Pagination-*` headers, which the client walks list endpoints by, with its per-page cap where one was seen. */
+function page(rows, url, defaultLimit, maxLimit = Number.POSITIVE_INFINITY) {
+  const limit = Math.min(Number(url.searchParams.get("limit") ?? defaultLimit), maxLimit);
   const current = Number(url.searchParams.get("page") ?? 1);
   const pageCount = Math.max(1, Math.ceil(rows.length / limit));
   return json(rows.slice((current - 1) * limit, current * limit), {
@@ -191,6 +193,7 @@ const ROUTES = [
         ),
         ctx.url,
         10,
+        250,
       ),
   ],
   [
@@ -208,13 +211,28 @@ const ROUTES = [
     /^\/users\/hidden\/progress_watched\/remove$/,
     (ctx) => json(applyHiddenWrite(ctx.library, ctx.body, true)),
   ],
+  [
+    "GET",
+    /^\/users\/hidden\/dropped$/,
+    (ctx) => page(droppedBody(ctx.library, ctx.origin), ctx.url, 10),
+  ],
+  [
+    "POST",
+    /^\/users\/hidden\/dropped$/,
+    (ctx) => created(applyDroppedWrite(ctx.library, ctx.body, false)),
+  ],
+  [
+    "POST",
+    /^\/users\/hidden\/dropped\/remove$/,
+    (ctx) => json(applyDroppedWrite(ctx.library, ctx.body, true)),
+  ],
 
   // ---- Sync
   ["GET", /^\/sync\/last_activities$/, (ctx) => json(lastActivitiesBody(ctx.library))],
   [
     "GET",
     /^\/sync\/watched\/shows$/,
-    (ctx) => page(watchedShowsBody(ctx.library, extendedOf(ctx.url)), ctx.url, 100),
+    (ctx) => page(watchedShowsBody(ctx.library, extendedOf(ctx.url)), ctx.url, 100, 100),
   ],
   [
     "GET",
@@ -281,12 +299,16 @@ const ROUTES = [
           ctx.url.searchParams.get("query") ?? "",
         ),
         ctx.url,
-        10,
+        100,
       ),
   ],
 
   // ---- Shows
-  ["GET", /^\/shows\/(?<rank>trending|popular)$/, (ctx) => page(browse(ctx, "shows"), ctx.url, 10)],
+  [
+    "GET",
+    /^\/shows\/(?<rank>trending|popular)$/,
+    (ctx) => page(browse(ctx, "shows"), ctx.url, 100),
+  ],
   [
     "GET",
     /^\/shows\/(?<id>[^/]+)\/related$/,
@@ -340,7 +362,7 @@ const ROUTES = [
   [
     "GET",
     /^\/movies\/(?<rank>trending|popular)$/,
-    (ctx) => page(browse(ctx, "movies"), ctx.url, 10),
+    (ctx) => page(browse(ctx, "movies"), ctx.url, 100),
   ],
   [
     "GET",
@@ -391,7 +413,7 @@ const CORS = {
   // response with those headers stripped and the mock silently stops modelling
   // the thing under test.
   "access-control-expose-headers":
-    "retry-after, x-pagination-page, x-pagination-limit, x-pagination-page-count, x-pagination-item-count",
+    "retry-after, x-ratelimit, x-pagination-page, x-pagination-limit, x-pagination-page-count, x-pagination-item-count",
   "access-control-max-age": "600",
 };
 
