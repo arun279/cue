@@ -114,7 +114,7 @@ const EXCEPTIONS: readonly Exception[] = [
     site: "router.back",
     candidate: "a close button in the sheet's Stack.Toolbar",
     reason:
-      "Android form sheets cannot host a header or a nested stack, so a sheet has no toolbar; the close is a Compose icon button drawn in the sheet, beside system back.",
+      "Android form sheets cannot host a header or a nested stack, so a sheet has no toolbar; the close is a plain icon button drawn in the sheet, beside system back, so it is on screen and labelled from the sheet's first frame.",
     source: "https://github.com/software-mansion/react-native-screens/issues/2657",
     checked: { package: "react-native-screens", version: "4.26.2" },
   },

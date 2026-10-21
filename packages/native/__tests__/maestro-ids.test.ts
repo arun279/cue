@@ -362,14 +362,46 @@ it.each([
   expect(flakeMasks(flow)).toHaveLength(1);
 });
 
-it("waits for scroll completion before every sign-out tap", () => {
-  const account = readFileSync(join(flowsDirectory, "account.yaml"), "utf8");
-  expect(
-    account.replaceAll(
-      '- runFlow: lib/settle-scroll.yaml\n- tapOn:\n    id: "settings-sign-out"',
-      "",
-    ),
-  ).not.toContain('- tapOn:\n    id: "settings-sign-out"');
+type Command = Record<string, unknown>;
+
+const SETTINGS_CONTROL = /^(settings-|switch-|theme-)/;
+const SETTLE_SCROLL = { runFlow: "lib/settle-scroll.yaml" };
+
+function commandLists(value: unknown): Command[][] {
+  if (Array.isArray(value)) return [value as Command[], ...value.flatMap(commandLists)];
+  if (value === null || typeof value !== "object") return [];
+  return Object.values(value).flatMap(commandLists);
+}
+
+const targetOf = (command: Command | undefined, verb: string): unknown => {
+  const body = command?.[verb] as { id?: unknown; element?: { id?: unknown } } | undefined;
+  return verb === "scrollUntilVisible" ? body?.element?.id : body?.id;
+};
+
+/** A tap that lands while the list is still moving, or at the screen's bottom edge where
+ * iOS defers touches to its home gesture, stops the scroll instead of reaching the control. */
+function unsettledScrollTaps(commands: Command[]): string[] {
+  return commands.flatMap((command, index) => {
+    const id = targetOf(command, "tapOn");
+    if (typeof id !== "string" || !SETTINGS_CONTROL.test(id)) return [];
+    const settled = JSON.stringify(commands[index - 1]) === JSON.stringify(SETTLE_SCROLL);
+    const scroll = commands[settled ? index - 2 : index - 1];
+    if (targetOf(scroll, "scrollUntilVisible") !== id) return [];
+    const centred =
+      (scroll?.["scrollUntilVisible"] as { centerElement?: unknown }).centerElement === true;
+    return settled && centred ? [] : [id];
+  });
+}
+
+it("centres every Settings control it scrolls to and waits for the scroll to settle before tapping it", () => {
+  const taps = yamlFiles(flowsDirectory).flatMap((file) =>
+    parseAllDocuments(readFileSync(file, "utf8"))
+      .flatMap((document) => commandLists(document.toJS()))
+      .flatMap(unsettledScrollTaps)
+      .map((id) => `${relative(flowsDirectory, file)}: ${id}`),
+  );
+
+  expect(taps).toEqual([]);
 });
 
 it("waits for onboarding readiness, taps once with default settling, logs the press trace, and fails fast on a lost press", () => {
