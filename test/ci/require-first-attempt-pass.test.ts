@@ -10,9 +10,20 @@ const job = (name: string, conclusion: string, run_attempt: number) => ({
   conclusion,
   status: "completed",
   run_attempt,
+  runner_id: 1000021993,
+  runner_name: "GitHub Actions 1000021993",
+  steps: [{ name: "Set up job", status: "completed", conclusion: "success", number: 1 }],
 });
 
-function refuse(attempt: number, history: Record<number, ReturnType<typeof job>[]>) {
+// What run 39613813244 reported for a job GitHub never handed to a macOS runner.
+const neverAssigned = (name: string, run_attempt: number) => ({
+  ...job(name, "cancelled", run_attempt),
+  runner_id: 0,
+  runner_name: "",
+  steps: [],
+});
+
+function refuse(attempt: number, history: Record<number, object[]>) {
   const directory = tempDirectory("cue-first-attempt-");
   writeFileSync(
     path.join(directory, "data.json"),
@@ -91,4 +102,40 @@ it("passes a rerun whose earlier attempts passed or skipped every listed job", (
 
 it("fails when an earlier attempt cannot be read", () => {
   expect(refuse(3, { 1: [job("native-ios", "success", 1)] }).status).not.toBe(0);
+});
+
+it.each([
+  ["no runner and no steps", { runner_id: 0, runner_name: "", steps: [] }],
+  ["a null runner and no steps", { runner_id: null, runner_name: null, steps: [] }],
+])("passes a rerun of a job that never reached a runner, with %s", (_, fields) => {
+  const result = refuse(2, {
+    1: [
+      job("native-ios", "success", 1),
+      { ...neverAssigned("native-e2e-ios-light (discovery)", 1), ...fields },
+    ],
+  });
+
+  expect(result.status).toBe(0);
+  expect(result.stdout).toBe(
+    "::notice::native-e2e-ios-light (discovery): attempt 1 never reached a runner, so nothing ran\n",
+  );
+});
+
+it.each([
+  ["ran on a runner and failed", job("native-e2e-ios-light (discovery)", "failure", 1)],
+  [
+    "was cancelled after its steps started",
+    {
+      steps: [{ name: "Set up job", status: "completed", conclusion: "success", number: 1 }],
+      runner_id: 0,
+    },
+  ],
+  ["was cancelled on a runner before any step", { steps: [], runner_id: 1000021993 }],
+])("still refuses a rerun of a job that %s", (_, fields) => {
+  const result = refuse(2, {
+    1: [{ ...neverAssigned("native-e2e-ios-light (discovery)", 1), ...fields }],
+  });
+
+  expect(result.status).toBe(1);
+  expect(result.stdout).toContain("native-e2e-ios-light (discovery): attempt 1");
 });
