@@ -13,7 +13,13 @@ import type { Token } from "@cue/core/domain/model/token";
 import { buildMarkEpisodeOp } from "@cue/core/domain/write-queue/ops";
 import type { KeyValueStore } from "@cue/core/ports/kv";
 import type { TokenStore } from "@cue/core/ports/token-store";
-import { createQueryClient } from "@cue/core/runtime/query-cache";
+import { libraryQuery } from "@cue/core/queries/library";
+import {
+  createQueryCachePolicy,
+  createQueryClient,
+  restorableCache,
+} from "@cue/core/runtime/query-cache";
+import { dehydrate, hydrate } from "@tanstack/react-query";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { readJournal } from "../../../../scripts/mock-trakt/journal.mjs";
 import { createHarnessServer } from "./mock-server";
@@ -258,6 +264,43 @@ describe("read failures", () => {
       expect.objectContaining({ method: "GET", path: "/users/settings" }),
     ]);
   });
+});
+
+describe("a refresh that fails", () => {
+  it.each([
+    ["Trakt is down", { match: "reads", status: 503 }],
+    ["Trakt rate-limits every read", { match: "reads", status: 429, retryAfter: 1 }],
+    ["Trakt never answers", { match: "reads", hold: true }],
+    ["the connection drops", { match: "reads", drop: true }],
+  ])(
+    "keeps the last good queue for the next launch when %s",
+    async (_, fault) => {
+      vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
+      vi.setSystemTime(new Date("2026-09-10T12:00:00.000Z"));
+      const cue = await runtime();
+      const session = createQueryClient();
+      const library = libraryQuery(cue);
+      const loaded = await session.fetchQuery(library);
+      await arm(fault);
+      const refresh = session.refetchQueries({ queryKey: library.queryKey });
+      for (let tick = 0; tick < 60 && session.isFetching(library) > 0; tick += 1) {
+        await vi.advanceTimersByTimeAsync(5_000);
+      }
+      await refresh;
+      expect(session.getQueryState(library.queryKey)?.status).toBe("error");
+
+      const { shouldDehydrateQuery } = createQueryCachePolicy(session);
+      const persisted = JSON.stringify(
+        restorableCache({ clientState: dehydrate(session, { shouldDehydrateQuery }) }),
+      );
+      const relaunch = createQueryClient();
+      hydrate(relaunch, JSON.parse(persisted).clientState);
+
+      expect(relaunch.getQueryData(library.queryKey)).toEqual(loaded);
+      expect(relaunch.getQueryState(library.queryKey)?.status).toBe("success");
+    },
+    DIAGNOSTIC_TIMEOUT_MS,
+  );
 });
 
 describe("token refresh", () => {

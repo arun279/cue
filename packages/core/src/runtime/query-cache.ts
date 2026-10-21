@@ -1,4 +1,9 @@
-import { QueryClient as Client, type Query, type QueryClient } from "@tanstack/react-query";
+import {
+  QueryClient as Client,
+  type DehydratedState,
+  type Query,
+  type QueryClient,
+} from "@tanstack/react-query";
 import { queryKeys } from "../data/query-keys";
 import { DEFAULT_TRAKT_POLICY, type TraktPolicy } from "../data/trakt/policy";
 import { backoffMs } from "../domain/write-queue/classify";
@@ -45,10 +50,33 @@ export function createQueryCachePolicy(queryClient: QueryClient): {
 
   return {
     shouldDehydrateQuery(query) {
-      if (query.state.status !== "success") return false;
+      if (query.state.data === undefined) return false;
       const [head, section, showId] = query.queryKey;
       if (head === "show") return section === "info" && paintsALibraryCard(showId);
       return PERSISTED_KEY_HEADS.has(head);
+    },
+  };
+}
+
+export function restorableCache<T extends { readonly clientState: DehydratedState }>(client: T): T {
+  return {
+    ...client,
+    clientState: {
+      ...client.clientState,
+      queries: client.clientState.queries.map((query) =>
+        query.state.status === "error"
+          ? {
+              ...query,
+              state: {
+                ...query.state,
+                status: "success",
+                error: null,
+                fetchFailureCount: 0,
+                fetchFailureReason: null,
+              },
+            }
+          : query,
+      ),
     },
   };
 }

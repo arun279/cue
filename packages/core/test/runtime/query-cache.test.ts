@@ -6,23 +6,26 @@
  * ever opened.
  */
 
-import { QueryClient } from "@tanstack/react-query";
+import { dehydrate, hydrate, QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 import { queryKeys } from "../../src/data/query-keys";
-import { createQueryCachePolicy } from "../../src/runtime/query-cache";
+import { createQueryCachePolicy, restorableCache } from "../../src/runtime/query-cache";
 
 const LIBRARY_SHOW = 1;
 const UNSEEN_SHOW = 2;
 
 function policyOver(entries?: readonly { readonly showId: number }[]): {
-  persists(key: readonly unknown[], status?: "success" | "error"): boolean;
+  persists(
+    key: readonly unknown[],
+    state?: { status: "success" | "error"; data?: unknown },
+  ): boolean;
 } {
   const queryClient = new QueryClient();
   if (entries !== undefined) queryClient.setQueryData(queryKeys.library(), { entries });
   const { shouldDehydrateQuery } = createQueryCachePolicy(queryClient);
   return {
-    persists(key, status = "success") {
-      return shouldDehydrateQuery({ queryKey: key, state: { status } } as Parameters<
+    persists(key, state = { status: "success", data: {} }) {
+      return shouldDehydrateQuery({ queryKey: key, state } as Parameters<
         typeof shouldDehydrateQuery
       >[0]);
     },
@@ -64,8 +67,31 @@ describe("what a cold boot restores", () => {
     expect(policyOver().persists(queryKeys.showInfo(LIBRARY_SHOW))).toBe(false);
   });
 
-  it("never restores a query that failed", () => {
-    expect(policy.persists(queryKeys.library(), "error")).toBe(false);
-    expect(policy.persists(queryKeys.showInfo(LIBRARY_SHOW), "error")).toBe(false);
+  it("never restores a query that has nothing to show", () => {
+    expect(policy.persists(queryKeys.library(), { status: "error" })).toBe(false);
+    expect(policy.persists(queryKeys.showInfo(LIBRARY_SHOW), { status: "error" })).toBe(false);
+  });
+
+  it("keeps the last good data of a query whose refresh failed, restored as that data", () => {
+    const failedRefresh = { status: "error" as const, data: { entries: [] } };
+    expect(policy.persists(queryKeys.library(), failedRefresh)).toBe(true);
+
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(queryKeys.library(), failedRefresh.data);
+    const query = queryClient.getQueryCache().find({ queryKey: queryKeys.library() });
+    query?.setState({ status: "error", error: new Error("503"), fetchFailureCount: 3 });
+    const restored = new QueryClient();
+    const { shouldDehydrateQuery } = createQueryCachePolicy(queryClient);
+    const persisted = restorableCache({
+      clientState: dehydrate(queryClient, { shouldDehydrateQuery }),
+    });
+    hydrate(restored, persisted.clientState);
+
+    expect(restored.getQueryData(queryKeys.library())).toEqual(failedRefresh.data);
+    expect(restored.getQueryState(queryKeys.library())).toMatchObject({
+      status: "success",
+      error: null,
+      fetchFailureCount: 0,
+    });
   });
 });
