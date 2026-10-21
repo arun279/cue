@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { queryKeys } from "../data/query-keys";
 import { advancePastNext, type LibraryEntry, type MarkContext } from "../data/trakt/library";
 import { epCode } from "../domain/model/library";
@@ -342,10 +342,10 @@ export function useMarkWatched(): MarkWatched {
     [presentBatch, restorePreMark, haptics, submitReversal],
   );
 
-  return {
-    mark,
-    reverse,
-    reArm: useCallback((showId: number) => void useMarkStore.getState().close(showId), []),
-    justMarkedAt: (showId) => useMarkStore.getState().records.get(showId)?.at ?? null,
-  };
+  return useMemo(() => ({ mark, reverse, reArm, justMarkedAt }), [mark, reverse]);
 }
+
+const reArm = (showId: number): void => void useMarkStore.getState().close(showId);
+
+const justMarkedAt = (showId: number): number | null =>
+  useMarkStore.getState().records.get(showId)?.at ?? null;

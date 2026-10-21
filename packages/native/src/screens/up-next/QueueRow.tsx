@@ -1,4 +1,4 @@
-import { quickMarkable } from "@cue/core/data/trakt/library";
+import { type LibraryEntry, quickMarkable } from "@cue/core/data/trakt/library";
 import { type EpisodeRef, epCode } from "@cue/core/domain/model/library";
 import { DAY_MS, toMs } from "@cue/core/domain/time";
 import { lastWatchedPhrase, leftNote, watchedPercent, withEpisodeTitle } from "@cue/core/format";
@@ -6,7 +6,7 @@ import { useAlertsMute } from "@cue/core/hooks/useAlertsMute";
 import { useMarkControl } from "@cue/core/hooks/useMarkControl";
 import type { MarkWatched } from "@cue/core/hooks/useMarkWatched";
 import { useRouter } from "expo-router";
-import type { ReactElement } from "react";
+import { memo, type ReactElement } from "react";
 import { StyleSheet, useWindowDimensions, View } from "react-native";
 import { useShowArt } from "../../hooks/useShowArt";
 import { Badge } from "../../ui/Badge";
@@ -30,7 +30,7 @@ const ROW_IDS = {
 export interface QueueRowProps {
   readonly card: UpNextCard;
   readonly mark: MarkWatched;
-  onStop(): void;
+  onStop(entry: LibraryEntry): void;
   readonly variant?: "queue" | "lapsed";
 }
 
@@ -45,12 +45,17 @@ function airedLastNight(episode: EpisodeRef | null, now: number): boolean {
   return airedMs !== null && airedMs <= now && now - airedMs < DAY_MS;
 }
 
-export function QueueRow({ card, mark, onStop, variant = "queue" }: QueueRowProps): ReactElement {
+/** Owns the row's artwork read, so its settle delay and its fetch re-render the poster, not the row. */
+function RowPoster({ showId, title }: { readonly showId: number; readonly title: string }) {
+  const art = useShowArt(showId);
+  return <Poster title={title} posters={art.posters} width={POSTER_WIDTH.row} />;
+}
+
+function QueueRowContent({ card, mark, onStop, variant = "queue" }: QueueRowProps): ReactElement {
   const { entry, item } = card;
   const router = useRouter();
   const colors = useColors();
   const control = useMarkControl(entry, mark);
-  const art = useShowArt(entry.showId);
   const alerts = useAlertsMute(entry.showId, entry.title);
   const { width } = useWindowDimensions();
   const now = Date.now();
@@ -60,6 +65,7 @@ export function QueueRow({ card, mark, onStop, variant = "queue" }: QueueRowProp
   const note = idle !== null ? `last watched ${idle}` : leftNote(entry.aired, entry.completed);
   const fresh = variant === "queue" && airedLastNight(item.episode, now);
   const open = (): void => router.push(`/show/${entry.showId}`);
+  const stop = (): void => onStop(entry);
   const markable = control.state === "unwatched" && quickMarkable(entry, now);
 
   const items: RowMenuItem[] = [
@@ -69,7 +75,7 @@ export function QueueRow({ card, mark, onStop, variant = "queue" }: QueueRowProp
       available: markable,
       onPress: control.onPress,
     },
-    { id: TEST_IDS.quickActionStop, label: "Stop show", onPress: onStop },
+    { id: TEST_IDS.quickActionStop, label: "Stop show", onPress: stop },
     { id: TEST_IDS.quickActionDetails, label: "Show details", onPress: open },
     ...(variant === "queue"
       ? [{ id: TEST_IDS.quickActionMute, label: alerts.label, onPress: alerts.toggle }]
@@ -80,7 +86,7 @@ export function QueueRow({ card, mark, onStop, variant = "queue" }: QueueRowProp
     <SwipeRow
       testID={ROW_IDS[variant].row(entry.showId)}
       onMark={markable ? control.onPress : undefined}
-      onStop={onStop}
+      onStop={stop}
     >
       <RowMenu
         title={entry.title}
@@ -105,9 +111,7 @@ export function QueueRow({ card, mark, onStop, variant = "queue" }: QueueRowProp
               onPress={open}
               testID={ROW_IDS[variant].body(entry.showId)}
               actions={items}
-              leading={
-                <Poster title={entry.title} posters={art.posters} width={POSTER_WIDTH.row} />
-              }
+              leading={<RowPoster showId={entry.showId} title={entry.title} />}
               trailing={
                 control.pending || trigger !== null ? (
                   <>
@@ -141,6 +145,9 @@ export function QueueRow({ card, mark, onStop, variant = "queue" }: QueueRowProp
     </SwipeRow>
   );
 }
+
+/** Re-renders only when its card, the mark controller or the stop handler changes. */
+export const QueueRow = memo(QueueRowContent);
 
 const styles = StyleSheet.create({
   surface: { paddingHorizontal: SPACE.s4, paddingVertical: SPACE.s2 },

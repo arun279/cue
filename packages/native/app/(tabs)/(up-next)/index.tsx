@@ -21,8 +21,15 @@ import { type QueryStatus, queryStatus } from "@cue/core/queries/freshness";
 import { useRuntime } from "@cue/core/runtime/runtime";
 import { useQuery } from "@tanstack/react-query";
 import { Stack, useRouter } from "expo-router";
-import { type ReactElement, useEffect, useMemo, useRef, useState } from "react";
-import { Platform, RefreshControl, SectionList, StyleSheet, View } from "react-native";
+import { type ReactElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Platform,
+  RefreshControl,
+  SectionList,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePullToRefresh } from "../../../src/hooks/usePullToRefresh";
 import { LapsedHeader } from "../../../src/screens/up-next/LapsedHeader";
@@ -59,6 +66,8 @@ import { CueText } from "../../../src/ui/type";
 export { QueueRow };
 
 const ON_THE_WAY_ROWS = 3;
+// Viewport heights kept rendered: the visible one and two on each side.
+const WINDOW_SCREENS = 5;
 const HOUR_MS = DAY_MS / 24;
 
 interface UpNextView extends QueryStatus {
@@ -150,10 +159,21 @@ export default function UpNext(): ReactElement {
   const branch = branchOf(view, showsEnabled);
   const sectioned = SECTIONED.includes(branch);
   const list = useRef<SectionList<UpNextCard, UpNextSection>>(null);
+  const rowsPerScreen = Math.ceil(useWindowDimensions().height / ROW_MIN_HEIGHT.queue);
   useEffect(() => {
     if (!sectioned && Platform.OS === "android")
       list.current?.getScrollResponder()?.scrollTo({ y: 0, animated: false });
   }, [sectioned]);
+  const footer = useMemo(
+    () =>
+      sectioned ? (
+        <>
+          <OnTheWay days={onTheWayDays} />
+          <HistoryFooter />
+        </>
+      ) : null,
+    [sectioned, onTheWayDays],
+  );
   const sections: UpNextSection[] = sectioned
     ? [
         { key: "queue", data: view.queue },
@@ -181,7 +201,10 @@ export default function UpNext(): ReactElement {
         stickySectionHeadersEnabled={false}
         extraData={mark.tutorialVisible}
         keyExtractor={(card) => String(card.entry.showId)}
-        ItemSeparatorComponent={() => <Separator inset={ROW_TEXT_INSET} />}
+        ItemSeparatorComponent={QueueSeparator}
+        windowSize={WINDOW_SCREENS}
+        initialNumToRender={rowsPerScreen}
+        removeClippedSubviews={Platform.OS === "android"}
         refreshControl={
           <RefreshControl
             testID={TEST_IDS.refreshIndicator}
@@ -205,15 +228,11 @@ export default function UpNext(): ReactElement {
               card={item}
               mark={mark.controller}
               variant="lapsed"
-              onStop={() => stop.stopWatching(item.entry)}
+              onStop={stop.stopWatching}
             />
           ) : (
             <View>
-              <QueueRow
-                card={item}
-                mark={mark.controller}
-                onStop={() => stop.stopWatching(item.entry)}
-              />
+              <QueueRow card={item} mark={mark.controller} onStop={stop.stopWatching} />
               {index === 0 && mark.tutorialVisible ? <TutorialCaption /> : null}
             </View>
           )
@@ -224,14 +243,7 @@ export default function UpNext(): ReactElement {
             <Lead branch={branch} view={view} airingSoon={onTheWayDays.length > 0} />
           </View>
         }
-        ListFooterComponent={
-          sectioned ? (
-            <>
-              <OnTheWay days={onTheWayDays} />
-              <HistoryFooter />
-            </>
-          ) : null
-        }
+        ListFooterComponent={footer}
       />
     </TabRoot>
   );
@@ -278,6 +290,10 @@ function Lead({
   return <UpNextEmpty kind={branch} watchlist={view.watchlistEntries} airingSoon={airingSoon} />;
 }
 
+function QueueSeparator(): ReactElement {
+  return <Separator inset={ROW_TEXT_INSET} />;
+}
+
 function HistoryFooter(): ReactElement {
   const router = useRouter();
   const colors = useColors();
@@ -307,20 +323,21 @@ function useTutorialGate(controller: MarkWatched): {
   readonly tutorialVisible: boolean;
 } {
   const [dismissed, setDismissed] = useState(initialTutorialDismissed);
-
-  return {
-    tutorialVisible: !dismissed,
-    controller: {
-      ...controller,
-      mark: (entry) => {
-        if (!dismissed) {
-          persistTutorialDismissed();
-          setDismissed(true);
-        }
-        return controller.mark(entry);
-      },
+  const mark = useCallback(
+    (entry: LibraryEntry) => {
+      if (!dismissed) {
+        persistTutorialDismissed();
+        setDismissed(true);
+      }
+      return controller.mark(entry);
     },
-  };
+    [controller, dismissed],
+  );
+
+  return useMemo(
+    () => ({ tutorialVisible: !dismissed, controller: { ...controller, mark } }),
+    [controller, dismissed, mark],
+  );
 }
 
 const styles = StyleSheet.create({

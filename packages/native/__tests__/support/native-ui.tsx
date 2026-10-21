@@ -21,7 +21,10 @@ export const router = {
 
 /** The drag the last-rendered swipeable reports, so a test can move a row the
  * way a finger does and watch what the reveal makes of it. */
-export const drag: { translation: { value: number } | null } = { translation: null };
+export const drag: {
+  translation: { value: number } | null;
+  start: ((direction: string) => void) | null;
+} = { translation: null, start: null };
 
 interface SearchBarOptions {
   readonly ref?: Ref<Partial<SearchBarCommands>>;
@@ -290,6 +293,7 @@ export function swipeableModule() {
     const translation = useSharedValue(0);
     const progress = useSharedValue(0);
     drag.translation = translation;
+    drag.start = (direction) => props.onSwipeableOpenStartDrag?.(direction);
     const methods = { close: () => {}, openLeft: () => {}, openRight: () => {}, reset: () => {} };
     const release = (direction: string) => () => {
       props.onSwipeableOpenStartDrag?.(direction);

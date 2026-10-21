@@ -23,9 +23,19 @@ export interface SwipeRowProps {
   readonly children: ReactNode;
 }
 
+/**
+ * Each row mounts its reveals' glyphs, state and frame reaction on its first drag, not with the
+ * row; until then an empty strip of the same width stands in, which is what the library
+ * measures when the drag starts.
+ */
 export function SwipeRow({ onMark, onStop, testID, children }: SwipeRowProps): ReactElement {
   const haptics = useHaptics();
   const row = useRef<SwipeableMethods>(null);
+  const [dragged, setDragged] = useState(false);
+  const start = (): void => {
+    haptics.prepare();
+    setDragged(true);
+  };
 
   const commit = (direction: SwipeDirection): void => {
     row.current?.close();
@@ -40,18 +50,25 @@ export function SwipeRow({ onMark, onStop, testID, children }: SwipeRowProps): R
       testID={testID}
       leftThreshold={SWIPE_COMMIT}
       rightThreshold={SWIPE_COMMIT}
-      onSwipeableOpenStartDrag={haptics.prepare}
+      onSwipeableOpenStartDrag={start}
       onSwipeableWillOpen={commit}
       renderLeftActions={
         onMark === undefined
           ? undefined
-          : (_progress, translation) => (
-              <Reveal side="mark" translation={translation} haptics={haptics} />
-            )
+          : (_progress, translation) =>
+              dragged ? (
+                <Reveal side="mark" translation={translation} haptics={haptics} />
+              ) : (
+                <View style={styles.strip} />
+              )
       }
-      renderRightActions={(_progress, translation) => (
-        <Reveal side="stop" translation={translation} haptics={haptics} />
-      )}
+      renderRightActions={(_progress, translation) =>
+        dragged ? (
+          <Reveal side="stop" translation={translation} haptics={haptics} />
+        ) : (
+          <View style={styles.strip} />
+        )
+      }
     >
       {children}
     </Swipeable>
