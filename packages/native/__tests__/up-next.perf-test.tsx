@@ -89,6 +89,14 @@ test("Up Next screen", async () => {
       <UpNext />
     </PerfHarness>,
     {
+      // Up Next's list renders more rows on a 50 ms timer after mount. Held timers
+      // keep that render out of every run, not just the runs slow enough to reach it.
+      beforeEach: () => {
+        jest.useFakeTimers();
+      },
+      afterEach: () => {
+        jest.useRealTimers();
+      },
       scenario: async (screen) =>
         fireEvent.press(screen.getByTestId(`${TEST_IDS.queueRow(entry.showId)}-drag-right`)),
     },
