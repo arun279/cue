@@ -1,6 +1,6 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import path from "node:path";
-import { watchScreenshots } from "./screenshot-watch.mjs";
+import { recorder, spindump, watchScreenshots } from "./screenshot-watch.mjs";
 
 const args = process.argv.slice(2);
 const debugOutput = args.includes("--debug-output")
@@ -33,6 +33,26 @@ function driverDied(line) {
   );
 }
 
+function accessibilityTimeout(line) {
+  const [, call, pid] = /kAXErrorIPCTimeout from (\w+) for (\d+)/.exec(line) ?? [];
+  if (pid === undefined) return undefined;
+  const command = spawnSync("ps", ["-o", "comm=", "-p", pid], { encoding: "utf8" }).stdout.trim();
+  if (command !== "" && springBoard) {
+    spindump({ directory: springBoard, pid, label: command, record: recorder(springBoard) });
+  }
+  return `The simulator's accessibility IPC to pid ${pid} (${command || "no longer running"}) timed out in ${call}, so XCTest could not list the running apps. Spindumps, when the lane records them: ${springBoard}`;
+}
+
+function diagnose(line) {
+  return (
+    accessibilityTimeout(line) ??
+    (/Timed out while requesting screenshot/.test(line)
+      ? `SpringBoard did not answer testmanagerd's accessibility orientation query within XCTest's 30 s screenshot limit, so no screenshot could be taken. Late replies and SpringBoard spindumps, when the lane records them: ${springBoard}`
+      : undefined) ??
+    (driverDied(line) ? "XCTest driver died during startup" : undefined)
+  );
+}
+
 function inspect(source, text) {
   const lines = `${tails.get(source) ?? ""}${text}`.split(/\r?\n/);
   tails.set(source, lines.pop().slice(-16_384));
@@ -43,16 +63,10 @@ function inspect(source, text) {
     if (/\[Done\] Perform XCUITest driver status check|Got device info:/.test(line)) {
       driverAnswered = true;
     }
-    if (driverDied(line)) {
+    const diagnosis = diagnose(line);
+    if (diagnosis !== undefined) {
       failed = true;
-      console.error(`XCTest driver died during startup\n${history.join("\n")}`);
-      killGroup();
-    }
-    if (/Timed out while requesting screenshot/.test(line)) {
-      failed = true;
-      console.error(
-        `SpringBoard did not answer testmanagerd's accessibility orientation query within XCTest's 30 s screenshot limit, so no screenshot could be taken. Late replies and SpringBoard spindumps, when the lane records them: ${springBoard}\n${history.join("\n")}`,
-      );
+      console.error(`${diagnosis}\n${history.join("\n")}`);
       killGroup();
     }
   }

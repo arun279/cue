@@ -194,3 +194,61 @@ exec sleep 30
   );
   expect(result.stderr).toContain("path: isScreenStatic");
 });
+
+const accessibilityTimeout = (pid: number) => {
+  const bin = tempDirectory("cue-supervisor-ax-");
+  const calls = path.join(bin, "calls");
+  writeFileSync(
+    path.join(bin, "maestro"),
+    `#!/bin/sh
+echo '[ WARN] XCTestDriver request failed. Status code: 500, path: http://127.0.0.1:7001/deviceInfo, body: {"code":"internal","errorMessage":"Failed to get list of active applications: Accessibility error kAXErrorIPCTimeout from AXUIElementCopyMultipleAttributeValues for ${pid}"}'
+exec sleep 30
+`,
+    { mode: 0o755 },
+  );
+  writeFileSync(path.join(bin, "sudo"), `#!/bin/sh\necho "$*" >> "${calls}"\n`, { mode: 0o755 });
+  const debug = path.join(bin, "debug");
+  const result = spawnSync(
+    process.execPath,
+    [
+      repositoryPath("scripts/maestro-supervisor.mjs"),
+      "test",
+      "flow.yaml",
+      "--debug-output",
+      debug,
+    ],
+    {
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${bin}:${process.env["PATH"]}`, DEVICE_ID: "" },
+    },
+  );
+  return { ...result, calls: existsSync(calls) ? readFileSync(calls, "utf8") : "", debug };
+};
+
+it("names the process an accessibility IPC timeout was waiting on and spindumps it", () => {
+  const result = accessibilityTimeout(process.pid);
+
+  expect(result.status).toBe(1);
+  expect(result.stderr).toMatch(
+    new RegExp(
+      `^The simulator's accessibility IPC to pid ${process.pid} \\(\\S*node\\) timed out in AXUIElementCopyMultipleAttributeValues, so XCTest could not list the running apps\\. Spindumps, when the lane records them: ${result.debug}/springboard\\n`,
+    ),
+  );
+  expect(result.stderr).not.toContain("XCTest driver died during startup");
+  expect(result.calls).toMatch(
+    new RegExp(
+      `^-n spindump ${process.pid} 3 10 -noBinary -noProcessingWhileSampling -o ${result.debug}/springboard/spindump-`,
+    ),
+  );
+});
+
+it("says when the process an accessibility IPC timeout waited on has already exited", () => {
+  const exited = spawnSync(process.execPath, ["-e", "process.stdout.write(String(process.pid))"], {
+    encoding: "utf8",
+  });
+  const result = accessibilityTimeout(Number(exited.stdout));
+
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain(`to pid ${exited.stdout} (no longer running) timed out`);
+  expect(result.calls).toBe("");
+});

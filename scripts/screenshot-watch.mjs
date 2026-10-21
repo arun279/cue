@@ -35,10 +35,38 @@ export function screenshotReplies({ slowMs = 1_000, sample, record }) {
   return { handle, stop };
 }
 
-export function watchScreenshots({ device, directory, slowMs }) {
+export const recorder = (directory) => {
   mkdirSync(directory, { recursive: true });
-  const record = (line) =>
+  return (line) =>
     appendFileSync(path.join(directory, "replies.txt"), `${new Date().toISOString()} ${line}\n`);
+};
+
+export function spindump({ directory, pid, label, options = [], record, done = () => {} }) {
+  const file = `spindump-${new Date().toISOString().replaceAll(":", "-")}.txt`;
+  record(`sampling ${label} ${pid} into ${file}`);
+  execFile(
+    "sudo",
+    [
+      "-n",
+      "spindump",
+      pid,
+      "3",
+      "10",
+      ...options,
+      "-noBinary",
+      "-noProcessingWhileSampling",
+      "-o",
+      path.join(directory, file),
+    ],
+    (failure) => {
+      if (failure) record(`spindump failed: ${failure.message.trim()}`);
+      done();
+    },
+  );
+}
+
+export function watchScreenshots({ device, directory, slowMs }) {
+  const record = recorder(directory);
   let sampling = false;
   const sample = () => {
     if (sampling) return;
@@ -53,28 +81,16 @@ export function watchScreenshots({ device, directory, slowMs }) {
         sampling = false;
         return;
       }
-      const file = `spindump-${new Date().toISOString().replaceAll(":", "-")}.txt`;
-      record(`sampling SpringBoard ${springBoard} into ${file}`);
-      execFile(
-        "sudo",
-        [
-          "-n",
-          "spindump",
-          springBoard,
-          "3",
-          "10",
-          "-onlyTarget",
-          ...(testManager === undefined ? [] : ["-proc", testManager]),
-          "-noBinary",
-          "-noProcessingWhileSampling",
-          "-o",
-          path.join(directory, file),
-        ],
-        (failure) => {
-          if (failure) record(`spindump failed: ${failure.message.trim()}`);
+      spindump({
+        directory,
+        pid: springBoard,
+        label: "SpringBoard",
+        options: ["-onlyTarget", ...(testManager === undefined ? [] : ["-proc", testManager])],
+        record,
+        done: () => {
           sampling = false;
         },
-      );
+      });
     });
   };
   const replies = screenshotReplies({ slowMs, sample, record });
