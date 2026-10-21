@@ -24,6 +24,8 @@ appId: app.cuetracker
 - scrollUntilVisible:
     element:
       id: "switch-movies"
+    centerElement: true
+- runFlow: lib/settle-scroll.yaml
 - tapOn:
     id: "switch-movies"
 - runFlow:
@@ -53,6 +55,8 @@ appId: app.cuetracker
 - scrollUntilVisible:
     element:
       id: "switch-movies"
+    centerElement: true
+- runFlow: lib/settle-scroll.yaml
 - tapOn:
     id: "switch-movies"
 - scrollUntilVisible:
@@ -74,6 +78,7 @@ appId: app.cuetracker
 - scrollUntilVisible:
     element:
       id: "settings-sign-out"
+    centerElement: true
 - runFlow: lib/settle-scroll.yaml
 - tapOn:
     id: "settings-sign-out"
