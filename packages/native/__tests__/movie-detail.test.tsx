@@ -5,10 +5,11 @@ import * as WebBrowser from "expo-web-browser";
 import { MovieDetail } from "../src/screens/MovieDetail";
 import { TEST_IDS } from "../src/ui/test-ids";
 import { movieEntry, movieHeader, movieRuntime, pendingMovieRuntime } from "./support/movie-detail";
-import { router } from "./support/native-ui";
+import { chooseHeaderAction, router } from "./support/native-ui";
 import { Harness, memoryPreferences, resetSharedStores, spyHaptics } from "./support/up-next";
 
 jest.mock("expo-router", () => require("./support/native-ui").expoRouterModule());
+jest.mock("@expo/ui/community/menu", () => require("./support/native-ui").menuModule());
 jest.mock("expo-image", () => require("./support/detail").imageModule());
 jest.mock("expo-web-browser", () => ({ openBrowserAsync: jest.fn(async () => ({})) }));
 jest.mock(
@@ -81,8 +82,9 @@ it("refuses a rewatched film and opens movie history", async () => {
 
 it.each([false, true])("toggles watchlist membership from %s with Undo", async (inWatchlist) => {
   const runtime = await mount(movieRuntime({ inWatchlist }));
-  await fireEvent.press(
-    await screen.findByText(inWatchlist ? "Remove from Watchlist" : "Add to Watchlist"),
+  await chooseHeaderAction(
+    movieHeader.title,
+    inWatchlist ? "Remove from Watchlist" : "Add to Watchlist",
   );
   expect(
     await screen.findByText(inWatchlist ? "Add to Watchlist" : "Remove from Watchlist"),
@@ -101,7 +103,7 @@ it.each([false, true])("toggles watchlist membership from %s with Undo", async (
 
 it("opens Trakt in the browser", async () => {
   await mount();
-  await fireEvent.press(await screen.findByText("Open on Trakt"));
+  await chooseHeaderAction(movieHeader.title, "Open on Trakt");
   expect(WebBrowser.openBrowserAsync).toHaveBeenCalledWith(
     "https://trakt.tv/movies/the-lantern-keeper",
   );

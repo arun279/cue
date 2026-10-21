@@ -11,9 +11,9 @@ import { DetailHarness, detailRuntime } from "./support/detail";
 import { router } from "./support/native-ui";
 import { entry, Harness, resetSharedStores, spyHaptics } from "./support/up-next";
 
+jest.mock("expo-image", () => require("./support/detail").imageModule());
 jest.mock("expo-router", () => require("./support/native-ui").expoRouterModule());
 jest.mock("@expo/ui/community/menu", () => require("./support/native-ui").menuModule());
-jest.mock("expo-image", () => require("./support/detail").imageModule());
 jest.mock("expo-web-browser", () => ({ openBrowserAsync: jest.fn() }));
 jest.mock(
   "react-native-safe-area-context",
@@ -226,3 +226,24 @@ function menuOf(node: unknown): unknown {
   const { children, onPress: _, ...props } = node.props as Record<string, unknown>;
   return { ...props, children: Children.toArray(children as ReactNode).map(menuOf) };
 }
+
+(Platform.OS === "android" ? it : it.skip)(
+  "draws Android's More trigger as a plain 48 dp button that mounts its menu only when opened",
+  async () => {
+    await render(
+      <DetailHarness>
+        <ShowDetail showId={8803} />
+      </DetailHarness>,
+    );
+
+    const more = await screen.findByRole("button", {
+      name: "More actions for Midnight Cartography",
+    });
+    expect(more).toHaveStyle({ width: 48, height: 48 });
+    expect(screen.queryByTestId("stop")).toBeNull();
+
+    await fireEvent.press(more);
+
+    expect(screen.getByTestId("stop")).toBeOnTheScreen();
+  },
+);
