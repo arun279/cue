@@ -105,6 +105,13 @@ describe("ownPlays for one landed mark", () => {
     expect(removes([newer, older])).toEqual([22]);
   });
 
+  it("removes the later recorded of two plays Trakt stored in the same minute", () => {
+    const first = play(21, "2026-07-09T12:00:00.000Z");
+    const second = play(22, "2026-07-09T12:00:00.000Z");
+    expect(removes([first, second])).toEqual([22]);
+    expect(removes([second, first])).toEqual([22]);
+  });
+
   it("ignores other episodes' plays and resolves nothing from an empty history", () => {
     expect(removes([play(99, MARKED_AT, 999)])).toEqual([]);
     expect(removes([])).toEqual([]);
