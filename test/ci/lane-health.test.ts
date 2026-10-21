@@ -163,8 +163,14 @@ const accessibilityBin = fakeBin({
   sudo: '#!/bin/sh\necho "$*" >> "$CALLS"\n',
 });
 
-const laneRun = (live: number) => {
+const laneRun = (live: number, simulatorCancels: readonly string[] = []) => {
   const bin = tempDirectory("cue-lane-health-");
+  if (simulatorCancels.length > 0) {
+    writeFileSync(
+      path.join(bin, "simulator-touch-cancels.log"),
+      `${simulatorCancels.join("\n")}\n`,
+    );
+  }
   const calls = path.join(bin, "calls");
   const now = new Date();
   const clock = (offset: number) => {
@@ -202,6 +208,7 @@ const laneRun = (live: number) => {
         SIM_LOG: path.join(bin, "log"),
         OPTIONS: path.join(bin, "options"),
         LIVE: String(live),
+        RUNNER_TEMP: bin,
       },
     },
   );
@@ -226,9 +233,26 @@ it("reports lane health after Maestro exits, from the simulator's stored log rat
     "Lane health: Maestro's Java heap after 1 collections: at most 12 MB live of 640 MB committed",
     "Lane health: 1 log lines about launching MobileCal",
     "Lane health: largest single process per program, sampled each minute: java 1024 MB, SpringBoard 200 MB",
+    "Lane health: 0 taps the simulator proved it dropped, each tapped again",
   ]);
+  expect(result.stdout).not.toContain("::notice");
   expect(readFileSync(path.join(debug, "lane-health", "health.txt"), "utf8")).toContain(
     "1000 MB paged in during the flow",
+  );
+});
+
+it("counts every tap the simulator proved it dropped and raises a job notice for them", () => {
+  const cancels = ["2026-10-21T21:14:24.000Z shown; touch start +1 ms; touch cancel +2 ms"];
+  const { result, debug } = laneRun(12, [...cancels, cancels[0] ?? ""]);
+
+  expect(result.stdout).toContain(
+    "Lane health: 2 taps the simulator proved it dropped, each tapped again\n",
+  );
+  expect(result.stdout).toContain(
+    "::notice title=Simulator touch cancel::The simulator dropped 2 taps and the flow tapped again; see Lane health\n",
+  );
+  expect(readFileSync(path.join(debug, "lane-health", "health.txt"), "utf8")).toContain(
+    `proven simulator touch cancel: ${cancels[0]}`,
   );
 });
 

@@ -706,6 +706,7 @@ describe("fast pull request validation", () => {
       "mock-trakt/server.mjs",
       "prepare-ios-ui.sh",
       "reembed-ios.sh",
+      "simulator-touch.mjs",
       "snapshot-host-resources.sh",
       "start-ready-process.mjs",
       "wait-ios-accessibility.mjs",
