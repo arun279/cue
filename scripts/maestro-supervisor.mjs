@@ -103,8 +103,11 @@ for (const name of ["stdout", "stderr"]) {
 child.on("error", (error) => console.error(`Cannot start Maestro: ${error.message}`));
 child.on("close", async (code, signal) => {
   process.exitCode = failed ? 1 : (code ?? (signal === "SIGINT" ? 130 : 1));
-  const lines = await health?.stop().catch((error) => [`unavailable: ${error.message}`]);
-  for (const line of lines ?? []) process.stdout.write(`Lane health: ${line}\n`);
+  const report = await health
+    ?.stop()
+    .catch((error) => ({ lines: [`unavailable: ${error.message}`], warning: undefined }));
+  for (const line of report?.lines ?? []) process.stdout.write(`Lane health: ${line}\n`);
+  if (report?.warning) process.stdout.write(`::warning title=Lane health::${report.warning}\n`);
 });
 for (const [signal, code] of [
   ["SIGINT", 130],
