@@ -39,19 +39,22 @@ const frame = (node) => {
 
 const descendants = (node) => node.children.flatMap((child) => [child, ...descendants(child)]);
 
-// uiautomator reports only the visible part of a view cut by its scroll container's edge.
+// uiautomator reports only the visible part of a view its list has scrolled past. A view cut at the
+// trailing edge is still measured, so the screen has to show the end of a list whole.
 const clipped = new Set();
 const markClipped = (node, viewport = null) => {
   const bounds = frame(node);
-  if (bounds !== null && viewport?.edges.some((edge) => bounds[edge] === viewport.frame[edge])) {
+  if (
+    bounds !== null &&
+    viewport !== null &&
+    bounds[viewport.edge] === viewport.frame[viewport.edge]
+  ) {
     clipped.add(node);
   }
   const scrolls = node.attributes.scrollable === "true" && frame(node) !== null;
-  const edges = /Horizontal/.test(node.attributes.class ?? "")
-    ? ["left", "right"]
-    : ["top", "bottom"];
+  const edge = /Horizontal/.test(node.attributes.class ?? "") ? "left" : "top";
   for (const child of node.children) {
-    markClipped(child, scrolls ? { frame: frame(node), edges } : viewport);
+    markClipped(child, scrolls ? { frame: frame(node), edge } : viewport);
   }
 };
 

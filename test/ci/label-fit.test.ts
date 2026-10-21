@@ -78,12 +78,18 @@ const row = (button: string, label: string) =>
 <node index="0" text="History" class="android.widget.TextView" clickable="false" bounds="${label}" />
 </node>`;
 
-it("leaves out a row the list cuts at its edge, and still measures the rows it shows whole", () => {
-  const cut = row("[0,460][400,500]", "[16,472][300,498]");
-  expect(run(list(`${row("[0,200][400,248]", "[16,212][300,236]")}${cut}`)).stdout).toContain(
+it("leaves out a row the list has scrolled past, and measures the rows it shows whole", () => {
+  const passed = row("[0,100][400,140]", "[16,100][300,128]");
+  expect(run(list(`${passed}${row("[0,200][400,248]", "[16,212][300,236]")}`)).stdout).toContain(
     "Measured 1 labelled buttons; 0 crowd their edge.",
   );
-  const crowded = run(list(`${row("[0,200][400,248]", "[16,212][300,246]")}${cut}`));
+  const crowded = run(list(`${passed}${row("[0,200][400,248]", "[16,212][300,246]")}`));
   expect(crowded.status).toBe(1);
   expect(crowded.stderr).toContain('"History" [16,212][300,246] in [0,200][400,248]');
+});
+
+it("measures a row cut at the trailing edge of its list, so a screen that ends a list shows it whole", () => {
+  const result = run(list(row("[0,460][400,500]", "[16,472][300,498]")));
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain('"History" [16,472][300,498] in [0,460][400,500]');
 });

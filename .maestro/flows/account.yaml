@@ -179,3 +179,6 @@ appId: app.cuetracker
 # Sign back in on the same install, because the flow ends on onboarding and
 # what runs after it starts from a returning user.
 - runFlow: lib/sign-in.yaml
+# The activity suite ends here, and the Android lane measures the screen it ends
+# on: the end of Up Next, so its last row has to clear the navigation bar.
+- runFlow: lib/scroll-to-end.yaml

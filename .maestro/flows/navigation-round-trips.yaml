@@ -5,9 +5,7 @@
 appId: app.cuetracker
 ---
 - runFlow: lib/relaunch.yaml
-- scrollUntilVisible:
-    element:
-      id: "link-history"
+- runFlow: lib/scroll-to-end.yaml
 - tapOn:
     id: "link-history"
 - assertVisible:
@@ -52,9 +50,7 @@ appId: app.cuetracker
       BACK_TITLE: "Up Next"
 - assertVisible:
     id: "screen-up-next"
-- scrollUntilVisible:
-    element:
-      id: "link-history"
+- runFlow: lib/scroll-to-end.yaml
 - tapOn:
     id: "link-history"
 - tapOn:
