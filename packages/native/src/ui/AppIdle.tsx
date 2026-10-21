@@ -43,7 +43,6 @@ export function createAcknowledgments() {
 const operations = createAcknowledgments();
 
 let announceReady: () => void = () => undefined;
-/** Settles the first time the app is idle with its data loaded. */
 export const appReady = new Promise<void>((resolve) => {
   announceReady = resolve;
 });

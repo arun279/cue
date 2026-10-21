@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { expect, it } from "vitest";
@@ -370,4 +371,36 @@ it("sends only commands the app registers", () => {
     expect.arrayContaining(["tab", "back", "lapsed", "season:", "scroll:history"]),
   );
   expect(unregistered).toEqual([]);
+});
+
+const transformed = (harness: boolean) =>
+  spawnSync(
+    process.execPath,
+    [
+      "-e",
+      `const babel = require(require.resolve("@babel/core", { paths: [process.cwd()] }));
+      const { code } = babel.transformSync(process.argv[1], { filename: "Row.tsx", configFile: "./babel.config.js" });
+      process.stdout.write(code);`,
+      `import { usePerfCommand, usePerfScroll } from "./harness";
+      export function Row({ onToggle, list }) {
+        usePerfCommand("lapsed", onToggle);
+        usePerfScroll("history", (y) => list.scrollTo(y));
+        return null;
+      }`,
+    ],
+    {
+      cwd: NATIVE,
+      encoding: "utf8",
+      env: { ...process.env, EXPO_PUBLIC_UI_HARNESS: harness ? "1" : "" },
+    },
+  ).stdout;
+
+it("removes perf channel registrations from store builds and keeps them in harness builds", () => {
+  const store = transformed(false);
+  const harness = transformed(true);
+
+  expect(store).toContain("function Row");
+  expect(store).not.toMatch(/usePerf(Command|Scroll)\)?\(/);
+  expect(harness).toMatch(/usePerfCommand\)?\("lapsed"/);
+  expect(harness).toMatch(/usePerfScroll\)?\("history"/);
 });

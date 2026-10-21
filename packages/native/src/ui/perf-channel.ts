@@ -3,7 +3,6 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 import { useWindowDimensions } from "react-native";
 import { appReady } from "./AppIdle";
 
-// Served by scripts/perf-probe.mjs on the host; adb reverse carries the port to the emulator.
 const CHANNEL = "http://127.0.0.1:8790/next";
 const SCROLL_STEPS = 3;
 const SCROLL_STEP_MS = 700;
@@ -34,7 +33,6 @@ const commands = new Map<string, Command>([
   ["back", () => router.back()],
 ]);
 
-/** Runs one command from the host and describes the outcome for its reply. */
 export function perform(command: string): string {
   const [name = "", ...words] = command.split(" ");
   const run = commands.get(name);
@@ -47,10 +45,6 @@ export function perform(command: string): string {
   }
 }
 
-/**
- * Lets the host run a screen's own action, so a measured interaction starts without a test
- * driver reading the app's view hierarchy, which blocks its main thread while it runs.
- */
 export function usePerfCommand(name: string, run: Command): void {
   const latest = useRef(run);
   useLayoutEffect(() => {
@@ -64,7 +58,6 @@ export function usePerfCommand(name: string, run: Command): void {
   }, [name]);
 }
 
-/** `scroll:<name>` moves a list down a screen at a time, three times, the way three flings would. */
 export function usePerfScroll(name: string, scrollTo: (offset: number) => void): void {
   const { height } = useWindowDimensions();
   usePerfCommand(`scroll:${name}`, () => {
@@ -74,7 +67,6 @@ export function usePerfScroll(name: string, scrollTo: (offset: number) => void):
   });
 }
 
-/** Once the app is idle, waits on the host for commands and replies with each outcome. */
 export function PerfChannel(): null {
   useEffect(() => {
     let open = true;
