@@ -12,6 +12,18 @@ const Library = (
 ).default;
 
 const haptics = spyHaptics();
+
+const posterRenders = { count: 0 };
+jest.mock("../src/ui/Poster", () => {
+  const actual = jest.requireActual<typeof import("../src/ui/Poster")>("../src/ui/Poster");
+  return {
+    ...actual,
+    Poster: (props: Parameters<typeof actual.Poster>[0]) => {
+      posterRenders.count += 1;
+      return actual.Poster(props);
+    },
+  };
+});
 const VIEWPORT = { width: 390, height: 844 };
 const ROW_HEIGHT = 220;
 
@@ -102,4 +114,21 @@ describe.each([
     expect(large.menus).toBe(Platform.OS === "ios" ? large.tiles : 0);
     expect(large.images + large.artReads).toBeLessThanOrEqual(large.tiles);
   });
+});
+
+it("re-renders no tile when the tab root re-renders, as it does on every tab switch", async () => {
+  const runtime = fakeRuntime({ entries: largeLibrary(600) });
+  const tree = () => (
+    <Harness runtime={runtime} haptics={haptics}>
+      <Library />
+    </Harness>
+  );
+  const { rerender } = await render(tree());
+  await screen.findAllByTestId(/^show-card-/);
+  await scrollViewport(300);
+  const settled = posterRenders.count;
+
+  await rerender(tree());
+
+  expect(posterRenders.count).toBe(settled);
 });
