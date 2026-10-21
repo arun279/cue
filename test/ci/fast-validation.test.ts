@@ -691,6 +691,7 @@ describe("fast pull request validation", () => {
       "check-runner-survives-freeze.sh",
       "check-tap-lead-in.mjs",
       "disable-ios-daemons.sh",
+      "disable-spotlight.sh",
       "download-ci-artifact.sh",
       "enable-ios-accessibility.sh",
       "lane-health.mjs",
