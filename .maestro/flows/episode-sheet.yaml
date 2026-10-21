@@ -67,8 +67,7 @@ appId: app.cuetracker
     visible:
       id: "sheet-presented"
     timeout: 10000
-- tapOn:
-    id: "sheet-close"
+- tapOn: "Close"
 - extendedWaitUntil:
     notVisible:
       id: "episode-sheet"

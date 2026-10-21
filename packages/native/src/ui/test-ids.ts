@@ -167,7 +167,6 @@ export const TEST_IDS = {
   episodeCheck: (show: number, season: number, episode: number) =>
     `episode-row-${show}-${season}-${episode}-check`,
   episodeSheet: "episode-sheet",
-  sheetClose: "sheet-close",
   episodeMarkRow: "episode-mark-row",
   episodeMarkControl: "episode-mark-control",
   episodePagerNext: "episode-pager-next",

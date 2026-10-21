@@ -1,8 +1,6 @@
 import { Host, Icon, IconButton } from "@expo/ui/jetpack-compose";
-import { testID } from "@expo/ui/jetpack-compose/modifiers";
 import { useRouter } from "expo-router";
 import type { ReactElement } from "react";
-import { TEST_IDS } from "./test-ids";
 import { useColors } from "./tokens";
 
 export function SheetClose(): ReactElement {
@@ -10,7 +8,7 @@ export function SheetClose(): ReactElement {
   const colors = useColors();
   return (
     <Host matchContents>
-      <IconButton onClick={() => router.back()} modifiers={[testID(TEST_IDS.sheetClose)]}>
+      <IconButton onClick={() => router.back()}>
         <Icon source={require("./close.xml")} tint={colors.ink2} contentDescription="Close" />
       </IconButton>
     </Host>

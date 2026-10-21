@@ -14,7 +14,6 @@ jest.mock("../../src/screens/EpisodeSheet", () => {
   const { TEST_IDS } = require("../../src/ui/test-ids") as typeof import("../../src/ui/test-ids");
   return { EpisodeSheet: () => createElement(View, { testID: TEST_IDS.episodeSheet }) };
 });
-jest.mock("@expo/ui/swift-ui", () => require("../support/native-ui").swiftUiModule());
 jest.mock("@expo/ui/jetpack-compose", () => require("../support/native-ui").composeModule());
 jest.mock(
   "react-native-safe-area-context",

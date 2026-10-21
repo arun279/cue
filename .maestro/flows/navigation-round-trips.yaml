@@ -19,8 +19,7 @@ appId: app.cuetracker
     visible:
       id: "sheet-presented"
     timeout: 10000
-- tapOn:
-    id: "sheet-close"
+- tapOn: "Close"
 - extendedWaitUntil:
     notVisible:
       id: "history-jump-sheet"
@@ -43,8 +42,12 @@ appId: app.cuetracker
 - scrollUntilVisible:
     element:
       id: "switch-shows"
+    centerElement: true
 - tapOn:
     id: "switch-shows"
+- assertVisible:
+    id: "switch-shows"
+    checked: false
 - runFlow:
     file: lib/back.yaml
     env:
@@ -58,8 +61,12 @@ appId: app.cuetracker
 - scrollUntilVisible:
     element:
       id: "switch-shows"
+    centerElement: true
 - tapOn:
     id: "switch-shows"
+- assertVisible:
+    id: "switch-shows"
+    checked: true
 - runFlow:
     file: lib/back.yaml
     env:

@@ -100,12 +100,12 @@ const EXCEPTIONS: readonly Exception[] = [
   },
   {
     file: "src/ui/SheetClose.tsx",
-    rule: "D",
-    site: "router.back",
-    candidate: "a close button in the sheet's Stack.Toolbar",
+    rule: "G",
+    site: "Stack.Toolbar",
+    candidate: "the back button",
     reason:
-      "A form sheet is presented outside its stack's navigation controller on iOS and cannot host a header on Android, so it has no toolbar; the close is a SwiftUI button with the system xmark, drawn in the sheet.",
-    source: "https://github.com/software-mansion/react-native-screens/issues/2657",
+      "A sheet is the first screen of its own header, so it has no back button to replace; its leading bar item is the system close, and the trailing edge carries the sheet's menu.",
+    source: "https://developer.apple.com/design/human-interface-guidelines/sheets",
     checked: { package: "react-native-screens", version: "4.26.2" },
   },
   {
@@ -134,7 +134,7 @@ const EXCEPTIONS: readonly Exception[] = [
     site: "headerShown",
     candidate: "the native header inside the form sheet",
     reason:
-      "A form sheet cannot host a header on Android, and on iOS only through a nested stack; the episode sheet and the month jump title themselves and carry their close button in their content.",
+      "Android form sheets cannot host a header or a nested stack, so on Android the episode sheet and the month jump title themselves and carry their close button in their content; iOS shows the sheet's own bar.",
     source: "https://developer.apple.com/design/human-interface-guidelines/sheets",
     checked: { package: "react-native-screens", version: "4.26.2" },
   },

@@ -1,5 +1,5 @@
 import "./support/detail-mocks";
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react-native";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react-native";
 import { EpisodeBody, EpisodeSheet } from "../src/screens/EpisodeSheet";
 import { EpisodePager } from "../src/screens/episode-sheet/EpisodePager";
 import { EpisodeStill } from "../src/screens/episode-sheet/EpisodeStill";
@@ -107,24 +107,29 @@ it("replaces the episode route and names an exhausted direction", async () => {
   expect(router.push).not.toHaveBeenCalled();
 });
 
-it("offers one menu for a watched episode and closes from its close button while loading and loaded", async () => {
-  let resolve: (value: typeof detail) => void = () => {};
-  const runtime = {
-    ...detailRuntime,
-    loadEpisode: jest.fn(() => new Promise<typeof detail>((settle) => (resolve = settle))),
-  };
+it("closes from its close button while the episode loads", async () => {
+  const runtime = { ...detailRuntime, loadEpisode: jest.fn(() => new Promise<never>(() => {})) };
   await render(
     <DetailHarness runtime={runtime}>
-      <EpisodeSheet showId={8803} season={2} episode={3} />
+      <EpisodeSheet showId={8803} season={2} episode={4} />
     </DetailHarness>,
   );
+
+  expect(screen.getByTestId(TEST_IDS.episodeSkeleton)).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole("button", { name: "Close" }));
   expect(router.back).toHaveBeenCalledTimes(1);
+});
 
-  await act(async () => resolve({ ...detail, watched: true, watchedAt: "2026-10-01T20:00:00Z" }));
+it("offers one menu for a watched episode beside its close button", async () => {
+  const watched = { ...detail, number: 4, watched: true, watchedAt: "2026-10-01T20:00:00Z" };
+  const runtime = { ...detailRuntime, loadEpisode: jest.fn(async () => watched) };
+  await render(
+    <DetailHarness runtime={runtime}>
+      <EpisodeSheet showId={8803} season={2} episode={4} />
+    </DetailHarness>,
+  );
 
-  expect(await screen.findByTestId(TEST_IDS.episodeMarkRow)).toBeOnTheScreen();
-  expect(screen.getAllByLabelText("Add another play")).toHaveLength(1);
+  expect(await screen.findAllByText("Add another play")).toHaveLength(1);
   await fireEvent.press(screen.getByRole("button", { name: "Close" }));
-  expect(router.back).toHaveBeenCalledTimes(2);
+  expect(router.back).toHaveBeenCalledTimes(1);
 });

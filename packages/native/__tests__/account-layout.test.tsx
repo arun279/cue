@@ -1,16 +1,16 @@
 import { dismissSnack, showSnack } from "@cue/core/stores/snackbar-store";
 import { parseHistorySearch } from "@cue/core/url/search-params";
-import { router, Stack, useLocalSearchParams } from "expo-router";
+import { router, Stack, useLocalSearchParams, useNavigationContainerRef } from "expo-router";
 import { act, fireEvent, renderRouter, screen } from "expo-router/testing-library";
 import type { ReactElement } from "react";
 import { Platform, Text, View } from "react-native";
 import * as accountLayout from "../app/(account)/_layout";
 import MonthJumpRoute from "../app/(tabs)/(up-next,library,calendar,search)/history-jump";
+import { enterFromOutside } from "../src/enter-from-outside";
 import { MONTHS } from "../src/screens/history/model";
 import { TabStack } from "../src/TabStack";
 import { QueryProvider } from "./support/query-provider";
 
-jest.mock("@expo/ui/swift-ui", () => require("./support/native-ui").swiftUiModule());
 jest.mock("@expo/ui/jetpack-compose", () => require("./support/native-ui").composeModule());
 jest.mock(
   "react-native-safe-area-context",
@@ -55,6 +55,8 @@ const routes = {
   "(tabs)/(up-next)/index": (): ReactElement => <View testID="screen-up-next" />,
   "(tabs)/(library)/_layout": (): ReactElement => <TabStack root="library" title="Library" />,
   "(tabs)/(library)/library": (): ReactElement => <View testID="screen-library" />,
+  "(tabs)/(calendar)/_layout": (): ReactElement => <TabStack root="calendar" title="Calendar" />,
+  "(tabs)/(calendar)/calendar": (): ReactElement => <View testID="screen-calendar" />,
   "(tabs)/(up-next,library)/history": HistoryScope,
   "(tabs)/(up-next,library)/history-jump": MonthJumpRoute,
   "(tabs)/(up-next,library)/settings": Settings,
@@ -161,6 +163,26 @@ describe("the month jump sheet", () => {
   });
 });
 
+/** The sheet's close as each platform draws it: a bar item in the iOS sheet's own
+ * header, or the Compose icon button in the Android sheet. */
+async function closeSheet(): Promise<void> {
+  if (Platform.OS === "android") {
+    await fireEvent.press(screen.getByRole("button", { name: "Close" }));
+    return;
+  }
+  const header = screen.container.queryAll((node) =>
+    (node.props["headerLeftBarButtonItems"] ?? []).some(
+      (item: { accessibilityLabel?: string }) => item.accessibilityLabel === "Close",
+    ),
+  )[0];
+  const [item] = header?.props["headerLeftBarButtonItems"] ?? [];
+  expect(item).toBeDefined();
+  if (header !== undefined)
+    await fireEvent(header, "pressHeaderBarButtonItem", {
+      nativeEvent: { buttonId: item.buttonId },
+    });
+}
+
 /** The router's own record of where it is: render's result is a promise, and
  * expo-router hangs its location readers on the object it returned. */
 async function renderAt(initialUrl: string): Promise<() => string[]> {
@@ -204,9 +226,36 @@ describe("a tab stack", () => {
     await act(() => router.push("/history"));
     await act(() => router.push("/history-jump"));
 
-    await fireEvent.press(screen.getByRole("button", { name: "Close" }));
+    await closeSheet();
 
     expect(screen.queryByTestId("history-jump-sheet")).toBeNull();
     expect(segments()).toEqual(["(tabs)", "(up-next)", "history"]);
+  });
+});
+
+describe("an entry from outside the app", () => {
+  it("dismisses the account modal and its sheet before opening a tab", async () => {
+    const segments = await renderAt("/");
+    await act(() => router.push("/profile"));
+    await act(() => router.push("/history"));
+    await act(() => router.push("/history-jump"));
+
+    await act(() => enterFromOutside(useNavigationContainerRef(), "/calendar"));
+
+    expect(segments()).toEqual(["(tabs)", "(calendar)", "calendar"]);
+    expect(screen.queryByTestId("screen-profile")).toBeNull();
+    expect(screen.queryByTestId("history-jump-sheet")).toBeNull();
+  });
+
+  it("dismisses the current tab's sheet and pushes the target where back returns to the tab", async () => {
+    const segments = await renderAt("/");
+    await act(() => router.push("/history"));
+    await act(() => router.push("/history-jump"));
+
+    await act(() => enterFromOutside(useNavigationContainerRef(), "/show/7"));
+
+    expect(segments()).toEqual(["(tabs)", "(up-next)", "show", "[showId]"]);
+    await act(() => router.back());
+    expect(segments()).toEqual(["(tabs)", "(up-next)"]);
   });
 });
