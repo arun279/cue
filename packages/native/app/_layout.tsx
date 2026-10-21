@@ -42,6 +42,7 @@ import {
   preferenceStorage,
   secureStore,
 } from "../src/platform/stores";
+import { PRESENTATIONS } from "../src/presentation";
 import { useAppearance } from "../src/screens/account/ThemeControl";
 import { Onboarding } from "../src/screens/Onboarding";
 import { RuntimeBoot, type RuntimeBootProps } from "../src/screens/RuntimeBoot";
@@ -146,7 +147,7 @@ function RoutedApp(): ReactElement {
     <View style={styles.root}>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="(account)" options={{ presentation: "fullScreenModal" }} />
+        <Stack.Screen name="(account)" options={{ presentation: PRESENTATIONS["(account)"] }} />
         <Stack.Screen name="+not-found" options={{ headerShown: true }} />
       </Stack>
       <SnackbarHost placement="root" />

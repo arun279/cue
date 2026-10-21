@@ -3,6 +3,8 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import ts from "typescript";
+import { PRESENTATIONS } from "../src/presentation";
+import { nativeSourceFiles } from "./support/native-sources";
 
 /**
  * Builds the navigation graph from the route files under app/ and the navigation
@@ -326,31 +328,13 @@ const edges: Edge[] = calls.flatMap(({ route, call }) =>
   ),
 );
 
-/** The source of a screen's options, following a variable to the value it holds. */
-function optionsText(screen: ts.Node): string {
-  const options = attributeOf(screen, "options");
-  if (options === undefined || !ts.isIdentifier(options)) return options?.getText() ?? "";
-  return (
-    descendants(screen.getSourceFile())
-      .filter(ts.isVariableDeclaration)
-      .find((declaration) => declaration.name.getText() === options.text)
-      ?.initializer?.getText() ?? ""
-  );
-}
-
-function presentationOf(navigator: Navigator, name: string): string | undefined {
-  const screen = screensOf(navigator).find((node) => screenName(navigator, node) === name);
-  const text = screen ? optionsText(screen) : "";
-  return (
-    text.match(/presentation:\s*"(\w+)"/)?.[1] ??
-    (/Sheet\w*Options\(/.test(text) ? "formSheet" : undefined)
-  );
-}
+const presentationOf = (name: string): string | undefined =>
+  Object.entries(PRESENTATIONS).find(([route]) => route === name)?.[1];
 
 const presentedModally = (navigator: Navigator): boolean => {
   const parent = parentOf(navigator);
   const name = navigator.dir.split("/").at(-1) ?? "";
-  return parent !== undefined && MODAL.has(presentationOf(parent, name) ?? "");
+  return parent !== undefined && MODAL.has(presentationOf(name) ?? "");
 };
 
 /**
@@ -429,12 +413,31 @@ it("gives every modal root a dismiss control on both platforms", () => {
 });
 
 it("gives every sheet a visible close beside its swipe and system back", () => {
-  const sheets = routes.filter(
-    (route) => presentationOf(route.navigator, nameIn(route)) === "formSheet",
-  );
+  const sheets = routes.filter((route) => presentationOf(nameIn(route)) === "formSheet");
 
   expect(sheets.length).toBeGreaterThan(0);
   expect(
     sheets.filter((route) => !closureOf(route.file).includes(SHEET_CLOSE)).map(({ id }) => id),
   ).toEqual([]);
+});
+
+it("presents routes only through the one table outside entries also read", () => {
+  const declared = new Set(
+    navigators.flatMap((navigator) =>
+      screensOf(navigator).map((screen) => screenName(navigator, screen)),
+    ),
+  );
+  const inline = nativeSourceFiles().flatMap((file) =>
+    descendants(sourceOf(file))
+      .filter(
+        (node) =>
+          ts.isPropertyAssignment(node) &&
+          node.name.getText() === "presentation" &&
+          ts.isStringLiteralLike(node.initializer),
+      )
+      .map((node) => `${relative(appRoot, file)}:${node.getText()}`),
+  );
+
+  expect(Object.keys(PRESENTATIONS).filter((name) => !declared.has(name))).toEqual([]);
+  expect(inline.filter((site) => !site.startsWith("../src/presentation.ts"))).toEqual([]);
 });

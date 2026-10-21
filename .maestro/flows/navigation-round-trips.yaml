@@ -72,6 +72,12 @@ appId: app.cuetracker
 - runFlow:
     file: lib/back.yaml
     env:
+      BACK_TITLE: "History"
+- assertVisible:
+    id: "screen-history"
+- runFlow:
+    file: lib/back.yaml
+    env:
       BACK_TITLE: "Up Next"
 - assertVisible:
     id: "screen-up-next"
