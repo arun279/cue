@@ -1,0 +1,8 @@
+com.apple.apsd	Cannot get a push certificate on the simulator and reconnects about ten times a second, 55 to 57 percent of all simulator log lines in each light shard (#128). The app uses only local notifications.
+com.apple.chronod	Renders widget timelines (#128). The app has no widgets.
+com.apple.passd	Wallet daemon. In run 39558388678 a FrontBoard launch request for passd held dyld's loader lock while paging in from the simulator runtime's disk image, and SpringBoard's main thread waited on that lock through a 30 s screenshot stall (spindump of SpringBoard). The app uses no Wallet passes.
+com.apple.videosubscriptionsd	TV provider subscriptions. Logged 370 lines in the 38 s SpringBoard stall of run 39523841066, the most of any system daemon after dasd. The app does not use TV provider sign-in.
+com.apple.assetsd	Photos library. Ran a 70 s background library migration during run 39523841066 (Finished post migration action: 69.83s). The app does not use Photos.
+com.apple.storekitd	App Store purchases. Logged 101 lines in the same stall. The app sells nothing.
+com.apple.triald	Downloads and applies experiment configuration on schedule. Logged 50 lines in the same stall. The app runs no experiments.
+com.apple.wcd	Watch connectivity. Logged 228 lines in the same stall and retries the disabled apsd every 6.4 s. The app has no watch app.
