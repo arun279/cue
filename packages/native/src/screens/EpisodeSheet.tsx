@@ -8,9 +8,10 @@ import { useRuntime } from "@cue/core/runtime/runtime";
 import { useQuery } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 import { StyleSheet, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SheetClose } from "../ui/SheetClose";
 import { TEST_IDS } from "../ui/test-ids";
-import { RADIUS, SPACE, useColors } from "../ui/tokens";
+import { RADIUS, SPACE, sheetBottomInset, useColors } from "../ui/tokens";
 import { CueText } from "../ui/type";
 import { EpisodeMarkRow } from "./episode-sheet/EpisodeMarkRow";
 import { EpisodeMenu } from "./episode-sheet/EpisodeMenu";
@@ -63,8 +64,12 @@ function LoadedEpisode({ detail }: { readonly detail: EpisodeDetail }): ReactEle
   const mark = useDetailMark(detail.showId, seasons.data ?? []);
   const hidden = usePrefs((state) => state.hideStillsUntilWatched);
   const navigation = seasons.data === undefined ? detail : episodeNavigation(seasons.data, detail);
+  const insets = useSafeAreaInsets();
   return (
-    <View testID={TEST_IDS.screenEpisode} style={styles.content}>
+    <View
+      testID={TEST_IDS.screenEpisode}
+      style={[styles.content, { paddingBottom: SPACE.s4 + sheetBottomInset(insets.bottom) }]}
+    >
       <View style={styles.toolbar}>
         {detail.aired && <EpisodeMenu detail={detail} plays={plays} mark={mark} />}
         <SheetClose />

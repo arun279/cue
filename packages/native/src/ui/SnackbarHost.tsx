@@ -6,12 +6,20 @@ import {
   useSnackbar,
 } from "@cue/core/stores/snackbar-store";
 import { type ReactElement, useEffect, useId, useSyncExternalStore } from "react";
-import { Platform, Pressable, StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useScreenReader } from "../platform/screen-reader";
 import { useLiveRegion } from "./live-region";
 import { TEST_IDS } from "./test-ids";
-import { FLOAT_SHADOW, SPACE, TARGET_MIN, tabBarClearance, useColors, useStacked } from "./tokens";
+import {
+  FLOAT_SHADOW,
+  SPACE,
+  sheetBottomInset,
+  TARGET_MIN,
+  tabBarClearance,
+  useColors,
+  useStacked,
+} from "./tokens";
 import { CueText } from "./type";
 
 export type SnackbarPlacement = "root" | "presentation" | "sheet";
@@ -128,7 +136,9 @@ const SHEET_PAGER_CLEARANCE = SPACE.s4 + TARGET_MIN;
 
 function edgeClearance(placement: SnackbarPlacement, insetBottom: number): number {
   if (placement === "root") return tabBarClearance(insetBottom);
-  return placement === "sheet" && Platform.OS === "android" ? SHEET_PAGER_CLEARANCE : insetBottom;
+  return placement === "sheet"
+    ? sheetBottomInset(insetBottom) + SHEET_PAGER_CLEARANCE
+    : insetBottom;
 }
 
 const styles = StyleSheet.create({
