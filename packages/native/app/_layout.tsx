@@ -11,7 +11,7 @@ import { createTokenStore } from "@cue/core/ports/token-store";
 import { createPrefsStore, PrefsProvider } from "@cue/core/prefs/prefs-store";
 import { PERSIST_BUSTER, PERSIST_MAX_AGE } from "@cue/core/runtime/query-cache";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
-import { Stack, ThemeProvider } from "expo-router";
+import { ThemeProvider } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { type ReactElement, useEffect, useState } from "react";
@@ -21,7 +21,6 @@ import { initialWindowMetrics, SafeAreaProvider } from "react-native-safe-area-c
 import { bootNativeStores } from "../src/boot";
 import { NATIVE_REDIRECT_URI, TRAKT_BASE_OVERRIDE, TRAKT_CLIENT_ID } from "../src/config";
 import { nativeCrypto } from "../src/crypto";
-import { useHeldNavigation } from "../src/enter-from-outside";
 import { nativeAppVersion } from "../src/platform/app-version";
 import { nativeAppVisibility } from "../src/platform/app-visibility";
 import { createNativeHaptics } from "../src/platform/haptics";
@@ -42,7 +41,7 @@ import {
   preferenceStorage,
   secureStore,
 } from "../src/platform/stores";
-import { PRESENTATIONS } from "../src/presentation";
+import { RootStack } from "../src/RootStack";
 import { useAppearance } from "../src/screens/account/ThemeControl";
 import { Onboarding } from "../src/screens/Onboarding";
 import { RuntimeBoot, type RuntimeBootProps } from "../src/screens/RuntimeBoot";
@@ -140,16 +139,11 @@ function Gate({ runtimeDeps }: Pick<NativeSession, "runtimeDeps">): ReactElement
 function RoutedApp(): ReactElement {
   useActivitiesPoll();
   useEpisodeReminders();
-  useHeldNavigation();
   useOpenTappedReminder();
 
   return (
     <View style={styles.root}>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="(account)" options={{ presentation: PRESENTATIONS["(account)"] }} />
-        <Stack.Screen name="+not-found" options={{ headerShown: true }} />
-      </Stack>
+      <RootStack />
       <SnackbarHost placement="root" />
       <SnackbarRouteDismissal />
       <SnackbarTrace />
