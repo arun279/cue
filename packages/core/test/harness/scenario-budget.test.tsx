@@ -40,7 +40,7 @@ import { act, type ReactElement, useEffect, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { memoryKv } from "../data/_runtime";
-import { type AccountSize, HEAVY_ACCOUNT, REAL_ACCOUNT, ReplayTrakt } from "./replay-trakt";
+import { FakeTrakt, HEAVY_LIBRARY, type LibrarySize, SMALL_LIBRARY } from "./fake-trakt";
 import { SCENARIO_GET_BUDGET } from "./trakt-limits";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -84,7 +84,7 @@ const sum = <T,>(items: readonly T[], bytes: (item: T) => number): number =>
 const fixedBy = (...changes: string[]): string => `fixed by ${changes.join(" and ")}`;
 
 const KNOWN_OVER: Readonly<Record<string, Partial<Record<`${Scenario}: ${Metric}`, string>>>> = {
-  real: {
+  small: {
     "sign-in and first sync: bytes": fixedBy(LAZY_SEARCH),
     "cold launch, cache older than an hour: gets": fixedBy(
       LIST_ART,
@@ -226,7 +226,7 @@ interface Saved {
 }
 
 interface Session {
-  readonly trakt: ReplayTrakt;
+  readonly trakt: FakeTrakt;
   readonly kv: Map<string, string>;
   readonly qc: QueryClient;
   readonly runtime: CueRuntime;
@@ -235,8 +235,8 @@ interface Session {
   readonly root: Root;
 }
 
-async function boot(size: AccountSize, saved?: Saved, cacheAgeMs = 0): Promise<Session> {
-  const trakt = new ReplayTrakt(size, NOW);
+async function boot(size: LibrarySize, saved?: Saved, cacheAgeMs = 0): Promise<Session> {
+  const trakt = new FakeTrakt(size, NOW);
   vi.stubGlobal("fetch", trakt.fetch);
   resetReadPause();
   const kv = memoryKv(Object.fromEntries(saved?.kv ?? []));
@@ -353,19 +353,19 @@ async function markUndoAndPoll(session: Session): Promise<Cost> {
   };
 }
 
-async function replay(size: AccountSize) {
+async function replay(size: LibrarySize) {
   const results = {} as Record<Scenario, Measured>;
-  const unrecorded: string[] = [];
+  const unknown: string[] = [];
   const startDay = today();
-  const activities = (trakt: ReplayTrakt): number => trakt.bytesOf("/sync/last_activities");
-  const calendars = (trakt: ReplayTrakt): number =>
+  const activities = (trakt: FakeTrakt): number => trakt.bytesOf("/sync/last_activities");
+  const calendars = (trakt: FakeTrakt): number =>
     trakt.bytesOf(`/calendars/my/shows/${startDay}/${CALENDAR_WINDOW_DAYS}`) +
     trakt.bytesOf(
       `/calendars/my/shows/${recentCalendarStart(startDay)}/${RECENT_CALENDAR_WINDOW_DAYS}`,
     );
   // Apart from the first sync's request share, each budget is one read of every response the
   // scenario needs, sized from the same fixture. With nothing changed on Trakt that is one poll.
-  const pollOnly = (trakt: ReplayTrakt): Cost => ({ gets: 1, bytes: activities(trakt) });
+  const pollOnly = (trakt: FakeTrakt): Cost => ({ gets: 1, bytes: activities(trakt) });
 
   const first = await boot(size);
   const { trakt, controls } = first;
@@ -416,7 +416,7 @@ async function replay(size: AccountSize) {
     },
     () => markBudget,
   );
-  unrecorded.push(...trakt.unrecorded);
+  unknown.push(...trakt.unknown);
   act(() => first.root.unmount());
 
   for (const [scenario, ageMs] of [
@@ -434,16 +434,16 @@ async function replay(size: AccountSize) {
             // images (https://developer.trakt.tv/docs/images); user state moves only with activities.
             { gets: 3, bytes: activities(session.trakt) + calendars(session.trakt) },
     );
-    unrecorded.push(...session.trakt.unrecorded);
+    unknown.push(...session.trakt.unknown);
     act(() => session.root.unmount());
   }
-  return { results, unrecorded };
+  return { results, unknown };
 }
 
 describe.each([
-  ["real", REAL_ACCOUNT],
-  ["heavy", HEAVY_ACCOUNT],
-] as const)("scenario request budget at the %s account size", (label, size) => {
+  ["small", SMALL_LIBRARY],
+  ["heavy", HEAVY_LIBRARY],
+] as const)("scenario request budget for a %s library", (label, size) => {
   let replayed: Awaited<ReturnType<typeof replay>>;
 
   beforeAll(async () => {
@@ -457,8 +457,8 @@ describe.each([
     vi.unstubAllGlobals();
   });
 
-  it("replays only recorded endpoints and writes only what the user did", () => {
-    expect(replayed.unrecorded).toEqual([]);
+  it("requests only known endpoints and writes only what the user did", () => {
+    expect(replayed.unknown).toEqual([]);
     expect(Object.fromEntries(SCENARIOS.map((s) => [s, replayed.results[s].writes]))).toEqual(
       Object.fromEntries(SCENARIOS.map((s) => [s, s === "mark, undo, then the next poll" ? 2 : 0])),
     );

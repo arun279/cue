@@ -1,6 +1,6 @@
 import shapes from "./trakt-shapes.json" with { type: "json" };
 
-export interface AccountSize {
+export interface LibrarySize {
   readonly inProgress: number;
   readonly lapsed: number;
   readonly caughtUp: number;
@@ -13,7 +13,7 @@ export interface AccountSize {
   readonly hidden: number;
 }
 
-export const REAL_ACCOUNT: AccountSize = {
+export const SMALL_LIBRARY: LibrarySize = {
   inProgress: 14,
   lapsed: 6,
   caughtUp: 4,
@@ -26,7 +26,7 @@ export const REAL_ACCOUNT: AccountSize = {
   hidden: 0,
 };
 
-export const HEAVY_ACCOUNT: AccountSize = {
+export const HEAVY_LIBRARY: LibrarySize = {
   inProgress: 300,
   lapsed: 220,
   caughtUp: 200,
@@ -39,7 +39,7 @@ export const HEAVY_ACCOUNT: AccountSize = {
   hidden: 100,
 };
 
-interface RecordedRequest {
+interface ServedRequest {
   readonly method: string;
   readonly path: string;
   readonly bytes: number;
@@ -103,9 +103,9 @@ const ids = (trakt: number) => ({
   imdb: `tt${trakt}`,
 });
 
-export class ReplayTrakt {
-  readonly requests: RecordedRequest[] = [];
-  readonly unrecorded: string[] = [];
+export class FakeTrakt {
+  readonly requests: ServedRequest[] = [];
+  readonly unknown: string[] = [];
   private readonly watched: number[] = [];
   private readonly aired: number[] = [];
   private readonly lastWatched: string[] = [];
@@ -114,7 +114,7 @@ export class ReplayTrakt {
   private writes = 0;
 
   constructor(
-    readonly size: AccountSize,
+    readonly size: LibrarySize,
     private readonly now: number,
   ) {
     this.activityStamp = this.iso(-DAY_MS);
@@ -154,7 +154,7 @@ export class ReplayTrakt {
     const reply =
       method === "GET" ? this.read(url) : this.write(url.pathname, String(init?.body ?? "{}"));
     if (reply === null) {
-      this.unrecorded.push(`${method} ${path}`);
+      this.unknown.push(`${method} ${path}`);
       return new Response("{}", { status: 404 });
     }
     const text = JSON.stringify(reply.body);
