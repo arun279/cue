@@ -169,7 +169,7 @@ export function useMarkWatched(): MarkWatched {
         runtime,
         [record.opId],
         () => runtime.loadEpisodePlays(episode),
-        (play) => (play.episodeTrakt === episode ? record.watchedAt : null),
+        () => record.watchedAt,
         (play) => play.episodeTrakt,
       );
       if (plan === null || plan.kind === "replaced") {
@@ -238,9 +238,6 @@ export function useMarkWatched(): MarkWatched {
 
   const retireReplaced = useCallback((record: MarkRecord) => {
     const store = useMarkStore.getState();
-    const open = store.records.get(record.showId)?.opId === record.opId;
-    const inBatch = store.batch.some((r) => r.opId === record.opId);
-    if (isReversalRequested(record.opId) || (!open && !inBatch)) return;
     store.close(record.showId, record.opId);
     store.setBatch(store.batch.filter((r) => r.opId !== record.opId));
     showReplaced(record, false);
