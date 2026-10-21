@@ -9,7 +9,8 @@ import {
 } from "node:fs";
 import path from "node:path";
 import { PNG } from "pngjs";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
+import { changedPixels } from "../../scripts/changed-pixels.mjs";
 import { repositoryPath } from "../support/repository-path";
 import { tempDirectory } from "../support/temp-directory";
 import { readWorkflowJobs } from "../support/workflow-jobs";
@@ -65,6 +66,7 @@ type Lane = {
   stale?: Record<string, Capture>;
 };
 type Run = Record<string, Lane>;
+type Box = [number, number, number, number];
 
 const LANES: Record<string, string> = {
   "ui-screenshots-ios-light-detail": "native-e2e-ios-light (detail)",
@@ -77,11 +79,10 @@ const LANES: Record<string, string> = {
   "ui-screenshots-android-dark": "ui-screenshots-android-dark",
 };
 
-const fill = (png: PNG, [x0, y0, x1, y1]: number[], rgb: number[]) => {
-  for (let y = y0 ?? 0; y < (y1 ?? 0); y++) {
-    for (let x = x0 ?? 0; x < (x1 ?? 0); x++) {
-      png.data.set([...rgb, 255], (y * png.width + x) * 4);
-    }
+const fill = (png: PNG, [x0, y0, x1, y1]: Box, rgb: number[]) => {
+  const pixel = Buffer.from([...rgb, 255]);
+  for (let y = y0; y < y1; y++) {
+    png.data.fill(pixel, (y * png.width + x0) * 4, (y * png.width + x1) * 4);
   }
 };
 
@@ -91,9 +92,13 @@ const COLORS = [
   [220, 40, 40],
 ];
 
+const encoded = new Map<string, Buffer>();
 const screenshot = (file: string, width: number, capture: Capture) => {
+  const key = `${width} ${JSON.stringify(capture)}`;
+  const png = encoded.get(key) ?? PNG.sync.write(draw(width, capture));
+  encoded.set(key, png);
   mkdirSync(path.dirname(file), { recursive: true });
-  writeFileSync(file, capture.empty ? "" : PNG.sync.write(draw(width, capture)));
+  writeFileSync(file, capture.empty ? "" : png);
 };
 
 const draw = (width: number, { clock, content = 0, shift = 0, scroll, rows, patch }: Capture) => {
@@ -257,6 +262,7 @@ describe("pr-media job", () => {
     "scripts/mock-trakt/seed.mjs",
     "scripts/gather-pr-media.sh",
     "scripts/compare-screenshots.mjs",
+    "scripts/changed-pixels.mjs",
     "scripts/attach-pr-media.sh",
     "packages/native/entry.ts",
     "packages/native/babel.config.js",
@@ -331,31 +337,36 @@ describe("gather-pr-media.sh", { timeout: 30_000 }, () => {
     );
     expect(review).toContain("0 screens compared.");
     expect(review).toContain("**New: Show detail rest, iOS, light, default text.");
+  });
 
-    const removed = gather(
+  it.each([
+    "ui-screenshots-ios-dark",
+    "ui-screenshots-android-light-activity",
+  ])("lists a light-shard capture as removed when only %s still has it", (artifact) => {
+    const { review } = gather(
       { "ui-screenshots-ios-light-detail": { captures: { "show-detail-rest": {} } } },
       { [artifact]: { captures: { "show-detail-rest": {} } } },
     );
-    expect(removed.review).toContain(
-      "Removed screens:\n\n- Show detail rest, iOS, light, default text",
-    );
+    expect(review).toContain("Removed screens:\n\n- Show detail rest, iOS, light, default text");
   });
 
-  it("reports incomplete sibling shards without calling moved captures new or removed", () => {
-    const missingBase = gather(
+  it("reports a skipped base sibling shard without calling moved captures new", () => {
+    const { review, images } = gather(
       { "ui-screenshots-ios-light-detail": { conclusion: "skipped", captures: null } },
       { "ui-screenshots-ios-light-activity": { captures: { "show-detail-rest": {} } } },
     );
-    expect(missingBase.images).toEqual([]);
-    expect(missingBase.review).toContain("Not compared:");
-    expect(missingBase.review).not.toContain("New:");
+    expect(images).toEqual([]);
+    expect(review).toContain("Not compared:");
+    expect(review).not.toContain("New:");
+  });
 
-    const missingHead = gather(
+  it("reports a failed head sibling shard without calling moved captures removed", () => {
+    const { review } = gather(
       { "ui-screenshots-ios-light-detail": { captures: { "show-detail-rest": {} } } },
       { "ui-screenshots-ios-light-activity": { conclusion: "failure", captures: null } },
     );
-    expect(missingHead.review).toContain("Not compared:");
-    expect(missingHead.review).not.toContain("Removed screens:");
+    expect(review).toContain("Not compared:");
+    expect(review).not.toContain("Removed screens:");
   });
 
   it("says in one line that nothing changed when only the clock and scroll indicator moved", () => {
@@ -376,52 +387,6 @@ describe("gather-pr-media.sh", { timeout: 30_000 }, () => {
     expect(review).toBe(
       "<!-- media-review -->\n\nNo screen changed between base `bbbbbbb` and head `abcdef1`; 2 screens compared.\n",
     );
-  });
-
-  it("ignores the top edge of the iOS tab bar's glass", () => {
-    const { review, images } = gather(
-      dark({ "up-next-queue-rest": { rows: [] } }),
-      dark({ "up-next-queue-rest": { rows: [2373, 2384] } }),
-    );
-
-    expect(images).toEqual([]);
-    expect(review).toContain("No screen changed");
-  });
-
-  it.each([
-    ["the content above the iOS tab bar", "ui-screenshots-ios-dark", 2372],
-    ["the iOS tab items", "ui-screenshots-ios-dark", 2385],
-    ["Android at the same rows", "ui-screenshots-android-dark", 2373],
-  ])("still compares %s", (_, artifact, row) => {
-    const { images } = gather(
-      { [artifact]: { captures: { "up-next-queue-rest": { rows: [] } } } },
-      { [artifact]: { captures: { "up-next-queue-rest": { rows: [row] } } } },
-    );
-
-    expect(images).toHaveLength(1);
-  });
-
-  const GLASS = [39, 35, 32];
-  it.each([
-    ["is ignored in the iOS tab bar's glass", "ui-screenshots-ios-dark", 2400, [71, 62, 51], 0],
-    ["still counts above the iOS tab bar", "ui-screenshots-ios-dark", 2300, [71, 62, 51], 1],
-    ["still counts on Android", "ui-screenshots-android-dark", 2400, [71, 62, 51], 1],
-    [
-      "leaves a changed iOS tab icon or label flagged",
-      "ui-screenshots-ios-dark",
-      2400,
-      [235, 235, 235],
-      1,
-    ],
-  ])("translucency difference %s", (_, artifact, top, rgb, changed) => {
-    const { images } = gather(
-      {
-        [artifact]: { captures: { "up-next-populated": { rows: [], patch: { top, rgb: GLASS } } } },
-      },
-      { [artifact]: { captures: { "up-next-populated": { rows: [], patch: { top, rgb } } } } },
-    );
-
-    expect(images).toHaveLength(changed);
   });
 
   it("shows clean before and after columns with moved content highlighted only in the changes column", () => {
@@ -527,16 +492,18 @@ describe("gather-pr-media.sh", { timeout: 30_000 }, () => {
     );
   });
 
-  it("lists removed screens in text, unless the head lane failed before capturing them", () => {
-    const removed = gather(dark({ "settings-rest": {} }), dark({}));
-    const failed = gather(dark({ "settings-rest": {} }), dark({}, "failure"));
+  it("lists removed screens in text", () => {
+    const { review, images } = gather(dark({ "settings-rest": {} }), dark({}));
 
-    expect(removed.images).toEqual([]);
-    expect(removed.review).toContain(
-      "Removed screens:\n\n- Settings rest, iOS, dark, default text\n",
-    );
-    expect(failed.review).not.toContain("Removed");
-    expect(failed.review).toContain(
+    expect(images).toEqual([]);
+    expect(review).toContain("Removed screens:\n\n- Settings rest, iOS, dark, default text\n");
+  });
+
+  it("does not list removed screens when the head lane failed before capturing them", () => {
+    const { review } = gather(dark({ "settings-rest": {} }), dark({}, "failure"));
+
+    expect(review).not.toContain("Removed");
+    expect(review).toContain(
       "- After captures for iOS dark may be incomplete because the ui-screenshots-ios-dark job failed in [run 1](https://github.com/o/r/actions/runs/1).",
     );
   });
@@ -560,38 +527,78 @@ describe("gather-pr-media.sh", { timeout: 30_000 }, () => {
   });
 });
 
-const prepare = () => {
-  const { out } = gather(
-    dark({ "library-shows": {}, "settings-rest": {} }),
-    dark({ "library-shows": { content: 1 }, "settings-rest": { content: 1 } }),
-  );
-  const { root, state, run } = sandbox();
-  spawnSync("zip", ["-qr", path.join(state, "30.zip"), "."], { cwd: out });
-  writeFileSync(
-    path.join(state, "by-name.json"),
-    JSON.stringify({
-      artifacts: [
-        { id: 20, expired: false, created_at: "2026-10-01T00:00:00Z" },
-        { id: 30, expired: false, created_at: "2026-10-03T00:00:00Z" },
-        { id: 40, expired: true, created_at: "2026-10-04T00:00:00Z" },
-      ],
-    }),
-  );
-  const read = (name: string) =>
-    existsSync(path.join(state, name)) ? readFileSync(path.join(state, name), "utf8") : "";
-  const directory = path.join(root, "pr-media-7-abcdef1");
-  const attach = () => {
-    const result = run("attach-pr-media.sh", ["7"]);
-    return { ...result, calls: read("calls"), uploads: read("uploads"), posted: read("review.md") };
+describe("changed-pixels.mjs", () => {
+  const compare = (platform: string, before: Capture, after: Capture) => {
+    const width = platform === "Android" ? 1440 : 1206;
+    return changedPixels(draw(width, before), draw(width, after), platform) !== undefined;
   };
-  const decide = () => {
-    const file = path.join(directory, "review.md");
-    writeFileSync(file, readFileSync(file, "utf8").replaceAll("VERDICT_PENDING", "Intended."));
-  };
-  return { state, directory, attach, decide };
-};
+
+  it("ignores the top edge of the iOS tab bar's glass", () => {
+    expect(compare("iOS", { rows: [] }, { rows: [2373, 2384] })).toBe(false);
+  });
+
+  it.each([
+    ["the content above the iOS tab bar", "iOS", 2372],
+    ["the iOS tab items", "iOS", 2385],
+    ["Android at the same rows", "Android", 2373],
+  ])("still compares %s", (_, platform, row) => {
+    expect(compare(platform, { rows: [] }, { rows: [row] })).toBe(true);
+  });
+
+  const GLASS = [39, 35, 32];
+  it.each([
+    ["is ignored in the iOS tab bar's glass", "iOS", 2400, [71, 62, 51], false],
+    ["still counts above the iOS tab bar", "iOS", 2300, [71, 62, 51], true],
+    ["still counts on Android", "Android", 2400, [71, 62, 51], true],
+    ["leaves a changed iOS tab icon or label flagged", "iOS", 2400, [235, 235, 235], true],
+  ])("translucency difference %s", (_, platform, top, rgb, changed) => {
+    const glass = { rows: [], patch: { top, rgb: GLASS } };
+    expect(compare(platform, glass, { ...glass, patch: { top, rgb } })).toBe(changed);
+  });
+});
 
 describe("attach-pr-media.sh", { timeout: 30_000 }, () => {
+  let artifact: Buffer;
+  beforeAll(() => {
+    const { out } = gather(
+      dark({ "library-shows": {}, "settings-rest": {} }),
+      dark({ "library-shows": { content: 1 }, "settings-rest": { content: 1 } }),
+    );
+    artifact = spawnSync("zip", ["-qr", "-", "."], { cwd: out }).stdout;
+  });
+
+  const prepare = () => {
+    const { root, state, run } = sandbox();
+    writeFileSync(path.join(state, "30.zip"), artifact);
+    writeFileSync(
+      path.join(state, "by-name.json"),
+      JSON.stringify({
+        artifacts: [
+          { id: 20, expired: false, created_at: "2026-10-01T00:00:00Z" },
+          { id: 30, expired: false, created_at: "2026-10-03T00:00:00Z" },
+          { id: 40, expired: true, created_at: "2026-10-04T00:00:00Z" },
+        ],
+      }),
+    );
+    const read = (name: string) =>
+      existsSync(path.join(state, name)) ? readFileSync(path.join(state, name), "utf8") : "";
+    const directory = path.join(root, "pr-media-7-abcdef1");
+    const attach = () => {
+      const result = run("attach-pr-media.sh", ["7"]);
+      return {
+        ...result,
+        calls: read("calls"),
+        uploads: read("uploads"),
+        posted: read("review.md"),
+      };
+    };
+    const decide = () => {
+      const file = path.join(directory, "review.md");
+      writeFileSync(file, readFileSync(file, "utf8").replaceAll("VERDICT_PENDING", "Intended."));
+    };
+    return { state, directory, attach, decide };
+  };
+
   it("prints each image from the newest artifact and refuses to post while a verdict is pending", () => {
     const { directory, attach } = prepare();
     const first = attach();

@@ -42,7 +42,9 @@ const fingerprint = (
   spawnSync(process.execPath, [SCRIPT, platform, projectRoot], {
     cwd,
     encoding: "utf8",
-    env: { ...process.env, ...BUILD_ENVIRONMENT, ...env },
+    // The fixture has no react-native, so @expo/fingerprint's `npx react-native config`
+    // would download it from the registry on every cold runner.
+    env: { ...process.env, ...BUILD_ENVIRONMENT, npm_config_offline: "true", ...env },
   });
 
 describe("native fingerprint", { timeout: 30_000 }, () => {
