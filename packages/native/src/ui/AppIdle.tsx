@@ -4,6 +4,7 @@ import { useIsFetching, useQueryClient } from "@tanstack/react-query";
 import { type ReactElement, useEffect, useState, useSyncExternalStore } from "react";
 import { HARNESS_IDS } from "./harness-ids";
 import { Marker } from "./Marker";
+import { listenForCommands } from "./perf-channel";
 
 type Operation = "write" | "sync";
 
@@ -41,11 +42,6 @@ export function createAcknowledgments() {
 }
 
 const operations = createAcknowledgments();
-
-let announceReady: () => void = () => undefined;
-export const appReady = new Promise<void>((resolve) => {
-  announceReady = resolve;
-});
 
 export async function trackSync(run: () => Promise<boolean>): Promise<boolean> {
   return (await operations.run("sync", async () => ((await run()) ? "done" : "failed"))) === "done";
@@ -88,7 +84,7 @@ export function AppIdle(): ReactElement | null {
   useEffect(() => {
     if (!idle) return;
     setReady(true);
-    announceReady();
+    listenForCommands();
   }, [idle]);
 
   return (

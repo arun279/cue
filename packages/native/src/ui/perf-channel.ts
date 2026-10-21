@@ -1,7 +1,6 @@
 import { type Href, router } from "expo-router";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { useWindowDimensions } from "react-native";
-import { appReady } from "./AppIdle";
 
 const CHANNEL = "http://127.0.0.1:8790/next";
 const SCROLL_STEPS = 3;
@@ -67,20 +66,18 @@ export function usePerfScroll(name: string, scrollTo: (offset: number) => void):
   });
 }
 
-export function PerfChannel(): null {
-  useEffect(() => {
-    let open = true;
-    void (async () => {
-      await appReady;
-      let reply = "ready";
-      while (open) {
-        const response = await fetch(`${CHANNEL}?reply=${encodeURIComponent(reply)}`);
-        reply = perform(await response.text());
-      }
-    })().catch(() => undefined);
-    return () => {
-      open = false;
-    };
-  }, []);
-  return null;
+let listening = false;
+
+export function listenForCommands(): void {
+  if (listening) return;
+  listening = true;
+  void (async () => {
+    let reply = "ready";
+    for (;;) {
+      const response = await fetch(`${CHANNEL}?reply=${encodeURIComponent(reply)}`);
+      reply = perform(await response.text());
+    }
+  })().catch(() => {
+    listening = false;
+  });
 }

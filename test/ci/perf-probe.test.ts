@@ -401,6 +401,8 @@ it("removes perf channel registrations from store builds and keeps them in harne
 
   expect(store).toContain("function Row");
   expect(store).not.toMatch(/usePerf(Command|Scroll)\)?\(/);
+  expect(store).not.toContain("./harness");
   expect(harness).toMatch(/usePerfCommand\)?\("lapsed"/);
   expect(harness).toMatch(/usePerfScroll\)?\("history"/);
+  expect(harness).toContain("./harness");
 });
