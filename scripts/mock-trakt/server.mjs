@@ -18,6 +18,7 @@ import { pathToFileURL } from "node:url";
 import { createFaults, FAULT_PROFILE_NAMES, faultResponse, faultsFromEnv } from "./faults.mjs";
 import { createJournal } from "./journal.mjs";
 import {
+  allEpisodes,
   applyDroppedWrite,
   applyHiddenWrite,
   applyHistoryWrite,
@@ -324,7 +325,12 @@ const ROUTES = [
     (ctx) => {
       const show = findShow(ctx.library, ctx.params.id);
       if (show === undefined) return notFound("no seeded show");
-      return json(progressBody(show, ctx.library, ctx.origin, extendedOf(ctx.url)));
+      return json(
+        progressBody(show, ctx.library, ctx.origin, extendedOf(ctx.url), {
+          specials: ctx.url.searchParams.get("specials") === "true",
+          countSpecials: ctx.url.searchParams.get("count_specials") === "true",
+        }),
+      );
     },
   ],
   [
@@ -332,7 +338,7 @@ const ROUTES = [
     /^\/shows\/(?<id>[^/]+)\/seasons\/(?<season>\d+)\/episodes\/(?<number>\d+)$/,
     (ctx) => {
       const show = findShow(ctx.library, ctx.params.id);
-      const episode = show?.episodes.find(
+      const episode = (show === undefined ? [] : allEpisodes(show)).find(
         (ep) => ep.season === Number(ctx.params.season) && ep.number === Number(ctx.params.number),
       );
       if (episode === undefined) return notFound("no seeded episode");

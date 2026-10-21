@@ -142,7 +142,11 @@ function firstSeededMovie(): (typeof mock.library.movies)[number] {
 describe("the post-mark projection over the seeded catalogue", () => {
   it("projects only real aired coordinates across every seeded show", () => {
     for (const show of mock.library.shows) {
-      const aired = show.episodes.filter((episode) => episode.firstAired <= mock.library.now);
+      const aired = show.episodes.flatMap((episode) =>
+        episode.firstAired !== null && episode.firstAired <= mock.library.now
+          ? [{ ...episode, firstAired: episode.firstAired }]
+          : [],
+      );
       const last = aired.at(-1);
       for (const [index, episode] of aired.entries()) {
         const entry: LibraryEntry = {
@@ -433,6 +437,34 @@ describe("the seeded account fills the surfaces the harness exists to demo", () 
 });
 
 describe("seed profiles", () => {
+  it("serves a show watched only through its specials the way Trakt does", async () => {
+    await fetch(`${baseUrl}/__reset?seed=specials-only`, { method: "POST" });
+    const watched = ok(await getWatchedShows(client())).find((row) => row.show.ids.trakt === 8809);
+    expect(watched?.seasons?.map((season) => season.number)).toEqual([0]);
+    expect(ok(await getShowProgress(client(), 8809)).completed).toBe(0);
+    const withSpecials = await fetch(
+      `${baseUrl}/shows/8809/progress/watched?specials=true&count_specials=true`,
+    );
+    const progress = (await withSpecials.json()) as {
+      completed: number;
+      seasons: { number: number }[];
+    };
+    expect(progress.completed).toBe(4);
+    expect(progress.seasons[0]?.number).toBe(0);
+    await fetch(`${baseUrl}/__reset`, { method: "POST" });
+  });
+
+  it("numbers a long runner's seasons from its specials, and runs a continuous show's numbers on", async () => {
+    await fetch(`${baseUrl}/__reset?seed=scale`, { method: "POST" });
+    const seasons = ok(await getShowSeasons(client(), 99));
+    expect(seasons).toHaveLength(39);
+    expect(seasons[0]?.number).toBe(0);
+    expect(Math.max(...seasons.map((season) => season.episodes?.length ?? 0))).toBe(199);
+    const continuous = ok(await getShowSeasons(client(), 98));
+    expect(continuous[1]?.episodes?.[0]?.number).toBe(62);
+    await fetch(`${baseUrl}/__reset`, { method: "POST" });
+  });
+
   it("keeps the default account unchanged", async () => {
     const response = await fetch(`${baseUrl}/__reset`, { method: "POST" });
     expect(await response.json()).toEqual({ reset: true });

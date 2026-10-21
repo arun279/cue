@@ -273,7 +273,7 @@ const titleOf = async (path: string): Promise<string> =>
     }
   ).title;
 
-/** The scale account's thinly catalogued show (9007), one without artwork (9004), and the announced shelf titles. */
+/** The scale account's thinly catalogued show (9007), one without artwork (9004), the long runners (99, 98), and the announced shelf titles. */
 async function seedReads(seed: string): Promise<readonly string[]> {
   const announced = [await titleOf("/shows/7007"), await titleOf("/movies/6007")].map(
     (title) => `/search/show,movie?${AF}&query=${encodeURIComponent(title)}`,
@@ -282,7 +282,10 @@ async function seedReads(seed: string): Promise<readonly string[]> {
   return [
     ...READS,
     ...announced,
-    ...[9007, 9004].flatMap((id) => [
+    `/shows/99/progress/watched?${AF}&hidden=false&specials=true&count_specials=true`,
+    `/shows/98/seasons/2/episodes/62?${AF}`,
+    `/shows/99/seasons/0/episodes/1?${AF}`,
+    ...[9007, 9004, 99, 98].flatMap((id) => [
       `/shows/${id}/progress/watched?${AF}&hidden=false&specials=false&count_specials=false`,
       `/shows/${id}?${AF}`,
       `/shows/${id}/seasons?extended=episodes,full,images`,

@@ -133,7 +133,7 @@ describe("runtime write reconciliation", () => {
       read,
       http.post(`${TRAKT_API_BASE}/sync/history`, async ({ request }) => {
         dispatched.push(await request.json());
-        return HttpResponse.json({ added: { episodes: 1 } });
+        return HttpResponse.json({ added: { episodes: 1 } }, { status: 201 });
       }),
     );
 

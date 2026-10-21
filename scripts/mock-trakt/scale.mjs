@@ -78,3 +78,46 @@ export const SCALE_MOVIES = Array.from({ length: WATCHED_MOVIES }, (_, index) =>
 
 /** How many of the collection's never-started titles move to the watchlist instead. */
 export const SCALE_WATCHLIST = { shows: 240, movies: 100 };
+
+/**
+ * The long-runners: one of 38 seasons plus specials, a single season of them
+ * 199 episodes long, three specials watched; and one numbered across seasons, so
+ * its second season starts at episode 62.
+ */
+export const SCALE_LONG_RUNNERS = [
+  {
+    trakt: 99,
+    tmdb: 99099,
+    slug: "scale-long-runner",
+    title: "Scale Long Runner",
+    year: 1989,
+    status: "returning series",
+    network: "Meridian",
+    runtime: 22,
+    genres: ["animation"],
+    overview: "A generated show in its thirty-eighth season.",
+    seasons: [...Array.from({ length: 30 }, () => 22), 199, ...Array.from({ length: 7 }, () => 22)],
+    startDaysAgo: (37 * 22 + 199) * 7 + 30,
+    completed: 400,
+    lastWatchedDaysAgo: 6,
+    specials: 6,
+    specialsWatched: 3,
+  },
+  {
+    trakt: 98,
+    tmdb: 99098,
+    slug: "scale-continuous",
+    title: "Scale Continuous",
+    year: 1999,
+    status: "returning series",
+    network: "Meridian",
+    runtime: 24,
+    genres: ["anime"],
+    overview: "A generated show whose episode numbers run on across seasons.",
+    seasons: [61, 16, 20],
+    numbering: "continuous",
+    startDaysAgo: 97 * 7 + 30,
+    completed: 66,
+    lastWatchedDaysAgo: 9,
+  },
+];

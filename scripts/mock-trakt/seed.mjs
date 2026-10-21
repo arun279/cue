@@ -13,7 +13,7 @@
  * A body more generous than the API certifies an API that does not exist.
  */
 
-import { SCALE_MOVIES, SCALE_SHOWS, SCALE_WATCHLIST } from "./scale.mjs";
+import { SCALE_LONG_RUNNERS, SCALE_MOVIES, SCALE_SHOWS, SCALE_WATCHLIST } from "./scale.mjs";
 
 const DAY = 86_400_000;
 const WEEK = 7 * DAY;
@@ -53,32 +53,54 @@ const EPISODE_OVERVIEWS = [
  * id; one more than a week away has no runtime; and one with no date (`tba` at
  * the end of a show) has no TMDB id either.
  */
+/** @returns {{ traktId: number, season: number, number: number, title: string, overview: string | null, firstAired: number | null, runtime: number | null, obscure: boolean }[]} */
 function buildEpisodes(spec, now) {
-  const episodes = [];
   const total = spec.seasons.reduce((sum, count) => sum + count, 0);
-  let index = 0;
-  spec.seasons.forEach((count, seasonIndex) => {
-    for (let number = 1; number <= count; number += 1) {
-      const firstAired =
-        index >= total - (spec.tba ?? 0) ? null : now - spec.startDaysAgo * DAY + index * WEEK;
-      const distant = firstAired === null || firstAired > now + WEEK;
-      const obscure = distant || (spec.sparseEpisodes === true && index % 4 < 2);
-      episodes.push({
-        traktId: spec.trakt * 100 + index,
-        season: seasonIndex + 1,
-        number,
-        title: EPISODE_TITLES[(spec.trakt + index) % EPISODE_TITLES.length],
-        overview: obscure
-          ? null
-          : EPISODE_OVERVIEWS[(spec.trakt + index) % EPISODE_OVERVIEWS.length],
-        firstAired,
-        runtime: distant ? null : spec.runtime,
-        obscure,
-      });
-      index += 1;
-    }
+  const seasonOf = spec.seasons.flatMap((count, seasonIndex) =>
+    Array.from({ length: count }, (_, offset) => ({ season: seasonIndex + 1, number: offset + 1 })),
+  );
+  return seasonOf.map(({ season, number }, index) => {
+    const firstAired =
+      index >= total - (spec.tba ?? 0) ? null : now - spec.startDaysAgo * DAY + index * WEEK;
+    const distant = firstAired === null || firstAired > now + WEEK;
+    const obscure = distant || (spec.sparseEpisodes === true && index % 4 < 2);
+    return {
+      traktId: spec.trakt * 100 + index,
+      season,
+      number: spec.numbering === "continuous" ? index + 1 : number,
+      title: EPISODE_TITLES[(spec.trakt + index) % EPISODE_TITLES.length],
+      overview: obscure ? null : EPISODE_OVERVIEWS[(spec.trakt + index) % EPISODE_OVERVIEWS.length],
+      firstAired,
+      runtime: distant ? null : spec.runtime,
+      obscure,
+    };
   });
-  return episodes;
+}
+
+/** Specials sit outside the watch order: their ids live in their own range. */
+const SPECIAL_IDS = 50_000_000;
+const SPECIAL_EVERY_WEEKS = 13;
+
+/** Season 0: one special every quarter from the premiere, the first `specialsWatched` of them watched. */
+function buildSpecials(spec, now) {
+  return Array.from({ length: spec.specials ?? 0 }, (_, index) => ({
+    traktId: SPECIAL_IDS + spec.trakt * 100 + index,
+    season: 0,
+    number: index + 1,
+    title: EPISODE_TITLES[(spec.trakt + index + 3) % EPISODE_TITLES.length],
+    overview: EPISODE_OVERVIEWS[(spec.trakt + index) % EPISODE_OVERVIEWS.length],
+    firstAired: now - spec.startDaysAgo * DAY + (index + 1) * SPECIAL_EVERY_WEEKS * WEEK - 2 * DAY,
+    runtime: spec.runtime,
+    obscure: false,
+  }));
+}
+
+function watchedSpecials(spec, specials, now) {
+  const last = spec.lastWatchedDaysAgo === null ? now : now - spec.lastWatchedDaysAgo * DAY;
+  const count = spec.specialsWatched ?? 0;
+  return new Map(
+    specials.slice(0, count).map((sp, index) => [sp.traktId, last - (count - 1 - index) * DAY]),
+  );
 }
 
 const hasAired = (ep, now) => ep.firstAired !== null && ep.firstAired <= now;
@@ -437,6 +459,26 @@ const SHELF_MOVIES = Array.from({ length: SHELF_SIZE.movies }, (_, index) => {
   };
 });
 
+/** A show whose only plays are specials, for the account that has watched nothing else of it. */
+const SPECIALS_ONLY = {
+  trakt: 8809,
+  tmdb: 98809,
+  slug: "lantern-keepers",
+  title: "Lantern Keepers",
+  year: 2005,
+  status: "returning series",
+  network: "Meridian",
+  runtime: 45,
+  genres: ["drama"],
+  overview: "A show this account has only watched the specials of.",
+  seasons: [10, 10],
+  startDaysAgo: 400,
+  completed: 0,
+  lastWatchedDaysAgo: 12,
+  specials: 4,
+  specialsWatched: 4,
+};
+
 const RELATED_SHOWS = new Map([
   [8803, [8801, 8802, 8804, 8805, 8806, 8807, 8808]],
   [8801, [8803, 8808, 8802]],
@@ -497,16 +539,21 @@ const collectedAt = (spec, now) =>
  * @param {T} spec
  * @param {number} now
  */
-const libraryShow = (spec, now) => ({
-  ...spec,
-  hidden: false,
-  inWatchlist: spec.inWatchlist === true,
-  collectedAt: collectedAt(spec, now),
-  lastWatchedAt: spec.lastWatchedDaysAgo === null ? null : now - spec.lastWatchedDaysAgo * DAY,
-  episodes: buildEpisodes(spec, now),
-  /** `watched_at` by episode trakt id, so a mark the app made keeps its own stamp. */
-  watchedAt: new Map(),
-});
+const libraryShow = (spec, now) => {
+  const specials = buildSpecials(spec, now);
+  return {
+    ...spec,
+    hidden: false,
+    inWatchlist: spec.inWatchlist === true,
+    collectedAt: collectedAt(spec, now),
+    lastWatchedAt: spec.lastWatchedDaysAgo === null ? null : now - spec.lastWatchedDaysAgo * DAY,
+    episodes: buildEpisodes(spec, now),
+    specials,
+    specialsWatched: watchedSpecials(spec, specials, now),
+    /** `watched_at` by episode trakt id, so a mark the app made keeps its own stamp. */
+    watchedAt: new Map(),
+  };
+};
 
 /**
  * @template {{ inWatchlist?: boolean, lastWatchedDaysAgo: number | null }} T
@@ -581,6 +628,9 @@ const seedProfiles = {
   "rewatched-movie": (library) => {
     library.rewatchedMovies.set(library.movies[0].trakt, library.now - DAY / 2);
   },
+  "specials-only": (library) => {
+    library.shows.push(libraryShow(SPECIALS_ONLY, library.now));
+  },
   "multiple-plays-off": (library) => {
     library.multiplePlays = false;
   },
@@ -595,7 +645,9 @@ const seedProfiles = {
         });
     toWatchlist(library.shows, SCALE_WATCHLIST.shows);
     toWatchlist(library.movies, SCALE_WATCHLIST.movies);
-    library.shows.push(...SCALE_SHOWS.map((spec) => libraryShow(spec, library.now)));
+    library.shows.push(
+      ...[...SCALE_SHOWS, ...SCALE_LONG_RUNNERS].map((spec) => libraryShow(spec, library.now)),
+    );
     library.movies.push(...SCALE_MOVIES.map((spec) => libraryMovie(spec, library.now)));
   },
 };
@@ -736,7 +788,15 @@ function watchedSeasons(show, library) {
     });
     bySeason.set(ep.season, episodes);
   });
-  return [...bySeason].map(([number, episodes]) => ({ number, episodes }));
+  const specials = [...show.specialsWatched].map(([traktId, at]) => ({
+    number: show.specials.find((sp) => sp.traktId === traktId).number,
+    plays: 1,
+    last_watched_at: iso(at),
+  }));
+  return [
+    ...(specials.length > 0 ? [{ number: 0, episodes: specials }] : []),
+    ...[...bySeason].map(([number, episodes]) => ({ number, episodes })),
+  ];
 }
 
 /**
@@ -747,9 +807,9 @@ function watchedSeasons(show, library) {
 export function watchedShowsBody(library, extended) {
   const levels = levelsOf(extended);
   return library.shows
-    .filter((show) => show.completed > 0)
+    .filter((show) => show.completed > 0 || show.specialsWatched.size > 0)
     .map((show) => ({
-      plays: show.completed,
+      plays: show.completed + show.specialsWatched.size,
       last_watched_at: iso(show.lastWatchedAt),
       last_updated_at: iso(show.lastWatchedAt),
       reset_at: null,
@@ -782,9 +842,16 @@ export function watchedMoviesBody(library, origin, extended) {
 /**
  * `/shows/:id/progress/watched`: counts over aired episodes, the per-season tree
  * of what is watched, and the identity of the next episode, the one thing the
- * bulk watched list cannot carry.
+ * bulk watched list cannot carry. With `specials`, season 0 joins the tree; with
+ * `countSpecials`, its episodes count in the totals too.
  */
-export function progressBody(show, library, origin, extended) {
+export function progressBody(
+  show,
+  library,
+  origin,
+  extended,
+  { specials = false, countSpecials = false } = {},
+) {
   const aired = airedEpisodes(show, library.now);
   const bySeason = new Map(show.episodes.map((ep) => [ep.season, []]));
   aired.forEach((ep, index) => {
@@ -796,16 +863,28 @@ export function progressBody(show, library, origin, extended) {
     });
     bySeason.set(ep.season, episodes);
   });
+  const airedSpecials = show.specials
+    .filter((sp) => hasAired(sp, library.now))
+    .map((sp) => {
+      const at = show.specialsWatched.get(sp.traktId);
+      return {
+        number: sp.number,
+        completed: at !== undefined,
+        last_watched_at: at === undefined ? null : iso(at),
+      };
+    });
+  const seasonZero = specials && airedSpecials.length > 0 ? [[0, airedSpecials]] : [];
+  const counted = countSpecials ? airedSpecials : [];
   const next = show.episodes[show.completed];
   const previous = show.episodes[show.completed - 1];
   return {
-    aired: aired.length,
-    completed: Math.min(show.completed, aired.length),
+    aired: aired.length + counted.length,
+    completed: Math.min(show.completed, aired.length) + counted.filter((sp) => sp.completed).length,
     last_watched_at: show.lastWatchedAt === null ? null : iso(show.lastWatchedAt),
     reset_at: null,
-    seasons: [...bySeason].map(([number, episodes]) => ({
+    seasons: [...seasonZero, ...bySeason].map(([number, episodes]) => ({
       number,
-      title: `Season ${number}`,
+      title: number === 0 ? "Specials" : `Season ${number}`,
       aired: episodes.length,
       completed: episodes.filter((episode) => episode.completed).length,
       episodes,
@@ -876,7 +955,8 @@ export function browseBody(library, origin, extended, kind, ranked) {
 export function seasonsBody(show, origin, extended) {
   const levels = levelsOf(extended);
   const bySeason = new Map();
-  for (const ep of show.episodes) bySeason.set(ep.season, [...(bySeason.get(ep.season) ?? []), ep]);
+  for (const ep of allEpisodes(show))
+    bySeason.set(ep.season, [...(bySeason.get(ep.season) ?? []), ep]);
   return [...bySeason].map(([number, episodes]) => ({
     number,
     title: `Season ${number}`,
@@ -895,7 +975,7 @@ export function calendarBody(library, origin, extended, startMs, days) {
   const rows = [];
   for (const show of library.shows) {
     if (show.hidden) continue;
-    for (const ep of show.episodes) {
+    for (const ep of allEpisodes(show)) {
       if (ep.firstAired === null || ep.firstAired < startMs || ep.firstAired >= end) continue;
       rows.push({
         first_aired: iso(ep.firstAired),
@@ -921,6 +1001,20 @@ export function historyRows(library, origin, extended, section) {
   const rows = [];
   if (section !== "movies") {
     for (const show of library.shows) {
+      for (const [traktId, at] of show.specialsWatched) {
+        rows.push({
+          id: playId(traktId),
+          watched_at: iso(at),
+          action: "watch",
+          type: "episode",
+          episode: episodeRef(
+            show.specials.find((sp) => sp.traktId === traktId),
+            origin,
+            extended,
+          ),
+          show: showRef(show, origin, extended),
+        });
+      }
       show.episodes.slice(0, show.completed).forEach((ep, index) => {
         rows.push({
           id: playId(ep.traktId),
@@ -1130,8 +1224,10 @@ const showById = (library, ids) =>
 const movieById = (library, ids) =>
   library.movies.find((movie) => movie.trakt === ids.trakt || movie.slug === ids.slug);
 
+export const allEpisodes = (show) => [...show.specials, ...show.episodes];
+
 const episodeById = (library, ids) =>
-  library.shows.flatMap((show) => show.episodes).find((ep) => ep.traktId === ids.trakt);
+  library.shows.flatMap(allEpisodes).find((ep) => ep.traktId === ids.trakt);
 
 /** Split one `{ids}` section of a write body into the seeded items it names and
  * the entries that name nothing, which Trakt echoes back under `not_found`. */
@@ -1149,6 +1245,48 @@ function matchSection(items, lookup) {
 /** The play a history-row id points at, whichever kind of item minted it. */
 const playTarget = (library, id) =>
   episodeById(library, { trakt: playItem(id) }) ?? movieById(library, { trakt: playItem(id) });
+
+/** The specials a history write targets: by id, by history row, or as season 0 of a bulk mark. */
+function targetedSpecials(show, body) {
+  const direct = [
+    ...(body.episodes ?? []).map((item) => item.ids?.trakt),
+    ...(body.ids ?? []).map(playItem),
+  ];
+  const seasonZero = (body.shows ?? [])
+    .filter((item) => item.ids?.trakt === show.trakt)
+    .flatMap((item) => item.seasons ?? [])
+    .find((season) => season.number === 0);
+  return show.specials.filter(
+    (sp) =>
+      direct.includes(sp.traktId) ||
+      (seasonZero !== undefined &&
+        (seasonZero.episodes === undefined ||
+          seasonZero.episodes.some((e) => e.number === sp.number))),
+  );
+}
+
+/** A special keeps one stamp: a replay replaces it, counted as added when the account keeps every play. */
+function addSpecials(library, show, specials, stamp, counts) {
+  for (const sp of specials) {
+    if (show.specialsWatched.has(sp.traktId) && !library.multiplePlays)
+      counts.updated.episodes += 1;
+    else counts.added.episodes += 1;
+    show.specialsWatched.set(sp.traktId, stamp);
+  }
+}
+
+/** Marks or unmarks the specials a write names; the number it removed. */
+function applySpecialsWrite(library, show, body, remove, stamp, counts) {
+  const specials = targetedSpecials(show, body);
+  if (specials.length === 0) return 0;
+  library.activities.episodes = activityTime(library);
+  if (!remove) {
+    addSpecials(library, show, specials, stamp, counts);
+    return 0;
+  }
+  for (const sp of specials) show.specialsWatched.delete(sp.traktId);
+  return specials.length;
+}
 
 /** The episode trakt ids a history write targets, by any of the three routes in. */
 function targetedEpisodes(show, body) {
@@ -1188,6 +1326,7 @@ export function applyHistoryWrite(library, body, remove) {
   const deleted = { episodes: 0, movies: 0 };
 
   for (const show of library.shows) {
+    deleted.episodes += applySpecialsWrite(library, show, body, remove, stamp, counts);
     const indices = targetedEpisodes(show, body);
     if (indices.length === 0) continue;
     // Trakt stamps the write, not the play: marking something as watched last
