@@ -5,8 +5,11 @@
 // sheet or the lapsed section from the first change to the last, a scroll by the gaps
 // between the frames the recorder captured. Android adds what the platform keeps: frame
 // statistics per segment (dumpsys gfxinfo), the views and Compose hosts on screen after a
-// tab switch (dumpsys activity top), cold start with and without ahead-of-time compilation
-// (am start -W), memory (dumpsys meminfo) and overdraw. Nothing gates on any number.
+// tab switch (dumpsys activity top), memory (dumpsys meminfo), overdraw, and cold start
+// (am start -W) in three states: as adb installed it, verified the way a Play install
+// without a profile is, and compiled from the profile the passes collected, the most a
+// Baseline Profile could buy. iOS adds memory from the app's resident size. Nothing gates
+// on any number.
 // Usage: perf-probe.mjs <ios|android> <output directory> <runs> [maestro options] [test [test options]]
 import { execFile, spawn } from "node:child_process";
 import { appendFileSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
@@ -315,10 +318,16 @@ function androidProbe(directory, maestro) {
     census: async () => viewCensus(await shell("dumpsys", "activity", "top")),
     memory: async () => memInfo(await shell("dumpsys", "meminfo", PACKAGE)),
     overdraw: (label) => overdraw(directory, label),
-    before: (runs) => coldStarts("cold start", runs),
+    before: (runs) => coldStarts("cold start as adb installed", runs),
     after: async (runs) => {
-      await shell("cmd", "package", "compile", "-m", "speed-profile", "-f", PACKAGE);
-      const compiled = await coldStarts("cold start after speed-profile compile", runs);
+      const compiled = [];
+      for (const [mode, segment] of [
+        ["verify", "cold start verified, as a Play install starts"],
+        ["speed-profile", "cold start compiled from the profile"],
+      ]) {
+        await shell("cmd", "package", "compile", "-m", mode, "-f", PACKAGE);
+        compiled.push(...(await coldStarts(segment, runs)));
+      }
       await shell("setprop", "debug.hwui.overdraw", "show");
       const status = await maestro("overdraw.yaml", "maestro-overdraw");
       await shell("setprop", "debug.hwui.overdraw", "false");
