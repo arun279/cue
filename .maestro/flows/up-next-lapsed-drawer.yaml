@@ -30,12 +30,23 @@ appId: app.cuetracker
     when:
       platform: iOS
     commands:
-      - longPressOn:
+      - tapOn:
           id: "lapsed-row-8805-body"
-      - tapOn: "Mark .* watched"
+      - extendedWaitUntil:
+          visible:
+            id: "continue-mark"
+          timeout: 30000
+      - tapOn:
+          id: "continue-mark"
 - assertVisible:
     id: "snackbar"
 - runFlow: lib/settle.yaml
+- runFlow:
+    file: lib/back.yaml
+    when:
+      platform: iOS
+    env:
+      BACK_TITLE: "Up Next"
 - assertNotVisible:
     id: "lapsed-row-8805"
 - scrollUntilVisible:

@@ -154,6 +154,7 @@ export const TEST_IDS = {
   calendarDayHeaderToday: "calendar-day-header-today",
   calendarRow: (traktId: number) => `calendar-row-${traktId}`,
   showDetailSkeleton: "show-detail-skeleton",
+  continueMark: "continue-mark",
   screenShowDetail: "screen-show-detail",
   seasonList: "season-list",
   seasonRow: (season: number) => `season-row-${season}`,

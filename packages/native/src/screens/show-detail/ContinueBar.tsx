@@ -10,6 +10,7 @@ import { StyleSheet, View } from "react-native";
 import { CheckControl } from "../../ui/CheckControl";
 import { ProgressBar } from "../../ui/ProgressBar";
 import { Row } from "../../ui/Row";
+import { TEST_IDS } from "../../ui/test-ids";
 import { RADIUS, SPACE, useColors } from "../../ui/tokens";
 import { CueText } from "../../ui/type";
 
@@ -78,6 +79,7 @@ function NextEpisode({
             disabled={control.state === "advancing"}
             pending={control.pending}
             onPress={control.onPress}
+            testID={TEST_IDS.continueMark}
           />
         )
       }

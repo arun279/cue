@@ -1,7 +1,7 @@
 # Mark the head of the queue, take it back, and mark it again. Android swipes the
 # row; XCTest's synthesized drag does not open a swipeable row on the iOS
-# simulator, so iOS marks from the row's long-press menu, which is the path a
-# reader who does not swipe takes there.
+# simulator, so iOS opens the row and marks from show detail's check, the
+# control every row leads to.
 appId: app.cuetracker
 ---
 - runFlow: lib/connect.yaml
@@ -30,10 +30,15 @@ appId: app.cuetracker
     when:
       platform: iOS
     commands:
-      - longPressOn:
+      - tapOn:
           id: "queue-row-[0-9]+-body"
           index: 0
-      - tapOn: "Mark .* watched"
+      - extendedWaitUntil:
+          visible:
+            id: "continue-mark"
+          timeout: 30000
+      - tapOn:
+          id: "continue-mark"
 - runFlow: lib/settle.yaml
 - assertVisible:
     id: "snackbar-undo"
@@ -46,6 +51,12 @@ appId: app.cuetracker
 - runFlow: lib/settle.yaml
 - assertNotVisible:
     id: "snackbar-undo"
+- runFlow:
+    file: lib/back.yaml
+    when:
+      platform: iOS
+    env:
+      BACK_TITLE: "Up Next"
 - assertVisible:
     id: "queue-row-[0-9]+-body"
     text: ${output.rowLabel}
@@ -68,10 +79,15 @@ appId: app.cuetracker
     when:
       platform: iOS
     commands:
-      - longPressOn:
+      - tapOn:
           id: "queue-row-[0-9]+-body"
           index: 0
-      - tapOn: "Mark .* watched"
+      - extendedWaitUntil:
+          visible:
+            id: "continue-mark"
+          timeout: 30000
+      - tapOn:
+          id: "continue-mark"
 - runFlow: lib/settle.yaml
 - assertVisible:
     id: "snackbar-undo"

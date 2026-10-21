@@ -105,10 +105,21 @@ appId: app.cuetracker
     when:
       platform: iOS
     commands:
-      - longPressOn:
+      - tapOn:
           id: "queue-row-[0-9]+-body"
           index: 0
-      - tapOn: "Mark .* watched"
+      - extendedWaitUntil:
+          visible:
+            id: "continue-mark"
+          timeout: 30000
+      - tapOn:
+          id: "continue-mark"
+- runFlow:
+    file: lib/back.yaml
+    when:
+      platform: iOS
+    env:
+      BACK_TITLE: "Up Next"
 - tapOn:
     id: "avatar-link"
 - tapOn:
