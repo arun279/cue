@@ -157,6 +157,17 @@ describe("platform confirmations", () => {
     expect(onSecondary).toHaveBeenCalledTimes(1);
   });
 
+  it("gives an overwriting rewatch the destructive role in the Android dialog", () => {
+    Platform.OS = "android";
+    const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+    const copy = seasonConfirmation({ number: 2, airedCount: 6, completedCount: 3 }, "one-play");
+    confirm({ ...copy, onPrimary: jest.fn(), onSecondary: jest.fn() });
+    expect(alert.mock.calls[0]?.[2]?.[0]).toMatchObject({
+      text: "Mark all 6 again",
+      style: "destructive",
+    });
+  });
+
   it.each(["ios", "android"] as const)("uses plain two-button alerts on %s", (os) => {
     Platform.OS = os;
     const alert = jest.spyOn(Alert, "alert");
@@ -189,7 +200,8 @@ it("warns before a rewatch when the account is known to keep one play per episod
     await fireEvent.press(await screen.findByTestId(TEST_IDS.seasonCheck(2)));
     expect(present.mock.calls[0]?.[0]).toMatchObject({
       message: expect.stringContaining("Your Trakt account keeps one play per episode"),
-      options: expect.arrayContaining([expect.stringContaining("(replaces 2 dates)")]),
+      options: ["Mark 2 remaining", "Mark all 4 again", "Cancel"],
+      destructiveButtonIndex: 1,
     });
   } finally {
     Platform.OS = original;

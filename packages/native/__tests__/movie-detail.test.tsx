@@ -249,7 +249,7 @@ it("offers no Undo when Trakt replaced the movie's play, and says what happened"
   await fireEvent.press(await screen.findByTestId(TEST_IDS.movieMark));
   expect(
     await screen.findByText(
-      "The Lantern Keeper was already watched. Trakt replaced its date with now.",
+      "The Lantern Keeper was already watched. Trakt changed its watch date to now.",
     ),
   ).toBeOnTheScreen();
   expect(screen.queryByTestId(TEST_IDS.snackbarUndo)).toBeNull();
@@ -264,7 +264,7 @@ it("removes nothing when an Undo finds that the mark replaced the movie's play",
   await fireEvent.press(screen.getByTestId(TEST_IDS.snackbarUndo));
   expect(
     await screen.findByText(
-      "The Lantern Keeper was already watched. Trakt replaced its date with now. Undo can't bring the old date back.",
+      "The Lantern Keeper was already watched. Trakt changed its watch date to now. Undo can't restore the earlier date.",
     ),
   ).toBeOnTheScreen();
   expect(runtime.submit).toHaveBeenCalledTimes(1);

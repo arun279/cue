@@ -5,24 +5,23 @@ export function replacedMarkMessage(title: string, code: string | null): SnackMe
   const what = code === null ? "" : ` ${code}`;
   return {
     subject: title,
-    predicate: `${what} was already watched. Trakt replaced its date with now.`,
+    predicate: `${what} was already watched. Trakt changed its watch date to now.`,
   };
 }
 
-export const REPLACED_UNDO_NOTE = "Undo can't bring the old date back.";
+export const REPLACED_UNDO_NOTE = "Undo can't restore the earlier date.";
 
 export function replacedBulkMessage(label: string, replaced: number): string {
-  const dates = replaced === 1 ? "1 date" : `${replaced} dates`;
-  return `${label}. Trakt replaced ${dates} of episodes already watched.`;
+  const dates = replaced === 1 ? "Watch date" : "Watch dates";
+  return `${label}. ${dates} changed for ${replaced} already watched.`;
 }
 
 export function rewatchedMessage(label: string, added: number, replaced: number): string {
-  const dates = replaced === 1 ? "1 date replaced" : `${replaced} dates replaced`;
-  return `${label}: ${added} added, ${dates}`;
+  const dates = replaced === 1 ? "1 watch date" : `${replaced} watch dates`;
+  return `${label} · ${added} added, ${dates} changed`;
 }
 
 export const REPLACED_PLAY_MESSAGE =
-  "Trakt replaced this episode's date. Your account keeps one play per episode.";
+  "Your Trakt account keeps one play per episode, so the earlier date was replaced.";
 
-export const REPLACED_EPISODE_MESSAGE =
-  "This episode was already watched. Trakt replaced its date with now.";
+export const REPLACED_EPISODE_MESSAGE = "Already watched. Trakt changed the watch date to now.";

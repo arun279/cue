@@ -89,6 +89,8 @@ export interface SeasonConfirmation {
   readonly message: string;
   readonly primary: string;
   readonly secondary?: string;
+  // The secondary choice overwrites data the account already has.
+  readonly secondaryDestructive?: boolean;
 }
 
 export const episodeCount = (count: number): string =>
@@ -98,18 +100,19 @@ function rewatchCopy(
   aired: number,
   watched: number,
   policy: PlayPolicy,
-): { readonly note: string; readonly secondary: string } {
-  const watchedOnes = watched === 1 ? "the 1 you watched" : `the ${watched} you watched`;
+): Pick<SeasonConfirmation, "secondary" | "secondaryDestructive"> & { readonly note: string } {
+  const dates = watched === 1 ? "the watch date of the 1" : `the watch dates of the ${watched}`;
   if (policy === "one-play") {
     return {
-      note: ` Your Trakt account keeps one play per episode, so marking all again replaces the dates of ${watchedOnes}.`,
-      secondary: `Mark all ${aired} again (replaces ${watched === 1 ? "1 date" : `${watched} dates`})`,
+      note: ` Your Trakt account keeps one play per episode, so this replaces ${dates} you've watched. You can change this in your Trakt settings.`,
+      secondary: `Mark all ${aired} again`,
+      secondaryDestructive: true,
     };
   }
   return {
     note:
       policy === "unknown"
-        ? ` If your Trakt account keeps one play per episode, marking all again replaces the dates of ${watchedOnes}.`
+        ? ` If your Trakt account keeps one play per episode, this replaces ${dates} you've watched.`
         : "",
     secondary: `Mark all ${aired} again (rewatch)`,
   };
@@ -139,13 +142,13 @@ export function seasonConfirmation(
       message: `${episodeCount(remaining)} will be added to your history.`,
       primary: `Mark ${episodeCount(remaining)}`,
     };
-  const rewatch = rewatchCopy(season.airedCount, season.completedCount, policy);
+  const { note, ...rewatch } = rewatchCopy(season.airedCount, season.completedCount, policy);
   return {
     kind: "remaining",
     title: `Mark ${name} watched?`,
-    message: `${remaining} of ${season.airedCount} episodes are unwatched.${rewatch.note}`,
+    message: `${remaining} of ${season.airedCount} episodes are unwatched.${note}`,
     primary: `Mark ${remaining} remaining`,
-    secondary: rewatch.secondary,
+    ...rewatch,
   };
 }
 

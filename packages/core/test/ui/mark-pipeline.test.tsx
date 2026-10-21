@@ -1296,7 +1296,7 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
     expect(fake.submitted.map((op) => op.request.path)).toEqual(["/sync/history"]);
     expect(fake.loadEpisodePlays).not.toHaveBeenCalled();
     expect(snackText()).toBe(
-      `${entry.title} S1 E2 was already watched. Trakt replaced its date with now.`,
+      `${entry.title} S1 E2 was already watched. Trakt changed its watch date to now.`,
     );
     expect(entryOf(qc, SHOW)?.pendingAdvance).toBe(true);
   });
@@ -1322,7 +1322,7 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
     await flush();
     expect(fake.submitted.map((op) => op.request.path)).toEqual(["/sync/history"]);
     expect(snackText()).toBe(
-      `${entry.title} S1 E2 was already watched. Trakt replaced its date with now. Undo can't bring the old date back.`,
+      `${entry.title} S1 E2 was already watched. Trakt changed its watch date to now. Undo can't restore the earlier date.`,
     );
     expect(entryOf(qc, SHOW)?.pendingAdvance).toBe(true);
   });
@@ -1332,8 +1332,7 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
     const season = seasonView([episodeView(1), episodeView(2)]);
     const { a } = mountSeasonSurfaces(fake, season.episodes);
     await act(async () => a[0]?.season.markSeason(TARGET, season));
-    const message =
-      "Season 1 marked · 2 episodes. Trakt replaced 1 date of episodes already watched.";
+    const message = "Season 1 marked · 2 episodes. Watch date changed for 1 already watched.";
     expect(snackText()).toBe(message);
     await act(async () => a[0]?.season.undo());
     expect(fake.submitted).toHaveLength(1);
@@ -1362,7 +1361,7 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
     await undone;
     expect(fake.submitted).toHaveLength(1);
     expect(snackText()).toBe(
-      "Season 1 marked · 2 episodes. Trakt replaced 1 date of episodes already watched. Undo can't bring the old date back.",
+      "Season 1 marked · 2 episodes. Watch date changed for 1 already watched. Undo can't restore the earlier date.",
     );
   });
 
@@ -1372,7 +1371,7 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
     await act(async () =>
       a[0]?.season.toggleEpisode(TARGET, episodeView(2), { undoLabel: "S1 E2 marked" }),
     );
-    expect(snackText()).toBe("This episode was already watched. Trakt replaced its date with now.");
+    expect(snackText()).toBe("Already watched. Trakt changed the watch date to now.");
     await act(async () => a[0]?.season.undo());
     expect(fake.submitted).toHaveLength(1);
     expect(seasonEp(qc, 2)?.watched).toBe(true);
@@ -1395,7 +1394,7 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
     const season = seasonView([episodeView(1, true), episodeView(2)]);
     const { a } = mountSeasonSurfaces(fake, season.episodes);
     await act(async () => a[0]?.season.rewatchSeason(TARGET, season));
-    expect(snackText()).toBe("Season 1 marked again: 1 added, 1 date replaced");
+    expect(snackText()).toBe("Season 1 marked again · 1 added, 1 watch date changed");
   });
 
   it("says so when an added play replaced the episode's date", async () => {
@@ -1403,7 +1402,7 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
     const { a } = mountSeasonSurfaces(fake, [episodeView(1, true), episodeView(2, true)]);
     await act(async () => a[0]?.season.addEpisodePlay(TARGET, episodeView(2, true)));
     expect(snackText()).toBe(
-      "Trakt replaced this episode's date. Your account keeps one play per episode.",
+      "Your Trakt account keeps one play per episode, so the earlier date was replaced.",
     );
   });
 });

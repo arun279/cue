@@ -102,19 +102,24 @@ describe("season confirmations", () => {
       },
     );
   });
-  it("says before a rewatch that a one-play account loses the watched dates", () => {
+  it("says before a rewatch that a one-play account loses the watch dates", () => {
     const season = { number: 2, airedCount: 6, completedCount: 3 };
     expect(seasonConfirmation(season, "one-play")).toMatchObject({
       message:
-        "3 of 6 episodes are unwatched. Your Trakt account keeps one play per episode, so marking all again replaces the dates of the 3 you watched.",
-      secondary: "Mark all 6 again (replaces 3 dates)",
+        "3 of 6 episodes are unwatched. Your Trakt account keeps one play per episode, so this replaces the watch dates of the 3 you've watched. You can change this in your Trakt settings.",
+      secondary: "Mark all 6 again",
+      secondaryDestructive: true,
     });
-    expect(seasonConfirmation(season, "unknown")).toMatchObject({
+    expect(seasonConfirmation(season, "unknown")).toEqual({
+      kind: "remaining",
+      title: "Mark Season 2 watched?",
       message:
-        "3 of 6 episodes are unwatched. If your Trakt account keeps one play per episode, marking all again replaces the dates of the 3 you watched.",
+        "3 of 6 episodes are unwatched. If your Trakt account keeps one play per episode, this replaces the watch dates of the 3 you've watched.",
+      primary: "Mark 3 remaining",
       secondary: "Mark all 6 again (rewatch)",
     });
   });
+
   it("names the consequence when none or all are watched", () => {
     expect(seasonConfirmation({ number: 2, airedCount: 1, completedCount: 0 })).toEqual({
       kind: "mark",
