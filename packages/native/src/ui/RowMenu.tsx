@@ -8,6 +8,7 @@ import { Stack } from "expo-router";
 import { memo, type ReactElement, useCallback, useLayoutEffect, useRef } from "react";
 import { Platform, Pressable, StyleSheet, View } from "react-native";
 import { MoreMenuButton } from "./MoreMenuButton";
+import { HEADER_TINT } from "./navigation-theme";
 import { PlatformIcon } from "./PlatformIcon";
 import { TARGET_MIN, useColors } from "./tokens";
 
@@ -71,10 +72,16 @@ const HeaderMenuItems = memo(
     items,
     onSelect,
   }: Pick<RowMenuProps, "title" | "items"> & { onSelect(id: string): void }): ReactElement {
+    const colors = useColors();
     if (Platform.OS === "android")
       return (
         <Stack.Toolbar placement="right" asChild>
-          <MoreMenuButton title={title} actions={actionsOf(items)} onSelect={onSelect} />
+          <MoreMenuButton
+            title={title}
+            actions={actionsOf(items)}
+            onSelect={onSelect}
+            color={colors[HEADER_TINT]}
+          />
         </Stack.Toolbar>
       );
     return (

@@ -3,7 +3,7 @@ import { cloneElement, type ReactElement } from "react";
 import { type AccessibilityActionEvent, Platform, StyleSheet, View } from "react-native";
 import { MoreMenuButton } from "../../ui/MoreMenuButton";
 import { TEST_IDS } from "../../ui/test-ids";
-import { TARGET_MIN } from "../../ui/tokens";
+import { TARGET_MIN, useColors } from "../../ui/tokens";
 
 export interface TileAction {
   readonly id: string;
@@ -93,10 +93,12 @@ export function TileMore({
   readonly title: string;
   readonly actions: readonly TileAction[];
 }): ReactElement | null {
+  const colors = useColors();
   if (Platform.OS !== "android" || actions.length === 0) return null;
   return (
     <MoreMenuButton
       title={title}
+      color={colors.ink2}
       testID={TEST_IDS.quickActions}
       actions={actions.map((action) => ({ id: action.id, title: action.label }))}
       onSelect={(id) => actions.find((action) => action.id === id)?.onPress()}

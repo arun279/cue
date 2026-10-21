@@ -1,12 +1,14 @@
 import { seasonConfirmation } from "@cue/core/domain/show-detail";
 import { UNDO_WINDOW_MS } from "@cue/core/sync-contract";
-import { act, fireEvent, render, screen } from "@testing-library/react-native";
+import { act, fireEvent, render, renderHook, screen } from "@testing-library/react-native";
 import { Children, isValidElement, type ReactNode } from "react";
 import { ActionSheetIOS, Alert, Platform } from "react-native";
 import { ShowDetail } from "../src/screens/ShowDetail";
 import { ContinueBar } from "../src/screens/show-detail/ContinueBar";
 import { confirm } from "../src/ui/confirm";
+import { HEADER_TINT } from "../src/ui/navigation-theme";
 import { TEST_IDS } from "../src/ui/test-ids";
+import { useColors } from "../src/ui/tokens";
 import { DetailHarness, detailRuntime } from "./support/detail";
 import { router } from "./support/native-ui";
 import { entry, Harness, resetSharedStores, spyHaptics } from "./support/up-next";
@@ -230,6 +232,7 @@ function menuOf(node: unknown): unknown {
 (Platform.OS === "android" ? it : it.skip)(
   "draws Android's More trigger as a plain 48 dp button that mounts its menu only when opened",
   async () => {
+    const { result } = await renderHook(() => useColors());
     await render(
       <DetailHarness>
         <ShowDetail showId={8803} />
@@ -240,6 +243,8 @@ function menuOf(node: unknown): unknown {
       name: "More actions for Midnight Cartography",
     });
     expect(more).toHaveStyle({ width: 48, height: 48 });
+    const icon = more.children.find((child) => typeof child !== "string" && child.type === "Image");
+    expect(icon).toHaveStyle({ tintColor: result.current[HEADER_TINT] });
     expect(screen.queryByTestId("stop")).toBeNull();
 
     await fireEvent.press(more);

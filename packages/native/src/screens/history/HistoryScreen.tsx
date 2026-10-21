@@ -26,6 +26,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePullToRefresh } from "../../hooks/usePullToRefresh";
 import { Button } from "../../ui/Button";
 import { EmptyState } from "../../ui/EmptyState";
+import { HEADER_TINT } from "../../ui/navigation-theme";
 import { Separator } from "../../ui/Row";
 import { SegmentedControl, type SegmentOption } from "../../ui/SegmentedControl";
 import { SyncStrip } from "../../ui/SyncStrip";
@@ -75,7 +76,7 @@ export function HistoryScreen(): ReactElement {
     () => ({
       title: "History",
       headerLargeTitle: false,
-      headerTintColor: colors.accentInk,
+      headerTintColor: colors[HEADER_TINT],
       headerTitleStyle: { color: colors.fg },
       headerSearchBarOptions: {
         placement: "stacked",
@@ -88,7 +89,7 @@ export function HistoryScreen(): ReactElement {
         onCancelButtonPress: () => setTitle(""),
       },
     }),
-    [colors.accentInk, colors.fg],
+    [colors],
   );
   const insets = useSafeAreaInsets();
   const rowWidth = useWindowDimensions().width - 2 * ROW_INSET;
