@@ -1,5 +1,6 @@
 import "./support/detail-mocks";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react-native";
+import { Platform } from "react-native";
 import { EpisodeBody, EpisodeSheet } from "../src/screens/EpisodeSheet";
 import { EpisodePager } from "../src/screens/episode-sheet/EpisodePager";
 import { EpisodeStill } from "../src/screens/episode-sheet/EpisodeStill";
@@ -129,7 +130,10 @@ it("offers one menu for a watched episode beside its close button", async () => 
     </DetailHarness>,
   );
 
-  expect(await screen.findAllByText("Add another play")).toHaveLength(1);
+  await screen.findByTestId(TEST_IDS.episodeMarkControl);
+  if (Platform.OS === "android")
+    await fireEvent.press(screen.getByRole("button", { name: "More actions for Salt Air" }));
+  expect(screen.getAllByText("Add another play")).toHaveLength(1);
   await fireEvent.press(screen.getByRole("button", { name: "Close" }));
   expect(router.back).toHaveBeenCalledTimes(1);
 });

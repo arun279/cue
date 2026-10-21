@@ -3,19 +3,20 @@ import type { MovieEntry } from "@cue/core/data/trakt/movie-library";
 import { episodesLeft, watchedPercent } from "@cue/core/format";
 import { useHideShow } from "@cue/core/hooks/useHideShow";
 import { type Href, useRouter } from "expo-router";
-import { memo, type ReactElement } from "react";
+import { memo, type ReactElement, type ReactNode } from "react";
 import { Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import { useShowArt } from "../../hooks/useShowArt";
 import { Poster } from "../../ui/Poster";
 import { ProgressBar } from "../../ui/ProgressBar";
+import { itemActions, RowMenu, type RowMenuItem } from "../../ui/RowMenu";
 import { TEST_IDS } from "../../ui/test-ids";
-import { PALETTE, SPACE, useColors, useStacked } from "../../ui/tokens";
+import { PALETTE, SPACE, TARGET_MIN, useColors, useStacked } from "../../ui/tokens";
 import { CueText } from "../../ui/type";
 import type { ChipKey } from "./model";
-import { type TileAction, TileLink, TileMore, tileActionProps } from "./TileMenu";
 
 const PLATE = { inset: 6, radius: 6 };
 const TITLE_LINES = 2;
+const MORE_INSET = (TARGET_MIN - 24) / 2;
 const MAX_COLUMNS = 3;
 
 const LONG_TITLE_WORD_WIDTH = 76;
@@ -45,8 +46,9 @@ export interface TileProps {
   readonly percent: number | null;
   readonly left: number;
   readonly year?: string;
-  readonly actions?: readonly TileAction[];
-  onPress?(): void;
+  readonly actions?: readonly RowMenuItem[];
+  readonly trailing?: ReactNode;
+  onPress(): void;
 }
 
 export function Tile({
@@ -59,6 +61,7 @@ export function Tile({
   left,
   year,
   actions = [],
+  trailing,
   onPress,
 }: TileProps): ReactElement {
   const colors = useColors();
@@ -73,7 +76,7 @@ export function Tile({
       testID={testID}
       onPress={onPress}
       style={[styles.tile, { width }]}
-      {...tileActionProps(actions)}
+      {...itemActions(actions)}
     >
       <View>
         <Poster title={title} posters={posters} width={width} />
@@ -105,7 +108,7 @@ export function Tile({
         >
           {title}
         </CueText>
-        <TileMore title={title} actions={actions} />
+        {trailing === undefined ? null : <View style={styles.more}>{trailing}</View>}
       </View>
       {counted && stacked ? (
         <CueText variant="micro" tabularNums style={{ color: colors.ink2 }}>
@@ -133,8 +136,12 @@ export const ShowTile = memo(function ShowTile({
   const art = useShowArt(entry.showId, !listed);
   const left = chip === "watching" ? episodesLeft(entry.aired, entry.completed) : 0;
   const href: Href = `/show/${entry.showId}`;
-  const actions: TileAction[] = [
-    { id: TEST_IDS.quickActionDetails, label: "Show details", onPress: () => router.push(href) },
+  const open = (): void => router.push(href);
+  const label = [entry.title, STATUS_WORD[chip], left > 0 ? `${left} episodes left` : null]
+    .filter(Boolean)
+    .join(", ");
+  const actions: RowMenuItem[] = [
+    { id: TEST_IDS.quickActionDetails, label: "Show details", onPress: open },
     entry.hidden
       ? {
           id: TEST_IDS.quickActionStop,
@@ -155,20 +162,26 @@ export const ShowTile = memo(function ShowTile({
   ];
 
   return (
-    <TileLink href={href} title={entry.title} actions={actions}>
-      <Tile
-        title={entry.title}
-        posters={listed ? entry.posters : art.posters}
-        width={width}
-        testID={TEST_IDS.showCard(entry.showId)}
-        label={[entry.title, STATUS_WORD[chip], left > 0 ? `${left} episodes left` : null]
-          .filter(Boolean)
-          .join(", ")}
-        percent={chip === "watching" ? watchedPercent(entry.completed, entry.aired) : null}
-        left={left}
-        actions={actions}
-      />
-    </TileLink>
+    <RowMenu
+      title={entry.title}
+      items={actions}
+      item={{ href, label, testID: TEST_IDS.showCard(entry.showId), role: "link" }}
+    >
+      {(trigger, testID) => (
+        <Tile
+          title={entry.title}
+          posters={listed ? entry.posters : art.posters}
+          width={width}
+          testID={testID}
+          label={label}
+          percent={chip === "watching" ? watchedPercent(entry.completed, entry.aired) : null}
+          left={left}
+          actions={actions}
+          trailing={trigger ?? undefined}
+          onPress={open}
+        />
+      )}
+    </RowMenu>
   );
 });
 
@@ -181,18 +194,18 @@ export const MovieTile = memo(function MovieTile({
   readonly chip: ChipKey;
   readonly width: number;
 }): ReactElement {
+  const router = useRouter();
   return (
-    <TileLink href={`/movie/${entry.movieId}`} title={entry.title} actions={[]}>
-      <Tile
-        title={entry.title}
-        posters={entry.posters}
-        width={width}
-        testID={TEST_IDS.movieCard(entry.movieId)}
-        label={`${entry.title}, ${STATUS_WORD[chip]}`}
-        percent={null}
-        left={0}
-      />
-    </TileLink>
+    <Tile
+      title={entry.title}
+      posters={entry.posters}
+      width={width}
+      testID={TEST_IDS.movieCard(entry.movieId)}
+      label={`${entry.title}, ${STATUS_WORD[chip]}`}
+      percent={null}
+      left={0}
+      onPress={() => router.push(`/movie/${entry.movieId}`)}
+    />
   );
 });
 
@@ -200,6 +213,7 @@ const styles = StyleSheet.create({
   tile: { gap: SPACE.s1 },
   caption: { flexDirection: "row", alignItems: "flex-start" },
   title: { flex: 1 },
+  more: { marginTop: -MORE_INSET, marginRight: -MORE_INSET },
   rail: {
     position: "absolute",
     left: SPACE.s2,

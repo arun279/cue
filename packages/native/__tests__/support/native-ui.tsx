@@ -117,12 +117,22 @@ function linkModule() {
   const Trigger = ({ children }: { readonly children: ReactElement }) => children;
   const Menu = ({ children }: { readonly children?: ReactNode }) =>
     Platform.OS === "ios" ? createElement(View, { testID: LINK_MENU }, children) : null;
-  const MenuAction = ({ children, onPress }: { readonly children: string; onPress(): void }) =>
-    createElement(
-      Pressable,
-      { accessibilityRole: "button", accessibilityLabel: children, onPress },
-      createElement(Text, null, children),
-    );
+  const MenuAction = ({
+    children,
+    hidden,
+    onPress,
+  }: {
+    readonly children: string;
+    readonly hidden?: boolean;
+    onPress(): void;
+  }) =>
+    hidden === true
+      ? null
+      : createElement(
+          Pressable,
+          { accessibilityRole: "menuitem", accessibilityLabel: children, onPress },
+          createElement(Text, null, children),
+        );
   function Link({ href, children, ...rest }: LinkProps): ReactElement {
     const push = () => router.push(href);
     const parts = Children.toArray(children);
@@ -138,6 +148,9 @@ function linkModule() {
   }
   return Object.assign(Link, { Trigger, Menu, MenuAction });
 }
+
+/** The marker the stand-in puts on each native menu host it mounts, so a test can count them. */
+export const MENU_HOST = "menu-host";
 
 /** The testID the stand-in gives each tile's context menu, so a test can count them. */
 export const LINK_MENU = "link-menu";
@@ -201,7 +214,7 @@ export function menuModule() {
   function MenuView(props: MenuProps): ReactElement {
     return createElement(
       View,
-      { testID: props.testID },
+      { testID: props.testID, nativeID: MENU_HOST },
       props.children,
       ...props.actions.map((action) =>
         createElement(
@@ -324,4 +337,24 @@ export function swipeableModule() {
     default: Swipeable,
     SwipeDirection: { LEFT: "left", RIGHT: "right" },
   };
+}
+
+type Scope = ReturnType<typeof import("@testing-library/react-native").within>;
+
+/** A list item's menu item, found the way a reader finds it: iOS lists the long-press menu's
+ * items with the item; Android opens the item's more icon first. Null when the platform leaves
+ * the item out. */
+export async function menuItem(scope: Scope, label: string | RegExp) {
+  const { fireEvent } =
+    require("@testing-library/react-native") as typeof import("@testing-library/react-native");
+  const more = scope.queryByRole("button", { name: /^More actions for / });
+  if (more !== null) await fireEvent.press(more);
+  return scope.queryByLabelText(label);
+}
+
+/** iOS hides an unavailable menu item; Android shows it disabled. */
+export function expectUnavailable(item: { props: Record<string, unknown> } | null): void {
+  const { Platform } = require("react-native") as typeof import("react-native");
+  if (Platform.OS === "ios") expect(item).toBeNull();
+  else expect(item?.props["accessibilityState"]).toMatchObject({ disabled: true });
 }

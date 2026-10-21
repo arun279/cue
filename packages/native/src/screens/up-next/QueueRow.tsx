@@ -7,7 +7,7 @@ import { useMarkControl } from "@cue/core/hooks/useMarkControl";
 import type { MarkWatched } from "@cue/core/hooks/useMarkWatched";
 import { useRouter } from "expo-router";
 import type { ReactElement } from "react";
-import { StyleSheet, useWindowDimensions, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { useShowArt } from "../../hooks/useShowArt";
 import { Badge } from "../../ui/Badge";
 import { PendingDot } from "../../ui/CheckControl";
@@ -45,6 +45,17 @@ function airedLastNight(episode: EpisodeRef | null, now: number): boolean {
   return airedMs !== null && airedMs <= now && now - airedMs < DAY_MS;
 }
 
+function rowLabel(
+  show: string,
+  fresh: boolean,
+  details: readonly (string | null)[],
+  pending: boolean,
+): string {
+  return [show, fresh ? AIRED_LAST_NIGHT : null, ...details, pending ? "not synced yet" : null]
+    .filter(Boolean)
+    .join(", ");
+}
+
 export function QueueRow({ card, mark, onStop, variant = "queue" }: QueueRowProps): ReactElement {
   const { entry, item } = card;
   const router = useRouter();
@@ -52,7 +63,6 @@ export function QueueRow({ card, mark, onStop, variant = "queue" }: QueueRowProp
   const control = useMarkControl(entry, mark);
   const art = useShowArt(entry.showId);
   const alerts = useAlertsMute(entry.showId, entry.title);
-  const { width } = useWindowDimensions();
   const now = Date.now();
 
   const { code, title, meta } = episodeText(item.episode);
@@ -61,6 +71,7 @@ export function QueueRow({ card, mark, onStop, variant = "queue" }: QueueRowProp
   const fresh = variant === "queue" && airedLastNight(item.episode, now);
   const open = (): void => router.push(`/show/${entry.showId}`);
   const markable = control.state === "unwatched" && quickMarkable(entry, now);
+  const label = rowLabel(entry.title, fresh, [code, title, note], control.pending);
 
   const items: RowMenuItem[] = [
     {
@@ -86,24 +97,15 @@ export function QueueRow({ card, mark, onStop, variant = "queue" }: QueueRowProp
         title={entry.title}
         items={items}
         testID={TEST_IDS.quickActions}
-        contentWidth={width}
+        item={{ href: `/show/${entry.showId}`, label, testID: ROW_IDS[variant].body(entry.showId) }}
       >
-        {(trigger) => (
+        {(trigger, bodyTestID) => (
           <View style={[styles.surface, { backgroundColor: colors.bg }]}>
             <Row
-              label={[
-                entry.title,
-                fresh ? AIRED_LAST_NIGHT : null,
-                code,
-                title,
-                note,
-                control.pending ? "not synced yet" : null,
-              ]
-                .filter(Boolean)
-                .join(", ")}
+              label={label}
               minHeight={ROW_MIN_HEIGHT.queue}
               onPress={open}
-              testID={ROW_IDS[variant].body(entry.showId)}
+              testID={bodyTestID}
               actions={items}
               leading={
                 <Poster title={entry.title} posters={art.posters} width={POSTER_WIDTH.row} />
