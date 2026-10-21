@@ -58,6 +58,12 @@
       "platforms": ["ios"]
     },
     {
+      "path": "assets/0fe93f8ee467e2a1ab186c9fac6b976b",
+      "type": "xml",
+      "bytes": 357,
+      "platforms": ["android"]
+    },
+    {
       "path": "assets/1190ab078c57159f4245a328118fcd9a",
       "type": "png",
       "bytes": 201,
@@ -148,6 +154,12 @@
       "platforms": ["ios", "android"]
     },
     {
+      "path": "assets/667fecfdd3995cd1cbc9ea193f56a9c9",
+      "type": "xml",
+      "bytes": 475,
+      "platforms": ["android"]
+    },
+    {
       "path": "assets/6e237de4f1f413afa2fcc45c77ac343a",
       "type": "ttf",
       "bytes": 344072,
@@ -170,6 +182,12 @@
       "type": "png",
       "bytes": 290,
       "platforms": ["ios"]
+    },
+    {
+      "path": "assets/896be2e240801493283fb0002a48e06b",
+      "type": "xml",
+      "bytes": 410,
+      "platforms": ["android"]
     },
     {
       "path": "assets/98a4e3d00dbf5d65da99a69b38a7def2",
@@ -260,6 +278,12 @@
       "type": "png",
       "bytes": 502,
       "platforms": ["ios", "android"]
+    },
+    {
+      "path": "assets/d8fb6e425b6e2abcc00cd5670b5e0738",
+      "type": "xml",
+      "bytes": 285,
+      "platforms": ["android"]
     },
     {
       "path": "assets/dad2fa9f4394a630f0f9a0d6dabd44bc",

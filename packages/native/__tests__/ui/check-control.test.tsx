@@ -27,7 +27,8 @@ it("is the platform glyph inside the platform target", async () => {
     expect(icon).toHaveProp("source", [{ uri: "sf:/circle" }]);
     expect(icon).toHaveStyle({ width: 22, height: 22 });
   } else {
-    expect(icon).toHaveProp("width", 24);
+    expect(icon).toHaveProp("source", require("../../src/ui/check-circle-outline.xml"));
+    expect(icon).toHaveStyle({ width: 24, height: 24 });
   }
 });
 
@@ -52,12 +53,8 @@ it("fills the checked glyph in the watched color", async () => {
     expect(icon).toHaveProp("source", [{ uri: "sf:/checkmark.circle.fill" }]);
     expect(icon).toHaveProp("tintColor", processColor(result.current.watched));
   } else {
-    const glyph = icon.children[0];
-    const path = typeof glyph === "string" ? undefined : glyph?.children[0];
-    expect(typeof path === "string" ? undefined : path?.props["fill"]).toEqual({
-      type: 0,
-      payload: processColor(result.current.watched),
-    });
+    expect(icon).toHaveProp("source", require("../../src/ui/check-circle.xml"));
+    expect(icon).toHaveStyle({ tintColor: result.current.watched });
   }
 });
 
