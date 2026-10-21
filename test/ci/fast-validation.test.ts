@@ -701,6 +701,7 @@ describe("fast pull request validation", () => {
       "maestro-test.sh",
       "mock-trakt/faults.mjs",
       "mock-trakt/journal.mjs",
+      "mock-trakt/scale.mjs",
       "mock-trakt/seed.mjs",
       "mock-trakt/server.mjs",
       "prepare-ios-ui.sh",

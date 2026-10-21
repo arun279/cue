@@ -13,6 +13,8 @@
  * A body more generous than the API certifies an API that does not exist.
  */
 
+import { SCALE_MOVIES, SCALE_SHOWS, SCALE_WATCHLIST } from "./scale.mjs";
+
 const DAY = 86_400_000;
 const WEEK = 7 * DAY;
 
@@ -545,6 +547,20 @@ const seedProfiles = {
   "multiple-plays-off": (library) => {
     library.multiplePlays = false;
   },
+  scale: (library) => {
+    const toWatchlist = (items, count) =>
+      items
+        .filter((item) => item.shelf)
+        .slice(0, count)
+        .forEach((item) => {
+          item.inWatchlist = true;
+          item.collectedAt = null;
+        });
+    toWatchlist(library.shows, SCALE_WATCHLIST.shows);
+    toWatchlist(library.movies, SCALE_WATCHLIST.movies);
+    library.shows.push(...SCALE_SHOWS.map((spec) => libraryShow(spec, library.now)));
+    library.movies.push(...SCALE_MOVIES.map((spec) => libraryMovie(spec, library.now)));
+  },
 };
 
 export const SEED_PROFILE_NAMES = Object.keys(seedProfiles);
@@ -566,8 +582,14 @@ function watchedAtOf(show, index) {
   return base - (show.completed - 1 - index) * DAY;
 }
 
-const imageSet = (origin, kind, id, slots) =>
-  Object.fromEntries(slots.map((slot) => [slot, [`${origin}/images/${kind}/${id}/${slot}.png`]]));
+/** Trakt sends an empty list for every slot of a title it has no artwork for. */
+const imageSet = (origin, kind, item, slots) =>
+  Object.fromEntries(
+    slots.map((slot) => [
+      slot,
+      item.noArt ? [] : [`${origin}/images/${kind}/${item.trakt}/${slot}.png`],
+    ]),
+  );
 
 const showIds = (show) => ({
   trakt: show.trakt,
@@ -601,7 +623,7 @@ function showRef(show, origin, extended) {
     year: show.year,
     ids: showIds(show),
     ...(levels.has("full") ? { status: show.status, network: show.network } : {}),
-    ...(levels.has("images") ? { images: imageSet(origin, "shows", show.trakt, ["poster"]) } : {}),
+    ...(levels.has("images") ? { images: imageSet(origin, "shows", show, ["poster"]) } : {}),
   };
 }
 
@@ -616,7 +638,7 @@ function episodeRef(ep, origin, extended) {
       ? { overview: ep.overview, runtime: ep.runtime, first_aired: iso(ep.firstAired) }
       : {}),
     ...(levels.has("images")
-      ? { images: imageSet(origin, "episodes", ep.traktId, ["screenshot"]) }
+      ? { images: imageSet(origin, "episodes", { trakt: ep.traktId }, ["screenshot"]) }
       : {}),
   };
 }
@@ -636,7 +658,7 @@ function movieRef(movie, origin, extended) {
         }
       : {}),
     ...(levels.has("images")
-      ? { images: imageSet(origin, "movies", movie.trakt, ["poster", "fanart"]) }
+      ? { images: imageSet(origin, "movies", movie, ["poster", "fanart"]) }
       : {}),
   };
 }
@@ -765,7 +787,7 @@ export function showDetailBody(show, origin, extended) {
         }
       : {}),
     ...(levels.has("images")
-      ? { images: imageSet(origin, "shows", show.trakt, ["poster", "fanart"]) }
+      ? { images: imageSet(origin, "shows", show, ["poster", "fanart"]) }
       : {}),
   };
 }
@@ -779,7 +801,7 @@ function catalogRef(item, origin, extended) {
     year: item.year,
     ids: show ? showIds(item) : movieIds(item),
     ...(levelsOf(extended).has("images")
-      ? { images: imageSet(origin, show ? "shows" : "movies", item.trakt, ["poster"]) }
+      ? { images: imageSet(origin, show ? "shows" : "movies", item, ["poster"]) }
       : {}),
   };
 }
