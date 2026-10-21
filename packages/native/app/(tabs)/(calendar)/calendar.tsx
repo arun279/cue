@@ -83,7 +83,7 @@ export default function Calendar(): ReactElement {
           headerLargeTitle: true,
         }}
       />
-      <BarItems onSync={refresh.sync} />
+      <BarItems />
       <SectionList<CalendarRow, DaySection>
         testID={TEST_IDS.calendarList}
         contentInsetAdjustmentBehavior="automatic"

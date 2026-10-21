@@ -1,0 +1,152 @@
+# Every connector into History, Settings and the month jump from outside
+# Profile: enter it, leave by the platform back (the iOS back button, Android
+# system back) or by the sheet's close button, and land where it started. A link
+# opened from outside lands on its screen with the platform back working.
+appId: app.cuetracker
+---
+- runFlow: lib/relaunch.yaml
+- runFlow: lib/scroll-to-end.yaml
+- tapOn:
+    id: "link-history"
+- assertVisible:
+    id: "screen-history"
+- waitForAnimationToEnd
+- takeScreenshot: history-from-up-next
+- tapOn:
+    id: "history-jump"
+- extendedWaitUntil:
+    visible:
+      id: "sheet-presented"
+    timeout: 10000
+- tapOn: "Close"
+- extendedWaitUntil:
+    notVisible:
+      id: "history-jump-sheet"
+    timeout: 10000
+- assertVisible:
+    id: "screen-history"
+- runFlow:
+    file: lib/back.yaml
+    env:
+      BACK_TITLE: "Up Next"
+- assertVisible:
+    id: "screen-up-next"
+- assertNotVisible:
+    id: "screen-history"
+# A link opened from outside dismisses Profile, or a sheet, before it lands.
+- tapOn:
+    id: "avatar-link"
+- assertVisible:
+    id: "screen-profile"
+- openLink: cue://show/8803
+- extendedWaitUntil:
+    visible: "More actions for Midnight Cartography"
+    timeout: 30000
+- assertNotVisible:
+    id: "screen-profile"
+- runFlow:
+    file: lib/back.yaml
+    env:
+      BACK_TITLE: "Up Next"
+- assertVisible:
+    id: "screen-up-next"
+- runFlow: lib/scroll-to-end.yaml
+- tapOn:
+    id: "link-history"
+- tapOn:
+    id: "history-jump"
+- extendedWaitUntil:
+    visible:
+      id: "sheet-presented"
+    timeout: 10000
+- openLink: cue://show/8803
+- extendedWaitUntil:
+    visible: "More actions for Midnight Cartography"
+    timeout: 30000
+- assertNotVisible:
+    id: "history-jump-sheet"
+- runFlow:
+    file: lib/back.yaml
+    env:
+      BACK_TITLE: "History"
+- assertVisible:
+    id: "screen-history"
+- runFlow:
+    file: lib/back.yaml
+    env:
+      BACK_TITLE: "Up Next"
+- assertVisible:
+    id: "screen-up-next"
+# TV shows off: Up Next links to Settings in its own stack.
+- tapOn:
+    id: "avatar-link"
+- tapOn:
+    id: "profile-to-settings"
+- scrollUntilVisible:
+    element:
+      id: "switch-shows"
+    centerElement: true
+- tapOn:
+    id: "switch-shows"
+- assertVisible:
+    id: "switch-shows"
+    checked: false
+- runFlow:
+    file: lib/back.yaml
+    env:
+      BACK_TITLE: "Profile"
+- runFlow: lib/leave-profile.yaml
+- assertVisible:
+    id: "up-next-tv-off"
+- tapOn: "Open Settings"
+- assertVisible:
+    id: "screen-settings"
+- scrollUntilVisible:
+    element:
+      id: "switch-shows"
+    centerElement: true
+- tapOn:
+    id: "switch-shows"
+- assertVisible:
+    id: "switch-shows"
+    checked: true
+- runFlow:
+    file: lib/back.yaml
+    env:
+      BACK_TITLE: "Up Next"
+- assertVisible:
+    id: "screen-up-next"
+- assertNotVisible:
+    id: "up-next-tv-off"
+# A movie watched twice: unmarking it offers History, pushed over the movie.
+- runScript: lib/reset-fake-rewatched-movie.js
+- assertTrue: ${output.fakeReset}
+- launchApp:
+    stopApp: true
+    permissions: {}
+- runFlow: lib/ready.yaml
+- tapOn: "Library"
+- tapOn:
+    id: "library-segment-movies"
+- tapOn:
+    id: "library-chip-watched"
+- tapOn:
+    id: "movie-card-5501"
+- assertVisible:
+    id: "screen-movie-detail"
+- tapOn:
+    id: "movie-mark"
+- extendedWaitUntil:
+    visible: "Open history"
+    timeout: 10000
+- tapOn: "Open history"
+- assertVisible:
+    id: "screen-history"
+- runFlow:
+    file: lib/back.yaml
+    env:
+      BACK_TITLE: "The Lantern Keeper|Back"
+- assertVisible:
+    id: "screen-movie-detail"
+- assertNotVisible:
+    id: "screen-history"

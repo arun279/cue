@@ -56,24 +56,20 @@ it("commits Mark and Undo feedback without yielding to async work", async () => 
       </Harness>
     </Profiler>,
   );
-  const check = () => screen.getByTestId(TEST_IDS.queueRowMark(cached.showId));
+  const swipe = () => screen.getByTestId(`${TEST_IDS.queueRow(cached.showId)}-drag-right`);
   commits.mockClear();
   commits.mockImplementation(() => ({
-    checked: check().props["accessibilityState"].checked,
     undo: screen.queryByTestId(TEST_IDS.snackbarUndo) !== null,
     original: screen.queryByLabelText("Harbor Lights, S3 E5, Salt Air, 3 left") !== null,
   }));
-  const mark = fireEvent.press(check());
+  const mark = fireEvent.press(swipe());
   expect(client?.getQueryData<UpNextData>(queryKeys.library())?.entries[0]?.completed).toBe(
     cached.completed + 1,
   );
   expect(useSnackbar.getState().snack?.actions?.[0]?.label).toBe("Undo");
   await mark;
-  expect(check()).toBeChecked();
   expect(screen.getByTestId(TEST_IDS.snackbarUndo)).toBeOnTheScreen();
-  expect(commits.mock.results.map(({ value }) => value)).toEqual([
-    { checked: true, undo: true, original: false },
-  ]);
+  expect(commits.mock.results.map(({ value }) => value)).toEqual([{ undo: true, original: false }]);
   expect(submit).toHaveBeenCalledTimes(1);
 
   commits.mockClear();
@@ -81,11 +77,10 @@ it("commits Mark and Undo feedback without yielding to async work", async () => 
   expect(client?.getQueryData<UpNextData>(queryKeys.library())?.entries[0]).toEqual(cached);
   expect(useSnackbar.getState().snack).toBeNull();
   await undo;
-  expect(check()).not.toBeChecked();
   expect(screen.queryByTestId(TEST_IDS.snackbarUndo)).toBeNull();
   expect(commits.mock.results.map(({ value }) => value)).toEqual([
-    { checked: true, undo: false, original: false },
-    { checked: false, undo: false, original: true },
+    { undo: false, original: false },
+    { undo: false, original: true },
   ]);
   expect(runtime.loadEpisodePlays).toHaveBeenCalledTimes(1);
   await view.unmount();

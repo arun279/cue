@@ -57,7 +57,7 @@ function InteractiveCheckControl(): ReactElement {
     <CheckControl
       checked={checked}
       label="Mark Salt Air watched"
-      testID={TEST_IDS.queueRowMark(entry.showId)}
+      testID="check"
       onPress={() => setChecked(true)}
     />
   );
@@ -72,15 +72,14 @@ test("queue row", async () => {
     </PerfHarness>,
     {
       scenario: async (screen) =>
-        fireEvent.press(screen.getByTestId(TEST_IDS.queueRowMark(entry.showId))),
+        fireEvent.press(screen.getByTestId(`${TEST_IDS.queueRow(entry.showId)}-drag-right`)),
     },
   );
 });
 
 test("check control", async () => {
   await measureRenders(<InteractiveCheckControl />, {
-    scenario: async (screen) =>
-      fireEvent.press(screen.getByTestId(TEST_IDS.queueRowMark(entry.showId))),
+    scenario: async (screen) => fireEvent.press(screen.getByTestId("check")),
   });
 });
 
@@ -91,7 +90,7 @@ test("Up Next screen", async () => {
     </PerfHarness>,
     {
       scenario: async (screen) =>
-        fireEvent.press(screen.getByTestId(TEST_IDS.queueRowMark(entry.showId))),
+        fireEvent.press(screen.getByTestId(`${TEST_IDS.queueRow(entry.showId)}-drag-right`)),
     },
   );
 });

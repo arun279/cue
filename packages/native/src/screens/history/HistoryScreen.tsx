@@ -19,7 +19,6 @@ import { type ReactElement, useMemo, useState } from "react";
 import { RefreshControl, SectionList, StyleSheet, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePullToRefresh } from "../../hooks/usePullToRefresh";
-import { BarItems } from "../../ui/BarItems";
 import { Button } from "../../ui/Button";
 import { EmptyState } from "../../ui/EmptyState";
 import { Separator } from "../../ui/Row";
@@ -98,7 +97,6 @@ export function HistoryScreen(): ReactElement {
           },
         }}
       />
-      <BarItems onSync={refresh.sync} avatar={false} />
       <SectionList
         testID={TEST_IDS.historyList}
         sections={sections}

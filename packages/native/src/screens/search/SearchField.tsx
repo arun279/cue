@@ -1,12 +1,11 @@
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, TextInput, View } from "react-native";
-import { GLYPH, Glyph } from "../../ui/Glyph";
+import { PlatformIcon } from "../../ui/PlatformIcon";
 import { TEST_IDS } from "../../ui/test-ids";
 import { SPACE, TARGET_MIN, useColors } from "../../ui/tokens";
 import { roleStyle } from "../../ui/type";
 
 const BAR_HEIGHT = 56;
-const ICON_SIZE = 24;
 
 export interface SearchFieldProps {
   readonly value: string;
@@ -18,7 +17,7 @@ export function SearchField({ value, placeholder, onChangeText }: SearchFieldPro
   const colors = useColors();
   return (
     <View style={[styles.bar, { backgroundColor: colors.elevated }]}>
-      <Glyph path={GLYPH.search} color={colors.ink2} size={ICON_SIZE} />
+      <PlatformIcon name="search" color={colors.ink2} />
       <TextInput
         testID={TEST_IDS.searchField}
         accessibilityLabel={placeholder}
@@ -37,9 +36,10 @@ export function SearchField({ value, placeholder, onChangeText }: SearchFieldPro
           accessibilityRole="button"
           accessibilityLabel="Clear search"
           onPress={() => onChangeText("")}
+          android_ripple={{ borderless: true, radius: TARGET_MIN / 2 }}
           style={styles.clear}
         >
-          <Glyph path={GLYPH.close} color={colors.ink2} size={ICON_SIZE} />
+          <PlatformIcon name="close" color={colors.ink2} />
         </Pressable>
       )}
     </View>

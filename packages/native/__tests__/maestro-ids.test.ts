@@ -306,7 +306,7 @@ function shareHierarchy(a: Screen, b: Screen): boolean {
 }
 
 // History draws the bar items with `avatar={false}`, a prop value the source graph does not follow.
-const HIDDEN = new Set(["avatarLink in (account)/history.tsx"]);
+const HIDDEN = new Set(["avatarLink in (tabs)/(up-next,library,calendar,search)/history.tsx"]);
 
 it("gives every control an id no other screen in its hierarchy carries", () => {
   const all = screens();
@@ -322,9 +322,10 @@ it("gives every control an id no other screen in its hierarchy carries", () => {
       ),
   );
 
-  expect(all.find((screen) => screen.route === "(account)/settings.tsx")?.ids).toContain(
-    "settingsShows",
-  );
+  expect(
+    all.find((screen) => screen.route === "(tabs)/(up-next,library,calendar,search)/settings.tsx")
+      ?.ids,
+  ).toContain("settingsShows");
   expect(shared).toEqual([]);
 });
 
@@ -408,17 +409,11 @@ it("fails within seconds when the input before an operation wait never started i
   expect(commands[1].extendedWaitUntil.visible.id).toBe(HARNESS_IDS.operationCompleted);
 });
 
-it("waits for presentation, dismisses once per platform, and checks the sheet is gone once", () => {
+it("waits for presentation, closes the sheet from its close control, and checks it is gone", () => {
   const source = readFileSync(join(flowsDirectory, "lib/dismiss-episode-sheet.yaml"), "utf8");
   expect(parseAllDocuments(source)[1]?.toJS()).toEqual([
     { extendedWaitUntil: { visible: { id: HARNESS_IDS.sheetPresented }, timeout: 10000 } },
-    { runFlow: { when: { platform: "Android" }, commands: ["back"] } },
-    {
-      runFlow: {
-        when: { platform: "iOS" },
-        commands: [{ swipe: { from: { id: HARNESS_IDS.sheetPresented }, direction: "DOWN" } }],
-      },
-    },
+    { tapOn: "Close" },
     { extendedWaitUntil: { notVisible: { id: TEST_IDS.episodeSheet }, timeout: 10000 } },
   ]);
 });
@@ -446,41 +441,23 @@ it.each(
   }
 });
 
-const SHEETS: readonly string[] = [TEST_IDS.episodeSheet, TEST_IDS.historyJumpSheet];
-const FROM_PRESENTED_MARKER = [
-  { swipe: { from: { id: HARNESS_IDS.sheetPresented }, direction: "DOWN" } },
-];
-
-function iosSheetDismissals(value: unknown): unknown[] {
-  if (Array.isArray(value)) {
-    return value.flatMap((command, index) => {
-      const presented = value
-        .slice(0, index)
-        .findLastIndex(
-          (earlier) => earlier?.extendedWaitUntil?.visible?.id === HARNESS_IDS.sheetPresented,
-        );
-      const gesture = SHEETS.includes(command?.extendedWaitUntil?.notVisible?.id)
-        ? value
-            .slice(presented + 1, index)
-            .find((earlier) => earlier?.runFlow?.when?.platform === "iOS")
-        : undefined;
-      return [...(gesture ? [gesture.runFlow.commands] : []), ...iosSheetDismissals(command)];
-    });
-  }
-  return value !== null && typeof value === "object"
-    ? Object.values(value).flatMap(iosSheetDismissals)
-    : [];
+function swipes(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value.flatMap(swipes);
+  if (value === null || typeof value !== "object") return [];
+  const own = "swipe" in value ? [value] : [];
+  return [...own, ...Object.values(value).flatMap(swipes)];
 }
 
-it("dismisses every sheet on iOS by dragging from its presented marker, above the content", () => {
-  const dismissals = yamlFiles(flowsDirectory).flatMap((file) =>
+it("never dismisses a sheet with a synthesized swipe, which is UIKit's gesture rather than Cue's", () => {
+  const onSheets = yamlFiles(flowsDirectory).flatMap((file) =>
     parseAllDocuments(readFileSync(file, "utf8")).flatMap((document) =>
-      iosSheetDismissals(document.toJS()),
+      swipes(document.toJS()).filter((command) =>
+        JSON.stringify(command).includes(HARNESS_IDS.sheetPresented),
+      ),
     ),
   );
 
-  expect(dismissals.length).toBeGreaterThanOrEqual(2);
-  for (const dismissal of dismissals) expect(dismissal).toEqual(FROM_PRESENTED_MARKER);
+  expect(onSheets).toEqual([]);
 });
 
 it("types the Library filter in one input and observes durable Watchlist membership", () => {
@@ -502,7 +479,10 @@ function hasUnpairedOperation(source: string): boolean {
     } else if (command.startsWith("- runFlow: lib/settle.yaml")) {
       if (phase !== "input") return true;
       phase = "none";
-    } else if (phase !== "none" && /^- (tapOn|swipe):/.test(command)) {
+    } else if (
+      phase !== "none" &&
+      /^(?:- runFlow:\n\s+when:[\s\S]*\n\s+)?- (tapOn|swipe):/.test(command)
+    ) {
       phase = "input";
     }
   }

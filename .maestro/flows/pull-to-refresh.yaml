@@ -1,7 +1,8 @@
-# The gesture, and the tap that has to do the same thing.
+# Pull to refresh on the platform control, on Up Next and on History.
 #
-# "Sync now" is not a convenience: it is the single pointer, non path based
-# alternative the pull gesture owes, and it runs the identical pass.
+# The pull is the only manual refresh on these lists, so each pull has to start
+# the sync pass and see it through; the receipts the harness publishes for that
+# pass are what this waits on, which a spinner that never moved would not leave.
 appId: app.cuetracker
 ---
 - runFlow: lib/relaunch.yaml
@@ -14,11 +15,22 @@ appId: app.cuetracker
     end: "50%, 85%"
     duration: 600
 - runFlow: lib/settle.yaml
+- assertVisible:
+    id: "up-next-list"
+- tapOn:
+    id: "avatar-link"
+- tapOn:
+    id: "profile-to-history"
+- assertVisible:
+    id: "history-row-0"
 - runFlow:
     file: lib/prepare-operation.yaml
     env:
       OPERATION: sync
-- tapOn: "Sync now"
+- swipe:
+    start: "50%, 40%"
+    end: "50%, 90%"
+    duration: 600
 - runFlow: lib/settle.yaml
 - assertVisible:
-    id: "up-next-list"
+    id: "screen-history"

@@ -22,6 +22,7 @@ const RULES = {
   D: "back or dismiss outside the navigator",
   E: "text field outside the header search bar",
   F: "native header hidden",
+  G: "platform back replaced or disabled",
 } as const;
 type Rule = keyof typeof RULES;
 
@@ -91,14 +92,34 @@ const EXCEPTIONS: readonly Exception[] = [
     file: "src/screens/search/SearchField.tsx",
     rule: "E",
     site: "TextInput",
-    candidate: "@expo/ui DockedSearchBar on Android",
+    candidate: "@expo/ui SearchBar or DockedSearchBar on Android",
     reason:
-      "Search is the search destination, which Material gives a persistent search bar; the Android header search bar collapses into an icon, and DockedSearchBar takes no text, so a recent search could not fill it.",
+      "Search is the search destination, which Material gives a persistent search bar; the Android header search bar collapses into an icon, SearchBar reports only a submitted query so results could not follow typing, and DockedSearchBar takes no text, so a recent search could not fill it. The field follows the Material search bar's metrics and icons instead.",
     source: "https://m3.material.io/components/search/guidelines",
     checked: { package: "@expo/ui", version: "57.0.22" },
   },
   {
-    file: "app/_layout.tsx",
+    file: "src/ui/SheetClose.tsx",
+    rule: "G",
+    site: "Stack.Toolbar",
+    candidate: "the back button",
+    reason:
+      "A sheet is the first screen of its own header, so it has no back button to replace; its leading bar item is the system close, and the trailing edge carries the sheet's menu.",
+    source: "https://developer.apple.com/design/human-interface-guidelines/sheets",
+    checked: { package: "react-native-screens", version: "4.26.2" },
+  },
+  {
+    file: "src/ui/SheetClose.android.tsx",
+    rule: "D",
+    site: "router.back",
+    candidate: "a close button in the sheet's Stack.Toolbar",
+    reason:
+      "Android form sheets cannot host a header or a nested stack, so a sheet has no toolbar; the close is a Compose icon button drawn in the sheet, beside system back.",
+    source: "https://github.com/software-mansion/react-native-screens/issues/2657",
+    checked: { package: "react-native-screens", version: "4.26.2" },
+  },
+  {
+    file: "src/RootStack.tsx",
     rule: "F",
     site: "headerShown",
     candidate: "a header on the root stack",
@@ -113,7 +134,7 @@ const EXCEPTIONS: readonly Exception[] = [
     site: "headerShown",
     candidate: "the native header inside the form sheet",
     reason:
-      "The episode sheet and the month jump are form sheets dismissed by their grabber, a downward swipe and system back, and title themselves in their content; a bar would repeat the title in the first detent.",
+      "Android form sheets cannot host a header or a nested stack, so on Android the episode sheet and the month jump title themselves and carry their close button in their content; iOS shows the sheet's own bar.",
     source: "https://developer.apple.com/design/human-interface-guidelines/sheets",
     checked: { package: "react-native-screens", version: "4.26.2" },
   },
@@ -132,6 +153,14 @@ const SELECTION_STATES = new Set(["selected", "checked"]);
 const NAVIGATION_RECEIVERS = new Set(["router", "navigation"]);
 const BACK_CALLS = new Set(["back", "goBack", "dismiss", "dismissAll", "pop", "popToTop"]);
 const SHEETS = /^@expo\/ui[^#]*#(ModalBottomSheet|BottomSheet)$/;
+const BACK_SWITCHES = new Set(["headerBackVisible", "gestureEnabled", "fullScreenGestureEnabled"]);
+const BACK_SLOTS = new Set(["headerLeft", "unstable_headerLeftItems"]);
+const BACK_INTERCEPTS = new Set([
+  "react-native#BackHandler",
+  "expo-router#usePreventRemove",
+  "@react-navigation/native#usePreventRemove",
+]);
+const BACK_EVENTS = new Set(["hardwareBackPress", "beforeRemove"]);
 
 interface Violation {
   readonly rule: Rule;
@@ -227,12 +256,17 @@ const ELEMENT_CHECKS: readonly (readonly [Rule, ElementCheck])[] = [
   ["C", (_node, _tag, origin) => origin === "react-native#Modal" || SHEETS.test(origin)],
   ["E", (_node, _tag, origin) => origin === "react-native#TextInput"],
   ["F", (node, tag) => tag === "Stack.Header" && attribute(node, "hidden") !== undefined],
+  ["G", (node, tag) => tag === "Stack.Toolbar" && literal(attribute(node, "placement")) === "left"],
 ];
 
 function propertyRules(node: ts.PropertyAssignment): Rule[] {
   const key = node.name.getText();
-  if (HEADER_SLOTS.has(key) && rendersElement(node.initializer)) return ["A"];
-  return key === "headerShown" && node.initializer.kind === ts.SyntaxKind.FalseKeyword ? ["F"] : [];
+  const off = node.initializer.kind === ts.SyntaxKind.FalseKeyword;
+  return [
+    ...(HEADER_SLOTS.has(key) && rendersElement(node.initializer) ? (["A"] as const) : []),
+    ...(key === "headerShown" && off ? (["F"] as const) : []),
+    ...(BACK_SLOTS.has(key) || (BACK_SWITCHES.has(key) && off) ? (["G"] as const) : []),
+  ];
 }
 
 function navigatesBack(node: ts.CallExpression): boolean {
@@ -251,7 +285,15 @@ function rulesFor(node: ts.Node, origins: ReadonlyMap<string, string>): Rule[] {
     return ELEMENT_CHECKS.filter(([, check]) => check(node, tag, origin)).map(([rule]) => rule);
   }
   if (ts.isPropertyAssignment(node)) return propertyRules(node);
+  if (interceptsBack(node, origins)) return ["G"];
   return ts.isCallExpression(node) && navigatesBack(node) ? ["D"] : [];
+}
+
+function interceptsBack(node: ts.Node, origins: ReadonlyMap<string, string>): boolean {
+  return (
+    (ts.isIdentifier(node) && BACK_INTERCEPTS.has(origins.get(node.text) ?? "")) ||
+    (ts.isStringLiteral(node) && BACK_EVENTS.has(node.text))
+  );
 }
 
 function siteOf(node: ts.Node): string {
