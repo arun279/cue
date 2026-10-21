@@ -47,7 +47,7 @@ import { createTraktTransport } from "../data/trakt/transport";
 import { assembleUserProfile, type UserProfile } from "../data/trakt/user-profile";
 import type { Token } from "../domain/model/token";
 import type { LastActivities } from "../domain/sync-activities";
-import { WriteQueue } from "../domain/write-queue/queue";
+import { type FlushResult, WriteQueue } from "../domain/write-queue/queue";
 import type { QueuedOp } from "../domain/write-queue/types";
 import { createJsonStore } from "../ports/json-store";
 import type { KeyValueStore } from "../ports/kv";
@@ -65,6 +65,7 @@ import type {
 } from "../runtime/runtime";
 import { useReadIncidents } from "../stores/read-incidents-store";
 import { PendingWritesError, type TeardownOptions } from "./session";
+import { createWriteReceipts } from "./write-receipts";
 
 const ACTIVITIES_KEY = "cue.last-activities";
 
@@ -215,6 +216,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     Array.isArray(value) ? (value as QueuedOp[]) : [],
   );
   const activitiesStore = createJsonStore<LastActivities>(deps.kv, ACTIVITIES_KEY);
+  const receipts = await createWriteReceipts(deps.kv);
 
   const queue = new WriteQueue(
     {
@@ -222,11 +224,17 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       sleep,
       now: Date.now,
       reconcile: createReconcile(client),
+      accept: receipts.accept,
     },
     (await opLogStore.read()) ?? [],
   );
 
   const persistLog = (): Promise<void> => opLogStore.write(queue.snapshot());
+  const flushQueue = async (): Promise<FlushResult> => {
+    const result = await queue.flush();
+    await receipts.record(result.completed, result.delivered);
+    return result;
+  };
 
   const activitiesRepo = createLastActivitiesRepository(client);
   const readActivitiesSnapshot = async (): Promise<LastActivities | undefined> =>
@@ -234,7 +242,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
 
   await queue.startupReconcile();
   await persistLog();
-  void queue.flush().then(persistLog);
+  void flushQueue().then(persistLog);
 
   let tearingDown = false;
 
@@ -381,12 +389,14 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     async submit(op: QueuedOp): Promise<SubmitOutcome> {
       queue.enqueue(op);
       await persistLog();
-      const result = await queue.flush();
+      const result = await flushQueue();
       await persistLog();
       if (result.completed.some((done) => done.id === op.id)) return "done";
       if (result.failed.some((failure) => failure.op.id === op.id)) return "failed";
       return "deferred";
     },
+
+    writeReceipt: receipts.receiptOf,
 
     pendingWrites(): number {
       return queue.snapshot().length;
@@ -401,7 +411,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     },
 
     async flushWrites(): Promise<number> {
-      await queue.flush();
+      await flushQueue();
       await persistLog();
       return queue.snapshot().length;
     },
@@ -427,12 +437,13 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       if (tearingDown) return;
       tearingDown = true;
       try {
-        await queue.flush().catch(() => undefined);
+        await flushQueue().catch(() => undefined);
         await persistLog();
         if (options.force !== true && queue.size > 0) throw new PendingWritesError();
         await opLogStore.clear();
         await activitiesStore.clear();
         await incidentStore.clear();
+        await receipts.clear();
         useReadIncidents.setState({ incidents: [] });
         await deps.clearPersistedCaches();
         deps.clearLocalPreferences();

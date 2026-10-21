@@ -1,11 +1,16 @@
-import { DAY_MS } from "./domain/time";
+import { localDaysBetween } from "./domain/day";
+import { localTimeZone } from "./domain/time";
 
-export function lastWatchedPhrase(iso: string | null, now: number): string | null {
+// Counts calendar days in the device's zone: a watch at 11 pm is "yesterday" an hour after midnight.
+export function lastWatchedPhrase(
+  iso: string | null,
+  now: number,
+  timeZone: string = localTimeZone(),
+): string | null {
   if (iso === null) return null;
   const t = Date.parse(iso);
-  if (Number.isNaN(t)) return null;
-  const days = Math.floor((now - t) / DAY_MS);
-  if (days < 0) return null;
+  if (Number.isNaN(t) || t > now) return null;
+  const days = localDaysBetween(timeZone, t, now);
   if (days === 0) return "today";
   if (days === 1) return "yesterday";
   if (days < 14) return `${days} days ago`;

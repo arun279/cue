@@ -8,12 +8,14 @@ import {
   buildRemoveWatchlistOp,
   buildUnmarkMovieOp,
 } from "@cue/core/domain/write-queue/ops";
+import { replacedPlays } from "@cue/core/domain/write-queue/receipt";
 import type { QueuedOp } from "@cue/core/domain/write-queue/types";
+import { REPLACED_UNDO_NOTE, replacedMarkMessage } from "@cue/core/hooks/replaced-copy";
 import { resolveMovieUnmark } from "@cue/core/hooks/resolve-unmark";
 import { useOptimisticWrite } from "@cue/core/hooks/useOptimisticWrite";
 import { movieLibraryQuery } from "@cue/core/queries/library";
 import { type MovieLibraryData, useRuntime } from "@cue/core/runtime/runtime";
-import { showSnack, showUndoable } from "@cue/core/stores/snackbar-store";
+import { showSnack, showUndoable, snackText } from "@cue/core/stores/snackbar-store";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { useRef, useState } from "react";
@@ -103,6 +105,12 @@ export function useMovieActions(header: MovieHeader) {
         ids: header.ids,
         watchedAt: op.watchedAt ?? "",
       });
+    } else if (replacedPlays(runtime.writeReceipt(op.id)) > 0) {
+      showSnack({
+        message: `${snackText(replacedMarkMessage(header.title, null))} ${REPLACED_UNDO_NOTE}`,
+      });
+      revalidate();
+      return;
     } else {
       const plays = [...(await runtime.loadMoviePlays(header.movieId))].sort(
         (a, b) => Date.parse(b.watchedAt) - Date.parse(a.watchedAt) || b.historyId - a.historyId,
@@ -127,11 +135,16 @@ export function useMovieActions(header: MovieHeader) {
   };
   const mark = async (watchedAt = new Date().toISOString(), undoable = true) => {
     const op = buildMarkMovieOp({ opId: runtime.newId(), ids: header.ids, watchedAt });
-    if (
-      (await write(op, { watched: true, watchedAt }, { watched: false, watchedAt: null })) ===
-      "failed"
-    )
+    const outcome = await write(
+      op,
+      { watched: true, watchedAt },
+      { watched: false, watchedAt: null },
+    );
+    if (outcome === "failed") return;
+    if (outcome === "done" && replacedPlays(runtime.writeReceipt(op.id)) > 0) {
+      showSnack({ message: replacedMarkMessage(header.title, null) });
       return;
+    }
     if (undoable)
       showUndoable(`${header.title} marked watched`, () => void guard(() => reverseMark(op)));
   };

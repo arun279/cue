@@ -1,4 +1,5 @@
 import { seasonConfirmation } from "@cue/core/domain/show-detail";
+import { usePlayPolicy } from "@cue/core/stores/play-policy-store";
 import { fireEvent, render, screen } from "@testing-library/react-native";
 import { ActionSheetIOS, Alert, Platform } from "react-native";
 import { ShowDetail } from "../src/screens/ShowDetail";
@@ -19,6 +20,12 @@ jest.mock(
 );
 
 const mark = { mark: jest.fn(), reverse: jest.fn(), reArm: jest.fn(), justMarkedAt: () => null };
+
+/** Noon, local time, a whole number of calendar days from today. */
+function inCalendarDays(days: number): string {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate() + days, 12).toISOString();
+}
 beforeEach(resetSharedStores);
 
 it.each([
@@ -33,7 +40,7 @@ it.each([
         title: null,
         still: null,
         ids: { trakt: 1 },
-        firstAired: new Date(Date.now() + 87 * 86400000).toISOString(),
+        firstAired: inCalendarDays(87),
       },
     }),
     "All caught up",
@@ -105,7 +112,8 @@ it("caps related shows at six and opens the selected show", async () => {
 
 function confirmSeasonTwo() {
   const choices = { onPrimary: jest.fn(), onSecondary: jest.fn() };
-  confirm({ ...seasonConfirmation({ number: 2, airedCount: 6, completedCount: 3 }), ...choices });
+  const copy = seasonConfirmation({ number: 2, airedCount: 6, completedCount: 3 }, "multiple");
+  confirm({ ...copy, ...choices });
   return choices;
 }
 
@@ -163,4 +171,29 @@ describe("platform confirmations", () => {
       ]);
     }
   });
+});
+
+it("warns before a rewatch when the account is known to keep one play per episode", async () => {
+  const original = Platform.OS;
+  Platform.OS = "ios";
+  const present = jest
+    .spyOn(ActionSheetIOS, "showActionSheetWithOptions")
+    .mockImplementation(() => {});
+  usePlayPolicy.setState({ policy: "one-play" });
+  try {
+    await render(
+      <DetailHarness>
+        <ShowDetail showId={8803} />
+      </DetailHarness>,
+    );
+    await fireEvent.press(await screen.findByTestId(TEST_IDS.seasonCheck(2)));
+    expect(present.mock.calls[0]?.[0]).toMatchObject({
+      message: expect.stringContaining("Your Trakt account keeps one play per episode"),
+      options: expect.arrayContaining([expect.stringContaining("(replaces 2 dates)")]),
+    });
+  } finally {
+    Platform.OS = original;
+    present.mockRestore();
+    usePlayPolicy.setState({ policy: "unknown" });
+  }
 });

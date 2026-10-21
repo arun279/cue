@@ -1,5 +1,7 @@
+import { localDaysBetween } from "./day";
 import type { EpisodeKey, EpisodeRef } from "./model/library";
-import { DAY_MS, toMs } from "./time";
+import type { PlayPolicy } from "./play-policy";
+import { localTimeZone, toMs } from "./time";
 import { isTerminalStatus } from "./watch-status";
 
 interface EpisodePosition extends EpisodeKey {
@@ -63,13 +65,18 @@ export function continuePosition(
     readonly status: string;
   },
   now: number,
+  timeZone: string = localTimeZone(),
 ): ContinuePosition {
   if (entry.pendingAdvance || entry.completed < entry.aired) return { kind: "next" };
   if (isTerminalStatus(entry.status)) return { kind: "finished" };
   const next = entry.nextEpisode;
   const firstAired = toMs(next?.firstAired ?? null);
   return next !== null && firstAired !== null && firstAired > now
-    ? { kind: "returning", season: next.season, days: Math.ceil((firstAired - now) / DAY_MS) }
+    ? {
+        kind: "returning",
+        season: next.season,
+        days: Math.max(1, localDaysBetween(timeZone, now, firstAired)),
+      }
     : { kind: "caught-up" };
 }
 
@@ -87,11 +94,35 @@ export interface SeasonConfirmation {
 export const episodeCount = (count: number): string =>
   `${count} ${count === 1 ? "episode" : "episodes"}`;
 
-export function seasonConfirmation(season: {
-  readonly number: number;
-  readonly airedCount: number;
-  readonly completedCount: number;
-}): SeasonConfirmation {
+function rewatchCopy(
+  aired: number,
+  watched: number,
+  policy: PlayPolicy,
+): { readonly note: string; readonly secondary: string } {
+  const watchedOnes = watched === 1 ? "the 1 you watched" : `the ${watched} you watched`;
+  if (policy === "one-play") {
+    return {
+      note: ` Your Trakt account keeps one play per episode, so marking all again replaces the dates of ${watchedOnes}.`,
+      secondary: `Mark all ${aired} again (replaces ${watched === 1 ? "1 date" : `${watched} dates`})`,
+    };
+  }
+  return {
+    note:
+      policy === "unknown"
+        ? ` If your Trakt account keeps one play per episode, marking all again replaces the dates of ${watchedOnes}.`
+        : "",
+    secondary: `Mark all ${aired} again (rewatch)`,
+  };
+}
+
+export function seasonConfirmation(
+  season: {
+    readonly number: number;
+    readonly airedCount: number;
+    readonly completedCount: number;
+  },
+  policy: PlayPolicy = "unknown",
+): SeasonConfirmation {
   const name = season.number === 0 ? "Specials" : `Season ${season.number}`;
   const remaining = Math.max(0, season.airedCount - season.completedCount);
   if (remaining === 0)
@@ -108,12 +139,13 @@ export function seasonConfirmation(season: {
       message: `${episodeCount(remaining)} will be added to your history.`,
       primary: `Mark ${episodeCount(remaining)}`,
     };
+  const rewatch = rewatchCopy(season.airedCount, season.completedCount, policy);
   return {
     kind: "remaining",
     title: `Mark ${name} watched?`,
-    message: `${remaining} of ${season.airedCount} episodes are unwatched.`,
+    message: `${remaining} of ${season.airedCount} episodes are unwatched.${rewatch.note}`,
     primary: `Mark ${remaining} remaining`,
-    secondary: `Mark all ${season.airedCount} again (rewatch)`,
+    secondary: rewatch.secondary,
   };
 }
 

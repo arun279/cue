@@ -108,6 +108,7 @@ export function fakeRuntime({
     pendingWrites: () => 0,
     pendingOps: () => [],
     inFlightOpId: () => null,
+    writeReceipt: () => null,
     flushWrites: () => Promise.resolve(0),
     pollActivities: () => Promise.resolve(null),
     loadEpisodePlays: () => Promise.resolve([]),

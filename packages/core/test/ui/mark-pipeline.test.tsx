@@ -14,6 +14,8 @@ import type { EpisodeDetail } from "@cue/core/data/trakt/episode-detail";
 import type { LibraryEntry } from "@cue/core/data/trakt/library";
 import type { EpisodeView, SeasonView, ShowProgress } from "@cue/core/data/trakt/show-detail";
 import type { EpisodePlay } from "@cue/core/domain/reversal";
+import { markedEpisodesOf } from "@cue/core/domain/write-queue/ops";
+import type { WriteReceipt } from "@cue/core/domain/write-queue/receipt";
 import type { QueuedOp } from "@cue/core/domain/write-queue/types";
 import { useActivitiesPoll } from "@cue/core/hooks/useActivitiesPoll";
 import { type MarkSeasonController, useMarkSeason } from "@cue/core/hooks/useMarkSeason";
@@ -131,6 +133,8 @@ function fakeRuntime(opts: {
   progress?: ShowProgress | Promise<ShowProgress>;
   episode?: EpisodeDetail | Promise<EpisodeDetail>;
   inFlightOpId?(): string | null;
+  /** What Trakt answered for each delivered op, by op id. */
+  receipts?: Readonly<Record<string, WriteReceipt>>;
 }): FakeRuntime {
   const submitted: QueuedOp[] = [];
   const queued: QueuedOp[] = [];
@@ -153,6 +157,7 @@ function fakeRuntime(opts: {
     },
     pendingOps: () => [...queued],
     inFlightOpId: opts.inFlightOpId ?? (() => null),
+    writeReceipt: (opId: string) => opts.receipts?.[opId] ?? null,
     loadEpisodePlays,
     loadShowPlays,
     loadEpisode,
@@ -284,6 +289,28 @@ const OLD_PLAY: EpisodePlay = {
 
 /** After the mark landed and left the queue, resolve the episode's plays: `older`
  * plus the mark's own play (id 900) stamped with the exact watched_at it POSTed. */
+/** Stub the history reads with one play per episode each submitted mark created, at its watched_at. */
+function stubOwnPlays(fake: FakeRuntime): EpisodePlay[] {
+  const plays = fake.submitted.flatMap((op) => {
+    const marked = markedEpisodesOf(op);
+    if (marked === null) return [];
+    const numbers = [
+      ...[...marked.traktIds].map((trakt) => trakt - 100),
+      ...[...marked.positions].map((key) => Number(key.split(":")[1])),
+    ];
+    return numbers.map((number) => ({
+      historyId: 500 + number,
+      episodeTrakt: 100 + number,
+      season: 1,
+      number,
+      watchedAt: marked.watchedAt,
+    }));
+  });
+  fake.loadShowPlays.mockResolvedValue(plays);
+  fake.loadEpisodePlays.mockResolvedValue(plays);
+  return plays;
+}
+
 function stubLandedPlay(fake: FakeRuntime, ...older: readonly EpisodePlay[]): void {
   fake.loadEpisodePlays.mockResolvedValue([
     ...older,
@@ -685,6 +712,7 @@ describe("season write guards and Undo failures", () => {
     await act(async () =>
       a[0]?.season.markSeason(TARGET, seasonView([episodeView(1), episodeView(2)])),
     );
+    stubOwnPlays(fake);
     await act(async () => a[0]?.season.undo());
     await flush();
 
@@ -877,8 +905,13 @@ describe("season controls", () => {
       a[0]?.season.toggleEpisode(TARGET, episodeView(3), { undoLabel: "S1 E3 marked" }),
     );
     await act(async () => refuse("failed"));
+    stubOwnPlays(fake);
     await act(async () => a[0]?.season.undo());
-    expect(fake.submitted.at(-1)).toMatchObject({ itemKey: "episode:103", toState: "absent" });
+    expect(fake.submitted.at(-1)?.request).toEqual({
+      method: "POST",
+      path: "/sync/history/remove",
+      body: { ids: [503] },
+    });
   });
 
   it("restores the season and forgets the mark when Trakt refuses it", async () => {
@@ -909,8 +942,11 @@ describe("season controls", () => {
     expect(snackText()).toBe("Caught up through S1 E2");
     expect([1, 2, 3].map((n) => seasonEp(qc, n)?.watched)).toEqual([true, true, true]);
 
+    stubOwnPlays(fake);
     await act(async () => a[0]?.season.undo());
-    expect(fake.submitted.slice(2).map((op) => op.toState)).toEqual(["absent", "absent"]);
+    expect(fake.submitted.slice(2).map((op) => op.request.body)).toEqual([
+      { ids: [503, 501, 502] },
+    ]);
   });
 
   it("sends nothing to catch up on episodes already watched", async () => {
@@ -1168,6 +1204,7 @@ describe("episode controls", () => {
     await act(async () =>
       a[0]?.season.toggleEpisode(TARGET, episodeView(2), { undoLabel: "S1 E2 marked" }),
     );
+    stubOwnPlays(fake);
     await act(async () => a[0]?.season.undo());
     await act(async () => a[0]?.season.undo());
     expect(fake.submitted).toHaveLength(2);
@@ -1246,5 +1283,127 @@ describe("an activities refetch between a mark and its confirmation", () => {
 
     await act(async () => land("done"));
     expect(useSnackbar.getState().snack).toBe(undo);
+  });
+});
+
+describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () => {
+  const replaced: WriteReceipt = { added: 0, updated: 1, deleted: 0, existing: 0, notFound: 0 };
+
+  it("retires a queue mark's Undo once Trakt says it replaced a play, and says what happened", async () => {
+    const entry = libraryEntry();
+    const fake = fakeRuntime({ receipts: { "op-0": replaced } });
+    const qc = await markThenReverse(fake, entry, () => stubLandedPlay(fake));
+    expect(fake.submitted.map((op) => op.request.path)).toEqual(["/sync/history"]);
+    expect(fake.loadEpisodePlays).not.toHaveBeenCalled();
+    expect(snackText()).toBe(
+      `${entry.title} S1 E2 was already watched. Trakt replaced its date with now.`,
+    );
+    expect(entryOf(qc, SHOW)?.pendingAdvance).toBe(true);
+  });
+
+  it("removes nothing when Undo was pressed before the replacing answer arrived", async () => {
+    let land: (outcome: "done") => void = () => {};
+    const fake = fakeRuntime({
+      receipts: { "op-0": replaced },
+      submit: (op) =>
+        op.request.path === "/sync/history"
+          ? new Promise((resolve) => {
+              land = resolve;
+            })
+          : Promise.resolve("done"),
+    });
+    const entry = libraryEntry();
+    const qc = seededClient([entry]);
+    const [a] = mountSurfaces(fake.runtime, qc);
+    act(() => void a[0]?.mark.mark(entry));
+    stubLandedPlay(fake);
+    await act(async () => a[0]?.mark.reverse(SHOW));
+    await act(async () => land("done"));
+    await flush();
+    expect(fake.submitted.map((op) => op.request.path)).toEqual(["/sync/history"]);
+    expect(snackText()).toBe(
+      `${entry.title} S1 E2 was already watched. Trakt replaced its date with now. Undo can't bring the old date back.`,
+    );
+    expect(entryOf(qc, SHOW)?.pendingAdvance).toBe(true);
+  });
+
+  it("withdraws a season mark's Undo when Trakt replaced plays, and Undo then sends nothing", async () => {
+    const fake = fakeRuntime({ receipts: { "op-0": { ...replaced, added: 1 } } });
+    const season = seasonView([episodeView(1), episodeView(2)]);
+    const { a } = mountSeasonSurfaces(fake, season.episodes);
+    await act(async () => a[0]?.season.markSeason(TARGET, season));
+    const message =
+      "Season 1 marked · 2 episodes. Trakt replaced 1 date of episodes already watched.";
+    expect(snackText()).toBe(message);
+    await act(async () => a[0]?.season.undo());
+    expect(fake.submitted).toHaveLength(1);
+    expect(snackText()).toBe(message);
+  });
+
+  it("says Undo cannot restore the dates when it was pressed while the season mark was landing", async () => {
+    let land: (outcome: "done") => void = () => {};
+    let delivering = true;
+    const fake = fakeRuntime({
+      receipts: { "op-0": { ...replaced, added: 1 } },
+      inFlightOpId: () => (delivering ? "op-0" : null),
+      submit: () =>
+        new Promise((resolve) => {
+          land = (outcome) => {
+            delivering = false;
+            resolve(outcome);
+          };
+        }),
+    });
+    const season = seasonView([episodeView(1), episodeView(2)]);
+    const { a } = mountSeasonSurfaces(fake, season.episodes);
+    act(() => void a[0]?.season.markSeason(TARGET, season));
+    const undone = act(async () => a[0]?.season.undo());
+    await act(async () => land("done"));
+    await undone;
+    expect(fake.submitted).toHaveLength(1);
+    expect(snackText()).toBe(
+      "Season 1 marked · 2 episodes. Trakt replaced 1 date of episodes already watched. Undo can't bring the old date back.",
+    );
+  });
+
+  it("withdraws an episode mark's Undo when Trakt replaced its play", async () => {
+    const fake = fakeRuntime({ receipts: { "op-0": replaced } });
+    const { qc, a } = mountSeasonSurfaces(fake);
+    await act(async () =>
+      a[0]?.season.toggleEpisode(TARGET, episodeView(2), { undoLabel: "S1 E2 marked" }),
+    );
+    expect(snackText()).toBe("This episode was already watched. Trakt replaced its date with now.");
+    await act(async () => a[0]?.season.undo());
+    expect(fake.submitted).toHaveLength(1);
+    expect(seasonEp(qc, 2)?.watched).toBe(true);
+  });
+
+  it("keeps the older play when a detail mark is undone on an account that keeps every play", async () => {
+    const fake = fakeRuntime({});
+    const { a } = mountSeasonSurfaces(fake);
+    await act(async () =>
+      a[0]?.season.toggleEpisode(TARGET, episodeView(2), { undoLabel: "S1 E2 marked" }),
+    );
+    const [own] = stubOwnPlays(fake);
+    fake.loadEpisodePlays.mockResolvedValue([{ ...OLD_PLAY, episodeTrakt: 102 }, own]);
+    await act(async () => a[0]?.season.undo());
+    expect(fake.submitted[1]?.request.body).toEqual({ ids: [own?.historyId] });
+  });
+
+  it("reports a season rewatch as added and replaced plays", async () => {
+    const fake = fakeRuntime({ receipts: { "op-0": { ...replaced, added: 1 } } });
+    const season = seasonView([episodeView(1, true), episodeView(2)]);
+    const { a } = mountSeasonSurfaces(fake, season.episodes);
+    await act(async () => a[0]?.season.rewatchSeason(TARGET, season));
+    expect(snackText()).toBe("Season 1 marked again: 1 added, 1 date replaced");
+  });
+
+  it("says so when an added play replaced the episode's date", async () => {
+    const fake = fakeRuntime({ receipts: { "op-0": replaced } });
+    const { a } = mountSeasonSurfaces(fake, [episodeView(1, true), episodeView(2, true)]);
+    await act(async () => a[0]?.season.addEpisodePlay(TARGET, episodeView(2, true)));
+    expect(snackText()).toBe(
+      "Trakt replaced this episode's date. Your account keeps one play per episode.",
+    );
   });
 });

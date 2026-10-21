@@ -1,6 +1,7 @@
 import { resolveBackdrop } from "@cue/core/data/image-source";
+import { airedLastNight } from "@cue/core/domain/day";
 import { type EpisodeRef, epCode } from "@cue/core/domain/model/library";
-import { toMs } from "@cue/core/domain/time";
+import { localTimeZone, toMs } from "@cue/core/domain/time";
 import { leftNote, watchedPercent, withEpisodeTitle } from "@cue/core/format";
 import { useMarkControl } from "@cue/core/hooks/useMarkControl";
 import type { MarkWatched } from "@cue/core/hooks/useMarkWatched";
@@ -29,8 +30,6 @@ import {
 import { CueText } from "../../ui/type";
 import type { UpNextCard } from "./model";
 
-const AIRED_LAST_NIGHT_MS = 24 * 60 * 60 * 1000;
-
 const SCRIM_DOWN = ["rgba(10,8,6,0)", "rgba(10,8,6,0.35)", "rgba(10,8,6,0.86)"] as const;
 const SCRIM_ACROSS = ["rgba(10,8,6,0.4)", "rgba(10,8,6,0)"] as const;
 
@@ -38,11 +37,6 @@ export interface MarqueeCardProps {
   readonly card: UpNextCard;
   readonly episode: EpisodeRef;
   readonly mark: MarkWatched;
-}
-
-function airedLastNight(firstAired: string | null, now: number): boolean {
-  const airedMs = toMs(firstAired);
-  return airedMs !== null && airedMs <= now && now - airedMs <= AIRED_LAST_NIGHT_MS;
 }
 
 export function MarqueeCard({ card, episode, mark }: MarqueeCardProps): ReactElement {
@@ -59,7 +53,9 @@ export function MarqueeCard({ card, episode, mark }: MarqueeCardProps): ReactEle
   const scrim = backdrop !== null && backdrop !== failedBackdrop;
   const code = epCode(episode.season, episode.number);
   const note = leftNote(entry.aired, entry.completed);
-  const eyebrow = airedLastNight(episode.firstAired, Date.now()) ? "Aired last night" : "Continue";
+  const eyebrow = airedLastNight(toMs(episode.firstAired), Date.now(), localTimeZone())
+    ? "Aired last night"
+    : "Continue";
   const look = scrim
     ? {
         card: { backgroundColor: plate(entry.title), borderWidth: 0 },

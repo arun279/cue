@@ -469,6 +469,9 @@ export function createLibrary(now = FIXTURE_NOW, clock = () => now) {
      * way to say an item was watched twice. */
     rewatchedEpisodes: new Map(),
     rewatchedMovies: new Map(),
+    /** Trakt's "Multiple Plays" account setting. Off, a play posted for a watched item replaces its
+     * play and the write answers `updated`; accounts created in the last six months start that way. */
+    multiplePlays: true,
     activities: {
       episodes: now - DAY,
       shows: now - DAY,
@@ -510,6 +513,9 @@ const seedProfiles = {
   },
   "rewatched-movie": (library) => {
     library.rewatchedMovies.set(library.movies[0].trakt, library.now - DAY / 2);
+  },
+  "multiple-plays-off": (library) => {
+    library.multiplePlays = false;
   },
 };
 
@@ -1023,59 +1029,111 @@ const activityTime = (library) =>
  */
 export function applyHistoryWrite(library, body, remove) {
   const stamp = writeStamp(library, body);
-  const applied = { episodes: 0, movies: 0 };
+  const counts = { added: { episodes: 0, movies: 0 }, updated: { episodes: 0, movies: 0 } };
+  const deleted = { episodes: 0, movies: 0 };
 
   for (const show of library.shows) {
     const indices = targetedEpisodes(show, body);
     if (indices.length === 0) continue;
-    applied.episodes += indices.length;
     // Trakt stamps the write, not the play: marking something as watched last
     // Tuesday moves the account's activity to now.
     library.activities.episodes = activityTime(library);
-    applyEpisodePlays(show, indices, remove, stamp);
+    if (remove) deleted.episodes += removeEpisodePlays(library, show, indices, body);
+    else addEpisodePlays(library, show, indices, stamp, counts);
   }
 
   for (const movie of library.movies) {
     if (!movieTargeted(movie, body)) continue;
-    applied.movies += 1;
-    movie.watchedAt = remove ? null : stamp;
     library.activities.movies = activityTime(library);
+    if (remove) deleted.movies += removeMoviePlay(library, movie, body);
+    else addMoviePlay(library, movie, stamp, counts);
   }
 
+  return { ...(remove ? { deleted } : counts), not_found: historyNotFound(library, body, remove) };
+}
+
+/** Removing a movie's second play by its row id leaves the first. */
+function removeMoviePlay(library, movie, body) {
+  library.rewatchedMovies.delete(movie.trakt);
+  if (!(body.ids ?? []).includes(playId(movie.trakt, 2))) movie.watchedAt = null;
+  return 1;
+}
+
+/** Trakt's `not_found` block: every section, and for a removal the play ids it could not find. */
+function historyNotFound(library, body, remove) {
   return {
-    ...(remove ? { deleted: applied } : { added: applied }),
-    not_found: {
-      movies: matchSection(body.movies, (ids) => movieById(library, ids)).missing,
-      shows: matchSection(body.shows, (ids) => showById(library, ids)).missing,
-      episodes: matchSection(body.episodes, (ids) => episodeById(library, ids)).missing,
-      ids: (body.ids ?? []).filter((id) => playTarget(library, id) === undefined),
-    },
+    movies: matchSection(body.movies, (ids) => movieById(library, ids)).missing,
+    shows: matchSection(body.shows, (ids) => showById(library, ids)).missing,
+    seasons: [],
+    episodes: matchSection(body.episodes, (ids) => episodeById(library, ids)).missing,
+    people: [],
+    users: [],
+    ...(remove
+      ? { ids: (body.ids ?? []).filter((id) => playTarget(library, id) === undefined) }
+      : {}),
   };
 }
+
+// Trakt stores watched_at to the whole minute.
+const toMinute = (ms) => Math.floor(ms / 60_000) * 60_000;
 
 function writeStamp(library, body) {
   const watchedAt = [body.episodes, body.shows, body.movies]
     .map((items) => items?.[0]?.watched_at)
     .find((value) => value != null);
   const stamped = Date.parse(watchedAt ?? "");
-  return Number.isNaN(stamped) ? activityTime(library) : stamped;
+  return toMinute(Number.isNaN(stamped) ? activityTime(library) : stamped);
 }
 
-function applyEpisodePlays(show, indices, remove, stamp) {
-  if (remove) {
-    show.completed = Math.min(show.completed, Math.min(...indices));
-    for (const index of indices) show.watchedAt.delete(show.episodes[index].traktId);
-    if (show.completed === 0) show.lastWatchedAt = null;
-    return;
+/** A play for a watched episode is a second play, or with Multiple Plays off replaces the first. */
+function addEpisodePlays(library, show, indices, stamp, counts) {
+  for (const index of indices) {
+    const ep = show.episodes[index];
+    if (index < show.completed && library.multiplePlays) {
+      library.rewatchedEpisodes.set(ep.traktId, stamp);
+      counts.added.episodes += 1;
+      continue;
+    }
+    if (index < show.completed) counts.updated.episodes += 1;
+    else counts.added.episodes += 1;
+    show.watchedAt.set(ep.traktId, stamp);
   }
   show.completed = Math.max(show.completed, Math.max(...indices) + 1);
-  for (const index of indices) show.watchedAt.set(show.episodes[index].traktId, stamp);
   show.lastWatchedAt = Math.max(show.lastWatchedAt ?? 0, stamp);
+}
+
+/** Removing a second play by its row id leaves the first; anything else unwinds the counter. */
+function removeEpisodePlays(library, show, indices, body) {
+  const secondPlays = new Set((body.ids ?? []).filter((id) => id % 10 === 2).map(playItem));
+  const firstPlays = indices.filter((index) => {
+    const traktId = show.episodes[index].traktId;
+    if (!secondPlays.has(traktId)) return true;
+    library.rewatchedEpisodes.delete(traktId);
+    return false;
+  });
+  if (firstPlays.length > 0) {
+    show.completed = Math.min(show.completed, Math.min(...firstPlays));
+    for (const index of firstPlays) show.watchedAt.delete(show.episodes[index].traktId);
+    if (show.completed === 0) show.lastWatchedAt = null;
+  }
+  return indices.length;
+}
+
+function addMoviePlay(library, movie, stamp, counts) {
+  if (movie.watchedAt !== null && library.multiplePlays) {
+    library.rewatchedMovies.set(movie.trakt, stamp);
+    counts.added.movies += 1;
+    return;
+  }
+  if (movie.watchedAt !== null) counts.updated.movies += 1;
+  else counts.added.movies += 1;
+  movie.watchedAt = stamp;
 }
 
 const movieTargeted = (movie, body) =>
   (body.movies ?? []).some((item) => item.ids?.trakt === movie.trakt) ||
-  (body.ids ?? []).includes(playId(movie.trakt));
+  (body.ids ?? []).includes(playId(movie.trakt)) ||
+  (body.ids ?? []).includes(playId(movie.trakt, 2));
 
 /**
  * `POST /users/hidden/progress_watched` and its `/remove`: Trakt's hidden set,
@@ -1102,11 +1160,16 @@ export function applyHiddenWrite(library, body, remove) {
 export function applyWatchlistWrite(library, body, remove) {
   const shows = matchSection(body.shows, (ids) => showById(library, ids));
   const movies = matchSection(body.movies, (ids) => movieById(library, ids));
+  const listed = (items) => items.filter((item) => item.inWatchlist).length;
+  const existing = remove ? null : { shows: listed(shows.matched), movies: listed(movies.matched) };
   for (const item of [...shows.matched, ...movies.matched]) item.inWatchlist = !remove;
-  const counts = { shows: shows.matched.length, movies: movies.matched.length };
+  const counts = {
+    shows: shows.matched.length - (existing?.shows ?? 0),
+    movies: movies.matched.length - (existing?.movies ?? 0),
+  };
   if (counts.shows + counts.movies > 0) library.activities.watchlist = activityTime(library);
   return {
-    ...(remove ? { deleted: counts } : { added: counts }),
+    ...(remove ? { deleted: counts } : { added: counts, existing }),
     not_found: { movies: movies.missing, shows: shows.missing, seasons: [], episodes: [] },
   };
 }

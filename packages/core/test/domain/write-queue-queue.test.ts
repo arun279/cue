@@ -248,3 +248,35 @@ describe("WriteQueue coalescing + durability", () => {
     expect(res.completed.map((o) => o.itemKey)).toEqual(["episode:1", "episode:2"]);
   });
 });
+
+describe("WriteQueue receipts", () => {
+  const answered = (data: unknown): DispatchResult => ({ status: 201, headers: {}, data });
+
+  it("hands back what Trakt answered for each op it completed", async () => {
+    const body = { added: { episodes: 0 }, updated: { episodes: 1 } };
+    const h = harness({ dispatch: () => Promise.resolve(answered(body)) });
+    const q = new WriteQueue(h.deps, [mark("a", 1)]);
+    const res = await q.flush();
+    expect(res.delivered.get("a")?.data).toEqual(body);
+  });
+
+  it("asks reconcile when a 2xx shows the write was not applied, and fails it if not", async () => {
+    const h = harness({
+      dispatch: () => Promise.resolve(answered({ not_found: { episodes: [{}] } })),
+    });
+    const q = new WriteQueue({ ...h.deps, accept: () => false }, [mark("a", 1)]);
+    const res = await q.flush();
+    expect(h.reconcile).toHaveBeenCalledTimes(1);
+    expect(res.failed.map((f) => f.op.id)).toEqual(["a"]);
+    expect(res.delivered.size).toBe(0);
+  });
+
+  it("completes an unapplied write that reconcile finds already in place", async () => {
+    const h = harness({
+      dispatch: () => Promise.resolve(answered({})),
+      reconcile: () => Promise.resolve(true),
+    });
+    const q = new WriteQueue({ ...h.deps, accept: () => false }, [mark("a", 1)]);
+    expect((await q.flush()).completed.map((op) => op.id)).toEqual(["a"]);
+  });
+});

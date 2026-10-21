@@ -10,11 +10,13 @@ import {
   withReadRateRetry,
 } from "@cue/core/data/trakt/read-budget";
 import type { Token } from "@cue/core/domain/model/token";
-import { buildMarkEpisodeOp } from "@cue/core/domain/write-queue/ops";
+import { buildAddEpisodePlayOp, buildMarkEpisodeOp } from "@cue/core/domain/write-queue/ops";
 import { refreshShowProgress } from "@cue/core/hooks/library-cache";
 import type { KeyValueStore } from "@cue/core/ports/kv";
+import { PLAY_POLICY_KEY } from "@cue/core/ports/storage-keys";
 import type { TokenStore } from "@cue/core/ports/token-store";
 import { createQueryClient } from "@cue/core/runtime/query-cache";
+import { usePlayPolicy } from "@cue/core/stores/play-policy-store";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { readJournal } from "../../../../scripts/mock-trakt/journal.mjs";
 import { createHarnessServer } from "./mock-server";
@@ -443,5 +445,44 @@ describe("write faults", () => {
     expect(requests.filter((entry) => entry.path === "/shows/8801/progress/watched")).toHaveLength(
       1,
     );
+  });
+});
+
+describe("write receipts", () => {
+  // The seed's first show has its first 20 episodes watched.
+  const watched = { trakt: 880100 };
+  const at = "2026-10-14T12:34:00.000Z";
+
+  it("keeps what Trakt said and learns that the account keeps one play per episode", async () => {
+    await fetch(`${baseUrl}/__reset?seed=multiple-plays-off`, { method: "POST" });
+    const kv = memoryKv();
+    const cue = await runtime({ kv });
+    const op = buildMarkEpisodeOp({ opId: "replace", ids: watched, watchedAt: at });
+    await expect(cue.submit(op)).resolves.toBe("done");
+    expect(cue.writeReceipt("replace")).toEqual({
+      added: 0,
+      updated: 1,
+      deleted: 0,
+      existing: 0,
+      notFound: 0,
+    });
+    expect(usePlayPolicy.getState().policy).toBe("one-play");
+    expect(await kv.read(PLAY_POLICY_KEY)).toBe(JSON.stringify("one-play"));
+    await cue.endLocalSession();
+    expect(usePlayPolicy.getState().policy).toBe("unknown");
+  });
+
+  it("learns that the account keeps every play from an added rewatch", async () => {
+    const cue = await runtime();
+    const op = buildAddEpisodePlayOp({ opId: "again", ids: watched, watchedAt: at });
+    await expect(cue.submit(op)).resolves.toBe("done");
+    expect(cue.writeReceipt("again")?.added).toBe(1);
+    expect(usePlayPolicy.getState().policy).toBe("multiple");
+  });
+
+  it("fails an add Trakt answered without applying, so the app does not show it as watched", async () => {
+    const cue = await runtime();
+    const op = buildMarkEpisodeOp({ opId: "missing", ids: { trakt: 1 }, watchedAt: at });
+    await expect(cue.submit(op)).resolves.toBe("failed");
   });
 });
