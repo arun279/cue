@@ -1,6 +1,12 @@
 import { toMs } from "../../domain/time";
 import { type TraktClient, TraktReadError, type TraktResult, unwrapRead } from "./client";
-import { getHidden, getShowProgress, getWatchedShows, getWatchlist } from "./endpoints";
+import {
+  getCollectionShows,
+  getHidden,
+  getShowProgress,
+  getWatchedShows,
+  getWatchlist,
+} from "./endpoints";
 import { assembleLibrary, type LibraryEntry, showIdSet, watchedEpisodeCount } from "./library";
 import { DEFAULT_TRAKT_POLICY, type TraktPolicy } from "./policy";
 import type { Progress, WatchedShow } from "./schemas";
@@ -116,14 +122,16 @@ export async function loadUpNextEntries(client: TraktClient): Promise<LibraryEnt
     .slice(0, client.policy.progressBudget);
   const progress = await readProgressHead(client, head);
 
-  const [hidden, watchlist] = await Promise.all([
+  const [hidden, watchlist, collection] = await Promise.all([
     withReadRateRetry(() => getHidden(client), client.policy),
     withReadRateRetry(() => getWatchlist(client, "shows"), client.policy),
+    withReadRateRetry(() => getCollectionShows(client), client.policy),
   ]);
   return assembleLibrary({
     watchedShows: watched,
     progress,
     hiddenShowIds: showIdSet(unwrapRead(hidden, "hidden shows")),
     watchlistShows: unwrapRead(watchlist, "watchlist"),
+    collectionShows: unwrapRead(collection, "show collection"),
   });
 }

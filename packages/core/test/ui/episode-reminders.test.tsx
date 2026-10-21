@@ -41,9 +41,11 @@ const airingAt = (ms: number, overrides: Partial<CalendarEntry> = {}): CalendarE
 const watching = (): LibraryEntry => ({
   showId: 8803,
   title: "Midnight Cartography",
+  year: null,
   status: "returning series",
   hidden: false,
   inWatchlist: false,
+  addedAt: null,
   lastWatchedAt: new Date(Date.now() - DAY_MS).toISOString(),
   aired: 14,
   completed: 14,
@@ -52,6 +54,7 @@ const watching = (): LibraryEntry => ({
   pendingAdvance: false,
   tmdbId: null,
   runtime: null,
+  posters: [],
 });
 
 const remindersPort = (): Reminders => ({

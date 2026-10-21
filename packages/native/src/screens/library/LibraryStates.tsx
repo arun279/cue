@@ -71,7 +71,7 @@ function LibraryError({
 
 const EMPTY: Readonly<Record<ChipKey, readonly [string, string?]>> = {
   watching: ["Shows you're watching land here.", "Find one in Search."],
-  watchlist: ["Things you want to watch land here.", "Add them from Search."],
+  "not-started": ["Things you want to watch land here.", "Add them from Search."],
   stopped: ["Shows you stop keep their progress.", "Resume any time."],
   finished: ["Shows you finish land here."],
   watched: ["Movies you watch land here."],

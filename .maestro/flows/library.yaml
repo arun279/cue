@@ -1,5 +1,6 @@
 # The Library screen end to end: both media, a chip, the filter, sort, and the
-# tile that opens a show.
+# tile that opens a show. The seeded account carries hundreds of collected titles
+# never started, so Not started is the longest chip, newest addition first.
 #
 # The medium, the chip and the order are three separate choices over one grid,
 # and each one has to survive the others. Filtering to nothing is the state that
@@ -36,6 +37,14 @@ appId: app.cuetracker
     id: "library-segment-shows"
 - assertVisible:
     id: "show-card-8801"
+- tapOn:
+    id: "library-chip-not-started"
+- assertVisible:
+    id: "show-card-8808"
+- assertVisible:
+    id: "show-card-7000"
+- waitForAnimationToEnd
+- takeScreenshot: library-not-started
 - tapOn:
     id: "library-chip-stopped"
 - assertVisible:

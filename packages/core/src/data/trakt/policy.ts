@@ -18,6 +18,6 @@ export const DEFAULT_TRAKT_POLICY: TraktPolicy = {
   readConcurrency: 6,
   // Trakt caps extended=progress watched pages at 100 items (trakt/trakt-api discussion #775).
   pageSize: { list: 100, history: 30 },
-  // Trakt allows 1000 authed GETs per 5 minutes.
+  // Trakt allows 500 authed GETs per 5 minutes.
   progressBudget: 60,
 };

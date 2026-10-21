@@ -23,6 +23,8 @@ import {
   applyWatchlistWrite,
   browseBody,
   calendarBody,
+  collectionMoviesBody,
+  collectionShowsBody,
   createSeedLibrary,
   episodeDetailBody,
   FIXTURE_NOW,
@@ -225,6 +227,16 @@ const ROUTES = [
         ctx.url,
         100,
       ),
+  ],
+  [
+    "GET",
+    /^\/sync\/collection\/shows$/,
+    (ctx) => json(collectionShowsBody(ctx.library, ctx.origin, extendedOf(ctx.url))),
+  ],
+  [
+    "GET",
+    /^\/sync\/collection\/movies$/,
+    (ctx) => page(collectionMoviesBody(ctx.library, ctx.origin, extendedOf(ctx.url)), ctx.url, 10),
   ],
   [
     "GET",
