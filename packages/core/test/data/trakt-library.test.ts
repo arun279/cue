@@ -551,24 +551,23 @@ describe("additiveLanded", () => {
     expect(additiveLanded([play()], { episodeTrakt: 4004 }, watchedAt)).toBe(true);
   });
 
-  it("hits a season probe with 59 seconds of watched-at skew", () => {
-    expect(
-      additiveLanded(
-        [play({ watchedAt: "2026-07-05T12:34:59.000Z" })],
-        { season: 4, number: 4 },
-        watchedAt,
-      ),
-    ).toBe(true);
+  it("hits a season probe Trakt stored up to 59 seconds earlier, as it truncates to the minute", () => {
+    expect(additiveLanded([play()], { season: 4, number: 4 }, "2026-07-05T12:34:59.000Z")).toBe(
+      true,
+    );
   });
 
-  it("misses a matching play with 61 seconds of watched-at skew", () => {
+  it("misses a play stored after the sent time, or more than a minute before it", () => {
     expect(
       additiveLanded(
-        [play({ watchedAt: "2026-07-05T12:35:01.000Z" })],
+        [play({ watchedAt: "2026-07-05T12:34:30.000Z" })],
         { episodeTrakt: 4004 },
         watchedAt,
       ),
     ).toBe(false);
+    expect(additiveLanded([play()], { episodeTrakt: 4004 }, "2026-07-05T12:35:01.000Z")).toBe(
+      false,
+    );
   });
 
   it("misses the wrong episode id or season probe", () => {

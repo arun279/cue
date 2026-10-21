@@ -538,14 +538,14 @@ describe("fault profiles", () => {
       new Promise((resolve) => setTimeout(resolve, 250, "still held")),
     ]);
     controller.abort();
-    expect(released).toBe(200);
+    expect(released).toBe(201);
   });
 
   it("drops a write connection until reset", async () => {
     await armFault("drop-write");
     await expect(historyWrite()).rejects.toThrow("fetch failed");
     await fetch(`${baseUrl}/__reset`, { method: "POST" });
-    expect((await historyWrite()).status).toBe(200);
+    expect((await historyWrite()).status).toBe(201);
   });
 
   it("fails only the second history page until reset", async () => {
@@ -713,4 +713,58 @@ describe("the OAuth surface both flows need", () => {
     expect(location.searchParams.get("state")).toBe("nonce-1");
     expect(location.searchParams.get("code")).toBeTruthy();
   });
+});
+
+describe("a play posted for a watched episode follows the account's Multiple Plays setting", () => {
+  const WATCHED_EPISODE = 880100;
+  const replay = () =>
+    client().send("POST", "/sync/history", {
+      body: {
+        episodes: [{ ids: { trakt: WATCHED_EPISODE }, watched_at: "2026-10-14T12:34:56.789Z" }],
+      },
+    });
+
+  it("adds a second play by default, stored to the minute, and removing that play keeps the first", async () => {
+    const before = ok(await getShowProgress(client(), 8801)).completed;
+    const response = await replay();
+    expect(response.status).toBe(201);
+    expect(response.data).toMatchObject({ added: { episodes: 1 }, updated: { episodes: 0 } });
+    const plays = ok(await getItemPlays(client(), "episodes", WATCHED_EPISODE));
+    expect(plays.map((play) => play.watched_at)).toContain("2026-10-14T12:34:00.000Z");
+    expect(plays).toHaveLength(2);
+
+    const second = plays.find((play) => play.watched_at === "2026-10-14T12:34:00.000Z");
+    await write("/sync/history/remove", { ids: [second?.id] });
+    expect(ok(await getItemPlays(client(), "episodes", WATCHED_EPISODE))).toHaveLength(1);
+    expect(ok(await getShowProgress(client(), 8801)).completed).toBe(before);
+  });
+
+  it("replaces the play and answers updated when Multiple Plays is off", async () => {
+    await resetTo("multiple-plays-off");
+    const before = ok(await getShowProgress(client(), 8801)).completed;
+    const response = await replay();
+    expect(response.data).toMatchObject({ added: { episodes: 0 }, updated: { episodes: 1 } });
+    const plays = ok(await getItemPlays(client(), "episodes", WATCHED_EPISODE));
+    expect(plays.map((play) => play.watched_at)).toEqual(["2026-10-14T12:34:00.000Z"]);
+    expect(ok(await getShowProgress(client(), 8801)).completed).toBe(before);
+  });
+
+  it("counts a watchlisted title as existing rather than added", async () => {
+    const listed = mock.library.shows.find((show) => show.inWatchlist);
+    expect(
+      await write("/sync/watchlist", { shows: [{ ids: { trakt: listed?.trakt } }] }),
+    ).toMatchObject({ added: { shows: 0 }, existing: { shows: 1 } });
+  });
+});
+
+it("brings a catalogue title into the account when it is added to the watchlist", async () => {
+  const catalogue = { shows: [{ ids: { trakt: 8901 } }] };
+  expect(await write("/sync/watchlist", catalogue)).toMatchObject({
+    added: { shows: 1 },
+    not_found: { shows: [] },
+  });
+  const watchlist = ok(await getWatchlist(client(), "shows"));
+  expect(watchlist.map((row) => row.show?.ids.trakt)).toContain(8901);
+  const hits = ok(await searchTrakt(client(), "harbor master"));
+  expect(hits.filter((hit) => hit.show?.ids.trakt === 8901)).toHaveLength(1);
 });

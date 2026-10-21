@@ -1,6 +1,7 @@
 import type { MovieEntry, MovieHeader } from "@cue/core/data/trakt/movie-library";
 import type { SearchHit } from "@cue/core/data/trakt/search";
 import { buildMarkMovieOp } from "@cue/core/domain/write-queue/ops";
+import type { WriteReceipt } from "@cue/core/domain/write-queue/receipt";
 import type { CueRuntime } from "@cue/core/runtime/runtime";
 import { fakeRuntime } from "./up-next";
 
@@ -29,12 +30,17 @@ export const movieEntry: MovieEntry = {
 
 export function movieRuntime(overrides: Partial<MovieEntry> = {}) {
   let id = 0;
+  const submit = jest.fn<ReturnType<CueRuntime["submit"]>, Parameters<CueRuntime["submit"]>>(
+    async () => "deferred",
+  );
   return {
     ...fakeRuntime({}),
     newId: jest.fn(() => String(++id)),
-    submit: jest.fn<ReturnType<CueRuntime["submit"]>, Parameters<CueRuntime["submit"]>>(
-      async () => "deferred",
-    ),
+    submit,
+    writeReceipt: (opId: string): WriteReceipt | null =>
+      submit.mock.calls.some(([op]) => op.id === opId)
+        ? { added: 1, updated: 0, deleted: 0, existing: 0, notFound: 0 }
+        : null,
     loadMovieHeader: jest.fn(async () => movieHeader),
     loadMovieLibrary: jest.fn(async () => ({ entries: [{ ...movieEntry, ...overrides }] })),
     loadMovieRelated: jest.fn(async (): Promise<readonly SearchHit[]> => []),

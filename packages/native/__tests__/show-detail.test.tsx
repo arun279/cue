@@ -1,4 +1,5 @@
 import { seasonConfirmation } from "@cue/core/domain/show-detail";
+import { usePlayPolicy } from "@cue/core/stores/play-policy-store";
 import { UNDO_WINDOW_MS } from "@cue/core/sync-contract";
 import { act, fireEvent, render, screen } from "@testing-library/react-native";
 import { ActionSheetIOS, Alert, Platform } from "react-native";
@@ -20,6 +21,12 @@ jest.mock(
 );
 
 const mark = { mark: jest.fn(), reverse: jest.fn(), reArm: jest.fn(), justMarkedAt: () => null };
+
+/** Noon, local time, a whole number of calendar days from today. */
+function inCalendarDays(days: number): string {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate() + days, 12).toISOString();
+}
 beforeEach(resetSharedStores);
 
 it.each([
@@ -34,7 +41,7 @@ it.each([
         title: null,
         still: null,
         ids: { trakt: 1 },
-        firstAired: new Date(Date.now() + 87 * 86400000).toISOString(),
+        firstAired: inCalendarDays(87),
       },
     }),
     "All caught up",
@@ -106,7 +113,8 @@ it("caps related shows at six and opens the selected show", async () => {
 
 function confirmSeasonTwo() {
   const choices = { onPrimary: jest.fn(), onSecondary: jest.fn() };
-  confirm({ ...seasonConfirmation({ number: 2, airedCount: 6, completedCount: 3 }), ...choices });
+  const copy = seasonConfirmation({ number: 2, airedCount: 6, completedCount: 3 }, "multiple");
+  confirm({ ...copy, ...choices });
   return choices;
 }
 
@@ -150,6 +158,17 @@ describe("platform confirmations", () => {
     expect(onSecondary).toHaveBeenCalledTimes(1);
   });
 
+  it("gives an overwriting rewatch the destructive role in the Android dialog", () => {
+    Platform.OS = "android";
+    const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+    const copy = seasonConfirmation({ number: 2, airedCount: 6, completedCount: 3 }, "one-play");
+    confirm({ ...copy, onPrimary: jest.fn(), onSecondary: jest.fn() });
+    expect(alert.mock.calls[0]?.[2]?.[0]).toMatchObject({
+      text: "Mark all 6 again",
+      style: "destructive",
+    });
+  });
+
   it.each(["ios", "android"] as const)("uses plain two-button alerts on %s", (os) => {
     Platform.OS = os;
     const alert = jest.spyOn(Alert, "alert");
@@ -164,6 +183,32 @@ describe("platform confirmations", () => {
       ]);
     }
   });
+});
+
+it("warns before a rewatch when the account is known to keep one play per episode", async () => {
+  const original = Platform.OS;
+  Platform.OS = "ios";
+  const present = jest
+    .spyOn(ActionSheetIOS, "showActionSheetWithOptions")
+    .mockImplementation(() => {});
+  usePlayPolicy.setState({ policy: "one-play" });
+  try {
+    await render(
+      <DetailHarness>
+        <ShowDetail showId={8803} />
+      </DetailHarness>,
+    );
+    await fireEvent.press(await screen.findByTestId(TEST_IDS.seasonCheck(2)));
+    expect(present.mock.calls[0]?.[0]).toMatchObject({
+      message: expect.stringContaining("Your Trakt account keeps one play per episode"),
+      options: ["Mark 2 remaining", "Mark all 4 again", "Cancel"],
+      destructiveButtonIndex: 1,
+    });
+  } finally {
+    Platform.OS = original;
+    present.mockRestore();
+    usePlayPolicy.setState({ policy: "unknown" });
+  }
 });
 
 it("names on the Next card the episode its check describes, through a mark and its undo window", async () => {

@@ -238,3 +238,35 @@ it("shows the movie error when membership cannot load", async () => {
   expect(await screen.findByText("Couldn't load this movie")).toBeOnTheScreen();
   expect(screen.queryByTestId(TEST_IDS.movieMark)).toBeNull();
 });
+
+const replaced = { added: 0, updated: 1, deleted: 0, existing: 0, notFound: 0 };
+
+it("offers no Undo when Trakt replaced the movie's play, and says what happened", async () => {
+  const runtime = movieRuntime({ watched: false, watchedAt: null });
+  runtime.submit.mockResolvedValue("done");
+  runtime.writeReceipt = () => replaced;
+  await mount(runtime);
+  await fireEvent.press(await screen.findByTestId(TEST_IDS.movieMark));
+  expect(
+    await screen.findByText(
+      "The Lantern Keeper was already watched. Trakt changed its watch date to now.",
+    ),
+  ).toBeOnTheScreen();
+  expect(screen.queryByTestId(TEST_IDS.snackbarUndo)).toBeNull();
+});
+
+it("removes nothing when an Undo finds that the mark replaced the movie's play", async () => {
+  const runtime = movieRuntime({ watched: false, watchedAt: null });
+  await mount(runtime);
+  await fireEvent.press(await screen.findByTestId(TEST_IDS.movieMark));
+  await screen.findByText("The Lantern Keeper marked watched");
+  runtime.writeReceipt = () => replaced;
+  await fireEvent.press(screen.getByTestId(TEST_IDS.snackbarUndo));
+  expect(
+    await screen.findByText(
+      "The Lantern Keeper was already watched. Trakt changed its watch date to now. Undo can't restore the earlier date.",
+    ),
+  ).toBeOnTheScreen();
+  expect(runtime.submit).toHaveBeenCalledTimes(1);
+  expect(runtime.loadMoviePlays).not.toHaveBeenCalled();
+});
