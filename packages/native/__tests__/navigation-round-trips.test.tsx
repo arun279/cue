@@ -104,6 +104,19 @@ const trips = edges
   )
   .filter(([key], index, all) => all.findIndex(([other]) => other === key) === index);
 
+/**
+ * The modules whose helpers the source calls to navigate, loaded with the file
+ * rather than by the first replay that needs one: each pulls in a screen's whole
+ * dependency graph, which took the first case about 2 s under load.
+ */
+const helpers: Readonly<Record<string, Record<string, (href: Href) => unknown>>> =
+  Object.fromEntries(
+    [...new Set(trips.flatMap(([, edge]) => edge.call.module ?? []))].map((module) => [
+      module,
+      require(module),
+    ]),
+  );
+
 const reached = new Set<string>();
 
 /** Each href here is read from the source as a string; the typecheck already proves it is a route. */
@@ -119,9 +132,9 @@ const ROUTER: Readonly<Record<string, (href: Href) => void>> = {
 };
 
 async function replay(call: Call, href: string): Promise<void> {
-  const navigate: (href: Href) => unknown = call.module
-    ? require(call.module)[call.method]
-    : ROUTER[call.method];
+  const navigate = call.module ? helpers[call.module]?.[call.method] : ROUTER[call.method];
+  if (navigate === undefined)
+    throw new Error(`no ${call.method} for ${call.module ?? "the router"}`);
   await act(async () => {
     void navigate(href as Href);
   });

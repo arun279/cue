@@ -3,6 +3,7 @@ import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { expect, it } from "vitest";
 import { startReadyProcess } from "../../scripts/start-ready-process.mjs";
+import { fakeBin } from "../support/fake-bin";
 import { repositoryPath } from "../support/repository-path";
 import { tempDirectory } from "../support/temp-directory";
 
@@ -37,6 +38,17 @@ it("rejects an invalid acknowledgment", async () => {
   await expect(startReadyProcess(module, log)).rejects.toThrow("Invalid readiness signal");
 });
 
+const adbBin = fakeBin({
+  adb: `#!/bin/sh
+case "$*" in
+  'shell am start '*) printf '%s\n' "$LAUNCH" ;;
+  'shell pidof '*) [ -n "$PID" ] || exit 1; printf '%s\n' "$PID" ;;
+  'logcat -d '*) printf '%s\n' "$LOGCAT" ;;
+esac
+`,
+  timeout: '#!/bin/sh\nshift\nexec "$@"\n',
+});
+
 it.each([
   ["Status: ok", "123", "", 0],
   ["Error: activity not started", "123", "", 1],
@@ -44,18 +56,6 @@ it.each([
   ["Status: ok", "123", "FATAL EXCEPTION: main", 1],
 ])("requires Android launch acknowledgment, a live process and no crash", (launch, pid, logcat, status) => {
   const directory = tempDirectory("cue-launch-");
-  writeFileSync(
-    path.join(directory, "adb"),
-    `#!/bin/sh
-case "$*" in
-  'shell am start '*) printf '%s\n' "$LAUNCH" ;;
-  'shell pidof '*) [ -n "$PID" ] || exit 1; printf '%s\n' "$PID" ;;
-  'logcat -d '*) printf '%s\n' "$LOGCAT" ;;
-esac
-`,
-    { mode: 0o755 },
-  );
-  writeFileSync(path.join(directory, "timeout"), '#!/bin/sh\nshift\nexec "$@"\n', { mode: 0o755 });
   const result = spawnSync(
     "bash",
     [repositoryPath("scripts/verify-android-launch.sh"), "app.apk", path.join(directory, "logcat")],
@@ -63,7 +63,7 @@ esac
       encoding: "utf8",
       env: {
         ...process.env,
-        PATH: `${directory}:${process.env["PATH"]}`,
+        PATH: `${adbBin}:${process.env["PATH"]}`,
         LAUNCH: launch,
         PID: pid,
         LOGCAT: logcat,
