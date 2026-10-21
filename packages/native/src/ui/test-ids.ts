@@ -27,8 +27,6 @@ export const TEST_IDS = {
 
   bootHold: "boot-hold",
   authLoading: "auth-loading",
-  screenNotFound: "screen-not-found",
-  notFoundHome: "not-found-home",
   screenOnboarding: "screen-onboarding",
   buttonConnect: "button-connect",
   screenDeviceCode: "screen-device-code",

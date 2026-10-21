@@ -21,7 +21,15 @@ export default function AccountLayout(): ReactElement {
   return (
     <View style={styles.root}>
       <Stack screenOptions={{ ...barOptions, headerTransparent: Platform.OS === "ios" }}>
-        <Stack.Screen name="profile" options={{ title: "Profile" }}>
+        <Stack.Screen
+          name="profile"
+          options={{
+            title: "Profile",
+            ...(Platform.OS === "android" && {
+              headerBackIcon: { type: "image", source: { uri: "cue_header_close" } },
+            }),
+          }}
+        >
           {Platform.OS === "ios" && (
             <Stack.Toolbar placement="right">
               <Stack.Toolbar.Button
@@ -39,6 +47,7 @@ export default function AccountLayout(): ReactElement {
         <Stack.Screen name="settings" options={{ title: "Settings" }} />
         <Stack.Screen name="history" options={{ title: "History" }} />
         <Stack.Screen name="history-jump" options={monthJump} />
+        <Stack.Screen name="show/[showId]" options={{ title: "Show", headerTransparent: false }} />
         <Stack.Screen
           name="movie/[movieId]"
           options={{ title: "Movie", headerTransparent: false }}
