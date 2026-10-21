@@ -1,9 +1,9 @@
 # One pass of the performance probe on the large synthetic account: launch, every
 # tab pair among Up Next, Library and Calendar, three long lists scrolling, the
-# lapsed section opening and closing, a show pushed and its episode sheet, and
-# memory after the tabs and after the lists. Each segment is bracketed by marks
-# that scripts/perf-probe.mjs turns into measurements; nothing here asserts on
-# timing.
+# lapsed section opening and closing, a show pushed with its episode sheet and a
+# season expanded, and memory after the tabs and after the lists. Each segment is
+# bracketed by marks that scripts/perf-probe.mjs turns into measurements; nothing
+# here asserts on timing.
 appId: app.cuetracker
 ---
 - runFlow: relaunch.yaml
@@ -109,6 +109,20 @@ appId: app.cuetracker
     file: segment.yaml
     env: { SEGMENT: "episode sheet open", EDGE: stop }
 - runFlow: ../flows/lib/dismiss-episode-sheet.yaml
+- scrollUntilVisible:
+    element:
+      id: "season-trigger-1"
+    direction: UP
+    centerElement: true
+- runFlow:
+    file: segment.yaml
+    env: { SEGMENT: "season expand", EDGE: start }
+- tapOn:
+    id: "season-trigger-1"
+- waitForAnimationToEnd
+- runFlow:
+    file: segment.yaml
+    env: { SEGMENT: "season expand", EDGE: stop }
 - runFlow:
     file: ../flows/lib/back.yaml
     env: { BACK_TITLE: "Up Next" }
