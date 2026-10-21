@@ -17,7 +17,7 @@ const THRESHOLD = 0.1;
 export const changedPixels = (before, after, platform) => {
   const { width, height } = after;
   const diff = new Uint8Array(width * height * 4);
-  if (before.width !== width || before.height !== height) return diff;
+  if (before.width !== width || before.height !== height) return diff.fill(255);
   const mask = MASKS[`${platform} ${width}`];
   if (mask === undefined)
     throw new Error(`no status bar mask for ${platform} ${width} px captures`);

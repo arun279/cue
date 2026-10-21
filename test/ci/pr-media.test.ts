@@ -118,6 +118,81 @@ const pixel = (file: string, x: number, y: number) => {
   return [...png.data.subarray((y * png.width + x) * 4, (y * png.width + x) * 4 + 3)];
 };
 
+const PANEL = 824;
+const OUTLINE = [255, 0, 0];
+const IOS_RATIO = 1206 / 800;
+
+const rgbAt = (png: PNG, x: number, y: number) => [
+  ...png.data.subarray((y * png.width + x) * 4, (y * png.width + x) * 4 + 3),
+];
+
+const strokes = (png: PNG, after: number) => {
+  const stroke = new Set<number>();
+  const altered: number[][] = [];
+  for (let y = 0; y < png.height; y++) {
+    for (let x = 0; x < 800; x++) {
+      const shown = rgbAt(png, (after + 1) * PANEL + x, y).join();
+      if (shown === OUTLINE.join()) stroke.add(y * 800 + x);
+      else if (shown !== rgbAt(png, after * PANEL + x, y).join()) altered.push([x, y]);
+    }
+  }
+  return { stroke, altered };
+};
+
+const component = (stroke: Set<number>, seen: Set<number>, start: number) => {
+  const box: Box = [800, Number.MAX_SAFE_INTEGER, 0, 0];
+  let pixels = 0;
+  const queue = [start];
+  seen.add(start);
+  for (let at = queue.pop(); at !== undefined; at = queue.pop()) {
+    const [x, y] = [at % 800, Math.floor(at / 800)];
+    pixels++;
+    box.splice(
+      0,
+      4,
+      Math.min(box[0], x),
+      Math.min(box[1], y),
+      Math.max(box[2], x + 1),
+      Math.max(box[3], y + 1),
+    );
+    const next = [at - 800, at + 800, x > 0 ? at - 1 : -1, x < 799 ? at + 1 : -1];
+    for (const pixel of next.filter((n) => stroke.has(n) && !seen.has(n))) {
+      seen.add(pixel);
+      queue.push(pixel);
+    }
+  }
+  return { box, pixels };
+};
+
+const changesPanel = (file: string, after: number) => {
+  const { stroke, altered } = strokes(PNG.sync.read(readFileSync(file)), after);
+  const seen = new Set<number>();
+  const boxes = [...stroke].flatMap((at) => (seen.has(at) ? [] : [component(stroke, seen, at)]));
+  return { altered, boxes };
+};
+
+const hollow = ([x0, y0, x1, y1]: Box) =>
+  (x1 - x0) * (y1 - y0) - Math.max(0, x1 - x0 - 6) * Math.max(0, y1 - y0 - 6);
+
+const changedInPanel = (before: Capture, after: Capture) => {
+  const [a, b] = [draw(1206, before), draw(1206, after)];
+  const changed: number[][] = [];
+  for (let y = 162; y < a.height; y++) {
+    for (let x = 0; x < 1206 - 18; x++) {
+      if (rgbAt(a, x, y).join() !== rgbAt(b, x, y).join()) {
+        changed.push([Math.floor(x / IOS_RATIO), Math.floor(y / IOS_RATIO)]);
+      }
+    }
+  }
+  return changed;
+};
+
+const within = ([x, y]: number[], boxes: { box: Box }[]) =>
+  boxes.some(
+    ({ box: [x0, y0, x1, y1] }) =>
+      (x ?? -1) >= x0 + 3 && (x ?? -1) < x1 - 3 && (y ?? -1) >= y0 + 3 && (y ?? -1) < y1 - 3,
+  );
+
 const sandbox = () => {
   const root = tempDirectory("pr-media-");
   const state = path.join(root, "state");
@@ -389,35 +464,50 @@ describe("gather-pr-media.sh", { timeout: 30_000 }, () => {
     );
   });
 
-  it("shows clean before and after columns with moved content highlighted only in the changes column", () => {
+  it("shows the after screen unchanged in the changes column apart from one box per separate change", () => {
+    const before = { content: 0 };
+    const after = { content: 1, shift: 500, clock: 1 };
     const { out, review, images } = gather(
-      dark({ "library-shows": { content: 0 } }),
-      dark({ "library-shows": { content: 1, shift: 500, clock: 1 } }),
+      dark({ "library-shows": before }),
+      dark({ "library-shows": after }),
     );
 
     expect(images).toEqual(["ios-dark-library-shows.png"]);
-    const image = PNG.sync.read(readFileSync(path.join(out, images[0] ?? "")));
-    expect([image.width, image.height]).toEqual([2448, 159]);
     const file = path.join(out, images[0] ?? "");
+    const image = PNG.sync.read(readFileSync(file));
+    expect([image.width, image.height]).toEqual([2448, 159]);
     expect(pixel(file, 200, 133)).toEqual(COLORS[0]);
-    expect(pixel(file, 500, 133)).toEqual([250, 250, 245]);
-    expect(pixel(file, 824 + 200, 133)).toEqual([250, 250, 245]);
-    expect(pixel(file, 824 + 500, 133)).toEqual(COLORS[1]);
-    expect(pixel(file, 1648 + 200, 133)).toEqual([255, 0, 255]);
-    expect(pixel(file, 1648 + 500, 133)).toEqual([255, 0, 255]);
-    expect(pixel(file, 1648 + 50, 133)).toEqual([125, 125, 122]);
+    expect(pixel(file, PANEL + 500, 133)).toEqual(COLORS[1]);
     expect(pixel(file, 100, 50)).toEqual([128, 128, 128]);
-    expect(pixel(file, 824 + 100, 50)).toEqual([0, 0, 0]);
-    expect(pixel(file, 1648 + 100, 50)).toEqual([0, 0, 0]);
+    expect(pixel(file, PANEL + 100, 50)).toEqual([0, 0, 0]);
+    const { altered, boxes } = changesPanel(file, 1);
+    expect(altered).toEqual([]);
+    expect(boxes).toHaveLength(2);
+    for (const { box, pixels } of boxes) expect(pixels).toBe(hollow(box));
+    const changed = changedInPanel(before, after);
+    expect(changed.length).toBeGreaterThan(0);
+    expect(changed.filter((point) => !within(point, boxes))).toEqual([]);
     expect(review).toContain(
       "**Changed: Library shows, iOS, dark, default text.** Left to right: before, after, changes.\n\n" +
         "![Library shows, iOS, dark, default text](ios-dark-library-shows.png)\n\n" +
         "Verdict: VERDICT_PENDING",
     );
     expect(review).toContain(
-      "The changes panel dims the after screen and marks changed pixels in magenta",
+      "The changes panel is the after screen with a red box around each changed area",
     );
     expect(review).not.toContain("Not compared");
+  });
+
+  it("draws one box around changes closer together than the gap between controls", () => {
+    const { out, images } = gather(
+      dark({ "up-next-queue-rest": { rows: [] } }),
+      dark({ "up-next-queue-rest": { rows: [1000, 1010] } }),
+    );
+
+    const { altered, boxes } = changesPanel(path.join(out, images[0] ?? ""), 1);
+    expect(altered).toEqual([]);
+    expect(boxes).toHaveLength(1);
+    expect(boxes[0]?.pixels).toBe(hollow(boxes[0]?.box ?? [0, 0, 0, 0]));
   });
 
   it("names the missing base captures and why instead of calling their screens new", () => {
@@ -520,7 +610,8 @@ describe("gather-pr-media.sh", { timeout: 30_000 }, () => {
     expect(pixel(file, 200, 133)).toEqual(COLORS[0]);
     expect(pixel(file, 824 + 200, 133)).toEqual(COLORS[0]);
     expect(pixel(file, 1648 + 200, 133)).toEqual(COLORS[1]);
-    expect(pixel(file, 2472 + 200, 133)).toEqual([255, 0, 255]);
+    expect(changesPanel(file, 2).altered).toEqual([]);
+    expect(changesPanel(file, 2).boxes).toHaveLength(1);
     expect(review).toContain(
       "**Changed: Library shows, iOS, dark, XXXL text.** Left to right: default text after, before, after, changes.",
     );
