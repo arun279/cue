@@ -393,6 +393,37 @@ function unsettledScrollTaps(commands: Command[]): string[] {
   });
 }
 
+const MEDIA_SWITCHES: Readonly<Record<string, string>> = {
+  "switch-movies": "switch-shows",
+  "switch-shows": "switch-movies",
+};
+
+/** A media switch's own value flips natively at the touch; the other switch's enabled state is
+ * drawn by the app from the preference, so it is the proof the change landed before the flow
+ * leaves the screen. */
+function unconfirmedMediaTaps(commands: Command[]): string[] {
+  return commands.flatMap((command, index) => {
+    const id = targetOf(command, "tapOn");
+    const other = typeof id === "string" ? MEDIA_SWITCHES[id] : undefined;
+    if (other === undefined) return [];
+    const next = commands[index + 1]?.["assertVisible"] as
+      | { id?: unknown; enabled?: unknown }
+      | undefined;
+    return next?.id === other && typeof next.enabled === "boolean" ? [] : [String(id)];
+  });
+}
+
+it("waits for the app to apply every media switch before leaving Settings", () => {
+  const taps = yamlFiles(flowsDirectory).flatMap((file) =>
+    parseAllDocuments(readFileSync(file, "utf8"))
+      .flatMap((document) => commandLists(document.toJS()))
+      .flatMap(unconfirmedMediaTaps)
+      .map((id) => `${relative(flowsDirectory, file)}: ${id}`),
+  );
+
+  expect(taps).toEqual([]);
+});
+
 it("centres every Settings control it scrolls to and waits for the scroll to settle before tapping it", () => {
   const taps = yamlFiles(flowsDirectory).flatMap((file) =>
     parseAllDocuments(readFileSync(file, "utf8"))

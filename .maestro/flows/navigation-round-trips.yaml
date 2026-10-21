@@ -90,8 +90,8 @@ appId: app.cuetracker
 - tapOn:
     id: "switch-shows"
 - assertVisible:
-    id: "switch-shows"
-    checked: false
+    id: "switch-movies"
+    enabled: false
 - runFlow:
     file: lib/back.yaml
     env:
@@ -110,8 +110,8 @@ appId: app.cuetracker
 - tapOn:
     id: "switch-shows"
 - assertVisible:
-    id: "switch-shows"
-    checked: true
+    id: "switch-movies"
+    enabled: true
 - runFlow:
     file: lib/back.yaml
     env:

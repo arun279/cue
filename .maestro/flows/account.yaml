@@ -28,6 +28,9 @@ appId: app.cuetracker
 - runFlow: lib/settle-scroll.yaml
 - tapOn:
     id: "switch-movies"
+- assertVisible:
+    id: "switch-shows"
+    enabled: false
 - runFlow:
     file: lib/back.yaml
     env:
@@ -59,6 +62,9 @@ appId: app.cuetracker
 - runFlow: lib/settle-scroll.yaml
 - tapOn:
     id: "switch-movies"
+- assertVisible:
+    id: "switch-shows"
+    enabled: true
 - scrollUntilVisible:
     element:
       id: "settings-delete"
