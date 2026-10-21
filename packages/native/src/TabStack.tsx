@@ -1,10 +1,6 @@
 import { Stack } from "expo-router";
 import type { ReactElement } from "react";
-import {
-  barOptions,
-  useEpisodeSheetOptions,
-  useMonthJumpSheetOptions,
-} from "./ui/navigation-theme";
+import { barOptions } from "./ui/navigation-theme";
 import { useColors } from "./ui/tokens";
 
 export interface TabStackProps {
@@ -15,8 +11,6 @@ export interface TabStackProps {
 // The root is declared first: unstable_settings has no effect here, and the navigator starts on the first declared screen.
 export function TabStack({ root, title }: TabStackProps): ReactElement {
   const colors = useColors();
-  const sheet = useEpisodeSheetOptions();
-  const monthJump = useMonthJumpSheetOptions();
   const detail = {
     headerTintColor: colors.accentInk,
     headerTitleStyle: { color: colors.fg },
@@ -26,9 +20,7 @@ export function TabStack({ root, title }: TabStackProps): ReactElement {
       <Stack.Screen name={root} options={{ title }} />
       <Stack.Screen name="show/[showId]" options={{ ...detail, title: "Show" }} />
       <Stack.Screen name="movie/[movieId]" options={{ ...detail, title: "Movie" }} />
-      <Stack.Screen name="show/[showId]/episode/[season]/[episode]" options={sheet} />
       <Stack.Screen name="history" options={{ title: "History" }} />
-      <Stack.Screen name="history-jump" options={monthJump} />
       <Stack.Screen name="settings" options={{ title: "Settings" }} />
     </Stack>
   );

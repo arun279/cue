@@ -119,12 +119,22 @@ const EXCEPTIONS: readonly Exception[] = [
     checked: { package: "react-native-screens", version: "4.26.2" },
   },
   {
+    file: "src/screens/history/MonthJump.tsx",
+    rule: "D",
+    site: "router.back",
+    candidate: "the sheet's own close and swipe",
+    reason:
+      "Picking a month completes the sheet's one task, so the sheet closes on the pick as well as from its close button; the platform only dismisses a sheet when the user cancels it.",
+    source: "https://developer.apple.com/design/human-interface-guidelines/sheets",
+    checked: { package: "expo-router", version: "57.0.25" },
+  },
+  {
     file: "src/RootStack.tsx",
     rule: "F",
     site: "headerShown",
     candidate: "a header on the root stack",
     reason:
-      "The root stack only switches between the tab group and the account group, and each of those runs its own native stack and header, so a root header would put a second bar above theirs.",
+      "The root stack switches between the tab group and the account group, each with its own native stack and header, and presents the two sheets, whose options set their own header; a root header would put a second bar above theirs.",
     source: "https://docs.expo.dev/router/advanced/nesting-navigators/",
     checked: { package: "expo-router", version: "57.0.25" },
   },

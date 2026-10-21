@@ -1,14 +1,19 @@
 import "./support/detail-mocks";
+import { persistMediaVisibility } from "@cue/core/prefs/media-visibility";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react-native";
+import EpisodeRoute from "../app/show/[showId]/episode/[season]/[episode]";
 import { EpisodeBody, EpisodeSheet } from "../src/screens/EpisodeSheet";
 import { EpisodePager } from "../src/screens/episode-sheet/EpisodePager";
 import { EpisodeStill } from "../src/screens/episode-sheet/EpisodeStill";
 import { TEST_IDS } from "../src/ui/test-ids";
 import { DetailHarness, detail, detailRuntime } from "./support/detail";
 import { router } from "./support/native-ui";
-import { resetSharedStores } from "./support/up-next";
+import { memoryPreferences, resetSharedStores } from "./support/up-next";
 
-jest.mock("expo-router", () => require("./support/native-ui").expoRouterModule());
+jest.mock("expo-router", () => ({
+  ...require("./support/native-ui").expoRouterModule(),
+  useLocalSearchParams: () => ({ showId: "8803", season: "2", episode: "4" }),
+}));
 
 beforeEach(() => {
   resetSharedStores();
@@ -116,6 +121,22 @@ it("closes from its close button while the episode loads", async () => {
   );
 
   expect(screen.getByTestId(TEST_IDS.episodeSkeleton)).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole("button", { name: "Close" }));
+  expect(router.back).toHaveBeenCalledTimes(1);
+});
+
+it("says TV shows are off inside the sheet, reads nothing and still closes", async () => {
+  const preferences = memoryPreferences();
+  persistMediaVisibility(preferences, { showsEnabled: false, moviesEnabled: true });
+  const runtime = { ...detailRuntime, loadEpisode: jest.fn() };
+  await render(
+    <DetailHarness runtime={runtime} preferences={preferences}>
+      <EpisodeRoute />
+    </DetailHarness>,
+  );
+
+  expect(screen.getByText("TV shows are turned off.")).toBeOnTheScreen();
+  expect(runtime.loadEpisode).not.toHaveBeenCalled();
   await fireEvent.press(screen.getByRole("button", { name: "Close" }));
   expect(router.back).toHaveBeenCalledTimes(1);
 });

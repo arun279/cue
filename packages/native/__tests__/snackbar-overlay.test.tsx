@@ -5,7 +5,7 @@ import type { ReactElement } from "react";
 import { Platform, StyleSheet } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import AccountLayout from "../app/(account)/_layout";
-import EpisodeRoute from "../app/(tabs)/(up-next,library,calendar,search)/show/[showId]/episode/[season]/[episode]";
+import EpisodeRoute from "../app/show/[showId]/episode/[season]/[episode]";
 import { TEST_IDS } from "../src/ui/test-ids";
 import { SPACE, TARGET_MIN } from "../src/ui/tokens";
 import { accountFixture } from "./support/account";
