@@ -45,7 +45,6 @@ function airedLastNight(episode: EpisodeRef | null, now: number): boolean {
   return airedMs !== null && airedMs <= now && now - airedMs < DAY_MS;
 }
 
-/** Owns the row's artwork read, so its settle delay and its fetch re-render the poster, not the row. */
 function RowPoster({ showId, title }: { readonly showId: number; readonly title: string }) {
   const art = useShowArt(showId);
   return <Poster title={title} posters={art.posters} width={POSTER_WIDTH.row} />;
@@ -146,7 +145,6 @@ function QueueRowContent({ card, mark, onStop, variant = "queue" }: QueueRowProp
   );
 }
 
-/** Re-renders only when its card, the mark controller or the stop handler changes. */
 export const QueueRow = memo(QueueRowContent);
 
 const styles = StyleSheet.create({

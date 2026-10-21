@@ -66,7 +66,6 @@ import { CueText } from "../../../src/ui/type";
 export { QueueRow };
 
 const ON_THE_WAY_ROWS = 3;
-// Viewport heights kept rendered: the visible one and two on each side.
 const WINDOW_SCREENS = 5;
 const HOUR_MS = DAY_MS / 24;
 

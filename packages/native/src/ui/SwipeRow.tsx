@@ -23,11 +23,7 @@ export interface SwipeRowProps {
   readonly children: ReactNode;
 }
 
-/**
- * Each row mounts its reveals' glyphs, state and frame reaction on its first drag, not with the
- * row; until then an empty strip of the same width stands in, which is what the library
- * measures when the drag starts.
- */
+// Until its first drag a row draws empty strips of the reveals' width, which the library measures.
 export function SwipeRow({ onMark, onStop, testID, children }: SwipeRowProps): ReactElement {
   const haptics = useHaptics();
   const row = useRef<SwipeableMethods>(null);
