@@ -5,7 +5,7 @@ import {
   MenuView,
 } from "@expo/ui/community/menu";
 import { Stack } from "expo-router";
-import { type ReactElement, useRef } from "react";
+import { memo, type ReactElement, useCallback, useLayoutEffect, useRef } from "react";
 import { Platform, Pressable, StyleSheet, View } from "react-native";
 import { PlatformIcon } from "./PlatformIcon";
 import { TARGET_MIN, useColors } from "./tokens";
@@ -36,29 +36,62 @@ const destructiveLast = (items: readonly RowMenuItem[]): RowMenuItem[] =>
   [...items].sort((a, b) => Number(a.destructive === true) - Number(b.destructive === true));
 
 export function HeaderMenu({ title, items }: Pick<RowMenuProps, "title" | "items">): ReactElement {
-  return (
-    <Stack.Toolbar placement="right">
-      <Stack.Toolbar.Menu
-        icon={Platform.OS === "ios" ? "ellipsis" : require("./more-vert.xml")}
-        accessibilityLabel={`More actions for ${title}`}
-        title={title}
-      >
-        {destructiveLast(items).map((item) => (
-          <Stack.Toolbar.MenuAction
-            key={item.id}
-            icon={item.image}
-            isOn={item.selected}
-            destructive={item.destructive}
-            {...(item.available === false ? { [UNAVAILABLE]: true } : {})}
-            onPress={item.onPress}
-          >
-            {item.label}
-          </Stack.Toolbar.MenuAction>
-        ))}
-      </Stack.Toolbar.Menu>
-    </Stack.Toolbar>
+  const latest = useRef(items);
+  useLayoutEffect(() => {
+    latest.current = items;
+  });
+  const select = useCallback(
+    (id: string) => latest.current.find((item) => item.id === id)?.onPress(),
+    [],
   );
+  return <HeaderMenuItems title={title} items={items} onSelect={select} />;
 }
+
+const looksAlike = (a: RowMenuItem, b: RowMenuItem): boolean =>
+  a.id === b.id &&
+  a.label === b.label &&
+  a.available === b.available &&
+  a.destructive === b.destructive &&
+  a.selected === b.selected &&
+  a.image === b.image;
+
+const HeaderMenuItems = memo(
+  function HeaderMenuItems({
+    title,
+    items,
+    onSelect,
+  }: Pick<RowMenuProps, "title" | "items"> & { onSelect(id: string): void }): ReactElement {
+    return (
+      <Stack.Toolbar placement="right">
+        <Stack.Toolbar.Menu
+          icon={Platform.OS === "ios" ? "ellipsis" : require("./more-vert.xml")}
+          accessibilityLabel={`More actions for ${title}`}
+          title={title}
+        >
+          {destructiveLast(items).map((item) => (
+            <Stack.Toolbar.MenuAction
+              key={item.id}
+              icon={item.image}
+              isOn={item.selected}
+              destructive={item.destructive}
+              {...(item.available === false ? { [UNAVAILABLE]: true } : {})}
+              onPress={() => onSelect(item.id)}
+            >
+              {item.label}
+            </Stack.Toolbar.MenuAction>
+          ))}
+        </Stack.Toolbar.Menu>
+      </Stack.Toolbar>
+    );
+  },
+  (previous, next) =>
+    previous.title === next.title &&
+    previous.items.length === next.items.length &&
+    previous.items.every((item, index) => {
+      const other = next.items[index];
+      return other !== undefined && looksAlike(item, other);
+    }),
+);
 
 export function RowMenu({
   title,
