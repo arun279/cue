@@ -89,7 +89,6 @@ export interface SeasonConfirmation {
   readonly message: string;
   readonly primary: string;
   readonly secondary?: string;
-  // The secondary choice overwrites data the account already has.
   readonly secondaryDestructive?: boolean;
 }
 

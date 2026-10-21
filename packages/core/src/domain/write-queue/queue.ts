@@ -9,7 +9,6 @@ export interface WriteQueueDeps {
   readonly sleep: (ms: number) => Promise<void>;
   readonly now: () => number;
   readonly reconcile: (op: QueuedOp) => Promise<boolean>;
-  // False when a 2xx answer shows the write was not applied; the queue then asks reconcile.
   readonly accept?: (op: QueuedOp, result: DispatchResult) => boolean;
 }
 
@@ -21,7 +20,6 @@ interface OpFailure {
 export interface FlushResult {
   readonly completed: QueuedOp[];
   readonly failed: OpFailure[];
-  // Trakt's answer to each completed op that was delivered in this flush, by op id.
   readonly delivered: ReadonlyMap<string, DispatchResult>;
 }
 

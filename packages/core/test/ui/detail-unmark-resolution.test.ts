@@ -1,5 +1,5 @@
-import type { EpisodePlay } from "@cue/core/domain/reversal";
-import { findMarkPlay, resolveEpisodeUnmark } from "@cue/core/hooks/resolve-unmark";
+import { type EpisodePlay, planMarkUndo } from "@cue/core/domain/reversal";
+import { resolveEpisodeUnmark } from "@cue/core/hooks/resolve-unmark";
 import type { CueRuntime } from "@cue/core/runtime/runtime";
 import { describe, expect, it } from "vitest";
 
@@ -70,38 +70,44 @@ describe("resolveEpisodeUnmark", () => {
   });
 });
 
-describe("findMarkPlay (landed-mark undo resolution)", () => {
+describe("planMarkUndo for one landed mark", () => {
   const MARKED_AT = "2026-07-09T12:00:00.123Z";
+  const mark = (watchedAt = MARKED_AT) => [
+    { watchedAt, traktIds: new Set([EP]), positions: new Set<string>() },
+  ];
+  const removes = (plays: readonly EpisodePlay[], watchedAt?: string) => {
+    const plan = planMarkUndo(mark(watchedAt), plays);
+    return plan.kind === "remove" ? plan.removeIds : [];
+  };
 
   it("finds the play matching the mark's frozen watched_at exactly", () => {
-    const own = play(21, MARKED_AT);
-    expect(findMarkPlay([play(11, "2026-07-01T00:00:00.000Z"), own], EP, MARKED_AT)).toBe(own);
+    expect(removes([play(11, "2026-07-01T00:00:00.000Z"), play(21, MARKED_AT)])).toEqual([21]);
   });
 
   it("tolerates Trakt truncating the echoed timestamp to the minute", () => {
-    // Marked at 12:00:42.123, echoed back floored to 12:00:00.
-    const echoed = play(21, "2026-07-09T12:00:00.000Z");
-    expect(findMarkPlay([echoed], EP, "2026-07-09T12:00:42.123Z")).toBe(echoed);
+    expect(removes([play(21, "2026-07-09T12:00:00.000Z")], "2026-07-09T12:00:42.123Z")).toEqual([
+      21,
+    ]);
   });
 
   it("rejects a play beyond the truncation window", () => {
-    expect(findMarkPlay([play(21, "2026-07-09T11:58:59.000Z")], EP, MARKED_AT)).toBeUndefined();
+    expect(removes([play(21, "2026-07-09T11:58:59.000Z")])).toEqual([]);
   });
 
   it("never selects a historical play: restart-show rewatch history is untouchable", () => {
-    // The mark hard-failed (or was removed elsewhere): only old plays remain.
     const plays = [play(11, "2024-03-01T00:00:00.000Z"), play(12, "2025-01-01T00:00:00.000Z")];
-    expect(findMarkPlay(plays, EP, MARKED_AT)).toBeUndefined();
+    expect(planMarkUndo(mark(), plays)).toEqual({ kind: "none" });
   });
 
-  it("prefers the newest of two plays inside the echo tolerance", () => {
+  it("removes only the newest of two plays inside the echo tolerance", () => {
     const older = play(21, "2026-07-09T11:59:58.000Z");
     const newer = play(22, "2026-07-09T12:00:00.000Z");
-    expect(findMarkPlay([older, newer], EP, MARKED_AT)).toBe(newer);
+    expect(removes([older, newer])).toEqual([22]);
+    expect(removes([newer, older])).toEqual([22]);
   });
 
   it("ignores other episodes' plays and resolves nothing from an empty history", () => {
-    expect(findMarkPlay([play(99, MARKED_AT, 999)], EP, MARKED_AT)).toBeUndefined();
-    expect(findMarkPlay([], EP, MARKED_AT)).toBeUndefined();
+    expect(removes([play(99, MARKED_AT, 999)])).toEqual([]);
+    expect(removes([])).toEqual([]);
   });
 });

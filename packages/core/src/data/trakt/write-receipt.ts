@@ -5,12 +5,8 @@ import { num } from "./decode";
 const sum = (values: Record<string, number>): number =>
   Object.values(values).reduce((total, value) => total + value, 0);
 
-function countMissing(groups: Record<string, unknown>): number {
-  return Object.values(groups).reduce<number>(
-    (total, value) => total + (Array.isArray(value) ? value.length : 0),
-    0,
-  );
-}
+const countMissing = (groups: Record<string, readonly unknown[]>): number =>
+  Object.values(groups).reduce((total, items) => total + items.length, 0);
 
 const counts = z.record(z.string(), num).transform(sum).optional();
 
@@ -19,7 +15,7 @@ const receiptSchema = z.object({
   updated: counts,
   deleted: counts,
   existing: counts,
-  not_found: z.record(z.string(), z.unknown()).transform(countMissing).optional(),
+  not_found: z.record(z.string(), z.array(z.unknown())).transform(countMissing).optional(),
 });
 
 export function parseWriteReceipt(data: unknown): WriteReceipt | null {

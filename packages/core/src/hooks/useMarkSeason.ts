@@ -3,12 +3,7 @@ import { useCallback, useRef } from "react";
 import { queryKeys } from "../data/query-keys";
 import type { SeasonView, ShowProgress } from "../data/trakt/show-detail";
 import type { EpisodeIds, ShowIds } from "../domain/model/ids";
-import {
-  type EpisodePlay,
-  planMarkUndo,
-  planSeasonUnmark,
-  type UnmarkPlan,
-} from "../domain/reversal";
+import { planSeasonUnmark, type UnmarkPlan } from "../domain/reversal";
 import { buildBulkMarkOps, type SeasonTree } from "../domain/write-queue/bulk";
 import {
   buildAddEpisodePlayOp,
@@ -44,6 +39,7 @@ import {
 import { REPLACED_COPY } from "./replaced-copy";
 import {
   type EpisodeUnmarkResolution,
+  planLandedUndo,
   resolveEpisodeUnmark,
   waitWhileInFlight,
 } from "./resolve-unmark";
@@ -163,23 +159,6 @@ function showError(message: string): void {
 
 type UndoPlan = readonly QueuedOp[] | { readonly replaced: number } | null;
 
-async function playsForUndo(
-  runtime: CueRuntime,
-  pending: UndoState,
-): Promise<readonly EpisodePlay[] | null> {
-  const episode = pending.markedEpisode?.episode;
-  try {
-    return await (episode === undefined
-      ? runtime.loadShowPlays(pending.showId)
-      : runtime.loadEpisodePlays(episode.ids.trakt));
-  } catch {
-    return null;
-  }
-}
-
-// Marks still queued are cancelled by their inverse. A landed mark is undone by removing only the
-// plays it created, by history id; when Trakt replaced plays instead, there is nothing to remove.
-// Null when the outcome cannot be known (a mark still being delivered, or history unreachable).
 async function planUndo(runtime: CueRuntime, pending: UndoState): Promise<UndoPlan> {
   const marks = pending.ops.flatMap((op) => {
     const marked = markedEpisodesOf(op);
@@ -199,14 +178,17 @@ async function planUndo(runtime: CueRuntime, pending: UndoState): Promise<UndoPl
     .filter((op) => !landedOps.includes(op))
     .map((op) => invertOp(op, runtime.newId));
   if (landed.length === 0) return inverted;
-  const { replaced } = receiptTotals(runtime, landedOps);
-  const plays = replaced > 0 ? [] : await playsForUndo(runtime, pending);
-  if (plays === null) return null;
-  const plan = planMarkUndo(
+  const episode = pending.markedEpisode?.episode;
+  const plan = await planLandedUndo(
+    runtime,
     landed.map(({ marked }) => marked),
-    plays,
-    replaced,
+    landedOps.map((op) => op.id),
+    () =>
+      episode === undefined
+        ? runtime.loadShowPlays(pending.showId)
+        : runtime.loadEpisodePlays(episode.ids.trakt),
   );
+  if (plan === null) return null;
   if (plan.kind === "replaced") return { replaced: plan.count };
   if (plan.kind === "none") return inverted;
   const removal = buildRemovePlaysOp({
@@ -234,7 +216,6 @@ export function useMarkSeason(): MarkSeasonController {
     },
     [putUndo],
   );
-  // After a write: say it failed, or that Trakt replaced plays (withdrawing an Undo that would lose data).
   const settleWrite = useCallback(
     (
       outcome: "done" | "failed" | "deferred",

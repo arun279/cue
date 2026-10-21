@@ -148,7 +148,7 @@ describe("planMarkUndo", () => {
       play(3, 9, 3, "2026-03-04T05:06:00.000Z"),
       play(4, 9, 3, "2026-03-04T05:09:00.000Z"),
     ];
-    expect(planMarkUndo(marks, plays, 0)).toEqual({
+    expect(planMarkUndo(marks, plays)).toEqual({
       kind: "remove",
       removeIds: [2, 3],
       restore: [
@@ -158,13 +158,8 @@ describe("planMarkUndo", () => {
     });
   });
 
-  it("removes nothing when Trakt replaced plays the account already had", () => {
-    const plays = [play(2, 7, 2, AT)];
-    expect(planMarkUndo(marks, plays, 1)).toEqual({ kind: "replaced", count: 1 });
-  });
-
   it("has nothing to remove when no play matches the marks", () => {
-    expect(planMarkUndo(marks, [play(1, 7, 2, "2025-01-01T00:00:00.000Z")], 0)).toEqual({
+    expect(planMarkUndo(marks, [play(1, 7, 2, "2025-01-01T00:00:00.000Z")])).toEqual({
       kind: "none",
     });
   });

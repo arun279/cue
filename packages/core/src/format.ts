@@ -1,7 +1,6 @@
 import { localDaysBetween } from "./domain/day";
 import { localTimeZone } from "./domain/time";
 
-// Counts calendar days in the device's zone: a watch at 11 pm is "yesterday" an hour after midnight.
 export function lastWatchedPhrase(
   iso: string | null,
   now: number,

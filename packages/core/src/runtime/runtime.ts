@@ -72,7 +72,6 @@ export interface CueRuntime {
   loadBrowse(): Promise<BrowseData>;
   loadUserProfile(): Promise<UserProfile>;
   submit(op: QueuedOp): Promise<SubmitOutcome>;
-  // What Trakt answered for an op delivered in this session; null when it landed some other way.
   writeReceipt(opId: string): WriteReceipt | null;
   pendingWrites(): number;
   pendingOps(): readonly QueuedOp[];

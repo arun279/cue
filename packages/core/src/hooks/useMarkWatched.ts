@@ -12,7 +12,7 @@ import {
 import { replacedPlays } from "../domain/write-queue/receipt";
 import { middleTruncate } from "../format";
 import { type Haptics, useHaptics } from "../ports/haptics";
-import { type CueRuntime, type SubmitOutcome, useRuntime } from "../runtime/runtime";
+import { type SubmitOutcome, useRuntime } from "../runtime/runtime";
 import {
   isReversalRequested,
   type MarkRecord,
@@ -45,7 +45,7 @@ import {
   refreshShowProgress,
 } from "./library-cache";
 import { REPLACED_COPY } from "./replaced-copy";
-import { findMarkPlay, waitWhileInFlight } from "./resolve-unmark";
+import { planLandedUndo, waitWhileInFlight } from "./resolve-unmark";
 import { useOptimisticWrite } from "./useOptimisticWrite";
 import { useResumeOnMark } from "./useResumeOnMark";
 
@@ -165,32 +165,26 @@ export function useMarkWatched(): MarkWatched {
         });
         return submit([op], effects);
       }
-      if (replacedPlays(runtime.writeReceipt(record.opId)) > 0) {
+      const marked = {
+        watchedAt: record.watchedAt,
+        traktIds: new Set([record.episodeIds.trakt]),
+        positions: new Set<string>(),
+      };
+      const plan = await planLandedUndo(runtime, [marked], [record.opId], () =>
+        runtime.loadEpisodePlays(record.episodeIds.trakt),
+      );
+      if (plan === null || plan.kind === "replaced") {
         reapplyMark(record);
-        showReplaced(record, true);
+        if (plan === null) showUndoFailed(haptics, record.title);
+        else showReplaced(record, true);
         return null;
       }
-      let plays: Awaited<ReturnType<CueRuntime["loadEpisodePlays"]>>;
-      try {
-        plays = await runtime.loadEpisodePlays(record.episodeIds.trakt);
-      } catch {
-        reapplyMark(record);
-        showUndoFailed(haptics, record.title);
-        return null;
-      }
-      const target = findMarkPlay(plays, record.episodeIds.trakt, record.watchedAt);
-      if (target === undefined) {
+      if (plan.kind === "none") {
         effects.revalidate();
         return null;
       }
       return submit(
-        [
-          buildRemovePlaysOp({
-            opId: runtime.newId(),
-            ids: [target.historyId],
-            restore: [{ trakt: record.episodeIds.trakt, watchedAt: target.watchedAt }],
-          }),
-        ],
+        [buildRemovePlaysOp({ opId: runtime.newId(), ids: plan.removeIds, restore: plan.restore })],
         effects,
       );
     },
@@ -250,7 +244,6 @@ export function useMarkWatched(): MarkWatched {
     const store = useMarkStore.getState();
     const open = store.records.get(record.showId)?.opId === record.opId;
     const inBatch = store.batch.some((r) => r.opId === record.opId);
-    // Already reversed: the reversal said what happened.
     if (isReversalRequested(record.opId) || (!open && !inBatch)) return;
     store.close(record.showId, record.opId);
     store.setBatch(store.batch.filter((r) => r.opId !== record.opId));

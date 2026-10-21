@@ -11,10 +11,7 @@ import type { KeyValueStore } from "../ports/kv";
 import { PLAY_POLICY_KEY } from "../ports/storage-keys";
 import { usePlayPolicy } from "../stores/play-policy-store";
 
-const KEPT_RECEIPTS = 200;
-
 export interface WriteReceipts {
-  // The queue's accept hook: an add Trakt answered without applying anything did not land.
   accept(op: QueuedOp, result: DispatchResult): boolean;
   record(ops: readonly QueuedOp[], delivered: ReadonlyMap<string, DispatchResult>): Promise<void>;
   receiptOf(opId: string): WriteReceipt | null;
@@ -43,9 +40,6 @@ export async function createWriteReceipts(kv: KeyValueStore): Promise<WriteRecei
         if (receipt === null) continue;
         receipts.set(op.id, receipt);
         policy = learnPlayPolicy(policy, op, receipt);
-      }
-      for (const id of [...receipts.keys()].slice(0, Math.max(0, receipts.size - KEPT_RECEIPTS))) {
-        receipts.delete(id);
       }
       if (policy !== usePlayPolicy.getState().policy) {
         usePlayPolicy.setState({ policy });

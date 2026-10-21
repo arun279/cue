@@ -1,10 +1,13 @@
 import {
   type EpisodePlay,
-  MARK_MATCH_TOLERANCE_MS,
+  type MarkedEpisodes,
+  type MarkUndoPlan,
   type MoviePlay,
   planEpisodeUnmark,
+  planMarkUndo,
   type UnmarkPlan,
 } from "../domain/reversal";
+import { replacedPlays } from "../domain/write-queue/receipt";
 import type { CueRuntime } from "../runtime/runtime";
 
 export type EpisodeUnmarkResolution =
@@ -44,16 +47,21 @@ export async function resolveEpisodeUnmark(
   return plan.removeIds.length === 0 ? { kind: "none" } : { kind: "remove", plan };
 }
 
-export function findMarkPlay(
-  plays: readonly EpisodePlay[],
-  episodeTrakt: number,
-  watchedAt: string,
-): EpisodePlay | undefined {
-  const markedAt = Date.parse(watchedAt);
-  return plays
-    .filter((play) => play.episodeTrakt === episodeTrakt)
-    .sort(newestFirst)
-    .find((play) => Math.abs(Date.parse(play.watchedAt) - markedAt) <= MARK_MATCH_TOLERANCE_MS);
+export type LandedUndo = MarkUndoPlan | { readonly kind: "replaced"; readonly count: number };
+
+export async function planLandedUndo(
+  runtime: CueRuntime,
+  marks: readonly MarkedEpisodes[],
+  opIds: readonly string[],
+  loadPlays: () => Promise<readonly EpisodePlay[]>,
+): Promise<LandedUndo | null> {
+  const replaced = opIds.reduce((n, id) => n + replacedPlays(runtime.writeReceipt(id)), 0);
+  if (replaced > 0) return { kind: "replaced", count: replaced };
+  try {
+    return planMarkUndo(marks, await loadPlays());
+  } catch {
+    return null;
+  }
 }
 
 export type MovieUnmarkResolution =
@@ -92,7 +100,6 @@ const IN_FLIGHT_POLL_TRIES = 50;
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
-// False when the op is still being delivered after the wait; its outcome is then unknown.
 export async function waitWhileInFlight(
   runtime: CueRuntime,
   opIds: readonly string[],

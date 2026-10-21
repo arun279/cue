@@ -44,7 +44,6 @@ export interface HistoryRange {
 
 const pad = (value: number): string => String(value).padStart(2, "0");
 
-// A year or month of history in the device's zone, so a play at 11 pm on the 31st stays in its month.
 export function historyRange(
   year: number,
   month?: number,

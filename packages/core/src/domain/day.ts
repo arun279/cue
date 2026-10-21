@@ -19,7 +19,6 @@ function shiftDayKey(key: string, deltaDays: number): string {
 
 const offsetFormatters = new Map<string, Intl.DateTimeFormat>();
 
-// How far the zone's wall clock is ahead of UTC at that instant (negative west of UTC).
 export function timeZoneOffsetMs(timeZone: string, ms: number): number {
   let fmt = offsetFormatters.get(timeZone);
   if (fmt === undefined) {
@@ -48,14 +47,12 @@ export function timeZoneOffsetMs(timeZone: string, ms: number): number {
   return wall - (ms - (ms % 1000));
 }
 
-// The instant the zone's local day `dayKey` begins.
 export function startOfLocalDay(timeZone: string, dayKey: string): number {
   const midnightUtc = Date.parse(dayKey);
   const guess = midnightUtc - timeZoneOffsetMs(timeZone, midnightUtc);
   return midnightUtc - timeZoneOffsetMs(timeZone, guess);
 }
 
-// Calendar days from the local day of `fromMs` to the local day of `toMs`.
 export function localDaysBetween(timeZone: string, fromMs: number, toMs: number): number {
   return dayOffset(dayKeyOf(timeZone, fromMs), dayKeyOf(timeZone, toMs));
 }
@@ -102,10 +99,8 @@ export function dayLabeler(
   };
 }
 
-// Before this hour, an episode that aired earlier today still aired "last night".
 const NIGHT_ENDS_HOUR = 6;
 
-// True for an episode that aired on the previous local day, or overnight before 6 am today.
 export function airedLastNight(
   firstAiredMs: number | null,
   now: number,

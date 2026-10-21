@@ -210,7 +210,6 @@ interface HistoryBody {
   }[];
 }
 
-// The episodes a history-add op marks, or null for any other op.
 export function markedEpisodesOf(op: QueuedOp): MarkedEpisodes | null {
   if (op.request.path !== HISTORY || op.watchedAt === null) return null;
   const body = op.request.body as HistoryBody;

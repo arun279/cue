@@ -2,7 +2,6 @@ import type { SnackMessage } from "../stores/snackbar-store";
 
 const dates = (count: number): string => (count === 1 ? "watch date" : "watch dates");
 
-// What the app says when Trakt replaced an existing play instead of adding one (Multiple Plays off).
 export const REPLACED_COPY = {
   mark: (title: string, code: string | null): SnackMessage => ({
     subject: title,

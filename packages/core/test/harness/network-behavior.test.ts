@@ -454,7 +454,7 @@ describe("write receipts", () => {
     if (mark === undefined) throw new Error("the season mark must produce an op");
     await expect(cue.submit(mark)).resolves.toBe("done");
     const marked = markedEpisodesOf(mark);
-    const plan = planMarkUndo(marked === null ? [] : [marked], await cue.loadShowPlays(8803), 0);
+    const plan = planMarkUndo(marked === null ? [] : [marked], await cue.loadShowPlays(8803));
     if (plan.kind !== "remove") throw new Error(`expected plays to remove, got ${plan.kind}`);
     expect(plan.removeIds).toHaveLength(2);
     const removal = buildRemovePlaysOp({

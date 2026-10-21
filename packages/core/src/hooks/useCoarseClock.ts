@@ -4,7 +4,6 @@ import { localTimeZone } from "../domain/time";
 
 const CLOCK_CHECK_MS = 60_000;
 
-// Buckets on the zone's wall clock, so a day-sized granularity ticks at local midnight, not UTC midnight.
 function bucketOf(ms: number, granularityMs: number, timeZone: string): number {
   return Math.floor((ms + timeZoneOffsetMs(timeZone, ms)) / granularityMs);
 }

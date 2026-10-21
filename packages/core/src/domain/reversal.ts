@@ -84,11 +84,9 @@ export function planEpisodeUnmark(plays: readonly EpisodePlay[], episodeTrakt: n
   return planFrom([own]);
 }
 
-// The episodes one history write marked, and the watched_at it sent for them.
 export interface MarkedEpisodes {
   readonly watchedAt: string;
   readonly traktIds: ReadonlySet<number>;
-  // "season:number" keys, for writes that name episodes by their place in a show.
   readonly positions: ReadonlySet<string>;
 }
 
@@ -98,8 +96,6 @@ export type MarkUndoPlan =
       readonly removeIds: readonly number[];
       readonly restore: readonly { readonly trakt: number; readonly watchedAt: string }[];
     }
-  // Trakt replaced plays the account already had: their old dates are gone, so nothing may be removed.
-  | { readonly kind: "replaced"; readonly count: number }
   | { readonly kind: "none" };
 
 function markedBy(play: EpisodePlay, marks: readonly MarkedEpisodes[]): boolean {
@@ -111,14 +107,22 @@ function markedBy(play: EpisodePlay, marks: readonly MarkedEpisodes[]): boolean 
   );
 }
 
-// Undo removes only plays the marks created, found by history id, never by item.
+function newestFirst(a: EpisodePlay, b: EpisodePlay): number {
+  return Date.parse(b.watchedAt) - Date.parse(a.watchedAt) || b.historyId - a.historyId;
+}
+
 export function planMarkUndo(
   marks: readonly MarkedEpisodes[],
   plays: readonly EpisodePlay[],
-  replaced: number,
 ): MarkUndoPlan {
-  if (replaced > 0) return { kind: "replaced", count: replaced };
-  const own = plays.filter((play) => markedBy(play, marks));
+  const newest = new Map<number, EpisodePlay>();
+  for (const play of plays) {
+    const kept = newest.get(play.episodeTrakt);
+    if (markedBy(play, marks) && (kept === undefined || newestFirst(play, kept) < 0)) {
+      newest.set(play.episodeTrakt, play);
+    }
+  }
+  const own = plays.filter((play) => newest.get(play.episodeTrakt) === play);
   if (own.length === 0) return { kind: "none" };
   return {
     kind: "remove",
