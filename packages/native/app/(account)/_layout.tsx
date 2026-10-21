@@ -26,7 +26,7 @@ export default function AccountLayout(): ReactElement {
           options={{
             title: "Profile",
             ...(Platform.OS === "android" && {
-              headerBackIcon: { type: "image", source: require("../../src/ui/close.xml") },
+              headerBackIcon: { type: "image", source: { uri: "cue_header_close" } },
             }),
           }}
         >
