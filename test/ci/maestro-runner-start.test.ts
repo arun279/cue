@@ -1,15 +1,13 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { createServer } from "node:net";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { startReadyProcess } from "../../scripts/start-ready-process.mjs";
+import { fakeBin } from "../support/fake-bin";
 import { repositoryPath } from "../support/repository-path";
 import { tempDirectory } from "../support/temp-directory";
 
 afterEach(() => vi.unstubAllEnvs());
-
-const executable = (directory: string, name: string, source: string) =>
-  writeFileSync(path.join(directory, name), source, { mode: 0o755 });
 
 describe("maestro-runner.mjs", () => {
   const freePort = () =>
@@ -20,10 +18,23 @@ describe("maestro-runner.mjs", () => {
       });
     });
 
-  const start = async (xcodebuild: string) => {
+  const xcodebuild = (source: string) =>
+    fakeBin({ xcodebuild: `#!${process.execPath}\n${source}` });
+  const answering = xcodebuild(`
+const fs = require("node:fs");
+fs.writeFileSync(process.env.PROBE_CALLS, JSON.stringify({ args: process.argv.slice(2), port: process.env.TEST_RUNNER_PORT }));
+let requests = 0;
+require("node:http").createServer((request, response) => {
+  requests += 1;
+  response.statusCode = request.method === "POST" && request.url === "/deviceInfo" && requests > 1 ? 200 : 500;
+  response.end();
+}).listen(Number(process.env.TEST_RUNNER_PORT), "127.0.0.1");
+`);
+  const failing = xcodebuild('console.error("Testing failed"); process.exit(65);');
+
+  const start = async (bin: string) => {
     const root = tempDirectory("cue-runner-start-");
-    executable(root, "xcodebuild", `#!${process.execPath}\n${xcodebuild}`);
-    vi.stubEnv("PATH", `${root}:${process.env["PATH"]}`);
+    vi.stubEnv("PATH", `${bin}:${process.env["PATH"]}`);
     vi.stubEnv("DEVICE_ID", "test-device");
     vi.stubEnv("MAESTRO_RUNNER_PORT", String(await freePort()));
     vi.stubEnv("RUNNER_TEMP", root);
@@ -37,16 +48,7 @@ describe("maestro-runner.mjs", () => {
   };
 
   it("runs the server test on the booted device and waits for deviceInfo to answer 200", async () => {
-    const { root, log, ready } = await start(`
-const fs = require("node:fs");
-fs.writeFileSync(process.env.PROBE_CALLS, JSON.stringify({ args: process.argv.slice(2), port: process.env.TEST_RUNNER_PORT }));
-let requests = 0;
-require("node:http").createServer((request, response) => {
-  requests += 1;
-  response.statusCode = request.method === "POST" && request.url === "/deviceInfo" && requests > 1 ? 200 : 500;
-  response.end();
-}).listen(Number(process.env.TEST_RUNNER_PORT), "127.0.0.1");
-`);
+    const { root, log, ready } = await start(answering);
     const pid = await ready;
     process.kill(-pid, "SIGKILL");
 
@@ -65,7 +67,7 @@ require("node:http").createServer((request, response) => {
   });
 
   it("reports the runner exiting before it answers", async () => {
-    const { ready } = await start('console.error("Testing failed"); process.exit(65);');
+    const { ready } = await start(failing);
 
     await expect(ready).rejects.toThrow(/Process exited before readiness: 65[\s\S]*Testing failed/);
   });

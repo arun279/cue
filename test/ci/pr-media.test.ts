@@ -1,16 +1,10 @@
 import { spawnSync } from "node:child_process";
-import {
-  chmodSync,
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { PNG } from "pngjs";
 import { beforeAll, describe, expect, it } from "vitest";
 import { changedPixels } from "../../scripts/changed-pixels.mjs";
+import { fakeBin } from "../support/fake-bin";
 import { repositoryPath } from "../support/repository-path";
 import { tempDirectory } from "../support/temp-directory";
 import { readWorkflowJobs } from "../support/workflow-jobs";
@@ -213,14 +207,12 @@ const within = ([x, y]: number[], boxes: { box: Box }[]) =>
       (x ?? -1) >= x0 + 3 && (x ?? -1) < x1 - 3 && (y ?? -1) >= y0 + 3 && (y ?? -1) < y1 - 3,
   );
 
+const ghBin = fakeBin({ gh: FAKE_GH });
+
 const sandbox = () => {
   const root = tempDirectory("pr-media-");
   const state = path.join(root, "state");
-  const bin = path.join(root, "bin");
   mkdirSync(state);
-  mkdirSync(bin);
-  writeFileSync(path.join(bin, "gh"), FAKE_GH);
-  chmodSync(path.join(bin, "gh"), 0o755);
   writeFileSync(path.join(state, "head"), `${HEAD}\n`);
   const run = (script: string, args: string[]) =>
     spawnSync("bash", [repositoryPath(`scripts/${script}`), ...args], {
@@ -228,7 +220,7 @@ const sandbox = () => {
       env: {
         ...process.env,
         GITHUB_REPOSITORY: "o/r",
-        PATH: `${bin}:${process.env["PATH"]}`,
+        PATH: `${ghBin}:${process.env["PATH"]}`,
         STATE: state,
         TMPDIR: root,
       },
