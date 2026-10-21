@@ -1,18 +1,16 @@
 import { spawnSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { expect, it } from "vitest";
+import { fakeBin } from "../support/fake-bin";
 import { repositoryPath } from "../support/repository-path";
 import { tempDirectory } from "../support/temp-directory";
 
 const insets = (top: number) => `mDisplayCutout=DisplayCutout{insets=Rect(0, ${top} - 0, 0)`;
 const pixel7Pro = `    ${insets(144)} waterfall=Insets{left=0, top=0, right=0, bottom=0}}`;
 
-function pin(before: string, after: string, appliedAt: number, navigation = "0") {
-  const directory = tempDirectory("cue-display-");
-  writeFileSync(
-    path.join(directory, "adb"),
-    `#!/bin/sh
+const bin = fakeBin({
+  adb: `#!/bin/sh
 echo "$*" >> "$LOG"
 case "$*" in
   'shell dumpsys window displays')
@@ -21,21 +19,16 @@ case "$*" in
   'shell settings get secure navigation_mode') printf '%s\\r\\n' "$NAVIGATION" ;;
 esac
 `,
-    { mode: 0o755 },
-  );
-  writeFileSync(
-    path.join(directory, "timeout"),
-    `#!/usr/bin/env bash
+  timeout: `#!/bin/sh
 echo "timeout $1" >> "$LOG"
 shift
-"$@" &
-while kill -0 $! 2>/dev/null; do
-  [ "$(grep -c dumpsys "$LOG")" -lt 10 ] || { kill $!; exit 124; }
-done
-wait $!
+[ -z "$EXPIRE" ] || exit 124
+exec "$@"
 `,
-    { mode: 0o755 },
-  );
+});
+
+function pin(before: string, after: string, appliedAt: number | null, navigation = "0") {
+  const directory = tempDirectory("cue-display-");
   const log = path.join(directory, "adb.log");
   const result = spawnSync(
     "bash",
@@ -44,11 +37,12 @@ wait $!
       encoding: "utf8",
       env: {
         ...process.env,
-        PATH: `${directory}:${process.env["PATH"]}`,
+        PATH: `${bin}:${process.env["PATH"]}`,
         LOG: log,
         BEFORE: before,
         AFTER: after,
-        APPLIED_AT: String(appliedAt),
+        APPLIED_AT: String(appliedAt ?? 0),
+        EXPIRE: appliedAt === null ? "1" : "",
         NAVIGATION: navigation,
       },
     },
@@ -79,13 +73,16 @@ it.each([
   ["  mDisplayFrame=Rect(0, 0 - 1440, 3120)", "0", "no mDisplayCutout line navigation_mode=0"],
   [pixel7Pro, "2", `${insets(144)} navigation_mode=2`],
 ])("fails once the 30 s watchdog expires on a drifted display", (displays, navigation, display) => {
-  const result = pin(displays, displays, 1, navigation);
+  const result = pin(displays, displays, null, navigation);
 
   expect(result.status, result.stderr).toBe(1);
   expect(result.stdout).toBe(`Emulator display: ${display}\n`);
   expect(result.stderr).toBe(
     `Emulator display did not settle within 30 s\nEmulator display drifted: ${display}\n`,
   );
-  expect(result.calls[2]).toBe("timeout 30");
-  expect(result.calls.filter((call) => call.includes("dumpsys")).length).toBeGreaterThan(10);
+  expect(result.calls.slice(2)).toEqual([
+    "timeout 30",
+    "shell dumpsys window displays",
+    "shell settings get secure navigation_mode",
+  ]);
 });
