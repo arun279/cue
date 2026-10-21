@@ -131,7 +131,7 @@ export function EpisodeBody({
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   content: { flex: 1, padding: SPACE.s4 },
-  body: { flex: 1, gap: SPACE.s3 },
+  body: { flex: 1, gap: SPACE.s3, paddingBottom: SPACE.s3 },
   toolbar: {
     flexDirection: "row",
     justifyContent: "flex-end",

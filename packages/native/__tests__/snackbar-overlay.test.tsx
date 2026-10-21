@@ -52,7 +52,7 @@ function NavigationBarInset({ children }: { readonly children: ReactElement }): 
 }
 
 it.each([
-  ["episode sheet", TEST_IDS.episodeSheet, TEST_IDS.episodePagerNext, { ios: 68, android: 120 }],
+  ["episode sheet", TEST_IDS.episodeSheet, TEST_IDS.episodePagerNext, { ios: 8, android: 56 }],
   ["account modal", TEST_IDS.screenProfile, TEST_IDS.profileEpisodeCount, { ios: 56, android: 56 }],
 ])("keeps the %s content layout unchanged while feedback appears and disappears", async (name, id, last, bottom) => {
   if (name === "episode sheet") {
@@ -97,7 +97,7 @@ it.each([
 it.each([
   "ios",
   "android",
-] as const)("keeps the %s episode sheet's pager above the bottom inset and its snackbar above the pager", async (os) => {
+] as const)("keeps the %s episode sheet's pager and a one-line snackbar above the bottom inset and below the mark row", async (os) => {
   jest.replaceProperty(Platform, "OS", os);
   await render(
     <NavigationBarInset>
@@ -105,12 +105,27 @@ it.each([
     </NavigationBarInset>,
     { wrapper: DetailHarness },
   );
-  await screen.findByTestId(TEST_IDS.episodePagerNext);
-  await act(() => showSnack({ message: "Removed play" }));
+  await screen.findByTestId(TEST_IDS.episodeMarkRow);
+  await act(() =>
+    showSnack({ message: "S2 E3 marked", actions: [{ label: "Undo", onPress: jest.fn() }] }),
+  );
 
   const style = (testID: string) => StyleSheet.flatten(screen.getByTestId(testID).props["style"]);
+  const inset = os === "android" ? 48 : 0;
   const pagerBottom = Number(style(TEST_IDS.screenEpisode).paddingBottom);
-  const pagerTop = pagerBottom + Number(style(TEST_IDS.episodePagerNext).minHeight);
-  expect(pagerBottom).toBeGreaterThanOrEqual(os === "android" ? 48 : 0);
-  expect(Number(style(TEST_IDS.snackbar).bottom)).toBeGreaterThan(pagerTop);
+  const markRowBottom =
+    pagerBottom +
+    Number(style(TEST_IDS.episodePagerNext).minHeight) +
+    Number(
+      StyleSheet.flatten(screen.getByTestId(TEST_IDS.episodeMarkRow).parent?.props["style"])
+        .paddingBottom,
+    );
+  const snackbar = style(TEST_IDS.snackbar);
+  const snackbarTop =
+    Number(snackbar.bottom) +
+    2 * Number(snackbar.paddingVertical) +
+    Number(style(TEST_IDS.snackbarUndo).minHeight);
+  expect(pagerBottom).toBeGreaterThanOrEqual(inset);
+  expect(Number(snackbar.bottom)).toBeGreaterThan(inset);
+  expect(snackbarTop).toBeLessThanOrEqual(markRowBottom);
 });
