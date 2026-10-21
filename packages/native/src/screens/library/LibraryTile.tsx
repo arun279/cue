@@ -41,7 +41,7 @@ export interface TileProps {
   readonly posters: readonly string[] | null;
   readonly width: number;
   readonly label: string;
-  readonly testID: string;
+  readonly testID?: string;
   readonly percent: number | null;
   readonly left: number;
   readonly year?: string;

@@ -40,7 +40,7 @@ appId: app.cuetracker
 - tapOn:
     id: "library-chip-not-started"
 - assertVisible:
-    id: "show-card-8803"
+    id: "show-card-8808"
 - assertVisible:
     id: "show-card-7000"
 - waitForAnimationToEnd

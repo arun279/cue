@@ -1,4 +1,4 @@
-import { humanizeWatchMinutes, isAired, toMs } from "@cue/core/domain/time";
+import { humanizeWatchMinutes, isAired, laterOf, toMs } from "@cue/core/domain/time";
 import { describe, expect, it } from "vitest";
 
 const T = Date.parse("2026-07-05T00:00:00.000Z");
@@ -11,6 +11,23 @@ describe("toMs", () => {
     expect(toMs(null)).toBeNull();
     expect(toMs(undefined)).toBeNull();
     expect(toMs("not-a-date")).toBeNull();
+  });
+});
+
+describe("laterOf", () => {
+  const may = "2026-05-01T00:00:00.000Z";
+  const june = "2026-06-01T00:00:00.000Z";
+
+  it("keeps the later of two dates whichever side it is on", () => {
+    expect(laterOf(may, june)).toBe(june);
+    expect(laterOf(june, may)).toBe(june);
+  });
+
+  it("keeps the known date when the other is missing or unreadable", () => {
+    expect(laterOf(null, may)).toBe(may);
+    expect(laterOf(may, null)).toBe(may);
+    expect(laterOf(may, "not a date")).toBe(may);
+    expect(laterOf("not a date", may)).toBe(may);
   });
 });
 

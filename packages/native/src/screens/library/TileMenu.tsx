@@ -1,6 +1,6 @@
 import { type MenuComponentRef, MenuView } from "@expo/ui/community/menu";
 import { type Href, Link } from "expo-router";
-import { type ReactElement, useEffect, useRef, useState } from "react";
+import { cloneElement, type ReactElement, useEffect, useRef, useState } from "react";
 import {
   type AccessibilityActionEvent,
   Image,
@@ -23,6 +23,11 @@ const MORE = Platform.OS === "android" ? require("../../ui/more-vert.xml") : nul
 const ICON = 24;
 const INSET = (TARGET_MIN - ICON) / 2;
 
+interface TileContent {
+  readonly testID?: string;
+  readonly label: string;
+}
+
 // On iOS the actions are the system context menu: a UIKit interaction on the link,
 // not a hosted SwiftUI view per tile.
 export function TileLink({
@@ -34,11 +39,44 @@ export function TileLink({
   readonly href: Href;
   readonly title: string;
   readonly actions: readonly TileAction[];
-  readonly children: ReactElement;
+  readonly children: ReactElement<TileContent>;
+}): ReactElement {
+  if (Platform.OS !== "ios" || actions.length === 0)
+    return <MenuLink href={href} title={title} actions={actions} trigger={children} />;
+  // A link with a menu drops its trigger from the iOS accessibility tree (expo/expo#46875),
+  // so the tile is exposed by a wrapper that VoiceOver activates through to the link.
+  return (
+    <View
+      accessible
+      accessibilityRole="link"
+      accessibilityLabel={children.props.label}
+      testID={children.props.testID}
+      {...tileActionProps(actions)}
+    >
+      <MenuLink
+        href={href}
+        title={title}
+        actions={actions}
+        trigger={cloneElement(children, { testID: undefined })}
+      />
+    </View>
+  );
+}
+
+function MenuLink({
+  href,
+  title,
+  actions,
+  trigger,
+}: {
+  readonly href: Href;
+  readonly title: string;
+  readonly actions: readonly TileAction[];
+  readonly trigger: ReactElement;
 }): ReactElement {
   return (
     <Link href={href} push asChild>
-      <Link.Trigger>{children}</Link.Trigger>
+      <Link.Trigger>{trigger}</Link.Trigger>
       {actions.length === 0 ? null : (
         <Link.Menu title={title}>
           {actions.map((action) => (
