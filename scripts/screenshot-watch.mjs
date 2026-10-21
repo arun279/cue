@@ -7,44 +7,35 @@ const PREDICATE =
 
 // Every XCTest screenshot starts with testmanagerd asking SpringBoard, over
 // accessibility, for the interface orientation. Healthy lanes get the answer
-// within half a second; XCTest gives up on the screenshot after 30 s.
-export function screenshotReplies({
-  slowMs = 1_000,
-  stalledMs = 30_000,
-  sample,
-  record,
-  onStalled,
-}) {
+// within half a second. A late reply is only sampled once the stream has shown
+// a reply, so a stream that misses replies cannot pass for a stalled SpringBoard.
+export function screenshotReplies({ slowMs = 1_000, sample, record }) {
   let requested;
-  let timers = [];
-  const clear = () => {
-    for (const timer of timers) clearTimeout(timer);
-    timers = [];
-  };
+  let timer;
+  const counts = { requests: 0, replies: 0 };
   const handle = (line) => {
     if (line.includes("Requesting screenshot.")) {
-      clear();
+      clearTimeout(timer);
+      counts.requests++;
       requested = performance.now();
-      timers = [
-        setTimeout(sample, slowMs),
-        setTimeout(() => {
-          record(`no reply after ${stalledMs / 1000} s`);
-          onStalled(
-            `SpringBoard has not answered testmanagerd's accessibility orientation query for ${stalledMs / 1000} s, so XCTest cannot take a screenshot.`,
-          );
-        }, stalledMs),
-      ];
-    } else if (line.includes("Got system UI orientation") && requested !== undefined) {
+      if (counts.replies > 0) timer = setTimeout(sample, slowMs);
+    } else if (line.includes("Got system UI orientation")) {
+      clearTimeout(timer);
+      counts.replies++;
+      if (requested === undefined) return;
       const waited = performance.now() - requested;
-      clear();
       requested = undefined;
       if (waited > slowMs) record(`replied after ${(waited / 1000).toFixed(1)} s`);
     }
   };
-  return { handle, stop: clear };
+  const stop = () => {
+    clearTimeout(timer);
+    record(`${counts.requests} screenshot requests, ${counts.replies} replies`);
+  };
+  return { handle, stop };
 }
 
-export function watchScreenshots({ device, directory, onStalled, ...thresholds }) {
+export function watchScreenshots({ device, directory, slowMs }) {
   mkdirSync(directory, { recursive: true });
   const record = (line) =>
     appendFileSync(path.join(directory, "replies.txt"), `${new Date().toISOString()} ${line}\n`);
@@ -86,13 +77,7 @@ export function watchScreenshots({ device, directory, onStalled, ...thresholds }
       );
     });
   };
-  const replies = screenshotReplies({
-    ...thresholds,
-    sample,
-    record,
-    onStalled: (diagnosis) =>
-      onStalled(`${diagnosis} Replies and SpringBoard spindumps: ${directory}`),
-  });
+  const replies = screenshotReplies({ slowMs, sample, record });
   const stream = spawn(
     "xcrun",
     ["simctl", "spawn", device, "log", "stream", "--style", "compact", "--predicate", PREDICATE],

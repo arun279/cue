@@ -12,11 +12,10 @@ const REPLY =
   "2026-10-21 01:19:59.300 Df testmanagerd[11417:3a1] [com.apple.dt.xctest:Default] Got system UI orientation ({pid=4849}) 1";
 
 const replies = () => {
-  const events = { samples: 0, records: [] as string[], stalls: [] as string[] };
+  const events = { samples: 0, records: [] as string[] };
   const watch = screenshotReplies({
     sample: () => events.samples++,
     record: (line: string) => events.records.push(line),
-    onStalled: (diagnosis: string) => events.stalls.push(diagnosis),
   });
   return { ...watch, events };
 };
@@ -25,57 +24,51 @@ beforeEach(() => vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "perf
 afterEach(() => vi.useRealTimers());
 
 it("leaves a reply within a second alone", () => {
-  const { handle, events } = replies();
+  const { handle, stop, events } = replies();
+  handle(REPLY);
   handle(REQUEST);
   vi.advanceTimersByTime(999);
   handle(REPLY);
   vi.advanceTimersByTime(60_000);
+  stop();
 
-  expect(events).toEqual({ samples: 0, records: [], stalls: [] });
+  expect(events).toEqual({ samples: 0, records: ["1 screenshot requests, 2 replies"] });
 });
 
 it("samples SpringBoard once a reply is a second late and records how late it came", () => {
   const { handle, events } = replies();
+  handle(REPLY);
   handle(REQUEST);
-  vi.advanceTimersByTime(1_000);
+  vi.advanceTimersByTime(999);
+  expect(events.samples).toBe(0);
+  vi.advanceTimersByTime(1);
   expect(events.samples).toBe(1);
   vi.advanceTimersByTime(2_400);
   handle(REPLY);
   vi.advanceTimersByTime(60_000);
 
-  expect(events).toEqual({ samples: 1, records: ["replied after 3.4 s"], stalls: [] });
+  expect(events).toEqual({ samples: 1, records: ["replied after 3.4 s"] });
 });
 
-it("stops the flow when SpringBoard has not answered within XCTest's 30 s", () => {
-  const { handle, events } = replies();
+it("does not sample before the stream has shown that it carries replies", () => {
+  const { handle, stop, events } = replies();
   handle(REQUEST);
-  vi.advanceTimersByTime(29_999);
-  expect(events.stalls).toEqual([]);
-  vi.advanceTimersByTime(1);
+  vi.advanceTimersByTime(60_000);
+  stop();
 
-  expect(events.records).toEqual(["no reply after 30 s"]);
-  expect(events.stalls).toEqual([
-    "SpringBoard has not answered testmanagerd's accessibility orientation query for 30 s, so XCTest cannot take a screenshot.",
-  ]);
+  expect(events).toEqual({ samples: 0, records: ["1 screenshot requests, 0 replies"] });
 });
 
 it("times each request from its own start", () => {
   const { handle, events } = replies();
+  handle(REPLY);
   handle(REQUEST);
-  vi.advanceTimersByTime(20_000);
+  vi.advanceTimersByTime(800);
   handle(REQUEST);
-  vi.advanceTimersByTime(20_000);
-
-  expect(events.stalls).toEqual([]);
-  expect(events.samples).toBe(2);
-});
-
-it("ignores a reply nobody is waiting for", () => {
-  const { handle, events } = replies();
-  vi.advanceTimersByTime(5_000);
+  vi.advanceTimersByTime(800);
   handle(REPLY);
 
-  expect(events).toEqual({ samples: 0, records: [], stalls: [] });
+  expect(events).toEqual({ samples: 0, records: [] });
 });
 
 const simulator = (launchctl: string) => {
@@ -86,7 +79,7 @@ const simulator = (launchctl: string) => {
     path.join(bin, "xcrun"),
     `#!/bin/sh
 case "$*" in
-  *"log stream"*) echo '${REQUEST}'; exec sleep 5 ;;
+  *"log stream"*) printf '%s\\n%s\\n' '${REPLY}' '${REQUEST}'; exec sleep 5 ;;
   *"launchctl list"*) printf '%s\\n' "${launchctl}" ;;
 esac
 `,
@@ -95,7 +88,7 @@ esac
   writeFileSync(path.join(bin, "sudo"), `#!/bin/sh\necho "$*" >> "${calls}"\n`, { mode: 0o755 });
   vi.stubEnv("PATH", `${bin}:${process.env["PATH"]}`);
   const directory = tempDirectory("cue-screenshot-watch-");
-  const stop = watchScreenshots({ device: "SIM", directory, slowMs: 0, onStalled: () => {} });
+  const stop = watchScreenshots({ device: "SIM", directory, slowMs: 0 });
   return { calls, directory, stop };
 };
 
@@ -165,4 +158,39 @@ it("is started by the Maestro supervisor for the lane's simulator and stopped wi
     /^xcrun simctl spawn SIM-1 log stream --style compact --predicate process == "testmanagerd"/,
   );
   expect(existsSync(path.join(debug, "springboard"))).toBe(true);
+});
+
+it("stops Maestro at once and names SpringBoard when XCTest's screenshot request times out", () => {
+  const bin = tempDirectory("cue-supervisor-timeout-");
+  writeFileSync(
+    path.join(bin, "maestro"),
+    `#!/bin/sh
+echo '[ WARN] XCTestDriver request failed. Status code: 500, path: isScreenStatic, body: {"code":"internal","errorMessage":"Failed to get screenshot: Timed out while requesting screenshot."}'
+exec sleep 30
+`,
+    { mode: 0o755 },
+  );
+  const debug = path.join(bin, "debug");
+  const result = spawnSync(
+    process.execPath,
+    [
+      repositoryPath("scripts/maestro-supervisor.mjs"),
+      "test",
+      "flow.yaml",
+      "--debug-output",
+      debug,
+    ],
+    {
+      encoding: "utf8",
+      timeout: 10_000,
+      env: { ...process.env, PATH: `${bin}:${process.env["PATH"]}`, DEVICE_ID: "" },
+    },
+  );
+
+  expect(result.error).toBeUndefined();
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain(
+    `SpringBoard did not answer testmanagerd's accessibility orientation query within XCTest's 30 s screenshot limit, so no screenshot could be taken. Late replies and SpringBoard spindumps, when the lane records them: ${debug}/springboard`,
+  );
+  expect(result.stderr).toContain("path: isScreenStatic");
 });
