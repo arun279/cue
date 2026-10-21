@@ -119,7 +119,7 @@ const EXCEPTIONS: readonly Exception[] = [
     checked: { package: "react-native-screens", version: "4.26.2" },
   },
   {
-    file: "app/_layout.tsx",
+    file: "src/RootStack.tsx",
     rule: "F",
     site: "headerShown",
     candidate: "a header on the root stack",

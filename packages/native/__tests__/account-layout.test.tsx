@@ -244,6 +244,24 @@ describe("a tab stack", () => {
     expect(screen.getByTestId("screen-up-next")).toBeOnTheScreen();
   });
 
+  it("titles the month jump beside its close: in the sheet's bar on iOS, above the months on Android", async () => {
+    await renderAt("/");
+    await act(() => router.push("/history"));
+    await act(() => router.push("/history-jump"));
+
+    if (Platform.OS === "android") {
+      expect(screen.getByRole("header", { name: "Jump to" })).toBeOnTheScreen();
+      return;
+    }
+    const bar = screen.container.queryAll((node) =>
+      (node.props["headerLeftBarButtonItems"] ?? []).some(
+        (item: { accessibilityLabel?: string }) => item.accessibilityLabel === "Close",
+      ),
+    )[0];
+    expect(bar?.props["title"]).toBe("Jump to");
+    expect(screen.queryByRole("header", { name: "Jump to" })).toBeNull();
+  });
+
   it("closes the month jump from its close button", async () => {
     const segments = await renderAt("/");
     await act(() => router.push("/history"));

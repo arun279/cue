@@ -1,18 +1,18 @@
-import { Stack, useRouter } from "expo-router";
+import { Stack } from "expo-router";
 import type { ReactElement } from "react";
 import { StyleSheet, View } from "react-native";
+import { enterFromOutside } from "../enter-from-outside";
 import { Button } from "../ui/Button";
 import { EmptyState } from "../ui/EmptyState";
 import { SPACE, useColors } from "../ui/tokens";
 
 export default function NotFound(): ReactElement {
-  const router = useRouter();
   const colors = useColors();
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg }]}>
       <Stack.Screen options={{ title: "Not found" }} />
       <EmptyState centered headline="That link doesn't go anywhere in Cue.">
-        <Button label="Go to Up Next" onPress={() => router.navigate("/")} />
+        <Button label="Go to Up Next" onPress={() => void enterFromOutside("/")} />
       </EmptyState>
     </View>
   );
