@@ -62,13 +62,8 @@ export function HeaderMenu({ title, items }: Pick<RowMenuProps, "title" | "items
   return <HeaderMenuItems title={title} items={items} onSelect={select} />;
 }
 
-const looksAlike = (a: RowMenuItem, b: RowMenuItem): boolean =>
-  a.id === b.id &&
-  a.label === b.label &&
-  a.available === b.available &&
-  a.destructive === b.destructive &&
-  a.selected === b.selected &&
-  a.image === b.image;
+const lookOf = ({ title, items }: Pick<RowMenuProps, "title" | "items">): string =>
+  JSON.stringify([title, items.map(({ onPress: _, ...look }) => look)]);
 
 const HeaderMenuItems = memo(
   function HeaderMenuItems({
@@ -105,13 +100,7 @@ const HeaderMenuItems = memo(
       </Stack.Toolbar>
     );
   },
-  (previous, next) =>
-    previous.title === next.title &&
-    previous.items.length === next.items.length &&
-    previous.items.every((item, index) => {
-      const other = next.items[index];
-      return other !== undefined && looksAlike(item, other);
-    }),
+  (previous, next) => lookOf(previous) === lookOf(next),
 );
 
 export function RowMenu({
