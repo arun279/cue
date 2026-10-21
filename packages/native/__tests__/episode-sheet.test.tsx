@@ -12,7 +12,8 @@ import { memoryPreferences, resetSharedStores } from "./support/up-next";
 
 jest.mock("expo-router", () => ({
   ...require("./support/native-ui").expoRouterModule(),
-  useLocalSearchParams: () => ({ showId: "8803", season: "2", episode: "4" }),
+  useLocalSearchParams: () => ({ showId: "8803", season: "2", episode: "3" }),
+  useNavigation: () => ({ addListener: () => () => {} }),
 }));
 
 beforeEach(() => {
@@ -123,6 +124,19 @@ it("closes from its close button while the episode loads", async () => {
   expect(screen.getByTestId(TEST_IDS.episodeSkeleton)).toBeOnTheScreen();
   await fireEvent.press(screen.getByRole("button", { name: "Close" }));
   expect(router.back).toHaveBeenCalledTimes(1);
+});
+
+it("pages to the next episode from the sheet when no snackbar covers the pager", async () => {
+  await render(
+    <DetailHarness>
+      <EpisodeRoute />
+    </DetailHarness>,
+  );
+
+  await fireEvent.press(await screen.findByTestId(TEST_IDS.episodePagerNext));
+
+  expect(screen.queryByTestId(TEST_IDS.snackbar)).toBeNull();
+  expect(router.replace).toHaveBeenCalledWith("/show/8803/episode/2/4");
 });
 
 it("says TV shows are off inside the sheet, reads nothing and still closes", async () => {

@@ -158,7 +158,6 @@ export function tabBarClearance(insetBottom: number): number {
   return Platform.OS === "ios" ? 40 + 56 : insetBottom + 80;
 }
 
-// An Android form sheet presented above the tabs reaches under the navigation bar, so its content clears it.
 export function sheetBottomInset(insetBottom: number): number {
   return Platform.OS === "android" ? insetBottom : 0;
 }

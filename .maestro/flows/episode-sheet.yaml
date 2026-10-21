@@ -36,6 +36,10 @@ appId: app.cuetracker
     id: "episode-mark-control"
 - runFlow: lib/settle.yaml
 - assertVisible: "Not watched yet"
+- extendedWaitUntil:
+    notVisible:
+      id: "snackbar"
+    timeout: 10000
 - tapOn:
     id: "episode-pager-next"
 - assertVisible:
