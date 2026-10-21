@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { expect, it } from "vitest";
+import { fakeBin } from "../support/fake-bin";
 import { repositoryPath } from "../support/repository-path";
 import { tempDirectory } from "../support/temp-directory";
 
@@ -11,13 +12,8 @@ const artifact = (id: number, head_repository_id: number) => ({
   workflow_run: { id: id * 10, repository_id: 1, head_repository_id },
 });
 
-function download(artifacts: ReturnType<typeof artifact>[]) {
-  const directory = tempDirectory("cue-download-artifact-");
-  const downloads = path.join(directory, "downloads");
-  writeFileSync(path.join(directory, "artifacts.json"), JSON.stringify({ artifacts }));
-  writeFileSync(
-    path.join(directory, "gh"),
-    `#!/bin/sh
+const bin = fakeBin({
+  gh: `#!/bin/sh
 while [ $# -gt 0 ]; do
   case "$1" in --jq) filter=$2; shift ;; repos/*) url=$1 ;; esac
   shift
@@ -28,9 +24,13 @@ case "$url" in
   */runs/*) echo success ;;
 esac
 `,
-    { mode: 0o755 },
-  );
-  writeFileSync(path.join(directory, "unzip"), "#!/bin/sh\n", { mode: 0o755 });
+  unzip: "#!/bin/sh\n",
+});
+
+function download(artifacts: ReturnType<typeof artifact>[]) {
+  const directory = tempDirectory("cue-download-artifact-");
+  const downloads = path.join(directory, "downloads");
+  writeFileSync(path.join(directory, "artifacts.json"), JSON.stringify({ artifacts }));
   const result = spawnSync(
     "bash",
     [repositoryPath("scripts/download-ci-artifact.sh"), "native-ios", path.join(directory, "out")],
@@ -38,7 +38,7 @@ esac
       encoding: "utf8",
       env: {
         ...process.env,
-        PATH: `${directory}:${process.env["PATH"]}`,
+        PATH: `${bin}:${process.env["PATH"]}`,
         FIXTURE_DIR: directory,
         GITHUB_REPOSITORY: "owner/cue",
         RUNNER_TEMP: directory,

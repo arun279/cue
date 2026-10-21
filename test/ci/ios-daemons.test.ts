@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { fakeBin } from "../support/fake-bin";
 import { repositoryPath } from "../support/repository-path";
 import { tempDirectory } from "../support/temp-directory";
 import { readWorkflowJobs } from "../support/workflow-jobs";
@@ -11,40 +12,36 @@ const DAEMONS = LIST.trimEnd()
   .split("\n")
   .map((row) => row.split("\t")[0] ?? "");
 
-function daemons(args: string[], listings: string[] = []) {
-  const root = tempDirectory("cue-ios-daemons-");
-  const calls = path.join(root, "calls");
-  writeFileSync(
-    path.join(root, "PlistBuddy"),
-    `#!/bin/sh
-echo "PlistBuddy $*" >> "${calls}"
+const daemonBin = fakeBin({
+  PlistBuddy: `#!/bin/sh
+echo "PlistBuddy $*" >> "$CALLS"
 case "$2" in
   Set*) grep -qxF "$2" "$3.keys" 2>/dev/null ;;
   Add*) echo "Set \${2#Add }" | sed 's/ bool / /' >> "$3.keys" ;;
 esac
 `,
-    { mode: 0o755 },
-  );
+  xcrun: `#!/bin/sh
+echo "xcrun $*" >> "$CALLS"
+case "$*" in *"launchctl list")
+  count=$(grep -c "launchctl list" "$CALLS")
+  cat "$DISABLED_STORE_ROOT/listing-$((count - 1))" 2>/dev/null || exit 3 ;;
+esac
+`,
+});
+
+function daemons(args: string[], listings: string[] = []) {
+  const root = tempDirectory("cue-ios-daemons-");
+  const calls = path.join(root, "calls");
   for (const [index, listing] of listings.entries()) {
     writeFileSync(path.join(root, `listing-${index}`), `PID\tStatus\tLabel\n${listing}`);
   }
-  writeFileSync(
-    path.join(root, "xcrun"),
-    `#!/bin/sh
-echo "xcrun $*" >> "${calls}"
-case "$*" in *"launchctl list")
-  count=$(grep -c "launchctl list" "${calls}")
-  cat "${root}/listing-$((count - 1))" 2>/dev/null || exit 3 ;;
-esac
-`,
-    { mode: 0o755 },
-  );
   const result = spawnSync("bash", [repositoryPath("scripts/disable-ios-daemons.sh"), ...args], {
     encoding: "utf8",
     env: {
       ...process.env,
-      PATH: `${root}:${process.env["PATH"]}`,
+      PATH: `${daemonBin}:${process.env["PATH"]}`,
       DISABLED_STORE_ROOT: root,
+      CALLS: calls,
     },
   });
   const made = existsSync(calls) ? readFileSync(calls, "utf8").trim().split("\n") : [];
@@ -148,22 +145,22 @@ describe("iOS lanes", () => {
 });
 
 describe("disable-spotlight.sh", () => {
+  const bin = fakeBin({
+    sudo: '#!/bin/sh\necho "sudo $*" >> "$CALLS"\necho "mdutil disabling Spotlight: / -> kMDConfigSearchLevelFSSearchOnly" >&2\nexit "$OFF"\n',
+    mdutil: `#!/bin/sh\necho "mdutil $*" >> "$CALLS"\nprintf '/:\\n\\t%s\\n' "$STATUS"\nexit "$CHECK"\n`,
+  });
   const spotlight = ({ off = 0, check = 0, status = "Indexing disabled." } = {}) => {
-    const root = tempDirectory("cue-spotlight-");
-    const calls = path.join(root, "calls");
-    writeFileSync(
-      path.join(root, "sudo"),
-      `#!/bin/sh\necho "sudo $*" >> "${calls}"\necho "mdutil disabling Spotlight: / -> kMDConfigSearchLevelFSSearchOnly" >&2\nexit ${off}\n`,
-      { mode: 0o755 },
-    );
-    writeFileSync(
-      path.join(root, "mdutil"),
-      `#!/bin/sh\necho "mdutil $*" >> "${calls}"\nprintf '/:\\n\\t%s\\n' "${status}"\nexit ${check}\n`,
-      { mode: 0o755 },
-    );
+    const calls = path.join(tempDirectory("cue-spotlight-"), "calls");
     const result = spawnSync("bash", [repositoryPath("scripts/disable-spotlight.sh")], {
       encoding: "utf8",
-      env: { ...process.env, PATH: `${root}:${process.env["PATH"]}` },
+      env: {
+        ...process.env,
+        PATH: `${bin}:${process.env["PATH"]}`,
+        CALLS: calls,
+        OFF: String(off),
+        CHECK: String(check),
+        STATUS: status,
+      },
     });
     return { result, calls: readFileSync(calls, "utf8").trim().split("\n") };
   };
