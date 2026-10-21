@@ -1,4 +1,5 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
 import { expect, it } from "vitest";
 import {
   collectionMoviesBody,
@@ -249,14 +250,65 @@ it("serves the probe's synthetic account at the scale of a long-time Trakt user"
   );
 });
 
-it("runs only when dispatched, so pull request and push CI never wait on it", () => {
-  const probe = readFileSync(repositoryPath(".github/workflows/perf-probe.yml"), "utf8");
-  const triggers = /^on:\n((?: {2}.*\n)+)/m.exec(probe)?.[1] ?? "";
+const WORKFLOWS = repositoryPath(".github/workflows");
 
-  expect([...triggers.matchAll(/^ {2}(\w[\w-]*):/gm)].map(([, name]) => name)).toEqual([
-    "workflow_dispatch",
+const triggersOf = (workflow: string) => {
+  const source = readFileSync(path.join(WORKFLOWS, workflow), "utf8");
+  const block = /^on:\n((?: {2}.*\n|\n)+)/m.exec(source)?.[1] ?? "";
+  return Object.fromEntries(
+    [...block.matchAll(/^ {2}(\w[\w-]*):(.*)\n((?: {4}.*\n)*)/gm)].map(([, name, , body]) => [
+      name,
+      body,
+    ]),
+  );
+};
+
+/** A push trigger's branch filters; a push trigger without them matches every branch. */
+const pushBranches = (body: string): string[] => {
+  const list = /^ {4}branches: \[(.*)\]$/m.exec(body)?.[1];
+  return list === undefined
+    ? ["**"]
+    : list.split(",").map((entry) => entry.trim().replaceAll('"', ""));
+};
+
+const escaped = (text: string) => text.replaceAll(/[.+?^$()|[\]\\{}]/g, "\\$&");
+
+/** GitHub's branch filter syntax: `*` stays within one path segment, `**` crosses them. */
+const filterMatches = (pattern: string, branch: string) => {
+  const segments = pattern.split("**").map((part) => part.split("*").map(escaped).join("[^/]*"));
+  return new RegExp(`^${segments.join(".*")}$`).test(branch);
+};
+
+it("matches branch filters the way GitHub does", () => {
+  expect(filterMatches("perf-probe/**", "perf-probe/base/147")).toBe(true);
+  expect(filterMatches("release/*", "release/1.2")).toBe(true);
+  expect(filterMatches("release/*", "release/1/2")).toBe(false);
+  expect(filterMatches("main", "perf-probe/main")).toBe(false);
+});
+
+it("runs only on perf-probe/** pushes or dispatch, and nothing else runs on those pushes", () => {
+  const probe = triggersOf("perf-probe.yml");
+  const others = readdirSync(WORKFLOWS).filter(
+    (name) => name.endsWith(".yml") && name !== "perf-probe.yml",
+  );
+  const alsoTriggered = others.filter((workflow) => {
+    const push = triggersOf(workflow).push;
+    return (
+      push !== undefined &&
+      pushBranches(push).some((filter) => filterMatches(filter, "perf-probe/baseline"))
+    );
+  });
+
+  expect(Object.keys(probe)).toEqual(["push", "workflow_dispatch"]);
+  expect(pushBranches(probe.push ?? "")).toEqual(["perf-probe/**"]);
+  expect(pushBranches(triggersOf("ci.yml").push ?? "")).toEqual([
+    "main",
+    "feat/expo-native",
+    "release/*",
   ]);
-  expect(readFileSync(repositoryPath(".github/workflows/ci.yml"), "utf8")).not.toMatch(
+  expect(others).toContain("ci.yml");
+  expect(alsoTriggered).toEqual([]);
+  expect(readFileSync(path.join(WORKFLOWS, "ci.yml"), "utf8")).not.toMatch(
     /perf-probe|\.maestro\/perf\//,
   );
 });
