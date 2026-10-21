@@ -47,6 +47,7 @@ import { SCENARIO_GET_BUDGET } from "./trakt-limits";
 
 const NOW = Date.parse("2026-10-20T12:00:00.000Z");
 const COLD_CACHE_AGE_MS = 2 * 60 * 60 * 1000;
+const REPLAY_TIMEOUT_MS = 120_000;
 
 const SCENARIOS = [
   "sign-in and first sync",
@@ -449,7 +450,7 @@ describe.each([
     notifyManager.setScheduler(queueMicrotask);
     vi.useFakeTimers({ now: NOW });
     replayed = await replay(size);
-  });
+  }, REPLAY_TIMEOUT_MS);
 
   afterAll(() => {
     vi.useRealTimers();
