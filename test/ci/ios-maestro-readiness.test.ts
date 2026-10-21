@@ -126,6 +126,8 @@ it.each([false, true])("prepares the app with a Maestro cache hit of %s", (cache
     "xcrun",
     "xcrun",
     "xcrun",
+    "sudo",
+    "mdutil",
     "xcrun",
     "xcrun",
     "xcrun",
@@ -178,10 +180,10 @@ function preparation(cached: boolean) {
   const stubs = path.join(root, "stubs.sh");
   writeFileSync(
     stubs,
-    ["curl", "shasum", "unzip", "xcrun", "node", "sysctl", "vm_stat", "ps"]
+    ["curl", "shasum", "unzip", "xcrun", "node", "sysctl", "vm_stat", "ps", "sudo", "mdutil"]
       .map(
         (command) =>
-          `${command}() {\n${command === "shasum" ? "  cat > /dev/null\n" : ""}  printf "%s\\n" "${command} $*" >> "$PROBE_CALLS"\n  ${["sysctl", "vm_stat", "ps"].includes(command) ? `echo "${command} $*"\n  ` : ""}case "${command} $*" in "$FAIL_COMMAND "*) return 17 ;; esac\n}\n`,
+          `${command}() {\n${command === "shasum" ? "  cat > /dev/null\n" : ""}  printf "%s\\n" "${command} $*" >> "$PROBE_CALLS"\n  ${["sysctl", "vm_stat", "ps"].includes(command) ? `echo "${command} $*"\n  ` : ""}${command === "mdutil" ? 'echo "Indexing disabled."\n  ' : ""}case "${command} $*" in "$FAIL_COMMAND "*) return 17 ;; esac\n}\n`,
       )
       .join(""),
   );

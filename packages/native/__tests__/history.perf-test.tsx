@@ -20,6 +20,6 @@ function RewatchedRow(): ReactElement {
 
 test("history row removes one play", async () => {
   await measureRenders(<RewatchedRow />, {
-    scenario: async (screen) => fireEvent.press(screen.getByTestId("history-row-0-check")),
+    scenario: async (screen) => fireEvent.press(screen.getByTestId("remove")),
   });
 });

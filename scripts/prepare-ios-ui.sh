@@ -19,6 +19,7 @@ echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
 xcrun simctl install "$device_id" "$app"
 xcrun simctl bootstatus "$device_id" -b
 scripts/disable-ios-daemons.sh "$device_id" --booted
+scripts/disable-spotlight.sh
 xcrun simctl ui "$device_id" content_size medium
 xcrun simctl ui "$device_id" appearance "$appearance"
 xcrun simctl spawn "$device_id" defaults write com.apple.keyboard.preferences \

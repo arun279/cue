@@ -250,7 +250,7 @@ describe("fast pull request validation", () => {
     expect(returning).toContain('id: "up-next-list"');
     expect(returning).not.toMatch(/repeat:|copyTextFrom|evalScript/);
     expect(feedback).toMatch(/tapOn:[\s\S]*snackbar-undo[\s\S]*assertNotVisible:/);
-    expect(feedback).toMatch(/text: \$\{output\.markLabel\}/);
+    expect(feedback).toMatch(/text: \$\{output\.rowLabel\}/);
     expect(`${workflow}${returning}${feedback}`).not.toMatch(
       /RESPONSE_SAMPLES|APP_IDLE_CEILING_MS|FEEDBACK_CEILING_MS|REFERENCE_READ_MS|response-timing|summarize-app-idle|CUE_APP_IDLE_SAMPLES/,
     );
@@ -691,8 +691,10 @@ describe("fast pull request validation", () => {
       "check-runner-survives-freeze.sh",
       "check-tap-lead-in.mjs",
       "disable-ios-daemons.sh",
+      "disable-spotlight.sh",
       "download-ci-artifact.sh",
       "enable-ios-accessibility.sh",
+      "lane-health.mjs",
       "maestro-failure.mjs",
       "maestro-runner.mjs",
       "maestro-supervisor.mjs",
@@ -703,7 +705,6 @@ describe("fast pull request validation", () => {
       "mock-trakt/server.mjs",
       "prepare-ios-ui.sh",
       "reembed-ios.sh",
-      "screenshot-watch.mjs",
       "snapshot-host-resources.sh",
       "start-ready-process.mjs",
       "wait-ios-accessibility.mjs",

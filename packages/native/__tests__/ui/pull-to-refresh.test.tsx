@@ -3,7 +3,7 @@ import type { ReactElement, ReactNode } from "react";
 import { usePullToRefresh } from "../../src/hooks/usePullToRefresh";
 import { AppIdle } from "../../src/ui/AppIdle";
 import { HARNESS_IDS } from "../../src/ui/harness-ids";
-import { fakeRuntime, Harness, spyHaptics } from "../support/up-next";
+import { fakeRuntime, Harness, held, spyHaptics } from "../support/up-next";
 
 jest.mock(
   "react-native-safe-area-context",
@@ -45,23 +45,25 @@ beforeEach(() => {
 });
 
 /**
- * The gesture and the nav bar item run one pass, and a pull the app cannot
- * honour ends rather than pretending. Both halves matter: a refresh that spins
- * against a closed rate limit window is the honesty gap this hook closes, and
- * two entry points that do different things is the divergence it prevents.
+ * A pull runs the manual sync pass and shows the platform indicator for as long
+ * as that pass runs, and a pull the app cannot honour ends rather than pretending.
  */
 describe("pull to refresh", () => {
-  it("runs the one manual sync pass, and shows it running", async () => {
-    const flushWrites = jest.fn(() => Promise.resolve(0));
-    const { result } = await mount(flushWrites);
+  it("shows the indicator exactly while the sync pass runs", async () => {
+    const flush = held<number>();
+    const { result } = await mount(flush.call);
 
     await act(async () => {
       result.current.pull();
     });
 
-    expect(flushWrites).toHaveBeenCalledTimes(1);
-    expect(result.current.refreshing).toBe(false);
+    expect(flush.call).toHaveBeenCalledTimes(1);
+    expect(result.current.refreshing).toBe(true);
     expect(haptics.warning).not.toHaveBeenCalled();
+
+    await act(async () => flush.release(0));
+
+    expect(result.current.refreshing).toBe(false);
   });
 
   it("ends immediately on cached data inside a rate limit pause, and says so in the fingers", async () => {
@@ -79,24 +81,13 @@ describe("pull to refresh", () => {
     expect(haptics.warning).toHaveBeenCalledTimes(1);
     expect(flushWrites).not.toHaveBeenCalled();
   });
-
-  it("gives the nav bar item the same pass, so the two cannot drift", async () => {
-    const flushWrites = jest.fn(() => Promise.resolve(0));
-    const { result } = await mount(flushWrites);
-
-    await act(async () => {
-      result.current.sync();
-    });
-
-    expect(flushWrites).toHaveBeenCalledTimes(1);
-  });
 });
 
-it.each(["pull", "sync"] as const)("publishes one durable receipt for %s", async (input) => {
+it("publishes one durable receipt for a pull", async () => {
   const { result } = await mount(async () => 0);
   const before = screen.getByTestId(HARNESS_IDS.operationStarted).props["accessibilityLabel"];
   const next = Number(before.match(/sync ([0-9]+)/)[1]) + 1;
-  await act(async () => result.current[input]());
+  await act(async () => result.current.pull());
   expect(screen.getByTestId(HARNESS_IDS.operationCompleted)).toHaveAccessibleName(
     new RegExp(`sync ${next} done;`),
   );

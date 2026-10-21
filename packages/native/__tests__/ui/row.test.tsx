@@ -1,6 +1,5 @@
 import { render, screen, userEvent } from "@testing-library/react-native";
-import { View } from "react-native";
-import { CheckControl } from "../../src/ui/CheckControl";
+import { Pressable, View } from "react-native";
 import { Row, Separator } from "../../src/ui/Row";
 import { ROW_MIN_HEIGHT } from "../../src/ui/tokens";
 import { CueText } from "../../src/ui/type";
@@ -17,12 +16,7 @@ function queueRow() {
       minHeight={ROW_MIN_HEIGHT.queue}
       leading={<View testID="poster" />}
       trailing={
-        <CheckControl
-          checked={false}
-          label="Mark The Long Way watched"
-          onPress={jest.fn()}
-          testID="row-mark"
-        />
+        <Pressable accessibilityRole="button" accessibilityLabel="More actions" testID="row-more" />
       }
       onPress={jest.fn()}
       testID="queue-row"
@@ -41,8 +35,8 @@ it("is two accessibility elements: the body under one composed label, the contro
     name: "The Quiet Frontier, S2 E10, The Long Way, 1 left",
   });
   expect(body).toBe(screen.getByTestId("queue-row"));
-  expect(body).not.toContainElement(screen.getByTestId("row-mark"));
-  expect(screen.getByRole("switch", { name: "Mark The Long Way watched" })).toBeOnTheScreen();
+  expect(body).not.toContainElement(screen.getByTestId("row-more"));
+  expect(screen.getByRole("button", { name: "More actions" })).toBeOnTheScreen();
 });
 
 it("grows from a minimum rather than taking a height", async () => {

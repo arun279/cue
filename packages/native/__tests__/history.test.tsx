@@ -1,6 +1,6 @@
 import { historyRange } from "@cue/core/domain/history";
 import type { CueRuntime, SubmitOutcome } from "@cue/core/runtime/runtime";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react-native";
 import { HistoryScreen } from "../src/screens/history/HistoryScreen";
 import { HISTORY, historyEntry, historyParams, historyRouter } from "./support/history";
 import { fakeRuntime, Harness, spyHaptics } from "./support/up-next";
@@ -31,6 +31,8 @@ async function paint(value = runtime()): Promise<void> {
   );
 }
 
+const removePlay = () => within(screen.getByTestId("history-row-0-menu")).getByTestId("remove");
+
 beforeEach(() => {
   jest.useFakeTimers();
   jest.clearAllMocks();
@@ -54,11 +56,11 @@ test("collapses one item per local day, counts plays and removes newest first", 
   expect(screen.queryByTestId("history-row-1")).toBeNull();
   expect(screen.getByText("×3", { includeHiddenElements: true })).toBeOnTheScreen();
   expect(screen.getByTestId("history-day-header-0")).toHaveTextContent(/3 movies$/);
-  await fireEvent.press(screen.getByTestId("history-row-0-check"));
+  await fireEvent.press(removePlay());
   expect(submit.mock.calls[0]?.[0].request.body).toEqual({ ids: [3] });
   expect(screen.getByText("Removed 1 play · 2 remain")).toBeOnTheScreen();
   expect(screen.getByText("×2", { includeHiddenElements: true })).toBeOnTheScreen();
-  await fireEvent.press(screen.getByTestId("history-row-0-check"));
+  await fireEvent.press(removePlay());
   expect(submit.mock.calls[1]?.[0].request.body).toEqual({ ids: [2] });
 });
 
@@ -75,7 +77,8 @@ test.each([
     .mockReturnValueOnce(pending)
     .mockResolvedValue("deferred");
   await paint(runtime({ submit }));
-  await fireEvent.press(await screen.findByTestId("history-row-0-check"));
+  await screen.findByTestId("history-row-0");
+  await fireEvent.press(removePlay());
   await fireEvent.press(screen.getByText("Undo"));
   expect(submit).toHaveBeenCalledTimes(1);
   await act(async () => settle(outcome));

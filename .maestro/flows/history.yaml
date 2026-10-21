@@ -17,14 +17,24 @@ appId: app.cuetracker
 - assertVisible:
     id: "history-row-0"
     text: ".*, 2 plays"
-- assertVisible:
-    id: "history-row-0-check"
 - runFlow:
     file: lib/prepare-operation.yaml
     env:
       OPERATION: write
-- tapOn:
-    id: "history-row-0-check"
+# One menu per row: iOS opens it by long press, Android from the row's more icon.
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - longPressOn:
+          id: "history-row-0"
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - tapOn:
+          id: "history-row-0-menu"
+- tapOn: "Remove this play"
 - runFlow: lib/settle.yaml
 - assertVisible:
     id: "snackbar-undo"
@@ -74,7 +84,7 @@ appId: app.cuetracker
       - tapOn:
           text: "Search"
           rightOf:
-            text: "Sync now"
+            text: "History"
 - runFlow:
     when:
       platform: iOS

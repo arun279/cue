@@ -43,7 +43,7 @@ it("draws the same monogram in the bar and on Profile for an account without a p
       Promise.resolve({ displayName: "Jo Taylor", username: "jo", avatar: null }),
   }).paint(
     <>
-      <BarItems onSync={jest.fn()} />
+      <BarItems />
       <Profile />
     </>,
   );
