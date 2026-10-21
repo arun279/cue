@@ -21,6 +21,7 @@ import { initialWindowMetrics, SafeAreaProvider } from "react-native-safe-area-c
 import { bootNativeStores } from "../src/boot";
 import { NATIVE_REDIRECT_URI, TRAKT_BASE_OVERRIDE, TRAKT_CLIENT_ID } from "../src/config";
 import { nativeCrypto } from "../src/crypto";
+import { useHeldNavigation } from "../src/enter-from-outside";
 import { nativeAppVersion } from "../src/platform/app-version";
 import { nativeAppVisibility } from "../src/platform/app-visibility";
 import { createNativeHaptics } from "../src/platform/haptics";
@@ -41,6 +42,7 @@ import {
   preferenceStorage,
   secureStore,
 } from "../src/platform/stores";
+import { PRESENTATIONS } from "../src/presentation";
 import { useAppearance } from "../src/screens/account/ThemeControl";
 import { Onboarding } from "../src/screens/Onboarding";
 import { RuntimeBoot, type RuntimeBootProps } from "../src/screens/RuntimeBoot";
@@ -52,6 +54,8 @@ import { TEST_IDS } from "../src/ui/test-ids";
 import { useFontsSettled } from "../src/ui/type";
 
 void SplashScreen.preventAutoHideAsync().catch(() => {});
+
+export const unstable_settings = { initialRouteName: "(tabs)" };
 
 const prefsStore = createPrefsStore(preferenceStorage);
 const haptics = createNativeHaptics(() => prefsStore.getState().hapticsEnabled);
@@ -136,13 +140,15 @@ function Gate({ runtimeDeps }: Pick<NativeSession, "runtimeDeps">): ReactElement
 function RoutedApp(): ReactElement {
   useActivitiesPoll();
   useEpisodeReminders();
+  useHeldNavigation();
   useOpenTappedReminder();
 
   return (
     <View style={styles.root}>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="(account)" options={{ presentation: "fullScreenModal" }} />
+        <Stack.Screen name="(account)" options={{ presentation: PRESENTATIONS["(account)"] }} />
+        <Stack.Screen name="+not-found" options={{ headerShown: true }} />
       </Stack>
       <SnackbarHost placement="root" />
       <SnackbarRouteDismissal />

@@ -148,9 +148,11 @@ describe("the post-mark projection over the seeded catalogue", () => {
         const entry: LibraryEntry = {
           showId: show.trakt,
           title: show.title,
+          year: null,
           status: show.status,
           hidden: false,
           inWatchlist: false,
+          addedAt: null,
           lastWatchedAt: null,
           aired: aired.length,
           completed: index,
@@ -165,6 +167,7 @@ describe("the post-mark projection over the seeded catalogue", () => {
           lastAired: last === undefined ? null : { season: last.season, number: last.number },
           tmdbId: show.tmdb,
           runtime: show.runtime,
+          posters: [],
           pendingAdvance: false,
         };
         const projected = advancePastNext(
@@ -394,18 +397,25 @@ describe("the seeded account fills the surfaces the harness exists to demo", () 
     expect(groups.lapsed.length).toBeGreaterThan(0);
     expect(entries.some((entry) => entry.inWatchlist && entry.completed === 0)).toBe(true);
   });
+
+  it("carries a never-started collection in the hundreds, each title with its poster", async () => {
+    const entries = await loadUpNextEntries(client());
+    const notStarted = entries.filter((entry) => entry.completed === 0);
+    expect(notStarted.length).toBeGreaterThan(300);
+    expect(notStarted.every((entry) => entry.posters.length > 0 && entry.addedAt !== null)).toBe(
+      true,
+    );
+  });
 });
 
 describe("seed profiles", () => {
   it("keeps the default account unchanged", async () => {
     const response = await fetch(`${baseUrl}/__reset`, { method: "POST" });
     expect(await response.json()).toEqual({ reset: true });
-    expect(mock.library.shows.map((show) => show.trakt)).toEqual([
-      8801, 8802, 8803, 8804, 8805, 8806, 8807, 8808,
-    ]);
-    expect(mock.library.movies.map((movie) => movie.trakt)).toEqual([
-      5501, 5502, 5503, 5504, 5505, 5506, 5507, 5508,
-    ]);
+    const written = (items: readonly { shelf?: boolean; trakt: number }[]) =>
+      items.filter((item) => item.shelf !== true).map((item) => item.trakt);
+    expect(written(mock.library.shows)).toEqual([8801, 8802, 8803, 8804, 8805, 8806, 8807, 8808]);
+    expect(written(mock.library.movies)).toEqual([5501, 5502, 5503, 5504, 5505, 5506, 5507, 5508]);
   });
 
   it("moves every activity the app diffs past the replaced account's, even a write's", async () => {

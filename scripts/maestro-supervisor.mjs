@@ -1,6 +1,12 @@
 import { spawn } from "node:child_process";
+import path from "node:path";
+import { watchScreenshots } from "./screenshot-watch.mjs";
 
 const args = process.argv.slice(2);
+const debugOutput = args.includes("--debug-output")
+  ? args[args.indexOf("--debug-output") + 1]
+  : undefined;
+const springBoard = debugOutput && path.join(debugOutput, "springboard");
 const history = [];
 const tails = new Map();
 let driverAnswered = Boolean(process.env.USE_XCODE_TEST_RUNNER);
@@ -42,8 +48,20 @@ function inspect(source, text) {
       console.error(`XCTest driver died during startup\n${history.join("\n")}`);
       killGroup();
     }
+    if (/Timed out while requesting screenshot/.test(line)) {
+      failed = true;
+      console.error(
+        `SpringBoard did not answer testmanagerd's accessibility orientation query within XCTest's 30 s screenshot limit, so no screenshot could be taken. Late replies and SpringBoard spindumps, when the lane records them: ${springBoard}\n${history.join("\n")}`,
+      );
+      killGroup();
+    }
   }
 }
+
+const stopWatching =
+  process.env.DEVICE_ID && springBoard
+    ? watchScreenshots({ device: process.env.DEVICE_ID, directory: springBoard })
+    : () => {};
 
 child = spawn("maestro", ["--verbose", ...args], {
   detached: true,
@@ -58,6 +76,7 @@ for (const name of ["stdout", "stderr"]) {
 }
 child.on("error", (error) => console.error(`Cannot start Maestro: ${error.message}`));
 child.on("close", (code, signal) => {
+  stopWatching();
   process.exitCode = failed ? 1 : (code ?? (signal === "SIGINT" ? 130 : 1));
 });
 for (const [signal, code] of [
@@ -65,6 +84,7 @@ for (const [signal, code] of [
   ["SIGTERM", 143],
 ]) {
   process.on(signal, () => {
+    stopWatching();
     killGroup();
     process.exit(code);
   });

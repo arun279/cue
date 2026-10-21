@@ -5,14 +5,15 @@ import {
   type LibraryShow,
 } from "../../domain/model/library";
 import { type EpisodePlay, MARK_MATCH_TOLERANCE_MS } from "../../domain/reversal";
-import { isAired, toMs } from "../../domain/time";
+import { isAired, laterOf, toMs } from "../../domain/time";
 import { resolveStill } from "../image-source";
-import type { HiddenItem, Progress, WatchedShow, WatchlistItem } from "./schemas";
+import type { CollectionShow, HiddenItem, Progress, WatchedShow, WatchlistItem } from "./schemas";
 import { toEpisodeIds } from "./show-detail";
 
 export interface LibraryEntry extends LibraryShow {
   readonly tmdbId: number | null;
   readonly runtime: number | null;
+  readonly posters: readonly string[];
 }
 
 export interface MarkContext {
@@ -25,10 +26,17 @@ export interface LibraryInput {
   readonly progress: ReadonlyMap<number, Progress>;
   readonly hiddenShowIds: ReadonlySet<number>;
   readonly watchlistShows: readonly WatchlistItem[];
+  readonly collectionShows: readonly CollectionShow[];
 }
 
 type SchemaEpisode = NonNullable<Progress["next_episode"]>;
 type SchemaShow = NonNullable<WatchlistItem["show"]>;
+
+interface Saved {
+  readonly show: SchemaShow;
+  readonly addedAt: string | null;
+  readonly inWatchlist: boolean;
+}
 
 function toEpisodeRef(ep: SchemaEpisode): EpisodeRef {
   return {
@@ -45,15 +53,16 @@ function toWatchedEntry(
   watched: WatchedShow,
   progress: Progress | undefined,
   hidden: boolean,
-  inWatchlist: boolean,
+  saved: Saved | undefined,
 ): LibraryEntry {
   const { show } = watched;
   return {
     showId: show.ids.trakt,
     title: show.title,
+    year: show.year ?? null,
     status: show.status ?? "",
     hidden,
-    inWatchlist,
+    ...savedFields(saved),
     lastWatchedAt: watched.last_watched_at ?? null,
     ...progressOf(watched, progress),
     lastAired: lastAiredKey(progress, watched),
@@ -81,13 +90,27 @@ function progressOf(
   };
 }
 
-function toWatchlistEntry(show: SchemaShow, hidden: boolean): LibraryEntry {
+// Trakt's watched list carries no images, so a title's poster comes from the watchlist or collection.
+function savedFields(
+  saved: Saved | undefined,
+): Pick<LibraryEntry, "inWatchlist" | "addedAt" | "posters"> {
+  if (saved === undefined) return { inWatchlist: false, addedAt: null, posters: [] };
+  return {
+    inWatchlist: saved.inWatchlist,
+    addedAt: saved.addedAt,
+    posters: saved.show.images?.poster ?? [],
+  };
+}
+
+function toNotStartedEntry(saved: Saved, hidden: boolean): LibraryEntry {
+  const { show } = saved;
   return {
     showId: show.ids.trakt,
     title: show.title,
+    year: show.year ?? null,
     status: show.status ?? "",
     hidden,
-    inWatchlist: true,
+    ...savedFields(saved),
     lastWatchedAt: null,
     aired: 0,
     completed: 0,
@@ -99,12 +122,24 @@ function toWatchlistEntry(show: SchemaShow, hidden: boolean): LibraryEntry {
   };
 }
 
-export function assembleLibrary(input: LibraryInput): LibraryEntry[] {
-  const watchlistById = new Map<number, SchemaShow>();
-  for (const { show } of input.watchlistShows) {
-    if (show !== undefined) watchlistById.set(show.ids.trakt, show);
-  }
+function savedShows(input: LibraryInput): Map<number, Saved> {
+  const saved = new Map<number, Saved>();
+  const add = (show: SchemaShow | undefined, addedAt: string | null, inWatchlist: boolean) => {
+    if (show === undefined) return;
+    const known = saved.get(show.ids.trakt) ?? { show, addedAt: null, inWatchlist: false };
+    saved.set(show.ids.trakt, {
+      show: known.show,
+      addedAt: laterOf(known.addedAt, addedAt),
+      inWatchlist: known.inWatchlist || inWatchlist,
+    });
+  };
+  for (const item of input.watchlistShows) add(item.show, item.listed_at ?? null, true);
+  for (const item of input.collectionShows) add(item.show, item.last_collected_at ?? null, false);
+  return saved;
+}
 
+export function assembleLibrary(input: LibraryInput): LibraryEntry[] {
+  const saved = savedShows(input);
   const watchedIds = new Set(input.watchedShows.map(({ show }) => show.ids.trakt));
   const watchedEntries = input.watchedShows.map((watched) => {
     const trakt = watched.show.ids.trakt;
@@ -112,13 +147,13 @@ export function assembleLibrary(input: LibraryInput): LibraryEntry[] {
       watched,
       input.progress.get(trakt),
       input.hiddenShowIds.has(trakt),
-      watchlistById.has(trakt),
+      saved.get(trakt),
     );
   });
-  const watchlistEntries = [...watchlistById]
+  const notStartedEntries = [...saved]
     .filter(([trakt]) => !watchedIds.has(trakt))
-    .map(([trakt, show]) => toWatchlistEntry(show, input.hiddenShowIds.has(trakt)));
-  return [...watchedEntries, ...watchlistEntries];
+    .map(([trakt, entry]) => toNotStartedEntry(entry, input.hiddenShowIds.has(trakt)));
+  return [...watchedEntries, ...notStartedEntries];
 }
 
 // Trakt's aired_episodes excludes specials (season 0).

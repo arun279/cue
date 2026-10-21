@@ -106,3 +106,30 @@ it("replaces the episode route and names an exhausted direction", async () => {
   expect(router.replace).toHaveBeenCalledWith("/show/8803/episode/2/4");
   expect(router.push).not.toHaveBeenCalled();
 });
+
+it("closes from its close button while the episode loads", async () => {
+  const runtime = { ...detailRuntime, loadEpisode: jest.fn(() => new Promise<never>(() => {})) };
+  await render(
+    <DetailHarness runtime={runtime}>
+      <EpisodeSheet showId={8803} season={2} episode={4} />
+    </DetailHarness>,
+  );
+
+  expect(screen.getByTestId(TEST_IDS.episodeSkeleton)).toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole("button", { name: "Close" }));
+  expect(router.back).toHaveBeenCalledTimes(1);
+});
+
+it("offers one menu for a watched episode beside its close button", async () => {
+  const watched = { ...detail, number: 4, watched: true, watchedAt: "2026-10-01T20:00:00Z" };
+  const runtime = { ...detailRuntime, loadEpisode: jest.fn(async () => watched) };
+  await render(
+    <DetailHarness runtime={runtime}>
+      <EpisodeSheet showId={8803} season={2} episode={4} />
+    </DetailHarness>,
+  );
+
+  expect(await screen.findAllByText("Add another play")).toHaveLength(1);
+  await fireEvent.press(screen.getByRole("button", { name: "Close" }));
+  expect(router.back).toHaveBeenCalledTimes(1);
+});

@@ -25,9 +25,11 @@ export function epCode(season: number, number: number): string {
 export interface LibraryShow {
   readonly showId: number;
   readonly title: string;
+  readonly year: number | null;
   readonly status: string;
   readonly hidden: boolean;
   readonly inWatchlist: boolean;
+  readonly addedAt: string | null;
   readonly lastWatchedAt: string | null;
   readonly aired: number;
   readonly completed: number;

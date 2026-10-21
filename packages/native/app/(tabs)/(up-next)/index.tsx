@@ -21,7 +21,7 @@ import { type QueryStatus, queryStatus } from "@cue/core/queries/freshness";
 import { useRuntime } from "@cue/core/runtime/runtime";
 import { useQuery } from "@tanstack/react-query";
 import { Stack, useRouter } from "expo-router";
-import { type ReactElement, useMemo, useState } from "react";
+import { type ReactElement, useEffect, useMemo, useRef, useState } from "react";
 import { RefreshControl, SectionList, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePullToRefresh } from "../../../src/hooks/usePullToRefresh";
@@ -149,12 +149,18 @@ export default function UpNext(): ReactElement {
   const [lapsedOpen, setLapsedOpen] = useState(false);
   const branch = branchOf(view, showsEnabled);
   const sectioned = SECTIONED.includes(branch);
-  const sections: UpNextSection[] = [
-    { key: "queue", data: view.queue },
-    ...(sectioned && view.lapsedCards.length > 0
-      ? [{ key: "lapsed" as const, data: lapsedOpen ? view.lapsedCards : [] }]
-      : []),
-  ];
+  const list = useRef<SectionList<UpNextCard, UpNextSection>>(null);
+  useEffect(() => {
+    if (!sectioned) list.current?.getScrollResponder()?.scrollTo({ y: 0, animated: false });
+  }, [sectioned]);
+  const sections: UpNextSection[] = sectioned
+    ? [
+        { key: "queue", data: view.queue },
+        ...(view.lapsedCards.length > 0
+          ? [{ key: "lapsed" as const, data: lapsedOpen ? view.lapsedCards : [] }]
+          : []),
+      ]
+    : [];
 
   return (
     <TabRoot testID={TEST_IDS.screenUpNext}>
@@ -166,6 +172,7 @@ export default function UpNext(): ReactElement {
       />
       <BarItems />
       <SectionList
+        ref={list}
         testID={TEST_IDS.upNextList}
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={{ paddingBottom: tabBarClearance(insets.bottom) + SPACE.s4 }}

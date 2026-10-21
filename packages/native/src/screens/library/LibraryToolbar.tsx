@@ -1,3 +1,4 @@
+import type { LibrarySort } from "@cue/core/domain/library-buckets";
 import type { ReactElement } from "react";
 import { StyleSheet, View } from "react-native";
 import { Glyph } from "../../ui/Glyph";
@@ -12,23 +13,23 @@ const SEGMENTS: readonly SegmentOption<Segment>[] = [
   { value: "movies", label: "Movies", testID: TEST_IDS.librarySegmentMovies },
 ];
 
-export interface LibraryToolbarProps<T extends string> {
+export interface LibraryToolbarProps {
   readonly bothMedia: boolean;
   readonly segment: Segment;
   onSegment(segment: Segment): void;
-  readonly sorts: readonly SortOption<T>[];
-  readonly sort: T;
-  onSort(sort: T): void;
+  readonly sorts: readonly SortOption[];
+  readonly sort: LibrarySort;
+  onSort(sort: LibrarySort): void;
 }
 
-export function LibraryToolbar<T extends string>({
+export function LibraryToolbar({
   bothMedia,
   segment,
   onSegment,
   sorts,
   sort,
   onSort,
-}: LibraryToolbarProps<T>): ReactElement {
+}: LibraryToolbarProps): ReactElement {
   const colors = useColors();
 
   return (

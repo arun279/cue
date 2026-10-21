@@ -28,6 +28,7 @@ jest.mock("expo-router", () => ({
 jest.mock("@expo/ui/community/menu", () => ({
   MenuView: jest.fn(require("./support/native-ui").menuModule().MenuView),
 }));
+jest.mock("@expo/ui/jetpack-compose", () => require("./support/native-ui").composeModule());
 jest.mock("react-native-gesture-handler/ReanimatedSwipeable", () =>
   require("./support/native-ui").swipeableModule(),
 );

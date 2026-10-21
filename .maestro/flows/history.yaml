@@ -59,14 +59,12 @@ appId: app.cuetracker
     id: "history-jump-sheet"
 - waitForAnimationToEnd
 - takeScreenshot: history-jump
+# iOS closes the sheet from its close button; Android also has system back.
 - runFlow:
     when:
       platform: iOS
     commands:
-      - swipe:
-          from:
-            id: "sheet-presented"
-          direction: DOWN
+      - tapOn: "Close"
 - runFlow:
     when:
       platform: Android
@@ -126,3 +124,12 @@ appId: app.cuetracker
     id: "screen-history"
 - waitForAnimationToEnd
 - takeScreenshot: history-month
+- runFlow:
+    file: lib/back.yaml
+    env:
+      BACK_TITLE: "Profile"
+- assertVisible:
+    id: "screen-profile"
+- runFlow: lib/leave-profile.yaml
+- assertVisible:
+    id: "screen-up-next"

@@ -35,9 +35,11 @@ export function entry(overrides: Partial<LibraryEntry> = {}): LibraryEntry {
   return {
     showId: 8801,
     title: "Harbor Lights",
+    year: null,
     status: "returning series",
     hidden: false,
     inWatchlist: false,
+    addedAt: null,
     lastWatchedAt: agesAgo(2),
     aired: 21,
     completed: 18,
@@ -52,6 +54,7 @@ export function entry(overrides: Partial<LibraryEntry> = {}): LibraryEntry {
     lastAired: { season: 3, number: 5 },
     tmdbId: null,
     runtime: null,
+    posters: [],
     pendingAdvance: false,
     ...overrides,
   };

@@ -169,7 +169,7 @@ describe("request budgets", () => {
     let start = entries().length;
     const library = await cue.loadUpNext();
     const coldStart = since(start);
-    expect(coldStart).toHaveLength(8);
+    expect(coldStart).toHaveLength(9);
     expect(coldStart.filter((entry) => entry.path === "/sync/watched/shows")).toHaveLength(1);
     expect(
       coldStart.filter((entry) => /\/shows\/\d+\/progress\/watched/.test(entry.path)),
@@ -178,6 +178,7 @@ describe("request budgets", () => {
       coldStart.filter((entry) => entry.path === "/users/hidden/progress_watched"),
     ).toHaveLength(1);
     expect(coldStart.filter((entry) => entry.path === "/sync/watchlist/shows")).toHaveLength(1);
+    expect(coldStart.filter((entry) => entry.path === "/sync/collection/shows")).toHaveLength(1);
 
     const first = library.entries.find((entry) => entry.nextEpisode !== null);
     if (first?.nextEpisode === null || first === undefined)

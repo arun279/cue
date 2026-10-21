@@ -135,6 +135,14 @@ export const watchlistSchema = list(
   }),
 );
 
+export const collectionShowsSchema = list(
+  z.object({ last_collected_at: nonEssential(str), show: showSchema }),
+);
+
+export const collectionMoviesSchema = list(
+  z.object({ collected_at: nonEssential(str), movie: movieSchema }),
+);
+
 const calendarShowSchema = showSchema.extend({ network: nonEssential(str.nullable()) });
 export const calendarSchema = list(
   z.object({ first_aired: str, episode: episodeSchema, show: calendarShowSchema }),
@@ -218,6 +226,8 @@ export type MovieDetailData = z.infer<typeof movieDetailSchema>;
 export type ShowDetailData = z.infer<typeof showDetailSchema>;
 export type SeasonData = z.infer<typeof seasonsSchema>[number];
 export type WatchlistItem = z.infer<typeof watchlistSchema>[number];
+export type CollectionShow = z.infer<typeof collectionShowsSchema>[number];
+export type CollectionMovie = z.infer<typeof collectionMoviesSchema>[number];
 export type CalendarItem = z.infer<typeof calendarSchema>[number];
 export type HistoryItem = z.infer<typeof historyItemSchema>;
 export type SearchResult = z.infer<typeof searchSchema>[number];

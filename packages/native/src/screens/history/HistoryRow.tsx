@@ -27,8 +27,8 @@ export function HistoryRow({
   const open = () =>
     router.push(
       entry.type === "movie"
-        ? `/(account)/movie/${entry.mediaId}`
-        : `/(account)/show/${entry.mediaId}/episode/${entry.season ?? 0}/${entry.number ?? 0}`,
+        ? `/movie/${entry.mediaId}`
+        : `/show/${entry.mediaId}/episode/${entry.season ?? 0}/${entry.number ?? 0}`,
     );
   const items: RowMenuItem[] = [
     { id: "open", label: entry.type === "movie" ? "Go to movie" : "Go to episode", onPress: open },

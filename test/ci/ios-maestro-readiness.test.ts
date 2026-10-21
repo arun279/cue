@@ -132,6 +132,7 @@ it.each([false, true])("prepares the app with a Maestro cache hit of %s", (cache
     "xcrun",
     "xcrun",
     "xcrun",
+    "xcrun",
     "node",
     "sysctl",
     "vm_stat",
@@ -144,6 +145,9 @@ it.each([false, true])("prepares the app with a Maestro cache hit of %s", (cache
   const booted = calls.indexOf("xcrun simctl bootstatus test-device -b");
   expect(calls.slice(booted + 1, booted + 3)).toEqual(
     Array(2).fill("xcrun simctl spawn test-device launchctl list"),
+  );
+  expect(calls).toContain(
+    "xcrun simctl spawn test-device defaults write com.apple.launchservices.schemeapproval com.apple.CoreSimulator.CoreSimulatorBridge-->cue -string app.cuetracker",
   );
   expect(calls).toContain("node scripts/wait-ios-ready.mjs test-device");
   expect(

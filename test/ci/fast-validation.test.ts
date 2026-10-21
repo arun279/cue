@@ -353,6 +353,30 @@ describe("fast pull request validation", () => {
     );
   });
 
+  it.each([
+    "android-e2e-light",
+    "ui-screenshots-android-dark",
+  ])("%s restores the emulator and the system image it boots, and no AVD", (name) => {
+    const runner = steps(name).find((step) =>
+      step.includes("reactivecircus/android-emulator-runner@"),
+    );
+    const option = (key: string) => runner?.match(new RegExp(`^ {10}${key}: (.+)$`, "m"))?.[1];
+    const image = `android-${option("api-level")};${option("target") ?? "default"};${option("arch")}`;
+    const action = readFileSync(
+      repositoryPath(".github/actions/android-emulator/action.yml"),
+      "utf8",
+    );
+    const script = readFileSync(repositoryPath("scripts/android-emulator-packages.sh"), "utf8");
+
+    expect(job(name)).toContain(
+      "      - uses: ./.github/actions/android-emulator\n      - name: Inspect the release UI\n",
+    );
+    expect(script).toContain(`image="system-images;${image}"\n`);
+    const cached = ["emulator", `system-images/${image.replaceAll(";", "/")}`];
+    const paths = [...action.matchAll(/^ {10}\$\{\{ steps\.packages\.outputs\.sdk \}\}\/(.+)$/gm)];
+    expect(paths.map(([, directory]) => directory)).toEqual([...cached, ...cached]);
+  });
+
   it("waits for persistent readiness before checking the connected loading state", () => {
     const ready = readFileSync(repositoryPath(".maestro/flows/lib/ready.yaml"), "utf8");
 
@@ -679,6 +703,7 @@ describe("fast pull request validation", () => {
       "mock-trakt/server.mjs",
       "prepare-ios-ui.sh",
       "reembed-ios.sh",
+      "screenshot-watch.mjs",
       "snapshot-host-resources.sh",
       "start-ready-process.mjs",
       "wait-ios-accessibility.mjs",
@@ -711,6 +736,7 @@ describe("fast pull request validation", () => {
       "lib/sign-in.yaml",
       "account.yaml",
       "history.yaml",
+      "navigation-round-trips.yaml",
       "launch.yaml",
       "up-next-mark-and-undo.yaml",
       "show-detail-bulk-mark.yaml",

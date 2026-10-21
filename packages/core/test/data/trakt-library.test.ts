@@ -88,9 +88,11 @@ function progress(overrides: {
 const baseEntry: LibraryEntry = {
   showId: 1,
   title: "Show",
+  year: null,
   status: "returning series",
   hidden: false,
   inWatchlist: false,
+  addedAt: null,
   lastWatchedAt: "2026-07-01T00:00:00.000Z",
   aired: 10,
   completed: 3,
@@ -105,6 +107,7 @@ const baseEntry: LibraryEntry = {
   lastAired: { season: 1, number: 10 },
   tmdbId: null,
   runtime: null,
+  posters: [],
   pendingAdvance: false,
 };
 
@@ -117,6 +120,7 @@ describe("assembleLibrary", () => {
       ],
       progress: new Map(),
       hiddenShowIds: new Set(),
+      collectionShows: [],
       watchlistShows: [{ type: "show", show: { title: "Later", ids: { trakt: 3 } } }],
     });
     expect(entries.map((entry) => [entry.showId, entry.runtime])).toEqual([
@@ -157,6 +161,7 @@ describe("assembleLibrary", () => {
         ],
       ]),
       hiddenShowIds: new Set([2]),
+      collectionShows: [],
       watchlistShows: [watchlistItem({ trakt: 1, title: "A" })],
     };
     const entries = assembleLibrary(input);
@@ -190,6 +195,7 @@ describe("assembleLibrary", () => {
       watchedShows: [watchedShow({ trakt: 12, airedEpisodes: 20, seasons: { 0: 2, 1: 8, 2: 6 } })],
       progress: new Map(),
       hiddenShowIds: new Set(),
+      collectionShows: [],
       watchlistShows: [],
     });
     expect(entries[0]).toMatchObject({
@@ -223,6 +229,7 @@ describe("assembleLibrary", () => {
       ],
       progress: new Map(),
       hiddenShowIds: new Set(),
+      collectionShows: [],
       watchlistShows: [],
     });
     expect(entries[0]?.lastAired).toEqual({ season: 1, number: 8 });
@@ -247,6 +254,7 @@ describe("assembleLibrary", () => {
         ],
       ]),
       hiddenShowIds: new Set(),
+      collectionShows: [],
       watchlistShows: [],
     });
     expect(entries[0]?.nextEpisode?.ids).toEqual({ trakt: 8001 });
@@ -258,6 +266,7 @@ describe("assembleLibrary", () => {
       watchedShows: [watchedShow({ trakt: 3 })],
       progress: new Map([[3, progress({ next: null })]]),
       hiddenShowIds: new Set(),
+      collectionShows: [],
       watchlistShows: [],
     });
     expect(entries[0]?.nextEpisode).toBeNull();
@@ -268,6 +277,7 @@ describe("assembleLibrary", () => {
       watchedShows: [watchedShow({ trakt: 6, seasons: { 1: 3 } })],
       progress: new Map([[6, progress({ seasons: undefined })]]),
       hiddenShowIds: new Set(),
+      collectionShows: [],
       watchlistShows: [],
     });
     expect(entries[0]?.lastAired).toBeNull();
@@ -278,6 +288,7 @@ describe("assembleLibrary", () => {
       watchedShows: [],
       progress: new Map(),
       hiddenShowIds: new Set(),
+      collectionShows: [],
       watchlistShows: [watchlistItem({ trakt: 9, title: "Queued", tmdb: 77 })],
     });
     expect(entries).toHaveLength(1);
@@ -294,17 +305,64 @@ describe("assembleLibrary", () => {
     });
   });
 
-  it("carries no art: every card reads its own from `/shows/:id`", () => {
-    // `/sync/watched/shows` returns no `images` block at all (the app does not even
-    // ask for one), so an entry could only ever carry a null poster. The whole
-    // field set is gone rather than shipped structurally empty.
+  it("carries no art for a watched show the list sent none for", () => {
     const entries = assembleLibrary({
       watchedShows: [watchedShow({ trakt: 5, title: "Detailed" })],
       progress: new Map([[5, progress({})]]),
       hiddenShowIds: new Set(),
+      collectionShows: [],
       watchlistShows: [],
     });
     expect(Object.keys(entries[0] ?? {}).sort()).toEqual(Object.keys(baseEntry).sort());
+    expect(entries[0]?.posters).toEqual([]);
+  });
+
+  it("starts nothing for a collected show with no plays, and carries its list poster", () => {
+    const entries = assembleLibrary({
+      watchedShows: [],
+      progress: new Map(),
+      hiddenShowIds: new Set(),
+      watchlistShows: [],
+      collectionShows: [
+        {
+          last_collected_at: "2026-05-01T00:00:00.000Z",
+          show: {
+            title: "Shelved",
+            year: 2019,
+            ids: { trakt: 31 },
+            images: { poster: ["walter-r2.trakt.tv/shelved.webp"] },
+          },
+        },
+      ],
+    });
+    expect(entries).toEqual([
+      expect.objectContaining({
+        showId: 31,
+        year: 2019,
+        completed: 0,
+        inWatchlist: false,
+        addedAt: "2026-05-01T00:00:00.000Z",
+        posters: ["walter-r2.trakt.tv/shelved.webp"],
+      }),
+    ]);
+  });
+
+  it("merges a show in both the watchlist and the collection into one entry added at the later date", () => {
+    const entries = assembleLibrary({
+      watchedShows: [watchedShow({ trakt: 41, seasons: { 1: 2 } })],
+      progress: new Map(),
+      hiddenShowIds: new Set(),
+      watchlistShows: [{ ...watchlistItem({ trakt: 42 }), listed_at: "2026-01-01T00:00:00.000Z" }],
+      collectionShows: [
+        { last_collected_at: "2026-03-01T00:00:00.000Z", show: { title: "S", ids: { trakt: 42 } } },
+        { last_collected_at: "2026-02-01T00:00:00.000Z", show: { title: "W", ids: { trakt: 41 } } },
+      ],
+    });
+    expect(entries.map((entry) => [entry.showId, entry.inWatchlist, entry.addedAt])).toEqual([
+      [41, false, "2026-02-01T00:00:00.000Z"],
+      [42, true, "2026-03-01T00:00:00.000Z"],
+    ]);
+    expect(entries[0]?.completed).toBe(2);
   });
 
   it("reads what a sparse Trakt row leaves out as unknown", () => {
@@ -314,6 +372,7 @@ describe("assembleLibrary", () => {
       watchedShows: [neverStamped],
       progress: new Map([[21, progress({ next: undated })]]),
       hiddenShowIds: new Set(),
+      collectionShows: [],
       watchlistShows: [
         { type: "show", show: { title: "Bare", ids: { trakt: 22 } } },
         { type: "movie" },
@@ -331,6 +390,7 @@ describe("assembleLibrary", () => {
       watchedShows: [watchedShow({ trakt: 4, title: "Both" })],
       progress: new Map([[4, progress({})]]),
       hiddenShowIds: new Set(),
+      collectionShows: [],
       watchlistShows: [watchlistItem({ trakt: 4, title: "Both" })],
     });
     expect(entries).toHaveLength(1);
@@ -353,6 +413,7 @@ describe("watchedEpisodeCount", () => {
       watchedShows: [show],
       progress: new Map(),
       hiddenShowIds: new Set(),
+      collectionShows: [],
       watchlistShows: [],
     });
     expect(entries[0]).toMatchObject({ aired: 153, completed: 78 });

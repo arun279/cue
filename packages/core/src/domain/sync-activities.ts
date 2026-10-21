@@ -20,6 +20,8 @@ export type InvalidationTarget =
   | "watchlist/shows"
   | "watchlist/movies"
   | "watchlist/episodes"
+  | "collection/shows"
+  | "collection/movies"
   | "hidden/progress_watched"
   | "hidden/movies"
   | "favorites/shows"
@@ -39,6 +41,7 @@ interface ActivityRule {
 const ACTIVITY_RULES: readonly ActivityRule[] = [
   { section: "episodes", field: "watched_at", targets: ["watched/shows", "progress/watched"] },
   { section: "episodes", field: "watchlisted_at", targets: ["watchlist/episodes"] },
+  { section: "episodes", field: "collected_at", targets: ["collection/shows"] },
   {
     section: "shows",
     field: "hidden_at",
@@ -56,6 +59,7 @@ const ACTIVITY_RULES: readonly ActivityRule[] = [
     field: "watchlisted_at",
     targets: ["watchlist/movies", "recompute:following"],
   },
+  { section: "movies", field: "collected_at", targets: ["collection/movies"] },
   { section: "movies", field: "hidden_at", targets: ["hidden/movies", "recompute:buckets"] },
   { section: "movies", field: "favorited_at", targets: ["favorites/movies"] },
   { section: "watchlist", field: "updated_at", targets: ["watchlist/shows", "watchlist/movies"] },

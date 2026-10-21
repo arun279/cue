@@ -48,6 +48,7 @@ describe("assembleMovieLibrary", () => {
   it("carries a watched movie's runtime for Profile's watch time", () => {
     const entries = assembleMovieLibrary({
       watchedMovies: [watchedMovie({ trakt: 1, runtime: 118 }), watchedMovie({ trakt: 2 })],
+      collectionMovies: [],
       watchlistMovies: [],
     });
     expect(entries.map((entry) => [entry.movieId, entry.runtime])).toEqual([
@@ -61,6 +62,7 @@ describe("assembleMovieLibrary", () => {
       watchedMovies: [
         watchedMovie({ trakt: 5, title: "Dune", posters: ["media.trakt.tv/d.webp"], tmdb: 438631 }),
       ],
+      collectionMovies: [],
       watchlistMovies: [],
     };
     const entries = assembleMovieLibrary(input);
@@ -72,9 +74,8 @@ describe("assembleMovieLibrary", () => {
       watched: true,
       watchedAt: "2026-07-01T00:00:00.000Z",
       inWatchlist: false,
-      // A watched movie that was never watchlisted has no add time: the queue
-      // order is only meaningful for the Watchlist.
-      listedAt: null,
+      // A watched movie that was never watchlisted or collected has no add time.
+      addedAt: null,
       posters: ["media.trakt.tv/d.webp"],
       tmdbId: 438631,
     });
@@ -84,6 +85,7 @@ describe("assembleMovieLibrary", () => {
   it("flags a watched movie that is also on the watchlist as inWatchlist, carrying its add time", () => {
     const entries = assembleMovieLibrary({
       watchedMovies: [watchedMovie({ trakt: 5, title: "Both" })],
+      collectionMovies: [],
       watchlistMovies: [
         watchlistMovie({ trakt: 5, title: "Both", listedAt: "2026-05-01T00:00:00.000Z" }),
       ],
@@ -91,12 +93,13 @@ describe("assembleMovieLibrary", () => {
     expect(entries).toHaveLength(1);
     expect(entries[0]?.inWatchlist).toBe(true);
     expect(entries[0]?.watched).toBe(true);
-    expect(entries[0]?.listedAt).toBe("2026-05-01T00:00:00.000Z");
+    expect(entries[0]?.addedAt).toBe("2026-05-01T00:00:00.000Z");
   });
 
-  it("materializes a watchlist-only movie as an unwatched entry carrying its listed_at", () => {
+  it("materializes a watchlist-only movie as an unwatched entry carrying its listed_at as its add time", () => {
     const entries = assembleMovieLibrary({
       watchedMovies: [],
+      collectionMovies: [],
       watchlistMovies: [
         watchlistMovie({ trakt: 9, title: "Queued", listedAt: "2026-06-15T00:00:00.000Z" }),
       ],
@@ -108,18 +111,44 @@ describe("assembleMovieLibrary", () => {
       watched: false,
       watchedAt: null,
       inWatchlist: true,
-      listedAt: "2026-06-15T00:00:00.000Z",
+      addedAt: "2026-06-15T00:00:00.000Z",
       posters: [],
       tmdbId: null,
     });
   });
 
-  it("leaves listedAt null on a watchlist row that omits listed_at (pre-field payload)", () => {
+  it("leaves addedAt null on a watchlist row that omits listed_at (pre-field payload)", () => {
     const entries = assembleMovieLibrary({
       watchedMovies: [],
+      collectionMovies: [],
       watchlistMovies: [watchlistMovie({ trakt: 9, title: "Queued" })],
     });
-    expect(entries[0]?.listedAt).toBeNull();
+    expect(entries[0]?.addedAt).toBeNull();
+  });
+
+  it("keeps a collected movie with no play unwatched, added when it was collected", () => {
+    const entries = assembleMovieLibrary({
+      watchedMovies: [watchedMovie({ trakt: 1 })],
+      watchlistMovies: [watchlistMovie({ trakt: 2, listedAt: "2026-04-01T00:00:00.000Z" })],
+      collectionMovies: [
+        { collected_at: "2026-06-01T00:00:00.000Z", movie: { title: "C", ids: { trakt: 2 } } },
+        { collected_at: "2026-05-01T00:00:00.000Z", movie: { title: "D", ids: { trakt: 3 } } },
+        { collected_at: "2026-03-01T00:00:00.000Z", movie: { title: "W", ids: { trakt: 1 } } },
+      ],
+    });
+    expect(
+      entries.map((entry) => [
+        entry.movieId,
+        entry.watched,
+        entry.inWatchlist,
+        entry.inCollection,
+        entry.addedAt,
+      ]),
+    ).toEqual([
+      [1, true, false, true, "2026-03-01T00:00:00.000Z"],
+      [2, false, true, true, "2026-06-01T00:00:00.000Z"],
+      [3, false, false, true, "2026-05-01T00:00:00.000Z"],
+    ]);
   });
 
   it("defaults a missing year to null and omits an empty-movie watchlist row", () => {
@@ -129,6 +158,7 @@ describe("assembleMovieLibrary", () => {
     };
     const entries = assembleMovieLibrary({
       watchedMovies: [noYear],
+      collectionMovies: [],
       watchlistMovies: [
         { type: "movie" },
         { type: "movie", movie: { title: "Soon", ids: { trakt: 4 } } },

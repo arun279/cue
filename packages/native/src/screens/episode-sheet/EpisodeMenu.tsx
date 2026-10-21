@@ -1,24 +1,24 @@
 import type { EpisodeDetail } from "@cue/core/data/trakt/episode-detail";
 import { epCode } from "@cue/core/domain/model/library";
 import type { ReactElement } from "react";
+import { Platform } from "react-native";
 import { confirm } from "../../ui/confirm";
-import { RowMenu } from "../../ui/RowMenu";
+import { HeaderMenu, RowMenu } from "../../ui/RowMenu";
 import type { useDetailMark } from "../show-detail/useDetailMark";
 
 export function EpisodeMenu({
   detail,
   plays,
   mark,
-  children,
 }: {
   readonly detail: EpisodeDetail;
   readonly plays: number;
   readonly mark: ReturnType<typeof useDetailMark>;
-  readonly children?: ReactElement;
 }): ReactElement {
   const code = epCode(detail.season, detail.number);
+  const Menu = Platform.OS === "ios" ? HeaderMenu : RowMenu;
   return (
-    <RowMenu
+    <Menu
       title={detail.title ?? code}
       items={[
         {
@@ -41,8 +41,6 @@ export function EpisodeMenu({
             }),
         },
       ]}
-    >
-      {children === undefined ? undefined : () => children}
-    </RowMenu>
+    />
   );
 }

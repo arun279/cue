@@ -16,9 +16,11 @@ function entry(overrides: Partial<LibraryEntry> = {}): LibraryEntry {
   return {
     showId: 1,
     title: "Show",
+    year: null,
     status: "returning series",
     hidden: false,
     inWatchlist: false,
+    addedAt: null,
     lastWatchedAt: airedAt(),
     aired: 2,
     completed: 2,
@@ -26,6 +28,7 @@ function entry(overrides: Partial<LibraryEntry> = {}): LibraryEntry {
     lastAired: { season: 1, number: 2 },
     tmdbId: null,
     runtime: null,
+    posters: [],
     pendingAdvance: false,
     ...overrides,
   };

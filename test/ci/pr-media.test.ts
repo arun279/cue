@@ -9,7 +9,8 @@ import {
 } from "node:fs";
 import path from "node:path";
 import { PNG } from "pngjs";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
+import { changedPixels } from "../../scripts/changed-pixels.mjs";
 import { repositoryPath } from "../support/repository-path";
 import { tempDirectory } from "../support/temp-directory";
 import { readWorkflowJobs } from "../support/workflow-jobs";
@@ -65,6 +66,7 @@ type Lane = {
   stale?: Record<string, Capture>;
 };
 type Run = Record<string, Lane>;
+type Box = [number, number, number, number];
 
 const LANES: Record<string, string> = {
   "ui-screenshots-ios-light-detail": "native-e2e-ios-light (detail)",
@@ -77,11 +79,10 @@ const LANES: Record<string, string> = {
   "ui-screenshots-android-dark": "ui-screenshots-android-dark",
 };
 
-const fill = (png: PNG, [x0, y0, x1, y1]: number[], rgb: number[]) => {
-  for (let y = y0 ?? 0; y < (y1 ?? 0); y++) {
-    for (let x = x0 ?? 0; x < (x1 ?? 0); x++) {
-      png.data.set([...rgb, 255], (y * png.width + x) * 4);
-    }
+const fill = (png: PNG, [x0, y0, x1, y1]: Box, rgb: number[]) => {
+  const pixel = Buffer.from([...rgb, 255]);
+  for (let y = y0; y < y1; y++) {
+    png.data.fill(pixel, (y * png.width + x0) * 4, (y * png.width + x1) * 4);
   }
 };
 
@@ -91,9 +92,13 @@ const COLORS = [
   [220, 40, 40],
 ];
 
+const encoded = new Map<string, Buffer>();
 const screenshot = (file: string, width: number, capture: Capture) => {
+  const key = `${width} ${JSON.stringify(capture)}`;
+  const png = encoded.get(key) ?? PNG.sync.write(draw(width, capture));
+  encoded.set(key, png);
   mkdirSync(path.dirname(file), { recursive: true });
-  writeFileSync(file, capture.empty ? "" : PNG.sync.write(draw(width, capture)));
+  writeFileSync(file, capture.empty ? "" : png);
 };
 
 const draw = (width: number, { clock, content = 0, shift = 0, scroll, rows, patch }: Capture) => {
@@ -112,6 +117,81 @@ const pixel = (file: string, x: number, y: number) => {
   const png = PNG.sync.read(readFileSync(file));
   return [...png.data.subarray((y * png.width + x) * 4, (y * png.width + x) * 4 + 3)];
 };
+
+const PANEL = 824;
+const OUTLINE = [255, 0, 0];
+const IOS_RATIO = 1206 / 800;
+
+const rgbAt = (png: PNG, x: number, y: number) => [
+  ...png.data.subarray((y * png.width + x) * 4, (y * png.width + x) * 4 + 3),
+];
+
+const strokes = (png: PNG, after: number) => {
+  const stroke = new Set<number>();
+  const altered: number[][] = [];
+  for (let y = 0; y < png.height; y++) {
+    for (let x = 0; x < 800; x++) {
+      const shown = rgbAt(png, (after + 1) * PANEL + x, y).join();
+      if (shown === OUTLINE.join()) stroke.add(y * 800 + x);
+      else if (shown !== rgbAt(png, after * PANEL + x, y).join()) altered.push([x, y]);
+    }
+  }
+  return { stroke, altered };
+};
+
+const component = (stroke: Set<number>, seen: Set<number>, start: number) => {
+  const box: Box = [800, Number.MAX_SAFE_INTEGER, 0, 0];
+  let pixels = 0;
+  const queue = [start];
+  seen.add(start);
+  for (let at = queue.pop(); at !== undefined; at = queue.pop()) {
+    const [x, y] = [at % 800, Math.floor(at / 800)];
+    pixels++;
+    box.splice(
+      0,
+      4,
+      Math.min(box[0], x),
+      Math.min(box[1], y),
+      Math.max(box[2], x + 1),
+      Math.max(box[3], y + 1),
+    );
+    const next = [at - 800, at + 800, x > 0 ? at - 1 : -1, x < 799 ? at + 1 : -1];
+    for (const pixel of next.filter((n) => stroke.has(n) && !seen.has(n))) {
+      seen.add(pixel);
+      queue.push(pixel);
+    }
+  }
+  return { box, pixels };
+};
+
+const changesPanel = (file: string, after: number) => {
+  const { stroke, altered } = strokes(PNG.sync.read(readFileSync(file)), after);
+  const seen = new Set<number>();
+  const boxes = [...stroke].flatMap((at) => (seen.has(at) ? [] : [component(stroke, seen, at)]));
+  return { altered, boxes };
+};
+
+const hollow = ([x0, y0, x1, y1]: Box) =>
+  (x1 - x0) * (y1 - y0) - Math.max(0, x1 - x0 - 6) * Math.max(0, y1 - y0 - 6);
+
+const changedInPanel = (before: Capture, after: Capture) => {
+  const [a, b] = [draw(1206, before), draw(1206, after)];
+  const changed: number[][] = [];
+  for (let y = 162; y < a.height; y++) {
+    for (let x = 0; x < 1206 - 18; x++) {
+      if (rgbAt(a, x, y).join() !== rgbAt(b, x, y).join()) {
+        changed.push([Math.floor(x / IOS_RATIO), Math.floor(y / IOS_RATIO)]);
+      }
+    }
+  }
+  return changed;
+};
+
+const within = ([x, y]: number[], boxes: { box: Box }[]) =>
+  boxes.some(
+    ({ box: [x0, y0, x1, y1] }) =>
+      (x ?? -1) >= x0 + 3 && (x ?? -1) < x1 - 3 && (y ?? -1) >= y0 + 3 && (y ?? -1) < y1 - 3,
+  );
 
 const sandbox = () => {
   const root = tempDirectory("pr-media-");
@@ -257,6 +337,7 @@ describe("pr-media job", () => {
     "scripts/mock-trakt/seed.mjs",
     "scripts/gather-pr-media.sh",
     "scripts/compare-screenshots.mjs",
+    "scripts/changed-pixels.mjs",
     "scripts/attach-pr-media.sh",
     "packages/native/entry.ts",
     "packages/native/babel.config.js",
@@ -331,31 +412,36 @@ describe("gather-pr-media.sh", { timeout: 30_000 }, () => {
     );
     expect(review).toContain("0 screens compared.");
     expect(review).toContain("**New: Show detail rest, iOS, light, default text.");
+  });
 
-    const removed = gather(
+  it.each([
+    "ui-screenshots-ios-dark",
+    "ui-screenshots-android-light-activity",
+  ])("lists a light-shard capture as removed when only %s still has it", (artifact) => {
+    const { review } = gather(
       { "ui-screenshots-ios-light-detail": { captures: { "show-detail-rest": {} } } },
       { [artifact]: { captures: { "show-detail-rest": {} } } },
     );
-    expect(removed.review).toContain(
-      "Removed screens:\n\n- Show detail rest, iOS, light, default text",
-    );
+    expect(review).toContain("Removed screens:\n\n- Show detail rest, iOS, light, default text");
   });
 
-  it("reports incomplete sibling shards without calling moved captures new or removed", () => {
-    const missingBase = gather(
+  it("reports a skipped base sibling shard without calling moved captures new", () => {
+    const { review, images } = gather(
       { "ui-screenshots-ios-light-detail": { conclusion: "skipped", captures: null } },
       { "ui-screenshots-ios-light-activity": { captures: { "show-detail-rest": {} } } },
     );
-    expect(missingBase.images).toEqual([]);
-    expect(missingBase.review).toContain("Not compared:");
-    expect(missingBase.review).not.toContain("New:");
+    expect(images).toEqual([]);
+    expect(review).toContain("Not compared:");
+    expect(review).not.toContain("New:");
+  });
 
-    const missingHead = gather(
+  it("reports a failed head sibling shard without calling moved captures removed", () => {
+    const { review } = gather(
       { "ui-screenshots-ios-light-detail": { captures: { "show-detail-rest": {} } } },
       { "ui-screenshots-ios-light-activity": { conclusion: "failure", captures: null } },
     );
-    expect(missingHead.review).toContain("Not compared:");
-    expect(missingHead.review).not.toContain("Removed screens:");
+    expect(review).toContain("Not compared:");
+    expect(review).not.toContain("Removed screens:");
   });
 
   it("says in one line that nothing changed when only the clock and scroll indicator moved", () => {
@@ -378,81 +464,50 @@ describe("gather-pr-media.sh", { timeout: 30_000 }, () => {
     );
   });
 
-  it("ignores the top edge of the iOS tab bar's glass", () => {
-    const { review, images } = gather(
-      dark({ "up-next-queue-rest": { rows: [] } }),
-      dark({ "up-next-queue-rest": { rows: [2373, 2384] } }),
-    );
-
-    expect(images).toEqual([]);
-    expect(review).toContain("No screen changed");
-  });
-
-  it.each([
-    ["the content above the iOS tab bar", "ui-screenshots-ios-dark", 2372],
-    ["the iOS tab items", "ui-screenshots-ios-dark", 2385],
-    ["Android at the same rows", "ui-screenshots-android-dark", 2373],
-  ])("still compares %s", (_, artifact, row) => {
-    const { images } = gather(
-      { [artifact]: { captures: { "up-next-queue-rest": { rows: [] } } } },
-      { [artifact]: { captures: { "up-next-queue-rest": { rows: [row] } } } },
-    );
-
-    expect(images).toHaveLength(1);
-  });
-
-  const GLASS = [39, 35, 32];
-  it.each([
-    ["is ignored in the iOS tab bar's glass", "ui-screenshots-ios-dark", 2400, [71, 62, 51], 0],
-    ["still counts above the iOS tab bar", "ui-screenshots-ios-dark", 2300, [71, 62, 51], 1],
-    ["still counts on Android", "ui-screenshots-android-dark", 2400, [71, 62, 51], 1],
-    [
-      "leaves a changed iOS tab icon or label flagged",
-      "ui-screenshots-ios-dark",
-      2400,
-      [235, 235, 235],
-      1,
-    ],
-  ])("translucency difference %s", (_, artifact, top, rgb, changed) => {
-    const { images } = gather(
-      {
-        [artifact]: { captures: { "up-next-populated": { rows: [], patch: { top, rgb: GLASS } } } },
-      },
-      { [artifact]: { captures: { "up-next-populated": { rows: [], patch: { top, rgb } } } } },
-    );
-
-    expect(images).toHaveLength(changed);
-  });
-
-  it("shows clean before and after columns with moved content highlighted only in the changes column", () => {
+  it("shows the after screen unchanged in the changes column apart from one box per separate change", () => {
+    const before = { content: 0 };
+    const after = { content: 1, shift: 500, clock: 1 };
     const { out, review, images } = gather(
-      dark({ "library-shows": { content: 0 } }),
-      dark({ "library-shows": { content: 1, shift: 500, clock: 1 } }),
+      dark({ "library-shows": before }),
+      dark({ "library-shows": after }),
     );
 
     expect(images).toEqual(["ios-dark-library-shows.png"]);
-    const image = PNG.sync.read(readFileSync(path.join(out, images[0] ?? "")));
-    expect([image.width, image.height]).toEqual([2448, 159]);
     const file = path.join(out, images[0] ?? "");
+    const image = PNG.sync.read(readFileSync(file));
+    expect([image.width, image.height]).toEqual([2448, 159]);
     expect(pixel(file, 200, 133)).toEqual(COLORS[0]);
-    expect(pixel(file, 500, 133)).toEqual([250, 250, 245]);
-    expect(pixel(file, 824 + 200, 133)).toEqual([250, 250, 245]);
-    expect(pixel(file, 824 + 500, 133)).toEqual(COLORS[1]);
-    expect(pixel(file, 1648 + 200, 133)).toEqual([255, 0, 255]);
-    expect(pixel(file, 1648 + 500, 133)).toEqual([255, 0, 255]);
-    expect(pixel(file, 1648 + 50, 133)).toEqual([125, 125, 122]);
+    expect(pixel(file, PANEL + 500, 133)).toEqual(COLORS[1]);
     expect(pixel(file, 100, 50)).toEqual([128, 128, 128]);
-    expect(pixel(file, 824 + 100, 50)).toEqual([0, 0, 0]);
-    expect(pixel(file, 1648 + 100, 50)).toEqual([0, 0, 0]);
+    expect(pixel(file, PANEL + 100, 50)).toEqual([0, 0, 0]);
+    const { altered, boxes } = changesPanel(file, 1);
+    expect(altered).toEqual([]);
+    expect(boxes).toHaveLength(2);
+    for (const { box, pixels } of boxes) expect(pixels).toBe(hollow(box));
+    const changed = changedInPanel(before, after);
+    expect(changed.length).toBeGreaterThan(0);
+    expect(changed.filter((point) => !within(point, boxes))).toEqual([]);
     expect(review).toContain(
       "**Changed: Library shows, iOS, dark, default text.** Left to right: before, after, changes.\n\n" +
         "![Library shows, iOS, dark, default text](ios-dark-library-shows.png)\n\n" +
         "Verdict: VERDICT_PENDING",
     );
     expect(review).toContain(
-      "The changes panel dims the after screen and marks changed pixels in magenta",
+      "The changes panel is the after screen with a red box around each changed area",
     );
     expect(review).not.toContain("Not compared");
+  });
+
+  it("draws one box around changes closer together than the gap between controls", () => {
+    const { out, images } = gather(
+      dark({ "up-next-queue-rest": { rows: [] } }),
+      dark({ "up-next-queue-rest": { rows: [1000, 1010] } }),
+    );
+
+    const { altered, boxes } = changesPanel(path.join(out, images[0] ?? ""), 1);
+    expect(altered).toEqual([]);
+    expect(boxes).toHaveLength(1);
+    expect(boxes[0]?.pixels).toBe(hollow(boxes[0]?.box ?? [0, 0, 0, 0]));
   });
 
   it("names the missing base captures and why instead of calling their screens new", () => {
@@ -527,16 +582,18 @@ describe("gather-pr-media.sh", { timeout: 30_000 }, () => {
     );
   });
 
-  it("lists removed screens in text, unless the head lane failed before capturing them", () => {
-    const removed = gather(dark({ "settings-rest": {} }), dark({}));
-    const failed = gather(dark({ "settings-rest": {} }), dark({}, "failure"));
+  it("lists removed screens in text", () => {
+    const { review, images } = gather(dark({ "settings-rest": {} }), dark({}));
 
-    expect(removed.images).toEqual([]);
-    expect(removed.review).toContain(
-      "Removed screens:\n\n- Settings rest, iOS, dark, default text\n",
-    );
-    expect(failed.review).not.toContain("Removed");
-    expect(failed.review).toContain(
+    expect(images).toEqual([]);
+    expect(review).toContain("Removed screens:\n\n- Settings rest, iOS, dark, default text\n");
+  });
+
+  it("does not list removed screens when the head lane failed before capturing them", () => {
+    const { review } = gather(dark({ "settings-rest": {} }), dark({}, "failure"));
+
+    expect(review).not.toContain("Removed");
+    expect(review).toContain(
       "- After captures for iOS dark may be incomplete because the ui-screenshots-ios-dark job failed in [run 1](https://github.com/o/r/actions/runs/1).",
     );
   });
@@ -553,45 +610,86 @@ describe("gather-pr-media.sh", { timeout: 30_000 }, () => {
     expect(pixel(file, 200, 133)).toEqual(COLORS[0]);
     expect(pixel(file, 824 + 200, 133)).toEqual(COLORS[0]);
     expect(pixel(file, 1648 + 200, 133)).toEqual(COLORS[1]);
-    expect(pixel(file, 2472 + 200, 133)).toEqual([255, 0, 255]);
+    expect(changesPanel(file, 2).altered).toEqual([]);
+    expect(changesPanel(file, 2).boxes).toHaveLength(1);
     expect(review).toContain(
       "**Changed: Library shows, iOS, dark, XXXL text.** Left to right: default text after, before, after, changes.",
     );
   });
 });
 
-const prepare = () => {
-  const { out } = gather(
-    dark({ "library-shows": {}, "settings-rest": {} }),
-    dark({ "library-shows": { content: 1 }, "settings-rest": { content: 1 } }),
-  );
-  const { root, state, run } = sandbox();
-  spawnSync("zip", ["-qr", path.join(state, "30.zip"), "."], { cwd: out });
-  writeFileSync(
-    path.join(state, "by-name.json"),
-    JSON.stringify({
-      artifacts: [
-        { id: 20, expired: false, created_at: "2026-10-01T00:00:00Z" },
-        { id: 30, expired: false, created_at: "2026-10-03T00:00:00Z" },
-        { id: 40, expired: true, created_at: "2026-10-04T00:00:00Z" },
-      ],
-    }),
-  );
-  const read = (name: string) =>
-    existsSync(path.join(state, name)) ? readFileSync(path.join(state, name), "utf8") : "";
-  const directory = path.join(root, "pr-media-7-abcdef1");
-  const attach = () => {
-    const result = run("attach-pr-media.sh", ["7"]);
-    return { ...result, calls: read("calls"), uploads: read("uploads"), posted: read("review.md") };
+describe("changed-pixels.mjs", () => {
+  const compare = (platform: string, before: Capture, after: Capture) => {
+    const width = platform === "Android" ? 1440 : 1206;
+    return changedPixels(draw(width, before), draw(width, after), platform) !== undefined;
   };
-  const decide = () => {
-    const file = path.join(directory, "review.md");
-    writeFileSync(file, readFileSync(file, "utf8").replaceAll("VERDICT_PENDING", "Intended."));
-  };
-  return { state, directory, attach, decide };
-};
+
+  it("ignores the top edge of the iOS tab bar's glass", () => {
+    expect(compare("iOS", { rows: [] }, { rows: [2373, 2384] })).toBe(false);
+  });
+
+  it.each([
+    ["the content above the iOS tab bar", "iOS", 2372],
+    ["the iOS tab items", "iOS", 2385],
+    ["Android at the same rows", "Android", 2373],
+  ])("still compares %s", (_, platform, row) => {
+    expect(compare(platform, { rows: [] }, { rows: [row] })).toBe(true);
+  });
+
+  const GLASS = [39, 35, 32];
+  it.each([
+    ["is ignored in the iOS tab bar's glass", "iOS", 2400, [71, 62, 51], false],
+    ["still counts above the iOS tab bar", "iOS", 2300, [71, 62, 51], true],
+    ["still counts on Android", "Android", 2400, [71, 62, 51], true],
+    ["leaves a changed iOS tab icon or label flagged", "iOS", 2400, [235, 235, 235], true],
+  ])("translucency difference %s", (_, platform, top, rgb, changed) => {
+    const glass = { rows: [], patch: { top, rgb: GLASS } };
+    expect(compare(platform, glass, { ...glass, patch: { top, rgb } })).toBe(changed);
+  });
+});
 
 describe("attach-pr-media.sh", { timeout: 30_000 }, () => {
+  let artifact: Buffer;
+  beforeAll(() => {
+    const { out } = gather(
+      dark({ "library-shows": {}, "settings-rest": {} }),
+      dark({ "library-shows": { content: 1 }, "settings-rest": { content: 1 } }),
+    );
+    artifact = spawnSync("zip", ["-qr", "-", "."], { cwd: out }).stdout;
+  });
+
+  const prepare = () => {
+    const { root, state, run } = sandbox();
+    writeFileSync(path.join(state, "30.zip"), artifact);
+    writeFileSync(
+      path.join(state, "by-name.json"),
+      JSON.stringify({
+        artifacts: [
+          { id: 20, expired: false, created_at: "2026-10-01T00:00:00Z" },
+          { id: 30, expired: false, created_at: "2026-10-03T00:00:00Z" },
+          { id: 40, expired: true, created_at: "2026-10-04T00:00:00Z" },
+        ],
+      }),
+    );
+    const read = (name: string) =>
+      existsSync(path.join(state, name)) ? readFileSync(path.join(state, name), "utf8") : "";
+    const directory = path.join(root, "pr-media-7-abcdef1");
+    const attach = () => {
+      const result = run("attach-pr-media.sh", ["7"]);
+      return {
+        ...result,
+        calls: read("calls"),
+        uploads: read("uploads"),
+        posted: read("review.md"),
+      };
+    };
+    const decide = () => {
+      const file = path.join(directory, "review.md");
+      writeFileSync(file, readFileSync(file, "utf8").replaceAll("VERDICT_PENDING", "Intended."));
+    };
+    return { state, directory, attach, decide };
+  };
+
   it("prints each image from the newest artifact and refuses to post while a verdict is pending", () => {
     const { directory, attach } = prepare();
     const first = attach();
