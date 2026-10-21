@@ -146,7 +146,7 @@ it("samples once Maestro has said nothing for 20 s, and again each further 20 s"
 
 afterEach(() => vi.useRealTimers());
 
-it("reports lane health after Maestro exits, from the simulator's stored log rather than a live stream", () => {
+const laneRun = (live: number) => {
   const bin = tempDirectory("cue-lane-health-");
   const calls = path.join(bin, "calls");
   const now = new Date();
@@ -182,7 +182,7 @@ it("reports lane health after Maestro exits, from the simulator's stored log rat
   );
   writeFileSync(
     path.join(bin, "maestro"),
-    `#!/bin/sh\necho "[1.0s][info][gc] GC(0) Pause Young (Normal) (G1 Evacuation Pause) 40M->12M(96M) 2.0ms" > "\${MAESTRO_OPTS#*file=}"\nsleep 3\n`,
+    `#!/bin/sh\necho "$MAESTRO_OPTS" > "${path.join(bin, "options")}"\necho "[1.0s][info][gc] GC(0) Pause Young (Normal) (G1 Evacuation Pause) 500M->${live}M(640M) 2.0ms" > "\${MAESTRO_OPTS#*file=}"\nsleep 1\n`,
     { mode: 0o755 },
   );
   const debug = path.join(bin, "debug");
@@ -200,7 +200,13 @@ it("reports lane health after Maestro exits, from the simulator's stored log rat
       env: { ...process.env, PATH: `${bin}:${process.env["PATH"]}`, DEVICE_ID: "SIM-1" },
     },
   );
+  return { result, calls, debug, options: readFileSync(path.join(bin, "options"), "utf8").trim() };
+};
 
+it("reports lane health after Maestro exits, from the simulator's stored log rather than a live stream", () => {
+  const { result, calls, debug, options } = laneRun(12);
+
+  expect(options).toMatch(/^-Xmx512m -Xlog:gc:file=\S+\/lane-health\/maestro-gc\.log$/);
   expect(result.status).toBe(0);
   expect(readFileSync(calls, "utf8")).not.toContain("log stream");
   expect(readFileSync(calls, "utf8")).toMatch(
@@ -212,13 +218,26 @@ it("reports lane health after Maestro exits, from the simulator's stored log rat
       /^Lane health: [01] of the slow replies were requested in the last 2 s of a minute, against 0\.0 if timing were random$/,
     ),
     "Lane health: 1000 MB paged in during the flow",
-    "Lane health: Maestro's Java heap after 1 collections: at most 12 MB live of 96 MB committed",
+    "Lane health: Maestro's Java heap after 1 collections: at most 12 MB live of 640 MB committed",
     "Lane health: 1 log lines about launching MobileCal",
     "Lane health: largest single process per program, sampled each minute: java 1024 MB, SpringBoard 200 MB",
   ]);
   expect(readFileSync(path.join(debug, "lane-health", "health.txt"), "utf8")).toContain(
     "1000 MB paged in during the flow",
   );
+});
+
+it("warns in the job log when Maestro's live heap passes 80% of its cap", () => {
+  const { result } = laneRun(450);
+
+  expect(result.status).toBe(0);
+  expect(result.stdout).toContain(
+    "::warning title=Lane health::Maestro's live heap reached 450 MB, over 80% of its 512 MB cap\n",
+  );
+});
+
+it("does not warn while Maestro's live heap stays within 80% of its cap", () => {
+  expect(laneRun(409).result.stdout).not.toContain("::warning");
 });
 
 it("stops Maestro at once and names SpringBoard when XCTest's screenshot request times out", () => {
