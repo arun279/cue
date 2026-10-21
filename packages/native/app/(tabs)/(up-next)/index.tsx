@@ -22,7 +22,7 @@ import { useRuntime } from "@cue/core/runtime/runtime";
 import { useQuery } from "@tanstack/react-query";
 import { Stack, useRouter } from "expo-router";
 import { type ReactElement, useEffect, useMemo, useRef, useState } from "react";
-import { RefreshControl, SectionList, StyleSheet, View } from "react-native";
+import { Platform, RefreshControl, SectionList, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePullToRefresh } from "../../../src/hooks/usePullToRefresh";
 import { LapsedHeader } from "../../../src/screens/up-next/LapsedHeader";
@@ -151,7 +151,8 @@ export default function UpNext(): ReactElement {
   const sectioned = SECTIONED.includes(branch);
   const list = useRef<SectionList<UpNextCard, UpNextSection>>(null);
   useEffect(() => {
-    if (!sectioned) list.current?.getScrollResponder()?.scrollTo({ y: 0, animated: false });
+    if (!sectioned && Platform.OS === "android")
+      list.current?.getScrollResponder()?.scrollTo({ y: 0, animated: false });
   }, [sectioned]);
   const sections: UpNextSection[] = sectioned
     ? [

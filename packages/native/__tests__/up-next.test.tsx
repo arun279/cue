@@ -12,7 +12,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react-native";
-import { ScrollView } from "react-native";
+import { Platform, ScrollView } from "react-native";
 import {
   agesAgo,
   airing,
@@ -510,7 +510,9 @@ describe("Up Next's empty and off states", () => {
       [],
     );
     // Android keeps a list's offset when its content shrinks, which would leave the state above the viewport.
-    expect(scrollTo).toHaveBeenCalledWith({ y: 0, animated: false });
+    // UIKit clamps the offset to the adjusted inset itself, and an offset of 0 there sits under the bar.
+    if (Platform.OS === "android") expect(scrollTo).toHaveBeenCalledWith({ y: 0, animated: false });
+    else expect(scrollTo).not.toHaveBeenCalled();
     responder.mockRestore();
     scrollTo.mockRestore();
   });
