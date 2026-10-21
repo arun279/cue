@@ -6,3 +6,6 @@ com.apple.assetsd	Photos library. Ran a 70 s background library migration during
 com.apple.storekitd	App Store purchases. Logged 101 lines in the same stall. The app sells nothing.
 com.apple.triald	Downloads and applies experiment configuration on schedule. Logged 50 lines in the same stall. The app runs no experiments.
 com.apple.wcd	Watch connectivity. Logged 228 lines in the same stall and retries the disabled apsd every 6.4 s. The app has no watch app.
+com.apple.assistant_cdmd	Siri assistant data, run by the background task scheduler (an XPC activity in its launchd job). The busiest simulator service in the log while Cue's main thread froze for 17.4 s and its JavaScript for 8.3 s in runs 39566312887 and 39568145888 (#143). The app uses no Siri.
+com.apple.biomed	Biome event store, run by the background task scheduler (an XPC activity in its launchd job). Among the busiest simulator services in the log during the same Cue freezes (#143). The app donates no activities to Siri or Shortcuts.
+com.apple.corespeechd	Speech recognition and voice trigger, kept alive by launchd while its voice trigger path exists. Among the busiest simulator services in the log during the same Cue freezes (#143). The app takes no speech input.
