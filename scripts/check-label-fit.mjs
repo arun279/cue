@@ -39,6 +39,25 @@ const frame = (node) => {
 
 const descendants = (node) => node.children.flatMap((child) => [child, ...descendants(child)]);
 
+// uiautomator reports only the visible part of a view its list has scrolled past. A view cut at the
+// trailing edge is still measured, so the screen has to show the end of a list whole.
+const clipped = new Set();
+const markClipped = (node, viewport = null) => {
+  const bounds = frame(node);
+  if (
+    bounds !== null &&
+    viewport !== null &&
+    bounds[viewport.edge] === viewport.frame[viewport.edge]
+  ) {
+    clipped.add(node);
+  }
+  const scrolls = node.attributes.scrollable === "true" && frame(node) !== null;
+  const edge = /Horizontal/.test(node.attributes.class ?? "") ? "left" : "top";
+  for (const child of node.children) {
+    markClipped(child, scrolls ? { frame: frame(node), edge } : viewport);
+  }
+};
+
 const isButton = (node) =>
   node.attributes.clickable === "true" || /Button$/.test(node.attributes.class ?? "");
 
@@ -51,8 +70,10 @@ const crowds = (outer, inner) =>
   inner.top - outer.top < inset.vertical ||
   outer.bottom - inner.bottom < inset.vertical;
 
-const measured = descendants(parse(readFileSync(file, "utf8"))).filter(
-  (node) => isButton(node) && frame(node) && labels(node).length > 0,
+const screen = parse(readFileSync(file, "utf8"));
+markClipped(screen);
+const measured = descendants(screen).filter(
+  (node) => isButton(node) && !clipped.has(node) && frame(node) && labels(node).length > 0,
 );
 const crowded = measured.flatMap((button) =>
   labels(button)

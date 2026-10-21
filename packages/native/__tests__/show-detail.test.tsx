@@ -1,5 +1,6 @@
 import { seasonConfirmation } from "@cue/core/domain/show-detail";
-import { fireEvent, render, screen } from "@testing-library/react-native";
+import { UNDO_WINDOW_MS } from "@cue/core/sync-contract";
+import { act, fireEvent, render, screen } from "@testing-library/react-native";
 import { ActionSheetIOS, Alert, Platform } from "react-native";
 import { ShowDetail } from "../src/screens/ShowDetail";
 import { ContinueBar } from "../src/screens/show-detail/ContinueBar";
@@ -163,4 +164,40 @@ describe("platform confirmations", () => {
       ]);
     }
   });
+});
+
+it("names on the Next card the episode its check describes, through a mark and its undo window", async () => {
+  jest.useFakeTimers();
+  try {
+    await render(
+      <DetailHarness>
+        <ShowDetail showId={8803} />
+      </DetailHarness>,
+    );
+    const card = () => {
+      const check = screen.getByTestId(TEST_IDS.continueMark);
+      const name = screen.getByRole("button", {
+        name: /^S\d+ E\d+(?: · [^,]*)?, \d+ of \d+ watched/,
+      }).props["accessibilityLabel"] as string;
+      const code = name.match(/^S\d+ E\d+/)?.[0] ?? "";
+      const label = check.props["accessibilityLabel"] as string;
+      const checked = check.props["accessibilityState"].checked as boolean;
+      expect(checked ? label.startsWith("Watched") : label.endsWith(`${code} watched`)).toBe(true);
+      return { code, checked };
+    };
+    const before = card();
+    expect(before.checked).toBe(false);
+
+    await fireEvent.press(screen.getByTestId(TEST_IDS.continueMark));
+    expect(card()).toEqual({ code: before.code, checked: true });
+
+    await act(async () => {
+      jest.advanceTimersByTime(UNDO_WINDOW_MS);
+    });
+    const after = card();
+    expect(after.checked).toBe(false);
+    expect(after.code).not.toBe(before.code);
+  } finally {
+    jest.useRealTimers();
+  }
 });

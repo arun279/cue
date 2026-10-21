@@ -17,14 +17,24 @@ appId: app.cuetracker
 - assertVisible:
     id: "history-row-0"
     text: ".*, 2 plays"
-- assertVisible:
-    id: "history-row-0-check"
 - runFlow:
     file: lib/prepare-operation.yaml
     env:
       OPERATION: write
-- tapOn:
-    id: "history-row-0-check"
+# One menu per row: iOS opens it by long press, Android from the row's more icon.
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - longPressOn:
+          id: "history-row-0"
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - tapOn:
+          id: "history-row-0-menu"
+- tapOn: "Remove this play"
 - runFlow: lib/settle.yaml
 - assertVisible:
     id: "snackbar-undo"
@@ -49,14 +59,12 @@ appId: app.cuetracker
     id: "history-jump-sheet"
 - waitForAnimationToEnd
 - takeScreenshot: history-jump
+# iOS closes the sheet from its close button; Android also has system back.
 - runFlow:
     when:
       platform: iOS
     commands:
-      - swipe:
-          from:
-            id: "sheet-presented"
-          direction: DOWN
+      - tapOn: "Close"
 - runFlow:
     when:
       platform: Android
@@ -76,7 +84,7 @@ appId: app.cuetracker
       - tapOn:
           text: "Search"
           rightOf:
-            text: "Sync now"
+            text: "History"
 - runFlow:
     when:
       platform: iOS
@@ -116,3 +124,12 @@ appId: app.cuetracker
     id: "screen-history"
 - waitForAnimationToEnd
 - takeScreenshot: history-month
+- runFlow:
+    file: lib/back.yaml
+    env:
+      BACK_TITLE: "Profile"
+- assertVisible:
+    id: "screen-profile"
+- runFlow: lib/leave-profile.yaml
+- assertVisible:
+    id: "screen-up-next"

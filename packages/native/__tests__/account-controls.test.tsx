@@ -1,11 +1,13 @@
 import { queryKeys } from "@cue/core/data/query-keys";
-import { act, screen, userEvent } from "@testing-library/react-native";
+import { act, screen, userEvent, within } from "@testing-library/react-native";
 import "./support/screen-mocks";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { DataSection, syncedPhrase } from "../src/screens/account/DataSection";
 import * as harness from "../src/ui/harness";
 import { relativeTimeNow } from "../src/ui/harness.store";
+import { TEST_IDS } from "../src/ui/test-ids";
 import { accountFixture } from "./support/account";
+import { held } from "./support/up-next";
 
 afterEach(() => {
   jest.restoreAllMocks();
@@ -67,19 +69,22 @@ it("keeps harness sync freshness unchanged after delays, refetches and remounts"
   await act(() => client.clear());
 });
 
-it("disables manual sync until the shared pass settles", async () => {
-  let finish: (remaining: number) => void = () => {};
-  const flushWrites = jest.fn(
-    () =>
-      new Promise<number>((resolve) => {
-        finish = resolve;
-      }),
-  );
-  const fixture = accountFixture({ flushWrites });
+it("shows the sync as busy until the shared pass settles, then says it just synced", async () => {
+  const flush = held<number>();
+  const fixture = accountFixture({
+    flushWrites: flush.call,
+    pollActivities: async () => ({ keys: [], commit: async () => {} }),
+  });
   await fixture.paint(<DataSection />);
+  expect(screen.getByText("Not synced yet · 0 pending")).toBeVisible();
+
   await userEvent.press(screen.getByRole("button", { name: "Sync now" }));
-  expect(screen.getByRole("button", { name: "Syncing…" })).toBeDisabled();
-  await act(() => finish(0));
+
+  const busy = screen.getByRole("button", { name: "Syncing…" });
+  expect(busy).toHaveProp("accessibilityState", { disabled: true, busy: true });
+  expect(within(busy).getByTestId(`${TEST_IDS.settingsSync}-busy`)).toBeOnTheScreen();
+  await act(() => flush.release(0));
   expect(screen.getByRole("button", { name: "Sync now" })).toBeEnabled();
-  expect(flushWrites).toHaveBeenCalledTimes(1);
+  expect(screen.getByText("Last synced just now · 0 pending")).toBeVisible();
+  expect(flush.call).toHaveBeenCalledTimes(1);
 });

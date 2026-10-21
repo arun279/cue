@@ -47,6 +47,7 @@ case $url in
   */runs/*/artifacts*) run=\${url#*/runs/}; cat "$STATE/artifacts-\${run%%/*}.json" ;;
   */workflows/ci.yml/runs*) cat "$STATE/runs.json" ;;
   */actions/artifacts\\?name=*) cat "$STATE/by-name.json" ;;
+  */reviews*) cat "$STATE/reviews.json" ;;
   repos/o/r) echo '{"id": 99}' ;;
 esac | jq -r "$filter"
 `;
@@ -59,6 +60,7 @@ type Capture = {
   empty?: boolean;
   rows?: number[];
   patch?: { top: number; rgb: number[] };
+  grid?: number;
 };
 type Lane = {
   conclusion?: string;
@@ -101,15 +103,33 @@ const screenshot = (file: string, width: number, capture: Capture) => {
   writeFileSync(file, capture.empty ? "" : png);
 };
 
-const draw = (width: number, { clock, content = 0, shift = 0, scroll, rows, patch }: Capture) => {
-  const height = rows === undefined ? 240 : 2622;
+const chips = (png: PNG, top: number) => {
+  for (let row = 0; row < 3; row++) {
+    for (let column = 0; column < 6; column++) {
+      const [x, y] = [60 + column * 180, top + row * 110];
+      fill(png, [x, y, x + 150, y + 90], [160, 160, 155]);
+      for (let glyph = 0; glyph < 3; glyph++) {
+        fill(png, [x + 42 + glyph * 24, y + 30, x + 54 + glyph * 24, y + 60], [60, 60, 60]);
+      }
+    }
+  }
+};
+
+const decorate = (png: PNG, { scroll, rows, patch, grid }: Capture) => {
+  if (scroll) fill(png, [png.width - 12, 170, png.width - 4, 240], [120, 120, 120]);
+  for (const row of rows ?? []) fill(png, [0, row, png.width, row + 1], [60, 60, 60]);
+  if (patch) fill(png, [400, patch.top, 420, patch.top + 30], patch.rgb);
+  if (grid !== undefined) chips(png, grid);
+};
+
+const draw = (width: number, capture: Capture) => {
+  const { clock, content = 0, shift = 0 } = capture;
+  const height = capture.rows === undefined && capture.grid === undefined ? 240 : 2622;
   const png = new PNG({ width, height });
   fill(png, [0, 0, width, height], [250, 250, 245]);
   fill(png, [100, 60, 300, 110], clock ? [0, 0, 0] : [128, 128, 128]);
   fill(png, [LEFT + shift, TOP, RIGHT + shift, BOTTOM], COLORS[content] ?? []);
-  if (scroll) fill(png, [width - 12, 170, width - 4, 240], [120, 120, 120]);
-  for (const row of rows ?? []) fill(png, [0, row, width, row + 1], [60, 60, 60]);
-  if (patch) fill(png, [400, patch.top, 420, patch.top + 30], patch.rgb);
+  decorate(png, capture);
   return png;
 };
 
@@ -510,6 +530,21 @@ describe("gather-pr-media.sh", { timeout: 30_000 }, () => {
     expect(boxes[0]?.pixels).toBe(hollow(boxes[0]?.box ?? [0, 0, 0, 0]));
   });
 
+  it("draws one box around a block of controls that moved down a row", () => {
+    const before = { grid: 1100 };
+    const after = { grid: 1176 };
+    const { out, images } = gather(
+      dark({ "history-jump": before }),
+      dark({ "history-jump": after }),
+    );
+
+    const { altered, boxes } = changesPanel(path.join(out, images[0] ?? ""), 1);
+    expect(altered).toEqual([]);
+    expect(boxes).toHaveLength(1);
+    expect(boxes[0]?.pixels).toBe(hollow(boxes[0]?.box ?? [0, 0, 0, 0]));
+    expect(changedInPanel(before, after).filter((point) => !within(point, boxes))).toEqual([]);
+  });
+
   it("names the missing base captures and why instead of calling their screens new", () => {
     const skipped: Run = {
       "ui-screenshots-android-dark": { conclusion: "skipped", captures: null },
@@ -661,6 +696,7 @@ describe("attach-pr-media.sh", { timeout: 30_000 }, () => {
   const prepare = () => {
     const { root, state, run } = sandbox();
     writeFileSync(path.join(state, "30.zip"), artifact);
+    writeFileSync(path.join(state, "reviews.json"), "[]");
     writeFileSync(
       path.join(state, "by-name.json"),
       JSON.stringify({
@@ -729,6 +765,46 @@ describe("attach-pr-media.sh", { timeout: 30_000 }, () => {
     );
     expect(posted.posted).not.toContain("](ios-");
     expect(posted.posted).toContain("Verdict: Intended.");
+  });
+
+  it.each([
+    ["another review on the head commit", HEAD, "Looks good."],
+    ["a media review on an earlier commit", BASE, "<!-- media-review -->\n\nOld."],
+  ])("still posts when the pull request only has %s", (_, commit, body) => {
+    const { state, attach, decide } = prepare();
+    writeFileSync(
+      path.join(state, "reviews.json"),
+      JSON.stringify([{ commit_id: commit, body, html_url: "https://github.com/o/r/pull/7#r1" }]),
+    );
+    attach();
+    decide();
+    const posted = attach();
+
+    expect(posted.status).toBe(0);
+    expect(posted.calls).toContain("pr review 7 -R o/r --comment");
+  });
+
+  it("posts nothing when a media review is already on the head commit", () => {
+    const { state, attach } = prepare();
+    writeFileSync(
+      path.join(state, "reviews.json"),
+      JSON.stringify([
+        {
+          commit_id: HEAD,
+          body: "<!-- media-review -->\n\nDone.",
+          html_url: "https://github.com/o/r/pull/7#r2",
+        },
+      ]),
+    );
+    const again = attach();
+
+    expect(again.status).toBe(0);
+    expect(again.stderr).toBe(
+      "A media review is already posted on abcdef1: https://github.com/o/r/pull/7#r2\n",
+    );
+    expect(again.calls).not.toContain("artifacts/30/zip");
+    expect(again.uploads).toBe("");
+    expect(again.calls).not.toContain("pr review");
   });
 
   it("refuses to post once the pull request moved to another commit", () => {

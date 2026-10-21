@@ -1,1 +1,1 @@
-export { default } from "../../src/screens/Settings";
+export { default } from "../(tabs)/(up-next,library,calendar,search)/settings";

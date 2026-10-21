@@ -4,6 +4,7 @@ import type { ReactElement } from "react";
 import { StyleSheet, View } from "react-native";
 import { parseId, parseSeason } from "../../../../../../../src/route-params";
 import { EpisodeSheet } from "../../../../../../../src/screens/EpisodeSheet";
+import NotFound from "../../../../../../../src/screens/NotFound";
 import { AppIdle, SheetPresented } from "../../../../../../../src/ui/harness";
 import { SnackbarHost } from "../../../../../../../src/ui/SnackbarHost";
 
@@ -14,7 +15,7 @@ export default function EpisodeRoute(): ReactElement {
   const season = parseSeason(params.season);
   const episode = parseId(params.episode);
   if (showId === null || season === null || episode === null) {
-    return <Redirect href="/+not-found" />;
+    return <NotFound />;
   }
   if (!enabled) return <Redirect href={`/show/${showId}`} />;
   return (

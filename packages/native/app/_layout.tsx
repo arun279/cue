@@ -11,7 +11,7 @@ import { createTokenStore } from "@cue/core/ports/token-store";
 import { createPrefsStore, PrefsProvider } from "@cue/core/prefs/prefs-store";
 import { PERSIST_BUSTER, PERSIST_MAX_AGE } from "@cue/core/runtime/query-cache";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
-import { Stack, ThemeProvider } from "expo-router";
+import { ThemeProvider } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { type ReactElement, useEffect, useState } from "react";
@@ -41,6 +41,7 @@ import {
   preferenceStorage,
   secureStore,
 } from "../src/platform/stores";
+import { RootStack } from "../src/RootStack";
 import { useAppearance } from "../src/screens/account/ThemeControl";
 import { Onboarding } from "../src/screens/Onboarding";
 import { RuntimeBoot, type RuntimeBootProps } from "../src/screens/RuntimeBoot";
@@ -52,6 +53,8 @@ import { TEST_IDS } from "../src/ui/test-ids";
 import { useFontsSettled } from "../src/ui/type";
 
 void SplashScreen.preventAutoHideAsync().catch(() => {});
+
+export const unstable_settings = { initialRouteName: "(tabs)" };
 
 const prefsStore = createPrefsStore(preferenceStorage);
 const haptics = createNativeHaptics(() => prefsStore.getState().hapticsEnabled);
@@ -140,10 +143,7 @@ function RoutedApp(): ReactElement {
 
   return (
     <View style={styles.root}>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="(account)" options={{ presentation: "fullScreenModal" }} />
-      </Stack>
+      <RootStack />
       <SnackbarHost placement="root" />
       <SnackbarRouteDismissal />
       <SnackbarTrace />

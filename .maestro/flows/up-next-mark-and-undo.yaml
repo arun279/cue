@@ -1,3 +1,7 @@
+# Mark the head of the queue, take it back, and mark it again. Android swipes the
+# row; XCTest's synthesized drag does not open a swipeable row on the iOS
+# simulator, so iOS opens the row and marks from show detail's check, the
+# control every row leads to.
 appId: app.cuetracker
 ---
 - runFlow: lib/connect.yaml
@@ -6,16 +10,35 @@ appId: app.cuetracker
 - waitForAnimationToEnd
 - takeScreenshot: up-next-queue-rest
 - copyTextFrom:
-    id: "queue-row-[0-9]+-mark"
+    id: "queue-row-[0-9]+-body"
     index: 0
-- evalScript: ${output.markLabel = maestro.copiedText}
+- evalScript: ${output.rowLabel = maestro.copiedText}
 - runFlow:
     file: lib/prepare-operation.yaml
     env:
       OPERATION: write
-- tapOn:
-    id: "queue-row-[0-9]+-mark"
-    index: 0
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - swipe:
+          from:
+            id: "queue-row-[0-9]+"
+            index: 0
+          direction: RIGHT
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          id: "queue-row-[0-9]+-body"
+          index: 0
+      - extendedWaitUntil:
+          visible:
+            id: "continue-mark"
+          timeout: 30000
+      - tapOn:
+          id: "continue-mark"
 - runFlow: lib/settle.yaml
 - assertVisible:
     id: "snackbar-undo"
@@ -28,18 +51,43 @@ appId: app.cuetracker
 - runFlow: lib/settle.yaml
 - assertNotVisible:
     id: "snackbar-undo"
+- runFlow:
+    file: lib/back.yaml
+    when:
+      platform: iOS
+    env:
+      BACK_TITLE: "Up Next"
 - assertVisible:
-    id: "queue-row-[0-9]+-mark"
-    text: ${output.markLabel}
+    id: "queue-row-[0-9]+-body"
+    text: ${output.rowLabel}
 - waitForAnimationToEnd
 - takeScreenshot: up-next-mark-restored
 - runFlow:
     file: lib/prepare-operation.yaml
     env:
       OPERATION: write
-- tapOn:
-    id: "queue-row-[0-9]+-mark"
-    index: 0
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - swipe:
+          from:
+            id: "queue-row-[0-9]+"
+            index: 0
+          direction: RIGHT
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          id: "queue-row-[0-9]+-body"
+          index: 0
+      - extendedWaitUntil:
+          visible:
+            id: "continue-mark"
+          timeout: 30000
+      - tapOn:
+          id: "continue-mark"
 - runFlow: lib/settle.yaml
 - assertVisible:
     id: "snackbar-undo"

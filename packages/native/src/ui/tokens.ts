@@ -110,7 +110,6 @@ export const SPACE = { s1: 4, s2: 8, s3: 12, s4: 16, s5: 24, s6: 32, s7: 48, s8:
 export const RADIUS = { poster: 8, control: 12, card: 16, sheet: 20, pill: 999 } as const;
 
 export const ROW_MIN_HEIGHT = {
-  marquee: 140,
   queue: 72,
   lapsed: 72,
   onTheWay: 64,
@@ -123,8 +122,6 @@ export const ROW_MIN_HEIGHT = {
 } as const;
 
 export const TARGET_MIN = Platform.OS === "ios" ? 44 : 48;
-
-export const CHECK_SIZE = { marquee: 56, row: 48 } as const;
 
 // `.sep` is a half-point hairline on iOS; `DividerDefaults.Thickness` is 1 dp.
 export const HAIRLINE = Platform.OS === "ios" ? StyleSheet.hairlineWidth : 1;
@@ -141,15 +138,13 @@ export const FLOAT_SHADOW: ViewStyle = Platform.select({
 
 export const REFLOW_FONT_SCALE = 1.6;
 
-export const SCRIM_FONT_SCALE = 1.3;
-
 export const SWIPE_COMMIT = 96;
 
-export const POSTER_WIDTH = { row: 48, onTheWay: 40, marquee: 64 } as const;
+export const POSTER_WIDTH = { row: 48, onTheWay: 40 } as const;
 
 export const EPISODE_NUMBER_WIDTH = 20;
 
-export const RAIL = { height: 4, row: 64, marquee: 120 } as const;
+export const RAIL = { height: 4, row: 64 } as const;
 
 export const ROW_TEXT_INSET = SPACE.s4 + POSTER_WIDTH.row + SPACE.s3;
 
