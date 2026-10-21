@@ -83,6 +83,12 @@ const health =
     : undefined;
 
 child = spawn("maestro", ["--verbose", ...args], {
+  env: health
+    ? {
+        ...process.env,
+        MAESTRO_OPTS: `${process.env["MAESTRO_OPTS"] ?? ""} ${health.javaOptions}`.trim(),
+      }
+    : process.env,
   detached: true,
   stdio: ["inherit", "pipe", "pipe"],
 });
