@@ -929,8 +929,8 @@ export function watchlistBody(library, origin, extended, type) {
   }));
 }
 
-/** `/sync/collection/shows`: one unpaged list, each show with the last time an
- * episode of it was collected. Cue reads membership only, so the per-season
+/** `/sync/collection/shows`: each show with the last time an episode of it was
+ * collected, 100 a page unless asked for another size, as Trakt pages it. Cue reads membership only, so the per-season
  * collected breakdown Trakt nests here is left out. */
 export function collectionShowsBody(library, origin, extended) {
   return library.shows

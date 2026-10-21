@@ -231,7 +231,7 @@ const ROUTES = [
   [
     "GET",
     /^\/sync\/collection\/shows$/,
-    (ctx) => json(collectionShowsBody(ctx.library, ctx.origin, extendedOf(ctx.url))),
+    (ctx) => page(collectionShowsBody(ctx.library, ctx.origin, extendedOf(ctx.url)), ctx.url, 100),
   ],
   [
     "GET",
