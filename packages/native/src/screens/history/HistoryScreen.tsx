@@ -15,12 +15,13 @@ import { readFailureBody } from "@cue/core/sync-contract";
 import { type HistorySearch, parseHistorySearch } from "@cue/core/url/search-params";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { type ReactElement, useMemo, useState } from "react";
+import { type ReactElement, useMemo, useRef, useState } from "react";
 import { RefreshControl, SectionList, StyleSheet, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePullToRefresh } from "../../hooks/usePullToRefresh";
 import { Button } from "../../ui/Button";
 import { EmptyState } from "../../ui/EmptyState";
+import { usePerfScroll } from "../../ui/harness";
 import { Separator } from "../../ui/Row";
 import { SegmentedControl, type SegmentOption } from "../../ui/SegmentedControl";
 import { SyncStrip } from "../../ui/SyncStrip";
@@ -32,6 +33,8 @@ import { AgendaSkeleton } from "../calendar/Agenda";
 import { HistoryChoice } from "./HistoryChoice";
 import { HistoryRow } from "./HistoryRow";
 import { historySections, itemKey, jumpLabel } from "./model";
+
+type HistorySection = ReturnType<typeof historySections>[number];
 
 const ROW_INSET = SPACE.s4;
 const HISTORY_TYPES: readonly SegmentOption<"" | "tv" | "movies">[] = [
@@ -67,6 +70,10 @@ export function HistoryScreen(): ReactElement {
   const refresh = usePullToRefresh();
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const list = useRef<SectionList<HistorySection["data"][number], HistorySection>>(null);
+  usePerfScroll("history", (y) =>
+    list.current?.getScrollResponder()?.scrollTo({ y, animated: true }),
+  );
   const rowWidth = useWindowDimensions().width - 2 * ROW_INSET;
   const next = () => {
     if (query.hasNextPage && !query.isFetching) void query.fetchNextPage();
@@ -98,6 +105,7 @@ export function HistoryScreen(): ReactElement {
         }}
       />
       <SectionList
+        ref={list}
         testID={TEST_IDS.historyList}
         sections={sections}
         stickySectionHeadersEnabled

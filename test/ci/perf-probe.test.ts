@@ -10,11 +10,13 @@ import {
   watchlistBody,
 } from "../../scripts/mock-trakt/seed.mjs";
 import {
-  coldStart,
+  coldStartOf,
+  createChannel,
   frameStats,
   hitches,
   memInfo,
   overdrawShares,
+  PASS,
   settleMs,
   simulatorRss,
   summary,
@@ -129,7 +131,7 @@ it("counts the views and the Compose compositions in the top activity's hierarch
 
 it("reads cold start from am start -W and memory from dumpsys meminfo", () => {
   expect(
-    coldStart(`Starting: Intent { cmp=app.cuetracker/.MainActivity }
+    coldStartOf(`Starting: Intent { cmp=app.cuetracker/.MainActivity }
 Status: ok
 LaunchState: COLD
 Activity: app.cuetracker/.MainActivity
@@ -311,4 +313,61 @@ it("runs only on perf-probe/** pushes or dispatch, and nothing else runs on thos
   expect(readFileSync(path.join(WORKFLOWS, "ci.yml"), "utf8")).not.toMatch(
     /perf-probe|\.maestro\/perf\//,
   );
+});
+
+it("hands each command to the app's waiting request and resolves with the app's reply", async () => {
+  const channel = createChannel();
+  const launched = channel.ready();
+  await expect(channel.send("tab library")).rejects.toThrow("not listening");
+
+  const first = channel.next("ready");
+  await launched;
+  const reply = channel.send("tab library");
+  expect(await first).toBe("tab library");
+  void channel.next("ran tab");
+  expect(await reply).toBe("ran tab");
+
+  const relaunched = channel.ready();
+  const third = channel.next("ready");
+  await relaunched;
+  const lapsed = channel.send("lapsed");
+  expect(await third).toBe("lapsed");
+  void channel.next("unknown lapsed");
+  expect(await lapsed).toBe("unknown lapsed");
+});
+
+const NATIVE = repositoryPath("packages/native");
+
+const sourcesUnder = (directory: string): string[] =>
+  readdirSync(path.join(NATIVE, directory), { recursive: true, encoding: "utf8" })
+    .filter((name) => /\.tsx?$/.test(name))
+    .map((name) => readFileSync(path.join(NATIVE, directory, name), "utf8"));
+
+it("sends only commands the app registers", () => {
+  const sources = [...sourcesUnder("app"), ...sourcesUnder("src")].join("\n");
+  const channel = readFileSync(path.join(NATIVE, "src/ui/perf-channel.ts"), "utf8");
+  const registered = [
+    ...[...channel.matchAll(/^ {2}\[\s*"([\w:-]+)",/gm)].map(([, name = ""]) => name),
+    ...[...sources.matchAll(/usePerfCommand\(\s*["`]([\w:-]+)/g)].map(([, name = ""]) => name),
+    ...[...sources.matchAll(/usePerfScroll\(\s*"([\w-]+)"/g)].map(
+      ([, name = ""]) => `scroll:${name}`,
+    ),
+  ];
+  const sent = PASS.flatMap((step) => [
+    ...(step.setup ?? []),
+    ...(step.command ? [step.command] : []),
+  ]);
+  const unregistered = sent
+    .map((line) => line.split(" ")[0] ?? "")
+    .filter(
+      (name) =>
+        !registered.some(
+          (known) => known === name || (known.endsWith(":") && name.startsWith(known)),
+        ),
+    );
+
+  expect(registered).toEqual(
+    expect.arrayContaining(["tab", "back", "lapsed", "season:", "scroll:history"]),
+  );
+  expect(unregistered).toEqual([]);
 });

@@ -42,6 +42,7 @@ import {
 import { useStableQueueOrder } from "../../../src/screens/up-next/useStableQueueOrder";
 import { BarItems } from "../../../src/ui/BarItems";
 import { Chevron } from "../../../src/ui/Chevron";
+import { usePerfCommand, usePerfScroll } from "../../../src/ui/harness";
 import { Row, Separator } from "../../../src/ui/Row";
 import { SyncStrip } from "../../../src/ui/SyncStrip";
 import { TabRoot } from "../../../src/ui/TabRoot";
@@ -150,6 +151,12 @@ export default function UpNext(): ReactElement {
   const branch = branchOf(view, showsEnabled);
   const sectioned = SECTIONED.includes(branch);
   const list = useRef<SectionList<UpNextCard, UpNextSection>>(null);
+  usePerfScroll("up-next", (y) =>
+    list.current?.getScrollResponder()?.scrollTo({ y, animated: true }),
+  );
+  usePerfCommand("end:up-next", () =>
+    list.current?.getScrollResponder()?.scrollToEnd({ animated: false }),
+  );
   useEffect(() => {
     if (!sectioned && Platform.OS === "android")
       list.current?.getScrollResponder()?.scrollTo({ y: 0, animated: false });

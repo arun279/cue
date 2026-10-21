@@ -1,6 +1,7 @@
 import { useHaptics } from "@cue/core/ports/haptics";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet } from "react-native";
+import { usePerfCommand } from "../../ui/harness";
 import { HAIRLINE, RADIUS, SELECTABLE, SPACE, useColors } from "../../ui/tokens";
 import { CueText } from "../../ui/type";
 import type { Chip, ChipKey } from "./model";
@@ -17,6 +18,11 @@ export interface ChipRailProps {
 export function ChipRail({ chips, selected, onSelect }: ChipRailProps): ReactElement {
   const colors = useColors();
   const haptics = useHaptics();
+  usePerfCommand("chip", (key) => {
+    const chip = chips.find((candidate) => candidate.key === key);
+    if (chip === undefined) throw new Error(`no chip ${key}`);
+    onSelect(chip.key);
+  });
 
   return (
     <ScrollView

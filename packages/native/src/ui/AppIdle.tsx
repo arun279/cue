@@ -42,6 +42,12 @@ export function createAcknowledgments() {
 
 const operations = createAcknowledgments();
 
+let announceReady: () => void = () => undefined;
+/** Settles the first time the app is idle with its data loaded. */
+export const appReady = new Promise<void>((resolve) => {
+  announceReady = resolve;
+});
+
 export async function trackSync(run: () => Promise<boolean>): Promise<boolean> {
   return (await operations.run("sync", async () => ((await run()) ? "done" : "failed"))) === "done";
 }
@@ -81,7 +87,9 @@ export function AppIdle(): ReactElement | null {
   );
 
   useEffect(() => {
-    if (idle) setReady(true);
+    if (!idle) return;
+    setReady(true);
+    announceReady();
   }, [idle]);
 
   return (
