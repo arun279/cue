@@ -60,7 +60,7 @@ it("runs an action from its own tap", async () => {
 it.each([
   ["root", { ios: 104, android: 112 }],
   ["presentation", { ios: 32, android: 32 }],
-  ["sheet", { ios: 32, android: 72 }],
+  ["sheet", { ios: 68, android: 96 }],
 ] as const)("floats the %s snackbar at its bottom edge", async (placement, bottom) => {
   await render(
     <SafeAreaProvider
