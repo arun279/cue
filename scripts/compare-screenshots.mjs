@@ -1,29 +1,21 @@
 import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import pixelmatch from "pixelmatch";
 import { PNG } from "pngjs";
+import { changedPixels } from "./changed-pixels.mjs";
 
 const [work, out, baseSha, headSha] = process.argv.slice(2);
 if (headSha === undefined) {
   throw new Error("usage: compare-screenshots.mjs <work-dir> <out-dir> <base-sha> <head-sha>");
 }
 
-// iPhone 17 Pro: the 54 pt status bar at 3x, and a scroll indicator that ends
-// 18 px in. Its floating tab bar's glass starts at 791 pt and its tab items at
-// 795 pt; the glass edge between them refracts the content behind it a little
-// differently in each capture. Below the edge the glass lets a blurred trace of
-// that content through: the largest such difference measured was a pixelmatch
-// delta of 0.11, while a changed tab icon or label still differs at 0.5.
-// Pixel 7 Pro: the first app row starts at 158 px, and the 4 dp scroll
-// indicator. Both indicators fade on their own clocks.
-const MASKS = {
-  "iOS 1206": { top: 162, right: 18, glassEdge: [2373, 2385], glassThreshold: 0.3 },
-  "Android 1440": { top: 158, right: 14 },
-};
-const THRESHOLD = 0.1;
 const PANEL_WIDTH = 800;
 const GAP = 24;
-const TINT = [255, 0, 255];
+const OUTLINE = [255, 0, 0, 255];
+const OUTLINE_WIDTH = 3;
+const OUTLINE_PADDING = 4;
+// Capture pixels: wider than the space between words, narrower than the space
+// between separate controls, so one changed label gets one box.
+const REGION_GAP = 16;
 const TEXT_SIZES = { xxxl: "XXXL text", ax5: "AX5 text" };
 const PLATFORMS = { ios: "iOS", android: "Android" };
 const PENDING = "Verdict: VERDICT_PENDING";
@@ -82,42 +74,95 @@ const read = (file, entry, name) => {
   }
 };
 
-const changedPixels = (before, after, platform) => {
-  const { width, height } = after;
-  const diff = new Uint8Array(width * height * 4);
-  if (before.width !== width || before.height !== height) return diff;
-  const mask = MASKS[`${platform} ${width}`];
-  if (mask === undefined)
-    throw new Error(`no status bar mask for ${platform} ${width} px captures`);
-  const masked = Buffer.from(after.data);
-  before.data.copy(masked, 0, 0, mask.top * width * 4);
-  const [edgeTop, edgeBottom] = mask.glassEdge ?? [height, height];
-  const glass = Math.min(edgeBottom, height);
-  for (let y = mask.top; y < height; y++) {
-    const end = (y + 1) * width * 4;
-    const start = y >= edgeTop && y < edgeBottom ? end - width * 4 : end - mask.right * 4;
-    before.data.copy(masked, start, start, end);
+const dilateLine = (source, target, { base, length, step, radius }) => {
+  let inside = 0;
+  for (let i = 0; i < Math.min(radius, length); i++) inside += source[base + i * step];
+  for (let i = 0; i < length; i++) {
+    if (i + radius < length) inside += source[base + (i + radius) * step];
+    if (i > radius) inside -= source[base + (i - radius - 1) * step];
+    target[base + i * step] = inside > 0 ? 1 : 0;
   }
-  const region = (from, to, threshold) => {
-    const rows = (data) => data.subarray(from * width * 4, to * width * 4);
-    return pixelmatch(rows(before.data), rows(masked), rows(diff), width, to - from, {
-      threshold,
-      diffMask: true,
-    });
-  };
-  const count =
-    region(0, glass, THRESHOLD) + region(glass, height, mask.glassThreshold ?? THRESHOLD);
-  return count === 0 ? undefined : diff;
 };
 
-const tint = (image, diff) => {
-  const data = Buffer.from(image.data);
-  for (let i = 3; i < diff.length; i += 4) {
-    for (let c = 0; c < 3; c++) {
-      data[i - 3 + c] = diff[i] === 0 ? data[i - 3 + c] >> 1 : TINT[c];
+const dilate = (mask, width, height, radius) => {
+  const rows = new Uint8Array(mask.length);
+  for (let y = 0; y < height; y++) {
+    dilateLine(mask, rows, { base: y * width, length: width, step: 1, radius });
+  }
+  const square = new Uint8Array(mask.length);
+  for (let x = 0; x < width; x++) {
+    dilateLine(rows, square, { base: x, length: height, step: width, radius });
+  }
+  return square;
+};
+
+const neighbours = (at, width, size) =>
+  [
+    at - width,
+    at + width,
+    at % width > 0 ? at - 1 : -1,
+    at % width < width - 1 ? at + 1 : -1,
+  ].filter((next) => next >= 0 && next < size);
+
+const label = (area, width) => {
+  const labels = new Int32Array(area.length).fill(-1);
+  const queue = new Int32Array(area.length);
+  let count = 0;
+  for (let start = 0; start < area.length; start++) {
+    if (area[start] === 0 || labels[start] !== -1) continue;
+    labels[start] = count;
+    let head = 0;
+    let tail = 0;
+    queue[tail++] = start;
+    while (head < tail) {
+      for (const next of neighbours(queue[head++], width, area.length)) {
+        if (area[next] === 0 || labels[next] !== -1) continue;
+        labels[next] = count;
+        queue[tail++] = next;
+      }
+    }
+    count++;
+  }
+  return { labels, count };
+};
+
+const regions = (diff, width, height) => {
+  const mask = new Uint8Array(width * height);
+  for (let i = 0; i < mask.length; i++) mask[i] = diff[i * 4 + 3] === 0 ? 0 : 1;
+  const { labels, count } = label(dilate(mask, width, height, REGION_GAP / 2), width);
+  const boxes = Array.from({ length: count }, () => [width, height, -1, -1]);
+  for (let at = 0; at < mask.length; at++) {
+    if (mask[at] === 0) continue;
+    const box = boxes[labels[at]];
+    const [x, y] = [at % width, Math.floor(at / width)];
+    box.splice(
+      0,
+      4,
+      Math.min(box[0], x),
+      Math.min(box[1], y),
+      Math.max(box[2], x),
+      Math.max(box[3], y),
+    );
+  }
+  return boxes;
+};
+
+const outline = (panel, boxes, ratio) => {
+  const data = Uint8Array.from(panel.data);
+  const paint = (x, y) => data.set(OUTLINE, (y * panel.width + x) * 4);
+  for (const [x0, y0, x1, y1] of boxes) {
+    const left = Math.max(0, Math.floor(x0 / ratio) - OUTLINE_PADDING);
+    const top = Math.max(0, Math.floor(y0 / ratio) - OUTLINE_PADDING);
+    const right = Math.min(panel.width - 1, Math.ceil((x1 + 1) / ratio) + OUTLINE_PADDING);
+    const bottom = Math.min(panel.height - 1, Math.ceil((y1 + 1) / ratio) + OUTLINE_PADDING);
+    for (let y = top; y <= bottom; y++) {
+      for (let x = left; x <= right; x++) {
+        const edge = Math.min(x - left, right - x, y - top, bottom - y);
+        if (edge < OUTLINE_WIDTH) paint(x, y);
+      }
     }
   }
-  return { width: image.width, height: image.height, data };
+  return { ...panel, data };
 };
 
 const average = (image, [x0, x1], [y0, y1]) => {
@@ -149,8 +194,7 @@ const scale = (image) => {
   return { width: PANEL_WIDTH, height, data };
 };
 
-const compose = (images, file) => {
-  const panels = images.map(scale);
+const compose = (panels, file) => {
   const sheet = new PNG({
     width: panels.length * PANEL_WIDTH + (panels.length - 1) * GAP,
     height: Math.max(...panels.map(({ height }) => height)),
@@ -198,14 +242,17 @@ for (const after of lanes.filter(({ side }) => side === "after")) {
     const { screen, size } = describe(name);
     const pairFile = size === undefined ? undefined : after.captures.get(screen);
     const pair = pairFile === undefined ? undefined : read(pairFile, after, screen);
+    const afterPanel = scale(head);
     const panels = [
-      ...(base === undefined ? [] : [base]),
-      head,
-      ...(diff === undefined ? [] : [tint(head, diff)]),
+      ...(base === undefined ? [] : [scale(base)]),
+      afterPanel,
+      ...(diff === undefined
+        ? []
+        : [outline(afterPanel, regions(diff, head.width, head.height), head.width / PANEL_WIDTH)]),
     ];
     const labels = base === undefined ? ["after"] : ["before", "after", "changes"];
     if (size !== undefined) {
-      panels.unshift(...(pair === undefined ? [] : [pair]));
+      panels.unshift(...(pair === undefined ? [] : [scale(pair)]));
       labels.unshift(...(pair === undefined ? [] : ["default text after"]));
     }
     const image = `${after.platform}-${after.appearance}-${name}.png`.toLowerCase();
@@ -246,7 +293,7 @@ if (changes.length === 0 && removed.length === 0) {
   );
 } else {
   sections.push(
-    `Before is base \`${baseSha.slice(0, 7)}\`, after is head \`${headSha.slice(0, 7)}\`; ${screens(compared)} compared. The changes panel dims the after screen and marks changed pixels in magenta; the status bar, the scroll indicators and the top edge of the iOS tab bar's glass are not compared.`,
+    `Before is base \`${baseSha.slice(0, 7)}\`, after is head \`${headSha.slice(0, 7)}\`; ${screens(compared)} compared. The changes panel is the after screen with a red box around each changed area; the status bar, the scroll indicators and the top edge of the iOS tab bar's glass are not compared.`,
   );
   for (const change of changes) {
     sections.push(
