@@ -9,6 +9,9 @@ const PREDICATE =
 const LAUNCHES =
   'eventMessage CONTAINS "com.apple.mobilecal" AND (process == "runningboardd" OR process == "SpringBoard" OR process == "dasd")';
 const SLOW_MS = 1_000;
+// Twice the most live heap Maestro used in #144's run (235 MB), rounded up.
+export const MAESTRO_HEAP_MB = 512;
+const HEAP_WARNING = 0.8;
 const BEFORE_MINUTE_S = 2;
 // The longest a healthy flow stays silent is Maestro's 15 s wait for animations
 // to end, so 20 s without output means the simulator is stuck somewhere.
@@ -84,6 +87,11 @@ export function heapAfterCollections(gcLog) {
     committed: Math.max(0, ...collections.map(([, , , committed]) => Number(committed))),
   };
 }
+
+export const heapWarning = ({ live }) =>
+  live > MAESTRO_HEAP_MB * HEAP_WARNING
+    ? `Maestro's live heap reached ${live} MB, over ${HEAP_WARNING * 100}% of its ${MAESTRO_HEAP_MB} MB cap`
+    : undefined;
 
 export const launchLines = (log) =>
   log.split("\n").filter((line) => /launch/i.test(line) && line.includes("com.apple.mobilecal"));
@@ -196,6 +204,7 @@ export function laneHealth({ device, directory }) {
     const heap = heapAfterCollections(existsSync(gcLog) ? readFileSync(gcLog, "utf8") : "");
     const calendar = launchLines(launches.stdout);
     for (const line of calendar.slice(0, 5)) record(`MobileCal launch: ${line}`);
+    const warning = heapWarning(heap);
     const lines = [
       ...latencySummary(screenshotLatencies(log.stdout.split("\n"), since)),
       `${megabytes(pageIns(vmStat.stdout) - (await started))} paged in during the flow`,
@@ -208,7 +217,12 @@ export function laneHealth({ device, directory }) {
         .join(", ")}`,
     ];
     for (const line of lines) record(line);
-    return lines;
+    if (warning !== undefined) record(`warning: ${warning}`);
+    return { lines, warning };
   };
-  return { heard: silence.heard, stop, javaOptions: `-Xlog:gc:file=${gcLog}` };
+  return {
+    heard: silence.heard,
+    stop,
+    javaOptions: `-Xmx${MAESTRO_HEAP_MB}m -Xlog:gc:file=${gcLog}`,
+  };
 }
