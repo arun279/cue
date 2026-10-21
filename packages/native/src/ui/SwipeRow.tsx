@@ -23,7 +23,6 @@ export interface SwipeRowProps {
   readonly children: ReactNode;
 }
 
-// Until its first drag a row draws empty strips of the reveals' width, which the library measures.
 export function SwipeRow({ onMark, onStop, testID, children }: SwipeRowProps): ReactElement {
   const haptics = useHaptics();
   const row = useRef<SwipeableMethods>(null);
@@ -55,20 +54,24 @@ export function SwipeRow({ onMark, onStop, testID, children }: SwipeRowProps): R
               dragged ? (
                 <Reveal side="mark" translation={translation} haptics={haptics} />
               ) : (
-                <View style={styles.strip} />
+                <RevealPlaceholder />
               )
       }
       renderRightActions={(_progress, translation) =>
         dragged ? (
           <Reveal side="stop" translation={translation} haptics={haptics} />
         ) : (
-          <View style={styles.strip} />
+          <RevealPlaceholder />
         )
       }
     >
       {children}
     </Swipeable>
   );
+}
+
+function RevealPlaceholder(): ReactElement {
+  return <View style={styles.strip} />;
 }
 
 function Reveal({
