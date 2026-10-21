@@ -47,6 +47,7 @@ case $url in
   */runs/*/artifacts*) run=\${url#*/runs/}; cat "$STATE/artifacts-\${run%%/*}.json" ;;
   */workflows/ci.yml/runs*) cat "$STATE/runs.json" ;;
   */actions/artifacts\\?name=*) cat "$STATE/by-name.json" ;;
+  */reviews*) cat "$STATE/reviews.json" ;;
   repos/o/r) echo '{"id": 99}' ;;
 esac | jq -r "$filter"
 `;
@@ -695,6 +696,7 @@ describe("attach-pr-media.sh", { timeout: 30_000 }, () => {
   const prepare = () => {
     const { root, state, run } = sandbox();
     writeFileSync(path.join(state, "30.zip"), artifact);
+    writeFileSync(path.join(state, "reviews.json"), "[]");
     writeFileSync(
       path.join(state, "by-name.json"),
       JSON.stringify({
@@ -763,6 +765,46 @@ describe("attach-pr-media.sh", { timeout: 30_000 }, () => {
     );
     expect(posted.posted).not.toContain("](ios-");
     expect(posted.posted).toContain("Verdict: Intended.");
+  });
+
+  it.each([
+    ["another review on the head commit", HEAD, "Looks good."],
+    ["a media review on an earlier commit", BASE, "<!-- media-review -->\n\nOld."],
+  ])("still posts when the pull request only has %s", (_, commit, body) => {
+    const { state, attach, decide } = prepare();
+    writeFileSync(
+      path.join(state, "reviews.json"),
+      JSON.stringify([{ commit_id: commit, body, html_url: "https://github.com/o/r/pull/7#r1" }]),
+    );
+    attach();
+    decide();
+    const posted = attach();
+
+    expect(posted.status).toBe(0);
+    expect(posted.calls).toContain("pr review 7 -R o/r --comment");
+  });
+
+  it("posts nothing when a media review is already on the head commit", () => {
+    const { state, attach } = prepare();
+    writeFileSync(
+      path.join(state, "reviews.json"),
+      JSON.stringify([
+        {
+          commit_id: HEAD,
+          body: "<!-- media-review -->\n\nDone.",
+          html_url: "https://github.com/o/r/pull/7#r2",
+        },
+      ]),
+    );
+    const again = attach();
+
+    expect(again.status).toBe(0);
+    expect(again.stderr).toBe(
+      "A media review is already posted on abcdef1: https://github.com/o/r/pull/7#r2\n",
+    );
+    expect(again.calls).not.toContain("artifacts/30/zip");
+    expect(again.uploads).toBe("");
+    expect(again.calls).not.toContain("pr review");
   });
 
   it("refuses to post once the pull request moved to another commit", () => {
