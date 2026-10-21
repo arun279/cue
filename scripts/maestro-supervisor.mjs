@@ -1,4 +1,6 @@
 import { spawn } from "node:child_process";
+import path from "node:path";
+import { watchScreenshots } from "./screenshot-watch.mjs";
 
 const args = process.argv.slice(2);
 const history = [];
@@ -45,6 +47,23 @@ function inspect(source, text) {
   }
 }
 
+const debugOutput = args.includes("--debug-output")
+  ? args[args.indexOf("--debug-output") + 1]
+  : undefined;
+const stopWatching =
+  process.env.DEVICE_ID && debugOutput
+    ? watchScreenshots({
+        device: process.env.DEVICE_ID,
+        directory: path.join(debugOutput, "springboard"),
+        onStalled: (diagnosis) => {
+          if (failed) return;
+          failed = true;
+          console.error(`${diagnosis}\n${history.join("\n")}`);
+          killGroup();
+        },
+      })
+    : () => {};
+
 child = spawn("maestro", ["--verbose", ...args], {
   detached: true,
   stdio: ["inherit", "pipe", "pipe"],
@@ -58,6 +77,7 @@ for (const name of ["stdout", "stderr"]) {
 }
 child.on("error", (error) => console.error(`Cannot start Maestro: ${error.message}`));
 child.on("close", (code, signal) => {
+  stopWatching();
   process.exitCode = failed ? 1 : (code ?? (signal === "SIGINT" ? 130 : 1));
 });
 for (const [signal, code] of [
@@ -65,6 +85,7 @@ for (const [signal, code] of [
   ["SIGTERM", 143],
 ]) {
   process.on(signal, () => {
+    stopWatching();
     killGroup();
     process.exit(code);
   });
