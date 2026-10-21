@@ -10,6 +10,9 @@ const IN_PROGRESS = 100;
 const FINISHED = 9;
 const LAPSED_EVERY = 2;
 const WATCHED_MOVIES = 60;
+/** Every tenth show in progress is thinly catalogued: no network, IMDb or TVDB id, or artwork, a new season starting in ten days with its last two episodes undated, and half its episodes missing their overview, still and ids. */
+const SPARSE_EVERY = 10;
+const SPARSE_AT = 7;
 
 const LONG = "The Extraordinarily Long and Winding Chronicles of the Northern Lighthouse Keepers";
 
@@ -26,6 +29,7 @@ export const SCALE_SHOWS = Array.from({ length: IN_PROGRESS + FINISHED }, (_, in
   const seasons = [10, 10, 8];
   const aired = seasons.reduce((sum, count) => sum + count, 0);
   const lapsed = !finished && index % LAPSED_EVERY === 0;
+  const sparse = !finished && index % SPARSE_EVERY === SPARSE_AT;
   return {
     trakt: 9000 + index,
     tmdb: 99000 + index,
@@ -43,6 +47,17 @@ export const SCALE_SHOWS = Array.from({ length: IN_PROGRESS + FINISHED }, (_, in
     lastWatchedDaysAgo: lapsed ? 150 + index : 4 + (index % 14),
     noArt: index % 9 === 4,
     collectedDaysAgo: index % 3 === 0 ? 200 + index : undefined,
+    ...(sparse
+      ? {
+          seasons: [...seasons, 6],
+          startDaysAgo: aired * 7 - 10,
+          tba: 2,
+          network: null,
+          sparseIds: true,
+          sparseEpisodes: true,
+          noArt: true,
+        }
+      : {}),
   };
 });
 

@@ -47,25 +47,41 @@ const EPISODE_OVERVIEWS = [
  * Air dates run forward from `startDaysAgo` on a weekly cadence relative to
  * the injected clock.
  */
+/**
+ * An episode Trakt knows little about: one more than a week away, or two in
+ * every four of a show with `sparseEpisodes`, has no overview, still, IMDb or TVDB
+ * id; one more than a week away has no runtime; and one with no date (`tba` at
+ * the end of a show) has no TMDB id either.
+ */
 function buildEpisodes(spec, now) {
   const episodes = [];
+  const total = spec.seasons.reduce((sum, count) => sum + count, 0);
   let index = 0;
   spec.seasons.forEach((count, seasonIndex) => {
     for (let number = 1; number <= count; number += 1) {
+      const firstAired =
+        index >= total - (spec.tba ?? 0) ? null : now - spec.startDaysAgo * DAY + index * WEEK;
+      const distant = firstAired === null || firstAired > now + WEEK;
+      const obscure = distant || (spec.sparseEpisodes === true && index % 4 < 2);
       episodes.push({
         traktId: spec.trakt * 100 + index,
         season: seasonIndex + 1,
         number,
         title: EPISODE_TITLES[(spec.trakt + index) % EPISODE_TITLES.length],
-        overview: EPISODE_OVERVIEWS[(spec.trakt + index) % EPISODE_OVERVIEWS.length],
-        firstAired: now - spec.startDaysAgo * DAY + index * WEEK,
-        runtime: spec.runtime,
+        overview: obscure
+          ? null
+          : EPISODE_OVERVIEWS[(spec.trakt + index) % EPISODE_OVERVIEWS.length],
+        firstAired,
+        runtime: distant ? null : spec.runtime,
+        obscure,
       });
       index += 1;
     }
   });
   return episodes;
 }
+
+const hasAired = (ep, now) => ep.firstAired !== null && ep.firstAired <= now;
 
 /**
  * Eight shows covering every Up Next state at once: three with an aired backlog
@@ -364,8 +380,12 @@ function shelfTitle(index) {
 
 const slugOf = (title) => title.toLowerCase().replaceAll(" ", "-");
 
+/** Every 25th shelf title is announced and not out: no year, artwork or collection entry yet, and a show has no network, IMDb or TVDB id either. */
+const ANNOUNCED_EVERY = 25;
+
 const SHELF_SHOWS = Array.from({ length: SHELF_SIZE.shows }, (_, index) => {
   const title = shelfTitle(index);
+  const announced = index % ANNOUNCED_EVERY === 7;
   return {
     trakt: 7000 + index,
     tmdb: 97000 + index,
@@ -383,11 +403,23 @@ const SHELF_SHOWS = Array.from({ length: SHELF_SIZE.shows }, (_, index) => {
     lastWatchedDaysAgo: null,
     collectedDaysAgo: 10 + index,
     shelf: true,
+    ...(announced
+      ? {
+          year: null,
+          status: "in production",
+          network: null,
+          sparseIds: true,
+          noArt: true,
+          startDaysAgo: -120,
+          collectedDaysAgo: undefined,
+        }
+      : {}),
   };
 });
 
 const SHELF_MOVIES = Array.from({ length: SHELF_SIZE.movies }, (_, index) => {
   const title = shelfTitle(index + 500);
+  const announced = index % ANNOUNCED_EVERY === 7;
   return {
     trakt: 6000 + index,
     tmdb: 96000 + index,
@@ -401,6 +433,7 @@ const SHELF_MOVIES = Array.from({ length: SHELF_SIZE.movies }, (_, index) => {
     lastWatchedDaysAgo: null,
     collectedDaysAgo: 10 + index,
     shelf: true,
+    ...(announced ? { year: null, released: null, noArt: true, collectedDaysAgo: undefined } : {}),
   };
 });
 
@@ -507,6 +540,7 @@ export function createLibrary(now = FIXTURE_NOW, clock = () => now) {
       shows: now - DAY,
       movies: now - 2 * DAY,
       watchlist: now - 3 * DAY,
+      untracked: now - 30 * DAY,
     },
   };
 }
@@ -572,7 +606,7 @@ export function createSeedLibrary(profile = "default", now = FIXTURE_NOW, clock 
   return library;
 }
 
-const airedEpisodes = (show, now) => show.episodes.filter((ep) => ep.firstAired <= now);
+const airedEpisodes = (show, now) => show.episodes.filter((ep) => hasAired(ep, now));
 
 /** When an episode was watched: the app's own stamp if it marked it, else derived. */
 function watchedAtOf(show, index) {
@@ -582,28 +616,31 @@ function watchedAtOf(show, index) {
   return base - (show.completed - 1 - index) * DAY;
 }
 
-/** Trakt sends an empty list for every slot of a title it has no artwork for. */
-const imageSet = (origin, kind, item, slots) =>
+/** Trakt sends every slot for a title, an empty list where it has no artwork; the mock draws posters, fanart and stills only. */
+const TITLE_SLOTS = ["poster", "fanart", "logo", "clearart", "banner", "thumb"];
+const DRAWN = new Set(["poster", "fanart", "screenshot"]);
+const imageSet = (origin, kind, item, slots = TITLE_SLOTS) =>
   Object.fromEntries(
     slots.map((slot) => [
       slot,
-      item.noArt ? [] : [`${origin}/images/${kind}/${item.trakt}/${slot}.png`],
+      item.noArt || !DRAWN.has(slot) ? [] : [`${origin}/images/${kind}/${item.trakt}/${slot}.png`],
     ]),
   );
 
 const showIds = (show) => ({
   trakt: show.trakt,
   slug: show.slug,
-  tvdb: show.trakt + 200_000,
-  imdb: `tt${show.trakt}`,
+  tvdb: show.sparseIds ? null : show.trakt + 200_000,
+  imdb: show.sparseIds ? null : `tt${show.trakt}`,
   tmdb: show.tmdb,
 });
 
+/** An obscure episode has no IMDb or TVDB id, and an undated one no TMDB id. */
 const episodeIds = (ep) => ({
   trakt: ep.traktId,
-  tvdb: ep.traktId + 300_000,
-  imdb: `tt${ep.traktId}`,
-  tmdb: ep.traktId + 400_000,
+  tvdb: ep.obscure ? null : ep.traktId + 300_000,
+  imdb: ep.obscure ? null : `tt${ep.traktId}`,
+  tmdb: ep.firstAired === null ? null : ep.traktId + 400_000,
 });
 
 const movieIds = (movie) => ({
@@ -623,7 +660,7 @@ function showRef(show, origin, extended) {
     year: show.year,
     ids: showIds(show),
     ...(levels.has("full") ? { status: show.status, network: show.network } : {}),
-    ...(levels.has("images") ? { images: imageSet(origin, "shows", show, ["poster"]) } : {}),
+    ...(levels.has("images") ? { images: imageSet(origin, "shows", show) } : {}),
   };
 }
 
@@ -635,10 +672,18 @@ function episodeRef(ep, origin, extended) {
     title: ep.title,
     ids: episodeIds(ep),
     ...(levels.has("full")
-      ? { overview: ep.overview, runtime: ep.runtime, first_aired: iso(ep.firstAired) }
+      ? {
+          overview: ep.overview,
+          runtime: ep.runtime,
+          first_aired: ep.firstAired === null ? null : iso(ep.firstAired),
+        }
       : {}),
     ...(levels.has("images")
-      ? { images: imageSet(origin, "episodes", { trakt: ep.traktId }, ["screenshot"]) }
+      ? {
+          images: imageSet(origin, "episodes", { trakt: ep.traktId, noArt: ep.obscure }, [
+            "screenshot",
+          ]),
+        }
       : {}),
   };
 }
@@ -657,9 +702,7 @@ function movieRef(movie, origin, extended) {
           genres: movie.genres,
         }
       : {}),
-    ...(levels.has("images")
-      ? { images: imageSet(origin, "movies", movie, ["poster", "fanart"]) }
-      : {}),
+    ...(levels.has("images") ? { images: imageSet(origin, "movies", movie) } : {}),
   };
 }
 
@@ -740,7 +783,7 @@ export function watchedMoviesBody(library, origin, extended) {
  */
 export function progressBody(show, library, origin, extended) {
   const aired = airedEpisodes(show, library.now);
-  const bySeason = new Map();
+  const bySeason = new Map(show.episodes.map((ep) => [ep.season, []]));
   aired.forEach((ep, index) => {
     const episodes = bySeason.get(ep.season) ?? [];
     episodes.push({
@@ -779,32 +822,19 @@ export function showDetailBody(show, origin, extended) {
     ...(levels.has("full")
       ? {
           overview: show.overview,
-          first_aired: iso(show.episodes[0].firstAired),
+          first_aired:
+            show.episodes[0].firstAired === null ? null : iso(show.episodes[0].firstAired),
           runtime: show.runtime,
           network: show.network,
           status: show.status,
           genres: show.genres,
         }
       : {}),
-    ...(levels.has("images")
-      ? { images: imageSet(origin, "shows", show, ["poster", "fanart"]) }
-      : {}),
+    ...(levels.has("images") ? { images: imageSet(origin, "shows", show) } : {}),
   };
 }
 
 export const movieDetailBody = movieRef;
-
-function catalogRef(item, origin, extended) {
-  const show = item.type === "show";
-  return {
-    title: item.title,
-    year: item.year,
-    ids: show ? showIds(item) : movieIds(item),
-    ...(levelsOf(extended).has("images")
-      ? { images: imageSet(origin, show ? "shows" : "movies", item, ["poster"]) }
-      : {}),
-  };
-}
 
 /** `/search/show,movie`: this account's titles and the catalog-only ones
  * together, matched on title, because a search that can only return what is
@@ -816,7 +846,8 @@ export function searchBody(library, origin, extended, query) {
     ...library.movies.map((movie) => ({ type: "movie", body: movieRef(movie, origin, extended) })),
     ...catalogOnly(library).map((item) => ({
       type: item.type,
-      body: catalogRef(item, origin, extended),
+      body:
+        item.type === "show" ? showRef(item, origin, extended) : movieRef(item, origin, extended),
     })),
   ];
   return rows
@@ -862,7 +893,7 @@ export function calendarBody(library, origin, extended, startMs, days) {
   for (const show of library.shows) {
     if (show.hidden) continue;
     for (const ep of show.episodes) {
-      if (ep.firstAired < startMs || ep.firstAired >= end) continue;
+      if (ep.firstAired === null || ep.firstAired < startMs || ep.firstAired >= end) continue;
       rows.push({
         first_aired: iso(ep.firstAired),
         episode: episodeRef(ep, origin, extended),
@@ -891,7 +922,7 @@ export function historyRows(library, origin, extended, section) {
         rows.push({
           id: playId(ep.traktId),
           watched_at: iso(watchedAtOf(show, index)),
-          action: "scrobble",
+          action: "watch",
           type: "episode",
           episode: episodeRef(ep, origin, extended),
           show: showRef(show, origin, extended),
@@ -901,7 +932,7 @@ export function historyRows(library, origin, extended, section) {
           rows.push({
             id: playId(ep.traktId, 2),
             watched_at: iso(rewatchedAt),
-            action: "scrobble",
+            action: "watch",
             type: "episode",
             episode: episodeRef(ep, origin, extended),
             show: showRef(show, origin, extended),
@@ -916,7 +947,7 @@ export function historyRows(library, origin, extended, section) {
       rows.push({
         id: playId(movie.trakt),
         watched_at: iso(movie.watchedAt),
-        action: "scrobble",
+        action: "watch",
         type: "movie",
         movie: movieRef(movie, origin, extended),
       });
@@ -925,7 +956,7 @@ export function historyRows(library, origin, extended, section) {
         rows.push({
           id: playId(movie.trakt, 2),
           watched_at: iso(rewatchedAt),
-          action: "scrobble",
+          action: "watch",
           type: "movie",
           movie: movieRef(movie, origin, extended),
         });
@@ -952,16 +983,17 @@ export function watchlistBody(library, origin, extended, type) {
   }));
 }
 
-/** `/sync/collection/shows`: one unpaged list, each show with the last time an
- * episode of it was collected. Cue reads membership only, so the per-season
- * collected breakdown Trakt nests here is left out. */
+/** `/sync/collection/shows`: each show with the last time an episode of it was
+ * collected, 100 a page unless asked for another size and without artwork
+ * even when asked for it, as Trakt sends it. Cue reads membership only, so the
+ * per-season collected breakdown Trakt nests here is left out. */
 export function collectionShowsBody(library, origin, extended) {
   return library.shows
     .filter((show) => show.collectedAt !== null)
     .map((show) => ({
       last_collected_at: iso(show.collectedAt),
       last_updated_at: iso(show.collectedAt),
-      show: showRef(show, origin, extended),
+      show: showRef(show, origin, extended.replace(/,?images/, "")),
     }));
 }
 
@@ -985,21 +1017,62 @@ export function hiddenBody(library, origin) {
     }));
 }
 
+/**
+ * `/sync/last_activities`: every section and key Trakt sends. The ones this
+ * account's writes move carry its activity stamps; the rest share one stamp
+ * that only a reset moves.
+ */
 export function lastActivitiesBody(library) {
-  const { episodes, shows, movies, watchlist } = library.activities;
+  const { episodes, shows, movies, watchlist, untracked } = library.activities;
+  const still = iso(untracked);
+  const stamps = (keys, moving = {}) =>
+    Object.fromEntries(
+      keys.map((key) => [key, moving[key] === undefined ? still : iso(moving[key])]),
+    );
   return {
     all: iso(Math.max(episodes, shows, movies, watchlist)),
-    movies: {
-      watched_at: iso(movies),
-      watchlisted_at: iso(watchlist),
-      collected_at: iso(movies),
-    },
-    episodes: { watched_at: iso(episodes), collected_at: iso(episodes) },
-    shows: { rated_at: iso(shows), hidden_at: iso(shows) },
-    seasons: { watched_at: iso(episodes) },
-    watchlist: { updated_at: iso(watchlist) },
-    lists: { updated_at: iso(watchlist) },
-    account: { settings_at: iso(library.now - 30 * DAY) },
+    movies: stamps(
+      [
+        "watched_at",
+        "collected_at",
+        "rated_at",
+        "watchlisted_at",
+        "favorited_at",
+        "recommendations_at",
+        "commented_at",
+        "paused_at",
+        "hidden_at",
+      ],
+      { watched_at: movies, collected_at: movies, watchlisted_at: watchlist },
+    ),
+    episodes: stamps(
+      ["watched_at", "collected_at", "rated_at", "watchlisted_at", "commented_at", "paused_at"],
+      { watched_at: episodes, collected_at: episodes },
+    ),
+    shows: stamps(
+      [
+        "rated_at",
+        "watchlisted_at",
+        "favorited_at",
+        "recommendations_at",
+        "commented_at",
+        "hidden_at",
+        "dropped_at",
+      ],
+      { hidden_at: shows, watchlisted_at: watchlist },
+    ),
+    seasons: stamps(["rated_at", "watchlisted_at", "commented_at", "hidden_at"]),
+    comments: stamps(["liked_at", "blocked_at", "reacted_at"]),
+    lists: stamps(["liked_at", "updated_at", "commented_at", "reacted_at"], {
+      updated_at: watchlist,
+    }),
+    watchlist: stamps(["updated_at"], { updated_at: watchlist }),
+    favorites: stamps(["updated_at"]),
+    recommendations: stamps(["updated_at"]),
+    collaborations: stamps(["updated_at"]),
+    account: stamps(["settings_at", "followed_at", "following_at", "pending_at", "requested_at"]),
+    saved_filters: stamps(["updated_at"]),
+    notes: stamps(["updated_at"]),
   };
 }
 
@@ -1260,8 +1333,9 @@ export function applyWatchlistWrite(library, body, remove) {
  */
 export function itemPlaysBody(library, origin, extended, kind, id) {
   const ids = { trakt: Number(id), slug: String(id) };
+  const withImages = extended.includes("images") ? extended : `${extended},images`;
   const rows = () =>
-    historyRows(library, origin, extended, kind === "movies" ? "movies" : "episodes");
+    historyRows(library, origin, withImages, kind === "movies" ? "movies" : "episodes");
   if (kind === "movies") {
     const movie = movieById(library, ids);
     return movie === undefined ? null : rows().filter((row) => row.movie.ids.trakt === movie.trakt);

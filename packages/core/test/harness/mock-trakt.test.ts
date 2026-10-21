@@ -229,6 +229,7 @@ describe("the seeded account parses through the app's own contracts", () => {
     expect(shows.filter((show) => "shelf" in show).map((show) => show.status)).toEqual([
       "returning series",
       "ended",
+      "in production",
     ]);
     for (const show of shows) {
       const detail = ok(await getShow(client(), show.trakt));
@@ -239,7 +240,7 @@ describe("the seeded account parses through the app's own contracts", () => {
         ),
       ).toBe(true);
       const progress = ok(await getShowProgress(client(), show.trakt));
-      expect(progress.aired).toBeGreaterThan(0);
+      expect(progress.aired > 0).toBe(show.status !== "in production");
       const seasons = ok(await getShowSeasons(client(), show.trakt));
       expect(seasons.length).toBe(show.seasons.length);
       const episode = ok(await getEpisode(client(), show.trakt, 1, 1));
@@ -418,13 +419,16 @@ describe("the seeded account fills the surfaces the harness exists to demo", () 
     expect(entries.some((entry) => entry.inWatchlist && entry.completed === 0)).toBe(true);
   });
 
-  it("carries a never-started collection in the hundreds, each title with its poster", async () => {
+  it("carries a never-started collection in the hundreds, posters only from the watchlist", async () => {
     const entries = await loadUpNextEntries(client());
     const notStarted = entries.filter((entry) => entry.completed === 0);
-    expect(notStarted.length).toBeGreaterThan(300);
-    expect(notStarted.every((entry) => entry.posters.length > 0 && entry.addedAt !== null)).toBe(
-      true,
+    const listed = mock.library.shows.filter(
+      (show) => show.completed === 0 && (show.collectedAt !== null || show.inWatchlist),
     );
+    expect(listed.length).toBeGreaterThan(200);
+    expect(notStarted).toHaveLength(listed.length);
+    expect(notStarted.every((entry) => entry.addedAt !== null)).toBe(true);
+    expect(notStarted.every((entry) => entry.posters.length > 0 === entry.inWatchlist)).toBe(true);
   });
 });
 

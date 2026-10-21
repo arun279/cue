@@ -234,7 +234,7 @@ const ROUTES = [
   [
     "GET",
     /^\/sync\/collection\/shows$/,
-    (ctx) => json(collectionShowsBody(ctx.library, ctx.origin, extendedOf(ctx.url))),
+    (ctx) => page(collectionShowsBody(ctx.library, ctx.origin, extendedOf(ctx.url)), ctx.url, 100),
   ],
   [
     "GET",
@@ -273,18 +273,20 @@ const ROUTES = [
     "GET",
     /^\/search\/[^/]+$/,
     (ctx) =>
-      json(
+      page(
         searchBody(
           ctx.library,
           ctx.origin,
           extendedOf(ctx.url),
           ctx.url.searchParams.get("query") ?? "",
         ),
+        ctx.url,
+        10,
       ),
   ],
 
   // ---- Shows
-  ["GET", /^\/shows\/(?<rank>trending|popular)$/, (ctx) => json(browse(ctx, "shows"))],
+  ["GET", /^\/shows\/(?<rank>trending|popular)$/, (ctx) => page(browse(ctx, "shows"), ctx.url, 10)],
   [
     "GET",
     /^\/shows\/(?<id>[^/]+)\/related$/,
@@ -335,7 +337,11 @@ const ROUTES = [
   ],
 
   // ---- Movies
-  ["GET", /^\/movies\/(?<rank>trending|popular)$/, (ctx) => json(browse(ctx, "movies"))],
+  [
+    "GET",
+    /^\/movies\/(?<rank>trending|popular)$/,
+    (ctx) => page(browse(ctx, "movies"), ctx.url, 10),
+  ],
   [
     "GET",
     /^\/movies\/(?<id>[^/]+)\/related$/,
