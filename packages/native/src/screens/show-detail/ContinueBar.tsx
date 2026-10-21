@@ -4,6 +4,7 @@ import { continuePosition, episodeCount, returnsLine } from "@cue/core/domain/sh
 import { watchedPercent } from "@cue/core/format";
 import { useMarkControl } from "@cue/core/hooks/useMarkControl";
 import type { MarkWatched } from "@cue/core/hooks/useMarkWatched";
+import { useMarkStore } from "@cue/core/stores/mark-store";
 import { useRouter } from "expo-router";
 import type { ReactElement } from "react";
 import { StyleSheet, View } from "react-native";
@@ -53,7 +54,11 @@ function NextEpisode({
   const colors = useColors();
   const router = useRouter();
   const control = useMarkControl(entry, mark);
-  const episode = entry.nextEpisode;
+  const record = useMarkStore((state) => state.records.get(entry.showId));
+  const justMarked = control.state === "just-marked" && record !== undefined;
+  const episode = justMarked
+    ? { season: record.season, number: record.number, title: record.beforeMark.nextEpisode?.title }
+    : entry.nextEpisode;
   const title =
     episode === null
       ? "Finding your next episode"
@@ -74,8 +79,12 @@ function NextEpisode({
       trailing={
         episode === null ? null : (
           <CheckControl
-            checked={control.state !== "unwatched"}
-            label={control.label}
+            checked={justMarked}
+            label={
+              justMarked
+                ? control.label
+                : `Mark ${entry.title} ${epCode(episode.season, episode.number)} watched`
+            }
             disabled={control.state === "advancing"}
             pending={control.pending}
             onPress={control.onPress}
