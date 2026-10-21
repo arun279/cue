@@ -21,6 +21,7 @@ import { initialWindowMetrics, SafeAreaProvider } from "react-native-safe-area-c
 import { bootNativeStores } from "../src/boot";
 import { NATIVE_REDIRECT_URI, TRAKT_BASE_OVERRIDE, TRAKT_CLIENT_ID } from "../src/config";
 import { nativeCrypto } from "../src/crypto";
+import { useHeldNavigation } from "../src/enter-from-outside";
 import { nativeAppVersion } from "../src/platform/app-version";
 import { nativeAppVisibility } from "../src/platform/app-visibility";
 import { createNativeHaptics } from "../src/platform/haptics";
@@ -138,6 +139,7 @@ function Gate({ runtimeDeps }: Pick<NativeSession, "runtimeDeps">): ReactElement
 function RoutedApp(): ReactElement {
   useActivitiesPoll();
   useEpisodeReminders();
+  useHeldNavigation();
   useOpenTappedReminder();
 
   return (

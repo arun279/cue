@@ -1,6 +1,7 @@
 # Every connector into History, Settings and the month jump from outside
 # Profile: enter it, leave by the platform back (the iOS back button, Android
-# system back) or by the sheet's close button, and land where it started.
+# system back) or by the sheet's close button, and land where it started. A link
+# opened from outside lands on its screen with the platform back working.
 appId: app.cuetracker
 ---
 - runFlow: lib/relaunch.yaml
@@ -34,6 +35,46 @@ appId: app.cuetracker
     id: "screen-up-next"
 - assertNotVisible:
     id: "screen-history"
+# A link opened from outside dismisses Profile, or a sheet, before it lands.
+- tapOn:
+    id: "avatar-link"
+- assertVisible:
+    id: "screen-profile"
+- openLink: cue://show/8803
+- extendedWaitUntil:
+    visible: "More actions for Midnight Cartography"
+    timeout: 30000
+- assertNotVisible:
+    id: "screen-profile"
+- runFlow:
+    file: lib/back.yaml
+    env:
+      BACK_TITLE: "Up Next"
+- assertVisible:
+    id: "screen-up-next"
+- scrollUntilVisible:
+    element:
+      id: "link-history"
+- tapOn:
+    id: "link-history"
+- tapOn:
+    id: "history-jump"
+- extendedWaitUntil:
+    visible:
+      id: "sheet-presented"
+    timeout: 10000
+- openLink: cue://show/8803
+- extendedWaitUntil:
+    visible: "More actions for Midnight Cartography"
+    timeout: 30000
+- assertNotVisible:
+    id: "history-jump-sheet"
+- runFlow:
+    file: lib/back.yaml
+    env:
+      BACK_TITLE: "Up Next"
+- assertVisible:
+    id: "screen-up-next"
 # TV shows off: Up Next links to Settings in its own stack.
 - tapOn:
     id: "avatar-link"

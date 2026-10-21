@@ -5,7 +5,6 @@ import {
 } from "@cue/core/domain/reminders";
 import type { Reminders } from "@cue/core/ports/reminders";
 import * as Notifications from "expo-notifications";
-import { useNavigationContainerRef } from "expo-router";
 import { useEffect } from "react";
 import { enterFromOutside } from "../enter-from-outside";
 
@@ -81,11 +80,10 @@ export function createNativeReminders(): Reminders {
 
 export function useOpenTappedReminder(): void {
   const response = Notifications.useLastNotificationResponse();
-  const navigation = useNavigationContainerRef();
   useEffect(() => {
     if (!response) return;
     Notifications.clearLastNotificationResponse();
     const showId = response.notification.request.content.data?.["showId"];
-    enterFromOutside(navigation, typeof showId === "number" ? `/show/${showId}` : "/calendar");
-  }, [response, navigation]);
+    void enterFromOutside(typeof showId === "number" ? `/show/${showId}` : "/calendar");
+  }, [response]);
 }

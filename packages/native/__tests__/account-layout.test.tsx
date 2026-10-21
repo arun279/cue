@@ -1,12 +1,14 @@
 import { dismissSnack, showSnack } from "@cue/core/stores/snackbar-store";
 import { parseHistorySearch } from "@cue/core/url/search-params";
-import { router, Stack, useLocalSearchParams, useNavigationContainerRef } from "expo-router";
+import { router, Stack, useLocalSearchParams } from "expo-router";
 import { act, fireEvent, renderRouter, screen } from "expo-router/testing-library";
 import type { ReactElement } from "react";
-import { Platform, Text, View } from "react-native";
+import { Linking, Platform, Text, View } from "react-native";
+import * as nativeIntent from "../app/+native-intent";
+import NotFoundRoute from "../app/+not-found";
 import * as accountLayout from "../app/(account)/_layout";
 import MonthJumpRoute from "../app/(tabs)/(up-next,library,calendar,search)/history-jump";
-import { enterFromOutside } from "../src/enter-from-outside";
+import { enterFromOutside, useHeldNavigation } from "../src/enter-from-outside";
 import { MONTHS } from "../src/screens/history/model";
 import { TabStack } from "../src/TabStack";
 import { QueryProvider } from "./support/query-provider";
@@ -44,12 +46,17 @@ const Blank = (): ReactElement => <View />;
 const Settings = (): ReactElement => <View testID="screen-settings" />;
 
 const routes = {
-  _layout: (): ReactElement => (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="(account)" options={{ presentation: "fullScreenModal" }} />
-    </Stack>
-  ),
+  "+native-intent": nativeIntent,
+  "+not-found": NotFoundRoute,
+  _layout: function RootLayout(): ReactElement {
+    useHeldNavigation();
+    return (
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="(account)" options={{ presentation: "fullScreenModal" }} />
+      </Stack>
+    );
+  },
   "(tabs)/_layout": (): ReactElement => <Stack screenOptions={{ headerShown: false }} />,
   "(tabs)/(up-next)/_layout": (): ReactElement => <TabStack root="index" title="Up Next" />,
   "(tabs)/(up-next)/index": (): ReactElement => <View testID="screen-up-next" />,
@@ -234,15 +241,15 @@ describe("a tab stack", () => {
 });
 
 describe("an entry from outside the app", () => {
-  it("dismisses the account modal and its sheet before opening a tab", async () => {
+  it("dismisses the account modal and its sheet before opening the target in the tab", async () => {
     const segments = await renderAt("/");
     await act(() => router.push("/profile"));
     await act(() => router.push("/history"));
     await act(() => router.push("/history-jump"));
 
-    await act(() => enterFromOutside(useNavigationContainerRef(), "/calendar"));
+    await settle(() => enterFromOutside("/show/7"));
 
-    expect(segments()).toEqual(["(tabs)", "(calendar)", "calendar"]);
+    expect(segments()).toEqual(["(tabs)", "(up-next)", "show", "[showId]"]);
     expect(screen.queryByTestId("screen-profile")).toBeNull();
     expect(screen.queryByTestId("history-jump-sheet")).toBeNull();
   });
@@ -252,10 +259,64 @@ describe("an entry from outside the app", () => {
     await act(() => router.push("/history"));
     await act(() => router.push("/history-jump"));
 
-    await act(() => enterFromOutside(useNavigationContainerRef(), "/show/7"));
+    await settle(() => enterFromOutside("/show/7"));
 
     expect(segments()).toEqual(["(tabs)", "(up-next)", "show", "[showId]"]);
     await act(() => router.back());
     expect(segments()).toEqual(["(tabs)", "(up-next)"]);
+  });
+});
+
+/** Starts an entry without holding React's act scope open, since the entry waits for
+ * the dismissal to render before it navigates, then lets every step land. */
+async function settle(enter: () => unknown): Promise<void> {
+  await act(async () => {
+    void enter();
+  });
+  for (const _ of [1, 2, 3]) await act(async () => {});
+}
+
+/** A link another app opens while Cue runs, delivered the way the system delivers it. */
+async function openLink(url: string): Promise<void> {
+  const subscriptions = jest.mocked(Linking.addEventListener).mock.calls;
+  const [, deliver] = subscriptions.filter(([type]) => type === "url").at(-1) ?? [];
+  expect(deliver).toBeDefined();
+  await settle(() => deliver?.({ url }));
+}
+
+describe("a link opened while Cue runs", () => {
+  it("dismisses Profile before it lands", async () => {
+    const segments = await renderAt("/");
+    await act(() => router.push("/profile"));
+
+    await openLink("cue://show/7");
+
+    expect(segments()).toEqual(["(tabs)", "(up-next)", "show", "[showId]"]);
+    expect(screen.queryByTestId("screen-profile")).toBeNull();
+    await act(() => router.back());
+    expect(segments()).toEqual(["(tabs)", "(up-next)"]);
+  });
+
+  it("dismisses a sheet and lands where back returns to the tab", async () => {
+    const segments = await renderAt("/");
+    await act(() => router.push("/history"));
+    await act(() => router.push("/history-jump"));
+
+    await openLink("cue://show/7");
+
+    expect(segments()).toEqual(["(tabs)", "(up-next)", "show", "[showId]"]);
+    await act(() => router.back());
+    expect(segments()).toEqual(["(tabs)", "(up-next)"]);
+  });
+
+  it("lands an unknown path on not found, above the tabs", async () => {
+    const segments = await renderAt("/");
+    await act(() => router.push("/profile"));
+
+    await openLink("cue://nowhere");
+
+    expect(segments()).toEqual(["+not-found"]);
+    expect(screen.getByText("That link doesn't go anywhere in Cue.")).toBeOnTheScreen();
+    expect(screen.queryByTestId("screen-profile")).toBeNull();
   });
 });

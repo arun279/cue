@@ -42,13 +42,7 @@ jest.mock("expo-notifications", () => ({
   useLastNotificationResponse: () => mockOs.lastResponse,
   clearLastNotificationResponse: jest.fn(),
 }));
-jest.mock("expo-router", () => ({
-  router: { navigate: jest.fn() },
-  useNavigationContainerRef: () => ({
-    getRootState: () => ({ key: "root", index: 0, routes: [] }),
-    dispatch: jest.fn(),
-  }),
-}));
+jest.mock("expo-router", () => ({ router: { navigate: jest.fn() } }));
 
 const DAY_MS = 86_400_000;
 const START = Date.parse("2026-10-01T09:00:00");
