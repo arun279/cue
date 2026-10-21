@@ -43,17 +43,33 @@ function tinted([name, element]: Use): boolean {
   return tag === "Image" && /\btintColor\b/.test(attribute(element, "style")?.getText() ?? "");
 }
 
-/** Where a value is drawn: a JSX attribute on an element, an object property, or wherever its variable goes. */
-function usesOf(node: ts.Node, source: ts.SourceFile): Use[] {
+const indexes = (parent: ts.Node, value: ts.Node): boolean =>
+  (ts.isElementAccessExpression(parent) || ts.isPropertyAccessExpression(parent)) &&
+  parent.expression === value;
+
+function mapOf(property: ts.PropertyAssignment): ts.VariableDeclaration | undefined {
+  let value: ts.Node = property.parent;
+  while (
+    ts.isConditionalExpression(value.parent) ||
+    ts.isParenthesizedExpression(value.parent) ||
+    (ts.isPropertyAssignment(value.parent) && ts.isObjectLiteralExpression(value.parent.parent))
+  )
+    value = ts.isPropertyAssignment(value.parent) ? value.parent.parent : value.parent;
+  return ts.isVariableDeclaration(value.parent) ? value.parent : undefined;
+}
+
+function outermost(node: ts.Node): ts.Node {
   let value = node;
-  while (ts.isConditionalExpression(value.parent) || ts.isParenthesizedExpression(value.parent))
+  while (
+    ts.isConditionalExpression(value.parent) ||
+    ts.isParenthesizedExpression(value.parent) ||
+    indexes(value.parent, value)
+  )
     value = value.parent;
-  const parent = value.parent;
-  if (ts.isJsxExpression(parent) && ts.isJsxAttribute(parent.parent))
-    return [[parent.parent.name.getText(), parent.parent.parent.parent]];
-  if (ts.isPropertyAssignment(parent)) return [[parent.name.getText(), undefined]];
-  if (!ts.isVariableDeclaration(parent) || !ts.isIdentifier(parent.name)) return [["", undefined]];
-  const name = parent.name;
+  return value;
+}
+
+function referencesTo(name: ts.Identifier, source: ts.SourceFile): ts.Identifier[] {
   const references: ts.Identifier[] = [];
   const visit = (child: ts.Node): void => {
     if (ts.isIdentifier(child) && child.text === name.text && child !== name)
@@ -61,7 +77,24 @@ function usesOf(node: ts.Node, source: ts.SourceFile): Use[] {
     ts.forEachChild(child, visit);
   };
   visit(source);
-  return references.flatMap((reference) => usesOf(reference, source));
+  return references;
+}
+
+/** Where a value is drawn: a JSX attribute on an element, an object property, or wherever its variable or icon map goes. */
+function usesOf(node: ts.Node, source: ts.SourceFile): Use[] {
+  const parent = outermost(node).parent;
+  if (ts.isJsxExpression(parent) && ts.isJsxAttribute(parent.parent))
+    return [[parent.parent.name.getText(), parent.parent.parent.parent]];
+  const declaration = ts.isPropertyAssignment(parent) ? mapOf(parent) : parent;
+  if (declaration === undefined && ts.isPropertyAssignment(parent))
+    return [[parent.name.getText(), undefined]];
+  if (
+    declaration === undefined ||
+    !ts.isVariableDeclaration(declaration) ||
+    !ts.isIdentifier(declaration.name)
+  )
+    return [["", undefined]];
+  return referencesTo(declaration.name, source).flatMap((reference) => usesOf(reference, source));
 }
 
 const bundledVector = (node: ts.Node): node is ts.CallExpression =>

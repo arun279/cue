@@ -22,11 +22,10 @@ import { useRuntime } from "@cue/core/runtime/runtime";
 import { useQuery } from "@tanstack/react-query";
 import { Stack, useRouter } from "expo-router";
 import { type ReactElement, useEffect, useMemo, useRef, useState } from "react";
-import { FlatList, RefreshControl, StyleSheet, View } from "react-native";
+import { Platform, RefreshControl, SectionList, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePullToRefresh } from "../../../src/hooks/usePullToRefresh";
-import { LapsedDrawer } from "../../../src/screens/up-next/LapsedDrawer";
-import { MarqueeCard } from "../../../src/screens/up-next/MarqueeCard";
+import { LapsedHeader } from "../../../src/screens/up-next/LapsedHeader";
 import type { UpNextCard } from "../../../src/screens/up-next/model";
 import { OnTheWay } from "../../../src/screens/up-next/OnTheWay";
 import { QueueRow } from "../../../src/screens/up-next/QueueRow";
@@ -60,7 +59,6 @@ import { CueText } from "../../../src/ui/type";
 export { QueueRow };
 
 const ON_THE_WAY_ROWS = 3;
-const MARQUEE_MIN_QUEUE = 3;
 const HOUR_MS = DAY_MS / 24;
 
 interface UpNextView extends QueryStatus {
@@ -148,15 +146,22 @@ export default function UpNext(): ReactElement {
   const colors = useColors();
   const insets = useSafeAreaInsets();
 
+  const [lapsedOpen, setLapsedOpen] = useState(false);
   const branch = branchOf(view, showsEnabled);
   const sectioned = SECTIONED.includes(branch);
-  const queue = sectioned ? view.queue : [];
-  const list = useRef<FlatList<UpNextCard>>(null);
+  const list = useRef<SectionList<UpNextCard, UpNextSection>>(null);
   useEffect(() => {
-    if (!sectioned) list.current?.scrollToOffset({ offset: 0, animated: false });
+    if (!sectioned && Platform.OS === "android")
+      list.current?.getScrollResponder()?.scrollTo({ y: 0, animated: false });
   }, [sectioned]);
-  const marquee = queue.length >= MARQUEE_MIN_QUEUE ? queue[0] : undefined;
-  const rows = marquee === undefined ? queue : queue.slice(1);
+  const sections: UpNextSection[] = sectioned
+    ? [
+        { key: "queue", data: view.queue },
+        ...(view.lapsedCards.length > 0
+          ? [{ key: "lapsed" as const, data: lapsedOpen ? view.lapsedCards : [] }]
+          : []),
+      ]
+    : [];
 
   return (
     <TabRoot testID={TEST_IDS.screenUpNext}>
@@ -166,13 +171,14 @@ export default function UpNext(): ReactElement {
           headerLargeTitle: true,
         }}
       />
-      <BarItems onSync={refresh.sync} />
-      <FlatList
+      <BarItems />
+      <SectionList
         ref={list}
         testID={TEST_IDS.upNextList}
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={{ paddingBottom: tabBarClearance(insets.bottom) + SPACE.s4 }}
-        data={rows}
+        sections={sections}
+        stickySectionHeadersEnabled={false}
         extraData={mark.tutorialVisible}
         keyExtractor={(card) => String(card.entry.showId)}
         ItemSeparatorComponent={() => <Separator inset={ROW_TEXT_INSET} />}
@@ -184,37 +190,43 @@ export default function UpNext(): ReactElement {
             tintColor={colors.muted}
           />
         }
-        renderItem={({ item, index }) => (
-          <View>
+        renderSectionHeader={({ section }) =>
+          section.key === "lapsed" ? (
+            <LapsedHeader
+              count={view.lapsedCards.length}
+              expanded={lapsedOpen}
+              onToggle={() => setLapsedOpen((open) => !open)}
+            />
+          ) : null
+        }
+        renderItem={({ item, index, section }) =>
+          section.key === "lapsed" ? (
             <QueueRow
               card={item}
               mark={mark.controller}
+              variant="lapsed"
               onStop={() => stop.stopWatching(item.entry)}
             />
-            {index === 0 && mark.tutorialVisible ? <TutorialCaption /> : null}
-          </View>
-        )}
+          ) : (
+            <View>
+              <QueueRow
+                card={item}
+                mark={mark.controller}
+                onStop={() => stop.stopWatching(item.entry)}
+              />
+              {index === 0 && mark.tutorialVisible ? <TutorialCaption /> : null}
+            </View>
+          )
+        }
         ListHeaderComponent={
           <View style={styles.lead}>
             {banner === null ? null : <SyncStrip banner={banner} onRetry={view.refetch} />}
-            <Lead
-              branch={branch}
-              view={view}
-              marquee={marquee}
-              mark={mark.controller}
-              onStop={(card) => stop.stopWatching(card.entry)}
-              airingSoon={onTheWayDays.length > 0}
-            />
+            <Lead branch={branch} view={view} airingSoon={onTheWayDays.length > 0} />
           </View>
         }
         ListFooterComponent={
           sectioned ? (
             <>
-              <LapsedDrawer
-                cards={view.lapsedCards}
-                mark={mark.controller}
-                onStop={(card) => stop.stopWatching(card.entry)}
-              />
               <OnTheWay days={onTheWayDays} />
               <HistoryFooter />
             </>
@@ -223,6 +235,11 @@ export default function UpNext(): ReactElement {
       />
     </TabRoot>
   );
+}
+
+interface UpNextSection {
+  readonly key: "queue" | "lapsed";
+  readonly data: readonly UpNextCard[];
 }
 
 type Branch = "tv-off" | "loading" | "error" | "queue" | UpNextEmptyKind;
@@ -239,16 +256,10 @@ function branchOf(view: UpNextView, showsEnabled: boolean): Branch {
 function Lead({
   branch,
   view,
-  marquee,
-  mark,
-  onStop,
   airingSoon,
 }: {
   readonly branch: Branch;
   readonly view: UpNextView;
-  readonly marquee: UpNextCard | undefined;
-  readonly mark: MarkWatched;
-  readonly onStop: (card: UpNextCard) => void;
   readonly airingSoon: boolean;
 }): ReactElement | null {
   if (branch === "tv-off") {
@@ -263,15 +274,8 @@ function Lead({
   if (branch === "error") {
     return <UpNextError failure={view.failure} onRetry={view.refetch} />;
   }
-  if (branch !== "queue") {
-    return <UpNextEmpty kind={branch} watchlist={view.watchlistEntries} airingSoon={airingSoon} />;
-  }
-  if (marquee === undefined) return null;
-  return marquee.item.episode === null ? (
-    <QueueRow card={marquee} mark={mark} onStop={() => onStop(marquee)} />
-  ) : (
-    <MarqueeCard card={marquee} episode={marquee.item.episode} mark={mark} />
-  );
+  if (branch === "queue") return null;
+  return <UpNextEmpty kind={branch} watchlist={view.watchlistEntries} airingSoon={airingSoon} />;
 }
 
 function HistoryFooter(): ReactElement {

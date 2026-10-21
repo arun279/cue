@@ -479,7 +479,10 @@ function hasUnpairedOperation(source: string): boolean {
     } else if (command.startsWith("- runFlow: lib/settle.yaml")) {
       if (phase !== "input") return true;
       phase = "none";
-    } else if (phase !== "none" && /^- (tapOn|swipe):/.test(command)) {
+    } else if (
+      phase !== "none" &&
+      /^(?:- runFlow:\n\s+when:[\s\S]*\n\s+)?- (tapOn|swipe):/.test(command)
+    ) {
       phase = "input";
     }
   }

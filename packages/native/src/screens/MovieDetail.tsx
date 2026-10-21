@@ -16,7 +16,7 @@ import { CheckControl } from "../ui/CheckControl";
 import { EmptyState } from "../ui/EmptyState";
 import { HeaderMenu } from "../ui/RowMenu";
 import { TEST_IDS } from "../ui/test-ids";
-import { CHECK_SIZE, SPACE, tabBarClearance, useColors, useStacked } from "../ui/tokens";
+import { SPACE, tabBarClearance, useColors, useStacked } from "../ui/tokens";
 import { CueText } from "../ui/type";
 import { detailMarkStyles } from "./episode-sheet/EpisodeMarkRow";
 import { useMovieActions } from "./movie-detail/useMovieActions";
@@ -134,7 +134,6 @@ function LoadedMovie({ header }: { readonly header: MovieHeader }): ReactElement
             </View>
             <CheckControl
               testID={TEST_IDS.movieMark}
-              size={CHECK_SIZE.marquee}
               checked={actions.entry.watched}
               disabled={actions.busy}
               label={

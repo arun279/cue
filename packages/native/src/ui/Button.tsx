@@ -1,5 +1,11 @@
 import type { ReactElement } from "react";
-import { type GestureResponderEvent, Pressable, StyleSheet } from "react-native";
+import {
+  ActivityIndicator,
+  type ColorValue,
+  type GestureResponderEvent,
+  Pressable,
+  StyleSheet,
+} from "react-native";
 import { HAIRLINE, RADIUS, SPACE, TARGET_MIN, useColors } from "./tokens";
 import { CueText } from "./type";
 
@@ -10,8 +16,15 @@ export interface ButtonProps {
   readonly onPressIn?: (event: GestureResponderEvent) => void;
   readonly onPressOut?: (event: GestureResponderEvent) => void;
   readonly disabled?: boolean;
+  readonly busy?: boolean;
   readonly testID?: string;
 }
+
+const LOOK = {
+  primary: { surface: "accent", ink: "accentFg" },
+  ghost: { surface: "elevated", ink: "fg" },
+  link: { surface: null, ink: "accentInk" },
+} as const;
 
 export function Button({
   label,
@@ -20,45 +33,55 @@ export function Button({
   onPressIn,
   onPressOut,
   disabled = false,
+  busy = false,
   testID,
 }: ButtonProps): ReactElement {
   const colors = useColors();
-  const primary = variant === "primary";
-  const surface = primary ? colors.accent : variant === "ghost" ? colors.elevated : "transparent";
+  const look = LOOK[variant];
+  const ink = colors[look.ink];
+  const inert = disabled || busy;
 
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityState={{ disabled: inert, busy }}
       testID={testID}
-      disabled={disabled}
+      disabled={inert}
       onPress={onPress}
       onPressIn={onPressIn}
       onPressOut={onPressOut}
       style={[
         styles.button,
         variant === "link" ? styles.link : styles.filled,
-        { backgroundColor: surface },
+        { backgroundColor: look.surface === null ? "transparent" : colors[look.surface] },
         // WCAG 1.4.11: amber #f0a62a is 1.97:1 on the light page, so the fill needs a stroke.
-        primary && { borderWidth: HAIRLINE, borderColor: colors.accentFillStroke },
+        variant === "primary" && { borderWidth: HAIRLINE, borderColor: colors.accentFillStroke },
         disabled && styles.disabled,
       ]}
     >
-      <CueText
-        variant="rowTitle"
-        weight="semibold"
-        style={{
-          color: primary ? colors.accentFg : variant === "ghost" ? colors.fg : colors.accentInk,
-        }}
-      >
+      {busy ? <Busy color={ink} testID={testID} /> : null}
+      <CueText variant="rowTitle" weight="semibold" style={{ color: ink }}>
         {label}
       </CueText>
     </Pressable>
   );
 }
 
+function Busy({
+  color,
+  testID,
+}: {
+  readonly color: ColorValue;
+  readonly testID?: string;
+}): ReactElement {
+  return <ActivityIndicator color={color} testID={testID && `${testID}-busy`} />;
+}
+
 const styles = StyleSheet.create({
   button: {
     alignSelf: "flex-start",
+    flexDirection: "row",
+    gap: SPACE.s2,
     alignItems: "center",
     justifyContent: "center",
     minHeight: TARGET_MIN,
