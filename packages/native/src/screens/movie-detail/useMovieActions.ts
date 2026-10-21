@@ -10,7 +10,7 @@ import {
 } from "@cue/core/domain/write-queue/ops";
 import { replacedPlays } from "@cue/core/domain/write-queue/receipt";
 import type { QueuedOp } from "@cue/core/domain/write-queue/types";
-import { REPLACED_UNDO_NOTE, replacedMarkMessage } from "@cue/core/hooks/replaced-copy";
+import { REPLACED_COPY } from "@cue/core/hooks/replaced-copy";
 import { resolveMovieUnmark } from "@cue/core/hooks/resolve-unmark";
 import { useOptimisticWrite } from "@cue/core/hooks/useOptimisticWrite";
 import { movieLibraryQuery } from "@cue/core/queries/library";
@@ -107,7 +107,7 @@ export function useMovieActions(header: MovieHeader) {
       });
     } else if (replacedPlays(runtime.writeReceipt(op.id)) > 0) {
       showSnack({
-        message: `${snackText(replacedMarkMessage(header.title, null))} ${REPLACED_UNDO_NOTE}`,
+        message: `${snackText(REPLACED_COPY.mark(header.title, null))} ${REPLACED_COPY.undoNote}`,
       });
       revalidate();
       return;
@@ -142,7 +142,7 @@ export function useMovieActions(header: MovieHeader) {
     );
     if (outcome === "failed") return;
     if (outcome === "done" && replacedPlays(runtime.writeReceipt(op.id)) > 0) {
-      showSnack({ message: replacedMarkMessage(header.title, null) });
+      showSnack({ message: REPLACED_COPY.mark(header.title, null) });
       return;
     }
     if (undoable)

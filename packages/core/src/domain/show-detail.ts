@@ -1,8 +1,8 @@
 import { localDaysBetween } from "./day";
 import type { EpisodeKey, EpisodeRef } from "./model/library";
-import type { PlayPolicy } from "./play-policy";
 import { localTimeZone, toMs } from "./time";
 import { isTerminalStatus } from "./watch-status";
+import type { PlayPolicy } from "./write-queue/receipt";
 
 interface EpisodePosition extends EpisodeKey {
   readonly aired: boolean;

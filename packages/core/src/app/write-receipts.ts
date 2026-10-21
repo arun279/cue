@@ -1,6 +1,10 @@
 import { parseWriteReceipt } from "../data/trakt/write-receipt";
-import { learnPlayPolicy, PLAY_POLICIES, type PlayPolicy } from "../domain/play-policy";
-import { receiptApplied, type WriteReceipt } from "../domain/write-queue/receipt";
+import {
+  learnPlayPolicy,
+  type PlayPolicy,
+  receiptApplied,
+  type WriteReceipt,
+} from "../domain/write-queue/receipt";
 import type { DispatchResult, QueuedOp } from "../domain/write-queue/types";
 import { createJsonStore } from "../ports/json-store";
 import type { KeyValueStore } from "../ports/kv";
@@ -19,7 +23,7 @@ export interface WriteReceipts {
 
 export async function createWriteReceipts(kv: KeyValueStore): Promise<WriteReceipts> {
   const store = createJsonStore<PlayPolicy>(kv, PLAY_POLICY_KEY, (value) =>
-    PLAY_POLICIES.includes(value as PlayPolicy) ? (value as PlayPolicy) : "unknown",
+    value === "one-play" || value === "multiple" ? value : "unknown",
   );
   usePlayPolicy.setState({ policy: (await store.read()) ?? "unknown" });
   const receipts = new Map<string, WriteReceipt>();

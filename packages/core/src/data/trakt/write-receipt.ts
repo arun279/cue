@@ -1,12 +1,9 @@
 import { z } from "zod";
 import type { WriteReceipt } from "../../domain/write-queue/receipt";
+import { num } from "./decode";
 
-function sumCounts(counts: Record<string, unknown>): number {
-  return Object.values(counts).reduce<number>(
-    (total, value) => total + (typeof value === "number" && Number.isFinite(value) ? value : 0),
-    0,
-  );
-}
+const sum = (values: Record<string, number>): number =>
+  Object.values(values).reduce((total, value) => total + value, 0);
 
 function countMissing(groups: Record<string, unknown>): number {
   return Object.values(groups).reduce<number>(
@@ -15,7 +12,7 @@ function countMissing(groups: Record<string, unknown>): number {
   );
 }
 
-const counts = z.record(z.string(), z.unknown()).transform(sumCounts).optional();
+const counts = z.record(z.string(), num).transform(sum).optional();
 
 const receiptSchema = z.object({
   added: counts,

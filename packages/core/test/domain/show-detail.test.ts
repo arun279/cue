@@ -102,6 +102,13 @@ describe("season confirmations", () => {
       },
     );
   });
+  it("names a single watched episode in the singular", () => {
+    expect(
+      seasonConfirmation({ number: 1, airedCount: 4, completedCount: 1 }, "unknown").message,
+    ).toBe(
+      "3 of 4 episodes are unwatched. If your Trakt account keeps one play per episode, this replaces the watch date of the 1 you've watched.",
+    );
+  });
   it("says before a rewatch that a one-play account loses the watch dates", () => {
     const season = { number: 2, airedCount: 6, completedCount: 3 };
     expect(seasonConfirmation(season, "one-play")).toMatchObject({

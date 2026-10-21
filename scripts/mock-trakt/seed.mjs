@@ -427,6 +427,15 @@ const CATALOG = [
     slug: "the-harbor-master",
     title: "The Harbor Master",
     year: 2011,
+    status: "ended",
+    network: "Meridian",
+    runtime: 45,
+    genres: ["drama"],
+    overview: "A catalogue title the account has not added.",
+    seasons: [6],
+    startDaysAgo: 3000,
+    completed: 0,
+    lastWatchedDaysAgo: null,
   },
   {
     type: "movie",
@@ -435,6 +444,11 @@ const CATALOG = [
     slug: "harbor-sound",
     title: "Harbor Sound",
     year: 2015,
+    released: "2015-06-01",
+    runtime: 100,
+    genres: ["drama"],
+    overview: "A catalogue film the account has not added.",
+    lastWatchedDaysAgo: null,
   },
 ];
 
@@ -443,27 +457,41 @@ const iso = (ms) => new Date(ms).toISOString();
 const collectedAt = (spec, now) =>
   spec.collectedDaysAgo === undefined ? null : now - spec.collectedDaysAgo * DAY;
 
+/**
+ * @template {{ inWatchlist?: boolean, lastWatchedDaysAgo: number | null }} T
+ * @param {T} spec
+ * @param {number} now
+ */
+const libraryShow = (spec, now) => ({
+  ...spec,
+  hidden: false,
+  inWatchlist: spec.inWatchlist === true,
+  collectedAt: collectedAt(spec, now),
+  lastWatchedAt: spec.lastWatchedDaysAgo === null ? null : now - spec.lastWatchedDaysAgo * DAY,
+  episodes: buildEpisodes(spec, now),
+  /** `watched_at` by episode trakt id, so a mark the app made keeps its own stamp. */
+  watchedAt: new Map(),
+});
+
+/**
+ * @template {{ inWatchlist?: boolean, lastWatchedDaysAgo: number | null }} T
+ * @param {T} spec
+ * @param {number} now
+ */
+const libraryMovie = (spec, now) => ({
+  ...spec,
+  inWatchlist: spec.inWatchlist === true,
+  collectedAt: collectedAt(spec, now),
+  watchedAt: spec.lastWatchedDaysAgo === null ? null : now - spec.lastWatchedDaysAgo * DAY,
+});
+
 /** The mutable account every route reads and the write routes move. */
 export function createLibrary(now = FIXTURE_NOW, clock = () => now) {
   return {
     now,
     clock,
-    shows: [...SHOWS, ...SHELF_SHOWS].map((spec) => ({
-      ...spec,
-      hidden: false,
-      inWatchlist: spec.inWatchlist === true,
-      collectedAt: collectedAt(spec, now),
-      lastWatchedAt: spec.lastWatchedDaysAgo === null ? null : now - spec.lastWatchedDaysAgo * DAY,
-      episodes: buildEpisodes(spec, now),
-      /** `watched_at` by episode trakt id, so a mark the app made keeps its own stamp. */
-      watchedAt: new Map(),
-    })),
-    movies: [...MOVIES, ...SHELF_MOVIES].map((spec) => ({
-      ...spec,
-      inWatchlist: spec.inWatchlist === true,
-      collectedAt: collectedAt(spec, now),
-      watchedAt: spec.lastWatchedDaysAgo === null ? null : now - spec.lastWatchedDaysAgo * DAY,
-    })),
+    shows: [...SHOWS, ...SHELF_SHOWS].map((spec) => libraryShow(spec, now)),
+    movies: [...MOVIES, ...SHELF_MOVIES].map((spec) => libraryMovie(spec, now)),
     user: { username: "cue-demo", name: "Cue Demo", slug: "cue-demo" },
     /** Second plays, by episode and by movie trakt id: a seed profile's only
      * way to say an item was watched twice. */
@@ -764,7 +792,10 @@ export function searchBody(library, origin, extended, query) {
   const rows = [
     ...library.shows.map((show) => ({ type: "show", body: showRef(show, origin, extended) })),
     ...library.movies.map((movie) => ({ type: "movie", body: movieRef(movie, origin, extended) })),
-    ...CATALOG.map((item) => ({ type: item.type, body: catalogRef(item, origin, extended) })),
+    ...catalogOnly(library).map((item) => ({
+      type: item.type,
+      body: catalogRef(item, origin, extended),
+    })),
   ];
   return rows
     .filter((row) => needle !== "" && row.body.title.toLowerCase().includes(needle))
@@ -1157,7 +1188,32 @@ export function applyHiddenWrite(library, body, remove) {
  * from membership, so this moves the same `inWatchlist` flag the watchlist reads
  * serve.
  */
+/** Catalogue titles the account does not hold yet. */
+const catalogOnly = (library) =>
+  CATALOG.filter(
+    (item) =>
+      !(item.type === "show" ? library.shows : library.movies).some(
+        (own) => own.trakt === item.trakt,
+      ),
+  );
+
+/** Adding a catalogue title to the watchlist brings it into the account, as on Trakt. */
+function adoptCatalog(library, body) {
+  for (const item of catalogOnly(library)) {
+    const section = item.type === "show" ? body.shows : body.movies;
+    if (
+      !(section ?? []).some(
+        (entry) => entry.ids?.trakt === item.trakt || entry.ids?.slug === item.slug,
+      )
+    )
+      continue;
+    if (item.type === "show") library.shows.push(libraryShow(item, library.now));
+    else library.movies.push(libraryMovie(item, library.now));
+  }
+}
+
 export function applyWatchlistWrite(library, body, remove) {
+  if (!remove) adoptCatalog(library, body);
   const shows = matchSection(body.shows, (ids) => showById(library, ids));
   const movies = matchSection(body.movies, (ids) => movieById(library, ids));
   const listed = (items) => items.filter((item) => item.inWatchlist).length;

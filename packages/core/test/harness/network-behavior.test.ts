@@ -10,7 +10,15 @@ import {
   withReadRateRetry,
 } from "@cue/core/data/trakt/read-budget";
 import type { Token } from "@cue/core/domain/model/token";
-import { buildAddEpisodePlayOp, buildMarkEpisodeOp } from "@cue/core/domain/write-queue/ops";
+import { planMarkUndo } from "@cue/core/domain/reversal";
+import { buildBulkMarkOps } from "@cue/core/domain/write-queue/bulk";
+import {
+  buildAddEpisodePlayOp,
+  buildAddWatchlistOp,
+  buildMarkEpisodeOp,
+  buildRemovePlaysOp,
+  markedEpisodesOf,
+} from "@cue/core/domain/write-queue/ops";
 import { refreshShowProgress } from "@cue/core/hooks/library-cache";
 import type { KeyValueStore } from "@cue/core/ports/kv";
 import { PLAY_POLICY_KEY } from "@cue/core/ports/storage-keys";
@@ -478,6 +486,50 @@ describe("write receipts", () => {
     await expect(cue.submit(op)).resolves.toBe("done");
     expect(cue.writeReceipt("again")?.added).toBe(1);
     expect(usePlayPolicy.getState().policy).toBe("multiple");
+  });
+
+  it("undoes a landed season mark by removing exactly its plays, though Trakt stores whole minutes", async () => {
+    const cue = await runtime();
+    const before = (await cue.loadShowProgress(8803)).completed;
+    const [mark] = buildBulkMarkOps(
+      {
+        showIds: { trakt: 8803 },
+        seasons: [
+          {
+            number: 2,
+            episodes: [3, 4].map((number) => ({
+              number,
+              firstAired: "2020-01-01T00:00:00.000Z",
+              watched: false,
+            })),
+          },
+        ],
+        includeSpecials: false,
+      },
+      Date.now(),
+      "2026-10-14T12:34:56.789Z",
+      () => "season",
+    );
+    if (mark === undefined) throw new Error("the season mark must produce an op");
+    await expect(cue.submit(mark)).resolves.toBe("done");
+    const marked = markedEpisodesOf(mark);
+    const plan = planMarkUndo(marked === null ? [] : [marked], await cue.loadShowPlays(8803), 0);
+    if (plan.kind !== "remove") throw new Error(`expected plays to remove, got ${plan.kind}`);
+    expect(plan.removeIds).toHaveLength(2);
+    const removal = buildRemovePlaysOp({
+      opId: "undo",
+      ids: plan.removeIds,
+      restore: plan.restore,
+    });
+    await expect(cue.submit(removal)).resolves.toBe("done");
+    expect((await cue.loadShowProgress(8803)).completed).toBe(before);
+  });
+
+  it("lands a watchlist add for a title the account does not hold yet", async () => {
+    const cue = await runtime();
+    const add = buildAddWatchlistOp({ opId: "list", section: "shows", ids: { trakt: 8901 } });
+    await expect(cue.submit(add)).resolves.toBe("done");
+    expect(cue.writeReceipt("list")?.added).toBe(1);
   });
 
   it("fails an add Trakt answered without applying, so the app does not show it as watched", async () => {

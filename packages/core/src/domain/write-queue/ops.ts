@@ -201,11 +201,11 @@ export function buildRemoveWatchlistOp(params: WatchlistOpParams): QueuedOp {
 }
 
 interface HistoryBody {
-  readonly episodes?: readonly { readonly ids?: { readonly trakt?: number } }[];
+  readonly episodes?: readonly { readonly ids: { readonly trakt: number } }[];
   readonly shows?: readonly {
-    readonly seasons?: readonly {
+    readonly seasons: readonly {
       readonly number: number;
-      readonly episodes?: readonly { readonly number: number }[];
+      readonly episodes: readonly { readonly number: number }[];
     }[];
   }[];
 }
@@ -214,15 +214,11 @@ interface HistoryBody {
 export function markedEpisodesOf(op: QueuedOp): MarkedEpisodes | null {
   if (op.request.path !== HISTORY || op.watchedAt === null) return null;
   const body = op.request.body as HistoryBody;
-  const traktIds = new Set(
-    (body.episodes ?? []).flatMap((item) =>
-      item.ids?.trakt === undefined ? [] : [item.ids.trakt],
-    ),
-  );
+  const traktIds = new Set((body.episodes ?? []).map((item) => item.ids.trakt));
   const positions = new Set(
     (body.shows ?? []).flatMap((show) =>
-      (show.seasons ?? []).flatMap((season) =>
-        (season.episodes ?? []).map((episode) => `${season.number}:${episode.number}`),
+      show.seasons.flatMap((season) =>
+        season.episodes.map((episode) => `${season.number}:${episode.number}`),
       ),
     ),
   );

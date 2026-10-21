@@ -1,14 +1,19 @@
 import { parseWriteReceipt } from "@cue/core/data/trakt/write-receipt";
-import { learnPlayPolicy } from "@cue/core/domain/play-policy";
 import { type MarkedEpisodes, planMarkUndo } from "@cue/core/domain/reversal";
 import { buildBulkMarkOps } from "@cue/core/domain/write-queue/bulk";
 import {
   buildAddEpisodePlayOp,
   buildAddWatchlistOp,
   buildMarkEpisodeOp,
+  buildMarkMovieOp,
+  buildRemovePlaysOp,
   markedEpisodesOf,
 } from "@cue/core/domain/write-queue/ops";
-import { receiptApplied, replacedPlays } from "@cue/core/domain/write-queue/receipt";
+import {
+  learnPlayPolicy,
+  receiptApplied,
+  replacedPlays,
+} from "@cue/core/domain/write-queue/receipt";
 import { describe, expect, it } from "vitest";
 
 const AT = "2026-03-04T05:06:00.000Z";
@@ -31,6 +36,11 @@ describe("parseWriteReceipt", () => {
         not_found: { movies: [], episodes: [{ ids: {} }, { ids: {} }], people: [], users: [] },
       }),
     ).toEqual({ added: 20, updated: 5, deleted: 0, existing: 2, notFound: 2 });
+  });
+
+  it("reads counts sent as numeric strings, and is null when a count is not a number at all", () => {
+    expect(parseWriteReceipt({ added: { episodes: "2" } })?.added).toBe(2);
+    expect(parseWriteReceipt({ added: { episodes: "some" } })).toBeNull();
   });
 
   it("is null for a body that says nothing about what the write did", () => {
@@ -101,6 +111,21 @@ describe("markedEpisodesOf", () => {
       () => "b",
     );
     expect(bulk && markedEpisodesOf(bulk)?.positions).toEqual(new Set(["2:2"]));
+  });
+});
+
+describe("markedEpisodesOf, for writes that mark no episode", () => {
+  it("is null for a removal, a movie mark, and a re-add that restores removed plays", () => {
+    const removal = buildRemovePlaysOp({
+      opId: "r",
+      ids: [1],
+      restore: [{ trakt: 7, watchedAt: AT }],
+    });
+    expect(markedEpisodesOf(removal)).toBeNull();
+    expect(
+      markedEpisodesOf(buildMarkMovieOp({ opId: "m", ids: { trakt: 3 }, watchedAt: AT })),
+    ).toBeNull();
+    expect(markedEpisodesOf({ ...removal, request: removal.inverse })).toBeNull();
   });
 });
 

@@ -1365,6 +1365,50 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
     );
   });
 
+  it("keeps a season mark and says so when Undo cannot reach the history", async () => {
+    const fake = fakeRuntime({ showPlays: new Error("offline") });
+    const season = seasonView([episodeView(1), episodeView(2)]);
+    const { a } = mountSeasonSurfaces(fake, season.episodes);
+    await act(async () => a[0]?.season.markSeason(TARGET, season));
+    await act(async () => a[0]?.season.undo());
+    expect(fake.submitted).toHaveLength(1);
+    expect(snackText()).toBe("Couldn't undo that. Please try again.");
+  });
+
+  it("cancels a season mark that is still queued without reading the history", async () => {
+    const fake = fakeRuntime({
+      submit: (op) => {
+        if (op.toState === "present") fake.queued.push(op);
+        return Promise.resolve("deferred");
+      },
+    });
+    const season = seasonView([episodeView(1), episodeView(2)]);
+    const { a } = mountSeasonSurfaces(fake, season.episodes);
+    await act(async () => a[0]?.season.markSeason(TARGET, season));
+    await act(async () => a[0]?.season.undo());
+    expect(fake.loadShowPlays).not.toHaveBeenCalled();
+    expect(fake.submitted[1]).toMatchObject({
+      itemKey: fake.submitted[0]?.itemKey,
+      toState: "absent",
+    });
+  });
+
+  it("gives up a season Undo while the mark is still being delivered", async () => {
+    vi.useFakeTimers();
+    try {
+      const fake = fakeRuntime({ inFlightOpId: () => "op-0" });
+      const season = seasonView([episodeView(1), episodeView(2)]);
+      const { a } = mountSeasonSurfaces(fake, season.episodes);
+      await act(async () => a[0]?.season.markSeason(TARGET, season));
+      act(() => void a[0]?.season.undo());
+      await act(() => vi.advanceTimersByTimeAsync(10_000));
+      expect(fake.submitted).toHaveLength(1);
+      expect(snackText()).toBe("Couldn't undo that. Please try again.");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("withdraws an episode mark's Undo when Trakt replaced its play", async () => {
     const fake = fakeRuntime({ receipts: { "op-0": replaced } });
     const { qc, a } = mountSeasonSurfaces(fake);

@@ -35,21 +35,18 @@ import {
   releaseWriteLock,
   seasonWriteLock,
 } from "../stores/write-locks";
-import { waitWhileInFlight } from "./in-flight";
 import {
   type EpisodeMatch,
   patchEpisodeDetail,
   patchShowSeasons,
   refreshShowProgress,
 } from "./library-cache";
+import { REPLACED_COPY } from "./replaced-copy";
 import {
-  REPLACED_EPISODE_MESSAGE,
-  REPLACED_PLAY_MESSAGE,
-  REPLACED_UNDO_NOTE,
-  replacedBulkMessage,
-  rewatchedMessage,
-} from "./replaced-copy";
-import { type EpisodeUnmarkResolution, resolveEpisodeUnmark } from "./resolve-unmark";
+  type EpisodeUnmarkResolution,
+  resolveEpisodeUnmark,
+  waitWhileInFlight,
+} from "./resolve-unmark";
 import { useOptimisticWrite } from "./useOptimisticWrite";
 import { useResumeOnMark } from "./useResumeOnMark";
 
@@ -184,25 +181,29 @@ async function playsForUndo(
 // plays it created, by history id; when Trakt replaced plays instead, there is nothing to remove.
 // Null when the outcome cannot be known (a mark still being delivered, or history unreachable).
 async function planUndo(runtime: CueRuntime, pending: UndoState): Promise<UndoPlan> {
-  const marks = pending.ops.filter((op) => markedEpisodesOf(op) !== null);
+  const marks = pending.ops.flatMap((op) => {
+    const marked = markedEpisodesOf(op);
+    return marked === null ? [] : [{ op, marked }];
+  });
   if (
     !(await waitWhileInFlight(
       runtime,
-      marks.map((op) => op.id),
+      marks.map(({ op }) => op.id),
     ))
   )
     return null;
   const queued = new Set(runtime.pendingOps().map((op) => op.id));
-  const landed = marks.filter((op) => !queued.has(op.id));
+  const landed = marks.filter(({ op }) => !queued.has(op.id));
+  const landedOps = landed.map(({ op }) => op);
   const inverted = pending.ops
-    .filter((op) => !landed.includes(op))
+    .filter((op) => !landedOps.includes(op))
     .map((op) => invertOp(op, runtime.newId));
   if (landed.length === 0) return inverted;
-  const { replaced } = receiptTotals(runtime, landed);
+  const { replaced } = receiptTotals(runtime, landedOps);
   const plays = replaced > 0 ? [] : await playsForUndo(runtime, pending);
   if (plays === null) return null;
   const plan = planMarkUndo(
-    landed.flatMap((op) => markedEpisodesOf(op) ?? []),
+    landed.map(({ marked }) => marked),
     plays,
     replaced,
   );
@@ -335,7 +336,7 @@ export function useMarkSeason(): MarkSeasonController {
       });
       const outcome = await submitSeasonWrite(target, before, ops);
       settleWrite(outcome, ops, undoOps, "Couldn't save that change. Please try again.", (n) =>
-        replacedBulkMessage(label, n),
+        REPLACED_COPY.bulk(label, n),
       );
       return outcome;
     },
@@ -537,7 +538,7 @@ export function useMarkSeason(): MarkSeasonController {
         }
         const { added, replaced } = receiptTotals(runtime, ops);
         if (outcome === "done" && replaced > 0) {
-          showSnack({ message: rewatchedMessage(label, added, replaced) });
+          showSnack({ message: REPLACED_COPY.rewatch(label, added, replaced) });
         }
       });
     },
@@ -744,7 +745,7 @@ export function useMarkSeason(): MarkSeasonController {
           ops,
           undoLabel === undefined ? null : ops,
           "Couldn't update that episode. Please try again.",
-          () => REPLACED_EPISODE_MESSAGE,
+          () => REPLACED_COPY.episode,
         );
       } finally {
         releaseWriteLock(lockKey, opId);
@@ -787,7 +788,7 @@ export function useMarkSeason(): MarkSeasonController {
           [op],
           null,
           "Couldn't add that play. Please try again.",
-          () => REPLACED_PLAY_MESSAGE,
+          () => REPLACED_COPY.play,
         );
       });
     },
@@ -867,7 +868,7 @@ export function useMarkSeason(): MarkSeasonController {
     if ("replaced" in plan) {
       keepMarked();
       showSnack({
-        message: `${replacedBulkMessage(pending.label, plan.replaced)} ${REPLACED_UNDO_NOTE}`,
+        message: `${REPLACED_COPY.bulk(pending.label, plan.replaced)} ${REPLACED_COPY.undoNote}`,
         actions: [{ label: "Dismiss", onPress: dismissSnack }],
       });
       return;

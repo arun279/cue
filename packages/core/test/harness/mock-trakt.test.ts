@@ -736,3 +736,15 @@ describe("a play posted for a watched episode follows the account's Multiple Pla
     ).toMatchObject({ added: { shows: 0 }, existing: { shows: 1 } });
   });
 });
+
+it("brings a catalogue title into the account when it is added to the watchlist", async () => {
+  const catalogue = { shows: [{ ids: { trakt: 8901 } }] };
+  expect(await write("/sync/watchlist", catalogue)).toMatchObject({
+    added: { shows: 1 },
+    not_found: { shows: [] },
+  });
+  const watchlist = ok(await getWatchlist(client(), "shows"));
+  expect(watchlist.map((row) => row.show?.ids.trakt)).toContain(8901);
+  const hits = ok(await searchTrakt(client(), "harbor master"));
+  expect(hits.filter((hit) => hit.show?.ids.trakt === 8901)).toHaveLength(1);
+});

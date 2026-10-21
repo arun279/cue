@@ -271,6 +271,15 @@ describe("WriteQueue receipts", () => {
     expect(res.delivered.size).toBe(0);
   });
 
+  it("fails an unapplied write when reconcile cannot read the account", async () => {
+    const h = harness({
+      dispatch: () => Promise.resolve(answered({})),
+      reconcile: () => Promise.reject(new Error("offline")),
+    });
+    const q = new WriteQueue({ ...h.deps, accept: () => false }, [mark("a", 1)]);
+    expect((await q.flush()).failed.map((f) => f.op.id)).toEqual(["a"]);
+  });
+
   it("completes an unapplied write that reconcile finds already in place", async () => {
     const h = harness({
       dispatch: () => Promise.resolve(answered({})),

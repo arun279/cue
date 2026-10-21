@@ -37,7 +37,6 @@ import {
   showWriteLock,
 } from "../stores/write-locks";
 import { appendToBatch } from "../sync-contract";
-import { waitWhileInFlight } from "./in-flight";
 import {
   ensureLibraryEntry,
   patchEpisodeDetail,
@@ -45,8 +44,8 @@ import {
   patchShowSeasons,
   refreshShowProgress,
 } from "./library-cache";
-import { REPLACED_UNDO_NOTE, replacedMarkMessage } from "./replaced-copy";
-import { findMarkPlay } from "./resolve-unmark";
+import { REPLACED_COPY } from "./replaced-copy";
+import { findMarkPlay, waitWhileInFlight } from "./resolve-unmark";
 import { useOptimisticWrite } from "./useOptimisticWrite";
 import { useResumeOnMark } from "./useResumeOnMark";
 
@@ -58,9 +57,9 @@ export interface MarkWatched {
 }
 
 function showReplaced(record: MarkRecord, undoPressed: boolean): void {
-  const message = replacedMarkMessage(record.title, record.code);
+  const message = REPLACED_COPY.mark(record.title, record.code);
   showSnack({
-    message: undoPressed ? `${snackText(message)} ${REPLACED_UNDO_NOTE}` : message,
+    message: undoPressed ? `${snackText(message)} ${REPLACED_COPY.undoNote}` : message,
     actions: [{ label: "Dismiss", onPress: dismissSnack }],
   });
 }
