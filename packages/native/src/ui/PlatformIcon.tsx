@@ -28,16 +28,24 @@ const DRAWABLES: Record<IconName, number> | null =
     : null;
 
 const ICON_SIZE = Platform.OS === "ios" ? 22 : 24;
+const INDICATOR_SIZE = Platform.OS === "ios" ? 15 : ICON_SIZE;
 
 const SYMBOL_REPLACE: ImageProps["transition"] = { effect: "sf:replace", duration: 200 };
 
 export interface PlatformIconProps {
   readonly name: IconName;
   readonly color: ColorValue;
+  readonly indicator?: boolean;
   readonly testID?: string;
 }
 
-export function PlatformIcon({ name, color, testID }: PlatformIconProps): ReactElement {
+export function PlatformIcon({
+  name,
+  color,
+  indicator = false,
+  testID,
+}: PlatformIconProps): ReactElement {
+  const size = indicator ? INDICATOR_SIZE : ICON_SIZE;
   if (Platform.OS === "ios")
     return (
       <SymbolImage
@@ -45,7 +53,7 @@ export function PlatformIcon({ name, color, testID }: PlatformIconProps): ReactE
         source={`sf:${SYMBOLS[name]}`}
         transition={SYMBOL_REPLACE}
         accessible={false}
-        style={{ width: ICON_SIZE, height: ICON_SIZE, color }}
+        style={{ width: size, height: size, color, fontWeight: indicator ? "600" : undefined }}
       />
     );
   return (
@@ -53,7 +61,7 @@ export function PlatformIcon({ name, color, testID }: PlatformIconProps): ReactE
       testID={testID}
       source={DRAWABLES?.[name]}
       accessible={false}
-      style={{ width: ICON_SIZE, height: ICON_SIZE, tintColor: color }}
+      style={{ width: size, height: size, tintColor: color }}
     />
   );
 }

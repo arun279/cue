@@ -63,7 +63,7 @@ function ExternalLink({
       <CueText variant="rowTitle" weight="regular" style={{ flex: 1, color: colors.fg }}>
         {title}
       </CueText>
-      <PlatformIcon name="external" color={colors.muted} />
+      <PlatformIcon name="external" color={colors.muted} indicator />
     </Pressable>
   );
 }
