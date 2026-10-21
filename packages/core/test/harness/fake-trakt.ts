@@ -213,6 +213,8 @@ export class FakeTrakt {
       /^\/sync\/watched\/movies$/,
       (_, url) => paged(this.list(this.size.watchedMovies, WATCHED_MOVIE_BASE, "watched"), url),
     ],
+    [/^\/sync\/collection\/shows$/, () => ({ body: [] })],
+    [/^\/sync\/collection\/movies$/, (_, url) => paged([], url)],
     [/^\/shows\/trending$/, () => ({ body: this.browse(shapes.trendingShow, "show") })],
     [/^\/shows\/popular$/, () => ({ body: this.browse(shapes.popularShow) })],
     [/^\/movies\/trending$/, () => ({ body: this.browse(shapes.trendingMovie, "movie") })],

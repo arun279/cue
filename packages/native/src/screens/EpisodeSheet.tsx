@@ -8,6 +8,7 @@ import { useRuntime } from "@cue/core/runtime/runtime";
 import { useQuery } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 import { StyleSheet, View } from "react-native";
+import { SheetClose } from "../ui/SheetClose";
 import { TEST_IDS } from "../ui/test-ids";
 import { RADIUS, SPACE, useColors } from "../ui/tokens";
 import { CueText } from "../ui/type";
@@ -36,10 +37,19 @@ export function EpisodeSheet(props: EpisodeSheetProps): ReactElement {
 function EpisodeContent({ showId, season, episode }: EpisodeSheetProps): ReactElement {
   const runtime = useRuntime();
   const query = useQuery(episodeQuery(runtime, showId, season, episode));
-  if (query.isError && query.data === undefined)
-    return <DetailError subject="this episode" onRetry={() => void query.refetch()} />;
-  if (query.data === undefined) return <DetailSkeleton testID={TEST_IDS.episodeSkeleton} />;
-  return <LoadedEpisode detail={query.data} />;
+  if (query.data !== undefined) return <LoadedEpisode detail={query.data} />;
+  return (
+    <>
+      <View style={[styles.toolbar, styles.pending]}>
+        <SheetClose />
+      </View>
+      {query.isError ? (
+        <DetailError subject="this episode" onRetry={() => void query.refetch()} />
+      ) : (
+        <DetailSkeleton testID={TEST_IDS.episodeSkeleton} />
+      )}
+    </>
+  );
 }
 
 function LoadedEpisode({ detail }: { readonly detail: EpisodeDetail }): ReactElement {
@@ -55,25 +65,15 @@ function LoadedEpisode({ detail }: { readonly detail: EpisodeDetail }): ReactEle
   const navigation = seasons.data === undefined ? detail : episodeNavigation(seasons.data, detail);
   return (
     <View testID={TEST_IDS.screenEpisode} style={styles.content}>
-      {detail.aired && (
-        <View style={styles.toolbar}>
-          <EpisodeMenu detail={detail} plays={plays} mark={mark} />
-        </View>
-      )}
+      <View style={styles.toolbar}>
+        {detail.aired && <EpisodeMenu detail={detail} plays={plays} mark={mark} />}
+        <SheetClose />
+      </View>
       <EpisodeBody
         detail={detail}
         guarded={hidden && !detail.watched}
         plays={plays}
         onMark={() => mark.toggle(detail, plays)}
-        renderCheck={
-          detail.watched
-            ? (check) => (
-                <EpisodeMenu detail={detail} plays={plays} mark={mark}>
-                  {check}
-                </EpisodeMenu>
-              )
-            : undefined
-        }
       />
       <EpisodePager showId={detail.showId} prev={navigation.prev} next={navigation.next} />
     </View>
@@ -85,13 +85,11 @@ export function EpisodeBody({
   guarded,
   plays,
   onMark,
-  renderCheck,
 }: {
   readonly detail: EpisodeDetail;
   readonly guarded: boolean;
   readonly plays: number;
   readonly onMark: () => void;
-  readonly renderCheck?: (check: ReactElement) => ReactElement;
 }): ReactElement {
   const colors = useColors();
   return (
@@ -120,9 +118,7 @@ export function EpisodeBody({
         {detail.title ?? epCode(detail.season, detail.number)}
       </CueText>
       <Overview text={detail.overview} />
-      {detail.aired && (
-        <EpisodeMarkRow detail={detail} plays={plays} onMark={onMark} renderCheck={renderCheck} />
-      )}
+      {detail.aired && <EpisodeMarkRow detail={detail} plays={plays} onMark={onMark} />}
     </View>
   );
 }
@@ -131,7 +127,13 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   content: { flex: 1, padding: SPACE.s4 },
   body: { flex: 1, gap: SPACE.s3 },
-  toolbar: { alignItems: "flex-end" },
+  toolbar: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    alignItems: "center",
+    gap: SPACE.s2,
+  },
+  pending: { paddingHorizontal: SPACE.s4, paddingTop: SPACE.s4 },
   countdown: {
     minHeight: 214,
     borderRadius: RADIUS.poster,

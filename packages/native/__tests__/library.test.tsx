@@ -2,6 +2,7 @@ import { TraktReadError } from "@cue/core/data/trakt/client";
 import type { LibraryEntry } from "@cue/core/data/trakt/library";
 import type { MovieEntry } from "@cue/core/data/trakt/movie-library";
 import { act, render, screen, userEvent, waitFor } from "@testing-library/react-native";
+import { Platform } from "react-native";
 import "./support/screen-mocks";
 import { agesAgo, entry, fakeRuntime, Harness, spyHaptics } from "./support/up-next";
 
@@ -61,7 +62,8 @@ function movie(overrides: Partial<MovieEntry> = {}): MovieEntry {
     watched: true,
     watchedAt: agesAgo(12),
     inWatchlist: false,
-    listedAt: null,
+    inCollection: false,
+    addedAt: null,
     posters: [],
     tmdbId: null,
     runtime: null,
@@ -78,7 +80,7 @@ const movies = (): readonly MovieEntry[] => [
     watched: false,
     watchedAt: null,
     inWatchlist: true,
-    listedAt: agesAgo(3),
+    addedAt: agesAgo(3),
   }),
 ];
 
@@ -109,15 +111,21 @@ const titles = (): (string | undefined)[] =>
 const labelOf = (element: { props: Record<string, unknown> }): string =>
   String(element.props["accessibilityLabel"]);
 
+const chipLabels = (): string[] => screen.getAllByTestId(/^library-chip-/).map(labelOf);
+
+const selectedSort = (): string | undefined =>
+  screen
+    .getAllByTestId(/^sort-/)
+    .find((option) => option.props["accessibilityState"]?.selected === true)?.props[
+    "accessibilityLabel"
+  ];
+
 afterEach(() => jest.clearAllMocks());
 
 it("opens on Watching, with a count on every chip", async () => {
   await paint();
 
-  expect(labelOf(screen.getByTestId("library-chip-watching"))).toBe("Watching, 2");
-  expect(labelOf(screen.getByTestId("library-chip-watchlist"))).toBe("Watchlist, 1");
-  expect(labelOf(screen.getByTestId("library-chip-stopped"))).toBe("Stopped, 1");
-  expect(labelOf(screen.getByTestId("library-chip-finished"))).toBe("Finished, 1");
+  expect(chipLabels()).toEqual(["Watching, 2", "Not started, 1", "Stopped, 1", "Finished, 1"]);
   expect(titles()).toEqual(["Harbor Lights", "Coastal Static"]);
   expect(labelOf(screen.getByTestId(`show-card-${HARBOR}`))).toBe(
     "Harbor Lights, watching, 3 episodes left",
@@ -157,14 +165,61 @@ it("reorders the grid from the sort menu", async () => {
   expect(titles()).toEqual(["Coastal Static", "Harbor Lights"]);
 });
 
-it("offers the medium's own sort options", async () => {
+it("offers each chip its own sort options and keeps each chip's choice", async () => {
   await paint();
   expect(screen.queryByTestId("sort-progress")).not.toBeNull();
+  await userEvent.press(screen.getByTestId("sort-alphabetical"));
+
+  await userEvent.press(screen.getByTestId("library-chip-not-started"));
+  expect(screen.queryByTestId("sort-progress")).toBeNull();
+  expect(selectedSort()).toBe("Recently added");
+
+  await userEvent.press(screen.getByTestId("library-chip-watching"));
+  expect(selectedSort()).toBe("A-Z");
 
   await userEvent.press(screen.getByTestId("library-segment-movies"));
-
   expect(screen.queryByTestId("sort-progress")).toBeNull();
-  expect(screen.getByText("Recently added")).toBeTruthy();
+  expect(selectedSort()).toBe("Recently added");
+});
+
+it("lists everything never started, newest addition first", async () => {
+  const added = (showId: number, title: string, days: number) =>
+    entry({
+      showId,
+      title,
+      aired: 8,
+      completed: 0,
+      lastWatchedAt: null,
+      nextEpisode: null,
+      addedAt: agesAgo(days),
+    });
+  await paint({ entries: [entry(), added(1, "Older", 30), added(2, "Newer", 2)] });
+
+  await userEvent.press(screen.getByTestId("library-chip-not-started"));
+
+  expect(titles()).toEqual(["Newer", "Older"]);
+  expect(labelOf(screen.getByTestId("show-card-2"))).toBe("Newer, not started");
+});
+
+it("stops a show from its tile's menu: long press on iOS, the more icon on Android", async () => {
+  await paint({ entries: [entry()] });
+  expect(screen.queryByText("Stop watching") === null).toBe(Platform.OS === "android");
+
+  if (Platform.OS === "android") {
+    await userEvent.press(screen.getByLabelText("More actions for Harbor Lights"));
+  }
+  await userEvent.press(screen.getByText("Stop watching"));
+
+  expect(await screen.findByText("Harbor Lights stopped")).toBeTruthy();
+});
+
+it("offers the menu's actions to assistive technology on the tile itself", async () => {
+  await paint({ entries: [entry()] });
+
+  const tile = screen.getByTestId(`show-card-${HARBOR}`);
+  expect(
+    tile.props["accessibilityActions"].map((action: { label: string }) => action.label),
+  ).toEqual(["Show details", "Stop watching"]);
 });
 
 it("filters on the settled query and clears the header field back to the grid", async () => {
@@ -187,7 +242,7 @@ it("filters on the settled query and clears the header field back to the grid", 
 it("says what each empty chip is for", async () => {
   await paint({ entries: [entry()] });
 
-  await userEvent.press(screen.getByTestId("library-chip-watchlist"));
+  await userEvent.press(screen.getByTestId("library-chip-not-started"));
   expect(screen.getByText("Things you want to watch land here.")).toBeTruthy();
   expect(screen.getByText("Add them from Search.")).toBeTruthy();
 
@@ -212,9 +267,7 @@ it("names the two movie chips", async () => {
 
   await userEvent.press(screen.getByTestId("library-segment-movies"));
 
-  expect(labelOf(screen.getByTestId("library-chip-watchlist"))).toBe("Watchlist, 1");
-  expect(labelOf(screen.getByTestId("library-chip-watched"))).toBe("Watched, 1");
-  expect(screen.queryByTestId("library-chip-stopped")).toBeNull();
+  expect(chipLabels()).toEqual(["Not started, 1", "Watched, 1"]);
 });
 
 it("holds the grid's shape while it loads", async () => {

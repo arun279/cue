@@ -1,6 +1,7 @@
 /**
  * Stand-ins for the platform edges a screen test cannot drive: the router and
- * its native bar items, the platform menu, and the swipeable's own pan gesture.
+ * its native bar items, the platform menu, the Compose controls, and the
+ * swipeable's own pan gesture.
  *
  * Each one keeps the library's documented contract and nothing more, so a test
  * over them is a test of Cue's wiring rather than of the library. The libraries
@@ -100,9 +101,49 @@ function SearchBarStandIn({ ref, placeholder, onChangeText }: SearchBarOptions):
   });
 }
 
+interface LinkProps {
+  readonly href: string;
+  readonly children?: ReactNode;
+}
+
+/** A link pushes its href when its trigger is pressed. On iOS its menu actions
+ * are one target each, so a test opens the context menu the way a reader picks
+ * an item; Android drops the menu, as expo-router does. */
+function linkModule() {
+  const { Children, cloneElement, createElement, isValidElement } =
+    require("react") as typeof import("react");
+  const { Platform, Pressable, Text, View } =
+    require("react-native") as typeof import("react-native");
+  const Trigger = ({ children }: { readonly children: ReactElement }) => children;
+  const Menu = ({ children }: { readonly children?: ReactNode }) =>
+    Platform.OS === "ios" ? createElement(View, { testID: LINK_MENU }, children) : null;
+  const MenuAction = ({ children, onPress }: { readonly children: string; onPress(): void }) =>
+    createElement(
+      Pressable,
+      { accessibilityRole: "button", accessibilityLabel: children, onPress },
+      createElement(Text, null, children),
+    );
+  function Link({ href, children, ...rest }: LinkProps): ReactElement {
+    const push = () => router.push(href);
+    const parts = Children.toArray(children);
+    const trigger = parts.find((part) => isValidElement(part) && part.type === Trigger);
+    if (!isValidElement<{ children: ReactElement<{ onPress?(): void }> }>(trigger))
+      return createElement(Text, { ...rest, onPress: push }, children);
+    return createElement(
+      View,
+      null,
+      cloneElement(trigger.props.children, { onPress: push }),
+      ...parts.filter((part) => part !== trigger),
+    );
+  }
+  return Object.assign(Link, { Trigger, Menu, MenuAction });
+}
+
+/** The testID the stand-in gives each tile's context menu, so a test can count them. */
+export const LINK_MENU = "link-menu";
+
 export function expoRouterModule() {
   const { createElement } = require("react") as typeof import("react");
-  const { Text } = require("react-native") as typeof import("react-native");
   const Stack = (): null => null;
   Stack.Toolbar = toolbarModule();
   // `headerSearchBarOptions` is a UISearchController on iOS and a toolbar search
@@ -131,7 +172,7 @@ export function expoRouterModule() {
   });
   return {
     Stack,
-    Link: Text,
+    Link: linkModule(),
     useRouter: () => router,
     useNavigationContainerRef: () => ({
       getCurrentRoute: () => ({ key: "index" }),
@@ -146,7 +187,7 @@ export function expoRouterModule() {
 interface MenuProps {
   readonly title: string;
   readonly testID?: string;
-  readonly actions: readonly { id?: string; title: string; attributes?: object }[];
+  readonly actions: readonly { id?: string; title: string; state?: string; attributes?: object }[];
   onPressAction(event: { nativeEvent: { event: string } }): void;
   readonly children: ReactNode;
 }
@@ -169,7 +210,10 @@ export function menuModule() {
             key: action.id ?? action.title,
             testID: action.id ?? action.title,
             accessibilityLabel: action.title,
-            accessibilityState: { disabled: hidden(action) },
+            accessibilityState: {
+              disabled: hidden(action),
+              ...(action.state === undefined ? {} : { selected: action.state === "on" }),
+            },
             onPress: () =>
               props.onPressAction({ nativeEvent: { event: action.id ?? action.title } }),
           },
@@ -185,6 +229,19 @@ export function menuModule() {
 function hidden(action: { attributes?: object }): boolean {
   const attributes = action.attributes as { hidden?: boolean; disabled?: boolean } | undefined;
   return attributes?.hidden === true || attributes?.disabled === true;
+}
+
+/** A Compose icon button as the button a reader reaches: named by its icon's content description. */
+export function composeModule() {
+  const { createElement } = require("react") as typeof import("react");
+  const { Pressable, Text } = require("react-native") as typeof import("react-native");
+  return {
+    Host: ({ children }: { readonly children: ReactNode }) => children,
+    IconButton: ({ children, onClick }: { readonly children: ReactNode; onClick(): void }) =>
+      createElement(Pressable, { accessibilityRole: "button", onPress: onClick }, children),
+    Icon: ({ contentDescription }: { readonly contentDescription: string }) =>
+      createElement(Text, null, contentDescription),
+  };
 }
 
 /** The three platform edges every perf harness stubs the same way: the pull

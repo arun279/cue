@@ -161,10 +161,10 @@ test("uses the month window and returns to recent without changing medium", asyn
   expect(historyRouter.setParams).toHaveBeenCalledWith({ year: "", month: "" });
 });
 
-test("opens movie detail above the account presentation", async () => {
+test("opens movie detail in the stack History sits in", async () => {
   await paint();
   await fireEvent.press(await screen.findByTestId("history-row-0"));
-  expect(historyRouter.push).toHaveBeenCalledWith("/(account)/movie/9");
+  expect(historyRouter.push).toHaveBeenCalledWith("/movie/9");
   await fireEvent.press(screen.getByTestId("history-filter-shows"));
   expect(historyRouter.setParams).toHaveBeenCalledWith({ type: "tv" });
 });

@@ -1,6 +1,7 @@
 import { TraktReadError } from "@cue/core/data/trakt/client";
 import type { LibraryEntry } from "@cue/core/data/trakt/library";
 import type { PreferenceStorage } from "@cue/core/ports/preference-storage";
+import { usePrefs } from "@cue/core/prefs/prefs-store";
 import { UNDO_WINDOW_MS } from "@cue/core/sync-contract";
 import {
   act,
@@ -12,6 +13,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react-native";
+import { FlatList } from "react-native";
 import { useColors } from "../src/ui/tokens";
 import {
   agesAgo,
@@ -475,6 +477,32 @@ describe("Up Next's empty and off states", () => {
     expect(screen.getByText("Nothing queued.")).toBeOnTheScreen();
     expect(screen.queryByTestId("on-the-way-list")).toBeNull();
     expect(screen.queryByTestId("link-history")).toBeNull();
+  });
+
+  it("drops the queue it already shows, and returns to the top, when TV shows are turned off in Settings", async () => {
+    const scrollToOffset = jest.spyOn(FlatList.prototype, "scrollToOffset");
+    let turnOff = (): void => {};
+    function SettingsSwitch(): null {
+      const setShowsEnabled = usePrefs((state) => state.setShowsEnabled);
+      turnOff = () => setShowsEnabled(false);
+      return null;
+    }
+    await render(
+      <Harness runtime={fakeRuntime({ entries: queueOf() })} haptics={haptics}>
+        <UpNext />
+        <SettingsSwitch />
+      </Harness>,
+    );
+    await waitFor(() => expect(rows().length).toBeGreaterThan(0));
+
+    await act(async () => turnOff());
+
+    expect(screen.getByTestId("up-next-tv-off")).toBeOnTheScreen();
+    expect(screen.queryAllByTestId(/^queue-row-\d+$/).map((node) => node.props["testID"])).toEqual(
+      [],
+    );
+    // Android keeps a list's offset when its content shrinks, which would leave the state above the viewport.
+    expect(scrollToOffset).toHaveBeenLastCalledWith({ offset: 0, animated: false });
   });
 
   it("says so, and reads nothing, when TV shows are turned off", async () => {

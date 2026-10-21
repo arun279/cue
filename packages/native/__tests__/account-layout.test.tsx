@@ -1,22 +1,30 @@
 import { dismissSnack, showSnack } from "@cue/core/stores/snackbar-store";
 import { parseHistorySearch } from "@cue/core/url/search-params";
-import { router, Stack, useLocalSearchParams } from "expo-router";
+import { router, Stack, Tabs, useLocalSearchParams } from "expo-router";
 import { act, fireEvent, renderRouter, screen } from "expo-router/testing-library";
 import type { ReactElement } from "react";
-import { Platform, Text, View } from "react-native";
+import { Linking, Platform, Text, View } from "react-native";
+import * as nativeIntent from "../app/+native-intent";
+import NotFoundRoute from "../app/+not-found";
 import * as accountLayout from "../app/(account)/_layout";
-import MonthJumpRoute from "../app/(account)/history-jump";
+import MonthJumpRoute from "../app/(tabs)/(up-next,library,calendar,search)/history-jump";
+import { enterFromOutside, useHeldNavigation } from "../src/enter-from-outside";
 import { MONTHS } from "../src/screens/history/model";
+import { TabStack } from "../src/TabStack";
 import { QueryProvider } from "./support/query-provider";
 
+jest.mock("@expo/ui/jetpack-compose", () => require("./support/native-ui").composeModule());
 jest.mock(
   "react-native-safe-area-context",
   () => require("react-native-safe-area-context/jest/mock").default,
 );
 
 /**
- * The account modal over the tabs, presented the way the composition root
- * presents it.
+ * The account modal over two tab stacks, presented the way the composition root
+ * presents it, with History, the month jump and Settings registered in both the
+ * tab stacks and the account stack as the app registers them. JavaScript tabs
+ * stand in for the native tabs, which this runner cannot draw; both keep each
+ * tab's stack when another tab is selected.
  *
  * A real router rather than a mocked one, for both cases. `dismissAll()`
  * dispatches `POP_TO_TOP`, which the account stack declines because Profile is
@@ -35,21 +43,42 @@ function HistoryScope(): ReactElement {
   );
 }
 
+const Blank = (): ReactElement => <View />;
+const Settings = (): ReactElement => <View testID="screen-settings" />;
+
 const routes = {
-  _layout: (): ReactElement => (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="index" />
-      <Stack.Screen name="(account)" options={{ presentation: "fullScreenModal" }} />
-    </Stack>
-  ),
-  index: (): ReactElement => <View testID="screen-tabs" />,
+  "+native-intent": nativeIntent,
+  "+not-found": NotFoundRoute,
+  _layout: function RootLayout(): ReactElement {
+    useHeldNavigation();
+    return (
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="(account)" options={{ presentation: "fullScreenModal" }} />
+      </Stack>
+    );
+  },
+  "(tabs)/_layout": (): ReactElement => <Tabs screenOptions={{ headerShown: false }} />,
+  "(tabs)/(up-next)/_layout": (): ReactElement => <TabStack root="index" title="Up Next" />,
+  "(tabs)/(up-next)/index": (): ReactElement => <View testID="screen-up-next" />,
+  "(tabs)/(library)/_layout": (): ReactElement => <TabStack root="library" title="Library" />,
+  "(tabs)/(library)/library": (): ReactElement => <View testID="screen-library" />,
+  "(tabs)/(calendar)/_layout": (): ReactElement => <TabStack root="calendar" title="Calendar" />,
+  "(tabs)/(calendar)/calendar": (): ReactElement => <View testID="screen-calendar" />,
+  "(tabs)/(up-next,library)/history": HistoryScope,
+  "(tabs)/(up-next,library)/history-jump": MonthJumpRoute,
+  "(tabs)/(up-next,library)/settings": Settings,
+  "(tabs)/(up-next,library)/show/[showId]": Blank,
+  "(tabs)/(up-next,library)/movie/[movieId]": Blank,
+  "(tabs)/(up-next,library)/show/[showId]/episode/[season]/[episode]": Blank,
   "(account)/_layout": accountLayout,
   "(account)/profile": (): ReactElement => <View testID="screen-profile" />,
-  "(account)/settings": (): ReactElement => <View testID="screen-settings" />,
+  "(account)/settings": Settings,
   "(account)/history": HistoryScope,
   "(account)/history-jump": MonthJumpRoute,
-  "(account)/movie/[movieId]": (): ReactElement => <View />,
-  "(account)/show/[showId]/episode/[season]/[episode]": (): ReactElement => <View />,
+  "(account)/show/[showId]": Blank,
+  "(account)/movie/[movieId]": Blank,
+  "(account)/show/[showId]/episode/[season]/[episode]": Blank,
 };
 
 /** Leaves Profile the way each platform's header offers: the UIKit Done item
@@ -94,7 +123,7 @@ describe("the account stack", () => {
     await leaveProfile();
 
     expect(screen.queryByTestId("screen-profile")).toBeNull();
-    expect(screen.getByTestId("screen-tabs")).toBeOnTheScreen();
+    expect(screen.getByTestId("screen-up-next")).toBeOnTheScreen();
   });
 
   it("draws snackbar feedback inside the modal", async () => {
@@ -140,4 +169,168 @@ describe("the month jump sheet", () => {
     expect(screen.queryByTestId("screen-history")).toBeNull();
     expect(screen.getByTestId("screen-profile")).toBeOnTheScreen();
   });
+});
+
+/** The sheet's close as each platform draws it: a bar item in the iOS sheet's own
+ * header, or the Compose icon button in the Android sheet. */
+async function closeSheet(): Promise<void> {
+  if (Platform.OS === "android") {
+    await fireEvent.press(screen.getByRole("button", { name: "Close" }));
+    return;
+  }
+  const header = screen.container.queryAll((node) =>
+    (node.props["headerLeftBarButtonItems"] ?? []).some(
+      (item: { accessibilityLabel?: string }) => item.accessibilityLabel === "Close",
+    ),
+  )[0];
+  const [item] = header?.props["headerLeftBarButtonItems"] ?? [];
+  expect(item).toBeDefined();
+  if (header !== undefined)
+    await fireEvent(header, "pressHeaderBarButtonItem", {
+      nativeEvent: { buttonId: item.buttonId },
+    });
+}
+
+/** The router's own record of where it is: render's result is a promise, and
+ * expo-router hangs its location readers on the object it returned. */
+async function renderAt(initialUrl: string) {
+  const view = renderRouter(routes, { initialUrl, wrapper: QueryProvider });
+  await view;
+  return Object.assign(() => view.getSegments(), { state: () => view.getRouterState() });
+}
+
+interface RouteNode {
+  readonly name: string;
+  readonly state?: { readonly routes: readonly RouteNode[] };
+}
+
+/** The screens stacked in a tab, read from the router's state. */
+function stackOf(routes: readonly RouteNode[] | undefined, tab: string): string[] | undefined {
+  for (const route of routes ?? []) {
+    if (route.name === tab) return route.state?.routes.map(({ name }) => name);
+    const found = stackOf(route.state?.routes, tab);
+    if (found) return found;
+  }
+  return undefined;
+}
+
+describe("a tab stack", () => {
+  it.each([
+    ["/", "(up-next)", "screen-up-next"],
+    ["/library", "(library)", "screen-library"],
+  ])("pushes History and Settings onto the tab at %s, and back returns to that tab", async (initialUrl, tab, origin) => {
+    const segments = await renderAt(initialUrl);
+
+    for (const pathname of ["/history", "/settings"] as const) {
+      await act(() => router.push(pathname));
+      expect(segments()).toEqual(["(tabs)", tab, pathname.slice(1)]);
+      await act(() => router.back());
+      expect(screen.getByTestId(origin)).toBeOnTheScreen();
+    }
+  });
+
+  it("hands the month jump back to the History in the tab it came from", async () => {
+    const segments = await renderAt("/");
+    await act(() => router.push("/history?type=movies"));
+    await act(() => router.push({ pathname: "/history-jump", params: { type: "movies" } }));
+
+    await fireEvent.press(screen.getByTestId("history-jump-month-8"));
+
+    expect(segments()).toEqual(["(tabs)", "(up-next)", "history"]);
+    expect(screen.getByTestId("screen-history")).toHaveTextContent(
+      JSON.stringify({ type: "movies", year: new Date().getFullYear(), month: 8 }),
+    );
+    await act(() => router.back());
+    expect(screen.getByTestId("screen-up-next")).toBeOnTheScreen();
+  });
+
+  it("closes the month jump from its close button", async () => {
+    const segments = await renderAt("/");
+    await act(() => router.push("/history"));
+    await act(() => router.push("/history-jump"));
+
+    await closeSheet();
+
+    expect(screen.queryByTestId("history-jump-sheet")).toBeNull();
+    expect(segments()).toEqual(["(tabs)", "(up-next)", "history"]);
+  });
+});
+
+/** Starts an entry without holding React's act scope open, since the entry waits for
+ * the dismissal to render before it navigates, then lets every step land. */
+async function settle(enter: () => unknown): Promise<void> {
+  await act(async () => {
+    void enter();
+  });
+  for (const _ of [1, 2, 3]) await act(async () => {});
+}
+
+/** A link another app opens while Cue runs, delivered the way the system delivers it. */
+async function openLink(url: string): Promise<void> {
+  const subscriptions = jest.mocked(Linking.addEventListener).mock.calls;
+  const [, deliver] = subscriptions.filter(([type]) => type === "url").at(-1) ?? [];
+  expect(deliver).toBeDefined();
+  await settle(() => deliver?.({ url }));
+}
+
+const ENTRIES = [
+  [
+    "a tapped notification",
+    (path: "/show/7" | "/calendar") => settle(() => enterFromOutside(path)),
+  ],
+  ["a link opened while Cue runs", (path: string) => openLink(`cue:/${path}`)],
+] as const;
+
+describe.each(ENTRIES)("%s", (_, enter) => {
+  it("dismisses Profile and opens the target in the tab beneath it", async () => {
+    const segments = await renderAt("/");
+    await act(() => router.push("/profile"));
+    await act(() => router.push("/history"));
+    await act(() => router.push("/history-jump"));
+
+    await enter("/show/7");
+
+    expect(segments()).toEqual(["(tabs)", "(up-next)", "show", "[showId]"]);
+    expect(screen.queryByTestId("screen-profile")).toBeNull();
+    await act(() => router.back());
+    expect(segments()).toEqual(["(tabs)", "(up-next)"]);
+  });
+
+  it("dismisses only the sheet, keeping the screens pushed beneath it", async () => {
+    const segments = await renderAt("/");
+    await act(() => router.push("/history"));
+    await act(() => router.push("/history-jump"));
+
+    await enter("/show/7");
+
+    expect(segments()).toEqual(["(tabs)", "(up-next)", "show", "[showId]"]);
+    await act(() => router.back());
+    expect(segments()).toEqual(["(tabs)", "(up-next)", "history"]);
+  });
+
+  it("leaves the user's place in the tab they leave", async () => {
+    const segments = await renderAt("/library");
+    await act(() => router.push("/show/7"));
+    await act(() => router.push("/movie/3"));
+
+    await enter("/calendar");
+
+    expect(segments()).toEqual(["(tabs)", "(calendar)", "calendar"]);
+    expect(stackOf(segments.state()?.routes, "(library)")).toEqual([
+      "library",
+      "show/[showId]",
+      "movie/[movieId]",
+    ]);
+  });
+});
+
+it("lands a link to an unknown path on not found, above the tabs", async () => {
+  const segments = await renderAt("/");
+  await act(() => router.push("/profile"));
+
+  await openLink("cue://nowhere");
+
+  expect(segments()).toEqual(["+not-found"]);
+  expect(screen.getByText("That link doesn't go anywhere in Cue.")).toBeOnTheScreen();
+  expect(screen.queryByTestId("screen-profile")).toBeNull();
 });

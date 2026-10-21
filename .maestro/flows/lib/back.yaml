@@ -1,10 +1,14 @@
+# The platform back: the iOS back button, named by the title of the screen it
+# returns to (the first match, above a tab of the same name), or Android system back.
 appId: app.cuetracker
 ---
 - runFlow:
     when:
       platform: iOS
     commands:
-      - tapOn: ${BACK_TITLE}
+      - tapOn:
+          text: ${BACK_TITLE}
+          index: 0
 - runFlow:
     when:
       platform: Android

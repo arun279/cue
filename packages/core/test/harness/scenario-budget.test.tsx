@@ -56,7 +56,7 @@ const SCENARIOS = [
   "return to foreground",
   "pull to refresh",
   "mark, undo, then the next poll",
-  "Library Watchlist chip scrolled end to end",
+  "Library Not started chip scrolled end to end",
 ] as const;
 type Scenario = (typeof SCENARIOS)[number];
 
@@ -73,7 +73,7 @@ interface Measured {
 }
 
 const CALENDAR_NEXT = "the calendar-derived next episode change";
-const LIST_ART = "the change that takes posters from list payloads and keeps them";
+const LIST_ART = "the change that takes queue row posters from list payloads and keeps them";
 const LAZY_SEARCH = "the change that loads the Search tab's data on first focus";
 const DELTA_RELOAD = "the delta reload after the app's own writes";
 const HIDDEN_FROM_LIBRARY = "the change that filters calendars by the library's hidden flags";
@@ -85,7 +85,7 @@ const fixedBy = (...changes: string[]): string => `fixed by ${changes.join(" and
 
 const KNOWN_OVER: Readonly<Record<string, Partial<Record<`${Scenario}: ${Metric}`, string>>>> = {
   small: {
-    "sign-in and first sync: bytes": fixedBy(LAZY_SEARCH),
+    "sign-in and first sync: bytes": fixedBy(LIST_ART, LAZY_SEARCH),
     "cold launch, cache older than an hour: gets": fixedBy(
       LIST_ART,
       LAZY_SEARCH,
@@ -100,12 +100,10 @@ const KNOWN_OVER: Readonly<Record<string, Partial<Record<`${Scenario}: ${Metric}
     "warm launch, cache fresh: bytes": fixedBy(LAZY_SEARCH),
     "mark, undo, then the next poll: gets": fixedBy(DELTA_RELOAD),
     "mark, undo, then the next poll: bytes": fixedBy(DELTA_RELOAD),
-    "Library Watchlist chip scrolled end to end: gets": fixedBy(LIST_ART),
-    "Library Watchlist chip scrolled end to end: bytes": fixedBy(LIST_ART),
   },
   heavy: {
     "sign-in and first sync: gets": fixedBy(CALENDAR_NEXT, LIST_ART, LAZY_SEARCH),
-    "sign-in and first sync: bytes": fixedBy(CALENDAR_NEXT, LAZY_SEARCH),
+    "sign-in and first sync: bytes": fixedBy(CALENDAR_NEXT, LIST_ART, LAZY_SEARCH),
     "cold launch, cache older than an hour: gets": fixedBy(
       CALENDAR_NEXT,
       LIST_ART,
@@ -122,8 +120,6 @@ const KNOWN_OVER: Readonly<Record<string, Partial<Record<`${Scenario}: ${Metric}
     "warm launch, cache fresh: bytes": fixedBy(CALENDAR_NEXT, LAZY_SEARCH),
     "mark, undo, then the next poll: gets": fixedBy(DELTA_RELOAD),
     "mark, undo, then the next poll: bytes": fixedBy(DELTA_RELOAD),
-    "Library Watchlist chip scrolled end to end: gets": fixedBy(LIST_ART),
-    "Library Watchlist chip scrolled end to end: bytes": fixedBy(LIST_ART),
   },
 };
 
@@ -131,7 +127,7 @@ interface Controls {
   queue: readonly LibraryEntry[];
   mark: MarkWatched | null;
   syncNow: (() => Promise<boolean>) | null;
-  scrollWatchlist: (() => void) | null;
+  scrollNotStarted: (() => void) | null;
 }
 
 class Foreground implements AppVisibility {
@@ -149,14 +145,20 @@ class Foreground implements AppVisibility {
 const today = (): string => dayKeyOf(localTimeZone(), Date.now());
 
 // The native useShowArt, which packages/native/src/screens renders per queue row and Library tile.
-function Poster({ showId }: { readonly showId: number }): null {
+function Poster({
+  showId,
+  enabled = true,
+}: {
+  readonly showId: number;
+  readonly enabled?: boolean;
+}): null {
   const runtime = useRuntime();
   const [settled, setSettled] = useState(false);
   useEffect(() => {
     const timer = setTimeout(() => setSettled(true), ART_SETTLE_MS);
     return () => clearTimeout(timer);
   }, []);
-  useQuery({ ...showInfoQuery(runtime, showId), enabled: settled });
+  useQuery({ ...showInfoQuery(runtime, showId), enabled: enabled && settled });
   return null;
 }
 
@@ -185,14 +187,14 @@ function LibraryTab({ controls }: { readonly controls: Controls }): ReactElement
   const { data, thresholdMs } = useLibrarySnapshot();
   useQuery({ ...movieLibraryQuery(runtime), enabled: false });
   const [scrolled, setScrolled] = useState(false);
-  controls.scrollWatchlist = () => setScrolled(true);
+  controls.scrollNotStarted = () => setScrolled(true);
   const tiles = scrolled
-    ? chipBuckets(data?.entries ?? [], Date.now(), thresholdMs, "recently-watched").watchlist
+    ? chipBuckets(data?.entries ?? [], Date.now(), thresholdMs)["not-started"]
     : [];
   return (
     <>
-      {tiles.map(({ showId }) => (
-        <Poster key={showId} showId={showId} />
+      {tiles.map(({ showId, posters }) => (
+        <Poster key={showId} showId={showId} enabled={posters.length === 0} />
       ))}
     </>
   );
@@ -279,7 +281,7 @@ async function boot(size: LibrarySize, saved?: Saved, cacheAgeMs = 0): Promise<S
     qc,
     runtime,
     foreground: new Foreground(),
-    controls: { queue: [], mark: null, syncNow: null, scrollWatchlist: null },
+    controls: { queue: [], mark: null, syncNow: null, scrollNotStarted: null },
     root: createRoot(host),
   };
 }
@@ -402,10 +404,10 @@ async function replay(size: LibrarySize) {
     () => controls.syncNow?.(),
     () => pollOnly(trakt),
   );
-  results["Library Watchlist chip scrolled end to end"] = await measure(
+  results["Library Not started chip scrolled end to end"] = await measure(
     first,
-    () => void controls.scrollWatchlist?.(),
-    // The watchlist payload already carries every tile's poster.
+    () => void controls.scrollNotStarted?.(),
+    // The watchlist and collection payloads already carry every tile's poster.
     () => ({ gets: 0, bytes: 0 }),
   );
   let markBudget: Cost = { gets: 0, bytes: 0 };

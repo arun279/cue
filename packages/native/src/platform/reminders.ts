@@ -5,8 +5,8 @@ import {
 } from "@cue/core/domain/reminders";
 import type { Reminders } from "@cue/core/ports/reminders";
 import * as Notifications from "expo-notifications";
-import { router } from "expo-router";
 import { useEffect } from "react";
+import { enterFromOutside } from "../enter-from-outside";
 
 // Android 8 and later drop a notification posted without a channel, and a channel's importance is fixed once created.
 const CHANNEL_ID = "new-episodes";
@@ -84,6 +84,6 @@ export function useOpenTappedReminder(): void {
     if (!response) return;
     Notifications.clearLastNotificationResponse();
     const showId = response.notification.request.content.data?.["showId"];
-    router.navigate(typeof showId === "number" ? `/show/${showId}` : "/calendar");
+    void enterFromOutside(typeof showId === "number" ? `/show/${showId}` : "/calendar");
   }, [response]);
 }

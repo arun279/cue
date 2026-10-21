@@ -39,6 +39,7 @@ interface Counts {
   art: number;
   hidden: number;
   watchlist: number;
+  collection: number;
 }
 
 /**
@@ -137,10 +138,20 @@ function installColdSync(
   hiddenCount = 0,
   watchlistCount = 0,
   shows: readonly unknown[] = Array.from({ length: n }, (_, i) => watchedShow(i)),
+  watchlistItems: readonly unknown[] = Array.from({ length: watchlistCount }, (_, i) =>
+    watchlistItem(i + 1),
+  ),
+  collectionItems: readonly unknown[] = [],
 ): Counts {
-  const counts: Counts = { watchedPages: 0, progress: 0, art: 0, hidden: 0, watchlist: 0 };
+  const counts: Counts = {
+    watchedPages: 0,
+    progress: 0,
+    art: 0,
+    hidden: 0,
+    watchlist: 0,
+    collection: 0,
+  };
   const hiddenItems = Array.from({ length: hiddenCount }, (_, i) => hiddenItem(i + 1));
-  const watchlistItems = Array.from({ length: watchlistCount }, (_, i) => watchlistItem(i + 1));
 
   server.use(
     http.get(`${TRAKT_API_BASE}/sync/watched/shows`, ({ request }) => {
@@ -165,11 +176,17 @@ function installColdSync(
       counts.watchlist += 1;
       return pageResponse(watchlistItems, new URL(request.url));
     }),
+    // Trakt returns the whole show collection in one unpaged response.
+    http.get(`${TRAKT_API_BASE}/sync/collection/shows`, () => {
+      counts.collection += 1;
+      return HttpResponse.json(collectionItems as never);
+    }),
   );
   return counts;
 }
 
-const total = (c: Counts): number => c.watchedPages + c.progress + c.art + c.hidden + c.watchlist;
+const total = (c: Counts): number =>
+  c.watchedPages + c.progress + c.art + c.hidden + c.watchlist + c.collection;
 
 describe("cold-sync GET budget", () => {
   it.each([
@@ -186,7 +203,7 @@ describe("cold-sync GET budget", () => {
     const expectedHiddenPages = Math.ceil(HIDDEN_COUNT / WATCHED_PAGE_LIMIT);
     const expectedWatchlistPages = Math.ceil(WATCHLIST_COUNT / WATCHED_PAGE_LIMIT);
     const expectedTotal =
-      expectedWatchedPages + expectedProgress + expectedHiddenPages + expectedWatchlistPages;
+      expectedWatchedPages + expectedProgress + expectedHiddenPages + expectedWatchlistPages + 1;
 
     const counts = installColdSync(n, HIDDEN_COUNT, WATCHLIST_COUNT);
     const entries = await loadUpNextEntries(client);
@@ -206,6 +223,66 @@ describe("cold-sync GET budget", () => {
     expect(entries).toHaveLength(n);
 
     expect(total(counts)).toBeLessThanOrEqual(SCENARIO_GET_BUDGET);
+  });
+
+  it.each([
+    100, 1000, 4000,
+  ])("%i never-started shows cost list pages, not a read per show", async (n) => {
+    const listed = (i: number) => ({
+      listed_at: "2026-01-01T00:00:00.000Z",
+      last_collected_at: "2026-01-01T00:00:00.000Z",
+      type: "show",
+      show: { title: `Not started ${i}`, ids: { trakt: 100_000 + i }, images: { poster: ["p"] } },
+    });
+    const half = Math.ceil(n / 2);
+    const counts = installColdSync(
+      0,
+      0,
+      0,
+      [],
+      Array.from({ length: half }, (_, i) => listed(i)),
+      Array.from({ length: n - half }, (_, i) => listed(half + i)),
+    );
+    const entries = await loadUpNextEntries(client);
+
+    expect(entries).toHaveLength(n);
+    expect(counts.progress + counts.art).toBe(0);
+    expect(counts.collection).toBe(1);
+    expect(counts.watchlist).toBe(Math.max(1, Math.ceil(half / WATCHED_PAGE_LIMIT)));
+    expect(entries.every((entry) => entry.posters.length > 0)).toBe(true);
+  });
+
+  it.each([
+    100, 1000, 4000,
+  ])("%i never-watched movies cost list pages, not a read per movie", async (n) => {
+    const requests: string[] = [];
+    const movies = Array.from({ length: n }, (_, i) => ({
+      listed_at: "2026-01-01T00:00:00.000Z",
+      collected_at: "2026-01-01T00:00:00.000Z",
+      type: "movie",
+      movie: { title: `Unwatched ${i}`, ids: { trakt: i + 1 }, images: { poster: ["p"] } },
+    }));
+    const half = Math.ceil(n / 2);
+    const list =
+      (rows: readonly unknown[]) =>
+      ({ request }: { request: Request }) => {
+        requests.push(new URL(request.url).pathname);
+        return pageResponse(rows, new URL(request.url));
+      };
+    server.use(
+      http.get(`${TRAKT_API_BASE}/sync/watched/movies`, list([])),
+      http.get(`${TRAKT_API_BASE}/sync/watchlist/movies`, list(movies.slice(0, half))),
+      http.get(`${TRAKT_API_BASE}/sync/collection/movies`, list(movies.slice(half))),
+    );
+    const runtime = await buildRuntime();
+    const { entries } = await runtime.loadMovieLibrary();
+
+    expect(entries).toHaveLength(n);
+    expect(requests).toHaveLength(
+      1 +
+        Math.max(1, Math.ceil(half / WATCHED_PAGE_LIMIT)) +
+        Math.max(1, Math.ceil((n - half) / WATCHED_PAGE_LIMIT)),
+    );
   });
 
   it("does not scale ~2× with library size: 4× the shows is NOT ~4× the GETs", async () => {

@@ -6,9 +6,11 @@ import { describe, expect, it } from "vitest";
 const show = (showId: number, completed: number, runtime: number | null): LibraryEntry => ({
   showId,
   title: `Show ${showId}`,
+  year: null,
   status: "returning series",
   hidden: false,
   inWatchlist: completed === 0,
+  addedAt: null,
   lastWatchedAt: null,
   aired: 40,
   completed,
@@ -16,6 +18,7 @@ const show = (showId: number, completed: number, runtime: number | null): Librar
   lastAired: null,
   tmdbId: null,
   runtime,
+  posters: [],
   pendingAdvance: false,
 });
 
@@ -27,7 +30,8 @@ const movie = (movieId: number, watched: boolean, runtime: number | null): Movie
   watched,
   watchedAt: watched ? "2026-09-01T00:00:00.000Z" : null,
   inWatchlist: !watched,
-  listedAt: null,
+  inCollection: false,
+  addedAt: null,
   posters: [],
   tmdbId: null,
   runtime,

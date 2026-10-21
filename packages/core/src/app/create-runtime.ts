@@ -13,6 +13,7 @@ import { additiveLanded, markLanded, showIdSet } from "../data/trakt/library";
 import { assembleMovieHeader, assembleMovieLibrary } from "../data/trakt/movie-library";
 import type { TraktPolicy } from "../data/trakt/policy";
 import {
+  getCollectionMovies,
   getEpisode,
   getHidden,
   getHistory,
@@ -252,13 +253,15 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     },
 
     async loadMovieLibrary(): Promise<MovieLibraryData> {
-      const [watched, watchlist] = await Promise.all([
+      const [watched, watchlist, collection] = await Promise.all([
         getWatchedMovies(client),
         getWatchlist(client, "movies"),
+        getCollectionMovies(client),
       ]);
       const entries = assembleMovieLibrary({
         watchedMovies: unwrapRead(watched, "watched movies"),
         watchlistMovies: unwrapRead(watchlist, "movie watchlist"),
+        collectionMovies: unwrapRead(collection, "movie collection"),
       });
       return { entries };
     },
