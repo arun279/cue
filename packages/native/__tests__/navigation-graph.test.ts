@@ -144,7 +144,7 @@ function unreadNavigation(file: string): string[] {
         ts.isPropertyAccessExpression(node.expression) &&
         drivers.has(node.expression.expression.getText()) &&
         NAVIGATING.has(node.expression.name.text) &&
-        !/type:\s*"POP"/.test(node.arguments[0]?.getText() ?? ""),
+        !/type:\s*"(POP|SET_PARAMS)"/.test(node.arguments[0]?.getText() ?? ""),
     )
     .map((call) => `${at(call)} ${call.expression.getText()}`);
   const ownScheme = nodes

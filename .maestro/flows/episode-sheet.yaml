@@ -33,9 +33,11 @@ appId: app.cuetracker
     env:
       OPERATION: write
 - tapOn:
-    id: "episode-mark-control"
+    id: "snackbar-undo"
 - runFlow: lib/settle.yaml
 - assertVisible: "Not watched yet"
+- assertNotVisible:
+    id: "snackbar"
 - tapOn:
     id: "episode-pager-next"
 - assertVisible:

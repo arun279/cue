@@ -1,4 +1,3 @@
-import { useRouter } from "expo-router";
 import type { ReactElement } from "react";
 import { View } from "react-native";
 import { Button } from "../../ui/Button";
@@ -31,18 +30,6 @@ export function DetailError({
       body="Check your connection and try again."
     >
       <Button label="Retry" onPress={onRetry} />
-    </EmptyState>
-  );
-}
-
-export function ShowDisabled(): ReactElement {
-  const router = useRouter();
-  return (
-    <EmptyState
-      headline="TV shows are turned off."
-      body="Turn TV shows back on in Settings to see this show."
-    >
-      <Button label="Open Settings" onPress={() => router.push("/settings")} />
     </EmptyState>
   );
 }

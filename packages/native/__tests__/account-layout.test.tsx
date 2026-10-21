@@ -1,28 +1,38 @@
+import type { CueRuntime } from "@cue/core/runtime/runtime";
 import { dismissSnack, showSnack } from "@cue/core/stores/snackbar-store";
 import { parseHistorySearch } from "@cue/core/url/search-params";
-import { router, Stack, Tabs, useLocalSearchParams } from "expo-router";
+import { router, Tabs, useLocalSearchParams } from "expo-router";
 import { act, fireEvent, renderRouter, screen } from "expo-router/testing-library";
 import type { ReactElement } from "react";
 import { Linking, Platform, Text, View } from "react-native";
 import * as nativeIntent from "../app/+native-intent";
 import NotFoundRoute from "../app/+not-found";
 import * as accountLayout from "../app/(account)/_layout";
-import MonthJumpRoute from "../app/(tabs)/(up-next,library,calendar,search)/history-jump";
-import { enterFromOutside, useHeldNavigation } from "../src/enter-from-outside";
+import HistoryRoute from "../app/(tabs)/(up-next,library,calendar,search)/history";
+import MonthJumpRoute from "../app/history-jump";
+import { enterFromOutside } from "../src/enter-from-outside";
+import { RootStack } from "../src/RootStack";
 import { MONTHS } from "../src/screens/history/model";
 import { TabStack } from "../src/TabStack";
+import { TEST_IDS } from "../src/ui/test-ids";
+import { HISTORY } from "./support/history";
 import { QueryProvider } from "./support/query-provider";
+import { fakeRuntime, Harness, spyHaptics } from "./support/up-next";
 
 jest.mock("@expo/ui/jetpack-compose", () => require("./support/native-ui").composeModule());
+jest.mock("@expo/ui/community/menu", () => require("./support/native-ui").menuModule());
+// expo-router's test setup swaps Reanimated for its partial mock; History's skeleton needs the real one.
+jest.mock("react-native-reanimated/mock", () => jest.requireActual("react-native-reanimated"));
+jest.mock("../src/ui/BarItems", () => ({ BarItems: () => null }));
 jest.mock(
   "react-native-safe-area-context",
   () => require("react-native-safe-area-context/jest/mock").default,
 );
 
 /**
- * The account modal over two tab stacks, presented the way the composition root
- * presents it, with History, the month jump and Settings registered in both the
- * tab stacks and the account stack as the app registers them. JavaScript tabs
+ * The app's root stack over two tab stacks, with History and Settings registered
+ * in both the tab stacks and the account stack, and the two sheets on the root
+ * stack, as the app registers them. JavaScript tabs
  * stand in for the native tabs, which this runner cannot draw; both keep each
  * tab's stack when another tab is selected.
  *
@@ -49,15 +59,9 @@ const Settings = (): ReactElement => <View testID="screen-settings" />;
 const routes = {
   "+native-intent": nativeIntent,
   "+not-found": NotFoundRoute,
-  _layout: function RootLayout(): ReactElement {
-    useHeldNavigation();
-    return (
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="(account)" options={{ presentation: "fullScreenModal" }} />
-      </Stack>
-    );
-  },
+  "history-jump": MonthJumpRoute,
+  "show/[showId]/episode/[season]/[episode]": Blank,
+  _layout: RootStack,
   "(tabs)/_layout": (): ReactElement => <Tabs screenOptions={{ headerShown: false }} />,
   "(tabs)/(up-next)/_layout": (): ReactElement => <TabStack root="index" title="Up Next" />,
   "(tabs)/(up-next)/index": (): ReactElement => <View testID="screen-up-next" />,
@@ -66,19 +70,15 @@ const routes = {
   "(tabs)/(calendar)/_layout": (): ReactElement => <TabStack root="calendar" title="Calendar" />,
   "(tabs)/(calendar)/calendar": (): ReactElement => <View testID="screen-calendar" />,
   "(tabs)/(up-next,library)/history": HistoryScope,
-  "(tabs)/(up-next,library)/history-jump": MonthJumpRoute,
   "(tabs)/(up-next,library)/settings": Settings,
   "(tabs)/(up-next,library)/show/[showId]": Blank,
   "(tabs)/(up-next,library)/movie/[movieId]": Blank,
-  "(tabs)/(up-next,library)/show/[showId]/episode/[season]/[episode]": Blank,
   "(account)/_layout": accountLayout,
   "(account)/profile": (): ReactElement => <View testID="screen-profile" />,
   "(account)/settings": Settings,
   "(account)/history": HistoryScope,
-  "(account)/history-jump": MonthJumpRoute,
   "(account)/show/[showId]": Blank,
   "(account)/movie/[movieId]": Blank,
-  "(account)/show/[showId]/episode/[season]/[episode]": Blank,
 };
 
 /** Leaves Profile the way each platform's header offers: the UIKit Done item
@@ -242,6 +242,34 @@ describe("a tab stack", () => {
     );
     await act(() => router.back());
     expect(screen.getByTestId("screen-up-next")).toBeOnTheScreen();
+  });
+
+  it("closes the month jump on a pick while History is still loading that month", async () => {
+    const runtime: CueRuntime = {
+      ...fakeRuntime({}),
+      loadHistory: (_section, _page, range) =>
+        range === undefined
+          ? Promise.resolve({ entries: HISTORY, page: 1, pageCount: 1 })
+          : new Promise(() => {}),
+    };
+    await renderRouter(
+      { ...routes, "(tabs)/(up-next,library)/history": HistoryRoute },
+      {
+        initialUrl: "/",
+        wrapper: ({ children }) => (
+          <Harness runtime={runtime} haptics={spyHaptics()}>
+            {children}
+          </Harness>
+        ),
+      },
+    );
+    await act(() => router.push("/history"));
+    await fireEvent.press(await screen.findByTestId(TEST_IDS.historyJump));
+
+    await fireEvent.press(screen.getByTestId("history-jump-month-8"));
+
+    expect(screen.queryByTestId(TEST_IDS.historyJumpSheet)).toBeNull();
+    expect(screen.getByTestId(TEST_IDS.calendarSkeleton)).toBeOnTheScreen();
   });
 
   it("titles the month jump beside its close: in the sheet's bar on iOS, above the months on Android", async () => {
