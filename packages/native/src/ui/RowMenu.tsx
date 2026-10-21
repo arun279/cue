@@ -25,11 +25,6 @@ export interface RowMenuProps {
   readonly title: string;
   readonly items: readonly RowMenuItem[];
   readonly testID?: string;
-  /**
-   * A function makes a row menu: iOS opens it by long press on the row and passes no trigger,
-   * Android passes the more icon for the row to place. An element is the trigger of a tap menu;
-   * without one the trigger is the platform's more icon.
-   */
   readonly children?: ReactElement | ((trigger: ReactElement | null) => ReactElement);
   readonly contentWidth?: number;
 }

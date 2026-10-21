@@ -3,7 +3,6 @@ import type { ReactElement } from "react";
 import { type ColorValue, Platform } from "react-native";
 import Svg, { Path } from "react-native-svg";
 
-// iOS draws SF Symbols; Android draws the Material Icons path data, as its vector drawables do.
 const ICONS = {
   checked: {
     ios: "checkmark.circle.fill",

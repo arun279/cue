@@ -39,6 +39,22 @@ const frame = (node) => {
 
 const descendants = (node) => node.children.flatMap((child) => [child, ...descendants(child)]);
 
+// uiautomator reports only the visible part of a view cut by its scroll container's edge.
+const clipped = new Set();
+const markClipped = (node, viewport = null) => {
+  const bounds = frame(node);
+  if (bounds !== null && viewport?.edges.some((edge) => bounds[edge] === viewport.frame[edge])) {
+    clipped.add(node);
+  }
+  const scrolls = node.attributes.scrollable === "true" && frame(node) !== null;
+  const edges = /Horizontal/.test(node.attributes.class ?? "")
+    ? ["left", "right"]
+    : ["top", "bottom"];
+  for (const child of node.children) {
+    markClipped(child, scrolls ? { frame: frame(node), edges } : viewport);
+  }
+};
+
 const isButton = (node) =>
   node.attributes.clickable === "true" || /Button$/.test(node.attributes.class ?? "");
 
@@ -51,8 +67,10 @@ const crowds = (outer, inner) =>
   inner.top - outer.top < inset.vertical ||
   outer.bottom - inner.bottom < inset.vertical;
 
-const measured = descendants(parse(readFileSync(file, "utf8"))).filter(
-  (node) => isButton(node) && frame(node) && labels(node).length > 0,
+const screen = parse(readFileSync(file, "utf8"));
+markClipped(screen);
+const measured = descendants(screen).filter(
+  (node) => isButton(node) && !clipped.has(node) && frame(node) && labels(node).length > 0,
 );
 const crowded = measured.flatMap((button) =>
   labels(button)
