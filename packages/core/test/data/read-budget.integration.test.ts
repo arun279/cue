@@ -8,6 +8,7 @@ import { DEFAULT_TRAKT_POLICY } from "@cue/core/data/trakt/policy";
 import { loadUpNextEntries, withReadRateRetry } from "@cue/core/data/trakt/read-budget";
 import { delay, HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
+import { SCENARIO_GET_BUDGET } from "../harness/trakt-limits";
 import { mswServer } from "./_msw";
 import { buildRuntime } from "./_runtime";
 
@@ -171,17 +172,6 @@ function installColdSync(
 const total = (c: Counts): number => c.watchedPages + c.progress + c.art + c.hidden + c.watchlist;
 
 describe("cold-sync GET budget", () => {
-  // Trakt's authed rate limit is 1000 GET / 5 min / user. The bounded read must
-  // stay FAR under it at every realistic library size: and, unlike the old
-  // ~2-GET-per-show fan-out, must not scale with the library. This is the numeric
-  // gate this asserts: an asserted request count, not prose.
-  const TRAKT_AUTHED_5MIN_BUDGET = 1000;
-  // A generous ceiling for the whole cold-sync burst that still leaves ~9× of
-  // Trakt's window free for the freshness poll, per-card art, the movie library
-  // read, and bounded 429 retries. Every case below: including a heavy hidden set
-  // and watchlist: comes in well under it.
-  const COLD_SYNC_CEILING = 100;
-
   it.each([
     250, 500, 1000,
   ])("a %i-show library stays within a bounded budget, no per-show art up front", async (n) => {
@@ -215,9 +205,7 @@ describe("cold-sync GET budget", () => {
     // watchlist rows overlap the watched set, so they add no entries here.
     expect(entries).toHaveLength(n);
 
-    // The bounded budget: comfortably under the ceiling AND Trakt's 5-min window.
-    expect(total(counts)).toBeLessThan(COLD_SYNC_CEILING);
-    expect(total(counts)).toBeLessThan(TRAKT_AUTHED_5MIN_BUDGET / 5);
+    expect(total(counts)).toBeLessThanOrEqual(SCENARIO_GET_BUDGET);
   });
 
   it("does not scale ~2× with library size: 4× the shows is NOT ~4× the GETs", async () => {

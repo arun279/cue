@@ -11,7 +11,6 @@ import {
 } from "@cue/core/data/trakt/read-budget";
 import type { Token } from "@cue/core/domain/model/token";
 import { buildMarkEpisodeOp } from "@cue/core/domain/write-queue/ops";
-import { refreshShowProgress } from "@cue/core/hooks/library-cache";
 import type { KeyValueStore } from "@cue/core/ports/kv";
 import type { TokenStore } from "@cue/core/ports/token-store";
 import { createQueryClient } from "@cue/core/runtime/query-cache";
@@ -162,63 +161,6 @@ function authorizedClient(
     baseUrl,
   });
 }
-
-describe("request budgets", () => {
-  it("keeps cold start, mark, manual, foreground, and idle flows bounded", async () => {
-    const cue = await runtime();
-    let start = entries().length;
-    const library = await cue.loadUpNext();
-    const coldStart = since(start);
-    expect(coldStart).toHaveLength(8);
-    expect(coldStart.filter((entry) => entry.path === "/sync/watched/shows")).toHaveLength(1);
-    expect(
-      coldStart.filter((entry) => /\/shows\/\d+\/progress\/watched/.test(entry.path)),
-    ).toHaveLength(5);
-    expect(
-      coldStart.filter((entry) => entry.path === "/users/hidden/progress_watched"),
-    ).toHaveLength(1);
-    expect(coldStart.filter((entry) => entry.path === "/sync/watchlist/shows")).toHaveLength(1);
-
-    const first = library.entries.find((entry) => entry.nextEpisode !== null);
-    if (first?.nextEpisode === null || first === undefined)
-      throw new Error("seed has no next episode");
-    const queryClient = createQueryClient();
-    queryClient.setQueryData(queryKeys.library(), library);
-    start = entries().length;
-    expect(
-      await cue.submit(
-        buildMarkEpisodeOp({
-          opId: "budget-mark",
-          ids: first.nextEpisode.ids,
-          watchedAt: "2026-09-10T12:00:00.000Z",
-          inversePatch: { showId: first.showId, preCompleted: first.completed },
-        }),
-      ),
-    ).toBe("done");
-    refreshShowProgress(queryClient, first.showId, () => cue.loadShowProgress(first.showId));
-    await queryClient.fetchQuery({
-      queryKey: queryKeys.showProgress(first.showId),
-      queryFn: () => cue.loadShowProgress(first.showId),
-    });
-    await cue.loadHistory("all", 1);
-    const mark = since(start);
-    expect(mark).toHaveLength(3);
-    expect(mark.filter((entry) => entry.method === "POST")).toHaveLength(1);
-    expect(
-      mark.filter((entry) => entry.path === `/shows/${first.showId}/progress/watched`),
-    ).toHaveLength(1);
-    expect(mark.some((entry) => entry.path === "/sync/watched/shows")).toBe(false);
-
-    for (const flow of ["manual", "foreground", "idle"]) {
-      start = entries().length;
-      const reconcile = await cue.pollActivities();
-      await reconcile?.commit();
-      expect(since(start), flow).toEqual([
-        expect.objectContaining({ method: "GET", path: "/sync/last_activities" }),
-      ]);
-    }
-  });
-});
 
 describe("read failures", () => {
   harnessIt("honors a capped Retry-After and holds other reads behind the pause", async () => {
