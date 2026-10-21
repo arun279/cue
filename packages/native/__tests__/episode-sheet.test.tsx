@@ -79,6 +79,7 @@ it("marks from the sheet and exposes the same reversible snackbar", async () => 
       watched = op.toState === "present";
       return "done";
     }),
+    writeReceipt: () => ({ added: 1, updated: 0, deleted: 0, existing: 0, notFound: 0 }),
   };
   await render(
     <DetailHarness runtime={runtime}>

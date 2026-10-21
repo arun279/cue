@@ -1,4 +1,4 @@
-import { type EpisodePlay, planMarkUndo } from "@cue/core/domain/reversal";
+import { type EpisodePlay, ownPlays } from "@cue/core/domain/reversal";
 import { resolveEpisodeUnmark } from "@cue/core/hooks/resolve-unmark";
 import type { CueRuntime } from "@cue/core/runtime/runtime";
 import { describe, expect, it } from "vitest";
@@ -70,15 +70,14 @@ describe("resolveEpisodeUnmark", () => {
   });
 });
 
-describe("planMarkUndo for one landed mark", () => {
+describe("ownPlays for one landed mark", () => {
   const MARKED_AT = "2026-07-09T12:00:00.123Z";
-  const mark = (watchedAt = MARKED_AT) => [
-    { watchedAt, traktIds: new Set([EP]), positions: new Set<string>() },
-  ];
-  const removes = (plays: readonly EpisodePlay[], watchedAt?: string) => {
-    const plan = planMarkUndo(mark(watchedAt), plays);
-    return plan.kind === "remove" ? plan.removeIds : [];
-  };
+  const removes = (plays: readonly EpisodePlay[], watchedAt = MARKED_AT) =>
+    ownPlays(
+      plays,
+      (play) => (play.episodeTrakt === EP ? watchedAt : null),
+      (play) => play.episodeTrakt,
+    ).map((play) => play.historyId);
 
   it("finds the play matching the mark's frozen watched_at exactly", () => {
     expect(removes([play(11, "2026-07-01T00:00:00.000Z"), play(21, MARKED_AT)])).toEqual([21]);
@@ -96,7 +95,7 @@ describe("planMarkUndo for one landed mark", () => {
 
   it("never selects a historical play: restart-show rewatch history is untouchable", () => {
     const plays = [play(11, "2024-03-01T00:00:00.000Z"), play(12, "2025-01-01T00:00:00.000Z")];
-    expect(planMarkUndo(mark(), plays)).toEqual({ kind: "none" });
+    expect(removes(plays)).toEqual([]);
   });
 
   it("removes only the newest of two plays inside the echo tolerance", () => {

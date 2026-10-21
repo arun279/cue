@@ -12,7 +12,7 @@ export interface MoviePlay {
 }
 
 // Trakt truncates a stored watched_at to the whole minute.
-export const MARK_MATCH_TOLERANCE_MS = 60_000;
+const MARK_MATCH_TOLERANCE_MS = 60_000;
 
 interface UnmarkRestore {
   readonly trakt: number;
@@ -90,43 +90,39 @@ export interface MarkedEpisodes {
   readonly positions: ReadonlySet<string>;
 }
 
-export type MarkUndoPlan =
-  | {
-      readonly kind: "remove";
-      readonly removeIds: readonly number[];
-      readonly restore: readonly { readonly trakt: number; readonly watchedAt: string }[];
-    }
-  | { readonly kind: "none" };
-
-function markedBy(play: EpisodePlay, marks: readonly MarkedEpisodes[]): boolean {
-  return marks.some(
-    (mark) =>
-      (mark.traktIds.has(play.episodeTrakt) ||
-        mark.positions.has(`${play.season}:${play.number}`)) &&
-      Math.abs(Date.parse(play.watchedAt) - Date.parse(mark.watchedAt)) <= MARK_MATCH_TOLERANCE_MS,
-  );
+export interface PlayRef {
+  readonly historyId: number;
+  readonly watchedAt: string;
 }
 
-function newestFirst(a: EpisodePlay, b: EpisodePlay): number {
+export function isOwnPlay(storedAt: string, sentAt: string): boolean {
+  const lag = Date.parse(sentAt) - Date.parse(storedAt);
+  return lag >= 0 && lag < MARK_MATCH_TOLERANCE_MS;
+}
+
+function newestFirst(a: PlayRef, b: PlayRef): number {
   return Date.parse(b.watchedAt) - Date.parse(a.watchedAt) || b.historyId - a.historyId;
 }
 
-export function planMarkUndo(
-  marks: readonly MarkedEpisodes[],
-  plays: readonly EpisodePlay[],
-): MarkUndoPlan {
-  const newest = new Map<number, EpisodePlay>();
+export function ownPlays<P extends PlayRef>(
+  plays: readonly P[],
+  sentAt: (play: P) => string | null,
+  itemOf: (play: P) => number,
+): P[] {
+  const newest = new Map<number, P>();
   for (const play of plays) {
-    const kept = newest.get(play.episodeTrakt);
-    if (markedBy(play, marks) && (kept === undefined || newestFirst(play, kept) < 0)) {
-      newest.set(play.episodeTrakt, play);
-    }
+    const sent = sentAt(play);
+    const kept = newest.get(itemOf(play));
+    if (sent === null || !isOwnPlay(play.watchedAt, sent)) continue;
+    if (kept === undefined || newestFirst(play, kept) < 0) newest.set(itemOf(play), play);
   }
-  const own = plays.filter((play) => newest.get(play.episodeTrakt) === play);
-  if (own.length === 0) return { kind: "none" };
-  return {
-    kind: "remove",
-    removeIds: own.map((play) => play.historyId),
-    restore: own.map((play) => ({ trakt: play.episodeTrakt, watchedAt: play.watchedAt })),
-  };
+  return plays.filter((play) => newest.get(itemOf(play)) === play);
+}
+
+export function markedAt(marks: readonly MarkedEpisodes[]): (play: EpisodePlay) => string | null {
+  return (play) =>
+    marks.find(
+      (mark) =>
+        mark.traktIds.has(play.episodeTrakt) || mark.positions.has(`${play.season}:${play.number}`),
+    )?.watchedAt ?? null;
 }

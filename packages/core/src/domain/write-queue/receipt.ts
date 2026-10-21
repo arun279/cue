@@ -1,4 +1,4 @@
-import { isAdditiveOp } from "./ops";
+import { isAdditiveOp, markedEpisodesOf } from "./ops";
 import type { QueuedOp } from "./types";
 
 export interface WriteReceipt {
@@ -27,6 +27,8 @@ export function learnPlayPolicy(
 ): PlayPolicy {
   if (op.request.path !== "/sync/history") return current;
   if (receipt.updated > 0) return "one-play";
-  if (isAdditiveOp(op) && receipt.added > 0) return "multiple";
-  return current;
+  const marked = markedEpisodesOf(op);
+  const replayedOneWatched =
+    isAdditiveOp(op) && marked?.traktIds.size === 1 && marked.positions.size === 0;
+  return replayedOneWatched && receipt.added === 1 ? "multiple" : current;
 }

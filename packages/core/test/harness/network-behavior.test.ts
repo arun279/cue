@@ -10,15 +10,15 @@ import {
   withReadRateRetry,
 } from "@cue/core/data/trakt/read-budget";
 import type { Token } from "@cue/core/domain/model/token";
-import { planMarkUndo } from "@cue/core/domain/reversal";
+import { markedAt, ownPlays } from "@cue/core/domain/reversal";
 import { buildBulkMarkOps } from "@cue/core/domain/write-queue/bulk";
 import {
   buildAddEpisodePlayOp,
   buildAddWatchlistOp,
   buildMarkEpisodeOp,
-  buildRemovePlaysOp,
   markedEpisodesOf,
 } from "@cue/core/domain/write-queue/ops";
+import { planLandedUndo, removeEpisodePlays } from "@cue/core/hooks/resolve-unmark";
 import type { KeyValueStore } from "@cue/core/ports/kv";
 import { PLAY_POLICY_KEY } from "@cue/core/ports/storage-keys";
 import type { TokenStore } from "@cue/core/ports/token-store";
@@ -421,6 +421,34 @@ describe("write receipts", () => {
     expect(usePlayPolicy.getState().policy).toBe("unknown");
   });
 
+  it("keeps a write's answer while the next write is still being delivered, so its Undo is safe", async () => {
+    await fetch(`${baseUrl}/__reset?seed=multiple-plays-off`, { method: "POST" });
+    await arm({ match: "writes", path: "^/sync/history$", hold: true, after: 1, count: 1 });
+    const cue = await runtime();
+    const first = buildMarkEpisodeOp({ opId: "first", ids: watched, watchedAt: at });
+    const second = buildMarkEpisodeOp({ opId: "second", ids: { trakt: 880101 }, watchedAt: at });
+    const held = mock.nextRequest(
+      (entry) =>
+        entry.method === "POST" &&
+        entry.path === "/sync/history" &&
+        JSON.stringify(entry.body).includes("880101"),
+    );
+    const done = Promise.all([cue.submit(first), cue.submit(second)]);
+    await held;
+    expect(cue.inFlightOpId()).toBe("second");
+    expect(cue.writeReceipt("first")).toMatchObject({ added: 0, updated: 1 });
+    const undo = await planLandedUndo(
+      cue,
+      ["first"],
+      () => cue.loadEpisodePlays(watched.trakt),
+      () => at,
+      (play) => play.episodeTrakt,
+    );
+    expect(undo).toEqual({ kind: "replaced", count: 1 });
+    await fetch(`${baseUrl}/__fault`, { method: "DELETE" });
+    await expect(done).resolves.toEqual(["done", "done"]);
+  });
+
   it("learns that the account keeps every play from an added rewatch", async () => {
     const cue = await runtime();
     const op = buildAddEpisodePlayOp({ opId: "again", ids: watched, watchedAt: at });
@@ -454,14 +482,13 @@ describe("write receipts", () => {
     if (mark === undefined) throw new Error("the season mark must produce an op");
     await expect(cue.submit(mark)).resolves.toBe("done");
     const marked = markedEpisodesOf(mark);
-    const plan = planMarkUndo(marked === null ? [] : [marked], await cue.loadShowPlays(8803));
-    if (plan.kind !== "remove") throw new Error(`expected plays to remove, got ${plan.kind}`);
-    expect(plan.removeIds).toHaveLength(2);
-    const removal = buildRemovePlaysOp({
-      opId: "undo",
-      ids: plan.removeIds,
-      restore: plan.restore,
-    });
+    const own = ownPlays(
+      await cue.loadShowPlays(8803),
+      markedAt(marked === null ? [] : [marked]),
+      (play) => play.episodeTrakt,
+    );
+    expect(own).toHaveLength(2);
+    const removal = removeEpisodePlays("undo", own);
     await expect(cue.submit(removal)).resolves.toBe("done");
     expect((await cue.loadShowProgress(8803)).completed).toBe(before);
   });

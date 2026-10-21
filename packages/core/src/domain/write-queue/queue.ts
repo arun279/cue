@@ -9,7 +9,7 @@ export interface WriteQueueDeps {
   readonly sleep: (ms: number) => Promise<void>;
   readonly now: () => number;
   readonly reconcile: (op: QueuedOp) => Promise<boolean>;
-  readonly accept?: (op: QueuedOp, result: DispatchResult) => boolean;
+  readonly settle: (op: QueuedOp, result: DispatchResult) => boolean;
 }
 
 interface OpFailure {
@@ -20,15 +20,9 @@ interface OpFailure {
 export interface FlushResult {
   readonly completed: QueuedOp[];
   readonly failed: OpFailure[];
-  readonly delivered: ReadonlyMap<string, DispatchResult>;
 }
 
 type Outcome = "done" | "failed" | "defer";
-
-interface Delivery {
-  readonly outcome: Outcome;
-  readonly result?: DispatchResult;
-}
 
 export class WriteQueue {
   private pending: QueuedOp[];
@@ -89,24 +83,20 @@ export class WriteQueue {
   private async drain(): Promise<FlushResult> {
     const completed: QueuedOp[] = [];
     const failed: OpFailure[] = [];
-    const delivered = new Map<string, DispatchResult>();
     for (let op = this.pending[0]; op !== undefined; op = this.pending[0]) {
       this.inFlight = op;
-      const { outcome, result } = await this.deliver(op);
+      const outcome = await this.deliver(op);
       this.inFlight = null;
       if (outcome === "defer") break;
       this.pending.shift();
-      if (outcome === "done") {
-        completed.push(op);
-        if (result !== undefined) delivered.set(op.id, result);
-      } else failed.push({ op, inversePatch: op.inversePatch });
+      if (outcome === "done") completed.push(op);
+      else failed.push({ op, inversePatch: op.inversePatch });
     }
-    return { completed, failed, delivered };
+    return { completed, failed };
   }
 
-  private async accepted(op: QueuedOp, result: DispatchResult): Promise<Delivery> {
-    if (this.deps.accept?.(op, result) === false) return { outcome: await this.reconciled(op) };
-    return { outcome: "done", result };
+  private async settled(op: QueuedOp, result: DispatchResult): Promise<Outcome> {
+    return this.deps.settle(op, result) ? "done" : this.reconciled(op);
   }
 
   private async reconciled(op: QueuedOp): Promise<Outcome> {
@@ -117,7 +107,7 @@ export class WriteQueue {
     }
   }
 
-  private async deliver(op: QueuedOp): Promise<Delivery> {
+  private async deliver(op: QueuedOp): Promise<Outcome> {
     for (let attempt = 0; attempt < MAX_ATTEMPTS_PER_FLUSH; attempt += 1) {
       await this.pace();
       let result: DispatchResult;
@@ -128,18 +118,18 @@ export class WriteQueue {
         try {
           applied = await this.deps.reconcile(op);
         } catch {
-          return { outcome: "defer" };
+          return "defer";
         }
-        if (applied) return { outcome: "done" };
+        if (applied) return "done";
         continue;
       }
       const classification = classifyStatus(result, attempt, this.deps.now());
-      if (classification.kind === "ok") return this.accepted(op, result);
-      if (classification.kind === "failed") return { outcome: "failed" };
+      if (classification.kind === "ok") return this.settled(op, result);
+      if (classification.kind === "failed") return "failed";
       if (attempt + 1 >= MAX_ATTEMPTS_PER_FLUSH) break;
       await this.deps.sleep(classification.delayMs);
     }
-    return { outcome: "defer" };
+    return "defer";
   }
 
   private async pace(): Promise<void> {

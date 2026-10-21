@@ -1,11 +1,17 @@
 import type { LibraryEntry } from "@cue/core/data/trakt/library";
 import type { MovieEntry } from "@cue/core/data/trakt/movie-library";
 import type { CalendarEntry } from "@cue/core/domain/calendar";
+import type { QueuedOp } from "@cue/core/domain/write-queue/types";
 import { type Haptics, HapticsProvider } from "@cue/core/ports/haptics";
 import { type Network, NetworkProvider } from "@cue/core/ports/network";
 import type { PreferenceStorage } from "@cue/core/ports/preference-storage";
 import { createPrefsStore, PrefsProvider } from "@cue/core/prefs/prefs-store";
-import { type BrowseData, type CueRuntime, RuntimeProvider } from "@cue/core/runtime/runtime";
+import {
+  type BrowseData,
+  type CueRuntime,
+  RuntimeProvider,
+  type SubmitOutcome,
+} from "@cue/core/runtime/runtime";
 import { resetMarkStore } from "@cue/core/stores/mark-store";
 import { dismissSnack } from "@cue/core/stores/snackbar-store";
 import { type QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -86,6 +92,9 @@ const NO_BROWSE: BrowseData = {
  * root's contract with twenty-five methods, and a screen test that had to fill
  * all of them would be a test of the fixture.
  */
+/** Trakt's answer to a write it applied by adding one play. */
+const ADDED = { added: 1, updated: 0, deleted: 0, existing: 0, notFound: 0 };
+
 export function fakeRuntime({
   entries = [],
   movies = [],
@@ -94,6 +103,9 @@ export function fakeRuntime({
   search,
   browse,
 }: RuntimeFixture): CueRuntime {
+  const answered = new Set<string>();
+  const sending = new Set<QueuedOp>();
+  const settle = submit ?? (() => Promise.resolve<SubmitOutcome>("done"));
   return {
     newId: () => "test-op-id",
     loadUpNext: () => Promise.resolve({ entries: [...entries], isPartial: false }),
@@ -104,11 +116,16 @@ export function fakeRuntime({
     loadCalendar: () => Promise.resolve({ entries: calendar, hiddenShowIds: [] }),
     loadShowSeasons: () => Promise.resolve([]),
     loadShowInfo: () => Promise.resolve({ posters: [], backdrops: [] }),
-    submit: submit ?? (() => Promise.resolve("done")),
+    submit: async (op: QueuedOp) => {
+      sending.add(op);
+      const outcome = await settle(op).finally(() => sending.delete(op));
+      if (outcome === "done") answered.add(op.id);
+      return outcome;
+    },
     pendingWrites: () => 0,
-    pendingOps: () => [],
+    pendingOps: () => [...sending],
     inFlightOpId: () => null,
-    writeReceipt: () => null,
+    writeReceipt: (opId: string) => (answered.has(opId) ? ADDED : null),
     flushWrites: () => Promise.resolve(0),
     pollActivities: () => Promise.resolve(null),
     loadEpisodePlays: () => Promise.resolve([]),

@@ -28,6 +28,7 @@ import {
   useRuntime,
 } from "@cue/core/runtime/runtime";
 import { resetMarkStore } from "@cue/core/stores/mark-store";
+import { usePlayPolicy } from "@cue/core/stores/play-policy-store";
 import {
   forgetSeasonMark,
   getSeasonMarkDelta,
@@ -120,6 +121,8 @@ interface FakeRuntime {
   readonly submitted: QueuedOp[];
   /** The simulated durable queue `pendingOps()` reads. */
   readonly queued: QueuedOp[];
+  /** Record Trakt's answer for a write delivered outside `submit` (a queued op that later lands). */
+  readonly deliver: (op: QueuedOp) => void;
   readonly loadEpisode: ReturnType<typeof vi.fn>;
   readonly loadEpisodePlays: ReturnType<typeof vi.fn>;
   readonly loadShowPlays: ReturnType<typeof vi.fn>;
@@ -133,9 +136,15 @@ function fakeRuntime(opts: {
   progress?: ShowProgress | Promise<ShowProgress>;
   episode?: EpisodeDetail | Promise<EpisodeDetail>;
   inFlightOpId?(): string | null;
-  /** What Trakt answered for each delivered op, by op id. */
-  receipts?: Readonly<Record<string, WriteReceipt>>;
+  /** What Trakt answers a write with, kept only once that write's submit settles "done". */
+  answer?(op: QueuedOp): WriteReceipt | null;
 }): FakeRuntime {
+  const receipts = new Map<string, WriteReceipt>();
+  const sending = new Set<QueuedOp>();
+  const deliver = (op: QueuedOp): void => {
+    const receipt = (opts.answer ?? applied)(op);
+    if (receipt !== null) receipts.set(op.id, receipt);
+  };
   const submitted: QueuedOp[] = [];
   const queued: QueuedOp[] = [];
   const loadEpisode = vi.fn(() =>
@@ -151,13 +160,18 @@ function fakeRuntime(opts: {
   });
   const runtime = {
     newId: () => `op-${submitted.length}`,
-    submit: (op: QueuedOp) => {
+    submit: async (op: QueuedOp) => {
       submitted.push(op);
-      return opts.submit?.(op) ?? Promise.resolve("done");
+      sending.add(op);
+      const outcome = await (opts.submit?.(op) ?? Promise.resolve("done")).finally(() =>
+        sending.delete(op),
+      );
+      if (outcome === "done") deliver(op);
+      return outcome;
     },
-    pendingOps: () => [...queued],
+    pendingOps: () => [...new Set([...queued, ...sending])],
     inFlightOpId: opts.inFlightOpId ?? (() => null),
-    writeReceipt: (opId: string) => opts.receipts?.[opId] ?? null,
+    writeReceipt: (opId: string) => receipts.get(opId) ?? null,
     loadEpisodePlays,
     loadShowPlays,
     loadEpisode,
@@ -165,8 +179,20 @@ function fakeRuntime(opts: {
       opts.progress === undefined ? new Promise(() => {}) : Promise.resolve(opts.progress),
     ),
   } as unknown as CueRuntime;
-  return { runtime, submitted, queued, loadEpisode, loadEpisodePlays, loadShowPlays };
+  return { runtime, submitted, queued, deliver, loadEpisode, loadEpisodePlays, loadShowPlays };
 }
+
+/** Trakt applied the write: one play added for a mark, one removed for a removal. */
+function applied(op: QueuedOp): WriteReceipt {
+  const present = op.toState === "present";
+  return { added: present ? 1 : 0, updated: 0, deleted: present ? 0 : 1, existing: 0, notFound: 0 };
+}
+
+/** Trakt replaced plays for the account's history adds (Multiple Plays off). */
+const replacing =
+  (receipt: WriteReceipt) =>
+  (op: QueuedOp): WriteReceipt =>
+    op.request.path === "/sync/history" ? receipt : applied(op);
 
 interface Api {
   mark: MarkWatched;
@@ -220,6 +246,25 @@ function seededClient(entries: readonly LibraryEntry[], seasons?: readonly Seaso
 }
 
 const flush = () => act(async () => new Promise((r) => setTimeout(r, 0)));
+
+/** Mark S1 E3 from the detail screen, then catch up through S1 E2, folding E3's Undo in. */
+async function catchUpAfterMarkingE3(fake: FakeRuntime) {
+  const episodes = [episodeView(1), episodeView(2), episodeView(3)];
+  const mounted = mountSeasonSurfaces(fake, episodes);
+  const { a } = mounted;
+  await act(async () =>
+    a[0]?.season.toggleEpisode(TARGET, episodeView(3), { undoLabel: "S1 E3 marked" }),
+  );
+  await act(async () =>
+    a[0]?.season.markUpToHere(
+      TARGET,
+      [seasonView(episodes)],
+      { season: 1, number: 2 },
+      { absorbUndo: true },
+    ),
+  );
+  return mounted;
+}
 
 it("advances a show opened without an aggregate cache and reverses it", async () => {
   const fake = fakeRuntime({});
@@ -926,19 +971,7 @@ describe("season controls", () => {
 
   it("catches up through an episode, folding the previous Undo into its own", async () => {
     const fake = fakeRuntime({});
-    const episodes = [episodeView(1), episodeView(2), episodeView(3)];
-    const { qc, a } = mountSeasonSurfaces(fake, episodes);
-    await act(async () =>
-      a[0]?.season.toggleEpisode(TARGET, episodeView(3), { undoLabel: "S1 E3 marked" }),
-    );
-    await act(async () =>
-      a[0]?.season.markUpToHere(
-        TARGET,
-        [seasonView(episodes)],
-        { season: 1, number: 2 },
-        { absorbUndo: true },
-      ),
-    );
+    const { qc, a } = await catchUpAfterMarkingE3(fake);
     expect(snackText()).toBe("Caught up through S1 E2");
     expect([1, 2, 3].map((n) => seasonEp(qc, n)?.watched)).toEqual([true, true, true]);
 
@@ -1291,7 +1324,7 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
 
   it("retires a queue mark's Undo once Trakt says it replaced a play, and says what happened", async () => {
     const entry = libraryEntry();
-    const fake = fakeRuntime({ receipts: { "op-0": replaced } });
+    const fake = fakeRuntime({ answer: replacing(replaced) });
     const qc = await markThenReverse(fake, entry, () => stubLandedPlay(fake));
     expect(fake.submitted.map((op) => op.request.path)).toEqual(["/sync/history"]);
     expect(fake.loadEpisodePlays).not.toHaveBeenCalled();
@@ -1301,14 +1334,19 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
     expect(entryOf(qc, SHOW)?.pendingAdvance).toBe(true);
   });
 
-  it("removes nothing when Undo was pressed before the replacing answer arrived", async () => {
+  it("removes nothing when Undo was pressed while the replacing write was being delivered", async () => {
     let land: (outcome: "done") => void = () => {};
+    let delivering = true;
     const fake = fakeRuntime({
-      receipts: { "op-0": replaced },
+      answer: replacing(replaced),
+      inFlightOpId: () => (delivering ? "op-0" : null),
       submit: (op) =>
         op.request.path === "/sync/history"
           ? new Promise((resolve) => {
-              land = resolve;
+              land = (outcome) => {
+                delivering = false;
+                resolve(outcome);
+              };
             })
           : Promise.resolve("done"),
     });
@@ -1317,8 +1355,9 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
     const [a] = mountSurfaces(fake.runtime, qc);
     act(() => void a[0]?.mark.mark(entry));
     stubLandedPlay(fake);
-    await act(async () => a[0]?.mark.reverse(SHOW));
+    const reversed = act(async () => a[0]?.mark.reverse(SHOW));
     await act(async () => land("done"));
+    await reversed;
     await flush();
     expect(fake.submitted.map((op) => op.request.path)).toEqual(["/sync/history"]);
     expect(snackText()).toBe(
@@ -1327,8 +1366,51 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
     expect(entryOf(qc, SHOW)?.pendingAdvance).toBe(true);
   });
 
+  it("refuses to guess when a landed mark has no answer and the account's setting is unknown", async () => {
+    const entry = libraryEntry();
+    const fake = fakeRuntime({ answer: () => null });
+    const qc = await markThenReverse(fake, entry, () => stubLandedPlay(fake));
+    expect(fake.submitted).toHaveLength(1);
+    expect(snackText()).toBe(`Couldn't undo ${entry.title}. Please try again.`);
+    expect(entryOf(qc, SHOW)?.pendingAdvance).toBe(true);
+  });
+
+  it("removes the mark's own play without an answer when the account keeps every play", async () => {
+    usePlayPolicy.setState({ policy: "multiple" });
+    try {
+      const fake = fakeRuntime({ answer: () => null });
+      await markThenReverse(fake, libraryEntry(), () => stubLandedPlay(fake, OLD_PLAY));
+      expect(fake.submitted[1]?.request.body).toEqual({ ids: [900] });
+    } finally {
+      usePlayPolicy.setState({ policy: "unknown" });
+    }
+  });
+
+  it("re-plans a season Undo when a queued mark lands while the history is read", async () => {
+    const fake = fakeRuntime({
+      submit: (op) => {
+        if (op.itemKey.includes(":bulk:")) {
+          fake.queued.push(op);
+          return Promise.resolve("deferred");
+        }
+        return Promise.resolve("done");
+      },
+    });
+    const { a } = await catchUpAfterMarkingE3(fake);
+    const plays = stubOwnPlays(fake);
+    fake.loadShowPlays.mockImplementation(async () => {
+      const [landing] = fake.queued.splice(0);
+      if (landing !== undefined) fake.deliver(landing);
+      return plays;
+    });
+    await act(async () => a[0]?.season.undo());
+    expect(fake.submitted.slice(2).map((op) => op.request.body)).toEqual([
+      { ids: [503, 501, 502] },
+    ]);
+  });
+
   it("withdraws a season mark's Undo when Trakt replaced plays, and Undo then sends nothing", async () => {
-    const fake = fakeRuntime({ receipts: { "op-0": { ...replaced, added: 1 } } });
+    const fake = fakeRuntime({ answer: replacing({ ...replaced, added: 1 }) });
     const season = seasonView([episodeView(1), episodeView(2)]);
     const { a } = mountSeasonSurfaces(fake, season.episodes);
     await act(async () => a[0]?.season.markSeason(TARGET, season));
@@ -1343,7 +1425,7 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
     let land: (outcome: "done") => void = () => {};
     let delivering = true;
     const fake = fakeRuntime({
-      receipts: { "op-0": { ...replaced, added: 1 } },
+      answer: replacing({ ...replaced, added: 1 }),
       inFlightOpId: () => (delivering ? "op-0" : null),
       submit: () =>
         new Promise((resolve) => {
@@ -1410,7 +1492,7 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
   });
 
   it("withdraws an episode mark's Undo when Trakt replaced its play", async () => {
-    const fake = fakeRuntime({ receipts: { "op-0": replaced } });
+    const fake = fakeRuntime({ answer: replacing(replaced) });
     const { qc, a } = mountSeasonSurfaces(fake);
     await act(async () =>
       a[0]?.season.toggleEpisode(TARGET, episodeView(2), { undoLabel: "S1 E2 marked" }),
@@ -1434,7 +1516,7 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
   });
 
   it("reports a season rewatch as added and replaced plays", async () => {
-    const fake = fakeRuntime({ receipts: { "op-0": { ...replaced, added: 1 } } });
+    const fake = fakeRuntime({ answer: replacing({ ...replaced, added: 1 }) });
     const season = seasonView([episodeView(1, true), episodeView(2)]);
     const { a } = mountSeasonSurfaces(fake, season.episodes);
     await act(async () => a[0]?.season.rewatchSeason(TARGET, season));
@@ -1442,7 +1524,7 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
   });
 
   it("says so when an added play replaced the episode's date", async () => {
-    const fake = fakeRuntime({ receipts: { "op-0": replaced } });
+    const fake = fakeRuntime({ answer: replacing(replaced) });
     const { a } = mountSeasonSurfaces(fake, [episodeView(1, true), episodeView(2, true)]);
     await act(async () => a[0]?.season.addEpisodePlay(TARGET, episodeView(2, true)));
     expect(snackText()).toBe(

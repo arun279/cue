@@ -1,5 +1,5 @@
 import { parseWriteReceipt } from "@cue/core/data/trakt/write-receipt";
-import { type MarkedEpisodes, planMarkUndo } from "@cue/core/domain/reversal";
+import { isOwnPlay, type MarkedEpisodes, markedAt, ownPlays } from "@cue/core/domain/reversal";
 import { buildBulkMarkOps } from "@cue/core/domain/write-queue/bulk";
 import {
   buildAddEpisodePlayOp,
@@ -78,6 +78,31 @@ describe("learnPlayPolicy", () => {
     expect(learnPlayPolicy("unknown", mark, receipt({ added: 1 }))).toBe("unknown");
   });
 
+  it("keeps one play per item through a long rewatch whose later batch adds only unwatched episodes", () => {
+    const tree = (numbers: readonly number[], watched: boolean) => ({
+      number: 1,
+      episodes: numbers.map((number) => ({
+        number,
+        firstAired: "2020-01-01T00:00:00.000Z",
+        watched,
+      })),
+    });
+    const target = (numbers: readonly number[], watched: boolean) => ({
+      showIds: { trakt: 1 },
+      seasons: [tree(numbers, watched)],
+      includeSpecials: false,
+      additive: true,
+    });
+    const now = Date.parse("2026-01-01T00:00:00.000Z");
+    const [first] = buildBulkMarkOps(target([1, 2], false), now, AT, () => "b1");
+    const [later] = buildBulkMarkOps(target([3, 4], false), now, AT, () => "b2");
+    if (first === undefined || later === undefined) throw new Error("expected two batches");
+    const afterFirst = learnPlayPolicy("unknown", first, receipt({ added: 1, updated: 1 }));
+    expect(afterFirst).toBe("one-play");
+    expect(learnPlayPolicy(afterFirst, later, receipt({ added: 2 }))).toBe("one-play");
+    expect(learnPlayPolicy("unknown", later, receipt({ added: 2 }))).toBe("unknown");
+  });
+
   it("ignores writes that are not history adds", () => {
     const watchlist = buildAddWatchlistOp({ opId: "w", section: "shows", ids: { trakt: 1 } });
     expect(learnPlayPolicy("one-play", watchlist, receipt({ updated: 1 }))).toBe("one-play");
@@ -129,7 +154,7 @@ describe("markedEpisodesOf, for writes that mark no episode", () => {
   });
 });
 
-describe("planMarkUndo", () => {
+describe("ownPlays for marks", () => {
   const marks: MarkedEpisodes[] = [
     { watchedAt: AT, traktIds: new Set([7]), positions: new Set(["1:3"]) },
   ];
@@ -140,27 +165,22 @@ describe("planMarkUndo", () => {
     number,
     watchedAt,
   });
+  const own = (plays: ReturnType<typeof play>[]) =>
+    ownPlays(plays, markedAt(marks), (p) => p.episodeTrakt).map((p) => p.historyId);
 
-  it("removes only the plays the marks created, by history id", () => {
-    const plays = [
-      play(1, 7, 2, "2025-01-01T00:00:00.000Z"),
-      play(2, 7, 2, "2026-03-04T05:06:00.000Z"),
-      play(3, 9, 3, "2026-03-04T05:06:00.000Z"),
-      play(4, 9, 3, "2026-03-04T05:09:00.000Z"),
-    ];
-    expect(planMarkUndo(marks, plays)).toEqual({
-      kind: "remove",
-      removeIds: [2, 3],
-      restore: [
-        { trakt: 7, watchedAt: "2026-03-04T05:06:00.000Z" },
-        { trakt: 9, watchedAt: "2026-03-04T05:06:00.000Z" },
-      ],
-    });
+  it("finds the plays the marks created, by episode id or by place in the show", () => {
+    expect(
+      own([
+        play(1, 7, 2, "2025-01-01T00:00:00.000Z"),
+        play(2, 7, 2, "2026-03-04T05:06:00.000Z"),
+        play(3, 9, 3, "2026-03-04T05:06:00.000Z"),
+      ]),
+    ).toEqual([2, 3]);
   });
 
-  it("has nothing to remove when no play matches the marks", () => {
-    expect(planMarkUndo(marks, [play(1, 7, 2, "2025-01-01T00:00:00.000Z")])).toEqual({
-      kind: "none",
-    });
+  it("counts only plays Trakt stored at or before the sent time, never a later one", () => {
+    expect(isOwnPlay("2026-03-04T05:06:00.000Z", "2026-03-04T05:06:59.999Z")).toBe(true);
+    expect(isOwnPlay("2026-03-04T05:06:30.000Z", "2026-03-04T05:06:00.000Z")).toBe(false);
+    expect(own([play(4, 7, 2, "2026-03-04T05:06:30.000Z")])).toEqual([]);
   });
 });

@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
-import { timeZoneOffsetMs } from "../domain/day";
-import { localTimeZone } from "../domain/time";
+import { dayKeyOf } from "../domain/day";
+import { DAY_MS, localTimeZone } from "../domain/time";
 
 const CLOCK_CHECK_MS = 60_000;
 
-function bucketOf(ms: number, granularityMs: number, timeZone: string): number {
-  return Math.floor((ms + timeZoneOffsetMs(timeZone, ms)) / granularityMs);
+function bucketOf(ms: number, granularityMs: number, timeZone: string): string {
+  return granularityMs >= DAY_MS ? dayKeyOf(timeZone, ms) : String(Math.floor(ms / granularityMs));
 }
 
 export function useCoarseClock(granularityMs: number, timeZone: string = localTimeZone()): number {

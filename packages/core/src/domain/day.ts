@@ -17,40 +17,17 @@ function shiftDayKey(key: string, deltaDays: number): string {
   return new Date(Date.parse(key) + deltaDays * DAY_MS).toISOString().slice(0, 10);
 }
 
-const offsetFormatters = new Map<string, Intl.DateTimeFormat>();
-
-export function timeZoneOffsetMs(timeZone: string, ms: number): number {
-  let fmt = offsetFormatters.get(timeZone);
-  if (fmt === undefined) {
-    fmt = new Intl.DateTimeFormat("en-US", {
-      timeZone,
-      hourCycle: "h23",
-      year: "numeric",
-      month: "numeric",
-      day: "numeric",
-      hour: "numeric",
-      minute: "numeric",
-      second: "numeric",
-    });
-    offsetFormatters.set(timeZone, fmt);
-  }
-  const part = (type: Intl.DateTimeFormatPartTypes): number =>
-    Number(fmt.formatToParts(ms).find((p) => p.type === type)?.value);
-  const wall = Date.UTC(
-    part("year"),
-    part("month") - 1,
-    part("day"),
-    part("hour"),
-    part("minute"),
-    part("second"),
-  );
-  return wall - (ms - (ms % 1000));
-}
+const LONGEST_OFFSET_MS = 15 * 60 * 60 * 1000;
 
 export function startOfLocalDay(timeZone: string, dayKey: string): number {
-  const midnightUtc = Date.parse(dayKey);
-  const guess = midnightUtc - timeZoneOffsetMs(timeZone, midnightUtc);
-  return midnightUtc - timeZoneOffsetMs(timeZone, guess);
+  let before = Date.parse(dayKey) - LONGEST_OFFSET_MS;
+  let within = Date.parse(dayKey) + LONGEST_OFFSET_MS;
+  while (within - before > 1) {
+    const middle = Math.floor((before + within) / 2);
+    if (dayKeyOf(timeZone, middle) < dayKey) before = middle;
+    else within = middle;
+  }
+  return within;
 }
 
 export function localDaysBetween(timeZone: string, fromMs: number, toMs: number): number {
@@ -107,10 +84,8 @@ export function airedLastNight(
   timeZone: string,
 ): boolean {
   if (firstAiredMs === null || firstAiredMs > now) return false;
-  const days = localDaysBetween(timeZone, firstAiredMs, now);
-  if (days === 1) return true;
-  if (days !== 0) return false;
-  const localHour =
-    (firstAiredMs - startOfLocalDay(timeZone, dayKeyOf(timeZone, firstAiredMs))) / 3_600_000;
-  return localHour < NIGHT_ENDS_HOUR;
+  const aired = dayKeyOf(timeZone, firstAiredMs);
+  if (aired === shiftDayKey(dayKeyOf(timeZone, now), -1)) return true;
+  if (aired !== dayKeyOf(timeZone, now)) return false;
+  return firstAiredMs - startOfLocalDay(timeZone, aired) < NIGHT_ENDS_HOUR * 3_600_000;
 }

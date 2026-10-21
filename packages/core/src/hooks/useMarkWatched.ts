@@ -5,7 +5,6 @@ import { advancePastNext, type LibraryEntry, type MarkContext } from "../data/tr
 import { epCode } from "../domain/model/library";
 import {
   buildMarkEpisodeOp,
-  buildRemovePlaysOp,
   buildUnmarkEpisodeOp,
   episodeItemKey,
 } from "../domain/write-queue/ops";
@@ -45,7 +44,7 @@ import {
   refreshShowProgress,
 } from "./library-cache";
 import { REPLACED_COPY } from "./replaced-copy";
-import { planLandedUndo, waitWhileInFlight } from "./resolve-unmark";
+import { planLandedUndo, removeEpisodePlays, waitWhileInFlight } from "./resolve-unmark";
 import { useOptimisticWrite } from "./useOptimisticWrite";
 import { useResumeOnMark } from "./useResumeOnMark";
 
@@ -165,13 +164,13 @@ export function useMarkWatched(): MarkWatched {
         });
         return submit([op], effects);
       }
-      const marked = {
-        watchedAt: record.watchedAt,
-        traktIds: new Set([record.episodeIds.trakt]),
-        positions: new Set<string>(),
-      };
-      const plan = await planLandedUndo(runtime, [marked], [record.opId], () =>
-        runtime.loadEpisodePlays(record.episodeIds.trakt),
+      const episode = record.episodeIds.trakt;
+      const plan = await planLandedUndo(
+        runtime,
+        [record.opId],
+        () => runtime.loadEpisodePlays(episode),
+        (play) => (play.episodeTrakt === episode ? record.watchedAt : null),
+        (play) => play.episodeTrakt,
       );
       if (plan === null || plan.kind === "replaced") {
         reapplyMark(record);
@@ -183,10 +182,7 @@ export function useMarkWatched(): MarkWatched {
         effects.revalidate();
         return null;
       }
-      return submit(
-        [buildRemovePlaysOp({ opId: runtime.newId(), ids: plan.removeIds, restore: plan.restore })],
-        effects,
-      );
+      return submit([removeEpisodePlays(runtime.newId(), plan.plays)], effects);
     },
     [runtime, submit, reapplyMark, revalidate, haptics, resume],
   );

@@ -87,6 +87,7 @@ it("commits Mark and Undo feedback without yielding to async work", async () => 
     { checked: true, undo: false, original: false },
     { checked: false, undo: false, original: true },
   ]);
-  expect(runtime.loadEpisodePlays).toHaveBeenCalledTimes(1);
+  expect(submit).toHaveBeenCalledTimes(2);
+  expect(runtime.loadEpisodePlays).not.toHaveBeenCalled();
   await view.unmount();
 });

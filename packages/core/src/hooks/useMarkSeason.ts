@@ -3,7 +3,7 @@ import { useCallback, useRef } from "react";
 import { queryKeys } from "../data/query-keys";
 import type { SeasonView, ShowProgress } from "../data/trakt/show-detail";
 import type { EpisodeIds, ShowIds } from "../domain/model/ids";
-import { planSeasonUnmark, type UnmarkPlan } from "../domain/reversal";
+import { markedAt, planSeasonUnmark, type UnmarkPlan } from "../domain/reversal";
 import { buildBulkMarkOps, type SeasonTree } from "../domain/write-queue/bulk";
 import {
   buildAddEpisodePlayOp,
@@ -40,6 +40,7 @@ import { REPLACED_COPY } from "./replaced-copy";
 import {
   type EpisodeUnmarkResolution,
   planLandedUndo,
+  removeEpisodePlays,
   resolveEpisodeUnmark,
   waitWhileInFlight,
 } from "./resolve-unmark";
@@ -171,7 +172,8 @@ async function planUndo(runtime: CueRuntime, pending: UndoState): Promise<UndoPl
     ))
   )
     return null;
-  const queued = new Set(runtime.pendingOps().map((op) => op.id));
+  const queuedNow = (): Set<string> => new Set(runtime.pendingOps().map((op) => op.id));
+  const queued = queuedNow();
   const landed = marks.filter(({ op }) => !queued.has(op.id));
   const landedOps = landed.map(({ op }) => op);
   const inverted = pending.ops
@@ -181,22 +183,21 @@ async function planUndo(runtime: CueRuntime, pending: UndoState): Promise<UndoPl
   const episode = pending.markedEpisode?.episode;
   const plan = await planLandedUndo(
     runtime,
-    landed.map(({ marked }) => marked),
     landedOps.map((op) => op.id),
     () =>
       episode === undefined
         ? runtime.loadShowPlays(pending.showId)
         : runtime.loadEpisodePlays(episode.ids.trakt),
+    markedAt(landed.map(({ marked }) => marked)),
+    (play) => play.episodeTrakt,
   );
+  const after = queuedNow();
+  if (marks.some(({ op }) => queued.has(op.id) && !after.has(op.id)))
+    return planUndo(runtime, pending);
   if (plan === null) return null;
   if (plan.kind === "replaced") return { replaced: plan.count };
   if (plan.kind === "none") return inverted;
-  const removal = buildRemovePlaysOp({
-    opId: runtime.newId(),
-    ids: plan.removeIds,
-    restore: plan.restore,
-  });
-  return [...inverted, removal];
+  return [...inverted, removeEpisodePlays(runtime.newId(), plan.plays)];
 }
 
 export function useMarkSeason(): MarkSeasonController {

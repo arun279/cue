@@ -1,6 +1,6 @@
 import { queryKeys } from "@cue/core/data/query-keys";
 import type { MovieEntry, MovieHeader } from "@cue/core/data/trakt/movie-library";
-import { MARK_MATCH_TOLERANCE_MS } from "@cue/core/domain/reversal";
+import type { MoviePlay } from "@cue/core/domain/reversal";
 import {
   buildAddWatchlistOp,
   buildMarkMovieOp,
@@ -11,7 +11,7 @@ import {
 import { replacedPlays } from "@cue/core/domain/write-queue/receipt";
 import type { QueuedOp } from "@cue/core/domain/write-queue/types";
 import { REPLACED_COPY } from "@cue/core/hooks/replaced-copy";
-import { resolveMovieUnmark } from "@cue/core/hooks/resolve-unmark";
+import { planLandedUndo, resolveMovieUnmark } from "@cue/core/hooks/resolve-unmark";
 import { useOptimisticWrite } from "@cue/core/hooks/useOptimisticWrite";
 import { movieLibraryQuery } from "@cue/core/queries/library";
 import { type MovieLibraryData, useRuntime } from "@cue/core/runtime/runtime";
@@ -92,44 +92,64 @@ export function useMovieActions(header: MovieHeader) {
       ids: [historyId],
       restore: { section: "movies", ids: header.ids, watchedAt },
     });
+  const reverseLanded = async (
+    op: QueuedOp,
+  ): Promise<{ inverse?: QueuedOp; remainingAt: string | null } | null> => {
+    let plays: readonly MoviePlay[] = [];
+    const plan = await planLandedUndo(
+      runtime,
+      [op.id],
+      async () => {
+        plays = await runtime.loadMoviePlays(header.movieId);
+        return plays;
+      },
+      () => op.watchedAt,
+      () => header.movieId,
+    );
+    if (plan === null) {
+      error();
+      return null;
+    }
+    if (plan.kind === "replaced") {
+      showSnack({
+        message: `${snackText(REPLACED_COPY.mark(header.title, null))} ${REPLACED_COPY.undoNote}`,
+      });
+      revalidate();
+      return null;
+    }
+    const own = plan.kind === "remove" ? plan.plays[0] : undefined;
+    const others = plays
+      .filter((play) => play.historyId !== own?.historyId)
+      .sort((a, b) => Date.parse(b.watchedAt) - Date.parse(a.watchedAt));
+    return {
+      ...(own === undefined ? {} : { inverse: remove(own.historyId, own.watchedAt) }),
+      remainingAt: others[0]?.watchedAt ?? null,
+    };
+  };
   const reverseMark = async (op: QueuedOp) => {
     if (runtime.inFlightOpId() === op.id) {
       error();
       return;
     }
-    let inverse: QueuedOp | undefined;
-    let remainingAt: string | null = null;
-    if (runtime.pendingOps().some((pending) => pending.id === op.id)) {
-      inverse = buildUnmarkMovieOp({
-        opId: runtime.newId(),
-        ids: header.ids,
-        watchedAt: op.watchedAt ?? "",
-      });
-    } else if (replacedPlays(runtime.writeReceipt(op.id)) > 0) {
-      showSnack({
-        message: `${snackText(REPLACED_COPY.mark(header.title, null))} ${REPLACED_COPY.undoNote}`,
-      });
-      revalidate();
-      return;
-    } else {
-      const plays = [...(await runtime.loadMoviePlays(header.movieId))].sort(
-        (a, b) => Date.parse(b.watchedAt) - Date.parse(a.watchedAt) || b.historyId - a.historyId,
-      );
-      const own = plays.find(
-        (play) =>
-          Math.abs(Date.parse(play.watchedAt) - Date.parse(op.watchedAt ?? "")) <=
-          MARK_MATCH_TOLERANCE_MS,
-      );
-      if (own !== undefined) inverse = remove(own.historyId, own.watchedAt);
-      remainingAt = plays.find((play) => play.historyId !== own?.historyId)?.watchedAt ?? null;
-    }
-    if (inverse === undefined) {
+    const queued = runtime.pendingOps().some((pending) => pending.id === op.id);
+    const plan = queued
+      ? {
+          inverse: buildUnmarkMovieOp({
+            opId: runtime.newId(),
+            ids: header.ids,
+            watchedAt: op.watchedAt ?? "",
+          }),
+          remainingAt: null,
+        }
+      : await reverseLanded(op);
+    if (plan === null) return;
+    if (plan.inverse === undefined) {
       revalidate();
       return;
     }
     await write(
-      inverse,
-      { watched: remainingAt !== null, watchedAt: remainingAt },
+      plan.inverse,
+      { watched: plan.remainingAt !== null, watchedAt: plan.remainingAt },
       { watched: true, watchedAt: op.watchedAt },
     );
   };

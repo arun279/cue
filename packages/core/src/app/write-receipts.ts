@@ -12,8 +12,7 @@ import { PLAY_POLICY_KEY } from "../ports/storage-keys";
 import { usePlayPolicy } from "../stores/play-policy-store";
 
 export interface WriteReceipts {
-  accept(op: QueuedOp, result: DispatchResult): boolean;
-  record(ops: readonly QueuedOp[], delivered: ReadonlyMap<string, DispatchResult>): Promise<void>;
+  settle(op: QueuedOp, result: DispatchResult): boolean;
   receiptOf(opId: string): WriteReceipt | null;
   clear(): Promise<void>;
 }
@@ -26,25 +25,17 @@ export async function createWriteReceipts(kv: KeyValueStore): Promise<WriteRecei
   const receipts = new Map<string, WriteReceipt>();
 
   return {
-    accept(op, result) {
-      if (op.toState === "absent") return true;
+    settle(op, result) {
       const receipt = parseWriteReceipt(result.data);
-      return receipt === null || receiptApplied(receipt);
-    },
-
-    async record(ops, delivered) {
-      let policy = usePlayPolicy.getState().policy;
-      for (const op of ops) {
-        const result = delivered.get(op.id);
-        const receipt = result === undefined ? null : parseWriteReceipt(result.data);
-        if (receipt === null) continue;
-        receipts.set(op.id, receipt);
-        policy = learnPlayPolicy(policy, op, receipt);
-      }
-      if (policy !== usePlayPolicy.getState().policy) {
+      if (receipt === null) return true;
+      receipts.set(op.id, receipt);
+      const current = usePlayPolicy.getState().policy;
+      const policy = learnPlayPolicy(current, op, receipt);
+      if (policy !== current) {
         usePlayPolicy.setState({ policy });
-        await store.write(policy);
+        void store.write(policy);
       }
+      return op.toState === "absent" || receiptApplied(receipt);
     },
 
     receiptOf: (opId) => receipts.get(opId) ?? null,

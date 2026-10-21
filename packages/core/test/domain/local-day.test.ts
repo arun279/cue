@@ -1,9 +1,4 @@
-import {
-  airedLastNight,
-  localDaysBetween,
-  startOfLocalDay,
-  timeZoneOffsetMs,
-} from "@cue/core/domain/day";
+import { airedLastNight, localDaysBetween, startOfLocalDay } from "@cue/core/domain/day";
 import { historyRange } from "@cue/core/domain/history";
 import { continuePosition } from "@cue/core/domain/show-detail";
 import { lastWatchedPhrase } from "@cue/core/format";
@@ -13,12 +8,6 @@ const CHICAGO = "America/Chicago";
 const at = (iso: string): number => Date.parse(iso);
 
 describe("local day helpers", () => {
-  it("reads a zone's offset, across daylight saving", () => {
-    expect(timeZoneOffsetMs(CHICAGO, at("2026-01-15T12:00:00Z"))).toBe(-6 * 3_600_000);
-    expect(timeZoneOffsetMs(CHICAGO, at("2026-07-15T12:00:00Z"))).toBe(-5 * 3_600_000);
-    expect(timeZoneOffsetMs("Asia/Kolkata", at("2026-07-15T12:00:00Z"))).toBe(5.5 * 3_600_000);
-  });
-
   it("finds the instant a local day begins, including the day clocks change", () => {
     expect(new Date(startOfLocalDay(CHICAGO, "2026-10-21")).toISOString()).toBe(
       "2026-10-21T05:00:00.000Z",
@@ -29,9 +18,17 @@ describe("local day helpers", () => {
     expect(new Date(startOfLocalDay(CHICAGO, "2026-11-01")).toISOString()).toBe(
       "2026-11-01T05:00:00.000Z",
     );
-    // Sydney leaves daylight saving at 3 am that day, between its local midnight and UTC midnight.
     expect(new Date(startOfLocalDay("Australia/Sydney", "2026-04-05")).toISOString()).toBe(
       "2026-04-04T13:00:00.000Z",
+    );
+  });
+
+  it("starts a day at 1 am where clocks jump forward at midnight", () => {
+    expect(new Date(startOfLocalDay("America/Santiago", "2026-09-06")).toISOString()).toBe(
+      "2026-09-06T04:00:00.000Z",
+    );
+    expect(new Date(startOfLocalDay("America/Havana", "2026-03-08")).toISOString()).toBe(
+      "2026-03-08T05:00:00.000Z",
     );
   });
 
