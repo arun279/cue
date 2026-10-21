@@ -1,11 +1,13 @@
 import { execFile } from "node:child_process";
-import { appendFileSync, mkdirSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
 
 const run = promisify(execFile);
 const PREDICATE =
   'process == "testmanagerd" AND (eventMessage BEGINSWITH "Requesting screenshot." OR eventMessage BEGINSWITH "Got system UI orientation")';
+const LAUNCHES =
+  'eventMessage CONTAINS "com.apple.mobilecal" AND (process == "runningboardd" OR process == "SpringBoard" OR process == "dasd")';
 const SLOW_MS = 1_000;
 const BEFORE_MINUTE_S = 2;
 // The longest a healthy flow stays silent is Maestro's 15 s wait for animations
@@ -62,15 +64,29 @@ export const pageIns = (vmStat) => {
 };
 
 export function largestProcesses(ps, count) {
-  const totals = new Map();
+  const largest = new Map();
   for (const line of ps.split("\n")) {
     const [, kilobytes, command] = /^\s*(\d+)\s+(.+)$/.exec(line) ?? [];
     if (command === undefined) continue;
     const name = path.basename(command);
-    totals.set(name, (totals.get(name) ?? 0) + Number(kilobytes) * 1024);
+    largest.set(name, Math.max(largest.get(name) ?? 0, Number(kilobytes) * 1024));
   }
-  return [...totals].sort(([, a], [, b]) => b - a).slice(0, count);
+  return [...largest].sort(([, a], [, b]) => b - a).slice(0, count);
 }
+
+// Java's unified GC log prints each collection as "<before>M-><after>M(<committed>M)";
+// the heap left after a collection is what the flow actually keeps alive.
+export function heapAfterCollections(gcLog) {
+  const collections = [...gcLog.matchAll(/(\d+)M->(\d+)M\((\d+)M\)/g)];
+  return {
+    collections: collections.length,
+    live: Math.max(0, ...collections.map(([, , after]) => Number(after))),
+    committed: Math.max(0, ...collections.map(([, , , committed]) => Number(committed))),
+  };
+}
+
+export const launchLines = (log) =>
+  log.split("\n").filter((line) => /launch/i.test(line) && line.includes("com.apple.mobilecal"));
 
 export const peaks = (current, sample) => {
   for (const [name, bytes] of sample) current.set(name, Math.max(current.get(name) ?? 0, bytes));
@@ -128,6 +144,7 @@ const springBoardPid = (ps) => /^\s*(\d+)\s+\S*\/SpringBoard\.app\/SpringBoard$/
 // simulator process reflect each log call to it while the flow runs.
 export function laneHealth({ device, directory }) {
   const record = recorder(directory);
+  const gcLog = path.join(directory, "maestro-gc.log");
   const since = new Date();
   const started = run("vm_stat").then(({ stdout }) => pageIns(stdout));
   const peak = new Map();
@@ -152,7 +169,7 @@ export function laneHealth({ device, directory }) {
     silence.stop();
     clearInterval(minutely);
     const minutes = Math.ceil((Date.now() - since) / 60_000) + 1;
-    const [log, vmStat] = await Promise.all([
+    const show = (predicate) =>
       run(
         "xcrun",
         [
@@ -166,17 +183,25 @@ export function laneHealth({ device, directory }) {
           "--last",
           `${minutes}m`,
           "--predicate",
-          PREDICATE,
+          predicate,
         ],
         { maxBuffer: 64 * 1024 * 1024 },
-      ),
+      );
+    const [log, launches, vmStat] = await Promise.all([
+      show(PREDICATE),
+      show(LAUNCHES),
       run("vm_stat"),
       census(),
     ]);
+    const heap = heapAfterCollections(existsSync(gcLog) ? readFileSync(gcLog, "utf8") : "");
+    const calendar = launchLines(launches.stdout);
+    for (const line of calendar.slice(0, 5)) record(`MobileCal launch: ${line}`);
     const lines = [
       ...latencySummary(screenshotLatencies(log.stdout.split("\n"), since)),
       `${megabytes(pageIns(vmStat.stdout) - (await started))} paged in during the flow`,
-      `largest resident memory, sampled each minute: ${[...peak]
+      `Maestro's Java heap after ${heap.collections} collections: at most ${heap.live} MB live of ${heap.committed} MB committed`,
+      `${calendar.length} log lines about launching MobileCal`,
+      `largest single process per program, sampled each minute: ${[...peak]
         .sort(([, a], [, b]) => b - a)
         .slice(0, 8)
         .map(([name, bytes]) => `${name} ${megabytes(bytes)}`)
@@ -185,5 +210,5 @@ export function laneHealth({ device, directory }) {
     for (const line of lines) record(line);
     return lines;
   };
-  return { heard: silence.heard, stop };
+  return { heard: silence.heard, stop, javaOptions: `-Xlog:gc:file=${gcLog}` };
 }

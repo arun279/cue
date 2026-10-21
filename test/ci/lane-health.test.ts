@@ -3,8 +3,10 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import {
+  heapAfterCollections,
   largestProcesses,
   latencySummary,
+  launchLines,
   pageIns,
   peaks,
   screenshotLatencies,
@@ -69,7 +71,29 @@ it("reads the bytes paged in from vm_stat", () => {
   ).toBe(878233 * 16384);
 });
 
-it("adds up resident memory per program, largest first", () => {
+it("reads the most heap Java kept alive after a collection from its GC log", () => {
+  const log = [
+    "[0.512s][info][gc] Using G1",
+    "[2.101s][info][gc] GC(0) Pause Young (Normal) (G1 Evacuation Pause) 24M->9M(64M) 3.120ms",
+    "[9.870s][info][gc] GC(1) Pause Young (Normal) (G1 Evacuation Pause) 61M->38M(128M) 5.004ms",
+    "[30.44s][info][gc] GC(2) Pause Young (Normal) (G1 Evacuation Pause) 102M->31M(128M) 4.871ms",
+  ].join("\n");
+
+  expect(heapAfterCollections(log)).toEqual({ collections: 3, live: 38, committed: 128 });
+  expect(heapAfterCollections("")).toEqual({ collections: 0, live: 0, committed: 0 });
+});
+
+it("keeps only the log lines about launching MobileCal", () => {
+  const log = [
+    "2026-10-21 09:58:01.120 Df runningboardd[1408:5a] [com.apple.runningboard:job] Launch request for app<com.apple.mobilecal> from <dasd> with reason: Background Fetch",
+    "2026-10-21 09:58:01.300 Df runningboardd[1408:5a] [com.apple.runningboard:process] app<com.apple.mobilecal(501)> suspended",
+    "2026-10-21 09:58:02.010 Df SpringBoard[1376:2b] Launching app<app.cuetracker> for background refresh",
+  ].join("\n");
+
+  expect(launchLines(log)).toEqual([log.split("\n")[0]]);
+});
+
+it("keeps each program's largest single process, largest first", () => {
   const ps = [
     "  395056 /Library/Developer/CoreSimulator/Volumes/iOS/RuntimeRoot/System/Library/CoreServices/SpringBoard.app/SpringBoard",
     " 1200000 /opt/java/bin/java",
@@ -81,7 +105,7 @@ it("adds up resident memory per program, largest first", () => {
     ["java", 1200000 * 1024],
     ["SpringBoard", 395056 * 1024],
   ]);
-  expect(largestProcesses(ps, 3)[2]).toEqual(["git", 50000 * 1024]);
+  expect(largestProcesses(ps, 3)[2]).toEqual(["git", 30000 * 1024]);
 });
 
 it("keeps each program's largest resident memory across samples", () => {
@@ -143,7 +167,7 @@ it("reports lane health after Maestro exits, from the simulator's stored log rat
   writeFileSync(path.join(bin, "log"), `${log}\n`);
   writeFileSync(
     path.join(bin, "xcrun"),
-    `#!/bin/sh\necho "xcrun $*" >> "${calls}"\ncat "${path.join(bin, "log")}"\n`,
+    `#!/bin/sh\necho "xcrun $*" >> "${calls}"\ncase "$*" in *mobilecal*) echo "launch request for app<com.apple.mobilecal> from <dasd>" ;; *) cat "${path.join(bin, "log")}" ;; esac\n`,
     { mode: 0o755 },
   );
   writeFileSync(
@@ -156,7 +180,11 @@ it("reports lane health after Maestro exits, from the simulator's stored log rat
     `#!/bin/sh\necho " 1048576 /opt/java/bin/java"\necho "  204800 /RuntimeRoot/SpringBoard.app/SpringBoard"\n`,
     { mode: 0o755 },
   );
-  writeFileSync(path.join(bin, "maestro"), "#!/bin/sh\nsleep 3\n", { mode: 0o755 });
+  writeFileSync(
+    path.join(bin, "maestro"),
+    `#!/bin/sh\necho "[1.0s][info][gc] GC(0) Pause Young (Normal) (G1 Evacuation Pause) 40M->12M(96M) 2.0ms" > "\${MAESTRO_OPTS#*file=}"\nsleep 3\n`,
+    { mode: 0o755 },
+  );
   const debug = path.join(bin, "debug");
   const result = spawnSync(
     process.execPath,
@@ -184,7 +212,9 @@ it("reports lane health after Maestro exits, from the simulator's stored log rat
       /^Lane health: [01] of the slow replies were requested in the last 2 s of a minute, against 0\.0 if timing were random$/,
     ),
     "Lane health: 1000 MB paged in during the flow",
-    "Lane health: largest resident memory, sampled each minute: java 1024 MB, SpringBoard 200 MB",
+    "Lane health: Maestro's Java heap after 1 collections: at most 12 MB live of 96 MB committed",
+    "Lane health: 1 log lines about launching MobileCal",
+    "Lane health: largest single process per program, sampled each minute: java 1024 MB, SpringBoard 200 MB",
   ]);
   expect(readFileSync(path.join(debug, "lane-health", "health.txt"), "utf8")).toContain(
     "1000 MB paged in during the flow",
