@@ -17,6 +17,9 @@
  * being restated: expo-router's vendored React Navigation imports
  * `nanoid/non-secure`, which ships as ESM only, and jest-expo's own list stops
  * at the Expo and React Navigation scopes.
+ *
+ * `JEST_MAX_WORKERS` caps the workers when set. The pre-push hook sets it, and
+ * CI leaves it unset so the runners keep Jest's default.
  */
 const { transformIgnorePatterns } = require("jest-expo/jest-preset");
 
@@ -44,6 +47,7 @@ const project = {
 };
 
 module.exports = {
+  ...(process.env.JEST_MAX_WORKERS && { maxWorkers: process.env.JEST_MAX_WORKERS }),
   projects: [
     { ...project, preset: "jest-expo/ios", displayName: "ios" },
     { ...project, preset: "jest-expo/android", displayName: "android" },
