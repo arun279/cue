@@ -190,6 +190,19 @@ describe("the post-mark projection over the seeded catalogue", () => {
   });
 });
 
+/**
+ * Every written title, plus one title of each shape the collection shelf
+ * generates: the shelf's hundreds of titles differ only in ids, names and
+ * dates, so reading all of them costs seconds without parsing anything new.
+ */
+function representatives<T extends object>(titles: T[], shape: (title: T) => unknown): T[] {
+  const shelf = new Map<unknown, T>();
+  for (const title of titles) {
+    if ("shelf" in title && !shelf.has(shape(title))) shelf.set(shape(title), title);
+  }
+  return [...titles.filter((title) => !("shelf" in title)), ...shelf.values()];
+}
+
 describe("the seeded account parses through the app's own contracts", () => {
   it("serves the cold-sync reads", async () => {
     expect(ok(await getWatchedShows(client())).length).toBeGreaterThan(0);
@@ -211,8 +224,13 @@ describe("the seeded account parses through the app's own contracts", () => {
     expect(movies.every((row) => (row.movie.runtime ?? 0) > 0)).toBe(true);
   });
 
-  it("serves every seeded show's detail, progress, seasons and episode reads", async () => {
-    for (const show of mock.library.shows) {
+  it("serves detail, progress, seasons and episode reads for every written show and one collection shelf show of each status", async () => {
+    const shows = representatives(mock.library.shows, (entry) => entry.status);
+    expect(shows.filter((show) => "shelf" in show).map((show) => show.status)).toEqual([
+      "returning series",
+      "ended",
+    ]);
+    for (const show of shows) {
       const detail = ok(await getShow(client(), show.trakt));
       expect(detail.title).toBe(show.title);
       expect(
@@ -229,8 +247,10 @@ describe("the seeded account parses through the app's own contracts", () => {
     }
   });
 
-  it("serves every seeded movie's detail read", async () => {
-    for (const movie of mock.library.movies) {
+  it("serves the detail read for every written movie and one collection shelf movie", async () => {
+    const movies = representatives(mock.library.movies, () => "shelf");
+    expect(movies.filter((movie) => "shelf" in movie)).toHaveLength(1);
+    for (const movie of movies) {
       const detail = ok(await getMovie(client(), movie.trakt));
       expect(detail.title).toBe(movie.title);
       expect(detail.images?.poster).toHaveLength(1);

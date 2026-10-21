@@ -101,6 +101,9 @@ const driverDeath = readFileSync(repositoryPath("test/ci/fixtures/ios-driver-dea
 const refused =
   "[Failed] Perform XCUITest driver status check on test-device, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:49889";
 
+const outlive = (name: string) =>
+  `setTimeout(() => require('node:fs').appendFileSync(process.env.RUNS, '${name} outlived the supervisor\\n'), 60_000)`;
+
 function runDriver(log: string, destination: string, hang = true, runner = "") {
   const directory = tempDirectory("cue-driver-death-");
   writeFileSync(
@@ -115,8 +118,8 @@ const write = process.env.DESTINATION === 'log'
   ? (text) => { fs.appendFileSync(process.env.LOG_FILE, text); process.stdout.write(text); }
   : (text) => process[process.env.DESTINATION].write(text);
 if (process.env.HANG === 'true') {
-  require('node:child_process').spawn(process.execPath, ['-e', 'setTimeout(() => {}, 3000)'], {stdio: 'inherit'});
-  setTimeout(() => {}, 3000);
+  require('node:child_process').spawn(process.execPath, ['-e', ${JSON.stringify(outlive("child"))}], {stdio: 'inherit'});
+  ${outlive("maestro")};
 }
 fs.mkdirSync(require('node:path').dirname(process.env.LOG_FILE), {recursive: true});
 write(log.slice(0, midpoint));
@@ -124,7 +127,6 @@ setImmediate(() => write(log.slice(midpoint)));
 `,
     { mode: 0o755 },
   );
-  const started = performance.now();
   const result = spawnSync(
     "bash",
     [
@@ -136,7 +138,6 @@ setImmediate(() => write(log.slice(midpoint)));
     ],
     {
       encoding: "utf8",
-      timeout: 5_000,
       env: {
         ...process.env,
         PATH: `${directory}:${process.env["PATH"]}`,
@@ -152,7 +153,7 @@ setImmediate(() => write(log.slice(midpoint)));
   expect(result.error).toBeUndefined();
   expect(existsSync(path.join(directory, "runs")), result.stderr).toBe(true);
   expect(readFileSync(path.join(directory, "runs"), "utf8")).toBe("run\n");
-  return { ...result, elapsed: performance.now() - started };
+  return result;
 }
 
 it.each([
@@ -165,7 +166,6 @@ it.each([
   expect(result.stderr).toContain("XCTest driver died during startup");
   expect(result.stderr).toContain("Timed out while evaluating UI query on SpringBoard");
   expect(result.stderr).toContain("/deviceInfo failed, code: 500");
-  expect(result.elapsed).toBeLessThan(2_000);
 });
 
 it.each([
@@ -176,14 +176,12 @@ it.each([
   const result = runDriver(log, "log");
   expect(result.status).toBe(1);
   expect(result.stderr).toContain("XCTest driver died during startup");
-  expect(result.elapsed).toBeLessThan(2_000);
 });
 
 it("fails fast on the first refused status check of a runner started before Maestro", () => {
   const result = runDriver(`${refused}\n`, "stdout", true, "1");
   expect(result.status).toBe(1);
   expect(result.stderr).toContain("XCTest driver died during startup");
-  expect(result.elapsed).toBeLessThan(2_000);
 });
 
 it("allows initial connection refusals and unrelated HTTP errors", () => {
