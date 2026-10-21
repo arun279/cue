@@ -153,6 +153,10 @@ export function tabBarClearance(insetBottom: number): number {
   return Platform.OS === "ios" ? 40 + 56 : insetBottom + 80;
 }
 
+export function sheetBottomInset(insetBottom: number): number {
+  return Platform.OS === "android" ? insetBottom : 0;
+}
+
 export function useStacked(): boolean {
   return useWindowDimensions().fontScale >= REFLOW_FONT_SCALE;
 }

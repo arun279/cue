@@ -11,8 +11,9 @@ appId: app.cuetracker
     env:
       OPERATION: sync
 - swipe:
-    start: "50%, 25%"
-    end: "50%, 85%"
+    from:
+      id: "up-next-list"
+    direction: DOWN
     duration: 600
 - runFlow: lib/settle.yaml
 - assertVisible:

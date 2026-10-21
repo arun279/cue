@@ -17,7 +17,12 @@ function sheetOptions(background: ColorValue): NativeStackNavigationOptions {
     contentStyle: { backgroundColor: background },
     ...(Platform.OS === "android"
       ? { headerShown: false }
-      : { title: "", headerTransparent: false, headerStyle: { backgroundColor: background } }),
+      : {
+          headerShown: true,
+          title: "",
+          headerTransparent: false,
+          headerStyle: { backgroundColor: background },
+        }),
   };
 }
 

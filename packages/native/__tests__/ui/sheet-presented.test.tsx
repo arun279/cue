@@ -1,8 +1,8 @@
 import { router, Stack } from "expo-router";
 import { act, fireEvent, renderRouter, screen } from "expo-router/testing-library";
 import { Platform, View } from "react-native";
-import MonthJumpRoute from "../../app/(account)/history-jump";
-import EpisodeRoute from "../../app/(tabs)/(up-next,library,calendar,search)/show/[showId]/episode/[season]/[episode]";
+import MonthJumpRoute from "../../app/history-jump";
+import EpisodeRoute from "../../app/show/[showId]/episode/[season]/[episode]";
 import { HARNESS_IDS } from "../../src/ui/harness-ids";
 import { useEpisodeSheetOptions, useMonthJumpSheetOptions } from "../../src/ui/navigation-theme";
 import { TEST_IDS } from "../../src/ui/test-ids";

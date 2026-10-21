@@ -33,10 +33,12 @@ jest.mock(
  * Replays every navigation the source makes, from the screen that makes it, through
  * the real router over the real app/ layouts, with each screen standing in as an
  * empty view and JavaScript tabs standing in for the native tabs. After each one the
- * platform back must return to where it started; another stack must open at its
- * root, where its dismiss control is; a jump to another tab must leave the tab it
- * left as it was; a replace must stay in its stack. Which screen a path reaches is
- * the real router's answer, not a copy of its matching.
+ * platform back must return to where it started with the screens beneath it kept;
+ * another stack must open at its root, where its dismiss control is; a jump to
+ * another tab must leave the tab it left as it was; a replace must stay in its stack.
+ * The sheets the root stack presents are opened from Up Next, and their replays
+ * begin there. Which screen a path reaches is the real router's answer, not a copy
+ * of its matching.
  */
 
 const Screen = (): ReactElement => <View />;
@@ -64,9 +66,10 @@ const tabRoot = (route: Route) => isRoot(route) && inTab(route);
 const rootOf = (route: Route) =>
   routes.find((candidate) => candidate.navigator === route.navigator && isRoot(candidate));
 
-/** How a user reaches a route: open its tab, or Profile, then push it. */
+/** How a user reaches a route: open its tab, or Profile, then push it; a sheet is opened over Up Next. */
 function stepsTo(route: Route): { readonly url: string; readonly pushes: readonly string[] } {
   if (route.id === "+not-found") return { url: "/", pushes: ["/nowhere"] };
+  if (isPresented(route.id)) return { url: "/", pushes: [pathOf(route, false)] };
   if (inTab(route)) {
     const root = rootOf(route);
     return {
@@ -144,7 +147,10 @@ async function openAt(route: Route): Promise<Opened> {
   return {
     pathname: () => view.getPathname(),
     segments: () => view.getSegments(),
-    stack: () => stackOf(view.getRouterState()?.routes, tab) ?? [nameIn(route)],
+    stack: () =>
+      (tab === ""
+        ? view.getRouterState()?.routes.map(({ name }) => name)
+        : stackOf(view.getRouterState()?.routes, tab)) ?? [nameIn(route)],
     presented: () => stackOf(view.getRouterState()?.routes, "(account)") !== undefined,
   };
 }
@@ -185,6 +191,7 @@ async function expectUndone(opened: Opened, from: Route, method: string, before:
   if (landed.navigator === from.navigator && opened.stack().length < before.length) return;
   await act(() => router.back());
   expect(routeAt(opened.segments())?.id).toBe(from.id);
+  expect(opened.stack()).toEqual(before);
 }
 
 it.each(trips)("%s returns where it started", async (_, { from, call }: Edge, href: string) => {

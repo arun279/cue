@@ -14,7 +14,7 @@ import { TEST_IDS } from "../ui/test-ids";
 import { SPACE, tabBarClearance, useColors } from "../ui/tokens";
 import { CueText } from "../ui/type";
 import { ContinueBar } from "./show-detail/ContinueBar";
-import { DetailError, DetailSkeleton, ShowDisabled } from "./show-detail/DetailStates";
+import { DetailError, DetailSkeleton } from "./show-detail/DetailStates";
 import { RelatedShows } from "./show-detail/RelatedShows";
 import { SeasonRow } from "./show-detail/SeasonRow";
 import { ShowAbout, ShowHero } from "./show-detail/ShowHero";
@@ -32,6 +32,18 @@ export function ShowDetail({ showId }: { readonly showId: number }): ReactElemen
     >
       {enabled ? <ShowContent showId={showId} /> : <ShowDisabled />}
     </View>
+  );
+}
+
+function ShowDisabled(): ReactElement {
+  const router = useRouter();
+  return (
+    <EmptyState
+      headline="TV shows are turned off."
+      body="Turn TV shows back on in Settings to see this show."
+    >
+      <Button label="Open Settings" onPress={() => router.push("/settings")} />
+    </EmptyState>
   );
 }
 

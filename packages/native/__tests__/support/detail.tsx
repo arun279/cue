@@ -1,5 +1,6 @@
 import type { EpisodeDetail } from "@cue/core/data/trakt/episode-detail";
 import type { SeasonView } from "@cue/core/data/trakt/show-detail";
+import type { PreferenceStorage } from "@cue/core/ports/preference-storage";
 import {
   episodeQuery,
   showInfoQuery,
@@ -89,12 +90,14 @@ const haptics = spyHaptics();
 export function DetailHarness({
   children,
   runtime = detailRuntime,
+  preferences,
 }: {
   readonly children: ReactNode;
   readonly runtime?: CueRuntime;
+  readonly preferences?: PreferenceStorage;
 }): ReactElement {
   return (
-    <Harness runtime={runtime} haptics={haptics} seed={seedDetail}>
+    <Harness runtime={runtime} haptics={haptics} preferences={preferences} seed={seedDetail}>
       {children}
     </Harness>
   );
