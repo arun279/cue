@@ -167,6 +167,9 @@ jobs:
           node scripts/check-changed-coverage.mjs "origin/$BASE_REF" coverage/lcov.info "$PR_BODY"
   render-performance:
     if: ${{ !inputs.copy }}
+    permissions:
+      contents: read
+      pull-requests: read
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -191,7 +194,16 @@ jobs:
           fi
           pnpm --dir packages/native perf:render
       - name: Gate render counts
-        run: pnpm check:render-counts
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          PR_BODY=""
+          if [ "$EVENT_NAME" = pull_request ]; then
+            PR_BODY=$(gh pr view "$PR_NUMBER" --json body --jq .body)
+          fi
+          pnpm check:render-counts "$PR_BODY"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ !cancelled() }}
         with:
