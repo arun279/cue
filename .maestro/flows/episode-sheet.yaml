@@ -33,13 +33,11 @@ appId: app.cuetracker
     env:
       OPERATION: write
 - tapOn:
-    id: "episode-mark-control"
+    id: "snackbar-undo"
 - runFlow: lib/settle.yaml
 - assertVisible: "Not watched yet"
-- extendedWaitUntil:
-    notVisible:
-      id: "snackbar"
-    timeout: 10000
+- assertNotVisible:
+    id: "snackbar"
 - tapOn:
     id: "episode-pager-next"
 - assertVisible:
