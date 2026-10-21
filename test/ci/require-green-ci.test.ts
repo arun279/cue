@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { expect, it } from "vitest";
+import { fakeBin } from "../support/fake-bin";
 import { repositoryPath } from "../support/repository-path";
 import { tempDirectory } from "../support/temp-directory";
 
@@ -22,6 +23,17 @@ const run = (workflow: string) => ({
   run_attempt: 1,
 });
 
+const bin = fakeBin({
+  gh: `#!/usr/bin/env node
+const fs = require('node:fs');
+const url = process.argv.find(arg => arg.startsWith('repos/'));
+const key = url.split('/runs/')[1].split('?')[0];
+const value = JSON.parse(fs.readFileSync(process.env.FIXTURES))[key];
+if (!value) process.exit(23);
+process.stdout.write(JSON.stringify(value));
+`,
+});
+
 function gate(
   change: {
     ci?: object;
@@ -40,23 +52,11 @@ function gate(
     "1/attempts/2/jobs": [{ jobs: change.second ?? [] }],
   };
   writeFileSync(path.join(directory, "data.json"), JSON.stringify(responses));
-  writeFileSync(
-    path.join(directory, "gh"),
-    `#!/usr/bin/env node
-const fs = require('node:fs');
-const url = process.argv.find(arg => arg.startsWith('repos/'));
-const key = url.split('/runs/')[1].split('?')[0];
-const value = JSON.parse(fs.readFileSync(process.env.FIXTURES))[key];
-if (!value) process.exit(23);
-process.stdout.write(JSON.stringify(value));
-`,
-    { mode: 0o755 },
-  );
   return spawnSync("bash", [repositoryPath("scripts/require-green-ci.sh")], {
     encoding: "utf8",
     env: {
       ...process.env,
-      PATH: `${directory}:${process.env["PATH"]}`,
+      PATH: `${bin}:${process.env["PATH"]}`,
       FIXTURES: path.join(directory, "data.json"),
       GH_TOKEN: "test",
       REPO: "owner/cue",

@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { expect, it } from "vitest";
+import { fakeBin } from "../support/fake-bin";
 import { repositoryPath } from "../support/repository-path";
 import { tempDirectory } from "../support/temp-directory";
 
@@ -23,17 +24,8 @@ const neverAssigned = (name: string, run_attempt: number) => ({
   steps: [],
 });
 
-function refuse(attempt: number, history: Record<number, object[]>) {
-  const directory = tempDirectory("cue-first-attempt-");
-  writeFileSync(
-    path.join(directory, "data.json"),
-    JSON.stringify(
-      Object.fromEntries(Object.entries(history).map(([key, jobs]) => [key, [{ jobs }]])),
-    ),
-  );
-  writeFileSync(
-    path.join(directory, "gh"),
-    `#!/usr/bin/env node
+const bin = fakeBin({
+  gh: `#!/usr/bin/env node
 const fs = require('node:fs');
 const url = process.argv.find(arg => arg.startsWith('repos/'));
 fs.appendFileSync(process.env.CALLS, url + '\\n');
@@ -42,7 +34,15 @@ const value = JSON.parse(fs.readFileSync(process.env.FIXTURES))[key];
 if (!value) process.exit(23);
 process.stdout.write(JSON.stringify(value));
 `,
-    { mode: 0o755 },
+});
+
+function refuse(attempt: number, history: Record<number, object[]>) {
+  const directory = tempDirectory("cue-first-attempt-");
+  writeFileSync(
+    path.join(directory, "data.json"),
+    JSON.stringify(
+      Object.fromEntries(Object.entries(history).map(([key, jobs]) => [key, [{ jobs }]])),
+    ),
   );
   const calls = path.join(directory, "calls");
   writeFileSync(calls, "");
@@ -53,7 +53,7 @@ process.stdout.write(JSON.stringify(value));
       encoding: "utf8",
       env: {
         ...process.env,
-        PATH: `${directory}:${process.env["PATH"]}`,
+        PATH: `${bin}:${process.env["PATH"]}`,
         FIXTURES: path.join(directory, "data.json"),
         CALLS: calls,
         GITHUB_REPOSITORY: "owner/cue",

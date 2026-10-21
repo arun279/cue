@@ -7,7 +7,8 @@ import { afterAll } from "vitest";
 /**
  * A directory of stand-in commands to put first on PATH, written once for the
  * whole test file and run once here, with no arguments or environment, before
- * any case starts. Each case steers them through environment variables.
+ * any case starts, so each must finish promptly when run that way. Each case
+ * steers them through environment variables.
  *
  * macOS checks every newly written executable the first time it runs, and those
  * checks run one at a time across the machine: about 0.2 s each when idle and
