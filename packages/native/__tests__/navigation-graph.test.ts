@@ -252,6 +252,20 @@ function pathsIn(file: string, expression: ts.Expression): string[] | undefined 
   );
 }
 
+/** An href a link component only passes through from its own props; its targets are read where it is used. */
+function forwardedProp(node: ts.Node, href: ts.Expression): boolean {
+  if (!ts.isIdentifier(href)) return false;
+  for (let scope = node.parent; scope !== undefined; scope = scope.parent) {
+    if (ts.isFunctionLike(scope))
+      return scope.parameters.some((parameter) =>
+        descendants(parameter.name).some(
+          (binding) => ts.isIdentifier(binding) && binding.text === href.text,
+        ),
+      );
+  }
+  return false;
+}
+
 interface Call {
   readonly at: string;
   readonly replaces: boolean;
@@ -263,7 +277,8 @@ function callsIn(file: string): Call[] {
   return descendants(source).flatMap((node) => {
     const at = `${relative(appRoot, file)}:${source.getLineAndCharacterOfPosition(node.getStart()).line + 1}`;
     const tag = tagOf(node);
-    const href = tag === "Link" || tag === "Redirect" ? attributeOf(node, "href") : undefined;
+    const href = attributeOf(node, "href");
+    if (href && forwardedProp(node, href)) return [];
     if (href) return [{ at, replaces: tag === "Redirect", paths: pathsIn(file, href) }];
     if (
       !ts.isCallExpression(node) ||
