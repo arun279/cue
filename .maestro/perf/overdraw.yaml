@@ -1,0 +1,21 @@
+# Captures Up Next and Library for scripts/perf-probe.mjs once Android's overdraw
+# overlay is on; the relaunch starts a process that reads the overlay setting.
+appId: app.cuetracker
+---
+- runScript: reset-scale.js
+- assertTrue: ${output.fakeReset}
+- launchApp:
+    stopApp: true
+    permissions: {}
+- runFlow: ../flows/lib/ready.yaml
+- waitForAnimationToEnd
+- runFlow:
+    file: segment.yaml
+    env: { SEGMENT: "up-next", EDGE: overdraw }
+- tapOn: "Library"
+- assertVisible:
+    id: "screen-library"
+- waitForAnimationToEnd
+- runFlow:
+    file: segment.yaml
+    env: { SEGMENT: "library", EDGE: overdraw }

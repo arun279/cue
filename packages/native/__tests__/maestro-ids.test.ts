@@ -8,7 +8,8 @@ import { HARNESS_IDS } from "../src/ui/harness-ids";
 import { TEST_IDS } from "../src/ui/test-ids";
 import { nativeSourceFiles } from "./support/native-sources";
 
-const flowsDirectory = join(__dirname, "../../../.maestro/flows");
+const maestroDirectory = join(__dirname, "../../../.maestro");
+const flowsDirectory = join(maestroDirectory, "flows");
 const appDirectory = join(__dirname, "../app");
 
 /**
@@ -51,7 +52,7 @@ function collectIds(value: unknown): string[] {
 
 it("uses only accessibility ids declared by the native app", () => {
   const patterns = declaredPatterns();
-  const referenced = yamlFiles(flowsDirectory).flatMap((file) =>
+  const referenced = yamlFiles(maestroDirectory).flatMap((file) =>
     parseAllDocuments(readFileSync(file, "utf8")).flatMap((document) =>
       collectIds(document.toJS()),
     ),
@@ -345,9 +346,9 @@ function flakeMasks(value: unknown): string[] {
 
 it("requires one input and persistent acknowledgments in every device flow", () => {
   expect(
-    yamlFiles(flowsDirectory).flatMap((file) =>
+    yamlFiles(maestroDirectory).flatMap((file) =>
       parseAllDocuments(readFileSync(file, "utf8")).flatMap((document) =>
-        flakeMasks(document.toJS()).map((mask) => `${relative(flowsDirectory, file)}: ${mask}`),
+        flakeMasks(document.toJS()).map((mask) => `${relative(maestroDirectory, file)}: ${mask}`),
       ),
     ),
   ).toEqual([]);

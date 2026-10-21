@@ -1,0 +1,23 @@
+# Three upward flings through the list on screen, as one measured segment.
+appId: app.cuetracker
+---
+- runFlow:
+    file: segment.yaml
+    env:
+      SEGMENT: ${SEGMENT}
+      EDGE: start
+- swipe:
+    direction: UP
+    duration: 300
+- swipe:
+    direction: UP
+    duration: 300
+- swipe:
+    direction: UP
+    duration: 300
+- waitForAnimationToEnd
+- runFlow:
+    file: segment.yaml
+    env:
+      SEGMENT: ${SEGMENT}
+      EDGE: stop
