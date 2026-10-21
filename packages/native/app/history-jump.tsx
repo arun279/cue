@@ -1,7 +1,7 @@
 import type { ReactElement } from "react";
 import { StyleSheet, View } from "react-native";
-import { MonthJump } from "../../../src/screens/history/MonthJump";
-import { SheetPresented } from "../../../src/ui/harness";
+import { MonthJump } from "../src/screens/history/MonthJump";
+import { SheetPresented } from "../src/ui/harness";
 
 export default function MonthJumpRoute(): ReactElement {
   return (

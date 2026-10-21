@@ -1,8 +1,7 @@
 import { render } from "@testing-library/react-native";
 import type { ReactElement, ReactNode } from "react";
 import { Platform } from "react-native";
-import AccountLayout from "../app/(account)/_layout";
-import { TabStack } from "../src/TabStack";
+import { RootStack } from "../src/RootStack";
 import { RADIUS } from "../src/ui/tokens";
 import { atFontScale } from "./support/font-scale";
 import { QueryProvider } from "./support/query-provider";
@@ -27,32 +26,18 @@ jest.mock("expo-router", () => {
     return null;
   };
   Stack.Toolbar = require("./support/native-ui").toolbarModule();
-  return { Stack, useRouter: () => ({ dismissAll: jest.fn() }) };
+  return { Stack, useNavigationContainerRef: () => ({}) };
 });
-
-/** The episode sheet as each host presents it, one read per host. */
-async function sheetsAt(fontScale: number): Promise<SheetOptions[]> {
-  atFontScale(fontScale);
-  const hosts = [
-    <TabStack key="tab" root="index" title="Up Next" />,
-    <AccountLayout key="account" />,
-  ];
-  const sheets: SheetOptions[] = [];
-  for (const host of hosts) {
-    mockScreens.clear();
-    await render(host, { wrapper: QueryProvider });
-    sheets.push(mockScreens.get(EPISODE) ?? {});
-  }
-  return sheets;
-}
 
 it.each([
   [1, 0],
   [1.3, 1],
-])("opens the episode sheet the same way from every stack at text scale %s", async (scale, detent) => {
-  const [tab, account] = await sheetsAt(scale);
+])("opens the episode sheet from the root stack at a detent that fits text scale %s", async (scale, detent) => {
+  atFontScale(scale);
 
-  expect(tab?.sheetInitialDetentIndex).toBe(Platform.OS === "ios" ? detent : 0);
-  expect(tab?.sheetCornerRadius).toBe(RADIUS.sheet);
-  expect(account).toEqual(tab);
+  await render(<RootStack />, { wrapper: QueryProvider });
+
+  const sheet = mockScreens.get(EPISODE);
+  expect(sheet?.sheetInitialDetentIndex).toBe(Platform.OS === "ios" ? detent : 0);
+  expect(sheet?.sheetCornerRadius).toBe(RADIUS.sheet);
 });

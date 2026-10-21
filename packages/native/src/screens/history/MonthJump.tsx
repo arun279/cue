@@ -1,5 +1,11 @@
 import { parseHistorySearch } from "@cue/core/url/search-params";
-import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import {
+  type NativeStackNavigationProp,
+  Stack,
+  useLocalSearchParams,
+  useNavigation,
+  useRouter,
+} from "expo-router";
 import { type ReactElement, useState } from "react";
 import { Platform, ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -13,8 +19,20 @@ import { MONTHS } from "./model";
 
 const TITLE = "Jump to";
 
+interface NavigatorTree {
+  readonly key?: string;
+  readonly index?: number;
+  readonly routes: readonly { readonly key?: string; readonly state?: NavigatorTree }[];
+}
+
+const focusedScreen = (state: NavigatorTree): { source?: string; target?: string } => {
+  const route = state.routes[state.index ?? 0];
+  return route?.state ? focusedScreen(route.state) : { source: route?.key, target: state.key };
+};
+
 export function MonthJump(): ReactElement {
   const router = useRouter();
+  const navigation = useNavigation<NativeStackNavigationProp<Record<string, undefined>>>();
   const scope = parseHistorySearch(useLocalSearchParams());
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState(scope.year ?? currentYear);
@@ -24,11 +42,15 @@ export function MonthJump(): ReactElement {
   const insets = useSafeAreaInsets();
   const { fontScale } = useWindowDimensions();
   const cell = { width: `${100 / (fontScale > 1.3 ? 3 : 6)}%` } as const;
-  const pick = (pickedYear?: number, month?: number) =>
-    router.dismissTo({
-      pathname: "/history",
-      params: { type: scope.type, year: pickedYear, month },
+  const pick = (pickedYear?: number, month?: number) => {
+    const state = navigation.getState();
+    navigation.dispatch({
+      type: "SET_PARAMS",
+      payload: { params: { type: scope.type, year: pickedYear, month } },
+      ...focusedScreen({ ...state, index: state.index - 1 }),
     });
+    router.back();
+  };
   return (
     <ScrollView
       testID={TEST_IDS.historyJumpSheet}

@@ -2,11 +2,7 @@ import { Stack, useRouter } from "expo-router";
 import type { ReactElement } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { AppIdle } from "../../src/ui/harness";
-import {
-  barOptions,
-  useEpisodeSheetOptions,
-  useMonthJumpSheetOptions,
-} from "../../src/ui/navigation-theme";
+import { barOptions } from "../../src/ui/navigation-theme";
 import { SnackbarHost } from "../../src/ui/SnackbarHost";
 import { useColors } from "../../src/ui/tokens";
 
@@ -14,8 +10,6 @@ export const unstable_settings = { initialRouteName: "profile" };
 
 export default function AccountLayout(): ReactElement {
   const router = useRouter();
-  const sheet = useEpisodeSheetOptions();
-  const monthJump = useMonthJumpSheetOptions();
   const colors = useColors();
 
   return (
@@ -46,13 +40,11 @@ export default function AccountLayout(): ReactElement {
         </Stack.Screen>
         <Stack.Screen name="settings" options={{ title: "Settings" }} />
         <Stack.Screen name="history" options={{ title: "History" }} />
-        <Stack.Screen name="history-jump" options={monthJump} />
         <Stack.Screen name="show/[showId]" options={{ title: "Show", headerTransparent: false }} />
         <Stack.Screen
           name="movie/[movieId]"
           options={{ title: "Movie", headerTransparent: false }}
         />
-        <Stack.Screen name="show/[showId]/episode/[season]/[episode]" options={sheet} />
       </Stack>
       <SnackbarHost placement="presentation" />
       <AppIdle />
