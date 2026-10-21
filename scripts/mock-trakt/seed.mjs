@@ -788,16 +788,25 @@ function watchedSeasons(show, library) {
     });
     bySeason.set(ep.season, episodes);
   });
-  const specials = [...show.specialsWatched].map(([traktId, at]) => ({
-    number: show.specials.find((sp) => sp.traktId === traktId).number,
-    plays: 1,
-    last_watched_at: iso(at),
-  }));
+  const specials = [...show.specialsWatched].map(([traktId, at]) => {
+    const rewatchedAt = library.rewatchedEpisodes.get(traktId);
+    return {
+      number: show.specials.find((sp) => sp.traktId === traktId).number,
+      plays: rewatchedAt === undefined ? 1 : 2,
+      last_watched_at: iso(rewatchedAt ?? at),
+    };
+  });
   return [
     ...(specials.length > 0 ? [{ number: 0, episodes: specials }] : []),
     ...[...bySeason].map(([number, episodes]) => ({ number, episodes })),
   ];
 }
+
+const specialPlays = (show, library) =>
+  [...show.specialsWatched.keys()].reduce(
+    (sum, traktId) => sum + (library.rewatchedEpisodes.has(traktId) ? 2 : 1),
+    0,
+  );
 
 /**
  * `/sync/watched/shows`: shows with at least one play, `aired_episodes` and
@@ -809,7 +818,7 @@ export function watchedShowsBody(library, extended) {
   return library.shows
     .filter((show) => show.completed > 0 || show.specialsWatched.size > 0)
     .map((show) => ({
-      plays: show.completed + show.specialsWatched.size,
+      plays: show.completed + specialPlays(show, library),
       last_watched_at: iso(show.lastWatchedAt),
       last_updated_at: iso(show.lastWatchedAt),
       reset_at: null,
@@ -996,25 +1005,28 @@ export function calendarBody(library, origin, extended, startMs, days) {
 const playId = (traktId, play = 1) => traktId * 10 + play;
 const playItem = (id) => Math.floor(id / 10);
 
+/** A show's special plays as history rows: one per watched special, two for a replayed one. */
+function specialRows(library, show, origin, extended) {
+  return [...show.specialsWatched].flatMap(([traktId, at]) => {
+    const special = show.specials.find((sp) => sp.traktId === traktId);
+    const rewatchedAt = library.rewatchedEpisodes.get(traktId);
+    return (rewatchedAt === undefined ? [at] : [at, rewatchedAt]).map((stamp, index) => ({
+      id: playId(traktId, index + 1),
+      watched_at: iso(stamp),
+      action: "watch",
+      type: "episode",
+      episode: episodeRef(special, origin, extended),
+      show: showRef(show, origin, extended),
+    }));
+  });
+}
+
 /** `/users/me/history`: one row per play, newest first. */
 export function historyRows(library, origin, extended, section) {
   const rows = [];
   if (section !== "movies") {
     for (const show of library.shows) {
-      for (const [traktId, at] of show.specialsWatched) {
-        rows.push({
-          id: playId(traktId),
-          watched_at: iso(at),
-          action: "watch",
-          type: "episode",
-          episode: episodeRef(
-            show.specials.find((sp) => sp.traktId === traktId),
-            origin,
-            extended,
-          ),
-          show: showRef(show, origin, extended),
-        });
-      }
+      rows.push(...specialRows(library, show, origin, extended));
       show.episodes.slice(0, show.completed).forEach((ep, index) => {
         rows.push({
           id: playId(ep.traktId),
@@ -1265,11 +1277,16 @@ function targetedSpecials(show, body) {
   );
 }
 
-/** A special keeps one stamp: a replay replaces it, counted as added when the account keeps every play. */
+/** A play for a watched special is a second play, or with Multiple Plays off replaces the first. */
 function addSpecials(library, show, specials, stamp, counts) {
   for (const sp of specials) {
-    if (show.specialsWatched.has(sp.traktId) && !library.multiplePlays)
-      counts.updated.episodes += 1;
+    const watched = show.specialsWatched.has(sp.traktId);
+    if (watched && library.multiplePlays) {
+      library.rewatchedEpisodes.set(sp.traktId, stamp);
+      counts.added.episodes += 1;
+      continue;
+    }
+    if (watched) counts.updated.episodes += 1;
     else counts.added.episodes += 1;
     show.specialsWatched.set(sp.traktId, stamp);
   }
@@ -1284,7 +1301,11 @@ function applySpecialsWrite(library, show, body, remove, stamp, counts) {
     addSpecials(library, show, specials, stamp, counts);
     return 0;
   }
-  for (const sp of specials) show.specialsWatched.delete(sp.traktId);
+  const secondPlays = new Set((body.ids ?? []).filter((id) => id % 10 === 2).map(playItem));
+  for (const sp of specials) {
+    library.rewatchedEpisodes.delete(sp.traktId);
+    if (!secondPlays.has(sp.traktId)) show.specialsWatched.delete(sp.traktId);
+  }
   return specials.length;
 }
 

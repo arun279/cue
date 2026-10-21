@@ -454,6 +454,34 @@ describe("seed profiles", () => {
     await fetch(`${baseUrl}/__reset`, { method: "POST" });
   });
 
+  it("keeps a replayed special's first play and adds a second, as for any episode", async () => {
+    await fetch(`${baseUrl}/__reset?seed=specials-only`, { method: "POST" });
+    const special = ok(await getShowSeasons(client(), 8809))[0]?.episodes?.[0]?.ids.trakt ?? 0;
+    const plays = async () => ok(await getItemPlays(client(), "episodes", special));
+    const [first] = await plays();
+    const answer = await fetch(`${baseUrl}/sync/history`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        episodes: [{ ids: { trakt: special }, watched_at: "2026-10-15T00:00:00.000Z" }],
+      }),
+    });
+    expect(await answer.json()).toMatchObject({ added: { episodes: 1 } });
+    const replayed = await plays();
+    expect(replayed).toHaveLength(2);
+    expect(replayed).toContainEqual(
+      expect.objectContaining({ id: first?.id, watched_at: first?.watched_at }),
+    );
+    const second = replayed.find((play) => play.id !== first?.id)?.id;
+    await fetch(`${baseUrl}/sync/history/remove`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ids: [second] }),
+    });
+    expect((await plays()).map((play) => play.id)).toEqual([first?.id]);
+    await fetch(`${baseUrl}/__reset`, { method: "POST" });
+  });
+
   it("numbers a long runner's seasons from its specials, and runs a continuous show's numbers on", async () => {
     await fetch(`${baseUrl}/__reset?seed=scale`, { method: "POST" });
     const seasons = ok(await getShowSeasons(client(), 99));
