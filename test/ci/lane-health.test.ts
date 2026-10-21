@@ -182,7 +182,7 @@ const laneRun = (live: number) => {
   );
   writeFileSync(
     path.join(bin, "maestro"),
-    `#!/bin/sh\necho "$MAESTRO_OPTS" > "${path.join(bin, "options")}"\necho "[1.0s][info][gc] GC(0) Pause Young (Normal) (G1 Evacuation Pause) 500M->${live}M(640M) 2.0ms" > "\${MAESTRO_OPTS#*file=}"\nsleep 1\n`,
+    `#!/bin/sh\necho "$MAESTRO_OPTS" > "${path.join(bin, "options")}"\necho "[1.0s][info][gc] GC(0) Pause Young (Normal) (G1 Evacuation Pause) 500M->${live}M(640M) 2.0ms" > "\${MAESTRO_OPTS#*file=}"\n`,
     { mode: 0o755 },
   );
   const debug = path.join(bin, "debug");
