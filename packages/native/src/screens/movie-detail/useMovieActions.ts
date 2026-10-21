@@ -33,7 +33,8 @@ export function useMovieActions(header: MovieHeader) {
     watched: false,
     watchedAt: null,
     inWatchlist: false,
-    listedAt: null,
+    inCollection: false,
+    addedAt: null,
   };
   const key = queryKeys.movieLibrary();
   const error = () => showSnack({ message: "Couldn't update this movie. Please try again." });
@@ -54,7 +55,7 @@ export function useMovieActions(header: MovieHeader) {
       return {
         entries: [
           ...(data?.entries.filter((item) => item.movieId !== header.movieId) ?? []),
-          ...(updated.watched || updated.inWatchlist ? [updated] : []),
+          ...(updated.watched || updated.inWatchlist || updated.inCollection ? [updated] : []),
         ],
       };
     });

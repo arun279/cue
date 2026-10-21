@@ -89,9 +89,11 @@ function libraryEntry(showId = SHOW): LibraryEntry {
   return {
     showId,
     title: `Show ${showId}`,
+    year: null,
     status: "returning series",
     hidden: false,
     inWatchlist: false,
+    addedAt: null,
     lastWatchedAt: "2026-07-01T00:00:00.000Z",
     aired: 10,
     completed: 1,
@@ -106,6 +108,7 @@ function libraryEntry(showId = SHOW): LibraryEntry {
     lastAired: null,
     tmdbId: null,
     runtime: null,
+    posters: [],
     pendingAdvance: false,
   };
 }

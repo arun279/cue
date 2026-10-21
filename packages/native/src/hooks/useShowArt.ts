@@ -9,8 +9,7 @@ import { useRuntime } from "@cue/core/runtime/runtime";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
-// VirtualizedList keeps about ten screens of rows mounted on each side, so a grid passes onScreen.
-export function useShowArt(showId: number, onScreen = true): ShowArt {
+export function useShowArt(showId: number, enabled = true): ShowArt {
   const runtime = useRuntime();
   const [settled, setSettled] = useState<number | null>(null);
 
@@ -22,7 +21,7 @@ export function useShowArt(showId: number, onScreen = true): ShowArt {
   return (
     useQuery({
       ...showInfoQuery(runtime, showId),
-      enabled: onScreen && settled === showId,
+      enabled: enabled && settled === showId,
       select: selectArt,
     }).data ?? EMPTY_SHOW_ART
   );

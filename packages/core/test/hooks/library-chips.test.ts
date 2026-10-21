@@ -1,5 +1,5 @@
 import type { LibraryEntry } from "@cue/core/data/trakt/library";
-import { chipBuckets } from "@cue/core/domain/library-buckets";
+import { chipBuckets, sortShows } from "@cue/core/domain/library-buckets";
 import { describe, expect, it } from "vitest";
 import { DAY, iso, makeShow, NOW, THRESHOLD } from "../domain/_helpers";
 
@@ -8,6 +8,7 @@ function entry(overrides: Partial<LibraryEntry> = {}): LibraryEntry {
     ...makeShow(),
     tmdbId: null,
     runtime: null,
+    posters: [],
     pendingAdvance: false,
     ...overrides,
   };
@@ -38,61 +39,80 @@ describe("chipBuckets", () => {
       [watching, caughtUp, lapsed, watchlisted, stopped, finished, tailBacklog],
       NOW,
       THRESHOLD,
-      "recently-watched",
     );
     // Golf is past the progress budget: real counts, no next episode named. Its
     // backlog puts it in Watching, never in Finished.
-    expect(chips.watching.map((e) => e.showId)).toEqual([1, 7, 2, 3]);
-    expect(chips.watchlist.map((e) => e.showId)).toEqual([4]);
+    expect(sortShows(chips.watching, "recently-watched").map((e) => e.showId)).toEqual([
+      1, 7, 2, 3,
+    ]);
+    expect(chips["not-started"].map((e) => e.showId)).toEqual([4]);
     expect(chips.stopped.map((e) => e.showId)).toEqual([5]);
     expect(chips.finished.map((e) => e.showId)).toEqual([6]);
   });
 
   it("keeps one recency order across the merged watching + caught-up statuses", () => {
-    const chips = chipBuckets([lapsed, watching, caughtUp], NOW, THRESHOLD, "recently-watched");
-    expect(chips.watching.map((e) => e.showId)).toEqual([1, 2, 3]);
+    const chips = chipBuckets([lapsed, watching, caughtUp], NOW, THRESHOLD);
+    expect(sortShows(chips.watching, "recently-watched").map((e) => e.showId)).toEqual([1, 2, 3]);
   });
 
   it("ranks an unknown last watch as the oldest", () => {
     const stoppedAt = (showId: number, lastWatchedAt: string | null) =>
       entry({ showId, hidden: true, lastWatchedAt });
-    const chips = chipBuckets(
-      [stoppedAt(1, iso(NOW - 5 * DAY)), stoppedAt(2, null), stoppedAt(3, iso(NOW - DAY))],
-      NOW,
-      THRESHOLD,
-      "recently-watched",
-    );
-    expect(chips.stopped.map((e) => e.showId)).toEqual([3, 1, 2]);
+    const stopped = [
+      stoppedAt(1, iso(NOW - 5 * DAY)),
+      stoppedAt(2, null),
+      stoppedAt(3, iso(NOW - DAY)),
+    ];
+    expect(sortShows(stopped, "recently-watched").map((e) => e.showId)).toEqual([3, 1, 2]);
   });
 
   it("sorts alphabetically case-insensitively", () => {
-    const chips = chipBuckets(
+    const sorted = sortShows(
       [entry({ showId: 1, title: "beta" }), entry({ showId: 2, title: "Alpha" })],
-      NOW,
-      THRESHOLD,
       "alphabetical",
     );
-    expect(chips.watching.map((e) => e.title)).toEqual(["Alpha", "beta"]);
+    expect(sorted.map((e) => e.title)).toEqual(["Alpha", "beta"]);
   });
 
   it("sorts by progress ratio descending", () => {
-    const chips = chipBuckets(
+    const sorted = sortShows(
       [
         entry({ showId: 1, aired: 10, completed: 2 }),
-        entry({ showId: 3, aired: 0, completed: 0, hidden: true }),
+        entry({ showId: 3, aired: 0, completed: 0 }),
         entry({ showId: 2, aired: 10, completed: 9 }),
-        entry({ showId: 4, aired: 10, completed: 5, hidden: true }),
       ],
-      NOW,
-      THRESHOLD,
       "progress",
     );
-    expect(chips.watching.map((e) => e.showId)).toEqual([2, 1]);
-    expect(chips.stopped.map((e) => e.showId)).toEqual([4, 3]);
+    expect(sorted.map((e) => e.showId)).toEqual([2, 1, 3]);
+  });
+
+  it("sorts newest addition first, an unknown add date last, ties by title", () => {
+    const sorted = sortShows(
+      [
+        entry({ showId: 1, title: "Old", addedAt: iso(NOW - 9 * DAY) }),
+        entry({ showId: 2, title: "Unknown", addedAt: null }),
+        entry({ showId: 3, title: "New B", addedAt: iso(NOW - DAY) }),
+        entry({ showId: 4, title: "New A", addedAt: iso(NOW - DAY) }),
+      ],
+      "recently-added",
+    );
+    expect(sorted.map((e) => e.showId)).toEqual([4, 3, 1, 2]);
+  });
+
+  it("sorts newest release first", () => {
+    const sorted = sortShows(
+      [
+        entry({ showId: 1, year: 2011 }),
+        entry({ showId: 2, year: null }),
+        entry({ showId: 3, year: 2024 }),
+      ],
+      "release-year",
+    );
+    expect(sorted.map((e) => e.showId)).toEqual([3, 1, 2]);
   });
 
   it("returns empty chips for an empty library", () => {
-    const chips = chipBuckets([], NOW, THRESHOLD, "recently-watched");
+    const chips = chipBuckets([], NOW, THRESHOLD);
     expect(chips.watching).toEqual([]);
     expect(chips.finished).toEqual([]);
   });

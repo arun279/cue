@@ -44,7 +44,13 @@ export function useShowDetail(showId: number) {
   return { header, seasons, entry };
 }
 
-const UNCACHED = { hidden: false, inWatchlist: false, lastWatchedAt: null, runtime: null };
+const UNCACHED = {
+  hidden: false,
+  inWatchlist: false,
+  addedAt: null,
+  lastWatchedAt: null,
+  runtime: null,
+};
 
 function entryFor(
   header: ShowHeader,
@@ -52,7 +58,7 @@ function entryFor(
   seasons: readonly SeasonView[],
 ): LibraryEntry {
   if (cached?.pendingAdvance) return cached;
-  const { hidden, inWatchlist, lastWatchedAt, runtime } = cached ?? UNCACHED;
+  const { hidden, inWatchlist, addedAt, lastWatchedAt, runtime } = cached ?? UNCACHED;
   const next =
     header.completed < header.aired && !header.nextEpisode?.aired
       ? firstUnwatchedAired(seasons)
@@ -60,6 +66,7 @@ function entryFor(
   return {
     showId: header.ids.trakt,
     title: header.title,
+    year: header.year,
     status: header.status,
     aired: header.aired,
     completed: header.completed,
@@ -67,9 +74,11 @@ function entryFor(
     nextEpisode: next === null ? null : toEpisodeRef(next),
     hidden,
     inWatchlist,
+    addedAt,
     lastWatchedAt,
     tmdbId: header.ids.tmdb ?? null,
     runtime,
+    posters: header.posters,
     pendingAdvance: false,
   };
 }

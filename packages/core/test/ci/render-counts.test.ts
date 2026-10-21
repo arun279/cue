@@ -4,8 +4,29 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-function gate(base: Record<string, number> | undefined, head: Record<string, number>) {
+interface Significant {
+  readonly name: string;
+  readonly relativeDurationDiff: number;
+}
+
+function gate(
+  base: Record<string, number> | undefined,
+  head: Record<string, number>,
+  significant?: readonly Significant[],
+) {
   const directory = mkdtempSync(join(tmpdir(), "render-counts-"));
+  if (significant !== undefined) {
+    writeFileSync(
+      join(directory, "output.json"),
+      JSON.stringify({
+        significant: significant.map((entry) => ({
+          ...entry,
+          baseline: { meanDuration: 10 },
+          current: { meanDuration: 10 * (1 + entry.relativeDurationDiff) },
+        })),
+      }),
+    );
+  }
   const basePath = join(directory, "base");
   const headPath = join(directory, "head");
   for (const [file, counts] of [
@@ -48,6 +69,15 @@ describe("render count gate", () => {
   });
   it("keeps measured base counts authoritative", () => {
     expect(gate({ ...pinned, [history]: 3 }, pinned).stderr).toContain("allowed deviation of 0");
+  });
+  it("fails a significant slowdown past 20% in a duration-gated scenario only", () => {
+    const library = "Library first mount";
+    const slower = (name: string, relativeDurationDiff: number) =>
+      gate(pinned, pinned, [{ name, relativeDurationDiff }]);
+    expect(slower(library, 0.25).stderr).toContain("slowed by more than 20%");
+    expect(slower(library, 0.15).status).toBe(0);
+    expect(slower(library, -0.4).status).toBe(0);
+    expect(slower(history, 0.5).status).toBe(0);
   });
   it("rejects missing and unknown scenarios", () => {
     expect(gate({}, {}).status).toBe(1);

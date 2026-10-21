@@ -15,6 +15,8 @@ const TARGET_KEYS: Readonly<Record<InvalidationTarget, readonly InvalidationKey[
   "watchlist/shows": [library, queryKeys.watchlist("shows")],
   "watchlist/movies": [movieLibrary, queryKeys.watchlist("movies")],
   "watchlist/episodes": [],
+  "collection/shows": [library],
+  "collection/movies": [movieLibrary],
   "hidden/progress_watched": [library],
   "hidden/movies": [],
   "favorites/shows": [],
