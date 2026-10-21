@@ -7,6 +7,7 @@ import type { SearchHit } from "../data/trakt/search";
 import type { SeasonView, ShowInfo, ShowProgress } from "../data/trakt/show-detail";
 import type { UserProfile } from "../data/trakt/user-profile";
 import type { CalendarEntry } from "../domain/calendar";
+import type { GenreNames } from "../domain/genres";
 import type { HistoryEntry, HistoryRange } from "../domain/history";
 import type { EpisodePlay, MoviePlay } from "../domain/reversal";
 import type { QueuedOp } from "../domain/write-queue/types";
@@ -69,6 +70,7 @@ export interface CueRuntime {
   loadMoviePlays(movieId: number): Promise<readonly MoviePlay[]>;
   search(query: string): Promise<readonly SearchHit[]>;
   loadBrowse(): Promise<BrowseData>;
+  loadGenreNames(): Promise<GenreNames>;
   loadUserProfile(): Promise<UserProfile>;
   submit(op: QueuedOp): Promise<SubmitOutcome>;
   pendingWrites(): number;

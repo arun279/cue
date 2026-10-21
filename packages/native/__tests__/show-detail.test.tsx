@@ -2,11 +2,13 @@ import { seasonConfirmation } from "@cue/core/domain/show-detail";
 import { UNDO_WINDOW_MS } from "@cue/core/sync-contract";
 import { act, fireEvent, render, screen } from "@testing-library/react-native";
 import { ActionSheetIOS, Alert, Platform } from "react-native";
+import { MovieDetail } from "../src/screens/MovieDetail";
 import { ShowDetail } from "../src/screens/ShowDetail";
 import { ContinueBar } from "../src/screens/show-detail/ContinueBar";
 import { confirm } from "../src/ui/confirm";
 import { TEST_IDS } from "../src/ui/test-ids";
 import { DetailHarness, detailRuntime } from "./support/detail";
+import { movieRuntime } from "./support/movie-detail";
 import { router } from "./support/native-ui";
 import { entry, resetSharedStores } from "./support/up-next";
 
@@ -200,4 +202,31 @@ it("names on the Next card the episode its check describes, through a mark and i
   } finally {
     jest.useRealTimers();
   }
+});
+
+it("names genres the way Trakt does, from one read that every detail screen shares", async () => {
+  const loadGenreNames = jest.fn(async () => ({ thriller: "Suspense", drama: "Drama" }));
+  const { loadMovieHeader, loadMovieLibrary, loadMovieRelated, loadMoviePlays } = movieRuntime();
+  const runtime = {
+    ...detailRuntime,
+    loadMovieHeader,
+    loadMovieLibrary,
+    loadMovieRelated,
+    loadMoviePlays,
+    loadGenreNames,
+  };
+  const view = await render(
+    <DetailHarness runtime={runtime}>
+      <ShowDetail showId={8803} />
+    </DetailHarness>,
+  );
+  expect(await screen.findByText("Suspense")).toBeOnTheScreen();
+
+  await view.rerender(
+    <DetailHarness runtime={runtime}>
+      <MovieDetail movieId={5501} />
+    </DetailHarness>,
+  );
+  expect(await screen.findByText(/Drama/)).toBeOnTheScreen();
+  expect(loadGenreNames).toHaveBeenCalledTimes(1);
 });

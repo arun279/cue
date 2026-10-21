@@ -15,6 +15,7 @@ import type { TraktPolicy } from "../data/trakt/policy";
 import {
   getCollectionMovies,
   getEpisode,
+  getGenres,
   getHidden,
   getHistory,
   getItemPlays,
@@ -45,6 +46,7 @@ import {
 import { assembleSeasons, assembleShowInfo, assembleShowProgress } from "../data/trakt/show-detail";
 import { createTraktTransport } from "../data/trakt/transport";
 import { assembleUserProfile, type UserProfile } from "../data/trakt/user-profile";
+import { genreNames } from "../domain/genres";
 import type { Token } from "../domain/model/token";
 import type { LastActivities } from "../domain/sync-activities";
 import { WriteQueue } from "../domain/write-queue/queue";
@@ -372,6 +374,17 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
         ),
         popularMovies: assembleMovieHits(unwrapRead(popularMovies, "popular movies")),
       };
+    },
+
+    async loadGenreNames() {
+      const [shows, movies] = await Promise.all([
+        getGenres(client, "shows"),
+        getGenres(client, "movies"),
+      ]);
+      return genreNames([
+        ...unwrapRead(shows, "show genres"),
+        ...unwrapRead(movies, "movie genres"),
+      ]);
     },
 
     async loadUserProfile(): Promise<UserProfile> {
