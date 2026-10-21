@@ -148,15 +148,17 @@ describe("iOS lanes", () => {
 });
 
 describe("disable-spotlight.sh", () => {
-  const spotlight = (status: string) => {
+  const spotlight = ({ off = 0, check = 0, status = "Indexing disabled." } = {}) => {
     const root = tempDirectory("cue-spotlight-");
     const calls = path.join(root, "calls");
-    writeFileSync(path.join(root, "sudo"), `#!/bin/sh\necho "sudo $*" >> "${calls}"\n`, {
-      mode: 0o755,
-    });
+    writeFileSync(
+      path.join(root, "sudo"),
+      `#!/bin/sh\necho "sudo $*" >> "${calls}"\necho "mdutil disabling Spotlight: / -> kMDConfigSearchLevelFSSearchOnly" >&2\nexit ${off}\n`,
+      { mode: 0o755 },
+    );
     writeFileSync(
       path.join(root, "mdutil"),
-      `#!/bin/sh\necho "mdutil $*" >> "${calls}"\nprintf '/:\\n\\t%s\\n' "${status}"\n`,
+      `#!/bin/sh\necho "mdutil $*" >> "${calls}"\nprintf '/:\\n\\t%s\\n' "${status}"\nexit ${check}\n`,
       { mode: 0o755 },
     );
     const result = spawnSync("bash", [repositoryPath("scripts/disable-spotlight.sh")], {
@@ -166,18 +168,40 @@ describe("disable-spotlight.sh", () => {
     return { result, calls: readFileSync(calls, "utf8").trim().split("\n") };
   };
 
-  it("turns Spotlight indexing off on every volume and checks the startup volume", () => {
-    const { result, calls } = spotlight("Indexing disabled.");
+  it("turns Spotlight indexing off on every volume and checks the startup volume quietly", () => {
+    const { result, calls } = spotlight();
 
     expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout).toBe("");
     expect(calls).toEqual(["sudo mdutil -a -i off", "mdutil -s /"]);
   });
 
-  it("fails when the startup volume is still indexing", () => {
-    const { result } = spotlight("Indexing enabled.");
+  it.each([
+    [
+      "the startup volume still indexes",
+      { status: "Indexing enabled." },
+      "::warning title=Spotlight::Spotlight indexing is not confirmed off for / (mdutil -s / exited 0): /:  Indexing enabled.\n",
+    ],
+    [
+      "the status check itself fails",
+      { check: 1, status: "Error: unknown indexing state." },
+      "::warning title=Spotlight::Spotlight indexing is not confirmed off for / (mdutil -s / exited 1): /:  Error: unknown indexing state.\n",
+    ],
+    [
+      "the status check exits non-zero after reporting the volume off",
+      { check: 1, status: "Indexing disabled." },
+      "::warning title=Spotlight::Spotlight indexing is not confirmed off for / (mdutil -s / exited 1): /:  Indexing disabled.\n",
+    ],
+    [
+      "turning indexing off fails",
+      { off: 1 },
+      "::warning title=Spotlight::sudo mdutil -a -i off exited 1: mdutil disabling Spotlight: / -> kMDConfigSearchLevelFSSearchOnly\n",
+    ],
+  ])("warns without failing the lane when %s", (_, outcome, warning) => {
+    const { result } = spotlight(outcome);
 
-    expect(result.status).toBe(1);
-    expect(result.stderr).toContain("Spotlight indexing is still on for /:");
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout).toBe(warning);
   });
 
   it("runs while the iOS lanes prepare the simulator, before Maestro starts", () => {
