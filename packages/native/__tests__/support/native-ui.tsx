@@ -247,7 +247,7 @@ export function composeModule() {
 /** The three platform edges every perf harness stubs the same way: the pull
  * gesture, the preference backing store, and the window insets. */
 export function pullToRefreshModule() {
-  return { usePullToRefresh: () => ({ pull: jest.fn(), refreshing: false, sync: jest.fn() }) };
+  return { usePullToRefresh: () => ({ pull: jest.fn(), refreshing: false }) };
 }
 
 export function preferenceStorageModule() {

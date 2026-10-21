@@ -3,8 +3,9 @@ import { Pressable, StyleSheet, View } from "react-native";
 import { HAIRLINE, SPACE, useColors, useStacked } from "./tokens";
 
 interface RowAction {
-  readonly name: string;
+  readonly id: string;
   readonly label: string;
+  readonly available?: boolean;
   onPress(): void;
 }
 
@@ -30,6 +31,7 @@ export function Row({
   children,
 }: RowProps): ReactElement {
   const stacked = useStacked();
+  const available = actions?.filter((action) => action.available !== false);
 
   return (
     <View style={[styles.row, stacked && styles.rowStacked]}>
@@ -37,12 +39,12 @@ export function Row({
         accessible
         accessibilityRole={onPress === undefined ? undefined : "button"}
         accessibilityLabel={label}
-        accessibilityActions={actions?.map(({ name, label: actionLabel }) => ({
-          name,
+        accessibilityActions={available?.map(({ id, label: actionLabel }) => ({
+          name: id,
           label: actionLabel,
         }))}
         onAccessibilityAction={({ nativeEvent }) =>
-          actions?.find((action) => action.name === nativeEvent.actionName)?.onPress()
+          available?.find((action) => action.id === nativeEvent.actionName)?.onPress()
         }
         testID={testID}
         onPress={onPress}

@@ -24,7 +24,10 @@ const project = {
   testMatch: ["<rootDir>/__tests__/**/*.test.{ts,tsx}"],
   // The gesture root installs a native binding on mount; without its own setup
   // every screen that renders under one fails before it draws anything.
-  setupFiles: [require.resolve("react-native-gesture-handler/jestSetup")],
+  setupFiles: [
+    "<rootDir>/__tests__/support/view-commands.ts",
+    require.resolve("react-native-gesture-handler/jestSetup"),
+  ],
   setupFilesAfterEnv: [
     "<rootDir>/__tests__/support/reanimated.ts",
     "<rootDir>/__tests__/support/transient-state.ts",

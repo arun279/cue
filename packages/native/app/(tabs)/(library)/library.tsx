@@ -128,7 +128,7 @@ export default function Library(): ReactElement {
   return (
     <TabRoot testID={TEST_IDS.screenLibrary}>
       <Stack.Screen options={screenOptions} />
-      <BarItems onSync={refresh.sync} />
+      <BarItems />
       <FlatList
         testID={TEST_IDS.libraryGrid}
         contentInsetAdjustmentBehavior="automatic"

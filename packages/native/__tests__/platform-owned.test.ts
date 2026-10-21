@@ -92,9 +92,9 @@ const EXCEPTIONS: readonly Exception[] = [
     file: "src/screens/search/SearchField.tsx",
     rule: "E",
     site: "TextInput",
-    candidate: "@expo/ui DockedSearchBar on Android",
+    candidate: "@expo/ui SearchBar or DockedSearchBar on Android",
     reason:
-      "Search is the search destination, which Material gives a persistent search bar; the Android header search bar collapses into an icon, and DockedSearchBar takes no text, so a recent search could not fill it.",
+      "Search is the search destination, which Material gives a persistent search bar; the Android header search bar collapses into an icon, SearchBar reports only a submitted query so results could not follow typing, and DockedSearchBar takes no text, so a recent search could not fill it. The field follows the Material search bar's metrics and icons instead.",
     source: "https://m3.material.io/components/search/guidelines",
     checked: { package: "@expo/ui", version: "57.0.22" },
   },

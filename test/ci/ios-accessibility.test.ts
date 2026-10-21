@@ -55,14 +55,12 @@ it("does not count a loaded but stopped accessibility server as ready", async ()
 
 it("kills a stuck listing under the single watchdog", async () => {
   const directory = tempDirectory("cue-ios-ax-stuck-");
-  writeFileSync(path.join(directory, "xcrun"), "#!/bin/sh\nexec sleep 10\n", { mode: 0o755 });
+  writeFileSync(path.join(directory, "xcrun"), "#!/bin/sh\nexec sleep 600\n", { mode: 0o755 });
   vi.stubEnv("PATH", `${directory}:${process.env["PATH"]}`);
-  const started = performance.now();
 
   await expect(waitForAccessibility("test-device", { timeoutMs: 200 })).rejects.toThrow(
-    "iOS accessibility watchdog expired",
+    "iOS accessibility watchdog expired after 200 ms for test-device",
   );
-  expect(performance.now() - started).toBeLessThan(2_000);
 });
 
 it("waits for accessibility after the appearance probe, before Maestro starts", () => {

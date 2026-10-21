@@ -6,6 +6,12 @@ repo=${GITHUB_REPOSITORY:-$(gh repo view --json nameWithOwner --jq .nameWithOwne
 head_sha() { gh pr view "$pr" -R "$repo" --json headRefOid --jq .headRefOid; }
 
 sha=$(head_sha)
+posted=$(gh api --paginate "repos/$repo/pulls/$pr/reviews?per_page=100" \
+  --jq ".[] | select(.commit_id == \"$sha\" and (.body | startswith(\"<!-- media-review -->\"))) | .html_url")
+if [ -n "$posted" ]; then
+  echo "A media review is already posted on ${sha:0:7}: ${posted%%$'\n'*}" >&2
+  exit 0
+fi
 dir=${TMPDIR:-/tmp}
 dir=${dir%/}/pr-media-$pr-${sha:0:7}
 review=$dir/review.md

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 udid=${1:?Usage: scripts/disable-ios-daemons.sh <simulator-udid> [--booted]}
-labels=(com.apple.apsd com.apple.chronod)
+read -ra labels <<< "$(cut -f1 "$(dirname "$0")/ios-disabled-daemons.tsv" | tr '\n' ' ')"
 PATH=$PATH:/usr/libexec
 
 loaded() {

@@ -6,7 +6,10 @@ import { repositoryPath } from "../support/repository-path";
 import { tempDirectory } from "../support/temp-directory";
 import { readWorkflowJobs } from "../support/workflow-jobs";
 
-const DAEMONS = ["com.apple.apsd", "com.apple.chronod"];
+const LIST = readFileSync(repositoryPath("scripts/ios-disabled-daemons.tsv"), "utf8");
+const DAEMONS = LIST.trimEnd()
+  .split("\n")
+  .map((row) => row.split("\t")[0] ?? "");
 
 function daemons(args: string[], listings: string[] = []) {
   const root = tempDirectory("cue-ios-daemons-");
@@ -49,7 +52,24 @@ esac
 }
 
 describe("disable-ios-daemons.sh", () => {
-  it("disables apsd and chronod in the device's launchd store before boot", () => {
+  it("lists each daemon once with the reason the lanes do without it", () => {
+    const rows = LIST.trimEnd()
+      .split("\n")
+      .map((row) => row.split("\t"));
+
+    expect(rows.every((row) => row.length === 2 && /^com\.apple\.[\w.]+$/.test(row[0] ?? ""))).toBe(
+      true,
+    );
+    expect(rows.every(([, reason]) => /\.$/.test(reason ?? "") && (reason ?? "").length > 40)).toBe(
+      true,
+    );
+    expect(new Set(DAEMONS).size).toBe(DAEMONS.length);
+    expect(DAEMONS).toEqual(
+      expect.arrayContaining(["com.apple.apsd", "com.apple.chronod", "com.apple.passd"]),
+    );
+  });
+
+  it("disables every listed daemon in the device's launchd store before boot", () => {
     const { root, result, calls } = daemons(["TEST-UDID"]);
     const plist = path.join(root, "com.apple.CoreSimulator.SimDevice.TEST-UDID/disabled.plist");
 
@@ -62,7 +82,7 @@ describe("disable-ios-daemons.sh", () => {
     );
   });
 
-  it("passes the booted gate without touching launchd when neither daemon is loaded", () => {
+  it("passes the booted gate without touching launchd when no listed daemon is loaded", () => {
     const listing = "1\t0\tcom.apple.backboardd\n";
     const { result, calls } = daemons(["TEST-UDID", "--booted"], [listing, listing]);
 
@@ -124,5 +144,47 @@ describe("iOS lanes", () => {
       expect(snapshot).toBeGreaterThan(flow);
       expect(body).toContain("$" + "{{ runner.temp }}/host-resources-*.txt\n");
     }
+  });
+});
+
+describe("disable-spotlight.sh", () => {
+  const spotlight = (status: string) => {
+    const root = tempDirectory("cue-spotlight-");
+    const calls = path.join(root, "calls");
+    writeFileSync(path.join(root, "sudo"), `#!/bin/sh\necho "sudo $*" >> "${calls}"\n`, {
+      mode: 0o755,
+    });
+    writeFileSync(
+      path.join(root, "mdutil"),
+      `#!/bin/sh\necho "mdutil $*" >> "${calls}"\nprintf '/:\\n\\t%s\\n' "${status}"\n`,
+      { mode: 0o755 },
+    );
+    const result = spawnSync("bash", [repositoryPath("scripts/disable-spotlight.sh")], {
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${root}:${process.env["PATH"]}` },
+    });
+    return { result, calls: readFileSync(calls, "utf8").trim().split("\n") };
+  };
+
+  it("turns Spotlight indexing off on every volume and checks the startup volume", () => {
+    const { result, calls } = spotlight("Indexing disabled.");
+
+    expect(result.status, result.stderr).toBe(0);
+    expect(calls).toEqual(["sudo mdutil -a -i off", "mdutil -s /"]);
+  });
+
+  it("fails when the startup volume is still indexing", () => {
+    const { result } = spotlight("Indexing enabled.");
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("Spotlight indexing is still on for /:");
+  });
+
+  it("runs while the iOS lanes prepare the simulator, before Maestro starts", () => {
+    const prepare = readFileSync(repositoryPath("scripts/prepare-ios-ui.sh"), "utf8");
+
+    expect(prepare.indexOf("scripts/disable-spotlight.sh\n")).toBeGreaterThan(
+      prepare.indexOf("xcrun simctl bootstatus"),
+    );
   });
 });

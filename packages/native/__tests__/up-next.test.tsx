@@ -7,14 +7,12 @@ import {
   act,
   fireEvent,
   render,
-  renderHook,
   screen,
   userEvent,
   waitFor,
   within,
 } from "@testing-library/react-native";
-import { FlatList } from "react-native";
-import { useColors } from "../src/ui/tokens";
+import { Platform, ScrollView } from "react-native";
 import {
   agesAgo,
   airing,
@@ -126,8 +124,9 @@ async function paint({ entries = queueOf(), calendar = [], submit }: Options = {
   await act(async () => {});
 }
 
-const check = (showId: number) => screen.getByTestId(`queue-row-${showId}-mark`);
 const row = (showId: number) => screen.getByTestId(`queue-row-${showId}`);
+const swipeRight = (showId: number) => screen.getByTestId(`queue-row-${showId}-drag-right`);
+const quickMark = (showId: number) => within(row(showId)).getByTestId("quick-action-mark");
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -135,7 +134,7 @@ beforeEach(() => {
 });
 
 /** Ordered by the default "oldest unwatched" preference, so the show whose next
- * episode has waited longest heads the queue and is the one the card promotes. */
+ * episode has waited longest heads the queue. */
 const rows = () => screen.getAllByTestId(/^queue-row-\d+$/);
 
 /**
@@ -153,7 +152,6 @@ describe("Up Next", () => {
     );
 
     expect(screen.getByTestId("up-next-skeleton")).toBeOnTheScreen();
-    expect(screen.queryByTestId("marquee-card")).toBeNull();
     expect(screen.queryByTestId("link-history")).toBeNull();
     // Torn down while the read is still held, because the calendar query and the
     // list's own cell batch both land after the last assertion, and an update
@@ -161,38 +159,33 @@ describe("Up Next", () => {
     view.unmount();
   });
 
-  it("promotes the head of the queue into the card and starts the rows below it", async () => {
+  it("draws every queued show as the same row, the head of the queue included", async () => {
     await paint();
 
-    // The card CONSUMES the head of the queue rather than sitting on top of it:
-    // three shows draw one card and two rows, not one card and three rows.
-    expect(screen.getByTestId("marquee-card")).toBeOnTheScreen();
-    expect(rows()).toHaveLength(2);
-    expect(screen.queryByTestId(`queue-row-${FRONTIER}`)).toBeNull();
+    expect(rows().map((row) => row.props["testID"])).toEqual([
+      `queue-row-${FRONTIER}`,
+      `queue-row-${CARTOGRAPHY}`,
+      `queue-row-${HARBOR}`,
+    ]);
   });
 
-  it("gives the card an edge and starts its stack at the top once it goes plain", async () => {
-    const { result } = await renderHook(() => useColors());
-    await paint();
+  it("badges an episode that aired in the last day, in words a reader hears", async () => {
+    const fresh = queueOf().map((show) =>
+      show.showId === CARTOGRAPHY && show.nextEpisode !== null
+        ? { ...show, nextEpisode: { ...show.nextEpisode, firstAired: agesAgo(0.5) } }
+        : show,
+    );
+    await paint({ entries: fresh });
 
-    // A show with no backdrop, and every show past the scrim threshold, draws a
-    // surface the page would otherwise swallow, with the poster inline rather
-    // than a stack sitting on the bottom of artwork that is no longer there.
-    expect(screen.getByTestId("marquee-card")).toHaveStyle({
-      backgroundColor: result.current.surface,
-      borderColor: result.current.border,
-    });
-    expect(screen.getByLabelText(/^Continue, The Quiet Frontier/)).toHaveStyle({
-      alignItems: "flex-start",
-    });
-    expect(screen.getByText("Continue")).toHaveStyle({ color: result.current.accentInk });
-  });
-
-  it("keeps every show in the list when the queue is too short to promote one", async () => {
-    await paint({ entries: queueOf().slice(0, 2) });
-
-    expect(screen.queryByTestId("marquee-card")).toBeNull();
-    expect(rows()).toHaveLength(2);
+    expect(
+      within(row(CARTOGRAPHY)).getByText("Aired last night", { includeHiddenElements: true }),
+    ).toBeOnTheScreen();
+    expect(
+      screen.getByLabelText(/^Midnight Cartography, Aired last night, S2 E3/),
+    ).toBeOnTheScreen();
+    expect(
+      within(row(FRONTIER)).queryByText("Aired last night", { includeHiddenElements: true }),
+    ).toBeNull();
   });
 
   it("names the aired-but-unwatched count and never claims zero", async () => {
@@ -218,33 +211,21 @@ describe("Up Next", () => {
     expect(screen.getByTestId("link-history")).toBeOnTheScreen();
   });
 
-  it("teaches the tap once, and never again after the first mark", async () => {
+  it("teaches the swipe once, and never again after the first mark", async () => {
     const user = userEvent.setup();
     await paint();
 
     expect(screen.getByTestId("tutorial-caption")).toHaveTextContent(
-      "Tap to mark watched. Undo appears below.",
+      "Swipe right to mark watched. Undo appears below.",
     );
 
-    await user.press(check(HARBOR));
+    await user.press(swipeRight(HARBOR));
 
     await waitFor(() => expect(screen.queryByTestId("tutorial-caption")).toBeNull());
   });
 });
 
 describe("Up Next's mark control", () => {
-  it("marks from the check, and reverses from the same target for the undo window", async () => {
-    const user = userEvent.setup();
-    await paint();
-
-    expect(check(CARTOGRAPHY)).toHaveAccessibleName("Mark Midnight Cartography S2 E3 watched");
-
-    await user.press(check(CARTOGRAPHY));
-
-    await waitFor(() => expect(check(CARTOGRAPHY)).toHaveAccessibleName("Watched. Tap to remove."));
-    expect(screen.getByTestId("snackbar-undo")).toBeOnTheScreen();
-  });
-
   it("leaves the header's bar items declared once while a mark re-renders the screen", async () => {
     const user = userEvent.setup();
     await paint();
@@ -252,8 +233,8 @@ describe("Up Next's mark control", () => {
     const toolbar = jest.mocked(Stack.Toolbar);
     toolbar.mockClear();
 
-    await user.press(check(CARTOGRAPHY));
-    await waitFor(() => expect(check(CARTOGRAPHY)).toHaveAccessibleName("Watched. Tap to remove."));
+    await user.press(swipeRight(CARTOGRAPHY));
+    await waitFor(() => expect(screen.getByTestId("snackbar-undo")).toBeOnTheScreen());
     await user.press(screen.getByTestId("snackbar-undo"));
     await waitFor(() => expect(screen.queryByTestId("snackbar-undo")).toBeNull());
 
@@ -265,7 +246,7 @@ describe("Up Next's mark control", () => {
     const unwatched = "Midnight Cartography, S2 E3, Half Measures, 2 left";
     jest.useFakeTimers({ doNotFake: ["queueMicrotask", "nextTick", "setImmediate"] });
     try {
-      await act(async () => fireEvent.press(check(CARTOGRAPHY)));
+      await act(async () => fireEvent.press(swipeRight(CARTOGRAPHY)));
       expect(screen.queryByLabelText(unwatched)).toBeNull();
 
       await act(async () => fireEvent.press(screen.getByTestId("snackbar-undo")));
@@ -279,9 +260,10 @@ describe("Up Next's mark control", () => {
     const user = userEvent.setup();
     await paint();
 
-    await user.press(screen.getByTestId(`queue-row-${CARTOGRAPHY}-drag-right`));
+    await user.press(swipeRight(CARTOGRAPHY));
 
-    await waitFor(() => expect(check(CARTOGRAPHY)).toHaveAccessibleName("Watched. Tap to remove."));
+    await waitFor(() => expect(screen.getByTestId("snackbar-undo")).toBeOnTheScreen());
+    expect(screen.queryByLabelText(/^Midnight Cartography, S2 E3,/)).toBeNull();
   });
 
   it("stops the show from a swipe the other way, and says so with an Undo", async () => {
@@ -298,25 +280,22 @@ describe("Up Next's mark control", () => {
     expect(screen.getByTestId("snackbar-undo")).toBeOnTheScreen();
   });
 
-  it("advances on the clock into a checked, inert row rather than waiting on Trakt", async () => {
+  it("advances on the clock into an inert row rather than waiting on Trakt", async () => {
     jest.useFakeTimers();
     const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
     // Deferred: the write is accepted and held, which is what a queue offline or
     // rate limited does, and the row must not sit there looking marked-and-stuck.
     await paint({ submit: () => Promise.resolve("deferred") });
 
-    await user.press(check(CARTOGRAPHY));
-    await waitFor(() => expect(check(CARTOGRAPHY)).toHaveAccessibleName("Watched. Tap to remove."));
+    await user.press(swipeRight(CARTOGRAPHY));
+    await waitFor(() => expect(screen.getByTestId("snackbar-undo")).toBeOnTheScreen());
 
     await act(async () => {
       jest.advanceTimersByTime(UNDO_WINDOW_MS);
     });
 
-    expect(check(CARTOGRAPHY)).toHaveAccessibleName("Watched. Not synced yet.");
-    expect(check(CARTOGRAPHY)).toHaveProp("accessibilityState", {
-      checked: true,
-      disabled: true,
-    });
+    expect(screen.getByLabelText(/^Midnight Cartography, .*, not synced yet$/)).toBeOnTheScreen();
+    expect(quickMark(CARTOGRAPHY)).toHaveProp("accessibilityState", { disabled: true });
     jest.useRealTimers();
   });
 
@@ -330,12 +309,12 @@ describe("Up Next's mark control", () => {
       ],
     });
 
-    const row = screen.getByTestId(`queue-row-${HARBOR}`);
-    expect(within(row).getByText("Harbor Lights")).toBeOnTheScreen();
+    const harbor = row(HARBOR);
+    expect(within(harbor).getByText("Harbor Lights")).toBeOnTheScreen();
     // Nothing episode-code shaped, which rules out the real next code and a
     // placeholder standing in for one.
-    expect(within(row).queryByText(/^S.*E/)).toBeNull();
-    expect(check(HARBOR)).toHaveProp("accessibilityState", { checked: true, disabled: true });
+    expect(within(harbor).queryByText(/^S.*E/)).toBeNull();
+    expect(quickMark(HARBOR)).toHaveProp("accessibilityState", { disabled: true });
   });
 });
 
@@ -422,6 +401,28 @@ describe("Up Next's sections", () => {
     // The idle stretch stands where the queue draws its count, which is the
     // reason the row is in the drawer at all.
     expect(screen.getByText(/^last watched /)).toBeOnTheScreen();
+    await screen.unmount();
+  });
+
+  it("opens the idle shows in the same frame and mounts only the list's render window", async () => {
+    const idle = Array.from({ length: 60 }, (_, index) => ({
+      ...lapsed(),
+      showId: 20_000 + index,
+      title: `Idle ${index}`,
+    }));
+    await paint({ entries: [...queueOf(), ...idle] });
+
+    await act(async () => fireEvent.press(screen.getByTestId("lapsed-drawer-toggle")));
+
+    expect(screen.getByTestId("lapsed-drawer-toggle")).toHaveProp("accessibilityState", {
+      expanded: true,
+    });
+    const mounted = screen.getAllByTestId(/^(queue|lapsed)-row-\d+$/);
+    expect(mounted.some((row) => row.props["testID"].startsWith("lapsed-row-"))).toBe(true);
+    // FlatList's default initialNumToRender; the list draws the rest as it scrolls.
+    expect(mounted.length).toBeLessThanOrEqual(10);
+    // Torn down before the list's next cell batch, which would land outside act.
+    await screen.unmount();
   });
 
   it("caps what is coming at three rows and links to the whole of it", async () => {
@@ -480,7 +481,13 @@ describe("Up Next's empty and off states", () => {
   });
 
   it("drops the queue it already shows, and returns to the top, when TV shows are turned off in Settings", async () => {
-    const scrollToOffset = jest.spyOn(FlatList.prototype, "scrollToOffset");
+    // React Native's ScrollView answers getScrollResponder with itself; its jest stand-in does not.
+    const responder = jest
+      .spyOn(ScrollView.prototype, "getScrollResponder")
+      .mockImplementation(function (this: ScrollView) {
+        return this;
+      });
+    const scrollTo = jest.spyOn(ScrollView.prototype, "scrollTo");
     let turnOff = (): void => {};
     function SettingsSwitch(): null {
       const setShowsEnabled = usePrefs((state) => state.setShowsEnabled);
@@ -494,6 +501,7 @@ describe("Up Next's empty and off states", () => {
       </Harness>,
     );
     await waitFor(() => expect(rows().length).toBeGreaterThan(0));
+    scrollTo.mockClear();
 
     await act(async () => turnOff());
 
@@ -502,7 +510,11 @@ describe("Up Next's empty and off states", () => {
       [],
     );
     // Android keeps a list's offset when its content shrinks, which would leave the state above the viewport.
-    expect(scrollToOffset).toHaveBeenLastCalledWith({ offset: 0, animated: false });
+    // UIKit clamps the offset to the adjusted inset itself, and an offset of 0 there sits under the bar.
+    if (Platform.OS === "android") expect(scrollTo).toHaveBeenCalledWith({ y: 0, animated: false });
+    else expect(scrollTo).not.toHaveBeenCalled();
+    responder.mockRestore();
+    scrollTo.mockRestore();
   });
 
   it("says so, and reads nothing, when TV shows are turned off", async () => {

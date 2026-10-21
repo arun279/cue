@@ -50,13 +50,16 @@ const signsIn = (file: string): boolean =>
 // dismissal persists on the install until a sign-in clears it, which only a
 // suite's first flow does. Each capture of Up Next pins whether it shows.
 const CAPTION_SHOWN = {
-  "account.yaml": false,
+  "account.yaml": "per platform",
   "dark-traversal.yaml": true,
   "launch.yaml": true,
   "tabs.yaml": true,
   "up-next-mark-and-undo.yaml": true,
 };
-const DISMISSES_CAPTION = /id: "(?:queue|lapsed)-row-[^"]*-mark"|from:\n\s+id: "queue-row-/;
+const DISMISSES_CAPTION = /from:\n\s+id: "(?:queue|lapsed)-row-/;
+const ANDROID_ONLY = /^( *)- runFlow:\n\1 {4}when:\n\1 {6}platform: Android\n(?:\1 {4}.*\n)*/gm;
+const dismissesEverywhere = (source: string): boolean =>
+  DISMISSES_CAPTION.test(source.replace(ANDROID_ONLY, ""));
 
 const captionShown = (): Map<string, boolean | "per platform"> => {
   const shown = new Map<string, boolean | "per platform">();
@@ -70,9 +73,10 @@ const captionShown = (): Map<string, boolean | "per platform"> => {
     let everywhere = false;
     for (const flow of references(suite)) {
       shown.set(path.basename(flow), everywhere ? false : !anywhere || "per platform");
-      if (DISMISSES_CAPTION.test(readFileSync(flow, "utf8"))) {
+      const source = readFileSync(flow, "utf8");
+      if (DISMISSES_CAPTION.test(source)) {
         anywhere = true;
-        everywhere ||= !conditional.has(flow);
+        everywhere ||= !conditional.has(flow) && dismissesEverywhere(source);
       }
     }
   }

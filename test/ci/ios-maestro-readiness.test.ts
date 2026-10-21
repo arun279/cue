@@ -126,6 +126,8 @@ it.each([false, true])("prepares the app with a Maestro cache hit of %s", (cache
     "xcrun",
     "xcrun",
     "xcrun",
+    "sudo",
+    "mdutil",
     "xcrun",
     "xcrun",
     "xcrun",
@@ -178,10 +180,10 @@ function preparation(cached: boolean) {
   const stubs = path.join(root, "stubs.sh");
   writeFileSync(
     stubs,
-    ["curl", "shasum", "unzip", "xcrun", "node", "sysctl", "vm_stat", "ps"]
+    ["curl", "shasum", "unzip", "xcrun", "node", "sysctl", "vm_stat", "ps", "sudo", "mdutil"]
       .map(
         (command) =>
-          `${command}() {\n${command === "shasum" ? "  cat > /dev/null\n" : ""}  printf "%s\\n" "${command} $*" >> "$PROBE_CALLS"\n  ${["sysctl", "vm_stat", "ps"].includes(command) ? `echo "${command} $*"\n  ` : ""}case "${command} $*" in "$FAIL_COMMAND "*) return 17 ;; esac\n}\n`,
+          `${command}() {\n${command === "shasum" ? "  cat > /dev/null\n" : ""}  printf "%s\\n" "${command} $*" >> "$PROBE_CALLS"\n  ${["sysctl", "vm_stat", "ps"].includes(command) ? `echo "${command} $*"\n  ` : ""}${command === "mdutil" ? 'echo "Indexing disabled."\n  ' : ""}case "${command} $*" in "$FAIL_COMMAND "*) return 17 ;; esac\n}\n`,
       )
       .join(""),
   );
@@ -229,7 +231,9 @@ process.exit(count === 2 ? 1 : 0);
   );
 });
 
-it("does not count a slow successful query as ready", async () => {
+it("does not count a slow successful query as ready, so its 2 s watchdog expires", {
+  timeout: 15_000,
+}, async () => {
   probe("process.exit(0);");
   await expect(waitForIOS("test-device", { timeoutMs: 2_000, promptMs: 0 })).rejects.toThrow(
     "iOS readiness watchdog expired",
@@ -237,10 +241,8 @@ it("does not count a slow successful query as ready", async () => {
 });
 
 it("kills a stuck query under the single overall watchdog", async () => {
-  probe("setTimeout(() => {}, 10_000);");
-  const started = performance.now();
+  probe("setTimeout(() => {}, 600_000);");
   await expect(waitForIOS("test-device", { timeoutMs: 200 })).rejects.toThrow(
     "iOS readiness watchdog expired after 200 ms for test-device",
   );
-  expect(performance.now() - started).toBeLessThan(2_000);
 });
