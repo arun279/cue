@@ -192,7 +192,8 @@ async function planUndo(runtime: CueRuntime, pending: UndoState): Promise<UndoPl
     (play) => play.episodeTrakt,
   );
   const after = queuedNow();
-  if (marks.some(({ op }) => queued.has(op.id) && !after.has(op.id)))
+  const sending = runtime.inFlightOpId();
+  if (marks.some(({ op }) => queued.has(op.id) && (!after.has(op.id) || op.id === sending)))
     return planUndo(runtime, pending);
   if (plan === null) return null;
   if (plan.kind === "replaced") return { replaced: plan.count };

@@ -55,8 +55,15 @@ export interface MarkWatched {
   justMarkedAt(showId: number): number | null;
 }
 
+function retire(record: MarkRecord): boolean {
+  const store = useMarkStore.getState();
+  const inBatch = store.batch.some((r) => r.opId === record.opId);
+  store.setBatch(store.batch.filter((r) => r.opId !== record.opId));
+  return store.close(record.showId, record.opId) || inBatch;
+}
+
 function showReplaced(record: MarkRecord, undoPressed: boolean): void {
-  const message = REPLACED_COPY.mark(record.title, record.code);
+  const message = REPLACED_COPY.mark(`${record.title} ${record.code}`);
   showSnack({
     message: undoPressed ? `${snackText(message)} ${REPLACED_COPY.undoNote}` : message,
     actions: [{ label: "Dismiss", onPress: dismissSnack }],
@@ -236,33 +243,21 @@ export function useMarkWatched(): MarkWatched {
     );
   }, [undoBatch]);
 
-  const retireReplaced = useCallback((record: MarkRecord) => {
-    const store = useMarkStore.getState();
-    store.close(record.showId, record.opId);
-    store.setBatch(store.batch.filter((r) => r.opId !== record.opId));
-    showReplaced(record, false);
-  }, []);
-
   const settleMark = useCallback(
     (record: MarkRecord, outcome: SubmitOutcome) => {
-      if (outcome === "done" && replacedPlays(runtime.writeReceipt(record.opId)) > 0) {
-        retireReplaced(record);
+      const replaced = outcome === "done" && replacedPlays(runtime.writeReceipt(record.opId)) > 0;
+      if ((!replaced && outcome !== "failed") || !retire(record)) return;
+      if (replaced) {
+        showReplaced(record, false);
         return;
       }
-      if (outcome !== "failed") return;
-      const after = useMarkStore.getState();
-      const ownedWindow = after.close(record.showId, record.opId);
-      const inBatch = after.batch.some((r) => r.opId === record.opId);
-      after.setBatch(after.batch.filter((r) => r.opId !== record.opId));
-      if (ownedWindow || inBatch) {
-        haptics.failure();
-        showSnack({
-          message: `Couldn't mark ${record.title} watched. Please try again.`,
-          actions: [{ label: "Dismiss", onPress: dismissSnack }],
-        });
-      }
+      haptics.failure();
+      showSnack({
+        message: `Couldn't mark ${record.title} watched. Please try again.`,
+        actions: [{ label: "Dismiss", onPress: dismissSnack }],
+      });
     },
-    [runtime, retireReplaced, haptics],
+    [runtime, haptics],
   );
 
   const mark = useCallback(

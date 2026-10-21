@@ -247,6 +247,19 @@ function seededClient(entries: readonly LibraryEntry[], seasons?: readonly Seaso
 
 const flush = () => act(async () => new Promise((r) => setTimeout(r, 0)));
 
+/** A fake whose catch-up marks stay queued while every other write lands at once. */
+function queueingCatchUp(inFlightOpId?: () => string | null): FakeRuntime {
+  const fake = fakeRuntime({
+    inFlightOpId,
+    submit: (op) => {
+      if (!op.itemKey.includes(":bulk:")) return Promise.resolve("done");
+      fake.queued.push(op);
+      return Promise.resolve("deferred");
+    },
+  });
+  return fake;
+}
+
 /** Mark S1 E3 from the detail screen, then catch up through S1 E2, folding E3's Undo in. */
 async function catchUpAfterMarkingE3(fake: FakeRuntime) {
   const episodes = [episodeView(1), episodeView(2), episodeView(3)];
@@ -1366,6 +1379,34 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
     expect(entryOf(qc, SHOW)?.pendingAdvance).toBe(true);
   });
 
+  it("keeps the Undo note when the replacing mark settles after its Undo finished", async () => {
+    let resumed: (outcome: "done") => void = () => {};
+    const fake = fakeRuntime({
+      answer: replacing(replaced),
+      submit: (op) =>
+        op.request.path === "/sync/history"
+          ? Promise.resolve("done")
+          : new Promise((resolve) => {
+              resumed = resolve;
+            }),
+    });
+    const entry = { ...libraryEntry(), hidden: true };
+    const [a] = mountSurfaces(fake.runtime, seededClient([entry]));
+    act(() => void a[0]?.mark.mark(entry));
+    await flush();
+    stubLandedPlay(fake);
+    await act(async () => a[0]?.mark.reverse(SHOW));
+    await act(async () => resumed("done"));
+    await flush();
+    expect(fake.submitted.map((op) => op.request.path)).toEqual([
+      "/sync/history",
+      expect.stringContaining("hidden"),
+    ]);
+    expect(snackText()).toBe(
+      `${entry.title} S1 E2 was already watched. Trakt changed its watch date to now. Undo can't restore the earlier date.`,
+    );
+  });
+
   it("refuses to guess when a landed mark has no answer and the account's setting is unknown", async () => {
     const entry = libraryEntry();
     const fake = fakeRuntime({ answer: () => null });
@@ -1387,15 +1428,7 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
   });
 
   it("re-plans a season Undo when a queued mark lands while the history is read", async () => {
-    const fake = fakeRuntime({
-      submit: (op) => {
-        if (op.itemKey.includes(":bulk:")) {
-          fake.queued.push(op);
-          return Promise.resolve("deferred");
-        }
-        return Promise.resolve("done");
-      },
-    });
+    const fake = queueingCatchUp();
     const { a } = await catchUpAfterMarkingE3(fake);
     const plays = stubOwnPlays(fake);
     fake.loadShowPlays.mockImplementation(async () => {
@@ -1407,6 +1440,36 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
     expect(fake.submitted.slice(2).map((op) => op.request.body)).toEqual([
       { ids: [503, 501, 502] },
     ]);
+  });
+
+  it("waits for a queued season mark that starts sending while the history is read", async () => {
+    vi.useFakeTimers();
+    try {
+      let sending: string | null = null;
+      const fake = queueingCatchUp(() => sending);
+      const { a } = await catchUpAfterMarkingE3(fake);
+      const plays = stubOwnPlays(fake);
+      const beforeLanding = [OLD_PLAY, ...plays.filter((play) => play.number === 3)];
+      fake.loadShowPlays.mockImplementation(async () => {
+        const [bulk] = fake.queued;
+        if (bulk === undefined) return [OLD_PLAY, ...plays];
+        sending = bulk.id;
+        setTimeout(() => {
+          fake.queued.splice(0);
+          fake.deliver(bulk);
+          sending = null;
+        }, 300);
+        return beforeLanding;
+      });
+      const undone = act(async () => a[0]?.season.undo());
+      await act(() => vi.advanceTimersByTimeAsync(1_000));
+      await undone;
+      expect(fake.submitted.slice(2).map((op) => op.request.body)).toEqual([
+        { ids: [503, 501, 502] },
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("withdraws a season mark's Undo when Trakt replaced plays, and Undo then sends nothing", async () => {
@@ -1516,11 +1579,11 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
   });
 
   it("reports a season rewatch as added and replaced plays", async () => {
-    const fake = fakeRuntime({ answer: replacing({ ...replaced, added: 1 }) });
-    const season = seasonView([episodeView(1, true), episodeView(2)]);
+    const fake = fakeRuntime({ answer: replacing({ ...replaced, added: 1, updated: 2 }) });
+    const season = seasonView([episodeView(1, true), episodeView(2, true), episodeView(3)]);
     const { a } = mountSeasonSurfaces(fake, season.episodes);
     await act(async () => a[0]?.season.rewatchSeason(TARGET, season));
-    expect(snackText()).toBe("Season 1 marked again · 1 added, 1 watch date changed");
+    expect(snackText()).toBe("Season 1 marked again · 1 added, 2 watch dates changed");
   });
 
   it("says so when an added play replaced the episode's date", async () => {

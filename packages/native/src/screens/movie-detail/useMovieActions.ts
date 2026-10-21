@@ -112,7 +112,7 @@ export function useMovieActions(header: MovieHeader) {
     }
     if (plan.kind === "replaced") {
       showSnack({
-        message: `${snackText(REPLACED_COPY.mark(header.title, null))} ${REPLACED_COPY.undoNote}`,
+        message: `${snackText(REPLACED_COPY.mark(header.title))} ${REPLACED_COPY.undoNote}`,
       });
       revalidate();
       return null;
@@ -162,7 +162,7 @@ export function useMovieActions(header: MovieHeader) {
     );
     if (outcome === "failed") return;
     if (outcome === "done" && replacedPlays(runtime.writeReceipt(op.id)) > 0) {
-      showSnack({ message: REPLACED_COPY.mark(header.title, null) });
+      showSnack({ message: REPLACED_COPY.mark(header.title) });
       return;
     }
     if (undoable)

@@ -449,7 +449,7 @@ describe("write receipts", () => {
     await expect(done).resolves.toEqual(["done", "done"]);
   });
 
-  it("learns that the account keeps every play from an added rewatch", async () => {
+  it("learns that the account keeps every play when Add a play on one episode adds a play", async () => {
     const cue = await runtime();
     const op = buildAddEpisodePlayOp({ opId: "again", ids: watched, watchedAt: at });
     await expect(cue.submit(op)).resolves.toBe("done");
