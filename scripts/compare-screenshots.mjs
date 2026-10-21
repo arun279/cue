@@ -16,6 +16,10 @@ const OUTLINE_PADDING = 4;
 // Capture pixels: wider than the space between words, narrower than the space
 // between separate controls, so one changed label gets one box.
 const REGION_GAP = 16;
+// Boxes closer than 16 pt (48 px at the iPhone's 3x, about 14 dp on the Pixel 7
+// Pro) share one outline, so content that shifted reads as one block while
+// controls further apart keep their own.
+const BOX_GAP = 48;
 const TEXT_SIZES = { xxxl: "XXXL text", ax5: "AX5 text" };
 const PLATFORMS = { ios: "iOS", android: "Android" };
 const PENDING = "Verdict: VERDICT_PENDING";
@@ -126,6 +130,30 @@ const label = (area, width) => {
   return { labels, count };
 };
 
+const separation = (a, b) => Math.max(a[0] - b[2], b[0] - a[2], a[1] - b[3], b[1] - a[3], 0);
+
+const merge = (boxes, gap) => {
+  const merged = [...boxes];
+  for (let changed = true; changed; ) {
+    changed = false;
+    for (let i = 0; i < merged.length; i++) {
+      for (let j = merged.length - 1; j > i; j--) {
+        if (separation(merged[i], merged[j]) > gap) continue;
+        const [a, b] = [merged[i], merged[j]];
+        merged[i] = [
+          Math.min(a[0], b[0]),
+          Math.min(a[1], b[1]),
+          Math.max(a[2], b[2]),
+          Math.max(a[3], b[3]),
+        ];
+        merged.splice(j, 1);
+        changed = true;
+      }
+    }
+  }
+  return merged;
+};
+
 const regions = (diff, width, height) => {
   const mask = new Uint8Array(width * height);
   for (let i = 0; i < mask.length; i++) mask[i] = diff[i * 4 + 3] === 0 ? 0 : 1;
@@ -144,7 +172,7 @@ const regions = (diff, width, height) => {
       Math.max(box[3], y),
     );
   }
-  return boxes;
+  return merge(boxes, BOX_GAP);
 };
 
 const outline = (panel, boxes, ratio) => {
