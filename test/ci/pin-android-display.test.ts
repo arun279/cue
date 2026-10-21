@@ -19,7 +19,8 @@ case "$*" in
   'shell settings get secure navigation_mode') printf '%s\\r\\n' "$NAVIGATION" ;;
 esac
 `,
-  timeout: `#!/bin/sh
+  // bash, not sh: Linux's dash drops the function the script exports to its wait loop.
+  timeout: `#!/usr/bin/env bash
 echo "timeout $1" >> "$LOG"
 shift
 [ -z "$EXPIRE" ] || exit 124
