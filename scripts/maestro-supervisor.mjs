@@ -1,12 +1,12 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import path from "node:path";
-import { watchScreenshots } from "./screenshot-watch.mjs";
+import { laneHealth, recorder, spindump } from "./lane-health.mjs";
 
 const args = process.argv.slice(2);
 const debugOutput = args.includes("--debug-output")
   ? args[args.indexOf("--debug-output") + 1]
   : undefined;
-const springBoard = debugOutput && path.join(debugOutput, "springboard");
+const healthDirectory = debugOutput && path.join(debugOutput, "lane-health");
 const history = [];
 const tails = new Map();
 let driverAnswered = Boolean(process.env.USE_XCODE_TEST_RUNNER);
@@ -33,6 +33,31 @@ function driverDied(line) {
   );
 }
 
+function accessibilityTimeout(line) {
+  const [, call, pid] = /kAXErrorIPCTimeout from (\w+) for (\d+)/.exec(line) ?? [];
+  if (pid === undefined) return undefined;
+  const command = spawnSync("ps", ["-o", "comm=", "-p", pid], { encoding: "utf8" }).stdout.trim();
+  if (command !== "" && healthDirectory) {
+    spindump({
+      directory: healthDirectory,
+      pid,
+      label: command,
+      record: recorder(healthDirectory),
+    });
+  }
+  return `The simulator's accessibility IPC to pid ${pid} (${command || "no longer running"}) timed out in ${call}, so XCTest could not list the running apps. Spindumps, when the lane records them: ${healthDirectory}`;
+}
+
+function diagnose(line) {
+  return (
+    accessibilityTimeout(line) ??
+    (/Timed out while requesting screenshot/.test(line)
+      ? `SpringBoard did not answer testmanagerd's accessibility orientation query within XCTest's 30 s screenshot limit, so no screenshot could be taken. Screenshot timings and SpringBoard spindumps, when the lane records them: ${healthDirectory}`
+      : undefined) ??
+    (driverDied(line) ? "XCTest driver died during startup" : undefined)
+  );
+}
+
 function inspect(source, text) {
   const lines = `${tails.get(source) ?? ""}${text}`.split(/\r?\n/);
   tails.set(source, lines.pop().slice(-16_384));
@@ -43,25 +68,19 @@ function inspect(source, text) {
     if (/\[Done\] Perform XCUITest driver status check|Got device info:/.test(line)) {
       driverAnswered = true;
     }
-    if (driverDied(line)) {
+    const diagnosis = diagnose(line);
+    if (diagnosis !== undefined) {
       failed = true;
-      console.error(`XCTest driver died during startup\n${history.join("\n")}`);
-      killGroup();
-    }
-    if (/Timed out while requesting screenshot/.test(line)) {
-      failed = true;
-      console.error(
-        `SpringBoard did not answer testmanagerd's accessibility orientation query within XCTest's 30 s screenshot limit, so no screenshot could be taken. Late replies and SpringBoard spindumps, when the lane records them: ${springBoard}\n${history.join("\n")}`,
-      );
+      console.error(`${diagnosis}\n${history.join("\n")}`);
       killGroup();
     }
   }
 }
 
-const stopWatching =
-  process.env.DEVICE_ID && springBoard
-    ? watchScreenshots({ device: process.env.DEVICE_ID, directory: springBoard })
-    : () => {};
+const health =
+  process.env.DEVICE_ID && healthDirectory
+    ? laneHealth({ device: process.env.DEVICE_ID, directory: healthDirectory })
+    : undefined;
 
 child = spawn("maestro", ["--verbose", ...args], {
   detached: true,
@@ -70,21 +89,22 @@ child = spawn("maestro", ["--verbose", ...args], {
 for (const name of ["stdout", "stderr"]) {
   child[name].setEncoding("utf8");
   child[name].on("data", (text) => {
+    health?.heard();
     process[name].write(text);
     inspect(name, text);
   });
 }
 child.on("error", (error) => console.error(`Cannot start Maestro: ${error.message}`));
-child.on("close", (code, signal) => {
-  stopWatching();
+child.on("close", async (code, signal) => {
   process.exitCode = failed ? 1 : (code ?? (signal === "SIGINT" ? 130 : 1));
+  const lines = await health?.stop().catch((error) => [`unavailable: ${error.message}`]);
+  for (const line of lines ?? []) process.stdout.write(`Lane health: ${line}\n`);
 });
 for (const [signal, code] of [
   ["SIGINT", 130],
   ["SIGTERM", 143],
 ]) {
   process.on(signal, () => {
-    stopWatching();
     killGroup();
     process.exit(code);
   });

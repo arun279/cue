@@ -16,5 +16,5 @@
       "babel": ["babel.config.js"]
     }
   },
-  "ignoreBinaries": ["maestro", "xcrun"]
+  "ignoreBinaries": ["maestro", "ps", "xcrun"]
 }
