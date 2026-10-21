@@ -441,3 +441,96 @@ it("presents routes only through the one table outside entries also read", () =>
   expect(Object.keys(PRESENTATIONS).filter((name) => !declared.has(name))).toEqual([]);
   expect(inline.filter((site) => !site.startsWith("../src/presentation.ts"))).toEqual([]);
 });
+
+const NAVIGATION_HOOKS = new Set(["useRouter", "useNavigation", "useNavigationContainerRef"]);
+const NAVIGATING = new Set([
+  ...NAVIGATE,
+  ...REPLACE,
+  ...DISMISS,
+  "dispatch",
+  "goBack",
+  "pop",
+  "popTo",
+  "popToTop",
+  "reset",
+  "resetRoot",
+]);
+
+/** Navigation this graph cannot read: a router under another name, a navigator driven directly, or Cue opening its own scheme. */
+function unreadNavigation(file: string): string[] {
+  const nodes = descendants(sourceOf(file));
+  const at = (node: ts.Node) =>
+    `${relative(appRoot, file)}:${sourceOf(file).getLineAndCharacterOfPosition(node.getStart()).line + 1}`;
+  const hooked = nodes.filter(
+    (node): node is ts.CallExpression =>
+      ts.isCallExpression(node) && NAVIGATION_HOOKS.has(node.expression.getText()),
+  );
+  const renamed = hooked
+    .filter((call) => call.expression.getText() === "useRouter")
+    .filter(
+      (call) => !ts.isVariableDeclaration(call.parent) || call.parent.name.getText() !== "router",
+    )
+    .map((call) => `${at(call)} useRouter() not bound to router`);
+  const drivers = new Set(
+    hooked.flatMap((call) =>
+      call.expression.getText() !== "useRouter" && ts.isVariableDeclaration(call.parent)
+        ? [call.parent.name.getText()]
+        : [],
+    ),
+  );
+  const driven = nodes
+    .filter(
+      (node): node is ts.CallExpression =>
+        ts.isCallExpression(node) &&
+        ts.isPropertyAccessExpression(node.expression) &&
+        drivers.has(node.expression.expression.getText()) &&
+        NAVIGATING.has(node.expression.name.text) &&
+        !/type:\s*"POP"/.test(node.arguments[0]?.getText() ?? ""),
+    )
+    .map((call) => `${at(call)} ${call.expression.getText()}`);
+  const ownScheme = nodes
+    .filter(
+      (node): node is ts.CallExpression =>
+        ts.isCallExpression(node) &&
+        /openURL$/.test(node.expression.getText()) &&
+        /["`]cue:/.test(node.arguments[0]?.getText() ?? ""),
+    )
+    .map((call) => `${at(call)} ${call.expression.getText()} to cue://`);
+  return [...renamed, ...driven, ...ownScheme];
+}
+
+it("reads every navigation in the app: routers are named router, and navigators are not driven directly", () => {
+  expect(nativeSourceFiles().flatMap(unreadNavigation)).toEqual([]);
+});
+
+/** headerShown as declared on the screen, then in the route, then for the whole navigator. */
+function headerShown(route: Route): boolean {
+  const flag = (text: string | undefined): string | undefined =>
+    text?.match(/headerShown:\s*(true|false)/)?.[1];
+  const screen = screensOf(route.navigator).find(
+    (node) => screenName(route.navigator, node) === nameIn(route),
+  );
+  const inRoute = closureOf(route.file)
+    .flatMap((file) => descendants(sourceOf(file)))
+    .filter((node) => tagOf(node) === "Stack.Screen" && attributeOf(node, "name") === undefined)
+    .map((node) => flag(attributeOf(node, "options")?.getText()))
+    .find((value) => value !== undefined);
+  const navigator = descendants(sourceOf(route.navigator.file))
+    .map((node) =>
+      tagOf(node) === "Stack" ? flag(attributeOf(node, "screenOptions")?.getText()) : undefined,
+    )
+    .find((value) => value !== undefined);
+  return (
+    (flag(screen && attributeOf(screen, "options")?.getText()) ?? inRoute ?? navigator) !== "false"
+  );
+}
+
+it("keeps the header, and so the back button, on every screen pushed onto a stack", () => {
+  const pushed = routes.filter(
+    (route) =>
+      !route.navigator.tabs && !isRoot(route) && presentationOf(nameIn(route)) !== "formSheet",
+  );
+
+  expect(pushed.length).toBeGreaterThan(0);
+  expect(pushed.filter((route) => !headerShown(route)).map(({ id }) => id)).toEqual([]);
+});
