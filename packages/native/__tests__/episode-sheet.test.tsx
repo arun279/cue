@@ -24,6 +24,22 @@ beforeEach(() => {
   jest.clearAllMocks();
 });
 
+/** The episode's runtime, whose watched state follows each mark the sheet submits. */
+function markableRuntime(initiallyWatched: boolean) {
+  let watched = initiallyWatched;
+  return {
+    ...detailRuntime,
+    loadEpisode: jest.fn(async () => ({ ...detail, watched })),
+    submit: jest.fn<
+      ReturnType<typeof detailRuntime.submit>,
+      Parameters<typeof detailRuntime.submit>
+    >(async (op) => {
+      watched = op.toState === "present";
+      return "done";
+    }),
+  };
+}
+
 it("shows an unaired countdown with no mark row, still or past-tense air date", async () => {
   await render(
     <EpisodeBody
@@ -77,18 +93,7 @@ it("does not guard a watched episode or a still with guarding disabled", async (
 });
 
 it("marks from the sheet and exposes the same reversible snackbar", async () => {
-  let watched = false;
-  const runtime = {
-    ...detailRuntime,
-    loadEpisode: jest.fn(async () => ({ ...detail, watched })),
-    submit: jest.fn<
-      ReturnType<typeof detailRuntime.submit>,
-      Parameters<typeof detailRuntime.submit>
-    >(async (op) => {
-      watched = op.toState === "present";
-      return "done";
-    }),
-  };
+  const runtime = markableRuntime(false);
   await render(
     <DetailHarness runtime={runtime}>
       <EpisodeSheet showId={8803} season={2} episode={3} />
@@ -131,18 +136,7 @@ it("closes from its close button while the episode loads", async () => {
 
 it("lets the snackbar from removing a play time out over the pager", async () => {
   jest.useFakeTimers();
-  let watched = true;
-  const runtime = {
-    ...detailRuntime,
-    loadEpisode: jest.fn(async () => ({ ...detail, watched })),
-    submit: jest.fn<
-      ReturnType<typeof detailRuntime.submit>,
-      Parameters<typeof detailRuntime.submit>
-    >(async (op) => {
-      watched = op.toState === "present";
-      return "done";
-    }),
-  };
+  const runtime = markableRuntime(true);
   await render(
     <DetailHarness runtime={runtime}>
       <EpisodeRoute />
