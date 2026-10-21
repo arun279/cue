@@ -1,9 +1,9 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { afterAll, expect, it } from "vitest";
+import { expect, it } from "vitest";
+import { fakeBin } from "../support/fake-bin";
 import { repositoryPath } from "../support/repository-path";
 import { tempDirectory } from "../support/temp-directory";
 import { readWorkflowJobs } from "../support/workflow-jobs";
@@ -12,13 +12,9 @@ const JAR = "bundletool bytes\n";
 const SCRIPT = readFileSync(repositoryPath("scripts/download-bundletool.sh"), "utf8");
 const PINNED = SCRIPT.match(/^sha256=([0-9a-f]{64})$/m)?.[1] ?? "";
 
-const bin = mkdtempSync(path.join(tmpdir(), "cue-bundletool-bin-"));
-afterAll(() => rmSync(bin, { recursive: true }));
-writeFileSync(
-  path.join(bin, "curl"),
-  '#!/bin/sh\necho "$*" >> "$CALLS"\nwhile [ "$1" != --output ]; do shift; done\nprintf "%s" "$BODY" > "$2"\nexit "$CURL_STATUS"\n',
-  { mode: 0o755 },
-);
+const bin = fakeBin({
+  curl: '#!/bin/sh\necho "$*" >> "$CALLS"\nwhile [ $# -gt 0 ] && [ "$1" != --output ]; do shift; done\nprintf "%s" "$BODY" > "$2"\nexit "$CURL_STATUS"\n',
+});
 
 /** The script with its pinned checksum swapped for the fixture jar's. */
 function download({
