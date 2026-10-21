@@ -342,7 +342,10 @@ describe("fast pull request validation", () => {
       .filter((step) => step.includes("reactivecircus/android-emulator-runner@"));
     const verification = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
 
-    expect(job(name)).not.toContain("actions/cache@");
+    const caches = steps(name).filter((step) => step.includes("actions/cache@"));
+    expect(caches.map((step) => step.match(/^ {10}path: (.+)$/m)?.[1])).toEqual([
+      "$" + "{{ runner.temp }}/maestro",
+    ]);
     expect(emulators).toHaveLength(1);
     expect(emulators[0]).toContain(
       "emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim\n",
