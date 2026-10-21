@@ -2,7 +2,7 @@ import type { LibraryEntry } from "@cue/core/data/trakt/library";
 import type { MovieEntry } from "@cue/core/data/trakt/movie-library";
 import { episodesLeft, watchedPercent } from "@cue/core/format";
 import { useHideShow } from "@cue/core/hooks/useHideShow";
-import { useRouter } from "expo-router";
+import { type Href, useRouter } from "expo-router";
 import { memo, type ReactElement } from "react";
 import { Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import { useShowArt } from "../../hooks/useShowArt";
@@ -132,7 +132,7 @@ export const ShowTile = memo(function ShowTile({
   const listed = entry.posters.length > 0;
   const art = useShowArt(entry.showId, !listed);
   const left = chip === "watching" ? episodesLeft(entry.aired, entry.completed) : 0;
-  const href = `/show/${entry.showId}` as const;
+  const href: Href = `/show/${entry.showId}`;
   const actions: TileAction[] = [
     { id: TEST_IDS.quickActionDetails, label: "Show details", onPress: () => router.push(href) },
     entry.hidden

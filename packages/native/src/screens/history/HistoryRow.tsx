@@ -28,8 +28,8 @@ export function HistoryRow({
   const open = () =>
     router.push(
       entry.type === "movie"
-        ? `/(account)/movie/${entry.mediaId}`
-        : `/(account)/show/${entry.mediaId}/episode/${entry.season ?? 0}/${entry.number ?? 0}`,
+        ? `/movie/${entry.mediaId}`
+        : `/show/${entry.mediaId}/episode/${entry.season ?? 0}/${entry.number ?? 0}`,
     );
   const remove = () => onRemove(entry);
   const items = [

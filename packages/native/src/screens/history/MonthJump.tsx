@@ -1,14 +1,17 @@
 import { parseHistorySearch } from "@cue/core/url/search-params";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { type ReactElement, useState } from "react";
-import { ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
+import { Platform, ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "../../ui/Button";
+import { SheetClose } from "../../ui/SheetClose";
 import { TEST_IDS } from "../../ui/test-ids";
 import { SPACE, useColors } from "../../ui/tokens";
 import { CueText } from "../../ui/type";
 import { HistoryChoice } from "./HistoryChoice";
 import { MONTHS } from "./model";
+
+const TITLE = "Jump to";
 
 export function MonthJump(): ReactElement {
   const router = useRouter();
@@ -31,9 +34,21 @@ export function MonthJump(): ReactElement {
       testID={TEST_IDS.historyJumpSheet}
       contentContainerStyle={[styles.sheet, { paddingBottom: insets.bottom + SPACE.s2 }]}
     >
-      <CueText variant="sectionHeading" accessibilityRole="header" style={{ color: colors.fg }}>
-        Jump to
-      </CueText>
+      <Stack.Screen options={{ title: TITLE }} />
+      {Platform.OS === "ios" ? (
+        <SheetClose />
+      ) : (
+        <View style={styles.bar}>
+          <CueText
+            variant="sectionHeading"
+            accessibilityRole="header"
+            style={[styles.title, { color: colors.fg }]}
+          >
+            {TITLE}
+          </CueText>
+          <SheetClose />
+        </View>
+      )}
       <Button
         label="Recent"
         variant="link"
@@ -80,6 +95,8 @@ export function MonthJump(): ReactElement {
 
 const styles = StyleSheet.create({
   sheet: { gap: SPACE.s2, paddingHorizontal: SPACE.s4, paddingTop: SPACE.s4 },
+  bar: { flexDirection: "row", alignItems: "center", gap: SPACE.s2 },
+  title: { flex: 1 },
   grid: { flexDirection: "row", flexWrap: "wrap", rowGap: SPACE.s2 },
   cell: { paddingHorizontal: SPACE.s1 },
 });

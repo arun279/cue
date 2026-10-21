@@ -736,6 +736,7 @@ describe("fast pull request validation", () => {
       "lib/sign-in.yaml",
       "account.yaml",
       "history.yaml",
+      "navigation-round-trips.yaml",
       "launch.yaml",
       "up-next-mark-and-undo.yaml",
       "show-detail-bulk-mark.yaml",

@@ -9,4 +9,5 @@ env:
     when:
       platform: Android
 - runFlow: ../flows/show-detail-bulk-mark.yaml
+- runFlow: ../flows/navigation-round-trips.yaml
 - runFlow: ../flows/account.yaml
