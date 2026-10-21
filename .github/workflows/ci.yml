@@ -146,6 +146,15 @@ jobs:
         with:
           fetch-depth: 0
       - uses: ./.github/actions/setup-node-pnpm
+      - name: Key Jest's transform cache
+        id: jest-cache
+        run: |
+          echo "directory=$(node -p 'require("jest-config").defaults.cacheDirectory')" >> "$GITHUB_OUTPUT"
+          echo "key=jest-transform-$RUNNER_OS-$(node scripts/jest-cache-key.mjs)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ steps.jest-cache.outputs.directory }}
+          key: ${{ steps.jest-cache.outputs.key }}
       - run: pnpm check
       - name: Upload JavaScript bundles
         id: js-bundles
