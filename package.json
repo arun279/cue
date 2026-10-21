@@ -72,7 +72,8 @@
       "source-map-js@>=1.0.0 <1.2.2": "^1.2.2"
     },
     "patchedDependencies": {
-      "@expo/metro-config@57.0.13": "patches/@expo__metro-config@57.0.13.patch"
+      "@expo/metro-config@57.0.13": "patches/@expo__metro-config@57.0.13.patch",
+      "@expo/ui@57.0.22": "patches/@expo__ui@57.0.22.patch"
     }
   }
 }

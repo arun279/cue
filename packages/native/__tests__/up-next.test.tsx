@@ -13,6 +13,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react-native";
+import { FlatList } from "react-native";
 import { useColors } from "../src/ui/tokens";
 import {
   agesAgo,
@@ -478,7 +479,8 @@ describe("Up Next's empty and off states", () => {
     expect(screen.queryByTestId("link-history")).toBeNull();
   });
 
-  it("drops the queue it already shows when TV shows are turned off in Settings", async () => {
+  it("drops the queue it already shows, and returns to the top, when TV shows are turned off in Settings", async () => {
+    const scrollToOffset = jest.spyOn(FlatList.prototype, "scrollToOffset");
     let turnOff = (): void => {};
     function SettingsSwitch(): null {
       const setShowsEnabled = usePrefs((state) => state.setShowsEnabled);
@@ -499,6 +501,8 @@ describe("Up Next's empty and off states", () => {
     expect(screen.queryAllByTestId(/^queue-row-\d+$/).map((node) => node.props["testID"])).toEqual(
       [],
     );
+    // Android keeps a list's offset when its content shrinks, which would leave the state above the viewport.
+    expect(scrollToOffset).toHaveBeenLastCalledWith({ offset: 0, animated: false });
   });
 
   it("says so, and reads nothing, when TV shows are turned off", async () => {

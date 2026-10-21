@@ -21,7 +21,7 @@ import { type QueryStatus, queryStatus } from "@cue/core/queries/freshness";
 import { useRuntime } from "@cue/core/runtime/runtime";
 import { useQuery } from "@tanstack/react-query";
 import { Stack, useRouter } from "expo-router";
-import { type ReactElement, useMemo, useState } from "react";
+import { type ReactElement, useEffect, useMemo, useRef, useState } from "react";
 import { FlatList, RefreshControl, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePullToRefresh } from "../../../src/hooks/usePullToRefresh";
@@ -149,7 +149,12 @@ export default function UpNext(): ReactElement {
   const insets = useSafeAreaInsets();
 
   const branch = branchOf(view, showsEnabled);
-  const queue = SECTIONED.includes(branch) ? view.queue : [];
+  const sectioned = SECTIONED.includes(branch);
+  const queue = sectioned ? view.queue : [];
+  const list = useRef<FlatList<UpNextCard>>(null);
+  useEffect(() => {
+    if (!sectioned) list.current?.scrollToOffset({ offset: 0, animated: false });
+  }, [sectioned]);
   const marquee = queue.length >= MARQUEE_MIN_QUEUE ? queue[0] : undefined;
   const rows = marquee === undefined ? queue : queue.slice(1);
 
@@ -163,6 +168,7 @@ export default function UpNext(): ReactElement {
       />
       <BarItems onSync={refresh.sync} />
       <FlatList
+        ref={list}
         testID={TEST_IDS.upNextList}
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={{ paddingBottom: tabBarClearance(insets.bottom) + SPACE.s4 }}
@@ -202,7 +208,7 @@ export default function UpNext(): ReactElement {
           </View>
         }
         ListFooterComponent={
-          SECTIONED.includes(branch) ? (
+          sectioned ? (
             <>
               <LapsedDrawer
                 cards={view.lapsedCards}
