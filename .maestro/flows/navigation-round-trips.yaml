@@ -41,6 +41,12 @@ appId: app.cuetracker
 - assertVisible:
     id: "screen-profile"
 - openLink: cue://show/8803
+# iOS asks before another app opens Cue by its scheme, as it asks a user.
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: "Open"
 - extendedWaitUntil:
     visible: "More actions for Midnight Cartography"
     timeout: 30000
@@ -64,6 +70,12 @@ appId: app.cuetracker
       id: "sheet-presented"
     timeout: 10000
 - openLink: cue://show/8803
+# iOS asks before another app opens Cue by its scheme, as it asks a user.
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: "Open"
 - extendedWaitUntil:
     visible: "More actions for Midnight Cartography"
     timeout: 30000

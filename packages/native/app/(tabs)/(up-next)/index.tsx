@@ -148,9 +148,10 @@ export default function UpNext(): ReactElement {
   const colors = useColors();
   const insets = useSafeAreaInsets();
 
-  const marquee = view.queue.length >= MARQUEE_MIN_QUEUE ? view.queue[0] : undefined;
-  const rows = marquee === undefined ? view.queue : view.queue.slice(1);
   const branch = branchOf(view, showsEnabled);
+  const queue = SECTIONED.includes(branch) ? view.queue : [];
+  const marquee = queue.length >= MARQUEE_MIN_QUEUE ? queue[0] : undefined;
+  const rows = marquee === undefined ? queue : queue.slice(1);
 
   return (
     <TabRoot testID={TEST_IDS.screenUpNext}>
