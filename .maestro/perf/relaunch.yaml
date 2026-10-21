@@ -1,0 +1,15 @@
+# Restarts the app on a freshly reset large synthetic account, as one measured segment.
+appId: app.cuetracker
+---
+- runScript: reset-scale.js
+- assertTrue: ${output.fakeReset}
+- runFlow:
+    file: segment.yaml
+    env: { SEGMENT: launch, EDGE: start }
+- launchApp:
+    stopApp: true
+    permissions: {}
+- runFlow: ../flows/lib/ready.yaml
+- runFlow:
+    file: segment.yaml
+    env: { SEGMENT: launch, EDGE: stop }
