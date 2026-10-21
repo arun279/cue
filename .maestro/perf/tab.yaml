@@ -1,0 +1,15 @@
+# Switches from one tab to another as one measured segment, ending once the screen has settled.
+appId: app.cuetracker
+---
+- runFlow:
+    file: segment.yaml
+    env:
+      SEGMENT: ${SEGMENT}
+      EDGE: start
+- tapOn: ${TAB}
+- waitForAnimationToEnd
+- runFlow:
+    file: segment.yaml
+    env:
+      SEGMENT: ${SEGMENT}
+      EDGE: stop

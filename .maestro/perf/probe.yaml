@@ -1,0 +1,135 @@
+# One pass of the performance probe on the large synthetic account: launch, every
+# tab pair among Up Next, Library and Calendar, three long lists scrolling, the
+# lapsed section opening and closing, a show pushed and its episode sheet, and
+# memory after the tabs and after the lists. Each segment is bracketed by marks
+# that scripts/perf-probe.mjs turns into measurements; nothing here asserts on
+# timing.
+appId: app.cuetracker
+---
+- runFlow: relaunch.yaml
+- runFlow:
+    file: tab.yaml
+    env:
+      SEGMENT: "tab up-next>library"
+      TAB: "Library"
+- assertVisible:
+    id: "screen-library"
+- runFlow:
+    file: tab.yaml
+    env:
+      SEGMENT: "tab library>calendar"
+      TAB: "Calendar"
+- assertVisible:
+    id: "screen-calendar"
+- runFlow:
+    file: tab.yaml
+    env:
+      SEGMENT: "tab calendar>library"
+      TAB: "Library"
+- assertVisible:
+    id: "screen-library"
+- runFlow:
+    file: tab.yaml
+    env:
+      SEGMENT: "tab library>up-next"
+      TAB: "Up Next"
+- assertVisible:
+    id: "screen-up-next"
+- runFlow:
+    file: tab.yaml
+    env:
+      SEGMENT: "tab up-next>calendar"
+      TAB: "Calendar"
+- assertVisible:
+    id: "screen-calendar"
+- runFlow:
+    file: tab.yaml
+    env:
+      SEGMENT: "tab calendar>up-next"
+      TAB: "Up Next"
+- assertVisible:
+    id: "screen-up-next"
+- runFlow:
+    file: segment.yaml
+    env: { SEGMENT: "after tabs", EDGE: memory }
+- runFlow:
+    file: scroll.yaml
+    env: { SEGMENT: "scroll up-next" }
+- scrollUntilVisible:
+    element:
+      id: "lapsed-drawer-toggle"
+    direction: DOWN
+    centerElement: true
+- runFlow:
+    file: segment.yaml
+    env: { SEGMENT: "lapsed open", EDGE: start }
+- tapOn:
+    id: "lapsed-drawer-toggle"
+- assertVisible:
+    id: "lapsed-row-8805"
+- waitForAnimationToEnd
+- runFlow:
+    file: segment.yaml
+    env: { SEGMENT: "lapsed open", EDGE: stop }
+- runFlow:
+    file: segment.yaml
+    env: { SEGMENT: "lapsed close", EDGE: start }
+- tapOn:
+    id: "lapsed-drawer-toggle"
+- assertNotVisible:
+    id: "lapsed-row-8805"
+- waitForAnimationToEnd
+- runFlow:
+    file: segment.yaml
+    env: { SEGMENT: "lapsed close", EDGE: stop }
+- scrollUntilVisible:
+    element:
+      id: "queue-row-8803"
+    direction: UP
+- runFlow:
+    file: segment.yaml
+    env: { SEGMENT: "show detail push", EDGE: start }
+- tapOn:
+    id: "queue-row-8803"
+- extendedWaitUntil:
+    visible: "More actions for Midnight Cartography"
+    timeout: 30000
+- waitForAnimationToEnd
+- runFlow:
+    file: segment.yaml
+    env: { SEGMENT: "show detail push", EDGE: stop }
+- runFlow:
+    file: segment.yaml
+    env: { SEGMENT: "episode sheet open", EDGE: start }
+- tapOn: "S2 E3 · Half Measures.*"
+- assertVisible:
+    id: "episode-sheet"
+- waitForAnimationToEnd
+- runFlow:
+    file: segment.yaml
+    env: { SEGMENT: "episode sheet open", EDGE: stop }
+- runFlow: ../flows/lib/dismiss-episode-sheet.yaml
+- runFlow:
+    file: ../flows/lib/back.yaml
+    env: { BACK_TITLE: "Up Next" }
+- assertVisible:
+    id: "screen-up-next"
+- tapOn: "Library"
+- tapOn:
+    id: "library-chip-not-started"
+- runFlow:
+    file: scroll.yaml
+    env: { SEGMENT: "scroll library not-started" }
+- tapOn: "Up Next"
+- tapOn:
+    id: "avatar-link"
+- tapOn:
+    id: "profile-to-history"
+- assertVisible:
+    id: "history-row-0"
+- runFlow:
+    file: scroll.yaml
+    env: { SEGMENT: "scroll history" }
+- runFlow:
+    file: segment.yaml
+    env: { SEGMENT: "after lists", EDGE: memory }

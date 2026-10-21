@@ -1,0 +1,144 @@
+name: Perf probe
+# Measures the apps one CI run already built, on demand, so pull request CI never waits on it.
+# Each platform boots once, signs in to the large synthetic account and runs
+# .maestro/perf/probe.yaml the requested number of times. The report is the job summary and
+# the perf-probe artifacts; no number gates anything.
+on:
+  workflow_dispatch:
+    inputs:
+      run-id:
+        description: ID of the CI run whose mock-server apps to measure
+        required: true
+        type: string
+      runs:
+        description: Passes through the probe on each platform
+        type: number
+        default: 3
+      platform:
+        description: Platforms to measure
+        type: choice
+        options: [both, android, ios]
+        default: both
+permissions:
+  actions: read
+  contents: read
+concurrency:
+  group: perf-probe-${{ inputs.run-id }}
+  cancel-in-progress: false
+jobs:
+  android:
+    if: inputs.platform != 'ios'
+    timeout-minutes: 90
+    runs-on: ubuntu-latest
+    env:
+      MAESTRO_CLI_NO_ANALYTICS: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Install Maestro 2.10.0 and ffmpeg
+        run: |
+          curl -fsSL \
+            https://github.com/mobile-dev-inc/Maestro/releases/download/cli-2.10.0/maestro.zip \
+            -o "$RUNNER_TEMP/maestro.zip"
+          echo "29b675e10cc12080e445e9bfb2e2b4e4dfb9c0f2e30d5884120d258b5e1cd991  $RUNNER_TEMP/maestro.zip" \
+            | sha256sum --check
+          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
+          command -v ffmpeg || { sudo apt-get update -q && sudo apt-get install -yq ffmpeg; }
+      - name: Fetch the run's Android app
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.run-id }}
+        run: scripts/perf-probe-app.sh android "$RUN_ID" "$RUNNER_TEMP/app"
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: ./.github/actions/android-emulator
+      - name: Run the probe
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        env:
+          RUNS: ${{ inputs.runs }}
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_7_pro
+          disable-animations: false
+          emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          script: bash scripts/perf-probe-android.sh "$RUNNER_TEMP/app/universal.apk" "$RUNNER_TEMP/perf" "$RUNS"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ always() }}
+        with:
+          name: perf-probe-android
+          path: ${{ runner.temp }}/perf
+          retention-days: 30
+  ios:
+    if: inputs.platform != 'android'
+    timeout-minutes: 90
+    runs-on: macos-26
+    env:
+      MAESTRO_CLI_NO_ANALYTICS: "1"
+      MAESTRO_RUNNER_PORT: "7001"
+      USE_XCODE_TEST_RUNNER: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Boot the simulator
+        run: |
+          sudo xcode-select -s /Applications/Xcode_26.6.app
+          read -r device_id data < <(xcrun simctl list devices available -j | \
+            jq -er '[.devices[] | .[] | select(.name | startswith("iPhone"))][0] | "\(.udid) \(.dataPath)"')
+          scripts/enable-ios-accessibility.sh "$data"
+          scripts/disable-ios-daemons.sh "$device_id"
+          xcrun simctl boot "$device_id"
+          echo "DEVICE_ID=$device_id" >> "$GITHUB_ENV"
+      - name: Fetch the run's simulator app
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.run-id }}
+        run: scripts/perf-probe-app.sh ios "$RUN_ID" "$RUNNER_TEMP/app"
+      - id: runner-key
+        name: Key the Maestro runner the way CI does
+        run: echo "key=$(scripts/build-maestro-runner.sh key)" >> "$GITHUB_OUTPUT"
+      - id: runner-cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ runner.temp }}/maestro-runner
+          key: ${{ steps.runner-key.outputs.key }}
+      - if: steps.runner-cache.outputs.cache-hit != 'true'
+        name: Build the patched Maestro runner
+        run: scripts/build-maestro-runner.sh build "$RUNNER_TEMP/maestro-runner"
+      - name: Unpack the Maestro runner and install ffmpeg
+        run: |
+          tar -xzf "$RUNNER_TEMP/maestro-runner/maestro-runner.tgz" -C "$RUNNER_TEMP/maestro-runner"
+          command -v ffmpeg || brew install ffmpeg
+      - name: Start the fake Trakt server
+        run: node scripts/start-ready-process.mjs scripts/mock-trakt/server.mjs "$RUNNER_TEMP/mock-trakt.log"
+      - name: Prepare the simulator and app with motion on
+        run: |
+          scripts/prepare-ios-ui.sh "$RUNNER_TEMP/app/Cue.app" light
+          xcrun simctl spawn "$DEVICE_ID" defaults write com.apple.Accessibility ReduceMotionEnabled -bool false
+      - name: Start the Maestro runner
+        run: node scripts/start-ready-process.mjs scripts/maestro-runner.mjs "$RUNNER_TEMP/maestro-runner.log" 300000
+      - name: Run the probe
+        env:
+          RUNS: ${{ inputs.runs }}
+        run: |
+          node scripts/perf-probe.mjs ios "$RUNNER_TEMP/perf" "$RUNS" \
+            --device "$DEVICE_ID" test --driver-host-port "$MAESTRO_RUNNER_PORT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ always() }}
+        with:
+          name: perf-probe-ios
+          path: |
+            ${{ runner.temp }}/perf
+            ${{ runner.temp }}/mock-trakt.log
+            ${{ runner.temp }}/maestro-runner.log
+          retention-days: 30
