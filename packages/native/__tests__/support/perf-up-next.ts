@@ -21,9 +21,11 @@ export const episode = {
 export const entry: LibraryEntry = {
   showId: SHOW_ID,
   title: "Harbor Lights",
+  year: null,
   status: "returning series",
   hidden: false,
   inWatchlist: false,
+  addedAt: null,
   lastWatchedAt: new Date().toISOString(),
   aired: 22,
   completed: 20,
@@ -31,6 +33,7 @@ export const entry: LibraryEntry = {
   lastAired: null,
   tmdbId: null,
   runtime: null,
+  posters: [],
   pendingAdvance: false,
 };
 

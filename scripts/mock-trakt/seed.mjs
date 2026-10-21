@@ -88,6 +88,7 @@ const SHOWS = [
     startDaysAgo: 400,
     completed: 20,
     lastWatchedDaysAgo: 2,
+    collectedDaysAgo: 500,
   },
   {
     trakt: 8802,
@@ -217,6 +218,7 @@ const MOVIES = [
     genres: ["drama"],
     overview: "The last keeper of an automated lighthouse refuses to leave on the arranged date.",
     lastWatchedDaysAgo: 12,
+    collectedDaysAgo: 400,
   },
   {
     trakt: 5502,
@@ -306,6 +308,100 @@ const MOVIES = [
   },
 ];
 
+/**
+ * The collection a long-time Trakt user carries: hundreds of titles added over
+ * the years and never started, which is the Library's largest chip. Generated
+ * rather than written out, every show fully aired long before the fixture's now
+ * so none of them reaches the calendar, and each added on its own day so the
+ * "Recently added" order is total.
+ */
+const SHELF_SIZE = { shows: 300, movies: 150 };
+const SHELF_WORDS = {
+  first: [
+    "Amber",
+    "Copper",
+    "Distant",
+    "Fallow",
+    "Granite",
+    "Hidden",
+    "Iron",
+    "Juniper",
+    "Kestrel",
+    "Linen",
+  ],
+  second: [
+    "Orchard",
+    "Parish",
+    "Quarry",
+    "Ridge",
+    "Summit",
+    "Thicket",
+    "Valley",
+    "Willow",
+    "Yard",
+    "Meadow",
+  ],
+  third: [
+    "Accord",
+    "Bargain",
+    "Census",
+    "Drift",
+    "Errand",
+    "Fable",
+    "Gambit",
+    "Harvest",
+    "Inquest",
+    "Jubilee",
+  ],
+};
+
+function shelfTitle(index) {
+  const { first, second, third } = SHELF_WORDS;
+  return `${first[index % 10]} ${second[Math.floor(index / 10) % 10]} ${third[Math.floor(index / 100) % 10]}`;
+}
+
+const slugOf = (title) => title.toLowerCase().replaceAll(" ", "-");
+
+const SHELF_SHOWS = Array.from({ length: SHELF_SIZE.shows }, (_, index) => {
+  const title = shelfTitle(index);
+  return {
+    trakt: 7000 + index,
+    tmdb: 97000 + index,
+    slug: slugOf(title),
+    title,
+    year: 2000 + (index % 24),
+    status: index % 3 === 0 ? "returning series" : "ended",
+    network: "Meridian",
+    runtime: 45,
+    genres: ["drama"],
+    overview: "A title from the collection, added and not yet started.",
+    seasons: [6],
+    startDaysAgo: 900 + index,
+    completed: 0,
+    lastWatchedDaysAgo: null,
+    collectedDaysAgo: 10 + index,
+    shelf: true,
+  };
+});
+
+const SHELF_MOVIES = Array.from({ length: SHELF_SIZE.movies }, (_, index) => {
+  const title = shelfTitle(index + 500);
+  return {
+    trakt: 6000 + index,
+    tmdb: 96000 + index,
+    slug: slugOf(title),
+    title,
+    year: 1990 + (index % 34),
+    released: `${1990 + (index % 34)}-06-01`,
+    runtime: 100,
+    genres: ["drama"],
+    overview: "A film from the collection, added and not yet watched.",
+    lastWatchedDaysAgo: null,
+    collectedDaysAgo: 10 + index,
+    shelf: true,
+  };
+});
+
 const RELATED_SHOWS = new Map([
   [8803, [8801, 8802, 8804, 8805, 8806, 8807, 8808]],
   [8801, [8803, 8808, 8802]],
@@ -344,23 +440,28 @@ const CATALOG = [
 
 const iso = (ms) => new Date(ms).toISOString();
 
+const collectedAt = (spec, now) =>
+  spec.collectedDaysAgo === undefined ? null : now - spec.collectedDaysAgo * DAY;
+
 /** The mutable account every route reads and the write routes move. */
 export function createLibrary(now = FIXTURE_NOW, clock = () => now) {
   return {
     now,
     clock,
-    shows: SHOWS.map((spec) => ({
+    shows: [...SHOWS, ...SHELF_SHOWS].map((spec) => ({
       ...spec,
       hidden: false,
       inWatchlist: spec.inWatchlist === true,
+      collectedAt: collectedAt(spec, now),
       lastWatchedAt: spec.lastWatchedDaysAgo === null ? null : now - spec.lastWatchedDaysAgo * DAY,
       episodes: buildEpisodes(spec, now),
       /** `watched_at` by episode trakt id, so a mark the app made keeps its own stamp. */
       watchedAt: new Map(),
     })),
-    movies: MOVIES.map((spec) => ({
+    movies: [...MOVIES, ...SHELF_MOVIES].map((spec) => ({
       ...spec,
       inWatchlist: spec.inWatchlist === true,
+      collectedAt: collectedAt(spec, now),
       watchedAt: spec.lastWatchedDaysAgo === null ? null : now - spec.lastWatchedDaysAgo * DAY,
     })),
     user: { username: "cue-demo", name: "Cue Demo", slug: "cue-demo" },
@@ -669,9 +770,9 @@ export function searchBody(library, origin, extended, query) {
  * watcher count; popular is a bare list. */
 export function browseBody(library, origin, extended, kind, ranked) {
   const movies = kind === "movies";
-  const refs = (movies ? library.movies : library.shows).map((item) =>
-    movies ? movieRef(item, origin, extended) : showRef(item, origin, extended),
-  );
+  const refs = (movies ? library.movies : library.shows)
+    .filter((item) => item.shelf !== true)
+    .map((item) => (movies ? movieRef(item, origin, extended) : showRef(item, origin, extended)));
   if (!ranked) return refs;
   return refs.map((ref, index) => ({
     watchers: 900 - index * 60,
@@ -792,6 +893,29 @@ export function watchlistBody(library, origin, extended, type) {
   }));
 }
 
+/** `/sync/collection/shows`: one unpaged list, each show with the last time an
+ * episode of it was collected. Cue reads membership only, so the per-season
+ * collected breakdown Trakt nests here is left out. */
+export function collectionShowsBody(library, origin, extended) {
+  return library.shows
+    .filter((show) => show.collectedAt !== null)
+    .map((show) => ({
+      last_collected_at: iso(show.collectedAt),
+      last_updated_at: iso(show.collectedAt),
+      show: showRef(show, origin, extended),
+    }));
+}
+
+export function collectionMoviesBody(library, origin, extended) {
+  return library.movies
+    .filter((movie) => movie.collectedAt !== null)
+    .map((movie) => ({
+      collected_at: iso(movie.collectedAt),
+      updated_at: iso(movie.collectedAt),
+      movie: movieRef(movie, origin, extended),
+    }));
+}
+
 export function hiddenBody(library, origin) {
   return library.shows
     .filter((show) => show.hidden)
@@ -806,7 +930,11 @@ export function lastActivitiesBody(library) {
   const { episodes, shows, movies, watchlist } = library.activities;
   return {
     all: iso(Math.max(episodes, shows, movies, watchlist)),
-    movies: { watched_at: iso(movies), watchlisted_at: iso(watchlist) },
+    movies: {
+      watched_at: iso(movies),
+      watchlisted_at: iso(watchlist),
+      collected_at: iso(movies),
+    },
     episodes: { watched_at: iso(episodes), collected_at: iso(episodes) },
     shows: { rated_at: iso(shows), hidden_at: iso(shows) },
     seasons: { watched_at: iso(episodes) },

@@ -6,7 +6,11 @@ import type { RequestOptions, TraktClient, TraktResult } from "./client";
 import { decode } from "./decode";
 import {
   type CalendarItem,
+  type CollectionMovie,
+  type CollectionShow,
   calendarSchema,
+  collectionMoviesSchema,
+  collectionShowsSchema,
   type EpisodeData,
   episodeSchema,
   type HiddenItem,
@@ -165,6 +169,19 @@ export function getWatchlist(
 ): Promise<TraktResult<WatchlistItem[]>> {
   const path = `/sync/watchlist/${type}`;
   return readAll(client, path, watchlistSchema, path, { extended: ART });
+}
+
+// Trakt pages the movie collection but returns the show collection whole.
+export function getCollectionShows(client: TraktClient): Promise<TraktResult<CollectionShow[]>> {
+  return readOne(client, "/sync/collection/shows", collectionShowsSchema, undefined, {
+    extended: ART,
+  });
+}
+
+export function getCollectionMovies(client: TraktClient): Promise<TraktResult<CollectionMovie[]>> {
+  return readAll(client, "/sync/collection/movies", collectionMoviesSchema, undefined, {
+    extended: ART,
+  });
 }
 
 export function getMyShowsCalendar(

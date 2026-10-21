@@ -1,5 +1,11 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+
+// Reassure's own comparison marks a duration change significant (p < 0.02 and at least 5%);
+// a significant slowdown past 20% fails, the deviation Expensify's Reassure gate allows.
+const DURATION_GATED = new Set(["Library first mount"]);
+const DURATION_DEVIATION = 0.2;
 
 const [baselinePath, currentPath] = process.argv.slice(2);
 
@@ -38,6 +44,22 @@ for (const [name, expected] of baseline) {
 for (const name of current.keys()) {
   if (!baseline.has(name)) {
     process.stderr.write(`Unbaselined render scenario: ${name}\n`);
+    failed = true;
+  }
+}
+
+const comparisonPath = join(dirname(currentPath), "output.json");
+const comparison = existsSync(comparisonPath)
+  ? JSON.parse(await readFile(comparisonPath, "utf8"))
+  : { significant: [] };
+for (const entry of comparison.significant) {
+  if (!DURATION_GATED.has(entry.name)) continue;
+  const change = `${entry.baseline.meanDuration.toFixed(1)} ms -> ${entry.current.meanDuration.toFixed(1)} ms`;
+  process.stdout.write(`${entry.name}: duration ${change}\n`);
+  if (entry.relativeDurationDiff > DURATION_DEVIATION) {
+    process.stderr.write(
+      `Render duration slowed by more than ${DURATION_DEVIATION * 100}%: ${entry.name} (${change})\n`,
+    );
     failed = true;
   }
 }

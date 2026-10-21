@@ -6,6 +6,12 @@ export function toMs(iso: string | null | undefined): number | null {
   return Number.isNaN(t) ? null : t;
 }
 
+export function laterOf(a: string | null, b: string | null): string | null {
+  if (a === null) return b;
+  if (b === null) return a;
+  return (toMs(b) ?? 0) > (toMs(a) ?? 0) ? b : a;
+}
+
 export function localTimeZone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone;
 }

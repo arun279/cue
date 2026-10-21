@@ -25,9 +25,11 @@ export function makeShow(overrides: Partial<LibraryShow> = {}): LibraryShow {
   return {
     showId: 1,
     title: "Show",
+    year: null,
     status: "returning series",
     hidden: false,
     inWatchlist: false,
+    addedAt: null,
     lastWatchedAt: iso(NOW - DAY),
     aired: 10,
     completed: 5,

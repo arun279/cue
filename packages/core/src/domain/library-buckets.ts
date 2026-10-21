@@ -2,13 +2,18 @@ import type { LibraryShow } from "./model/library";
 import { toMs } from "./time";
 import { computeWatchStatus } from "./watch-status";
 
-export type LibrarySort = "recently-watched" | "alphabetical" | "progress";
-export type MovieSort = "recently-watched" | "alphabetical" | "release-year";
+export type LibrarySort =
+  | "recently-watched"
+  | "recently-added"
+  | "alphabetical"
+  | "release-year"
+  | "progress";
 
-type LibraryChipKey = "watching" | "watchlist" | "stopped" | "finished";
+export type ShowChipKey = "watching" | "not-started" | "stopped" | "finished";
+export type MovieChipKey = "not-started" | "watched";
 
 export type LibraryChips<T extends LibraryShow = LibraryShow> = Readonly<
-  Record<LibraryChipKey, readonly T[]>
+  Record<ShowChipKey, readonly T[]>
 >;
 
 interface MovieLibraryItem {
@@ -16,21 +21,10 @@ interface MovieLibraryItem {
   readonly year: number | null;
   readonly watched: boolean;
   readonly watchedAt: string | null;
-  readonly inWatchlist: boolean;
-  readonly listedAt: string | null;
+  readonly addedAt: string | null;
 }
 
-export interface MovieSegment<T extends MovieLibraryItem = MovieLibraryItem> {
-  readonly key: "watchlist" | "watched";
-  readonly label: string;
-  readonly entries: readonly T[];
-}
-
-function progressRatio(show: LibraryShow): number {
-  return show.aired > 0 ? show.completed / show.aired : 0;
-}
-
-function chipOf(entry: LibraryShow, now: number, thresholdMs: number): LibraryChipKey {
+function chipOf(entry: LibraryShow, now: number, thresholdMs: number): ShowChipKey {
   const status = computeWatchStatus(entry, now, thresholdMs);
   switch (status) {
     case "watching":
@@ -38,7 +32,7 @@ function chipOf(entry: LibraryShow, now: number, thresholdMs: number): LibraryCh
     case "caught-up":
       return "watching";
     case "not-started":
-      return "watchlist";
+      return "not-started";
     case "abandoned":
       return "stopped";
     case "ended":
@@ -50,69 +44,68 @@ export function chipBuckets<T extends LibraryShow>(
   entries: readonly T[],
   now: number,
   thresholdMs: number,
-  sort: LibrarySort,
 ): LibraryChips<T> {
-  const lists: Record<LibraryChipKey, T[]> = {
+  const lists: Record<ShowChipKey, T[]> = {
     watching: [],
-    watchlist: [],
+    "not-started": [],
     stopped: [],
     finished: [],
   };
   for (const entry of entries) lists[chipOf(entry, now, thresholdMs)].push(entry);
-  const comparator = comparatorFor(sort);
-  for (const list of Object.values(lists)) list.sort(comparator);
   return lists;
 }
 
-function byTitle<T extends { title: string }>(a: T, b: T): number {
+export function movieBuckets<T extends MovieLibraryItem>(
+  entries: readonly T[],
+): Readonly<Record<MovieChipKey, readonly T[]>> {
+  return {
+    "not-started": entries.filter((entry) => !entry.watched),
+    watched: entries.filter((entry) => entry.watched),
+  };
+}
+
+type Comparator<T> = (a: T, b: T) => number;
+
+interface Sortable {
+  readonly title: string;
+  readonly year: number | null;
+  readonly addedAt: string | null;
+}
+
+const newestFirst = (a: string | null, b: string | null): number => (toMs(b) ?? 0) - (toMs(a) ?? 0);
+
+function byTitle(a: Sortable, b: Sortable): number {
   return a.title.localeCompare(b.title, undefined, { sensitivity: "base" });
 }
 
-function byWatchedAt<T extends MovieLibraryItem>(a: T, b: T): number {
-  return (b.watchedAt ?? "").localeCompare(a.watchedAt ?? "") || byTitle(a, b);
-}
-
-function byYear<T extends MovieLibraryItem>(a: T, b: T): number {
-  return (b.year ?? 0) - (a.year ?? 0) || byTitle(a, b);
-}
-
-function byListedAt<T extends MovieLibraryItem>(a: T, b: T): number {
-  return (b.listedAt ?? "").localeCompare(a.listedAt ?? "") || byTitle(a, b);
-}
-
-function movieComparator<T extends MovieLibraryItem>(sort: MovieSort): (a: T, b: T) => number {
+function shared<T extends Sortable>(sort: LibrarySort): Comparator<T> | null {
   if (sort === "alphabetical") return byTitle;
-  if (sort === "release-year") return byYear;
-  return byWatchedAt;
+  if (sort === "release-year") return (a, b) => (b.year ?? 0) - (a.year ?? 0) || byTitle(a, b);
+  if (sort === "recently-added")
+    return (a, b) => newestFirst(a.addedAt, b.addedAt) || byTitle(a, b);
+  return null;
 }
 
-function movieWatchlistComparator<T extends MovieLibraryItem>(
-  sort: MovieSort,
-): (a: T, b: T) => number {
-  if (sort === "alphabetical") return byTitle;
-  if (sort === "release-year") return byYear;
-  return byListedAt;
+function progressRatio(show: LibraryShow): number {
+  return show.aired > 0 ? show.completed / show.aired : 0;
 }
 
-export function groupMovieLibrary<T extends MovieLibraryItem>(
+function showComparator<T extends LibraryShow>(sort: LibrarySort): Comparator<T> {
+  if (sort === "progress") return (a, b) => progressRatio(b) - progressRatio(a);
+  return shared<T>(sort) ?? ((a, b) => newestFirst(a.lastWatchedAt, b.lastWatchedAt));
+}
+
+function movieComparator<T extends MovieLibraryItem>(sort: LibrarySort): Comparator<T> {
+  return shared<T>(sort) ?? ((a, b) => newestFirst(a.watchedAt, b.watchedAt) || byTitle(a, b));
+}
+
+export function sortShows<T extends LibraryShow>(entries: readonly T[], sort: LibrarySort): T[] {
+  return [...entries].sort(showComparator<T>(sort));
+}
+
+export function sortMovies<T extends MovieLibraryItem>(
   entries: readonly T[],
-  sort: MovieSort,
-): MovieSegment<T>[] {
-  const watched = entries.filter((entry) => entry.watched).sort(movieComparator(sort));
-  const watchlist = entries
-    .filter((entry) => entry.inWatchlist && !entry.watched)
-    .sort(movieWatchlistComparator(sort));
-  const segments: MovieSegment<T>[] = [
-    { key: "watchlist", label: "Watchlist", entries: watchlist },
-    { key: "watched", label: "Watched", entries: watched },
-  ];
-  return segments.filter((segment) => segment.entries.length > 0);
-}
-
-function comparatorFor(sort: LibrarySort): (a: LibraryShow, b: LibraryShow) => number {
-  if (sort === "alphabetical") return byTitle;
-  if (sort === "progress") {
-    return (a, b) => progressRatio(b) - progressRatio(a);
-  }
-  return (a, b) => (toMs(b.lastWatchedAt) ?? 0) - (toMs(a.lastWatchedAt) ?? 0);
+  sort: LibrarySort,
+): T[] {
+  return [...entries].sort(movieComparator<T>(sort));
 }

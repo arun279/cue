@@ -23,7 +23,8 @@ export const movieEntry: MovieEntry = {
   watched: true,
   watchedAt: "2026-08-08T12:00:00Z",
   inWatchlist: false,
-  listedAt: null,
+  inCollection: false,
+  addedAt: null,
 };
 
 export function movieRuntime(overrides: Partial<MovieEntry> = {}) {

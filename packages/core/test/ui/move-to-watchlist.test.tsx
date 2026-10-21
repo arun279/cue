@@ -26,6 +26,7 @@ async function setup(outcome: SubmitOutcome, hidden = false) {
     ...makeShow({ completed: 0, hidden }),
     tmdbId: null,
     runtime: null,
+    posters: [],
   };
   client.setQueryData<UpNextData>(queryKeys.library(), { entries: [entry] });
   const slot: ReturnType<typeof useMoveToWatchlist>[] = [];
