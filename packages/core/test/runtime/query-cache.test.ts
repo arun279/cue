@@ -88,6 +88,7 @@ describe("what a cold boot restores", () => {
     hydrate(restored, persisted.clientState);
 
     expect(restored.getQueryData(queryKeys.library())).toEqual(failedRefresh.data);
+    expect(restorableCache(persisted)).toEqual(persisted);
     expect(restored.getQueryState(queryKeys.library())).toMatchObject({
       status: "success",
       error: null,
