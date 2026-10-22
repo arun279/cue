@@ -205,6 +205,7 @@ const laneRun = (
     ],
     {
       encoding: "utf8",
+      timeout: 60_000,
       env: {
         ...process.env,
         PATH: `${laneBin}:${process.env["PATH"]}`,

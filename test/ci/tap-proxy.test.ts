@@ -35,7 +35,12 @@ async function runner(hierarchies: object[]) {
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address() as { port: number };
-  return { url: `http://127.0.0.1:${port}`, calls, close: () => server.close() };
+  const close = () =>
+    new Promise<void>((resolve) => {
+      server.close(() => resolve());
+      server.closeAllConnections();
+    });
+  return { url: `http://127.0.0.1:${port}`, calls, close };
 }
 
 async function tapThroughProxy(
@@ -59,7 +64,7 @@ async function tapThroughProxy(
     return fake.calls;
   } finally {
     await proxy.close();
-    fake.close();
+    await fake.close();
   }
 }
 

@@ -7,6 +7,7 @@ export default defineConfig({
     // glob would hand its `__tests__` to Vitest, which has no React Native
     // runtime and reports the suite as a failure rather than as not its job.
     projects: ["packages/core", "test"],
+    reporters: ["default", "./test/support/stall-guard.ts"],
     coverage: {
       provider: "v8",
       reporter: ["lcov"],

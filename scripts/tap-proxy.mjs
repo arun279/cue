@@ -203,6 +203,10 @@ export function createTapProxy({ runner, playback }) {
       new Promise((resolve) =>
         server.listen(port, "127.0.0.1", () => resolve(server.address().port)),
       ),
-    close: () => new Promise((resolve) => server.close(() => resolve())),
+    close: () =>
+      new Promise((resolve) => {
+        server.close(() => resolve());
+        server.closeAllConnections();
+      }),
   };
 }
