@@ -1,12 +1,7 @@
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
 import { createInterface } from "node:readline";
-import {
-  cancelledContact,
-  PLAYBACK_PREDICATE,
-  recordTapAgain,
-  tapAgain,
-} from "./simulator-touch.mjs";
+import { cancelledContact, PLAYBACK_PREDICATE, recordTap, tapAgain } from "./simulator-touch.mjs";
 
 const PLAYBACK_TIMEOUT_MS = 5_000;
 /** Runner routes that only read, so the hierarchy read before them still shows the screen. */
@@ -147,25 +142,34 @@ export function createTapProxy({ runner, playback }) {
     before = undefined;
     const since = Date.now();
     const answer = await forward(request.url, request.method, request.headers, body);
-    if (answer.status !== 200) return answer;
     const point = JSON.parse(body.toString("utf8"));
-    const lines = await playback.window(since);
-    if (lines === undefined) {
-      process.stdout.write(`tap at ${point.x}, ${point.y}: no playback in the simulator log\n`);
+    const record = (found) =>
+      recordTap({ x: point.x, y: point.y, status: answer.status, ...found });
+    if (answer.status !== 200) {
+      record({ reason: `runner answered ${answer.status}` });
       return answer;
     }
-    if (cancelledContact(lines) === undefined) return answer;
+    const answered = Date.now();
+    const lines = await playback.window(since);
+    if (lines === undefined) {
+      record({ reason: "no playback in the simulator log" });
+      return answer;
+    }
+    const waitMs = Date.now() - answered;
+    if (cancelledContact(lines) === undefined) {
+      record({ waitMs });
+      return answer;
+    }
     const after =
       seen === undefined
         ? undefined
         : hierarchy(await forward("/viewHierarchy", "POST", {}, seen.request));
     const decision = tapAgain({ playback: lines, before: seen?.tree, after, point });
+    record({ waitMs, cancel: true, again: decision.again, reason: decision.reason });
     process.stdout.write(
       `tap at ${point.x}, ${point.y}: ${decision.again ? "tapped again" : "not tapped again"}, ${decision.reason}\n`,
     );
-    if (!decision.again) return answer;
-    recordTapAgain(decision.reason);
-    return forward(request.url, request.method, request.headers, body);
+    return decision.again ? forward(request.url, request.method, request.headers, body) : answer;
   };
   const server = createServer(async (request, response) => {
     try {

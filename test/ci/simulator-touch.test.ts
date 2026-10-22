@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, it } from "vitest";
-import { elementAt, tapAgain } from "../../scripts/simulator-touch.mjs";
+import { elementAt, tapAgain, tapProxyHealth } from "../../scripts/simulator-touch.mjs";
 import { repositoryPath } from "../support/repository-path";
 
 const playback = (name: string) =>
@@ -127,4 +127,36 @@ it("finds the topmost, deepest element under a point", () => {
   });
   expect(elementAt(screen(signOut), { x: 201, y: 404 })).toEqual(signOut);
   expect(elementAt(screen(signOut), { x: 5, y: 5 })).toMatchObject({ label: "" });
+});
+
+const checked = (waitMs: number) => ({ x: 349, y: 84, status: 200, waitMs });
+
+it("reports the taps the proxy checked, matched, saw cancelled and played again, with the p95 log wait", () => {
+  const taps = [
+    ...Array.from({ length: 19 }, (_, index) => checked(10 + index)),
+    { ...checked(900), cancel: true, again: true, reason: "dropped Done" },
+    { x: 1, y: 2, status: 500, reason: "runner answered 500" },
+  ];
+
+  expect(tapProxyHealth(taps, 21)).toEqual({
+    line: "tap proxy checked 21 taps, matched playback for 20, saw 1 cancels, tapped again 1, p95 log wait 28 ms",
+    failure: undefined,
+    again: ["dropped Done"],
+  });
+});
+
+it.each([
+  ["the runner logged taps the proxy never saw", [], 62, "checked none"],
+  [
+    "a tap the runner answered had no playback in the log",
+    [checked(20), { x: 1, y: 2, status: 200, reason: "no playback in the simulator log" }],
+    2,
+    "no playback for 1 of the 2 taps",
+  ],
+])("fails when %s", (_, taps, runnerTaps, failure) => {
+  expect(tapProxyHealth(taps, runnerTaps).failure).toContain(failure);
+});
+
+it("passes a lane with no taps at all", () => {
+  expect(tapProxyHealth([], 0).failure).toBeUndefined();
 });

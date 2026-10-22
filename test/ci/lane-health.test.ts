@@ -149,7 +149,7 @@ afterEach(() => vi.useRealTimers());
 
 const laneBin = fakeBin({
   xcrun:
-    '#!/bin/sh\necho "xcrun $*" >> "$CALLS"\ncase "$*" in *mobilecal*) echo "launch request for app<com.apple.mobilecal> from <dasd>" ;; *) cat "$SIM_LOG" ;; esac\n',
+    '#!/bin/sh\necho "xcrun $*" >> "$CALLS"\ncase "$*" in *mobilecal*) echo "launch request for app<com.apple.mobilecal> from <dasd>" ;; *Tapping*) cat "$TAP_LOG" 2>/dev/null ;; *) cat "$SIM_LOG" ;; esac\n',
   vm_stat:
     '#!/bin/sh\ncount=$(grep -c vm_stat "$CALLS" 2>/dev/null)\necho "vm_stat" >> "$CALLS"\necho "Mach Virtual Memory Statistics: (page size of 16384 bytes)"\necho "Pageins: $((1000 + count * 64000))."\n',
   ps: '#!/bin/sh\necho " 1048576 /opt/java/bin/java"\necho "  204800 /RuntimeRoot/SpringBoard.app/SpringBoard"\n',
@@ -163,14 +163,19 @@ const accessibilityBin = fakeBin({
   sudo: '#!/bin/sh\necho "$*" >> "$CALLS"\n',
 });
 
-const laneRun = (live: number, simulatorCancels: readonly string[] = []) => {
+const laneRun = (
+  live: number,
+  proxiedTaps: readonly object[] = [],
+  runnerTaps: readonly string[] = [],
+) => {
   const bin = tempDirectory("cue-lane-health-");
-  if (simulatorCancels.length > 0) {
+  if (proxiedTaps.length > 0) {
     writeFileSync(
-      path.join(bin, "simulator-touch-cancels.log"),
-      `${simulatorCancels.join("\n")}\n`,
+      path.join(bin, "tap-proxy.ndjson"),
+      proxiedTaps.map((tap) => `${JSON.stringify(tap)}\n`).join(""),
     );
   }
+  writeFileSync(path.join(bin, "taps"), runnerTaps.map((tap) => `${tap}\n`).join(""));
   const calls = path.join(bin, "calls");
   const now = new Date();
   const clock = (offset: number) => {
@@ -206,6 +211,7 @@ const laneRun = (live: number, simulatorCancels: readonly string[] = []) => {
         DEVICE_ID: "SIM-1",
         CALLS: calls,
         SIM_LOG: path.join(bin, "log"),
+        TAP_LOG: path.join(bin, "taps"),
         OPTIONS: path.join(bin, "options"),
         LIVE: String(live),
         RUNNER_TEMP: bin,
@@ -233,7 +239,7 @@ it("reports lane health after Maestro exits, from the simulator's stored log rat
     "Lane health: Maestro's Java heap after 1 collections: at most 12 MB live of 640 MB committed",
     "Lane health: 1 log lines about launching MobileCal",
     "Lane health: largest single process per program, sampled each minute: java 1024 MB, SpringBoard 200 MB",
-    "Lane health: 0 taps the simulator proved it dropped, each tapped again",
+    "Lane health: tap proxy checked 0 taps, matched playback for 0, saw 0 cancels, tapped again 0, p95 log wait 0 ms",
   ]);
   expect(result.stdout).not.toContain("::notice");
   expect(readFileSync(path.join(debug, "lane-health", "health.txt"), "utf8")).toContain(
@@ -241,19 +247,53 @@ it("reports lane health after Maestro exits, from the simulator's stored log rat
   );
 });
 
-it("counts every tap the simulator proved it dropped and raises a job notice for them", () => {
-  const cancels = ["2026-10-21T21:14:24.000Z shown; touch start +1 ms; touch cancel +2 ms"];
-  const { result, debug } = laneRun(12, [...cancels, cancels[0] ?? ""]);
+// Run 39728254091, ui-screenshots-ios-dark: the runner's own line for each synthesized tap.
+const runnerTap =
+  "2026-10-22 05:39:23.271 Df maestro-driver-iosUITests-Runner[7613:2c0d] (Foundation) Tapping 349.0, 84.0";
+const delivered = { x: 349, y: 84, status: 200, waitMs: 40 };
 
+it("counts the taps the proxy checked and played again, and raises a job notice for them", () => {
+  const again = {
+    ...delivered,
+    cancel: true,
+    again: true,
+    reason: "canceling paths contacts: [touching] under Done",
+  };
+  const { result, debug } = laneRun(
+    12,
+    [delivered, again, again],
+    [runnerTap, runnerTap, runnerTap],
+  );
+
+  expect(result.status).toBe(0);
   expect(result.stdout).toContain(
-    "Lane health: 2 taps the simulator proved it dropped, each tapped again\n",
+    "Lane health: tap proxy checked 3 taps, matched playback for 3, saw 2 cancels, tapped again 2, p95 log wait 40 ms\n",
   );
   expect(result.stdout).toContain(
-    "::notice title=Simulator touch cancel::The simulator dropped 2 taps and the flow tapped again; see Lane health\n",
+    "::notice title=Simulator touch cancel::The simulator dropped 2 taps and the tap proxy tapped again; see Lane health\n",
   );
   expect(readFileSync(path.join(debug, "lane-health", "health.txt"), "utf8")).toContain(
-    `proven simulator touch cancel: ${cancels[0]}`,
+    `proven simulator touch cancel, tapped again: ${again.reason}`,
   );
+});
+
+it.each([
+  [
+    "the CLI bypassed the proxy",
+    [],
+    "the tap proxy checked none, so it was not in the request path",
+  ],
+  [
+    "the simulator log stream showed nothing",
+    [{ x: 349, y: 84, status: 200, reason: "no playback in the simulator log" }],
+    "no playback for 1 of the 1 taps the runner answered",
+  ],
+])("fails the lane when %s", (_, proxied, failure) => {
+  const { result } = laneRun(12, proxied, [runnerTap]);
+
+  expect(result.status).toBe(1);
+  expect(result.stdout).toContain("::error title=Tap proxy::");
+  expect(result.stdout).toContain(failure);
 });
 
 it("warns in the job log when Maestro's live heap passes 80% of its cap", () => {

@@ -53,13 +53,38 @@ export function tapAgain({ playback, before, after, point }) {
   return { again: true, reason: `${cancel.trim()} under ${JSON.stringify(was)}` };
 }
 
-export const occurrencesFile = () =>
-  path.join(process.env.RUNNER_TEMP ?? tmpdir(), "simulator-touch-cancels.log");
+export const tapRecordsFile = () =>
+  path.join(process.env.RUNNER_TEMP ?? tmpdir(), "tap-proxy.ndjson");
 
-export const recordTapAgain = (reason) =>
-  appendFileSync(occurrencesFile(), `${new Date().toISOString()} ${reason}\n`);
+/** Appends what the tap proxy found for one tap the CLI sent. */
+export const recordTap = (tap) => appendFileSync(tapRecordsFile(), `${JSON.stringify(tap)}\n`);
 
-export const provenCancels = () =>
-  existsSync(occurrencesFile())
-    ? readFileSync(occurrencesFile(), "utf8").split("\n").filter(Boolean)
+export const recordedTaps = () =>
+  existsSync(tapRecordsFile())
+    ? readFileSync(tapRecordsFile(), "utf8")
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => JSON.parse(line))
     : [];
+
+const p95 = (values) => [...values].sort((a, b) => a - b)[Math.ceil(values.length * 0.95) - 1] ?? 0;
+
+/**
+ * The tap proxy's lane health line, and why the lane fails: the runner logged
+ * taps the proxy never saw, so the CLI bypassed it, or the simulator log showed
+ * no playback for taps the runner answered, so the proxy could not check them.
+ */
+export function tapProxyHealth(taps, runnerTaps) {
+  const answered = taps.filter((tap) => tap.status === 200);
+  const matched = answered.filter((tap) => tap.waitMs !== undefined);
+  const again = taps.filter((tap) => tap.again);
+  const line = `tap proxy checked ${taps.length} taps, matched playback for ${matched.length}, saw ${taps.filter((tap) => tap.cancel).length} cancels, tapped again ${again.length}, p95 log wait ${p95(matched.map((tap) => tap.waitMs))} ms`;
+  const blind = answered.length - matched.length;
+  const failure =
+    taps.length === 0 && runnerTaps > 0
+      ? `The runner logged ${runnerTaps} taps and the tap proxy checked none, so it was not in the request path`
+      : blind > 0
+        ? `The simulator log showed no playback for ${blind} of the ${answered.length} taps the runner answered, so the tap proxy could not check them`
+        : undefined;
+  return { line, failure, again: again.map((tap) => tap.reason) };
+}
