@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { expect, it } from "vitest";
+import { DEFAULT_TRAKT_POLICY } from "../../packages/core/src/data/trakt/policy";
 import {
   collectionMoviesBody,
   collectionShowsBody,
@@ -11,18 +12,23 @@ import {
   watchlistBody,
 } from "../../scripts/mock-trakt/seed.mjs";
 import {
+  appsOf,
+  changeTimes,
   coldStartOf,
+  comparison,
   createChannel,
+  emptyMeasurements,
   frameStats,
   hitches,
   memInfo,
+  missing,
   overdrawShares,
   PASS,
-  settleMs,
+  ratio,
   simulatorRss,
   summary,
-  swapMs,
   viewCensus,
+  waitForQuiet,
 } from "../../scripts/perf-probe.mjs";
 import { repositoryPath } from "../support/repository-path";
 
@@ -84,7 +90,6 @@ it("reads the frame summary dumpsys gfxinfo prints for the app", () => {
     slowBitmapUploads: 0,
     slowDrawCommands: 5,
     firstFramesMs: null,
-    firstLayoutMs: null,
   });
 });
 
@@ -92,22 +97,27 @@ it("reports a missing gfxinfo field as unknown rather than zero", () => {
   expect(frameStats("No process found for: app.cuetracker").frames).toBeNull();
 });
 
-it("takes the slowest of the first three reliable frames after a reset, and its layout", () => {
+it("takes the slowest of the first three frames after a reset, leaving out skipped frames", () => {
   const rows = [
     frame(0, 1032, 1, 9),
     frame(0, 1000, 2, 12),
-    frame(1, 1010, 30, 90),
-    frame(0, 1016, 18, 48.5),
+    frame(8, 1010, 30, 90),
+    frame(1, 1016, 18, 48.5),
     frame(0, 1048, 40, 80),
   ];
 
-  expect(frameStats(framestats(5, rows))).toMatchObject({ firstFramesMs: 48.5, firstLayoutMs: 18 });
+  expect(frameStats(framestats(5, rows))).toMatchObject({ firstFramesMs: 48.5 });
+});
+
+it("counts the single frame that follows a window change, as when the lapsed section closes", () => {
+  expect(frameStats(framestats(1, [frame(1, 1000, 3, 21.7)]))).toMatchObject({
+    firstFramesMs: 21.7,
+  });
 });
 
 it("leaves the first frames unknown once the 120-frame window has dropped them", () => {
   expect(frameStats(framestats(121, [frame(0, 1000, 2, 12)]))).toMatchObject({
     firstFramesMs: null,
-    firstLayoutMs: null,
   });
 });
 
@@ -164,15 +174,30 @@ it("finds the resident size of Cue's simulator process and not another app's", (
   expect(simulatorRss(ps.split("\n")[0] ?? "")).toBeNull();
 });
 
-it("times a tab switch from the tab bar's first change to the content's next change", () => {
-  expect(swapMs([1.2, 1.25, 1.6], [0.4, 1.41, 1.5])).toBe(210);
-  expect(swapMs([], [1])).toBeNull();
-  expect(swapMs([1.2], [0.9])).toBeNull();
+it("times an interaction from its command to the content's first and last change after it", () => {
+  expect(changeTimes([0.1, 0.71, 0.9, 1.25], 0.3)).toEqual({ responseMs: 410, doneMs: 950 });
+  expect(changeTimes([0.5], 0.3)).toEqual({ responseMs: 200, doneMs: 200 });
 });
 
-it("times a section opening from its first visible change to its last", () => {
-  expect(settleMs([2.1, 2.2, 2.45])).toBe(350);
-  expect(settleMs([])).toBeNull();
+it("reports no timing when nothing in the content region changed after the command", () => {
+  expect(changeTimes([], 0.3)).toEqual({ responseMs: null, doneMs: null });
+  expect(changeTimes([0.1, 0.15], 0.3)).toEqual({ responseMs: null, doneMs: null });
+});
+
+it("names every empty measurement by platform, pass and segment", () => {
+  const samples = [
+    { run: 1, segment: "tab up-next>library", responseMs: 120, doneMs: 380, jankyPercent: 40 },
+    { run: 2, segment: "tab library>calendar", swapMs: null, jankyPercent: 30 },
+    { run: 3, segment: "season expand", responseMs: null, doneMs: null },
+    { run: 1, segment: "scroll history", movingFrames: null, hitches: 0 },
+  ];
+
+  expect(missing(samples[0] ?? {})).toEqual([]);
+  expect(emptyMeasurements("android", samples)).toEqual([
+    "android pass 2 tab library>calendar: no swapMs",
+    "android pass 3 season expand: no responseMs, doneMs",
+    "android pass 1 scroll history: no movingFrames",
+  ]);
 });
 
 it("counts frames held past two refreshes while moving, and not the rests between flings", () => {
@@ -181,6 +206,7 @@ it("counts frames held past two refreshes while moving, and not the rests betwee
   const rested = [...steady, 3, 3 + 1 / 60];
 
   expect(hitches(steady)).toEqual({ movingFrames: 29, hitches: 0, longestHitchMs: 0 });
+  expect(hitches([0, 1, 2])).toMatchObject({ movingFrames: null });
   expect(hitches(stalled)).toMatchObject({ hitches: 1, longestHitchMs: 117 });
   expect(hitches(rested)).toEqual({ movingFrames: 30, hitches: 0, longestHitchMs: 0 });
 });
@@ -214,14 +240,17 @@ it("reports each segment as the median over runs with its range, keeping unknown
   ]);
 });
 
-it("serves the probe's synthetic account at the scale of a long-time Trakt user", () => {
+it("serves the probe's synthetic account at the scale of a long-time Trakt user, 50 idle shows among those Cue reads progress for", () => {
   const library = createSeedLibrary("scale");
   const origin = "http://mock";
   const watched: { plays: number; last_watched_at: string; show: { aired_episodes: number } }[] =
     watchedShowsBody(library, "full");
   const lapsedCutoff = library.now - 21 * 86_400_000;
   const unfinished = watched.filter((entry) => entry.plays < entry.show.aired_episodes);
-  const lapsed = unfinished.filter((entry) => Date.parse(entry.last_watched_at) < lapsedCutoff);
+  const progressRead = unfinished
+    .toSorted((a, b) => Date.parse(b.last_watched_at) - Date.parse(a.last_watched_at))
+    .slice(0, DEFAULT_TRAKT_POLICY.progressBudget);
+  const lapsed = progressRead.filter((entry) => Date.parse(entry.last_watched_at) < lapsedCutoff);
   const watchlist = [
     ...watchlistBody(library, origin, "images", "shows"),
     ...watchlistBody(library, origin, "images", "movies"),
@@ -409,4 +438,132 @@ it("removes perf channel registrations from store builds and keeps them in harne
   expect(harness).toMatch(/usePerfCommand\)?\("lapsed"/);
   expect(harness).toMatch(/usePerfScroll\)?\("history"/);
   expect(harness).toContain("./harness");
+});
+
+it("measures one app as is, and two as a base and a change in alternate passes", () => {
+  expect(appsOf([])).toEqual([{ label: undefined, path: undefined }]);
+  expect(appsOf(["a.apk"])).toEqual([{ label: undefined, path: "a.apk" }]);
+  expect(appsOf(["a.apk", "b.apk"])).toEqual([
+    { label: "base", path: "a.apk" },
+    { label: "change", path: "b.apk" },
+  ]);
+});
+
+it("compares a change with its base per segment and quantity, and labels empty samples by app", () => {
+  const samples = [
+    { run: 1, app: "base", segment: "lapsed open", wallMs: 2600, responseMs: 300, doneMs: 330 },
+    { run: 1, app: "change", segment: "lapsed open", wallMs: 2500, responseMs: 240, doneMs: 240 },
+    { run: 2, app: "base", segment: "lapsed open", wallMs: 2600, responseMs: 320, doneMs: 360 },
+    { run: 2, app: "change", segment: "lapsed open", wallMs: 2500, responseMs: 260, doneMs: null },
+  ];
+
+  expect(comparison("ios", samples)).toEqual([
+    "ios lapsed open responseMs: base 300 (300 to 320), change 240 (240 to 260), change/base 0.80",
+    "ios lapsed open doneMs: base 330 (330 to 360), change 240 (240 to 240), change/base 0.73",
+  ]);
+  expect(summary("ios", samples)[0]).toMatch(/^ios base lapsed open: wallMs 2600/);
+  expect(emptyMeasurements("ios", samples)).toEqual(["ios pass 2 change lapsed open: no doneMs"]);
+});
+
+const ticking = (sizes: number[], stepMs: number) => {
+  let now = 0;
+  let read = 0;
+  return {
+    clock: { now: () => now },
+    readSize: () => {
+      const size = sizes[Math.min(read, sizes.length - 1)] ?? 0;
+      read += 1;
+      now += stepMs;
+      return size;
+    },
+  };
+};
+
+it("waits until the fake Trakt log stops growing before a measurement", async () => {
+  const { clock, readSize } = ticking([10, 20, 30, 30, 30, 30, 30], 100);
+  await waitForQuiet(readSize, { pollMs: 0, quietMs: 300, timeoutMs: 5000 }, "busy", clock);
+  expect(clock.now()).toBeGreaterThanOrEqual(600);
+});
+
+it("fails when the app keeps calling Trakt", async () => {
+  const sizes = Array.from({ length: 100 }, (_, index) => index);
+  const { clock, readSize } = ticking(sizes, 100);
+  await expect(
+    waitForQuiet(
+      readSize,
+      { pollMs: 0, quietMs: 300, timeoutMs: 2000 },
+      "the app was still calling Trakt",
+      clock,
+    ),
+  ).rejects.toThrow("the app was still calling Trakt after 2000 ms");
+});
+
+it("prepares the emulator for the probe the way the Android device lanes do", () => {
+  const lanes = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
+  const probe = readFileSync(repositoryPath("scripts/perf-probe-android.sh"), "utf8");
+  const setup = /^adb shell (settings put|wm |am broadcast).*$/gm;
+  const count = (text: string, line: string) =>
+    text.split("\n").filter((entry) => entry === line).length;
+  const short = [...new Set(lanes.match(setup) ?? [])].filter(
+    (line) => count(probe, line) < count(lanes, line),
+  );
+
+  expect(lanes.match(setup)?.length).toBeGreaterThan(0);
+  expect(short).toEqual([]);
+});
+
+it("waits on a count read asynchronously, such as the frames the Android UI has drawn", async () => {
+  const { clock, readSize } = ticking([0, 3, 7, 7, 7, 7, 7, 7], 100);
+  await waitForQuiet(
+    async () => readSize(),
+    { pollMs: 0, quietMs: 400, timeoutMs: 5000 },
+    "the app was still drawing",
+    clock,
+  );
+  expect(clock.now()).toBeGreaterThanOrEqual(700);
+});
+
+it("reads a frame the summary counted but the frame list lost from the summary's histogram", () => {
+  const lost = framestats(1, []).replace(
+    "HISTOGRAM: 5ms=60 6ms=20",
+    "HISTOGRAM: 5ms=0 6ms=0 101ms=1 150ms=0",
+  );
+
+  expect(frameStats(lost)).toMatchObject({ frames: 1, firstFramesMs: 101 });
+  expect(frameStats(framestats(4, []).replace("5ms=60 6ms=20", "5ms=4"))).toMatchObject({
+    firstFramesMs: null,
+  });
+});
+
+it("censors a change that had not reached the content by the end of the window", () => {
+  expect(changeTimes([], 0.3, { anywhere: [0.55, 1.07], windowEnd: 2.8 })).toEqual({
+    responseMs: ">2500",
+    doneMs: ">2500",
+  });
+  expect(changeTimes([], 0.3, { anywhere: [0.1], windowEnd: 2.8 })).toEqual({
+    responseMs: null,
+    doneMs: null,
+  });
+});
+
+it("ranks censored values above measured ones and bounds the ratio", () => {
+  const samples = [
+    { run: 1, app: "base", segment: "tab up-next>library", responseMs: ">2500" },
+    { run: 2, app: "base", segment: "tab up-next>library", responseMs: 900 },
+    { run: 3, app: "base", segment: "tab up-next>library", responseMs: ">2400" },
+    { run: 1, app: "change", segment: "tab up-next>library", responseMs: 750 },
+    { run: 2, app: "change", segment: "tab up-next>library", responseMs: 700 },
+    { run: 3, app: "change", segment: "tab up-next>library", responseMs: 800 },
+  ];
+
+  expect(comparison("ios", samples)).toEqual([
+    "ios tab up-next>library responseMs: base >2500 (900 to >2400), change 750 (700 to 800), change/base <0.30",
+  ]);
+  expect(emptyMeasurements("ios", samples)).toEqual([]);
+  expect(ratio(500, ">2000")).toBe(">4.00");
+  expect(ratio(">1", ">2")).toBe("n/a");
+});
+
+it("counts a change the recorder dated a frame or two before the command, as 0 ms", () => {
+  expect(changeTimes([0.29, 0.33], 0.31)).toEqual({ responseMs: 0, doneMs: 20 });
 });

@@ -8,9 +8,11 @@ name: Perf probe
 # Start a measurement by pushing a branch named perf-probe/<name> whose tree has this probe
 # and a file perf-probe/request.json:
 #
-#   { "run-id": 39611632421, "runs": 3, "platform": "both" }
+#   { "run-id": 39611632421, "compare-run-id": 39611700000, "runs": 3, "platform": "both" }
 #
-# run-id is the CI run whose mock-server apps to measure, runs the passes per platform (1 to
+# run-id is the CI run whose mock-server apps to measure, and the optional compare-run-id a
+# second run whose apps are measured on the same device in alternate passes, as the change
+# against run-id's base, so runner speed cancels out of the comparison; runs the passes per platform (1 to
 # 10, default 3) and platform one of both, android or ios (default both). The probe's
 # scripts and seed come from the pushed branch; the apps come from the run. When that run
 # reused the cached simulator app, its ios-harness-bundle artifact lasts one day, so measure
@@ -47,6 +49,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       run-id: ${{ steps.read.outputs.run-id }}
+      compare-run-id: ${{ steps.read.outputs.compare-run-id }}
       runs: ${{ steps.read.outputs.runs }}
       platform: ${{ steps.read.outputs.platform }}
     steps:
@@ -61,16 +64,18 @@ jobs:
           if [ "$GITHUB_EVENT_NAME" = push ]; then
             request=perf-probe/request.json
             run_id=$(jq -r '."run-id" // empty' "$request")
+            compare_run_id=$(jq -r '."compare-run-id" // empty' "$request")
             runs=$(jq -r '.runs // 3' "$request")
             platform=$(jq -r '.platform // "both"' "$request")
           else
-            run_id=$INPUT_RUN_ID runs=$INPUT_RUNS platform=$INPUT_PLATFORM
+            run_id=$INPUT_RUN_ID compare_run_id="" runs=$INPUT_RUNS platform=$INPUT_PLATFORM
           fi
           [[ $run_id =~ ^[0-9]+$ ]] || { echo "run-id must be a CI run ID, got '$run_id'" >&2; exit 1; }
+          [[ -z $compare_run_id || $compare_run_id =~ ^[0-9]+$ ]] || { echo "compare-run-id must be a CI run ID, got '$compare_run_id'" >&2; exit 1; }
           [[ $runs =~ ^([1-9]|10)$ ]] || { echo "runs must be 1 to 10, got '$runs'" >&2; exit 1; }
           [[ $platform =~ ^(both|android|ios)$ ]] || { echo "platform must be both, android or ios, got '$platform'" >&2; exit 1; }
-          printf 'run-id=%s\nruns=%s\nplatform=%s\n' "$run_id" "$runs" "$platform" >> "$GITHUB_OUTPUT"
-          echo "Measuring run $run_id, $runs passes, platform $platform" >> "$GITHUB_STEP_SUMMARY"
+          printf 'run-id=%s\ncompare-run-id=%s\nruns=%s\nplatform=%s\n' "$run_id" "$compare_run_id" "$runs" "$platform" >> "$GITHUB_OUTPUT"
+          echo "Measuring run $run_id${compare_run_id:+ against run $compare_run_id}, $runs passes, platform $platform" >> "$GITHUB_STEP_SUMMARY"
   android:
     needs: request
     if: needs.request.outputs.platform != 'ios'
@@ -97,11 +102,17 @@ jobs:
           unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP"
           echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
           command -v ffmpeg || { sudo apt-get update -q && sudo apt-get install -yq ffmpeg; }
-      - name: Fetch the run's Android app
+      - name: Fetch the runs' Android apps
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ needs.request.outputs.run-id }}
-        run: scripts/perf-probe-app.sh android "$RUN_ID" "$RUNNER_TEMP/app"
+          COMPARE_RUN_ID: ${{ needs.request.outputs.compare-run-id }}
+        run: |
+          scripts/perf-probe-app.sh android "$RUN_ID" "$RUNNER_TEMP/app"
+          if [ -n "$COMPARE_RUN_ID" ]; then
+            scripts/perf-probe-app.sh android "$COMPARE_RUN_ID" "$RUNNER_TEMP/compare-app"
+            echo "COMPARE_APK=$RUNNER_TEMP/compare-app/universal.apk" >> "$GITHUB_ENV"
+          fi
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
@@ -119,11 +130,12 @@ jobs:
           profile: pixel_7_pro
           disable-animations: false
           emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
-          script: bash scripts/perf-probe-android.sh "$RUNNER_TEMP/app/universal.apk" "$RUNNER_TEMP/perf" "$RUNS"
+          script: bash scripts/perf-probe-android.sh "$RUNNER_TEMP/perf" "$RUNS" "$RUNNER_TEMP/app/universal.apk" $COMPARE_APK
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ always() }}
         with:
           name: perf-probe-android
+          include-hidden-files: true
           path: ${{ runner.temp }}/perf
           retention-days: 30
   ios:
@@ -146,11 +158,17 @@ jobs:
           scripts/disable-ios-daemons.sh "$device_id"
           xcrun simctl boot "$device_id"
           echo "DEVICE_ID=$device_id" >> "$GITHUB_ENV"
-      - name: Fetch the run's simulator app
+      - name: Fetch the runs' simulator apps
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ needs.request.outputs.run-id }}
-        run: scripts/perf-probe-app.sh ios "$RUN_ID" "$RUNNER_TEMP/app"
+          COMPARE_RUN_ID: ${{ needs.request.outputs.compare-run-id }}
+        run: |
+          scripts/perf-probe-app.sh ios "$RUN_ID" "$RUNNER_TEMP/app"
+          if [ -n "$COMPARE_RUN_ID" ]; then
+            scripts/perf-probe-app.sh ios "$COMPARE_RUN_ID" "$RUNNER_TEMP/compare-app"
+            echo "COMPARE_APP=$RUNNER_TEMP/compare-app/Cue.app" >> "$GITHUB_ENV"
+          fi
       - id: runner-key
         name: Key the Maestro runner the way CI does
         run: echo "key=$(scripts/build-maestro-runner.sh key)" >> "$GITHUB_OUTPUT"
@@ -183,11 +201,18 @@ jobs:
       - name: Run the probe
         env:
           RUNS: ${{ needs.request.outputs.runs }}
-        run: node scripts/perf-probe.mjs ios "$RUNNER_TEMP/perf" "$RUNS" "$DEVICE_ID"
+          PERF_MOCK_LOG: ${{ runner.temp }}/mock-trakt.log
+        run: |
+          if [ -n "${COMPARE_APP:-}" ]; then
+            node scripts/perf-probe.mjs ios "$RUNNER_TEMP/perf" "$RUNS" "$RUNNER_TEMP/app/Cue.app" "$COMPARE_APP"
+          else
+            node scripts/perf-probe.mjs ios "$RUNNER_TEMP/perf" "$RUNS"
+          fi
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ always() }}
         with:
           name: perf-probe-ios
+          include-hidden-files: true
           path: |
             ${{ runner.temp }}/perf
             ${{ runner.temp }}/mock-trakt.log

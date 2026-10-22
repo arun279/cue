@@ -23,6 +23,8 @@
       "!**/test-results",
       // Recorded and reduced from a real Trakt account by a script; kept minified.
       "!packages/core/test/harness/trakt-real-shapes.json",
+      // The runner's view hierarchy as recorded from a CI simulator; kept minified.
+      "!test/ci/fixtures/simulator-touch/up-next-hierarchy.json",
       "!ios",
       "!android"
     ]

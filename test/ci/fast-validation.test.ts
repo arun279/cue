@@ -354,6 +354,12 @@ describe("fast pull request validation", () => {
       "emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim\n",
     );
     expect(emulators[0]).not.toContain("force-avd-creation");
+    expect(emulators[0]).toContain(
+      'pre-emulator-launch-script: node scripts/android-host.mjs snapshot "$RUNNER_TEMP/android-ui/host-before.json" && adb start-server\n',
+    );
+    expect(verification).toContain(
+      'node scripts/android-host.mjs report "$output/host-before.json"',
+    );
     expect(verification).toMatch(
       /wm density reset\nnode scripts\/pin-android-display\.mjs "\$output\/window-displays\.txt"\n\nmock_pid=/,
     );

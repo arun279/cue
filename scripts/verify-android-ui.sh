@@ -14,9 +14,13 @@ finish() {
   adb logcat -d -v threadtime > "$output/logcat.txt" || true
   adb exec-out screencap -p > "$output/last-state.png" || true
   if [ -n "$mock_pid" ]; then kill "$mock_pid" || true; fi
+  node scripts/android-host.mjs snapshot "$output/host-after.json" || true
+  node scripts/android-host.mjs report "$output/host-before.json" "$output/host-after.json" \
+    | tee -a "$GITHUB_STEP_SUMMARY" || true
 }
 trap finish EXIT
 
+echo "Emulator up $(adb shell cat /proc/uptime | cut -d ' ' -f 1) s when the run began" | tee -a "$GITHUB_STEP_SUMMARY"
 adb shell settings put global hide_error_dialogs 1
 adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS
 adb shell settings put system font_scale 1.0
