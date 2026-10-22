@@ -2,6 +2,7 @@
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import ts from "typescript";
 import { parseAllDocuments } from "yaml";
 import { HARNESS_IDS } from "../src/ui/harness-ids";
@@ -398,6 +399,43 @@ it("centres every Settings control it scrolls to and waits for the scroll to set
     parseAllDocuments(readFileSync(file, "utf8"))
       .flatMap((document) => commandLists(document.toJS()))
       .flatMap(unsettledScrollTaps)
+      .map((id) => `${relative(flowsDirectory, file)}: ${id}`),
+  );
+
+  expect(taps).toEqual([]);
+});
+
+const MEDIA_SWITCHES: Readonly<Record<string, string>> = {
+  [TEST_IDS.settingsMovies]: TEST_IDS.settingsShows,
+  [TEST_IDS.settingsShows]: TEST_IDS.settingsMovies,
+};
+
+/** A tapped switch's own value flips natively at the touch, while the other media switch is
+ * enabled or disabled by the app from the preference, so only the other one proves the change
+ * landed before the flow moves on. The tapped switch then has to report the matching on or off,
+ * which is what a screen reader announces. */
+function unconfirmedMediaTaps(commands: Command[]): string[] {
+  return commands.flatMap((command, index) => {
+    const id = targetOf(command, "tapOn");
+    const other = typeof id === "string" ? MEDIA_SWITCHES[id] : undefined;
+    if (other === undefined) return [];
+    const { enabled } = (commands[index + 1]?.["assertVisible"] ?? {}) as { enabled?: unknown };
+    const expected = [
+      { assertVisible: { id: other, enabled } },
+      { assertVisible: { id, checked: enabled } },
+    ];
+    const confirmed =
+      typeof enabled === "boolean" &&
+      isDeepStrictEqual(commands.slice(index + 1, index + 3), expected);
+    return confirmed ? [] : [String(id)];
+  });
+}
+
+it("waits for the app to apply every media switch tap, then checks the switch reports it", () => {
+  const taps = yamlFiles(flowsDirectory).flatMap((file) =>
+    parseAllDocuments(readFileSync(file, "utf8"))
+      .flatMap((document) => commandLists(document.toJS()))
+      .flatMap(unconfirmedMediaTaps)
       .map((id) => `${relative(flowsDirectory, file)}: ${id}`),
   );
 

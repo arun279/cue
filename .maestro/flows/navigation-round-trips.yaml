@@ -90,6 +90,9 @@ appId: app.cuetracker
 - tapOn:
     id: "switch-shows"
 - assertVisible:
+    id: "switch-movies"
+    enabled: false
+- assertVisible:
     id: "switch-shows"
     checked: false
 - runFlow:
@@ -109,6 +112,9 @@ appId: app.cuetracker
 - runFlow: lib/settle-scroll.yaml
 - tapOn:
     id: "switch-shows"
+- assertVisible:
+    id: "switch-movies"
+    enabled: true
 - assertVisible:
     id: "switch-shows"
     checked: true
