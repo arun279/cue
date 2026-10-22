@@ -62,7 +62,7 @@ function profiled(tab: string, screenFile: string): () => ReactElement {
 const onIos = Platform.OS === "ios" ? it : it.skip;
 
 onIos(
-  "commits no tab screen when a tab is selected on the native tab bar",
+  "mounts each tab on its first selection and commits no tab screen on any switch after that",
   async () => {
     // expo-router's testing mocks replace Reanimated with a stand-in that lacks this hook.
     const reanimated = require("react-native-reanimated");
@@ -87,23 +87,29 @@ onIos(
       ),
     });
     await act(async () => {});
-    expect(TABS.every(([tab]) => commits.includes(`${tab} mount`))).toBe(true);
+    const mounted = () =>
+      TABS.filter(([tab]) => commits.includes(`${tab} mount`)).map(([tab]) => tab);
+    expect(mounted()).toEqual(["(up-next)"]);
 
     const host = () =>
       screen.container.queryAll((node) => node.props["onTabSelected"] !== undefined)[0];
     const keys = screen.container
       .queryAll((node) => typeof node.props["screenKey"] === "string")
       .map((node) => String(node.props["screenKey"]));
-    commits.length = 0;
     let provenance = 0;
-    for (const key of [...keys.slice(1), keys[0], ...keys.slice(1), keys[0]]) {
+    const select = async (key: string | undefined) => {
       provenance += 1;
       await act(async () =>
         host()?.props["onTabSelected"]({
           nativeEvent: { selectedScreenKey: key, provenance, actionOrigin: "user" },
         }),
       );
-    }
+    };
+    for (const key of [...keys.slice(1), keys[0]]) await select(key);
+    expect(mounted()).toEqual(TABS.map(([tab]) => tab));
+
+    commits.length = 0;
+    for (const key of [...keys.slice(1), keys[0], ...keys.slice(1), keys[0]]) await select(key);
 
     expect(host()?.props["navStateRequest"]?.selectedScreenKey).toBe(keys[0]);
     expect(commits).toEqual([]);
