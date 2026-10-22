@@ -1,10 +1,14 @@
-import { execFileSync, spawnSync } from "node:child_process";
-import { writeFileSync } from "node:fs";
-import path from "node:path";
+import { spawnSync } from "node:child_process";
 import { expect, it } from "vitest";
+import { fakeBin } from "../support/fake-bin";
 import { gitEnv } from "../support/git-env";
+import { gitHistory } from "../support/git-history";
 import { repositoryPath } from "../support/repository-path";
-import { tempDirectory } from "../support/temp-directory";
+
+const bin = fakeBin({
+  pnpm: '#!/bin/sh\nexit "$AUDIT_STATUS"\n',
+  node: '#!/bin/sh\nexit "$IGNORES_STATUS"\n',
+});
 
 type Audit = {
   audit?: number;
@@ -18,33 +22,26 @@ function audit(
   event: string,
   { audit = 1, ignores = 0, changed = "README.md", pushed, later }: Audit,
 ) {
-  const repository = tempDirectory("cue-audit-repo-");
-  const bin = tempDirectory("cue-audit-bin-");
-  const git = (...args: string[]) =>
-    execFileSync("git", args, { cwd: repository, encoding: "utf8", env: gitEnv() }).trim();
-  const commit = (file: string, content: string) => {
-    writeFileSync(path.join(repository, file), content);
-    git("add", file);
-    git("commit", "--quiet", "-m", file);
-    return git("rev-parse", "HEAD");
-  };
-  git("init", "--quiet", "--initial-branch=main");
-  git("config", "user.name", "Cue Tests");
-  git("config", "user.email", "cue-tests@example.invalid");
-  commit("pnpm-lock.yaml", "lock: 1\n");
-  commit("pnpm-workspace.yaml", "packages: []\n");
-  const before = commit("README.md", "base\n");
-  commit(changed, "head\n");
-  if (later) commit("README.md", "later\n");
-  writeFileSync(path.join(bin, "pnpm"), `#!/bin/sh\nexit ${audit}\n`, { mode: 0o755 });
-  writeFileSync(path.join(bin, "node"), `#!/bin/sh\nexit ${ignores}\n`, { mode: 0o755 });
+  const { repository, shas } = gitHistory([
+    { "pnpm-lock.yaml": "lock: 1\n" },
+    { "pnpm-workspace.yaml": "packages: []\n" },
+    { "README.md": "base\n" },
+    { [changed]: "head\n" },
+    ...(later ? [{ "README.md": "later\n" }] : []),
+  ]);
+  const before = shas[2] ?? "";
   return spawnSync(
     "bash",
     [repositoryPath("scripts/audit-dependencies.sh"), event, ...(pushed ? [before] : [])],
     {
       cwd: repository,
       encoding: "utf8",
-      env: { ...gitEnv(), PATH: `${bin}:${process.env["PATH"]}` },
+      env: {
+        ...gitEnv(),
+        PATH: `${bin}:${process.env["PATH"]}`,
+        AUDIT_STATUS: String(audit),
+        IGNORES_STATUS: String(ignores),
+      },
     },
   );
 }

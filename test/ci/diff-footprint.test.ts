@@ -1,10 +1,10 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { gitEnv } from "../support/git-env";
+import { gitHistory } from "../support/git-history";
 import { repositoryPath } from "../support/repository-path";
-import { tempDirectory } from "../support/temp-directory";
 
 const SCRIPT = repositoryPath("scripts/diff-footprint.sh");
 const SIZE_NAMES = [
@@ -20,29 +20,10 @@ const write = (repository: string, file: string, contents: string): void => {
   writeFileSync(target, contents);
 };
 
-const git = (repository: string, ...args: string[]): void => {
-  execFileSync("git", args, { cwd: repository, stdio: "ignore", env: gitEnv() });
-};
-
 const commits = (
   base: Readonly<Record<string, string>>,
   head: Readonly<Record<string, string | null>>,
-): string => {
-  const repository = tempDirectory("cue-diff-footprint-");
-  git(repository, "init", "--quiet");
-  git(repository, "config", "user.name", "Cue Tests");
-  git(repository, "config", "user.email", "cue-tests@example.invalid");
-  for (const [file, contents] of Object.entries(base)) write(repository, file, contents);
-  git(repository, "add", ".");
-  git(repository, "commit", "--quiet", "-m", "base");
-  for (const [file, contents] of Object.entries(head)) {
-    if (contents === null) rmSync(path.join(repository, file));
-    else write(repository, file, contents);
-  }
-  git(repository, "add", "-A");
-  git(repository, "commit", "--quiet", "-m", "head");
-  return repository;
-};
+): string => gitHistory([base, head]).repository;
 
 const repositoryWithGrowth = (): string =>
   commits(

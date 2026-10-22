@@ -1,5 +1,6 @@
 import type { ShowIds } from "../model/ids";
 import { isAired } from "../time";
+import { additiveItemKey } from "./ops";
 import type { QueuedOp } from "./types";
 
 // Trakt paginates at most 100 items per page.
@@ -48,7 +49,7 @@ export function buildBulkMarkOps(
     const key = `show:${target.showIds.trakt}:bulk:${hashSeasons(seasons)}`;
     return {
       id,
-      itemKey: target.additive === true ? `${key}:add:${id}` : key,
+      itemKey: target.additive === true ? additiveItemKey(key, id) : key,
       request: {
         method: "POST",
         path: HISTORY,

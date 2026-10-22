@@ -77,6 +77,12 @@ function inspect(source, text) {
   }
 }
 
+function printHealth({ lines, warning, notice }) {
+  for (const line of lines) process.stdout.write(`Lane health: ${line}\n`);
+  if (warning) process.stdout.write(`::warning title=Lane health::${warning}\n`);
+  if (notice) process.stdout.write(`::notice title=Simulator touch cancel::${notice}\n`);
+}
+
 const health =
   process.env.DEVICE_ID && healthDirectory
     ? laneHealth({ device: process.env.DEVICE_ID, directory: healthDirectory })
@@ -106,8 +112,7 @@ child.on("close", async (code, signal) => {
   const report = await health
     ?.stop()
     .catch((error) => ({ lines: [`unavailable: ${error.message}`], warning: undefined }));
-  for (const line of report?.lines ?? []) process.stdout.write(`Lane health: ${line}\n`);
-  if (report?.warning) process.stdout.write(`::warning title=Lane health::${report.warning}\n`);
+  if (report !== undefined) printHealth(report);
 });
 for (const [signal, code] of [
   ["SIGINT", 130],

@@ -47,6 +47,8 @@ export function useMonthJumpSheetOptions(): NativeStackNavigationOptions {
   };
 }
 
+export const HEADER_TINT = "accentInk";
+
 export const barOptions: NativeStackNavigationOptions =
   Platform.OS === "android" ? { headerShadowVisible: false } : {};
 
@@ -59,7 +61,7 @@ export function useNavigationTheme(): Theme {
     ...base,
     colors: {
       ...base.colors,
-      primary: PALETTE.accentInk[scheme],
+      primary: PALETTE[HEADER_TINT][scheme],
       background: PALETTE.bg[scheme],
       card: PALETTE.bg[scheme],
       text: PALETTE.fg[scheme],
