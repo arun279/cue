@@ -7,5 +7,6 @@ export const HARNESS_IDS = {
   appReady: "app-ready",
   onboardingReady: "onboarding-ready",
   pressTrace: "press-trace",
+  pullTrace: "pull-trace",
   snackbarTrace: "snackbar-trace",
 } as const;
