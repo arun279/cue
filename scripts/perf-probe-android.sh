@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # Prepares the booted emulator the way the Android device lanes do, with animations left on,
 # signs in with Maestro, stops Maestro's driver so nothing reads the app's views while it is
-# measured, and runs the performance probe. Usage: perf-probe-android.sh <apk> <output directory> <runs>
+# measured, and runs the performance probe on one APK, or on a base and a changed APK in
+# alternate passes. Usage: perf-probe-android.sh <output directory> <runs> <apk> [changed apk]
 set -euo pipefail
 
-apk=$1
-output=$2
-runs=$3
+output=$1
+runs=$2
+shift 2
 mkdir -p "$output"
 mock_pid=""
 finish() {
@@ -23,8 +24,12 @@ bash scripts/pin-android-display.sh "$output/window-displays.txt"
 mock_pid=$(node scripts/start-ready-process.mjs scripts/mock-trakt/server.mjs "$output/mock-trakt.log")
 adb reverse tcp:8787 tcp:8787
 adb reverse tcp:8790 tcp:8790
-bash scripts/verify-android-launch.sh "$apk" "$output/logcat.txt"
+bash scripts/verify-android-launch.sh "$1" "$output/logcat.txt"
 bash scripts/maestro-test.sh test .maestro/perf/sign-in.yaml --debug-output "$output/maestro-sign-in"
 adb shell am force-stop dev.mobile.maestro
 adb shell am force-stop dev.mobile.maestro.test
-node scripts/perf-probe.mjs android "$output" "$runs"
+if [ "$#" -gt 1 ]; then
+  node scripts/perf-probe.mjs android "$output" "$runs" "$@"
+else
+  node scripts/perf-probe.mjs android "$output" "$runs"
+fi

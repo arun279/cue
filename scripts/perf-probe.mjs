@@ -13,7 +13,9 @@
 // overdraw, and cold start (am start -W) as adb installed the app, verified the way a Play
 // install without a profile is, and compiled from the profile the passes collected. iOS adds
 // the app's resident memory. No number gates anything.
-// Usage: perf-probe.mjs <ios|android> <output directory> <runs> [simulator]
+// With two apps, the base and a change, it measures them in alternate passes on the same device
+// and adds a line per quantity comparing their medians, so the runner's speed cancels out.
+// Usage: DEVICE_ID=<simulator> perf-probe.mjs <ios|android> <output directory> <runs> [base app] [changed app]
 import { execFile, spawn } from "node:child_process";
 import { appendFileSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
@@ -36,6 +38,8 @@ const number = (pattern, text) => {
   return match === null ? null : Number(match[1]);
 };
 
+// FrameInfoFlags::SkippedFrame in hwui's FrameInfo.h.
+const SKIPPED_FRAME = 1 << 3;
 const nsToMs = (ns) => Math.round(ns / 100_000) / 10;
 
 /** Per-frame rows of `dumpsys gfxinfo <package> framestats`, keyed by column name. */
@@ -49,12 +53,13 @@ function frameRows(text) {
 
 /**
  * The slowest of the first three frames since the reset, and the slowest layout among them.
- * Unknown when the platform has already dropped them from its 120-frame window, and frames
- * the platform flags as unreliable do not count.
+ * Unknown when the platform has already dropped them from its 120-frame window. Only frames
+ * hwui marks as skipped, whose timestamps are garbage, are left out; a frame that follows a
+ * window change is slow by nature, and it is the frame a user waits on.
  */
 function firstFrames(rows, rendered) {
   const first = rows
-    .filter((frame) => frame.Flags === 0)
+    .filter((frame) => (frame.Flags & SKIPPED_FRAME) === 0)
     .sort((a, b) => a.IntendedVsync - b.IntendedVsync)
     .slice(0, 3);
   if (first.length === 0 || rendered > rows.length)
@@ -161,7 +166,7 @@ export function emptyMeasurements(platform, samples) {
     const fields = missing(sample);
     return fields.length === 0
       ? []
-      : [`${platform} pass ${sample.run} ${sample.segment}: no ${fields.join(", ")}`];
+      : [`${platform} pass ${sample.run} ${labelOf(sample)}: no ${fields.join(", ")}`];
   });
 }
 
@@ -192,16 +197,43 @@ const spread = (values) => {
 };
 
 /** One line per segment: each quantity's median over runs and the range it came from. */
+const labelOf = (sample) => [sample.app, sample.segment].filter(Boolean).join(" ");
+
+const valuesOf = (entries, field) => entries.map((entry) => entry[field] ?? null);
+
+/** One line per app and segment: each quantity's median over runs and the range it came from. */
 export function summary(platform, samples) {
-  return [...Map.groupBy(samples, (sample) => sample.segment)].map(([segment, entries]) => {
+  return [...Map.groupBy(samples, labelOf)].map(([label, entries]) => {
     const fields = [...new Set(entries.flatMap(Object.keys))].filter(
-      (key) => key !== "segment" && key !== "run",
+      (key) => !["segment", "run", "app"].includes(key),
     );
     const parts = fields.map((field) => {
-      const values = entries.map((entry) => entry[field] ?? null);
+      const values = valuesOf(entries, field);
       return `${field} ${median(values)} (${spread(values)})`;
     });
-    return `${platform} ${segment}: ${parts.join(", ")} over ${entries.length} runs`;
+    return `${platform} ${label}: ${parts.join(", ")} over ${entries.length} runs`;
+  });
+}
+
+/** For two apps measured in the same job: each quantity's median for both and their ratio. */
+export function comparison(platform, samples) {
+  const bySegment = Map.groupBy(
+    samples.filter((sample) => sample.app !== undefined),
+    (sample) => sample.segment,
+  );
+  return [...bySegment].flatMap(([segment, entries]) => {
+    const base = entries.filter((entry) => entry.app === "base");
+    const change = entries.filter((entry) => entry.app === "change");
+    if (base.length === 0 || change.length === 0) return [];
+    const fields = [...new Set(entries.flatMap(Object.keys))].filter(
+      (key) => !["segment", "run", "app", "wallMs"].includes(key),
+    );
+    return fields.map((field) => {
+      const [before, after] = [median(valuesOf(base, field)), median(valuesOf(change, field))];
+      const ratio =
+        before === null || after === null || before === 0 ? "n/a" : (after / before).toFixed(2);
+      return `${platform} ${segment} ${field}: base ${before} (${spread(valuesOf(base, field))}), change ${after} (${spread(valuesOf(change, field))}), change/base ${ratio}`;
+    });
   });
 }
 
@@ -424,6 +456,7 @@ function androidProbe(directory) {
     recorder: androidRecorder(),
     stop: stopAndroidApp,
     start: () => startAndroidApp("launch"),
+    install: (apk) => adb("install", "-r", apk),
     driverAttached: async () =>
       (
         await shell("pidof", "dev.mobile.maestro", "dev.mobile.maestro.test").catch(() => "")
@@ -469,6 +502,7 @@ function iosProbe(device) {
   return {
     recorder: iosRecorder(device),
     stop: () => simctl("terminate").catch(() => undefined),
+    install: (app) => run("xcrun", ["simctl", "install", device, app], BUFFER),
     start: async () => {
       await simctl("launch");
       return { segment: "launch" };
@@ -488,10 +522,13 @@ function iosProbe(device) {
 }
 
 /** Records one segment while the app performs its command, keeping the first pass's videos. */
-async function measure(probe, channel, directory, runIndex, step) {
+async function measure(probe, channel, directory, runIndex, step, app) {
   for (const line of step.setup ?? []) await command(channel, line);
   if (step.setup !== undefined) await pause(SETTLE_MS);
-  const video = path.join(directory, `run-${runIndex}-${fileName(step.segment)}.mp4`);
+  const video = path.join(
+    directory,
+    `run-${runIndex}-${fileName([app, step.segment].filter(Boolean).join(" "))}.mp4`,
+  );
   await probe.reset();
   await probe.recorder.start(video);
   const recordingAt = Date.now();
@@ -512,7 +549,7 @@ async function measure(probe, channel, directory, runIndex, step) {
   };
 }
 
-async function pass(probe, channel, directory, runIndex) {
+async function pass(probe, channel, directory, runIndex, app) {
   await fetch(`${MOCK}/__reset?seed=scale`, { method: "POST" });
   const samples = [{ run: runIndex, ...(await launched(probe, channel)) }];
   const pending = [];
@@ -521,13 +558,13 @@ async function pass(probe, channel, directory, runIndex) {
       samples.push({ run: runIndex, segment: `memory ${step.memory}`, ...(await probe.memory()) });
       continue;
     }
-    pending.push((await measure(probe, channel, directory, runIndex, step)).analysis);
+    pending.push((await measure(probe, channel, directory, runIndex, step, app)).analysis);
   }
   return [...samples, ...(await Promise.all(pending))];
 }
 
 function report(platform, directory, samples, failures) {
-  const lines = [...summary(platform, samples), ...failures];
+  const lines = [...summary(platform, samples), ...comparison(platform, samples), ...failures];
   writeFileSync(
     path.join(directory, `perf-${platform}.json`),
     `${JSON.stringify(samples, null, 2)}\n`,
@@ -540,14 +577,42 @@ function report(platform, directory, samples, failures) {
   }
 }
 
-async function main() {
-  const [platform, directory, runsArgument = "3", device] = process.argv.slice(2);
-  if (platform !== "ios" && platform !== "android") {
-    throw new Error("usage: perf-probe.mjs <ios|android> <output directory> <runs> [simulator]");
+/** Apps to measure by label: one app, or a base and a change measured in alternate passes. */
+export function appsOf(paths) {
+  if (paths.length === 0) return [{ label: undefined, path: undefined }];
+  if (paths.length === 1) return [{ label: undefined, path: paths[0] }];
+  return [
+    { label: "base", path: paths[0] },
+    { label: "change", path: paths[1] },
+  ];
+}
+
+const tagged = (app, samples) => samples.map((sample) => ({ ...sample, app }));
+
+async function measureApps(probe, channel, directory, runs, apps) {
+  const samples = [];
+  for (let index = 1; index <= runs; index += 1) {
+    for (const app of apps) {
+      if (apps.length > 1) await probe.install(app.path);
+      samples.push(...tagged(app.label, await pass(probe, channel, directory, index, app.label)));
+    }
   }
-  const runs = Number(runsArgument);
+  for (const app of apps) {
+    if (apps.length > 1) await probe.install(app.path);
+    samples.push(...tagged(app.label, await probe.after(channel, runs)));
+  }
+  return samples;
+}
+
+async function main() {
+  const [platform, directory, runsArgument = "3", ...paths] = process.argv.slice(2);
+  if (platform !== "ios" && platform !== "android") {
+    throw new Error(
+      "usage: perf-probe.mjs <ios|android> <output directory> <runs> [base app] [changed app]",
+    );
+  }
   mkdirSync(directory, { recursive: true });
-  const probe = platform === "android" ? androidProbe(directory) : iosProbe(device);
+  const probe = platform === "android" ? androidProbe(directory) : iosProbe(process.env.DEVICE_ID);
   if (await probe.driverAttached())
     throw new Error("a test driver is still running; stop it first");
   const channel = createChannel();
@@ -555,9 +620,9 @@ async function main() {
   const samples = [];
   const failures = [];
   try {
-    for (let index = 1; index <= runs; index += 1)
-      samples.push(...(await pass(probe, channel, directory, index)));
-    samples.push(...(await probe.after(channel, runs)));
+    samples.push(
+      ...(await measureApps(probe, channel, directory, Number(runsArgument), appsOf(paths))),
+    );
   } catch (error) {
     failures.push(`stopped: ${error.message}`);
   }

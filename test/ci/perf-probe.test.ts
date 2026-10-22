@@ -12,8 +12,10 @@ import {
   watchlistBody,
 } from "../../scripts/mock-trakt/seed.mjs";
 import {
+  appsOf,
   changeTimes,
   coldStartOf,
+  comparison,
   createChannel,
   emptyMeasurements,
   frameStats,
@@ -94,16 +96,23 @@ it("reports a missing gfxinfo field as unknown rather than zero", () => {
   expect(frameStats("No process found for: app.cuetracker").frames).toBeNull();
 });
 
-it("takes the slowest of the first three reliable frames after a reset, and its layout", () => {
+it("takes the slowest of the first three frames after a reset and its layout, leaving out skipped frames", () => {
   const rows = [
     frame(0, 1032, 1, 9),
     frame(0, 1000, 2, 12),
-    frame(1, 1010, 30, 90),
-    frame(0, 1016, 18, 48.5),
+    frame(8, 1010, 30, 90),
+    frame(1, 1016, 18, 48.5),
     frame(0, 1048, 40, 80),
   ];
 
   expect(frameStats(framestats(5, rows))).toMatchObject({ firstFramesMs: 48.5, firstLayoutMs: 18 });
+});
+
+it("counts the single frame that follows a window change, as when the lapsed section closes", () => {
+  expect(frameStats(framestats(1, [frame(1, 1000, 3, 21.7)]))).toMatchObject({
+    firstFramesMs: 21.7,
+    firstLayoutMs: 3,
+  });
 });
 
 it("leaves the first frames unknown once the 120-frame window has dropped them", () => {
@@ -430,4 +439,29 @@ it("removes perf channel registrations from store builds and keeps them in harne
   expect(harness).toMatch(/usePerfCommand\)?\("lapsed"/);
   expect(harness).toMatch(/usePerfScroll\)?\("history"/);
   expect(harness).toContain("./harness");
+});
+
+it("measures one app as is, and two as a base and a change in alternate passes", () => {
+  expect(appsOf([])).toEqual([{ label: undefined, path: undefined }]);
+  expect(appsOf(["a.apk"])).toEqual([{ label: undefined, path: "a.apk" }]);
+  expect(appsOf(["a.apk", "b.apk"])).toEqual([
+    { label: "base", path: "a.apk" },
+    { label: "change", path: "b.apk" },
+  ]);
+});
+
+it("compares a change with its base per segment and quantity, and labels empty samples by app", () => {
+  const samples = [
+    { run: 1, app: "base", segment: "lapsed open", wallMs: 2600, responseMs: 300, doneMs: 330 },
+    { run: 1, app: "change", segment: "lapsed open", wallMs: 2500, responseMs: 240, doneMs: 240 },
+    { run: 2, app: "base", segment: "lapsed open", wallMs: 2600, responseMs: 320, doneMs: 360 },
+    { run: 2, app: "change", segment: "lapsed open", wallMs: 2500, responseMs: 260, doneMs: null },
+  ];
+
+  expect(comparison("ios", samples)).toEqual([
+    "ios lapsed open responseMs: base 300 (300 to 320), change 240 (240 to 260), change/base 0.80",
+    "ios lapsed open doneMs: base 330 (330 to 360), change 240 (240 to 240), change/base 0.73",
+  ]);
+  expect(summary("ios", samples)[0]).toMatch(/^ios base lapsed open: wallMs 2600/);
+  expect(emptyMeasurements("ios", samples)).toEqual(["ios pass 2 change lapsed open: no doneMs"]);
 });
