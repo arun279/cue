@@ -51,6 +51,7 @@ import { useNavigationTheme } from "../src/ui/navigation-theme";
 import { SnackbarHost } from "../src/ui/SnackbarHost";
 import { TEST_IDS } from "../src/ui/test-ids";
 import { useFontsSettled } from "../src/ui/type";
+import { useWindowBackground } from "../src/ui/useWindowBackground";
 
 void SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -158,6 +159,7 @@ export default function RootLayout(): ReactElement {
   const fontsSettled = useFontsSettled();
   const navigationTheme = useNavigationTheme();
   useAppearance(prefsStore);
+  useWindowBackground();
 
   if (session === null || !fontsSettled) return <Marker testID={TEST_IDS.bootHold} />;
 

@@ -29,10 +29,9 @@ import { DetailHero } from "./show-detail/ShowHero";
 
 export function MovieDetail({ movieId }: { readonly movieId: number }): ReactElement {
   const enabled = usePrefs((state) => state.moviesEnabled);
-  const colors = useColors();
   const router = useRouter();
   return (
-    <View testID={TEST_IDS.screenMovieDetail} style={{ flex: 1, backgroundColor: colors.bg }}>
+    <View testID={TEST_IDS.screenMovieDetail} style={styles.screen}>
       {enabled ? (
         <MovieContent key={movieId} movieId={movieId} />
       ) : (
@@ -150,5 +149,6 @@ function LoadedMovie({ header }: { readonly header: MovieHeader }): ReactElement
 }
 
 const styles = StyleSheet.create({
+  screen: { flex: 1 },
   body: { paddingHorizontal: SPACE.s4, gap: SPACE.s2 },
 });

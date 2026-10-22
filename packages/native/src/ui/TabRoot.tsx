@@ -1,6 +1,5 @@
 import type { ReactElement, ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
-import { useColors } from "./tokens";
 
 export function TabRoot({
   testID,
@@ -9,10 +8,9 @@ export function TabRoot({
   readonly testID: string;
   readonly children: ReactNode;
 }): ReactElement {
-  const colors = useColors();
-  // react-native-screens finds the scroll view through the first child view, and React Native flattens a background-only view.
+  // react-native-screens finds the scroll view through the first child view, which must not be flattened away.
   return (
-    <View collapsable={false} testID={testID} style={[styles.root, { backgroundColor: colors.bg }]}>
+    <View collapsable={false} testID={testID} style={styles.root}>
       {children}
     </View>
   );

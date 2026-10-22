@@ -15,7 +15,6 @@ export function AccountScreen({
   readonly testID: string;
   readonly children: ReactNode;
 }): ReactElement {
-  const colors = useColors();
   const insets = useSafeAreaInsets();
   const scroll = useScrollAcknowledgment();
   return (
@@ -24,7 +23,6 @@ export function AccountScreen({
         {...scroll.handlers}
         testID={testID}
         contentInsetAdjustmentBehavior="automatic"
-        style={{ backgroundColor: colors.bg }}
         contentContainerStyle={{
           padding: SPACE.s4,
           paddingBottom: insets.bottom + SPACE.s5,

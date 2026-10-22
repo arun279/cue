@@ -26,12 +26,8 @@ import { useShowDetail } from "./show-detail/useShowDetail";
 
 export function ShowDetail({ showId }: { readonly showId: number }): ReactElement {
   const enabled = usePrefs((state) => state.showsEnabled);
-  const colors = useColors();
   return (
-    <View
-      testID={TEST_IDS.screenShowDetail}
-      style={[styles.screen, { backgroundColor: colors.bg }]}
-    >
+    <View testID={TEST_IDS.screenShowDetail} style={styles.screen}>
       {enabled ? <ShowContent showId={showId} /> : <ShowDisabled />}
     </View>
   );
