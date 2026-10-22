@@ -324,13 +324,19 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     },
 
     async loadCalendar(startDate, days): Promise<CalendarData> {
-      const [calendar, hidden] = await Promise.all([
+      const [calendar, hidden, dropped] = await Promise.all([
         getMyShowsCalendar(client, startDate, days),
         getHidden(client),
+        getDropped(client),
       ]);
       return {
         entries: assembleCalendarEntries(unwrapRead(calendar, "calendar")),
-        hiddenShowIds: [...showIdSet(unwrapRead(hidden, "hidden shows"))],
+        hiddenShowIds: [
+          ...showIdSet([
+            ...unwrapRead(hidden, "hidden shows"),
+            ...unwrapRead(dropped, "dropped shows"),
+          ]),
+        ],
       };
     },
 

@@ -171,3 +171,17 @@ export function episodeNavigation<T extends EpisodeKey>(
     next: index < 0 ? null : (episodes[index + 1] ?? null),
   };
 }
+
+export function watchedSummary(
+  show: { readonly completed: number; readonly aired: number; readonly runtime: number | null },
+  seasons: readonly { readonly isSpecial: boolean; readonly completedCount: number }[],
+): string {
+  const specials = seasons.find((season) => season.isSpecial)?.completedCount ?? 0;
+  return [
+    `You've watched ${show.completed} of ${show.aired}`,
+    specials > 0 && `${specials} special${specials === 1 ? "" : "s"}`,
+    show.runtime !== null && `${Math.round((show.completed * show.runtime) / 60)} hr`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}

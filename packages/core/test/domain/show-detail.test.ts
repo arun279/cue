@@ -8,6 +8,7 @@ import {
   orderSeasons,
   returnsLine,
   seasonConfirmation,
+  watchedSummary,
 } from "../../src/domain/show-detail";
 
 const next = {
@@ -143,6 +144,27 @@ describe("season confirmations", () => {
     expect(seasonConfirmation({ number: 0, airedCount: 2, completedCount: 0 }).title).toBe(
       "Mark Specials watched?",
     );
+  });
+});
+
+describe("watch summary", () => {
+  const specials = (completedCount: number) => [
+    { isSpecial: false, completedCount: 12 },
+    { isSpecial: true, completedCount },
+  ];
+
+  it("adds the specials watched to the regular count, and leaves it alone without any", () => {
+    expect(watchedSummary({ completed: 0, aired: 20, runtime: null }, specials(4))).toBe(
+      "You've watched 0 of 20 · 4 specials",
+    );
+    expect(watchedSummary({ completed: 12, aired: 20, runtime: 45 }, specials(1))).toBe(
+      "You've watched 12 of 20 · 1 special · 9 hr",
+    );
+    for (const seasons of [specials(0), []]) {
+      expect(watchedSummary({ completed: 12, aired: 20, runtime: 45 }, seasons)).toBe(
+        "You've watched 12 of 20 · 9 hr",
+      );
+    }
   });
 });
 
