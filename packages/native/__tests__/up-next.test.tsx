@@ -14,6 +14,7 @@ import {
 } from "@testing-library/react-native";
 import { Dimensions, Platform, ScrollView } from "react-native";
 import { ROW_MIN_HEIGHT } from "../src/ui/tokens";
+import { expectUnavailable, menuItem } from "./support/native-ui";
 import {
   agesAgo,
   airing,
@@ -127,7 +128,7 @@ async function paint({ entries = queueOf(), calendar = [], submit }: Options = {
 
 const row = (showId: number) => screen.getByTestId(`queue-row-${showId}`);
 const swipeRight = (showId: number) => screen.getByTestId(`queue-row-${showId}-drag-right`);
-const quickMark = (showId: number) => within(row(showId)).getByTestId("quick-action-mark");
+const quickMark = (showId: number) => menuItem(within(row(showId)), /^Mark .* watched$/);
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -203,9 +204,9 @@ describe("Up Next", () => {
     });
 
     expect(screen.getByTestId(`queue-row-${HARBOR}`)).toBeOnTheScreen();
-    expect(screen.getByText("1 left")).toBeOnTheScreen();
-    expect(screen.getByText("2 left")).toBeOnTheScreen();
-    expect(screen.queryByText("0 left")).toBeNull();
+    expect(screen.getByText("1 left", { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(screen.getByText("2 left", { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(screen.queryByText("0 left", { includeHiddenElements: true })).toBeNull();
   });
 
   it("replaces the old timeline strip with one row that opens the whole log", async () => {
@@ -298,7 +299,7 @@ describe("Up Next's mark control", () => {
     });
 
     expect(screen.getByLabelText(/^Midnight Cartography, .*, not synced yet$/)).toBeOnTheScreen();
-    expect(quickMark(CARTOGRAPHY)).toHaveProp("accessibilityState", { disabled: true });
+    expectUnavailable(await quickMark(CARTOGRAPHY));
     jest.useRealTimers();
   });
 
@@ -313,11 +314,13 @@ describe("Up Next's mark control", () => {
     });
 
     const harbor = row(HARBOR);
-    expect(within(harbor).getByText("Harbor Lights")).toBeOnTheScreen();
+    expect(
+      within(harbor).getByText("Harbor Lights", { includeHiddenElements: true }),
+    ).toBeOnTheScreen();
     // Nothing episode-code shaped, which rules out the real next code and a
     // placeholder standing in for one.
-    expect(within(harbor).queryByText(/^S.*E/)).toBeNull();
-    expect(quickMark(HARBOR)).toHaveProp("accessibilityState", { disabled: true });
+    expect(within(harbor).queryByText(/^S.*E/, { includeHiddenElements: true })).toBeNull();
+    expectUnavailable(await quickMark(HARBOR));
   });
 });
 
@@ -326,7 +329,9 @@ describe("Up Next's row menu", () => {
     const user = userEvent.setup();
     await paint();
 
-    await user.press(within(row(CARTOGRAPHY)).getByTestId("quick-action-stop"));
+    const stop = await menuItem(within(row(CARTOGRAPHY)), "Stop show");
+    if (stop === null) throw new Error("Stop show is missing from the row's menu");
+    await user.press(stop);
 
     await waitFor(() =>
       expect(screen.getByTestId("snackbar-message")).toHaveTextContent(/ stopped$/),
@@ -338,10 +343,10 @@ describe("Up Next's row menu", () => {
     const user = userEvent.setup();
     await paint();
 
-    const quickMark = within(row(CARTOGRAPHY)).getByTestId("quick-action-mark");
-    expect(quickMark).toHaveAccessibleName("Mark S2 E3 watched");
+    const mark = await menuItem(within(row(CARTOGRAPHY)), "Mark S2 E3 watched");
+    if (mark === null) throw new Error("the quick mark is missing from the row's menu");
 
-    await user.press(quickMark);
+    await user.press(mark);
 
     await waitFor(() => expect(screen.getByTestId("snackbar-undo")).toBeOnTheScreen());
   });
@@ -349,19 +354,19 @@ describe("Up Next's row menu", () => {
   it("mutes a show's episode alerts, says so, and takes it back on Undo", async () => {
     const user = userEvent.setup();
     await paint();
-    const mute = () => within(row(CARTOGRAPHY)).getByTestId("quick-action-mute");
-    expect(mute()).toHaveAccessibleName("Mute episode alerts");
+    const mute = await menuItem(within(row(CARTOGRAPHY)), "Mute episode alerts");
+    if (mute === null) throw new Error("mute is missing from the row's menu");
 
-    await user.press(mute());
+    await user.press(mute);
 
     expect(screen.getByTestId("snackbar-message")).toHaveTextContent(
       "Episode alerts muted for Midnight Cartography.",
     );
-    expect(mute()).toHaveAccessibleName("Unmute episode alerts");
+    expect(await menuItem(within(row(CARTOGRAPHY)), "Unmute episode alerts")).not.toBeNull();
 
     await user.press(screen.getByTestId("snackbar-undo"));
 
-    expect(mute()).toHaveAccessibleName("Mute episode alerts");
+    expect(await menuItem(within(row(CARTOGRAPHY)), "Mute episode alerts")).not.toBeNull();
   });
 
   it("offers no mute in the lapsed drawer, where nothing is scheduled", async () => {
@@ -371,7 +376,10 @@ describe("Up Next's row menu", () => {
     await user.press(screen.getByTestId("lapsed-drawer-toggle"));
 
     expect(
-      within(screen.getByTestId(`lapsed-row-${GLASSHOUSE}`)).queryByTestId("quick-action-mute"),
+      await menuItem(
+        within(screen.getByTestId(`lapsed-row-${GLASSHOUSE}`)),
+        /mute episode alerts/i,
+      ),
     ).toBeNull();
   });
 
@@ -382,10 +390,7 @@ describe("Up Next's row menu", () => {
     const projected = queueOf().map((show) => ({ ...show, pendingAdvance: true }));
     await paint({ entries: projected });
 
-    expect(within(row(CARTOGRAPHY)).getByTestId("quick-action-mark")).toHaveProp(
-      "accessibilityState",
-      { disabled: true },
-    );
+    expectUnavailable(await quickMark(CARTOGRAPHY));
   });
 });
 
@@ -403,7 +408,7 @@ describe("Up Next's sections", () => {
     expect(screen.getByTestId(`lapsed-row-${GLASSHOUSE}`)).toBeOnTheScreen();
     // The idle stretch stands where the queue draws its count, which is the
     // reason the row is in the drawer at all.
-    expect(screen.getByText(/^last watched /)).toBeOnTheScreen();
+    expect(screen.getByText(/^last watched /, { includeHiddenElements: true })).toBeOnTheScreen();
     await screen.unmount();
   });
 
