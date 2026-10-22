@@ -82,6 +82,7 @@ function LoadedMovie({ header }: { readonly header: MovieHeader }): ReactElement
       <ScreenTitle title={header.title} />
       <HeaderMenu
         title={header.title}
+        testID={TEST_IDS.movieDetailMore}
         items={[
           {
             id: "watchlist",

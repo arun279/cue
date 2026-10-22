@@ -363,6 +363,50 @@ it.each([
   expect(flakeMasks(flow)).toHaveLength(1);
 });
 
+/** Header and row menu triggers share this label, and a row's trigger stays in the hierarchy
+ * under a pushed detail screen, so a flow can find the label while the header never drew. */
+const SHARED_TRIGGER_LABEL = /^More actions for /;
+
+function unidentifiedTriggers(value: unknown): string[] {
+  if (Array.isArray(value)) return value.flatMap(unidentifiedTriggers);
+  if (value === null || typeof value !== "object") return [];
+  return Object.entries(value).flatMap(([key, child]) =>
+    typeof child === "string" &&
+    SHARED_TRIGGER_LABEL.test(child) &&
+    (key !== "text" || !("id" in value))
+      ? [child]
+      : unidentifiedTriggers(child),
+  );
+}
+
+it("selects every menu trigger by its id as well as its shared label", () => {
+  expect(
+    yamlFiles(maestroDirectory).flatMap((file) =>
+      parseAllDocuments(readFileSync(file, "utf8")).flatMap((document) =>
+        unidentifiedTriggers(document.toJS()).map(
+          (label) => `${relative(maestroDirectory, file)}: ${label}`,
+        ),
+      ),
+    ),
+  ).toEqual([]);
+});
+
+it.each([
+  { tapOn: "More actions for The Lantern Keeper" },
+  { extendedWaitUntil: { visible: "More actions for Midnight Cartography" } },
+  { runFlow: { commands: [{ assertVisible: { text: "More actions for Harbor Lights" } }] } },
+])("rejects a menu trigger selected by its label alone: %j", (flow) => {
+  expect(unidentifiedTriggers(flow)).toHaveLength(1);
+});
+
+it("accepts a menu trigger selected by its id and label", () => {
+  expect(
+    unidentifiedTriggers({
+      tapOn: { id: TEST_IDS.movieDetailMore, text: "More actions for The Lantern Keeper" },
+    }),
+  ).toEqual([]);
+});
+
 type Command = Record<string, unknown>;
 
 const SETTINGS_CONTROL = /^(settings-|switch-|theme-)/;

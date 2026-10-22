@@ -82,7 +82,7 @@ export function toolbarModule() {
         children === undefined ? null : createElement(Text, null, children),
       ),
     View: layout,
-    Menu: layout,
+    Menu: jest.fn(layout),
     MenuAction: ({ children, hidden, disabled, onPress }: ToolbarMenuActionProps) =>
       hidden === true
         ? null

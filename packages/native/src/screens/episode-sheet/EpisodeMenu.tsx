@@ -4,6 +4,7 @@ import type { ReactElement } from "react";
 import { Platform } from "react-native";
 import { confirm } from "../../ui/confirm";
 import { HeaderMenu, RowMenu } from "../../ui/RowMenu";
+import { TEST_IDS } from "../../ui/test-ids";
 import type { useDetailMark } from "../show-detail/useDetailMark";
 
 export function EpisodeMenu({
@@ -20,6 +21,7 @@ export function EpisodeMenu({
   return (
     <Menu
       title={detail.title ?? code}
+      testID={TEST_IDS.episodeMore}
       items={[
         {
           id: "add-play",

@@ -40,7 +40,9 @@ appId: app.cuetracker
     file: lib/prepare-operation.yaml
     env:
       OPERATION: write
-- tapOn: "More actions for The Lantern Keeper"
+- tapOn:
+    id: "movie-detail-more"
+    text: "More actions for The Lantern Keeper"
 - assertVisible: "Add to Watchlist"
 - assertVisible: "Open on Trakt"
 - tapOn: "Add to Watchlist"

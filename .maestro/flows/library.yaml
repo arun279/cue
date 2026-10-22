@@ -112,7 +112,9 @@ appId: app.cuetracker
 - assertVisible:
     id: "screen-show-detail"
 - extendedWaitUntil:
-    visible: "More actions for Harbor Lights"
+    visible:
+      id: "show-detail-more"
+      text: "More actions for Harbor Lights"
     timeout: 30000
 - waitForAnimationToEnd
 - takeScreenshot: show-detail-from-library

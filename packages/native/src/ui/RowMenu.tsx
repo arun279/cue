@@ -18,6 +18,13 @@ export interface RowMenuItem {
   readonly selected?: boolean;
 }
 
+declare module "expo-router/build/layouts/stack-utils/toolbar/StackToolbarMenu/types" {
+  interface StackToolbarMenuProps {
+    /** The bar button's accessibilityIdentifier, set by patches/react-native-screens. */
+    readonly testID?: string;
+  }
+}
+
 interface ListItem {
   readonly href: Href;
   readonly label: string;
@@ -62,30 +69,34 @@ const actionsOf = (items: readonly RowMenuItem[]): MenuAction[] =>
 const select = (items: readonly RowMenuItem[], id: string): void =>
   items.find((item) => item.id === id)?.onPress();
 
-export function HeaderMenu({ title, items }: Pick<MenuBase, "title" | "items">): ReactElement {
+type HeaderMenuProps = Pick<MenuBase, "title" | "items"> & { readonly testID: string };
+
+export function HeaderMenu({ title, items, testID }: HeaderMenuProps): ReactElement {
   const latest = useRef(items);
   useLayoutEffect(() => {
     latest.current = items;
   });
   const onSelect = useCallback((id: string) => select(latest.current, id), []);
-  return <HeaderMenuItems title={title} items={items} onSelect={onSelect} />;
+  return <HeaderMenuItems title={title} items={items} testID={testID} onSelect={onSelect} />;
 }
 
-const lookOf = ({ title, items }: Pick<MenuBase, "title" | "items">): string =>
-  JSON.stringify([title, items.map(({ onPress: _, ...look }) => look)]);
+const lookOf = ({ title, items, testID }: HeaderMenuProps): string =>
+  JSON.stringify([title, testID, items.map(({ onPress: _, ...look }) => look)]);
 
 const HeaderMenuItems = memo(
   function HeaderMenuItems({
     title,
     items,
+    testID,
     onSelect,
-  }: Pick<MenuBase, "title" | "items"> & { onSelect(id: string): void }): ReactElement {
+  }: HeaderMenuProps & { onSelect(id: string): void }): ReactElement {
     const colors = useColors();
     if (Platform.OS === "android")
       return (
         <Stack.Toolbar placement="right" asChild>
           <MoreMenuButton
             title={title}
+            testID={testID}
             actions={actionsOf(items)}
             onSelect={onSelect}
             color={colors[HEADER_TINT]}
@@ -97,6 +108,7 @@ const HeaderMenuItems = memo(
         <Stack.Toolbar.Menu
           icon="ellipsis"
           accessibilityLabel={`More actions for ${title}`}
+          testID={testID}
           title={title}
         >
           {destructiveLast(items).map((item) => (

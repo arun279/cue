@@ -6,7 +6,9 @@ appId: app.cuetracker
 - assertVisible:
     id: "screen-show-detail"
 - extendedWaitUntil:
-    visible: "More actions for Midnight Cartography"
+    visible:
+      id: "show-detail-more"
+      text: "More actions for Midnight Cartography"
     timeout: 30000
 - waitForAnimationToEnd
 - takeScreenshot: show-detail-rest
