@@ -4,15 +4,15 @@
 // hierarchy blocks the app's main thread: XCTest's accessibility snapshots on iOS, and
 // UiAutomator's node queries on Android, which run on the app's UI thread. Maestro only signs
 // in, before this starts, and must not be running.
-// Both platforms record every interaction's screen and time it the same way: a tab switch from
-// the tab bar's first change to the content's first change, a push, a sheet, a season or the
-// lapsed section from the first change to the last, a scroll by the gaps between the frames
-// the recorder captured. Android adds what the platform keeps: frame statistics per segment
-// (dumpsys gfxinfo), the views and Compose hosts on screen after a tab switch (dumpsys
-// activity top), memory (dumpsys meminfo), overdraw, and cold start (am start -W) as adb
-// installed the app, verified the way a Play install without a profile is, and compiled from
-// the profile the passes collected. iOS adds the app's resident memory. Nothing gates on any
-// number.
+// Both platforms record every interaction's screen and time it the same way: from the command
+// to the content region's first change and to its last, and a scroll by the gaps between the
+// frames the recorder captured. A measurement that comes back empty fails the run, naming the
+// platform, pass and segment, because no visible change means the probe missed it. Android
+// adds what the platform keeps: frame statistics per segment (dumpsys gfxinfo), the views and
+// Compose hosts on screen after a tab switch (dumpsys activity top), memory (dumpsys meminfo),
+// overdraw, and cold start (am start -W) as adb installed the app, verified the way a Play
+// install without a profile is, and compiled from the profile the passes collected. iOS adds
+// the app's resident memory. No number gates anything.
 // Usage: perf-probe.mjs <ios|android> <output directory> <runs> [simulator]
 import { execFile, spawn } from "node:child_process";
 import { appendFileSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
@@ -28,10 +28,8 @@ const MOCK = "http://127.0.0.1:8787";
 const FRAME_MS = 1000 / 60;
 const PAUSE_MS = 250;
 const BUFFER = { maxBuffer: 64 * 1024 * 1024 };
-const CROPS = {
-  ios: { bar: "iw:ih*0.1:0:ih*0.88", content: "iw:ih*0.72:0:ih*0.1" },
-  android: { bar: "iw:ih*0.09:0:ih*0.855", content: "iw:ih*0.72:0:ih*0.1" },
-};
+const CONTENT = "iw:ih*0.72:0:ih*0.1";
+const CHANGE_THRESHOLD = 0.005;
 
 const number = (pattern, text) => {
   const match = pattern.exec(text);
@@ -139,17 +137,32 @@ export function overdrawShares(rgb) {
 
 const ms = (seconds) => Math.round(seconds * 1000);
 
-/** From the first tab bar change to the first content change after it, or null. */
-export function swapMs(barChanges, contentChanges) {
-  const touched = barChanges[0];
-  if (touched === undefined) return null;
-  const swapped = contentChanges.find((at) => at > touched);
-  return swapped === undefined ? null : ms(swapped - touched);
+/**
+ * From the command to the first change in the content region and to the last, both null when
+ * nothing changed after it. Times are seconds into the recording; the recorder's first frame
+ * is the moment it started.
+ */
+export function changeTimes(changes, commandAt) {
+  const after = changes.filter((at) => at >= commandAt);
+  if (after.length === 0) return { responseMs: null, doneMs: null };
+  return { responseMs: ms(after[0] - commandAt), doneMs: ms(after.at(-1) - commandAt) };
 }
 
-/** From the first content change to the last, or null when nothing changed. */
-export function settleMs(contentChanges) {
-  return contentChanges.length === 0 ? null : ms(contentChanges.at(-1) - contentChanges[0]);
+/** The measurements a sample asked for that came back empty. */
+export function missing(sample) {
+  return Object.entries(sample)
+    .filter(([, value]) => value === null || Number.isNaN(value))
+    .map(([field]) => field);
+}
+
+/** One failure line per sample with an empty measurement, naming platform, pass and segment. */
+export function emptyMeasurements(platform, samples) {
+  return samples.flatMap((sample) => {
+    const fields = missing(sample);
+    return fields.length === 0
+      ? []
+      : [`${platform} pass ${sample.run} ${sample.segment}: no ${fields.join(", ")}`];
+  });
 }
 
 /**
@@ -162,7 +175,7 @@ export function hitches(frameTimes) {
   const moving = gaps.filter((gap) => gap < PAUSE_MS);
   const stalls = moving.filter((gap) => gap > 2 * FRAME_MS);
   return {
-    movingFrames: moving.length,
+    movingFrames: moving.length === 0 ? null : moving.length,
     hitches: stalls.length,
     longestHitchMs: stalls.length === 0 ? 0 : Math.round(Math.max(...stalls)),
   };
@@ -221,16 +234,9 @@ async function frameTimes(video) {
   return stdout.split("\n").filter(Boolean).map(Number);
 }
 
-async function analyse(video, segment, crops) {
-  if (segment.startsWith("tab ")) {
-    const [bar, content] = await Promise.all([
-      sceneChanges(video, crops.bar, 0.005),
-      sceneChanges(video, crops.content, 0.01),
-    ]);
-    return { swapMs: swapMs(bar, content) };
-  }
+async function analyse(video, segment, commandAt) {
   if (segment.startsWith("scroll ")) return hitches(await frameTimes(video));
-  return { settleMs: settleMs(await sceneChanges(video, crops.content, 0.003)) };
+  return changeTimes(await sceneChanges(video, CONTENT, CHANGE_THRESHOLD), commandAt);
 }
 
 const startedWhen = (child, stream, marker) =>
@@ -306,7 +312,7 @@ export const PASS = [
   { segment: "lapsed close", command: "lapsed" },
   { segment: "show detail push", command: "show 8803" },
   { segment: "episode sheet open", command: "episode 8803 2 3" },
-  { setup: ["back"], segment: "season expand", command: "season:1" },
+  { setup: ["back", "season:2"], segment: "season expand", command: "season:2" },
   {
     setup: ["back", "tab library", "chip not-started"],
     segment: "scroll library not-started",
@@ -318,6 +324,7 @@ export const PASS = [
 ];
 const WINDOW_MS = 2500;
 const SETTLE_MS = 1500;
+const RECORDING_LEAD_MS = 300;
 const READY_MS = 120_000;
 const REPLY_MS = 15_000;
 
@@ -375,10 +382,26 @@ async function command(channel, line) {
   if (!reply.startsWith("ran ")) throw new Error(`"${line}": ${reply}`);
 }
 
-async function coldStart(segment) {
-  await shell("am", "force-stop", PACKAGE);
+const stopAndroidApp = () => shell("am", "force-stop", PACKAGE);
+
+async function startAndroidApp(segment) {
   const started = await shell("am", "start", "-W", "-n", `${PACKAGE}/.MainActivity`);
   return { segment, coldStartMs: coldStartOf(started) };
+}
+
+async function coldStart(segment) {
+  await stopAndroidApp();
+  return startAndroidApp(segment);
+}
+
+/** Starts the app and waits for its channel; registered after the stop, so a ready from the stopped process cannot count. */
+async function launched(probe, channel) {
+  await probe.stop();
+  const ready = channel.ready();
+  const launchedAt = Date.now();
+  const sample = await probe.start();
+  await within(ready, READY_MS, "launch");
+  return { ...sample, launchToReadyMs: Date.now() - launchedAt };
 }
 
 async function overdraw(directory, label) {
@@ -397,10 +420,10 @@ async function overdraw(directory, label) {
 }
 
 function androidProbe(directory) {
-  return {
+  const probe = {
     recorder: androidRecorder(),
-    crops: CROPS.android,
-    launch: () => coldStart("launch"),
+    stop: stopAndroidApp,
+    start: () => startAndroidApp("launch"),
     driverAttached: async () =>
       (
         await shell("pidof", "dev.mobile.maestro", "dev.mobile.maestro.test").catch(() => "")
@@ -420,9 +443,7 @@ function androidProbe(directory) {
           samples.push({ run: index, ...(await coldStart(segment)) });
       }
       await shell("setprop", "debug.hwui.overdraw", "show");
-      const ready = channel.ready();
-      await coldStart("overdraw launch");
-      await within(ready, READY_MS, "launch");
+      await launched(probe, channel);
       await pause(SETTLE_MS);
       samples.push({
         run: 1,
@@ -440,15 +461,15 @@ function androidProbe(directory) {
       return samples;
     },
   };
+  return probe;
 }
 
 function iosProbe(device) {
   const simctl = (...args) => run("xcrun", ["simctl", ...args, device, PACKAGE], BUFFER);
   return {
     recorder: iosRecorder(device),
-    crops: CROPS.ios,
-    launch: async () => {
-      await simctl("terminate").catch(() => undefined);
+    stop: () => simctl("terminate").catch(() => undefined),
+    start: async () => {
       await simctl("launch");
       return { segment: "launch" };
     },
@@ -473,15 +494,18 @@ async function measure(probe, channel, directory, runIndex, step) {
   const video = path.join(directory, `run-${runIndex}-${fileName(step.segment)}.mp4`);
   await probe.reset();
   await probe.recorder.start(video);
+  const recordingAt = Date.now();
+  await pause(RECORDING_LEAD_MS);
   const started = Date.now();
   await command(channel, step.command);
+  const commandAt = (started - recordingAt) / 1000;
   await pause(step.windowMs ?? WINDOW_MS);
   await probe.recorder.stop();
   const wallMs = Date.now() - started;
   const frames = await probe.frames();
   const census = step.segment.startsWith("tab ") ? await probe.census() : {};
   return {
-    analysis: analyse(video, step.segment, probe.crops).then((measured) => {
+    analysis: analyse(video, step.segment, commandAt).then((measured) => {
       if (runIndex > 1) rmSync(video, { force: true });
       return { run: runIndex, segment: step.segment, wallMs, ...measured, ...frames, ...census };
     }),
@@ -490,11 +514,7 @@ async function measure(probe, channel, directory, runIndex, step) {
 
 async function pass(probe, channel, directory, runIndex) {
   await fetch(`${MOCK}/__reset?seed=scale`, { method: "POST" });
-  const ready = channel.ready();
-  const launchedAt = Date.now();
-  const launched = await probe.launch();
-  await within(ready, READY_MS, "launch");
-  const samples = [{ run: runIndex, ...launched, launchToReadyMs: Date.now() - launchedAt }];
+  const samples = [{ run: runIndex, ...(await launched(probe, channel)) }];
   const pending = [];
   for (const step of PASS) {
     if (step.memory !== undefined) {
@@ -543,6 +563,7 @@ async function main() {
   }
   server.close();
   server.closeAllConnections();
+  failures.push(...emptyMeasurements(platform, samples));
   report(platform, directory, samples, failures);
   if (failures.length > 0) process.exitCode = 1;
 }

@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { expect, it } from "vitest";
+import { DEFAULT_TRAKT_POLICY } from "../../packages/core/src/data/trakt/policy";
 import {
   collectionMoviesBody,
   collectionShowsBody,
@@ -11,17 +12,18 @@ import {
   watchlistBody,
 } from "../../scripts/mock-trakt/seed.mjs";
 import {
+  changeTimes,
   coldStartOf,
   createChannel,
+  emptyMeasurements,
   frameStats,
   hitches,
   memInfo,
+  missing,
   overdrawShares,
   PASS,
-  settleMs,
   simulatorRss,
   summary,
-  swapMs,
   viewCensus,
 } from "../../scripts/perf-probe.mjs";
 import { repositoryPath } from "../support/repository-path";
@@ -164,15 +166,30 @@ it("finds the resident size of Cue's simulator process and not another app's", (
   expect(simulatorRss(ps.split("\n")[0] ?? "")).toBeNull();
 });
 
-it("times a tab switch from the tab bar's first change to the content's next change", () => {
-  expect(swapMs([1.2, 1.25, 1.6], [0.4, 1.41, 1.5])).toBe(210);
-  expect(swapMs([], [1])).toBeNull();
-  expect(swapMs([1.2], [0.9])).toBeNull();
+it("times an interaction from its command to the content's first and last change after it", () => {
+  expect(changeTimes([0.1, 0.71, 0.9, 1.25], 0.3)).toEqual({ responseMs: 410, doneMs: 950 });
+  expect(changeTimes([0.5], 0.3)).toEqual({ responseMs: 200, doneMs: 200 });
 });
 
-it("times a section opening from its first visible change to its last", () => {
-  expect(settleMs([2.1, 2.2, 2.45])).toBe(350);
-  expect(settleMs([])).toBeNull();
+it("reports no timing when nothing in the content region changed after the command", () => {
+  expect(changeTimes([], 0.3)).toEqual({ responseMs: null, doneMs: null });
+  expect(changeTimes([0.1, 0.2], 0.3)).toEqual({ responseMs: null, doneMs: null });
+});
+
+it("names every empty measurement by platform, pass and segment", () => {
+  const samples = [
+    { run: 1, segment: "tab up-next>library", responseMs: 120, doneMs: 380, jankyPercent: 40 },
+    { run: 2, segment: "tab library>calendar", swapMs: null, jankyPercent: 30 },
+    { run: 3, segment: "season expand", responseMs: null, doneMs: null },
+    { run: 1, segment: "scroll history", movingFrames: null, hitches: 0 },
+  ];
+
+  expect(missing(samples[0] ?? {})).toEqual([]);
+  expect(emptyMeasurements("android", samples)).toEqual([
+    "android pass 2 tab library>calendar: no swapMs",
+    "android pass 3 season expand: no responseMs, doneMs",
+    "android pass 1 scroll history: no movingFrames",
+  ]);
 });
 
 it("counts frames held past two refreshes while moving, and not the rests between flings", () => {
@@ -181,6 +198,7 @@ it("counts frames held past two refreshes while moving, and not the rests betwee
   const rested = [...steady, 3, 3 + 1 / 60];
 
   expect(hitches(steady)).toEqual({ movingFrames: 29, hitches: 0, longestHitchMs: 0 });
+  expect(hitches([0, 1, 2])).toMatchObject({ movingFrames: null });
   expect(hitches(stalled)).toMatchObject({ hitches: 1, longestHitchMs: 117 });
   expect(hitches(rested)).toEqual({ movingFrames: 30, hitches: 0, longestHitchMs: 0 });
 });
@@ -214,14 +232,17 @@ it("reports each segment as the median over runs with its range, keeping unknown
   ]);
 });
 
-it("serves the probe's synthetic account at the scale of a long-time Trakt user", () => {
+it("serves the probe's synthetic account at the scale of a long-time Trakt user, 50 idle shows among those Cue reads progress for", () => {
   const library = createSeedLibrary("scale");
   const origin = "http://mock";
   const watched: { plays: number; last_watched_at: string; show: { aired_episodes: number } }[] =
     watchedShowsBody(library, "full");
   const lapsedCutoff = library.now - 21 * 86_400_000;
   const unfinished = watched.filter((entry) => entry.plays < entry.show.aired_episodes);
-  const lapsed = unfinished.filter((entry) => Date.parse(entry.last_watched_at) < lapsedCutoff);
+  const progressRead = unfinished
+    .toSorted((a, b) => Date.parse(b.last_watched_at) - Date.parse(a.last_watched_at))
+    .slice(0, DEFAULT_TRAKT_POLICY.progressBudget);
+  const lapsed = progressRead.filter((entry) => Date.parse(entry.last_watched_at) < lapsedCutoff);
   const watchlist = [
     ...watchlistBody(library, origin, "images", "shows"),
     ...watchlistBody(library, origin, "images", "movies"),
