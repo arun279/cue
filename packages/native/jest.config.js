@@ -20,7 +20,12 @@
  *
  * `JEST_MAX_WORKERS` caps the workers when set. The pre-push hook sets it, and
  * CI leaves it unset so the runners keep Jest's default.
+ *
+ * `TZ` is set before any worker starts, so every machine runs the suite eleven
+ * hours behind UTC and a date read in UTC instead of the local zone shows up.
  */
+process.env.TZ = "Pacific/Pago_Pago";
+
 const { transformIgnorePatterns } = require("jest-expo/jest-preset");
 
 const project = {

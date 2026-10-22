@@ -20,6 +20,8 @@ import type { QueuedOp } from "@cue/core/domain/write-queue/types";
 import { useActivitiesPoll } from "@cue/core/hooks/useActivitiesPoll";
 import { type MarkSeasonController, useMarkSeason } from "@cue/core/hooks/useMarkSeason";
 import { type MarkWatched, useMarkWatched } from "@cue/core/hooks/useMarkWatched";
+import { libraryQuery } from "@cue/core/queries/library";
+import { episodeQuery, showSeasonsQuery } from "@cue/core/queries/shows";
 import {
   type ActivitiesReconcile,
   type CueRuntime,
@@ -304,6 +306,7 @@ it("silently resumes a stopped show after a continue mark and re-stops on Undo",
   expect(fake.submitted.map((op) => op.request.path)).toEqual([
     "/sync/history",
     "/users/hidden/progress_watched/remove",
+    "/users/hidden/dropped/remove",
     "/sync/history/remove",
     "/users/hidden/progress_watched",
   ]);
@@ -401,6 +404,143 @@ beforeEach(() => {
   resetMarkStore();
   forgetSeasonMark(SHOW, 1);
   dismissSnack();
+});
+
+describe("a read older than the app's own mark never reverts it", () => {
+  const before = { ...libraryEntry(), lastAired: { season: 1, number: 10 } };
+  const seasonsBefore = [seasonView([episodeView(1, true), episodeView(2)])];
+  const staleProgress: ShowProgress = {
+    aired: 10,
+    completed: 1,
+    lastAired: episodeView(10),
+    nextEpisode: episodeView(2),
+  };
+  const projected = { completed: 2, pendingAdvance: true, nextEpisode: { number: 3 } };
+
+  function reads(entry: LibraryEntry = before): CueRuntime {
+    return {
+      loadUpNext: () => Promise.resolve({ entries: [entry] }),
+      loadShowSeasons: () => Promise.resolve(seasonsBefore),
+      loadEpisode: () => Promise.resolve(episodeDetail(episodeView(2))),
+    } as unknown as CueRuntime;
+  }
+
+  async function reread(qc: QueryClient, runtime: CueRuntime = reads()): Promise<void> {
+    await act(async () => {
+      await qc.fetchQuery({ ...libraryQuery(runtime), staleTime: 0 });
+      await qc.fetchQuery({ ...showSeasonsQuery(runtime, SHOW), staleTime: 0 });
+      await qc.fetchQuery({ ...episodeQuery(runtime, SHOW, 1, 2), staleTime: 0 });
+    });
+  }
+
+  const staleFake = () =>
+    fakeRuntime({ progress: staleProgress, episode: episodeDetail(episodeView(2)) });
+
+  async function markWithStaleProgress(fake = staleFake()) {
+    const qc = seededClient([before], seasonsBefore);
+    const [surface] = mountSurfaces(fake.runtime, qc);
+    await act(async () => surface[0]?.mark.mark(before));
+    await flush();
+    return { fake, qc, surface };
+  }
+
+  it("keeps the row, the season list and the episode marked through stale reads", async () => {
+    const { fake, qc } = await markWithStaleProgress();
+    expect(fake.runtime.loadShowProgress).toHaveBeenCalledOnce();
+    expect(entryOf(qc, SHOW)).toMatchObject(projected);
+
+    await reread(qc);
+
+    expect(entryOf(qc, SHOW)).toMatchObject(projected);
+    expect(seasonEp(qc, 2)?.watched).toBe(true);
+    expect(qc.getQueryData<EpisodeDetail>(queryKeys.episode(SHOW, 1, 2))?.watched).toBe(true);
+  });
+
+  it("leaves every other episode of the show as Trakt reads it", async () => {
+    const { qc } = await markWithStaleProgress();
+    const nextUp = {
+      loadEpisode: () => Promise.resolve(episodeDetail(episodeView(3))),
+    } as unknown as CueRuntime;
+
+    const detail = await act(() =>
+      qc.fetchQuery({ ...episodeQuery(nextUp, SHOW, 1, 3), staleTime: 0 }),
+    );
+
+    expect(detail.watched).toBe(false);
+  });
+
+  it("takes the first read that has the mark, and trusts every read after it", async () => {
+    const { qc } = await markWithStaleProgress();
+    const caughtUp = { ...before, completed: 2, nextEpisode: libraryEntry().nextEpisode };
+
+    await reread(qc, reads(caughtUp));
+    expect(entryOf(qc, SHOW)).toEqual(caughtUp);
+
+    await reread(qc);
+    expect(entryOf(qc, SHOW)).toEqual(before);
+    expect(seasonEp(qc, 2)?.watched).toBe(false);
+  });
+
+  it("lets stale reads through as soon as the mark is undone", async () => {
+    const fake = fakeRuntime({
+      progress: staleProgress,
+      episode: episodeDetail(episodeView(2)),
+      submit: (op) =>
+        op.request.path === "/sync/history" ? Promise.resolve("done") : new Promise(() => {}),
+    });
+    const { qc, surface } = await markWithStaleProgress(fake);
+    stubLandedPlay(fake);
+    act(() => void surface[0]?.mark.reverse(SHOW));
+    await flush();
+    expect(fake.submitted.map((op) => op.request.path)).toEqual([
+      "/sync/history",
+      "/sync/history/remove",
+    ]);
+
+    await reread(qc);
+
+    expect(entryOf(qc, SHOW)).toEqual(before);
+  });
+
+  it("holds the mark again when its Undo cannot be done", async () => {
+    const fake = fakeRuntime({
+      progress: staleProgress,
+      episode: episodeDetail(episodeView(2)),
+      answer: () => null,
+    });
+    const { qc, surface } = await markWithStaleProgress(fake);
+    stubLandedPlay(fake);
+    await act(async () => surface[0]?.mark.reverse(SHOW));
+    await flush();
+    expect(snackText()).toBe(`Couldn't undo ${before.title}. Please try again.`);
+
+    await reread(qc);
+
+    expect(entryOf(qc, SHOW)).toMatchObject(projected);
+  });
+
+  it("does not hold a mark Trakt applied by replacing a play it already had", async () => {
+    const fake = fakeRuntime({
+      progress: staleProgress,
+      episode: episodeDetail(episodeView(2)),
+      answer: replacing({ added: 0, updated: 1, deleted: 0, existing: 0, notFound: 0 }),
+    });
+    const { qc } = await markWithStaleProgress(fake);
+
+    await reread(qc);
+
+    expect(entryOf(qc, SHOW)).toEqual(before);
+  });
+
+  it("gives way to a later write on the same show from another surface", async () => {
+    const { qc, surface } = await markWithStaleProgress();
+
+    await act(async () => surface[0]?.season.markSeason(TARGET, seasonsBefore[0] as SeasonView));
+    await flush();
+    await reread(qc);
+
+    expect(entryOf(qc, SHOW)).toEqual(before);
+  });
 });
 
 describe("F3a: a queue mark ticks the show-detail caches in the same frame", () => {
@@ -1397,10 +1537,12 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
     stubLandedPlay(fake);
     await act(async () => a[0]?.mark.reverse(SHOW));
     await act(async () => resumed("done"));
+    await act(async () => resumed("done"));
     await flush();
     expect(fake.submitted.map((op) => op.request.path)).toEqual([
       "/sync/history",
-      expect.stringContaining("hidden"),
+      "/users/hidden/progress_watched/remove",
+      "/users/hidden/dropped/remove",
     ]);
     expect(snackText()).toBe(
       `${entry.title} S1 E2 was already watched. Trakt changed its watch date to now. Undo can't restore the earlier date.`,

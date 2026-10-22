@@ -42,6 +42,7 @@ function episodePlay(episodeTrakt: number, season: number, number: number) {
 function queuedLog(): string {
   return JSON.stringify([
     queuedOp("hidden", { kind: "hidden", showId: 42 }),
+    queuedOp("dropped", { kind: "dropped", showId: 43 }),
     queuedOp("movie", { kind: "movie", movieId: 84 }),
     queuedOp("episode", { kind: "additive-episode", episodeTrakt: 101 }),
     queuedOp("season", {
@@ -56,12 +57,15 @@ function queuedLog(): string {
 describe("runtime write reconciliation", () => {
   it("retires every queued operation when its authoritative Trakt read shows it landed", async () => {
     const kv = memoryKv({ "cue.write-queue": queuedLog() });
+    const listed = (trakt: number) => [
+      { hidden_at: watchedAt, type: "show", show: { title: "Show", ids: { trakt } } },
+    ];
     server.use(
       http.get(`${TRAKT_API_BASE}/users/hidden/progress_watched`, () =>
-        HttpResponse.json(
-          [{ hidden_at: watchedAt, type: "show", show: { title: "Show", ids: { trakt: 42 } } }],
-          { headers: onePage },
-        ),
+        HttpResponse.json(listed(42), { headers: onePage }),
+      ),
+      http.get(`${TRAKT_API_BASE}/users/hidden/dropped`, () =>
+        HttpResponse.json(listed(43), { headers: onePage }),
       ),
       http.get(`${TRAKT_API_BASE}/sync/watched/movies`, () =>
         HttpResponse.json(
@@ -98,6 +102,11 @@ describe("runtime write reconciliation", () => {
       read: http.get(`${TRAKT_API_BASE}/users/hidden/progress_watched`, () =>
         HttpResponse.json([]),
       ),
+    },
+    {
+      name: "dropped",
+      inversePatch: { kind: "dropped", showId: 42 },
+      read: http.get(`${TRAKT_API_BASE}/users/hidden/dropped`, () => HttpResponse.json([])),
     },
     {
       name: "watched movie",

@@ -19,8 +19,8 @@ import { VersionLabel } from "./account/VersionLabel";
 import { ALERTS_HINT } from "./calendar/AlertsCard";
 
 const NEXT = [
-  { value: "oldest-unwatched", label: "Oldest unwatched" },
   { value: "after-last-watched", label: "After last watched" },
+  { value: "oldest-unwatched", label: "Oldest episode first" },
 ] as const;
 const LAPSED = [
   { value: "recently-watched", label: "Recently watched first" },

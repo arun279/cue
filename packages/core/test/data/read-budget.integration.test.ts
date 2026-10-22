@@ -40,6 +40,7 @@ interface Counts {
   hidden: number;
   watchlist: number;
   collection: number;
+  dropped: number;
 }
 
 /**
@@ -142,6 +143,7 @@ function installColdSync(
     watchlistItem(i + 1),
   ),
   collectionItems: readonly unknown[] = [],
+  droppedItems: readonly unknown[] = [],
 ): Counts {
   const counts: Counts = {
     watchedPages: 0,
@@ -150,6 +152,7 @@ function installColdSync(
     hidden: 0,
     watchlist: 0,
     collection: 0,
+    dropped: 0,
   };
   const hiddenItems = Array.from({ length: hiddenCount }, (_, i) => hiddenItem(i + 1));
 
@@ -180,12 +183,16 @@ function installColdSync(
       counts.collection += 1;
       return pageResponse(collectionItems, new URL(request.url));
     }),
+    http.get(`${TRAKT_API_BASE}/users/hidden/dropped`, ({ request }) => {
+      counts.dropped += 1;
+      return pageResponse(droppedItems, new URL(request.url));
+    }),
   );
   return counts;
 }
 
 const total = (c: Counts): number =>
-  c.watchedPages + c.progress + c.art + c.hidden + c.watchlist + c.collection;
+  c.watchedPages + c.progress + c.art + c.hidden + c.watchlist + c.collection + c.dropped;
 
 describe("cold-sync GET budget", () => {
   it.each([
@@ -196,13 +203,14 @@ describe("cold-sync GET budget", () => {
     // + min(N, BUDGET) progress
     // + ceil(HIDDEN_COUNT/100) hidden pages
     // + ceil(WATCHLIST_COUNT/100) watchlist pages
+    // + one collection page and one dropped page
     // + 0 art (deferred to the lazy per-visible-row read).
     const expectedWatchedPages = Math.ceil(n / WATCHED_PAGE_LIMIT);
     const expectedProgress = Math.min(n, WATCHED_PROGRESS_BUDGET);
     const expectedHiddenPages = Math.ceil(HIDDEN_COUNT / WATCHED_PAGE_LIMIT);
     const expectedWatchlistPages = Math.ceil(WATCHLIST_COUNT / WATCHED_PAGE_LIMIT);
     const expectedTotal =
-      expectedWatchedPages + expectedProgress + expectedHiddenPages + expectedWatchlistPages + 1;
+      expectedWatchedPages + expectedProgress + expectedHiddenPages + expectedWatchlistPages + 2;
 
     const counts = installColdSync(n, HIDDEN_COUNT, WATCHLIST_COUNT);
     const entries = await loadUpNextEntries(client);
@@ -298,6 +306,17 @@ describe("cold-sync GET budget", () => {
     // (7 more pages); the dominant per-show fan-out stays pinned at the budget.
     expect(largeTotal - smallTotal).toBe(Math.ceil(1000 / 100) - Math.ceil(250 / 100));
     expect(largeTotal).toBeLessThan(smallTotal * 1.5);
+  });
+
+  it("stops a show dropped on Trakt, as it stops a hidden one", async () => {
+    installColdSync(3, 0, 0, undefined, undefined, [], [hiddenItem(2)]);
+    const entries = await loadUpNextEntries(client);
+
+    expect(entries.map(({ showId, hidden }) => [showId, hidden])).toEqual([
+      [1, false],
+      [2, true],
+      [3, false],
+    ]);
   });
 
   it("bounds the hidden + watchlist reads: a heavy account spills to ceil(size/100) pages", async () => {

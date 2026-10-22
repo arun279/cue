@@ -87,6 +87,15 @@ it("keeps the seasons accordion in descending order with Specials last", async (
   expect(screen.queryByTestId(TEST_IDS.episodeChecked(8803, 2, 1))).toBeNull();
 });
 
+it("counts the specials watched beside the regular episodes", async () => {
+  await render(
+    <DetailHarness>
+      <ShowDetail showId={8803} />
+    </DetailHarness>,
+  );
+  expect(screen.getByText("You've watched 8 of 10 · 2 specials · 8 hr")).toBeOnTheScreen();
+});
+
 it("caps related shows at six and opens the selected show", async () => {
   const runtime = {
     ...detailRuntime,

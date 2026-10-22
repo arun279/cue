@@ -90,6 +90,12 @@ describe("invalidationKeys maps last_activities targets to cached query keys", (
     ]);
   });
 
+  it("routes a hidden or dropped list change to the library on its own", () => {
+    for (const target of ["hidden/progress_watched", "hidden/dropped"] as const) {
+      expect(invalidationKeys([target])).toEqual([queryKeys.library()]);
+    }
+  });
+
   it("maps unsurfaced targets (episode watchlist, favorites, movie hidden) to nothing", () => {
     expect(
       invalidationKeys([

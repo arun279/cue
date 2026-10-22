@@ -7,6 +7,7 @@ import { HARNESS_IDS } from "../../src/ui/harness-ids";
 import { useEpisodeSheetOptions, useMonthJumpSheetOptions } from "../../src/ui/navigation-theme";
 import { TEST_IDS } from "../../src/ui/test-ids";
 import { QueryProvider } from "../support/query-provider";
+import { fakeRuntime } from "../support/up-next";
 
 jest.mock("../../src/screens/EpisodeSheet", () => {
   const { createElement } = require("react") as typeof import("react");
@@ -46,7 +47,12 @@ it.each([
       "history-jump": MonthJumpRoute,
       "show/[showId]/episode/[season]/[episode]": EpisodeRoute,
     },
-    { initialUrl: "/", wrapper: QueryProvider },
+    {
+      initialUrl: "/",
+      wrapper: ({ children }) => (
+        <QueryProvider runtime={fakeRuntime({})}>{children}</QueryProvider>
+      ),
+    },
   );
   await act(() => router.push(href));
   const nativeSheet = screen.container.queryAll(

@@ -26,11 +26,11 @@ const day = (dayKey: string, label: string, rows: readonly CalendarRow[]): Calen
 const MAX_ROWS = 6;
 
 describe("buildOnTheWay", () => {
-  // Fixtures pin America/New_York (vitest TZ); 2026-07-12T12:00-04:00 noon.
-  const now = Date.parse("2026-07-12T16:00:00Z");
+  const local = (date: number, hour: number): string => new Date(2026, 6, date, hour).toISOString();
+  const now = Date.parse(local(12, 12));
 
   it("counts day offsets from the clock when nothing airs today", () => {
-    const days = [day("2026-07-14", "Tue, Jul 14", [row("2026-07-15T00:00:00Z")])];
+    const days = [day("2026-07-14", "Tue, Jul 14", [row(local(14, 20))])];
     const built = buildOnTheWay(days, now, MAX_ROWS);
     expect(built).toHaveLength(1);
     expect(built[0]).toMatchObject({ offset: 2, label: "Tuesday" });
@@ -38,8 +38,8 @@ describe("buildOnTheWay", () => {
 
   it("labels today's group Tonight at offset 0 and the next day's Tomorrow", () => {
     const days = [
-      day("2026-07-12", "Today", [row("2026-07-13T00:00:00Z")]),
-      day("2026-07-13", "Tomorrow", [row("2026-07-14T00:00:00Z")]),
+      day("2026-07-12", "Today", [row(local(12, 20))]),
+      day("2026-07-13", "Tomorrow", [row(local(13, 20))]),
     ];
     const built = buildOnTheWay(days, now, MAX_ROWS);
     expect(built.map(({ label, offset }) => ({ label, offset }))).toEqual([
@@ -49,12 +49,12 @@ describe("buildOnTheWay", () => {
   });
 
   it("drops rows beyond the 72-hour scope", () => {
-    const days = [day("2026-07-16", "Thu, Jul 16", [row("2026-07-16T23:00:00Z")])];
+    const days = [day("2026-07-16", "Thu, Jul 16", [row(local(16, 19))])];
     expect(buildOnTheWay(days, now, MAX_ROWS)).toHaveLength(0);
   });
 
   it("drops rows flagged aired", () => {
-    const days = [day("2026-07-12", "Today", [row("2026-07-12T01:00:00Z", true)])];
+    const days = [day("2026-07-12", "Today", [row(local(12, 20), true)])];
     expect(buildOnTheWay(days, now, MAX_ROWS)).toHaveLength(0);
   });
 
@@ -64,22 +64,18 @@ describe("buildOnTheWay", () => {
     // what drops an episode that airs while the screen sits open.
     const days = [
       day("2026-07-12", "Today", [
-        row("2026-07-12T15:00:00Z"), // aired an hour ago; flag stale-false
-        row("2026-07-13T00:00:00Z"), // tonight, still ahead
+        row(local(12, 11)), // aired an hour ago; flag stale-false
+        row(local(12, 20)), // tonight, still ahead
       ]),
     ];
     const built = buildOnTheWay(days, now, MAX_ROWS);
     expect(built).toHaveLength(1);
-    expect(built[0]?.rows.map((r) => r.firstAired)).toEqual(["2026-07-13T00:00:00Z"]);
+    expect(built[0]?.rows.map((r) => r.firstAired)).toEqual([local(12, 20)]);
   });
   it("stops at the caller's cap, and stops mid-day when the cap falls inside a group", () => {
     const days = [
-      day("2026-07-12", "Today", [
-        row("2026-07-13T00:00:00Z"),
-        row("2026-07-13T01:00:00Z"),
-        row("2026-07-13T02:00:00Z"),
-      ]),
-      day("2026-07-13", "Tomorrow", [row("2026-07-14T00:00:00Z")]),
+      day("2026-07-12", "Today", [row(local(12, 20)), row(local(12, 21)), row(local(12, 22))]),
+      day("2026-07-13", "Tomorrow", [row(local(13, 20))]),
     ];
     const built = buildOnTheWay(days, now, 2);
     expect(built).toHaveLength(1);

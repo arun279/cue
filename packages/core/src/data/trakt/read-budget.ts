@@ -2,6 +2,7 @@ import { toMs } from "../../domain/time";
 import { type TraktClient, TraktReadError, type TraktResult, unwrapRead } from "./client";
 import {
   getCollectionShows,
+  getDropped,
   getHidden,
   getShowProgress,
   getWatchedShows,
@@ -122,15 +123,19 @@ export async function loadUpNextEntries(client: TraktClient): Promise<LibraryEnt
     .slice(0, client.policy.progressBudget);
   const progress = await readProgressHead(client, head);
 
-  const [hidden, watchlist, collection] = await Promise.all([
+  const [hidden, dropped, watchlist, collection] = await Promise.all([
     withReadRateRetry(() => getHidden(client), client.policy),
+    withReadRateRetry(() => getDropped(client), client.policy),
     withReadRateRetry(() => getWatchlist(client, "shows"), client.policy),
     withReadRateRetry(() => getCollectionShows(client), client.policy),
   ]);
   return assembleLibrary({
     watchedShows: watched,
     progress,
-    hiddenShowIds: showIdSet(unwrapRead(hidden, "hidden shows")),
+    hiddenShowIds: showIdSet([
+      ...unwrapRead(hidden, "hidden shows"),
+      ...unwrapRead(dropped, "dropped shows"),
+    ]),
     watchlistShows: unwrapRead(watchlist, "watchlist"),
     collectionShows: unwrapRead(collection, "show collection"),
   });

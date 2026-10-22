@@ -28,9 +28,23 @@ describe("computeWatchStatus", () => {
       expect: "abandoned",
     },
     {
-      name: "completed 0 → not-started",
-      show: makeShow({ completed: 0, inWatchlist: true }),
+      name: "completed 0 and never watched → not-started",
+      show: makeShow({ completed: 0, inWatchlist: true, lastWatchedAt: null }),
       expect: "not-started",
+    },
+    {
+      name: "only specials watched → watching, from the specials' last watch",
+      show: makeShow({ completed: 0, nextEpisode: airedNext, lastWatchedAt: iso(NOW - DAY) }),
+      expect: "watching",
+    },
+    {
+      name: "only specials watched, long ago → lapsed",
+      show: makeShow({
+        completed: 0,
+        nextEpisode: { ...airedNext, firstAired: iso(NOW - THRESHOLD - 2) },
+        lastWatchedAt: iso(NOW - THRESHOLD - 1),
+      }),
+      expect: "lapsed",
     },
     {
       name: "backlog with no known next (beyond budget) → watching, never fabricated caught-up",

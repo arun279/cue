@@ -142,6 +142,7 @@ export function fakeRuntime({
     flushWrites: () => Promise.resolve(0),
     pollActivities: () => Promise.resolve(null),
     loadEpisodePlays: () => Promise.resolve([]),
+    loadFirstPlayAt: () => Promise.resolve(null),
   } as unknown as CueRuntime;
 }
 

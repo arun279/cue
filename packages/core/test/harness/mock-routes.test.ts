@@ -48,6 +48,8 @@ const READS: Readonly<Record<Read, (client: TraktClient) => Promise<unknown>>> =
   getRelatedShows: (client) => endpoints.getRelatedShows(client, 1),
   getUserSettings: (client) => endpoints.getUserSettings(client),
   getHidden: (client) => endpoints.getHidden(client),
+  getDropped: (client) => endpoints.getDropped(client),
+  getHistoryPlay: (client) => endpoints.getHistoryPlay(client, 1),
   getLastActivities: (client) => endpoints.getLastActivities(client),
   getHistory: (client) =>
     Promise.all(
@@ -82,7 +84,8 @@ const WRITES: Readonly<Record<Write, () => QueuedOp | readonly QueuedOp[]>> = {
       restore: [{ trakt: 1, watchedAt: WATCHED_AT }],
     }),
   buildHideShowOp: () => ops.buildHideShowOp(show),
-  buildUnhideShowOp: () => ops.buildUnhideShowOp(show),
+  buildResumeShowOps: () =>
+    ops.buildResumeShowOps({ newId: () => "op", showId: 1, ids: { trakt: 1 } }),
   buildAddWatchlistOp: () => ops.buildAddWatchlistOp({ ...show, section: "shows" }),
   buildRemoveWatchlistOp: () => ops.buildRemoveWatchlistOp({ ...show, section: "movies" }),
   buildBulkMarkOps: () =>

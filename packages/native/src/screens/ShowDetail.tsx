@@ -118,7 +118,7 @@ function ShowContent({ showId }: { readonly showId: number }): ReactElement {
           ))}
         </View>
         <RelatedShows showId={showId} />
-        <ShowAbout header={data} />
+        <ShowAbout header={data} seasons={seasonList} />
       </ScrollView>
     </>
   );

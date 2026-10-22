@@ -182,7 +182,7 @@ it("starts with accessible controls and the strong defaults", async () => {
   }
   expect(screen.getByRole("tab", { name: "System" })).toBeSelected();
   expect(
-    screen.getByRole("button", { name: "Next episode order, Oldest unwatched" }),
+    screen.getByRole("button", { name: "Next episode order, After last watched" }),
   ).toBeVisible();
   expect(
     screen.getByRole("button", { name: "Haven't watched lately order, Recently watched first" }),
@@ -274,9 +274,9 @@ it("persists the three menu preferences and changes queue ordering", async () =>
       },
     },
   ];
-  expect(sortQueue(items, fixture.prefs.getState().nextEpisodeOrder)[0]?.showId).toBe(2);
-  await userEvent.press(screen.getByLabelText("After last watched"));
   expect(sortQueue(items, fixture.prefs.getState().nextEpisodeOrder)[0]?.showId).toBe(1);
+  await userEvent.press(screen.getByLabelText("Oldest episode first"));
+  expect(sortQueue(items, fixture.prefs.getState().nextEpisodeOrder)[0]?.showId).toBe(2);
   expect(sortLapsed(items, fixture.prefs.getState().lapsedOrder)[0]?.showId).toBe(1);
   await userEvent.press(screen.getByLabelText("Longest idle first"));
   expect(sortLapsed(items, fixture.prefs.getState().lapsedOrder)[0]?.showId).toBe(2);
@@ -295,7 +295,7 @@ it("persists the three menu preferences and changes queue ordering", async () =>
     ).toBe(weeks >= 4 ? "watching" : "lapsed");
   }
   expect(createPrefsStore(fixture.storage).getState()).toMatchObject({
-    nextEpisodeOrder: "after-last-watched",
+    nextEpisodeOrder: "oldest-unwatched",
     lapsedOrder: "longest-idle",
     thresholdDays: 21,
   });

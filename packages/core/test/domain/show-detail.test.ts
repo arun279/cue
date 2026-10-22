@@ -8,6 +8,7 @@ import {
   orderSeasons,
   returnsLine,
   seasonConfirmation,
+  watchedSummary,
 } from "../../src/domain/show-detail";
 
 const next = {
@@ -146,13 +147,34 @@ describe("season confirmations", () => {
   });
 });
 
+describe("watch summary", () => {
+  const specials = (completedCount: number) => [
+    { isSpecial: false, completedCount: 12 },
+    { isSpecial: true, completedCount },
+  ];
+
+  it("adds the specials watched to the regular count, and leaves it alone without any", () => {
+    expect(watchedSummary({ completed: 0, aired: 20, runtime: null }, specials(4))).toBe(
+      "You've watched 0 of 20 · 4 specials",
+    );
+    expect(watchedSummary({ completed: 12, aired: 20, runtime: 45 }, specials(1))).toBe(
+      "You've watched 12 of 20 · 1 special · 9 hr",
+    );
+    for (const seasons of [specials(0), []]) {
+      expect(watchedSummary({ completed: 12, aired: 20, runtime: 45 }, seasons)).toBe(
+        "You've watched 12 of 20 · 9 hr",
+      );
+    }
+  });
+});
+
 describe("episode copy", () => {
   it("never describes a future air date as already aired", () => {
     const episode = {
       season: 3,
       number: 6,
       aired: false,
-      firstAired: "2026-08-27T12:00:00Z",
+      firstAired: new Date(2026, 7, 27, 12).toISOString(),
       runtime: 58,
     };
     expect(sheetMetaLine(episode)).toBe("S3 E6 · 58 min");
@@ -162,7 +184,9 @@ describe("episode copy", () => {
   });
   it("keeps the watch-status grammar for each play count", () => {
     expect(episodeStatus(false, null, 0)).toBe("Not watched yet");
-    expect(episodeStatus(true, "2008-03-16T12:00:00Z", 1)).toBe("Watched Mar 16, 2008");
+    expect(episodeStatus(true, new Date(2008, 2, 16, 12).toISOString(), 1)).toBe(
+      "Watched Mar 16, 2008",
+    );
     expect(episodeStatus(true, null, 1)).toBe("Watched");
     expect(episodeStatus(true, null, 2)).toBe("Watched twice");
     expect(episodeStatus(true, null, 3)).toBe("Watched 3 times");

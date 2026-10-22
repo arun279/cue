@@ -1,4 +1,4 @@
-import { dayLabeler, startOfLocalDay } from "./day";
+import { dayKeyOf, dayLabeler, startOfLocalDay } from "./day";
 import type { EpisodeIds, MovieIds } from "./model/ids";
 import { localTimeZone, toMs } from "./time";
 
@@ -57,6 +57,44 @@ export function historyRange(
   return { startAt: new Date(start).toISOString(), endAt: new Date(end - 1).toISOString() };
 }
 
+interface YearMonth {
+  readonly year: number;
+  readonly month: number;
+}
+
+export interface JumpRange {
+  readonly first: YearMonth;
+  readonly last: YearMonth;
+}
+
+function yearMonthOf(timeZone: string, ms: number): YearMonth {
+  const key = dayKeyOf(timeZone, ms);
+  return { year: Number(key.slice(0, 4)), month: Number(key.slice(5, 7)) };
+}
+
+export function jumpRange(
+  firstPlayAt: string | null,
+  now: number,
+  timeZone: string = localTimeZone(),
+): JumpRange {
+  const last = yearMonthOf(timeZone, now);
+  const firstMs = toMs(firstPlayAt);
+  return {
+    first: firstMs === null || firstMs > now ? last : yearMonthOf(timeZone, firstMs),
+    last,
+  };
+}
+
+export function jumpYears({ first, last }: JumpRange): number[] {
+  return Array.from({ length: last.year - first.year + 1 }, (_, i) => last.year - i);
+}
+
+export function jumpMonths({ first, last }: JumpRange, year: number): number[] {
+  const from = year === first.year ? first.month : 1;
+  const to = year === last.year ? last.month : 12;
+  return Array.from({ length: Math.max(0, to - from + 1) }, (_, i) => from + i);
+}
+
 export function historyScopeKey(year?: number, month?: number): string {
   if (year === undefined) return "recent";
   if (month === undefined) return String(year);
@@ -70,6 +108,13 @@ function minuteOf(ms: number): number {
 function sameShowEpisodes(a: HistoryEntry, b: HistoryEntry): boolean {
   return a.type === "episode" && b.type === "episode" && a.mediaId === b.mediaId;
 }
+
+const newestFirst = (a: HistoryEntry, b: HistoryEntry): number =>
+  Date.parse(b.watchedAt) - Date.parse(a.watchedAt) ||
+  a.type.localeCompare(b.type) ||
+  a.mediaId - b.mediaId ||
+  Number(b.season) - Number(a.season) ||
+  Number(b.number) - Number(a.number);
 
 function groupDay(entries: readonly HistoryEntry[]): HistoryGroup[] {
   const groups: HistoryGroup[] = [];
@@ -118,6 +163,6 @@ export function groupHistory(
     .map(([dayKey, { sample, rows }]) => ({
       dayKey,
       label: labelFor(dayKey, sample),
-      groups: groupDay(rows.sort((a, b) => Date.parse(b.watchedAt) - Date.parse(a.watchedAt))),
+      groups: groupDay(rows.sort(newestFirst)),
     }));
 }

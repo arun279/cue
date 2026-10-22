@@ -1,12 +1,27 @@
+import { type CueRuntime, RuntimeProvider } from "@cue/core/runtime/runtime";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { type ReactElement, type ReactNode, useState } from "react";
 import { createAppQueryClient } from "../../src/platform/query-client";
 
-export function QueryProvider({ children }: { readonly children: ReactNode }): ReactElement {
+export function QueryProvider({
+  runtime,
+  children,
+}: {
+  readonly runtime?: CueRuntime;
+  readonly children: ReactNode;
+}): ReactElement {
   const [client] = useState(() => {
     const client = createAppQueryClient();
     client.setDefaultOptions({ queries: { retry: false, gcTime: Number.POSITIVE_INFINITY } });
     return client;
   });
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  return (
+    <QueryClientProvider client={client}>
+      {runtime === undefined ? (
+        children
+      ) : (
+        <RuntimeProvider value={runtime}>{children}</RuntimeProvider>
+      )}
+    </QueryClientProvider>
+  );
 }
