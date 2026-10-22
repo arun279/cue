@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
+import { droppedTouches } from "./simulator-touch.mjs";
 
 const args = process.argv.slice(2);
 const option = (name) => args[args.indexOf(name) + 1];
@@ -36,7 +37,7 @@ for (const file of [...files].sort()) {
 }
 for (const file of files) {
   if (basename(file) !== "device-simulator.log") continue;
-  for (const [line] of readFileSync(file, "utf8").matchAll(/^.*ignoring digitizer event.*$/gm)) {
+  for (const line of droppedTouches(readFileSync(file, "utf8"))) {
     console.error(`Dropped touch: ${line}`);
   }
 }

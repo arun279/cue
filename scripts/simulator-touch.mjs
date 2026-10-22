@@ -16,6 +16,11 @@ export const SIGNATURE =
   'process == "backboardd" AND (eventMessage CONTAINS "unknown senderID" OR eventMessage CONTAINS "canceling paths")';
 const DOUBLE_RECORD = /\bunknown senderID\b/;
 const CANCELLED_CONTACT = /canceling paths contacts: \[[^\]]*\btouching\b/;
+const IGNORED_DIGITIZER = /ignoring digitizer event/;
+
+/** The simulator log lines where backboardd threw away a synthesized touch. */
+export const droppedTouches = (log) =>
+  log.split("\n").filter((line) => CANCELLED_CONTACT.test(line) || IGNORED_DIGITIZER.test(line));
 
 export const occurrencesFile = () =>
   path.join(process.env.RUNNER_TEMP ?? tmpdir(), "simulator-touch-cancels.log");
