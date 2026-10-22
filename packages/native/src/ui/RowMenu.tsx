@@ -1,12 +1,7 @@
-import {
-  type MenuAction,
-  type MenuComponentProps,
-  type MenuComponentRef,
-  MenuView,
-} from "@expo/ui/community/menu";
-import { Stack } from "expo-router";
+import { type MenuAction, MenuView } from "@expo/ui/community/menu";
+import { type Href, Link, Stack } from "expo-router";
 import { memo, type ReactElement, useCallback, useLayoutEffect, useRef } from "react";
-import { Platform, Pressable, StyleSheet, View } from "react-native";
+import { type AccessibilityRole, Platform, StyleSheet, View } from "react-native";
 import { MoreMenuButton } from "./MoreMenuButton";
 import { HEADER_TINT } from "./navigation-theme";
 import { PlatformIcon } from "./PlatformIcon";
@@ -23,16 +18,37 @@ export interface RowMenuItem {
   readonly selected?: boolean;
 }
 
-export interface RowMenuProps {
+interface ListItem {
+  readonly href: Href;
+  readonly label: string;
+  readonly testID?: string;
+  readonly role?: AccessibilityRole;
+}
+
+interface MenuBase {
   readonly title: string;
   readonly items: readonly RowMenuItem[];
   readonly testID?: string;
-  readonly children?: ReactElement | ((trigger: ReactElement | null) => ReactElement);
-  readonly contentWidth?: number;
 }
 
+/**
+ * An element child is the trigger of a tap menu; without one the trigger is the platform's more
+ * icon. A function child makes a list item's menu: iOS opens it by long press on the item,
+ * Android passes the more icon for the item to place, with the id the item's own element keeps.
+ */
+export type RowMenuProps = MenuBase &
+  (
+    | { readonly children?: ReactElement; readonly item?: undefined }
+    | {
+        readonly children: (trigger: ReactElement | null, itemTestID?: string) => ReactElement;
+        readonly item: ListItem;
+      }
+  );
+
 const UNAVAILABLE = Platform.OS === "ios" ? "hidden" : "disabled";
-const RIPPLE = { borderless: true, radius: TARGET_MIN / 2 } as const;
+
+const destructiveLast = (items: readonly RowMenuItem[]): RowMenuItem[] =>
+  [...items].sort((a, b) => Number(a.destructive === true) - Number(b.destructive === true));
 
 const actionsOf = (items: readonly RowMenuItem[]): MenuAction[] =>
   destructiveLast(items).map(
@@ -48,22 +64,19 @@ const actionsOf = (items: readonly RowMenuItem[]): MenuAction[] =>
     }),
   );
 
-const destructiveLast = (items: readonly RowMenuItem[]): RowMenuItem[] =>
-  [...items].sort((a, b) => Number(a.destructive === true) - Number(b.destructive === true));
+const select = (items: readonly RowMenuItem[], id: string): void =>
+  items.find((item) => item.id === id)?.onPress();
 
-export function HeaderMenu({ title, items }: Pick<RowMenuProps, "title" | "items">): ReactElement {
+export function HeaderMenu({ title, items }: Pick<MenuBase, "title" | "items">): ReactElement {
   const latest = useRef(items);
   useLayoutEffect(() => {
     latest.current = items;
   });
-  const select = useCallback(
-    (id: string) => latest.current.find((item) => item.id === id)?.onPress(),
-    [],
-  );
-  return <HeaderMenuItems title={title} items={items} onSelect={select} />;
+  const onSelect = useCallback((id: string) => select(latest.current, id), []);
+  return <HeaderMenuItems title={title} items={items} onSelect={onSelect} />;
 }
 
-const lookOf = ({ title, items }: Pick<RowMenuProps, "title" | "items">): string =>
+const lookOf = ({ title, items }: Pick<MenuBase, "title" | "items">): string =>
   JSON.stringify([title, items.map(({ onPress: _, ...look }) => look)]);
 
 const HeaderMenuItems = memo(
@@ -71,7 +84,7 @@ const HeaderMenuItems = memo(
     title,
     items,
     onSelect,
-  }: Pick<RowMenuProps, "title" | "items"> & { onSelect(id: string): void }): ReactElement {
+  }: Pick<MenuBase, "title" | "items"> & { onSelect(id: string): void }): ReactElement {
     const colors = useColors();
     if (Platform.OS === "android")
       return (
@@ -110,71 +123,117 @@ const HeaderMenuItems = memo(
   (previous, next) => lookOf(previous) === lookOf(next),
 );
 
-export function RowMenu({
-  title,
-  items,
-  testID,
-  children,
-  contentWidth,
-}: RowMenuProps): ReactElement {
-  const byId = new Map(items.map((item) => [item.id, item.onPress]));
-  const menu: MenuProps = {
-    title,
-    testID,
-    actions: actionsOf(items),
-    onPressAction: ({ nativeEvent }) => byId.get(nativeEvent.event)?.(),
-  };
-
-  if (typeof children !== "function")
-    return children === undefined ? (
-      <MoreButton menu={menu} />
+export function RowMenu(props: RowMenuProps): ReactElement {
+  const { title, items, testID } = props;
+  if (props.item === undefined)
+    return props.children === undefined && Platform.OS === "android" ? (
+      <More title={title} items={items} testID={testID} />
     ) : (
-      <MenuView {...menu} shouldOpenOnLongPress={false}>
-        {children}
+      <MenuView
+        title={title}
+        testID={testID}
+        actions={actionsOf(items)}
+        onPressAction={({ nativeEvent }) => select(items, nativeEvent.event)}
+        shouldOpenOnLongPress={false}
+      >
+        {props.children ?? <MoreIcon title={title} />}
       </MenuView>
     );
+  if (Platform.OS === "ios")
+    return (
+      <LinkMenu title={title} items={items} item={props.item}>
+        {props.children(null)}
+      </LinkMenu>
+    );
+  return props.children(<More title={title} items={items} testID={testID} />, props.item.testID);
+}
 
-  if (Platform.OS === "android") return children(<MoreButton menu={menu} />);
+export function itemActions(
+  items: readonly Pick<RowMenuItem, "id" | "label" | "available" | "onPress">[],
+) {
+  const available = items.filter((item) => item.available !== false);
+  return {
+    accessibilityActions: available.map(({ id, label }) => ({ name: id, label })),
+    onAccessibilityAction: ({ nativeEvent }: { nativeEvent: { actionName: string } }) =>
+      available.find((item) => item.id === nativeEvent.actionName)?.onPress(),
+  };
+}
 
-  // iOS hosts the content in SwiftUI and sizes it only from its own min and max widths (expo/expo#50216).
+/**
+ * The system context menu on iOS: a UIKit interaction that expo-router's link attaches to the
+ * item, rather than a SwiftUI host per row (expo/expo#47883, expo/expo#49528). The item keeps its
+ * own press. A link with a menu drops its trigger from the accessibility tree (expo/expo#46875),
+ * so this wrapper is the item's accessible element.
+ */
+function LinkMenu({
+  title,
+  items,
+  item: { href, label, testID, role = "button" },
+  children,
+}: Pick<MenuBase, "title" | "items"> & {
+  readonly item: ListItem;
+  readonly children: ReactElement;
+}): ReactElement {
   return (
-    <MenuView {...menu} shouldOpenOnLongPress>
-      <View style={{ minWidth: contentWidth, maxWidth: contentWidth }}>{children(null)}</View>
-    </MenuView>
+    <View
+      accessible
+      accessibilityRole={role}
+      accessibilityLabel={label}
+      testID={testID}
+      {...itemActions(items)}
+    >
+      <Link href={href} asChild>
+        <Link.Trigger>
+          <View
+            collapsable={false}
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+          >
+            {children}
+          </View>
+        </Link.Trigger>
+        <Link.Menu title={title}>
+          {destructiveLast(items).map((entry) => (
+            <Link.MenuAction
+              key={entry.id}
+              destructive={entry.destructive}
+              hidden={entry.available === false}
+              onPress={entry.onPress}
+            >
+              {entry.label}
+            </Link.MenuAction>
+          ))}
+        </Link.Menu>
+      </Link>
+    </View>
   );
 }
 
-type MenuProps = Pick<MenuComponentProps, "title" | "testID" | "actions" | "onPressAction">;
-
-function MoreButton({ menu }: { readonly menu: MenuProps }): ReactElement {
+function More({ title, items, testID }: MenuBase): ReactElement {
   const colors = useColors();
-  const ref = useRef<MenuComponentRef>(null);
-  const icon = <PlatformIcon name="more" color={colors.ink2} />;
-  const label = `More actions for ${menu.title}`;
-
   return (
-    <MenuView ref={ref} {...menu} shouldOpenOnLongPress={false}>
-      {Platform.OS === "android" ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={label}
-          android_ripple={RIPPLE}
-          onPress={() => ref.current?.show()}
-          style={styles.trigger}
-        >
-          {icon}
-        </Pressable>
-      ) : (
-        <View
-          accessible
-          accessibilityRole="button"
-          accessibilityLabel={label}
-          style={styles.trigger}
-        >
-          {icon}
-        </View>
-      )}
-    </MenuView>
+    <MoreMenuButton
+      title={title}
+      testID={testID}
+      actions={actionsOf(items)}
+      onSelect={(id) => select(items, id)}
+      color={colors.ink2}
+      style={styles.trigger}
+    />
+  );
+}
+
+function MoreIcon({ title }: Pick<MenuBase, "title">): ReactElement {
+  const colors = useColors();
+  return (
+    <View
+      accessible
+      accessibilityRole="button"
+      accessibilityLabel={`More actions for ${title}`}
+      style={styles.trigger}
+    >
+      <PlatformIcon name="more" color={colors.ink2} />
+    </View>
   );
 }
 

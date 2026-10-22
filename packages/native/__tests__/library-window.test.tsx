@@ -4,7 +4,7 @@ import { Platform } from "react-native";
 import { TEST_IDS } from "../src/ui/test-ids";
 import "./support/screen-mocks";
 import { largeLibrary } from "./support/large-library";
-import { LINK_MENU } from "./support/native-ui";
+import { LINK_MENU, MENU_HOST } from "./support/native-ui";
 import { fakeRuntime, Harness, spyHaptics } from "./support/up-next";
 
 const Library = (
@@ -68,6 +68,7 @@ async function scrollViewport(titles: number): Promise<void> {
 interface Mounted {
   readonly tiles: number;
   readonly menus: number;
+  readonly hosts: number;
   readonly images: number;
   readonly artReads: number;
 }
@@ -89,9 +90,8 @@ async function mount(titles: number, chip?: string): Promise<Mounted> {
   await scrollViewport(titles / 2);
   const counts = {
     tiles: tiles().length,
-    menus:
-      screen.queryAllByTestId(LINK_MENU).length +
-      screen.queryAllByTestId(TEST_IDS.quickActions).length,
+    menus: screen.queryAllByTestId(LINK_MENU).length,
+    hosts: screen.container.queryAll((node) => node.props["nativeID"] === MENU_HOST).length,
     images: screen.container.queryAll(
       (node) => node.type === "Image" && typeof node.props["source"]?.uri === "string",
     ).length,
@@ -112,6 +112,8 @@ describe.each([
     expect(larger).toEqual(large);
     expect(large.tiles).toBeLessThan(300);
     expect(large.menus).toBe(Platform.OS === "ios" ? large.tiles : 0);
+    // The one native menu host is the screen's sort menu; no tile mounts its own.
+    expect(large.hosts).toBe(1);
     expect(large.images + large.artReads).toBeLessThanOrEqual(large.tiles);
   });
 });

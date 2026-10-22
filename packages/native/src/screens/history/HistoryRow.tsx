@@ -1,5 +1,5 @@
 import type { HistoryEntry } from "@cue/core/domain/history";
-import { useRouter } from "expo-router";
+import { type Href, useRouter } from "expo-router";
 import type { ReactElement } from "react";
 import { StyleSheet, useWindowDimensions, View } from "react-native";
 import { Badge } from "../../ui/Badge";
@@ -15,21 +15,18 @@ export function HistoryRow({
   entry,
   plays,
   index,
-  width,
   onRemove,
 }: HistoryRowModel & {
   readonly index: number;
-  readonly width: number;
   onRemove(entry: HistoryEntry): void;
 }): ReactElement {
   const colors = useColors();
   const router = useRouter();
-  const open = () =>
-    router.push(
-      entry.type === "movie"
-        ? `/movie/${entry.mediaId}`
-        : `/show/${entry.mediaId}/episode/${entry.season ?? 0}/${entry.number ?? 0}`,
-    );
+  const href: Href =
+    entry.type === "movie"
+      ? `/movie/${entry.mediaId}`
+      : `/show/${entry.mediaId}/episode/${entry.season ?? 0}/${entry.number ?? 0}`;
+  const open = () => router.push(href);
   const items: RowMenuItem[] = [
     { id: "open", label: entry.type === "movie" ? "Go to movie" : "Go to episode", onPress: open },
     {
@@ -44,17 +41,18 @@ export function HistoryRow({
     hour: "numeric",
     minute: "2-digit",
   });
+  const label = `${entry.title}, ${entryDetail(entry)}, ${time}, ${plays} ${plays === 1 ? "play" : "plays"}`;
   return (
     <RowMenu
       title={entry.title}
       items={items}
       testID={TEST_IDS.historyMenu(index)}
-      contentWidth={width}
+      item={{ href, label, testID: TEST_IDS.historyRow(index) }}
     >
-      {(trigger) => (
+      {(trigger, rowTestID) => (
         <Row
-          testID={TEST_IDS.historyRow(index)}
-          label={`${entry.title}, ${entryDetail(entry)}, ${time}, ${plays} ${plays === 1 ? "play" : "plays"}`}
+          testID={rowTestID}
+          label={label}
           minHeight={ROW_MIN_HEIGHT.history}
           onPress={open}
           actions={items}
