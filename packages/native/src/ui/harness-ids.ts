@@ -6,7 +6,6 @@ export const HARNESS_IDS = {
   scrollCompleted: "scroll-completed",
   appReady: "app-ready",
   onboardingReady: "onboarding-ready",
-  pressTrace: "press-trace",
   pullTrace: "pull-trace",
   snackbarTrace: "snackbar-trace",
 } as const;

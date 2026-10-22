@@ -16,12 +16,10 @@ import {
 } from "react-native";
 import { HARNESS_IDS } from "./harness-ids";
 import { Marker } from "./Marker";
-import { usePressTrace } from "./press-trace";
 import { useSnackbarTrace } from "./snackbar-trace";
 
 export { AppIdle, trackSync } from "./AppIdle";
 export { usePerfCommand, usePerfScroll } from "./perf-channel";
-export { tracePress } from "./press-trace";
 
 const launchedAt = Date.now();
 
@@ -125,11 +123,6 @@ export function SnackbarTrace(): ReactElement | null {
   return label === null ? null : (
     <Marker accessibilityLabel={label} testID={HARNESS_IDS.snackbarTrace} />
   );
-}
-
-export function PressTrace(): ReactElement | null {
-  const label = usePressTrace();
-  return <Marker accessibilityLabel={label} testID={HARNESS_IDS.pressTrace} />;
 }
 
 const pullEntry = (entry: string, since: number): string =>

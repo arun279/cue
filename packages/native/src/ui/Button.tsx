@@ -1,11 +1,5 @@
 import type { ReactElement } from "react";
-import {
-  ActivityIndicator,
-  type ColorValue,
-  type GestureResponderEvent,
-  Pressable,
-  StyleSheet,
-} from "react-native";
+import { ActivityIndicator, type ColorValue, Pressable, StyleSheet } from "react-native";
 import { HAIRLINE, RADIUS, SPACE, TARGET_MIN, useColors } from "./tokens";
 import { CueText } from "./type";
 
@@ -13,8 +7,6 @@ export interface ButtonProps {
   readonly label: string;
   readonly variant?: "primary" | "ghost" | "link";
   readonly onPress: () => void;
-  readonly onPressIn?: (event: GestureResponderEvent) => void;
-  readonly onPressOut?: (event: GestureResponderEvent) => void;
   readonly disabled?: boolean;
   readonly busy?: boolean;
   readonly testID?: string;
@@ -30,8 +22,6 @@ export function Button({
   label,
   variant = "primary",
   onPress,
-  onPressIn,
-  onPressOut,
   disabled = false,
   busy = false,
   testID,
@@ -48,8 +38,6 @@ export function Button({
       testID={testID}
       disabled={inert}
       onPress={onPress}
-      onPressIn={onPressIn}
-      onPressOut={onPressOut}
       style={[
         styles.button,
         variant === "link" ? styles.link : styles.filled,

@@ -77,10 +77,14 @@ function inspect(source, text) {
   }
 }
 
-function printHealth({ lines, warning, notice }) {
+function printHealth({ lines, warning, notice, failure }) {
   for (const line of lines) process.stdout.write(`Lane health: ${line}\n`);
   if (warning) process.stdout.write(`::warning title=Lane health::${warning}\n`);
   if (notice) process.stdout.write(`::notice title=Simulator touch cancel::${notice}\n`);
+  if (failure) {
+    process.stdout.write(`::error title=Tap proxy::${failure}\n`);
+    process.exitCode = 1;
+  }
 }
 
 const health =

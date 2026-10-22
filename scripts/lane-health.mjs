@@ -2,11 +2,14 @@ import { execFile } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
-import { provenCancels } from "./simulator-touch.mjs";
+import { recordedTaps, tapProxyHealth } from "./simulator-touch.mjs";
 
 const run = promisify(execFile);
 const PREDICATE =
   'process == "testmanagerd" AND (eventMessage BEGINSWITH "Requesting screenshot." OR eventMessage BEGINSWITH "Got system UI orientation")';
+const RUNNER_TAPS =
+  'process == "maestro-driver-iosUITests-Runner" AND eventMessage BEGINSWITH "Tapping "';
+const RUNNER_TAP = /\bTapping [\d.]+, [\d.]+$/;
 const LAUNCHES =
   'eventMessage CONTAINS "com.apple.mobilecal" AND (process == "runningboardd" OR process == "SpringBoard" OR process == "dasd")';
 const SLOW_MS = 1_000;
@@ -149,6 +152,19 @@ export function spindump({ directory, pid, label, options = [], record, done = (
 
 const springBoardPid = (ps) => /^\s*(\d+)\s+\S*\/SpringBoard\.app\/SpringBoard$/m.exec(ps)?.[1];
 
+/** The tap proxy's line, its job notice and why it fails the lane, from the runner's own tap log. */
+function tapProxyReport(runnerLog, record) {
+  const runnerTaps = runnerLog.split("\n").filter((line) => RUNNER_TAP.test(line)).length;
+  const { line, failure, again } = tapProxyHealth(recordedTaps(), runnerTaps);
+  for (const reason of again) record(`proven simulator touch cancel, tapped again: ${reason}`);
+  if (failure !== undefined) record(`failure: ${failure}`);
+  const notice =
+    again.length === 0
+      ? undefined
+      : `The simulator dropped ${again.length === 1 ? "a tap" : `${again.length} taps`} and the tap proxy tapped again; see Lane health`;
+  return { line, failure, notice };
+}
+
 // Reads the lane's health without a live log stream, which would make every
 // simulator process reflect each log call to it while the flow runs.
 export function laneHealth({ device, directory }) {
@@ -196,9 +212,10 @@ export function laneHealth({ device, directory }) {
         ],
         { maxBuffer: 64 * 1024 * 1024 },
       );
-    const [log, launches, vmStat] = await Promise.all([
+    const [log, launches, runnerLog, vmStat] = await Promise.all([
       show(PREDICATE),
       show(LAUNCHES),
+      show(RUNNER_TAPS),
       run("vm_stat"),
       census(),
     ]);
@@ -206,8 +223,7 @@ export function laneHealth({ device, directory }) {
     const calendar = launchLines(launches.stdout);
     for (const line of calendar.slice(0, 5)) record(`MobileCal launch: ${line}`);
     const warning = heapWarning(heap);
-    const cancels = provenCancels();
-    for (const cancel of cancels) record(`proven simulator touch cancel: ${cancel}`);
+    const taps = tapProxyReport(runnerLog.stdout, record);
     const lines = [
       ...latencySummary(screenshotLatencies(log.stdout.split("\n"), since)),
       `${megabytes(pageIns(vmStat.stdout) - (await started))} paged in during the flow`,
@@ -218,15 +234,11 @@ export function laneHealth({ device, directory }) {
         .slice(0, 8)
         .map(([name, bytes]) => `${name} ${megabytes(bytes)}`)
         .join(", ")}`,
-      `${cancels.length} taps the simulator proved it dropped, each tapped again`,
+      taps.line,
     ];
     for (const line of lines) record(line);
     if (warning !== undefined) record(`warning: ${warning}`);
-    const notice =
-      cancels.length === 0
-        ? undefined
-        : `The simulator dropped ${cancels.length === 1 ? "a tap" : `${cancels.length} taps`} and the flow tapped again; see Lane health`;
-    return { lines, warning, notice };
+    return { lines, warning, notice: taps.notice, failure: taps.failure };
   };
   return {
     heard: silence.heard,

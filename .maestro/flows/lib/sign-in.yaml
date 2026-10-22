@@ -11,28 +11,8 @@ appId: app.cuetracker
     commands:
       - waitForAnimationToEnd
       - takeScreenshot: onboarding-ready
-- runScript: touch-window.js
 - tapOn:
     id: "button-connect"
-- copyTextFrom:
-    id: "press-trace"
-- evalScript: ${console.log('CUE_PRESS_TRACE=' + maestro.copiedText)}
-# Taps again only when the press trace and the simulator log prove the
-# simulator dropped the tap (#126); any other missing press fails below.
-- runScript: touch-proof.js
-- evalScript: ${console.log('CUE_TOUCH_PROOF=' + output.touchProof)}
-- runFlow:
-    when:
-      true: ${output.tapConnectAgain}
-    commands:
-      - tapOn:
-          id: "button-connect"
-- extendedWaitUntil:
-    visible:
-      id: "press-trace"
-      text: ".*; press [+].*"
-    timeout: 10000
-    label: "Tap not delivered: Connect Trakt never pressed"
 # The fake keeps the grant pending until the next step approves it, so the code
 # screen waits here instead of passing by between two hierarchy reads.
 - extendedWaitUntil:

@@ -83,7 +83,10 @@ describe("fast pull request validation", () => {
       'BASE_SHA=$(scripts/measured-base.sh "$EVENT_NAME" "$PUSH_BEFORE")',
     );
     expect(job("footprint-base")).toContain(
-      'scripts/measure-base.sh "$(scripts/measured-base.sh pull_request)"',
+      'git worktree add --detach "$RUNNER_TEMP/footprint-base" "$(scripts/measured-base.sh pull_request)"',
+    );
+    expect(job("footprint-base")).toContain(
+      'scripts/measure-base.sh "$RUNNER_TEMP/footprint-base"',
     );
   });
 
@@ -714,6 +717,7 @@ describe("fast pull request validation", () => {
       "simulator-touch.mjs",
       "snapshot-host-resources.sh",
       "start-ready-process.mjs",
+      "tap-proxy.mjs",
       "wait-ios-accessibility.mjs",
       "wait-ios-ready.mjs",
     ]);
