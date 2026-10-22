@@ -32,6 +32,7 @@ const project = {
     "<rootDir>/__tests__/support/reanimated.ts",
     "<rootDir>/__tests__/support/transient-state.ts",
     "<rootDir>/__tests__/support/query-scheduler.ts",
+    "<rootDir>/__tests__/support/warm-renderer.tsx",
   ],
   // Worklets is a native library and its `.native` entry points reach a binding
   // this runner has no host for. Its own resolver picks the web implementation
