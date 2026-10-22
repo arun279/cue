@@ -181,7 +181,7 @@ it("times an interaction from its command to the content's first and last change
 
 it("reports no timing when nothing in the content region changed after the command", () => {
   expect(changeTimes([], 0.3)).toEqual({ responseMs: null, doneMs: null });
-  expect(changeTimes([0.1, 0.2], 0.3)).toEqual({ responseMs: null, doneMs: null });
+  expect(changeTimes([0.1, 0.15], 0.3)).toEqual({ responseMs: null, doneMs: null });
 });
 
 it("names every empty measurement by platform, pass and segment", () => {
@@ -562,4 +562,8 @@ it("ranks censored values above measured ones and bounds the ratio", () => {
   expect(emptyMeasurements("ios", samples)).toEqual([]);
   expect(ratio(500, ">2000")).toBe(">4.00");
   expect(ratio(">1", ">2")).toBe("n/a");
+});
+
+it("counts a change the recorder dated a frame or two before the command, as 0 ms", () => {
+  expect(changeTimes([0.29, 0.33], 0.31)).toEqual({ responseMs: 0, doneMs: 20 });
 });

@@ -153,26 +153,32 @@ export function overdrawShares(rgb) {
 }
 
 const ms = (seconds) => Math.round(seconds * 1000);
+const ALIGNMENT_SLACK = 0.1;
 
 /**
  * From the command to the first change in the content region and to the last. When the screen
  * changed elsewhere (the tab bar, say) but the content had not by the end of the window, both
  * are censored as ">window"; when nothing changed at all, both are null. Times are seconds into
- * the recording; the recorder's first frame is the moment it started.
+ * the recording; the recorder's first frame is the moment it started, give or take a frame or
+ * two, so a change up to ALIGNMENT_SLACK before the command still counts, as 0 ms.
  * @param {number[]} changes
  * @param {number} commandAt
  * @param {{ anywhere?: number[], windowEnd?: number }} [around]
  */
 export function changeTimes(changes, commandAt, { anywhere = [], windowEnd } = {}) {
-  const after = changes.filter((at) => at >= commandAt);
-  if (after.length > 0)
-    return { responseMs: ms(after[0] - commandAt), doneMs: ms(after.at(-1) - commandAt) };
-  if (windowEnd !== undefined && anywhere.some((at) => at >= commandAt)) {
+  const from = commandAt - ALIGNMENT_SLACK;
+  const after = changes.filter((at) => at >= from);
+  const since = (at) => ms(Math.max(0, at - commandAt));
+  if (after.length > 0) return { responseMs: since(after[0]), doneMs: since(after.at(-1)) };
+  if (windowEnd !== undefined && anywhere.some((at) => at >= from)) {
     const censored = `>${ms(windowEnd - commandAt)}`;
     return { responseMs: censored, doneMs: censored };
   }
   return { responseMs: null, doneMs: null };
 }
+
+const unsettled = (measured) =>
+  Object.values(measured).some((value) => value === null || typeof value === "string");
 
 /** The measurements a sample asked for that came back empty. */
 export function missing(sample) {
@@ -637,7 +643,7 @@ async function measure(probe, channel, directory, runIndex, step, app) {
   const census = step.segment.startsWith("tab ") ? await probe.census() : {};
   return {
     analysis: analyse(video, step.segment, commandAt, windowEnd).then((measured) => {
-      if (runIndex > 1) rmSync(video, { force: true });
+      if (runIndex > 1 && !unsettled(measured)) rmSync(video, { force: true });
       return { run: runIndex, segment: step.segment, wallMs, ...measured, ...frames, ...census };
     }),
   };
