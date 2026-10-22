@@ -108,9 +108,9 @@ it.each([
 });
 
 it("turns on simulator accessibility before every iOS lane boots its simulator", () => {
-  const lanes = readWorkflowJobs(repositoryPath(".github/workflows/ci.yml")).filter(({ body }) =>
-    body.includes("xcrun simctl boot"),
-  );
+  const lanes = readWorkflowJobs(repositoryPath(".github/workflows/ci.yml"), {
+    withActions: true,
+  }).filter(({ body }) => body.includes("xcrun simctl boot"));
 
   expect(lanes.map(({ name }) => name)).toEqual([
     "native-e2e-ios-light",

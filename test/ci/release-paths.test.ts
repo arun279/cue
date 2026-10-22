@@ -146,7 +146,10 @@ describe("the iOS toolchain pin", () => {
     // ships, and the pin is deliberate: the runner image's default Xcode moves
     // on its own.
     const release = selectedXcode(MOBILE_RELEASE_WORKFLOW);
-    const ci = selectedXcode(CI_WORKFLOW);
+    const ci = [
+      ...selectedXcode(CI_WORKFLOW),
+      ...selectedXcode(path.join(REPOSITORY_ROOT, ".github/actions/boot-ios-simulator/action.yml")),
+    ];
 
     expect(release).toHaveLength(1);
     expect(ci.length).toBeGreaterThan(0);

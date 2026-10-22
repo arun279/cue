@@ -92,16 +92,9 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
-      - name: Install Maestro 2.10.0 and ffmpeg
-        run: |
-          curl -fsSL \
-            https://github.com/mobile-dev-inc/Maestro/releases/download/cli-2.10.0/maestro.zip \
-            -o "$RUNNER_TEMP/maestro.zip"
-          echo "29b675e10cc12080e445e9bfb2e2b4e4dfb9c0f2e30d5884120d258b5e1cd991  $RUNNER_TEMP/maestro.zip" \
-            | sha256sum --check
-          unzip -q "$RUNNER_TEMP/maestro.zip" -d "$RUNNER_TEMP"
-          echo "$RUNNER_TEMP/maestro/bin" >> "$GITHUB_PATH"
-          command -v ffmpeg || { sudo apt-get update -q && sudo apt-get install -yq ffmpeg; }
+      - uses: ./.github/actions/maestro-cli
+      - name: Install ffmpeg
+        run: command -v ffmpeg || { sudo apt-get update -q && sudo apt-get install -yq ffmpeg; }
       - name: Fetch the runs' Android apps
         env:
           GH_TOKEN: ${{ github.token }}
@@ -113,12 +106,6 @@ jobs:
             scripts/perf-probe-app.sh android "$COMPARE_RUN_ID" "$RUNNER_TEMP/compare-app"
             echo "COMPARE_APK=$RUNNER_TEMP/compare-app/universal.apk" >> "$GITHUB_ENV"
           fi
-      - name: Enable KVM
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
-            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
       - uses: ./.github/actions/android-emulator
       - name: Run the probe
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
@@ -149,15 +136,7 @@ jobs:
       USE_XCODE_TEST_RUNNER: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Boot the simulator
-        run: |
-          sudo xcode-select -s /Applications/Xcode_26.6.app
-          read -r device_id data < <(xcrun simctl list devices available -j | \
-            jq -er '[.devices[] | .[] | select(.name | startswith("iPhone"))][0] | "\(.udid) \(.dataPath)"')
-          scripts/enable-ios-accessibility.sh "$data"
-          scripts/disable-ios-daemons.sh "$device_id"
-          xcrun simctl boot "$device_id"
-          echo "DEVICE_ID=$device_id" >> "$GITHUB_ENV"
+      - uses: ./.github/actions/boot-ios-simulator
       - name: Fetch the runs' simulator apps
         env:
           GH_TOKEN: ${{ github.token }}
@@ -184,6 +163,7 @@ jobs:
         run: |
           tar -xzf "$RUNNER_TEMP/maestro-runner/maestro-runner.tgz" -C "$RUNNER_TEMP/maestro-runner"
           command -v ffmpeg || brew install ffmpeg
+      - uses: ./.github/actions/maestro-cli
       - name: Start the fake Trakt server
         run: node scripts/start-ready-process.mjs scripts/mock-trakt/server.mjs "$RUNNER_TEMP/mock-trakt.log"
       - name: Prepare the simulator and app with motion on

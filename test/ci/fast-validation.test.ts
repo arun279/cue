@@ -8,8 +8,9 @@ import { tempDirectory } from "../support/temp-directory";
 import { readWorkflowJobs } from "../support/workflow-jobs";
 
 const workflow = readFileSync(repositoryPath(".github/workflows/ci.yml"), "utf8");
-const jobs = readWorkflowJobs(repositoryPath(".github/workflows/ci.yml"));
+const jobs = readWorkflowJobs(repositoryPath(".github/workflows/ci.yml"), { withActions: true });
 const job = (name: string) => jobs.find((entry) => entry.name === name)?.body ?? "";
+const declared = readWorkflowJobs(repositoryPath(".github/workflows/ci.yml"));
 
 const steps = (name: string) => job(name).split(/^ {6}- /m);
 const envOf = (step: string) => step.match(/^ {8}env:\n((?: {10}.*\n)+)/m)?.[1];
@@ -371,7 +372,7 @@ describe("fast pull request validation", () => {
     );
     const script = readFileSync(repositoryPath("scripts/android-emulator-packages.sh"), "utf8");
 
-    expect(job(name)).toContain(
+    expect(declared.find((entry) => entry.name === name)?.body).toContain(
       "      - uses: ./.github/actions/android-emulator\n      - name: Inspect the release UI\n",
     );
     expect(script).toContain(`image="system-images;${image}"\n`);
@@ -713,6 +714,7 @@ describe("fast pull request validation", () => {
       "disable-spotlight.sh",
       "download-ci-artifact.sh",
       "enable-ios-accessibility.sh",
+      "install-maestro.sh",
       "lane-health.mjs",
       "maestro-failure.mjs",
       "maestro-runner.mjs",

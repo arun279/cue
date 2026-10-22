@@ -32,7 +32,7 @@ it("resolves the scheme on Android and leaves it to the system on iOS", async ()
   }
 });
 
-it("takes the separator from the platform on iOS and from --color-border on Android", async () => {
+it("takes the separator from the platform on iOS and from the border color on Android", async () => {
   const colors = await colorsUnder("dark");
 
   if (Platform.OS === "ios") {

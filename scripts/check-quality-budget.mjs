@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const root = process.argv[2] ?? path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const productPaths = [
   "packages/core/src",
   "packages/native/src",
@@ -41,10 +41,20 @@ const owned = [
     ["packages/core/src/sync-contract.ts", "packages/core/src/queries/freshness.ts"],
   ],
 ];
-const budget = JSON.parse(readFileSync(path.join(root, "scripts/quality-budget.json"), "utf8"));
-if (suppressions !== budget.complexitySuppressions) {
+if (suppressions > 0) throw new Error(`complexity suppressions: ${suppressions}, budget 0`);
+const typeSuppressions = execFileSync(
+  "git",
+  ["ls-files", "-z", "--", ":(glob)packages/**/*.ts", ":(glob)packages/**/*.tsx"],
+  { cwd: root, encoding: "utf8" },
+)
+  .split("\0")
+  .filter((file) => file !== "" && existsSync(path.join(root, file)))
+  .filter((file) =>
+    /@ts-(?:expect-error|ignore)/.test(readFileSync(path.join(root, file), "utf8")),
+  );
+if (typeSuppressions.length > 0) {
   throw new Error(
-    `complexity suppressions: ${suppressions}, budget ${budget.complexitySuppressions}`,
+    `TypeScript suppressions are not allowed under packages: ${typeSuppressions.join(", ")}`,
   );
 }
 for (const [label, pattern, owners] of owned) {
@@ -57,4 +67,4 @@ for (const [label, pattern, owners] of owned) {
     );
   }
 }
-process.stdout.write(`quality budget: ${suppressions} complexity suppressions\n`);
+process.stdout.write("quality budget: 0 complexity and 0 type suppressions\n");

@@ -3,12 +3,9 @@ node_modules/
 
 # Build output
 dist/
-dev-dist/
 /build/
 *.ipa
 *.tsbuildinfo
-
-.wrangler/
 
 # The Expo app is generated, not committed: `expo prebuild` clears and
 # regenerates both native directories, so a hand edit has to live in a config
@@ -25,13 +22,8 @@ packages/native/.expo/
 packages/native/modules/*/android/build/
 packages/native/modules/*/android/.cxx/
 
-# Env: the real .env (your Trakt app's PUBLIC client id) is local-only.
-# Committed: .env.example (placeholders), .env.test (CI/e2e dummy id) and
-# .env.mock (the `--mode mock` harness pointing at the local fake Trakt).
+# Env files carry a developer's own Trakt client id.
 .env*
-!.env.example
-!.env.test
-!.env.mock
 *.local
 *.pem
 *.key
@@ -45,16 +37,9 @@ packages/native/modules/*/android/.cxx/
 secrets/
 # Testing
 coverage/
-test-results/
-# The equivalence lane's recording: one run's artifact, captured fresh on each
-# side of a comparison rather than carried in the tree to go stale.
-journal/
 .dprint-cache
 .pnpm-store/
 packages/native/.reassure/*
-
-# Local design-review output (screenshots + notes). Never push.
-design-review/
 
 
 # Editor / OS

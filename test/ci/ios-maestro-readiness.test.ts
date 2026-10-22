@@ -9,7 +9,9 @@ import { tempDirectory } from "../support/temp-directory";
 import { readWorkflowJobs } from "../support/workflow-jobs";
 
 it("readies the simulator in its final appearance, starts the runner, then runs Maestro once, in every iOS lane", () => {
-  const lanes = readWorkflowJobs(repositoryPath(".github/workflows/ci.yml")).filter(
+  const lanes = readWorkflowJobs(repositoryPath(".github/workflows/ci.yml"), {
+    withActions: true,
+  }).filter(
     ({ body }) => body.includes("runs-on: macos") && body.includes("scripts/maestro-test.sh"),
   );
   expect(lanes.map(({ name }) => name)).toEqual([
@@ -45,15 +47,13 @@ it("readies the simulator in its final appearance, starts the runner, then runs 
     const cache = steps
       .split(/^ {6}- /m)
       .find((step) => step.startsWith("name: Cache Maestro CLI"));
-    const script = readFileSync(repositoryPath("scripts/prepare-ios-ui.sh"), "utf8");
-    const version = script.match(/releases\/download\/cli-([\d.]+)\//)?.[1];
-    const checksum = script.match(/echo "([a-f0-9]{64}) /)?.[1];
-    expect(version).toBeDefined();
-    expect(checksum).toBeDefined();
     expect(cache).toContain("actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0");
     expect(cache).toContain("path: $" + "{{ runner.temp }}/maestro\n");
     expect(cache).toContain(
-      `key: maestro-\${{ runner.os }}-\${{ runner.arch }}-${version}-${checksum}\n`,
+      "key: maestro-$" +
+        "{{ runner.os }}-$" +
+        "{{ runner.arch }}-$" +
+        "{{ steps.pin.outputs.pin }}\n",
     );
     expect(cache).not.toContain("restore-keys:");
     expect(steps.indexOf("name: Cache Maestro CLI")).toBeGreaterThan(boot);
@@ -79,7 +79,7 @@ it("readies the simulator in its final appearance, starts the runner, then runs 
 
 it("freezes backboardd under the started runner before the dark flow and checks its taps after", () => {
   const dark =
-    readWorkflowJobs(repositoryPath(".github/workflows/ci.yml")).find(
+    readWorkflowJobs(repositoryPath(".github/workflows/ci.yml"), { withActions: true }).find(
       ({ name }) => name === "ui-screenshots-ios-dark",
     )?.body ?? "";
   const order = [
@@ -100,9 +100,7 @@ it("uses the early-booted device and settles after installation and launch", () 
   expect(script).toContain("device_id=${DEVICE_ID:?");
   expect(script).not.toMatch(/simctl boot\s/);
   expect(script).not.toContain("scripts/start-ready-process.mjs");
-  expect(script).toContain("https://github.com/mobile-dev-inc/Maestro/releases/download/");
   const sequence = [
-    "curl -fsSL",
     'xcrun simctl install "$device_id" "$app"',
     'xcrun simctl bootstatus "$device_id" -b\nscripts/disable-ios-daemons.sh "$device_id" --booted\n',
     'xcrun simctl ui "$device_id" appearance "$appearance"',
@@ -115,13 +113,12 @@ it("uses the early-booted device and settles after installation and launch", () 
   expect(sequence).toEqual([...sequence].sort((a, b) => a - b));
 });
 
-it.each([false, true])("prepares the app with a Maestro cache hit of %s", (cached) => {
-  const directory = preparation(cached);
-  const result = directory.run();
+it("prepares the app", () => {
+  const directory = stubbed();
+  const result = directory.run("prepare-ios-ui.sh", [`${directory.root}/Cue.app`, "light"]);
   expect(result.status, result.stderr).toBe(0);
   const calls = readFileSync(directory.calls, "utf8").trim().split("\n");
   expect(calls.map((call) => call.split(" ")[0])).toEqual([
-    ...(cached ? [] : ["curl", "shasum", "unzip"]),
     "xcrun",
     "xcrun",
     "xcrun",
@@ -140,9 +137,6 @@ it.each([false, true])("prepares the app with a Maestro cache hit of %s", (cache
     "vm_stat",
     "ps",
   ]);
-  expect(readFileSync(path.join(directory.root, "github-path"), "utf8")).toBe(
-    `${directory.root}/maestro/bin\n`,
-  );
   expect(calls).toContain(`xcrun simctl install test-device ${directory.root}/Cue.app`);
   const booted = calls.indexOf("xcrun simctl bootstatus test-device -b");
   expect(calls.slice(booted + 1, booted + 3)).toEqual(
@@ -158,22 +152,54 @@ it.each([false, true])("prepares the app with a Maestro cache hit of %s", (cache
 });
 
 it.each([
-  "curl",
-  "shasum",
-  "unzip",
   "xcrun simctl install",
   "xcrun simctl bootstatus",
   "xcrun simctl spawn",
 ])("stops preparation when %s fails", (command) => {
-  const directory = preparation(false);
-  const result = directory.run(command);
+  const directory = stubbed();
+  const result = directory.run(
+    "prepare-ios-ui.sh",
+    [`${directory.root}/Cue.app`, "light"],
+    command,
+  );
   expect(result.status, result.stderr).toBe(17);
   const calls = readFileSync(directory.calls, "utf8").trim().split("\n");
   expect(calls.at(-1)?.startsWith(`${command} `)).toBe(true);
   expect(calls.some((call) => call.startsWith("node "))).toBe(false);
 });
 
-function preparation(cached: boolean) {
+it.each([false, true])("installs the Maestro CLI with a cache hit of %s", (cached) => {
+  const directory = stubbed(cached);
+  const result = directory.run("install-maestro.sh");
+  expect(result.status, result.stderr).toBe(0);
+  const calls = cached ? [] : readFileSync(directory.calls, "utf8").trim().split("\n");
+  expect(calls.map((call) => call.split(" ")[0])).toEqual(
+    cached ? [] : ["curl", "shasum", "unzip"],
+  );
+  expect(readFileSync(path.join(directory.root, "github-path"), "utf8")).toBe(
+    `${directory.root}/maestro/bin\n`,
+  );
+});
+
+it.each(["curl", "shasum", "unzip"])("stops the Maestro CLI install when %s fails", (command) => {
+  const directory = stubbed();
+  const result = directory.run("install-maestro.sh", [], command);
+  expect(result.status, result.stderr).toBe(17);
+  const calls = readFileSync(directory.calls, "utf8").trim().split("\n");
+  expect(calls.at(-1)?.startsWith(`${command} `)).toBe(true);
+});
+
+it("builds the Maestro runner from the release the CLI install pins", () => {
+  const pin = spawnSync("bash", [repositoryPath("scripts/install-maestro.sh"), "pin"], {
+    encoding: "utf8",
+  }).stdout.trim();
+  const runner = readFileSync(repositoryPath("scripts/build-maestro-runner.sh"), "utf8");
+
+  expect(pin).toMatch(/^\d+\.\d+\.\d+-[a-f0-9]{64}$/);
+  expect(runner).toContain(`\ntag=cli-${pin.split("-")[0]}\n`);
+});
+
+function stubbed(cached = false) {
   const root = tempDirectory("cue-ios-prepare-");
   if (cached) mkdirSync(path.join(root, "maestro"));
   const calls = path.join(root, "calls");
@@ -190,8 +216,8 @@ function preparation(cached: boolean) {
   return {
     root,
     calls,
-    run: (failure = "") =>
-      spawnSync("bash", [repositoryPath("scripts/prepare-ios-ui.sh"), `${root}/Cue.app`, "light"], {
+    run: (script: string, args: string[] = [], failure = "") =>
+      spawnSync("bash", [repositoryPath(`scripts/${script}`), ...args], {
         cwd: repositoryPath(""),
         encoding: "utf8",
         env: {

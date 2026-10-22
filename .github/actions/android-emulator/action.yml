@@ -1,7 +1,8 @@
 name: Restore the Android emulator
 description: >-
-  The emulator and the API 35 x86_64 system image that android-emulator-runner
-  boots. The runner image ships neither, and the runner action downloads both on
+  Gives the runner access to KVM, then restores the emulator and the API 35
+  x86_64 system image that android-emulator-runner boots. The runner image ships
+  neither, and the runner action downloads both on
   every run unless the newest revision is already installed. They are restored
   from the Actions cache under a key naming the revisions Google serves now, so
   only a new revision is downloaded, here, where a failed download stops the job
@@ -9,6 +10,13 @@ description: >-
 runs:
   using: composite
   steps:
+    - name: Enable KVM
+      shell: bash
+      run: |
+        echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+          | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+        sudo udevadm control --reload-rules
+        sudo udevadm trigger --name-match=kvm
     - id: packages
       shell: bash
       run: |
