@@ -15,6 +15,7 @@ permissions:
 jobs:
   codeql:
     name: codeql (${{ matrix.language }})
+    timeout-minutes: 6
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
