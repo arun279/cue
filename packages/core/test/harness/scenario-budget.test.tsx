@@ -40,12 +40,43 @@ import { act, type ReactElement, useEffect, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { memoryKv } from "../data/_runtime";
-import { FakeTrakt, HEAVY_LIBRARY, type LibrarySize, SMALL_LIBRARY } from "./fake-trakt";
+import { InProcessTrakt, type LibrarySize } from "./mock-server";
 import { SCENARIO_GET_BUDGET } from "./trakt-limits";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const NOW = Date.parse("2026-10-20T12:00:00.000Z");
+
+const SMALL_LIBRARY: LibrarySize = {
+  inProgress: 14,
+  lapsed: 6,
+  caughtUp: 4,
+  finished: 0,
+  airingWatched: 0,
+  airingWatchlist: 16,
+  watchlistShows: 40,
+  watchlistMovies: 20,
+  watchedMovies: 5,
+  hidden: 0,
+};
+
+const HEAVY_LIBRARY: LibrarySize = {
+  inProgress: 300,
+  lapsed: 220,
+  caughtUp: 200,
+  finished: 1000,
+  airingWatched: 100,
+  airingWatchlist: 0,
+  watchlistShows: 700,
+  watchlistMovies: 300,
+  watchedMovies: 400,
+  hidden: 100,
+};
+
+// The query strings the app sends, so each budget is sized from the response the scenario needs.
+const FULL = "extended=full";
+const ART = "extended=full,images";
+const PROGRESS = `${ART}&hidden=false&specials=false&count_specials=false`;
 const COLD_CACHE_AGE_MS = 2 * 60 * 60 * 1000;
 const REPLAY_TIMEOUT_MS = 120_000;
 
@@ -228,7 +259,7 @@ interface Saved {
 }
 
 interface Session {
-  readonly trakt: FakeTrakt;
+  readonly trakt: InProcessTrakt;
   readonly kv: Map<string, string>;
   readonly qc: QueryClient;
   readonly runtime: CueRuntime;
@@ -238,7 +269,7 @@ interface Session {
 }
 
 async function boot(size: LibrarySize, saved?: Saved, cacheAgeMs = 0): Promise<Session> {
-  const trakt = new FakeTrakt(size, NOW);
+  const trakt = new InProcessTrakt(size, NOW);
   vi.stubGlobal("fetch", trakt.fetch);
   resetReadPause();
   const kv = memoryKv(Object.fromEntries(saved?.kv ?? []));
@@ -332,12 +363,12 @@ async function markUndoAndPoll(session: Session): Promise<Cost> {
   const { trakt, controls, foreground } = session;
   const target = controls.queue[0];
   if (target?.nextEpisode == null) throw new Error("the queue has no episode to mark");
-  const progress = `/shows/${target.showId}/progress/watched`;
+  const progress = `/shows/${target.showId}/progress/watched?${PROGRESS}`;
   await controls.mark?.mark(target);
   await settle(session);
   const markedBytes =
-    2 * trakt.bytesOf(progress) +
-    trakt.bytesOf(`/sync/history/episodes/${target.nextEpisode.ids.trakt}?page=1&limit=30`);
+    trakt.bytesOf(progress) +
+    trakt.bytesOf(`/sync/history/episodes/${target.nextEpisode.ids.trakt}?${FULL}&page=1&limit=30`);
   const undo = useSnackbar.getState().snack?.actions?.find((a) => a.testId === "snackbar-undo");
   if (undo === undefined) throw new Error("no undo offered");
   await act(async () => undo.onPress());
@@ -349,9 +380,9 @@ async function markUndoAndPoll(session: Session): Promise<Cost> {
     gets: 5 + trakt.watchedPages,
     bytes:
       markedBytes +
-      trakt.bytesOf(progress) +
+      2 * trakt.bytesOf(progress) +
       trakt.bytesOf("/sync/last_activities") +
-      trakt.bytesOfList("/sync/watched/shows"),
+      trakt.bytesOfList(`/sync/watched/shows?${FULL},progress`),
   };
 }
 
@@ -359,15 +390,15 @@ async function replay(size: LibrarySize) {
   const results = {} as Record<Scenario, Measured>;
   const unknown: string[] = [];
   const startDay = today();
-  const activities = (trakt: FakeTrakt): number => trakt.bytesOf("/sync/last_activities");
-  const calendars = (trakt: FakeTrakt): number =>
-    trakt.bytesOf(`/calendars/my/shows/${startDay}/${CALENDAR_WINDOW_DAYS}`) +
+  const activities = (trakt: InProcessTrakt): number => trakt.bytesOf("/sync/last_activities");
+  const calendars = (trakt: InProcessTrakt): number =>
+    trakt.bytesOf(`/calendars/my/shows/${startDay}/${CALENDAR_WINDOW_DAYS}?${ART}`) +
     trakt.bytesOf(
-      `/calendars/my/shows/${recentCalendarStart(startDay)}/${RECENT_CALENDAR_WINDOW_DAYS}`,
+      `/calendars/my/shows/${recentCalendarStart(startDay)}/${RECENT_CALENDAR_WINDOW_DAYS}?${ART}`,
     );
   // Apart from the first sync's request share, each budget is one read of every response the
   // scenario needs, sized from the same fixture. With nothing changed on Trakt that is one poll.
-  const pollOnly = (trakt: FakeTrakt): Cost => ({ gets: 1, bytes: activities(trakt) });
+  const pollOnly = (trakt: InProcessTrakt): Cost => ({ gets: 1, bytes: activities(trakt) });
 
   const first = await boot(size);
   const { trakt, controls } = first;
@@ -381,13 +412,17 @@ async function replay(size: LibrarySize) {
         trakt.bytesOf("/users/settings") +
         calendars(trakt) +
         sum(
-          ["/sync/watched/shows", "/users/hidden/progress_watched", "/sync/watchlist/shows"],
+          [
+            `/sync/watched/shows?${FULL},progress`,
+            "/users/hidden/progress_watched",
+            `/sync/watchlist/shows?${ART}`,
+          ],
           (list) => trakt.bytesOfList(list),
         ) +
         sum(trakt.backlogShowIds().slice(0, DEFAULT_TRAKT_POLICY.progressBudget), (id) =>
-          trakt.bytesOf(`/shows/${id}/progress/watched`),
+          trakt.bytesOf(`/shows/${id}/progress/watched?${PROGRESS}`),
         ) +
-        sum(controls.queue, ({ showId }) => trakt.bytesOf(`/shows/${showId}`)),
+        sum(controls.queue, ({ showId }) => trakt.bytesOf(`/shows/${showId}?${ART}`)),
     }),
   );
   const saved: Saved = {

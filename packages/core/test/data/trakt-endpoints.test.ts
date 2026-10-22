@@ -1,5 +1,6 @@
 import { TRAKT_API_BASE, TraktClient } from "@cue/core/data/trakt/client";
 import {
+  getCollectionShows,
   getEpisode,
   getHidden,
   getHistory,
@@ -550,4 +551,21 @@ describe("itemsBody composes remove-by-item bodies", () => {
   it("returns an empty body when nothing is selected", () => {
     expect(itemsBody({})).toEqual({});
   });
+});
+
+it("reads every page of the show collection, which Trakt caps at 100 shows a page", async () => {
+  const collected = (trakt: number) => ({
+    last_collected_at: "2026-07-01T00:00:00.000Z",
+    show: { ...showObj, ids: { trakt } },
+  });
+  server.use(
+    http.get(`${TRAKT_API_BASE}/sync/collection/shows`, ({ request }) => {
+      const page = Number(new URL(request.url).searchParams.get("page") ?? "1");
+      return HttpResponse.json(page === 1 ? [collected(1), collected(2)] : [collected(3)], {
+        headers: { "X-Pagination-Page": String(page), "X-Pagination-Page-Count": "2" },
+      });
+    }),
+  );
+  const result = await getCollectionShows(client);
+  expect(result.ok && result.data.map((row) => row.show.ids.trakt)).toEqual([1, 2, 3]);
 });

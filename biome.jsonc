@@ -21,6 +21,8 @@
       "!**/dev-dist",
       "!**/coverage",
       "!**/test-results",
+      // Recorded and reduced from a real Trakt account by a script; kept minified.
+      "!packages/core/test/harness/trakt-real-shapes.json",
       "!ios",
       "!android"
     ]
