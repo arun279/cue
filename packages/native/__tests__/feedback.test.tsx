@@ -60,7 +60,8 @@ it("commits Mark and Undo feedback without yielding to async work", async () => 
   commits.mockClear();
   commits.mockImplementation(() => ({
     undo: screen.queryByTestId(TEST_IDS.snackbarUndo) !== null,
-    original: screen.queryByLabelText("Harbor Lights, S3 E5, Salt Air, 3 left") !== null,
+    original:
+      screen.queryByLabelText("Harbor Lights, Aired last night, S3 E5, Salt Air, 3 left") !== null,
   }));
   const mark = fireEvent.press(swipe());
   expect(client?.getQueryData<UpNextData>(queryKeys.library())?.entries[0]?.completed).toBe(
@@ -82,6 +83,7 @@ it("commits Mark and Undo feedback without yielding to async work", async () => 
     { undo: false, original: false },
     { undo: false, original: true },
   ]);
-  expect(runtime.loadEpisodePlays).toHaveBeenCalledTimes(1);
+  expect(submit).toHaveBeenCalledTimes(2);
+  expect(runtime.loadEpisodePlays).not.toHaveBeenCalled();
   await view.unmount();
 });

@@ -60,11 +60,14 @@ const token = (clock) => ({
   expires_in: TOKEN_TTL_SECONDS,
 });
 
-const json = (data, headers = {}) => ({
-  status: 200,
+const json = (data, headers = {}, status = 200) => ({
+  status,
   headers: { "content-type": "application/json; charset=utf-8", ...headers },
   body: JSON.stringify(data),
 });
+
+/** Trakt answers an add with 201 Created and a removal with 200. */
+const created = (data) => json(data, {}, 201);
 
 /** Trakt's answer to a device-token poll nobody has approved yet. */
 const pending = () => ({
@@ -198,7 +201,7 @@ const ROUTES = [
   [
     "POST",
     /^\/users\/hidden\/progress_watched$/,
-    (ctx) => json(applyHiddenWrite(ctx.library, ctx.body, false)),
+    (ctx) => created(applyHiddenWrite(ctx.library, ctx.body, false)),
   ],
   [
     "POST",
@@ -248,13 +251,17 @@ const ROUTES = [
       return page(rows, ctx.url, 10);
     },
   ],
-  ["POST", /^\/sync\/history$/, (ctx) => json(applyHistoryWrite(ctx.library, ctx.body, false))],
+  ["POST", /^\/sync\/history$/, (ctx) => created(applyHistoryWrite(ctx.library, ctx.body, false))],
   [
     "POST",
     /^\/sync\/history\/remove$/,
     (ctx) => json(applyHistoryWrite(ctx.library, ctx.body, true)),
   ],
-  ["POST", /^\/sync\/watchlist$/, (ctx) => json(applyWatchlistWrite(ctx.library, ctx.body, false))],
+  [
+    "POST",
+    /^\/sync\/watchlist$/,
+    (ctx) => created(applyWatchlistWrite(ctx.library, ctx.body, false)),
+  ],
   [
     "POST",
     /^\/sync\/watchlist\/remove$/,
