@@ -1,9 +1,10 @@
 import { act } from "@testing-library/react-native";
-import { router } from "expo-router";
+import { router, Tabs } from "expo-router";
 import { renderRouter } from "expo-router/testing-library";
 import { Profiler, type ReactElement, useSyncExternalStore } from "react";
 import { Text } from "react-native";
 import { TabStack } from "../src/TabStack";
+import { QueryProvider } from "./support/query-provider";
 
 let count = 0;
 const listeners = new Set<() => void>();
@@ -31,11 +32,12 @@ it("holds a tab's root still while two screens cover it, and catches it up on re
   jest.useFakeTimers();
   await renderRouter(
     {
-      _layout: () => <TabStack root="index" title="Up Next" />,
-      index: Root,
-      "show/[showId]": () => <Text>Show</Text>,
+      "(tabs)/_layout": () => <Tabs />,
+      "(tabs)/(up-next)/_layout": () => <TabStack root="index" title="Up Next" />,
+      "(tabs)/(up-next)/index": Root,
+      "(tabs)/(up-next)/show/[showId]": () => <Text>Show</Text>,
     },
-    { initialUrl: "/" },
+    { initialUrl: "/", wrapper: QueryProvider },
   );
   await act(async () => router.push("/show/1"));
   await act(async () => router.push("/show/2"));

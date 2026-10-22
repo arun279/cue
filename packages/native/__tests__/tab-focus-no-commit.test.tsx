@@ -33,14 +33,9 @@ const TABS = [
 ] as const;
 
 const entries = largeLibrary(100);
-const runtime = fakeRuntime({ entries });
 const haptics = spyHaptics();
 const commits: string[] = [];
-
-function seed(client: QueryClient): void {
-  client.setQueryData(libraryQuery(runtime).queryKey, { entries });
-  seedCalendars(client, runtime);
-}
+const idle: (() => void)[] = [];
 
 function route<T>(path: string): T {
   return (require(`../app/(tabs)/${path}`) as { default: T }).default;
@@ -57,62 +52,102 @@ function profiled(tab: string, screenFile: string): () => ReactElement {
   };
 }
 
+/** The four tabs over a seeded library; `calendarLoads` false leaves the calendar read in flight. */
+async function paintTabs(calendarLoads = true) {
+  // expo-router's testing mocks replace Reanimated with a stand-in that lacks this hook.
+  const reanimated = require("react-native-reanimated");
+  reanimated.useReducedMotion ??= () => false;
+  const runtime = {
+    ...fakeRuntime({ entries }),
+    ...(calendarLoads ? null : { loadCalendar: () => new Promise<never>(() => {}) }),
+  };
+  const seed = (client: QueryClient): void => {
+    client.setQueryData(libraryQuery(runtime).queryKey, { entries });
+    if (calendarLoads) seedCalendars(client, runtime);
+  };
+  const TabsLayout = route<() => ReactElement>("_layout");
+  await renderRouter({
+    "(tabs)/_layout": () => (
+      <Harness runtime={runtime} haptics={haptics} seed={seed}>
+        <TabsLayout />
+      </Harness>
+    ),
+    ...Object.fromEntries(
+      TABS.flatMap(([tab, screenFile]) => [
+        [`(tabs)/${tab}/_layout`, route(`${tab}/_layout`)],
+        [`(tabs)/${tab}/${screenFile}`, profiled(tab, screenFile)],
+      ]),
+    ),
+    ...Object.fromEntries(
+      ["show/[showId]", "movie/[movieId]", "show/[showId]/episode/[season]/[episode]"].map(
+        (path) => [`(tabs)/(up-next,library,calendar,search)/${path}`, () => null],
+      ),
+    ),
+  });
+  await act(async () => {});
+}
+
+const mounted = () =>
+  TABS.filter(([tab]) => commits.some((commit) => commit.startsWith(`${tab} `))).map(
+    ([tab]) => tab,
+  );
+const settle = () =>
+  act(async () => {
+    for (const callback of idle.splice(0)) callback();
+  });
+
+beforeEach(() => {
+  commits.length = 0;
+  idle.length = 0;
+  jest.spyOn(globalThis, "requestIdleCallback").mockImplementation((callback) => {
+    idle.push(() => callback({ didTimeout: false, timeRemaining: () => 50 }));
+    return idle.length;
+  });
+  jest.spyOn(globalThis, "cancelIdleCallback").mockImplementation((handle) => {
+    idle[handle - 1] = () => {};
+  });
+});
+
+afterEach(() => jest.restoreAllMocks());
+
 // Android's header toolbar renders through Jetpack Compose, which this runner has no host for;
 // the tab screens under test are the same code on both platforms.
 const onIos = Platform.OS === "ios" ? it : it.skip;
 
 onIos(
-  "mounts each tab on its first selection and commits no tab screen on any switch after that",
+  "mounts only the opening tab, then every tab once launch settles, and re-renders none on a switch",
   async () => {
-    // expo-router's testing mocks replace Reanimated with a stand-in that lacks this hook.
-    const reanimated = require("react-native-reanimated");
-    reanimated.useReducedMotion ??= () => false;
-    const TabsLayout = route<() => ReactElement>("_layout");
-    await renderRouter({
-      "(tabs)/_layout": () => (
-        <Harness runtime={runtime} haptics={haptics} seed={seed}>
-          <TabsLayout />
-        </Harness>
-      ),
-      ...Object.fromEntries(
-        TABS.flatMap(([tab, screenFile]) => [
-          [`(tabs)/${tab}/_layout`, route(`${tab}/_layout`)],
-          [`(tabs)/${tab}/${screenFile}`, profiled(tab, screenFile)],
-        ]),
-      ),
-      ...Object.fromEntries(
-        ["show/[showId]", "movie/[movieId]", "show/[showId]/episode/[season]/[episode]"].map(
-          (path) => [`(tabs)/(up-next,library,calendar,search)/${path}`, () => null],
-        ),
-      ),
-    });
-    await act(async () => {});
-    const mounted = () =>
-      TABS.filter(([tab]) => commits.includes(`${tab} mount`)).map(([tab]) => tab);
+    await paintTabs();
     expect(mounted()).toEqual(["(up-next)"]);
+
+    await settle();
+    expect(mounted()).toEqual(TABS.map(([tab]) => tab));
 
     const host = () =>
       screen.container.queryAll((node) => node.props["onTabSelected"] !== undefined)[0];
     const keys = screen.container
       .queryAll((node) => typeof node.props["screenKey"] === "string")
       .map((node) => String(node.props["screenKey"]));
+    commits.length = 0;
     let provenance = 0;
-    const select = async (key: string | undefined) => {
+    for (const key of [...keys.slice(1), keys[0], ...keys.slice(1), keys[0]]) {
       provenance += 1;
       await act(async () =>
         host()?.props["onTabSelected"]({
           nativeEvent: { selectedScreenKey: key, provenance, actionOrigin: "user" },
         }),
       );
-    };
-    for (const key of [...keys.slice(1), keys[0]]) await select(key);
-    expect(mounted()).toEqual(TABS.map(([tab]) => tab));
-
-    commits.length = 0;
-    for (const key of [...keys.slice(1), keys[0], ...keys.slice(1), keys[0]]) await select(key);
+    }
 
     expect(host()?.props["navStateRequest"]?.selectedScreenKey).toBe(keys[0]);
     expect(commits).toEqual([]);
   },
   20_000,
 );
+
+onIos("waits for the opening tab's reads before it mounts any other tab", async () => {
+  await paintTabs(false);
+  await settle();
+
+  expect(mounted()).toEqual(["(up-next)"]);
+});
