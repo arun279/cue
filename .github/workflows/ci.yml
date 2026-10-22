@@ -185,23 +185,39 @@ jobs:
         with:
           fetch-depth: 0
       - uses: ./.github/actions/setup-node-pnpm
-      - name: Measure base and head consecutively
+      - name: Check out the base
+        id: base
         env:
           EVENT_NAME: ${{ github.event_name }}
           PUSH_BEFORE: ${{ github.event.before }}
-          EXPO_PUBLIC_TRAKT_CLIENT_ID: test-client
         run: |
           BASE_SHA=$(scripts/measured-base.sh "$EVENT_NAME" "$PUSH_BEFORE")
           if git show "$BASE_SHA:packages/native/package.json" 2>/dev/null | grep -q '"perf:render"'; then
-            base_directory="$RUNNER_TEMP/render-base"
-            git worktree add --detach "$base_directory" "$BASE_SHA"
-            pnpm --dir "$base_directory" install --frozen-lockfile
-            (cd "$base_directory" && pnpm --dir packages/native perf:render --baseline --compare=false)
-            mkdir -p packages/native/.reassure
-            cp "$base_directory/packages/native/.reassure/baseline.perf" \
-              packages/native/.reassure/baseline.perf
+            git worktree add --detach "$RUNNER_TEMP/render-base" "$BASE_SHA"
+            echo "measure=true" >> "$GITHUB_OUTPUT"
           fi
-          pnpm --dir packages/native perf:render
+      - if: steps.base.outputs.measure == 'true'
+        uses: ./.github/actions/use-tree-node
+        with:
+          tree: ${{ runner.temp }}/render-base
+      - name: Measure the base
+        if: steps.base.outputs.measure == 'true'
+        env:
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: test-client
+        run: |
+          pnpm --dir "$RUNNER_TEMP/render-base" install --frozen-lockfile
+          (cd "$RUNNER_TEMP/render-base" && pnpm --dir packages/native perf:render --baseline --compare=false)
+          mkdir -p packages/native/.reassure
+          cp "$RUNNER_TEMP/render-base/packages/native/.reassure/baseline.perf" \
+            packages/native/.reassure/baseline.perf
+      - if: steps.base.outputs.measure == 'true'
+        uses: ./.github/actions/use-tree-node
+        with:
+          tree: .
+      - name: Measure the head
+        env:
+          EXPO_PUBLIC_TRAKT_CLIENT_ID: test-client
+        run: pnpm --dir packages/native perf:render
       - name: Gate render counts
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -270,6 +286,11 @@ jobs:
         with:
           name: cue-native-android-${{ needs.native-android.outputs.fingerprint }}
           path: ${{ runner.temp }}/head-android
+      - name: Check out the merge base
+        run: git worktree add --detach "$RUNNER_TEMP/footprint-base" "$(scripts/measured-base.sh pull_request)"
+      - uses: ./.github/actions/use-tree-node
+        with:
+          tree: ${{ runner.temp }}/footprint-base
       - name: Measure the merge base
         env:
           ANDROID_ARCHITECTURES: arm64-v8a,x86_64
@@ -282,7 +303,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           HEAD_FINGERPRINT: ${{ needs.native-android.outputs.fingerprint }}
         run: |
-          scripts/measure-base.sh "$(scripts/measured-base.sh pull_request)" "$RUNNER_TEMP/bundletool.jar" \
+          scripts/measure-base.sh "$RUNNER_TEMP/footprint-base" "$RUNNER_TEMP/bundletool.jar" \
             "$RUNNER_TEMP/head-android" "$RUNNER_TEMP/base-metrics.json"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
