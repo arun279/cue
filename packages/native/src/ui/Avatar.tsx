@@ -2,8 +2,9 @@ import { initialsOf } from "@cue/core/data/image-source";
 import { userProfileQuery } from "@cue/core/queries/user";
 import { useRuntime } from "@cue/core/runtime/runtime";
 import { useQuery } from "@tanstack/react-query";
+import { Image } from "expo-image";
 import { type ReactElement, useState } from "react";
-import { Image, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import Svg, { Circle, Path } from "react-native-svg";
 import { MONOGRAM_LEADING, plate } from "./Poster";
 import { TEST_IDS } from "./test-ids";
@@ -53,10 +54,11 @@ export function Avatar({ size }: { readonly size: number }): ReactElement {
       )}
       {photo && photo !== failed ? (
         <Image
-          key={photo}
           testID={TEST_IDS.avatarPhoto}
-          source={{ uri: photo }}
-          style={StyleSheet.absoluteFill}
+          source={photo}
+          recyclingKey={photo}
+          cachePolicy="memory-disk"
+          style={[StyleSheet.absoluteFill, styles.photo]}
           onError={() => setFailed(photo)}
         />
       ) : null}
@@ -69,7 +71,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderRadius: RADIUS.pill,
-    overflow: "hidden",
   },
+  photo: { borderRadius: RADIUS.pill },
   initials: { color: PALETTE.onImage2.dark },
 });

@@ -1,6 +1,7 @@
 import { artHue, initialsOf, resolvePoster } from "@cue/core/data/image-source";
+import { Image } from "expo-image";
 import { type ReactElement, useState } from "react";
-import { Image, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { PALETTE, RADIUS } from "./tokens";
 import { CueText } from "./type";
 
@@ -46,9 +47,10 @@ export function Poster({ title, posters, width }: PosterProps): ReactElement {
       </CueText>
       {url === null ? null : (
         <Image
-          key={url}
-          source={{ uri: url }}
-          style={StyleSheet.absoluteFill}
+          source={url}
+          recyclingKey={url}
+          cachePolicy="memory-disk"
+          style={[StyleSheet.absoluteFill, styles.art]}
           onError={() => setBroken(true)}
         />
       )}
@@ -66,7 +68,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderRadius: RADIUS.poster,
-    overflow: "hidden",
   },
+  art: { borderRadius: RADIUS.poster },
   initials: { color: PALETTE.onImage2.dark },
 });
