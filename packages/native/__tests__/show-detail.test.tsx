@@ -4,6 +4,7 @@ import { UNDO_WINDOW_MS } from "@cue/core/sync-contract";
 import { act, fireEvent, render, renderHook, screen } from "@testing-library/react-native";
 import { Children, isValidElement, type ReactNode } from "react";
 import { ActionSheetIOS, Alert, Platform } from "react-native";
+import { MovieDetail } from "../src/screens/MovieDetail";
 import { ShowDetail } from "../src/screens/ShowDetail";
 import { ContinueBar } from "../src/screens/show-detail/ContinueBar";
 import { confirm } from "../src/ui/confirm";
@@ -11,6 +12,7 @@ import { HEADER_TINT } from "../src/ui/navigation-theme";
 import { TEST_IDS } from "../src/ui/test-ids";
 import { useColors } from "../src/ui/tokens";
 import { DetailHarness, detailRuntime } from "./support/detail";
+import { movieRuntime } from "./support/movie-detail";
 import { router } from "./support/native-ui";
 import { entry, Harness, resetSharedStores, spyHaptics } from "./support/up-next";
 
@@ -248,6 +250,33 @@ it("names on the Next card the episode its check describes, through a mark and i
   } finally {
     jest.useRealTimers();
   }
+});
+
+it("names genres the way Trakt does, from one read that every detail screen shares", async () => {
+  const loadGenreNames = jest.fn(async () => ({ thriller: "Suspense", drama: "Drama" }));
+  const { loadMovieHeader, loadMovieLibrary, loadMovieRelated, loadMoviePlays } = movieRuntime();
+  const runtime = {
+    ...detailRuntime,
+    loadMovieHeader,
+    loadMovieLibrary,
+    loadMovieRelated,
+    loadMoviePlays,
+    loadGenreNames,
+  };
+  const view = await render(
+    <DetailHarness runtime={runtime}>
+      <ShowDetail showId={8803} />
+    </DetailHarness>,
+  );
+  expect(await screen.findByText("Suspense")).toBeOnTheScreen();
+
+  await view.rerender(
+    <DetailHarness runtime={runtime}>
+      <MovieDetail movieId={5501} />
+    </DetailHarness>,
+  );
+  expect(await screen.findByText(/Drama/)).toBeOnTheScreen();
+  expect(loadGenreNames).toHaveBeenCalledTimes(1);
 });
 
 it("updates the header only when the menu it shows changes, as the show's reads land and its state moves", async () => {

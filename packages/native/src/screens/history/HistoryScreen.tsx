@@ -21,7 +21,7 @@ import {
   useRouter,
 } from "expo-router";
 import { type ReactElement, useMemo, useRef, useState } from "react";
-import { RefreshControl, SectionList, StyleSheet, useWindowDimensions, View } from "react-native";
+import { RefreshControl, SectionList, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePullToRefresh } from "../../hooks/usePullToRefresh";
 import { Button } from "../../ui/Button";
@@ -99,7 +99,6 @@ export function HistoryScreen(): ReactElement {
   usePerfScroll("history", (y) =>
     list.current?.getScrollResponder()?.scrollTo({ y, animated: true }),
   );
-  const rowWidth = useWindowDimensions().width - 2 * ROW_INSET;
   const next = () => {
     if (query.hasNextPage && !query.isFetching) void query.fetchNextPage();
   };
@@ -153,7 +152,7 @@ export function HistoryScreen(): ReactElement {
         renderItem={({ item, index }) => (
           <View style={styles.row}>
             {index === 0 ? null : <Separator inset={62 + SPACE.s3 + SPACE.s6 + SPACE.s3} />}
-            <HistoryRow {...item} width={rowWidth} onRemove={remove} />
+            <HistoryRow {...item} onRemove={remove} />
           </View>
         )}
         ListHeaderComponent={

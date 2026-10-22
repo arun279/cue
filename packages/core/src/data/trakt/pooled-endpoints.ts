@@ -20,6 +20,7 @@ export const getWatchlist = pool(raw.getWatchlist);
 export const getCollectionMovies = pool(raw.getCollectionMovies);
 export const getMyShowsCalendar = pool(raw.getMyShowsCalendar);
 export const searchTrakt = pool(raw.searchTrakt);
+export const getGenres = pool(raw.getGenres);
 export const getTrendingShows = pool(raw.getTrendingShows);
 export const getPopularShows = pool(raw.getPopularShows);
 export const getTrendingMovies = pool(raw.getTrendingMovies);

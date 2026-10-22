@@ -31,6 +31,11 @@ function renderRow(onMark: (() => void) | undefined, onStop: () => void) {
 async function dragTo(points: number): Promise<void> {
   await act(async () => {
     const translation = drag.translation;
+    if (translation === null || drag.start === null) throw new Error("no swipeable rendered");
+    drag.start(points > 0 ? "right" : "left");
+  });
+  await act(async () => {
+    const translation = drag.translation;
     if (translation === null) throw new Error("no swipeable rendered");
     translation.value = points;
     jest.advanceTimersByTime(FRAME_MS);
@@ -110,6 +115,20 @@ describe("the queue row's swipe", () => {
     await user.press(screen.getByTestId("row-drag-right"));
 
     expect(haptics.prepare).toHaveBeenCalled();
+  });
+});
+
+describe("the reveals' cost", () => {
+  it("mounts no glyph until the row is first dragged, then keeps it", async () => {
+    await renderRow(jest.fn(), jest.fn());
+    const glyphs = () =>
+      screen.container.queryAll((node) => String(node.type).startsWith("RNSVGSvgView")).length;
+
+    expect(glyphs()).toBe(0);
+    await dragTo(1);
+    expect(glyphs()).toBe(2);
+    await dragTo(0);
+    expect(glyphs()).toBe(2);
   });
 });
 

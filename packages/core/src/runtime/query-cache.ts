@@ -19,6 +19,7 @@ const PERSISTED_KEY_HEADS: ReadonlySet<unknown> = new Set([
   "users",
   "history",
   "calendar",
+  "genres",
 ]);
 
 export const PERSIST_MAX_AGE = Number.POSITIVE_INFINITY;

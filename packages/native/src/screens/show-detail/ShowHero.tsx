@@ -1,4 +1,5 @@
 import { resolveBackdrop } from "@cue/core/data/image-source";
+import { useGenreLabels } from "@cue/core/hooks/useGenreLabels";
 import { Image } from "expo-image";
 import { type ReactElement, type ReactNode, useState } from "react";
 import { StyleSheet, View } from "react-native";
@@ -60,14 +61,15 @@ export function DetailHero({
 
 export function ShowAbout({ header }: { readonly header: ShowHeader }): ReactElement {
   const colors = useColors();
+  const genres = useGenreLabels(header.genres);
   return (
     <View style={styles.body}>
       <CueText variant="meta" accessibilityRole="header" style={{ color: colors.muted }}>
         About
       </CueText>
-      {header.genres.length > 0 && (
+      {genres.length > 0 && (
         <CueText variant="meta" style={{ color: colors.ink2 }}>
-          {header.genres.join(" · ")}
+          {genres.join(" · ")}
         </CueText>
       )}
       <CueText variant="meta" style={{ color: colors.muted }}>

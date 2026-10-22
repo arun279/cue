@@ -1,5 +1,6 @@
 import type { MovieHeader } from "@cue/core/data/trakt/movie-library";
 import { episodeStatus } from "@cue/core/domain/episode-detail";
+import { useGenreLabels } from "@cue/core/hooks/useGenreLabels";
 import { usePrefs } from "@cue/core/prefs/prefs-store";
 import { movieLibraryQuery } from "@cue/core/queries/library";
 import { movieHeaderQuery, movieRelatedQuery } from "@cue/core/queries/movies";
@@ -72,6 +73,7 @@ function LoadedMovie({ header }: { readonly header: MovieHeader }): ReactElement
   const runtime = useRuntime();
   const related = useQuery(movieRelatedQuery(runtime, header.movieId));
   const actions = useMovieActions(header);
+  const genres = useGenreLabels(header.genres);
   const insets = useSafeAreaInsets();
   const colors = useColors();
   const stacked = useStacked();
@@ -104,11 +106,7 @@ function LoadedMovie({ header }: { readonly header: MovieHeader }): ReactElement
       >
         <DetailHero
           header={header}
-          facts={[
-            header.year,
-            header.runtime === null ? null : `${header.runtime} min`,
-            ...header.genres,
-          ]}
+          facts={[header.year, header.runtime === null ? null : `${header.runtime} min`, ...genres]}
         />
         <View style={styles.body}>
           <View

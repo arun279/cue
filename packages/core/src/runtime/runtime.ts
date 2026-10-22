@@ -70,6 +70,7 @@ export interface CueRuntime {
   loadMoviePlays(movieId: number): Promise<readonly MoviePlay[]>;
   search(query: string): Promise<readonly SearchHit[]>;
   loadBrowse(): Promise<BrowseData>;
+  loadGenreNames(): Promise<Readonly<Record<string, string>>>;
   loadUserProfile(): Promise<UserProfile>;
   submit(op: QueuedOp): Promise<SubmitOutcome>;
   writeReceipt(opId: string): WriteReceipt | null;

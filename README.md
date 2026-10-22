@@ -16,7 +16,7 @@ Cue has no backend of its own. The Expo app talks directly to Trakt over OAuth w
 
 ## Development
 
-Requires Node 22.12.0, the version in `.nvmrc`, and pnpm.
+Requires Node 22.23.4, the version in `.nvmrc`, and pnpm.
 
 ```sh
 pnpm install

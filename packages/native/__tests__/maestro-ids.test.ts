@@ -2,6 +2,7 @@
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import ts from "typescript";
 import { parseAllDocuments } from "yaml";
 import { HARNESS_IDS } from "../src/ui/harness-ids";
@@ -404,28 +405,51 @@ it("centres every Settings control it scrolls to and waits for the scroll to set
   expect(taps).toEqual([]);
 });
 
-it("waits for onboarding readiness, taps again only on proof the simulator dropped the tap, and fails fast on a lost press", () => {
+const MEDIA_SWITCHES: Readonly<Record<string, string>> = {
+  [TEST_IDS.settingsMovies]: TEST_IDS.settingsShows,
+  [TEST_IDS.settingsShows]: TEST_IDS.settingsMovies,
+};
+
+/** A tapped switch's own value flips natively at the touch, while the other media switch is
+ * enabled or disabled by the app from the preference, so only the other one proves the change
+ * landed before the flow moves on. The tapped switch then has to report the matching on or off,
+ * which is what a screen reader announces. */
+function unconfirmedMediaTaps(commands: Command[]): string[] {
+  return commands.flatMap((command, index) => {
+    const id = targetOf(command, "tapOn");
+    const other = typeof id === "string" ? MEDIA_SWITCHES[id] : undefined;
+    if (other === undefined) return [];
+    const { enabled } = (commands[index + 1]?.["assertVisible"] ?? {}) as { enabled?: unknown };
+    const expected = [
+      { assertVisible: { id: other, enabled } },
+      { assertVisible: { id, checked: enabled } },
+    ];
+    const confirmed =
+      typeof enabled === "boolean" &&
+      isDeepStrictEqual(commands.slice(index + 1, index + 3), expected);
+    return confirmed ? [] : [String(id)];
+  });
+}
+
+it("waits for the app to apply every media switch tap, then checks the switch reports it", () => {
+  const taps = yamlFiles(flowsDirectory).flatMap((file) =>
+    parseAllDocuments(readFileSync(file, "utf8"))
+      .flatMap((document) => commandLists(document.toJS()))
+      .flatMap(unconfirmedMediaTaps)
+      .map((id) => `${relative(flowsDirectory, file)}: ${id}`),
+  );
+
+  expect(taps).toEqual([]);
+});
+
+it("waits for onboarding readiness, then for the device code after one Connect tap", () => {
   const source = readFileSync(join(flowsDirectory, "lib/sign-in.yaml"), "utf8");
   const commands = parseAllDocuments(source)[1]?.toJS();
-  const tap = { tapOn: { id: TEST_IDS.buttonConnect } };
   expect(commands[0]).toEqual({
     extendedWaitUntil: { visible: { id: HARNESS_IDS.onboardingReady }, timeout: 90000 },
   });
-  expect(commands.slice(2, 11)).toEqual([
-    { runScript: "touch-window.js" },
-    tap,
-    { copyTextFrom: { id: HARNESS_IDS.pressTrace } },
-    { evalScript: `\${console.log('CUE_PRESS_TRACE=' + maestro.copiedText)}` },
-    { runScript: "touch-proof.js" },
-    { evalScript: `\${console.log('CUE_TOUCH_PROOF=' + output.touchProof)}` },
-    { runFlow: { when: { true: `\${output.tapConnectAgain}` }, commands: [tap] } },
-    {
-      extendedWaitUntil: {
-        visible: { id: HARNESS_IDS.pressTrace, text: ".*; press [+].*" },
-        timeout: 10000,
-        label: "Tap not delivered: Connect Trakt never pressed",
-      },
-    },
+  expect(commands.slice(2, 4)).toEqual([
+    { tapOn: { id: TEST_IDS.buttonConnect } },
     { extendedWaitUntil: { visible: { id: TEST_IDS.deviceCodeValue }, timeout: 30000 } },
   ]);
   expect(commands.filter((command: object) => "tapOn" in command)).toHaveLength(1);

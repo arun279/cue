@@ -75,7 +75,6 @@ jest.mock("expo-router", () => {
   return {
     ...native,
     Stack,
-    Link: Text,
     Redirect: () => null,
     DarkTheme,
     DefaultTheme,

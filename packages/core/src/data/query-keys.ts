@@ -4,6 +4,7 @@ export const queryKeys = {
   calendarPrefix: () => ["calendar", "my-shows"] as const,
   search: (query: string, types: string) => ["search", types, query] as const,
   browse: () => ["discover", "shows-movies"] as const,
+  genres: () => ["genres"] as const,
   lastActivities: () => ["sync", "last_activities"] as const,
   userSettings: () => ["users", "settings"] as const,
   history: (type: "all" | "tv" | "movies", scope = "recent") => ["history", type, scope] as const,

@@ -21,7 +21,7 @@ adb shell am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS
 adb shell settings put system font_scale 1.0
 adb shell wm size reset
 adb shell wm density reset
-bash scripts/pin-android-display.sh "$output/window-displays.txt"
+node scripts/pin-android-display.mjs "$output/window-displays.txt"
 mock_pid=$(node scripts/start-ready-process.mjs scripts/mock-trakt/server.mjs "$output/mock-trakt.log")
 adb reverse tcp:8787 tcp:8787
 adb reverse tcp:8790 tcp:8790
