@@ -43,6 +43,7 @@ const adbBin = fakeBin({
 case "$*" in
   'shell am start '*) printf '%s\n' "$LAUNCH" ;;
   'shell pidof '*) [ -n "$PID" ] || exit 1; printf '%s\n' "$PID" ;;
+  'shell getprop ro.hw_timeout_multiplier') printf '3\r\n' ;;
   'logcat -d '*) printf '%s\n' "$LOGCAT" ;;
 esac
 `,
@@ -73,7 +74,11 @@ it.each([
   expect(result.status, result.stderr).toBe(status);
   if (pid === "") expect(result.stderr).toContain("not running after launch");
   if (logcat !== "") expect(result.stderr).toContain(logcat);
-  if (launch !== "Status: ok") expect(result.stderr).toContain("did not acknowledge readiness");
+  if (launch !== "Status: ok") {
+    expect(result.stderr).toContain(
+      "not drawn within Android's launch idle timeout, 10 s times ro.hw_timeout_multiplier (3)",
+    );
+  }
 });
 
 it("takes the readiness watchdog bound from the command line", () => {

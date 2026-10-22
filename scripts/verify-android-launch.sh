@@ -25,7 +25,8 @@ if [ "$launch_status" -ne 0 ]; then
   exit "$launch_status"
 fi
 if ! grep -q '^Status: ok' "$logcat.launch"; then
-  echo "Activity did not acknowledge readiness" >&2
+  multiplier=$(adb shell getprop ro.hw_timeout_multiplier | tr -d '\r')
+  echo "The activity was not drawn within Android's launch idle timeout, 10 s times ro.hw_timeout_multiplier (${multiplier:-1})" >&2
   cat "$logcat" >&2
   exit 1
 fi
