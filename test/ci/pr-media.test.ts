@@ -28,7 +28,7 @@ case "$1 $2" in
 esac
 for arg; do
   case $prev in --jq) filter=$arg ;; --input) input=$arg ;; esac
-  case $arg in repos/* | https://*) url=$arg ;; esac
+  case $arg in repos/* | https://* | graphql) url=$arg ;; esac
   prev=$arg
 done
 case $url in */zip) id=\${url%/zip}; cat "$STATE/\${id##*/}.zip"; exit ;; esac
@@ -39,7 +39,7 @@ case $url in
     jq -n --arg name "\${name%%&*}" '{url: ("https://github.com/user-attachments/assets/" + $name)}' ;;
   */jobs*) run=\${url#*/runs/}; cat "$STATE/jobs-\${run%%/*}.json" ;;
   */runs/*/artifacts*) run=\${url#*/runs/}; cat "$STATE/artifacts-\${run%%/*}.json" ;;
-  */workflows/ci.yml/runs*) cat "$STATE/runs.json" ;;
+  graphql) cat "$STATE/suites.json" ;;
   */actions/artifacts\\?name=*) cat "$STATE/by-name.json" ;;
   */reviews*) cat "$STATE/reviews.json" ;;
   repos/o/r) echo '{"id": 99}' ;;
@@ -263,16 +263,37 @@ const record = (root: string, state: string, id: number, lanes: Run, day: string
   );
 };
 
-const gather = (before: Run | undefined, after: Run) => {
+const suite = (databaseId: number, event: string, workflow: string, status = "COMPLETED") => ({
+  status,
+  workflowRun: {
+    databaseId,
+    event,
+    workflow: { resourcePath: `/o/r/actions/workflows/${workflow}` },
+  },
+});
+// Higher run ids than base's push run of CI, so picking any of them fails the run.
+const OTHER_SUITES = [
+  suite(3, "pull_request", "ci.yml"),
+  suite(4, "push", "codeql.yml"),
+  { status: "COMPLETED", workflowRun: null },
+];
+
+const attempt = (before: Run, after: Run, suites = [suite(2, "push", "ci.yml")]) => {
   const { root, state, run } = sandbox();
   record(root, state, 1, after, "2026-10-04");
-  if (before) record(root, state, 2, before, "2026-10-04");
+  record(root, state, 2, before, "2026-10-04");
   writeFileSync(
-    path.join(state, "runs.json"),
-    JSON.stringify({ workflow_runs: before ? [{ id: 2 }] : [] }),
+    path.join(state, "suites.json"),
+    JSON.stringify({
+      data: { repository: { object: { checkSuites: { nodes: [...suites, ...OTHER_SUITES] } } } },
+    }),
   );
   const out = path.join(root, "pr-media");
-  const result = run("gather-pr-media.sh", ["1", BASE, HEAD, out]);
+  return { root, out, result: run("gather-pr-media.sh", ["1", BASE, HEAD, out]) };
+};
+
+const gather = (before: Run, after: Run) => {
+  const { root, out, result } = attempt(before, after);
   expect(result.stderr).toBe("");
   expect(result.status).toBe(0);
   const review = readFileSync(path.join(out, "review.md"), "utf8");
@@ -287,6 +308,7 @@ const gather = (before: Run | undefined, after: Run) => {
 const dark = (captures: Record<string, Capture>, conclusion = "success"): Run => ({
   "ui-screenshots-ios-dark": { conclusion, captures },
 });
+const steady: Run = { "ui-screenshots-android-light-detail": { captures: { "up-next": {} } } };
 
 describe("pr-media job", () => {
   it("waits for every screenshot job, still runs when they are skipped, and uploads instead of posting", () => {
@@ -441,8 +463,8 @@ describe("gather-pr-media.sh", { timeout: 30_000 }, () => {
 
   it("reports a skipped base sibling shard without calling moved captures new", () => {
     const { review, images } = gather(
-      { "ui-screenshots-ios-light-detail": { conclusion: "skipped", captures: null } },
-      { "ui-screenshots-ios-light-activity": { captures: { "show-detail-rest": {} } } },
+      { ...steady, "ui-screenshots-ios-light-detail": { conclusion: "skipped", captures: null } },
+      { ...steady, "ui-screenshots-ios-light-activity": { captures: { "show-detail-rest": {} } } },
     );
     expect(images).toEqual([]);
     expect(review).toContain("Not compared:");
@@ -451,8 +473,8 @@ describe("gather-pr-media.sh", { timeout: 30_000 }, () => {
 
   it("reports a failed head sibling shard without calling moved captures removed", () => {
     const { review } = gather(
-      { "ui-screenshots-ios-light-detail": { captures: { "show-detail-rest": {} } } },
-      { "ui-screenshots-ios-light-activity": { conclusion: "failure", captures: null } },
+      { ...steady, "ui-screenshots-ios-light-detail": { captures: { "show-detail-rest": {} } } },
+      { ...steady, "ui-screenshots-ios-light-activity": { conclusion: "failure", captures: null } },
     );
     expect(review).toContain("Not compared:");
     expect(review).not.toContain("Removed screens:");
@@ -540,12 +562,10 @@ describe("gather-pr-media.sh", { timeout: 30_000 }, () => {
   });
 
   it("names the missing base captures and why instead of calling their screens new", () => {
-    const skipped: Run = {
-      "ui-screenshots-android-dark": { conclusion: "skipped", captures: null },
-    };
-    const { review, images } = gather(skipped, {
-      "ui-screenshots-android-dark": { captures: { "calendar-rest": {} } },
-    });
+    const { review, images } = gather(
+      { ...steady, "ui-screenshots-android-dark": { conclusion: "skipped", captures: null } },
+      { ...steady, "ui-screenshots-android-dark": { captures: { "calendar-rest": {} } } },
+    );
 
     expect(images).toEqual([]);
     expect(review).toContain(
@@ -557,24 +577,53 @@ describe("gather-pr-media.sh", { timeout: 30_000 }, () => {
   });
 
   it("names a skipped matrix lane, which GitHub reports without its suite", () => {
-    const { review } = gather(
-      {},
-      { "ui-screenshots-ios-light-detail": { conclusion: "skipped", captures: null } },
-    );
+    const { review } = gather(steady, {
+      ...steady,
+      "ui-screenshots-ios-light-detail": { conclusion: "skipped", captures: null },
+    });
 
     expect(review).toContain(
       "- After captures for iOS light (detail flows) are missing because the native-e2e-ios-light (detail) job was skipped in [run 1](https://github.com/o/r/actions/runs/1).",
     );
   });
 
-  it("names the base commit when it has no push run", () => {
-    const { review, images } = gather(undefined, dark({ "library-shows": {} }));
-
-    expect(images).toEqual([]);
-    expect(review).toContain(
-      "- Before captures for iOS light (detail flows) are missing because no push run of CI exists for base bbbbbbb.",
+  it("stops without a review when base has no push run of CI", () => {
+    const { out, result } = attempt(
+      dark({ "library-shows": {} }),
+      dark({ "library-shows": {} }),
+      [],
     );
-    expect(review.match(/^- Before captures/gm)).toHaveLength(8);
+
+    expect(result.stderr).toBe(
+      "No push run of CI exists for base bbbbbbb, so head's screens have nothing to be compared with.\n",
+    );
+    expect(result.status).toBe(1);
+    expect(existsSync(path.join(out, "review.md"))).toBe(false);
+  });
+
+  it("stops without a review and asks for a re-run while base's push run of CI is unfinished", () => {
+    const { out, result } = attempt(dark({ "library-shows": {} }), dark({ "library-shows": {} }), [
+      suite(2, "push", "ci.yml", "IN_PROGRESS"),
+    ]);
+
+    expect(result.stderr).toBe(
+      "Base CI not finished: push run https://github.com/o/r/actions/runs/2 for base bbbbbbb is IN_PROGRESS. Re-run pr-media after it completes.\n",
+    );
+    expect(result.status).toBe(1);
+    expect(existsSync(path.join(out, "review.md"))).toBe(false);
+  });
+
+  it("stops without a review when no screen could be compared", () => {
+    const { out, result } = attempt(
+      { "ui-screenshots-ios-dark": { conclusion: "skipped", captures: null } },
+      dark({ "library-shows": {} }),
+    );
+
+    expect(result.stderr).toContain(
+      "No screen was compared, added or removed between base `bbbbbbb` and head `abcdef1`.\n- Before captures for iOS dark",
+    );
+    expect(result.status).toBe(1);
+    expect(existsSync(path.join(out, "review.md"))).toBe(false);
   });
 
   it("reads the newest artifact when a retried job uploaded the same name twice", () => {
@@ -619,7 +668,10 @@ describe("gather-pr-media.sh", { timeout: 30_000 }, () => {
   });
 
   it("does not list removed screens when the head lane failed before capturing them", () => {
-    const { review } = gather(dark({ "settings-rest": {} }), dark({}, "failure"));
+    const { review } = gather(
+      { ...steady, ...dark({ "settings-rest": {} }) },
+      { ...steady, ...dark({}, "failure") },
+    );
 
     expect(review).not.toContain("Removed");
     expect(review).toContain(

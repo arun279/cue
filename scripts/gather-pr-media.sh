@@ -63,15 +63,30 @@ collect() {
   done
 }
 
-collect after "$run"
-base_run=$(gh api "repos/$repo/actions/workflows/ci.yml/runs?head_sha=$base_sha&event=push&per_page=1" \
-  --jq '.workflow_runs[0].id // empty')
-if [ -n "$base_run" ]; then
-  collect before "$base_run"
-else
-  for lane in "${lanes[@]}"; do
-    printf 'before\t%s\tare missing because no push run of CI exists for base %s\n' \
-      "${lane%%:*}" "${base_sha:0:7}" >> "$work/lanes.tsv"
-  done
+base=$(gh api graphql -f owner="${repo%/*}" -f name="${repo#*/}" \
+  -f sha="$base_sha" -f query='
+    query($owner: String!, $name: String!, $sha: GitObjectID!) {
+      repository(owner: $owner, name: $name) {
+        object(oid: $sha) {
+          ... on Commit {
+            checkSuites(first: 100) {
+              nodes { status workflowRun { databaseId event workflow { resourcePath } } }
+            }
+          }
+        }
+      }
+    }' --jq '[.data.repository.object.checkSuites.nodes[]
+      | select(.workflowRun.event == "push"
+        and (.workflowRun.workflow.resourcePath | endswith("/actions/workflows/ci.yml")))]
+    | max_by(.workflowRun.databaseId) // empty | "\(.workflowRun.databaseId) \(.status)"')
+read -r base_run base_status <<< "$base"
+if [ -z "$base_run" ]; then
+  echo "No push run of CI exists for base ${base_sha:0:7}, so head's screens have nothing to be compared with." >&2
+  exit 1
+elif [ "$base_status" != COMPLETED ]; then
+  echo "Base CI not finished: push run https://github.com/$repo/actions/runs/$base_run for base ${base_sha:0:7} is $base_status. Re-run pr-media after it completes." >&2
+  exit 1
 fi
+collect after "$run"
+collect before "$base_run"
 node "$(dirname "$0")/compare-screenshots.mjs" "$work" "$out" "$base_sha" "$head_sha"

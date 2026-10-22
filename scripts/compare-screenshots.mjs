@@ -312,6 +312,12 @@ const missing = [
     ),
   ...unreadable,
 ];
+if (compared === 0 && changes.length === 0 && removed.length === 0) {
+  console.error(
+    [`No screen was compared, added or removed between ${range}.`, ...missing].join("\n"),
+  );
+  process.exit(1);
+}
 const sections = ["<!-- media-review -->"];
 if (changes.length === 0 && removed.length === 0) {
   sections.push(
