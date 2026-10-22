@@ -3,7 +3,9 @@
 # lapsed section opening and closing, a show pushed with its episode sheet and a
 # season expanded, and memory after the tabs and after the lists. Each segment is
 # bracketed by marks that scripts/perf-probe.mjs turns into measurements; nothing
-# here asserts on timing.
+# here asserts on timing. On iOS, Maestro takes an XCTest accessibility snapshot
+# around each tap, which blocks the main thread for longer the more views a screen
+# holds, so iOS segments on long lists read slower than a person's taps would.
 appId: app.cuetracker
 ---
 - runFlow: relaunch.yaml
