@@ -2,7 +2,7 @@ import { Stack, useRouter } from "expo-router";
 import type { ReactElement } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { AppIdle } from "../../src/ui/harness";
-import { barOptions } from "../../src/ui/navigation-theme";
+import { barOptions, TRANSPARENT_SCREEN, useOpaqueScreen } from "../../src/ui/navigation-theme";
 import { SnackbarHost } from "../../src/ui/SnackbarHost";
 import { useColors } from "../../src/ui/tokens";
 
@@ -11,13 +11,15 @@ export const unstable_settings = { initialRouteName: "profile" };
 export default function AccountLayout(): ReactElement {
   const router = useRouter();
   const colors = useColors();
+  const opaque = useOpaqueScreen();
 
   return (
     <View style={styles.root}>
-      <Stack screenOptions={{ ...barOptions, headerTransparent: Platform.OS === "ios" }}>
+      <Stack screenOptions={{ ...barOptions, ...opaque, headerTransparent: Platform.OS === "ios" }}>
         <Stack.Screen
           name="profile"
           options={{
+            ...TRANSPARENT_SCREEN,
             title: "Profile",
             ...(Platform.OS === "android" && {
               headerBackIcon: { type: "image", source: { uri: "cue_header_close" } },
