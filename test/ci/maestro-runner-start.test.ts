@@ -96,8 +96,8 @@ if (process.argv.length > 2) {
       "--predicate",
       PLAYBACK_PREDICATE,
     ]);
-    expect(readFileSync(log, "utf8")).toMatch(
-      /^(deviceInfo: 502\n)*deviceInfo: 500\ndeviceInfo: 200\n$/,
+    expect(readFileSync(log, "utf8")).toBe(
+      "deviceInfo: 500\ndeviceInfo: 200\ndeviceInfo through the tap proxy: 200\n",
     );
   });
 

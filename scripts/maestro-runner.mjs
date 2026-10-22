@@ -31,17 +31,19 @@ await createTapProxy({ runner: `http://127.0.0.1:${runnerPort}`, playback }).lis
   Number(MAESTRO_RUNNER_PORT),
 );
 
-async function answers() {
+async function answers(port, label) {
   try {
-    const response = await fetch(`http://127.0.0.1:${MAESTRO_RUNNER_PORT}/deviceInfo`, {
-      method: "POST",
-    });
-    process.stdout.write(`deviceInfo: ${response.status}\n`);
+    const response = await fetch(`http://127.0.0.1:${port}/deviceInfo`, { method: "POST" });
+    process.stdout.write(`${label}: ${response.status}\n`);
     return response.ok;
   } catch {
     return false;
   }
 }
 
-while (!(await answers())) await delay(500);
+// The runner is polled on its own port while it starts, so the proxy logs no
+// unreachable-runner error per poll; one answer through the proxy then proves
+// the CLI's path.
+while (!(await answers(runnerPort, "deviceInfo"))) await delay(500);
+if (!(await answers(MAESTRO_RUNNER_PORT, "deviceInfo through the tap proxy"))) process.exit(1);
 process.send({ ready: true });
