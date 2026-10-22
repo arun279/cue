@@ -71,7 +71,7 @@ it("scrolls a list down one window height at a time, three times, apart like fli
   await hook.unmount();
 });
 
-it("reports the boot phases it reached, in ms from launch, when it first asks for a command", async () => {
+it("reports the boot phases it reached, and React Native's own startup marks, when it first asks for a command", async () => {
   const fetches: string[] = [];
   jest.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
     fetches.push(String(url));
@@ -83,10 +83,22 @@ it("reports the boot phases it reached, in ms from launch, when it first asks fo
     useBootMark("runtime", false);
   });
   now.mockReturnValue(940.2);
+  Object.defineProperty(performance, "rnStartupTiming", {
+    configurable: true,
+    value: {
+      startTime: 10.2,
+      initializeRuntimeStart: null,
+      executeJavaScriptBundleEntryPointStart: 55.7,
+    },
+  });
 
   listenForCommands();
 
   const query = new URL(fetches[0] ?? "").searchParams;
   expect(query.get("reply")).toBe("ready");
-  expect(JSON.parse(query.get("boot") ?? "")).toEqual({ fonts: 120, ready: 940 });
+  expect(JSON.parse(query.get("boot") ?? "")).toEqual({
+    bundleStart: 46,
+    fonts: 110,
+    ready: 930,
+  });
 });

@@ -70,8 +70,21 @@ const bootMarks: Record<string, number> = {};
 
 export function useBootMark(name: string, reached = true): void {
   useEffect(() => {
-    if (reached) bootMarks[name] ??= Math.round(performance.now());
+    if (reached) bootMarks[name] ??= performance.now();
   }, [name, reached]);
+}
+
+function bootTimeline(): Record<string, number> {
+  const startup = performance.rnStartupTiming;
+  const native = {
+    runtimeStart: startup?.initializeRuntimeStart,
+    bundleStart: startup?.executeJavaScriptBundleEntryPointStart,
+  };
+  const marks = Object.entries({ ...native, ...bootMarks }).filter(
+    (entry): entry is [string, number] => typeof entry[1] === "number",
+  );
+  const origin = startup?.startTime ?? 0;
+  return Object.fromEntries(marks.map(([name, ms]) => [name, Math.round(ms - origin)]));
 }
 
 let listening = false;
@@ -79,9 +92,9 @@ let listening = false;
 export function listenForCommands(): void {
   if (listening) return;
   listening = true;
-  bootMarks["ready"] ??= Math.round(performance.now());
+  bootMarks["ready"] ??= performance.now();
   void (async () => {
-    let query = `reply=ready&boot=${encodeURIComponent(JSON.stringify(bootMarks))}`;
+    let query = `reply=ready&boot=${encodeURIComponent(JSON.stringify(bootTimeline()))}`;
     for (;;) {
       const response = await fetch(`${CHANNEL}?${query}`);
       query = `reply=${encodeURIComponent(perform(await response.text()))}`;

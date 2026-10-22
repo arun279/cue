@@ -459,7 +459,7 @@ const within = (promise, milliseconds, what) =>
  * and, in the same request, replies to the previous one; "ready" opens each launch and carries
  * the app's boot marks.
  */
-/** The app's boot marks, ms from its JavaScript runtime starting, as one quantity each. */
+/** The app's boot marks, ms from React Native's host starting, as one quantity each. */
 /** @param {string | null} boot */
 export function bootPhases(boot) {
   const marks = boot === null ? {} : JSON.parse(boot);
