@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import type { ShowIds } from "../domain/model/ids";
 import { buildHideShowOp, buildUnhideShowOp } from "../domain/write-queue/ops";
 import { type SubmitOutcome, useRuntime } from "../runtime/runtime";
@@ -51,5 +51,8 @@ export function useResumeOnMark(): ResumeOnMark {
     [queryClient, runtime, submit],
   );
 
-  return { willResume, resumeIfStopped, reStop };
+  return useMemo(
+    () => ({ willResume, resumeIfStopped, reStop }),
+    [willResume, resumeIfStopped, reStop],
+  );
 }

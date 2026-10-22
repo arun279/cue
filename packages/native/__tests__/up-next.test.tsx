@@ -12,7 +12,8 @@ import {
   waitFor,
   within,
 } from "@testing-library/react-native";
-import { Platform, ScrollView } from "react-native";
+import { Dimensions, Platform, ScrollView } from "react-native";
+import { ROW_MIN_HEIGHT } from "../src/ui/tokens";
 import {
   agesAgo,
   airing,
@@ -421,8 +422,8 @@ describe("Up Next's sections", () => {
     });
     const mounted = screen.getAllByTestId(/^(queue|lapsed)-row-\d+$/);
     expect(mounted.some((row) => row.props["testID"].startsWith("lapsed-row-"))).toBe(true);
-    // FlatList's default initialNumToRender; the list draws the rest as it scrolls.
-    expect(mounted.length).toBeLessThanOrEqual(10);
+    const oneScreenOfRows = Math.ceil(Dimensions.get("window").height / ROW_MIN_HEIGHT.queue);
+    expect(mounted.length).toBeLessThanOrEqual(oneScreenOfRows);
     // Torn down before the list's next cell batch, which would land outside act.
     await screen.unmount();
   });
