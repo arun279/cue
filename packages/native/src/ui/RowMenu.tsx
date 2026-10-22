@@ -20,7 +20,6 @@ export interface RowMenuItem {
 
 declare module "expo-router/build/layouts/stack-utils/toolbar/StackToolbarMenu/types" {
   interface StackToolbarMenuProps {
-    /** The bar button's accessibilityIdentifier, set by patches/react-native-screens. */
     readonly testID?: string;
   }
 }
