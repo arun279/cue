@@ -174,3 +174,27 @@ it("leaves a record that fails lane health when the log stream shows no playback
   ]);
   expect(tapProxyHealth(recordedTaps(), 1).failure).toContain("no playback for 1 of the 1 taps");
 });
+
+it("answers a request the runner never got with a fixed 502, and logs the error with its stack", async () => {
+  const closed = await runner([]);
+  await closed.close();
+  const proxy = createTapProxy({ runner: closed.url, playback: { window: async () => undefined } });
+  const origin = `http://127.0.0.1:${await proxy.listen(0)}`;
+  const logged: string[] = [];
+  const write = vi.spyOn(process.stdout, "write").mockImplementation((chunk) => {
+    logged.push(String(chunk));
+    return true;
+  });
+  try {
+    const answer = await fetch(`${origin}/deviceInfo`, { method: "POST" });
+
+    expect(answer.status).toBe(502);
+    expect(await answer.text()).toBe("tap proxy could not reach the runner\n");
+    expect(logged.join("")).toMatch(
+      /^POST \/deviceInfo: tap proxy could not reach the runner\nTypeError: fetch failed\n\s+at /,
+    );
+  } finally {
+    write.mockRestore();
+    await proxy.close();
+  }
+});

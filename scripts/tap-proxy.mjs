@@ -10,6 +10,8 @@ import {
 } from "./simulator-touch.mjs";
 
 const PLAYBACK_TIMEOUT_MS = 5_000;
+// The CLI gets only this; the error and its stack go to the proxy's own log.
+const UNREACHABLE = "tap proxy could not reach the runner";
 /** Runner routes that only read, so the hierarchy read before them still shows the screen. */
 const READS = new Set([
   "/viewHierarchy",
@@ -194,8 +196,11 @@ export function createTapProxy({ runner, playback }) {
       response.writeHead(answer.status, { "content-type": answer.type });
       response.end(answer.body);
     } catch (error) {
+      process.stdout.write(
+        `${request.method} ${request.url}: ${UNREACHABLE}\n${error instanceof Error ? error.stack : String(error)}\n`,
+      );
       response.writeHead(502, { "content-type": "text/plain" });
-      response.end(String(error));
+      response.end(`${UNREACHABLE}\n`);
     }
   });
   return {
