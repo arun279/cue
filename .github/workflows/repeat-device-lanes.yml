@@ -18,6 +18,7 @@ jobs:
   summary:
     if: ${{ always() }}
     needs: devices
+    timeout-minutes: 5
     runs-on: ubuntu-latest
     permissions:
       actions: read

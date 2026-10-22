@@ -42,6 +42,7 @@ export function MoreMenuButton({
       accessibilityRole="button"
       accessibilityLabel={`More actions for ${title}`}
       android_ripple={RIPPLE}
+      testID={testID}
       onPress={() => setOpen(true)}
       style={[styles.trigger, style]}
     >
@@ -49,7 +50,6 @@ export function MoreMenuButton({
       {open ? (
         <MenuView
           ref={menu}
-          testID={testID}
           title={title}
           actions={actions}
           onPressAction={({ nativeEvent }) => onSelect(nativeEvent.event)}

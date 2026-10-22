@@ -46,6 +46,7 @@ jobs:
       actions: read
       contents: read
       pull-requests: read
+    timeout-minutes: 7
     runs-on: ubuntu-latest
     outputs:
       devices: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft && steps.head-tree.outputs.pushed != 'true' }}
@@ -138,6 +139,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
+    timeout-minutes: 19
     runs-on: ubuntu-latest
     outputs:
       js-bundles: ${{ steps.js-bundles.outputs.artifact-id }}
@@ -179,6 +181,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
+    timeout-minutes: 8
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -238,6 +241,7 @@ jobs:
           retention-days: 7
   audit:
     if: ${{ !inputs.copy }}
+    timeout-minutes: 11
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -251,6 +255,7 @@ jobs:
         run: scripts/audit-dependencies.sh "$EVENT_NAME" "$PUSH_BEFORE"
   actionlint:
     if: ${{ !inputs.copy }}
+    timeout-minutes: 5
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -266,6 +271,7 @@ jobs:
       actions: read
       contents: read
     needs: native-android
+    timeout-minutes: 9
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -321,6 +327,7 @@ jobs:
       contents: read
       pull-requests: write
     needs: [check, native-android, footprint-base]
+    timeout-minutes: 5
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -508,7 +515,7 @@ jobs:
           if-no-files-found: error
           retention-days: 1
   native-e2e-ios-light:
-    timeout-minutes: 22
+    timeout-minutes: 43
     permissions:
       actions: read
       contents: read
@@ -623,6 +630,7 @@ jobs:
       - native-e2e-ios-light
       - ui-screenshots-ios-dark
     if: ${{ always() }}
+    timeout-minutes: 5
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -642,7 +650,7 @@ jobs:
   ui-screenshots-ios-dark:
     # Measured 10 to 16 minutes, including a 4 minute simulator setup, plus the
     # runner freeze check, which its own bounds hold under 2.5 minutes.
-    timeout-minutes: 23
+    timeout-minutes: 42
     permissions:
       actions: read
       contents: read
@@ -753,6 +761,7 @@ jobs:
     permissions:
       actions: read
       contents: read
+    timeout-minutes: 42
     runs-on: ubuntu-latest
     outputs:
       fingerprint: ${{ steps.fingerprint.outputs.android }}
@@ -857,7 +866,7 @@ jobs:
   android-e2e-light:
     # The emulator and all three suites measured 11.3 minutes on one runner;
     # the timeout is that plus about 25 percent until a shard is measured.
-    timeout-minutes: 14
+    timeout-minutes: 16
     needs: [fingerprint, native-android]
     if: needs.fingerprint.outputs.devices == 'true'
     runs-on: ubuntu-latest
@@ -936,6 +945,7 @@ jobs:
       contents: read
     needs: [fingerprint, android-e2e-light, ui-screenshots-android-dark]
     if: ${{ always() }}
+    timeout-minutes: 5
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -950,7 +960,7 @@ jobs:
         run: scripts/require-first-attempt-pass.sh native-android android-e2e-light ui-screenshots-android-dark
   ui-screenshots-android-dark:
     # Measured 3 to 5 minutes.
-    timeout-minutes: 7
+    timeout-minutes: 9
     needs: [fingerprint, native-android]
     if: needs.fingerprint.outputs.devices == 'true'
     runs-on: ubuntu-latest
@@ -1020,7 +1030,7 @@ jobs:
           if-no-files-found: error
           retention-days: 7
   pr-media:
-    timeout-minutes: 5
+    timeout-minutes: 6
     if: >-
       !cancelled() && github.event_name == 'pull_request' && needs.fingerprint.outputs.devices == 'true' &&
       needs.fingerprint.outputs.user-facing == 'true' &&

@@ -14,7 +14,7 @@ import { TEST_IDS } from "../src/ui/test-ids";
 import { DetailHarness, detail } from "./support/detail";
 import { historyEntry } from "./support/history";
 import { movieHeader, movieRuntime } from "./support/movie-detail";
-import { router } from "./support/native-ui";
+import { menuItem, router } from "./support/native-ui";
 import { entry, fakeRuntime, Harness, resetSharedStores, spyHaptics } from "./support/up-next";
 
 const mockParams: { current: Record<string, string> } = { current: {} };
@@ -82,9 +82,7 @@ function markSpy(): MarkWatched {
 const ROWS = {
   "queue row": () => <QueueRow card={CARD} mark={markSpy()} onStop={jest.fn()} />,
   "lapsed row": () => <QueueRow card={CARD} mark={markSpy()} onStop={jest.fn()} variant="lapsed" />,
-  "history row": () => (
-    <HistoryRow entry={EPISODE_PLAY} plays={1} index={0} width={370} onRemove={jest.fn()} />
-  ),
+  "history row": () => <HistoryRow entry={EPISODE_PLAY} plays={1} index={0} onRemove={jest.fn()} />,
 } satisfies Record<string, () => ReactElement>;
 
 async function paint(row: ReactElement): Promise<void> {
@@ -103,6 +101,17 @@ beforeEach(() => {
   resetSharedStores();
 });
 
+/** The labels of the menu items a reader can choose, in the order the menu lists them. */
+async function menuLabels(): Promise<string[]> {
+  const more = screen.queryByRole("button", { name: /^More actions for / });
+  if (more === null)
+    return screen.getAllByRole("menuitem").map((item) => String(item.props["accessibilityLabel"]));
+  await fireEvent.press(more);
+  return (jest.mocked(MenuView).mock.calls.at(-1)?.[0].actions ?? [])
+    .filter(({ attributes }) => attributes?.hidden !== true && attributes?.disabled !== true)
+    .map(({ title }) => title);
+}
+
 describe.each(Object.entries(ROWS))("a %s", (_name, row) => {
   it("carries the platform's row chrome and no check", async () => {
     await paint(row());
@@ -117,15 +126,9 @@ describe.each(Object.entries(ROWS))("a %s", (_name, row) => {
   it("offers every menu item as a screen reader action, in the menu's order", async () => {
     await paint(row());
 
-    const offered = jest
-      .mocked(MenuView)
-      .mock.calls.at(-1)?.[0]
-      .actions.filter(
-        ({ attributes }) => attributes?.hidden !== true && attributes?.disabled !== true,
-      )
-      .map(({ id }) => id);
-    const actions = (body().props["accessibilityActions"] as { name: string }[]).map(
-      ({ name }) => name,
+    const offered = await menuLabels();
+    const actions = (body().props["accessibilityActions"] as { label: string }[]).map(
+      ({ label }) => label,
     );
     expect(actions).toEqual(offered);
   });
@@ -142,15 +145,16 @@ describe.each(["queue", "lapsed"] as const)("a %s row's swipes", (variant) => {
       onStop.mock.calls.length,
     ];
     const swipes = [`${id}-drag-right`, `${id}-drag-left`];
-    const actions = body().props["accessibilityActions"] as { name: string }[];
-    const menu = within(screen.getByTestId(TEST_IDS.quickActions));
+    const actions = body().props["accessibilityActions"] as { name: string; label: string }[];
 
     for (const [index, swipe] of swipes.entries()) {
       jest.clearAllMocks();
       await fireEvent.press(screen.getByTestId(swipe));
       const bySwipe = effects();
       jest.clearAllMocks();
-      await fireEvent.press(menu.getByTestId(actions[index]?.name ?? ""));
+      const item = await menuItem(within(screen.getByTestId(id)), actions[index]?.label ?? "");
+      if (item === null) throw new Error(`${actions[index]?.label} is missing from the menu`);
+      await fireEvent.press(item);
       expect(effects()).toEqual(bySwipe);
       jest.clearAllMocks();
       await fireEvent(body(), "accessibilityAction", {
@@ -194,9 +198,12 @@ function routeOf(href: string): ComponentType {
   return require(join(appDir, route.file)).default;
 }
 
-async function opened(row: ReactElement, title?: string): Promise<ComponentType> {
+async function opened(row: ReactElement, title = "Midnight Cartography"): Promise<ComponentType> {
   await paint(row);
-  await fireEvent.press(body(title));
+  // A touch on the row itself, which is what VoiceOver's activation of the row sends.
+  await fireEvent.press(
+    screen.getAllByText(title, { includeHiddenElements: true })[0] ?? body(title),
+  );
   const href = router.push.mock.calls.at(-1)?.[0];
   await screen.unmount();
   return routeOf(String(href));
@@ -235,7 +242,7 @@ describe("every row leads to its control", () => {
 
   it("opens a movie play on the screen that removes it", async () => {
     const Route = await opened(
-      <HistoryRow entry={MOVIE_PLAY} plays={1} index={0} width={370} onRemove={jest.fn()} />,
+      <HistoryRow entry={MOVIE_PLAY} plays={1} index={0} onRemove={jest.fn()} />,
       movieHeader.title,
     );
     await render(
