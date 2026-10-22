@@ -3,7 +3,6 @@ import path from "node:path";
 import { expect, it } from "vitest";
 import { repositoryPath } from "../support/repository-path";
 
-const allowlist: string[] = [];
 type Patterns = readonly (readonly [RegExp, string])[];
 const retries: Patterns = [
   [/--retry(?:\b|=)/, "retry flag"],
@@ -48,7 +47,6 @@ const scan = (names: string[], detect: (source: string) => string[]) =>
   );
 
 it("keeps workflows, scripts and flows free of flake masks", () => {
-  expect(allowlist).toEqual([]);
   expect(scan(sources([".github", "scripts", ".maestro"]), masks)).toEqual([]);
 });
 

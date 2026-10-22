@@ -3,9 +3,10 @@ import type { SearchHit } from "@cue/core/data/trakt/search";
 import type { PreferenceStorage } from "@cue/core/ports/preference-storage";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 import { Platform } from "react-native";
+import { memoryPreferenceStorage } from "../../core/test/support/stores";
 import "./support/screen-mocks";
 import { SEARCH_FIELD } from "./support/native-ui";
-import { fakeRuntime, Harness, memoryPreferences, OFFLINE, spyHaptics } from "./support/up-next";
+import { fakeRuntime, Harness, OFFLINE, spyHaptics } from "./support/up-next";
 
 const Search = (
   require("../app/(tabs)/(search)/search") as typeof import("../app/(tabs)/(search)/search")
@@ -51,7 +52,7 @@ const MOVIE = hit({
 /** The Settings switches, which decide both the placeholder and which grids and
  * which hits this reader is shown. */
 function media(shows: boolean, movies: boolean): PreferenceStorage {
-  const preferences = memoryPreferences();
+  const preferences = memoryPreferenceStorage();
   preferences.setItem("cue.shows-enabled", shows ? "1" : "0");
   preferences.setItem("cue.movies-enabled", movies ? "1" : "0");
   return preferences;

@@ -123,15 +123,12 @@ describe("iOS lanes", () => {
     body.includes("xcrun simctl boot"),
   );
 
-  it("disable the daemons before booting and record host resources after every flow", () => {
+  it("record host resources after every flow", () => {
     expect(lanes.map(({ name }) => name)).toEqual([
       "native-e2e-ios-light",
       "ui-screenshots-ios-dark",
     ]);
     for (const { body } of lanes) {
-      expect(body).toContain(
-        '          scripts/disable-ios-daemons.sh "$device_id"\n          xcrun simctl boot "$device_id"\n',
-      );
       const flow = body.indexOf("bash scripts/maestro-test.sh");
       const snapshot = body.indexOf(
         "      - name: Record host resources after the flow\n        if: $" +

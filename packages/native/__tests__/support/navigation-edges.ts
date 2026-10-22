@@ -16,10 +16,10 @@ export const SHEET_CLOSE = join(__dirname, "../../src/ui/SheetClose.tsx");
 export const NAVIGATE = new Set(["push", "navigate", "dismissTo", "replace"]);
 const isNavigation = (method: string): boolean => NAVIGATE.has(method);
 export const DISMISS = new Set(["back", "dismiss", "dismissAll"]);
-export const MODAL = new Set(["modal", "fullScreenModal", "pageSheet", "formSheet"]);
+const MODAL = new Set(["modal", "fullScreenModal", "pageSheet", "formSheet"]);
 export const isGroup = (segment: string): boolean => segment.startsWith("(");
 
-export interface Navigator {
+interface Navigator {
   readonly dir: string;
   readonly file: string;
   readonly tabs: boolean;
@@ -171,7 +171,7 @@ export const navigators = filesUnder(appRoot)
     );
   });
 
-export const navigatorOf = (path: string): Navigator =>
+const navigatorOf = (path: string): Navigator =>
   navigators
     .filter((navigator) => navigator.dir === "" || `${path}/`.startsWith(`${navigator.dir}/`))
     .reduce((deepest, navigator) =>

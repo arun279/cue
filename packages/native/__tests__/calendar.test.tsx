@@ -4,15 +4,9 @@ import type { PreferenceStorage } from "@cue/core/ports/preference-storage";
 import { type Reminders, RemindersProvider } from "@cue/core/ports/reminders";
 import { createPrefsStore } from "@cue/core/prefs/prefs-store";
 import { act, render, screen, userEvent, waitFor, within } from "@testing-library/react-native";
+import { memoryPreferenceStorage } from "../../core/test/support/stores";
 import { router } from "./support/native-ui";
-import {
-  airing,
-  fakeRuntime,
-  Harness,
-  memoryPreferences,
-  resetSharedStores,
-  spyHaptics,
-} from "./support/up-next";
+import { airing, fakeRuntime, Harness, resetSharedStores, spyHaptics } from "./support/up-next";
 
 jest.mock("expo-router", () => require("./support/native-ui").expoRouterModule());
 jest.mock(
@@ -227,7 +221,7 @@ describe("the alerts card", () => {
     ["alerts are on", os(), { "cue.reminders-enabled": "1" }],
     ["the OS has refused them", os({ refused: true }), {}],
   ])("stays away while %s", async (_, reminders, seed) => {
-    const preferences = memoryPreferences();
+    const preferences = memoryPreferenceStorage();
     for (const [key, value] of Object.entries(seed)) preferences.setItem(key, value);
     await paint({ calendar: [TONIGHT], preferences, reminders });
 
@@ -236,7 +230,7 @@ describe("the alerts card", () => {
   });
 
   it("goes for good on Not now, and the OS is never asked", async () => {
-    const preferences = memoryPreferences();
+    const preferences = memoryPreferenceStorage();
     const reminders = os();
     await paint({ calendar: [TONIGHT], preferences, reminders });
 
@@ -251,7 +245,7 @@ describe("the alerts card", () => {
   });
 
   it("goes and says where to change it once the OS refuses", async () => {
-    const preferences = memoryPreferences();
+    const preferences = memoryPreferenceStorage();
     await paint({ calendar: [TONIGHT], preferences, reminders: os({ granted: false }) });
 
     await press("Turn on alerts");
@@ -272,7 +266,7 @@ function os({ refused = false, granted = true } = {}): Reminders {
 }
 
 function showsTurnedOff(): PreferenceStorage {
-  const preferences = memoryPreferences();
+  const preferences = memoryPreferenceStorage();
   preferences.setItem("cue.shows-enabled", "false");
   return preferences;
 }

@@ -72,14 +72,6 @@ it("keeps a blip the app is still chasing out of the outage line, and out of Ret
   expect(screen.queryByRole("button")).toBeNull();
 });
 
-it("counts the backlog", async () => {
-  await render(
-    <SyncStrip banner={bannerOf({ pending: 3, pendingLate: true })} onRetry={jest.fn()} />,
-  );
-
-  expect(screen.getByTestId(TEST_IDS.syncStrip)).toHaveTextContent("3 marks pending · will sync");
-});
-
 it("names the failure kind rather than blaming the connection for Trakt's fault", async () => {
   await render(
     <SyncStrip

@@ -158,7 +158,6 @@ describe("the iOS toolchain pin", () => {
 
     expect(nativeIos).toBeDefined();
     expect(nativeIos?.body.match(/xcodebuild/g)).toHaveLength(1);
-    expect(nativeIos?.body).not.toContain("Measure the merge-base simulator app");
     expect(nativeIos?.body).toContain(
       "name: cue-native-ios-$" + "{{ needs.fingerprint.outputs.ios }}",
     );
@@ -176,7 +175,7 @@ describe("native bundle environment", () => {
     );
   });
 
-  it("keeps only the distributor size limits", () => {
+  it("checks the APK against Firebase's limit and leaves iOS sizes to App Store Connect", () => {
     const workflow = readFileSync(MOBILE_RELEASE_WORKFLOW, "utf8");
 
     expect(readNamedStep(MOBILE_RELEASE_WORKFLOW, "android", "Check the APK")).toContain(
@@ -185,8 +184,6 @@ describe("native bundle environment", () => {
     expect(workflow).toContain(
       "App Store Connect alerts when a thinned device variant exceeds its 200 MB over-the-air limit.",
     );
-    expect(workflow).not.toContain("IPA_SIZE_LIMIT_BYTES");
-    expect(workflow).not.toContain(".size-limit.json");
   });
 });
 

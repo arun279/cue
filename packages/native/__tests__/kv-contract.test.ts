@@ -1,5 +1,5 @@
 import { createPrefsStore } from "@cue/core/prefs/prefs-store";
-import { describeKeyValueStore } from "../../core/test/support/kv-contract";
+import { describeKeyValueStore } from "./support/kv-contract";
 import { bulkBacking, secureBacking } from "./support/native-stores";
 
 // Both factories are hoisted above the imports, so each reaches its fake
@@ -16,7 +16,7 @@ const { bulkStore, clearLocalPreferences, preferenceStorage, secureStore } =
 
 /**
  * The two native backends against the one contract every `KeyValueStore` has to
- * satisfy, using the same suite as the web store.
+ * satisfy.
  * This seam carries the OAuth token and the durable write queue, so a backend
  * that truncates a long value, mangles a non-latin1 one, throws instead of
  * answering null or forgets across a restart loses a user's writes silently.
@@ -40,9 +40,8 @@ describeKeyValueStore({
 });
 
 /**
- * The namespace split, which exists only on this target. On the web,
- * preferences and the durable state are in physically different stores; here
- * they share one database, and every durable key is `cue.`-prefixed, so a
+ * The namespace split. Preferences and the durable state share one database,
+ * and every durable key is `cue.`-prefixed, so a
  * sign-out that cleared `cue.` would take the write queue, the freshness
  * baseline and the install marker with it. Losing the install marker is the
  * worst of those: the next launch would look like a fresh install to the

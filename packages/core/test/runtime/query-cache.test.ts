@@ -41,6 +41,9 @@ describe("what a cold boot restores", () => {
     expect(policy.persists(queryKeys.watchlist("shows"))).toBe(true);
     expect(policy.persists(queryKeys.history("all"))).toBe(true);
     expect(policy.persists(queryKeys.calendar("2026-01-01", 7))).toBe(true);
+    expect(policy.persists(queryKeys.firstPlay())).toBe(true);
+    expect(policy.persists(queryKeys.userSettings())).toBe(true);
+    expect(policy.persists(queryKeys.genres())).toBe(true);
   });
 
   it("drops the unbounded key spaces nobody boots into", () => {

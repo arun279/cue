@@ -2,11 +2,12 @@ import { persistMediaVisibility } from "@cue/core/prefs/media-visibility";
 import { movieHeaderQuery } from "@cue/core/queries/movies";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 import * as WebBrowser from "expo-web-browser";
+import { memoryPreferenceStorage } from "../../core/test/support/stores";
 import { MovieDetail } from "../src/screens/MovieDetail";
 import { TEST_IDS } from "../src/ui/test-ids";
 import { movieEntry, movieHeader, movieRuntime, pendingMovieRuntime } from "./support/movie-detail";
 import { chooseHeaderAction, router } from "./support/native-ui";
-import { Harness, memoryPreferences, resetSharedStores, spyHaptics } from "./support/up-next";
+import { Harness, resetSharedStores, spyHaptics } from "./support/up-next";
 
 jest.mock("expo-router", () => require("./support/native-ui").expoRouterModule());
 jest.mock("@expo/ui/community/menu", () => require("./support/native-ui").menuModule());
@@ -22,7 +23,7 @@ beforeEach(() => {
   jest.clearAllMocks();
 });
 
-async function mount(runtime = movieRuntime(), preferences = memoryPreferences()) {
+async function mount(runtime = movieRuntime(), preferences = memoryPreferenceStorage()) {
   await render(
     <Harness runtime={runtime} haptics={spyHaptics()} preferences={preferences}>
       <MovieDetail movieId={5501} />
@@ -132,7 +133,7 @@ it("caps related movies at six and opens the selected film", async () => {
 });
 
 it("turns movies off without issuing any movie reads", async () => {
-  const preferences = memoryPreferences();
+  const preferences = memoryPreferenceStorage();
   persistMediaVisibility(preferences, { showsEnabled: true, moviesEnabled: false });
   const runtime = await mount(movieRuntime(), preferences);
   expect(screen.getByText("Movies are turned off")).toBeOnTheScreen();

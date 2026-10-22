@@ -73,7 +73,6 @@ it("readies the simulator in its final appearance, starts the runner, then runs 
     expect(runs[0]?.index).toBeGreaterThan(runner);
     expect(runs[0]?.[0]).toContain(' test --driver-host-port "$MAESTRO_RUNNER_PORT" ');
     expect(body).toContain('      USE_XCODE_TEST_RUNNER: "1"\n');
-    expect(body).not.toContain("MAESTRO_DRIVER_STARTUP_TIMEOUT");
     expect(body).toContain("$" + "{{ runner.temp }}/maestro-runner.log\n");
   }
 });

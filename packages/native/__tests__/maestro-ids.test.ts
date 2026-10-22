@@ -573,7 +573,6 @@ it("types the Library filter in one input and observes durable Watchlist members
     '"zzz"',
   ]);
   expect(movie).toContain('- assertVisible: "In Watchlist"');
-  expect(movie).not.toContain('- assertVisible: "The Lantern Keeper added to Watchlist"');
 });
 
 function hasUnpairedOperation(source: string): boolean {

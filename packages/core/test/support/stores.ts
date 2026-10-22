@@ -27,10 +27,12 @@ export function memoryKeyValueStore(seed: Record<string, string> = {}): MemoryKe
   };
 }
 
-export type MemoryPreferenceStorage = PreferenceStorage & { readonly values: Map<string, string> };
+type MemoryPreferenceStorage = PreferenceStorage & { readonly values: Map<string, string> };
 
-export function memoryPreferenceStorage(): MemoryPreferenceStorage {
-  const values = new Map<string, string>();
+export function memoryPreferenceStorage(
+  seed: Record<string, string> = {},
+): MemoryPreferenceStorage {
+  const values = new Map(Object.entries(seed));
   return {
     values,
     getItem: (key) => values.get(key) ?? null,
