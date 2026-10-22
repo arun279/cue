@@ -63,23 +63,8 @@ collect() {
   done
 }
 
-base=$(gh api graphql -f owner="${repo%/*}" -f name="${repo#*/}" \
-  -f sha="$base_sha" -f query='
-    query($owner: String!, $name: String!, $sha: GitObjectID!) {
-      repository(owner: $owner, name: $name) {
-        object(oid: $sha) {
-          ... on Commit {
-            checkSuites(first: 100) {
-              nodes { status workflowRun { databaseId event workflow { resourcePath } } }
-            }
-          }
-        }
-      }
-    }' --jq '[.data.repository.object.checkSuites.nodes[]
-      | select(.workflowRun.event == "push"
-        and (.workflowRun.workflow.resourcePath | endswith("/actions/workflows/ci.yml")))]
-    | max_by(.workflowRun.databaseId) // empty | "\(.workflowRun.databaseId) \(.status)"')
-read -r base_run base_status <<< "$base"
+base=$("$(dirname "$0")/ci-runs.sh" "$base_sha")
+read -r base_run base_status <<< "$(awk -F '\t' '$2 == "push" { print $1, $3; exit }' <<< "$base")"
 if [ -z "$base_run" ]; then
   echo "No push run of CI exists for base ${base_sha:0:7}, so head's screens have nothing to be compared with." >&2
   exit 1
