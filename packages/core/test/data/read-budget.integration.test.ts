@@ -176,10 +176,9 @@ function installColdSync(
       counts.watchlist += 1;
       return pageResponse(watchlistItems, new URL(request.url));
     }),
-    // Trakt returns the whole show collection in one unpaged response.
-    http.get(`${TRAKT_API_BASE}/sync/collection/shows`, () => {
+    http.get(`${TRAKT_API_BASE}/sync/collection/shows`, ({ request }) => {
       counts.collection += 1;
-      return HttpResponse.json(collectionItems as never);
+      return pageResponse(collectionItems, new URL(request.url));
     }),
   );
   return counts;
@@ -247,7 +246,7 @@ describe("cold-sync GET budget", () => {
 
     expect(entries).toHaveLength(n);
     expect(counts.progress + counts.art).toBe(0);
-    expect(counts.collection).toBe(1);
+    expect(counts.collection).toBe(Math.max(1, Math.ceil((n - half) / WATCHED_PAGE_LIMIT)));
     expect(counts.watchlist).toBe(Math.max(1, Math.ceil(half / WATCHED_PAGE_LIMIT)));
     expect(entries.every((entry) => entry.posters.length > 0)).toBe(true);
   });

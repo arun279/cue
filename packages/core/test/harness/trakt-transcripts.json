@@ -1,0 +1,374 @@
+{
+  "multiple-plays-off": {
+    "markAndUndo": [
+      {
+        "call": "POST /sync/history",
+        "status": 201,
+        "facts": {
+          "keys": ["added", "not_found", "updated"],
+          "added": 1,
+          "updated": 0,
+          "deleted": 0,
+          "existing": 0,
+          "notFound": {},
+          "rateLimitHeader": false
+        }
+      },
+      {
+        "call": "GET /shows/:id/progress/watched",
+        "status": 200,
+        "facts": {
+          "completedDelta": 1,
+          "nextMoved": true,
+          "lastIsMarked": true,
+          "lastWatchedAtIsMinute": true,
+          "activitiesMoved": ["episodes.watched_at"]
+        }
+      },
+      {
+        "call": "GET /sync/history/episodes/:id",
+        "status": 200,
+        "facts": {
+          "limit": "30",
+          "paged": true,
+          "withinLimit": true,
+          "empty": false,
+          "storedMinuteOfSent": true,
+          "actions": ["watch"]
+        }
+      },
+      {
+        "call": "POST /sync/history/remove",
+        "status": 200,
+        "facts": {
+          "keys": ["deleted", "not_found"],
+          "added": 0,
+          "updated": 0,
+          "deleted": 1,
+          "existing": 0,
+          "notFound": {}
+        }
+      },
+      {
+        "call": "GET /shows/:id/progress/watched",
+        "status": 200,
+        "facts": {
+          "completedDelta": 0,
+          "nextIsMarked": true,
+          "activitiesMoved": ["episodes.watched_at"]
+        }
+      }
+    ],
+    "rewatch": [
+      {
+        "call": "POST /sync/history",
+        "status": 201,
+        "facts": {
+          "keys": ["added", "not_found", "updated"],
+          "added": 0,
+          "updated": 1,
+          "deleted": 0,
+          "existing": 0,
+          "notFound": {}
+        }
+      },
+      {
+        "call": "GET /shows/:id/progress/watched",
+        "status": 200,
+        "facts": {
+          "completedDelta": 0,
+          "playsDelta": 0,
+          "newestIsSent": true,
+          "earlierPlayKept": false
+        }
+      },
+      {
+        "call": "POST /sync/history",
+        "status": 201,
+        "facts": {
+          "keys": ["added", "not_found", "updated"],
+          "added": 0,
+          "updated": 1,
+          "deleted": 0,
+          "existing": 0,
+          "notFound": {}
+        }
+      },
+      {
+        "call": "GET /sync/history/episodes/:id",
+        "status": 200,
+        "facts": {
+          "restored": true
+        }
+      }
+    ],
+    "tiedMarks": [
+      {
+        "call": "POST /sync/history",
+        "status": 201,
+        "facts": {
+          "keys": ["added", "not_found", "updated"],
+          "added": 2,
+          "updated": 0,
+          "deleted": 0,
+          "existing": 0,
+          "notFound": {}
+        }
+      },
+      {
+        "call": "GET /users/me/history/episodes",
+        "status": 200,
+        "facts": {
+          "bothNewest": true
+        }
+      },
+      {
+        "call": "POST /sync/history/remove",
+        "status": 200,
+        "facts": {
+          "keys": ["deleted", "not_found"],
+          "added": 0,
+          "updated": 0,
+          "deleted": 2,
+          "existing": 0,
+          "notFound": {}
+        }
+      }
+    ],
+    "unknownItems": [
+      {
+        "call": "POST /sync/history",
+        "status": 201,
+        "facts": {
+          "keys": ["added", "not_found", "updated"],
+          "added": 0,
+          "updated": 0,
+          "deleted": 0,
+          "existing": 0,
+          "notFound": {
+            "episodes": 1
+          }
+        }
+      },
+      {
+        "call": "POST /sync/history/remove",
+        "status": 200,
+        "facts": {
+          "keys": ["deleted", "not_found"],
+          "added": 0,
+          "updated": 0,
+          "deleted": 0,
+          "existing": 0,
+          "notFound": {
+            "ids": 1
+          }
+        }
+      }
+    ],
+    "paging": [
+      {
+        "call": "GET /users/me/history",
+        "status": 200,
+        "facts": {
+          "limit": "250",
+          "paged": true,
+          "withinLimit": true,
+          "empty": false
+        }
+      },
+      {
+        "call": "GET /sync/collection/shows",
+        "status": 200,
+        "facts": {
+          "limit": "100",
+          "paged": true,
+          "withinLimit": true,
+          "empty": false
+        }
+      },
+      {
+        "call": "GET /sync/watched/shows",
+        "status": 200,
+        "facts": {
+          "limit": "100",
+          "paged": true,
+          "withinLimit": true,
+          "empty": false
+        }
+      },
+      {
+        "call": "GET /shows/trending",
+        "status": 200,
+        "facts": {
+          "limit": "100",
+          "paged": true,
+          "withinLimit": true,
+          "empty": false
+        }
+      },
+      {
+        "call": "GET /users/me/history",
+        "status": 200,
+        "facts": {
+          "limit": "10",
+          "paged": true,
+          "withinLimit": true,
+          "empty": true
+        }
+      }
+    ],
+    "hidden": [
+      {
+        "call": "POST /users/hidden/progress_watched",
+        "status": 201,
+        "facts": {
+          "keys": ["added", "not_found"],
+          "added": 1,
+          "updated": 0,
+          "deleted": 0,
+          "existing": 0,
+          "notFound": {}
+        }
+      },
+      {
+        "call": "POST /users/hidden/progress_watched",
+        "status": 201,
+        "facts": {
+          "keys": ["added", "not_found"],
+          "added": 1,
+          "updated": 0,
+          "deleted": 0,
+          "existing": 0,
+          "notFound": {}
+        }
+      },
+      {
+        "call": "GET /users/hidden/progress_watched",
+        "status": 200,
+        "facts": {
+          "listed": true,
+          "activitiesMoved": ["shows.hidden_at"]
+        }
+      },
+      {
+        "call": "POST /users/hidden/progress_watched/remove",
+        "status": 200,
+        "facts": {
+          "keys": ["deleted", "not_found"],
+          "added": 0,
+          "updated": 0,
+          "deleted": 1,
+          "existing": 0,
+          "notFound": {}
+        }
+      },
+      {
+        "call": "GET /users/hidden/progress_watched",
+        "status": 200,
+        "facts": {
+          "listed": false
+        }
+      }
+    ],
+    "dropped": [
+      {
+        "call": "POST /users/hidden/dropped",
+        "status": 201,
+        "facts": {
+          "keys": ["added", "not_found"],
+          "added": 1,
+          "updated": 0,
+          "deleted": 0,
+          "existing": 0,
+          "notFound": {}
+        }
+      },
+      {
+        "call": "POST /users/hidden/dropped",
+        "status": 201,
+        "facts": {
+          "keys": ["added", "not_found"],
+          "added": 1,
+          "updated": 0,
+          "deleted": 0,
+          "existing": 0,
+          "notFound": {}
+        }
+      },
+      {
+        "call": "GET /users/hidden/dropped",
+        "status": 200,
+        "facts": {
+          "listed": true,
+          "activitiesMoved": ["shows.dropped_at"],
+          "onCalendar": true
+        }
+      },
+      {
+        "call": "POST /users/hidden/dropped/remove",
+        "status": 200,
+        "facts": {
+          "keys": ["deleted", "not_found"],
+          "added": 0,
+          "updated": 0,
+          "deleted": 1,
+          "existing": 0,
+          "notFound": {}
+        }
+      },
+      {
+        "call": "GET /users/hidden/dropped",
+        "status": 200,
+        "facts": {
+          "listed": false,
+          "onCalendar": true
+        }
+      }
+    ]
+  },
+  "multiple-plays-on": {
+    "rewatch": [
+      {
+        "call": "POST /sync/history",
+        "status": 201,
+        "facts": {
+          "keys": ["added", "not_found", "updated"],
+          "added": 1,
+          "updated": 0,
+          "deleted": 0,
+          "existing": 0,
+          "notFound": {}
+        }
+      },
+      {
+        "call": "GET /shows/:id/progress/watched",
+        "status": 200,
+        "facts": {
+          "completedDelta": 0,
+          "playsDelta": 1,
+          "newestIsSent": true,
+          "earlierPlayKept": true
+        }
+      },
+      {
+        "call": "POST /sync/history/remove",
+        "status": 200,
+        "facts": {
+          "keys": ["deleted", "not_found"],
+          "added": 0,
+          "updated": 0,
+          "deleted": 1,
+          "existing": 0,
+          "notFound": {}
+        }
+      },
+      {
+        "call": "GET /sync/history/episodes/:id",
+        "status": 200,
+        "facts": {
+          "restored": true
+        }
+      }
+    ]
+  }
+}

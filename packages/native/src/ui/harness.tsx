@@ -20,6 +20,7 @@ import { usePressTrace } from "./press-trace";
 import { useSnackbarTrace } from "./snackbar-trace";
 
 export { AppIdle, trackSync } from "./AppIdle";
+export { usePerfCommand, usePerfScroll } from "./perf-channel";
 export { tracePress } from "./press-trace";
 
 const launchedAt = Date.now();
