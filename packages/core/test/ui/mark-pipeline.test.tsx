@@ -456,6 +456,19 @@ describe("a read older than the app's own mark never reverts it", () => {
     expect(qc.getQueryData<EpisodeDetail>(queryKeys.episode(SHOW, 1, 2))?.watched).toBe(true);
   });
 
+  it("leaves every other episode of the show as Trakt reads it", async () => {
+    const { qc } = await markWithStaleProgress();
+    const nextUp = {
+      loadEpisode: () => Promise.resolve(episodeDetail(episodeView(3))),
+    } as unknown as CueRuntime;
+
+    const detail = await act(() =>
+      qc.fetchQuery({ ...episodeQuery(nextUp, SHOW, 1, 3), staleTime: 0 }),
+    );
+
+    expect(detail.watched).toBe(false);
+  });
+
   it("takes the first read that has the mark, and trusts every read after it", async () => {
     const { qc } = await markWithStaleProgress();
     const caughtUp = { ...before, completed: 2, nextEpisode: libraryEntry().nextEpisode };

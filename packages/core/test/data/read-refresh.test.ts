@@ -1,6 +1,6 @@
 import { invalidationKeys, showProgressKeys } from "@cue/core/data/query-invalidation";
 import type { InvalidationTarget } from "@cue/core/domain/sync-activities";
-import { historyQuery } from "@cue/core/queries/history";
+import { firstPlayQuery, historyQuery } from "@cue/core/queries/history";
 import { movieLibraryQuery } from "@cue/core/queries/library";
 import { movieHeaderQuery } from "@cue/core/queries/movies";
 import { episodeQuery, showInfoQuery, showProgressQuery } from "@cue/core/queries/shows";
@@ -30,6 +30,7 @@ const loaders = {
   loadShowProgress: vi.fn(() => Promise.resolve({})),
   loadEpisode: vi.fn(() => Promise.resolve({})),
   loadMovieHeader: vi.fn(() => Promise.resolve({})),
+  loadFirstPlayAt: vi.fn(() => Promise.resolve("2019-03-09T10:00:00.000Z")),
   loadHistory: vi.fn((_section: string, page: number) =>
     Promise.resolve({ entries: [], page, pageCount: 2 }),
   ),
@@ -136,5 +137,20 @@ describe("the Diary read", () => {
       ),
     );
     expect(loaders.loadHistory).toHaveBeenCalledTimes(4);
+  });
+});
+
+describe("the month jump's first play", () => {
+  it("reads once and refreshes whenever History does", async () => {
+    const queryClient = await observe((qc) => new QueryObserver(qc, firstPlayQuery(runtime)));
+    expect(queryClient.getQueryData(firstPlayQuery(runtime).queryKey)).toBe(
+      "2019-03-09T10:00:00.000Z",
+    );
+    await Promise.all(
+      invalidationKeys(["watched/movies"]).map((queryKey) =>
+        queryClient.invalidateQueries({ queryKey }),
+      ),
+    );
+    expect(loaders.loadFirstPlayAt).toHaveBeenCalledTimes(2);
   });
 });

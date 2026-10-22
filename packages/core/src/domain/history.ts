@@ -113,8 +113,8 @@ const newestFirst = (a: HistoryEntry, b: HistoryEntry): number =>
   Date.parse(b.watchedAt) - Date.parse(a.watchedAt) ||
   a.type.localeCompare(b.type) ||
   a.mediaId - b.mediaId ||
-  (b.season ?? 0) - (a.season ?? 0) ||
-  (b.number ?? 0) - (a.number ?? 0);
+  Number(b.season) - Number(a.season) ||
+  Number(b.number) - Number(a.number);
 
 function groupDay(entries: readonly HistoryEntry[]): HistoryGroup[] {
   const groups: HistoryGroup[] = [];
