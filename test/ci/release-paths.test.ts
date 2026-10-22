@@ -33,6 +33,7 @@ const IOS_LANE = [
   "    if: >-",
   "      !cancelled() && needs.fingerprint.outputs.devices == 'true' &&",
   "      (needs.native-ios.result == 'success' || needs.native-ios.result == 'skipped') &&",
+  "      needs.maestro-runner.result == 'success' &&",
   "      (github.event_name != 'pull_request' || needs.fingerprint.outputs.ios-cached != 'true' ||",
   "      needs.fingerprint.outputs.ios-owed == 'true' || needs.fingerprint.outputs.user-facing == 'true')",
 ].join("\n");

@@ -4,6 +4,7 @@ import { useIsFetching, useQueryClient } from "@tanstack/react-query";
 import { type ReactElement, useEffect, useState, useSyncExternalStore } from "react";
 import { HARNESS_IDS } from "./harness-ids";
 import { Marker } from "./Marker";
+import { listenForCommands } from "./perf-channel";
 
 type Operation = "write" | "sync";
 
@@ -81,7 +82,9 @@ export function AppIdle(): ReactElement | null {
   );
 
   useEffect(() => {
-    if (idle) setReady(true);
+    if (!idle) return;
+    setReady(true);
+    listenForCommands();
   }, [idle]);
 
   return (

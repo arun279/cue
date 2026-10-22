@@ -63,7 +63,7 @@ it("uses the injected clock for tokens and resets, with monotonic activity on wr
     expect(server.library.now).toBe(now);
     expect((await (await post("/oauth/token")).json()).created_at).toBe(now / 1000);
     await post("/sync/history", { episodes: [{ ids: { trakt: 880100 } }] });
-    expect(server.library.shows[0]?.watchedAt.get(880100)).toBe(now);
+    expect(server.library.rewatchedEpisodes.get(880100)).toBe(now);
     const activity = server.library.activities.episodes;
     await post("/sync/history", { episodes: [{ ids: { trakt: 880100 } }] });
     expect(server.library.activities.episodes).toBeGreaterThan(activity);

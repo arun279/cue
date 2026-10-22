@@ -1,5 +1,0 @@
-# Marks a segment's start or end, or a reading, and waits for the host to acknowledge it.
-appId: app.cuetracker
----
-- runScript: mark.js
-- assertTrue: ${output.marked}

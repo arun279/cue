@@ -12,7 +12,7 @@ export interface MoviePlay {
 }
 
 // Trakt truncates a stored watched_at to the whole minute.
-export const MARK_MATCH_TOLERANCE_MS = 60_000;
+const MARK_MATCH_TOLERANCE_MS = 60_000;
 
 interface UnmarkRestore {
   readonly trakt: number;
@@ -82,4 +82,47 @@ export function planEpisodeUnmark(plays: readonly EpisodePlay[], episodeTrakt: n
   const own = plays.filter((play) => play.episodeTrakt === episodeTrakt);
   if (own.length === 0) return EMPTY_PLAN;
   return planFrom([own]);
+}
+
+export interface MarkedEpisodes {
+  readonly watchedAt: string;
+  readonly traktIds: ReadonlySet<number>;
+  readonly positions: ReadonlySet<string>;
+}
+
+export interface PlayRef {
+  readonly historyId: number;
+  readonly watchedAt: string;
+}
+
+export function isOwnPlay(storedAt: string, sentAt: string): boolean {
+  const lag = Date.parse(sentAt) - Date.parse(storedAt);
+  return lag >= 0 && lag < MARK_MATCH_TOLERANCE_MS;
+}
+
+function newestFirst(a: PlayRef, b: PlayRef): number {
+  return Date.parse(b.watchedAt) - Date.parse(a.watchedAt) || b.historyId - a.historyId;
+}
+
+export function ownPlays<P extends PlayRef>(
+  plays: readonly P[],
+  sentAt: (play: P) => string | null,
+  itemOf: (play: P) => number,
+): P[] {
+  const newest = new Map<number, P>();
+  for (const play of plays) {
+    const sent = sentAt(play);
+    const kept = newest.get(itemOf(play));
+    if (sent === null || !isOwnPlay(play.watchedAt, sent)) continue;
+    if (kept === undefined || newestFirst(play, kept) < 0) newest.set(itemOf(play), play);
+  }
+  return plays.filter((play) => newest.get(itemOf(play)) === play);
+}
+
+export function markedAt(marks: readonly MarkedEpisodes[]): (play: EpisodePlay) => string | null {
+  return (play) =>
+    marks.find(
+      (mark) =>
+        mark.traktIds.has(play.episodeTrakt) || mark.positions.has(`${play.season}:${play.number}`),
+    )?.watchedAt ?? null;
 }

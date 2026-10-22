@@ -92,14 +92,41 @@ describe("show position", () => {
 
 describe("season confirmations", () => {
   it("offers remaining or rewatch against aired counts", () => {
-    expect(seasonConfirmation({ number: 2, airedCount: 6, completedCount: 3 })).toEqual({
+    expect(seasonConfirmation({ number: 2, airedCount: 6, completedCount: 3 }, "multiple")).toEqual(
+      {
+        kind: "remaining",
+        title: "Mark Season 2 watched?",
+        message: "3 of 6 episodes are unwatched.",
+        primary: "Mark 3 remaining",
+        secondary: "Mark all 6 again (rewatch)",
+      },
+    );
+  });
+  it("names a single watched episode in the singular", () => {
+    expect(
+      seasonConfirmation({ number: 1, airedCount: 4, completedCount: 1 }, "unknown").message,
+    ).toBe(
+      "3 of 4 episodes are unwatched. If your Trakt account keeps one play per episode, this replaces the watch date of the 1 you've watched.",
+    );
+  });
+  it("says before a rewatch that a one-play account loses the watch dates", () => {
+    const season = { number: 2, airedCount: 6, completedCount: 3 };
+    expect(seasonConfirmation(season, "one-play")).toMatchObject({
+      message:
+        "3 of 6 episodes are unwatched. Your Trakt account keeps one play per episode, so this replaces the watch dates of the 3 you've watched. You can change this in your Trakt settings.",
+      secondary: "Mark all 6 again",
+      secondaryDestructive: true,
+    });
+    expect(seasonConfirmation(season, "unknown")).toEqual({
       kind: "remaining",
       title: "Mark Season 2 watched?",
-      message: "3 of 6 episodes are unwatched.",
+      message:
+        "3 of 6 episodes are unwatched. If your Trakt account keeps one play per episode, this replaces the watch dates of the 3 you've watched.",
       primary: "Mark 3 remaining",
       secondary: "Mark all 6 again (rewatch)",
     });
   });
+
   it("names the consequence when none or all are watched", () => {
     expect(seasonConfirmation({ number: 2, airedCount: 1, completedCount: 0 })).toEqual({
       kind: "mark",

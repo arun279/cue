@@ -1,6 +1,7 @@
 import { type LibraryEntry, quickMarkable } from "@cue/core/data/trakt/library";
+import { airedLastNight } from "@cue/core/domain/day";
 import { type EpisodeRef, epCode } from "@cue/core/domain/model/library";
-import { DAY_MS, toMs } from "@cue/core/domain/time";
+import { localTimeZone, toMs } from "@cue/core/domain/time";
 import { lastWatchedPhrase, leftNote, watchedPercent, withEpisodeTitle } from "@cue/core/format";
 import { useAlertsMute } from "@cue/core/hooks/useAlertsMute";
 import { useMarkControl } from "@cue/core/hooks/useMarkControl";
@@ -40,9 +41,8 @@ function episodeText(episode: EpisodeRef | null) {
   return { code, title: episode.title, meta: withEpisodeTitle(code, episode.title) };
 }
 
-function airedLastNight(episode: EpisodeRef | null, now: number): boolean {
-  const airedMs = toMs(episode?.firstAired ?? null);
-  return airedMs !== null && airedMs <= now && now - airedMs < DAY_MS;
+function episodeAiredLastNight(episode: EpisodeRef | null, now: number): boolean {
+  return airedLastNight(toMs(episode?.firstAired ?? null), now, localTimeZone());
 }
 
 function RowPoster({ showId, title }: { readonly showId: number; readonly title: string }) {
@@ -62,7 +62,7 @@ function QueueRowContent({ card, mark, onStop, variant = "queue" }: QueueRowProp
   const { code, title, meta } = episodeText(item.episode);
   const idle = variant === "lapsed" ? lastWatchedPhrase(entry.lastWatchedAt, now) : null;
   const note = idle !== null ? `last watched ${idle}` : leftNote(entry.aired, entry.completed);
-  const fresh = variant === "queue" && airedLastNight(item.episode, now);
+  const fresh = variant === "queue" && episodeAiredLastNight(item.episode, now);
   const open = (): void => router.push(`/show/${entry.showId}`);
   const stop = (): void => onStop(entry);
   const markable = control.state === "unwatched" && quickMarkable(entry, now);

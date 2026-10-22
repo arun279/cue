@@ -3,6 +3,7 @@ import type { LibraryEntry } from "@cue/core/data/trakt/library";
 import type { MovieEntry } from "@cue/core/data/trakt/movie-library";
 import { act, render, screen, userEvent, waitFor } from "@testing-library/react-native";
 import { Platform } from "react-native";
+import { FILTER_DEBOUNCE_MS } from "../src/screens/library/model";
 import "./support/screen-mocks";
 import { agesAgo, entry, fakeRuntime, Harness, spyHaptics } from "./support/up-next";
 
@@ -120,7 +121,11 @@ const selectedSort = (): string | undefined =>
     "accessibilityLabel"
   ];
 
-afterEach(() => jest.clearAllMocks());
+beforeEach(() => jest.useFakeTimers());
+afterEach(() => {
+  jest.useRealTimers();
+  jest.clearAllMocks();
+});
 
 it("opens on Watching, with a count on every chip", async () => {
   await paint();
@@ -225,17 +230,21 @@ it("offers the menu's actions to assistive technology on the tile itself", async
 it("filters on the settled query and clears the header field back to the grid", async () => {
   await paint();
   const field = screen.getByPlaceholderText("Filter by title");
+  const settle = () => act(async () => jest.advanceTimersByTime(FILTER_DEBOUNCE_MS));
 
   await userEvent.type(field, "coast");
-  await waitFor(() => expect(titles()).toEqual(["Coastal Static"]));
+  expect(titles()).toEqual(["Harbor Lights", "Coastal Static"]);
+  await settle();
+  expect(titles()).toEqual(["Coastal Static"]);
 
   await userEvent.clear(field);
   await userEvent.type(field, "wire");
-  await waitFor(() => expect(screen.queryByTestId("library-no-match")).not.toBeNull());
+  await settle();
   expect(screen.getByText('No shows match "wire".')).toBeTruthy();
 
   await userEvent.press(screen.getByTestId("library-filter-clear"));
-  await waitFor(() => expect(titles()).toEqual(["Harbor Lights", "Coastal Static"]));
+  await settle();
+  expect(titles()).toEqual(["Harbor Lights", "Coastal Static"]);
   expect(field).toHaveDisplayValue("");
 });
 
@@ -293,7 +302,6 @@ it("offers Retry when the library cannot be read", async () => {
 });
 
 it("preserves burst input while results change without reinstalling the native search header", async () => {
-  jest.useFakeTimers();
   const declarations = jest.spyOn(
     jest.requireMock<typeof import("expo-router")>("expo-router").Stack,
     "Screen",
@@ -304,18 +312,17 @@ it("preserves burst input while results change without reinstalling the native s
     const options = declarations.mock.calls[0]?.[0].options;
     const field = screen.getByPlaceholderText("Filter by title");
     await userEvent.setup({ delay: 400 }).type(field, "zzz");
-    await act(async () => jest.advanceTimersByTime(300));
+    await act(async () => jest.advanceTimersByTime(FILTER_DEBOUNCE_MS));
     expect(field).toHaveDisplayValue("zzz");
     expect(screen.getByText('No shows match "zzz".')).toBeOnTheScreen();
     expect(screen.queryAllByTestId(/^show-card-/)).toHaveLength(0);
     expect(declarations.mock.calls.length).toBeGreaterThan(1);
     for (const [props] of declarations.mock.calls) expect(props.options).toBe(options);
     await userEvent.press(screen.getByTestId("library-filter-clear"));
-    await act(async () => jest.advanceTimersByTime(300));
+    await act(async () => jest.advanceTimersByTime(FILTER_DEBOUNCE_MS));
     expect(field).toHaveDisplayValue("");
     expect(titles()).toEqual(["Harbor Lights", "Coastal Static"]);
   } finally {
     declarations.mockRestore();
-    jest.useRealTimers();
   }
 });

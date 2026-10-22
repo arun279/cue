@@ -7,7 +7,15 @@ import { dirname, join } from "node:path";
 const DURATION_GATED = new Set(["Library first mount"]);
 const DURATION_DEVIATION = 0.2;
 
-const [baselinePath, currentPath] = process.argv.slice(2);
+const [baselinePath, currentPath, body = ""] = process.argv.slice(2);
+
+// A pull request may change a scenario's count only by naming the exact change and why:
+// "Render-Count: <scenario> <base> -> <head>: <reason>".
+const acknowledged = new Set(
+  [...body.matchAll(/^Render-Count: (.+) (\S+) -> (\S+): \S.*$/gm)].map(
+    ([, name, from, to]) => `${name} ${from} -> ${to}`,
+  ),
+);
 
 async function readMeasurements(path) {
   const records = (await readFile(path, "utf8")).split("\n").filter(Boolean).map(JSON.parse);
@@ -32,8 +40,11 @@ for (const [name, expected] of baseline) {
     continue;
   }
 
-  process.stdout.write(`${name}: renders ${expected.meanCount} -> ${measured.meanCount}\n`);
-  if (measured.meanCount !== expected.meanCount) {
+  const change = `${expected.meanCount} -> ${measured.meanCount}`;
+  process.stdout.write(`${name}: renders ${change}\n`);
+  if (measured.meanCount !== expected.meanCount && acknowledged.has(`${name} ${change}`)) {
+    process.stdout.write(`${name}: render count change stated in the pull request\n`);
+  } else if (measured.meanCount !== expected.meanCount) {
     process.stderr.write(
       `Render count difference exceeded the allowed deviation of 0: ${name} (${expected.meanCount} -> ${measured.meanCount})\n`,
     );

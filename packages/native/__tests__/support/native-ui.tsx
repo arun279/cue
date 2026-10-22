@@ -12,6 +12,17 @@ import type { ReactElement, ReactNode, Ref } from "react";
 import type { SearchBarCommands } from "react-native-screens";
 import { TEST_IDS } from "../../src/ui/test-ids";
 
+/** A header menu item the way a reader reaches it: Android opens the More button first, iOS's
+ * stand-in toolbar menu lists its items in place. */
+export async function chooseHeaderAction(title: string, label: string): Promise<void> {
+  const { Platform } = require("react-native") as typeof import("react-native");
+  const { fireEvent, screen } =
+    require("@testing-library/react-native") as typeof import("@testing-library/react-native");
+  if (Platform.OS === "android")
+    await fireEvent.press(await screen.findByRole("button", { name: `More actions for ${title}` }));
+  await fireEvent.press(await screen.findByText(label));
+}
+
 export const router = {
   push: jest.fn(),
   back: jest.fn(),

@@ -5,13 +5,13 @@ import { advancePastNext, type LibraryEntry, type MarkContext } from "../data/tr
 import { epCode } from "../domain/model/library";
 import {
   buildMarkEpisodeOp,
-  buildRemovePlaysOp,
   buildUnmarkEpisodeOp,
   episodeItemKey,
 } from "../domain/write-queue/ops";
+import { replacedPlays } from "../domain/write-queue/receipt";
 import { middleTruncate } from "../format";
 import { type Haptics, useHaptics } from "../ports/haptics";
-import { type CueRuntime, type SubmitOutcome, useRuntime } from "../runtime/runtime";
+import { type SubmitOutcome, useRuntime } from "../runtime/runtime";
 import {
   isReversalRequested,
   type MarkRecord,
@@ -21,7 +21,13 @@ import {
   settleReversal,
   useMarkStore,
 } from "../stores/mark-store";
-import { dismissSnack, type SnackMessage, showSnack, useSnackbar } from "../stores/snackbar-store";
+import {
+  dismissSnack,
+  type SnackMessage,
+  showSnack,
+  snackText,
+  useSnackbar,
+} from "../stores/snackbar-store";
 import {
   claimWriteLock,
   hasPendingMark,
@@ -37,7 +43,8 @@ import {
   patchShowSeasons,
   refreshShowProgress,
 } from "./library-cache";
-import { findMarkPlay } from "./resolve-unmark";
+import { REPLACED_COPY } from "./replaced-copy";
+import { planLandedUndo, removeEpisodePlays, waitWhileInFlight } from "./resolve-unmark";
 import { useOptimisticWrite } from "./useOptimisticWrite";
 import { useResumeOnMark } from "./useResumeOnMark";
 
@@ -48,17 +55,19 @@ export interface MarkWatched {
   justMarkedAt(showId: number): number | null;
 }
 
-const IN_FLIGHT_POLL_MS = 200;
-const IN_FLIGHT_POLL_TRIES = 50;
+function retire(record: MarkRecord): boolean {
+  const store = useMarkStore.getState();
+  const inBatch = store.batch.some((r) => r.opId === record.opId);
+  store.setBatch(store.batch.filter((r) => r.opId !== record.opId));
+  return store.close(record.showId, record.opId) || inBatch;
+}
 
-const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
-
-async function waitWhileInFlight(runtime: CueRuntime, opId: string): Promise<boolean> {
-  for (let attempt = 0; attempt < IN_FLIGHT_POLL_TRIES; attempt += 1) {
-    if (runtime.inFlightOpId() !== opId) return true;
-    await sleep(IN_FLIGHT_POLL_MS);
-  }
-  return false;
+function showReplaced(record: MarkRecord, undoPressed: boolean): void {
+  const message = REPLACED_COPY.mark(`${record.title} ${record.code}`);
+  showSnack({
+    message: undoPressed ? `${snackText(message)} ${REPLACED_COPY.undoNote}` : message,
+    actions: [{ label: "Dismiss", onPress: dismissSnack }],
+  });
 }
 
 function showUndoFailed(haptics: Haptics, title: string): void {
@@ -144,7 +153,7 @@ export function useMarkWatched(): MarkWatched {
         revalidate: () =>
           revalidate(record.showId, { season: record.season, number: record.number }),
       };
-      if (!(await waitWhileInFlight(runtime, record.opId))) {
+      if (!(await waitWhileInFlight(runtime, [record.opId]))) {
         reapplyMark(record);
         showUndoFailed(haptics, record.title);
         return null;
@@ -162,29 +171,25 @@ export function useMarkWatched(): MarkWatched {
         });
         return submit([op], effects);
       }
-      let plays: Awaited<ReturnType<CueRuntime["loadEpisodePlays"]>>;
-      try {
-        plays = await runtime.loadEpisodePlays(record.episodeIds.trakt);
-      } catch {
+      const episode = record.episodeIds.trakt;
+      const plan = await planLandedUndo(
+        runtime,
+        [record.opId],
+        () => runtime.loadEpisodePlays(episode),
+        () => record.watchedAt,
+        (play) => play.episodeTrakt,
+      );
+      if (plan === null || plan.kind === "replaced") {
         reapplyMark(record);
-        showUndoFailed(haptics, record.title);
+        if (plan === null) showUndoFailed(haptics, record.title);
+        else showReplaced(record, true);
         return null;
       }
-      const target = findMarkPlay(plays, record.episodeIds.trakt, record.watchedAt);
-      if (target === undefined) {
+      if (plan.kind === "none") {
         effects.revalidate();
         return null;
       }
-      return submit(
-        [
-          buildRemovePlaysOp({
-            opId: runtime.newId(),
-            ids: [target.historyId],
-            restore: [{ trakt: record.episodeIds.trakt, watchedAt: target.watchedAt }],
-          }),
-        ],
-        effects,
-      );
+      return submit([removeEpisodePlays(runtime.newId(), plan.plays)], effects);
     },
     [runtime, submit, reapplyMark, revalidate, haptics, resume],
   );
@@ -237,6 +242,23 @@ export function useMarkWatched(): MarkWatched {
       }),
     );
   }, [undoBatch]);
+
+  const settleMark = useCallback(
+    (record: MarkRecord, outcome: SubmitOutcome) => {
+      const replaced = outcome === "done" && replacedPlays(runtime.writeReceipt(record.opId)) > 0;
+      if ((!replaced && outcome !== "failed") || !retire(record)) return;
+      if (replaced) {
+        showReplaced(record, false);
+        return;
+      }
+      haptics.failure();
+      showSnack({
+        message: `Couldn't mark ${record.title} watched. Please try again.`,
+        actions: [{ label: "Dismiss", onPress: dismissSnack }],
+      });
+    },
+    [runtime, haptics],
+  );
 
   const mark = useCallback(
     async (entry: LibraryEntry) => {
@@ -298,18 +320,7 @@ export function useMarkWatched(): MarkWatched {
         releaseWriteLock(showLock, opId);
         releaseWriteLock(pendingLock, opId);
       }
-      if (outcome !== "failed") return;
-      const after = useMarkStore.getState();
-      const ownedWindow = after.close(entry.showId, opId);
-      const inBatch = after.batch.some((r) => r.opId === opId);
-      after.setBatch(after.batch.filter((r) => r.opId !== opId));
-      if (ownedWindow || inBatch) {
-        haptics.failure();
-        showSnack({
-          message: `Couldn't mark ${entry.title} watched. Please try again.`,
-          actions: [{ label: "Dismiss", onPress: dismissSnack }],
-        });
-      }
+      settleMark(record, outcome);
     },
     [
       runtime,
@@ -322,6 +333,7 @@ export function useMarkWatched(): MarkWatched {
       haptics,
       queryClient,
       resume,
+      settleMark,
     ],
   );
 

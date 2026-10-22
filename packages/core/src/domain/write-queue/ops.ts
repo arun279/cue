@@ -1,4 +1,5 @@
 import type { EpisodeIds, MovieIds, ShowIds } from "../model/ids";
+import type { MarkedEpisodes } from "../reversal";
 import type { QueuedOp, RequestDescriptor } from "./types";
 
 const HISTORY = "/sync/history";
@@ -58,9 +59,17 @@ export function buildUnmarkEpisodeOp(params: HistoryOpParams): QueuedOp {
   return historyOp("episodes", "absent", params);
 }
 
+export function additiveItemKey(itemKey: string, opId: string): string {
+  return `${itemKey}:add:${opId}`;
+}
+
+export function isAdditiveOp(op: QueuedOp): boolean {
+  return op.itemKey.endsWith(`:add:${op.id}`);
+}
+
 export function buildAddEpisodePlayOp(params: HistoryOpParams): QueuedOp {
   const op = historyOp("episodes", "present", params);
-  return { ...op, itemKey: `${op.itemKey}:add:${params.opId}` };
+  return { ...op, itemKey: additiveItemKey(op.itemKey, params.opId) };
 }
 
 export function buildMarkMovieOp(params: HistoryOpParams): QueuedOp {
@@ -189,4 +198,29 @@ export function buildAddWatchlistOp(params: WatchlistOpParams): QueuedOp {
 
 export function buildRemoveWatchlistOp(params: WatchlistOpParams): QueuedOp {
   return watchlistOp("absent", params);
+}
+
+interface HistoryBody {
+  readonly episodes?: readonly { readonly ids: { readonly trakt: number } }[];
+  readonly shows?: readonly {
+    readonly seasons: readonly {
+      readonly number: number;
+      readonly episodes: readonly { readonly number: number }[];
+    }[];
+  }[];
+}
+
+export function markedEpisodesOf(op: QueuedOp): MarkedEpisodes | null {
+  if (op.request.path !== HISTORY || op.watchedAt === null) return null;
+  const body = op.request.body as HistoryBody;
+  const traktIds = new Set((body.episodes ?? []).map((item) => item.ids.trakt));
+  const positions = new Set(
+    (body.shows ?? []).flatMap((show) =>
+      show.seasons.flatMap((season) =>
+        season.episodes.map((episode) => `${season.number}:${episode.number}`),
+      ),
+    ),
+  );
+  if (traktIds.size === 0 && positions.size === 0) return null;
+  return { watchedAt: op.watchedAt, traktIds, positions };
 }

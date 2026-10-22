@@ -167,11 +167,25 @@ export function createFaults(spec) {
   };
 }
 
-/** The response a `status` rule answers with; null when the rule only delays. */
+/**
+ * The response a `status` rule answers with; null when the rule only delays. A
+ * 429 with `retryAfter` comes from Trakt's rate limiter, which also names the
+ * bucket in `X-Ratelimit`; one without is the security layer's bare refusal
+ * (https://developer.trakt.tv/docs/rate-limiting).
+ */
 export function faultResponse(rule) {
   if (rule.status === undefined) return null;
   const headers = { "content-type": "application/json; charset=utf-8" };
   if (rule.retryAfter !== undefined) headers["retry-after"] = String(rule.retryAfter);
+  if (rule.status === 429 && rule.retryAfter !== undefined) {
+    headers["x-ratelimit"] = JSON.stringify({
+      name: "AUTHED_API_GET_LIMIT",
+      period: 300,
+      limit: 500,
+      remaining: 0,
+      until: new Date(Date.now() + rule.retryAfter * 1000).toISOString().replace(/\.\d+Z$/, "Z"),
+    });
+  }
   return {
     status: rule.status,
     headers,

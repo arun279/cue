@@ -4,7 +4,7 @@ import {
   type EpisodeRef,
   type LibraryShow,
 } from "../../domain/model/library";
-import { type EpisodePlay, MARK_MATCH_TOLERANCE_MS } from "../../domain/reversal";
+import { type EpisodePlay, isOwnPlay } from "../../domain/reversal";
 import { isAired, laterOf, toMs } from "../../domain/time";
 import { resolveStill } from "../image-source";
 import type { CollectionShow, HiddenItem, Progress, WatchedShow, WatchlistItem } from "./schemas";
@@ -231,13 +231,12 @@ export function additiveLanded(
   match: AdditiveMatch,
   watchedAt: string,
 ): boolean {
-  const markedAt = Date.parse(watchedAt);
   return plays.some((play) => {
     const matches =
       "episodeTrakt" in match
         ? play.episodeTrakt === match.episodeTrakt
         : play.season === match.season && play.number === match.number;
-    return matches && Math.abs(Date.parse(play.watchedAt) - markedAt) <= MARK_MATCH_TOLERANCE_MS;
+    return matches && isOwnPlay(play.watchedAt, watchedAt);
   });
 }
 

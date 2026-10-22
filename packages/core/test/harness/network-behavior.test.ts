@@ -10,8 +10,17 @@ import {
   withReadRateRetry,
 } from "@cue/core/data/trakt/read-budget";
 import type { Token } from "@cue/core/domain/model/token";
-import { buildMarkEpisodeOp } from "@cue/core/domain/write-queue/ops";
+import { markedAt, ownPlays } from "@cue/core/domain/reversal";
+import { buildBulkMarkOps } from "@cue/core/domain/write-queue/bulk";
+import {
+  buildAddEpisodePlayOp,
+  buildAddWatchlistOp,
+  buildMarkEpisodeOp,
+  markedEpisodesOf,
+} from "@cue/core/domain/write-queue/ops";
+import { planLandedUndo, removeEpisodePlays } from "@cue/core/hooks/resolve-unmark";
 import type { KeyValueStore } from "@cue/core/ports/kv";
+import { PLAY_POLICY_KEY } from "@cue/core/ports/storage-keys";
 import type { TokenStore } from "@cue/core/ports/token-store";
 import { libraryQuery } from "@cue/core/queries/library";
 import {
@@ -19,6 +28,7 @@ import {
   createQueryClient,
   restorableCache,
 } from "@cue/core/runtime/query-cache";
+import { usePlayPolicy } from "@cue/core/stores/play-policy-store";
 import { dehydrate, hydrate } from "@tanstack/react-query";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { readJournal } from "../../../../scripts/mock-trakt/journal.mjs";
@@ -427,5 +437,115 @@ describe("write faults", () => {
     expect(requests.filter((entry) => entry.path === "/shows/8801/progress/watched")).toHaveLength(
       1,
     );
+  });
+});
+
+describe("write receipts", () => {
+  // The seed's first show has its first 20 episodes watched.
+  const watched = { trakt: 880100 };
+  const at = "2026-10-14T12:34:00.000Z";
+
+  it("keeps what Trakt said and learns that the account keeps one play per episode", async () => {
+    await fetch(`${baseUrl}/__reset?seed=multiple-plays-off`, { method: "POST" });
+    const kv = memoryKv();
+    const cue = await runtime({ kv });
+    const op = buildMarkEpisodeOp({ opId: "replace", ids: watched, watchedAt: at });
+    await expect(cue.submit(op)).resolves.toBe("done");
+    expect(cue.writeReceipt("replace")).toEqual({
+      added: 0,
+      updated: 1,
+      deleted: 0,
+      existing: 0,
+      notFound: 0,
+    });
+    expect(usePlayPolicy.getState().policy).toBe("one-play");
+    expect(await kv.read(PLAY_POLICY_KEY)).toBe(JSON.stringify("one-play"));
+    await cue.endLocalSession();
+    expect(usePlayPolicy.getState().policy).toBe("unknown");
+  });
+
+  it("keeps a write's answer while the next write is still being delivered, so its Undo is safe", async () => {
+    await fetch(`${baseUrl}/__reset?seed=multiple-plays-off`, { method: "POST" });
+    await arm({ match: "writes", path: "^/sync/history$", hold: true, after: 1, count: 1 });
+    const cue = await runtime();
+    const first = buildMarkEpisodeOp({ opId: "first", ids: watched, watchedAt: at });
+    const second = buildMarkEpisodeOp({ opId: "second", ids: { trakt: 880101 }, watchedAt: at });
+    const held = mock.nextRequest(
+      (entry) =>
+        entry.method === "POST" &&
+        entry.path === "/sync/history" &&
+        JSON.stringify(entry.body).includes("880101"),
+    );
+    const done = Promise.all([cue.submit(first), cue.submit(second)]);
+    await held;
+    expect(cue.inFlightOpId()).toBe("second");
+    expect(cue.writeReceipt("first")).toMatchObject({ added: 0, updated: 1 });
+    const undo = await planLandedUndo(
+      cue,
+      ["first"],
+      () => cue.loadEpisodePlays(watched.trakt),
+      () => at,
+      (play) => play.episodeTrakt,
+    );
+    expect(undo).toEqual({ kind: "replaced", count: 1 });
+    await fetch(`${baseUrl}/__fault`, { method: "DELETE" });
+    await expect(done).resolves.toEqual(["done", "done"]);
+  });
+
+  it("learns that the account keeps every play when Add a play on one episode adds a play", async () => {
+    const cue = await runtime();
+    const op = buildAddEpisodePlayOp({ opId: "again", ids: watched, watchedAt: at });
+    await expect(cue.submit(op)).resolves.toBe("done");
+    expect(cue.writeReceipt("again")?.added).toBe(1);
+    expect(usePlayPolicy.getState().policy).toBe("multiple");
+  });
+
+  it("undoes a landed season mark by removing exactly its plays, though Trakt stores whole minutes", async () => {
+    const cue = await runtime();
+    const before = (await cue.loadShowProgress(8803)).completed;
+    const [mark] = buildBulkMarkOps(
+      {
+        showIds: { trakt: 8803 },
+        seasons: [
+          {
+            number: 2,
+            episodes: [3, 4].map((number) => ({
+              number,
+              firstAired: "2020-01-01T00:00:00.000Z",
+              watched: false,
+            })),
+          },
+        ],
+        includeSpecials: false,
+      },
+      Date.now(),
+      "2026-10-14T12:34:56.789Z",
+      () => "season",
+    );
+    if (mark === undefined) throw new Error("the season mark must produce an op");
+    await expect(cue.submit(mark)).resolves.toBe("done");
+    const marked = markedEpisodesOf(mark);
+    const own = ownPlays(
+      await cue.loadShowPlays(8803),
+      markedAt(marked === null ? [] : [marked]),
+      (play) => play.episodeTrakt,
+    );
+    expect(own).toHaveLength(2);
+    const removal = removeEpisodePlays("undo", own);
+    await expect(cue.submit(removal)).resolves.toBe("done");
+    expect((await cue.loadShowProgress(8803)).completed).toBe(before);
+  });
+
+  it("lands a watchlist add for a title the account does not hold yet", async () => {
+    const cue = await runtime();
+    const add = buildAddWatchlistOp({ opId: "list", section: "shows", ids: { trakt: 8901 } });
+    await expect(cue.submit(add)).resolves.toBe("done");
+    expect(cue.writeReceipt("list")?.added).toBe(1);
+  });
+
+  it("fails an add Trakt answered without applying, so the app does not show it as watched", async () => {
+    const cue = await runtime();
+    const op = buildMarkEpisodeOp({ opId: "missing", ids: { trakt: 1 }, watchedAt: at });
+    await expect(cue.submit(op)).resolves.toBe("failed");
   });
 });

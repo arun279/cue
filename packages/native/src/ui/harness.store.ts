@@ -8,6 +8,8 @@ export const useOnboardingAcknowledgment: typeof Harness.useOnboardingAcknowledg
   marker: null,
 });
 export const AppIdle: typeof Harness.AppIdle = () => null;
+export const usePerfCommand: typeof Harness.usePerfCommand = () => {};
+export const usePerfScroll: typeof Harness.usePerfScroll = () => {};
 export const SheetPresented: typeof Harness.SheetPresented = () => null;
 export const SnackbarTrace: typeof Harness.SnackbarTrace = () => null;
 export const PressTrace: typeof Harness.PressTrace = () => null;
@@ -17,3 +19,4 @@ export const useScrollAcknowledgment: typeof Harness.useScrollAcknowledgment = (
   handlers: {},
   marker: null,
 });
+export const usePullTrace: typeof Harness.usePullTrace = () => ({ handlers: {}, marker: null });
