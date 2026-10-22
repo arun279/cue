@@ -97,12 +97,13 @@ export function useScrollAcknowledgment(): {
     handlers: {
       onScrollBeginDrag: () => setStarted(++generation.current),
       onScrollEndDrag: ({ nativeEvent }) => {
-        if (
-          Platform.OS === "ios" &&
-          nativeEvent.velocity?.y === 0 &&
-          nativeEvent.targetContentOffset?.y === nativeEvent.contentOffset.y
-        )
-          finish(generation.current);
+        const { velocity, contentOffset, targetContentOffset } = nativeEvent;
+        setCompleted(
+          (previous) =>
+            `${previous} drag ${generation.current} ended at ${contentOffset.y} toward ${targetContentOffset?.y} at ${velocity?.y};`,
+        );
+        const restsWhereItEnded = targetContentOffset?.y === contentOffset.y;
+        if (Platform.OS === "ios" && restsWhereItEnded) finish(generation.current);
       },
       onMomentumScrollBegin: () => {
         momentum.current = generation.current;
