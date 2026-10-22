@@ -23,7 +23,7 @@ appId: app.cuetracker
 - evalScript: ${console.log('CUE_TOUCH_PROOF=' + output.touchProof)}
 - runFlow:
     when:
-      true: ${output.tapConnectAgain}
+      true: ${output.tapAgain}
     commands:
       - tapOn:
           id: "button-connect"

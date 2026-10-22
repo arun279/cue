@@ -5,6 +5,7 @@ import { showSnack } from "@cue/core/stores/snackbar-store";
 import { openBrowserAsync } from "expo-web-browser";
 import type { ReactElement } from "react";
 import { Image, Pressable, View } from "react-native";
+import { PressTrace } from "../ui/harness";
 import { PlatformIcon } from "../ui/PlatformIcon";
 import { Separator } from "../ui/Row";
 import { TEST_IDS } from "../ui/test-ids";
@@ -74,6 +75,7 @@ export default function Settings(): ReactElement {
   const turnOnAlerts = useTurnOnAlerts();
   return (
     <AccountScreen testID={TEST_IDS.screenSettings}>
+      <PressTrace />
       <Section title="Notifications">
         <Toggle
           title="New episodes"

@@ -14,6 +14,7 @@ import { CueHaptics } from "../modules/cue-native/src";
 import { createNativeHaptics } from "../src/platform/haptics";
 import { EpisodeStill } from "../src/screens/episode-sheet/EpisodeStill";
 import Settings from "../src/screens/Settings";
+import { HARNESS_IDS } from "../src/ui/harness-ids";
 import { TEST_IDS } from "../src/ui/test-ids";
 import { accountFixture } from "./support/account";
 import { agesAgo, airing, entry } from "./support/up-next";
@@ -368,4 +369,21 @@ it("lists the last Trakt failure per endpoint under About and copies them as a r
   ]);
   expect(await screen.findByText("Report copied.")).toBeVisible();
   await act(() => useReadIncidents.setState({ incidents: [] }));
+});
+
+it("traces a media switch's touch and the change it makes, for the device flows' tap proof", async () => {
+  await accountFixture().paint(<Settings />);
+  const movies = screen.getByRole("switch", { name: "Movies" });
+  const trace = () =>
+    screen.getByTestId(HARNESS_IDS.pressTrace, { includeHiddenElements: true }).props[
+      "accessibilityLabel"
+    ];
+
+  await fireEvent(movies, "touchStart", { nativeEvent: { timestamp: 0 } });
+  await fireEvent(movies, "touchCancel", { nativeEvent: { timestamp: 1 } });
+  expect(trace()).toMatch(/^shown; touch start .*; touch cancel /);
+  expect(trace()).not.toContain("press");
+
+  await fireEvent(movies, "valueChange", false);
+  expect(trace()).toMatch(/; press \+/);
 });

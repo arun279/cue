@@ -384,8 +384,9 @@ function unsettledScrollTaps(commands: Command[]): string[] {
   return commands.flatMap((command, index) => {
     const id = targetOf(command, "tapOn");
     if (typeof id !== "string" || !SETTINGS_CONTROL.test(id)) return [];
-    const settled = JSON.stringify(commands[index - 1]) === JSON.stringify(SETTLE_SCROLL);
-    const scroll = commands[settled ? index - 2 : index - 1];
+    const before = same(commands[index - 1], TOUCH_WINDOW) ? index - 2 : index - 1;
+    const settled = same(commands[before], SETTLE_SCROLL);
+    const scroll = commands[settled ? before - 1 : before];
     if (targetOf(scroll, "scrollUntilVisible") !== id) return [];
     const centred =
       (scroll?.["scrollUntilVisible"] as { centerElement?: unknown }).centerElement === true;
@@ -398,18 +399,33 @@ const MEDIA_SWITCHES: Readonly<Record<string, string>> = {
   "switch-shows": "switch-movies",
 };
 
+const TOUCH_WINDOW = { runScript: "lib/touch-window.js" };
+const TOUCH_PROOF = { runScript: "lib/touch-proof.js" };
+const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
+
 /** A media switch's own value flips natively at the touch; the other switch's enabled state is
  * drawn by the app from the preference, so it is the proof the change landed before the flow
- * leaves the screen. */
+ * leaves the screen. Between the two, the tap is retried only on the simulator's proof that it
+ * dropped it. */
 function unconfirmedMediaTaps(commands: Command[]): string[] {
+  // A list of the tap alone is the proven re-tap nested under its own check.
+  if (commands.length === 1) return [];
   return commands.flatMap((command, index) => {
     const id = targetOf(command, "tapOn");
     const other = typeof id === "string" ? MEDIA_SWITCHES[id] : undefined;
     if (other === undefined) return [];
-    const next = commands[index + 1]?.["assertVisible"] as
+    const end = commands.findIndex((later, at) => at > index && "assertVisible" in later);
+    const between = commands.slice(index + 1, end);
+    const wait = commands[end]?.["assertVisible"] as
       | { id?: unknown; enabled?: unknown }
       | undefined;
-    return next?.id === other && typeof next.enabled === "boolean" ? [] : [String(id)];
+    const proven =
+      same(commands[index - 1], TOUCH_WINDOW) &&
+      between.some((step) => same(step, TOUCH_PROOF)) &&
+      between.some((step) =>
+        JSON.stringify(step["runFlow"] ?? null).includes(`"tapOn":{"id":"${id}"}`),
+      );
+    return proven && wait?.id === other && typeof wait.enabled === "boolean" ? [] : [String(id)];
   });
 }
 
@@ -449,7 +465,7 @@ it("waits for onboarding readiness, taps again only on proof the simulator dropp
     { evalScript: `\${console.log('CUE_PRESS_TRACE=' + maestro.copiedText)}` },
     { runScript: "touch-proof.js" },
     { evalScript: `\${console.log('CUE_TOUCH_PROOF=' + output.touchProof)}` },
-    { runFlow: { when: { true: `\${output.tapConnectAgain}` }, commands: [tap] } },
+    { runFlow: { when: { true: `\${output.tapAgain}` }, commands: [tap] } },
     {
       extendedWaitUntil: {
         visible: { id: HARNESS_IDS.pressTrace, text: ".*; press [+].*" },
