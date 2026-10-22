@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join, relative } from "node:path";
 import ts from "typescript";
-import { nativeSourceFiles } from "./support/native-sources";
+import { storeSourceFiles } from "./support/native-sources";
 
 const root = join(__dirname, "..");
 
@@ -344,7 +344,7 @@ function violationsIn(path: string): Violation[] {
   return found;
 }
 
-const violations = nativeSourceFiles().flatMap(violationsIn);
+const violations = storeSourceFiles().flatMap(violationsIn);
 const excepts = (exception: Exception, violation: Violation) =>
   exception.file === violation.file &&
   exception.rule === violation.rule &&

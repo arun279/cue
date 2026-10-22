@@ -1,16 +1,19 @@
-// Runs .maestro/perf/probe.yaml several times on one platform and reports what each segment
-// cost. The flow marks every segment over HTTP; this process measures between the marks.
-// Both platforms record every segment's screen and time it from the video the same way:
-// a tab switch from the tab bar's first change to the content's first change, a push, a
-// sheet or the lapsed section from the first change to the last, a scroll by the gaps
-// between the frames the recorder captured. Android adds what the platform keeps: frame
-// statistics per segment (dumpsys gfxinfo), the views and Compose hosts on screen after a
-// tab switch (dumpsys activity top), memory (dumpsys meminfo), overdraw, and cold start
-// (am start -W) in three states: as adb installed it, verified the way a Play install
-// without a profile is, and compiled from the profile the passes collected, the most a
-// Baseline Profile could buy. iOS adds memory from the app's resident size. Nothing gates
-// on any number.
-// Usage: perf-probe.mjs <ios|android> <output directory> <runs> [maestro options] [test [test options]]
+// Measures the harness app on one platform over several passes and reports what each
+// interaction cost. The app performs every interaction itself, on a command this process sends
+// over a long-poll channel (src/ui/perf-channel.ts), because a test driver reading the view
+// hierarchy blocks the app's main thread: XCTest's accessibility snapshots on iOS, and
+// UiAutomator's node queries on Android, which run on the app's UI thread. Maestro only signs
+// in, before this starts, and must not be running.
+// Both platforms record every interaction's screen and time it the same way: a tab switch from
+// the tab bar's first change to the content's first change, a push, a sheet, a season or the
+// lapsed section from the first change to the last, a scroll by the gaps between the frames
+// the recorder captured. Android adds what the platform keeps: frame statistics per segment
+// (dumpsys gfxinfo), the views and Compose hosts on screen after a tab switch (dumpsys
+// activity top), memory (dumpsys meminfo), overdraw, and cold start (am start -W) as adb
+// installed the app, verified the way a Play install without a profile is, and compiled from
+// the profile the passes collected. iOS adds the app's resident memory. Nothing gates on any
+// number.
+// Usage: perf-probe.mjs <ios|android> <output directory> <runs> [simulator]
 import { execFile, spawn } from "node:child_process";
 import { appendFileSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
@@ -21,6 +24,7 @@ import { promisify } from "node:util";
 const run = promisify(execFile);
 const PACKAGE = "app.cuetracker";
 const PORT = 8790;
+const MOCK = "http://127.0.0.1:8787";
 const FRAME_MS = 1000 / 60;
 const PAUSE_MS = 250;
 const BUFFER = { maxBuffer: 64 * 1024 * 1024 };
@@ -93,7 +97,7 @@ export function viewCensus(text) {
 }
 
 /** TotalTime from `am start -W`, in milliseconds. */
-export const coldStart = (text) => number(/TotalTime: (\d+)/, text);
+export const coldStartOf = (text) => number(/TotalTime: (\d+)/, text);
 
 /** The App Summary of `dumpsys meminfo <package>`, in kilobytes. */
 export function memInfo(text) {
@@ -284,14 +288,97 @@ function androidRecorder() {
   };
 }
 
-async function coldStarts(segment, runs) {
-  const samples = [];
-  for (let index = 1; index <= runs; index += 1) {
-    await shell("am", "force-stop", PACKAGE);
-    const started = await shell("am", "start", "-W", "-n", `${PACKAGE}/.MainActivity`);
-    samples.push({ run: index, segment, coldStartMs: coldStart(started) });
-  }
-  return samples;
+/**
+ * The interactions one pass measures, in order. Each runs its setup commands first, outside the
+ * measured window, then its command; the app performs both itself, so no test driver reads its
+ * view hierarchy while the screen is recorded.
+ */
+export const PASS = [
+  { segment: "tab up-next>library", command: "tab library" },
+  { segment: "tab library>calendar", command: "tab calendar" },
+  { segment: "tab calendar>library", command: "tab library" },
+  { segment: "tab library>up-next", command: "tab up-next" },
+  { segment: "tab up-next>calendar", command: "tab calendar" },
+  { segment: "tab calendar>up-next", command: "tab up-next" },
+  { memory: "after tabs" },
+  { segment: "scroll up-next", command: "scroll:up-next", windowMs: 3500 },
+  { setup: ["end:up-next"], segment: "lapsed open", command: "lapsed" },
+  { segment: "lapsed close", command: "lapsed" },
+  { segment: "show detail push", command: "show 8803" },
+  { segment: "episode sheet open", command: "episode 8803 2 3" },
+  { setup: ["back"], segment: "season expand", command: "season:1" },
+  {
+    setup: ["back", "tab library", "chip not-started"],
+    segment: "scroll library not-started",
+    command: "scroll:library",
+    windowMs: 3500,
+  },
+  { setup: ["history"], segment: "scroll history", command: "scroll:history", windowMs: 3500 },
+  { memory: "after lists" },
+];
+const WINDOW_MS = 2500;
+const SETTLE_MS = 1500;
+const READY_MS = 120_000;
+const REPLY_MS = 15_000;
+
+const pause = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+const within = (promise, milliseconds, what) =>
+  Promise.race([
+    promise,
+    pause(milliseconds).then(() => {
+      throw new Error(`${what} took longer than ${milliseconds} ms`);
+    }),
+  ]);
+
+/**
+ * Pairs the app's waiting requests with the host's commands. The app asks for the next command
+ * and, in the same request, replies to the previous one; "ready" opens each launch.
+ */
+export function createChannel() {
+  let deliver;
+  let replied;
+  const launches = [];
+  return {
+    next(reply) {
+      if (reply === "ready") for (const launched of launches.splice(0)) launched();
+      else replied?.(reply);
+      replied = undefined;
+      return new Promise((resolve) => {
+        deliver = resolve;
+      });
+    },
+    ready: () => new Promise((resolve) => launches.push(resolve)),
+    send(command) {
+      if (deliver === undefined) return Promise.reject(new Error("the app is not listening"));
+      const reply = new Promise((resolve) => {
+        replied = resolve;
+      });
+      deliver(command);
+      deliver = undefined;
+      return reply;
+    },
+  };
+}
+
+function serve(channel) {
+  const server = createServer((request, response) => {
+    const url = new URL(request.url ?? "/", `http://127.0.0.1:${PORT}`);
+    if (url.pathname !== "/next") return response.writeHead(404).end();
+    channel.next(url.searchParams.get("reply") ?? "").then((command) => response.end(command));
+  });
+  return new Promise((resolve) => server.listen(PORT, "127.0.0.1", () => resolve(server)));
+}
+
+async function command(channel, line) {
+  const reply = await within(channel.send(line), REPLY_MS, `"${line}"`);
+  if (!reply.startsWith("ran ")) throw new Error(`"${line}": ${reply}`);
+}
+
+async function coldStart(segment) {
+  await shell("am", "force-stop", PACKAGE);
+  const started = await shell("am", "start", "-W", "-n", `${PACKAGE}/.MainActivity`);
+  return { segment, coldStartMs: coldStartOf(started) };
 }
 
 async function overdraw(directory, label) {
@@ -309,131 +396,115 @@ async function overdraw(directory, label) {
   return overdrawShares(stdout);
 }
 
-function androidProbe(directory, maestro) {
+function androidProbe(directory) {
   return {
     recorder: androidRecorder(),
     crops: CROPS.android,
+    launch: () => coldStart("launch"),
+    driverAttached: async () =>
+      (
+        await shell("pidof", "dev.mobile.maestro", "dev.mobile.maestro.test").catch(() => "")
+      ).trim() !== "",
     reset: () => shell("dumpsys", "gfxinfo", PACKAGE, "reset"),
     frames: async () => frameStats(await shell("dumpsys", "gfxinfo", PACKAGE, "framestats")),
     census: async () => viewCensus(await shell("dumpsys", "activity", "top")),
     memory: async () => memInfo(await shell("dumpsys", "meminfo", PACKAGE)),
-    overdraw: (label) => overdraw(directory, label),
-    before: (runs) => coldStarts("cold start as adb installed", runs),
-    after: async (runs) => {
-      const compiled = [];
+    after: async (channel, runs) => {
+      const samples = [];
       for (const [mode, segment] of [
         ["verify", "cold start verified, as a Play install starts"],
         ["speed-profile", "cold start compiled from the profile"],
       ]) {
         await shell("cmd", "package", "compile", "-m", mode, "-f", PACKAGE);
-        compiled.push(...(await coldStarts(segment, runs)));
+        for (let index = 1; index <= runs; index += 1)
+          samples.push({ run: index, ...(await coldStart(segment)) });
       }
       await shell("setprop", "debug.hwui.overdraw", "show");
-      const status = await maestro("overdraw.yaml", "maestro-overdraw");
+      const ready = channel.ready();
+      await coldStart("overdraw launch");
+      await within(ready, READY_MS, "launch");
+      await pause(SETTLE_MS);
+      samples.push({
+        run: 1,
+        segment: "overdraw up-next",
+        ...(await overdraw(directory, "up-next")),
+      });
+      await command(channel, "tab library");
+      await pause(SETTLE_MS);
+      samples.push({
+        run: 1,
+        segment: "overdraw library",
+        ...(await overdraw(directory, "library")),
+      });
       await shell("setprop", "debug.hwui.overdraw", "false");
-      return {
-        samples: compiled,
-        failures: status === 0 ? [] : [`overdraw ended with status ${status}`],
-      };
+      return samples;
     },
   };
 }
 
 function iosProbe(device) {
+  const simctl = (...args) => run("xcrun", ["simctl", ...args, device, PACKAGE], BUFFER);
   return {
     recorder: iosRecorder(device),
     crops: CROPS.ios,
+    launch: async () => {
+      await simctl("terminate").catch(() => undefined);
+      await simctl("launch");
+      return { segment: "launch" };
+    },
+    driverAttached: async () =>
+      /xctrunner|XCTRunner|maestro-driver/.test(
+        (await run("ps", ["-axo", "command="], BUFFER)).stdout,
+      ),
     reset: async () => undefined,
     frames: async () => ({}),
     census: async () => ({}),
     memory: async () => ({
       rssKb: simulatorRss((await run("ps", ["-axo", "rss=,command="], BUFFER)).stdout),
     }),
-    overdraw: async () => ({}),
-    before: async () => [],
-    after: async () => ({ samples: [], failures: [] }),
+    after: async () => [],
   };
 }
 
-/** Answers the flow's marks, recording each segment and keeping the first run's videos. */
-function marks(probe, directory) {
+/** Records one segment while the app performs its command, keeping the first pass's videos. */
+async function measure(probe, channel, directory, runIndex, step) {
+  for (const line of step.setup ?? []) await command(channel, line);
+  if (step.setup !== undefined) await pause(SETTLE_MS);
+  const video = path.join(directory, `run-${runIndex}-${fileName(step.segment)}.mp4`);
+  await probe.reset();
+  await probe.recorder.start(video);
+  const started = Date.now();
+  await command(channel, step.command);
+  await pause(step.windowMs ?? WINDOW_MS);
+  await probe.recorder.stop();
+  const wallMs = Date.now() - started;
+  const frames = await probe.frames();
+  const census = step.segment.startsWith("tab ") ? await probe.census() : {};
+  return {
+    analysis: analyse(video, step.segment, probe.crops).then((measured) => {
+      if (runIndex > 1) rmSync(video, { force: true });
+      return { run: runIndex, segment: step.segment, wallMs, ...measured, ...frames, ...census };
+    }),
+  };
+}
+
+async function pass(probe, channel, directory, runIndex) {
+  await fetch(`${MOCK}/__reset?seed=scale`, { method: "POST" });
+  const ready = channel.ready();
+  const launchedAt = Date.now();
+  const launched = await probe.launch();
+  await within(ready, READY_MS, "launch");
+  const samples = [{ run: runIndex, ...launched, launchToReadyMs: Date.now() - launchedAt }];
   const pending = [];
-  let current = 0;
-  let open;
-  const sample = (segment, measure) => {
-    const runIndex = current;
-    pending.push(measure().then((measured) => ({ run: runIndex, segment, ...measured })));
-  };
-  const handlers = {
-    start: async (segment) => {
-      const video = path.join(directory, `run-${current}-${fileName(segment)}.mp4`);
-      await probe.reset();
-      if (segment !== "launch") await probe.recorder.start(video);
-      open = { segment, video, started: Date.now() };
-    },
-    stop: async () => {
-      const { segment, video, started } = open;
-      const wallMs = Date.now() - started;
-      if (segment === "launch") return sample(segment, async () => ({ wallMs }));
-      await probe.recorder.stop();
-      const frames = await probe.frames();
-      const census = segment.startsWith("tab ") ? await probe.census() : {};
-      const keep = current === 1;
-      return sample(segment, async () => {
-        const measured = await analyse(video, segment, probe.crops);
-        if (!keep) rmSync(video, { force: true });
-        return { wallMs, ...measured, ...frames, ...census };
-      });
-    },
-    memory: async (label) => {
-      const measured = await probe.memory();
-      sample(`memory ${label}`, async () => measured);
-    },
-    overdraw: async (label) => {
-      const measured = await probe.overdraw(label);
-      sample(`overdraw ${label}`, async () => measured);
-    },
-  };
-  const nextRun = () => {
-    current += 1;
-    return current;
-  };
-  return { handlers, pending, nextRun };
-}
-
-function markServer(handlers) {
-  const server = createServer(async (request, response) => {
-    const url = new URL(request.url ?? "/", `http://127.0.0.1:${PORT}`);
-    const handler = Object.hasOwn(handlers, url.pathname.slice(1))
-      ? handlers[url.pathname.slice(1)]
-      : undefined;
-    try {
-      if (handler === undefined) throw new Error(`unknown mark ${url.pathname}`);
-      await handler(url.searchParams.get("segment") ?? "");
-      response.writeHead(200).end("ok");
-    } catch (error) {
-      response.writeHead(500).end(String(error));
+  for (const step of PASS) {
+    if (step.memory !== undefined) {
+      samples.push({ run: runIndex, segment: `memory ${step.memory}`, ...(await probe.memory()) });
+      continue;
     }
-  });
-  return new Promise((resolve) => server.listen(PORT, "127.0.0.1", () => resolve(server)));
+    pending.push((await measure(probe, channel, directory, runIndex, step)).analysis);
+  }
+  return [...samples, ...(await Promise.all(pending))];
 }
-
-const maestroIn = (directory, options) => (flow, debug) =>
-  new Promise((resolve) => {
-    const split = options.includes("test") ? options.indexOf("test") : options.length;
-    const script = fileURLToPath(new URL("maestro-test.sh", import.meta.url));
-    const test = fileURLToPath(new URL(`../.maestro/perf/${flow}`, import.meta.url));
-    const args = [
-      script,
-      ...options.slice(0, split),
-      "test",
-      ...options.slice(split + 1),
-      "--debug-output",
-      path.join(directory, debug),
-      test,
-    ];
-    spawn("bash", args, { stdio: "inherit" }).on("exit", resolve);
-  });
 
 function report(platform, directory, samples, failures) {
   const lines = [...summary(platform, samples), ...failures];
@@ -450,37 +521,29 @@ function report(platform, directory, samples, failures) {
 }
 
 async function main() {
-  const [platform, directory, runsArgument = "3", ...options] = process.argv.slice(2);
+  const [platform, directory, runsArgument = "3", device] = process.argv.slice(2);
   if (platform !== "ios" && platform !== "android") {
-    throw new Error(
-      "usage: perf-probe.mjs <ios|android> <output directory> <runs> [options] [test [options]]",
-    );
+    throw new Error("usage: perf-probe.mjs <ios|android> <output directory> <runs> [simulator]");
   }
   const runs = Number(runsArgument);
   mkdirSync(directory, { recursive: true });
-  const maestro = maestroIn(directory, options);
-  const probe =
-    platform === "android"
-      ? androidProbe(directory, maestro)
-      : iosProbe(options[options.indexOf("--device") + 1]);
-  const { handlers, pending, nextRun } = marks(probe, directory);
-  const server = await markServer(handlers);
+  const probe = platform === "android" ? androidProbe(directory) : iosProbe(device);
+  if (await probe.driverAttached())
+    throw new Error("a test driver is still running; stop it first");
+  const channel = createChannel();
+  const server = await serve(channel);
+  const samples = [];
   const failures = [];
-  const extra = [];
-  const signIn = await maestro("sign-in.yaml", "maestro-sign-in");
-  if (signIn !== 0) failures.push(`sign-in ended with status ${signIn}`);
-  if (signIn === 0) {
-    extra.push(...(await probe.before(runs)));
-    for (let index = 1; index <= runs; index += 1) {
-      const status = await maestro("probe.yaml", `maestro-${nextRun()}`);
-      if (status !== 0) failures.push(`run ${index} ended with status ${status}`);
-    }
-    const after = await probe.after(runs);
-    extra.push(...after.samples);
-    failures.push(...after.failures);
+  try {
+    for (let index = 1; index <= runs; index += 1)
+      samples.push(...(await pass(probe, channel, directory, index)));
+    samples.push(...(await probe.after(channel, runs)));
+  } catch (error) {
+    failures.push(`stopped: ${error.message}`);
   }
   server.close();
-  report(platform, directory, [...extra, ...(await Promise.all(pending))], failures);
+  server.closeAllConnections();
+  report(platform, directory, samples, failures);
   if (failures.length > 0) process.exitCode = 1;
 }
 

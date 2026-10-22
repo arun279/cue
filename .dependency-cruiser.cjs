@@ -111,17 +111,18 @@ module.exports = {
       name: "ui-harness-behind-its-entry",
       severity: "error",
       comment:
-        "Metro swaps src/ui/harness.tsx for an empty stand-in in store builds. A direct import of a harness module would carry it past that swap into the store bundle, so only the entry may reach them (AppIdle reads the ids it draws), and tests are exempt.",
+        "Metro swaps src/ui/harness.tsx for an empty stand-in in store builds. A direct import of a harness module would carry it past that swap into the store bundle, so only the entry may reach them (AppIdle reads the ids it draws, the perf channel waits on AppIdle), and tests are exempt.",
       from: {
         path: "^packages/native/",
         pathNot: [
           "^packages/native/src/ui/harness\\.tsx$",
           "^packages/native/src/ui/AppIdle\\.tsx$",
+          "^packages/native/src/ui/perf-channel\\.ts$",
           "^packages/native/__tests__/",
         ],
       },
       to: {
-        path: "^packages/native/src/ui/(AppIdle\\.tsx|harness-ids\\.ts)$",
+        path: "^packages/native/src/ui/(AppIdle\\.tsx|harness-ids\\.ts|perf-channel\\.ts)$",
       },
     },
     {

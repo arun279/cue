@@ -1,8 +1,9 @@
 name: Perf probe
 # Measures the apps one CI run already built, so pull request CI never waits on it. Each
-# platform boots once, signs in to the large synthetic account and runs
-# .maestro/perf/probe.yaml the requested number of passes. The report is the job summary and
-# the perf-probe artifacts; no number gates anything.
+# platform boots once and signs in to the large synthetic account with Maestro; then Maestro
+# stops and scripts/perf-probe.mjs has the app perform each measured interaction itself, for
+# the requested number of passes. The apps must include src/ui/perf-channel.ts. The report is
+# the job summary and the perf-probe artifacts; no number gates anything.
 #
 # Start a measurement by pushing a branch named perf-probe/<name> whose tree has this probe
 # and a file perf-probe/request.json:
@@ -10,7 +11,7 @@ name: Perf probe
 #   { "run-id": 39611632421, "runs": 3, "platform": "both" }
 #
 # run-id is the CI run whose mock-server apps to measure, runs the passes per platform (1 to
-# 10, default 3) and platform one of both, android or ios (default both). The probe's flows,
+# 10, default 3) and platform one of both, android or ios (default both). The probe's
 # scripts and seed come from the pushed branch; the apps come from the run. When that run
 # reused the cached simulator app, its ios-harness-bundle artifact lasts one day, so measure
 # iOS within a day of the run or rerun its fingerprint job first. No other workflow runs on
@@ -173,12 +174,16 @@ jobs:
           xcrun simctl spawn "$DEVICE_ID" defaults write com.apple.Accessibility ReduceMotionEnabled -bool false
       - name: Start the Maestro runner
         run: node scripts/start-ready-process.mjs scripts/maestro-runner.mjs "$RUNNER_TEMP/maestro-runner.log" 300000
+      - name: Sign in
+        run: |
+          bash scripts/maestro-test.sh --device "$DEVICE_ID" test --driver-host-port "$MAESTRO_RUNNER_PORT" \
+            --debug-output "$RUNNER_TEMP/perf/maestro-sign-in" .maestro/perf/sign-in.yaml
+      - name: Stop the Maestro runner, so no test driver reads the app while it is measured
+        run: pkill -f "xcodebuild test-without-building"
       - name: Run the probe
         env:
           RUNS: ${{ needs.request.outputs.runs }}
-        run: |
-          node scripts/perf-probe.mjs ios "$RUNNER_TEMP/perf" "$RUNS" \
-            --device "$DEVICE_ID" test --driver-host-port "$MAESTRO_RUNNER_PORT"
+        run: node scripts/perf-probe.mjs ios "$RUNNER_TEMP/perf" "$RUNS" "$DEVICE_ID"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ always() }}
         with:
