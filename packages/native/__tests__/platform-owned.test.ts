@@ -45,7 +45,7 @@ const EXCEPTIONS: readonly Exception[] = [
     reason:
       "On Android the toolbar menu is a self-sizing Compose host, and on a pushed detail screen it stayed at 0x0 with no More button for the whole 30 s wait in CI runs 39529824232, 39569599814, 39607798407 and 39647033939; the same host family was absent from a sheet for 17 s in #162. The More trigger is a plain 48 dp button that mounts the menu only while open, and iOS keeps the native menu. Remove this once an upstream fix for the zero-size host passes the Android device lanes.",
     source: "https://github.com/expo/expo/issues/49312",
-    checked: { package: "@expo/ui", version: "57.0.22" },
+    checked: { package: "@expo/ui", version: "57.0.26" },
   },
   {
     file: "src/ui/BarItems.tsx",
@@ -55,7 +55,7 @@ const EXCEPTIONS: readonly Exception[] = [
     reason:
       "The avatar is the account's photo or its monogram; a bar button icon is a fixed image source or symbol and cannot draw either.",
     source: "https://docs.expo.dev/router/advanced/stack-toolbar/#icons",
-    checked: { package: "expo-router", version: "57.0.25" },
+    checked: { package: "expo-router", version: "57.0.29" },
   },
   {
     file: "src/ui/SegmentedControl.tsx",
@@ -66,7 +66,7 @@ const EXCEPTIONS: readonly Exception[] = [
     reason:
       "The Compose segmented row exposed no accessibility node to TalkBack, and a SwiftUI segmented picker drops the identifiers set on its segments, which Maestro could not find by label either, so neither control can be reached the way the flows and screen readers reach this one.",
     source: "https://stackoverflow.com/questions/60894793/segmented-picker-removes-accessibility",
-    checked: { package: "@expo/ui", version: "57.0.22" },
+    checked: { package: "@expo/ui", version: "57.0.26" },
   },
   {
     file: "src/screens/library/ChipRail.tsx",
@@ -76,7 +76,7 @@ const EXCEPTIONS: readonly Exception[] = [
     reason:
       "Five filters with counts in a scrolling rail have no iOS control, and a Compose chip on Android alone would split one screen into two designs.",
     source: "https://docs.expo.dev/versions/latest/sdk/ui/jetpack-compose/chip/",
-    checked: { package: "@expo/ui", version: "57.0.22" },
+    checked: { package: "@expo/ui", version: "57.0.26" },
   },
   {
     file: "src/screens/history/HistoryChoice.tsx",
@@ -86,7 +86,7 @@ const EXCEPTIONS: readonly Exception[] = [
     reason:
       "The month jump picks a year and a month in one tap from a grid; the platform date pickers choose a date or a time, with no month and year mode.",
     source: "https://docs.expo.dev/versions/latest/sdk/ui/swift-ui/datepicker/",
-    checked: { package: "@expo/ui", version: "57.0.22" },
+    checked: { package: "@expo/ui", version: "57.0.26" },
   },
   {
     file: "src/ui/CheckControl.tsx",
@@ -106,7 +106,7 @@ const EXCEPTIONS: readonly Exception[] = [
     reason:
       "Search is the search destination, which Material gives a persistent search bar; the Android header search bar collapses into an icon, SearchBar reports only a submitted query so results could not follow typing, and DockedSearchBar takes no text, so a recent search could not fill it. The field follows the Material search bar's metrics and icons instead.",
     source: "https://m3.material.io/components/search/guidelines",
-    checked: { package: "@expo/ui", version: "57.0.22" },
+    checked: { package: "@expo/ui", version: "57.0.26" },
   },
   {
     file: "src/ui/SheetClose.tsx",
@@ -136,7 +136,7 @@ const EXCEPTIONS: readonly Exception[] = [
     reason:
       "Picking a month completes the sheet's one task, so the sheet closes on the pick as well as from its close button; the platform only dismisses a sheet when the user cancels it.",
     source: "https://developer.apple.com/design/human-interface-guidelines/sheets",
-    checked: { package: "expo-router", version: "57.0.25" },
+    checked: { package: "expo-router", version: "57.0.29" },
   },
   {
     file: "src/RootStack.tsx",
@@ -146,7 +146,7 @@ const EXCEPTIONS: readonly Exception[] = [
     reason:
       "The root stack switches between the tab group and the account group, each with its own native stack and header, and presents the two sheets, whose options set their own header; a root header would put a second bar above theirs.",
     source: "https://docs.expo.dev/router/advanced/nesting-navigators/",
-    checked: { package: "expo-router", version: "57.0.25" },
+    checked: { package: "expo-router", version: "57.0.29" },
   },
   {
     file: "src/ui/navigation-theme.tsx",
