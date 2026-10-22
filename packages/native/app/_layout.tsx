@@ -10,6 +10,7 @@ import { RemindersProvider } from "@cue/core/ports/reminders";
 import { createTokenStore } from "@cue/core/ports/token-store";
 import { createPrefsStore, PrefsProvider } from "@cue/core/prefs/prefs-store";
 import { PERSIST_BUSTER, PERSIST_MAX_AGE } from "@cue/core/runtime/query-cache";
+import { useIsRestoring } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { ThemeProvider } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -45,7 +46,7 @@ import { RootStack } from "../src/RootStack";
 import { useAppearance } from "../src/screens/account/ThemeControl";
 import { Onboarding } from "../src/screens/Onboarding";
 import { RuntimeBoot, type RuntimeBootProps } from "../src/screens/RuntimeBoot";
-import { AppIdle, SnackbarRouteDismissal, SnackbarTrace } from "../src/ui/harness";
+import { AppIdle, SnackbarRouteDismissal, SnackbarTrace, useBootMark } from "../src/ui/harness";
 import { Marker } from "../src/ui/Marker";
 import { useNavigationTheme } from "../src/ui/navigation-theme";
 import { SnackbarHost } from "../src/ui/SnackbarHost";
@@ -121,6 +122,8 @@ function useNativeSession(): NativeSession | null {
 function Gate({ runtimeDeps }: Pick<NativeSession, "runtimeDeps">): ReactElement {
   const phase = useAuth((s) => s.phase);
   useSplashRelease(phase === "onboarding");
+  useBootMark("auth", phase !== "loading");
+  useBootMark("restored", !useIsRestoring());
 
   if (phase === "connected") {
     return (
@@ -156,6 +159,9 @@ export default function RootLayout(): ReactElement {
   const navigationTheme = useNavigationTheme();
   useAppearance(prefsStore);
   useWindowBackground();
+  useBootMark("layout");
+  useBootMark("fonts", fontsSettled);
+  useBootMark("session", session !== null);
 
   if (session === null || !fontsSettled) return <Marker testID={TEST_IDS.bootHold} />;
 

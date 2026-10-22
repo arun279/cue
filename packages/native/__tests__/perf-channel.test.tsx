@@ -1,6 +1,12 @@
 import { renderHook } from "@testing-library/react-native";
 import { router } from "expo-router";
-import { perform, usePerfCommand, usePerfScroll } from "../src/ui/perf-channel";
+import {
+  listenForCommands,
+  perform,
+  useBootMark,
+  usePerfCommand,
+  usePerfScroll,
+} from "../src/ui/perf-channel";
 
 jest.mock("expo-router", () => ({
   router: { navigate: jest.fn(), push: jest.fn(), back: jest.fn() },
@@ -10,7 +16,10 @@ jest.mock("react-native/Libraries/Utilities/useWindowDimensions", () => ({
   default: () => ({ width: 402, height: 874, scale: 3, fontScale: 1 }),
 }));
 
-afterEach(() => jest.useRealTimers());
+afterEach(() => {
+  jest.useRealTimers();
+  jest.restoreAllMocks();
+});
 
 it("runs a screen's registered action with the command's words, until the screen unmounts", async () => {
   const toggle = jest.fn();
@@ -60,4 +69,24 @@ it("scrolls a list down one window height at a time, three times, apart like fli
 
   expect(scrollTo.mock.calls).toEqual([[874], [1748], [2622]]);
   await hook.unmount();
+});
+
+it("reports the boot phases it reached, in ms from launch, when it first asks for a command", async () => {
+  const fetches: string[] = [];
+  jest.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+    fetches.push(String(url));
+    return new Promise<Response>(() => {});
+  });
+  const now = jest.spyOn(performance, "now").mockReturnValue(120.4);
+  await renderHook(() => {
+    useBootMark("fonts");
+    useBootMark("runtime", false);
+  });
+  now.mockReturnValue(940.2);
+
+  listenForCommands();
+
+  const query = new URL(fetches[0] ?? "").searchParams;
+  expect(query.get("reply")).toBe("ready");
+  expect(JSON.parse(query.get("boot") ?? "")).toEqual({ fonts: 120, ready: 940 });
 });

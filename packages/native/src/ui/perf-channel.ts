@@ -66,16 +66,25 @@ export function usePerfScroll(name: string, scrollTo: (offset: number) => void):
   });
 }
 
+const bootMarks: Record<string, number> = {};
+
+export function useBootMark(name: string, reached = true): void {
+  useEffect(() => {
+    if (reached) bootMarks[name] ??= Math.round(performance.now());
+  }, [name, reached]);
+}
+
 let listening = false;
 
 export function listenForCommands(): void {
   if (listening) return;
   listening = true;
+  bootMarks["ready"] ??= Math.round(performance.now());
   void (async () => {
-    let reply = "ready";
+    let query = `reply=ready&boot=${encodeURIComponent(JSON.stringify(bootMarks))}`;
     for (;;) {
-      const response = await fetch(`${CHANNEL}?reply=${encodeURIComponent(reply)}`);
-      reply = perform(await response.text());
+      const response = await fetch(`${CHANNEL}?${query}`);
+      query = `reply=${encodeURIComponent(perform(await response.text()))}`;
     }
   })().catch(() => {
     listening = false;
