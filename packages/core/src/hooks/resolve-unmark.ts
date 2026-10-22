@@ -1,11 +1,16 @@
 import {
   type EpisodePlay,
-  MARK_MATCH_TOLERANCE_MS,
   type MoviePlay,
+  ownPlays,
+  type PlayRef,
   planEpisodeUnmark,
   type UnmarkPlan,
 } from "../domain/reversal";
+import { buildRemovePlaysOp } from "../domain/write-queue/ops";
+import { replacedPlays } from "../domain/write-queue/receipt";
+import type { QueuedOp } from "../domain/write-queue/types";
 import type { CueRuntime } from "../runtime/runtime";
+import { usePlayPolicy } from "../stores/play-policy-store";
 
 export type EpisodeUnmarkResolution =
   | { readonly kind: "remove"; readonly plan: UnmarkPlan }
@@ -44,16 +49,38 @@ export async function resolveEpisodeUnmark(
   return plan.removeIds.length === 0 ? { kind: "none" } : { kind: "remove", plan };
 }
 
-export function findMarkPlay(
-  plays: readonly EpisodePlay[],
-  episodeTrakt: number,
-  watchedAt: string,
-): EpisodePlay | undefined {
-  const markedAt = Date.parse(watchedAt);
-  return plays
-    .filter((play) => play.episodeTrakt === episodeTrakt)
-    .sort(newestFirst)
-    .find((play) => Math.abs(Date.parse(play.watchedAt) - markedAt) <= MARK_MATCH_TOLERANCE_MS);
+export type LandedUndo<P> =
+  | { readonly kind: "remove"; readonly plays: readonly P[] }
+  | { readonly kind: "replaced"; readonly count: number }
+  | { readonly kind: "none" };
+
+export async function planLandedUndo<P extends PlayRef>(
+  runtime: CueRuntime,
+  opIds: readonly string[],
+  loadPlays: () => Promise<readonly P[]>,
+  sentAt: (play: P) => string | null,
+  itemOf: (play: P) => number,
+): Promise<LandedUndo<P> | null> {
+  const receipts = opIds.map((id) => runtime.writeReceipt(id));
+  if (receipts.includes(null) && usePlayPolicy.getState().policy !== "multiple") return null;
+  const replaced = receipts.reduce((total, receipt) => total + replacedPlays(receipt), 0);
+  if (replaced > 0) return { kind: "replaced", count: replaced };
+  let plays: readonly P[];
+  try {
+    plays = await loadPlays();
+  } catch {
+    return null;
+  }
+  const own = ownPlays(plays, sentAt, itemOf);
+  return own.length === 0 ? { kind: "none" } : { kind: "remove", plays: own };
+}
+
+export function removeEpisodePlays(opId: string, plays: readonly EpisodePlay[]): QueuedOp {
+  return buildRemovePlaysOp({
+    opId,
+    ids: plays.map((play) => play.historyId),
+    restore: plays.map((play) => ({ trakt: play.episodeTrakt, watchedAt: play.watchedAt })),
+  });
 }
 
 export type MovieUnmarkResolution =
@@ -85,4 +112,21 @@ export function routeMovieUnmark(
   movieId: number,
 ): MovieUnmarkRoute {
   return pendingMarkMovieId === movieId ? "reverse-session-mark" : "resolve-live-plays";
+}
+
+const IN_FLIGHT_POLL_MS = 200;
+const IN_FLIGHT_POLL_TRIES = 50;
+
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+export async function waitWhileInFlight(
+  runtime: CueRuntime,
+  opIds: readonly string[],
+): Promise<boolean> {
+  for (let attempt = 0; attempt < IN_FLIGHT_POLL_TRIES; attempt += 1) {
+    const inFlight = runtime.inFlightOpId();
+    if (inFlight === null || !opIds.includes(inFlight)) return true;
+    await sleep(IN_FLIGHT_POLL_MS);
+  }
+  return false;
 }

@@ -2,13 +2,15 @@ import type { SeasonView } from "@cue/core/data/trakt/show-detail";
 import { defaultSeason, orderSeasons, seasonConfirmation } from "@cue/core/domain/show-detail";
 import { useMarkWatched } from "@cue/core/hooks/useMarkWatched";
 import { usePrefs } from "@cue/core/prefs/prefs-store";
-import { Stack, useRouter } from "expo-router";
+import { usePlayPolicy } from "@cue/core/stores/play-policy-store";
+import { useRouter } from "expo-router";
 import { type ReactElement, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "../ui/Button";
 import { confirm } from "../ui/confirm";
 import { EmptyState } from "../ui/EmptyState";
+import { ScreenTitle } from "../ui/ScreenTitle";
 import { Skeleton } from "../ui/Skeleton";
 import { TEST_IDS } from "../ui/test-ids";
 import { SPACE, tabBarClearance, useColors } from "../ui/tokens";
@@ -64,7 +66,7 @@ function ShowContent({ showId }: { readonly showId: number }): ReactElement {
   const initial = defaultSeason(seasonList, data.nextEpisode);
   const open = expanded ?? new Set(initial === null ? [] : [initial]);
   const confirmSeason = (season: SeasonView): void => {
-    const copy = seasonConfirmation(season);
+    const copy = seasonConfirmation(season, usePlayPolicy.getState().policy);
     confirm({
       ...copy,
       onPrimary: () =>
@@ -76,7 +78,7 @@ function ShowContent({ showId }: { readonly showId: number }): ReactElement {
   };
   return (
     <>
-      <Stack.Screen options={{ title: data.title }} />
+      <ScreenTitle title={data.title} />
       <ShowMenu header={data} entry={entry} seasons={seasonList} mark={mark} />
       <ScrollView
         stickyHeaderIndices={[1]}

@@ -6,7 +6,14 @@ import {
 } from "expo-router";
 import type { NavigationContainerRef, ParamListBase } from "expo-router/react-navigation";
 import { type ReactElement, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Platform, type ScrollViewProps, View, type ViewProps } from "react-native";
+import {
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+  Platform,
+  type ScrollViewProps,
+  View,
+  type ViewProps,
+} from "react-native";
 import { HARNESS_IDS } from "./harness-ids";
 import { Marker } from "./Marker";
 import { usePressTrace } from "./press-trace";
@@ -90,12 +97,13 @@ export function useScrollAcknowledgment(): {
     handlers: {
       onScrollBeginDrag: () => setStarted(++generation.current),
       onScrollEndDrag: ({ nativeEvent }) => {
-        if (
-          Platform.OS === "ios" &&
-          nativeEvent.velocity?.y === 0 &&
-          nativeEvent.targetContentOffset?.y === nativeEvent.contentOffset.y
-        )
-          finish(generation.current);
+        const { velocity, contentOffset, targetContentOffset } = nativeEvent;
+        setCompleted(
+          (previous) =>
+            `${previous} drag ${generation.current} ended at ${contentOffset.y} toward ${targetContentOffset?.y} at ${velocity?.y};`,
+        );
+        const restsWhereItEnded = targetContentOffset?.y === contentOffset.y;
+        if (Platform.OS === "ios" && restsWhereItEnded) finish(generation.current);
       },
       onMomentumScrollBegin: () => {
         momentum.current = generation.current;
@@ -121,4 +129,30 @@ export function SnackbarTrace(): ReactElement | null {
 export function PressTrace(): ReactElement | null {
   const label = usePressTrace();
   return <Marker accessibilityLabel={label} testID={HARNESS_IDS.pressTrace} />;
+}
+
+const pullEntry = (entry: string, since: number): string =>
+  `${entry} +${Math.round(performance.now() - since)}; `;
+
+const offsetOf = ({ nativeEvent }: NativeSyntheticEvent<NativeScrollEvent>): string =>
+  `y ${Math.round(nativeEvent.contentOffset.y)}`;
+
+export function usePullTrace(refreshing: boolean): {
+  handlers: ScrollViewProps;
+  marker: ReactElement | null;
+} {
+  const shownAt = useRef(performance.now());
+  const [trace, setTrace] = useState("");
+  useEffect(() => {
+    setTrace((previous) => previous + pullEntry(`refreshing ${refreshing}`, shownAt.current));
+  }, [refreshing]);
+  const note = (entry: string): void =>
+    setTrace((previous) => previous + pullEntry(entry, shownAt.current));
+  return {
+    handlers: {
+      onScrollBeginDrag: (event) => note(`drag ${offsetOf(event)}`),
+      onScrollEndDrag: (event) => note(`release ${offsetOf(event)}`),
+    },
+    marker: <Marker testID={HARNESS_IDS.pullTrace} accessibilityLabel={trace} />,
+  };
 }

@@ -12,6 +12,7 @@ import {
   screenshotLatencies,
   silenceWatch,
 } from "../../scripts/lane-health.mjs";
+import { fakeBin } from "../support/fake-bin";
 import { repositoryPath } from "../support/repository-path";
 import { tempDirectory } from "../support/temp-directory";
 
@@ -146,8 +147,30 @@ it("samples once Maestro has said nothing for 20 s, and again each further 20 s"
 
 afterEach(() => vi.useRealTimers());
 
-const laneRun = (live: number) => {
+const laneBin = fakeBin({
+  xcrun:
+    '#!/bin/sh\necho "xcrun $*" >> "$CALLS"\ncase "$*" in *mobilecal*) echo "launch request for app<com.apple.mobilecal> from <dasd>" ;; *) cat "$SIM_LOG" ;; esac\n',
+  vm_stat:
+    '#!/bin/sh\ncount=$(grep -c vm_stat "$CALLS" 2>/dev/null)\necho "vm_stat" >> "$CALLS"\necho "Mach Virtual Memory Statistics: (page size of 16384 bytes)"\necho "Pageins: $((1000 + count * 64000))."\n',
+  ps: '#!/bin/sh\necho " 1048576 /opt/java/bin/java"\necho "  204800 /RuntimeRoot/SpringBoard.app/SpringBoard"\n',
+  maestro: `#!/bin/sh\necho "$MAESTRO_OPTS" > "$OPTIONS"\necho "[1.0s][info][gc] GC(0) Pause Young (Normal) (G1 Evacuation Pause) 500M->\${LIVE}M(640M) 2.0ms" > "\${MAESTRO_OPTS#*file=}"\n`,
+});
+
+const hungMaestro = '#!/bin/sh\nprintf \'%s\\n\' "$MAESTRO_LINE"\nexec sleep "$HOLD"\n';
+const screenshotBin = fakeBin({ maestro: hungMaestro });
+const accessibilityBin = fakeBin({
+  maestro: hungMaestro,
+  sudo: '#!/bin/sh\necho "$*" >> "$CALLS"\n',
+});
+
+const laneRun = (live: number, simulatorCancels: readonly string[] = []) => {
   const bin = tempDirectory("cue-lane-health-");
+  if (simulatorCancels.length > 0) {
+    writeFileSync(
+      path.join(bin, "simulator-touch-cancels.log"),
+      `${simulatorCancels.join("\n")}\n`,
+    );
+  }
   const calls = path.join(bin, "calls");
   const now = new Date();
   const clock = (offset: number) => {
@@ -165,26 +188,6 @@ const laneRun = (live: number) => {
     .map((entry) => entry.replace("2026-10-21", now.toLocaleDateString("sv")))
     .join("\n");
   writeFileSync(path.join(bin, "log"), `${log}\n`);
-  writeFileSync(
-    path.join(bin, "xcrun"),
-    `#!/bin/sh\necho "xcrun $*" >> "${calls}"\ncase "$*" in *mobilecal*) echo "launch request for app<com.apple.mobilecal> from <dasd>" ;; *) cat "${path.join(bin, "log")}" ;; esac\n`,
-    { mode: 0o755 },
-  );
-  writeFileSync(
-    path.join(bin, "vm_stat"),
-    `#!/bin/sh\ncount=$(grep -c vm_stat "${calls}" 2>/dev/null)\necho "vm_stat" >> "${calls}"\necho "Mach Virtual Memory Statistics: (page size of 16384 bytes)"\necho "Pageins: $((1000 + count * 64000))."\n`,
-    { mode: 0o755 },
-  );
-  writeFileSync(
-    path.join(bin, "ps"),
-    `#!/bin/sh\necho " 1048576 /opt/java/bin/java"\necho "  204800 /RuntimeRoot/SpringBoard.app/SpringBoard"\n`,
-    { mode: 0o755 },
-  );
-  writeFileSync(
-    path.join(bin, "maestro"),
-    `#!/bin/sh\necho "$MAESTRO_OPTS" > "${path.join(bin, "options")}"\necho "[1.0s][info][gc] GC(0) Pause Young (Normal) (G1 Evacuation Pause) 500M->${live}M(640M) 2.0ms" > "\${MAESTRO_OPTS#*file=}"\n`,
-    { mode: 0o755 },
-  );
   const debug = path.join(bin, "debug");
   const result = spawnSync(
     process.execPath,
@@ -197,7 +200,16 @@ const laneRun = (live: number) => {
     ],
     {
       encoding: "utf8",
-      env: { ...process.env, PATH: `${bin}:${process.env["PATH"]}`, DEVICE_ID: "SIM-1" },
+      env: {
+        ...process.env,
+        PATH: `${laneBin}:${process.env["PATH"]}`,
+        DEVICE_ID: "SIM-1",
+        CALLS: calls,
+        SIM_LOG: path.join(bin, "log"),
+        OPTIONS: path.join(bin, "options"),
+        LIVE: String(live),
+        RUNNER_TEMP: bin,
+      },
     },
   );
   return { result, calls, debug, options: readFileSync(path.join(bin, "options"), "utf8").trim() };
@@ -221,9 +233,26 @@ it("reports lane health after Maestro exits, from the simulator's stored log rat
     "Lane health: Maestro's Java heap after 1 collections: at most 12 MB live of 640 MB committed",
     "Lane health: 1 log lines about launching MobileCal",
     "Lane health: largest single process per program, sampled each minute: java 1024 MB, SpringBoard 200 MB",
+    "Lane health: 0 taps the simulator proved it dropped, each tapped again",
   ]);
+  expect(result.stdout).not.toContain("::notice");
   expect(readFileSync(path.join(debug, "lane-health", "health.txt"), "utf8")).toContain(
     "1000 MB paged in during the flow",
+  );
+});
+
+it("counts every tap the simulator proved it dropped and raises a job notice for them", () => {
+  const cancels = ["2026-10-21T21:14:24.000Z shown; touch start +1 ms; touch cancel +2 ms"];
+  const { result, debug } = laneRun(12, [...cancels, cancels[0] ?? ""]);
+
+  expect(result.stdout).toContain(
+    "Lane health: 2 taps the simulator proved it dropped, each tapped again\n",
+  );
+  expect(result.stdout).toContain(
+    "::notice title=Simulator touch cancel::The simulator dropped 2 taps and the flow tapped again; see Lane health\n",
+  );
+  expect(readFileSync(path.join(debug, "lane-health", "health.txt"), "utf8")).toContain(
+    `proven simulator touch cancel: ${cancels[0]}`,
   );
 });
 
@@ -242,14 +271,6 @@ it("does not warn while Maestro's live heap stays within 80% of its cap", () => 
 
 it("stops Maestro at once and names SpringBoard when XCTest's screenshot request times out", () => {
   const bin = tempDirectory("cue-supervisor-timeout-");
-  writeFileSync(
-    path.join(bin, "maestro"),
-    `#!/bin/sh
-echo '[ WARN] XCTestDriver request failed. Status code: 500, path: isScreenStatic, body: {"code":"internal","errorMessage":"Failed to get screenshot: Timed out while requesting screenshot."}'
-exec sleep 30
-`,
-    { mode: 0o755 },
-  );
   const debug = path.join(bin, "debug");
   const result = spawnSync(
     process.execPath,
@@ -263,7 +284,14 @@ exec sleep 30
     {
       encoding: "utf8",
       timeout: 10_000,
-      env: { ...process.env, PATH: `${bin}:${process.env["PATH"]}`, DEVICE_ID: "" },
+      env: {
+        ...process.env,
+        PATH: `${screenshotBin}:${process.env["PATH"]}`,
+        DEVICE_ID: "",
+        MAESTRO_LINE:
+          '[ WARN] XCTestDriver request failed. Status code: 500, path: isScreenStatic, body: {"code":"internal","errorMessage":"Failed to get screenshot: Timed out while requesting screenshot."}',
+        HOLD: "30",
+      },
     },
   );
 
@@ -278,15 +306,6 @@ exec sleep 30
 const accessibilityTimeout = (pid: number) => {
   const bin = tempDirectory("cue-supervisor-ax-");
   const calls = path.join(bin, "calls");
-  writeFileSync(
-    path.join(bin, "maestro"),
-    `#!/bin/sh
-echo '[ WARN] XCTestDriver request failed. Status code: 500, path: http://127.0.0.1:7001/deviceInfo, body: {"code":"internal","errorMessage":"Failed to get list of active applications: Accessibility error kAXErrorIPCTimeout from AXUIElementCopyMultipleAttributeValues for ${pid}"}'
-exec sleep 30
-`,
-    { mode: 0o755 },
-  );
-  writeFileSync(path.join(bin, "sudo"), `#!/bin/sh\necho "$*" >> "${calls}"\n`, { mode: 0o755 });
   const debug = path.join(bin, "debug");
   const result = spawnSync(
     process.execPath,
@@ -299,7 +318,14 @@ exec sleep 30
     ],
     {
       encoding: "utf8",
-      env: { ...process.env, PATH: `${bin}:${process.env["PATH"]}`, DEVICE_ID: "" },
+      env: {
+        ...process.env,
+        PATH: `${accessibilityBin}:${process.env["PATH"]}`,
+        DEVICE_ID: "",
+        CALLS: calls,
+        MAESTRO_LINE: `[ WARN] XCTestDriver request failed. Status code: 500, path: http://127.0.0.1:7001/deviceInfo, body: {"code":"internal","errorMessage":"Failed to get list of active applications: Accessibility error kAXErrorIPCTimeout from AXUIElementCopyMultipleAttributeValues for ${pid}"}`,
+        HOLD: "30",
+      },
     },
   );
   return { ...result, calls: existsSync(calls) ? readFileSync(calls, "utf8") : "", debug };

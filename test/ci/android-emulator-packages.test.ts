@@ -1,7 +1,8 @@
 import { spawnSync } from "node:child_process";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { expect, it } from "vitest";
+import { fakeBin } from "../support/fake-bin";
 import { repositoryPath } from "../support/repository-path";
 import { tempDirectory } from "../support/temp-directory";
 
@@ -22,31 +23,34 @@ const AVAILABLE = table("Available Packages", [
   [IMAGE, "2", "Intel x86_64 Atom System Image"],
 ]);
 
-const sdkmanager = (outputs: { list?: string; installed?: string; installs?: boolean }) => {
-  const home = tempDirectory("cue-android-sdk-");
-  const bin = path.join(home, "cmdline-tools/latest/bin");
-  mkdirSync(bin, { recursive: true });
-  writeFileSync(path.join(home, "list"), outputs.list ?? "");
-  writeFileSync(path.join(home, "installed"), outputs.installed ?? "");
-  writeFileSync(
-    path.join(bin, "sdkmanager"),
-    `#!/bin/sh
+const tools = fakeBin({
+  sdkmanager: `#!/bin/sh
 echo "$*" >> "$ANDROID_HOME/calls"
 case $1 in
   --list) cat "$ANDROID_HOME/list" ;;
   --list_installed) cat "$ANDROID_HOME/installed" ;;
-  --install) ${outputs.installs === false ? 'echo "Warning: An error occurred while preparing SDK package Intel x86_64 Atom System Image: Error on ZipFile unknown archive."; exit 1' : ":"} ;;
+  --install) [ -z "$INSTALL_FAILS" ] || { echo "Warning: An error occurred while preparing SDK package Intel x86_64 Atom System Image: Error on ZipFile unknown archive."; exit 1; } ;;
 esac
 `,
-    { mode: 0o755 },
-  );
+});
+
+const sdkmanager = (outputs: { list?: string; installed?: string; installs?: boolean }) => {
+  const home = tempDirectory("cue-android-sdk-");
+  mkdirSync(path.join(home, "cmdline-tools/latest"), { recursive: true });
+  symlinkSync(tools, path.join(home, "cmdline-tools/latest/bin"));
+  writeFileSync(path.join(home, "list"), outputs.list ?? "");
+  writeFileSync(path.join(home, "installed"), outputs.installed ?? "");
   return (...args: string[]) => {
     const result = spawnSync(
       "bash",
       [repositoryPath("scripts/android-emulator-packages.sh"), ...args],
       {
         encoding: "utf8",
-        env: { ...process.env, ANDROID_HOME: home },
+        env: {
+          ...process.env,
+          ANDROID_HOME: home,
+          INSTALL_FAILS: outputs.installs === false ? "1" : "",
+        },
       },
     );
     return { ...result, calls: readFileSync(path.join(home, "calls"), "utf8") };
