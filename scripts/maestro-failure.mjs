@@ -37,7 +37,7 @@ for (const file of [...files].sort()) {
 }
 for (const file of files) {
   if (basename(file) !== "device-simulator.log") continue;
-  for (const line of droppedTouches(readFileSync(file, "utf8"))) {
+  for (const line of droppedTouches(readFileSync(file, "utf8").split("\n"))) {
     console.error(`Dropped touch: ${line}`);
   }
 }

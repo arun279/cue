@@ -1,7 +1,13 @@
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
 import { createInterface } from "node:readline";
-import { cancelledContact, PLAYBACK_PREDICATE, recordTap, tapAgain } from "./simulator-touch.mjs";
+import {
+  droppedTouches,
+  PLAYBACK_END,
+  PLAYBACK_PREDICATE,
+  recordTap,
+  tapAgain,
+} from "./simulator-touch.mjs";
 
 const PLAYBACK_TIMEOUT_MS = 5_000;
 /** Runner routes that only read, so the hierarchy read before them still shows the screen. */
@@ -28,14 +34,15 @@ const epoch = (timestamp) =>
 /**
  * Collects the simulator log lines of synthesized touch playback and answers,
  * for a tap sent at `since`, the lines from its "playback initiated" through
- * its "playback completed".
+ * backboardd's "purge sender info", which comes after a touch that arrives
+ * seconds late.
  */
 export function playbackWindows(lines) {
   const entries = [];
   const waiters = new Set();
   const windowSince = (since) => {
     const start = entries.findIndex((entry) => entry.at >= since && entry.initiated);
-    const end = entries.findIndex((entry, index) => index > start && entry.completed);
+    const end = entries.findIndex((entry, index) => index > start && entry.ended);
     return start === -1 || end === -1
       ? undefined
       : entries.slice(start, end + 1).map((e) => e.line);
@@ -51,7 +58,7 @@ export function playbackWindows(lines) {
     entries.push({
       at: epoch(String(event.timestamp)),
       initiated: message.includes("playback initiated"),
-      completed: message.includes("playback completed"),
+      ended: PLAYBACK_END.test(message),
       line: `${event.timestamp} ${event.processImagePath?.split("/").at(-1)}: ${message}`,
     });
     for (const waiter of waiters) waiter();
@@ -156,7 +163,7 @@ export function createTapProxy({ runner, playback }) {
       return answer;
     }
     const waitMs = Date.now() - answered;
-    if (cancelledContact(lines) === undefined) {
+    if (droppedTouches(lines).length === 0) {
       record({ waitMs });
       return answer;
     }

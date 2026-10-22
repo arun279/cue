@@ -20,6 +20,8 @@ const screen = (...controls: Element[]) => ({
 
 // The controls under each dropped tap, as the runner's hierarchy reports them.
 // Run 39722599952, native-e2e-ios-light (activity): Settings' Sign out, at (201, 404).
+// Run 39740669724, native-e2e-ios-light (activity): the TV shows switch, whose touch came
+// down 2 s after testmanagerd cancelled its touchscreen (switch-late.txt).
 const signOut = {
   identifier: "settings-sign-out",
   label: "Sign out",
@@ -93,6 +95,21 @@ it("compares only the element under the tap, as other parts of the screen move o
   });
 
   expect(decision.again).toBe(true);
+});
+
+it("taps the TV shows switch again when its touch came down after the touchscreen was cancelled and it did not flip", () => {
+  const off = { ...tvShows, value: "0" };
+  const decision = tapAgain({
+    playback: playback("switch-late.txt"),
+    before: screen(off),
+    after: screen(off),
+    point: { x: 354, y: 280 },
+  });
+
+  expect(decision).toEqual({
+    again: true,
+    reason: expect.stringContaining("touch down without previous range event"),
+  });
 });
 
 it("does not tap a switch again that toggled although its touch was cancelled", () => {

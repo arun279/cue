@@ -119,6 +119,28 @@ it("names a touch backboardd cancelled while its contact was still down, and no 
   ]);
 });
 
+it("names a touch backboardd set down only after the touchscreen was cancelled, and not the next tap", () => {
+  const directory = tempDirectory("cue-maestro-late-");
+  const logs = path.join(directory, "flow", "logs");
+  const fixture = (name: string) =>
+    readFileSync(repositoryPath(`test/ci/fixtures/simulator-touch/${name}`), "utf8").trim();
+  mkdirSync(logs, { recursive: true });
+  writeFileSync(
+    path.join(logs, "device-simulator.log"),
+    `${fixture("switch-late.txt")}\n${fixture("done-normal.txt")}\n`,
+  );
+  const result = spawnSync(
+    process.execPath,
+    [repositoryPath("scripts/maestro-failure.mjs"), "--test-output-dir", directory],
+    { encoding: "utf8", timeout: 30_000 },
+  );
+  expect(result.stderr.split("\n").filter((line) => line.startsWith("Dropped touch:"))).toEqual([
+    expect.stringContaining(
+      "07:48:25.176118+0000  localhost backboardd[2226]: [com.apple.BackBoard:TouchEvents] touch down without previous range event",
+    ),
+  ]);
+});
+
 const driverDeath = readFileSync(repositoryPath("test/ci/fixtures/ios-driver-death.txt"), "utf8");
 const refused =
   "[Failed] Perform XCUITest driver status check on test-device, exception: java.net.ConnectException: Failed to connect to /127.0.0.1:49889";

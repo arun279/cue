@@ -127,7 +127,7 @@ const ndjson = (line: string) => {
   });
 };
 
-it("answers one tap's playback, from its start through its completion, as the log arrives", async () => {
+it("answers one tap's playback, from its start through backboardd's purge, as the log arrives", async () => {
   const lines = new EventEmitter();
   const windows = playbackWindows(lines);
   for (const line of fixture("switch-dropped.txt")) lines.emit("line", ndjson(line));
@@ -137,14 +137,28 @@ it("answers one tap's playback, from its start through its completion, as the lo
   for (const line of fixture("sign-out-dropped.txt")) lines.emit("line", ndjson(line));
 
   const window = await pending;
-  expect(window).toHaveLength(3);
+  expect(window).toHaveLength(4);
   expect(window?.[0]).toContain(
     "04:57:28.179222+0000 testmanagerd: Recap event action playback initiated",
   );
-  expect(window?.[1]).toContain(
+  expect(window?.[2]).toContain(
     "canceling paths contacts: [pathIndex: 2; touchIdentifier: 75; touching",
   );
+  expect(window?.[3]).toContain("purge sender info");
   expect(await windows.window(Date.parse("2026-10-22T05:00:00.000Z"), 10)).toBeUndefined();
+});
+
+it("keeps a tap's window open past playback completed for a touch that arrives 2 s late", async () => {
+  const lines = new EventEmitter();
+  const windows = playbackWindows(lines);
+  const pending = windows.window(Date.parse("2026-10-22T07:48:23.000Z"), 1_000);
+  for (const line of fixture("switch-late.txt")) lines.emit("line", ndjson(line));
+
+  const window = await pending;
+  expect(window?.at(-2)).toContain(
+    "07:48:25.176118+0000 backboardd: touch down without previous range event",
+  );
+  expect(window?.at(-1)).toContain("purge sender info");
 });
 
 it("leaves a record that fails lane health when the log stream shows no playback", async () => {
