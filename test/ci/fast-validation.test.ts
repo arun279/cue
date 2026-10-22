@@ -600,7 +600,7 @@ describe("fast pull request validation", () => {
     expect(job("fingerprint")).toContain(
       "user-facing: $" + "{{ steps.changes.outputs.user-facing }}",
     );
-    expect(job("fingerprint")).toContain("actions/workflows/ci.yml/runs?branch=$BRANCH");
+    expect(job("fingerprint")).toContain('done < <(scripts/ci-runs.sh "$sha")');
     expect(gated.sort()).toEqual(["native-e2e-ios-light", "ui-screenshots-ios-dark"].sort());
     expect(job("native-android")).not.toMatch(/^ {4}if:/m);
   });
