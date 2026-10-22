@@ -33,25 +33,30 @@ it("restores pnpm from a cache keyed by the pinned spec and goes offline once it
   expect(setup).not.toContain("restore-keys");
 });
 
-it("restores the Maestro CLI from its version cache in every lane that would download it", () => {
-  const lanes = readWorkflowJobs(repositoryPath(".github/workflows/ci.yml")).filter(({ body }) =>
-    body.includes("releases/download/cli-2.10.0/maestro.zip"),
-  );
+it("restores the Maestro CLI from its pinned version's cache in every lane that installs it", () => {
+  const lanes = readWorkflowJobs(repositoryPath(".github/workflows/ci.yml"), {
+    withActions: true,
+  }).filter(({ body }) => body.includes("run: scripts/install-maestro.sh\n"));
 
   expect(lanes.map(({ name }) => name).sort()).toEqual([
     "android-e2e-light",
+    "native-e2e-ios-light",
     "ui-screenshots-android-dark",
+    "ui-screenshots-ios-dark",
   ]);
   for (const { body } of lanes) {
+    const pin = body.indexOf(
+      'run: echo "pin=$(scripts/install-maestro.sh pin)" >> "$GITHUB_OUTPUT"\n',
+    );
     const cache = body.indexOf(
-      "          key: maestro-$" +
+      "key: maestro-$" +
         "{{ runner.os }}-$" +
-        "{{ runner.arch }}-2.10.0-29b675e10cc12080e445e9bfb2e2b4e4dfb9c0f2e30d5884120d258b5e1cd991\n",
+        "{{ runner.arch }}-$" +
+        "{{ steps.pin.outputs.pin }}\n",
     );
-    const guarded = body.indexOf(
-      '          if [ ! -d "$RUNNER_TEMP/maestro" ]; then\n            curl -fsSL',
-    );
-    expect(cache).toBeGreaterThan(-1);
-    expect(guarded).toBeGreaterThan(cache);
+    const install = body.indexOf("run: scripts/install-maestro.sh\n");
+    expect(pin).toBeGreaterThan(-1);
+    expect(cache).toBeGreaterThan(pin);
+    expect(install).toBeGreaterThan(cache);
   }
 });

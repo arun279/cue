@@ -28,8 +28,8 @@ pre-commit:
     dprint:
       glob: "*.{md,yml,yaml}"
       # --allow-no-files mirrors biome's --no-errors-on-unmatched above: when the
-      # staged files all fall under dprint.json's excludes (ios/**, android/**),
-      # dprint would otherwise exit 14 ("no files") and fail the commit.
+      # staged files all fall under dprint.json's excludes, dprint would
+      # otherwise exit 14 ("no files") and fail the commit.
       run: pnpm exec dprint check --allow-no-files {staged_files}
     cspell:
       glob: "*.{ts,tsx,css,md}"

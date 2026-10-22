@@ -119,9 +119,9 @@ describe("disable-ios-daemons.sh", () => {
 });
 
 describe("iOS lanes", () => {
-  const lanes = readWorkflowJobs(repositoryPath(".github/workflows/ci.yml")).filter(({ body }) =>
-    body.includes("xcrun simctl boot"),
-  );
+  const lanes = readWorkflowJobs(repositoryPath(".github/workflows/ci.yml"), {
+    withActions: true,
+  }).filter(({ body }) => body.includes("xcrun simctl boot"));
 
   it("record host resources after every flow", () => {
     expect(lanes.map(({ name }) => name)).toEqual([

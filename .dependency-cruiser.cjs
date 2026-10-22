@@ -9,14 +9,6 @@
 const RE_REACT = "(^|/)node_modules/react/";
 const RE_REACT_DOM = "(^|/)node_modules/react-dom/";
 const RE_NATIVE = ["(^|/)node_modules/(expo|react-native)([-/]|$)", "^(expo|react-native)([-/]|$)"];
-const RE_DOM_ONLY = [
-  RE_REACT_DOM,
-  "(^|/)node_modules/idb-keyval/",
-  "(^|/)node_modules/radix-ui/",
-  "(^|/)node_modules/@tanstack/react-router/",
-  "(^|/)node_modules/@tanstack/react-virtual/",
-  "(^|/)node_modules/lucide-react/",
-];
 /** @type {import("dependency-cruiser").IConfiguration} */
 module.exports = {
   forbidden: [
@@ -47,18 +39,10 @@ module.exports = {
       },
     },
     {
-      name: "domain-no-node-builtins",
-      severity: "error",
-      comment:
-        "The domain must not touch Node built-ins (fs/path/crypto/...); it runs in a browser and on a native engine. Kept beside the other domain rules even though core-stays-portable-node bans them across the package, because the stricter statement belongs where the domain rules are read.",
-      from: { path: "^packages/core/src/domain/" },
-      to: { dependencyTypes: ["core"] },
-    },
-    {
       name: "data-stays-headless",
       severity: "error",
       comment:
-        "The data layer (clients/repos) is stated the same way round: in-repo it may reach the domain, its own tree and the ports it is filled through, and nothing else. That is what keeps a repository from reaching a hook, a store or the auth layer, which the directory blacklist this replaces stopped covering the moment those trees moved into the core. From npm it may take no react and no react-dom.",
+        "The data layer (clients/repos) is stated the same way round: in-repo it may reach the domain, its own tree and the ports it is filled through, and nothing else. That is what keeps a repository from reaching a hook, a store or the auth layer. From npm it may take no react and no react-dom.",
       from: { path: "^packages/core/src/data/" },
       to: {
         path: ["^packages/", RE_REACT, RE_REACT_DOM],
@@ -69,7 +53,7 @@ module.exports = {
       name: "ports-have-no-impls",
       severity: "error",
       comment:
-        "A port is a seam the apps fill, so it may take value imports from the domain, from its sibling ports and from react, and nothing else. Stated that way rather than as 'types only': token-store.ts imports tokenSchema, a zod value, from domain/model/token, and five of the ports publish a React context and hook beside their interface, which is how a component reaches the injected instance. React is the injection mechanism rather than an implementation, and everything an implementation would actually need (the DOM, idb-keyval or expo) is still banned here by core-stays-portable and by biome's globals override over this package.",
+        "A port is a seam the apps fill, so it may take value imports from the domain, from its sibling ports and from react, and nothing else. Stated that way rather than as 'types only': token-store.ts imports tokenSchema, a zod value, from domain/model/token, and five of the ports publish a React context and hook beside their interface, which is how a component reaches the injected instance. React is the injection mechanism rather than an implementation, and everything an implementation would actually need (the DOM or expo) is still banned here by core-stays-portable and by biome's globals override over this package.",
       from: { path: "^packages/core/src/ports/" },
       to: {
         dependencyTypesNot: ["type-only"],
@@ -82,7 +66,7 @@ module.exports = {
       comment:
         "@cue/core executes independently of its Expo host, so it takes neither DOM libraries nor React Native or Expo. Anchored at src because the package's own test suite runs on Node and reads git.",
       from: { path: "^packages/core/src/" },
-      to: { path: [...RE_DOM_ONLY, ...RE_NATIVE] },
+      to: { path: [RE_REACT_DOM, ...RE_NATIVE] },
     },
     {
       name: "core-stays-portable-node",
@@ -103,7 +87,7 @@ module.exports = {
       name: "core-imports-no-app",
       severity: "error",
       comment:
-        "The shared package imports neither app. Dependencies flow into the core and never back out, or the claim that both targets run the same code is only a claim.",
+        "The shared package does not import the app. Dependencies flow into the core and never back out, or the core is no longer independent of its host.",
       from: { path: "^packages/core/" },
       to: { path: "^packages/native/" },
     },
