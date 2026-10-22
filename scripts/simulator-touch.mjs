@@ -63,13 +63,39 @@ export function elementsAt(tree, point) {
   return found;
 }
 
+// What a delivered tap changes on the control it lands on, or on what replaces it.
+const COMPARED = ["identifier", "label", "value", "elementType", "enabled", "selected"];
+// Under a point is at most two pixels on a 3x screen, less than a control that acted moves.
+const SETTLED = 1;
+const EDGES = ["X", "Y", "Width", "Height"];
+
+const compared = (element) =>
+  Object.fromEntries([...COMPARED, "frame"].map((key) => [key, element[key]]));
+
+const same = (a, b) =>
+  COMPARED.every((key) => a[key] === b[key]) &&
+  EDGES.every((edge) => Math.abs(a.frame[edge] - b.frame[edge]) < SETTLED);
+
+const ignored = (was, is) => [
+  ...new Set(
+    was.flatMap((element, index) =>
+      Object.keys({ ...element, ...is[index] }).filter(
+        (key) =>
+          !COMPARED.includes(key) &&
+          JSON.stringify(element[key]) !== JSON.stringify(is[index][key]),
+      ),
+    ),
+  ),
+];
+
 /**
  * Whether to play a tap again: only when the simulator log for that tap's
- * playback shows it was dropped, and every element under the tap short of the
- * full-screen containers is unchanged, with the same bounds, label, value and
- * selection. A switch that toggled on the cancel changed its own value, and a
- * tab that switched changed its selection, so neither is tapped twice. With no
- * such element under the tap there is nothing to check, so no second tap.
+ * playback shows it was dropped, and the same elements are under the tap short
+ * of the full-screen containers, each with the same identifier, label, value,
+ * type, enabled and selected state, within a point of the same frame. A switch
+ * that toggled on the cancel changed its own value, and a tab that switched
+ * changed its selection, so neither is tapped twice. With no such element
+ * under the tap there is nothing to check, so no second tap.
  */
 export function tapAgain({ playback, before, after, point }) {
   const [cancel] = droppedTouches(playback);
@@ -80,13 +106,17 @@ export function tapAgain({ playback, before, after, point }) {
   const [was, is] = [elementsAt(before, point), elementsAt(after, point)];
   if (was.length === 0)
     return { again: false, reason: "only full-screen containers under the tap" };
-  if (JSON.stringify(was) !== JSON.stringify(is)) {
+  if (was.length !== is.length || was.some((element, index) => !same(element, is[index]))) {
     return {
       again: false,
-      reason: `the elements under the tap changed: ${JSON.stringify(is.at(-1))}`,
+      reason: `the elements under the tap changed from ${JSON.stringify(was.map(compared))} to ${JSON.stringify(is.map(compared))}`,
     };
   }
-  return { again: true, reason: `${cancel.trim()} under ${JSON.stringify(was.at(-1))}` };
+  const moved = ignored(was, is);
+  return {
+    again: true,
+    reason: `${cancel.trim()} under ${JSON.stringify(is.map(compared))}${moved.length === 0 ? "" : `, ignoring changes to ${moved.join(", ")}`}`,
+  };
 }
 
 export const tapRecordsFile = () =>
