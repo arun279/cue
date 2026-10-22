@@ -2,8 +2,11 @@ import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { expect, it } from "vitest";
+import { fakeBin } from "../support/fake-bin";
 import { repositoryPath } from "../support/repository-path";
 import { tempDirectory } from "../support/temp-directory";
+
+const statusBin = fakeBin({ maestro: '#!/bin/sh\necho run >> "$RUNS"\nexit "$RESULT"\n' });
 
 it.each([0, 17])("preserves Maestro exit %s and reports the failed command once", (status) => {
   const directory = tempDirectory("cue-maestro-");
@@ -22,11 +25,6 @@ it.each([0, 17])("preserves Maestro exit %s and reports the failed command once"
       },
     ]),
   );
-  writeFileSync(
-    path.join(directory, "maestro"),
-    '#!/bin/sh\necho run >> "$RUNS"\nexit "$RESULT"\n',
-    { mode: 0o755 },
-  );
   const result = spawnSync(
     "bash",
     [
@@ -42,7 +40,7 @@ it.each([0, 17])("preserves Maestro exit %s and reports the failed command once"
       encoding: "utf8",
       env: {
         ...process.env,
-        PATH: `${directory}:${process.env["PATH"]}`,
+        PATH: `${statusBin}:${process.env["PATH"]}`,
         RESULT: String(status),
         RUNS: path.join(directory, "runs"),
       },
@@ -104,11 +102,8 @@ const refused =
 const outlive = (name: string) =>
   `setTimeout(() => require('node:fs').appendFileSync(process.env.RUNS, '${name} outlived the supervisor\\n'), 60_000)`;
 
-function runDriver(log: string, destination: string, hang = true, runner = "") {
-  const directory = tempDirectory("cue-driver-death-");
-  writeFileSync(
-    path.join(directory, "maestro"),
-    `#!${process.execPath}
+const driverBin = fakeBin({
+  maestro: `#!${process.execPath}
 const fs = require('node:fs');
 fs.appendFileSync(process.env.RUNS, 'run\\n');
 const log = process.env.DRIVER_LOG;
@@ -125,8 +120,10 @@ fs.mkdirSync(require('node:path').dirname(process.env.LOG_FILE), {recursive: tru
 write(log.slice(0, midpoint));
 setImmediate(() => write(log.slice(midpoint)));
 `,
-    { mode: 0o755 },
-  );
+});
+
+function runDriver(log: string, destination: string, hang = true, runner = "") {
+  const directory = tempDirectory("cue-driver-death-");
   const result = spawnSync(
     "bash",
     [
@@ -140,7 +137,7 @@ setImmediate(() => write(log.slice(midpoint)));
       encoding: "utf8",
       env: {
         ...process.env,
-        PATH: `${directory}:${process.env["PATH"]}`,
+        PATH: `${driverBin}:${process.env["PATH"]}`,
         DRIVER_LOG: log,
         DESTINATION: destination,
         HANG: String(hang),

@@ -2,7 +2,8 @@
  * A local fake Trakt for the core harness and native simulator flows. It lets
  * the app run against a signed-in account with no Trakt credentials or network.
  *
- * Dependency-free Node: `node:http` and the seed module, nothing else.
+ * Dependency-free Node: `node:http`, the seed module and the simulator touch
+ * check, nothing else.
  *
  * Only the endpoints the app actually calls are modelled. Anything else answers
  * 404 with a logged line, never a silent empty success: a path with no route has
@@ -15,9 +16,12 @@ import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { touchProof } from "../simulator-touch.mjs";
 import { createFaults, FAULT_PROFILE_NAMES, faultResponse, faultsFromEnv } from "./faults.mjs";
 import { createJournal } from "./journal.mjs";
 import {
+  allEpisodes,
+  applyDroppedWrite,
   applyHiddenWrite,
   applyHistoryWrite,
   applyWatchlistWrite,
@@ -26,6 +30,7 @@ import {
   collectionMoviesBody,
   collectionShowsBody,
   createSeedLibrary,
+  droppedBody,
   episodeDetailBody,
   FIXTURE_NOW,
   hiddenBody,
@@ -60,11 +65,14 @@ const token = (clock) => ({
   expires_in: TOKEN_TTL_SECONDS,
 });
 
-const json = (data, headers = {}) => ({
-  status: 200,
+const json = (data, headers = {}, status = 200) => ({
+  status,
   headers: { "content-type": "application/json; charset=utf-8", ...headers },
   body: JSON.stringify(data),
 });
+
+/** Trakt answers an add with 201 Created and a removal with 200. */
+const created = (data) => json(data, {}, 201);
 
 /** Trakt's answer to a device-token poll nobody has approved yet. */
 const pending = () => ({
@@ -79,9 +87,9 @@ const notFound = (message) => ({
   body: JSON.stringify({ error: message }),
 });
 
-/** Trakt's `X-Pagination-*` headers, which the client walks list endpoints by. */
-function page(rows, url, defaultLimit) {
-  const limit = Number(url.searchParams.get("limit") ?? defaultLimit);
+/** Trakt's `X-Pagination-*` headers, which the client walks list endpoints by, with its per-page cap where one was seen. */
+function page(rows, url, defaultLimit, maxLimit = Number.POSITIVE_INFINITY) {
+  const limit = Math.min(Number(url.searchParams.get("limit") ?? defaultLimit), maxLimit);
   const current = Number(url.searchParams.get("page") ?? 1);
   const pageCount = Math.max(1, Math.ceil(rows.length / limit));
   return json(rows.slice((current - 1) * limit, current * limit), {
@@ -188,6 +196,7 @@ const ROUTES = [
         ),
         ctx.url,
         10,
+        250,
       ),
   ],
   [
@@ -198,12 +207,27 @@ const ROUTES = [
   [
     "POST",
     /^\/users\/hidden\/progress_watched$/,
-    (ctx) => json(applyHiddenWrite(ctx.library, ctx.body, false)),
+    (ctx) => created(applyHiddenWrite(ctx.library, ctx.body, false)),
   ],
   [
     "POST",
     /^\/users\/hidden\/progress_watched\/remove$/,
     (ctx) => json(applyHiddenWrite(ctx.library, ctx.body, true)),
+  ],
+  [
+    "GET",
+    /^\/users\/hidden\/dropped$/,
+    (ctx) => page(droppedBody(ctx.library, ctx.origin), ctx.url, 10),
+  ],
+  [
+    "POST",
+    /^\/users\/hidden\/dropped$/,
+    (ctx) => created(applyDroppedWrite(ctx.library, ctx.body, false)),
+  ],
+  [
+    "POST",
+    /^\/users\/hidden\/dropped\/remove$/,
+    (ctx) => json(applyDroppedWrite(ctx.library, ctx.body, true)),
   ],
 
   // ---- Sync
@@ -211,7 +235,7 @@ const ROUTES = [
   [
     "GET",
     /^\/sync\/watched\/shows$/,
-    (ctx) => page(watchedShowsBody(ctx.library, extendedOf(ctx.url)), ctx.url, 100),
+    (ctx) => page(watchedShowsBody(ctx.library, extendedOf(ctx.url)), ctx.url, 100, 100),
   ],
   [
     "GET",
@@ -231,7 +255,7 @@ const ROUTES = [
   [
     "GET",
     /^\/sync\/collection\/shows$/,
-    (ctx) => json(collectionShowsBody(ctx.library, ctx.origin, extendedOf(ctx.url))),
+    (ctx) => page(collectionShowsBody(ctx.library, ctx.origin, extendedOf(ctx.url)), ctx.url, 100),
   ],
   [
     "GET",
@@ -248,13 +272,17 @@ const ROUTES = [
       return page(rows, ctx.url, 10);
     },
   ],
-  ["POST", /^\/sync\/history$/, (ctx) => json(applyHistoryWrite(ctx.library, ctx.body, false))],
+  ["POST", /^\/sync\/history$/, (ctx) => created(applyHistoryWrite(ctx.library, ctx.body, false))],
   [
     "POST",
     /^\/sync\/history\/remove$/,
     (ctx) => json(applyHistoryWrite(ctx.library, ctx.body, true)),
   ],
-  ["POST", /^\/sync\/watchlist$/, (ctx) => json(applyWatchlistWrite(ctx.library, ctx.body, false))],
+  [
+    "POST",
+    /^\/sync\/watchlist$/,
+    (ctx) => created(applyWatchlistWrite(ctx.library, ctx.body, false)),
+  ],
   [
     "POST",
     /^\/sync\/watchlist\/remove$/,
@@ -266,18 +294,24 @@ const ROUTES = [
     "GET",
     /^\/search\/[^/]+$/,
     (ctx) =>
-      json(
+      page(
         searchBody(
           ctx.library,
           ctx.origin,
           extendedOf(ctx.url),
           ctx.url.searchParams.get("query") ?? "",
         ),
+        ctx.url,
+        100,
       ),
   ],
 
   // ---- Shows
-  ["GET", /^\/shows\/(?<rank>trending|popular)$/, (ctx) => json(browse(ctx, "shows"))],
+  [
+    "GET",
+    /^\/shows\/(?<rank>trending|popular)$/,
+    (ctx) => page(browse(ctx, "shows"), ctx.url, 100),
+  ],
   [
     "GET",
     /^\/shows\/(?<id>[^/]+)\/related$/,
@@ -293,7 +327,12 @@ const ROUTES = [
     (ctx) => {
       const show = findShow(ctx.library, ctx.params.id);
       if (show === undefined) return notFound("no seeded show");
-      return json(progressBody(show, ctx.library, ctx.origin, extendedOf(ctx.url)));
+      return json(
+        progressBody(show, ctx.library, ctx.origin, extendedOf(ctx.url), {
+          specials: ctx.url.searchParams.get("specials") === "true",
+          countSpecials: ctx.url.searchParams.get("count_specials") === "true",
+        }),
+      );
     },
   ],
   [
@@ -301,7 +340,7 @@ const ROUTES = [
     /^\/shows\/(?<id>[^/]+)\/seasons\/(?<season>\d+)\/episodes\/(?<number>\d+)$/,
     (ctx) => {
       const show = findShow(ctx.library, ctx.params.id);
-      const episode = show?.episodes.find(
+      const episode = (show === undefined ? [] : allEpisodes(show)).find(
         (ep) => ep.season === Number(ctx.params.season) && ep.number === Number(ctx.params.number),
       );
       if (episode === undefined) return notFound("no seeded episode");
@@ -328,7 +367,11 @@ const ROUTES = [
   ],
 
   // ---- Movies
-  ["GET", /^\/movies\/(?<rank>trending|popular)$/, (ctx) => json(browse(ctx, "movies"))],
+  [
+    "GET",
+    /^\/movies\/(?<rank>trending|popular)$/,
+    (ctx) => page(browse(ctx, "movies"), ctx.url, 100),
+  ],
   [
     "GET",
     /^\/movies\/(?<id>[^/]+)\/related$/,
@@ -378,7 +421,7 @@ const CORS = {
   // response with those headers stripped and the mock silently stops modelling
   // the thing under test.
   "access-control-expose-headers":
-    "retry-after, x-pagination-page, x-pagination-limit, x-pagination-page-count, x-pagination-item-count",
+    "retry-after, x-ratelimit, x-pagination-page, x-pagination-limit, x-pagination-page-count, x-pagination-item-count",
   "access-control-max-age": "600",
 };
 
@@ -450,13 +493,35 @@ function approveRoute(device, method) {
 }
 
 /**
+ * POST `/__touch-window` marks the start of a tap, and POST `/__touch-proof`
+ * with the app's press trace answers whether the simulator log since then
+ * proves the simulator dropped that tap, so the flow may tap again.
+ */
+async function touchRoute(touch, method, url, body) {
+  if (method !== "POST") return notFound("no control route");
+  if (url.pathname === "/__touch-window") {
+    touch.since = new Date();
+    return json({ since: touch.since.toISOString() });
+  }
+  const verdict = await touchProof({
+    device: process.env["DEVICE_ID"],
+    since: touch.since,
+    trace: String(body.trace ?? ""),
+  });
+  return json({ tapAgain: verdict.proven, reason: verdict.reason });
+}
+
+/**
  * The harness control plane, on the mock's own origin under a `__` prefix that
  * no Trakt path can collide with.
  */
-function controlRoute(faults, device, reset, releaseHeld, method, url, body) {
+function controlRoute(faults, device, touch, reset, releaseHeld, method, url, body) {
   if (url.pathname === "/__reset") return resetRoute(reset, releaseHeld, method, url);
   if (url.pathname === "/__fault") return faultRoute(faults, method, url, body, releaseHeld);
   if (url.pathname === "/__approve") return approveRoute(device, method);
+  if (url.pathname === "/__touch-window" || url.pathname === "/__touch-proof") {
+    return touchRoute(touch, method, url, body);
+  }
   return null;
 }
 
@@ -481,6 +546,14 @@ function resolve(library, device, method, url, origin, body) {
   return notFound("no route");
 }
 
+/**
+ * One request against `library` without a socket, for a caller that drives the
+ * mock in-process: the same routes, statuses, headers and bodies the server sends.
+ */
+export function respond(library, method, url, body = {}, origin = "https://api.trakt.tv") {
+  return resolve(library, { approved: true }, method, url, origin, body);
+}
+
 function finishFault(request, fault, result) {
   if (fault?.dropAfter !== true) return result;
   request.socket.destroy();
@@ -502,6 +575,7 @@ export function createMockTrakt({
 } = {}) {
   let library = createSeedLibrary("default", clock(), clock);
   const device = { approved: false };
+  const touch = { since: undefined };
   const journal = createJournal(journalFile);
   const faults = createFaults(faultSpec);
   const held = new Set();
@@ -524,9 +598,10 @@ export function createMockTrakt({
       journal.record(method, url.pathname, url.search, body);
       onRequest({ method, path: url.pathname, search: url.search, body });
     }
-    const control = controlRoute(
+    const control = await controlRoute(
       faults,
       device,
+      touch,
       (seed) => {
         if (!SEED_PROFILE_NAMES.includes(seed)) return false;
         const replaced = library.activities;

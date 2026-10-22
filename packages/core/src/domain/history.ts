@@ -1,6 +1,6 @@
-import { dayLabeler } from "./day";
+import { dayLabeler, startOfLocalDay } from "./day";
 import type { EpisodeIds, MovieIds } from "./model/ids";
-import { toMs } from "./time";
+import { localTimeZone, toMs } from "./time";
 
 interface Play {
   readonly historyId: number;
@@ -42,19 +42,19 @@ export interface HistoryRange {
   readonly endAt: string;
 }
 
-export function historyRange(year: number, month?: number): HistoryRange {
-  if (month === undefined) {
-    return {
-      startAt: `${year}-01-01T00:00:00.000Z`,
-      endAt: `${year}-12-31T23:59:59.999Z`,
-    };
-  }
-  const start = Date.UTC(year, month - 1, 1, 0, 0, 0, 0);
-  const nextMonth = Date.UTC(year, month, 1, 0, 0, 0, 0);
-  return {
-    startAt: new Date(start).toISOString(),
-    endAt: new Date(nextMonth - 1).toISOString(),
-  };
+const pad = (value: number): string => String(value).padStart(2, "0");
+
+export function historyRange(
+  year: number,
+  month?: number,
+  timeZone: string = localTimeZone(),
+): HistoryRange {
+  const first = month ?? 1;
+  const [endYear, endMonth] =
+    month === undefined || month === 12 ? [year + 1, 1] : [year, month + 1];
+  const start = startOfLocalDay(timeZone, `${year}-${pad(first)}-01`);
+  const end = startOfLocalDay(timeZone, `${endYear}-${pad(endMonth)}-01`);
+  return { startAt: new Date(start).toISOString(), endAt: new Date(end - 1).toISOString() };
 }
 
 export function historyScopeKey(year?: number, month?: number): string {

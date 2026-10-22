@@ -37,6 +37,7 @@ function markableRuntime(initiallyWatched: boolean) {
       watched = op.toState === "present";
       return "done";
     }),
+    writeReceipt: () => ({ added: 1, updated: 0, deleted: 0, existing: 0, notFound: 0 }),
   };
 }
 

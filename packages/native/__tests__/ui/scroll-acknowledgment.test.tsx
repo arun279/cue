@@ -62,6 +62,21 @@ it("handles a release without deceleration using the platform's terminal event",
   expect(screen.getByTestId(HARNESS_IDS.scrollCompleted)).toHaveAccessibleName(/scroll 1 done;/);
 });
 
+it("counts an iOS drag that will rest where it ended as done whatever its velocity, and records it", async () => {
+  await render(
+    <AccountScreen testID="account">
+      <Text>Settings</Text>
+    </AccountScreen>,
+  );
+  const scroll = screen.getByTestId("account");
+  await fireEvent(scroll, "scrollBeginDrag", event(2.5));
+  await fireEvent(scroll, "scrollEndDrag", event(2.5));
+  const completed = screen.getByTestId(HARNESS_IDS.scrollCompleted);
+  expect(completed).toHaveAccessibleName(/; drag 1 ended at 200 toward 200 at 2\.5;/);
+  if (Platform.OS === "ios") expect(completed).toHaveAccessibleName(/scroll 1 done;/);
+  else expect(completed).not.toHaveAccessibleName(/scroll 1 done;/);
+});
+
 it("does not credit an interrupted scroll's completion to the next drag", async () => {
   await render(
     <AccountScreen testID="account">

@@ -38,6 +38,16 @@ interface Exception {
 
 const EXCEPTIONS: readonly Exception[] = [
   {
+    file: "src/ui/RowMenu.tsx",
+    rule: "A",
+    site: "Stack.Toolbar",
+    candidate: "Stack.Toolbar.Menu on Android",
+    reason:
+      "On Android the toolbar menu is a self-sizing Compose host, and on a pushed detail screen it stayed at 0x0 with no More button for the whole 30 s wait in CI runs 39529824232, 39569599814, 39607798407 and 39647033939; the same host family was absent from a sheet for 17 s in #162. The More trigger is a plain 48 dp button that mounts the menu only while open, and iOS keeps the native menu. Remove this once an upstream fix for the zero-size host passes the Android device lanes.",
+    source: "https://github.com/expo/expo/issues/49312",
+    checked: { package: "@expo/ui", version: "57.0.22" },
+  },
+  {
     file: "src/ui/BarItems.tsx",
     rule: "A",
     site: "Stack.Toolbar.View",
@@ -114,7 +124,7 @@ const EXCEPTIONS: readonly Exception[] = [
     site: "router.back",
     candidate: "a close button in the sheet's Stack.Toolbar",
     reason:
-      "Android form sheets cannot host a header or a nested stack, so a sheet has no toolbar; the close is a Compose icon button drawn in the sheet, beside system back.",
+      "Android form sheets cannot host a header or a nested stack, so a sheet has no toolbar; the close is a plain icon button drawn in the sheet, beside system back, so it is on screen and labelled from the sheet's first frame.",
     source: "https://github.com/software-mansion/react-native-screens/issues/2657",
     checked: { package: "react-native-screens", version: "4.26.2" },
   },

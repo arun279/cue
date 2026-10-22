@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
+import { provenCancels } from "./simulator-touch.mjs";
 
 const run = promisify(execFile);
 const PREDICATE =
@@ -205,6 +206,8 @@ export function laneHealth({ device, directory }) {
     const calendar = launchLines(launches.stdout);
     for (const line of calendar.slice(0, 5)) record(`MobileCal launch: ${line}`);
     const warning = heapWarning(heap);
+    const cancels = provenCancels();
+    for (const cancel of cancels) record(`proven simulator touch cancel: ${cancel}`);
     const lines = [
       ...latencySummary(screenshotLatencies(log.stdout.split("\n"), since)),
       `${megabytes(pageIns(vmStat.stdout) - (await started))} paged in during the flow`,
@@ -215,10 +218,15 @@ export function laneHealth({ device, directory }) {
         .slice(0, 8)
         .map(([name, bytes]) => `${name} ${megabytes(bytes)}`)
         .join(", ")}`,
+      `${cancels.length} taps the simulator proved it dropped, each tapped again`,
     ];
     for (const line of lines) record(line);
     if (warning !== undefined) record(`warning: ${warning}`);
-    return { lines, warning };
+    const notice =
+      cancels.length === 0
+        ? undefined
+        : `The simulator dropped ${cancels.length === 1 ? "a tap" : `${cancels.length} taps`} and the flow tapped again; see Lane health`;
+    return { lines, warning, notice };
   };
   return {
     heard: silence.heard,

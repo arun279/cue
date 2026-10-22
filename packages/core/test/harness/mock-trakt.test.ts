@@ -39,7 +39,8 @@ import { groupUpNext } from "@cue/core/domain/up-next";
 import { DEFAULT_STALENESS_THRESHOLD_MS } from "@cue/core/domain/watch-status";
 import { buildMarkEpisodeOp } from "@cue/core/domain/write-queue/ops";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { createMockTrakt } from "../../../../scripts/mock-trakt/server.mjs";
+import { createSizedLibrary } from "../../../../scripts/mock-trakt/seed.mjs";
+import { createMockTrakt, respond } from "../../../../scripts/mock-trakt/server.mjs";
 
 /**
  * What stops `scripts/mock-trakt` drifting from the app it exists to feed. The
@@ -142,7 +143,11 @@ function firstSeededMovie(): (typeof mock.library.movies)[number] {
 describe("the post-mark projection over the seeded catalogue", () => {
   it("projects only real aired coordinates across every seeded show", () => {
     for (const show of mock.library.shows) {
-      const aired = show.episodes.filter((episode) => episode.firstAired <= mock.library.now);
+      const aired = show.episodes.flatMap((episode) =>
+        episode.firstAired !== null && episode.firstAired <= mock.library.now
+          ? [{ ...episode, firstAired: episode.firstAired }]
+          : [],
+      );
       const last = aired.at(-1);
       for (const [index, episode] of aired.entries()) {
         const entry: LibraryEntry = {
@@ -229,6 +234,7 @@ describe("the seeded account parses through the app's own contracts", () => {
     expect(shows.filter((show) => "shelf" in show).map((show) => show.status)).toEqual([
       "returning series",
       "ended",
+      "in production",
     ]);
     for (const show of shows) {
       const detail = ok(await getShow(client(), show.trakt));
@@ -239,7 +245,7 @@ describe("the seeded account parses through the app's own contracts", () => {
         ),
       ).toBe(true);
       const progress = ok(await getShowProgress(client(), show.trakt));
-      expect(progress.aired).toBeGreaterThan(0);
+      expect(progress.aired > 0).toBe(show.status !== "in production");
       const seasons = ok(await getShowSeasons(client(), show.trakt));
       expect(seasons.length).toBe(show.seasons.length);
       const episode = ok(await getEpisode(client(), show.trakt, 1, 1));
@@ -418,17 +424,113 @@ describe("the seeded account fills the surfaces the harness exists to demo", () 
     expect(entries.some((entry) => entry.inWatchlist && entry.completed === 0)).toBe(true);
   });
 
-  it("carries a never-started collection in the hundreds, each title with its poster", async () => {
+  it("carries a never-started collection in the hundreds, posters only from the watchlist", async () => {
     const entries = await loadUpNextEntries(client());
     const notStarted = entries.filter((entry) => entry.completed === 0);
-    expect(notStarted.length).toBeGreaterThan(300);
-    expect(notStarted.every((entry) => entry.posters.length > 0 && entry.addedAt !== null)).toBe(
-      true,
+    const listed = mock.library.shows.filter(
+      (show) => show.completed === 0 && (show.collectedAt !== null || show.inWatchlist),
     );
+    expect(listed.length).toBeGreaterThan(200);
+    expect(notStarted).toHaveLength(listed.length);
+    expect(notStarted.every((entry) => entry.addedAt !== null)).toBe(true);
+    expect(notStarted.every((entry) => entry.posters.length > 0 === entry.inWatchlist)).toBe(true);
+  });
+});
+
+describe("a sized account for the request budget", () => {
+  it("keeps an airing show's progress at its snapshot until the user writes to it", async () => {
+    const now = Date.parse("2026-10-20T12:00:00.000Z");
+    const library = createSizedLibrary(
+      {
+        inProgress: 10,
+        lapsed: 0,
+        caughtUp: 0,
+        finished: 0,
+        airingWatched: 2,
+        airingWatchlist: 0,
+        watchlistShows: 0,
+        watchlistMovies: 0,
+        watchedMovies: 0,
+        hidden: 0,
+      },
+      now,
+    );
+    const airing = library.shows.find((show) => show.progressAt !== undefined);
+    if (airing === undefined) throw new Error("no airing show");
+    const read = () =>
+      JSON.parse(
+        respond(
+          library,
+          "GET",
+          new URL(`https://api.trakt.tv/shows/${airing.trakt}/progress/watched`),
+        ).body,
+      ) as { aired: number };
+    const aired = airing.episodes.filter((ep) => ep.firstAired !== null && ep.firstAired <= now);
+    expect(read().aired).toBe(aired.length - 2);
+    respond(library, "POST", new URL("https://api.trakt.tv/sync/history"), {
+      episodes: [{ ids: { trakt: airing.episodes[0]?.traktId } }],
+    });
+    expect(read().aired).toBe(aired.length);
   });
 });
 
 describe("seed profiles", () => {
+  it("serves a show watched only through its specials the way Trakt does", async () => {
+    await fetch(`${baseUrl}/__reset?seed=specials-only`, { method: "POST" });
+    const watched = ok(await getWatchedShows(client())).find((row) => row.show.ids.trakt === 8809);
+    expect(watched?.seasons?.map((season) => season.number)).toEqual([0]);
+    expect(ok(await getShowProgress(client(), 8809)).completed).toBe(0);
+    const withSpecials = await fetch(
+      `${baseUrl}/shows/8809/progress/watched?specials=true&count_specials=true`,
+    );
+    const progress = (await withSpecials.json()) as {
+      completed: number;
+      seasons: { number: number }[];
+    };
+    expect(progress.completed).toBe(4);
+    expect(progress.seasons[0]?.number).toBe(0);
+    await fetch(`${baseUrl}/__reset`, { method: "POST" });
+  });
+
+  it("keeps a replayed special's first play and adds a second, as for any episode", async () => {
+    await fetch(`${baseUrl}/__reset?seed=specials-only`, { method: "POST" });
+    const special = ok(await getShowSeasons(client(), 8809))[0]?.episodes?.[0]?.ids.trakt ?? 0;
+    const plays = async () => ok(await getItemPlays(client(), "episodes", special));
+    const [first] = await plays();
+    const answer = await fetch(`${baseUrl}/sync/history`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        episodes: [{ ids: { trakt: special }, watched_at: "2026-10-15T00:00:00.000Z" }],
+      }),
+    });
+    expect(await answer.json()).toMatchObject({ added: { episodes: 1 } });
+    const replayed = await plays();
+    expect(replayed).toHaveLength(2);
+    expect(replayed).toContainEqual(
+      expect.objectContaining({ id: first?.id, watched_at: first?.watched_at }),
+    );
+    const second = replayed.find((play) => play.id !== first?.id)?.id;
+    await fetch(`${baseUrl}/sync/history/remove`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ids: [second] }),
+    });
+    expect((await plays()).map((play) => play.id)).toEqual([first?.id]);
+    await fetch(`${baseUrl}/__reset`, { method: "POST" });
+  });
+
+  it("numbers a long runner's seasons from its specials, and runs a continuous show's numbers on", async () => {
+    await fetch(`${baseUrl}/__reset?seed=scale`, { method: "POST" });
+    const seasons = ok(await getShowSeasons(client(), 99));
+    expect(seasons).toHaveLength(39);
+    expect(seasons[0]?.number).toBe(0);
+    expect(Math.max(...seasons.map((season) => season.episodes?.length ?? 0))).toBe(199);
+    const continuous = ok(await getShowSeasons(client(), 98));
+    expect(continuous[1]?.episodes?.[0]?.number).toBe(62);
+    await fetch(`${baseUrl}/__reset`, { method: "POST" });
+  });
+
   it("keeps the default account unchanged", async () => {
     const response = await fetch(`${baseUrl}/__reset`, { method: "POST" });
     expect(await response.json()).toEqual({ reset: true });
@@ -519,6 +621,10 @@ describe("fault profiles", () => {
     const limited = await fetch(`${baseUrl}/shows/8802/progress/watched`);
     expect(limited.status).toBe(429);
     expect(limited.headers.get("retry-after")).toBe("1");
+    expect(JSON.parse(limited.headers.get("x-ratelimit") ?? "{}")).toMatchObject({
+      name: "AUTHED_API_GET_LIMIT",
+      remaining: 0,
+    });
     await fetch(`${baseUrl}/__reset`, { method: "POST" });
     expect((await fetch(`${baseUrl}/shows/8802/progress/watched`)).status).toBe(200);
   });
@@ -538,14 +644,14 @@ describe("fault profiles", () => {
       new Promise((resolve) => setTimeout(resolve, 250, "still held")),
     ]);
     controller.abort();
-    expect(released).toBe(200);
+    expect(released).toBe(201);
   });
 
   it("drops a write connection until reset", async () => {
     await armFault("drop-write");
     await expect(historyWrite()).rejects.toThrow("fetch failed");
     await fetch(`${baseUrl}/__reset`, { method: "POST" });
-    expect((await historyWrite()).status).toBe(200);
+    expect((await historyWrite()).status).toBe(201);
   });
 
   it("fails only the second history page until reset", async () => {
@@ -713,4 +819,58 @@ describe("the OAuth surface both flows need", () => {
     expect(location.searchParams.get("state")).toBe("nonce-1");
     expect(location.searchParams.get("code")).toBeTruthy();
   });
+});
+
+describe("a play posted for a watched episode follows the account's Multiple Plays setting", () => {
+  const WATCHED_EPISODE = 880100;
+  const replay = () =>
+    client().send("POST", "/sync/history", {
+      body: {
+        episodes: [{ ids: { trakt: WATCHED_EPISODE }, watched_at: "2026-10-14T12:34:56.789Z" }],
+      },
+    });
+
+  it("adds a second play by default, stored to the minute, and removing that play keeps the first", async () => {
+    const before = ok(await getShowProgress(client(), 8801)).completed;
+    const response = await replay();
+    expect(response.status).toBe(201);
+    expect(response.data).toMatchObject({ added: { episodes: 1 }, updated: { episodes: 0 } });
+    const plays = ok(await getItemPlays(client(), "episodes", WATCHED_EPISODE));
+    expect(plays.map((play) => play.watched_at)).toContain("2026-10-14T12:34:00.000Z");
+    expect(plays).toHaveLength(2);
+
+    const second = plays.find((play) => play.watched_at === "2026-10-14T12:34:00.000Z");
+    await write("/sync/history/remove", { ids: [second?.id] });
+    expect(ok(await getItemPlays(client(), "episodes", WATCHED_EPISODE))).toHaveLength(1);
+    expect(ok(await getShowProgress(client(), 8801)).completed).toBe(before);
+  });
+
+  it("replaces the play and answers updated when Multiple Plays is off", async () => {
+    await resetTo("multiple-plays-off");
+    const before = ok(await getShowProgress(client(), 8801)).completed;
+    const response = await replay();
+    expect(response.data).toMatchObject({ added: { episodes: 0 }, updated: { episodes: 1 } });
+    const plays = ok(await getItemPlays(client(), "episodes", WATCHED_EPISODE));
+    expect(plays.map((play) => play.watched_at)).toEqual(["2026-10-14T12:34:00.000Z"]);
+    expect(ok(await getShowProgress(client(), 8801)).completed).toBe(before);
+  });
+
+  it("counts a watchlisted title as existing rather than added", async () => {
+    const listed = mock.library.shows.find((show) => show.inWatchlist);
+    expect(
+      await write("/sync/watchlist", { shows: [{ ids: { trakt: listed?.trakt } }] }),
+    ).toMatchObject({ added: { shows: 0 }, existing: { shows: 1 } });
+  });
+});
+
+it("brings a catalogue title into the account when it is added to the watchlist", async () => {
+  const catalogue = { shows: [{ ids: { trakt: 8901 } }] };
+  expect(await write("/sync/watchlist", catalogue)).toMatchObject({
+    added: { shows: 1 },
+    not_found: { shows: [] },
+  });
+  const watchlist = ok(await getWatchlist(client(), "shows"));
+  expect(watchlist.map((row) => row.show?.ids.trakt)).toContain(8901);
+  const hits = ok(await searchTrakt(client(), "harbor master"));
+  expect(hits.filter((hit) => hit.show?.ids.trakt === 8901)).toHaveLength(1);
 });

@@ -37,7 +37,7 @@ function harness(opts: {
   });
   const reconcile = vi.fn(opts.reconcile ?? (() => Promise.resolve(false)));
   return {
-    deps: { dispatch, sleep, now: clock.now, reconcile },
+    deps: { dispatch, sleep, now: clock.now, reconcile, settle: () => true },
     dispatch,
     reconcile,
     times,
@@ -246,5 +246,57 @@ describe("WriteQueue coalescing + durability", () => {
     expect(q.size).toBe(2); // undetermined landing → nothing retired, boot proceeds
     const res = await q.flush();
     expect(res.completed.map((o) => o.itemKey)).toEqual(["episode:1", "episode:2"]);
+  });
+});
+
+describe("WriteQueue settles each answer", () => {
+  const answered = (data: unknown): DispatchResult => ({ status: 201, headers: {}, data });
+
+  it("settles a write before the next one is sent", async () => {
+    const order: string[] = [];
+    const h = harness({ dispatch: () => Promise.resolve(answered({ added: { episodes: 1 } })) });
+    h.dispatch.mockImplementation(async (req: unknown) => {
+      order.push(`send ${JSON.stringify(req).includes('"trakt":1') ? "a" : "b"}`);
+      return answered({ added: { episodes: 1 } });
+    });
+    const settle = (op: QueuedOp, result: DispatchResult): boolean => {
+      order.push(`settle ${op.id} ${JSON.stringify(result.data)}`);
+      return true;
+    };
+    await new WriteQueue({ ...h.deps, settle }, [mark("a", 1), mark("b", 2)]).flush();
+    expect(order).toEqual([
+      "send a",
+      'settle a {"added":{"episodes":1}}',
+      "send b",
+      'settle b {"added":{"episodes":1}}',
+    ]);
+  });
+
+  it("asks reconcile when a 2xx shows the write was not applied, and fails it if not", async () => {
+    const h = harness({
+      dispatch: () => Promise.resolve(answered({ not_found: { episodes: [{}] } })),
+    });
+    const q = new WriteQueue({ ...h.deps, settle: () => false }, [mark("a", 1)]);
+    const res = await q.flush();
+    expect(h.reconcile).toHaveBeenCalledTimes(1);
+    expect(res.failed.map((f) => f.op.id)).toEqual(["a"]);
+  });
+
+  it("fails an unapplied write when reconcile cannot read the account", async () => {
+    const h = harness({
+      dispatch: () => Promise.resolve(answered({})),
+      reconcile: () => Promise.reject(new Error("offline")),
+    });
+    const q = new WriteQueue({ ...h.deps, settle: () => false }, [mark("a", 1)]);
+    expect((await q.flush()).failed.map((f) => f.op.id)).toEqual(["a"]);
+  });
+
+  it("completes an unapplied write that reconcile finds already in place", async () => {
+    const h = harness({
+      dispatch: () => Promise.resolve(answered({})),
+      reconcile: () => Promise.resolve(true),
+    });
+    const q = new WriteQueue({ ...h.deps, settle: () => false }, [mark("a", 1)]);
+    expect((await q.flush()).completed.map((op) => op.id)).toEqual(["a"]);
   });
 });

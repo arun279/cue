@@ -19,3 +19,4 @@ export const useScrollAcknowledgment: typeof Harness.useScrollAcknowledgment = (
   handlers: {},
   marker: null,
 });
+export const usePullTrace: typeof Harness.usePullTrace = () => ({ handlers: {}, marker: null });

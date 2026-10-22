@@ -3,11 +3,13 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { leadInMs, tapAttachDelays } from "../../scripts/check-tap-lead-in.mjs";
+import { fakeBin } from "../support/fake-bin";
 import { repositoryPath } from "../support/repository-path";
 import { tempDirectory } from "../support/temp-directory";
 
-const executable = (directory: string, name: string, source: string) =>
-  writeFileSync(path.join(directory, name), source, { mode: 0o755 });
+const xcrunBin = fakeBin({
+  xcrun: '#!/bin/sh\nprintf \'%s\\n\' "$*" > "$ARGS_FILE"\nprintf \'%s\\n\' "$TAP_LOG"\n',
+});
 
 describe("check-runner-survives-freeze.sh", () => {
   const ISSUE = '{"code":"internal","errorMessage":"Failed to get screenshot: Timed out"}';
@@ -149,11 +151,6 @@ describe("check-tap-lead-in.mjs", () => {
     const log = [entry("01.000000", "Tapping 1.0, 2.0"), entry(`01.0${delay}000`, ATTACH)].join(
       "\n",
     );
-    executable(
-      root,
-      "xcrun",
-      `#!/bin/sh\nprintf '%s\\n' "$*" > "${root}/args"\nprintf '%s\\n' '${log}'\n`,
-    );
     const result = spawnSync(
       process.execPath,
       [
@@ -162,7 +159,15 @@ describe("check-tap-lead-in.mjs", () => {
         "2026-10-17 21:40:00",
         output,
       ],
-      { encoding: "utf8", env: { ...process.env, PATH: `${root}:${process.env["PATH"]}` } },
+      {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          PATH: `${xcrunBin}:${process.env["PATH"]}`,
+          ARGS_FILE: path.join(root, "args"),
+          TAP_LOG: log,
+        },
+      },
     );
 
     expect(result.status, result.stderr).toBe(status);

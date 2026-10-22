@@ -244,11 +244,15 @@ it("serves the probe's synthetic account at the scale of a long-time Trakt user"
     }),
   );
   expect(history).toContainEqual(
-    expect.objectContaining({ show: expect.objectContaining({ images: { poster: [] } }) }),
+    expect.objectContaining({
+      show: expect.objectContaining({ images: expect.objectContaining({ poster: [] }) }),
+    }),
   );
   expect(history).toContainEqual(
     expect.objectContaining({
-      movie: expect.objectContaining({ images: { poster: [], fanart: [] } }),
+      movie: expect.objectContaining({
+        images: expect.objectContaining({ poster: [], fanart: [] }),
+      }),
     }),
   );
 });

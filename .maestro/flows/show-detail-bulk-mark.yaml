@@ -20,7 +20,7 @@ appId: app.cuetracker
       OPERATION: write
 - tapOn:
     id: "season-check-2"
-- assertVisible: "2 of 4 episodes are unwatched."
+- assertVisible: '2 of 4 episodes are unwatched\..*'
 - waitForAnimationToEnd
 - takeScreenshot: show-detail-season-confirm
 - tapOn:
