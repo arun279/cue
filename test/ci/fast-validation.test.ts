@@ -631,6 +631,22 @@ describe("fast pull request validation", () => {
     expect(upload).toContain("path: $" + "{{ runner.temp }}/ios-bundle\n");
   });
 
+  it("names, inside the harness bundle, the cached app it was built for", () => {
+    const fingerprint = steps("fingerprint");
+    const at = (text: string) => fingerprint.findIndex((step) => step.includes(text));
+    const name = fingerprint[at('/ios-bundle/app-artifact"')] ?? "";
+    const cache = fingerprint[at("id: ios-cache\n")] ?? "";
+
+    expect(name.startsWith("if: steps.ios-cache.outputs.hit == 'true'\n")).toBe(true);
+    const artifact =
+      "          ARTIFACT_NAME: cue-native-ios-$" + "{{ steps.native.outputs.ios }}\n";
+    expect(envOf(name)).toBe(artifact);
+    expect(envOf(cache)).toContain(artifact);
+    expect(name).toContain('run: echo "$ARTIFACT_NAME" > "$RUNNER_TEMP/ios-bundle/app-artifact"\n');
+    expect(at('/ios-bundle/app-artifact"')).toBeGreaterThan(at("scripts/bundle-ios.sh"));
+    expect(at('/ios-bundle/app-artifact"')).toBeLessThan(at("actions/upload-artifact@"));
+  });
+
   it.each(
     IOS_LANES,
   )("%s installs the app native-ios built, or the cached app with the bundle from fingerprint", (name) => {
