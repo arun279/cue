@@ -2,6 +2,9 @@ import { spawnSync } from "node:child_process";
 import { expect, it } from "vitest";
 import { repositoryPath } from "../support/repository-path";
 
+// Each case starts a whole vitest run, about 2 s on a loaded runner before the guard's 3 s.
+const RUN_MS = 60_000;
+
 const run = (filter: string) =>
   spawnSync(
     process.execPath,
@@ -12,10 +15,12 @@ const run = (filter: string) =>
       repositoryPath("test/ci/fixtures/stall-guard/vitest.config.ts"),
       filter,
     ],
-    { encoding: "utf8", timeout: 60_000, env: { ...process.env, VITEST_STALL_MS: "3000" } },
+    { encoding: "utf8", timeout: RUN_MS, env: { ...process.env, VITEST_STALL_MS: "3000" } },
   );
 
-it("fails the run and names the file when a test file never finishes loading", () => {
+it("fails the run and names the file when a test file never finishes loading", {
+  timeout: RUN_MS,
+}, () => {
   const result = run("loads-forever");
 
   expect(result.error).toBeUndefined();
@@ -24,7 +29,7 @@ it("fails the run and names the file when a test file never finishes loading", (
   expect(result.stderr).toContain("loads-forever.fixture.ts");
 });
 
-it("lets a run whose files finish pass", () => {
+it("lets a run whose files finish pass", { timeout: RUN_MS }, () => {
   const result = run("finishes");
 
   expect(result.status, result.stderr).toBe(0);
