@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import {
-  exchangeCodeForToken,
   type OAuthConfig,
   pollDeviceToken,
   refreshAccessToken,
@@ -91,7 +90,6 @@ const oauth = (): OAuthConfig => ({
   clientId: "mock-client",
   redirectUri: "http://127.0.0.1:4173/auth/callback",
   apiBaseUrl: baseUrl,
-  siteBaseUrl: baseUrl,
 });
 
 const today = (): string => new Date(mock.library.now).toISOString().slice(0, 10);
@@ -801,8 +799,12 @@ describe("the OAuth surface both flows need", () => {
     expect((await pollDeviceToken(oauth(), code.deviceCode, "verifier")).status).toBe("pending");
   });
 
-  it("exchanges an authorization code, refreshes it, and revokes it", async () => {
-    const token = await exchangeCodeForToken(oauth(), "mock-auth-code", "verifier");
+  it("grants a device code's token, refreshes it, and revokes it", async () => {
+    const code = await requestDeviceCode(oauth(), "challenge");
+    await fetch(`${baseUrl}/__approve`, { method: "POST" });
+    const granted = await pollDeviceToken(oauth(), code.deviceCode, "verifier");
+    if (granted.status !== "success") throw new Error(`device grant ended ${granted.status}`);
+    const { token } = granted;
     expect(token.access_token).toBe("mock-access-token");
     expect((await refreshAccessToken(oauth(), token.refresh_token)).refresh_token).toBeTruthy();
     await expect(revokeToken(oauth(), token.access_token)).resolves.toBeUndefined();

@@ -1,12 +1,4 @@
-// Route parameters are untrusted deep-link text, so each parser drops anything it does not know.
-export interface LibrarySearch {
-  readonly type?: "movies";
-}
-
-export function parseLibrarySearch(search: Record<string, unknown>): LibrarySearch {
-  return search["type"] === "movies" ? { type: "movies" } : {};
-}
-
+// Route parameters are untrusted deep-link text, so the parser drops anything it does not know.
 export interface HistorySearch {
   readonly type?: "tv" | "movies";
   readonly year?: number;

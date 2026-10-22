@@ -18,7 +18,6 @@ export const PROBLEM_LABELS: Readonly<Record<ProblemKind, string>> = {
   network: "Offline or unreachable",
   "rate-limited": "Rate limited",
   server: "Server error",
-  "unreadable-response": "Blocked reply",
   unauthorized: "Session expired",
   "not-found": "Not found",
   "account-limit": "Account limit",

@@ -50,9 +50,6 @@ export function accountFixture(overrides: Partial<CueRuntime> = {}) {
     tokenStore: { read: async () => null, write: async () => {}, clear: async () => {} },
     clientId: "test",
     redirectUri: "cue://auth/callback",
-    redirect: () => {},
-    redirectHandoff: { read: () => null, write: () => {}, clear: () => {} },
-    native: true,
     traktBaseUrl: undefined,
   });
   auth.setState({ disconnect });

@@ -252,25 +252,6 @@ describe("TraktClient error mapping", () => {
     expect(await client().get(path)).toEqual({ ok: false, error: { kind: "network" } });
   });
 
-  it("distinguishes an unreadable Trakt response from server and network failures", async () => {
-    server.use(http.get(`${TRAKT_API_BASE}${path}`, () => HttpResponse.error()));
-    const browserClient = new TraktClient({ clientId: "cid-123", browser: true });
-    expect(await browserClient.get(path)).toEqual({
-      ok: false,
-      error: { kind: "unreadable-response" },
-    });
-  });
-
-  it("keeps browser failures against other origins classified as network", async () => {
-    const browserClient = new TraktClient({
-      clientId: "cid-123",
-      browser: true,
-      baseUrl: "https://example.test",
-      fetch: () => Promise.reject(new Error("offline")),
-    });
-    expect(await browserClient.get(path)).toEqual({ ok: false, error: { kind: "network" } });
-  });
-
   it("rejects a held read as a typed timeout after the request timeout", async () => {
     vi.useFakeTimers();
     const held = new TraktClient({
@@ -285,23 +266,6 @@ describe("TraktClient error mapping", () => {
 
     await vi.advanceTimersByTimeAsync(DEFAULT_TRAKT_POLICY.timeoutMs.read);
     await rejection;
-    vi.useRealTimers();
-  }, 1000);
-
-  it("keeps a timed-out browser request against Trakt a timeout", async () => {
-    vi.useFakeTimers();
-    const held = new TraktClient({
-      clientId: "cid-123",
-      browser: true,
-      fetch: (_input, init) =>
-        new Promise((_resolve, reject) => {
-          init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
-        }),
-    });
-    const read = held.get(path);
-
-    await vi.advanceTimersByTimeAsync(DEFAULT_TRAKT_POLICY.timeoutMs.read);
-    expect(await read).toEqual({ ok: false, error: { kind: "timeout" } });
     vi.useRealTimers();
   }, 1000);
 
