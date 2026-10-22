@@ -13,6 +13,8 @@ import {
   collectionShowsSchema,
   type EpisodeData,
   episodeSchema,
+  type Genre,
+  genresSchema,
   type HiddenItem,
   type HistoryItem,
   hiddenSchema,
@@ -203,6 +205,13 @@ export function searchTrakt(
     query: { query },
     extended: ART,
   });
+}
+
+export function getGenres(
+  client: TraktClient,
+  type: "shows" | "movies",
+): Promise<TraktResult<Genre[]>> {
+  return readOne(client, "/genres/:type", genresSchema, `/genres/${type}`);
 }
 
 export function getTrendingShows(

@@ -172,6 +172,8 @@ export const trendingShowsSchema = list(
 );
 export const popularShowsSchema = list(showSchema);
 
+export const genresSchema = list(z.object({ name: str, slug: str }));
+
 export const trendingMoviesSchema = list(
   z.object({ watchers: nonEssential(num.nullable()), movie: movieSchema }),
 );
@@ -234,6 +236,7 @@ export type SearchResult = z.infer<typeof searchSchema>[number];
 export type ShowSummary = z.infer<typeof showSchema>;
 export type MovieSummary = z.infer<typeof movieSchema>;
 export type TrendingShow = z.infer<typeof trendingShowsSchema>[number];
+export type Genre = z.infer<typeof genresSchema>[number];
 export type TrendingMovie = z.infer<typeof trendingMoviesSchema>[number];
 export type HiddenItem = z.infer<typeof hiddenSchema>[number];
 export type UserSettings = z.infer<typeof userSettingsSchema>;

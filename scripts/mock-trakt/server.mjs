@@ -18,6 +18,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { touchProof } from "../simulator-touch.mjs";
 import { createFaults, FAULT_PROFILE_NAMES, faultResponse, faultsFromEnv } from "./faults.mjs";
+import { GENRES } from "./genres.mjs";
 import { createJournal } from "./journal.mjs";
 import {
   allEpisodes,
@@ -305,6 +306,8 @@ const ROUTES = [
         100,
       ),
   ],
+
+  ["GET", /^\/genres\/(?<type>shows|movies)$/, (ctx) => json(GENRES[ctx.params.type])],
 
   // ---- Shows
   [

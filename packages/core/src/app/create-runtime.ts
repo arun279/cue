@@ -15,6 +15,7 @@ import type { TraktPolicy } from "../data/trakt/policy";
 import {
   getCollectionMovies,
   getEpisode,
+  getGenres,
   getHidden,
   getHistory,
   getItemPlays,
@@ -376,6 +377,16 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
         popularMovies: assembleMovieHits(unwrapRead(popularMovies, "popular movies")),
       };
     },
+
+    loadGenreNames: () =>
+      Promise.all([getGenres(client, "shows"), getGenres(client, "movies")]).then(
+        ([shows, movies]) =>
+          Object.fromEntries(
+            [...unwrapRead(shows, "show genres"), ...unwrapRead(movies, "movie genres")].map(
+              (genre) => [genre.slug, genre.name],
+            ),
+          ),
+      ),
 
     async loadUserProfile(): Promise<UserProfile> {
       return assembleUserProfile(unwrapRead(await getUserSettings(client), "user settings"));

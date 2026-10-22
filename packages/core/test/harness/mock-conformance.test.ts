@@ -30,6 +30,7 @@ const SCHEMAS: Readonly<Record<string, z.ZodType>> = {
   "GET /sync/collection/movies": S.collectionMoviesSchema,
   "GET /calendars/my/shows/:start/:days": S.calendarSchema,
   "GET /search/:types": S.searchSchema,
+  "GET /genres/:type": S.genresSchema,
   "GET /shows/trending": S.trendingShowsSchema,
   "GET /shows/popular": S.popularShowsSchema,
   "GET /movies/trending": S.trendingMoviesSchema,
@@ -57,11 +58,6 @@ const KNOWN_DIFFERENCES: readonly {
     path: /\.images\.[a-z_]+\[\]$/,
     rule: "class",
     why: "artwork must load from the mock in a simulator, so image URLs point at the mock with a scheme",
-  },
-  {
-    path: /\.genres\[\]$/,
-    rule: "class",
-    why: "Trakt sends genre slugs such as science-fiction, and the app shows them as they come; the mock keeps display names until the app turns slugs into names",
   },
   {
     path: /^\.user\.(username|ids\.slug)$/,
@@ -258,6 +254,8 @@ const READS: readonly string[] = [
   ...MOVIES.flatMap((id) => [`/movies/${id}?${AF}`, `/movies/${id}/related?${AF}&limit=12`]),
   `/search/show,movie?${AF}&query=harbor`,
   `/search/show,movie?${AF}&query=zzzz`,
+  "/genres/movies",
+  "/genres/shows",
   `/users/me/history?${AF}&page=1&limit=30`,
   `/users/me/history?${AF}&page=2&limit=30`,
 ];
@@ -308,15 +306,43 @@ async function answersFor(seed: string): Promise<Map<string, Answer[]>> {
   return byEndpoint;
 }
 
+async function answersForSeeds(): Promise<Map<string, Answer[]>> {
+  const merged = new Map<string, Answer[]>();
+  for (const seed of ["default", "scale"]) {
+    for (const [endpoint, answers] of await answersFor(seed))
+      merged.set(endpoint, [...(merged.get(endpoint) ?? []), ...answers]);
+  }
+  return merged;
+}
+
 describe("the mock answers the app's reads the way real Trakt does", () => {
   it("sends only paths, types, string classes, statuses and headers Trakt sends, and covers its nulls and empties", async () => {
-    const merged = new Map<string, Answer[]>();
-    for (const seed of ["default", "scale"]) {
-      for (const [endpoint, answers] of await answersFor(seed))
-        merged.set(endpoint, [...(merged.get(endpoint) ?? []), ...answers]);
-    }
-    const problems = [...merged].flatMap(([endpoint, answers]) => compare(endpoint, answers));
+    const problems = [...(await answersForSeeds())].flatMap(([endpoint, answers]) =>
+      compare(endpoint, answers),
+    );
     expect(problems).toEqual([]);
+  });
+
+  it("tags shows and movies only with genres its genre list names for that type", async () => {
+    const listed = async (type: string): Promise<Set<string>> => {
+      const response = await fetch(`${baseUrl()}/genres/${type}`, { headers });
+      return new Set(((await response.json()) as { slug: string }[]).map(({ slug }) => slug));
+    };
+    const slugs = { show: await listed("shows"), movie: await listed("movies") };
+    const unlisted = [...(await answersForSeeds())].flatMap(([endpoint, answers]) => {
+      const summary: Summary = new Map();
+      for (const answer of answers) observe(summary, "", answer.body);
+      return [...summary]
+        .filter(([path]) => path.endsWith("genres[]"))
+        .flatMap(([path, seen]) => {
+          const kind = fieldOfKind(endpoint, path)?.split(":")[0];
+          const known = kind === "show" ? slugs.show : slugs.movie;
+          return [...seen.values]
+            .filter((slug) => !known.has(slug))
+            .map((slug) => `${endpoint} ${path} ${slug}`);
+        });
+    });
+    expect(unlisted).toEqual([]);
   });
 
   it("answers every read endpoint Trakt was recorded on", async () => {
