@@ -352,7 +352,7 @@ describe("fast pull request validation", () => {
     );
     expect(emulators[0]).not.toContain("force-avd-creation");
     expect(verification).toMatch(
-      /wm density reset\nbash scripts\/pin-android-display\.sh "\$output\/window-displays\.txt"\n\nmock_pid=/,
+      /wm density reset\nnode scripts\/pin-android-display\.mjs "\$output\/window-displays\.txt"\n\nmock_pid=/,
     );
   });
 
