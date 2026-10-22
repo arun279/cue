@@ -161,13 +161,13 @@ describe("Up Next", () => {
     view.unmount();
   });
 
-  it("draws every queued show as the same row, the head of the queue included", async () => {
+  it("draws every queued show as the same row, the most recently watched first", async () => {
     await paint();
 
     expect(rows().map((row) => row.props["testID"])).toEqual([
-      `queue-row-${FRONTIER}`,
-      `queue-row-${CARTOGRAPHY}`,
       `queue-row-${HARBOR}`,
+      `queue-row-${CARTOGRAPHY}`,
+      `queue-row-${FRONTIER}`,
     ]);
   });
 

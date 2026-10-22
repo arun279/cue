@@ -38,6 +38,27 @@ export interface SeasonView {
   readonly completedCount: number;
 }
 
+export type EpisodeMatch = (season: number, number: number, aired: boolean) => boolean;
+
+export function patchEpisodes(
+  seasons: readonly SeasonView[],
+  match: EpisodeMatch,
+  watched: boolean,
+): SeasonView[] {
+  return seasons.map((season) => {
+    let changed = false;
+    const episodes = season.episodes.map((episode) => {
+      if (match(season.number, episode.number, episode.aired) && episode.watched !== watched) {
+        changed = true;
+        return { ...episode, watched };
+      }
+      return episode;
+    });
+    if (!changed) return season;
+    return { ...season, episodes, completedCount: episodes.filter((e) => e.watched).length };
+  });
+}
+
 export function firstUnwatchedAired(seasons: readonly SeasonView[]): EpisodeView | null {
   for (const season of seasons) {
     if (season.isSpecial || season.isHidden) continue;

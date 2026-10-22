@@ -281,6 +281,21 @@ export function getHidden(client: TraktClient): Promise<TraktResult<HiddenItem[]
   return readAll(client, "/users/hidden/progress_watched", hiddenSchema);
 }
 
+export function getHistoryPlay(
+  client: TraktClient,
+  position: number,
+): Promise<TraktResult<HistoryItem[]>> {
+  return readOne(client, "/users/me/history", historySchema, undefined, {
+    extended: ART,
+    page: position,
+    limit: 1,
+  });
+}
+
+export function getDropped(client: TraktClient): Promise<TraktResult<HiddenItem[]>> {
+  return readAll(client, "/users/hidden/dropped", hiddenSchema);
+}
+
 export function getLastActivities(client: TraktClient): Promise<TraktResult<LastActivities>> {
   return readOne(client, "/sync/last_activities", lastActivitiesSchema);
 }

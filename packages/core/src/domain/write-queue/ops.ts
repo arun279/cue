@@ -4,8 +4,10 @@ import type { QueuedOp, RequestDescriptor } from "./types";
 
 const HISTORY = "/sync/history";
 const HISTORY_REMOVE = "/sync/history/remove";
-const HIDDEN = "/users/hidden/progress_watched";
-const HIDDEN_REMOVE = "/users/hidden/progress_watched/remove";
+const HIDDEN_LISTS = {
+  hidden: { path: "/users/hidden/progress_watched", target: "hidden/progress_watched" },
+  dropped: { path: "/users/hidden/dropped", target: "hidden/dropped" },
+} as const;
 const WATCHLIST = "/sync/watchlist";
 const WATCHLIST_REMOVE = "/sync/watchlist/remove";
 
@@ -139,30 +141,43 @@ export interface HideOpParams {
   readonly inversePatch?: unknown;
 }
 
-function hideOp(toState: "present" | "absent", params: HideOpParams): QueuedOp {
+function hideOp(
+  list: keyof typeof HIDDEN_LISTS,
+  toState: "present" | "absent",
+  params: HideOpParams,
+): QueuedOp {
+  const { path, target } = HIDDEN_LISTS[list];
   const body = { shows: [{ ids: params.ids }] };
-  const add = post(HIDDEN, body);
-  const remove = post(HIDDEN_REMOVE, body);
+  const add = post(path, body);
+  const remove = post(`${path}/remove`, body);
   const hiding = toState === "present";
   return {
     id: params.opId,
-    itemKey: `show:${params.ids.trakt}:hidden`,
+    itemKey: `show:${params.ids.trakt}:${list}`,
     request: hiding ? add : remove,
     inverse: hiding ? remove : add,
     inversePatch: params.inversePatch ?? null,
     watchedAt: null,
     fromState: hiding ? "absent" : "present",
     toState,
-    reconcileKeys: ["hidden/progress_watched"],
+    reconcileKeys: [target],
   };
 }
 
 export function buildHideShowOp(params: HideOpParams): QueuedOp {
-  return hideOp("present", params);
+  return hideOp("hidden", "present", params);
 }
 
-export function buildUnhideShowOp(params: HideOpParams): QueuedOp {
-  return hideOp("absent", params);
+export interface ResumeOpParams {
+  readonly newId: () => string;
+  readonly showId: number;
+  readonly ids: ShowIds;
+}
+
+export function buildResumeShowOps({ newId, showId, ids }: ResumeOpParams): QueuedOp[] {
+  return (["hidden", "dropped"] as const).map((list) =>
+    hideOp(list, "absent", { opId: newId(), ids, inversePatch: { kind: list, showId } }),
+  );
 }
 
 type WatchlistSection = "shows" | "movies";

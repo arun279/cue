@@ -9,6 +9,7 @@ export const queryKeys = {
   userSettings: () => ["users", "settings"] as const,
   history: (type: "all" | "tv" | "movies", scope = "recent") => ["history", type, scope] as const,
   historyPrefix: () => ["history"] as const,
+  firstPlay: () => ["history", "first-play"] as const,
   library: () => ["library"] as const,
   movieLibrary: () => ["movie-library"] as const,
   movieHeader: (movieId: number) => ["movie", "header", movieId] as const,

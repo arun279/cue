@@ -21,6 +21,7 @@ import {
   settleReversal,
   useMarkStore,
 } from "../stores/mark-store";
+import { forgetOwnMark, keepOwnMark, type OwnMark } from "../stores/own-marks";
 import {
   dismissSnack,
   type SnackMessage,
@@ -116,6 +117,7 @@ export function useMarkWatched(): MarkWatched {
 
   const restorePreMark = useCallback(
     (record: MarkRecord) => {
+      forgetOwnMark(record.showId);
       patch(record.showId, () => record.beforeMark);
       patchProgress(record.showId, { season: record.season, number: record.number }, false, null);
     },
@@ -124,6 +126,7 @@ export function useMarkWatched(): MarkWatched {
 
   const reapplyMark = useCallback(
     (record: MarkRecord) => {
+      keepOwnMark(record.showId, record);
       patch(record.showId, () => advancePastNext(record.beforeMark, record.watchedAt));
       patchProgress(
         record.showId,
@@ -136,8 +139,18 @@ export function useMarkWatched(): MarkWatched {
   );
 
   const revalidate = useCallback(
-    (showId: number, episode: { readonly season: number; readonly number: number }) => {
-      refreshShowProgress(queryClient, showId, () => runtime.loadShowProgress(showId), episode);
+    (
+      showId: number,
+      episode: { readonly season: number; readonly number: number },
+      ownMark?: OwnMark,
+    ) => {
+      refreshShowProgress(
+        queryClient,
+        showId,
+        () => runtime.loadShowProgress(showId),
+        episode,
+        ownMark,
+      );
       void queryClient.invalidateQueries({ queryKey: queryKeys.historyPrefix() });
     },
     [queryClient, runtime],
@@ -246,6 +259,7 @@ export function useMarkWatched(): MarkWatched {
   const settleMark = useCallback(
     (record: MarkRecord, outcome: SubmitOutcome) => {
       const replaced = outcome === "done" && replacedPlays(runtime.writeReceipt(record.opId)) > 0;
+      if (replaced) forgetOwnMark(record.showId);
       if ((!replaced && outcome !== "failed") || !retire(record)) return;
       if (replaced) {
         showReplaced(record, false);
@@ -313,7 +327,7 @@ export function useMarkWatched(): MarkWatched {
           onKept: () => resume.resumeIfStopped(entry.showId, { trakt: entry.showId }),
           revalidate: () => {
             if (isReversalRequested(opId)) return;
-            revalidate(entry.showId, { season: episode.season, number: episode.number });
+            revalidate(entry.showId, { season: episode.season, number: episode.number }, record);
           },
         });
       } finally {

@@ -9,6 +9,7 @@ function pool<Args extends unknown[], T>(
 }
 
 export const getHidden = pool(raw.getHidden);
+export const getDropped = pool(raw.getDropped);
 export const getWatchedMovies = pool(raw.getWatchedMovies);
 export const getItemPlays = pool(raw.getItemPlays);
 export const getShowProgress = pool(raw.getShowProgress);
@@ -29,4 +30,5 @@ export const getRelatedMovies = pool(raw.getRelatedMovies);
 export const getRelatedShows = pool(raw.getRelatedShows);
 export const getUserSettings = pool(raw.getUserSettings);
 export const getHistory = pool(raw.getHistory);
+export const getHistoryPlay = pool(raw.getHistoryPlay);
 export const getLastActivities = pool(raw.getLastActivities);

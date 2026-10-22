@@ -55,10 +55,11 @@ it("moves a stopped show with no history and restores both memberships on Undo",
   expect(submit.mock.calls.map(([op]) => op.request.path)).toEqual([
     "/sync/watchlist",
     "/users/hidden/progress_watched/remove",
+    "/users/hidden/dropped/remove",
   ]);
   await act(async () => useSnackbar.getState().snack?.actions?.[0]?.onPress());
   expect(client.getQueryData<UpNextData>(queryKeys.library())?.entries).toEqual([entry]);
-  expect(submit).toHaveBeenCalledTimes(4);
+  expect(submit).toHaveBeenCalledTimes(5);
 });
 
 it("rolls a failed move back without resuming the stopped show", async () => {

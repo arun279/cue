@@ -3,8 +3,15 @@ import { invalidateShowProgress } from "../data/query-invalidation";
 import { queryKeys } from "../data/query-keys";
 import type { EpisodeDetail } from "../data/trakt/episode-detail";
 import type { LibraryEntry } from "../data/trakt/library";
-import { type SeasonView, type ShowProgress, toEpisodeRef } from "../data/trakt/show-detail";
+import {
+  type EpisodeMatch,
+  patchEpisodes,
+  type SeasonView,
+  type ShowProgress,
+  toEpisodeRef,
+} from "../data/trakt/show-detail";
 import type { UpNextData } from "../runtime/runtime";
+import { forgetOwnMark, isBehindOwnMark, keepOwnMark, type OwnMark } from "../stores/own-marks";
 
 export function ensureLibraryEntry(qc: QueryClient, entry: LibraryEntry): void {
   qc.setQueryData<UpNextData>(queryKeys.library(), (old) =>
@@ -45,11 +52,16 @@ export function refreshShowProgress(
   showId: number,
   load: () => Promise<ShowProgress>,
   episode?: { readonly season: number; readonly number: number } | "all",
+  ownMark?: OwnMark,
 ): void {
+  if (ownMark === undefined) forgetOwnMark(showId);
+  else keepOwnMark(showId, ownMark);
   invalidateShowProgress(qc, showId, episode);
   void qc
     .fetchQuery({ queryKey: queryKeys.showProgress(showId), queryFn: load })
-    .then((progress) => patchLibraryProgress(qc, showId, progress))
+    .then((progress) => {
+      if (!isBehindOwnMark(showId, progress.completed)) patchLibraryProgress(qc, showId, progress);
+    })
     .catch(() => {});
 }
 
@@ -60,27 +72,6 @@ export function patchLibraryHidden(qc: QueryClient, showId: number, hidden: bool
 export function isLibraryHidden(qc: QueryClient, showId: number): boolean {
   const entries = qc.getQueryData<UpNextData>(queryKeys.library())?.entries;
   return entries?.find((e) => e.showId === showId)?.hidden ?? false;
-}
-
-export type EpisodeMatch = (season: number, number: number, aired: boolean) => boolean;
-
-function patchEpisodes(
-  seasons: readonly SeasonView[],
-  match: EpisodeMatch,
-  watched: boolean,
-): SeasonView[] {
-  return seasons.map((season) => {
-    let changed = false;
-    const episodes = season.episodes.map((episode) => {
-      if (match(season.number, episode.number, episode.aired) && episode.watched !== watched) {
-        changed = true;
-        return { ...episode, watched };
-      }
-      return episode;
-    });
-    if (!changed) return season;
-    return { ...season, episodes, completedCount: episodes.filter((e) => e.watched).length };
-  });
 }
 
 export function patchShowSeasons(

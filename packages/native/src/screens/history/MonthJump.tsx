@@ -1,4 +1,8 @@
+import { jumpMonths, jumpRange, jumpYears } from "@cue/core/domain/history";
+import { firstPlayQuery } from "@cue/core/queries/history";
+import { useRuntime } from "@cue/core/runtime/runtime";
 import { parseHistorySearch } from "@cue/core/url/search-params";
+import { useQuery } from "@tanstack/react-query";
 import {
   type NativeStackNavigationProp,
   Stack,
@@ -34,9 +38,10 @@ export function MonthJump(): ReactElement {
   const router = useRouter();
   const navigation = useNavigation<NativeStackNavigationProp<Record<string, undefined>>>();
   const scope = parseHistorySearch(useLocalSearchParams());
-  const currentYear = new Date().getFullYear();
-  const [year, setYear] = useState(scope.year ?? currentYear);
-  const years = Array.from({ length: currentYear - 2010 + 1 }, (_, i) => currentYear - i);
+  const firstPlay = useQuery(firstPlayQuery(useRuntime()));
+  const range = jumpRange(firstPlay.data ?? null, Date.now());
+  const [year, setYear] = useState(scope.year ?? range.last.year);
+  const years = jumpYears(range);
   if (scope.year !== undefined && !years.includes(scope.year)) years.push(scope.year);
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -100,13 +105,13 @@ export function MonthJump(): ReactElement {
         onPress={() => pick(year)}
       />
       <View style={styles.grid}>
-        {MONTHS.map((label, i) => (
-          <View key={label} style={[styles.cell, cell]}>
+        {jumpMonths(range, year).map((month) => (
+          <View key={month} style={[styles.cell, cell]}>
             <HistoryChoice
-              label={label}
-              selected={scope.year === year && scope.month === i + 1}
-              testID={TEST_IDS.historyJumpMonth(i + 1)}
-              onPress={() => pick(year, i + 1)}
+              label={MONTHS[month - 1] ?? ""}
+              selected={scope.year === year && scope.month === month}
+              testID={TEST_IDS.historyJumpMonth(month)}
+              onPress={() => pick(year, month)}
             />
           </View>
         ))}

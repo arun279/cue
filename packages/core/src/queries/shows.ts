@@ -2,6 +2,7 @@ import { queryOptions } from "@tanstack/react-query";
 import { queryKeys } from "../data/query-keys";
 import type { ShowInfo } from "../data/trakt/show-detail";
 import type { CueRuntime } from "../runtime/runtime";
+import { episodeWithOwnMark, seasonsWithOwnMark } from "../stores/own-marks";
 import { CONTENT_STALE_TIME_MS, USER_STATE_STALE_TIME } from "./freshness";
 
 export interface ShowArt {
@@ -42,7 +43,7 @@ export const showProgressQuery = (runtime: CueRuntime, showId: number) =>
 export const showSeasonsQuery = (runtime: CueRuntime, showId: number) =>
   queryOptions({
     queryKey: queryKeys.showSeasons(showId),
-    queryFn: () => runtime.loadShowSeasons(showId),
+    queryFn: async () => seasonsWithOwnMark(showId, await runtime.loadShowSeasons(showId)),
     staleTime: CONTENT_STALE_TIME_MS,
   });
 
@@ -54,7 +55,7 @@ export const episodeQuery = (
 ) =>
   queryOptions({
     queryKey: queryKeys.episode(showId, season, episode),
-    queryFn: () => runtime.loadEpisode(showId, season, episode),
+    queryFn: async () => episodeWithOwnMark(await runtime.loadEpisode(showId, season, episode)),
     staleTime: CONTENT_STALE_TIME_MS,
   });
 

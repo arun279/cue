@@ -17,6 +17,7 @@ const EVERY_TARGET: readonly InvalidationTarget[] = [
   "watchlist/shows",
   "watchlist/movies",
   "hidden/progress_watched",
+  "hidden/dropped",
   "recompute:buckets",
   "recompute:to-watch",
   "recompute:following",

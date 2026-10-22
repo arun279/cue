@@ -14,10 +14,12 @@ import { assembleMovieHeader, assembleMovieLibrary } from "../data/trakt/movie-l
 import type { TraktPolicy } from "../data/trakt/policy";
 import {
   getCollectionMovies,
+  getDropped,
   getEpisode,
   getGenres,
   getHidden,
   getHistory,
+  getHistoryPlay,
   getItemPlays,
   getMovie,
   getMyShowsCalendar,
@@ -64,6 +66,7 @@ import type {
   SubmitOutcome,
   UpNextData,
 } from "../runtime/runtime";
+import { resetOwnMarks } from "../stores/own-marks";
 import { useReadIncidents } from "../stores/read-incidents-store";
 import { PendingWritesError, type TeardownOptions } from "./session";
 import { createWriteReceipts } from "./write-receipts";
@@ -72,7 +75,7 @@ const ACTIVITIES_KEY = "cue.last-activities";
 
 type ReconcileContext =
   | { readonly kind?: "mark"; readonly showId: number; readonly preCompleted: number }
-  | { readonly kind: "hidden"; readonly showId: number }
+  | { readonly kind: "hidden" | "dropped"; readonly showId: number }
   | { readonly kind: "movie"; readonly movieId: number }
   | { readonly kind: "additive-episode"; readonly episodeTrakt: number }
   | {
@@ -103,9 +106,9 @@ const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
 async function reconcileHidden(
   client: TraktClient,
   op: QueuedOp,
-  context: Extract<ReconcileContext, { readonly kind: "hidden" }>,
+  context: Extract<ReconcileContext, { readonly kind: "hidden" | "dropped" }>,
 ): Promise<boolean> {
-  const hidden = await getHidden(client);
+  const hidden = await (context.kind === "hidden" ? getHidden : getDropped)(client);
   if (!hidden.ok) throw new Error("reconcile read failed");
   const isHidden = showIdSet(hidden.data).has(context.showId);
   return op.toState === "present" ? isHidden : !isHidden;
@@ -164,6 +167,7 @@ function createReconcile(client: TraktClient): (op: QueuedOp) => Promise<boolean
     if (context === null || typeof context !== "object") return false;
     switch (context.kind) {
       case "hidden":
+      case "dropped":
         return reconcileHidden(client, op, context);
       case "movie":
         return reconcileMovie(client, op, context);
@@ -341,6 +345,13 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       };
     },
 
+    async loadFirstPlayAt() {
+      const newest = await getHistoryPlay(client, 1);
+      const plays = (newest.ok && newest.pagination?.pageCount) || 1;
+      const oldest = plays > 1 ? await getHistoryPlay(client, plays) : newest;
+      return unwrapRead(oldest, "history")[0]?.watched_at ?? null;
+    },
+
     async loadShowPlays(showId) {
       const result = await getItemPlays(client, "shows", showId);
       return assembleEpisodePlays(unwrapRead(result, "show history"));
@@ -451,6 +462,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
         await incidentStore.clear();
         await receipts.clear();
         useReadIncidents.setState({ incidents: [] });
+        resetOwnMarks();
         await deps.clearPersistedCaches();
         deps.clearLocalPreferences();
       } finally {

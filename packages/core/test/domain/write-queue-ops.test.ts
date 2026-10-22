@@ -7,7 +7,7 @@ import {
   buildRemoveHistoryPlayOp,
   buildRemovePlaysOp,
   buildRemoveWatchlistOp,
-  buildUnhideShowOp,
+  buildResumeShowOps,
   buildUnmarkEpisodeOp,
   buildUnmarkMovieOp,
   episodeItemKey,
@@ -116,12 +116,43 @@ describe("single-item history op builders", () => {
     });
   });
 
-  it("un-hides a show by inverting the hidden request/inverse", () => {
-    const op = buildUnhideShowOp({ opId: "op-h2", ids: { trakt: 5 } });
-    expect(op.request.path).toBe("/users/hidden/progress_watched/remove");
-    expect(op.inverse.path).toBe("/users/hidden/progress_watched");
-    expect(op.toState).toBe("absent");
-    expect(op.fromState).toBe("present");
+  it("resumes a show by taking it off both the hidden and the dropped list", () => {
+    const ids = ["op-h2", "op-h3"];
+    const ops = buildResumeShowOps({
+      newId: () => ids.shift() ?? "",
+      showId: 5,
+      ids: { trakt: 5 },
+    });
+    expect(
+      ops.map(({ id, request, inverse, itemKey, fromState, toState, inversePatch }) => ({
+        id,
+        request: request.path,
+        inverse: inverse.path,
+        itemKey,
+        fromState,
+        toState,
+        inversePatch,
+      })),
+    ).toEqual([
+      {
+        id: "op-h2",
+        request: "/users/hidden/progress_watched/remove",
+        inverse: "/users/hidden/progress_watched",
+        itemKey: "show:5:hidden",
+        fromState: "present",
+        toState: "absent",
+        inversePatch: { kind: "hidden", showId: 5 },
+      },
+      {
+        id: "op-h3",
+        request: "/users/hidden/dropped/remove",
+        inverse: "/users/hidden/dropped",
+        itemKey: "show:5:dropped",
+        fromState: "present",
+        toState: "absent",
+        inversePatch: { kind: "dropped", showId: 5 },
+      },
+    ]);
   });
 
   it("carries the caller's inverse cache patch", () => {

@@ -16,7 +16,7 @@ describe("groupUpNext partitioning", () => {
       makeShow({ showId: 1, nextEpisode: airedRecent }),
       makeShow({ showId: 2, nextEpisode: airedOld, lastWatchedAt: iso(NOW - 30 * DAY) }),
       makeShow({ showId: 3, hidden: true }),
-      makeShow({ showId: 4, completed: 0 }),
+      makeShow({ showId: 4, completed: 0, lastWatchedAt: null }),
       makeShow({ showId: 5, nextEpisode: null }),
       makeShow({ showId: 6, completed: 10, aired: 10, status: "ended", nextEpisode: null }),
       makeShow({ showId: 7, nextEpisode: future }),
@@ -88,7 +88,7 @@ describe("groupUpNext partitioning", () => {
     const shows = [
       makeShow({ ...advancing, status: "ended", aired: 10, completed: 10 }),
       makeShow({ ...advancing, showId: 2, hidden: true }),
-      makeShow({ ...advancing, showId: 3, completed: 0 }),
+      makeShow({ ...advancing, showId: 3, completed: 0, lastWatchedAt: null }),
     ];
     expect(group(shows)).toEqual({ queue: [], lapsed: [] });
   });
@@ -119,7 +119,7 @@ describe("activeShowIds", () => {
       }),
       makeShow({ showId: 3, nextEpisode: airedOld, lastWatchedAt: iso(NOW - 30 * DAY) }),
       makeShow({ showId: 4, hidden: true }),
-      makeShow({ showId: 5, completed: 0 }),
+      makeShow({ showId: 5, completed: 0, lastWatchedAt: null }),
       makeShow({ showId: 6, completed: 10, status: "ended", nextEpisode: null }),
     ];
     expect([...activeShowIds(shows, NOW, THRESHOLD)]).toEqual([1, 2]);

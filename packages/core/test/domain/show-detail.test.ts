@@ -152,7 +152,7 @@ describe("episode copy", () => {
       season: 3,
       number: 6,
       aired: false,
-      firstAired: "2026-08-27T12:00:00Z",
+      firstAired: new Date(2026, 7, 27, 12).toISOString(),
       runtime: 58,
     };
     expect(sheetMetaLine(episode)).toBe("S3 E6 · 58 min");
@@ -162,7 +162,9 @@ describe("episode copy", () => {
   });
   it("keeps the watch-status grammar for each play count", () => {
     expect(episodeStatus(false, null, 0)).toBe("Not watched yet");
-    expect(episodeStatus(true, "2008-03-16T12:00:00Z", 1)).toBe("Watched Mar 16, 2008");
+    expect(episodeStatus(true, new Date(2008, 2, 16, 12).toISOString(), 1)).toBe(
+      "Watched Mar 16, 2008",
+    );
     expect(episodeStatus(true, null, 1)).toBe("Watched");
     expect(episodeStatus(true, null, 2)).toBe("Watched twice");
     expect(episodeStatus(true, null, 3)).toBe("Watched 3 times");

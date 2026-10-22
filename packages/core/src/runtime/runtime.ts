@@ -65,6 +65,7 @@ export interface CueRuntime {
     page: number,
     range?: HistoryRange,
   ): Promise<HistoryPageData>;
+  loadFirstPlayAt(): Promise<string | null>;
   loadShowPlays(showId: number): Promise<readonly EpisodePlay[]>;
   loadEpisodePlays(episodeId: number): Promise<readonly EpisodePlay[]>;
   loadMoviePlays(movieId: number): Promise<readonly MoviePlay[]>;
