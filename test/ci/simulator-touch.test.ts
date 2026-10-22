@@ -81,6 +81,92 @@ it.each([
   expect(decision).toEqual({ again: true, reason: expect.stringContaining("canceling paths") });
 });
 
+// Run 39817114898, native-e2e-ios-light (activity): Connect Trakt at (95, 534), as the proxy logged
+// it after the simulator cancelled the tap, inside the scroll view Maestro reported at [0,62][402,840].
+// The proxy kept no copy of the hierarchy from before the tap, so each case below changes one
+// attribute that a tap the app never received cannot have changed.
+const connectRead = {
+  frame: { Y: 512.3333435058594, Width: 142, X: 24, Height: 43.999969482421875 },
+  enabled: true,
+  title: "",
+  windowContextID: 3405124151,
+  identifier: "button-connect",
+  label: "Connect Trakt",
+  displayID: 1,
+  hasFocus: false,
+  elementType: 9,
+  verticalSizeClass: 2,
+  horizontalSizeClass: 1,
+  selected: false,
+};
+const onboarding = (button: Element) =>
+  screen({
+    label: "",
+    elementType: 46,
+    frame: { X: 0, Y: 62, Width: 402, Height: 778 },
+    children: [button],
+  });
+
+it.each([
+  ["frame", { frame: { ...connectRead.frame, Y: 512, Height: 44 } }],
+  ["hasFocus", { hasFocus: true }],
+  ["windowContextID", { windowContextID: 3405124150 }],
+  ["verticalSizeClass, horizontalSizeClass", { verticalSizeClass: 1, horizontalSizeClass: 2 }],
+])("taps Connect Trakt again when only its %s differs from before the cancelled tap", (changed, read) => {
+  const decision = tapAgain({
+    playback: playback("connect-cancelled.txt"),
+    before: onboarding({ ...connectRead, ...read }),
+    after: onboarding(connectRead),
+    point: { x: 95, y: 534 },
+  });
+
+  expect(decision).toEqual({
+    again: true,
+    reason: expect.stringContaining(`, ignoring changes to ${changed}`),
+  });
+  expect(decision.reason).toContain("canceling paths");
+});
+
+it("does not tap Connect Trakt again when it moved by a point or more", () => {
+  const moved = { ...connectRead, frame: { ...connectRead.frame, Y: 513.3333435058594 } };
+  const decision = tapAgain({
+    playback: playback("connect-cancelled.txt"),
+    before: onboarding(connectRead),
+    after: onboarding(moved),
+    point: { x: 95, y: 534 },
+  });
+
+  expect(decision.again).toBe(false);
+});
+
+it.each([
+  ["label", { label: "Connecting…" }],
+  ["enabled state", { enabled: false }],
+])("does not tap Connect Trakt again when its %s changed", (_, read) => {
+  const decision = tapAgain({
+    playback: playback("connect-cancelled.txt"),
+    before: onboarding(connectRead),
+    after: onboarding({ ...connectRead, ...read }),
+    point: { x: 95, y: 534 },
+  });
+
+  expect(decision.again).toBe(false);
+});
+
+it("names what it compared before and after when Connect Trakt acted on the tap", () => {
+  const decision = tapAgain({
+    playback: playback("connect-cancelled.txt"),
+    before: onboarding(connectRead),
+    after: onboarding({ ...connectRead, label: "Connecting…", enabled: false }),
+    point: { x: 95, y: 534 },
+  });
+
+  expect(decision.again).toBe(false);
+  expect(decision.reason).toMatch(
+    /^the elements under the tap changed from \[.*"label":"Connect Trakt".*\] to \[.*"label":"Connecting…","elementType":9,"enabled":false.*\]$/,
+  );
+});
+
 it("compares only the element under the tap, as other parts of the screen move on", () => {
   const synced = (label: string) => ({
     label,
