@@ -1,7 +1,7 @@
 import { createAuthStore } from "@cue/core/auth/create-auth-store";
 import { type AuthState, AuthStoreProvider } from "@cue/core/auth/store";
 import { HapticsProvider } from "@cue/core/ports/haptics";
-import { act, fireEvent, render, screen, userEvent, within } from "@testing-library/react-native";
+import { act, fireEvent, render, screen, within } from "@testing-library/react-native";
 import { setStringAsync } from "expo-clipboard";
 import { openBrowserAsync } from "expo-web-browser";
 import "./support/screen-mocks";
@@ -149,38 +149,4 @@ it("copies from the whole code card and confirms each tap for two seconds", asyn
   await act(() => jest.advanceTimersByTime(1000));
   expect(screen.getByText("Tap to copy")).toBeOnTheScreen();
   expect(screen.queryByText("Copied")).toBeNull();
-});
-
-it("traces each stage of a Connect press for the test harness", async () => {
-  jest.useFakeTimers({ now: 500_000 });
-  const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
-  const store = await paint();
-  const connect = screen.getByRole("button", { name: "Connect Trakt" });
-  const page = screen.getByText("Your shows. One tap ahead.");
-  const touch = () => ({ nativeEvent: { timestamp: Date.now() } });
-
-  expect(screen.getByTestId(HARNESS_IDS.pressTrace)).toHaveAccessibleName("shown");
-  await act(() => jest.advanceTimersByTime(22_000));
-  await fireEvent(page, "touchStart", touch());
-  await user.press(connect);
-  await fireEvent(page, "touchEnd", touch());
-
-  expect(store.getState().connectWithDeviceCode).toHaveBeenCalledTimes(1);
-  expect(screen.getByTestId(HARNESS_IDS.pressTrace)).toHaveProp(
-    "accessibilityLabel",
-    "shown; touch start +22000 ms native +0 ms; press in +22000 ms native +0 ms; " +
-      "press out +22130 ms native +130 ms; press +22130 ms; touch end +22130 ms native +130 ms",
-  );
-
-  await act(() => store.setState({ deviceCode }));
-  expect(screen.getByTestId("device-code-value")).toBeOnTheScreen();
-  expect(screen.getByTestId(HARNESS_IDS.pressTrace)).toHaveAccessibleName(/press \+22130 ms/);
-
-  await screen.unmount();
-  await paint();
-  await fireEvent(screen.getByText("Your shows. One tap ahead."), "touchStart", touch());
-  expect(screen.getByTestId(HARNESS_IDS.pressTrace)).toHaveProp(
-    "accessibilityLabel",
-    "shown; touch start +0 ms native +0 ms",
-  );
 });

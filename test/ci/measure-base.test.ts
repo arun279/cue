@@ -80,7 +80,7 @@ const measure = (native: boolean, { base = "head-print", found = false, head = "
   const output = path.join(root, "base-metrics.json");
   const result = spawnSync(
     path.join(scripts, "measure-base.sh"),
-    ["HEAD", path.join(root, "bundletool.jar"), headAndroid, output],
+    [repository, path.join(root, "bundletool.jar"), headAndroid, output],
     {
       cwd: repository,
       encoding: "utf8",

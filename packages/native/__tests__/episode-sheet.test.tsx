@@ -2,6 +2,7 @@ import "./support/detail-mocks";
 import { persistMediaVisibility } from "@cue/core/prefs/media-visibility";
 import { UNDO_WINDOW_MS } from "@cue/core/sync-contract";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react-native";
+import { Platform } from "react-native";
 import EpisodeRoute from "../app/show/[showId]/episode/[season]/[episode]";
 import { EpisodeBody, EpisodeSheet } from "../src/screens/EpisodeSheet";
 import { EpisodePager } from "../src/screens/episode-sheet/EpisodePager";
@@ -193,7 +194,10 @@ it("offers one menu for a watched episode beside its close button", async () => 
     </DetailHarness>,
   );
 
-  expect(await screen.findAllByText("Add another play")).toHaveLength(1);
+  await screen.findByTestId(TEST_IDS.episodeMarkControl);
+  if (Platform.OS === "android")
+    await fireEvent.press(screen.getByRole("button", { name: "More actions for Salt Air" }));
+  expect(screen.getAllByText("Add another play")).toHaveLength(1);
   await fireEvent.press(screen.getByRole("button", { name: "Close" }));
   expect(router.back).toHaveBeenCalledTimes(1);
 });

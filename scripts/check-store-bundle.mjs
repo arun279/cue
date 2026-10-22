@@ -5,7 +5,6 @@ const HARNESS = [
   "packages/native/src/ui/harness-ids.ts",
   "packages/native/src/ui/AppIdle.tsx",
   "packages/native/src/ui/perf-channel.ts",
-  "packages/native/src/ui/press-trace.ts",
   "packages/native/src/ui/snackbar-trace.ts",
   "packages/native/src/ui/snackbar-policy.harness.ts",
   "packages/native/src/shifted-date.ts",

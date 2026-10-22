@@ -10,3 +10,7 @@ appId: app.cuetracker
       platform: Android
     commands:
       - tapOn: "Navigate up"
+- extendedWaitUntil:
+    notVisible:
+      id: "screen-profile"
+    timeout: 10000

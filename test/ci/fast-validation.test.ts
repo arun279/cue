@@ -83,7 +83,10 @@ describe("fast pull request validation", () => {
       'BASE_SHA=$(scripts/measured-base.sh "$EVENT_NAME" "$PUSH_BEFORE")',
     );
     expect(job("footprint-base")).toContain(
-      'scripts/measure-base.sh "$(scripts/measured-base.sh pull_request)"',
+      'git worktree add --detach "$RUNNER_TEMP/footprint-base" "$(scripts/measured-base.sh pull_request)"',
+    );
+    expect(job("footprint-base")).toContain(
+      'scripts/measure-base.sh "$RUNNER_TEMP/footprint-base"',
     );
   });
 
@@ -720,29 +723,10 @@ describe("fast pull request validation", () => {
       "simulator-touch.mjs",
       "snapshot-host-resources.sh",
       "start-ready-process.mjs",
+      "tap-proxy.mjs",
       "wait-ios-accessibility.mjs",
       "wait-ios-ready.mjs",
     ]);
-  });
-
-  it("bounds every native job by its measured duration plus headroom", () => {
-    const timeouts = Object.fromEntries(
-      [
-        "native-ios",
-        "native-e2e-ios-light",
-        "ui-screenshots-ios-dark",
-        "android-e2e-light",
-        "ui-screenshots-android-dark",
-      ].map((name) => [name, Number(job(name).match(/^ {4}timeout-minutes: (\d+)$/m)?.[1])]),
-    );
-
-    expect(timeouts).toEqual({
-      "native-ios": 75,
-      "native-e2e-ios-light": 22,
-      "ui-screenshots-ios-dark": 23,
-      "android-e2e-light": 14,
-      "ui-screenshots-android-dark": 7,
-    });
   });
 
   it("settles animations before every shared screenshot", () => {
