@@ -46,7 +46,6 @@ import {
 import { assembleSeasons, assembleShowInfo, assembleShowProgress } from "../data/trakt/show-detail";
 import { createTraktTransport } from "../data/trakt/transport";
 import { assembleUserProfile, type UserProfile } from "../data/trakt/user-profile";
-import { genreNames } from "../domain/genres";
 import type { Token } from "../domain/model/token";
 import type { LastActivities } from "../domain/sync-activities";
 import { WriteQueue } from "../domain/write-queue/queue";
@@ -379,16 +378,15 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       };
     },
 
-    async loadGenreNames() {
-      const [shows, movies] = await Promise.all([
-        getGenres(client, "shows"),
-        getGenres(client, "movies"),
-      ]);
-      return genreNames([
-        ...unwrapRead(shows, "show genres"),
-        ...unwrapRead(movies, "movie genres"),
-      ]);
-    },
+    loadGenreNames: () =>
+      Promise.all([getGenres(client, "shows"), getGenres(client, "movies")]).then(
+        ([shows, movies]) =>
+          Object.fromEntries(
+            [...unwrapRead(shows, "show genres"), ...unwrapRead(movies, "movie genres")].map(
+              (genre) => [genre.slug, genre.name],
+            ),
+          ),
+      ),
 
     async loadUserProfile(): Promise<UserProfile> {
       return assembleUserProfile(unwrapRead(await getUserSettings(client), "user settings"));
