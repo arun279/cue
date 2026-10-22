@@ -30,7 +30,7 @@ const SLOWEST_MINUTES: Readonly<Record<string, number>> = {
   "mobile-release.yml: android": 27.7,
   "mobile-release.yml: promote": 0.2,
   "perf-probe.yml: request": 0.1,
-  "perf-probe.yml: android": 14.1,
+  "perf-probe.yml: android": 36.2,
   "perf-probe.yml: ios": 22.4,
   "publish-update.yml: gate": 0.1,
   "publish-update.yml: publish": 9.4,

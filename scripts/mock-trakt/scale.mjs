@@ -1,14 +1,16 @@
 /**
  * A synthetic account at the scale and shape of a long-time Trakt user, for the
- * performance probe: about 110 shows with plays, 100 of them in progress and more
- * than 50 idle long enough to sit under "Haven't watched lately", about 950 plays,
+ * performance probe: about 110 shows with plays, 100 of them in progress and all but a
+ * few idle long enough to sit under "Haven't watched lately", about 950 plays,
  * 340 watchlist titles and 150 collected ones, with long titles and titles Trakt
  * has no artwork for. Every title and number here is generated.
  */
 
 const IN_PROGRESS = 100;
 const FINISHED = 9;
-const LAPSED_EVERY = 2;
+/** Four shows in progress were watched lately; the rest went idle months ago, like an account that keeps few shows going. */
+const RECENT_EVERY = 25;
+const RECENT_AT = 1;
 const WATCHED_MOVIES = 60;
 /** Every tenth show in progress is thinly catalogued: no network, IMDb or TVDB id, or artwork, a new season starting in ten days with its last two episodes undated, and half its episodes missing their overview, still and ids. */
 const SPARSE_EVERY = 10;
@@ -20,15 +22,15 @@ const title = (kind, index) =>
   index % 7 === 3 ? `${LONG}, Part ${index}` : `${kind} ${String(index).padStart(3, "0")}`;
 
 /**
- * Shows with plays. Every other one has been idle for months, the rest were watched in the
- * last three weeks, and both groups sort after the default account's shows so the probe's
- * flows find the rows they tap at the top of each list.
+ * Shows with plays, all sorting after the default account's shows so the probe finds the
+ * rows it uses at the top of each list. Cue reads progress for the 60 most recently watched
+ * unfinished shows, so most of those 60 are idle ones and the lapsed section holds 50 or more.
  */
 export const SCALE_SHOWS = Array.from({ length: IN_PROGRESS + FINISHED }, (_, index) => {
   const finished = index >= IN_PROGRESS;
   const seasons = [10, 10, 8];
   const aired = seasons.reduce((sum, count) => sum + count, 0);
-  const lapsed = !finished && index % LAPSED_EVERY === 0;
+  const lapsed = !finished && index % RECENT_EVERY !== RECENT_AT;
   const sparse = !finished && index % SPARSE_EVERY === SPARSE_AT;
   return {
     trakt: 9000 + index,
