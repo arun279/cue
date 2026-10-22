@@ -91,5 +91,18 @@ appId: app.cuetracker
 - runFlow: lib/settle.yaml
 - assertVisible:
     id: "snackbar-undo"
+# Show detail's check names the marked episode for five seconds, and on iOS the
+# steps above can take longer than that, so the capture waits for the card to
+# move on to the next episode. The harness keeps the Undo snackbar up, so the
+# screen is the same on every run.
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - extendedWaitUntil:
+          visible:
+            id: "continue-mark"
+            text: "Mark .* watched"
+          timeout: 15000
 - waitForAnimationToEnd
 - takeScreenshot: up-next-mark-snackbar
