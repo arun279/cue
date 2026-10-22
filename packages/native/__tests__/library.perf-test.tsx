@@ -33,6 +33,14 @@ test("Library first mount", async () => {
     </PerfHarness>,
     {
       runs: 20,
+      // FlatList renders more cells after layout on a 50 ms timer. Held timers keep
+      // that render out of every run, not just the runs fast enough to beat it.
+      beforeEach: () => {
+        jest.useFakeTimers();
+      },
+      afterEach: () => {
+        jest.useRealTimers();
+      },
       scenario: async (screen) => {
         await fireEvent(screen.getByTestId(TEST_IDS.libraryGrid), "layout", {
           nativeEvent: { layout: { x: 0, y: 0, width: 390, height: 844 } },
