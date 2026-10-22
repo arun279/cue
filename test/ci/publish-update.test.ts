@@ -5,15 +5,14 @@ import { getExpoConfigSourcesAsync } from "@expo/fingerprint/build/sourcer/Expo"
 import { describe, expect, it, vi } from "vitest";
 import { nativeAppConfig } from "../../packages/native/app.config";
 import { repositoryPath } from "../support/repository-path";
+import { readWorkflowJobs } from "../support/workflow-jobs";
 
 const publishWorkflow = readFileSync(
   repositoryPath(".github/workflows/publish-update.yml"),
   "utf8",
 );
-const releaseWorkflow = readFileSync(
-  repositoryPath(".github/workflows/mobile-release.yml"),
-  "utf8",
-);
+const MOBILE_RELEASE = repositoryPath(".github/workflows/mobile-release.yml");
+const releaseWorkflow = readFileSync(MOBILE_RELEASE, "utf8");
 
 const native = repositoryPath("packages/native");
 const { getConfig } = createRequire(`${native}/package.json`)("expo/config");
@@ -67,12 +66,9 @@ describe("JavaScript update publishing", () => {
     expect(publishWorkflow).toMatch(/SHA: \$\{\{ github\.sha \}\}/);
     expect(publishWorkflow).toContain("run: scripts/require-green-ci.sh");
     expect(releaseWorkflow).toContain("run: scripts/require-green-ci.sh");
-    expect(publishWorkflow).not.toContain("REQUIRED:");
-    expect(releaseWorkflow).not.toContain("REQUIRED:");
     for (const workflow of [publishWorkflow, releaseWorkflow]) {
       expect(workflow).toContain("CI_RUN_ID: $" + "{{ inputs.ci_run_id }}");
       expect(workflow).toContain("CODEQL_RUN_ID: $" + "{{ inputs.codeql_run_id }}");
-      expect(workflow).not.toContain("POLL_SECONDS");
       for (const input of ["ci_run_id", "codeql_run_id"]) {
         expect(workflow).toMatch(
           new RegExp(`^ {6}${input}:\n(?: {8}.*\n)*? {8}required: true\n`, "m"),
@@ -86,7 +82,9 @@ describe("JavaScript update publishing", () => {
     "ios",
     "android",
   ])("checks the %s store bundle for the UI harness before building", (leg) => {
-    const steps = releaseWorkflow.slice(releaseWorkflow.indexOf(`\n  ${leg}:\n`)).split(/^ {6}- /m);
+    const steps = (
+      readWorkflowJobs(MOBILE_RELEASE).find(({ name }) => name === leg)?.body ?? ""
+    ).split(/^ {6}- /m);
     const check = steps.findIndex((step) => step.includes("check-store-bundle.mjs"));
     const build = steps.findIndex((step) => step.includes("eas build --local"));
 

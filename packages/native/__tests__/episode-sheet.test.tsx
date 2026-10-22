@@ -1,3 +1,4 @@
+import { memoryPreferenceStorage } from "../../core/test/support/stores";
 import "./support/detail-mocks";
 import { persistMediaVisibility } from "@cue/core/prefs/media-visibility";
 import { UNDO_WINDOW_MS } from "@cue/core/sync-contract";
@@ -10,7 +11,7 @@ import { EpisodeStill } from "../src/screens/episode-sheet/EpisodeStill";
 import { TEST_IDS } from "../src/ui/test-ids";
 import { DetailHarness, detail, detailRuntime } from "./support/detail";
 import { router } from "./support/native-ui";
-import { memoryPreferences, resetSharedStores } from "./support/up-next";
+import { resetSharedStores } from "./support/up-next";
 
 jest.mock("expo-router", () => ({
   ...require("./support/native-ui").expoRouterModule(),
@@ -170,7 +171,7 @@ it("pages to the next episode from the sheet when no snackbar covers the pager",
 });
 
 it("says TV shows are off inside the sheet, reads nothing and still closes", async () => {
-  const preferences = memoryPreferences();
+  const preferences = memoryPreferenceStorage();
   persistMediaVisibility(preferences, { showsEnabled: false, moviesEnabled: true });
   const runtime = { ...detailRuntime, loadEpisode: jest.fn() };
   await render(

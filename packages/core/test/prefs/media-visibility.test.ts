@@ -4,7 +4,7 @@ import {
   persistMediaVisibility,
   resolveMediaVisibility,
 } from "../../src/prefs/media-visibility";
-import { fakeStorage } from "./_storage";
+import { memoryPreferenceStorage } from "../support/stores";
 
 describe("resolveMediaVisibility", () => {
   it("keeps both media on by default", () => {
@@ -32,14 +32,14 @@ describe("resolveMediaVisibility", () => {
 
 describe("initialMediaVisibility", () => {
   it("defaults to both-on on a fresh device (no stored keys)", () => {
-    expect(initialMediaVisibility(fakeStorage())).toEqual({
+    expect(initialMediaVisibility(memoryPreferenceStorage())).toEqual({
       showsEnabled: true,
       moviesEnabled: true,
     });
   });
 
   it("reads a persisted single-medium choice back", () => {
-    const storage = fakeStorage();
+    const storage = memoryPreferenceStorage();
     persistMediaVisibility(storage, { showsEnabled: true, moviesEnabled: false });
     expect(initialMediaVisibility(storage)).toEqual({ showsEnabled: true, moviesEnabled: false });
 
@@ -50,12 +50,15 @@ describe("initialMediaVisibility", () => {
   it("reads a malformed value as off and an absent one as its default", () => {
     // Only "1" has ever meant on, so a present key is an answer however
     // malformed, while the absent movies key still reads as its default.
-    const storage = fakeStorage({ "cue.shows-enabled": "yes" });
+    const storage = memoryPreferenceStorage({ "cue.shows-enabled": "yes" });
     expect(initialMediaVisibility(storage)).toEqual({ showsEnabled: false, moviesEnabled: true });
   });
 
   it("heals a both-off store rather than boot empty", () => {
-    const storage = fakeStorage({ "cue.shows-enabled": "0", "cue.movies-enabled": "0" });
+    const storage = memoryPreferenceStorage({
+      "cue.shows-enabled": "0",
+      "cue.movies-enabled": "0",
+    });
     expect(initialMediaVisibility(storage)).toEqual({ showsEnabled: true, moviesEnabled: true });
   });
 });

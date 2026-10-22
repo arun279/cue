@@ -22,7 +22,7 @@ interface Step {
   readonly facts: Facts;
 }
 
-export type Transcript = Record<string, readonly Step[]>;
+type Transcript = Record<string, readonly Step[]>;
 
 type Json = Record<string, unknown>;
 

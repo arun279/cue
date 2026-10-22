@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { createPrefsStore } from "../../src/prefs/prefs-store";
 import { THRESHOLD_OPTIONS } from "../../src/prefs/threshold";
-import { fakeStorage } from "./_storage";
+import { memoryPreferenceStorage } from "../support/stores";
 
 describe("createPrefsStore defaults", () => {
   it("starts every preference at its principled default on a fresh device", () => {
-    const state = createPrefsStore(fakeStorage()).getState();
+    const state = createPrefsStore(memoryPreferenceStorage()).getState();
     expect(state.thresholdDays).toBe(21);
     expect(state.showsEnabled).toBe(true);
     expect(state.moviesEnabled).toBe(true);
@@ -21,7 +21,7 @@ describe("createPrefsStore defaults", () => {
 
   it("reads a stored choice back and coerces a malformed one", () => {
     const stored = createPrefsStore(
-      fakeStorage({
+      memoryPreferenceStorage({
         "cue.staleness-threshold-days": "42",
         "cue.haptics-enabled": "0",
         "cue.next-episode-order": "oldest-unwatched",
@@ -32,7 +32,7 @@ describe("createPrefsStore defaults", () => {
     expect(stored.nextEpisodeOrder).toBe("oldest-unwatched");
 
     const corrupt = createPrefsStore(
-      fakeStorage({
+      memoryPreferenceStorage({
         "cue.staleness-threshold-days": "17",
         "cue.next-episode-order": "by-vibes",
         "cue.lapsed-order": "",
@@ -45,18 +45,18 @@ describe("createPrefsStore defaults", () => {
 
   it("only accepts a threshold from the offered option set", () => {
     for (const days of THRESHOLD_OPTIONS) {
-      const storage = fakeStorage();
+      const storage = memoryPreferenceStorage();
       createPrefsStore(storage).getState().setThresholdDays(days);
       expect(createPrefsStore(storage).getState().thresholdDays).toBe(days);
     }
-    const storage = fakeStorage({ "cue.staleness-threshold-days": "35" });
+    const storage = memoryPreferenceStorage({ "cue.staleness-threshold-days": "35" });
     expect(createPrefsStore(storage).getState().thresholdDays).toBe(21);
   });
 });
 
 describe("the last-medium-on invariant", () => {
   it("refuses to turn off the last enabled medium, and does not persist the refusal", () => {
-    const storage = fakeStorage();
+    const storage = memoryPreferenceStorage();
     const store = createPrefsStore(storage);
     store.getState().setMoviesEnabled(false);
     expect(store.getState()).toMatchObject({ showsEnabled: true, moviesEnabled: false });
@@ -67,7 +67,7 @@ describe("the last-medium-on invariant", () => {
   });
 
   it("lets either medium come back on", () => {
-    const store = createPrefsStore(fakeStorage());
+    const store = createPrefsStore(memoryPreferenceStorage());
     store.getState().setShowsEnabled(false);
     expect(store.getState()).toMatchObject({ showsEnabled: false, moviesEnabled: true });
     store.getState().setShowsEnabled(true);
@@ -77,7 +77,7 @@ describe("the last-medium-on invariant", () => {
 
 describe("persistence", () => {
   it("writes every setter through, so a new store on the same storage restores it", () => {
-    const storage = fakeStorage();
+    const storage = memoryPreferenceStorage();
     const first = createPrefsStore(storage).getState();
     first.setHapticsEnabled(false);
     first.setRemindersEnabled(true);
@@ -100,5 +100,23 @@ describe("persistence", () => {
       lapsedOrder: "longest-idle",
       thresholdDays: 14,
     });
+  });
+});
+
+describe("theme", () => {
+  it.each(["system", "dark", "light"] as const)("persists and publishes the %s theme", (theme) => {
+    const storage = memoryPreferenceStorage();
+    const store = createPrefsStore(storage);
+    store.getState().setTheme(theme);
+    expect(store.getState().theme).toBe(theme);
+    expect(storage.getItem("cue.theme")).toBe(theme);
+    expect(createPrefsStore(storage).getState().theme).toBe(theme);
+  });
+
+  it("uses the system appearance for a missing or invalid stored theme", () => {
+    expect(createPrefsStore(memoryPreferenceStorage()).getState().theme).toBe("system");
+    expect(
+      createPrefsStore(memoryPreferenceStorage({ "cue.theme": "invalid" })).getState().theme,
+    ).toBe("system");
   });
 });

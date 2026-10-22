@@ -46,7 +46,6 @@ const project = {
   // this runner has no host for. Its own resolver picks the web implementation
   // instead, which is the shape a JS-only test can actually run.
   resolver: "react-native-worklets/jest/resolver",
-  moduleNameMapper: { "^vitest$": "<rootDir>/__tests__/support/vitest.ts" },
   transformIgnorePatterns: transformIgnorePatterns.map((pattern) =>
     pattern.replace("(?!(", "(?!(nanoid|"),
   ),

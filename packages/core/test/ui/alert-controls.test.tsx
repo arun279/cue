@@ -12,7 +12,7 @@ import { createPrefsStore, PrefsProvider } from "@cue/core/prefs/prefs-store";
 import { dismissSnack, snackText, useSnackbar } from "@cue/core/stores/snackbar-store";
 import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fakeStorage } from "../prefs/_storage";
+import { memoryPreferenceStorage } from "../support/stores";
 import { mountAsync } from "./_mount";
 
 afterEach(dismissSnack);
@@ -33,7 +33,10 @@ function os({ refused = false, granted = true } = {}): Reminders {
   };
 }
 
-async function mountCard(reminders: Reminders, storage: PreferenceStorage = fakeStorage()) {
+async function mountCard(
+  reminders: Reminders,
+  storage: PreferenceStorage = memoryPreferenceStorage(),
+) {
   const prefs = createPrefsStore(storage);
   let card: AlertsCard | null = null;
   function Probe(): null {
@@ -60,12 +63,12 @@ describe("useAlertsCard", () => {
     ["it was answered", os(), { "cue.alerts-card-answered": "1" }],
     ["the OS has been refused", os({ refused: true }), {}],
   ])("stays away once %s", async (_, reminders, seed) => {
-    expect((await mountCard(reminders, fakeStorage(seed))).card()).toBeNull();
+    expect((await mountCard(reminders, memoryPreferenceStorage(seed))).card()).toBeNull();
   });
 
   it("goes for good on Not now, without asking the OS", async () => {
     const reminders = os();
-    const storage = fakeStorage();
+    const storage = memoryPreferenceStorage();
     const { card } = await mountCard(reminders, storage);
 
     act(() => card()?.dismiss());
@@ -91,7 +94,7 @@ describe("useAlertsCard", () => {
 
 describe("useAlertsMute", () => {
   it("mutes a show with an Undo, and lifts the mute without one", async () => {
-    const prefs = createPrefsStore(fakeStorage());
+    const prefs = createPrefsStore(memoryPreferenceStorage());
     let mute: AlertsMute | null = null;
     function Probe(): null {
       mute = useAlertsMute(8801, "Harbor Lights");
