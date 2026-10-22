@@ -31,11 +31,6 @@ interface MenuBase {
   readonly testID?: string;
 }
 
-/**
- * An element child is the trigger of a tap menu; without one the trigger is the platform's more
- * icon. A function child makes a list item's menu: iOS opens it by long press on the item,
- * Android passes the more icon for the item to place, with the id the item's own element keeps.
- */
 export type RowMenuProps = MenuBase &
   (
     | { readonly children?: ReactElement; readonly item?: undefined }
@@ -159,12 +154,8 @@ export function itemActions(
   };
 }
 
-/**
- * The system context menu on iOS: a UIKit interaction that expo-router's link attaches to the
- * item, rather than a SwiftUI host per row (expo/expo#47883, expo/expo#49528). The item keeps its
- * own press. A link with a menu drops its trigger from the accessibility tree (expo/expo#46875),
- * so this wrapper is the item's accessible element.
- */
+// A link with a menu drops its trigger from the accessibility tree (expo/expo#46875), so this
+// wrapper is the item's accessible element; the item keeps its own press.
 function LinkMenu({
   title,
   items,
