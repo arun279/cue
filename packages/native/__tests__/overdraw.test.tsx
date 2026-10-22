@@ -3,7 +3,7 @@ import { router, ThemeProvider } from "expo-router";
 import { renderRouter } from "expo-router/testing-library";
 import * as SystemUI from "expo-system-ui";
 import type { ReactElement } from "react";
-import { Platform, processColor, StyleSheet } from "react-native";
+import { type ColorValue, Platform, processColor, StyleSheet } from "react-native";
 import { RootStack } from "../src/RootStack";
 import { useNavigationTheme } from "../src/ui/navigation-theme";
 import { PALETTE } from "../src/ui/tokens";
@@ -73,8 +73,8 @@ async function paintTabs(): Promise<void> {
 
 type Drawn = ReturnType<typeof screen.getByTestId>;
 
-const opaque = (color: unknown): boolean => {
-  const packed = processColor(color as Parameters<typeof processColor>[0]);
+const opaque = (color: ColorValue | undefined): boolean => {
+  const packed = processColor(color);
   return typeof packed === "number" && packed >>> 24 === 255;
 };
 
