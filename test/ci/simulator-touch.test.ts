@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, it } from "vitest";
-import { elementAt, tapAgain, tapProxyHealth } from "../../scripts/simulator-touch.mjs";
+import { elementsAt, tapAgain, tapProxyHealth } from "../../scripts/simulator-touch.mjs";
 import { repositoryPath } from "../support/repository-path";
 
 const playback = (name: string) =>
@@ -138,12 +138,87 @@ it.each([
   expect(tapAgain({ playback: playback(log), before, after, point }).again).toBe(false);
 });
 
-it("finds the topmost, deepest element under a point", () => {
-  expect(elementAt(screen(signOut, alert), { x: 201, y: 404 })).toMatchObject({
-    label: alert.label,
+it("lists the elements under a point, leaving out the full-screen containers", () => {
+  expect(elementsAt(screen(signOut, alert), { x: 201, y: 404 })).toEqual([signOut, alert]);
+  expect(elementsAt(screen(signOut), { x: 201, y: 404 })).toEqual([signOut]);
+  expect(elementsAt(screen(signOut), { x: 5, y: 5 })).toEqual([]);
+});
+
+// The runner's own hierarchy of Up Next on the CI simulator (iOS 26.4), read from
+// the same build as run 39778200836, where the Up Next tab tap at (74, 822) came
+// down 1.3 s after its touchscreen was cancelled (tab-late.txt).
+type Node = Record<string, unknown> & { children?: Node[] };
+const upNext = (): Node =>
+  JSON.parse(
+    readFileSync(repositoryPath("test/ci/fixtures/simulator-touch/up-next-hierarchy.json"), "utf8"),
+  ).axElement;
+const tab = { x: 74, y: 822 };
+/** The same hierarchy with the Up Next tab not yet selected, as it was on Library. */
+const onLibrary = () => {
+  const tree = upNext();
+  const unselect = (node: Node): void => {
+    if (node["label"] === "Up Next" && node["elementType"] === 9) node["selected"] = false;
+    for (const child of node.children ?? []) unselect(child);
+  };
+  unselect(tree);
+  return tree;
+};
+
+it("finds the Up Next tab under a tab bar tap, past the full-screen containers beside it", () => {
+  const labels = elementsAt(upNext(), tab).map(
+    ({ label, elementType }) => `${elementType} ${label}`,
+  );
+
+  expect(labels).toContain("22 Tab Bar");
+  expect(labels).toContain("9 Up Next");
+  expect(
+    elementsAt(upNext(), tab).every(({ frame }) => (frame as { Height: number }).Height < 874),
+  ).toBe(true);
+});
+
+it("taps a tab bar tab again when its touch was dropped and the tab did not change", () => {
+  const decision = tapAgain({
+    playback: playback("tab-late.txt"),
+    before: onLibrary(),
+    after: onLibrary(),
+    point: tab,
   });
-  expect(elementAt(screen(signOut), { x: 201, y: 404 })).toEqual(signOut);
-  expect(elementAt(screen(signOut), { x: 5, y: 5 })).toMatchObject({ label: "" });
+
+  expect(decision).toEqual({
+    again: true,
+    reason: expect.stringContaining("touch down without previous range event"),
+  });
+});
+
+it("does not tap a tab again that became selected although its touch came late", () => {
+  const decision = tapAgain({
+    playback: playback("tab-late.txt"),
+    before: onLibrary(),
+    after: upNext(),
+    point: tab,
+  });
+
+  expect(decision.again).toBe(false);
+});
+
+it("does not tap again when only full-screen containers are under the tap", () => {
+  const bare = (): Node => ({
+    frame: { X: 0, Y: 0, Width: 0, Height: 0 },
+    children: [
+      {
+        elementType: 2,
+        frame: { X: 0, Y: 0, Width: 402, Height: 874 },
+        children: [{ frame: { X: 0, Y: 0, Width: 402, Height: 874 } }],
+      },
+    ],
+  });
+
+  expect(
+    tapAgain({ playback: playback("tab-late.txt"), before: bare(), after: bare(), point: tab }),
+  ).toEqual({
+    again: false,
+    reason: "only full-screen containers under the tap",
+  });
 });
 
 const checked = (waitMs: number) => ({ x: 349, y: 84, status: 200, waitMs });

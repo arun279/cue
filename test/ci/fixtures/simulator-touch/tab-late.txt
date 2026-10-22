@@ -1,0 +1,5 @@
+2026-10-22 12:38:12.358770+0000  localhost testmanagerd[4685]: [com.apple.dt.xctest:Default] Recap event action playback initiated
+2026-10-22 12:38:12.591414+0000  localhost testmanagerd[4685]: (Recap) [com.apple.recap:Playback] service canceled: (<RCPVirtualHIDService: 0x105a180a0> (recapulon) 0x0D/0x04: (Recap) touchscreen digitizer)
+2026-10-22 12:38:12.692404+0000  localhost testmanagerd[4685]: [com.apple.dt.xctest:Default] Recap event action playback completed
+2026-10-22 12:38:13.681294+0000  localhost backboardd[1324]: [com.apple.BackBoard:TouchEvents] touch down without previous range event: 2
+2026-10-22 12:38:13.693441+0000  localhost backboardd[1324]: (BackBoardHIDEventFoundation) [com.apple.BackBoard:HID] purge sender info for senderID:1017050000042 -- BKIOHIDService

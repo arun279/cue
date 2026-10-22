@@ -38,21 +38,38 @@ export function droppedTouches(lines) {
 const contains = ({ X, Y, Width, Height }, { x, y }) =>
   x >= X && x <= X + Width && y >= Y && y <= Y + Height;
 
-/** The topmost, deepest element of a runner view hierarchy that holds the point. */
-export function elementAt(element, point) {
-  for (const child of [...(element.children ?? [])].reverse()) {
-    if (child.frame !== undefined && contains(child.frame, point)) return elementAt(child, point);
-  }
-  const { children: _, ...attributes } = element;
-  return attributes;
+const covers = (frame, screen) =>
+  frame.X <= screen.X &&
+  frame.Y <= screen.Y &&
+  frame.X + frame.Width >= screen.X + screen.Width &&
+  frame.Y + frame.Height >= screen.Y + screen.Height;
+
+/**
+ * Every element of a runner view hierarchy that holds the point, outermost
+ * first, leaving out the containers that fill the whole screen. A tab bar
+ * button sits beside full-screen siblings that also hold the point, so the
+ * topmost branch alone would name a full-screen container instead of the tab.
+ */
+export function elementsAt(tree, point) {
+  const screen = tree.children?.find(({ elementType }) => elementType === 2)?.frame ?? tree.frame;
+  const found = [];
+  const visit = (element) => {
+    if (element.frame === undefined || !contains(element.frame, point)) return;
+    const { children = [], ...attributes } = element;
+    if (!covers(element.frame, screen)) found.push(attributes);
+    for (const child of children) visit(child);
+  };
+  for (const child of tree.children ?? []) visit(child);
+  return found;
 }
 
 /**
  * Whether to play a tap again: only when the simulator log for that tap's
- * playback shows backboardd cancelling a contact that was still down, and the
- * element under the tap is unchanged, with the same bounds, label and value. A
- * switch that toggled on the cancel changed its own value, so it is not tapped
- * twice.
+ * playback shows it was dropped, and every element under the tap short of the
+ * full-screen containers is unchanged, with the same bounds, label, value and
+ * selection. A switch that toggled on the cancel changed its own value, and a
+ * tab that switched changed its selection, so neither is tapped twice. With no
+ * such element under the tap there is nothing to check, so no second tap.
  */
 export function tapAgain({ playback, before, after, point }) {
   const [cancel] = droppedTouches(playback);
@@ -60,11 +77,16 @@ export function tapAgain({ playback, before, after, point }) {
   if (before === undefined || after === undefined) {
     return { again: false, reason: "no hierarchy from before and after the tap" };
   }
-  const [was, is] = [elementAt(before, point), elementAt(after, point)];
+  const [was, is] = [elementsAt(before, point), elementsAt(after, point)];
+  if (was.length === 0)
+    return { again: false, reason: "only full-screen containers under the tap" };
   if (JSON.stringify(was) !== JSON.stringify(is)) {
-    return { again: false, reason: `the element under the tap changed: ${JSON.stringify(is)}` };
+    return {
+      again: false,
+      reason: `the elements under the tap changed: ${JSON.stringify(is.at(-1))}`,
+    };
   }
-  return { again: true, reason: `${cancel.trim()} under ${JSON.stringify(was)}` };
+  return { again: true, reason: `${cancel.trim()} under ${JSON.stringify(was.at(-1))}` };
 }
 
 export const tapRecordsFile = () =>
