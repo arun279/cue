@@ -384,9 +384,8 @@ function unsettledScrollTaps(commands: Command[]): string[] {
   return commands.flatMap((command, index) => {
     const id = targetOf(command, "tapOn");
     if (typeof id !== "string" || !SETTINGS_CONTROL.test(id)) return [];
-    const before = same(commands[index - 1], TOUCH_WINDOW) ? index - 2 : index - 1;
-    const settled = same(commands[before], SETTLE_SCROLL);
-    const scroll = commands[settled ? before - 1 : before];
+    const settled = JSON.stringify(commands[index - 1]) === JSON.stringify(SETTLE_SCROLL);
+    const scroll = commands[settled ? index - 2 : index - 1];
     if (targetOf(scroll, "scrollUntilVisible") !== id) return [];
     const centred =
       (scroll?.["scrollUntilVisible"] as { centerElement?: unknown }).centerElement === true;
@@ -394,57 +393,42 @@ function unsettledScrollTaps(commands: Command[]): string[] {
   });
 }
 
-const MEDIA_SWITCHES: Readonly<Record<string, string>> = {
-  "switch-movies": "switch-shows",
-  "switch-shows": "switch-movies",
-};
-
-const TOUCH_WINDOW = { runScript: "lib/touch-window.js" };
-const TOUCH_PROOF = { runScript: "lib/touch-proof.js" };
-const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
-
-/** A media switch's own value flips natively at the touch; the other switch's enabled state is
- * drawn by the app from the preference, so it is the proof the change landed before the flow
- * leaves the screen. Between the two, the tap is retried only on the simulator's proof that it
- * dropped it. */
-function unconfirmedMediaTaps(commands: Command[]): string[] {
-  // A list of the tap alone is the proven re-tap nested under its own check.
-  if (commands.length === 1) return [];
-  return commands.flatMap((command, index) => {
-    const id = targetOf(command, "tapOn");
-    const other = typeof id === "string" ? MEDIA_SWITCHES[id] : undefined;
-    if (other === undefined) return [];
-    const end = commands.findIndex((later, at) => at > index && "assertVisible" in later);
-    const between = commands.slice(index + 1, end);
-    const wait = commands[end]?.["assertVisible"] as
-      | { id?: unknown; enabled?: unknown }
-      | undefined;
-    const proven =
-      same(commands[index - 1], TOUCH_WINDOW) &&
-      between.some((step) => same(step, TOUCH_PROOF)) &&
-      between.some((step) =>
-        JSON.stringify(step["runFlow"] ?? null).includes(`"tapOn":{"id":"${id}"}`),
-      );
-    return proven && wait?.id === other && typeof wait.enabled === "boolean" ? [] : [String(id)];
-  });
-}
-
-it("waits for the app to apply every media switch before leaving Settings", () => {
+it("centres every Settings control it scrolls to and waits for the scroll to settle before tapping it", () => {
   const taps = yamlFiles(flowsDirectory).flatMap((file) =>
     parseAllDocuments(readFileSync(file, "utf8"))
       .flatMap((document) => commandLists(document.toJS()))
-      .flatMap(unconfirmedMediaTaps)
+      .flatMap(unsettledScrollTaps)
       .map((id) => `${relative(flowsDirectory, file)}: ${id}`),
   );
 
   expect(taps).toEqual([]);
 });
 
-it("centres every Settings control it scrolls to and waits for the scroll to settle before tapping it", () => {
+const MEDIA_SWITCHES: Readonly<Record<string, string>> = {
+  [TEST_IDS.settingsMovies]: TEST_IDS.settingsShows,
+  [TEST_IDS.settingsShows]: TEST_IDS.settingsMovies,
+};
+
+/** A tapped switch's own value flips natively at the touch, while the other media switch is
+ * enabled or disabled by the app from the preference, so only the other one proves the change
+ * landed before the flow moves on. */
+function unconfirmedMediaTaps(commands: Command[]): string[] {
+  return commands.flatMap((command, index) => {
+    const id = targetOf(command, "tapOn");
+    const other = typeof id === "string" ? MEDIA_SWITCHES[id] : undefined;
+    if (other === undefined) return [];
+    const wait = commands[index + 1]?.["assertVisible"] as
+      | { id?: unknown; enabled?: unknown }
+      | undefined;
+    return wait?.id === other && typeof wait.enabled === "boolean" ? [] : [String(id)];
+  });
+}
+
+it("waits for the app to apply every media switch tap before the next step", () => {
   const taps = yamlFiles(flowsDirectory).flatMap((file) =>
     parseAllDocuments(readFileSync(file, "utf8"))
       .flatMap((document) => commandLists(document.toJS()))
-      .flatMap(unsettledScrollTaps)
+      .flatMap(unconfirmedMediaTaps)
       .map((id) => `${relative(flowsDirectory, file)}: ${id}`),
   );
 
@@ -465,7 +449,7 @@ it("waits for onboarding readiness, taps again only on proof the simulator dropp
     { evalScript: `\${console.log('CUE_PRESS_TRACE=' + maestro.copiedText)}` },
     { runScript: "touch-proof.js" },
     { evalScript: `\${console.log('CUE_TOUCH_PROOF=' + output.touchProof)}` },
-    { runFlow: { when: { true: `\${output.tapAgain}` }, commands: [tap] } },
+    { runFlow: { when: { true: `\${output.tapConnectAgain}` }, commands: [tap] } },
     {
       extendedWaitUntil: {
         visible: { id: HARNESS_IDS.pressTrace, text: ".*; press [+].*" },

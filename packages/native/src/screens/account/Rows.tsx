@@ -1,8 +1,8 @@
 import type { ReactElement, ReactNode } from "react";
-import { ScrollView, StyleSheet, Switch, View } from "react-native";
+import { Platform, ScrollView, StyleSheet, Switch, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Chevron } from "../../ui/Chevron";
-import { tracePress, useScrollAcknowledgment } from "../../ui/harness";
+import { useScrollAcknowledgment } from "../../ui/harness";
 import { Row, Separator } from "../../ui/Row";
 import { RowMenu } from "../../ui/RowMenu";
 import { ROW_MIN_HEIGHT, SPACE, useColors } from "../../ui/tokens";
@@ -124,26 +124,16 @@ export function Toggle({
       {...row}
       testID={undefined}
       trailing={
-        <View
-          onTouchStart={(event) => tracePress("touch start", event)}
-          onTouchEnd={(event) => tracePress("touch end", event)}
-          onTouchCancel={(event) => tracePress("touch cancel", event)}
-        >
-          <Switch
-            accessible
-            testID={row.testID}
-            accessibilityRole="switch"
-            accessibilityLabel={row.title}
-            accessibilityHint={row.hint}
-            accessibilityState={{ disabled, checked: value }}
-            value={value}
-            disabled={disabled}
-            onValueChange={(next) => {
-              tracePress("press");
-              onChange(next);
-            }}
-          />
-        </View>
+        <Switch
+          testID={row.testID}
+          // React Native's iOS switch role replaces UISwitch's own traits, dropping "dimmed".
+          accessibilityRole={Platform.select({ ios: "none" })}
+          accessibilityLabel={row.title}
+          accessibilityHint={row.hint}
+          value={value}
+          disabled={disabled}
+          onValueChange={onChange}
+        />
       }
     />
   );

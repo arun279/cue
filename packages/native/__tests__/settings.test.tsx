@@ -14,7 +14,6 @@ import { CueHaptics } from "../modules/cue-native/src";
 import { createNativeHaptics } from "../src/platform/haptics";
 import { EpisodeStill } from "../src/screens/episode-sheet/EpisodeStill";
 import Settings from "../src/screens/Settings";
-import { HARNESS_IDS } from "../src/ui/harness-ids";
 import { TEST_IDS } from "../src/ui/test-ids";
 import { accountFixture } from "./support/account";
 import { agesAgo, airing, entry } from "./support/up-next";
@@ -28,6 +27,34 @@ afterEach(() => {
   jest.useRealTimers();
   jest.restoreAllMocks();
 });
+
+/** Testing Library recognizes only iOS's host switch, and iOS takes the switch role from UISwitch
+ * rather than from a prop, so a Settings switch is found by the name a screen reader reads and the
+ * native value it holds. */
+const VALUE = Platform.OS === "ios" ? "value" : "on";
+
+function switchNamed(name: string) {
+  const [control, ...others] = screen
+    .getAllByLabelText(name)
+    .filter((element) => typeof element.props[VALUE] === "boolean");
+  if (control === undefined || others.length > 0) throw new Error(`Not one switch named ${name}`);
+  return control;
+}
+
+const isOn = (name: string): boolean => switchNamed(name).props[VALUE];
+
+/** iOS announces a disabled UISwitch as dimmed only while React Native's Switch sets neither a
+ * role nor a disabled state over UIKit's own traits; Android reads the disabled state that
+ * Switch.js derives from `disabled`. */
+function expectDisabled(name: string): void {
+  const control = switchNamed(name);
+  if (Platform.OS !== "ios") {
+    expect(control).toBeDisabled();
+    return;
+  }
+  expect(control.props).toMatchObject({ disabled: true, accessibilityRole: "none" });
+  expect(control.props["accessibilityState"]?.disabled).toBeUndefined();
+}
 
 function SpoilerPreview() {
   const guarded = usePrefs((state) => state.hideStillsUntilWatched);
@@ -48,12 +75,8 @@ it("applies haptics and spoiler preferences to their consumers without a reload"
   expect(screen.getByTestId(TEST_IDS.episodeStillBlur)).toBeVisible();
   haptics.success();
   expect(CueHaptics.success).toHaveBeenCalledTimes(1);
-  await fireEvent(screen.getByRole("switch", { name: "Haptics" }), "valueChange", false);
-  await fireEvent(
-    screen.getByRole("switch", { name: "Hide episode stills until watched" }),
-    "valueChange",
-    false,
-  );
+  await fireEvent(switchNamed("Haptics"), "valueChange", false);
+  await fireEvent(switchNamed("Hide episode stills until watched"), "valueChange", false);
   haptics.success();
   expect(CueHaptics.success).toHaveBeenCalledTimes(1);
   expect(screen.queryByTestId(TEST_IDS.episodeStillBlur)).toBeNull();
@@ -78,18 +101,17 @@ it("turns alerts on only once the OS allows notifications, and off without askin
       <Settings />
     </RemindersProvider>,
   );
-  const toggle = () => screen.getByRole("switch", { name: "New episodes" });
 
-  await fireEvent(toggle(), "valueChange", true);
+  await fireEvent(switchNamed("New episodes"), "valueChange", true);
   expect(reminders.requestPermission).toHaveBeenCalledTimes(1);
-  expect(toggle()).not.toBeChecked();
+  expect(isOn("New episodes")).toBe(false);
 
   await act(async () => allow(true));
-  expect(toggle()).toBeChecked();
+  expect(isOn("New episodes")).toBe(true);
   expect(createPrefsStore(fixture.storage).getState().remindersEnabled).toBe(true);
 
-  await fireEvent(toggle(), "valueChange", false);
-  expect(toggle()).not.toBeChecked();
+  await fireEvent(switchNamed("New episodes"), "valueChange", false);
+  expect(isOn("New episodes")).toBe(false);
   expect(reminders.requestPermission).toHaveBeenCalledTimes(1);
 });
 
@@ -101,9 +123,9 @@ it("leaves alerts off and says where to change it when the OS refuses", async ()
     </RemindersProvider>,
   );
 
-  await fireEvent(screen.getByRole("switch", { name: "New episodes" }), "valueChange", true);
+  await fireEvent(switchNamed("New episodes"), "valueChange", true);
 
-  expect(screen.getByRole("switch", { name: "New episodes" })).not.toBeChecked();
+  expect(isOn("New episodes")).toBe(false);
   expect(createPrefsStore(fixture.storage).getState().remindersEnabled).toBe(false);
   expect(
     screen.getByText("Notifications are off for Cue. Turn them on in your phone's settings."),
@@ -122,31 +144,27 @@ it("turns New episodes on from the Calendar's card once the OS allows them", asy
   );
   const card = () => screen.queryByRole("header", { name: "Alerts for new episodes" });
   expect(await screen.findByRole("header", { name: "Alerts for new episodes" })).toBeVisible();
-  expect(screen.getByRole("switch", { name: "New episodes" })).not.toBeChecked();
+  expect(isOn("New episodes")).toBe(false);
 
   await userEvent.press(screen.getByRole("button", { name: "Turn on alerts" }));
 
-  expect(screen.getByRole("switch", { name: "New episodes" })).toBeChecked();
+  expect(isOn("New episodes")).toBe(true);
   expect(card()).toBeNull();
 });
 
 it("offers the daily summary only while alerts are on", async () => {
   const fixture = accountFixture();
   await fixture.paint(<Settings />);
-  const summary = () => screen.queryByRole("switch", { name: "Daily summary instead" });
+  const summary = () => screen.queryByLabelText("Daily summary instead");
   expect(summary()).toBeNull();
 
-  await fireEvent(screen.getByRole("switch", { name: "New episodes" }), "valueChange", true);
-  expect(summary()).not.toBeChecked();
+  await fireEvent(switchNamed("New episodes"), "valueChange", true);
+  expect(isOn("Daily summary instead")).toBe(false);
 
-  await fireEvent(
-    screen.getByRole("switch", { name: "Daily summary instead" }),
-    "valueChange",
-    true,
-  );
+  await fireEvent(switchNamed("Daily summary instead"), "valueChange", true);
   expect(createPrefsStore(fixture.storage).getState().dailySummary).toBe(true);
 
-  await fireEvent(screen.getByRole("switch", { name: "New episodes" }), "valueChange", false);
+  await fireEvent(switchNamed("New episodes"), "valueChange", false);
   expect(summary()).toBeNull();
 });
 
@@ -160,7 +178,7 @@ const Library = (
 it("starts with accessible controls and the strong defaults", async () => {
   await accountFixture().paint(<Settings />);
   for (const name of ["Haptics", "Hide episode stills until watched", "TV shows", "Movies"]) {
-    expect(screen.getByRole("switch", { name })).toBeChecked();
+    expect(isOn(name)).toBe(true);
   }
   expect(screen.getByRole("tab", { name: "System" })).toBeSelected();
   expect(
@@ -172,7 +190,7 @@ it("starts with accessible controls and the strong defaults", async () => {
   expect(
     screen.getByRole("button", { name: "Haven't watched in a while after, 3 weeks" }),
   ).toBeVisible();
-  expect(screen.getByRole("switch", { name: "New episodes" })).not.toBeChecked();
+  expect(isOn("New episodes")).toBe(false);
 });
 
 it("lists the sections in the order of the screen", async () => {
@@ -197,16 +215,16 @@ it("persists each toggle and immediately removes the disabled medium from Librar
     </>,
   );
   expect(screen.getByRole("tab", { name: "Movies" })).toBeVisible();
-  await fireEvent(screen.getByRole("switch", { name: "Movies" }), "valueChange", false);
+  await fireEvent(switchNamed("Movies"), "valueChange", false);
   expect(screen.queryByRole("tab", { name: "Movies" })).toBeNull();
-  expect(screen.getByRole("switch", { name: "TV shows" })).toBeDisabled();
-  await fireEvent(screen.getByRole("switch", { name: "TV shows" }), "valueChange", false);
+  expectDisabled("TV shows");
+  await fireEvent(switchNamed("TV shows"), "valueChange", false);
   expect(fixture.prefs.getState().showsEnabled).toBe(true);
-  await fireEvent(screen.getByRole("switch", { name: "Movies" }), "valueChange", true);
-  await fireEvent(screen.getByRole("switch", { name: "TV shows" }), "valueChange", false);
-  expect(screen.getByRole("switch", { name: "Movies" })).toBeDisabled();
+  await fireEvent(switchNamed("Movies"), "valueChange", true);
+  await fireEvent(switchNamed("TV shows"), "valueChange", false);
+  expectDisabled("Movies");
   for (const name of ["Haptics", "Hide episode stills until watched"])
-    await fireEvent(screen.getByRole("switch", { name }), "valueChange", false);
+    await fireEvent(switchNamed(name), "valueChange", false);
   expect(createPrefsStore(fixture.storage).getState()).toMatchObject({
     showsEnabled: false,
     moviesEnabled: true,
@@ -369,21 +387,4 @@ it("lists the last Trakt failure per endpoint under About and copies them as a r
   ]);
   expect(await screen.findByText("Report copied.")).toBeVisible();
   await act(() => useReadIncidents.setState({ incidents: [] }));
-});
-
-it("traces a media switch's touch and the change it makes, for the device flows' tap proof", async () => {
-  await accountFixture().paint(<Settings />);
-  const movies = screen.getByRole("switch", { name: "Movies" });
-  const trace = () =>
-    screen.getByTestId(HARNESS_IDS.pressTrace, { includeHiddenElements: true }).props[
-      "accessibilityLabel"
-    ];
-
-  await fireEvent(movies, "touchStart", { nativeEvent: { timestamp: 0 } });
-  await fireEvent(movies, "touchCancel", { nativeEvent: { timestamp: 1 } });
-  expect(trace()).toMatch(/^shown; touch start .*; touch cancel /);
-  expect(trace()).not.toContain("press");
-
-  await fireEvent(movies, "valueChange", false);
-  expect(trace()).toMatch(/; press \+/);
 });

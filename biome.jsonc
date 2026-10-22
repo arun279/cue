@@ -77,6 +77,33 @@
           }
         }
       }
+    },
+    {
+      // React Native's iOS Switch replaces UISwitch's own accessibility traits, so a disabled
+      // switch is not announced as dimmed. Toggle is the one Switch, and it works around that.
+      "includes": ["**", "!packages/native/src/screens/account/Rows.tsx"],
+      "plugins": ["./biome/switch-outside-toggle.grit"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "react-native": {
+                    "importNames": ["Switch"],
+                    "message": "Use Toggle from screens/account/Rows, which keeps a disabled switch announced as dimmed on iOS."
+                  },
+                  "react-native-gesture-handler": {
+                    "importNames": ["Switch"],
+                    "message": "Use Toggle from screens/account/Rows, which keeps a disabled switch announced as dimmed on iOS."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   ],
   "plugins": ["./biome/effect-query-writes.grit"],

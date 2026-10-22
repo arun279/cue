@@ -87,20 +87,8 @@ appId: app.cuetracker
       id: "switch-shows"
     centerElement: true
 - runFlow: lib/settle-scroll.yaml
-- runScript: lib/touch-window.js
 - tapOn:
     id: "switch-shows"
-- copyTextFrom:
-    id: "press-trace"
-- evalScript: ${console.log('CUE_PRESS_TRACE=' + maestro.copiedText)}
-- runScript: lib/touch-proof.js
-- evalScript: ${console.log('CUE_TOUCH_PROOF=' + output.touchProof)}
-- runFlow:
-    when:
-      true: ${output.tapAgain}
-    commands:
-      - tapOn:
-          id: "switch-shows"
 - assertVisible:
     id: "switch-movies"
     enabled: false
@@ -119,20 +107,8 @@ appId: app.cuetracker
       id: "switch-shows"
     centerElement: true
 - runFlow: lib/settle-scroll.yaml
-- runScript: lib/touch-window.js
 - tapOn:
     id: "switch-shows"
-- copyTextFrom:
-    id: "press-trace"
-- evalScript: ${console.log('CUE_PRESS_TRACE=' + maestro.copiedText)}
-- runScript: lib/touch-proof.js
-- evalScript: ${console.log('CUE_TOUCH_PROOF=' + output.touchProof)}
-- runFlow:
-    when:
-      true: ${output.tapAgain}
-    commands:
-      - tapOn:
-          id: "switch-shows"
 - assertVisible:
     id: "switch-movies"
     enabled: true

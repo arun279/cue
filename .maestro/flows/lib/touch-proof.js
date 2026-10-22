@@ -4,4 +4,4 @@ const response = http.post("http://127.0.0.1:8787/__touch-proof", {
 });
 const verdict = response.ok ? json(response.body) : { tapAgain: false, reason: "no answer" };
 output.touchProof = JSON.stringify(verdict);
-output.tapAgain = verdict.tapAgain === true;
+output.tapConnectAgain = verdict.tapAgain === true;
