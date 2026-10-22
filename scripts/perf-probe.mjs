@@ -6,8 +6,10 @@
 // in, before this starts, and must not be running.
 // Both platforms record every interaction's screen and time it the same way: from the command
 // to the content region's first change and to its last, and a scroll by the gaps between the
-// frames the recorder captured. A measurement that comes back empty fails the run, naming the
-// platform, pass and segment, because no visible change means the probe missed it. Android
+// frames the recorder captured. A change that has not reached the content by the end of the
+// window is recorded as censored (">2500"), which ranks above every measured value. A
+// measurement that comes back empty, with nothing changed at all, fails the run, naming the
+// platform, pass and segment, because that means the probe missed it. Android
 // adds what the platform keeps: frame statistics per segment (dumpsys gfxinfo), the views and
 // Compose hosts on screen after a tab switch (dumpsys activity top), memory (dumpsys meminfo),
 // overdraw, and cold start (am start -W) as adb installed the app, verified the way a Play
@@ -31,6 +33,7 @@ const FRAME_MS = 1000 / 60;
 const PAUSE_MS = 250;
 const BUFFER = { maxBuffer: 64 * 1024 * 1024 };
 const CONTENT = "iw:ih*0.72:0:ih*0.1";
+const WHOLE = "iw:ih:0:0";
 const CHANGE_THRESHOLD = 0.005;
 
 const number = (pattern, text) => {
@@ -52,26 +55,31 @@ function frameRows(text) {
 }
 
 /**
- * The slowest of the first three frames since the reset, and the slowest layout among them.
+ * The slowest of the first three frames since the reset.
  * Unknown when the platform has already dropped them from its 120-frame window. Only frames
  * hwui marks as skipped, whose timestamps are garbage, are left out; a frame that follows a
  * window change is slow by nature, and it is the frame a user waits on.
  */
-function firstFrames(rows, rendered) {
+function firstFrames(rows, rendered, histogram) {
   const first = rows
     .filter((frame) => (frame.Flags & SKIPPED_FRAME) === 0)
     .sort((a, b) => a.IntendedVsync - b.IntendedVsync)
     .slice(0, 3);
-  if (first.length === 0 || rendered > rows.length)
-    return { firstFramesMs: null, firstLayoutMs: null };
-  return {
-    firstFramesMs: nsToMs(
-      Math.max(...first.map((frame) => frame.FrameCompleted - frame.IntendedVsync)),
-    ),
-    firstLayoutMs: nsToMs(
-      Math.max(...first.map((frame) => frame.DrawStart - frame.PerformTraversalsStart)),
-    ),
-  };
+  if (first.length > 0 && rendered <= rows.length)
+    return nsToMs(Math.max(...first.map((frame) => frame.FrameCompleted - frame.IntendedVsync)));
+  return rendered > 0 && rendered <= 3 ? slowestBucket(histogram) : null;
+}
+
+/**
+ * The slowest bucket the summary's histogram counted a frame in. hwui reuses a skipped
+ * frame's slot for the next frame, so after a reset that next frame is counted in the summary
+ * but missing from the frame list; with three frames or fewer, every frame is a first frame.
+ */
+function slowestBucket(histogram) {
+  const counted = [...histogram.matchAll(/(\d+)ms=(\d+)/g)]
+    .filter(([, , count]) => Number(count) > 0)
+    .map(([, bucket]) => Number(bucket));
+  return counted.length === 0 ? null : Math.max(...counted);
 }
 
 /** The summary and the first frames from `dumpsys gfxinfo <package> framestats`. */
@@ -86,7 +94,11 @@ export function frameStats(text) {
     slowUiThread: number(/Number Slow UI thread: (\d+)/, text),
     slowBitmapUploads: number(/Number Slow bitmap uploads: (\d+)/, text),
     slowDrawCommands: number(/Number Slow issue draw commands: (\d+)/, text),
-    ...firstFrames(frameRows(text), frames ?? 0),
+    firstFramesMs: firstFrames(
+      frameRows(text),
+      frames ?? 0,
+      /HISTOGRAM:(.*)/.exec(text)?.[1] ?? "",
+    ),
   };
 }
 
@@ -143,14 +155,23 @@ export function overdrawShares(rgb) {
 const ms = (seconds) => Math.round(seconds * 1000);
 
 /**
- * From the command to the first change in the content region and to the last, both null when
- * nothing changed after it. Times are seconds into the recording; the recorder's first frame
- * is the moment it started.
+ * From the command to the first change in the content region and to the last. When the screen
+ * changed elsewhere (the tab bar, say) but the content had not by the end of the window, both
+ * are censored as ">window"; when nothing changed at all, both are null. Times are seconds into
+ * the recording; the recorder's first frame is the moment it started.
+ * @param {number[]} changes
+ * @param {number} commandAt
+ * @param {{ anywhere?: number[], windowEnd?: number }} [around]
  */
-export function changeTimes(changes, commandAt) {
+export function changeTimes(changes, commandAt, { anywhere = [], windowEnd } = {}) {
   const after = changes.filter((at) => at >= commandAt);
-  if (after.length === 0) return { responseMs: null, doneMs: null };
-  return { responseMs: ms(after[0] - commandAt), doneMs: ms(after.at(-1) - commandAt) };
+  if (after.length > 0)
+    return { responseMs: ms(after[0] - commandAt), doneMs: ms(after.at(-1) - commandAt) };
+  if (windowEnd !== undefined && anywhere.some((at) => at >= commandAt)) {
+    const censored = `>${ms(windowEnd - commandAt)}`;
+    return { responseMs: censored, doneMs: censored };
+  }
+  return { responseMs: null, doneMs: null };
 }
 
 /** The measurements a sample asked for that came back empty. */
@@ -186,15 +207,31 @@ export function hitches(frameTimes) {
   };
 }
 
+/** A censored value, ">2400", ranks above every measured one. */
+const rank = (value) => (typeof value === "string" ? Number.POSITIVE_INFINITY : value);
+
 const median = (values) => {
-  const sorted = values.filter((value) => value !== null).sort((a, b) => a - b);
+  const sorted = values.filter((value) => value !== null).sort((a, b) => rank(a) - rank(b));
   return sorted.length === 0 ? null : sorted[Math.floor((sorted.length - 1) / 2)];
 };
 
 const spread = (values) => {
-  const known = values.filter((value) => value !== null);
-  return known.length === 0 ? "none" : `${Math.min(...known)} to ${Math.max(...known)}`;
+  const known = values.filter((value) => value !== null).sort((a, b) => rank(a) - rank(b));
+  return known.length === 0 ? "none" : `${known[0]} to ${known.at(-1)}`;
 };
+
+/**
+ * change ÷ base, as a bound when one side is censored.
+ * @param {number | string | null} before
+ * @param {number | string | null} after
+ */
+export function ratio(before, after) {
+  if (before === null || after === null || before === 0) return "n/a";
+  if (typeof before === "string" && typeof after === "string") return "n/a";
+  if (typeof before === "string") return `<${(after / Number(before.slice(1))).toFixed(2)}`;
+  if (typeof after === "string") return `>${(Number(after.slice(1)) / before).toFixed(2)}`;
+  return (after / before).toFixed(2);
+}
 
 /** One line per segment: each quantity's median over runs and the range it came from. */
 const labelOf = (sample) => [sample.app, sample.segment].filter(Boolean).join(" ");
@@ -230,9 +267,8 @@ export function comparison(platform, samples) {
     );
     return fields.map((field) => {
       const [before, after] = [median(valuesOf(base, field)), median(valuesOf(change, field))];
-      const ratio =
-        before === null || after === null || before === 0 ? "n/a" : (after / before).toFixed(2);
-      return `${platform} ${segment} ${field}: base ${before} (${spread(valuesOf(base, field))}), change ${after} (${spread(valuesOf(change, field))}), change/base ${ratio}`;
+      const proportion = ratio(before, after);
+      return `${platform} ${segment} ${field}: base ${before} (${spread(valuesOf(base, field))}), change ${after} (${spread(valuesOf(change, field))}), change/base ${proportion}`;
     });
   });
 }
@@ -266,9 +302,13 @@ async function frameTimes(video) {
   return stdout.split("\n").filter(Boolean).map(Number);
 }
 
-async function analyse(video, segment, commandAt) {
+async function analyse(video, segment, commandAt, windowEnd) {
   if (segment.startsWith("scroll ")) return hitches(await frameTimes(video));
-  return changeTimes(await sceneChanges(video, CONTENT, CHANGE_THRESHOLD), commandAt);
+  const [content, anywhere] = await Promise.all([
+    sceneChanges(video, CONTENT, CHANGE_THRESHOLD),
+    sceneChanges(video, WHOLE, CHANGE_THRESHOLD),
+  ]);
+  return changeTimes(content, commandAt, { anywhere, windowEnd });
 }
 
 const startedWhen = (child, stream, marker) =>
@@ -590,12 +630,13 @@ async function measure(probe, channel, directory, runIndex, step, app) {
   await command(channel, step.command);
   const commandAt = (started - recordingAt) / 1000;
   await pause(step.windowMs ?? WINDOW_MS);
+  const windowEnd = (Date.now() - recordingAt) / 1000;
   await probe.recorder.stop();
   const wallMs = Date.now() - started;
   const frames = await probe.frames(video.replace(/\.mp4$/, "-gfxinfo.txt"));
   const census = step.segment.startsWith("tab ") ? await probe.census() : {};
   return {
-    analysis: analyse(video, step.segment, commandAt).then((measured) => {
+    analysis: analyse(video, step.segment, commandAt, windowEnd).then((measured) => {
       if (runIndex > 1) rmSync(video, { force: true });
       return { run: runIndex, segment: step.segment, wallMs, ...measured, ...frames, ...census };
     }),

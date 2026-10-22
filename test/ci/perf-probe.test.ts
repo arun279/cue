@@ -24,6 +24,7 @@ import {
   missing,
   overdrawShares,
   PASS,
+  ratio,
   simulatorRss,
   summary,
   viewCensus,
@@ -89,7 +90,6 @@ it("reads the frame summary dumpsys gfxinfo prints for the app", () => {
     slowBitmapUploads: 0,
     slowDrawCommands: 5,
     firstFramesMs: null,
-    firstLayoutMs: null,
   });
 });
 
@@ -97,7 +97,7 @@ it("reports a missing gfxinfo field as unknown rather than zero", () => {
   expect(frameStats("No process found for: app.cuetracker").frames).toBeNull();
 });
 
-it("takes the slowest of the first three frames after a reset and its layout, leaving out skipped frames", () => {
+it("takes the slowest of the first three frames after a reset, leaving out skipped frames", () => {
   const rows = [
     frame(0, 1032, 1, 9),
     frame(0, 1000, 2, 12),
@@ -106,20 +106,18 @@ it("takes the slowest of the first three frames after a reset and its layout, le
     frame(0, 1048, 40, 80),
   ];
 
-  expect(frameStats(framestats(5, rows))).toMatchObject({ firstFramesMs: 48.5, firstLayoutMs: 18 });
+  expect(frameStats(framestats(5, rows))).toMatchObject({ firstFramesMs: 48.5 });
 });
 
 it("counts the single frame that follows a window change, as when the lapsed section closes", () => {
   expect(frameStats(framestats(1, [frame(1, 1000, 3, 21.7)]))).toMatchObject({
     firstFramesMs: 21.7,
-    firstLayoutMs: 3,
   });
 });
 
 it("leaves the first frames unknown once the 120-frame window has dropped them", () => {
   expect(frameStats(framestats(121, [frame(0, 1000, 2, 12)]))).toMatchObject({
     firstFramesMs: null,
-    firstLayoutMs: null,
   });
 });
 
@@ -523,4 +521,45 @@ it("waits on a count read asynchronously, such as the frames the Android UI has 
     clock,
   );
   expect(clock.now()).toBeGreaterThanOrEqual(700);
+});
+
+it("reads a frame the summary counted but the frame list lost from the summary's histogram", () => {
+  const lost = framestats(1, []).replace(
+    "HISTOGRAM: 5ms=60 6ms=20",
+    "HISTOGRAM: 5ms=0 6ms=0 101ms=1 150ms=0",
+  );
+
+  expect(frameStats(lost)).toMatchObject({ frames: 1, firstFramesMs: 101 });
+  expect(frameStats(framestats(4, []).replace("5ms=60 6ms=20", "5ms=4"))).toMatchObject({
+    firstFramesMs: null,
+  });
+});
+
+it("censors a change that had not reached the content by the end of the window", () => {
+  expect(changeTimes([], 0.3, { anywhere: [0.55, 1.07], windowEnd: 2.8 })).toEqual({
+    responseMs: ">2500",
+    doneMs: ">2500",
+  });
+  expect(changeTimes([], 0.3, { anywhere: [0.1], windowEnd: 2.8 })).toEqual({
+    responseMs: null,
+    doneMs: null,
+  });
+});
+
+it("ranks censored values above measured ones and bounds the ratio", () => {
+  const samples = [
+    { run: 1, app: "base", segment: "tab up-next>library", responseMs: ">2500" },
+    { run: 2, app: "base", segment: "tab up-next>library", responseMs: 900 },
+    { run: 3, app: "base", segment: "tab up-next>library", responseMs: ">2400" },
+    { run: 1, app: "change", segment: "tab up-next>library", responseMs: 750 },
+    { run: 2, app: "change", segment: "tab up-next>library", responseMs: 700 },
+    { run: 3, app: "change", segment: "tab up-next>library", responseMs: 800 },
+  ];
+
+  expect(comparison("ios", samples)).toEqual([
+    "ios tab up-next>library responseMs: base >2500 (900 to >2400), change 750 (700 to 800), change/base <0.30",
+  ]);
+  expect(emptyMeasurements("ios", samples)).toEqual([]);
+  expect(ratio(500, ">2000")).toBe(">4.00");
+  expect(ratio(">1", ">2")).toBe("n/a");
 });
