@@ -16,6 +16,7 @@ const budget = (files: Record<string, string>) => {
   execFileSync("git", ["add", "."], { cwd: root, env: gitEnv() });
   return spawnSync(process.execPath, [repositoryPath("scripts/check-quality-budget.mjs"), root], {
     encoding: "utf8",
+    env: gitEnv(),
   });
 };
 
