@@ -46,6 +46,7 @@ jobs:
       actions: read
       contents: read
       pull-requests: read
+    timeout-minutes: 5
     runs-on: ubuntu-latest
     outputs:
       devices: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft && steps.head-tree.outputs.pushed != 'true' }}
@@ -138,6 +139,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
+    timeout-minutes: 12
     runs-on: ubuntu-latest
     outputs:
       js-bundles: ${{ steps.js-bundles.outputs.artifact-id }}
@@ -179,6 +181,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
+    timeout-minutes: 7
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -222,6 +225,7 @@ jobs:
           retention-days: 7
   audit:
     if: ${{ !inputs.copy }}
+    timeout-minutes: 11
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -235,6 +239,7 @@ jobs:
         run: scripts/audit-dependencies.sh "$EVENT_NAME" "$PUSH_BEFORE"
   actionlint:
     if: ${{ !inputs.copy }}
+    timeout-minutes: 5
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -250,6 +255,7 @@ jobs:
       actions: read
       contents: read
     needs: native-android
+    timeout-minutes: 7
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -300,6 +306,7 @@ jobs:
       contents: read
       pull-requests: write
     needs: [check, native-android, footprint-base]
+    timeout-minutes: 5
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -602,6 +609,7 @@ jobs:
       - native-e2e-ios-light
       - ui-screenshots-ios-dark
     if: ${{ always() }}
+    timeout-minutes: 5
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -732,6 +740,7 @@ jobs:
     permissions:
       actions: read
       contents: read
+    timeout-minutes: 5
     runs-on: ubuntu-latest
     outputs:
       fingerprint: ${{ steps.fingerprint.outputs.android }}
@@ -915,6 +924,7 @@ jobs:
       contents: read
     needs: [fingerprint, android-e2e-light, ui-screenshots-android-dark]
     if: ${{ always() }}
+    timeout-minutes: 5
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
