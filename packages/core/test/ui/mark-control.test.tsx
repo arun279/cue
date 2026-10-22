@@ -64,6 +64,7 @@ function heldRuntime(): CueRuntime {
     },
     pendingOps: () => [...queued],
     inFlightOpId: () => null,
+    writeReceipt: () => null,
   } as unknown as CueRuntime;
 }
 

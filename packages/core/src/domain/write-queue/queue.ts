@@ -9,6 +9,7 @@ export interface WriteQueueDeps {
   readonly sleep: (ms: number) => Promise<void>;
   readonly now: () => number;
   readonly reconcile: (op: QueuedOp) => Promise<boolean>;
+  readonly settle: (op: QueuedOp, result: DispatchResult) => boolean;
 }
 
 interface OpFailure {
@@ -94,6 +95,18 @@ export class WriteQueue {
     return { completed, failed };
   }
 
+  private async settled(op: QueuedOp, result: DispatchResult): Promise<Outcome> {
+    return this.deps.settle(op, result) ? "done" : this.reconciled(op);
+  }
+
+  private async reconciled(op: QueuedOp): Promise<Outcome> {
+    try {
+      return (await this.deps.reconcile(op)) ? "done" : "failed";
+    } catch {
+      return "failed";
+    }
+  }
+
   private async deliver(op: QueuedOp): Promise<Outcome> {
     for (let attempt = 0; attempt < MAX_ATTEMPTS_PER_FLUSH; attempt += 1) {
       await this.pace();
@@ -111,7 +124,7 @@ export class WriteQueue {
         continue;
       }
       const classification = classifyStatus(result, attempt, this.deps.now());
-      if (classification.kind === "ok") return "done";
+      if (classification.kind === "ok") return this.settled(op, result);
       if (classification.kind === "failed") return "failed";
       if (attempt + 1 >= MAX_ATTEMPTS_PER_FLUSH) break;
       await this.deps.sleep(classification.delayMs);

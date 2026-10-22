@@ -1,3 +1,4 @@
+import { historyRange } from "@cue/core/domain/history";
 import type { CueRuntime, SubmitOutcome } from "@cue/core/runtime/runtime";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react-native";
 import { HistoryScreen } from "../src/screens/history/HistoryScreen";
@@ -156,10 +157,8 @@ test("uses the month window and returns to recent without changing medium", asyn
   const loadHistory = jest.fn(() => Promise.resolve({ entries: [], page: 1, pageCount: 1 }));
   await paint(runtime({ loadHistory }));
   expect(await screen.findByText("Nothing watched in Feb 2020.")).toBeOnTheScreen();
-  expect(loadHistory).toHaveBeenCalledWith("movies", 1, {
-    startAt: "2020-02-01T00:00:00.000Z",
-    endAt: "2020-02-29T23:59:59.999Z",
-  });
+  // February 2020 in the device's zone; the window arithmetic itself is covered in the core.
+  expect(loadHistory).toHaveBeenCalledWith("movies", 1, historyRange(2020, 2));
   await fireEvent.press(screen.getByText("Back to recent"));
   expect(historyRouter.setParams).toHaveBeenCalledWith({ year: "", month: "" });
 });

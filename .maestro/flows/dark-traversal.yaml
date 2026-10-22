@@ -21,13 +21,13 @@ appId: app.cuetracker
 - tapOn:
     id: "season-check-2"
 - extendedWaitUntil:
-    visible: "2 of 4 episodes are unwatched."
+    visible: '2 of 4 episodes are unwatched\..*'
     timeout: 30000
 - waitForAnimationToEnd
 - takeScreenshot: show-detail-season-confirm
 - tapOn: "(?i)cancel"
 - extendedWaitUntil:
-    notVisible: "2 of 4 episodes are unwatched."
+    notVisible: '2 of 4 episodes are unwatched\..*'
     timeout: 30000
 - tapOn: "S2 E3 · Half Measures.*"
 - extendedWaitUntil:

@@ -13,6 +13,7 @@ function gate(
   base: Record<string, number> | undefined,
   head: Record<string, number>,
   significant?: readonly Significant[],
+  body?: string,
 ) {
   const directory = mkdtempSync(join(tmpdir(), "render-counts-"));
   if (significant !== undefined) {
@@ -43,9 +44,16 @@ function gate(
     );
   }
   try {
-    return spawnSync(process.execPath, ["scripts/check-render-counts.mjs", basePath, headPath], {
-      encoding: "utf8",
-    });
+    return spawnSync(
+      process.execPath,
+      [
+        "scripts/check-render-counts.mjs",
+        basePath,
+        headPath,
+        ...(body === undefined ? [] : [body]),
+      ],
+      { encoding: "utf8" },
+    );
   } finally {
     rmSync(directory, { recursive: true });
   }
@@ -78,6 +86,17 @@ describe("render count gate", () => {
     expect(slower(library, 0.15).status).toBe(0);
     expect(slower(library, -0.4).status).toBe(0);
     expect(slower(history, 0.5).status).toBe(0);
+  });
+  it("accepts a count change only when the pull request states that exact change and why", () => {
+    const changed = (body: string) => gate({ ...pinned, [history]: 3 }, pinned, [], body);
+    const stated = `Render-Count: ${history} 3 -> 2: the deferred list render is held.`;
+
+    expect(changed(`Summary.\n${stated}\n`).status).toBe(0);
+    expect(changed(`Render-Count: ${history} 3 -> 1: wrong target.`).status).toBe(1);
+    expect(changed(`Render-Count: ${history} 4 -> 2: wrong base.`).status).toBe(1);
+    expect(changed(`Render-Count: queue row 3 -> 2: another scenario.`).status).toBe(1);
+    expect(changed(`Render-Count: ${history} 3 -> 2: `).status).toBe(1);
+    expect(changed(`  ${stated}`).status).toBe(1);
   });
   it("rejects missing and unknown scenarios", () => {
     expect(gate({}, {}).status).toBe(1);
