@@ -46,6 +46,7 @@ function createMemoryStorage(): MemoryStorage {
 /** The bulk store's backing: the op log, the freshness baseline, the persisted
  * query cache, the preferences and the install marker. */
 export const bulkBacking = createMemoryStorage();
+export const kvStoreModule = { __esModule: true, default: bulkBacking };
 
 /** The Keychain's backing: the token, and nothing else. */
 export const secureBacking = new Map<string, string>();

@@ -7,29 +7,24 @@ import { type ColorValue, Platform, processColor, StyleSheet } from "react-nativ
 import { RootStack } from "../src/RootStack";
 import { useNavigationTheme } from "../src/ui/navigation-theme";
 import { PALETTE } from "../src/ui/tokens";
+import { useWindowBackground } from "../src/ui/useWindowBackground";
 import { entry, fakeRuntime, Harness, spyHaptics } from "./support/up-next";
 
 jest.mock("expo-system-ui", () => ({ setBackgroundColorAsync: jest.fn(async () => {}) }));
+jest.mock(
+  "react-native-safe-area-context",
+  () => require("react-native-safe-area-context/jest/mock").default,
+);
+jest.mock("expo-sqlite/kv-store", () => require("./support/native-stores").kvStoreModule);
+// expo-router's test setup swaps Reanimated for its partial mock; the skeletons need the real one.
+jest.mock("react-native-reanimated/mock", () => jest.requireActual("react-native-reanimated"));
 jest.mock("../src/ui/BarItems", () => ({ BarItems: () => null }));
 jest.mock("@expo/ui/jetpack-compose", () => require("./support/native-ui").composeModule());
 jest.mock("@expo/ui/community/menu", () => require("./support/native-ui").menuModule());
 jest.mock("react-native-gesture-handler/ReanimatedSwipeable", () =>
   require("./support/native-ui").swipeableModule(),
 );
-jest.mock(
-  "react-native-safe-area-context",
-  () => require("react-native-safe-area-context/jest/mock").default,
-);
-// expo-router's test setup swaps Reanimated for its partial mock; the skeletons need the real one.
-jest.mock("react-native-reanimated/mock", () => jest.requireActual("react-native-reanimated"));
-jest.mock("expo-sqlite/kv-store", () => ({
-  __esModule: true,
-  default: require("./support/native-stores").bulkBacking,
-}));
 
-const useWindowBackground = (
-  require("../src/ui/useWindowBackground") as typeof import("../src/ui/useWindowBackground")
-).useWindowBackground;
 const tabs = ["(up-next)", "(library)", "(calendar)", "(search)"] as const;
 const roots = {
   "(up-next)": ["index", require("../app/(tabs)/(up-next)").default],
