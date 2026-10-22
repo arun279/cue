@@ -300,7 +300,6 @@ async function boot(size: LibrarySize, saved?: Saved, cacheAgeMs = 0): Promise<S
     },
     redirectUri: "cue://oauth",
     clientId: "client",
-    browser: false,
     endSession: async () => undefined,
     clearPersistedCaches: async () => undefined,
     clearLocalPreferences: () => undefined,

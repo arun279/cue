@@ -3,7 +3,6 @@ import { type Token, tokenSchema } from "../../domain/model/token";
 import { parseRetryAfterMs } from "../../domain/write-queue/classify";
 import type { FetchLike } from "../trakt/client";
 
-const TRAKT_SITE_BASE = "https://trakt.tv";
 export const TRAKT_API_BASE = "https://api.trakt.tv";
 
 export interface OAuthConfig {
@@ -11,7 +10,6 @@ export interface OAuthConfig {
   readonly redirectUri: string;
   readonly fetch?: FetchLike;
   readonly apiBaseUrl?: string;
-  readonly siteBaseUrl?: string;
 }
 
 const deviceCodeSchema = z.object({
@@ -46,10 +44,6 @@ function apiBase(config: OAuthConfig): string {
   return (config.apiBaseUrl ?? TRAKT_API_BASE).replace(/\/+$/, "");
 }
 
-function siteBase(config: OAuthConfig): string {
-  return (config.siteBaseUrl ?? TRAKT_SITE_BASE).replace(/\/+$/, "");
-}
-
 async function postJson(
   config: OAuthConfig,
   path: string,
@@ -67,40 +61,6 @@ async function postJson(
     data = null;
   }
   return { status: response.status, data, headers: response.headers };
-}
-
-export function buildAuthorizeUrl(
-  config: OAuthConfig,
-  state: string,
-  codeChallenge: string,
-): string {
-  const params = [
-    ["response_type", "code"],
-    ["client_id", config.clientId],
-    ["redirect_uri", config.redirectUri],
-    ["state", state],
-    ["code_challenge", codeChallenge],
-    ["code_challenge_method", "S256"],
-  ]
-    .map(([key, value]) => `${key}=${encodeURIComponent(value ?? "")}`)
-    .join("&");
-  return `${siteBase(config)}/oauth/authorize?${params}`;
-}
-
-export async function exchangeCodeForToken(
-  config: OAuthConfig,
-  code: string,
-  codeVerifier: string,
-): Promise<Token> {
-  const { status, data } = await postJson(config, "/oauth/token", {
-    code,
-    client_id: config.clientId,
-    redirect_uri: config.redirectUri,
-    code_verifier: codeVerifier,
-    grant_type: "authorization_code",
-  });
-  if (status < 200 || status >= 300) throw new Error(`Trakt token exchange failed (${status}).`);
-  return tokenSchema.parse(data);
 }
 
 export class TokenRefreshError extends Error {

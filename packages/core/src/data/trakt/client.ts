@@ -11,7 +11,6 @@ type Extended = "min" | "full" | "images" | "episodes" | "progress";
 
 export interface TraktClientConfig {
   readonly clientId: string;
-  readonly browser?: boolean;
   readonly userAgent?: string;
   readonly getToken?: () => string | null;
   readonly fetch?: FetchLike;
@@ -32,7 +31,6 @@ export type TraktFailure =
   | { readonly kind: "account-locked" }
   | { readonly kind: "vip-required" }
   | { readonly kind: "rate-limited"; readonly retryAfterMs: number | null }
-  | { readonly kind: "unreadable-response" }
   | { readonly kind: "unexpected-shape"; readonly issues: readonly DecodeIssue[] }
   | { readonly kind: "no-content" }
   | { readonly kind: "server"; readonly status: number }
@@ -94,7 +92,6 @@ export class TraktClient {
   private readonly getToken: () => string | null;
   private readonly fetchFn: FetchLike;
   private readonly baseUrl: string;
-  private readonly browser: boolean;
   private readonly userAgent: string | undefined;
   private readonly inFlightGets = new Map<string, Promise<TraktResult<unknown>>>();
 
@@ -103,7 +100,6 @@ export class TraktClient {
     this.getToken = config.getToken ?? (() => null);
     this.fetchFn = config.fetch ?? ((input, init) => globalThis.fetch(input, init));
     this.baseUrl = (config.baseUrl ?? TRAKT_API_BASE).replace(/\/+$/, "");
-    this.browser = config.browser ?? false;
     this.userAgent = config.userAgent;
     this.policy = config.policy ?? DEFAULT_TRAKT_POLICY;
     this.report = config.report ?? (() => undefined);
@@ -135,11 +131,9 @@ export class TraktClient {
     }
   }
 
-  // In a browser, Cloudflare's 429 and 403 responses in front of Trakt carry no CORS headers, so fetch rejects.
   private rejectionFailure(cause: unknown): TraktFailure {
-    if (cause instanceof Error && cause.name === "AbortError") return { kind: "timeout" };
-    return this.browser && this.baseUrl === TRAKT_API_BASE
-      ? { kind: "unreadable-response" }
+    return cause instanceof Error && cause.name === "AbortError"
+      ? { kind: "timeout" }
       : { kind: "network" };
   }
 

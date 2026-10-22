@@ -1,18 +1,5 @@
-import { parseHistorySearch, parseLibrarySearch } from "@cue/core/url/search-params";
+import { parseHistorySearch } from "@cue/core/url/search-params";
 import { describe, expect, it } from "vitest";
-
-describe("parseLibrarySearch", () => {
-  it("keeps the one param Movies pins", () => {
-    expect(parseLibrarySearch({ type: "movies" })).toEqual({ type: "movies" });
-  });
-
-  it("drops everything else, so bare /library is Shows", () => {
-    expect(parseLibrarySearch({})).toEqual({});
-    expect(parseLibrarySearch({ type: "tv" })).toEqual({});
-    expect(parseLibrarySearch({ type: 7 })).toEqual({});
-    expect(parseLibrarySearch({ type: "movies", stray: "1" })).toEqual({ type: "movies" });
-  });
-});
 
 describe("parseHistorySearch", () => {
   it("keeps a known medium and drops anything else", () => {

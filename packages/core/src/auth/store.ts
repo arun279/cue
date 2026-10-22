@@ -13,13 +13,10 @@ export interface AuthState {
   readonly connectStatus: ConnectStatus;
   readonly errorMessage: string | null;
   readonly deviceCode: DeviceCodeView | null;
-  readonly native: boolean;
 }
 
 export interface AuthActions {
-  connectWithRedirect(): Promise<void>;
   connectWithDeviceCode(): Promise<void>;
-  completeRedirect(code: string | null, state: string | null): Promise<void>;
   disconnect(): Promise<void>;
   endSession(): Promise<void>;
   cancelConnect(): void;

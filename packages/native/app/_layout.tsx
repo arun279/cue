@@ -69,7 +69,6 @@ const sessionDeps = {
   redirectUri: NATIVE_REDIRECT_URI,
   clientId: TRAKT_CLIENT_ID,
   apiBaseUrl: TRAKT_BASE_OVERRIDE,
-  browser: false,
   userAgent: `Cue/${nativeAppVersion}`,
   clearPersistedCaches,
   clearLocalPreferences: () => clearLocalPreferences(prefsStore),
@@ -105,9 +104,6 @@ function useNativeSession(): NativeSession | null {
           tokenStore,
           clientId: TRAKT_CLIENT_ID,
           redirectUri: NATIVE_REDIRECT_URI,
-          redirect: () => {},
-          redirectHandoff: { read: () => null, write: () => {}, clear: () => {} },
-          native: true,
           traktBaseUrl: TRAKT_BASE_OVERRIDE,
         });
         if (bootFailure !== null) store.setState({ errorMessage: bootFailure });

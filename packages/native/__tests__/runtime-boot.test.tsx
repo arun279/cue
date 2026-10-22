@@ -50,7 +50,6 @@ async function launch(kv: KeyValueStore): Promise<void> {
         kv,
         redirectUri: "cue://auth",
         clientId: "client",
-        browser: false,
         clearPersistedCaches: () => Promise.resolve(),
         clearLocalPreferences: () => {},
       }}

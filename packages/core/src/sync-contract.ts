@@ -8,7 +8,6 @@ export const PENDING_THRESHOLD = 3;
 
 function healsOnRetry(failure: TraktFailure): boolean {
   if (failure.kind === "network" || failure.kind === "timeout") return true;
-  if (failure.kind === "unreadable-response") return true;
   return failure.kind === "server" && failure.status >= 500;
 }
 
@@ -52,7 +51,7 @@ export interface SyncBannerInput {
 function unreachableMessage(failure: TraktFailure): string {
   if (failure.kind === "network") return "Can't reach Trakt. Showing your cached data.";
   if (failure.kind === "timeout") return "Trakt didn't answer in time. Showing your cached data.";
-  if (failure.kind === "server" || failure.kind === "unreadable-response") {
+  if (failure.kind === "server") {
     return "Trakt is having trouble. Showing your cached data.";
   }
   return "Couldn't refresh from Trakt. Showing your cached data.";
@@ -102,7 +101,6 @@ const READ_FAILURE_BODY: Readonly<Record<TraktFailure["kind"], string>> = {
   "unexpected-shape": "Trakt sent data in a shape this version doesn't read.",
   "no-content": "Trakt sent an empty reply.",
   server: TROUBLE,
-  "unreadable-response": TROUBLE,
   unauthorized: "Your Trakt session needs to reconnect.",
   "account-limit": "Your Trakt account has reached its limit.",
   "account-locked": "Your Trakt account is locked.",

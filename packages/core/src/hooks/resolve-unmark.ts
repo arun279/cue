@@ -105,15 +105,6 @@ export async function resolveMovieUnmark(
   return { kind: "remove", historyId: play.historyId, watchedAt: play.watchedAt };
 }
 
-export type MovieUnmarkRoute = "reverse-session-mark" | "resolve-live-plays";
-
-export function routeMovieUnmark(
-  pendingMarkMovieId: number | null,
-  movieId: number,
-): MovieUnmarkRoute {
-  return pendingMarkMovieId === movieId ? "reverse-session-mark" : "resolve-live-plays";
-}
-
 const IN_FLIGHT_POLL_MS = 200;
 const IN_FLIGHT_POLL_TRIES = 50;
 

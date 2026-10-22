@@ -20,7 +20,6 @@ const signedOut: AuthState = {
   connectStatus: "idle",
   errorMessage: null,
   deviceCode: null,
-  native: true,
 };
 
 describe("the session's context hooks", () => {
@@ -28,9 +27,7 @@ describe("the session's context hooks", () => {
     const noop = async () => {};
     const store = createStore(() => ({
       ...signedOut,
-      connectWithRedirect: noop,
       connectWithDeviceCode: noop,
-      completeRedirect: noop,
       disconnect: noop,
       endSession: noop,
       cancelConnect: () => {},
