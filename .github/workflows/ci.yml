@@ -919,6 +919,7 @@ jobs:
           arch: x86_64
           profile: pixel_7_pro
           emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          pre-emulator-launch-script: node scripts/android-host.mjs snapshot "$RUNNER_TEMP/android-ui/host-before.json" && adb start-server
           script: bash scripts/verify-android-ui.sh "$RUNNER_TEMP/cue-native-android/universal.apk" "$RUNNER_TEMP/android-ui" "$RUNNER_TEMP/screenshots/android" light ${{ matrix.suite }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ !cancelled() }}
@@ -1009,6 +1010,7 @@ jobs:
           arch: x86_64
           profile: pixel_7_pro
           emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          pre-emulator-launch-script: node scripts/android-host.mjs snapshot "$RUNNER_TEMP/android-ui/host-before.json" && adb start-server
           script: bash scripts/verify-android-ui.sh "$RUNNER_TEMP/cue-native-android/universal.apk" "$RUNNER_TEMP/android-ui" "$RUNNER_TEMP/screenshots/android" dark
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ !cancelled() }}
