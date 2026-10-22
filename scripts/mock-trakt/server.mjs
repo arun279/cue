@@ -2,8 +2,7 @@
  * A local fake Trakt for the core harness and native simulator flows. It lets
  * the app run against a signed-in account with no Trakt credentials or network.
  *
- * Dependency-free Node: `node:http`, the seed module and the simulator touch
- * check, nothing else.
+ * Dependency-free Node: `node:http` and the seed module, nothing else.
  *
  * Only the endpoints the app actually calls are modelled. Anything else answers
  * 404 with a logged line, never a silent empty success: a path with no route has
@@ -16,7 +15,6 @@ import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { touchProof } from "../simulator-touch.mjs";
 import { createFaults, FAULT_PROFILE_NAMES, faultResponse, faultsFromEnv } from "./faults.mjs";
 import { GENRES } from "./genres.mjs";
 import { createJournal } from "./journal.mjs";
@@ -496,35 +494,13 @@ function approveRoute(device, method) {
 }
 
 /**
- * POST `/__touch-window` marks the start of a tap, and POST `/__touch-proof`
- * with the app's press trace answers whether the simulator log since then
- * proves the simulator dropped that tap, so the flow may tap again.
- */
-async function touchRoute(touch, method, url, body) {
-  if (method !== "POST") return notFound("no control route");
-  if (url.pathname === "/__touch-window") {
-    touch.since = new Date();
-    return json({ since: touch.since.toISOString() });
-  }
-  const verdict = await touchProof({
-    device: process.env["DEVICE_ID"],
-    since: touch.since,
-    trace: String(body.trace ?? ""),
-  });
-  return json({ tapAgain: verdict.proven, reason: verdict.reason });
-}
-
-/**
  * The harness control plane, on the mock's own origin under a `__` prefix that
  * no Trakt path can collide with.
  */
-function controlRoute(faults, device, touch, reset, releaseHeld, method, url, body) {
+function controlRoute(faults, device, reset, releaseHeld, method, url, body) {
   if (url.pathname === "/__reset") return resetRoute(reset, releaseHeld, method, url);
   if (url.pathname === "/__fault") return faultRoute(faults, method, url, body, releaseHeld);
   if (url.pathname === "/__approve") return approveRoute(device, method);
-  if (url.pathname === "/__touch-window" || url.pathname === "/__touch-proof") {
-    return touchRoute(touch, method, url, body);
-  }
   return null;
 }
 
@@ -578,7 +554,6 @@ export function createMockTrakt({
 } = {}) {
   let library = createSeedLibrary("default", clock(), clock);
   const device = { approved: false };
-  const touch = { since: undefined };
   const journal = createJournal(journalFile);
   const faults = createFaults(faultSpec);
   const held = new Set();
@@ -604,7 +579,6 @@ export function createMockTrakt({
     const control = await controlRoute(
       faults,
       device,
-      touch,
       (seed) => {
         if (!SEED_PROFILE_NAMES.includes(seed)) return false;
         const replaced = library.activities;

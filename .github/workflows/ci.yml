@@ -112,7 +112,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          USER_FACING: ^(packages/native/(src|app|assets)|packages/core/src|patches|\.maestro|scripts/mock-trakt)/|^(packages/native/(entry\.ts|babel\.config\.js|metro\.config\.js)|pnpm-lock\.yaml|\.github/workflows/ci\.yml)$|^scripts/(gather-pr-media\.sh|compare-screenshots\.mjs|changed-pixels\.mjs|attach-pr-media\.sh|start-ready-process\.mjs|download-ci-artifact\.sh|bundle-ios\.sh|reembed-ios\.sh|compile-hermes\.sh|prepare-ios-ui\.sh|enable-ios-accessibility\.sh|wait-ios-(ready|accessibility)\.mjs|maestro-(test\.sh|supervisor\.mjs|failure\.mjs|runner\.mjs)|build-maestro-runner\.sh|check-runner-survives-freeze\.sh|check-tap-lead-in\.mjs|disable-ios-daemons\.sh|snapshot-host-resources\.sh)$
+          USER_FACING: ^(packages/native/(src|app|assets)|packages/core/src|patches|\.maestro|scripts/mock-trakt)/|^(packages/native/(entry\.ts|babel\.config\.js|metro\.config\.js)|pnpm-lock\.yaml|\.github/workflows/ci\.yml)$|^scripts/(gather-pr-media\.sh|compare-screenshots\.mjs|changed-pixels\.mjs|attach-pr-media\.sh|start-ready-process\.mjs|download-ci-artifact\.sh|bundle-ios\.sh|reembed-ios\.sh|compile-hermes\.sh|prepare-ios-ui\.sh|enable-ios-accessibility\.sh|wait-ios-(ready|accessibility)\.mjs|maestro-(test\.sh|supervisor\.mjs|failure\.mjs|runner\.mjs)|simulator-touch\.mjs|tap-proxy\.mjs|build-maestro-runner\.sh|check-runner-survives-freeze\.sh|check-tap-lead-in\.mjs|disable-ios-daemons\.sh|snapshot-host-resources\.sh)$
         run: |
           files=$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files" --jq '.[].filename')
           if grep -qE "$USER_FACING" <<< "$files"; then

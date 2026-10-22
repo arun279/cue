@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { createServer } from "node:net";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { PLAYBACK_PREDICATE } from "../../scripts/simulator-touch.mjs";
 import { startReadyProcess } from "../../scripts/start-ready-process.mjs";
 import { fakeBin } from "../support/fake-bin";
 import { repositoryPath } from "../support/repository-path";
@@ -10,13 +11,24 @@ import { tempDirectory } from "../support/temp-directory";
 afterEach(() => vi.unstubAllEnvs());
 
 describe("maestro-runner.mjs", () => {
-  const freePort = () =>
-    new Promise<number>((resolve) => {
-      const server = createServer().listen(0, "127.0.0.1", () => {
-        const { port } = server.address() as { port: number };
-        server.close(() => resolve(port));
-      });
+  const bind = (port: number) =>
+    new Promise<ReturnType<typeof createServer> | undefined>((resolve) => {
+      const server = createServer();
+      server.once("error", () => resolve(undefined));
+      server.listen(port, "127.0.0.1", () => resolve(server));
     });
+  const close = (server?: ReturnType<typeof createServer>) =>
+    new Promise<void>((resolve) => (server ? server.close(() => resolve()) : resolve()));
+  /** A free port for the proxy whose next port is free for the runner. */
+  const freePorts = async (): Promise<number> => {
+    for (;;) {
+      const first = await bind(0);
+      const { port } = first?.address() as { port: number };
+      const second = await bind(port + 1);
+      await Promise.all([close(first), close(second)]);
+      if (second !== undefined) return port;
+    }
+  };
 
   const xcodebuild = (source: string) =>
     fakeBin({ xcodebuild: `#!${process.execPath}\n${source}` });
@@ -31,14 +43,24 @@ require("node:http").createServer((request, response) => {
 }).listen(Number(process.env.TEST_RUNNER_PORT), "127.0.0.1");
 `);
   const failing = xcodebuild('console.error("Testing failed"); process.exit(65);');
+  const logStream = fakeBin({
+    xcrun: `#!${process.execPath}
+if (process.argv.length > 2) {
+  require("node:fs").writeFileSync(process.env.STREAM_CALLS, JSON.stringify(process.argv.slice(2)));
+  console.log('Filtering the log data using "..."');
+  setInterval(() => {}, 1000);
+}
+`,
+  });
 
   const start = async (bin: string) => {
     const root = tempDirectory("cue-runner-start-");
-    vi.stubEnv("PATH", `${bin}:${process.env["PATH"]}`);
+    vi.stubEnv("PATH", `${bin}:${logStream}:${process.env["PATH"]}`);
     vi.stubEnv("DEVICE_ID", "test-device");
-    vi.stubEnv("MAESTRO_RUNNER_PORT", String(await freePort()));
+    vi.stubEnv("MAESTRO_RUNNER_PORT", String(await freePorts()));
     vi.stubEnv("RUNNER_TEMP", root);
     vi.stubEnv("PROBE_CALLS", path.join(root, "calls"));
+    vi.stubEnv("STREAM_CALLS", path.join(root, "stream"));
     const log = path.join(root, "runner.log");
     return {
       root,
@@ -47,7 +69,7 @@ require("node:http").createServer((request, response) => {
     };
   };
 
-  it("runs the server test on the booted device and waits for deviceInfo to answer 200", async () => {
+  it("runs the server test on the booted device behind the tap proxy and waits for deviceInfo to answer 200", async () => {
     const { root, log, ready } = await start(answering);
     const pid = await ready;
     process.kill(-pid, "SIGKILL");
@@ -61,9 +83,22 @@ require("node:http").createServer((request, response) => {
         "id=test-device",
         "-only-testing:maestro-driver-iosUITests/maestro_driver_iosUITests",
       ],
-      port: process.env["MAESTRO_RUNNER_PORT"],
+      port: String(Number(process.env["MAESTRO_RUNNER_PORT"]) + 1),
     });
-    expect(readFileSync(log, "utf8")).toBe("deviceInfo: 500\ndeviceInfo: 200\n");
+    expect(JSON.parse(readFileSync(path.join(root, "stream"), "utf8"))).toEqual([
+      "simctl",
+      "spawn",
+      "test-device",
+      "log",
+      "stream",
+      "--style",
+      "ndjson",
+      "--predicate",
+      PLAYBACK_PREDICATE,
+    ]);
+    expect(readFileSync(log, "utf8")).toMatch(
+      /^(deviceInfo: 502\n)*deviceInfo: 500\ndeviceInfo: 200\n$/,
+    );
   });
 
   it("reports the runner exiting before it answers", async () => {

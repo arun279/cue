@@ -1,0 +1,2 @@
+2026-10-22 05:18:48.206311+0000  localhost testmanagerd[12323]: [com.apple.dt.xctest:Default] Recap event action playback initiated
+2026-10-22 05:18:48.542557+0000  localhost testmanagerd[12323]: [com.apple.dt.xctest:Default] Recap event action playback completed

@@ -714,6 +714,7 @@ describe("fast pull request validation", () => {
       "simulator-touch.mjs",
       "snapshot-host-resources.sh",
       "start-ready-process.mjs",
+      "tap-proxy.mjs",
       "wait-ios-accessibility.mjs",
       "wait-ios-ready.mjs",
     ]);

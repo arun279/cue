@@ -1,73 +1,130 @@
-import { readFileSync, writeFileSync } from "node:fs";
-import path from "node:path";
-import { afterEach, expect, it, vi } from "vitest";
-import { createMockTrakt } from "../../scripts/mock-trakt/server.mjs";
-import { provenSimulatorCancel } from "../../scripts/simulator-touch.mjs";
-import { fakeBin } from "../support/fake-bin";
+import { readFileSync } from "node:fs";
+import { expect, it } from "vitest";
+import { elementAt, tapAgain } from "../../scripts/simulator-touch.mjs";
 import { repositoryPath } from "../support/repository-path";
-import { tempDirectory } from "../support/temp-directory";
 
-const fixture = (name: string) =>
-  readFileSync(repositoryPath(`test/ci/fixtures/simulator-touch/${name}`), "utf8");
-const DROPPED = fixture("dropped-tap.txt");
-const NORMAL = fixture("normal-tap.txt");
-// Run 39667013137, native-e2e-ios-light (detail): the press trace of the lost tap.
-const CANCELLED =
-  "shown; press in +73535 ms native +0 ms; touch start +73539 ms native +0 ms; touch cancel +73601 ms native +233 ms; press out +73679 ms native +233 ms";
-const line = (pattern: RegExp) => DROPPED.split("\n").find((entry) => pattern.test(entry)) ?? "";
+const playback = (name: string) =>
+  readFileSync(repositoryPath(`test/ci/fixtures/simulator-touch/${name}`), "utf8")
+    .trim()
+    .split("\n");
 
-const bin = fakeBin({ xcrun: '#!/bin/sh\necho "$*" >> "$CALLS"\ncat "$TOUCH_LOG"\n' });
+type Element = { frame: { X: number; Y: number; Width: number; Height: number } } & Record<
+  string,
+  unknown
+>;
+const screen = (...controls: Element[]) => ({
+  label: "",
+  frame: { X: 0, Y: 0, Width: 402, Height: 874 },
+  children: [{ label: "", frame: { X: 0, Y: 0, Width: 402, Height: 874 }, children: controls }],
+});
 
-afterEach(() => vi.unstubAllEnvs());
+// The controls under each dropped tap, as the runner's hierarchy reports them.
+// Run 39722599952, native-e2e-ios-light (activity): Settings' Sign out, at (201, 404).
+const signOut = {
+  identifier: "settings-sign-out",
+  label: "Sign out",
+  value: null,
+  elementType: 9,
+  frame: { X: 16, Y: 376, Width: 370, Height: 56 },
+};
+// The same run: the TV shows switch at (354, 280), which toggled although its touch was cancelled.
+const tvShows = {
+  identifier: "switch-shows",
+  label: "TV shows",
+  value: "1",
+  elementType: 40,
+  frame: { X: 323, Y: 266, Width: 63, Height: 28 },
+};
+// Run 39728254091, ui-screenshots-ios-dark: the Profile sheet's Done, at (349, 84).
+const done = {
+  identifier: "",
+  label: "Done",
+  value: null,
+  elementType: 9,
+  frame: { X: 317, Y: 66, Width: 65, Height: 36 },
+};
+// Run 39667013137, native-e2e-ios-light (detail): Connect Trakt under the tap #173 proved dropped, at (95, 534).
+const connect = {
+  identifier: "button-connect",
+  label: "Connect Trakt",
+  value: null,
+  elementType: 9,
+  frame: { X: 24, Y: 512, Width: 142, Height: 44 },
+};
+const alert = {
+  identifier: "",
+  label: "Sign out of Cue?",
+  value: null,
+  elementType: 7,
+  frame: { X: 41, Y: 375, Width: 320, Height: 152 },
+};
 
-it("proves a dropped tap from the app's cancel and backboardd's dropped touch", () => {
-  expect(provenSimulatorCancel(CANCELLED, DROPPED)).toEqual({
-    proven: true,
-    reason: expect.stringContaining("backboardd"),
+it.each([
+  ["Sign out, whose alert never came", "sign-out-dropped.txt", signOut, { x: 201, y: 404 }],
+  [
+    "the Profile sheet's Done, which left the sheet open",
+    "done-dropped.txt",
+    done,
+    { x: 349, y: 84 },
+  ],
+  ["Connect Trakt", "connect-dropped.txt", connect, { x: 95, y: 534 }],
+])("taps %s again: the simulator cancelled the touch and nothing under it changed", (_, log, control, point) => {
+  const decision = tapAgain({
+    playback: playback(log),
+    before: screen(control),
+    after: screen(control),
+    point,
   });
-  expect(provenSimulatorCancel(CANCELLED, line(/unknown senderID/)).proven).toBe(true);
-  expect(provenSimulatorCancel(CANCELLED, line(/canceling paths/)).proven).toBe(true);
+
+  expect(decision).toEqual({ again: true, reason: expect.stringContaining("canceling paths") });
+});
+
+it("compares only the element under the tap, as other parts of the screen move on", () => {
+  const synced = (label: string) => ({
+    label,
+    value: null,
+    frame: { X: 16, Y: 600, Width: 370, Height: 22 },
+  });
+  const decision = tapAgain({
+    playback: playback("done-dropped.txt"),
+    before: screen(done, synced("Last synced 1 min ago")),
+    after: screen(done, synced("Last synced just now")),
+    point: { x: 349, y: 84 },
+  });
+
+  expect(decision.again).toBe(true);
+});
+
+it("does not tap a switch again that toggled although its touch was cancelled", () => {
+  const decision = tapAgain({
+    playback: playback("switch-dropped.txt"),
+    before: screen(tvShows),
+    after: screen({ ...tvShows, value: "0" }),
+    point: { x: 354, y: 280 },
+  });
+
+  expect(decision.again).toBe(false);
+  expect(decision.reason).toContain('"value":"0"');
 });
 
 it.each([
-  ["a normal tap's log, whose touchscreen also disappears", CANCELLED, NORMAL],
-  ["no simulator log", CANCELLED, ""],
-  ["a press that arrived after the cancel", `${CANCELLED}; press +73690 ms`, DROPPED],
-  ["a touch the app never saw", "shown", DROPPED],
-  ["a touch that also ended in the app", `${CANCELLED}; touch end +73700 ms`, DROPPED],
-  ["a cancel after the app saw a drag", `${CANCELLED}; drag +73700 ms`, DROPPED],
-])("does not prove a dropped tap from %s", (_, trace, log) => {
-  expect(provenSimulatorCancel(trace, log).proven).toBe(false);
+  ["a tap the simulator delivered", "done-normal.txt", screen(done), screen(done)],
+  [
+    "a cancelled tap under which an alert appeared",
+    "sign-out-dropped.txt",
+    screen(signOut),
+    screen(signOut, alert),
+  ],
+  ["a cancelled tap with no hierarchy read before it", "done-dropped.txt", undefined, screen(done)],
+])("does not tap again after %s", (_, log, before, after) => {
+  const point = { x: 201, y: 404 };
+  expect(tapAgain({ playback: playback(log), before, after, point }).again).toBe(false);
 });
 
-it("answers the flow through the harness server and records each proven cancel", async () => {
-  const temp = tempDirectory("cue-touch-proof-");
-  vi.stubEnv("PATH", `${bin}:${process.env["PATH"]}`);
-  vi.stubEnv("RUNNER_TEMP", temp);
-  vi.stubEnv("CALLS", path.join(temp, "calls"));
-  vi.stubEnv("TOUCH_LOG", path.join(temp, "touch.log"));
-  vi.stubEnv("DEVICE_ID", "SIM-1");
-  const server = createMockTrakt({ port: 0, log: false });
-  const origin = await server.listen();
-  const proof = async (log: string, trace: string) => {
-    writeFileSync(path.join(temp, "touch.log"), log);
-    return (
-      await fetch(`${origin}/__touch-proof`, { method: "POST", body: JSON.stringify({ trace }) })
-    ).json();
-  };
-  try {
-    expect(await proof(DROPPED, CANCELLED)).toMatchObject({ tapAgain: false });
-    await fetch(`${origin}/__touch-window`, { method: "POST" });
-
-    expect(await proof(NORMAL, CANCELLED)).toMatchObject({ tapAgain: false });
-    expect(await proof(DROPPED, CANCELLED)).toMatchObject({ tapAgain: true });
-    expect(readFileSync(path.join(temp, "calls"), "utf8")).toMatch(
-      /^simctl spawn SIM-1 log show --style compact --start \d{4}-\d\d-\d\d \d\d:\d\d:\d\d --predicate process == "backboardd"/m,
-    );
-    expect(
-      readFileSync(path.join(temp, "simulator-touch-cancels.log"), "utf8").trim().split("\n"),
-    ).toEqual([expect.stringContaining(CANCELLED)]);
-  } finally {
-    await server.close();
-  }
+it("finds the topmost, deepest element under a point", () => {
+  expect(elementAt(screen(signOut, alert), { x: 201, y: 404 })).toMatchObject({
+    label: alert.label,
+  });
+  expect(elementAt(screen(signOut), { x: 201, y: 404 })).toEqual(signOut);
+  expect(elementAt(screen(signOut), { x: 5, y: 5 })).toMatchObject({ label: "" });
 });

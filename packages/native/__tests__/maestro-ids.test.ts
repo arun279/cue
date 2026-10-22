@@ -442,28 +442,14 @@ it("waits for the app to apply every media switch tap, then checks the switch re
   expect(taps).toEqual([]);
 });
 
-it("waits for onboarding readiness, taps again only on proof the simulator dropped the tap, and fails fast on a lost press", () => {
+it("waits for onboarding readiness, then for the device code after one Connect tap", () => {
   const source = readFileSync(join(flowsDirectory, "lib/sign-in.yaml"), "utf8");
   const commands = parseAllDocuments(source)[1]?.toJS();
-  const tap = { tapOn: { id: TEST_IDS.buttonConnect } };
   expect(commands[0]).toEqual({
     extendedWaitUntil: { visible: { id: HARNESS_IDS.onboardingReady }, timeout: 90000 },
   });
-  expect(commands.slice(2, 11)).toEqual([
-    { runScript: "touch-window.js" },
-    tap,
-    { copyTextFrom: { id: HARNESS_IDS.pressTrace } },
-    { evalScript: `\${console.log('CUE_PRESS_TRACE=' + maestro.copiedText)}` },
-    { runScript: "touch-proof.js" },
-    { evalScript: `\${console.log('CUE_TOUCH_PROOF=' + output.touchProof)}` },
-    { runFlow: { when: { true: `\${output.tapConnectAgain}` }, commands: [tap] } },
-    {
-      extendedWaitUntil: {
-        visible: { id: HARNESS_IDS.pressTrace, text: ".*; press [+].*" },
-        timeout: 10000,
-        label: "Tap not delivered: Connect Trakt never pressed",
-      },
-    },
+  expect(commands.slice(2, 4)).toEqual([
+    { tapOn: { id: TEST_IDS.buttonConnect } },
     { extendedWaitUntil: { visible: { id: TEST_IDS.deviceCodeValue }, timeout: 30000 } },
   ]);
   expect(commands.filter((command: object) => "tapOn" in command)).toHaveLength(1);

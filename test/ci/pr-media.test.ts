@@ -371,6 +371,8 @@ describe("pr-media job", () => {
     "scripts/maestro-supervisor.mjs",
     "scripts/maestro-failure.mjs",
     "scripts/maestro-runner.mjs",
+    "scripts/simulator-touch.mjs",
+    "scripts/tap-proxy.mjs",
     "scripts/build-maestro-runner.sh",
     "scripts/check-runner-survives-freeze.sh",
     "scripts/check-tap-lead-in.mjs",
