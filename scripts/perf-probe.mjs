@@ -308,7 +308,7 @@ async function frameTimes(video) {
   return stdout.split("\n").filter(Boolean).map(Number);
 }
 
-async function analyse(video, segment, commandAt, windowEnd) {
+async function analyze(video, segment, commandAt, windowEnd) {
   if (segment.startsWith("scroll ")) return hitches(await frameTimes(video));
   const [content, anywhere] = await Promise.all([
     sceneChanges(video, CONTENT, CHANGE_THRESHOLD),
@@ -642,7 +642,7 @@ async function measure(probe, channel, directory, runIndex, step, app) {
   const frames = await probe.frames(video.replace(/\.mp4$/, "-gfxinfo.txt"));
   const census = step.segment.startsWith("tab ") ? await probe.census() : {};
   return {
-    analysis: analyse(video, step.segment, commandAt, windowEnd).then((measured) => {
+    analysis: analyze(video, step.segment, commandAt, windowEnd).then((measured) => {
       if (runIndex > 1 && !unsettled(measured)) rmSync(video, { force: true });
       return { run: runIndex, segment: step.segment, wallMs, ...measured, ...frames, ...census };
     }),

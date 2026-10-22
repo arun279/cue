@@ -32,7 +32,7 @@ pre-commit:
       # otherwise exit 14 ("no files") and fail the commit.
       run: pnpm exec dprint check --allow-no-files {staged_files}
     cspell:
-      glob: "*.{ts,tsx,css,md}"
+      glob: "*.{ts,tsx,css,md,mjs,cjs,js,sh,yml,yaml}"
       run: pnpm exec cspell --no-progress --no-must-find-files {staged_files}
     typecheck:
       glob: "*.{ts,tsx}"
