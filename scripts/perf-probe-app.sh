@@ -24,8 +24,7 @@ if [ "$platform" = android ]; then
 fi
 
 # A run that rebuilt the simulator app uploaded it with its own JavaScript. A run that reused a
-# cached app uploaded only the harness bundle, kept for a day, and its fingerprint job's log
-# names the cached app the bundle goes into.
+# cached app uploaded only the harness bundle, kept for a day, which names the cached app it goes into.
 id=$(awk -F'\t' '$2 ~ /^cue-native-ios-[0-9a-f]+$/ {print $1; exit}' <<<"$artifacts")
 if [ -n "$id" ]; then
   fetch "$id" "$destination"
@@ -35,10 +34,7 @@ fi
 bundle=$(awk -F'\t' '$2 == "ios-harness-bundle" {print $1; exit}' <<<"$artifacts")
 [ -n "$bundle" ] || { echo "run $run_id uploaded neither an iOS app nor a harness bundle" >&2; exit 1; }
 fetch "$bundle" "$destination/bundle"
-job=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs?per_page=100" \
-  --jq '.jobs[] | select(.name == "fingerprint") | .id')
-name=$(gh run view --repo "$GITHUB_REPOSITORY" --job "$job" --log | grep -o 'cue-native-ios-[0-9a-f]\+' | sort -u)
-[ -n "$name" ] && [ "$(wc -l <<<"$name")" -eq 1 ] || { echo "run $run_id names no single cached iOS app" >&2; exit 1; }
-scripts/download-ci-artifact.sh "$name" "$destination" native-ios
+[ -s "$destination/bundle/app-artifact" ] || { echo "run $run_id's harness bundle names no simulator app" >&2; exit 1; }
+scripts/download-ci-artifact.sh "$(cat "$destination/bundle/app-artifact")" "$destination" native-ios
 tar -xzf "$destination/Cue.app.tgz" -C "$destination"
 scripts/reembed-ios.sh "$destination/Cue.app" "$destination/bundle"
