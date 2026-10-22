@@ -92,6 +92,9 @@ appId: app.cuetracker
 - assertVisible:
     id: "switch-movies"
     enabled: false
+- assertVisible:
+    id: "switch-shows"
+    checked: false
 - runFlow:
     file: lib/back.yaml
     env:
@@ -112,6 +115,9 @@ appId: app.cuetracker
 - assertVisible:
     id: "switch-movies"
     enabled: true
+- assertVisible:
+    id: "switch-shows"
+    checked: true
 - runFlow:
     file: lib/back.yaml
     env:
