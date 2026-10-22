@@ -1,7 +1,8 @@
 import { MenuView } from "@expo/ui/community/menu";
 import { fireEvent, render, screen } from "@testing-library/react-native";
+import { Stack } from "expo-router";
 import { Platform, Pressable, Text } from "react-native";
-import { RowMenu } from "../../src/ui/RowMenu";
+import { HeaderMenu, RowMenu } from "../../src/ui/RowMenu";
 
 jest.mock("expo-router", () => require("../support/native-ui").expoRouterModule());
 jest.mock("@expo/ui/community/menu", () => ({
@@ -84,4 +85,22 @@ it("puts a tap menu with no trigger of its own behind the platform's more icon",
   await render(<RowMenu title="Salt Air" items={items} />);
 
   expect(screen.getByRole("button", { name: "More actions for Salt Air" })).toBeOnTheScreen();
+});
+
+it("gives the header's more trigger the id flows select it by", async () => {
+  await render(<HeaderMenu title="Salt Air" testID="header-more" items={items} />);
+
+  if (Platform.OS === "android")
+    expect(screen.getByTestId("header-more")).toHaveProp(
+      "accessibilityLabel",
+      "More actions for Salt Air",
+    );
+  else
+    expect(jest.mocked(Stack.Toolbar.Menu)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        testID: "header-more",
+        accessibilityLabel: "More actions for Salt Air",
+      }),
+      undefined,
+    );
 });

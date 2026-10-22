@@ -120,6 +120,7 @@ export const TEST_IDS = {
   movieDetailSkeleton: "movie-detail-skeleton",
   screenMovieDetail: "screen-movie-detail",
   movieMark: "movie-mark",
+  movieDetailMore: "movie-detail-more",
   screenLibrary: "screen-library",
   libraryGrid: "library-grid",
   librarySegmentShows: "library-segment-shows",
@@ -156,6 +157,7 @@ export const TEST_IDS = {
   showDetailSkeleton: "show-detail-skeleton",
   continueMark: "continue-mark",
   screenShowDetail: "screen-show-detail",
+  showDetailMore: "show-detail-more",
   seasonList: "season-list",
   seasonRow: (season: number) => `season-row-${season}`,
   seasonTrigger: (season: number) => `season-trigger-${season}`,
@@ -165,6 +167,7 @@ export const TEST_IDS = {
   episodeCheck: (show: number, season: number, episode: number) =>
     `episode-row-${show}-${season}-${episode}-check`,
   episodeSheet: "episode-sheet",
+  episodeMore: "episode-more",
   episodeMarkRow: "episode-mark-row",
   episodeMarkControl: "episode-mark-control",
   episodePagerNext: "episode-pager-next",

@@ -10,6 +10,7 @@ import type { ReactElement } from "react";
 import { Platform } from "react-native";
 import { confirm } from "../../ui/confirm";
 import { HeaderMenu } from "../../ui/RowMenu";
+import { TEST_IDS } from "../../ui/test-ids";
 import type { useDetailMark } from "./useDetailMark";
 import type { ShowHeader } from "./useShowDetail";
 
@@ -34,6 +35,7 @@ export function ShowMenu({
   return (
     <HeaderMenu
       title={header.title}
+      testID={TEST_IDS.showDetailMore}
       items={[
         {
           id: "mark-show",

@@ -24,7 +24,7 @@ const HEADER_KINDS: [RegExp, keyof HeaderReady][] = [
 ];
 const HEADER_WAITS = {
   avatar: /^ *(?:- assertVisible:|visible:)\n +id: "avatar-link"$/,
-  menu: /\n *(?:- (?:assertVisible|tapOn)|visible): "More actions for [^"*]+"$/,
+  menu: /^ *(?:- (?:assertVisible|tapOn):|visible:)\n +id: "(?:show-detail|movie-detail)-more"$/,
 };
 const LANDS_ON_UP_NEXT =
   /lib\/(?:relaunch|connect|sign-in|ready)\.yaml|^ *(?:file|- runFlow): (?:relaunch|connect|sign-in|ready)\.yaml$/m;

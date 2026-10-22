@@ -40,7 +40,9 @@ appId: app.cuetracker
     id: "screen-profile"
 - openLink: cue://show/8803
 - extendedWaitUntil:
-    visible: "More actions for Midnight Cartography"
+    visible:
+      id: "show-detail-more"
+      text: "More actions for Midnight Cartography"
     timeout: 30000
 - assertNotVisible:
     id: "screen-profile"
@@ -61,7 +63,9 @@ appId: app.cuetracker
     timeout: 10000
 - openLink: cue://show/8803
 - extendedWaitUntil:
-    visible: "More actions for Midnight Cartography"
+    visible:
+      id: "show-detail-more"
+      text: "More actions for Midnight Cartography"
     timeout: 30000
 - assertNotVisible:
     id: "history-jump-sheet"
