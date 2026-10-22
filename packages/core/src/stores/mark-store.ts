@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { LibraryEntry } from "../data/trakt/library";
+import { resetOwnMarks } from "./own-marks";
 import { resetWriteLocks } from "./write-locks";
 
 export interface MarkRecord {
@@ -69,5 +70,6 @@ export function resetMarkStore(): void {
   useMarkStore.setState({ records: new Map(), batch: [] });
   reversalRequested.clear();
   resetWriteLocks();
+  resetOwnMarks();
   ownedSnackSeq = 0;
 }

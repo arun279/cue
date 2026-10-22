@@ -14,7 +14,7 @@ describe("createPrefsStore defaults", () => {
     expect(state.dailySummary).toBe(false);
     expect(state.mutedShowIds).toEqual([]);
     expect(state.hideStillsUntilWatched).toBe(true);
-    expect(state.nextEpisodeOrder).toBe("oldest-unwatched");
+    expect(state.nextEpisodeOrder).toBe("after-last-watched");
     expect(state.lapsedOrder).toBe("recently-watched");
     expect(state.theme).toBe("system");
   });
@@ -24,12 +24,12 @@ describe("createPrefsStore defaults", () => {
       fakeStorage({
         "cue.staleness-threshold-days": "42",
         "cue.haptics-enabled": "0",
-        "cue.next-episode-order": "after-last-watched",
+        "cue.next-episode-order": "oldest-unwatched",
       }),
     ).getState();
     expect(stored.thresholdDays).toBe(42);
     expect(stored.hapticsEnabled).toBe(false);
-    expect(stored.nextEpisodeOrder).toBe("after-last-watched");
+    expect(stored.nextEpisodeOrder).toBe("oldest-unwatched");
 
     const corrupt = createPrefsStore(
       fakeStorage({
@@ -39,7 +39,7 @@ describe("createPrefsStore defaults", () => {
       }),
     ).getState();
     expect(corrupt.thresholdDays).toBe(21);
-    expect(corrupt.nextEpisodeOrder).toBe("oldest-unwatched");
+    expect(corrupt.nextEpisodeOrder).toBe("after-last-watched");
     expect(corrupt.lapsedOrder).toBe("recently-watched");
   });
 
@@ -86,7 +86,7 @@ describe("persistence", () => {
     first.setShowMuted(8802, true);
     first.setShowMuted(8801, false);
     first.setHideStillsUntilWatched(false);
-    first.setNextEpisodeOrder("after-last-watched");
+    first.setNextEpisodeOrder("oldest-unwatched");
     first.setLapsedOrder("longest-idle");
     first.setThresholdDays(14);
 
@@ -96,7 +96,7 @@ describe("persistence", () => {
       dailySummary: true,
       mutedShowIds: [8802],
       hideStillsUntilWatched: false,
-      nextEpisodeOrder: "after-last-watched",
+      nextEpisodeOrder: "oldest-unwatched",
       lapsedOrder: "longest-idle",
       thresholdDays: 14,
     });

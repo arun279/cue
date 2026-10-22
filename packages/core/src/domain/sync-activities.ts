@@ -23,6 +23,7 @@ export type InvalidationTarget =
   | "collection/shows"
   | "collection/movies"
   | "hidden/progress_watched"
+  | "hidden/dropped"
   | "hidden/movies"
   | "favorites/shows"
   | "favorites/movies"
@@ -47,6 +48,7 @@ const ACTIVITY_RULES: readonly ActivityRule[] = [
     field: "hidden_at",
     targets: ["hidden/progress_watched", "recompute:buckets"],
   },
+  { section: "shows", field: "dropped_at", targets: ["hidden/dropped", "recompute:buckets"] },
   {
     section: "shows",
     field: "watchlisted_at",

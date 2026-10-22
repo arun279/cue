@@ -89,6 +89,11 @@ describe("diffActivities", () => {
       targets: ["hidden/progress_watched", "recompute:buckets"],
     },
     {
+      before: { shows: { dropped_at: T0 } },
+      after: { shows: { dropped_at: T1 } },
+      targets: ["hidden/dropped", "recompute:buckets"],
+    },
+    {
       before: { shows: { watchlisted_at: T0 } },
       after: { shows: { watchlisted_at: T1 } },
       targets: ["watchlist/shows", "recompute:following", "recompute:to-watch"],

@@ -39,6 +39,7 @@ const SCHEMAS: Readonly<Record<string, z.ZodType>> = {
   "GET /shows/:id/related": S.popularShowsSchema,
   "GET /users/settings": S.userSettingsSchema,
   "GET /users/hidden/progress_watched": S.hiddenSchema,
+  "GET /users/hidden/dropped": S.hiddenSchema,
   "GET /sync/last_activities": S.lastActivitiesSchema,
   "GET /users/me/history": S.historySchema,
   "GET /sync/history/episodes/:id": S.historySchema,
@@ -230,6 +231,7 @@ const READS: readonly string[] = [
   "/sync/watched/shows?extended=full,progress&page=1&limit=100",
   "/sync/watched/movies?extended=images&page=1&limit=100",
   "/users/hidden/progress_watched?page=1&limit=100",
+  "/users/hidden/dropped?page=1&limit=100",
   `/sync/watchlist/shows?${AF}&page=1&limit=100`,
   `/sync/watchlist/movies?${AF}&page=1&limit=100`,
   `/sync/collection/shows?${AF}`,
@@ -258,6 +260,7 @@ const READS: readonly string[] = [
   "/genres/shows",
   `/users/me/history?${AF}&page=1&limit=30`,
   `/users/me/history?${AF}&page=2&limit=30`,
+  `/users/me/history?${AF}&page=1&limit=1`,
 ];
 
 const baseUrl = mockTraktBase();

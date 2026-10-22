@@ -13,13 +13,21 @@ function settle(a: SubmitOutcome, b: SubmitOutcome): SubmitOutcome {
   return "done";
 }
 
+export async function submitAll(
+  submit: (op: QueuedOp) => Promise<SubmitOutcome>,
+  ops: readonly QueuedOp[],
+): Promise<SubmitOutcome> {
+  let outcome: SubmitOutcome = "done";
+  for (const op of ops) outcome = settle(outcome, await submit(op));
+  return outcome;
+}
+
 export async function applyOptimisticWrite(
   submit: (op: QueuedOp) => Promise<SubmitOutcome>,
   ops: readonly QueuedOp[],
   effects: OptimisticEffects,
 ): Promise<SubmitOutcome> {
-  let outcome: SubmitOutcome = "done";
-  for (const op of ops) outcome = settle(outcome, await submit(op));
+  const outcome = await submitAll(submit, ops);
   if (outcome === "failed") {
     effects.rollback();
     return outcome;

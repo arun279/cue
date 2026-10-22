@@ -23,7 +23,7 @@ export function computeWatchStatus(
   thresholdMs: number,
 ): WatchStatus {
   if (show.hidden) return "abandoned";
-  if (show.completed <= 0) return "not-started";
+  if (neverWatched(show)) return "not-started";
   const caughtUp = show.completed >= show.aired;
   if (caughtUp && isTerminalStatus(show.status)) return "ended";
   const nextAiredMs = airedBy(show.nextEpisode, now);
@@ -33,6 +33,10 @@ export function computeWatchStatus(
     nextAiredMs ?? Number.NEGATIVE_INFINITY,
   );
   return now - idleSince <= thresholdMs ? "watching" : "lapsed";
+}
+
+function neverWatched(show: LibraryShow): boolean {
+  return show.completed <= 0 && show.lastWatchedAt === null;
 }
 
 function airedBy(episode: LibraryShow["nextEpisode"], now: number): number | null {

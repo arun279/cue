@@ -3,7 +3,7 @@ import { dismissSnack, showSnack } from "@cue/core/stores/snackbar-store";
 import { parseHistorySearch } from "@cue/core/url/search-params";
 import { router, Tabs, useLocalSearchParams } from "expo-router";
 import { act, fireEvent, renderRouter, screen } from "expo-router/testing-library";
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { Linking, Platform, Text, View } from "react-native";
 import * as nativeIntent from "../app/+native-intent";
 import NotFoundRoute from "../app/+not-found";
@@ -52,6 +52,16 @@ function HistoryScope(): ReactElement {
     </Text>
   );
 }
+
+const FIRST_PLAY = "2019-03-09T10:00:00.000Z";
+const JUMP_RUNTIME: CueRuntime = {
+  ...fakeRuntime({}),
+  loadFirstPlayAt: () => Promise.resolve(FIRST_PLAY),
+};
+
+const Providers = ({ children }: { readonly children: ReactNode }): ReactElement => (
+  <QueryProvider runtime={JUMP_RUNTIME}>{children}</QueryProvider>
+);
 
 const Blank = (): ReactElement => <View />;
 const Settings = (): ReactElement => <View testID="screen-settings" />;
@@ -109,7 +119,7 @@ async function leaveProfile(): Promise<void> {
 }
 
 const openAccount = async (): Promise<void> => {
-  await renderRouter(routes, { initialUrl: "/", wrapper: QueryProvider });
+  await renderRouter(routes, { initialUrl: "/", wrapper: Providers });
   await act(() => router.push("/profile"));
   expect(screen.getByTestId("screen-profile")).toBeOnTheScreen();
 };
@@ -153,6 +163,26 @@ describe("the month jump sheet", () => {
       expect(screen.getByRole("button", { name: month })).toBeOnTheScreen();
   });
 
+  it("offers the months from the first play to now, and no others", async () => {
+    const now = jest.spyOn(Date, "now").mockReturnValue(Date.parse("2026-07-15T12:00:00.000Z"));
+    try {
+      await openJump();
+      const months = async (year: number) => {
+        await fireEvent.press(await screen.findByTestId(`history-jump-year-${year}`));
+        return MONTHS.flatMap((_, i) =>
+          screen.queryByTestId(`history-jump-month-${i + 1}`) === null ? [] : [i + 1],
+        );
+      };
+
+      expect(await months(2026)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+      expect(await months(2019)).toEqual([3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+      expect(screen.queryByTestId("history-jump-year-2018")).toBeNull();
+      expect(screen.queryByTestId("history-jump-year-2027")).toBeNull();
+    } finally {
+      now.mockRestore();
+    }
+  });
+
   it.each([
     ["history-jump-month-8", { type: "movies", year: 2024, month: 8 }],
     ["history-jump-all", { type: "movies", year: 2024 }],
@@ -160,7 +190,7 @@ describe("the month jump sheet", () => {
   ])("hands %s back to the History below it and keeps the medium", async (testID, expected) => {
     await openJump();
 
-    await fireEvent.press(screen.getByTestId("history-jump-year-2024"));
+    await fireEvent.press(await screen.findByTestId("history-jump-year-2024"));
     await fireEvent.press(screen.getByTestId(testID));
 
     expect(screen.queryByTestId("history-jump-sheet")).toBeNull();
@@ -194,7 +224,7 @@ async function closeSheet(): Promise<void> {
 /** The router's own record of where it is: render's result is a promise, and
  * expo-router hangs its location readers on the object it returned. */
 async function renderAt(initialUrl: string) {
-  const view = renderRouter(routes, { initialUrl, wrapper: QueryProvider });
+  const view = renderRouter(routes, { initialUrl, wrapper: Providers });
   await view;
   return Object.assign(() => view.getSegments(), { state: () => view.getRouterState() });
 }
@@ -234,11 +264,11 @@ describe("a tab stack", () => {
     await act(() => router.push("/history?type=movies"));
     await act(() => router.push({ pathname: "/history-jump", params: { type: "movies" } }));
 
-    await fireEvent.press(screen.getByTestId("history-jump-month-8"));
+    await fireEvent.press(await screen.findByTestId("history-jump-month-1"));
 
     expect(segments()).toEqual(["(tabs)", "(up-next)", "history"]);
     expect(screen.getByTestId("screen-history")).toHaveTextContent(
-      JSON.stringify({ type: "movies", year: new Date().getFullYear(), month: 8 }),
+      JSON.stringify({ type: "movies", year: new Date().getFullYear(), month: 1 }),
     );
     await act(() => router.back());
     expect(screen.getByTestId("screen-up-next")).toBeOnTheScreen();
@@ -246,7 +276,7 @@ describe("a tab stack", () => {
 
   it("closes the month jump on a pick while History is still loading that month", async () => {
     const runtime: CueRuntime = {
-      ...fakeRuntime({}),
+      ...JUMP_RUNTIME,
       loadHistory: (_section, _page, range) =>
         range === undefined
           ? Promise.resolve({ entries: HISTORY, page: 1, pageCount: 1 })
@@ -266,7 +296,7 @@ describe("a tab stack", () => {
     await act(() => router.push("/history"));
     await fireEvent.press(await screen.findByTestId(TEST_IDS.historyJump));
 
-    await fireEvent.press(screen.getByTestId("history-jump-month-8"));
+    await fireEvent.press(await screen.findByTestId("history-jump-month-1"));
 
     expect(screen.queryByTestId(TEST_IDS.historyJumpSheet)).toBeNull();
     expect(screen.getByTestId(TEST_IDS.calendarSkeleton)).toBeOnTheScreen();

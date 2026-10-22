@@ -3,7 +3,7 @@ import { useCallback } from "react";
 import { queryKeys } from "../data/query-keys";
 import type { LibraryEntry } from "../data/trakt/library";
 import type { ShowIds } from "../domain/model/ids";
-import { buildHideShowOp, buildUnhideShowOp } from "../domain/write-queue/ops";
+import { buildHideShowOp, buildResumeShowOps } from "../domain/write-queue/ops";
 import { useRuntime } from "../runtime/runtime";
 import { showFailure, showUndoable } from "../stores/snackbar-store";
 import { patchLibraryHidden } from "./library-cache";
@@ -40,13 +40,16 @@ export function useHideShow(): HideController {
     async (showId: number, ids: ShowIds, title: string, kind: HideKind) => {
       const hidden = kind === "hide";
       patchHidden(showId, hidden);
-      const build = hidden ? buildHideShowOp : buildUnhideShowOp;
-      const op = build({
-        opId: runtime.newId(),
-        ids,
-        inversePatch: { kind: "hidden", showId },
-      });
-      const outcome = await submit([op], {
+      const ops = hidden
+        ? [
+            buildHideShowOp({
+              opId: runtime.newId(),
+              ids,
+              inversePatch: { kind: "hidden", showId },
+            }),
+          ]
+        : buildResumeShowOps({ newId: runtime.newId, showId, ids });
+      const outcome = await submit(ops, {
         rollback: () => patchHidden(showId, !hidden),
         revalidate: () => revalidate(showId),
       });

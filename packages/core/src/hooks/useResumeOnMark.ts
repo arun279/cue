@@ -1,9 +1,10 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
 import type { ShowIds } from "../domain/model/ids";
-import { buildHideShowOp, buildUnhideShowOp } from "../domain/write-queue/ops";
+import { buildHideShowOp, buildResumeShowOps } from "../domain/write-queue/ops";
 import { type SubmitOutcome, useRuntime } from "../runtime/runtime";
 import { isLibraryHidden, patchLibraryHidden } from "./library-cache";
+import { submitAll } from "./optimistic-write";
 import { useTrackedSubmit } from "./useTrackedSubmit";
 
 export interface ResumeOnMark {
@@ -26,13 +27,7 @@ export function useResumeOnMark(): ResumeOnMark {
     async (showId: number, ids: ShowIds): Promise<SubmitOutcome | null> => {
       if (!isLibraryHidden(queryClient, showId)) return null;
       patchLibraryHidden(queryClient, showId, false);
-      return submit(
-        buildUnhideShowOp({
-          opId: runtime.newId(),
-          ids,
-          inversePatch: { kind: "hidden", showId },
-        }),
-      );
+      return submitAll(submit, buildResumeShowOps({ newId: runtime.newId, showId, ids }));
     },
     [queryClient, runtime, submit],
   );

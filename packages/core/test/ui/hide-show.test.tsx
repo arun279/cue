@@ -83,14 +83,19 @@ describe("useHideShow", () => {
     expect(submitted[0]?.request.body).toEqual({ shows: [{ ids: { trakt: 7, tmdb: 95396 } }] });
   });
 
-  it("resumes a stopped show and stops it again on Undo", async () => {
-    const { slot, hidden } = setup();
+  it("resumes a stopped or dropped show and stops it again on Undo", async () => {
+    const { slot, submitted, hidden } = setup();
     await act(async () => slot[0]?.unhide(7, { trakt: 7 }, "Severance"));
     expect(hidden()).toBe(false);
     expect(snack()?.message).toBe("Severance resumed");
+    expect(submitted.map((op) => op.request.path)).toEqual([
+      "/users/hidden/progress_watched/remove",
+      "/users/hidden/dropped/remove",
+    ]);
 
     await act(async () => snack()?.actions?.[0]?.onPress());
     expect(hidden()).toBe(true);
+    expect(submitted[2]?.request.path).toBe("/users/hidden/progress_watched");
   });
 
   it("stops a show opened before the library has loaded", async () => {

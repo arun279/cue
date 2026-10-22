@@ -1,4 +1,6 @@
 import { resolveBackdrop } from "@cue/core/data/image-source";
+import type { SeasonView } from "@cue/core/data/trakt/show-detail";
+import { watchedSummary } from "@cue/core/domain/show-detail";
 import { useGenreLabels } from "@cue/core/hooks/useGenreLabels";
 import { Image } from "expo-image";
 import { type ReactElement, type ReactNode, useState } from "react";
@@ -59,7 +61,13 @@ export function DetailHero({
   );
 }
 
-export function ShowAbout({ header }: { readonly header: ShowHeader }): ReactElement {
+export function ShowAbout({
+  header,
+  seasons,
+}: {
+  readonly header: ShowHeader;
+  readonly seasons: readonly SeasonView[];
+}): ReactElement {
   const colors = useColors();
   const genres = useGenreLabels(header.genres);
   return (
@@ -73,10 +81,7 @@ export function ShowAbout({ header }: { readonly header: ShowHeader }): ReactEle
         </CueText>
       )}
       <CueText variant="meta" style={{ color: colors.muted }}>
-        You've watched {header.completed} of {header.aired}
-        {header.runtime === null
-          ? ""
-          : ` · ${Math.round((header.completed * header.runtime) / 60)} hr`}
+        {watchedSummary(header, seasons)}
       </CueText>
     </View>
   );

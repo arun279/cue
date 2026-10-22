@@ -1,8 +1,15 @@
-import { infiniteQueryOptions } from "@tanstack/react-query";
+import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import { queryKeys } from "../data/query-keys";
 import type { HistoryRange } from "../domain/history";
 import type { CueRuntime, HistorySection } from "../runtime/runtime";
 import { USER_STATE_STALE_TIME } from "./freshness";
+
+export const firstPlayQuery = (runtime: CueRuntime) =>
+  queryOptions({
+    queryKey: queryKeys.firstPlay(),
+    queryFn: () => runtime.loadFirstPlayAt(),
+    staleTime: USER_STATE_STALE_TIME,
+  });
 
 export type HistoryFilter = "all" | "tv" | "movies";
 

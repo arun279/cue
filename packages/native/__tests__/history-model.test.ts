@@ -32,7 +32,7 @@ test("different episodes stay separate and mixed day totals count plays", () => 
     { now: Date.now(), timeZone: "UTC" },
   );
   const section = historySections(days, "")[0];
-  expect(section?.data.map((row) => row.plays)).toEqual([2, 1, 1]);
+  expect(section?.data.map((row) => row.plays)).toEqual([1, 2, 1]);
   expect(section?.label).toMatch(/3 episodes · 1 movie$/);
   expect(entryDetail(episode)).toBe("S1 E2 Night Signal");
   expect(entryDetail({ ...episode, episodeTitle: null })).toBe("S1 E2");

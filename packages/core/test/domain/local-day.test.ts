@@ -7,6 +7,11 @@ import { describe, expect, it } from "vitest";
 const CHICAGO = "America/Chicago";
 const at = (iso: string): number => Date.parse(iso);
 
+it("runs in a zone fourteen hours from UTC, so a UTC day cannot pass for a local one", () => {
+  expect(new Intl.DateTimeFormat().resolvedOptions().timeZone).toBe("Pacific/Kiritimati");
+  expect(new Date("2026-07-01T12:00:00.000Z").getDate()).toBe(2);
+});
+
 describe("local day helpers", () => {
   it("finds the instant a local day begins, including the day clocks change", () => {
     expect(new Date(startOfLocalDay(CHICAGO, "2026-10-21")).toISOString()).toBe(

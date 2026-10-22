@@ -6,6 +6,7 @@ export default defineConfig({
   test: {
     name: "core",
     environment: "node",
+    env: { TZ: "Pacific/Kiritimati" },
     globals: true,
     setupFiles: ["./test/setup.ts"],
     include: ["test/**/*.test.{ts,tsx}"],

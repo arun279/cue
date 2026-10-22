@@ -18,6 +18,7 @@ const TARGET_KEYS: Readonly<Record<InvalidationTarget, readonly InvalidationKey[
   "collection/shows": [library],
   "collection/movies": [movieLibrary],
   "hidden/progress_watched": [library],
+  "hidden/dropped": [library],
   "hidden/movies": [],
   "favorites/shows": [],
   "favorites/movies": [],
