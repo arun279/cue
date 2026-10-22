@@ -362,30 +362,35 @@ const REPLY_MS = 15_000;
 
 const pause = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
-const QUIET = { pollMs: 100, quietMs: 1500, timeoutMs: 30_000 };
-
 /**
- * Resolves once a growing log has stopped growing for quietMs, and rejects after timeoutMs.
- * The fake Trakt server logs every request it answers, so a still log means the app has
- * finished the fetches, artwork included, that would otherwise land inside a measured window.
- * @param {() => number} readSize
- * @param {{ pollMs: number, quietMs: number, timeoutMs: number }} [timing]
+ * Resolves once a growing count has stopped growing for quietMs, and rejects after timeoutMs
+ * with the reason given. The fake Trakt server logs every request it answers, so a still log
+ * means the app has finished the fetches, artwork included, that would otherwise land inside
+ * a measured window; on Android, a still frame count means the UI has stopped drawing.
+ * @param {() => number | Promise<number>} read
+ * @param {{ pollMs: number, quietMs: number, timeoutMs: number }} timing
+ * @param {string} busy
  * @param {{ now(): number }} [clock]
  */
-export async function waitForQuiet(readSize, { pollMs, quietMs, timeoutMs } = QUIET, clock = Date) {
+export async function waitForQuiet(read, { pollMs, quietMs, timeoutMs }, busy, clock = Date) {
   const started = clock.now();
-  let size = readSize();
+  let count = await read();
   let since = started;
   for (;;) {
     await pause(pollMs);
     const now = clock.now();
-    const next = readSize();
-    if (next !== size) [size, since] = [next, now];
+    const next = await read();
+    if (next !== count) [count, since] = [next, now];
     if (now - since >= quietMs) return;
-    if (now - started >= timeoutMs)
-      throw new Error(`the app was still calling Trakt after ${timeoutMs} ms`);
+    if (now - started >= timeoutMs) throw new Error(`${busy} after ${timeoutMs} ms`);
   }
 }
+
+const NETWORK_QUIET = { pollMs: 100, quietMs: 1500, timeoutMs: 30_000 };
+const UI_QUIET = { pollMs: 100, quietMs: 500, timeoutMs: 15_000 };
+
+const networkQuiet = (probe) =>
+  waitForQuiet(probe.mockLogSize, NETWORK_QUIET, "the app was still calling Trakt");
 
 const mockLog = () => {
   const file = process.env.PERF_MOCK_LOG;
@@ -494,7 +499,19 @@ function androidProbe(directory) {
         await shell("pidof", "dev.mobile.maestro", "dev.mobile.maestro.test").catch(() => "")
       ).trim() !== "",
     reset: () => shell("dumpsys", "gfxinfo", PACKAGE, "reset"),
-    frames: async () => frameStats(await shell("dumpsys", "gfxinfo", PACKAGE, "framestats")),
+    idle: async () => {
+      await shell("dumpsys", "gfxinfo", PACKAGE, "reset");
+      await waitForQuiet(
+        async () => frameStats(await shell("dumpsys", "gfxinfo", PACKAGE)).frames ?? 0,
+        UI_QUIET,
+        "the app was still drawing",
+      );
+    },
+    frames: async (file) => {
+      const dump = await shell("dumpsys", "gfxinfo", PACKAGE, "framestats");
+      writeFileSync(file, dump);
+      return frameStats(dump);
+    },
     census: async () => viewCensus(await shell("dumpsys", "activity", "top")),
     memory: async () => memInfo(await shell("dumpsys", "meminfo", PACKAGE)),
     after: async (channel, runs, quiet) => {
@@ -545,6 +562,7 @@ function iosProbe(device) {
         (await run("ps", ["-axo", "command="], BUFFER)).stdout,
       ),
     reset: async () => undefined,
+    idle: async () => undefined,
     frames: async () => ({}),
     census: async () => ({}),
     memory: async () => ({
@@ -558,7 +576,8 @@ function iosProbe(device) {
 async function measure(probe, channel, directory, runIndex, step, app) {
   for (const line of step.setup ?? []) await command(channel, line);
   if (step.setup !== undefined) await pause(SETTLE_MS);
-  await waitForQuiet(probe.mockLogSize);
+  await networkQuiet(probe);
+  await probe.idle();
   const video = path.join(
     directory,
     `run-${runIndex}-${fileName([app, step.segment].filter(Boolean).join(" "))}.mp4`,
@@ -573,7 +592,7 @@ async function measure(probe, channel, directory, runIndex, step, app) {
   await pause(step.windowMs ?? WINDOW_MS);
   await probe.recorder.stop();
   const wallMs = Date.now() - started;
-  const frames = await probe.frames();
+  const frames = await probe.frames(video.replace(/\.mp4$/, "-gfxinfo.txt"));
   const census = step.segment.startsWith("tab ") ? await probe.census() : {};
   return {
     analysis: analyse(video, step.segment, commandAt).then((measured) => {
@@ -633,7 +652,7 @@ async function measureApps(probe, channel, directory, runs, apps) {
   }
   for (const app of apps) {
     if (apps.length > 1) await probe.install(app.path);
-    const quiet = () => waitForQuiet(probe.mockLogSize);
+    const quiet = () => networkQuiet(probe);
     samples.push(...tagged(app.label, await probe.after(channel, runs, quiet)));
   }
   return samples;

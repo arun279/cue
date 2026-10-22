@@ -483,7 +483,7 @@ const ticking = (sizes: number[], stepMs: number) => {
 
 it("waits until the fake Trakt log stops growing before a measurement", async () => {
   const { clock, readSize } = ticking([10, 20, 30, 30, 30, 30, 30], 100);
-  await waitForQuiet(readSize, { pollMs: 0, quietMs: 300, timeoutMs: 5000 }, clock);
+  await waitForQuiet(readSize, { pollMs: 0, quietMs: 300, timeoutMs: 5000 }, "busy", clock);
   expect(clock.now()).toBeGreaterThanOrEqual(600);
 });
 
@@ -491,8 +491,13 @@ it("fails when the app keeps calling Trakt", async () => {
   const sizes = Array.from({ length: 100 }, (_, index) => index);
   const { clock, readSize } = ticking(sizes, 100);
   await expect(
-    waitForQuiet(readSize, { pollMs: 0, quietMs: 300, timeoutMs: 2000 }, clock),
-  ).rejects.toThrow("still calling Trakt");
+    waitForQuiet(
+      readSize,
+      { pollMs: 0, quietMs: 300, timeoutMs: 2000 },
+      "the app was still calling Trakt",
+      clock,
+    ),
+  ).rejects.toThrow("the app was still calling Trakt after 2000 ms");
 });
 
 it("prepares the emulator for the probe the way the Android device lanes do", () => {
@@ -507,4 +512,15 @@ it("prepares the emulator for the probe the way the Android device lanes do", ()
 
   expect(lanes.match(setup)?.length).toBeGreaterThan(0);
   expect(short).toEqual([]);
+});
+
+it("waits on a count read asynchronously, such as the frames the Android UI has drawn", async () => {
+  const { clock, readSize } = ticking([0, 3, 7, 7, 7, 7, 7, 7], 100);
+  await waitForQuiet(
+    async () => readSize(),
+    { pollMs: 0, quietMs: 400, timeoutMs: 5000 },
+    "the app was still drawing",
+    clock,
+  );
+  expect(clock.now()).toBeGreaterThanOrEqual(700);
 });
