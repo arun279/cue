@@ -10,6 +10,8 @@ const PREDICATE =
 const RUNNER_TAPS =
   'process == "maestro-driver-iosUITests-Runner" AND eventMessage BEGINSWITH "Tapping "';
 const RUNNER_TAP = /\bTapping [\d.]+, [\d.]+$/;
+const GALLERY_REFRESHES =
+  'process == "PosterBoard" AND eventMessage CONTAINS "pushUpdatedPosterDescriptors begin"';
 const LAUNCHES =
   'eventMessage CONTAINS "com.apple.mobilecal" AND (process == "runningboardd" OR process == "SpringBoard" OR process == "dasd")';
 const SLOW_MS = 1_000;
@@ -97,6 +99,19 @@ export const heapWarning = ({ live }) =>
     ? `Maestro's live heap reached ${live} MB, over ${HEAP_WARNING * 100}% of its ${MAESTRO_HEAP_MB} MB cap`
     : undefined;
 
+/** The swap in use, in bytes, from `sysctl vm.swapusage`. */
+export const swapInUse = (sysctl) =>
+  Number(/\bused = ([\d.]+)M/.exec(sysctl)?.[1] ?? 0) * 1024 * 1024;
+
+/**
+ * PosterBoard's wallpaper gallery refreshes, which start a dozen wallpaper
+ * extensions of 100 to 200 MB each. In run 39862150429 one coincided with the
+ * host going from no swap to 536 MB within a minute and Maestro losing its
+ * connection to the runner.
+ */
+export const galleryRefreshes = (log) =>
+  log.split("\n").filter((line) => line.includes("pushUpdatedPosterDescriptors begin"));
+
 export const launchLines = (log) =>
   log.split("\n").filter((line) => /launch/i.test(line) && line.includes("com.apple.mobilecal"));
 
@@ -150,7 +165,9 @@ export function spindump({ directory, pid, label, options = [], record, done = (
   );
 }
 
-const springBoardPid = (ps) => /^\s*(\d+)\s+\S*\/SpringBoard\.app\/SpringBoard$/m.exec(ps)?.[1];
+// The simulator runtime's path has a space in it ("iOS 26.4.simruntime").
+export const springBoardPid = (ps) =>
+  /^\s*(\d+)\s+.*\/SpringBoard\.app\/SpringBoard$/m.exec(ps)?.[1];
 
 /** The tap proxy's line, its job notice and why it fails the lane, from the runner's own tap log. */
 function tapProxyReport(runnerLog, record) {
@@ -172,6 +189,7 @@ export function laneHealth({ device, directory }) {
   const gcLog = path.join(directory, "maestro-gc.log");
   const since = new Date();
   const started = run("vm_stat").then(({ stdout }) => pageIns(stdout));
+  const swapped = run("sysctl", ["vm.swapusage"]).then(({ stdout }) => swapInUse(stdout));
   const peak = new Map();
   const census = async () =>
     peaks(peak, largestProcesses((await run("ps", ["-axo", "rss=,comm="])).stdout, Infinity));
@@ -212,21 +230,27 @@ export function laneHealth({ device, directory }) {
         ],
         { maxBuffer: 64 * 1024 * 1024 },
       );
-    const [log, launches, runnerLog, vmStat] = await Promise.all([
+    const [log, launches, runnerLog, gallery, vmStat, swap] = await Promise.all([
       show(PREDICATE),
       show(LAUNCHES),
       show(RUNNER_TAPS),
+      show(GALLERY_REFRESHES),
       run("vm_stat"),
+      run("sysctl", ["vm.swapusage"]),
       census(),
     ]);
     const heap = heapAfterCollections(existsSync(gcLog) ? readFileSync(gcLog, "utf8") : "");
     const calendar = launchLines(launches.stdout);
     for (const line of calendar.slice(0, 5)) record(`MobileCal launch: ${line}`);
+    const refreshes = galleryRefreshes(gallery.stdout);
+    for (const line of refreshes.slice(0, 5)) record(`wallpaper gallery refresh: ${line}`);
     const warning = heapWarning(heap);
     const taps = tapProxyReport(runnerLog.stdout, record);
     const lines = [
       ...latencySummary(screenshotLatencies(log.stdout.split("\n"), since)),
       `${megabytes(pageIns(vmStat.stdout) - (await started))} paged in during the flow`,
+      `swap in use went from ${megabytes(await swapped)} to ${megabytes(swapInUse(swap.stdout))} during the flow`,
+      `${refreshes.length} wallpaper gallery refreshes by PosterBoard during the flow`,
       `Maestro's Java heap after ${heap.collections} collections: at most ${heap.live} MB live of ${heap.committed} MB committed`,
       `${calendar.length} log lines about launching MobileCal`,
       `largest single process per program, sampled each minute: ${[...peak]

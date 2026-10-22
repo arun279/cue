@@ -3,6 +3,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import {
+  galleryRefreshes,
   heapAfterCollections,
   largestProcesses,
   latencySummary,
@@ -11,6 +12,8 @@ import {
   peaks,
   screenshotLatencies,
   silenceWatch,
+  springBoardPid,
+  swapInUse,
 } from "../../scripts/lane-health.mjs";
 import { fakeBin } from "../support/fake-bin";
 import { repositoryPath } from "../support/repository-path";
@@ -70,6 +73,32 @@ it("reads the bytes paged in from vm_stat", () => {
       "Mach Virtual Memory Statistics: (page size of 16384 bytes)\nPages free: 21657.\nPageins: 878233.\n",
     ),
   ).toBe(878233 * 16384);
+});
+
+it("reads the swap in use from sysctl", () => {
+  expect(
+    swapInUse("vm.swapusage: total = 1024.00M  used = 535.81M  free = 488.19M  (encrypted)"),
+  ).toBe(535.81 * 1024 * 1024);
+  expect(swapInUse("vm.swapusage: total = 0.00M  used = 0.00M  free = 0.00M  (encrypted)")).toBe(0);
+});
+
+// Run 39862150429, native-e2e-ios-light (discovery): PosterBoard's gallery refresh, as
+// `log show --style compact` prints it, beside a line of the same refresh that is not its start.
+const refresh =
+  "2026-10-22 22:12:01.097 Df PosterBoard[3471:1c3f] (PosterBoard) [com.apple.PosterBoard:Gallery] [A9F1A6BC-8515-4AED-A8C9-164CE6C97B46] pushUpdatedPosterDescriptors begin";
+
+it("keeps one line per wallpaper gallery refresh", () => {
+  const log = `${refresh}\n${refresh.replace("begin", "; enqueuing")}\n`;
+  expect(galleryRefreshes(log)).toEqual([refresh]);
+});
+
+it("finds SpringBoard under a simulator runtime whose path has a space in it", () => {
+  // `ps -axo pid=,comm=` in the same run, where the lookup used to come back empty.
+  const ps = [
+    " 3347 /sbin/launchd_sim",
+    " 3359 /Library/Developer/CoreSimulator/Volumes/iOS_23E254a/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 26.4.simruntime/Contents/Resources/RuntimeRoot/System/Library/CoreServices/SpringBoard.app/SpringBoard",
+  ].join("\n");
+  expect(springBoardPid(ps)).toBe("3359");
 });
 
 it("reads the most heap Java kept alive after a collection from its GC log", () => {
@@ -149,10 +178,12 @@ afterEach(() => vi.useRealTimers());
 
 const laneBin = fakeBin({
   xcrun:
-    '#!/bin/sh\necho "xcrun $*" >> "$CALLS"\ncase "$*" in *mobilecal*) echo "launch request for app<com.apple.mobilecal> from <dasd>" ;; *Tapping*) cat "$TAP_LOG" 2>/dev/null ;; *) cat "$SIM_LOG" ;; esac\n',
+    '#!/bin/sh\necho "xcrun $*" >> "$CALLS"\ncase "$*" in *mobilecal*) echo "launch request for app<com.apple.mobilecal> from <dasd>" ;; *Tapping*) cat "$TAP_LOG" 2>/dev/null ;; *pushUpdatedPosterDescriptors*) echo "PosterBoard pushUpdatedPosterDescriptors begin" ;; *) cat "$SIM_LOG" ;; esac\n',
   vm_stat:
     '#!/bin/sh\ncount=$(grep -c vm_stat "$CALLS" 2>/dev/null)\necho "vm_stat" >> "$CALLS"\necho "Mach Virtual Memory Statistics: (page size of 16384 bytes)"\necho "Pageins: $((1000 + count * 64000))."\n',
   ps: '#!/bin/sh\necho " 1048576 /opt/java/bin/java"\necho "  204800 /RuntimeRoot/SpringBoard.app/SpringBoard"\n',
+  sysctl:
+    '#!/bin/sh\ncount=$(grep -c sysctl "$CALLS" 2>/dev/null)\necho "sysctl" >> "$CALLS"\necho "vm.swapusage: total = 1024.00M  used = $((count * 512)).00M  free = 512.00M  (encrypted)"\n',
   maestro: `#!/bin/sh\necho "$MAESTRO_OPTS" > "$OPTIONS"\necho "[1.0s][info][gc] GC(0) Pause Young (Normal) (G1 Evacuation Pause) 500M->\${LIVE}M(640M) 2.0ms" > "\${MAESTRO_OPTS#*file=}"\n`,
 });
 
@@ -237,6 +268,8 @@ it("reports lane health after Maestro exits, from the simulator's stored log rat
       /^Lane health: [01] of the slow replies were requested in the last 2 s of a minute, against 0\.0 if timing were random$/,
     ),
     "Lane health: 1000 MB paged in during the flow",
+    "Lane health: swap in use went from 0 MB to 512 MB during the flow",
+    "Lane health: 1 wallpaper gallery refreshes by PosterBoard during the flow",
     "Lane health: Maestro's Java heap after 1 collections: at most 12 MB live of 640 MB committed",
     "Lane health: 1 log lines about launching MobileCal",
     "Lane health: largest single process per program, sampled each minute: java 1024 MB, SpringBoard 200 MB",
