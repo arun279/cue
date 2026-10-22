@@ -4,6 +4,7 @@ import path from "node:path";
 import { expect, it } from "vitest";
 import { repositoryPath } from "../support/repository-path";
 import { tempDirectory } from "../support/temp-directory";
+import { readWorkflowJobs } from "../support/workflow-jobs";
 
 const measurement = (count: number) =>
   `${JSON.stringify({ metadata: {} })}\n${JSON.stringify({
@@ -28,4 +29,14 @@ it("keeps zero render-count deviation", () => {
   const result = run(4);
   expect(result.status).toBe(1);
   expect(result.stderr).toContain("allowed deviation of 0");
+});
+
+it("hands the pull request's description to the render gate", () => {
+  const job = readWorkflowJobs(repositoryPath(".github/workflows/ci.yml")).find(
+    ({ name }) => name === "render-performance",
+  );
+
+  expect(job?.body).toContain("      pull-requests: read\n");
+  expect(job?.body).toContain('PR_BODY=$(gh pr view "$PR_NUMBER" --json body --jq .body)\n');
+  expect(job?.body).toContain('pnpm check:render-counts "$PR_BODY"\n');
 });

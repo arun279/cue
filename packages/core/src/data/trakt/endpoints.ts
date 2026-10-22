@@ -173,9 +173,8 @@ export function getWatchlist(
   return readAll(client, path, watchlistSchema, path, { extended: ART });
 }
 
-// Trakt pages the movie collection but returns the show collection whole.
 export function getCollectionShows(client: TraktClient): Promise<TraktResult<CollectionShow[]>> {
-  return readOne(client, "/sync/collection/shows", collectionShowsSchema, undefined, {
+  return readAll(client, "/sync/collection/shows", collectionShowsSchema, undefined, {
     extended: ART,
   });
 }

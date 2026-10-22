@@ -10,6 +10,9 @@ const IN_PROGRESS = 100;
 const FINISHED = 9;
 const LAPSED_EVERY = 2;
 const WATCHED_MOVIES = 60;
+/** Every tenth show in progress is thinly catalogued: no network, IMDb or TVDB id, or artwork, a new season starting in ten days with its last two episodes undated, and half its episodes missing their overview, still and ids. */
+const SPARSE_EVERY = 10;
+const SPARSE_AT = 7;
 
 const LONG = "The Extraordinarily Long and Winding Chronicles of the Northern Lighthouse Keepers";
 
@@ -26,6 +29,7 @@ export const SCALE_SHOWS = Array.from({ length: IN_PROGRESS + FINISHED }, (_, in
   const seasons = [10, 10, 8];
   const aired = seasons.reduce((sum, count) => sum + count, 0);
   const lapsed = !finished && index % LAPSED_EVERY === 0;
+  const sparse = !finished && index % SPARSE_EVERY === SPARSE_AT;
   return {
     trakt: 9000 + index,
     tmdb: 99000 + index,
@@ -43,6 +47,17 @@ export const SCALE_SHOWS = Array.from({ length: IN_PROGRESS + FINISHED }, (_, in
     lastWatchedDaysAgo: lapsed ? 150 + index : 4 + (index % 14),
     noArt: index % 9 === 4,
     collectedDaysAgo: index % 3 === 0 ? 200 + index : undefined,
+    ...(sparse
+      ? {
+          seasons: [...seasons, 6],
+          startDaysAgo: aired * 7 - 10,
+          tba: 2,
+          network: null,
+          sparseIds: true,
+          sparseEpisodes: true,
+          noArt: true,
+        }
+      : {}),
   };
 });
 
@@ -63,3 +78,46 @@ export const SCALE_MOVIES = Array.from({ length: WATCHED_MOVIES }, (_, index) =>
 
 /** How many of the collection's never-started titles move to the watchlist instead. */
 export const SCALE_WATCHLIST = { shows: 240, movies: 100 };
+
+/**
+ * The long-runners: one of 38 seasons plus specials, a single season of them
+ * 199 episodes long, three specials watched; and one numbered across seasons, so
+ * its second season starts at episode 62.
+ */
+export const SCALE_LONG_RUNNERS = [
+  {
+    trakt: 99,
+    tmdb: 99099,
+    slug: "scale-long-runner",
+    title: "Scale Long Runner",
+    year: 1989,
+    status: "returning series",
+    network: "Meridian",
+    runtime: 22,
+    genres: ["animation"],
+    overview: "A generated show in its thirty-eighth season.",
+    seasons: [...Array.from({ length: 30 }, () => 22), 199, ...Array.from({ length: 7 }, () => 22)],
+    startDaysAgo: (37 * 22 + 199) * 7 + 30,
+    completed: 400,
+    lastWatchedDaysAgo: 6,
+    specials: 6,
+    specialsWatched: 3,
+  },
+  {
+    trakt: 98,
+    tmdb: 99098,
+    slug: "scale-continuous",
+    title: "Scale Continuous",
+    year: 1999,
+    status: "returning series",
+    network: "Meridian",
+    runtime: 24,
+    genres: ["anime"],
+    overview: "A generated show whose episode numbers run on across seasons.",
+    seasons: [61, 16, 20],
+    numbering: "continuous",
+    startDaysAgo: 97 * 7 + 30,
+    completed: 66,
+    lastWatchedDaysAgo: 9,
+  },
+];
