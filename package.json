@@ -16,7 +16,7 @@
     "test": "vitest run",
     "test:native": "pnpm --filter @cue/native test",
     "test:watch": "vitest",
-    "check:spell": "cspell --no-progress --no-summary \"**/*.{ts,tsx,css,md}\"",
+    "check:spell": "cspell --no-progress --no-summary",
     "check:arch": "depcruise packages --config .dependency-cruiser.cjs",
     "check:core-portable": "vitest run --project core test/ci/core-portable.test.ts",
     "check:render-counts": "node scripts/check-render-counts.mjs packages/native/.reassure/baseline.perf packages/native/.reassure/current.perf",
