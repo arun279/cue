@@ -15,13 +15,18 @@ import { afterAll } from "vitest";
  * seconds behind other test workers. Fakes written per case paid that inside
  * every case's timeout, which is what made subprocess tests time out under load.
  */
+const WARM_UP_MS = 10_000;
+
 export function fakeBin(commands: Readonly<Record<string, string>>): string {
   const directory = mkdtempSync(path.join(tmpdir(), "cue-fake-bin-"));
   afterAll(() => rmSync(directory, { recursive: true }));
   for (const [name, script] of Object.entries(commands)) {
     const command = path.join(directory, name);
     writeFileSync(command, script, { mode: 0o755 });
-    spawnSync(command, { env: {}, stdio: "ignore" });
+    const warm = spawnSync(command, { env: {}, stdio: "ignore", timeout: WARM_UP_MS });
+    if (warm.error !== undefined) {
+      throw new Error(`fake ${name} did not finish within ${WARM_UP_MS} ms with no arguments`);
+    }
   }
   return directory;
 }

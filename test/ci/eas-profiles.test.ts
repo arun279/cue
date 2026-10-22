@@ -73,7 +73,7 @@ describe("EAS device builds", () => {
   it("install with the workspace's Node and pnpm", () => {
     for (const [, profile] of profiles) {
       expect(profile.node).toBe(rootManifest.engines.node);
-      expect(`pnpm@${profile.pnpm}`).toBe(rootManifest.packageManager);
+      expect(rootManifest.packageManager).toMatch(new RegExp(`^pnpm@${profile.pnpm}\\+sha512\\.`));
     }
   });
 
