@@ -27,6 +27,7 @@ import {
   simulatorRss,
   summary,
   viewCensus,
+  waitForQuiet,
 } from "../../scripts/perf-probe.mjs";
 import { repositoryPath } from "../support/repository-path";
 
@@ -464,4 +465,46 @@ it("compares a change with its base per segment and quantity, and labels empty s
   ]);
   expect(summary("ios", samples)[0]).toMatch(/^ios base lapsed open: wallMs 2600/);
   expect(emptyMeasurements("ios", samples)).toEqual(["ios pass 2 change lapsed open: no doneMs"]);
+});
+
+const ticking = (sizes: number[], stepMs: number) => {
+  let now = 0;
+  let read = 0;
+  return {
+    clock: { now: () => now },
+    readSize: () => {
+      const size = sizes[Math.min(read, sizes.length - 1)] ?? 0;
+      read += 1;
+      now += stepMs;
+      return size;
+    },
+  };
+};
+
+it("waits until the fake Trakt log stops growing before a measurement", async () => {
+  const { clock, readSize } = ticking([10, 20, 30, 30, 30, 30, 30], 100);
+  await waitForQuiet(readSize, { pollMs: 0, quietMs: 300, timeoutMs: 5000 }, clock);
+  expect(clock.now()).toBeGreaterThanOrEqual(600);
+});
+
+it("fails when the app keeps calling Trakt", async () => {
+  const sizes = Array.from({ length: 100 }, (_, index) => index);
+  const { clock, readSize } = ticking(sizes, 100);
+  await expect(
+    waitForQuiet(readSize, { pollMs: 0, quietMs: 300, timeoutMs: 2000 }, clock),
+  ).rejects.toThrow("still calling Trakt");
+});
+
+it("prepares the emulator for the probe the way the Android device lanes do", () => {
+  const lanes = readFileSync(repositoryPath("scripts/verify-android-ui.sh"), "utf8");
+  const probe = readFileSync(repositoryPath("scripts/perf-probe-android.sh"), "utf8");
+  const setup = /^adb shell (settings put|wm |am broadcast).*$/gm;
+  const count = (text: string, line: string) =>
+    text.split("\n").filter((entry) => entry === line).length;
+  const short = [...new Set(lanes.match(setup) ?? [])].filter(
+    (line) => count(probe, line) < count(lanes, line),
+  );
+
+  expect(lanes.match(setup)?.length).toBeGreaterThan(0);
+  expect(short).toEqual([]);
 });

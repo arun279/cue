@@ -17,7 +17,7 @@
 // and adds a line per quantity comparing their medians, so the runner's speed cancels out.
 // Usage: DEVICE_ID=<simulator> perf-probe.mjs <ios|android> <output directory> <runs> [base app] [changed app]
 import { execFile, spawn } from "node:child_process";
-import { appendFileSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -362,6 +362,38 @@ const REPLY_MS = 15_000;
 
 const pause = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
+const QUIET = { pollMs: 100, quietMs: 1500, timeoutMs: 30_000 };
+
+/**
+ * Resolves once a growing log has stopped growing for quietMs, and rejects after timeoutMs.
+ * The fake Trakt server logs every request it answers, so a still log means the app has
+ * finished the fetches, artwork included, that would otherwise land inside a measured window.
+ * @param {() => number} readSize
+ * @param {{ pollMs: number, quietMs: number, timeoutMs: number }} [timing]
+ * @param {{ now(): number }} [clock]
+ */
+export async function waitForQuiet(readSize, { pollMs, quietMs, timeoutMs } = QUIET, clock = Date) {
+  const started = clock.now();
+  let size = readSize();
+  let since = started;
+  for (;;) {
+    await pause(pollMs);
+    const now = clock.now();
+    const next = readSize();
+    if (next !== size) [size, since] = [next, now];
+    if (now - since >= quietMs) return;
+    if (now - started >= timeoutMs)
+      throw new Error(`the app was still calling Trakt after ${timeoutMs} ms`);
+  }
+}
+
+const mockLog = () => {
+  const file = process.env.PERF_MOCK_LOG;
+  if (file === undefined || file === "")
+    throw new Error("PERF_MOCK_LOG must name the fake Trakt log");
+  return () => statSync(file).size;
+};
+
 const within = (promise, milliseconds, what) =>
   Promise.race([
     promise,
@@ -465,7 +497,7 @@ function androidProbe(directory) {
     frames: async () => frameStats(await shell("dumpsys", "gfxinfo", PACKAGE, "framestats")),
     census: async () => viewCensus(await shell("dumpsys", "activity", "top")),
     memory: async () => memInfo(await shell("dumpsys", "meminfo", PACKAGE)),
-    after: async (channel, runs) => {
+    after: async (channel, runs, quiet) => {
       const samples = [];
       for (const [mode, segment] of [
         ["verify", "cold start verified, as a Play install starts"],
@@ -477,7 +509,7 @@ function androidProbe(directory) {
       }
       await shell("setprop", "debug.hwui.overdraw", "show");
       await launched(probe, channel);
-      await pause(SETTLE_MS);
+      await quiet();
       samples.push({
         run: 1,
         segment: "overdraw up-next",
@@ -485,6 +517,7 @@ function androidProbe(directory) {
       });
       await command(channel, "tab library");
       await pause(SETTLE_MS);
+      await quiet();
       samples.push({
         run: 1,
         segment: "overdraw library",
@@ -525,6 +558,7 @@ function iosProbe(device) {
 async function measure(probe, channel, directory, runIndex, step, app) {
   for (const line of step.setup ?? []) await command(channel, line);
   if (step.setup !== undefined) await pause(SETTLE_MS);
+  await waitForQuiet(probe.mockLogSize);
   const video = path.join(
     directory,
     `run-${runIndex}-${fileName([app, step.segment].filter(Boolean).join(" "))}.mp4`,
@@ -599,7 +633,8 @@ async function measureApps(probe, channel, directory, runs, apps) {
   }
   for (const app of apps) {
     if (apps.length > 1) await probe.install(app.path);
-    samples.push(...tagged(app.label, await probe.after(channel, runs)));
+    const quiet = () => waitForQuiet(probe.mockLogSize);
+    samples.push(...tagged(app.label, await probe.after(channel, runs, quiet)));
   }
   return samples;
 }
@@ -612,7 +647,10 @@ async function main() {
     );
   }
   mkdirSync(directory, { recursive: true });
-  const probe = platform === "android" ? androidProbe(directory) : iosProbe(process.env.DEVICE_ID);
+  const probe = {
+    ...(platform === "android" ? androidProbe(directory) : iosProbe(process.env.DEVICE_ID)),
+    mockLogSize: mockLog(),
+  };
   if (await probe.driverAttached())
     throw new Error("a test driver is still running; stop it first");
   const channel = createChannel();

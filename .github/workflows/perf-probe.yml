@@ -201,6 +201,7 @@ jobs:
       - name: Run the probe
         env:
           RUNS: ${{ needs.request.outputs.runs }}
+          PERF_MOCK_LOG: ${{ runner.temp }}/mock-trakt.log
         run: |
           if [ -n "${COMPARE_APP:-}" ]; then
             node scripts/perf-probe.mjs ios "$RUNNER_TEMP/perf" "$RUNS" "$RUNNER_TEMP/app/Cue.app" "$COMPARE_APP"
