@@ -11,10 +11,12 @@ appId: app.cuetracker
     env:
       OPERATION: sync
 - swipe:
-    from:
-      id: "up-next-list"
-    direction: DOWN
-    duration: 600
+    start: "50%, 30%"
+    end: "50%, 95%"
+    duration: 1500
+- copyTextFrom:
+    id: "pull-trace"
+- evalScript: ${console.log('CUE_PULL_TRACE=' + maestro.copiedText)}
 - runFlow: lib/settle.yaml
 - assertVisible:
     id: "up-next-list"
@@ -29,9 +31,9 @@ appId: app.cuetracker
     env:
       OPERATION: sync
 - swipe:
-    start: "50%, 40%"
-    end: "50%, 90%"
-    duration: 600
+    start: "50%, 30%"
+    end: "50%, 95%"
+    duration: 1500
 - runFlow: lib/settle.yaml
 - assertVisible:
     id: "screen-history"

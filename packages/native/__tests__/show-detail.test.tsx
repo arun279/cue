@@ -1,19 +1,22 @@
 import { seasonConfirmation } from "@cue/core/domain/show-detail";
 import { usePlayPolicy } from "@cue/core/stores/play-policy-store";
 import { UNDO_WINDOW_MS } from "@cue/core/sync-contract";
-import { act, fireEvent, render, screen } from "@testing-library/react-native";
+import { act, fireEvent, render, renderHook, screen } from "@testing-library/react-native";
+import { Children, isValidElement, type ReactNode } from "react";
 import { ActionSheetIOS, Alert, Platform } from "react-native";
 import { ShowDetail } from "../src/screens/ShowDetail";
 import { ContinueBar } from "../src/screens/show-detail/ContinueBar";
 import { confirm } from "../src/ui/confirm";
+import { HEADER_TINT } from "../src/ui/navigation-theme";
 import { TEST_IDS } from "../src/ui/test-ids";
+import { useColors } from "../src/ui/tokens";
 import { DetailHarness, detailRuntime } from "./support/detail";
 import { router } from "./support/native-ui";
-import { entry, resetSharedStores } from "./support/up-next";
+import { entry, Harness, resetSharedStores, spyHaptics } from "./support/up-next";
 
+jest.mock("expo-image", () => require("./support/detail").imageModule());
 jest.mock("expo-router", () => require("./support/native-ui").expoRouterModule());
 jest.mock("@expo/ui/community/menu", () => require("./support/native-ui").menuModule());
-jest.mock("expo-image", () => require("./support/detail").imageModule());
 jest.mock("expo-web-browser", () => ({ openBrowserAsync: jest.fn() }));
 jest.mock(
   "react-native-safe-area-context",
@@ -246,3 +249,51 @@ it("names on the Next card the episode its check describes, through a mark and i
     jest.useRealTimers();
   }
 });
+
+it("updates the header only when the menu it shows changes, as the show's reads land and its state moves", async () => {
+  const { Stack } = jest.requireMock<typeof import("expo-router")>("expo-router");
+  const toolbar = jest.mocked(Stack.Toolbar);
+  toolbar.mockClear();
+  await render(
+    <Harness runtime={detailRuntime} haptics={spyHaptics()}>
+      <ShowDetail showId={8803} />
+    </Harness>,
+  );
+  await screen.findByTestId(TEST_IDS.continueMark);
+  await fireEvent.press(screen.getByTestId(TEST_IDS.seasonTrigger(2)));
+  await fireEvent.press(screen.getByTestId(TEST_IDS.continueMark));
+
+  const menus = toolbar.mock.calls.map(([props]) => JSON.stringify(menuOf(props.children)));
+  expect(menus.length).toBeGreaterThan(0);
+  expect(menus.filter((menu, index) => menu === menus[index - 1])).toEqual([]);
+});
+
+function menuOf(node: unknown): unknown {
+  if (!isValidElement<{ children?: unknown }>(node)) return node;
+  const { children, onPress: _, ...props } = node.props as Record<string, unknown>;
+  return { ...props, children: Children.toArray(children as ReactNode).map(menuOf) };
+}
+
+(Platform.OS === "android" ? it : it.skip)(
+  "draws Android's More trigger as a plain 48 dp button that mounts its menu only when opened",
+  async () => {
+    const { result } = await renderHook(() => useColors());
+    await render(
+      <DetailHarness>
+        <ShowDetail showId={8803} />
+      </DetailHarness>,
+    );
+
+    const more = await screen.findByRole("button", {
+      name: "More actions for Midnight Cartography",
+    });
+    expect(more).toHaveStyle({ width: 48, height: 48 });
+    const icon = more.children.find((child) => typeof child !== "string" && child.type === "Image");
+    expect(icon).toHaveStyle({ tintColor: result.current[HEADER_TINT] });
+    expect(screen.queryByTestId("stop")).toBeNull();
+
+    await fireEvent.press(more);
+
+    expect(screen.getByTestId("stop")).toBeOnTheScreen();
+  },
+);
