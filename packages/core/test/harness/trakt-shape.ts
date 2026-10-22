@@ -60,6 +60,7 @@ export function templateOf(method: string, path: string): string {
       "/calendars/my/$1/:start/:days",
     )
     .replace(/\/search\/[a-z,]+$/, "/search/:types")
+    .replace(/^\/genres\/(shows|movies)$/, "/genres/:type")
     .replace(/\/(shows|movies|episodes)\/(?!:|trending$|popular$)[^/]+(?=\/|$)/g, "/$1/:id");
   return `${method} ${template}`;
 }

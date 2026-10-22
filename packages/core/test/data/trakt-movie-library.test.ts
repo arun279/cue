@@ -177,7 +177,7 @@ describe("assembleMovieHeader", () => {
       overview: "A duke's son leads desert warriors.",
       runtime: 155,
       released: "2021-10-22",
-      genres: ["science fiction", "adventure"],
+      genres: ["science-fiction", "adventure"],
       ids: { trakt: 5, slug: "dune-2021", imdb: "tt1160419", tmdb: 438631 },
       images: { poster: ["p.webp"], fanart: ["b.webp"] },
     };
@@ -189,7 +189,7 @@ describe("assembleMovieHeader", () => {
       overview: "A duke's son leads desert warriors.",
       runtime: 155,
       released: "2021-10-22",
-      genres: ["science fiction", "adventure"],
+      genres: ["science-fiction", "adventure"],
       posters: ["p.webp"],
       backdrops: ["b.webp"],
       tmdbId: 438631,

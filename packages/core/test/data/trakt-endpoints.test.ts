@@ -122,7 +122,7 @@ describe("Trakt read endpoints zod-parse well-formed fixtures", () => {
       overview: "A duke's son leads desert warriors.",
       runtime: 155,
       released: "2021-10-22",
-      genres: ["science fiction"],
+      genres: ["science-fiction"],
       images: { poster: ["media.trakt.tv/p.webp"], fanart: ["media.trakt.tv/b.webp"] },
     });
     const result = await getMovie(client, 5);
