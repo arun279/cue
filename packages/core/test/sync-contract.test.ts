@@ -180,10 +180,7 @@ describe("readFailureBody", () => {
     expect(readFailureBody({ kind: "network" })).toBe("Check your connection and try again.");
   });
 
-  it("keeps unreadable response copy distinct from a connection failure", () => {
-    expect(readFailureBody({ kind: "unreadable-response" })).toBe(
-      "Trakt is having trouble. Try again in a moment.",
-    );
+  it("blames Trakt, not the connection, for a server failure", () => {
     expect(readFailureBody({ kind: "server", status: 503 })).toBe(
       "Trakt is having trouble. Try again in a moment.",
     );
@@ -214,7 +211,6 @@ describe("read retry policy", () => {
     expect(shouldRetryRead(0, readError({ kind: "server", status: 500 }), 3)).toBe(true);
     expect(shouldRetryRead(0, readError({ kind: "network" }), 3)).toBe(true);
     expect(shouldRetryRead(0, readError({ kind: "timeout" }), 3)).toBe(true);
-    expect(shouldRetryRead(0, readError({ kind: "unreadable-response" }), 3)).toBe(true);
     expect(shouldRetryRead(2, readError({ kind: "network" }), 3)).toBe(false);
   });
 

@@ -10,7 +10,7 @@
  * are real.
  */
 
-export interface MemoryStorage {
+interface MemoryStorage {
   readonly values: Map<string, string>;
   getItem(key: string): Promise<string | null>;
   setItem(key: string, value: string): Promise<void>;

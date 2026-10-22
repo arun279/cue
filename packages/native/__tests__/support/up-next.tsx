@@ -16,6 +16,7 @@ import { resetMarkStore } from "@cue/core/stores/mark-store";
 import { dismissSnack } from "@cue/core/stores/snackbar-store";
 import { type QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { type ReactElement, type ReactNode, useState } from "react";
+import { memoryPreferenceStorage } from "../../../core/test/support/stores";
 import { createAppQueryClient } from "../../src/platform/query-client";
 import { SnackbarHost } from "../../src/ui/SnackbarHost";
 
@@ -82,7 +83,7 @@ export function airing(overrides: Partial<CalendarEntry> = {}): CalendarEntry {
   };
 }
 
-export interface RuntimeFixture {
+interface RuntimeFixture {
   readonly entries?: readonly LibraryEntry[];
   readonly movies?: readonly MovieEntry[];
   readonly calendar?: readonly CalendarEntry[];
@@ -146,19 +147,6 @@ export function fakeRuntime({
   } as unknown as CueRuntime;
 }
 
-export function memoryPreferences(): PreferenceStorage {
-  const values = new Map<string, string>();
-  return {
-    getItem: (key) => values.get(key) ?? null,
-    setItem: (key, value) => {
-      values.set(key, value);
-    },
-    clearNamespace: (prefix) => {
-      for (const key of [...values.keys()]) if (key.startsWith(prefix)) values.delete(key);
-    },
-  };
-}
-
 export function spyHaptics(): jest.Mocked<Haptics> {
   return {
     success: jest.fn(),
@@ -174,7 +162,7 @@ export function spyHaptics(): jest.Mocked<Haptics> {
 
 export const OFFLINE: Network = { isOnline: () => false, subscribe: () => () => {} };
 
-export interface HarnessProps {
+interface HarnessProps {
   readonly runtime: CueRuntime;
   readonly haptics: Haptics;
   readonly preferences?: PreferenceStorage;
@@ -188,7 +176,7 @@ export interface HarnessProps {
 export function Harness({
   runtime,
   haptics,
-  preferences = memoryPreferences(),
+  preferences = memoryPreferenceStorage(),
   network,
   seed,
   children,

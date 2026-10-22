@@ -28,14 +28,10 @@ async function paint(state: Partial<AuthState> = {}) {
     tokenStore: { read: async () => null, write: jest.fn(), clear: jest.fn() },
     clientId: "test-client",
     redirectUri: "cue://auth/callback",
-    redirect: jest.fn(),
-    redirectHandoff: { read: () => null, write: jest.fn(), clear: jest.fn() },
-    native: true,
     traktBaseUrl: undefined,
   });
   store.setState({
     phase: "onboarding",
-    native: true,
     connectStatus: "idle",
     deviceCode: null,
     errorMessage: null,

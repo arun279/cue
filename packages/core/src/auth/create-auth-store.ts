@@ -1,10 +1,8 @@
 import { createStore } from "zustand/vanilla";
 import { sessionTeardown } from "../app/session";
 import {
-  buildAuthorizeUrl,
   type DeviceCode,
   type DeviceTokenResult,
-  exchangeCodeForToken,
   type OAuthConfig,
   pollDeviceToken,
   requestDeviceCode,
@@ -13,7 +11,6 @@ import {
 import { createPkcePair } from "../data/auth/pkce";
 import type { Token } from "../domain/model/token";
 import type { CryptoPort } from "../ports/crypto";
-import type { RedirectHandoff } from "../ports/redirect-handoff";
 import type { TokenStore } from "../ports/token-store";
 import type { AuthActions, AuthState, AuthStore } from "./store";
 
@@ -22,9 +19,6 @@ export interface AuthDeps {
   readonly tokenStore: TokenStore;
   readonly clientId: string;
   readonly redirectUri: string;
-  readonly redirect: (url: string) => void;
-  readonly redirectHandoff: RedirectHandoff;
-  readonly native: boolean;
   readonly traktBaseUrl: string | undefined;
 }
 
@@ -37,7 +31,6 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
     clientId: deps.clientId,
     redirectUri: deps.redirectUri,
     apiBaseUrl: deps.traktBaseUrl,
-    siteBaseUrl: deps.traktBaseUrl,
   };
 
   let activeAttempt = 0;
@@ -115,16 +108,6 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
       connectStatus: "idle",
       errorMessage: null,
       deviceCode: null,
-      native: deps.native,
-
-      async connectWithRedirect() {
-        activeAttempt += 1;
-        set({ connectStatus: "connecting", errorMessage: null });
-        const state = deps.crypto.newId();
-        const { verifier, challenge } = await createPkcePair(deps.crypto);
-        deps.redirectHandoff.write(state, verifier);
-        deps.redirect(buildAuthorizeUrl(config, state, challenge));
-      },
 
       async connectWithDeviceCode() {
         activeAttempt += 1;
@@ -142,37 +125,6 @@ export function createAuthStore(deps: AuthDeps): AuthStore {
             connectStatus: "error",
             errorMessage: "Couldn't reach Trakt. Check your connection and try again.",
             deviceCode: null,
-          });
-        }
-      },
-
-      async completeRedirect(code, state) {
-        set({ connectStatus: "connecting", errorMessage: null });
-        const stashed = deps.redirectHandoff.read();
-        // A stray or tampered callback must not consume the verifier of an attempt in progress.
-        if (state === null || stashed === null || state !== stashed.state) {
-          set({
-            connectStatus: "error",
-            errorMessage: "We couldn't verify that sign-in. Please try again.",
-          });
-          return;
-        }
-        const { verifier } = stashed;
-        deps.redirectHandoff.clear();
-        if (code === null) {
-          set({
-            connectStatus: "error",
-            errorMessage: "Sign-in didn't complete. Please try again.",
-          });
-          return;
-        }
-        try {
-          const token = await exchangeCodeForToken(config, code, verifier);
-          connect(token);
-        } catch {
-          set({
-            connectStatus: "error",
-            errorMessage: "We couldn't finish connecting to Trakt. Please try again.",
           });
         }
       },

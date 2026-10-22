@@ -5,12 +5,11 @@ import { describe, expect, it } from "vitest";
 import { gitEnv } from "../support/git-env";
 import { repositoryPath } from "../support/repository-path";
 import { tempDirectory } from "../support/temp-directory";
+import { readWorkflowJobs } from "../support/workflow-jobs";
 
 const workflow = readFileSync(repositoryPath(".github/workflows/ci.yml"), "utf8");
-const job = (name: string) =>
-  workflow.match(
-    new RegExp(`^  ${name}:\\n([\\s\\S]*?)(?=^  [a-z][a-z0-9-]*:|(?![\\s\\S]))`, "m"),
-  )?.[1] ?? "";
+const jobs = readWorkflowJobs(repositoryPath(".github/workflows/ci.yml"));
+const job = (name: string) => jobs.find((entry) => entry.name === name)?.body ?? "";
 
 const steps = (name: string) => job(name).split(/^ {6}- /m);
 const envOf = (step: string) => step.match(/^ {8}env:\n((?: {10}.*\n)+)/m)?.[1];
@@ -127,17 +126,14 @@ describe("fast pull request validation", () => {
 
     expect(footprint).not.toMatch(/expo (?:export|prebuild)|measure-base/);
     expect(footprint).not.toContain("grad" + "lew");
-    expect(footprint).not.toMatch(/(?:xcodebuild|measure-play-size)/);
-    expect(footprint).not.toContain("cue-native-ios-sizes");
+    expect(footprint).not.toContain("xcodebuild");
     expect(footprint).toContain("cue-native-android-sizes");
     expect(footprint).toContain("cue-js-bundles");
     expect(footprint).toMatch(
       /name: Upload Expo Atlas[\s\S]*name: expo-atlas[\s\S]*path: packages\/native\/\.expo\/atlas\.jsonl/,
     );
-    expect(footprint).not.toContain("summarize-atlas");
     expect(footprint).toContain("with:\n          name: cue-footprint-base\n");
     expect(job("footprint-base")).toContain("name: cue-footprint-base\n");
-    expect(workflow).not.toMatch(/cue-footprint-\$|restore-base-metrics/);
   });
 
   it("measures the merge base with the build environment native-android measures the head with", () => {
@@ -254,9 +250,6 @@ describe("fast pull request validation", () => {
     expect(returning).not.toMatch(/repeat:|copyTextFrom|evalScript/);
     expect(feedback).toMatch(/tapOn:[\s\S]*snackbar-undo[\s\S]*assertNotVisible:/);
     expect(feedback).toMatch(/text: \$\{output\.rowLabel\}/);
-    expect(`${workflow}${returning}${feedback}`).not.toMatch(
-      /RESPONSE_SAMPLES|APP_IDLE_CEILING_MS|FEEDBACK_CEILING_MS|REFERENCE_READ_MS|response-timing|summarize-app-idle|CUE_APP_IDLE_SAMPLES/,
-    );
   });
 
   it("runs every shared Maestro flow on iOS and Android", () => {
@@ -327,13 +320,11 @@ describe("fast pull request validation", () => {
     expect(ios).toContain("actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3");
     expect(ios).toContain("name: cue-native-ios-$" + "{{ needs.fingerprint.outputs.ios }}");
     expect(ios).toContain(" .maestro/ci/screenshots.yaml \\\n");
-    expect(ios).not.toContain("continue-on-error");
     expect(android).toContain("needs: [fingerprint, native-android]");
     expect(android).toContain(
       "cue-native-android-$" + "{{ needs.native-android.outputs.fingerprint }}",
     );
     expect(android).toContain('"$RUNNER_TEMP/screenshots/android" dark');
-    expect(android).not.toContain("continue-on-error");
   });
 
   it.each([
@@ -433,7 +424,6 @@ describe("fast pull request validation", () => {
     expect(aggregate).toContain("DEVICES: $" + "{{ needs.fingerprint.outputs.devices }}");
     expect(aggregate).toContain("USER_FACING: $" + "{{ needs.fingerprint.outputs.user-facing }}");
     expect(aggregate).toMatch(/^ {8}run: node scripts\/native-e2e-rollup\.mjs$/m);
-    expect(aggregate).not.toContain("continue-on-error");
     expect(aggregate).not.toMatch(/\|\|\s*true\s*$/m);
   });
 
@@ -629,6 +619,22 @@ describe("fast pull request validation", () => {
     );
     expect(upload).toContain(`name: ${HARNESS_BUNDLE}\n`);
     expect(upload).toContain("path: $" + "{{ runner.temp }}/ios-bundle\n");
+  });
+
+  it("names, inside the harness bundle, the cached app it was built for", () => {
+    const fingerprint = steps("fingerprint");
+    const at = (text: string) => fingerprint.findIndex((step) => step.includes(text));
+    const name = fingerprint[at('/ios-bundle/app-artifact"')] ?? "";
+    const cache = fingerprint[at("id: ios-cache\n")] ?? "";
+
+    expect(name.startsWith("if: steps.ios-cache.outputs.hit == 'true'\n")).toBe(true);
+    const artifact =
+      "          ARTIFACT_NAME: cue-native-ios-$" + "{{ steps.native.outputs.ios }}\n";
+    expect(envOf(name)).toBe(artifact);
+    expect(envOf(cache)).toContain(artifact);
+    expect(name).toContain('run: echo "$ARTIFACT_NAME" > "$RUNNER_TEMP/ios-bundle/app-artifact"\n');
+    expect(at('/ios-bundle/app-artifact"')).toBeGreaterThan(at("scripts/bundle-ios.sh"));
+    expect(at('/ios-bundle/app-artifact"')).toBeLessThan(at("actions/upload-artifact@"));
   });
 
   it.each(

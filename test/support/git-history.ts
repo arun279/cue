@@ -5,7 +5,7 @@ import { gitEnv } from "./git-env";
 import { tempDirectory } from "./temp-directory";
 
 /** The files a commit writes, with `null` for a file it deletes. */
-export type Commit = Readonly<Record<string, string | null>>;
+type Commit = Readonly<Record<string, string | null>>;
 
 const change = ([file, contents]: [string, string | null]): string =>
   contents === null

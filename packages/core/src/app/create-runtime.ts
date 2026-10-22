@@ -93,7 +93,6 @@ export interface RuntimeDeps {
   readonly redirectUri: string;
   readonly clientId: string;
   readonly apiBaseUrl?: string | undefined;
-  readonly browser: boolean;
   readonly userAgent?: string;
   readonly policy?: TraktPolicy;
   readonly endSession: () => Promise<void>;
@@ -211,7 +210,6 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     getToken: () => authorized.accessToken(),
     fetch: authorized.fetch,
     baseUrl: deps.apiBaseUrl,
-    browser: deps.browser,
     userAgent: deps.userAgent,
     policy: deps.policy,
     report,

@@ -6,8 +6,9 @@ import { createPrefsStore, PrefsProvider } from "@cue/core/prefs/prefs-store";
 import type { CueRuntime } from "@cue/core/runtime/runtime";
 import { render } from "@testing-library/react-native";
 import type { ReactNode } from "react";
+import { memoryPreferenceStorage } from "../../../core/test/support/stores";
 import { useAppearance } from "../../src/screens/account/ThemeControl";
-import { entry, fakeRuntime, Harness, memoryPreferences, spyHaptics } from "./up-next";
+import { entry, fakeRuntime, Harness, spyHaptics } from "./up-next";
 
 export const LIBRARY = [
   entry({ showId: 1, completed: 54, runtime: 60 }),
@@ -38,7 +39,7 @@ export function movie(overrides: Partial<MovieEntry> = {}): MovieEntry {
 export const MOVIES = [movie(), movie({ movieId: 502, watched: false, inWatchlist: true })];
 
 export function accountFixture(overrides: Partial<CueRuntime> = {}) {
-  const storage = memoryPreferences();
+  const storage = memoryPreferenceStorage();
   const prefs = createPrefsStore(storage);
   const disconnect = jest.fn<Promise<void>, []>(() => Promise.resolve());
   const auth = createAuthStore({
@@ -50,9 +51,6 @@ export function accountFixture(overrides: Partial<CueRuntime> = {}) {
     tokenStore: { read: async () => null, write: async () => {}, clear: async () => {} },
     clientId: "test",
     redirectUri: "cue://auth/callback",
-    redirect: () => {},
-    redirectHandoff: { read: () => null, write: () => {}, clear: () => {} },
-    native: true,
     traktBaseUrl: undefined,
   });
   auth.setState({ disconnect });

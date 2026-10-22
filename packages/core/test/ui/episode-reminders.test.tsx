@@ -9,7 +9,6 @@ import type { CalendarEntry } from "@cue/core/domain/calendar";
 import type { PlannedReminder } from "@cue/core/domain/reminders";
 import { useEpisodeReminders } from "@cue/core/hooks/useEpisodeReminders";
 import { type AppVisibility, AppVisibilityProvider } from "@cue/core/ports/app-visibility";
-import type { PreferenceStorage } from "@cue/core/ports/preference-storage";
 import { type Reminders, RemindersProvider } from "@cue/core/ports/reminders";
 import { createPrefsStore, PrefsProvider } from "@cue/core/prefs/prefs-store";
 import { type CueRuntime, RuntimeProvider } from "@cue/core/runtime/runtime";
@@ -17,6 +16,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { memoryPreferenceStorage } from "../support/stores";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -75,16 +75,6 @@ function Probe(): null {
   return null;
 }
 
-/** The preferences this suite drives, over a storage that outlives nothing. */
-function memoryStorage(): PreferenceStorage {
-  const values = new Map<string, string>();
-  return {
-    getItem: (key) => values.get(key) ?? null,
-    setItem: (key, value) => void values.set(key, value),
-    clearNamespace: () => values.clear(),
-  };
-}
-
 /** The app's foreground state, flipped by the test the way the OS flips it. */
 function foreground(): AppVisibility & { set: (visible: boolean) => void } {
   let visible = true;
@@ -105,11 +95,11 @@ function foreground(): AppVisibility & { set: (visible: boolean) => void } {
 let root: Root | null = null;
 let app = foreground();
 let queryClient: QueryClient | null = null;
-let prefs = createPrefsStore(memoryStorage());
+let prefs = createPrefsStore(memoryPreferenceStorage());
 
 beforeEach(() => {
   app = foreground();
-  prefs = createPrefsStore(memoryStorage());
+  prefs = createPrefsStore(memoryPreferenceStorage());
   prefs.setState({ remindersEnabled: true });
 });
 

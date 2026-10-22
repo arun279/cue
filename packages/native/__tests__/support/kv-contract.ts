@@ -1,14 +1,13 @@
-import { beforeEach, describe, expect, it } from "vitest";
-import { createJsonStore } from "../../src/ports/json-store";
-import type { KeyValueStore } from "../../src/ports/kv";
-import { createTokenStore } from "../../src/ports/token-store";
+import { createJsonStore } from "@cue/core/ports/json-store";
+import type { KeyValueStore } from "@cue/core/ports/kv";
+import { createTokenStore } from "@cue/core/ports/token-store";
 
 /**
  * One backend under test. `open` returns a store over the SAME durable backing
  * every time it is called, which is what lets the suite assert that a value
  * outlives the store object the way it has to outlive an app launch.
  */
-export interface KeyValueBacking {
+interface KeyValueBacking {
   readonly name: string;
   open(): KeyValueStore;
   reset(): Promise<void>;

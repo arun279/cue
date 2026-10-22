@@ -13,6 +13,7 @@ import {
   within,
 } from "@testing-library/react-native";
 import { Dimensions, Platform, ScrollView } from "react-native";
+import { memoryPreferenceStorage } from "../../core/test/support/stores";
 import { ROW_MIN_HEIGHT } from "../src/ui/tokens";
 import { expectUnavailable, menuItem } from "./support/native-ui";
 import {
@@ -21,7 +22,6 @@ import {
   entry,
   fakeRuntime,
   Harness,
-  memoryPreferences,
   OFFLINE,
   resetSharedStores,
   spyHaptics,
@@ -544,7 +544,7 @@ describe("Up Next's empty and off states", () => {
 
 /** The Settings switch, already off, which is where this branch comes from. */
 function showsTurnedOff(): PreferenceStorage {
-  const preferences = memoryPreferences();
+  const preferences = memoryPreferenceStorage();
   preferences.setItem("cue.shows-enabled", "false");
   return preferences;
 }

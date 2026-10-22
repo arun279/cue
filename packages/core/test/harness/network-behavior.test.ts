@@ -1,7 +1,7 @@
 import { createCueRuntime } from "@cue/core/app/create-runtime";
 import { queryKeys } from "@cue/core/data/query-keys";
 import { createAuthorizedFetch } from "@cue/core/data/trakt/authorized-fetch";
-import { TRAKT_API_BASE, TraktClient } from "@cue/core/data/trakt/client";
+import { TraktClient } from "@cue/core/data/trakt/client";
 import { getShowProgress, getUserSettings } from "@cue/core/data/trakt/endpoints";
 import {
   readsPausedUntil,
@@ -154,7 +154,6 @@ const runtime = (
     redirectUri: "cue://oauth",
     clientId: "mock-client",
     apiBaseUrl: baseUrl,
-    browser: false,
     endSession: overrides.endSession ?? (async () => undefined),
     clearPersistedCaches: async () => undefined,
     clearLocalPreferences: () => undefined,
@@ -254,25 +253,6 @@ describe("read failures", () => {
     await expect(poll).resolves.toBeNull();
     expect(since(start)).toHaveLength(4);
     expect(readsPausedUntil()).toBeGreaterThan(Date.now());
-  });
-
-  it("classifies a rejected Trakt response as unreadable in a browser client", async () => {
-    const start = entries().length;
-    const client = new TraktClient({
-      clientId: "mock-client",
-      browser: true,
-      fetch: async (input, init) => {
-        const url = new URL(input);
-        await fetch(`${baseUrl}${url.pathname}${url.search}`, init);
-        throw new TypeError("response blocked");
-      },
-      baseUrl: TRAKT_API_BASE,
-    });
-    const result = await getUserSettings(client);
-    expect(result).toEqual({ ok: false, error: { kind: "unreadable-response" } });
-    expect(since(start)).toEqual([
-      expect.objectContaining({ method: "GET", path: "/users/settings" }),
-    ]);
   });
 });
 

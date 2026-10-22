@@ -75,7 +75,7 @@ export const detailRuntime = {
   loadWatchlistIds: jest.fn(async () => []),
 };
 
-export function seedDetail(client: QueryClient): void {
+function seedDetail(client: QueryClient): void {
   client.setQueryData(showInfoQuery(detailRuntime, 8803).queryKey, header);
   client.setQueryData(showProgressQuery(detailRuntime, 8803).queryKey, header);
   client.setQueryData(showSeasonsQuery(detailRuntime, 8803).queryKey, [

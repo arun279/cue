@@ -132,6 +132,11 @@ jobs:
           EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
         run: scripts/bundle-ios.sh "$RUNNER_TEMP/ios-bundle"
       - if: steps.ios-cache.outputs.hit == 'true'
+        name: Name the cached simulator app the bundle goes into
+        env:
+          ARTIFACT_NAME: cue-native-ios-${{ steps.native.outputs.ios }}
+        run: echo "$ARTIFACT_NAME" > "$RUNNER_TEMP/ios-bundle/app-artifact"
+      - if: steps.ios-cache.outputs.hit == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ios-harness-bundle${{ inputs.copy }}

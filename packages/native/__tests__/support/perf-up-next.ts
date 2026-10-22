@@ -1,4 +1,3 @@
-import type { LibraryEntry } from "@cue/core/data/trakt/library";
 import { recentCalendarStart } from "@cue/core/domain/calendar";
 import { dayKeyOf } from "@cue/core/domain/day";
 import { localTimeZone } from "@cue/core/domain/time";
@@ -6,8 +5,9 @@ import { calendarQuery, recentlyAiredQuery } from "@cue/core/queries/calendar";
 import type { CueRuntime } from "@cue/core/runtime/runtime";
 import type { QueryClient } from "@tanstack/react-query";
 import type { UpNextCard } from "../../src/screens/up-next/model";
+import { entry as upNextEntry } from "./up-next";
 
-export const SHOW_ID = 8801;
+const SHOW_ID = 8801;
 
 export const episode = {
   season: 3,
@@ -18,24 +18,14 @@ export const episode = {
   ids: { trakt: 1 },
 };
 
-export const entry: LibraryEntry = {
+export const entry = upNextEntry({
   showId: SHOW_ID,
-  title: "Harbor Lights",
-  year: null,
-  status: "returning series",
-  hidden: false,
-  inWatchlist: false,
-  addedAt: null,
   lastWatchedAt: new Date().toISOString(),
   aired: 22,
   completed: 20,
   nextEpisode: episode,
   lastAired: null,
-  tmdbId: null,
-  runtime: null,
-  posters: [],
-  pendingAdvance: false,
-};
+});
 
 export const cardOf = (pendingAdvance: boolean): UpNextCard => ({
   item: { showId: SHOW_ID, title: entry.title, episode, lastWatchedAt: null, backlog: 2 },
