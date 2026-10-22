@@ -150,7 +150,7 @@ describe("groupHistory", () => {
 
 describe("historyRange (the decade-jump window)", () => {
   it("bounds a whole year in UTC, first ms to last", () => {
-    expect(historyRange(2019)).toEqual({
+    expect(historyRange(2019, undefined, "UTC")).toEqual({
       startAt: "2019-01-01T00:00:00.000Z",
       endAt: "2019-12-31T23:59:59.999Z",
     });
@@ -158,18 +158,18 @@ describe("historyRange (the decade-jump window)", () => {
 
   it("narrows to a single month, ending on the last ms before the next month", () => {
     // March 2019: 01 00:00:00.000 → 31 23:59:59.999 (April 1 minus 1ms).
-    expect(historyRange(2019, 3)).toEqual({
+    expect(historyRange(2019, 3, "UTC")).toEqual({
       startAt: "2019-03-01T00:00:00.000Z",
       endAt: "2019-03-31T23:59:59.999Z",
     });
   });
 
   it("handles February in a leap year (29 days)", () => {
-    expect(historyRange(2020, 2).endAt).toBe("2020-02-29T23:59:59.999Z");
+    expect(historyRange(2020, 2, "UTC").endAt).toBe("2020-02-29T23:59:59.999Z");
   });
 
   it("handles December, rolling the exclusive bound into the next year", () => {
-    expect(historyRange(2021, 12).endAt).toBe("2021-12-31T23:59:59.999Z");
+    expect(historyRange(2021, 12, "UTC").endAt).toBe("2021-12-31T23:59:59.999Z");
   });
 });
 

@@ -22,7 +22,11 @@ jest.mock("expo-web-browser", () => ({ openBrowserAsync: jest.fn() }));
 jest.mock("expo-clipboard", () => ({ setStringAsync: jest.fn(async () => true) }));
 jest.mock("../modules/cue-native/src", () => ({ CueHaptics: { success: jest.fn() } }));
 
-afterEach(() => jest.restoreAllMocks());
+beforeEach(() => jest.useFakeTimers());
+afterEach(() => {
+  jest.useRealTimers();
+  jest.restoreAllMocks();
+});
 
 function SpoilerPreview() {
   const guarded = usePrefs((state) => state.hideStillsUntilWatched);

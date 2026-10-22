@@ -1,6 +1,6 @@
 import { Stack } from "expo-router";
 import type { ReactElement } from "react";
-import { barOptions } from "./ui/navigation-theme";
+import { barOptions, HEADER_TINT } from "./ui/navigation-theme";
 import { useColors } from "./ui/tokens";
 
 export interface TabStackProps {
@@ -12,7 +12,7 @@ export interface TabStackProps {
 export function TabStack({ root, title }: TabStackProps): ReactElement {
   const colors = useColors();
   const detail = {
-    headerTintColor: colors.accentInk,
+    headerTintColor: colors[HEADER_TINT],
     headerTitleStyle: { color: colors.fg },
   } as const;
   return (
