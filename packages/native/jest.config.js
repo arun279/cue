@@ -34,6 +34,7 @@ const project = {
   // every screen that renders under one fails before it draws anything.
   setupFiles: [
     "<rootDir>/__tests__/support/view-commands.ts",
+    "<rootDir>/__tests__/support/idle-callback.ts",
     require.resolve("react-native-gesture-handler/jestSetup"),
   ],
   setupFilesAfterEnv: [

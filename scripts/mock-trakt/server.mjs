@@ -567,7 +567,7 @@ export function createMockTrakt({
   /** The response to send, or null when a fault ended the request without one. */
   const answer = async (request, method, url, origin) => {
     const body = await readBody(request);
-    // Journalled before the route runs, so a request with no route is still
+    // Recorded before the route runs, so a request with no route is still
     // in the record: a hole has to be visible on both sides of a comparison.
     // The `__` control plane is the harness talking to the mock, not the app
     // talking to Trakt, so it stays out of a recording that exists to be
