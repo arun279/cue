@@ -42,6 +42,7 @@ import {
 import { useStableQueueOrder } from "../../../src/screens/up-next/useStableQueueOrder";
 import { BarItems } from "../../../src/ui/BarItems";
 import { Chevron } from "../../../src/ui/Chevron";
+import { usePullTrace } from "../../../src/ui/harness";
 import { Row, Separator } from "../../../src/ui/Row";
 import { SyncStrip } from "../../../src/ui/SyncStrip";
 import { TabRoot } from "../../../src/ui/TabRoot";
@@ -143,6 +144,7 @@ export default function UpNext(): ReactElement {
   );
   const mark = useTutorialGate(useMarkWatched());
   const refresh = usePullToRefresh();
+  const pullTrace = usePullTrace(refresh.refreshing);
   const colors = useColors();
   const insets = useSafeAreaInsets();
 
@@ -172,8 +174,10 @@ export default function UpNext(): ReactElement {
         }}
       />
       <BarItems />
+      {pullTrace.marker}
       <SectionList
         ref={list}
+        {...pullTrace.handlers}
         testID={TEST_IDS.upNextList}
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={{ paddingBottom: tabBarClearance(insets.bottom) + SPACE.s4 }}

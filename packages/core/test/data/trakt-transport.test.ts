@@ -22,7 +22,13 @@ function queueWith(client: TraktClient, reconcile = () => Promise.resolve(false)
   const clock = fakeClock();
   const op = buildMarkEpisodeOp({ opId: "op-1", ids: { trakt: 42 }, watchedAt: WATCHED_AT });
   return new WriteQueue(
-    { dispatch: createTraktTransport(client), sleep: clock.sleep, now: clock.now, reconcile },
+    {
+      dispatch: createTraktTransport(client),
+      sleep: clock.sleep,
+      now: clock.now,
+      reconcile,
+      settle: () => true,
+    },
     [op],
   );
 }

@@ -10,6 +10,7 @@ import type { CalendarEntry } from "../domain/calendar";
 import type { GenreNames } from "../domain/genres";
 import type { HistoryEntry, HistoryRange } from "../domain/history";
 import type { EpisodePlay, MoviePlay } from "../domain/reversal";
+import type { WriteReceipt } from "../domain/write-queue/receipt";
 import type { QueuedOp } from "../domain/write-queue/types";
 
 export interface UpNextData {
@@ -73,6 +74,7 @@ export interface CueRuntime {
   loadGenreNames(): Promise<GenreNames>;
   loadUserProfile(): Promise<UserProfile>;
   submit(op: QueuedOp): Promise<SubmitOutcome>;
+  writeReceipt(opId: string): WriteReceipt | null;
   pendingWrites(): number;
   pendingOps(): readonly QueuedOp[];
   inFlightOpId(): string | null;

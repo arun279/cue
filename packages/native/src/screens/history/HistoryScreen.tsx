@@ -14,13 +14,19 @@ import { useRuntime } from "@cue/core/runtime/runtime";
 import { readFailureBody } from "@cue/core/sync-contract";
 import { type HistorySearch, parseHistorySearch } from "@cue/core/url/search-params";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import {
+  type NativeStackNavigationOptions,
+  Stack,
+  useLocalSearchParams,
+  useRouter,
+} from "expo-router";
 import { type ReactElement, useMemo, useState } from "react";
 import { RefreshControl, SectionList, StyleSheet, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePullToRefresh } from "../../hooks/usePullToRefresh";
 import { Button } from "../../ui/Button";
 import { EmptyState } from "../../ui/EmptyState";
+import { HEADER_TINT } from "../../ui/navigation-theme";
 import { Separator } from "../../ui/Row";
 import { SegmentedControl, type SegmentOption } from "../../ui/SegmentedControl";
 import { SyncStrip } from "../../ui/SyncStrip";
@@ -66,6 +72,25 @@ export function HistoryScreen(): ReactElement {
   const banner = useSyncBanner(status);
   const refresh = usePullToRefresh();
   const colors = useColors();
+  const screenOptions = useMemo<NativeStackNavigationOptions>(
+    () => ({
+      title: "History",
+      headerLargeTitle: false,
+      headerTintColor: colors[HEADER_TINT],
+      headerTitleStyle: { color: colors.fg },
+      headerSearchBarOptions: {
+        placement: "stacked",
+        placeholder: "Filter by title",
+        hideWhenScrolling: false,
+        hideNavigationBar: false,
+        obscureBackground: false,
+        autoCapitalize: "none",
+        onChangeText: (event) => setTitle(event.nativeEvent.text),
+        onCancelButtonPress: () => setTitle(""),
+      },
+    }),
+    [colors],
+  );
   const insets = useSafeAreaInsets();
   const rowWidth = useWindowDimensions().width - 2 * ROW_INSET;
   const next = () => {
@@ -79,24 +104,7 @@ export function HistoryScreen(): ReactElement {
 
   return (
     <TabRoot testID={TEST_IDS.screenHistory}>
-      <Stack.Screen
-        options={{
-          title: "History",
-          headerLargeTitle: false,
-          headerTintColor: colors.accentInk,
-          headerTitleStyle: { color: colors.fg },
-          headerSearchBarOptions: {
-            placement: "stacked",
-            placeholder: "Filter by title",
-            hideWhenScrolling: false,
-            hideNavigationBar: false,
-            obscureBackground: false,
-            autoCapitalize: "none",
-            onChangeText: (event) => setTitle(event.nativeEvent.text),
-            onCancelButtonPress: () => setTitle(""),
-          },
-        }}
-      />
+      <Stack.Screen options={screenOptions} />
       <SectionList
         testID={TEST_IDS.historyList}
         sections={sections}

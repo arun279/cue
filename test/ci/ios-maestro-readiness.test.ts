@@ -3,6 +3,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import { waitForIOS } from "../../scripts/wait-ios-ready.mjs";
+import { fakeBin } from "../support/fake-bin";
 import { repositoryPath } from "../support/repository-path";
 import { tempDirectory } from "../support/temp-directory";
 import { readWorkflowJobs } from "../support/workflow-jobs";
@@ -209,22 +210,25 @@ function preparation(cached: boolean) {
 
 afterEach(() => vi.unstubAllEnvs());
 
-function probe(source: string) {
-  const directory = tempDirectory("cue-ios-ready-");
-  const calls = path.join(directory, "calls");
-  writeFileSync(path.join(directory, "xcrun"), `#!${process.execPath}\n${source}`, { mode: 0o755 });
-  vi.stubEnv("PATH", `${directory}:${process.env["PATH"]}`);
-  vi.stubEnv("PROBE_CALLS", calls);
-  return calls;
-}
-
-it("requires three consecutive successful appearance queries", async () => {
-  const calls = probe(String.raw`
+const query = (source: string) => fakeBin({ xcrun: `#!${process.execPath}\n${source}` });
+const flakyQuery = query(String.raw`
 const fs = require('node:fs');
 fs.appendFileSync(process.env.PROBE_CALLS, process.argv.slice(2).join(' ') + '\n');
 const count = fs.readFileSync(process.env.PROBE_CALLS, 'utf8').trim().split('\n').length;
 process.exit(count === 2 ? 1 : 0);
 `);
+const passingQuery = query("process.exit(0);");
+const stuckQuery = query("setTimeout(() => {}, Number(process.env.HOLD_MS));");
+
+function probe(bin: string) {
+  const calls = path.join(tempDirectory("cue-ios-ready-"), "calls");
+  vi.stubEnv("PATH", `${bin}:${process.env["PATH"]}`);
+  vi.stubEnv("PROBE_CALLS", calls);
+  return calls;
+}
+
+it("requires three consecutive successful appearance queries", async () => {
+  const calls = probe(flakyQuery);
   await waitForIOS("test-device", { timeoutMs: 5_000, promptMs: Number.POSITIVE_INFINITY });
   expect(readFileSync(calls, "utf8").trim().split("\n")).toEqual(
     Array(5).fill("simctl ui test-device appearance"),
@@ -234,14 +238,15 @@ process.exit(count === 2 ? 1 : 0);
 it("does not count a slow successful query as ready, so its 2 s watchdog expires", {
   timeout: 15_000,
 }, async () => {
-  probe("process.exit(0);");
+  probe(passingQuery);
   await expect(waitForIOS("test-device", { timeoutMs: 2_000, promptMs: 0 })).rejects.toThrow(
     "iOS readiness watchdog expired",
   );
 });
 
 it("kills a stuck query under the single overall watchdog", async () => {
-  probe("setTimeout(() => {}, 600_000);");
+  probe(stuckQuery);
+  vi.stubEnv("HOLD_MS", "600000");
   await expect(waitForIOS("test-device", { timeoutMs: 200 })).rejects.toThrow(
     "iOS readiness watchdog expired after 200 ms for test-device",
   );

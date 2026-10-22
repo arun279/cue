@@ -169,10 +169,12 @@ describe("Up Next", () => {
     ]);
   });
 
-  it("badges an episode that aired in the last day, in words a reader hears", async () => {
+  it("badges an episode that aired last night, in words a reader hears", async () => {
+    const lastNight = new Date();
+    lastNight.setHours(-3, 0, 0, 0);
     const fresh = queueOf().map((show) =>
       show.showId === CARTOGRAPHY && show.nextEpisode !== null
-        ? { ...show, nextEpisode: { ...show.nextEpisode, firstAired: agesAgo(0.5) } }
+        ? { ...show, nextEpisode: { ...show.nextEpisode, firstAired: lastNight.toISOString() } }
         : show,
     );
     await paint({ entries: fresh });

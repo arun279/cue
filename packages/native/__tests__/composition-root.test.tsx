@@ -189,7 +189,9 @@ describe("the native composition root", () => {
       </Profiler>,
     );
 
-    expect(screen.getByLabelText("Harbor Lights, S3 E5, Salt Air, 3 left")).toBeOnTheScreen();
+    expect(
+      screen.getByLabelText("Harbor Lights, Aired last night, S3 E5, Salt Air, 3 left"),
+    ).toBeOnTheScreen();
     expect(screen.queryByTestId("up-next-skeleton")).toBeNull();
     expect(hide).toHaveBeenCalledTimes(1);
     expect(fetch.mock.calls.map(([url]) => new URL(String(url)).pathname).sort()).toEqual([

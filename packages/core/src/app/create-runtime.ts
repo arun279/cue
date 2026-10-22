@@ -67,6 +67,7 @@ import type {
 } from "../runtime/runtime";
 import { useReadIncidents } from "../stores/read-incidents-store";
 import { PendingWritesError, type TeardownOptions } from "./session";
+import { createWriteReceipts } from "./write-receipts";
 
 const ACTIVITIES_KEY = "cue.last-activities";
 
@@ -217,6 +218,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     Array.isArray(value) ? (value as QueuedOp[]) : [],
   );
   const activitiesStore = createJsonStore<LastActivities>(deps.kv, ACTIVITIES_KEY);
+  const receipts = await createWriteReceipts(deps.kv);
 
   const queue = new WriteQueue(
     {
@@ -224,6 +226,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       sleep,
       now: Date.now,
       reconcile: createReconcile(client),
+      settle: receipts.settle,
     },
     (await opLogStore.read()) ?? [],
   );
@@ -401,6 +404,8 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       return "deferred";
     },
 
+    writeReceipt: receipts.receiptOf,
+
     pendingWrites(): number {
       return queue.snapshot().length;
     },
@@ -446,6 +451,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
         await opLogStore.clear();
         await activitiesStore.clear();
         await incidentStore.clear();
+        await receipts.clear();
         useReadIncidents.setState({ incidents: [] });
         await deps.clearPersistedCaches();
         deps.clearLocalPreferences();

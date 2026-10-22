@@ -7,7 +7,7 @@ import { movieHeaderQuery, movieRelatedQuery } from "@cue/core/queries/movies";
 import { useRuntime } from "@cue/core/runtime/runtime";
 import { showSnack } from "@cue/core/stores/snackbar-store";
 import { useQuery } from "@tanstack/react-query";
-import { Stack, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import type { ReactElement } from "react";
 import { Platform, ScrollView, StyleSheet, View } from "react-native";
@@ -16,6 +16,7 @@ import { Button } from "../ui/Button";
 import { CheckControl } from "../ui/CheckControl";
 import { EmptyState } from "../ui/EmptyState";
 import { HeaderMenu } from "../ui/RowMenu";
+import { ScreenTitle } from "../ui/ScreenTitle";
 import { TEST_IDS } from "../ui/test-ids";
 import { SPACE, tabBarClearance, useColors, useStacked } from "../ui/tokens";
 import { CueText } from "../ui/type";
@@ -78,7 +79,7 @@ function LoadedMovie({ header }: { readonly header: MovieHeader }): ReactElement
   const stacked = useStacked();
   return (
     <>
-      <Stack.Screen options={{ title: header.title }} />
+      <ScreenTitle title={header.title} />
       <HeaderMenu
         title={header.title}
         items={[
