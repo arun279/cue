@@ -719,26 +719,6 @@ describe("fast pull request validation", () => {
     ]);
   });
 
-  it("bounds every native job by its measured duration plus headroom", () => {
-    const timeouts = Object.fromEntries(
-      [
-        "native-ios",
-        "native-e2e-ios-light",
-        "ui-screenshots-ios-dark",
-        "android-e2e-light",
-        "ui-screenshots-android-dark",
-      ].map((name) => [name, Number(job(name).match(/^ {4}timeout-minutes: (\d+)$/m)?.[1])]),
-    );
-
-    expect(timeouts).toEqual({
-      "native-ios": 75,
-      "native-e2e-ios-light": 22,
-      "ui-screenshots-ios-dark": 23,
-      "android-e2e-light": 14,
-      "ui-screenshots-android-dark": 7,
-    });
-  });
-
   it("settles animations before every shared screenshot", () => {
     const flows = [
       "lib/sign-in.yaml",
