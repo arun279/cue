@@ -21,13 +21,13 @@ export async function applyReconcile(
     );
     if (isCancelled?.() === true) return false;
   }
-  const anyError = reconcile.keys.some((queryKey) =>
+  const refreshed = reconcile.keys.every((queryKey) =>
     queryClient
       .getQueryCache()
-      .findAll({ queryKey })
-      .some((query) => query.state.status === "error"),
+      .findAll({ queryKey, type: "active" })
+      .every((query) => query.state.status === "success" && query.state.fetchStatus === "idle"),
   );
-  if (anyError) return false;
+  if (!refreshed) return false;
   await reconcile.commit();
   return true;
 }

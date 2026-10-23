@@ -51,7 +51,9 @@ export function useActivitiesPoll(): void {
   useEffect(() => {
     if (runtime === null) return;
     const unsubscribe = onlineManager.subscribe((online) => {
-      if (online && runtime.pendingWrites() > 0) void runtime.flushWrites();
+      if (online && !focusManager.isFocused() && runtime.pendingWrites() > 0) {
+        void runtime.flushWrites();
+      }
     });
     return () => {
       unsubscribe();

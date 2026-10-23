@@ -4,7 +4,10 @@ import { AppState, type AppStateStatus } from "react-native";
 import { createAppQueryClient } from "../src/platform/query-client";
 import { connectQueryManagers } from "../src/platform/query-managers";
 
-const mockNetwork: { atLaunch: NetworkState; announce: (state: NetworkState) => void } = {
+const mockNetwork: {
+  atLaunch: NetworkState | Promise<NetworkState>;
+  announce: (state: NetworkState) => void;
+} = {
   atLaunch: { isConnected: true },
   announce: () => {},
 };
@@ -77,6 +80,44 @@ it.each([
 
   mockNetwork.announce({ isConnected: true });
   await settle();
+  expect(read).toHaveBeenCalledTimes(1);
+  stop();
+});
+
+it.each([
+  [{ isConnected: false }, "offline"],
+  [{ isConnected: true, isInternetReachable: false }, "offline"],
+  [{ isConnected: true, isInternetReachable: null }, "online"],
+  [{}, "online"],
+])("treats a network state of %j as %s", async (state, expected) => {
+  connectQueryManagers();
+  await settle();
+  mockNetwork.announce(state as NetworkState);
+  const { read, stop } = watchRead();
+  await settle();
+  expect(read).toHaveBeenCalledTimes(expected === "online" ? 1 : 0);
+  stop();
+});
+
+it("keeps a network change that lands before the launch read answers", async () => {
+  const launch = Promise.withResolvers<NetworkState>();
+  mockNetwork.atLaunch = launch.promise;
+  connectQueryManagers();
+  mockNetwork.announce({ isConnected: false });
+  launch.resolve({ isConnected: true });
+  await settle();
+  const { read, stop } = watchRead();
+  await settle();
+  expect(read).not.toHaveBeenCalled();
+  stop();
+});
+
+it("starts in the background when the app launches there", async () => {
+  jest.useFakeTimers({ doNotFake: ["setImmediate", "queueMicrotask", "nextTick"] });
+  jest.replaceProperty(AppState, "currentState", "background");
+  connectQueryManagers();
+  const { read, stop } = watchRead(1000);
+  await jest.advanceTimersByTimeAsync(3000);
   expect(read).toHaveBeenCalledTimes(1);
   stop();
 });

@@ -109,6 +109,26 @@ describe("useActivitiesPoll write-queue gating", () => {
     expect(stub.flushWrites).toHaveBeenCalledTimes(1);
     expect(stub.pollActivities).not.toHaveBeenCalled();
   });
+
+  it("flushes once when the device reconnects in the foreground", async () => {
+    onlineManager.setOnline(false);
+    let depth = 1;
+    const flushWrites = vi.fn(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      depth = 0;
+      return depth;
+    });
+    const pollActivities = vi.fn(() => Promise.resolve(null));
+    await mountPoll({
+      pendingWrites: () => depth,
+      flushWrites,
+      pollActivities,
+    } as unknown as CueRuntime);
+
+    await setOnline(true);
+    await vi.waitFor(() => expect(pollActivities).toHaveBeenCalledOnce());
+    expect(flushWrites).toHaveBeenCalledOnce();
+  });
 });
 
 describe("useActivitiesPoll triggers", () => {
@@ -177,6 +197,24 @@ describe("useActivitiesPoll reconcile", () => {
     const commit = vi.fn(() => Promise.resolve());
     await mountPoll(reconcileRuntime({ keys: [], commit }));
     expect(commit).toHaveBeenCalledOnce();
+  });
+
+  it("advances the baseline past a changed read that no screen has enabled", async () => {
+    const commit = vi.fn(() => Promise.resolve());
+    function DisabledLibrary(): null {
+      useQuery({ queryKey: queryKeys.library(), queryFn: vi.fn(), enabled: false });
+      return null;
+    }
+    await mountAsync(
+      session(
+        reconcileRuntime({ keys: [queryKeys.library()], commit }),
+        <>
+          <DisabledLibrary />
+          <Probe />
+        </>,
+      ),
+    );
+    await vi.waitFor(() => expect(commit).toHaveBeenCalledOnce());
   });
 
   it("polls once per trigger after a poll that failed", async () => {
@@ -302,5 +340,45 @@ describe("useActivitiesPoll reconcile", () => {
       ),
     );
     await endSessionBeforeLanding(held, commit);
+  });
+
+  it("keeps the baseline when the connection drops during the refresh, and advances it on the next poll", async () => {
+    const commit = vi.fn(() => Promise.resolve());
+    const reconcile = { keys: [queryKeys.library()], commit };
+    let answer: ((value: ActivitiesReconcile) => void) | undefined;
+    const pollActivities = vi
+      .fn<() => Promise<ActivitiesReconcile>>()
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            answer = resolve;
+          }),
+      )
+      .mockResolvedValue(reconcile);
+    const read = vi.fn(() => Promise.resolve({ entries: [] }));
+    function Library(): null {
+      useQuery({ queryKey: queryKeys.library(), queryFn: read });
+      return null;
+    }
+    await mountAsync(
+      session(
+        { ...reconcileRuntime(reconcile), pollActivities },
+        <>
+          <Library />
+          <Probe />
+        </>,
+      ),
+    );
+    await vi.waitFor(() => expect(answer).toBeDefined());
+
+    await setOnline(false);
+    await act(async () => answer?.(reconcile));
+    await vi.waitFor(() => expect(useSyncActivity.getState().checked).toBe(true));
+    expect(read).toHaveBeenCalledOnce();
+    expect(commit).not.toHaveBeenCalled();
+
+    await setOnline(true);
+    await vi.waitFor(() => expect(commit).toHaveBeenCalledOnce());
+    expect(pollActivities).toHaveBeenCalledTimes(2);
   });
 });
