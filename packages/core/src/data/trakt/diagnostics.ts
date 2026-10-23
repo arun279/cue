@@ -3,7 +3,6 @@ import type { ReadProblem } from "./client";
 
 type ProblemKind = ReadProblem["kind"];
 
-/** A failure to build the runtime at launch, as its error read. */
 export interface StartFailure {
   readonly at: number;
   readonly detail: string;

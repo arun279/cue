@@ -8,7 +8,6 @@ export type RuntimeBootDeps = Omit<RuntimeDeps, "token">;
 
 export interface RuntimeBootState {
   readonly runtime: CueRuntime | null;
-  /** Why the last attempt to build the runtime failed, or null while it has not. */
   readonly failure: string | null;
   readonly retry: () => void;
 }

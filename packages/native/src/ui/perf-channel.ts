@@ -83,7 +83,6 @@ function bootTimeline(): Record<string, number> {
 
 let listening = false;
 
-/** Tells a probe waiting on this launch that the runtime failed to build, and why. */
 export function reportBootFailure(detail: string): void {
   void fetch(`${CHANNEL}?reply=${encodeURIComponent(`boot failed: ${detail}`)}`).catch(() => {});
 }

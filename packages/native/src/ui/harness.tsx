@@ -46,7 +46,6 @@ export function SnackbarRouteDismissal(): null {
 
 export const HIDE_CARET = Platform.OS === "android";
 
-/** Shows why the runtime failed to build, logs it, and reports it to a waiting probe. */
 export function BootFailureDetail({ detail }: { readonly detail: string }): ReactElement | null {
   useEffect(() => {
     console.error(`Couldn't start Cue: ${detail}`);

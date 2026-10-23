@@ -24,7 +24,6 @@ const oneAtATime = <T>(call: () => Promise<T>): Promise<T> => {
   return result;
 };
 
-/** The bulk store's database, one call at a time, for every async caller in the app. */
 export const bulkStorage = {
   getItem: (key: string) => oneAtATime(() => Storage.getItem(key)),
   setItem: (key: string, value: string) => oneAtATime(() => Storage.setItem(key, value)),
