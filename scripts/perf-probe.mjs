@@ -7,9 +7,10 @@
 // Both platforms record every interaction's screen and time it the same way: from the command
 // to the content region's first change and to its last, and a scroll by the gaps between the
 // frames the recorder captured. A change that has not reached the content by the end of the
-// window is recorded as censored (">2500"), which ranks above every measured value. A
-// measurement that comes back empty, with nothing changed at all, fails the run, naming the
-// platform, pass and segment, because that means the probe missed it. Android
+// window is recorded as censored (">2500"), which ranks above every measured value, once a
+// screenshot shows the content changed after all; the probe waits for that before the next
+// interaction, so the late change cannot land in its window. Content that never changes fails
+// the run, naming the platform, pass and segment, because the probe saw nothing happen. Android
 // adds what the platform keeps: frame statistics per segment (dumpsys gfxinfo), the views and
 // Compose hosts on screen after a tab switch (dumpsys activity top), memory (dumpsys meminfo),
 // overdraw, and cold start (am start -W) as adb installed the app, verified the way a Play
@@ -19,6 +20,7 @@
 // and adds a line per quantity comparing their medians, so the runner's speed cancels out.
 // Usage: DEVICE_ID=<simulator> perf-probe.mjs <ios|android> <output directory> <runs> [base app] [changed app]
 import { execFile, spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { appendFileSync, mkdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import path from "node:path";
@@ -33,7 +35,6 @@ const FRAME_MS = 1000 / 60;
 const PAUSE_MS = 250;
 const BUFFER = { maxBuffer: 64 * 1024 * 1024 };
 const CONTENT = "iw:ih*0.72:0:ih*0.1";
-const WHOLE = "iw:ih:0:0";
 const CHANGE_THRESHOLD = 0.005;
 
 const number = (pattern, text) => {
@@ -156,25 +157,32 @@ const ms = (seconds) => Math.round(seconds * 1000);
 const ALIGNMENT_SLACK = 0.1;
 
 /**
- * From the command to the first change in the content region and to the last. When the screen
- * changed elsewhere (the tab bar, say) but the content had not by the end of the window, both
- * are censored as ">window"; when nothing changed at all, both are null. Times are seconds into
- * the recording; the recorder's first frame is the moment it started, give or take a frame or
- * two, so a change up to ALIGNMENT_SLACK before the command still counts, as 0 ms.
+ * From the command to the first change in the content region and to the last, or null for both
+ * when the content did not change. Times are seconds into the recording; the recorder's first
+ * frame is the moment it started, give or take a frame or two, so a change up to
+ * ALIGNMENT_SLACK before the command still counts, as 0 ms.
  * @param {number[]} changes
  * @param {number} commandAt
- * @param {{ anywhere?: number[], windowEnd?: number }} [around]
  */
-export function changeTimes(changes, commandAt, { anywhere = [], windowEnd } = {}) {
+export function changeTimes(changes, commandAt) {
   const from = commandAt - ALIGNMENT_SLACK;
   const after = changes.filter((at) => at >= from);
   const since = (at) => ms(Math.max(0, at - commandAt));
   if (after.length > 0) return { responseMs: since(after[0]), doneMs: since(after.at(-1)) };
-  if (windowEnd !== undefined && anywhere.some((at) => at >= from)) {
-    const censored = `>${ms(windowEnd - commandAt)}`;
-    return { responseMs: censored, doneMs: censored };
-  }
   return { responseMs: null, doneMs: null };
+}
+
+/**
+ * Times for an interaction whose content had not changed by the end of the window: censored as
+ * ">window" once the content does change, so the change cannot land in the next interaction's
+ * window; still null if it never does.
+ * @param {{ responseMs: number | string | null, doneMs: number | string | null }} times
+ * @param {() => Promise<boolean>} changes resolves whether the content went on to change
+ * @param {number} windowMs
+ */
+export async function afterWindow(times, changes, windowMs) {
+  if (times.responseMs !== null || !(await changes())) return times;
+  return { responseMs: `>${windowMs}`, doneMs: `>${windowMs}` };
 }
 
 const unsettled = (measured) =>
@@ -308,13 +316,21 @@ async function frameTimes(video) {
   return stdout.split("\n").filter(Boolean).map(Number);
 }
 
-async function analyze(video, segment, commandAt, windowEnd) {
+async function analyze(video, segment, commandAt) {
   if (segment.startsWith("scroll ")) return hitches(await frameTimes(video));
-  const [content, anywhere] = await Promise.all([
-    sceneChanges(video, CONTENT, CHANGE_THRESHOLD),
-    sceneChanges(video, WHOLE, CHANGE_THRESHOLD),
-  ]);
-  return changeTimes(content, commandAt, { anywhere, windowEnd });
+  return changeTimes(await sceneChanges(video, CONTENT, CHANGE_THRESHOLD), commandAt);
+}
+
+const RAW_RGB = ["-f", "rawvideo", "-pix_fmt", "rgb24", "-"];
+
+/** A PNG's pixels as raw RGB, after any ffmpeg arguments given, such as a crop. */
+async function pixels(png, ...filter) {
+  const { stdout } = await run(
+    "ffmpeg",
+    ["-hide_banner", "-loglevel", "error", "-i", png, ...filter, ...RAW_RGB],
+    { ...BUFFER, encoding: "buffer" },
+  );
+  return stdout;
 }
 
 const startedWhen = (child, stream, marker) =>
@@ -432,7 +448,24 @@ export async function waitForQuiet(read, { pollMs, quietMs, timeoutMs }, busy, c
   }
 }
 
+/**
+ * Resolves true once read() returns something other than reference, or false after timeoutMs.
+ * @param {() => Promise<string>} read
+ * @param {string} reference
+ * @param {{ pollMs: number, timeoutMs: number }} timing
+ * @param {{ now(): number }} [clock]
+ */
+export async function waitForChange(read, reference, { pollMs, timeoutMs }, clock = Date) {
+  const started = clock.now();
+  for (;;) {
+    if ((await read()) !== reference) return true;
+    if (clock.now() - started >= timeoutMs) return false;
+    await pause(pollMs);
+  }
+}
+
 const NETWORK_QUIET = { pollMs: 100, quietMs: 1500, timeoutMs: 30_000 };
+const LATE_CHANGE = { pollMs: 250, timeoutMs: 15_000 };
 const UI_QUIET = { pollMs: 100, quietMs: 500, timeoutMs: 15_000 };
 
 const networkQuiet = (probe) =>
@@ -519,19 +552,18 @@ async function launched(probe, channel) {
   return { ...sample, launchToReadyMs: Date.now() - launchedAt };
 }
 
-async function overdraw(directory, label) {
-  const png = path.join(directory, `overdraw-${fileName(label)}.png`);
-  const { stdout: image } = await run("adb", ["exec-out", "screencap", "-p"], {
+async function screencap(png) {
+  const { stdout } = await run("adb", ["exec-out", "screencap", "-p"], {
     ...BUFFER,
     encoding: "buffer",
   });
-  writeFileSync(png, image);
-  const { stdout } = await run(
-    "ffmpeg",
-    ["-hide_banner", "-loglevel", "error", "-i", png, "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
-    { ...BUFFER, encoding: "buffer" },
-  );
-  return overdrawShares(stdout);
+  writeFileSync(png, stdout);
+}
+
+async function overdraw(directory, label) {
+  const png = path.join(directory, `overdraw-${fileName(label)}.png`);
+  await screencap(png);
+  return overdrawShares(await pixels(png));
 }
 
 function androidProbe(directory) {
@@ -540,6 +572,7 @@ function androidProbe(directory) {
     stop: stopAndroidApp,
     start: () => startAndroidApp("launch"),
     install: (apk) => adb("install", "-r", apk),
+    screenshot: screencap,
     driverAttached: async () =>
       (
         await shell("pidof", "dev.mobile.maestro", "dev.mobile.maestro.test").catch(() => "")
@@ -599,6 +632,7 @@ function iosProbe(device) {
     recorder: iosRecorder(device),
     stop: () => simctl("terminate").catch(() => undefined),
     install: (app) => run("xcrun", ["simctl", "install", device, app], BUFFER),
+    screenshot: (png) => run("xcrun", ["simctl", "io", device, "screenshot", png], BUFFER),
     start: async () => {
       await simctl("launch");
       return { segment: "launch" };
@@ -618,7 +652,11 @@ function iosProbe(device) {
   };
 }
 
-/** Records one segment while the app performs its command, keeping the first pass's videos. */
+/**
+ * Records one segment while the app performs its command, keeping the first pass's videos. A
+ * screenshot taken just before the command is what the content is compared with if it has not
+ * changed by the end of the window.
+ */
 async function measure(probe, channel, directory, runIndex, step, app) {
   for (const line of step.setup ?? []) await command(channel, line);
   if (step.setup !== undefined) await pause(SETTLE_MS);
@@ -628,6 +666,14 @@ async function measure(probe, channel, directory, runIndex, step, app) {
     directory,
     `run-${runIndex}-${fileName([app, step.segment].filter(Boolean).join(" "))}.mp4`,
   );
+  const screen = path.join(directory, "screen.png");
+  const content = async () => {
+    await probe.screenshot(screen);
+    return createHash("sha256")
+      .update(await pixels(screen, "-vf", `crop=${CONTENT}`))
+      .digest("hex");
+  };
+  const before = await content();
   await probe.reset();
   await probe.recorder.start(video);
   const recordingAt = Date.now();
@@ -641,26 +687,26 @@ async function measure(probe, channel, directory, runIndex, step, app) {
   const wallMs = Date.now() - started;
   const frames = await probe.frames(video.replace(/\.mp4$/, "-gfxinfo.txt"));
   const census = step.segment.startsWith("tab ") ? await probe.census() : {};
-  return {
-    analysis: analyze(video, step.segment, commandAt, windowEnd).then((measured) => {
-      if (runIndex > 1 && !unsettled(measured)) rmSync(video, { force: true });
-      return { run: runIndex, segment: step.segment, wallMs, ...measured, ...frames, ...census };
-    }),
-  };
+  const measured = await afterWindow(
+    await analyze(video, step.segment, commandAt),
+    () => waitForChange(content, before, LATE_CHANGE),
+    ms(windowEnd - commandAt),
+  );
+  if (runIndex > 1 && !unsettled(measured)) rmSync(video, { force: true });
+  return { run: runIndex, segment: step.segment, wallMs, ...measured, ...frames, ...census };
 }
 
 async function pass(probe, channel, directory, runIndex, app) {
   await fetch(`${MOCK}/__reset?seed=scale`, { method: "POST" });
   const samples = [{ run: runIndex, ...(await launched(probe, channel)) }];
-  const pending = [];
   for (const step of PASS) {
     if (step.memory !== undefined) {
       samples.push({ run: runIndex, segment: `memory ${step.memory}`, ...(await probe.memory()) });
       continue;
     }
-    pending.push((await measure(probe, channel, directory, runIndex, step, app)).analysis);
+    samples.push(await measure(probe, channel, directory, runIndex, step, app));
   }
-  return [...samples, ...(await Promise.all(pending))];
+  return samples;
 }
 
 function report(platform, directory, samples, failures) {

@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import { DEFAULT_TRAKT_POLICY } from "../../packages/core/src/data/trakt/policy";
 import {
   collectionMoviesBody,
@@ -12,6 +12,7 @@ import {
   watchlistBody,
 } from "../../scripts/mock-trakt/seed.mjs";
 import {
+  afterWindow,
   appsOf,
   changeTimes,
   coldStartOf,
@@ -28,6 +29,7 @@ import {
   simulatorRss,
   summary,
   viewCensus,
+  waitForChange,
   waitForQuiet,
 } from "../../scripts/perf-probe.mjs";
 import { repositoryPath } from "../support/repository-path";
@@ -535,15 +537,46 @@ it("reads a frame the summary counted but the frame list lost from the summary's
   });
 });
 
-it("censors a change that had not reached the content by the end of the window", () => {
-  expect(changeTimes([], 0.3, { anywhere: [0.55, 1.07], windowEnd: 2.8 })).toEqual({
+it("censors content that changed only after the window, and keeps it empty if it never did", async () => {
+  const unchanged = { responseMs: null, doneMs: null };
+  const changes = vi.fn(async () => true);
+
+  expect(await afterWindow(unchanged, changes, 2500)).toEqual({
     responseMs: ">2500",
     doneMs: ">2500",
   });
-  expect(changeTimes([], 0.3, { anywhere: [0.1], windowEnd: 2.8 })).toEqual({
-    responseMs: null,
-    doneMs: null,
+  expect(await afterWindow(unchanged, async () => false, 2500)).toEqual(unchanged);
+  changes.mockClear();
+  expect(await afterWindow({ responseMs: 410, doneMs: 950 }, changes, 2500)).toEqual({
+    responseMs: 410,
+    doneMs: 950,
   });
+  expect(changes).not.toHaveBeenCalled();
+});
+
+it("waits for the screen's content to differ from before the command, up to a limit", async () => {
+  const screens = (digests: string[]) => {
+    let now = 0;
+    let read = 0;
+    return {
+      clock: { now: () => now },
+      read: async () => {
+        now += 250;
+        return digests[Math.min(read++, digests.length - 1)] ?? "";
+      },
+    };
+  };
+  const late = screens(["before", "before", "before", "after"]);
+  const frozen = screens(["before"]);
+
+  expect(
+    await waitForChange(late.read, "before", { pollMs: 0, timeoutMs: 15_000 }, late.clock),
+  ).toBe(true);
+  expect(late.clock.now()).toBe(1000);
+  expect(
+    await waitForChange(frozen.read, "before", { pollMs: 0, timeoutMs: 15_000 }, frozen.clock),
+  ).toBe(false);
+  expect(frozen.clock.now()).toBe(15_000);
 });
 
 it("ranks censored values above measured ones and bounds the ratio", () => {
