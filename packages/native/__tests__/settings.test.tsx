@@ -5,6 +5,7 @@ import { type Reminders, RemindersProvider } from "@cue/core/ports/reminders";
 import { createPrefsStore, usePrefs } from "@cue/core/prefs/prefs-store";
 import { thresholdMsFromDays } from "@cue/core/prefs/threshold";
 import { useReadIncidents } from "@cue/core/stores/read-incidents-store";
+import { useStartFailure } from "@cue/core/stores/start-failure-store";
 import { act, fireEvent, screen, userEvent } from "@testing-library/react-native";
 import { setStringAsync } from "expo-clipboard";
 import { openBrowserAsync } from "expo-web-browser";
@@ -387,4 +388,18 @@ it("lists the last Trakt failure per endpoint under About and copies them as a r
   ]);
   expect(await screen.findByText("Report copied.")).toBeVisible();
   await act(() => useReadIncidents.setState({ incidents: [] }));
+});
+
+it("lists a failed start above the Trakt failures and puts it first in the report", async () => {
+  const at = Date.UTC(2026, 9, 3, 22, 14);
+  useStartFailure.setState({ failure: { at, detail: "Error: database is locked" } });
+  await accountFixture().paint(<Settings />);
+  expect(screen.getByText(/^Couldn't start · .* · Error: database is locked$/)).toBeVisible();
+  expect(screen.getByText("No Trakt errors recorded.")).toBeVisible();
+
+  await userEvent.press(screen.getByTestId(TEST_IDS.settingsDiagnosticsCopy));
+  expect(jest.mocked(setStringAsync).mock.calls.at(-1)?.[0]?.split("\n").slice(1)).toEqual([
+    "2026-10-03T22:14:00.000Z  start  Error: database is locked",
+  ]);
+  await act(() => useStartFailure.setState({ failure: null }));
 });

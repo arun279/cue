@@ -20,6 +20,7 @@ import {
   emptyMeasurements,
   frameStats,
   hitches,
+  launchLoop,
   memInfo,
   missing,
   overdrawShares,
@@ -368,6 +369,45 @@ it("hands each command to the app's waiting request and resolves with the app's 
   expect(await third).toBe("lapsed");
   void channel.next("unknown lapsed");
   expect(await lapsed).toBe("unknown lapsed");
+});
+
+it("fails the waiting launch with the reason the app gives when its runtime does not start", async () => {
+  const channel = createChannel();
+  const launched = channel.ready();
+
+  void channel.next("boot failed: Error: database is locked");
+
+  await expect(launched).rejects.toThrow("boot failed: Error: database is locked");
+});
+
+it("relaunches each app in turn and names every launch that did not reach ready", async () => {
+  const channel = createChannel();
+  const replies = ["ready", "boot failed: Error: database is locked", "ready", "ready"];
+  const installed: string[] = [];
+  const probe = {
+    stop: async () => {},
+    install: async (app: string) => {
+      installed.push(app);
+    },
+    start: async () => {
+      void channel.next(replies.shift() ?? "");
+      return { segment: "launch" };
+    },
+  };
+  const apps = [
+    { label: "base", path: "base.apk" },
+    { label: "change", path: "change.apk" },
+  ];
+
+  const { samples, failures } = await launchLoop(probe, channel, 2, apps);
+
+  expect(installed).toEqual(["base.apk", "change.apk"]);
+  expect(failures).toEqual(["launch 2 base: boot failed: Error: database is locked"]);
+  expect(samples.map(({ run, app }) => `${app} ${run}`)).toEqual([
+    "base 1",
+    "change 1",
+    "change 2",
+  ]);
 });
 
 const NATIVE = repositoryPath("packages/native");

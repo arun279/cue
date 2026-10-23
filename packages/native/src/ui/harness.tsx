@@ -11,11 +11,13 @@ import {
   type NativeSyntheticEvent,
   Platform,
   type ScrollViewProps,
+  Text,
   View,
   type ViewProps,
 } from "react-native";
 import { HARNESS_IDS } from "./harness-ids";
 import { Marker } from "./Marker";
+import { reportBootFailure } from "./perf-channel";
 import { useSnackbarTrace } from "./snackbar-trace";
 
 export { AppIdle, trackSync } from "./AppIdle";
@@ -43,6 +45,15 @@ export function SnackbarRouteDismissal(): null {
 }
 
 export const HIDE_CARET = Platform.OS === "android";
+
+/** Shows why the runtime failed to build, logs it, and reports it to a waiting probe. */
+export function BootFailureDetail({ detail }: { readonly detail: string }): ReactElement | null {
+  useEffect(() => {
+    console.error(`Couldn't start Cue: ${detail}`);
+    reportBootFailure(detail);
+  }, [detail]);
+  return <Text testID={HARNESS_IDS.bootFailure}>{detail}</Text>;
+}
 
 export function useOnboardingAcknowledgment(): {
   onLayout: ViewProps["onLayout"];

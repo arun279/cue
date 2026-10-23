@@ -3,6 +3,12 @@ import type { ReadProblem } from "./client";
 
 type ProblemKind = ReadProblem["kind"];
 
+/** A failure to build the runtime at launch, as its error read. */
+export interface StartFailure {
+  readonly at: number;
+  readonly detail: string;
+}
+
 export interface ReadIncident {
   readonly endpoint: string;
   readonly kind: ProblemKind;
@@ -49,15 +55,24 @@ export function recordIncident(
   return [incident, ...incidents.filter((entry) => entry.endpoint !== endpoint)];
 }
 
-export function incidentReport(incidents: readonly ReadIncident[], version: string): string {
-  const lines = incidents.map((incident) =>
-    [new Date(incident.at).toISOString(), incident.endpoint, incident.kind, incident.detail]
-      .filter((part) => part !== "")
-      .join("  "),
-  );
-  return [`Cue ${version} Trakt diagnostics`, ...(lines.length > 0 ? lines : ["No errors"])].join(
-    "\n",
-  );
+export function incidentReport(
+  incidents: readonly ReadIncident[],
+  version: string,
+  startFailure: StartFailure | null = null,
+): string {
+  const start =
+    startFailure === null
+      ? []
+      : [[new Date(startFailure.at).toISOString(), "start", startFailure.detail].join("  ")];
+  const lines = [
+    ...start,
+    ...incidents.map((incident) =>
+      [new Date(incident.at).toISOString(), incident.endpoint, incident.kind, incident.detail]
+        .filter((part) => part !== "")
+        .join("  "),
+    ),
+  ];
+  return [`Cue ${version} diagnostics`, ...(lines.length > 0 ? lines : ["No errors"])].join("\n");
 }
 
 const incidentsSchema = z.array(
