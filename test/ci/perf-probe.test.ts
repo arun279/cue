@@ -410,6 +410,27 @@ it("relaunches each app in turn and names every launch that did not reach ready"
   ]);
 });
 
+it("records a launch that fails while the app is still starting, and goes on to the next", async () => {
+  const channel = createChannel();
+  const replies = ["boot failed: Error: database is locked", "ready"];
+  const probe = {
+    stop: async () => {},
+    install: async () => {},
+    start: async () => {
+      void channel.next(replies.shift() ?? "");
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      return { segment: "launch" };
+    },
+  };
+
+  const { samples, failures } = await launchLoop(probe, channel, 2, [
+    { label: undefined, path: undefined },
+  ]);
+
+  expect(failures).toEqual(["launch 1: boot failed: Error: database is locked"]);
+  expect(samples.map(({ run }) => run)).toEqual([2]);
+});
+
 const NATIVE = repositoryPath("packages/native");
 
 const sourcesUnder = (directory: string): string[] =>
