@@ -8,14 +8,23 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react-n
 import type { ComponentType, ReactElement } from "react";
 import { Platform } from "react-native";
 import { HistoryRow } from "../src/screens/history/HistoryRow";
+import { ResultRow } from "../src/screens/search/ResultRow";
 import type { UpNextCard } from "../src/screens/up-next/model";
 import { QueueRow } from "../src/screens/up-next/QueueRow";
+import { AiringRow } from "../src/ui/AiringRow";
 import { TEST_IDS } from "../src/ui/test-ids";
 import { DetailHarness, detail } from "./support/detail";
 import { historyEntry } from "./support/history";
 import { movieHeader, movieRuntime } from "./support/movie-detail";
 import { menuItem, router } from "./support/native-ui";
-import { entry, fakeRuntime, Harness, resetSharedStores, spyHaptics } from "./support/up-next";
+import {
+  airing,
+  entry,
+  fakeRuntime,
+  Harness,
+  resetSharedStores,
+  spyHaptics,
+} from "./support/up-next";
 
 const mockParams: { current: Record<string, string> } = { current: {} };
 
@@ -164,6 +173,71 @@ describe.each(["queue", "lapsed"] as const)("a %s row's swipes", (variant) => {
       expect(bySwipe).toContain(1);
     }
   });
+});
+
+/** The line limit on a text or on the text it is nested in. */
+interface Rendered {
+  readonly props: Readonly<Record<string, unknown>>;
+  readonly parent: Rendered | null;
+}
+const lineCap = (node: Rendered | null): unknown =>
+  node === null ? undefined : (node.props["numberOfLines"] ?? lineCap(node.parent));
+
+const LONG_TITLE =
+  "The Extraordinary and Thoroughly Unlikely Adventures of a Retired Lighthouse Keeper Who Never Left Home";
+
+const LONG_ROWS = {
+  "queue row": () => (
+    <QueueRow
+      card={{ ...CARD, entry: { ...SHOW, title: LONG_TITLE } }}
+      mark={markSpy()}
+      onStop={jest.fn()}
+    />
+  ),
+  "history row": () => (
+    <HistoryRow
+      entry={{ ...EPISODE_PLAY, title: LONG_TITLE }}
+      plays={1}
+      index={0}
+      onRemove={jest.fn()}
+    />
+  ),
+  "calendar row": () => (
+    <AiringRow
+      row={{ ...airing({ showTitle: LONG_TITLE }), aired: false }}
+      chip={null}
+      spoken=""
+      minHeight={0}
+    />
+  ),
+  "search result": () => (
+    <ResultRow
+      hit={{
+        key: "show:1",
+        type: "show",
+        traktId: 1,
+        title: LONG_TITLE,
+        year: null,
+        posters: [],
+        tmdbId: null,
+        ids: { trakt: 1 },
+      }}
+      added={false}
+      onAdd={jest.fn()}
+    />
+  ),
+} satisfies Record<string, () => ReactElement>;
+
+it.each(
+  Object.entries(LONG_ROWS),
+)("caps a long title at two lines in a %s and still speaks it whole", async (_name, row) => {
+  await paint(row());
+
+  const lines = screen
+    .getAllByText(LONG_TITLE, { exact: false, includeHiddenElements: true })
+    .map(lineCap);
+  expect(lines).toContain(2);
+  expect(body(LONG_TITLE)).toBeOnTheScreen();
 });
 
 const appDir = join(__dirname, "../app");

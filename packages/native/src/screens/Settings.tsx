@@ -14,7 +14,6 @@ import { CueText } from "../ui/type";
 import { DataSection } from "./account/DataSection";
 import { Diagnostics } from "./account/Diagnostics";
 import { AccountScreen, Note, Picker, Section, SettingRow, Toggle } from "./account/Rows";
-import { SignOut } from "./account/SignOut";
 import { ThemeControl } from "./account/ThemeControl";
 import { VersionLabel } from "./account/VersionLabel";
 import { ALERTS_HINT } from "./calendar/AlertsCard";
@@ -165,7 +164,6 @@ export default function Settings(): ReactElement {
           url="https://app.trakt.tv/settings"
           testID={TEST_IDS.settingsTrakt}
         />
-        <SignOut testID={TEST_IDS.settingsSignOut} />
         <Note>
           Only Trakt can delete your Trakt account. This opens Trakt in your browser to do it. Cue
           has no account of its own to delete.

@@ -4,7 +4,7 @@ import { useRuntime } from "@cue/core/runtime/runtime";
 import { useQuery } from "@tanstack/react-query";
 import { type ReactElement, useState } from "react";
 import { Image, StyleSheet, View } from "react-native";
-import Svg, { Circle, Path } from "react-native-svg";
+import { PlatformIcon } from "./PlatformIcon";
 import { MONOGRAM_LEADING, plate } from "./Poster";
 import { TEST_IDS } from "./test-ids";
 import { PALETTE, RADIUS, useColors } from "./tokens";
@@ -46,10 +46,7 @@ export function Avatar({ size }: { readonly size: number }): ReactElement {
           {initialsOf(profile.displayName)}
         </CueText>
       ) : (
-        <Svg width={size * GLYPH_SIZE} height={size * GLYPH_SIZE} viewBox="0 0 24 24">
-          <Circle cx="12" cy="8" r="4" fill={colors.muted} />
-          <Path d="M5 21a7 7 0 0 1 14 0" fill={colors.muted} />
-        </Svg>
+        <PlatformIcon name="person" color={colors.muted} size={size * GLYPH_SIZE} />
       )}
       {photo && photo !== failed ? (
         <Image

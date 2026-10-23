@@ -10,12 +10,11 @@ import { Poster } from "../../ui/Poster";
 import { ProgressBar } from "../../ui/ProgressBar";
 import { itemActions, RowMenu, type RowMenuItem } from "../../ui/RowMenu";
 import { TEST_IDS } from "../../ui/test-ids";
-import { PALETTE, SPACE, TARGET_MIN, useColors, useStacked } from "../../ui/tokens";
+import { PALETTE, SPACE, TARGET_MIN, TITLE_LINES, useColors, useStacked } from "../../ui/tokens";
 import { CueText } from "../../ui/type";
 import type { ChipKey } from "./model";
 
 const PLATE = { inset: 6, radius: 6 };
-const TITLE_LINES = 2;
 const MAX_COLUMNS = 3;
 const MORE_INSET = (TARGET_MIN - 24) / 2;
 

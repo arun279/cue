@@ -8,6 +8,7 @@ appId: app.cuetracker
 - assertVisible:
     id: "profile-identity"
 - assertVisible: "Cue Demo"
+- assertVisible: "@cue-demo on Trakt"
 - assertVisible:
     id: "profile-stat-shows"
 - waitForAnimationToEnd
@@ -87,22 +88,22 @@ appId: app.cuetracker
     id: "settings-attribution"
 - runFlow: lib/scroll-to-end.yaml
 - takeScreenshot: account-settings-about
-- scrollUntilVisible:
-    element:
-      id: "settings-sign-out"
-    centerElement: true
-- runFlow: lib/settle-scroll.yaml
-- tapOn:
-    id: "settings-sign-out"
-- assertVisible: "Sign out of Cue?"
-- assertVisible: "Your Trakt history stays on Trakt."
-- tapOn: "Cancel"
-- assertVisible:
-    id: "screen-settings"
 - runFlow:
     file: lib/back.yaml
     env:
       BACK_TITLE: "Profile"
+- scrollUntilVisible:
+    element:
+      id: "profile-sign-out"
+    centerElement: true
+- runFlow: lib/settle-scroll.yaml
+- tapOn:
+    id: "profile-sign-out"
+- assertVisible: "Sign out of Cue?"
+- assertVisible: "Your Trakt history stays on Trakt."
+- tapOn: "Cancel"
+- assertVisible:
+    id: "screen-profile"
 - runFlow: lib/leave-profile.yaml
 - assertVisible:
     id: "library-segment-movies"
@@ -139,15 +140,13 @@ appId: app.cuetracker
       BACK_TITLE: "Up Next"
 - tapOn:
     id: "avatar-link"
-- tapOn:
-    id: "profile-to-settings"
 - scrollUntilVisible:
     element:
-      id: "settings-sign-out"
+      id: "profile-sign-out"
     centerElement: true
 - runFlow: lib/settle-scroll.yaml
 - tapOn:
-    id: "settings-sign-out"
+    id: "profile-sign-out"
 # The confirm is a platform alert. Its title and its button both carry the words
 # of the danger row behind it, which stays in the hierarchy under the alert, so
 # the confirm is named by the button it sits beside; and the alert has to be on
@@ -165,7 +164,7 @@ appId: app.cuetracker
     timeout: 60000
 - assertVisible: "Some changes haven't synced yet. Reconnect to the internet, then try signing out again."
 - assertVisible:
-    id: "screen-settings"
+    id: "screen-profile"
 - runFlow: lib/scroll-to-end.yaml
 - takeScreenshot: account-sign-out-refused
 # Writes reach Trakt again and revoking the token does not. Revoke is
@@ -174,12 +173,11 @@ appId: app.cuetracker
 - assertTrue: ${output.revokeRefused}
 - scrollUntilVisible:
     element:
-      id: "settings-sign-out"
-    direction: UP
+      id: "profile-sign-out"
     centerElement: true
 - runFlow: lib/settle-scroll.yaml
 - tapOn:
-    id: "settings-sign-out"
+    id: "profile-sign-out"
 - extendedWaitUntil:
     visible: "Sign out of Cue?"
     timeout: 30000

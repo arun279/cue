@@ -1,4 +1,5 @@
 import type { ReactElement } from "react";
+// biome-ignore lint/style/noRestrictedImports: the Cue mark is the brand, not a platform symbol.
 import Svg, { Circle, Path, Rect } from "react-native-svg";
 import { PALETTE, SPACE } from "./tokens";
 

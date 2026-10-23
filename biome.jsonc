@@ -95,7 +95,8 @@
                   "react-native-gesture-handler": {
                     "importNames": ["Switch"],
                     "message": "Use Toggle from screens/account/Rows, which keeps a disabled switch announced as dimmed on iOS."
-                  }
+                  },
+                  "react-native-svg": "Draw icons with PlatformIcon, which uses the platform's own symbols."
                 }
               }
             }
@@ -131,7 +132,25 @@
                   "react-native-gesture-handler": {
                     "importNames": ["Switch"],
                     "message": "Use Toggle from screens/account/Rows, which keeps a disabled switch announced as dimmed on iOS."
-                  }
+                  },
+                  "react-native-svg": "Draw icons with PlatformIcon, which uses the platform's own symbols."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/native/src/screens/account/Rows.tsx"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "react-native-svg": "Draw icons with PlatformIcon, which uses the platform's own symbols."
                 }
               }
             }

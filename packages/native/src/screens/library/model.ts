@@ -10,6 +10,7 @@ import {
   sortShows,
 } from "@cue/core/domain/library-buckets";
 import { useEffect, useState } from "react";
+import type { SegmentOption } from "../../ui/SegmentedControl";
 import { TEST_IDS } from "../../ui/test-ids";
 
 export type Segment = "shows" | "movies";
@@ -36,6 +37,11 @@ export interface SortOption {
   readonly label: string;
   readonly testID: string;
 }
+
+export const SEGMENTS: readonly SegmentOption<Segment>[] = [
+  { value: "shows", label: "Shows", testID: TEST_IDS.librarySegmentShows },
+  { value: "movies", label: "Movies", testID: TEST_IDS.librarySegmentMovies },
+];
 
 const NOT_STARTED = {
   key: "not-started",
@@ -124,4 +130,14 @@ export function matching(items: readonly LibraryItem[], query: string): readonly
   const needle = query.trim().toLowerCase();
   if (needle === "") return items;
   return items.filter((item) => item.entry.title.toLowerCase().includes(needle));
+}
+
+export function matchesElsewhere(view: LibraryView, chip: ChipKey, query: string): readonly Chip[] {
+  return view.chips
+    .filter((other) => other.key !== chip)
+    .map((other) => ({
+      ...other,
+      count: matching(view.items(other.key, "alphabetical"), query).length,
+    }))
+    .filter((other) => other.count > 0);
 }

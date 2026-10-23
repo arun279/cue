@@ -4,7 +4,7 @@ import { memo, type ReactElement, useCallback, useLayoutEffect, useRef } from "r
 import { type AccessibilityRole, Platform, StyleSheet, View } from "react-native";
 import { MoreMenuButton } from "./MoreMenuButton";
 import { HEADER_TINT } from "./navigation-theme";
-import { PlatformIcon } from "./PlatformIcon";
+import { type IconName, PlatformIcon, SYMBOLS } from "./PlatformIcon";
 import { TARGET_MIN, useColors } from "./tokens";
 
 export interface RowMenuItem {
@@ -51,7 +51,7 @@ const UNAVAILABLE = Platform.OS === "ios" ? "hidden" : "disabled";
 const destructiveLast = (items: readonly RowMenuItem[]): RowMenuItem[] =>
   [...items].sort((a, b) => Number(a.destructive === true) - Number(b.destructive === true));
 
-const actionsOf = (items: readonly RowMenuItem[]): MenuAction[] =>
+export const actionsOf = (items: readonly RowMenuItem[]): MenuAction[] =>
   destructiveLast(items).map(
     (item): MenuAction => ({
       id: item.id,
@@ -70,17 +70,53 @@ const select = (items: readonly RowMenuItem[], id: string): void =>
 
 type HeaderMenuProps = Pick<MenuBase, "title" | "items"> & { readonly testID: string };
 
-export function HeaderMenu({ title, items, testID }: HeaderMenuProps): ReactElement {
+export interface ToolbarMenuProps extends HeaderMenuProps {
+  readonly label: string;
+  readonly icon: IconName;
+}
+
+export function useSelectLatest(items: readonly RowMenuItem[]): (id: string) => void {
   const latest = useRef(items);
   useLayoutEffect(() => {
     latest.current = items;
   });
-  const onSelect = useCallback((id: string) => select(latest.current, id), []);
+  return useCallback((id: string) => select(latest.current, id), []);
+}
+
+export function HeaderMenu({ title, items, testID }: HeaderMenuProps): ReactElement {
+  const onSelect = useSelectLatest(items);
   return <HeaderMenuItems title={title} items={items} testID={testID} onSelect={onSelect} />;
 }
 
-const lookOf = ({ title, items, testID }: HeaderMenuProps): string =>
-  JSON.stringify([title, testID, items.map(({ onPress: _, ...look }) => look)]);
+export const lookOf = ({ items, ...rest }: HeaderMenuProps): string =>
+  JSON.stringify([rest, items.map(({ onPress: _, ...look }) => look)]);
+
+export function toolbarMenu(
+  { title, label, icon, items, testID }: ToolbarMenuProps,
+  onSelect: (id: string) => void,
+): ReactElement {
+  return (
+    <Stack.Toolbar.Menu
+      icon={SYMBOLS[icon]}
+      accessibilityLabel={label}
+      testID={testID}
+      title={title}
+    >
+      {destructiveLast(items).map((item) => (
+        <Stack.Toolbar.MenuAction
+          key={item.id}
+          icon={item.image}
+          isOn={item.selected}
+          destructive={item.destructive}
+          {...(item.available === false ? { [UNAVAILABLE]: true } : {})}
+          onPress={() => onSelect(item.id)}
+        >
+          {item.label}
+        </Stack.Toolbar.MenuAction>
+      ))}
+    </Stack.Toolbar.Menu>
+  );
+}
 
 const HeaderMenuItems = memo(
   function HeaderMenuItems({
@@ -104,25 +140,10 @@ const HeaderMenuItems = memo(
       );
     return (
       <Stack.Toolbar placement="right">
-        <Stack.Toolbar.Menu
-          icon="ellipsis"
-          accessibilityLabel={`More actions for ${title}`}
-          testID={testID}
-          title={title}
-        >
-          {destructiveLast(items).map((item) => (
-            <Stack.Toolbar.MenuAction
-              key={item.id}
-              icon={item.image}
-              isOn={item.selected}
-              destructive={item.destructive}
-              {...(item.available === false ? { [UNAVAILABLE]: true } : {})}
-              onPress={() => onSelect(item.id)}
-            >
-              {item.label}
-            </Stack.Toolbar.MenuAction>
-          ))}
-        </Stack.Toolbar.Menu>
+        {toolbarMenu(
+          { title, label: `More actions for ${title}`, icon: "more", items, testID },
+          onSelect,
+        )}
       </Stack.Toolbar>
     );
   },

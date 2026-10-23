@@ -112,7 +112,6 @@ export const TEST_IDS = {
   screenSettings: "screen-settings",
   settingsHaptics: "settings-haptics",
   settingsVersion: "settings-version",
-  settingsSignOut: "settings-sign-out",
   episodeSkeleton: "episode-skeleton",
   screenEpisode: "screen-episode",
   episodeCode: "episode-code",
