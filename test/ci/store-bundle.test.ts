@@ -80,3 +80,12 @@ it.each([
   expect(result.status).toBe(1);
   expect(result.stderr).toContain(`ios: ${module}`);
 });
+
+it("evaluates modules where they are first used, keeping Expo's import support", async () => {
+  const { transformer } = require(metroConfig);
+  const { transform } = await transformer.getTransformOptions([], { dev: false, hot: false }, () =>
+    Promise.resolve([]),
+  );
+
+  expect(transform).toMatchObject({ inlineRequires: true, experimentalImportSupport: true });
+});
