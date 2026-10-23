@@ -13,13 +13,16 @@
 // adds what the platform keeps: frame statistics per segment (dumpsys gfxinfo), the views and
 // Compose hosts on screen after a tab switch (dumpsys activity top), memory (dumpsys meminfo),
 // overdraw, and cold start (am start -W) as adb installed the app, verified the way a Play
-// install without a profile is, and compiled from the profile the passes collected. iOS adds
-// the app's resident memory. No number gates anything.
+// install without a profile is, and compiled from the profile the passes collected, with a
+// Perfetto trace of one verified cold start per app. iOS adds the app's resident memory. No
+// number gates anything.
 // With two apps, the base and a change, it measures them in alternate passes on the same device
 // and adds a line per quantity comparing their medians, so the runner's speed cancels out.
+// With PERF_LAUNCHES=<n> it only relaunches each app n times in a row, timing each launch, and
+// fails the run on any launch that did not reach ready, with the error the app reported.
 // Usage: DEVICE_ID=<simulator> perf-probe.mjs <ios|android> <output directory> <runs> [base app] [changed app]
-import { execFile, spawn } from "node:child_process";
-import { appendFileSync, mkdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { execFile, spawn, spawnSync } from "node:child_process";
+import { appendFileSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -480,14 +483,17 @@ export function createChannel() {
   return {
     /** @param {string} reply @param {string | null} [boot] */
     next(reply, boot = null) {
-      if (reply === "ready") for (const launched of launches.splice(0)) launched(bootPhases(boot));
+      if (reply === "ready")
+        for (const { resolve } of launches.splice(0)) resolve(bootPhases(boot));
+      else if (reply.startsWith("boot failed: "))
+        for (const { reject } of launches.splice(0)) reject(new Error(reply));
       else replied?.(reply);
       replied = undefined;
       return new Promise((resolve) => {
         deliver = resolve;
       });
     },
-    ready: () => new Promise((resolve) => launches.push(resolve)),
+    ready: () => new Promise((resolve, reject) => launches.push({ resolve, reject })),
     send(command) {
       if (deliver === undefined) return Promise.reject(new Error("the app is not listening"));
       const reply = new Promise((resolve) => {
@@ -523,6 +529,38 @@ async function startAndroidApp(segment) {
   return { segment, coldStartMs: coldStartOf(started) };
 }
 
+const TRACE_CONFIG = fileURLToPath(new URL("cold-start.pbtx", import.meta.url));
+const REMOTE_TRACE = "/data/misc/perfetto-traces/cold-start.perfetto-trace";
+const TRACE_STOP_MS = 30_000;
+
+/**
+ * Records a Perfetto trace of one cold start. perfetto's --background-wait returns once its data
+ * sources are running, so tracing has begun before the app starts; SIGTERM ends it once the
+ * first frame is drawn, and the trace is complete when that perfetto process has exited.
+ */
+async function tracedColdStart(file) {
+  await stopAndroidApp();
+  const tracing = spawnSync(
+    "adb",
+    ["shell", "perfetto", "--background-wait", "--txt", "-c", "-", "-o", REMOTE_TRACE],
+    { input: readFileSync(TRACE_CONFIG), encoding: "utf8" },
+  );
+  const pid = /(\d+)\s*$/.exec(tracing.stdout)?.[1];
+  if (tracing.status !== 0 || pid === undefined)
+    throw new Error(`perfetto did not start tracing: ${tracing.stderr}`);
+  await startAndroidApp("traced cold start");
+  await shell("kill", "-TERM", pid);
+  const stopping = Date.now();
+  // ps rather than kill -0, whose signal SELinux denies the shell on perfetto's domain.
+  const running = async () => (await shell("ps", "-o", "PID=", "-p", pid).catch(() => "")).trim();
+  while ((await running()) !== "") {
+    if (Date.now() - stopping > TRACE_STOP_MS)
+      throw new Error(`perfetto was still writing the trace after ${TRACE_STOP_MS} ms`);
+    await pause(PAUSE_MS);
+  }
+  await adb("pull", REMOTE_TRACE, file);
+}
+
 async function coldStart(segment) {
   await stopAndroidApp();
   return startAndroidApp(segment);
@@ -531,10 +569,9 @@ async function coldStart(segment) {
 /** Starts the app and waits for its channel; registered after the stop, so a ready from the stopped process cannot count. */
 async function launched(probe, channel) {
   await probe.stop();
-  const ready = channel.ready();
+  const ready = within(channel.ready(), READY_MS, "launch");
   const launchedAt = Date.now();
-  const sample = await probe.start();
-  const boot = await within(ready, READY_MS, "launch");
+  const [sample, boot] = await Promise.all([probe.start(), ready]);
   return { ...sample, launchToReadyMs: Date.now() - launchedAt, ...boot };
 }
 
@@ -579,7 +616,7 @@ function androidProbe(directory) {
     },
     census: async () => viewCensus(await shell("dumpsys", "activity", "top")),
     memory: async () => memInfo(await shell("dumpsys", "meminfo", PACKAGE)),
-    after: async (channel, runs, quiet) => {
+    after: async (channel, runs, quiet, label) => {
       const samples = [];
       for (const [mode, segment] of [
         ["verify", "cold start verified, as a Play install starts"],
@@ -588,6 +625,10 @@ function androidProbe(directory) {
         await shell("cmd", "package", "compile", "-m", mode, "-f", PACKAGE);
         for (let index = 1; index <= runs; index += 1)
           samples.push({ run: index, ...(await coldStart(segment)) });
+        if (mode === "verify") {
+          const name = ["cold-start", label].filter(Boolean).join("-");
+          await tracedColdStart(path.join(directory, `${name}.perfetto-trace`));
+        }
       }
       await shell("setprop", "debug.hwui.overdraw", "show");
       await launched(probe, channel);
@@ -719,9 +760,34 @@ async function measureApps(probe, channel, directory, runs, apps) {
   for (const app of apps) {
     if (apps.length > 1) await probe.install(app.path);
     const quiet = () => networkQuiet(probe);
-    samples.push(...tagged(app.label, await probe.after(channel, runs, quiet)));
+    samples.push(...tagged(app.label, await probe.after(channel, runs, quiet, app.label)));
   }
   return samples;
+}
+
+/**
+ * Launches each app the given number of times in a row, as someone reopening it would, and
+ * names every launch that did not reach ready, with the reason the app gave if it gave one.
+ */
+export async function launchLoop(probe, channel, launches, apps) {
+  const samples = [];
+  const failures = [];
+  for (const app of apps) {
+    if (apps.length > 1) await probe.install(app.path);
+    const label = app.label === undefined ? "" : ` ${app.label}`;
+    for (let run = 1; run <= launches; run += 1) {
+      try {
+        samples.push({
+          run,
+          ...(app.label && { app: app.label }),
+          ...(await launched(probe, channel)),
+        });
+      } catch (error) {
+        failures.push(`launch ${run}${label}: ${error.message}`);
+      }
+    }
+  }
+  return { samples, failures };
 }
 
 async function main() {
@@ -742,10 +808,17 @@ async function main() {
   const server = await serve(channel);
   const samples = [];
   const failures = [];
+  const launches = Number(process.env.PERF_LAUNCHES ?? 0);
   try {
-    samples.push(
-      ...(await measureApps(probe, channel, directory, Number(runsArgument), appsOf(paths))),
-    );
+    if (launches > 0) {
+      const loop = await launchLoop(probe, channel, launches, appsOf(paths));
+      samples.push(...loop.samples);
+      failures.push(...loop.failures);
+    } else {
+      samples.push(
+        ...(await measureApps(probe, channel, directory, Number(runsArgument), appsOf(paths))),
+      );
+    }
   } catch (error) {
     failures.push(`stopped: ${error.message}`);
   }

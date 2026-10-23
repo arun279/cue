@@ -23,6 +23,7 @@ const RULES = {
   E: "text field outside the header search bar",
   F: "native header hidden",
   G: "platform back replaced or disabled",
+  H: "platform control's own role overridden",
 } as const;
 type Rule = keyof typeof RULES;
 
@@ -53,7 +54,7 @@ const EXCEPTIONS: readonly Exception[] = [
     site: "Stack.Toolbar.View",
     candidate: "Stack.Toolbar.Button with an image icon",
     reason:
-      "The avatar is the account's photo or its monogram; a bar button icon is a fixed image source or symbol and cannot draw either.",
+      "The avatar is the account's photo or its monogram; a bar button icon is a fixed image source or symbol and cannot draw either. On Android the Library sort beside it is the same plain button the RowMenu exception gives the More trigger, and iOS keeps the native bar menu.",
     source: "https://docs.expo.dev/router/advanced/stack-toolbar/#icons",
     checked: { package: "expo-router", version: "57.0.29" },
   },
@@ -158,6 +159,16 @@ const EXCEPTIONS: readonly Exception[] = [
     source: "https://developer.apple.com/design/human-interface-guidelines/sheets",
     checked: { package: "react-native-screens", version: "4.26.2" },
   },
+  {
+    file: "src/screens/account/Rows.tsx",
+    rule: "H",
+    site: "Switch",
+    candidate: "the switch role React Native gives Switch",
+    reason:
+      "On iOS that role replaces UISwitch's own traits, so a disabled switch is announced as enabled. With no role, VoiceOver reads UISwitch's traits, which say dimmed. Once React Native reports the disabled state itself (react/react-native#59333), drop the override: a switch without its role stops being a switch to accessibility after a disable and re-enable (react/react-native#59334).",
+    source: "https://github.com/react/react-native/pull/59333",
+    checked: { package: "react-native", version: "0.86.3" },
+  },
 ];
 
 const HEADER_SLOTS = new Set([
@@ -169,6 +180,7 @@ const HEADER_SLOTS = new Set([
   "unstable_headerRightItems",
 ]);
 const SELECTION_ROLES = new Set(["tab", "radio", "checkbox", "switch"]);
+const PLATFORM_CONTROLS = new Set(["react-native#Switch"]);
 const SELECTION_STATES = new Set(["selected", "checked"]);
 const NAVIGATION_RECEIVERS = new Set(["router", "navigation"]);
 const BACK_CALLS = new Set(["back", "goBack", "dismiss", "dismissAll", "pop", "popToTop"]);
@@ -277,6 +289,12 @@ const ELEMENT_CHECKS: readonly (readonly [Rule, ElementCheck])[] = [
   ["E", (_node, _tag, origin) => origin === "react-native#TextInput"],
   ["F", (node, tag) => tag === "Stack.Header" && attribute(node, "hidden") !== undefined],
   ["G", (node, tag) => tag === "Stack.Toolbar" && literal(attribute(node, "placement")) === "left"],
+  [
+    "H",
+    (node, _tag, origin) =>
+      PLATFORM_CONTROLS.has(origin) &&
+      (attribute(node, "accessibilityRole") !== undefined || attribute(node, "role") !== undefined),
+  ],
 ];
 
 function propertyRules(node: ts.PropertyAssignment): Rule[] {
@@ -376,5 +394,14 @@ it("rechecks an exception when the package it was judged against changes version
       ({ rule, file, checked }) =>
         `${rule} ${file}: judged against ${checked.package} ${checked.version}, installed ${installed(checked.package)}`,
     ),
+  ).toEqual([]);
+});
+
+it("draws checks and crosses as platform symbols, never as typed glyphs", () => {
+  const glyph = /[☑☒✅✓-✘❌❎]/u;
+  expect(
+    storeSourceFiles()
+      .filter((path) => glyph.test(readFileSync(path, "utf8")))
+      .map((path) => relative(root, path)),
   ).toEqual([]);
 });

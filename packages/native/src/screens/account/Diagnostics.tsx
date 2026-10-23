@@ -2,6 +2,7 @@ import { incidentReport, PROBLEM_LABELS } from "@cue/core/data/trakt/diagnostics
 import { useAppVersion } from "@cue/core/ports/app-version";
 import { useReadIncidents } from "@cue/core/stores/read-incidents-store";
 import { showSnack } from "@cue/core/stores/snackbar-store";
+import { useStartFailure } from "@cue/core/stores/start-failure-store";
 import { setStringAsync } from "expo-clipboard";
 import type { ReactElement } from "react";
 import { View } from "react-native";
@@ -18,9 +19,10 @@ const WHEN: Intl.DateTimeFormatOptions = {
 
 export function Diagnostics(): ReactElement {
   const incidents = useReadIncidents((state) => state.incidents);
+  const startFailure = useStartFailure((state) => state.failure);
   const version = useAppVersion();
   const copy = async (): Promise<void> => {
-    await setStringAsync(incidentReport(incidents, version));
+    await setStringAsync(incidentReport(incidents, version, startFailure));
     showSnack({ message: "Report copied." });
   };
   return (
@@ -36,6 +38,11 @@ export function Diagnostics(): ReactElement {
           />
         }
       />
+      {startFailure === null ? null : (
+        <Note>
+          {`Couldn't start · ${new Date(startFailure.at).toLocaleString(undefined, WHEN)} · ${startFailure.detail}`}
+        </Note>
+      )}
       {incidents.length === 0 ? (
         <Note>No Trakt errors recorded.</Note>
       ) : (

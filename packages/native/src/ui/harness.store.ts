@@ -1,8 +1,15 @@
+import { useEffect } from "react";
 import type * as Harness from "./harness";
 
 export const relativeTimeNow: typeof Harness.relativeTimeNow = () => Date.now();
 export const SnackbarRouteDismissal: typeof Harness.SnackbarRouteDismissal = () => null;
 export const HIDE_CARET: typeof Harness.HIDE_CARET = false;
+export const BootFailureDetail: typeof Harness.BootFailureDetail = ({ detail }) => {
+  useEffect(() => {
+    if (__DEV__) console.error(`Couldn't start Cue: ${detail}`);
+  }, [detail]);
+  return null;
+};
 export const useOnboardingAcknowledgment: typeof Harness.useOnboardingAcknowledgment = () => ({
   onLayout: undefined,
   marker: null,

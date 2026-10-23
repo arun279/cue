@@ -146,6 +146,8 @@ export const EPISODE_NUMBER_WIDTH = 20;
 
 export const RAIL = { height: 4, row: 64 } as const;
 
+export const TITLE_LINES = 2;
+
 export const ROW_TEXT_INSET = SPACE.s4 + POSTER_WIDTH.row + SPACE.s3;
 
 // iOS 26 floats the tab bar 40 pt off the edge at 56 pt tall; Android's navigation bar is 80 dp.

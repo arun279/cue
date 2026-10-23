@@ -8,7 +8,7 @@ import { EmptyState } from "../../ui/EmptyState";
 import { Skeleton } from "../../ui/Skeleton";
 import { TEST_IDS } from "../../ui/test-ids";
 import { RADIUS, SPACE } from "../../ui/tokens";
-import type { ChipKey, Segment } from "./model";
+import { type ChipKey, type LibraryView, matchesElsewhere, type Segment } from "./model";
 
 const SKELETON_TILES = [0, 1, 2, 3, 4, 5, 6, 7, 8];
 const POSTER_RATIO = 3 / 2;
@@ -16,7 +16,9 @@ const POSTER_RATIO = 3 / 2;
 export function LibraryState({
   status,
   segment,
+  view,
   chip,
+  onChip,
   query,
   width,
   onRetry,
@@ -24,7 +26,9 @@ export function LibraryState({
 }: {
   readonly status: QueryStatus;
   readonly segment: Segment;
+  readonly view: LibraryView;
   readonly chip: ChipKey;
+  onChip(key: ChipKey): void;
   readonly query: string;
   readonly width: number;
   onRetry(): void;
@@ -35,7 +39,16 @@ export function LibraryState({
     return <LibraryError segment={segment} failure={status.failure} onRetry={onRetry} />;
   }
   if (query === "") return <LibraryEmpty chip={chip} />;
-  return <LibraryNoMatch segment={segment} query={query} onClear={onClear} />;
+  return (
+    <LibraryNoMatch
+      segment={segment}
+      view={view}
+      chip={chip}
+      query={query}
+      onChip={onChip}
+      onClear={onClear}
+    />
+  );
 }
 
 function LibrarySkeleton({ width }: { readonly width: number }): ReactElement {
@@ -92,18 +105,39 @@ function LibraryEmpty({ chip }: { readonly chip: ChipKey }): ReactElement {
 
 function LibraryNoMatch({
   segment,
+  view,
+  chip,
   query,
+  onChip,
   onClear,
 }: {
   readonly segment: Segment;
+  readonly view: LibraryView;
+  readonly chip: ChipKey;
   readonly query: string;
+  onChip(key: ChipKey): void;
   onClear(): void;
 }): ReactElement {
+  const noun = segment === "shows" ? "shows" : "movies";
+  const elsewhere = matchesElsewhere(view, chip, query);
+  const label = view.chips.find((candidate) => candidate.key === chip)?.label;
   return (
     <EmptyState
       testID={TEST_IDS.libraryNoMatch}
-      headline={`No ${segment === "shows" ? "shows" : "movies"} match "${query}".`}
+      headline={
+        elsewhere.length === 0
+          ? `No ${noun} match "${query}".`
+          : `No ${noun} in ${label} match "${query}".`
+      }
     >
+      {elsewhere.map((other) => (
+        <Button
+          key={other.key}
+          label={`Show ${other.count} in ${other.label}`}
+          variant="link"
+          onPress={() => onChip(other.key)}
+        />
+      ))}
       <Button
         label="Clear filter"
         variant="ghost"

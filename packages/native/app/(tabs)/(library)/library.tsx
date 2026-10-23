@@ -23,7 +23,6 @@ import { usePullToRefresh } from "../../../src/hooks/usePullToRefresh";
 import { ChipRail } from "../../../src/screens/library/ChipRail";
 import { LibraryState } from "../../../src/screens/library/LibraryStates";
 import { MovieTile, ShowTile, usePosterGrid } from "../../../src/screens/library/LibraryTile";
-import { LibraryToolbar } from "../../../src/screens/library/LibraryToolbar";
 import {
   type ChipKey,
   FILTER_DEBOUNCE_MS,
@@ -31,6 +30,7 @@ import {
   type LibraryItem,
   matching,
   movieChips,
+  SEGMENTS,
   type Segment,
   showChips,
   sortsFor,
@@ -38,6 +38,8 @@ import {
 } from "../../../src/screens/library/model";
 import { BarItems } from "../../../src/ui/BarItems";
 import { usePerfScroll } from "../../../src/ui/harness";
+import type { ToolbarMenuProps } from "../../../src/ui/RowMenu";
+import { SegmentedControl } from "../../../src/ui/SegmentedControl";
 import { SyncStrip } from "../../../src/ui/SyncStrip";
 import { TabRoot } from "../../../src/ui/TabRoot";
 import { TEST_IDS } from "../../../src/ui/test-ids";
@@ -124,16 +126,24 @@ export default function Library(): ReactElement {
     setFilter("");
   };
   const retry = (): void => void (shows ? snapshot.query.refetch() : movies.refetch());
-  const toolbar = {
-    bothMedia: showsEnabled && moviesEnabled,
-    segment,
-    onSegment: setSegment,
+  const selectChip = (key: ChipKey): void => setChips({ ...chips, [segment]: key });
+  const sortMenu: ToolbarMenuProps = {
+    title: "Sort",
+    label: "Sort",
+    icon: "sort",
+    testID: TEST_IDS.librarySort,
+    items: sortOptions.map((option) => ({
+      id: option.testID,
+      label: option.label,
+      selected: option.id === sort,
+      onPress: () => setSorts({ ...sorts, [`${segment}:${chip}`]: option.id }),
+    })),
   };
 
   return (
     <TabRoot testID={TEST_IDS.screenLibrary}>
       <Stack.Screen options={screenOptions} />
-      <BarItems />
+      <BarItems menu={sortMenu} />
       <FlatList
         ref={grid}
         testID={TEST_IDS.libraryGrid}
@@ -160,17 +170,15 @@ export default function Library(): ReactElement {
         ListHeaderComponent={
           <View style={styles.lead}>
             {banner === null ? null : <SyncStrip banner={banner} onRetry={retry} />}
-            <LibraryToolbar
-              {...toolbar}
-              sorts={sortOptions}
-              sort={sort}
-              onSort={(next) => setSorts({ ...sorts, [`${segment}:${chip}`]: next })}
-            />
-            <ChipRail
-              chips={view.chips}
-              selected={chip}
-              onSelect={(key) => setChips({ ...chips, [segment]: key })}
-            />
+            {showsEnabled && moviesEnabled ? (
+              <SegmentedControl<Segment>
+                segments={SEGMENTS}
+                value={segment}
+                onChange={setSegment}
+                style={styles.segments}
+              />
+            ) : null}
+            <ChipRail chips={view.chips} selected={chip} onSelect={selectChip} />
           </View>
         }
         ListEmptyComponent={
@@ -178,7 +186,9 @@ export default function Library(): ReactElement {
             <LibraryState
               status={status}
               segment={segment}
+              view={view}
               chip={chip}
+              onChip={selectChip}
               query={query.trim()}
               width={tileWidth}
               onRetry={retry}
@@ -209,6 +219,7 @@ function Tile({
 
 const styles = StyleSheet.create({
   lead: { paddingBottom: SPACE.s3, gap: SPACE.s2 },
+  segments: { marginHorizontal: SPACE.s4, marginBottom: SPACE.s2 },
   row: { gap: SPACE.s3, paddingHorizontal: SPACE.s4, paddingBottom: SPACE.s3 },
   empty: { paddingHorizontal: SPACE.s4 },
 });

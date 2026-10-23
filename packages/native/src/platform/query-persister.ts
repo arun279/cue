@@ -1,7 +1,7 @@
 import { createQueryCachePolicy, restorableCache } from "@cue/core/runtime/query-cache";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
-import Storage from "expo-sqlite/kv-store";
 import { createAppQueryClient } from "./query-client";
+import { bulkStorage } from "./stores";
 
 export const queryClient = createAppQueryClient();
 
@@ -9,7 +9,7 @@ export const { shouldDehydrateQuery } = createQueryCachePolicy(queryClient);
 
 export const queryPersister = createAsyncStoragePersister({
   key: "cue.query-cache",
-  storage: Storage,
+  storage: bulkStorage,
   serialize: (client) => JSON.stringify(restorableCache(client)),
 });
 

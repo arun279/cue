@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSplashRelease } from "../platform/splash";
 import { Button } from "../ui/Button";
 import { EmptyState } from "../ui/EmptyState";
-import { useBootMark } from "../ui/harness";
+import { BootFailureDetail, useBootMark } from "../ui/harness";
 import { Marker } from "../ui/Marker";
 import { TEST_IDS } from "../ui/test-ids";
 import { SPACE, useColors } from "../ui/tokens";
@@ -19,16 +19,22 @@ export interface RuntimeBootProps {
 
 export function RuntimeBoot({ deps, children }: RuntimeBootProps): ReactElement {
   const endSession = useAuth((s) => s.endSession);
-  const { runtime, failed, retry } = useRuntimeBoot({ ...deps, endSession });
-  useSplashRelease(runtime !== null || failed);
+  const { runtime, failure, retry } = useRuntimeBoot({ ...deps, endSession });
+  useSplashRelease(runtime !== null || failure !== null);
   useBootMark("runtime", runtime !== null);
 
   if (runtime !== null) return <RuntimeProvider value={runtime}>{children}</RuntimeProvider>;
-  if (failed) return <BootFailure onRetry={retry} />;
+  if (failure !== null) return <BootFailure detail={failure} onRetry={retry} />;
   return <Marker testID={TEST_IDS.runtimeLoading} />;
 }
 
-function BootFailure({ onRetry }: { readonly onRetry: () => void }): ReactElement {
+function BootFailure({
+  detail,
+  onRetry,
+}: {
+  readonly detail: string;
+  readonly onRetry: () => void;
+}): ReactElement {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   return (
@@ -50,6 +56,7 @@ function BootFailure({ onRetry }: { readonly onRetry: () => void }): ReactElemen
         body="Cue couldn't open what it keeps on this device."
       >
         <Button label="Retry" testID={TEST_IDS.runtimeErrorRetry} onPress={onRetry} />
+        <BootFailureDetail detail={detail} />
       </EmptyState>
     </View>
   );

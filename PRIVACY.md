@@ -28,7 +28,7 @@ Cue collects no analytics and sends no telemetry. It makes no network requests e
 
 ## Deleting your data
 
-- **Cue's on-device data:** open **Settings → Sign out**. Signing out asks Trakt to revoke this device's access token, deletes Cue's local settings, cache, and Trakt token stored on the device, and cancels every reminder the OS was holding for Cue. The delete is what Cue can guarantee: Trakt always answers success, so that alone does not confirm the revoke worked; revoke Cue from your Trakt account settings at <https://app.trakt.tv/settings/apps> as well. Uninstalling the app removes the same local data. Neither reaches a copy already sitting in a device backup, which is what the backup section above is for.
+- **Cue's on-device data:** open **Profile → Sign out** (Profile is your avatar at the top of the screen). Signing out asks Trakt to revoke this device's access token, deletes Cue's local settings, cache, and Trakt token stored on the device, and cancels every reminder the OS was holding for Cue. The delete is what Cue can guarantee: Trakt always answers success, so that alone does not confirm the revoke worked; revoke Cue from your Trakt account settings at <https://app.trakt.tv/settings/apps> as well. Uninstalling the app removes the same local data. Neither reaches a copy already sitting in a device backup, which is what the backup section above is for.
 - **Your Trakt account itself:** Cue cannot delete it. Cue has no account of its own and no server-side copy of your data to delete. Only Trakt can delete a Trakt account. Do it at <https://app.trakt.tv/settings/advanced>.
 
 ## Hosting this document

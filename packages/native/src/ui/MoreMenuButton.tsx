@@ -8,7 +8,7 @@ import {
   View,
   type ViewStyle,
 } from "react-native";
-import { PlatformIcon } from "./PlatformIcon";
+import { type IconName, PlatformIcon } from "./PlatformIcon";
 import { TARGET_MIN } from "./tokens";
 
 const RIPPLE = { borderless: true, radius: TARGET_MIN / 2 } as const;
@@ -18,6 +18,8 @@ export interface MoreMenuButtonProps {
   readonly actions: MenuAction[];
   onSelect(id: string): void;
   readonly color: ColorValue;
+  readonly icon?: IconName;
+  readonly label?: string;
   readonly testID?: string;
   readonly style?: StyleProp<ViewStyle>;
 }
@@ -28,6 +30,8 @@ export function MoreMenuButton({
   actions,
   onSelect,
   color,
+  icon = "more",
+  label = `More actions for ${title}`,
   testID,
   style,
 }: MoreMenuButtonProps): ReactElement {
@@ -40,13 +44,13 @@ export function MoreMenuButton({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`More actions for ${title}`}
+      accessibilityLabel={label}
       android_ripple={RIPPLE}
       testID={testID}
       onPress={() => setOpen(true)}
       style={[styles.trigger, style]}
     >
-      <PlatformIcon name="more" color={color} />
+      <PlatformIcon name={icon} color={color} />
       {open ? (
         <MenuView
           ref={menu}

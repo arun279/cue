@@ -1,14 +1,14 @@
-import { PendingWritesError } from "@cue/core/app/session";
 import { sortLapsed, sortQueue } from "@cue/core/domain/queue-order";
 import { computeWatchStatus } from "@cue/core/domain/watch-status";
 import { type Reminders, RemindersProvider } from "@cue/core/ports/reminders";
 import { createPrefsStore, usePrefs } from "@cue/core/prefs/prefs-store";
 import { thresholdMsFromDays } from "@cue/core/prefs/threshold";
 import { useReadIncidents } from "@cue/core/stores/read-incidents-store";
+import { useStartFailure } from "@cue/core/stores/start-failure-store";
 import { act, fireEvent, screen, userEvent } from "@testing-library/react-native";
 import { setStringAsync } from "expo-clipboard";
 import { openBrowserAsync } from "expo-web-browser";
-import { Alert, Appearance, Platform } from "react-native";
+import { Appearance, Platform } from "react-native";
 import "./support/screen-mocks";
 import { CueHaptics } from "../modules/cue-native/src";
 import { createNativeHaptics } from "../src/platform/haptics";
@@ -301,58 +301,9 @@ it("persists the three menu preferences and changes queue ordering", async () =>
   });
 });
 
-it.each([
-  "ios",
-  "android",
-] as const)("confirms sign-out in the %s platform shape", async (platform) => {
-  jest.replaceProperty(Platform, "OS", platform);
-  const alert = jest.spyOn(Alert, "alert");
-  const fixture = accountFixture();
-  await fixture.paint(<Settings />);
-  await userEvent.press(screen.getByRole("button", { name: "Sign out" }));
-  expect(fixture.disconnect).not.toHaveBeenCalled();
-  expect(alert).toHaveBeenLastCalledWith("Sign out of Cue?", "Your Trakt history stays on Trakt.", [
-    { text: "Cancel", style: "cancel" },
-    {
-      text: "Sign out",
-      onPress: expect.any(Function),
-      ...(platform === "ios" ? { isPreferred: true } : {}),
-    },
-  ]);
-  await act(() => alert.mock.calls.at(-1)?.[2]?.[1]?.onPress?.());
-  expect(fixture.disconnect).toHaveBeenCalledTimes(1);
-});
-
-it.each([
-  [
-    new PendingWritesError(),
-    "Some changes haven't synced yet. Reconnect to the internet, then try signing out again.",
-  ],
-  [new Error("storage unavailable"), "Couldn't finish signing out. Please try again."],
-])("shows an announced refusal and enables retry after %s", async (failure, message) => {
-  jest.replaceProperty(Platform, "OS", "android");
-  const alert = jest.spyOn(Alert, "alert");
-  const fixture = accountFixture();
-  fixture.disconnect.mockRejectedValueOnce(failure);
-  await fixture.paint(<Settings />);
-  await userEvent.press(screen.getByRole("button", { name: "Sign out" }));
-  await act(() => alert.mock.calls.at(-1)?.[2]?.[1]?.onPress?.());
-  expect(screen.getByText(String(message))).toHaveProp("accessibilityLiveRegion", "assertive");
-  expect(screen.getByRole("button", { name: "Sign out" })).toBeEnabled();
-});
-
-it("disables sign-out while the teardown is outstanding", async () => {
-  const alert = jest.spyOn(Alert, "alert");
-  const fixture = accountFixture();
-  fixture.disconnect.mockImplementation(() => new Promise(() => {}));
-  await fixture.paint(<Settings />);
-  await userEvent.press(screen.getByRole("button", { name: "Sign out" }));
-  await act(() => alert.mock.calls.at(-1)?.[2]?.[1]?.onPress?.());
-  expect(screen.getByRole("button", { name: "Signing out…" })).toBeDisabled();
-});
-
 it("shows the injected store version and hands account management to Trakt", async () => {
   await accountFixture().paint(<Settings />);
+  expect(screen.queryByRole("button", { name: "Sign out" })).toBeNull();
   expect(screen.getByTestId(TEST_IDS.settingsVersion)).toHaveTextContent("1.2.3 (45)");
   expect(screen.getByTestId(TEST_IDS.settingsAttribution)).toHaveTextContent(
     "Cue uses the Trakt API but is not created, endorsed, or sponsored by Trakt.",
@@ -387,4 +338,18 @@ it("lists the last Trakt failure per endpoint under About and copies them as a r
   ]);
   expect(await screen.findByText("Report copied.")).toBeVisible();
   await act(() => useReadIncidents.setState({ incidents: [] }));
+});
+
+it("lists a failed start above the Trakt failures and puts it first in the report", async () => {
+  const at = Date.UTC(2026, 9, 3, 22, 14);
+  useStartFailure.setState({ failure: { at, detail: "Error: database is locked" } });
+  await accountFixture().paint(<Settings />);
+  expect(screen.getByText(/^Couldn't start · .* · Error: database is locked$/)).toBeVisible();
+  expect(screen.getByText("No Trakt errors recorded.")).toBeVisible();
+
+  await userEvent.press(screen.getByTestId(TEST_IDS.settingsDiagnosticsCopy));
+  expect(jest.mocked(setStringAsync).mock.calls.at(-1)?.[0]?.split("\n").slice(1)).toEqual([
+    "2026-10-03T22:14:00.000Z  start  Error: database is locked",
+  ]);
+  await act(() => useStartFailure.setState({ failure: null }));
 });

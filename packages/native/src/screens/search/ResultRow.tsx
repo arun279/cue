@@ -3,6 +3,7 @@ import { useRouter } from "expo-router";
 import { type ReactElement, useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { Badge } from "../../ui/Badge";
+import { PlatformIcon } from "../../ui/PlatformIcon";
 import { Poster } from "../../ui/Poster";
 import { Row } from "../../ui/Row";
 import { TEST_IDS } from "../../ui/test-ids";
@@ -12,6 +13,7 @@ import {
   ROW_MIN_HEIGHT,
   SPACE,
   TARGET_MIN,
+  TITLE_LINES,
   useColors,
 } from "../../ui/tokens";
 import { CueText } from "../../ui/type";
@@ -57,7 +59,11 @@ export function ResultRow({ hit, added, onAdd }: ResultRowProps): ReactElement {
         onPress={() => router.push(routeOf(hit))}
       >
         <View style={styles.title}>
-          <CueText variant="rowTitleSecondary" style={{ color: colors.fg }}>
+          <CueText
+            variant="rowTitleSecondary"
+            numberOfLines={TITLE_LINES}
+            style={{ color: colors.fg }}
+          >
             {hit.title}
           </CueText>
           <Badge label={MEDIUM[hit.type]} />
@@ -94,8 +100,9 @@ function AddPill({
           { backgroundColor: colors.accent, borderColor: colors.accentFillStroke },
         ]}
       >
+        <PlatformIcon name="checked" color={colors.accentFg} indicator />
         <CueText variant="meta" weight="semibold" style={{ color: colors.accentFg }}>
-          Added ✓
+          Added
         </CueText>
       </View>
     );
@@ -120,8 +127,9 @@ function AddPill({
       onPress={onPress}
       style={[styles.pill, { borderColor: colors.accentInk }]}
     >
+      <PlatformIcon name="add" color={colors.accentInk} indicator />
       <CueText variant="meta" weight="semibold" style={{ color: colors.accentInk }}>
-        + Watchlist
+        Watchlist
       </CueText>
     </Pressable>
   );
@@ -132,6 +140,8 @@ const styles = StyleSheet.create({
   title: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: SPACE.s2 },
   pill: {
     flexShrink: 0,
+    flexDirection: "row",
+    gap: SPACE.s1,
     minHeight: PILL.height,
     alignItems: "center",
     justifyContent: "center",

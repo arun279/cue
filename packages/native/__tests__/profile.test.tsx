@@ -1,6 +1,7 @@
+import { PendingWritesError } from "@cue/core/app/session";
 import { type TraktFailure, TraktReadError } from "@cue/core/data/trakt/client";
 import { act, fireEvent, screen, userEvent } from "@testing-library/react-native";
-import { StyleSheet } from "react-native";
+import { Alert, Platform, StyleSheet } from "react-native";
 import "./support/screen-mocks";
 import Profile from "../src/screens/Profile";
 import { BarItems } from "../src/ui/BarItems";
@@ -19,6 +20,7 @@ it("shows identity and matching enabled-media totals, with both navigation desti
   const fixture = accountFixture();
   await fixture.paint(<Profile />);
   expect(await screen.findByText("Jo Taylor")).toBeVisible();
+  expect(screen.getByText("@jo on Trakt")).toBeVisible();
   expect(await screen.findByLabelText("81 episodes watched")).toBeVisible();
   expect(screen.getByText("8 hr 3 min")).toBeVisible();
   await act(() => fixture.prefs.getState().setMoviesEnabled(false));
@@ -154,4 +156,54 @@ it.each<[TraktFailure, string]>([
   }).paint(<Profile />);
   expect(await screen.findByText("Couldn't load your library")).toBeVisible();
   expect(screen.getByText(body)).toBeVisible();
+});
+
+it.each([
+  "ios",
+  "android",
+] as const)("confirms sign-out in the %s platform shape", async (platform) => {
+  jest.replaceProperty(Platform, "OS", platform);
+  const alert = jest.spyOn(Alert, "alert");
+  const fixture = accountFixture();
+  await fixture.paint(<Profile />);
+  await userEvent.press(screen.getByRole("button", { name: "Sign out" }));
+  expect(fixture.disconnect).not.toHaveBeenCalled();
+  expect(alert).toHaveBeenLastCalledWith("Sign out of Cue?", "Your Trakt history stays on Trakt.", [
+    { text: "Cancel", style: "cancel" },
+    {
+      text: "Sign out",
+      onPress: expect.any(Function),
+      ...(platform === "ios" ? { isPreferred: true } : {}),
+    },
+  ]);
+  await act(() => alert.mock.calls.at(-1)?.[2]?.[1]?.onPress?.());
+  expect(fixture.disconnect).toHaveBeenCalledTimes(1);
+});
+
+it.each([
+  [
+    new PendingWritesError(),
+    "Some changes haven't synced yet. Reconnect to the internet, then try signing out again.",
+  ],
+  [new Error("storage unavailable"), "Couldn't finish signing out. Please try again."],
+])("shows an announced refusal and enables retry after %s", async (failure, message) => {
+  jest.replaceProperty(Platform, "OS", "android");
+  const alert = jest.spyOn(Alert, "alert");
+  const fixture = accountFixture();
+  fixture.disconnect.mockRejectedValueOnce(failure);
+  await fixture.paint(<Profile />);
+  await userEvent.press(screen.getByRole("button", { name: "Sign out" }));
+  await act(() => alert.mock.calls.at(-1)?.[2]?.[1]?.onPress?.());
+  expect(screen.getByText(String(message))).toHaveProp("accessibilityLiveRegion", "assertive");
+  expect(screen.getByRole("button", { name: "Sign out" })).toBeEnabled();
+});
+
+it("disables sign-out while the teardown is outstanding", async () => {
+  const alert = jest.spyOn(Alert, "alert");
+  const fixture = accountFixture();
+  fixture.disconnect.mockImplementation(() => new Promise(() => {}));
+  await fixture.paint(<Profile />);
+  await userEvent.press(screen.getByRole("button", { name: "Sign out" }));
+  await act(() => alert.mock.calls.at(-1)?.[2]?.[1]?.onPress?.());
+  expect(screen.getByRole("button", { name: "Signing out…" })).toBeDisabled();
 });
