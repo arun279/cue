@@ -13,8 +13,9 @@ name: Perf probe
 # run-id is the CI run whose mock-server apps to measure, and the optional compare-run-id a
 # second run whose apps are measured on the same device in alternate passes, as the change
 # against run-id's base, so runner speed cancels out of the comparison; runs the passes per platform (1 to
-# 10, default 3) and platform one of both, android or ios (default both). The probe's
-# scripts and seed come from the pushed branch; the apps come from the run. When that run
+# 10, default 3) and platform one of both, android or ios (default both). An optional
+# "launches" (1 to 50) replaces the passes with that many relaunches of each app in a row.
+# The probe's scripts and seed come from the pushed branch; the apps come from the run. When that run
 # reused the cached simulator app, its ios-harness-bundle artifact lasts one day, so measure
 # iOS within a day of the run or rerun its fingerprint job first. No other workflow runs on
 # perf-probe/** pushes. Once this file is on the default branch, workflow_dispatch takes the
@@ -51,6 +52,7 @@ jobs:
       run-id: ${{ steps.read.outputs.run-id }}
       compare-run-id: ${{ steps.read.outputs.compare-run-id }}
       runs: ${{ steps.read.outputs.runs }}
+      launches: ${{ steps.read.outputs.launches }}
       platform: ${{ steps.read.outputs.platform }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -66,15 +68,17 @@ jobs:
             run_id=$(jq -r '."run-id" // empty' "$request")
             compare_run_id=$(jq -r '."compare-run-id" // empty' "$request")
             runs=$(jq -r '.runs // 3' "$request")
+            launches=$(jq -r '.launches // empty' "$request")
             platform=$(jq -r '.platform // "both"' "$request")
           else
-            run_id=$INPUT_RUN_ID compare_run_id="" runs=$INPUT_RUNS platform=$INPUT_PLATFORM
+            run_id=$INPUT_RUN_ID compare_run_id="" runs=$INPUT_RUNS launches="" platform=$INPUT_PLATFORM
           fi
           [[ $run_id =~ ^[0-9]+$ ]] || { echo "run-id must be a CI run ID, got '$run_id'" >&2; exit 1; }
           [[ -z $compare_run_id || $compare_run_id =~ ^[0-9]+$ ]] || { echo "compare-run-id must be a CI run ID, got '$compare_run_id'" >&2; exit 1; }
           [[ $runs =~ ^([1-9]|10)$ ]] || { echo "runs must be 1 to 10, got '$runs'" >&2; exit 1; }
+          [[ -z $launches || $launches =~ ^([1-9]|[1-4][0-9]|50)$ ]] || { echo "launches must be 1 to 50, got '$launches'" >&2; exit 1; }
           [[ $platform =~ ^(both|android|ios)$ ]] || { echo "platform must be both, android or ios, got '$platform'" >&2; exit 1; }
-          printf 'run-id=%s\ncompare-run-id=%s\nruns=%s\nplatform=%s\n' "$run_id" "$compare_run_id" "$runs" "$platform" >> "$GITHUB_OUTPUT"
+          printf 'run-id=%s\ncompare-run-id=%s\nruns=%s\nlaunches=%s\nplatform=%s\n' "$run_id" "$compare_run_id" "$runs" "$launches" "$platform" >> "$GITHUB_OUTPUT"
           echo "Measuring run $run_id${compare_run_id:+ against run $compare_run_id}, $runs passes, platform $platform" >> "$GITHUB_STEP_SUMMARY"
   android:
     needs: request
@@ -114,6 +118,7 @@ jobs:
       - name: Run the probe
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         env:
+          PERF_LAUNCHES: ${{ needs.request.outputs.launches }}
           RUNS: ${{ needs.request.outputs.runs }}
         with:
           api-level: 35
@@ -188,6 +193,7 @@ jobs:
         run: pkill -f "xcodebuild test-without-building"
       - name: Run the probe
         env:
+          PERF_LAUNCHES: ${{ needs.request.outputs.launches }}
           RUNS: ${{ needs.request.outputs.runs }}
           PERF_MOCK_LOG: ${{ runner.temp }}/mock-trakt.log
         run: |

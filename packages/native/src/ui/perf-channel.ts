@@ -83,6 +83,10 @@ function bootTimeline(): Record<string, number> {
 
 let listening = false;
 
+export function reportBootFailure(detail: string): void {
+  void fetch(`${CHANNEL}?reply=${encodeURIComponent(`boot failed: ${detail}`)}`).catch(() => {});
+}
+
 export function listenForCommands(): void {
   if (listening) return;
   listening = true;
