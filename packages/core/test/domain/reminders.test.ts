@@ -132,9 +132,19 @@ describe("an alert per show per air day", () => {
     expect(said(plan)).toEqual(["Salt Air: S1 E1 is out."]);
   });
 
-  it("never announces a day again once its first episode has aired", () => {
+  it("moves a day's alert to its next episode once the first has aired, naming only what is left", () => {
+    const morningAndNight = calendar(
+      ep(HARBOR, 0, 10, 1, 1),
+      ep(HARBOR, 0, 21, 1, 2, "Night Tide"),
+    );
+    const plan = planReminders(morningAndNight, { ...everyone, now: NOW + 12 * HOUR_MS });
+    expect(said(plan)).toEqual(["Harbor Lights: S1 E2 Night Tide is out."]);
+    expect(plan[0]?.atMs).toBe(NOW + 21 * HOUR_MS);
+  });
+
+  it("drops a day's alert once every episode in it has aired", () => {
     const double = calendar(ep(HARBOR, 0, 20, 1, 1), ep(HARBOR, 0, 21, 1, 2));
-    expect(planReminders(double, { ...everyone, now: NOW + 20.5 * HOUR_MS })).toEqual([]);
+    expect(planReminders(double, { ...everyone, now: NOW + 21.5 * HOUR_MS })).toEqual([]);
   });
 
   it("plans the four weeks ahead and nothing past them", () => {

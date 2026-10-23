@@ -79,9 +79,9 @@ function alertBody(first: CalendarRow, rest: readonly CalendarRow[]): string {
     : `${episodes.length} new episodes are out.`;
 }
 
-function alertsFor(dayKey: string, rows: readonly CalendarRow[]): PlannedReminder[] {
+function alertsFor(dayKey: string, rows: readonly CalendarRow[], now: number): PlannedReminder[] {
   const byShow = new Map<number, [CalendarRow, ...CalendarRow[]]>();
-  for (const row of rows) {
+  for (const row of rows.filter((row) => Date.parse(row.firstAired) > now)) {
     const run = byShow.get(row.showId);
     if (run === undefined) byShow.set(row.showId, [row]);
     else run.push(row);
@@ -108,7 +108,7 @@ export function planReminders(
       if (wanted.length === 0) return [];
       return summary
         ? [reminder(dayKey, summaryAt(dayKey), SUMMARY_TITLE, summaryBody(wanted), null)]
-        : alertsFor(dayKey, wanted);
+        : alertsFor(dayKey, wanted, now);
     })
     .filter(({ atMs }) => atMs > now && atMs <= horizon)
     .sort((a, b) => a.atMs - b.atMs)
