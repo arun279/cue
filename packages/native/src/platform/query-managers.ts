@@ -22,7 +22,7 @@ export function connectQueryManagers(): void {
   });
   focusManager.setEventListener((setFocused) => {
     // iOS reports inactive during a call banner, the app switcher or a system prompt.
-    setFocused(AppState.currentState === "active");
+    setFocused(AppState.currentState !== "background");
     const subscription = AppState.addEventListener("change", (status) =>
       setFocused(status === "active"),
     );

@@ -112,6 +112,19 @@ it("keeps a network change that lands before the launch read answers", async () 
   stop();
 });
 
+it.each([
+  "unknown",
+  "inactive",
+] as const)("counts a launch reported as %s as the foreground", async (launchState) => {
+  jest.useFakeTimers({ doNotFake: ["setImmediate", "queueMicrotask", "nextTick"] });
+  jest.replaceProperty(AppState, "currentState", launchState);
+  connectQueryManagers();
+  const { read, stop } = watchRead(1000);
+  await jest.advanceTimersByTimeAsync(3000);
+  expect(read).toHaveBeenCalledTimes(4);
+  stop();
+});
+
 it("starts in the background when the app launches there", async () => {
   jest.useFakeTimers({ doNotFake: ["setImmediate", "queueMicrotask", "nextTick"] });
   jest.replaceProperty(AppState, "currentState", "background");

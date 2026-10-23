@@ -8,6 +8,7 @@ import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import { hide } from "expo-splash-screen";
 import { Profiler } from "react";
+import { AppState } from "react-native";
 import { bootNativeStores } from "../src/boot";
 import { queryClient, shouldDehydrateQuery } from "../src/platform/query-persister";
 import {
@@ -153,6 +154,7 @@ describe("the native composition root", () => {
   });
 
   it("renders the persisted queue before any network response or timer", async () => {
+    jest.replaceProperty(AppState, "currentState", "unknown");
     jest.useFakeTimers({
       now: new Date("2026-10-14T12:00:00Z"),
       doNotFake: ["queueMicrotask", "nextTick", "setImmediate"],
