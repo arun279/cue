@@ -5,7 +5,7 @@ import {
   episodeLine,
   isEpisodeRun,
 } from "./calendar";
-import { compareEpisodeKeys, epCode } from "./model/library";
+import { epCode } from "./model/library";
 import { DAY_MS } from "./time";
 
 export const SUMMARY_HOUR = 9;
@@ -68,32 +68,23 @@ function summaryBody(rows: readonly CalendarRow[]): string {
 }
 
 // Android delivers inexact alarms up to an hour after the trigger.
-function alertBody(first: CalendarRow, rest: readonly CalendarRow[]): string {
-  const episodes = [first, ...rest].flatMap((row) => row.episodes).sort(compareEpisodeKeys);
-  const [low, ...more] = episodes;
-  if (low === undefined || more.length === 0) {
-    return `${[epCode(first.season, first.number), first.episodeTitle].filter(Boolean).join(" ")} is out.`;
+function alertBody(row: CalendarRow): string {
+  const count = row.episodes.length;
+  if (count === 1) {
+    return `${[epCode(row.season, row.number), row.episodeTitle].filter(Boolean).join(" ")} is out.`;
   }
-  return isEpisodeRun(episodes)
-    ? `${epCode(low.season, low.number)} to E${low.number + more.length} are out.`
-    : `${episodes.length} new episodes are out.`;
+  return isEpisodeRun(row.episodes)
+    ? `${epCode(row.season, row.number)} to E${row.number + count - 1} are out.`
+    : `${count} new episodes are out.`;
 }
 
-function alertsFor(dayKey: string, rows: readonly CalendarRow[], now: number): PlannedReminder[] {
-  const byShow = new Map<number, [CalendarRow, ...CalendarRow[]]>();
-  for (const row of rows.filter((row) => Date.parse(row.firstAired) > now)) {
-    const run = byShow.get(row.showId);
-    if (run === undefined) byShow.set(row.showId, [row]);
-    else run.push(row);
-  }
-  return [...byShow.values()].map(([first, ...rest]) =>
-    reminder(
-      `${first.showId}@${dayKey}`,
-      Date.parse(first.firstAired),
-      first.showTitle,
-      alertBody(first, rest),
-      first.showId,
-    ),
+function alertFor(row: CalendarRow): PlannedReminder {
+  return reminder(
+    `${row.showId}@${row.firstAired}`,
+    Date.parse(row.firstAired),
+    row.showTitle,
+    alertBody(row),
+    row.showId,
   );
 }
 
@@ -108,7 +99,7 @@ export function planReminders(
       if (wanted.length === 0) return [];
       return summary
         ? [reminder(dayKey, summaryAt(dayKey), SUMMARY_TITLE, summaryBody(wanted), null)]
-        : alertsFor(dayKey, wanted, now);
+        : wanted.map(alertFor);
     })
     .filter(({ atMs }) => atMs > now && atMs <= horizon)
     .sort((a, b) => a.atMs - b.atMs)
