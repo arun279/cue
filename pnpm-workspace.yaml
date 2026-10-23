@@ -26,4 +26,3 @@ verifyDepsBeforeRun: error
 auditConfig:
   ignoreGhsas:
     - GHSA-86w9-cpqp-85rv # node-forge: `expo run:ios` reads local signing certificates with it
-    - GHSA-vfj7-8cjw-p6xm # braces: Metro's file map matches watch globs with it
