@@ -8,6 +8,7 @@ export const useOnboardingAcknowledgment: typeof Harness.useOnboardingAcknowledg
   marker: null,
 });
 export const AppIdle: typeof Harness.AppIdle = () => null;
+export const useBootMark: typeof Harness.useBootMark = () => {};
 export const usePerfCommand: typeof Harness.usePerfCommand = () => {};
 export const usePerfScroll: typeof Harness.usePerfScroll = () => {};
 export const SheetPresented: typeof Harness.SheetPresented = () => null;

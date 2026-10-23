@@ -49,7 +49,7 @@ import {
 import { useStableQueueOrder } from "../../../src/screens/up-next/useStableQueueOrder";
 import { BarItems } from "../../../src/ui/BarItems";
 import { Chevron } from "../../../src/ui/Chevron";
-import { usePerfCommand, usePerfScroll, usePullTrace } from "../../../src/ui/harness";
+import { useBootMark, usePerfCommand, usePerfScroll, usePullTrace } from "../../../src/ui/harness";
 import { Row, Separator } from "../../../src/ui/Row";
 import { SyncStrip } from "../../../src/ui/SyncStrip";
 import { TabRoot } from "../../../src/ui/TabRoot";
@@ -158,6 +158,7 @@ export default function UpNext(): ReactElement {
 
   const [lapsedOpen, setLapsedOpen] = useState(false);
   const branch = branchOf(view, showsEnabled);
+  useBootMark("content", branch !== "loading");
   const sectioned = SECTIONED.includes(branch);
   const list = useRef<SectionList<UpNextCard, UpNextSection>>(null);
   const rowsPerScreen = Math.ceil(useWindowDimensions().height / ROW_MIN_HEIGHT.queue);

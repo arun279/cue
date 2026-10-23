@@ -19,7 +19,7 @@ import { Marker } from "./Marker";
 import { useSnackbarTrace } from "./snackbar-trace";
 
 export { AppIdle, trackSync } from "./AppIdle";
-export { usePerfCommand, usePerfScroll } from "./perf-channel";
+export { useBootMark, usePerfCommand, usePerfScroll } from "./perf-channel";
 
 const launchedAt = Date.now();
 
