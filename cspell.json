@@ -161,6 +161,7 @@
     "showinfo",
     "sigalg",
     "simctl",
+    "simruntime",
     "slurpfile",
     "sonyericsson",
     "sonymobile",
