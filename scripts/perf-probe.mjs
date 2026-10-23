@@ -13,13 +13,14 @@
 // adds what the platform keeps: frame statistics per segment (dumpsys gfxinfo), the views and
 // Compose hosts on screen after a tab switch (dumpsys activity top), memory (dumpsys meminfo),
 // overdraw, and cold start (am start -W) as adb installed the app, verified the way a Play
-// install without a profile is, and compiled from the profile the passes collected. iOS adds
-// the app's resident memory. No number gates anything.
+// install without a profile is, and compiled from the profile the passes collected, with a
+// Perfetto trace of one verified cold start per app. iOS adds the app's resident memory. No
+// number gates anything.
 // With two apps, the base and a change, it measures them in alternate passes on the same device
 // and adds a line per quantity comparing their medians, so the runner's speed cancels out.
 // Usage: DEVICE_ID=<simulator> perf-probe.mjs <ios|android> <output directory> <runs> [base app] [changed app]
-import { execFile, spawn } from "node:child_process";
-import { appendFileSync, mkdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { execFile, spawn, spawnSync } from "node:child_process";
+import { appendFileSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -523,6 +524,41 @@ async function startAndroidApp(segment) {
   return { segment, coldStartMs: coldStartOf(started) };
 }
 
+const TRACE_CONFIG = fileURLToPath(new URL("cold-start.pbtx", import.meta.url));
+const REMOTE_TRACE = "/data/misc/perfetto-traces/cold-start.perfetto-trace";
+const TRACE_STOP_MS = 30_000;
+
+/**
+ * Records a Perfetto trace of one cold start. perfetto's --background-wait returns once its data
+ * sources are running, so tracing has begun before the app starts; SIGTERM ends it once the
+ * first frame is drawn, and the trace is complete when that perfetto process has exited.
+ */
+async function tracedColdStart(file) {
+  await stopAndroidApp();
+  const tracing = spawnSync(
+    "adb",
+    ["shell", "perfetto", "--background-wait", "--txt", "-c", "-", "-o", REMOTE_TRACE],
+    { input: readFileSync(TRACE_CONFIG), encoding: "utf8" },
+  );
+  const pid = /(\d+)\s*$/.exec(tracing.stdout)?.[1];
+  if (tracing.status !== 0 || pid === undefined)
+    throw new Error(`perfetto did not start tracing: ${tracing.stderr}`);
+  await startAndroidApp("traced cold start");
+  await shell("kill", "-TERM", pid);
+  const stopping = Date.now();
+  while (
+    await shell("kill", "-0", pid).then(
+      () => true,
+      () => false,
+    )
+  ) {
+    if (Date.now() - stopping > TRACE_STOP_MS)
+      throw new Error(`perfetto was still writing the trace after ${TRACE_STOP_MS} ms`);
+    await pause(PAUSE_MS);
+  }
+  await adb("pull", REMOTE_TRACE, file);
+}
+
 async function coldStart(segment) {
   await stopAndroidApp();
   return startAndroidApp(segment);
@@ -579,7 +615,7 @@ function androidProbe(directory) {
     },
     census: async () => viewCensus(await shell("dumpsys", "activity", "top")),
     memory: async () => memInfo(await shell("dumpsys", "meminfo", PACKAGE)),
-    after: async (channel, runs, quiet) => {
+    after: async (channel, runs, quiet, label) => {
       const samples = [];
       for (const [mode, segment] of [
         ["verify", "cold start verified, as a Play install starts"],
@@ -588,6 +624,10 @@ function androidProbe(directory) {
         await shell("cmd", "package", "compile", "-m", mode, "-f", PACKAGE);
         for (let index = 1; index <= runs; index += 1)
           samples.push({ run: index, ...(await coldStart(segment)) });
+        if (mode === "verify") {
+          const name = ["cold-start", label].filter(Boolean).join("-");
+          await tracedColdStart(path.join(directory, `${name}.perfetto-trace`));
+        }
       }
       await shell("setprop", "debug.hwui.overdraw", "show");
       await launched(probe, channel);
@@ -719,7 +759,7 @@ async function measureApps(probe, channel, directory, runs, apps) {
   for (const app of apps) {
     if (apps.length > 1) await probe.install(app.path);
     const quiet = () => networkQuiet(probe);
-    samples.push(...tagged(app.label, await probe.after(channel, runs, quiet)));
+    samples.push(...tagged(app.label, await probe.after(channel, runs, quiet, app.label)));
   }
   return samples;
 }

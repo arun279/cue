@@ -1,4 +1,4 @@
-# Perfetto trace config for one cold start of the app, read by perf-probe-android.sh.
+# Perfetto trace config for one cold start of the app, read by perf-probe.mjs.
 # https://perfetto.dev/docs/case-studies/android-startup
 buffers {
   size_kb: 65536
@@ -29,4 +29,3 @@ data_sources {
   }
 }
 duration_ms: 30000
-write_into_file: true
