@@ -231,12 +231,13 @@ jobs:
           path: |
             ~/.android/avd/*
             ~/.android/adb*
-          key: avd-35-default-x86_64-pixel_7_pro
+          key: avd-34-aosp_atd-x86_64-pixel_7_pro
       - if: steps.avd.outputs.cache-hit != 'true'
         name: Create the emulator snapshot
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
-          api-level: 35
+          api-level: 34
+          target: aosp_atd
           arch: x86_64
           profile: pixel_7_pro
           force-avd-creation: false
@@ -246,7 +247,8 @@ jobs:
       - name: Run the smoke flows
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
-          api-level: 35
+          api-level: 34
+          target: aosp_atd
           arch: x86_64
           profile: pixel_7_pro
           force-avd-creation: false
