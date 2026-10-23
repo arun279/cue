@@ -11,9 +11,17 @@ name: detail
     id: "show-card-8801"
 - extendedWaitUntil:
     visible:
+      id: "season-trigger-3"
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      id: "season-trigger-1"
+    centerElement: true
+- extendedWaitUntil:
+    visible:
       id: "season-trigger-1"
       text: "Season 1, 8 of 8 watched, collapsed"
-    timeout: 30000
+    timeout: 10000
 - takeScreenshot: show-detail
 - tapOn:
     id: "season-trigger-1"
@@ -28,6 +36,7 @@ name: detail
 - scrollUntilVisible:
     element:
       id: "episode-row-8801-3-5-check"
+    direction: UP
     centerElement: true
 - waitForAnimationToEnd
 - tapOn:
