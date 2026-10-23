@@ -2,11 +2,11 @@
 import type { TraktResult } from "@cue/core/data/trakt/client";
 import { resetReadPause, withReadRateRetry } from "@cue/core/data/trakt/read-budget";
 import { useSyncBanner } from "@cue/core/hooks/useSyncBanner";
-import { type Network, NetworkProvider } from "@cue/core/ports/network";
 import type { QueryStatus } from "@cue/core/queries/freshness";
 import { type CueRuntime, RuntimeProvider } from "@cue/core/runtime/runtime";
 import { useSyncActivity } from "@cue/core/stores/sync-activity-store";
 import type { SyncBanner } from "@cue/core/sync-contract";
+import { onlineManager } from "@tanstack/react-query";
 import { act, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mount } from "./_mount";
@@ -37,30 +37,18 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  onlineManager.setOnline(true);
   resetReadPause();
   vi.useRealTimers();
 });
 
 describe("useSyncBanner", () => {
   it("says the device is offline until it reconnects", () => {
-    let online = false;
-    const listeners = new Set<() => void>();
-    const network: Network = {
-      isOnline: () => online,
-      subscribe: (listener) => {
-        listeners.add(listener);
-        return () => listeners.delete(listener);
-      },
-    };
-    const message = mountBanner((node) => (
-      <NetworkProvider value={network}>{node}</NetworkProvider>
-    ));
+    onlineManager.setOnline(false);
+    const message = mountBanner();
     expect(message()).toBe("Offline. Your marks are saved.");
 
-    online = true;
-    act(() => {
-      for (const listener of listeners) listener();
-    });
+    act(() => onlineManager.setOnline(true));
     expect(message()).toBeNull();
   });
 

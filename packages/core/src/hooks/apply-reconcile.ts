@@ -6,7 +6,7 @@ import type { ActivitiesReconcile } from "../runtime/runtime";
 export function refetchFailedReads(queryClient: QueryClient): Promise<void> {
   return queryClient.refetchQueries({
     type: "active",
-    predicate: (query) => query.state.status === "error",
+    predicate: (query) => query.state.status === "error" && query.state.fetchStatus === "idle",
   });
 }
 

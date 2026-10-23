@@ -3,9 +3,7 @@ import { type AuthStore, AuthStoreProvider, useAuth } from "@cue/core/auth/store
 import { useActivitiesPoll } from "@cue/core/hooks/useActivitiesPoll";
 import { useEpisodeReminders } from "@cue/core/hooks/useEpisodeReminders";
 import { AppVersionProvider } from "@cue/core/ports/app-version";
-import { AppVisibilityProvider } from "@cue/core/ports/app-visibility";
 import { HapticsProvider } from "@cue/core/ports/haptics";
-import { NetworkProvider } from "@cue/core/ports/network";
 import { RemindersProvider } from "@cue/core/ports/reminders";
 import { createTokenStore } from "@cue/core/ports/token-store";
 import { createPrefsStore, PrefsProvider } from "@cue/core/prefs/prefs-store";
@@ -23,10 +21,9 @@ import { bootNativeStores } from "../src/boot";
 import { NATIVE_REDIRECT_URI, TRAKT_BASE_OVERRIDE, TRAKT_CLIENT_ID } from "../src/config";
 import { nativeCrypto } from "../src/crypto";
 import { nativeAppVersion } from "../src/platform/app-version";
-import { nativeAppVisibility } from "../src/platform/app-visibility";
 import { createNativeHaptics } from "../src/platform/haptics";
 import { legacyStore } from "../src/platform/legacy-store";
-import { createNativeNetwork } from "../src/platform/network";
+import { connectQueryManagers } from "../src/platform/query-managers";
 import {
   clearPersistedCaches,
   queryClient,
@@ -60,8 +57,8 @@ export const unstable_settings = { initialRouteName: "(tabs)" };
 
 const prefsStore = createPrefsStore(preferenceStorage);
 const haptics = createNativeHaptics(() => prefsStore.getState().hapticsEnabled);
-const network = createNativeNetwork();
 const reminders = createNativeReminders();
+connectQueryManagers();
 
 const BOOT_FAILED_MESSAGE = "Cue could not open its storage. Some of your data may be missing.";
 
@@ -178,22 +175,18 @@ export default function RootLayout(): ReactElement {
           }}
         >
           <PrefsProvider value={prefsStore}>
-            <AppVisibilityProvider value={nativeAppVisibility}>
-              <NetworkProvider value={network}>
-                <HapticsProvider value={haptics}>
-                  <RemindersProvider value={reminders}>
-                    <AppVersionProvider value={nativeAppVersion}>
-                      <AuthStoreProvider value={session.authStore}>
-                        <StatusBar style="auto" />
-                        <ThemeProvider value={navigationTheme}>
-                          <Gate runtimeDeps={session.runtimeDeps} />
-                        </ThemeProvider>
-                      </AuthStoreProvider>
-                    </AppVersionProvider>
-                  </RemindersProvider>
-                </HapticsProvider>
-              </NetworkProvider>
-            </AppVisibilityProvider>
+            <HapticsProvider value={haptics}>
+              <RemindersProvider value={reminders}>
+                <AppVersionProvider value={nativeAppVersion}>
+                  <AuthStoreProvider value={session.authStore}>
+                    <StatusBar style="auto" />
+                    <ThemeProvider value={navigationTheme}>
+                      <Gate runtimeDeps={session.runtimeDeps} />
+                    </ThemeProvider>
+                  </AuthStoreProvider>
+                </AppVersionProvider>
+              </RemindersProvider>
+            </HapticsProvider>
           </PrefsProvider>
         </PersistQueryClientProvider>
       </SafeAreaProvider>

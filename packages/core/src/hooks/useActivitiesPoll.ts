@@ -1,66 +1,61 @@
-import { useQueryClient } from "@tanstack/react-query";
+import {
+  focusManager,
+  onlineManager,
+  type QueryClient,
+  skipToken,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useEffect } from "react";
-import { useAppVisibility } from "../ports/app-visibility";
-import { useNetwork } from "../ports/network";
-import { useOptionalRuntime } from "../runtime/runtime";
+import { queryKeys } from "../data/query-keys";
+import { type CueRuntime, useOptionalRuntime } from "../runtime/runtime";
 import { useSyncActivity } from "../stores/sync-activity-store";
 import { applyReconcile, refetchFailedReads } from "./apply-reconcile";
 
 const POLL_INTERVAL_MS = 60_000;
 
+async function flushThenReconcile(
+  runtime: CueRuntime,
+  queryClient: QueryClient,
+  signal: AbortSignal,
+): Promise<boolean> {
+  const remaining = runtime.pendingWrites() > 0 ? await runtime.flushWrites() : 0;
+  if (remaining > 0 || signal.aborted || !focusManager.isFocused()) return false;
+  const reconcile = await runtime.pollActivities();
+  if (signal.aborted) return false;
+  if (reconcile !== null) {
+    await refetchFailedReads(queryClient);
+    if (!signal.aborted) await applyReconcile(queryClient, reconcile, () => signal.aborted);
+  }
+  if (signal.aborted) return false;
+  useSyncActivity.getState().setChecked(true);
+  return true;
+}
+
 export function useActivitiesPoll(): void {
   const runtime = useOptionalRuntime();
   const queryClient = useQueryClient();
-  const visibility = useAppVisibility();
-  const network = useNetwork();
+
+  useQuery({
+    queryKey: queryKeys.lastActivities(),
+    queryFn:
+      runtime === null
+        ? skipToken
+        : ({ signal }) => flushThenReconcile(runtime, queryClient, signal),
+    refetchInterval: POLL_INTERVAL_MS,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+    notifyOnChangeProps: [],
+  });
 
   useEffect(() => {
     if (runtime === null) return;
-    let cancelled = false;
-    let running = false;
-
-    const flushPending = async (): Promise<number> =>
-      runtime.pendingWrites() > 0 ? runtime.flushWrites() : 0;
-
-    const reconcileActivities = async (): Promise<void> => {
-      const reconcile = await runtime.pollActivities();
-      if (cancelled) return;
-      if (reconcile !== null) {
-        await refetchFailedReads(queryClient);
-        if (!cancelled) await applyReconcile(queryClient, reconcile, () => cancelled);
-      }
-      if (!cancelled) useSyncActivity.getState().setChecked(true);
-    };
-
-    const runPoll = async (): Promise<void> => {
-      if (running || !visibility.isVisible()) return;
-      running = true;
-      try {
-        if ((await flushPending()) > 0 || cancelled) return;
-        await reconcileActivities();
-      } finally {
-        running = false;
-      }
-    };
-
-    const poll = (): void => void runPoll();
-    const onNetwork = (): void => {
-      if (!network.isOnline()) return;
-      if (visibility.isVisible()) poll();
-      else void flushPending();
-    };
-
-    poll();
-    const unsubscribeVisibility = visibility.subscribe(poll);
-    const unsubscribeNetwork = network.subscribe(onNetwork);
-    const interval = setInterval(poll, POLL_INTERVAL_MS);
-
+    const unsubscribe = onlineManager.subscribe((online) => {
+      if (online && runtime.pendingWrites() > 0) void runtime.flushWrites();
+    });
     return () => {
-      cancelled = true;
+      unsubscribe();
       useSyncActivity.getState().setChecked(false);
-      unsubscribeVisibility();
-      unsubscribeNetwork();
-      clearInterval(interval);
     };
-  }, [runtime, queryClient, visibility, network]);
+  }, [runtime]);
 }
