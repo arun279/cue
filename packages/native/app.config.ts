@@ -118,6 +118,7 @@ export function nativeAppConfig(env: Readonly<Record<string, string | undefined>
         },
       ],
       "./plugins/with-android-build-memory",
+      "./plugins/with-android-early-updates",
       "./plugins/with-android-tab-icons",
       "./plugins/with-android-header-icons",
       "./plugins/with-android-dialog-theme",
