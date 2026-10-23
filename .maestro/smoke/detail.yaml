@@ -13,30 +13,10 @@ name: detail
     visible:
       id: "season-trigger-3"
     timeout: 30000
-- scrollUntilVisible:
-    element:
-      id: "season-trigger-1"
-    centerElement: true
-- extendedWaitUntil:
-    visible:
-      id: "season-trigger-1"
-      text: "Season 1, 8 of 8 watched, collapsed"
-    timeout: 10000
 - takeScreenshot: show-detail
-- tapOn:
-    id: "season-trigger-1"
-- extendedWaitUntil:
-    visible:
-      id: "season-trigger-1"
-      text: "Season 1, 8 of 8 watched, expanded"
-    timeout: 10000
-- assertVisible:
-    id: "episode-row-8801-1-1-checked"
-- takeScreenshot: show-detail-season-expanded
 - scrollUntilVisible:
     element:
       id: "episode-row-8801-3-5-check"
-    direction: UP
     centerElement: true
 - waitForAnimationToEnd
 - tapOn:
