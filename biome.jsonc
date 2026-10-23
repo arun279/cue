@@ -79,8 +79,6 @@
     {
       // React Native's iOS Switch replaces UISwitch's own accessibility traits, so a disabled
       // switch is not announced as dimmed. Toggle is the one Switch, and it works around that.
-      // React Native's Image decodes a remote image at full size on Android; expo-image
-      // decodes it at the size it draws.
       "includes": ["**", "!packages/native/src/screens/account/Rows.tsx"],
       "plugins": ["./biome/switch-outside-toggle.grit"],
       "linter": {
@@ -91,8 +89,8 @@
               "options": {
                 "paths": {
                   "react-native": {
-                    "importNames": ["Switch", "Image"],
-                    "message": "Use Toggle from screens/account/Rows for a Switch, which keeps a disabled switch announced as dimmed on iOS, and Image from expo-image, which decodes at the size it draws."
+                    "importNames": ["Switch"],
+                    "message": "Use Toggle from screens/account/Rows, which keeps a disabled switch announced as dimmed on iOS."
                   },
                   "react-native-gesture-handler": {
                     "importNames": ["Switch"],

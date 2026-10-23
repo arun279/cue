@@ -1,6 +1,5 @@
 import { type ImageProps, Image as SymbolImage } from "expo-image";
 import type { ReactElement } from "react";
-// biome-ignore lint/style/noRestrictedImports: Android's icons are vector drawable resources, which React Native's Image draws.
 import { type ColorValue, Image, Platform } from "react-native";
 
 const SYMBOLS = {

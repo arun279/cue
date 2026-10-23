@@ -12,7 +12,6 @@ import { router } from "./support/native-ui";
 import { entry } from "./support/up-next";
 
 jest.mock("react-native/Libraries/Utilities/useWindowDimensions");
-jest.mock("expo-image", () => require("./support/detail").imageModule());
 
 beforeEach(() => atFontScale(1));
 
