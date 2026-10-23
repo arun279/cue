@@ -378,6 +378,7 @@ function androidRecorder() {
  * view hierarchy while the screen is recorded.
  */
 export const PASS = [
+  { memory: "after launch" },
   { segment: "tab up-next>library", command: "tab library" },
   { segment: "tab library>calendar", command: "tab calendar" },
   { segment: "tab calendar>library", command: "tab library" },
@@ -454,16 +455,32 @@ const within = (promise, milliseconds, what) =>
   ]);
 
 /**
+ * The app's boot marks, ms from React Native's runtime starting, as one quantity each.
+ * @param {string | null} boot
+ */
+export function bootPhases(boot) {
+  const marks = boot === null ? {} : JSON.parse(boot);
+  return Object.fromEntries(
+    Object.entries(marks).map(([name, ms]) => [
+      `boot${name[0].toUpperCase()}${name.slice(1)}Ms`,
+      ms,
+    ]),
+  );
+}
+
+/**
  * Pairs the app's waiting requests with the host's commands. The app asks for the next command
- * and, in the same request, replies to the previous one; "ready" opens each launch.
+ * and, in the same request, replies to the previous one; "ready" opens each launch and carries
+ * the app's boot marks.
  */
 export function createChannel() {
   let deliver;
   let replied;
   const launches = [];
   return {
-    next(reply) {
-      if (reply === "ready") for (const launched of launches.splice(0)) launched();
+    /** @param {string} reply @param {string | null} [boot] */
+    next(reply, boot = null) {
+      if (reply === "ready") for (const launched of launches.splice(0)) launched(bootPhases(boot));
       else replied?.(reply);
       replied = undefined;
       return new Promise((resolve) => {
@@ -487,7 +504,9 @@ function serve(channel) {
   const server = createServer((request, response) => {
     const url = new URL(request.url ?? "/", `http://127.0.0.1:${PORT}`);
     if (url.pathname !== "/next") return response.writeHead(404).end();
-    channel.next(url.searchParams.get("reply") ?? "").then((command) => response.end(command));
+    channel
+      .next(url.searchParams.get("reply") ?? "", url.searchParams.get("boot"))
+      .then((command) => response.end(command));
   });
   return new Promise((resolve) => server.listen(PORT, "127.0.0.1", () => resolve(server)));
 }
@@ -515,8 +534,8 @@ async function launched(probe, channel) {
   const ready = channel.ready();
   const launchedAt = Date.now();
   const sample = await probe.start();
-  await within(ready, READY_MS, "launch");
-  return { ...sample, launchToReadyMs: Date.now() - launchedAt };
+  const boot = await within(ready, READY_MS, "launch");
+  return { ...sample, launchToReadyMs: Date.now() - launchedAt, ...boot };
 }
 
 async function overdraw(directory, label) {

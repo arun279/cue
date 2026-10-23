@@ -2,7 +2,7 @@
 // finds no config, does not strip the Flow types out of `@react-native/jest-preset`'s
 // own setup file, and every suite dies before a test runs.
 const HARNESS = process.env.EXPO_PUBLIC_UI_HARNESS === "1";
-const PERF_HOOKS = new Set(["usePerfCommand", "usePerfScroll"]);
+const PERF_HOOKS = new Set(["useBootMark", "usePerfCommand", "usePerfScroll"]);
 
 const callStatements = (binding) => binding.referencePaths.map((reference) => reference.parentPath);
 

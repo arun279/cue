@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSplashRelease } from "../platform/splash";
 import { Button } from "../ui/Button";
 import { EmptyState } from "../ui/EmptyState";
+import { useBootMark } from "../ui/harness";
 import { Marker } from "../ui/Marker";
 import { TEST_IDS } from "../ui/test-ids";
 import { SPACE, useColors } from "../ui/tokens";
@@ -20,6 +21,7 @@ export function RuntimeBoot({ deps, children }: RuntimeBootProps): ReactElement 
   const endSession = useAuth((s) => s.endSession);
   const { runtime, failed, retry } = useRuntimeBoot({ ...deps, endSession });
   useSplashRelease(runtime !== null || failed);
+  useBootMark("runtime", runtime !== null);
 
   if (runtime !== null) return <RuntimeProvider value={runtime}>{children}</RuntimeProvider>;
   if (failed) return <BootFailure onRetry={retry} />;

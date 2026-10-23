@@ -354,8 +354,8 @@ it("hands each command to the app's waiting request and resolves with the app's 
   const launched = channel.ready();
   await expect(channel.send("tab library")).rejects.toThrow("not listening");
 
-  const first = channel.next("ready");
-  await launched;
+  const first = channel.next("ready", JSON.stringify({ fonts: 120, ready: 940 }));
+  expect(await launched).toEqual({ bootFontsMs: 120, bootReadyMs: 940 });
   const reply = channel.send("tab library");
   expect(await first).toBe("tab library");
   void channel.next("ran tab");
@@ -363,7 +363,7 @@ it("hands each command to the app's waiting request and resolves with the app's 
 
   const relaunched = channel.ready();
   const third = channel.next("ready");
-  await relaunched;
+  expect(await relaunched).toEqual({});
   const lapsed = channel.send("lapsed");
   expect(await third).toBe("lapsed");
   void channel.next("unknown lapsed");
@@ -406,6 +406,15 @@ it("sends only commands the app registers", () => {
   expect(unregistered).toEqual([]);
 });
 
+it("samples memory right after launch, after the tab tour and after the lists, in that order", () => {
+  expect(PASS.flatMap((step) => ("memory" in step ? [step.memory] : []))).toEqual([
+    "after launch",
+    "after tabs",
+    "after lists",
+  ]);
+  expect(PASS[0]).toEqual({ memory: "after launch" });
+});
+
 const transformed = (harness: boolean) =>
   spawnSync(
     process.execPath,
@@ -414,10 +423,11 @@ const transformed = (harness: boolean) =>
       `const babel = require(require.resolve("@babel/core", { paths: [process.cwd()] }));
       const { code } = babel.transformSync(process.argv[1], { filename: "Row.tsx", configFile: "./babel.config.js" });
       process.stdout.write(code);`,
-      `import { usePerfCommand, usePerfScroll } from "./harness";
-      export function Row({ onToggle, list }) {
+      `import { useBootMark, usePerfCommand, usePerfScroll } from "./harness";
+      export function Row({ onToggle, list, restoring }) {
         usePerfCommand("lapsed", onToggle);
         usePerfScroll("history", (y) => list.scrollTo(y));
+        useBootMark("restored", !restoring());
         return null;
       }`,
     ],
@@ -428,15 +438,16 @@ const transformed = (harness: boolean) =>
     },
   ).stdout;
 
-it("removes perf channel registrations from store builds and keeps them in harness builds", () => {
+it("removes perf channel registrations and boot marks from store builds and keeps them in harness builds", () => {
   const store = transformed(false);
   const harness = transformed(true);
 
   expect(store).toContain("function Row");
-  expect(store).not.toMatch(/usePerf(Command|Scroll)\)?\(/);
+  expect(store).not.toMatch(/usePerf(Command|Scroll)\)?\(|useBootMark\)?\(|restoring\(/);
   expect(store).not.toContain("./harness");
   expect(harness).toMatch(/usePerfCommand\)?\("lapsed"/);
   expect(harness).toMatch(/usePerfScroll\)?\("history"/);
+  expect(harness).toMatch(/useBootMark\)?\("restored", ?!restoring\(\)\)/);
   expect(harness).toContain("./harness");
 });
 
