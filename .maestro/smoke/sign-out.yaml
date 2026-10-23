@@ -19,12 +19,8 @@ name: sign-out
 - extendedWaitUntil:
     visible: "Sign out of Cue?"
     timeout: 30000
-- tapOn:
+- assertVisible: "^Cancel$"
+- assertVisible:
     text: "^Sign out$"
     rightOf:
       text: "^Cancel$"
-- extendedWaitUntil:
-    visible:
-      id: "button-connect"
-    timeout: 60000
-- takeScreenshot: signed-out

@@ -1,6 +1,8 @@
 appId: app.cuetracker
 ---
-- launchApp
+- launchApp:
+    stopApp: false
+- tapOn: "Up Next"
 - extendedWaitUntil:
     visible:
       id: "queue-row-8803"

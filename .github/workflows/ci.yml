@@ -225,6 +225,11 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
+      - name: Cache the Android emulator package
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: /usr/local/lib/android/sdk/emulator
+          key: ${{ runner.os }}-android-emulator-v1
       - id: avd
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
@@ -329,7 +334,9 @@ jobs:
           echo "$HOME/.maestro/bin" >> "$GITHUB_PATH"
       - name: Boot the simulator and install the app
         run: |
-          device=$(xcrun simctl list devices available -j | jq -er '[.devices[] | .[] | select(.name | startswith("iPhone"))][0].udid')
+          runtime="com.apple.CoreSimulator.SimRuntime.iOS-$(xcrun --sdk iphonesimulator --show-sdk-version | tr . -)"
+          device=$(xcrun simctl list devices available -j | jq -er --arg runtime "$runtime" '[.devices[$runtime][]? | select(.name | startswith("iPhone"))][0].udid')
+          echo "Using iPhone simulator $device on $runtime"
           xcrun simctl boot "$device"
           xcrun simctl bootstatus "$device" -b
           # apsd retries a push certificate the simulator cannot get and chronod renders widget
