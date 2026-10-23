@@ -59,39 +59,34 @@ export function UpNextError({
       headline="Couldn't load your queue"
       body={readFailureBody(failure)}
     >
-      <Button label="Retry" onPress={onRetry} testID={TEST_IDS.upNextErrorRetry} />
+      <Button label="Retry" onPress={onRetry} />
     </EmptyState>
   );
 }
 
 interface EmptyCopy {
-  readonly testID: string;
   readonly headline: string;
   readonly body?: string;
 }
 
 const EMPTY: Readonly<Record<UpNextEmptyKind, EmptyCopy>> = {
   "nothing-tracked": {
-    testID: TEST_IDS.upNextEmptyNothingQueued,
     headline: "Nothing queued.",
     body: "Find a show and Cue keeps your place.",
   },
   "only-stopped": {
-    testID: TEST_IDS.upNextEmptyOnlyStopped,
     headline: "All your shows are stopped.",
     body: "Resume one to bring it back into your queue. Your watch history is kept.",
   },
   "nothing-started": {
-    testID: TEST_IDS.upNextEmptyNothingStarted,
     headline: "Nothing queued.",
     body: "Find a show and Cue keeps your place.",
   },
   unresolved: {
-    testID: TEST_IDS.upNextEmptyNothingQueued,
     headline: "Nothing to queue right now.",
     body: "Shows with episodes left are waiting in your Library.",
   },
-  "caught-up": { testID: TEST_IDS.upNextEmptyAllCaughtUp, headline: "You're all caught up." },
+  "caught-up": { headline: "You're all caught up." },
 };
 
 const SEARCH_BRANCHES: readonly UpNextEmptyKind[] = ["nothing-tracked", "nothing-started"];
@@ -111,7 +106,7 @@ export function UpNextEmpty({ kind, watchlist, airingSoon }: UpNextEmptyProps): 
 
   return (
     <>
-      <EmptyState testID={copy.testID} headline={copy.headline} body={body}>
+      <EmptyState headline={copy.headline} body={body}>
         {SEARCH_BRANCHES.includes(kind) ? (
           <Button label="Search shows" onPress={() => router.push("/search")} />
         ) : null}
@@ -140,7 +135,6 @@ function WatchlistTiles({ entries }: { readonly entries: readonly LibraryEntry[]
             accessible
             accessibilityRole="button"
             accessibilityLabel={entry.title}
-            testID={TEST_IDS.watchlistTile}
             onPress={() => router.push(`/show/${entry.showId}`)}
             style={styles.tile}
           >

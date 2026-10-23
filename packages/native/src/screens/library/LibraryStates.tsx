@@ -59,7 +59,6 @@ function LibraryError({
 }): ReactElement {
   return (
     <EmptyState
-      testID={TEST_IDS.libraryError}
       centered
       headline={segment === "shows" ? "Couldn't load your library" : "Couldn't load your movies"}
       body={readFailureBody(failure)}
@@ -82,7 +81,7 @@ function LibraryEmpty({ chip }: { readonly chip: ChipKey }): ReactElement {
   const [headline, body] = EMPTY[chip];
 
   return (
-    <EmptyState testID={TEST_IDS.libraryEmpty} headline={headline} body={body}>
+    <EmptyState headline={headline} body={body}>
       {chip === "watching" ? (
         <Button label="Search shows" variant="link" onPress={() => router.push("/search")} />
       ) : null}
@@ -100,10 +99,7 @@ function LibraryNoMatch({
   onClear(): void;
 }): ReactElement {
   return (
-    <EmptyState
-      testID={TEST_IDS.libraryNoMatch}
-      headline={`No ${segment === "shows" ? "shows" : "movies"} match "${query}".`}
-    >
+    <EmptyState headline={`No ${segment === "shows" ? "shows" : "movies"} match "${query}".`}>
       <Button
         label="Clear filter"
         variant="ghost"

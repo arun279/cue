@@ -15,7 +15,7 @@ import {
 import { Dimensions, Platform, ScrollView } from "react-native";
 import { memoryPreferenceStorage } from "../../core/test/support/stores";
 import { ROW_MIN_HEIGHT } from "../src/ui/tokens";
-import { expectUnavailable, menuItem } from "./support/native-ui";
+import { expectUnavailable, menuItem, router } from "./support/native-ui";
 import {
   agesAgo,
   airing,
@@ -395,6 +395,18 @@ describe("Up Next's row menu", () => {
 });
 
 describe("Up Next's sections", () => {
+  it("files a show marked from the drawer back into the queue", async () => {
+    const user = userEvent.setup();
+    await paint({ entries: [...queueOf(), lapsed()] });
+    await user.press(screen.getByTestId("lapsed-drawer-toggle"));
+
+    await user.press(screen.getByTestId(`lapsed-row-${GLASSHOUSE}-drag-right`));
+
+    await waitFor(() => expect(row(GLASSHOUSE)).toBeOnTheScreen());
+    expect(screen.queryByTestId(`lapsed-row-${GLASSHOUSE}`)).toBeNull();
+    expect(screen.queryByTestId("lapsed-drawer-toggle")).toBeNull();
+  });
+
   it("holds the idle shows in a collapsed drawer with its count, and opens on a tap", async () => {
     const user = userEvent.setup();
     await paint({ entries: [...queueOf(), lapsed()] });
@@ -539,6 +551,18 @@ describe("Up Next's empty and off states", () => {
       screen.getByText("Turn TV shows back on in Settings to see your queue."),
     ).toBeOnTheScreen();
     expect(loadUpNext).not.toHaveBeenCalled();
+  });
+
+  it("leads to Settings from the turned-off queue", async () => {
+    await render(
+      <Harness runtime={fakeRuntime({})} haptics={haptics} preferences={showsTurnedOff()}>
+        <UpNext />
+      </Harness>,
+    );
+
+    await fireEvent.press(screen.getByRole("button", { name: "Open Settings" }));
+
+    expect(router.push).toHaveBeenCalledWith("/settings");
   });
 });
 

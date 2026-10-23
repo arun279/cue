@@ -1,14 +1,12 @@
 import { type RuntimeBootDeps, useRuntimeBoot } from "@cue/core/app/boot";
 import { useAuth } from "@cue/core/auth/store";
 import { RuntimeProvider } from "@cue/core/runtime/runtime";
-import type { ReactElement, ReactNode } from "react";
+import { type ReactElement, type ReactNode, useEffect } from "react";
 import { StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSplashRelease } from "../platform/splash";
 import { Button } from "../ui/Button";
 import { EmptyState } from "../ui/EmptyState";
-import { BootFailureDetail, useBootMark } from "../ui/harness";
-import { Marker } from "../ui/Marker";
 import { TEST_IDS } from "../ui/test-ids";
 import { SPACE, useColors } from "../ui/tokens";
 
@@ -17,15 +15,14 @@ export interface RuntimeBootProps {
   readonly children: ReactNode;
 }
 
-export function RuntimeBoot({ deps, children }: RuntimeBootProps): ReactElement {
+export function RuntimeBoot({ deps, children }: RuntimeBootProps): ReactElement | null {
   const endSession = useAuth((s) => s.endSession);
   const { runtime, failure, retry } = useRuntimeBoot({ ...deps, endSession });
   useSplashRelease(runtime !== null || failure !== null);
-  useBootMark("runtime", runtime !== null);
 
   if (runtime !== null) return <RuntimeProvider value={runtime}>{children}</RuntimeProvider>;
   if (failure !== null) return <BootFailure detail={failure} onRetry={retry} />;
-  return <Marker testID={TEST_IDS.runtimeLoading} />;
+  return null;
 }
 
 function BootFailure({
@@ -37,6 +34,9 @@ function BootFailure({
 }): ReactElement {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  useEffect(() => {
+    if (__DEV__) console.error(`Couldn't start Cue: ${detail}`);
+  }, [detail]);
   return (
     <View
       testID={TEST_IDS.runtimeError}
@@ -55,8 +55,7 @@ function BootFailure({
         headline="Couldn't start Cue"
         body="Cue couldn't open what it keeps on this device."
       >
-        <Button label="Retry" testID={TEST_IDS.runtimeErrorRetry} onPress={onRetry} />
-        <BootFailureDetail detail={detail} />
+        <Button label="Retry" onPress={onRetry} />
       </EmptyState>
     </View>
   );

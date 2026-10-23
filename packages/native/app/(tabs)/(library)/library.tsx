@@ -36,7 +36,6 @@ import {
   useDebounced,
 } from "../../../src/screens/library/model";
 import { BarItems } from "../../../src/ui/BarItems";
-import { usePerfScroll } from "../../../src/ui/harness";
 import { SyncStrip } from "../../../src/ui/SyncStrip";
 import { TabRoot } from "../../../src/ui/TabRoot";
 import { TEST_IDS } from "../../../src/ui/test-ids";
@@ -57,8 +56,6 @@ export default function Library(): ReactElement {
   const [sorts, setSorts] = useState<Partial<Record<`${Segment}:${ChipKey}`, LibrarySort>>>({});
   const [filter, setFilter] = useState("");
   const field = useRef<SearchBarCommands>(null);
-  const grid = useRef<FlatList<LibraryItem>>(null);
-  usePerfScroll("library", (offset) => grid.current?.scrollToOffset({ offset, animated: true }));
   const screenOptions = useMemo<NativeStackNavigationOptions>(
     () => ({
       title: "Library",
@@ -133,7 +130,6 @@ export default function Library(): ReactElement {
       <Stack.Screen options={screenOptions} />
       <BarItems />
       <FlatList
-        ref={grid}
         testID={TEST_IDS.libraryGrid}
         contentInsetAdjustmentBehavior="automatic"
         keyboardShouldPersistTaps="handled"
@@ -148,7 +144,6 @@ export default function Library(): ReactElement {
         windowSize={WINDOW_SCREENS}
         refreshControl={
           <RefreshControl
-            testID={TEST_IDS.refreshIndicator}
             refreshing={refresh.refreshing}
             onRefresh={refresh.pull}
             tintColor={colors.muted}

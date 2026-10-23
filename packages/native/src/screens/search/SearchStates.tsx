@@ -50,7 +50,7 @@ export function SearchState({
 
 function SearchSkeleton(): ReactElement {
   return (
-    <View testID={TEST_IDS.searchSkeleton} style={styles.skeleton}>
+    <View style={styles.skeleton}>
       {SKELETON_ROWS.map((slot) => (
         <View key={slot} style={styles.row}>
           <Skeleton

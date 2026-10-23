@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import { UNDO_WINDOW_MS } from "../sync-contract";
-import { AUTO_DISMISS_UNDO } from "./snackbar-policy";
 
 interface SnackAction {
   readonly label: string;
@@ -43,11 +42,6 @@ let timer: ReturnType<typeof setTimeout> | undefined;
 
 export function setSnackbarTimeout(timeout: number): void {
   clearTimeout(timer);
-  if (
-    !AUTO_DISMISS_UNDO &&
-    useSnackbar.getState().snack?.actions?.some((action) => action.testId === "snackbar-undo")
-  )
-    return;
   timer = setTimeout(dismissSnack, Math.max(0, shownAt + timeout - Date.now()));
 }
 

@@ -1,7 +1,6 @@
 import { Stack, useRouter } from "expo-router";
 import type { ReactElement } from "react";
 import { Platform, StyleSheet, View } from "react-native";
-import { AppIdle } from "../../src/ui/harness";
 import { barOptions, TRANSPARENT_SCREEN, useOpaqueScreen } from "../../src/ui/navigation-theme";
 import { SnackbarHost } from "../../src/ui/SnackbarHost";
 import { useColors } from "../../src/ui/tokens";
@@ -49,7 +48,6 @@ export default function AccountLayout(): ReactElement {
         />
       </Stack>
       <SnackbarHost placement="presentation" />
-      <AppIdle />
     </View>
   );
 }

@@ -64,7 +64,6 @@ function Stats({ totals }: { readonly totals: WatchTotals }): ReactElement {
   if (counts.every((tile) => tile.count === 0))
     return (
       <EmptyState
-        testID={TEST_IDS.profileEmpty}
         headline="Nothing tallied yet."
         body="Mark an episode or movie watched and your watch time adds up here."
       >
@@ -156,7 +155,6 @@ export default function Profile(): ReactElement {
       ) : status.isError ? (
         <EmptyState
           centered
-          testID={TEST_IDS.profileError}
           headline="Couldn't load your library"
           body={readFailureBody(status.failure)}
         >
@@ -164,7 +162,6 @@ export default function Profile(): ReactElement {
         </EmptyState>
       ) : (
         <View
-          testID={TEST_IDS.profileSkeleton}
           accessible
           accessibilityLabel="Loading stats"
           accessibilityState={{ busy: true }}
@@ -177,7 +174,6 @@ export default function Profile(): ReactElement {
       <View>
         <SettingRow
           title="History"
-          testID={TEST_IDS.profileToHistory}
           onPress={() => router.push("/history")}
           trailing={<Chevron direction="forward" />}
         />

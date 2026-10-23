@@ -29,7 +29,7 @@ export function EpisodeMarkRow({
       ]}
     >
       <View style={detailMarkStyles.copy}>
-        <CueText testID={TEST_IDS.episodeWatched} variant="rowTitle" style={{ color: colors.fg }}>
+        <CueText variant="rowTitle" style={{ color: colors.fg }}>
           {episodeStatus(detail.watched, detail.watchedAt, plays)}
         </CueText>
         {detail.watched && plays < 2 && (

@@ -81,7 +81,7 @@ function ShowContent({ showId }: { readonly showId: number }): ReactElement {
         <View style={[styles.continue, { backgroundColor: colors.bg }]}>
           <ContinueBar entry={entry} mark={nextMark} />
         </View>
-        <View testID={TEST_IDS.seasonList} style={styles.seasons}>
+        <View style={styles.seasons}>
           <SeasonsStatus
             loading={seasons.isLoading}
             failed={seasons.isError}

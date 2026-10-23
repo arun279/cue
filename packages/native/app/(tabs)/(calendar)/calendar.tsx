@@ -93,7 +93,6 @@ export default function Calendar(): ReactElement {
         keyExtractor={(row) => String(row.ids.trakt)}
         refreshControl={
           <RefreshControl
-            testID={TEST_IDS.refreshIndicator}
             refreshing={refresh.refreshing}
             onRefresh={refresh.pull}
             tintColor={colors.muted}
@@ -150,31 +149,21 @@ function Lead({
   if (branch === "tv-off") {
     return (
       <TvShowsOff
-        body="Turn TV shows back on in Settings to see what's coming."
         testID={TEST_IDS.calendarTvOff}
+        body="Turn TV shows back on in Settings to see what's coming."
       />
     );
   }
   if (branch === "loading") return <AgendaSkeleton />;
   if (branch === "error") {
     return (
-      <EmptyState
-        testID={TEST_IDS.calendarError}
-        centered
-        headline="Couldn't load your calendar"
-        body={readFailureBody(failure)}
-      >
-        <Button label="Retry" onPress={onRetry} testID={TEST_IDS.calendarErrorRetry} />
+      <EmptyState centered headline="Couldn't load your calendar" body={readFailureBody(failure)}>
+        <Button label="Retry" onPress={onRetry} />
       </EmptyState>
     );
   }
   if (branch === "empty") {
-    return (
-      <EmptyState
-        testID={TEST_IDS.calendarEmpty}
-        headline="No upcoming episodes in the next 28 days."
-      />
-    );
+    return <EmptyState headline="No upcoming episodes in the next 28 days." />;
   }
   return null;
 }

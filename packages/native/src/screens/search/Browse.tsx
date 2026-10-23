@@ -71,13 +71,8 @@ function Grids({
   }
   if (status.isError && !status.hasData) {
     return (
-      <EmptyState
-        testID={TEST_IDS.browseError}
-        centered
-        headline="Couldn't load browse"
-        body={readFailureBody(status.failure)}
-      >
-        <Button label="Retry" onPress={onRetry} testID={TEST_IDS.browseErrorRetry} />
+      <EmptyState centered headline="Couldn't load browse" body={readFailureBody(status.failure)}>
+        <Button label="Retry" onPress={onRetry} />
       </EmptyState>
     );
   }

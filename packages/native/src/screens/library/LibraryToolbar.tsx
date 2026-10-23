@@ -45,7 +45,6 @@ export function LibraryToolbar({
       <View style={styles.tools}>
         <RowMenu
           title="Sort"
-          testID={TEST_IDS.librarySort}
           items={sorts.map((option) => ({
             id: option.testID,
             label: option.label,

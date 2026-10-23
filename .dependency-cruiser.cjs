@@ -92,24 +92,6 @@ module.exports = {
       to: { path: "^packages/native/" },
     },
     {
-      name: "ui-harness-behind-its-entry",
-      severity: "error",
-      comment:
-        "Metro swaps src/ui/harness.tsx for an empty stand-in in store builds. A direct import of a harness module would carry it past that swap into the store bundle, so only the entry may reach them (AppIdle reads the ids it draws, the perf channel waits on AppIdle), and tests are exempt.",
-      from: {
-        path: "^packages/native/",
-        pathNot: [
-          "^packages/native/src/ui/harness\\.tsx$",
-          "^packages/native/src/ui/AppIdle\\.tsx$",
-          "^packages/native/src/ui/perf-channel\\.ts$",
-          "^packages/native/__tests__/",
-        ],
-      },
-      to: {
-        path: "^packages/native/src/ui/(AppIdle\\.tsx|harness-ids\\.ts|perf-channel\\.ts)$",
-      },
-    },
-    {
       name: "native-owns-expo",
       severity: "error",
       comment: "Expo and React Native belong to the native app and to nothing else.",

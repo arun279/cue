@@ -6,7 +6,6 @@ import { parseId, parseSeason } from "../../../../../src/route-params";
 import { EpisodeSheet } from "../../../../../src/screens/EpisodeSheet";
 import NotFound from "../../../../../src/screens/NotFound";
 import { EmptyState } from "../../../../../src/ui/EmptyState";
-import { AppIdle, SheetPresented } from "../../../../../src/ui/harness";
 import { SheetClose } from "../../../../../src/ui/SheetClose";
 import { SnackbarHost } from "../../../../../src/ui/SnackbarHost";
 import { SPACE } from "../../../../../src/ui/tokens";
@@ -36,8 +35,6 @@ export default function EpisodeRoute(): ReactElement {
     <View style={styles.route}>
       <EpisodeSheet showId={showId} season={season} episode={episode} />
       <SnackbarHost placement="sheet" />
-      <AppIdle />
-      <SheetPresented />
     </View>
   );
 }
