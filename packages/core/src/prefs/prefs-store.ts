@@ -17,6 +17,7 @@ import {
 import { choicePref } from "./pref-storage";
 import { thresholdPref } from "./threshold";
 import {
+  everyWatchlistEpisodePref,
   hideStillsPref,
   type LapsedOrder,
   lapsedOrderPref,
@@ -47,6 +48,8 @@ interface PrefsState {
   setShowMuted: (showId: number, muted: boolean) => void;
   hideStillsUntilWatched: boolean;
   setHideStillsUntilWatched: (enabled: boolean) => void;
+  everyWatchlistEpisode: boolean;
+  setEveryWatchlistEpisode: (enabled: boolean) => void;
   nextEpisodeOrder: NextEpisodeOrder;
   setNextEpisodeOrder: (order: NextEpisodeOrder) => void;
   lapsedOrder: LapsedOrder;
@@ -63,6 +66,7 @@ export function createPrefsStore(storage: PreferenceStorage): PrefsStore {
   const dailySummary = dailySummaryPref(storage);
   const mutedShows = mutedShowsPref(storage);
   const hideStills = hideStillsPref(storage);
+  const everyWatchlistEpisode = everyWatchlistEpisodePref(storage);
   const nextEpisodeOrder = nextEpisodeOrderPref(storage);
   const lapsedOrder = lapsedOrderPref(storage);
   const threshold = thresholdPref(storage);
@@ -122,6 +126,11 @@ export function createPrefsStore(storage: PreferenceStorage): PrefsStore {
       setHideStillsUntilWatched: (hideStillsUntilWatched) => {
         hideStills.persist(hideStillsUntilWatched);
         set({ hideStillsUntilWatched });
+      },
+      everyWatchlistEpisode: everyWatchlistEpisode.initial(),
+      setEveryWatchlistEpisode: (enabled) => {
+        everyWatchlistEpisode.persist(enabled);
+        set({ everyWatchlistEpisode: enabled });
       },
       nextEpisodeOrder: nextEpisodeOrder.initial(),
       setNextEpisodeOrder: (order) => {

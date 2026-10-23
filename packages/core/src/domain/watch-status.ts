@@ -35,7 +35,7 @@ export function computeWatchStatus(
   return now - idleSince <= thresholdMs ? "watching" : "lapsed";
 }
 
-function neverWatched(show: LibraryShow): boolean {
+export function neverWatched(show: LibraryShow): boolean {
   return show.completed <= 0 && show.lastWatchedAt === null;
 }
 

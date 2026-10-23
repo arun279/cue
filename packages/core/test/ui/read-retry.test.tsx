@@ -24,7 +24,12 @@ import { backoffMs } from "@cue/core/domain/write-queue/classify";
 import { useReadRetry } from "@cue/core/hooks/useReadRetry";
 import { queryStatus, retryingPast } from "@cue/core/queries/freshness";
 import { createQueryClient } from "@cue/core/runtime/query-cache";
-import { type QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
+import {
+  onlineManager,
+  type QueryClient,
+  QueryClientProvider,
+  useQuery,
+} from "@tanstack/react-query";
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mount } from "./_mount";
@@ -54,6 +59,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  onlineManager.setOnline(true);
   vi.useRealTimers();
   resetReadPause();
 });
@@ -156,6 +162,39 @@ describe("a read that keeps failing", () => {
     expect(queryFn).toHaveBeenCalledTimes(1);
     expect(last(seen).failure).toEqual({ kind: "unauthorized" });
     expect(last(seen).retrying).toBe(false);
+  });
+});
+
+describe("a read while the device is offline", () => {
+  const elapse = (ms: number) => act(() => vi.advanceTimersByTimeAsync(ms));
+
+  it("is not sent until the device reconnects, and the screen stays loading meanwhile", async () => {
+    onlineManager.setOnline(false);
+    const queryFn = vi.fn(() => Promise.resolve(1));
+    const seen = mountRead(queryFn);
+    await elapse(60_000);
+    expect(queryFn).not.toHaveBeenCalled();
+    expect(last(seen).isLoading).toBe(true);
+
+    act(() => onlineManager.setOnline(true));
+    await elapse(0);
+    expect(queryFn).toHaveBeenCalledTimes(1);
+  });
+
+  it("holds its remaining retries until the device reconnects", async () => {
+    const queryFn = vi.fn(() => Promise.reject(new TraktReadError({ kind: "network" }, "library")));
+    const seen = mountRead(queryFn);
+    await elapse(0);
+    expect(queryFn).toHaveBeenCalledTimes(1);
+
+    act(() => onlineManager.setOnline(false));
+    await elapse(60_000);
+    expect(queryFn).toHaveBeenCalledTimes(1);
+    expect(last(seen).isError).toBe(false);
+
+    act(() => onlineManager.setOnline(true));
+    await elapse(10_000);
+    expect(queryFn).toHaveBeenCalledTimes(3);
   });
 });
 

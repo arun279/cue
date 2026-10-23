@@ -1,17 +1,15 @@
 // @vitest-environment jsdom
 /**
- * The four context-carrying ports with no provider above them.
+ * The context-carrying device ports with no provider above them.
  *
  * Each one documents the same promise: a tree mounted without a composition
  * root still works, silently. It is what lets the pre-token shell render before
  * a runtime exists, what makes the Settings reminder switch a plain preference
  * on a build with no notifications, and what every suite that mounts a screen
- * without wiring four providers depends on without saying so.
+ * without wiring those providers depends on without saying so.
  */
 
-import { useAppVisibility } from "@cue/core/ports/app-visibility";
 import { useHaptics } from "@cue/core/ports/haptics";
-import { useNetwork } from "@cue/core/ports/network";
 import { useReminders } from "@cue/core/ports/reminders";
 import { describe, expect, it } from "vitest";
 import { mount } from "./_mount";
@@ -28,18 +26,6 @@ function readPort<T>(usePort: () => T): T {
 }
 
 describe("a tree with no composition root above it", () => {
-  it("believes it is in front of the user, and never hears otherwise", () => {
-    const visibility = readPort(useAppVisibility);
-    expect(visibility.isVisible()).toBe(true);
-    expect(() => visibility.subscribe(() => {})()).not.toThrow();
-  });
-
-  it("believes it is online, and never hears otherwise", () => {
-    const network = readPort(useNetwork);
-    expect(network.isOnline()).toBe(true);
-    expect(() => network.subscribe(() => {})()).not.toThrow();
-  });
-
   it("stays silent rather than throwing when the UI fires a haptic", () => {
     const haptics = readPort(useHaptics);
     for (const verb of Object.values(haptics)) expect(() => verb()).not.toThrow();

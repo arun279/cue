@@ -2,14 +2,14 @@ import * as runtimeBoot from "@cue/core/app/boot";
 import { queryKeys } from "@cue/core/data/query-keys";
 import { useActivitiesPoll } from "@cue/core/hooks/useActivitiesPoll";
 import { PERSIST_BUSTER } from "@cue/core/runtime/query-cache";
-import { dehydrate } from "@tanstack/react-query";
+import { dehydrate, onlineManager } from "@tanstack/react-query";
 import { act, render, screen } from "@testing-library/react-native";
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import { hide } from "expo-splash-screen";
 import { Profiler } from "react";
+import { AppState } from "react-native";
 import { bootNativeStores } from "../src/boot";
-import { nativeAppVisibility } from "../src/platform/app-visibility";
 import { queryClient, shouldDehydrateQuery } from "../src/platform/query-persister";
 import {
   bulkBacking,
@@ -53,9 +53,13 @@ jest.mock("expo-application", () => ({
   nativeApplicationVersion: "1.2.3",
   nativeBuildVersion: "45",
 }));
+let mockAnnounceNetwork: (state: { isConnected: boolean }) => void = () => {};
 jest.mock("expo-network", () => ({
   getNetworkStateAsync: () => Promise.resolve({ isConnected: true }),
-  addNetworkStateListener: () => ({ remove: () => {} }),
+  addNetworkStateListener: (listener: typeof mockAnnounceNetwork) => {
+    mockAnnounceNetwork = listener;
+    return { remove: () => {} };
+  },
 }));
 jest.mock("expo-crypto", () => ({
   CryptoDigestAlgorithm: { SHA256: "SHA-256" },
@@ -150,11 +154,11 @@ describe("the native composition root", () => {
   });
 
   it("renders the persisted queue before any network response or timer", async () => {
+    jest.replaceProperty(AppState, "currentState", "unknown");
     jest.useFakeTimers({
       now: new Date("2026-10-14T12:00:00Z"),
       doNotFake: ["queueMicrotask", "nextTick", "setImmediate"],
     });
-    jest.spyOn(nativeAppVisibility, "isVisible").mockReturnValue(true);
     bulkBacking.values.set("cue.install-id", "an-earlier-install");
     secureBacking.set(
       "cue.trakt.token",
@@ -200,6 +204,11 @@ describe("the native composition root", () => {
     expect(commits).toHaveBeenCalledTimes(4);
     expect(bootRenders).toHaveBeenCalledTimes(2);
     await view.unmount();
+  });
+
+  it("tells the query layer when the device loses its connection", () => {
+    mockAnnounceNetwork({ isConnected: false });
+    expect(onlineManager.isOnline()).toBe(false);
   });
 
   it("boots straight into the app when the legacy store holds a token", async () => {

@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 const settled = {
   isLoading: false,
   isFetching: false,
+  isPaused: false,
   isError: false,
   dataUpdatedAt: 2000,
   error: null,
@@ -48,5 +49,11 @@ describe("combineStatus", () => {
       failure: { kind: "server", status: 502 },
       retrying: false,
     });
+  });
+
+  it("keeps a screen loading while a read waits for a connection, unless it has data to show", () => {
+    const waiting = [settled, { ...settled, isPaused: true }];
+    expect(combineStatus(waiting, false).isLoading).toBe(true);
+    expect(combineStatus(waiting, true).isLoading).toBe(false);
   });
 });

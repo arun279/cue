@@ -18,6 +18,7 @@ export interface QueryStatus {
 interface QueryResultStatus {
   readonly isLoading: boolean;
   readonly isFetching: boolean;
+  readonly isPaused: boolean;
   readonly isError: boolean;
   readonly dataUpdatedAt: number;
   readonly error: unknown;
@@ -26,7 +27,7 @@ interface QueryResultStatus {
 
 export function queryStatus(query: QueryResultStatus, hasData: boolean): QueryStatus {
   return {
-    isLoading: query.isLoading,
+    isLoading: query.isLoading || (query.isPaused && !hasData),
     isFetching: query.isFetching,
     isError: query.isError,
     hasData,
@@ -51,6 +52,7 @@ export function combineStatus(
     {
       isLoading: queries.some((query) => query.isLoading),
       isFetching: queries.some((query) => query.isFetching),
+      isPaused: queries.some((query) => query.isPaused),
       isError: queries.some((query) => query.isError),
       dataUpdatedAt: Math.min(...queries.map((query) => query.dataUpdatedAt)),
       error: queries.find((query) => query.error !== null)?.error ?? null,

@@ -12,6 +12,9 @@ export type { LapsedOrder, NextEpisodeOrder };
 export const hideStillsPref = (storage: PreferenceStorage): Pref<boolean> =>
   booleanPref(storage, "cue.hide-stills-until-watched", true);
 
+export const everyWatchlistEpisodePref = (storage: PreferenceStorage): Pref<boolean> =>
+  booleanPref(storage, "cue.every-watchlist-episode", false);
+
 export const nextEpisodeOrderPref = (storage: PreferenceStorage): Pref<NextEpisodeOrder> =>
   choicePref(storage, "cue.next-episode-order", NEXT_EPISODE_ORDER_OPTIONS, "after-last-watched");
 

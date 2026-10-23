@@ -2,6 +2,7 @@ import type { SeasonView } from "@cue/core/data/trakt/show-detail";
 import { defaultSeason, seasonConfirmation } from "@cue/core/domain/show-detail";
 import { useMarkWatched } from "@cue/core/hooks/useMarkWatched";
 import { usePrefs } from "@cue/core/prefs/prefs-store";
+import { queryStatus } from "@cue/core/queries/freshness";
 import { usePlayPolicy } from "@cue/core/stores/play-policy-store";
 import { useRouter } from "expo-router";
 import type { ReactElement } from "react";
@@ -83,7 +84,7 @@ function ShowContent({ showId }: { readonly showId: number }): ReactElement {
         </View>
         <View style={styles.seasons}>
           <SeasonsStatus
-            loading={seasons.isLoading}
+            loading={queryStatus(seasons, seasons.data !== undefined).isLoading}
             failed={seasons.isError}
             empty={seasons.data?.length === 0}
             retry={() => void seasons.refetch()}

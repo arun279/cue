@@ -8,11 +8,10 @@ import type { LibraryEntry } from "@cue/core/data/trakt/library";
 import type { CalendarEntry } from "@cue/core/domain/calendar";
 import type { PlannedReminder } from "@cue/core/domain/reminders";
 import { useEpisodeReminders } from "@cue/core/hooks/useEpisodeReminders";
-import { type AppVisibility, AppVisibilityProvider } from "@cue/core/ports/app-visibility";
 import { type Reminders, RemindersProvider } from "@cue/core/ports/reminders";
 import { createPrefsStore, PrefsProvider } from "@cue/core/prefs/prefs-store";
 import { type CueRuntime, RuntimeProvider } from "@cue/core/runtime/runtime";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { focusManager, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -76,30 +75,11 @@ function Probe(): null {
   return null;
 }
 
-/** The app's foreground state, flipped by the test the way the OS flips it. */
-function foreground(): AppVisibility & { set: (visible: boolean) => void } {
-  let visible = true;
-  const listeners = new Set<() => void>();
-  return {
-    isVisible: () => visible,
-    subscribe: (listener) => {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
-    },
-    set: (next) => {
-      visible = next;
-      for (const listener of listeners) listener();
-    },
-  };
-}
-
 let root: Root | null = null;
-let app = foreground();
 let queryClient: QueryClient | null = null;
 let prefs = createPrefsStore(memoryPreferenceStorage());
 
 beforeEach(() => {
-  app = foreground();
   prefs = createPrefsStore(memoryPreferenceStorage());
   prefs.setState({ remindersEnabled: true });
 });
@@ -108,6 +88,7 @@ afterEach(() => {
   act(() => root?.unmount());
   root = null;
   queryClient = null;
+  focusManager.setFocused(undefined);
   vi.useRealTimers();
 });
 
@@ -126,11 +107,9 @@ async function mountHook(loadCalendar: CueRuntime["loadCalendar"]): Promise<Remi
             } as unknown as CueRuntime
           }
         >
-          <AppVisibilityProvider value={app}>
-            <RemindersProvider value={reminders}>
-              <Probe />
-            </RemindersProvider>
-          </AppVisibilityProvider>
+          <RemindersProvider value={reminders}>
+            <Probe />
+          </RemindersProvider>
         </RuntimeProvider>
       </PrefsProvider>
     </QueryClientProvider>
@@ -224,10 +203,10 @@ describe("useEpisodeReminders", () => {
     );
     expect(reminders.reconcile).toHaveBeenCalledTimes(1);
 
-    act(() => app.set(false));
+    act(() => focusManager.setFocused(false));
     expect(reminders.reconcile).toHaveBeenCalledTimes(1);
 
-    act(() => app.set(true));
+    act(() => focusManager.setFocused(true));
     expect(reminders.reconcile).toHaveBeenCalledTimes(2);
     expect(plans(reminders)[1]).toEqual(plans(reminders)[0]);
   });
@@ -242,7 +221,7 @@ describe("useEpisodeReminders", () => {
 
     // The calendar and library stay cached for the screens that share them, so
     // a foreground with the switch off has a plan to hand and must not.
-    act(() => app.set(true));
+    act(() => focusManager.setFocused(true));
     expect(reminders.reconcile).toHaveBeenCalledTimes(1);
 
     // Nothing is scheduled while the switch is off, so signing out has nothing

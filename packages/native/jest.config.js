@@ -40,6 +40,7 @@ const project = {
   setupFilesAfterEnv: [
     "<rootDir>/__tests__/support/reanimated.ts",
     "<rootDir>/__tests__/support/transient-state.ts",
+    "<rootDir>/__tests__/support/app-state.ts",
     "<rootDir>/__tests__/support/query-scheduler.ts",
     "<rootDir>/__tests__/support/warm-renderer.tsx",
   ],

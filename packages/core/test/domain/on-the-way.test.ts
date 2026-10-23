@@ -14,6 +14,7 @@ const row = (firstAired: string, aired = false): CalendarRow => ({
   network: null,
   tmdbId: null,
   aired,
+  episodes: [{ season: 3, number: 3 }],
 });
 
 const day = (dayKey: string, label: string, rows: readonly CalendarRow[]): CalendarDay => ({
