@@ -48,10 +48,15 @@ async function tapThroughProxy(
   before: object,
   after: object,
   point: object,
+  settled = after,
 ) {
   vi.stubEnv("RUNNER_TEMP", tempDirectory("cue-tap-proxy-"));
-  const fake = await runner([before, after]);
-  const proxy = createTapProxy({ runner: fake.url, playback: { window: async () => log } });
+  const fake = await runner([before, after, settled]);
+  const proxy = createTapProxy({
+    runner: fake.url,
+    playback: { window: async () => log },
+    settleMs: 0,
+  });
   const origin = `http://127.0.0.1:${await proxy.listen(0)}`;
   try {
     const post = (route: string, body: object) =>
@@ -77,6 +82,7 @@ it("taps the Profile sheet's Done again when the simulator cancelled it and it i
   expect(calls).toEqual([
     "POST /viewHierarchy",
     "POST /touch",
+    "POST /viewHierarchy",
     "POST /viewHierarchy",
     "POST /touch",
   ]);
@@ -120,6 +126,60 @@ it.each([
     expect.objectContaining({ x: point.x, y: point.y, status: 200 }),
   ]);
   expect(recordedTaps().filter((tap) => tap.again)).toEqual([]);
+});
+
+// Run 39893036064, ui-screenshots-ios-dark: Profile's Settings row at (187, 502), as the proxy
+// logged it before and just after a tap whose touch came down late. The touch reached the app and
+// opened Settings, but only after the proxy looked, and the second tap opened it again.
+const settingsRow = {
+  identifier: "profile-to-settings",
+  label: "Settings",
+  elementType: 9,
+  enabled: true,
+  selected: false,
+  frame: { Y: 474.66667556762695, X: 8, Width: 358, Height: 56 },
+};
+
+it("passes a late touch through once without reading the hierarchy again", async () => {
+  const calls = await tapThroughProxy(
+    fixture("settings-late.txt"),
+    tree(settingsRow),
+    tree(settingsRow),
+    { x: 187, y: 502 },
+  );
+
+  expect(calls).toEqual(["POST /viewHierarchy", "POST /touch"]);
+  expect(recordedTaps()).toEqual([
+    expect.objectContaining({
+      cancel: true,
+      again: false,
+      reason: expect.stringContaining("the touch may still have reached the app"),
+    }),
+  ]);
+});
+
+it("does not tap again when what a cancelled contact changed shows only on the second look", async () => {
+  const calls = await tapThroughProxy(
+    fixture("switch-dropped.txt"),
+    tree(tvShows),
+    tree(tvShows),
+    { x: 354, y: 280 },
+    tree({ ...tvShows, value: "0" }),
+  );
+
+  expect(calls).toEqual([
+    "POST /viewHierarchy",
+    "POST /touch",
+    "POST /viewHierarchy",
+    "POST /viewHierarchy",
+  ]);
+  expect(recordedTaps()).toEqual([
+    expect.objectContaining({
+      cancel: true,
+      again: false,
+      reason: expect.stringMatching(/"value":"0".* on a second look 0 ms later$/),
+    }),
+  ]);
 });
 
 const ndjson = (line: string) => {

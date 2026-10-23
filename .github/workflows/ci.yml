@@ -48,6 +48,7 @@ jobs:
       devices: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft && steps.head-tree.outputs.pushed != 'true' }}
       ios: ${{ steps.native.outputs.ios }}
       ios-cached: ${{ steps.ios-cache.outputs.hit }}
+      ios-run-id: ${{ steps.ios-cache.outputs.run-id }}
       ios-owed: ${{ steps.ios-owed.outputs.owed }}
       user-facing: ${{ steps.changes.outputs.user-facing }}
     steps:
@@ -77,13 +78,10 @@ jobs:
       - id: ios-cache
         name: Look for the fingerprinted simulator app
         if: github.event_name == 'pull_request'
-        env:
-          ARTIFACT_NAME: cue-native-ios-${{ steps.native.outputs.ios }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          if scripts/download-ci-artifact.sh "$ARTIFACT_NAME" "$RUNNER_TEMP/native-ios-app" native-ios; then
-            echo "hit=true" >> "$GITHUB_OUTPUT"
-          fi
+        uses: ./.github/actions/find-ci-artifact
+        with:
+          name: cue-native-ios-${{ steps.native.outputs.ios }}
+          producer: native-ios
       - id: ios-owed
         name: Owe the iOS lane unless its last run on this pull request passed
         if: github.event_name == 'pull_request'
@@ -112,7 +110,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          USER_FACING: ^(packages/native/(src|app|assets)|packages/core/src|patches|\.maestro|scripts/mock-trakt|\.github/actions/(android-emulator|boot-ios-simulator|maestro-cli))/|^(packages/native/(entry\.ts|babel\.config\.js|metro\.config\.js)|pnpm-lock\.yaml|\.github/workflows/ci\.yml)$|^scripts/(gather-pr-media\.sh|install-maestro\.sh|ci-runs\.sh|compare-screenshots\.mjs|changed-pixels\.mjs|attach-pr-media\.sh|start-ready-process\.mjs|download-ci-artifact\.sh|bundle-ios\.sh|reembed-ios\.sh|compile-hermes\.sh|prepare-ios-ui\.sh|enable-ios-accessibility\.sh|wait-ios-(ready|accessibility)\.mjs|maestro-(test\.sh|supervisor\.mjs|failure\.mjs|runner\.mjs)|simulator-touch\.mjs|tap-proxy\.mjs|build-maestro-runner\.sh|check-runner-survives-freeze\.sh|check-tap-lead-in\.mjs|disable-ios-daemons\.sh|snapshot-host-resources\.sh)$
+          USER_FACING: ^(packages/native/(src|app|assets)|packages/core/src|patches|\.maestro|scripts/mock-trakt|\.github/actions/(android-emulator|boot-ios-simulator|find-ci-artifact|maestro-cli))/|^(packages/native/(entry\.ts|babel\.config\.js|metro\.config\.js)|pnpm-lock\.yaml|\.github/workflows/ci\.yml)$|^scripts/(gather-pr-media\.sh|install-maestro\.sh|ci-runs\.sh|compare-screenshots\.mjs|changed-pixels\.mjs|attach-pr-media\.sh|start-ready-process\.mjs|bundle-ios\.sh|reembed-ios\.sh|compile-hermes\.sh|prepare-ios-ui\.sh|enable-ios-accessibility\.sh|wait-ios-(ready|accessibility)\.mjs|maestro-(test\.sh|supervisor\.mjs|failure\.mjs|runner\.mjs)|simulator-touch\.mjs|tap-proxy\.mjs|build-maestro-runner\.sh|check-runner-survives-freeze\.sh|check-tap-lead-in\.mjs|disable-ios-daemons\.sh|snapshot-host-resources\.sh)$
         run: |
           files=$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files" --jq '.[].filename')
           if grep -qE "$USER_FACING" <<< "$files"; then
@@ -127,10 +125,13 @@ jobs:
           EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
         run: scripts/bundle-ios.sh "$RUNNER_TEMP/ios-bundle"
       - if: steps.ios-cache.outputs.hit == 'true'
-        name: Name the cached simulator app the bundle goes into
+        name: Name the cached simulator app the bundle goes into, and the run that has it
         env:
           ARTIFACT_NAME: cue-native-ios-${{ steps.native.outputs.ios }}
-        run: echo "$ARTIFACT_NAME" > "$RUNNER_TEMP/ios-bundle/app-artifact"
+          RUN_ID: ${{ steps.ios-cache.outputs.run-id }}
+        run: |
+          echo "$ARTIFACT_NAME" > "$RUNNER_TEMP/ios-bundle/app-artifact"
+          echo "$RUN_ID" > "$RUNNER_TEMP/ios-bundle/app-run-id"
       - if: steps.ios-cache.outputs.hit == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -277,6 +278,14 @@ jobs:
     needs: native-android
     timeout-minutes: 10
     runs-on: ubuntu-latest
+    env:
+      ANDROID_ARCHITECTURES: arm64-v8a,x86_64
+      APP_VERSION: 9.9.9
+      BUILD_NUMBER: "42"
+      EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
+      EXPO_PUBLIC_UI_HARNESS: "1"
+      EXPO_PUBLIC_CLOCK_START: "2026-10-15T00:00:00.000Z"
+      EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -301,20 +310,35 @@ jobs:
       - uses: ./.github/actions/use-tree-node
         with:
           tree: ${{ runner.temp }}/footprint-base
+      - id: base
+        name: Install the merge base and fingerprint its Android shell
+        working-directory: ${{ runner.temp }}/footprint-base
+        run: |
+          if [ -f packages/native/package.json ]; then
+            pnpm install --frozen-lockfile
+            echo "android=$(pnpm exec node scripts/native-fingerprint.mjs android)" >> "$GITHUB_OUTPUT"
+          fi
+      - id: base-artifact
+        if: steps.base.outputs.android != '' && steps.base.outputs.android != needs.native-android.outputs.fingerprint
+        name: Look for the base fingerprint's Android artifacts
+        uses: ./.github/actions/find-ci-artifact
+        with:
+          name: cue-native-android-${{ steps.base.outputs.android }}
+          producer: native-android
+      - if: steps.base-artifact.outputs.hit == 'true'
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        with:
+          name: cue-native-android-${{ steps.base.outputs.android }}
+          run-id: ${{ steps.base-artifact.outputs.run-id }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/base-android
       - name: Measure the merge base
         env:
-          ANDROID_ARCHITECTURES: arm64-v8a,x86_64
-          APP_VERSION: 9.9.9
-          BUILD_NUMBER: "42"
-          EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
-          EXPO_PUBLIC_UI_HARNESS: "1"
-          EXPO_PUBLIC_CLOCK_START: "2026-10-15T00:00:00.000Z"
-          EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
-          GH_TOKEN: ${{ github.token }}
+          BASE_FINGERPRINT: ${{ steps.base.outputs.android }}
           HEAD_FINGERPRINT: ${{ needs.native-android.outputs.fingerprint }}
         run: |
           scripts/measure-base.sh "$RUNNER_TEMP/footprint-base" "$RUNNER_TEMP/bundletool.jar" \
-            "$RUNNER_TEMP/head-android" "$RUNNER_TEMP/base-metrics.json"
+            "$RUNNER_TEMP/head-android" "$RUNNER_TEMP/base-android" "$RUNNER_TEMP/base-metrics.json"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: cue-footprint-base
@@ -407,17 +431,19 @@ jobs:
         run: sudo xcode-select -s /Applications/Xcode_26.6.app
       - uses: ./.github/actions/setup-node-pnpm
       - id: native-cache
+        name: Look for the fingerprinted simulator app
+        uses: ./.github/actions/find-ci-artifact
+        with:
+          name: cue-native-ios-${{ needs.fingerprint.outputs.ios }}
+          producer: native-ios
+      - if: steps.native-cache.outputs.hit == 'true'
         name: Restore the fingerprinted simulator app
-        env:
-          ARTIFACT_NAME: cue-native-ios-${{ needs.fingerprint.outputs.ios }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          if scripts/download-ci-artifact.sh "$ARTIFACT_NAME" "$RUNNER_TEMP/native-ios-app" native-ios; then
-            echo "hit=true" >> "$GITHUB_OUTPUT"
-            tar -xzf "$RUNNER_TEMP/native-ios-app/Cue.app.tgz" -C "$RUNNER_TEMP/native-ios-app"
-          else
-            echo "hit=false" >> "$GITHUB_OUTPUT"
-          fi
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        with:
+          name: cue-native-ios-${{ needs.fingerprint.outputs.ios }}
+          run-id: ${{ steps.native-cache.outputs.run-id }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/native-ios-app
       - if: steps.native-cache.outputs.hit != 'true'
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
@@ -465,6 +491,7 @@ jobs:
           EXPO_PUBLIC_CLOCK_START: "2026-10-15T00:00:00.000Z"
           EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
         run: |
+          tar -xzf "$RUNNER_TEMP/native-ios-app/Cue.app.tgz" -C "$RUNNER_TEMP/native-ios-app"
           scripts/bundle-ios.sh "$RUNNER_TEMP/ios-bundle"
           scripts/reembed-ios.sh "$RUNNER_TEMP/native-ios-app/Cue.app" "$RUNNER_TEMP/ios-bundle"
       - name: Validate and package the simulator app
@@ -563,12 +590,16 @@ jobs:
       - name: Unpack the Maestro runner
         run: tar -xzf "$RUNNER_TEMP/maestro-runner/maestro-runner.tgz" -C "$RUNNER_TEMP/maestro-runner"
       - if: needs.native-ios.result == 'skipped'
+        name: Fetch the cached simulator app
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        with:
+          name: cue-native-ios-${{ needs.fingerprint.outputs.ios }}
+          run-id: ${{ needs.fingerprint.outputs.ios-run-id }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/native-ios-app
+      - if: needs.native-ios.result == 'skipped'
         name: Embed the harness JavaScript into the cached simulator app
-        env:
-          ARTIFACT_NAME: cue-native-ios-${{ needs.fingerprint.outputs.ios }}
-          GH_TOKEN: ${{ github.token }}
         run: |
-          scripts/download-ci-artifact.sh "$ARTIFACT_NAME" "$RUNNER_TEMP/native-ios-app" native-ios
           tar -xzf "$RUNNER_TEMP/native-ios-app/Cue.app.tgz" -C "$RUNNER_TEMP/native-ios-app"
           scripts/reembed-ios.sh "$RUNNER_TEMP/native-ios-app/Cue.app" "$RUNNER_TEMP/ios-bundle"
           LC_ALL=C grep -aq 'http://127.0.0.1:8787' "$RUNNER_TEMP/native-ios-app/Cue.app/main.jsbundle"
@@ -682,12 +713,16 @@ jobs:
       - name: Unpack the Maestro runner
         run: tar -xzf "$RUNNER_TEMP/maestro-runner/maestro-runner.tgz" -C "$RUNNER_TEMP/maestro-runner"
       - if: needs.native-ios.result == 'skipped'
+        name: Fetch the cached simulator app
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        with:
+          name: cue-native-ios-${{ needs.fingerprint.outputs.ios }}
+          run-id: ${{ needs.fingerprint.outputs.ios-run-id }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/native-ios-app
+      - if: needs.native-ios.result == 'skipped'
         name: Embed the harness JavaScript into the cached simulator app
-        env:
-          ARTIFACT_NAME: cue-native-ios-${{ needs.fingerprint.outputs.ios }}
-          GH_TOKEN: ${{ github.token }}
         run: |
-          scripts/download-ci-artifact.sh "$ARTIFACT_NAME" "$RUNNER_TEMP/native-ios-app" native-ios
           tar -xzf "$RUNNER_TEMP/native-ios-app/Cue.app.tgz" -C "$RUNNER_TEMP/native-ios-app"
           scripts/reembed-ios.sh "$RUNNER_TEMP/native-ios-app/Cue.app" "$RUNNER_TEMP/ios-bundle"
           LC_ALL=C grep -aq 'http://127.0.0.1:8787' "$RUNNER_TEMP/native-ios-app/Cue.app/main.jsbundle"
@@ -757,14 +792,25 @@ jobs:
           EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
           EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
         run: echo "android=$(pnpm exec node scripts/native-fingerprint.mjs android)" >> "$GITHUB_OUTPUT"
+      - id: native-artifact
+        name: Look for the fingerprinted Android artifacts
+        uses: ./.github/actions/find-ci-artifact
+        with:
+          name: cue-native-android-${{ steps.fingerprint.outputs.android }}
+          producer: native-android
+      - if: steps.native-artifact.outputs.hit == 'true'
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
+        with:
+          name: cue-native-android-${{ steps.fingerprint.outputs.android }}
+          run-id: ${{ steps.native-artifact.outputs.run-id }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/native-android
       - id: native-cache
-        name: Restore the fingerprinted Android artifacts
+        name: Reuse the fingerprinted Android artifacts if they carry the emulator's ABI
         env:
-          ARTIFACT_NAME: cue-native-android-${{ steps.fingerprint.outputs.android }}
-          GH_TOKEN: ${{ github.token }}
+          FOUND: ${{ steps.native-artifact.outputs.hit }}
         run: |
-          if scripts/download-ci-artifact.sh "$ARTIFACT_NAME" "$RUNNER_TEMP/native-android" native-android && \
-            unzip -Z1 "$RUNNER_TEMP/native-android/universal.apk" | \
+          if [ "$FOUND" = true ] && unzip -Z1 "$RUNNER_TEMP/native-android/universal.apk" | \
               grep -q '^lib/x86_64/libreactnative\.so$'; then
             echo "hit=true" >> "$GITHUB_OUTPUT"
           else

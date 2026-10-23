@@ -183,18 +183,35 @@ it("compares only the element under the tap, as other parts of the screen move o
   expect(decision.again).toBe(true);
 });
 
-it("taps the TV shows switch again when its touch came down after the touchscreen was cancelled and it did not flip", () => {
-  const off = { ...tvShows, value: "0" };
+// Both touches came down after testmanagerd cancelled the touchscreen, and both reached the app:
+// the switch's (run 39740669724) did not flip it, the Settings row's (run 39893036064) opened
+// Settings. A late touch leaves the outcome unknown, so it is never played again.
+it.each([
+  ["the TV shows switch", "switch-late.txt", { ...tvShows, value: "0" }, { x: 354, y: 280 }],
+  [
+    "Profile's Settings row",
+    "settings-late.txt",
+    {
+      identifier: "profile-to-settings",
+      label: "Settings",
+      elementType: 9,
+      frame: { X: 8, Y: 474.66667556762695, Width: 358, Height: 56 },
+    },
+    { x: 187, y: 502 },
+  ],
+])("does not tap %s again after its touch came down late, unchanged or not", (_, log, control, point) => {
   const decision = tapAgain({
-    playback: playback("switch-late.txt"),
-    before: screen(off),
-    after: screen(off),
-    point: { x: 354, y: 280 },
+    playback: playback(log),
+    before: screen(control),
+    after: screen(control),
+    point,
   });
 
   expect(decision).toEqual({
-    again: true,
-    reason: expect.stringContaining("touch down without previous range event"),
+    again: false,
+    reason: expect.stringMatching(
+      /^the touch may still have reached the app: .*touch down without previous range event/,
+    ),
   });
 });
 
@@ -262,29 +279,37 @@ it("finds the Up Next tab under a tab bar tap, past the full-screen containers b
   ).toBe(true);
 });
 
-it("taps a tab bar tab again when its touch was dropped and the tab did not change", () => {
+it("taps a tab bar tab again when its contact was cancelled and the tab did not change", () => {
   const decision = tapAgain({
-    playback: playback("tab-late.txt"),
+    playback: playback("done-dropped.txt"),
     before: onLibrary(),
     after: onLibrary(),
     point: tab,
   });
 
-  expect(decision).toEqual({
-    again: true,
-    reason: expect.stringContaining("touch down without previous range event"),
-  });
+  expect(decision).toEqual({ again: true, reason: expect.stringContaining("canceling paths") });
 });
 
-it("does not tap a tab again that became selected although its touch came late", () => {
+it("does not tap a tab again that became selected although its contact was cancelled", () => {
   const decision = tapAgain({
-    playback: playback("tab-late.txt"),
+    playback: playback("done-dropped.txt"),
     before: onLibrary(),
     after: upNext(),
     point: tab,
   });
 
   expect(decision.again).toBe(false);
+});
+
+it("does not tap a tab again after its touch came down late", () => {
+  expect(
+    tapAgain({
+      playback: playback("tab-late.txt"),
+      before: onLibrary(),
+      after: onLibrary(),
+      point: tab,
+    }).again,
+  ).toBe(false);
 });
 
 it("does not tap again when only full-screen containers are under the tap", () => {
@@ -300,7 +325,7 @@ it("does not tap again when only full-screen containers are under the tap", () =
   });
 
   expect(
-    tapAgain({ playback: playback("tab-late.txt"), before: bare(), after: bare(), point: tab }),
+    tapAgain({ playback: playback("done-dropped.txt"), before: bare(), after: bare(), point: tab }),
   ).toEqual({
     again: false,
     reason: "only full-screen containers under the tap",

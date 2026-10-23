@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CueRuntime } from "../runtime/runtime";
+import { useStartFailure } from "../stores/start-failure-store";
 import { createCueRuntime, type RuntimeDeps } from "./create-runtime";
 import { sessionTeardown } from "./session";
 
@@ -7,13 +8,13 @@ export type RuntimeBootDeps = Omit<RuntimeDeps, "token">;
 
 export interface RuntimeBootState {
   readonly runtime: CueRuntime | null;
-  readonly failed: boolean;
+  readonly failure: string | null;
   readonly retry: () => void;
 }
 
 export function useRuntimeBoot(deps: RuntimeBootDeps): RuntimeBootState {
   const [runtime, setRuntime] = useState<CueRuntime | null>(null);
-  const [failed, setFailed] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
   const alive = useRef(true);
   const {
     newId,
@@ -36,7 +37,7 @@ export function useRuntimeBoot(deps: RuntimeBootDeps): RuntimeBootState {
   }, []);
 
   const boot = useCallback(() => {
-    setFailed(false);
+    setFailure(null);
     void (async () => {
       try {
         const token = await tokenStore.read();
@@ -57,8 +58,10 @@ export function useRuntimeBoot(deps: RuntimeBootDeps): RuntimeBootState {
           sessionTeardown.run = (options) => built.endLocalSession(options);
           setRuntime(built);
         }
-      } catch {
-        if (alive.current) setFailed(true);
+      } catch (error) {
+        const detail = String(error);
+        useStartFailure.setState({ failure: { at: Date.now(), detail } });
+        if (alive.current) setFailure(detail);
       }
     })();
   }, [
@@ -77,5 +80,5 @@ export function useRuntimeBoot(deps: RuntimeBootDeps): RuntimeBootState {
     boot();
   }, [boot]);
 
-  return { runtime, failed, retry: boot };
+  return { runtime, failure, retry: boot };
 }

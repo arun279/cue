@@ -18,6 +18,8 @@
 // the app's resident memory. No number gates anything.
 // With two apps, the base and a change, it measures them in alternate passes on the same device
 // and adds a line per quantity comparing their medians, so the runner's speed cancels out.
+// With PERF_LAUNCHES=<n> it only relaunches each app n times in a row, timing each launch, and
+// fails the run on any launch that did not reach ready, with the error the app reported.
 // Usage: DEVICE_ID=<simulator> perf-probe.mjs <ios|android> <output directory> <runs> [base app] [changed app]
 import { execFile, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -513,14 +515,17 @@ export function createChannel() {
   return {
     /** @param {string} reply @param {string | null} [boot] */
     next(reply, boot = null) {
-      if (reply === "ready") for (const launched of launches.splice(0)) launched(bootPhases(boot));
+      if (reply === "ready")
+        for (const { resolve } of launches.splice(0)) resolve(bootPhases(boot));
+      else if (reply.startsWith("boot failed: "))
+        for (const { reject } of launches.splice(0)) reject(new Error(reply));
       else replied?.(reply);
       replied = undefined;
       return new Promise((resolve) => {
         deliver = resolve;
       });
     },
-    ready: () => new Promise((resolve) => launches.push(resolve)),
+    ready: () => new Promise((resolve, reject) => launches.push({ resolve, reject })),
     send(command) {
       if (deliver === undefined) return Promise.reject(new Error("the app is not listening"));
       const reply = new Promise((resolve) => {
@@ -568,10 +573,9 @@ async function coldStart(segment) {
  */
 async function launched(probe, channel, directory) {
   await probe.stop();
-  const ready = channel.ready();
+  const ready = within(channel.ready(), READY_MS, "launch");
   const launchedAt = Date.now();
-  const sample = await probe.start();
-  const boot = await within(ready, READY_MS, "launch").catch(async (error) => {
+  const [sample, boot] = await Promise.all([probe.start(), ready]).catch(async (error) => {
     await probe.screenshot(path.join(directory, "launch-timeout.png"));
     throw error;
   });
@@ -777,6 +781,31 @@ async function measureApps(probe, channel, directory, runs, apps) {
   return samples;
 }
 
+/**
+ * Launches each app the given number of times in a row, as someone reopening it would, and
+ * names every launch that did not reach ready, with the reason the app gave if it gave one.
+ */
+export async function launchLoop(probe, channel, launches, apps, directory) {
+  const samples = [];
+  const failures = [];
+  for (const app of apps) {
+    if (apps.length > 1) await probe.install(app.path);
+    const label = app.label === undefined ? "" : ` ${app.label}`;
+    for (let run = 1; run <= launches; run += 1) {
+      try {
+        samples.push({
+          run,
+          ...(app.label && { app: app.label }),
+          ...(await launched(probe, channel, directory)),
+        });
+      } catch (error) {
+        failures.push(`launch ${run}${label}: ${error.message}`);
+      }
+    }
+  }
+  return { samples, failures };
+}
+
 async function main() {
   const [platform, directory, runsArgument = "3", ...paths] = process.argv.slice(2);
   if (platform !== "ios" && platform !== "android") {
@@ -795,10 +824,17 @@ async function main() {
   const server = await serve(channel);
   const samples = [];
   const failures = [];
+  const launches = Number(process.env.PERF_LAUNCHES ?? 0);
   try {
-    samples.push(
-      ...(await measureApps(probe, channel, directory, Number(runsArgument), appsOf(paths))),
-    );
+    if (launches > 0) {
+      const loop = await launchLoop(probe, channel, launches, appsOf(paths), directory);
+      samples.push(...loop.samples);
+      failures.push(...loop.failures);
+    } else {
+      samples.push(
+        ...(await measureApps(probe, channel, directory, Number(runsArgument), appsOf(paths))),
+      );
+    }
   } catch (error) {
     failures.push(`stopped: ${error.message}`);
   }

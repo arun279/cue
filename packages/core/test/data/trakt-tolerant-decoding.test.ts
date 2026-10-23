@@ -162,7 +162,7 @@ describe("read incidents", () => {
     );
     expect(incidentReport(incidents, "1.4.0 (2101)")).toBe(
       [
-        "Cue 1.4.0 (2101) Trakt diagnostics",
+        "Cue 1.4.0 (2101) diagnostics",
         "2026-10-03T22:14:00.000Z  /users/settings  unexpected-shape  episodes.minutes: bad",
       ].join("\n"),
     );
@@ -176,8 +176,19 @@ describe("read incidents", () => {
   });
 
   it("says so when there is nothing to report", () => {
-    expect(incidentReport([], "1.4.0 (2101)")).toBe(
-      "Cue 1.4.0 (2101) Trakt diagnostics\nNo errors",
+    expect(incidentReport([], "1.4.0 (2101)")).toBe("Cue 1.4.0 (2101) diagnostics\nNo errors");
+  });
+
+  it("reports a failed start first, with the error it failed on", () => {
+    const incidents = recordIncident([], "/sync/watched", { kind: "timeout" }, 2);
+    const start = { at: Date.UTC(2026, 9, 3, 22, 14), detail: "Error: database is locked" };
+
+    expect(incidentReport(incidents, "1.4.0 (2101)", start)).toBe(
+      [
+        "Cue 1.4.0 (2101) diagnostics",
+        "2026-10-03T22:14:00.000Z  start  Error: database is locked",
+        "1970-01-01T00:00:00.002Z  /sync/watched  timeout",
+      ].join("\n"),
     );
   });
 

@@ -15,10 +15,25 @@ export const secureStore: KeyValueStore = {
   remove: (key) => SecureStore.deleteItemAsync(key, SECURE),
 };
 
+// Overlapping async calls on one expo-sqlite handle can reject on Android:
+// https://github.com/expo/expo/issues/50855
+let lastCall: Promise<unknown> = Promise.resolve();
+const oneAtATime = <T>(call: () => Promise<T>): Promise<T> => {
+  const result = lastCall.then(call);
+  lastCall = result.catch(() => undefined);
+  return result;
+};
+
+export const bulkStorage = {
+  getItem: (key: string) => oneAtATime(() => Storage.getItem(key)),
+  setItem: (key: string, value: string) => oneAtATime(() => Storage.setItem(key, value)),
+  removeItem: (key: string) => oneAtATime(() => Storage.removeItem(key)),
+};
+
 export const bulkStore: KeyValueStore = {
-  read: (key) => Storage.getItem(key),
-  write: (key, value) => Storage.setItem(key, value),
-  remove: (key) => Storage.removeItem(key),
+  read: bulkStorage.getItem,
+  write: bulkStorage.setItem,
+  remove: bulkStorage.removeItem,
 };
 
 const PREFIX = "pref.";
