@@ -48,6 +48,7 @@ export function Poster({ title, posters, width }: PosterProps): ReactElement {
         <Image
           key={url}
           source={{ uri: url }}
+          resizeMethod="resize"
           style={StyleSheet.absoluteFill}
           onError={() => setBroken(true)}
         />
