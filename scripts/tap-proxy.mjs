@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
 import { createInterface } from "node:readline";
+import { setTimeout as delay } from "node:timers/promises";
 import {
   droppedTouches,
   PLAYBACK_END,
@@ -10,6 +11,9 @@ import {
 } from "./simulator-touch.mjs";
 
 const PLAYBACK_TIMEOUT_MS = 5_000;
+// A touch the simulator logged as late can still reach the app, and what it starts can take
+// over a second to show on a slow host (run 39893036064), so a second look comes this long after.
+const SETTLE_MS = 2_000;
 // The CLI gets only this; the error and its stack go to the proxy's own log.
 const UNREACHABLE = "tap proxy could not reach the runner";
 /** Runner routes that only read, so the hierarchy read before them still shows the screen. */
@@ -112,6 +116,14 @@ export function streamPlayback(device, onExit) {
   return new Promise((resolve) => lines.once("line", () => resolve({ playback, stream })));
 }
 
+const settled = async (compare, settleMs) => {
+  await delay(settleMs);
+  const later = await compare();
+  return later.again
+    ? later
+    : { again: false, reason: `${later.reason} on a second look ${settleMs} ms later` };
+};
+
 const read = async (request) => {
   const chunks = [];
   for await (const chunk of request) chunks.push(chunk);
@@ -123,9 +135,9 @@ const read = async (request) => {
  * unchanged. After each tap it reads that tap's playback from the simulator log
  * and plays the tap once more when `tapAgain` finds the simulator cancelled it
  * and nothing changed under it, comparing the hierarchy Maestro read just before
- * the tap with a fresh one.
+ * the tap with a fresh one, and again with one read `settleMs` later.
  */
-export function createTapProxy({ runner, playback }) {
+export function createTapProxy({ runner, playback, settleMs = SETTLE_MS }) {
   let before;
   const forward = async (url, method, headers, body) => {
     const response = await fetch(`${runner}${url}`, {
@@ -169,11 +181,18 @@ export function createTapProxy({ runner, playback }) {
       record({ waitMs });
       return answer;
     }
-    const after =
-      seen === undefined
-        ? undefined
-        : hierarchy(await forward("/viewHierarchy", "POST", {}, seen.request));
-    const decision = tapAgain({ playback: lines, before: seen?.tree, after, point });
+    const compare = async () =>
+      tapAgain({
+        playback: lines,
+        before: seen?.tree,
+        after:
+          seen === undefined
+            ? undefined
+            : hierarchy(await forward("/viewHierarchy", "POST", {}, seen.request)),
+        point,
+      });
+    const first = await compare();
+    const decision = first.again ? await settled(compare, settleMs) : first;
     record({ waitMs, cancel: true, again: decision.again, reason: decision.reason });
     process.stdout.write(
       `tap at ${point.x}, ${point.y}: ${decision.again ? "tapped again" : "not tapped again"}, ${decision.reason}\n`,

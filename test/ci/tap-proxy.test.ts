@@ -48,10 +48,15 @@ async function tapThroughProxy(
   before: object,
   after: object,
   point: object,
+  settled = after,
 ) {
   vi.stubEnv("RUNNER_TEMP", tempDirectory("cue-tap-proxy-"));
-  const fake = await runner([before, after]);
-  const proxy = createTapProxy({ runner: fake.url, playback: { window: async () => log } });
+  const fake = await runner([before, after, settled]);
+  const proxy = createTapProxy({
+    runner: fake.url,
+    playback: { window: async () => log },
+    settleMs: 0,
+  });
   const origin = `http://127.0.0.1:${await proxy.listen(0)}`;
   try {
     const post = (route: string, body: object) =>
@@ -77,6 +82,7 @@ it("taps the Profile sheet's Done again when the simulator cancelled it and it i
   expect(calls).toEqual([
     "POST /viewHierarchy",
     "POST /touch",
+    "POST /viewHierarchy",
     "POST /viewHierarchy",
     "POST /touch",
   ]);
@@ -120,6 +126,52 @@ it.each([
     expect.objectContaining({ x: point.x, y: point.y, status: 200 }),
   ]);
   expect(recordedTaps().filter((tap) => tap.again)).toEqual([]);
+});
+
+// Run 39893036064, ui-screenshots-ios-dark: Profile's Settings row at (187, 502), as the proxy
+// logged it before and just after a tap whose touch the simulator logged as late. The touch
+// still reached the app and opened Settings, but only after the first look; on the second look
+// Settings' "Hide episode stills" row is under the point (the failure's hierarchy).
+const settingsRow = {
+  identifier: "profile-to-settings",
+  label: "Settings",
+  elementType: 9,
+  enabled: true,
+  selected: false,
+  frame: { Y: 474.66667556762695, X: 8, Width: 358, Height: 56 },
+};
+const stillsRow = {
+  identifier: "",
+  label:
+    "Hide episode stills until watched. Keeps unwatched episode images spoiler-safe until you reveal them.",
+  elementType: 9,
+  enabled: true,
+  selected: false,
+  frame: { Y: 467, X: 8, Width: 315, Height: 56 },
+};
+
+it("does not tap again when what a late touch started shows on the second look", async () => {
+  const calls = await tapThroughProxy(
+    fixture("settings-late.txt"),
+    tree(settingsRow),
+    tree({ ...settingsRow, frame: { ...settingsRow.frame, Y: 474.6666667 } }),
+    { x: 187, y: 502 },
+    tree(stillsRow),
+  );
+
+  expect(calls).toEqual([
+    "POST /viewHierarchy",
+    "POST /touch",
+    "POST /viewHierarchy",
+    "POST /viewHierarchy",
+  ]);
+  expect(recordedTaps()).toEqual([
+    expect.objectContaining({
+      cancel: true,
+      again: false,
+      reason: expect.stringMatching(/"label":"Hide episode stills.* on a second look 0 ms later$/),
+    }),
+  ]);
 });
 
 const ndjson = (line: string) => {
