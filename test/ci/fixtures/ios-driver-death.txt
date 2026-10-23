@@ -1,3 +1,0 @@
-Timed out while evaluating UI query on SpringBoard
-SpringBoard's main thread was unresponsive for 30 s
-Request for http://127.0.0.1:49889/deviceInfo failed, code: 500

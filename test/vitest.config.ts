@@ -5,6 +5,5 @@ export default defineConfig({
     name: "repository",
     environment: "node",
     include: ["ci/**/*.test.ts"],
-    globalSetup: ["support/leaked-processes.ts"],
   },
 });

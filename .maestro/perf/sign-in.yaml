@@ -1,6 +1,0 @@
-# Signs in once on the large synthetic account before the probe's passes.
-appId: app.cuetracker
----
-- runScript: reset-scale.js
-- assertTrue: ${output.fakeReset}
-- runFlow: ../flows/lib/connect.yaml

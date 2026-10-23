@@ -1,0 +1,41 @@
+appId: app.cuetracker
+name: sign-out
+---
+- runFlow: lib/open-up-next.yaml
+- tapOn:
+    id: "avatar-link"
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: "profile-identity"
+    timeout: 30000
+- takeScreenshot: profile
+- tapOn:
+    id: "profile-to-settings"
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: "screen-settings"
+    timeout: 30000
+- takeScreenshot: settings
+- scrollUntilVisible:
+    element:
+      id: "settings-sign-out"
+    centerElement: true
+- waitForAnimationToEnd
+# This tap only opens the confirmation; the confirm below is the one that signs out.
+- tapOn:
+    id: "settings-sign-out"
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible: "Sign out of Cue?"
+    timeout: 30000
+- tapOn:
+    text: "^Sign out$"
+    rightOf:
+      text: "^Cancel$"
+- extendedWaitUntil:
+    visible:
+      id: "button-connect"
+    timeout: 60000
+- takeScreenshot: signed-out

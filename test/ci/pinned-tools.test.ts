@@ -33,30 +33,13 @@ it("restores pnpm from a cache keyed by the pinned spec and goes offline once it
   expect(setup).not.toContain("restore-keys");
 });
 
-it("restores the Maestro CLI from its pinned version's cache in every lane that installs it", () => {
-  const lanes = readWorkflowJobs(repositoryPath(".github/workflows/ci.yml"), {
-    withActions: true,
-  }).filter(({ body }) => body.includes("run: scripts/install-maestro.sh\n"));
+it("installs the same pinned Maestro release in every lane that runs the smoke flows", () => {
+  const lanes = readWorkflowJobs(repositoryPath(".github/workflows/ci.yml")).filter(({ body }) =>
+    body.includes(" test .maestro/smoke"),
+  );
 
-  expect(lanes.map(({ name }) => name).sort()).toEqual([
-    "android-e2e-light",
-    "native-e2e-ios-light",
-    "ui-screenshots-android-dark",
-    "ui-screenshots-ios-dark",
-  ]);
-  for (const { body } of lanes) {
-    const pin = body.indexOf(
-      'run: echo "pin=$(scripts/install-maestro.sh pin)" >> "$GITHUB_OUTPUT"\n',
-    );
-    const cache = body.indexOf(
-      "key: maestro-$" +
-        "{{ runner.os }}-$" +
-        "{{ runner.arch }}-$" +
-        "{{ steps.pin.outputs.pin }}\n",
-    );
-    const install = body.indexOf("run: scripts/install-maestro.sh\n");
-    expect(pin).toBeGreaterThan(-1);
-    expect(cache).toBeGreaterThan(pin);
-    expect(install).toBeGreaterThan(cache);
-  }
+  expect(lanes.map(({ name }) => name).sort()).toEqual(["android-e2e", "ios-e2e"]);
+  const pins = lanes.map(({ body }) => body.match(/^ {6}MAESTRO_VERSION: (\d+\.\d+\.\d+)$/m)?.[1]);
+  expect(pins[0]).toBeDefined();
+  expect(new Set(pins).size).toBe(1);
 });

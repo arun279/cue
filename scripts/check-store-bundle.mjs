@@ -1,14 +1,6 @@
 import { readFileSync } from "node:fs";
 
-const HARNESS = [
-  "packages/native/src/ui/harness.tsx",
-  "packages/native/src/ui/harness-ids.ts",
-  "packages/native/src/ui/AppIdle.tsx",
-  "packages/native/src/ui/perf-channel.ts",
-  "packages/native/src/ui/snackbar-trace.ts",
-  "packages/native/src/ui/snackbar-policy.harness.ts",
-  "packages/native/src/shifted-date.ts",
-];
+const TEST_CLOCK = "packages/native/src/shifted-date.ts";
 
 const [, ...bundles] = readFileSync(process.argv[2] ?? "packages/native/.expo/atlas.jsonl", "utf8")
   .trim()
@@ -19,9 +11,8 @@ const leaks = bundles.flatMap((line) => {
   return fields
     .filter(Array.isArray)
     .flat()
-    .filter(({ relativePath }) => HARNESS.includes(relativePath))
+    .filter(({ relativePath }) => relativePath === TEST_CLOCK)
     .map(({ relativePath }) => `${platform}: ${relativePath}`);
 });
-if (leaks.length > 0)
-  throw new Error(`UI harness modules ship in store bundles: ${leaks.join(", ")}`);
-process.stdout.write(`no UI harness modules in ${bundles.length} store bundles\n`);
+if (leaks.length > 0) throw new Error(`The test clock ships in store bundles: ${leaks.join(", ")}`);
+process.stdout.write(`no test clock in ${bundles.length} store bundles\n`);

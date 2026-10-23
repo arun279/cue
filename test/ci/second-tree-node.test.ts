@@ -43,7 +43,7 @@ it("installs and runs each second tree, such as the merge base, with that tree's
   const jobs = readWorkflowJobs(repositoryPath(".github/workflows/ci.yml"));
   const second = jobs.filter(({ body }) => WORKTREE.test(body));
 
-  expect(second.map(({ name }) => name).sort()).toEqual(["footprint-base", "render-performance"]);
+  expect(second.map(({ name }) => name).sort()).toEqual(["render-performance"]);
   expect(
     second.flatMap(({ name, body }) => secondTreeProblems(body).map((p) => `${name}: ${p}`)),
   ).toEqual([]);

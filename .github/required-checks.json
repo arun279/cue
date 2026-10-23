@@ -3,12 +3,8 @@
   "render-performance",
   "audit",
   "actionlint",
-  "native-android",
-  "native-ios",
-  "native-e2e",
   "android-e2e",
-  "ui-screenshots-ios-dark",
-  "ui-screenshots-android-dark",
+  "ios-e2e",
   "codeql (javascript-typescript)",
   "codeql (actions)"
 ]

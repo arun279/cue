@@ -1,0 +1,7 @@
+appId: app.cuetracker
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: "queue-row-8803"
+    timeout: 60000

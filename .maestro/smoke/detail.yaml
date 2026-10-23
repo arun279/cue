@@ -1,0 +1,64 @@
+appId: app.cuetracker
+name: detail
+---
+- runFlow: lib/open-up-next.yaml
+- tapOn:
+    text: "Library"
+    retryTapIfNoChange: true
+- tapOn:
+    id: "show-card-8801"
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: "season-trigger-1"
+      text: "Season 1, 8 of 8 watched, collapsed"
+    timeout: 30000
+- takeScreenshot: show-detail
+- tapOn:
+    id: "season-trigger-1"
+- extendedWaitUntil:
+    visible:
+      id: "season-trigger-1"
+      text: "Season 1, 8 of 8 watched, expanded"
+    timeout: 10000
+- assertVisible:
+    id: "episode-row-8801-1-1-checked"
+- takeScreenshot: show-detail-season-expanded
+- scrollUntilVisible:
+    element:
+      id: "episode-row-8801-3-5-check"
+    centerElement: true
+- waitForAnimationToEnd
+- tapOn:
+    id: "episode-row-8801-3-5-check"
+- extendedWaitUntil:
+    visible:
+      id: "episode-row-8801-3-5-checked"
+    timeout: 15000
+- takeScreenshot: show-detail-episode-marked
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn:
+          text: "Library"
+          index: 0
+          retryTapIfNoChange: true
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - back
+- tapOn:
+    id: "library-segment-movies"
+    retryTapIfNoChange: true
+- tapOn:
+    id: "movie-card-5503"
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: "movie-mark"
+    timeout: 30000
+- assertVisible:
+    id: "screen-movie-detail"
+- takeScreenshot: movie-detail

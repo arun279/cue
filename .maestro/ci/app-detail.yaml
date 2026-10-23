@@ -1,8 +1,0 @@
-appId: app.cuetracker
-env:
-  CAPTURE_AUTH: "false"
----
-- runFlow: ../flows/launch.yaml
-- runFlow: ../flows/up-next-lapsed-drawer.yaml
-- runFlow: ../flows/movie-detail.yaml
-- runFlow: ../flows/history.yaml

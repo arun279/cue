@@ -1,0 +1,28 @@
+appId: app.cuetracker
+name: sign-in
+---
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: "button-connect"
+    timeout: 60000
+- takeScreenshot: onboarding
+- tapOn:
+    id: "button-connect"
+    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: "device-code-value"
+    timeout: 30000
+- takeScreenshot: device-code
+- runScript: lib/approve-device.js
+- assertTrue: ${output.deviceApproved}
+- extendedWaitUntil:
+    visible:
+      id: "queue-row-8803"
+    timeout: 60000
+- assertVisible:
+    id: "queue-row-8801"
+- assertVisible:
+    id: "queue-row-8802"
+- takeScreenshot: up-next

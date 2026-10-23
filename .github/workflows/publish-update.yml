@@ -83,7 +83,7 @@ jobs:
           [ -n "$EXPO_PUBLIC_TRAKT_CLIENT_ID" ] || { echo "EXPO_PUBLIC_TRAKT_CLIENT_ID is not set"; exit 1; }
           eas env:exec production --non-interactive \
             "EXPO_NO_DOTENV=1 EXPO_ATLAS=true npx expo export --output-dir dist --dump-sourcemap --dump-assetmap --platform ios --platform android --clear"
-      - name: Keep the UI harness out of the update
+      - name: Keep the test clock out of the update
         run: node scripts/check-store-bundle.mjs
       - name: Publish the exported update
         working-directory: packages/native
