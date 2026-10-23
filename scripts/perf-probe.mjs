@@ -546,12 +546,9 @@ async function tracedColdStart(file) {
   await startAndroidApp("traced cold start");
   await shell("kill", "-TERM", pid);
   const stopping = Date.now();
-  while (
-    await shell("kill", "-0", pid).then(
-      () => true,
-      () => false,
-    )
-  ) {
+  // ps rather than kill -0, whose signal SELinux denies the shell on perfetto's domain.
+  const running = async () => (await shell("ps", "-o", "PID=", "-p", pid).catch(() => "")).trim();
+  while ((await running()) !== "") {
     if (Date.now() - stopping > TRACE_STOP_MS)
       throw new Error(`perfetto was still writing the trace after ${TRACE_STOP_MS} ms`);
     await pause(PAUSE_MS);
