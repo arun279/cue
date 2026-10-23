@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Prepares the booted emulator the way the Android device lanes do, with animations left on,
 # signs in with Maestro, stops Maestro's driver so nothing reads the app's views while it is
-# measured, and runs the performance probe on one APK, or on a base and a changed APK in
-# alternate passes. Usage: perf-probe-android.sh <output directory> <runs> <apk> [changed apk]
+# measured, records a Perfetto trace of one cold start, and runs the performance probe on one
+# APK, or on a base and a changed APK in alternate passes. Usage: perf-probe-android.sh <output directory> <runs> <apk> [changed apk]
 set -euo pipefail
 
 output=$1
@@ -36,6 +36,12 @@ fi
 bash scripts/maestro-test.sh test .maestro/perf/sign-in.yaml --debug-output "$output/maestro-sign-in"
 adb shell am force-stop dev.mobile.maestro
 adb shell am force-stop dev.mobile.maestro.test
+adb shell am force-stop app.cuetracker
+trace=/data/misc/perfetto-traces/cold-start.perfetto-trace
+adb shell perfetto --background --txt -c - -o "$trace" < scripts/cold-start.pbtx
+adb shell am start -W -n app.cuetracker/.MainActivity
+while adb shell pidof perfetto > /dev/null; do sleep 1; done
+adb pull "$trace" "$output/cold-start.perfetto-trace"
 export PERF_MOCK_LOG="$output/mock-trakt.log"
 if [ "$#" -gt 1 ]; then
   node scripts/perf-probe.mjs android "$output" "$runs" "$@"

@@ -1,0 +1,31 @@
+# Perfetto trace config for one cold start of the app, read by perf-probe-android.sh.
+# https://perfetto.dev/docs/case-studies/android-startup
+buffers {
+  size_kb: 65536
+  fill_policy: RING_BUFFER
+}
+data_sources {
+  config {
+    name: "linux.ftrace"
+    ftrace_config {
+      ftrace_events: "sched/sched_switch"
+      ftrace_events: "sched/sched_wakeup"
+      ftrace_events: "task/task_newtask"
+      ftrace_events: "task/task_rename"
+      atrace_categories: "am"
+      atrace_categories: "wm"
+      atrace_categories: "dalvik"
+      atrace_categories: "view"
+      atrace_categories: "gfx"
+      atrace_categories: "res"
+      atrace_categories: "binder_driver"
+      atrace_apps: "app.cuetracker"
+    }
+  }
+}
+data_sources {
+  config {
+    name: "linux.process_stats"
+  }
+}
+duration_ms: 12000
