@@ -3,6 +3,7 @@ import { createServer } from "node:http";
 import { createInterface } from "node:readline";
 import { setTimeout as delay } from "node:timers/promises";
 import {
+  cancelledContacts,
   droppedTouches,
   PLAYBACK_END,
   PLAYBACK_PREDICATE,
@@ -11,8 +12,8 @@ import {
 } from "./simulator-touch.mjs";
 
 const PLAYBACK_TIMEOUT_MS = 5_000;
-// A touch the simulator logged as late can still reach the app, and what it starts can take
-// over a second to show on a slow host (run 39893036064), so a second look comes this long after.
+// A cancelled contact can still change what it touched (run 39722599952's switch toggled on
+// one), and on a slow host a change can take over a second to show, so a second look waits this.
 const SETTLE_MS = 2_000;
 // The CLI gets only this; the error and its stack go to the proxy's own log.
 const UNREACHABLE = "tap proxy could not reach the runner";
@@ -179,6 +180,12 @@ export function createTapProxy({ runner, playback, settleMs = SETTLE_MS }) {
     const waitMs = Date.now() - answered;
     if (droppedTouches(lines).length === 0) {
       record({ waitMs });
+      return answer;
+    }
+    if (cancelledContacts(lines).length === 0) {
+      const { reason } = tapAgain({ playback: lines, point });
+      record({ waitMs, cancel: true, again: false, reason });
+      process.stdout.write(`tap at ${point.x}, ${point.y}: not tapped again, ${reason}\n`);
       return answer;
     }
     const compare = async () =>
