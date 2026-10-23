@@ -455,12 +455,9 @@ const within = (promise, milliseconds, what) =>
   ]);
 
 /**
- * Pairs the app's waiting requests with the host's commands. The app asks for the next command
- * and, in the same request, replies to the previous one; "ready" opens each launch and carries
- * the app's boot marks.
+ * The app's boot marks, ms from React Native's runtime starting, as one quantity each.
+ * @param {string | null} boot
  */
-/** The app's boot marks, ms from React Native's host starting, as one quantity each. */
-/** @param {string | null} boot */
 export function bootPhases(boot) {
   const marks = boot === null ? {} : JSON.parse(boot);
   return Object.fromEntries(
@@ -471,6 +468,11 @@ export function bootPhases(boot) {
   );
 }
 
+/**
+ * Pairs the app's waiting requests with the host's commands. The app asks for the next command
+ * and, in the same request, replies to the previous one; "ready" opens each launch and carries
+ * the app's boot marks.
+ */
 export function createChannel() {
   let deliver;
   let replied;

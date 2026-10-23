@@ -75,16 +75,10 @@ export function useBootMark(name: string, reached = true): void {
 }
 
 function bootTimeline(): Record<string, number> {
-  const startup = performance.rnStartupTiming;
-  const native = {
-    runtimeStart: startup?.initializeRuntimeStart,
-    bundleStart: startup?.executeJavaScriptBundleEntryPointStart,
-  };
-  const marks = Object.entries({ ...native, ...bootMarks }).filter(
-    (entry): entry is [string, number] => typeof entry[1] === "number",
+  const origin = performance.rnStartupTiming?.startTime ?? 0;
+  return Object.fromEntries(
+    Object.entries(bootMarks).map(([name, ms]) => [name, Math.round(ms - origin)]),
   );
-  const origin = startup?.startTime ?? 0;
-  return Object.fromEntries(marks.map(([name, ms]) => [name, Math.round(ms - origin)]));
 }
 
 let listening = false;
