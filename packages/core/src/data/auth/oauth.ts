@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { type Token, tokenSchema } from "../../domain/model/token";
 import { parseRetryAfterMs } from "../../domain/write-queue/classify";
-import type { FetchLike } from "../trakt/client";
+import { type FetchLike, fetchWithoutCookies } from "../trakt/client";
 
 export const TRAKT_API_BASE = "https://api.trakt.tv";
 
@@ -37,7 +37,7 @@ export type DeviceTokenResult =
   | { readonly status: "error"; readonly code: number };
 
 function fetchFn(config: OAuthConfig): FetchLike {
-  return config.fetch ?? ((input, init) => globalThis.fetch(input, init));
+  return config.fetch ?? fetchWithoutCookies;
 }
 
 function apiBase(config: OAuthConfig): string {

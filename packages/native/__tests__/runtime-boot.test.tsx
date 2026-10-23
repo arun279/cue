@@ -132,6 +132,7 @@ it("shows, logs and reports the error a failed start hit, and keeps it for Diagn
   expect(logged).toHaveBeenCalledWith("Couldn't start Cue: Error: database is locked");
   expect(fetches).toHaveBeenCalledWith(
     `http://127.0.0.1:8790/next?reply=${encodeURIComponent("boot failed: Error: database is locked")}`,
+    { credentials: "omit" },
   );
   expect(useStartFailure.getState().failure).toEqual({
     at: expect.any(Number),

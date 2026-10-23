@@ -3,6 +3,8 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 import { useWindowDimensions } from "react-native";
 
 const CHANNEL = "http://127.0.0.1:8790/next";
+// Like the app's own requests, so the channel does not load the WebView the app no longer does.
+const OMIT: RequestInit = { credentials: "omit" };
 const SCROLL_STEPS = 3;
 const SCROLL_STEP_MS = 700;
 
@@ -84,7 +86,9 @@ function bootTimeline(): Record<string, number> {
 let listening = false;
 
 export function reportBootFailure(detail: string): void {
-  void fetch(`${CHANNEL}?reply=${encodeURIComponent(`boot failed: ${detail}`)}`).catch(() => {});
+  void fetch(`${CHANNEL}?reply=${encodeURIComponent(`boot failed: ${detail}`)}`, OMIT).catch(
+    () => {},
+  );
 }
 
 export function listenForCommands(): void {
@@ -94,7 +98,7 @@ export function listenForCommands(): void {
   void (async () => {
     let query = `reply=ready&boot=${encodeURIComponent(JSON.stringify(bootTimeline()))}`;
     for (;;) {
-      const response = await fetch(`${CHANNEL}?${query}`);
+      const response = await fetch(`${CHANNEL}?${query}`, OMIT);
       query = `reply=${encodeURIComponent(perform(await response.text()))}`;
     }
   })().catch(() => {
