@@ -56,6 +56,7 @@ export function Avatar({ size }: { readonly size: number }): ReactElement {
           key={photo}
           testID={TEST_IDS.avatarPhoto}
           source={{ uri: photo }}
+          resizeMethod="resize"
           style={StyleSheet.absoluteFill}
           onError={() => setFailed(photo)}
         />
