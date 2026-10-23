@@ -102,6 +102,42 @@
           }
         }
       }
+    },
+    {
+      // React Native's Image resizes a remote image before decoding it only with
+      // resizeMethod="resize", which Poster and Avatar set. PlatformIcon draws Android's
+      // vector drawables. A later override replaces an earlier one's options and plugins
+      // for the files both match, so this one restates the Switch rule.
+      "includes": [
+        "packages/native/src/**",
+        "packages/native/app/**",
+        "!packages/native/src/screens/account/Rows.tsx",
+        "!packages/native/src/ui/Poster.tsx",
+        "!packages/native/src/ui/Avatar.tsx",
+        "!packages/native/src/ui/PlatformIcon.tsx"
+      ],
+      "plugins": ["./biome/switch-outside-toggle.grit", "./biome/image-outside-poster.grit"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "react-native": {
+                    "importNames": ["Switch", "Image"],
+                    "message": "Use Toggle from screens/account/Rows for a Switch, and Poster or Avatar for a remote image, which decode it at the size they draw it on Android."
+                  },
+                  "react-native-gesture-handler": {
+                    "importNames": ["Switch"],
+                    "message": "Use Toggle from screens/account/Rows, which keeps a disabled switch announced as dimmed on iOS."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   ],
   "plugins": ["./biome/effect-query-writes.grit"],
