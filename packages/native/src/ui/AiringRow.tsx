@@ -1,5 +1,4 @@
-import type { CalendarRow } from "@cue/core/domain/calendar";
-import { epCode } from "@cue/core/domain/model/library";
+import { type CalendarRow, episodeLine } from "@cue/core/domain/calendar";
 import { useRouter } from "expo-router";
 import type { ReactElement } from "react";
 import { Badge } from "./Badge";
@@ -27,11 +26,11 @@ export function AiringRow({
 }: AiringRowProps): ReactElement {
   const router = useRouter();
   const colors = useColors();
-  const code = epCode(row.season, row.number);
+  const episode = episodeLine(row);
 
   return (
     <Row
-      label={[row.showTitle, code, row.episodeTitle, spoken].filter(Boolean).join(", ")}
+      label={[row.showTitle, episode.spoken, episode.detail, spoken].filter(Boolean).join(", ")}
       minHeight={minHeight}
       onPress={() => router.push(`/show/${row.showId}`)}
       testID={testID}
@@ -42,8 +41,8 @@ export function AiringRow({
         {row.showTitle}
       </CueText>
       <CueText variant="meta" style={{ color: colors.ink2 }}>
-        {code}
-        {row.episodeTitle === null ? "" : ` · ${row.episodeTitle}`}
+        {episode.code}
+        {episode.detail === null ? "" : ` · ${episode.detail}`}
       </CueText>
       {line == null ? null : (
         <CueText variant="caption" style={{ color: colors.muted }}>

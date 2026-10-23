@@ -203,7 +203,11 @@ const LONG_ROWS = {
   ),
   "calendar row": () => (
     <AiringRow
-      row={{ ...airing({ showTitle: LONG_TITLE }), aired: false }}
+      row={{
+        ...airing({ showTitle: LONG_TITLE }),
+        aired: false,
+        episodes: [{ season: 2, number: 4 }],
+      }}
       chip={null}
       spoken=""
       minHeight={0}

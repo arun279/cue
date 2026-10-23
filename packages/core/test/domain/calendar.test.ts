@@ -2,6 +2,7 @@ import {
   airingGrammar,
   type CalendarEntry,
   type CalendarRow,
+  episodeLine,
   groupCalendar,
 } from "@cue/core/domain/calendar";
 import { describe, expect, it } from "vitest";
@@ -32,6 +33,7 @@ function row(overrides: Partial<CalendarRow> = {}): CalendarRow {
   return {
     ...entry({ showId: 1, firstAired: "2026-07-05T18:00:00.000Z" }),
     aired: false,
+    episodes: [{ season: 1, number: 1 }],
     ...overrides,
   };
 }
@@ -114,6 +116,99 @@ describe("groupCalendar", () => {
 
   it("returns no days for an empty feed", () => {
     expect(groupCalendar([], { now: NOW, timeZone: NY, hiddenShowIds: NO_HIDDEN })).toEqual([]);
+  });
+});
+
+describe("a drop: one show's episodes airing at the same instant", () => {
+  const AT = "2026-07-06T04:00:00.000Z";
+  const episodes = (showId: number, season: number, numbers: readonly number[], at = AT) =>
+    numbers.map((number) =>
+      entry({ showId, season, number, firstAired: at, ids: { trakt: showId * 100 + number } }),
+    );
+  const rowsOf = (entries: readonly CalendarEntry[]) =>
+    groupCalendar(entries, { now: NOW, timeZone: NY, hiddenShowIds: NO_HIDDEN }).flatMap(
+      (day) => day.rows,
+    );
+  const linesOf = (entries: readonly CalendarEntry[]) => rowsOf(entries).map(episodeLine);
+
+  it("is one row that opens at its lowest episode, while other shows and times keep theirs", () => {
+    const rows = rowsOf([
+      ...episodes(1, 2, [3, 1, 2]),
+      ...episodes(2, 1, [5]),
+      ...episodes(1, 2, [4], "2026-07-06T05:00:00.000Z"),
+    ]);
+    expect(
+      rows.map((row) => ({
+        showId: row.showId,
+        line: episodeLine(row).code,
+        trakt: row.ids.trakt,
+      })),
+    ).toEqual([
+      { showId: 1, line: "S2 E1–E3", trakt: 101 },
+      { showId: 2, line: "S1 E5", trakt: 205 },
+      { showId: 1, line: "S2 E4", trakt: 104 },
+    ]);
+  });
+
+  it("names a run in one season by its range, and counts the episodes", () => {
+    expect(linesOf(episodes(1, 2, [1, 2, 3, 4, 5, 6, 7, 8]))).toEqual([
+      { code: "S2 E1–E8", spoken: "season 2, episodes 1 to 8", detail: "8 episodes" },
+    ]);
+  });
+
+  it("names only the season when the episodes skip, and both seasons when they span two", () => {
+    expect(
+      linesOf([...episodes(1, 2, [1, 3, 4]), ...episodes(2, 1, [10]), ...episodes(2, 2, [1])]),
+    ).toEqual([
+      { code: "S2", spoken: "season 2", detail: "3 episodes" },
+      { code: "S1–S2", spoken: "seasons 1 to 2", detail: "2 episodes" },
+    ]);
+  });
+
+  it("leaves a lone episode as it was: its code and its title", () => {
+    const lone = entry({
+      showId: 1,
+      season: 3,
+      number: 6,
+      episodeTitle: "The Long Dark",
+      firstAired: AT,
+    });
+    expect(linesOf([lone])).toEqual([{ code: "S3 E6", spoken: "S3 E6", detail: "The Long Dark" }]);
+  });
+});
+
+describe("the shows-you-watch focus", () => {
+  const WATCHED = 1;
+  const WATCHLISTED = 2;
+  const feed = [
+    entry({ showId: WATCHED, season: 4, number: 6, firstAired: "2026-07-06T01:00:00.000Z" }),
+    entry({ showId: WATCHLISTED, season: 3, number: 1, firstAired: "2026-07-07T01:00:00.000Z" }),
+    entry({ showId: WATCHLISTED, season: 3, number: 2, firstAired: "2026-07-08T01:00:00.000Z" }),
+  ];
+  const kept = (playedShowIds?: ReadonlySet<number>) =>
+    groupCalendar(feed, { now: NOW, timeZone: NY, hiddenShowIds: NO_HIDDEN, playedShowIds })
+      .flatMap((day) => day.rows)
+      .map((row) => `${row.showId} S${row.season}E${row.number}`);
+
+  it("keeps every episode of a played show and only the premieres of the rest", () => {
+    expect(kept(new Set([WATCHED]))).toEqual(["1 S4E6", "2 S3E1"]);
+  });
+
+  it("keeps everything while there is no focus", () => {
+    expect(kept()).toEqual(["1 S4E6", "2 S3E1", "2 S3E2"]);
+  });
+
+  it("keeps a whole season drop when its premiere is in it", () => {
+    const drop = [1, 2, 3].map((number) =>
+      entry({ showId: WATCHLISTED, season: 2, number, firstAired: "2026-07-06T04:00:00.000Z" }),
+    );
+    const days = groupCalendar(drop, {
+      now: NOW,
+      timeZone: NY,
+      hiddenShowIds: NO_HIDDEN,
+      playedShowIds: new Set(),
+    });
+    expect(days[0]?.rows.map((row) => row.episodes.length)).toEqual([3]);
   });
 });
 

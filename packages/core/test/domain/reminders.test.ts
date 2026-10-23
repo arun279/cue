@@ -1,4 +1,4 @@
-import type { CalendarDay, CalendarRow } from "@cue/core/domain/calendar";
+import { type CalendarDay, type CalendarEntry, groupCalendar } from "@cue/core/domain/calendar";
 import {
   diffReminders,
   type PlannedReminder,
@@ -6,6 +6,7 @@ import {
   planReminders,
   SUMMARY_HOUR,
 } from "@cue/core/domain/reminders";
+import { localTimeZone } from "@cue/core/domain/time";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -17,12 +18,6 @@ const TITLES = new Map([
   [SALT, "Salt Air"],
   [TIN, "Tin Harbour"],
 ]);
-
-/** A local-day key, built from the device clock the planner also fires on. */
-function keyOf(date: Date): string {
-  const pad = (n: number): string => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
 
 /** Midnight tonight, so every air time in the window is unambiguously ahead. */
 function midnight(): number {
@@ -41,7 +36,7 @@ function ep(
   season: number,
   number: number,
   episodeTitle: string | null = null,
-): CalendarRow {
+): CalendarEntry {
   const at = new Date(NOW);
   at.setDate(at.getDate() + offset);
   at.setHours(hour);
@@ -56,18 +51,12 @@ function ep(
     posters: [],
     network: null,
     tmdbId: null,
-    aired: false,
   };
 }
 
-/** The calendar's shape: rows bucketed by local day, in air order. */
-function calendar(...rows: readonly CalendarRow[]): CalendarDay[] {
-  const days = new Map<string, CalendarRow[]>();
-  for (const row of [...rows].sort((a, b) => a.firstAired.localeCompare(b.firstAired))) {
-    const key = keyOf(new Date(row.firstAired));
-    days.set(key, [...(days.get(key) ?? []), row]);
-  }
-  return [...days].map(([dayKey, dayRows]) => ({ dayKey, label: "", rows: dayRows }));
+/** The calendar the planner is handed: episodes grouped into drops and bucketed by local day. */
+function calendar(...entries: readonly CalendarEntry[]): CalendarDay[] {
+  return groupCalendar(entries, { now: NOW, timeZone: localTimeZone(), hiddenShowIds: new Set() });
 }
 
 const everyone: PlanOptions = { now: NOW, showIds: new Set(TITLES.keys()), summary: false };
@@ -75,7 +64,7 @@ const everyone: PlanOptions = { now: NOW, showIds: new Set(TITLES.keys()), summa
 const said = (plan: readonly PlannedReminder[]) =>
   plan.map(({ title, body }) => `${title}: ${body}`);
 
-describe("an alert per show per air day", () => {
+describe("an alert per drop: one show's episodes at one air time", () => {
   it("names the one episode by code and title, or by code alone when it has no title", () => {
     const plan = planReminders(
       calendar(ep(HARBOR, 1, 21, 3, 6, "The Long Dark"), ep(SALT, 2, 20, 1, 4)),
@@ -100,14 +89,31 @@ describe("an alert per show per air day", () => {
     expect(plan[0]?.atMs).toBe(Date.parse(drop[0]?.firstAired ?? ""));
   });
 
-  it("counts a same-day batch that is not one run in one season", () => {
-    const gap = planReminders(calendar(ep(HARBOR, 1, 20, 2, 1), ep(HARBOR, 1, 21, 2, 3)), everyone);
+  it("counts a drop that is not one run in one season", () => {
+    const gap = planReminders(calendar(ep(HARBOR, 1, 20, 2, 1), ep(HARBOR, 1, 20, 2, 3)), everyone);
     const finaleAndPremiere = planReminders(
-      calendar(ep(SALT, 1, 20, 1, 3), ep(SALT, 1, 21, 2, 1), ep(SALT, 1, 22, 2, 2)),
+      calendar(ep(SALT, 1, 20, 1, 10), ep(SALT, 1, 20, 2, 1), ep(SALT, 1, 20, 2, 2)),
       everyone,
     );
     expect(said(gap)).toEqual(["Harbor Lights: 2 new episodes are out."]);
     expect(said(finaleAndPremiere)).toEqual(["Salt Air: 3 new episodes are out."]);
+  });
+
+  it("gives one show's episodes at two times of one day an alert each, at each time", () => {
+    const morningAndNight = calendar(
+      ep(HARBOR, 0, 10, 1, 1),
+      ep(HARBOR, 0, 21, 1, 2, "Night Tide"),
+    );
+    const early = planReminders(morningAndNight, everyone);
+    expect(said(early)).toEqual([
+      "Harbor Lights: S1 E1 is out.",
+      "Harbor Lights: S1 E2 Night Tide is out.",
+    ]);
+    expect(early.map((alert) => alert.atMs)).toEqual([NOW + 10 * HOUR_MS, NOW + 21 * HOUR_MS]);
+    expect(new Set(early.map((alert) => alert.id)).size).toBe(2);
+
+    const atNoon = planReminders(morningAndNight, { ...everyone, now: NOW + 12 * HOUR_MS });
+    expect(atNoon).toEqual(early.slice(1));
   });
 
   it("gives two shows on one day an alert each, and one show on two days an alert a day", () => {
@@ -131,9 +137,9 @@ describe("an alert per show per air day", () => {
     expect(said(plan)).toEqual(["Salt Air: S1 E1 is out."]);
   });
 
-  it("never announces a day again once its first episode has aired", () => {
+  it("sends nothing for a drop that has aired", () => {
     const double = calendar(ep(HARBOR, 0, 20, 1, 1), ep(HARBOR, 0, 21, 1, 2));
-    expect(planReminders(double, { ...everyone, now: NOW + 20.5 * HOUR_MS })).toEqual([]);
+    expect(planReminders(double, { ...everyone, now: NOW + 21.5 * HOUR_MS })).toEqual([]);
   });
 
   it("plans the four weeks ahead and nothing past them", () => {
@@ -226,11 +232,11 @@ describe("the summary hour across a daylight-saving shift", () => {
     // The US spring-forward is 2026-03-08. A summary placed a fixed number of
     // hours from UTC midnight would land an hour out on one side of it.
     vi.stubEnv("TZ", "America/New_York");
-    const row = ep(HARBOR, 0, 21, 2, 4);
+    const rows = calendar(ep(HARBOR, 0, 21, 2, 4))[0]?.rows ?? [];
     const plan = planReminders(
       [
-        { dayKey: "2026-03-07", label: "", rows: [row] },
-        { dayKey: "2026-03-09", label: "", rows: [row] },
+        { dayKey: "2026-03-07", label: "", rows },
+        { dayKey: "2026-03-09", label: "", rows },
       ],
       { ...everyone, summary: true, now: Date.parse("2026-03-06T12:00:00") },
     );

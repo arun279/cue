@@ -464,7 +464,11 @@ describe("Up Next's sections", () => {
 
   it("caps what is coming at three rows and links to the whole of it", async () => {
     const soon = [1, 2, 3, 4, 5].map((number) =>
-      airing({ number, ids: { trakt: 90_000 + number } }),
+      airing({
+        number,
+        ids: { trakt: 90_000 + number },
+        firstAired: new Date(Date.now() + number * 60 * 60 * 1000).toISOString(),
+      }),
     );
     await paint({ calendar: soon });
 
@@ -491,7 +495,7 @@ describe("Up Next's empty and off states", () => {
 
   it("answers a caught-up reader with what is coming instead of a second sentence", async () => {
     const done = [entry({ completed: 21, nextEpisode: null })];
-    await paint({ entries: done, calendar: [airing()] });
+    await paint({ entries: done, calendar: [airing({ showId: HARBOR })] });
 
     expect(screen.getByText("You're all caught up.")).toBeOnTheScreen();
     expect(screen.queryByText("Nothing airing in the next few days.")).toBeNull();

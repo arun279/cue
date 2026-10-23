@@ -14,6 +14,7 @@ describe("createPrefsStore defaults", () => {
     expect(state.dailySummary).toBe(false);
     expect(state.mutedShowIds).toEqual([]);
     expect(state.hideStillsUntilWatched).toBe(true);
+    expect(state.everyWatchlistEpisode).toBe(false);
     expect(state.nextEpisodeOrder).toBe("after-last-watched");
     expect(state.lapsedOrder).toBe("recently-watched");
     expect(state.theme).toBe("system");
@@ -86,6 +87,7 @@ describe("persistence", () => {
     first.setShowMuted(8802, true);
     first.setShowMuted(8801, false);
     first.setHideStillsUntilWatched(false);
+    first.setEveryWatchlistEpisode(true);
     first.setNextEpisodeOrder("oldest-unwatched");
     first.setLapsedOrder("longest-idle");
     first.setThresholdDays(14);
@@ -96,6 +98,7 @@ describe("persistence", () => {
       dailySummary: true,
       mutedShowIds: [8802],
       hideStillsUntilWatched: false,
+      everyWatchlistEpisode: true,
       nextEpisodeOrder: "oldest-unwatched",
       lapsedOrder: "longest-idle",
       thresholdDays: 14,

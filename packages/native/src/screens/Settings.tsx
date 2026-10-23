@@ -90,6 +90,14 @@ export default function Settings(): ReactElement {
           />
         ) : null}
       </Section>
+      <Section title="Calendar">
+        <Toggle
+          title="Every watchlist episode"
+          hint="Show all new episodes of shows on your watchlist, not only premieres."
+          value={prefs.everyWatchlistEpisode}
+          onChange={prefs.setEveryWatchlistEpisode}
+        />
+      </Section>
       <Section title="Appearance">
         <View style={{ gap: SPACE.s2, paddingVertical: SPACE.s3 }}>
           <CueText variant="rowTitle" weight="regular" style={{ color: colors.fg }}>

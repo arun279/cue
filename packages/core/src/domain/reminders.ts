@@ -1,4 +1,10 @@
-import { CALENDAR_WINDOW_DAYS, type CalendarDay, type CalendarRow } from "./calendar";
+import {
+  CALENDAR_WINDOW_DAYS,
+  type CalendarDay,
+  type CalendarRow,
+  episodeLine,
+  isEpisodeRun,
+} from "./calendar";
 import { epCode } from "./model/library";
 import { DAY_MS } from "./time";
 
@@ -54,7 +60,7 @@ function summaryAt(dayKey: string): number {
 function summaryBody(rows: readonly CalendarRow[]): string {
   const [only, ...rest] = rows;
   if (only !== undefined && rest.length === 0) {
-    return `${only.showTitle} ${epCode(only.season, only.number)}`;
+    return `${only.showTitle} ${episodeLine(only).code}`;
   }
   const shows = [...new Set(rows.map((row) => row.showTitle))];
   if (shows.length <= SUMMARY_NAMED_SHOW_LIMIT) return shows.join(" and ");
@@ -62,35 +68,23 @@ function summaryBody(rows: readonly CalendarRow[]): string {
 }
 
 // Android delivers inexact alarms up to an hour after the trigger.
-function alertBody(first: CalendarRow, rest: readonly CalendarRow[]): string {
-  if (rest.length === 0) {
-    return `${[epCode(first.season, first.number), first.episodeTitle].filter(Boolean).join(" ")} is out.`;
+function alertBody(row: CalendarRow): string {
+  const count = row.episodes.length;
+  if (count === 1) {
+    return `${[epCode(row.season, row.number), row.episodeTitle].filter(Boolean).join(" ")} is out.`;
   }
-  const numbers = [first, ...rest].map((row) => row.number).sort((a, b) => a - b);
-  const low = Math.min(...numbers);
-  const run =
-    rest.every((row) => row.season === first.season) &&
-    numbers.every((number, index) => number === low + index);
-  return run
-    ? `${epCode(first.season, low)} to E${low + rest.length} are out.`
-    : `${rest.length + 1} new episodes are out.`;
+  return isEpisodeRun(row.episodes)
+    ? `${epCode(row.season, row.number)} to E${row.number + count - 1} are out.`
+    : `${count} new episodes are out.`;
 }
 
-function alertsFor(dayKey: string, rows: readonly CalendarRow[]): PlannedReminder[] {
-  const byShow = new Map<number, [CalendarRow, ...CalendarRow[]]>();
-  for (const row of rows) {
-    const run = byShow.get(row.showId);
-    if (run === undefined) byShow.set(row.showId, [row]);
-    else run.push(row);
-  }
-  return [...byShow.values()].map(([first, ...rest]) =>
-    reminder(
-      `${first.showId}@${dayKey}`,
-      Date.parse(first.firstAired),
-      first.showTitle,
-      alertBody(first, rest),
-      first.showId,
-    ),
+function alertFor(row: CalendarRow): PlannedReminder {
+  return reminder(
+    `${row.showId}@${row.firstAired}`,
+    Date.parse(row.firstAired),
+    row.showTitle,
+    alertBody(row),
+    row.showId,
   );
 }
 
@@ -105,7 +99,7 @@ export function planReminders(
       if (wanted.length === 0) return [];
       return summary
         ? [reminder(dayKey, summaryAt(dayKey), SUMMARY_TITLE, summaryBody(wanted), null)]
-        : alertsFor(dayKey, wanted);
+        : wanted.map(alertFor);
     })
     .filter(({ atMs }) => atMs > now && atMs <= horizon)
     .sort((a, b) => a.atMs - b.atMs)
