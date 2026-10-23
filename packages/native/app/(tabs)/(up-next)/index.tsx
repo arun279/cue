@@ -142,7 +142,7 @@ export default function UpNext(): ReactElement {
   const timeZone = localTimeZone();
   const calendarStart = dayKeyOf(timeZone, calendarClock);
   const calendar = useQuery({ ...calendarQuery(runtime, calendarStart), enabled: showsEnabled });
-  const played = useCalendarFocus(showsEnabled);
+  const played = useCalendarFocus(showsEnabled).playedShowIds;
   const calendarDays = useMemo(
     () =>
       calendar.data === undefined

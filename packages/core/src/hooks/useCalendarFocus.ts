@@ -4,10 +4,15 @@ import { usePrefs } from "../prefs/prefs-store";
 import { libraryQuery } from "../queries/library";
 import { type UpNextData, useRuntime } from "../runtime/runtime";
 
+export interface CalendarFocus {
+  readonly loading: boolean;
+  readonly playedShowIds: ReadonlySet<number> | undefined;
+}
+
 const playedShowIds = ({ entries }: UpNextData): ReadonlySet<number> =>
   new Set(entries.filter((entry) => !neverWatched(entry)).map((entry) => entry.showId));
 
-export function useCalendarFocus(enabled: boolean): ReadonlySet<number> | undefined {
+export function useCalendarFocus(enabled: boolean): CalendarFocus {
   const runtime = useRuntime();
   const everyWatchlistEpisode = usePrefs((state) => state.everyWatchlistEpisode);
   const played = useQuery({
@@ -15,5 +20,7 @@ export function useCalendarFocus(enabled: boolean): ReadonlySet<number> | undefi
     enabled: enabled && !everyWatchlistEpisode,
     select: playedShowIds,
   });
-  return everyWatchlistEpisode ? undefined : played.data;
+  return everyWatchlistEpisode
+    ? { loading: false, playedShowIds: undefined }
+    : { loading: played.isLoading, playedShowIds: played.data };
 }

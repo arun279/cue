@@ -12,6 +12,7 @@ import {
   entry,
   fakeRuntime,
   Harness,
+  held,
   resetSharedStores,
   spyHaptics,
 } from "./support/up-next";
@@ -223,6 +224,28 @@ describe("Calendar", () => {
 
     expect(screen.getAllByTestId(/^calendar-row-/).map((row) => row.props["testID"])).toEqual([
       "calendar-row-88608",
+      "calendar-row-88731",
+    ]);
+  });
+
+  it("keeps its plates up until the library says which shows you have played", async () => {
+    const library = held<{ readonly entries: readonly LibraryEntry[] }>();
+    const premiere = airing({ showId: 8807, season: 3, number: 1, ids: { trakt: 88_731 } });
+    const second = { ...premiere, number: 2, firstAired: LATER.firstAired, ids: { trakt: 88_732 } };
+    await paint({
+      runtime: { ...fakeRuntime({ calendar: [premiere, second] }), loadUpNext: library.call },
+      loading: true,
+    });
+    // TanStack Query hands results to the screen on a timer, which the fake clock owns.
+    await act(() => jest.advanceTimersByTimeAsync(100));
+
+    expect(screen.getByTestId("calendar-skeleton")).toBeOnTheScreen();
+    expect(screen.queryAllByTestId(/^calendar-row-/)).toEqual([]);
+
+    library.release({ entries: [] });
+
+    await waitFor(() => expect(screen.queryByTestId("calendar-skeleton")).toBeNull());
+    expect(screen.getAllByTestId(/^calendar-row-/).map((row) => row.props["testID"])).toEqual([
       "calendar-row-88731",
     ]);
   });

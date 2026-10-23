@@ -49,7 +49,7 @@ export default function Calendar(): ReactElement {
   const timeZone = localTimeZone();
   const startDate = dayKeyOf(timeZone, clock);
   const query = useQuery({ ...calendarQuery(runtime, startDate), enabled: showsEnabled });
-  const played = useCalendarFocus(showsEnabled);
+  const focus = useCalendarFocus(showsEnabled);
   const sections = useMemo(
     () =>
       query.data === undefined
@@ -60,13 +60,13 @@ export default function Calendar(): ReactElement {
             timeZone,
             startDate,
             CALENDAR_WINDOW_DAYS,
-            played,
+            focus.playedShowIds,
           ).map((day) => ({
             label: day.label,
             offset: dayOffset(startDate, day.dayKey),
             data: day.rows,
           })),
-    [query.data, clock, timeZone, startDate, played],
+    [query.data, clock, timeZone, startDate, focus.playedShowIds],
   );
   const status = queryStatus(query, query.data !== undefined);
   const banner = useSyncBanner(status);
@@ -77,7 +77,7 @@ export default function Calendar(): ReactElement {
 
   const branch = branchOf(
     showsEnabled,
-    status.isLoading,
+    status.isLoading || focus.loading,
     status.isError && !status.hasData,
     sections.length,
   );
