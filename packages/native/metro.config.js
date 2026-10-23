@@ -18,14 +18,6 @@ config.serializer.createModuleIdFactory = () => {
   };
 };
 
-// Requires are evaluated where they are first used rather than all at startup:
-// https://reactnative.dev/docs/optimizing-javascript-loading#advanced-automatically-inline-require-calls
-const { getTransformOptions } = config.transformer;
-config.transformer.getTransformOptions = async (...args) => {
-  const options = await getTransformOptions(...args);
-  return { ...options, transform: { ...options.transform, inlineRequires: true } };
-};
-
 const harness = process.env.EXPO_PUBLIC_UI_HARNESS === "1";
 const replacements = new Map(
   (harness
