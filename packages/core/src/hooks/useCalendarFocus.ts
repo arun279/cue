@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { neverWatched } from "../domain/watch-status";
 import { usePrefs } from "../prefs/prefs-store";
+import { queryStatus } from "../queries/freshness";
 import { libraryQuery } from "../queries/library";
 import { type UpNextData, useRuntime } from "../runtime/runtime";
 
@@ -22,5 +23,8 @@ export function useCalendarFocus(enabled: boolean): CalendarFocus {
   });
   return everyWatchlistEpisode
     ? { loading: false, playedShowIds: undefined }
-    : { loading: played.isLoading, playedShowIds: played.data };
+    : {
+        loading: queryStatus(played, played.data !== undefined).isLoading,
+        playedShowIds: played.data,
+      };
 }

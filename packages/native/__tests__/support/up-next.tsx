@@ -3,7 +3,6 @@ import type { MovieEntry } from "@cue/core/data/trakt/movie-library";
 import type { CalendarEntry } from "@cue/core/domain/calendar";
 import type { QueuedOp } from "@cue/core/domain/write-queue/types";
 import { type Haptics, HapticsProvider } from "@cue/core/ports/haptics";
-import { type Network, NetworkProvider } from "@cue/core/ports/network";
 import type { PreferenceStorage } from "@cue/core/ports/preference-storage";
 import { createPrefsStore, PrefsProvider } from "@cue/core/prefs/prefs-store";
 import {
@@ -161,13 +160,10 @@ export function spyHaptics(): jest.Mocked<Haptics> {
   };
 }
 
-export const OFFLINE: Network = { isOnline: () => false, subscribe: () => () => {} };
-
 interface HarnessProps {
   readonly runtime: CueRuntime;
   readonly haptics: Haptics;
   readonly preferences?: PreferenceStorage;
-  readonly network?: Network;
   seed?(client: QueryClient): void;
   readonly children: ReactNode;
 }
@@ -178,7 +174,6 @@ export function Harness({
   runtime,
   haptics,
   preferences = memoryPreferenceStorage(),
-  network,
   seed,
   children,
 }: HarnessProps): ReactElement {
@@ -191,7 +186,7 @@ export function Harness({
     seed?.(client);
     return client;
   });
-  const tree = (
+  return (
     <QueryClientProvider client={client}>
       <RuntimeProvider value={runtime}>
         <PrefsProvider value={createPrefsStore(preferences)}>
@@ -205,8 +200,6 @@ export function Harness({
       </RuntimeProvider>
     </QueryClientProvider>
   );
-
-  return network === undefined ? tree : <NetworkProvider value={network}>{tree}</NetworkProvider>;
 }
 
 /** The mark window and the snackbar are module-level singletons, so one case's

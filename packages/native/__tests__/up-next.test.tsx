@@ -1,9 +1,11 @@
+import { queryKeys } from "@cue/core/data/query-keys";
 import { TraktReadError } from "@cue/core/data/trakt/client";
 import type { LibraryEntry } from "@cue/core/data/trakt/library";
 import { useReadRetry } from "@cue/core/hooks/useReadRetry";
 import type { PreferenceStorage } from "@cue/core/ports/preference-storage";
 import { usePrefs } from "@cue/core/prefs/prefs-store";
 import { UNDO_WINDOW_MS } from "@cue/core/sync-contract";
+import { onlineManager } from "@tanstack/react-query";
 import {
   act,
   fireEvent,
@@ -23,7 +25,6 @@ import {
   entry,
   fakeRuntime,
   Harness,
-  OFFLINE,
   resetSharedStores,
   spyHaptics,
 } from "./support/up-next";
@@ -600,8 +601,18 @@ async function paintSync({
       : null),
     ...(flushWrites === undefined ? null : { flushWrites }),
   };
+  onlineManager.setOnline(!offline);
   await render(
-    <Harness runtime={runtime} haptics={haptics} network={offline ? OFFLINE : undefined}>
+    <Harness
+      runtime={runtime}
+      haptics={haptics}
+      seed={
+        offline
+          ? (client) =>
+              client.setQueryData(queryKeys.library(), { entries: [entry()], isPartial: false })
+          : undefined
+      }
+    >
       <UpNext />
     </Harness>,
   );
@@ -626,6 +637,22 @@ describe("Up Next's sync strip", () => {
     );
     // A failed refresh over a warm cache is a note, never a wipe.
     expect(screen.getByTestId("link-history")).toBeOnTheScreen();
+  });
+
+  it("waits for a connection with nothing cached, rather than calling the queue empty", async () => {
+    onlineManager.setOnline(false);
+    await render(
+      <Harness runtime={fakeRuntime({ entries: [entry()] })} haptics={haptics}>
+        <UpNext />
+      </Harness>,
+    );
+
+    expect(screen.getByTestId("up-next-skeleton")).toBeOnTheScreen();
+    expect(screen.getByTestId("sync-strip-offline")).toBeOnTheScreen();
+
+    await act(async () => onlineManager.setOnline(true));
+    await waitFor(() => expect(screen.queryByTestId("up-next-skeleton")).toBeNull());
+    expect(screen.queryByTestId("sync-strip")).toBeNull();
   });
 
   it("shows its own error state, and no strip, when there is nothing cached to keep", async () => {

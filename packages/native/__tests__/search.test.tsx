@@ -1,12 +1,13 @@
 import { TraktReadError } from "@cue/core/data/trakt/client";
 import type { SearchHit } from "@cue/core/data/trakt/search";
 import type { PreferenceStorage } from "@cue/core/ports/preference-storage";
+import { onlineManager } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 import { Platform } from "react-native";
 import { memoryPreferenceStorage } from "../../core/test/support/stores";
 import "./support/screen-mocks";
 import { SEARCH_FIELD } from "./support/native-ui";
-import { fakeRuntime, Harness, OFFLINE, spyHaptics } from "./support/up-next";
+import { fakeRuntime, Harness, spyHaptics } from "./support/up-next";
 
 const Search = (
   require("../app/(tabs)/(search)/search") as typeof import("../app/(tabs)/(search)/search")
@@ -62,17 +63,11 @@ interface Options {
   readonly search?: (query: string) => Promise<readonly SearchHit[]>;
   readonly browse?: Partial<Parameters<typeof fakeRuntime>[0]["browse"]>;
   readonly preferences?: PreferenceStorage;
-  readonly offline?: boolean;
 }
 
-async function paint({ search, browse, preferences, offline = false }: Options = {}) {
+async function paint({ search, browse, preferences }: Options = {}) {
   const view = await render(
-    <Harness
-      runtime={fakeRuntime({ search, browse })}
-      haptics={haptics}
-      preferences={preferences}
-      network={offline ? OFFLINE : undefined}
-    >
+    <Harness runtime={fakeRuntime({ search, browse })} haptics={haptics} preferences={preferences}>
       <Search />
     </Harness>,
   );
@@ -261,8 +256,9 @@ it("offers Retry when the search fails", async () => {
   expect(screen.getByTestId("search-error-retry")).toBeOnTheScreen();
 });
 
-it("says a query needs a connection, and browse does not", async () => {
-  await paint({ browse: { trending: [TRACKED] }, offline: true });
+it("says a query needs a connection, and keeps the browse grid it already has", async () => {
+  await paint({ browse: { trending: [TRACKED] } });
+  await act(async () => onlineManager.setOnline(false));
   expect(screen.getByTestId("search-browse")).toBeOnTheScreen();
 
   await type("harbor");

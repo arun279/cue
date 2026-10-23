@@ -1,11 +1,19 @@
 import { dismissSnack, useSnackbar } from "@cue/core/stores/snackbar-store";
+import { focusManager, onlineManager } from "@tanstack/react-query";
 import {
   type NativeStackNavigationProp,
   useNavigation,
   useNavigationContainerRef,
 } from "expo-router";
 import type { NavigationContainerRef, ParamListBase } from "expo-router/react-navigation";
-import { type ReactElement, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  type ReactElement,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
@@ -147,11 +155,19 @@ export function usePullTrace(refreshing: boolean): {
 } {
   const shownAt = useRef(performance.now());
   const [trace, setTrace] = useState("");
+  const note = useCallback(
+    (entry: string): void => setTrace((previous) => previous + pullEntry(entry, shownAt.current)),
+    [],
+  );
+  useEffect(() => note(`refreshing ${refreshing}`), [note, refreshing]);
   useEffect(() => {
-    setTrace((previous) => previous + pullEntry(`refreshing ${refreshing}`, shownAt.current));
-  }, [refreshing]);
-  const note = (entry: string): void =>
-    setTrace((previous) => previous + pullEntry(entry, shownAt.current));
+    const stopFocus = focusManager.subscribe((focused) => note(`focused ${focused}`));
+    const stopOnline = onlineManager.subscribe((online) => note(`online ${online}`));
+    return () => {
+      stopFocus();
+      stopOnline();
+    };
+  }, [note]);
   return {
     handlers: {
       onScrollBeginDrag: (event) => note(`drag ${offsetOf(event)}`),

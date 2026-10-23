@@ -18,7 +18,6 @@ import { useLibrarySnapshot } from "@cue/core/hooks/useLibrarySnapshot";
 import { type MarkWatched, useMarkWatched } from "@cue/core/hooks/useMarkWatched";
 import { useSyncNow } from "@cue/core/hooks/useSyncNow";
 import { useWatchlistAdd } from "@cue/core/hooks/useWatchlistAdd";
-import { type AppVisibility, AppVisibilityProvider } from "@cue/core/ports/app-visibility";
 import { calendarQuery } from "@cue/core/queries/calendar";
 import { browseQuery } from "@cue/core/queries/discover";
 import { movieLibraryQuery } from "@cue/core/queries/library";
@@ -30,6 +29,7 @@ import { useSnackbar } from "@cue/core/stores/snackbar-store";
 import {
   type DehydratedState,
   dehydrate,
+  focusManager,
   hydrate,
   notifyManager,
   type QueryClient,
@@ -161,15 +161,10 @@ interface Controls {
   scrollNotStarted: (() => void) | null;
 }
 
-class Foreground implements AppVisibility {
-  private readonly listeners = new Set<() => void>();
-  isVisible = (): boolean => true;
-  subscribe = (listener: () => void): (() => void) => {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
-  };
+class Foreground {
   enter(): void {
-    for (const listener of this.listeners) listener();
+    focusManager.setFocused(false);
+    focusManager.setFocused(true);
   }
 }
 
@@ -316,14 +311,12 @@ async function boot(size: LibrarySize, saved?: Saved, cacheAgeMs = 0): Promise<S
   };
 }
 
-async function open({ qc, runtime, foreground, controls, root }: Session): Promise<void> {
+async function open({ qc, runtime, controls, root }: Session): Promise<void> {
   await act(async () =>
     root.render(
       <QueryClientProvider client={qc}>
         <RuntimeProvider value={runtime}>
-          <AppVisibilityProvider value={foreground}>
-            <App controls={controls} />
-          </AppVisibilityProvider>
+          <App controls={controls} />
         </RuntimeProvider>
       </QueryClientProvider>,
     ),

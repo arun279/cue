@@ -1,11 +1,10 @@
-import { useQuery } from "@tanstack/react-query";
+import { focusManager, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo } from "react";
 import { buildCalendarDays, CALENDAR_WINDOW_DAYS } from "../domain/calendar";
 import { dayKeyOf } from "../domain/day";
 import { planReminders } from "../domain/reminders";
 import { DAY_MS, localTimeZone } from "../domain/time";
 import { activeShowIds } from "../domain/up-next";
-import { useAppVisibility } from "../ports/app-visibility";
 import { useReminders } from "../ports/reminders";
 import { usePrefs } from "../prefs/prefs-store";
 import { calendarQuery } from "../queries/calendar";
@@ -15,7 +14,6 @@ import { useLibrarySnapshot } from "./useLibrarySnapshot";
 
 export function useEpisodeReminders(): void {
   const reminders = useReminders();
-  const visibility = useAppVisibility();
   const enabled = usePrefs((state) => state.remindersEnabled);
   const summary = usePrefs((state) => state.dailySummary);
   const muted = usePrefs((state) => state.mutedShowIds);
@@ -45,10 +43,10 @@ export function useEpisodeReminders(): void {
       void reminders.reconcile(planReminders(days, { now: at, showIds, summary }));
     };
     reconcile();
-    return visibility.subscribe(() => {
-      if (visibility.isVisible()) reconcile();
+    return focusManager.subscribe((focused) => {
+      if (focused) reconcile();
     });
-  }, [reminders, visibility, enabled, days, shows, thresholdMs, muted, summary]);
+  }, [reminders, enabled, days, shows, thresholdMs, muted, summary]);
 
   useEffect(() => {
     if (!enabled) return;
