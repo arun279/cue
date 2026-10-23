@@ -542,13 +542,20 @@ async function coldStart(segment) {
   return startAndroidApp(segment);
 }
 
-/** Starts the app and waits for its channel; registered after the stop, so a ready from the stopped process cannot count. */
-async function launched(probe, channel) {
+/**
+ * Starts the app and waits for its channel; registered after the stop, so a ready from the
+ * stopped process cannot count. A launch that never reports ready leaves a screenshot of where
+ * it stopped.
+ */
+async function launched(probe, channel, directory) {
   await probe.stop();
   const ready = channel.ready();
   const launchedAt = Date.now();
   const sample = await probe.start();
-  await within(ready, READY_MS, "launch");
+  await within(ready, READY_MS, "launch").catch(async (error) => {
+    await probe.screenshot(path.join(directory, "launch-timeout.png"));
+    throw error;
+  });
   return { ...sample, launchToReadyMs: Date.now() - launchedAt };
 }
 
@@ -604,7 +611,7 @@ function androidProbe(directory) {
           samples.push({ run: index, ...(await coldStart(segment)) });
       }
       await shell("setprop", "debug.hwui.overdraw", "show");
-      await launched(probe, channel);
+      await launched(probe, channel, directory);
       await quiet();
       samples.push({
         run: 1,
@@ -698,7 +705,7 @@ async function measure(probe, channel, directory, runIndex, step, app) {
 
 async function pass(probe, channel, directory, runIndex, app) {
   await fetch(`${MOCK}/__reset?seed=scale`, { method: "POST" });
-  const samples = [{ run: runIndex, ...(await launched(probe, channel)) }];
+  const samples = [{ run: runIndex, ...(await launched(probe, channel, directory)) }];
   for (const step of PASS) {
     if (step.memory !== undefined) {
       samples.push({ run: runIndex, segment: `memory ${step.memory}`, ...(await probe.memory()) });
