@@ -90,6 +90,14 @@ export default function Settings(): ReactElement {
           />
         ) : null}
       </Section>
+      <Section title="Calendar">
+        <Toggle
+          title="Every watchlist episode"
+          hint="Show all new episodes of shows on your watchlist, not only premieres."
+          value={prefs.everyWatchlistEpisode}
+          onChange={prefs.setEveryWatchlistEpisode}
+        />
+      </Section>
       <Section title="Appearance">
         <View style={{ gap: SPACE.s2, paddingVertical: SPACE.s3 }}>
           <CueText variant="rowTitle" weight="regular" style={{ color: colors.fg }}>
@@ -156,12 +164,6 @@ export default function Settings(): ReactElement {
           Track TV shows, movies, or both. Turn off a medium and Cue hides it everywhere: Library,
           Search, and your history. At least one stays on.
         </Note>
-        <Toggle
-          title="Every watchlist episode"
-          hint="Show all new episodes of shows on your watchlist, not only premieres."
-          value={prefs.everyWatchlistEpisode}
-          onChange={prefs.setEveryWatchlistEpisode}
-        />
       </Section>
       <DataSection />
       <Section title="Account">

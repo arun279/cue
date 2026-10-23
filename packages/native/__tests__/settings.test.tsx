@@ -224,6 +224,7 @@ it("lists the sections in the order of the screen", async () => {
   await accountFixture().paint(<Settings />);
   expect(screen.getAllByRole("header").flatMap((heading) => heading.children)).toEqual([
     "Notifications",
+    "Calendar",
     "Appearance",
     "Tracking",
     "Content",
