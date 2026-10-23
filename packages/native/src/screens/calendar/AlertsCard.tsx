@@ -1,12 +1,10 @@
 import type { AlertsCard as Card } from "@cue/core/hooks/useAlertsCard";
 import type { ReactElement } from "react";
 import { StyleSheet, View } from "react-native";
-import Svg, { Path } from "react-native-svg";
 import { Button } from "../../ui/Button";
+import { PlatformIcon } from "../../ui/PlatformIcon";
 import { HAIRLINE, RADIUS, SPACE, useColors } from "../../ui/tokens";
 import { CueText } from "../../ui/type";
-
-const GLYPH = 22;
 
 export const ALERTS_HINT =
   "Alerts for new episodes of shows you watch. Cue plans them four weeks ahead each time you open it.";
@@ -17,16 +15,7 @@ export function AlertsCard({ card }: { readonly card: Card }): ReactElement {
   return (
     <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
       <View style={styles.head}>
-        <Svg width={GLYPH} height={GLYPH} viewBox="0 0 24 24">
-          <Path
-            d="M12 3.4a5.6 5.6 0 0 0-5.6 5.6v3.3l-1.4 2.8a.7.7 0 0 0 .63 1.01h12.74a.7.7 0 0 0 .63-1.01l-1.4-2.8V9A5.6 5.6 0 0 0 12 3.4ZM9.9 18.7a2.2 2.2 0 0 0 4.2 0"
-            fill="none"
-            stroke={colors.muted}
-            strokeWidth={1.8}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </Svg>
+        <PlatformIcon name="alerts" color={colors.muted} />
         <CueText
           variant="rowTitle"
           weight="semibold"

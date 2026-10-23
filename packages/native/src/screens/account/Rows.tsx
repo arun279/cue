@@ -182,7 +182,7 @@ export function Picker<T extends string | number>({
             >
               {label}
             </CueText>
-            <Chevron direction="down" />
+            <Chevron direction="picker" />
           </View>
         </RowMenu>
       }

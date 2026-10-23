@@ -3,8 +3,9 @@
 # never started, so Not started is the longest chip, newest addition first.
 #
 # The medium, the chip and the order are three separate choices over one grid,
-# and each one has to survive the others. Filtering to nothing is the state that
-# proves the grid is reading the settled query rather than every keystroke.
+# and each one has to survive the others. Filtering to nothing in the chip is the
+# state that proves the grid is reading the settled query rather than every
+# keystroke, and it names the chip that does match.
 appId: app.cuetracker
 ---
 - runFlow: lib/relaunch.yaml
@@ -69,9 +70,9 @@ appId: app.cuetracker
       platform: iOS
     commands:
       - tapOn: "Filter by title"
-- inputText: "zzz"
+- inputText: "coastal"
 - extendedWaitUntil:
-    visible: 'No shows match "zzz".'
+    visible: 'No shows in Watching match "coastal".'
     timeout: 10000
 # Search ends editing and dismisses the keyboard, shown by its delete key
 # going. The search bar keeps its clear button after search.
@@ -88,9 +89,14 @@ appId: app.cuetracker
       - extendedWaitUntil:
           notVisible: "(?i)delete"
           timeout: 10000
-- assertVisible: 'No shows match "zzz".'
+- assertVisible: 'No shows in Watching match "coastal".'
 - waitForAnimationToEnd
 - takeScreenshot: library-no-match
+- tapOn: "Show [0-9]+ in Not started"
+- assertVisible:
+    id: "show-card-8808"
+- tapOn:
+    id: "library-chip-watching"
 - tapOn:
     id: "library-filter-clear"
 - assertVisible:

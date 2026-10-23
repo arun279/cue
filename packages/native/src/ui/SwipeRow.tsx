@@ -6,7 +6,7 @@ import Swipeable, {
   SwipeDirection,
 } from "react-native-gesture-handler/ReanimatedSwipeable";
 import { runOnJS, type SharedValue, useAnimatedReaction } from "react-native-reanimated";
-import Svg, { Path, Rect } from "react-native-svg";
+import { PlatformIcon } from "./PlatformIcon";
 import { SPACE, SWIPE_COMMIT, useColors } from "./tokens";
 import { CueText } from "./type";
 
@@ -120,20 +120,7 @@ function Reveal({
           { backgroundColor: armed && mark ? colors.watched : colors.elevated },
         ]}
       />
-      <Svg width={size} height={size} viewBox="0 0 24 24">
-        {mark ? (
-          <Path
-            d="M4 12.5 9.5 18 20 6.5"
-            fill="none"
-            stroke={ink}
-            strokeWidth={2.5}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        ) : (
-          <Rect x="5" y="4" width="14" height="16" rx="3" fill={ink} />
-        )}
-      </Svg>
+      <PlatformIcon name={mark ? "done" : "stop"} color={ink} size={size} />
       {armed ? (
         <CueText variant="micro" weight="bold" eyebrow style={{ color: ink }}>
           {mark ? "Watched" : "Stop"}

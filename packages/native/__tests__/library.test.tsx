@@ -1,7 +1,7 @@
 import { TraktReadError } from "@cue/core/data/trakt/client";
 import type { LibraryEntry } from "@cue/core/data/trakt/library";
 import type { MovieEntry } from "@cue/core/data/trakt/movie-library";
-import { act, render, screen, userEvent, waitFor } from "@testing-library/react-native";
+import { act, render, screen, userEvent, waitFor, within } from "@testing-library/react-native";
 import { Platform } from "react-native";
 import { FILTER_DEBOUNCE_MS } from "../src/screens/library/model";
 import "./support/screen-mocks";
@@ -114,12 +114,27 @@ const labelOf = (element: { props: Record<string, unknown> }): string =>
 
 const chipLabels = (): string[] => screen.getAllByTestId(/^library-chip-/).map(labelOf);
 
-const selectedSort = (): string | undefined =>
-  screen
-    .getAllByTestId(/^sort-/)
+const SORT_LABELS = /^(Recently watched|Recently added|A-Z|Progress|Release year)$/;
+
+/** The bar's sort menu: a native menu on iOS, and on Android one opened from its button. */
+async function sortOptions(): Promise<string[]> {
+  if (Platform.OS === "android") await userEvent.press(screen.getByTestId("library-sort"));
+  return screen.getAllByLabelText(SORT_LABELS).map(labelOf);
+}
+
+async function sortBy(label: string): Promise<void> {
+  await sortOptions();
+  await userEvent.press(screen.getByLabelText(label));
+}
+
+async function selectedSort(): Promise<string | undefined> {
+  await sortOptions();
+  return screen
+    .getAllByLabelText(SORT_LABELS)
     .find((option) => option.props["accessibilityState"]?.selected === true)?.props[
     "accessibilityLabel"
   ];
+}
 
 beforeEach(() => jest.useFakeTimers());
 afterEach(() => {
@@ -162,29 +177,67 @@ it("remembers a chip per segment", async () => {
   expect(titles()).toEqual(["The Lantern Keeper"]);
 });
 
+it("puts the sort in the navigation bar beside the avatar, and keeps it out of the grid", async () => {
+  const { Stack } = jest.requireMock<typeof import("expo-router")>("expo-router");
+  await paint();
+
+  expect(within(screen.getByTestId("library-grid")).queryByTestId("library-sort")).toBeNull();
+  if (Platform.OS === "ios")
+    expect(jest.mocked(Stack.Toolbar.Menu)).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        testID: "library-sort",
+        accessibilityLabel: "Sort",
+        icon: "arrow.up.arrow.down",
+      }),
+      undefined,
+    );
+  else expect(screen.getByTestId("library-sort")).toHaveProp("accessibilityLabel", "Sort");
+  expect(screen.getByRole("button", { name: "Profile" })).toBeOnTheScreen();
+});
+
+it("declares the bar again only when the sort menu changes, not while the filter is typed", async () => {
+  const toolbar = jest.mocked(
+    jest.requireMock<typeof import("expo-router")>("expo-router").Stack.Toolbar,
+  );
+  await paint();
+  const declared = toolbar.mock.calls.length;
+
+  await userEvent.setup({ delay: 400 }).type(screen.getByPlaceholderText("Filter by title"), "har");
+  await act(async () => jest.advanceTimersByTime(FILTER_DEBOUNCE_MS));
+  expect(toolbar.mock.calls.length).toBe(declared);
+
+  await sortBy("A-Z");
+  expect(toolbar.mock.calls.length).toBeGreaterThan(declared);
+});
+
 it("reorders the grid from the sort menu", async () => {
   await paint();
 
-  await userEvent.press(screen.getByTestId("sort-alphabetical"));
+  await sortBy("A-Z");
 
   expect(titles()).toEqual(["Coastal Static", "Harbor Lights"]);
 });
 
 it("offers each chip its own sort options and keeps each chip's choice", async () => {
   await paint();
-  expect(screen.queryByTestId("sort-progress")).not.toBeNull();
-  await userEvent.press(screen.getByTestId("sort-alphabetical"));
+  await userEvent.press(screen.getByTestId("library-chip-finished"));
+  await sortBy("A-Z");
+  expect(await selectedSort()).toBe("A-Z");
+  await userEvent.press(screen.getByTestId("library-chip-watching"));
+  expect(await selectedSort()).toBe("Recently watched");
+  expect(await sortOptions()).toEqual(["Recently watched", "A-Z", "Progress"]);
+  await sortBy("A-Z");
 
   await userEvent.press(screen.getByTestId("library-chip-not-started"));
-  expect(screen.queryByTestId("sort-progress")).toBeNull();
-  expect(selectedSort()).toBe("Recently added");
+  expect(await sortOptions()).toEqual(["Recently added", "A-Z", "Release year"]);
+  expect(await selectedSort()).toBe("Recently added");
 
   await userEvent.press(screen.getByTestId("library-chip-watching"));
-  expect(selectedSort()).toBe("A-Z");
+  expect(await selectedSort()).toBe("A-Z");
 
   await userEvent.press(screen.getByTestId("library-segment-movies"));
-  expect(screen.queryByTestId("sort-progress")).toBeNull();
-  expect(selectedSort()).toBe("Recently added");
+  expect(await sortOptions()).toEqual(["Recently added", "A-Z", "Release year"]);
+  expect(await selectedSort()).toBe("Recently added");
 });
 
 it("lists everything never started, newest addition first", async () => {
@@ -246,6 +299,22 @@ it("filters on the settled query and clears the header field back to the grid", 
   await settle();
   expect(titles()).toEqual(["Harbor Lights", "Coastal Static"]);
   expect(field).toHaveDisplayValue("");
+});
+
+it("names the other chips the filter matches in, and switches to one, keeping the filter", async () => {
+  await paint();
+
+  await userEvent.type(screen.getByPlaceholderText("Filter by title"), "glass");
+  await act(async () => jest.advanceTimersByTime(FILTER_DEBOUNCE_MS));
+  expect(screen.getByText('No shows in Watching match "glass".')).toBeOnTheScreen();
+  await userEvent.press(screen.getByRole("button", { name: "Show 1 in Stopped" }));
+
+  expect(chipLabels()).toEqual(["Watching, 2", "Not started, 1", "Stopped, 1", "Finished, 1"]);
+  expect(screen.getByTestId("library-chip-stopped")).toHaveProp("accessibilityState", {
+    selected: true,
+  });
+  expect(titles()).toEqual(["Glasshouse"]);
+  expect(screen.getByPlaceholderText("Filter by title")).toHaveDisplayValue("glass");
 });
 
 it("says what each empty chip is for", async () => {

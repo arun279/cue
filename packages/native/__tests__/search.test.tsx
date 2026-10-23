@@ -200,8 +200,11 @@ it("flashes Added for 600 ms and then settles into In library", async () => {
     expect(screen.getByTestId(`search-result-${MASTER}-watchlist`)).toBeOnTheScreen(),
   );
 
+  expect(screen.getByTestId(`search-result-${MASTER}-watchlist`)).toHaveTextContent("Watchlist", {
+    exact: true,
+  });
   await fireEvent.press(screen.getByTestId(`search-result-${MASTER}-watchlist`));
-  expect(screen.getByTestId(ADDED)).toBeOnTheScreen();
+  expect(screen.getByTestId(ADDED)).toHaveTextContent("Added", { exact: true });
 
   await act(async () => void jest.advanceTimersByTime(FLASH_MS - 1));
   expect(screen.queryByTestId(ADDED)).not.toBeNull();

@@ -63,6 +63,7 @@ interface ToolbarMenuActionProps {
   readonly children: string;
   readonly hidden?: boolean;
   readonly disabled?: boolean;
+  readonly isOn?: boolean;
   onPress(): void;
 }
 
@@ -83,12 +84,17 @@ export function toolbarModule() {
       ),
     View: layout,
     Menu: jest.fn(layout),
-    MenuAction: ({ children, hidden, disabled, onPress }: ToolbarMenuActionProps) =>
+    MenuAction: ({ children, hidden, disabled, isOn, onPress }: ToolbarMenuActionProps) =>
       hidden === true
         ? null
         : createElement(
             Pressable,
-            { accessibilityRole: "button", accessibilityState: { disabled }, onPress },
+            {
+              accessibilityRole: "button",
+              accessibilityLabel: children,
+              accessibilityState: { disabled, ...(isOn === undefined ? {} : { selected: isOn }) },
+              onPress,
+            },
             createElement(Text, null, children),
           ),
   });
