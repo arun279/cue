@@ -95,17 +95,21 @@ jobs:
       - uses: ./.github/actions/maestro-cli
       - name: Install ffmpeg
         run: command -v ffmpeg || { sudo apt-get update -q && sudo apt-get install -yq ffmpeg; }
-      - name: Fetch the runs' Android apps
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RUN_ID: ${{ needs.request.outputs.run-id }}
-          COMPARE_RUN_ID: ${{ needs.request.outputs.compare-run-id }}
-        run: |
-          scripts/perf-probe-app.sh android "$RUN_ID" "$RUNNER_TEMP/app"
-          if [ -n "$COMPARE_RUN_ID" ]; then
-            scripts/perf-probe-app.sh android "$COMPARE_RUN_ID" "$RUNNER_TEMP/compare-app"
-            echo "COMPARE_APK=$RUNNER_TEMP/compare-app/universal.apk" >> "$GITHUB_ENV"
-          fi
+      - name: Fetch the run's Android app
+        uses: ./.github/actions/perf-probe-app
+        with:
+          platform: android
+          run-id: ${{ needs.request.outputs.run-id }}
+          path: ${{ runner.temp }}/app
+      - if: needs.request.outputs.compare-run-id != ''
+        name: Fetch the compared run's Android app
+        uses: ./.github/actions/perf-probe-app
+        with:
+          platform: android
+          run-id: ${{ needs.request.outputs.compare-run-id }}
+          path: ${{ runner.temp }}/compare-app
+      - if: needs.request.outputs.compare-run-id != ''
+        run: echo "COMPARE_APK=$RUNNER_TEMP/compare-app/universal.apk" >> "$GITHUB_ENV"
       - uses: ./.github/actions/android-emulator
       - name: Run the probe
         uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
@@ -137,17 +141,21 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/boot-ios-simulator
-      - name: Fetch the runs' simulator apps
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RUN_ID: ${{ needs.request.outputs.run-id }}
-          COMPARE_RUN_ID: ${{ needs.request.outputs.compare-run-id }}
-        run: |
-          scripts/perf-probe-app.sh ios "$RUN_ID" "$RUNNER_TEMP/app"
-          if [ -n "$COMPARE_RUN_ID" ]; then
-            scripts/perf-probe-app.sh ios "$COMPARE_RUN_ID" "$RUNNER_TEMP/compare-app"
-            echo "COMPARE_APP=$RUNNER_TEMP/compare-app/Cue.app" >> "$GITHUB_ENV"
-          fi
+      - name: Fetch the run's simulator app
+        uses: ./.github/actions/perf-probe-app
+        with:
+          platform: ios
+          run-id: ${{ needs.request.outputs.run-id }}
+          path: ${{ runner.temp }}/app
+      - if: needs.request.outputs.compare-run-id != ''
+        name: Fetch the compared run's simulator app
+        uses: ./.github/actions/perf-probe-app
+        with:
+          platform: ios
+          run-id: ${{ needs.request.outputs.compare-run-id }}
+          path: ${{ runner.temp }}/compare-app
+      - if: needs.request.outputs.compare-run-id != ''
+        run: echo "COMPARE_APP=$RUNNER_TEMP/compare-app/Cue.app" >> "$GITHUB_ENV"
       - id: runner-key
         name: Key the Maestro runner the way CI does
         run: echo "key=$(scripts/build-maestro-runner.sh key)" >> "$GITHUB_OUTPUT"
