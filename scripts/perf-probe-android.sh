@@ -38,9 +38,9 @@ adb shell am force-stop dev.mobile.maestro
 adb shell am force-stop dev.mobile.maestro.test
 adb shell am force-stop app.cuetracker
 trace=/data/misc/perfetto-traces/cold-start.perfetto-trace
-adb shell perfetto --background --txt -c - -o "$trace" < scripts/cold-start.pbtx
+adb shell perfetto --txt -c - -o "$trace" --detach=cold-start < scripts/cold-start.pbtx
 adb shell am start -W -n app.cuetracker/.MainActivity
-while adb shell pidof perfetto > /dev/null; do sleep 1; done
+adb shell perfetto --attach=cold-start --stop
 adb pull "$trace" "$output/cold-start.perfetto-trace"
 export PERF_MOCK_LOG="$output/mock-trakt.log"
 if [ "$#" -gt 1 ]; then
