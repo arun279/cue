@@ -18,7 +18,7 @@ import {
 import { useSyncActivity } from "@cue/core/stores/sync-activity-store";
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { act, type ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, type Mock, vi } from "vitest";
 import { mount, mountAsync, unmount } from "./_mount";
 
 function Probe(): null {
@@ -218,6 +218,71 @@ describe("useActivitiesPoll reconcile", () => {
     expect(commit).toHaveBeenCalledOnce();
   });
 
+  /** A library read that fails offline at mount, a poll that answers, and a reconnect that
+   * polls again; `refetch` stands in for every read after the first. */
+  async function reconnectAfterFailedRead(refetch: () => Promise<unknown>) {
+    let reads = 0;
+    function Library(): null {
+      useQuery({
+        queryKey: queryKeys.library(),
+        retry: false,
+        queryFn: () => {
+          reads += 1;
+          return reads === 1 ? Promise.reject(new Error("offline")) : refetch();
+        },
+      });
+      return null;
+    }
+    const device = devicePorts();
+    const commit = vi.fn(() => Promise.resolve());
+    await mountAsync(
+      withPorts(
+        device,
+        reconcileRuntime({ keys: [], commit }),
+        <>
+          <Library />
+          <Probe />
+        </>,
+      ),
+    );
+    await vi.waitFor(() => expect(reads).toBe(1));
+    commit.mockClear();
+    await act(async () => device.setOnline(false));
+    await act(async () => device.setOnline(true));
+    return { commit, reads: () => reads };
+  }
+
+  it("fetches a failed read again when Trakt answers on reconnect, though nothing changed there", async () => {
+    const { reads } = await reconnectAfterFailedRead(() => Promise.resolve({ entries: [] }));
+    await vi.waitFor(() => expect(reads()).toBe(2));
+  });
+
+  /** A library read held open until the test lets it land. */
+  function heldRead() {
+    let land: (() => void) | undefined;
+    return {
+      read: () =>
+        new Promise((resolve) => {
+          land = () => resolve({ entries: [] });
+        }),
+      started: () => land !== undefined,
+      land: () => land?.(),
+    };
+  }
+
+  async function endSessionBeforeLanding(held: ReturnType<typeof heldRead>, commit: Mock) {
+    await vi.waitFor(() => expect(held.started()).toBe(true));
+    unmount();
+    await act(async () => held.land());
+    expect(commit).not.toHaveBeenCalled();
+  }
+
+  it("never advances the baseline for a session torn down while a failed read is fetched again", async () => {
+    const held = heldRead();
+    const { commit } = await reconnectAfterFailedRead(held.read);
+    await endSessionBeforeLanding(held, commit);
+  });
+
   it("never advances the baseline or checks a session torn down mid-poll", async () => {
     const commit = vi.fn(() => Promise.resolve());
     let answer: ((reconcile: ActivitiesReconcile) => void) | undefined;
@@ -238,37 +303,28 @@ describe("useActivitiesPoll reconcile", () => {
 
   it("never advances the baseline for a session torn down mid-refresh", async () => {
     const commit = vi.fn(() => Promise.resolve());
-    let finishRefetch: (() => void) | undefined;
+    const held = heldRead();
     let reads = 0;
     function Library(): null {
       useQuery({
         queryKey: queryKeys.library(),
         queryFn: () => {
           reads += 1;
-          return reads === 1
-            ? Promise.resolve({ entries: [] })
-            : new Promise((resolve) => {
-                finishRefetch = () => resolve({ entries: [] });
-              });
+          return reads === 1 ? Promise.resolve({ entries: [] }) : held.read();
         },
       });
       return null;
     }
-    const device = devicePorts();
-    const runtime = reconcileRuntime({ keys: [queryKeys.library()], commit });
     await mountAsync(
       withPorts(
-        device,
-        runtime,
+        devicePorts(),
+        reconcileRuntime({ keys: [queryKeys.library()], commit }),
         <>
           <Library />
           <Probe />
         </>,
       ),
     );
-    await vi.waitFor(() => expect(finishRefetch).toBeDefined());
-    unmount();
-    await act(async () => finishRefetch?.());
-    expect(commit).not.toHaveBeenCalled();
+    await endSessionBeforeLanding(held, commit);
   });
 });

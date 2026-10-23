@@ -1,15 +1,10 @@
-import { type TraktFailure, TraktReadError } from "./data/trakt/client";
+import { healsOnRetry, type TraktFailure, TraktReadError } from "./data/trakt/client";
 
 export const UNDO_WINDOW_MS = 5000;
 
 export const PENDING_GRACE_MS = 5000;
 
 export const PENDING_THRESHOLD = 3;
-
-function healsOnRetry(failure: TraktFailure): boolean {
-  if (failure.kind === "network" || failure.kind === "timeout") return true;
-  return failure.kind === "server" && failure.status >= 500;
-}
 
 export function readFailureOf(error: unknown): TraktFailure | null {
   return error instanceof TraktReadError ? error.failure : null;

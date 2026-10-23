@@ -37,6 +37,7 @@ export const TEST_IDS = {
   upNextList: "up-next-list",
   upNextSkeleton: "up-next-skeleton",
   upNextError: "up-next-error",
+  upNextRetrying: "up-next-retrying",
   upNextErrorRetry: "up-next-error-retry",
   upNextTvOff: "up-next-tv-off",
   watchlistTile: "watchlist-tile",

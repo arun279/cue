@@ -67,7 +67,6 @@ const CARD: UpNextCard = {
     title: SHOW.title,
     episode: SHOW.nextEpisode,
     lastWatchedAt: null,
-    backlog: SHOW.aired - SHOW.completed,
   },
   entry: SHOW,
 };

@@ -28,7 +28,7 @@ export const entry = upNextEntry({
 });
 
 export const cardOf = (pendingAdvance: boolean): UpNextCard => ({
-  item: { showId: SHOW_ID, title: entry.title, episode, lastWatchedAt: null, backlog: 2 },
+  item: { showId: SHOW_ID, title: entry.title, episode, lastWatchedAt: null },
   entry: { ...entry, pendingAdvance },
 });
 

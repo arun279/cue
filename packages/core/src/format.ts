@@ -28,12 +28,7 @@ export function watchedPercent(completed: number, aired: number): number {
   return Math.max(0, Math.min(100, Math.round((completed / aired) * 100)));
 }
 
-export function episodesLeft(aired: number, completed: number): number {
-  return Math.max(0, aired - completed);
-}
-
-export function leftNote(aired: number, completed: number): string | null {
-  const left = episodesLeft(aired, completed);
+export function leftNote(left: number): string | null {
   return left > 0 ? `${left} left` : null;
 }
 

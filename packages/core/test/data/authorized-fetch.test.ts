@@ -179,12 +179,39 @@ describe("createAuthorizedFetch: dead refresh token", () => {
     expect(res.status).toBe(401);
   });
 
-  it("keeps the session on a transient 500 refresh failure", async () => {
+  it("keeps the session on a transient 500 refresh failure and reads it as Trakt trouble", async () => {
     stubRefresh(() => HttpResponse.json({}, { status: 500 }));
     const { res, endSession } = await on401("GET");
 
     expect(endSession).not.toHaveBeenCalled();
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(500);
+  });
+
+  it("keeps reading a 401 inside the refresh throttle as Trakt trouble while the last refresh failed", async () => {
+    stubRefresh(() => HttpResponse.json({}, { status: 503 }));
+    const inner = vi.fn<FetchLike>(() => Promise.resolve(res401()));
+    const { authorized } = build({ inner });
+
+    await authorized.fetch("https://api.trakt.tv/a", { method: "GET" });
+    const second = await authorized.fetch("https://api.trakt.tv/b", { method: "GET" });
+
+    expect(second.status).toBe(503);
+  });
+
+  it("ends the session once however many reads were waiting on the refresh", async () => {
+    stubRefresh(() => HttpResponse.json({ error: "invalid_grant" }, { status: 401 }));
+    const inner = vi.fn<FetchLike>(() => Promise.resolve(res401()));
+    const { authorized, endSession } = build({ inner });
+
+    const responses = await Promise.all(
+      ["a", "b", "c", "d", "e"].map((path) =>
+        authorized.fetch(`https://api.trakt.tv/${path}`, { method: "GET" }),
+      ),
+    );
+    await authorized.fetch("https://api.trakt.tv/f", { method: "GET" });
+
+    expect(endSession).toHaveBeenCalledTimes(1);
+    expect(responses.map((response) => response.status)).toEqual([401, 401, 401, 401, 401]);
   });
 
   it("keeps the session on a 400 that is not invalid_grant (a config/request bug)", async () => {
@@ -207,12 +234,15 @@ describe("createAuthorizedFetch: dead refresh token", () => {
     expect(res.status).toBe(401);
   });
 
-  it("keeps the session when the refresh network call itself rejects (offline)", async () => {
+  it("keeps the session when the refresh network call itself rejects (offline), failing the read as offline", async () => {
     server.use(http.post(`${TRAKT_API_BASE}/oauth/token`, () => HttpResponse.error()));
-    const { res, endSession } = await on401("GET");
+    const inner = vi.fn<FetchLike>(() => Promise.resolve(res401()));
+    const { authorized, endSession } = build({ inner });
 
+    await expect(
+      authorized.fetch("https://api.trakt.tv/sync/x", { method: "GET" }),
+    ).rejects.toThrow();
     expect(endSession).not.toHaveBeenCalled();
-    expect(res.status).toBe(401);
   });
 });
 

@@ -64,6 +64,11 @@ it.each([
   if (kind === "returning") expect(screen.getByText("S3 returns in 87 days")).toBeOnTheScreen();
 });
 
+it("counts what is left from the next-up episode, leaving skipped seasons out", async () => {
+  await render(<ContinueBar entry={entry({ aired: 30, completed: 7, left: 13 })} mark={mark} />);
+  expect(screen.getByLabelText(/, 7 of 30 watched · 13 left$/)).toBeOnTheScreen();
+});
+
 it("offers Start watching before the first mark", async () => {
   await render(<ContinueBar entry={entry({ completed: 0 })} mark={mark} />);
   expect(screen.getByText("Start watching")).toBeOnTheScreen();

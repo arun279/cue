@@ -96,6 +96,7 @@ const baseEntry: LibraryEntry = {
   lastWatchedAt: "2026-07-01T00:00:00.000Z",
   aired: 10,
   completed: 3,
+  left: 7,
   nextEpisode: {
     season: 1,
     number: 4,
@@ -270,6 +271,59 @@ describe("assembleLibrary", () => {
       watchlistShows: [],
     });
     expect(entries[0]?.nextEpisode).toBeNull();
+  });
+
+  it("counts what is left from the next-up episode, not the seasons skipped before it", () => {
+    const episodes = (count: number, watched: (number: number) => boolean) =>
+      Array.from({ length: count }, (_, index) => ({
+        number: index + 1,
+        completed: watched(index + 1),
+      }));
+    const entries = assembleLibrary({
+      watchedShows: [watchedShow({ trakt: 7, seasons: { 2: 7 } })],
+      progress: new Map([
+        [
+          7,
+          progress({
+            aired: 30,
+            completed: 7,
+            next: { season: 2, number: 7, ids: { trakt: 207 } },
+            seasons: [
+              { number: 0, aired: 2, completed: 0, episodes: episodes(2, () => false) },
+              { number: 1, aired: 10, completed: 0, episodes: episodes(10, () => false) },
+              {
+                number: 2,
+                aired: 10,
+                completed: 7,
+                episodes: episodes(10, (number) => number < 7 || number === 9),
+              },
+              { number: 3, aired: 10, completed: 0, episodes: episodes(10, () => false) },
+            ],
+          }),
+        ],
+      ]),
+      hiddenShowIds: new Set(),
+      collectionShows: [],
+      watchlistShows: [],
+    });
+    expect(entries[0]).toMatchObject({ aired: 30, completed: 7, left: 13 });
+  });
+
+  it("counts every unwatched aired episode as left when progress has no breakdown or was not read", () => {
+    const entries = assembleLibrary({
+      watchedShows: [
+        watchedShow({ trakt: 8, seasons: { 1: 3 } }),
+        watchedShow({ trakt: 9, airedEpisodes: 10, seasons: { 1: 4 } }),
+      ],
+      progress: new Map([[8, progress({ aired: 10, completed: 3, seasons: undefined })]]),
+      hiddenShowIds: new Set(),
+      collectionShows: [],
+      watchlistShows: [],
+    });
+    expect(entries.map(({ showId, left }) => [showId, left])).toEqual([
+      [8, 7],
+      [9, 6],
+    ]);
   });
 
   it("does not fall back to the watched frontier when fetched progress has no breakdown", () => {
@@ -455,6 +509,7 @@ describe("advancePastNext", () => {
   it("projects the following episode with an unknown air date, bumps completed, flags pendingAdvance", () => {
     const advanced = advancePastNext(baseEntry, "2026-07-05T12:00:00.000Z");
     expect(advanced.completed).toBe(4);
+    expect(advanced.left).toBe(6);
     expect(advanced.lastWatchedAt).toBe("2026-07-05T12:00:00.000Z");
     expect(advanced.pendingAdvance).toBe(true);
     expect(advanced.nextEpisode).toEqual({

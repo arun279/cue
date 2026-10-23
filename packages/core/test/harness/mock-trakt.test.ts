@@ -159,6 +159,7 @@ describe("the post-mark projection over the seeded catalogue", () => {
           lastWatchedAt: null,
           aired: aired.length,
           completed: index,
+          left: aired.length - index,
           nextEpisode: {
             season: episode.season,
             number: episode.number,

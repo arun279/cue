@@ -6,6 +6,7 @@ import {
   type ShowProgress,
   toEpisodeRef,
 } from "@cue/core/data/trakt/show-detail";
+import { episodesLeftFrom } from "@cue/core/domain/model/library";
 import { combineStatus } from "@cue/core/queries/freshness";
 import { libraryQuery } from "@cue/core/queries/library";
 import { showInfoQuery, showProgressQuery, showSeasonsQuery } from "@cue/core/queries/shows";
@@ -59,10 +60,8 @@ function entryFor(
 ): LibraryEntry {
   if (cached?.pendingAdvance) return cached;
   const { hidden, inWatchlist, addedAt, lastWatchedAt, runtime } = cached ?? UNCACHED;
-  const next =
-    header.completed < header.aired && !header.nextEpisode?.aired
-      ? firstUnwatchedAired(seasons)
-      : header.nextEpisode;
+  const skipsUnaired = header.completed < header.aired && !header.nextEpisode?.aired;
+  const next = skipsUnaired ? firstUnwatchedAired(seasons) : header.nextEpisode;
   return {
     showId: header.ids.trakt,
     title: header.title,
@@ -70,6 +69,12 @@ function entryFor(
     status: header.status,
     aired: header.aired,
     completed: header.completed,
+    left: skipsUnaired
+      ? episodesLeftFrom(
+          next,
+          seasons.flatMap((season) => season.episodes.filter((episode) => episode.aired)),
+        )
+      : header.left,
     lastAired: header.lastAired,
     nextEpisode: next === null ? null : toEpisodeRef(next),
     hidden,

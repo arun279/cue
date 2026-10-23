@@ -14,6 +14,7 @@ const show = (showId: number, completed: number, runtime: number | null): Librar
   lastWatchedAt: null,
   aired: 40,
   completed,
+  left: 40 - completed,
   nextEpisode: null,
   lastAired: null,
   tmdbId: null,
