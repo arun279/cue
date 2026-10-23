@@ -251,6 +251,45 @@ describe("useActivitiesPoll reconcile", () => {
     await vi.waitFor(() => expect(reads).toBe(2));
   });
 
+  it("never advances the baseline for a session torn down while a failed read is fetched again", async () => {
+    let reads = 0;
+    let finishRefetch: (() => void) | undefined;
+    function Library(): null {
+      useQuery({
+        queryKey: queryKeys.library(),
+        retry: false,
+        queryFn: () => {
+          reads += 1;
+          if (reads === 1) return Promise.reject(new Error("offline"));
+          return new Promise((resolve) => {
+            finishRefetch = () => resolve({ entries: [] });
+          });
+        },
+      });
+      return null;
+    }
+    const device = devicePorts();
+    const commit = vi.fn(() => Promise.resolve());
+    await mountAsync(
+      withPorts(
+        device,
+        reconcileRuntime({ keys: [], commit }),
+        <>
+          <Library />
+          <Probe />
+        </>,
+      ),
+    );
+    await vi.waitFor(() => expect(reads).toBe(1));
+    commit.mockClear();
+    await act(async () => device.setOnline(false));
+    await act(async () => device.setOnline(true));
+    await vi.waitFor(() => expect(finishRefetch).toBeDefined());
+    unmount();
+    await act(async () => finishRefetch?.());
+    expect(commit).not.toHaveBeenCalled();
+  });
+
   it("never advances the baseline or checks a session torn down mid-poll", async () => {
     const commit = vi.fn(() => Promise.resolve());
     let answer: ((reconcile: ActivitiesReconcile) => void) | undefined;
