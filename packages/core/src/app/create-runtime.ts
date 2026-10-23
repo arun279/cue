@@ -186,7 +186,15 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     INCIDENTS_KEY,
     parseIncidents,
   );
-  useReadIncidents.setState({ incidents: (await incidentStore.read()) ?? [] });
+  const opLogStore = createJsonStore<QueuedOp[]>(deps.kv, OP_LOG_KEY, (value) =>
+    Array.isArray(value) ? (value as QueuedOp[]) : [],
+  );
+  const [incidents, receipts, log] = await Promise.all([
+    incidentStore.read(),
+    createWriteReceipts(deps.kv),
+    opLogStore.read(),
+  ]);
+  useReadIncidents.setState({ incidents: incidents ?? [] });
   const report: ReadReporter = (endpoint, problem) => {
     const { incidents } = useReadIncidents.getState();
     const next = recordIncident(incidents, endpoint, problem, Date.now());
@@ -215,11 +223,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     report,
   });
 
-  const opLogStore = createJsonStore<QueuedOp[]>(deps.kv, OP_LOG_KEY, (value) =>
-    Array.isArray(value) ? (value as QueuedOp[]) : [],
-  );
   const activitiesStore = createJsonStore<LastActivities>(deps.kv, ACTIVITIES_KEY);
-  const receipts = await createWriteReceipts(deps.kv);
 
   const queue = new WriteQueue(
     {
@@ -229,7 +233,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       reconcile: createReconcile(client),
       settle: receipts.settle,
     },
-    (await opLogStore.read()) ?? [],
+    log ?? [],
   );
 
   const persistLog = (): Promise<void> => opLogStore.write(queue.snapshot());
