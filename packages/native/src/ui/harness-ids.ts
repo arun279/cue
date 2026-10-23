@@ -8,4 +8,5 @@ export const HARNESS_IDS = {
   onboardingReady: "onboarding-ready",
   pullTrace: "pull-trace",
   snackbarTrace: "snackbar-trace",
+  bootFailure: "boot-failure",
 } as const;
