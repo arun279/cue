@@ -4,7 +4,7 @@ import { useAppVisibility } from "../ports/app-visibility";
 import { useNetwork } from "../ports/network";
 import { useOptionalRuntime } from "../runtime/runtime";
 import { useSyncActivity } from "../stores/sync-activity-store";
-import { applyReconcile } from "./apply-reconcile";
+import { applyReconcile, refetchFailedReads } from "./apply-reconcile";
 
 const POLL_INTERVAL_MS = 60_000;
 
@@ -25,7 +25,10 @@ export function useActivitiesPoll(): void {
     const reconcileActivities = async (): Promise<void> => {
       const reconcile = await runtime.pollActivities();
       if (cancelled) return;
-      if (reconcile !== null) await applyReconcile(queryClient, reconcile, () => cancelled);
+      if (reconcile !== null) {
+        await refetchFailedReads(queryClient);
+        if (!cancelled) await applyReconcile(queryClient, reconcile, () => cancelled);
+      }
       if (!cancelled) useSyncActivity.getState().setChecked(true);
     };
 

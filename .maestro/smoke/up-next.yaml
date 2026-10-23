@@ -7,7 +7,6 @@ name: up-next
     text: "Midnight Cartography, S2 E3.*"
 - tapOn:
     id: "queue-row-8803-body"
-    retryTapIfNoChange: true
 - extendedWaitUntil:
     visible:
       id: "continue-mark"
@@ -29,7 +28,6 @@ name: up-next
       - tapOn:
           text: "Up Next"
           index: 0
-          retryTapIfNoChange: true
 - runFlow:
     when:
       platform: Android

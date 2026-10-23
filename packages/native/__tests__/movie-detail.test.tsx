@@ -1,3 +1,4 @@
+import { TraktReadError } from "@cue/core/data/trakt/client";
 import { persistMediaVisibility } from "@cue/core/prefs/media-visibility";
 import { movieHeaderQuery } from "@cue/core/queries/movies";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
@@ -240,6 +241,21 @@ it("shows the movie error when membership cannot load", async () => {
   await mount(runtime);
   expect(await screen.findByText("Couldn't load this movie")).toBeOnTheScreen();
   expect(screen.queryByTestId(TEST_IDS.movieMark)).toBeNull();
+});
+
+it.each([
+  [{ kind: "server", status: 503 } as const, "Trakt is having trouble. Try again in a moment."],
+  [
+    { kind: "rate-limited", retryAfterMs: null } as const,
+    "Trakt is limiting requests. Cue will try again shortly.",
+  ],
+  [{ kind: "network" } as const, "Check your connection and try again."],
+])("says why the movie could not load after a %j failure", async (failure, body) => {
+  const runtime = movieRuntime();
+  runtime.loadMovieLibrary.mockRejectedValue(new TraktReadError(failure, "movie library"));
+  await mount(runtime);
+  expect(await screen.findByText("Couldn't load this movie")).toBeOnTheScreen();
+  expect(screen.getByText(body)).toBeOnTheScreen();
 });
 
 const replaced = { added: 0, updated: 1, deleted: 0, existing: 0, notFound: 0 };

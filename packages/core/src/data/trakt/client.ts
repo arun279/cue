@@ -58,6 +58,11 @@ export class TraktReadError extends Error {
   }
 }
 
+export function healsOnRetry(failure: TraktFailure): boolean {
+  if (failure.kind === "network" || failure.kind === "timeout") return true;
+  return failure.kind === "server" && failure.status >= 500;
+}
+
 export function unwrapRead<T>(result: TraktResult<T>, what: string): T {
   if (result.ok) return result.data;
   throw new TraktReadError(result.error, what);

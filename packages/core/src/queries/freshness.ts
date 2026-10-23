@@ -37,6 +37,12 @@ export function queryStatus(query: QueryResultStatus, hasData: boolean): QuerySt
   };
 }
 
+/** A load that retries its own reads keeps fetching through a failure: say so while it does. */
+export function retryingPast(status: QueryStatus, failure: TraktFailure | null): QueryStatus {
+  if (failure === null || !status.isFetching) return status;
+  return { ...status, failure, retrying: true };
+}
+
 export function combineStatus(
   queries: readonly QueryResultStatus[],
   hasData: boolean,

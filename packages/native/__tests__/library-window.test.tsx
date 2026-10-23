@@ -112,8 +112,8 @@ describe.each([
     expect(larger).toEqual(large);
     expect(large.tiles).toBeLessThan(300);
     expect(large.menus).toBe(Platform.OS === "ios" ? large.tiles : 0);
-    // The one native menu host is the screen's sort menu; no tile mounts its own.
-    expect(large.hosts).toBe(1);
+    // The sort menu is a bar item, and no tile mounts a native menu host of its own.
+    expect(large.hosts).toBe(0);
     expect(large.images + large.artReads).toBeLessThanOrEqual(large.tiles);
   });
 });

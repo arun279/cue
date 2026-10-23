@@ -64,6 +64,21 @@ export function UpNextError({
   );
 }
 
+export function UpNextRetrying({
+  failure,
+}: {
+  readonly failure: TraktFailure | null;
+}): ReactElement {
+  return (
+    <EmptyState
+      testID={TEST_IDS.upNextRetrying}
+      centered
+      headline="Still trying to reach Trakt"
+      body={readFailureBody(failure)}
+    />
+  );
+}
+
 interface EmptyCopy {
   readonly headline: string;
   readonly body?: string;

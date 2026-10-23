@@ -1,5 +1,6 @@
 import { TraktReadError } from "@cue/core/data/trakt/client";
 import type { LibraryEntry } from "@cue/core/data/trakt/library";
+import { useReadRetry } from "@cue/core/hooks/useReadRetry";
 import type { PreferenceStorage } from "@cue/core/ports/preference-storage";
 import { usePrefs } from "@cue/core/prefs/prefs-store";
 import { UNDO_WINDOW_MS } from "@cue/core/sync-contract";
@@ -28,6 +29,7 @@ import {
 } from "./support/up-next";
 
 jest.mock("expo-router", () => require("./support/native-ui").expoRouterModule());
+jest.mock("@cue/core/hooks/useReadRetry", () => ({ useReadRetry: jest.fn(() => null) }));
 jest.mock("@expo/ui/community/menu", () => require("./support/native-ui").menuModule());
 jest.mock("react-native-gesture-handler/ReanimatedSwipeable", () =>
   require("./support/native-ui").swipeableModule(),
@@ -132,6 +134,7 @@ const quickMark = (showId: number) => menuItem(within(row(showId)), /^Mark .* wa
 
 beforeEach(() => {
   jest.clearAllMocks();
+  jest.mocked(useReadRetry).mockReturnValue(null);
   resetSharedStores();
 });
 
@@ -158,6 +161,21 @@ describe("Up Next", () => {
     // Torn down while the read is still held, because the calendar query and the
     // list's own cell batch both land after the last assertion, and an update
     // with no case left to observe it is one React saw outside act.
+    view.unmount();
+  });
+
+  it("says it is still trying, and why, once a first read fails with nothing to show", async () => {
+    jest.mocked(useReadRetry).mockReturnValue({ kind: "timeout" });
+    const held = { ...fakeRuntime({}), loadUpNext: () => new Promise<never>(() => {}) };
+    const view = await render(
+      <Harness runtime={held} haptics={haptics}>
+        <UpNext />
+      </Harness>,
+    );
+
+    expect(screen.getByText("Still trying to reach Trakt")).toBeOnTheScreen();
+    expect(screen.getByText("Trakt didn't answer in time.")).toBeOnTheScreen();
+    expect(screen.queryByTestId("up-next-skeleton")).toBeNull();
     view.unmount();
   });
 
@@ -199,7 +217,7 @@ describe("Up Next", () => {
     // cannot stand by, so that row draws no count at all.
     await paint({
       entries: queueOf().map((show) =>
-        show.showId === HARBOR ? { ...show, completed: show.aired } : show,
+        show.showId === HARBOR ? { ...show, completed: show.aired, left: 0 } : show,
       ),
     });
 
@@ -207,6 +225,17 @@ describe("Up Next", () => {
     expect(screen.getByText("1 left", { includeHiddenElements: true })).toBeOnTheScreen();
     expect(screen.getByText("2 left", { includeHiddenElements: true })).toBeOnTheScreen();
     expect(screen.queryByText("0 left", { includeHiddenElements: true })).toBeNull();
+  });
+
+  it("counts what is left from the next-up episode, leaving skipped seasons out", async () => {
+    await paint({
+      entries: queueOf().map((show) =>
+        show.showId === HARBOR ? { ...show, aired: 30, completed: 7, left: 13 } : show,
+      ),
+    });
+
+    expect(screen.getByText("13 left", { includeHiddenElements: true })).toBeOnTheScreen();
+    expect(screen.queryByText("23 left", { includeHiddenElements: true })).toBeNull();
   });
 
   it("replaces the old timeline strip with one row that opens the whole log", async () => {

@@ -9,7 +9,6 @@ name: sign-in
 - takeScreenshot: onboarding
 - tapOn:
     id: "button-connect"
-    retryTapIfNoChange: true
 - extendedWaitUntil:
     visible:
       id: "device-code-value"

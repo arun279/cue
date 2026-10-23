@@ -7,7 +7,7 @@ import { Poster } from "../../ui/Poster";
 import { Row } from "../../ui/Row";
 import { RowMenu, type RowMenuItem } from "../../ui/RowMenu";
 import { TEST_IDS } from "../../ui/test-ids";
-import { ROW_MIN_HEIGHT, SPACE, useColors } from "../../ui/tokens";
+import { ROW_MIN_HEIGHT, SPACE, TITLE_LINES, useColors } from "../../ui/tokens";
 import { CueText } from "../../ui/type";
 import { entryDetail, type HistoryRowModel } from "./model";
 
@@ -79,7 +79,11 @@ export function HistoryRow({
             ) : undefined
           }
         >
-          <CueText variant="rowTitleSecondary" style={{ color: colors.ink2 }}>
+          <CueText
+            variant="rowTitleSecondary"
+            numberOfLines={TITLE_LINES}
+            style={{ color: colors.ink2 }}
+          >
             <CueText variant="rowTitleSecondary" weight="semibold" style={{ color: colors.fg }}>
               {entry.title}
             </CueText>

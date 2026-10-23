@@ -18,7 +18,7 @@ import { RowFooter } from "../../ui/RowFooter";
 import { RowMenu, type RowMenuItem } from "../../ui/RowMenu";
 import { SwipeRow } from "../../ui/SwipeRow";
 import { TEST_IDS } from "../../ui/test-ids";
-import { POSTER_WIDTH, RAIL, ROW_MIN_HEIGHT, SPACE, useColors } from "../../ui/tokens";
+import { POSTER_WIDTH, RAIL, ROW_MIN_HEIGHT, SPACE, TITLE_LINES, useColors } from "../../ui/tokens";
 import { CueText } from "../../ui/type";
 import type { UpNextCard } from "./model";
 
@@ -71,7 +71,7 @@ function QueueRowContent({ card, mark, onStop, variant = "queue" }: QueueRowProp
 
   const { code, title, meta } = episodeText(item.episode);
   const idle = variant === "lapsed" ? lastWatchedPhrase(entry.lastWatchedAt, now) : null;
-  const note = idle !== null ? `last watched ${idle}` : leftNote(entry.aired, entry.completed);
+  const note = idle !== null ? `last watched ${idle}` : leftNote(entry.left);
   const fresh = variant === "queue" && episodeAiredLastNight(item.episode, now);
   const open = (): void => router.push(`/show/${entry.showId}`);
   const stop = (): void => onStop(entry);
@@ -125,7 +125,7 @@ function QueueRowContent({ card, mark, onStop, variant = "queue" }: QueueRowProp
                 ) : undefined
               }
             >
-              <CueText variant="rowTitle" style={{ color: colors.fg }}>
+              <CueText variant="rowTitle" numberOfLines={TITLE_LINES} style={{ color: colors.fg }}>
                 {entry.title}
               </CueText>
               {meta === null ? null : (

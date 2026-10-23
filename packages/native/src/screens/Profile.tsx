@@ -42,7 +42,7 @@ function Identity(): ReactElement {
           {profile?.displayName ?? "Trakt account"}
         </CueText>
         <CueText variant="caption" style={{ color: colors.muted }}>
-          {profile ? "Trakt account" : "Connected"}
+          {profile ? `@${profile.username} on Trakt` : "Connected"}
         </CueText>
       </View>
     </View>

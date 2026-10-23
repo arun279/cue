@@ -20,7 +20,6 @@ function item(
       ids: { trakt: provisional ? 0 : showId },
     },
     lastWatchedAt,
-    backlog: 1,
   };
 }
 

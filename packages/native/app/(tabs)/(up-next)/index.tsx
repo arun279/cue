@@ -14,10 +14,11 @@ import { useCoarseClock } from "@cue/core/hooks/useCoarseClock";
 import { useHideShow } from "@cue/core/hooks/useHideShow";
 import { useLibrarySnapshot } from "@cue/core/hooks/useLibrarySnapshot";
 import { type MarkWatched, useMarkWatched } from "@cue/core/hooks/useMarkWatched";
+import { useReadRetry } from "@cue/core/hooks/useReadRetry";
 import { useSyncBanner } from "@cue/core/hooks/useSyncBanner";
 import { usePrefs } from "@cue/core/prefs/prefs-store";
 import { calendarQuery } from "@cue/core/queries/calendar";
-import { type QueryStatus, queryStatus } from "@cue/core/queries/freshness";
+import { type QueryStatus, queryStatus, retryingPast } from "@cue/core/queries/freshness";
 import { useRuntime } from "@cue/core/runtime/runtime";
 import { useQuery } from "@tanstack/react-query";
 import { Stack, useRouter } from "expo-router";
@@ -44,6 +45,7 @@ import {
 import {
   UpNextEmpty,
   UpNextError,
+  UpNextRetrying,
   UpNextSkeleton,
 } from "../../../src/screens/up-next/UpNextStates";
 import { useStableQueueOrder } from "../../../src/screens/up-next/useStableQueueOrder";
@@ -92,6 +94,7 @@ function cardsFor(
 
 function useUpNextView(enabled: boolean): UpNextView {
   const { query, data, thresholdMs } = useLibrarySnapshot(enabled);
+  const retry = useReadRetry();
   const order = usePrefs((state) => state.nextEpisodeOrder);
   const lapsedOrder = usePrefs((state) => state.lapsedOrder);
   const entries = data?.entries ?? [];
@@ -122,7 +125,7 @@ function useUpNextView(enabled: boolean): UpNextView {
     unresolvedCount: tracked.filter(
       (entry) => entry.nextEpisode === null && entry.completed < entry.aired,
     ).length,
-    ...queryStatus(query, data !== undefined),
+    ...retryingPast(queryStatus(query, data !== undefined), retry),
     refetch: () => void query.refetch(),
   };
 }
@@ -280,7 +283,8 @@ function Lead({
       />
     );
   }
-  if (branch === "loading") return <UpNextSkeleton />;
+  if (branch === "loading")
+    return view.retrying ? <UpNextRetrying failure={view.failure} /> : <UpNextSkeleton />;
   if (branch === "error") {
     return <UpNextError failure={view.failure} onRetry={view.refetch} />;
   }

@@ -2,12 +2,13 @@ appId: app.cuetracker
 name: detail
 ---
 - runFlow: lib/open-up-next.yaml
-- tapOn:
-    text: "Library"
-    retryTapIfNoChange: true
+- tapOn: "Library"
+- extendedWaitUntil:
+    visible:
+      id: "show-card-8801"
+    timeout: 30000
 - tapOn:
     id: "show-card-8801"
-    retryTapIfNoChange: true
 - extendedWaitUntil:
     visible:
       id: "season-trigger-1"
@@ -43,18 +44,23 @@ name: detail
       - tapOn:
           text: "Library"
           index: 0
-          retryTapIfNoChange: true
 - runFlow:
     when:
       platform: Android
     commands:
       - back
+- extendedWaitUntil:
+    visible:
+      id: "library-segment-movies"
+    timeout: 30000
 - tapOn:
     id: "library-segment-movies"
-    retryTapIfNoChange: true
+- extendedWaitUntil:
+    visible:
+      id: "movie-card-5503"
+    timeout: 30000
 - tapOn:
     id: "movie-card-5503"
-    retryTapIfNoChange: true
 - extendedWaitUntil:
     visible:
       id: "movie-mark"

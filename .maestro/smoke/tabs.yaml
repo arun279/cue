@@ -3,25 +3,19 @@ name: tabs
 ---
 - runFlow: lib/open-up-next.yaml
 - takeScreenshot: tab-up-next
-- tapOn:
-    text: "Library"
-    retryTapIfNoChange: true
+- tapOn: "Library"
 - extendedWaitUntil:
     visible:
       id: "show-card-8801"
     timeout: 30000
 - takeScreenshot: tab-library
-- tapOn:
-    text: "Calendar"
-    retryTapIfNoChange: true
+- tapOn: "Calendar"
 - extendedWaitUntil:
     visible:
       id: "calendar-day-header"
     timeout: 30000
 - takeScreenshot: tab-calendar
-- tapOn:
-    text: "Search"
-    retryTapIfNoChange: true
+- tapOn: "Search"
 - extendedWaitUntil:
     visible:
       id: "search-browse"
@@ -33,16 +27,12 @@ name: tabs
     when:
       platform: iOS
     commands:
-      - tapOn:
-          text: "Calendar"
-          retryTapIfNoChange: true
+      - tapOn: "Calendar"
       - extendedWaitUntil:
           visible:
             id: "screen-calendar"
           timeout: 30000
-- tapOn:
-    text: "Up Next"
-    retryTapIfNoChange: true
+- tapOn: "Up Next"
 - extendedWaitUntil:
     visible:
       id: "queue-row-8803"

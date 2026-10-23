@@ -2,9 +2,7 @@ appId: app.cuetracker
 name: search
 ---
 - runFlow: lib/open-up-next.yaml
-- tapOn:
-    text: "Search"
-    retryTapIfNoChange: true
+- tapOn: "Search"
 - extendedWaitUntil:
     visible:
       id: "search-browse"
@@ -30,7 +28,6 @@ name: search
 - takeScreenshot: search-results
 - tapOn:
     id: "search-result-8801"
-    retryTapIfNoChange: true
 - extendedWaitUntil:
     visible:
       id: "screen-show-detail"

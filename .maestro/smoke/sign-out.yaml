@@ -4,29 +4,18 @@ name: sign-out
 - runFlow: lib/open-up-next.yaml
 - tapOn:
     id: "avatar-link"
-    retryTapIfNoChange: true
 - extendedWaitUntil:
     visible:
       id: "profile-identity"
     timeout: 30000
 - takeScreenshot: profile
-- tapOn:
-    id: "profile-to-settings"
-    retryTapIfNoChange: true
-- extendedWaitUntil:
-    visible:
-      id: "screen-settings"
-    timeout: 30000
-- takeScreenshot: settings
 - scrollUntilVisible:
     element:
-      id: "settings-sign-out"
+      id: "profile-sign-out"
     centerElement: true
 - waitForAnimationToEnd
-# This tap only opens the confirmation; the confirm below is the one that signs out.
 - tapOn:
-    id: "settings-sign-out"
-    retryTapIfNoChange: true
+    id: "profile-sign-out"
 - extendedWaitUntil:
     visible: "Sign out of Cue?"
     timeout: 30000

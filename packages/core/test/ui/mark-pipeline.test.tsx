@@ -102,6 +102,7 @@ function libraryEntry(showId = SHOW): LibraryEntry {
     lastWatchedAt: "2026-07-01T00:00:00.000Z",
     aired: 10,
     completed: 1,
+    left: 9,
     nextEpisode: {
       season: 1,
       number: 2,
@@ -412,6 +413,7 @@ describe("a read older than the app's own mark never reverts it", () => {
   const staleProgress: ShowProgress = {
     aired: 10,
     completed: 1,
+    left: 9,
     lastAired: episodeView(10),
     nextEpisode: episodeView(2),
   };
@@ -550,6 +552,7 @@ describe("F3a: a queue mark ticks the show-detail caches in the same frame", () 
       progress: {
         aired: 12,
         completed: 2,
+        left: 10,
         lastAired: episodeView(2),
         nextEpisode: episodeView(3, false, ["media.trakt.tv/s3.jpg"]),
       },
@@ -565,6 +568,7 @@ describe("F3a: a queue mark ticks the show-detail caches in the same frame", () 
     expect(patched).toMatchObject({
       aired: 12,
       completed: 2,
+      left: 10,
       lastAired: { season: 1, number: 2 },
       pendingAdvance: false,
       // Resolved as an https URL, exactly as the aggregate resolves the same
@@ -587,7 +591,7 @@ describe("F3a: a queue mark ticks the show-detail caches in the same frame", () 
 
   it("reads a progress fold with nothing aired as no last aired episode", async () => {
     const fake = fakeRuntime({
-      progress: { aired: 0, completed: 0, lastAired: null, nextEpisode: null },
+      progress: { aired: 0, completed: 0, left: 0, lastAired: null, nextEpisode: null },
     });
     const entry = libraryEntry();
     const qc = seededClient([entry]);
@@ -602,7 +606,13 @@ describe("F3a: a queue mark ticks the show-detail caches in the same frame", () 
     // show detail left the queue row naming an episode the season mark had just
     // watched, until an unrelated remote change rebuilt the aggregate.
     const fake = fakeRuntime({
-      progress: { aired: 10, completed: 10, lastAired: episodeView(10), nextEpisode: null },
+      progress: {
+        aired: 10,
+        completed: 10,
+        left: 0,
+        lastAired: episodeView(10),
+        nextEpisode: null,
+      },
     });
     const season = seasonView([episodeView(1, true), episodeView(2)]);
     const entry = libraryEntry();

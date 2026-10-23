@@ -27,6 +27,8 @@ export function createAuthorizedFetch(deps: AuthorizedFetchDeps): AuthorizedFetc
   const throttleMs = deps.throttleMs ?? DEFAULT_REFRESH_THROTTLE_MS;
   let current = deps.token;
   let nextRefreshAllowedAt = 0;
+  let lastRefreshError: unknown = null;
+  let ending: Promise<void> | null = null;
 
   const refresher = new TokenRefresher(async (refreshToken) => {
     const next = await refreshAccessToken(deps.config, refreshToken);
@@ -36,20 +38,31 @@ export function createAuthorizedFetch(deps: AuthorizedFetchDeps): AuthorizedFetc
   });
 
   async function refresh(): Promise<RefreshOutcome> {
-    if (now() < nextRefreshAllowedAt) return "throttled";
+    if (ending !== null) {
+      await ending;
+      return "cleared";
+    }
+    if (now() < nextRefreshAllowedAt) return lastRefreshError === null ? "throttled" : "failed";
     try {
       await refresher.refresh(current);
       nextRefreshAllowedAt = now() + throttleMs;
+      lastRefreshError = null;
       return "refreshed";
     } catch (error) {
-      const backoff = error instanceof TokenRefreshError ? error.retryAfterMs : null;
-      nextRefreshAllowedAt = now() + Math.max(throttleMs, backoff ?? 0);
-      if (isDeadRefreshToken(error)) {
-        await deps.endSession();
-        return "cleared";
-      }
+      return refreshFailed(error);
+    }
+  }
+
+  async function refreshFailed(error: unknown): Promise<RefreshOutcome> {
+    const backoff = error instanceof TokenRefreshError ? error.retryAfterMs : null;
+    nextRefreshAllowedAt = now() + Math.max(throttleMs, backoff ?? 0);
+    if (!isDeadRefreshToken(error)) {
+      lastRefreshError = error;
       return "failed";
     }
+    ending ??= deps.endSession();
+    await ending;
+    return "cleared";
   }
 
   function authorize(init: RequestInit | undefined): RequestInit {
@@ -64,8 +77,9 @@ export function createAuthorizedFetch(deps: AuthorizedFetchDeps): AuthorizedFetc
     response: Response,
     sentToken: string,
   ): Promise<Response> {
-    await refresh();
-    return current.access_token === sentToken ? response : deps.inner(input, authorize(init));
+    const outcome = await refresh();
+    if (current.access_token !== sentToken) return deps.inner(input, authorize(init));
+    return outcome === "failed" ? unrenewed(lastRefreshError, response) : response;
   }
 
   async function deferUnauthorizedWrite(response: Response, sentToken: string): Promise<Response> {
@@ -97,6 +111,15 @@ function isMutating(method: string | undefined): boolean {
 
 function unauthorized(): Response {
   return new Response(null, { status: 401 });
+}
+
+// A refresh that failed in transit or on Trakt's side leaves the session intact, so the read
+// fails the way the refresh did rather than as a 401 that asks the user to reconnect.
+function unrenewed(error: unknown, response: Response): Response {
+  if (!(error instanceof TokenRefreshError)) throw error;
+  return error.status === 429 || error.status >= 500
+    ? new Response(null, { status: error.status })
+    : response;
 }
 
 export class UnauthorizedWriteError extends Error {

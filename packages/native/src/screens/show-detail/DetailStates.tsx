@@ -1,3 +1,5 @@
+import type { TraktFailure } from "@cue/core/data/trakt/client";
+import { readFailureBody } from "@cue/core/sync-contract";
 import type { ReactElement } from "react";
 import { View } from "react-native";
 import { Button } from "../../ui/Button";
@@ -18,17 +20,15 @@ export function DetailSkeleton({ testID }: { readonly testID: string }): ReactEl
 
 export function DetailError({
   subject,
+  failure,
   onRetry,
 }: {
   readonly subject: string;
+  readonly failure: TraktFailure | null;
   readonly onRetry: () => void;
 }): ReactElement {
   return (
-    <EmptyState
-      centered
-      headline={`Couldn't load ${subject}`}
-      body="Check your connection and try again."
-    >
+    <EmptyState centered headline={`Couldn't load ${subject}`} body={readFailureBody(failure)}>
       <Button label="Retry" onPress={onRetry} />
     </EmptyState>
   );

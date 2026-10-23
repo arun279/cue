@@ -81,6 +81,17 @@ describe("useSyncNow", () => {
     expect(snack()).toBe(FAILED);
   });
 
+  it("fetches a read that failed again once Trakt answers, though nothing changed there", async () => {
+    const load = vi
+      .fn<() => Promise<unknown>>()
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValue({ entries: [] });
+    const pass = await syncPass({ keys: [], load });
+    expect(load).toHaveBeenCalledTimes(2);
+    expect(pass.clean).toBe(true);
+    expect(snack()).toBeNull();
+  });
+
   it("does not reconcile over writes that have not landed", async () => {
     const pass = await syncPass({ flush: () => Promise.resolve(2) });
     expect(pass.clean).toBe(false);

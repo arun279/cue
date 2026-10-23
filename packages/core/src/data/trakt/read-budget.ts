@@ -1,5 +1,12 @@
 import { toMs } from "../../domain/time";
-import { type TraktClient, TraktReadError, type TraktResult, unwrapRead } from "./client";
+import { jitteredBackoffMs } from "../../domain/write-queue/classify";
+import {
+  healsOnRetry,
+  type TraktClient,
+  type TraktFailure,
+  type TraktResult,
+  unwrapRead,
+} from "./client";
 import {
   getCollectionShows,
   getDropped,
@@ -36,6 +43,34 @@ function pauseReadsUntil(at: number): void {
 export function resetReadPause(): void {
   resumeReadsAt = 0;
   pauseListeners.clear();
+  retrying.clear();
+  retryListeners.clear();
+}
+
+// The library load retries its own reads, so the failure it is retrying past is published
+// the same way the pause is, for the screens waiting on it.
+const retrying = new Map<symbol, TraktFailure>();
+const retryListeners = new Set<() => void>();
+let retryFailure: TraktFailure | null = null;
+
+export function readRetryFailure(): TraktFailure | null {
+  return retryFailure;
+}
+
+export function subscribeReadRetry(listener: () => void): () => void {
+  retryListeners.add(listener);
+  return () => {
+    retryListeners.delete(listener);
+  };
+}
+
+function setRetrying(read: symbol, failure: TraktFailure | null): void {
+  if (failure === null) retrying.delete(read);
+  else retrying.set(read, failure);
+  const latest = [...retrying.values()].at(-1) ?? null;
+  if (latest === retryFailure) return;
+  retryFailure = latest;
+  for (const listener of retryListeners) listener();
 }
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
@@ -61,7 +96,7 @@ export async function withReadRateRetry<T>(
   read: () => Promise<TraktResult<T>>,
   policy: TraktPolicy = DEFAULT_TRAKT_POLICY,
 ): Promise<TraktResult<T>> {
-  const { retries, fallbackPauseMs } = policy.rateLimit;
+  const { retries, backoffMs } = policy.rateLimit;
   await acquireReadSlot(policy.readConcurrency);
   try {
     for (let attempt = 0; ; attempt += 1) {
@@ -69,11 +104,34 @@ export async function withReadRateRetry<T>(
       if (pause > 0) await sleep(pause);
       const result = await read();
       if (result.ok || result.error.kind !== "rate-limited") return result;
-      pauseReadsUntil(Date.now() + (result.error.retryAfterMs ?? fallbackPauseMs));
+      const { retryAfterMs } = result.error;
+      // Trakt's guidance: pause everything for Retry-After, and without it back off with jitter,
+      // which a shared pause would undo by releasing every waiting read at once.
+      if (retryAfterMs !== null) pauseReadsUntil(Date.now() + retryAfterMs);
       if (attempt >= retries) return result;
+      if (retryAfterMs === null) await sleep(jitteredBackoffMs(attempt, backoffMs));
     }
   } finally {
     releaseReadSlot();
+  }
+}
+
+/** Retries one read that failed in transit or on Trakt's side, so a single failure costs that
+ * read again rather than the whole library. */
+async function withReadRetry<T>(
+  read: () => Promise<TraktResult<T>>,
+  policy: TraktPolicy,
+): Promise<TraktResult<T>> {
+  const id = Symbol("read");
+  try {
+    for (let attempt = 1; ; attempt += 1) {
+      const result = await withReadRateRetry(read, policy);
+      if (result.ok || !healsOnRetry(result.error) || attempt >= policy.readAttempts) return result;
+      setRetrying(id, result.error);
+      await sleep(jitteredBackoffMs(attempt - 1, policy.retryDelayMs));
+    }
+  } finally {
+    setRetrying(id, null);
   }
 }
 
@@ -88,13 +146,9 @@ async function readProgressHead(
     head.map(async (show) => {
       const id = show.show.ids.trakt;
       try {
-        const read = await withReadRateRetry(async () => {
+        const read = await withReadRetry(async () => {
           if (failure !== null) throw ABANDONED;
-          const attempt = await getShowProgress(client, id);
-          if (!attempt.ok && attempt.error.kind !== "rate-limited") {
-            failure = new TraktReadError(attempt.error, "show progress");
-          }
-          return attempt;
+          return getShowProgress(client, id);
         }, client.policy);
         return [id, unwrapRead(read, "show progress")] as const;
       } catch (error) {
@@ -113,7 +167,7 @@ function byLastWatchedDesc(a: WatchedShow, b: WatchedShow): number {
 
 export async function loadUpNextEntries(client: TraktClient): Promise<LibraryEntry[]> {
   const watched = unwrapRead(
-    await withReadRateRetry(() => getWatchedShows(client), client.policy),
+    await withReadRetry(() => getWatchedShows(client), client.policy),
     "watched shows",
   );
 
@@ -124,10 +178,10 @@ export async function loadUpNextEntries(client: TraktClient): Promise<LibraryEnt
   const progress = await readProgressHead(client, head);
 
   const [hidden, dropped, watchlist, collection] = await Promise.all([
-    withReadRateRetry(() => getHidden(client), client.policy),
-    withReadRateRetry(() => getDropped(client), client.policy),
-    withReadRateRetry(() => getWatchlist(client, "shows"), client.policy),
-    withReadRateRetry(() => getCollectionShows(client), client.policy),
+    withReadRetry(() => getHidden(client), client.policy),
+    withReadRetry(() => getDropped(client), client.policy),
+    withReadRetry(() => getWatchlist(client, "shows"), client.policy),
+    withReadRetry(() => getCollectionShows(client), client.policy),
   ]);
   return assembleLibrary({
     watchedShows: watched,

@@ -1,6 +1,15 @@
 import type { QueryClient } from "@tanstack/react-query";
 import type { ActivitiesReconcile } from "../runtime/runtime";
 
+/** Activity stamps only move when Trakt data changes, so a read that failed is fetched again
+ * whenever Trakt answers a poll, rather than waiting for its data to change. */
+export function refetchFailedReads(queryClient: QueryClient): Promise<void> {
+  return queryClient.refetchQueries({
+    type: "active",
+    predicate: (query) => query.state.status === "error",
+  });
+}
+
 export async function applyReconcile(
   queryClient: QueryClient,
   reconcile: ActivitiesReconcile,
