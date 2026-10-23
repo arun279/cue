@@ -1,10 +1,10 @@
 import type { SeasonView } from "@cue/core/data/trakt/show-detail";
-import { defaultSeason, orderSeasons, seasonConfirmation } from "@cue/core/domain/show-detail";
+import { defaultSeason, seasonConfirmation } from "@cue/core/domain/show-detail";
 import { useMarkWatched } from "@cue/core/hooks/useMarkWatched";
 import { usePrefs } from "@cue/core/prefs/prefs-store";
 import { usePlayPolicy } from "@cue/core/stores/play-policy-store";
 import { useRouter } from "expo-router";
-import { type ReactElement, useState } from "react";
+import type { ReactElement } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "../ui/Button";
@@ -18,7 +18,7 @@ import { CueText } from "../ui/type";
 import { ContinueBar } from "./show-detail/ContinueBar";
 import { DetailError, DetailSkeleton } from "./show-detail/DetailStates";
 import { RelatedShows } from "./show-detail/RelatedShows";
-import { SeasonRow } from "./show-detail/SeasonRow";
+import { SeasonList } from "./show-detail/SeasonList";
 import { ShowAbout, ShowHero } from "./show-detail/ShowHero";
 import { ShowMenu } from "./show-detail/ShowMenu";
 import { useDetailMark } from "./show-detail/useDetailMark";
@@ -53,14 +53,11 @@ function ShowContent({ showId }: { readonly showId: number }): ReactElement {
   const seasonList = seasons.data ?? [];
   const mark = useDetailMark(showId, seasonList);
   const nextMark = useMarkWatched();
-  const [expanded, setExpanded] = useState<ReadonlySet<number> | null>(null);
   if (header.isError && header.data === undefined)
     return <DetailError subject="this show" onRetry={header.refetch} />;
   if (header.data === undefined || entry === undefined)
     return <DetailSkeleton testID={TEST_IDS.showDetailSkeleton} />;
   const data = header.data;
-  const initial = defaultSeason(seasonList, data.nextEpisode);
-  const open = expanded ?? new Set(initial === null ? [] : [initial]);
   const confirmSeason = (season: SeasonView): void => {
     const copy = seasonConfirmation(season, usePlayPolicy.getState().policy);
     confirm({
@@ -91,27 +88,16 @@ function ShowContent({ showId }: { readonly showId: number }): ReactElement {
             empty={seasons.data?.length === 0}
             retry={() => void seasons.refetch()}
           />
-          {orderSeasons(seasonList).map((season) => (
-            <SeasonRow
-              key={season.number}
-              showId={showId}
-              season={season}
-              expanded={open.has(season.number)}
-              onExpand={() =>
-                setExpanded((previous) => {
-                  const next = new Set(previous ?? open);
-                  if (next.has(season.number)) next.delete(season.number);
-                  else next.add(season.number);
-                  return next;
-                })
-              }
-              onConfirm={() => confirmSeason(season)}
-              onMark={mark.toggle}
-              onOpen={(episode) =>
-                router.push(`/show/${showId}/episode/${episode.season}/${episode.number}`)
-              }
-            />
-          ))}
+          <SeasonList
+            showId={showId}
+            seasons={seasonList}
+            initial={defaultSeason(seasonList, data.nextEpisode)}
+            onConfirm={confirmSeason}
+            onMark={mark.toggle}
+            onOpen={(episode) =>
+              router.push(`/show/${showId}/episode/${episode.season}/${episode.number}`)
+            }
+          />
         </View>
         <RelatedShows showId={showId} />
         <ShowAbout header={data} seasons={seasonList} />

@@ -2,7 +2,7 @@ import type { EpisodeView, SeasonView } from "@cue/core/data/trakt/show-detail";
 import { detailDate } from "@cue/core/domain/episode-detail";
 import { epCode } from "@cue/core/domain/model/library";
 import { watchedPercent } from "@cue/core/format";
-import type { ReactElement } from "react";
+import { memo, type ReactElement } from "react";
 import { StyleSheet, useWindowDimensions, View } from "react-native";
 import Animated, { LinearTransition, ReduceMotion } from "react-native-reanimated";
 import { CheckControl } from "../../ui/CheckControl";
@@ -18,13 +18,13 @@ export interface SeasonRowProps {
   readonly showId: number;
   readonly season: SeasonView;
   readonly expanded: boolean;
-  readonly onExpand: () => void;
-  readonly onConfirm: () => void;
+  readonly onExpand: (season: number) => void;
+  readonly onConfirm: (season: SeasonView) => void;
   readonly onOpen: (episode: EpisodeView) => void;
   readonly onMark: (episode: EpisodeView) => void;
 }
 
-export function SeasonRow({
+export const SeasonRow = memo(function SeasonRow({
   showId,
   season,
   expanded,
@@ -34,7 +34,8 @@ export function SeasonRow({
   onMark,
 }: SeasonRowProps): ReactElement {
   const colors = useColors();
-  usePerfCommand(`season:${season.number}`, onExpand);
+  const expand = (): void => onExpand(season.number);
+  usePerfCommand(`season:${season.number}`, expand);
   const title = season.isSpecial ? "Specials" : `Season ${season.number}`;
   const complete = season.airedCount > 0 && season.completedCount >= season.airedCount;
   return (
@@ -46,14 +47,14 @@ export function SeasonRow({
         label={`${title}, ${season.completedCount} of ${season.airedCount} watched, ${expanded ? "expanded" : "collapsed"}`}
         minHeight={56}
         testID={TEST_IDS.seasonTrigger(season.number)}
-        onPress={onExpand}
+        onPress={expand}
         trailing={
           <CheckControl
             testID={TEST_IDS.seasonCheck(season.number)}
             checked={complete}
             label={`${complete ? "Unmark" : "Mark"} ${title} watched`}
             disabled={season.airedCount === 0}
-            onPress={onConfirm}
+            onPress={() => onConfirm(season)}
           />
         }
       >
@@ -84,7 +85,7 @@ export function SeasonRow({
         ))}
     </Animated.View>
   );
-}
+});
 
 function EpisodeRow({
   showId,
