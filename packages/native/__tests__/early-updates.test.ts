@@ -19,7 +19,7 @@ it("starts expo-updates in a release build's onCreate, after Expo's modules, bui
   const at = (text: string) => lines.findIndex((line: string) => line.startsWith(text));
 
   expect(at("if (!BuildConfig.DEBUG)")).toBe(
-    at("ApplicationLifecycleDispatcher.onApplicationCreate(this)") + 2,
+    at("ApplicationLifecycleDispatcher.onApplicationCreate(this)") + 1,
   );
   expect(lines[at("if (!BuildConfig.DEBUG)") + 1]).toBe(
     "expo.modules.updates.UpdatesController.initializeWithoutStarting(this, false)",
@@ -34,4 +34,10 @@ it("leaves an already patched onCreate as it is", () => {
   const once = startUpdatesEarly(ON_CREATE);
 
   expect(startUpdatesEarly(once)).toBe(once);
+});
+
+it("fails the build rather than skip the start when onCreate no longer starts Expo's modules", () => {
+  expect(() =>
+    startUpdatesEarly(ON_CREATE.replace("ApplicationLifecycleDispatcher", "Other")),
+  ).toThrow("no longer starts Expo's modules");
 });
