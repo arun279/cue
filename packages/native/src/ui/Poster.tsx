@@ -49,7 +49,6 @@ export function Poster({ title, posters, width }: PosterProps): ReactElement {
         <Image
           source={url}
           recyclingKey={url}
-          cachePolicy="memory-disk"
           style={[StyleSheet.absoluteFill, styles.art]}
           onError={() => setBroken(true)}
         />

@@ -57,7 +57,6 @@ export function Avatar({ size }: { readonly size: number }): ReactElement {
           testID={TEST_IDS.avatarPhoto}
           source={photo}
           recyclingKey={photo}
-          cachePolicy="memory-disk"
           style={[StyleSheet.absoluteFill, styles.photo]}
           onError={() => setFailed(photo)}
         />
