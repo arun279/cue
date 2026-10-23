@@ -536,10 +536,9 @@ async function coldStart(segment) {
 /** Starts the app and waits for its channel; registered after the stop, so a ready from the stopped process cannot count. */
 async function launched(probe, channel) {
   await probe.stop();
-  const ready = channel.ready();
+  const ready = within(channel.ready(), READY_MS, "launch");
   const launchedAt = Date.now();
-  const sample = await probe.start();
-  const boot = await within(ready, READY_MS, "launch");
+  const [sample, boot] = await Promise.all([probe.start(), ready]);
   return { ...sample, launchToReadyMs: Date.now() - launchedAt, ...boot };
 }
 
