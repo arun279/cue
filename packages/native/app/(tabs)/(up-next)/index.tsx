@@ -10,6 +10,7 @@ import {
   type UpNextItem,
   upNextEmptyKind,
 } from "@cue/core/domain/up-next";
+import { useCalendarFocus } from "@cue/core/hooks/useCalendarFocus";
 import { useCoarseClock } from "@cue/core/hooks/useCoarseClock";
 import { useHideShow } from "@cue/core/hooks/useHideShow";
 import { useLibrarySnapshot } from "@cue/core/hooks/useLibrarySnapshot";
@@ -141,12 +142,13 @@ export default function UpNext(): ReactElement {
   const timeZone = localTimeZone();
   const calendarStart = dayKeyOf(timeZone, calendarClock);
   const calendar = useQuery({ ...calendarQuery(runtime, calendarStart), enabled: showsEnabled });
+  const played = useCalendarFocus(showsEnabled);
   const calendarDays = useMemo(
     () =>
       calendar.data === undefined
         ? []
-        : buildCalendarDays(calendar.data, calendarClock, timeZone, calendarStart, 7),
-    [calendar.data, calendarClock, timeZone, calendarStart],
+        : buildCalendarDays(calendar.data, calendarClock, timeZone, calendarStart, 7, played),
+    [calendar.data, calendarClock, timeZone, calendarStart, played],
   );
   const onTheWayClock = useCoarseClock(HOUR_MS);
   const onTheWayDays = useMemo(

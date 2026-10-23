@@ -1,5 +1,11 @@
-import { CALENDAR_WINDOW_DAYS, type CalendarDay, type CalendarRow } from "./calendar";
-import { epCode } from "./model/library";
+import {
+  CALENDAR_WINDOW_DAYS,
+  type CalendarDay,
+  type CalendarRow,
+  episodeLine,
+  isEpisodeRun,
+} from "./calendar";
+import { compareEpisodeKeys, epCode } from "./model/library";
 import { DAY_MS } from "./time";
 
 export const SUMMARY_HOUR = 9;
@@ -54,7 +60,7 @@ function summaryAt(dayKey: string): number {
 function summaryBody(rows: readonly CalendarRow[]): string {
   const [only, ...rest] = rows;
   if (only !== undefined && rest.length === 0) {
-    return `${only.showTitle} ${epCode(only.season, only.number)}`;
+    return `${only.showTitle} ${episodeLine(only).code}`;
   }
   const shows = [...new Set(rows.map((row) => row.showTitle))];
   if (shows.length <= SUMMARY_NAMED_SHOW_LIMIT) return shows.join(" and ");
@@ -63,17 +69,14 @@ function summaryBody(rows: readonly CalendarRow[]): string {
 
 // Android delivers inexact alarms up to an hour after the trigger.
 function alertBody(first: CalendarRow, rest: readonly CalendarRow[]): string {
-  if (rest.length === 0) {
+  const episodes = [first, ...rest].flatMap((row) => row.episodes).sort(compareEpisodeKeys);
+  const [low, ...more] = episodes;
+  if (low === undefined || more.length === 0) {
     return `${[epCode(first.season, first.number), first.episodeTitle].filter(Boolean).join(" ")} is out.`;
   }
-  const numbers = [first, ...rest].map((row) => row.number).sort((a, b) => a - b);
-  const low = Math.min(...numbers);
-  const run =
-    rest.every((row) => row.season === first.season) &&
-    numbers.every((number, index) => number === low + index);
-  return run
-    ? `${epCode(first.season, low)} to E${low + rest.length} are out.`
-    : `${rest.length + 1} new episodes are out.`;
+  return isEpisodeRun(episodes)
+    ? `${epCode(low.season, low.number)} to E${low.number + more.length} are out.`
+    : `${episodes.length} new episodes are out.`;
 }
 
 function alertsFor(dayKey: string, rows: readonly CalendarRow[]): PlannedReminder[] {

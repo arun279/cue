@@ -57,6 +57,7 @@ function ep(
     network: null,
     tmdbId: null,
     aired: false,
+    episodes: [{ season, number }],
   };
 }
 

@@ -1,3 +1,4 @@
+import type { LibraryEntry } from "@cue/core/data/trakt/library";
 import type { CalendarEntry } from "@cue/core/domain/calendar";
 import { DAY_MS } from "@cue/core/domain/time";
 import type { PreferenceStorage } from "@cue/core/ports/preference-storage";
@@ -6,7 +7,14 @@ import { createPrefsStore } from "@cue/core/prefs/prefs-store";
 import { act, render, screen, userEvent, waitFor, within } from "@testing-library/react-native";
 import { memoryPreferenceStorage } from "../../core/test/support/stores";
 import { router } from "./support/native-ui";
-import { airing, fakeRuntime, Harness, resetSharedStores, spyHaptics } from "./support/up-next";
+import {
+  airing,
+  entry,
+  fakeRuntime,
+  Harness,
+  resetSharedStores,
+  spyHaptics,
+} from "./support/up-next";
 
 jest.mock("expo-router", () => require("./support/native-ui").expoRouterModule());
 jest.mock(
@@ -66,6 +74,8 @@ const LATER = airing({
 
 interface Options {
   readonly calendar?: readonly CalendarEntry[];
+  /** The shows the reader has played; every show on the calendar unless a test says otherwise. */
+  readonly library?: readonly LibraryEntry[];
   readonly preferences?: PreferenceStorage;
   readonly runtime?: ReturnType<typeof fakeRuntime>;
   /** A read that never settles, so the screen stays on its plates. */
@@ -75,6 +85,7 @@ interface Options {
 
 async function paint({
   calendar = [],
+  library = calendar.map(({ showId }) => entry({ showId })),
   preferences,
   runtime,
   loading,
@@ -82,7 +93,7 @@ async function paint({
 }: Options = {}): Promise<void> {
   await render(
     <Harness
-      runtime={runtime ?? fakeRuntime({ calendar })}
+      runtime={runtime ?? fakeRuntime({ calendar, entries: library })}
       haptics={haptics}
       preferences={preferences}
     >
@@ -165,6 +176,55 @@ describe("Calendar", () => {
     await user.press(rowOf(88_608));
 
     expect(router.push).toHaveBeenCalledWith("/show/8806");
+  });
+
+  it("shows a season dropped at once as one row that opens the show", async () => {
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+    const drop = [1, 2, 3, 4, 5, 6, 7, 8].map((number) =>
+      airing({
+        showId: 8801,
+        showTitle: "Harbor Lights",
+        season: 2,
+        number,
+        network: "Halyard",
+        firstAired: TONIGHT.firstAired,
+        ids: { trakt: 88_120 + number },
+      }),
+    );
+    await paint({ calendar: drop });
+
+    expect(screen.getByTestId("calendar-day-header-today")).toHaveTextContent("Today · 1");
+    expect(within(rowOf(88_121)).getByText("S2 E1–E8 · 8 episodes")).toBeOnTheScreen();
+    expect(rowOf(88_121)).toHaveAccessibleName(
+      "Harbor Lights, season 2, episodes 1 to 8, 8 episodes, 9:00 PM · Halyard",
+    );
+
+    await user.press(rowOf(88_121));
+
+    expect(router.push).toHaveBeenCalledWith("/show/8801");
+  });
+
+  it("shows every episode of a show you have played, and only premieres of one you have not", async () => {
+    const premiere = airing({ showId: 8807, season: 3, number: 1, ids: { trakt: 88_731 } });
+    const second = airing({
+      showId: 8807,
+      season: 3,
+      number: 2,
+      firstAired: LATER.firstAired,
+      ids: { trakt: 88_732 },
+    });
+    await paint({
+      calendar: [TONIGHT, premiere, second],
+      library: [
+        entry({ showId: TONIGHT.showId }),
+        entry({ showId: 8807, completed: 0, lastWatchedAt: null, inWatchlist: true }),
+      ],
+    });
+
+    expect(screen.getAllByTestId(/^calendar-row-/).map((row) => row.props["testID"])).toEqual([
+      "calendar-row-88608",
+      "calendar-row-88731",
+    ]);
   });
 
   it("reads nothing at all while TV shows are turned off", async () => {

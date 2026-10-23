@@ -7,6 +7,7 @@ import {
 import { dayKeyOf, dayOffset } from "@cue/core/domain/day";
 import { DAY_MS, localTimeZone } from "@cue/core/domain/time";
 import { useAlertsCard } from "@cue/core/hooks/useAlertsCard";
+import { useCalendarFocus } from "@cue/core/hooks/useCalendarFocus";
 import { useCoarseClock } from "@cue/core/hooks/useCoarseClock";
 import { useSyncBanner } from "@cue/core/hooks/useSyncBanner";
 import { usePrefs } from "@cue/core/prefs/prefs-store";
@@ -48,18 +49,24 @@ export default function Calendar(): ReactElement {
   const timeZone = localTimeZone();
   const startDate = dayKeyOf(timeZone, clock);
   const query = useQuery({ ...calendarQuery(runtime, startDate), enabled: showsEnabled });
+  const played = useCalendarFocus(showsEnabled);
   const sections = useMemo(
     () =>
       query.data === undefined
         ? []
-        : buildCalendarDays(query.data, clock, timeZone, startDate, CALENDAR_WINDOW_DAYS).map(
-            (day) => ({
-              label: day.label,
-              offset: dayOffset(startDate, day.dayKey),
-              data: day.rows,
-            }),
-          ),
-    [query.data, clock, timeZone, startDate],
+        : buildCalendarDays(
+            query.data,
+            clock,
+            timeZone,
+            startDate,
+            CALENDAR_WINDOW_DAYS,
+            played,
+          ).map((day) => ({
+            label: day.label,
+            offset: dayOffset(startDate, day.dayKey),
+            data: day.rows,
+          })),
+    [query.data, clock, timeZone, startDate, played],
   );
   const status = queryStatus(query, query.data !== undefined);
   const banner = useSyncBanner(status);

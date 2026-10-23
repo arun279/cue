@@ -163,6 +163,16 @@ describe("useEpisodeReminders", () => {
     expect(bodies(reminders)).toEqual(["Midnight Cartography: S2 E5 Low Tide is out."]);
   });
 
+  it("sends one alert for a season dropped at once, naming the run", async () => {
+    const at = Date.now() + DAY_MS;
+    const drop = [1, 2, 3, 4, 5, 6, 7, 8].map((number) =>
+      airingAt(at, { number, ids: { trakt: 880_300 + number } }),
+    );
+    const reminders = await mountHook(() => Promise.resolve({ entries: drop, hiddenShowIds: [] }));
+
+    expect(bodies(reminders)).toEqual(["Midnight Cartography: S2 E1 to E8 are out."]);
+  });
+
   it("alerts for nothing muted, until it is unmuted", async () => {
     prefs.getState().setShowMuted(8803, true);
     const muted = await mountHook(() =>

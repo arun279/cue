@@ -156,6 +156,12 @@ export default function Settings(): ReactElement {
           Track TV shows, movies, or both. Turn off a medium and Cue hides it everywhere: Library,
           Search, and your history. At least one stays on.
         </Note>
+        <Toggle
+          title="Every watchlist episode"
+          hint="Show all new episodes of shows on your watchlist, not only premieres."
+          value={prefs.everyWatchlistEpisode}
+          onChange={prefs.setEveryWatchlistEpisode}
+        />
       </Section>
       <DataSection />
       <Section title="Account">

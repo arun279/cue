@@ -134,7 +134,7 @@ it("leaves alerts off and says where to change it when the OS refuses", async ()
 
 it("turns New episodes on from the Calendar's card once the OS allows them", async () => {
   const fixture = accountFixture({
-    loadCalendar: () => Promise.resolve({ entries: [airing()], hiddenShowIds: [] }),
+    loadCalendar: () => Promise.resolve({ entries: [airing({ showId: 1 })], hiddenShowIds: [] }),
   });
   await fixture.paint(
     <RemindersProvider value={remindersAnswering(Promise.resolve(true))}>
@@ -191,6 +191,33 @@ it("starts with accessible controls and the strong defaults", async () => {
     screen.getByRole("button", { name: "Haven't watched in a while after, 3 weeks" }),
   ).toBeVisible();
   expect(isOn("New episodes")).toBe(false);
+  expect(isOn("Every watchlist episode")).toBe(false);
+});
+
+it("brings every new episode of a watchlist show onto the Calendar once switched on", async () => {
+  const fixture = accountFixture({
+    loadUpNext: () =>
+      Promise.resolve({
+        entries: [entry({ showId: 9, completed: 0, lastWatchedAt: null, inWatchlist: true })],
+      }),
+    loadCalendar: () =>
+      Promise.resolve({
+        entries: [airing({ showId: 9, season: 2, number: 3, ids: { trakt: 903 } })],
+        hiddenShowIds: [],
+      }),
+  });
+  await fixture.paint(
+    <RemindersProvider value={remindersAnswering(Promise.resolve(false))}>
+      <Calendar />
+      <Settings />
+    </RemindersProvider>,
+  );
+  expect(await screen.findByText("No upcoming episodes in the next 28 days.")).toBeVisible();
+
+  await fireEvent(switchNamed("Every watchlist episode"), "valueChange", true);
+
+  expect(await screen.findByTestId("calendar-row-903")).toBeVisible();
+  expect(createPrefsStore(fixture.storage).getState().everyWatchlistEpisode).toBe(true);
 });
 
 it("lists the sections in the order of the screen", async () => {
