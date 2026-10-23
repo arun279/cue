@@ -106,7 +106,8 @@ describe("fast pull request validation", () => {
     );
     expect(android).toContain("fingerprint: $" + "{{ steps.fingerprint.outputs.android }}");
     expect(android).toContain(
-      "ARTIFACT_NAME: cue-native-android-$" + "{{ steps.fingerprint.outputs.android }}",
+      "name: cue-native-android-$" +
+        "{{ steps.fingerprint.outputs.android }}\n          producer: native-android\n",
     );
     expect(android).toContain("if: steps.native-cache.outputs.hit != 'true'");
     expect(android).toContain("if: steps.native-cache.outputs.hit == 'true'");
@@ -153,10 +154,18 @@ describe("fast pull request validation", () => {
     const embed = native.find((step) => step.includes("scripts/reembed-android.sh"));
     const measure = readFileSync(repositoryPath("scripts/measure-base.sh"), "utf8");
 
+    const parse = (block = "") =>
+      Object.fromEntries(
+        block
+          .trim()
+          .split(/\n\s*/)
+          .map((line) => line.split(": ")),
+      );
+    const shared = job("footprint-base").match(/^ {4}env:\n((?: {6}.*\n)+)/m)?.[1];
+
+    expect(parse(shared)).toEqual({ ...environment(fingerprint), ...environment(embed) });
     expect(environment(base)).toEqual({
-      ...environment(fingerprint),
-      ...environment(embed),
-      GH_TOKEN: "$" + "{{ github.token }}",
+      BASE_FINGERPRINT: "$" + "{{ steps.base.outputs.android }}",
       HEAD_FINGERPRINT: "$" + "{{ needs.native-android.outputs.fingerprint }}",
     });
     expect(job("footprint-base")).toContain(
@@ -583,10 +592,12 @@ describe("fast pull request validation", () => {
     expect(job("native-ios")).not.toContain("outputs:");
     expect(job("fingerprint")).toContain("ios-cached: $" + "{{ steps.ios-cache.outputs.hit }}");
     expect(cache).toContain("        if: github.event_name == 'pull_request'\n");
-    expect(cache).toContain("ARTIFACT_NAME: cue-native-ios-$" + "{{ steps.native.outputs.ios }}\n");
     expect(cache).toContain(
-      'if scripts/download-ci-artifact.sh "$ARTIFACT_NAME" "$RUNNER_TEMP/native-ios-app" native-ios; then\n            echo "hit=true" >> "$GITHUB_OUTPUT"\n',
+      "uses: ./.github/actions/find-ci-artifact\n        with:\n" +
+        "          name: cue-native-ios-$" +
+        "{{ steps.native.outputs.ios }}\n          producer: native-ios\n",
     );
+    expect(job("fingerprint")).toContain("ios-run-id: $" + "{{ steps.ios-cache.outputs.run-id }}");
     expect(job("fingerprint")).toContain("ios-owed: $" + "{{ steps.ios-owed.outputs.owed }}");
     expect(job("fingerprint")).toContain(
       "user-facing: $" + "{{ steps.changes.outputs.user-facing }}",
@@ -622,18 +633,22 @@ describe("fast pull request validation", () => {
     expect(upload).toContain("path: $" + "{{ runner.temp }}/ios-bundle\n");
   });
 
-  it("names, inside the harness bundle, the cached app it was built for", () => {
+  it("names, inside the harness bundle, the cached app it was built for and the run that has it", () => {
     const fingerprint = steps("fingerprint");
     const at = (text: string) => fingerprint.findIndex((step) => step.includes(text));
     const name = fingerprint[at('/ios-bundle/app-artifact"')] ?? "";
     const cache = fingerprint[at("id: ios-cache\n")] ?? "";
 
     expect(name.startsWith("if: steps.ios-cache.outputs.hit == 'true'\n")).toBe(true);
-    const artifact =
-      "          ARTIFACT_NAME: cue-native-ios-$" + "{{ steps.native.outputs.ios }}\n";
-    expect(envOf(name)).toBe(artifact);
-    expect(envOf(cache)).toContain(artifact);
-    expect(name).toContain('run: echo "$ARTIFACT_NAME" > "$RUNNER_TEMP/ios-bundle/app-artifact"\n');
+    expect(envOf(name)).toBe(
+      "          ARTIFACT_NAME: cue-native-ios-$" +
+        "{{ steps.native.outputs.ios }}\n" +
+        "          RUN_ID: $" +
+        "{{ steps.ios-cache.outputs.run-id }}\n",
+    );
+    expect(cache).toContain("name: cue-native-ios-$" + "{{ steps.native.outputs.ios }}\n");
+    expect(name).toContain('echo "$ARTIFACT_NAME" > "$RUNNER_TEMP/ios-bundle/app-artifact"\n');
+    expect(name).toContain('echo "$RUN_ID" > "$RUNNER_TEMP/ios-bundle/app-run-id"\n');
     expect(at('/ios-bundle/app-artifact"')).toBeGreaterThan(at("scripts/bundle-ios.sh"));
     expect(at('/ios-bundle/app-artifact"')).toBeLessThan(at("actions/upload-artifact@"));
   });
@@ -653,7 +668,14 @@ describe("fast pull request validation", () => {
       built,
       cached,
       expect.stringMatching(/^uses: actions\/download-artifact@/),
+      cached,
     ]);
+    expect(downloads[3]).toContain(
+      "name: cue-native-ios-$" +
+        "{{ needs.fingerprint.outputs.ios }}\n" +
+        "          run-id: $" +
+        "{{ needs.fingerprint.outputs.ios-run-id }}\n",
+    );
     expect(downloads[2]).toContain("name: maestro-runner$" + "{{ inputs.copy }}\n");
     expect(downloads[0]).toContain(
       "name: cue-native-ios-$" + "{{ needs.fingerprint.outputs.ios }}$" + "{{ inputs.copy }}\n",
@@ -665,11 +687,9 @@ describe("fast pull request validation", () => {
         '        run: tar -xzf "$RUNNER_TEMP/native-ios-app/Cue.app.tgz" -C "$RUNNER_TEMP/native-ios-app"\n',
     );
     expect(embed.startsWith(cached)).toBe(true);
-    expect(embed).toContain(
-      "ARTIFACT_NAME: cue-native-ios-$" + "{{ needs.fingerprint.outputs.ios }}\n",
-    );
+    expect(lane.indexOf(downloads[3] ?? "")).toBe(index("name: Embed") - 1);
     expect(embed).toMatch(
-      /scripts\/download-ci-artifact\.sh "\$ARTIFACT_NAME" "\$RUNNER_TEMP\/native-ios-app" native-ios\n +tar -xzf "\$RUNNER_TEMP\/native-ios-app\/Cue\.app\.tgz" -C "\$RUNNER_TEMP\/native-ios-app"\n +scripts\/reembed-ios\.sh "\$RUNNER_TEMP\/native-ios-app\/Cue\.app" "\$RUNNER_TEMP\/ios-bundle"\n +LC_ALL=C grep -aq 'http:\/\/127\.0\.0\.1:8787' "\$RUNNER_TEMP\/native-ios-app\/Cue\.app\/main\.jsbundle"\n/,
+      /run: \|\n +tar -xzf "\$RUNNER_TEMP\/native-ios-app\/Cue\.app\.tgz" -C "\$RUNNER_TEMP\/native-ios-app"\n +scripts\/reembed-ios\.sh "\$RUNNER_TEMP\/native-ios-app\/Cue\.app" "\$RUNNER_TEMP\/ios-bundle"\n +LC_ALL=C grep -aq 'http:\/\/127\.0\.0\.1:8787' "\$RUNNER_TEMP\/native-ios-app\/Cue\.app\/main\.jsbundle"\n/,
     );
     expect(index("name: Boot the simulator")).toBeLessThan(index("actions/download-artifact@"));
     expect(lane.indexOf(downloads[1] ?? "")).toBeLessThan(index("name: Embed"));
@@ -712,7 +732,6 @@ describe("fast pull request validation", () => {
       "check-tap-lead-in.mjs",
       "disable-ios-daemons.sh",
       "disable-spotlight.sh",
-      "download-ci-artifact.sh",
       "enable-ios-accessibility.sh",
       "install-maestro.sh",
       "lane-health.mjs",

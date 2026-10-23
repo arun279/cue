@@ -381,7 +381,7 @@ describe("pr-media job", () => {
     "pnpm-lock.yaml",
     ".github/workflows/ci.yml",
     "scripts/start-ready-process.mjs",
-    "scripts/download-ci-artifact.sh",
+    ".github/actions/find-ci-artifact/find.mjs",
     "scripts/bundle-ios.sh",
     "scripts/reembed-ios.sh",
     "scripts/compile-hermes.sh",

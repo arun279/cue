@@ -78,7 +78,9 @@ describe("device proof copies", () => {
     expect(new Set(expanded).size).toBe(expanded.length);
     for (const { body } of deviceJobs) {
       const downloads = [
-        ...body.matchAll(/uses: actions\/download-artifact@[^\n]+\n\s+with:\n\s+name: (.+)/g),
+        ...body.matchAll(
+          /uses: actions\/download-artifact@[^\n]+\n\s+with:\n\s+name: (.+)\n(?!\s+run-id:)/g,
+        ),
       ];
       expect(downloads.length).toBeGreaterThan(0);
       for (const [, name] of downloads) expect(uploads).toContain(name);

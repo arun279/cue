@@ -24,22 +24,19 @@ const STUB = `#!/bin/sh
 name=$(basename "$0")
 case $name in
   pnpm)
-    echo "pnpm $* harness=${HARNESS} atlas=${ATLAS}" >> "$LOG"
-    case "$*" in *native-fingerprint.mjs*) echo "$BASE_FINGERPRINT" ;; esac ;;
+    echo "pnpm $* harness=${HARNESS} atlas=${ATLAS}" >> "$LOG" ;;
   reembed-android.sh) echo "$name $(ls "$(dirname "$1")") harness=${HARNESS}" >> "$LOG" ;;
   *) echo "$name $*" >> "$LOG" ;;
 esac
 case $name in
   measure-sizes.sh) echo '${JSON.stringify(SIZES.slice(0, 2))}' > "$2" ;;
   measure-android-sizes.sh) echo '${JSON.stringify(SIZES.slice(2))}' > "$3" ;;
-  download-ci-artifact.sh) [ "$FOUND" = true ] || exit 1; mkdir -p "$2" && touch "$2/from-download" ;;
   build-android-release.sh) mkdir -p "$1" && touch "$1/from-build" ;;
 esac
 `;
 const STUBBED = [
   "scripts/measure-sizes.sh",
   "scripts/measure-android-sizes.sh",
-  "scripts/download-ci-artifact.sh",
   "scripts/build-android-release.sh",
   "scripts/reembed-android.sh",
   "bin/pnpm",
@@ -56,9 +53,14 @@ const measure = (native: boolean, { base = "head-print", found = false, head = "
   const scripts = path.join(root, "scripts");
   const bin = path.join(root, "bin");
   const headAndroid = path.join(root, "head-android");
+  const baseAndroid = path.join(root, "base-android");
   const log = path.join(root, "calls");
   for (const directory of [repository, scripts, bin, headAndroid]) mkdirSync(directory);
   writeFileSync(path.join(headAndroid, "from-head"), "");
+  if (found) {
+    mkdirSync(baseAndroid);
+    writeFileSync(path.join(baseAndroid, "from-download"), "");
+  }
   const git = (...args: string[]) =>
     spawnSync("git", args, { cwd: repository, encoding: "utf8", env: gitEnv() });
   git("init", "--quiet");
@@ -80,7 +82,7 @@ const measure = (native: boolean, { base = "head-print", found = false, head = "
   const output = path.join(root, "base-metrics.json");
   const result = spawnSync(
     path.join(scripts, "measure-base.sh"),
-    [repository, path.join(root, "bundletool.jar"), headAndroid, output],
+    [repository, path.join(root, "bundletool.jar"), headAndroid, baseAndroid, output],
     {
       cwd: repository,
       encoding: "utf8",
@@ -88,7 +90,6 @@ const measure = (native: boolean, { base = "head-print", found = false, head = "
         ...gitEnv(),
         BASE_FINGERPRINT: base,
         EXPO_PUBLIC_UI_HARNESS: "1",
-        FOUND: String(found),
         HEAD_FINGERPRINT: head,
         LOG: log,
         PATH: `${bin}:${process.env["PATH"]}`,
@@ -107,26 +108,19 @@ describe("measuring the merge base in the pull request's own run", () => {
     expect(result.status, result.stderr).toBe(0);
     expect(metrics()).toEqual({ sizes: SIZES, complexity: COMPLEXITY });
     expect(calls()).toEqual([
-      expect.stringMatching(/^pnpm --dir \S+ install --frozen-lockfile /),
       expect.stringMatching(
         /^pnpm --filter @cue\/native exec expo export .* harness=unset atlas=true$/,
       ),
       expect.stringMatching(/^measure-sizes\.sh packages\/native /),
-      expect.stringMatching(/^pnpm exec node scripts\/native-fingerprint\.mjs android /),
       "reembed-android.sh from-head harness=1",
       expect.stringMatching(/^measure-android-sizes\.sh /),
     ]);
   });
 
-  it("re-embeds into the base fingerprint's published shell when the native code differs", () => {
+  it("re-embeds into the base fingerprint's downloaded shell when the native code differs", () => {
     const { result, calls } = measure(true, { base: "base-print", found: true });
 
     expect(result.status, result.stderr).toBe(0);
-    expect(calls()).toContainEqual(
-      expect.stringMatching(
-        /^download-ci-artifact\.sh cue-native-android-base-print \S+ native-android$/,
-      ),
-    );
     expect(calls()).toContain("reembed-android.sh from-download harness=1");
     expect(calls().join("\n")).not.toMatch(/prebuild|build-android-release/);
   });
@@ -155,10 +149,13 @@ describe("measuring the merge base in the pull request's own run", () => {
     });
   });
 
-  it("refuses to run without the head build's fingerprint", () => {
-    const { result } = measure(true, { head: "" });
+  it("refuses to run without the head build's fingerprint, or a native base's own", () => {
+    const head = measure(true, { head: "" });
+    const base = measure(true, { base: "" });
 
-    expect(result.status).not.toBe(0);
-    expect(result.stderr).toContain("HEAD_FINGERPRINT");
+    expect(head.result.status).not.toBe(0);
+    expect(head.result.stderr).toContain("HEAD_FINGERPRINT");
+    expect(base.result.status).not.toBe(0);
+    expect(base.result.stderr).toContain("BASE_FINGERPRINT");
   });
 });
