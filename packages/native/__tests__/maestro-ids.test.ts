@@ -570,7 +570,7 @@ it("types the Library filter in one input and observes durable Watchlist members
   const library = readFileSync(join(flowsDirectory, "library.yaml"), "utf8");
   const movie = readFileSync(join(flowsDirectory, "movie-detail.yaml"), "utf8");
   expect([...library.matchAll(/^- inputText: (.*)$/gm)].map((match) => match[1])).toEqual([
-    '"zzz"',
+    '"coastal"',
   ]);
   expect(movie).toContain('- assertVisible: "In Watchlist"');
 });

@@ -5,7 +5,7 @@ import type { ReactElement } from "react";
 import { Badge } from "./Badge";
 import { Poster } from "./Poster";
 import { Row } from "./Row";
-import { POSTER_WIDTH, useColors } from "./tokens";
+import { POSTER_WIDTH, TITLE_LINES, useColors } from "./tokens";
 import { CueText } from "./type";
 
 export interface AiringRowProps {
@@ -38,7 +38,7 @@ export function AiringRow({
       leading={<Poster title={row.showTitle} posters={row.posters} width={POSTER_WIDTH.onTheWay} />}
       trailing={chip === null ? undefined : <Badge label={chip} />}
     >
-      <CueText variant="rowTitleSecondary" style={{ color: colors.fg }}>
+      <CueText variant="rowTitleSecondary" numberOfLines={TITLE_LINES} style={{ color: colors.fg }}>
         {row.showTitle}
       </CueText>
       <CueText variant="meta" style={{ color: colors.ink2 }}>

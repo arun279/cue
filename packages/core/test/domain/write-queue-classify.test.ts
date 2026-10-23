@@ -2,6 +2,7 @@ import {
   backoffMs,
   classifyStatus,
   computePacingDelay,
+  jitteredBackoffMs,
   MIN_WRITE_INTERVAL_MS,
   parseRetryAfterMs,
 } from "@cue/core/domain/write-queue/classify";
@@ -46,13 +47,28 @@ describe("parseRetryAfterMs", () => {
     expect(parseRetryAfterMs({}, 0)).toBeNull();
     expect(parseRetryAfterMs({ "retry-after": "soon" }, 0)).toBeNull();
   });
-  it("clamps an over-long wait to the backoff ceiling so a server can't stall sync for minutes", () => {
-    // A raw `Retry-After: 300` (5 min) is honored no longer than the 30s cap the
-    // self-computed backoff already tops out at.
-    expect(parseRetryAfterMs({ "retry-after": "300" }, 0)).toBe(30_000);
+  it("honors a write's Retry-After in full, up to Trakt's five-minute window", () => {
+    expect(parseRetryAfterMs({ "retry-after": "120" }, 0)).toBe(120_000);
+    expect(parseRetryAfterMs({ "retry-after": "900" }, 0)).toBe(300_000);
     const now = Date.parse("2026-07-05T00:00:00.000Z");
     const farFuture = { "retry-after": "Sun, 05 Jul 2026 00:10:00 GMT" };
-    expect(parseRetryAfterMs(farFuture, now)).toBe(30_000);
+    expect(parseRetryAfterMs(farFuture, now)).toBe(300_000);
+  });
+
+  it("retries a write rate limited with Retry-After no sooner than Trakt allows", () => {
+    expect(classifyStatus(dispatchResult(429, { "Retry-After": "120" }), 0, 0)).toEqual({
+      kind: "retry",
+      delayMs: 120_000,
+    });
+  });
+});
+
+describe("jitteredBackoffMs", () => {
+  it("waits a uniformly random time up to the exponential bound", () => {
+    const limits = { base: 1000, max: 30_000 };
+    expect(jitteredBackoffMs(0, limits, () => 0)).toBe(0);
+    expect(jitteredBackoffMs(2, limits, () => 0.5)).toBe(2000);
+    expect(jitteredBackoffMs(9, limits, () => 0.999_999)).toBe(29_999);
   });
 });
 

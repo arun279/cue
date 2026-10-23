@@ -5,7 +5,8 @@ export const MIN_WRITE_INTERVAL_MS = 1100;
 
 const BACKOFF_BASE_MS = MIN_WRITE_INTERVAL_MS;
 const BACKOFF_MAX_MS = 30_000;
-const READ_RETRY_AFTER_MAX_MS = 300_000;
+// Trakt's rate-limit window is five minutes, so no honest Retry-After is longer.
+const RETRY_AFTER_MAX_MS = 300_000;
 const READ_RETRY_AFTER_MARGIN_MS = 500;
 
 export type Classification =
@@ -31,14 +32,14 @@ export function parseRetryAfterMs(
   headers: Readonly<Record<string, string>>,
   now: number,
 ): number | null {
-  return parseRetryAfter(headers, now, BACKOFF_MAX_MS, 0);
+  return parseRetryAfter(headers, now, RETRY_AFTER_MAX_MS, 0);
 }
 
 export function parseReadRetryAfterMs(
   headers: Readonly<Record<string, string>>,
   now: number,
 ): number | null {
-  return parseRetryAfter(headers, now, READ_RETRY_AFTER_MAX_MS, READ_RETRY_AFTER_MARGIN_MS);
+  return parseRetryAfter(headers, now, RETRY_AFTER_MAX_MS, READ_RETRY_AFTER_MARGIN_MS);
 }
 
 function parseRetryAfter(
@@ -67,6 +68,15 @@ export function backoffMs(
   },
 ): number {
   return Math.min(max, base * 2 ** Math.max(0, attempt));
+}
+
+/** Full jitter: a uniformly random wait up to the exponential bound, so retries spread out. */
+export function jitteredBackoffMs(
+  attempt: number,
+  limits: { readonly base: number; readonly max: number },
+  random: () => number = Math.random,
+): number {
+  return Math.floor(random() * backoffMs(attempt, limits));
 }
 
 export function computePacingDelay(now: number, lastDispatchAt: number | null): number {

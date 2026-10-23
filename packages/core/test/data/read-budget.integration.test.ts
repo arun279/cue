@@ -5,7 +5,12 @@ import {
   type TraktResult,
 } from "@cue/core/data/trakt/client";
 import { DEFAULT_TRAKT_POLICY } from "@cue/core/data/trakt/policy";
-import { loadUpNextEntries, withReadRateRetry } from "@cue/core/data/trakt/read-budget";
+import {
+  loadUpNextEntries,
+  readRetryFailure,
+  subscribeReadRetry,
+  withReadRateRetry,
+} from "@cue/core/data/trakt/read-budget";
 import { delay, HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 import { SCENARIO_GET_BUDGET } from "../harness/trakt-limits";
@@ -17,6 +22,10 @@ const { readConcurrency: READ_CONCURRENCY, progressBudget: WATCHED_PROGRESS_BUDG
 
 const server = mswServer();
 const client = new TraktClient({ clientId: "cid" });
+const fastRetryClient = new TraktClient({
+  clientId: "cid",
+  policy: { ...DEFAULT_TRAKT_POLICY, retryDelayMs: { base: 1, max: 1 } },
+});
 
 const WATCHED_PAGE_LIMIT = 100;
 
@@ -416,11 +425,57 @@ describe("cold-sync GET budget", () => {
     expect(startedAt.filter((at) => at - blockedAt < 900).length).toBeLessThanOrEqual(6);
   });
 
-  it("abandons the rest of the fan-out the moment one member loses it", async () => {
-    // The aggregate is all-or-nothing, so once one progress read has failed the
-    // members still queued for a slot are reading an answer nobody can use. Left
-    // running they spend the window anyway, and their tail overlaps the caller's
-    // next attempt: the fan-out has to stop, and be settled, before it throws.
+  it("retries one failing read on its own, so a single 502 costs that read once more", async () => {
+    const counts = installColdSync(10, 2, 2);
+    const failedOnce = new Set<string>();
+    server.use(
+      http.get(`${TRAKT_API_BASE}/shows/:id/progress/watched`, ({ params }) => {
+        counts.progress += 1;
+        const id = String(params["id"]);
+        if (id === "3" && !failedOnce.has(id)) {
+          failedOnce.add(id);
+          return HttpResponse.json({} as never, { status: 502 });
+        }
+        return HttpResponse.json(progressBody(Number(id)) as never);
+      }),
+      http.get(`${TRAKT_API_BASE}/users/hidden/progress_watched`, ({ request }) => {
+        counts.hidden += 1;
+        if (counts.hidden === 1) return HttpResponse.json({} as never, { status: 500 });
+        return pageResponse([hiddenItem(1), hiddenItem(2)], new URL(request.url));
+      }),
+    );
+
+    const entries = await loadUpNextEntries(fastRetryClient);
+
+    expect(entries).toHaveLength(10);
+    expect(counts.progress).toBe(11);
+    expect(counts.hidden).toBe(2);
+  });
+
+  it("publishes the failure it is retrying past, and clears it once the read lands", async () => {
+    const counts = installColdSync(3);
+    server.use(
+      http.get(`${TRAKT_API_BASE}/users/hidden/progress_watched`, ({ request }) => {
+        counts.hidden += 1;
+        if (counts.hidden === 1) return HttpResponse.json({} as never, { status: 503 });
+        return pageResponse([], new URL(request.url));
+      }),
+    );
+    const seen: unknown[] = [];
+    const unsubscribe = subscribeReadRetry(() => seen.push(readRetryFailure()));
+
+    await loadUpNextEntries(fastRetryClient);
+    unsubscribe();
+
+    expect(seen).toEqual([{ kind: "server", status: 503 }, null]);
+    expect(readRetryFailure()).toBeNull();
+  });
+
+  it("stops and settles the fan-out once a read has spent its retries, before it throws", async () => {
+    // The aggregate is all-or-nothing, so once one progress read has lost, the
+    // members still waiting are reading an answer nobody can use. Left running
+    // they spend the window anyway, and their tail overlaps the caller's next
+    // attempt: the fan-out has to stop, and be settled, before it throws.
     installColdSync(10);
     let progressGets = 0;
     server.use(
@@ -430,10 +485,12 @@ describe("cold-sync GET budget", () => {
       }),
     );
 
-    await expect(loadUpNextEntries(client)).rejects.toThrow(TraktReadError);
+    await expect(loadUpNextEntries(fastRetryClient)).rejects.toThrow(TraktReadError);
+    const settled = progressGets;
+    await new Promise((resolve) => setTimeout(resolve, 50));
 
-    // Only the reads that already held a slot when the first failure landed.
-    expect(progressGets).toBe(READ_CONCURRENCY);
+    expect(progressGets).toBe(settled);
+    expect(progressGets).toBeGreaterThanOrEqual(DEFAULT_TRAKT_POLICY.readAttempts);
   });
 
   it("fails the whole snapshot on a progress body that breaks the contract", async () => {

@@ -1,6 +1,6 @@
 import type { LibraryEntry } from "@cue/core/data/trakt/library";
 import type { MovieEntry } from "@cue/core/data/trakt/movie-library";
-import { episodesLeft, watchedPercent } from "@cue/core/format";
+import { watchedPercent } from "@cue/core/format";
 import { useHideShow } from "@cue/core/hooks/useHideShow";
 import { type Href, useRouter } from "expo-router";
 import { memo, type ReactElement, type ReactNode } from "react";
@@ -10,12 +10,11 @@ import { Poster } from "../../ui/Poster";
 import { ProgressBar } from "../../ui/ProgressBar";
 import { itemActions, RowMenu, type RowMenuItem } from "../../ui/RowMenu";
 import { TEST_IDS } from "../../ui/test-ids";
-import { PALETTE, SPACE, TARGET_MIN, useColors, useStacked } from "../../ui/tokens";
+import { PALETTE, SPACE, TARGET_MIN, TITLE_LINES, useColors, useStacked } from "../../ui/tokens";
 import { CueText } from "../../ui/type";
 import type { ChipKey } from "./model";
 
 const PLATE = { inset: 6, radius: 6 };
-const TITLE_LINES = 2;
 const MAX_COLUMNS = 3;
 const MORE_INSET = (TARGET_MIN - 24) / 2;
 
@@ -134,7 +133,7 @@ export const ShowTile = memo(function ShowTile({
   const hide = useHideShow();
   const listed = entry.posters.length > 0;
   const art = useShowArt(entry.showId, !listed);
-  const left = chip === "watching" ? episodesLeft(entry.aired, entry.completed) : 0;
+  const left = chip === "watching" ? entry.left : 0;
   const href: Href = `/show/${entry.showId}`;
   const open = (): void => router.push(href);
   const label = [entry.title, STATUS_WORD[chip], left > 0 ? `${left} episodes left` : null]

@@ -22,6 +22,7 @@ const rateLimited = (retryAfterMs: number | null): TraktResult<never> => ({
 afterEach(() => {
   resetReadPause();
   vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 describe("unwrapRead", () => {
@@ -75,21 +76,49 @@ describe("withReadRateRetry", () => {
     await Promise.all([far, near]);
   });
 
-  it("holds reads back for a second when a 429 names no Retry-After", async () => {
+  it("backs off with full jitter and pauses no other read when a 429 names no Retry-After", async () => {
     vi.useFakeTimers();
-    const startedAt = Date.now();
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
     const read = vi
       .fn<() => Promise<TraktResult<number>>>()
+      .mockResolvedValueOnce(rateLimited(null))
       .mockResolvedValueOnce(rateLimited(null))
       .mockResolvedValue({ ok: true, data: 1, pagination: null });
     const settled = withReadRateRetry(read);
     await vi.advanceTimersByTimeAsync(0);
-    expect(readsPausedUntil()).toBe(startedAt + 1000);
+    expect(readsPausedUntil()).toBe(0);
 
-    await vi.advanceTimersByTimeAsync(999);
+    await vi.advanceTimersByTimeAsync(499);
     expect(read).toHaveBeenCalledTimes(1);
     await vi.advanceTimersByTimeAsync(1);
+    expect(read).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(999);
+    expect(read).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1);
     expect((await settled).ok).toBe(true);
+  });
+
+  it("spreads the retries of reads rate limited together rather than firing them in step", async () => {
+    vi.useFakeTimers();
+    const draws = [0.1, 0.9];
+    vi.spyOn(Math, "random").mockImplementation(() => draws.shift() ?? 0);
+    const attempts: number[] = [];
+    const reader = () => {
+      let calls = 0;
+      return () => {
+        calls += 1;
+        attempts.push(Date.now());
+        return Promise.resolve<TraktResult<number>>(
+          calls === 1 ? rateLimited(null) : { ok: true, data: 1, pagination: null },
+        );
+      };
+    };
+    const startedAt = Date.now();
+    const both = Promise.all([withReadRateRetry(reader()), withReadRateRetry(reader())]);
+    await vi.runAllTimersAsync();
+    await both;
+
+    expect(attempts.map((at) => at - startedAt)).toEqual([0, 0, 100, 900]);
   });
 
   it("opens no pause at all for a read that works", async () => {

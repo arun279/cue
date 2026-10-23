@@ -122,7 +122,7 @@ describe("the reveals' cost", () => {
   it("mounts no glyph until the row is first dragged, then keeps it", async () => {
     await renderRow(jest.fn(), jest.fn());
     const glyphs = () =>
-      screen.container.queryAll((node) => String(node.type).startsWith("RNSVGSvgView")).length;
+      screen.container.queryAll((node) => /Image/.test(String(node.type))).length;
 
     expect(glyphs()).toBe(0);
     await dragTo(1);

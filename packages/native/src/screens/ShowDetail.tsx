@@ -54,7 +54,7 @@ function ShowContent({ showId }: { readonly showId: number }): ReactElement {
   const mark = useDetailMark(showId, seasonList);
   const nextMark = useMarkWatched();
   if (header.isError && header.data === undefined)
-    return <DetailError subject="this show" onRetry={header.refetch} />;
+    return <DetailError subject="this show" failure={header.failure} onRetry={header.refetch} />;
   if (header.data === undefined || entry === undefined)
     return <DetailSkeleton testID={TEST_IDS.showDetailSkeleton} />;
   const data = header.data;

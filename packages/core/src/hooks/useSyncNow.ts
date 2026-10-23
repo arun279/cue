@@ -2,7 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 import { useRuntime } from "../runtime/runtime";
 import { dismissSnack, showSnack } from "../stores/snackbar-store";
-import { applyReconcile } from "./apply-reconcile";
+import { applyReconcile, refetchFailedReads } from "./apply-reconcile";
 
 interface SyncNow {
   readonly syncing: boolean;
@@ -19,7 +19,10 @@ export function useSyncNow(): SyncNow {
     try {
       const remaining = await runtime.flushWrites();
       const reconcile = remaining === 0 ? await runtime.pollActivities() : null;
-      if (reconcile !== null && (await applyReconcile(queryClient, reconcile))) return true;
+      if (reconcile !== null) {
+        await refetchFailedReads(queryClient);
+        if (await applyReconcile(queryClient, reconcile)) return true;
+      }
     } catch {
     } finally {
       setSyncing(false);

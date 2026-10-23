@@ -1,5 +1,5 @@
 import type { EpisodeIds, ShowIds } from "../../domain/model/ids";
-import type { EpisodeKey, EpisodeRef } from "../../domain/model/library";
+import { type EpisodeKey, type EpisodeRef, episodesLeftFrom } from "../../domain/model/library";
 import { isAired } from "../../domain/time";
 import { resolveStill } from "../image-source";
 import type { EpisodeData, Progress, SeasonData, ShowDetailData } from "./schemas";
@@ -95,6 +95,7 @@ export interface ShowInfo {
 export interface ShowProgress {
   readonly aired: number;
   readonly completed: number;
+  readonly left: number;
   readonly lastAired: EpisodeKey | null;
   readonly nextEpisode: EpisodeView | null;
 }
@@ -137,11 +138,26 @@ export function assembleShowInfo(show: ShowDetailData): ShowInfo {
   };
 }
 
+export function progressLeft(progress: Progress): number {
+  if (progress.seasons === undefined) return Math.max(0, progress.aired - progress.completed);
+  return episodesLeftFrom(
+    progress.next_episode,
+    progress.seasons.flatMap((season) =>
+      season.episodes.map((episode) => ({
+        season: season.number,
+        number: episode.number,
+        watched: episode.completed,
+      })),
+    ),
+  );
+}
+
 export function assembleShowProgress(progress: Progress, now: number): ShowProgress {
   const next = progress.next_episode;
   return {
     aired: progress.aired,
     completed: progress.completed,
+    left: progressLeft(progress),
     lastAired:
       progress.last_episode == null
         ? null

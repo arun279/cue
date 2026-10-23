@@ -7,13 +7,24 @@
  * outage over data that is on the screen and fine.
  */
 
-import { TraktReadError, type TraktResult, unwrapRead } from "@cue/core/data/trakt/client";
+import {
+  type FetchLike,
+  TraktClient,
+  TraktReadError,
+  type TraktResult,
+  unwrapRead,
+} from "@cue/core/data/trakt/client";
 import { DEFAULT_TRAKT_POLICY } from "@cue/core/data/trakt/policy";
-import { resetReadPause, withReadRateRetry } from "@cue/core/data/trakt/read-budget";
+import {
+  loadUpNextEntries,
+  resetReadPause,
+  withReadRateRetry,
+} from "@cue/core/data/trakt/read-budget";
 import { backoffMs } from "@cue/core/domain/write-queue/classify";
-import { queryStatus } from "@cue/core/queries/freshness";
+import { useReadRetry } from "@cue/core/hooks/useReadRetry";
+import { queryStatus, retryingPast } from "@cue/core/queries/freshness";
 import { createQueryClient } from "@cue/core/runtime/query-cache";
-import { QueryClientProvider, useQuery } from "@tanstack/react-query";
+import { type QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mount } from "./_mount";
@@ -171,5 +182,71 @@ describe("a sustained rate limit", () => {
     expect(requests).toBe(DEFAULT_TRAKT_POLICY.rateLimit.retries + 1);
     expect(last(seen).failure).toEqual({ kind: "rate-limited", retryAfterMs: 1000 });
     expect(last(seen).retrying).toBe(false);
+  });
+});
+
+describe("a load that retries its own reads", () => {
+  /** A Trakt whose hidden list fails once with a 503 and answers every other read empty. */
+  function flakyHiddenList(): TraktClient {
+    let hiddenReads = 0;
+    const fetch: FetchLike = async (input) => {
+      if (input.includes("/users/hidden/progress_watched") && ++hiddenReads === 1)
+        return new Response("{}", { status: 503 });
+      return new Response("[]", { status: 200, headers: { "content-type": "application/json" } });
+    };
+    return new TraktClient({ clientId: "cid", fetch });
+  }
+
+  function mountLoad(client: TraktClient): { seen: Status[]; queryClient: QueryClient } {
+    const queryClient = createQueryClient();
+    const seen: Status[] = [];
+    function Probe(): null {
+      const failure = useReadRetry();
+      const query = useQuery({
+        queryKey: ["load"],
+        queryFn: () => loadUpNextEntries(client),
+        retry: false,
+      });
+      seen.push(retryingPast(queryStatus(query, query.data !== undefined), failure));
+      return null;
+    }
+    mount(
+      <QueryClientProvider client={queryClient}>
+        <Probe />
+      </QueryClientProvider>,
+    );
+    return { seen, queryClient };
+  }
+
+  it("tells the screen it is still trying, and why, until the failed read lands", async () => {
+    const { seen } = mountLoad(flakyHiddenList());
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(last(seen)).toMatchObject({
+      isLoading: true,
+      retrying: true,
+      failure: { kind: "server", status: 503 },
+    });
+
+    await act(async () => {
+      await vi.runAllTimersAsync();
+    });
+    expect(last(seen)).toMatchObject({ hasData: true, retrying: false, failure: null });
+  });
+
+  it("stops saying it is trying once the screen's own fetch is cancelled", async () => {
+    const { seen, queryClient } = mountLoad(flakyHiddenList());
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(last(seen).retrying).toBe(true);
+
+    await act(async () => {
+      await queryClient.cancelQueries({ queryKey: ["load"] });
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(last(seen)).toMatchObject({ isFetching: false, retrying: false });
   });
 });

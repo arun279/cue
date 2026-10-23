@@ -7,7 +7,6 @@ export interface UpNextItem {
   readonly title: string;
   readonly episode: EpisodeRef | null;
   readonly lastWatchedAt: string | null;
-  readonly backlog: number;
 }
 
 export interface UpNextGroups {
@@ -42,7 +41,6 @@ function toUpNextItem(show: LibraryShow): UpNextItem {
     title: show.title,
     episode: show.nextEpisode,
     lastWatchedAt: show.lastWatchedAt,
-    backlog: Math.max(0, show.aired - show.completed),
   };
 }
 
