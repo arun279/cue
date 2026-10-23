@@ -4,14 +4,16 @@ import path from "node:path";
 
 // XCTest plays each synthesized tap through a virtual touchscreen that
 // backboardd attaches for that one event; testmanagerd logs "playback
-// initiated", and backboardd's "purge sender info" ends the event. Two ways the
-// simulator drops the tap show in that window:
+// initiated", and backboardd's "purge sender info" ends the event. Two signs of
+// a lost tap show in that window:
 // - backboardd sees the touchscreen's first event before it has cached the
 //   sender, keeps two touch records, and when the touchscreen goes away cancels
-//   a contact that is still down ("canceling paths ... touching");
+//   a contact that is still down ("canceling paths ... touching"). The app gets
+//   the touch cancelled, so no press fires: the one loss a tap is played again for;
 // - backboardd sets the touch down only after testmanagerd has cancelled the
-//   touchscreen ("service canceled"), seconds late, so the app gets it out of
-//   time and the control does not act.
+//   touchscreen ("service canceled"). The touch can still reach the app: run
+//   39893036064's Settings row acted on one, run 39740669724's switch did not.
+//   It names a failure but never earns a second tap.
 export const PLAYBACK_PREDICATE =
   '(process == "testmanagerd" AND (eventMessage CONTAINS "Recap event action playback" OR eventMessage CONTAINS "service canceled")) OR (process == "backboardd" AND (eventMessage CONTAINS "canceling paths" OR eventMessage CONTAINS "touch down without previous range event" OR eventMessage CONTAINS "purge sender info"))';
 const CANCELLED_CONTACT = /canceling paths contacts: \[[^\]]*\btouching\b/;
@@ -20,6 +22,9 @@ const SERVICE_CANCELED = /\bservice canceled\b/;
 const TOUCH_DOWN = /touch down without previous range event/;
 const PLAYBACK_INITIATED = /playback initiated/;
 export const PLAYBACK_END = /purge sender info/;
+
+/** The lines where backboardd cancelled a contact that was still down, which no control acts on. */
+export const cancelledContacts = (lines) => lines.filter((line) => CANCELLED_CONTACT.test(line));
 
 /** The simulator log lines, in order, where backboardd threw away or delayed a synthesized touch. */
 export function droppedTouches(lines) {
@@ -90,16 +95,26 @@ const ignored = (was, is) => [
 
 /**
  * Whether to play a tap again: only when the simulator log for that tap's
- * playback shows it was dropped, and the same elements are under the tap short
- * of the full-screen containers, each with the same identifier, label, value,
- * type, enabled and selected state, within a point of the same frame. A switch
+ * playback shows backboardd cancelled the contact while it was down, and the
+ * same elements are under the tap short of the full-screen containers, each
+ * with the same identifier, label, value, type, enabled and selected state,
+ * within a point of the same frame. A switch
  * that toggled on the cancel changed its own value, and a tab that switched
  * changed its selection, so neither is tapped twice. With no such element
  * under the tap there is nothing to check, so no second tap.
  */
 export function tapAgain({ playback, before, after, point }) {
-  const [cancel] = droppedTouches(playback);
-  if (cancel === undefined) return { again: false, reason: "no dropped touch" };
+  const [cancel] = cancelledContacts(playback);
+  if (cancel === undefined) {
+    const [dropped] = droppedTouches(playback);
+    return {
+      again: false,
+      reason:
+        dropped === undefined
+          ? "no dropped touch"
+          : `the touch may still have reached the app: ${dropped.trim()}`,
+    };
+  }
   if (before === undefined || after === undefined) {
     return { again: false, reason: "no hierarchy from before and after the tap" };
   }
