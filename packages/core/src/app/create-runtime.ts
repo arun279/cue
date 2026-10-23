@@ -1,7 +1,12 @@
 import { invalidationKeys } from "../data/query-invalidation";
 import { createAuthorizedFetch } from "../data/trakt/authorized-fetch";
 import { assembleCalendarEntries } from "../data/trakt/calendar";
-import { type ReadReporter, TraktClient, unwrapRead } from "../data/trakt/client";
+import {
+  fetchWithoutCookies,
+  type ReadReporter,
+  TraktClient,
+  unwrapRead,
+} from "../data/trakt/client";
 import { parseIncidents, type ReadIncident, recordIncident } from "../data/trakt/diagnostics";
 import { assembleEpisodeDetail } from "../data/trakt/episode-detail";
 import {
@@ -195,7 +200,7 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
   };
 
   const authorized = createAuthorizedFetch({
-    inner: (input, init) => globalThis.fetch(input, init),
+    inner: fetchWithoutCookies,
     token: deps.token,
     config: {
       clientId: deps.clientId,

@@ -73,8 +73,10 @@ it("scrolls a list down one window height at a time, three times, apart like fli
 
 it("reports the boot phases it reached, timed from React Native's runtime start, when it first asks for a command", async () => {
   const fetches: string[] = [];
-  jest.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+  const options: (RequestInit | undefined)[] = [];
+  jest.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
     fetches.push(String(url));
+    options.push(init);
     return new Promise<Response>(() => {});
   });
   const now = jest.spyOn(performance, "now").mockReturnValue(120.4);
@@ -90,6 +92,7 @@ it("reports the boot phases it reached, timed from React Native's runtime start,
 
   listenForCommands();
 
+  expect(options).toEqual([{ credentials: "omit" }]);
   const query = new URL(fetches[0] ?? "").searchParams;
   expect(query.get("reply")).toBe("ready");
   expect(JSON.parse(query.get("boot") ?? "")).toEqual({

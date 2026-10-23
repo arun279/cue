@@ -7,6 +7,13 @@ const TRAKT_API_VERSION = "2";
 
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
+/**
+ * fetch without cookies. Trakt authenticates with a bearer token, and on Android React Native's
+ * cookie jar loads the system WebView the first time a request uses it.
+ */
+export const fetchWithoutCookies: FetchLike = (input, init) =>
+  globalThis.fetch(input, { ...init, credentials: "omit" });
+
 type Extended = "min" | "full" | "images" | "episodes" | "progress";
 
 export interface TraktClientConfig {
@@ -98,7 +105,7 @@ export class TraktClient {
   constructor(config: TraktClientConfig) {
     this.clientId = config.clientId;
     this.getToken = config.getToken ?? (() => null);
-    this.fetchFn = config.fetch ?? ((input, init) => globalThis.fetch(input, init));
+    this.fetchFn = config.fetch ?? fetchWithoutCookies;
     this.baseUrl = (config.baseUrl ?? TRAKT_API_BASE).replace(/\/+$/, "");
     this.userAgent = config.userAgent;
     this.policy = config.policy ?? DEFAULT_TRAKT_POLICY;
