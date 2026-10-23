@@ -66,7 +66,7 @@ function NextEpisode({
   const count =
     entry.completed === 0
       ? episodeCount(entry.aired)
-      : `${entry.completed} of ${entry.aired} watched · ${Math.max(0, entry.aired - entry.completed)} left`;
+      : `${entry.completed} of ${entry.aired} watched · ${entry.left} left`;
   return (
     <Row
       label={`${title}, ${count}`}

@@ -137,6 +137,18 @@ it("opens on Watching, with a count on every chip", async () => {
   );
 });
 
+it("counts a tile's episodes left from the next-up episode, leaving skipped seasons out", async () => {
+  await paint({
+    entries: shows().map((show) =>
+      show.showId === HARBOR ? { ...show, aired: 30, completed: 7, left: 13 } : show,
+    ),
+  });
+
+  expect(labelOf(screen.getByTestId(`show-card-${HARBOR}`))).toBe(
+    "Harbor Lights, watching, 13 episodes left",
+  );
+});
+
 it("shows the chip's own slice of the library", async () => {
   await paint();
 

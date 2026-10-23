@@ -2,6 +2,7 @@ import type { MovieHeader } from "@cue/core/data/trakt/movie-library";
 import { episodeStatus } from "@cue/core/domain/episode-detail";
 import { useGenreLabels } from "@cue/core/hooks/useGenreLabels";
 import { usePrefs } from "@cue/core/prefs/prefs-store";
+import { combineStatus } from "@cue/core/queries/freshness";
 import { movieLibraryQuery } from "@cue/core/queries/library";
 import { movieHeaderQuery, movieRelatedQuery } from "@cue/core/queries/movies";
 import { useRuntime } from "@cue/core/runtime/runtime";
@@ -57,6 +58,7 @@ function MovieContent({ movieId }: { readonly movieId: number }): ReactElement {
     return (
       <DetailError
         subject="this movie"
+        failure={combineStatus([header, library], false).failure}
         onRetry={() => {
           void header.refetch();
           void library.refetch();

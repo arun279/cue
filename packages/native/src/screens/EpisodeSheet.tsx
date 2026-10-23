@@ -3,6 +3,7 @@ import { airsLine, sheetMetaLine } from "@cue/core/domain/episode-detail";
 import { epCode } from "@cue/core/domain/model/library";
 import { episodeNavigation } from "@cue/core/domain/show-detail";
 import { usePrefs } from "@cue/core/prefs/prefs-store";
+import { queryStatus } from "@cue/core/queries/freshness";
 import { episodePlaysQuery, episodeQuery, showSeasonsQuery } from "@cue/core/queries/shows";
 import { useRuntime } from "@cue/core/runtime/runtime";
 import { useQuery } from "@tanstack/react-query";
@@ -45,7 +46,11 @@ function EpisodeContent({ showId, season, episode }: EpisodeSheetProps): ReactEl
         <SheetClose />
       </View>
       {query.isError ? (
-        <DetailError subject="this episode" onRetry={() => void query.refetch()} />
+        <DetailError
+          subject="this episode"
+          failure={queryStatus(query, false).failure}
+          onRetry={() => void query.refetch()}
+        />
       ) : (
         <DetailSkeleton testID={TEST_IDS.episodeSkeleton} />
       )}

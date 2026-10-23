@@ -1,8 +1,9 @@
 import type { LibrarySort } from "@cue/core/domain/library-buckets";
 import { useLibrarySnapshot } from "@cue/core/hooks/useLibrarySnapshot";
+import { useReadRetry } from "@cue/core/hooks/useReadRetry";
 import { useSyncBanner } from "@cue/core/hooks/useSyncBanner";
 import { usePrefs } from "@cue/core/prefs/prefs-store";
-import { queryStatus } from "@cue/core/queries/freshness";
+import { queryStatus, retryingPast } from "@cue/core/queries/freshness";
 import { movieLibraryQuery } from "@cue/core/queries/library";
 import { useRuntime } from "@cue/core/runtime/runtime";
 import { useQuery } from "@tanstack/react-query";
@@ -83,6 +84,7 @@ export default function Library(): ReactElement {
 
   const runtime = useRuntime();
   const snapshot = useLibrarySnapshot(showsEnabled);
+  const retrying = useReadRetry();
   const movies = useQuery({
     ...movieLibraryQuery(runtime),
     enabled: moviesEnabled && segment === "movies",
@@ -101,7 +103,7 @@ export default function Library(): ReactElement {
   const items = useMemo(() => matching(view.items(chip, sort), query), [view, chip, sort, query]);
 
   const status = shows
-    ? queryStatus(snapshot.query, snapshot.data !== undefined)
+    ? retryingPast(queryStatus(snapshot.query, snapshot.data !== undefined), retrying)
     : queryStatus(movies, movies.data !== undefined);
   const banner = useSyncBanner(status);
   const refresh = usePullToRefresh();

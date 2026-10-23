@@ -12,6 +12,8 @@ export const libraryQuery = (runtime: CueRuntime) =>
       return { ...data, entries: withOwnMarks(data.entries) };
     },
     staleTime: USER_STATE_STALE_TIME,
+    // The load retries each failed read itself, so retrying the whole of it would read everything again.
+    retry: false,
   });
 
 export const movieLibraryQuery = (runtime: CueRuntime) =>

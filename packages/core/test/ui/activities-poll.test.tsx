@@ -218,6 +218,39 @@ describe("useActivitiesPoll reconcile", () => {
     expect(commit).toHaveBeenCalledOnce();
   });
 
+  it("fetches a failed read again when Trakt answers on reconnect, though nothing changed there", async () => {
+    let reads = 0;
+    function Library(): null {
+      useQuery({
+        queryKey: queryKeys.library(),
+        retry: false,
+        queryFn: () => {
+          reads += 1;
+          return reads === 1
+            ? Promise.reject(new Error("offline"))
+            : Promise.resolve({ entries: [] });
+        },
+      });
+      return null;
+    }
+    const device = devicePorts();
+    const commit = vi.fn(() => Promise.resolve());
+    await mountAsync(
+      withPorts(
+        device,
+        reconcileRuntime({ keys: [], commit }),
+        <>
+          <Library />
+          <Probe />
+        </>,
+      ),
+    );
+    await vi.waitFor(() => expect(reads).toBe(1));
+    await act(async () => device.setOnline(false));
+    await act(async () => device.setOnline(true));
+    await vi.waitFor(() => expect(reads).toBe(2));
+  });
+
   it("never advances the baseline or checks a session torn down mid-poll", async () => {
     const commit = vi.fn(() => Promise.resolve());
     let answer: ((reconcile: ActivitiesReconcile) => void) | undefined;

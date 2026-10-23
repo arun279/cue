@@ -24,6 +24,7 @@ function entry(overrides: Partial<LibraryEntry> = {}): LibraryEntry {
     lastWatchedAt: airedAt(),
     aired: 2,
     completed: 2,
+    left: Math.max(0, (overrides.aired ?? 2) - (overrides.completed ?? 2)),
     nextEpisode: null,
     lastAired: { season: 1, number: 2 },
     tmdbId: null,

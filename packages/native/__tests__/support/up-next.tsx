@@ -50,6 +50,7 @@ export function entry(overrides: Partial<LibraryEntry> = {}): LibraryEntry {
     lastWatchedAt: agesAgo(2),
     aired: 21,
     completed: 18,
+    left: Math.max(0, (overrides.aired ?? 21) - (overrides.completed ?? 18)),
     nextEpisode: {
       season: 3,
       number: 5,

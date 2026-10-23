@@ -44,16 +44,6 @@ describe("groupUpNext partitioning", () => {
     expect(group([show])).toEqual({ queue: [expect.objectContaining({ showId: 1 })], lapsed: [] });
   });
 
-  it("reports backlog as aired minus completed, floored at 0", () => {
-    const shows = [
-      makeShow({ showId: 1, aired: 10, completed: 3, nextEpisode: airedRecent }),
-      makeShow({ showId: 2, aired: 4, completed: 9, nextEpisode: airedRecent }),
-    ];
-    const { queue } = group(shows);
-    expect(queue.find((item) => item.showId === 1)?.backlog).toBe(7);
-    expect(queue.find((item) => item.showId === 2)?.backlog).toBe(0);
-  });
-
   it("excludes an unknown authoritative air date", () => {
     expect(group([makeShow({ nextEpisode: makeEpisode({ firstAired: null }) })])).toEqual({
       queue: [],

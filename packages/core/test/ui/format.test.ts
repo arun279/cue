@@ -1,6 +1,5 @@
 import { epCode } from "@cue/core/domain/model/library";
 import {
-  episodesLeft,
   lastWatchedPhrase,
   leftNote,
   middleTruncate,
@@ -16,20 +15,10 @@ describe("epCode", () => {
   });
 });
 
-describe("episodesLeft", () => {
-  it("is the aired-but-unwatched count", () => {
-    expect(episodesLeft(10, 7)).toBe(3);
-  });
-
-  it("never goes negative when completed overshoots aired", () => {
-    expect(episodesLeft(5, 6)).toBe(0);
-  });
-});
-
 describe("leftNote", () => {
   it("counts the episodes left, and says nothing once caught up", () => {
-    expect(leftNote(10, 7)).toBe("3 left");
-    expect(leftNote(5, 6)).toBeNull();
+    expect(leftNote(3)).toBe("3 left");
+    expect(leftNote(0)).toBeNull();
   });
 });
 

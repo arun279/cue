@@ -71,7 +71,7 @@ function QueueRowContent({ card, mark, onStop, variant = "queue" }: QueueRowProp
 
   const { code, title, meta } = episodeText(item.episode);
   const idle = variant === "lapsed" ? lastWatchedPhrase(entry.lastWatchedAt, now) : null;
-  const note = idle !== null ? `last watched ${idle}` : leftNote(entry.aired, entry.completed);
+  const note = idle !== null ? `last watched ${idle}` : leftNote(entry.left);
   const fresh = variant === "queue" && episodeAiredLastNight(item.episode, now);
   const open = (): void => router.push(`/show/${entry.showId}`);
   const stop = (): void => onStop(entry);

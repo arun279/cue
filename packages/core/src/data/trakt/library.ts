@@ -8,7 +8,7 @@ import { type EpisodePlay, isOwnPlay } from "../../domain/reversal";
 import { isAired, laterOf, toMs } from "../../domain/time";
 import { resolveStill } from "../image-source";
 import type { CollectionShow, HiddenItem, Progress, WatchedShow, WatchlistItem } from "./schemas";
-import { toEpisodeIds } from "./show-detail";
+import { progressLeft, toEpisodeIds } from "./show-detail";
 
 export interface LibraryEntry extends LibraryShow {
   readonly tmdbId: number | null;
@@ -75,17 +75,20 @@ function toWatchedEntry(
 function progressOf(
   watched: WatchedShow,
   progress: Progress | undefined,
-): Pick<LibraryEntry, "aired" | "completed" | "nextEpisode"> {
+): Pick<LibraryEntry, "aired" | "completed" | "left" | "nextEpisode"> {
   if (progress === undefined) {
+    const completed = watchedEpisodeCount(watched);
     return {
       aired: watched.show.aired_episodes,
-      completed: watchedEpisodeCount(watched),
+      completed,
+      left: Math.max(0, watched.show.aired_episodes - completed),
       nextEpisode: null,
     };
   }
   return {
     aired: progress.aired,
     completed: progress.completed,
+    left: progressLeft(progress),
     nextEpisode: progress.next_episode == null ? null : toEpisodeRef(progress.next_episode),
   };
 }
@@ -114,6 +117,7 @@ function toNotStartedEntry(saved: Saved, hidden: boolean): LibraryEntry {
     lastWatchedAt: null,
     aired: 0,
     completed: 0,
+    left: 0,
     nextEpisode: null,
     lastAired: null,
     tmdbId: show.ids.tmdb ?? null,
@@ -208,6 +212,7 @@ export function advancePastNext(entry: LibraryEntry, watchedAt: string): Library
   return {
     ...entry,
     completed: entry.completed + 1,
+    left: Math.max(0, entry.left - 1),
     lastWatchedAt: watchedAt,
     nextEpisode,
     pendingAdvance: true,
