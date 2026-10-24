@@ -261,6 +261,44 @@ describe("Calendar", () => {
     ]);
   });
 
+  it("keeps its plates up until the library says which shows are stopped, with every watchlist episode on too", async () => {
+    const library = held<{ readonly entries: readonly LibraryEntry[] }>();
+    const preferences = memoryPreferenceStorage();
+    preferences.setItem("cue.every-watchlist-episode", "1");
+    await paint({
+      runtime: { ...fakeRuntime({ calendar: [TONIGHT, LATER] }), loadUpNext: library.call },
+      preferences,
+      loading: true,
+    });
+    await act(() => jest.advanceTimersByTimeAsync(100));
+
+    expect(screen.getByTestId("calendar-skeleton")).toBeOnTheScreen();
+    expect(screen.queryAllByTestId(/^calendar-row-/)).toEqual([]);
+
+    library.release({
+      entries: [entry({ showId: TONIGHT.showId }), entry({ showId: LATER.showId, hidden: true })],
+    });
+
+    await waitFor(() => expect(screen.queryByTestId("calendar-skeleton")).toBeNull());
+    expect(screen.getAllByTestId(/^calendar-row-/).map((row) => row.props["testID"])).toEqual([
+      "calendar-row-88608",
+    ]);
+  });
+
+  it("shows every row, unfiltered, when the library cannot be read", async () => {
+    await paint({
+      runtime: {
+        ...fakeRuntime({ calendar: [TONIGHT, LATER] }),
+        loadUpNext: () => Promise.reject(new Error("library unavailable")),
+      },
+    });
+
+    expect(screen.getAllByTestId(/^calendar-row-/).map((row) => row.props["testID"])).toEqual([
+      "calendar-row-88608",
+      "calendar-row-88505",
+    ]);
+  });
+
   it("reads nothing at all while TV shows are turned off", async () => {
     const loadCalendar = jest.fn(() => Promise.resolve({ entries: [] }));
     await paint({

@@ -9,7 +9,6 @@ import { DAY_MS, localTimeZone } from "@cue/core/domain/time";
 import { useAlertsCard } from "@cue/core/hooks/useAlertsCard";
 import { useCalendarFocus } from "@cue/core/hooks/useCalendarFocus";
 import { useCoarseClock } from "@cue/core/hooks/useCoarseClock";
-import { useHiddenShowIds } from "@cue/core/hooks/useHiddenShowIds";
 import { useSyncBanner } from "@cue/core/hooks/useSyncBanner";
 import { usePrefs } from "@cue/core/prefs/prefs-store";
 import { calendarQuery } from "@cue/core/queries/calendar";
@@ -51,13 +50,12 @@ export default function Calendar(): ReactElement {
   const startDate = dayKeyOf(timeZone, clock);
   const query = useQuery({ ...calendarQuery(runtime, startDate), enabled: showsEnabled });
   const focus = useCalendarFocus(showsEnabled);
-  const hiddenShowIds = useHiddenShowIds(showsEnabled);
   const sections = useMemo(
     () =>
       query.data === undefined
         ? []
         : buildCalendarDays(
-            { entries: query.data.entries, hiddenShowIds },
+            { entries: query.data.entries, hiddenShowIds: focus.hiddenShowIds },
             clock,
             timeZone,
             startDate,
@@ -68,7 +66,7 @@ export default function Calendar(): ReactElement {
             offset: dayOffset(startDate, day.dayKey),
             data: day.rows,
           })),
-    [query.data, hiddenShowIds, clock, timeZone, startDate, focus.playedShowIds],
+    [query.data, clock, timeZone, startDate, focus.playedShowIds, focus.hiddenShowIds],
   );
   const status = queryStatus(query, query.data !== undefined);
   const banner = useSyncBanner(status);
