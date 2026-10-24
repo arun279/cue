@@ -11,7 +11,7 @@ import {
   resetReadPause,
   subscribeReadRetry,
 } from "@cue/core/data/trakt/read-budget";
-import type { SeasonView } from "@cue/core/data/trakt/show-detail";
+import type { EpisodeView, SeasonView } from "@cue/core/data/trakt/show-detail";
 import {
   CALENDAR_WINDOW_DAYS,
   RECENT_CALENDAR_WINDOW_DAYS,
@@ -24,6 +24,7 @@ import { groupUpNext } from "@cue/core/domain/up-next";
 import { useActivitiesPoll } from "@cue/core/hooks/useActivitiesPoll";
 import { useEpisodeReminders } from "@cue/core/hooks/useEpisodeReminders";
 import { useLibrarySnapshot } from "@cue/core/hooks/useLibrarySnapshot";
+import { useMarkSeason } from "@cue/core/hooks/useMarkSeason";
 import { type MarkWatched, useMarkWatched } from "@cue/core/hooks/useMarkWatched";
 import { useSyncNow } from "@cue/core/hooks/useSyncNow";
 import { useWatchlistAdd } from "@cue/core/hooks/useWatchlistAdd";
@@ -231,6 +232,7 @@ interface Controls {
   upNext: { readonly entries: readonly LibraryEntry[]; readonly thresholdMs: number };
   tree: readonly SeasonView[] | undefined;
   mark: MarkWatched | null;
+  toggle: ((episode: EpisodeView) => Promise<void>) | null;
   syncNow: (() => Promise<boolean>) | null;
   scrollNotStarted: (() => void) | null;
 }
@@ -319,6 +321,9 @@ function ShowDetail({
   readonly controls: Controls;
 }) {
   controls.tree = useQuery(showSeasonsQuery(useRuntime(), showId)).data;
+  const { toggleEpisode } = useMarkSeason();
+  controls.toggle = (episode) =>
+    toggleEpisode({ showId, ids: { trakt: showId }, includeSpecials: false }, episode);
   return null;
 }
 
@@ -400,6 +405,7 @@ async function boot(size: AccountSize, saved?: Saved, cacheAgeMs = 0): Promise<S
       upNext: { entries: [], thresholdMs: 0 },
       tree: undefined,
       mark: null,
+      toggle: null,
       syncNow: null,
       scrollNotStarted: null,
     },
@@ -899,8 +905,8 @@ const nextToWatch = (tree: readonly SeasonView[] | undefined) =>
 const watchedIn = (tree: readonly SeasonView[] | undefined, episode: number) =>
   tree?.flatMap((season) => season.episodes).find(({ ids }) => ids.trakt === episode)?.watched;
 
-/** A play written to Trakt by another app signed in to the same account, past Cue's write limit. */
-async function playElsewhere(trakt: TraktFake, episode: number): Promise<void> {
+/** Another app signed in to the same account, whose writes Trakt limits apart from Cue's. */
+async function anotherApp(trakt: TraktFake) {
   const post = async (path: string, body: object, token?: string) => {
     const headers = token === undefined ? undefined : { authorization: `Bearer ${token}` };
     const answer = await trakt.fetch(`https://api.trakt.tv${path}`, {
@@ -914,8 +920,26 @@ async function playElsewhere(trakt: TraktFake, episode: number): Promise<void> {
   const { device_code } = await post("/oauth/device/code", { client_id: "elsewhere" });
   trakt.approve();
   const { access_token } = await post("/oauth/device/token", { code: device_code });
-  await post("/sync/history", { episodes: [{ ids: { trakt: episode } }] }, access_token);
+  return (path: string, body: object) => post(path, body, access_token);
 }
+
+async function playElsewhere(trakt: TraktFake, episode: number, watchedAt?: string): Promise<void> {
+  await (await anotherApp(trakt))("/sync/history", {
+    episodes: [{ ids: { trakt: episode }, watched_at: watchedAt }],
+  });
+}
+
+async function playsOf(trakt: TraktFake, episode: number) {
+  const answer = await trakt.peek(
+    `/sync/history/episodes/${episode}?extended=full&page=1&limit=30`,
+  );
+  return (await answer.json()) as { readonly id: number; readonly watched_at: string }[];
+}
+
+const entryOf = ({ controls }: Session, showId: number) =>
+  controls.upNext.entries.find((entry) => entry.showId === showId);
+
+const YEAR_MS = 365 * 24 * 60 * 60 * 1000;
 
 const seasonReadsSince = ({ trakt }: Session, start: number, showId: number): number =>
   trakt.requests.slice(start).filter((r) => r.path === `/shows/${showId}/seasons`).length;
@@ -981,24 +1005,147 @@ describe("a season tree on screen", () => {
     expect(watchedIn(session.controls.tree, remote.ids.trakt)).toBe(true);
   });
 
-  // A second play leaves the count of episodes watched alone and moves only the show's last play.
-  it("is read again when another device rewatches one of its episodes", async () => {
+  // Neither moves the show's last play, which is the newest by date (recorded), so only its count of
+  // plays tells the library the show changed.
+  it.each([
+    ["backdated a year", -YEAR_MS],
+    ["in the same minute as the show's last play", 0],
+  ])("is read again when another app adds a play of a watched episode %s", async (_, shift) => {
+    const session = await boot(SMALL_LIBRARY);
+    await open(session, SHOW);
+    await settle(session);
+    const before = entryOf(session, SHOW);
+    if (before?.lastWatchedAt == null || before.plays === null) throw new Error("no plays");
+    const watched = session.controls.tree
+      ?.flatMap((season) => season.episodes)
+      .findLast((episode) => episode.watched);
+    if (watched === undefined) throw new Error("the show has no episode watched");
+    const start = session.trakt.requests.length;
+
+    const at = new Date(Date.parse(before.lastWatchedAt) + shift).toISOString();
+    await playElsewhere(session.trakt, watched.ids.trakt, at);
+    session.foreground.enter();
+    await settle(session);
+    act(() => session.root.unmount());
+
+    expect(entryOf(session, SHOW)).toMatchObject({
+      lastWatchedAt: before.lastWatchedAt,
+      plays: before.plays + 1,
+    });
+    expect(seasonReadsSince(session, start, SHOW)).toBe(1);
+  });
+
+  it("is read again when another app removes one of an episode's several plays", async () => {
     const session = await boot(SMALL_LIBRARY);
     await open(session, SHOW);
     await settle(session);
     const watched = session.controls.tree
       ?.flatMap((season) => season.episodes)
       .findLast((episode) => episode.watched);
-    if (watched === undefined) throw new Error("the show has no episode watched");
-    vi.advanceTimersByTime(2 * 60_000);
+    const lastWatchedAt = entryOf(session, SHOW)?.lastWatchedAt;
+    if (watched === undefined || lastWatchedAt == null) throw new Error("nothing watched");
+    const backdated = new Date(Date.parse(lastWatchedAt) - YEAR_MS).toISOString();
+    await playElsewhere(session.trakt, watched.ids.trakt, backdated);
+    session.foreground.enter();
+    await settle(session);
+    const before = entryOf(session, SHOW);
+    const oldest = (await playsOf(session.trakt, watched.ids.trakt)).at(-1);
+    if (before?.plays == null || oldest === undefined) throw new Error("no second play");
     const start = session.trakt.requests.length;
 
-    await playElsewhere(session.trakt, watched.ids.trakt);
+    await (await anotherApp(session.trakt))("/sync/history/remove", { ids: [oldest.id] });
     session.foreground.enter();
     await settle(session);
     act(() => session.root.unmount());
 
+    expect(entryOf(session, SHOW)).toMatchObject({ lastWatchedAt, plays: before.plays - 1 });
     expect(seasonReadsSince(session, start, SHOW)).toBe(1);
+  });
+
+  it("is left alone by a library reload that lands while this device's undo is still being sent", async () => {
+    const session = await boot(SMALL_LIBRARY);
+    await open(session);
+    await settle(session);
+    const own = session.controls.queue[0];
+    if (own?.nextEpisode == null) throw new Error("the queue is empty");
+    const marked = own.nextEpisode.ids.trakt;
+    await open(session, own.showId);
+    await settle(session);
+    await session.controls.mark?.mark(own);
+    await settle(session);
+    const release = session.trakt.hold({ method: "POST", path: /^\/sync\/history\/remove$/ });
+    const undo = useSnackbar.getState().snack?.actions?.find((a) => a.testId === "snackbar-undo");
+    if (undo === undefined) throw new Error("no undo offered");
+    await act(async () => undo.onPress());
+    for (let step = 0; step < 20 && session.runtime.pendingWrites() === 0; step += 1)
+      await act(() => vi.advanceTimersByTimeAsync(ART_SETTLE_MS));
+    expect(session.runtime.pendingWrites()).toBe(1);
+    const start = session.trakt.requests.length;
+
+    await act(async () => {
+      const reload = session.qc.refetchQueries({ queryKey: queryKeys.library() });
+      await vi.advanceTimersByTimeAsync(ART_SETTLE_MS);
+      await reload;
+    });
+    await act(() => vi.advanceTimersByTimeAsync(ART_SETTLE_MS));
+
+    expect(session.trakt.requests.slice(start).map(({ path }) => path)).toContain(
+      "/sync/watched/shows",
+    );
+    expect(seasonReadsSince(session, start, own.showId)).toBe(0);
+    expect(watchedIn(session.controls.tree, marked)).toBe(false);
+    release();
+    await settle(session);
+    act(() => session.root.unmount());
+  });
+
+  it("is not read again by the poll after this device marks and undoes from Up Next", async () => {
+    const session = await boot(SMALL_LIBRARY);
+    await open(session);
+    await settle(session);
+    const own = session.controls.queue[0];
+    if (own === undefined) throw new Error("the queue is empty");
+    await open(session, own.showId);
+    await settle(session);
+    await session.controls.mark?.mark(own);
+    await settle(session);
+    const undo = useSnackbar.getState().snack?.actions?.find((a) => a.testId === "snackbar-undo");
+    if (undo === undefined) throw new Error("no undo offered");
+    await act(async () => undo.onPress());
+    await settle(session);
+    const start = session.trakt.requests.length;
+
+    session.foreground.enter();
+    await settle(session);
+    act(() => session.root.unmount());
+
+    expect(session.trakt.requests.slice(start).map(({ path }) => path)).toContain(
+      "/sync/watched/shows",
+    );
+    expect(seasonReadsSince(session, start, own.showId)).toBe(0);
+  });
+
+  it("is not read again by the poll after this device toggles an episode on the show's page", async () => {
+    const session = await boot(SMALL_LIBRARY);
+    await open(session, SHOW);
+    await settle(session);
+    const next = nextToWatch(session.controls.tree);
+    if (next === undefined) throw new Error("the show has no episode left to watch");
+    // A later minute than the show's last play, so the toggle moves it.
+    await act(() => vi.advanceTimersByTimeAsync(2 * 60_000));
+    await act(async () => session.controls.toggle?.(next));
+    await settle(session);
+    expect(watchedIn(session.controls.tree, next.ids.trakt)).toBe(true);
+    const start = session.trakt.requests.length;
+
+    session.foreground.enter();
+    await settle(session);
+    act(() => session.root.unmount());
+
+    expect(session.trakt.requests.slice(start).map(({ path }) => path)).toContain(
+      "/sync/watched/shows",
+    );
+    expect(seasonReadsSince(session, start, SHOW)).toBe(0);
   });
 
   it("is not read again by the poll after this device's own mark", async () => {

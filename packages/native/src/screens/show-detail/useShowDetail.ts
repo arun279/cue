@@ -50,6 +50,7 @@ const UNCACHED = {
   inWatchlist: false,
   addedAt: null,
   lastWatchedAt: null,
+  plays: null,
   runtime: null,
 };
 
@@ -59,7 +60,7 @@ function entryFor(
   seasons: readonly SeasonView[],
 ): LibraryEntry {
   if (cached?.pendingAdvance) return cached;
-  const { hidden, inWatchlist, addedAt, lastWatchedAt, runtime } = cached ?? UNCACHED;
+  const { hidden, inWatchlist, addedAt, lastWatchedAt, plays, runtime } = cached ?? UNCACHED;
   const skipsUnaired = header.completed < header.aired && !header.nextEpisode?.aired;
   const next = skipsUnaired ? firstUnwatchedAired(seasons) : header.nextEpisode;
   return {
@@ -81,6 +82,7 @@ function entryFor(
     inWatchlist,
     addedAt,
     lastWatchedAt,
+    plays,
     tmdbId: header.ids.tmdb ?? null,
     runtime,
     posters: header.posters,

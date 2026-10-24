@@ -64,6 +64,7 @@ function toWatchedEntry(
     hidden,
     ...savedFields(saved),
     lastWatchedAt: watched.last_watched_at ?? null,
+    plays: watched.plays ?? null,
     ...progressOf(watched, progress),
     lastAired: lastAiredKey(progress, watched),
     tmdbId: show.ids.tmdb ?? null,
@@ -115,6 +116,7 @@ function toNotStartedEntry(saved: Saved, hidden: boolean): LibraryEntry {
     hidden,
     ...savedFields(saved),
     lastWatchedAt: null,
+    plays: 0,
     aired: 0,
     completed: 0,
     left: 0,
@@ -218,6 +220,7 @@ export function advancePastNext(entry: LibraryEntry, watchedAt: string): Library
     completed: entry.completed + 1,
     left: Math.max(0, entry.left - 1),
     lastWatchedAt: watchedAt,
+    plays: entry.plays === null ? null : entry.plays + 1,
     nextEpisode,
     pendingAdvance: true,
   };

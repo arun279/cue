@@ -133,53 +133,73 @@ describe("invalidationKeys maps last_activities targets to cached query keys", (
 });
 
 describe("invalidateChangedShows: what a library reload refreshes", () => {
-  const entry = (showId: number, completed: number, lastWatchedAt: string): LibraryEntry => ({
-    ...makeShow({ showId, completed, lastWatchedAt }),
+  const AT = "2026-10-20T12:00:00.000Z";
+  const entry = (
+    showId: number,
+    { completed = 5, plays = 5 as number | null, lastWatchedAt = AT } = {},
+  ): LibraryEntry => ({
+    ...makeShow({ showId, completed, plays, lastWatchedAt }),
     tmdbId: null,
     runtime: null,
     posters: [],
   });
 
-  function stale(cached: readonly LibraryEntry[] | undefined, reloaded: readonly LibraryEntry[]) {
+  function stale(
+    cached: readonly LibraryEntry[] | undefined,
+    reloaded: readonly LibraryEntry[],
+    skipped: ReadonlySet<number> = new Set(),
+  ) {
     const qc = new QueryClient();
-    for (const showId of [1, 2, 3, 4, 5]) {
+    for (const showId of [1, 2, 3, 4, 5, 6]) {
       qc.setQueryData(queryKeys.showSeasons(showId), []);
       qc.setQueryData(queryKeys.showProgress(showId), {});
       qc.setQueryData(queryKeys.episode(showId, 1, 1), {});
     }
-    invalidateChangedShows(qc, cached, reloaded);
-    return qc
-      .getQueryCache()
-      .findAll({ predicate: (query) => query.state.isInvalidated })
-      .map(({ queryKey }) => queryKey);
+    invalidateChangedShows(qc, cached, reloaded, skipped);
+    return [
+      ...new Set(
+        qc
+          .getQueryCache()
+          .findAll({ predicate: (query) => query.state.isInvalidated })
+          .map(({ queryKey }) => queryKey[2]),
+      ),
+    ];
   }
 
-  it("refreshes a show whose count or last play moved, or that left or joined the library", () => {
-    const at = "2026-10-20T12:00:00.000Z";
-    const cached = [entry(1, 5, at), entry(2, 5, at), entry(3, 5, at), entry(4, 5, at)];
+  it("refreshes a show whose count, plays or last play moved, or that left or joined the library", () => {
+    const cached = [entry(1), entry(2), entry(3), entry(4), entry(5)];
     const reloaded = [
-      entry(1, 6, at),
-      entry(2, 5, "2026-10-20T12:05:00.000Z"),
-      entry(3, 5, at),
-      entry(5, 1, at),
+      entry(1, { completed: 6 }),
+      entry(2, { lastWatchedAt: "2026-10-20T12:05:00.000Z" }),
+      entry(3, { plays: 6 }),
+      entry(4),
+      entry(6),
     ];
-    expect(stale(cached, reloaded)).toEqual(
-      [1, 2, 4, 5].flatMap((showId) => [
-        queryKeys.showSeasons(showId),
-        queryKeys.showProgress(showId),
-        queryKeys.episode(showId, 1, 1),
-      ]),
-    );
+    expect(stale(cached, reloaded)).toEqual([1, 2, 3, 5, 6]);
+  });
+
+  it("leaves a show alone whose write is still on its way", () => {
+    expect(
+      stale(
+        [entry(1), entry(2)],
+        [entry(1, { completed: 6 }), entry(2, { completed: 6 })],
+        new Set([1]),
+      ),
+    ).toEqual([2]);
   });
 
   // Trakt keeps a play's time to the minute; the app's own mark carries the seconds it sent.
   it("leaves a show alone whose last play moved within the minute Trakt keeps", () => {
-    expect(
-      stale([entry(1, 6, "2026-10-20T12:00:41.317Z")], [entry(1, 6, "2026-10-20T12:00:00.000Z")]),
-    ).toEqual([]);
+    expect(stale([entry(1, { lastWatchedAt: "2026-10-20T12:00:41.317Z" })], [entry(1)])).toEqual(
+      [],
+    );
+  });
+
+  it("compares plays only where both sides know them", () => {
+    expect(stale([entry(1, { plays: null })], [entry(1, { plays: 9 })])).toEqual([]);
   });
 
   it("refreshes nothing on the library's first load, with nothing to compare", () => {
-    expect(stale(undefined, [entry(1, 5, "2026-10-20T12:00:00.000Z")])).toEqual([]);
+    expect(stale(undefined, [entry(1)])).toEqual([]);
   });
 });

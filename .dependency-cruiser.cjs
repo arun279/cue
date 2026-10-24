@@ -124,12 +124,10 @@ module.exports = {
         "progress. Only hooks/library-cache.ts may reach it from the hook and UI " +
         "layers: its refreshShowProgress pairs that invalidation with the scoped " +
         "progress read that replaces the one library entry, so a new mark surface " +
-        "fails here rather than shipping a queue that quietly stops moving. The " +
-        "library query may reach it too: it runs the other way, refreshing the detail " +
-        "reads of each show a library reload finds changed.",
+        "fails here rather than shipping a queue that quietly stops moving.",
       from: {
         path: "^packages/[^/]+/(src/(hooks|queries|stores|ui|screens)|app)/",
-        pathNot: "^packages/core/src/(hooks/library-cache|queries/library)\\.ts$",
+        pathNot: "^packages/core/src/hooks/library-cache\\.ts$",
       },
       to: { path: "^packages/core/src/data/query-invalidation\\.ts$" },
     },

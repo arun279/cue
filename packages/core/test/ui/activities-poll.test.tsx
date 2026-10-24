@@ -188,6 +188,7 @@ describe("useActivitiesPoll reconcile", () => {
   function reconcileRuntime(reconcile: ActivitiesReconcile): CueRuntime {
     return {
       pendingWrites: () => 0,
+      pendingOps: () => [],
       flushWrites: vi.fn(),
       pollActivities: () => Promise.resolve(reconcile),
     } as unknown as CueRuntime;

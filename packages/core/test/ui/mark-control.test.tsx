@@ -34,6 +34,7 @@ function entry(overrides: Partial<LibraryEntry> = {}): LibraryEntry {
     inWatchlist: false,
     addedAt: null,
     lastWatchedAt: "2026-07-01T00:00:00.000Z",
+    plays: null,
     aired: 10,
     completed: 4,
     left: Math.max(0, (overrides.aired ?? 10) - (overrides.completed ?? 4)),

@@ -22,6 +22,7 @@ function entry(overrides: Partial<LibraryEntry> = {}): LibraryEntry {
     inWatchlist: false,
     addedAt: null,
     lastWatchedAt: airedAt(),
+    plays: null,
     aired: 2,
     completed: 2,
     left: Math.max(0, (overrides.aired ?? 2) - (overrides.completed ?? 2)),

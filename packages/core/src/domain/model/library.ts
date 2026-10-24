@@ -43,6 +43,8 @@ export interface LibraryShow {
   readonly inWatchlist: boolean;
   readonly addedAt: string | null;
   readonly lastWatchedAt: string | null;
+  /** Trakt's count of plays, unknown after this device's own write until the library next loads. */
+  readonly plays: number | null;
   readonly aired: number;
   readonly completed: number;
   readonly left: number;

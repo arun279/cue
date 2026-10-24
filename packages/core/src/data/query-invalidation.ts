@@ -57,21 +57,33 @@ export function invalidateShowProgress(
   }
 }
 
-// Trakt keeps play times to the minute, so a mark this device applied already matches the reload.
-const watchedState = ({ completed, lastWatchedAt }: LibraryEntry): string =>
-  `${completed}@${lastWatchedAt === null ? "" : Math.floor(Date.parse(lastWatchedAt) / 60_000)}`;
+const minuteOf = (at: string | null): number | null =>
+  at === null ? null : Math.floor(Date.parse(at) / 60_000);
 
-/** Refreshes the watched state of every show the reloaded library disagrees with the cache on. */
+// Trakt keeps play times to the minute, so a mark this device applied already matches the reload.
+function sameWatchedState(a: LibraryEntry | undefined, b: LibraryEntry | undefined): boolean {
+  if (a === undefined || b === undefined) return a === b;
+  return (
+    a.completed === b.completed &&
+    minuteOf(a.lastWatchedAt) === minuteOf(b.lastWatchedAt) &&
+    (a.plays === null || b.plays === null || a.plays === b.plays)
+  );
+}
+
+/** Refreshes the watched state of every show the reload disagrees with the cache on. */
 export function invalidateChangedShows(
   qc: QueryClient,
   cached: readonly LibraryEntry[] | undefined,
   reloaded: readonly LibraryEntry[],
+  skipped: ReadonlySet<number>,
 ): void {
   if (cached === undefined) return;
-  const before = new Map(cached.map((entry) => [entry.showId, watchedState(entry)]));
-  const after = new Map(reloaded.map((entry) => [entry.showId, watchedState(entry)]));
+  const before = new Map(cached.map((entry) => [entry.showId, entry]));
+  const after = new Map(reloaded.map((entry) => [entry.showId, entry]));
   for (const showId of new Set([...before.keys(), ...after.keys()])) {
-    if (before.get(showId) !== after.get(showId)) invalidateShowProgress(qc, showId, "all");
+    if (!skipped.has(showId) && !sameWatchedState(before.get(showId), after.get(showId))) {
+      invalidateShowProgress(qc, showId, "all");
+    }
   }
 }
 

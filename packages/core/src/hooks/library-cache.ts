@@ -38,6 +38,8 @@ function patchLibraryProgress(qc: QueryClient, showId: number, progress: ShowPro
     ...entry,
     aired: progress.aired,
     completed: progress.completed,
+    lastWatchedAt: progress.lastWatchedAt,
+    plays: null,
     left: progress.left,
     lastAired:
       progress.lastAired === null
