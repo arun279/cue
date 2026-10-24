@@ -348,18 +348,27 @@ jobs:
           xcrun simctl install "$device" "$RUNNER_TEMP/Cue.app"
           echo "DEVICE_ID=$device" >> "$GITHUB_ENV"
       - name: Run the smoke flows
-        run: maestro --device "$DEVICE_ID" test .maestro/smoke --test-output-dir "$RUNNER_TEMP/maestro/screenshots" --debug-output "$RUNNER_TEMP/maestro/debug"
+        # One clean re-run, as EAS Maestro jobs offer with retries: 1: the simulator
+        # occasionally cancels a synthesized tap, and a real defect fails both runs.
+        run: |
+          maestro --device "$DEVICE_ID" test .maestro/smoke --test-output-dir "$RUNNER_TEMP/maestro/screenshots" --debug-output "$RUNNER_TEMP/maestro/debug" && exit 0
+          echo "::warning::The iOS smoke suite failed once; running it again from a reset fake and a fresh install."
+          curl -fsS -X POST http://127.0.0.1:8787/__reset
+          xcrun simctl uninstall "$DEVICE_ID" app.cuetracker
+          xcrun simctl install "$DEVICE_ID" "$RUNNER_TEMP/Cue.app"
+          maestro --device "$DEVICE_ID" test .maestro/smoke --test-output-dir "$RUNNER_TEMP/maestro/screenshots-rerun" --debug-output "$RUNNER_TEMP/maestro/debug-rerun"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ !cancelled() }}
         with:
           name: ios-e2e-screenshots
-          path: ${{ runner.temp }}/maestro/screenshots
+          path: ${{ runner.temp }}/maestro/screenshots*
           retention-days: 14
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: failure()
+        if: ${{ !cancelled() }}
         with:
           name: ios-e2e-debug
           path: |
-            ${{ runner.temp }}/maestro/debug
+            ${{ runner.temp }}/maestro/debug*
             ${{ runner.temp }}/mock-trakt.log
+          if-no-files-found: ignore
           retention-days: 7
