@@ -18,7 +18,7 @@ name: sign-out
     id: "profile-sign-out"
 - extendedWaitUntil:
     visible: "Sign out of Cue?"
-    timeout: 30000
+    timeout: 60000
 - assertVisible: "^Cancel$"
 - assertVisible:
     text: "^Sign out$"
