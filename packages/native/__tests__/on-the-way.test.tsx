@@ -22,6 +22,7 @@ const days: readonly OnTheWayDay[] = [
         season: 2,
         number: 5,
         episodeTitle: "Glass and Grain",
+        episodeType: null,
         firstAired: "2026-09-21T01:00:00.000Z",
         ids: { trakt: 880305 },
         posters: [],

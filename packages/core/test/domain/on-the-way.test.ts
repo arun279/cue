@@ -8,6 +8,7 @@ const row = (firstAired: string, aired = false): CalendarRow => ({
   season: 3,
   number: 3,
   episodeTitle: "A Dark Web",
+  episodeType: null,
   firstAired,
   ids: { trakt: 42 },
   posters: [],

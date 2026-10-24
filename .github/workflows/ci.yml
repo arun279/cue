@@ -218,7 +218,7 @@ jobs:
           --output "$RUNNER_TEMP/cue.apk" --ks "$RUNNER_TEMP/android-build/debug.keystore"
           --ks-key-alias androiddebugkey --ks-pass pass:android --ks-key-pass pass:android
       - name: Start the fake Trakt server
-        run: node scripts/mock-trakt/server.mjs > "$RUNNER_TEMP/mock-trakt.log" 2>&1 &
+        run: node packages/core/test/trakt-fake/serve.ts > "$RUNNER_TEMP/trakt-fake.log" 2>&1 &
       - name: Install Maestro
         run: |
           curl -fsSL https://get.maestro.mobile.dev | bash
@@ -279,7 +279,7 @@ jobs:
           name: android-e2e-debug
           path: |
             ${{ runner.temp }}/maestro/debug
-            ${{ runner.temp }}/mock-trakt.log
+            ${{ runner.temp }}/trakt-fake.log
           retention-days: 7
   ios-e2e:
     timeout-minutes: 90
@@ -332,7 +332,7 @@ jobs:
         working-directory: packages/native
         run: pnpm exec repack-app --platform ios --source-app "$RUNNER_TEMP/ios-build/Cue.app" --output "$RUNNER_TEMP/Cue.app"
       - name: Start the fake Trakt server
-        run: node scripts/mock-trakt/server.mjs > "$RUNNER_TEMP/mock-trakt.log" 2>&1 &
+        run: node packages/core/test/trakt-fake/serve.ts > "$RUNNER_TEMP/trakt-fake.log" 2>&1 &
       - name: Install Maestro
         run: |
           curl -fsSL https://get.maestro.mobile.dev | bash
@@ -374,6 +374,6 @@ jobs:
           name: ios-e2e-debug
           path: |
             ${{ runner.temp }}/maestro/debug*
-            ${{ runner.temp }}/mock-trakt.log
+            ${{ runner.temp }}/trakt-fake.log
           if-no-files-found: ignore
           retention-days: 7

@@ -3,7 +3,7 @@ import { type Token, tokenSchema } from "../../domain/model/token";
 import { parseRetryAfterMs } from "../../domain/write-queue/classify";
 import { type FetchLike, fetchWithoutCookies } from "../trakt/client";
 
-export const TRAKT_API_BASE = "https://api.trakt.tv";
+const TRAKT_API_BASE = "https://api.trakt.tv";
 
 export interface OAuthConfig {
   readonly clientId: string;

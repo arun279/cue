@@ -8,7 +8,6 @@
  */
 
 import {
-  type FetchLike,
   TraktClient,
   TraktReadError,
   type TraktResult,
@@ -32,6 +31,8 @@ import {
 } from "@tanstack/react-query";
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { emptyAccount } from "../trakt-fake/account.ts";
+import { createTraktFake } from "../trakt-fake/fake.ts";
 import { mount } from "./_mount";
 
 type Status = ReturnType<typeof queryStatus>;
@@ -225,15 +226,15 @@ describe("a sustained rate limit", () => {
 });
 
 describe("a load that retries its own reads", () => {
-  /** A Trakt whose hidden list fails once with a 503 and answers every other read empty. */
+  /** An empty account whose hidden list fails once with a 503. */
   function flakyHiddenList(): TraktClient {
-    let hiddenReads = 0;
-    const fetch: FetchLike = async (input) => {
-      if (input.includes("/users/hidden/progress_watched") && ++hiddenReads === 1)
-        return new Response("{}", { status: 503 });
-      return new Response("[]", { status: 200, headers: { "content-type": "application/json" } });
-    };
-    return new TraktClient({ clientId: "cid", fetch });
+    const fake = createTraktFake({ account: () => emptyAccount() });
+    fake.fail({ path: /^\/users\/hidden\/progress_watched$/ }, 503);
+    return new TraktClient({
+      clientId: "cid",
+      getToken: () => fake.session().access_token,
+      fetch: fake.fetch,
+    });
   }
 
   function mountLoad(client: TraktClient): { seen: Status[]; queryClient: QueryClient } {

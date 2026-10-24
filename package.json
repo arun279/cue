@@ -10,7 +10,7 @@
   },
   "scripts": {
     "dev": "pnpm --filter @cue/native start",
-    "mock:trakt": "node scripts/mock-trakt/server.mjs",
+    "fake:trakt": "node packages/core/test/trakt-fake/serve.ts",
     "typecheck": "tsc --noEmit && pnpm -r typecheck",
     "format": "biome check --write . && dprint fmt",
     "test": "vitest run",

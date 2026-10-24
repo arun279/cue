@@ -74,6 +74,7 @@ export function airing(overrides: Partial<CalendarEntry> = {}): CalendarEntry {
     season: 2,
     number: 4,
     episodeTitle: "Dead Reckoning",
+    episodeType: null,
     firstAired: new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString(),
     ids: { trakt: 88_304 },
     posters: [],

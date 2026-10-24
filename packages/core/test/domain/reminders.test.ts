@@ -46,6 +46,7 @@ function ep(
     season,
     number,
     episodeTitle,
+    episodeType: null,
     firstAired: at.toISOString(),
     ids: { trakt: showId * 1000 + number },
     posters: [],

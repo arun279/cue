@@ -1,8 +1,10 @@
 import * as S from "@cue/core/data/trakt/schemas";
 import { describe, expect, it } from "vitest";
 import type { z } from "zod";
-import { FIXTURE_NOW } from "../../../../scripts/mock-trakt/seed.mjs";
-import { mockTraktBase } from "./mock-server";
+import { FIXTURE_NOW } from "./account.ts";
+import { createTraktFake } from "./fake.ts";
+import recordings from "./recordings.json" with { type: "json" };
+import { runScenarios, type Wire } from "./scenarios.ts";
 import {
   type EndpointShape,
   type Observed,
@@ -14,7 +16,7 @@ import {
   type Summary,
   sameClass,
   templateOf,
-} from "./trakt-shape";
+} from "./shape.ts";
 
 const SCHEMAS: Readonly<Record<string, z.ZodType>> = {
   "GET /sync/watched/shows": S.watchedShowsSchema,
@@ -47,19 +49,14 @@ const SCHEMAS: Readonly<Record<string, z.ZodType>> = {
 };
 
 /**
- * Where the mock knowingly differs from Trakt, and why. Every other path the
- * mock answers has to look like something real Trakt sent.
+ * Where the fake knowingly differs from Trakt, and why. Every other path the
+ * fake answers has to look like something real Trakt sent.
  */
 const KNOWN_DIFFERENCES: readonly {
   readonly path: RegExp;
   readonly rule: "class";
   readonly why: string;
 }[] = [
-  {
-    path: /\.images\.[a-z_]+\[\]$/,
-    rule: "class",
-    why: "artwork must load from the mock in a simulator, so image URLs point at the mock with a scheme",
-  },
   {
     path: /^\.user\.(username|ids\.slug)$/,
     rule: "class",
@@ -221,9 +218,10 @@ function compare(endpoint: string, answers: readonly Answer[]): string[] {
 }
 
 const AF = "extended=full,images";
+const list = (value: unknown): readonly unknown[] => (Array.isArray(value) ? value : []);
 const day = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
-const SHOWS = [8801, 8802, 8803, 8804, 8805, 8806, 8807, 8808];
-const MOVIES = [5501, 5502, 5503, 5504];
+const SHOWS = [8801, 8802, 8803, 8804, 8805, 8806, 8807, 8808, 8809, 8810, 99, 98, 9007];
+const MOVIES = [5501, 5502, 5503, 5504, 6007];
 
 const READS: readonly string[] = [
   "/sync/last_activities",
@@ -231,7 +229,7 @@ const READS: readonly string[] = [
   "/sync/watched/shows?extended=full,progress&page=1&limit=100",
   "/sync/watched/movies?extended=images&page=1&limit=100",
   "/users/hidden/progress_watched?page=1&limit=100",
-  "/users/hidden/dropped?page=1&limit=100",
+  `/users/hidden/dropped?${AF}&page=1&limit=100`,
   `/sync/watchlist/shows?${AF}&page=1&limit=100`,
   `/sync/watchlist/movies?${AF}&page=1&limit=100`,
   `/sync/collection/shows?${AF}`,
@@ -249,13 +247,17 @@ const READS: readonly string[] = [
     `/shows/${id}/seasons?extended=episodes,full,images`,
     `/shows/${id}/related?${AF}&limit=6`,
   ]),
+  `/shows/7007?${AF}`,
   `/shows/8801/seasons/1/episodes/1?${AF}`,
   `/shows/8803/seasons/2/episodes/3?${AF}`,
+  `/shows/98/seasons/2/episodes/62?${AF}`,
+  `/shows/99/seasons/0/episodes/1?${AF}`,
   "/sync/history/episodes/880100?extended=full&page=1&limit=30",
   "/sync/history/movies/5501?extended=full&page=1&limit=30",
   ...MOVIES.flatMap((id) => [`/movies/${id}?${AF}`, `/movies/${id}/related?${AF}&limit=12`]),
-  `/search/show,movie?${AF}&query=harbor`,
-  `/search/show,movie?${AF}&query=zzzz`,
+  ...["harbor", "zzzz", "Accord", "Juniper Orchard Fable", "The Extraordinarily"].map(
+    (query) => `/search/show,movie?${AF}&query=${encodeURIComponent(query)}`,
+  ),
   "/genres/movies",
   "/genres/shows",
   `/users/me/history?${AF}&page=1&limit=30`,
@@ -263,83 +265,82 @@ const READS: readonly string[] = [
   `/users/me/history?${AF}&page=1&limit=1`,
 ];
 
-const baseUrl = mockTraktBase();
-
-const headers = { authorization: "Bearer mock-access-token", "trakt-api-version": "2" };
-
-const titleOf = async (path: string): Promise<string> =>
-  (
-    (await (await fetch(`${baseUrl()}${path}?extended=full`, { headers })).json()) as {
-      title: string;
-    }
-  ).title;
-
-/** The scale account's thinly catalogued show (9007), one without artwork (9004), the long runners (99, 98), and the announced shelf titles. */
-async function seedReads(seed: string): Promise<readonly string[]> {
-  const announced = [await titleOf("/shows/7007"), await titleOf("/movies/6007")].map(
-    (title) => `/search/show,movie?${AF}&query=${encodeURIComponent(title)}`,
-  );
-  if (seed !== "scale") return [...READS, ...announced, `/shows/7007?${AF}`];
-  return [
-    ...READS,
-    ...announced,
-    `/shows/99/progress/watched?${AF}&hidden=false&specials=true&count_specials=true`,
-    `/shows/98/seasons/2/episodes/62?${AF}`,
-    `/shows/99/seasons/0/episodes/1?${AF}`,
-    ...[9007, 9004, 99, 98].flatMap((id) => [
-      `/shows/${id}/progress/watched?${AF}&hidden=false&specials=false&count_specials=false`,
-      `/shows/${id}?${AF}`,
-      `/shows/${id}/seasons?extended=episodes,full,images`,
-    ]),
-    `/search/show,movie?${AF}&query=${encodeURIComponent(await titleOf("/shows/9004"))}`,
-  ];
+/**
+ * The fake on a clock that moves as the recordings' request guard did: GETs 1.1 s
+ * apart and writes 1.5 s apart, so Trakt's rate limits hold as they did there.
+ */
+function pacedFake(multiplePlays: boolean) {
+  let now = FIXTURE_NOW;
+  const fake = createTraktFake({ multiplePlays, clock: () => now });
+  const wire: Wire = async (method, path, body, token = fake.session().access_token) => {
+    now += method === "GET" ? 1100 : 1500;
+    const response = await fake.fetch(`https://api.trakt.tv${path}`, {
+      method,
+      headers: {
+        "content-type": "application/json",
+        ...(token === null ? {} : { authorization: `Bearer ${token}` }),
+      },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    const text = await response.text();
+    const isJson = response.headers.get("content-type")?.includes("json") === true;
+    return {
+      status: response.status,
+      header: (name) => response.headers.get(name),
+      body: text === "" ? null : isJson ? JSON.parse(text) : text,
+    };
+  };
+  const controls = {
+    approve: async () => fake.approve(),
+    pause: async (seconds: number) => {
+      now += seconds * 1000;
+    },
+  };
+  return { fake, wire, controls };
 }
 
-async function answersFor(seed: string): Promise<Map<string, Answer[]>> {
-  await fetch(`${baseUrl()}/__reset?seed=${seed}`, { method: "POST" });
+async function answers(): Promise<{ byEndpoint: Map<string, Answer[]>; missing: string[] }> {
+  const { wire } = pacedFake(true);
   const byEndpoint = new Map<string, Answer[]>();
-  for (const path of await seedReads(seed)) {
-    const response = await fetch(`${baseUrl()}${path}`, { headers });
-    if (response.status === 404) continue;
+  const missing: string[] = [];
+  for (const path of READS) {
+    const answer = await wire("GET", path);
     const endpoint = templateOf("GET", path.split("?")[0] ?? path);
-    const list = byEndpoint.get(endpoint) ?? [];
-    list.push({ status: response.status, headers: response.headers, body: await response.json() });
-    byEndpoint.set(endpoint, list);
+    if (answer.status === 404) missing.push(`${endpoint} answered 404 for ${path}`);
+    const headers = new Headers();
+    for (const name of REAL[endpoint]?.paginationHeaders ?? []) {
+      const value = answer.header(name);
+      if (value !== null) headers.set(name, value);
+    }
+    byEndpoint.set(endpoint, [
+      ...(byEndpoint.get(endpoint) ?? []),
+      { status: answer.status, headers, body: answer.body },
+    ]);
   }
-  return byEndpoint;
+  return { byEndpoint, missing };
 }
 
-async function answersForSeeds(): Promise<Map<string, Answer[]>> {
-  const merged = new Map<string, Answer[]>();
-  for (const seed of ["default", "scale"]) {
-    for (const [endpoint, answers] of await answersFor(seed))
-      merged.set(endpoint, [...(merged.get(endpoint) ?? []), ...answers]);
-  }
-  return merged;
-}
-
-describe("the mock answers the app's reads the way real Trakt does", () => {
+describe("the fake answers the app's reads the way real Trakt does", () => {
   it("sends only paths, types, string classes, statuses and headers Trakt sends, and covers its nulls and empties", async () => {
-    const problems = [...(await answersForSeeds())].flatMap(([endpoint, answers]) =>
-      compare(endpoint, answers),
-    );
-    expect(problems).toEqual([]);
+    const { byEndpoint, missing } = await answers();
+    const problems = [...byEndpoint].flatMap(([endpoint, sent]) => compare(endpoint, sent));
+    expect([...missing, ...problems]).toEqual([]);
   });
 
   it("tags shows and movies only with genres its genre list names for that type", async () => {
-    const listed = async (type: string): Promise<Set<string>> => {
-      const response = await fetch(`${baseUrl()}/genres/${type}`, { headers });
-      return new Set(((await response.json()) as { slug: string }[]).map(({ slug }) => slug));
-    };
-    const slugs = { show: await listed("shows"), movie: await listed("movies") };
-    const unlisted = [...(await answersForSeeds())].flatMap(([endpoint, answers]) => {
+    const { byEndpoint } = await answers();
+    const [movies, shows] = (byEndpoint.get("GET /genres/:type") ?? []).map(
+      ({ body }) => new Set(list(body).map((genre) => String(Object(genre).slug))),
+    );
+    const listed = { show: shows ?? new Set(), movie: movies ?? new Set() };
+    const unlisted = [...byEndpoint].flatMap(([endpoint, sent]) => {
       const summary: Summary = new Map();
-      for (const answer of answers) observe(summary, "", answer.body);
+      for (const answer of sent) observe(summary, "", answer.body);
       return [...summary]
         .filter(([path]) => path.endsWith("genres[]"))
         .flatMap(([path, seen]) => {
-          const kind = fieldOfKind(endpoint, path)?.split(":")[0];
-          const known = kind === "show" ? slugs.show : slugs.movie;
+          const known =
+            fieldOfKind(endpoint, path)?.startsWith("show:") === true ? listed.show : listed.movie;
           return [...seen.values]
             .filter((slug) => !known.has(slug))
             .map((slug) => `${endpoint} ${path} ${slug}`);
@@ -349,10 +350,22 @@ describe("the mock answers the app's reads the way real Trakt does", () => {
   });
 
   it("answers every read endpoint Trakt was recorded on", async () => {
-    const answered = new Set((await answersFor("default")).keys());
+    const answered = new Set((await answers()).byEndpoint.keys());
     const unanswered = Object.keys(REAL).filter(
       (endpoint) => SCHEMAS[endpoint] !== undefined && !answered.has(endpoint),
     );
     expect(unanswered).toEqual([]);
+  });
+});
+
+describe("the fake behaves the way real Trakt was recorded behaving", () => {
+  it.each([
+    ["multiple-plays-off", false],
+    ["multiple-plays-on", true],
+  ] as const)("on an account with %s", async (setting, keepsEveryPlay) => {
+    const { wire, controls } = pacedFake(keepsEveryPlay);
+    expect(await runScenarios(wire, controls, FIXTURE_NOW, keepsEveryPlay)).toEqual(
+      recordings.transcripts[setting],
+    );
   });
 });

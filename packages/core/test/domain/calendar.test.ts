@@ -19,6 +19,7 @@ function entry(
     season: 1,
     number: 1,
     episodeTitle: "Pilot",
+    episodeType: null,
     ids: { trakt: overrides.showId * 100 },
     posters: [],
     network: null,
@@ -209,6 +210,32 @@ describe("the shows-you-watch focus", () => {
       playedShowIds: new Set(),
     });
     expect(days[0]?.rows.map((row) => row.episodes.length)).toEqual([3]);
+  });
+
+  it("tells a premiere by Trakt's episode type, so a season numbered on from the last one still counts", () => {
+    const typed = [
+      entry({
+        showId: WATCHLISTED,
+        season: 2,
+        number: 62,
+        episodeType: "season_premiere",
+        firstAired: "2026-07-07T01:00:00.000Z",
+      }),
+      entry({
+        showId: WATCHLISTED,
+        season: 3,
+        number: 1,
+        episodeType: "standard",
+        firstAired: "2026-07-08T01:00:00.000Z",
+      }),
+    ];
+    const rows = groupCalendar(typed, {
+      now: NOW,
+      timeZone: NY,
+      hiddenShowIds: NO_HIDDEN,
+      playedShowIds: new Set(),
+    }).flatMap((day) => day.rows);
+    expect(rows.map((row) => `S${row.season}E${row.number}`)).toEqual(["S2E62"]);
   });
 });
 

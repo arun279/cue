@@ -12,6 +12,8 @@ export interface CalendarEntry {
   readonly season: number;
   readonly number: number;
   readonly episodeTitle: string | null;
+  /** Trakt's `episode_type`, such as `season_premiere`; null where Trakt sent none. */
+  readonly episodeType: string | null;
   readonly firstAired: string;
   readonly ids: EpisodeIds;
   readonly posters: readonly string[];
@@ -41,6 +43,12 @@ interface CalendarSnapshot {
   readonly entries: readonly CalendarEntry[];
   readonly hiddenShowIds: readonly number[];
 }
+
+const PREMIERES = new Set(["series_premiere", "season_premiere"]);
+
+/** A premiere by Trakt's `episode_type`, or a season's first episode where Trakt sent no type. */
+const isPremiere = (entry: CalendarEntry): boolean =>
+  entry.episodeType === null ? entry.number === 1 : PREMIERES.has(entry.episodeType);
 
 export function selectVisibleEntries(data: CalendarSnapshot): CalendarEntry[] {
   const hidden = new Set(data.hiddenShowIds);
@@ -178,7 +186,7 @@ export function groupCalendar(
     if (
       playedShowIds !== undefined &&
       !playedShowIds.has(first.showId) &&
-      !episodes.some(({ number }) => number === 1)
+      !dropped.some(isPremiere)
     ) {
       continue;
     }

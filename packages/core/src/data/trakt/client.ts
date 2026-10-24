@@ -2,7 +2,7 @@ import { parseReadRetryAfterMs } from "../../domain/write-queue/classify";
 import type { DecodeIssue } from "./decode";
 import { DEFAULT_TRAKT_POLICY, type TimeoutClass, type TraktPolicy } from "./policy";
 
-export const TRAKT_API_BASE = "https://api.trakt.tv";
+const TRAKT_API_BASE = "https://api.trakt.tv";
 const TRAKT_API_VERSION = "2";
 
 export type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;

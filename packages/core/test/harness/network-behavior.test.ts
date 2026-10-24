@@ -30,38 +30,24 @@ import {
 } from "@cue/core/runtime/query-cache";
 import { usePlayPolicy } from "@cue/core/stores/play-policy-store";
 import { dehydrate, hydrate } from "@tanstack/react-query";
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { readJournal } from "../../../../scripts/mock-trakt/journal.mjs";
-import { createHarnessServer } from "./mock-server";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { startTraktFake } from "../trakt-fake/in-process.ts";
 
-interface JournalEntry {
-  readonly method: string;
-  readonly path: string;
-  readonly search: string;
-  readonly body: Record<string, unknown>;
-}
+const fake = startTraktFake();
 
-const mock = createHarnessServer("cue-network-harness-");
-const { journalFile } = mock;
-let baseUrl = "";
-
-beforeAll(async () => {
-  baseUrl = await mock.listen();
-});
-
-afterAll(async () => {
-  await mock.close();
-});
-
-afterEach(async () => {
+afterEach(() => {
   vi.restoreAllMocks();
   vi.useRealTimers();
   resetReadPause();
-  await fetch(`${baseUrl}/__reset`, { method: "POST" });
 });
 
-const entries = (): JournalEntry[] => readJournal(journalFile) as JournalEntry[];
-const since = (start: number): JournalEntry[] => entries().slice(start);
+const since = (start: number) => fake.requests.slice(start);
+const posted = (path: string) =>
+  vi.waitFor(() =>
+    expect(fake.requests.some((entry) => entry.method === "POST" && entry.path === path)).toBe(
+      true,
+    ),
+  );
 const DIAGNOSTIC_TIMEOUT_MS = 30_000;
 const harnessIt = (name: string, test: () => Promise<void>): void => {
   it(name, test, DIAGNOSTIC_TIMEOUT_MS);
@@ -110,22 +96,11 @@ function observeRetryTimers(): (delay: number) => Promise<void> {
     });
 }
 
-const arm = async (rule: Record<string, unknown>): Promise<void> => {
-  const response = await fetch(`${baseUrl}/__fault`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(rule),
-  });
-  expect(response.ok).toBe(true);
-};
-
-const token = (): Token => ({
+/** A session whose access token Trakt no longer accepts. */
+const stale = (refresh_token = fake.session().refresh_token): Token => ({
+  ...fake.session(),
   access_token: "stale-access",
-  refresh_token: "mock-refresh-token",
-  token_type: "bearer",
-  scope: "public",
-  created_at: Math.floor(Date.now() / 1000),
-  expires_in: 604_800,
+  refresh_token,
 });
 
 function memoryKv(seed: Record<string, string> = {}): KeyValueStore {
@@ -147,25 +122,28 @@ const runtime = (
   overrides: { kv?: KeyValueStore; tokenStore?: TokenStore; endSession?: () => Promise<void> } = {},
 ) =>
   createCueRuntime({
-    token: token(),
+    token: fake.session(),
     newId: () => "harness-op",
     kv: overrides.kv ?? memoryKv(),
     tokenStore: overrides.tokenStore ?? inertTokenStore,
     redirectUri: "cue://oauth",
     clientId: "mock-client",
-    apiBaseUrl: baseUrl,
     endSession: overrides.endSession ?? (async () => undefined),
     clearPersistedCaches: async () => undefined,
     clearLocalPreferences: () => undefined,
   });
 
 function authorizedClient(
-  options: { persist?: (next: Token) => Promise<void>; endSession?: () => Promise<void> } = {},
+  options: {
+    token?: Token;
+    persist?: (next: Token) => Promise<void>;
+    endSession?: () => Promise<void>;
+  } = {},
 ): TraktClient {
   const authorized = createAuthorizedFetch({
     inner: (input, init) => fetch(input, init),
-    token: token(),
-    config: { clientId: "mock-client", redirectUri: "cue://oauth", apiBaseUrl: baseUrl },
+    token: options.token ?? fake.session(),
+    config: { clientId: "mock-client", redirectUri: "cue://oauth" },
     persist: options.persist ?? (async () => undefined),
     endSession: options.endSession ?? (async () => undefined),
   });
@@ -173,7 +151,6 @@ function authorizedClient(
     clientId: "mock-client",
     getToken: authorized.accessToken,
     fetch: authorized.fetch,
-    baseUrl,
   });
 }
 
@@ -181,14 +158,8 @@ describe("read failures", () => {
   harnessIt("honors a capped Retry-After and holds other reads behind the pause", async () => {
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
     vi.setSystemTime(new Date("2026-09-10T12:00:00.000Z"));
-    await arm({
-      match: "reads",
-      path: "^/shows/8801/progress/watched$",
-      status: 429,
-      retryAfter: 301,
-      count: 1,
-    });
-    const start = entries().length;
+    fake.fail({ method: "GET", path: /^\/shows\/8801\/progress\/watched$/ }, 429, 301);
+    const start = fake.requests.length;
     const paused = nextReadPause();
     const read = withReadRateRetry(() => getShowProgress(authorizedClient(), 8801));
     await paused;
@@ -207,15 +178,10 @@ describe("read failures", () => {
   harnessIt("retries two server failures on the query ladder", async () => {
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
     vi.setSystemTime(new Date("2026-09-10T12:00:00.000Z"));
-    await arm({
-      match: "reads",
-      path: "^/calendars/my/shows/",
-      status: 503,
-      count: 2,
-    });
+    fake.fail({ method: "GET", path: /^\/calendars\/my\/shows\//, times: 2 }, 503);
     const cue = await runtime();
     const queryClient = createQueryClient();
-    const start = entries().length;
+    const start = fake.requests.length;
     const queryKey = queryKeys.calendar("2026-09-10", 28);
     const read = queryClient.fetchQuery({
       queryKey,
@@ -233,15 +199,9 @@ describe("read failures", () => {
   harnessIt("ends a manual refresh with the shared rate-limit pause still published", async () => {
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
     vi.setSystemTime(new Date("2026-09-10T12:00:00.000Z"));
-    await arm({
-      match: "reads",
-      path: "^/sync/last_activities$",
-      status: 429,
-      retryAfter: 0,
-      count: 4,
-    });
+    fake.fail({ method: "GET", path: /^\/sync\/last_activities$/, times: 4 }, 429, 0);
     const cue = await runtime();
-    const start = entries().length;
+    const start = fake.requests.length;
     let paused = nextReadPause();
     const poll = cue.pollActivities();
     for (let attempt = 1; attempt < 4; attempt += 1) {
@@ -256,22 +216,24 @@ describe("read failures", () => {
   });
 });
 
+const EVERY_READ = { method: "GET", times: Number.POSITIVE_INFINITY } as const;
+
 describe("a refresh that fails", () => {
   it.each([
-    ["Trakt is down", { match: "reads", status: 503 }],
-    ["Trakt rate-limits every read", { match: "reads", status: 429, retryAfter: 1 }],
-    ["Trakt never answers", { match: "reads", hold: true }],
-    ["the connection drops", { match: "reads", drop: true }],
+    ["Trakt is down", () => fake.fail(EVERY_READ, 503)],
+    ["Trakt rate-limits every read", () => fake.fail(EVERY_READ, 429, 1)],
+    ["Trakt never answers", () => void fake.hold(EVERY_READ)],
+    ["the connection drops", () => fake.drop(EVERY_READ)],
   ])(
     "keeps the last good queue for the next launch when %s",
-    async (_, fault) => {
+    async (_, arm) => {
       vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
       vi.setSystemTime(new Date("2026-09-10T12:00:00.000Z"));
       const cue = await runtime();
       const session = createQueryClient();
       const library = libraryQuery(cue);
       const loaded = await session.fetchQuery(library);
-      await arm(fault);
+      arm();
       const refresh = session.refetchQueries({ queryKey: library.queryKey });
       for (let tick = 0; tick < 60 && session.isFetching(library) > 0; tick += 1) {
         await vi.advanceTimersByTimeAsync(5_000);
@@ -294,61 +256,47 @@ describe("a refresh that fails", () => {
 });
 
 describe("token refresh", () => {
-  it("refreshes one failed read once, persists the token, and retries", async () => {
-    await arm({ match: "reads", status: 401, count: 1 });
+  it("refreshes one refused read once, persists the token, and retries", async () => {
     const persisted: Token[] = [];
-    const start = entries().length;
     const result = await getUserSettings(
-      authorizedClient({ persist: async (next) => void persisted.push(next) }),
+      authorizedClient({ token: stale(), persist: async (next) => void persisted.push(next) }),
     );
-    const requests = since(start);
+    const refreshes = fake.requests.filter((entry) => entry.path === "/oauth/token");
     expect(result.ok).toBe(true);
-    expect(requests.filter((entry) => entry.path === "/oauth/token")).toHaveLength(1);
-    expect(requests.filter((entry) => entry.path === "/users/settings")).toHaveLength(2);
-    expect(requests.find((entry) => entry.path === "/oauth/token")?.body).toMatchObject({
+    expect(refreshes).toHaveLength(1);
+    expect(fake.requests.filter((entry) => entry.path === "/users/settings")).toHaveLength(2);
+    expect(refreshes[0]?.body).toMatchObject({
       grant_type: "refresh_token",
-      refresh_token: "mock-refresh-token",
+      refresh_token: fake.session().refresh_token,
       client_id: "mock-client",
     });
-    expect(requests.find((entry) => entry.path === "/oauth/token")?.body).not.toHaveProperty(
-      "client_secret",
-    );
+    expect(refreshes[0]?.body).not.toHaveProperty("client_secret");
     expect(persisted).toHaveLength(1);
   });
 
-  it("single-flights concurrent unauthorized reads", async () => {
-    await arm({ match: "reads", status: 401, count: 2 });
-    const client = authorizedClient();
-    const start = entries().length;
+  it("single-flights concurrent refused reads", async () => {
+    const client = authorizedClient({ token: stale() });
     const [settings, activities] = await Promise.all([
       client.get("/users/settings"),
       client.get("/sync/last_activities"),
     ]);
     expect(settings.ok).toBe(true);
     expect(activities.ok).toBe(true);
-    expect(since(start).filter((entry) => entry.path === "/oauth/token")).toHaveLength(1);
+    expect(fake.requests.filter((entry) => entry.path === "/oauth/token")).toHaveLength(1);
   });
 
-  it("ends the session when the refresh token is rejected", async () => {
-    await arm({
-      rules: [
-        { match: "reads", status: 401, count: 1 },
-        {
-          path: "^/oauth/token$",
-          status: 401,
-          body: { error: "invalid_grant" },
-          count: 1,
-        },
-      ],
-    });
+  it("ends the session when Trakt no longer knows the refresh token", async () => {
     const endSession = vi.fn(async () => undefined);
-    const start = entries().length;
-    const result = await getUserSettings(authorizedClient({ endSession }));
+    const result = await getUserSettings(
+      authorizedClient({ token: stale("never-issued"), endSession }),
+    );
     expect(result).toEqual({ ok: false, error: { kind: "unauthorized" } });
     expect(endSession).toHaveBeenCalledOnce();
-    expect(since(start).filter((entry) => entry.path === "/oauth/token")).toHaveLength(1);
+    expect(fake.requests.filter((entry) => entry.path === "/oauth/token")).toHaveLength(1);
   });
 });
+
+const HISTORY = /^\/sync\/history$/;
 
 describe("write faults", () => {
   const mark = () =>
@@ -363,9 +311,9 @@ describe("write faults", () => {
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
     vi.setSystemTime(new Date("2026-09-10T12:00:00.000Z"));
     const timerScheduled = observeRetryTimers();
-    await arm({ match: "writes", path: "^/sync/history$", status: 429, retryAfter: 3, count: 1 });
+    fake.fail({ method: "POST", path: HISTORY }, 429, 3);
     const cue = await runtime();
-    const start = entries().length;
+    const start = fake.requests.length;
     const retryScheduled = timerScheduled(3000);
     const submitted = cue.submit(mark());
     await retryScheduled;
@@ -378,9 +326,9 @@ describe("write faults", () => {
     vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
     vi.setSystemTime(new Date("2026-09-10T12:00:00.000Z"));
     const timerScheduled = observeRetryTimers();
-    await arm({ match: "writes", path: "^/sync/history$", status: 503, count: 2 });
+    fake.fail({ method: "POST", path: HISTORY, times: 2 }, 503);
     const cue = await runtime();
-    const start = entries().length;
+    const start = fake.requests.length;
     let retryScheduled = timerScheduled(1100);
     const submitted = cue.submit(mark());
     await retryScheduled;
@@ -393,24 +341,21 @@ describe("write faults", () => {
   });
 
   harnessIt("keeps a held write pending until the fault is released", async () => {
-    await arm({ match: "writes", path: "^/sync/history$", hold: true, count: 1 });
+    const release = fake.hold({ method: "POST", path: HISTORY });
     const cue = await runtime();
-    const received = mock.nextRequest(
-      (entry) => entry.method === "POST" && entry.path === "/sync/history",
-    );
     const submitted = cue.submit(mark());
-    await received;
+    await posted("/sync/history");
     expect(cue.inFlightOpId()).toBe("fault-mark");
     expect(cue.pendingWrites()).toBe(1);
-    await fetch(`${baseUrl}/__fault`, { method: "DELETE" });
+    release();
     await expect(submitted).resolves.toBe("done");
     expect(cue.pendingWrites()).toBe(0);
   });
 
   it("reconciles an applied write whose response was lost without posting twice", async () => {
-    await fetch(`${baseUrl}/__fault?apply-drop-write`, { method: "POST" });
+    fake.drop({ method: "POST", path: HISTORY }, "after");
     const cue = await runtime();
-    const start = entries().length;
+    const start = fake.requests.length;
     await expect(cue.submit(mark())).resolves.toBe("done");
     const requests = since(start);
     expect(requests.filter((entry) => entry.path === "/sync/history")).toHaveLength(1);
@@ -426,7 +371,7 @@ describe("write receipts", () => {
   const at = "2026-10-14T12:34:00.000Z";
 
   it("keeps what Trakt said and learns that the account keeps one play per episode", async () => {
-    await fetch(`${baseUrl}/__reset?seed=multiple-plays-off`, { method: "POST" });
+    fake.reset({ multiplePlays: false });
     const kv = memoryKv();
     const cue = await runtime({ kv });
     const op = buildMarkEpisodeOp({ opId: "replace", ids: watched, watchedAt: at });
@@ -445,19 +390,16 @@ describe("write receipts", () => {
   });
 
   it("keeps a write's answer while the next write is still being delivered, so its Undo is safe", async () => {
-    await fetch(`${baseUrl}/__reset?seed=multiple-plays-off`, { method: "POST" });
-    await arm({ match: "writes", path: "^/sync/history$", hold: true, after: 1, count: 1 });
+    fake.reset({ multiplePlays: false });
+    const release = fake.hold({ method: "POST", path: HISTORY, after: 1 });
     const cue = await runtime();
     const first = buildMarkEpisodeOp({ opId: "first", ids: watched, watchedAt: at });
     const second = buildMarkEpisodeOp({ opId: "second", ids: { trakt: 880101 }, watchedAt: at });
-    const held = mock.nextRequest(
-      (entry) =>
-        entry.method === "POST" &&
-        entry.path === "/sync/history" &&
-        JSON.stringify(entry.body).includes("880101"),
-    );
     const done = Promise.all([cue.submit(first), cue.submit(second)]);
-    await held;
+    await vi.waitFor(
+      () => expect(fake.requests.filter((entry) => entry.path === "/sync/history")).toHaveLength(2),
+      { timeout: 5000 },
+    );
     expect(cue.inFlightOpId()).toBe("second");
     expect(cue.writeReceipt("first")).toMatchObject({ added: 0, updated: 1 });
     const undo = await planLandedUndo(
@@ -468,7 +410,7 @@ describe("write receipts", () => {
       (play) => play.episodeTrakt,
     );
     expect(undo).toEqual({ kind: "replaced", count: 1 });
-    await fetch(`${baseUrl}/__fault`, { method: "DELETE" });
+    release();
     await expect(done).resolves.toEqual(["done", "done"]);
   });
 

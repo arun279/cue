@@ -14,6 +14,7 @@ function calendar(
     season,
     number,
     episodeTitle: `Episode ${number}`,
+    episodeType: null,
     firstAired: iso(NOW - DAY),
     ids: { trakt: season * 100 + number },
     posters: [],
