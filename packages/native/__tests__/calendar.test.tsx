@@ -109,6 +109,30 @@ async function paint({
 
 const rowOf = (traktId: number) => screen.getByTestId(`calendar-row-${traktId}`);
 
+/** Paints over a library read that has not answered, checks the plates hold, then answers it. */
+async function paintThenAnswer(
+  calendar: readonly CalendarEntry[],
+  entries: readonly LibraryEntry[],
+  preferences?: PreferenceStorage,
+): Promise<string[]> {
+  const library = held<{ readonly entries: readonly LibraryEntry[] }>();
+  await paint({
+    runtime: { ...fakeRuntime({ calendar }), loadUpNext: library.call },
+    preferences,
+    loading: true,
+  });
+  // TanStack Query hands results to the screen on a timer, which the fake clock owns.
+  await act(() => jest.advanceTimersByTimeAsync(100));
+
+  expect(screen.getByTestId("calendar-skeleton")).toBeOnTheScreen();
+  expect(screen.queryAllByTestId(/^calendar-row-/)).toEqual([]);
+
+  library.release({ entries });
+
+  await waitFor(() => expect(screen.queryByTestId("calendar-skeleton")).toBeNull());
+  return screen.getAllByTestId(/^calendar-row-/).map((row) => row.props["testID"]);
+}
+
 beforeEach(() => {
   resetSharedStores();
   jest.clearAllMocks();
@@ -240,47 +264,21 @@ describe("Calendar", () => {
   });
 
   it("keeps its plates up until the library says which shows you have played", async () => {
-    const library = held<{ readonly entries: readonly LibraryEntry[] }>();
     const premiere = airing({ showId: 8807, season: 3, number: 1, ids: { trakt: 88_731 } });
     const second = { ...premiere, number: 2, firstAired: LATER.firstAired, ids: { trakt: 88_732 } };
-    await paint({
-      runtime: { ...fakeRuntime({ calendar: [premiere, second] }), loadUpNext: library.call },
-      loading: true,
-    });
-    // TanStack Query hands results to the screen on a timer, which the fake clock owns.
-    await act(() => jest.advanceTimersByTimeAsync(100));
 
-    expect(screen.getByTestId("calendar-skeleton")).toBeOnTheScreen();
-    expect(screen.queryAllByTestId(/^calendar-row-/)).toEqual([]);
-
-    library.release({ entries: [] });
-
-    await waitFor(() => expect(screen.queryByTestId("calendar-skeleton")).toBeNull());
-    expect(screen.getAllByTestId(/^calendar-row-/).map((row) => row.props["testID"])).toEqual([
-      "calendar-row-88731",
-    ]);
+    expect(await paintThenAnswer([premiere, second], [])).toEqual(["calendar-row-88731"]);
   });
 
   it("keeps its plates up until the library says which shows are stopped, with every watchlist episode on too", async () => {
-    const library = held<{ readonly entries: readonly LibraryEntry[] }>();
     const preferences = memoryPreferenceStorage();
     preferences.setItem("cue.every-watchlist-episode", "1");
-    await paint({
-      runtime: { ...fakeRuntime({ calendar: [TONIGHT, LATER] }), loadUpNext: library.call },
-      preferences,
-      loading: true,
-    });
-    await act(() => jest.advanceTimersByTimeAsync(100));
+    const library = [
+      entry({ showId: TONIGHT.showId }),
+      entry({ showId: LATER.showId, hidden: true }),
+    ];
 
-    expect(screen.getByTestId("calendar-skeleton")).toBeOnTheScreen();
-    expect(screen.queryAllByTestId(/^calendar-row-/)).toEqual([]);
-
-    library.release({
-      entries: [entry({ showId: TONIGHT.showId }), entry({ showId: LATER.showId, hidden: true })],
-    });
-
-    await waitFor(() => expect(screen.queryByTestId("calendar-skeleton")).toBeNull());
-    expect(screen.getAllByTestId(/^calendar-row-/).map((row) => row.props["testID"])).toEqual([
+    expect(await paintThenAnswer([TONIGHT, LATER], library, preferences)).toEqual([
       "calendar-row-88608",
     ]);
   });
