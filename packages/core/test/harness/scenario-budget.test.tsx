@@ -117,6 +117,9 @@ interface Measured {
   readonly cost: Cost;
   readonly writes: number;
   readonly budget: Cost;
+  readonly refused: number;
+  readonly repeated: readonly string[];
+  readonly getsByPath: Readonly<Record<string, number>>;
 }
 
 /** The fake's answer to a read as the app would send it, without spending a request on it. */
@@ -164,7 +167,6 @@ const CALENDAR_NEXT = "the calendar-derived next episode change";
 const LIST_ART = "the change that takes queue row posters from list payloads and keeps them";
 const LAZY_SEARCH = "the change that loads the Search tab's data on first focus";
 const DELTA_RELOAD = "the delta reload after the app's own writes";
-const HIDDEN_FROM_LIBRARY = "the change that filters calendars by the library's hidden flags";
 
 const sum = <T,>(items: readonly T[], bytes: (item: T) => number): number =>
   items.reduce((total, item) => total + bytes(item), 0);
@@ -174,16 +176,8 @@ const fixedBy = (...changes: string[]): string => `fixed by ${changes.join(" and
 const KNOWN_OVER: Readonly<Record<string, Partial<Record<`${Scenario}: ${Metric}`, string>>>> = {
   small: {
     "sign-in and first sync: bytes": fixedBy(LIST_ART, LAZY_SEARCH),
-    "cold launch, cache older than an hour: gets": fixedBy(
-      LIST_ART,
-      LAZY_SEARCH,
-      HIDDEN_FROM_LIBRARY,
-    ),
-    "cold launch, cache older than an hour: bytes": fixedBy(
-      LIST_ART,
-      LAZY_SEARCH,
-      HIDDEN_FROM_LIBRARY,
-    ),
+    "cold launch, cache older than an hour: gets": fixedBy(LIST_ART, LAZY_SEARCH),
+    "cold launch, cache older than an hour: bytes": fixedBy(LIST_ART, LAZY_SEARCH),
     "warm launch, cache fresh: gets": fixedBy(LAZY_SEARCH),
     "warm launch, cache fresh: bytes": fixedBy(LAZY_SEARCH),
     "mark, undo, then the next poll: gets": fixedBy(DELTA_RELOAD),
@@ -192,20 +186,10 @@ const KNOWN_OVER: Readonly<Record<string, Partial<Record<`${Scenario}: ${Metric}
   heavy: {
     "sign-in and first sync: gets": fixedBy(CALENDAR_NEXT, LIST_ART, LAZY_SEARCH),
     "sign-in and first sync: bytes": fixedBy(CALENDAR_NEXT, LIST_ART, LAZY_SEARCH),
-    "cold launch, cache older than an hour: gets": fixedBy(
-      CALENDAR_NEXT,
-      LIST_ART,
-      LAZY_SEARCH,
-      HIDDEN_FROM_LIBRARY,
-    ),
-    "cold launch, cache older than an hour: bytes": fixedBy(
-      CALENDAR_NEXT,
-      LIST_ART,
-      LAZY_SEARCH,
-      HIDDEN_FROM_LIBRARY,
-    ),
-    "warm launch, cache fresh: gets": fixedBy(CALENDAR_NEXT, LAZY_SEARCH),
-    "warm launch, cache fresh: bytes": fixedBy(CALENDAR_NEXT, LAZY_SEARCH),
+    "cold launch, cache older than an hour: gets": fixedBy(CALENDAR_NEXT, LIST_ART, LAZY_SEARCH),
+    "cold launch, cache older than an hour: bytes": fixedBy(CALENDAR_NEXT, LIST_ART, LAZY_SEARCH),
+    "warm launch, cache fresh: gets": fixedBy(LAZY_SEARCH),
+    "warm launch, cache fresh: bytes": fixedBy(LAZY_SEARCH),
     "mark, undo, then the next poll: gets": fixedBy(DELTA_RELOAD),
     "mark, undo, then the next poll: bytes": fixedBy(DELTA_RELOAD),
   },
@@ -398,10 +382,20 @@ async function measure(
   await settle(session);
   const served = session.trakt.requests.slice(start);
   const gets = served.filter((request) => request.method === "GET");
+  const count = (keys: readonly string[]): Record<string, number> => {
+    const counts: Record<string, number> = {};
+    for (const key of keys) counts[key] = (counts[key] ?? 0) + 1;
+    return counts;
+  };
   return {
     cost: { gets: gets.length, bytes: sum(served, (request) => request.bytes) },
     writes: served.length - gets.length,
     budget: await budget(),
+    refused: gets.filter((request) => request.status === 429).length,
+    repeated: Object.entries(count(gets.map(({ path, search }) => `${path}${search}`)))
+      .filter(([, times]) => times > 1)
+      .map(([url]) => url),
+    getsByPath: count(gets.map(({ path }) => path)),
   };
 }
 
@@ -551,6 +545,32 @@ describe.each([
   afterAll(() => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
+  });
+
+  // AUTHED_API_GET_LIMIT, which the fake enforces: https://developer.trakt.tv/docs/rate-limiting
+  it("is never refused by Trakt's rate limit", () => {
+    expect(Object.fromEntries(SCENARIOS.map((s) => [s, replayed.results[s].refused]))).toEqual(
+      Object.fromEntries(SCENARIOS.map((s) => [s, 0])),
+    );
+  });
+
+  it("fetches no URL twice in a scenario that writes nothing", () => {
+    const unwritten = SCENARIOS.filter((s) => replayed.results[s].writes === 0);
+    expect(Object.fromEntries(unwritten.map((s) => [s, replayed.results[s].repeated]))).toEqual(
+      Object.fromEntries(unwritten.map((s) => [s, []])),
+    );
+  });
+
+  // Unchanged activities invalidate nothing, so the persisted cache answers every screen. The
+  // four rails are the Search tab's own read on mount, until it loads them on first focus.
+  it("spends a warm launch on the activities poll and the Search tab's rails alone", () => {
+    expect(replayed.results["warm launch, cache fresh"].getsByPath).toEqual({
+      "/sync/last_activities": 1,
+      "/shows/trending": 1,
+      "/shows/popular": 1,
+      "/movies/trending": 1,
+      "/movies/popular": 1,
+    });
   });
 
   it("requests only known endpoints and writes only what the user did", () => {
