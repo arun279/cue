@@ -7,7 +7,7 @@ import { HapticsProvider } from "@cue/core/ports/haptics";
 import { RemindersProvider } from "@cue/core/ports/reminders";
 import { createTokenStore } from "@cue/core/ports/token-store";
 import { createPrefsStore, PrefsProvider } from "@cue/core/prefs/prefs-store";
-import { PERSIST_BUSTER, PERSIST_MAX_AGE } from "@cue/core/runtime/query-cache";
+import { PERSIST_MAX_AGE } from "@cue/core/runtime/query-cache";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { ThemeProvider } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -25,6 +25,7 @@ import { legacyStore } from "../src/platform/legacy-store";
 import { connectQueryManagers } from "../src/platform/query-managers";
 import {
   clearPersistedCaches,
+  persistBuster,
   queryClient,
   queryPersister,
   shouldDehydrateQuery,
@@ -159,7 +160,7 @@ export default function RootLayout(): ReactElement {
           persistOptions={{
             persister: queryPersister,
             maxAge: PERSIST_MAX_AGE,
-            buster: PERSIST_BUSTER,
+            buster: persistBuster,
             dehydrateOptions: { shouldDehydrateQuery },
           }}
         >

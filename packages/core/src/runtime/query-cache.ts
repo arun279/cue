@@ -8,9 +8,6 @@ import { queryKeys } from "../data/query-keys";
 import { DEFAULT_TRAKT_POLICY, type TraktPolicy } from "../data/trakt/policy";
 import { backoffMs } from "../domain/write-queue/classify";
 import { shouldRetryRead } from "../sync-contract";
-import { PERSISTED_CACHE } from "./persist-buster";
-
-export const PERSIST_BUSTER = PERSISTED_CACHE.buster;
 
 const PERSISTED_KEY_HEADS: ReadonlySet<unknown> = new Set([
   "library",

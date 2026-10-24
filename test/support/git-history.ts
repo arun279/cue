@@ -1,7 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { gitEnv } from "./git-env";
 import { tempDirectory } from "./temp-directory";
 
 /** The files a commit writes, with `null` for a file it deletes. */
@@ -27,7 +26,7 @@ export function gitHistory(commits: readonly Commit[]): {
   const repository = tempDirectory("cue-git-history-");
   const marks = path.join(repository, ".git", "marks");
   const git = (args: readonly string[], input?: string): void => {
-    execFileSync("git", args, { cwd: repository, env: gitEnv(), input, stdio: "pipe" });
+    execFileSync("git", args, { cwd: repository, input, stdio: "pipe" });
   };
   git(["init", "--quiet", "--initial-branch=main"]);
   const stream = commits.flatMap((files, index) => [
