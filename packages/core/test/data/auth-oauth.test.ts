@@ -33,6 +33,10 @@ describe("refreshAccessToken", () => {
     expect(rotated).toMatchObject({ expires_in: 604_800, token_type: "bearer" });
     expect(rotated.access_token).not.toBe(SESSION.access_token);
     expect(rotated.refresh_token).not.toBe(SESSION.refresh_token);
+    const settings = await fake.fetch("https://api.trakt.tv/users/settings", {
+      headers: { authorization: `Bearer ${rotated.access_token}` },
+    });
+    expect(settings.status).toBe(200);
     const [body] = sentTo("/oauth/token");
     expect(body).toMatchObject({
       refresh_token: SESSION.refresh_token,

@@ -625,7 +625,7 @@ describe("what a cold sync reads from Trakt", () => {
       watchlistShows: 200,
     });
     const entries = await loadUpNextEntries(client);
-    expect({
+    const reads = {
       watched: count(/^\/sync\/watched\/shows$/),
       progress: count(PROGRESS_READ),
       art: count(/^\/shows\/\d+$/),
@@ -633,7 +633,8 @@ describe("what a cold sync reads from Trakt", () => {
       dropped: count(/^\/users\/hidden\/dropped$/),
       watchlist: count(/^\/sync\/watchlist\/shows$/),
       collection: count(/^\/sync\/collection\/shows$/),
-    }).toEqual({
+    };
+    expect(reads).toEqual({
       watched: Math.ceil((shows + 200) / 100),
       progress: progressBudget,
       art: 0,
@@ -643,6 +644,7 @@ describe("what a cold sync reads from Trakt", () => {
       collection: 1,
     });
     expect(entries).toHaveLength(shows + 400);
+    expect(trakt.requests).toHaveLength(Object.values(reads).reduce((sum, n) => sum + n, 0));
     expect(trakt.requests.length).toBeLessThanOrEqual(SCENARIO_GET_BUDGET);
   });
 
@@ -696,6 +698,7 @@ describe("what a cold sync reads from Trakt", () => {
     const caughtUp = reading({ caughtUp: 300 });
     const entries = await loadUpNextEntries(caughtUp.client);
     expect(caughtUp.count(PROGRESS_READ)).toBe(0);
+    expect(entries).toHaveLength(300);
     expect(entries.every((e) => e.aired === e.completed)).toBe(true);
   });
 
