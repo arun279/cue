@@ -5,6 +5,23 @@
   "rules": {
     // McCabe's limit of 10, as recommended by NIST SP 500-235 (Watson and
     // McCabe, 1996), section 2.5.
-    "complexity": ["error", { "max": 10 }]
-  }
+    "complexity": ["error", { "max": 10 }],
+    "no-restricted-imports": [
+      "error",
+      {
+        "patterns": [
+          {
+            "group": ["msw", "msw/*"],
+            "message": "Tests reach Trakt through the fake in packages/core/test/trakt-fake, not their own MSW handlers."
+          }
+        ]
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["packages/core/test/trakt-fake/**"],
+      "rules": { "no-restricted-imports": "off" }
+    }
+  ]
 }
