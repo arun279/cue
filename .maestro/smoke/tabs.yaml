@@ -1,0 +1,39 @@
+appId: app.cuetracker
+name: tabs
+---
+- runFlow: lib/open-up-next.yaml
+- takeScreenshot: tab-up-next
+- tapOn: "Library"
+- extendedWaitUntil:
+    visible:
+      id: "show-card-8801"
+    timeout: 30000
+- takeScreenshot: tab-library
+- tapOn: "Calendar"
+- extendedWaitUntil:
+    visible:
+      id: "calendar-day-header"
+    timeout: 30000
+- takeScreenshot: tab-calendar
+- tapOn: "Search"
+- extendedWaitUntil:
+    visible:
+      id: "search-browse"
+    timeout: 30000
+- takeScreenshot: tab-search
+# On iOS the selected Search tab folds the other tabs into one button named for
+# the tab it returns to, so the way back to Up Next goes through Calendar.
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: "Calendar"
+      - extendedWaitUntil:
+          visible:
+            id: "screen-calendar"
+          timeout: 30000
+- tapOn: "Up Next"
+- extendedWaitUntil:
+    visible:
+      id: "queue-row-8803"
+    timeout: 30000

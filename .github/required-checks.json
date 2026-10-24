@@ -1,0 +1,10 @@
+[
+  "check",
+  "render-performance",
+  "audit",
+  "actionlint",
+  "android-e2e",
+  "ios-e2e",
+  "codeql (javascript-typescript)",
+  "codeql (actions)"
+]

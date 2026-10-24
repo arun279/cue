@@ -1,0 +1,14 @@
+diff --git a/build/serializer/exportHermes.js b/build/serializer/exportHermes.js
+index 297b161ebe59212c25a3f3dc7f886c1b4621cab0..7b101579020aa57626ede3c32909572f4048525f 100644
+--- a/build/serializer/exportHermes.js
++++ b/build/serializer/exportHermes.js
+@@ -62,8 +62,7 @@ async function buildHermesBundleAsync(options) {
+     return await currentHermesBuild;
+ }
+ async function directlyBuildHermesBundleAsync({ projectRoot, code, map, minify = false, filename, }) {
+-    const tempDir = path_1.default.join(os_1.default.tmpdir(), `expo-bundler-${Math.random()}-${Date.now()}`);
+-    await fs_1.default.promises.mkdir(tempDir, { recursive: true });
++    const tempDir = await fs_1.default.promises.mkdtemp(path_1.default.join(os_1.default.tmpdir(), "expo-bundler-"));
+     try {
+         const tempBundleFile = path_1.default.join(tempDir, 'index.js');
+         await fs_1.default.promises.writeFile(tempBundleFile, code, 'utf8');

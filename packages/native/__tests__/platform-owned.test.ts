@@ -1,0 +1,407 @@
+/** @jest-environment node */
+
+import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { join, relative } from "node:path";
+import ts from "typescript";
+import { nativeSourceFiles } from "./support/native-sources";
+
+const root = join(__dirname, "..");
+
+/**
+ * Each rule finds app code that draws something the platform already draws, and
+ * so loses the platform's own semantics, sizing and dismissal. Search is Cue's
+ * only text entry, so rule E counts every TextInput. An exception names the
+ * native candidate, why it does not fit, and the package version that judgement
+ * was made against, so updating that package reopens it.
+ */
+const RULES = {
+  A: "custom element in a header slot",
+  B: "selection state drawn by hand",
+  C: "custom modal or bottom sheet",
+  D: "back or dismiss outside the navigator",
+  E: "text field outside the header search bar",
+  F: "native header hidden",
+  G: "platform back replaced or disabled",
+  H: "platform control's own role overridden",
+} as const;
+type Rule = keyof typeof RULES;
+
+interface Exception {
+  readonly file: string;
+  readonly rule: Rule;
+  readonly site: string;
+  readonly candidate: string;
+  readonly reason: string;
+  readonly source: string;
+  readonly checked: { readonly package: string; readonly version: string };
+}
+
+const EXCEPTIONS: readonly Exception[] = [
+  {
+    file: "src/ui/RowMenu.tsx",
+    rule: "A",
+    site: "Stack.Toolbar",
+    candidate: "Stack.Toolbar.Menu on Android",
+    reason:
+      "On Android the toolbar menu is a self-sizing Compose host, and on a pushed detail screen it stayed at 0x0 with no More button for the whole 30 s wait in CI runs 39529824232, 39569599814, 39607798407 and 39647033939; the same host family was absent from a sheet for 17 s in #162. The More trigger is a plain 48 dp button that mounts the menu only while open, and iOS keeps the native menu. Remove this once an upstream fix for the zero-size host passes the Android device lanes.",
+    source: "https://github.com/expo/expo/issues/49312",
+    checked: { package: "@expo/ui", version: "57.0.26" },
+  },
+  {
+    file: "src/ui/BarItems.tsx",
+    rule: "A",
+    site: "Stack.Toolbar.View",
+    candidate: "Stack.Toolbar.Button with an image icon",
+    reason:
+      "The avatar is the account's photo or its monogram; a bar button icon is a fixed image source or symbol and cannot draw either. On Android the Library sort beside it is the same plain button the RowMenu exception gives the More trigger, and iOS keeps the native bar menu.",
+    source: "https://docs.expo.dev/router/advanced/stack-toolbar/#icons",
+    checked: { package: "expo-router", version: "57.0.29" },
+  },
+  {
+    file: "src/ui/SegmentedControl.tsx",
+    rule: "B",
+    site: "Pressable",
+    candidate:
+      "@expo/ui Picker with pickerStyle('segmented') on iOS, SingleChoiceSegmentedButtonRow on Android",
+    reason:
+      "The Compose segmented row exposed no accessibility node to TalkBack, and a SwiftUI segmented picker drops the identifiers set on its segments, which Maestro could not find by label either, so neither control can be reached the way the flows and screen readers reach this one.",
+    source: "https://stackoverflow.com/questions/60894793/segmented-picker-removes-accessibility",
+    checked: { package: "@expo/ui", version: "57.0.26" },
+  },
+  {
+    file: "src/screens/library/ChipRail.tsx",
+    rule: "B",
+    site: "Pressable",
+    candidate: "@expo/ui FilterChip on Android",
+    reason:
+      "Five filters with counts in a scrolling rail have no iOS control, and a Compose chip on Android alone would split one screen into two designs.",
+    source: "https://docs.expo.dev/versions/latest/sdk/ui/jetpack-compose/chip/",
+    checked: { package: "@expo/ui", version: "57.0.26" },
+  },
+  {
+    file: "src/screens/history/HistoryChoice.tsx",
+    rule: "B",
+    site: "Pressable",
+    candidate: "@expo/ui DatePicker",
+    reason:
+      "The month jump picks a year and a month in one tap from a grid; the platform date pickers choose a date or a time, with no month and year mode.",
+    source: "https://docs.expo.dev/versions/latest/sdk/ui/swift-ui/datepicker/",
+    checked: { package: "@expo/ui", version: "57.0.26" },
+  },
+  {
+    file: "src/ui/CheckControl.tsx",
+    rule: "B",
+    site: "Pressable",
+    candidate: "React Native Switch",
+    reason:
+      "The check marks an episode or movie watched, with a pending state while the mark syncs; a switch reads as a setting that changes how the app behaves, not as a record of something done.",
+    source: "https://developer.apple.com/design/human-interface-guidelines/toggles",
+    checked: { package: "react-native", version: "0.86.3" },
+  },
+  {
+    file: "src/screens/search/SearchField.tsx",
+    rule: "E",
+    site: "TextInput",
+    candidate: "@expo/ui SearchBar or DockedSearchBar on Android",
+    reason:
+      "Search is the search destination, which Material gives a persistent search bar; the Android header search bar collapses into an icon, SearchBar reports only a submitted query so results could not follow typing, and DockedSearchBar takes no text, so a recent search could not fill it. The field follows the Material search bar's metrics and icons instead.",
+    source: "https://m3.material.io/components/search/guidelines",
+    checked: { package: "@expo/ui", version: "57.0.26" },
+  },
+  {
+    file: "src/ui/SheetClose.tsx",
+    rule: "G",
+    site: "Stack.Toolbar",
+    candidate: "the back button",
+    reason:
+      "A sheet is the first screen of its own header, so it has no back button to replace; its leading bar item is the system close, and the trailing edge carries the sheet's menu.",
+    source: "https://developer.apple.com/design/human-interface-guidelines/sheets",
+    checked: { package: "react-native-screens", version: "4.26.2" },
+  },
+  {
+    file: "src/ui/SheetClose.android.tsx",
+    rule: "D",
+    site: "router.back",
+    candidate: "a close button in the sheet's Stack.Toolbar",
+    reason:
+      "Android form sheets cannot host a header or a nested stack, so a sheet has no toolbar; the close is a plain icon button drawn in the sheet, beside system back, so it is on screen and labelled from the sheet's first frame.",
+    source: "https://github.com/software-mansion/react-native-screens/issues/2657",
+    checked: { package: "react-native-screens", version: "4.26.2" },
+  },
+  {
+    file: "src/screens/history/MonthJump.tsx",
+    rule: "D",
+    site: "router.back",
+    candidate: "the sheet's own close and swipe",
+    reason:
+      "Picking a month completes the sheet's one task, so the sheet closes on the pick as well as from its close button; the platform only dismisses a sheet when the user cancels it.",
+    source: "https://developer.apple.com/design/human-interface-guidelines/sheets",
+    checked: { package: "expo-router", version: "57.0.29" },
+  },
+  {
+    file: "src/RootStack.tsx",
+    rule: "F",
+    site: "headerShown",
+    candidate: "a header on the root stack",
+    reason:
+      "The root stack switches between the tab group and the account group, each with its own native stack and header, and presents the two sheets, whose options set their own header; a root header would put a second bar above theirs.",
+    source: "https://docs.expo.dev/router/advanced/nesting-navigators/",
+    checked: { package: "expo-router", version: "57.0.29" },
+  },
+  {
+    file: "src/ui/navigation-theme.tsx",
+    rule: "F",
+    site: "headerShown",
+    candidate: "the native header inside the form sheet",
+    reason:
+      "Android form sheets cannot host a header or a nested stack, so on Android the episode sheet and the month jump title themselves and carry their close button in their content; iOS shows the sheet's own bar.",
+    source: "https://developer.apple.com/design/human-interface-guidelines/sheets",
+    checked: { package: "react-native-screens", version: "4.26.2" },
+  },
+  {
+    file: "src/screens/account/Rows.tsx",
+    rule: "H",
+    site: "Switch",
+    candidate: "the switch role React Native gives Switch",
+    reason:
+      "On iOS that role replaces UISwitch's own traits, so a disabled switch is announced as enabled. With no role, VoiceOver reads UISwitch's traits, which say dimmed. Once React Native reports the disabled state itself (react/react-native#59333), drop the override: a switch without its role stops being a switch to accessibility after a disable and re-enable (react/react-native#59334).",
+    source: "https://github.com/react/react-native/pull/59333",
+    checked: { package: "react-native", version: "0.86.3" },
+  },
+];
+
+const HEADER_SLOTS = new Set([
+  "header",
+  "headerLeft",
+  "headerRight",
+  "headerTitle",
+  "unstable_headerLeftItems",
+  "unstable_headerRightItems",
+]);
+const SELECTION_ROLES = new Set(["tab", "radio", "checkbox", "switch"]);
+const PLATFORM_CONTROLS = new Set(["react-native#Switch"]);
+const SELECTION_STATES = new Set(["selected", "checked"]);
+const NAVIGATION_RECEIVERS = new Set(["router", "navigation"]);
+const BACK_CALLS = new Set(["back", "goBack", "dismiss", "dismissAll", "pop", "popToTop"]);
+const SHEETS = /^@expo\/ui[^#]*#(ModalBottomSheet|BottomSheet)$/;
+const BACK_SWITCHES = new Set(["headerBackVisible", "gestureEnabled", "fullScreenGestureEnabled"]);
+const BACK_SLOTS = new Set(["headerLeft", "unstable_headerLeftItems"]);
+const BACK_INTERCEPTS = new Set([
+  "react-native#BackHandler",
+  "expo-router#usePreventRemove",
+  "@react-navigation/native#usePreventRemove",
+]);
+const BACK_EVENTS = new Set(["hardwareBackPress", "beforeRemove"]);
+
+interface Violation {
+  readonly rule: Rule;
+  readonly file: string;
+  readonly site: string;
+  readonly at: string;
+}
+
+type JsxTag = ts.JsxOpeningElement | ts.JsxSelfClosingElement;
+
+function importsOf(source: ts.SourceFile): Map<string, string> {
+  const origins = new Map<string, string>();
+  for (const statement of source.statements) {
+    if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier))
+      continue;
+    const bindings = statement.importClause?.namedBindings;
+    if (bindings === undefined || !ts.isNamedImports(bindings)) continue;
+    for (const element of bindings.elements) {
+      const name = (element.propertyName ?? element.name).text;
+      origins.set(element.name.text, `${statement.moduleSpecifier.text}#${name}`);
+    }
+  }
+  return origins;
+}
+
+function attribute(node: JsxTag, name: string): ts.JsxAttribute | undefined {
+  return node.attributes.properties.find(
+    (property): property is ts.JsxAttribute =>
+      ts.isJsxAttribute(property) && property.name.getText() === name,
+  );
+}
+
+function literal(value: ts.JsxAttribute | undefined): string | undefined {
+  const initializer = value?.initializer;
+  if (initializer === undefined) return undefined;
+  if (ts.isStringLiteral(initializer)) return initializer.text;
+  const expression = ts.isJsxExpression(initializer) ? initializer.expression : undefined;
+  return expression !== undefined && ts.isStringLiteral(expression) ? expression.text : undefined;
+}
+
+function drawsSelection(node: JsxTag): boolean {
+  const role = literal(attribute(node, "accessibilityRole")) ?? literal(attribute(node, "role"));
+  return (
+    (role !== undefined && SELECTION_ROLES.has(role)) ||
+    attribute(node, "aria-selected") !== undefined ||
+    attribute(node, "aria-checked") !== undefined ||
+    statesSelection(node)
+  );
+}
+
+function statesSelection(node: JsxTag): boolean {
+  const state = attribute(node, "accessibilityState")?.initializer;
+  const object = state !== undefined && ts.isJsxExpression(state) ? state.expression : undefined;
+  return (
+    object !== undefined &&
+    ts.isObjectLiteralExpression(object) &&
+    object.properties.some(
+      (property) =>
+        (ts.isPropertyAssignment(property) || ts.isShorthandPropertyAssignment(property)) &&
+        SELECTION_STATES.has(property.name.getText()),
+    )
+  );
+}
+
+function rendersElement(value: ts.Expression): boolean {
+  return (
+    ts.isArrowFunction(value) ||
+    ts.isFunctionExpression(value) ||
+    ts.isIdentifier(value) ||
+    ts.isJsxElement(value) ||
+    ts.isJsxSelfClosingElement(value) ||
+    ts.isJsxFragment(value)
+  );
+}
+
+function enclosingTag(node: ts.Node): string | undefined {
+  for (let parent = node.parent; parent !== undefined; parent = parent.parent) {
+    if (ts.isJsxAttribute(parent)) return parent.parent.parent.tagName.getText();
+  }
+  return undefined;
+}
+
+type ElementCheck = (node: JsxTag, tag: string, origin: string) => boolean;
+
+const ELEMENT_CHECKS: readonly (readonly [Rule, ElementCheck])[] = [
+  [
+    "A",
+    (node, tag) =>
+      tag === "Stack.Toolbar.View" ||
+      (tag.startsWith("Stack.") && attribute(node, "asChild") !== undefined),
+  ],
+  ["B", (node, _tag, origin) => drawsSelection(node) && origin !== "react-native#Switch"],
+  ["C", (_node, _tag, origin) => origin === "react-native#Modal" || SHEETS.test(origin)],
+  ["E", (_node, _tag, origin) => origin === "react-native#TextInput"],
+  ["F", (node, tag) => tag === "Stack.Header" && attribute(node, "hidden") !== undefined],
+  ["G", (node, tag) => tag === "Stack.Toolbar" && literal(attribute(node, "placement")) === "left"],
+  [
+    "H",
+    (node, _tag, origin) =>
+      PLATFORM_CONTROLS.has(origin) &&
+      (attribute(node, "accessibilityRole") !== undefined || attribute(node, "role") !== undefined),
+  ],
+];
+
+function propertyRules(node: ts.PropertyAssignment): Rule[] {
+  const key = node.name.getText();
+  const off = node.initializer.kind === ts.SyntaxKind.FalseKeyword;
+  return [
+    ...(HEADER_SLOTS.has(key) && rendersElement(node.initializer) ? (["A"] as const) : []),
+    ...(key === "headerShown" && off ? (["F"] as const) : []),
+    ...(BACK_SLOTS.has(key) || (BACK_SWITCHES.has(key) && off) ? (["G"] as const) : []),
+  ];
+}
+
+function navigatesBack(node: ts.CallExpression): boolean {
+  return (
+    ts.isPropertyAccessExpression(node.expression) &&
+    BACK_CALLS.has(node.expression.name.text) &&
+    NAVIGATION_RECEIVERS.has(node.expression.expression.getText()) &&
+    !enclosingTag(node)?.startsWith("Stack.Toolbar.")
+  );
+}
+
+function rulesFor(node: ts.Node, origins: ReadonlyMap<string, string>): Rule[] {
+  if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
+    const tag = node.tagName.getText();
+    const origin = origins.get(tag) ?? "";
+    return ELEMENT_CHECKS.filter(([, check]) => check(node, tag, origin)).map(([rule]) => rule);
+  }
+  if (ts.isPropertyAssignment(node)) return propertyRules(node);
+  if (interceptsBack(node, origins)) return ["G"];
+  return ts.isCallExpression(node) && navigatesBack(node) ? ["D"] : [];
+}
+
+function interceptsBack(node: ts.Node, origins: ReadonlyMap<string, string>): boolean {
+  return (
+    (ts.isIdentifier(node) && BACK_INTERCEPTS.has(origins.get(node.text) ?? "")) ||
+    (ts.isStringLiteral(node) && BACK_EVENTS.has(node.text))
+  );
+}
+
+function siteOf(node: ts.Node): string {
+  if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node))
+    return node.tagName.getText();
+  if (ts.isPropertyAssignment(node)) return node.name.getText();
+  return ts.isCallExpression(node) ? node.expression.getText() : node.getText();
+}
+
+function violationsIn(path: string): Violation[] {
+  const source = ts.createSourceFile(
+    path,
+    readFileSync(path, "utf8"),
+    ts.ScriptTarget.Latest,
+    true,
+    path.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+  );
+  const origins = importsOf(source);
+  const file = relative(root, path);
+  const found: Violation[] = [];
+  const visit = (node: ts.Node): void => {
+    const line = source.getLineAndCharacterOfPosition(node.getStart()).line + 1;
+    for (const rule of rulesFor(node, origins))
+      found.push({ rule, file, site: siteOf(node), at: `${file}:${line}` });
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return found;
+}
+
+const violations = nativeSourceFiles().flatMap(violationsIn);
+const excepts = (exception: Exception, violation: Violation) =>
+  exception.file === violation.file &&
+  exception.rule === violation.rule &&
+  exception.site === violation.site;
+
+it("leaves the UI the platform owns to the platform, outside the registered exceptions", () => {
+  expect(
+    violations
+      .filter((violation) => !EXCEPTIONS.some((exception) => excepts(exception, violation)))
+      .map(({ rule, site, at }) => `${rule} (${RULES[rule]}) ${site} at ${at}`),
+  ).toEqual([]);
+});
+
+it("drops an exception once its file no longer needs it", () => {
+  expect(
+    EXCEPTIONS.filter(
+      (exception) => !violations.some((violation) => excepts(exception, violation)),
+    ).map(({ rule, file, site }) => `${rule} ${file} ${site}`),
+  ).toEqual([]);
+});
+
+it("rechecks an exception when the package it was judged against changes version", () => {
+  const resolve = createRequire(join(root, "package.json")).resolve;
+  const installed = (name: string): string =>
+    JSON.parse(readFileSync(resolve(`${name}/package.json`), "utf8")).version;
+
+  expect(
+    EXCEPTIONS.filter(({ checked }) => installed(checked.package) !== checked.version).map(
+      ({ rule, file, checked }) =>
+        `${rule} ${file}: judged against ${checked.package} ${checked.version}, installed ${installed(checked.package)}`,
+    ),
+  ).toEqual([]);
+});
+
+it("draws checks and crosses as platform symbols, never as typed glyphs", () => {
+  const glyph = /[☑☒✅✓-✘❌❎]/u;
+  expect(
+    nativeSourceFiles()
+      .filter((path) => glyph.test(readFileSync(path, "utf8")))
+      .map((path) => relative(root, path)),
+  ).toEqual([]);
+});

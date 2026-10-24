@@ -1,0 +1,47 @@
+import type { TraktClient, TraktResult } from "./client";
+import * as raw from "./endpoints";
+import { withReadRateRetry } from "./read-budget";
+
+// Identical reads share one pooled read, so a caller still waiting for a slot joins the read in flight.
+function pool<Args extends unknown[], T>(
+  fn: (client: TraktClient, ...rest: Args) => Promise<TraktResult<T>>,
+): (client: TraktClient, ...rest: Args) => Promise<TraktResult<T>> {
+  const inFlight = new WeakMap<TraktClient, Map<string, Promise<TraktResult<T>>>>();
+  return (client, ...rest) => {
+    const reads = inFlight.get(client) ?? new Map<string, Promise<TraktResult<T>>>();
+    inFlight.set(client, reads);
+    const key = JSON.stringify(rest);
+    const existing = reads.get(key);
+    if (existing !== undefined) return existing;
+    const read = withReadRateRetry(() => fn(client, ...rest), client.policy).finally(() =>
+      reads.delete(key),
+    );
+    reads.set(key, read);
+    return read;
+  };
+}
+
+export const getHidden = pool(raw.getHidden);
+export const getDropped = pool(raw.getDropped);
+export const getWatchedMovies = pool(raw.getWatchedMovies);
+export const getItemPlays = pool(raw.getItemPlays);
+export const getShowProgress = pool(raw.getShowProgress);
+export const getShow = pool(raw.getShow);
+export const getMovie = pool(raw.getMovie);
+export const getShowSeasons = pool(raw.getShowSeasons);
+export const getEpisode = pool(raw.getEpisode);
+export const getWatchlist = pool(raw.getWatchlist);
+export const getCollectionMovies = pool(raw.getCollectionMovies);
+export const getMyShowsCalendar = pool(raw.getMyShowsCalendar);
+export const searchTrakt = pool(raw.searchTrakt);
+export const getGenres = pool(raw.getGenres);
+export const getTrendingShows = pool(raw.getTrendingShows);
+export const getPopularShows = pool(raw.getPopularShows);
+export const getTrendingMovies = pool(raw.getTrendingMovies);
+export const getPopularMovies = pool(raw.getPopularMovies);
+export const getRelatedMovies = pool(raw.getRelatedMovies);
+export const getRelatedShows = pool(raw.getRelatedShows);
+export const getUserSettings = pool(raw.getUserSettings);
+export const getHistory = pool(raw.getHistory);
+export const getHistoryPlay = pool(raw.getHistoryPlay);
+export const getLastActivities = pool(raw.getLastActivities);

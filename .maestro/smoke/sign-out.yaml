@@ -1,0 +1,26 @@
+appId: app.cuetracker
+name: sign-out
+---
+- runFlow: lib/open-up-next.yaml
+- tapOn:
+    id: "avatar-link"
+- extendedWaitUntil:
+    visible:
+      id: "profile-identity"
+    timeout: 30000
+- takeScreenshot: profile
+- scrollUntilVisible:
+    element:
+      id: "profile-sign-out"
+    centerElement: true
+- waitForAnimationToEnd
+- tapOn:
+    id: "profile-sign-out"
+- extendedWaitUntil:
+    visible: "Sign out of Cue?"
+    timeout: 60000
+- assertVisible: "^Cancel$"
+- assertVisible:
+    text: "^Sign out$"
+    rightOf:
+      text: "^Cancel$"

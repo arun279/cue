@@ -1,0 +1,14 @@
+diff --git a/ios/RNSBarButtonItem.mm b/ios/RNSBarButtonItem.mm
+index 0eb1f09dee82edd99e3e614938233db5cdeaebfe..0efd83d507cedd49bdd002675c9dd11ef5b19982 100644
+--- a/ios/RNSBarButtonItem.mm
++++ b/ios/RNSBarButtonItem.mm
+@@ -110,6 +110,9 @@ - (instancetype)initWithConfig:(NSDictionary<NSString *, id> *)dict
+   if (dict[@"accessibilityHint"]) {
+     self.accessibilityHint = dict[@"accessibilityHint"];
+   }
++  if (dict[@"testID"]) {
++    self.accessibilityIdentifier = dict[@"testID"];
++  }
+ 
+ #if !TARGET_OS_TV || __TV_OS_VERSION_MAX_ALLOWED >= 170000
+   if (@available(tvOS 17.0, *)) {

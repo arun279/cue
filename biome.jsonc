@@ -18,12 +18,9 @@
       "**/*.jsonc",
       "!**/node_modules",
       "!**/dist",
-      "!**/dev-dist",
       "!**/coverage",
-      "!**/playwright-report",
-      "!**/test-results",
-      "!ios",
-      "!android"
+      // Recorded and reduced from real Trakt; kept minified.
+      "!packages/core/test/trakt-fake/recordings.json"
     ]
   },
   "formatter": {
@@ -39,6 +36,128 @@
       "trailingCommas": "all"
     }
   },
+  "overrides": [
+    {
+      // The core compiles with lib ES2023 and no "dom", which rejects window,
+      // document and indexedDB outright. Two families survive that: the Node
+      // globals @types/node has to declare for fetch, Response and the timers
+      // the core does use, and the storage globals Node 22 added. Neither
+      // exists on a React Native engine, and neither is an import, so no
+      // dependency rule can see them.
+      "includes": ["packages/core/src/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedGlobals": {
+              "level": "error",
+              "options": {
+                "deniedGlobals": {
+                  "process": "Not on a React Native engine. Take the value as an injected dependency.",
+                  "Buffer": "Not on a React Native engine. Use Uint8Array or TextEncoder.",
+                  "__dirname": "Not on a React Native engine.",
+                  "__filename": "Not on a React Native engine.",
+                  "require": "The core is ESM only.",
+                  "localStorage": "Not on a React Native engine. Take a storage port instead.",
+                  "sessionStorage": "Not on a React Native engine. Take a storage port instead.",
+                  "navigator": "Not on a React Native engine. Read TanStack Query's onlineManager or focusManager instead.",
+                  "crypto": "Not on every React Native engine. Take the injected crypto port instead.",
+                  "btoa": "Not on every React Native engine. Encode bytes without browser globals.",
+                  "atob": "Not on every React Native engine. Decode bytes without browser globals.",
+                  "URLSearchParams": "Not on every React Native engine. Encode query values without browser globals.",
+                  "TextDecoder": "Not spec-compliant on native. Decode bytes through a portable implementation.",
+                  "TextDecoderStream": "Not spec-compliant on native. Decode bytes through a portable implementation.",
+                  "TextEncoderStream": "Not available on every native engine. Encode bytes with TextEncoder."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      // React Native's iOS Switch replaces UISwitch's own accessibility traits, so a disabled
+      // switch is not announced as dimmed. Toggle is the one Switch, and it works around that.
+      "includes": ["**", "!packages/native/src/screens/account/Rows.tsx"],
+      "plugins": ["./biome/switch-outside-toggle.grit"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "react-native": {
+                    "importNames": ["Switch"],
+                    "message": "Use Toggle from screens/account/Rows, which keeps a disabled switch announced as dimmed on iOS."
+                  },
+                  "react-native-gesture-handler": {
+                    "importNames": ["Switch"],
+                    "message": "Use Toggle from screens/account/Rows, which keeps a disabled switch announced as dimmed on iOS."
+                  },
+                  "react-native-svg": "Draw icons with PlatformIcon, which uses the platform's own symbols."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      // React Native's Image resizes a remote image before decoding it only with
+      // resizeMethod="resize", which Poster and Avatar set. PlatformIcon draws Android's
+      // vector drawables. A later override replaces an earlier one's options and plugins
+      // for the files both match, so this one restates the Switch rule.
+      "includes": [
+        "packages/native/src/**",
+        "packages/native/app/**",
+        "!packages/native/src/screens/account/Rows.tsx",
+        "!packages/native/src/ui/Poster.tsx",
+        "!packages/native/src/ui/Avatar.tsx",
+        "!packages/native/src/ui/PlatformIcon.tsx"
+      ],
+      "plugins": ["./biome/switch-outside-toggle.grit", "./biome/image-outside-poster.grit"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "react-native": {
+                    "importNames": ["Switch", "Image"],
+                    "message": "Use Toggle from screens/account/Rows for a Switch, and Poster or Avatar for a remote image, which decode it at the size they draw it on Android."
+                  },
+                  "react-native-gesture-handler": {
+                    "importNames": ["Switch"],
+                    "message": "Use Toggle from screens/account/Rows, which keeps a disabled switch announced as dimmed on iOS."
+                  },
+                  "react-native-svg": "Draw icons with PlatformIcon, which uses the platform's own symbols."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/native/src/screens/account/Rows.tsx"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "react-native-svg": "Draw icons with PlatformIcon, which uses the platform's own symbols."
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "plugins": ["./biome/effect-query-writes.grit"],
   "linter": {
     "enabled": true,
     "domains": {
@@ -50,6 +169,11 @@
         "noConsole": { "level": "error", "options": { "allow": ["error", "warn"] } }
       },
       "complexity": {
+        // SonarSource's default for its Cognitive Complexity rule, S3776.
+        "noExcessiveCognitiveComplexity": {
+          "level": "error",
+          "options": { "maxAllowedComplexity": 15 }
+        },
         // tsconfig `noPropertyAccessFromIndexSignature` forces bracket access on
         // index-signature types like `import.meta.env` / `process.env`; leaving
         // `useLiteralKeys` on would rewrite `env["X"]` back to `env.X`, which TS rejects.

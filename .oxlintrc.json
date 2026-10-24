@@ -1,0 +1,43 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  // Biome owns every other lint rule; it has no cyclomatic complexity rule and
+  // no way to forbid TypeScript or complexity suppressions.
+  "categories": { "correctness": "off" },
+  "rules": {
+    // McCabe's limit of 10, as recommended by NIST SP 500-235 (Watson and
+    // McCabe, 1996), section 2.5.
+    "complexity": ["error", { "max": 10 }],
+    "typescript/ban-ts-comment": [
+      "error",
+      { "ts-expect-error": true, "ts-ignore": true, "ts-nocheck": true }
+    ],
+    "no-warning-comments": [
+      "error",
+      {
+        "terms": [
+          "oxlint-disable",
+          "eslint-disable",
+          "lint/complexity/noExcessiveCognitiveComplexity"
+        ],
+        "location": "anywhere"
+      }
+    ],
+    "no-restricted-imports": [
+      "error",
+      {
+        "patterns": [
+          {
+            "group": ["msw", "msw/*"],
+            "message": "Tests reach Trakt through the fake in packages/core/test/trakt-fake, not their own MSW handlers."
+          }
+        ]
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["packages/core/test/trakt-fake/**"],
+      "rules": { "no-restricted-imports": "off" }
+    }
+  ]
+}

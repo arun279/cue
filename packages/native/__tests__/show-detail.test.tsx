@@ -1,0 +1,342 @@
+import { seasonConfirmation } from "@cue/core/domain/show-detail";
+import { usePlayPolicy } from "@cue/core/stores/play-policy-store";
+import { UNDO_WINDOW_MS } from "@cue/core/sync-contract";
+import { act, fireEvent, render, renderHook, screen } from "@testing-library/react-native";
+import { Children, isValidElement, type ReactNode } from "react";
+import { ActionSheetIOS, Alert, Platform } from "react-native";
+import { MovieDetail } from "../src/screens/MovieDetail";
+import { ShowDetail } from "../src/screens/ShowDetail";
+import { ContinueBar } from "../src/screens/show-detail/ContinueBar";
+import { confirm } from "../src/ui/confirm";
+import { HEADER_TINT } from "../src/ui/navigation-theme";
+import { TEST_IDS } from "../src/ui/test-ids";
+import { useColors } from "../src/ui/tokens";
+import { DetailHarness, detailRuntime } from "./support/detail";
+import { movieRuntime } from "./support/movie-detail";
+import { router } from "./support/native-ui";
+import { entry, Harness, resetSharedStores, spyHaptics } from "./support/up-next";
+
+jest.mock("expo-image", () => require("./support/detail").imageModule());
+jest.mock("expo-router", () => require("./support/native-ui").expoRouterModule());
+jest.mock("@expo/ui/community/menu", () => require("./support/native-ui").menuModule());
+jest.mock("expo-web-browser", () => ({ openBrowserAsync: jest.fn() }));
+jest.mock(
+  "react-native-safe-area-context",
+  () => require("react-native-safe-area-context/jest/mock").default,
+);
+
+const mark = { mark: jest.fn(), reverse: jest.fn(), reArm: jest.fn(), justMarkedAt: () => null };
+
+/** Noon, local time, a whole number of calendar days from today. */
+function inCalendarDays(days: number): string {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate() + days, 12).toISOString();
+}
+beforeEach(resetSharedStores);
+
+it.each([
+  ["next", entry(), "Next"],
+  [
+    "returning",
+    entry({
+      completed: 21,
+      nextEpisode: {
+        season: 3,
+        number: 1,
+        title: null,
+        still: null,
+        ids: { trakt: 1 },
+        firstAired: inCalendarDays(87),
+      },
+    }),
+    "All caught up",
+  ],
+  [
+    "finished",
+    entry({ completed: 21, status: "ended", nextEpisode: null }),
+    "Ended. You finished it.",
+  ],
+  ["caught-up", entry({ completed: 21, nextEpisode: null }), "All caught up"],
+] as const)("renders the %s continue state", async (kind, show, headline) => {
+  await render(<ContinueBar entry={show} mark={mark} />);
+  expect(screen.getByText(headline)).toBeOnTheScreen();
+  expect(screen.queryAllByRole("switch")).toHaveLength(kind === "next" ? 1 : 0);
+  if (kind === "returning") expect(screen.getByText("S3 returns in 87 days")).toBeOnTheScreen();
+});
+
+it("counts what is left from the next-up episode, leaving skipped seasons out", async () => {
+  await render(<ContinueBar entry={entry({ aired: 30, completed: 7, left: 13 })} mark={mark} />);
+  expect(screen.getByLabelText(/, 7 of 30 watched · 13 left$/)).toBeOnTheScreen();
+});
+
+it("offers Start watching before the first mark", async () => {
+  await render(<ContinueBar entry={entry({ completed: 0 })} mark={mark} />);
+  expect(screen.getByText("Start watching")).toBeOnTheScreen();
+  expect(screen.getByText("21 episodes")).toBeOnTheScreen();
+});
+
+it("keeps the seasons accordion in descending order with Specials last", async () => {
+  await render(
+    <DetailHarness>
+      <ShowDetail showId={8803} />
+    </DetailHarness>,
+  );
+  expect(screen.getAllByTestId(/^season-row-/).map((row) => row.props["testID"])).toEqual([
+    "season-row-2",
+    "season-row-1",
+    "season-row-0",
+  ]);
+  expect(screen.getByTestId(TEST_IDS.episodeChecked(8803, 2, 1))).toBeOnTheScreen();
+  expect(screen.queryByTestId(TEST_IDS.episodeChecked(8803, 0, 1))).toBeNull();
+  await fireEvent.press(screen.getByTestId(TEST_IDS.seasonTrigger(2)));
+  expect(screen.queryByTestId(TEST_IDS.episodeChecked(8803, 2, 1))).toBeNull();
+});
+
+it("counts the specials watched beside the regular episodes", async () => {
+  await render(
+    <DetailHarness>
+      <ShowDetail showId={8803} />
+    </DetailHarness>,
+  );
+  expect(screen.getByText("You've watched 8 of 10 · 2 specials · 8 hr")).toBeOnTheScreen();
+});
+
+it("caps related shows at six and opens the selected show", async () => {
+  const runtime = {
+    ...detailRuntime,
+    loadShowRelated: jest.fn(async () =>
+      Array.from({ length: 7 }, (_, index) => ({
+        key: String(index),
+        type: "show" as const,
+        traktId: index + 9000,
+        title: `Related ${index}`,
+        year: 2024,
+        posters: [],
+        tmdbId: null,
+        ids: { trakt: index + 9000 },
+      })),
+    ),
+  };
+  await render(
+    <DetailHarness runtime={runtime}>
+      <ShowDetail showId={8803} />
+    </DetailHarness>,
+  );
+  await screen.findByText("More like this");
+  expect(screen.getAllByRole("button", { name: /^Related / })).toHaveLength(6);
+  expect(screen.getByTestId(TEST_IDS.showCard(9005))).toBeOnTheScreen();
+  expect(screen.queryByTestId(TEST_IDS.showCard(9006))).toBeNull();
+  await fireEvent.press(screen.getByRole("button", { name: "Related 5" }));
+  expect(router.push).toHaveBeenCalledWith("/show/9005");
+});
+
+function confirmSeasonTwo() {
+  const choices = { onPrimary: jest.fn(), onSecondary: jest.fn() };
+  const copy = seasonConfirmation({ number: 2, airedCount: 6, completedCount: 3 }, "multiple");
+  confirm({ ...copy, ...choices });
+  return choices;
+}
+
+describe("platform confirmations", () => {
+  const original = Platform.OS;
+  afterEach(() => {
+    Platform.OS = original;
+    jest.restoreAllMocks();
+  });
+  it("uses the iOS action sheet for remaining, rewatch and cancel", () => {
+    Platform.OS = "ios";
+    const present = jest
+      .spyOn(ActionSheetIOS, "showActionSheetWithOptions")
+      .mockImplementation(() => {});
+    const { onPrimary, onSecondary } = confirmSeasonTwo();
+    expect(present.mock.calls[0]?.[0]).toEqual({
+      title: "Mark Season 2 watched?",
+      message: "3 of 6 episodes are unwatched.",
+      options: ["Mark 3 remaining", "Mark all 6 again (rewatch)", "Cancel"],
+      cancelButtonIndex: 2,
+    });
+    present.mock.calls[0]?.[1](1);
+    expect(onSecondary).toHaveBeenCalledTimes(1);
+    expect(onPrimary).not.toHaveBeenCalled();
+  });
+
+  it("uses the Android dialog's neutral, negative and positive buttons for three choices", () => {
+    Platform.OS = "android";
+    const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+    const { onPrimary, onSecondary } = confirmSeasonTwo();
+    const [title, message, buttons] = alert.mock.calls[0] ?? [];
+    expect([title, message]).toEqual(["Mark Season 2 watched?", "3 of 6 episodes are unwatched."]);
+    expect(buttons?.map((button) => button.text)).toEqual([
+      "Mark all 6 again (rewatch)",
+      "Cancel",
+      "Mark 3 remaining",
+    ]);
+    buttons?.[2]?.onPress?.();
+    expect(onPrimary).toHaveBeenCalledTimes(1);
+    buttons?.[0]?.onPress?.();
+    expect(onSecondary).toHaveBeenCalledTimes(1);
+  });
+
+  it("gives an overwriting rewatch the destructive role in the Android dialog", () => {
+    Platform.OS = "android";
+    const alert = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+    const copy = seasonConfirmation({ number: 2, airedCount: 6, completedCount: 3 }, "one-play");
+    confirm({ ...copy, onPrimary: jest.fn(), onSecondary: jest.fn() });
+    expect(alert.mock.calls[0]?.[2]?.[0]).toMatchObject({
+      text: "Mark all 6 again",
+      style: "destructive",
+    });
+  });
+
+  it.each(["ios", "android"] as const)("uses plain two-button alerts on %s", (os) => {
+    Platform.OS = os;
+    const alert = jest.spyOn(Alert, "alert");
+    for (const completedCount of [0, 8]) {
+      confirm({
+        ...seasonConfirmation({ number: 1, airedCount: 8, completedCount }),
+        onPrimary: jest.fn(),
+      });
+      expect(alert.mock.lastCall?.[2]?.map((button) => [button.text, button.style])).toEqual([
+        ["Cancel", "cancel"],
+        [completedCount === 0 ? "Mark 8 episodes" : "Remove 8 episodes", undefined],
+      ]);
+    }
+  });
+});
+
+it("warns before a rewatch when the account is known to keep one play per episode", async () => {
+  const original = Platform.OS;
+  Platform.OS = "ios";
+  const present = jest
+    .spyOn(ActionSheetIOS, "showActionSheetWithOptions")
+    .mockImplementation(() => {});
+  usePlayPolicy.setState({ policy: "one-play" });
+  try {
+    await render(
+      <DetailHarness>
+        <ShowDetail showId={8803} />
+      </DetailHarness>,
+    );
+    await fireEvent.press(await screen.findByTestId(TEST_IDS.seasonCheck(2)));
+    expect(present.mock.calls[0]?.[0]).toMatchObject({
+      message: expect.stringContaining("Your Trakt account keeps one play per episode"),
+      options: ["Mark 2 remaining", "Mark all 4 again", "Cancel"],
+      destructiveButtonIndex: 1,
+    });
+  } finally {
+    Platform.OS = original;
+    present.mockRestore();
+    usePlayPolicy.setState({ policy: "unknown" });
+  }
+});
+
+it("names on the Next card the episode its check describes, through a mark and its undo window", async () => {
+  jest.useFakeTimers();
+  try {
+    await render(
+      <DetailHarness>
+        <ShowDetail showId={8803} />
+      </DetailHarness>,
+    );
+    const card = () => {
+      const check = screen.getByTestId(TEST_IDS.continueMark);
+      const name = screen.getByRole("button", {
+        name: /^S\d+ E\d+(?: · [^,]*)?, \d+ of \d+ watched/,
+      }).props["accessibilityLabel"] as string;
+      const code = name.match(/^S\d+ E\d+/)?.[0] ?? "";
+      const label = check.props["accessibilityLabel"] as string;
+      const checked = check.props["accessibilityState"].checked as boolean;
+      expect(checked ? label.startsWith("Watched") : label.endsWith(`${code} watched`)).toBe(true);
+      return { code, checked };
+    };
+    const before = card();
+    expect(before.checked).toBe(false);
+
+    await fireEvent.press(screen.getByTestId(TEST_IDS.continueMark));
+    expect(card()).toEqual({ code: before.code, checked: true });
+
+    await act(async () => {
+      jest.advanceTimersByTime(UNDO_WINDOW_MS);
+    });
+    const after = card();
+    expect(after.checked).toBe(false);
+    expect(after.code).not.toBe(before.code);
+  } finally {
+    jest.useRealTimers();
+  }
+});
+
+it("names genres the way Trakt does, from one read that every detail screen shares", async () => {
+  const loadGenreNames = jest.fn(async () => ({ thriller: "Suspense", drama: "Drama" }));
+  const { loadMovieHeader, loadMovieLibrary, loadMovieRelated, loadMoviePlays } = movieRuntime();
+  const runtime = {
+    ...detailRuntime,
+    loadMovieHeader,
+    loadMovieLibrary,
+    loadMovieRelated,
+    loadMoviePlays,
+    loadGenreNames,
+  };
+  const view = await render(
+    <DetailHarness runtime={runtime}>
+      <ShowDetail showId={8803} />
+    </DetailHarness>,
+  );
+  expect(await screen.findByText("Suspense")).toBeOnTheScreen();
+
+  await view.rerender(
+    <DetailHarness runtime={runtime}>
+      <MovieDetail movieId={5501} />
+    </DetailHarness>,
+  );
+  expect(await screen.findByText(/Drama/)).toBeOnTheScreen();
+  expect(loadGenreNames).toHaveBeenCalledTimes(1);
+});
+
+it("updates the header only when the menu it shows changes, as the show's reads land and its state moves", async () => {
+  const { Stack } = jest.requireMock<typeof import("expo-router")>("expo-router");
+  const toolbar = jest.mocked(Stack.Toolbar);
+  toolbar.mockClear();
+  await render(
+    <Harness runtime={detailRuntime} haptics={spyHaptics()}>
+      <ShowDetail showId={8803} />
+    </Harness>,
+  );
+  await screen.findByTestId(TEST_IDS.continueMark);
+  await fireEvent.press(screen.getByTestId(TEST_IDS.seasonTrigger(2)));
+  await fireEvent.press(screen.getByTestId(TEST_IDS.continueMark));
+
+  const menus = toolbar.mock.calls.map(([props]) => JSON.stringify(menuOf(props.children)));
+  expect(menus.length).toBeGreaterThan(0);
+  expect(menus.filter((menu, index) => menu === menus[index - 1])).toEqual([]);
+});
+
+function menuOf(node: unknown): unknown {
+  if (!isValidElement<{ children?: unknown }>(node)) return node;
+  const { children, onPress: _, ...props } = node.props as Record<string, unknown>;
+  return { ...props, children: Children.toArray(children as ReactNode).map(menuOf) };
+}
+
+(Platform.OS === "android" ? it : it.skip)(
+  "draws Android's More trigger as a plain 48 dp button that mounts its menu only when opened",
+  async () => {
+    const { result } = await renderHook(() => useColors());
+    await render(
+      <DetailHarness>
+        <ShowDetail showId={8803} />
+      </DetailHarness>,
+    );
+
+    const more = await screen.findByRole("button", {
+      name: "More actions for Midnight Cartography",
+    });
+    expect(more).toHaveStyle({ width: 48, height: 48 });
+    const icon = more.children.find((child) => typeof child !== "string" && child.type === "Image");
+    expect(icon).toHaveStyle({ tintColor: result.current[HEADER_TINT] });
+    expect(screen.queryByTestId("stop")).toBeNull();
+
+    await fireEvent.press(more);
+
+    expect(screen.getByTestId("stop")).toBeOnTheScreen();
+  },
+);
