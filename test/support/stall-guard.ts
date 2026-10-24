@@ -1,10 +1,6 @@
 import type { Reporter, TestModule } from "vitest/node";
 
-/**
- * Three times the slowest file, pr-media.test.ts at about 49 s on a CI runner,
- * with a whole run's other files finishing meanwhile. Overridable so its own
- * test can use a short bound.
- */
+// Allow 150 s without a completed file; tests override this with a short bound.
 const STALL_MS = Number(process.env["VITEST_STALL_MS"] ?? 150_000);
 
 /**
