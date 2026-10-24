@@ -25,10 +25,7 @@ export function useMoveToWatchlist(): (entry: LibraryEntry) => Promise<void> {
         onKept: added
           ? () => resume.resumeIfStopped(entry.showId, { trakt: entry.showId })
           : undefined,
-        revalidate: () => {
-          void client.invalidateQueries({ queryKey: queryKeys.library() });
-          void client.invalidateQueries({ queryKey: queryKeys.watchlist("shows") });
-        },
+        revalidate: () => void client.invalidateQueries({ queryKey: queryKeys.library() }),
       },
     );
     if (outcome === "failed")

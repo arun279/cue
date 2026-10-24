@@ -66,11 +66,8 @@ describe("invalidationKeys maps last_activities targets to cached query keys", (
     ]);
   });
 
-  it("routes a show watchlist change to library + the shows watchlist", () => {
-    expect(invalidationKeys(["watchlist/shows"])).toEqual([
-      queryKeys.library(),
-      queryKeys.watchlist("shows"),
-    ]);
+  it("routes a show watchlist change to the library, which holds every watchlisted show", () => {
+    expect(invalidationKeys(["watchlist/shows"])).toEqual([queryKeys.library()]);
   });
 
   it("routes a watchlist change to its own watchlist and to both followed piles", () => {
@@ -81,7 +78,7 @@ describe("invalidationKeys maps last_activities targets to cached query keys", (
     ]);
     expect(
       invalidationKeys(["watchlist/shows", "recompute:following", "recompute:to-watch"]),
-    ).toEqual([queryKeys.library(), queryKeys.watchlist("shows"), queryKeys.movieLibrary()]);
+    ).toEqual([queryKeys.library(), queryKeys.movieLibrary()]);
   });
 
   it("routes an abandon (hidden) change and bucket recompute to the library", () => {
