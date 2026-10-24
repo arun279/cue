@@ -47,6 +47,7 @@ const watching = (): LibraryEntry => ({
   inWatchlist: false,
   addedAt: null,
   lastWatchedAt: new Date(Date.now() - DAY_MS).toISOString(),
+  plays: null,
   aired: 14,
   completed: 14,
   left: 0,

@@ -94,6 +94,7 @@ const baseEntry: LibraryEntry = {
   inWatchlist: false,
   addedAt: null,
   lastWatchedAt: "2026-07-01T00:00:00.000Z",
+  plays: null,
   aired: 10,
   completed: 3,
   left: 7,
@@ -354,6 +355,7 @@ describe("assembleLibrary", () => {
       completed: 0,
       nextEpisode: null,
       lastWatchedAt: null,
+      plays: 0,
       lastAired: null,
       tmdbId: 77,
     });
@@ -537,6 +539,12 @@ describe("advancePastNext", () => {
       },
     };
     expect(advancePastNext(entry, "2026-07-05T12:00:00.000Z").nextEpisode?.firstAired).toBeNull();
+  });
+
+  it("adds the mark's play to a known count of plays, and leaves an unknown one unknown", () => {
+    const at = "2026-07-05T12:00:00.000Z";
+    expect(advancePastNext({ ...baseEntry, plays: 7 }, at).plays).toBe(8);
+    expect(advancePastNext({ ...baseEntry, plays: null }, at).plays).toBeNull();
   });
 
   it("leaves a caught-up entry (null next) with no projected episode", () => {

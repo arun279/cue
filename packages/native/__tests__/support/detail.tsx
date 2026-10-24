@@ -61,6 +61,7 @@ export const header: ShowHeader = {
   backdrops: [],
   aired: 10,
   completed: 8,
+  lastWatchedAt: null,
   left: 2,
   nextEpisode: detail,
   lastAired: { season: 2, number: 4 },

@@ -15,7 +15,7 @@ import {
   type Movie,
   type Show,
 } from "./account.ts";
-import { allEpisodes, playId, playItem, watchedAtOf } from "./bodies.ts";
+import { allEpisodes, hasAired, latestPlay, playId, playItem, watchedAtOf } from "./bodies.ts";
 
 const ids = z.looseObject({ trakt: z.number().optional(), slug: z.string().optional() });
 const stamped = { watched_at: z.string().nullish() };
@@ -119,7 +119,7 @@ const isWatched = (show: Show, ep: Episode): boolean =>
     ? show.specialsWatchedAt.has(ep.traktId)
     : show.episodes.indexOf(ep) < show.completed;
 
-/** A play for a watched episode is a second play, or with Multiple Plays off replaces the first's date. */
+/** A play for a watched episode is one more play, or with Multiple Plays off replaces the first's date. */
 function addEpisodePlay(
   account: Account,
   show: Show,
@@ -129,7 +129,10 @@ function addEpisodePlay(
 ): void {
   const watched = isWatched(show, ep);
   if (watched && account.multiplePlays) {
-    account.rewatchedEpisodes.set(ep.traktId, stamp);
+    account.rewatchedEpisodes.set(ep.traktId, [
+      ...(account.rewatchedEpisodes.get(ep.traktId) ?? []),
+      stamp,
+    ]);
     tally.added.episodes += 1;
     return;
   }
@@ -141,7 +144,25 @@ function addEpisodePlay(
   }
   show.watchedAt.set(ep.traktId, stamp);
   show.completed = Math.max(show.completed, show.episodes.indexOf(ep) + 1);
-  show.lastWatchedAt = Math.max(show.lastWatchedAt ?? 0, stamp);
+}
+
+/**
+ * The show's newest play by date, so a backdated play leaves it and removing the newest rolls it
+ * back (recorded). An unaired special's play never counts (recorded); an aired special's counts,
+ * which is recorded only for a show with no other play.
+ */
+function lastPlayOf(account: Account, show: Show): number | null {
+  const specials = show.specialEpisodes.filter((sp) => hasAired(sp, account.now));
+  const stamps = [
+    ...show.episodes
+      .slice(0, show.completed)
+      .map((ep, index) => latestPlay(account, ep.traktId, watchedAtOf(show, index))),
+    ...specials.flatMap((sp) => {
+      const at = show.specialsWatchedAt.get(sp.traktId);
+      return at === undefined ? [] : [latestPlay(account, sp.traktId, at)];
+    }),
+  ];
+  return stamps.length === 0 ? null : Math.max(...stamps);
 }
 
 /**
@@ -155,18 +176,24 @@ function removeEpisodePlays(
   ep: Episode,
   rows: ReadonlySet<number>,
 ): number {
-  const second = account.rewatchedEpisodes.has(ep.traktId);
-  const onlySecond = rows.has(playId(ep.traktId, 2)) && !rows.has(playId(ep.traktId));
+  const first =
+    ep.season === 0 ? show.specialsWatchedAt.get(ep.traktId) : show.watchedAt.get(ep.traktId);
+  const stamps = [first ?? 0, ...(account.rewatchedEpisodes.get(ep.traktId) ?? [])];
+  const kept = stamps.filter((_, play) => !rows.has(playId(ep.traktId, play + 1)));
   account.rewatchedEpisodes.delete(ep.traktId);
-  if (onlySecond) return 1;
+  const [earliest, ...later] = kept;
+  if (earliest !== undefined && kept.length < stamps.length) {
+    if (later.length > 0) account.rewatchedEpisodes.set(ep.traktId, later);
+    if (ep.season === 0) show.specialsWatchedAt.set(ep.traktId, earliest);
+    else show.watchedAt.set(ep.traktId, earliest);
+    return stamps.length - kept.length;
+  }
   if (ep.season === 0) show.specialsWatchedAt.delete(ep.traktId);
   else {
-    const index = show.episodes.indexOf(ep);
-    show.completed = Math.min(show.completed, index);
+    show.completed = Math.min(show.completed, show.episodes.indexOf(ep));
     show.watchedAt.delete(ep.traktId);
-    if (show.completed === 0) show.lastWatchedAt = null;
   }
-  return second ? 2 : 1;
+  return stamps.length;
 }
 
 function applyShowWrite(
@@ -186,6 +213,7 @@ function applyShowWrite(
     if (remove) tally.deleted.episodes += removeEpisodePlays(account, show, ep, rows);
     else addEpisodePlay(account, show, ep, stampOf(sent, now), tally);
   }
+  show.lastWatchedAt = lastPlayOf(account, show);
   return true;
 }
 

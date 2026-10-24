@@ -267,5 +267,17 @@ it("says a query needs a connection, and keeps the browse grid it already has", 
   expect(screen.getByText("Search needs a connection.")).toBeOnTheScreen();
 });
 
+it("says browsing needs a connection when Search first opens offline", async () => {
+  await act(async () => onlineManager.setOnline(false));
+  try {
+    await paint({ browse: { trending: [TRACKED] } });
+
+    expect(screen.getByTestId("search-offline")).toBeOnTheScreen();
+    expect(screen.queryByTestId("browse-skeleton")).toBeNull();
+  } finally {
+    await act(async () => onlineManager.setOnline(true));
+  }
+});
+
 const labelOf = (element: { props: Record<string, unknown> }): string =>
   String(element.props["accessibilityLabel"]);

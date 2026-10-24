@@ -1,6 +1,13 @@
-import { invalidationKeys, showProgressKeys } from "@cue/core/data/query-invalidation";
+import {
+  invalidateChangedShows,
+  invalidationKeys,
+  showProgressKeys,
+} from "@cue/core/data/query-invalidation";
 import { queryKeys } from "@cue/core/data/query-keys";
+import type { LibraryEntry } from "@cue/core/data/trakt/library";
+import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
+import { makeShow } from "../domain/_helpers";
 
 describe("showProgressKeys: the keys a local mark on show X must refresh", () => {
   it("invalidates only the marked show's detail views", () => {
@@ -52,13 +59,10 @@ describe("showProgressKeys: the keys a local mark on show X must refresh", () =>
 });
 
 describe("invalidationKeys maps last_activities targets to cached query keys", () => {
-  it("routes an episode watch to the library, the Diary and every show's watched state", () => {
+  it("routes an episode watch to the library, whose reload refreshes each changed show, and the Diary", () => {
     expect(invalidationKeys(["watched/shows", "progress/watched"])).toEqual([
       queryKeys.library(),
       queryKeys.historyPrefix(),
-      queryKeys.showSection("progress"),
-      queryKeys.showSection("seasons"),
-      queryKeys.showSection("episode"),
     ]);
   });
 
@@ -125,5 +129,77 @@ describe("invalidationKeys maps last_activities targets to cached query keys", (
 
   it("returns nothing for an empty diff", () => {
     expect(invalidationKeys([])).toEqual([]);
+  });
+});
+
+describe("invalidateChangedShows: what a library reload refreshes", () => {
+  const AT = "2026-10-20T12:00:00.000Z";
+  const entry = (
+    showId: number,
+    { completed = 5, plays = 5 as number | null, lastWatchedAt = AT } = {},
+  ): LibraryEntry => ({
+    ...makeShow({ showId, completed, plays, lastWatchedAt }),
+    tmdbId: null,
+    runtime: null,
+    posters: [],
+  });
+
+  function stale(
+    cached: readonly LibraryEntry[] | undefined,
+    reloaded: readonly LibraryEntry[],
+    skipped: ReadonlySet<number> = new Set(),
+  ) {
+    const qc = new QueryClient();
+    for (const showId of [1, 2, 3, 4, 5, 6]) {
+      qc.setQueryData(queryKeys.showSeasons(showId), []);
+      qc.setQueryData(queryKeys.showProgress(showId), {});
+      qc.setQueryData(queryKeys.episode(showId, 1, 1), {});
+    }
+    invalidateChangedShows(qc, cached, reloaded, skipped);
+    return [
+      ...new Set(
+        qc
+          .getQueryCache()
+          .findAll({ predicate: (query) => query.state.isInvalidated })
+          .map(({ queryKey }) => queryKey[2]),
+      ),
+    ];
+  }
+
+  it("refreshes a show whose count, plays or last play moved, or that left or joined the library", () => {
+    const cached = [entry(1), entry(2), entry(3), entry(4), entry(5)];
+    const reloaded = [
+      entry(1, { completed: 6 }),
+      entry(2, { lastWatchedAt: "2026-10-20T12:05:00.000Z" }),
+      entry(3, { plays: 6 }),
+      entry(4),
+      entry(6),
+    ];
+    expect(stale(cached, reloaded)).toEqual([1, 2, 3, 5, 6]);
+  });
+
+  it("leaves a show alone whose write is still on its way", () => {
+    expect(
+      stale(
+        [entry(1), entry(2)],
+        [entry(1, { completed: 6 }), entry(2, { completed: 6 })],
+        new Set([1]),
+      ),
+    ).toEqual([2]);
+  });
+
+  // Trakt keeps a play's time to the minute; the app's own mark carries the seconds it sent.
+  it("leaves a show alone whose last play moved within the minute Trakt keeps", () => {
+    expect(stale([entry(1, { lastWatchedAt: "2026-10-20T12:00:41.317Z" })], [entry(1)])).toEqual(
+      [],
+    );
+  });
+
+  it("compares plays only where both sides know them", () => {
+    expect(stale([entry(1, { plays: null })], [entry(1, { plays: 9 })])).toEqual([]);
+  });
+
+  it("refreshes nothing on the library's first load, with nothing to compare", () => {
+    expect(stale(undefined, [entry(1)])).toEqual([]);
   });
 });

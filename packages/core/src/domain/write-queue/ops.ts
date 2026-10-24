@@ -218,6 +218,7 @@ export function buildRemoveWatchlistOp(params: WatchlistOpParams): QueuedOp {
 interface HistoryBody {
   readonly episodes?: readonly { readonly ids: { readonly trakt: number } }[];
   readonly shows?: readonly {
+    readonly ids: { readonly trakt: number };
     readonly seasons: readonly {
       readonly number: number;
       readonly episodes: readonly { readonly number: number }[];
@@ -238,4 +239,18 @@ export function markedEpisodesOf(op: QueuedOp): MarkedEpisodes | null {
   );
   if (traktIds.size === 0 && positions.size === 0) return null;
   return { watchedAt: op.watchedAt, traktIds, positions };
+}
+
+/** The shows and episodes a history write names, in what it sends or in what undoes it. */
+export function historyTargetsOf(op: QueuedOp): {
+  readonly shows: readonly number[];
+  readonly episodes: readonly number[];
+} {
+  const bodies = [op.request, op.inverse]
+    .filter(({ path }) => path === HISTORY || path === HISTORY_REMOVE)
+    .map(({ body }) => body as HistoryBody);
+  return {
+    shows: bodies.flatMap((body) => (body.shows ?? []).map((show) => show.ids.trakt)),
+    episodes: bodies.flatMap((body) => (body.episodes ?? []).map((episode) => episode.ids.trakt)),
+  };
 }

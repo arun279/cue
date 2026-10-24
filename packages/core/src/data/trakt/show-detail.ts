@@ -95,6 +95,7 @@ export interface ShowInfo {
 export interface ShowProgress {
   readonly aired: number;
   readonly completed: number;
+  readonly lastWatchedAt: string | null;
   readonly left: number;
   readonly lastAired: EpisodeKey | null;
   readonly nextEpisode: EpisodeView | null;
@@ -157,6 +158,7 @@ export function assembleShowProgress(progress: Progress, now: number): ShowProgr
   return {
     aired: progress.aired,
     completed: progress.completed,
+    lastWatchedAt: progress.last_watched_at ?? null,
     left: progressLeft(progress),
     lastAired:
       progress.last_episode == null

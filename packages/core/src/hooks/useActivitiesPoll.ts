@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { queryKeys } from "../data/query-keys";
+import { refreshChangedShows } from "../runtime/library-reloads";
 import { type CueRuntime, useRuntime } from "../runtime/runtime";
 import { useSyncActivity } from "../stores/sync-activity-store";
 import { applyReconcile, refetchFailedReads } from "./apply-reconcile";
@@ -43,6 +44,11 @@ export function useActivitiesPoll(): void {
     refetchOnReconnect: true,
     notifyOnChangeProps: [],
   });
+
+  useEffect(
+    () => refreshChangedShows(queryClient, () => runtime.pendingOps()),
+    [queryClient, runtime],
+  );
 
   useEffect(() => {
     const unsubscribe = onlineManager.subscribe((online) => {

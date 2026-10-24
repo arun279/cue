@@ -74,6 +74,7 @@ export const watchedMoviesSchema = list(watchedMovieSchema);
 export const progressSchema = z.object({
   aired: num,
   completed: num,
+  last_watched_at: nonEssential(str.nullable()),
   last_episode: nonEssential(episodeSchema.nullable()),
   next_episode: episodeSchema.nullable(),
   seasons: nonEssential(

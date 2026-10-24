@@ -1,6 +1,8 @@
+import { browseQuery } from "@cue/core/queries/discover";
 import { libraryQuery } from "@cue/core/queries/library";
+import type { BrowseData, CueRuntime } from "@cue/core/runtime/runtime";
 import type { QueryClient } from "@tanstack/react-query";
-import { act, screen } from "@testing-library/react-native";
+import { act, screen, waitFor } from "@testing-library/react-native";
 import { renderRouter } from "expo-router/testing-library";
 import { Profiler, type ReactElement } from "react";
 import { Platform } from "react-native";
@@ -52,18 +54,29 @@ function profiled(tab: string, screenFile: string): () => ReactElement {
   };
 }
 
-/** The four tabs over a seeded library; `calendarLoads` false leaves the calendar read in flight. */
-async function paintTabs(calendarLoads = true) {
+interface Paint {
+  /** False leaves the calendar read in flight. */
+  readonly calendarLoads?: boolean;
+  /** Without it, Search's rails are already cached. */
+  readonly loadBrowse?: CueRuntime["loadBrowse"];
+}
+
+const NO_RAILS: BrowseData = { trending: [], popular: [], trendingMovies: [], popularMovies: [] };
+
+/** The four tabs over a seeded library. */
+async function paintTabs({ calendarLoads = true, loadBrowse }: Paint = {}) {
   // expo-router's testing mocks replace Reanimated with a stand-in that lacks this hook.
   const reanimated = require("react-native-reanimated");
   reanimated.useReducedMotion ??= () => false;
   const runtime = {
     ...fakeRuntime({ entries }),
     ...(calendarLoads ? null : { loadCalendar: () => new Promise<never>(() => {}) }),
+    ...(loadBrowse === undefined ? null : { loadBrowse }),
   };
   const seed = (client: QueryClient): void => {
     client.setQueryData(libraryQuery(runtime).queryKey, { entries });
     if (calendarLoads) seedCalendars(client, runtime);
+    if (loadBrowse === undefined) client.setQueryData(browseQuery(runtime).queryKey, NO_RAILS);
   };
   const TabsLayout = route<() => ReactElement>("_layout");
   await renderRouter({
@@ -96,6 +109,21 @@ const settle = () =>
     for (const callback of idle.splice(0)) callback();
   });
 
+const tabHost = () =>
+  screen.container.queryAll((node) => node.props["onTabSelected"] !== undefined)[0];
+const tabKeys = () =>
+  screen.container
+    .queryAll((node) => typeof node.props["screenKey"] === "string")
+    .map((node) => String(node.props["screenKey"]));
+let provenance = 0;
+const selectTab = (key: string | undefined) =>
+  act(async () => {
+    provenance += 1;
+    tabHost()?.props["onTabSelected"]({
+      nativeEvent: { selectedScreenKey: key, provenance, actionOrigin: "user" },
+    });
+  });
+
 beforeEach(() => {
   commits.length = 0;
   idle.length = 0;
@@ -115,7 +143,7 @@ afterEach(() => jest.restoreAllMocks());
 const onIos = Platform.OS === "ios" ? it : it.skip;
 
 onIos(
-  "mounts only the opening tab, then every tab once launch settles, and re-renders none on a switch",
+  "mounts only the opening tab, then every tab once launch settles, and re-renders none on a switch after Search's first visit",
   async () => {
     await paintTabs();
     expect(mounted()).toEqual(["(up-next)"]);
@@ -123,31 +151,55 @@ onIos(
     await settle();
     expect(mounted()).toEqual(TABS.map(([tab]) => tab));
 
-    const host = () =>
-      screen.container.queryAll((node) => node.props["onTabSelected"] !== undefined)[0];
-    const keys = screen.container
-      .queryAll((node) => typeof node.props["screenKey"] === "string")
-      .map((node) => String(node.props["screenKey"]));
+    const keys = tabKeys();
+    const round = [...keys.slice(1), keys[0]];
     commits.length = 0;
-    let provenance = 0;
-    for (const key of [...keys.slice(1), keys[0], ...keys.slice(1), keys[0]]) {
-      provenance += 1;
-      await act(async () =>
-        host()?.props["onTabSelected"]({
-          nativeEvent: { selectedScreenKey: key, provenance, actionOrigin: "user" },
-        }),
-      );
-    }
+    for (const key of round) await selectTab(key);
+    // Search alone renders, once, on its first visit, to enable its browse rails.
+    expect(commits).toEqual([expect.stringMatching(/^\(search\) /)]);
 
-    expect(host()?.props["navStateRequest"]?.selectedScreenKey).toBe(keys[0]);
+    commits.length = 0;
+    for (const key of [...round, ...round]) await selectTab(key);
+
+    expect(tabHost()?.props["navStateRequest"]?.selectedScreenKey).toBe(keys[0]);
     expect(commits).toEqual([]);
   },
   20_000,
 );
 
 onIos("waits for the opening tab's reads before it mounts any other tab", async () => {
-  await paintTabs(false);
+  await paintTabs({ calendarLoads: false });
   await settle();
 
   expect(mounted()).toEqual(["(up-next)"]);
 });
+
+onIos(
+  "loads Search's browse rails on its first visit, behind their skeleton, and keeps them on the next",
+  async () => {
+    let land: (data: BrowseData) => void = () => {};
+    const loadBrowse = jest.fn(
+      () =>
+        new Promise<BrowseData>((resolve) => {
+          land = resolve;
+        }),
+    );
+    await paintTabs({ loadBrowse });
+    await settle();
+    expect(mounted()).toContain("(search)");
+    expect(loadBrowse).not.toHaveBeenCalled();
+    expect(screen.getByTestId("browse-skeleton")).toBeOnTheScreen();
+
+    const [upNext, , , search] = tabKeys();
+    await selectTab(search);
+    expect(loadBrowse).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("browse-skeleton")).toBeOnTheScreen();
+
+    await act(async () => land(NO_RAILS));
+    await waitFor(() => expect(screen.queryByTestId("browse-skeleton")).toBeNull());
+
+    await selectTab(upNext);
+    await selectTab(search);
+    expect(loadBrowse).toHaveBeenCalledTimes(1);
+  },
+);

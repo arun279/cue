@@ -12,6 +12,7 @@ const show = (showId: number, completed: number, runtime: number | null): Librar
   inWatchlist: completed === 0,
   addedAt: null,
   lastWatchedAt: null,
+  plays: null,
   aired: 40,
   completed,
   left: 40 - completed,

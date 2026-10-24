@@ -10,8 +10,8 @@ import { type QueryStatus, queryStatus } from "@cue/core/queries/freshness";
 import { useRuntime } from "@cue/core/runtime/runtime";
 import { showFailure, showUndoable } from "@cue/core/stores/snackbar-store";
 import { useQuery } from "@tanstack/react-query";
-import { Stack } from "expo-router";
-import { type ReactElement, useEffect, useMemo, useRef } from "react";
+import { Stack, useFocusEffect } from "expo-router";
+import { type ReactElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FlatList, Platform, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { SearchBarCommands } from "react-native-screens";
@@ -34,7 +34,15 @@ export default function Search(): ReactElement {
 
   const runtime = useRuntime();
   const results = useQuery({ ...searchQuery(runtime, query), enabled: query.length > 0 });
-  const browse = useQuery(browseQuery(runtime));
+  // The tab mounts ahead of its first visit, so its rails wait for that visit.
+  const [opened, setOpened] = useState(false);
+  // Setting the same state again still renders the screen once more, so later visits skip it.
+  useFocusEffect(
+    useCallback(() => {
+      if (!opened) setOpened(true);
+    }, [opened]),
+  );
+  const browse = useQuery({ ...browseQuery(runtime), enabled: opened });
   const watchlist = useWatchlistAdd();
   const offline = useIsOffline();
 
@@ -122,6 +130,7 @@ export default function Search(): ReactElement {
             ) : (
               <Browse
                 status={queryStatus(browse, browse.data !== undefined)}
+                offline={offline}
                 grids={grids}
                 recent={recent}
                 width={tileWidth}

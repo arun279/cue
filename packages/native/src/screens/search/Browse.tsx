@@ -15,12 +15,14 @@ import { RADIUS, SPACE, TARGET_MIN, useColors } from "../../ui/tokens";
 import { CueText } from "../../ui/type";
 import { Tile } from "../library/LibraryTile";
 import { BROWSE_CELLS, type BrowseGrid, labelOf, routeOf } from "./model";
+import { SearchOffline } from "./SearchStates";
 
 const POSTER_RATIO = 3 / 2;
 const SKELETON_TILES = Array.from({ length: BROWSE_CELLS }, (_, index) => index);
 
 export interface BrowseProps {
   readonly status: QueryStatus;
+  readonly offline: boolean;
   readonly grids: readonly BrowseGrid[];
   readonly recent: readonly string[];
   readonly width: number;
@@ -30,6 +32,7 @@ export interface BrowseProps {
 
 export function Browse({
   status,
+  offline,
   grids,
   recent,
   width,
@@ -49,18 +52,20 @@ export function Browse({
           ))}
         </View>
       )}
-      <Grids status={status} grids={grids} width={width} onRetry={onRetry} />
+      <Grids status={status} offline={offline} grids={grids} width={width} onRetry={onRetry} />
     </View>
   );
 }
 
 function Grids({
   status,
+  offline,
   grids,
   width,
   onRetry,
-}: Pick<BrowseProps, "status" | "grids" | "width" | "onRetry">): ReactElement {
-  if (status.isLoading) {
+}: Pick<BrowseProps, "status" | "offline" | "grids" | "width" | "onRetry">): ReactElement {
+  if (offline && !status.hasData) return <SearchOffline />;
+  if (status.isLoading || (!status.hasData && !status.isError)) {
     return (
       <View testID={TEST_IDS.browseSkeleton} style={styles.grid}>
         {SKELETON_TILES.map((slot) => (

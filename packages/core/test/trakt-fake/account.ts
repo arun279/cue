@@ -132,7 +132,8 @@ export interface Account {
   readonly user: { readonly username: string; readonly name: string };
   dropped: { readonly show: Show; readonly at: number }[];
   /** Second plays, by episode and by movie trakt id. */
-  readonly rewatchedEpisodes: Map<number, number>;
+  /** Each episode's plays after its first, by trakt id, in the order they were added. */
+  readonly rewatchedEpisodes: Map<number, number[]>;
   readonly rewatchedMovies: Map<number, number>;
   /** Trakt's "Multiple Plays" setting. Off, a play for a watched item replaces its play. */
   readonly multiplePlays: boolean;
@@ -636,7 +637,7 @@ const SHELF_SHOWS: readonly ShowSpec[] = Array.from({ length: SHELF_SIZE.shows }
     lastWatchedDaysAgo: null,
     collectedDaysAgo: 10 + index,
     shelf: true,
-    ...(index % 50 === 0 ? { specials: 2 } : {}),
+    ...(index % 50 === 0 ? { specials: 12 } : {}),
   });
   if (!announced(index)) return base;
   const { collectedDaysAgo: _notCollected, ...rest } = base;
@@ -753,7 +754,7 @@ export function defaultAccount(multiplePlays = true, now = FIXTURE_NOW): Account
   const account = emptyAccount(multiplePlays, now);
   account.shows = [...SHOWS, ...SHELF_SHOWS].map((spec) => libraryShow(spec, now));
   account.movies = [...MOVIES, ...SHELF_MOVIES].map((spec) => libraryMovie(spec, now));
-  account.rewatchedEpisodes.set(REWATCHED_EPISODE, now - DAY);
+  account.rewatchedEpisodes.set(REWATCHED_EPISODE, [now - DAY]);
   for (const { trakt, rewatchedDaysAgo } of MOVIES) {
     if (rewatchedDaysAgo !== undefined)
       account.rewatchedMovies.set(trakt, now - rewatchedDaysAgo * DAY);

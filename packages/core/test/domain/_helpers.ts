@@ -31,6 +31,7 @@ export function makeShow(overrides: Partial<LibraryShow> = {}): LibraryShow {
     inWatchlist: false,
     addedAt: null,
     lastWatchedAt: iso(NOW - DAY),
+    plays: null,
     aired: 10,
     completed: 5,
     left: Math.max(0, (overrides.aired ?? 10) - (overrides.completed ?? 5)),
