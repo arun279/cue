@@ -24,6 +24,12 @@ export interface SearchStateProps {
   onRetry(): void;
 }
 
+export function SearchOffline(): ReactElement {
+  return (
+    <EmptyState testID={TEST_IDS.searchOffline} centered headline="Search needs a connection." />
+  );
+}
+
 export function SearchState({
   phase,
   query,
@@ -32,11 +38,7 @@ export function SearchState({
   failure,
   onRetry,
 }: SearchStateProps): ReactElement {
-  if (phase === "offline") {
-    return (
-      <EmptyState testID={TEST_IDS.searchOffline} centered headline="Search needs a connection." />
-    );
-  }
+  if (phase === "offline") return <SearchOffline />;
   if (phase === "searching") return <SearchSkeleton />;
   if (phase === "error") return <SearchError failure={failure} onRetry={onRetry} />;
   return (

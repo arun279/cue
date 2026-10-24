@@ -123,7 +123,6 @@ const selectTab = (key: string | undefined) =>
       nativeEvent: { selectedScreenKey: key, provenance, actionOrigin: "user" },
     });
   });
-const tabsOf = (log: readonly string[]) => [...new Set(log.map((commit) => commit.split(" ")[0]))];
 
 beforeEach(() => {
   commits.length = 0;
@@ -156,8 +155,8 @@ onIos(
     const round = [...keys.slice(1), keys[0]];
     commits.length = 0;
     for (const key of round) await selectTab(key);
-    // Search alone renders on its first visit, to load its browse rails.
-    expect(tabsOf(commits)).toEqual(["(search)"]);
+    // Search alone renders, once, on its first visit, to enable its browse rails.
+    expect(commits).toEqual([expect.stringMatching(/^\(search\) /)]);
 
     commits.length = 0;
     for (const key of [...round, ...round]) await selectTab(key);

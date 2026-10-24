@@ -36,6 +36,7 @@ export default function Search(): ReactElement {
   const results = useQuery({ ...searchQuery(runtime, query), enabled: query.length > 0 });
   // The tab mounts ahead of its first visit, so its rails wait for that visit.
   const [opened, setOpened] = useState(false);
+  // Setting the same state again still renders the screen once more, so later visits skip it.
   useFocusEffect(
     useCallback(() => {
       if (!opened) setOpened(true);
@@ -129,6 +130,7 @@ export default function Search(): ReactElement {
             ) : (
               <Browse
                 status={queryStatus(browse, browse.data !== undefined)}
+                offline={offline}
                 grids={grids}
                 recent={recent}
                 width={tileWidth}
