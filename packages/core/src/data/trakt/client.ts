@@ -105,7 +105,6 @@ export class TraktClient {
   private readonly fetchFn: FetchLike;
   private readonly baseUrl: string;
   private readonly userAgent: string | undefined;
-  private readonly inFlightGets = new Map<string, Promise<TraktResult<unknown>>>();
 
   constructor(config: TraktClientConfig) {
     this.clientId = config.clientId;
@@ -150,16 +149,6 @@ export class TraktClient {
   }
 
   async get(path: string, options: RequestOptions = {}): Promise<TraktResult<unknown>> {
-    const key = buildPath(path, options);
-    const existing = this.inFlightGets.get(key);
-    if (existing !== undefined) return existing;
-    const request = this.read(path, options);
-    this.inFlightGets.set(key, request);
-    request.finally(() => this.inFlightGets.delete(key));
-    return request;
-  }
-
-  private async read(path: string, options: RequestOptions): Promise<TraktResult<unknown>> {
     let raw: RawResponse;
     try {
       raw = await this.send("GET", path, options);

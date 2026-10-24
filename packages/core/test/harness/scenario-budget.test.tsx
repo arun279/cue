@@ -742,18 +742,19 @@ describe("what a cold sync reads from Trakt", () => {
     expect(settled).toBeGreaterThanOrEqual(readAttempts);
   });
 
-  it("keeps two screens' identical browse reads to one request each while they are in flight", async () => {
+  it("costs the four browse rails once when two screens ask while they are slow, and anew once they land", async () => {
     const trakt = createTraktFake();
     vi.stubGlobal("fetch", trakt.fetch);
     const rails = /^\/(shows|movies)\/(trending|popular)$/;
-    const inFlight = () => trakt.requests.filter((r) => rails.test(r.path)).length;
+    const sent = () => trakt.requests.filter((r) => rails.test(r.path)).length;
     const release = trakt.hold({ path: rails, times: Number.POSITIVE_INFINITY });
     const runtime = await buildRuntime();
     const both = Promise.all([runtime.loadBrowse(), runtime.loadBrowse()]);
-    await vi.waitFor(() => expect(inFlight()).toBe(4));
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    expect(inFlight()).toBe(4);
+    await vi.waitFor(() => expect(sent()).toBe(4));
     release();
     await both;
+    expect(sent()).toBe(4);
+    await runtime.loadBrowse();
+    expect(sent()).toBe(8);
   });
 });
