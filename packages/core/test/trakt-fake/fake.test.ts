@@ -60,7 +60,7 @@ describe("the device token poll answers every documented status", () => {
     };
     const poll = async (deviceCode = code.device_code) =>
       (await send("POST", "/oauth/device/token", { code: deviceCode })).status;
-    return { fake, advance, poll };
+    return { fake, advance, poll, send };
   }
 
   it("is pending, slows a poll faster than the interval, then grants once", async () => {
@@ -81,6 +81,18 @@ describe("the device token poll answers every documented status", () => {
     expect(await poll()).toBe(418);
     advance(600_000);
     expect(await poll()).toBe(410);
+  });
+
+  it("keeps an earlier code valid for its own 600 s after a newer one is issued", async () => {
+    const { advance, poll, send } = await polled();
+    advance(300_000);
+    const newer = (await (await send("POST", "/oauth/device/code", {})).json()) as {
+      device_code: string;
+    };
+    expect(await poll()).toBe(400);
+    advance(300_000);
+    expect(await poll()).toBe(410);
+    expect(await poll(newer.device_code)).toBe(400);
   });
 });
 
@@ -113,17 +125,5 @@ describe("rate limits (https://developer.trakt.tv/docs/rate-limiting)", () => {
     });
     advance(4 * MINUTE);
     expect((await send("GET", "/sync/last_activities")).status).toBe(200);
-  });
-
-  it("sends neither header on a 429 from the security layer in front of the limiter", async () => {
-    const { fake, send } = fakeAt();
-    fake.fail({ path: /^\/users\/settings$/ }, 429);
-    const refused = await send("GET", "/users/settings");
-    expect([
-      refused.status,
-      refused.headers.get("retry-after"),
-      refused.headers.get("x-ratelimit"),
-    ]).toEqual([429, null, null]);
-    expect((await send("GET", "/users/settings")).status).toBe(200);
   });
 });

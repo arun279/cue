@@ -107,7 +107,8 @@ interface State {
   readonly sessions: Map<string, Session>;
   /** Refresh token to the access token it was issued with; a used one is gone. */
   readonly refresh: Map<string, string>;
-  device: Device | null;
+  /** Every device code issued, each valid for its own `expires_in`. */
+  readonly devices: Map<string, Device>;
   issued: number;
   readonly lastPost: Map<string, number>;
   readonly getWindows: Map<string, { start: number; count: number }>;
@@ -223,7 +224,7 @@ export interface TraktFake {
   fetch(input: string | URL | Request, init?: RequestInit): Promise<Response>;
   /** Back to a fresh account and session; disarms faults and releases held requests. */
   reset(next?: { readonly multiplePlays?: boolean }): void;
-  /** The person at the activation page enters the code, or refuses it. */
+  /** The person at the activation page enters the latest code, or refuses it. */
   approve(): void;
   deny(): void;
   /** Answer matching requests with `status` and the body Trakt sends with it. */
@@ -248,7 +249,7 @@ export function createTraktFake(options: FakeOptions = {}): TraktFake {
     account: makeAccount(multiplePlays),
     sessions: new Map([[SESSION.access_token, { createdAt: clock(), revokedAt: null }]]),
     refresh: new Map([[SESSION.refresh_token, SESSION.access_token]]),
-    device: null,
+    devices: new Map(),
     issued: 0,
     lastPost: new Map(),
     getWindows: new Map(),
@@ -430,8 +431,8 @@ export function createTraktFake(options: FakeOptions = {}): TraktFake {
   };
 
   function deviceToken(ctx: Context): Response {
-    const device = state.device;
-    if (device === null || device.code !== ctx.body["code"]) return empty(404);
+    const device = state.devices.get(String(ctx.body["code"] ?? ""));
+    if (device === undefined) return empty(404);
     const now = clock();
     if (now >= device.issuedAt + DEVICE_CODE_LIFETIME_S * SECOND) return empty(410);
     if (device.used) return empty(409);
@@ -483,16 +484,17 @@ export function createTraktFake(options: FakeOptions = {}): TraktFake {
 
   const handlers = [
     route("post", "/oauth/device/code", false, () => {
-      state.device = {
-        code: `fake-device-code-${state.issued + 1}`,
+      const code = `fake-device-code-${state.devices.size + 1}`;
+      state.devices.set(code, {
+        code,
         issuedAt: clock(),
         approved: false,
         denied: false,
         used: false,
         lastPollAt: null,
-      };
+      });
       return oauthJson({
-        device_code: state.device.code,
+        device_code: code,
         user_code: "CUE-FAKE",
         verification_url: "https://auth.trakt.tv/activate",
         expires_in: DEVICE_CODE_LIFETIME_S,
@@ -649,10 +651,12 @@ export function createTraktFake(options: FakeOptions = {}): TraktFake {
       state = fresh(next?.multiplePlays);
     },
     approve() {
-      if (state.device !== null) state.device.approved = true;
+      const latest = [...state.devices.values()].at(-1);
+      if (latest !== undefined) latest.approved = true;
     },
     deny() {
-      if (state.device !== null) state.device.denied = true;
+      const latest = [...state.devices.values()].at(-1);
+      if (latest !== undefined) latest.denied = true;
     },
     fail: (match, status, retryAfter) =>
       arm(match, { kind: "status", status, ...(retryAfter === undefined ? {} : { retryAfter }) }),
