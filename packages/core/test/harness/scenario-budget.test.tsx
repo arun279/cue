@@ -944,6 +944,38 @@ const YEAR_MS = 365 * 24 * 60 * 60 * 1000;
 const seasonReadsSince = ({ trakt }: Session, start: number, showId: number): number =>
   trakt.requests.slice(start).filter((r) => r.path === `/shows/${showId}/seasons`).length;
 
+/** Marks a queued show's next episode from Up Next while that show's page is open. */
+async function markWithPageOpen(pick: (entry: LibraryEntry) => boolean = () => true) {
+  const session = await boot(SMALL_LIBRARY);
+  await open(session);
+  await settle(session);
+  const own = session.controls.queue.find(pick);
+  if (own?.nextEpisode == null) throw new Error("no queued show fits");
+  await open(session, own.showId);
+  await settle(session);
+  await session.controls.mark?.mark(own);
+  await settle(session);
+  return { session, own, marked: own.nextEpisode.ids.trakt };
+}
+
+async function pressUndo(): Promise<void> {
+  const undo = useSnackbar.getState().snack?.actions?.find((a) => a.testId === "snackbar-undo");
+  if (undo === undefined) throw new Error("no undo offered");
+  await act(async () => undo.onPress());
+}
+
+/** The next poll, which reloads the library; answers how often it read the show's tree again. */
+async function treeReadsOfNextPoll(session: Session, showId: number): Promise<number> {
+  const start = session.trakt.requests.length;
+  session.foreground.enter();
+  await settle(session);
+  act(() => session.root.unmount());
+  expect(session.trakt.requests.slice(start).map(({ path }) => path)).toContain(
+    "/sync/watched/shows",
+  );
+  return seasonReadsSince(session, start, showId);
+}
+
 describe("a season tree on screen", () => {
   const SHOW = 100_000;
 
@@ -1020,19 +1052,15 @@ describe("a season tree on screen", () => {
       ?.flatMap((season) => season.episodes)
       .findLast((episode) => episode.watched);
     if (watched === undefined) throw new Error("the show has no episode watched");
-    const start = session.trakt.requests.length;
 
     const at = new Date(Date.parse(before.lastWatchedAt) + shift).toISOString();
     await playElsewhere(session.trakt, watched.ids.trakt, at);
-    session.foreground.enter();
-    await settle(session);
-    act(() => session.root.unmount());
 
+    expect(await treeReadsOfNextPoll(session, SHOW)).toBe(1);
     expect(entryOf(session, SHOW)).toMatchObject({
       lastWatchedAt: before.lastWatchedAt,
       plays: before.plays + 1,
     });
-    expect(seasonReadsSince(session, start, SHOW)).toBe(1);
   });
 
   it("is read again when another app removes one of an episode's several plays", async () => {
@@ -1051,32 +1079,17 @@ describe("a season tree on screen", () => {
     const before = entryOf(session, SHOW);
     const oldest = (await playsOf(session.trakt, watched.ids.trakt)).at(-1);
     if (before?.plays == null || oldest === undefined) throw new Error("no second play");
-    const start = session.trakt.requests.length;
 
     await (await anotherApp(session.trakt))("/sync/history/remove", { ids: [oldest.id] });
-    session.foreground.enter();
-    await settle(session);
-    act(() => session.root.unmount());
 
+    expect(await treeReadsOfNextPoll(session, SHOW)).toBe(1);
     expect(entryOf(session, SHOW)).toMatchObject({ lastWatchedAt, plays: before.plays - 1 });
-    expect(seasonReadsSince(session, start, SHOW)).toBe(1);
   });
 
   it("is left alone by a library reload that lands while this device's undo is still being sent", async () => {
-    const session = await boot(SMALL_LIBRARY);
-    await open(session);
-    await settle(session);
-    const own = session.controls.queue[0];
-    if (own?.nextEpisode == null) throw new Error("the queue is empty");
-    const marked = own.nextEpisode.ids.trakt;
-    await open(session, own.showId);
-    await settle(session);
-    await session.controls.mark?.mark(own);
-    await settle(session);
+    const { session, own, marked } = await markWithPageOpen();
     const release = session.trakt.hold({ method: "POST", path: /^\/sync\/history\/remove$/ });
-    const undo = useSnackbar.getState().snack?.actions?.find((a) => a.testId === "snackbar-undo");
-    if (undo === undefined) throw new Error("no undo offered");
-    await act(async () => undo.onPress());
+    await pressUndo();
     for (let step = 0; step < 20 && session.runtime.pendingWrites() === 0; step += 1)
       await act(() => vi.advanceTimersByTimeAsync(ART_SETTLE_MS));
     expect(session.runtime.pendingWrites()).toBe(1);
@@ -1100,29 +1113,11 @@ describe("a season tree on screen", () => {
   });
 
   it("is not read again by the poll after this device marks and undoes from Up Next", async () => {
-    const session = await boot(SMALL_LIBRARY);
-    await open(session);
+    const { session, own } = await markWithPageOpen();
+    await pressUndo();
     await settle(session);
-    const own = session.controls.queue[0];
-    if (own === undefined) throw new Error("the queue is empty");
-    await open(session, own.showId);
-    await settle(session);
-    await session.controls.mark?.mark(own);
-    await settle(session);
-    const undo = useSnackbar.getState().snack?.actions?.find((a) => a.testId === "snackbar-undo");
-    if (undo === undefined) throw new Error("no undo offered");
-    await act(async () => undo.onPress());
-    await settle(session);
-    const start = session.trakt.requests.length;
 
-    session.foreground.enter();
-    await settle(session);
-    act(() => session.root.unmount());
-
-    expect(session.trakt.requests.slice(start).map(({ path }) => path)).toContain(
-      "/sync/watched/shows",
-    );
-    expect(seasonReadsSince(session, start, own.showId)).toBe(0);
+    expect(await treeReadsOfNextPoll(session, own.showId)).toBe(0);
   });
 
   it("is not read again by the poll after this device toggles an episode on the show's page", async () => {
@@ -1136,60 +1131,24 @@ describe("a season tree on screen", () => {
     await act(async () => session.controls.toggle?.(next));
     await settle(session);
     expect(watchedIn(session.controls.tree, next.ids.trakt)).toBe(true);
-    const start = session.trakt.requests.length;
 
-    session.foreground.enter();
-    await settle(session);
-    act(() => session.root.unmount());
-
-    expect(session.trakt.requests.slice(start).map(({ path }) => path)).toContain(
-      "/sync/watched/shows",
-    );
-    expect(seasonReadsSince(session, start, SHOW)).toBe(0);
+    expect(await treeReadsOfNextPoll(session, SHOW)).toBe(0);
   });
 
   it("is not read again by the poll after this device's own mark", async () => {
-    const session = await boot(SMALL_LIBRARY);
-    await open(session);
-    await settle(session);
-    const own = session.controls.queue[0];
-    if (own === undefined) throw new Error("the queue is empty");
-    await open(session, own.showId);
-    await settle(session);
-    await session.controls.mark?.mark(own);
-    await settle(session);
-    const start = session.trakt.requests.length;
+    const { session, own } = await markWithPageOpen();
 
-    session.foreground.enter();
-    await settle(session);
-    act(() => session.root.unmount());
-
-    expect(session.trakt.requests.slice(start).map(({ path }) => path)).toContain(
-      "/sync/watched/shows",
-    );
-    expect(seasonReadsSince(session, start, own.showId)).toBe(0);
+    expect(await treeReadsOfNextPoll(session, own.showId)).toBe(0);
   });
 
   it("is read again when another device writes the show this device just marked, before the next poll", async () => {
-    const session = await boot(SMALL_LIBRARY);
-    await open(session);
-    await settle(session);
-    const own = session.controls.queue.find(({ left }) => left > 1);
-    if (own === undefined) throw new Error("no queued show has two episodes left");
-    await open(session, own.showId);
-    await settle(session);
-    await session.controls.mark?.mark(own);
-    await settle(session);
+    const { session, own } = await markWithPageOpen(({ left }) => left > 1);
     const remote = nextToWatch(session.controls.tree);
     if (remote === undefined) throw new Error("the show has no episode left to watch");
-    const start = session.trakt.requests.length;
 
     await playElsewhere(session.trakt, remote.ids.trakt);
-    session.foreground.enter();
-    await settle(session);
-    act(() => session.root.unmount());
 
-    expect(seasonReadsSince(session, start, own.showId)).toBe(1);
+    expect(await treeReadsOfNextPoll(session, own.showId)).toBe(1);
     expect(watchedIn(session.controls.tree, remote.ids.trakt)).toBe(true);
   });
 });
