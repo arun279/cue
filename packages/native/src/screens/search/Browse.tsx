@@ -60,7 +60,7 @@ function Grids({
   width,
   onRetry,
 }: Pick<BrowseProps, "status" | "grids" | "width" | "onRetry">): ReactElement {
-  if (status.isLoading) {
+  if (status.isLoading || (!status.hasData && !status.isError)) {
     return (
       <View testID={TEST_IDS.browseSkeleton} style={styles.grid}>
         {SKELETON_TILES.map((slot) => (

@@ -28,7 +28,6 @@ import { type MarkWatched, useMarkWatched } from "@cue/core/hooks/useMarkWatched
 import { useSyncNow } from "@cue/core/hooks/useSyncNow";
 import { useWatchlistAdd } from "@cue/core/hooks/useWatchlistAdd";
 import { calendarQuery } from "@cue/core/queries/calendar";
-import { browseQuery } from "@cue/core/queries/discover";
 import { movieLibraryQuery } from "@cue/core/queries/library";
 import { ART_SETTLE_MS, showInfoQuery, showSeasonsQuery } from "@cue/core/queries/shows";
 import { userProfileQuery } from "@cue/core/queries/user";
@@ -167,7 +166,6 @@ const backlogShowIds = async (trakt: TraktFake): Promise<number[]> =>
 
 const CALENDAR_NEXT = "the calendar-derived next episode change";
 const LIST_ART = "the change that takes queue row posters from list payloads and keeps them";
-const LAZY_SEARCH = "the change that loads the Search tab's data on first focus";
 const DELTA_RELOAD = "the delta reload after the app's own writes";
 
 const byRoute = (counts: Readonly<Record<string, number>>): Record<string, number> => {
@@ -212,21 +210,17 @@ const fixedBy = (...changes: string[]): string => `fixed by ${changes.join(" and
 
 const KNOWN_OVER: Readonly<Record<string, Partial<Record<`${Scenario}: ${Metric}`, string>>>> = {
   small: {
-    "sign-in and first sync: bytes": fixedBy(LIST_ART, LAZY_SEARCH),
-    "cold launch, cache older than an hour: gets": fixedBy(LIST_ART, LAZY_SEARCH),
-    "cold launch, cache older than an hour: bytes": fixedBy(LIST_ART, LAZY_SEARCH),
-    "warm launch, cache fresh: gets": fixedBy(LAZY_SEARCH),
-    "warm launch, cache fresh: bytes": fixedBy(LAZY_SEARCH),
+    "sign-in and first sync: bytes": fixedBy(LIST_ART),
+    "cold launch, cache older than an hour: gets": fixedBy(LIST_ART),
+    "cold launch, cache older than an hour: bytes": fixedBy(LIST_ART),
     "mark, undo, then the next poll: gets": fixedBy(DELTA_RELOAD),
     "mark, undo, then the next poll: bytes": fixedBy(DELTA_RELOAD),
   },
   heavy: {
-    "sign-in and first sync: gets": fixedBy(CALENDAR_NEXT, LIST_ART, LAZY_SEARCH),
-    "sign-in and first sync: bytes": fixedBy(CALENDAR_NEXT, LIST_ART, LAZY_SEARCH),
-    "cold launch, cache older than an hour: gets": fixedBy(CALENDAR_NEXT, LIST_ART, LAZY_SEARCH),
-    "cold launch, cache older than an hour: bytes": fixedBy(CALENDAR_NEXT, LIST_ART, LAZY_SEARCH),
-    "warm launch, cache fresh: gets": fixedBy(LAZY_SEARCH),
-    "warm launch, cache fresh: bytes": fixedBy(LAZY_SEARCH),
+    "sign-in and first sync: gets": fixedBy(CALENDAR_NEXT, LIST_ART),
+    "sign-in and first sync: bytes": fixedBy(CALENDAR_NEXT, LIST_ART),
+    "cold launch, cache older than an hour: gets": fixedBy(CALENDAR_NEXT, LIST_ART),
+    "cold launch, cache older than an hour: bytes": fixedBy(CALENDAR_NEXT, LIST_ART),
     "mark, undo, then the next poll: gets": fixedBy(DELTA_RELOAD),
     "mark, undo, then the next poll: bytes": fixedBy(DELTA_RELOAD),
   },
@@ -307,10 +301,10 @@ function LibraryTab({ controls }: { readonly controls: Controls }): ReactElement
   );
 }
 
+// Search reads its browse rails on its first visit, which no scenario makes.
 function CalendarSearchAndAvatar(): null {
   const runtime = useRuntime();
   useQuery(calendarQuery(runtime, today()));
-  useQuery(browseQuery(runtime));
   useWatchlistAdd();
   useQuery(userProfileQuery(runtime));
   return null;
@@ -647,15 +641,10 @@ describe.each([
     );
   });
 
-  // Unchanged activities invalidate nothing, so the persisted cache answers every screen. The
-  // four rails are the Search tab's own read on mount, until it loads them on first focus.
-  it("spends a warm launch on the activities poll and the Search tab's rails alone", () => {
+  // Unchanged activities invalidate nothing, so the persisted cache answers every screen.
+  it("spends a warm launch on the activities poll alone", () => {
     expect(replayed.results["warm launch, cache fresh"].getsByPath).toEqual({
       "/sync/last_activities": 1,
-      "/shows/trending": 1,
-      "/shows/popular": 1,
-      "/movies/trending": 1,
-      "/movies/popular": 1,
     });
   });
 

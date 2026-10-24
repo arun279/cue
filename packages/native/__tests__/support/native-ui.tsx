@@ -176,7 +176,7 @@ export const MENU_HOST = "menu-host";
 export const LINK_MENU = "link-menu";
 
 export function expoRouterModule() {
-  const { createElement } = require("react") as typeof import("react");
+  const { createElement, useEffect } = require("react") as typeof import("react");
   const Stack = (): null => null;
   Stack.Toolbar = toolbarModule();
   // `headerSearchBarOptions` is a UISearchController on iOS and a toolbar search
@@ -207,6 +207,8 @@ export function expoRouterModule() {
     Stack,
     Link: linkModule(),
     useRouter: () => router,
+    // A screen a test mounts on its own is the one on screen.
+    useFocusEffect: (effect: () => undefined | (() => void)) => useEffect(effect, [effect]),
     useNavigationContainerRef: () => ({
       getCurrentRoute: () => ({ key: "index" }),
       addListener: () => () => {},
