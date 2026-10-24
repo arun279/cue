@@ -53,7 +53,7 @@ describe("what a cold boot restores", () => {
 
   it("drops the per-title detail trees, which cost one read to re-open", () => {
     expect(policy.persists(queryKeys.showProgress(LIBRARY_SHOW))).toBe(false);
-    expect(policy.persists(queryKeys.showSeasons(LIBRARY_SHOW))).toBe(false);
+    expect(policy.persists(queryKeys.showSeasons(UNSEEN_SHOW))).toBe(false);
     expect(policy.persists(queryKeys.episode(LIBRARY_SHOW, 1, 1))).toBe(false);
     expect(policy.persists(queryKeys.movieHeader(LIBRARY_SHOW))).toBe(false);
   });
@@ -61,6 +61,10 @@ describe("what a cold boot restores", () => {
   it("keeps the artwork a restored library card paints, and only that", () => {
     expect(policy.persists(queryKeys.showInfo(LIBRARY_SHOW))).toBe(true);
     expect(policy.persists(queryKeys.showInfo(UNSEEN_SHOW))).toBe(false);
+  });
+
+  it("keeps a library show's season tree, which places its card when the calendar sees a new episode", () => {
+    expect(policy.persists(queryKeys.showSeasons(LIBRARY_SHOW))).toBe(true);
   });
 
   it("keeps nothing at all when there is no library to paint cards from", () => {

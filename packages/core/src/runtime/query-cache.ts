@@ -53,7 +53,9 @@ export function createQueryCachePolicy(queryClient: QueryClient): {
     shouldDehydrateQuery(query) {
       if (query.state.data === undefined) return false;
       const [head, section, showId] = query.queryKey;
-      if (head === "show") return section === "info" && paintsALibraryCard(showId);
+      if (head === "show") {
+        return (section === "info" || section === "seasons") && paintsALibraryCard(showId);
+      }
       return PERSISTED_KEY_HEADS.has(head);
     },
   };
