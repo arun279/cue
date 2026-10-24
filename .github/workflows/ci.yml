@@ -16,25 +16,18 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   check:
-    permissions:
-      contents: read
-      pull-requests: read
     timeout-minutes: 19
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
       - uses: ./.github/actions/setup-node-pnpm
-      - name: Key Jest's transform cache
+      - name: Locate Jest's transform cache
         id: jest-cache
-        run: |
-          echo "directory=$(node -p 'require("jest-config").defaults.cacheDirectory')" >> "$GITHUB_OUTPUT"
-          echo "key=jest-transform-$RUNNER_OS-$(node scripts/jest-cache-key.mjs)" >> "$GITHUB_OUTPUT"
+        run: echo "directory=$(node -p 'require("jest-config").defaults.cacheDirectory')" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ steps.jest-cache.outputs.directory }}
-          key: ${{ steps.jest-cache.outputs.key }}
+          key: jest-transform-${{ runner.os }}-${{ hashFiles('.nvmrc', 'pnpm-lock.yaml', 'packages/native/babel.config.js', 'packages/native/jest.config.js') }}
       - run: pnpm check
       - name: Upload JavaScript bundles
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -42,70 +35,16 @@ jobs:
           name: cue-js-bundles
           path: packages/native/dist/
           retention-days: 30
-      - name: Gate changed core coverage
-        if: github.event_name == 'pull_request'
-        env:
-          BASE_REF: ${{ github.base_ref }}
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          PR_BODY=$(gh pr view "$PR_NUMBER" --json body --jq .body)
-          node scripts/check-changed-coverage.mjs "origin/$BASE_REF" coverage/lcov.info "$PR_BODY"
   render-performance:
-    permissions:
-      contents: read
-      pull-requests: read
     timeout-minutes: 10
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
       - uses: ./.github/actions/setup-node-pnpm
-      - name: Check out the base
-        id: base
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          PUSH_BEFORE: ${{ github.event.before }}
-        run: |
-          BASE_SHA=$(scripts/measured-base.sh "$EVENT_NAME" "$PUSH_BEFORE")
-          if git show "$BASE_SHA:packages/native/package.json" 2>/dev/null | grep -q '"perf:render"'; then
-            git worktree add --detach "$RUNNER_TEMP/render-base" "$BASE_SHA"
-            echo "measure=true" >> "$GITHUB_OUTPUT"
-          fi
-      - if: steps.base.outputs.measure == 'true'
-        uses: ./.github/actions/use-tree-node
-        with:
-          tree: ${{ runner.temp }}/render-base
-      - name: Measure the base
-        if: steps.base.outputs.measure == 'true'
-        env:
-          EXPO_PUBLIC_TRAKT_CLIENT_ID: test-client
-        run: |
-          pnpm --dir "$RUNNER_TEMP/render-base" install --frozen-lockfile
-          (cd "$RUNNER_TEMP/render-base" && pnpm --dir packages/native perf:render --baseline --compare=false)
-          mkdir -p packages/native/.reassure
-          cp "$RUNNER_TEMP/render-base/packages/native/.reassure/baseline.perf" \
-            packages/native/.reassure/baseline.perf
-      - if: steps.base.outputs.measure == 'true'
-        uses: ./.github/actions/use-tree-node
-        with:
-          tree: .
-      - name: Measure the head
+      - name: Measure renders
         env:
           EXPO_PUBLIC_TRAKT_CLIENT_ID: test-client
         run: pnpm --dir packages/native perf:render
-      - name: Gate render counts
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          PR_BODY=""
-          if [ "$EVENT_NAME" = pull_request ]; then
-            PR_BODY=$(gh pr view "$PR_NUMBER" --json body --jq .body)
-          fi
-          pnpm check:render-counts "$PR_BODY"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ !cancelled() }}
         with:

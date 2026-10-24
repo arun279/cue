@@ -44,13 +44,17 @@ function MarkableSheet(): ReactElement {
 }
 
 test("season row expands", async () => {
-  await measureRenders(<ExpandableSeason />, {
+  const { meanCount } = await measureRenders(<ExpandableSeason />, {
     scenario: async (screen) => fireEvent.press(screen.getByTestId(TEST_IDS.seasonTrigger(2))),
   });
+
+  expect(meanCount).toBe(2);
 });
 
 test("episode sheet mark", async () => {
-  await measureRenders(<MarkableSheet />, {
+  const { meanCount } = await measureRenders(<MarkableSheet />, {
     scenario: async (screen) => fireEvent.press(screen.getByRole("switch")),
   });
+
+  expect(meanCount).toBe(2);
 });

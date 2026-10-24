@@ -1,7 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { expect, it } from "vitest";
 import { fakeBin } from "../support/fake-bin";
-import { gitEnv } from "../support/git-env";
 import { gitHistory } from "../support/git-history";
 import { repositoryPath } from "../support/repository-path";
 
@@ -37,7 +36,7 @@ function audit(
       cwd: repository,
       encoding: "utf8",
       env: {
-        ...gitEnv(),
+        ...process.env,
         PATH: `${bin}:${process.env["PATH"]}`,
         AUDIT_STATUS: String(audit),
         IGNORES_STATUS: String(ignores),

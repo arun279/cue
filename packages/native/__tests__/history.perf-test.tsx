@@ -17,7 +17,9 @@ function RewatchedRow(): ReactElement {
 }
 
 test("history row removes one play", async () => {
-  await measureRenders(<RewatchedRow />, {
+  const { meanCount } = await measureRenders(<RewatchedRow />, {
     scenario: async (screen) => fireEvent.press(screen.getByLabelText("Remove this play")),
   });
+
+  expect(meanCount).toBe(2);
 });

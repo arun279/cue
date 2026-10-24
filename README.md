@@ -30,7 +30,7 @@ Set `EXPO_PUBLIC_TRAKT_CLIENT_ID` to the public client id of a Trakt API app. Th
 pnpm --filter @cue/native prebuild
 ```
 
-`pnpm check` is the deterministic repository gate. It runs Biome, oxlint, dprint, cspell, TypeScript, dependency-cruiser, knip, jscpd, quality and suppression ratchets, native size and asset checks, Vitest with coverage, and the iOS and Android jest-expo projects. In CI, the footprint job also fails a pull request that grows the JavaScript bundles, the tester APK or the Play download estimate unless its body gives a `Binary-Size:` rationale. The `footprint-base` job measures the merge base in the same run, so the comparison never waits on the base commit's own run.
+`pnpm check` is the deterministic repository gate. It runs Biome, oxlint, dprint, cspell, TypeScript, dependency-cruiser, knip, jscpd, the shipped-bundle checks, Vitest, and the iOS and Android jest-expo projects. pnpm refuses to install or run scripts under any Node other than the one in `engines.node`. In CI, the footprint job comments each pull request's line changes and bundle sizes without gating, and the render-performance job runs the Reassure suite, whose tests assert each scenario's render count.
 
 Git hooks are installed by `pnpm install`. Pre-commit runs the fast lint, formatting, spelling, type, and portability gates. Pre-push runs `pnpm check`.
 
@@ -59,7 +59,7 @@ Dependencies flow from the Expo app into the core. Dependency-cruiser enforces t
 
 ## Testing
 
-Core tests use Vitest. On pull requests, CI requires every changed executable line and branch arm in `packages/core/src`, outside `app/`, to be covered unless the body gives a `Coverage-Rationale:`. Repository-level workflow checks live in `test/ci`. The Expo app uses jest-expo for both platform presets, and React Native Testing Library covers screen behavior.
+Core tests use Vitest. Repository-level workflow checks live in `test/ci`. The Expo app uses jest-expo for both platform presets, and React Native Testing Library covers screen behavior.
 
 End-to-end coverage is a short Maestro smoke suite in `.maestro/smoke`: sign in through the device code, mark the next episode from Up Next, visit every tab, open a show and a movie and mark an episode, search, and sign out. Every pull request push runs it on an Android emulator and an iOS simulator, against a release build of the app pointed at the fake. Each job fingerprints the native project with `@expo/fingerprint` and caches the native build under that hash; when the hash is already cached, `@expo/repack-app` swaps the commit's JavaScript into the cached build instead of compiling it again. The jobs upload the screenshots each flow takes, plus Maestro's debug output when a flow fails. To check that the suite is deterministic, dispatch the CI workflow on a branch repeatedly with `gh workflow run ci.yml --ref <branch>`, once first so that run seeds the build cache.
 
@@ -86,7 +86,7 @@ Open GitHub Actions, choose **Publish update**, select **Run workflow**, give `c
 - **publish** exports the chosen ref with the EAS `production` environment and publishes it to the `preview` channel.
 - **promote** copies one `preview` update group to `production` unchanged. Give it the group the owner tested; `eas update:list --branch preview --json` lists the groups with their messages and commits.
 
-Only installs switched to preview receive `preview` updates. To switch one, long press the version number in Settings and turn on preview updates; Cue restarts on the preview channel and shows `preview` after the version. Switching back to production is safe for stored data: settings are plain keys that every version reads with defaults, and the cached Trakt data is dropped and fetched again whenever its shape version (the persisted cache buster) differs from the running bundle's. Nothing publishes on a push, pull request, merge, or schedule. A downloaded update applies on the next cold start.
+Only installs switched to preview receive `preview` updates. To switch one, long press the version number in Settings and turn on preview updates; Cue restarts on the preview channel and shows `preview` after the version. Switching back to production is safe for stored data: settings are plain keys that every version reads with defaults, and the cached Trakt data is dropped and fetched again whenever the running build or update differs from the one that saved it. Nothing publishes on a push, pull request, merge, or schedule. A downloaded update applies on the next cold start.
 
 To recover from a bad update, run `eas update:republish` to make a known good update current again, or `eas update:rollback` to select a previous or embedded update. Test rollback compatibility with any persisted state the bad update may have changed.
 

@@ -18,6 +18,10 @@ packageImportMethod: clone-or-copy
 # https://pnpm.io/settings#verifydepsbeforerun
 verifyDepsBeforeRun: error
 
+# `pnpm install` and `pnpm run` fail under any Node other than `engines.node`.
+# https://pnpm.io/settings#enginestrict
+engineStrict: true
+
 # No release fixes these advisories yet. Each entry names the package it is
 # filed against: scripts/check-shipped-modules.mjs fails if that package enters
 # a shipped bundle, and scripts/check-stale-audit-ignores.mjs fails once the
