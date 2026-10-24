@@ -73,6 +73,7 @@ function calendarEpisode(number: number, showId = 1): CalendarEntry {
     ...position,
     showTitle: "Stale",
     episodeTitle: `S2E${number}`,
+    episodeType: null,
     posters: [],
     network: null,
     tmdbId: null,

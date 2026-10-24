@@ -9,6 +9,7 @@ function item(overrides: Partial<CalendarItem> = {}): CalendarItem {
       season: 2,
       number: 3,
       title: "The One",
+      episode_type: "season_premiere",
       ids: { trakt: 42, tvdb: 7, tmdb: 900 },
     },
     show: {
@@ -30,6 +31,7 @@ describe("assembleCalendarEntries", () => {
       season: 2,
       number: 3,
       episodeTitle: "The One",
+      episodeType: "season_premiere",
       firstAired: "2026-07-05T01:00:00.000Z",
       ids: { trakt: 42, tvdb: 7, imdb: undefined, tmdb: 900 },
       posters: ["media.trakt.tv/p.webp"],
@@ -43,7 +45,7 @@ describe("assembleCalendarEntries", () => {
     expect(entry?.firstAired).toBe("2026-08-01T12:00:00.000Z");
   });
 
-  it("defaults missing images, network, and tmdb id", () => {
+  it("defaults missing images, network, episode type and tmdb id", () => {
     const [entry] = assembleCalendarEntries([
       item({
         episode: { season: 1, number: 1, title: null, ids: { trakt: 1 } },
@@ -54,5 +56,6 @@ describe("assembleCalendarEntries", () => {
     expect(entry?.network).toBeNull();
     expect(entry?.tmdbId).toBeNull();
     expect(entry?.episodeTitle).toBeNull();
+    expect(entry?.episodeType).toBeNull();
   });
 });

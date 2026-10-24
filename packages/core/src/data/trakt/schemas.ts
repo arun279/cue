@@ -42,6 +42,7 @@ export const episodeSchema = z.object({
   overview: nonEssential(str.nullable()),
   runtime: nonEssential(num.nullable()),
   first_aired: nonEssential(str.nullable()),
+  episode_type: nonEssential(str),
   ids: idsSchema,
   images: imagesSchema,
 });

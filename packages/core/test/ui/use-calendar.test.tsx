@@ -31,6 +31,7 @@ function entriesAt(...dayOffsets: readonly number[]): CalendarEntry[] {
     season: 1,
     number: index + 1,
     episodeTitle: null,
+    episodeType: null,
     firstAired: new Date(Date.now() + offset * 24 * 60 * 60 * 1000).toISOString(),
     ids: { trakt: index + 1 },
     posters: [],

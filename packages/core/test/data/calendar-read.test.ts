@@ -29,3 +29,14 @@ it("leaves a dropped show off the calendar, which Trakt keeps listing it on", as
   expect(visible.length).toBeGreaterThan(0);
   expect(visible.map((entry) => entry.showId)).not.toContain(AIRING);
 });
+
+it("carries Trakt's episode type, so a season dropped at once opens on its premiere", async () => {
+  const runtime = await buildRuntime();
+  const { entries } = await runtime.loadCalendar(...WINDOW);
+  const drop = entries.filter((entry) => entry.showId === 8802);
+  expect(drop.map((entry) => entry.episodeType)).toEqual([
+    "season_premiere",
+    ...Array.from({ length: 6 }, () => "standard"),
+    "season_finale",
+  ]);
+});

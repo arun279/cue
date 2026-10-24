@@ -10,6 +10,7 @@ export function assembleCalendarEntries(items: readonly CalendarItem[]): Calenda
     season: item.episode.season,
     number: item.episode.number,
     episodeTitle: item.episode.title ?? null,
+    episodeType: item.episode.episode_type ?? null,
     firstAired: item.first_aired,
     ids: toEpisodeIds(item.episode.ids),
     posters: item.show.images?.poster ?? [],

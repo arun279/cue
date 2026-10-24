@@ -28,6 +28,7 @@ const airingAt = (ms: number, overrides: Partial<CalendarEntry> = {}): CalendarE
   season: 2,
   number: 5,
   episodeTitle: "Low Tide",
+  episodeType: null,
   firstAired: new Date(ms).toISOString(),
   ids: { trakt: 880305 },
   posters: [],
