@@ -38,7 +38,7 @@ describe("what a cold boot restores", () => {
   it("keeps the screens a user lands on", () => {
     expect(policy.persists(queryKeys.library())).toBe(true);
     expect(policy.persists(queryKeys.movieLibrary())).toBe(true);
-    expect(policy.persists(queryKeys.watchlist("shows"))).toBe(true);
+    expect(policy.persists(queryKeys.movieWatchlist())).toBe(true);
     expect(policy.persists(queryKeys.history("all"))).toBe(true);
     expect(policy.persists(queryKeys.calendar("2026-01-01", 7))).toBe(true);
     expect(policy.persists(queryKeys.firstPlay())).toBe(true);

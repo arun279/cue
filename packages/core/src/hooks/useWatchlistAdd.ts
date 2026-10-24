@@ -4,7 +4,7 @@ import { queryKeys } from "../data/query-keys";
 import type { SearchHit } from "../data/trakt/search";
 import { buildAddWatchlistOp, buildRemoveWatchlistOp } from "../domain/write-queue/ops";
 import type { QueuedOp } from "../domain/write-queue/types";
-import { libraryQuery, movieLibraryQuery, watchlistQuery } from "../queries/library";
+import { libraryQuery, movieLibraryQuery, movieWatchlistQuery } from "../queries/library";
 import { type MovieLibraryData, type UpNextData, useRuntime } from "../runtime/runtime";
 import { useOptimisticWrite } from "./useOptimisticWrite";
 
@@ -18,6 +18,13 @@ export interface WatchlistAddView {
 
 function sectionOf(type: "show" | "movie"): "shows" | "movies" {
   return type === "movie" ? "movies" : "shows";
+}
+
+// The library holds every watchlisted show; movies have a list of their own until the movie library loads.
+function membershipKeys(section: "shows" | "movies"): readonly (readonly unknown[])[] {
+  return section === "movies"
+    ? [queryKeys.movieWatchlist(), queryKeys.movieLibrary()]
+    : [queryKeys.library()];
 }
 
 // Trakt ids are namespaced per media type.
@@ -39,7 +46,7 @@ export function useWatchlistAdd(): WatchlistAddView {
     [submit],
   );
 
-  const listedMovies = useQuery(watchlistQuery(runtime, "movies")).data;
+  const listedMovies = useQuery(movieWatchlistQuery(runtime)).data;
 
   const libraryEntries = useQuery({ ...libraryQuery(runtime), enabled: false }).data?.entries;
   const movieEntries = useQuery({ ...movieLibraryQuery(runtime), enabled: false }).data?.entries;
@@ -66,10 +73,8 @@ export function useWatchlistAdd(): WatchlistAddView {
 
   const revalidateMembership = useCallback(
     (section: "shows" | "movies") => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.watchlist(section) });
-      void queryClient.invalidateQueries({
-        queryKey: section === "movies" ? queryKeys.movieLibrary() : queryKeys.library(),
-      });
+      for (const queryKey of membershipKeys(section))
+        void queryClient.invalidateQueries({ queryKey });
     },
     [queryClient],
   );
@@ -105,18 +110,15 @@ export function useWatchlistAdd(): WatchlistAddView {
         next.delete(key);
         return next;
       });
-      const aggregateKey = section === "movies" ? queryKeys.movieLibrary() : queryKeys.library();
-      await Promise.all([
-        queryClient.cancelQueries({ queryKey: queryKeys.watchlist(section) }),
-        queryClient.cancelQueries({ queryKey: aggregateKey }),
-      ]);
-      const watchlistKey = queryKeys.watchlist(section);
-      const beforeWatchlist = queryClient.getQueryData<readonly number[]>(watchlistKey);
-      const beforeAggregate = queryClient.getQueryData<UpNextData | MovieLibraryData>(aggregateKey);
-      queryClient.setQueryData<readonly number[]>(watchlistKey, (old) =>
-        old?.filter((id) => id !== hit.traktId),
+      const keys = membershipKeys(section);
+      await Promise.all(keys.map((queryKey) => queryClient.cancelQueries({ queryKey })));
+      const before = keys.map(
+        (queryKey) => [queryKey, queryClient.getQueryData(queryKey)] as const,
       );
       if (section === "movies") {
+        queryClient.setQueryData<readonly number[]>(queryKeys.movieWatchlist(), (old) =>
+          old?.filter((id) => id !== hit.traktId),
+        );
         queryClient.setQueryData<MovieLibraryData>(queryKeys.movieLibrary(), (old) =>
           old === undefined
             ? undefined
@@ -134,8 +136,7 @@ export function useWatchlistAdd(): WatchlistAddView {
         op,
         () => {
           setAdded((prev) => new Set(prev).add(key));
-          queryClient.setQueryData(watchlistKey, beforeWatchlist);
-          queryClient.setQueryData(aggregateKey, beforeAggregate);
+          for (const [queryKey, data] of before) queryClient.setQueryData(queryKey, data);
         },
         `Couldn't remove ${hit.title} from your watchlist. Please try again.`,
         () => revalidateMembership(section),

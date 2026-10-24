@@ -46,23 +46,18 @@ async function mountProbe(
   );
 }
 
+const movie: SearchHit = { ...hit, key: "movie:1", type: "movie", title: "Dune" };
+
 it("drops aggregate membership immediately when a landed add is undone", async () => {
-  let listed: readonly number[] = [];
   const runtime = {
     newId: () => "op-id",
-    loadWatchlistIds: () => Promise.resolve(listed),
+    loadMovieWatchlistIds: () => Promise.resolve([]),
     loadUpNext: () => Promise.resolve({ entries: [] }),
     loadMovieLibrary: () => Promise.resolve({ entries: [] }),
-    submit: (op: { readonly request: { readonly path: string } }) => {
-      if (op.request.path === "/sync/watchlist") {
-        listed = [hit.traktId];
-        return Promise.resolve("done");
-      }
-      return Promise.resolve("deferred");
-    },
+    submit: (op: { readonly request: { readonly path: string } }) =>
+      Promise.resolve(op.request.path === "/sync/watchlist" ? "done" : "deferred"),
   } as unknown as CueRuntime;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  client.setQueryData(queryKeys.watchlist("shows"), []);
   client.setQueryData<UpNextData>(queryKeys.library(), { entries: [] });
   const slot: WatchlistAddView[] = [];
   await mountProbe(client, runtime, slot);
@@ -80,35 +75,37 @@ it("drops aggregate membership immediately when a landed add is undone", async (
   expect(client.getQueryData<UpNextData>(queryKeys.library())?.entries).toEqual([]);
 });
 
-it("restores watchlist and aggregate caches after a hard-failed remove", async () => {
-  const aggregateEntry = { showId: hit.traktId } as LibraryEntry;
+it("restores every cache that lists a title after a hard-failed remove", async () => {
   const runtime = {
     newId: () => "op-id",
-    loadWatchlistIds: () => Promise.resolve([hit.traktId]),
-    loadUpNext: () => Promise.resolve({ entries: [aggregateEntry] }),
-    loadMovieLibrary: () => Promise.resolve({ entries: [] }),
+    loadMovieWatchlistIds: () => Promise.resolve([movie.traktId]),
     submit: () => Promise.resolve("failed"),
   } as unknown as CueRuntime;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  client.setQueryData(queryKeys.watchlist("shows"), [hit.traktId]);
-  const aggregate: UpNextData = { entries: [aggregateEntry] };
-  client.setQueryData(queryKeys.library(), aggregate);
+  const shows: UpNextData = { entries: [{ showId: hit.traktId } as LibraryEntry] };
+  const movies: MovieLibraryData = {
+    entries: [{ movieId: movie.traktId } as MovieLibraryData["entries"][number]],
+  };
+  client.setQueryData(queryKeys.library(), shows);
+  client.setQueryData(queryKeys.movieLibrary(), movies);
+  client.setQueryData(queryKeys.movieWatchlist(), [movie.traktId]);
   const slot: WatchlistAddView[] = [];
   await mountProbe(client, runtime, slot);
 
   await act(async () => slot[0]?.remove(hit));
+  await act(async () => slot[0]?.remove(movie));
 
   expect(slot[0]?.isAdded(hit)).toBe(true);
-  expect(client.getQueryData(queryKeys.watchlist("shows"))).toEqual([hit.traktId]);
-  expect(client.getQueryData(queryKeys.library())).toEqual(aggregate);
+  expect(slot[0]?.isAdded(movie)).toBe(true);
+  expect(client.getQueryData(queryKeys.library())).toEqual(shows);
+  expect(client.getQueryData(queryKeys.movieLibrary())).toEqual(movies);
+  expect(client.getQueryData(queryKeys.movieWatchlist())).toEqual([movie.traktId]);
 });
-
-const movie: SearchHit = { ...hit, key: "movie:1", type: "movie", title: "Dune" };
 
 function membershipRuntime(outcome: SubmitOutcome, submitted: QueuedOp[] = []): CueRuntime {
   return {
     newId: () => `op-${submitted.length}`,
-    loadWatchlistIds: () => Promise.resolve([]),
+    loadMovieWatchlistIds: () => Promise.resolve([]),
     submit: (op: QueuedOp) => {
       submitted.push(op);
       return Promise.resolve(outcome);
@@ -119,7 +116,7 @@ function membershipRuntime(outcome: SubmitOutcome, submitted: QueuedOp[] = []): 
 it("adds and removes a movie against the movie watchlist and movie library", async () => {
   const submitted: QueuedOp[] = [];
   const client = new QueryClient();
-  client.setQueryData(queryKeys.watchlist("movies"), []);
+  client.setQueryData(queryKeys.movieWatchlist(), []);
   client.setQueryData<MovieLibraryData>(queryKeys.movieLibrary(), { entries: [] });
   const slot: WatchlistAddView[] = [];
   await mountProbe(client, membershipRuntime("done", submitted), slot);
@@ -141,7 +138,6 @@ it("adds and removes a movie against the movie watchlist and movie library", asy
 
 it("offers the add again, and says why, when Trakt refuses it", async () => {
   const client = new QueryClient();
-  client.setQueryData(queryKeys.watchlist("shows"), []);
   const slot: WatchlistAddView[] = [];
   await mountProbe(client, membershipRuntime("failed"), slot);
 
@@ -152,24 +148,22 @@ it("offers the add again, and says why, when Trakt refuses it", async () => {
   );
 });
 
-it("removes a listed hit before either library has loaded", async () => {
+it("removes a listed movie before the movie library has loaded", async () => {
   const client = new QueryClient();
-  client.setQueryData(queryKeys.watchlist("shows"), [hit.traktId]);
-  client.setQueryData(queryKeys.watchlist("movies"), [movie.traktId]);
+  client.setQueryData(queryKeys.movieWatchlist(), [movie.traktId]);
   const slot: WatchlistAddView[] = [];
   await mountProbe(client, membershipRuntime("deferred"), slot);
+  expect(slot[0]?.isAdded(movie)).toBe(true);
 
-  await act(async () => slot[0]?.remove(hit));
   await act(async () => slot[0]?.remove(movie));
-  expect(slot[0]?.isAdded(hit)).toBe(false);
   expect(slot[0]?.isAdded(movie)).toBe(false);
-  expect(client.getQueryData(queryKeys.library())).toBeUndefined();
+  expect(client.getQueryData(queryKeys.movieLibrary())).toBeUndefined();
 });
 
 it("offers the add until membership has loaded", async () => {
   const runtime = {
     ...membershipRuntime("done"),
-    loadWatchlistIds: () => new Promise<readonly number[]>(() => {}),
+    loadMovieWatchlistIds: () => new Promise<readonly number[]>(() => {}),
   };
   const slot: WatchlistAddView[] = [];
   await mountProbe(new QueryClient(), runtime, slot);
@@ -179,8 +173,7 @@ it("offers the add until membership has loaded", async () => {
 
 it("counts a movie in the movie library as added, but not a show with the same id", async () => {
   const client = new QueryClient();
-  client.setQueryData(queryKeys.watchlist("shows"), []);
-  client.setQueryData(queryKeys.watchlist("movies"), []);
+  client.setQueryData(queryKeys.movieWatchlist(), []);
   const seen = { movieId: movie.traktId } as MovieLibraryData["entries"][number];
   client.setQueryData<MovieLibraryData>(queryKeys.movieLibrary(), { entries: [seen] });
   const slot: WatchlistAddView[] = [];

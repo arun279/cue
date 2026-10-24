@@ -73,7 +73,7 @@ describe("invalidationKeys maps last_activities targets to cached query keys", (
   it("routes a watchlist change to its own watchlist and to both followed piles", () => {
     expect(invalidationKeys(["watchlist/movies", "recompute:following"])).toEqual([
       queryKeys.movieLibrary(),
-      queryKeys.watchlist("movies"),
+      queryKeys.movieWatchlist(),
       queryKeys.library(),
     ]);
     expect(
