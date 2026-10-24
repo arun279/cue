@@ -55,7 +55,7 @@ export default function Calendar(): ReactElement {
       query.data === undefined
         ? []
         : buildCalendarDays(
-            query.data,
+            { entries: query.data.entries, hiddenShowIds: focus.hiddenShowIds },
             clock,
             timeZone,
             startDate,
@@ -66,7 +66,7 @@ export default function Calendar(): ReactElement {
             offset: dayOffset(startDate, day.dayKey),
             data: day.rows,
           })),
-    [query.data, clock, timeZone, startDate, focus.playedShowIds],
+    [query.data, clock, timeZone, startDate, focus.playedShowIds, focus.hiddenShowIds],
   );
   const status = queryStatus(query, query.data !== undefined);
   const banner = useSyncBanner(status);

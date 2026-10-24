@@ -1,6 +1,6 @@
 import { focusManager, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo } from "react";
-import { buildCalendarDays, CALENDAR_WINDOW_DAYS } from "../domain/calendar";
+import { buildCalendarDays, CALENDAR_WINDOW_DAYS, hiddenShowIdsOf } from "../domain/calendar";
 import { dayKeyOf } from "../domain/day";
 import { planReminders } from "../domain/reminders";
 import { DAY_MS, localTimeZone } from "../domain/time";
@@ -23,14 +23,20 @@ export function useEpisodeReminders(): void {
   const startDate = dayKeyOf(timeZone, now);
   const calendar = useQuery({ ...calendarQuery(runtime, startDate), enabled });
   const library = useLibrarySnapshot(enabled);
+  const shows = library.data?.entries;
   const days = useMemo(
     () =>
-      calendar.data === undefined
+      calendar.data === undefined || shows === undefined
         ? undefined
-        : buildCalendarDays(calendar.data, now, timeZone, startDate, CALENDAR_WINDOW_DAYS),
-    [calendar.data, now, timeZone, startDate],
+        : buildCalendarDays(
+            { entries: calendar.data.entries, hiddenShowIds: hiddenShowIdsOf(shows) },
+            now,
+            timeZone,
+            startDate,
+            CALENDAR_WINDOW_DAYS,
+          ),
+    [calendar.data, shows, now, timeZone, startDate],
   );
-  const shows = library.data?.entries;
   const { thresholdMs } = library;
 
   useEffect(() => {

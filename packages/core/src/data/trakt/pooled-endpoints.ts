@@ -2,10 +2,23 @@ import type { TraktClient, TraktResult } from "./client";
 import * as raw from "./endpoints";
 import { withReadRateRetry } from "./read-budget";
 
+// Identical reads share one pooled read, so a caller still waiting for a slot joins the read in flight.
 function pool<Args extends unknown[], T>(
   fn: (client: TraktClient, ...rest: Args) => Promise<TraktResult<T>>,
 ): (client: TraktClient, ...rest: Args) => Promise<TraktResult<T>> {
-  return (client, ...rest) => withReadRateRetry(() => fn(client, ...rest), client.policy);
+  const inFlight = new WeakMap<TraktClient, Map<string, Promise<TraktResult<T>>>>();
+  return (client, ...rest) => {
+    const reads = inFlight.get(client) ?? new Map<string, Promise<TraktResult<T>>>();
+    inFlight.set(client, reads);
+    const key = JSON.stringify(rest);
+    const existing = reads.get(key);
+    if (existing !== undefined) return existing;
+    const read = withReadRateRetry(() => fn(client, ...rest), client.policy).finally(() =>
+      reads.delete(key),
+    );
+    reads.set(key, read);
+    return read;
+  };
 }
 
 export const getHidden = pool(raw.getHidden);

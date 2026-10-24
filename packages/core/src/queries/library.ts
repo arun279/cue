@@ -23,9 +23,9 @@ export const movieLibraryQuery = (runtime: CueRuntime) =>
     staleTime: USER_STATE_STALE_TIME,
   });
 
-export const watchlistQuery = (runtime: CueRuntime, section: "shows" | "movies") =>
+export const movieWatchlistQuery = (runtime: CueRuntime) =>
   queryOptions({
-    queryKey: queryKeys.watchlist(section),
-    queryFn: () => runtime.loadWatchlistIds(section),
+    queryKey: queryKeys.movieWatchlist(),
+    queryFn: () => runtime.loadMovieWatchlistIds(),
     staleTime: USER_STATE_STALE_TIME,
   });

@@ -316,31 +316,14 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       );
     },
 
-    async loadWatchlistIds(section) {
-      const items = unwrapRead(await getWatchlist(client, section), "watchlist");
-      const ids: number[] = [];
-      for (const item of items) {
-        const trakt = (section === "shows" ? item.show : item.movie)?.ids.trakt;
-        if (trakt !== undefined) ids.push(trakt);
-      }
-      return ids;
+    async loadMovieWatchlistIds() {
+      const items = unwrapRead(await getWatchlist(client, "movies"), "movie watchlist");
+      return items.flatMap((item) => (item.movie === undefined ? [] : [item.movie.ids.trakt]));
     },
 
     async loadCalendar(startDate, days): Promise<CalendarData> {
-      const [calendar, hidden, dropped] = await Promise.all([
-        getMyShowsCalendar(client, startDate, days),
-        getHidden(client),
-        getDropped(client),
-      ]);
-      return {
-        entries: assembleCalendarEntries(unwrapRead(calendar, "calendar")),
-        hiddenShowIds: [
-          ...showIdSet([
-            ...unwrapRead(hidden, "hidden shows"),
-            ...unwrapRead(dropped, "dropped shows"),
-          ]),
-        ],
-      };
+      const calendar = await getMyShowsCalendar(client, startDate, days);
+      return { entries: assembleCalendarEntries(unwrapRead(calendar, "calendar")) };
     },
 
     async loadHistory(section, page, range): Promise<HistoryPageData> {

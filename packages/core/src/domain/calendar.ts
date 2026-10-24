@@ -1,6 +1,6 @@
 import { dayLabeler } from "./day";
 import type { EpisodeIds } from "./model/ids";
-import { compareEpisodeKeys, type EpisodeKey, epCode } from "./model/library";
+import { compareEpisodeKeys, type EpisodeKey, epCode, type LibraryShow } from "./model/library";
 import { DAY_MS, localTimeZone, toMs } from "./time";
 
 export const CALENDAR_WINDOW_DAYS = 28;
@@ -41,7 +41,7 @@ export interface GroupCalendarOptions {
 
 interface CalendarSnapshot {
   readonly entries: readonly CalendarEntry[];
-  readonly hiddenShowIds: readonly number[];
+  readonly hiddenShowIds: ReadonlySet<number>;
 }
 
 const PREMIERES = new Set(["series_premiere", "season_premiere"]);
@@ -50,9 +50,12 @@ const PREMIERES = new Set(["series_premiere", "season_premiere"]);
 const isPremiere = (entry: CalendarEntry): boolean =>
   entry.episodeType === null ? entry.number === 1 : PREMIERES.has(entry.episodeType);
 
+export function hiddenShowIdsOf(shows: readonly LibraryShow[]): ReadonlySet<number> {
+  return new Set(shows.flatMap((show) => (show.hidden ? [show.showId] : [])));
+}
+
 export function selectVisibleEntries(data: CalendarSnapshot): CalendarEntry[] {
-  const hidden = new Set(data.hiddenShowIds);
-  return data.entries.filter((entry) => !hidden.has(entry.showId));
+  return data.entries.filter((entry) => !data.hiddenShowIds.has(entry.showId));
 }
 
 export function buildCalendarDays(
@@ -67,7 +70,7 @@ export function buildCalendarDays(
     groupCalendar(data.entries, {
       now,
       timeZone,
-      hiddenShowIds: new Set(data.hiddenShowIds),
+      hiddenShowIds: data.hiddenShowIds,
       playedShowIds,
     }),
     startDate,

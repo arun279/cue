@@ -59,7 +59,7 @@ const snack = () => useSnackbar.getState().snack;
 beforeEach(dismissSnack);
 
 describe("useHideShow", () => {
-  it("stops a show at once, drops it from the calendar, and resumes it on Undo", async () => {
+  it("stops a show at once, leaves the calendar to its library flag rather than a re-read, and resumes it on Undo", async () => {
     const { slot, submitted, queryClient, hidden } = setup();
     await act(async () => slot[0]?.stopWatching(entry));
     expect(hidden()).toBe(true);
@@ -68,7 +68,7 @@ describe("useHideShow", () => {
       body: { shows: [{ ids: { trakt: 7 } }] },
     });
     expect(queryClient.getQueryState(queryKeys.calendar("2026-07-12", 7))?.isInvalidated).toBe(
-      true,
+      false,
     );
     expect(snack()?.message).toBe("Severance stopped");
 

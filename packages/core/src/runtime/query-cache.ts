@@ -53,8 +53,10 @@ export function createQueryCachePolicy(queryClient: QueryClient): {
     shouldDehydrateQuery(query) {
       if (query.state.data === undefined) return false;
       const [head, section, showId] = query.queryKey;
-      if (head === "show") return section === "info" && paintsALibraryCard(showId);
-      return PERSISTED_KEY_HEADS.has(head);
+      if (head !== "show") return PERSISTED_KEY_HEADS.has(head);
+      // A season tree only while a screen uses it: Up Next placing a card, or an open detail.
+      const kept = section === "info" || (section === "seasons" && query.getObserversCount() > 0);
+      return kept && paintsALibraryCard(showId);
     },
   };
 }

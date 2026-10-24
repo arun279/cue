@@ -18,16 +18,19 @@ function policyOver(entries?: readonly { readonly showId: number }[]): {
   persists(
     key: readonly unknown[],
     state?: { status: "success" | "error"; data?: unknown },
+    observers?: number,
   ): boolean;
 } {
   const queryClient = new QueryClient();
   if (entries !== undefined) queryClient.setQueryData(queryKeys.library(), { entries });
   const { shouldDehydrateQuery } = createQueryCachePolicy(queryClient);
   return {
-    persists(key, state = { status: "success", data: {} }) {
-      return shouldDehydrateQuery({ queryKey: key, state } as Parameters<
-        typeof shouldDehydrateQuery
-      >[0]);
+    persists(key, state = { status: "success", data: {} }, observers = 0) {
+      return shouldDehydrateQuery({
+        queryKey: key,
+        state,
+        getObserversCount: () => observers,
+      } as Parameters<typeof shouldDehydrateQuery>[0]);
     },
   };
 }
@@ -38,7 +41,7 @@ describe("what a cold boot restores", () => {
   it("keeps the screens a user lands on", () => {
     expect(policy.persists(queryKeys.library())).toBe(true);
     expect(policy.persists(queryKeys.movieLibrary())).toBe(true);
-    expect(policy.persists(queryKeys.watchlist("shows"))).toBe(true);
+    expect(policy.persists(queryKeys.movieWatchlist())).toBe(true);
     expect(policy.persists(queryKeys.history("all"))).toBe(true);
     expect(policy.persists(queryKeys.calendar("2026-01-01", 7))).toBe(true);
     expect(policy.persists(queryKeys.firstPlay())).toBe(true);
@@ -53,7 +56,7 @@ describe("what a cold boot restores", () => {
 
   it("drops the per-title detail trees, which cost one read to re-open", () => {
     expect(policy.persists(queryKeys.showProgress(LIBRARY_SHOW))).toBe(false);
-    expect(policy.persists(queryKeys.showSeasons(LIBRARY_SHOW))).toBe(false);
+    expect(policy.persists(queryKeys.showSeasons(UNSEEN_SHOW))).toBe(false);
     expect(policy.persists(queryKeys.episode(LIBRARY_SHOW, 1, 1))).toBe(false);
     expect(policy.persists(queryKeys.movieHeader(LIBRARY_SHOW))).toBe(false);
   });
@@ -61,6 +64,13 @@ describe("what a cold boot restores", () => {
   it("keeps the artwork a restored library card paints, and only that", () => {
     expect(policy.persists(queryKeys.showInfo(LIBRARY_SHOW))).toBe(true);
     expect(policy.persists(queryKeys.showInfo(UNSEEN_SHOW))).toBe(false);
+  });
+
+  it("keeps a library show's season tree while a screen uses it, as Up Next does to place a card", () => {
+    const tree = queryKeys.showSeasons(LIBRARY_SHOW);
+    expect(policy.persists(tree, undefined, 1)).toBe(true);
+    expect(policy.persists(tree)).toBe(false);
+    expect(policy.persists(queryKeys.showSeasons(UNSEEN_SHOW), undefined, 1)).toBe(false);
   });
 
   it("keeps nothing at all when there is no library to paint cards from", () => {

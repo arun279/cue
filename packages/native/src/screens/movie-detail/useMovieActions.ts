@@ -42,7 +42,7 @@ export function useMovieActions(header: MovieHeader) {
   const error = () => showSnack({ message: "Couldn't update this movie. Please try again." });
   const patch = (value: Partial<MovieEntry>) => {
     if (value.inWatchlist !== undefined) {
-      client.setQueryData<readonly number[]>(queryKeys.watchlist("movies"), (ids) =>
+      client.setQueryData<readonly number[]>(queryKeys.movieWatchlist(), (ids) =>
         ids === undefined
           ? undefined
           : [
@@ -63,7 +63,7 @@ export function useMovieActions(header: MovieHeader) {
     });
   };
   const revalidate = () => {
-    for (const queryKey of [key, queryKeys.watchlist("movies"), queryKeys.historyPrefix()])
+    for (const queryKey of [key, queryKeys.movieWatchlist(), queryKeys.historyPrefix()])
       void client.invalidateQueries({ queryKey });
   };
   const guard = async (action: () => Promise<void>) => {

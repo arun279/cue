@@ -173,7 +173,11 @@ export function watchedEpisodeCount(watched: WatchedShow): number {
   return count;
 }
 
+// Without a progress read, the last watched episode is the last aired one only for a show with nothing left.
 function lastAiredKey(progress: Progress | undefined, watched: WatchedShow): EpisodeKey | null {
+  if (progress === undefined && watchedEpisodeCount(watched) < watched.show.aired_episodes) {
+    return null;
+  }
   const seasons =
     progress === undefined
       ? watched.seasons?.filter((season) => season.number !== 0)

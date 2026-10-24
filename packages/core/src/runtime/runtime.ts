@@ -29,7 +29,6 @@ export interface BrowseData {
 
 export interface CalendarData {
   readonly entries: readonly CalendarEntry[];
-  readonly hiddenShowIds: readonly number[];
 }
 
 export type HistorySection = "all" | "episodes" | "movies";
@@ -58,7 +57,7 @@ export interface CueRuntime {
   loadShowProgress(showId: number): Promise<ShowProgress>;
   loadShowSeasons(showId: number): Promise<readonly SeasonView[]>;
   loadEpisode(showId: number, season: number, number: number): Promise<EpisodeDetail>;
-  loadWatchlistIds(section: "shows" | "movies"): Promise<readonly number[]>;
+  loadMovieWatchlistIds(): Promise<readonly number[]>;
   loadCalendar(startDate: string, days: number): Promise<CalendarData>;
   loadHistory(
     section: HistorySection,

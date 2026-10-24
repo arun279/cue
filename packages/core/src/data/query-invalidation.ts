@@ -7,17 +7,23 @@ export type InvalidationKey = readonly unknown[];
 const library = queryKeys.library();
 const movieLibrary = queryKeys.movieLibrary();
 const history = queryKeys.historyPrefix();
+// Each of these merges the user's per-episode watched state into the show's own data.
+const showTrees = [
+  queryKeys.showSection("progress"),
+  queryKeys.showSection("seasons"),
+  queryKeys.showSection("episode"),
+];
 const TARGET_KEYS: Readonly<Record<InvalidationTarget, readonly InvalidationKey[]>> = {
-  "watched/shows": [library, history],
-  "progress/watched": [library, history],
+  "watched/shows": [library, history, ...showTrees],
+  "progress/watched": [library, history, ...showTrees],
   "watched/movies": [movieLibrary, history],
   "movie-progress": [movieLibrary, history],
-  "watchlist/shows": [library, queryKeys.watchlist("shows")],
-  "watchlist/movies": [movieLibrary, queryKeys.watchlist("movies")],
+  "watchlist/shows": [library],
+  "watchlist/movies": [movieLibrary, queryKeys.movieWatchlist()],
   "watchlist/episodes": [],
   "collection/shows": [library],
   "collection/movies": [movieLibrary],
-  "hidden/progress_watched": [library],
+  "hidden/progress_watched": [library, ...showTrees],
   "hidden/dropped": [library],
   "hidden/movies": [],
   "favorites/shows": [],

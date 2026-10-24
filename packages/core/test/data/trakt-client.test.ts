@@ -18,19 +18,6 @@ const sent = () => {
 };
 
 describe("TraktClient headers + extended", () => {
-  it("coalesces identical GETs only while the first is in flight", async () => {
-    const release = fake.hold({ path: /^\/sync\/watched\/shows$/ });
-    const trakt = client();
-    const first = trakt.get("/sync/watched/shows");
-    const second = trakt.get("/sync/watched/shows");
-    await vi.waitFor(() => expect(fake.requests).toHaveLength(1));
-    release();
-    await Promise.all([first, second]);
-
-    await trakt.get("/sync/watched/shows");
-    expect(fake.requests).toHaveLength(2);
-  });
-
   it("sets the required Trakt headers and omits Authorization when no token", async () => {
     await client(null).get("/sync/watched/shows");
     const { headers } = sent();

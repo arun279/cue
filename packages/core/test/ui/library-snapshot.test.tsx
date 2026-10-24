@@ -119,11 +119,10 @@ function runtimeFixture(
   entries: readonly LibraryEntry[],
   calendar: readonly CalendarEntry[],
   loadShowSeasons: (showId: number) => Promise<readonly SeasonView[]>,
-  hiddenShowIds: readonly number[] = [],
 ): CueRuntime {
   return {
     loadUpNext: () => Promise.resolve({ entries: [...entries], isPartial: false }),
-    loadCalendar: () => Promise.resolve({ entries: calendar, hiddenShowIds }),
+    loadCalendar: () => Promise.resolve({ entries: calendar }),
     loadShowSeasons,
   } as unknown as CueRuntime;
 }
@@ -131,12 +130,9 @@ function runtimeFixture(
 async function mountWithoutSeasonRead(
   entries: readonly LibraryEntry[],
   calendar: readonly CalendarEntry[],
-  hiddenShowIds: readonly number[] = [],
 ): Promise<{ current: LibrarySnapshot | undefined; currentEntry: LibraryEntry | undefined }> {
   const loadShowSeasons = vi.fn((_showId: number) => Promise.resolve([]));
-  const snapshot = await mountSnapshot(
-    runtimeFixture(entries, calendar, loadShowSeasons, hiddenShowIds),
-  );
+  const snapshot = await mountSnapshot(runtimeFixture(entries, calendar, loadShowSeasons));
   await act(async () => {
     await vi.waitFor(() => expect(snapshot.current?.data).toBeDefined());
   });
@@ -261,9 +257,9 @@ describe("useLibrarySnapshot", () => {
     expect(snapshot.current?.data?.entries[0]).toMatchObject(expected);
   });
 
-  it("excludes hidden calendar shows before reconciliation", async () => {
-    const hidden = entry();
-    const snapshot = await mountWithoutSeasonRead([hidden], [calendarEpisode(1)], [hidden.showId]);
+  it("leaves the calendar episodes of a show hidden in the library out of reconciliation", async () => {
+    const hidden = entry({ hidden: true });
+    const snapshot = await mountWithoutSeasonRead([hidden], [calendarEpisode(1)]);
 
     expect(snapshot.current?.data?.entries[0]).toBe(hidden);
   });

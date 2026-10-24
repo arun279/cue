@@ -134,7 +134,7 @@ it("leaves alerts off and says where to change it when the OS refuses", async ()
 
 it("turns New episodes on from the Calendar's card once the OS allows them", async () => {
   const fixture = accountFixture({
-    loadCalendar: () => Promise.resolve({ entries: [airing({ showId: 1 })], hiddenShowIds: [] }),
+    loadCalendar: () => Promise.resolve({ entries: [airing({ showId: 1 })] }),
   });
   await fixture.paint(
     <RemindersProvider value={remindersAnswering(Promise.resolve(true))}>
@@ -203,7 +203,6 @@ it("brings every new episode of a watchlist show onto the Calendar once switched
     loadCalendar: () =>
       Promise.resolve({
         entries: [airing({ showId: 9, season: 2, number: 3, ids: { trakt: 903 } })],
-        hiddenShowIds: [],
       }),
   });
   await fixture.paint(

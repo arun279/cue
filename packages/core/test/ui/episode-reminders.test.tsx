@@ -136,7 +136,7 @@ describe("useEpisodeReminders", () => {
 
   it("reconciles an alert for the next airing of a show being watched", async () => {
     const reminders = await mountHook(() =>
-      Promise.resolve({ entries: [airingAt(Date.now() + DAY_MS)], hiddenShowIds: [] }),
+      Promise.resolve({ entries: [airingAt(Date.now() + DAY_MS)] }),
     );
 
     expect(reminders.reconcile).toHaveBeenCalledTimes(1);
@@ -146,7 +146,7 @@ describe("useEpisodeReminders", () => {
   it("alerts for nothing muted, until it is unmuted", async () => {
     prefs.getState().setShowMuted(8803, true);
     const muted = await mountHook(() =>
-      Promise.resolve({ entries: [airingAt(Date.now() + DAY_MS)], hiddenShowIds: [] }),
+      Promise.resolve({ entries: [airingAt(Date.now() + DAY_MS)] }),
     );
     expect(bodies(muted)).toEqual([]);
 
@@ -156,7 +156,7 @@ describe("useEpisodeReminders", () => {
 
   it("swaps the alerts for the morning summary in one reconcile", async () => {
     const reminders = await mountHook(() =>
-      Promise.resolve({ entries: [airingAt(Date.now() + DAY_MS)], hiddenShowIds: [] }),
+      Promise.resolve({ entries: [airingAt(Date.now() + DAY_MS)] }),
     );
 
     await act(async () => prefs.getState().setDailySummary(true));
@@ -179,9 +179,7 @@ describe("useEpisodeReminders", () => {
       ids: { trakt: 880306 },
     });
     let entries = [airsTonight];
-    const reminders = await mountHook(() =>
-      Promise.resolve({ entries: [...entries], hiddenShowIds: [] }),
-    );
+    const reminders = await mountHook(() => Promise.resolve({ entries: [...entries] }));
     expect(plans(reminders)[0]).toHaveLength(1);
 
     vi.setSystemTime(Date.parse("2026-03-10T14:00:00"));
@@ -200,7 +198,7 @@ describe("useEpisodeReminders", () => {
     // The OS holds dated one-shots and nothing renews them but the app, so every
     // return to the foreground is the chance to reach four weeks past today.
     const reminders = await mountHook(() =>
-      Promise.resolve({ entries: [airingAt(Date.now() + DAY_MS)], hiddenShowIds: [] }),
+      Promise.resolve({ entries: [airingAt(Date.now() + DAY_MS)] }),
     );
     expect(reminders.reconcile).toHaveBeenCalledTimes(1);
 
@@ -214,7 +212,7 @@ describe("useEpisodeReminders", () => {
 
   it("empties the schedule when the switch goes off, and when the shell unmounts", async () => {
     const reminders = await mountHook(() =>
-      Promise.resolve({ entries: [airingAt(Date.now() + DAY_MS)], hiddenShowIds: [] }),
+      Promise.resolve({ entries: [airingAt(Date.now() + DAY_MS)] }),
     );
 
     await act(async () => prefs.setState({ remindersEnabled: false }));
@@ -236,7 +234,7 @@ describe("useEpisodeReminders", () => {
     // Signing out unmounts the routed shell this hook lives in, and a former
     // account's airings must not keep firing.
     const reminders = await mountHook(() =>
-      Promise.resolve({ entries: [airingAt(Date.now() + DAY_MS)], hiddenShowIds: [] }),
+      Promise.resolve({ entries: [airingAt(Date.now() + DAY_MS)] }),
     );
 
     act(() => root?.unmount());
@@ -248,7 +246,7 @@ describe("useEpisodeReminders", () => {
   it("asks for nothing while the switch is off, cancel included", async () => {
     prefs.setState({ remindersEnabled: false });
     const reminders = await mountHook(() =>
-      Promise.resolve({ entries: [airingAt(Date.now() + DAY_MS)], hiddenShowIds: [] }),
+      Promise.resolve({ entries: [airingAt(Date.now() + DAY_MS)] }),
     );
 
     act(() => root?.unmount());

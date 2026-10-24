@@ -45,7 +45,7 @@ export function movieRuntime(overrides: Partial<MovieEntry> = {}) {
     loadMovieLibrary: jest.fn(async () => ({ entries: [{ ...movieEntry, ...overrides }] })),
     loadMovieRelated: jest.fn(async (): Promise<readonly SearchHit[]> => []),
     loadMoviePlays: jest.fn(async () => [{ historyId: 91, watchedAt: movieEntry.watchedAt ?? "" }]),
-    loadWatchlistIds: jest.fn(async () => []),
+    loadMovieWatchlistIds: jest.fn(async () => []),
   };
 }
 

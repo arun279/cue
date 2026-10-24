@@ -187,7 +187,7 @@ describe("assembleLibrary", () => {
     });
   });
 
-  it("gives an un-fetched watched show its real bulk counts, specials excluded", () => {
+  it("gives an un-fetched watched show its real bulk counts, specials excluded, and no aired frontier while episodes are left", () => {
     // Beyond the cold-sync progress budget: no progress entry, so `aired` is the row's
     // `aired_episodes` and `completed` is its watched breakdown with season 0 dropped
     // (matching progress semantics). The backlog is real; only the next episode's
@@ -206,14 +206,14 @@ describe("assembleLibrary", () => {
       tmdbId: null,
       runtime: null,
       status: "returning series",
-      lastAired: { season: 2, number: 6 },
+      lastAired: null,
     });
   });
 
   it("uses the last regular watched episode when the fallback includes a later special", () => {
     const watched: WatchedShow = {
       last_watched_at: "2026-07-01T00:00:00.000Z",
-      show: { title: "Show", aired_episodes: 8, ids: { trakt: 13 } },
+      show: { title: "Show", aired_episodes: 1, ids: { trakt: 13 } },
       seasons: [
         { number: 0, episodes: [{ number: 99 }] },
         { number: 1, episodes: [{ number: 8 }] },

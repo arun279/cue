@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { createCueRuntime } from "@cue/core/app/create-runtime";
+import { queryKeys } from "@cue/core/data/query-keys";
 import { TraktClient, TraktReadError } from "@cue/core/data/trakt/client";
 import type { LibraryEntry } from "@cue/core/data/trakt/library";
 import { DEFAULT_TRAKT_POLICY } from "@cue/core/data/trakt/policy";
@@ -10,6 +11,7 @@ import {
   resetReadPause,
   subscribeReadRetry,
 } from "@cue/core/data/trakt/read-budget";
+import type { SeasonView } from "@cue/core/data/trakt/show-detail";
 import {
   CALENDAR_WINDOW_DAYS,
   RECENT_CALENDAR_WINDOW_DAYS,
@@ -28,7 +30,7 @@ import { useWatchlistAdd } from "@cue/core/hooks/useWatchlistAdd";
 import { calendarQuery } from "@cue/core/queries/calendar";
 import { browseQuery } from "@cue/core/queries/discover";
 import { movieLibraryQuery } from "@cue/core/queries/library";
-import { ART_SETTLE_MS, showInfoQuery } from "@cue/core/queries/shows";
+import { ART_SETTLE_MS, showInfoQuery, showSeasonsQuery } from "@cue/core/queries/shows";
 import { userProfileQuery } from "@cue/core/queries/user";
 import { createQueryCachePolicy, createQueryClient } from "@cue/core/runtime/query-cache";
 import { type CueRuntime, RuntimeProvider, useRuntime } from "@cue/core/runtime/runtime";
@@ -117,6 +119,9 @@ interface Measured {
   readonly cost: Cost;
   readonly writes: number;
   readonly budget: Cost;
+  readonly refused: number;
+  readonly repeated: readonly string[];
+  readonly getsByPath: Readonly<Record<string, number>>;
 }
 
 /** The fake's answer to a read as the app would send it, without spending a request on it. */
@@ -164,7 +169,6 @@ const CALENDAR_NEXT = "the calendar-derived next episode change";
 const LIST_ART = "the change that takes queue row posters from list payloads and keeps them";
 const LAZY_SEARCH = "the change that loads the Search tab's data on first focus";
 const DELTA_RELOAD = "the delta reload after the app's own writes";
-const HIDDEN_FROM_LIBRARY = "the change that filters calendars by the library's hidden flags";
 
 const sum = <T,>(items: readonly T[], bytes: (item: T) => number): number =>
   items.reduce((total, item) => total + bytes(item), 0);
@@ -174,16 +178,8 @@ const fixedBy = (...changes: string[]): string => `fixed by ${changes.join(" and
 const KNOWN_OVER: Readonly<Record<string, Partial<Record<`${Scenario}: ${Metric}`, string>>>> = {
   small: {
     "sign-in and first sync: bytes": fixedBy(LIST_ART, LAZY_SEARCH),
-    "cold launch, cache older than an hour: gets": fixedBy(
-      LIST_ART,
-      LAZY_SEARCH,
-      HIDDEN_FROM_LIBRARY,
-    ),
-    "cold launch, cache older than an hour: bytes": fixedBy(
-      LIST_ART,
-      LAZY_SEARCH,
-      HIDDEN_FROM_LIBRARY,
-    ),
+    "cold launch, cache older than an hour: gets": fixedBy(LIST_ART, LAZY_SEARCH),
+    "cold launch, cache older than an hour: bytes": fixedBy(LIST_ART, LAZY_SEARCH),
     "warm launch, cache fresh: gets": fixedBy(LAZY_SEARCH),
     "warm launch, cache fresh: bytes": fixedBy(LAZY_SEARCH),
     "mark, undo, then the next poll: gets": fixedBy(DELTA_RELOAD),
@@ -192,20 +188,10 @@ const KNOWN_OVER: Readonly<Record<string, Partial<Record<`${Scenario}: ${Metric}
   heavy: {
     "sign-in and first sync: gets": fixedBy(CALENDAR_NEXT, LIST_ART, LAZY_SEARCH),
     "sign-in and first sync: bytes": fixedBy(CALENDAR_NEXT, LIST_ART, LAZY_SEARCH),
-    "cold launch, cache older than an hour: gets": fixedBy(
-      CALENDAR_NEXT,
-      LIST_ART,
-      LAZY_SEARCH,
-      HIDDEN_FROM_LIBRARY,
-    ),
-    "cold launch, cache older than an hour: bytes": fixedBy(
-      CALENDAR_NEXT,
-      LIST_ART,
-      LAZY_SEARCH,
-      HIDDEN_FROM_LIBRARY,
-    ),
-    "warm launch, cache fresh: gets": fixedBy(CALENDAR_NEXT, LAZY_SEARCH),
-    "warm launch, cache fresh: bytes": fixedBy(CALENDAR_NEXT, LAZY_SEARCH),
+    "cold launch, cache older than an hour: gets": fixedBy(CALENDAR_NEXT, LIST_ART, LAZY_SEARCH),
+    "cold launch, cache older than an hour: bytes": fixedBy(CALENDAR_NEXT, LIST_ART, LAZY_SEARCH),
+    "warm launch, cache fresh: gets": fixedBy(LAZY_SEARCH),
+    "warm launch, cache fresh: bytes": fixedBy(LAZY_SEARCH),
     "mark, undo, then the next poll: gets": fixedBy(DELTA_RELOAD),
     "mark, undo, then the next poll: bytes": fixedBy(DELTA_RELOAD),
   },
@@ -213,6 +199,8 @@ const KNOWN_OVER: Readonly<Record<string, Partial<Record<`${Scenario}: ${Metric}
 
 interface Controls {
   queue: readonly LibraryEntry[];
+  upNext: { readonly entries: readonly LibraryEntry[]; readonly thresholdMs: number };
+  tree: readonly SeasonView[] | undefined;
   mark: MarkWatched | null;
   syncNow: (() => Promise<boolean>) | null;
   scrollNotStarted: (() => void) | null;
@@ -252,6 +240,7 @@ function UpNextTab({ controls }: { readonly controls: Controls }): ReactElement 
   controls.mark = useMarkWatched();
   controls.syncNow = useSyncNow().run;
   const entries = data?.entries ?? [];
+  controls.upNext = { entries, thresholdMs };
   const byId = new Map(entries.map((entry) => [entry.showId, entry]));
   controls.queue = groupUpNext(entries, Date.now(), thresholdMs).queue.flatMap(
     ({ showId }) => byId.get(showId) ?? [],
@@ -292,8 +281,26 @@ function CalendarSearchAndAvatar(): null {
   return null;
 }
 
+// A show's detail screen, which reads the show's season tree.
+function ShowDetail({
+  showId,
+  controls,
+}: {
+  readonly showId: number;
+  readonly controls: Controls;
+}) {
+  controls.tree = useQuery(showSeasonsQuery(useRuntime(), showId)).data;
+  return null;
+}
+
 // RoutedApp in packages/native/app/_layout.tsx, whose four tab roots mount eagerly.
-function App({ controls }: { readonly controls: Controls }): ReactElement {
+function App({
+  controls,
+  detail,
+}: {
+  readonly controls: Controls;
+  readonly detail?: number;
+}): ReactElement {
   useActivitiesPoll();
   useEpisodeReminders();
   return (
@@ -301,6 +308,7 @@ function App({ controls }: { readonly controls: Controls }): ReactElement {
       <UpNextTab controls={controls} />
       <LibraryTab controls={controls} />
       <CalendarSearchAndAvatar />
+      {detail === undefined ? null : <ShowDetail showId={detail} controls={controls} />}
     </>
   );
 }
@@ -358,17 +366,24 @@ async function boot(size: AccountSize, saved?: Saved, cacheAgeMs = 0): Promise<S
     qc,
     runtime,
     foreground: new Foreground(),
-    controls: { queue: [], mark: null, syncNow: null, scrollNotStarted: null },
+    controls: {
+      queue: [],
+      upNext: { entries: [], thresholdMs: 0 },
+      tree: undefined,
+      mark: null,
+      syncNow: null,
+      scrollNotStarted: null,
+    },
     root: createRoot(host),
   };
 }
 
-async function open({ qc, runtime, controls, root }: Session): Promise<void> {
+async function open({ qc, runtime, controls, root }: Session, detail?: number): Promise<void> {
   await act(async () =>
     root.render(
       <QueryClientProvider client={qc}>
         <RuntimeProvider value={runtime}>
-          <App controls={controls} />
+          <App controls={controls} detail={detail} />
         </RuntimeProvider>
       </QueryClientProvider>,
     ),
@@ -398,10 +413,20 @@ async function measure(
   await settle(session);
   const served = session.trakt.requests.slice(start);
   const gets = served.filter((request) => request.method === "GET");
+  const count = (keys: readonly string[]): Record<string, number> => {
+    const counts: Record<string, number> = {};
+    for (const key of keys) counts[key] = (counts[key] ?? 0) + 1;
+    return counts;
+  };
   return {
     cost: { gets: gets.length, bytes: sum(served, (request) => request.bytes) },
     writes: served.length - gets.length,
     budget: await budget(),
+    refused: gets.filter((request) => request.status === 429).length,
+    repeated: Object.entries(count(gets.map(({ path, search }) => `${path}${search}`)))
+      .filter(([, times]) => times > 1)
+      .map(([url]) => url),
+    getsByPath: count(gets.map(({ path }) => path)),
   };
 }
 
@@ -481,6 +506,26 @@ async function replay(size: AccountSize) {
         (await sumOf(controls.queue, ({ showId }) => bytesOf(trakt, `/shows/${showId}?${ART}`))),
     }),
   );
+  const recentlyAired = new Set(
+    (
+      (await (
+        await trakt.peek(
+          `/calendars/my/shows/${recentCalendarStart(startDay)}/${RECENT_CALENDAR_WINDOW_DAYS}?${ART}`,
+        )
+      ).json()) as { first_aired: string; show: { ids: { trakt: number } } }[]
+    )
+      .filter((row) => Date.parse(row.first_aired) <= Date.now())
+      .map((row) => row.show.ids.trakt),
+  );
+  const rows = await watchedRows(trakt);
+  const pastBudget = {
+    at: Date.now(),
+    ...controls.upNext,
+    shows: (await backlogShowIds(trakt))
+      .slice(DEFAULT_TRAKT_POLICY.progressBudget)
+      .filter((id) => recentlyAired.has(id))
+      .flatMap((id) => rows.filter((row) => row.show.ids.trakt === id)),
+  };
   const saved: Saved = {
     kv: new Map(first.kv),
     cache: dehydrate(first.qc, createQueryCachePolicy(first.qc)),
@@ -533,7 +578,7 @@ async function replay(size: AccountSize) {
     unknown.push(...session.trakt.noRoute);
     act(() => session.root.unmount());
   }
-  return { results, unknown };
+  return { results, unknown, pastBudget };
 }
 
 describe.each([
@@ -552,6 +597,60 @@ describe.each([
     vi.useRealTimers();
     vi.unstubAllGlobals();
   });
+
+  // AUTHED_API_GET_LIMIT, which the fake enforces: https://developer.trakt.tv/docs/rate-limiting
+  it("is never refused by Trakt's rate limit", () => {
+    expect(Object.fromEntries(SCENARIOS.map((s) => [s, replayed.results[s].refused]))).toEqual(
+      Object.fromEntries(SCENARIOS.map((s) => [s, 0])),
+    );
+  });
+
+  it("fetches no URL twice in a scenario that writes nothing", () => {
+    const unwritten = SCENARIOS.filter((s) => replayed.results[s].writes === 0);
+    expect(Object.fromEntries(unwritten.map((s) => [s, replayed.results[s].repeated]))).toEqual(
+      Object.fromEntries(unwritten.map((s) => [s, []])),
+    );
+  });
+
+  // Unchanged activities invalidate nothing, so the persisted cache answers every screen. The
+  // four rails are the Search tab's own read on mount, until it loads them on first focus.
+  it("spends a warm launch on the activities poll and the Search tab's rails alone", () => {
+    expect(replayed.results["warm launch, cache fresh"].getsByPath).toEqual({
+      "/sync/last_activities": 1,
+      "/shows/trending": 1,
+      "/shows/popular": 1,
+      "/movies/trending": 1,
+      "/movies/popular": 1,
+    });
+  });
+
+  // Past the progress budget a show keeps Trakt's bulk counts and no next episode, whether or not
+  // an episode aired lately; only a caught-up show is placed from the calendar.
+  it.runIf(label === "heavy")(
+    "leaves a backlog show past the progress budget out of Up Next despite a recent airing, and counts its episodes left in Library",
+    () => {
+      const { at, entries, thresholdMs, shows } = replayed.pastBudget;
+      const { queue, lapsed } = groupUpNext(entries, at, thresholdMs);
+      const listed = new Set([...queue, ...lapsed].map(({ showId }) => showId));
+      const watching = new Map(
+        chipBuckets(entries, at, thresholdMs).watching.map((entry) => [entry.showId, entry]),
+      );
+      expect(shows.length).toBeGreaterThan(0);
+      expect(
+        shows.map(({ show }) => ({
+          show: show.ids.trakt,
+          upNext: listed.has(show.ids.trakt),
+          left: watching.get(show.ids.trakt)?.left,
+        })),
+      ).toEqual(
+        shows.map(({ show, plays }) => ({
+          show: show.ids.trakt,
+          upNext: false,
+          left: show.aired_episodes - plays,
+        })),
+      );
+    },
+  );
 
   it("requests only known endpoints and writes only what the user did", () => {
     expect(replayed.unknown).toEqual([]);
@@ -742,18 +841,69 @@ describe("what a cold sync reads from Trakt", () => {
     expect(settled).toBeGreaterThanOrEqual(readAttempts);
   });
 
-  it("keeps two screens' identical browse reads to one request each while they are in flight", async () => {
+  it("costs the four browse rails once when two screens ask while they are slow, and anew once they land", async () => {
     const trakt = createTraktFake();
     vi.stubGlobal("fetch", trakt.fetch);
     const rails = /^\/(shows|movies)\/(trending|popular)$/;
-    const inFlight = () => trakt.requests.filter((r) => rails.test(r.path)).length;
+    const sent = () => trakt.requests.filter((r) => rails.test(r.path)).length;
     const release = trakt.hold({ path: rails, times: Number.POSITIVE_INFINITY });
     const runtime = await buildRuntime();
     const both = Promise.all([runtime.loadBrowse(), runtime.loadBrowse()]);
-    await vi.waitFor(() => expect(inFlight()).toBe(4));
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    expect(inFlight()).toBe(4);
+    await vi.waitFor(() => expect(sent()).toBe(4));
     release();
     await both;
+    expect(sent()).toBe(4);
+    await runtime.loadBrowse();
+    expect(sent()).toBe(8);
+  });
+});
+
+describe("a season tree kept across launches", () => {
+  const SHOW = 100_000;
+
+  beforeAll(() => {
+    notifyManager.setScheduler(queueMicrotask);
+    vi.useFakeTimers({ now: NOW });
+  });
+
+  afterAll(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("is read again on a warm launch after another device writes the show's history", async () => {
+    const first = await boot(SMALL_LIBRARY);
+    await open(first, SHOW);
+    await settle(first);
+    const next = first.controls.tree
+      ?.filter((season) => !season.isSpecial)
+      .flatMap((season) => season.episodes)
+      .find((episode) => episode.aired && !episode.watched);
+    if (next === undefined) throw new Error("the show has no episode left to watch");
+    const saved: Saved = {
+      kv: new Map(first.kv),
+      cache: dehydrate(first.qc, createQueryCachePolicy(first.qc)),
+    };
+    act(() => first.root.unmount());
+    expect(saved.cache.queries.map(({ queryKey }) => queryKey)).toContainEqual(
+      queryKeys.showSeasons(SHOW),
+    );
+
+    const second = await boot(SMALL_LIBRARY, saved);
+    await second.trakt.fetch("https://api.trakt.tv/sync/history", {
+      method: "POST",
+      headers: { authorization: `Bearer ${second.trakt.session().access_token}` },
+      body: JSON.stringify({ episodes: [{ ids: { trakt: next.ids.trakt } }] }),
+    });
+    await open(second, SHOW);
+    await settle(second);
+    act(() => second.root.unmount());
+
+    const seasonReads = second.trakt.requests.filter((r) => r.path === `/shows/${SHOW}/seasons`);
+    const episode = second.controls.tree
+      ?.flatMap((season) => season.episodes)
+      .find(({ ids }) => ids.trakt === next.ids.trakt);
+    expect(seasonReads).toHaveLength(1);
+    expect(episode?.watched).toBe(true);
   });
 });
