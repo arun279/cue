@@ -1,10 +1,12 @@
 /**
- * Behavior scenarios, run the same way against real Trakt and against the fake.
- * Each one writes to the account and puts it back, and reports only what holds on
- * any account: statuses, content types, body shapes, write answer counts, which
- * activity stamps moved, how counts changed, orderings and page limits. No ids,
- * titles or times reach the transcript, so one recorded on a real account can be
- * committed.
+ * Behavior scenarios that write to an account and put it back, reporting only
+ * what holds on any account: statuses, content types, body shapes, write answer
+ * counts, which activity stamps moved, how counts changed, orderings and page
+ * limits. No ids, titles or times reach a transcript.
+ *
+ * conformance.test.ts runs them against the fake and compares the transcript with
+ * recordings.json. Those recordings were not all made by this code as it stands:
+ * README.md says, per scenario, how each one was recorded.
  */
 
 interface WireAnswer {
@@ -96,19 +98,12 @@ function pagination(answer: WireAnswer): Facts {
 
 class Recorder {
   readonly steps: Step[] = [];
+  readonly wire: Wire;
+  readonly controls: Controls;
 
-  constructor(
-    private readonly wire: Wire,
-    readonly controls: Controls,
-  ) {}
-
-  async call(
-    method: "GET" | "POST",
-    path: string,
-    body?: unknown,
-    token?: string | null,
-  ): Promise<WireAnswer> {
-    return this.wire(method, path, body, token);
+  constructor(wire: Wire, controls: Controls) {
+    this.wire = wire;
+    this.controls = controls;
   }
 
   async step(
@@ -135,10 +130,9 @@ interface Roles {
 const progressPath = (show: number): string =>
   `/shows/${show}/progress/watched?${ART}&hidden=false&specials=false&count_specials=false`;
 
-/** Two shows partway through, each with an aired episode still to watch, read from the account itself. */
 /** The show's next aired episode and its last watched one, when it has both and that one has a single play. */
 async function rolesOf(rec: Recorder, show: number, now: number) {
-  const progress = obj((await rec.call("GET", progressPath(show))).body);
+  const progress = obj((await rec.wire("GET", progressPath(show))).body);
   const next = obj(progress["next_episode"]);
   if (progress["last_episode"] === null || !(Date.parse(str(next["first_aired"])) <= now))
     return null;
@@ -148,9 +142,9 @@ async function rolesOf(rec: Recorder, show: number, now: number) {
 
 /** Two shows partway through, each with an aired episode still to watch, read from the account itself. */
 async function findRoles(rec: Recorder, now: number): Promise<Roles> {
-  const watched = list((await rec.call("GET", `/sync/watched/shows?${ART}&page=1&limit=25`)).body);
+  const watched = list((await rec.wire("GET", `/sync/watched/shows?${ART}&page=1&limit=25`)).body);
   const hidden = new Set(
-    list((await rec.call("GET", "/users/hidden/progress_watched?page=1&limit=100")).body).map(
+    list((await rec.wire("GET", "/users/hidden/progress_watched?page=1&limit=100")).body).map(
       (row) => traktId(obj(row)["show"]),
     ),
   );
@@ -176,14 +170,14 @@ const minuteOf = (iso: string): string =>
 
 async function plays(rec: Recorder, episode: number) {
   const rows = list(
-    (await rec.call("GET", `/sync/history/episodes/${episode}?extended=full&page=1&limit=30`)).body,
+    (await rec.wire("GET", `/sync/history/episodes/${episode}?extended=full&page=1&limit=30`)).body,
   );
   return rows.map((row) => ({ id: num(obj(row)["id"]), at: str(obj(row)["watched_at"]) }));
 }
 
 async function markAndUndo(rec: Recorder, roles: Roles, now: number): Promise<void> {
-  const before = (await rec.call("GET", "/sync/last_activities")).body;
-  const progress = obj((await rec.call("GET", progressPath(roles.show))).body);
+  const before = (await rec.wire("GET", "/sync/last_activities")).body;
+  const progress = obj((await rec.wire("GET", progressPath(roles.show))).body);
   const at = markTime(now);
   await rec.step(
     "POST /sync/history",
@@ -195,7 +189,7 @@ async function markAndUndo(rec: Recorder, roles: Roles, now: number): Promise<vo
       rateLimitHeader: answer.header("x-ratelimit") !== null,
     }),
   );
-  const afterMark = (await rec.call("GET", "/sync/last_activities")).body;
+  const afterMark = (await rec.wire("GET", "/sync/last_activities")).body;
   await rec.step(
     "GET /shows/:id/progress/watched",
     "GET",
@@ -234,7 +228,7 @@ async function markAndUndo(rec: Recorder, roles: Roles, now: number): Promise<vo
     { ids: [play] },
     (answer) => receipt(answer.body),
   );
-  const afterUndo = (await rec.call("GET", "/sync/last_activities")).body;
+  const afterUndo = (await rec.wire("GET", "/sync/last_activities")).body;
   await rec.step(
     "GET /shows/:id/progress/watched",
     "GET",
@@ -256,7 +250,7 @@ async function rewatch(
 ): Promise<void> {
   const original = await plays(rec, roles.last);
   if (original.length !== 1) throw new Error("the last watched episode needs exactly one play");
-  const progress = obj((await rec.call("GET", progressPath(roles.show))).body);
+  const progress = obj((await rec.wire("GET", progressPath(roles.show))).body);
   const at = markTime(now);
   await rec.step(
     "POST /sync/history",
@@ -318,7 +312,7 @@ async function tiedMarks(rec: Recorder, roles: Roles, now: number): Promise<void
     (answer) => receipt(answer.body),
   );
   const rows = list(
-    (await rec.call("GET", "/users/me/history/episodes?extended=full&page=1&limit=2")).body,
+    (await rec.wire("GET", "/users/me/history/episodes?extended=full&page=1&limit=2")).body,
   ).map(obj);
   const ours = rows.filter(
     (row) => str(row["watched_at"]) === minuteOf(at) && episodes.includes(traktId(row["episode"])),
@@ -372,11 +366,11 @@ async function listToggle(
 ): Promise<void> {
   const body = { shows: [{ ids: { trakt: show } }] };
   const contains = async (): Promise<boolean> =>
-    list((await rec.call("GET", listPath)).body).some((row) => traktId(obj(row)["show"]) === show);
-  const before = (await rec.call("GET", "/sync/last_activities")).body;
+    list((await rec.wire("GET", listPath)).body).some((row) => traktId(obj(row)["show"]) === show);
+  const before = (await rec.wire("GET", "/sync/last_activities")).body;
   await rec.step(`POST ${path}`, "POST", path, body, (answer) => receipt(answer.body));
   await rec.step(`POST ${path}`, "POST", path, body, (answer) => receipt(answer.body));
-  const after = (await rec.call("GET", "/sync/last_activities")).body;
+  const after = (await rec.wire("GET", "/sync/last_activities")).body;
   rec.steps.push({
     call: `GET ${listPath.split("?")[0]}`,
     status: 200,
@@ -398,7 +392,7 @@ async function listToggle(
 
 async function calendarShow(rec: Recorder, now: number): Promise<{ show: number; path: string }> {
   const path = `/calendars/my/shows/${new Date(now).toISOString().slice(0, 10)}/7?${ART}`;
-  const answer = await rec.call("GET", path);
+  const answer = await rec.wire("GET", path);
   return { show: traktId(obj(list(answer.body)[0])["show"]), path };
 }
 
@@ -547,7 +541,7 @@ const emptyPage = (answer: WireAnswer): Facts => ({
 });
 
 const idsOf = async (rec: Recorder, path: string, kind: "show" | "movie"): Promise<number[]> =>
-  list((await rec.call("GET", path)).body).map((row) => traktId(obj(row)[kind]));
+  list((await rec.wire("GET", path)).body).map((row) => traktId(obj(row)[kind]));
 
 /** A title in the collection with no plays: what a scenario can mark and put back. */
 async function unplayed(
@@ -563,7 +557,7 @@ async function unplayed(
 }
 
 const seasonsOf = async (rec: Recorder, show: number) =>
-  list((await rec.call("GET", `/shows/${show}/seasons?extended=episodes,full`)).body).map(obj);
+  list((await rec.wire("GET", `/shows/${show}/seasons?extended=episodes,full`)).body).map(obj);
 
 /** An unplayed show with specials and a first season that has fully aired. */
 async function unplayedShow(rec: Recorder, now: number) {
@@ -627,9 +621,9 @@ async function watchlist(rec: Recorder): Promise<void> {
       count = items;
       return { ...receipt(answer.body), shape: shapeOf(answer.body), itemCountDelta: delta };
     });
-  let before = (await rec.call("GET", "/sync/last_activities")).body;
+  let before = (await rec.wire("GET", "/sync/last_activities")).body;
   const activities = async (written: unknown) => {
-    const after = (await rec.call("GET", "/sync/last_activities")).body;
+    const after = (await rec.wire("GET", "/sync/last_activities")).body;
     rec.steps.push({
       call: "GET /sync/last_activities",
       status: 200,
@@ -786,7 +780,7 @@ const ONE_PLAY_SCENARIOS: Readonly<Record<string, Scenario>> = {
   dropped: async (rec, _roles, now) => {
     const airing = await calendarShow(rec, now);
     const onCalendar = async (): Promise<boolean> =>
-      list((await rec.call("GET", airing.path)).body).some(
+      list((await rec.wire("GET", airing.path)).body).some(
         (row) => traktId(obj(row)["show"]) === airing.show,
       );
     await listToggle(
