@@ -55,14 +55,10 @@ const missing = <T extends Item>(
   found: (entry: T) => unknown,
 ): T[] => (entries ?? []).filter((entry) => found(entry) === undefined);
 
-/** A stamp later than every activity so far, so each write reads as new to an activity diff. */
-function activityTime(account: Account, clock: number): number {
-  const { untracked: _, ...moving } = account.activities;
-  return Math.max(clock, ...Object.values(moving).map((stamp) => stamp + 1));
-}
+/** Trakt stamps activity to the second, at the time of the write. */
+const activityTime = (clock: number): number => Math.floor(clock / 1000) * 1000;
 
 const toMinute = (ms: number): number => Math.floor(ms / 60_000) * 60_000;
-const toSecond = (ms: number): number => Math.floor(ms / 1000) * 1000;
 
 /**
  * Each play's own `watched_at`, the nearest one sent for it (an episode's, then its
@@ -264,13 +260,13 @@ export function applyHistoryWrite(
   remove: boolean,
   clock: number,
 ) {
-  const now = activityTime(account, clock);
+  const now = activityTime(clock);
   const zero = (): Counts => ({ movies: 0, episodes: 0 });
   const tally: Tally = { added: zero(), updated: zero(), deleted: zero() };
   const shows = account.shows.filter((show) =>
     applyShowWrite(account, show, body, remove, now, tally),
   );
-  if (shows.length > 0) account.activities.episodes = activityTime(account, clock);
+  if (shows.length > 0) account.activities.episodes = activityTime(clock);
   const movies = account.movies.filter(
     (movie) =>
       movieTargeted(movie, body) &&
@@ -278,7 +274,7 @@ export function applyHistoryWrite(
         ? removeMoviePlays(account, movie, body, tally)
         : addMoviePlay(account, movie, stampOf([sentFor(movie, body)], now), tally)),
   );
-  if (movies.length > 0) account.activities.movies = activityTime(account, clock);
+  if (movies.length > 0) account.activities.movies = activityTime(clock);
   return {
     ...(remove ? { deleted: tally.deleted } : { added: tally.added, updated: tally.updated }),
     not_found: historyNotFound(account, body),
@@ -330,7 +326,7 @@ export function applyWatchlistWrite(
   const changed = <T extends { inWatchlist: boolean }>(items: readonly T[]) =>
     items.filter((it) => it.inWatchlist === remove);
   const moved = { shows: changed(shows), movies: changed(movies) };
-  const at = toSecond(activityTime(account, clock));
+  const at = activityTime(clock);
   for (const listed of [...moved.shows, ...moved.movies]) listed.inWatchlist = !remove;
   if (moved.shows.length > 0) account.activities.showsWatchlist = at;
   if (moved.movies.length > 0) account.activities.moviesWatchlist = at;
@@ -382,7 +378,7 @@ export function applyHiddenWrite(
 ) {
   const matched = (body.shows ?? []).flatMap((entry) => showOf(account, entry) ?? []);
   for (const show of matched) show.hidden = !remove;
-  if (matched.length > 0) account.activities.showsHidden = activityTime(account, clock);
+  if (matched.length > 0) account.activities.showsHidden = activityTime(clock);
   return hiddenReceipt(account, body, matched.length, remove);
 }
 
@@ -394,7 +390,7 @@ export function applyDroppedWrite(
   clock: number,
 ) {
   const matched = (body.shows ?? []).flatMap((entry) => showOf(account, entry) ?? []);
-  const at = activityTime(account, clock);
+  const at = activityTime(clock);
   account.dropped = account.dropped.filter(({ show }) => !matched.includes(show));
   if (!remove) account.dropped.push(...matched.map((show) => ({ show, at })));
   if (matched.length > 0) account.activities.dropped = at;
