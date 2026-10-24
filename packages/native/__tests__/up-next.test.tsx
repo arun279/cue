@@ -490,6 +490,15 @@ describe("Up Next's sections", () => {
     expect(screen.getByRole("button", { name: "Calendar" })).toBeOnTheScreen();
   });
 
+  it("leaves a show the library has as stopped out of what is coming", async () => {
+    await paint({
+      entries: [entry(), entry({ showId: 8803, hidden: true })],
+      calendar: [airing()],
+    });
+
+    expect(screen.queryByTestId("on-the-way-list")).toBeNull();
+  });
+
   it("says nothing about what is coming when nothing is", async () => {
     await paint();
 

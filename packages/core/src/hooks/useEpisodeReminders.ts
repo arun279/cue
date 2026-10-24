@@ -10,6 +10,7 @@ import { usePrefs } from "../prefs/prefs-store";
 import { calendarQuery } from "../queries/calendar";
 import { useRuntime } from "../runtime/runtime";
 import { useCoarseClock } from "./useCoarseClock";
+import { useHiddenShowIds } from "./useHiddenShowIds";
 import { useLibrarySnapshot } from "./useLibrarySnapshot";
 
 export function useEpisodeReminders(): void {
@@ -23,12 +24,19 @@ export function useEpisodeReminders(): void {
   const startDate = dayKeyOf(timeZone, now);
   const calendar = useQuery({ ...calendarQuery(runtime, startDate), enabled });
   const library = useLibrarySnapshot(enabled);
+  const hiddenShowIds = useHiddenShowIds(enabled);
   const days = useMemo(
     () =>
       calendar.data === undefined
         ? undefined
-        : buildCalendarDays(calendar.data, now, timeZone, startDate, CALENDAR_WINDOW_DAYS),
-    [calendar.data, now, timeZone, startDate],
+        : buildCalendarDays(
+            { entries: calendar.data.entries, hiddenShowIds },
+            now,
+            timeZone,
+            startDate,
+            CALENDAR_WINDOW_DAYS,
+          ),
+    [calendar.data, hiddenShowIds, now, timeZone, startDate],
   );
   const shows = library.data?.entries;
   const { thresholdMs } = library;

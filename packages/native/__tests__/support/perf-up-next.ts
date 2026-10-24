@@ -36,7 +36,7 @@ export const cardOf = (pendingAdvance: boolean): UpNextCard => ({
  * measurement is of the screen rather than of a network that is not there. */
 export function seedCalendars(client: QueryClient, cue: CueRuntime): void {
   const today = dayKeyOf(localTimeZone(), Date.now());
-  const empty = { entries: [], hiddenShowIds: [] };
+  const empty = { entries: [] };
   client.setQueryData(calendarQuery(cue, today).queryKey, empty);
   client.setQueryData(recentlyAiredQuery(cue, recentCalendarStart(today)).queryKey, empty);
 }

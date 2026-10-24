@@ -1,7 +1,6 @@
 export const queryKeys = {
   watchlist: (type: "shows" | "movies") => ["watchlist", type] as const,
   calendar: (startDate: string, days: number) => ["calendar", "my-shows", startDate, days] as const,
-  calendarPrefix: () => ["calendar", "my-shows"] as const,
   search: (query: string, types: string) => ["search", types, query] as const,
   browse: () => ["discover", "shows-movies"] as const,
   genres: () => ["genres"] as const,

@@ -53,7 +53,14 @@ function Probe({
   const startDate = dayKeyOf(timeZone, now);
   const query = useQuery({
     ...calendarQuery(runtime, startDate),
-    select: (data) => buildCalendarDays(data, now, timeZone, startDate, windowDays),
+    select: ({ entries }) =>
+      buildCalendarDays(
+        { entries, hiddenShowIds: new Set() },
+        now,
+        timeZone,
+        startDate,
+        windowDays,
+      ),
   });
   onDays(query.data?.length ?? 0);
   return null;
@@ -77,7 +84,7 @@ async function mount(node: ReactElement): Promise<void> {
 describe("calendarQuery consumers", () => {
   it("keys one full-window query for every caller and slices narrower views", async () => {
     const loadCalendar = vi.fn((_start: string, _days: number) =>
-      Promise.resolve({ entries: entriesAt(1, 10), hiddenShowIds: [] }),
+      Promise.resolve({ entries: entriesAt(1, 10) }),
     );
     const runtime = { loadCalendar } as unknown as CueRuntime;
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });

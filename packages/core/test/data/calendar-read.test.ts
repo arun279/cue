@@ -1,4 +1,4 @@
-import { selectVisibleEntries } from "@cue/core/domain/calendar";
+import { hiddenShowIdsOf, selectVisibleEntries } from "@cue/core/domain/calendar";
 import { expect, it } from "vitest";
 import { startTraktFake } from "../trakt-fake/in-process.ts";
 import { buildRuntime } from "./_runtime";
@@ -16,14 +16,21 @@ const call = (method: string, path: string, body?: unknown) =>
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
 
-it("leaves a dropped show off the calendar, which Trakt keeps listing it on", async () => {
+it("leaves a show dropped in the library off the calendar, which Trakt keeps listing it on", async () => {
   await call("POST", "/users/hidden/dropped", { shows: [{ ids: { trakt: AIRING } }] });
   const listed = (await (await call("GET", `/calendars/my/shows/${WINDOW.join("/")}`)).json()) as {
     show: { ids: { trakt: number } };
   }[];
   const runtime = await buildRuntime();
 
-  const visible = selectVisibleEntries(await runtime.loadCalendar(...WINDOW));
+  const [{ entries }, library] = await Promise.all([
+    runtime.loadCalendar(...WINDOW),
+    runtime.loadUpNext(),
+  ]);
+  const visible = selectVisibleEntries({
+    entries,
+    hiddenShowIds: hiddenShowIdsOf(library.entries),
+  });
 
   expect(listed.map((row) => row.show.ids.trakt)).toContain(AIRING);
   expect(visible.length).toBeGreaterThan(0);

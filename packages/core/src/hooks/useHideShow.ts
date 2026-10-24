@@ -31,7 +31,6 @@ export function useHideShow(): HideController {
     (showId: number) => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.library() });
       void queryClient.invalidateQueries({ queryKey: queryKeys.showProgress(showId) });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.calendarPrefix() });
     },
     [queryClient],
   );

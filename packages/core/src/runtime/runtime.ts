@@ -29,7 +29,6 @@ export interface BrowseData {
 
 export interface CalendarData {
   readonly entries: readonly CalendarEntry[];
-  readonly hiddenShowIds: readonly number[];
 }
 
 export type HistorySection = "all" | "episodes" | "movies";

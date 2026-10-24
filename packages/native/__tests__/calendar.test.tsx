@@ -228,6 +228,17 @@ describe("Calendar", () => {
     ]);
   });
 
+  it("leaves off a show the library has as stopped or dropped", async () => {
+    await paint({
+      calendar: [TONIGHT, LATER],
+      library: [entry({ showId: TONIGHT.showId }), entry({ showId: LATER.showId, hidden: true })],
+    });
+
+    expect(screen.getAllByTestId(/^calendar-row-/).map((row) => row.props["testID"])).toEqual([
+      "calendar-row-88608",
+    ]);
+  });
+
   it("keeps its plates up until the library says which shows you have played", async () => {
     const library = held<{ readonly entries: readonly LibraryEntry[] }>();
     const premiere = airing({ showId: 8807, season: 3, number: 1, ids: { trakt: 88_731 } });
@@ -251,7 +262,7 @@ describe("Calendar", () => {
   });
 
   it("reads nothing at all while TV shows are turned off", async () => {
-    const loadCalendar = jest.fn(() => Promise.resolve({ entries: [], hiddenShowIds: [] }));
+    const loadCalendar = jest.fn(() => Promise.resolve({ entries: [] }));
     await paint({
       runtime: { ...fakeRuntime({}), loadCalendar },
       preferences: showsTurnedOff(),

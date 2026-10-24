@@ -12,6 +12,7 @@ import {
 } from "@cue/core/domain/up-next";
 import { useCalendarFocus } from "@cue/core/hooks/useCalendarFocus";
 import { useCoarseClock } from "@cue/core/hooks/useCoarseClock";
+import { useHiddenShowIds } from "@cue/core/hooks/useHiddenShowIds";
 import { useHideShow } from "@cue/core/hooks/useHideShow";
 import { useLibrarySnapshot } from "@cue/core/hooks/useLibrarySnapshot";
 import { type MarkWatched, useMarkWatched } from "@cue/core/hooks/useMarkWatched";
@@ -142,12 +143,20 @@ export default function UpNext(): ReactElement {
   const calendarStart = dayKeyOf(timeZone, calendarClock);
   const calendar = useQuery({ ...calendarQuery(runtime, calendarStart), enabled: showsEnabled });
   const played = useCalendarFocus(showsEnabled).playedShowIds;
+  const hiddenShowIds = useHiddenShowIds(showsEnabled);
   const calendarDays = useMemo(
     () =>
       calendar.data === undefined
         ? []
-        : buildCalendarDays(calendar.data, calendarClock, timeZone, calendarStart, 7, played),
-    [calendar.data, calendarClock, timeZone, calendarStart, played],
+        : buildCalendarDays(
+            { entries: calendar.data.entries, hiddenShowIds },
+            calendarClock,
+            timeZone,
+            calendarStart,
+            7,
+            played,
+          ),
+    [calendar.data, hiddenShowIds, calendarClock, timeZone, calendarStart, played],
   );
   const onTheWayClock = useCoarseClock(HOUR_MS);
   const onTheWayDays = useMemo(

@@ -1,7 +1,7 @@
 import { type UseQueryResult, useQueries, useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { firstUnwatchedAired, type SeasonView, toEpisodeRef } from "../data/trakt/show-detail";
-import { recentCalendarStart, selectVisibleEntries } from "../domain/calendar";
+import { hiddenShowIdsOf, recentCalendarStart, selectVisibleEntries } from "../domain/calendar";
 import { dayKeyOf } from "../domain/day";
 import { needsNextEpisode, reconcileRecentlyAired } from "../domain/recently-aired";
 import { DAY_MS, localTimeZone } from "../domain/time";
@@ -36,8 +36,14 @@ export function useLibrarySnapshot(enabled = true): LibrarySnapshot {
   const recentStart = recentCalendarStart(dayKeyOf(localTimeZone(), now));
   const recentQuery = useQuery({ ...recentlyAiredQuery(runtime, recentStart), enabled });
   const recent = useMemo(
-    () => (recentQuery.data === undefined ? undefined : selectVisibleEntries(recentQuery.data)),
-    [recentQuery.data],
+    () =>
+      recentQuery.data === undefined || query.data === undefined
+        ? undefined
+        : selectVisibleEntries({
+            entries: recentQuery.data.entries,
+            hiddenShowIds: hiddenShowIdsOf(query.data.entries),
+          }),
+    [recentQuery.data, query.data],
   );
   const reconciled = useMemo(() => {
     const now = Date.now();

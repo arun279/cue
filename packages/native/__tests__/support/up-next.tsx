@@ -128,7 +128,7 @@ export function fakeRuntime({
     search: search ?? (() => Promise.resolve([])),
     loadBrowse: () => Promise.resolve({ ...NO_BROWSE, ...browse }),
     loadGenreNames: () => Promise.resolve({}),
-    loadCalendar: () => Promise.resolve({ entries: calendar, hiddenShowIds: [] }),
+    loadCalendar: () => Promise.resolve({ entries: calendar }),
     loadShowSeasons: () => Promise.resolve([]),
     loadShowInfo: () => Promise.resolve({ posters: [], backdrops: [] }),
     submit: async (op: QueuedOp) => {
