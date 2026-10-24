@@ -600,43 +600,10 @@ const MOVIES: readonly MovieSpec[] = [
 const SHELF_SIZE = { shows: 300, movies: 150 };
 const ANNOUNCED_EVERY = 25;
 const WORDS = [
-  [
-    "Amber",
-    "Copper",
-    "Distant",
-    "Fallow",
-    "Granite",
-    "Hidden",
-    "Iron",
-    "Juniper",
-    "Kestrel",
-    "Linen",
-  ],
-  [
-    "Orchard",
-    "Parish",
-    "Quarry",
-    "Ridge",
-    "Summit",
-    "Thicket",
-    "Valley",
-    "Willow",
-    "Yard",
-    "Meadow",
-  ],
-  [
-    "Accord",
-    "Bargain",
-    "Census",
-    "Drift",
-    "Errand",
-    "Fable",
-    "Gambit",
-    "Harvest",
-    "Inquest",
-    "Jubilee",
-  ],
-];
+  "Amber Copper Distant Fallow Granite Hidden Iron Juniper Kestrel Linen",
+  "Orchard Parish Quarry Ridge Summit Thicket Valley Willow Yard Meadow",
+  "Accord Bargain Census Drift Errand Fable Gambit Harvest Inquest Jubilee",
+].map((words) => words.split(" "));
 
 const shelfTitle = (index: number): string =>
   [index % 10, Math.floor(index / 10) % 10, Math.floor(index / 100) % 10]
