@@ -19,8 +19,8 @@
       "!**/node_modules",
       "!**/dist",
       "!**/coverage",
-      // Recorded and reduced from a real Trakt account by a script; kept minified.
-      "!packages/core/test/harness/trakt-real-shapes.json"
+      // Recorded and reduced from real Trakt; kept minified.
+      "!packages/core/test/trakt-fake/recordings.json"
     ]
   },
   "formatter": {

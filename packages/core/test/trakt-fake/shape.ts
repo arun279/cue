@@ -1,6 +1,6 @@
 import { decode } from "@cue/core/data/trakt/decode";
 import type { z } from "zod";
-import realShapes from "./trakt-real-shapes.json";
+import recordings from "./recordings.json" with { type: "json" };
 
 export interface PathShape {
   readonly types: readonly string[];
@@ -17,7 +17,7 @@ export interface EndpointShape {
   readonly paths: Readonly<Record<string, PathShape>>;
 }
 
-export const REAL = realShapes as unknown as Readonly<Record<string, EndpointShape>>;
+export const REAL = recordings.shapes as unknown as Readonly<Record<string, EndpointShape>>;
 
 const STRING_CLASSES: readonly [string, (value: string) => boolean][] = [
   ["empty", (value) => value === ""],

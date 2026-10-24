@@ -3,7 +3,9 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
-    "types": ["node", "vitest/globals"]
+    "types": ["node", "vitest/globals"],
+    // test/trakt-fake also runs under plain node with type stripping, which needs the extension.
+    "allowImportingTsExtensions": true
   },
   "include": ["src", "test"],
   "exclude": ["node_modules", "coverage"]
