@@ -1,4 +1,4 @@
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -7,13 +7,6 @@ import { gitHistory } from "../support/git-history";
 import { repositoryPath } from "../support/repository-path";
 
 const SCRIPT = repositoryPath("scripts/diff-footprint.sh");
-const SIZE_NAMES = [
-  "expo iOS bundle",
-  "expo Android bundle",
-  "Firebase tester APK file",
-  "Play download estimate",
-];
-
 const write = (repository: string, file: string, contents: string): void => {
   const target = path.join(repository, file);
   mkdirSync(path.dirname(target), { recursive: true });
@@ -46,16 +39,13 @@ const repositoryWithGrowth = (): string =>
     },
   );
 
-const rationale =
-  "Product-Growth: New route and module.\nComment-Load: Required context.\nBinary-Size: Required asset.";
-
 describe("diff footprint", () => {
   it("shows product, test, tooling and comment growth", () => {
     const repository = repositoryWithGrowth();
     const output = execFileSync(SCRIPT, ["HEAD~1"], {
       cwd: repository,
       encoding: "utf8",
-      env: { ...gitEnv(), PR_BODY: rationale },
+      env: gitEnv(),
     });
 
     expect(output.split("\n")[0]).toBe("<!-- diff-footprint -->");
@@ -71,149 +61,17 @@ describe("diff footprint", () => {
     expect(output).not.toContain("blank");
   });
 
-  it.each([
-    ["Product-Growth: ", "Product code grew"],
-    ["Product-Growth: New route.\nComment-Load: ", "Product comments grew"],
-  ])("requires a non-empty growth rationale", (body, error) => {
-    const result = spawnSync(SCRIPT, ["HEAD~1"], {
-      cwd: repositoryWithGrowth(),
-      encoding: "utf8",
-      env: { ...gitEnv(), PR_BODY: body },
-    });
-
-    expect(result.status).toBe(1);
-    expect(result.stderr).toContain(error);
-  });
-
-  it("asks for a rationale only when product code or comments grow", () => {
-    const repository = commits(
-      { "packages/core/src/kept.ts": "export const kept = true;\n" },
-      {
-        "test/ci/added.test.ts": "// reason\nadded\n",
-        "scripts/added.sh": "# reason\necho added\n",
-      },
-    );
-
-    const result = spawnSync(SCRIPT, ["HEAD~1"], {
-      cwd: repository,
-      encoding: "utf8",
-      env: { ...gitEnv(), PR_BODY: "" },
-    });
-
-    expect(result.status).toBe(0);
-    expect(result.stdout).toContain(
-      "| Product code lines in core/src, native/src, native/app, and native/modules | +0 |",
-    );
-    expect(result.stdout).toContain(
-      "| Product comment lines identified by a comment prefix | +0 |",
-    );
-  });
-
-  it.each([
-    ["", ["Product-Growth", "Comment-Load", "Binary-Size"], 1],
-    ["Product-Growth: Required feature.", ["Comment-Load", "Binary-Size"], 1],
-    ["Comment-Load: Required context.", ["Product-Growth", "Binary-Size"], 1],
-    ["Binary-Size: Required asset.", ["Product-Growth", "Comment-Load"], 1],
-    [rationale, [], 0],
-  ])("reports every missing note together for body %s", (body, missing, status) => {
+  it("reports the head's JavaScript bundle sizes from an Expo export", () => {
     const repository = repositoryWithGrowth();
-    const sizes = (size: number) => ({
-      sizes: SIZE_NAMES.map((name) => ({ name, size })),
-      complexity: { cyclomatic: 10, cognitive: 15 },
-    });
-    write(repository, "base.json", JSON.stringify(sizes(1000)));
-    write(repository, "head.json", JSON.stringify(sizes(1001)));
-    const result = spawnSync(SCRIPT, ["HEAD~1", "base.json", "head.json"], {
+    write(repository, "dist/_expo/static/js/ios/entry-1.hbc", "x".repeat(4000));
+    write(repository, "dist/_expo/static/js/android/entry-2.hbc", "x".repeat(5000));
+
+    const output = execFileSync(SCRIPT, ["HEAD~1", path.join(repository, "dist")], {
       cwd: repository,
       encoding: "utf8",
-      env: { ...gitEnv(), PR_BODY: body },
+      env: gitEnv(),
     });
 
-    expect(result.status).toBe(status);
-    for (const marker of ["Product-Growth", "Comment-Load", "Binary-Size"]) {
-      expect(result.stderr.includes(`Add "${marker}: <rationale>" to the PR body.`)).toBe(
-        missing.includes(marker),
-      );
-    }
-  });
-
-  it("shows the four delivered artifact measurements", () => {
-    const repository = repositoryWithGrowth();
-    const sizes = [
-      { name: "expo iOS bundle", size: 4_000_000 },
-      { name: "expo Android bundle", size: 4_200_000 },
-      { name: "Firebase tester APK file", size: 34_000_000 },
-      { name: "Play download estimate", size: 17_000_000 },
-    ];
-    write(repository, "base.json", JSON.stringify({ sizes }));
-    write(
-      repository,
-      "head.json",
-      JSON.stringify({
-        sizes: sizes.map((entry, index) => ({
-          ...entry,
-          size: entry.size + (index === 0 ? 1_000 : 0),
-        })),
-        complexity: { cyclomatic: 10, cognitive: 15 },
-      }),
-    );
-
-    const output = execFileSync(SCRIPT, ["HEAD~1", "base.json", "head.json"], {
-      cwd: repository,
-      encoding: "utf8",
-      env: { ...gitEnv(), PR_BODY: rationale },
-    });
-
-    expect(output).toContain(
-      "| Expo iOS JavaScript bundle, raw file | 4.00 MB | 4.00 MB | +1.0 kB |",
-    );
-    expect(output).toContain(
-      "| Firebase tester APK, arm64-v8a and all densities | 34.00 MB | 34.00 MB | 0 B |",
-    );
-    expect(output).not.toContain("simulator");
-    expect(output).not.toContain("density");
-  });
-
-  it.each([
-    [{ cyclomatic: 16, cognitive: 14 }, "16", "14"],
-    [undefined, "missing", "missing"],
-  ])("shows the most complex product function from base %j and head", (base, cyclomatic, cognitive) => {
-    const repository = repositoryWithGrowth();
-    const sizes = SIZE_NAMES.map((name) => ({ name, size: 1000 }));
-    write(repository, "base.json", JSON.stringify({ sizes, complexity: base }));
-    write(
-      repository,
-      "head.json",
-      JSON.stringify({ sizes, complexity: { cyclomatic: 10, cognitive: 15 } }),
-    );
-
-    const output = execFileSync(SCRIPT, ["HEAD~1", "base.json", "head.json"], {
-      cwd: repository,
-      encoding: "utf8",
-      env: { ...gitEnv(), PR_BODY: rationale },
-    });
-
-    expect(output).toContain(
-      `| Cyclomatic complexity, oxlint \`complexity\` | ${cyclomatic} | 10 |`,
-    );
-    expect(output).toContain(
-      `| Cognitive complexity, Biome \`noExcessiveCognitiveComplexity\` | ${cognitive} | 15 |`,
-    );
-  });
-
-  it("fails without a head complexity measurement", () => {
-    const repository = repositoryWithGrowth();
-    const sizes = SIZE_NAMES.map((name) => ({ name, size: 1000 }));
-    write(repository, "base.json", JSON.stringify({ sizes }));
-    write(repository, "head.json", JSON.stringify({ sizes }));
-
-    const result = spawnSync(SCRIPT, ["HEAD~1", "base.json", "head.json"], {
-      cwd: repository,
-      encoding: "utf8",
-      env: { ...gitEnv(), PR_BODY: rationale },
-    });
-
-    expect(result.status).not.toBe(0);
-    expect(result.stderr).toContain("cyclomatic complexity: missing head measurement");
+    expect(output).toContain("| Expo ios bundle | 4 kB |\n| Expo android bundle | 5 kB |");
   });
 });

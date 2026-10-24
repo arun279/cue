@@ -15,36 +15,7 @@ const MOBILE_RELEASE_WORKFLOW = path.join(REPOSITORY_ROOT, ".github/workflows/mo
 const REQUIRED_CHECKS = path.join(REPOSITORY_ROOT, ".github/required-checks.json");
 const TRAKT_CLIENT_ID_VARIABLE = "$" + "{{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}";
 // `footprint` skips itself on forks, and the gate reads a skip as a failure.
-// The light matrices report through the required `native-e2e` and `android-e2e` aggregates.
-// Pull request media is for reading screens, not a check. The merge-base
-// measurement runs only on pull requests and reports through `footprint`.
-// The iOS lanes fail without the Maestro runner build's artifact.
-const NOT_REQUIRED = [
-  "fingerprint",
-  "footprint-base",
-  "footprint",
-  "native-e2e-ios-light",
-  "android-e2e-light",
-  "pr-media",
-  "maestro-runner",
-];
-// The gate reads the push run, where the iOS flow lane always runs.
-const IOS_LANE = [
-  "    if: >-",
-  "      !cancelled() && needs.fingerprint.outputs.devices == 'true' &&",
-  "      (needs.native-ios.result == 'success' || needs.native-ios.result == 'skipped') &&",
-  "      needs.maestro-runner.result == 'success' &&",
-  "      (github.event_name != 'pull_request' || needs.fingerprint.outputs.ios-cached != 'true' ||",
-  "      needs.fingerprint.outputs.ios-owed == 'true' || needs.fingerprint.outputs.user-facing == 'true')",
-].join("\n");
-// True on every push run, which is the run the release gate reads.
-const DEVICES =
-  "github.event_name != 'pull_request' || !github.event.pull_request.draft && " +
-  "steps.head-tree.outputs.pushed != 'true'";
-const DEVICE_LANE = "    if: needs.fingerprint.outputs.devices == 'true'";
-// The cache check runs only on pull requests, so every push run builds or re-embeds.
-const NATIVE_IOS =
-  "    if: needs.fingerprint.outputs.devices == 'true' && needs.fingerprint.outputs.ios-cached != 'true'";
+const NOT_REQUIRED = ["footprint"];
 
 const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((entry) => typeof entry === "string");
@@ -146,30 +117,16 @@ describe("the iOS toolchain pin", () => {
     // ships, and the pin is deliberate: the runner image's default Xcode moves
     // on its own.
     const release = selectedXcode(MOBILE_RELEASE_WORKFLOW);
-    const ci = [
-      ...selectedXcode(CI_WORKFLOW),
-      ...selectedXcode(path.join(REPOSITORY_ROOT, ".github/actions/boot-ios-simulator/action.yml")),
-    ];
+    const ci = selectedXcode(CI_WORKFLOW);
 
     expect(release).toHaveLength(1);
     expect(ci.length).toBeGreaterThan(0);
     expect([...new Set(ci)]).toEqual(release);
   });
-
-  it("builds only the pull request head simulator app", () => {
-    const nativeIos = readWorkflowJobs(CI_WORKFLOW).find(({ name }) => name === "native-ios");
-
-    expect(nativeIos).toBeDefined();
-    expect(nativeIos?.body.match(/xcodebuild/g)).toHaveLength(1);
-    expect(nativeIos?.body).toContain(
-      "name: cue-native-ios-$" + "{{ needs.fingerprint.outputs.ios }}",
-    );
-  });
 });
 
 describe("native bundle environment", () => {
   it.each([
-    [CI_WORKFLOW, "native-android", "Build release artifacts", "ci"],
     [MOBILE_RELEASE_WORKFLOW, "android", "Build", TRAKT_CLIENT_ID_VARIABLE],
     [MOBILE_RELEASE_WORKFLOW, "ios", "Build", TRAKT_CLIENT_ID_VARIABLE],
   ])("embeds the Trakt client id in %s's %s bundle", (workflow, job, step, value) => {
@@ -210,29 +167,11 @@ describe("mobile release gate required checks", () => {
 
   it("uses only modeled workflow check-run names", () => {
     const requiredChecks = new Set(readRequiredChecks());
-    const fingerprint = readCiJobs().find((job) => job.name === "fingerprint");
-
-    expect(fingerprint?.body).toContain(`      devices: $` + `{{ ${DEVICES} }}\n`);
-    expect(readCiJobs().find((job) => job.name === "ui-screenshots-ios-dark")?.body).toContain(
-      `${IOS_LANE}\n`,
-    );
     const unsupportedOverrides = [
       ...readCiJobs()
         .filter((job) => requiredChecks.has(job.name))
         .flatMap((job) =>
-          job.body
-            .split(/\r?\n/)
-            .filter(
-              (line) =>
-                /^ {4}(?:name|strategy|if):/.test(line) &&
-                (!["check", "render-performance", "audit", "actionlint"].includes(job.name) ||
-                  line !== "    if: $" + "{{ !inputs.copy }}") &&
-                (!["native-e2e", "android-e2e"].includes(job.name) ||
-                  line !== "    if: $" + "{{ always() }}") &&
-                (job.name !== "ui-screenshots-ios-dark" || line !== IOS_LANE.split("\n")[0]) &&
-                (job.name !== "native-ios" || line !== NATIVE_IOS) &&
-                line !== DEVICE_LANE,
-            ),
+          job.body.split(/\r?\n/).filter((line) => /^ {4}(?:name|strategy|if):/.test(line)),
         ),
       ...readWorkflowJobs(CODEQL_WORKFLOW).flatMap((job) =>
         job.body.split(/\r?\n/).filter((line) => /^ {4}if:/.test(line)),

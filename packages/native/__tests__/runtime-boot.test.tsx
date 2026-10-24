@@ -60,17 +60,14 @@ async function launch(kv: KeyValueStore): Promise<void> {
   );
 }
 
-let fetches: jest.SpiedFunction<typeof fetch>;
 let logged: jest.SpiedFunction<typeof console.error>;
 
 beforeEach(() => {
   jest.clearAllMocks();
-  fetches = jest.spyOn(globalThis, "fetch").mockRejectedValue(new Error("no probe"));
   logged = jest.spyOn(console, "error").mockImplementation(() => {});
 });
 
 afterEach(() => {
-  fetches.mockRestore();
   logged.mockRestore();
   useStartFailure.setState({ failure: null });
 });
@@ -123,17 +120,13 @@ it("lets the splash go onto a retry that clears the system bars, and again once 
   expect(hide).toHaveBeenCalledTimes(2);
 });
 
-it("shows, logs and reports the error a failed start hit, and keeps it for Diagnostics", async () => {
+it("shows the failure, logs the error a failed start hit, and keeps it for Diagnostics", async () => {
   const store = deviceStore({ [TOKEN_KEY]: TOKEN });
   store.read.mockRejectedValueOnce(new Error("database is locked"));
   await launch(store.kv);
 
-  expect(await screen.findByText("Error: database is locked")).toBeOnTheScreen();
+  expect(await screen.findByText("Couldn't start Cue")).toBeOnTheScreen();
   expect(logged).toHaveBeenCalledWith("Couldn't start Cue: Error: database is locked");
-  expect(fetches).toHaveBeenCalledWith(
-    `http://127.0.0.1:8790/next?reply=${encodeURIComponent("boot failed: Error: database is locked")}`,
-    { credentials: "omit" },
-  );
   expect(useStartFailure.getState().failure).toEqual({
     at: expect.any(Number),
     detail: "Error: database is locked",

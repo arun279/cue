@@ -109,7 +109,6 @@ export default function Settings(): ReactElement {
         <Toggle
           title="Haptics"
           hint="A short buzz when you mark something watched or take it back."
-          testID={TEST_IDS.settingsHaptics}
           value={prefs.hapticsEnabled}
           onChange={prefs.setHapticsEnabled}
         />
@@ -118,7 +117,6 @@ export default function Settings(): ReactElement {
         <Toggle
           title="Hide episode stills until watched"
           hint="Keeps unwatched episode images spoiler-safe until you reveal them."
-          testID={TEST_IDS.settingsSpoilers}
           value={prefs.hideStillsUntilWatched}
           onChange={prefs.setHideStillsUntilWatched}
         />
@@ -148,14 +146,12 @@ export default function Settings(): ReactElement {
       <Section title="Content">
         <Toggle
           title="TV shows"
-          testID={TEST_IDS.settingsShows}
           value={prefs.showsEnabled}
           onChange={prefs.setShowsEnabled}
           disabled={!prefs.moviesEnabled}
         />
         <Toggle
           title="Movies"
-          testID={TEST_IDS.settingsMovies}
           value={prefs.moviesEnabled}
           onChange={prefs.setMoviesEnabled}
           disabled={!prefs.showsEnabled}

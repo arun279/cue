@@ -2,7 +2,6 @@ import { readsPausedUntil } from "@cue/core/data/trakt/read-budget";
 import { useSyncNow } from "@cue/core/hooks/useSyncNow";
 import { useHaptics } from "@cue/core/ports/haptics";
 import { useCallback } from "react";
-import { trackSync } from "../ui/harness";
 
 export interface PullToRefresh {
   readonly refreshing: boolean;
@@ -18,7 +17,7 @@ export function usePullToRefresh(): PullToRefresh {
       haptics.warning();
       return;
     }
-    void trackSync(run);
+    void run();
   }, [haptics, run]);
 
   return { refreshing: syncing, pull };

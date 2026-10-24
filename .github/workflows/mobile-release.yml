@@ -115,7 +115,7 @@ jobs:
         run: |
           shipped=$(node ../../scripts/testflight.mjs latest-build)
           ../../scripts/require-next-build.sh ios "$shipped" TestFlight
-      - name: Keep the UI harness out of the store bundle
+      - name: Keep the test clock out of the store bundle
         working-directory: packages/native
         env:
           EXPO_PUBLIC_TRAKT_CLIENT_ID: ${{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}
@@ -212,7 +212,7 @@ jobs:
         run: |
           shipped=$(../../scripts/firebase-distribution.sh latest-build)
           ../../scripts/require-next-build.sh android "$shipped" Firebase
-      - name: Keep the UI harness out of the store bundle
+      - name: Keep the test clock out of the store bundle
         working-directory: packages/native
         env:
           EXPO_PUBLIC_TRAKT_CLIENT_ID: ${{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}

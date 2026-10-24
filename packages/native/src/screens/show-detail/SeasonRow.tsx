@@ -7,7 +7,6 @@ import { StyleSheet, useWindowDimensions, View } from "react-native";
 import Animated, { LinearTransition, ReduceMotion } from "react-native-reanimated";
 import { CheckControl } from "../../ui/CheckControl";
 import { Chevron } from "../../ui/Chevron";
-import { usePerfCommand } from "../../ui/harness";
 import { ProgressBar } from "../../ui/ProgressBar";
 import { Row, Separator } from "../../ui/Row";
 import { TEST_IDS } from "../../ui/test-ids";
@@ -34,8 +33,6 @@ export const SeasonRow = memo(function SeasonRow({
   onMark,
 }: SeasonRowProps): ReactElement {
   const colors = useColors();
-  const expand = (): void => onExpand(season.number);
-  usePerfCommand(`season:${season.number}`, expand);
   const title = season.isSpecial ? "Specials" : `Season ${season.number}`;
   const complete = season.airedCount > 0 && season.completedCount >= season.airedCount;
   return (
@@ -47,7 +44,7 @@ export const SeasonRow = memo(function SeasonRow({
         label={`${title}, ${season.completedCount} of ${season.airedCount} watched, ${expanded ? "expanded" : "collapsed"}`}
         minHeight={56}
         testID={TEST_IDS.seasonTrigger(season.number)}
-        onPress={expand}
+        onPress={() => onExpand(season.number)}
         trailing={
           <CheckControl
             testID={TEST_IDS.seasonCheck(season.number)}

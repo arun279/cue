@@ -58,19 +58,12 @@ export function descendants(node: ts.Node): ts.Node[] {
   return found;
 }
 
-// Metro swaps the harness entry for its stand-in in store builds (metro.config.js), and the
-// graph is the store build's: the harness navigates only on a measuring host's command.
-const STORE_BUILD = new Map([
-  [join(__dirname, "../../src/ui/harness.tsx"), join(__dirname, "../../src/ui/harness.store.ts")],
-]);
-
 function resolveImport(from: string, specifier: string): string[] {
   if (!specifier.startsWith(".")) return [];
   const base = resolve(dirname(from), specifier);
   return [".tsx", ".ts", ".android.tsx", ".ios.tsx", "/index.tsx", "/index.ts"]
     .map((suffix) => base + suffix)
-    .filter(existsSync)
-    .map((file) => STORE_BUILD.get(file) ?? file);
+    .filter(existsSync);
 }
 
 function importsOf(file: string): string[] {

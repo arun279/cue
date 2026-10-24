@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join, relative } from "node:path";
 import ts from "typescript";
-import { storeSourceFiles } from "./support/native-sources";
+import { nativeSourceFiles } from "./support/native-sources";
 
 const root = join(__dirname, "..");
 
@@ -362,7 +362,7 @@ function violationsIn(path: string): Violation[] {
   return found;
 }
 
-const violations = storeSourceFiles().flatMap(violationsIn);
+const violations = nativeSourceFiles().flatMap(violationsIn);
 const excepts = (exception: Exception, violation: Violation) =>
   exception.file === violation.file &&
   exception.rule === violation.rule &&
@@ -400,7 +400,7 @@ it("rechecks an exception when the package it was judged against changes version
 it("draws checks and crosses as platform symbols, never as typed glyphs", () => {
   const glyph = /[☑☒✅✓-✘❌❎]/u;
   expect(
-    storeSourceFiles()
+    nativeSourceFiles()
       .filter((path) => glyph.test(readFileSync(path, "utf8")))
       .map((path) => relative(root, path)),
   ).toEqual([]);

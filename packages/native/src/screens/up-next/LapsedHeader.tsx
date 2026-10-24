@@ -1,7 +1,6 @@
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 import { Badge } from "../../ui/Badge";
-import { usePerfCommand } from "../../ui/harness";
 import { PlatformIcon } from "../../ui/PlatformIcon";
 import { TEST_IDS } from "../../ui/test-ids";
 import { ROW_MIN_HEIGHT, SPACE, useColors } from "../../ui/tokens";
@@ -15,8 +14,6 @@ export interface LapsedHeaderProps {
 
 export function LapsedHeader({ count, expanded, onToggle }: LapsedHeaderProps): ReactElement {
   const colors = useColors();
-  usePerfCommand("lapsed", onToggle);
-
   return (
     <Pressable
       accessibilityRole="button"

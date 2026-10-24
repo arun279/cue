@@ -164,7 +164,6 @@ export const ShowTile = memo(function ShowTile({
     <RowMenu
       title={entry.title}
       items={actions}
-      testID={TEST_IDS.quickActions}
       item={{ href, label, testID: TEST_IDS.showCard(entry.showId), role: "link" }}
     >
       {(trigger, testID) => (

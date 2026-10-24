@@ -72,7 +72,6 @@ function LibraryError({
 }): ReactElement {
   return (
     <EmptyState
-      testID={TEST_IDS.libraryError}
       centered
       headline={segment === "shows" ? "Couldn't load your library" : "Couldn't load your movies"}
       body={readFailureBody(failure)}
@@ -95,7 +94,7 @@ function LibraryEmpty({ chip }: { readonly chip: ChipKey }): ReactElement {
   const [headline, body] = EMPTY[chip];
 
   return (
-    <EmptyState testID={TEST_IDS.libraryEmpty} headline={headline} body={body}>
+    <EmptyState headline={headline} body={body}>
       {chip === "watching" ? (
         <Button label="Search shows" variant="link" onPress={() => router.push("/search")} />
       ) : null}
@@ -123,7 +122,6 @@ function LibraryNoMatch({
   const label = view.chips.find((candidate) => candidate.key === chip)?.label;
   return (
     <EmptyState
-      testID={TEST_IDS.libraryNoMatch}
       headline={
         elsewhere.length === 0
           ? `No ${noun} match "${query}".`

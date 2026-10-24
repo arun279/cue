@@ -81,7 +81,7 @@ describe("JavaScript update publishing", () => {
   it.each([
     "ios",
     "android",
-  ])("checks the %s store bundle for the UI harness before building", (leg) => {
+  ])("checks the %s store bundle for the test clock before building", (leg) => {
     const steps = (
       readWorkflowJobs(MOBILE_RELEASE).find(({ name }) => name === leg)?.body ?? ""
     ).split(/^ {6}- /m);

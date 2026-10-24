@@ -1,0 +1,35 @@
+appId: app.cuetracker
+name: search
+---
+- runFlow: lib/open-up-next.yaml
+- tapOn: "Search"
+- extendedWaitUntil:
+    visible:
+      id: "search-browse"
+    timeout: 30000
+# Android draws its own field; on iOS the field is the platform's own search bar,
+# reached by its placeholder.
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - tapOn:
+          id: "search-field"
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: "Shows and movies.*"
+- inputText: "harbor lights"
+- extendedWaitUntil:
+    visible:
+      id: "search-result-8801"
+    timeout: 15000
+- takeScreenshot: search-results
+- tapOn:
+    id: "search-result-8801"
+- extendedWaitUntil:
+    visible:
+      id: "screen-show-detail"
+    timeout: 30000
+- takeScreenshot: search-show-detail

@@ -52,7 +52,6 @@ import {
 import { useStableQueueOrder } from "../../../src/screens/up-next/useStableQueueOrder";
 import { BarItems } from "../../../src/ui/BarItems";
 import { Chevron } from "../../../src/ui/Chevron";
-import { useBootMark, usePerfCommand, usePerfScroll, usePullTrace } from "../../../src/ui/harness";
 import { Row, Separator } from "../../../src/ui/Row";
 import { SyncStrip } from "../../../src/ui/SyncStrip";
 import { TabRoot } from "../../../src/ui/TabRoot";
@@ -157,22 +156,14 @@ export default function UpNext(): ReactElement {
   );
   const mark = useTutorialGate(useMarkWatched());
   const refresh = usePullToRefresh();
-  const pullTrace = usePullTrace(refresh.refreshing);
   const colors = useColors();
   const insets = useSafeAreaInsets();
 
   const [lapsedOpen, setLapsedOpen] = useState(false);
   const branch = branchOf(view, showsEnabled);
-  useBootMark("content", branch !== "loading");
   const sectioned = SECTIONED.includes(branch);
   const list = useRef<SectionList<UpNextCard, UpNextSection>>(null);
   const rowsPerScreen = Math.ceil(useWindowDimensions().height / ROW_MIN_HEIGHT.queue);
-  usePerfScroll("up-next", (y) =>
-    list.current?.getScrollResponder()?.scrollTo({ y, animated: true }),
-  );
-  usePerfCommand("end:up-next", () =>
-    list.current?.getScrollResponder()?.scrollToEnd({ animated: false }),
-  );
   useEffect(() => {
     if (!sectioned && Platform.OS === "android")
       list.current?.getScrollResponder()?.scrollTo({ y: 0, animated: false });
@@ -205,10 +196,8 @@ export default function UpNext(): ReactElement {
         }}
       />
       <BarItems />
-      {pullTrace.marker}
       <SectionList
         ref={list}
-        {...pullTrace.handlers}
         testID={TEST_IDS.upNextList}
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={{ paddingBottom: tabBarClearance(insets.bottom) + SPACE.s4 }}
@@ -222,7 +211,6 @@ export default function UpNext(): ReactElement {
         removeClippedSubviews={Platform.OS === "android"}
         refreshControl={
           <RefreshControl
-            testID={TEST_IDS.refreshIndicator}
             refreshing={refresh.refreshing}
             onRefresh={refresh.pull}
             tintColor={colors.muted}

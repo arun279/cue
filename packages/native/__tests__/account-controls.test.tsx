@@ -3,8 +3,6 @@ import { act, screen, userEvent, within } from "@testing-library/react-native";
 import "./support/screen-mocks";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { DataSection, syncedPhrase } from "../src/screens/account/DataSection";
-import * as harness from "../src/ui/harness";
-import { relativeTimeNow } from "../src/ui/harness.store";
 import { TEST_IDS } from "../src/ui/test-ids";
 import { accountFixture } from "./support/account";
 import { held } from "./support/up-next";
@@ -27,7 +25,6 @@ it.each([
 });
 
 it("ticks every 30 seconds and excludes editorial reads from account freshness", async () => {
-  jest.spyOn(harness, "relativeTimeNow").mockImplementation(relativeTimeNow);
   jest.useFakeTimers();
   const client = new QueryClient();
   const fixture = accountFixture({ pendingWrites: () => 3 });
@@ -43,29 +40,6 @@ it("ticks every 30 seconds and excludes editorial reads from account freshness",
   expect(screen.getByText("Last synced just now · 3 pending")).toBeVisible();
   await act(() => jest.advanceTimersByTime(60_000));
   expect(screen.getByText("Last synced 1 min ago · 3 pending")).toBeVisible();
-  await act(() => client.clear());
-});
-
-it("keeps harness sync freshness unchanged after delays, refetches and remounts", async () => {
-  jest.useFakeTimers();
-  const client = new QueryClient();
-  const fixture = accountFixture();
-  const paint = () =>
-    fixture.paint(
-      <QueryClientProvider client={client}>
-        <DataSection />
-      </QueryClientProvider>,
-    );
-  await act(() => client.setQueryData(queryKeys.library(), {}));
-  const view = await paint();
-  expect(screen.getByText("Last synced just now · 0 pending")).toBeVisible();
-  await act(() => jest.advanceTimersByTime(120_000));
-  expect(screen.getByText("Last synced just now · 0 pending")).toBeVisible();
-  await act(() => client.setQueryData(queryKeys.library(), {}));
-  await view.unmount();
-  await act(() => jest.advanceTimersByTime(120_000));
-  await paint();
-  expect(screen.getByText("Last synced just now · 0 pending")).toBeVisible();
   await act(() => client.clear());
 });
 

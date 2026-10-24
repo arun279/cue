@@ -3,7 +3,6 @@ import { useAuth } from "@cue/core/auth/store";
 import { type ReactElement, useState } from "react";
 import { Alert, Platform, Pressable, View } from "react-native";
 import { useLiveRegion } from "../../ui/live-region";
-import { TEST_IDS } from "../../ui/test-ids";
 import { ROW_MIN_HEIGHT, useColors } from "../../ui/tokens";
 import { CueText } from "../../ui/type";
 
@@ -36,12 +35,7 @@ export function SignOut({ testID }: SignOutProps): ReactElement {
   return (
     <View>
       {error ? (
-        <CueText
-          testID={TEST_IDS.signOutError}
-          variant="meta"
-          style={{ color: colors.danger }}
-          {...liveRegion}
-        >
+        <CueText variant="meta" style={{ color: colors.danger }} {...liveRegion}>
           {error}
         </CueText>
       ) : null}

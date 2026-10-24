@@ -6,7 +6,6 @@
         "scripts/*.mjs",
         "scripts/mock-trakt/*.mjs",
         "test/vitest.config.ts",
-        "test/support/leaked-processes.ts",
         "test/ci/fixtures/stall-guard/*.ts"
       ],
       "project": ["scripts/**/*.mjs", "test/**/*.ts"],
@@ -17,10 +16,9 @@
       "includeEntryExports": true
     },
     "packages/native": {
-      "entry": ["plugins/*.js", "src/ui/harness.store.ts"],
+      "entry": ["plugins/*.js"],
       "project": ["app/**/*.{ts,tsx}", "src/**/*.{ts,tsx}", "modules/**/*.ts", "plugins/*.js"],
       "babel": ["babel.config.js"]
     }
-  },
-  "ignoreBinaries": ["adb", "maestro", "ps", "xcrun"]
+  }
 }

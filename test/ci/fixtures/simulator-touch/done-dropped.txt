@@ -1,5 +1,0 @@
-2026-10-22 05:39:23.277812+0000  localhost testmanagerd[7571]: [com.apple.dt.xctest:Default] Recap event action playback initiated
-2026-10-22 05:39:23.292611+0000  localhost backboardd[2576]: [com.apple.BackBoard:TouchEvents] touch down without previous range event: 2
-2026-10-22 05:39:23.518299+0000  localhost backboardd[2576]: [com.apple.BackBoard:TouchEvents] canceling paths contacts: [pathIndex: 2; touchIdentifier: 33; touching; locked; destinations: ((hitTest); contextID: 0xC1D995C2; clientPort: 0x3DF43; inheritedSceneHostSettings: <identifier: sceneID:app.cuetracker-default; touchBehavior: foreground>, (touchStream|filterDetachedTouches); contextID: 0x17406EFD; clientPort: 0x7C03)] -- HID (ts:(null))
-2026-10-22 05:39:23.514156+0000  localhost testmanagerd[7571]: (Recap) [com.apple.recap:Playback] service canceled: (<RCPVirtualHIDService: 0x102610d20> (recapulon) 0x0D/0x04: (Recap) touchscreen digitizer)
-2026-10-22 05:39:23.524838+0000  localhost backboardd[2576]: (BackBoardHIDEventFoundation) [com.apple.BackBoard:HID] purge sender info for senderID:1056E9E000020 -- BKIOHIDService

@@ -101,7 +101,6 @@ function QueueRowContent({ card, mark, onStop, variant = "queue" }: QueueRowProp
       <RowMenu
         title={entry.title}
         items={items}
-        testID={TEST_IDS.quickActions}
         item={{
           href: `/show/${entry.showId}`,
           label,

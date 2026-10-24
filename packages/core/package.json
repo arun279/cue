@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@tanstack/react-query": "5.101.2",
-    "zod": "^4.4.3",
+    "zod": "^4.6.6",
     "zustand": "5.0.14"
   },
   "peerDependencies": {

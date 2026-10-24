@@ -1,8 +1,6 @@
-import { act, renderHook, screen } from "@testing-library/react-native";
+import { act, renderHook } from "@testing-library/react-native";
 import type { ReactElement, ReactNode } from "react";
 import { usePullToRefresh } from "../../src/hooks/usePullToRefresh";
-import { AppIdle } from "../../src/ui/AppIdle";
-import { HARNESS_IDS } from "../../src/ui/harness-ids";
 import { fakeRuntime, Harness, held, spyHaptics } from "../support/up-next";
 
 jest.mock(
@@ -33,7 +31,6 @@ async function mount(flushWrites: () => Promise<number>) {
   const wrapper = ({ children }: { readonly children: ReactNode }): ReactElement => (
     <Harness runtime={runtime} haptics={haptics}>
       {children}
-      <AppIdle />
     </Harness>
   );
   return await renderHook(() => usePullToRefresh(), { wrapper });
@@ -81,14 +78,4 @@ describe("pull to refresh", () => {
     expect(haptics.warning).toHaveBeenCalledTimes(1);
     expect(flushWrites).not.toHaveBeenCalled();
   });
-});
-
-it("publishes one durable receipt for a pull", async () => {
-  const { result } = await mount(async () => 0);
-  const before = screen.getByTestId(HARNESS_IDS.operationStarted).props["accessibilityLabel"];
-  const next = Number(before.match(/sync ([0-9]+)/)[1]) + 1;
-  await act(async () => result.current.pull());
-  expect(screen.getByTestId(HARNESS_IDS.operationCompleted)).toHaveAccessibleName(
-    new RegExp(`sync ${next} done;`),
-  );
 });

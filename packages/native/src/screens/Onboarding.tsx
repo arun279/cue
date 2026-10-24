@@ -7,7 +7,6 @@ import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "../ui/Button";
 import { CueMark } from "../ui/CueMark";
-import { useOnboardingAcknowledgment } from "../ui/harness";
 import { useLiveRegion } from "../ui/live-region";
 import { TEST_IDS } from "../ui/test-ids";
 import { HAIRLINE, RADIUS, SPACE, TARGET_MIN, useColors } from "../ui/tokens";
@@ -22,12 +21,10 @@ export function Onboarding(): ReactElement {
   const errorMessage = useAuth((s) => s.errorMessage);
   const connect = useAuth((s) => s.connectWithDeviceCode);
   const errorLive = useLiveRegion(errorMessage, "assertive");
-  const acknowledgment = useOnboardingAcknowledgment();
 
   return (
     <SafeAreaView
-      testID={deviceCode === null ? TEST_IDS.screenOnboarding : TEST_IDS.screenDeviceCode}
-      onLayout={acknowledgment.onLayout}
+      testID={deviceCode === null ? TEST_IDS.screenOnboarding : undefined}
       style={[styles.page, { backgroundColor: colors.bg }]}
     >
       <ScrollView contentContainerStyle={styles.scroll}>
@@ -70,7 +67,6 @@ export function Onboarding(): ReactElement {
           </CueText>
         ) : null}
       </ScrollView>
-      {acknowledgment.marker}
     </SafeAreaView>
   );
 }
@@ -133,7 +129,6 @@ function DeviceCode({
       </Pressable>
       <Pressable
         accessibilityRole="link"
-        testID={TEST_IDS.deviceCodeUrl}
         style={styles.target}
         onPress={() => void openBrowserAsync(verificationUrl)}
       >
@@ -150,7 +145,7 @@ function DeviceCode({
       <CueText variant="meta" {...waitingLive} style={{ color: colors.muted }}>
         {WAITING}
       </CueText>
-      <Button label="Cancel" variant="link" testID={TEST_IDS.deviceCodeCancel} onPress={cancel} />
+      <Button label="Cancel" variant="link" onPress={cancel} />
     </>
   );
 }

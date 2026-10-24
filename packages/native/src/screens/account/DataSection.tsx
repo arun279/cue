@@ -3,7 +3,6 @@ import { useRuntime } from "@cue/core/runtime/runtime";
 import { useQueryClient } from "@tanstack/react-query";
 import { type ReactElement, useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { Button } from "../../ui/Button";
-import { relativeTimeNow } from "../../ui/harness";
 import { TEST_IDS } from "../../ui/test-ids";
 import { useColors } from "../../ui/tokens";
 import { CueText } from "../../ui/type";
@@ -26,7 +25,7 @@ export function DataSection(): ReactElement {
   const cache = useQueryClient().getQueryCache();
   const sync = useSyncNow();
   const colors = useColors();
-  const [now, setNow] = useState(relativeTimeNow);
+  const [now, setNow] = useState(Date.now);
   const [confirmedAt, setConfirmedAt] = useState(0);
   const subscribe = useCallback((notify: () => void) => cache.subscribe(notify), [cache]);
   const refreshedAt = useSyncExternalStore(subscribe, () =>
@@ -43,12 +42,12 @@ export function DataSection(): ReactElement {
     ),
   );
   useEffect(() => {
-    const timer = setInterval(() => setNow(relativeTimeNow()), 30_000);
+    const timer = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(timer);
   }, []);
   return (
     <Section title="Data">
-      <CueText testID={TEST_IDS.settingsSyncStatus} variant="meta" style={{ color: colors.muted }}>
+      <CueText variant="meta" style={{ color: colors.muted }}>
         {syncedPhrase(Math.max(refreshedAt, confirmedAt), now)} · {runtime.pendingWrites()} pending
       </CueText>
       <Button
@@ -58,7 +57,7 @@ export function DataSection(): ReactElement {
         testID={TEST_IDS.settingsSync}
         onPress={() =>
           void sync.run().then((synced) => {
-            if (synced) setConfirmedAt(relativeTimeNow());
+            if (synced) setConfirmedAt(Date.now());
           })
         }
       />

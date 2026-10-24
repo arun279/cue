@@ -8,7 +8,6 @@
     "start": "expo start",
     "prebuild": "expo prebuild",
     "perf:render": "TEST_RUNNER_PATH=../../node_modules/.bin/jest TEST_RUNNER_ARGS='--config jest.config.js --selectProjects ios --runInBand --testMatch \"**/*.perf-test.[jt]s?(x)\"' reassure",
-    "perf:stability": "TEST_RUNNER_PATH=../../node_modules/.bin/jest TEST_RUNNER_ARGS='--config jest.config.js --selectProjects ios --runInBand --testMatch \"**/*.perf-test.[jt]s?(x)\"' reassure check-stability",
     "typecheck": "expo customize tsconfig.json && tsc --noEmit",
     "test": "EXPO_PUBLIC_TRAKT_CLIENT_ID=test-client jest",
     "eas-build-post-install": ": \"${EXPO_PUBLIC_TRAKT_CLIENT_ID:?the app throws at startup without a Trakt client id}\""
@@ -58,8 +57,7 @@
     "jest": "~29.7.0",
     "jest-expo": "~57.0.6",
     "reassure": "1.6.0",
-    "typescript": "^6.0.3",
-    "yaml": "2.9.0"
+    "typescript": "^6.0.3"
   },
   "expo": {
     "install": {
