@@ -728,6 +728,167 @@ async function specials(rec: Recorder, now: number): Promise<void> {
   );
 }
 
+/** A minute-cut time `days` before now, `seconds` into its minute, so truncation shows. */
+const sentAt = (now: number, days: number, seconds: number): string =>
+  new Date(Math.floor((now - days * 86_400_000) / MINUTE) * MINUTE + seconds * 1000).toISOString();
+
+/** Which play sent at `sent` a stored time is, by the minute Trakt keeps. */
+const playAt =
+  (sent: Readonly<Record<string, string>>) =>
+  (stored: unknown): string | null =>
+    stored === null || stored === undefined
+      ? null
+      : (Object.entries(sent).find(([, at]) => minuteOf(at) === str(stored))?.[0] ?? "other");
+
+/** The show's row in `/sync/watched/shows`, read page by page as the app reads it. */
+async function watchedRow(rec: Recorder, show: number): Promise<Json | null> {
+  for (let page = 1; ; page += 1) {
+    const answer = await rec.wire(
+      "GET",
+      `/sync/watched/shows?extended=full,progress&page=${page}&limit=100`,
+    );
+    const row = list(answer.body).find((item) => traktId(obj(item)["show"]) === show);
+    if (row !== undefined) return obj(row);
+    if (page >= Number(answer.header("x-pagination-page-count") ?? 1)) return null;
+  }
+}
+
+/** An episode named the way the recorder named it: by its show, season and number. */
+const showEpisode = (show: number, episode: Json, watchedAt?: string) => ({
+  shows: [
+    {
+      ids: { trakt: show },
+      seasons: [
+        {
+          number: num(episode["season"]),
+          episodes: [{ number: num(episode["number"]), watched_at: watchedAt }],
+        },
+      ],
+    },
+  ],
+});
+
+/** The aired first episode, an aired special and an unaired one of a show with no plays. */
+async function specialsShow(rec: Recorder, now: number) {
+  const { show } = await unplayedShow(rec, now);
+  const seasons = await seasonsOf(rec, show);
+  const episodes = (number: number) =>
+    list(seasons.find((season) => season["number"] === number)?.["episodes"]).map(obj);
+  const airs = (episode: Json) => Date.parse(str(episode["first_aired"])) <= now;
+  const aired = episodes(0).find(airs);
+  const unaired = episodes(0).find((episode) => !airs(episode));
+  const first = episodes(1)[0];
+  if (aired === undefined || unaired === undefined || first === undefined)
+    throw new Error("no show with an aired and an unaired special");
+  return { show, first, aired, unaired };
+}
+
+const withSpecials = (show: number) =>
+  `/shows/${show}/progress/watched?${ART}&hidden=false&specials=true&count_specials=true`;
+
+async function severalPlays(rec: Recorder, now: number): Promise<void> {
+  const { show, first, unaired } = await specialsShow(rec, now);
+  const sent = {
+    first: sentAt(now, 3.5, 37),
+    second: sentAt(now, 0, 31),
+    third: sentAt(now, 365, 34),
+    special: sentAt(now, 2, 41),
+  };
+  const which = playAt(sent);
+  const regular = (watchedAt?: string) => showEpisode(show, first, watchedAt);
+  const special = (watchedAt?: string) => showEpisode(show, unaired, watchedAt);
+  const write = (path: string, body: object) =>
+    rec.step(`POST ${path}`, "POST", path, body, (answer) => ({
+      ...receipt(answer.body),
+      notFoundKinds: Object.keys(obj(obj(answer.body)["not_found"])).sort(),
+    }));
+  // Progress with specials was read only around the special's play.
+  const read = async (specials = false) => {
+    const row = await watchedRow(rec, show);
+    const seasons = list(row?.["seasons"]).map(obj);
+    const episode = obj(list(seasons.find((season) => season["number"] === 1)?.["episodes"])[0]);
+    rec.steps.push({
+      call: "GET /sync/watched/shows",
+      status: 200,
+      facts: {
+        plays: num(row?.["plays"]),
+        lastWatchedAt: which(row?.["last_watched_at"]),
+        updatedTracksWatched: row?.["last_updated_at"] === row?.["last_watched_at"],
+        episodePlays: num(episode["plays"]),
+        episodeLastWatchedAt: which(episode["last_watched_at"]),
+        seasons: seasons.map((season) => season["number"]),
+      },
+    });
+    for (const path of specials ? [progressPath(show), withSpecials(show)] : [progressPath(show)]) {
+      await rec.step("GET /shows/:id/progress/watched", "GET", path, undefined, (answer) => ({
+        completed: num(obj(answer.body)["completed"]),
+        lastWatchedAt: which(obj(answer.body)["last_watched_at"]),
+      }));
+    }
+  };
+  for (const play of ["first", "second", "third"] as const) {
+    await write("/sync/history", regular(sent[play]));
+    await read();
+  }
+  const rows = await rec.step(
+    "GET /sync/history/episodes/:id",
+    "GET",
+    `/sync/history/episodes/${traktId(first)}?extended=full&page=1&limit=30`,
+    undefined,
+    (answer) => ({ order: list(answer.body).map((row) => which(obj(row)["watched_at"])) }),
+  );
+  await write("/sync/history/remove", { ids: [num(obj(list(rows.body)[0])["id"])] });
+  await read();
+  await write("/sync/history", special(sent.special));
+  await read(true);
+  await write("/sync/history/remove", special());
+  await read(true);
+  await write("/sync/history/remove", regular());
+}
+
+async function specialOnlyPlay(rec: Recorder, now: number): Promise<void> {
+  const { show, aired } = await specialsShow(rec, now);
+  const sent = { first: sentAt(now, 3, 41), second: sentAt(now, 2, 41) };
+  const which = playAt(sent);
+  const body = (watchedAt?: string) => showEpisode(show, aired, watchedAt);
+  for (const play of ["first", "second"] as const) {
+    await rec.step("POST /sync/history", "POST", "/sync/history", body(sent[play]), (answer) =>
+      receipt(answer.body),
+    );
+  }
+  const read = async () => {
+    const row = await watchedRow(rec, show);
+    rec.steps.push({
+      call: "GET /sync/watched/shows",
+      status: 200,
+      facts:
+        row === null
+          ? { listed: false }
+          : {
+              listed: true,
+              plays: num(row["plays"]),
+              lastWatchedAt: which(row["last_watched_at"]),
+              seasons: list(row["seasons"]).map((season) => obj(season)["number"]),
+            },
+    });
+    await rec.step(
+      "GET /shows/:id/progress/watched",
+      "GET",
+      withSpecials(show),
+      undefined,
+      (answer) => ({
+        completed: num(obj(answer.body)["completed"]),
+        lastWatchedAt: which(obj(answer.body)["last_watched_at"]),
+      }),
+    );
+  };
+  await read();
+  await rec.step("POST /sync/history/remove", "POST", "/sync/history/remove", body(), (answer) =>
+    receipt(answer.body),
+  );
+  await read();
+}
+
 async function movieRewatch(rec: Recorder, now: number): Promise<void> {
   const movie = await unplayed(rec, "movie", async () => true);
   const at = (daysAgo: number) =>
@@ -798,11 +959,13 @@ const ONE_PLAY_SCENARIOS: Readonly<Record<string, Scenario>> = {
   seasonMark: (rec, _roles, now) => seasonMark(rec, now),
   specials: (rec, _roles, now) => specials(rec, now),
   movieRewatch: (rec, _roles, now) => movieRewatch(rec, now),
+  specialOnlyPlay: (rec, _roles, now) => specialOnlyPlay(rec, now),
 };
 
 const EVERY_PLAY_SCENARIOS: Readonly<Record<string, Scenario>> = {
   rewatch: (rec, roles, now) => rewatch(rec, roles, now, true),
   movieRewatch: (rec, _roles, now) => movieRewatch(rec, now),
+  severalPlays: (rec, _roles, now) => severalPlays(rec, now),
 };
 
 /**

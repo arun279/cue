@@ -28,7 +28,7 @@ export interface View {
 
 const iso = (ms: number): string => new Date(ms).toISOString();
 
-const hasAired = (ep: Episode, now: number): boolean =>
+export const hasAired = (ep: Episode, now: number): boolean =>
   ep.firstAired !== null && ep.firstAired <= now;
 
 export const allEpisodes = (show: Show): readonly Episode[] => [
@@ -164,12 +164,16 @@ export function relatedMoviesBody(view: View, movie: Movie) {
 }
 
 const playsOf = (account: Account, traktId: number): number =>
-  account.rewatchedEpisodes.has(traktId) ? 2 : 1;
+  1 + (account.rewatchedEpisodes.get(traktId)?.length ?? 0);
+
+/** An episode's newest play by date, which is not always the last one added (recorded). */
+export const latestPlay = (account: Account, traktId: number, first: number): number =>
+  Math.max(first, ...(account.rewatchedEpisodes.get(traktId) ?? []));
 
 const watchedEntry = (account: Account, traktId: number, number: number, at: number) => ({
   number,
   plays: playsOf(account, traktId),
-  last_watched_at: iso(account.rewatchedEpisodes.get(traktId) ?? at),
+  last_watched_at: iso(latestPlay(account, traktId, at)),
 });
 
 /** The watched-episode breakdown: watched episodes only, grouped by season, specials first. */
@@ -191,6 +195,12 @@ function watchedSeasons(account: Account, show: Show) {
 const specialPlays = (account: Account, show: Show): number =>
   [...show.specialsWatchedAt.keys()].reduce((sum, traktId) => sum + playsOf(account, traktId), 0);
 
+/** Every play of the show: each episode's, specials' and second plays included (recorded). */
+const showPlays = (account: Account, show: Show): number =>
+  show.episodes
+    .slice(0, show.completed)
+    .reduce((sum, ep) => sum + playsOf(account, ep.traktId), specialPlays(account, show));
+
 const isPlayed = (show: Show): boolean => show.completed > 0 || show.specialsWatchedAt.size > 0;
 
 /**
@@ -202,7 +212,7 @@ export function watchedShowsBody(view: View) {
   const { account } = view;
   const levels = levelsOf(view.extended);
   return account.shows.filter(isPlayed).map((show) => ({
-    plays: show.completed + specialPlays(account, show),
+    plays: showPlays(account, show),
     last_watched_at: iso(show.lastWatchedAt ?? account.now),
     last_updated_at: iso(show.lastWatchedAt ?? account.now),
     reset_at: show.resetAt === null ? null : iso(show.resetAt),
@@ -278,7 +288,9 @@ export function progressBody(view: View, show: Show, specials: boolean, countSpe
     bySeason.get(ep.season)?.push({
       number: ep.number,
       completed: watched,
-      last_watched_at: watched ? iso(watchedAtOf(show, index)) : null,
+      last_watched_at: watched
+        ? iso(latestPlay(view.account, ep.traktId, watchedAtOf(show, index)))
+        : null,
     });
   });
   const { seasonZero, counted } = specialsProgress(view, show, specials, countSpecials);
@@ -372,9 +384,9 @@ interface Row {
   readonly order: number;
 }
 
-/** One row per play: the first at `at`, a second at the replay. */
-function playRows(at: number, replayedAt: number | undefined, traktId: number, order: number) {
-  return (replayedAt === undefined ? [at] : [at, replayedAt]).map((stamp, play) => ({
+/** One row per play: the first at `at`, then each later one in the order it was added. */
+function playRows(at: number, replays: readonly number[], traktId: number, order: number) {
+  return [at, ...replays].map((stamp, play) => ({
     id: playId(traktId, play + 1),
     watched_at: iso(stamp),
     order,
@@ -384,7 +396,7 @@ function playRows(at: number, replayedAt: number | undefined, traktId: number, o
 function episodeRows(view: View, show: Show) {
   const { account } = view;
   const of = (ep: Episode, at: number, order: number) =>
-    playRows(at, account.rewatchedEpisodes.get(ep.traktId), ep.traktId, order).map((row) => ({
+    playRows(at, account.rewatchedEpisodes.get(ep.traktId) ?? [], ep.traktId, order).map((row) => ({
       ...row,
       action: "watch",
       type: "episode",
@@ -402,13 +414,15 @@ function episodeRows(view: View, show: Show) {
   ];
 }
 
+const replaysOf = (replay: number | undefined): number[] => (replay === undefined ? [] : [replay]);
+
 function movieRows(view: View) {
   return view.account.movies.flatMap((movie) =>
     movie.watchedAt === null
       ? []
       : playRows(
           movie.watchedAt,
-          view.account.rewatchedMovies.get(movie.trakt),
+          replaysOf(view.account.rewatchedMovies.get(movie.trakt)),
           movie.trakt,
           0,
         ).map((row) => ({ ...row, action: "watch", type: "movie", movie: movieRef(view, movie) })),
