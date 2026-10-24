@@ -2,7 +2,6 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { gitEnv } from "../support/git-env";
 import { gitHistory } from "../support/git-history";
 import { repositoryPath } from "../support/repository-path";
 
@@ -45,7 +44,6 @@ describe("diff footprint", () => {
     const output = execFileSync(SCRIPT, ["HEAD~1"], {
       cwd: repository,
       encoding: "utf8",
-      env: gitEnv(),
     });
 
     expect(output.split("\n")[0]).toBe("<!-- diff-footprint -->");
@@ -69,7 +67,6 @@ describe("diff footprint", () => {
     const output = execFileSync(SCRIPT, ["HEAD~1", path.join(repository, "dist")], {
       cwd: repository,
       encoding: "utf8",
-      env: gitEnv(),
     });
 
     expect(output).toContain("| Expo ios bundle | 4 kB |\n| Expo android bundle | 5 kB |");

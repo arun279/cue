@@ -66,7 +66,7 @@ function InteractiveCheckControl(): ReactElement {
 const { default: UpNext } = require("../app/(tabs)/(up-next)");
 
 test("queue row", async () => {
-  await measureRenders(
+  const { meanCount } = await measureRenders(
     <PerfHarness>
       <MeasuredQueueRow />
     </PerfHarness>,
@@ -75,16 +75,20 @@ test("queue row", async () => {
         fireEvent.press(screen.getByTestId(`${TEST_IDS.queueRow(entry.showId)}-drag-right`)),
     },
   );
+
+  expect(meanCount).toBe(3);
 });
 
 test("check control", async () => {
-  await measureRenders(<InteractiveCheckControl />, {
+  const { meanCount } = await measureRenders(<InteractiveCheckControl />, {
     scenario: async (screen) => fireEvent.press(screen.getByTestId("check")),
   });
+
+  expect(meanCount).toBe(2);
 });
 
 test("Up Next screen", async () => {
-  await measureRenders(
+  const { meanCount } = await measureRenders(
     <PerfHarness>
       <UpNext />
     </PerfHarness>,
@@ -101,4 +105,6 @@ test("Up Next screen", async () => {
         fireEvent.press(screen.getByTestId(`${TEST_IDS.queueRow(entry.showId)}-drag-right`)),
     },
   );
+
+  expect(meanCount).toBe(4);
 });

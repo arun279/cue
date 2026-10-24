@@ -27,7 +27,7 @@ const PerfHarness = perfHarness(runtime, (client) => {
 const { default: Library } = require("../app/(tabs)/(library)/library");
 
 test("Library first mount", async () => {
-  await measureRenders(
+  const { meanCount } = await measureRenders(
     <PerfHarness>
       <Library />
     </PerfHarness>,
@@ -49,4 +49,6 @@ test("Library first mount", async () => {
       },
     },
   );
+
+  expect(meanCount).toBe(3);
 });

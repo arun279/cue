@@ -1,16 +1,15 @@
 import * as runtimeBoot from "@cue/core/app/boot";
 import { queryKeys } from "@cue/core/data/query-keys";
 import { useActivitiesPoll } from "@cue/core/hooks/useActivitiesPoll";
-import { PERSIST_BUSTER } from "@cue/core/runtime/query-cache";
 import { dehydrate, onlineManager } from "@tanstack/react-query";
-import { act, render, screen } from "@testing-library/react-native";
+import { act, render, screen, waitFor } from "@testing-library/react-native";
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import { hide } from "expo-splash-screen";
 import { Profiler } from "react";
 import { AppState } from "react-native";
 import { bootNativeStores } from "../src/boot";
-import { queryClient, shouldDehydrateQuery } from "../src/platform/query-persister";
+import { persistBuster, queryClient, shouldDehydrateQuery } from "../src/platform/query-persister";
 import {
   bulkBacking,
   legacyBacking,
@@ -53,6 +52,7 @@ jest.mock("expo-application", () => ({
   nativeApplicationVersion: "1.2.3",
   nativeBuildVersion: "45",
 }));
+jest.mock("expo-updates", () => ({ updateId: "the-running-update" }));
 let mockAnnounceNetwork: (state: { isConnected: boolean }) => void = () => {};
 jest.mock("expo-network", () => ({
   getNetworkStateAsync: () => Promise.resolve({ isConnected: true }),
@@ -171,7 +171,7 @@ describe("the native composition root", () => {
       "cue.query-cache",
       JSON.stringify({
         timestamp: Date.now(),
-        buster: PERSIST_BUSTER,
+        buster: persistBuster,
         clientState: dehydrate(queryClient, { shouldDehydrateQuery }),
       }),
     );
@@ -204,6 +204,30 @@ describe("the native composition root", () => {
     expect(commits).toHaveBeenCalledTimes(4);
     expect(bootRenders).toHaveBeenCalledTimes(2);
     await view.unmount();
+  });
+
+  it.each([
+    ["an earlier build", "1.2.2 (44)"],
+    ["an earlier update of this build", "1.2.3 (45)"],
+  ])("drops a cache persisted by %s", async (_, buster) => {
+    bulkBacking.values.set("cue.install-id", "an-earlier-install");
+    secureBacking.set("cue.trakt.token", TOKEN);
+    queryClient.setQueryData(queryKeys.library(), { entries: [entry()], isPartial: false });
+    bulkBacking.values.set(
+      "cue.query-cache",
+      JSON.stringify({
+        timestamp: Date.now(),
+        buster,
+        clientState: dehydrate(queryClient, { shouldDehydrateQuery }),
+      }),
+    );
+    queryClient.clear();
+    jest.spyOn(globalThis, "fetch").mockReturnValue(new Promise(() => {}));
+
+    await render(<RootLayout />);
+
+    await waitFor(() => expect(bulkBacking.values.has("cue.query-cache")).toBe(false));
+    expect(queryClient.getQueryData(queryKeys.library())).toBeUndefined();
   });
 
   it("tells the query layer when the device loses its connection", () => {
