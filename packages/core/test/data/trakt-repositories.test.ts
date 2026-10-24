@@ -1,111 +1,81 @@
-import { TRAKT_API_BASE, TraktClient } from "@cue/core/data/trakt/client";
+import { TraktClient } from "@cue/core/data/trakt/client";
 import { createLastActivitiesRepository } from "@cue/core/data/trakt/repositories";
 import type { LastActivities } from "@cue/core/domain/sync-activities";
-import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
-import { mswServer } from "./_msw";
+import { FIXTURE_NOW } from "../trakt-fake/account.ts";
+import { startTraktFake } from "../trakt-fake/in-process.ts";
 
-const server = mswServer();
-const client = new TraktClient({ clientId: "cid" });
+let now = FIXTURE_NOW;
+const fake = startTraktFake({ clock: () => now });
+const client = new TraktClient({ clientId: "cid", getToken: () => fake.session().access_token });
+const repo = createLastActivitiesRepository(client);
 
-/**
- * Pinned `/sync/last_activities` fixture. Every mapped section advances
- * from the STORED snapshot below, so the diff must yield the full invalidation
- * set; the unmapped fields (every `rated_at`, the `seasons`/`lists`/`account`/
- * `collaborations` sections) advance too and must yield nothing.
- */
-const STORED: LastActivities = {
-  all: "2026-07-01T00:00:00.000Z",
-  episodes: {
-    watched_at: "2026-07-01T00:00:00.000Z",
-    rated_at: "2026-07-01T00:00:00.000Z",
-    watchlisted_at: "2026-07-01T00:00:00.000Z",
-  },
-  shows: {
-    rated_at: "2026-07-01T00:00:00.000Z",
-    hidden_at: "2026-07-01T00:00:00.000Z",
-    watchlisted_at: "2026-07-01T00:00:00.000Z",
-    favorited_at: "2026-07-01T00:00:00.000Z",
-  },
-  movies: {
-    watched_at: "2026-07-01T00:00:00.000Z",
-    rated_at: "2026-07-01T00:00:00.000Z",
-    watchlisted_at: "2026-07-01T00:00:00.000Z",
-    hidden_at: "2026-07-01T00:00:00.000Z",
-    favorited_at: "2026-07-01T00:00:00.000Z",
-  },
-  watchlist: { updated_at: "2026-07-01T00:00:00.000Z" },
-  seasons: { rated_at: "2026-07-01T00:00:00.000Z" },
-  lists: { updated_at: "2026-07-01T00:00:00.000Z" },
-};
+async function stored(): Promise<LastActivities> {
+  const poll = await repo.poll(undefined);
+  if (!poll.ok) throw new Error("the first poll failed");
+  return poll.activities;
+}
 
-const PINNED_FRESH: LastActivities = {
-  all: "2026-07-05T00:00:00.000Z",
-  episodes: {
-    watched_at: "2026-07-05T00:00:00.000Z",
-    rated_at: "2026-07-05T00:00:00.000Z",
-    watchlisted_at: "2026-07-05T00:00:00.000Z",
-  },
-  shows: {
-    rated_at: "2026-07-05T00:00:00.000Z",
-    hidden_at: "2026-07-05T00:00:00.000Z",
-    watchlisted_at: "2026-07-05T00:00:00.000Z",
-    favorited_at: "2026-07-05T00:00:00.000Z",
-  },
-  movies: {
-    watched_at: "2026-07-05T00:00:00.000Z",
-    rated_at: "2026-07-05T00:00:00.000Z",
-    watchlisted_at: "2026-07-05T00:00:00.000Z",
-    hidden_at: "2026-07-05T00:00:00.000Z",
-    favorited_at: "2026-07-05T00:00:00.000Z",
-  },
-  watchlist: { updated_at: "2026-07-05T00:00:00.000Z" },
-  seasons: { rated_at: "2026-07-05T00:00:00.000Z" },
-  lists: { updated_at: "2026-07-05T00:00:00.000Z" },
-};
+/** One write as the app sends it, a few seconds after the last so Trakt's POST limit allows it. */
+async function write(path: string, body: unknown): Promise<void> {
+  now += 5000;
+  const response = await client.send("POST", path, { body });
+  if (response.status >= 300) throw new Error(`${path} answered ${response.status}`);
+}
 
 describe("last_activities repository drives the invalidation map", () => {
-  it("returns the exact invalidation targets for the pinned fixture", async () => {
-    server.use(
-      http.get(`${TRAKT_API_BASE}/sync/last_activities`, () => HttpResponse.json(PINNED_FRESH)),
-    );
-    const repo = createLastActivitiesRepository(client);
-    const poll = await repo.poll(STORED);
-    expect(poll.ok && poll.activities).toEqual(PINNED_FRESH);
-    expect(poll.ok && [...poll.targets].sort()).toEqual(
-      [
-        "watched/shows",
-        "progress/watched",
-        "watchlist/episodes",
-        "hidden/progress_watched",
-        "recompute:buckets",
-        "watchlist/shows",
-        "recompute:following",
-        "recompute:to-watch",
-        "favorites/shows",
-        "watched/movies",
-        "movie-progress",
-        "watchlist/movies",
-        "hidden/movies",
-        "favorites/movies",
-      ].sort(),
-    );
+  it.each([
+    [
+      "marking an episode",
+      "/sync/history",
+      { episodes: [{ ids: { trakt: 880120 } }] },
+      ["progress/watched", "watched/shows"],
+    ],
+    [
+      "marking a movie",
+      "/sync/history",
+      { movies: [{ ids: { trakt: 5502 } }] },
+      ["movie-progress", "watched/movies"],
+    ],
+    [
+      "adding a show to the watchlist",
+      "/sync/watchlist",
+      { shows: [{ ids: { trakt: 8801 } }] },
+      ["recompute:following", "recompute:to-watch", "watchlist/movies", "watchlist/shows"],
+    ],
+    [
+      "adding a movie to the watchlist",
+      "/sync/watchlist",
+      { movies: [{ ids: { trakt: 5502 } }] },
+      ["recompute:following", "watchlist/movies", "watchlist/shows"],
+    ],
+    [
+      "hiding a show",
+      "/users/hidden/progress_watched",
+      { shows: [{ ids: { trakt: 8801 } }] },
+      ["hidden/progress_watched", "recompute:buckets"],
+    ],
+    [
+      "dropping a show",
+      "/users/hidden/dropped",
+      { shows: [{ ids: { trakt: 8801 } }] },
+      ["hidden/dropped", "recompute:buckets"],
+    ],
+  ])("returns the targets of what %s moved", async (_, path, body, targets) => {
+    const before = await stored();
+    await write(path, body);
+    const poll = await repo.poll(before);
+    expect(poll.ok && [...poll.targets].sort()).toEqual(targets);
   });
 
   it("returns no targets when nothing advanced", async () => {
-    server.use(http.get(`${TRAKT_API_BASE}/sync/last_activities`, () => HttpResponse.json(STORED)));
-    const poll = await createLastActivitiesRepository(client).poll(STORED);
+    const poll = await repo.poll(await stored());
     expect(poll.ok && poll.targets).toEqual([]);
   });
 
   it("surfaces a transport failure", async () => {
-    server.use(
-      http.get(
-        `${TRAKT_API_BASE}/sync/last_activities`,
-        () => new HttpResponse(null, { status: 500 }),
-      ),
-    );
-    const poll = await createLastActivitiesRepository(client).poll(STORED);
+    fake.fail({ path: /^\/sync\/last_activities$/, times: Number.POSITIVE_INFINITY }, 500);
+    const poll = await repo.poll(undefined);
     expect(poll).toEqual({ ok: false, error: { kind: "server", status: 500 } });
   });
 });

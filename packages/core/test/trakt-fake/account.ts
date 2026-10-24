@@ -8,13 +8,19 @@
  * `FIXTURE_NOW`, so the account is the same on every day it runs.
  */
 
-export const DAY = 86_400_000;
+const DAY = 86_400_000;
 const WEEK = 7 * DAY;
 const HOUR = 3_600_000;
 
 export const FIXTURE_NOW = Date.parse("2026-10-15T00:00:00.000Z");
 
-export type EpisodeType = "series_premiere" | "season_premiere" | "season_finale" | "standard";
+/** The session the account is signed in with before any OAuth grant. */
+export const SESSION = {
+  access_token: "fake-access-token",
+  refresh_token: "fake-refresh-token",
+} as const;
+
+type EpisodeType = "series_premiere" | "season_premiere" | "season_finale" | "standard";
 
 export interface Episode {
   readonly traktId: number;
@@ -103,7 +109,7 @@ export interface Movie extends MovieSpec {
   watchedAt: number | null;
 }
 
-export interface Activities {
+interface Activities {
   episodes: number;
   showsHidden: number;
   showsWatchlist: number;

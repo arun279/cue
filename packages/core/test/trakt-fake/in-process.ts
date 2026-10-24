@@ -6,7 +6,7 @@ import { createTraktFake, type FakeOptions, type TraktFake } from "./fake.ts";
  * The fake for one test file: every request to Trakt reaches it or fails the
  * test, and each test starts from a fresh account and session.
  */
-export function useTraktFake(options: FakeOptions = {}): TraktFake {
+export function startTraktFake(options: FakeOptions = {}): TraktFake {
   const fake = createTraktFake(options);
   const server = setupServer(...fake.handlers);
   beforeAll(() => server.listen({ onUnhandledRequest: "error" }));

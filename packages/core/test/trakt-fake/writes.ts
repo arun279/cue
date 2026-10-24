@@ -56,7 +56,7 @@ const missing = <T extends Item>(
 ): T[] => (entries ?? []).filter((entry) => found(entry) === undefined);
 
 /** A stamp later than every activity so far, so each write reads as new to an activity diff. */
-export function activityTime(account: Account, clock: number): number {
+function activityTime(account: Account, clock: number): number {
   const { untracked: _, ...moving } = account.activities;
   return Math.max(clock, ...Object.values(moving).map((stamp) => stamp + 1));
 }
@@ -64,13 +64,19 @@ export function activityTime(account: Account, clock: number): number {
 const toMinute = (ms: number): number => Math.floor(ms / 60_000) * 60_000;
 const toSecond = (ms: number): number => Math.floor(ms / 1000) * 1000;
 
-/** Trakt stores `watched_at` to the minute, and a play sent without one at the time of the request. */
-function writeStamp(body: WriteBody, now: number): number {
-  const sent = [body.episodes, body.shows, body.movies]
-    .map((items) => items?.[0]?.watched_at)
-    .find((value) => value !== undefined && value !== null);
-  const parsed = Date.parse(sent ?? "");
+/**
+ * Each play's own `watched_at`, the nearest one sent for it (an episode's, then its
+ * season's, then its show's), stored to the minute; a play sent without one is
+ * stamped with the time of the request.
+ */
+function stampOf(sent: readonly (string | null | undefined)[], now: number): number {
+  const parsed = Date.parse(sent.find((value) => value !== undefined && value !== null) ?? "");
   return toMinute(Number.isNaN(parsed) ? now : parsed);
+}
+
+interface Target {
+  readonly ep: Episode;
+  readonly sent: readonly (string | null | undefined)[];
 }
 
 interface Counts {
@@ -84,22 +90,24 @@ interface Tally {
   readonly deleted: Counts;
 }
 
+/** An episode named in a bulk `shows[].seasons[]` tree, with what was sent at each level. */
+function seasonTarget(shows: readonly ShowItem[], ep: Episode): Target | null {
+  const entry = shows.find((candidate) => candidate.seasons?.some((s) => s.number === ep.season));
+  const season = entry?.seasons?.find((candidate) => candidate.number === ep.season);
+  if (season === undefined) return null;
+  const named = season.episodes?.find((candidate) => candidate.number === ep.number);
+  if (season.episodes !== undefined && named === undefined) return null;
+  return { ep, sent: [named?.watched_at, season.watched_at, entry?.watched_at] };
+}
+
 /** The episodes of one show a write names: by episode id, by history row, or by season (all of it, or listed numbers). */
-function targetedEpisodes(show: Show, body: WriteBody): Episode[] {
-  const direct = new Set([
-    ...(body.episodes ?? []).map((entry) => entry.ids?.trakt),
-    ...(body.ids ?? []).map(playItem),
-  ]);
-  const seasons = (body.shows ?? [])
-    .filter((entry) => matchesIds(entry, show.trakt, show.slug))
-    .flatMap((entry) => entry.seasons ?? []);
-  return allEpisodes(show).filter((ep) => {
-    if (direct.has(ep.traktId)) return true;
-    const named = seasons.find((entry) => entry.number === ep.season);
-    return (
-      named !== undefined &&
-      (named.episodes === undefined || named.episodes.some((e) => e.number === ep.number))
-    );
+function targetedEpisodes(show: Show, body: WriteBody): Target[] {
+  const rows = new Set((body.ids ?? []).map(playItem));
+  const shows = (body.shows ?? []).filter((entry) => matchesIds(entry, show.trakt, show.slug));
+  return allEpisodes(show).flatMap((ep) => {
+    const direct = (body.episodes ?? []).find((entry) => entry.ids?.trakt === ep.traktId);
+    if (direct !== undefined || rows.has(ep.traktId)) return [{ ep, sent: [direct?.watched_at] }];
+    return seasonTarget(shows, ep) ?? [];
   });
 }
 
@@ -170,20 +178,23 @@ function applyShowWrite(
   show: Show,
   body: WriteBody,
   remove: boolean,
-  stamp: number,
+  now: number,
   tally: Tally,
 ) {
-  const targeted = targetedEpisodes(show, body).filter((ep) => !remove || isWatched(show, ep));
+  const targeted = targetedEpisodes(show, body).filter(({ ep }) => !remove || isWatched(show, ep));
   if (targeted.length === 0) return false;
   settlePlays(show);
   show.progressAt = undefined;
   const rows = new Set(body.ids ?? []);
-  for (const ep of targeted) {
+  for (const { ep, sent } of targeted) {
     if (remove) tally.deleted.episodes += removeEpisodePlays(account, show, ep, rows);
-    else addEpisodePlay(account, show, ep, stamp, tally);
+    else addEpisodePlay(account, show, ep, stampOf(sent, now), tally);
   }
   return true;
 }
+
+const sentFor = (movie: Movie, body: WriteBody) =>
+  (body.movies ?? []).find((entry) => matchesIds(entry, movie.trakt, movie.slug))?.watched_at;
 
 const movieTargeted = (movie: Movie, body: WriteBody): boolean =>
   (body.movies ?? []).some((entry) => matchesIds(entry, movie.trakt, movie.slug)) ||
@@ -253,11 +264,11 @@ export function applyHistoryWrite(
   remove: boolean,
   clock: number,
 ) {
-  const stamp = writeStamp(body, activityTime(account, clock));
+  const now = activityTime(account, clock);
   const zero = (): Counts => ({ movies: 0, episodes: 0 });
   const tally: Tally = { added: zero(), updated: zero(), deleted: zero() };
   const shows = account.shows.filter((show) =>
-    applyShowWrite(account, show, body, remove, stamp, tally),
+    applyShowWrite(account, show, body, remove, now, tally),
   );
   if (shows.length > 0) account.activities.episodes = activityTime(account, clock);
   const movies = account.movies.filter(
@@ -265,7 +276,7 @@ export function applyHistoryWrite(
       movieTargeted(movie, body) &&
       (remove
         ? removeMoviePlays(account, movie, body, tally)
-        : addMoviePlay(account, movie, stamp, tally)),
+        : addMoviePlay(account, movie, stampOf([sentFor(movie, body)], now), tally)),
   );
   if (movies.length > 0) account.activities.movies = activityTime(account, clock);
   return {

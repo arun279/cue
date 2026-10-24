@@ -7,7 +7,7 @@
  * committed.
  */
 
-export interface WireAnswer {
+interface WireAnswer {
   readonly status: number;
   readonly header: (name: string) => string | null;
   /** Parsed JSON, the raw text of a body that is not JSON, or null when empty. */

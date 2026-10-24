@@ -1,37 +1,31 @@
-import { TRAKT_API_BASE } from "@cue/core/data/trakt/client";
 import { selectVisibleEntries } from "@cue/core/domain/calendar";
-import { HttpResponse, http } from "msw";
 import { expect, it } from "vitest";
-import { mswServer } from "./_msw";
+import { startTraktFake } from "../trakt-fake/in-process.ts";
 import { buildRuntime } from "./_runtime";
 
-const server = mswServer();
-const onePage = { "X-Pagination-Page": "1", "X-Pagination-Page-Count": "1" };
-const show = (trakt: number) => ({ title: `Show ${trakt}`, ids: { trakt } });
+const fake = startTraktFake();
+
+/** Nine Lives of Ada Rook airs its tenth episode on 2026-10-20, inside this window. */
+const AIRING = 8806;
+const WINDOW = ["2026-10-15", 7] as const;
+
+const call = (method: string, path: string, body?: unknown) =>
+  fake.fetch(`https://api.trakt.tv${path}`, {
+    method,
+    headers: { authorization: `Bearer ${fake.session().access_token}` },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
 
 it("leaves a dropped show off the calendar, which Trakt keeps listing it on", async () => {
-  server.use(
-    http.get(`${TRAKT_API_BASE}/calendars/my/shows/:start/:days`, () =>
-      HttpResponse.json(
-        [7, 8].map((trakt) => ({
-          first_aired: "2026-07-14T01:00:00.000Z",
-          episode: { season: 1, number: 2, title: "Episode", ids: { trakt: trakt * 10 } },
-          show: show(trakt),
-        })),
-      ),
-    ),
-    http.get(`${TRAKT_API_BASE}/users/hidden/progress_watched`, () =>
-      HttpResponse.json([], { headers: onePage }),
-    ),
-    http.get(`${TRAKT_API_BASE}/users/hidden/dropped`, () =>
-      HttpResponse.json([{ hidden_at: "2026-07-01T00:00:00.000Z", type: "show", show: show(7) }], {
-        headers: onePage,
-      }),
-    ),
-  );
+  await call("POST", "/users/hidden/dropped", { shows: [{ ids: { trakt: AIRING } }] });
+  const listed = (await (await call("GET", `/calendars/my/shows/${WINDOW.join("/")}`)).json()) as {
+    show: { ids: { trakt: number } };
+  }[];
   const runtime = await buildRuntime();
 
-  const visible = selectVisibleEntries(await runtime.loadCalendar("2026-07-12", 7));
+  const visible = selectVisibleEntries(await runtime.loadCalendar(...WINDOW));
 
-  expect(visible.map((entry) => entry.showId)).toEqual([8]);
+  expect(listed.map((row) => row.show.ids.trakt)).toContain(AIRING);
+  expect(visible.length).toBeGreaterThan(0);
+  expect(visible.map((entry) => entry.showId)).not.toContain(AIRING);
 });

@@ -1,183 +1,107 @@
-import {
-  TRAKT_API_BASE,
-  TraktClient,
-  type TraktFailure,
-  unwrapRead,
-} from "@cue/core/data/trakt/client";
+import { TraktClient, type TraktFailure, unwrapRead } from "@cue/core/data/trakt/client";
 import { DEFAULT_TRAKT_POLICY } from "@cue/core/data/trakt/policy";
-import { HttpResponse, http } from "msw";
-import { describe, expect, it, vi } from "vitest";
-import { mswServer } from "./_msw";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createTraktFake } from "../trakt-fake/fake.ts";
 
-const server = mswServer();
+const fake = createTraktFake();
 
-function client(token: string | null = null): TraktClient {
-  return new TraktClient({ clientId: "cid-123", getToken: () => token });
+beforeEach(() => fake.reset());
+
+function client(token: string | null = fake.session().access_token): TraktClient {
+  return new TraktClient({ clientId: "cid-123", getToken: () => token, fetch: fake.fetch });
 }
 
-async function headersFor(path: string, trakt = client()): Promise<Headers> {
-  const captured = new Headers();
-  server.use(
-    http.get(`${TRAKT_API_BASE}${path}`, ({ request }) => {
-      for (const [name, value] of request.headers) captured.set(name, value);
-      return HttpResponse.json({});
-    }),
-  );
-  await trakt.get(path);
-  return captured;
-}
+const sent = () => {
+  const [first] = fake.requests;
+  if (first === undefined) throw new Error("nothing reached the fake");
+  return first;
+};
 
 describe("TraktClient headers + extended", () => {
   it("coalesces identical GETs only while the first is in flight", async () => {
-    let requests = 0;
-    let release: (() => void) | undefined;
-    server.use(
-      http.get(`${TRAKT_API_BASE}/sync/watched/shows`, async () => {
-        requests += 1;
-        await new Promise<void>((resolve) => {
-          release = resolve;
-        });
-        return HttpResponse.json([]);
-      }),
-    );
-
+    const release = fake.hold({ path: /^\/sync\/watched\/shows$/ });
     const trakt = client();
     const first = trakt.get("/sync/watched/shows");
     const second = trakt.get("/sync/watched/shows");
-    await vi.waitFor(() => expect(requests).toBe(1));
-    release?.();
+    await vi.waitFor(() => expect(fake.requests).toHaveLength(1));
+    release();
     await Promise.all([first, second]);
 
-    const third = trakt.get("/sync/watched/shows");
-    await vi.waitFor(() => expect(requests).toBe(2));
-    release?.();
-    await third;
+    await trakt.get("/sync/watched/shows");
+    expect(fake.requests).toHaveLength(2);
   });
 
   it("sets the required Trakt headers and omits Authorization when no token", async () => {
-    let captured: Headers | undefined;
-    server.use(
-      http.get(`${TRAKT_API_BASE}/sync/watched/shows`, ({ request }) => {
-        captured = request.headers;
-        return HttpResponse.json([]);
-      }),
-    );
-    await client().get("/sync/watched/shows");
-    expect(captured?.get("trakt-api-key")).toBe("cid-123");
-    expect(captured?.get("trakt-api-version")).toBe("2");
-    expect(captured?.get("content-type")).toBe("application/json");
-    expect(captured?.get("authorization")).toBeNull();
+    await client(null).get("/sync/watched/shows");
+    const { headers } = sent();
+    expect(headers["trakt-api-key"]).toBe("cid-123");
+    expect(headers["trakt-api-version"]).toBe("2");
+    expect(headers["content-type"]).toBe("application/json");
+    expect(headers["authorization"]).toBeUndefined();
   });
 
   it("adds a bearer Authorization header when a token is present", async () => {
-    expect((await headersFor("/users/me", client("tok-abc"))).get("authorization")).toBe(
-      "Bearer tok-abc",
-    );
+    await client("tok-abc").get("/users/settings");
+    expect(sent().headers["authorization"]).toBe("Bearer tok-abc");
   });
 
   it("sends an injected User-Agent", async () => {
-    const trakt = new TraktClient({ clientId: "cid-123", userAgent: "Cue/1.0.0" });
-    expect((await headersFor("/users/me", trakt)).get("user-agent")).toBe("Cue/1.0.0");
+    const trakt = new TraktClient({
+      clientId: "cid-123",
+      userAgent: "Cue/1.0.0",
+      fetch: fake.fetch,
+    });
+    await trakt.get("/shows/8801");
+    expect(sent().headers["user-agent"]).toBe("Cue/1.0.0");
   });
 
   it("builds the comma-combined extended query param", async () => {
-    let url: string | undefined;
-    server.use(
-      http.get(`${TRAKT_API_BASE}/shows/1/seasons`, ({ request }) => {
-        url = request.url;
-        return HttpResponse.json([]);
-      }),
-    );
-    await client().get("/shows/1/seasons", { extended: ["full", "images"] });
-    expect(new URL(url ?? "").searchParams.get("extended")).toBe("full,images");
+    await client().get("/shows/8801/seasons", { extended: ["full", "images"] });
+    expect(new URLSearchParams(sent().search).get("extended")).toBe("full,images");
   });
 });
 
 describe("TraktClient base URL", () => {
   it("sends requests to an injected baseUrl, trailing slash trimmed", async () => {
-    let url: string | undefined;
-    server.use(
-      http.get("http://127.0.0.1:8787/sync/watched/shows", ({ request }) => {
-        url = request.url;
-        return HttpResponse.json([]);
-      }),
-    );
-    const mocked = new TraktClient({ clientId: "cid-123", baseUrl: "http://127.0.0.1:8787/" });
+    const local = createTraktFake({ baseUrl: "http://127.0.0.1:8787" });
+    const mocked = new TraktClient({
+      clientId: "cid-123",
+      getToken: () => local.session().access_token,
+      baseUrl: "http://127.0.0.1:8787/",
+      fetch: local.fetch,
+    });
     expect((await mocked.get("/sync/watched/shows")).ok).toBe(true);
-    expect(url).toBe("http://127.0.0.1:8787/sync/watched/shows");
+    expect(local.noRoute).toEqual([]);
+    expect(local.requests.map(({ path }) => path)).toEqual(["/sync/watched/shows"]);
   });
 });
 
 describe("TraktClient pagination", () => {
-  const pageHeaders = (page: number, pageCount: number): Record<string, string> => ({
-    "X-Pagination-Page": String(page),
-    "X-Pagination-Limit": "10",
-    "X-Pagination-Page-Count": String(pageCount),
-    "X-Pagination-Item-Count": "25",
-  });
-
   it("reads the X-Pagination-* headers into the result", async () => {
-    server.use(
-      http.get(`${TRAKT_API_BASE}/sync/history`, () =>
-        HttpResponse.json([{ id: 1 }], { headers: pageHeaders(1, 3) }),
-      ),
-    );
-    const result = await client().get("/sync/history");
-    expect(result.ok && result.pagination).toEqual({ page: 1, pageCount: 3 });
-  });
-
-  it("walks every page via getAllPages and flattens the arrays", async () => {
-    server.use(
-      http.get(`${TRAKT_API_BASE}/sync/history`, ({ request }) => {
-        const page = Number(new URL(request.url).searchParams.get("page"));
-        return HttpResponse.json([{ id: page }], { headers: pageHeaders(page, 3) });
-      }),
-    );
-    const result = await client().getAllPages("/sync/history");
-    expect(result.ok && result.data).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }]);
-  });
-
-  it("walks to an empty page when pagination headers are absent", async () => {
-    const rows = Array.from({ length: 250 }, (_, id) => ({ id }));
-    server.use(
-      http.get(`${TRAKT_API_BASE}/sync/watched/shows`, ({ request }) => {
-        const page = Number(new URL(request.url).searchParams.get("page"));
-        return HttpResponse.json(rows.slice((page - 1) * 100, page * 100));
-      }),
-    );
-    const result = await client().getAllPages("/sync/watched/shows");
-    expect(result.ok && result.data).toEqual(rows);
-    expect(result.ok && result.pagination).toBeNull();
-  });
-
-  it("fails the whole walk when a later page fails", async () => {
-    server.use(
-      http.get(`${TRAKT_API_BASE}/sync/history`, ({ request }) =>
-        new URL(request.url).searchParams.get("page") === "1"
-          ? HttpResponse.json([{ id: 1 }], { headers: pageHeaders(1, 2) })
-          : new HttpResponse(null, { status: 503 }),
-      ),
-    );
-    expect(await client().getAllPages("/sync/history")).toEqual({
-      ok: false,
-      error: { kind: "server", status: 503 },
+    const result = await client().get("/users/me/history", { page: 2, limit: 10 });
+    const all = await client().getAllPages("/users/me/history", { limit: 100 });
+    expect(result.ok && result.pagination).toEqual({
+      page: 2,
+      pageCount: Math.ceil((all.ok ? all.data.length : 0) / 10),
     });
   });
 
-  it("ignores a garbled page count and stops at a page that is not a list", async () => {
-    server.use(
-      http.get(`${TRAKT_API_BASE}/sync/history`, ({ request }) =>
-        new URL(request.url).searchParams.get("page") === "1"
-          ? HttpResponse.json([{ id: 1 }], {
-              headers: { "X-Pagination-Page": "1", "X-Pagination-Page-Count": "many" },
-            })
-          : HttpResponse.json({ error: "no such page" }),
-      ),
-    );
-    expect(await client().getAllPages("/sync/history")).toEqual({
-      ok: true,
-      data: [{ id: 1 }],
-      pagination: null,
+  it("walks every page via getAllPages and flattens the arrays", async () => {
+    const result = await client().getAllPages("/users/me/history", { limit: 100 });
+    const pages = fake.requests.map(({ search }) => new URLSearchParams(search).get("page"));
+    const ids = result.ok ? result.data.map((row) => Object(row).id) : [];
+    const pageCount = result.ok ? (result.pagination?.pageCount ?? 0) : 0;
+    expect(pageCount).toBeGreaterThan(1);
+    expect(pages).toEqual(Array.from({ length: pageCount }, (_, index) => String(index + 1)));
+    expect(ids.length).toBeGreaterThan((pageCount - 1) * 100);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("fails the whole walk when a later page fails", async () => {
+    fake.fail({ path: /^\/users\/me\/history$/, query: /(^|&)page=2(&|$)/ }, 503);
+    expect(await client().getAllPages("/users/me/history", { limit: 100 })).toEqual({
+      ok: false,
+      error: { kind: "server", status: 503 },
     });
   });
 });
@@ -197,20 +121,21 @@ function heldOnPolicy(): TraktClient {
 
 describe("TraktClient error mapping", () => {
   const path = "/sync/watched/shows";
-  const respond = (status: number, headers: Record<string, string> = {}): void => {
-    server.use(
-      http.get(`${TRAKT_API_BASE}${path}`, () => new HttpResponse(null, { status, headers })),
-    );
-  };
+  const respond = (status: number, retryAfter?: number): void =>
+    fake.fail({ path: /^\/sync\/watched\/shows$/ }, status, retryAfter);
 
-  it("maps 401 to unauthorized", async () => {
-    respond(401);
-    expect(await client().get(path)).toEqual({ ok: false, error: { kind: "unauthorized" } });
+  it("maps Trakt's 401 for a read without a valid session to unauthorized", async () => {
+    expect(await client("never-issued").get(path)).toEqual({
+      ok: false,
+      error: { kind: "unauthorized" },
+    });
   });
 
-  it("maps 404 to not-found", async () => {
-    respond(404);
-    expect(await client().get(path)).toEqual({ ok: false, error: { kind: "not-found" } });
+  it("maps Trakt's empty 404 to not-found", async () => {
+    expect(await client().get("/shows/999999999")).toEqual({
+      ok: false,
+      error: { kind: "not-found" },
+    });
   });
 
   it.each<{ status: number; kind: TraktFailure["kind"] }>([
@@ -223,13 +148,13 @@ describe("TraktClient error mapping", () => {
   });
 
   it("maps 429 and reads Retry-After seconds", async () => {
-    respond(429, { "Retry-After": "3" });
+    respond(429, 3);
     const result = await client().get(path);
     expect(result).toEqual({ ok: false, error: { kind: "rate-limited", retryAfterMs: 3500 } });
   });
 
   it("honors a long read Retry-After with a positive margin", async () => {
-    respond(429, { "Retry-After": "120" });
+    respond(429, 120);
     const result = await client().get(path);
     expect(result).toEqual({
       ok: false,
@@ -248,7 +173,7 @@ describe("TraktClient error mapping", () => {
   });
 
   it("maps a fetch reject (no response) to network", async () => {
-    server.use(http.get(`${TRAKT_API_BASE}${path}`, () => HttpResponse.error()));
+    fake.drop({ path: /^\/sync\/watched\/shows$/ });
     expect(await client().get(path)).toEqual({ ok: false, error: { kind: "network" } });
   });
 

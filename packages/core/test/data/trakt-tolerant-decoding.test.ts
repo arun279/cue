@@ -1,18 +1,46 @@
-import { type ReadProblem, TRAKT_API_BASE, TraktClient } from "@cue/core/data/trakt/client";
+import { type ReadProblem, TraktClient } from "@cue/core/data/trakt/client";
 import { incidentReport, parseIncidents, recordIncident } from "@cue/core/data/trakt/diagnostics";
-import { getUserSettings, getWatchedMovies, getWatchedShows } from "@cue/core/data/trakt/endpoints";
+import {
+  getHistory,
+  getLastActivities,
+  getMovie,
+  getShowProgress,
+  getUserSettings,
+  getWatchedMovies,
+  getWatchedShows,
+} from "@cue/core/data/trakt/endpoints";
 import { INCIDENTS_KEY } from "@cue/core/ports/storage-keys";
 import { useReadIncidents } from "@cue/core/stores/read-incidents-store";
-import { HttpResponse, http } from "msw";
-import { describe, expect, it } from "vitest";
-import { mswServer } from "./_msw";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { createTraktFake } from "../trakt-fake/fake.ts";
 import { buildRuntime, memoryKv } from "./_runtime";
 
-const server = mswServer();
+/**
+ * Bodies Trakt does not send on purpose: drifted fields, missing essentials, pages
+ * without their headers. The fake answers only what Trakt was recorded sending, so
+ * these come from a stub fetch.
+ */
 
-const MOVIES_PATH = `${TRAKT_API_BASE}/sync/watched/movies`;
-const SETTINGS_PATH = `${TRAKT_API_BASE}/users/settings`;
 const PAGE = { "X-Pagination-Page": "1", "X-Pagination-Page-Count": "1" };
+
+const json = (body: unknown, headers: Record<string, string> = {}): Response =>
+  new Response(JSON.stringify(body), {
+    headers: { "content-type": "application/json", ...headers },
+  });
+
+function answering(reply: (url: URL) => Response) {
+  const problems: [string, ReadProblem][] = [];
+  const client = new TraktClient({
+    clientId: "cid",
+    report: (endpoint, problem) => problems.push([endpoint, problem]),
+    fetch: async (input) => reply(new URL(String(input))),
+  });
+  return { client, problems };
+}
+
+const serving = (body: unknown) => answering(() => json(body, PAGE));
+
+afterEach(() => vi.unstubAllGlobals());
 
 const watchedMovie = (trakt: number, movie: Record<string, unknown> = {}) => ({
   plays: 1,
@@ -20,8 +48,6 @@ const watchedMovie = (trakt: number, movie: Record<string, unknown> = {}) => ({
   last_updated_at: "2026-07-01T00:00:00.000Z",
   movie: { title: `Movie ${trakt}`, year: 2020, ids: { trakt, slug: `movie-${trakt}` }, ...movie },
 });
-
-const documentedMovies = [watchedMovie(1, { runtime: 104, overview: "x", genres: ["drama"] })];
 
 const largeAccountMovies = Array.from({ length: 250 }, (_, index) =>
   watchedMovie(index + 1, { runtime: 90 + (index % 60) }),
@@ -33,33 +59,25 @@ const driftedMovies = [
   watchedMovie(3, { runtime: "about two hours" }),
 ];
 
-function recordingClient(): { client: TraktClient; problems: [string, ReadProblem][] } {
-  const problems: [string, ReadProblem][] = [];
-  const client = new TraktClient({
-    clientId: "cid",
-    report: (endpoint, problem) => problems.push([endpoint, problem]),
-  });
-  return { client, problems };
-}
-
-function serveMovies(body: Parameters<typeof HttpResponse.json>[0]): void {
-  server.use(http.get(MOVIES_PATH, () => HttpResponse.json(body, { headers: PAGE })));
-}
-
 const runtimes = (result: Awaited<ReturnType<typeof getWatchedMovies>>) =>
   result.ok ? result.data.map((row) => [row.movie.ids.trakt, row.movie.runtime]) : null;
 
 describe("watched movies, the source of Profile's movie totals, decode tolerantly", () => {
-  it("reads the documented shape without recording anything", async () => {
-    serveMovies(documentedMovies);
-    const { client, problems } = recordingClient();
-    expect(runtimes(await getWatchedMovies(client))).toEqual([[1, 104]]);
+  it("reads what Trakt sends without recording anything", async () => {
+    const fake = createTraktFake();
+    const problems: [string, ReadProblem][] = [];
+    const client = new TraktClient({
+      clientId: "cid",
+      getToken: () => fake.session().access_token,
+      report: (endpoint, problem) => problems.push([endpoint, problem]),
+      fetch: fake.fetch,
+    });
+    expect(runtimes(await getWatchedMovies(client))).toContainEqual([5501, 104]);
     expect(problems).toEqual([]);
   });
 
   it("reads a large account's full page intact", async () => {
-    serveMovies(largeAccountMovies);
-    const { client, problems } = recordingClient();
+    const { client, problems } = serving(largeAccountMovies);
     const result = await getWatchedMovies(client);
     expect(result.ok && result.data).toHaveLength(250);
     expect(runtimes(result)?.[249]).toEqual([250, 99]);
@@ -67,8 +85,7 @@ describe("watched movies, the source of Profile's movie totals, decode tolerantl
   });
 
   it("keeps what it can read from a drifted shape and records the field it skipped", async () => {
-    serveMovies(driftedMovies);
-    const { client, problems } = recordingClient();
+    const { client, problems } = serving(driftedMovies);
     const result = await getWatchedMovies(client);
     expect(runtimes(result)).toEqual([
       [1, 118],
@@ -88,21 +105,113 @@ describe("watched movies, the source of Profile's movie totals, decode tolerantl
   });
 
   it("names an empty 204 reply instead of a shape failure", async () => {
-    server.use(http.get(SETTINGS_PATH, () => new HttpResponse(null, { status: 204 })));
-    const { client, problems } = recordingClient();
+    const { client, problems } = answering(() => new Response(null, { status: 204 }));
     expect(await getUserSettings(client)).toEqual({ ok: false, error: { kind: "no-content" } });
     expect(problems).toEqual([["/users/settings", { kind: "no-content" }]]);
   });
 
   it("fails clearly and records the path when an essential field is gone", async () => {
-    server.use(http.get(SETTINGS_PATH, () => HttpResponse.json(["not", "an", "object"])));
-    const { client, problems } = recordingClient();
+    const { client, problems } = serving(["not", "an", "object"]);
     const result = await getUserSettings(client);
     expect(result).toMatchObject({
       ok: false,
       error: { kind: "unexpected-shape", issues: [{ path: "(root)" }] },
     });
     expect(problems).toEqual([["/users/settings", !result.ok && result.error]]);
+  });
+});
+
+const unexpectedShape = (...paths: string[]) => ({
+  ok: false,
+  error: { kind: "unexpected-shape", issues: paths.map((path) => ({ path })) },
+});
+
+const SHOW = { title: "Severance", year: 2022, ids: { trakt: 1 } };
+
+describe("a body missing an essential field fails as an unexpected shape", () => {
+  it("rejects a watched-shows row with no aired_episodes rather than reading it as caught-up", async () => {
+    // `aired_episodes` is what every un-fetched show's backlog is derived from, so
+    // losing it must fail loudly here, not silently file the library as finished.
+    const { client } = serving([
+      { last_watched_at: "2026-07-01T00:00:00.000Z", show: SHOW, seasons: [] },
+    ]);
+    expect(await getWatchedShows(client)).toMatchObject(unexpectedShape("0.show.aired_episodes"));
+  });
+
+  it("fails when every watched show is missing its ids", async () => {
+    const { client } = serving([{ show: { title: "No Ids" } }]);
+    expect(await getWatchedShows(client)).toMatchObject(
+      unexpectedShape("0.show.ids", "0.show.aired_episodes"),
+    );
+  });
+
+  it("fails when a movie payload is missing its title", async () => {
+    const { client } = serving({ year: 2021, ids: { trakt: 5 } });
+    expect(await getMovie(client, 5)).toMatchObject(unexpectedShape("title"));
+  });
+
+  it("fails when progress omits required counts", async () => {
+    const { client } = serving({ next_episode: null });
+    expect(await getShowProgress(client, 1)).toMatchObject(unexpectedShape("aired", "completed"));
+  });
+
+  it("fails when user settings omit the username", async () => {
+    const { client } = serving({ user: { name: "No Handle" } });
+    expect(await getUserSettings(client)).toMatchObject(unexpectedShape("user.username"));
+  });
+
+  it("fails on a history row missing the play id", async () => {
+    const { client } = serving([{ watched_at: "x", type: "movie" }]);
+    expect(await getHistory(client, "all", 1)).toMatchObject(unexpectedShape("0.id"));
+  });
+
+  it("fails at the root when the body is not JSON", async () => {
+    const { client } = answering(
+      () => new Response("not json", { headers: { "content-type": "text/plain" } }),
+    );
+    expect(await getLastActivities(client)).toMatchObject(unexpectedShape("(root)"));
+  });
+});
+
+describe("optional fields Trakt has been seen leaving out", () => {
+  it("tolerates user settings without a name or avatar", async () => {
+    const { client } = serving({ user: { username: "sean" } });
+    const result = await getUserSettings(client);
+    expect(result.ok && result.data.user.username).toBe("sean");
+    expect(result.ok && result.data.user.name).toBeUndefined();
+  });
+
+  it("keeps the readable last_activities stamps and drops a null one", async () => {
+    const { client } = serving({
+      episodes: { watched_at: "2026-07-01T00:00:00.000Z", pending_at: null },
+    });
+    const result = await getLastActivities(client);
+    expect(result.ok && result.data.episodes).toEqual({ watched_at: "2026-07-01T00:00:00.000Z" });
+  });
+});
+
+describe("page walks survive pagination headers Trakt did not send", () => {
+  const page = (url: URL): number => Number(url.searchParams.get("page"));
+
+  it("walks to an empty page when pagination headers are absent", async () => {
+    const rows = Array.from({ length: 250 }, (_, id) => ({ id }));
+    const { client } = answering((url) => json(rows.slice((page(url) - 1) * 100, page(url) * 100)));
+    const result = await client.getAllPages("/sync/watched/shows");
+    expect(result.ok && result.data).toEqual(rows);
+    expect(result.ok && result.pagination).toBeNull();
+  });
+
+  it("ignores a garbled page count and stops at a page that is not a list", async () => {
+    const { client } = answering((url) =>
+      page(url) === 1
+        ? json([{ id: 1 }], { "X-Pagination-Page": "1", "X-Pagination-Page-Count": "many" })
+        : json({ error: "no such page" }),
+    );
+    expect(await client.getAllPages("/users/me/history")).toEqual({
+      ok: true,
+      data: [{ id: 1 }],
+      pagination: null,
+    });
   });
 });
 
@@ -113,14 +222,7 @@ describe("list decoders drop a malformed row instead of the whole list", () => {
   });
 
   it("keeps the readable rows, coercing numeric strings, and records the dropped one", async () => {
-    server.use(
-      http.get(`${TRAKT_API_BASE}/sync/watched/shows`, () =>
-        HttpResponse.json([row(1, "2019"), row({ id: 2 }, 2020), row(3, "soon")], {
-          headers: { "X-Pagination-Page": "1", "X-Pagination-Page-Count": "1" },
-        }),
-      ),
-    );
-    const { client, problems } = recordingClient();
+    const { client, problems } = serving([row(1, "2019"), row({ id: 2 }, 2020), row(3, "soon")]);
     const result = await getWatchedShows(client);
     expect(result.ok && result.data.map((show) => [show.show.ids.trakt, show.show.year])).toEqual([
       [1, 2019],
@@ -199,7 +301,7 @@ describe("read incidents", () => {
   });
 
   it("records a failed read in memory and in the persisted store, and hydrates it", async () => {
-    server.use(http.get(SETTINGS_PATH, () => new HttpResponse(null, { status: 204 })));
+    vi.stubGlobal("fetch", async () => new Response(null, { status: 204 }));
     const kv = memoryKv();
     const runtime = await buildRuntime({ kv });
     await expect(runtime.loadUserProfile()).rejects.toMatchObject({

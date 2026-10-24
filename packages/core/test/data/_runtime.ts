@@ -2,6 +2,7 @@ import { createCueRuntime, type RuntimeDeps } from "@cue/core/app/create-runtime
 import type { KeyValueStore } from "@cue/core/ports/kv";
 import type { TokenStore } from "@cue/core/ports/token-store";
 import type { CueRuntime } from "@cue/core/runtime/runtime";
+import { SESSION } from "../trakt-fake/account.ts";
 
 /** A `KeyValueStore` over a Map, so a suite can seed it and read it back. */
 export function memoryKv(
@@ -29,8 +30,7 @@ const noopTokenStore: TokenStore = {
 export function buildRuntime(overrides: Partial<RuntimeDeps> = {}): Promise<CueRuntime> {
   return createCueRuntime({
     token: {
-      access_token: "access",
-      refresh_token: "refresh",
+      ...SESSION,
       created_at: Math.floor(Date.now() / 1000),
       expires_in: 604_800,
     },

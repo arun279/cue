@@ -4,8 +4,8 @@ import * as bulk from "@cue/core/domain/write-queue/bulk";
 import * as ops from "@cue/core/domain/write-queue/ops";
 import type { QueuedOp } from "@cue/core/domain/write-queue/types";
 import { expect, it } from "vitest";
-import { createSeedLibrary, FIXTURE_NOW } from "../../../../scripts/mock-trakt/seed.mjs";
-import { respond } from "../../../../scripts/mock-trakt/server.mjs";
+import { FIXTURE_NOW } from "./account.ts";
+import { createTraktFake } from "./fake.ts";
 
 type ExportsOfType<M, F> = { [K in keyof M]: M[K] extends F ? K : never }[keyof M];
 type Read = ExportsOfType<
@@ -102,21 +102,14 @@ const WRITES: Readonly<Record<Write, () => QueuedOp | readonly QueuedOp[]>> = {
 };
 
 it("routes every request the app's Trakt reads and writes send", async () => {
-  const library = createSeedLibrary("default", FIXTURE_NOW, () => FIXTURE_NOW);
-  const noRoute: string[] = [];
+  const fake = createTraktFake();
   let sent = 0;
   const client = new TraktClient({
-    clientId: "mock-client",
-    getToken: () => "mock-access-token",
-    fetch: async (input, init) => {
-      const url = new URL(input);
-      const method = init?.method ?? "GET";
+    clientId: "client",
+    getToken: () => fake.session().access_token,
+    fetch: (input, init) => {
       sent += 1;
-      const answer = respond(library, method, url, JSON.parse(String(init?.body ?? "{}")));
-      if (answer.status === 404 && answer.body.includes("no route")) {
-        noRoute.push(`${method} ${url.pathname}`);
-      }
-      return new Response(answer.body, { status: answer.status, headers: answer.headers });
+      return fake.fetch(input, init);
     },
   });
   const silent: string[] = [];
@@ -131,5 +124,5 @@ it("routes every request the app's Trakt reads and writes send", async () => {
     for (const { method, path, body } of queued.flatMap((op) => [op.request, op.inverse]))
       await client.send(method, path, { body });
   }
-  expect({ noRoute, silent }).toEqual({ noRoute: [], silent: [] });
+  expect({ noRoute: fake.noRoute, silent }).toEqual({ noRoute: [], silent: [] });
 });

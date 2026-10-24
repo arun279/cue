@@ -26,7 +26,7 @@ export interface View {
   readonly extended: string;
 }
 
-export const iso = (ms: number): string => new Date(ms).toISOString();
+const iso = (ms: number): string => new Date(ms).toISOString();
 
 const hasAired = (ep: Episode, now: number): boolean =>
   ep.firstAired !== null && ep.firstAired <= now;
@@ -89,7 +89,7 @@ const movieIds = (movie: Movie) => ({
 });
 
 /** The show block Trakt nests inside sync, calendar and history rows. */
-export function showRef(view: View, show: Show) {
+function showRef(view: View, show: Show) {
   const levels = levelsOf(view.extended);
   return {
     title: show.title,

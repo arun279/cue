@@ -10,7 +10,7 @@
 
 import { getResponse, HttpResponse, http, type JsonBodyType, type RequestHandler } from "msw";
 import { z } from "zod";
-import { type Account, defaultAccount } from "./account.ts";
+import { type Account, defaultAccount, SESSION } from "./account.ts";
 import * as B from "./bodies.ts";
 import {
   applyDroppedWrite,
@@ -37,7 +37,7 @@ const DEVICE_INTERVAL_S = 6;
 const POST_LIMIT = { name: "AUTHED_API_POST_LIMIT", period: 1, limit: 1 };
 const GET_LIMIT = { period: 300, limit: 500 };
 
-export interface Token {
+interface Token {
   readonly access_token: string;
   readonly refresh_token: string;
   readonly token_type: string;
@@ -46,23 +46,18 @@ export interface Token {
   readonly expires_in: number;
 }
 
-/** The session the account is signed in with before any OAuth grant. */
-export const SESSION = {
-  access_token: "fake-access-token",
-  refresh_token: "fake-refresh-token",
-} as const;
-
-export interface LoggedRequest {
+interface LoggedRequest {
   readonly method: string;
   readonly path: string;
   readonly search: string;
   readonly headers: Readonly<Record<string, string>>;
+  readonly credentials: RequestCredentials;
   readonly body: unknown;
   status: number;
   bytes: number;
 }
 
-export interface FaultMatch {
+interface FaultMatch {
   readonly method?: "GET" | "POST";
   readonly path?: RegExp;
   readonly query?: RegExp;
@@ -119,6 +114,9 @@ interface State {
 }
 
 const objectBody = z.record(z.string(), z.unknown()).catch({});
+
+/** Marks a read `peek` makes, which leaves no trace in the log or the rate limits. */
+const PEEK = "x-trakt-fake-peek";
 
 const JSON_TYPE = "application/json; charset=utf-8";
 
@@ -206,7 +204,6 @@ interface Context {
   readonly params: Readonly<Record<string, string>>;
   readonly view: B.View;
   readonly body: Record<string, unknown>;
-  readonly token: string | null;
 }
 
 type Resolver = (ctx: Context) => Response | Promise<Response>;
@@ -220,10 +217,12 @@ export interface TraktFake {
   readonly noRoute: readonly string[];
   /** The signed-in session, valid for 7 days from the last reset. */
   session(): Token;
+  /** A GET answered from the live account without a log entry, faults or rate limits: what a budget is sized from. */
+  peek(path: string): Promise<Response>;
   /** `fetch` over the handlers without a socket, for code that takes a fetch. */
   fetch(input: string | URL | Request, init?: RequestInit): Promise<Response>;
-  /** Back to a fresh default account and session; disarms faults and releases held requests. */
-  reset(): void;
+  /** Back to a fresh account and session; disarms faults and releases held requests. */
+  reset(next?: { readonly multiplePlays?: boolean }): void;
   /** The person at the activation page enters the code, or refuses it. */
   approve(): void;
   deny(): void;
@@ -245,8 +244,8 @@ export function createTraktFake(options: FakeOptions = {}): TraktFake {
   let faults: Armed[] = [];
   let releases: (() => void)[] = [];
 
-  const fresh = (): State => ({
-    account: makeAccount(options.multiplePlays ?? true),
+  const fresh = (multiplePlays = options.multiplePlays ?? true): State => ({
+    account: makeAccount(multiplePlays),
     sessions: new Map([[SESSION.access_token, { createdAt: clock(), revokedAt: null }]]),
     refresh: new Map([[SESSION.refresh_token, SESSION.access_token]]),
     device: null,
@@ -338,12 +337,14 @@ export function createTraktFake(options: FakeOptions = {}): TraktFake {
     resolve: Resolver,
   ) {
     const url = new URL(request.url);
+    if (request.headers.has(PEEK)) return resolve(contextOf(request, url, params, {}));
     const text = request.method === "GET" ? "" : await request.clone().text();
     const entry: LoggedRequest = {
       method: request.method,
       path: url.pathname,
       search: url.search,
       headers: Object.fromEntries(request.headers),
+      credentials: request.credentials,
       body: text === "" ? null : JSON.parse(text),
       status: 0,
       bytes: 0,
@@ -354,6 +355,14 @@ export function createTraktFake(options: FakeOptions = {}): TraktFake {
     entry.bytes = response.type === "error" ? 0 : (await response.clone().arrayBuffer()).byteLength;
     return response;
   }
+
+  const contextOf = (request: Request, url: URL, params: Context["params"], body: unknown) => ({
+    request,
+    url,
+    params,
+    view: { account: state.account, art, extended: url.searchParams.get("extended") ?? "" },
+    body: objectBody.parse(body),
+  });
 
   async function faulted(fault: Effect | null): Promise<Response | null> {
     if (fault?.kind === "drop") return HttpResponse.error();
@@ -379,20 +388,7 @@ export function createTraktFake(options: FakeOptions = {}): TraktFake {
     const fault = takeFault(request.method, url);
     const refused = (await faulted(fault)) ?? admit(request, authed);
     if (refused !== null) return refused;
-    const token = bearer(request);
-    const view: B.View = {
-      account: state.account,
-      art,
-      extended: url.searchParams.get("extended") ?? "",
-    };
-    const response = await resolve({
-      request,
-      url,
-      params,
-      view,
-      token,
-      body: objectBody.parse(body),
-    });
+    const response = await resolve(contextOf(request, url, params, body));
     return fault?.kind === "drop-after" ? HttpResponse.error() : response;
   }
 
@@ -632,6 +628,9 @@ export function createTraktFake(options: FakeOptions = {}): TraktFake {
     requests,
     noRoute,
     session: () => tokenOf(SESSION.access_token, SESSION.refresh_token),
+    peek: async (path) =>
+      (await getResponse(handlers, new Request(`${base}${path}`, { headers: { [PEEK]: "1" } }))) ??
+      notFound(),
     async fetch(input, init) {
       const response = await getResponse(handlers, new Request(input, init));
       if (response === undefined) {
@@ -641,13 +640,13 @@ export function createTraktFake(options: FakeOptions = {}): TraktFake {
       if (response.type === "error") throw new TypeError("fetch failed");
       return response;
     },
-    reset() {
+    reset(next) {
       for (const release of releases) release();
       releases = [];
       faults = [];
       requests.length = 0;
       noRoute.length = 0;
-      state = fresh();
+      state = fresh(next?.multiplePlays);
     },
     approve() {
       if (state.device !== null) state.device.approved = true;
