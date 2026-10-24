@@ -36,15 +36,13 @@ Git hooks are installed by `pnpm install`. Pre-commit runs the fast lint, format
 
 ## Local fake Trakt
 
-`packages/core/test/trakt-fake` is the only Trakt fake. It holds a seeded account, OAuth sessions, Trakt's rate limits and every route the app calls, as MSW handlers. Core tests run it in process, with one-shot helpers for failures such as a 429, a 5xx, a held request or a dropped connection. The Maestro smoke flows reach the same handlers over HTTP:
+`packages/core/test/trakt-fake` is the only Trakt fake. Core tests run it in process, and the Maestro smoke flows reach the same handlers over HTTP:
 
 ```sh
 pnpm fake:trakt
 ```
 
-Seeded dates count from a fixed instant, `FIXTURE_NOW` in `account.ts`, so the account is the same on every day it runs. Only test code under that directory may import `msw`; oxlint enforces it.
-
-`recordings.json` holds what real Trakt answered on a throwaway account: for every read the app makes, the statuses, pagination headers and per body path the JSON types, string classes, presence and empty arrays, with no values; and transcripts of scenarios that write to the account and put it back, reduced to account-independent facts such as statuses, content types, body shapes, write counts, which activity stamps moved and page limits. `conformance.test.ts` asks the fake the same reads and runs the same scenarios from `scenarios.ts`. It fails on anything Trakt was never seen sending, on any 404 from a recorded read, and on any difference from a transcript. What cannot be recorded, such as token lifetime, the device token statuses and the rate limits, follows Trakt's documentation and is tested in `fake.test.ts`.
+Its README covers what it models, the rules for tests that use it, how `conformance.test.ts` holds it to recordings of real Trakt, and where each recording came from.
 
 `scenario-budget.test.tsx` replays user scenarios against the fake on generated accounts of a given size, and sizes each byte budget from the fake's own answers to the reads the scenario needs.
 
