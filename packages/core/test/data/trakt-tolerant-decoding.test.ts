@@ -1,4 +1,4 @@
-import { type ReadProblem, TraktClient } from "@cue/core/data/trakt/client";
+import { type ReadProblem, TraktClient, TraktReadError } from "@cue/core/data/trakt/client";
 import { incidentReport, parseIncidents, recordIncident } from "@cue/core/data/trakt/diagnostics";
 import {
   getHistory,
@@ -9,6 +9,7 @@ import {
   getWatchedMovies,
   getWatchedShows,
 } from "@cue/core/data/trakt/endpoints";
+import { loadUpNextEntries } from "@cue/core/data/trakt/read-budget";
 import { INCIDENTS_KEY } from "@cue/core/ports/storage-keys";
 import { useReadIncidents } from "@cue/core/stores/read-incidents-store";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -163,6 +164,23 @@ describe("a body missing an essential field fails as an unexpected shape", () =>
   it("fails on a history row missing the play id", async () => {
     const { client } = serving([{ watched_at: "x", type: "movie" }]);
     expect(await getHistory(client, "all", 1)).toMatchObject(unexpectedShape("0.id"));
+  });
+
+  it("fails the whole Up Next snapshot on a progress body that breaks the contract", async () => {
+    const watched = [
+      { last_watched_at: "2026-07-01T00:00:00.000Z", show: { ...SHOW, aired_episodes: 10 } },
+    ];
+    const { client } = answering((url) =>
+      json(
+        url.pathname === "/sync/watched/shows"
+          ? watched
+          : url.pathname.endsWith("/watched")
+            ? {}
+            : [],
+        PAGE,
+      ),
+    );
+    await expect(loadUpNextEntries(client)).rejects.toThrow(TraktReadError);
   });
 
   it("fails at the root when the body is not JSON", async () => {

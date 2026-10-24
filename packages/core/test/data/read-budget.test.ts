@@ -20,6 +20,8 @@ import {
   subscribeReadPause,
   withReadRateRetry,
 } from "../../src/data/trakt/read-budget";
+import { emptyAccount, libraryShow, type ShowSpec } from "../trakt-fake/account.ts";
+import { createTraktFake } from "../trakt-fake/fake.ts";
 
 const rateLimited = (retryAfterMs: number | null): TraktResult<never> => ({
   ok: false,
@@ -164,88 +166,98 @@ it("caps concurrent reads across independent callers, not per fan-out", async ()
   expect(peak).toBe(DEFAULT_TRAKT_POLICY.readConcurrency);
 });
 
-/**
- * Which shows the cold sync spends a progress read on, for watched rows the
- * Trakt fake does not produce: a restarted show, more plays than aired episodes,
- * a row with no watched date, and a progress body that breaks the contract.
- */
-describe("the progress read budget on unusual watched rows", () => {
-  const playedAt = (i: number) => new Date(Date.UTC(2026, 0, 1) - i * 86_400_000).toISOString();
-  const row = (i: number, watched: number, extra: object = {}) => ({
-    last_watched_at: playedAt(i),
-    reset_at: null,
-    show: { title: `Show ${i}`, aired_episodes: 10, ids: { trakt: i + 1 } },
-    seasons: [
-      {
-        number: 1,
-        episodes: Array.from({ length: watched }, (_, e) => ({
-          number: e + 1,
-          last_watched_at: playedAt(i),
-        })),
-      },
-    ],
+/** A show in the account's watch history: `aired` episodes out, `completed` of them played. */
+function played(
+  trakt: number,
+  aired: number,
+  completed: number,
+  extra: Partial<ShowSpec> = {},
+): ShowSpec {
+  return {
+    trakt,
+    tmdb: trakt,
+    slug: `show-${trakt}`,
+    title: `Show ${trakt}`,
+    year: 2020,
+    status: "returning series",
+    network: "Meridian",
+    runtime: 45,
+    genres: ["drama"],
+    overview: "A show in the account's history.",
+    seasons: [aired],
+    startDaysAgo: aired * 7 + 30,
+    completed,
+    lastWatchedDaysAgo: trakt,
     ...extra,
+  };
+}
+
+/** The cold sync over a fake account holding exactly these shows. */
+async function coldSync(shows: readonly ShowSpec[]) {
+  const fake = createTraktFake({
+    account: () => {
+      const account = emptyAccount();
+      account.shows = shows.map((spec) => libraryShow(spec, account.now));
+      return account;
+    },
   });
-  const next = { season: 1, number: 4, title: "Next", ids: { trakt: 4 } };
-
-  function reading(
-    rows: readonly object[],
-    progress: object = { aired: 10, completed: 3, next_episode: next },
-  ) {
-    const reads: string[] = [];
-    const fetch = async (input: string | URL | Request) => {
-      const { pathname } = new URL(String(input));
-      reads.push(pathname);
-      const body =
-        pathname === "/sync/watched/shows"
-          ? rows
-          : pathname.endsWith("/progress/watched")
-            ? progress
-            : [];
-      return Response.json(body, {
-        headers: { "x-pagination-page": "1", "x-pagination-page-count": "1" },
-      });
-    };
-    const progressReads = () => reads.filter((path) => path.endsWith("/progress/watched")).length;
-    return { client: new TraktClient({ clientId: "client", fetch }), progressReads };
-  }
-
-  it("reads a restarted show whose plays all predate the restart, and none once it is caught up again", async () => {
-    const restarted = reading([row(0, 10, { reset_at: "2026-06-01T00:00:00.000Z" })]);
-    expect((await loadUpNextEntries(restarted.client))[0]).toMatchObject({
-      aired: 10,
-      completed: 3,
-    });
-    expect(restarted.progressReads()).toBe(1);
-    const caughtUp = reading([row(0, 10, { reset_at: "2020-01-01T00:00:00.000Z" })]);
-    expect((await loadUpNextEntries(caughtUp.client))[0]).toMatchObject({
-      completed: 10,
-      nextEpisode: null,
-    });
-    expect(caughtUp.progressReads()).toBe(0);
+  const client = new TraktClient({
+    clientId: "client",
+    getToken: () => fake.session().access_token,
+    fetch: fake.fetch,
   });
+  const entries = await loadUpNextEntries(client);
+  const progressReads = fake.requests.filter((r) => r.path.endsWith("/progress/watched")).length;
+  return { entries, progressReads };
+}
 
-  it("reads a show with more plays than aired episodes instead of calling it caught up", async () => {
-    const { client, progressReads } = reading([row(0, 12)]);
-    expect((await loadUpNextEntries(client))[0]?.nextEpisode).not.toBeNull();
-    expect(progressReads()).toBe(1);
-  });
+const BUDGET = DEFAULT_TRAKT_POLICY.progressBudget;
 
-  it("ranks a show Trakt never stamped as watched last for the budget", async () => {
-    const { last_watched_at: _never, ...unstamped } = row(0, 8);
-    const rows = [
-      unstamped,
-      ...Array.from({ length: DEFAULT_TRAKT_POLICY.progressBudget }, (_, i) => row(i + 1, 8)),
-    ];
-    const { client, progressReads } = reading(rows);
-    const entries = await loadUpNextEntries(client);
-    expect(progressReads()).toBe(DEFAULT_TRAKT_POLICY.progressBudget);
+describe("which shows the cold sync spends a progress read on", () => {
+  it("spends the budget on shows with something left, so recently watched caught-up shows cost none of it", async () => {
+    const caughtUp = Array.from({ length: 20 }, (_, i) =>
+      played(i + 1, 10, 10, { lastWatchedDaysAgo: 0 }),
+    );
+    const backlog = Array.from({ length: BUDGET + 20 }, (_, i) => played(i + 21, 10, 8));
+    const { entries, progressReads } = await coldSync([...caughtUp, ...backlog]);
+    expect(progressReads).toBe(BUDGET);
+    expect(entries.filter((entry) => entry.nextEpisode !== null)).toHaveLength(BUDGET);
     expect(entries.find((entry) => entry.showId === 1)?.nextEpisode).toBeNull();
   });
 
-  it("fails the whole snapshot on a progress body that breaks the contract", async () => {
-    await expect(loadUpNextEntries(reading([row(0, 8)], {}).client)).rejects.toThrow(
-      TraktReadError,
-    );
+  it("reads a show restarted after all its plays, and none once its plays since the restart catch up", async () => {
+    const restarted = await coldSync([
+      played(1, 10, 10, { lastWatchedDaysAgo: 30, resetDaysAgo: 20 }),
+    ]);
+    expect(restarted.progressReads).toBe(1);
+    expect(restarted.entries[0]).toMatchObject({
+      aired: 10,
+      completed: 0,
+      nextEpisode: { number: 1 },
+    });
+    const caughtUp = await coldSync([
+      played(1, 10, 10, { lastWatchedDaysAgo: 30, resetDaysAgo: 100 }),
+    ]);
+    expect(caughtUp.progressReads).toBe(0);
+    expect(caughtUp.entries[0]).toMatchObject({ completed: 10, nextEpisode: null });
+  });
+
+  it("reads a show with more plays than aired episodes instead of calling it caught up", async () => {
+    const { entries, progressReads } = await coldSync([
+      played(1, 14, 12, { watchedRow: { aired_episodes: 10 } }),
+    ]);
+    expect(progressReads).toBe(1);
+    expect(entries[0]?.nextEpisode).toMatchObject({ number: 13 });
+  });
+
+  it("ranks a show Trakt never stamped as watched last for the budget", async () => {
+    const unstamped = played(1, 10, 8, {
+      lastWatchedDaysAgo: 0,
+      watchedRow: { last_watched_at: null },
+    });
+    const others = Array.from({ length: BUDGET }, (_, i) => played(i + 2, 10, 8));
+    const { entries, progressReads } = await coldSync([unstamped, ...others]);
+    expect(progressReads).toBe(BUDGET);
+    expect(entries.find((entry) => entry.showId === 1)?.nextEpisode).toBeNull();
   });
 });

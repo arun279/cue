@@ -67,6 +67,10 @@ export interface ShowSpec {
   readonly drop?: { readonly episodes: number; readonly inDays: number };
   /** The user's progress snapshot was taken this many days ago (trakt/api-help#446). */
   readonly snapshotDaysAgo?: number;
+  /** Trakt's "restart show": earlier plays stay in the watched breakdown, progress counts only later ones. */
+  readonly resetDaysAgo?: number;
+  /** Watched-row fields real accounts carry that the play counter cannot derive. */
+  readonly watchedRow?: { readonly last_watched_at?: null; readonly aired_episodes?: number };
 }
 
 export interface MovieSpec {
@@ -101,6 +105,7 @@ export interface Show extends ShowSpec {
   readonly watchedAt: Map<number, number>;
   /** When the user's progress snapshot was taken, if it is older than now. */
   progressAt: number | undefined;
+  readonly resetAt: number | null;
 }
 
 export interface Movie extends MovieSpec {
@@ -261,6 +266,7 @@ export function libraryShow(spec: ShowSpec, now: number): Show {
     specialsWatchedAt: watchedSpecials(spec, specialEpisodes, now),
     watchedAt: new Map(),
     progressAt: daysAgo(now, spec.snapshotDaysAgo) ?? undefined,
+    resetAt: daysAgo(now, spec.resetDaysAgo),
   };
 }
 
@@ -714,7 +720,8 @@ export const CATALOG_MOVIES: readonly MovieSpec[] = [
   }),
 ];
 
-function emptyAccount(now: number, multiplePlays: boolean): Account {
+/** An account with nothing in it, for a test to fill with the shows it needs. */
+export function emptyAccount(multiplePlays = true, now = FIXTURE_NOW): Account {
   const stamp = (days: number): number => now - days * DAY;
   return {
     now,
@@ -743,7 +750,7 @@ const REWATCHED_EPISODE = 880608;
 
 /** The default account; `multiplePlays` is Trakt's account setting of that name. */
 export function defaultAccount(multiplePlays = true, now = FIXTURE_NOW): Account {
-  const account = emptyAccount(now, multiplePlays);
+  const account = emptyAccount(multiplePlays, now);
   account.shows = [...SHOWS, ...SHELF_SHOWS].map((spec) => libraryShow(spec, now));
   account.movies = [...MOVIES, ...SHELF_MOVIES].map((spec) => libraryMovie(spec, now));
   account.rewatchedEpisodes.set(REWATCHED_EPISODE, now - DAY);
@@ -867,7 +874,7 @@ function watchedShows(size: AccountSize, now: number): Show[] {
 
 /** A generated account of a given size, for the request-budget replay. */
 export function sized(size: AccountSize, now = FIXTURE_NOW): Account {
-  const account = emptyAccount(now, true);
+  const account = emptyAccount(true, now);
   const watchlist = Array.from({ length: size.watchlistShows }, (_, index) =>
     sizedShow(
       SIZED_WATCHLIST + index,

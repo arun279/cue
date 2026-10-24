@@ -205,12 +205,13 @@ export function watchedShowsBody(view: View) {
     plays: show.completed + specialPlays(account, show),
     last_watched_at: iso(show.lastWatchedAt ?? account.now),
     last_updated_at: iso(show.lastWatchedAt ?? account.now),
-    reset_at: null,
+    reset_at: show.resetAt === null ? null : iso(show.resetAt),
+    ...(show.watchedRow?.last_watched_at === null ? { last_watched_at: null } : {}),
     show: {
       title: show.title,
       year: show.year,
       ids: showIds(show),
-      aired_episodes: airedEpisodes(show, account.now).length,
+      aired_episodes: show.watchedRow?.aired_episodes ?? airedEpisodes(show, account.now).length,
       runtime: show.runtime,
       ...(levels.has("full") ? { status: show.status, network: show.network } : {}),
     },
@@ -251,6 +252,10 @@ function specialsProgress(view: View, show: Show, specials: boolean, countSpecia
   };
 }
 
+/** Whether the episode at a watch-order index counts as watched: played, and after any restart. */
+const sinceReset = (show: Show) => (index: number) =>
+  index < show.completed && (show.resetAt === null || watchedAtOf(show, index) > show.resetAt);
+
 /** The next episode: the first unwatched one, or with a stale snapshot only one that had aired by then. */
 const nextEpisodeOf = (show: Show, aired: readonly Episode[]): Episode | undefined =>
   show.progressAt === undefined ? show.episodes[show.completed] : aired[show.completed];
@@ -267,8 +272,9 @@ export function progressBody(view: View, show: Show, specials: boolean, countSpe
     number,
     { number: number; completed: boolean; last_watched_at: string | null }[]
   >(show.episodes.map((ep) => [ep.season, []]));
+  const counts = sinceReset(show);
   aired.forEach((ep, index) => {
-    const watched = index < show.completed;
+    const watched = counts(index);
     bySeason.get(ep.season)?.push({
       number: ep.number,
       completed: watched,
@@ -276,13 +282,16 @@ export function progressBody(view: View, show: Show, specials: boolean, countSpe
     });
   });
   const { seasonZero, counted } = specialsProgress(view, show, specials, countSpecials);
-  const next = nextEpisodeOf(show, aired);
+  const next =
+    show.resetAt === null ? nextEpisodeOf(show, aired) : aired.find((_, index) => !counts(index));
   const previous = show.episodes[show.completed - 1];
   return {
     aired: aired.length + counted.length,
-    completed: Math.min(show.completed, aired.length) + counted.filter((sp) => sp.completed).length,
+    completed:
+      aired.filter((_, index) => counts(index)).length +
+      counted.filter((sp) => sp.completed).length,
     last_watched_at: show.lastWatchedAt === null ? null : iso(show.lastWatchedAt),
-    reset_at: null,
+    reset_at: show.resetAt === null ? null : iso(show.resetAt),
     seasons: [...seasonZero, ...bySeason].map(([number, episodes]) => ({
       number,
       title: number === 0 ? "Specials" : `Season ${number}`,
