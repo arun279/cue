@@ -16,6 +16,7 @@ overrides:
   postcss@<=8.5.17: '>=8.5.18'
   shell-quote@>=1.8.4 <1.11.0: ^1.11.0
   source-map-js@>=1.0.0 <1.2.2: ^1.2.2
+  zod@<4.6.6: ^4.6.6
 
 patchedDependencies:
   '@expo/metro-config@57.0.13':
@@ -90,8 +91,8 @@ importers:
         specifier: 5.101.2
         version: 5.101.2(react@19.2.7)
       zod:
-        specifier: ^4.4.3
-        version: 4.4.3
+        specifier: ^4.6.6
+        version: 4.6.7
       zustand:
         specifier: 5.0.14
         version: 5.0.14(@types/react@19.2.17)(react@19.2.7)(use-sync-external-store@1.6.0(react@19.2.7))
@@ -7190,11 +7191,8 @@ packages:
     resolution: {integrity: sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==}
     engines: {node: '>=10'}
 
-  zod@3.25.76:
-    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
-
-  zod@4.4.3:
-    resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
+  zod@4.6.7:
+    resolution: {integrity: sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg==}
 
   zsign-wasm@0.0.4:
     resolution: {integrity: sha512-KaehP8RheShV5CG3Ku5UjodiXgQbuRj5xYS7fmAd1lsa/yLqHi0KhS6MzhIkKLxeofxfqWsg9toKNjFy/5Mt+w==}
@@ -7911,7 +7909,7 @@ snapshots:
       mathjs: 15.2.0
       ts-markdown-builder: 0.6.0
       ts-regex-builder: 1.8.2
-      zod: 4.4.3
+      zod: 4.6.7
 
   '@callstack/reassure-danger@1.6.0': {}
 
@@ -8328,7 +8326,7 @@ snapshots:
       toqr: 0.1.1
       wrap-ansi: 7.0.0
       ws: 8.21.3
-      zod: 3.25.76
+      zod: 4.6.7
     optionalDependencies:
       expo-router: 57.0.29(3b179dcc37a8f7bd2d6dec73c59cd3a0)
       react-native: 0.86.3(@babel/core@7.29.7)(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.7))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.2.17)(react@19.2.7)
@@ -8513,7 +8511,7 @@ snapshots:
       '@expo/turtle-spawn': 24.8.0
       joi: 17.13.8
       semver: 7.8.5
-      zod: 4.4.3
+      zod: 4.6.7
 
   '@expo/eas-json@24.9.0':
     dependencies:
@@ -8912,7 +8910,7 @@ snapshots:
       lodash.clonedeep: 4.5.0
       uuid: 11.1.1
       yaml: 2.9.0
-      zod: 4.4.3
+      zod: 4.6.7
 
   '@expo/sudo-prompt@9.3.2': {}
 
@@ -11372,7 +11370,7 @@ snapshots:
       wrap-ansi: 7.0.0
       ws: 8.21.1
       yaml: 2.6.0
-      zod: 4.4.3
+      zod: 4.6.7
     transitivePeerDependencies:
       - '@swc/core'
       - '@swc/wasm'
@@ -12884,7 +12882,7 @@ snapshots:
       tinyglobby: 0.2.17
       unbash: 4.0.2
       yaml: 2.9.0
-      zod: 4.4.3
+      zod: 4.6.7
 
   lan-network@0.2.1: {}
 
@@ -15150,9 +15148,7 @@ snapshots:
 
   yocto-queue@0.1.0: {}
 
-  zod@3.25.76: {}
-
-  zod@4.4.3: {}
+  zod@4.6.7: {}
 
   zsign-wasm@0.0.4:
     dependencies:
