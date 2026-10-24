@@ -13,6 +13,7 @@ export const queryKeys = {
   movieLibrary: () => ["movie-library"] as const,
   movieHeader: (movieId: number) => ["movie", "header", movieId] as const,
   movieRelated: (movieId: number) => ["movie", "related", movieId] as const,
+  showSection: (section: "progress" | "seasons" | "episode") => ["show", section] as const,
   showInfo: (showId: number) => ["show", "info", showId] as const,
   showRelated: (showId: number) => ["show", "related", showId] as const,
   showProgress: (showId: number) => ["show", "progress", showId] as const,

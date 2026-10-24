@@ -52,10 +52,13 @@ describe("showProgressKeys: the keys a local mark on show X must refresh", () =>
 });
 
 describe("invalidationKeys maps last_activities targets to cached query keys", () => {
-  it("routes an episode watch to the library + the Diary", () => {
+  it("routes an episode watch to the library, the Diary and every show's watched state", () => {
     expect(invalidationKeys(["watched/shows", "progress/watched"])).toEqual([
       queryKeys.library(),
       queryKeys.historyPrefix(),
+      queryKeys.showSection("progress"),
+      queryKeys.showSection("seasons"),
+      queryKeys.showSection("episode"),
     ]);
   });
 
@@ -81,16 +84,17 @@ describe("invalidationKeys maps last_activities targets to cached query keys", (
     ).toEqual([queryKeys.library(), queryKeys.movieLibrary()]);
   });
 
-  it("routes an abandon (hidden) change and bucket recompute to the library", () => {
+  it("routes a hidden change to the library and to the progress it drops hidden seasons from", () => {
     expect(invalidationKeys(["hidden/progress_watched", "recompute:buckets"])).toEqual([
       queryKeys.library(),
+      queryKeys.showSection("progress"),
+      queryKeys.showSection("seasons"),
+      queryKeys.showSection("episode"),
     ]);
   });
 
-  it("routes a hidden or dropped list change to the library on its own", () => {
-    for (const target of ["hidden/progress_watched", "hidden/dropped"] as const) {
-      expect(invalidationKeys([target])).toEqual([queryKeys.library()]);
-    }
+  it("routes a dropped list change to the library on its own", () => {
+    expect(invalidationKeys(["hidden/dropped"])).toEqual([queryKeys.library()]);
   });
 
   it("maps unsurfaced targets (episode watchlist, favorites, movie hidden) to nothing", () => {

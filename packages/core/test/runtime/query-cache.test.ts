@@ -18,16 +18,19 @@ function policyOver(entries?: readonly { readonly showId: number }[]): {
   persists(
     key: readonly unknown[],
     state?: { status: "success" | "error"; data?: unknown },
+    observers?: number,
   ): boolean;
 } {
   const queryClient = new QueryClient();
   if (entries !== undefined) queryClient.setQueryData(queryKeys.library(), { entries });
   const { shouldDehydrateQuery } = createQueryCachePolicy(queryClient);
   return {
-    persists(key, state = { status: "success", data: {} }) {
-      return shouldDehydrateQuery({ queryKey: key, state } as Parameters<
-        typeof shouldDehydrateQuery
-      >[0]);
+    persists(key, state = { status: "success", data: {} }, observers = 0) {
+      return shouldDehydrateQuery({
+        queryKey: key,
+        state,
+        getObserversCount: () => observers,
+      } as Parameters<typeof shouldDehydrateQuery>[0]);
     },
   };
 }
@@ -63,8 +66,11 @@ describe("what a cold boot restores", () => {
     expect(policy.persists(queryKeys.showInfo(UNSEEN_SHOW))).toBe(false);
   });
 
-  it("keeps a library show's season tree, which places its card when the calendar sees a new episode", () => {
-    expect(policy.persists(queryKeys.showSeasons(LIBRARY_SHOW))).toBe(true);
+  it("keeps a library show's season tree while a screen uses it, as Up Next does to place a card", () => {
+    const tree = queryKeys.showSeasons(LIBRARY_SHOW);
+    expect(policy.persists(tree, undefined, 1)).toBe(true);
+    expect(policy.persists(tree)).toBe(false);
+    expect(policy.persists(queryKeys.showSeasons(UNSEEN_SHOW), undefined, 1)).toBe(false);
   });
 
   it("keeps nothing at all when there is no library to paint cards from", () => {
