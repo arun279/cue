@@ -36,20 +36,17 @@ Git hooks are installed by `pnpm install`. Pre-commit runs the fast lint, format
 
 ## Local fake Trakt
 
-`scripts/mock-trakt` is a dependency-free server for deterministic sync tests and native simulator flows. It serves seeded accounts, records request journals, and exposes controlled rate-limit, server failure, token refresh, delayed response, held connection, and dropped connection modes. Seeded dates count from a fixed instant, `FIXTURE_NOW` in `scripts/mock-trakt/seed.mjs`, so the fake account is the same on every day it runs.
+`packages/core/test/trakt-fake` is the only Trakt fake. It holds a seeded account, OAuth sessions, Trakt's rate limits and every route the app calls, as MSW handlers. Core tests run it in process, with one-shot helpers for failures such as a 429, a 5xx, a held request or a dropped connection. The Maestro smoke flows reach the same handlers over HTTP:
 
 ```sh
-pnpm mock:trakt
+pnpm fake:trakt
 ```
 
-It is the only Trakt fake. The Maestro smoke flows drive the Expo app against it over HTTP. The core harness in `packages/core/test/harness` boots it in process and drives `@cue/core` through its real client, read pool, query cache, runtime and write queue. That keeps request budgets, retry timing, refresh behavior, request shapes and post-write scoped reads independent of any rendered screen.
+Seeded dates count from a fixed instant, `FIXTURE_NOW` in `account.ts`, so the account is the same on every day it runs. Only test code under that directory may import `msw`; oxlint enforces it.
 
-Two gates hold the fake to real Trakt:
+`recordings.json` holds what real Trakt answered on a throwaway account: for every read the app makes, the statuses, pagination headers and per body path the JSON types, string classes, presence and empty arrays, with no values; and transcripts of scenarios that write to the account and put it back, reduced to account-independent facts such as statuses, content types, body shapes, write counts, which activity stamps moved and page limits. `conformance.test.ts` asks the fake the same reads and runs the same scenarios from `scenarios.ts`. It fails on anything Trakt was never seen sending, on any 404 from a recorded read, and on any difference from a transcript. What cannot be recorded, such as token lifetime, the device token statuses and the rate limits, follows Trakt's documentation and is tested in `fake.test.ts`.
 
-- **Shapes.** `trakt-real-shapes.json` records, for every read the app makes, what a real account sent: statuses, pagination headers, and per body path the JSON types, string classes, presence and empty arrays, with no values. It is generated and stored minified. `mock-conformance.test.ts` asks the fake the same reads. It fails on any path, type, class, status or header Trakt was never seen sending, and on any field the app reads that Trakt sends as null or empty when the fake never does. Known differences are listed in the test with their reason.
-- **Behavior.** `scenarios.ts` runs scenarios that write to an account and put it back: a mark and its undo, a rewatch with Multiple Plays off and on, two marks in one batch, unknown items, page sizes and caps, and hiding and dropping a show. Each reports only account-independent facts: statuses, write answer counts, which activity stamps moved, count changes and page limits. `trakt-transcripts.json` holds what a real account answered, recorded by hand on a developer machine through a request guard, never in CI. `mock-behavior.test.ts` runs the same scenarios against the fake and expects the same transcript.
-
-`scenario-budget.test.tsx` replays user scenarios against the fake in process, on accounts sized by `createSizedLibrary`. It sizes each byte budget from the fake's own answers to the reads the scenario needs.
+`scenario-budget.test.tsx` replays user scenarios against the fake on generated accounts of a given size, and sizes each byte budget from the fake's own answers to the reads the scenario needs.
 
 Set `EXPO_PUBLIC_TRAKT_API_BASE=http://127.0.0.1:8787` for a simulator build that should use the fake service. The Expo configuration adds a local transport exception only for that build. Release builds carry no exception. Set `EXPO_PUBLIC_CLOCK_START` to the instant of `FIXTURE_NOW` too: the app's clock then starts there at launch and runs on, so the app and the fake agree on which episodes have aired. CI sets it in `.github/workflows/ci.yml`; change both together. Store builds leave it unset, Metro leaves the clock out of their bundles, and `pnpm check:size:native` and the release workflows fail if it reaches one.
 
@@ -68,7 +65,7 @@ Core tests use Vitest. On pull requests, CI requires every changed executable li
 
 End-to-end coverage is a short Maestro smoke suite in `.maestro/smoke`: sign in through the device code, mark the next episode from Up Next, visit every tab, open a show and a movie and mark an episode, search, and sign out. Every pull request push runs it on an Android emulator and an iOS simulator, against a release build of the app pointed at the fake. Each job fingerprints the native project with `@expo/fingerprint` and caches the native build under that hash; when the hash is already cached, `@expo/repack-app` swaps the commit's JavaScript into the cached build instead of compiling it again. The jobs upload the screenshots each flow takes, plus Maestro's debug output when a flow fails. To check that the suite is deterministic, dispatch the CI workflow on a branch repeatedly with `gh workflow run ci.yml --ref <branch>`, once first so that run seeds the build cache.
 
-To run the smoke flows locally, start `pnpm mock:trakt`, install a build made with the environment above on a simulator or emulator (`adb reverse tcp:8787 tcp:8787` on Android), and run `maestro test .maestro/smoke`.
+To run the smoke flows locally, start `pnpm fake:trakt`, install a build made with the environment above on a simulator or emulator (`adb reverse tcp:8787 tcp:8787` on Android), and run `maestro test .maestro/smoke`.
 
 ## Releasing
 

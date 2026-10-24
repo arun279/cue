@@ -2,12 +2,7 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "workspaces": {
     ".": {
-      "entry": [
-        "scripts/*.mjs",
-        "scripts/mock-trakt/*.mjs",
-        "test/vitest.config.ts",
-        "test/ci/fixtures/stall-guard/*.ts"
-      ],
+      "entry": ["scripts/*.mjs", "test/vitest.config.ts", "test/ci/fixtures/stall-guard/*.ts"],
       "project": ["scripts/**/*.mjs", "test/**/*.ts"],
       "ignoreDependencies": ["expo-atlas", "eas-cli"]
     },
