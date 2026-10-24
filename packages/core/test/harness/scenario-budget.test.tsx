@@ -170,6 +170,41 @@ const LIST_ART = "the change that takes queue row posters from list payloads and
 const LAZY_SEARCH = "the change that loads the Search tab's data on first focus";
 const DELTA_RELOAD = "the delta reload after the app's own writes";
 
+const byRoute = (counts: Readonly<Record<string, number>>): Record<string, number> => {
+  const routes: Record<string, number> = {};
+  for (const [path, times] of Object.entries(counts)) {
+    const route = path.replace(/\d+/g, ":id");
+    routes[route] = (routes[route] ?? 0) + times;
+  }
+  return routes;
+};
+
+// The marked show's progress after the mark and after the undo, the undo's play lookup, the poll,
+// and the library reload: every watched and watchlist page, the hidden lists, the collection and
+// progress for the shows within the progress budget.
+const MARK_UNDO_POLL_READS: Readonly<Record<"small" | "heavy", Record<string, number>>> = {
+  small: {
+    "/shows/:id/progress/watched": 2 + 14,
+    "/sync/history/episodes/:id": 1,
+    "/sync/last_activities": 1,
+    "/sync/watched/shows": 1,
+    "/users/hidden/progress_watched": 1,
+    "/users/hidden/dropped": 1,
+    "/sync/watchlist/shows": 1,
+    "/sync/collection/shows": 1,
+  },
+  heavy: {
+    "/shows/:id/progress/watched": 2 + DEFAULT_TRAKT_POLICY.progressBudget,
+    "/sync/history/episodes/:id": 1,
+    "/sync/last_activities": 1,
+    "/sync/watched/shows": 15,
+    "/users/hidden/progress_watched": 1,
+    "/users/hidden/dropped": 1,
+    "/sync/watchlist/shows": 7,
+    "/sync/collection/shows": 1,
+  },
+};
+
 const sum = <T,>(items: readonly T[], bytes: (item: T) => number): number =>
   items.reduce((total, item) => total + bytes(item), 0);
 
@@ -624,6 +659,14 @@ describe.each([
     });
   });
 
+  // The app applied its own mark and undo to the cache, so the poll's library reload finds no show
+  // changed and reads no season tree again.
+  it("spends mark, undo and the next poll on the marked show and one library reload", () => {
+    expect(byRoute(replayed.results["mark, undo, then the next poll"].getsByPath)).toEqual(
+      MARK_UNDO_POLL_READS[label],
+    );
+  });
+
   // Past the progress budget a show keeps Trakt's bulk counts and no next episode, whether or not
   // an episode aired lately; only a caught-up show is placed from the calendar.
   it.runIf(label === "heavy")(
@@ -858,7 +901,37 @@ describe("what a cold sync reads from Trakt", () => {
   });
 });
 
-describe("a season tree kept across launches", () => {
+const nextToWatch = (tree: readonly SeasonView[] | undefined) =>
+  tree
+    ?.filter((season) => !season.isSpecial)
+    .flatMap((season) => season.episodes)
+    .find((episode) => episode.aired && !episode.watched);
+
+const watchedIn = (tree: readonly SeasonView[] | undefined, episode: number) =>
+  tree?.flatMap((season) => season.episodes).find(({ ids }) => ids.trakt === episode)?.watched;
+
+/** A play written to Trakt by another app signed in to the same account, past Cue's write limit. */
+async function playElsewhere(trakt: TraktFake, episode: number): Promise<void> {
+  const post = async (path: string, body: object, token?: string) => {
+    const headers = token === undefined ? undefined : { authorization: `Bearer ${token}` };
+    const answer = await trakt.fetch(`https://api.trakt.tv${path}`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    });
+    expect(answer.ok).toBe(true);
+    return answer.json() as Promise<Record<string, string>>;
+  };
+  const { device_code } = await post("/oauth/device/code", { client_id: "elsewhere" });
+  trakt.approve();
+  const { access_token } = await post("/oauth/device/token", { code: device_code });
+  await post("/sync/history", { episodes: [{ ids: { trakt: episode } }] }, access_token);
+}
+
+const seasonReadsSince = ({ trakt }: Session, start: number, showId: number): number =>
+  trakt.requests.slice(start).filter((r) => r.path === `/shows/${showId}/seasons`).length;
+
+describe("a season tree on screen", () => {
   const SHOW = 100_000;
 
   beforeAll(() => {
@@ -875,10 +948,7 @@ describe("a season tree kept across launches", () => {
     const first = await boot(SMALL_LIBRARY);
     await open(first, SHOW);
     await settle(first);
-    const next = first.controls.tree
-      ?.filter((season) => !season.isSpecial)
-      .flatMap((season) => season.episodes)
-      .find((episode) => episode.aired && !episode.watched);
+    const next = nextToWatch(first.controls.tree);
     if (next === undefined) throw new Error("the show has no episode left to watch");
     const saved: Saved = {
       kv: new Map(first.kv),
@@ -890,20 +960,100 @@ describe("a season tree kept across launches", () => {
     );
 
     const second = await boot(SMALL_LIBRARY, saved);
-    await second.trakt.fetch("https://api.trakt.tv/sync/history", {
-      method: "POST",
-      headers: { authorization: `Bearer ${second.trakt.session().access_token}` },
-      body: JSON.stringify({ episodes: [{ ids: { trakt: next.ids.trakt } }] }),
-    });
+    await playElsewhere(second.trakt, next.ids.trakt);
     await open(second, SHOW);
     await settle(second);
     act(() => second.root.unmount());
 
-    const seasonReads = second.trakt.requests.filter((r) => r.path === `/shows/${SHOW}/seasons`);
-    const episode = second.controls.tree
+    expect(seasonReadsSince(second, 0, SHOW)).toBe(1);
+    expect(watchedIn(second.controls.tree, next.ids.trakt)).toBe(true);
+  });
+
+  // Trakt stamps activity to the second, so the poll sees one move for both writes.
+  it("is read again when another device writes its show in the same second as this device's mark", async () => {
+    const session = await boot(SMALL_LIBRARY);
+    await open(session, SHOW);
+    await settle(session);
+    const remote = nextToWatch(session.controls.tree);
+    const own = session.controls.queue.find(({ showId }) => showId !== SHOW);
+    if (remote === undefined || own === undefined) throw new Error("nothing left to watch");
+    const second = Math.floor(Date.now() / 1000);
+    const start = session.trakt.requests.length;
+
+    await session.controls.mark?.mark(own);
+    await playElsewhere(session.trakt, remote.ids.trakt);
+    expect(Math.floor(Date.now() / 1000)).toBe(second);
+    await settle(session);
+    session.foreground.enter();
+    await settle(session);
+    act(() => session.root.unmount());
+
+    expect(seasonReadsSince(session, start, SHOW)).toBe(1);
+    expect(watchedIn(session.controls.tree, remote.ids.trakt)).toBe(true);
+  });
+
+  // A second play leaves the count of episodes watched alone and moves only the show's last play.
+  it("is read again when another device rewatches one of its episodes", async () => {
+    const session = await boot(SMALL_LIBRARY);
+    await open(session, SHOW);
+    await settle(session);
+    const watched = session.controls.tree
       ?.flatMap((season) => season.episodes)
-      .find(({ ids }) => ids.trakt === next.ids.trakt);
-    expect(seasonReads).toHaveLength(1);
-    expect(episode?.watched).toBe(true);
+      .findLast((episode) => episode.watched);
+    if (watched === undefined) throw new Error("the show has no episode watched");
+    vi.advanceTimersByTime(2 * 60_000);
+    const start = session.trakt.requests.length;
+
+    await playElsewhere(session.trakt, watched.ids.trakt);
+    session.foreground.enter();
+    await settle(session);
+    act(() => session.root.unmount());
+
+    expect(seasonReadsSince(session, start, SHOW)).toBe(1);
+  });
+
+  it("is not read again by the poll after this device's own mark", async () => {
+    const session = await boot(SMALL_LIBRARY);
+    await open(session);
+    await settle(session);
+    const own = session.controls.queue[0];
+    if (own === undefined) throw new Error("the queue is empty");
+    await open(session, own.showId);
+    await settle(session);
+    await session.controls.mark?.mark(own);
+    await settle(session);
+    const start = session.trakt.requests.length;
+
+    session.foreground.enter();
+    await settle(session);
+    act(() => session.root.unmount());
+
+    expect(session.trakt.requests.slice(start).map(({ path }) => path)).toContain(
+      "/sync/watched/shows",
+    );
+    expect(seasonReadsSince(session, start, own.showId)).toBe(0);
+  });
+
+  it("is read again when another device writes the show this device just marked, before the next poll", async () => {
+    const session = await boot(SMALL_LIBRARY);
+    await open(session);
+    await settle(session);
+    const own = session.controls.queue.find(({ left }) => left > 1);
+    if (own === undefined) throw new Error("no queued show has two episodes left");
+    await open(session, own.showId);
+    await settle(session);
+    await session.controls.mark?.mark(own);
+    await settle(session);
+    const remote = nextToWatch(session.controls.tree);
+    if (remote === undefined) throw new Error("the show has no episode left to watch");
+    const start = session.trakt.requests.length;
+
+    await playElsewhere(session.trakt, remote.ids.trakt);
+    session.foreground.enter();
+    await settle(session);
+    act(() => session.root.unmount());
+
+    expect(seasonReadsSince(session, start, own.showId)).toBe(1);
+    expect(watchedIn(session.controls.tree, remote.ids.trakt)).toBe(true);
   });
 });

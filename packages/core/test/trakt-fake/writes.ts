@@ -130,6 +130,7 @@ function addEpisodePlay(
   const watched = isWatched(show, ep);
   if (watched && account.multiplePlays) {
     account.rewatchedEpisodes.set(ep.traktId, stamp);
+    show.lastWatchedAt = Math.max(show.lastWatchedAt ?? 0, stamp);
     tally.added.episodes += 1;
     return;
   }
