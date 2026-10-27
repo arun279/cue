@@ -16,16 +16,17 @@ export const libraryQuery = (runtime: CueRuntime) =>
     retry: false,
   });
 
-export const movieLibraryQuery = (runtime: CueRuntime) =>
-  queryOptions({
-    queryKey: queryKeys.movieLibrary(),
-    queryFn: () => runtime.loadMovieLibrary(),
-    staleTime: USER_STATE_STALE_TIME,
-  });
-
 export const movieWatchlistQuery = (runtime: CueRuntime) =>
   queryOptions({
     queryKey: queryKeys.movieWatchlist(),
-    queryFn: () => runtime.loadMovieWatchlistIds(),
+    queryFn: () => runtime.loadMovieWatchlist(),
+    staleTime: USER_STATE_STALE_TIME,
+  });
+
+export const movieLibraryQuery = (runtime: CueRuntime) =>
+  queryOptions({
+    queryKey: queryKeys.movieLibrary(),
+    queryFn: ({ client }) =>
+      runtime.loadMovieLibrary(client.fetchQuery(movieWatchlistQuery(runtime))),
     staleTime: USER_STATE_STALE_TIME,
   });

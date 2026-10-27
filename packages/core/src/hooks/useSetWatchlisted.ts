@@ -25,7 +25,7 @@ function listedRow({ type, title, year, ids, posters }: WatchlistTitle): Watchli
   return type === "movie" ? { type, listed_at, movie: media } : { type, listed_at, show: media };
 }
 
-// The library holds every watchlisted show; movies have a list of their own until the movie library loads.
+// The library holds every watchlisted show; the movie library is built from the movie watchlist.
 function membershipKeys(type: WatchlistTitle["type"]): readonly (readonly unknown[])[] {
   return type === "movie"
     ? [queryKeys.movieWatchlist(), queryKeys.movieLibrary()]
@@ -73,10 +73,13 @@ function patchMembership(client: QueryClient, title: WatchlistTitle, listed: boo
     );
     return;
   }
-  client.setQueryData<readonly number[]>(queryKeys.movieWatchlist(), (ids) =>
-    ids === undefined
-      ? ids
-      : [...ids.filter((id) => id !== title.traktId), ...(listed ? [title.traktId] : [])],
+  client.setQueryData<readonly WatchlistItem[]>(queryKeys.movieWatchlist(), (rows) =>
+    rows === undefined
+      ? rows
+      : [
+          ...rows.filter((row) => row.movie?.ids.trakt !== title.traktId),
+          ...(listed ? [listedRow(title)] : []),
+        ],
   );
   client.setQueryData<MovieLibraryData>(queryKeys.movieLibrary(), (old) =>
     old === undefined ? old : { ...old, entries: listMovie(old.entries, title, listed) },

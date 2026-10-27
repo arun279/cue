@@ -263,15 +263,15 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       return assembleShowHits(unwrapRead(await getRelatedShows(client, showId), "related shows"));
     },
 
-    async loadMovieLibrary(): Promise<MovieLibraryData> {
-      const [watched, watchlist, collection] = await Promise.all([
+    async loadMovieLibrary(watchlist): Promise<MovieLibraryData> {
+      const [watched, watchlistMovies, collection] = await Promise.all([
         getWatchedMovies(client),
-        getWatchlist(client, "movies"),
+        watchlist,
         getCollectionMovies(client),
       ]);
       const entries = assembleMovieLibrary({
         watchedMovies: unwrapRead(watched, "watched movies"),
-        watchlistMovies: unwrapRead(watchlist, "movie watchlist"),
+        watchlistMovies,
         collectionMovies: unwrapRead(collection, "movie collection"),
       });
       return { entries };
@@ -316,9 +316,8 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
       );
     },
 
-    async loadMovieWatchlistIds() {
-      const items = unwrapRead(await getWatchlist(client, "movies"), "movie watchlist");
-      return items.flatMap((item) => (item.movie === undefined ? [] : [item.movie.ids.trakt]));
+    async loadMovieWatchlist() {
+      return unwrapRead(await getWatchlist(client, "movies"), "movie watchlist");
     },
 
     async loadCalendar(startDate, days): Promise<CalendarData> {

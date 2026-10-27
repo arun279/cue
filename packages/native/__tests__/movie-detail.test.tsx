@@ -300,7 +300,12 @@ it("clears Search's added state when the movie leaves the watchlist from its det
   runtime.loadMovieLibrary.mockImplementation(async () => ({
     entries: [...listed].map(() => ({ ...movieEntry, watched: false, inWatchlist: true })),
   }));
-  runtime.loadMovieWatchlistIds.mockImplementation(async () => [...listed]);
+  runtime.loadMovieWatchlist.mockImplementation(async () =>
+    [...listed].map((trakt) => ({
+      type: "movie",
+      movie: { title: movieHeader.title, ids: { trakt } },
+    })),
+  );
   runtime.submit.mockImplementation(async (op) => {
     if (op.request.path === "/sync/watchlist") listed.add(movieHeader.movieId);
     else listed.delete(movieHeader.movieId);

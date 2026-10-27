@@ -125,7 +125,7 @@ export function fakeRuntime({
     newId: () => "test-op-id",
     loadUpNext: () => Promise.resolve({ entries: [...entries], isPartial: false }),
     loadMovieLibrary: () => Promise.resolve({ entries: [...movies] }),
-    loadMovieWatchlistIds: () => Promise.resolve([]),
+    loadMovieWatchlist: () => Promise.resolve([]),
     search: search ?? (() => Promise.resolve([])),
     loadBrowse: () => Promise.resolve({ ...NO_BROWSE, ...browse }),
     loadGenreNames: () => Promise.resolve({}),

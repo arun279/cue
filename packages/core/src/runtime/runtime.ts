@@ -3,6 +3,7 @@ import type { InvalidationKey } from "../data/query-invalidation";
 import type { EpisodeDetail } from "../data/trakt/episode-detail";
 import type { LibraryEntry } from "../data/trakt/library";
 import type { MovieEntry, MovieHeader } from "../data/trakt/movie-library";
+import type { WatchlistItem } from "../data/trakt/schemas";
 import type { SearchHit } from "../data/trakt/search";
 import type { SeasonView, ShowInfo, ShowProgress } from "../data/trakt/show-detail";
 import type { UserProfile } from "../data/trakt/user-profile";
@@ -51,13 +52,13 @@ export interface CueRuntime {
   loadUpNext(): Promise<UpNextData>;
   loadShowInfo(showId: number): Promise<ShowInfo>;
   loadShowRelated(showId: number): Promise<readonly SearchHit[]>;
-  loadMovieLibrary(): Promise<MovieLibraryData>;
+  loadMovieLibrary(watchlist: Promise<readonly WatchlistItem[]>): Promise<MovieLibraryData>;
   loadMovieHeader(movieId: number): Promise<MovieHeader>;
   loadMovieRelated(movieId: number): Promise<readonly SearchHit[]>;
   loadShowProgress(showId: number): Promise<ShowProgress>;
   loadShowSeasons(showId: number): Promise<readonly SeasonView[]>;
   loadEpisode(showId: number, season: number, number: number): Promise<EpisodeDetail>;
-  loadMovieWatchlistIds(): Promise<readonly number[]>;
+  loadMovieWatchlist(): Promise<readonly WatchlistItem[]>;
   loadCalendar(startDate: string, days: number): Promise<CalendarData>;
   loadHistory(
     section: HistorySection,

@@ -1,7 +1,8 @@
 import { invalidationKeys, showProgressKeys } from "@cue/core/data/query-invalidation";
+import type { WatchlistItem } from "@cue/core/data/trakt/schemas";
 import type { InvalidationTarget } from "@cue/core/domain/sync-activities";
 import { firstPlayQuery, historyQuery } from "@cue/core/queries/history";
-import { movieLibraryQuery } from "@cue/core/queries/library";
+import { movieLibraryQuery, movieWatchlistQuery } from "@cue/core/queries/library";
 import { movieHeaderQuery } from "@cue/core/queries/movies";
 import { episodeQuery, showInfoQuery, showProgressQuery } from "@cue/core/queries/shows";
 import { userProfileQuery } from "@cue/core/queries/user";
@@ -25,7 +26,10 @@ const EVERY_TARGET: readonly InvalidationTarget[] = [
 
 const loaders = {
   loadUserProfile: vi.fn(() => Promise.resolve({})),
-  loadMovieLibrary: vi.fn(() => Promise.resolve({ entries: [] })),
+  loadMovieLibrary: vi.fn((_watchlist: Promise<readonly WatchlistItem[]>) =>
+    Promise.resolve({ entries: [] }),
+  ),
+  loadMovieWatchlist: vi.fn((): Promise<readonly WatchlistItem[]> => Promise.resolve([])),
   loadShowInfo: vi.fn(() => Promise.resolve({})),
   loadShowProgress: vi.fn(() => Promise.resolve({})),
   loadEpisode: vi.fn(() => Promise.resolve({})),
@@ -57,7 +61,7 @@ describe("each read refreshes on the invalidation meant for it", () => {
       "movie library",
       (qc: QueryClient) => new QueryObserver(qc, movieLibraryQuery(runtime)),
       loaders.loadMovieLibrary,
-      [],
+      [expect.any(Promise)],
       ["watched/movies"],
     ],
     [
@@ -115,6 +119,19 @@ describe("each read refreshes on the invalidation meant for it", () => {
     const keys = [...invalidationKeys(EVERY_TARGET), ...showProgressKeys(7, "all")];
     await Promise.all(keys.map((queryKey) => queryClient.invalidateQueries({ queryKey })));
     expect(load).toHaveBeenCalledOnce();
+  });
+});
+
+describe("the movie library", () => {
+  it("is built from the cached movie watchlist, read once", async () => {
+    const rows: WatchlistItem[] = [{ type: "movie", movie: { title: "Dune", ids: { trakt: 1 } } }];
+    loaders.loadMovieWatchlist.mockClear();
+    loaders.loadMovieWatchlist.mockResolvedValue(rows);
+    const queryClient = await observe((qc) => new QueryObserver(qc, movieWatchlistQuery(runtime)));
+    loaders.loadMovieLibrary.mockClear();
+    await queryClient.fetchQuery(movieLibraryQuery(runtime));
+    expect(loaders.loadMovieWatchlist).toHaveBeenCalledOnce();
+    await expect(loaders.loadMovieLibrary.mock.calls[0]?.[0]).resolves.toBe(rows);
   });
 });
 
