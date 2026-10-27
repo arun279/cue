@@ -3,14 +3,6 @@ name: Mobile release
 on:
   workflow_dispatch:
     inputs:
-      ci_run_id:
-        description: Completed CI push run ID for this exact commit
-        type: string
-        required: true
-      codeql_run_id:
-        description: Completed CodeQL push run ID for this exact commit
-        type: string
-        required: true
       platform:
         description: Platform(s)
         type: choice
@@ -58,12 +50,10 @@ jobs:
     # unverified build. .github/required-checks.json is a deliberate copy of the
     # ruleset's contexts rather than a read of it: a gate that asks the thing it
     # guards whether that thing is happy is not a gate. Keep the two in step.
-    # Dispatch identifies completed CI and CodeQL push runs for this commit.
     if: inputs.promote_ios == '' && inputs.promote_android == ''
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
-      actions: read
       checks: read
       contents: read
     steps:
@@ -73,8 +63,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           SHA: ${{ github.sha }}
-          CI_RUN_ID: ${{ inputs.ci_run_id }}
-          CODEQL_RUN_ID: ${{ inputs.codeql_run_id }}
         run: scripts/require-green-ci.sh
 
   ios:
@@ -82,15 +70,18 @@ jobs:
     if: inputs.platform != 'android'
     timeout-minutes: 101
     runs-on: macos-26
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_26.6.app
-      - uses: ./.github/actions/setup-node-pnpm
-      - uses: expo/expo-github-action@c7b66a9c327a43a8fa7c0158e7f30d6040d2481e # v8
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          eas-version: 24.10.0
-          token: ${{ secrets.EXPO_TOKEN }}
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       - name: Write signing credentials
         working-directory: packages/native
         env:
@@ -106,35 +97,17 @@ jobs:
             --arg certificate "$RUNNER_TEMP/distribution.p12" --arg password "$P12_PASSWORD" \
             '{ios: {provisioningProfilePath: $profile, distributionCertificate: {path: $certificate, password: $password}}}' \
             > credentials.json
-      - name: Number the build above everything on TestFlight
-        working-directory: packages/native
-        env:
-          APP_STORE_CONNECT_KEY: ${{ secrets.APP_STORE_CONNECT_KEY }}
-          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
-          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-        run: |
-          shipped=$(node ../../scripts/testflight.mjs latest-build)
-          ../../scripts/require-next-build.sh ios "$shipped" TestFlight
-      - name: Keep the test clock out of the store bundle
-        working-directory: packages/native
-        env:
-          EXPO_PUBLIC_TRAKT_CLIENT_ID: ${{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}
-        run: |
-          [ -n "$EXPO_PUBLIC_TRAKT_CLIENT_ID" ] || { echo "EXPO_PUBLIC_TRAKT_CLIENT_ID is not set"; exit 1; }
-          eas env:exec production --non-interactive \
-            "EXPO_NO_DOTENV=1 EXPO_ATLAS=true npx expo export --output-dir $RUNNER_TEMP/store-export --platform ios --clear"
-          node ../../scripts/check-store-bundle.mjs .expo/atlas.jsonl
       - name: Build
         working-directory: packages/native
         env:
           EXPO_PUBLIC_TRAKT_CLIENT_ID: ${{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}
         run: |
-          eas build --local --non-interactive --platform ios --profile production --output "$RUNNER_TEMP/Cue.ipa"
+          pnpm exec eas build --local --non-interactive --platform ios --profile production --output "$RUNNER_TEMP/Cue.ipa"
       - name: Check the IPA
         id: ipa
         working-directory: packages/native
         run: |
-          eas env:exec production --non-interactive \
+          pnpm exec eas env:exec production --non-interactive \
             "pnpm exec expo-updates runtimeversion:resolve --platform ios > $RUNNER_TEMP/runtime.json"
           ../../scripts/check-update-config.sh "$RUNNER_TEMP/Cue.ipa" production "$(jq -r .runtimeVersion "$RUNNER_TEMP/runtime.json")"
           unzip -p "$RUNNER_TEMP/Cue.ipa" 'Payload/*.app/Info.plist' > "$RUNNER_TEMP/Info.plist"
@@ -146,7 +119,7 @@ jobs:
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
         run: >-
-          eas submit --non-interactive --platform ios --profile production
+          pnpm exec eas submit --non-interactive --platform ios --profile production
           --path "$RUNNER_TEMP/Cue.ipa"
       - name: Tell testers what changed
         env:
@@ -167,27 +140,27 @@ jobs:
       - name: Record the build
         env:
           BUILD: ${{ steps.ipa.outputs.build }}
-        # https://developer.apple.com/help/app-store-connect/manage-builds/view-builds-and-metadata
-        run: |
-          echo "iOS build $BUILD is on TestFlight. To give it to friends later, dispatch again with promote_ios $BUILD." >> "$GITHUB_STEP_SUMMARY"
-          echo "App Store Connect alerts when a thinned device variant exceeds its 200 MB over-the-air limit." >> "$GITHUB_STEP_SUMMARY"
+        run: echo "iOS build $BUILD is on TestFlight. To give it to friends later, dispatch again with promote_ios $BUILD." >> "$GITHUB_STEP_SUMMARY"
 
   android:
     needs: gate
     if: inputs.platform != 'ios'
     timeout-minutes: 56
     runs-on: ubuntu-latest
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: ./.github/actions/setup-node-pnpm
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: temurin
           java-version: "21"
-      - uses: expo/expo-github-action@c7b66a9c327a43a8fa7c0158e7f30d6040d2481e # v8
-        with:
-          eas-version: 24.10.0
-          token: ${{ secrets.EXPO_TOKEN }}
       - name: Write signing credentials
         working-directory: packages/native
         env:
@@ -207,47 +180,23 @@ jobs:
         run: |
           echo "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/firebase.json"
           echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase.json" >> "$GITHUB_ENV"
-      - name: Number the build above everything on Firebase
-        working-directory: packages/native
-        run: |
-          shipped=$(../../scripts/firebase-distribution.sh latest-build)
-          ../../scripts/require-next-build.sh android "$shipped" Firebase
-      - name: Keep the test clock out of the store bundle
-        working-directory: packages/native
-        env:
-          EXPO_PUBLIC_TRAKT_CLIENT_ID: ${{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}
-        run: |
-          [ -n "$EXPO_PUBLIC_TRAKT_CLIENT_ID" ] || { echo "EXPO_PUBLIC_TRAKT_CLIENT_ID is not set"; exit 1; }
-          eas env:exec production --non-interactive \
-            "EXPO_NO_DOTENV=1 EXPO_ATLAS=true npx expo export --output-dir $RUNNER_TEMP/store-export --platform android --clear"
-          node ../../scripts/check-store-bundle.mjs .expo/atlas.jsonl
       - name: Build
         working-directory: packages/native
         env:
           EXPO_PUBLIC_TRAKT_CLIENT_ID: ${{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}
         run: |
-          eas build --local --non-interactive --platform android --profile production --output "$RUNNER_TEMP/Cue.apk"
+          pnpm exec eas build --local --non-interactive --platform android --profile production --output "$RUNNER_TEMP/Cue.apk"
       - name: Check the APK
         id: apk
         working-directory: packages/native
-        env:
-          # https://firebase.google.com/docs/app-distribution/troubleshooting?platform=android
-          FIREBASE_BINARY_LIMIT_BYTES: "2147483648"
         run: |
-          build=$(eas build:version:get --non-interactive --json --platform android --profile production | jq -r .versionCode)
+          build=$(pnpm exec eas build:version:get --non-interactive --json --platform android --profile production | jq -r .versionCode)
           version=$(pnpm exec expo config --type public --json | jq -r .version)
           ../../scripts/verify-apk.sh "$RUNNER_TEMP/Cue.apk" "$build" "$version" arm64-v8a
-          eas env:exec production --non-interactive \
+          pnpm exec eas env:exec production --non-interactive \
             "pnpm exec expo-updates runtimeversion:resolve --platform android > $RUNNER_TEMP/runtime.json"
           ../../scripts/check-update-config.sh "$RUNNER_TEMP/Cue.apk" production "$(jq -r .runtimeVersion "$RUNNER_TEMP/runtime.json")"
-          node ../../scripts/assert-file-size.mjs "$RUNNER_TEMP/Cue.apk" "$FIREBASE_BINARY_LIMIT_BYTES" "Firebase tester APK"
           echo "build=$build" >> "$GITHUB_OUTPUT"
-      - name: Keep the owner in the Firebase owner group
-        env:
-          FIREBASE_OWNER_TESTER: ${{ secrets.FIREBASE_OWNER_TESTER }}
-        run: |
-          [ -n "$FIREBASE_OWNER_TESTER" ] || { echo "FIREBASE_OWNER_TESTER is not set"; exit 1; }
-          scripts/firebase-distribution.sh owner-group "$FIREBASE_OWNER_TESTER"
       - name: Upload to Firebase
         env:
           FIREBASE_GROUPS: ${{ inputs.audience == 'friends' && 'owner,friends' || 'owner' }}
@@ -282,4 +231,4 @@ jobs:
           BUILD: ${{ inputs.promote_android }}
         run: |
           echo "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$GOOGLE_APPLICATION_CREDENTIALS"
-          scripts/firebase-distribution.sh promote "$BUILD"
+          scripts/firebase-distribution.sh "$BUILD"

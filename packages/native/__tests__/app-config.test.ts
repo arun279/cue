@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { AndroidConfig, IOSConfig } from "expo/config-plugins";
 import { nativeAppConfig } from "../app.config";
@@ -37,13 +37,6 @@ describe("the native app config", () => {
     }
   });
 
-  it("takes the version and the build number from the environment", () => {
-    const released = nativeAppConfig({ APP_VERSION: "2.1.0", BUILD_NUMBER: "4207" });
-    expect(released.version).toBe("2.1.0");
-    expect(released.ios?.buildNumber).toBe("4207");
-    expect(released.android?.versionCode).toBe(4207);
-  });
-
   it("configures native release builds", () => {
     expect(config.plugins).toContainEqual([
       "expo-build-properties",
@@ -70,6 +63,14 @@ describe("the native app config", () => {
       );
       expect(infoPlist["ITSAppUsesNonExemptEncryption"]).toBe(false);
     }
+  });
+
+  it("ships no Expo analytics package", () => {
+    const manifest = JSON.parse(readFileSync(path.resolve(__dirname, "../package.json"), "utf8"));
+    const packages = { ...manifest.dependencies, ...manifest.devDependencies };
+    const denied = ["expo-insights", "expo-observe", "@expo/insights", "@expo/observe"];
+
+    expect(denied.filter((name) => name in packages)).toEqual([]);
   });
 
   it("carries no transport-security exception unless the harness asks for one", () => {

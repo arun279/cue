@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { setTimeout as sleep } from "node:timers/promises";
 
 const USAGE =
-  "usage: APP_STORE_CONNECT_KEY=<base64 .p8> APP_STORE_CONNECT_KEY_ID=<id> APP_STORE_CONNECT_ISSUER_ID=<id> testflight.mjs latest-build | friends <build-number> | NOTES=<text> notes <build-number>";
+  "usage: APP_STORE_CONNECT_KEY=<base64 .p8> APP_STORE_CONNECT_KEY_ID=<id> APP_STORE_CONNECT_ISSUER_ID=<id> testflight.mjs friends <build-number> | NOTES=<text> notes <build-number>";
 const [command, buildNumber] = process.argv.slice(2);
 const { APP_STORE_CONNECT_KEY, APP_STORE_CONNECT_KEY_ID, APP_STORE_CONNECT_ISSUER_ID, NOTES } =
   process.env;
@@ -54,13 +54,6 @@ const api = async (path, data, method = data === undefined ? "GET" : "POST") => 
   });
   if (!response.ok) throw new Error(`${path}: ${response.status} ${await response.text()}`);
   return response.status === 204 ? null : (await response.json()).data;
-};
-
-const latestBuild = async () => {
-  const builds = await api(
-    `builds?filter[app]=${appId}&sort=-uploadedDate&limit=200&fields[builds]=version`,
-  );
-  return Math.max(0, ...builds.map((build) => Number(build.attributes.version)));
 };
 
 const until = async (deadline, describe, attempt) => {
@@ -150,9 +143,7 @@ const friends = async () => {
   );
 };
 
-if (command === "latest-build") {
-  process.stdout.write(`${await latestBuild()}\n`);
-} else if (command === "friends" && buildNumber !== undefined) {
+if (command === "friends" && buildNumber !== undefined) {
   await friends();
 } else if (command === "notes" && buildNumber !== undefined && NOTES) {
   await notes();

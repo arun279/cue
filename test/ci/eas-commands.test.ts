@@ -6,8 +6,6 @@ import { repositoryPath } from "../support/repository-path";
 import { tempDirectory } from "../support/temp-directory";
 
 const WORKFLOWS = [".github/workflows/mobile-release.yml", ".github/workflows/publish-update.yml"];
-// Values a script's own variables take, where the CLI checks them against a list.
-const SCRIPTS = { "scripts/require-next-build.sh": { platform: "android" } };
 const eas = repositoryPath("node_modules/.bin/eas");
 const execFileAsync = promisify(execFile);
 
@@ -41,9 +39,6 @@ const commands = [
   ...WORKFLOWS.flatMap((file) =>
     runBlocks(readFileSync(repositoryPath(file), "utf8")).flatMap((shell) => easCommands(shell)),
   ),
-  ...Object.entries(SCRIPTS).flatMap(([file, values]) =>
-    easCommands(readFileSync(repositoryPath(file), "utf8"), values),
-  ),
 ];
 
 const signedOutRun = async (args: string[]): Promise<string> => {
@@ -65,18 +60,6 @@ const signedOutRun = async (args: string[]): Promise<string> => {
 };
 
 describe("EAS CLI commands in the release automation", () => {
-  it("are run with the CLI version the repository tests against", () => {
-    const manifest = JSON.parse(readFileSync(repositoryPath("package.json"), "utf8")) as {
-      devDependencies: Record<string, string>;
-    };
-    const pins = WORKFLOWS.flatMap((file) => [
-      ...readFileSync(repositoryPath(file), "utf8").matchAll(/eas-version: (\S+)/g),
-    ]).map(([, version]) => version);
-
-    expect(pins.length).toBeGreaterThan(0);
-    expect(new Set(pins)).toEqual(new Set([manifest.devDependencies["eas-cli"]]));
-  });
-
   it("never send TestFlight notes through EAS Submit, which accepts them only on the Enterprise plan", () => {
     const submits = commands.filter(([command]) => command === "submit");
 

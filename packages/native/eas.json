@@ -9,8 +9,6 @@
       "environment": "production",
       "credentialsSource": "local",
       "autoIncrement": true,
-      "node": "22.23.4",
-      "pnpm": "10.33.0",
       "android": {
         "gradleCommand": ":app:assembleRelease -PreactNativeArchitectures=arm64-v8a"
       }

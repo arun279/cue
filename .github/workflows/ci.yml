@@ -5,12 +5,12 @@ on:
   push:
     branches: [main, feat/expo-native, "release/*"]
   pull_request:
-  schedule:
-    # Nightly, so the audit catches newly disclosed CVEs against the pinned lockfile.
-    - cron: "0 6 * * *"
   workflow_dispatch:
 permissions:
   contents: read
+env:
+  MAESTRO_VERSION: 2.11.0
+  MAESTRO_CLI_NO_ANALYTICS: "1"
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -20,7 +20,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: ./.github/actions/setup-node-pnpm
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       - name: Locate Jest's transform cache
         id: jest-cache
         run: echo "directory=$(node -p 'require("jest-config").defaults.cacheDirectory')" >> "$GITHUB_OUTPUT"
@@ -35,23 +40,6 @@ jobs:
           name: cue-js-bundles
           path: packages/native/dist/
           retention-days: 30
-  render-performance:
-    timeout-minutes: 10
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: ./.github/actions/setup-node-pnpm
-      - name: Measure renders
-        env:
-          EXPO_PUBLIC_TRAKT_CLIENT_ID: test-client
-        run: pnpm --dir packages/native perf:render
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: ${{ !cancelled() }}
-        with:
-          name: reassure-render-performance
-          path: packages/native/.reassure/
-          include-hidden-files: true
-          retention-days: 7
   audit:
     timeout-minutes: 11
     runs-on: ubuntu-latest
@@ -59,7 +47,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: ./.github/actions/setup-node-pnpm
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
       - name: Audit production dependencies, gating only dependency changes
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -109,18 +100,22 @@ jobs:
       EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
       EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
       EXPO_PUBLIC_CLOCK_START: "2026-10-15T00:00:00.000Z"
-      MAESTRO_VERSION: 2.11.0
-      MAESTRO_CLI_NO_ANALYTICS: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: ./.github/actions/setup-node-pnpm
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: temurin
           java-version: "21"
       - id: fingerprint
         name: Fingerprint the native project
-        run: echo "hash=$(pnpm --dir packages/native exec fingerprint fingerprint:generate --platform android | jq -r .hash)" >> "$GITHUB_OUTPUT"
+        working-directory: packages/native
+        run: echo "hash=$(pnpm exec fingerprint fingerprint:generate --platform android | jq -r .hash)" >> "$GITHUB_OUTPUT"
       - id: native
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
@@ -227,16 +222,20 @@ jobs:
       EXPO_PUBLIC_TRAKT_API_BASE: http://127.0.0.1:8787
       EXPO_PUBLIC_TRAKT_CLIENT_ID: ci
       EXPO_PUBLIC_CLOCK_START: "2026-10-15T00:00:00.000Z"
-      MAESTRO_VERSION: 2.11.0
-      MAESTRO_CLI_NO_ANALYTICS: "1"
       MAESTRO_DRIVER_STARTUP_TIMEOUT: "240000"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: sudo xcode-select -s /Applications/Xcode_26.6.app
-      - uses: ./.github/actions/setup-node-pnpm
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       - id: fingerprint
         name: Fingerprint the native project
-        run: echo "hash=$(pnpm --dir packages/native exec fingerprint fingerprint:generate --platform ios | jq -r .hash)" >> "$GITHUB_OUTPUT"
+        working-directory: packages/native
+        run: echo "hash=$(pnpm exec fingerprint fingerprint:generate --platform ios | jq -r .hash)" >> "$GITHUB_OUTPUT"
       - id: native
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:

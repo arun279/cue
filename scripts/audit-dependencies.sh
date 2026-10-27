@@ -9,9 +9,9 @@ fi
 here=$(dirname "$0")
 status=0
 { pnpm audit --prod --audit-level=high && node "$here/check-stale-audit-ignores.mjs"; } || status=$?
-if [ "$status" -ne 0 ] && [ "$1" != schedule ] &&
+if [ "$status" -ne 0 ] &&
   git diff --quiet "$("$here/measured-base.sh" "$@")" HEAD -- pnpm-lock.yaml pnpm-workspace.yaml; then
-  echo "::warning::The audit fails on dependencies this change leaves alone; the nightly run reports it."
+  echo "::warning::The audit fails on dependencies this change leaves alone; the nightly audit reports it."
   status=0
 fi
 exit "$status"

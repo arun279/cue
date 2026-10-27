@@ -30,7 +30,7 @@ Set `EXPO_PUBLIC_TRAKT_CLIENT_ID` to the public client id of a Trakt API app. Th
 pnpm --filter @cue/native prebuild
 ```
 
-`pnpm check` is the deterministic repository gate. It runs Biome, oxlint, dprint, cspell, TypeScript, dependency-cruiser, knip, jscpd, the shipped-bundle checks, Vitest, and the iOS and Android jest-expo projects. pnpm refuses to install or run scripts under any Node other than the one in `engines.node`. In CI, the footprint job comments each pull request's line changes and bundle sizes without gating, and the render-performance job runs the Reassure suite, whose tests assert each scenario's render count.
+`pnpm check` is the deterministic repository gate. It runs Biome, oxlint, dprint, cspell, TypeScript, dependency-cruiser, knip, jscpd, the shipped-bundle checks, Vitest, and the iOS and Android jest-expo projects. pnpm refuses to install or run scripts under any Node other than the one in `engines.node`. In CI, the footprint job comments each pull request's line changes and bundle sizes without gating.
 
 Git hooks are installed by `pnpm install`. Pre-commit runs the fast lint, formatting, spelling, type, and portability gates. Pre-push runs `pnpm check`.
 
@@ -46,7 +46,7 @@ Its README covers what it models, the rules for tests that use it, how `conforma
 
 `scenario-budget.test.tsx` replays user scenarios against the fake on generated accounts of a given size, and sizes each byte budget from the fake's own answers to the reads the scenario needs.
 
-Set `EXPO_PUBLIC_TRAKT_API_BASE=http://127.0.0.1:8787` for a simulator build that should use the fake service. The Expo configuration adds a local transport exception only for that build. Release builds carry no exception. Set `EXPO_PUBLIC_CLOCK_START` to the instant of `FIXTURE_NOW` too: the app's clock then starts there at launch and runs on, so the app and the fake agree on which episodes have aired. CI sets it in `.github/workflows/ci.yml`; change both together. Store builds leave it unset, Metro leaves the clock out of their bundles, and `pnpm check:size:native` and the release workflows fail if it reaches one.
+Set `EXPO_PUBLIC_TRAKT_API_BASE=http://127.0.0.1:8787` for a simulator build that should use the fake service. The Expo configuration adds a local transport exception only for that build. Release builds carry no exception. Set `EXPO_PUBLIC_CLOCK_START` to the instant of `FIXTURE_NOW` too: the app's clock then starts there at launch and runs on, so the app and the fake agree on which episodes have aired. CI sets it in `.github/workflows/ci.yml`; change both together. Store builds leave it unset, Metro leaves the clock out of their bundles, and `pnpm check:bundle` and the update workflow fail if it reaches one.
 
 ## Architecture
 
@@ -59,7 +59,7 @@ Dependencies flow from the Expo app into the core. Dependency-cruiser enforces t
 
 ## Testing
 
-Core tests use Vitest. Repository-level workflow checks live in `test/ci`. The Expo app uses jest-expo for both platform presets, and React Native Testing Library covers screen behavior.
+Core tests use Vitest. Tests for the repository scripts live in `test/ci`. The Expo app uses jest-expo for both platform presets, and React Native Testing Library covers screen behavior.
 
 End-to-end coverage is a short Maestro smoke suite in `.maestro/smoke`: sign in through the device code, mark the next episode from Up Next, visit every tab, open a show and a movie and mark an episode, search, and sign out. Every pull request push runs it on an Android emulator and an iOS simulator, against a release build of the app pointed at the fake. Each job fingerprints the native project with `@expo/fingerprint` and caches the native build under that hash; when the hash is already cached, `@expo/repack-app` swaps the commit's JavaScript into the cached build instead of compiling it again. The jobs upload the screenshots each flow takes, plus Maestro's debug output when a flow fails. To check that the suite is deterministic, dispatch the CI workflow on a branch repeatedly with `gh workflow run ci.yml --ref <branch>`, once first so that run seeds the build cache.
 
@@ -67,21 +67,21 @@ To run the smoke flows locally, start `pnpm fake:trakt`, install a build made wi
 
 ## Releasing
 
-`.github/workflows/mobile-release.yml` builds the app with `eas build --local` on GitHub-hosted runners, using the `production` profile in `packages/native/eas.json`. It runs only when dispatched, and every dispatch needs the IDs of the completed CI and CodeQL push runs for the exact commit (`ci_run_id` and `codeql_run_id`). A build first checks that every check in `.github/required-checks.json` passed in them.
+`.github/workflows/mobile-release.yml` builds the app with `eas build --local` on GitHub-hosted runners, using the `production` profile in `packages/native/eas.json`. It runs only when dispatched. A build first checks that every check in `.github/required-checks.json` ran on the exact commit and that every run of it passed, re-runs included.
 
-- **owner** uploads iOS to TestFlight with `eas submit`, where the internal testers get it, and Android to the Firebase App Distribution group `owner`, which the workflow creates if it is missing.
+- **owner** uploads iOS to TestFlight with `eas submit`, where the internal testers get it, and Android to the Firebase App Distribution group `owner`.
 - **friends** does the same, then adds the iOS build to the app's one external TestFlight group, submitting it for beta review when Apple asks for one, and gives the Android release to the Firebase group `friends` as well.
 - **promote_ios** and **promote_android** take a build number for that platform and give a build the owner already has to friends, without building again.
 
-Every build listens on the `production` update channel, and the workflow checks the channel and runtime written into the finished APK and IPA before uploading. EAS numbers builds from one remote counter per platform, seeded above the last build numbered before EAS took over, so releases run one at a time. Before building, the workflow fails if the next number would not be above the highest build already on TestFlight or Firebase; `eas build:version:set` moves the counter. Both platforms sign with the Android keystore and Apple distribution certificate held in repository secrets, so every build installs over the last. To publish on the App Store, submit a TestFlight build for review in App Store Connect.
+Every build listens on the `production` update channel, and the workflow checks the channel and runtime written into the finished APK and IPA before uploading. EAS numbers builds from one remote counter per platform, so releases run one at a time; `eas build:version:set` moves the counter. Both platforms sign with the Android keystore and Apple distribution certificate held in repository secrets, so every build installs over the last. To publish on the App Store, submit a TestFlight build for review in App Store Connect.
 
-Local EAS builds ignore the `node` and `pnpm` versions in `eas.json`. The workflow installs Node from `.nvmrc` and pnpm from `packageManager`, while iOS builds use the fastlane, CocoaPods and Xcode tools preinstalled on the `macos-26` runner image, with Xcode selected explicitly.
+Local EAS builds take Node and pnpm from the runner, not `eas.json`. The workflow installs Node from `.nvmrc` and pnpm from `packageManager`, while iOS builds use the fastlane, CocoaPods and Xcode tools preinstalled on the `macos-26` runner image, with Xcode selected explicitly.
 
 ## Shipping JavaScript updates
 
 EAS Update can replace JavaScript and bundled assets. It cannot change native modules, permissions, app configuration, or other native code. The fingerprint runtime policy only offers an update to compatible installed builds, so any native change requires a new build. App version and build numbers stay out of the fingerprint, so a release's numbering never changes which updates it receives. The build profile in `packages/native/eas.json` sets a build's update channel, and the app config carries none, so builds of one commit share a runtime whichever channel they listen on.
 
-Open GitHub Actions, choose **Publish update**, select **Run workflow**, give `ci_run_id` and `codeql_run_id` as for a release, and pick an action. **publish** checks those runs as a build does:
+Open GitHub Actions, choose **Publish update**, select **Run workflow** and pick an action. **publish** checks the commit's required checks as a build does:
 
 - **publish** exports the chosen ref with the EAS `production` environment and publishes it to the `preview` channel.
 - **promote** copies one `preview` update group to `production` unchanged. Give it the group the owner tested; `eas update:list --branch preview --json` lists the groups with their messages and commits.
