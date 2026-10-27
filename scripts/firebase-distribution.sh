@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
-# Usage: firebase-distribution.sh latest-build
-#        firebase-distribution.sh owner-group <tester-email>
+# Usage: firebase-distribution.sh owner-group <tester-email>
 #        firebase-distribution.sh promote <build-number>
 #
-# latest-build prints the highest build number among the latest 100 releases.
 # owner-group creates the Firebase group `owner` if it is missing and keeps the
 # tester in it. promote gives the release with that build number to `friends`.
 # https://firebase.google.com/docs/reference/app-distribution/rest
@@ -13,7 +11,7 @@ set -euo pipefail
 : "${FIREBASE_APP:?FIREBASE_APP is required}"
 : "${GOOGLE_APPLICATION_CREDENTIALS:?GOOGLE_APPLICATION_CREDENTIALS is required}"
 
-usage="usage: firebase-distribution.sh latest-build | owner-group <tester-email> | promote <build-number>"
+usage="usage: firebase-distribution.sh owner-group <tester-email> | promote <build-number>"
 command=${1:?$usage}
 argument=${2:-}
 
@@ -26,10 +24,6 @@ api() {
 }
 
 case "$command" in
-  latest-build)
-    api "$base/apps/$FIREBASE_APP/releases?pageSize=100" |
-      jq '[.releases[]?.buildVersion | tonumber] | max // 0'
-    ;;
   owner-group)
     [ -n "$argument" ] || { echo "$usage" >&2; exit 1; }
     status=$(curl --silent --output /dev/null --write-out '%{http_code}' \

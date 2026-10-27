@@ -6,8 +6,6 @@ import { repositoryPath } from "../support/repository-path";
 import { tempDirectory } from "../support/temp-directory";
 
 const WORKFLOWS = [".github/workflows/mobile-release.yml", ".github/workflows/publish-update.yml"];
-// Values a script's own variables take, where the CLI checks them against a list.
-const SCRIPTS = { "scripts/require-next-build.sh": { platform: "android" } };
 const eas = repositoryPath("node_modules/.bin/eas");
 const execFileAsync = promisify(execFile);
 
@@ -40,9 +38,6 @@ const easCommands = (shell: string, values: Record<string, string> = {}): string
 const commands = [
   ...WORKFLOWS.flatMap((file) =>
     runBlocks(readFileSync(repositoryPath(file), "utf8")).flatMap((shell) => easCommands(shell)),
-  ),
-  ...Object.entries(SCRIPTS).flatMap(([file, values]) =>
-    easCommands(readFileSync(repositoryPath(file), "utf8"), values),
   ),
 ];
 

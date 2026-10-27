@@ -138,16 +138,11 @@ describe("JavaScript update publishing", () => {
   });
 
   it("gives every channel's store builds the runtime that updates are published against", async () => {
-    const published = await releaseConfigSources({
-      APP_VERSION: undefined,
-      BUILD_NUMBER: undefined,
-    });
+    const published = await releaseConfigSources({});
 
     for (const channel of [publishedChannel, production.channel]) {
       expect(
         await releaseConfigSources({
-          APP_VERSION: "2.1.0",
-          BUILD_NUMBER: "420701",
           EAS_BUILD_PROFILE: channel,
           EAS_UPDATE_CHANNEL: channel,
         }),

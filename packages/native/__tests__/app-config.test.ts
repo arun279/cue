@@ -37,13 +37,6 @@ describe("the native app config", () => {
     }
   });
 
-  it("takes the version and the build number from the environment", () => {
-    const released = nativeAppConfig({ APP_VERSION: "2.1.0", BUILD_NUMBER: "4207" });
-    expect(released.version).toBe("2.1.0");
-    expect(released.ios?.buildNumber).toBe("4207");
-    expect(released.android?.versionCode).toBe(4207);
-  });
-
   it("configures native release builds", () => {
     expect(config.plugins).toContainEqual([
       "expo-build-properties",

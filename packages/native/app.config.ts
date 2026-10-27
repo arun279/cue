@@ -33,13 +33,8 @@ const PUSH_AND_BADGES = [
   "me.everything.badger.permission.BADGE_COUNT_WRITE",
 ];
 
-// EAS remote versioning counts on from here when it has no number of its own yet.
-const LAST_BUILD_BEFORE_EAS = "2101";
-
 // babel-preset-expo replaces process.env.EXPO_PUBLIC_* at transform time, so the environment is a parameter.
 export function nativeAppConfig(env: Readonly<Record<string, string | undefined>>): ExpoConfig {
-  const buildNumber = env["BUILD_NUMBER"] ?? LAST_BUILD_BEFORE_EAS;
-
   // ATS blocks plain HTTP even to loopback addresses, so a harness build needs an exception domain.
   const mockTrakt = env["EXPO_PUBLIC_TRAKT_API_BASE"];
   const mockTraktHost =
@@ -50,14 +45,14 @@ export function nativeAppConfig(env: Readonly<Record<string, string | undefined>
     slug: "cue",
     owner: "arunkris",
     scheme: "cue",
-    version: env["APP_VERSION"] ?? "2.0.0",
+    version: "2.0.0",
     icon: "./assets/icon.png",
     orientation: "default",
     userInterfaceStyle: "automatic",
     ios: {
       bundleIdentifier: "app.cuetracker",
       supportsTablet: true,
-      buildNumber,
+      buildNumber: "2101",
       // Undeclared, App Store Connect holds every build at Missing Compliance.
       config: { usesNonExemptEncryption: false },
       ...(mockTraktHost === null
@@ -77,7 +72,7 @@ export function nativeAppConfig(env: Readonly<Record<string, string | undefined>
     },
     android: {
       package: "app.cuetracker",
-      versionCode: Number(buildNumber),
+      versionCode: 2101,
       blockedPermissions: [
         ...EXPO_TEMPLATE_EXTRAS,
         ...SECURE_STORE_BIOMETRICS,

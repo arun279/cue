@@ -111,15 +111,6 @@ jobs:
             --arg certificate "$RUNNER_TEMP/distribution.p12" --arg password "$P12_PASSWORD" \
             '{ios: {provisioningProfilePath: $profile, distributionCertificate: {path: $certificate, password: $password}}}' \
             > credentials.json
-      - name: Number the build above everything on TestFlight
-        working-directory: packages/native
-        env:
-          APP_STORE_CONNECT_KEY: ${{ secrets.APP_STORE_CONNECT_KEY }}
-          APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
-          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-        run: |
-          shipped=$(node ../../scripts/testflight.mjs latest-build)
-          ../../scripts/require-next-build.sh ios "$shipped" TestFlight
       - name: Keep the test clock out of the store bundle
         working-directory: packages/native
         env:
@@ -217,11 +208,6 @@ jobs:
         run: |
           echo "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/firebase.json"
           echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase.json" >> "$GITHUB_ENV"
-      - name: Number the build above everything on Firebase
-        working-directory: packages/native
-        run: |
-          shipped=$(../../scripts/firebase-distribution.sh latest-build)
-          ../../scripts/require-next-build.sh android "$shipped" Firebase
       - name: Keep the test clock out of the store bundle
         working-directory: packages/native
         env:
