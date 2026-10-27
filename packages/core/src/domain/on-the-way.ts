@@ -3,6 +3,7 @@ import { dayKeyOf, dayOffset } from "./day";
 import { DAY_MS, localTimeZone } from "./time";
 
 const SCOPE_MS = 3 * DAY_MS;
+const MAX_ROWS = 3;
 
 export interface OnTheWayDay {
   readonly key: string;
@@ -16,22 +17,18 @@ const weekdayFmt = new Intl.DateTimeFormat("en-US", {
   weekday: "long",
 });
 
-export function buildOnTheWay(
-  days: readonly CalendarDay[],
-  now: number,
-  maxRows: number,
-): OnTheWayDay[] {
+export function buildOnTheWay(days: readonly CalendarDay[], now: number): OnTheWayDay[] {
   const todayKey = dayKeyOf(localTimeZone(), now);
   const out: OnTheWayDay[] = [];
   let taken = 0;
   for (const day of days) {
-    if (taken >= maxRows) break;
+    if (taken >= MAX_ROWS) break;
     const rows = day.rows.filter((row) => {
       const ms = Date.parse(row.firstAired);
       return !row.aired && ms > now && ms - now <= SCOPE_MS;
     });
     if (rows.length === 0) continue;
-    const kept = rows.slice(0, maxRows - taken);
+    const kept = rows.slice(0, MAX_ROWS - taken);
     taken += kept.length;
     const offset = dayOffset(todayKey, day.dayKey);
     const label =

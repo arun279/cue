@@ -12,7 +12,6 @@ import { type QueryStatus, queryStatus } from "@cue/core/queries/freshness";
 import { historyQuery } from "@cue/core/queries/history";
 import { useRuntime } from "@cue/core/runtime/runtime";
 import { readFailureBody } from "@cue/core/sync-contract";
-import { type HistorySearch, parseHistorySearch } from "@cue/core/url/search-params";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import {
   type NativeStackNavigationOptions,
@@ -24,6 +23,7 @@ import { type ReactElement, useMemo, useState } from "react";
 import { RefreshControl, SectionList, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { usePullToRefresh } from "../../hooks/usePullToRefresh";
+import { type HistorySearch, parseHistorySearch } from "../../route-params";
 import { Button } from "../../ui/Button";
 import { EmptyState } from "../../ui/EmptyState";
 import { HEADER_TINT } from "../../ui/navigation-theme";

@@ -1,5 +1,4 @@
-import { parseHistorySearch } from "@cue/core/url/search-params";
-import { describe, expect, it } from "vitest";
+import { parseHistorySearch } from "../src/route-params";
 
 describe("parseHistorySearch", () => {
   it("keeps a known medium and drops anything else", () => {

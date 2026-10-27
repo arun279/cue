@@ -1,6 +1,5 @@
 import type { CueRuntime } from "@cue/core/runtime/runtime";
 import { dismissSnack, showSnack } from "@cue/core/stores/snackbar-store";
-import { parseHistorySearch } from "@cue/core/url/search-params";
 import { router, Tabs, useLocalSearchParams } from "expo-router";
 import { act, fireEvent, renderRouter, screen } from "expo-router/testing-library";
 import type { ReactElement, ReactNode } from "react";
@@ -12,6 +11,7 @@ import HistoryRoute from "../app/(tabs)/(up-next,library,calendar,search)/histor
 import MonthJumpRoute from "../app/history-jump";
 import { enterFromOutside } from "../src/enter-from-outside";
 import { RootStack } from "../src/RootStack";
+import { parseHistorySearch } from "../src/route-params";
 import { MONTHS } from "../src/screens/history/model";
 import { TabStack } from "../src/TabStack";
 import { TEST_IDS } from "../src/ui/test-ids";
