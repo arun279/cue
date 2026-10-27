@@ -9,7 +9,7 @@ import { dismissSnack, useSnackbar } from "@cue/core/stores/snackbar-store";
 import { QueryClient } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { withRuntime } from "../support/providers";
+import { partialRuntime, withRuntime } from "../support/runtime";
 
 const entry: HistoryEntry = {
   historyId: 44,
@@ -30,15 +30,15 @@ function setup(
   submit: (op: QueuedOp) => Promise<SubmitOutcome> = () => Promise.resolve("deferred"),
 ) {
   const submitted: QueuedOp[] = [];
-  const loadShowProgress = vi.fn(() => new Promise(() => {}));
-  const runtime = {
+  const loadShowProgress = vi.fn<CueRuntime["loadShowProgress"]>(() => new Promise(() => {}));
+  const runtime = partialRuntime({
     newId: () => `op-${submitted.length}`,
     submit: (op: QueuedOp) => {
       submitted.push(op);
       return submit(op);
     },
     loadShowProgress,
-  } as unknown as CueRuntime;
+  });
   const queryClient = new QueryClient();
   queryClient.setQueryData(queryKeys.movieLibrary(), { entries: [] });
   const { result } = renderHook(useRemovePlay, { wrapper: withRuntime(runtime, queryClient) });

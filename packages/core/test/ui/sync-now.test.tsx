@@ -1,12 +1,11 @@
 // @vitest-environment jsdom
 import { queryKeys } from "@cue/core/data/query-keys";
 import { useSyncNow } from "@cue/core/hooks/useSyncNow";
-import type { CueRuntime } from "@cue/core/runtime/runtime";
 import { dismissSnack, useSnackbar } from "@cue/core/stores/snackbar-store";
 import { QueryClient, useQuery } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { withRuntime } from "../support/providers";
+import { partialRuntime, withRuntime } from "../support/runtime";
 
 const FAILED = "Couldn't reach Trakt. Check your connection.";
 
@@ -22,11 +21,11 @@ async function syncPass(pass: Pass = {}) {
   const pollActivities = vi.fn(() =>
     Promise.resolve(pass.polled === false ? null : { keys: pass.keys ?? [], commit }),
   );
-  const runtime = {
+  const runtime = partialRuntime({
     pendingWrites: () => (pass.flush === undefined ? 0 : 1),
     flushWrites: pass.flush ?? (() => Promise.resolve(0)),
     pollActivities,
-  } as unknown as CueRuntime;
+  });
   const load = pass.load ?? (() => Promise.resolve({ entries: [] }));
   const { result } = renderHook(
     () => {

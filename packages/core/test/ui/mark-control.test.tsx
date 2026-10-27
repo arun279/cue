@@ -20,7 +20,7 @@ import { UNDO_WINDOW_MS } from "@cue/core/sync-contract";
 import type { QueryClient } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { withRuntime } from "../support/providers";
+import { partialRuntime, withRuntime } from "../support/runtime";
 
 const SHOW = 1;
 
@@ -58,7 +58,7 @@ function entry(overrides: Partial<LibraryEntry> = {}): LibraryEntry {
 /** A runtime whose writes never settle: the deferred queue, held open. */
 function heldRuntime(): CueRuntime {
   const queued: QueuedOp[] = [];
-  return {
+  return partialRuntime({
     newId: () => `op-${queued.length}`,
     submit: (op: QueuedOp) => {
       queued.push(op);
@@ -67,7 +67,7 @@ function heldRuntime(): CueRuntime {
     pendingOps: () => [...queued],
     inFlightOpId: () => null,
     writeReceipt: () => null,
-  } as unknown as CueRuntime;
+  });
 }
 
 function mountRow(runtime: CueRuntime, seeded = entry()) {

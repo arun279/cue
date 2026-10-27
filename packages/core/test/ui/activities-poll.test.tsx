@@ -18,7 +18,7 @@ import { focusManager, onlineManager, useQuery } from "@tanstack/react-query";
 import { act, cleanup, render } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, type Mock, vi } from "vitest";
-import { withRuntime } from "../support/providers";
+import { partialRuntime, withRuntime } from "../support/runtime";
 
 function Poll(): null {
   useActivitiesPoll();
@@ -40,7 +40,7 @@ function stubRuntime(pending: number, afterFlush = 0): Stub {
   });
   const pollActivities = vi.fn(() => Promise.resolve(null));
   const pendingWrites = vi.fn(() => depth);
-  const runtime = { pendingWrites, flushWrites, pollActivities } as unknown as CueRuntime;
+  const runtime = partialRuntime({ pendingWrites, flushWrites, pollActivities });
   return { runtime, pendingWrites, flushWrites, pollActivities };
 }
 
@@ -114,11 +114,13 @@ describe("useActivitiesPoll write-queue gating", () => {
       return depth;
     });
     const pollActivities = vi.fn(() => Promise.resolve(null));
-    await mountPoll({
-      pendingWrites: () => depth,
-      flushWrites,
-      pollActivities,
-    } as unknown as CueRuntime);
+    await mountPoll(
+      partialRuntime({
+        pendingWrites: () => depth,
+        flushWrites,
+        pollActivities,
+      }),
+    );
 
     await setOnline(true);
     await vi.waitFor(() => expect(pollActivities).toHaveBeenCalledOnce());
@@ -181,12 +183,12 @@ describe("useActivitiesPoll triggers", () => {
 
 describe("useActivitiesPoll reconcile", () => {
   function reconcileRuntime(reconcile: ActivitiesReconcile): CueRuntime {
-    return {
+    return partialRuntime({
       pendingWrites: () => 0,
       pendingOps: () => [],
       flushWrites: vi.fn(),
       pollActivities: () => Promise.resolve(reconcile),
-    } as unknown as CueRuntime;
+    });
   }
 
   it("advances the baseline once the changed reads have refreshed", async () => {
@@ -324,14 +326,14 @@ describe("useActivitiesPoll reconcile", () => {
   it("never advances the baseline or checks a session torn down mid-poll", async () => {
     const commit = vi.fn(() => Promise.resolve());
     let answer: ((reconcile: ActivitiesReconcile) => void) | undefined;
-    const runtime = {
+    const runtime = partialRuntime({
       pendingWrites: () => 0,
       flushWrites: vi.fn(),
       pollActivities: () =>
         new Promise<ActivitiesReconcile>((resolve) => {
           answer = resolve;
         }),
-    } as unknown as CueRuntime;
+    });
     await mountPoll(runtime);
     cleanup();
     await act(async () => answer?.({ keys: [], commit }));

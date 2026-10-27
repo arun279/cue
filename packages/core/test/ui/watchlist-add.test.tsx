@@ -17,7 +17,7 @@ import { notifyManager, QueryClient } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import { beforeAll, expect, it } from "vitest";
 import { makeShow } from "../domain/_helpers";
-import { withRuntime } from "../support/providers";
+import { partialRuntime, withRuntime } from "../support/runtime";
 
 beforeAll(() => notifyManager.setScheduler((callback) => callback()));
 
@@ -69,7 +69,7 @@ async function mountAdd(client: QueryClient, runtime: CueRuntime): Promise<void>
 }
 
 function membershipRuntime(outcome: SubmitOutcome, submitted: QueuedOp[] = []): CueRuntime {
-  return {
+  return partialRuntime({
     newId: () => `op-${submitted.length}`,
     loadUpNext: () => new Promise(() => {}),
     loadMovieWatchlist: () => new Promise(() => {}),
@@ -77,7 +77,7 @@ function membershipRuntime(outcome: SubmitOutcome, submitted: QueuedOp[] = []): 
       submitted.push(op);
       return Promise.resolve(outcome);
     },
-  } as unknown as CueRuntime;
+  });
 }
 
 it("lists an added show in the library at once and drops it again when the add is undone", async () => {

@@ -39,7 +39,7 @@ import { dismissSnack, showSnack, useSnackbar } from "@cue/core/stores/snackbar-
 import { QueryClient, useQuery } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { withRuntime } from "../support/providers";
+import { partialRuntime, withRuntime } from "../support/runtime";
 
 const SHOW = 1;
 const NEXT_EP_TRAKT = 102;
@@ -150,7 +150,7 @@ function fakeRuntime(opts: {
   };
   const submitted: QueuedOp[] = [];
   const queued: QueuedOp[] = [];
-  const loadEpisode = vi.fn(() =>
+  const loadEpisode = vi.fn<CueRuntime["loadEpisode"]>(() =>
     opts.episode === undefined ? new Promise(() => {}) : Promise.resolve(opts.episode),
   );
   const loadEpisodePlays = vi.fn((_id: number) => {
@@ -161,7 +161,7 @@ function fakeRuntime(opts: {
     const plays = opts.showPlays ?? [];
     return plays instanceof Error ? Promise.reject(plays) : Promise.resolve(plays);
   });
-  const runtime = {
+  const runtime = partialRuntime({
     newId: () => `op-${submitted.length}`,
     submit: async (op: QueuedOp) => {
       submitted.push(op);
@@ -178,10 +178,10 @@ function fakeRuntime(opts: {
     loadEpisodePlays,
     loadShowPlays,
     loadEpisode,
-    loadShowProgress: vi.fn(() =>
+    loadShowProgress: vi.fn<CueRuntime["loadShowProgress"]>(() =>
       opts.progress === undefined ? new Promise(() => {}) : Promise.resolve(opts.progress),
     ),
-  } as unknown as CueRuntime;
+  });
   return { runtime, submitted, queued, deliver, loadEpisode, loadEpisodePlays, loadShowPlays };
 }
 
@@ -413,11 +413,11 @@ describe("a read older than the app's own mark never reverts it", () => {
   const projected = { completed: 2, pendingAdvance: true, nextEpisode: { number: 3 } };
 
   function reads(entry: LibraryEntry = before): CueRuntime {
-    return {
+    return partialRuntime({
       loadUpNext: () => Promise.resolve({ entries: [entry] }),
       loadShowSeasons: () => Promise.resolve(seasonsBefore),
       loadEpisode: () => Promise.resolve(episodeDetail(episodeView(2))),
-    } as unknown as CueRuntime;
+    });
   }
 
   async function reread(qc: QueryClient, runtime: CueRuntime = reads()): Promise<void> {
@@ -453,9 +453,9 @@ describe("a read older than the app's own mark never reverts it", () => {
 
   it("leaves every other episode of the show as Trakt reads it", async () => {
     const { qc } = await markWithStaleProgress();
-    const nextUp = {
+    const nextUp = partialRuntime({
       loadEpisode: () => Promise.resolve(episodeDetail(episodeView(3))),
-    } as unknown as CueRuntime;
+    });
 
     const detail = await act(() =>
       qc.fetchQuery({ ...episodeQuery(nextUp, SHOW, 1, 3), staleTime: 0 }),

@@ -15,11 +15,11 @@ import { dayKeyOf } from "@cue/core/domain/day";
 import { DAY_MS, localTimeZone } from "@cue/core/domain/time";
 import { useCoarseClock } from "@cue/core/hooks/useCoarseClock";
 import { calendarQuery } from "@cue/core/queries/calendar";
-import { type CueRuntime, useRuntime } from "@cue/core/runtime/runtime";
+import { useRuntime } from "@cue/core/runtime/runtime";
 import { QueryClient, useQuery } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { withRuntime } from "../support/providers";
+import { partialRuntime, withRuntime } from "../support/runtime";
 
 /** Tomorrow + `days - 1` further out, so both land inside any window ≥ 1 day. */
 function entriesAt(...dayOffsets: readonly number[]): CalendarEntry[] {
@@ -62,7 +62,7 @@ describe("calendarQuery consumers", () => {
     const loadCalendar = vi.fn((_start: string, _days: number) =>
       Promise.resolve({ entries: entriesAt(1, 10) }),
     );
-    const runtime = { loadCalendar } as unknown as CueRuntime;
+    const runtime = partialRuntime({ loadCalendar });
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const wrapper = withRuntime(runtime, queryClient);
 

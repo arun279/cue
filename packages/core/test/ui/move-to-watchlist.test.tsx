@@ -9,7 +9,7 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { buildRuntime } from "../data/_runtime";
 import { makeShow } from "../domain/_helpers";
-import { withRuntime } from "../support/providers";
+import { withRuntime } from "../support/runtime";
 
 afterEach(dismissSnack);
 

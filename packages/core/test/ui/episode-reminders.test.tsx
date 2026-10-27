@@ -14,7 +14,7 @@ import type { CueRuntime } from "@cue/core/runtime/runtime";
 import { focusManager, QueryClient } from "@tanstack/react-query";
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { withRuntime } from "../support/providers";
+import { partialRuntime, withRuntime } from "../support/runtime";
 import { memoryPreferenceStorage } from "../support/stores";
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -88,10 +88,10 @@ afterEach(() => {
 async function mountHook(loadCalendar: CueRuntime["loadCalendar"]): Promise<Reminders> {
   const reminders = remindersPort();
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const runtime = {
+  const runtime = partialRuntime({
     loadCalendar,
     loadUpNext: () => Promise.resolve({ entries: [watching()] }),
-  } as unknown as CueRuntime;
+  });
   const Runtime = withRuntime(runtime, queryClient);
   renderHook(useEpisodeReminders, {
     wrapper: ({ children }) => (

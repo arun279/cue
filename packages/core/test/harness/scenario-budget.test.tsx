@@ -48,7 +48,7 @@ import { act, type RenderResult, render } from "@testing-library/react";
 import { type ReactElement, useEffect, useState } from "react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { buildRuntime, memoryKv } from "../data/_runtime";
-import { withRuntime } from "../support/providers";
+import { withRuntime } from "../support/runtime";
 import { type AccountSize, sized } from "../trakt-fake/account.ts";
 import { createTraktFake, type TraktFake } from "../trakt-fake/fake.ts";
 

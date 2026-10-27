@@ -7,7 +7,7 @@ import type { CueRuntime } from "@cue/core/runtime/runtime";
 import { QueryClient } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { withRuntime } from "../support/providers";
+import { partialRuntime, withRuntime } from "../support/runtime";
 
 const DAY = 24 * 60 * 60 * 1000;
 const airedAt = (): string => new Date(Date.now() - DAY).toISOString();
@@ -93,11 +93,11 @@ function runtimeFixture(
   calendar: readonly CalendarEntry[],
   loadShowSeasons: (showId: number) => Promise<readonly SeasonView[]>,
 ): CueRuntime {
-  return {
+  return partialRuntime({
     loadUpNext: () => Promise.resolve({ entries: [...entries], isPartial: false }),
     loadCalendar: () => Promise.resolve({ entries: calendar }),
     loadShowSeasons,
-  } as unknown as CueRuntime;
+  });
 }
 
 async function mountWithoutSeasonRead(

@@ -2,6 +2,7 @@ import { type EpisodePlay, ownPlays } from "@cue/core/domain/reversal";
 import { resolveEpisodeUnmark } from "@cue/core/hooks/resolve-unmark";
 import type { CueRuntime } from "@cue/core/runtime/runtime";
 import { describe, expect, it } from "vitest";
+import { partialRuntime } from "../support/runtime";
 
 const EP = 501;
 
@@ -10,10 +11,10 @@ function play(historyId: number, watchedAt: string, episodeTrakt = EP): EpisodeP
 }
 
 function runtimeWith(plays: readonly EpisodePlay[] | Error): CueRuntime {
-  return {
+  return partialRuntime({
     loadEpisodePlays: () =>
       plays instanceof Error ? Promise.reject(plays) : Promise.resolve(plays),
-  } as unknown as CueRuntime;
+  });
 }
 
 describe("resolveEpisodeUnmark", () => {

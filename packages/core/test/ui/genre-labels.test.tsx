@@ -1,17 +1,16 @@
 // @vitest-environment jsdom
 import { useGenreLabels } from "@cue/core/hooks/useGenreLabels";
-import type { CueRuntime } from "@cue/core/runtime/runtime";
 import { QueryClient } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
-import { withRuntime } from "../support/providers";
+import { partialRuntime, withRuntime } from "../support/runtime";
 
 async function mountLabels(
   slugs: readonly string[],
   loadGenreNames: () => Promise<Record<string, string>>,
 ) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const runtime = { loadGenreNames } as unknown as CueRuntime;
+  const runtime = partialRuntime({ loadGenreNames });
   const { result } = renderHook(() => useGenreLabels(slugs), {
     wrapper: withRuntime(runtime, client),
   });

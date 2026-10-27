@@ -10,11 +10,12 @@ import {
   showWriteLock,
 } from "@cue/core/stores/write-locks";
 import { beforeEach, describe, expect, it } from "vitest";
+import { partialRuntime } from "../support/runtime";
 
 const WATCHED_AT = "2026-07-05T12:00:00.000Z";
 
 function runtimeWith(pending: readonly QueuedOp[]): CueRuntime {
-  return { pendingOps: () => pending } as unknown as CueRuntime;
+  return partialRuntime({ pendingOps: () => pending });
 }
 
 function record(showId: number, opId: string): MarkRecord {

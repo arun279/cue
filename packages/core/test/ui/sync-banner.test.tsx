@@ -3,12 +3,13 @@ import type { TraktResult } from "@cue/core/data/trakt/client";
 import { resetReadPause, withReadRateRetry } from "@cue/core/data/trakt/read-budget";
 import { useSyncBanner } from "@cue/core/hooks/useSyncBanner";
 import type { QueryStatus } from "@cue/core/queries/freshness";
-import { type CueRuntime, RuntimeProvider } from "@cue/core/runtime/runtime";
+import { RuntimeProvider } from "@cue/core/runtime/runtime";
 import { useSyncActivity } from "@cue/core/stores/sync-activity-store";
 import { onlineManager } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { partialRuntime } from "../support/runtime";
 
 const fresh: QueryStatus = {
   isLoading: false,
@@ -67,7 +68,7 @@ describe("useSyncBanner", () => {
 
   it("names a write backlog only once it outlasts the grace window", async () => {
     let queued = 3;
-    const runtime = { pendingWrites: () => queued } as unknown as CueRuntime;
+    const runtime = partialRuntime({ pendingWrites: () => queued });
     const message = mountBanner(({ children }) => (
       <RuntimeProvider value={runtime}>{children}</RuntimeProvider>
     ));

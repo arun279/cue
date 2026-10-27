@@ -3,13 +3,13 @@ import { queryKeys } from "@cue/core/data/query-keys";
 import type { LibraryEntry } from "@cue/core/data/trakt/library";
 import type { QueuedOp } from "@cue/core/domain/write-queue/types";
 import { useHideShow } from "@cue/core/hooks/useHideShow";
-import type { CueRuntime, SubmitOutcome, UpNextData } from "@cue/core/runtime/runtime";
+import type { SubmitOutcome, UpNextData } from "@cue/core/runtime/runtime";
 import { dismissSnack, useSnackbar } from "@cue/core/stores/snackbar-store";
 import { QueryClient } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { makeShow } from "../domain/_helpers";
-import { withRuntime } from "../support/providers";
+import { partialRuntime, withRuntime } from "../support/runtime";
 
 const entry: LibraryEntry = {
   ...makeShow({ showId: 7, title: "Severance" }),
@@ -21,13 +21,13 @@ const entry: LibraryEntry = {
 
 function setup(outcome: SubmitOutcome = "done") {
   const submitted: QueuedOp[] = [];
-  const runtime = {
+  const runtime = partialRuntime({
     newId: () => `op-${submitted.length}`,
     submit: (op: QueuedOp) => {
       submitted.push(op);
       return Promise.resolve(outcome);
     },
-  } as unknown as CueRuntime;
+  });
   const queryClient = new QueryClient();
   queryClient.setQueryData<UpNextData>(queryKeys.library(), { entries: [entry] });
   queryClient.setQueryData(queryKeys.calendar("2026-07-12", 7), []);

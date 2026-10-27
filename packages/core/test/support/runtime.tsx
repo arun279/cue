@@ -9,3 +9,6 @@ export const withRuntime =
       <RuntimeProvider value={runtime}>{children}</RuntimeProvider>
     </QueryClientProvider>
   );
+
+/** A runtime with only the members a suite exercises, typed so a stub matches the real signature. */
+export const partialRuntime = (members: Partial<CueRuntime>): CueRuntime => members as CueRuntime;

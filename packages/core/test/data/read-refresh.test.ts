@@ -6,9 +6,10 @@ import { movieLibraryQuery, movieWatchlistQuery } from "@cue/core/queries/librar
 import { movieHeaderQuery } from "@cue/core/queries/movies";
 import { episodeQuery, showInfoQuery, showProgressQuery } from "@cue/core/queries/shows";
 import { userProfileQuery } from "@cue/core/queries/user";
-import type { CueRuntime } from "@cue/core/runtime/runtime";
 import { InfiniteQueryObserver, QueryClient, QueryObserver } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
+import { startTraktFake } from "../trakt-fake/in-process.ts";
+import { buildRuntime } from "./_runtime";
 
 const AT = "2026-07-05T00:00:00.000Z";
 
@@ -22,22 +23,23 @@ const EVERY_STAMP: LastActivities = {
 // A stamp the app has never seen counts as moved.
 const moved = (stamps: LastActivities) => changedActivityKeys({}, stamps);
 
+startTraktFake();
+const runtime = await buildRuntime();
 const loaders = {
-  loadUserProfile: vi.fn(() => Promise.resolve({})),
-  loadMovieLibrary: vi.fn((_watchlist: Promise<readonly WatchlistItem[]>) =>
-    Promise.resolve({ entries: [] }),
-  ),
-  loadMovieWatchlist: vi.fn((): Promise<readonly WatchlistItem[]> => Promise.resolve([])),
-  loadShowInfo: vi.fn(() => Promise.resolve({})),
-  loadShowProgress: vi.fn(() => Promise.resolve({})),
-  loadEpisode: vi.fn(() => Promise.resolve({})),
-  loadMovieHeader: vi.fn(() => Promise.resolve({})),
-  loadFirstPlayAt: vi.fn(() => Promise.resolve("2019-03-09T10:00:00.000Z")),
-  loadHistory: vi.fn((_section: string, page: number) =>
-    Promise.resolve({ entries: [], page, pageCount: 2 }),
-  ),
+  loadUserProfile: vi.spyOn(runtime, "loadUserProfile"),
+  loadMovieLibrary: vi.spyOn(runtime, "loadMovieLibrary"),
+  loadMovieWatchlist: vi.spyOn(runtime, "loadMovieWatchlist"),
+  loadShowInfo: vi.spyOn(runtime, "loadShowInfo"),
+  loadShowProgress: vi.spyOn(runtime, "loadShowProgress"),
+  loadEpisode: vi.spyOn(runtime, "loadEpisode"),
+  loadMovieHeader: vi.spyOn(runtime, "loadMovieHeader"),
+  loadFirstPlayAt: vi
+    .spyOn(runtime, "loadFirstPlayAt")
+    .mockResolvedValue("2019-03-09T10:00:00.000Z"),
+  loadHistory: vi
+    .spyOn(runtime, "loadHistory")
+    .mockImplementation((_section, page) => Promise.resolve({ entries: [], page, pageCount: 2 })),
 };
-const runtime = loaders as unknown as CueRuntime;
 
 interface Watched {
   subscribe(listener: () => void): () => void;
@@ -64,28 +66,30 @@ describe("each read refreshes on the invalidation meant for it", () => {
     ],
     [
       "show progress",
-      (qc: QueryClient) => new QueryObserver(qc, showProgressQuery(runtime, 7)),
+      (qc: QueryClient) => new QueryObserver(qc, showProgressQuery(runtime, 8803)),
       loaders.loadShowProgress,
-      [7],
+      [8803],
       null,
     ],
   ] as const)("%s", async (_name, watch, load, args, stamps) => {
     load.mockClear();
     const queryClient = await observe(watch);
     expect(load).toHaveBeenCalledWith(...args);
-    const keys = stamps === null ? showProgressKeys(7) : moved(stamps);
+    const keys = stamps === null ? showProgressKeys(8803) : moved(stamps);
     await Promise.all(keys.map((queryKey) => queryClient.invalidateQueries({ queryKey })));
     expect(load).toHaveBeenCalledTimes(2);
   });
 
   it("refreshes a marked episode's detail, by coordinate and by a bulk mark", async () => {
     const queryClient = await observe(
-      (qc) => new QueryObserver(qc, episodeQuery(runtime, 7, 2, 3)),
+      (qc) => new QueryObserver(qc, episodeQuery(runtime, 8803, 2, 3)),
     );
-    expect(loaders.loadEpisode).toHaveBeenCalledWith(7, 2, 3);
+    expect(loaders.loadEpisode).toHaveBeenCalledWith(8803, 2, 3);
     for (const scope of [{ season: 2, number: 3 }, "all"] as const) {
       await Promise.all(
-        showProgressKeys(7, scope).map((queryKey) => queryClient.invalidateQueries({ queryKey })),
+        showProgressKeys(8803, scope).map((queryKey) =>
+          queryClient.invalidateQueries({ queryKey }),
+        ),
       );
     }
     expect(loaders.loadEpisode).toHaveBeenCalledTimes(3);
@@ -100,21 +104,21 @@ describe("each read refreshes on the invalidation meant for it", () => {
     ],
     [
       "show info",
-      (qc: QueryClient) => new QueryObserver(qc, showInfoQuery(runtime, 7)),
+      (qc: QueryClient) => new QueryObserver(qc, showInfoQuery(runtime, 8803)),
       loaders.loadShowInfo,
-      [7],
+      [8803],
     ],
     [
       "movie header",
-      (qc: QueryClient) => new QueryObserver(qc, movieHeaderQuery(runtime, 9)),
+      (qc: QueryClient) => new QueryObserver(qc, movieHeaderQuery(runtime, 5501)),
       loaders.loadMovieHeader,
-      [9],
+      [5501],
     ],
   ] as const)("leaves the %s alone on every activity and every mark", async (_name, watch, load, args) => {
     load.mockClear();
     const queryClient = await observe(watch);
     expect(load).toHaveBeenCalledWith(...args);
-    const keys = [...moved(EVERY_STAMP), ...showProgressKeys(7, "all")];
+    const keys = [...moved(EVERY_STAMP), ...showProgressKeys(8803, "all")];
     await Promise.all(keys.map((queryKey) => queryClient.invalidateQueries({ queryKey })));
     expect(load).toHaveBeenCalledOnce();
   });
