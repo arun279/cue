@@ -1,8 +1,6 @@
-// dependency-cruiser resolves every `to.path` against the *resolved* module
-// path, not the import specifier. Under pnpm that means npm packages surface as
-// `node_modules/.pnpm/<pkg>@<ver>/node_modules/<pkg>/...`, so npm bans must match
-// the `(^|/)node_modules/<pkg>/` tail. Node built-ins carry dependencyType
-// "core", matched separately.
+// dependency-cruiser matches every `to.path` against the *resolved* module
+// path, not the import specifier, so npm bans match the `(^|/)node_modules/<pkg>/`
+// tail. Node built-ins carry dependencyType "core", matched separately.
 // An UNINSTALLED package is the one exception: nothing resolves it, so its
 // module path is the specifier itself, which is why the expo and react-native
 // bans below carry both spellings.
@@ -31,10 +29,10 @@ module.exports = {
       name: "domain-stays-pure",
       severity: "error",
       comment:
-        "The domain is runtime-agnostic: global fetch + zod only. Stated positively, as what it MAY reach rather than as a list of the directories it may not: the ban then covers a directory added to the core tomorrow instead of waiting to be amended. In-repo, the domain may reach the domain and nothing else; from npm it may take no react and no react-dom.",
+        "The domain is runtime-agnostic: global fetch + zod only. Stated positively, as what it MAY reach rather than as a list of the directories it may not: the ban then covers a directory added to the core tomorrow instead of waiting to be amended. In-repo, the domain may reach the domain and nothing else; from npm it may take no react.",
       from: { path: "^packages/core/src/domain/" },
       to: {
-        path: ["^packages/", RE_REACT, RE_REACT_DOM],
+        path: ["^packages/", RE_REACT],
         pathNot: "^packages/core/src/domain/",
       },
     },
@@ -42,10 +40,10 @@ module.exports = {
       name: "data-stays-headless",
       severity: "error",
       comment:
-        "The data layer (clients/repos) is stated the same way round: in-repo it may reach the domain, its own tree and the ports it is filled through, and nothing else. That is what keeps a repository from reaching a hook, a store or the auth layer. From npm it may take no react and no react-dom.",
+        "The data layer (clients/repos) is stated the same way round: in-repo it may reach the domain, its own tree and the ports it is filled through, and nothing else. That is what keeps a repository from reaching a hook, a store or the auth layer. From npm it may take no react.",
       from: { path: "^packages/core/src/data/" },
       to: {
-        path: ["^packages/", RE_REACT, RE_REACT_DOM],
+        path: ["^packages/", RE_REACT],
         pathNot: "^packages/core/src/(data|domain|ports)/",
       },
     },
@@ -143,8 +141,8 @@ module.exports = {
       // its realpath under packages/core, which is what makes the anchors above
       // match instead of node_modules.
       exportsFields: ["exports"],
-      conditionNames: ["import", "require", "node", "browser", "default"],
-      mainFields: ["module", "browser", "main"],
+      conditionNames: ["import", "require", "node", "default"],
+      mainFields: ["module", "main"],
       extensions: [".ts", ".tsx", ".mjs", ".cjs", ".js", ".jsx"],
     },
   },
