@@ -216,7 +216,7 @@ describe("Up Next", () => {
     expect(screen.queryByText("0 left", { includeHiddenElements: true })).toBeNull();
   });
 
-  it("replaces the old timeline strip with one row that opens the whole log", async () => {
+  it("offers one row that opens the whole history", async () => {
     await paint();
 
     expect(screen.getByTestId("link-history")).toBeOnTheScreen();

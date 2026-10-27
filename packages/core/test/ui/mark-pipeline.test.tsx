@@ -1,13 +1,12 @@
 // @vitest-environment jsdom
 /**
  * Hook-level coverage of the mark pipeline's cross-surface guarantees: a queue
- * mark ticks the show-detail caches in the same frame (F3a), a pending mark for
- * an episode is dropped by EVERY other on-mark path (F3b), an uncheck with a
- * queued mark cancels the pair instead of leaving it to flip back (F5), the
- * reverse windows + snackbar batch are one module-level truth across hook
- * instances (F11), and undoing a LANDED mark removes only the mark's own play by
- * exact history id, never remove-by-item, with an honest failure when the play
- * can't be identified (F14).
+ * mark ticks the show-detail caches in the same frame, a pending mark for an
+ * episode is dropped by every other on-mark path, an uncheck with a queued mark
+ * cancels the pair instead of leaving it to flip back, the reverse windows and
+ * snackbar batch are one module-level truth across hook instances, and undoing
+ * a landed mark removes only the mark's own play by exact history id, never
+ * remove-by-item, with an honest failure when the play can't be identified.
  */
 import { queryKeys } from "@cue/core/data/query-keys";
 import type { EpisodeDetail } from "@cue/core/data/trakt/episode-detail";
@@ -540,7 +539,7 @@ describe("a read older than the app's own mark never reverts it", () => {
   });
 });
 
-describe("F3a: a queue mark ticks the show-detail caches in the same frame", () => {
+describe("a queue mark ticks the show-detail caches in the same frame", () => {
   it("replaces only the marked library entry from its scoped progress read", async () => {
     const other = libraryEntry(2);
     const fake = fakeRuntime({
@@ -680,7 +679,7 @@ describe("F3a: a queue mark ticks the show-detail caches in the same frame", () 
   });
 });
 
-describe("F3b: a pending mark is dropped by every other on-mark path", () => {
+describe("a pending mark is dropped by every other on-mark path", () => {
   it("drops a season-row toggle ON while the queue mark is un-settled (registry)", async () => {
     const fake = fakeRuntime({ submit: () => new Promise(() => {}) }); // never settles
     const { entry, a, b } = mountSeasonSurfaces(fake);
@@ -710,7 +709,7 @@ describe("F3b: a pending mark is dropped by every other on-mark path", () => {
     expect(fake.submitted).toHaveLength(0);
   });
 
-  it("never blocks a deliberate additive play (F6 exemption)", async () => {
+  it("never blocks a deliberate additive play", async () => {
     const { fake, b } = mountWithDurableMark();
 
     await act(async () => b.current.season.addEpisodePlay(TARGET, { ...episodeView(2, true) }));
@@ -725,7 +724,7 @@ describe("F3b: a pending mark is dropped by every other on-mark path", () => {
   });
 });
 
-describe("F5: uncheck with a queued mark cancels the pair, never resolves live plays", () => {
+describe("an uncheck with a queued mark cancels the pair, never resolves live plays", () => {
   it("enqueues the coalescing inverse and settles the UI unwatched", async () => {
     const fake = fakeRuntime({ submit: () => Promise.resolve("deferred") });
     const { qc, a } = mountSeasonSurfaces(fake, [episodeView(1, true), episodeView(2, true)]);
@@ -770,7 +769,7 @@ describe("F5: uncheck with a queued mark cancels the pair, never resolves live p
   });
 });
 
-describe("F11: windows + batch are one module-level truth across instances", () => {
+describe("the undo windows and snackbar batch are one module-level truth across instances", () => {
   it("coalesces marks from two surfaces into one batch and undoes both", async () => {
     const e1 = libraryEntry(1);
     const e2 = libraryEntry(2);
@@ -815,7 +814,7 @@ describe("F11: windows + batch are one module-level truth across instances", () 
   });
 });
 
-describe("F14: undoing a landed mark is per-play, never remove-by-item", () => {
+describe("undoing a landed mark is per-play, never remove-by-item", () => {
   it("removes exactly the mark's own play by history id, keeping older plays", async () => {
     const entry = libraryEntry();
     const fake = fakeRuntime({});

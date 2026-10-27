@@ -3,13 +3,13 @@
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { PALETTE } from "../src/ui/tokens";
+import { PALETTE } from "../../src/ui/tokens";
 
 const headerIcons: {
   readonly INK: { readonly light: string; readonly dark: string };
   readonly icons: Readonly<Record<string, string>>;
   writeHeaderIcons(res: string): void;
-} = require("../plugins/with-android-header-icons.js");
+} = require("../../plugins/with-android-header-icons.js");
 
 it("gives the header navigation icon, which nothing tints, a fill that follows the theme", () => {
   const res = mkdtempSync(join(tmpdir(), "cue-header-icons-"));

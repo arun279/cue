@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { AndroidConfig, IOSConfig } from "expo/config-plugins";
-import { nativeAppConfig } from "../app.config";
+import { nativeAppConfig } from "../../app.config";
 
 /**
  * The app config is the whole native identity under CNG, and four of the facts
@@ -33,7 +33,7 @@ describe("the native app config", () => {
     });
     for (const asset of [config.icon, config.android?.adaptiveIcon?.foregroundImage]) {
       expect(asset).toBeDefined();
-      expect(existsSync(path.resolve(__dirname, "..", asset ?? ""))).toBe(true);
+      expect(existsSync(path.resolve(__dirname, "../..", asset ?? ""))).toBe(true);
     }
   });
 
@@ -66,7 +66,9 @@ describe("the native app config", () => {
   });
 
   it("ships no Expo analytics package", () => {
-    const manifest = JSON.parse(readFileSync(path.resolve(__dirname, "../package.json"), "utf8"));
+    const manifest = JSON.parse(
+      readFileSync(path.resolve(__dirname, "../../package.json"), "utf8"),
+    );
     const packages = { ...manifest.dependencies, ...manifest.devDependencies };
     const denied = ["expo-insights", "expo-observe", "@expo/insights", "@expo/observe"];
 

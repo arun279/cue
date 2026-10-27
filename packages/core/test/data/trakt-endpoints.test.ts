@@ -70,7 +70,7 @@ describe("watched endpoints send the payload params the app reads", () => {
   it("requests watched shows with extended=full,progress and an explicit page limit", async () => {
     await getWatchedShows(client);
     const [query] = queriesTo("/sync/watched/shows");
-    // Post-#775 the watched breakdown ships only under `progress` and the show's
+    // Since Trakt change #775 the watched breakdown ships only under `progress` and the show's
     // `status` only under `full`. Dropping either silently zeroes every show's
     // watched count or makes no show ever read as ended.
     expect(query?.get("extended")).toBe("full,progress");
