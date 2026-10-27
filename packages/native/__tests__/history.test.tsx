@@ -7,11 +7,6 @@ import { menuItem } from "./support/native-ui";
 import { fakeRuntime, Harness, spyHaptics } from "./support/up-next";
 
 jest.mock("expo-router", () => require("./support/history").historyRouterModule());
-jest.mock("@expo/ui/community/menu", () => require("./support/native-ui").menuModule());
-jest.mock(
-  "react-native-safe-area-context",
-  () => require("react-native-safe-area-context/jest/mock").default,
-);
 jest.mock("../src/hooks/usePullToRefresh", () =>
   require("./support/native-ui").pullToRefreshModule(),
 );

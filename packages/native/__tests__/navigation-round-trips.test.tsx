@@ -7,12 +7,6 @@ import { View } from "react-native";
 import { RootStack } from "../src/RootStack";
 import { QueryProvider } from "./support/query-provider";
 
-jest.mock("@expo/ui/jetpack-compose", () => require("./support/native-ui").composeModule());
-jest.mock(
-  "react-native-safe-area-context",
-  () => require("react-native-safe-area-context/jest/mock").default,
-);
-
 /**
  * Every route file under app/, over the app's own tab and account layouts, with
  * each screen standing in as an empty view and JavaScript tabs standing in for the

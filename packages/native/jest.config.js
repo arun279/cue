@@ -38,6 +38,7 @@ const project = {
     require.resolve("react-native-gesture-handler/jestSetup"),
   ],
   setupFilesAfterEnv: [
+    "<rootDir>/__tests__/support/native-modules.ts",
     "<rootDir>/__tests__/support/reanimated.ts",
     "<rootDir>/__tests__/support/transient-state.ts",
     "<rootDir>/__tests__/support/app-state.ts",

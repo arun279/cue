@@ -11,19 +11,9 @@ import { useWindowBackground } from "../src/ui/useWindowBackground";
 import { entry, fakeRuntime, Harness, spyHaptics } from "./support/up-next";
 
 jest.mock("expo-system-ui", () => ({ setBackgroundColorAsync: jest.fn(async () => {}) }));
-jest.mock(
-  "react-native-safe-area-context",
-  () => require("react-native-safe-area-context/jest/mock").default,
-);
-jest.mock("expo-sqlite/kv-store", () => require("./support/native-stores").kvStoreModule);
 // expo-router's test setup swaps Reanimated for its partial mock; the skeletons need the real one.
 jest.mock("react-native-reanimated/mock", () => jest.requireActual("react-native-reanimated"));
 jest.mock("../src/ui/BarItems", () => ({ BarItems: () => null }));
-jest.mock("@expo/ui/jetpack-compose", () => require("./support/native-ui").composeModule());
-jest.mock("@expo/ui/community/menu", () => require("./support/native-ui").menuModule());
-jest.mock("react-native-gesture-handler/ReanimatedSwipeable", () =>
-  require("./support/native-ui").swipeableModule(),
-);
 
 const tabs = ["(up-next)", "(library)", "(calendar)", "(search)"] as const;
 const roots = {

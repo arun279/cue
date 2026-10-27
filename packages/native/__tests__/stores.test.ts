@@ -1,17 +1,14 @@
 import { createPrefsStore } from "@cue/core/prefs/prefs-store";
 import { bulkBacking, secureStoreModule } from "./support/native-stores";
 
-// Both factories are hoisted above the imports, so each reaches its fake
-// through `require` rather than through a binding that does not exist yet, and
-// the adapters are loaded the same way, after the mocks are in place.
-jest.mock("expo-sqlite/kv-store", () => ({
-  __esModule: true,
-  default: require("./support/native-stores").bulkBacking,
-}));
 jest.mock("expo-secure-store", () => require("./support/native-stores").secureStoreModule);
 
-const { bulkStore, clearLocalPreferences, preferenceStorage, secureStore } =
-  require("../src/platform/stores") as typeof import("../src/platform/stores");
+import {
+  bulkStore,
+  clearLocalPreferences,
+  preferenceStorage,
+  secureStore,
+} from "../src/platform/stores";
 
 it("keeps the token in a Keychain item that never moves to another device through a backup", async () => {
   const save = jest.spyOn(secureStoreModule, "setItemAsync");

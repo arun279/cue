@@ -18,10 +18,6 @@ import {
 } from "./support/up-next";
 
 jest.mock("expo-router", () => require("./support/native-ui").expoRouterModule());
-jest.mock(
-  "react-native-safe-area-context",
-  () => require("react-native-safe-area-context/jest/mock").default,
-);
 // Where the viewer is, which is the one thing about this screen a runner cannot
 // have an opinion on: the grouping is meant to follow the reader, so the reader
 // is placed rather than inherited from whatever host runs the suite.

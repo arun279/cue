@@ -9,21 +9,9 @@ import { Platform } from "react-native";
 import { largeLibrary } from "./support/large-library";
 import { fakeRuntime, Harness, seedCalendars, spyHaptics } from "./support/up-next";
 
-jest.mock(
-  "react-native-safe-area-context",
-  () => require("react-native-safe-area-context/jest/mock").default,
-);
 jest.mock("../src/platform/stores", () => require("./support/native-ui").preferenceStorageModule());
 jest.mock("../src/hooks/usePullToRefresh", () =>
   require("./support/native-ui").pullToRefreshModule(),
-);
-jest.mock("@expo/ui/community/menu", () => require("./support/native-ui").menuModule());
-jest.mock("expo-sqlite/kv-store", () => ({
-  __esModule: true,
-  default: require("./support/native-stores").bulkBacking,
-}));
-jest.mock("react-native-gesture-handler/ReanimatedSwipeable", () =>
-  require("./support/native-ui").swipeableModule(),
 );
 
 const TABS = [

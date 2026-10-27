@@ -31,20 +31,8 @@ import {
 
 jest.mock("expo-router", () => require("./support/native-ui").expoRouterModule());
 jest.mock("@cue/core/hooks/useReadRetry", () => ({ useReadRetry: jest.fn(() => null) }));
-jest.mock("@expo/ui/community/menu", () => require("./support/native-ui").menuModule());
-jest.mock("react-native-gesture-handler/ReanimatedSwipeable", () =>
-  require("./support/native-ui").swipeableModule(),
-);
-jest.mock(
-  "react-native-safe-area-context",
-  () => require("react-native-safe-area-context/jest/mock").default,
-);
 // The tutorial line reads its one-time flag at import, and this runner has no
 // SQLite behind the preference store.
-jest.mock("expo-sqlite/kv-store", () => ({
-  __esModule: true,
-  default: require("./support/native-stores").bulkBacking,
-}));
 
 const UpNext = (require("../app/(tabs)/(up-next)") as typeof import("../app/(tabs)/(up-next)"))
   .default;

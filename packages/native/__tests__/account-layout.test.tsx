@@ -19,15 +19,9 @@ import { HISTORY } from "./support/history";
 import { QueryProvider } from "./support/query-provider";
 import { fakeRuntime, Harness, spyHaptics } from "./support/up-next";
 
-jest.mock("@expo/ui/jetpack-compose", () => require("./support/native-ui").composeModule());
-jest.mock("@expo/ui/community/menu", () => require("./support/native-ui").menuModule());
 // expo-router's test setup swaps Reanimated for its partial mock; History's skeleton needs the real one.
 jest.mock("react-native-reanimated/mock", () => jest.requireActual("react-native-reanimated"));
 jest.mock("../src/ui/BarItems", () => ({ BarItems: () => null }));
-jest.mock(
-  "react-native-safe-area-context",
-  () => require("react-native-safe-area-context/jest/mock").default,
-);
 
 /**
  * The app's root stack over two tab stacks, with History and Settings registered

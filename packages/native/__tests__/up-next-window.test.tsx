@@ -12,14 +12,6 @@ import {
   spyHaptics,
 } from "./support/up-next";
 
-jest.mock("react-native-gesture-handler/ReanimatedSwipeable", () =>
-  require("./support/native-ui").swipeableModule(),
-);
-jest.mock("expo-sqlite/kv-store", () => ({
-  __esModule: true,
-  default: require("./support/native-stores").bulkBacking,
-}));
-
 /** Renders of a row that was already on screen, by test id: what memoization keeps at zero. */
 const mockRerenders = new Map<string, number>();
 jest.mock("../src/ui/Row", () => {

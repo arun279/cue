@@ -18,12 +18,7 @@ import { entry, Harness, resetSharedStores, spyHaptics } from "./support/up-next
 
 jest.mock("expo-image", () => require("./support/detail").imageModule());
 jest.mock("expo-router", () => require("./support/native-ui").expoRouterModule());
-jest.mock("@expo/ui/community/menu", () => require("./support/native-ui").menuModule());
 jest.mock("expo-web-browser", () => ({ openBrowserAsync: jest.fn() }));
-jest.mock(
-  "react-native-safe-area-context",
-  () => require("react-native-safe-area-context/jest/mock").default,
-);
 
 const mark = { mark: jest.fn(), reverse: jest.fn(), reArm: jest.fn(), justMarkedAt: () => null };
 

@@ -4,10 +4,6 @@ import type { ReactElement, ReactNode } from "react";
 import { usePullToRefresh } from "../../src/hooks/usePullToRefresh";
 import { fakeRuntime, Harness, held, spyHaptics } from "../support/up-next";
 
-jest.mock(
-  "react-native-safe-area-context",
-  () => require("react-native-safe-area-context/jest/mock").default,
-);
 // The shared 429 pause is the gesture's own gate, and nothing in a test runner
 // opens one. Its behavior is proved in the core; what this file owns is what a
 // pull does while it stands.

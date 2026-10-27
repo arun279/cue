@@ -19,11 +19,6 @@ jest.mock("../../src/config", () => ({
   },
 }));
 
-jest.mock(
-  "react-native-safe-area-context",
-  () => require("react-native-safe-area-context/jest/mock").default,
-);
-
 const MESSAGE = "Harbor Lights S3 E5 marked";
 
 let stopTracking = (): void => {};
