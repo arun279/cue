@@ -1,4 +1,4 @@
-import { invalidationKeys } from "../data/query-invalidation";
+import { changedActivityKeys } from "../data/query-invalidation";
 import { createAuthorizedFetch } from "../data/trakt/authorized-fetch";
 import { assembleCalendarEntries } from "../data/trakt/calendar";
 import {
@@ -26,6 +26,7 @@ import {
   getHistory,
   getHistoryPlay,
   getItemPlays,
+  getLastActivities,
   getMovie,
   getMyShowsCalendar,
   getPopularMovies,
@@ -43,7 +44,6 @@ import {
   searchTrakt,
 } from "../data/trakt/pooled-endpoints";
 import { loadUpNextEntries } from "../data/trakt/read-budget";
-import { createLastActivitiesRepository } from "../data/trakt/repositories";
 import {
   assembleMovieHits,
   assembleSearchHits,
@@ -239,10 +239,6 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
 
   const persistLog = (): Promise<void> => opLogStore.write(queue.snapshot());
 
-  const activitiesRepo = createLastActivitiesRepository(client);
-  const readActivitiesSnapshot = async (): Promise<LastActivities | undefined> =>
-    (await activitiesStore.read()) ?? undefined;
-
   await queue.startupReconcile();
   await persistLog();
   void queue.flush().then(persistLog);
@@ -425,19 +421,12 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     },
 
     async pollActivities(): Promise<ActivitiesReconcile | null> {
-      const stored = await readActivitiesSnapshot();
-      let poll: Awaited<ReturnType<typeof activitiesRepo.poll>>;
-      try {
-        poll = await activitiesRepo.poll(stored);
-      } catch {
-        return null;
-      }
+      const stored = await activitiesStore.read();
+      const poll = await getLastActivities(client);
       if (!poll.ok) return null;
-      const fresh = poll.activities;
-      const keys = stored === undefined ? [] : invalidationKeys(poll.targets);
       return {
-        keys,
-        commit: () => activitiesStore.write(fresh),
+        keys: stored === null ? [] : changedActivityKeys(stored, poll.data),
+        commit: () => activitiesStore.write(poll.data),
       };
     },
 

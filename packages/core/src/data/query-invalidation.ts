@@ -1,5 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query";
-import type { InvalidationTarget } from "../domain/sync-activities";
+import { type ActivitySection, advanced, type LastActivities } from "../domain/sync-activities";
 import { queryKeys } from "./query-keys";
 import type { LibraryEntry } from "./trakt/library";
 
@@ -16,25 +16,20 @@ const showTrees = [
   queryKeys.showSection("seasons"),
   queryKeys.showSection("episode"),
 ];
-const TARGET_KEYS: Readonly<Record<InvalidationTarget, readonly InvalidationKey[]>> = {
-  "watched/shows": [library, history],
-  "progress/watched": [library, history],
-  "watched/movies": [movieLibrary, history],
-  "movie-progress": [movieLibrary, history],
-  "watchlist/shows": [library],
-  "watchlist/movies": [movieLibrary, queryKeys.movieWatchlist()],
-  "watchlist/episodes": [],
-  "collection/shows": [library],
-  "collection/movies": [movieLibrary],
-  "hidden/progress_watched": [library, ...showTrees],
-  "hidden/dropped": [library],
-  "hidden/movies": [],
-  "favorites/shows": [],
-  "favorites/movies": [],
-  "recompute:buckets": [library],
-  "recompute:to-watch": [library],
-  "recompute:following": [library, movieLibrary],
-};
+const movieWatchlist = queryKeys.movieWatchlist();
+
+// The reads each Trakt activity stamp moves. A stamp no screen reads is left out.
+const ACTIVITY_KEYS: readonly (readonly [ActivitySection, string, readonly InvalidationKey[]])[] = [
+  ["episodes", "watched_at", [library, history]],
+  ["episodes", "collected_at", [library]],
+  ["shows", "hidden_at", [library, ...showTrees]],
+  ["shows", "dropped_at", [library]],
+  ["shows", "watchlisted_at", [library]],
+  ["movies", "watched_at", [movieLibrary, history]],
+  ["movies", "watchlisted_at", [movieLibrary, movieWatchlist]],
+  ["movies", "collected_at", [movieLibrary]],
+  ["watchlist", "updated_at", [library, movieLibrary, movieWatchlist]],
+];
 
 export function showProgressKeys(
   showId: number,
@@ -87,12 +82,14 @@ export function invalidateChangedShows(
   }
 }
 
-export function invalidationKeys(targets: readonly InvalidationTarget[]): InvalidationKey[] {
+export function changedActivityKeys(
+  stored: LastActivities,
+  fresh: LastActivities,
+): InvalidationKey[] {
   const seen = new Map<string, InvalidationKey>();
-  for (const target of targets) {
-    for (const key of TARGET_KEYS[target]) {
-      seen.set(JSON.stringify(key), key);
-    }
+  for (const [section, field, keys] of ACTIVITY_KEYS) {
+    if (!advanced(stored[section]?.[field], fresh[section]?.[field])) continue;
+    for (const key of keys) seen.set(JSON.stringify(key), key);
   }
   return [...seen.values()];
 }
