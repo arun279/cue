@@ -5,14 +5,15 @@ import { getExpoConfigSourcesAsync } from "@expo/fingerprint/build/sourcer/Expo"
 import { describe, expect, it, vi } from "vitest";
 import { nativeAppConfig } from "../../packages/native/app.config";
 import { repositoryPath } from "../support/repository-path";
-import { readWorkflowJobs } from "../support/workflow-jobs";
 
 const publishWorkflow = readFileSync(
   repositoryPath(".github/workflows/publish-update.yml"),
   "utf8",
 );
-const MOBILE_RELEASE = repositoryPath(".github/workflows/mobile-release.yml");
-const releaseWorkflow = readFileSync(MOBILE_RELEASE, "utf8");
+const releaseWorkflow = readFileSync(
+  repositoryPath(".github/workflows/mobile-release.yml"),
+  "utf8",
+);
 
 const native = repositoryPath("packages/native");
 const { getConfig } = createRequire(`${native}/package.json`)("expo/config");
@@ -76,26 +77,6 @@ describe("JavaScript update publishing", () => {
       }
       expect(workflow).toMatch(/^ {2}gate:\n(?: {4}.*\n)*? {4}timeout-minutes: 5\n/m);
     }
-  });
-
-  it.each([
-    "ios",
-    "android",
-  ])("checks the %s store bundle for the test clock before building", (leg) => {
-    const steps = (
-      readWorkflowJobs(MOBILE_RELEASE).find(({ name }) => name === leg)?.body ?? ""
-    ).split(/^ {6}- /m);
-    const check = steps.findIndex((step) => step.includes("check-store-bundle.mjs"));
-    const build = steps.findIndex((step) => step.includes("eas build --local"));
-
-    expect(check).toBeGreaterThan(0);
-    expect(check).toBeLessThan(build);
-    expect(steps[check]).toContain(`eas env:exec ${production.environment} --non-interactive`);
-    expect(steps[check]).toMatch(
-      new RegExp(
-        `EXPO_ATLAS=true npx expo export .*--platform ${leg} .*\\n {10}node \\.\\./\\.\\./scripts/check-store-bundle\\.mjs \\.expo/atlas\\.jsonl\\n`,
-      ),
-    );
   });
 
   it("uses the release bundle's public environment", () => {

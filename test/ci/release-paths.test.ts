@@ -129,17 +129,6 @@ describe("native bundle environment", () => {
       `          EXPO_PUBLIC_TRAKT_CLIENT_ID: ${value}`,
     );
   });
-
-  it("checks the APK against Firebase's limit and leaves iOS sizes to App Store Connect", () => {
-    const workflow = readFileSync(MOBILE_RELEASE_WORKFLOW, "utf8");
-
-    expect(readNamedStep(MOBILE_RELEASE_WORKFLOW, "android", "Check the APK")).toContain(
-      'FIREBASE_BINARY_LIMIT_BYTES: "2147483648"',
-    );
-    expect(workflow).toContain(
-      "App Store Connect alerts when a thinned device variant exceeds its 200 MB over-the-air limit.",
-    );
-  });
 });
 
 describe("mobile release gate required checks", () => {

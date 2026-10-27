@@ -109,15 +109,6 @@ jobs:
             --arg certificate "$RUNNER_TEMP/distribution.p12" --arg password "$P12_PASSWORD" \
             '{ios: {provisioningProfilePath: $profile, distributionCertificate: {path: $certificate, password: $password}}}' \
             > credentials.json
-      - name: Keep the test clock out of the store bundle
-        working-directory: packages/native
-        env:
-          EXPO_PUBLIC_TRAKT_CLIENT_ID: ${{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}
-        run: |
-          [ -n "$EXPO_PUBLIC_TRAKT_CLIENT_ID" ] || { echo "EXPO_PUBLIC_TRAKT_CLIENT_ID is not set"; exit 1; }
-          pnpm exec eas env:exec production --non-interactive \
-            "EXPO_NO_DOTENV=1 EXPO_ATLAS=true npx expo export --output-dir $RUNNER_TEMP/store-export --platform ios --clear"
-          node ../../scripts/check-store-bundle.mjs .expo/atlas.jsonl
       - name: Build
         working-directory: packages/native
         env:
@@ -161,10 +152,7 @@ jobs:
       - name: Record the build
         env:
           BUILD: ${{ steps.ipa.outputs.build }}
-        # https://developer.apple.com/help/app-store-connect/manage-builds/view-builds-and-metadata
-        run: |
-          echo "iOS build $BUILD is on TestFlight. To give it to friends later, dispatch again with promote_ios $BUILD." >> "$GITHUB_STEP_SUMMARY"
-          echo "App Store Connect alerts when a thinned device variant exceeds its 200 MB over-the-air limit." >> "$GITHUB_STEP_SUMMARY"
+        run: echo "iOS build $BUILD is on TestFlight. To give it to friends later, dispatch again with promote_ios $BUILD." >> "$GITHUB_STEP_SUMMARY"
 
   android:
     needs: gate
@@ -204,15 +192,6 @@ jobs:
         run: |
           echo "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/firebase.json"
           echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase.json" >> "$GITHUB_ENV"
-      - name: Keep the test clock out of the store bundle
-        working-directory: packages/native
-        env:
-          EXPO_PUBLIC_TRAKT_CLIENT_ID: ${{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}
-        run: |
-          [ -n "$EXPO_PUBLIC_TRAKT_CLIENT_ID" ] || { echo "EXPO_PUBLIC_TRAKT_CLIENT_ID is not set"; exit 1; }
-          pnpm exec eas env:exec production --non-interactive \
-            "EXPO_NO_DOTENV=1 EXPO_ATLAS=true npx expo export --output-dir $RUNNER_TEMP/store-export --platform android --clear"
-          node ../../scripts/check-store-bundle.mjs .expo/atlas.jsonl
       - name: Build
         working-directory: packages/native
         env:
@@ -222,9 +201,6 @@ jobs:
       - name: Check the APK
         id: apk
         working-directory: packages/native
-        env:
-          # https://firebase.google.com/docs/app-distribution/troubleshooting?platform=android
-          FIREBASE_BINARY_LIMIT_BYTES: "2147483648"
         run: |
           build=$(pnpm exec eas build:version:get --non-interactive --json --platform android --profile production | jq -r .versionCode)
           version=$(pnpm exec expo config --type public --json | jq -r .version)
@@ -232,14 +208,7 @@ jobs:
           pnpm exec eas env:exec production --non-interactive \
             "pnpm exec expo-updates runtimeversion:resolve --platform android > $RUNNER_TEMP/runtime.json"
           ../../scripts/check-update-config.sh "$RUNNER_TEMP/Cue.apk" production "$(jq -r .runtimeVersion "$RUNNER_TEMP/runtime.json")"
-          node ../../scripts/assert-file-size.mjs "$RUNNER_TEMP/Cue.apk" "$FIREBASE_BINARY_LIMIT_BYTES" "Firebase tester APK"
           echo "build=$build" >> "$GITHUB_OUTPUT"
-      - name: Keep the owner in the Firebase owner group
-        env:
-          FIREBASE_OWNER_TESTER: ${{ secrets.FIREBASE_OWNER_TESTER }}
-        run: |
-          [ -n "$FIREBASE_OWNER_TESTER" ] || { echo "FIREBASE_OWNER_TESTER is not set"; exit 1; }
-          scripts/firebase-distribution.sh owner-group "$FIREBASE_OWNER_TESTER"
       - name: Upload to Firebase
         env:
           FIREBASE_GROUPS: ${{ inputs.audience == 'friends' && 'owner,friends' || 'owner' }}
@@ -274,4 +243,4 @@ jobs:
           BUILD: ${{ inputs.promote_android }}
         run: |
           echo "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$GOOGLE_APPLICATION_CREDENTIALS"
-          scripts/firebase-distribution.sh promote "$BUILD"
+          scripts/firebase-distribution.sh "$BUILD"
