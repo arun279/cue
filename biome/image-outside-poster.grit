@@ -1,6 +1,7 @@
 language js
 
 or {
+  JsImport() as $import where { $import <: contains `"react-native"`, $import <: contains `Image` },
   `$object.Image`,
   JsxMemberName(member=$member) where { $member <: `Image` },
   `const $names = require($module)` where {

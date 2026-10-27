@@ -75,10 +75,11 @@
       }
     },
     {
-      // React Native's iOS Switch replaces UISwitch's own accessibility traits, so a disabled
-      // switch is not announced as dimmed. Toggle is the one Switch, and it works around that.
-      "includes": ["**", "!packages/native/src/screens/account/Rows.tsx"],
-      "plugins": ["./biome/switch-outside-toggle.grit"],
+      // App code leaves to the platform what the platform already draws, and so keeps the
+      // platform's own semantics, sizing and dismissal. Each override below is one such rule;
+      // an excluded file names why the native candidate does not fit.
+      "includes": ["packages/native/src/**", "packages/native/app/**"],
+      "plugins": ["./biome/self-drawn-modal.grit", "./biome/typed-glyph.grit"],
       "linter": {
         "rules": {
           "style": {
@@ -87,15 +88,26 @@
               "options": {
                 "paths": {
                   "react-native": {
-                    "importNames": ["Switch"],
-                    "message": "Use Toggle from screens/account/Rows, which keeps a disabled switch announced as dimmed on iOS."
+                    "importNames": ["Modal", "BackHandler"],
+                    "message": "Present a modal as a route, and leave back to the navigator, so the platform draws and dismisses both."
                   },
-                  "react-native-gesture-handler": {
-                    "importNames": ["Switch"],
-                    "message": "Use Toggle from screens/account/Rows, which keeps a disabled switch announced as dimmed on iOS."
+                  "expo-router": {
+                    "importNames": ["usePreventRemove"],
+                    "message": "Leave back to the navigator, which users expect to leave every pushed screen."
+                  },
+                  "@react-navigation/native": {
+                    "importNames": ["usePreventRemove"],
+                    "message": "Leave back to the navigator, which users expect to leave every pushed screen."
                   },
                   "react-native-svg": "Draw icons with PlatformIcon, which uses the platform's own symbols."
-                }
+                },
+                "patterns": [
+                  {
+                    "group": ["@expo/ui/**"],
+                    "importNamePattern": "(Modal)?BottomSheet",
+                    "message": "Present a sheet as a formSheet route, so the platform draws it and dismisses it with its own gestures."
+                  }
+                ]
               }
             }
           }
@@ -103,58 +115,121 @@
       }
     },
     {
-      // React Native's Image resizes a remote image before decoding it only with
-      // resizeMethod="resize", which Poster and Avatar set. PlatformIcon draws Android's
-      // vector drawables. A later override replaces an earlier one's options and plugins
-      // for the files both match, so this one restates the Switch rule.
       "includes": [
         "packages/native/src/**",
         "packages/native/app/**",
-        "!packages/native/src/screens/account/Rows.tsx",
-        "!packages/native/src/ui/Poster.tsx",
-        "!packages/native/src/ui/Avatar.tsx",
-        "!packages/native/src/ui/PlatformIcon.tsx"
+        // Toggle, the one Switch.
+        "!packages/native/src/screens/account/Rows.tsx"
       ],
-      "plugins": ["./biome/switch-outside-toggle.grit", "./biome/image-outside-poster.grit"],
-      "linter": {
-        "rules": {
-          "style": {
-            "noRestrictedImports": {
-              "level": "error",
-              "options": {
-                "paths": {
-                  "react-native": {
-                    "importNames": ["Switch", "Image"],
-                    "message": "Use Toggle from screens/account/Rows for a Switch, and Poster or Avatar for a remote image, which decode it at the size they draw it on Android."
-                  },
-                  "react-native-gesture-handler": {
-                    "importNames": ["Switch"],
-                    "message": "Use Toggle from screens/account/Rows, which keeps a disabled switch announced as dimmed on iOS."
-                  },
-                  "react-native-svg": "Draw icons with PlatformIcon, which uses the platform's own symbols."
-                }
-              }
-            }
-          }
-        }
-      }
+      "plugins": ["./biome/switch-outside-toggle.grit"]
     },
     {
-      "includes": ["packages/native/src/screens/account/Rows.tsx"],
-      "linter": {
-        "rules": {
-          "style": {
-            "noRestrictedImports": {
-              "level": "error",
-              "options": {
-                "paths": {
-                  "react-native-svg": "Draw icons with PlatformIcon, which uses the platform's own symbols."
-                }
-              }
-            }
-          }
-        }
-      }
+      "includes": [
+        "packages/native/src/**",
+        "packages/native/app/**",
+        // Sets resizeMethod="resize".
+        "!packages/native/src/ui/Poster.tsx",
+        // Sets resizeMethod="resize".
+        "!packages/native/src/ui/Avatar.tsx",
+        // Draws Android's vector drawables, tinted.
+        "!packages/native/src/ui/PlatformIcon.tsx"
+      ],
+      "plugins": ["./biome/image-outside-poster.grit"]
+    },
+    {
+      "includes": [
+        "packages/native/src/**",
+        "packages/native/app/**",
+        // Tints every drawable it draws.
+        "!packages/native/src/ui/PlatformIcon.tsx"
+      ],
+      "plugins": ["./biome/untinted-vector.grit"]
+    },
+    {
+      "includes": [
+        "packages/native/src/**",
+        "packages/native/app/**",
+        // Android's toolbar menu host stays 0x0 on a pushed screen (expo/expo#49312); iOS keeps the native menu.
+        "!packages/native/src/ui/RowMenu.tsx",
+        // A bar button image cannot draw the account's photo or monogram.
+        "!packages/native/src/ui/BarItems.tsx"
+      ],
+      "plugins": ["./biome/custom-header-item.grit"]
+    },
+    {
+      "includes": [
+        "packages/native/src/**",
+        "packages/native/app/**",
+        // Neither platform's segmented control is reachable by TalkBack, VoiceOver identifiers and Maestro.
+        "!packages/native/src/ui/SegmentedControl.tsx",
+        // A scrolling rail of filters with counts has no iOS control.
+        "!packages/native/src/screens/library/ChipRail.tsx",
+        // The platform date pickers have no month and year mode.
+        "!packages/native/src/screens/history/HistoryChoice.tsx",
+        // Marks something watched, which a switch would read as a setting.
+        "!packages/native/src/ui/CheckControl.tsx"
+      ],
+      "plugins": ["./biome/hand-drawn-selection.grit"]
+    },
+    {
+      "includes": [
+        "packages/native/src/**",
+        "packages/native/app/**",
+        // Android's header search bar collapses to an icon and reports only a submitted query.
+        "!packages/native/src/screens/search/SearchField.tsx"
+      ],
+      "plugins": ["./biome/text-field-outside-search.grit"]
+    },
+    {
+      "includes": [
+        "packages/native/src/**",
+        "packages/native/app/**",
+        // Android form sheets cannot host a header, so the close is drawn in the sheet.
+        "!packages/native/src/ui/SheetClose.android.tsx",
+        // Picking a month completes the sheet's one task, so the pick closes it.
+        "!packages/native/src/screens/history/MonthJump.tsx"
+      ],
+      "plugins": ["./biome/back-outside-navigator.grit"]
+    },
+    {
+      "includes": [
+        "packages/native/src/**",
+        "packages/native/app/**",
+        // Its tab and account groups and its sheets each draw their own header.
+        "!packages/native/src/RootStack.tsx",
+        // Android form sheets cannot host a header, so they title themselves.
+        "!packages/native/src/ui/navigation-theme.tsx"
+      ],
+      "plugins": ["./biome/header-hidden.grit"]
+    },
+    {
+      "includes": [
+        "packages/native/src/**",
+        "packages/native/app/**",
+        // A sheet opens its own header and has no back button; its leading item is the system close.
+        "!packages/native/src/ui/SheetClose.tsx"
+      ],
+      "plugins": ["./biome/back-replaced.grit"]
+    },
+    {
+      "includes": [
+        "packages/native/src/**",
+        "packages/native/app/**",
+        // The table itself.
+        "!packages/native/src/presentation.ts"
+      ],
+      "plugins": ["./biome/presentation-outside-table.grit"]
+    },
+    {
+      "includes": [
+        "packages/native/src/**",
+        "packages/native/app/**",
+        // Shows Syncing on its button.
+        "!packages/native/src/screens/account/DataSection.tsx",
+        // Hands syncing to the RefreshControl.
+        "!packages/native/src/hooks/usePullToRefresh.ts"
+      ],
+      "plugins": ["./biome/silent-sync.grit"]
     }
   ],
   "plugins": ["./biome/effect-query-writes.grit"],

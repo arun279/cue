@@ -1,0 +1,11 @@
+language js
+
+`require($path)` as $use where {
+  $path <: r"\".*\.xml\"",
+  not $use <: within JsPropertyObjectMember(name=r"image"),
+  register_diagnostic(
+    span=$use,
+    message="Android draws a vector drawable in the fill written into it unless the surface tints it. Draw it through PlatformIcon, or as a menu item image, which are tinted.",
+    severity="error"
+  )
+}
