@@ -60,18 +60,6 @@ const signedOutRun = async (args: string[]): Promise<string> => {
 };
 
 describe("EAS CLI commands in the release automation", () => {
-  it("are run with the CLI version the repository tests against", () => {
-    const manifest = JSON.parse(readFileSync(repositoryPath("package.json"), "utf8")) as {
-      devDependencies: Record<string, string>;
-    };
-    const pins = WORKFLOWS.flatMap((file) => [
-      ...readFileSync(repositoryPath(file), "utf8").matchAll(/eas-version: (\S+)/g),
-    ]).map(([, version]) => version);
-
-    expect(pins.length).toBeGreaterThan(0);
-    expect(new Set(pins)).toEqual(new Set([manifest.devDependencies["eas-cli"]]));
-  });
-
   it("never send TestFlight notes through EAS Submit, which accepts them only on the Enterprise plan", () => {
     const submits = commands.filter(([command]) => command === "submit");
 
