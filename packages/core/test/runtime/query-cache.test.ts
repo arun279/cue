@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * What survives a cold boot. The persisted blob is what the first screen paints
  * before the network answers, and it is unbounded in age, so what goes into it
@@ -7,9 +8,13 @@
  */
 
 import { dehydrate, hydrate, QueryClient } from "@tanstack/react-query";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { queryKeys } from "../../src/data/query-keys";
-import { createQueryCachePolicy, restorableCache } from "../../src/runtime/query-cache";
+import {
+  createQueryCachePolicy,
+  createQueryClient,
+  restorableCache,
+} from "../../src/runtime/query-cache";
 
 const LIBRARY_SHOW = 1;
 const UNSEEN_SHOW = 2;
@@ -43,6 +48,7 @@ describe("what a cold boot restores", () => {
     expect(policy.persists(queryKeys.movieLibrary())).toBe(true);
     expect(policy.persists(queryKeys.movieWatchlist())).toBe(true);
     expect(policy.persists(queryKeys.history("all"))).toBe(true);
+    expect(policy.persists(queryKeys.history("movies"))).toBe(true);
     expect(policy.persists(queryKeys.calendar("2026-01-01", 7))).toBe(true);
     expect(policy.persists(queryKeys.firstPlay())).toBe(true);
     expect(policy.persists(queryKeys.userSettings())).toBe(true);
@@ -52,6 +58,22 @@ describe("what a cold boot restores", () => {
   it("drops the unbounded key spaces nobody boots into", () => {
     expect(policy.persists(queryKeys.search("dune", "movie"))).toBe(false);
     expect(policy.persists(queryKeys.browse())).toBe(false);
+    expect(policy.persists(queryKeys.history("all", "2024-03"))).toBe(false);
+  });
+
+  it("keeps only the newest calendar window of each length, since windows start on the current day", () => {
+    const queryClient = new QueryClient();
+    for (const key of [
+      queryKeys.calendar("2026-01-01", 7),
+      queryKeys.calendar("2026-01-02", 7),
+      queryKeys.calendar("2025-12-01", 33),
+    ])
+      queryClient.setQueryData(key, { entries: [] });
+    const { shouldDehydrateQuery } = createQueryCachePolicy(queryClient);
+
+    expect(dehydrate(queryClient, { shouldDehydrateQuery }).queries.map((q) => q.queryKey)).toEqual(
+      [queryKeys.calendar("2026-01-02", 7), queryKeys.calendar("2025-12-01", 33)],
+    );
   });
 
   it("drops the per-title detail trees, which cost one read to re-open", () => {
@@ -83,6 +105,23 @@ describe("what a cold boot restores", () => {
   it("never restores a query that has nothing to show", () => {
     expect(policy.persists(queryKeys.library(), { status: "error" })).toBe(false);
     expect(policy.persists(queryKeys.showInfo(LIBRARY_SHOW), { status: "error" })).toBe(false);
+  });
+
+  it("forgets a closed screen's reads after five minutes but keeps what a cold boot paints", () => {
+    vi.useFakeTimers();
+    const queryClient = createQueryClient();
+    const restored = createQueryClient();
+    queryClient.setQueryData(queryKeys.history("all"), { pages: [], pageParams: [] });
+    hydrate(restored, dehydrate(queryClient));
+    for (const key of [queryKeys.search("dune", "movie"), queryKeys.showInfo(UNSEEN_SHOW)])
+      restored.setQueryData(key, {});
+
+    vi.advanceTimersByTime(5 * 60 * 1000);
+    vi.useRealTimers();
+
+    expect(restored.getQueryData(queryKeys.search("dune", "movie"))).toBeUndefined();
+    expect(restored.getQueryData(queryKeys.history("all"))).toBeDefined();
+    expect(restored.getQueryData(queryKeys.showInfo(UNSEEN_SHOW))).toBeDefined();
   });
 
   it("keeps the last good data of a query whose refresh failed, restored as that data", () => {
