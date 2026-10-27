@@ -2,7 +2,6 @@ import { queryKeys } from "@cue/core/data/query-keys";
 import { TraktClient } from "@cue/core/data/trakt/client";
 import type { CueRuntime } from "@cue/core/runtime/runtime";
 import { describe, expect, it } from "vitest";
-import { memoryKeyValueStore } from "../support/stores";
 import { FIXTURE_NOW } from "../trakt-fake/account.ts";
 import { startTraktFake } from "../trakt-fake/in-process.ts";
 import { buildRuntime } from "./_runtime";
@@ -13,7 +12,7 @@ const client = new TraktClient({ clientId: "cid", getToken: () => fake.session()
 
 /** A runtime that has already polled once and kept the stamps it saw. */
 async function polledRuntime(): Promise<CueRuntime> {
-  const runtime = await buildRuntime({ token: fake.session(), kv: memoryKeyValueStore() });
+  const runtime = await buildRuntime({ token: fake.session() });
   const first = await runtime.pollActivities();
   expect(first?.keys).toEqual([]);
   await first?.commit();
