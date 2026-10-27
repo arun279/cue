@@ -19,14 +19,13 @@
     "check:spell": "cspell --no-progress --no-summary",
     "check:arch": "depcruise packages --config .dependency-cruiser.cjs",
     "check:core-portable": "vitest run --project core test/ci/core-portable.test.ts",
-    "check:size:native": "EXPO_ATLAS=true pnpm --filter @cue/native exec expo export --platform ios --platform android --output-dir dist && node scripts/check-shipped-modules.mjs && node scripts/check-store-bundle.mjs",
-    "check": "biome check --error-on-warnings . && oxlint && dprint check && pnpm check:spell && pnpm typecheck && pnpm check:arch && knip && jscpd && pnpm check:size:native && vitest run && pnpm test:native",
+    "check:bundle": "EXPO_ATLAS=true pnpm --filter @cue/native exec expo export --platform ios --platform android --output-dir dist && node scripts/check-shipped-modules.mjs && node scripts/check-store-bundle.mjs",
+    "check": "biome check --error-on-warnings . && oxlint && dprint check && pnpm check:spell && pnpm typecheck && pnpm check:arch && knip && jscpd && pnpm check:bundle && vitest run && pnpm test:native",
     "prepare": "lefthook install"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.2",
     "@expo/fingerprint": "0.20.14",
-    "@expo/metro-config": "57.0.13",
     "@expo/repack-app": "0.10.4",
     "@types/node": "^22.12.0",
     "cspell": "^9.8.0",
@@ -57,7 +56,6 @@
       "zod@<4.6.6": "^4.6.6"
     },
     "patchedDependencies": {
-      "@expo/metro-config@57.0.13": "patches/@expo__metro-config@57.0.13.patch",
       "react-native-screens@4.26.2": "patches/react-native-screens@4.26.2.patch",
       "expo-modules-core@57.0.24": "patches/expo-modules-core@57.0.24.patch"
     }

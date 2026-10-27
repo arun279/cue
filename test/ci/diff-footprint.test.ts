@@ -51,7 +51,7 @@ describe("diff footprint", () => {
       "| Product code lines in core/src, native/src, native/app, and native/modules | +2 |",
     );
     expect(output).toContain(
-      "| Test lines in test, `packages/*/{test,__tests__,e2e}`, and .maestro | +6 |",
+      "| Test lines in test, `packages/*/{test,__tests__}`, and .maestro | +6 |",
     );
     expect(output).toContain("| CI and tooling lines in .github and scripts | +2 |");
     expect(output).toContain("| Product comment lines identified by a comment prefix | +1 |");

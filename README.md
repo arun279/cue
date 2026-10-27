@@ -46,7 +46,7 @@ Its README covers what it models, the rules for tests that use it, how `conforma
 
 `scenario-budget.test.tsx` replays user scenarios against the fake on generated accounts of a given size, and sizes each byte budget from the fake's own answers to the reads the scenario needs.
 
-Set `EXPO_PUBLIC_TRAKT_API_BASE=http://127.0.0.1:8787` for a simulator build that should use the fake service. The Expo configuration adds a local transport exception only for that build. Release builds carry no exception. Set `EXPO_PUBLIC_CLOCK_START` to the instant of `FIXTURE_NOW` too: the app's clock then starts there at launch and runs on, so the app and the fake agree on which episodes have aired. CI sets it in `.github/workflows/ci.yml`; change both together. Store builds leave it unset, Metro leaves the clock out of their bundles, and `pnpm check:size:native` and the release workflows fail if it reaches one.
+Set `EXPO_PUBLIC_TRAKT_API_BASE=http://127.0.0.1:8787` for a simulator build that should use the fake service. The Expo configuration adds a local transport exception only for that build. Release builds carry no exception. Set `EXPO_PUBLIC_CLOCK_START` to the instant of `FIXTURE_NOW` too: the app's clock then starts there at launch and runs on, so the app and the fake agree on which episodes have aired. CI sets it in `.github/workflows/ci.yml`; change both together. Store builds leave it unset, Metro leaves the clock out of their bundles, and `pnpm check:bundle` and the release workflows fail if it reaches one.
 
 ## Architecture
 
