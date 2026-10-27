@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { AndroidConfig, IOSConfig } from "expo/config-plugins";
 import { nativeAppConfig } from "../app.config";
@@ -63,6 +63,14 @@ describe("the native app config", () => {
       );
       expect(infoPlist["ITSAppUsesNonExemptEncryption"]).toBe(false);
     }
+  });
+
+  it("ships no Expo analytics package", () => {
+    const manifest = JSON.parse(readFileSync(path.resolve(__dirname, "../package.json"), "utf8"));
+    const packages = { ...manifest.dependencies, ...manifest.devDependencies };
+    const denied = ["expo-insights", "expo-observe", "@expo/insights", "@expo/observe"];
+
+    expect(denied.filter((name) => name in packages)).toEqual([]);
   });
 
   it("carries no transport-security exception unless the harness asks for one", () => {

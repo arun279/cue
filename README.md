@@ -59,7 +59,7 @@ Dependencies flow from the Expo app into the core. Dependency-cruiser enforces t
 
 ## Testing
 
-Core tests use Vitest. Repository-level workflow checks live in `test/ci`. The Expo app uses jest-expo for both platform presets, and React Native Testing Library covers screen behavior.
+Core tests use Vitest. Tests for the repository scripts live in `test/ci`. The Expo app uses jest-expo for both platform presets, and React Native Testing Library covers screen behavior.
 
 End-to-end coverage is a short Maestro smoke suite in `.maestro/smoke`: sign in through the device code, mark the next episode from Up Next, visit every tab, open a show and a movie and mark an episode, search, and sign out. Every pull request push runs it on an Android emulator and an iOS simulator, against a release build of the app pointed at the fake. Each job fingerprints the native project with `@expo/fingerprint` and caches the native build under that hash; when the hash is already cached, `@expo/repack-app` swaps the commit's JavaScript into the cached build instead of compiling it again. The jobs upload the screenshots each flow takes, plus Maestro's debug output when a flow fails. To check that the suite is deterministic, dispatch the CI workflow on a branch repeatedly with `gh workflow run ci.yml --ref <branch>`, once first so that run seeds the build cache.
 
