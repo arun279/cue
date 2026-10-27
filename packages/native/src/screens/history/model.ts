@@ -22,7 +22,7 @@ export function historySections(days: readonly HistoryDay[], filter: string) {
   let rowIndex = 0;
   return days.flatMap((day) => {
     const rows = new Map<string, HistoryRowModel>();
-    for (const entry of day.groups.flatMap((group) => group.entries)) {
+    for (const entry of day.entries) {
       if (!entry.title.toLowerCase().includes(filter.trim().toLowerCase())) continue;
       const key = itemKey(entry);
       const existing = rows.get(key);
