@@ -3,11 +3,11 @@ import type { LibraryEntry } from "@cue/core/data/trakt/library";
 import type { EpisodeView, SeasonView } from "@cue/core/data/trakt/show-detail";
 import type { CalendarEntry } from "@cue/core/domain/calendar";
 import { type LibrarySnapshot, useLibrarySnapshot } from "@cue/core/hooks/useLibrarySnapshot";
-import { type CueRuntime, RuntimeProvider } from "@cue/core/runtime/runtime";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act } from "react";
+import type { CueRuntime } from "@cue/core/runtime/runtime";
+import { QueryClient } from "@tanstack/react-query";
+import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { mountAsync } from "./_mount";
+import { withRuntime } from "../support/providers";
 
 const DAY = 24 * 60 * 60 * 1000;
 const airedAt = (): string => new Date(Date.now() - DAY).toISOString();
@@ -81,39 +81,11 @@ function calendarEpisode(number: number, showId = 1): CalendarEntry {
   };
 }
 
-function Probe({
-  onSnapshot,
-  onEntry,
-}: {
-  readonly onSnapshot: (value: LibrarySnapshot) => void;
-  readonly onEntry: (value: LibraryEntry | undefined) => void;
-}): null {
-  const snapshot = useLibrarySnapshot();
-  onSnapshot(snapshot);
-  onEntry(snapshot.data?.entries.find((entry) => entry.showId === 1));
-  return null;
-}
-
-async function mountSnapshot(runtime: CueRuntime): Promise<{
-  current: LibrarySnapshot | undefined;
-  currentEntry: LibraryEntry | undefined;
-}> {
-  const snapshot: {
-    current: LibrarySnapshot | undefined;
-    currentEntry: LibraryEntry | undefined;
-  } = { current: undefined, currentEntry: undefined };
+async function mountSnapshot(runtime: CueRuntime): Promise<{ readonly current: LibrarySnapshot }> {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  await mountAsync(
-    <QueryClientProvider client={client}>
-      <RuntimeProvider value={runtime}>
-        <Probe
-          onSnapshot={(value) => (snapshot.current = value)}
-          onEntry={(value) => (snapshot.currentEntry = value)}
-        />
-      </RuntimeProvider>
-    </QueryClientProvider>,
-  );
-  return snapshot;
+  const { result } = renderHook(useLibrarySnapshot, { wrapper: withRuntime(runtime, client) });
+  await act(async () => {});
+  return result;
 }
 
 function runtimeFixture(
@@ -131,11 +103,11 @@ function runtimeFixture(
 async function mountWithoutSeasonRead(
   entries: readonly LibraryEntry[],
   calendar: readonly CalendarEntry[],
-): Promise<{ current: LibrarySnapshot | undefined; currentEntry: LibraryEntry | undefined }> {
+): Promise<{ readonly current: LibrarySnapshot }> {
   const loadShowSeasons = vi.fn((_showId: number) => Promise.resolve([]));
   const snapshot = await mountSnapshot(runtimeFixture(entries, calendar, loadShowSeasons));
   await act(async () => {
-    await vi.waitFor(() => expect(snapshot.current?.data).toBeDefined());
+    await vi.waitFor(() => expect(snapshot.current.data).toBeDefined());
   });
   expect(loadShowSeasons).not.toHaveBeenCalled();
   return snapshot;
@@ -146,12 +118,12 @@ async function mountWithResolvedTree(
   calendar: readonly CalendarEntry[],
   tree: readonly SeasonView[],
   expected: object,
-): Promise<{ current: LibrarySnapshot | undefined; currentEntry: LibraryEntry | undefined }> {
+): Promise<{ readonly current: LibrarySnapshot }> {
   const snapshot = await mountSnapshot(
     runtimeFixture(entries, calendar, () => Promise.resolve(tree)),
   );
   await act(async () => {
-    await vi.waitFor(() => expect(snapshot.current?.data?.entries[0]).toMatchObject(expected));
+    await vi.waitFor(() => expect(snapshot.current.data?.entries[0]).toMatchObject(expected));
   });
   return snapshot;
 }
@@ -189,21 +161,21 @@ describe("useLibrarySnapshot", () => {
     await act(async () => {
       await vi.waitFor(() => {
         expect(loadShowSeasons).toHaveBeenCalledTimes(1);
-        expect(snapshot.current?.data?.entries[0]?.nextEpisode?.season).toBe(2);
+        expect(snapshot.current.data?.entries[0]?.nextEpisode?.season).toBe(2);
       });
     });
 
     expect(loadShowSeasons).toHaveBeenCalledTimes(1);
     expect(loadShowSeasons).toHaveBeenCalledWith(stale.showId);
-    expect(snapshot.current?.data?.entries[0]).toMatchObject({
+    expect(snapshot.current.data?.entries[0]).toMatchObject({
       aired: 4,
       nextEpisode: { season: 2, number: 1, ids: { trakt: 21 } },
     });
-    expect(snapshot.currentEntry).toMatchObject({
+    expect(snapshot.current.data?.entries.find((entry) => entry.showId === 1)).toMatchObject({
       aired: 4,
       nextEpisode: { season: 2, number: 1, ids: { trakt: 21 } },
     });
-    expect(snapshot.current?.data?.entries[1]).toBe(healthy);
+    expect(snapshot.current.data?.entries[1]).toBe(healthy);
   });
 
   it("does not read season trees when the calendar detects no unknown episodes", async () => {
@@ -225,7 +197,7 @@ describe("useLibrarySnapshot", () => {
     });
     const snapshot = await mountWithoutSeasonRead([gap], []);
 
-    expect(snapshot.current?.data?.entries[0]).toBe(gap);
+    expect(snapshot.current.data?.entries[0]).toBe(gap);
   });
 
   it("restores the authoritative aired count when the tree has no unwatched episode", async () => {
@@ -238,7 +210,7 @@ describe("useLibrarySnapshot", () => {
     };
     const snapshot = await mountWithResolvedTree([stale], [calendarEpisode(1)], tree, expected);
 
-    expect(snapshot.current?.data?.entries[0]).toMatchObject(expected);
+    expect(snapshot.current.data?.entries[0]).toMatchObject(expected);
   });
 
   it("excludes hidden seasons when resolving the next episode and aired count", async () => {
@@ -255,13 +227,13 @@ describe("useLibrarySnapshot", () => {
     };
     const snapshot = await mountWithResolvedTree([stale], calendar, tree, expected);
 
-    expect(snapshot.current?.data?.entries[0]).toMatchObject(expected);
+    expect(snapshot.current.data?.entries[0]).toMatchObject(expected);
   });
 
   it("leaves the calendar episodes of a show hidden in the library out of reconciliation", async () => {
     const hidden = entry({ hidden: true });
     const snapshot = await mountWithoutSeasonRead([hidden], [calendarEpisode(1)]);
 
-    expect(snapshot.current?.data?.entries[0]).toBe(hidden);
+    expect(snapshot.current.data?.entries[0]).toBe(hidden);
   });
 });

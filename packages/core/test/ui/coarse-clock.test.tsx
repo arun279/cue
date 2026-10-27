@@ -1,8 +1,7 @@
 // @vitest-environment jsdom
 import { useCoarseClock } from "@cue/core/hooks/useCoarseClock";
-import { act } from "react";
+import { act, renderHook } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import { mount } from "./_mount";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -17,11 +16,7 @@ async function ticksAround(
 ): Promise<{ before: number; after: string[] }> {
   vi.useFakeTimers({ now: Date.parse(start) });
   const seen: number[] = [];
-  function Probe(): null {
-    seen.push(useCoarseClock(granularityMs, timeZone));
-    return null;
-  }
-  mount(<Probe />);
+  renderHook(() => seen.push(useCoarseClock(granularityMs, timeZone)));
   await act(() => vi.advanceTimersByTimeAsync((minutesToBoundary - 1) * 60_000));
   const before = new Set(seen).size;
   await act(() => vi.advanceTimersByTimeAsync(60_000));

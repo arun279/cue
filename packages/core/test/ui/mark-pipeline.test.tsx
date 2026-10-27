@@ -25,7 +25,6 @@ import { episodeQuery, showSeasonsQuery } from "@cue/core/queries/shows";
 import {
   type ActivitiesReconcile,
   type CueRuntime,
-  RuntimeProvider,
   type UpNextData,
   useRuntime,
 } from "@cue/core/runtime/runtime";
@@ -37,10 +36,10 @@ import {
   rememberSeasonMark,
 } from "@cue/core/stores/season-reversal";
 import { dismissSnack, showSnack, useSnackbar } from "@cue/core/stores/snackbar-store";
-import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
-import { act } from "react";
+import { QueryClient, useQuery } from "@tanstack/react-query";
+import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { mount } from "./_mount";
+import { withRuntime } from "../support/providers";
 
 const SHOW = 1;
 const NEXT_EP_TRAKT = 102;
@@ -204,7 +203,7 @@ interface Api {
   markControlChecked: boolean;
 }
 
-function Probe({ slot }: { slot: Api[] }) {
+function useSurface(): Api {
   const runtime = useRuntime();
   const mark = useMarkWatched();
   const season = useMarkSeason();
@@ -213,23 +212,15 @@ function Probe({ slot }: { slot: Api[] }) {
     queryFn: () => runtime.loadEpisode(SHOW, 1, 2),
     staleTime: Number.POSITIVE_INFINITY,
   }).data;
-  slot[0] = { mark, season, markControlChecked: detail?.watched ?? false };
-  return null;
+  return { mark, season, markControlChecked: detail?.watched ?? false };
 }
 
+type Surface = { readonly current: Api };
+
 /** Mount TWO independent hook instances (two surfaces) over one runtime + cache. */
-function mountSurfaces(runtime: CueRuntime, qc: QueryClient): [Api[], Api[]] {
-  const a: Api[] = [];
-  const b: Api[] = [];
-  mount(
-    <QueryClientProvider client={qc}>
-      <RuntimeProvider value={runtime}>
-        <Probe slot={a} />
-        <Probe slot={b} />
-      </RuntimeProvider>
-    </QueryClientProvider>,
-  );
-  return [a, b];
+function mountSurfaces(runtime: CueRuntime, qc: QueryClient): [Surface, Surface] {
+  const wrapper = withRuntime(runtime, qc);
+  return [renderHook(useSurface, { wrapper }).result, renderHook(useSurface, { wrapper }).result];
 }
 
 function seededClient(entries: readonly LibraryEntry[], seasons?: readonly SeasonView[]) {
@@ -270,10 +261,10 @@ async function catchUpAfterMarkingE3(fake: FakeRuntime) {
   const mounted = mountSeasonSurfaces(fake, episodes);
   const { a } = mounted;
   await act(async () =>
-    a[0]?.season.toggleEpisode(TARGET, episodeView(3), { undoLabel: "S1 E3 marked" }),
+    a.current.season.toggleEpisode(TARGET, episodeView(3), { undoLabel: "S1 E3 marked" }),
   );
   await act(async () =>
-    a[0]?.season.markUpToHere(
+    a.current.season.markUpToHere(
       TARGET,
       [seasonView(episodes)],
       { season: 1, number: 2 },
@@ -288,10 +279,10 @@ it("advances a show opened without an aggregate cache and reverses it", async ()
   const qc = new QueryClient();
   const [a] = mountSurfaces(fake.runtime, qc);
   const entry = libraryEntry();
-  await act(async () => a[0]?.mark.mark(entry));
+  await act(async () => a.current.mark.mark(entry));
   expect(entryOf(qc, SHOW)).toMatchObject({ completed: entry.completed + 1, pendingAdvance: true });
   stubLandedPlay(fake);
-  await act(async () => a[0]?.mark.reverse(SHOW));
+  await act(async () => a.current.mark.reverse(SHOW));
   expect(entryOf(qc, SHOW)).toEqual(entry);
 });
 
@@ -300,10 +291,10 @@ it("silently resumes a stopped show after a continue mark and re-stops on Undo",
   const entry = { ...libraryEntry(), hidden: true };
   const qc = seededClient([entry]);
   const [a] = mountSurfaces(fake.runtime, qc);
-  await act(async () => a[0]?.mark.mark(entry));
+  await act(async () => a.current.mark.mark(entry));
   expect(entryOf(qc, SHOW)?.hidden).toBe(false);
   stubLandedPlay(fake);
-  await act(async () => a[0]?.mark.reverse(SHOW));
+  await act(async () => a.current.mark.reverse(SHOW));
   expect(entryOf(qc, SHOW)?.hidden).toBe(true);
   expect(fake.submitted.map((op) => op.request.path)).toEqual([
     "/sync/history",
@@ -395,9 +386,9 @@ async function markThenReverse(
 ): Promise<QueryClient> {
   const qc = seededClient([entry]);
   const [a] = mountSurfaces(fake.runtime, qc);
-  await act(async () => a[0]?.mark.mark(entry));
+  await act(async () => a.current.mark.mark(entry));
   beforeReverse?.();
-  await act(async () => a[0]?.mark.reverse(SHOW));
+  await act(async () => a.current.mark.reverse(SHOW));
   await flush();
   return qc;
 }
@@ -443,7 +434,7 @@ describe("a read older than the app's own mark never reverts it", () => {
   async function markWithStaleProgress(fake = staleFake()) {
     const qc = seededClient([before], seasonsBefore);
     const [surface] = mountSurfaces(fake.runtime, qc);
-    await act(async () => surface[0]?.mark.mark(before));
+    await act(async () => surface.current.mark.mark(before));
     await flush();
     return { fake, qc, surface };
   }
@@ -494,7 +485,7 @@ describe("a read older than the app's own mark never reverts it", () => {
     });
     const { qc, surface } = await markWithStaleProgress(fake);
     stubLandedPlay(fake);
-    act(() => void surface[0]?.mark.reverse(SHOW));
+    act(() => void surface.current.mark.reverse(SHOW));
     await flush();
     expect(fake.submitted.map((op) => op.request.path)).toEqual([
       "/sync/history",
@@ -514,7 +505,7 @@ describe("a read older than the app's own mark never reverts it", () => {
     });
     const { qc, surface } = await markWithStaleProgress(fake);
     stubLandedPlay(fake);
-    await act(async () => surface[0]?.mark.reverse(SHOW));
+    await act(async () => surface.current.mark.reverse(SHOW));
     await flush();
     expect(snackText()).toBe(`Couldn't undo ${before.title}. Please try again.`);
 
@@ -539,7 +530,9 @@ describe("a read older than the app's own mark never reverts it", () => {
   it("gives way to a later write on the same show from another surface", async () => {
     const { qc, surface } = await markWithStaleProgress();
 
-    await act(async () => surface[0]?.season.markSeason(TARGET, seasonsBefore[0] as SeasonView));
+    await act(async () =>
+      surface.current.season.markSeason(TARGET, seasonsBefore[0] as SeasonView),
+    );
     await flush();
     await reread(qc);
 
@@ -564,7 +557,7 @@ describe("F3a: a queue mark ticks the show-detail caches in the same frame", () 
     const qc = seededClient([entry, other]);
     const [surface] = mountSurfaces(fake.runtime, qc);
 
-    await act(async () => surface[0]?.mark.mark(entry));
+    await act(async () => surface.current.mark.mark(entry));
     await flush();
 
     const patched = entryOf(qc, SHOW);
@@ -607,7 +600,7 @@ describe("F3a: a queue mark ticks the show-detail caches in the same frame", () 
     const entry = libraryEntry();
     const qc = seededClient([entry]);
     const [surface] = mountSurfaces(fake.runtime, qc);
-    await act(async () => surface[0]?.mark.mark(entry));
+    await act(async () => surface.current.mark.mark(entry));
     await flush();
     expect(entryOf(qc, SHOW)).toMatchObject({ lastAired: null, nextEpisode: null });
   });
@@ -631,7 +624,7 @@ describe("F3a: a queue mark ticks the show-detail caches in the same frame", () 
     const qc = seededClient([entry], [season]);
     const [surface] = mountSurfaces(fake.runtime, qc);
 
-    await act(async () => surface[0]?.season.markSeason(TARGET, season));
+    await act(async () => surface.current.season.markSeason(TARGET, season));
     await flush();
 
     expect(entryOf(qc, SHOW)).toMatchObject({ completed: 10, nextEpisode: null });
@@ -642,7 +635,7 @@ describe("F3a: a queue mark ticks the show-detail caches in the same frame", () 
     const fake = fakeRuntime({});
     const { entry, qc, a } = mountSeasonSurfaces(fake);
 
-    await act(async () => a[0]?.mark.mark(entry));
+    await act(async () => a.current.mark.mark(entry));
     expect(entryOf(qc, SHOW)?.pendingAdvance).toBe(true);
     expect(seasonEp(qc, 2)?.watched).toBe(true);
     expect(
@@ -651,7 +644,7 @@ describe("F3a: a queue mark ticks the show-detail caches in the same frame", () 
     expect(qc.getQueryData<EpisodeDetail>(queryKeys.episode(SHOW, 1, 2))?.watched).toBe(true);
 
     stubLandedPlay(fake); // the op landed and left the queue: the per-play undo path
-    await act(async () => a[0]?.mark.reverse(SHOW));
+    await act(async () => a.current.mark.reverse(SHOW));
     await flush();
     expect(entryOf(qc, SHOW)).toStrictEqual(entry); // beforeMark restored verbatim
     expect(seasonEp(qc, 2)?.watched).toBe(false);
@@ -668,22 +661,22 @@ describe("F3a: a queue mark ticks the show-detail caches in the same frame", () 
     const detail = () => qc.getQueryData<EpisodeDetail>(queryKeys.episode(SHOW, 1, 2));
 
     await act(async () =>
-      a[0]?.season.toggleEpisode(TARGET, episodeView(2), { undoLabel: "S1 E2 marked" }),
+      a.current.season.toggleEpisode(TARGET, episodeView(2), { undoLabel: "S1 E2 marked" }),
     );
     await flush();
     expect(detail()?.watched).toBe(true);
-    expect(a[0]?.markControlChecked).toBe(true);
+    expect(a.current.markControlChecked).toBe(true);
 
-    await act(async () => a[0]?.season.undo());
+    await act(async () => a.current.season.undo());
     await flush();
     expect(fake.loadEpisode).toHaveBeenCalled();
     expect(detail()?.watched).toBe(false);
-    expect(a[0]?.markControlChecked).toBe(false);
+    expect(a.current.markControlChecked).toBe(false);
 
     resolveEpisode(episodeDetail(episodeView(2, true)));
     await flush();
     expect(detail()?.watched).toBe(false);
-    expect(a[0]?.markControlChecked).toBe(false);
+    expect(a.current.markControlChecked).toBe(false);
   });
 });
 
@@ -692,10 +685,10 @@ describe("F3b: a pending mark is dropped by every other on-mark path", () => {
     const fake = fakeRuntime({ submit: () => new Promise(() => {}) }); // never settles
     const { entry, a, b } = mountSeasonSurfaces(fake);
 
-    act(() => void a[0]?.mark.mark(entry));
+    act(() => void a.current.mark.mark(entry));
     expect(fake.submitted).toHaveLength(1);
     // The other surface's cache hasn't re-rendered yet: tap the same episode's row.
-    await act(async () => b[0]?.season.toggleEpisode(TARGET, { ...episodeView(2) }));
+    await act(async () => b.current.season.toggleEpisode(TARGET, { ...episodeView(2) }));
     expect(fake.submitted).toHaveLength(1); // dropped, no duplicate play
   });
 
@@ -703,9 +696,9 @@ describe("F3b: a pending mark is dropped by every other on-mark path", () => {
     const fake = fakeRuntime({ submit: () => new Promise(() => {}) });
     const { entry, qc, a, b } = mountSeasonSurfaces(fake);
 
-    act(() => void b[0]?.season.toggleEpisode(TARGET, { ...episodeView(2) }));
+    act(() => void b.current.season.toggleEpisode(TARGET, { ...episodeView(2) }));
     expect(fake.submitted).toHaveLength(1);
-    await act(async () => a[0]?.mark.mark(entry));
+    await act(async () => a.current.mark.mark(entry));
     expect(fake.submitted).toHaveLength(1);
     expect(entryOf(qc, SHOW)?.pendingAdvance).toBe(false); // never even patched
   });
@@ -713,14 +706,14 @@ describe("F3b: a pending mark is dropped by every other on-mark path", () => {
   it("drops a toggle ON against a DURABLE queued mark (reload-restored op)", async () => {
     const { fake, b } = mountWithDurableMark();
 
-    await act(async () => b[0]?.season.toggleEpisode(TARGET, { ...episodeView(2) }));
+    await act(async () => b.current.season.toggleEpisode(TARGET, { ...episodeView(2) }));
     expect(fake.submitted).toHaveLength(0);
   });
 
   it("never blocks a deliberate additive play (F6 exemption)", async () => {
     const { fake, b } = mountWithDurableMark();
 
-    await act(async () => b[0]?.season.addEpisodePlay(TARGET, { ...episodeView(2, true) }));
+    await act(async () => b.current.season.addEpisodePlay(TARGET, { ...episodeView(2, true) }));
     expect(fake.submitted).toHaveLength(1);
     expect(fake.submitted[0]?.itemKey).toBe(
       `episode:${NEXT_EP_TRAKT}:add:${fake.submitted[0]?.id}`,
@@ -744,7 +737,7 @@ describe("F5: uncheck with a queued mark cancels the pair, never resolves live p
     } as QueuedOp;
     fake.queued.push(queuedMark);
 
-    await act(async () => a[0]?.season.toggleEpisode(TARGET, { ...episodeView(2, true) }));
+    await act(async () => a.current.season.toggleEpisode(TARGET, { ...episodeView(2, true) }));
     expect(fake.loadEpisodePlays).not.toHaveBeenCalled();
     expect(fake.submitted).toHaveLength(1);
     const inverse = fake.submitted[0];
@@ -770,7 +763,7 @@ describe("F5: uncheck with a queued mark cancels the pair, never resolves live p
     });
     const { a } = mountSeasonSurfaces(fake, [episodeView(1, true), episodeView(2, true)]);
 
-    await act(async () => a[0]?.season.toggleEpisode(TARGET, { ...episodeView(2, true) }));
+    await act(async () => a.current.season.toggleEpisode(TARGET, { ...episodeView(2, true) }));
     expect(fake.loadEpisodePlays).toHaveBeenCalledTimes(1);
     expect(fake.submitted).toHaveLength(1);
     expect(fake.submitted[0]?.request.body).toEqual({ ids: [41] });
@@ -790,12 +783,12 @@ describe("F11: windows + batch are one module-level truth across instances", () 
     const qc = seededClient([e1, e2]);
     const [a, b] = mountSurfaces(fake.runtime, qc);
 
-    await act(async () => a[0]?.mark.mark(e1));
-    await act(async () => b[0]?.mark.mark(e2));
+    await act(async () => a.current.mark.mark(e1));
+    await act(async () => b.current.mark.mark(e2));
     expect(useSnackbar.getState().snack?.message).toBe("2 episodes marked");
     // The reverse window opened by surface A is live on surface B too.
-    expect(b[0]?.mark.justMarkedAt(1)).not.toBeNull();
-    expect(a[0]?.mark.justMarkedAt(2)).not.toBeNull();
+    expect(b.current.mark.justMarkedAt(1)).not.toBeNull();
+    expect(a.current.mark.justMarkedAt(2)).not.toBeNull();
 
     const undo = useSnackbar.getState().snack?.actions?.[0];
     await act(async () => {
@@ -813,12 +806,12 @@ describe("F11: windows + batch are one module-level truth across instances", () 
     const fake = fakeRuntime({});
     const { entry, qc, a, b } = mountSeasonSurfaces(fake);
 
-    await act(async () => a[0]?.mark.mark(entry));
+    await act(async () => a.current.mark.mark(entry));
     stubLandedPlay(fake);
-    await act(async () => b[0]?.mark.reverse(SHOW));
+    await act(async () => b.current.mark.reverse(SHOW));
     await flush();
     expect(entryOf(qc, SHOW)).toStrictEqual(entry);
-    expect(a[0]?.mark.justMarkedAt(SHOW)).toBeNull();
+    expect(a.current.mark.justMarkedAt(SHOW)).toBeNull();
   });
 });
 
@@ -898,12 +891,12 @@ describe("season write guards and Undo failures", () => {
     const { a } = mountSeasonSurfaces(fake, season.episodes);
     rememberSeasonMark(SHOW, 1, [2]);
 
-    await act(async () => a[0]?.season.unmarkSeason(TARGET, season));
+    await act(async () => a.current.season.unmarkSeason(TARGET, season));
 
     expect(getSeasonMarkDelta(SHOW, 1)).toEqual(new Set([2]));
     expect(fake.submitted[0]?.request.body).toEqual({ ids: [22] });
 
-    await act(async () => a[0]?.season.unmarkSeason(TARGET, season));
+    await act(async () => a.current.season.unmarkSeason(TARGET, season));
 
     expect(fake.submitted.map((op) => op.request.body)).toEqual([{ ids: [22] }, { ids: [22] }]);
     expect(getSeasonMarkDelta(SHOW, 1)).toBeUndefined();
@@ -915,8 +908,8 @@ describe("season write guards and Undo failures", () => {
     const season = seasonView([episodeView(1), episodeView(2)]);
 
     act(() => {
-      void a[0]?.season.markSeason(TARGET, season);
-      void a[0]?.season.markSeason(TARGET, season);
+      void a.current.season.markSeason(TARGET, season);
+      void a.current.season.markSeason(TARGET, season);
     });
 
     expect(fake.submitted).toHaveLength(1);
@@ -930,10 +923,10 @@ describe("season write guards and Undo failures", () => {
     const { a } = mountSeasonSurfaces(fake, [episodeView(1), episodeView(2)]);
 
     await act(async () =>
-      a[0]?.season.markSeason(TARGET, seasonView([episodeView(1), episodeView(2)])),
+      a.current.season.markSeason(TARGET, seasonView([episodeView(1), episodeView(2)])),
     );
     stubOwnPlays(fake);
-    await act(async () => a[0]?.season.undo());
+    await act(async () => a.current.season.undo());
     await flush();
 
     expect(useSnackbar.getState().snack?.message).toBe("Couldn't undo that. Please try again.");
@@ -951,9 +944,9 @@ describe("queue mark edges", () => {
   it("ignores a mark with no next episode or one already advancing", async () => {
     const fake = fakeRuntime({});
     const [a] = mountSurfaces(fake.runtime, seededClient([libraryEntry()]));
-    await act(async () => a[0]?.mark.mark({ ...libraryEntry(), nextEpisode: null }));
-    await act(async () => a[0]?.mark.mark({ ...libraryEntry(), pendingAdvance: true }));
-    await act(async () => a[0]?.mark.reverse(SHOW));
+    await act(async () => a.current.mark.mark({ ...libraryEntry(), nextEpisode: null }));
+    await act(async () => a.current.mark.mark({ ...libraryEntry(), pendingAdvance: true }));
+    await act(async () => a.current.mark.reverse(SHOW));
     expect(fake.submitted).toHaveLength(0);
   });
 
@@ -962,7 +955,7 @@ describe("queue mark edges", () => {
     const refused = fakeRuntime({ submit: () => Promise.resolve("failed") });
     const qc = seededClient([entry]);
     const [a] = mountSurfaces(refused.runtime, qc);
-    await act(async () => a[0]?.mark.mark(entry));
+    await act(async () => a.current.mark.mark(entry));
     expect(entryOf(qc, SHOW)).toStrictEqual(entry);
     expect(snackText()).toBe(`Couldn't mark ${entry.title} watched. Please try again.`);
   });
@@ -979,8 +972,8 @@ describe("queue mark edges", () => {
     });
     const qc = seededClient([libraryEntry()]);
     const [a] = mountSurfaces(fake.runtime, qc);
-    act(() => void a[0]?.mark.mark(libraryEntry()));
-    await act(async () => a[0]?.mark.reverse(SHOW));
+    act(() => void a.current.mark.mark(libraryEntry()));
+    await act(async () => a.current.mark.reverse(SHOW));
     await act(async () => refuse("failed"));
     expect(useSnackbar.getState().snack).toBeNull();
   });
@@ -995,8 +988,8 @@ describe("queue mark edges", () => {
     });
     fake.loadEpisodePlays.mockReturnValue(new Promise(() => {}));
     const [a] = mountSurfaces(fake.runtime, seededClient([libraryEntry()]));
-    act(() => void a[0]?.mark.mark(libraryEntry()));
-    act(() => void a[0]?.mark.reverse(SHOW));
+    act(() => void a.current.mark.mark(libraryEntry()));
+    act(() => void a.current.mark.reverse(SHOW));
     await act(async () => land("done"));
     expect(fake.runtime.loadShowProgress).not.toHaveBeenCalled();
   });
@@ -1004,7 +997,7 @@ describe("queue mark edges", () => {
   it("reverses once however often Undo is pressed", async () => {
     const fake = fakeRuntime({});
     const [a] = mountSurfaces(fake.runtime, seededClient([libraryEntry()]));
-    await act(async () => a[0]?.mark.mark(libraryEntry()));
+    await act(async () => a.current.mark.mark(libraryEntry()));
     stubLandedPlay(fake);
     const undo = useSnackbar.getState().snack?.actions?.[0];
     await act(async () => {
@@ -1021,20 +1014,20 @@ describe("queue mark edges", () => {
   it("leaves another action's snack alone when a mark is reversed", async () => {
     const fake = fakeRuntime({});
     const [a] = mountSurfaces(fake.runtime, seededClient([libraryEntry()]));
-    await act(async () => a[0]?.mark.mark(libraryEntry()));
+    await act(async () => a.current.mark.mark(libraryEntry()));
     act(() => void showSnack({ message: "Dune moved to Watchlist" }));
     stubLandedPlay(fake);
-    await act(async () => a[0]?.mark.reverse(SHOW));
+    await act(async () => a.current.mark.reverse(SHOW));
     expect(snackText()).toBe("Dune moved to Watchlist");
   });
 
   it("re-arms the check once the mark is retired", async () => {
     const fake = fakeRuntime({});
     const [a] = mountSurfaces(fake.runtime, seededClient([libraryEntry()]));
-    await act(async () => a[0]?.mark.mark(libraryEntry()));
-    expect(a[0]?.mark.justMarkedAt(SHOW)).not.toBeNull();
-    act(() => a[0]?.mark.reArm(SHOW));
-    expect(a[0]?.mark.justMarkedAt(SHOW)).toBeNull();
+    await act(async () => a.current.mark.mark(libraryEntry()));
+    expect(a.current.mark.justMarkedAt(SHOW)).not.toBeNull();
+    act(() => a.current.mark.reArm(SHOW));
+    expect(a.current.mark.justMarkedAt(SHOW)).toBeNull();
   });
 
   it("keeps the mark and says so when a reversal is refused", async () => {
@@ -1054,8 +1047,8 @@ describe("queue mark edges", () => {
       const entry = libraryEntry();
       const qc = seededClient([entry]);
       const [a] = mountSurfaces(fake.runtime, qc);
-      await act(async () => a[0]?.mark.mark(entry));
-      act(() => void a[0]?.mark.reverse(SHOW));
+      await act(async () => a.current.mark.mark(entry));
+      act(() => void a.current.mark.reverse(SHOW));
       await act(() => vi.advanceTimersByTimeAsync(10_000));
       expect(fake.submitted).toHaveLength(1);
       expect(entryOf(qc, SHOW)?.pendingAdvance).toBe(true);
@@ -1093,17 +1086,25 @@ describe("season controls", () => {
     const [a] = mountSurfaces(fake.runtime, qc);
     const special = () =>
       qc.getQueryData<readonly SeasonView[]>(queryKeys.showSeasons(SHOW))?.[1]?.episodes[0];
-    await act(async () => a[0]?.season.markSeason(specials(false).target, specials(false).season));
+    await act(async () =>
+      a.current.season.markSeason(specials(false).target, specials(false).season),
+    );
     expect(fake.submitted).toHaveLength(0);
     await act(async () =>
-      a[0]?.season.markUpToHere(TARGET, [seasonView([episodeView(1)]), specials(false).season], {
-        season: 1,
-        number: 1,
-      }),
+      a.current.season.markUpToHere(
+        TARGET,
+        [seasonView([episodeView(1)]), specials(false).season],
+        {
+          season: 1,
+          number: 1,
+        },
+      ),
     );
     expect(seasonEp(qc, 1)?.watched).toBe(true);
     expect(special()?.watched).toBe(false);
-    await act(async () => a[0]?.season.markSeason(specials(true).target, specials(true).season));
+    await act(async () =>
+      a.current.season.markSeason(specials(true).target, specials(true).season),
+    );
     expect(snackText()).toBe("Specials marked · 1 episode");
     expect(special()?.watched).toBe(true);
   });
@@ -1120,13 +1121,13 @@ describe("season controls", () => {
     });
     const season = seasonView([episodeView(1), episodeView(2)]);
     const { a } = mountSeasonSurfaces(fake, season.episodes);
-    act(() => void a[0]?.season.markSeason(TARGET, season));
+    act(() => void a.current.season.markSeason(TARGET, season));
     await act(async () =>
-      a[0]?.season.toggleEpisode(TARGET, episodeView(3), { undoLabel: "S1 E3 marked" }),
+      a.current.season.toggleEpisode(TARGET, episodeView(3), { undoLabel: "S1 E3 marked" }),
     );
     await act(async () => refuse("failed"));
     stubOwnPlays(fake);
-    await act(async () => a[0]?.season.undo());
+    await act(async () => a.current.season.undo());
     expect(fake.submitted.at(-1)?.request).toEqual({
       method: "POST",
       path: "/sync/history/remove",
@@ -1138,7 +1139,7 @@ describe("season controls", () => {
     const fake = fakeRuntime({ submit: () => Promise.resolve("failed") });
     const season = seasonView([episodeView(1, true), episodeView(2)]);
     const { qc, a } = mountSeasonSurfaces(fake, season.episodes);
-    await act(async () => a[0]?.season.markSeason(TARGET, season));
+    await act(async () => a.current.season.markSeason(TARGET, season));
     expect(seasonEp(qc, 2)?.watched).toBe(false);
     expect(getSeasonMarkDelta(SHOW, 1)).toBeUndefined();
     expect(snackText()).toBe("Couldn't save that change. Please try again.");
@@ -1151,7 +1152,7 @@ describe("season controls", () => {
     expect([1, 2, 3].map((n) => seasonEp(qc, n)?.watched)).toEqual([true, true, true]);
 
     stubOwnPlays(fake);
-    await act(async () => a[0]?.season.undo());
+    await act(async () => a.current.season.undo());
     expect(fake.submitted.slice(2).map((op) => op.request.body)).toEqual([
       { ids: [503, 501, 502] },
     ]);
@@ -1161,7 +1162,7 @@ describe("season controls", () => {
     const fake = fakeRuntime({});
     const { a } = mountSeasonSurfaces(fake);
     await act(async () =>
-      a[0]?.season.markUpToHere(TARGET, [seasonView([episodeView(1, true)])], {
+      a.current.season.markUpToHere(TARGET, [seasonView([episodeView(1, true)])], {
         season: 1,
         number: 1,
       }),
@@ -1179,7 +1180,7 @@ describe("season controls", () => {
     });
     const season = seasonView([episodeView(1, true), episodeView(2, true)]);
     const { a } = mountSeasonSurfaces(fake, season.episodes);
-    await act(async () => a[0]?.season.unmarkSeason(TARGET, season));
+    await act(async () => a.current.season.unmarkSeason(TARGET, season));
     expect(fake.submitted[0]?.request.body).toEqual({ ids: [11] });
     expect(snackText()).toBe("Season 1 unmarked · 1 episode · kept 1 rewatched episode");
   });
@@ -1194,7 +1195,7 @@ describe("season controls", () => {
     const fake = fakeRuntime({ showPlays });
     const season = seasonView([episodeView(1, true), episodeView(2, true)]);
     const { a } = mountSeasonSurfaces(fake, season.episodes);
-    await act(async () => a[0]?.season.unmarkSeason(TARGET, season));
+    await act(async () => a.current.season.unmarkSeason(TARGET, season));
     expect(fake.submitted).toHaveLength(0);
     expect(snackText()).toBe(message);
   });
@@ -1203,7 +1204,7 @@ describe("season controls", () => {
     const fake = fakeRuntime({ showPlays: new Error("offline") });
     const season = seasonView([episodeView(1, true)]);
     const { a } = mountSeasonSurfaces(fake, season.episodes);
-    await act(async () => a[0]?.season.unmarkSeason(TARGET, season));
+    await act(async () => a.current.season.unmarkSeason(TARGET, season));
     expect(snackText()).toBe(
       "Couldn't reach your history to unmark this season. Please try again.",
     );
@@ -1213,7 +1214,7 @@ describe("season controls", () => {
     const fake = fakeRuntime({});
     const unaired = seasonView([{ ...episodeView(1), aired: false }]);
     const { a } = mountSeasonSurfaces(fake, unaired.episodes);
-    await act(async () => a[0]?.season.unmarkSeason(TARGET, unaired));
+    await act(async () => a.current.season.unmarkSeason(TARGET, unaired));
     expect(fake.loadShowPlays).not.toHaveBeenCalled();
   });
 
@@ -1221,7 +1222,7 @@ describe("season controls", () => {
     const fake = fakeRuntime({});
     const season = seasonView([episodeView(1, true), episodeView(2, true)]);
     const { a } = mountSeasonSurfaces(fake, season.episodes);
-    await act(async () => a[0]?.season.rewatchSeason(TARGET, season));
+    await act(async () => a.current.season.rewatchSeason(TARGET, season));
     expect(snackText()).toBe("Season 1 marked again · 2 episodes");
     expect(fake.submitted[0]?.itemKey).toContain(":add:");
     expect(fake.submitted[0]?.inversePatch).toEqual({
@@ -1231,7 +1232,7 @@ describe("season controls", () => {
     });
 
     await act(async () =>
-      a[0]?.season.rewatchSeason(specials(false).target, specials(false).season),
+      a.current.season.rewatchSeason(specials(false).target, specials(false).season),
     );
     expect(fake.submitted).toHaveLength(1);
   });
@@ -1240,7 +1241,7 @@ describe("season controls", () => {
     const fake = fakeRuntime({ submit: () => Promise.resolve("failed") });
     const season = seasonView([episodeView(1, true)]);
     const { a } = mountSeasonSurfaces(fake, season.episodes);
-    await act(async () => a[0]?.season.rewatchSeason(TARGET, season));
+    await act(async () => a.current.season.rewatchSeason(TARGET, season));
     expect(snackText()).toBe("Couldn't save that change. Please try again.");
   });
 });
@@ -1252,7 +1253,7 @@ describe("episode controls", () => {
   ])("clears the tick and says so when a mark is refused (undo label: %s)", async (undoLabel) => {
     const fake = fakeRuntime({ submit: () => Promise.resolve("failed") });
     const { qc, a } = mountSeasonSurfaces(fake);
-    await act(async () => a[0]?.season.toggleEpisode(TARGET, episodeView(2), { undoLabel }));
+    await act(async () => a.current.season.toggleEpisode(TARGET, episodeView(2), { undoLabel }));
     expect(seasonEp(qc, 2)?.watched).toBe(false);
     expect(snackText()).toBe("Couldn't update that episode. Please try again.");
   });
@@ -1261,7 +1262,7 @@ describe("episode controls", () => {
     const fake = fakeRuntime({});
     const qc = new QueryClient();
     const [a] = mountSurfaces(fake.runtime, qc);
-    await act(async () => a[0]?.season.toggleEpisode(TARGET, episodeView(2)));
+    await act(async () => a.current.season.toggleEpisode(TARGET, episodeView(2)));
     expect(fake.submitted.map((op) => op.request.path)).toEqual(["/sync/history"]);
   });
 
@@ -1269,7 +1270,7 @@ describe("episode controls", () => {
     const fake = fakeRuntime({});
     const { a } = mountSeasonSurfaces(fake, [episodeView(1, true), episodeView(2, true)]);
     fake.queued.push({ itemKey: `episode:${NEXT_EP_TRAKT}`, toState: "present" } as QueuedOp);
-    await act(async () => a[0]?.season.toggleEpisode(TARGET, episodeView(2, true)));
+    await act(async () => a.current.season.toggleEpisode(TARGET, episodeView(2, true)));
     expect(fake.runtime.loadShowProgress).toHaveBeenCalledWith(SHOW);
   });
 
@@ -1277,7 +1278,7 @@ describe("episode controls", () => {
     const fake = fakeRuntime({ plays: [play(21, 2, "2026-01-02T00:00:00.000Z")] });
     const { qc, a } = mountSeasonSurfaces(fake, [episodeView(1, true), episodeView(2, true)]);
     await act(async () =>
-      a[0]?.season.toggleEpisode(TARGET, episodeView(2, true), { knownPlays: 2 }),
+      a.current.season.toggleEpisode(TARGET, episodeView(2, true), { knownPlays: 2 }),
     );
     expect(fake.submitted[0]?.request.body).toEqual({ ids: [21] });
     expect(seasonEp(qc, 2)?.watched).toBe(false);
@@ -1290,7 +1291,7 @@ describe("episode controls", () => {
       submit: () => Promise.resolve("failed"),
     });
     const { qc, a } = mountSeasonSurfaces(fake, [episodeView(1, true), episodeView(2, true)]);
-    await act(async () => a[0]?.season.toggleEpisode(TARGET, episodeView(2, true)));
+    await act(async () => a.current.season.toggleEpisode(TARGET, episodeView(2, true)));
     expect(qc.getQueryData<EpisodeDetail>(queryKeys.episode(SHOW, 1, 2))).toMatchObject({
       watched: true,
       watchedAt: "2026-02-02T00:00:00.000Z",
@@ -1301,7 +1302,7 @@ describe("episode controls", () => {
     const fake = fakeRuntime({ submit: () => Promise.resolve("failed") });
     const { qc, a } = mountSeasonSurfaces(fake, [episodeView(1, true), episodeView(2, true)]);
     fake.queued.push({ itemKey: `episode:${NEXT_EP_TRAKT}`, toState: "present" } as QueuedOp);
-    await act(async () => a[0]?.season.toggleEpisode(TARGET, episodeView(2, true)));
+    await act(async () => a.current.season.toggleEpisode(TARGET, episodeView(2, true)));
     expect(fake.submitted[0]?.watchedAt).not.toBeNull();
     expect(seasonEp(qc, 2)?.watched).toBe(true);
     expect(snackText()).toBe("Couldn't update that episode. Please try again.");
@@ -1313,7 +1314,7 @@ describe("episode controls", () => {
     });
     const { qc, a } = mountSeasonSurfaces(fake, [episodeView(1, true), episodeView(2, true)]);
     await act(async () =>
-      a[0]?.season.toggleEpisode(TARGET, episodeView(2, true), { knownPlays: 2 }),
+      a.current.season.toggleEpisode(TARGET, episodeView(2, true), { knownPlays: 2 }),
     );
     expect(fake.submitted[0]?.request.body).toEqual({ ids: [22] });
     expect(seasonEp(qc, 2)?.watched).toBe(true);
@@ -1326,7 +1327,7 @@ describe("episode controls", () => {
       submit: () => Promise.resolve("failed"),
     });
     const { qc, a } = mountSeasonSurfaces(fake, [episodeView(1, true), episodeView(2, true)]);
-    await act(async () => a[0]?.season.toggleEpisode(TARGET, episodeView(2, true)));
+    await act(async () => a.current.season.toggleEpisode(TARGET, episodeView(2, true)));
     expect(seasonEp(qc, 2)?.watched).toBe(true);
     expect(snackText()).toBe("Couldn't update that episode. Please try again.");
   });
@@ -1337,7 +1338,9 @@ describe("episode controls", () => {
   ])("keeps the tick when history can't be reached (known plays: %s)", async (knownPlays) => {
     const fake = fakeRuntime({ plays: new Error("offline") });
     const { qc, a } = mountSeasonSurfaces(fake, [episodeView(1, true), episodeView(2, true)]);
-    await act(async () => a[0]?.season.toggleEpisode(TARGET, episodeView(2, true), { knownPlays }));
+    await act(async () =>
+      a.current.season.toggleEpisode(TARGET, episodeView(2, true), { knownPlays }),
+    );
     expect(seasonEp(qc, 2)?.watched).toBe(true);
     expect(snackText()).toBe("Couldn't reach your history to unmark this. Please try again.");
   });
@@ -1348,7 +1351,9 @@ describe("episode controls", () => {
   ])("clears a tick whose plays are already gone (known plays: %s)", async (knownPlays) => {
     const fake = fakeRuntime({ plays: [] });
     const { qc, a } = mountSeasonSurfaces(fake, [episodeView(1, true), episodeView(2, true)]);
-    await act(async () => a[0]?.season.toggleEpisode(TARGET, episodeView(2, true), { knownPlays }));
+    await act(async () =>
+      a.current.season.toggleEpisode(TARGET, episodeView(2, true), { knownPlays }),
+    );
     expect(fake.submitted).toHaveLength(0);
     expect(seasonEp(qc, 2)?.watched).toBe(false);
   });
@@ -1356,7 +1361,7 @@ describe("episode controls", () => {
   it("says so when adding a play is refused", async () => {
     const fake = fakeRuntime({ submit: () => Promise.resolve("failed") });
     const { a } = mountSeasonSurfaces(fake);
-    await act(async () => a[0]?.season.addEpisodePlay(TARGET, episodeView(2, true)));
+    await act(async () => a.current.season.addEpisodePlay(TARGET, episodeView(2, true)));
     expect(snackText()).toBe("Couldn't add that play. Please try again.");
   });
 
@@ -1369,12 +1374,12 @@ describe("episode controls", () => {
       ],
     });
     const { qc, a } = mountSeasonSurfaces(fake, [episodeView(1, true), episodeView(2, true)]);
-    await act(async () => a[0]?.season.removeAllPlays(TARGET, episodeView(2, true)));
+    await act(async () => a.current.season.removeAllPlays(TARGET, episodeView(2, true)));
     expect(fake.submitted[0]?.request.body).toEqual({ ids: [22, 21] });
     expect(seasonEp(qc, 2)?.watched).toBe(false);
     expect(snackText()).toBe("Removed 2 plays");
 
-    await act(async () => a[0]?.season.undo());
+    await act(async () => a.current.season.undo());
     expect(fake.submitted[1]?.request.path).toBe("/sync/history");
   });
 
@@ -1384,7 +1389,7 @@ describe("episode controls", () => {
       submit: () => Promise.resolve("failed"),
     });
     const { qc, a } = mountSeasonSurfaces(fake, [episodeView(1, true), episodeView(2, true)]);
-    await act(async () => a[0]?.season.removeAllPlays(TARGET, episodeView(2, true)));
+    await act(async () => a.current.season.removeAllPlays(TARGET, episodeView(2, true)));
     expect(seasonEp(qc, 2)?.watched).toBe(true);
     expect(qc.getQueryData<EpisodeDetail>(queryKeys.episode(SHOW, 1, 2))?.watchedAt).toBe(
       "2026-02-02T00:00:00.000Z",
@@ -1398,7 +1403,7 @@ describe("episode controls", () => {
   ])("removes nothing when no play can be named", async (plays, message) => {
     const fake = fakeRuntime({ plays });
     const { a } = mountSeasonSurfaces(fake, [episodeView(1, true), episodeView(2, true)]);
-    await act(async () => a[0]?.season.removeAllPlays(TARGET, episodeView(2, true)));
+    await act(async () => a.current.season.removeAllPlays(TARGET, episodeView(2, true)));
     expect(fake.submitted).toHaveLength(0);
     expect(snackText()).toBe(message);
   });
@@ -1410,11 +1415,11 @@ describe("episode controls", () => {
     });
     const { qc, a } = mountSeasonSurfaces(fake);
     await act(async () =>
-      a[0]?.season.toggleEpisode(TARGET, episodeView(2), { undoLabel: "S1 E2 marked" }),
+      a.current.season.toggleEpisode(TARGET, episodeView(2), { undoLabel: "S1 E2 marked" }),
     );
     stubOwnPlays(fake);
-    await act(async () => a[0]?.season.undo());
-    await act(async () => a[0]?.season.undo());
+    await act(async () => a.current.season.undo());
+    await act(async () => a.current.season.undo());
     expect(fake.submitted).toHaveLength(2);
     expect(seasonEp(qc, 2)?.watched).toBe(true);
     expect(snackText()).toBe("Couldn't undo that. Please try again.");
@@ -1426,10 +1431,10 @@ describe("episode controls", () => {
     const qc = seededClient([entry], [seasonView([episodeView(1, true), episodeView(2)])]);
     const [a] = mountSurfaces(fake.runtime, qc);
     await act(async () =>
-      a[0]?.season.toggleEpisode(TARGET, episodeView(2), { undoLabel: "S1 E2 marked" }),
+      a.current.season.toggleEpisode(TARGET, episodeView(2), { undoLabel: "S1 E2 marked" }),
     );
     expect(entryOf(qc, SHOW)?.hidden).toBe(false);
-    await act(async () => a[0]?.season.undo());
+    await act(async () => a.current.season.undo());
     expect(entryOf(qc, SHOW)?.hidden).toBe(true);
   });
 
@@ -1437,19 +1442,19 @@ describe("episode controls", () => {
     const fake = fakeRuntime({ submit: () => new Promise(() => {}) });
     const { a } = mountSeasonSurfaces(fake);
     act(() => {
-      void a[0]?.season.addEpisodePlay(TARGET, episodeView(2, true));
-      void a[0]?.season.addEpisodePlay(TARGET, episodeView(2, true));
+      void a.current.season.addEpisodePlay(TARGET, episodeView(2, true));
+      void a.current.season.addEpisodePlay(TARGET, episodeView(2, true));
     });
     expect(fake.submitted).toHaveLength(1);
   });
 });
 
 describe("an activities refetch between a mark and its confirmation", () => {
-  function Session({ slot }: { slot: Api[] }) {
+  function useSession(): Api {
     const runtime = useRuntime();
     useActivitiesPoll();
     useQuery({ queryKey: queryKeys.library(), queryFn: () => runtime.loadUpNext() });
-    return <Probe slot={slot} />;
+    return useSurface();
   }
 
   it("keeps the mark's Undo on screen while the refetch repaints the queue", async () => {
@@ -1471,17 +1476,10 @@ describe("an activities refetch between a mark and its confirmation", () => {
       loadUpNext: () => Promise.resolve({ entries: [entry] }),
     });
     const qc = seededClient([entry]);
-    const slot: Api[] = [];
-    mount(
-      <QueryClientProvider client={qc}>
-        <RuntimeProvider value={fake.runtime}>
-          <Session slot={slot} />
-        </RuntimeProvider>
-      </QueryClientProvider>,
-    );
+    const { result: session } = renderHook(useSession, { wrapper: withRuntime(fake.runtime, qc) });
     await flush();
 
-    act(() => void slot[0]?.mark.mark(entry));
+    act(() => void session.current.mark.mark(entry));
     const undo = useSnackbar.getState().snack;
     expect(undo?.actions?.map((action) => action.label)).toEqual(["Undo"]);
 
@@ -1528,9 +1526,9 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
     const entry = libraryEntry();
     const qc = seededClient([entry]);
     const [a] = mountSurfaces(fake.runtime, qc);
-    act(() => void a[0]?.mark.mark(entry));
+    act(() => void a.current.mark.mark(entry));
     stubLandedPlay(fake);
-    const reversed = act(async () => a[0]?.mark.reverse(SHOW));
+    const reversed = act(async () => a.current.mark.reverse(SHOW));
     await act(async () => land("done"));
     await reversed;
     await flush();
@@ -1554,10 +1552,10 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
     });
     const entry = { ...libraryEntry(), hidden: true };
     const [a] = mountSurfaces(fake.runtime, seededClient([entry]));
-    act(() => void a[0]?.mark.mark(entry));
+    act(() => void a.current.mark.mark(entry));
     await flush();
     stubLandedPlay(fake);
-    await act(async () => a[0]?.mark.reverse(SHOW));
+    await act(async () => a.current.mark.reverse(SHOW));
     await act(async () => resumed("done"));
     await act(async () => resumed("done"));
     await flush();
@@ -1600,7 +1598,7 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
       if (landing !== undefined) fake.deliver(landing);
       return plays;
     });
-    await act(async () => a[0]?.season.undo());
+    await act(async () => a.current.season.undo());
     expect(fake.submitted.slice(2).map((op) => op.request.body)).toEqual([
       { ids: [503, 501, 502] },
     ]);
@@ -1625,7 +1623,7 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
         }, 300);
         return beforeLanding;
       });
-      const undone = act(async () => a[0]?.season.undo());
+      const undone = act(async () => a.current.season.undo());
       await act(() => vi.advanceTimersByTimeAsync(1_000));
       await undone;
       expect(fake.submitted.slice(2).map((op) => op.request.body)).toEqual([
@@ -1640,10 +1638,10 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
     const fake = fakeRuntime({ answer: replacing({ ...replaced, added: 1 }) });
     const season = seasonView([episodeView(1), episodeView(2)]);
     const { a } = mountSeasonSurfaces(fake, season.episodes);
-    await act(async () => a[0]?.season.markSeason(TARGET, season));
+    await act(async () => a.current.season.markSeason(TARGET, season));
     const message = "Season 1 marked · 2 episodes. Watch date changed for 1 already watched.";
     expect(snackText()).toBe(message);
-    await act(async () => a[0]?.season.undo());
+    await act(async () => a.current.season.undo());
     expect(fake.submitted).toHaveLength(1);
     expect(snackText()).toBe(message);
   });
@@ -1664,8 +1662,8 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
     });
     const season = seasonView([episodeView(1), episodeView(2)]);
     const { a } = mountSeasonSurfaces(fake, season.episodes);
-    act(() => void a[0]?.season.markSeason(TARGET, season));
-    const undone = act(async () => a[0]?.season.undo());
+    act(() => void a.current.season.markSeason(TARGET, season));
+    const undone = act(async () => a.current.season.undo());
     await act(async () => land("done"));
     await undone;
     expect(fake.submitted).toHaveLength(1);
@@ -1678,8 +1676,8 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
     const fake = fakeRuntime({ showPlays: new Error("offline") });
     const season = seasonView([episodeView(1), episodeView(2)]);
     const { a } = mountSeasonSurfaces(fake, season.episodes);
-    await act(async () => a[0]?.season.markSeason(TARGET, season));
-    await act(async () => a[0]?.season.undo());
+    await act(async () => a.current.season.markSeason(TARGET, season));
+    await act(async () => a.current.season.undo());
     expect(fake.submitted).toHaveLength(1);
     expect(snackText()).toBe("Couldn't undo that. Please try again.");
   });
@@ -1693,8 +1691,8 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
     });
     const season = seasonView([episodeView(1), episodeView(2)]);
     const { a } = mountSeasonSurfaces(fake, season.episodes);
-    await act(async () => a[0]?.season.markSeason(TARGET, season));
-    await act(async () => a[0]?.season.undo());
+    await act(async () => a.current.season.markSeason(TARGET, season));
+    await act(async () => a.current.season.undo());
     expect(fake.loadShowPlays).not.toHaveBeenCalled();
     expect(fake.submitted[1]).toMatchObject({
       itemKey: fake.submitted[0]?.itemKey,
@@ -1708,8 +1706,8 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
       const fake = fakeRuntime({ inFlightOpId: () => "op-0" });
       const season = seasonView([episodeView(1), episodeView(2)]);
       const { a } = mountSeasonSurfaces(fake, season.episodes);
-      await act(async () => a[0]?.season.markSeason(TARGET, season));
-      act(() => void a[0]?.season.undo());
+      await act(async () => a.current.season.markSeason(TARGET, season));
+      act(() => void a.current.season.undo());
       await act(() => vi.advanceTimersByTimeAsync(10_000));
       expect(fake.submitted).toHaveLength(1);
       expect(snackText()).toBe("Couldn't undo that. Please try again.");
@@ -1722,10 +1720,10 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
     const fake = fakeRuntime({ answer: replacing(replaced) });
     const { qc, a } = mountSeasonSurfaces(fake);
     await act(async () =>
-      a[0]?.season.toggleEpisode(TARGET, episodeView(2), { undoLabel: "S1 E2 marked" }),
+      a.current.season.toggleEpisode(TARGET, episodeView(2), { undoLabel: "S1 E2 marked" }),
     );
     expect(snackText()).toBe("Already watched. Trakt changed the watch date to now.");
-    await act(async () => a[0]?.season.undo());
+    await act(async () => a.current.season.undo());
     expect(fake.submitted).toHaveLength(1);
     expect(seasonEp(qc, 2)?.watched).toBe(true);
   });
@@ -1734,11 +1732,11 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
     const fake = fakeRuntime({});
     const { a } = mountSeasonSurfaces(fake);
     await act(async () =>
-      a[0]?.season.toggleEpisode(TARGET, episodeView(2), { undoLabel: "S1 E2 marked" }),
+      a.current.season.toggleEpisode(TARGET, episodeView(2), { undoLabel: "S1 E2 marked" }),
     );
     const [own] = stubOwnPlays(fake);
     fake.loadEpisodePlays.mockResolvedValue([{ ...OLD_PLAY, episodeTrakt: 102 }, own]);
-    await act(async () => a[0]?.season.undo());
+    await act(async () => a.current.season.undo());
     expect(fake.submitted[1]?.request.body).toEqual({ ids: [own?.historyId] });
   });
 
@@ -1746,14 +1744,14 @@ describe("Trakt replaced a play instead of adding one (Multiple Plays off)", () 
     const fake = fakeRuntime({ answer: replacing({ ...replaced, added: 1, updated: 2 }) });
     const season = seasonView([episodeView(1, true), episodeView(2, true), episodeView(3)]);
     const { a } = mountSeasonSurfaces(fake, season.episodes);
-    await act(async () => a[0]?.season.rewatchSeason(TARGET, season));
+    await act(async () => a.current.season.rewatchSeason(TARGET, season));
     expect(snackText()).toBe("Season 1 marked again · 1 added, 2 watch dates changed");
   });
 
   it("says so when an added play replaced the episode's date", async () => {
     const fake = fakeRuntime({ answer: replacing(replaced) });
     const { a } = mountSeasonSurfaces(fake, [episodeView(1, true), episodeView(2, true)]);
-    await act(async () => a[0]?.season.addEpisodePlay(TARGET, episodeView(2, true)));
+    await act(async () => a.current.season.addEpisodePlay(TARGET, episodeView(2, true)));
     expect(snackText()).toBe(
       "Your Trakt account keeps one play per episode, so the earlier date was replaced.",
     );

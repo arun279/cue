@@ -1,28 +1,14 @@
 // @vitest-environment jsdom
 import { queryKeys } from "@cue/core/data/query-keys";
 import { useSyncNow } from "@cue/core/hooks/useSyncNow";
-import { type CueRuntime, RuntimeProvider } from "@cue/core/runtime/runtime";
+import type { CueRuntime } from "@cue/core/runtime/runtime";
 import { dismissSnack, useSnackbar } from "@cue/core/stores/snackbar-store";
-import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
-import { act } from "react";
+import { QueryClient, useQuery } from "@tanstack/react-query";
+import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { mountAsync } from "./_mount";
-
-type SyncNow = ReturnType<typeof useSyncNow>;
+import { withRuntime } from "../support/providers";
 
 const FAILED = "Couldn't reach Trakt. Check your connection.";
-
-function Probe({
-  slot,
-  load,
-}: {
-  readonly slot: SyncNow[];
-  readonly load: () => Promise<unknown>;
-}) {
-  useQuery({ queryKey: queryKeys.library(), queryFn: load, retry: false });
-  slot[0] = useSyncNow();
-  return null;
-}
 
 interface Pass {
   readonly flush?: () => Promise<number>;
@@ -41,19 +27,20 @@ async function syncPass(pass: Pass = {}) {
     flushWrites: pass.flush ?? (() => Promise.resolve(0)),
     pollActivities,
   } as unknown as CueRuntime;
-  const slot: SyncNow[] = [];
-  await mountAsync(
-    <QueryClientProvider client={new QueryClient()}>
-      <RuntimeProvider value={runtime}>
-        <Probe slot={slot} load={pass.load ?? (() => Promise.resolve({ entries: [] }))} />
-      </RuntimeProvider>
-    </QueryClientProvider>,
+  const load = pass.load ?? (() => Promise.resolve({ entries: [] }));
+  const { result } = renderHook(
+    () => {
+      useQuery({ queryKey: queryKeys.library(), queryFn: load, retry: false });
+      return useSyncNow();
+    },
+    { wrapper: withRuntime(runtime, new QueryClient()) },
   );
+  await act(async () => {});
   let clean: boolean | undefined;
   await act(async () => {
-    clean = await slot[0]?.run();
+    clean = await result.current.run();
   });
-  return { clean, commit, pollActivities, syncing: slot[0]?.syncing };
+  return { clean, commit, pollActivities, syncing: result.current.syncing };
 }
 
 const snack = () => useSnackbar.getState().snack?.message ?? null;

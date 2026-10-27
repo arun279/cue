@@ -33,7 +33,7 @@ import { movieLibraryQuery } from "@cue/core/queries/library";
 import { ART_SETTLE_MS, showInfoQuery, showSeasonsQuery } from "@cue/core/queries/shows";
 import { userProfileQuery } from "@cue/core/queries/user";
 import { createQueryCachePolicy, createQueryClient } from "@cue/core/runtime/query-cache";
-import { type CueRuntime, RuntimeProvider, useRuntime } from "@cue/core/runtime/runtime";
+import { type CueRuntime, useRuntime } from "@cue/core/runtime/runtime";
 import { useSnackbar } from "@cue/core/stores/snackbar-store";
 import {
   type DehydratedState,
@@ -42,17 +42,15 @@ import {
   hydrate,
   notifyManager,
   type QueryClient,
-  QueryClientProvider,
   useQuery,
 } from "@tanstack/react-query";
-import { act, type ReactElement, useEffect, useState } from "react";
-import { createRoot, type Root } from "react-dom/client";
+import { act, type RenderResult, render } from "@testing-library/react";
+import { type ReactElement, useEffect, useState } from "react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { buildRuntime, memoryKv } from "../data/_runtime";
+import { withRuntime } from "../support/providers";
 import { type AccountSize, sized } from "../trakt-fake/account.ts";
 import { createTraktFake, type TraktFake } from "../trakt-fake/fake.ts";
-
-(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const NOW = Date.parse("2026-10-20T12:00:00.000Z");
 
@@ -359,7 +357,7 @@ interface Session {
   readonly runtime: CueRuntime;
   readonly foreground: Foreground;
   readonly controls: Controls;
-  readonly root: Root;
+  view?: Pick<RenderResult, "rerender" | "unmount">;
 }
 
 async function boot(size: AccountSize, saved?: Saved, cacheAgeMs = 0): Promise<Session> {
@@ -393,7 +391,6 @@ async function boot(size: AccountSize, saved?: Saved, cacheAgeMs = 0): Promise<S
     clearPersistedCaches: async () => undefined,
     clearLocalPreferences: () => undefined,
   });
-  const host = document.body.appendChild(document.createElement("div"));
   return {
     trakt,
     kv: kv.values,
@@ -409,20 +406,15 @@ async function boot(size: AccountSize, saved?: Saved, cacheAgeMs = 0): Promise<S
       syncNow: null,
       scrollNotStarted: null,
     },
-    root: createRoot(host),
   };
 }
 
-async function open({ qc, runtime, controls, root }: Session, detail?: number): Promise<void> {
-  await act(async () =>
-    root.render(
-      <QueryClientProvider client={qc}>
-        <RuntimeProvider value={runtime}>
-          <App controls={controls} detail={detail} />
-        </RuntimeProvider>
-      </QueryClientProvider>,
-    ),
-  );
+async function open(session: Session, detail?: number): Promise<void> {
+  const app = <App controls={session.controls} detail={detail} />;
+  if (session.view === undefined)
+    session.view = render(app, { wrapper: withRuntime(session.runtime, session.qc) });
+  else session.view.rerender(app);
+  await act(async () => {});
 }
 
 async function settle({ trakt, qc, runtime }: Session): Promise<void> {
@@ -590,7 +582,7 @@ async function replay(size: AccountSize) {
     () => markBudget,
   );
   unknown.push(...trakt.noRoute);
-  act(() => first.root.unmount());
+  first.view?.unmount();
 
   for (const [scenario, ageMs] of [
     ["cold launch, cache older than an hour", COLD_CACHE_AGE_MS],
@@ -611,7 +603,7 @@ async function replay(size: AccountSize) {
             }))(),
     );
     unknown.push(...session.trakt.noRoute);
-    act(() => session.root.unmount());
+    session.view?.unmount();
   }
   return { results, unknown, pastBudget };
 }
@@ -970,7 +962,7 @@ async function treeReadsOfNextPoll(session: Session, showId: number): Promise<nu
   const start = session.trakt.requests.length;
   session.foreground.enter();
   await settle(session);
-  act(() => session.root.unmount());
+  session.view?.unmount();
   expect(session.trakt.requests.slice(start).map(({ path }) => path)).toContain(
     "/sync/watched/shows",
   );
@@ -1000,7 +992,7 @@ describe("a season tree on screen", () => {
       kv: new Map(first.kv),
       cache: dehydrate(first.qc, createQueryCachePolicy(first.qc)),
     };
-    act(() => first.root.unmount());
+    first.view?.unmount();
     expect(saved.cache.queries.map(({ queryKey }) => queryKey)).toContainEqual(
       queryKeys.showSeasons(SHOW),
     );
@@ -1009,7 +1001,7 @@ describe("a season tree on screen", () => {
     await playElsewhere(second.trakt, next.ids.trakt);
     await open(second, SHOW);
     await settle(second);
-    act(() => second.root.unmount());
+    second.view?.unmount();
 
     expect(seasonReadsSince(second, 0, SHOW)).toBe(1);
     expect(watchedIn(second.controls.tree, next.ids.trakt)).toBe(true);
@@ -1032,7 +1024,7 @@ describe("a season tree on screen", () => {
     await settle(session);
     session.foreground.enter();
     await settle(session);
-    act(() => session.root.unmount());
+    session.view?.unmount();
 
     expect(seasonReadsSince(session, start, SHOW)).toBe(1);
     expect(watchedIn(session.controls.tree, remote.ids.trakt)).toBe(true);
@@ -1110,7 +1102,7 @@ describe("a season tree on screen", () => {
     expect(watchedIn(session.controls.tree, marked)).toBe(false);
     release();
     await settle(session);
-    act(() => session.root.unmount());
+    session.view?.unmount();
   });
 
   it("is not read again by the poll after this device marks and undoes from Up Next", async () => {

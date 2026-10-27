@@ -23,36 +23,28 @@ import { backoffMs } from "@cue/core/domain/write-queue/classify";
 import { useReadRetry } from "@cue/core/hooks/useReadRetry";
 import { queryStatus, retryingPast } from "@cue/core/queries/freshness";
 import { createQueryClient } from "@cue/core/runtime/query-cache";
-import {
-  onlineManager,
-  type QueryClient,
-  QueryClientProvider,
-  useQuery,
-} from "@tanstack/react-query";
-import { act } from "react";
+import { onlineManager, QueryClientProvider, useQuery } from "@tanstack/react-query";
+import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { emptyAccount } from "../trakt-fake/account.ts";
 import { createTraktFake } from "../trakt-fake/fake.ts";
-import { mount } from "./_mount";
 
 type Status = ReturnType<typeof queryStatus>;
 
-function mountRead(queryFn: () => Promise<unknown>): Status[] {
-  const seen: Status[] = [];
-  function Probe(): null {
-    const query = useQuery({ queryKey: ["probe"], queryFn, staleTime: 0 });
-    seen.push(queryStatus(query, query.data !== undefined));
-    return null;
-  }
-  mount(
-    <QueryClientProvider client={createQueryClient()}>
-      <Probe />
-    </QueryClientProvider>,
-  );
-  return seen;
+function readStatus<T>(useRead: () => T, client = createQueryClient()): { readonly current: T } {
+  return renderHook(useRead, {
+    wrapper: ({ children }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    ),
+  }).result;
 }
 
-const last = (seen: Status[]): Status => seen[seen.length - 1] as Status;
+function mountRead(queryFn: () => Promise<unknown>): { readonly current: Status } {
+  return readStatus(() => {
+    const query = useQuery({ queryKey: ["probe"], queryFn, staleTime: 0 });
+    return queryStatus(query, query.data !== undefined);
+  });
+}
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -75,8 +67,8 @@ describe("a read that keeps failing", () => {
       await vi.advanceTimersByTimeAsync(100);
     });
     expect(queryFn).toHaveBeenCalledTimes(1);
-    expect(last(seen).retrying).toBe(true);
-    expect(last(seen).isError).toBe(false);
+    expect(seen.current.retrying).toBe(true);
+    expect(seen.current.isError).toBe(false);
 
     // The same ladder the write queue backs off on.
     await act(async () => {
@@ -101,9 +93,9 @@ describe("a read that keeps failing", () => {
     });
 
     expect(queryFn).toHaveBeenCalledTimes(3);
-    expect(last(seen).isError).toBe(true);
-    expect(last(seen).retrying).toBe(false);
-    expect(last(seen).failure).toEqual({ kind: "network" });
+    expect(seen.current.isError).toBe(true);
+    expect(seen.current.retrying).toBe(false);
+    expect(seen.current.failure).toEqual({ kind: "network" });
   });
 
   it("counts an already-failed read that is trying again as retrying", async () => {
@@ -116,39 +108,32 @@ describe("a read that keeps failing", () => {
       if (phase === "hang") return new Promise<number>(() => {});
       return Promise.reject(new TraktReadError({ kind: "network" }, "library"));
     });
-    const seen: Status[] = [];
     let refetch = (): void => {};
-    function Probe(): null {
+    const seen = readStatus(() => {
       const query = useQuery({ queryKey: ["warm"], queryFn, staleTime: 0 });
       refetch = () => void query.refetch();
-      seen.push(queryStatus(query, query.data !== undefined));
-      return null;
-    }
-    mount(
-      <QueryClientProvider client={createQueryClient()}>
-        <Probe />
-      </QueryClientProvider>,
-    );
+      return queryStatus(query, query.data !== undefined);
+    });
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(last(seen).hasData).toBe(true);
+    expect(seen.current.hasData).toBe(true);
 
     phase = "fail";
     await act(async () => {
       refetch();
       await vi.advanceTimersByTimeAsync(10_000);
     });
-    expect(last(seen).isError).toBe(true);
-    expect(last(seen).retrying).toBe(false);
+    expect(seen.current.isError).toBe(true);
+    expect(seen.current.retrying).toBe(false);
 
     phase = "hang";
     await act(async () => {
       refetch();
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(last(seen).isError).toBe(true);
-    expect(last(seen).retrying).toBe(true);
+    expect(seen.current.isError).toBe(true);
+    expect(seen.current.retrying).toBe(true);
   });
 
   it("does not retry a failure that will never heal", async () => {
@@ -161,8 +146,8 @@ describe("a read that keeps failing", () => {
     });
 
     expect(queryFn).toHaveBeenCalledTimes(1);
-    expect(last(seen).failure).toEqual({ kind: "unauthorized" });
-    expect(last(seen).retrying).toBe(false);
+    expect(seen.current.failure).toEqual({ kind: "unauthorized" });
+    expect(seen.current.retrying).toBe(false);
   });
 });
 
@@ -175,7 +160,7 @@ describe("a read while the device is offline", () => {
     const seen = mountRead(queryFn);
     await elapse(60_000);
     expect(queryFn).not.toHaveBeenCalled();
-    expect(last(seen).isLoading).toBe(true);
+    expect(seen.current.isLoading).toBe(true);
 
     act(() => onlineManager.setOnline(true));
     await elapse(0);
@@ -191,7 +176,7 @@ describe("a read while the device is offline", () => {
     act(() => onlineManager.setOnline(false));
     await elapse(60_000);
     expect(queryFn).toHaveBeenCalledTimes(1);
-    expect(last(seen).isError).toBe(false);
+    expect(seen.current.isError).toBe(false);
 
     act(() => onlineManager.setOnline(true));
     await elapse(10_000);
@@ -220,8 +205,8 @@ describe("a sustained rate limit", () => {
     });
 
     expect(requests).toBe(DEFAULT_TRAKT_POLICY.rateLimit.retries + 1);
-    expect(last(seen).failure).toEqual({ kind: "rate-limited", retryAfterMs: 1000 });
-    expect(last(seen).retrying).toBe(false);
+    expect(seen.current.failure).toEqual({ kind: "rate-limited", retryAfterMs: 1000 });
+    expect(seen.current.retrying).toBe(false);
   });
 });
 
@@ -237,24 +222,17 @@ describe("a load that retries its own reads", () => {
     });
   }
 
-  function mountLoad(client: TraktClient): { seen: Status[]; queryClient: QueryClient } {
+  function mountLoad(client: TraktClient) {
     const queryClient = createQueryClient();
-    const seen: Status[] = [];
-    function Probe(): null {
+    const seen = readStatus(() => {
       const failure = useReadRetry();
       const query = useQuery({
         queryKey: ["load"],
         queryFn: () => loadUpNextEntries(client),
         retry: false,
       });
-      seen.push(retryingPast(queryStatus(query, query.data !== undefined), failure));
-      return null;
-    }
-    mount(
-      <QueryClientProvider client={queryClient}>
-        <Probe />
-      </QueryClientProvider>,
-    );
+      return retryingPast(queryStatus(query, query.data !== undefined), failure);
+    }, queryClient);
     return { seen, queryClient };
   }
 
@@ -264,7 +242,7 @@ describe("a load that retries its own reads", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(last(seen)).toMatchObject({
+    expect(seen.current).toMatchObject({
       isLoading: true,
       retrying: true,
       failure: { kind: "server", status: 503 },
@@ -273,7 +251,7 @@ describe("a load that retries its own reads", () => {
     await act(async () => {
       await vi.runAllTimersAsync();
     });
-    expect(last(seen)).toMatchObject({ hasData: true, retrying: false, failure: null });
+    expect(seen.current).toMatchObject({ hasData: true, retrying: false, failure: null });
   });
 
   it("stops saying it is trying once the screen's own fetch is cancelled", async () => {
@@ -281,12 +259,12 @@ describe("a load that retries its own reads", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(last(seen).retrying).toBe(true);
+    expect(seen.current.retrying).toBe(true);
 
     await act(async () => {
       await queryClient.cancelQueries({ queryKey: ["load"] });
       await vi.advanceTimersByTimeAsync(0);
     });
-    expect(last(seen)).toMatchObject({ isFetching: false, retrying: false });
+    expect(seen.current).toMatchObject({ isFetching: false, retrying: false });
   });
 });

@@ -11,19 +11,10 @@
 
 import { useHaptics } from "@cue/core/ports/haptics";
 import { useReminders } from "@cue/core/ports/reminders";
+import { renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { mount } from "./_mount";
 
-function readPort<T>(usePort: () => T): T {
-  let value: T | null = null;
-  function Probe(): null {
-    value = usePort();
-    return null;
-  }
-  mount(<Probe />);
-  if (value === null) throw new Error("the probe never rendered");
-  return value;
-}
+const readPort = <T,>(usePort: () => T): T => renderHook(usePort).result.current;
 
 describe("a tree with no composition root above it", () => {
   it("stays silent rather than throwing when the UI fires a haptic", () => {

@@ -4,16 +4,15 @@
  * asks once, and the per-show mute with its Undo.
  */
 
-import { type AlertsCard, useAlertsCard } from "@cue/core/hooks/useAlertsCard";
-import { type AlertsMute, useAlertsMute } from "@cue/core/hooks/useAlertsMute";
+import { useAlertsCard } from "@cue/core/hooks/useAlertsCard";
+import { useAlertsMute } from "@cue/core/hooks/useAlertsMute";
 import type { PreferenceStorage } from "@cue/core/ports/preference-storage";
 import { type Reminders, RemindersProvider } from "@cue/core/ports/reminders";
 import { createPrefsStore, PrefsProvider } from "@cue/core/prefs/prefs-store";
 import { dismissSnack, snackText, useSnackbar } from "@cue/core/stores/snackbar-store";
-import { act } from "react";
+import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { memoryPreferenceStorage } from "../support/stores";
-import { mountAsync } from "./_mount";
 
 afterEach(dismissSnack);
 
@@ -38,19 +37,15 @@ async function mountCard(
   storage: PreferenceStorage = memoryPreferenceStorage(),
 ) {
   const prefs = createPrefsStore(storage);
-  let card: AlertsCard | null = null;
-  function Probe(): null {
-    card = useAlertsCard();
-    return null;
-  }
-  await mountAsync(
-    <PrefsProvider value={prefs}>
-      <RemindersProvider value={reminders}>
-        <Probe />
-      </RemindersProvider>
-    </PrefsProvider>,
-  );
-  return { prefs, card: () => card };
+  const { result } = renderHook(useAlertsCard, {
+    wrapper: ({ children }) => (
+      <PrefsProvider value={prefs}>
+        <RemindersProvider value={reminders}>{children}</RemindersProvider>
+      </PrefsProvider>
+    ),
+  });
+  await act(async () => {});
+  return { prefs, card: () => result.current };
 }
 
 describe("useAlertsCard", () => {
@@ -95,31 +90,24 @@ describe("useAlertsCard", () => {
 describe("useAlertsMute", () => {
   it("mutes a show with an Undo, and lifts the mute without one", async () => {
     const prefs = createPrefsStore(memoryPreferenceStorage());
-    let mute: AlertsMute | null = null;
-    function Probe(): null {
-      mute = useAlertsMute(8801, "Harbor Lights");
-      return null;
-    }
-    await mountAsync(
-      <PrefsProvider value={prefs}>
-        <Probe />
-      </PrefsProvider>,
-    );
-    const current = (): AlertsMute | null => mute;
-    expect(current()?.label).toBe("Mute episode alerts");
+    const { result } = renderHook(() => useAlertsMute(8801, "Harbor Lights"), {
+      wrapper: ({ children }) => <PrefsProvider value={prefs}>{children}</PrefsProvider>,
+    });
+    await act(async () => {});
+    expect(result.current.label).toBe("Mute episode alerts");
 
-    act(() => current()?.toggle());
+    act(() => result.current.toggle());
     expect(prefs.getState().mutedShowIds).toEqual([8801]);
-    expect(current()?.label).toBe("Unmute episode alerts");
+    expect(result.current.label).toBe("Unmute episode alerts");
     expect(snack()).toBe("Episode alerts muted for Harbor Lights.");
 
     act(() => useSnackbar.getState().snack?.actions?.[0]?.onPress());
     expect(prefs.getState().mutedShowIds).toEqual([]);
     expect(snack()).toBeNull();
 
-    act(() => current()?.toggle());
+    act(() => result.current.toggle());
     act(dismissSnack);
-    act(() => current()?.toggle());
+    act(() => result.current.toggle());
     expect(prefs.getState().mutedShowIds).toEqual([]);
     expect(snack()).toBeNull();
   });

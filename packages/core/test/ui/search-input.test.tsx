@@ -1,17 +1,11 @@
 // @vitest-environment jsdom
 import { type SearchInput, useSearchInput } from "@cue/core/hooks/useSearchInput";
-import { act } from "react";
+import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mount } from "./_mount";
 
 /** The hook's own two windows, spelled here so a case fails if either moves. */
 const DEBOUNCE_MS = 300;
 const DWELL_MS = 1500;
-
-function Probe({ slot }: { readonly slot: SearchInput[] }): null {
-  slot[0] = useSearchInput();
-  return null;
-}
 
 /**
  * A query typed and then left alone long enough to count as a search. The two
@@ -19,8 +13,8 @@ function Probe({ slot }: { readonly slot: SearchInput[] }): null {
  * between them, and a single jump past both would fire the previous query's
  * dwell before its effect had been torn down.
  */
-function rest(slot: SearchInput[], query: string): void {
-  act(() => slot[0]?.setInput(query));
+function rest(input: { readonly current: SearchInput }, query: string): void {
+  act(() => input.current.setInput(query));
   act(() => vi.advanceTimersByTime(DEBOUNCE_MS));
   act(() => vi.advanceTimersByTime(DWELL_MS));
 }
@@ -30,48 +24,44 @@ afterEach(() => vi.useRealTimers());
 
 describe("useSearchInput", () => {
   it("trims and settles an input after the debounce window", () => {
-    const slot: SearchInput[] = [];
-    mount(<Probe slot={slot} />);
+    const { result: input } = renderHook(useSearchInput);
 
-    act(() => slot[0]?.setInput("  harbor  "));
-    expect(slot[0]?.query).toBe("");
-    expect(slot[0]?.settling).toBe(true);
+    act(() => input.current.setInput("  harbor  "));
+    expect(input.current.query).toBe("");
+    expect(input.current.settling).toBe(true);
 
     act(() => vi.advanceTimersByTime(DEBOUNCE_MS));
-    expect(slot[0]?.query).toBe("harbor");
-    expect(slot[0]?.settling).toBe(false);
+    expect(input.current.query).toBe("harbor");
+    expect(input.current.settling).toBe(false);
   });
 
   it("remembers the query the reader rests on, not the ones typed through it", () => {
-    const slot: SearchInput[] = [];
-    mount(<Probe slot={slot} />);
+    const { result: input } = renderHook(useSearchInput);
 
-    act(() => slot[0]?.setInput("h"));
+    act(() => input.current.setInput("h"));
     act(() => vi.advanceTimersByTime(DEBOUNCE_MS));
-    rest(slot, "harbor");
+    rest(input, "harbor");
 
-    expect(slot[0]?.recent).toEqual(["harbor"]);
+    expect(input.current.recent).toEqual(["harbor"]);
   });
 
   it("forgets a query abandoned before it stands", () => {
-    const slot: SearchInput[] = [];
-    mount(<Probe slot={slot} />);
+    const { result: input } = renderHook(useSearchInput);
 
-    act(() => slot[0]?.setInput("harbor"));
+    act(() => input.current.setInput("harbor"));
     act(() => vi.advanceTimersByTime(DEBOUNCE_MS));
-    rest(slot, "");
+    rest(input, "");
 
-    expect(slot[0]?.recent).toEqual([]);
+    expect(input.current.recent).toEqual([]);
   });
 
   it("keeps five queries in recency order, each of them once", () => {
-    const slot: SearchInput[] = [];
-    mount(<Probe slot={slot} />);
+    const { result: input } = renderHook(useSearchInput);
 
     for (const query of ["one", "two", "three", "four", "five", "six", "three"]) {
-      rest(slot, query);
+      rest(input, query);
     }
 
-    expect(slot[0]?.recent).toEqual(["three", "six", "five", "four", "two"]);
+    expect(input.current.recent).toEqual(["three", "six", "five", "four", "two"]);
   });
 });

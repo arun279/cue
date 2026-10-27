@@ -15,13 +15,11 @@ import { dayKeyOf } from "@cue/core/domain/day";
 import { DAY_MS, localTimeZone } from "@cue/core/domain/time";
 import { useCoarseClock } from "@cue/core/hooks/useCoarseClock";
 import { calendarQuery } from "@cue/core/queries/calendar";
-import { type CueRuntime, RuntimeProvider, useRuntime } from "@cue/core/runtime/runtime";
-import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
-import { act, type ReactElement } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
-
-(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+import { type CueRuntime, useRuntime } from "@cue/core/runtime/runtime";
+import { QueryClient, useQuery } from "@tanstack/react-query";
+import { act, renderHook } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { withRuntime } from "../support/providers";
 
 /** Tomorrow + `days - 1` further out, so both land inside any window ≥ 1 day. */
 function entriesAt(...dayOffsets: readonly number[]): CalendarEntry[] {
@@ -40,13 +38,7 @@ function entriesAt(...dayOffsets: readonly number[]): CalendarEntry[] {
   }));
 }
 
-function Probe({
-  windowDays,
-  onDays,
-}: {
-  readonly windowDays: number;
-  readonly onDays: (count: number) => void;
-}): null {
+function useDayCount(windowDays: number): number {
   const runtime = useRuntime();
   const now = useCoarseClock(DAY_MS);
   const timeZone = localTimeZone();
@@ -62,23 +54,7 @@ function Probe({
         windowDays,
       ),
   });
-  onDays(query.data?.length ?? 0);
-  return null;
-}
-
-let root: Root | null = null;
-
-afterEach(() => {
-  act(() => root?.unmount());
-  root = null;
-});
-
-async function mount(node: ReactElement): Promise<void> {
-  root = createRoot(document.createElement("div"));
-  // Two passes: mount, then let the query resolve and notify its subscribers
-  // (core leaves react-query's default scheduler in place, which batches on a macrotask).
-  await act(async () => root?.render(node));
-  await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+  return query.data?.length ?? 0;
 }
 
 describe("calendarQuery consumers", () => {
@@ -88,26 +64,20 @@ describe("calendarQuery consumers", () => {
     );
     const runtime = { loadCalendar } as unknown as CueRuntime;
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    const dayCounts = { home: 0, calendar: 0 };
+    const wrapper = withRuntime(runtime, queryClient);
 
-    await mount(
-      <QueryClientProvider client={queryClient}>
-        <RuntimeProvider value={runtime}>
-          <Probe windowDays={7} onDays={(count) => (dayCounts.home = count)} />
-          <Probe
-            windowDays={CALENDAR_WINDOW_DAYS}
-            onDays={(count) => (dayCounts.calendar = count)}
-          />
-        </RuntimeProvider>
-      </QueryClientProvider>,
-    );
+    const home = renderHook(() => useDayCount(7), { wrapper }).result;
+    const calendar = renderHook(() => useDayCount(CALENDAR_WINDOW_DAYS), { wrapper }).result;
+    await act(async () => {});
+    // core leaves react-query's default scheduler in place, which notifies on a macrotask.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
 
     // ONE fetch, for the full window, shared by both consumers.
     expect(loadCalendar).toHaveBeenCalledTimes(1);
     expect(loadCalendar.mock.calls[0]?.[1]).toBe(CALENDAR_WINDOW_DAYS);
     // The +10d episode is outside the 7-day slice but inside the full window.
-    expect(dayCounts.home).toBe(1);
-    expect(dayCounts.calendar).toBe(2);
+    expect(home.current).toBe(1);
+    expect(calendar.current).toBe(2);
   });
 });
 

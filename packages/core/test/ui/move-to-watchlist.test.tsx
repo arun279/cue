@@ -2,21 +2,16 @@
 import { queryKeys } from "@cue/core/data/query-keys";
 import type { LibraryEntry } from "@cue/core/data/trakt/library";
 import { useMoveToWatchlist } from "@cue/core/hooks/useMoveToWatchlist";
-import { RuntimeProvider, type SubmitOutcome, type UpNextData } from "@cue/core/runtime/runtime";
+import type { SubmitOutcome, UpNextData } from "@cue/core/runtime/runtime";
 import { dismissSnack, useSnackbar } from "@cue/core/stores/snackbar-store";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act } from "react";
+import { QueryClient } from "@tanstack/react-query";
+import { act, renderHook } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { buildRuntime } from "../data/_runtime";
 import { makeShow } from "../domain/_helpers";
-import { mountAsync } from "./_mount";
+import { withRuntime } from "../support/providers";
 
 afterEach(dismissSnack);
-
-function Probe({ slot }: { readonly slot: ReturnType<typeof useMoveToWatchlist>[] }): null {
-  slot[0] = useMoveToWatchlist();
-  return null;
-}
 
 async function setup(outcome: SubmitOutcome, hidden = false) {
   const runtime = await buildRuntime();
@@ -29,19 +24,13 @@ async function setup(outcome: SubmitOutcome, hidden = false) {
     posters: [],
   };
   client.setQueryData<UpNextData>(queryKeys.library(), { entries: [entry] });
-  const slot: ReturnType<typeof useMoveToWatchlist>[] = [];
-  await mountAsync(
-    <QueryClientProvider client={client}>
-      <RuntimeProvider value={runtime}>
-        <Probe slot={slot} />
-      </RuntimeProvider>
-    </QueryClientProvider>,
-  );
+  const { result } = renderHook(useMoveToWatchlist, { wrapper: withRuntime(runtime, client) });
+  await act(async () => {});
   return {
     client,
     entry,
     submit,
-    move: async (value = entry) => act(async () => slot[0]?.(value)),
+    move: async (value = entry) => act(async () => result.current(value)),
   };
 }
 

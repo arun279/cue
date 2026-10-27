@@ -10,14 +10,12 @@ import type { PlannedReminder } from "@cue/core/domain/reminders";
 import { useEpisodeReminders } from "@cue/core/hooks/useEpisodeReminders";
 import { type Reminders, RemindersProvider } from "@cue/core/ports/reminders";
 import { createPrefsStore, PrefsProvider } from "@cue/core/prefs/prefs-store";
-import { type CueRuntime, RuntimeProvider } from "@cue/core/runtime/runtime";
-import { focusManager, QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, type ReactElement } from "react";
-import { createRoot, type Root } from "react-dom/client";
+import type { CueRuntime } from "@cue/core/runtime/runtime";
+import { focusManager, QueryClient } from "@tanstack/react-query";
+import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { withRuntime } from "../support/providers";
 import { memoryPreferenceStorage } from "../support/stores";
-
-(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -72,12 +70,6 @@ const plans = (reminders: Reminders): readonly PlannedReminder[][] =>
 const bodies = (reminders: Reminders): readonly string[] =>
   (plans(reminders).at(-1) ?? []).map(({ title, body }) => `${title}: ${body}`);
 
-function Probe(): null {
-  useEpisodeReminders();
-  return null;
-}
-
-let root: Root | null = null;
 let queryClient: QueryClient | null = null;
 let prefs = createPrefsStore(memoryPreferenceStorage());
 
@@ -87,8 +79,6 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  act(() => root?.unmount());
-  root = null;
   queryClient = null;
   focusManager.setFocused(undefined);
   vi.useRealTimers();
@@ -98,26 +88,21 @@ afterEach(() => {
 async function mountHook(loadCalendar: CueRuntime["loadCalendar"]): Promise<Reminders> {
   const reminders = remindersPort();
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const node: ReactElement = (
-    <QueryClientProvider client={queryClient}>
-      <PrefsProvider value={prefs}>
-        <RuntimeProvider
-          value={
-            {
-              loadCalendar,
-              loadUpNext: () => Promise.resolve({ entries: [watching()] }),
-            } as unknown as CueRuntime
-          }
-        >
-          <RemindersProvider value={reminders}>
-            <Probe />
-          </RemindersProvider>
-        </RuntimeProvider>
-      </PrefsProvider>
-    </QueryClientProvider>
-  );
-  root = createRoot(document.createElement("div"));
-  await act(async () => root?.render(node));
+  const runtime = {
+    loadCalendar,
+    loadUpNext: () => Promise.resolve({ entries: [watching()] }),
+  } as unknown as CueRuntime;
+  const Runtime = withRuntime(runtime, queryClient);
+  renderHook(useEpisodeReminders, {
+    wrapper: ({ children }) => (
+      <Runtime>
+        <PrefsProvider value={prefs}>
+          <RemindersProvider value={reminders}>{children}</RemindersProvider>
+        </PrefsProvider>
+      </Runtime>
+    ),
+  });
+  await act(async () => {});
   await settle();
   return reminders;
 }
@@ -226,8 +211,7 @@ describe("useEpisodeReminders", () => {
 
     // Nothing is scheduled while the switch is off, so signing out has nothing
     // left to empty.
-    act(() => root?.unmount());
-    root = null;
+    cleanup();
     expect(reminders.cancelAll).toHaveBeenCalledTimes(1);
   });
 
@@ -238,8 +222,7 @@ describe("useEpisodeReminders", () => {
       Promise.resolve({ entries: [airingAt(Date.now() + DAY_MS)] }),
     );
 
-    act(() => root?.unmount());
-    root = null;
+    cleanup();
 
     expect(reminders.cancelAll).toHaveBeenCalledTimes(1);
   });
@@ -250,8 +233,7 @@ describe("useEpisodeReminders", () => {
       Promise.resolve({ entries: [airingAt(Date.now() + DAY_MS)] }),
     );
 
-    act(() => root?.unmount());
-    root = null;
+    cleanup();
 
     expect(reminders.cancelAll).not.toHaveBeenCalled();
   });

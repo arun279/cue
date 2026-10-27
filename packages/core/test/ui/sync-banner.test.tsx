@@ -5,11 +5,10 @@ import { useSyncBanner } from "@cue/core/hooks/useSyncBanner";
 import type { QueryStatus } from "@cue/core/queries/freshness";
 import { type CueRuntime, RuntimeProvider } from "@cue/core/runtime/runtime";
 import { useSyncActivity } from "@cue/core/stores/sync-activity-store";
-import type { SyncBanner } from "@cue/core/sync-contract";
 import { onlineManager } from "@tanstack/react-query";
-import { act, type ReactNode } from "react";
+import { act, renderHook } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mount } from "./_mount";
 
 const fresh: QueryStatus = {
   isLoading: false,
@@ -21,15 +20,11 @@ const fresh: QueryStatus = {
   retrying: false,
 };
 
-function Probe({ slot }: { readonly slot: (SyncBanner | null)[] }): null {
-  slot[0] = useSyncBanner(fresh);
-  return null;
-}
-
-function mountBanner(wrap: (node: ReactNode) => ReactNode = (node) => node): () => string | null {
-  const slot: (SyncBanner | null)[] = [];
-  mount(wrap(<Probe slot={slot} />));
-  return () => slot[0]?.message ?? null;
+function mountBanner(
+  wrapper?: (props: { readonly children: ReactNode }) => ReactNode,
+): () => string | null {
+  const { result } = renderHook(() => useSyncBanner(fresh), { wrapper });
+  return () => result.current?.message ?? null;
 }
 
 beforeEach(() => {
@@ -73,8 +68,8 @@ describe("useSyncBanner", () => {
   it("names a write backlog only once it outlasts the grace window", async () => {
     let queued = 3;
     const runtime = { pendingWrites: () => queued } as unknown as CueRuntime;
-    const message = mountBanner((node) => (
-      <RuntimeProvider value={runtime}>{node}</RuntimeProvider>
+    const message = mountBanner(({ children }) => (
+      <RuntimeProvider value={runtime}>{children}</RuntimeProvider>
     ));
     await act(() => vi.advanceTimersByTimeAsync(4000));
     expect(message()).toBeNull();

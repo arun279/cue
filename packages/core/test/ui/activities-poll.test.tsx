@@ -12,18 +12,15 @@ import { queryKeys } from "@cue/core/data/query-keys";
 import { useActivitiesPoll } from "@cue/core/hooks/useActivitiesPoll";
 import { useSyncNow } from "@cue/core/hooks/useSyncNow";
 import { createQueryClient } from "@cue/core/runtime/query-cache";
-import {
-  type ActivitiesReconcile,
-  type CueRuntime,
-  RuntimeProvider,
-} from "@cue/core/runtime/runtime";
+import type { ActivitiesReconcile, CueRuntime } from "@cue/core/runtime/runtime";
 import { useSyncActivity } from "@cue/core/stores/sync-activity-store";
-import { focusManager, onlineManager, QueryClientProvider, useQuery } from "@tanstack/react-query";
-import { act, type ReactNode } from "react";
+import { focusManager, onlineManager, useQuery } from "@tanstack/react-query";
+import { act, cleanup, render } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, type Mock, vi } from "vitest";
-import { mountAsync, unmount } from "./_mount";
+import { withRuntime } from "../support/providers";
 
-function Probe(): null {
+function Poll(): null {
   useActivitiesPoll();
   return null;
 }
@@ -47,13 +44,10 @@ function stubRuntime(pending: number, afterFlush = 0): Stub {
   return { runtime, pendingWrites, flushWrites, pollActivities };
 }
 
-const session = (runtime: CueRuntime, node: ReactNode = <Probe />): ReactNode => (
-  <QueryClientProvider client={createQueryClient()}>
-    <RuntimeProvider value={runtime}>{node}</RuntimeProvider>
-  </QueryClientProvider>
-);
-
-const mountPoll = (runtime: CueRuntime): Promise<void> => mountAsync(session(runtime));
+async function mountPoll(runtime: CueRuntime, node: ReactNode = <Poll />): Promise<void> {
+  render(node, { wrapper: withRuntime(runtime, createQueryClient()) });
+  await act(async () => {});
+}
 
 const setOnline = (online: boolean) => act(async () => onlineManager.setOnline(online));
 const setFocused = (focused: boolean) => act(async () => focusManager.setFocused(focused));
@@ -95,7 +89,7 @@ describe("useActivitiesPoll write-queue gating", () => {
     await mountPoll(stub.runtime);
     expect(useSyncActivity.getState().checked).toBe(true);
 
-    unmount();
+    cleanup();
     expect(useSyncActivity.getState().checked).toBe(false);
   });
 
@@ -207,14 +201,12 @@ describe("useActivitiesPoll reconcile", () => {
       useQuery({ queryKey: queryKeys.library(), queryFn: vi.fn(), enabled: false });
       return null;
     }
-    await mountAsync(
-      session(
-        reconcileRuntime({ keys: [queryKeys.library()], commit }),
-        <>
-          <DisabledLibrary />
-          <Probe />
-        </>,
-      ),
+    await mountPoll(
+      reconcileRuntime({ keys: [queryKeys.library()], commit }),
+      <>
+        <DisabledLibrary />
+        <Poll />
+      </>,
     );
     await vi.waitFor(() => expect(commit).toHaveBeenCalledOnce());
   });
@@ -230,14 +222,12 @@ describe("useActivitiesPoll reconcile", () => {
       sync[0] = useSyncNow();
       return null;
     }
-    await mountAsync(
-      session(
-        { ...reconcileRuntime({ keys: [], commit }), pollActivities },
-        <>
-          <Probe />
-          <SyncNow />
-        </>,
-      ),
+    await mountPoll(
+      { ...reconcileRuntime({ keys: [], commit }), pollActivities },
+      <>
+        <Poll />
+        <SyncNow />
+      </>,
     );
     expect(pollActivities).toHaveBeenCalledOnce();
 
@@ -285,14 +275,12 @@ describe("useActivitiesPoll reconcile", () => {
       return null;
     }
     const commit = vi.fn(() => Promise.resolve());
-    await mountAsync(
-      session(
-        reconcileRuntime({ keys: [], commit }),
-        <>
-          <Library />
-          <Probe />
-        </>,
-      ),
+    await mountPoll(
+      reconcileRuntime({ keys: [], commit }),
+      <>
+        <Library />
+        <Poll />
+      </>,
     );
     await vi.waitFor(() => expect(reads).toBe(1));
     commit.mockClear();
@@ -321,7 +309,7 @@ describe("useActivitiesPoll reconcile", () => {
 
   async function endSessionBeforeLanding(held: ReturnType<typeof heldRead>, commit: Mock) {
     await vi.waitFor(() => expect(held.started()).toBe(true));
-    unmount();
+    cleanup();
     await act(async () => held.land());
     expect(commit).not.toHaveBeenCalled();
     expect(useSyncActivity.getState().checked).toBe(false);
@@ -345,7 +333,7 @@ describe("useActivitiesPoll reconcile", () => {
         }),
     } as unknown as CueRuntime;
     await mountPoll(runtime);
-    unmount();
+    cleanup();
     await act(async () => answer?.({ keys: [], commit }));
     expect(commit).not.toHaveBeenCalled();
     expect(useSyncActivity.getState().checked).toBe(false);
@@ -365,14 +353,12 @@ describe("useActivitiesPoll reconcile", () => {
       });
       return null;
     }
-    await mountAsync(
-      session(
-        reconcileRuntime({ keys: [queryKeys.library()], commit }),
-        <>
-          <Library />
-          <Probe />
-        </>,
-      ),
+    await mountPoll(
+      reconcileRuntime({ keys: [queryKeys.library()], commit }),
+      <>
+        <Library />
+        <Poll />
+      </>,
     );
     await endSessionBeforeLanding(held, commit);
   });
@@ -395,14 +381,12 @@ describe("useActivitiesPoll reconcile", () => {
       useQuery({ queryKey: queryKeys.library(), queryFn: read });
       return null;
     }
-    await mountAsync(
-      session(
-        { ...reconcileRuntime(reconcile), pollActivities },
-        <>
-          <Library />
-          <Probe />
-        </>,
-      ),
+    await mountPoll(
+      { ...reconcileRuntime(reconcile), pollActivities },
+      <>
+        <Library />
+        <Poll />
+      </>,
     );
     await vi.waitFor(() => expect(answer).toBeDefined());
 
