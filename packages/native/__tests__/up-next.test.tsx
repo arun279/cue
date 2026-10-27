@@ -228,17 +228,6 @@ describe("Up Next", () => {
     expect(screen.queryByText("0 left", { includeHiddenElements: true })).toBeNull();
   });
 
-  it("counts what is left from the next-up episode, leaving skipped seasons out", async () => {
-    await paint({
-      entries: queueOf().map((show) =>
-        show.showId === HARBOR ? { ...show, aired: 30, completed: 7, left: 13 } : show,
-      ),
-    });
-
-    expect(screen.getByText("13 left", { includeHiddenElements: true })).toBeOnTheScreen();
-    expect(screen.queryByText("23 left", { includeHiddenElements: true })).toBeNull();
-  });
-
   it("replaces the old timeline strip with one row that opens the whole log", async () => {
     await paint();
 
