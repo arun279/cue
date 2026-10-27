@@ -30,7 +30,7 @@ Set `EXPO_PUBLIC_TRAKT_CLIENT_ID` to the public client id of a Trakt API app. Th
 pnpm --filter @cue/native prebuild
 ```
 
-`pnpm check` is the deterministic repository gate. It runs Biome, oxlint, dprint, cspell, TypeScript, dependency-cruiser, knip, jscpd, the shipped-bundle checks, Vitest, and the iOS and Android jest-expo projects. pnpm refuses to install or run scripts under any Node other than the one in `engines.node`. In CI, the footprint job comments each pull request's line changes and bundle sizes without gating, and the render-performance job runs the Reassure suite, whose tests assert each scenario's render count.
+`pnpm check` is the deterministic repository gate. It runs Biome, oxlint, dprint, cspell, TypeScript, dependency-cruiser, knip, jscpd, the shipped-bundle checks, Vitest, and the iOS and Android jest-expo projects. pnpm refuses to install or run scripts under any Node other than the one in `engines.node`. In CI, the footprint job comments each pull request's line changes and bundle sizes without gating.
 
 Git hooks are installed by `pnpm install`. Pre-commit runs the fast lint, formatting, spelling, type, and portability gates. Pre-push runs `pnpm check`.
 

@@ -1,10 +1,13 @@
 import type { LibraryEntry } from "@cue/core/data/trakt/library";
 import type { MovieEntry } from "@cue/core/data/trakt/movie-library";
-import type { CalendarEntry } from "@cue/core/domain/calendar";
+import { type CalendarEntry, recentCalendarStart } from "@cue/core/domain/calendar";
+import { dayKeyOf } from "@cue/core/domain/day";
+import { localTimeZone } from "@cue/core/domain/time";
 import type { QueuedOp } from "@cue/core/domain/write-queue/types";
 import { type Haptics, HapticsProvider } from "@cue/core/ports/haptics";
 import type { PreferenceStorage } from "@cue/core/ports/preference-storage";
 import { createPrefsStore, PrefsProvider } from "@cue/core/prefs/prefs-store";
+import { calendarQuery, recentlyAiredQuery } from "@cue/core/queries/calendar";
 import {
   type BrowseData,
   type CueRuntime,
@@ -209,4 +212,13 @@ export function Harness({
 export function resetSharedStores(): void {
   resetMarkStore();
   dismissSnack();
+}
+
+/** The two calendar reads every home surface issues, seeded empty so a test
+ * renders the screen rather than a network that is not there. */
+export function seedCalendars(client: QueryClient, cue: CueRuntime): void {
+  const today = dayKeyOf(localTimeZone(), Date.now());
+  const empty = { entries: [] };
+  client.setQueryData(calendarQuery(cue, today).queryKey, empty);
+  client.setQueryData(recentlyAiredQuery(cue, recentCalendarStart(today)).queryKey, empty);
 }

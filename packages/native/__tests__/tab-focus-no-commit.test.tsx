@@ -7,8 +7,7 @@ import { renderRouter } from "expo-router/testing-library";
 import { Profiler, type ReactElement } from "react";
 import { Platform } from "react-native";
 import { largeLibrary } from "./support/large-library";
-import { seedCalendars } from "./support/perf-up-next";
-import { fakeRuntime, Harness, spyHaptics } from "./support/up-next";
+import { fakeRuntime, Harness, seedCalendars, spyHaptics } from "./support/up-next";
 
 jest.mock(
   "react-native-safe-area-context",

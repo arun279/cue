@@ -16,8 +16,7 @@ import {
   secureBacking,
   secureStoreModule,
 } from "./support/native-stores";
-import { seedCalendars } from "./support/perf-up-next";
-import { entry, fakeRuntime } from "./support/up-next";
+import { entry, fakeRuntime, seedCalendars } from "./support/up-next";
 
 // Every jest factory below is hoisted above the imports, so each one reaches its
 // fake through `require` rather than through a binding that does not exist yet.

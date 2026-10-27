@@ -39,7 +39,6 @@ secrets/
 coverage/
 .dprint-cache
 .pnpm-store/
-packages/native/.reassure/*
 
 
 # Editor / OS

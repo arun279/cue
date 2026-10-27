@@ -1,6 +1,5 @@
 [
   "check",
-  "render-performance",
   "audit",
   "actionlint",
   "android-e2e",

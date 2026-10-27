@@ -5,8 +5,14 @@ import type { QueryClient } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react-native";
 import { Profiler } from "react";
 import { TEST_IDS } from "../src/ui/test-ids";
-import { seedCalendars } from "./support/perf-up-next";
-import { entry, fakeRuntime, Harness, resetSharedStores, spyHaptics } from "./support/up-next";
+import {
+  entry,
+  fakeRuntime,
+  Harness,
+  resetSharedStores,
+  seedCalendars,
+  spyHaptics,
+} from "./support/up-next";
 
 jest.mock("expo-router", () => require("./support/native-ui").expoRouterModule());
 jest.mock("@expo/ui/community/menu", () => require("./support/native-ui").menuModule());

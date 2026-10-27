@@ -251,9 +251,6 @@ importers:
       jest-expo:
         specifier: ~57.0.6
         version: 57.0.6(@babel/core@7.29.7)(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.7))(expo@57.0.31)(jest@29.7.0(@types/node@22.20.0)(ts-node@10.9.2(@swc/core@1.15.43)(@types/node@22.20.0)(typescript@6.0.3)))(react-native@0.86.3(@babel/core@7.29.7)(@react-native/jest-preset@0.86.3(@babel/core@7.29.7)(react@19.2.7))(@react-native/metro-config@0.86.3(@babel/core@7.29.7))(@types/react@19.2.17)(react@19.2.7))(react@19.2.7)
-      reassure:
-        specifier: 1.6.0
-        version: 1.6.0(react@19.2.7)
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
@@ -845,24 +842,6 @@ packages:
   '@bramus/specificity@2.4.2':
     resolution: {integrity: sha512-ctxtJ/eA+t+6q2++vj5j7FYX3nRu311q1wfYH3xjlLOsczhlhxAg2FWNUXhpGvAw3BWo1xBcvOV6/YLc2r5FJw==}
     hasBin: true
-
-  '@callstack/reassure-cli@1.6.0':
-    resolution: {integrity: sha512-GO32KZ295S4s2IBrfr4obQO7S4g/cAHtaFXCBHwfV7U2gyjGsFRM/4h1c4haxBbeky852TnEsZCPkudhs9F+zQ==}
-    hasBin: true
-
-  '@callstack/reassure-compare@1.6.0':
-    resolution: {integrity: sha512-wseMpUagjrd2T9uJ8gR7dACe0lvY7MibEZM4HzQ8Q3Tw7dLbQp25hnlFddv4YupCpE8uBiYknr/XbAmp49b5rw==}
-
-  '@callstack/reassure-danger@1.6.0':
-    resolution: {integrity: sha512-m1/OXw6M12jtCmtokkPDE5qWm6tzzgWjH7Boa0y8YE8poirh7rMzum+/bF9HLfVPkvaY+MGdxQYjQXvtdIMUXQ==}
-
-  '@callstack/reassure-logger@1.6.0':
-    resolution: {integrity: sha512-cDcCkDUZB6Q4p37KViSKAeU5fDoAUbJN2OpcPm7Oddv9Iqh7FTs/kOphW9PrZoKHeaM7EJ9f+AQgW15/FFsSLg==}
-
-  '@callstack/reassure-measure@1.6.0':
-    resolution: {integrity: sha512-05gIhKYk8/7Ka02hjiKYmE+9i0/Rz3NZGTnpjnK9IKRJ6819h12XGmNBsPkzZGqFUei3Vz8NSxoq4SA8kuz7SA==}
-    peerDependencies:
-      react: '>=18.0.0'
 
   '@cspell/cspell-bundled-dicts@9.8.0':
     resolution: {integrity: sha512-MpXFpVyBPfJQ1YuVotljqUaGf6lWuf+fuWBBgs0PHFYTSjRPWuIxviAaCDnup/CJLLH60xQL4IlcQe4TOjzljw==}
@@ -1732,12 +1711,6 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.9':
     resolution: {integrity: sha512-3Belt6tdc8bPgAtbcmdtNJlirVoTmEb5e2gC94PnkwEW9jI6CAHUeoG85tjWP5WquqfavoMtMwiG4P926ZKKuQ==}
-
-  '@kwsites/file-exists@1.1.1':
-    resolution: {integrity: sha512-m9/5YGR18lIwxSFDwfE3oA7bWuq9kdau6ugN4H2rJeyhFQZcG9AgSHkQtSD15a8WvTgfz9aikZMrKPHvbpqFiw==}
-
-  '@kwsites/promise-deferred@1.1.1':
-    resolution: {integrity: sha512-GaHYm+c0O9MjZRu0ongGBRbinu8gVAMd2UZjji6jVmqKtZluZnptXGWhz1E8j8D2HJ3f/yMxKAUC0b+57wncIw==}
 
   '@mswjs/interceptors@0.41.9':
     resolution: {integrity: sha512-VVPPgHyQ6ShqnrmDWuxjmUIsO9gWyOZFmuOfLd9LfBGQJwZfy0gvv9pbHSJuoFNIYC7ZDX9aoFwowjcdSC4E8w==}
@@ -2627,12 +2600,6 @@ packages:
   '@sideway/pinpoint@2.0.0':
     resolution: {integrity: sha512-RNiOoTPkptFtSVzQevY/yWtZwf/RxyVnPy/OcA9HBM3MlGDnBEYL5B41H0MTn0Uec8Hi+2qUtTfG2WWZBmMejQ==}
 
-  '@simple-git/args-pathspec@1.0.3':
-    resolution: {integrity: sha512-ngJMaHlsWDTfjyq9F3VIQ8b7NXbBLq5j9i5bJ6XLYtD6qlDXT7fdKY2KscWWUF8t18xx052Y/PUO1K1TRc9yKA==}
-
-  '@simple-git/argv-parser@1.1.1':
-    resolution: {integrity: sha512-Q9lBcfQ+VQCpQqGJFHe5yooOS5hGdLFFbJ5R+R5aDsnkPCahtn1hSkMcORX65J2Z5lxSkD0lQorMsncuBQxYUw==}
-
   '@sinclair/typebox@0.27.12':
     resolution: {integrity: sha512-hhyNJ+nbR6ZR7pToHvllEFun9TL0sbL+tk/ON75lo+Xas054uez98qRbsuNt7MBCyZKK4+8Yli/OAGZhmfBZ/g==}
 
@@ -3482,9 +3449,6 @@ packages:
     resolution: {integrity: sha512-R2rze/hDX30uul4NZoIZ76ImSJLFxn/1/ZxtKC1L77y2X1k+yYu1joKbAtMA2Fg3hZrTOiw0I5mwVMo0cf250w==}
     engines: {node: '>= 6'}
 
-  complex.js@2.4.3:
-    resolution: {integrity: sha512-UrQVSUur14tNX6tiP4y8T4w4FeJAX3bi2cIv0pu/DTLFNxoq7z2Yh83Vfzztj6Px3X/lubqQ9IrPp7Bpn6p4MQ==}
-
   component-type@1.2.2:
     resolution: {integrity: sha512-99VUHREHiN5cLeHm3YLq312p6v+HUEcwtLCAtelvUDI6+SH5g5Cr85oNR2S1o6ywzL0ykMbuwLzM2ANocjEOIA==}
 
@@ -3914,9 +3878,6 @@ packages:
   escape-html@1.0.3:
     resolution: {integrity: sha512-NiSupZ4OeuGwr68lGIeym/ksIZMJodUGOSCZ/FSnTxcrekbvqrgdUxlJOMpijaKZVjAJrWrGs/6Jy8OMuyj9ow==}
 
-  escape-latex@1.2.0:
-    resolution: {integrity: sha512-nV5aVWW1K0wEiUIEdZ4erkGGH8mDxGyxSeqPzRNtWP7ataw+/olFObw7hujFWlVjNsaDFw5VZ5NzVSIqRgfTiw==}
-
   escape-string-regexp@1.0.5:
     resolution: {integrity: sha512-vbRorB5FUQWvla16U8R/qgaFIya2qGzwDrNmCZuYKrbdSUMG6I1ZCGQRefkRVhuOkIGVne7BQ35DSfo1qvJqFg==}
     engines: {node: '>=0.8.0'}
@@ -4345,9 +4306,6 @@ packages:
     engines: {node: '>=18.3.0'}
     hasBin: true
 
-  fraction.js@5.3.4:
-    resolution: {integrity: sha512-1X1NTtiJphryn/uLQz3whtY6jK3fTqoE3ohKs0tT+Ujr1W59oopxmoEh7Lu5p6vBaPbgoM0bzveAW4Qi5RyWDQ==}
-
   fresh@0.5.2:
     resolution: {integrity: sha512-zJ2mQYM18rEFOudeV4GShTGIQ7RbzA7ozbU9I/XBpm7kqgMywgmylMwXHxZJmkVoYkna9d2pVXVXPdYTP9ej8Q==}
     engines: {node: '>= 0.6'}
@@ -4757,9 +4715,6 @@ packages:
     resolution: {integrity: sha512-wpHYzhxiVQL+IV05BLE2Xn34zW1S223hvjtqk0+gsPrwd/8JNLXJgZZM/iPFsYc1xyphF+6M6EvdE5E9MBGkDA==}
     engines: {node: '>=10'}
     hasBin: true
-
-  javascript-natural-sort@0.7.1:
-    resolution: {integrity: sha512-nO6jcEfZWQXDhOiBtG2KvKyEptz7RVbpGP4vTD2hLBdmNQSsCiicO2Ioinv6UI4y9ukqnBpy+XZ9H6uLNgJTlw==}
 
   jest-changed-files@29.7.0:
     resolution: {integrity: sha512-fEArFiwf1BpQ+4bXSprcDc3/x4HSzL4al2tozwVpDFpsxALjLYdyiIK4e5Vz66GQJIbXJ82+35PtysofptNX2w==}
@@ -5323,11 +5278,6 @@ packages:
   math-intrinsics@1.1.0:
     resolution: {integrity: sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g==}
     engines: {node: '>= 0.4'}
-
-  mathjs@15.2.0:
-    resolution: {integrity: sha512-UAQzSVob9rNLdGpqcFMYmSu9dkuLYy7Lr2hBEQS5SHQdknA9VppJz3cy2KkpMzTODunad6V6cNv+5kOLsePLow==}
-    engines: {node: '>= 18'}
-    hasBin: true
 
   md5@2.3.0:
     resolution: {integrity: sha512-T1GITYmFaKuO91vxyoQMFETst+O71VUPEU3ze5GNzDm0OWdP8v1ziTaAEPUr/3kLsY3Sftgz242A1SetQiDL7g==}
@@ -6093,11 +6043,6 @@ packages:
       '@types/react':
         optional: true
 
-  react-test-config@1.0.0:
-    resolution: {integrity: sha512-uoYlGns8YSB/FS0aAzUVg/wgS4z882rygig4gcwf0hEzAWEM6O2zN2r3gYLyYwm8MMRuqwLUOBWWq60K5/pBPQ==}
-    peerDependencies:
-      react: '*'
-
   react-test-renderer@19.2.3:
     resolution: {integrity: sha512-TMR1LnSFiWZMJkCgNf5ATSvAheTT2NvKIwiVwdBPHxjBI7n/JbWd4gaZ16DVd9foAXdvDz+sB5yxZTwMjPRxpw==}
     peerDependencies:
@@ -6109,10 +6054,6 @@ packages:
 
   readable-stream@2.3.8:
     resolution: {integrity: sha512-8p0AUk4XODgIewSi0l8Epjs+EVnWiK7NoDIEGU0HhE7+ZyY8D1IMY7odu5lRrFXGg71L15KG8QrPmum45RTtdA==}
-
-  reassure@1.6.0:
-    resolution: {integrity: sha512-DjfhKCqIFcmb1zAkRFrM4eDtMG63kbs6/4tjP6QOqf+mnREfQIoUX4xM8D5sF6GfkjNnehRM5pk8Bi/vaW3eyA==}
-    hasBin: true
 
   rechoir@0.8.0:
     resolution: {integrity: sha512-/vxpCXddiX8NGfGO/mTafwjq4aFa/71pvamip0++IQk3zG8cbCj0fifNPrjjF1XMXUne91jL9OoxmdykoEtifQ==}
@@ -6254,9 +6195,6 @@ packages:
   scheduler@0.27.0:
     resolution: {integrity: sha512-eNv+WrVbKu1f3vbYJT/xtiF5syA5HPIMtf9IgY/nKg0sWqzAUEvqY/xm7OcZc/qafLx/iO9FgOmeSAp4v5ti/Q==}
 
-  seedrandom@3.0.5:
-    resolution: {integrity: sha512-8OwmbklUNzwezjGInmZ+2clQmExQPvomqjL7LFqOYqtmuxRgQYqOD3mHaU+MvZn5FLUeVxVfQjwLZW/n/JFuqg==}
-
   semver@6.3.1:
     resolution: {integrity: sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA==}
     hasBin: true
@@ -6340,9 +6278,6 @@ packages:
   signal-exit@4.1.0:
     resolution: {integrity: sha512-bzyZ1e88w9O1iNJbKnOlvYTrWPDl46O1bG0D3XInv+9tkPrxrN8jUUTiFlDkkmKWgn1M6CfIA13SuGqOa9Korw==}
     engines: {node: '>=14'}
-
-  simple-git@3.36.0:
-    resolution: {integrity: sha512-cGQjLjK8bxJw4QuYT7gxHw3/IouVESbhahSsHrX97MzCL1gu2u7oy38W6L2ZIGECEfIBG4BabsWDPjBxJENv9Q==}
 
   simple-plist@1.3.1:
     resolution: {integrity: sha512-iMSw5i0XseMnrhtIzRb7XpQEXepa9xhWxGUojHBL43SIpQuDQkh3Wpy67ZbDzZVr6EKxvwVChnVpdl8hEVLDiw==}
@@ -6600,9 +6535,6 @@ packages:
   throat@5.0.0:
     resolution: {integrity: sha512-fcwX4mndzpLQKBS1DVYhGAcYaYt7vsHNIvQV+WXMvnow5cgjPphq5CaayLaGsjRdSCKZFNGt7/GYAuXaNOiYCA==}
 
-  tiny-emitter@2.1.0:
-    resolution: {integrity: sha512-NB6Dk1A9xgQPMoGqC5CVXn123gWyte215ONT5Pp5a0yt4nlEoO1ZWeCwpncaekPHXO60i47ihFnZPiRPjRMq4Q==}
-
   tinybench@2.9.0:
     resolution: {integrity: sha512-0+DUvqWMValLmha6lr4kD8iAMK1HzV0/aKnCtWb9v9641TnP/MFb7Pc2bxoxQjTXAErryXVgUOfv2YqNllqGeg==}
 
@@ -6665,10 +6597,6 @@ packages:
   ts-interface-checker@0.1.13:
     resolution: {integrity: sha512-Y/arvbn+rrz3JCKl9C4kVNfTfSm2/mEp5FSz5EsZSANGPSlQrpRI5M4PKF+mJnE52jOO90PnPSc3Ur3bTQw0gA==}
 
-  ts-markdown-builder@0.6.0:
-    resolution: {integrity: sha512-O0ZmHM5fLRgO+FkXol2yCPV5oqbNA3InmuuuXdbwT+j249l+30Ty6gL4B540Ru/D2JEY91qwS+L3irUfDivfjQ==}
-    engines: {node: '>= 18.0.0'}
-
   ts-node@10.9.2:
     resolution: {integrity: sha512-f0FFpIdcHgn8zcPSbf1dRevwt047YMnaiJM3u2w2RewrB+fob/zePZcrOyQoLMMO7aBIddLcQIEK5dYjkLnGrQ==}
     hasBin: true
@@ -6682,10 +6610,6 @@ packages:
         optional: true
       '@swc/wasm':
         optional: true
-
-  ts-regex-builder@1.8.2:
-    resolution: {integrity: sha512-Y8HovHFheDKm/jgLIWSO8o81xA/I9O5AGc3/vNG1sVSskatOifr3SQzAsatBXGLjL3nYhQif1MpwQRS5GF8ADg==}
-    engines: {node: '>= 18.0.0'}
 
   tsconfig-paths-webpack-plugin@4.2.0:
     resolution: {integrity: sha512-zbem3rfRS8BgeNK50Zz5SIQgXzLafiHjOwUAvk/38/o1jHn/V5QAgVUcz884or7WYcPaH3N2CIfUc2u0ul7UcA==}
@@ -6725,10 +6649,6 @@ packages:
   type-fest@5.8.0:
     resolution: {integrity: sha512-YGYEVz3Fm5iy/AybuA0oyNFq7H4CgQNfRp/qfe8nurE1kuCeNm3/vfm9X4Mtl+qLyaKJUh5xrFZwogr41SMjYA==}
     engines: {node: '>=20'}
-
-  typed-function@4.2.2:
-    resolution: {integrity: sha512-VwaXim9Gp1bngi/q3do8hgttYn2uC3MoT/gfuMWylnj1IeZBUAyPddHZlo1K05BDoj8DYPpMdiHqH1dDYdJf2A==}
-    engines: {node: '>= 18'}
 
   typescript@6.0.3:
     resolution: {integrity: sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==}
@@ -7884,38 +7804,6 @@ snapshots:
   '@bramus/specificity@2.4.2':
     dependencies:
       css-tree: 3.2.1
-
-  '@callstack/reassure-cli@1.6.0':
-    dependencies:
-      '@callstack/reassure-compare': 1.6.0
-      '@callstack/reassure-logger': 1.6.0
-      chalk: 4.1.2
-      simple-git: 3.36.0
-      yargs: 17.7.3
-    transitivePeerDependencies:
-      - supports-color
-
-  '@callstack/reassure-compare@1.6.0':
-    dependencies:
-      '@callstack/reassure-logger': 1.6.0
-      mathjs: 15.2.0
-      ts-markdown-builder: 0.6.0
-      ts-regex-builder: 1.8.2
-      zod: 4.6.7
-
-  '@callstack/reassure-danger@1.6.0': {}
-
-  '@callstack/reassure-logger@1.6.0':
-    dependencies:
-      chalk: 4.1.2
-
-  '@callstack/reassure-measure@1.6.0(react@19.2.7)':
-    dependencies:
-      '@callstack/reassure-logger': 1.6.0
-      mathjs: 15.2.0
-      pretty-format: 30.4.1
-      react: 19.2.7
-      react-test-config: 1.0.0(react@19.2.7)
 
   '@cspell/cspell-bundled-dicts@9.8.0':
     dependencies:
@@ -9199,14 +9087,6 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@kwsites/file-exists@1.1.1':
-    dependencies:
-      debug: 4.4.3(supports-color@8.1.1)
-    transitivePeerDependencies:
-      - supports-color
-
-  '@kwsites/promise-deferred@1.1.1': {}
-
   '@mswjs/interceptors@0.41.9':
     dependencies:
       '@open-draft/deferred-promise': 2.2.0
@@ -9989,12 +9869,6 @@ snapshots:
   '@sideway/formula@3.0.1': {}
 
   '@sideway/pinpoint@2.0.0': {}
-
-  '@simple-git/args-pathspec@1.0.3': {}
-
-  '@simple-git/argv-parser@1.1.1':
-    dependencies:
-      '@simple-git/args-pathspec': 1.0.3
 
   '@sinclair/typebox@0.27.12': {}
 
@@ -10906,8 +10780,6 @@ snapshots:
       array-timsort: 1.0.3
       esprima: 4.0.1
 
-  complex.js@2.4.3: {}
-
   component-type@1.2.2: {}
 
   compressible@2.0.18:
@@ -11451,8 +11323,6 @@ snapshots:
 
   escape-html@1.0.3: {}
 
-  escape-latex@1.2.0: {}
-
   escape-string-regexp@1.0.5: {}
 
   escape-string-regexp@2.0.0: {}
@@ -11937,8 +11807,6 @@ snapshots:
     dependencies:
       fd-package-json: 2.0.0
 
-  fraction.js@5.3.4: {}
-
   fresh@0.5.2: {}
 
   fresh@2.0.0: {}
@@ -12337,8 +12205,6 @@ snapshots:
       async: 3.2.6
       filelist: 1.0.6
       picocolors: 1.1.1
-
-  javascript-natural-sort@0.7.1: {}
 
   jest-changed-files@29.7.0:
     dependencies:
@@ -13104,18 +12970,6 @@ snapshots:
   marky@1.3.0: {}
 
   math-intrinsics@1.1.0: {}
-
-  mathjs@15.2.0:
-    dependencies:
-      '@babel/runtime': 7.29.10
-      complex.js: 2.4.3
-      decimal.js: 10.6.0
-      escape-latex: 1.2.0
-      fraction.js: 5.3.4
-      javascript-natural-sort: 0.7.1
-      seedrandom: 3.0.5
-      tiny-emitter: 2.1.0
-      typed-function: 4.2.2
 
   md5@2.3.0:
     dependencies:
@@ -14175,10 +14029,6 @@ snapshots:
     optionalDependencies:
       '@types/react': 19.2.17
 
-  react-test-config@1.0.0(react@19.2.7):
-    dependencies:
-      react: 19.2.7
-
   react-test-renderer@19.2.3(react@19.2.7):
     dependencies:
       react: 19.2.7
@@ -14196,16 +14046,6 @@ snapshots:
       safe-buffer: 5.1.2
       string_decoder: 1.1.1
       util-deprecate: 1.0.2
-
-  reassure@1.6.0(react@19.2.7):
-    dependencies:
-      '@callstack/reassure-cli': 1.6.0
-      '@callstack/reassure-compare': 1.6.0
-      '@callstack/reassure-danger': 1.6.0
-      '@callstack/reassure-measure': 1.6.0(react@19.2.7)
-    transitivePeerDependencies:
-      - react
-      - supports-color
 
   rechoir@0.8.0:
     dependencies:
@@ -14343,8 +14183,6 @@ snapshots:
 
   scheduler@0.27.0: {}
 
-  seedrandom@3.0.5: {}
-
   semver@6.3.1: {}
 
   semver@7.5.2:
@@ -14438,16 +14276,6 @@ snapshots:
   signal-exit@3.0.7: {}
 
   signal-exit@4.1.0: {}
-
-  simple-git@3.36.0:
-    dependencies:
-      '@kwsites/file-exists': 1.1.1
-      '@kwsites/promise-deferred': 1.1.1
-      '@simple-git/args-pathspec': 1.0.3
-      '@simple-git/argv-parser': 1.1.1
-      debug: 4.4.3(supports-color@8.1.1)
-    transitivePeerDependencies:
-      - supports-color
 
   simple-plist@1.3.1:
     dependencies:
@@ -14710,8 +14538,6 @@ snapshots:
 
   throat@5.0.0: {}
 
-  tiny-emitter@2.1.0: {}
-
   tinybench@2.9.0: {}
 
   tinyexec@1.2.4: {}
@@ -14764,8 +14590,6 @@ snapshots:
 
   ts-interface-checker@0.1.13: {}
 
-  ts-markdown-builder@0.6.0: {}
-
   ts-node@10.9.2(@swc/core@1.15.43)(@types/node@22.20.0)(typescript@6.0.3):
     dependencies:
       '@cspotcode/source-map-support': 0.8.1
@@ -14785,8 +14609,6 @@ snapshots:
       yn: 3.1.1
     optionalDependencies:
       '@swc/core': 1.15.43
-
-  ts-regex-builder@1.8.2: {}
 
   tsconfig-paths-webpack-plugin@4.2.0:
     dependencies:
@@ -14824,8 +14646,6 @@ snapshots:
   type-fest@5.8.0:
     dependencies:
       tagged-tag: 1.0.0
-
-  typed-function@4.2.2: {}
 
   typescript@6.0.3: {}
 
