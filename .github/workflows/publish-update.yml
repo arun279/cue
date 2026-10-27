@@ -3,14 +3,6 @@ name: Publish update
 on:
   workflow_dispatch:
     inputs:
-      ci_run_id:
-        description: Completed CI push run ID for this exact commit
-        type: string
-        required: true
-      codeql_run_id:
-        description: Completed CodeQL push run ID for this exact commit
-        type: string
-        required: true
       action:
         description: "publish = this ref to preview, promote = the update group below to production"
         type: choice
@@ -42,7 +34,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
-      actions: read
       checks: read
       contents: read
     steps:
@@ -52,8 +43,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           SHA: ${{ github.sha }}
-          CI_RUN_ID: ${{ inputs.ci_run_id }}
-          CODEQL_RUN_ID: ${{ inputs.codeql_run_id }}
         run: scripts/require-green-ci.sh
 
   publish:

@@ -67,7 +67,7 @@ To run the smoke flows locally, start `pnpm fake:trakt`, install a build made wi
 
 ## Releasing
 
-`.github/workflows/mobile-release.yml` builds the app with `eas build --local` on GitHub-hosted runners, using the `production` profile in `packages/native/eas.json`. It runs only when dispatched, and every dispatch needs the IDs of the completed CI and CodeQL push runs for the exact commit (`ci_run_id` and `codeql_run_id`). A build first checks that every check in `.github/required-checks.json` passed in them.
+`.github/workflows/mobile-release.yml` builds the app with `eas build --local` on GitHub-hosted runners, using the `production` profile in `packages/native/eas.json`. It runs only when dispatched. A build first checks that every check in `.github/required-checks.json` ran on the exact commit and that every run of it passed, re-runs included.
 
 - **owner** uploads iOS to TestFlight with `eas submit`, where the internal testers get it, and Android to the Firebase App Distribution group `owner`.
 - **friends** does the same, then adds the iOS build to the app's one external TestFlight group, submitting it for beta review when Apple asks for one, and gives the Android release to the Firebase group `friends` as well.
@@ -81,7 +81,7 @@ Local EAS builds take Node and pnpm from the runner, not `eas.json`. The workflo
 
 EAS Update can replace JavaScript and bundled assets. It cannot change native modules, permissions, app configuration, or other native code. The fingerprint runtime policy only offers an update to compatible installed builds, so any native change requires a new build. App version and build numbers stay out of the fingerprint, so a release's numbering never changes which updates it receives. The build profile in `packages/native/eas.json` sets a build's update channel, and the app config carries none, so builds of one commit share a runtime whichever channel they listen on.
 
-Open GitHub Actions, choose **Publish update**, select **Run workflow**, give `ci_run_id` and `codeql_run_id` as for a release, and pick an action. **publish** checks those runs as a build does:
+Open GitHub Actions, choose **Publish update**, select **Run workflow** and pick an action. **publish** checks the commit's required checks as a build does:
 
 - **publish** exports the chosen ref with the EAS `production` environment and publishes it to the `preview` channel.
 - **promote** copies one `preview` update group to `production` unchanged. Give it the group the owner tested; `eas update:list --branch preview --json` lists the groups with their messages and commits.
