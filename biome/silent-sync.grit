@@ -1,0 +1,15 @@
+language js
+
+or {
+  JsImport() as $import where { $import <: contains `useSyncNow` },
+  JsxAttribute(name=r"refreshing", initializer=$value) as $attribute where {
+    $attribute <: within JsxSelfClosingElement(name=r"RefreshControl"),
+    not $value <: contains `$_.refreshing`
+  }
+} as $use where {
+  register_diagnostic(
+    span=$use,
+    message="A sync has to show that it is running. Start it with usePullToRefresh and spin the RefreshControl on its refreshing.",
+    severity="error"
+  )
+}

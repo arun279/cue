@@ -10,6 +10,8 @@ import { TEST_IDS } from "../src/ui/test-ids";
 import { accountFixture } from "./support/account";
 import { DetailHarness } from "./support/detail";
 
+jest.unmock("react-native-safe-area-context");
+
 jest.mock("expo-router", () => {
   const { createElement } = require("react") as typeof import("react");
   const native = require("./support/native-ui").expoRouterModule();

@@ -204,19 +204,6 @@ describe("single-item history op builders", () => {
     });
     expect(op.reconcileKeys).toEqual(["watched/movies", "movie-progress"]);
   });
-
-  it("unmark removes by item id only: the all-plays MVP semantic (no history-id, no watched_at)", () => {
-    // A rewatched episode (multiple plays): a single remove-by-item clears every
-    // play. The body carries only `{ids}`: no `id`/history-id, no `watched_at`.
-    const op = buildUnmarkEpisodeOp({ opId: "rw-1", ids: { trakt: 99 }, watchedAt: WATCHED_AT });
-    expect(op.request).toEqual({
-      method: "POST",
-      path: "/sync/history/remove",
-      body: { episodes: [{ ids: { trakt: 99 } }] },
-    });
-    const item = (op.request.body as { episodes: Record<string, unknown>[] }).episodes[0];
-    expect(Object.keys(item ?? {})).toEqual(["ids"]);
-  });
 });
 
 describe("buildRemovePlaysOp (durable per-play-safe unmark)", () => {

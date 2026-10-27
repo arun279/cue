@@ -291,10 +291,6 @@ export function preferenceStorageModule() {
   };
 }
 
-export function safeAreaModule() {
-  return { useSafeAreaInsets: () => ({ bottom: 0 }) };
-}
-
 interface SwipeableProps {
   readonly testID?: string;
   readonly leftThreshold?: number;

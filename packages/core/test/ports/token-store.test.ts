@@ -2,6 +2,7 @@ import type { Token } from "@cue/core/domain/model/token";
 import type { KeyValueStore } from "@cue/core/ports/kv";
 import { createTokenStore } from "@cue/core/ports/token-store";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { memoryKeyValueStore } from "../support/stores";
 
 const TOKEN: Token = {
   access_token: "access",
@@ -51,6 +52,15 @@ function slowKeychain(seed: string | null = null) {
 describe("the token store", () => {
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it("round-trips a token and refuses a wrong-shaped one", async () => {
+    const kv = memoryKeyValueStore();
+    await createTokenStore(kv).write(TOKEN);
+    expect(await createTokenStore(kv).read()).toEqual(TOKEN);
+
+    await kv.write("cue.trakt.token", JSON.stringify({ access_token: "only" }));
+    expect(await createTokenStore(kv).read()).toBeNull();
   });
 
   it("answers reads from memory while the Keychain is still saving", async () => {

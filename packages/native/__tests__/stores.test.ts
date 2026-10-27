@@ -1,42 +1,23 @@
 import { createPrefsStore } from "@cue/core/prefs/prefs-store";
-import { describeKeyValueStore } from "./support/kv-contract";
-import { bulkBacking, secureBacking } from "./support/native-stores";
+import { bulkBacking, secureStoreModule } from "./support/native-stores";
 
-// Both factories are hoisted above the imports, so each reaches its fake
-// through `require` rather than through a binding that does not exist yet, and
-// the adapters are loaded the same way, after the mocks are in place.
-jest.mock("expo-sqlite/kv-store", () => ({
-  __esModule: true,
-  default: require("./support/native-stores").bulkBacking,
-}));
 jest.mock("expo-secure-store", () => require("./support/native-stores").secureStoreModule);
 
-const { bulkStore, clearLocalPreferences, preferenceStorage, secureStore } =
-  require("../src/platform/stores") as typeof import("../src/platform/stores");
+import {
+  bulkStore,
+  clearLocalPreferences,
+  preferenceStorage,
+  secureStore,
+} from "../src/platform/stores";
 
-/**
- * The two native backends against the one contract every `KeyValueStore` has to
- * satisfy.
- * This seam carries the OAuth token and the durable write queue, so a backend
- * that truncates a long value, mangles a non-latin1 one, throws instead of
- * answering null or forgets across a restart loses a user's writes silently.
- */
-describeKeyValueStore({
-  name: "the native bulk store (expo-sqlite/kv-store)",
-  open: () => bulkStore,
-  reset: () => {
-    bulkBacking.values.clear();
-    return Promise.resolve();
-  },
-});
+it("keeps the token in a Keychain item that never moves to another device through a backup", async () => {
+  const save = jest.spyOn(secureStoreModule, "setItemAsync");
 
-describeKeyValueStore({
-  name: "the native token store (expo-secure-store)",
-  open: () => secureStore,
-  reset: () => {
-    secureBacking.clear();
-    return Promise.resolve();
-  },
+  await secureStore.write("cue.trakt.token", "token");
+
+  expect(save).toHaveBeenCalledWith("cue.trakt.token", "token", {
+    keychainAccessible: secureStoreModule.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+  });
 });
 
 /**

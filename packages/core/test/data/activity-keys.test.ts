@@ -4,7 +4,7 @@ import type { CueRuntime } from "@cue/core/runtime/runtime";
 import { describe, expect, it } from "vitest";
 import { FIXTURE_NOW } from "../trakt-fake/account.ts";
 import { startTraktFake } from "../trakt-fake/in-process.ts";
-import { buildRuntime, memoryKv } from "./_runtime";
+import { buildRuntime } from "./_runtime";
 
 let now = FIXTURE_NOW;
 const fake = startTraktFake({ clock: () => now });
@@ -12,7 +12,7 @@ const client = new TraktClient({ clientId: "cid", getToken: () => fake.session()
 
 /** A runtime that has already polled once and kept the stamps it saw. */
 async function polledRuntime(): Promise<CueRuntime> {
-  const runtime = await buildRuntime({ token: fake.session(), kv: memoryKv() });
+  const runtime = await buildRuntime({ token: fake.session() });
   const first = await runtime.pollActivities();
   expect(first?.keys).toEqual([]);
   await first?.commit();

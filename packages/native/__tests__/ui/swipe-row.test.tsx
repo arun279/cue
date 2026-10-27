@@ -6,10 +6,6 @@ import { SWIPE_COMMIT } from "../../src/ui/tokens";
 import { drag } from "../support/native-ui";
 import { spyHaptics } from "../support/up-next";
 
-jest.mock("react-native-gesture-handler/ReanimatedSwipeable", () =>
-  require("../support/native-ui").swipeableModule(),
-);
-
 const haptics = spyHaptics();
 
 function renderRow(onMark: (() => void) | undefined, onStop: () => void) {

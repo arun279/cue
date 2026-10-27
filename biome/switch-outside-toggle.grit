@@ -1,6 +1,10 @@
 language js
 
 or {
+  JsImport() as $import where {
+    $import <: contains or { `"react-native"`, `"react-native-gesture-handler"` },
+    $import <: contains `Switch`
+  },
   `$object.Switch`,
   JsxMemberName(member=$member) where { $member <: `Switch` },
   `const $names = require($module)` where {

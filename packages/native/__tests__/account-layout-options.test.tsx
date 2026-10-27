@@ -11,11 +11,6 @@ interface HeaderOptions {
   readonly headerShadowVisible?: boolean;
 }
 
-jest.mock(
-  "react-native-safe-area-context",
-  () => require("react-native-safe-area-context/jest/mock").default,
-);
-
 let mockStackOptions: HeaderOptions | undefined;
 
 jest.mock("expo-router", () => {

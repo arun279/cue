@@ -1,7 +1,7 @@
 import { AndroidConfig } from "expo/config-plugins";
-import { PALETTE } from "../src/ui/tokens";
+import { PALETTE } from "../../src/ui/tokens";
 
-const { applyDialogTheme, DIALOG_COLORS } = require("../plugins/with-android-dialog-theme");
+const { applyDialogTheme, DIALOG_COLORS } = require("../../plugins/with-android-dialog-theme");
 
 it("paints Android's alert dialogs in Cue's ink, overlay and text colors", () => {
   expect(DIALOG_COLORS).toEqual({

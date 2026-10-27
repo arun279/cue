@@ -1,0 +1,17 @@
+language js
+
+or {
+  JsxAttribute(name=r"accessibilityRole|role", initializer=$value) where {
+    $value <: r"=\s*\{?\s*\"(?:tab|radio|checkbox|switch)\"\s*\}?"
+  },
+  JsxAttribute(name=r"aria-selected|aria-checked"),
+  JsxAttribute(name=r"accessibilityState", initializer=$value) where {
+    $value <: contains JsPropertyObjectMember(name=r"selected|checked")
+  }
+} as $use where {
+  register_diagnostic(
+    span=$use,
+    message="Use the platform's own tab, segmented, checkbox or switch control, which draws and announces its selection itself.",
+    severity="error"
+  )
+}

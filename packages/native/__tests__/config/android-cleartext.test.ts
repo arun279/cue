@@ -1,9 +1,9 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { nativeAppConfig } from "../app.config";
+import { nativeAppConfig } from "../../app.config";
 
-const withAndroidPrivacy = require("../plugins/with-android-privacy");
+const withAndroidPrivacy = require("../../plugins/with-android-privacy");
 
 const directories: string[] = [];
 afterEach(() => {

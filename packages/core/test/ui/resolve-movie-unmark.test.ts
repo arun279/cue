@@ -2,10 +2,11 @@ import type { MoviePlay } from "@cue/core/domain/reversal";
 import { resolveMovieUnmark } from "@cue/core/hooks/resolve-unmark";
 import type { CueRuntime } from "@cue/core/runtime/runtime";
 import { describe, expect, it } from "vitest";
+import { partialRuntime } from "../support/runtime";
 
 /** A runtime that answers only `loadMoviePlays`: the sole read the resolver makes. */
 function runtimeWithPlays(load: () => Promise<readonly MoviePlay[]>): CueRuntime {
-  return { loadMoviePlays: (_movieId: number) => load() } as unknown as CueRuntime;
+  return partialRuntime({ loadMoviePlays: (_movieId: number) => load() });
 }
 
 const settled = (id: number, at = "2026-07-05T21:24:00.000Z"): MoviePlay => ({

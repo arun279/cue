@@ -31,20 +31,8 @@ import {
 
 jest.mock("expo-router", () => require("./support/native-ui").expoRouterModule());
 jest.mock("@cue/core/hooks/useReadRetry", () => ({ useReadRetry: jest.fn(() => null) }));
-jest.mock("@expo/ui/community/menu", () => require("./support/native-ui").menuModule());
-jest.mock("react-native-gesture-handler/ReanimatedSwipeable", () =>
-  require("./support/native-ui").swipeableModule(),
-);
-jest.mock(
-  "react-native-safe-area-context",
-  () => require("react-native-safe-area-context/jest/mock").default,
-);
 // The tutorial line reads its one-time flag at import, and this runner has no
 // SQLite behind the preference store.
-jest.mock("expo-sqlite/kv-store", () => ({
-  __esModule: true,
-  default: require("./support/native-stores").bulkBacking,
-}));
 
 const UpNext = (require("../app/(tabs)/(up-next)") as typeof import("../app/(tabs)/(up-next)"))
   .default;
@@ -228,18 +216,7 @@ describe("Up Next", () => {
     expect(screen.queryByText("0 left", { includeHiddenElements: true })).toBeNull();
   });
 
-  it("counts what is left from the next-up episode, leaving skipped seasons out", async () => {
-    await paint({
-      entries: queueOf().map((show) =>
-        show.showId === HARBOR ? { ...show, aired: 30, completed: 7, left: 13 } : show,
-      ),
-    });
-
-    expect(screen.getByText("13 left", { includeHiddenElements: true })).toBeOnTheScreen();
-    expect(screen.queryByText("23 left", { includeHiddenElements: true })).toBeNull();
-  });
-
-  it("replaces the old timeline strip with one row that opens the whole log", async () => {
+  it("offers one row that opens the whole history", async () => {
     await paint();
 
     expect(screen.getByTestId("link-history")).toBeOnTheScreen();

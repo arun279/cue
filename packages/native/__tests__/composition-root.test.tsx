@@ -22,15 +22,7 @@ import { entry, fakeRuntime, seedCalendars } from "./support/up-next";
 // Every jest factory below is hoisted above the imports, so each one reaches its
 // fake through `require` rather than through a binding that does not exist yet.
 jest.mock("expo-secure-store", () => require("./support/native-stores").secureStoreModule);
-jest.mock("expo-sqlite/kv-store", () => ({
-  __esModule: true,
-  default: require("./support/native-stores").bulkBacking,
-}));
 jest.mock("../modules/cue-native/src", () => require("./support/native-stores").cueNativeModule);
-jest.mock(
-  "react-native-safe-area-context",
-  () => require("react-native-safe-area-context/jest/mock").default,
-);
 // Its native module has no host under this runner: Android fails at import and
 // iOS reports a tap that never happened.
 jest.mock("expo-notifications", () => ({ useLastNotificationResponse: () => null }));
@@ -44,10 +36,6 @@ jest.mock("../src/boot", () => ({
   bootNativeStores: jest.fn(jest.requireActual("../src/boot").bootNativeStores),
 }));
 jest.mock("@cue/core/hooks/useActivitiesPoll", () => ({ useActivitiesPoll: jest.fn() }));
-jest.mock("@expo/ui/community/menu", () => require("./support/native-ui").menuModule());
-jest.mock("react-native-gesture-handler/ReanimatedSwipeable", () =>
-  require("./support/native-ui").swipeableModule(),
-);
 jest.mock("expo-application", () => ({
   nativeApplicationVersion: "1.2.3",
   nativeBuildVersion: "45",

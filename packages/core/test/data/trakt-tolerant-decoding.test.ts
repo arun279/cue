@@ -13,8 +13,9 @@ import { loadUpNextEntries } from "@cue/core/data/trakt/read-budget";
 import { INCIDENTS_KEY } from "@cue/core/ports/storage-keys";
 import { useReadIncidents } from "@cue/core/stores/read-incidents-store";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { memoryKeyValueStore } from "../support/stores";
 import { createTraktFake } from "../trakt-fake/fake.ts";
-import { buildRuntime, memoryKv } from "./_runtime";
+import { buildRuntime } from "./_runtime";
 
 /**
  * Bodies Trakt does not send on purpose: drifted fields, missing essentials, pages
@@ -320,7 +321,7 @@ describe("read incidents", () => {
 
   it("records a failed read in memory and in the persisted store, and hydrates it", async () => {
     vi.stubGlobal("fetch", async () => new Response(null, { status: 204 }));
-    const kv = memoryKv();
+    const kv = memoryKeyValueStore();
     const runtime = await buildRuntime({ kv });
     await expect(runtime.loadUserProfile()).rejects.toMatchObject({
       failure: { kind: "no-content" },

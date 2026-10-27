@@ -4,11 +4,6 @@ import { act, renderRouter, screen } from "expo-router/testing-library";
 import { View } from "react-native";
 import { SnackbarHost } from "../../src/ui/SnackbarHost";
 
-jest.mock(
-  "react-native-safe-area-context",
-  () => require("react-native-safe-area-context/jest/mock").default,
-);
-
 afterEach(() => jest.useRealTimers());
 
 it("keeps Undo across real navigation until its deadline", async () => {

@@ -9,9 +9,9 @@
  * `testMatch` names the test files rather than the directory, so a support
  * module beside them is not itself run as a suite with no tests in it.
  *
- * `moduleNameMapper` points `vitest` at a shim over jest's own globals: the
- * shared `KeyValueStore` contract lives in `@cue/core`'s test tree and is run by
- * both runners rather than transcribed into a second copy.
+ * The tests under `__tests__/config` read the app config and the config plugins,
+ * which are the same whichever platform the runner models, so only the iOS
+ * project runs them.
  *
  * `nanoid` is added to jest-expo's transform allow-list rather than the list
  * being restated: expo-router's vendored React Navigation imports
@@ -38,6 +38,7 @@ const project = {
     require.resolve("react-native-gesture-handler/jestSetup"),
   ],
   setupFilesAfterEnv: [
+    "<rootDir>/__tests__/support/native-modules.ts",
     "<rootDir>/__tests__/support/reanimated.ts",
     "<rootDir>/__tests__/support/transient-state.ts",
     "<rootDir>/__tests__/support/app-state.ts",
@@ -57,6 +58,11 @@ module.exports = {
   ...(process.env.JEST_MAX_WORKERS && { maxWorkers: process.env.JEST_MAX_WORKERS }),
   projects: [
     { ...project, preset: "jest-expo/ios", displayName: "ios" },
-    { ...project, preset: "jest-expo/android", displayName: "android" },
+    {
+      ...project,
+      preset: "jest-expo/android",
+      displayName: "android",
+      testPathIgnorePatterns: ["/node_modules/", "<rootDir>/__tests__/config/"],
+    },
   ],
 };

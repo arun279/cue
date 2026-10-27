@@ -18,6 +18,7 @@ import { resetMarkStore } from "@cue/core/stores/mark-store";
 import { dismissSnack } from "@cue/core/stores/snackbar-store";
 import { type QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { type ReactElement, type ReactNode, useState } from "react";
+import { partialRuntime } from "../../../core/test/support/runtime";
 import { memoryPreferenceStorage } from "../../../core/test/support/stores";
 import { createAppQueryClient } from "../../src/platform/query-client";
 import { SnackbarHost } from "../../src/ui/SnackbarHost";
@@ -104,12 +105,6 @@ const NO_BROWSE: BrowseData = {
   popularMovies: [],
 };
 
-/**
- * The slice of the runtime the home screen actually reaches. Cast once, here,
- * rather than in every file that needs one: the interface is the composition
- * root's contract with twenty-five methods, and a screen test that had to fill
- * all of them would be a test of the fixture.
- */
 /** Trakt's answer to a write it applied by adding one play. */
 const ADDED = { added: 1, updated: 0, deleted: 0, existing: 0, notFound: 0 };
 
@@ -124,7 +119,7 @@ export function fakeRuntime({
   const answered = new Set<string>();
   const sending = new Set<QueuedOp>();
   const settle = submit ?? (() => Promise.resolve<SubmitOutcome>("done"));
-  return {
+  return partialRuntime({
     newId: () => "test-op-id",
     loadUpNext: () => Promise.resolve({ entries: [...entries], isPartial: false }),
     loadMovieLibrary: () => Promise.resolve({ entries: [...movies] }),
@@ -134,7 +129,19 @@ export function fakeRuntime({
     loadGenreNames: () => Promise.resolve({}),
     loadCalendar: () => Promise.resolve({ entries: calendar }),
     loadShowSeasons: () => Promise.resolve([]),
-    loadShowInfo: () => Promise.resolve({ posters: [], backdrops: [] }),
+    loadShowInfo: (showId) =>
+      Promise.resolve({
+        ids: { trakt: showId },
+        title: "",
+        year: null,
+        status: "returning series",
+        network: null,
+        genres: [],
+        runtime: null,
+        overview: null,
+        posters: [],
+        backdrops: [],
+      }),
     submit: async (op: QueuedOp) => {
       sending.add(op);
       const outcome = await settle(op).finally(() => sending.delete(op));
@@ -149,7 +156,7 @@ export function fakeRuntime({
     pollActivities: () => Promise.resolve(null),
     loadEpisodePlays: () => Promise.resolve([]),
     loadFirstPlayAt: () => Promise.resolve(null),
-  } as unknown as CueRuntime;
+  });
 }
 
 export function spyHaptics(): jest.Mocked<Haptics> {

@@ -14,13 +14,13 @@ import type { QueuedOp } from "@cue/core/domain/write-queue/types";
 import { useMarkControl } from "@cue/core/hooks/useMarkControl";
 import { useMarkWatched } from "@cue/core/hooks/useMarkWatched";
 import { createQueryClient } from "@cue/core/runtime/query-cache";
-import { type CueRuntime, RuntimeProvider, type UpNextData } from "@cue/core/runtime/runtime";
+import type { CueRuntime, UpNextData } from "@cue/core/runtime/runtime";
 import { resetMarkStore } from "@cue/core/stores/mark-store";
 import { UNDO_WINDOW_MS } from "@cue/core/sync-contract";
-import { type QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act } from "react";
+import type { QueryClient } from "@tanstack/react-query";
+import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { mount } from "./_mount";
+import { partialRuntime, withRuntime } from "../support/runtime";
 
 const SHOW = 1;
 
@@ -58,7 +58,7 @@ function entry(overrides: Partial<LibraryEntry> = {}): LibraryEntry {
 /** A runtime whose writes never settle: the deferred queue, held open. */
 function heldRuntime(): CueRuntime {
   const queued: QueuedOp[] = [];
-  return {
+  return partialRuntime({
     newId: () => `op-${queued.length}`,
     submit: (op: QueuedOp) => {
       queued.push(op);
@@ -67,38 +67,23 @@ function heldRuntime(): CueRuntime {
     pendingOps: () => [...queued],
     inFlightOpId: () => null,
     writeReceipt: () => null,
-  } as unknown as CueRuntime;
+  });
 }
 
-interface Slot {
-  state: string;
-  pending: boolean;
-  label: string;
-  press(): void;
-}
-
-function Row({ qc, slot }: { qc: QueryClient; slot: Slot[] }) {
-  const mark = useMarkWatched();
-  const current = qc.getQueryData<UpNextData>(queryKeys.library())?.entries[0] ?? entry();
-  const control = useMarkControl(current, mark);
-  slot[0] = { ...control, press: control.onPress };
-  return null;
-}
-
-function mountRow(runtime: CueRuntime, seeded = entry()): { slot: Slot[]; qc: QueryClient } {
+function mountRow(runtime: CueRuntime, seeded = entry()) {
   // The app's own client, so an hours-long case measures the fix rather than
   // the default 5-minute gcTime collecting the seeded library out from under it.
   const qc = createQueryClient();
   qc.setQueryData<UpNextData>(queryKeys.library(), { entries: [seeded] });
-  const slot: Slot[] = [];
-  mount(
-    <QueryClientProvider client={qc}>
-      <RuntimeProvider value={runtime}>
-        <Row qc={qc} slot={slot} />
-      </RuntimeProvider>
-    </QueryClientProvider>,
+  const { result } = renderHook(
+    () =>
+      useMarkControl(
+        qc.getQueryData<UpNextData>(queryKeys.library())?.entries[0] ?? entry(),
+        useMarkWatched(),
+      ),
+    { wrapper: withRuntime(runtime, qc) },
   );
-  return { slot, qc };
+  return { control: result, qc };
 }
 
 const currentEntry = (qc: QueryClient): LibraryEntry | undefined =>
@@ -111,52 +96,52 @@ beforeEach(() => {
 
 describe("the queue mark control", () => {
   it("advances the row and goes green in the same frame as the tap", () => {
-    const { slot, qc } = mountRow(heldRuntime());
-    expect(slot[0]?.state).toBe("unwatched");
+    const { control, qc } = mountRow(heldRuntime());
+    expect(control.current.state).toBe("unwatched");
 
-    act(() => slot[0]?.press());
+    act(() => control.current.onPress());
 
     expect(currentEntry(qc)?.nextEpisode?.number).toBe(6);
     expect(currentEntry(qc)?.completed).toBe(5);
-    expect(slot[0]?.state).toBe("just-marked");
+    expect(control.current.state).toBe("just-marked");
   });
 
   it("leaves green on the clock, not on the write: a held write cannot pin it", () => {
-    const { slot } = mountRow(heldRuntime());
-    act(() => slot[0]?.press());
-    expect(slot[0]?.state).toBe("just-marked");
+    const { control } = mountRow(heldRuntime());
+    act(() => control.current.onPress());
+    expect(control.current.state).toBe("just-marked");
 
     // The write never settles. The row must still stop being green on schedule,
     // and say plainly that the mark has not reached Trakt.
     act(() => vi.advanceTimersByTime(UNDO_WINDOW_MS + 10));
 
-    expect(slot[0]?.state).toBe("advancing");
-    expect(slot[0]?.pending).toBe(true);
-    expect(slot[0]?.label).toBe("Watched. Not synced yet.");
+    expect(control.current.state).toBe("advancing");
+    expect(control.current.pending).toBe(true);
+    expect(control.current.label).toBe("Watched. Not synced yet.");
   });
 
   it("stays advanced rather than reverting, hours into an undelivered write", () => {
-    const { slot, qc } = mountRow(heldRuntime());
-    act(() => slot[0]?.press());
+    const { control, qc } = mountRow(heldRuntime());
+    act(() => control.current.onPress());
     act(() => vi.advanceTimersByTime(3_600_000));
 
-    expect(slot[0]?.state).toBe("advancing");
+    expect(control.current.state).toBe("advancing");
     expect(currentEntry(qc)?.nextEpisode?.number).toBe(6);
   });
 
   it("reverses the mark while it is green, restoring the row exactly", () => {
-    const { slot, qc } = mountRow(heldRuntime());
-    act(() => slot[0]?.press());
-    act(() => slot[0]?.press());
+    const { control, qc } = mountRow(heldRuntime());
+    act(() => control.current.onPress());
+    act(() => control.current.onPress());
 
     expect(currentEntry(qc)?.nextEpisode?.number).toBe(5);
     expect(currentEntry(qc)?.completed).toBe(4);
-    expect(slot[0]?.state).toBe("unwatched");
+    expect(control.current.state).toBe("unwatched");
   });
 
   it("re-arms once the authoritative next episode lands", () => {
-    const { slot, qc } = mountRow(heldRuntime());
-    act(() => slot[0]?.press());
+    const { control, qc } = mountRow(heldRuntime());
+    act(() => control.current.onPress());
     // The revalidated read names the real next episode: pendingAdvance clears.
     act(() => {
       qc.setQueryData<UpNextData>(queryKeys.library(), {
@@ -165,24 +150,24 @@ describe("the queue mark control", () => {
     });
     act(() => vi.advanceTimersByTime(UNDO_WINDOW_MS + 10));
 
-    expect(slot[0]?.state).toBe("unwatched");
-    expect(slot[0]?.label).toBe("Mark Harbor Lights S3 E5 watched");
+    expect(control.current.state).toBe("unwatched");
+    expect(control.current.label).toBe("Mark Harbor Lights S3 E5 watched");
   });
 
   it("marks once when a double tap lands before the row re-renders", () => {
-    const { slot, qc } = mountRow(heldRuntime());
+    const { control, qc } = mountRow(heldRuntime());
     act(() => {
-      slot[0]?.press();
-      slot[0]?.press();
+      control.current.onPress();
+      control.current.onPress();
     });
     expect(currentEntry(qc)?.completed).toBe(5);
   });
 
   it("writes nothing for a row whose next episode is not known yet", () => {
     const unknownNext = entry({ nextEpisode: null });
-    const { slot, qc } = mountRow(heldRuntime(), unknownNext);
-    act(() => slot[0]?.press());
+    const { control, qc } = mountRow(heldRuntime(), unknownNext);
+    act(() => control.current.onPress());
     expect(currentEntry(qc)).toStrictEqual(unknownNext);
-    expect(slot[0]?.state).toBe("unwatched");
+    expect(control.current.state).toBe("unwatched");
   });
 });
