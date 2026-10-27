@@ -230,6 +230,10 @@
         "!packages/native/src/hooks/usePullToRefresh.ts"
       ],
       "plugins": ["./biome/silent-sync.grit"]
+    },
+    {
+      "includes": ["packages/core/src/data/trakt/pooled-endpoints.ts"],
+      "plugins": ["./biome/unpooled-read.grit"]
     }
   ],
   "plugins": ["./biome/effect-query-writes.grit"],

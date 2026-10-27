@@ -1,0 +1,14 @@
+language js
+
+or {
+  `export const $name = $value` where { $value <: not `pool($_)` },
+  JsExportFromClause(),
+  JsExportNamedFromClause(),
+  JsExportNamedClause()
+} as $use where {
+  register_diagnostic(
+    span=$use,
+    message="Export every read here as pool(raw.read), so it waits for a read slot and joins an identical read in flight.",
+    severity="error"
+  )
+}
