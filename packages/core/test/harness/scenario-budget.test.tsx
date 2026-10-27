@@ -47,8 +47,9 @@ import {
 import { act, type RenderResult, render } from "@testing-library/react";
 import { type ReactElement, useEffect, useState } from "react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { buildRuntime, memoryKv } from "../data/_runtime";
+import { buildRuntime } from "../data/_runtime";
 import { withRuntime } from "../support/runtime";
+import { memoryKeyValueStore } from "../support/stores";
 import { type AccountSize, sized } from "../trakt-fake/account.ts";
 import { createTraktFake, type TraktFake } from "../trakt-fake/fake.ts";
 
@@ -364,7 +365,7 @@ async function boot(size: AccountSize, saved?: Saved, cacheAgeMs = 0): Promise<S
   const trakt = createTraktFake({ account: () => sized(size, NOW) });
   vi.stubGlobal("fetch", trakt.fetch);
   resetReadPause();
-  const kv = memoryKv(Object.fromEntries(saved?.kv ?? []));
+  const kv = memoryKeyValueStore(Object.fromEntries(saved?.kv ?? []));
   const qc = createQueryClient();
   if (saved !== undefined) {
     hydrate(qc, {

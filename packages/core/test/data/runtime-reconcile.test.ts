@@ -1,9 +1,10 @@
 import type { QueuedOp } from "@cue/core/domain/write-queue/types";
 import { OP_LOG_KEY } from "@cue/core/ports/storage-keys";
 import { describe, expect, it, vi } from "vitest";
+import { memoryKeyValueStore } from "../support/stores";
 import { FIXTURE_NOW } from "../trakt-fake/account.ts";
 import { startTraktFake } from "../trakt-fake/in-process.ts";
-import { buildRuntime, memoryKv } from "./_runtime";
+import { buildRuntime } from "./_runtime";
 
 let now = FIXTURE_NOW;
 const fake = startTraktFake({ clock: () => now });
@@ -89,7 +90,7 @@ describe("runtime write reconciliation", () => {
   it("retires every queued operation when its authoritative Trakt read shows it landed", async () => {
     for (const op of OPS) await landed(op);
     const sent = fake.requests.length;
-    const kv = memoryKv({ [OP_LOG_KEY]: JSON.stringify(OPS) });
+    const kv = memoryKeyValueStore({ [OP_LOG_KEY]: JSON.stringify(OPS) });
 
     const runtime = await buildRuntime({ kv });
 
@@ -101,7 +102,7 @@ describe("runtime write reconciliation", () => {
   it.each(
     OPS.map((op) => [op.id, op] as const),
   )("re-dispatches a queued %s write its authoritative read cannot find", async (_, op) => {
-    const kv = memoryKv({ [OP_LOG_KEY]: JSON.stringify([op]) });
+    const kv = memoryKeyValueStore({ [OP_LOG_KEY]: JSON.stringify([op]) });
 
     await buildRuntime({ kv });
 
