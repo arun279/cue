@@ -75,7 +75,7 @@ To run the smoke flows locally, start `pnpm fake:trakt`, install a build made wi
 
 Every build listens on the `production` update channel, and the workflow checks the channel and runtime written into the finished APK and IPA before uploading. EAS numbers builds from one remote counter per platform, so releases run one at a time; `eas build:version:set` moves the counter. Both platforms sign with the Android keystore and Apple distribution certificate held in repository secrets, so every build installs over the last. To publish on the App Store, submit a TestFlight build for review in App Store Connect.
 
-Local EAS builds ignore the `node` and `pnpm` versions in `eas.json`. The workflow installs Node from `.nvmrc` and pnpm from `packageManager`, while iOS builds use the fastlane, CocoaPods and Xcode tools preinstalled on the `macos-26` runner image, with Xcode selected explicitly.
+Local EAS builds take Node and pnpm from the runner, not `eas.json`. The workflow installs Node from `.nvmrc` and pnpm from `packageManager`, while iOS builds use the fastlane, CocoaPods and Xcode tools preinstalled on the `macos-26` runner image, with Xcode selected explicitly.
 
 ## Shipping JavaScript updates
 

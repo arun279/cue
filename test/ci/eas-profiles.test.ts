@@ -9,8 +9,6 @@ type Profile = Record<string, unknown> & {
   environment?: string;
   autoIncrement?: boolean;
   credentialsSource?: string;
-  node?: string;
-  pnpm?: string;
 };
 
 const read = (file: string): string => readFileSync(repositoryPath(file), "utf8");
@@ -21,10 +19,6 @@ const eas = JSON.parse(easJson) as {
   build: Record<string, Profile>;
 };
 const profiles = Object.entries(eas.build);
-const rootManifest = JSON.parse(read("package.json")) as {
-  packageManager: string;
-  engines: { node: string };
-};
 const postInstall = (
   JSON.parse(read("packages/native/package.json")) as { scripts: Record<string, string> }
 ).scripts["eas-build-post-install"];
@@ -68,13 +62,6 @@ describe("EAS device builds", () => {
 
   it("take every value from EAS environments, which builds and updates share", () => {
     expect(easJson).not.toMatch(/"env"|EXPO_PUBLIC_/);
-  });
-
-  it("install with the workspace's Node and pnpm", () => {
-    for (const [, profile] of profiles) {
-      expect(profile.node).toBe(rootManifest.engines.node);
-      expect(rootManifest.packageManager).toMatch(new RegExp(`^pnpm@${profile.pnpm}\\+sha512\\.`));
-    }
   });
 
   it("stop before compiling when the environment has no Trakt client id", () => {
