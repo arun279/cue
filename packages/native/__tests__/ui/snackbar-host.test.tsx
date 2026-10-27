@@ -8,6 +8,7 @@ import { act, render, screen, userEvent } from "@testing-library/react-native";
 import type { ReactElement } from "react";
 import { AccessibilityInfo, Platform, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { trackScreenReader } from "../../src/platform/screen-reader";
 import { SnackbarHost } from "../../src/ui/SnackbarHost";
 import { SPACE } from "../../src/ui/tokens";
 
@@ -25,12 +26,16 @@ jest.mock(
 
 const MESSAGE = "Harbor Lights S3 E5 marked";
 
+let stopTracking = (): void => {};
+
 beforeEach(() => {
   jest.spyOn(AccessibilityInfo, "isScreenReaderEnabled").mockResolvedValue(false);
+  stopTracking = trackScreenReader();
   mockTraktBase = undefined;
   dismissSnack();
 });
 afterEach(() => {
+  stopTracking();
   jest.restoreAllMocks();
   jest.useRealTimers();
 });
@@ -117,6 +122,15 @@ it("does not restart the countdown when a presentation opens over it", async () 
   expect(screen.queryByTestId("snackbar")).toBeNull();
 });
 
+it("draws every snackbar from the tracked screen reader setting without asking the platform again", async () => {
+  jest.mocked(AccessibilityInfo.isScreenReaderEnabled).mockClear();
+  await act(async () => showSnack({ message: MESSAGE }));
+  const { rerender } = await render(<Hosts sheetOpen={false} />);
+  await rerender(<Hosts sheetOpen />);
+
+  expect(AccessibilityInfo.isScreenReaderEnabled).not.toHaveBeenCalled();
+});
+
 function Hosts({ sheetOpen }: { readonly sheetOpen: boolean }): ReactElement {
   return (
     <View>
@@ -191,6 +205,8 @@ it.each([
 it("keeps a message for fifteen seconds when the screen reader query resolves true", async () => {
   jest.useFakeTimers();
   jest.spyOn(AccessibilityInfo, "isScreenReaderEnabled").mockResolvedValue(true);
+  stopTracking();
+  stopTracking = trackScreenReader();
   await act(async () => showUndoable(MESSAGE, jest.fn()));
   const { rerender } = await render(<Hosts sheetOpen={false} />);
 

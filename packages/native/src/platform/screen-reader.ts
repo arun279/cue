@@ -9,8 +9,7 @@ function update(value: boolean): void {
   for (const listener of listeners) listener();
 }
 
-function subscribe(listener: () => void): () => void {
-  listeners.add(listener);
+export function trackScreenReader(): () => void {
   let active = true;
   const subscription = AccessibilityInfo.addEventListener("screenReaderChanged", update);
   void AccessibilityInfo.isScreenReaderEnabled().then((value) => {
@@ -19,8 +18,12 @@ function subscribe(listener: () => void): () => void {
   return () => {
     active = false;
     subscription.remove();
-    listeners.delete(listener);
   };
+}
+
+function subscribe(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
 }
 
 export function useScreenReader(): boolean {
