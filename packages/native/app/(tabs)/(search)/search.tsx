@@ -8,10 +8,10 @@ import { usePrefs } from "@cue/core/prefs/prefs-store";
 import { browseQuery, searchQuery } from "@cue/core/queries/discover";
 import { type QueryStatus, queryStatus } from "@cue/core/queries/freshness";
 import { useRuntime } from "@cue/core/runtime/runtime";
-import { showFailure, showUndoable } from "@cue/core/stores/snackbar-store";
+import { showUndoable } from "@cue/core/stores/snackbar-store";
 import { useQuery } from "@tanstack/react-query";
 import { Stack, useFocusEffect } from "expo-router";
-import { type ReactElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactElement, useCallback, useMemo, useRef, useState } from "react";
 import { FlatList, Platform, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { SearchBarCommands } from "react-native-screens";
@@ -59,11 +59,6 @@ export default function Search(): ReactElement {
   const status = queryStatus(results, results.data !== undefined);
   const querying = input.trim().length > 0;
   const phase = phaseOf(offline, settling, status);
-
-  const { addError, clearAddError } = watchlist;
-  useEffect(() => {
-    if (addError !== null) showFailure(addError, clearAddError);
-  }, [addError, clearAddError]);
 
   const add = (hit: SearchHit): void => {
     void watchlist.add(hit);

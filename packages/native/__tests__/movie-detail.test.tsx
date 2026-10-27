@@ -1,4 +1,5 @@
 import { TraktReadError } from "@cue/core/data/trakt/client";
+import type { SearchHit } from "@cue/core/data/trakt/search";
 import { persistMediaVisibility } from "@cue/core/prefs/media-visibility";
 import { movieHeaderQuery } from "@cue/core/queries/movies";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
@@ -288,4 +289,45 @@ it("removes nothing when an Undo finds that the mark replaced the movie's play",
   ).toBeOnTheScreen();
   expect(runtime.submit).toHaveBeenCalledTimes(1);
   expect(runtime.loadMoviePlays).not.toHaveBeenCalled();
+});
+
+it("clears Search's added state when the movie leaves the watchlist from its detail page", async () => {
+  const Search = (
+    require("../app/(tabs)/(search)/search") as typeof import("../app/(tabs)/(search)/search")
+  ).default;
+  const listed = new Set<number>();
+  const runtime = movieRuntime();
+  runtime.loadMovieLibrary.mockImplementation(async () => ({
+    entries: [...listed].map(() => ({ ...movieEntry, watched: false, inWatchlist: true })),
+  }));
+  runtime.loadMovieWatchlistIds.mockImplementation(async () => [...listed]);
+  runtime.submit.mockImplementation(async (op) => {
+    if (op.request.path === "/sync/watchlist") listed.add(movieHeader.movieId);
+    else listed.delete(movieHeader.movieId);
+    return "done";
+  });
+  const hit: SearchHit = {
+    key: `movie:${movieHeader.movieId}`,
+    type: "movie",
+    traktId: movieHeader.movieId,
+    title: movieHeader.title,
+    year: movieHeader.year,
+    posters: [],
+    tmdbId: null,
+    ids: movieHeader.ids,
+  };
+  await render(
+    <Harness runtime={{ ...runtime, search: async () => [hit] }} haptics={spyHaptics()}>
+      <Search />
+      <MovieDetail movieId={movieHeader.movieId} />
+    </Harness>,
+  );
+  await fireEvent.changeText(screen.getByTestId(TEST_IDS.searchField), "lantern");
+  const add = TEST_IDS.searchResult(movieHeader.movieId);
+  await fireEvent.press(await screen.findByTestId(`${add}-watchlist`));
+  expect(await screen.findByTestId(`${add}-in-library`)).toBeOnTheScreen();
+
+  await chooseHeaderAction(movieHeader.title, "Remove from Watchlist");
+
+  expect(await screen.findByTestId(`${add}-watchlist`)).toBeOnTheScreen();
 });

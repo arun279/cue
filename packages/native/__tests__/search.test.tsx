@@ -61,13 +61,18 @@ function media(shows: boolean, movies: boolean): PreferenceStorage {
 
 interface Options {
   readonly search?: (query: string) => Promise<readonly SearchHit[]>;
+  readonly submit?: Parameters<typeof fakeRuntime>[0]["submit"];
   readonly browse?: Partial<Parameters<typeof fakeRuntime>[0]["browse"]>;
   readonly preferences?: PreferenceStorage;
 }
 
-async function paint({ search, browse, preferences }: Options = {}) {
+async function paint({ search, submit, browse, preferences }: Options = {}) {
   const view = await render(
-    <Harness runtime={fakeRuntime({ search, browse })} haptics={haptics} preferences={preferences}>
+    <Harness
+      runtime={fakeRuntime({ search, submit, browse })}
+      haptics={haptics}
+      preferences={preferences}
+    >
       <Search />
     </Harness>,
   );
@@ -188,8 +193,11 @@ it("re-runs a rested query when its recent term is tapped", async () => {
   await waitFor(() => expect(screen.getByTestId(`search-result-${HARBOR}`)).toBeOnTheScreen());
 });
 
-it("flashes Added for 600 ms and then settles into In library", async () => {
-  await paint({ search: () => Promise.resolve([hit()]) });
+it("flashes Added for 600 ms and then settles into In library while the add is queued", async () => {
+  await paint({
+    search: () => Promise.resolve([hit()]),
+    submit: () => Promise.resolve("deferred"),
+  });
   await type("harbor");
   await waitFor(() =>
     expect(screen.getByTestId(`search-result-${MASTER}-watchlist`)).toBeOnTheScreen(),
