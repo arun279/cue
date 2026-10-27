@@ -77,16 +77,22 @@ describe("changedActivityKeys: the reads each moved activity stamp refreshes", (
     ["a show dropped", { shows: { dropped_at: T1 } }, [library]],
     ["a show watchlisted", { shows: { watchlisted_at: T1 } }, [library]],
     ["a movie watchlisted", { movies: { watchlisted_at: T1 } }, [movieLibrary, movieWatchlist]],
-    [
-      "the watchlist edited",
-      { watchlist: { updated_at: T1 } },
-      [library, movieLibrary, movieWatchlist],
-    ],
+    ["the whole watchlist stamp alone", { watchlist: { updated_at: T1 } }, []],
     ["an episode watchlisted", { episodes: { watchlisted_at: T1 } }, []],
     ["a favorite", { shows: { favorited_at: T1 }, movies: { favorited_at: T1 } }, []],
     ["a movie hidden", { movies: { hidden_at: T1 } }, []],
     ["a rating", { episodes: { rated_at: T1 }, seasons: { rated_at: T1 } }, []],
     ["a list or account change", { lists: { updated_at: T1 }, account: { settings_at: T1 } }, []],
+    [
+      "a show watchlisted, as Trakt stamps it",
+      { shows: { watchlisted_at: T1 }, watchlist: { updated_at: T1 } },
+      [library],
+    ],
+    [
+      "a movie watchlisted, as Trakt stamps it",
+      { movies: { watchlisted_at: T1 }, watchlist: { updated_at: T1 } },
+      [movieLibrary, movieWatchlist],
+    ],
   ])("refreshes exactly what %s moves", (_, fresh, keys) => {
     expect(changedActivityKeys({}, fresh)).toEqual(keys);
   });

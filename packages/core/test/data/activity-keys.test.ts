@@ -52,13 +52,13 @@ describe("what an activities poll refreshes after a write on Trakt", () => {
       "adding a show to the watchlist",
       "/sync/watchlist",
       { shows: [{ ids: { trakt: 8801 } }] },
-      [library, movieLibrary, movieWatchlist],
+      [library],
     ],
     [
       "adding a movie to the watchlist",
       "/sync/watchlist",
       { movies: [{ ids: { trakt: 5502 } }] },
-      [library, movieLibrary, movieWatchlist],
+      [movieLibrary, movieWatchlist],
     ],
     [
       "hiding a show",

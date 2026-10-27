@@ -18,7 +18,8 @@ const showTrees = [
 ];
 const movieWatchlist = queryKeys.movieWatchlist();
 
-// The reads each Trakt activity stamp moves. A stamp no screen reads is left out.
+// The reads each Trakt activity stamp moves. A stamp no screen reads is left out, and so is
+// watchlist.updated_at, which moves with the show and movie watchlist stamps on every change.
 const ACTIVITY_KEYS: readonly (readonly [ActivitySection, string, readonly InvalidationKey[]])[] = [
   ["episodes", "watched_at", [library, history]],
   ["episodes", "collected_at", [library]],
@@ -28,7 +29,6 @@ const ACTIVITY_KEYS: readonly (readonly [ActivitySection, string, readonly Inval
   ["movies", "watched_at", [movieLibrary, history]],
   ["movies", "watchlisted_at", [movieLibrary, movieWatchlist]],
   ["movies", "collected_at", [movieLibrary]],
-  ["watchlist", "updated_at", [library, movieLibrary, movieWatchlist]],
 ];
 
 export function showProgressKeys(
