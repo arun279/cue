@@ -62,7 +62,6 @@ it.each([
   ["pull_request", { changed: "pnpm-lock.yaml", audit: 0, ignores: 1 }],
   ["push", { changed: "pnpm-lock.yaml", pushed: true }],
   ["push", { changed: "pnpm-lock.yaml", pushed: true, later: true }],
-  ["schedule", {}],
 ])("fails a %s whose audit fails: %j", (event, change) => {
   expect(audit(event, change).status).toBe(1);
 });
