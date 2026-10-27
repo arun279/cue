@@ -1,4 +1,5 @@
 import { queryKeys } from "@cue/core/data/query-keys";
+import type { ActivitiesReconcile } from "@cue/core/runtime/runtime";
 import { act, screen, userEvent, within } from "@testing-library/react-native";
 import "./support/screen-mocks";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -44,11 +45,8 @@ it("ticks every 30 seconds and excludes editorial reads from account freshness",
 });
 
 it("shows the sync as busy until the shared pass settles, then says it just synced", async () => {
-  const flush = held<number>();
-  const fixture = accountFixture({
-    flushWrites: flush.call,
-    pollActivities: async () => ({ keys: [], commit: async () => {} }),
-  });
+  const poll = held<ActivitiesReconcile>();
+  const fixture = accountFixture({ pollActivities: poll.call });
   await fixture.paint(<DataSection />);
   expect(screen.getByText("Not synced yet · 0 pending")).toBeVisible();
 
@@ -57,8 +55,8 @@ it("shows the sync as busy until the shared pass settles, then says it just sync
   const busy = screen.getByRole("button", { name: "Syncing…" });
   expect(busy).toHaveProp("accessibilityState", { disabled: true, busy: true });
   expect(within(busy).getByTestId(`${TEST_IDS.settingsSync}-busy`)).toBeOnTheScreen();
-  await act(() => flush.release(0));
+  await act(() => poll.release({ keys: [], commit: async () => {} }));
   expect(screen.getByRole("button", { name: "Sync now" })).toBeEnabled();
   expect(screen.getByText("Last synced just now · 0 pending")).toBeVisible();
-  expect(flush.call).toHaveBeenCalledTimes(1);
+  expect(poll.call).toHaveBeenCalledTimes(1);
 });

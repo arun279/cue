@@ -37,6 +37,7 @@ async function syncPass(pass: Pass = {}) {
     Promise.resolve(pass.polled === false ? null : { keys: pass.keys ?? [], commit }),
   );
   const runtime = {
+    pendingWrites: () => (pass.flush === undefined ? 0 : 1),
     flushWrites: pass.flush ?? (() => Promise.resolve(0)),
     pollActivities,
   } as unknown as CueRuntime;

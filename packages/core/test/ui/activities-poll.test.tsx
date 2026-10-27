@@ -10,6 +10,7 @@
 
 import { queryKeys } from "@cue/core/data/query-keys";
 import { useActivitiesPoll } from "@cue/core/hooks/useActivitiesPoll";
+import { useSyncNow } from "@cue/core/hooks/useSyncNow";
 import { createQueryClient } from "@cue/core/runtime/query-cache";
 import {
   type ActivitiesReconcile,
@@ -216,6 +217,39 @@ describe("useActivitiesPoll reconcile", () => {
       ),
     );
     await vi.waitFor(() => expect(commit).toHaveBeenCalledOnce());
+  });
+
+  it("lets a sync the user asks for join a background pass already in flight", async () => {
+    const commit = vi.fn(() => Promise.resolve());
+    let answer = (_: ActivitiesReconcile) => {};
+    const pollActivities = vi.fn(
+      () => new Promise<ActivitiesReconcile>((resolve) => (answer = resolve)),
+    );
+    const sync: ReturnType<typeof useSyncNow>[] = [];
+    function SyncNow(): null {
+      sync[0] = useSyncNow();
+      return null;
+    }
+    await mountAsync(
+      session(
+        { ...reconcileRuntime({ keys: [], commit }), pollActivities },
+        <>
+          <Probe />
+          <SyncNow />
+        </>,
+      ),
+    );
+    expect(pollActivities).toHaveBeenCalledOnce();
+
+    let synced: Promise<boolean> | undefined;
+    await act(async () => {
+      synced = sync[0]?.run();
+    });
+    await act(async () => answer({ keys: [], commit }));
+
+    expect(await synced).toBe(true);
+    expect(pollActivities).toHaveBeenCalledOnce();
+    expect(commit).toHaveBeenCalledOnce();
   });
 
   it("polls once per trigger after a poll that failed", async () => {
