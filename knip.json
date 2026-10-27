@@ -3,8 +3,7 @@
   "workspaces": {
     ".": {
       "entry": ["scripts/*.mjs", "test/vitest.config.ts"],
-      "project": ["scripts/**/*.mjs", "test/**/*.ts"],
-      "ignoreDependencies": ["expo-atlas", "eas-cli"]
+      "project": ["scripts/**/*.mjs", "test/**/*.ts"]
     },
     "packages/core": {
       "project": ["src/**/*.ts", "test/**/*.{ts,tsx}"],
@@ -13,7 +12,8 @@
     "packages/native": {
       "entry": ["plugins/*.js"],
       "project": ["app/**/*.{ts,tsx}", "src/**/*.{ts,tsx}", "modules/**/*.ts", "plugins/*.js"],
-      "babel": ["babel.config.js"]
+      "babel": ["babel.config.js"],
+      "ignoreDependencies": ["expo-atlas"]
     }
   }
 }

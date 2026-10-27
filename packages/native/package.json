@@ -49,10 +49,14 @@
     "react-native-worklets": "0.10.1"
   },
   "devDependencies": {
+    "@expo/fingerprint": "0.20.14",
+    "@expo/repack-app": "0.10.4",
     "@testing-library/react-native": "^14.0.1",
     "@types/jest": "29.5.14",
     "@types/react": "catalog:",
     "babel-preset-expo": "~57.0.7",
+    "eas-cli": "24.10.0",
+    "expo-atlas": "0.5.0",
     "jest": "~29.7.0",
     "jest-expo": "~57.0.6",
     "typescript": "catalog:"
