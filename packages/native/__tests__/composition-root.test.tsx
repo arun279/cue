@@ -7,9 +7,10 @@ import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import { hide } from "expo-splash-screen";
 import { Profiler } from "react";
-import { AppState } from "react-native";
+import { AccessibilityInfo, AppState, Text } from "react-native";
 import { bootNativeStores } from "../src/boot";
 import { persistBuster, queryClient, shouldDehydrateQuery } from "../src/platform/query-persister";
+import { useScreenReader } from "../src/platform/screen-reader";
 import {
   bulkBacking,
   legacyBacking,
@@ -131,6 +132,20 @@ describe("the native composition root", () => {
 
     expect(await screen.findByTestId("screen-onboarding")).toBeOnTheScreen();
     expect(screen.queryByTestId("router-stack")).toBeNull();
+  });
+
+  it("tracks the screen reader from launch, for every snackbar to read", async () => {
+    jest.spyOn(AccessibilityInfo, "isScreenReaderEnabled").mockResolvedValue(true);
+    const Probe = () => <Text>{String(useScreenReader())}</Text>;
+
+    await render(
+      <>
+        <RootLayout />
+        <Probe />
+      </>,
+    );
+
+    expect(await screen.findByText("true")).toBeOnTheScreen();
   });
 
   it("shows sign-in on a fresh install while the Keychain is still deleting the old token", async () => {

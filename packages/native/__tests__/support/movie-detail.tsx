@@ -1,4 +1,5 @@
 import type { MovieEntry, MovieHeader } from "@cue/core/data/trakt/movie-library";
+import type { WatchlistItem } from "@cue/core/data/trakt/schemas";
 import type { SearchHit } from "@cue/core/data/trakt/search";
 import { buildMarkMovieOp } from "@cue/core/domain/write-queue/ops";
 import type { WriteReceipt } from "@cue/core/domain/write-queue/receipt";
@@ -45,7 +46,7 @@ export function movieRuntime(overrides: Partial<MovieEntry> = {}) {
     loadMovieLibrary: jest.fn(async () => ({ entries: [{ ...movieEntry, ...overrides }] })),
     loadMovieRelated: jest.fn(async (): Promise<readonly SearchHit[]> => []),
     loadMoviePlays: jest.fn(async () => [{ historyId: 91, watchedAt: movieEntry.watchedAt ?? "" }]),
-    loadMovieWatchlistIds: jest.fn(async () => []),
+    loadMovieWatchlist: jest.fn(async (): Promise<readonly WatchlistItem[]> => []),
   };
 }
 

@@ -1,7 +1,6 @@
 import { jumpMonths, jumpRange, jumpYears } from "@cue/core/domain/history";
 import { firstPlayQuery } from "@cue/core/queries/history";
 import { useRuntime } from "@cue/core/runtime/runtime";
-import { parseHistorySearch } from "@cue/core/url/search-params";
 import { useQuery } from "@tanstack/react-query";
 import {
   type NativeStackNavigationProp,
@@ -13,6 +12,7 @@ import {
 import { type ReactElement, useState } from "react";
 import { Platform, ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { parseHistorySearch } from "../../route-params";
 import { Button } from "../../ui/Button";
 import { SheetClose } from "../../ui/SheetClose";
 import { TEST_IDS } from "../../ui/test-ids";

@@ -74,7 +74,7 @@ export const detailRuntime = {
   loadShowProgress: jest.fn(async () => header),
   loadShowSeasons: jest.fn(async () => [detailSeason(0), detailSeason(1), detailSeason(2)]),
   loadEpisode: jest.fn(async () => detail),
-  loadMovieWatchlistIds: jest.fn(async () => []),
+  loadMovieWatchlist: jest.fn(async () => []),
 };
 
 function seedDetail(client: QueryClient): void {

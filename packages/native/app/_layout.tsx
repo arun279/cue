@@ -31,7 +31,7 @@ import {
   shouldDehydrateQuery,
 } from "../src/platform/query-persister";
 import { createNativeReminders, useOpenTappedReminder } from "../src/platform/reminders";
-import { useScreenReader } from "../src/platform/screen-reader";
+import { trackScreenReader } from "../src/platform/screen-reader";
 import { useSplashRelease } from "../src/platform/splash";
 import {
   bulkStore,
@@ -143,7 +143,7 @@ function RoutedApp(): ReactElement {
 }
 
 export default function RootLayout(): ReactElement {
-  useScreenReader();
+  useEffect(trackScreenReader, []);
   const session = useNativeSession();
   const fontsSettled = useFontsSettled();
   const navigationTheme = useNavigationTheme();

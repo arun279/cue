@@ -1,7 +1,8 @@
-import { invalidationKeys, showProgressKeys } from "@cue/core/data/query-invalidation";
-import type { InvalidationTarget } from "@cue/core/domain/sync-activities";
+import { changedActivityKeys, showProgressKeys } from "@cue/core/data/query-invalidation";
+import type { WatchlistItem } from "@cue/core/data/trakt/schemas";
+import type { LastActivities } from "@cue/core/domain/sync-activities";
 import { firstPlayQuery, historyQuery } from "@cue/core/queries/history";
-import { movieLibraryQuery } from "@cue/core/queries/library";
+import { movieLibraryQuery, movieWatchlistQuery } from "@cue/core/queries/library";
 import { movieHeaderQuery } from "@cue/core/queries/movies";
 import { episodeQuery, showInfoQuery, showProgressQuery } from "@cue/core/queries/shows";
 import { userProfileQuery } from "@cue/core/queries/user";
@@ -9,23 +10,24 @@ import type { CueRuntime } from "@cue/core/runtime/runtime";
 import { InfiniteQueryObserver, QueryClient, QueryObserver } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 
-const EVERY_TARGET: readonly InvalidationTarget[] = [
-  "watched/shows",
-  "progress/watched",
-  "watched/movies",
-  "movie-progress",
-  "watchlist/shows",
-  "watchlist/movies",
-  "hidden/progress_watched",
-  "hidden/dropped",
-  "recompute:buckets",
-  "recompute:to-watch",
-  "recompute:following",
-];
+const AT = "2026-07-05T00:00:00.000Z";
+
+const EVERY_STAMP: LastActivities = {
+  episodes: { watched_at: AT, collected_at: AT },
+  shows: { hidden_at: AT, dropped_at: AT, watchlisted_at: AT },
+  movies: { watched_at: AT, watchlisted_at: AT, collected_at: AT },
+  watchlist: { updated_at: AT },
+};
+
+// A stamp the app has never seen counts as moved.
+const moved = (stamps: LastActivities) => changedActivityKeys({}, stamps);
 
 const loaders = {
   loadUserProfile: vi.fn(() => Promise.resolve({})),
-  loadMovieLibrary: vi.fn(() => Promise.resolve({ entries: [] })),
+  loadMovieLibrary: vi.fn((_watchlist: Promise<readonly WatchlistItem[]>) =>
+    Promise.resolve({ entries: [] }),
+  ),
+  loadMovieWatchlist: vi.fn((): Promise<readonly WatchlistItem[]> => Promise.resolve([])),
   loadShowInfo: vi.fn(() => Promise.resolve({})),
   loadShowProgress: vi.fn(() => Promise.resolve({})),
   loadEpisode: vi.fn(() => Promise.resolve({})),
@@ -57,21 +59,21 @@ describe("each read refreshes on the invalidation meant for it", () => {
       "movie library",
       (qc: QueryClient) => new QueryObserver(qc, movieLibraryQuery(runtime)),
       loaders.loadMovieLibrary,
-      [],
-      ["watched/movies"],
+      [expect.any(Promise)],
+      { movies: { watched_at: AT } },
     ],
     [
       "show progress",
       (qc: QueryClient) => new QueryObserver(qc, showProgressQuery(runtime, 7)),
       loaders.loadShowProgress,
       [7],
-      [],
+      null,
     ],
-  ] as const)("%s", async (_name, watch, load, args, targets) => {
+  ] as const)("%s", async (_name, watch, load, args, stamps) => {
     load.mockClear();
     const queryClient = await observe(watch);
     expect(load).toHaveBeenCalledWith(...args);
-    const keys = targets.length > 0 ? invalidationKeys(targets) : showProgressKeys(7);
+    const keys = stamps === null ? showProgressKeys(7) : moved(stamps);
     await Promise.all(keys.map((queryKey) => queryClient.invalidateQueries({ queryKey })));
     expect(load).toHaveBeenCalledTimes(2);
   });
@@ -112,9 +114,22 @@ describe("each read refreshes on the invalidation meant for it", () => {
     load.mockClear();
     const queryClient = await observe(watch);
     expect(load).toHaveBeenCalledWith(...args);
-    const keys = [...invalidationKeys(EVERY_TARGET), ...showProgressKeys(7, "all")];
+    const keys = [...moved(EVERY_STAMP), ...showProgressKeys(7, "all")];
     await Promise.all(keys.map((queryKey) => queryClient.invalidateQueries({ queryKey })));
     expect(load).toHaveBeenCalledOnce();
+  });
+});
+
+describe("the movie library", () => {
+  it("is built from the cached movie watchlist, read once", async () => {
+    const rows: WatchlistItem[] = [{ type: "movie", movie: { title: "Dune", ids: { trakt: 1 } } }];
+    loaders.loadMovieWatchlist.mockClear();
+    loaders.loadMovieWatchlist.mockResolvedValue(rows);
+    const queryClient = await observe((qc) => new QueryObserver(qc, movieWatchlistQuery(runtime)));
+    loaders.loadMovieLibrary.mockClear();
+    await queryClient.fetchQuery(movieLibraryQuery(runtime));
+    expect(loaders.loadMovieWatchlist).toHaveBeenCalledOnce();
+    await expect(loaders.loadMovieLibrary.mock.calls[0]?.[0]).resolves.toBe(rows);
   });
 });
 
@@ -132,7 +147,7 @@ describe("the Diary read", () => {
     expect(observer.getCurrentResult().hasNextPage).toBe(false);
 
     await Promise.all(
-      invalidationKeys(["watched/shows"]).map((queryKey) =>
+      moved({ episodes: { watched_at: AT } }).map((queryKey) =>
         queryClient.invalidateQueries({ queryKey }),
       ),
     );
@@ -147,7 +162,7 @@ describe("the month jump's first play", () => {
       "2019-03-09T10:00:00.000Z",
     );
     await Promise.all(
-      invalidationKeys(["watched/movies"]).map((queryKey) =>
+      moved({ movies: { watched_at: AT } }).map((queryKey) =>
         queryClient.invalidateQueries({ queryKey }),
       ),
     );

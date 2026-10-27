@@ -39,24 +39,6 @@ function ep(
   };
 }
 
-function movie(watchedAt: string, movieId: number, title = "Film"): HistoryEntry {
-  seq += 1;
-  return {
-    historyId: seq,
-    watchedAt,
-    type: "movie",
-    mediaId: movieId,
-    ids: { trakt: 2000 + seq },
-    title,
-    year: 2014,
-    season: null,
-    number: null,
-    episodeTitle: null,
-    posters: [],
-    tmdbId: null,
-  };
-}
-
 const OPTS = { now: NOW, timeZone: NY };
 
 describe("groupHistory", () => {
@@ -81,7 +63,7 @@ describe("groupHistory", () => {
       [ep("2026-07-05T13:00:00.000Z", 1, 1), ep("2026-07-05T15:00:00.000Z", 2, 1)],
       OPTS,
     );
-    const ids = days[0]?.groups.flatMap((g) => g.entries.map((e) => e.mediaId));
+    const ids = days[0]?.entries.map((e) => e.mediaId);
     expect(ids).toEqual([2, 1]);
   });
 
@@ -96,66 +78,10 @@ describe("groupHistory", () => {
       ep(stamp, 1, 1),
     ];
     const order = (entries: readonly HistoryEntry[]) =>
-      groupHistory(entries, OPTS)[0]?.groups.flatMap((group) =>
-        group.entries.map((e) => `${e.mediaId} S${e.season}E${e.number}`),
-      );
+      groupHistory(entries, OPTS)[0]?.entries.map((e) => `${e.mediaId} S${e.season}E${e.number}`);
     const expected = ["1 S2E2", "1 S2E1", "1 S1E2", "1 S1E1", "2 S1E2", "2 S1E1"];
     expect(order(tied)).toEqual(expected);
     expect(order([...tied].reverse())).toEqual(expected);
-  });
-
-  it("collapses consecutive same-show episodes; a movie breaks the run", () => {
-    // Newest-first within the day: A-e8, A-e7, movie, A-e5. The movie between the
-    // A episodes means A-e5 is a SEPARATE single group (not merged into the cluster).
-    const days = groupHistory(
-      [
-        ep("2026-07-05T15:00:00.000Z", 1, 8, "The Bear"),
-        ep("2026-07-05T14:50:00.000Z", 1, 7, "The Bear"),
-        movie("2026-07-05T14:00:00.000Z", 9),
-        ep("2026-07-05T13:00:00.000Z", 1, 5, "The Bear"),
-      ],
-      OPTS,
-    );
-    const groups = days[0]?.groups ?? [];
-    expect(groups.map((g) => g.entries.length)).toEqual([2, 1, 1]);
-    expect(groups[0]?.entries.map((e) => e.number)).toEqual([8, 7]);
-    expect(groups[1]?.entries[0]?.type).toBe("movie");
-    expect(groups[2]?.entries.map((e) => e.number)).toEqual([5]);
-  });
-
-  it("flags a same-minute cluster as Logged together (a bulk mark), not a real binge", () => {
-    // Four episodes of one show sharing one minute → a bulk "mark season" stamp.
-    const stamp = "2026-07-05T15:00:00.000Z";
-    const days = groupHistory(
-      [
-        ep(stamp, 1, 8, "The Bear"),
-        ep(stamp, 1, 7, "The Bear"),
-        ep(stamp, 1, 6, "The Bear"),
-        ep(stamp, 1, 5, "The Bear"),
-      ],
-      OPTS,
-    );
-    const group = days[0]?.groups[0];
-    expect(group?.entries).toHaveLength(4);
-    expect(group?.loggedTogether).toBe(true);
-  });
-
-  it("does NOT flag a real binge (same show, spread across minutes) as logged together", () => {
-    const days = groupHistory(
-      [
-        ep("2026-07-05T15:00:00.000Z", 1, 8, "The Bear"),
-        ep("2026-07-05T14:20:00.000Z", 1, 7, "The Bear"),
-      ],
-      OPTS,
-    );
-    const group = days[0]?.groups[0];
-    expect(group?.entries).toHaveLength(2);
-    expect(group?.loggedTogether).toBe(false);
-  });
-
-  it("never marks a lone play as logged together", () => {
-    const days = groupHistory([ep("2026-07-05T15:00:00.000Z", 1, 1)], OPTS);
-    expect(days[0]?.groups[0]?.loggedTogether).toBe(false);
   });
 
   it("localizes to the timezone: a late-UTC play lands on the previous local day", () => {
@@ -168,7 +94,7 @@ describe("groupHistory", () => {
   it("drops plays with an unparseable watched_at instead of mis-dating them", () => {
     const days = groupHistory([ep("not-a-date", 1, 1), ep("2026-07-05T15:00:00.000Z", 2, 1)], OPTS);
     expect(days).toHaveLength(1);
-    expect(days[0]?.groups[0]?.entries[0]?.mediaId).toBe(2);
+    expect(days[0]?.entries[0]?.mediaId).toBe(2);
   });
 
   it("returns no days for an empty feed", () => {

@@ -24,16 +24,13 @@ const day = (dayKey: string, label: string, rows: readonly CalendarRow[]): Calen
   rows,
 });
 
-/** The web screen's cap; the native screen passes 3 (P3 B2). */
-const MAX_ROWS = 6;
-
 describe("buildOnTheWay", () => {
   const local = (date: number, hour: number): string => new Date(2026, 6, date, hour).toISOString();
   const now = Date.parse(local(12, 12));
 
   it("counts day offsets from the clock when nothing airs today", () => {
     const days = [day("2026-07-14", "Tue, Jul 14", [row(local(14, 20))])];
-    const built = buildOnTheWay(days, now, MAX_ROWS);
+    const built = buildOnTheWay(days, now);
     expect(built).toHaveLength(1);
     expect(built[0]).toMatchObject({ offset: 2, label: "Tuesday" });
   });
@@ -43,7 +40,7 @@ describe("buildOnTheWay", () => {
       day("2026-07-12", "Today", [row(local(12, 20))]),
       day("2026-07-13", "Tomorrow", [row(local(13, 20))]),
     ];
-    const built = buildOnTheWay(days, now, MAX_ROWS);
+    const built = buildOnTheWay(days, now);
     expect(built.map(({ label, offset }) => ({ label, offset }))).toEqual([
       { label: "Tonight", offset: 0 },
       { label: "Tomorrow", offset: 1 },
@@ -52,12 +49,12 @@ describe("buildOnTheWay", () => {
 
   it("drops rows beyond the 72-hour scope", () => {
     const days = [day("2026-07-16", "Thu, Jul 16", [row(local(16, 19))])];
-    expect(buildOnTheWay(days, now, MAX_ROWS)).toHaveLength(0);
+    expect(buildOnTheWay(days, now)).toHaveLength(0);
   });
 
   it("drops rows flagged aired", () => {
     const days = [day("2026-07-12", "Today", [row(local(12, 20), true)])];
-    expect(buildOnTheWay(days, now, MAX_ROWS)).toHaveLength(0);
+    expect(buildOnTheWay(days, now)).toHaveLength(0);
   });
 
   it("drops a row that aired even when its stale flag still says unaired", () => {
@@ -70,17 +67,17 @@ describe("buildOnTheWay", () => {
         row(local(12, 20)), // tonight, still ahead
       ]),
     ];
-    const built = buildOnTheWay(days, now, MAX_ROWS);
+    const built = buildOnTheWay(days, now);
     expect(built).toHaveLength(1);
     expect(built[0]?.rows.map((r) => r.firstAired)).toEqual([local(12, 20)]);
   });
-  it("stops at the caller's cap, and stops mid-day when the cap falls inside a group", () => {
+  it("stops at three rows, and stops mid-day when the cap falls inside a group", () => {
     const days = [
-      day("2026-07-12", "Today", [row(local(12, 20)), row(local(12, 21)), row(local(12, 22))]),
-      day("2026-07-13", "Tomorrow", [row(local(13, 20))]),
+      day("2026-07-12", "Today", [row(local(12, 20)), row(local(12, 21))]),
+      day("2026-07-13", "Tomorrow", [row(local(13, 20)), row(local(13, 21))]),
+      day("2026-07-14", "Tue, Jul 14", [row(local(14, 20))]),
     ];
-    const built = buildOnTheWay(days, now, 2);
-    expect(built).toHaveLength(1);
-    expect(built[0]?.rows).toHaveLength(2);
+    const built = buildOnTheWay(days, now);
+    expect(built.map((group) => group.rows.length)).toEqual([2, 1]);
   });
 });

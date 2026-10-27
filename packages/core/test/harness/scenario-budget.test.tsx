@@ -797,7 +797,8 @@ describe("what a cold sync reads from Trakt", () => {
   it("costs list pages, not a read per movie, for 4000 watchlisted movies never watched", async () => {
     const { trakt } = reading({ watchlistMovies: 4000 });
     vi.stubGlobal("fetch", trakt.fetch);
-    const { entries } = await (await buildRuntime()).loadMovieLibrary();
+    const runtime = await buildRuntime();
+    const { entries } = await runtime.loadMovieLibrary(runtime.loadMovieWatchlist());
     expect(entries).toHaveLength(4000);
     expect(
       trakt.requests.map((r) => r.path).filter((path) => path.includes("watchlist")),

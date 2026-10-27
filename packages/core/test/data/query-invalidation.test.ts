@@ -1,10 +1,11 @@
 import {
+  changedActivityKeys,
   invalidateChangedShows,
-  invalidationKeys,
   showProgressKeys,
 } from "@cue/core/data/query-invalidation";
 import { queryKeys } from "@cue/core/data/query-keys";
 import type { LibraryEntry } from "@cue/core/data/trakt/library";
+import type { LastActivities } from "@cue/core/domain/sync-activities";
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 import { makeShow } from "../domain/_helpers";
@@ -58,77 +59,75 @@ describe("showProgressKeys: the keys a local mark on show X must refresh", () =>
   });
 });
 
-describe("invalidationKeys maps last_activities targets to cached query keys", () => {
-  it("routes an episode watch to the library, whose reload refreshes each changed show, and the Diary", () => {
-    expect(invalidationKeys(["watched/shows", "progress/watched"])).toEqual([
-      queryKeys.library(),
-      queryKeys.historyPrefix(),
-    ]);
+describe("changedActivityKeys: the reads each moved activity stamp refreshes", () => {
+  const T0 = "2026-07-01T00:00:00.000Z";
+  const T1 = "2026-07-05T00:00:00.000Z";
+  const library = queryKeys.library();
+  const movieLibrary = queryKeys.movieLibrary();
+  const movieWatchlist = queryKeys.movieWatchlist();
+  const history = queryKeys.historyPrefix();
+  const showTrees = (["progress", "seasons", "episode"] as const).map(queryKeys.showSection);
+
+  it.each<[string, LastActivities, readonly (readonly unknown[])[]]>([
+    ["an episode watch", { episodes: { watched_at: T1 } }, [library, history]],
+    ["a movie watch", { movies: { watched_at: T1 } }, [movieLibrary, history]],
+    ["an episode collected", { episodes: { collected_at: T1 } }, [library]],
+    ["a movie collected", { movies: { collected_at: T1 } }, [movieLibrary]],
+    ["a show hidden", { shows: { hidden_at: T1 } }, [library, ...showTrees]],
+    ["a show dropped", { shows: { dropped_at: T1 } }, [library]],
+    ["a show watchlisted", { shows: { watchlisted_at: T1 } }, [library]],
+    ["a movie watchlisted", { movies: { watchlisted_at: T1 } }, [movieLibrary, movieWatchlist]],
+    ["the whole watchlist stamp alone", { watchlist: { updated_at: T1 } }, []],
+    ["an episode watchlisted", { episodes: { watchlisted_at: T1 } }, []],
+    ["a favorite", { shows: { favorited_at: T1 }, movies: { favorited_at: T1 } }, []],
+    ["a movie hidden", { movies: { hidden_at: T1 } }, []],
+    ["a rating", { episodes: { rated_at: T1 }, seasons: { rated_at: T1 } }, []],
+    ["a list or account change", { lists: { updated_at: T1 }, account: { settings_at: T1 } }, []],
+    [
+      "a show watchlisted, as Trakt stamps it",
+      { shows: { watchlisted_at: T1 }, watchlist: { updated_at: T1 } },
+      [library],
+    ],
+    [
+      "a movie watchlisted, as Trakt stamps it",
+      { movies: { watchlisted_at: T1 }, watchlist: { updated_at: T1 } },
+      [movieLibrary, movieWatchlist],
+    ],
+  ])("refreshes exactly what %s moves", (_, fresh, keys) => {
+    expect(changedActivityKeys({}, fresh)).toEqual(keys);
   });
 
-  it("routes a movie watch to the movie library + the Diary", () => {
-    expect(invalidationKeys(["watched/movies", "movie-progress"])).toEqual([
-      queryKeys.movieLibrary(),
-      queryKeys.historyPrefix(),
-    ]);
+  it("refreshes nothing when no stamp moved", () => {
+    const same: LastActivities = { episodes: { watched_at: T1 }, shows: { hidden_at: T1 } };
+    expect(changedActivityKeys(same, same)).toEqual([]);
   });
 
-  it("routes a show watchlist change to the library, which holds every watchlisted show", () => {
-    expect(invalidationKeys(["watchlist/shows"])).toEqual([queryKeys.library()]);
+  it("counts a stamp seen for the first time as moved", () => {
+    expect(changedActivityKeys({}, { shows: { dropped_at: T1 } })).toEqual([library]);
   });
 
-  it("routes a watchlist change to its own watchlist and to both followed piles", () => {
-    expect(invalidationKeys(["watchlist/movies", "recompute:following"])).toEqual([
-      queryKeys.movieLibrary(),
-      queryKeys.movieWatchlist(),
-      queryKeys.library(),
-    ]);
+  it("ignores a stamp that moved backwards", () => {
     expect(
-      invalidationKeys(["watchlist/shows", "recompute:following", "recompute:to-watch"]),
-    ).toEqual([queryKeys.library(), queryKeys.movieLibrary()]);
-  });
-
-  it("routes a hidden change to the library and to the progress it drops hidden seasons from", () => {
-    expect(invalidationKeys(["hidden/progress_watched", "recompute:buckets"])).toEqual([
-      queryKeys.library(),
-      queryKeys.showSection("progress"),
-      queryKeys.showSection("seasons"),
-      queryKeys.showSection("episode"),
-    ]);
-  });
-
-  it("routes a dropped list change to the library on its own", () => {
-    expect(invalidationKeys(["hidden/dropped"])).toEqual([queryKeys.library()]);
-  });
-
-  it("maps unsurfaced targets (episode watchlist, favorites, movie hidden) to nothing", () => {
-    expect(
-      invalidationKeys([
-        "watchlist/episodes",
-        "favorites/shows",
-        "favorites/movies",
-        "hidden/movies",
-      ]),
+      changedActivityKeys({ episodes: { watched_at: T1 } }, { episodes: { watched_at: T0 } }),
     ).toEqual([]);
   });
 
-  it("de-duplicates keys that several advanced targets share", () => {
-    const keys = invalidationKeys([
-      "watched/shows",
-      "progress/watched",
-      "watchlist/shows",
-      "recompute:buckets",
+  it("counts any change to a stamp it cannot read as moved", () => {
+    const garbled: LastActivities = { episodes: { watched_at: "garbled" } };
+    expect(changedActivityKeys(garbled, { episodes: { watched_at: T0 } })).toEqual([
+      library,
+      history,
     ]);
-    const library = keys.filter((k) => JSON.stringify(k) === JSON.stringify(queryKeys.library()));
-    const diary = keys.filter(
-      (k) => JSON.stringify(k) === JSON.stringify(queryKeys.historyPrefix()),
-    );
-    expect(library).toHaveLength(1);
-    expect(diary).toHaveLength(1);
+    expect(changedActivityKeys(garbled, garbled)).toEqual([]);
   });
 
-  it("returns nothing for an empty diff", () => {
-    expect(invalidationKeys([])).toEqual([]);
+  it("refreshes a key once when several moved stamps share it", () => {
+    expect(
+      changedActivityKeys(
+        { episodes: { watched_at: T0 }, shows: { dropped_at: T0, watchlisted_at: T0 } },
+        { episodes: { watched_at: T1 }, shows: { dropped_at: T1, watchlisted_at: T1 } },
+      ),
+    ).toEqual([library, history]);
   });
 });
 

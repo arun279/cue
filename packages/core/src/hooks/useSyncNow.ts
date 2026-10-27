@@ -2,7 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 import { useRuntime } from "../runtime/runtime";
 import { dismissSnack, showSnack } from "../stores/snackbar-store";
-import { applyReconcile, refetchFailedReads } from "./apply-reconcile";
+import { syncQuery } from "./sync-query";
 
 interface SyncNow {
   readonly syncing: boolean;
@@ -16,17 +16,9 @@ export function useSyncNow(): SyncNow {
 
   const run = useCallback(async (): Promise<boolean> => {
     setSyncing(true);
-    try {
-      const remaining = await runtime.flushWrites();
-      const reconcile = remaining === 0 ? await runtime.pollActivities() : null;
-      if (reconcile !== null) {
-        await refetchFailedReads(queryClient);
-        if (await applyReconcile(queryClient, reconcile)) return true;
-      }
-    } catch {
-    } finally {
-      setSyncing(false);
-    }
+    const outcome = await queryClient.fetchQuery(syncQuery(runtime)).catch(() => "failed");
+    setSyncing(false);
+    if (outcome === "synced") return true;
     showSnack({
       message: "Couldn't reach Trakt. Check your connection.",
       actions: [{ label: "Dismiss", onPress: dismissSnack }],

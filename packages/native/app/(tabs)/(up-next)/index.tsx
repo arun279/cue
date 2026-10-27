@@ -68,7 +68,6 @@ import { CueText } from "../../../src/ui/type";
 
 export { QueueRow };
 
-const ON_THE_WAY_ROWS = 3;
 const WINDOW_SCREENS = 5;
 const HOUR_MS = DAY_MS / 24;
 
@@ -158,7 +157,7 @@ export default function UpNext(): ReactElement {
   );
   const onTheWayClock = useCoarseClock(HOUR_MS);
   const onTheWayDays = useMemo(
-    () => buildOnTheWay(calendarDays, onTheWayClock, ON_THE_WAY_ROWS),
+    () => buildOnTheWay(calendarDays, onTheWayClock),
     [calendarDays, onTheWayClock],
   );
   const mark = useTutorialGate(useMarkWatched());

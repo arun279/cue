@@ -1,3 +1,4 @@
+import type { ActivitiesReconcile } from "@cue/core/runtime/runtime";
 import { act, renderHook } from "@testing-library/react-native";
 import type { ReactElement, ReactNode } from "react";
 import { usePullToRefresh } from "../../src/hooks/usePullToRefresh";
@@ -22,12 +23,8 @@ const { readsPausedUntil } = require("@cue/core/data/trakt/read-budget") as {
 const haptics = spyHaptics();
 const PAUSE_MS = 42_000;
 
-async function mount(flushWrites: () => Promise<number>) {
-  const runtime = {
-    ...fakeRuntime({}),
-    flushWrites,
-    pollActivities: async () => ({ keys: [], commit: async () => {} }),
-  };
+async function mount(pollActivities: () => Promise<ActivitiesReconcile>) {
+  const runtime = { ...fakeRuntime({}), pollActivities };
   const wrapper = ({ children }: { readonly children: ReactNode }): ReactElement => (
     <Harness runtime={runtime} haptics={haptics}>
       {children}
@@ -47,25 +44,25 @@ beforeEach(() => {
  */
 describe("pull to refresh", () => {
   it("shows the indicator exactly while the sync pass runs", async () => {
-    const flush = held<number>();
-    const { result } = await mount(flush.call);
+    const poll = held<ActivitiesReconcile>();
+    const { result } = await mount(poll.call);
 
     await act(async () => {
       result.current.pull();
     });
 
-    expect(flush.call).toHaveBeenCalledTimes(1);
+    expect(poll.call).toHaveBeenCalledTimes(1);
     expect(result.current.refreshing).toBe(true);
     expect(haptics.warning).not.toHaveBeenCalled();
 
-    await act(async () => flush.release(0));
+    await act(async () => poll.release({ keys: [], commit: async () => {} }));
 
     expect(result.current.refreshing).toBe(false);
   });
 
   it("ends immediately on cached data inside a rate limit pause, and says so in the fingers", async () => {
-    const flushWrites = jest.fn(() => Promise.resolve(0));
-    const { result } = await mount(flushWrites);
+    const pollActivities = jest.fn(async () => ({ keys: [], commit: async () => {} }));
+    const { result } = await mount(pollActivities);
     // Opened while the screen sits, with no render in between: what matters is
     // the window at the moment of release, not the one the last render saw.
     readsPausedUntil.mockReturnValue(Date.now() + PAUSE_MS);
@@ -76,6 +73,6 @@ describe("pull to refresh", () => {
 
     expect(result.current.refreshing).toBe(false);
     expect(haptics.warning).toHaveBeenCalledTimes(1);
-    expect(flushWrites).not.toHaveBeenCalled();
+    expect(pollActivities).not.toHaveBeenCalled();
   });
 });

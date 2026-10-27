@@ -2,10 +2,8 @@ import { queryKeys } from "@cue/core/data/query-keys";
 import type { MovieEntry, MovieHeader } from "@cue/core/data/trakt/movie-library";
 import type { MoviePlay } from "@cue/core/domain/reversal";
 import {
-  buildAddWatchlistOp,
   buildMarkMovieOp,
   buildRemoveHistoryPlayOp,
-  buildRemoveWatchlistOp,
   buildUnmarkMovieOp,
 } from "@cue/core/domain/write-queue/ops";
 import { replacedPlays } from "@cue/core/domain/write-queue/receipt";
@@ -13,6 +11,7 @@ import type { QueuedOp } from "@cue/core/domain/write-queue/types";
 import { REPLACED_COPY } from "@cue/core/hooks/replaced-copy";
 import { planLandedUndo, resolveMovieUnmark } from "@cue/core/hooks/resolve-unmark";
 import { useOptimisticWrite } from "@cue/core/hooks/useOptimisticWrite";
+import { useSetWatchlisted } from "@cue/core/hooks/useSetWatchlisted";
 import { movieLibraryQuery } from "@cue/core/queries/library";
 import { type MovieLibraryData, useRuntime } from "@cue/core/runtime/runtime";
 import { showSnack, showUndoable, snackText } from "@cue/core/stores/snackbar-store";
@@ -24,6 +23,7 @@ export function useMovieActions(header: MovieHeader) {
   const runtime = useRuntime();
   const client = useQueryClient();
   const submit = useOptimisticWrite();
+  const setWatchlisted = useSetWatchlisted();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const locked = useRef(false);
@@ -41,16 +41,6 @@ export function useMovieActions(header: MovieHeader) {
   const key = queryKeys.movieLibrary();
   const error = () => showSnack({ message: "Couldn't update this movie. Please try again." });
   const patch = (value: Partial<MovieEntry>) => {
-    if (value.inWatchlist !== undefined) {
-      client.setQueryData<readonly number[]>(queryKeys.movieWatchlist(), (ids) =>
-        ids === undefined
-          ? undefined
-          : [
-              ...ids.filter((id) => id !== header.movieId),
-              ...(value.inWatchlist ? [header.movieId] : []),
-            ],
-      );
-    }
     client.setQueryData<MovieLibraryData>(key, (data) => {
       const current = data?.entries.find((item) => item.movieId === header.movieId) ?? entry;
       const updated = { ...current, ...value };
@@ -197,12 +187,14 @@ export function useMovieActions(header: MovieHeader) {
     }
   };
   const watchlist = async (listed: boolean, undoable = true) => {
-    const op = (listed ? buildAddWatchlistOp : buildRemoveWatchlistOp)({
-      opId: runtime.newId(),
-      section: "movies",
-      ids: header.ids,
-    });
-    if ((await write(op, { inWatchlist: listed }, { inWatchlist: !listed })) === "failed") return;
+    const outcome = await setWatchlisted(
+      { type: "movie", traktId: header.movieId, ...header },
+      listed,
+    );
+    if (outcome === "failed") {
+      error();
+      return;
+    }
     if (undoable)
       showUndoable(
         `${header.title} ${listed ? "added to" : "removed from"} Watchlist`,

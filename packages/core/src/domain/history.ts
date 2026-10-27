@@ -20,16 +20,10 @@ export type HistoryEntry = Play &
     | { readonly type: "movie"; readonly season: null; readonly number: null }
   );
 
-interface HistoryGroup {
-  readonly key: string;
-  readonly entries: readonly HistoryEntry[];
-  readonly loggedTogether: boolean;
-}
-
 export interface HistoryDay {
   readonly dayKey: string;
   readonly label: string;
-  readonly groups: readonly HistoryGroup[];
+  readonly entries: readonly HistoryEntry[];
 }
 
 export interface GroupHistoryOptions {
@@ -101,42 +95,12 @@ export function historyScopeKey(year?: number, month?: number): string {
   return `${year}-${String(month).padStart(2, "0")}`;
 }
 
-function minuteOf(ms: number): number {
-  return Math.floor(ms / 60_000);
-}
-
-function sameShowEpisodes(a: HistoryEntry, b: HistoryEntry): boolean {
-  return a.type === "episode" && b.type === "episode" && a.mediaId === b.mediaId;
-}
-
 const newestFirst = (a: HistoryEntry, b: HistoryEntry): number =>
   Date.parse(b.watchedAt) - Date.parse(a.watchedAt) ||
   a.type.localeCompare(b.type) ||
   a.mediaId - b.mediaId ||
   Number(b.season) - Number(a.season) ||
   Number(b.number) - Number(a.number);
-
-function groupDay(entries: readonly HistoryEntry[]): HistoryGroup[] {
-  const groups: HistoryGroup[] = [];
-  let run: HistoryEntry[] = [];
-  const flush = (): void => {
-    const head = run[0] as HistoryEntry;
-    const minutes = new Set(run.map((e) => minuteOf(Date.parse(e.watchedAt))));
-    groups.push({
-      key: `${head.type}:${head.historyId}`,
-      entries: run,
-      loggedTogether: run.length > 1 && minutes.size === 1,
-    });
-    run = [];
-  };
-  for (const entry of entries) {
-    const prev = run[run.length - 1];
-    if (prev !== undefined && !sameShowEpisodes(prev, entry)) flush();
-    run.push(entry);
-  }
-  flush();
-  return groups;
-}
 
 export function groupHistory(
   entries: readonly HistoryEntry[],
@@ -163,6 +127,6 @@ export function groupHistory(
     .map(([dayKey, { sample, rows }]) => ({
       dayKey,
       label: labelFor(dayKey, sample),
-      groups: groupDay(rows.sort(newestFirst)),
+      entries: rows.sort(newestFirst),
     }));
 }
