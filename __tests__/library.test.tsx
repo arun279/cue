@@ -1,8 +1,8 @@
 import { act, render, screen, userEvent, waitFor, within } from "@testing-library/react-native";
 import { Platform } from "react-native";
-import { TraktReadError } from "@/core/data/trakt/client";
-import type { LibraryEntry } from "@/core/data/trakt/library";
-import type { MovieEntry } from "@/core/data/trakt/movie-library";
+import type { LibraryEntry } from "@/core/domain/model/library";
+import type { MovieEntry } from "@/core/domain/model/movie";
+import { TraktReadError } from "@/core/domain/read-failure";
 import { FILTER_DEBOUNCE_MS } from "../src/screens/library/model";
 import "./support/screen-mocks";
 import { agesAgo, entry, fakeRuntime, Harness, spyHaptics } from "./support/up-next";

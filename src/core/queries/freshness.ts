@@ -1,4 +1,4 @@
-import type { TraktFailure } from "../data/trakt/client";
+import type { TraktFailure } from "../domain/read-failure";
 import { readFailureOf } from "../sync-contract";
 
 export const USER_STATE_STALE_TIME = Number.POSITIVE_INFINITY;

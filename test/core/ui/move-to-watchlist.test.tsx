@@ -4,7 +4,7 @@ import { QueryClient } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { queryKeys } from "@/core/data/query-keys";
-import type { LibraryEntry } from "@/core/data/trakt/library";
+import type { LibraryEntry } from "@/core/domain/model/library";
 import { useMoveToWatchlist } from "@/core/hooks/useMoveToWatchlist";
 import type { SubmitOutcome, UpNextData } from "@/core/runtime/runtime";
 import { dismissSnack, useSnackbar } from "@/core/stores/snackbar-store";

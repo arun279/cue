@@ -1,4 +1,4 @@
-import type { LibraryEntry } from "@/core/data/trakt/library";
+import type { LibraryEntry } from "@/core/domain/model/library";
 import { agesAgo, entry } from "./up-next";
 
 /** Half the titles started and missing artwork, half never started with a list poster. */

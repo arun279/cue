@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, View } from "react-native";
-import type { SearchHit } from "@/core/data/trakt/search";
+import type { SearchHit } from "@/core/domain/discover";
 import { showRelatedQuery } from "@/core/queries/shows";
 import { useRuntime } from "@/core/runtime/runtime";
 import { Poster } from "../../ui/Poster";

@@ -1,5 +1,5 @@
-import type { LibraryEntry } from "./library";
-import type { MovieEntry } from "./movie-library";
+import type { LibraryEntry } from "./model/library";
+import type { MovieEntry } from "./model/movie";
 
 export interface WatchTotals {
   readonly episodes: number;

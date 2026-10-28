@@ -106,6 +106,27 @@ module.exports = {
       to: { path: "^(app|src|modules|plugins|__tests__)/", pathNot: "^src/core/" },
     },
     {
+      name: "trakt-stays-behind-the-runtime",
+      severity: "error",
+      comment:
+        "data/trakt is the Trakt adapter: wire schemas, decoding, HTTP, read pooling and the " +
+        "mapping of Trakt payloads onto domain models. Only the adapter itself, Trakt's OAuth " +
+        "client beside it in data/auth, and the files that implement CueRuntime with it may " +
+        "import it. Everything else, runtime.ts and the " +
+        "query cache included, reaches Trakt through CueRuntime and names what comes back with " +
+        "domain types, so a wire type cannot return through the interface every screen " +
+        "imports. The app's Jest tests are held to the same line; the core's Vitest suites may " +
+        "still drive the adapter directly.",
+      from: {
+        path: "^(app|src|modules|__tests__)/",
+        pathNot: [
+          "^src/core/data/(trakt|auth)/",
+          "^src/core/runtime/(create-runtime|write-receipts)\\.ts$",
+        ],
+      },
+      to: { path: "^src/core/data/trakt/" },
+    },
+    {
       name: "trakt-reads-stay-pooled",
       severity: "error",
       comment:

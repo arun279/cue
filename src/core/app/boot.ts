@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createCueRuntime, type RuntimeDeps } from "../runtime/create-runtime";
 import type { CueRuntime } from "../runtime/runtime";
+import { sessionTeardown } from "../runtime/session";
 import { useStartFailure } from "../stores/start-failure-store";
-import { createCueRuntime, type RuntimeDeps } from "./create-runtime";
-import { sessionTeardown } from "./session";
 
 export type RuntimeBootDeps = Omit<RuntimeDeps, "token">;
 

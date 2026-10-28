@@ -4,7 +4,7 @@ import { QueryClient } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { queryKeys } from "@/core/data/query-keys";
-import type { LibraryEntry } from "@/core/data/trakt/library";
+import type { LibraryEntry } from "@/core/domain/model/library";
 import type { QueuedOp } from "@/core/domain/write-queue/types";
 import { useHideShow } from "@/core/hooks/useHideShow";
 import type { SubmitOutcome, UpNextData } from "@/core/runtime/runtime";

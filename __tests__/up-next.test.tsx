@@ -10,8 +10,8 @@ import {
 } from "@testing-library/react-native";
 import { Dimensions, Platform, ScrollView } from "react-native";
 import { queryKeys } from "@/core/data/query-keys";
-import { TraktReadError } from "@/core/data/trakt/client";
-import type { LibraryEntry } from "@/core/data/trakt/library";
+import type { LibraryEntry } from "@/core/domain/model/library";
+import { TraktReadError } from "@/core/domain/read-failure";
 import { useReadRetry } from "@/core/hooks/useReadRetry";
 import type { PreferenceStorage } from "@/core/ports/preference-storage";
 import { usePrefs } from "@/core/prefs/prefs-store";

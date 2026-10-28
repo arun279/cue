@@ -8,8 +8,8 @@
 import { focusManager, QueryClient } from "@tanstack/react-query";
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { LibraryEntry } from "@/core/data/trakt/library";
 import type { CalendarEntry } from "@/core/domain/calendar";
+import type { LibraryEntry } from "@/core/domain/model/library";
 import type { PlannedReminder } from "@/core/domain/reminders";
 import { useEpisodeReminders } from "@/core/hooks/useEpisodeReminders";
 import { type Reminders, RemindersProvider } from "@/core/ports/reminders";

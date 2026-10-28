@@ -1,4 +1,4 @@
-import type { LibraryEntry } from "@/core/data/trakt/library";
+import type { LibraryEntry } from "@/core/domain/model/library";
 import type { UpNextItem } from "@/core/domain/up-next";
 
 export interface UpNextCard {

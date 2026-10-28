@@ -7,15 +7,18 @@ import {
   TraktClient,
   unwrapRead,
 } from "../data/trakt/client";
-import { parseIncidents, type ReadIncident, recordIncident } from "../data/trakt/diagnostics";
 import { assembleEpisodeDetail } from "../data/trakt/episode-detail";
 import {
   assembleEpisodePlays,
   assembleHistoryEntries,
   assembleMoviePlays,
 } from "../data/trakt/history";
-import { additiveLanded, markLanded, showIdSet } from "../data/trakt/library";
-import { assembleMovieHeader, assembleMovieLibrary } from "../data/trakt/movie-library";
+import { showIdSet } from "../data/trakt/library";
+import {
+  assembleMovieHeader,
+  assembleMovieLibrary,
+  assembleMovieWatchlist,
+} from "../data/trakt/movie-library";
 import type { TraktPolicy } from "../data/trakt/policy";
 import {
   getCollectionMovies,
@@ -43,7 +46,13 @@ import {
   getWatchlist,
   searchTrakt,
 } from "../data/trakt/pooled-endpoints";
-import { loadUpNextEntries } from "../data/trakt/read-budget";
+import {
+  loadUpNextEntries,
+  readRetryFailure,
+  readsPausedUntil,
+  subscribeReadPause,
+  subscribeReadRetry,
+} from "../data/trakt/read-budget";
 import {
   assembleMovieHits,
   assembleSearchHits,
@@ -52,8 +61,11 @@ import {
 } from "../data/trakt/search";
 import { assembleSeasons, assembleShowInfo, assembleShowProgress } from "../data/trakt/show-detail";
 import { createTraktTransport } from "../data/trakt/transport";
-import { assembleUserProfile, type UserProfile } from "../data/trakt/user-profile";
+import { assembleUserProfile } from "../data/trakt/user-profile";
+import { parseIncidents, type ReadIncident, recordIncident } from "../domain/diagnostics";
 import type { Token } from "../domain/model/token";
+import type { UserProfile } from "../domain/model/user";
+import { additiveLanded, markLanded } from "../domain/reversal";
 import type { LastActivities } from "../domain/sync-activities";
 import { WriteQueue } from "../domain/write-queue/queue";
 import type { QueuedOp } from "../domain/write-queue/types";
@@ -61,6 +73,8 @@ import { createJsonStore } from "../ports/json-store";
 import type { KeyValueStore } from "../ports/kv";
 import { INCIDENTS_KEY, OP_LOG_KEY } from "../ports/storage-keys";
 import type { TokenStore } from "../ports/token-store";
+import { resetOwnMarks } from "../stores/own-marks";
+import { useReadIncidents } from "../stores/read-incidents-store";
 import type {
   ActivitiesReconcile,
   BrowseData,
@@ -70,9 +84,7 @@ import type {
   MovieLibraryData,
   SubmitOutcome,
   UpNextData,
-} from "../runtime/runtime";
-import { resetOwnMarks } from "../stores/own-marks";
-import { useReadIncidents } from "../stores/read-incidents-store";
+} from "./runtime";
 import { PendingWritesError, type TeardownOptions } from "./session";
 import { createWriteReceipts } from "./write-receipts";
 
@@ -260,14 +272,14 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     },
 
     async loadMovieLibrary(watchlist): Promise<MovieLibraryData> {
-      const [watched, watchlistMovies, collection] = await Promise.all([
+      const [watched, listed, collection] = await Promise.all([
         getWatchedMovies(client),
         watchlist,
         getCollectionMovies(client),
       ]);
       const entries = assembleMovieLibrary({
         watchedMovies: unwrapRead(watched, "watched movies"),
-        watchlistMovies,
+        watchlist: listed,
         collectionMovies: unwrapRead(collection, "movie collection"),
       });
       return { entries };
@@ -313,7 +325,9 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     },
 
     async loadMovieWatchlist() {
-      return unwrapRead(await getWatchlist(client, "movies"), "movie watchlist");
+      return assembleMovieWatchlist(
+        unwrapRead(await getWatchlist(client, "movies"), "movie watchlist"),
+      );
     },
 
     async loadCalendar(startDate, days): Promise<CalendarData> {
@@ -401,6 +415,10 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     },
 
     writeReceipt: receipts.receiptOf,
+    readsPausedUntil,
+    subscribeReadPause,
+    readRetryFailure,
+    subscribeReadRetry,
 
     pendingWrites(): number {
       return queue.snapshot().length;

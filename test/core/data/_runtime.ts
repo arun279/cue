@@ -1,5 +1,5 @@
-import { createCueRuntime, type RuntimeDeps } from "@/core/app/create-runtime";
 import type { TokenStore } from "@/core/ports/token-store";
+import { createCueRuntime, type RuntimeDeps } from "@/core/runtime/create-runtime";
 import type { CueRuntime } from "@/core/runtime/runtime";
 import { memoryKeyValueStore } from "../support/stores";
 import { SESSION } from "../trakt-fake/account.ts";

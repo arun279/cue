@@ -1,17 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
-  additiveLanded,
-  advancePastNext,
   assembleLibrary,
-  type LibraryEntry,
   type LibraryInput,
-  markLanded,
-  quickMarkable,
   showIdSet,
   watchedEpisodeCount,
 } from "@/core/data/trakt/library";
 import type { Progress, WatchedShow, WatchlistItem } from "@/core/data/trakt/schemas";
-import type { EpisodePlay } from "@/core/domain/reversal";
+import { baseEntry } from "../domain/_helpers";
 
 function watchlistItem(overrides: {
   trakt: number;
@@ -84,34 +79,6 @@ function progress(overrides: {
     seasons: overrides.seasons,
   };
 }
-
-const baseEntry: LibraryEntry = {
-  showId: 1,
-  title: "Show",
-  year: null,
-  status: "returning series",
-  hidden: false,
-  inWatchlist: false,
-  addedAt: null,
-  lastWatchedAt: "2026-07-01T00:00:00.000Z",
-  plays: null,
-  aired: 10,
-  completed: 3,
-  left: 7,
-  nextEpisode: {
-    season: 1,
-    number: 4,
-    title: "Four",
-    firstAired: "2026-06-01T00:00:00.000Z",
-    still: null,
-    ids: { trakt: 4004 },
-  },
-  lastAired: { season: 1, number: 10 },
-  tmdbId: null,
-  runtime: null,
-  posters: [],
-  pendingAdvance: false,
-};
 
 describe("assembleLibrary", () => {
   it("carries each watched show's runtime and leaves a watchlist-only show's unknown", () => {
@@ -504,138 +471,5 @@ describe("showIdSet", () => {
       { type: "movie", movie: { title: "M", ids: { trakt: 99 } } },
     ]);
     expect([...set]).toEqual([10]);
-  });
-});
-
-describe("advancePastNext", () => {
-  it("projects the following episode with an unknown air date, bumps completed, flags pendingAdvance", () => {
-    const advanced = advancePastNext(baseEntry, "2026-07-05T12:00:00.000Z");
-    expect(advanced.completed).toBe(4);
-    expect(advanced.left).toBe(6);
-    expect(advanced.lastWatchedAt).toBe("2026-07-05T12:00:00.000Z");
-    expect(advanced.pendingAdvance).toBe(true);
-    expect(advanced.nextEpisode).toEqual({
-      season: 1,
-      number: 5,
-      title: null,
-      firstAired: null,
-      still: null,
-      ids: { trakt: 0 },
-    });
-  });
-
-  it("never inherits the watched episode's air date (no season-finale phantom in the lead slot)", () => {
-    // A recent air date on the source episode must NOT flow onto the projection:
-    // that is exactly what made a marked finale cling to the lead slot.
-    const entry: LibraryEntry = {
-      ...baseEntry,
-      nextEpisode: {
-        season: 1,
-        number: 4,
-        title: "Finale",
-        firstAired: "2026-07-04T00:00:00.000Z",
-        still: null,
-        ids: { trakt: 4004 },
-      },
-    };
-    expect(advancePastNext(entry, "2026-07-05T12:00:00.000Z").nextEpisode?.firstAired).toBeNull();
-  });
-
-  it("adds the mark's play to a known count of plays, and leaves an unknown one unknown", () => {
-    const at = "2026-07-05T12:00:00.000Z";
-    expect(advancePastNext({ ...baseEntry, plays: 7 }, at).plays).toBe(8);
-    expect(advancePastNext({ ...baseEntry, plays: null }, at).plays).toBeNull();
-  });
-
-  it("leaves a caught-up entry (null next) with no projected episode", () => {
-    const entry = { ...baseEntry, nextEpisode: null };
-    const advanced = advancePastNext(entry, "2026-07-05T12:00:00.000Z");
-    expect(advanced.nextEpisode).toBeNull();
-    expect(advanced.completed).toBe(4);
-  });
-
-  it("carries no coordinate after the last aired episode", () => {
-    const entry: LibraryEntry = {
-      ...baseEntry,
-      aired: 20,
-      completed: 19,
-      nextEpisode: {
-        season: 2,
-        number: 10,
-        title: "Finale",
-        firstAired: "2026-07-04T00:00:00.000Z",
-        still: null,
-        ids: { trakt: 2010 },
-      },
-      lastAired: { season: 2, number: 10 },
-    };
-    expect(advancePastNext(entry, "2026-07-05T12:00:00.000Z").nextEpisode).toBeNull();
-  });
-});
-
-describe("quickMarkable", () => {
-  const aired = Date.parse("2026-06-02T00:00:00.000Z");
-
-  it("offers the accelerator only for a known next episode that has aired", () => {
-    expect(quickMarkable(baseEntry, aired)).toBe(true);
-    expect(quickMarkable(baseEntry, Date.parse("2026-05-31T00:00:00.000Z"))).toBe(false);
-    expect(quickMarkable({ ...baseEntry, nextEpisode: null }, aired)).toBe(false);
-  });
-
-  it("holds it back while a mark's projected episode is still pending", () => {
-    expect(quickMarkable({ ...baseEntry, pendingAdvance: true }, aired)).toBe(false);
-  });
-});
-
-describe("markLanded", () => {
-  it("a mark landed once completed advanced past the pre-op count", () => {
-    expect(markLanded("present", 3, 4)).toBe(true);
-    expect(markLanded("present", 3, 3)).toBe(false);
-  });
-
-  it("an unmark landed once completed fell below the pre-op count", () => {
-    expect(markLanded("absent", 4, 3)).toBe(true);
-    expect(markLanded("absent", 4, 4)).toBe(false);
-  });
-});
-
-describe("additiveLanded", () => {
-  const watchedAt = "2026-07-05T12:34:00.000Z";
-  const play = (overrides: Partial<EpisodePlay> = {}): EpisodePlay => ({
-    historyId: 1,
-    episodeTrakt: 4004,
-    season: 4,
-    number: 4,
-    watchedAt,
-    ...overrides,
-  });
-
-  it("hits an episode play at the exact watched-at minute", () => {
-    expect(additiveLanded([play()], { episodeTrakt: 4004 }, watchedAt)).toBe(true);
-  });
-
-  it("hits a season probe Trakt stored up to 59 seconds earlier, as it truncates to the minute", () => {
-    expect(additiveLanded([play()], { season: 4, number: 4 }, "2026-07-05T12:34:59.000Z")).toBe(
-      true,
-    );
-  });
-
-  it("misses a play stored after the sent time, or more than a minute before it", () => {
-    expect(
-      additiveLanded(
-        [play({ watchedAt: "2026-07-05T12:34:30.000Z" })],
-        { episodeTrakt: 4004 },
-        watchedAt,
-      ),
-    ).toBe(false);
-    expect(additiveLanded([play()], { episodeTrakt: 4004 }, "2026-07-05T12:35:01.000Z")).toBe(
-      false,
-    );
-  });
-
-  it("misses the wrong episode id or season probe", () => {
-    expect(additiveLanded([play()], { episodeTrakt: 4005 }, watchedAt)).toBe(false);
-    expect(additiveLanded([play()], { season: 5, number: 4 }, watchedAt)).toBe(false);
-    expect(additiveLanded([play()], { season: 4, number: 5 }, watchedAt)).toBe(false);
   });
 });

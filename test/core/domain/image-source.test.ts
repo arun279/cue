@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { artHue, resolveBackdrop, resolvePoster } from "@/core/data/image-source";
+import { artHue, resolveBackdrop, resolvePoster } from "@/core/domain/image-source";
 
 describe("resolvePoster (Trakt inline → placeholder)", () => {
   it("prefers the Trakt inline poster and forces https on the host-relative url", () => {

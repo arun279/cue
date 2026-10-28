@@ -1,6 +1,6 @@
 import type { ReactElement } from "react";
 import { Platform } from "react-native";
-import type { EpisodeDetail } from "@/core/data/trakt/episode-detail";
+import type { EpisodeDetail } from "@/core/domain/episode-detail";
 import { epCode } from "@/core/domain/model/library";
 import { confirm } from "../../ui/confirm";
 import { HeaderMenu, RowMenu } from "../../ui/RowMenu";

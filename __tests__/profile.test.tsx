@@ -1,7 +1,7 @@
 import { act, fireEvent, screen, userEvent } from "@testing-library/react-native";
 import { Alert, Platform, StyleSheet } from "react-native";
-import { PendingWritesError } from "@/core/app/session";
-import { type TraktFailure, TraktReadError } from "@/core/data/trakt/client";
+import { type TraktFailure, TraktReadError } from "@/core/domain/read-failure";
+import { PendingWritesError } from "@/core/runtime/session";
 import "./support/screen-mocks";
 import Profile from "../src/screens/Profile";
 import { BarItems } from "../src/ui/BarItems";

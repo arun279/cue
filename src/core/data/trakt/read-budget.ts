@@ -1,12 +1,8 @@
+import type { LibraryEntry } from "../../domain/model/library";
+import { healsOnRetry, type TraktFailure } from "../../domain/read-failure";
 import { toMs } from "../../domain/time";
 import { jitteredBackoffMs } from "../../domain/write-queue/classify";
-import {
-  healsOnRetry,
-  type TraktClient,
-  type TraktFailure,
-  type TraktResult,
-  unwrapRead,
-} from "./client";
+import { type TraktClient, type TraktResult, unwrapRead } from "./client";
 import {
   getCollectionShows,
   getDropped,
@@ -15,7 +11,7 @@ import {
   getWatchedShows,
   getWatchlist,
 } from "./endpoints";
-import { assembleLibrary, type LibraryEntry, showIdSet, watchedEpisodeCount } from "./library";
+import { assembleLibrary, showIdSet, watchedEpisodeCount } from "./library";
 import { DEFAULT_TRAKT_POLICY, type TraktPolicy } from "./policy";
 import type { Progress, WatchedShow } from "./schemas";
 

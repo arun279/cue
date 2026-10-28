@@ -4,10 +4,8 @@ import {
   assembleSeasons,
   assembleShowInfo,
   assembleShowProgress,
-  type EpisodeView,
-  firstUnwatchedAired,
-  type SeasonView,
 } from "@/core/data/trakt/show-detail";
+import { firstUnwatchedAired } from "@/core/domain/show-detail";
 
 const NOW = Date.UTC(2026, 6, 5);
 const DAY = 86_400_000;
@@ -243,56 +241,5 @@ describe("assembleSeasons", () => {
   it("tolerates a season with no episodes array", () => {
     const views = assembleSeasons([{ number: 4, title: "Upcoming" }], progress, NOW);
     expect(views[0]).toMatchObject({ number: 4, episodes: [], airedCount: 0, completedCount: 0 });
-  });
-});
-
-function episode(overrides: Partial<EpisodeView> = {}): EpisodeView {
-  return {
-    season: 1,
-    number: 1,
-    title: "Episode",
-    firstAired: iso(NOW - DAY),
-    ids: { trakt: 1 },
-    stills: [],
-    watched: false,
-    watchedAt: null,
-    aired: true,
-    ...overrides,
-  };
-}
-
-function season(number: number, episodes: readonly EpisodeView[]): SeasonView {
-  return {
-    number,
-    title: null,
-    isSpecial: number === 0,
-    isHidden: false,
-    episodes,
-    airedCount: episodes.filter((item) => item.aired).length,
-    completedCount: episodes.filter((item) => item.watched).length,
-  };
-}
-
-describe("firstUnwatchedAired", () => {
-  it("skips specials, unaired episodes, and watched episodes", () => {
-    const result = firstUnwatchedAired([
-      season(0, [episode({ season: 0, ids: { trakt: 10 } })]),
-      season(1, [
-        episode({ number: 1, ids: { trakt: 11 }, watched: true }),
-        episode({ number: 2, ids: { trakt: 12 }, aired: false }),
-        episode({ number: 3, ids: { trakt: 13 } }),
-      ]),
-    ]);
-
-    expect(result?.ids.trakt).toBe(13);
-  });
-
-  it("returns null when no regular episode is both aired and unwatched", () => {
-    expect(
-      firstUnwatchedAired([
-        season(0, [episode({ season: 0 })]),
-        season(1, [episode({ watched: true }), episode({ number: 2, aired: false })]),
-      ]),
-    ).toBeNull();
   });
 });

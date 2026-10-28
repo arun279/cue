@@ -3,13 +3,17 @@ import { airsLine, episodeStatus, sheetMetaLine } from "@/core/domain/episode-de
 import {
   continuePosition,
   defaultSeason,
+  type EpisodeView,
   earlierUnwatchedCount,
   episodeNavigation,
+  firstUnwatchedAired,
   orderSeasons,
   returnsLine,
+  type SeasonView,
   seasonConfirmation,
   watchedSummary,
 } from "@/core/domain/show-detail";
+import { DAY, iso, NOW } from "./_helpers";
 
 const next = {
   season: 3,
@@ -190,5 +194,56 @@ describe("episode copy", () => {
     expect(episodeStatus(true, null, 1)).toBe("Watched");
     expect(episodeStatus(true, null, 2)).toBe("Watched twice");
     expect(episodeStatus(true, null, 3)).toBe("Watched 3 times");
+  });
+});
+
+function episodeView(overrides: Partial<EpisodeView> = {}): EpisodeView {
+  return {
+    season: 1,
+    number: 1,
+    title: "Episode",
+    firstAired: iso(NOW - DAY),
+    ids: { trakt: 1 },
+    stills: [],
+    watched: false,
+    watchedAt: null,
+    aired: true,
+    ...overrides,
+  };
+}
+
+function seasonView(number: number, episodes: readonly EpisodeView[]): SeasonView {
+  return {
+    number,
+    title: null,
+    isSpecial: number === 0,
+    isHidden: false,
+    episodes,
+    airedCount: episodes.filter((item) => item.aired).length,
+    completedCount: episodes.filter((item) => item.watched).length,
+  };
+}
+
+describe("firstUnwatchedAired", () => {
+  it("skips specials, unaired episodes, and watched episodes", () => {
+    const result = firstUnwatchedAired([
+      seasonView(0, [episodeView({ season: 0, ids: { trakt: 10 } })]),
+      seasonView(1, [
+        episodeView({ number: 1, ids: { trakt: 11 }, watched: true }),
+        episodeView({ number: 2, ids: { trakt: 12 }, aired: false }),
+        episodeView({ number: 3, ids: { trakt: 13 } }),
+      ]),
+    ]);
+
+    expect(result?.ids.trakt).toBe(13);
+  });
+
+  it("returns null when no regular episode is both aired and unwatched", () => {
+    expect(
+      firstUnwatchedAired([
+        seasonView(0, [episodeView({ season: 0 })]),
+        seasonView(1, [episodeView({ watched: true }), episodeView({ number: 2, aired: false })]),
+      ]),
+    ).toBeNull();
   });
 });

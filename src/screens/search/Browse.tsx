@@ -1,7 +1,7 @@
 import { useRouter } from "expo-router";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
-import type { SearchHit } from "@/core/data/trakt/search";
+import type { SearchHit } from "@/core/domain/discover";
 import type { QueryStatus } from "@/core/queries/freshness";
 import { readFailureBody } from "@/core/sync-contract";
 import { Button } from "../../ui/Button";

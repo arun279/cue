@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { TraktReadError } from "@/core/data/trakt/client";
+import { TraktReadError } from "@/core/domain/read-failure";
 import { combineStatus } from "@/core/queries/freshness";
 
 const settled = {

@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { useRef, useState } from "react";
 import { queryKeys } from "@/core/data/query-keys";
-import type { MovieEntry, MovieHeader } from "@/core/data/trakt/movie-library";
+import type { MovieEntry, MovieHeader } from "@/core/domain/model/movie";
 import type { MoviePlay } from "@/core/domain/reversal";
 import {
   buildMarkMovieOp,

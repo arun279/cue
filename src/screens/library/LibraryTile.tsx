@@ -1,8 +1,8 @@
 import { type Href, useRouter } from "expo-router";
 import { memo, type ReactElement, type ReactNode } from "react";
 import { Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
-import type { LibraryEntry } from "@/core/data/trakt/library";
-import type { MovieEntry } from "@/core/data/trakt/movie-library";
+import type { LibraryEntry } from "@/core/domain/model/library";
+import type { MovieEntry } from "@/core/domain/model/movie";
 import { watchedPercent } from "@/core/format";
 import { useHideShow } from "@/core/hooks/useHideShow";
 import { useShowArt } from "../../hooks/useShowArt";

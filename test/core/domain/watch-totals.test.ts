@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import type { LibraryEntry } from "@/core/data/trakt/library";
-import type { MovieEntry } from "@/core/data/trakt/movie-library";
-import { watchTotals } from "@/core/data/trakt/watch-totals";
+import type { LibraryEntry } from "@/core/domain/model/library";
+import type { MovieEntry } from "@/core/domain/model/movie";
+import { watchTotals } from "@/core/domain/watch-totals";
 
 const show = (showId: number, completed: number, runtime: number | null): LibraryEntry => ({
   showId,

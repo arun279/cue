@@ -1,40 +1,12 @@
 import type { MovieIds } from "../../domain/model/ids";
+import { type MovieEntry, type MovieHeader, unwatchedMovie } from "../../domain/model/movie";
 import { laterOf } from "../../domain/time";
 import type { CollectionMovie, MovieDetailData, WatchedMovie, WatchlistItem } from "./schemas";
 import { artOf } from "./show-detail";
 
-export interface MovieEntry {
-  readonly movieId: number;
-  readonly ids: MovieIds;
-  readonly title: string;
-  readonly year: number | null;
-  readonly watched: boolean;
-  readonly watchedAt: string | null;
-  readonly inWatchlist: boolean;
-  readonly inCollection: boolean;
-  readonly addedAt: string | null;
-  readonly posters: readonly string[];
-  readonly tmdbId: number | null;
-  readonly runtime: number | null;
-}
-
-export interface MovieHeader {
-  readonly movieId: number;
-  readonly ids: MovieIds;
-  readonly title: string;
-  readonly year: number | null;
-  readonly overview: string | null;
-  readonly runtime: number | null;
-  readonly released: string | null;
-  readonly genres: readonly string[];
-  readonly posters: readonly string[];
-  readonly backdrops: readonly string[];
-  readonly tmdbId: number | null;
-}
-
 export interface MovieLibraryInput {
   readonly watchedMovies: readonly WatchedMovie[];
-  readonly watchlistMovies: readonly WatchlistItem[];
+  readonly watchlist: readonly MovieEntry[];
   readonly collectionMovies: readonly CollectionMovie[];
 }
 
@@ -52,35 +24,50 @@ export function toMovieIds(ids: {
   };
 }
 
-type SchemaMovie = NonNullable<WatchlistItem["movie"]>;
+type SchemaMovie = NonNullable<WatchlistItem["movie"]> & { readonly runtime?: number | null };
+
+type MovieMedia = Pick<
+  MovieEntry,
+  "movieId" | "ids" | "title" | "year" | "posters" | "tmdbId" | "runtime"
+>;
 
 interface Saved {
-  readonly movie: SchemaMovie;
+  readonly media: MovieMedia;
   readonly addedAt: string | null;
   readonly inWatchlist: boolean;
   readonly inCollection: boolean;
 }
 
-function savedMovies(input: MovieLibraryInput): Map<number, Saved> {
-  const saved = new Map<number, Saved>();
-  const add = (movie: SchemaMovie | undefined, addedAt: string | null, watchlist: boolean) => {
-    if (movie === undefined) return;
-    const known = saved.get(movie.ids.trakt) ?? {
-      movie,
-      addedAt: null,
-      inWatchlist: false,
-      inCollection: false,
-    };
-    saved.set(movie.ids.trakt, {
-      movie: known.movie,
-      addedAt: laterOf(known.addedAt, addedAt),
-      inWatchlist: known.inWatchlist || watchlist,
-      inCollection: known.inCollection || !watchlist,
-    });
+function mediaOf(movie: SchemaMovie): MovieMedia {
+  return {
+    movieId: movie.ids.trakt,
+    ids: toMovieIds(movie.ids),
+    title: movie.title,
+    year: movie.year ?? null,
+    posters: movie.images?.poster ?? [],
+    tmdbId: movie.ids.tmdb ?? null,
+    runtime: movie.runtime ?? null,
   };
-  for (const item of input.watchlistMovies) add(item.movie, item.listed_at ?? null, true);
-  for (const item of input.collectionMovies) add(item.movie, item.collected_at ?? null, false);
-  return saved;
+}
+
+function save(
+  saved: Map<number, Saved>,
+  media: MovieMedia,
+  addedAt: string | null,
+  watchlist: boolean,
+): void {
+  const known = saved.get(media.movieId) ?? {
+    media,
+    addedAt: null,
+    inWatchlist: false,
+    inCollection: false,
+  };
+  saved.set(media.movieId, {
+    media: known.media,
+    addedAt: laterOf(known.addedAt, addedAt),
+    inWatchlist: known.inWatchlist || watchlist,
+    inCollection: known.inCollection || !watchlist,
+  });
 }
 
 function savedFields(
@@ -95,35 +82,55 @@ function savedFields(
 }
 
 function toMovieEntry(
-  movie: SchemaMovie & { readonly runtime?: number | null },
+  media: MovieMedia,
   watched: WatchedMovie | undefined,
   saved: Saved | undefined,
 ): MovieEntry {
-  return {
-    movieId: movie.ids.trakt,
-    ids: toMovieIds(movie.ids),
-    title: movie.title,
-    year: movie.year ?? null,
-    watched: watched !== undefined,
-    watchedAt: watched?.last_watched_at ?? null,
+  const entry = unwatchedMovie({
+    movieId: media.movieId,
+    ids: media.ids,
+    title: media.title,
+    year: media.year,
     ...savedFields(saved),
-    posters: movie.images?.poster ?? [],
-    tmdbId: movie.ids.tmdb ?? null,
-    runtime: movie.runtime ?? null,
-  };
+    posters: media.posters,
+    tmdbId: media.tmdbId,
+    runtime: media.runtime,
+  });
+  return watched === undefined
+    ? entry
+    : { ...entry, watched: true, watchedAt: watched.last_watched_at ?? null };
 }
 
-export function assembleMovieLibrary(input: MovieLibraryInput): MovieEntry[] {
-  const saved = savedMovies(input);
-  const watchedIds = new Set(input.watchedMovies.map(({ movie }) => movie.ids.trakt));
+function toMovieEntries(
+  watchedMovies: readonly WatchedMovie[],
+  saved: ReadonlyMap<number, Saved>,
+): MovieEntry[] {
+  const watchedIds = new Set(watchedMovies.map(({ movie }) => movie.ids.trakt));
   return [
-    ...input.watchedMovies.map((watched) =>
-      toMovieEntry(watched.movie, watched, saved.get(watched.movie.ids.trakt)),
+    ...watchedMovies.map((watched) =>
+      toMovieEntry(mediaOf(watched.movie), watched, saved.get(watched.movie.ids.trakt)),
     ),
     ...[...saved]
       .filter(([trakt]) => !watchedIds.has(trakt))
-      .map(([, entry]) => toMovieEntry(entry.movie, undefined, entry)),
+      .map(([, entry]) => toMovieEntry(entry.media, undefined, entry)),
   ];
+}
+
+export function assembleMovieWatchlist(rows: readonly WatchlistItem[]): MovieEntry[] {
+  const saved = new Map<number, Saved>();
+  for (const row of rows) {
+    if (row.movie !== undefined) save(saved, mediaOf(row.movie), row.listed_at ?? null, true);
+  }
+  return toMovieEntries([], saved);
+}
+
+export function assembleMovieLibrary(input: MovieLibraryInput): MovieEntry[] {
+  const saved = new Map<number, Saved>();
+  for (const entry of input.watchlist) save(saved, entry, entry.addedAt, true);
+  for (const item of input.collectionMovies) {
+    save(saved, mediaOf(item.movie), item.collected_at ?? null, false);
+  }
+  return toMovieEntries(input.watchedMovies, saved);
 }
 
 export function assembleMovieHeader(movie: MovieDetailData): MovieHeader {

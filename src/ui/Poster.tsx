@@ -1,6 +1,6 @@
 import { type ReactElement, useState } from "react";
 import { Image, StyleSheet, View } from "react-native";
-import { artHue, initialsOf, resolvePoster } from "@/core/data/image-source";
+import { artHue, initialsOf, resolvePoster } from "@/core/domain/image-source";
 import { PALETTE, RADIUS } from "./tokens";
 import { CueText } from "./type";
 

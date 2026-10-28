@@ -1,10 +1,9 @@
 import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { queryKeys } from "../data/query-keys";
-import { assembleLibrary, type LibraryEntry } from "../data/trakt/library";
-import { assembleMovieLibrary, type MovieEntry } from "../data/trakt/movie-library";
-import type { WatchlistItem } from "../data/trakt/schemas";
-import type { SearchHit } from "../data/trakt/search";
+import type { SearchHit } from "../domain/discover";
+import { type LibraryEntry, notStartedShow } from "../domain/model/library";
+import { type MovieEntry, unwatchedMovie } from "../domain/model/movie";
 import { buildAddWatchlistOp, buildRemoveWatchlistOp } from "../domain/write-queue/ops";
 import {
   type MovieLibraryData,
@@ -16,13 +15,36 @@ import { useOptimisticWrite } from "./useOptimisticWrite";
 
 export type WatchlistTitle = Pick<
   SearchHit,
-  "type" | "traktId" | "ids" | "title" | "year" | "posters"
+  "type" | "traktId" | "ids" | "title" | "year" | "posters" | "tmdbId"
 >;
 
-function listedRow({ type, title, year, ids, posters }: WatchlistTitle): WatchlistItem {
-  const media = { title, year, ids, images: { poster: [...posters] } };
-  const listed_at = new Date().toISOString();
-  return type === "movie" ? { type, listed_at, movie: media } : { type, listed_at, show: media };
+function listedShow({ ids, title, year, posters, tmdbId }: WatchlistTitle): LibraryEntry {
+  return notStartedShow({
+    showId: ids.trakt,
+    title,
+    year,
+    status: "",
+    hidden: false,
+    inWatchlist: true,
+    addedAt: new Date().toISOString(),
+    posters,
+    tmdbId,
+  });
+}
+
+function listedMovie({ ids, title, year, posters, tmdbId }: WatchlistTitle): MovieEntry {
+  return unwatchedMovie({
+    movieId: ids.trakt,
+    ids,
+    title,
+    year,
+    inWatchlist: true,
+    inCollection: false,
+    addedAt: new Date().toISOString(),
+    posters,
+    tmdbId,
+    runtime: null,
+  });
 }
 
 // The library holds every watchlisted show; the movie library is built from the movie watchlist.
@@ -38,15 +60,7 @@ function listShow(entries: readonly LibraryEntry[], title: WatchlistTitle, liste
     ...entries
       .map((entry) => (entry.showId === title.traktId ? { ...entry, inWatchlist: listed } : entry))
       .filter((entry) => entry.showId !== title.traktId || listed || entry.lastWatchedAt !== null),
-    ...(listed && !known
-      ? assembleLibrary({
-          watchedShows: [],
-          progress: new Map(),
-          hiddenShowIds: new Set(),
-          watchlistShows: [listedRow(title)],
-          collectionShows: [],
-        })
-      : []),
+    ...(listed && !known ? [listedShow(title)] : []),
   ];
 }
 
@@ -56,13 +70,7 @@ function listMovie(entries: readonly MovieEntry[], title: WatchlistTitle, listed
     ...entries
       .map((entry) => (entry.movieId === title.traktId ? { ...entry, inWatchlist: listed } : entry))
       .filter((entry) => entry.inWatchlist || entry.watched || entry.inCollection),
-    ...(listed && !known
-      ? assembleMovieLibrary({
-          watchedMovies: [],
-          watchlistMovies: [listedRow(title)],
-          collectionMovies: [],
-        })
-      : []),
+    ...(listed && !known ? [listedMovie(title)] : []),
   ];
 }
 
@@ -73,12 +81,12 @@ function patchMembership(client: QueryClient, title: WatchlistTitle, listed: boo
     );
     return;
   }
-  client.setQueryData<readonly WatchlistItem[]>(queryKeys.movieWatchlist(), (rows) =>
-    rows === undefined
-      ? rows
+  client.setQueryData<readonly MovieEntry[]>(queryKeys.movieWatchlist(), (entries) =>
+    entries === undefined
+      ? entries
       : [
-          ...rows.filter((row) => row.movie?.ids.trakt !== title.traktId),
-          ...(listed ? [listedRow(title)] : []),
+          ...entries.filter((entry) => entry.movieId !== title.traktId),
+          ...(listed ? [listedMovie(title)] : []),
         ],
   );
   client.setQueryData<MovieLibraryData>(queryKeys.movieLibrary(), (old) =>

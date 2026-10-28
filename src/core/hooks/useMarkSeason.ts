@@ -1,9 +1,9 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useRef } from "react";
 import { queryKeys } from "../data/query-keys";
-import type { EpisodeMatch, SeasonView, ShowProgress } from "../data/trakt/show-detail";
 import type { EpisodeIds, ShowIds } from "../domain/model/ids";
 import { markedAt, planSeasonUnmark, type UnmarkPlan } from "../domain/reversal";
+import type { EpisodeMatch, SeasonView, ShowProgress } from "../domain/show-detail";
 import { buildBulkMarkOps, type SeasonTree } from "../domain/write-queue/bulk";
 import {
   buildAddEpisodePlayOp,

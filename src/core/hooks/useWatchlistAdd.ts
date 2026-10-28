@@ -1,15 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
-import type { WatchlistItem } from "../data/trakt/schemas";
-import type { SearchHit } from "../data/trakt/search";
+import type { SearchHit } from "../domain/discover";
+import type { MovieEntry } from "../domain/model/movie";
 import { usePrefs } from "../prefs/prefs-store";
 import { libraryQuery, movieLibraryQuery, movieWatchlistQuery } from "../queries/library";
 import { useRuntime } from "../runtime/runtime";
 import { showFailure } from "../stores/snackbar-store";
 import { useSetWatchlisted } from "./useSetWatchlisted";
 
-const movieIds = (rows: readonly WatchlistItem[]): readonly number[] =>
-  rows.flatMap((row) => (row.movie === undefined ? [] : [row.movie.ids.trakt]));
+const movieIds = (entries: readonly MovieEntry[]): readonly number[] =>
+  entries.map(({ movieId }) => movieId);
 
 export interface WatchlistAddView {
   isAdded(hit: SearchHit): boolean;

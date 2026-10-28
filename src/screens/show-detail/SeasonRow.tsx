@@ -1,9 +1,9 @@
 import { memo, type ReactElement } from "react";
 import { StyleSheet, useWindowDimensions, View } from "react-native";
 import Animated, { LinearTransition, ReduceMotion } from "react-native-reanimated";
-import type { EpisodeView, SeasonView } from "@/core/data/trakt/show-detail";
 import { detailDate } from "@/core/domain/episode-detail";
 import { epCode } from "@/core/domain/model/library";
+import type { EpisodeView, SeasonView } from "@/core/domain/show-detail";
 import { watchedPercent } from "@/core/format";
 import { CheckControl } from "../../ui/CheckControl";
 import { Chevron } from "../../ui/Chevron";

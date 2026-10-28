@@ -1,7 +1,7 @@
 import { useRouter } from "expo-router";
 import { type ReactElement, useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
-import type { SearchHit } from "@/core/data/trakt/search";
+import type { SearchHit } from "@/core/domain/discover";
 import { Badge } from "../../ui/Badge";
 import { PlatformIcon } from "../../ui/PlatformIcon";
 import { Poster } from "../../ui/Poster";

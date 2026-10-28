@@ -1,8 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
 import { queryKeys } from "../data/query-keys";
-import { advancePastNext, type LibraryEntry, type MarkContext } from "../data/trakt/library";
-import { epCode } from "../domain/model/library";
+import { advancePastNext, epCode, type LibraryEntry } from "../domain/model/library";
 import {
   buildMarkEpisodeOp,
   buildUnmarkEpisodeOp,
@@ -48,6 +47,11 @@ import { REPLACED_COPY } from "./replaced-copy";
 import { planLandedUndo, removeEpisodePlays, waitWhileInFlight } from "./resolve-unmark";
 import { useOptimisticWrite } from "./useOptimisticWrite";
 import { useResumeOnMark } from "./useResumeOnMark";
+
+interface MarkContext {
+  readonly showId: number;
+  readonly preCompleted: number;
+}
 
 export interface MarkWatched {
   mark(entry: LibraryEntry): Promise<void>;

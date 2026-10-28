@@ -1,25 +1,14 @@
+import { resolveStill } from "../../domain/image-source";
 import {
   compareEpisodeKeys,
   type EpisodeKey,
   type EpisodeRef,
-  type LibraryShow,
+  type LibraryEntry,
+  notStartedShow,
 } from "../../domain/model/library";
-import { type EpisodePlay, isOwnPlay } from "../../domain/reversal";
-import { isAired, laterOf, toMs } from "../../domain/time";
-import { resolveStill } from "../image-source";
+import { laterOf, toMs } from "../../domain/time";
 import type { CollectionShow, HiddenItem, Progress, WatchedShow, WatchlistItem } from "./schemas";
 import { progressLeft, toEpisodeIds } from "./show-detail";
-
-export interface LibraryEntry extends LibraryShow {
-  readonly tmdbId: number | null;
-  readonly runtime: number | null;
-  readonly posters: readonly string[];
-}
-
-export interface MarkContext {
-  readonly showId: number;
-  readonly preCompleted: number;
-}
 
 export interface LibraryInput {
   readonly watchedShows: readonly WatchedShow[];
@@ -108,24 +97,15 @@ function savedFields(
 
 function toNotStartedEntry(saved: Saved, hidden: boolean): LibraryEntry {
   const { show } = saved;
-  return {
+  return notStartedShow({
     showId: show.ids.trakt,
     title: show.title,
     year: show.year ?? null,
     status: show.status ?? "",
     hidden,
     ...savedFields(saved),
-    lastWatchedAt: null,
-    plays: 0,
-    aired: 0,
-    completed: 0,
-    left: 0,
-    nextEpisode: null,
-    lastAired: null,
     tmdbId: show.ids.tmdb ?? null,
-    runtime: null,
-    pendingAdvance: false,
-  };
+  });
 }
 
 function savedShows(input: LibraryInput): Map<number, Saved> {
@@ -197,65 +177,4 @@ export function showIdSet(items: readonly (HiddenItem | WatchlistItem)[]): Set<n
     if (trakt !== undefined) ids.add(trakt);
   }
   return ids;
-}
-
-export function advancePastNext(entry: LibraryEntry, watchedAt: string): LibraryEntry {
-  const current = entry.nextEpisode;
-  const nextEpisode: EpisodeRef | null =
-    current === null ||
-    entry.lastAired === null ||
-    current.season !== entry.lastAired.season ||
-    current.number >= entry.lastAired.number
-      ? null
-      : {
-          season: current.season,
-          number: current.number + 1,
-          title: null,
-          firstAired: null,
-          still: null,
-          ids: { trakt: 0 },
-        };
-  return {
-    ...entry,
-    completed: entry.completed + 1,
-    left: Math.max(0, entry.left - 1),
-    lastWatchedAt: watchedAt,
-    plays: entry.plays === null ? null : entry.plays + 1,
-    nextEpisode,
-    pendingAdvance: true,
-  };
-}
-
-export function markLanded(
-  toState: "present" | "absent",
-  preCompleted: number,
-  freshCompleted: number,
-): boolean {
-  return toState === "present" ? freshCompleted > preCompleted : freshCompleted < preCompleted;
-}
-
-export type AdditiveMatch =
-  | { readonly episodeTrakt: number }
-  | { readonly season: number; readonly number: number };
-
-export function additiveLanded(
-  plays: readonly EpisodePlay[],
-  match: AdditiveMatch,
-  watchedAt: string,
-): boolean {
-  return plays.some((play) => {
-    const matches =
-      "episodeTrakt" in match
-        ? play.episodeTrakt === match.episodeTrakt
-        : play.season === match.season && play.number === match.number;
-    return matches && isOwnPlay(play.watchedAt, watchedAt);
-  });
-}
-
-export function quickMarkable(entry: LibraryEntry, now: number): boolean {
-  return (
-    !entry.pendingAdvance &&
-    entry.nextEpisode !== null &&
-    isAired(entry.nextEpisode.firstAired, now)
-  );
 }

@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { type ReactElement, useState } from "react";
 import { Image, StyleSheet, View } from "react-native";
-import { initialsOf } from "@/core/data/image-source";
+import { initialsOf } from "@/core/domain/image-source";
 import { userProfileQuery } from "@/core/queries/user";
 import { useRuntime } from "@/core/runtime/runtime";
 import { PlatformIcon } from "./PlatformIcon";

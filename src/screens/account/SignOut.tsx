@@ -1,7 +1,7 @@
 import { type ReactElement, useState } from "react";
 import { Alert, Platform, Pressable, View } from "react-native";
-import { PendingWritesError } from "@/core/app/session";
 import { useAuth } from "@/core/auth/store";
+import { PendingWritesError } from "@/core/runtime/session";
 import { useLiveRegion } from "../../ui/live-region";
 import { ROW_MIN_HEIGHT, useColors } from "../../ui/tokens";
 import { CueText } from "../../ui/type";

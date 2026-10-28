@@ -1,4 +1,4 @@
-import { healsOnRetry, type TraktFailure, TraktReadError } from "./data/trakt/client";
+import { healsOnRetry, type TraktFailure, TraktReadError } from "./domain/read-failure";
 
 export const UNDO_WINDOW_MS = 5000;
 

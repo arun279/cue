@@ -2,15 +2,15 @@
 
 import { onlineManager } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
-import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { TraktResult } from "@/core/data/trakt/client";
-import { resetReadPause, withReadRateRetry } from "@/core/data/trakt/read-budget";
+import { resetReadPause } from "@/core/data/trakt/read-budget";
 import { useSyncBanner } from "@/core/hooks/useSyncBanner";
 import type { QueryStatus } from "@/core/queries/freshness";
-import { RuntimeProvider } from "@/core/runtime/runtime";
+import { type CueRuntime, RuntimeProvider } from "@/core/runtime/runtime";
 import { useSyncActivity } from "@/core/stores/sync-activity-store";
+import { buildRuntime } from "../data/_runtime";
 import { partialRuntime } from "../support/runtime";
+import { createTraktFake } from "../trakt-fake/fake.ts";
 
 const fresh: QueryStatus = {
   isLoading: false,
@@ -22,10 +22,18 @@ const fresh: QueryStatus = {
   retrying: false,
 };
 
-function mountBanner(
-  wrapper?: (props: { readonly children: ReactNode }) => ReactNode,
-): () => string | null {
-  const { result } = renderHook(() => useSyncBanner(fresh), { wrapper });
+const unpaused = (members: Partial<CueRuntime> = {}): CueRuntime =>
+  partialRuntime({
+    pendingWrites: () => 0,
+    readsPausedUntil: () => 0,
+    subscribeReadPause: () => () => {},
+    ...members,
+  });
+
+function mountBanner(runtime: CueRuntime): () => string | null {
+  const { result } = renderHook(() => useSyncBanner(fresh), {
+    wrapper: ({ children }) => <RuntimeProvider value={runtime}>{children}</RuntimeProvider>,
+  });
   return () => result.current?.message ?? null;
 }
 
@@ -36,27 +44,28 @@ beforeEach(() => {
 afterEach(() => {
   onlineManager.setOnline(true);
   resetReadPause();
+  vi.unstubAllGlobals();
   vi.useRealTimers();
 });
 
 describe("useSyncBanner", () => {
   it("says the device is offline until it reconnects", () => {
     onlineManager.setOnline(false);
-    const message = mountBanner();
+    const message = mountBanner(unpaused());
     expect(message()).toBe("Offline. Your marks are saved.");
 
     act(() => onlineManager.setOnline(true));
     expect(message()).toBeNull();
   });
 
-  it("counts a shared rate-limit pause down to silence", async () => {
-    const message = mountBanner();
-    const read = vi
-      .fn<() => Promise<TraktResult<number>>>()
-      .mockResolvedValueOnce({ ok: false, error: { kind: "rate-limited", retryAfterMs: 2000 } })
-      .mockResolvedValue({ ok: true, data: 1, pagination: null });
+  it("counts a rate-limit pause the runtime's reads hit down to silence", async () => {
+    const trakt = createTraktFake();
+    trakt.fail({ path: /^\/users\/settings$/ }, 429, 1);
+    vi.stubGlobal("fetch", trakt.fetch);
+    const runtime = await buildRuntime();
+    const message = mountBanner(runtime);
     await act(async () => {
-      void withReadRateRetry(read);
+      void runtime.loadUserProfile();
       await vi.advanceTimersByTimeAsync(0);
     });
     expect(message()).toBe("Trakt is limiting requests. Retrying in 2s.");
@@ -69,10 +78,7 @@ describe("useSyncBanner", () => {
 
   it("names a write backlog only once it outlasts the grace window", async () => {
     let queued = 3;
-    const runtime = partialRuntime({ pendingWrites: () => queued });
-    const message = mountBanner(({ children }) => (
-      <RuntimeProvider value={runtime}>{children}</RuntimeProvider>
-    ));
+    const message = mountBanner(unpaused({ pendingWrites: () => queued }));
     await act(() => vi.advanceTimersByTimeAsync(4000));
     expect(message()).toBeNull();
     await act(() => vi.advanceTimersByTimeAsync(1000));

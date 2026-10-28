@@ -1,6 +1,6 @@
 import type { ReactElement } from "react";
 import { View } from "react-native";
-import type { TraktFailure } from "@/core/data/trakt/client";
+import type { TraktFailure } from "@/core/domain/read-failure";
 import { readFailureBody } from "@/core/sync-contract";
 import { Button } from "../../ui/Button";
 import { EmptyState } from "../../ui/EmptyState";

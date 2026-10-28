@@ -4,10 +4,9 @@ import { notifyManager, QueryClient } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import { beforeAll, expect, it } from "vitest";
 import { queryKeys } from "@/core/data/query-keys";
-import type { LibraryEntry } from "@/core/data/trakt/library";
-import type { MovieEntry } from "@/core/data/trakt/movie-library";
-import type { WatchlistItem } from "@/core/data/trakt/schemas";
-import type { SearchHit } from "@/core/data/trakt/search";
+import type { SearchHit } from "@/core/domain/discover";
+import type { LibraryEntry } from "@/core/domain/model/library";
+import type { MovieEntry } from "@/core/domain/model/movie";
 import type { QueuedOp } from "@/core/domain/write-queue/types";
 import { useWatchlistAdd, type WatchlistAddView } from "@/core/hooks/useWatchlistAdd";
 import type {
@@ -28,17 +27,12 @@ const show: SearchHit = {
   traktId: 1,
   title: "Refetched Show",
   year: 2026,
-  posters: [],
-  tmdbId: null,
-  ids: { trakt: 1 },
+  posters: ["walter-r2.trakt.tv/images/shows/000/001/posters/thumb/1.jpg"],
+  tmdbId: 101,
+  ids: { trakt: 1, tmdb: 101 },
 };
 
 const movie: SearchHit = { ...show, key: "movie:1", type: "movie", title: "Dune" };
-
-const listedMovie: WatchlistItem = {
-  type: "movie",
-  movie: { title: movie.title, ids: { trakt: movie.traktId } },
-};
 
 const watchedShow: LibraryEntry = {
   ...makeShow({ showId: show.traktId, lastWatchedAt: "2026-01-01T00:00:00.000Z", completed: 3 }),
@@ -60,6 +54,13 @@ const watchedMovie: MovieEntry = {
   posters: [],
   tmdbId: null,
   runtime: null,
+};
+
+const listedMovie: MovieEntry = {
+  ...watchedMovie,
+  watched: false,
+  watchedAt: null,
+  inWatchlist: true,
 };
 
 let view: { readonly current: WatchlistAddView };
@@ -88,8 +89,27 @@ it("lists an added show in the library at once and drops it again when the add i
 
   await act(async () => view.current.add(show));
   expect(view.current.isAdded(show)).toBe(true);
-  expect(client.getQueryData<UpNextData>(queryKeys.library())?.entries).toMatchObject([
-    { showId: show.traktId, title: show.title, inWatchlist: true, completed: 0 },
+  expect(client.getQueryData<UpNextData>(queryKeys.library())?.entries).toEqual([
+    {
+      showId: show.traktId,
+      title: show.title,
+      year: show.year,
+      status: "",
+      hidden: false,
+      inWatchlist: true,
+      addedAt: expect.any(String),
+      lastWatchedAt: null,
+      plays: 0,
+      aired: 0,
+      completed: 0,
+      left: 0,
+      nextEpisode: null,
+      lastAired: null,
+      tmdbId: show.tmdbId,
+      runtime: null,
+      posters: show.posters,
+      pendingAdvance: false,
+    },
   ]);
 
   await act(async () => view.current.remove(show));
@@ -146,13 +166,27 @@ it("adds a movie to the movie watchlist and movie library once, then revalidates
   await act(async () => view.current.add(movie));
   await act(async () => view.current.add(movie));
 
-  expect(submitted.map((op) => op.request.body)).toEqual([{ movies: [{ ids: { trakt: 1 } }] }]);
-  expect(client.getQueryData<MovieLibraryData>(queryKeys.movieLibrary())?.entries).toMatchObject([
-    { movieId: movie.traktId, inWatchlist: true, watched: false },
+  expect(submitted.map((op) => op.request.body)).toEqual([
+    { movies: [{ ids: { trakt: 1, tmdb: 101 } }] },
   ]);
-  expect(client.getQueryData(queryKeys.movieWatchlist())).toMatchObject([
-    { movie: { ids: { trakt: movie.traktId } } },
+  const listed = {
+    movieId: movie.traktId,
+    ids: movie.ids,
+    title: movie.title,
+    year: movie.year,
+    watched: false,
+    watchedAt: null,
+    inWatchlist: true,
+    inCollection: false,
+    addedAt: expect.any(String),
+    posters: movie.posters,
+    tmdbId: movie.tmdbId,
+    runtime: null,
+  };
+  expect(client.getQueryData<MovieLibraryData>(queryKeys.movieLibrary())?.entries).toEqual([
+    listed,
   ]);
+  expect(client.getQueryData(queryKeys.movieWatchlist())).toEqual([listed]);
   expect(client.getQueryState(queryKeys.movieLibrary())?.isInvalidated).toBe(true);
   expect(client.getQueryState(queryKeys.movieWatchlist())?.isInvalidated).toBe(true);
   expect(view.current.isAdded(show)).toBe(false);

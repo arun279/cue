@@ -1,7 +1,7 @@
 import { InfiniteQueryObserver, QueryClient, QueryObserver } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 import { changedActivityKeys, showProgressKeys } from "@/core/data/query-invalidation";
-import type { WatchlistItem } from "@/core/data/trakt/schemas";
+import type { MovieEntry } from "@/core/domain/model/movie";
 import type { LastActivities } from "@/core/domain/sync-activities";
 import { firstPlayQuery, historyQuery } from "@/core/queries/history";
 import { movieLibraryQuery, movieWatchlistQuery } from "@/core/queries/library";
@@ -126,14 +126,29 @@ describe("each read refreshes on the invalidation meant for it", () => {
 
 describe("the movie library", () => {
   it("is built from the cached movie watchlist, read once", async () => {
-    const rows: WatchlistItem[] = [{ type: "movie", movie: { title: "Dune", ids: { trakt: 1 } } }];
+    const listed: MovieEntry[] = [
+      {
+        movieId: 1,
+        ids: { trakt: 1 },
+        title: "Dune",
+        year: null,
+        watched: false,
+        watchedAt: null,
+        inWatchlist: true,
+        inCollection: false,
+        addedAt: null,
+        posters: [],
+        tmdbId: null,
+        runtime: null,
+      },
+    ];
     loaders.loadMovieWatchlist.mockClear();
-    loaders.loadMovieWatchlist.mockResolvedValue(rows);
+    loaders.loadMovieWatchlist.mockResolvedValue(listed);
     const queryClient = await observe((qc) => new QueryObserver(qc, movieWatchlistQuery(runtime)));
     loaders.loadMovieLibrary.mockClear();
     await queryClient.fetchQuery(movieLibraryQuery(runtime));
     expect(loaders.loadMovieWatchlist).toHaveBeenCalledOnce();
-    await expect(loaders.loadMovieLibrary.mock.calls[0]?.[0]).resolves.toBe(rows);
+    await expect(loaders.loadMovieLibrary.mock.calls[0]?.[0]).resolves.toBe(listed);
   });
 });
 

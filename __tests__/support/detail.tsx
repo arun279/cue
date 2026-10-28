@@ -1,7 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 import type { ReactElement, ReactNode } from "react";
-import type { EpisodeDetail } from "@/core/data/trakt/episode-detail";
-import type { SeasonView } from "@/core/data/trakt/show-detail";
+import type { EpisodeDetail } from "@/core/domain/episode-detail";
+import type { SeasonView } from "@/core/domain/show-detail";
 import type { PreferenceStorage } from "@/core/ports/preference-storage";
 import {
   episodeQuery,

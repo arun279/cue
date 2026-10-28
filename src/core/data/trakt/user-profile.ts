@@ -1,10 +1,5 @@
+import type { UserProfile } from "../../domain/model/user";
 import type { UserSettings } from "./schemas";
-
-export interface UserProfile {
-  readonly username: string;
-  readonly displayName: string;
-  readonly avatar: string | null;
-}
 
 export function assembleUserProfile(settings: UserSettings): UserProfile {
   const { user } = settings;

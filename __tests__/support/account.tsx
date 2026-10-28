@@ -2,7 +2,7 @@ import { render } from "@testing-library/react-native";
 import type { ReactNode } from "react";
 import { createAuthStore } from "@/core/auth/create-auth-store";
 import { AuthStoreProvider } from "@/core/auth/store";
-import type { MovieEntry } from "@/core/data/trakt/movie-library";
+import type { MovieEntry } from "@/core/domain/model/movie";
 import { AppVersionProvider } from "@/core/ports/app-version";
 import { createPrefsStore, PrefsProvider } from "@/core/prefs/prefs-store";
 import type { CueRuntime } from "@/core/runtime/runtime";

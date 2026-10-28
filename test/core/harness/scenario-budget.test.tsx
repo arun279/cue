@@ -12,10 +12,8 @@ import {
 import { act, type RenderResult, render } from "@testing-library/react";
 import { type ReactElement, useEffect, useState } from "react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { createCueRuntime } from "@/core/app/create-runtime";
 import { queryKeys } from "@/core/data/query-keys";
-import { TraktClient, TraktReadError } from "@/core/data/trakt/client";
-import type { LibraryEntry } from "@/core/data/trakt/library";
+import { TraktClient } from "@/core/data/trakt/client";
 import { DEFAULT_TRAKT_POLICY } from "@/core/data/trakt/policy";
 import {
   loadUpNextEntries,
@@ -24,7 +22,6 @@ import {
   resetReadPause,
   subscribeReadRetry,
 } from "@/core/data/trakt/read-budget";
-import type { EpisodeView, SeasonView } from "@/core/data/trakt/show-detail";
 import {
   CALENDAR_WINDOW_DAYS,
   RECENT_CALENDAR_WINDOW_DAYS,
@@ -32,6 +29,9 @@ import {
 } from "@/core/domain/calendar";
 import { dayKeyOf } from "@/core/domain/day";
 import { chipBuckets } from "@/core/domain/library-buckets";
+import type { LibraryEntry } from "@/core/domain/model/library";
+import { TraktReadError } from "@/core/domain/read-failure";
+import type { EpisodeView, SeasonView } from "@/core/domain/show-detail";
 import { localTimeZone } from "@/core/domain/time";
 import { groupUpNext } from "@/core/domain/up-next";
 import { useActivitiesPoll } from "@/core/hooks/useActivitiesPoll";
@@ -45,6 +45,7 @@ import { calendarQuery } from "@/core/queries/calendar";
 import { movieLibraryQuery } from "@/core/queries/library";
 import { ART_SETTLE_MS, showInfoQuery, showSeasonsQuery } from "@/core/queries/shows";
 import { userProfileQuery } from "@/core/queries/user";
+import { createCueRuntime } from "@/core/runtime/create-runtime";
 import { createQueryCachePolicy, createQueryClient } from "@/core/runtime/query-cache";
 import { type CueRuntime, useRuntime } from "@/core/runtime/runtime";
 import { useSnackbar } from "@/core/stores/snackbar-store";

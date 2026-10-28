@@ -1,8 +1,7 @@
 import { useRouter } from "expo-router";
 import type { ReactElement } from "react";
 import { StyleSheet, View } from "react-native";
-import type { LibraryEntry } from "@/core/data/trakt/library";
-import { epCode } from "@/core/domain/model/library";
+import { epCode, type LibraryEntry } from "@/core/domain/model/library";
 import { continuePosition, episodeCount, returnsLine } from "@/core/domain/show-detail";
 import { watchedPercent } from "@/core/format";
 import { useMarkControl } from "@/core/hooks/useMarkControl";

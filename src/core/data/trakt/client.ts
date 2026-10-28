@@ -1,5 +1,5 @@
+import { type ReadProblem, type TraktFailure, TraktReadError } from "../../domain/read-failure";
 import { parseReadRetryAfterMs } from "../../domain/write-queue/classify";
-import type { DecodeIssue } from "./decode";
 import { DEFAULT_TRAKT_POLICY, type TimeoutClass, type TraktPolicy } from "./policy";
 
 const TRAKT_API_BASE = "https://api.trakt.tv";
@@ -31,44 +31,11 @@ interface Pagination {
   readonly pageCount: number;
 }
 
-export type TraktFailure =
-  | { readonly kind: "unauthorized" }
-  | { readonly kind: "not-found" }
-  | { readonly kind: "account-limit" }
-  | { readonly kind: "account-locked" }
-  | { readonly kind: "vip-required" }
-  | { readonly kind: "rate-limited"; readonly retryAfterMs: number | null }
-  | { readonly kind: "unexpected-shape"; readonly issues: readonly DecodeIssue[] }
-  | { readonly kind: "no-content" }
-  | { readonly kind: "server"; readonly status: number }
-  | { readonly kind: "timeout" }
-  | { readonly kind: "network" };
-
-export type ReadProblem =
-  | TraktFailure
-  | { readonly kind: "skipped-fields"; readonly issues: readonly DecodeIssue[] };
-
 export type ReadReporter = (endpoint: string, problem: ReadProblem) => void;
 
 export type TraktResult<T> =
   | { readonly ok: true; readonly data: T; readonly pagination: Pagination | null }
   | { readonly ok: false; readonly error: TraktFailure };
-
-export class TraktReadError extends Error {
-  readonly failure: TraktFailure;
-
-  constructor(failure: TraktFailure, what: string) {
-    const detail = failure.kind === "unexpected-shape" ? ` at ${failure.issues[0]?.path}` : "";
-    super(`Failed to load ${what} (${failure.kind}${detail})`);
-    this.name = "TraktReadError";
-    this.failure = failure;
-  }
-}
-
-export function healsOnRetry(failure: TraktFailure): boolean {
-  if (failure.kind === "network" || failure.kind === "timeout") return true;
-  return failure.kind === "server" && failure.status >= 500;
-}
 
 export function unwrapRead<T>(result: TraktResult<T>, what: string): T {
   if (result.ok) return result.data;

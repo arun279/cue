@@ -1,8 +1,8 @@
 import { onlineManager } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 import { Platform } from "react-native";
-import { TraktReadError } from "@/core/data/trakt/client";
-import type { SearchHit } from "@/core/data/trakt/search";
+import type { SearchHit } from "@/core/domain/discover";
+import { TraktReadError } from "@/core/domain/read-failure";
 import type { PreferenceStorage } from "@/core/ports/preference-storage";
 import { memoryPreferenceStorage } from "../test/core/support/stores";
 import "./support/screen-mocks";

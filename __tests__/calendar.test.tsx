@@ -1,6 +1,6 @@
 import { act, render, screen, userEvent, waitFor, within } from "@testing-library/react-native";
-import type { LibraryEntry } from "@/core/data/trakt/library";
 import type { CalendarEntry } from "@/core/domain/calendar";
+import type { LibraryEntry } from "@/core/domain/model/library";
 import { DAY_MS } from "@/core/domain/time";
 import type { PreferenceStorage } from "@/core/ports/preference-storage";
 import { type Reminders, RemindersProvider } from "@/core/ports/reminders";

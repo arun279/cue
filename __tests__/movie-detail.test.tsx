@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react-native";
 import * as WebBrowser from "expo-web-browser";
-import { TraktReadError } from "@/core/data/trakt/client";
-import type { SearchHit } from "@/core/data/trakt/search";
+import type { SearchHit } from "@/core/domain/discover";
+import { TraktReadError } from "@/core/domain/read-failure";
 import { persistMediaVisibility } from "@/core/prefs/media-visibility";
 import { movieHeaderQuery } from "@/core/queries/movies";
 import { MovieDetail } from "../src/screens/MovieDetail";
@@ -296,10 +296,7 @@ it("clears Search's added state when the movie leaves the watchlist from its det
     entries: [...listed].map(() => ({ ...movieEntry, watched: false, inWatchlist: true })),
   }));
   runtime.loadMovieWatchlist.mockImplementation(async () =>
-    [...listed].map((trakt) => ({
-      type: "movie",
-      movie: { title: movieHeader.title, ids: { trakt } },
-    })),
+    [...listed].map((movieId) => ({ ...movieEntry, movieId, watched: false, inWatchlist: true })),
   );
   runtime.submit.mockImplementation(async (op) => {
     if (op.request.path === "/sync/watchlist") listed.add(movieHeader.movieId);

@@ -6,7 +6,7 @@ import {
   showProgressKeys,
 } from "@/core/data/query-invalidation";
 import { queryKeys } from "@/core/data/query-keys";
-import type { LibraryEntry } from "@/core/data/trakt/library";
+import type { LibraryEntry } from "@/core/domain/model/library";
 import type { LastActivities } from "@/core/domain/sync-activities";
 import { makeShow } from "../domain/_helpers";
 

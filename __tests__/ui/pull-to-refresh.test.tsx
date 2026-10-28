@@ -4,23 +4,12 @@ import type { ActivitiesReconcile } from "@/core/runtime/runtime";
 import { usePullToRefresh } from "../../src/hooks/usePullToRefresh";
 import { fakeRuntime, Harness, held, spyHaptics } from "../support/up-next";
 
-// The shared 429 pause is the gesture's own gate, and nothing in a test runner
-// opens one. Its behavior is proved in the core; what this file owns is what a
-// pull does while it stands.
-jest.mock("@/core/data/trakt/read-budget", () => ({
-  ...jest.requireActual("@/core/data/trakt/read-budget"),
-  readsPausedUntil: jest.fn(() => 0),
-}));
-
-const { readsPausedUntil } = require("@/core/data/trakt/read-budget") as {
-  readsPausedUntil: jest.Mock<number, [], unknown>;
-};
-
 const haptics = spyHaptics();
 const PAUSE_MS = 42_000;
+let pausedUntil = 0;
 
 async function mount(pollActivities: () => Promise<ActivitiesReconcile>) {
-  const runtime = { ...fakeRuntime({}), pollActivities };
+  const runtime = { ...fakeRuntime({}), pollActivities, readsPausedUntil: () => pausedUntil };
   const wrapper = ({ children }: { readonly children: ReactNode }): ReactElement => (
     <Harness runtime={runtime} haptics={haptics}>
       {children}
@@ -31,7 +20,7 @@ async function mount(pollActivities: () => Promise<ActivitiesReconcile>) {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  readsPausedUntil.mockReturnValue(0);
+  pausedUntil = 0;
 });
 
 /**
@@ -61,7 +50,7 @@ describe("pull to refresh", () => {
     const { result } = await mount(pollActivities);
     // Opened while the screen sits, with no render in between: what matters is
     // the window at the moment of release, not the one the last render saw.
-    readsPausedUntil.mockReturnValue(Date.now() + PAUSE_MS);
+    pausedUntil = Date.now() + PAUSE_MS;
 
     await act(async () => {
       result.current.pull();
