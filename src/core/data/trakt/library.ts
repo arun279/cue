@@ -1,3 +1,4 @@
+import { resolveStill } from "../../domain/image-source";
 import {
   compareEpisodeKeys,
   type EpisodeKey,
@@ -6,7 +7,6 @@ import {
 } from "../../domain/model/library";
 import { type EpisodePlay, isOwnPlay } from "../../domain/reversal";
 import { isAired, laterOf, toMs } from "../../domain/time";
-import { resolveStill } from "../image-source";
 import type { CollectionShow, HiddenItem, Progress, WatchedShow, WatchlistItem } from "./schemas";
 import { progressLeft, toEpisodeIds } from "./show-detail";
 

@@ -1,7 +1,7 @@
 import { Image } from "expo-image";
 import { type ReactElement, useState } from "react";
 import { Pressable, StyleSheet, useWindowDimensions, View, type ViewStyle } from "react-native";
-import { resolveStill } from "@/core/data/image-source";
+import { resolveStill } from "@/core/domain/image-source";
 import { TEST_IDS } from "../../ui/test-ids";
 import { RADIUS, SPACE, useColors } from "../../ui/tokens";
 import { CueText } from "../../ui/type";

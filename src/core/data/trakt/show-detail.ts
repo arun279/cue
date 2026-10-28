@@ -1,7 +1,7 @@
+import { resolveStill } from "../../domain/image-source";
 import type { EpisodeIds, ShowIds } from "../../domain/model/ids";
 import { type EpisodeKey, type EpisodeRef, episodesLeftFrom } from "../../domain/model/library";
 import { isAired } from "../../domain/time";
-import { resolveStill } from "../image-source";
 import type { EpisodeData, Progress, SeasonData, ShowDetailData } from "./schemas";
 
 export function stillsOf(episode: EpisodeData): readonly string[] {
