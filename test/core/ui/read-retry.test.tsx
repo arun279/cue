@@ -10,35 +10,25 @@
 import { onlineManager, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { TraktClient, type TraktResult, unwrapRead } from "@/core/data/trakt/client";
+import { type TraktResult, unwrapRead } from "@/core/data/trakt/client";
 import { DEFAULT_TRAKT_POLICY } from "@/core/data/trakt/policy";
-import {
-  loadUpNextEntries,
-  readRetryFailure,
-  resetReadPause,
-  subscribeReadRetry,
-  withReadRateRetry,
-} from "@/core/data/trakt/read-budget";
+import { resetReadPause, withReadRateRetry } from "@/core/data/trakt/read-budget";
 import { TraktReadError } from "@/core/domain/read-failure";
 import { backoffMs } from "@/core/domain/write-queue/classify";
 import { useReadRetry } from "@/core/hooks/useReadRetry";
 import { queryStatus, retryingPast } from "@/core/queries/freshness";
 import { createQueryClient } from "@/core/runtime/query-cache";
-import { RuntimeProvider } from "@/core/runtime/runtime";
-import { partialRuntime } from "../support/runtime";
+import { type CueRuntime, RuntimeProvider } from "@/core/runtime/runtime";
+import { buildRuntime } from "../data/_runtime";
 import { emptyAccount } from "../trakt-fake/account.ts";
 import { createTraktFake } from "../trakt-fake/fake.ts";
 
 type Status = ReturnType<typeof queryStatus>;
 
-const runtime = partialRuntime({ readRetryFailure, subscribeReadRetry });
-
 function readStatus<T>(useRead: () => T, client = createQueryClient()): { readonly current: T } {
   return renderHook(useRead, {
     wrapper: ({ children }) => (
-      <QueryClientProvider client={client}>
-        <RuntimeProvider value={runtime}>{children}</RuntimeProvider>
-      </QueryClientProvider>
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
     ),
   }).result;
 }
@@ -215,33 +205,44 @@ describe("a sustained rate limit", () => {
 });
 
 describe("a load that retries its own reads", () => {
-  /** An empty account whose hidden list fails once with a 503. */
-  function flakyHiddenList(): TraktClient {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  /** A runtime over an empty account whose hidden list fails once with a 503. */
+  function flakyHiddenList(): Promise<CueRuntime> {
     const fake = createTraktFake({ account: () => emptyAccount() });
     fake.fail({ path: /^\/users\/hidden\/progress_watched$/ }, 503);
-    return new TraktClient({
-      clientId: "cid",
-      getToken: () => fake.session().access_token,
-      fetch: fake.fetch,
-    });
+    vi.stubGlobal("fetch", fake.fetch);
+    return buildRuntime();
   }
 
-  function mountLoad(client: TraktClient) {
+  async function mountLoad() {
+    const runtime = await flakyHiddenList();
     const queryClient = createQueryClient();
-    const seen = readStatus(() => {
-      const failure = useReadRetry();
-      const query = useQuery({
-        queryKey: ["load"],
-        queryFn: () => loadUpNextEntries(client),
-        retry: false,
-      });
-      return retryingPast(queryStatus(query, query.data !== undefined), failure);
-    }, queryClient);
+    const { result: seen } = renderHook(
+      () => {
+        const failure = useReadRetry();
+        const query = useQuery({
+          queryKey: ["load"],
+          queryFn: () => runtime.loadUpNext(),
+          retry: false,
+        });
+        return retryingPast(queryStatus(query, query.data !== undefined), failure);
+      },
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={queryClient}>
+            <RuntimeProvider value={runtime}>{children}</RuntimeProvider>
+          </QueryClientProvider>
+        ),
+      },
+    );
     return { seen, queryClient };
   }
 
   it("tells the screen it is still trying, and why, until the failed read lands", async () => {
-    const { seen } = mountLoad(flakyHiddenList());
+    const { seen } = await mountLoad();
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
@@ -259,7 +260,7 @@ describe("a load that retries its own reads", () => {
   });
 
   it("stops saying it is trying once the screen's own fetch is cancelled", async () => {
-    const { seen, queryClient } = mountLoad(flakyHiddenList());
+    const { seen, queryClient } = await mountLoad();
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
