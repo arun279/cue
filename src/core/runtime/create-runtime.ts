@@ -1,3 +1,4 @@
+import { PendingWritesError, type TeardownOptions } from "../app/session";
 import { changedActivityKeys } from "../data/query-invalidation";
 import { createAuthorizedFetch } from "../data/trakt/authorized-fetch";
 import { assembleCalendarEntries } from "../data/trakt/calendar";
@@ -61,6 +62,8 @@ import { createJsonStore } from "../ports/json-store";
 import type { KeyValueStore } from "../ports/kv";
 import { INCIDENTS_KEY, OP_LOG_KEY } from "../ports/storage-keys";
 import type { TokenStore } from "../ports/token-store";
+import { resetOwnMarks } from "../stores/own-marks";
+import { useReadIncidents } from "../stores/read-incidents-store";
 import type {
   ActivitiesReconcile,
   BrowseData,
@@ -70,10 +73,7 @@ import type {
   MovieLibraryData,
   SubmitOutcome,
   UpNextData,
-} from "../runtime/runtime";
-import { resetOwnMarks } from "../stores/own-marks";
-import { useReadIncidents } from "../stores/read-incidents-store";
-import { PendingWritesError, type TeardownOptions } from "./session";
+} from "./runtime";
 import { createWriteReceipts } from "./write-receipts";
 
 const ACTIVITIES_KEY = "cue.last-activities";

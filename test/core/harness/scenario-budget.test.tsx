@@ -12,7 +12,6 @@ import {
 import { act, type RenderResult, render } from "@testing-library/react";
 import { type ReactElement, useEffect, useState } from "react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { createCueRuntime } from "@/core/app/create-runtime";
 import { queryKeys } from "@/core/data/query-keys";
 import { TraktClient, TraktReadError } from "@/core/data/trakt/client";
 import type { LibraryEntry } from "@/core/data/trakt/library";
@@ -45,6 +44,7 @@ import { calendarQuery } from "@/core/queries/calendar";
 import { movieLibraryQuery } from "@/core/queries/library";
 import { ART_SETTLE_MS, showInfoQuery, showSeasonsQuery } from "@/core/queries/shows";
 import { userProfileQuery } from "@/core/queries/user";
+import { createCueRuntime } from "@/core/runtime/create-runtime";
 import { createQueryCachePolicy, createQueryClient } from "@/core/runtime/query-cache";
 import { type CueRuntime, useRuntime } from "@/core/runtime/runtime";
 import { useSnackbar } from "@/core/stores/snackbar-store";
