@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import type { LibraryEntry } from "../domain/model/library";
-import { epCode } from "../domain/model/library";
+import { epCode, type LibraryEntry } from "../domain/model/library";
 import { useMarkStore } from "../stores/mark-store";
 import {
   type MarkControlView,

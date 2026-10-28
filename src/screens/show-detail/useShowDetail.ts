@@ -1,6 +1,5 @@
 import { useQueries, useQuery } from "@tanstack/react-query";
-import type { LibraryEntry } from "@/core/domain/model/library";
-import { episodesLeftFrom } from "@/core/domain/model/library";
+import { episodesLeftFrom, type LibraryEntry } from "@/core/domain/model/library";
 import {
   firstUnwatchedAired,
   type SeasonView,

@@ -1,7 +1,6 @@
 import type { ReactElement } from "react";
 import { StyleSheet, View } from "react-native";
-import type { EpisodeDetail } from "@/core/domain/episode-detail";
-import { episodeStatus } from "@/core/domain/episode-detail";
+import { type EpisodeDetail, episodeStatus } from "@/core/domain/episode-detail";
 import { epCode } from "@/core/domain/model/library";
 import { CheckControl } from "../../ui/CheckControl";
 import { TEST_IDS } from "../../ui/test-ids";

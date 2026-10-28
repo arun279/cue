@@ -1,6 +1,5 @@
 import { type ReactElement, useCallback, useLayoutEffect, useRef, useState } from "react";
-import type { EpisodeView, SeasonView } from "@/core/domain/show-detail";
-import { orderSeasons } from "@/core/domain/show-detail";
+import { type EpisodeView, orderSeasons, type SeasonView } from "@/core/domain/show-detail";
 import { SeasonRow } from "./SeasonRow";
 
 export interface SeasonListProps {

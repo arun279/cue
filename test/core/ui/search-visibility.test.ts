@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { SearchHit } from "@/core/domain/discover";
-import { visibleSearchHits } from "@/core/domain/discover";
+import { type SearchHit, visibleSearchHits } from "@/core/domain/discover";
 
 function hit(type: "show" | "movie", traktId: number): SearchHit {
   return {

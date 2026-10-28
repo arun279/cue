@@ -3,7 +3,11 @@
   // Biome owns every other lint rule; it has no cyclomatic complexity rule and
   // no way to forbid TypeScript or complexity suppressions.
   "categories": { "correctness": "off" },
+  "plugins": ["typescript", "unicorn", "oxc", "import"],
   "rules": {
+    // Biome's import organizer merges imports of one module but keeps a type-only
+    // import apart from a value import of the same module.
+    "import/no-duplicates": ["error", { "preferInline": true }],
     // McCabe's limit of 10, as recommended by NIST SP 500-235 (Watson and
     // McCabe, 1996), section 2.5.
     "complexity": ["error", { "max": 10 }],

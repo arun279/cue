@@ -1,6 +1,9 @@
 import { epCode } from "@/core/domain/model/library";
-import type { EpisodeView, SeasonView } from "@/core/domain/show-detail";
-import { earlierUnwatchedCount } from "@/core/domain/show-detail";
+import {
+  type EpisodeView,
+  earlierUnwatchedCount,
+  type SeasonView,
+} from "@/core/domain/show-detail";
 import { useMarkSeason } from "@/core/hooks/useMarkSeason";
 import { showSnack, useSnackbar } from "@/core/stores/snackbar-store";
 

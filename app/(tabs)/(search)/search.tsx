@@ -4,8 +4,7 @@ import { type ReactElement, useCallback, useMemo, useRef, useState } from "react
 import { FlatList, Platform, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { SearchBarCommands } from "react-native-screens";
-import type { SearchHit } from "@/core/domain/discover";
-import { visibleSearchHits } from "@/core/domain/discover";
+import { type SearchHit, visibleSearchHits } from "@/core/domain/discover";
 import { middleTruncate } from "@/core/format";
 import { useIsOffline } from "@/core/hooks/useIsOffline";
 import { useSearchInput } from "@/core/hooks/useSearchInput";
