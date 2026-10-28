@@ -7,6 +7,7 @@
 const RE_REACT = "(^|/)node_modules/react/";
 const RE_REACT_DOM = "(^|/)node_modules/react-dom/";
 const RE_NATIVE = ["(^|/)node_modules/(expo|react-native)([-/]|$)", "^(expo|react-native)([-/]|$)"];
+const RE_IN_REPO = "^(?!node_modules/)";
 /** @type {import("dependency-cruiser").IConfiguration} */
 module.exports = {
   forbidden: [
@@ -18,11 +19,11 @@ module.exports = {
       to: { circular: true },
     },
     {
-      name: "packages-declare-their-imports",
+      name: "imports-are-declared",
       severity: "error",
       comment:
-        "dependency-cruiser's own no-non-package-json, anchored at the packages. A package may import only what its OWN manifest declares. `nodeLinker: hoisted` (pnpm-workspace.yaml) puts every transitive dependency at the workspace root where any package can reach it undeclared, which is the strictness the default linker exists to provide and the price the native package's resolver charges for it. knip's dependency lane does not close this: react is a peerDependency of @tanstack/react-query, so it read 33 undeclared react imports in @cue/core as satisfied.",
-      from: { path: "^packages/" },
+        "dependency-cruiser's own no-non-package-json: code may import only what package.json declares. `nodeLinker: hoisted` (pnpm-workspace.yaml) puts every transitive dependency in the root node_modules where anything can reach it undeclared, which is the strictness the default linker exists to provide and the price React Native's resolvers charge for it. knip's dependency lane does not close this: it counts an import as declared when a declared package lists it as a peer dependency.",
+      from: {},
       to: { dependencyTypes: ["npm-no-pkg", "npm-unknown", "unknown"] },
     },
     {
@@ -30,10 +31,11 @@ module.exports = {
       severity: "error",
       comment:
         "The domain is runtime-agnostic: global fetch + zod only. Stated positively, as what it MAY reach rather than as a list of the directories it may not: the ban then covers a directory added to the core tomorrow instead of waiting to be amended. In-repo, the domain may reach the domain and nothing else; from npm it may take no react.",
-      from: { path: "^packages/core/src/domain/" },
+      from: { path: "^src/core/domain/" },
       to: {
-        path: ["^packages/", RE_REACT],
-        pathNot: "^packages/core/src/domain/",
+        path: [RE_IN_REPO, RE_REACT],
+        pathNot: "^src/core/domain/",
+        dependencyTypesNot: ["core"],
       },
     },
     {
@@ -41,29 +43,30 @@ module.exports = {
       severity: "error",
       comment:
         "The data layer (clients/repos) is stated the same way round: in-repo it may reach the domain, its own tree and the ports it is filled through, and nothing else. That is what keeps a repository from reaching a hook, a store or the auth layer. From npm it may take no react.",
-      from: { path: "^packages/core/src/data/" },
+      from: { path: "^src/core/data/" },
       to: {
-        path: ["^packages/", RE_REACT],
-        pathNot: "^packages/core/src/(data|domain|ports)/",
+        path: [RE_IN_REPO, RE_REACT],
+        pathNot: "^src/core/(data|domain|ports)/",
+        dependencyTypesNot: ["core"],
       },
     },
     {
       name: "ports-have-no-impls",
       severity: "error",
       comment:
-        "A port is a seam the apps fill, so it may take value imports from the domain, from its sibling ports and from react, and nothing else. Stated that way rather than as 'types only': token-store.ts imports tokenSchema, a zod value, from domain/model/token, and three of the ports publish a React context and hook beside their interface, which is how a component reaches the injected instance. React is the injection mechanism rather than an implementation, and everything an implementation would actually need (the DOM or expo) is still banned here by core-stays-portable and by biome's globals override over this package.",
-      from: { path: "^packages/core/src/ports/" },
+        "A port is a seam the apps fill, so it may take value imports from the domain, from its sibling ports and from react, and nothing else. Stated that way rather than as 'types only': token-store.ts imports tokenSchema, a zod value, from domain/model/token, and three of the ports publish a React context and hook beside their interface, which is how a component reaches the injected instance. React is the injection mechanism rather than an implementation, and everything an implementation would actually need (the DOM or expo) is still banned here by core-stays-portable and by biome's globals override over src/core.",
+      from: { path: "^src/core/ports/" },
       to: {
         dependencyTypesNot: ["type-only"],
-        pathNot: ["^packages/core/src/(ports|domain)/", RE_REACT],
+        pathNot: ["^src/core/(ports|domain)/", RE_REACT],
       },
     },
     {
       name: "core-stays-portable",
       severity: "error",
       comment:
-        "@cue/core executes independently of its Expo host, so it takes neither DOM libraries nor React Native or Expo. Anchored at src because the package's own test suite runs on Node and reads git.",
-      from: { path: "^packages/core/src/" },
+        "The core executes independently of its Expo host, so it takes neither DOM libraries nor React Native or Expo. Anchored at src because its test suite runs on Node and reads git.",
+      from: { path: "^src/core/" },
       to: { path: [RE_REACT_DOM, ...RE_NATIVE] },
     },
     {
@@ -71,30 +74,23 @@ module.exports = {
       severity: "error",
       comment:
         "The other half of the same ban. It has to be a second rule: a `to` clause is a conjunction, so one rule carrying both the package list and dependencyTypes would read 'a module whose path matches AND which is a Node built-in', which is never true.",
-      from: { path: "^packages/core/src/" },
+      from: { path: "^src/core/" },
       to: { dependencyTypes: ["core"] },
     },
     {
       name: "queries-have-no-react",
       severity: "error",
       comment: "Query option factories cannot import React.",
-      from: { path: "^packages/core/src/queries/" },
+      from: { path: "^src/core/queries/" },
       to: { path: RE_REACT },
     },
     {
       name: "core-imports-no-app",
       severity: "error",
       comment:
-        "The shared package does not import the app. Dependencies flow into the core and never back out, or the core is no longer independent of its host.",
-      from: { path: "^packages/core/" },
-      to: { path: "^packages/native/" },
-    },
-    {
-      name: "native-owns-expo",
-      severity: "error",
-      comment: "Expo and React Native belong to the native app and to nothing else.",
-      from: { path: "^packages/", pathNot: "^packages/native/" },
-      to: { path: RE_NATIVE },
+        "The core and its tests do not import the app. Dependencies flow into the core and never back out, or the core is no longer independent of its host.",
+      from: { path: "^(src|test)/core/" },
+      to: { path: "^(app|src|modules|plugins|__tests__)/", pathNot: "^src/core/" },
     },
     {
       name: "trakt-reads-stay-pooled",
@@ -107,10 +103,10 @@ module.exports = {
         "fails here by naming the unpooled importer, instead of only an instance test " +
         "that a mutation can dodge by pooling one caller and leaving the rest raw.",
       from: {
-        path: "^packages/[^/]+/src/",
-        pathNot: "^packages/core/src/data/trakt/(read-budget|pooled-endpoints)\\.ts$",
+        path: "^src/",
+        pathNot: "^src/core/data/trakt/(read-budget|pooled-endpoints)\\.ts$",
       },
-      to: { path: "^packages/core/src/data/trakt/endpoints\\.ts$" },
+      to: { path: "^src/core/data/trakt/endpoints\\.ts$" },
     },
     {
       name: "mark-revalidation-stays-scoped",
@@ -124,22 +120,18 @@ module.exports = {
         "progress read that replaces the one library entry, so a new mark surface " +
         "fails here rather than shipping a queue that quietly stops moving.",
       from: {
-        path: "^packages/[^/]+/(src/(hooks|queries|stores|ui|screens)|app)/",
-        pathNot: "^packages/core/src/hooks/library-cache\\.ts$",
+        path: "^(src/(core/)?(hooks|queries|stores|ui|screens)|app)/",
+        pathNot: "^src/core/hooks/library-cache\\.ts$",
       },
-      to: { path: "^packages/core/src/data/query-invalidation\\.ts$" },
+      to: { path: "^src/core/data/query-invalidation\\.ts$" },
     },
   ],
   options: {
     doNotFollow: { path: "node_modules" },
-    exclude: { path: "^(packages/[^/]+/(dist|coverage)|coverage)/" },
+    exclude: { path: "^(dist|coverage|ios|android|\\.expo)/" },
     tsPreCompilationDeps: true,
+    tsConfig: { fileName: "tsconfig.json" },
     enhancedResolveOptions: {
-      // exportsFields is what resolves @cue/core/... at all: the package declares
-      // one wildcard subpath key and no main.
-      // preserveSymlinks defaults to false, which resolves the workspace link to
-      // its realpath under packages/core, which is what makes the anchors above
-      // match instead of node_modules.
       exportsFields: ["exports"],
       conditionNames: ["import", "require", "node", "default"],
       mainFields: ["module", "main"],

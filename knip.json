@@ -1,19 +1,15 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "workspaces": {
-    ".": {
-      "entry": ["scripts/*.mjs", "test/vitest.config.ts"],
-      "project": ["scripts/**/*.mjs", "test/**/*.ts"]
-    },
-    "packages/core": {
-      "project": ["src/**/*.ts", "test/**/*.{ts,tsx}"],
-      "includeEntryExports": true
-    },
-    "packages/native": {
-      "entry": ["plugins/*.js"],
-      "project": ["app/**/*.{ts,tsx}", "src/**/*.{ts,tsx}", "modules/**/*.ts", "plugins/*.js"],
-      "babel": ["babel.config.js"],
-      "ignoreDependencies": ["expo-atlas"]
-    }
-  }
+  "entry": ["scripts/*.mjs", "plugins/*.js"],
+  "project": [
+    "app/**/*.{ts,tsx}",
+    "src/**/*.{ts,tsx}",
+    "modules/**/*.ts",
+    "plugins/*.js",
+    "scripts/**/*.mjs",
+    "test/**/*.{ts,tsx}",
+    "__tests__/**/*.{ts,tsx}"
+  ],
+  "ignoreDependencies": ["expo-atlas"],
+  "babel": ["babel.config.js"]
 }

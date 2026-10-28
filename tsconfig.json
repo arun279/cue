@@ -1,10 +1,27 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
-  "extends": "./tsconfig.base.json",
+  // Expo's base first for the React Native program (the `react-native` export
+  // condition, the JSX transform, the lib set), then the repository's own strict
+  // options on top, so the app compiles under the same strictness as the core
+  // and the tests rather than under whatever Expo happens to default to.
+  "extends": ["expo/tsconfig.base", "./tsconfig.base.json"],
   "compilerOptions": {
-    "lib": ["ES2023"],
-    "types": ["node"]
+    "types": ["node", "jest"],
+    "paths": { "@/*": ["./src/*"] }
   },
-  "include": ["vitest.config.ts", "test/**/*.ts"],
-  "exclude": ["node_modules", "packages"]
+  // `expo-env.d.ts` and `.expo/types` are both generated and both gitignored, so
+  // `pnpm typecheck` regenerates them before it compiles. Without that the
+  // typed-route unions exist on the machine that last ran the dev server and
+  // nowhere else, and the program CI compiles is weaker than the one the author sees.
+  "include": [
+    "entry.ts",
+    "app",
+    "src",
+    "modules",
+    "__tests__",
+    "app.config.ts",
+    "expo-env.d.ts",
+    ".expo/types/**/*.ts"
+  ],
+  "exclude": ["node_modules", "android", "ios"]
 }

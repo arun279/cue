@@ -24,19 +24,19 @@ pnpm dev
 pnpm check
 ```
 
-Set `EXPO_PUBLIC_TRAKT_CLIENT_ID` to the public client id of a Trakt API app. The native projects are generated from `packages/native/app.config.ts` and its config plugins:
+Set `EXPO_PUBLIC_TRAKT_CLIENT_ID` to the public client id of a Trakt API app. The native projects are generated from `app.config.ts` and its config plugins:
 
 ```sh
-pnpm --filter @cue/native prebuild
+pnpm exec expo prebuild
 ```
 
 `pnpm check` is the deterministic repository gate. It runs Biome, oxlint, dprint, cspell, TypeScript, dependency-cruiser, knip, jscpd, the shipped-bundle checks, Vitest, and the iOS and Android jest-expo projects. pnpm refuses to install or run scripts under any Node other than the one in `engines.node`. In CI, the footprint job comments each pull request's line changes and bundle sizes without gating.
 
-Git hooks are installed by `pnpm install`. Pre-commit runs the fast lint, formatting, spelling, type, and portability gates. Pre-push runs `pnpm check`.
+Git hooks are installed by `pnpm install`. Pre-commit runs the fast lint, formatting, spelling, and type gates. Pre-push runs `pnpm check`.
 
 ## Local fake Trakt
 
-`packages/core/test/trakt-fake` is the only Trakt fake. Core tests run it in process, and the Maestro smoke flows reach the same handlers over HTTP:
+`test/core/trakt-fake` is the only Trakt fake. Core tests run it in process, and the Maestro smoke flows reach the same handlers over HTTP:
 
 ```sh
 pnpm fake:trakt
@@ -50,16 +50,16 @@ Set `EXPO_PUBLIC_TRAKT_API_BASE=http://127.0.0.1:8787` for a simulator build tha
 
 ## Architecture
 
-The pnpm workspace has two packages:
+The repository is one Expo app:
 
-- `@cue/core` in `packages/core` owns the domain, Trakt data layer, durable write queue, hooks, stores, preferences, runtime, and platform ports. It is TypeScript source with no build step and no dependency on Expo or React Native.
-- `@cue/native` in `packages/native` is the Expo app. Its `app` directory contains the expo-router routes, `src` contains UI and platform adapters, `modules/cue-native` contains the local Expo module, and `plugins` contains config plugins.
+- `app` contains the expo-router routes, `src` contains UI and platform adapters, `modules/cue-native` contains the local Expo module, and `plugins` contains config plugins.
+- `src/core` owns the domain, Trakt data layer, durable write queue, hooks, stores, preferences, runtime, and platform ports. It has no dependency on Expo or React Native, compiles without DOM types under its own `tsconfig.json`, and is imported as `@/core/...`.
 
-Dependencies flow from the Expo app into the core. Dependency-cruiser enforces that boundary, keeps the domain and data layers narrow, and requires every Trakt read to use the shared pool.
+Dependencies flow from the app into the core. Dependency-cruiser enforces that boundary, keeps the domain and data layers narrow, and requires every Trakt read to use the shared pool.
 
 ## Testing
 
-Core tests use Vitest. Tests for the repository scripts live in `test/ci`. The Expo app uses jest-expo for both platform presets, and React Native Testing Library covers screen behavior.
+Core tests in `test/core` use Vitest, as do the tests for the repository scripts in `test/ci`. The app's tests in `__tests__` use jest-expo for both platform presets, and React Native Testing Library covers screen behavior.
 
 End-to-end coverage is a short Maestro smoke suite in `.maestro/smoke`: sign in through the device code, mark the next episode from Up Next, visit every tab, open a show and a movie and mark an episode, search, and sign out. Every pull request push runs it on an Android emulator and an iOS simulator, against a release build of the app pointed at the fake. Each job fingerprints the native project with `@expo/fingerprint` and caches the native build under that hash; when the hash is already cached, `@expo/repack-app` swaps the commit's JavaScript into the cached build instead of compiling it again. The jobs upload the screenshots each flow takes, plus Maestro's debug output when a flow fails. To check that the suite is deterministic, dispatch the CI workflow on a branch repeatedly with `gh workflow run ci.yml --ref <branch>`, once first so that run seeds the build cache.
 
@@ -67,7 +67,7 @@ To run the smoke flows locally, start `pnpm fake:trakt`, install a build made wi
 
 ## Releasing
 
-`.github/workflows/mobile-release.yml` builds the app with `eas build --local` on GitHub-hosted runners, using the `production` profile in `packages/native/eas.json`. It runs only when dispatched. A build first checks that every check in `.github/required-checks.json` ran on the exact commit and that every run of it passed, re-runs included.
+`.github/workflows/mobile-release.yml` builds the app with `eas build --local` on GitHub-hosted runners, using the `production` profile in `eas.json`. It runs only when dispatched. A build first checks that every check in `.github/required-checks.json` ran on the exact commit and that every run of it passed, re-runs included.
 
 - **owner** uploads iOS to TestFlight with `eas submit`, where the internal testers get it, and Android to the Firebase App Distribution group `owner`.
 - **friends** does the same, then adds the iOS build to the app's one external TestFlight group, submitting it for beta review when Apple asks for one, and gives the Android release to the Firebase group `friends` as well.
@@ -79,7 +79,7 @@ Local EAS builds take Node and pnpm from the runner, not `eas.json`. The workflo
 
 ## Shipping JavaScript updates
 
-EAS Update can replace JavaScript and bundled assets. It cannot change native modules, permissions, app configuration, or other native code. The fingerprint runtime policy only offers an update to compatible installed builds, so any native change requires a new build. App version and build numbers stay out of the fingerprint, so a release's numbering never changes which updates it receives. The build profile in `packages/native/eas.json` sets a build's update channel, and the app config carries none, so builds of one commit share a runtime whichever channel they listen on.
+EAS Update can replace JavaScript and bundled assets. It cannot change native modules, permissions, app configuration, or other native code. The fingerprint runtime policy only offers an update to compatible installed builds, so any native change requires a new build. App version and build numbers stay out of the fingerprint, so a release's numbering never changes which updates it receives. The build profile in `eas.json` sets a build's update channel, and the app config carries none, so builds of one commit share a runtime whichever channel they listen on.
 
 Open GitHub Actions, choose **Publish update**, select **Run workflow** and pick an action. **publish** checks the commit's required checks as a build does:
 

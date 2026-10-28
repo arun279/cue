@@ -7,7 +7,7 @@ import { tempDirectory } from "../support/temp-directory";
 
 const check = (...modules: string[]) => {
   const atlas = path.join(tempDirectory("cue-store-bundle-"), "atlas.jsonl");
-  const bundle = ["ios", "/repo/packages/native", "/repo", "entry.js", "client"];
+  const bundle = ["ios", "/repo", "/repo", "entry.js", "client"];
   const graph = modules.map((relativePath, id) => ({ id, relativePath }));
   writeFileSync(
     atlas,
@@ -19,12 +19,12 @@ const check = (...modules: string[]) => {
 };
 
 it("passes a store graph without the test clock", () => {
-  expect(check("packages/native/app/_layout.tsx", "packages/native/entry.ts").status).toBe(0);
+  expect(check("app/_layout.tsx", "entry.ts").status).toBe(0);
 });
 
 it("fails a graph that ships the test clock", () => {
-  const result = check("packages/native/entry.ts", "packages/native/src/shifted-date.ts");
+  const result = check("entry.ts", "src/shifted-date.ts");
 
   expect(result.status).toBe(1);
-  expect(result.stderr).toContain("ios: packages/native/src/shifted-date.ts");
+  expect(result.stderr).toContain("ios: src/shifted-date.ts");
 });

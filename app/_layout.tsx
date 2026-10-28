@@ -1,0 +1,187 @@
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
+import { ThemeProvider } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
+import { StatusBar } from "expo-status-bar";
+import { type ReactElement, useEffect, useState } from "react";
+import { StyleSheet, View } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { initialWindowMetrics, SafeAreaProvider } from "react-native-safe-area-context";
+import { createAuthStore } from "@/core/auth/create-auth-store";
+import { type AuthStore, AuthStoreProvider, useAuth } from "@/core/auth/store";
+import { useActivitiesPoll } from "@/core/hooks/useActivitiesPoll";
+import { useEpisodeReminders } from "@/core/hooks/useEpisodeReminders";
+import { AppVersionProvider } from "@/core/ports/app-version";
+import { HapticsProvider } from "@/core/ports/haptics";
+import { RemindersProvider } from "@/core/ports/reminders";
+import { createTokenStore } from "@/core/ports/token-store";
+import { createPrefsStore, PrefsProvider } from "@/core/prefs/prefs-store";
+import { PERSIST_MAX_AGE } from "@/core/runtime/query-cache";
+import { bootNativeStores } from "../src/boot";
+import { NATIVE_REDIRECT_URI, TRAKT_BASE_OVERRIDE, TRAKT_CLIENT_ID } from "../src/config";
+import { nativeCrypto } from "../src/crypto";
+import { nativeAppVersion } from "../src/platform/app-version";
+import { createNativeHaptics } from "../src/platform/haptics";
+import { legacyStore } from "../src/platform/legacy-store";
+import { connectQueryManagers } from "../src/platform/query-managers";
+import {
+  clearPersistedCaches,
+  persistBuster,
+  queryClient,
+  queryPersister,
+  shouldDehydrateQuery,
+} from "../src/platform/query-persister";
+import { createNativeReminders, useOpenTappedReminder } from "../src/platform/reminders";
+import { trackScreenReader } from "../src/platform/screen-reader";
+import { useSplashRelease } from "../src/platform/splash";
+import {
+  bulkStore,
+  clearLocalPreferences,
+  preferenceStorage,
+  secureStore,
+} from "../src/platform/stores";
+import { RootStack } from "../src/RootStack";
+import { useAppearance } from "../src/screens/account/ThemeControl";
+import { Onboarding } from "../src/screens/Onboarding";
+import { RuntimeBoot, type RuntimeBootProps } from "../src/screens/RuntimeBoot";
+import { useNavigationTheme } from "../src/ui/navigation-theme";
+import { SnackbarHost } from "../src/ui/SnackbarHost";
+import { TEST_IDS } from "../src/ui/test-ids";
+import { useFontsSettled } from "../src/ui/type";
+import { useWindowBackground } from "../src/ui/useWindowBackground";
+
+void SplashScreen.preventAutoHideAsync().catch(() => {});
+
+export const unstable_settings = { initialRouteName: "(tabs)" };
+
+const prefsStore = createPrefsStore(preferenceStorage);
+const haptics = createNativeHaptics(() => prefsStore.getState().hapticsEnabled);
+const reminders = createNativeReminders();
+connectQueryManagers();
+
+const BOOT_FAILED_MESSAGE = "Cue could not open its storage. Some of your data may be missing.";
+
+const sessionDeps = {
+  newId: nativeCrypto.newId,
+  kv: bulkStore,
+  redirectUri: NATIVE_REDIRECT_URI,
+  clientId: TRAKT_CLIENT_ID,
+  apiBaseUrl: TRAKT_BASE_OVERRIDE,
+  userAgent: `Cue/${nativeAppVersion}`,
+  clearPersistedCaches,
+  clearLocalPreferences: () => clearLocalPreferences(prefsStore),
+};
+
+interface NativeSession {
+  readonly authStore: AuthStore;
+  readonly runtimeDeps: RuntimeBootProps["deps"];
+}
+
+function useNativeSession(): NativeSession | null {
+  const [session, setSession] = useState<NativeSession | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    const tokenStore = createTokenStore(secureStore);
+    void bootNativeStores({
+      tokenStore,
+      bulk: bulkStore,
+      legacy: legacyStore,
+      preferences: preferenceStorage,
+      newInstallId: nativeCrypto.newId,
+      digest: nativeCrypto.digest,
+    })
+      .then(
+        () => null,
+        () => BOOT_FAILED_MESSAGE,
+      )
+      .then((bootFailure) => {
+        if (!alive) return;
+        const store = createAuthStore({
+          crypto: nativeCrypto,
+          tokenStore,
+          clientId: TRAKT_CLIENT_ID,
+          redirectUri: NATIVE_REDIRECT_URI,
+          traktBaseUrl: TRAKT_BASE_OVERRIDE,
+        });
+        if (bootFailure !== null) store.setState({ errorMessage: bootFailure });
+        setSession({ authStore: store, runtimeDeps: { ...sessionDeps, tokenStore } });
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  return session;
+}
+
+function Gate({ runtimeDeps }: Pick<NativeSession, "runtimeDeps">): ReactElement {
+  const phase = useAuth((s) => s.phase);
+  useSplashRelease(phase === "onboarding");
+
+  if (phase === "connected") {
+    return (
+      <RuntimeBoot deps={runtimeDeps}>
+        <RoutedApp />
+      </RuntimeBoot>
+    );
+  }
+  if (phase === "loading") return <View testID={TEST_IDS.authLoading} />;
+  return <Onboarding />;
+}
+
+function RoutedApp(): ReactElement {
+  useActivitiesPoll();
+  useEpisodeReminders();
+  useOpenTappedReminder();
+
+  return (
+    <View style={styles.root}>
+      <RootStack />
+      <SnackbarHost placement="root" />
+    </View>
+  );
+}
+
+export default function RootLayout(): ReactElement {
+  useEffect(trackScreenReader, []);
+  const session = useNativeSession();
+  const fontsSettled = useFontsSettled();
+  const navigationTheme = useNavigationTheme();
+  useAppearance(prefsStore);
+  useWindowBackground();
+
+  if (session === null || !fontsSettled) return <View testID={TEST_IDS.bootHold} />;
+
+  return (
+    <GestureHandlerRootView style={styles.root}>
+      <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+        <PersistQueryClientProvider
+          client={queryClient}
+          persistOptions={{
+            persister: queryPersister,
+            maxAge: PERSIST_MAX_AGE,
+            buster: persistBuster,
+            dehydrateOptions: { shouldDehydrateQuery },
+          }}
+        >
+          <PrefsProvider value={prefsStore}>
+            <HapticsProvider value={haptics}>
+              <RemindersProvider value={reminders}>
+                <AppVersionProvider value={nativeAppVersion}>
+                  <AuthStoreProvider value={session.authStore}>
+                    <StatusBar style="auto" />
+                    <ThemeProvider value={navigationTheme}>
+                      <Gate runtimeDeps={session.runtimeDeps} />
+                    </ThemeProvider>
+                  </AuthStoreProvider>
+                </AppVersionProvider>
+              </RemindersProvider>
+            </HapticsProvider>
+          </PrefsProvider>
+        </PersistQueryClientProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
+  );
+}
+
+const styles = StyleSheet.create({ root: { flex: 1 } });

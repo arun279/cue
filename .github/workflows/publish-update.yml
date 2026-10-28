@@ -60,7 +60,6 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Export the update with the production builds' environment
-        working-directory: packages/native
         env:
           EXPO_PUBLIC_TRAKT_CLIENT_ID: ${{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}
         run: |
@@ -70,7 +69,6 @@ jobs:
       - name: Keep the test clock out of the update
         run: node scripts/check-store-bundle.mjs
       - name: Publish the exported update
-        working-directory: packages/native
         env:
           EXPO_PUBLIC_TRAKT_CLIENT_ID: ${{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}
           MESSAGE: ${{ inputs.message }}
@@ -93,7 +91,6 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Require the group to be a preview update
-        working-directory: packages/native
         env:
           GROUP: ${{ inputs.group }}
         run: |
@@ -101,7 +98,6 @@ jobs:
           branch=$(pnpm exec eas update:view "$GROUP" --json | jq -r '[.[].branch] | unique | join(", ")')
           [ "$branch" = preview ] || { echo "::error::Update group $GROUP is on branch '$branch', not preview."; exit 1; }
       - name: Copy the update group to production
-        working-directory: packages/native
         env:
           GROUP: ${{ inputs.group }}
           MESSAGE: ${{ inputs.message }}

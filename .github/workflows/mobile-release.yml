@@ -83,7 +83,6 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Write signing credentials
-        working-directory: packages/native
         env:
           BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
           BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
@@ -98,22 +97,19 @@ jobs:
             '{ios: {provisioningProfilePath: $profile, distributionCertificate: {path: $certificate, password: $password}}}' \
             > credentials.json
       - name: Build
-        working-directory: packages/native
         env:
           EXPO_PUBLIC_TRAKT_CLIENT_ID: ${{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}
         run: |
           pnpm exec eas build --local --non-interactive --platform ios --profile production --output "$RUNNER_TEMP/Cue.ipa"
       - name: Check the IPA
         id: ipa
-        working-directory: packages/native
         run: |
           pnpm exec eas env:exec production --non-interactive \
             "pnpm exec expo-updates runtimeversion:resolve --platform ios > $RUNNER_TEMP/runtime.json"
-          ../../scripts/check-update-config.sh "$RUNNER_TEMP/Cue.ipa" production "$(jq -r .runtimeVersion "$RUNNER_TEMP/runtime.json")"
+          scripts/check-update-config.sh "$RUNNER_TEMP/Cue.ipa" production "$(jq -r .runtimeVersion "$RUNNER_TEMP/runtime.json")"
           unzip -p "$RUNNER_TEMP/Cue.ipa" 'Payload/*.app/Info.plist' > "$RUNNER_TEMP/Info.plist"
           echo "build=$(plutil -extract CFBundleVersion raw "$RUNNER_TEMP/Info.plist")" >> "$GITHUB_OUTPUT"
       - name: Upload to TestFlight
-        working-directory: packages/native
         env:
           ASC_API_KEY_PATH: ${{ runner.temp }}/app-store-connect.p8
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
@@ -162,7 +158,6 @@ jobs:
           distribution: temurin
           java-version: "21"
       - name: Write signing credentials
-        working-directory: packages/native
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -181,21 +176,19 @@ jobs:
           echo "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/firebase.json"
           echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase.json" >> "$GITHUB_ENV"
       - name: Build
-        working-directory: packages/native
         env:
           EXPO_PUBLIC_TRAKT_CLIENT_ID: ${{ vars.EXPO_PUBLIC_TRAKT_CLIENT_ID }}
         run: |
           pnpm exec eas build --local --non-interactive --platform android --profile production --output "$RUNNER_TEMP/Cue.apk"
       - name: Check the APK
         id: apk
-        working-directory: packages/native
         run: |
           build=$(pnpm exec eas build:version:get --non-interactive --json --platform android --profile production | jq -r .versionCode)
           version=$(pnpm exec expo config --type public --json | jq -r .version)
-          ../../scripts/verify-apk.sh "$RUNNER_TEMP/Cue.apk" "$build" "$version" arm64-v8a
+          scripts/verify-apk.sh "$RUNNER_TEMP/Cue.apk" "$build" "$version" arm64-v8a
           pnpm exec eas env:exec production --non-interactive \
             "pnpm exec expo-updates runtimeversion:resolve --platform android > $RUNNER_TEMP/runtime.json"
-          ../../scripts/check-update-config.sh "$RUNNER_TEMP/Cue.apk" production "$(jq -r .runtimeVersion "$RUNNER_TEMP/runtime.json")"
+          scripts/check-update-config.sh "$RUNNER_TEMP/Cue.apk" production "$(jq -r .runtimeVersion "$RUNNER_TEMP/runtime.json")"
           echo "build=$build" >> "$GITHUB_OUTPUT"
       - name: Upload to Firebase
         env:

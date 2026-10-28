@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 
-const TEST_CLOCK = "packages/native/src/shifted-date.ts";
+const TEST_CLOCK = "src/shifted-date.ts";
 
-const [, ...bundles] = readFileSync(process.argv[2] ?? "packages/native/.expo/atlas.jsonl", "utf8")
+const [, ...bundles] = readFileSync(process.argv[2] ?? ".expo/atlas.jsonl", "utf8")
   .trim()
   .split("\n");
 if (bundles.length === 0) throw new Error("the atlas holds no bundles");

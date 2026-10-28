@@ -9,9 +9,7 @@ const { APP_STORE_CONNECT_KEY, APP_STORE_CONNECT_KEY_ID, APP_STORE_CONNECT_ISSUE
   process.env;
 if (!APP_STORE_CONNECT_KEY || !APP_STORE_CONNECT_KEY_ID) throw new Error(USAGE);
 
-const eas = JSON.parse(
-  readFileSync(new URL("../packages/native/eas.json", import.meta.url), "utf8"),
-);
+const eas = JSON.parse(readFileSync(new URL("../eas.json", import.meta.url), "utf8"));
 const appId = eas.submit.production.ios.ascAppId;
 const key = createPrivateKey(Buffer.from(APP_STORE_CONNECT_KEY, "base64"));
 const DEADLINE_MS = 60 * 60 * 1000;
