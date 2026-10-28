@@ -149,6 +149,10 @@ export function fakeRuntime({
       return outcome;
     },
     pendingWrites: () => 0,
+    readsPausedUntil: () => 0,
+    subscribeReadPause: () => () => {},
+    readRetryFailure: () => null,
+    subscribeReadRetry: () => () => {},
     pendingOps: () => [...sending],
     inFlightOpId: () => null,
     writeReceipt: (opId: string) => (answered.has(opId) ? ADDED : null),

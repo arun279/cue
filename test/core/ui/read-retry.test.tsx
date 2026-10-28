@@ -14,7 +14,9 @@ import { TraktClient, type TraktResult, unwrapRead } from "@/core/data/trakt/cli
 import { DEFAULT_TRAKT_POLICY } from "@/core/data/trakt/policy";
 import {
   loadUpNextEntries,
+  readRetryFailure,
   resetReadPause,
+  subscribeReadRetry,
   withReadRateRetry,
 } from "@/core/data/trakt/read-budget";
 import { TraktReadError } from "@/core/domain/read-failure";
@@ -22,15 +24,21 @@ import { backoffMs } from "@/core/domain/write-queue/classify";
 import { useReadRetry } from "@/core/hooks/useReadRetry";
 import { queryStatus, retryingPast } from "@/core/queries/freshness";
 import { createQueryClient } from "@/core/runtime/query-cache";
+import { RuntimeProvider } from "@/core/runtime/runtime";
+import { partialRuntime } from "../support/runtime";
 import { emptyAccount } from "../trakt-fake/account.ts";
 import { createTraktFake } from "../trakt-fake/fake.ts";
 
 type Status = ReturnType<typeof queryStatus>;
 
+const runtime = partialRuntime({ readRetryFailure, subscribeReadRetry });
+
 function readStatus<T>(useRead: () => T, client = createQueryClient()): { readonly current: T } {
   return renderHook(useRead, {
     wrapper: ({ children }) => (
-      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      <QueryClientProvider client={client}>
+        <RuntimeProvider value={runtime}>{children}</RuntimeProvider>
+      </QueryClientProvider>
     ),
   }).result;
 }

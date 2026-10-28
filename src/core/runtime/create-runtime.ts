@@ -43,7 +43,13 @@ import {
   getWatchlist,
   searchTrakt,
 } from "../data/trakt/pooled-endpoints";
-import { loadUpNextEntries } from "../data/trakt/read-budget";
+import {
+  loadUpNextEntries,
+  readRetryFailure,
+  readsPausedUntil,
+  subscribeReadPause,
+  subscribeReadRetry,
+} from "../data/trakt/read-budget";
 import {
   assembleMovieHits,
   assembleSearchHits,
@@ -403,6 +409,10 @@ export async function createCueRuntime(deps: RuntimeDeps): Promise<CueRuntime> {
     },
 
     writeReceipt: receipts.receiptOf,
+    readsPausedUntil,
+    subscribeReadPause,
+    readRetryFailure,
+    subscribeReadRetry,
 
     pendingWrites(): number {
       return queue.snapshot().length;

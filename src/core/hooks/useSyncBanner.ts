@@ -1,7 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { readsPausedUntil, subscribeReadPause } from "../data/trakt/read-budget";
 import type { QueryStatus } from "../queries/freshness";
-import { useOptionalRuntime } from "../runtime/runtime";
+import { useRuntime } from "../runtime/runtime";
 import { useSyncActivity } from "../stores/sync-activity-store";
 import { PENDING_GRACE_MS, PENDING_THRESHOLD, type SyncBanner, syncBanner } from "../sync-contract";
 import { useIsOffline } from "./useIsOffline";
@@ -32,11 +31,11 @@ function usePendingLate(backedUp: boolean): boolean {
 }
 
 export function useSyncBanner(status: QueryStatus): SyncBanner | null {
-  const runtime = useOptionalRuntime();
+  const runtime = useRuntime();
   const offline = useIsOffline();
-  const resumeReadsAt = useSyncExternalStore(subscribeReadPause, readsPausedUntil);
+  const resumeReadsAt = useSyncExternalStore(runtime.subscribeReadPause, runtime.readsPausedUntil);
   const inFlight = useSyncActivity((state) => state.pending);
-  const pending = Math.max(inFlight, runtime?.pendingWrites() ?? 0);
+  const pending = Math.max(inFlight, runtime.pendingWrites());
   const now = useClock(pending > 0 || resumeReadsAt > Date.now());
   const pendingLate = usePendingLate(pending >= PENDING_THRESHOLD);
 

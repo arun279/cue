@@ -2,13 +2,17 @@
 
 import { onlineManager } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
-import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TraktResult } from "@/core/data/trakt/client";
-import { resetReadPause, withReadRateRetry } from "@/core/data/trakt/read-budget";
+import {
+  readsPausedUntil,
+  resetReadPause,
+  subscribeReadPause,
+  withReadRateRetry,
+} from "@/core/data/trakt/read-budget";
 import { useSyncBanner } from "@/core/hooks/useSyncBanner";
 import type { QueryStatus } from "@/core/queries/freshness";
-import { RuntimeProvider } from "@/core/runtime/runtime";
+import { type CueRuntime, RuntimeProvider } from "@/core/runtime/runtime";
 import { useSyncActivity } from "@/core/stores/sync-activity-store";
 import { partialRuntime } from "../support/runtime";
 
@@ -22,10 +26,16 @@ const fresh: QueryStatus = {
   retrying: false,
 };
 
-function mountBanner(
-  wrapper?: (props: { readonly children: ReactNode }) => ReactNode,
-): () => string | null {
-  const { result } = renderHook(() => useSyncBanner(fresh), { wrapper });
+function mountBanner(members: Partial<CueRuntime> = {}): () => string | null {
+  const runtime = partialRuntime({
+    pendingWrites: () => 0,
+    readsPausedUntil,
+    subscribeReadPause,
+    ...members,
+  });
+  const { result } = renderHook(() => useSyncBanner(fresh), {
+    wrapper: ({ children }) => <RuntimeProvider value={runtime}>{children}</RuntimeProvider>,
+  });
   return () => result.current?.message ?? null;
 }
 
@@ -69,10 +79,7 @@ describe("useSyncBanner", () => {
 
   it("names a write backlog only once it outlasts the grace window", async () => {
     let queued = 3;
-    const runtime = partialRuntime({ pendingWrites: () => queued });
-    const message = mountBanner(({ children }) => (
-      <RuntimeProvider value={runtime}>{children}</RuntimeProvider>
-    ));
+    const message = mountBanner({ pendingWrites: () => queued });
     await act(() => vi.advanceTimersByTimeAsync(4000));
     expect(message()).toBeNull();
     await act(() => vi.advanceTimersByTimeAsync(1000));

@@ -8,6 +8,7 @@ import type { HistoryEntry, HistoryRange } from "../domain/history";
 import type { LibraryEntry } from "../domain/model/library";
 import type { MovieEntry, MovieHeader } from "../domain/model/movie";
 import type { UserProfile } from "../domain/model/user";
+import type { TraktFailure } from "../domain/read-failure";
 import type { EpisodePlay, MoviePlay } from "../domain/reversal";
 import type { SeasonView, ShowInfo, ShowProgress } from "../domain/show-detail";
 import type { WriteReceipt } from "../domain/write-queue/receipt";
@@ -75,6 +76,10 @@ export interface CueRuntime {
   loadUserProfile(): Promise<UserProfile>;
   submit(op: QueuedOp): Promise<SubmitOutcome>;
   writeReceipt(opId: string): WriteReceipt | null;
+  readsPausedUntil(): number;
+  subscribeReadPause(listener: () => void): () => void;
+  readRetryFailure(): TraktFailure | null;
+  subscribeReadRetry(listener: () => void): () => void;
   pendingWrites(): number;
   pendingOps(): readonly QueuedOp[];
   inFlightOpId(): string | null;
@@ -91,8 +96,4 @@ export function useRuntime(): CueRuntime {
   const runtime = useContext(RuntimeContext);
   if (runtime === null) throw new Error("useRuntime must be used within a RuntimeProvider.");
   return runtime;
-}
-
-export function useOptionalRuntime(): CueRuntime | null {
-  return useContext(RuntimeContext);
 }

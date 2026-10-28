@@ -1,7 +1,8 @@
 import { useSyncExternalStore } from "react";
-import { readRetryFailure, subscribeReadRetry } from "../data/trakt/read-budget";
 import type { TraktFailure } from "../domain/read-failure";
+import { useRuntime } from "../runtime/runtime";
 
 export function useReadRetry(): TraktFailure | null {
-  return useSyncExternalStore(subscribeReadRetry, readRetryFailure);
+  const runtime = useRuntime();
+  return useSyncExternalStore(runtime.subscribeReadRetry, runtime.readRetryFailure);
 }

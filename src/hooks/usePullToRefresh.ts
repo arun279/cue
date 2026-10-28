@@ -1,7 +1,7 @@
 import { useCallback } from "react";
-import { readsPausedUntil } from "@/core/data/trakt/read-budget";
 import { useSyncNow } from "@/core/hooks/useSyncNow";
 import { useHaptics } from "@/core/ports/haptics";
+import { useRuntime } from "@/core/runtime/runtime";
 
 export interface PullToRefresh {
   readonly refreshing: boolean;
@@ -9,16 +9,17 @@ export interface PullToRefresh {
 }
 
 export function usePullToRefresh(): PullToRefresh {
+  const runtime = useRuntime();
   const haptics = useHaptics();
   const { syncing, run } = useSyncNow();
 
   const pull = useCallback(() => {
-    if (readsPausedUntil() > Date.now()) {
+    if (runtime.readsPausedUntil() > Date.now()) {
       haptics.warning();
       return;
     }
     void run();
-  }, [haptics, run]);
+  }, [runtime, haptics, run]);
 
   return { refreshing: syncing, pull };
 }
